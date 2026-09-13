@@ -679,70 +679,61 @@
     return 2;
   }
 
-  const FACES = [
-    { idx: [0, 1, 3, 2], n: [-1, 0, 0] }, // -X
-    { idx: [4, 6, 7, 5], n: [1, 0, 0] },  // +X
-    { idx: [0, 4, 5, 1], n: [0, -1, 0] }, // -Y
-    { idx: [2, 3, 7, 6], n: [0, 1, 0] },  // +Y
-    { idx: [0, 2, 6, 4], n: [0, 0, -1] }, // -Z
-    { idx: [1, 5, 7, 3], n: [0, 0, 1] }   // +Z
-  ];
+  let _sx = new Float32Array(512);
+  let _sy = new Float32Array(512);
+  let _sz = new Float32Array(512);
+
+  function ensureScratch(n) {
+    if (_sx.length >= n) return;
+    let size = _sx.length;
+    while (size < n) size *= 2;
+    _sx = new Float32Array(size);
+    _sy = new Float32Array(size);
+    _sz = new Float32Array(size);
+  }
 
   const _p = [0, 0, 0];
   const _n = [0, 0, 0];
-  const _corners = new Float32Array(24);
-  const _screen = new Float32Array(24);
 
-  function drawBox(target, matrix, box, colourRamp, camera, opts) {
-    const x0 = box.x - 0.01, x1 = box.x + box.w + 0.01;
-    const y0 = box.y - 0.01, y1 = box.y + box.h + 0.01;
-    const z0 = box.z - 0.01, z1 = box.z + box.d + 0.01;
+  /* Draws one convex mesh. Vertices are projected once, then each face is
+   * culled, shaded by orientation and fan-triangulated. */
+  function drawMesh(target, matrix, mesh, colourRamp, camera, opts) {
+    const verts = mesh.verts;
+    const count = verts.length / 3;
+    ensureScratch(count);
 
-    // corner index = (xi<<2) | (yi<<1) | zi
-    const xs = [x0, x1], ys = [y0, y1], zs = [z0, z1];
-    for (let xi = 0; xi < 2; xi++) {
-      for (let yi = 0; yi < 2; yi++) {
-        for (let zi = 0; zi < 2; zi++) {
-          const k = ((xi << 2) | (yi << 1) | zi) * 3;
-          transformPoint(matrix, xs[xi], ys[yi], zs[zi], _p);
-          // world -> view: pitch the whole world forward so we look down on it
-          const vy = _p[1] * camera.cosPitch - _p[2] * camera.sinPitch;
-          const vz = _p[1] * camera.sinPitch + _p[2] * camera.cosPitch;
-          _corners[k] = _p[0];
-          _corners[k + 1] = vy;
-          _corners[k + 2] = vz;
-          _screen[k] = camera.ox + _p[0] * camera.scale;
-          _screen[k + 1] = camera.oy - vy * camera.scale;
-          _screen[k + 2] = -vz;
-        }
-      }
+    for (let i = 0; i < count; i++) {
+      transformPoint(matrix, verts[i * 3], verts[i * 3 + 1], verts[i * 3 + 2], _p);
+      // world -> view: pitch the whole world forward so we look down on it
+      const vy = _p[1] * camera.cosPitch - _p[2] * camera.sinPitch;
+      const vz = _p[1] * camera.sinPitch + _p[2] * camera.cosPitch;
+      _sx[i] = camera.ox + _p[0] * camera.scale;
+      _sy[i] = camera.oy - vy * camera.scale;
+      _sz[i] = -vz;
     }
 
-    for (let f = 0; f < 6; f++) {
-      const face = FACES[f];
+    const flat = !!(opts && opts.flat);
+    const bias = (opts && opts.depthBias) ? opts.depthBias : 0;
+    const faces = mesh.faces;
+
+    for (let f = 0; f < faces.length; f++) {
+      const face = faces[f];
       transformDirection(matrix, face.n[0], face.n[1], face.n[2], _n);
       const ny = _n[1] * camera.cosPitch - _n[2] * camera.sinPitch;
       const nz = _n[1] * camera.sinPitch + _n[2] * camera.cosPitch;
       if (nz <= 0.015) continue; // facing away from the camera
 
-      const colour = (opts && opts.flat)
-        ? colourRamp[2]
-        : colourRamp[shadeLevel(_n[0], ny, nz)];
-
-      const i0 = face.idx[0] * 3, i1 = face.idx[1] * 3;
-      const i2 = face.idx[2] * 3, i3 = face.idx[3] * 3;
-      const bias = opts && opts.depthBias ? opts.depthBias : 0;
-
-      rasterTriangle(target,
-        _screen[i0], _screen[i0 + 1], _screen[i0 + 2] - bias,
-        _screen[i1], _screen[i1 + 1], _screen[i1 + 2] - bias,
-        _screen[i2], _screen[i2 + 1], _screen[i2 + 2] - bias,
-        colour);
-      rasterTriangle(target,
-        _screen[i0], _screen[i0 + 1], _screen[i0 + 2] - bias,
-        _screen[i2], _screen[i2 + 1], _screen[i2 + 2] - bias,
-        _screen[i3], _screen[i3 + 1], _screen[i3 + 2] - bias,
-        colour);
+      const colour = flat ? colourRamp[2] : colourRamp[shadeLevel(_n[0], ny, nz)];
+      const idx = face.i;
+      const i0 = idx[0];
+      for (let k = 1; k < idx.length - 1; k++) {
+        const i1 = idx[k], i2 = idx[k + 1];
+        rasterTriangle(target,
+          _sx[i0], _sy[i0], _sz[i0] - bias,
+          _sx[i1], _sy[i1], _sz[i1] - bias,
+          _sx[i2], _sy[i2], _sz[i2] - bias,
+          colour);
+      }
     }
   }
 
@@ -857,7 +848,7 @@
     identity, multiply, translation, scaling, rotationX, rotationY, rotationZ,
     transformPoint, transformDirection,
     pack, hexToRgb, mixRgb, ramp, buildRamp,
-    createTarget, clearTarget, drawBox, traceOutline, blit,
+    createTarget, clearTarget, drawMesh, traceOutline, blit,
     fillRect, strokeRect, fillEllipse, createPresenter, makeCamera,
     rasterTriangle, shadeLevel
   };
@@ -955,41 +946,49 @@
 
   const BRASS = '#9c7b33';
 
-  /* ---------- box helper ---------- */
+  /* ---------- shape helpers ---------- */
 
-  function b(x, y, z, w, h, d) { return { x: x, y: y, z: z, w: w, h: h, d: d }; }
+  const G = global.Geo;
 
-  /* ---------- hair ----------
-   *
-   * Every piece is anchored to TOP (= hh + 0.5) and overlaps the cap by 1.2
-   * units. Pieces that merely *touched* left a one-pixel seam ringing the
-   * skull once the model was rotated, which is the gap that was showing.
-   */
+  // Must match the skull in character.js, so hair sits concentric with it.
+  const HEAD_E = 0.42;
+  const HAIRLINE = 5.75;   // just clear of the brows, which top out at 5.6
 
-  function top(hh) { return hh + 0.5; }
+  function b(x, y, z, w, h, d) { return G.box(x, y, z, w, h, d); }
 
-  function capBox(hw, hh, hd, thickness) {
-    const t = thickness === undefined ? 2.4 : thickness;
-    return b(-hw / 2 - 0.35, top(hh) - t, -hd / 2 - 0.35, hw + 0.7, t, hd + 0.7);
+  // The crown is a dome *concentric with the skull*, sliced off at the
+  // hairline. Sitting a separate rounded lump on top of the head instead is
+  // what made every character look like they were wearing a mushroom.
+  function crown(hw, hh, hd, hairline, grow) {
+    const g = grow === undefined ? 0.35 : grow;
+    return G.dome(0, hh / 2, 0, hw / 2 + g, hh / 2 + g, hd / 2 + g, HEAD_E,
+      hairline === undefined ? HAIRLINE : hairline, 4, 12);
   }
 
-  function backBox(hw, hh, hd, len, thick) {
-    const t = thick === undefined ? 1.2 : thick;
-    return b(-hw / 2 - 0.35, top(hh) - 1.2 - len, -hd / 2 - 0.35, hw + 0.7, len + 1.2, t);
+  // Hair falling down the back, narrowing as it goes.
+  function fall(hw, hh, hd, len, width, taperTo, fromY) {
+    const w = hw * (width === undefined ? 1 : width);
+    const top = fromY === undefined ? 6.4 : fromY;
+    return G.slab(-w / 2, top - len, -hd / 2 - 0.55, w, len, 1.8, 1,
+      taperTo === undefined ? 0.78 : taperTo);
   }
 
-  function sideBoxes(hw, hh, hd, len, thick) {
-    const t = thick === undefined ? 0.95 : thick;
+  function sideFall(hw, hh, hd, len, taperTo, fromY) {
+    const t = taperTo === undefined ? 0.75 : taperTo;
+    const top = fromY === undefined ? 6.2 : fromY;
     return [
-      b(-hw / 2 - 0.35, top(hh) - 1.2 - len, -hd / 2 - 0.35, t, len + 1.2, hd + 0.7),
-      b(hw / 2 + 0.35 - t, top(hh) - 1.2 - len, -hd / 2 - 0.35, t, len + 1.2, hd + 0.7)
+      G.slab(-hw / 2 - 0.45, top - len, -hd / 2 - 0.1, 1.25, len, hd + 0.2, 1, t),
+      G.slab(hw / 2 - 0.8, top - len, -hd / 2 - 0.1, 1.25, len, hd + 0.2, 1, t)
     ];
   }
 
-  function fringeBox(hw, hh, hd, drop) {
-    const d0 = drop === undefined ? 1.4 : drop;
-    return b(-hw / 2 - 0.35, top(hh) - 1.2 - d0, hd / 2 - 0.55, hw + 0.7, d0 + 1.2, 1.05);
+  // `drop` is how far below the hairline it hangs over the brow.
+  function fringe(hw, hh, hd, drop) {
+    const d0 = drop === undefined ? 0.5 : drop;
+    return G.slab(-hw / 2 + 0.2, HAIRLINE - d0, hd / 2 - 1.1, hw - 0.4, d0 + 0.9, 1.6, 1, 0.92);
   }
+
+  /* ---------- hair ---------- */
 
   const HAIR_STYLES = [
     {
@@ -999,114 +998,114 @@
     {
       id: 'buzz', label: 'Buzzed', femaleBias: 0.06,
       build: function (hw, hh, hd) {
-        return [capBox(hw, hh, hd, 1.6), backBox(hw, hh, hd, 0.6, 0.7)]
-          .concat(sideBoxes(hw, hh, hd, 0.6, 0.6));
+        return [crown(hw, hh, hd, 6.1, 0.18)];
       }
     },
     {
       id: 'crop', label: 'Cropped', femaleBias: 0.18,
       build: function (hw, hh, hd) {
-        return [capBox(hw, hh, hd, 2.2), fringeBox(hw, hh, hd, 0.7), backBox(hw, hh, hd, 1.5)]
-          .concat(sideBoxes(hw, hh, hd, 1.2));
+        return [crown(hw, hh, hd), fringe(hw, hh, hd, 0.45), fall(hw, hh, hd, 1.5, 0.95)];
       }
     },
     {
       id: 'bowl', label: 'Bowl cut', femaleBias: 0.4,
       build: function (hw, hh, hd) {
-        return [capBox(hw, hh, hd), fringeBox(hw, hh, hd, 1.7), backBox(hw, hh, hd, 2.4)]
-          .concat(sideBoxes(hw, hh, hd, 2.4));
+        return [crown(hw, hh, hd, 5.5), fringe(hw, hh, hd, 1.4), fall(hw, hh, hd, 2.6, 1, 0.95)]
+          .concat(sideFall(hw, hh, hd, 2.8, 0.95));
       }
     },
     {
       id: 'sidepart', label: 'Side part', femaleBias: 0.3,
       build: function (hw, hh, hd) {
         return [
-          capBox(hw, hh, hd),
-          // the parting: a thicker sweep on one side, a flat sweep on the other
-          b(-hw / 2 - 0.35, top(hh) - 3.1, hd / 2 - 0.55, hw * 0.6, 1.9, 1.05),
-          b(hw * 0.1, top(hh) - 2.5, hd / 2 - 0.55, hw * 0.4 + 0.35, 1.3, 1.05),
-          backBox(hw, hh, hd, 1.6)
-        ].concat(sideBoxes(hw, hh, hd, 1.5));
+          crown(hw, hh, hd),
+          // a sweep across the brow, thicker on one side
+          G.slab(-hw / 2 + 0.1, HAIRLINE - 0.9, hd / 2 - 1.1, hw * 0.58, 1.9, 1.7, 1, 0.62),
+          G.slab(hw * 0.02, HAIRLINE - 0.3, hd / 2 - 1.1, hw * 0.46, 1.3, 1.6, 1, 0.72),
+          fall(hw, hh, hd, 1.5, 0.95)
+        ];
       }
     },
     {
       id: 'spiky', label: 'Spiked', femaleBias: 0.2,
       build: function (hw, hh, hd) {
-        // A thick cap, then each spike gets a wide base sunk into that cap and a
-        // narrower tip above it, so the spikes read as one joined mass of hair
-        // rather than separate floating blocks.
-        const out = [capBox(hw, hh, hd, 2.6), backBox(hw, hh, hd, 1.0, 0.9)];
-        const t = top(hh);
+        // Real spikes: pyramids rising out of the crown and leaning outward,
+        // rather than stacked cubes pretending to be points.
+        const out = [crown(hw, hh, hd, 6.0, 0.25)];
         const spikes = [
-          [-2.9, -1.9, 2.0], [-0.9, 0.9, 2.7], [1.3, -0.7, 2.2],
-          [2.2, 1.7, 1.7], [-1.6, -2.9, 1.6], [0.4, 2.4, 1.9]
+          [-2.6, -1.7, 3.4, -0.9, -0.7], [-0.5, 0.8, 4.3, -0.2, 0.5],
+          [1.7, -1.0, 3.8, 0.8, -0.5], [2.5, 1.4, 3.0, 1.1, 0.8],
+          [-1.9, 2.4, 3.2, -0.6, 1.0], [0.6, -2.8, 3.6, 0.2, -1.1],
+          [-3.0, 0.6, 2.8, -1.2, 0.3], [1.2, 2.7, 2.6, 0.5, 1.2]
         ];
         for (let i = 0; i < spikes.length; i++) {
-          const sx = spikes[i][0] * (hw / 8), sz = spikes[i][1] * (hd / 8), hgt = spikes[i][2];
-          // The base is buried in the cap and the tip is buried in the base —
-          // each pair overlaps by a full unit, so the spikes read as one mass
-          // of hair rising out of the scalp rather than floating blocks.
-          out.push(b(sx, t - 1.4, sz, 2.2, 2.2, 2.2));
-          out.push(b(sx + 0.45, t - 0.4, sz + 0.45, 1.3, hgt + 1.1, 1.3));
+          const sx = spikes[i][0] * (hw / 8), sz = spikes[i][1] * (hd / 8);
+          const len = spikes[i][2], lx = spikes[i][3], lz = spikes[i][4];
+          out.push(G.pyramid(sx - 1.2, hh - 1.7, sz - 1.2, 2.4, len, 2.4, lx, lz));
         }
-        return out.concat(sideBoxes(hw, hh, hd, 0.8, 0.7));
+        return out;
       }
     },
     {
       id: 'mohawk', label: 'Mohawk', femaleBias: 0.25,
       build: function (hw, hh, hd) {
-        const t = top(hh);
-        return [
-          b(-hw / 2 - 0.35, t - 1.3, -hd / 2 - 0.35, hw + 0.7, 1.3, hd + 0.7),
-          b(-1.1, t - 0.6, -hd / 2 - 0.2, 2.2, 2.0, hd + 0.4),
-          b(-0.8, t + 1.2, -hd / 2 + 0.4, 1.6, 1.4, hd - 0.4)
-        ];
+        const out = [crown(hw, hh, hd, 6.6, 0.14)];
+        for (let i = 0; i < 5; i++) {
+          const t = i / 4;
+          const sz = -hd / 2 + 0.6 + t * (hd - 1.2);
+          const hgt = 2.2 + Math.sin(t * Math.PI) * 1.6;
+          out.push(G.pyramid(-1.0, hh - 1.6, sz - 0.9, 2.0, hgt, 1.8, 0, 0));
+        }
+        return out;
       }
     },
     {
       id: 'topknot', label: 'Top knot', femaleBias: 0.45,
       build: function (hw, hh, hd) {
         return [
-          capBox(hw, hh, hd, 2.2),
-          b(-1.7, top(hh) - 0.6, -1.7, 3.4, 2.4, 3.4),
-          backBox(hw, hh, hd, 1.4)
-        ].concat(sideBoxes(hw, hh, hd, 1.2));
+          crown(hw, hh, hd),
+          G.taper(-0.9, hh + 0.1, -0.9, 1.8, 1.3, 1.8, 0.8),
+          G.superellipsoid(0, hh + 2.0, 0, 1.8, 1.6, 1.8, 0.85, 4, 8),
+          fall(hw, hh, hd, 1.3, 0.9)
+        ];
       }
     },
     {
       id: 'shoulder', label: 'Shoulder length', femaleBias: 0.66,
       build: function (hw, hh, hd) {
-        return [capBox(hw, hh, hd), fringeBox(hw, hh, hd, 1.3), backBox(hw, hh, hd, 5.2, 1.4)]
-          .concat(sideBoxes(hw, hh, hd, 4.4, 1.1));
+        return [crown(hw, hh, hd), fringe(hw, hh, hd, 0.7), fall(hw, hh, hd, 5.6, 1.0, 0.72)]
+          .concat(sideFall(hw, hh, hd, 4.6, 0.7));
       }
     },
     {
       id: 'long', label: 'Long', femaleBias: 0.78,
       build: function (hw, hh, hd) {
-        return [capBox(hw, hh, hd), fringeBox(hw, hh, hd, 1.2), backBox(hw, hh, hd, 9.0, 1.5)]
-          .concat(sideBoxes(hw, hh, hd, 6.6, 1.2));
+        return [crown(hw, hh, hd), fringe(hw, hh, hd, 0.6), fall(hw, hh, hd, 9.8, 1.02, 0.6)]
+          .concat(sideFall(hw, hh, hd, 7.0, 0.62));
       }
     },
     {
       id: 'ponytail', label: 'Ponytail', femaleBias: 0.7,
       build: function (hw, hh, hd) {
         return [
-          capBox(hw, hh, hd), backBox(hw, hh, hd, 1.6),
-          b(-1.2, top(hh) - 4.2, -hd / 2 - 1.9, 2.4, 2.2, 1.8),
-          b(-1.0, top(hh) - 9.2, -hd / 2 - 2.3, 2.0, 5.2, 1.7)
-        ].concat(sideBoxes(hw, hh, hd, 1.6));
+          crown(hw, hh, hd),
+          fall(hw, hh, hd, 1.5, 0.95),
+          G.superellipsoid(0, 6.0, -hd / 2 - 1.2, 1.5, 1.3, 1.3, 0.8, 4, 8),
+          // the tail itself, tapering and swept back
+          G.slab(-1.1, 0.4, -hd / 2 - 2.8, 2.2, 5.6, 2.2, 0.45, 1.0, 0, -0.9)
+        ];
       }
     },
     {
       id: 'braids', label: 'Twin braids', femaleBias: 0.85,
       build: function (hw, hh, hd) {
-        const out = [capBox(hw, hh, hd), fringeBox(hw, hh, hd, 1.2), backBox(hw, hh, hd, 2.2)]
-          .concat(sideBoxes(hw, hh, hd, 2.0));
+        const out = [crown(hw, hh, hd), fringe(hw, hh, hd, 0.6), fall(hw, hh, hd, 2.0, 1)];
         for (let side = 0; side < 2; side++) {
-          const sx = side === 0 ? -hw / 2 - 1.1 : hw / 2 - 0.4;
-          for (let k = 0; k < 4; k++) {
-            const w = 1.6 - k * 0.16;
-            out.push(b(sx + (1.5 - w) / 2, top(hh) - 3.6 - k * 1.7, -0.9 - k * 0.22, w, 1.8, 1.7));
+          const sx = side === 0 ? -hw / 2 - 0.9 : hw / 2 - 0.9;
+          for (let k = 0; k < 5; k++) {
+            const w = 1.9 - k * 0.22;
+            out.push(G.superellipsoid(sx + 0.9, 5.4 - k * 1.55, -0.5 - k * 0.3,
+              w / 2, 0.95, w / 2, 0.75, 3, 7));
           }
         }
         return out;
@@ -1116,26 +1115,25 @@
       id: 'pigtails', label: 'Pigtails', femaleBias: 0.88,
       build: function (hw, hh, hd) {
         return [
-          capBox(hw, hh, hd), fringeBox(hw, hh, hd, 1.3), backBox(hw, hh, hd, 1.8),
-          b(-hw / 2 - 2.3, top(hh) - 4.6, -1.5, 2.5, 2.9, 2.9),
-          b(hw / 2 - 0.2, top(hh) - 4.6, -1.5, 2.5, 2.9, 2.9)
-        ].concat(sideBoxes(hw, hh, hd, 2.0));
+          crown(hw, hh, hd), fringe(hw, hh, hd, 0.6), fall(hw, hh, hd, 1.7, 0.95),
+          G.superellipsoid(-hw / 2 - 1.0, 5.6, -0.4, 2.0, 1.9, 1.9, 0.8, 4, 8),
+          G.superellipsoid(hw / 2 + 1.0, 5.6, -0.4, 2.0, 1.9, 1.9, 0.8, 4, 8)
+        ];
       }
     },
     {
       id: 'curly', label: 'Curled', femaleBias: 0.55,
       build: function (hw, hh, hd) {
-        // overlapping puffs, each sunk into the cap so no seams open up
-        const out = [capBox(hw, hh, hd, 2.2)].concat(sideBoxes(hw, hh, hd, 1.6));
-        const t = top(hh);
-        const puffs = [
-          [-hw / 2 - 0.9, t - 2.0, -1.7], [hw / 2 - 1.4, t - 2.0, -1.7],
-          [-hw / 2 - 0.8, t - 3.9, -2.4], [hw / 2 - 1.5, t - 3.9, -2.4],
-          [-2.4, t - 0.9, -hd / 2 - 1.1], [0.3, t - 0.9, -hd / 2 - 1.1],
-          [-2.5, t - 0.7, hd / 2 - 1.2], [0.4, t - 0.7, hd / 2 - 1.2]
+        // a mass of overlapping balls rather than a slab
+        const out = [crown(hw, hh, hd, 5.6, 0.25)];
+        const ring = [
+          [-3.4, 0.4, -1.6], [3.4, 0.4, -1.6], [-3.2, -1.6, -2.0], [3.2, -1.6, -2.0],
+          [-2.2, 1.4, -4.0], [1.4, 1.4, -4.0], [-2.4, 1.2, 3.2], [1.6, 1.2, 3.2],
+          [-1.0, 2.4, 0.0], [1.6, 2.2, -2.2], [0.0, -1.8, -4.2]
         ];
-        for (let i = 0; i < puffs.length; i++) {
-          out.push(b(puffs[i][0], puffs[i][1], puffs[i][2], 2.4, 2.4, 2.4));
+        for (let i = 0; i < ring.length; i++) {
+          out.push(G.superellipsoid(ring[i][0], 6.6 + ring[i][1], ring[i][2],
+            1.5, 1.4, 1.5, 0.85, 3, 7));
         }
         return out;
       }
@@ -1144,17 +1142,17 @@
       id: 'bun', label: 'Coiled bun', femaleBias: 0.82,
       build: function (hw, hh, hd) {
         return [
-          capBox(hw, hh, hd), fringeBox(hw, hh, hd, 1.0), backBox(hw, hh, hd, 2.0),
-          b(-2.0, top(hh) - 3.4, -hd / 2 - 2.5, 4.0, 3.6, 2.8)
-        ].concat(sideBoxes(hw, hh, hd, 2.4));
+          crown(hw, hh, hd), fringe(hw, hh, hd, 0.45), fall(hw, hh, hd, 1.6, 0.95),
+          G.superellipsoid(0, 6.4, -hd / 2 - 1.9, 2.4, 2.2, 2.0, 0.8, 4, 9)
+        ];
       }
     }
   ];
 
   /* ---------- moustaches ----------
    *
-   * Separate from beards, and always seated below the nose (the nose bottoms
-   * out at y 2.5, the mouth starts at 1.9).
+   * Always seated below the nose (which bottoms out at y 2.5) and above the
+   * mouth (which starts at 1.9). They sit proud of the face, not flush to it.
    */
 
   const MOUSTACHE_Y = 1.92;
@@ -1164,40 +1162,38 @@
     {
       id: 'thin', label: 'Thin', maleBias: 0.14,
       build: function (hw, hh, hd) {
-        return [b(-1.7, MOUSTACHE_Y + 0.1, hd / 2 - 0.12, 3.4, 0.5, 0.62)];
+        return [G.slab(-1.7, MOUSTACHE_Y + 0.1, hd / 2 - 0.15, 3.4, 0.5, 0.85, 1, 0.8)];
       }
     },
     {
       id: 'full', label: 'Full', maleBias: 0.18,
       build: function (hw, hh, hd) {
-        return [b(-2.1, MOUSTACHE_Y, hd / 2 - 0.12, 4.2, 0.72, 0.72)];
+        return [G.slab(-2.1, MOUSTACHE_Y, hd / 2 - 0.2, 4.2, 0.8, 1.1, 0.85, 1)];
       }
     },
     {
       id: 'handlebar', label: 'Handlebar', maleBias: 0.1,
       build: function (hw, hh, hd) {
         return [
-          b(-2.0, MOUSTACHE_Y, hd / 2 - 0.12, 4.0, 0.68, 0.7),
-          b(-2.9, MOUSTACHE_Y + 0.5, hd / 2 - 0.12, 0.9, 0.62, 0.66),
-          b(2.0, MOUSTACHE_Y + 0.5, hd / 2 - 0.12, 0.9, 0.62, 0.66)
+          G.slab(-2.0, MOUSTACHE_Y, hd / 2 - 0.2, 4.0, 0.7, 1.0, 0.9, 1),
+          // curled ends, tapering to a point and sweeping upward
+          G.taper(-3.1, MOUSTACHE_Y + 0.3, hd / 2 - 0.15, 1.2, 1.1, 0.85, 0.25, -0.35, 0),
+          G.taper(1.9, MOUSTACHE_Y + 0.3, hd / 2 - 0.15, 1.2, 1.1, 0.85, 0.25, 0.35, 0)
         ];
       }
     },
     {
       id: 'walrus', label: 'Walrus', maleBias: 0.09,
       build: function (hw, hh, hd) {
-        return [
-          b(-2.4, MOUSTACHE_Y - 0.35, hd / 2 - 0.12, 4.8, 1.05, 0.8),
-          b(-2.0, MOUSTACHE_Y - 0.75, hd / 2 - 0.1, 4.0, 0.5, 0.7)
-        ];
+        return [G.slab(-2.5, MOUSTACHE_Y - 0.9, hd / 2 - 0.25, 5.0, 1.7, 1.3, 1, 0.78)];
       }
     }
   ];
 
   /* ---------- beards ----------
    *
-   * No moustache component anywhere in here; the two are chosen independently.
-   * Side panels stop short of the cheekbone so the face stays readable.
+   * No moustache component anywhere in here. Long beards hang off the chin and
+   * taper to a point rather than being a brick glued to the jaw.
    */
 
   const BEARDS = [
@@ -1205,25 +1201,21 @@
     {
       id: 'stubble', label: 'Stubble', maleBias: 0.18,
       build: function (hw, hh, hd) {
-        return [
-          b(-hw / 2 + 0.2, 0.35, hd / 2 - 0.1, hw - 0.4, 1.5, 0.4),
-          b(-hw / 2 - 0.4, 0.35, -hd / 2 + 1.6, 0.4, 1.9, hd - 1.6),
-          b(hw / 2, 0.35, -hd / 2 + 1.6, 0.4, 1.9, hd - 1.6)
-        ];
+        return [G.superellipsoid(0, 1.1, 0.35, hw / 2 + 0.12, 1.7, hd / 2 + 0.12, 0.45, 4, 9)];
       }
     },
     {
       id: 'chin', label: 'Chin patch', maleBias: 0.09,
       build: function (hw, hh, hd) {
-        return [b(-1.1, 0.25, hd / 2 - 0.12, 2.2, 1.3, 0.7)];
+        return [G.slab(-1.1, 0.2, hd / 2 - 0.4, 2.2, 1.4, 1.1, 0.8, 1)];
       }
     },
     {
       id: 'goatee', label: 'Goatee', maleBias: 0.12,
       build: function (hw, hh, hd) {
         return [
-          b(-1.3, 0.1, hd / 2 - 0.12, 2.6, 1.8, 0.75),
-          b(-1.0, -1.4, hd / 2 - 0.5, 2.0, 1.5, 1.2)
+          G.slab(-1.3, 0.0, hd / 2 - 0.5, 2.6, 1.8, 1.3, 0.85, 1),
+          G.taper(-1.0, -2.2, hd / 2 - 0.6, 2.0, 2.3, 1.3, 0.3, 0, 0.2)
         ];
       }
     },
@@ -1231,8 +1223,8 @@
       id: 'chops', label: 'Mutton chops', maleBias: 0.06,
       build: function (hw, hh, hd) {
         return [
-          b(-hw / 2 - 0.5, 1.0, -hd / 2 + 1.8, 0.65, 2.8, hd - 1.6),
-          b(hw / 2 - 0.15, 1.0, -hd / 2 + 1.8, 0.65, 2.8, hd - 1.6)
+          G.slab(-hw / 2 - 0.55, 0.9, -hd / 2 + 1.6, 1.0, 3.0, hd - 1.4, 1, 0.55),
+          G.slab(hw / 2 - 0.45, 0.9, -hd / 2 + 1.6, 1.0, 3.0, hd - 1.4, 1, 0.55)
         ];
       }
     },
@@ -1240,10 +1232,8 @@
       id: 'short', label: 'Short beard', maleBias: 0.13,
       build: function (hw, hh, hd) {
         return [
-          b(-hw / 2 + 0.1, 0.0, hd / 2 - 0.12, hw - 0.2, 1.9, 0.8),
-          b(-hw / 2 - 0.5, 0.0, -hd / 2 + 1.4, 0.6, 2.4, hd - 1.3),
-          b(hw / 2 - 0.1, 0.0, -hd / 2 + 1.4, 0.6, 2.4, hd - 1.3),
-          b(-hw / 2 + 0.7, -0.9, hd / 2 - 1.7, hw - 1.4, 1.1, 1.9)
+          G.superellipsoid(0, 0.8, 0.5, hw / 2 + 0.25, 2.1, hd / 2 + 0.25, 0.45, 4, 9),
+          G.slab(-hw / 2 + 0.7, -1.2, hd / 2 - 1.9, hw - 1.4, 1.6, 2.2, 1, 0.75)
         ];
       }
     },
@@ -1251,10 +1241,8 @@
       id: 'full', label: 'Full beard', maleBias: 0.08,
       build: function (hw, hh, hd) {
         return [
-          b(-hw / 2 - 0.1, -0.9, hd / 2 - 0.15, hw + 0.2, 2.7, 0.92),
-          b(-hw / 2 - 0.55, -0.5, -hd / 2 + 1.0, 0.68, 3.2, hd - 0.9),
-          b(hw / 2 - 0.13, -0.5, -hd / 2 + 1.0, 0.68, 3.2, hd - 0.9),
-          b(-hw / 2 + 0.6, -2.6, hd / 2 - 2.2, hw - 1.2, 1.9, 2.4)
+          G.superellipsoid(0, 0.5, 0.6, hw / 2 + 0.4, 2.4, hd / 2 + 0.4, 0.45, 5, 10),
+          G.slab(-hw / 2 + 0.4, -3.0, hd / 2 - 2.4, hw - 0.8, 3.2, 2.8, 1, 0.7)
         ];
       }
     },
@@ -1262,11 +1250,10 @@
       id: 'long', label: 'Long beard', maleBias: 0.04,
       build: function (hw, hh, hd) {
         return [
-          b(-hw / 2 - 0.1, -1.3, hd / 2 - 0.15, hw + 0.2, 3.1, 0.92),
-          b(-hw / 2 - 0.55, -0.9, -hd / 2 + 1.0, 0.68, 3.6, hd - 0.9),
-          b(hw / 2 - 0.13, -0.9, -hd / 2 + 1.0, 0.68, 3.6, hd - 0.9),
-          b(-hw / 2 + 0.7, -4.6, hd / 2 - 2.5, hw - 1.4, 3.4, 2.7),
-          b(-1.7, -7.0, hd / 2 - 2.3, 3.4, 2.5, 2.3)
+          G.superellipsoid(0, 0.3, 0.6, hw / 2 + 0.4, 2.5, hd / 2 + 0.4, 0.45, 5, 10),
+          G.slab(-hw / 2 + 0.5, -4.4, hd / 2 - 2.5, hw - 1.0, 4.4, 2.9, 1, 0.66),
+          // it hangs free of the chin and comes to a point
+          G.taper(-1.7, -8.0, hd / 2 - 2.2, 3.4, 3.8, 2.4, 0.22, 0, 0.1)
         ];
       }
     }
@@ -1563,8 +1550,8 @@
     return { name: name, origin: origin, rot: [0, 0, 0], parts: [], children: [] };
   }
 
-  function part(box, colour, opts) {
-    const p = { box: box, colour: colour };
+  function part(mesh, colour, opts) {
+    const p = { mesh: mesh, colour: colour };
     if (opts) { for (const k in opts) p[k] = opts[k]; }
     return p;
   }
@@ -1574,6 +1561,7 @@
     const c = resolve(ch);
     const g = c.garment;
     const B = P.box;
+    const G = global.Geo;
 
     const root = bone('root', [0, 0, 0]);
     root.scale = d.heightScale;
@@ -1635,9 +1623,14 @@
 
     /* ---- head ---- */
     const head = bone('head', [0, d.torsoH + d.neckH, 0]);
-    head.parts.push(part(B(-d.headW / 2, 0, -d.headD / 2, d.headW, d.headH, d.headD), c.skin));
-    head.parts.push(part(B(-d.headW / 2 - 0.7, 3.2, -0.9, 0.8, 2.2, 1.9), c.skin));
-    head.parts.push(part(B(d.headW / 2 - 0.1, 3.2, -0.9, 0.8, 2.2, 1.9), c.skin));
+    // A rounded solid, not a cube. A hard-edged box head is the single
+    // biggest reason these characters read as wrong.
+    head.parts.push(part(G.superellipsoid(0, d.headH / 2, 0,
+      d.headW / 2, d.headH / 2, d.headD / 2, 0.42, 6, 12), c.skin));
+    head.parts.push(part(G.superellipsoid(-d.headW / 2 - 0.15, 4.2, 0,
+      0.55, 1.15, 0.95, 0.7, 3, 7), c.skin));
+    head.parts.push(part(G.superellipsoid(d.headW / 2 + 0.15, 4.2, 0,
+      0.55, 1.15, 0.95, 0.7, 3, 7), c.skin));
 
     const hairBoxes = c.hairStyle.build(d.headW, d.headH, d.headD);
     for (let i = 0; i < hairBoxes.length; i++) head.parts.push(part(hairBoxes[i], c.hair));
@@ -1650,7 +1643,8 @@
 
     // the nose is a real protruding box so profiles read correctly
     head.parts.push(part(
-      B(-c.nose.w / 2, NOSE_BOTTOM, d.headD / 2 - 0.25, c.nose.w, c.nose.h, c.nose.len + 0.25), c.skin));
+      G.slab(-c.nose.w / 2, NOSE_BOTTOM, d.headD / 2 - 0.55, c.nose.w, c.nose.h,
+        c.nose.len + 0.75, 0.72, 1, 0, -c.nose.len * 0.35), c.skin));
 
     torso.children.push(head);
 
@@ -1663,7 +1657,8 @@
       const sign = right ? -1 : 1;
       const upper = bone(right ? 'armR' : 'armL', [sign * shoulderX, shoulderY, 0]);
       upper.parts.push(part(
-        B(-d.armW / 2, -d.upperArmH, -d.armW / 2, d.armW, d.upperArmH, d.armW), c.tunic));
+        G.slab(-d.armW / 2, -d.upperArmH, -d.armW / 2, d.armW, d.upperArmH, d.armW, 1, 0.88),
+        c.tunic));
 
       const fore = bone(right ? 'foreR' : 'foreL', [0, -d.upperArmH, 0]);
       const foreW = d.armW * 0.92;
@@ -1676,11 +1671,12 @@
           B(-foreW / 2, -d.lowerArmH, -foreW / 2, foreW, d.lowerArmH * 0.4, foreW), c.skin));
       } else {
         fore.parts.push(part(
-          B(-foreW / 2, -d.lowerArmH, -foreW / 2, foreW, d.lowerArmH, foreW), c.skin));
+          G.slab(-foreW / 2, -d.lowerArmH, -foreW / 2, foreW, d.lowerArmH, foreW, 1, 0.85),
+          c.skin));
       }
       fore.parts.push(part(
-        B(-d.armW / 2 - 0.1, -d.lowerArmH - 1.6, -d.armW / 2 - 0.1,
-          d.armW + 0.2, 1.7, d.armW + 0.2), c.skin));
+        G.superellipsoid(0, -d.lowerArmH - 0.75, 0,
+          d.armW / 2 + 0.15, 0.95, d.armW / 2 + 0.15, 0.6, 3, 7), c.skin));
       upper.children.push(fore);
       torso.children.push(upper);
     }
@@ -1692,12 +1688,14 @@
       const sign = right ? -1 : 1;
       const upper = bone(right ? 'legR' : 'legL', [sign * hipX, 0, 0]);
       upper.parts.push(part(
-        B(-d.legW / 2, -d.upperLegH, -d.legW / 2, d.legW, d.upperLegH, d.legW), c.trouser));
+        G.slab(-d.legW / 2, -d.upperLegH, -d.legW / 2, d.legW, d.upperLegH, d.legW, 1, 0.9),
+        c.trouser));
 
       const shin = bone(right ? 'shinR' : 'shinL', [0, -d.upperLegH, 0]);
       const shinW = d.legW * 0.94;
       shin.parts.push(part(
-        B(-shinW / 2, -d.lowerLegH, -shinW / 2, shinW, d.lowerLegH, shinW), c.trouser));
+        G.slab(-shinW / 2, -d.lowerLegH, -shinW / 2, shinW, d.lowerLegH, shinW, 1, 0.82),
+        c.trouser));
       // a turned-down boot cuff, then the boot itself with a toe
       shin.parts.push(part(
         B(-d.legW / 2 - 0.25, -d.lowerLegH + 1.6, -d.legW / 2 - 0.25,
@@ -1760,7 +1758,7 @@
     const B = P.box;
     const out = [];
 
-    const front = d.headD / 2;
+    const front = d.headD / 2 + 0.08;
     const shape = c.eyeShape;
     const brow = c.brow;
     const blink = state && state.blink ? state.blink : 0;
@@ -2116,143 +2114,352 @@
     addRot(model, 'legR', -0.2 * amount, 0, 0);
   }
 
-  /* ---------- knockdowns ---------- */
+  /* ---------- ragdoll ----------
+   *
+   * A real articulated ragdoll: sixteen verlet particles joined by distance
+   * constraints, falling under gravity onto a ground plane. Limbs swing and
+   * settle independently, which a single rigid body tipping about the feet
+   * could never do.
+   *
+   * The simulation runs in actor-local model units with y = 0 as the ground.
+   * It is re-centred on the pelvis each frame and the drift handed back to the
+   * actor's world position, so a body that tumbles actually travels.
+   */
+
+  const JOINT_NAMES = [
+    'pelvis', 'chest', 'neck', 'headTop',
+    'shoulderR', 'elbowR', 'handR', 'shoulderL', 'elbowL', 'handL',
+    'hipR', 'kneeR', 'footR', 'hipL', 'kneeL', 'footL'
+  ];
+
+  // [a, b, stiffness] — the bracing links keep the torso from folding flat.
+  const RAGDOLL_LINKS = [
+    ['pelvis', 'chest', 1], ['chest', 'neck', 1], ['neck', 'headTop', 1],
+    ['chest', 'shoulderR', 1], ['shoulderR', 'elbowR', 1], ['elbowR', 'handR', 1],
+    ['chest', 'shoulderL', 1], ['shoulderL', 'elbowL', 1], ['elbowL', 'handL', 1],
+    ['pelvis', 'hipR', 1], ['hipR', 'kneeR', 1], ['kneeR', 'footR', 1],
+    ['pelvis', 'hipL', 1], ['hipL', 'kneeL', 1], ['kneeL', 'footL', 1],
+    ['shoulderR', 'shoulderL', 0.9], ['hipR', 'hipL', 0.9],
+    ['shoulderR', 'pelvis', 0.55], ['shoulderL', 'pelvis', 0.55],
+    ['chest', 'hipR', 0.55], ['chest', 'hipL', 0.55],
+    ['neck', 'shoulderR', 0.7], ['neck', 'shoulderL', 0.7],
+    // loose limits so elbows and knees cannot hyperextend into the torso
+    ['shoulderR', 'handR', 0.12], ['shoulderL', 'handL', 0.12],
+    ['hipR', 'footR', 0.12], ['hipL', 'footL', 0.12]
+  ];
+
+  const PARTICLE_RADIUS = { headTop: 2.4, chest: 1.9, pelvis: 1.8 };
+  const GRAVITY = 130;         // model units per second squared
+  const SUBSTEP = 1 / 120;
+  const ITERATIONS = 8;
+
+  // Which segment drives each bone, and whether the bone's local +Y or -Y runs
+  // along it. Arms and legs hang along -Y; the torso and head rise along +Y.
+  const BONE_SEGMENTS = [
+    { bone: 'pelvis', from: 'pelvis', to: 'chest', axis: 1 },
+    { bone: 'torso', from: 'pelvis', to: 'chest', axis: 1 },
+    { bone: 'head', from: 'neck', to: 'headTop', axis: 1 },
+    { bone: 'armR', from: 'shoulderR', to: 'elbowR', axis: -1 },
+    { bone: 'foreR', from: 'elbowR', to: 'handR', axis: -1 },
+    { bone: 'armL', from: 'shoulderL', to: 'elbowL', axis: -1 },
+    { bone: 'foreL', from: 'elbowL', to: 'handL', axis: -1 },
+    { bone: 'legR', from: 'hipR', to: 'kneeR', axis: -1 },
+    { bone: 'shinR', from: 'kneeR', to: 'footR', axis: -1 },
+    { bone: 'legL', from: 'hipL', to: 'kneeL', axis: -1 },
+    { bone: 'shinL', from: 'kneeL', to: 'footL', axis: -1 }
+  ];
+
+  // Walks the posed bone tree and reports where each joint actually is, in
+  // model units with the feet at the origin. Used both to seed the ragdoll and
+  // to give it something to stand back up into.
+  const _jp = [0, 0, 0];
+  function jointPositions(model, yaw) {
+    const d = model.dims;
+    const base = R.rotationY(yaw);
+
+    (function walk(node, parent) {
+      let local = R.translation(node.origin[0], node.origin[1], node.origin[2]);
+      if (node.rot[2]) local = R.multiply(local, R.rotationZ(node.rot[2]));
+      if (node.rot[1]) local = R.multiply(local, R.rotationY(node.rot[1]));
+      if (node.rot[0]) local = R.multiply(local, R.rotationX(node.rot[0]));
+      node._m = R.multiply(parent, local);
+      for (let i = 0; i < node.children.length; i++) walk(node.children[i], node._m);
+    })(model.root, base);
+
+    const out = {};
+    function at(boneName, lx, ly, lz, key) {
+      const b = model.bones[boneName];
+      if (!b) return;
+      R.transformPoint(b._m, lx, ly, lz, _jp);
+      out[key] = [_jp[0], _jp[1], _jp[2]];
+    }
+
+    at('pelvis', 0, 0, 0, 'pelvis');
+    at('torso', 0, d.torsoH * 0.92, 0, 'chest');
+    at('head', 0, 0, 0, 'neck');
+    at('head', 0, d.headH, 0, 'headTop');
+    at('armR', 0, 0, 0, 'shoulderR');
+    at('armR', 0, -d.upperArmH, 0, 'elbowR');
+    at('foreR', 0, -d.lowerArmH, 0, 'handR');
+    at('armL', 0, 0, 0, 'shoulderL');
+    at('armL', 0, -d.upperArmH, 0, 'elbowL');
+    at('foreL', 0, -d.lowerArmH, 0, 'handL');
+    at('legR', 0, 0, 0, 'hipR');
+    at('legR', 0, -d.upperLegH, 0, 'kneeR');
+    at('shinR', 0, -d.lowerLegH, 0, 'footR');
+    at('legL', 0, 0, 0, 'hipL');
+    at('legL', 0, -d.upperLegH, 0, 'kneeL');
+    at('shinL', 0, -d.lowerLegH, 0, 'footL');
+    return out;
+  }
 
   function createFall() {
-    return {
-      active: false,
-      state: 'up',        // up | falling | down | rising
-      pitch: 0, roll: 0,  // tip about the feet, in the actor's own frame
-      pitchVel: 0, rollVel: 0,
-      timer: 0,
-      sprawl: null,
-      blend: 0
-    };
+    return { active: false, state: 'up', p: null, links: null, timer: 0, still: 0, rise: 0 };
   }
 
-  const FLAT = Math.PI / 2;
-  const GRAVITY_TORQUE = 11.0;
-
-  function randomSprawl(rng) {
-    const r = function (a) { return (rng() - 0.5) * 2 * a; };
-    return {
-      armR: [-1.1 + r(0.5), r(0.3), 0.7 + r(0.4)],
-      armL: [-0.9 + r(0.5), r(0.3), -0.75 + r(0.4)],
-      foreR: [-0.7 + r(0.5), 0, r(0.3)],
-      foreL: [-0.6 + r(0.5), 0, r(0.3)],
-      legR: [-0.35 + r(0.4), 0, 0.32 + r(0.25)],
-      legL: [0.3 + r(0.4), 0, -0.28 + r(0.25)],
-      shinR: [0.5 + r(0.4), 0, 0],
-      shinL: [0.35 + r(0.4), 0, 0],
-      torso: [r(0.2), r(0.3), r(0.15)],
-      head: [0.2 + r(0.25), r(0.4), r(0.2)]
-    };
+  function distanceBetween(a, b) {
+    return Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
   }
 
-  // dirX/dirY is the world-space push direction; force scales the tip impulse.
+  // dirX/dirY is the world push direction (world y is depth, which is local z).
   function knockDown(actor, dirX, dirY, force) {
     const f = actor.fall;
+    const model = actor.model;
+
+    // pose the model as it currently stands, then read the joints off it
+    poseActor(actor, quantiseTime(actor.animTime));
+    const joints = jointPositions(model, actor.yaw);
+
+    const reuse = f.active && f.p;
+    const p = reuse ? f.p : {};
     const len = Math.hypot(dirX, dirY) || 1;
-    const wx = dirX / len, wy = dirY / len;
+    const px = dirX / len, pz = dirY / len;
+    const impulse = Math.max(2.0, Math.min(9.0, force)) * SUBSTEP * 7.5;
 
-    // rotate the world push into the actor's own frame
-    const cos = Math.cos(actor.yaw), sin = Math.sin(actor.yaw);
-    const lx = wx * cos - wy * sin;
-    const lz = wx * sin + wy * cos;
+    let tallest = 1;
+    for (let i = 0; i < JOINT_NAMES.length; i++) {
+      const k = JOINT_NAMES[i];
+      if (joints[k] && joints[k][1] > tallest) tallest = joints[k][1];
+    }
 
-    const impulse = Math.max(2.6, Math.min(7.5, force));
+    for (let i = 0; i < JOINT_NAMES.length; i++) {
+      const k = JOINT_NAMES[i];
+      const j = joints[k];
+      if (!j) continue;
+      if (!reuse) {
+        p[k] = { x: j[0], y: j[1], z: j[2], px: j[0], py: j[1], pz: j[2],
+          r: PARTICLE_RADIUS[k] || 1.2 };
+      }
+      const q = p[k];
+      // A push that scales with height topples rather than slides: the feet
+      // barely move, the shoulders take the hit.
+      const lever = 0.25 + 1.5 * (q.y / tallest);
+      q.px -= px * impulse * lever;
+      q.pz -= pz * impulse * lever;
+      q.py -= impulse * 0.16 * lever;
+    }
+
+    if (!reuse) {
+      const links = [];
+      for (let i = 0; i < RAGDOLL_LINKS.length; i++) {
+        const a = RAGDOLL_LINKS[i][0], b = RAGDOLL_LINKS[i][1];
+        if (!joints[a] || !joints[b]) continue;
+        links.push({ a: a, b: b, len: distanceBetween(joints[a], joints[b]),
+          stiff: RAGDOLL_LINKS[i][2] });
+      }
+      f.links = links;
+      f.p = p;
+    }
+
     f.active = true;
     f.state = 'falling';
-    // pushed forward tips the top forward (+pitch); pushed to +X tips to -roll
-    f.pitchVel += lz * impulse;
-    f.rollVel += -lx * impulse;
     f.timer = 0;
-    f.sprawl = randomSprawl(actor.rng);
+    f.still = 0;
+    f.rise = 0;
     actor.gait = 'idle';
     actor.speaking = false;
     actor.viseme = 'rest';
     return true;
   }
 
-  function updateFall(actor, dt) {
-    const f = actor.fall;
-    if (!f.active) return;
+  function simulate(f, dt) {
+    const p = f.p;
+    const gStep = GRAVITY * dt * dt;
 
-    if (f.state === 'falling' || f.state === 'down') {
-      // gravity keeps pulling it over once it is past upright
-      f.pitchVel += Math.sin(f.pitch) * GRAVITY_TORQUE * dt;
-      f.rollVel += Math.sin(f.roll) * GRAVITY_TORQUE * dt;
-      f.pitch += f.pitchVel * dt;
-      f.roll += f.rollVel * dt;
-
-      const total = Math.hypot(f.pitch, f.roll);
-      if (total >= FLAT) {
-        // hit the ground: clamp flat and bleed off the remaining spin
-        const scale = FLAT / total;
-        f.pitch *= scale;
-        f.roll *= scale;
-        f.pitchVel *= -0.22;
-        f.rollVel *= -0.22;
-        if (Math.hypot(f.pitchVel, f.rollVel) < 0.6) {
-          f.pitchVel = 0; f.rollVel = 0;
-          if (f.state !== 'down') { f.state = 'down'; f.timer = 0.9 + actor.rng() * 1.1; }
-        }
-      }
-      f.blend = Math.min(1, f.blend + dt * 6);
-
-      if (f.state === 'down') {
-        f.timer -= dt;
-        if (f.timer <= 0) { f.state = 'rising'; f.timer = 0; }
-      }
-      return;
+    for (const k in p) {
+      const q = p[k];
+      const vx = (q.x - q.px) * 0.992;
+      const vy = (q.y - q.py) * 0.992;
+      const vz = (q.z - q.pz) * 0.992;
+      q.px = q.x; q.py = q.y; q.pz = q.z;
+      q.x += vx;
+      q.y += vy - gStep;
+      q.z += vz;
     }
 
-    if (f.state === 'rising') {
-      // spring back upright over about a second
-      f.timer += dt;
-      const k = Math.min(1, f.timer / 1.15);
-      const ease = k * k * (3 - 2 * k);
-      f.pitch *= (1 - ease * 0.35);
-      f.roll *= (1 - ease * 0.35);
-      f.blend = Math.max(0, 1 - ease);
-      if (Math.abs(f.pitch) < 0.04 && Math.abs(f.roll) < 0.04 && k >= 1) {
-        f.active = false;
-        f.state = 'up';
-        f.pitch = 0; f.roll = 0; f.pitchVel = 0; f.rollVel = 0; f.blend = 0;
+    for (let it = 0; it < ITERATIONS; it++) {
+      const links = f.links;
+      for (let i = 0; i < links.length; i++) {
+        const l = links[i];
+        const a = p[l.a], b = p[l.b];
+        const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+        const dist = Math.hypot(dx, dy, dz) || 1e-6;
+        // the loose limit links only push apart, never pull together
+        if (l.stiff < 0.2 && dist >= l.len) continue;
+        const k = ((dist - l.len) / dist) * 0.5 * l.stiff;
+        const ox = dx * k, oy = dy * k, oz = dz * k;
+        a.x += ox; a.y += oy; a.z += oz;
+        b.x -= ox; b.y -= oy; b.z -= oz;
+      }
+      for (const key in p) {
+        const q = p[key];
+        if (q.y < q.r) {
+          q.y = q.r;
+          // ground friction, applied by dragging the previous position forward
+          q.px += (q.x - q.px) * 0.4;
+          q.pz += (q.z - q.pz) * 0.4;
+        }
       }
     }
   }
 
-  function poseFallen(model, actor, t) {
+  function kineticEnergy(f) {
+    let e = 0;
+    for (const k in f.p) {
+      const q = f.p[k];
+      e += (q.x - q.px) * (q.x - q.px) + (q.y - q.py) * (q.y - q.py) + (q.z - q.pz) * (q.z - q.pz);
+    }
+    return e;
+  }
+
+  function updateFall(actor, dt) {
     const f = actor.fall;
-    poseIdle(model, t);
-    if (!f.sprawl) return;
+    if (!f.active || !f.p) return;
 
     if (f.state === 'rising') {
-      // push up off the ground: knees under, torso folded forward
-      const k = Math.min(1, f.timer / 1.15);
-      const crouch = Math.sin(k * Math.PI);
-      setRot(model, 'torso', 0.5 * crouch, 0, 0);
-      setRot(model, 'head', -0.3 * crouch, 0, 0);
-      setRot(model, 'legR', -0.8 * crouch, 0, 0.2 * crouch);
-      setRot(model, 'legL', -0.45 * crouch, 0, -0.15 * crouch);
-      setRot(model, 'shinR', 1.3 * crouch, 0, 0);
-      setRot(model, 'shinL', 0.9 * crouch, 0, 0);
-      setRot(model, 'armR', -0.9 * crouch, 0, 0.4 * crouch);
-      setRot(model, 'armL', -0.8 * crouch, 0, -0.4 * crouch);
-      setRot(model, 'foreR', -0.7 * crouch, 0, 0);
-      setRot(model, 'foreL', -0.6 * crouch, 0, 0);
+      f.rise += dt / 1.15;
+      const k = Math.min(1, f.rise);
+      const ease = k * k * (3 - 2 * k);
+      poseIdle(actor.model, quantiseTime(actor.animTime));
+      const target = jointPositions(actor.model, actor.yaw);
+      for (const key in f.p) {
+        const q = f.p[key], t = target[key];
+        if (!t) continue;
+        q.x += (t[0] - q.x) * ease * 0.35;
+        q.y += (t[1] - q.y) * ease * 0.35;
+        q.z += (t[2] - q.z) * ease * 0.35;
+        q.px = q.x; q.py = q.y; q.pz = q.z;
+      }
+      if (k >= 1) {
+        f.active = false;
+        f.state = 'up';
+        f.p = null;
+      }
       return;
     }
 
-    const blend = f.blend;
-    for (const name in f.sprawl) {
-      const v = f.sprawl[name];
-      const b = model.bones[name];
-      if (!b) continue;
-      b.rot[0] += (v[0] - b.rot[0]) * blend;
-      b.rot[1] += (v[1] - b.rot[1]) * blend;
-      b.rot[2] += (v[2] - b.rot[2]) * blend;
+    let acc = Math.min(dt, 0.05);
+    while (acc > 0) {
+      const step = Math.min(SUBSTEP, acc);
+      simulate(f, step);
+      acc -= step;
+    }
+
+    // hand the pelvis drift back to the actor so a tumbling body travels
+    const pelvis = f.p.pelvis;
+    const dx = pelvis.x, dz = pelvis.z;
+    if (dx || dz) {
+      for (const k in f.p) {
+        const q = f.p[k];
+        q.x -= dx; q.z -= dz;
+        q.px -= dx; q.pz -= dz;
+      }
+      actor.x += dx;
+      actor.y += dz;
+    }
+
+    if (f.state === 'falling') {
+      if (kineticEnergy(f) < 0.02) {
+        f.still += dt;
+        if (f.still > 0.35) { f.state = 'down'; f.timer = 0.7 + actor.rng() * 1.0; }
+      } else {
+        f.still = 0;
+      }
+    } else if (f.state === 'down') {
+      f.timer -= dt;
+      if (f.timer <= 0) { f.state = 'rising'; f.rise = 0; }
+    }
+  }
+
+  function isDown(actor) { return actor.fall.active; }
+
+  /* ---------- drawing a ragdoll ---------- */
+
+  // Builds a bone matrix that runs from `from` to `to`, with `refLateral`
+  // pinning the roll so knees and elbows keep pointing somewhere sensible.
+  function segmentMatrix(from, to, axisSign, refLateral) {
+    let ax = (to[0] - from[0]) * axisSign;
+    let ay = (to[1] - from[1]) * axisSign;
+    let az = (to[2] - from[2]) * axisSign;
+    const alen = Math.hypot(ax, ay, az) || 1e-6;
+    ax /= alen; ay /= alen; az /= alen;
+
+    let rx = refLateral[0], ry = refLateral[1], rz = refLateral[2];
+    const dot = rx * ax + ry * ay + rz * az;
+    rx -= ax * dot; ry -= ay * dot; rz -= az * dot;
+    let rlen = Math.hypot(rx, ry, rz);
+    if (rlen < 1e-4) {
+      // reference ran parallel to the bone; pick any perpendicular
+      rx = Math.abs(ay) < 0.9 ? 0 : 1; ry = Math.abs(ay) < 0.9 ? 1 : 0; rz = 0;
+      const d2 = rx * ax + ry * ay + rz * az;
+      rx -= ax * d2; ry -= ay * d2; rz -= az * d2;
+      rlen = Math.hypot(rx, ry, rz) || 1e-6;
+    }
+    rx /= rlen; ry /= rlen; rz /= rlen;
+
+    // Z = X cross Y, giving a right-handed basis so normals are not mirrored
+    const fx = ry * az - rz * ay;
+    const fy = rz * ax - rx * az;
+    const fz = rx * ay - ry * ax;
+
+    const m = R.identity();
+    m[0] = rx; m[1] = ax; m[2] = fx; m[3] = from[0];
+    m[4] = ry; m[5] = ay; m[6] = fy; m[7] = from[1];
+    m[8] = rz; m[9] = az; m[10] = fz; m[11] = from[2];
+    return m;
+  }
+
+  function drawRagdoll(target, model, camera, fall, faceParts) {
+    const p = fall.p;
+    const scale = model.root.scale || 1;
+    const scaleM = R.scaling(scale);
+
+    const sr = p.shoulderR, sl = p.shoulderL;
+    let lateral = [sl.x - sr.x, sl.y - sr.y, sl.z - sr.z];
+    const ll = Math.hypot(lateral[0], lateral[1], lateral[2]);
+    if (ll < 1e-4) lateral = [1, 0, 0];
+    else { lateral = [lateral[0] / ll, lateral[1] / ll, lateral[2] / ll]; }
+
+    for (let i = 0; i < BONE_SEGMENTS.length; i++) {
+      const seg = BONE_SEGMENTS[i];
+      const bone = model.bones[seg.bone];
+      if (!bone) continue;
+      const a = p[seg.from], b = p[seg.to];
+      if (!a || !b) continue;
+
+      const m = R.multiply(scaleM,
+        segmentMatrix([a.x, a.y, a.z], [b.x, b.y, b.z], seg.axis, lateral));
+
+      for (let k = 0; k < bone.parts.length; k++) {
+        const part = bone.parts[k];
+        R.drawMesh(target, m, part.mesh, R.ramp(part.colour), camera, part);
+      }
+      if (faceParts && seg.bone === 'head') {
+        for (let k = 0; k < faceParts.length; k++) {
+          const part = faceParts[k];
+          R.drawMesh(target, m, part.mesh, R.ramp(part.colour), camera, part);
+        }
+      }
     }
   }
 
@@ -2410,7 +2617,6 @@
 
   function poseActor(actor, qTime) {
     const model = actor.model;
-    if (actor.fall.active) { poseFallen(model, actor, qTime); return; }
     if (actor.customPose) { applyPose(model, actor.customPose, actor.customBob || 0); return; }
     if (actor.stagger > 0.02) { poseStagger(model, qTime, actor.stagger); return; }
     if (actor.gait === 'skid') { poseSkid(model, qTime, actor.skidLean); return; }
@@ -2427,12 +2633,13 @@
     const faceParts = opts && opts.faceParts;
     const scale = model.root.scale || 1;
 
-    // yaw, then tip about the feet, then scale, then the vertical bob
-    let base = R.rotationY(yaw);
-    if (opts && opts.fallPitch) base = R.multiply(base, R.rotationX(opts.fallPitch));
-    if (opts && opts.fallRoll) base = R.multiply(base, R.rotationZ(opts.fallRoll));
-    base = R.multiply(base, R.scaling(scale));
-    base = R.multiply(base, R.translation(0, model.bob || 0, 0));
+    // Yaw, then scale, then the bob — and the bob is rounded to a whole screen
+    // pixel. A sub-pixel bob does nothing except flip an edge row on and off as
+    // it crosses a boundary, which reads as the model quietly crawling.
+    const pixel = scale * camera.scale;
+    const bob = pixel > 0 ? Math.round((model.bob || 0) * pixel) / pixel : 0;
+    let base = R.multiply(R.rotationY(yaw), R.scaling(scale));
+    base = R.multiply(base, R.translation(0, bob, 0));
 
     (function walk(node, parent) {
       let local = R.translation(node.origin[0], node.origin[1], node.origin[2]);
@@ -2443,12 +2650,12 @@
 
       for (let i = 0; i < node.parts.length; i++) {
         const p = node.parts[i];
-        R.drawBox(target, m, p.box, R.ramp(p.colour), camera, p);
+        R.drawMesh(target, m, p.mesh, R.ramp(p.colour), camera, p);
       }
       if (faceParts && node.name === 'head') {
         for (let i = 0; i < faceParts.length; i++) {
           const p = faceParts[i];
-          R.drawBox(target, m, p.box, R.ramp(p.colour), camera, p);
+          R.drawMesh(target, m, p.mesh, R.ramp(p.colour), camera, p);
         }
       }
       for (let i = 0; i < node.children.length; i++) walk(node.children[i], m);
@@ -2466,28 +2673,28 @@
     const qYaw = quantiseYaw((opts && opts.yaw !== undefined) ? opts.yaw : actor.yaw);
     const f = actor.fall;
 
-    const key = [
+    // A ragdoll changes every frame, so it never reuses a cached buffer.
+    const key = f.active ? null : [
       qTime, qYaw, actor.gait, actor.blink > 0.5 ? 1 : actor.blink > 0 ? 2 : 0,
       actor.viseme, actor.speaking ? 1 : 0, actor.customPose ? 'p' + actor.animTime : '',
-      f.active ? f.state + f.pitch.toFixed(2) + f.roll.toFixed(2) : '',
       actor.stagger.toFixed(2), actor.skidLean.toFixed(1)
     ].join('|');
-    if (key === actor._key && !(opts && opts.force)) return target;
-    actor._key = key;
+    if (key !== null && key === actor._key && !(opts && opts.force)) return target;
+    actor._key = key === null ? '' : key;
 
     R.clearTarget(target);
-    poseActor(actor, qTime);
     const face = CM.buildFaceParts(actor.model, {
       blink: actor.blink,
       viseme: actor.viseme,
       gaze: actor.gaze
     });
-    drawModel(target, actor.model, camera, {
-      yaw: qYaw,
-      faceParts: face,
-      fallPitch: f.active ? f.pitch : 0,
-      fallRoll: f.active ? f.roll : 0
-    });
+
+    if (f.active && f.p) {
+      drawRagdoll(target, actor.model, camera, f, face);
+    } else {
+      poseActor(actor, qTime);
+      drawModel(target, actor.model, camera, { yaw: qYaw, faceParts: face });
+    }
     R.traceOutline(target, (opts && opts.outline) || OUTLINE);
     return target;
   }
@@ -2499,7 +2706,8 @@
     emptyPose, clonePose, applyPose, lerpPose, samplePoseTrack,
     yawForDirection, snapToEight, directionName, shortestAngle,
     createActor, rebuildActorModel, updateActorMotion, updateBlink,
-    createFall, knockDown, updateFall, poseFallen,
+    createFall, knockDown, updateFall, isDown,
+    jointPositions, segmentMatrix, drawRagdoll,
     poseActor, drawModel, renderActor, OUTLINE
   };
 })(window);
@@ -2807,13 +3015,15 @@
 
   /* ---------- props ---------- */
 
+  const G = global.Geo;
+
   function renderBoxes(boxes, bufW, bufH, ox, oy, scale) {
     const target = R.createTarget(bufW, bufH);
     R.clearTarget(target);
     const camera = R.makeCamera(CAM_PITCH, scale, ox, oy);
     const identity = R.identity();
     for (let i = 0; i < boxes.length; i++) {
-      R.drawBox(target, identity, boxes[i], R.ramp(boxes[i].colour), camera, {});
+      R.drawMesh(target, identity, boxes[i].mesh, R.ramp(boxes[i].colour), camera, {});
     }
     R.traceOutline(target, Rig.OUTLINE);
     return target;
@@ -2823,15 +3033,17 @@
     const B = global.Parts.box;
     const boxes = [];
     const trunkH = 14 + rng() * 6;
-    const t = B(-1.7, 0, -1.7, 3.4, trunkH, 3.4); t.colour = '#4d3726'; boxes.push(t);
+    boxes.push({ mesh: G.slab(-1.9, 0, -1.9, 3.8, trunkH, 3.8, 0.72, 1), colour: '#4d3726' });
     const clumps = 5 + Math.floor(rng() * 3);
     for (let i = 0; i < clumps; i++) {
       const s = 5.5 + rng() * 4;
       const a = (i / clumps) * Math.PI * 2 + rng();
       const rad = i === 0 ? 0 : 3.4 + rng() * 2.4;
-      const c = B(Math.cos(a) * rad - s / 2, trunkH - 1 + rng() * 5, Math.sin(a) * rad - s / 2, s, s, s);
-      c.colour = rng() < 0.5 ? '#39572f' : '#2f4a28';
-      boxes.push(c);
+      boxes.push({
+        mesh: G.superellipsoid(Math.cos(a) * rad, trunkH - 1 + rng() * 5 + s / 2, Math.sin(a) * rad,
+          s / 2, s / 2, s / 2, 0.8, 4, 8),
+        colour: rng() < 0.5 ? '#39572f' : '#2f4a28'
+      });
     }
     return renderBoxes(boxes, 72, 86, 36, 76, CAM_SCALE);
   }
@@ -2842,9 +3054,11 @@
     const n = 2 + Math.floor(rng() * 3);
     for (let i = 0; i < n; i++) {
       const s = 3.5 + rng() * 4;
-      const b = B(-s / 2 + (rng() - 0.5) * 4, rng() * 2, -s / 2 + (rng() - 0.5) * 4, s, s * 0.8, s);
-      b.colour = rng() < 0.5 ? '#6d6a63' : '#5a5750';
-      boxes.push(b);
+      boxes.push({
+        mesh: G.superellipsoid((rng() - 0.5) * 4, rng() * 2 + s * 0.4, (rng() - 0.5) * 4,
+          s / 2, s * 0.42, s / 2, 0.55, 4, 8),
+        colour: rng() < 0.5 ? '#6d6a63' : '#5a5750'
+      });
     }
     return renderBoxes(boxes, 44, 44, 22, 38, CAM_SCALE);
   }
@@ -2852,25 +3066,24 @@
   function makeBarrel() {
     const B = global.Parts.box;
     const boxes = [];
-    const b = B(-3.2, 0, -3.2, 6.4, 8.5, 6.4); b.colour = '#6b4a2c'; boxes.push(b);
-    const h1 = B(-3.4, 1.7, -3.4, 6.8, 1.1, 6.8); h1.colour = '#4a4038'; boxes.push(h1);
-    const h2 = B(-3.4, 5.8, -3.4, 6.8, 1.1, 6.8); h2.colour = '#4a4038'; boxes.push(h2);
+    // barrels bulge in the middle
+    boxes.push({ mesh: G.superellipsoid(0, 4.2, 0, 3.6, 4.3, 3.6, 0.45, 5, 10), colour: '#6b4a2c' });
+    boxes.push({ mesh: G.superellipsoid(0, 2.0, 0, 3.7, 0.55, 3.7, 0.4, 3, 10), colour: '#4a4038' });
+    boxes.push({ mesh: G.superellipsoid(0, 6.4, 0, 3.7, 0.55, 3.7, 0.4, 3, 10), colour: '#4a4038' });
     return renderBoxes(boxes, 36, 44, 18, 38, CAM_SCALE);
   }
 
   function makeCart() {
     const B = global.Parts.box;
     const boxes = [];
-    const bed = B(-9, 4.5, -5, 18, 3.5, 10); bed.colour = '#6b4f31'; boxes.push(bed);
-    const side = B(-9, 8, -5, 18, 2.5, 1); side.colour = '#5a4128'; boxes.push(side);
-    const side2 = B(-9, 8, 4, 18, 2.5, 1); side2.colour = '#5a4128'; boxes.push(side2);
+    boxes.push({ mesh: B(-9, 4.5, -5, 18, 3.5, 10), colour: '#6b4f31' });
+    boxes.push({ mesh: B(-9, 8, -5, 18, 2.5, 1), colour: '#5a4128' });
+    boxes.push({ mesh: B(-9, 8, 4, 18, 2.5, 1), colour: '#5a4128' });
     for (let i = 0; i < 2; i++) {
-      const w = B(-9.8, 0, i === 0 ? -6 : 4.2, 1.8, 9, 9);
-      w.colour = '#43301e';
-      boxes.push(w);
-      const w2 = B(8, 0, i === 0 ? -6 : 4.2, 1.8, 9, 9);
-      w2.colour = '#43301e';
-      boxes.push(w2);
+      const z = i === 0 ? -5.5 : 5.5;
+      // round cartwheels
+      boxes.push({ mesh: G.superellipsoid(-9, 4.4, z, 0.9, 4.4, 4.4, 0.95, 4, 10), colour: '#43301e' });
+      boxes.push({ mesh: G.superellipsoid(9, 4.4, z, 0.9, 4.4, 4.4, 0.95, 4, 10), colour: '#43301e' });
     }
     return renderBoxes(boxes, 64, 56, 32, 48, CAM_SCALE);
   }
@@ -3001,9 +3214,7 @@
 
       if (speed >= KNOCK_SPEED && closing > 0 && !a.fall.active) {
         // a sprinting shoulder-charge puts them down
-        Rig.knockDown(a, nx, ny / 1.5, 2.8 + speed / 26);
-        a.vx = nx * speed * 0.45;
-        a.vy = (ny / 1.5) * speed * 0.45;
+        Rig.knockDown(a, nx, ny / 1.5, 2.6 + speed / 30);
         if (a.brain) { a.brain.state = 'downed'; a.brain.timer = 0; }
         if (world.talkingTo === a) D.close(world.box);
 
@@ -3087,20 +3298,14 @@
     const brain = a.brain;
     const player = world.player;
 
-    // sliding while knocked over
+    // While down, the ragdoll itself moves the body — it hands its drift back
+    // to the actor position each step, so nothing else should push it.
     if (a.fall.active) {
-      const speed = Math.hypot(a.vx, a.vy);
-      if (speed > 0) {
-        const next = Math.max(0, speed - 240 * dt);
-        a.vx = (a.vx / speed) * next;
-        a.vy = (a.vy / speed) * next;
-        a.x += a.vx * dt;
-        a.y += a.vy * dt;
-        clampVillager(a);
-      }
+      a.vx = 0; a.vy = 0;
       a.gait = 'idle';
       brain.state = 'downed';
       Rig.updateActorMotion(a, dt);
+      clampVillager(a);
       return;
     }
     if (brain.state === 'downed') {
@@ -3215,10 +3420,12 @@
 
     world.prompt = world.box.open ? null : nearestTalkable(world);
 
-    // The camera is locked to the player at all times — no easing, no edge
-    // clamping, so the player never drifts off centre.
-    world.camX = Math.round(world.player.x - VIEW_W / 2);
-    world.camY = Math.round(world.player.y - VIEW_H / 2);
+    // Locked to the player at all times — no easing, no edge clamping. It
+    // follows the *rounded* player position, which lands the player sprite on
+    // the same exact pixel every frame; tracking the unrounded position makes
+    // them jitter a pixel back and forth as they walk.
+    world.camX = Math.round(world.player.x) - (VIEW_W >> 1);
+    world.camY = Math.round(world.player.y) - (VIEW_H >> 1);
   }
 
   /* ---------- drawing ---------- */
@@ -3266,14 +3473,17 @@
       const d = drawables[i];
       if (d.prop) {
         const p = d.prop;
-        R.fillEllipse(target, p.x - cx, p.y - cy, p.shadowR, p.shadowR * 0.4, SHADOW, 0.3);
-        R.blit(target, p.sprite, Math.round(p.x - cx - p.sprite.w / 2), Math.round(p.y - cy - p.footY));
+        R.fillEllipse(target, Math.round(p.x) - cx, Math.round(p.y) - cy,
+          p.shadowR, p.shadowR * 0.4, SHADOW, 0.3);
+        R.blit(target, p.sprite, Math.round(p.x) - cx - Math.round(p.sprite.w / 2),
+          Math.round(p.y) - cy - p.footY);
       } else {
         const a = d.actor;
-        const down = a.fall.active ? Math.min(1, Math.hypot(a.fall.pitch, a.fall.roll) / (Math.PI / 2)) : 0;
-        R.fillEllipse(target, a.x - cx, a.y - cy, 7 + down * 6, 3 + down * 1.5, SHADOW, 0.34);
+        const down = a.fall.active ? 1 : 0;
+        R.fillEllipse(target, Math.round(a.x) - cx, Math.round(a.y) - cy,
+          7 + down * 7, 3 + down * 2, SHADOW, 0.34);
         Rig.renderActor(a, a.buffer, camera, {});
-        R.blit(target, a.buffer, Math.round(a.x - cx - ACTOR_BUF.ox), Math.round(a.y - cy - ACTOR_BUF.oy));
+        R.blit(target, a.buffer, Math.round(a.x) - cx - ACTOR_BUF.ox, Math.round(a.y) - cy - ACTOR_BUF.oy);
       }
     }
 
@@ -3281,12 +3491,12 @@
     const npc = world.prompt;
     if (npc) {
       const name = npc.character.name;
-      const nx = Math.round(npc.x - cx - T.measure(name) / 2);
-      const ny = Math.round(npc.y - cy - 58);
+      const nx = Math.round(npc.x) - cx - Math.round(T.measure(name) / 2);
+      const ny = Math.round(npc.y) - cy - 58;
       T.drawShadowed(target, name, nx, ny, LABEL, LABEL_SHADOW);
       const hint = 'E  talk';
-      T.drawShadowed(target, hint, Math.round(npc.x - cx - T.measure(hint) / 2), ny - 11,
-        PROMPT, LABEL_SHADOW);
+      T.drawShadowed(target, hint, Math.round(npc.x) - cx - Math.round(T.measure(hint) / 2),
+        ny - 11, PROMPT, LABEL_SHADOW);
     }
 
     if (world.input.sprint && !world.box.open) {
@@ -3614,6 +3824,20 @@
       state.playingTrack = false;
     }));
 
+    const knockRow = document.createElement('div');
+    knockRow.className = 'btn-row';
+    const knockBtn = document.createElement('button');
+    knockBtn.type = 'button';
+    knockBtn.className = 'btn';
+    knockBtn.id = 'knock-down';
+    knockBtn.textContent = 'Knock down';
+    knockBtn.addEventListener('click', function () {
+      const angle = Math.random() * Math.PI * 2;
+      Rig.knockDown(previewActor, Math.sin(angle), Math.cos(angle), 4 + Math.random() * 4);
+    });
+    knockRow.appendChild(knockBtn);
+    playback.appendChild(knockRow);
+
     const facing = document.createElement('div');
     facing.className = 'field';
     const facingLabel = document.createElement('div');
@@ -3869,6 +4093,15 @@
   function updatePreviewActor(dt) {
     const a = previewActor;
 
+    if (a.fall.active) {
+      a.customPose = null;
+      a.gait = 'idle';
+      a.speaking = false;
+      a.viseme = 'rest';
+      Rig.updateActorMotion(a, dt);
+      return;
+    }
+
     if (state.animation === 'pose') {
       a.customPose = state.playingTrack && state.poseFrames.length > 1
         ? Rig.samplePoseTrack(state.poseFrames, state.trackTime, state.poseDuration)
@@ -3898,9 +4131,11 @@
   function updateReadout() {
     const c = state.character;
     const hairLabel = P.HAIR_STYLES[CM.indexOfId(P.HAIR_STYLES, c.hairStyle)].label;
-    const anim = state.animation === 'pose'
-      ? (state.playingTrack ? 'track' : 'posed')
-      : state.animation;
+    const anim = previewActor.fall.active
+      ? ('ragdoll ' + previewActor.fall.state)
+      : state.animation === 'pose'
+        ? (state.playingTrack ? 'track' : 'posed')
+        : state.animation;
     el('readout').innerHTML = '';
     const bits = [
       [c.name || '(unnamed)', c.surname],

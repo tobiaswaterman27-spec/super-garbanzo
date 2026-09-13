@@ -308,6 +308,20 @@
       state.playingTrack = false;
     }));
 
+    const knockRow = document.createElement('div');
+    knockRow.className = 'btn-row';
+    const knockBtn = document.createElement('button');
+    knockBtn.type = 'button';
+    knockBtn.className = 'btn';
+    knockBtn.id = 'knock-down';
+    knockBtn.textContent = 'Knock down';
+    knockBtn.addEventListener('click', function () {
+      const angle = Math.random() * Math.PI * 2;
+      Rig.knockDown(previewActor, Math.sin(angle), Math.cos(angle), 4 + Math.random() * 4);
+    });
+    knockRow.appendChild(knockBtn);
+    playback.appendChild(knockRow);
+
     const facing = document.createElement('div');
     facing.className = 'field';
     const facingLabel = document.createElement('div');
@@ -563,6 +577,15 @@
   function updatePreviewActor(dt) {
     const a = previewActor;
 
+    if (a.fall.active) {
+      a.customPose = null;
+      a.gait = 'idle';
+      a.speaking = false;
+      a.viseme = 'rest';
+      Rig.updateActorMotion(a, dt);
+      return;
+    }
+
     if (state.animation === 'pose') {
       a.customPose = state.playingTrack && state.poseFrames.length > 1
         ? Rig.samplePoseTrack(state.poseFrames, state.trackTime, state.poseDuration)
@@ -592,9 +615,11 @@
   function updateReadout() {
     const c = state.character;
     const hairLabel = P.HAIR_STYLES[CM.indexOfId(P.HAIR_STYLES, c.hairStyle)].label;
-    const anim = state.animation === 'pose'
-      ? (state.playingTrack ? 'track' : 'posed')
-      : state.animation;
+    const anim = previewActor.fall.active
+      ? ('ragdoll ' + previewActor.fall.state)
+      : state.animation === 'pose'
+        ? (state.playingTrack ? 'track' : 'posed')
+        : state.animation;
     el('readout').innerHTML = '';
     const bits = [
       [c.name || '(unnamed)', c.surname],

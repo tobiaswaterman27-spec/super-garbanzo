@@ -10,10 +10,15 @@ For a single file you can hand to someone — no server, works offline — run
 
 ## Why it looks the way it does
 
-Characters are **real 3D box models rendered down to pixels**, not hand-drawn
-sprite sheets. `render.js` is a small orthographic software rasteriser with a
-z-buffer. That is what makes a character correct from all eight facing
-directions, and turning a genuine rotation rather than a sprite swap.
+Characters are **real 3D models rendered down to pixels**, not hand-drawn sprite
+sheets. `render.js` is a small orthographic software rasteriser with a z-buffer.
+That is what makes a character correct from all eight facing directions, and
+turning a genuine rotation rather than a sprite swap.
+
+They are not limited to boxes. `geometry.js` builds general convex meshes, so a
+spike is a pyramid, a beard hangs and tapers to a point, and a skull is a
+superellipsoid rather than a cube — a hard-edged box head was the single biggest
+reason these characters read as wrong.
 
 Two rules do the heavy lifting on top of that, and both are load-bearing:
 
@@ -36,6 +41,7 @@ test for it: no two co-visible perpendicular faces may ever share a step.
 
 | File | Responsibility |
 | --- | --- |
+| `geometry.js` | Mesh primitives: box, taper, pyramid, wedge, superellipsoid, dome |
 | `render.js` | Matrices, rasteriser, z-buffer, outline pass, canvas presenter |
 | `parts.js` | Palettes, 15 hairstyles, 8 facial-hair styles, feature shapes, name pools |
 | `character.js` | The character record, randomisation, the bone tree, the face |
@@ -90,19 +96,37 @@ test for it: no two co-visible perpendicular faces may ever share a step.
   written against that box so they scale with the skull.
 - **Randomness is seeded.** `CharacterModel.makeRng(seed)` everywhere, so a
   given seed always rebuilds the same village.
-- **Hair must be one connected mass.** Every box in a hairstyle has to overlap
-  at least one other box on all three axes, or a seam opens up around the skull
-  once the head rotates. There is a test for this.
+- **Hair must be one connected mass.** Every piece of a hairstyle has to overlap
+  at least one other on all three axes, or a seam opens up around the skull once
+  the head rotates. There is a test for this.
+- **The crown is concentric with the skull.** It is a dome: the same
+  superellipsoid as the head, grown slightly and sliced off at the hairline
+  (`Geo.dome`). Sitting a separate rounded lump on top of the head instead makes
+  every character look like they are wearing a mushroom.
 - **The camera is locked to the player.** To keep it there without ever showing
   the edge of the generated ground, the player is confined to the world inset by
   half a viewport. Villagers roam the whole map.
 
-## Known limits
+## The ragdoll
 
-The knockdown is a **rigid-body tip, not a true ragdoll**: the whole figure
-rotates about the feet under angular velocity and gravity, and the limbs take a
-randomised sprawl pose rather than simulating as independent jointed bodies. It
-reads well in motion and costs almost nothing, but it is not articulated physics.
+Sixteen verlet particles joined by 27 distance constraints, falling under
+gravity onto a ground plane at y = 0, solved with 8 relaxation iterations per
+120Hz substep. Limbs swing and settle independently.
+
+It is seeded from wherever the character actually was: `jointPositions()` walks
+the posed bone tree and reads the joints off it, so the ragdoll starts in the
+pose the character was standing in. The push impulse scales with each
+particle's height, so the feet barely move and the shoulders take the hit —
+that is what makes a body topple rather than slide.
+
+Rendering runs the other way. `segmentMatrix()` builds a bone transform that
+runs between two particles, with the shoulder line pinning the roll so knees
+and elbows keep pointing somewhere sensible. The simulation is re-centred on
+the pelvis each frame and the drift handed back to the actor's world position,
+so a body that tumbles actually travels across the ground.
+
+Getting up eases the particles back toward the standing pose over 1.15s. A new
+impulse at any point — including mid-recovery — puts them straight back down.
 
 ## Not done yet
 

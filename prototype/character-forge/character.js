@@ -211,8 +211,8 @@
     return { name: name, origin: origin, rot: [0, 0, 0], parts: [], children: [] };
   }
 
-  function part(box, colour, opts) {
-    const p = { box: box, colour: colour };
+  function part(mesh, colour, opts) {
+    const p = { mesh: mesh, colour: colour };
     if (opts) { for (const k in opts) p[k] = opts[k]; }
     return p;
   }
@@ -222,6 +222,7 @@
     const c = resolve(ch);
     const g = c.garment;
     const B = P.box;
+    const G = global.Geo;
 
     const root = bone('root', [0, 0, 0]);
     root.scale = d.heightScale;
@@ -283,9 +284,14 @@
 
     /* ---- head ---- */
     const head = bone('head', [0, d.torsoH + d.neckH, 0]);
-    head.parts.push(part(B(-d.headW / 2, 0, -d.headD / 2, d.headW, d.headH, d.headD), c.skin));
-    head.parts.push(part(B(-d.headW / 2 - 0.7, 3.2, -0.9, 0.8, 2.2, 1.9), c.skin));
-    head.parts.push(part(B(d.headW / 2 - 0.1, 3.2, -0.9, 0.8, 2.2, 1.9), c.skin));
+    // A rounded solid, not a cube. A hard-edged box head is the single
+    // biggest reason these characters read as wrong.
+    head.parts.push(part(G.superellipsoid(0, d.headH / 2, 0,
+      d.headW / 2, d.headH / 2, d.headD / 2, 0.42, 6, 12), c.skin));
+    head.parts.push(part(G.superellipsoid(-d.headW / 2 - 0.15, 4.2, 0,
+      0.55, 1.15, 0.95, 0.7, 3, 7), c.skin));
+    head.parts.push(part(G.superellipsoid(d.headW / 2 + 0.15, 4.2, 0,
+      0.55, 1.15, 0.95, 0.7, 3, 7), c.skin));
 
     const hairBoxes = c.hairStyle.build(d.headW, d.headH, d.headD);
     for (let i = 0; i < hairBoxes.length; i++) head.parts.push(part(hairBoxes[i], c.hair));
@@ -298,7 +304,8 @@
 
     // the nose is a real protruding box so profiles read correctly
     head.parts.push(part(
-      B(-c.nose.w / 2, NOSE_BOTTOM, d.headD / 2 - 0.25, c.nose.w, c.nose.h, c.nose.len + 0.25), c.skin));
+      G.slab(-c.nose.w / 2, NOSE_BOTTOM, d.headD / 2 - 0.55, c.nose.w, c.nose.h,
+        c.nose.len + 0.75, 0.72, 1, 0, -c.nose.len * 0.35), c.skin));
 
     torso.children.push(head);
 
@@ -311,7 +318,8 @@
       const sign = right ? -1 : 1;
       const upper = bone(right ? 'armR' : 'armL', [sign * shoulderX, shoulderY, 0]);
       upper.parts.push(part(
-        B(-d.armW / 2, -d.upperArmH, -d.armW / 2, d.armW, d.upperArmH, d.armW), c.tunic));
+        G.slab(-d.armW / 2, -d.upperArmH, -d.armW / 2, d.armW, d.upperArmH, d.armW, 1, 0.88),
+        c.tunic));
 
       const fore = bone(right ? 'foreR' : 'foreL', [0, -d.upperArmH, 0]);
       const foreW = d.armW * 0.92;
@@ -324,11 +332,12 @@
           B(-foreW / 2, -d.lowerArmH, -foreW / 2, foreW, d.lowerArmH * 0.4, foreW), c.skin));
       } else {
         fore.parts.push(part(
-          B(-foreW / 2, -d.lowerArmH, -foreW / 2, foreW, d.lowerArmH, foreW), c.skin));
+          G.slab(-foreW / 2, -d.lowerArmH, -foreW / 2, foreW, d.lowerArmH, foreW, 1, 0.85),
+          c.skin));
       }
       fore.parts.push(part(
-        B(-d.armW / 2 - 0.1, -d.lowerArmH - 1.6, -d.armW / 2 - 0.1,
-          d.armW + 0.2, 1.7, d.armW + 0.2), c.skin));
+        G.superellipsoid(0, -d.lowerArmH - 0.75, 0,
+          d.armW / 2 + 0.15, 0.95, d.armW / 2 + 0.15, 0.6, 3, 7), c.skin));
       upper.children.push(fore);
       torso.children.push(upper);
     }
@@ -340,12 +349,14 @@
       const sign = right ? -1 : 1;
       const upper = bone(right ? 'legR' : 'legL', [sign * hipX, 0, 0]);
       upper.parts.push(part(
-        B(-d.legW / 2, -d.upperLegH, -d.legW / 2, d.legW, d.upperLegH, d.legW), c.trouser));
+        G.slab(-d.legW / 2, -d.upperLegH, -d.legW / 2, d.legW, d.upperLegH, d.legW, 1, 0.9),
+        c.trouser));
 
       const shin = bone(right ? 'shinR' : 'shinL', [0, -d.upperLegH, 0]);
       const shinW = d.legW * 0.94;
       shin.parts.push(part(
-        B(-shinW / 2, -d.lowerLegH, -shinW / 2, shinW, d.lowerLegH, shinW), c.trouser));
+        G.slab(-shinW / 2, -d.lowerLegH, -shinW / 2, shinW, d.lowerLegH, shinW, 1, 0.82),
+        c.trouser));
       // a turned-down boot cuff, then the boot itself with a toe
       shin.parts.push(part(
         B(-d.legW / 2 - 0.25, -d.lowerLegH + 1.6, -d.legW / 2 - 0.25,
@@ -408,7 +419,7 @@
     const B = P.box;
     const out = [];
 
-    const front = d.headD / 2;
+    const front = d.headD / 2 + 0.08;
     const shape = c.eyeShape;
     const brow = c.brow;
     const blink = state && state.blink ? state.blink : 0;

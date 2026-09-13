@@ -99,13 +99,15 @@
 
   /* ---------- props ---------- */
 
+  const G = global.Geo;
+
   function renderBoxes(boxes, bufW, bufH, ox, oy, scale) {
     const target = R.createTarget(bufW, bufH);
     R.clearTarget(target);
     const camera = R.makeCamera(CAM_PITCH, scale, ox, oy);
     const identity = R.identity();
     for (let i = 0; i < boxes.length; i++) {
-      R.drawBox(target, identity, boxes[i], R.ramp(boxes[i].colour), camera, {});
+      R.drawMesh(target, identity, boxes[i].mesh, R.ramp(boxes[i].colour), camera, {});
     }
     R.traceOutline(target, Rig.OUTLINE);
     return target;
@@ -115,15 +117,17 @@
     const B = global.Parts.box;
     const boxes = [];
     const trunkH = 14 + rng() * 6;
-    const t = B(-1.7, 0, -1.7, 3.4, trunkH, 3.4); t.colour = '#4d3726'; boxes.push(t);
+    boxes.push({ mesh: G.slab(-1.9, 0, -1.9, 3.8, trunkH, 3.8, 0.72, 1), colour: '#4d3726' });
     const clumps = 5 + Math.floor(rng() * 3);
     for (let i = 0; i < clumps; i++) {
       const s = 5.5 + rng() * 4;
       const a = (i / clumps) * Math.PI * 2 + rng();
       const rad = i === 0 ? 0 : 3.4 + rng() * 2.4;
-      const c = B(Math.cos(a) * rad - s / 2, trunkH - 1 + rng() * 5, Math.sin(a) * rad - s / 2, s, s, s);
-      c.colour = rng() < 0.5 ? '#39572f' : '#2f4a28';
-      boxes.push(c);
+      boxes.push({
+        mesh: G.superellipsoid(Math.cos(a) * rad, trunkH - 1 + rng() * 5 + s / 2, Math.sin(a) * rad,
+          s / 2, s / 2, s / 2, 0.8, 4, 8),
+        colour: rng() < 0.5 ? '#39572f' : '#2f4a28'
+      });
     }
     return renderBoxes(boxes, 72, 86, 36, 76, CAM_SCALE);
   }
@@ -134,9 +138,11 @@
     const n = 2 + Math.floor(rng() * 3);
     for (let i = 0; i < n; i++) {
       const s = 3.5 + rng() * 4;
-      const b = B(-s / 2 + (rng() - 0.5) * 4, rng() * 2, -s / 2 + (rng() - 0.5) * 4, s, s * 0.8, s);
-      b.colour = rng() < 0.5 ? '#6d6a63' : '#5a5750';
-      boxes.push(b);
+      boxes.push({
+        mesh: G.superellipsoid((rng() - 0.5) * 4, rng() * 2 + s * 0.4, (rng() - 0.5) * 4,
+          s / 2, s * 0.42, s / 2, 0.55, 4, 8),
+        colour: rng() < 0.5 ? '#6d6a63' : '#5a5750'
+      });
     }
     return renderBoxes(boxes, 44, 44, 22, 38, CAM_SCALE);
   }
@@ -144,25 +150,24 @@
   function makeBarrel() {
     const B = global.Parts.box;
     const boxes = [];
-    const b = B(-3.2, 0, -3.2, 6.4, 8.5, 6.4); b.colour = '#6b4a2c'; boxes.push(b);
-    const h1 = B(-3.4, 1.7, -3.4, 6.8, 1.1, 6.8); h1.colour = '#4a4038'; boxes.push(h1);
-    const h2 = B(-3.4, 5.8, -3.4, 6.8, 1.1, 6.8); h2.colour = '#4a4038'; boxes.push(h2);
+    // barrels bulge in the middle
+    boxes.push({ mesh: G.superellipsoid(0, 4.2, 0, 3.6, 4.3, 3.6, 0.45, 5, 10), colour: '#6b4a2c' });
+    boxes.push({ mesh: G.superellipsoid(0, 2.0, 0, 3.7, 0.55, 3.7, 0.4, 3, 10), colour: '#4a4038' });
+    boxes.push({ mesh: G.superellipsoid(0, 6.4, 0, 3.7, 0.55, 3.7, 0.4, 3, 10), colour: '#4a4038' });
     return renderBoxes(boxes, 36, 44, 18, 38, CAM_SCALE);
   }
 
   function makeCart() {
     const B = global.Parts.box;
     const boxes = [];
-    const bed = B(-9, 4.5, -5, 18, 3.5, 10); bed.colour = '#6b4f31'; boxes.push(bed);
-    const side = B(-9, 8, -5, 18, 2.5, 1); side.colour = '#5a4128'; boxes.push(side);
-    const side2 = B(-9, 8, 4, 18, 2.5, 1); side2.colour = '#5a4128'; boxes.push(side2);
+    boxes.push({ mesh: B(-9, 4.5, -5, 18, 3.5, 10), colour: '#6b4f31' });
+    boxes.push({ mesh: B(-9, 8, -5, 18, 2.5, 1), colour: '#5a4128' });
+    boxes.push({ mesh: B(-9, 8, 4, 18, 2.5, 1), colour: '#5a4128' });
     for (let i = 0; i < 2; i++) {
-      const w = B(-9.8, 0, i === 0 ? -6 : 4.2, 1.8, 9, 9);
-      w.colour = '#43301e';
-      boxes.push(w);
-      const w2 = B(8, 0, i === 0 ? -6 : 4.2, 1.8, 9, 9);
-      w2.colour = '#43301e';
-      boxes.push(w2);
+      const z = i === 0 ? -5.5 : 5.5;
+      // round cartwheels
+      boxes.push({ mesh: G.superellipsoid(-9, 4.4, z, 0.9, 4.4, 4.4, 0.95, 4, 10), colour: '#43301e' });
+      boxes.push({ mesh: G.superellipsoid(9, 4.4, z, 0.9, 4.4, 4.4, 0.95, 4, 10), colour: '#43301e' });
     }
     return renderBoxes(boxes, 64, 56, 32, 48, CAM_SCALE);
   }
@@ -293,9 +298,7 @@
 
       if (speed >= KNOCK_SPEED && closing > 0 && !a.fall.active) {
         // a sprinting shoulder-charge puts them down
-        Rig.knockDown(a, nx, ny / 1.5, 2.8 + speed / 26);
-        a.vx = nx * speed * 0.45;
-        a.vy = (ny / 1.5) * speed * 0.45;
+        Rig.knockDown(a, nx, ny / 1.5, 2.6 + speed / 30);
         if (a.brain) { a.brain.state = 'downed'; a.brain.timer = 0; }
         if (world.talkingTo === a) D.close(world.box);
 
@@ -379,20 +382,14 @@
     const brain = a.brain;
     const player = world.player;
 
-    // sliding while knocked over
+    // While down, the ragdoll itself moves the body — it hands its drift back
+    // to the actor position each step, so nothing else should push it.
     if (a.fall.active) {
-      const speed = Math.hypot(a.vx, a.vy);
-      if (speed > 0) {
-        const next = Math.max(0, speed - 240 * dt);
-        a.vx = (a.vx / speed) * next;
-        a.vy = (a.vy / speed) * next;
-        a.x += a.vx * dt;
-        a.y += a.vy * dt;
-        clampVillager(a);
-      }
+      a.vx = 0; a.vy = 0;
       a.gait = 'idle';
       brain.state = 'downed';
       Rig.updateActorMotion(a, dt);
+      clampVillager(a);
       return;
     }
     if (brain.state === 'downed') {
@@ -507,10 +504,12 @@
 
     world.prompt = world.box.open ? null : nearestTalkable(world);
 
-    // The camera is locked to the player at all times — no easing, no edge
-    // clamping, so the player never drifts off centre.
-    world.camX = Math.round(world.player.x - VIEW_W / 2);
-    world.camY = Math.round(world.player.y - VIEW_H / 2);
+    // Locked to the player at all times — no easing, no edge clamping. It
+    // follows the *rounded* player position, which lands the player sprite on
+    // the same exact pixel every frame; tracking the unrounded position makes
+    // them jitter a pixel back and forth as they walk.
+    world.camX = Math.round(world.player.x) - (VIEW_W >> 1);
+    world.camY = Math.round(world.player.y) - (VIEW_H >> 1);
   }
 
   /* ---------- drawing ---------- */
@@ -558,14 +557,17 @@
       const d = drawables[i];
       if (d.prop) {
         const p = d.prop;
-        R.fillEllipse(target, p.x - cx, p.y - cy, p.shadowR, p.shadowR * 0.4, SHADOW, 0.3);
-        R.blit(target, p.sprite, Math.round(p.x - cx - p.sprite.w / 2), Math.round(p.y - cy - p.footY));
+        R.fillEllipse(target, Math.round(p.x) - cx, Math.round(p.y) - cy,
+          p.shadowR, p.shadowR * 0.4, SHADOW, 0.3);
+        R.blit(target, p.sprite, Math.round(p.x) - cx - Math.round(p.sprite.w / 2),
+          Math.round(p.y) - cy - p.footY);
       } else {
         const a = d.actor;
-        const down = a.fall.active ? Math.min(1, Math.hypot(a.fall.pitch, a.fall.roll) / (Math.PI / 2)) : 0;
-        R.fillEllipse(target, a.x - cx, a.y - cy, 7 + down * 6, 3 + down * 1.5, SHADOW, 0.34);
+        const down = a.fall.active ? 1 : 0;
+        R.fillEllipse(target, Math.round(a.x) - cx, Math.round(a.y) - cy,
+          7 + down * 7, 3 + down * 2, SHADOW, 0.34);
         Rig.renderActor(a, a.buffer, camera, {});
-        R.blit(target, a.buffer, Math.round(a.x - cx - ACTOR_BUF.ox), Math.round(a.y - cy - ACTOR_BUF.oy));
+        R.blit(target, a.buffer, Math.round(a.x) - cx - ACTOR_BUF.ox, Math.round(a.y) - cy - ACTOR_BUF.oy);
       }
     }
 
@@ -573,12 +575,12 @@
     const npc = world.prompt;
     if (npc) {
       const name = npc.character.name;
-      const nx = Math.round(npc.x - cx - T.measure(name) / 2);
-      const ny = Math.round(npc.y - cy - 58);
+      const nx = Math.round(npc.x) - cx - Math.round(T.measure(name) / 2);
+      const ny = Math.round(npc.y) - cy - 58;
       T.drawShadowed(target, name, nx, ny, LABEL, LABEL_SHADOW);
       const hint = 'E  talk';
-      T.drawShadowed(target, hint, Math.round(npc.x - cx - T.measure(hint) / 2), ny - 11,
-        PROMPT, LABEL_SHADOW);
+      T.drawShadowed(target, hint, Math.round(npc.x) - cx - Math.round(T.measure(hint) / 2),
+        ny - 11, PROMPT, LABEL_SHADOW);
     }
 
     if (world.input.sprint && !world.box.open) {

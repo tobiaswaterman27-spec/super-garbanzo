@@ -208,70 +208,61 @@
     return 2;
   }
 
-  const FACES = [
-    { idx: [0, 1, 3, 2], n: [-1, 0, 0] }, // -X
-    { idx: [4, 6, 7, 5], n: [1, 0, 0] },  // +X
-    { idx: [0, 4, 5, 1], n: [0, -1, 0] }, // -Y
-    { idx: [2, 3, 7, 6], n: [0, 1, 0] },  // +Y
-    { idx: [0, 2, 6, 4], n: [0, 0, -1] }, // -Z
-    { idx: [1, 5, 7, 3], n: [0, 0, 1] }   // +Z
-  ];
+  let _sx = new Float32Array(512);
+  let _sy = new Float32Array(512);
+  let _sz = new Float32Array(512);
+
+  function ensureScratch(n) {
+    if (_sx.length >= n) return;
+    let size = _sx.length;
+    while (size < n) size *= 2;
+    _sx = new Float32Array(size);
+    _sy = new Float32Array(size);
+    _sz = new Float32Array(size);
+  }
 
   const _p = [0, 0, 0];
   const _n = [0, 0, 0];
-  const _corners = new Float32Array(24);
-  const _screen = new Float32Array(24);
 
-  function drawBox(target, matrix, box, colourRamp, camera, opts) {
-    const x0 = box.x - 0.01, x1 = box.x + box.w + 0.01;
-    const y0 = box.y - 0.01, y1 = box.y + box.h + 0.01;
-    const z0 = box.z - 0.01, z1 = box.z + box.d + 0.01;
+  /* Draws one convex mesh. Vertices are projected once, then each face is
+   * culled, shaded by orientation and fan-triangulated. */
+  function drawMesh(target, matrix, mesh, colourRamp, camera, opts) {
+    const verts = mesh.verts;
+    const count = verts.length / 3;
+    ensureScratch(count);
 
-    // corner index = (xi<<2) | (yi<<1) | zi
-    const xs = [x0, x1], ys = [y0, y1], zs = [z0, z1];
-    for (let xi = 0; xi < 2; xi++) {
-      for (let yi = 0; yi < 2; yi++) {
-        for (let zi = 0; zi < 2; zi++) {
-          const k = ((xi << 2) | (yi << 1) | zi) * 3;
-          transformPoint(matrix, xs[xi], ys[yi], zs[zi], _p);
-          // world -> view: pitch the whole world forward so we look down on it
-          const vy = _p[1] * camera.cosPitch - _p[2] * camera.sinPitch;
-          const vz = _p[1] * camera.sinPitch + _p[2] * camera.cosPitch;
-          _corners[k] = _p[0];
-          _corners[k + 1] = vy;
-          _corners[k + 2] = vz;
-          _screen[k] = camera.ox + _p[0] * camera.scale;
-          _screen[k + 1] = camera.oy - vy * camera.scale;
-          _screen[k + 2] = -vz;
-        }
-      }
+    for (let i = 0; i < count; i++) {
+      transformPoint(matrix, verts[i * 3], verts[i * 3 + 1], verts[i * 3 + 2], _p);
+      // world -> view: pitch the whole world forward so we look down on it
+      const vy = _p[1] * camera.cosPitch - _p[2] * camera.sinPitch;
+      const vz = _p[1] * camera.sinPitch + _p[2] * camera.cosPitch;
+      _sx[i] = camera.ox + _p[0] * camera.scale;
+      _sy[i] = camera.oy - vy * camera.scale;
+      _sz[i] = -vz;
     }
 
-    for (let f = 0; f < 6; f++) {
-      const face = FACES[f];
+    const flat = !!(opts && opts.flat);
+    const bias = (opts && opts.depthBias) ? opts.depthBias : 0;
+    const faces = mesh.faces;
+
+    for (let f = 0; f < faces.length; f++) {
+      const face = faces[f];
       transformDirection(matrix, face.n[0], face.n[1], face.n[2], _n);
       const ny = _n[1] * camera.cosPitch - _n[2] * camera.sinPitch;
       const nz = _n[1] * camera.sinPitch + _n[2] * camera.cosPitch;
       if (nz <= 0.015) continue; // facing away from the camera
 
-      const colour = (opts && opts.flat)
-        ? colourRamp[2]
-        : colourRamp[shadeLevel(_n[0], ny, nz)];
-
-      const i0 = face.idx[0] * 3, i1 = face.idx[1] * 3;
-      const i2 = face.idx[2] * 3, i3 = face.idx[3] * 3;
-      const bias = opts && opts.depthBias ? opts.depthBias : 0;
-
-      rasterTriangle(target,
-        _screen[i0], _screen[i0 + 1], _screen[i0 + 2] - bias,
-        _screen[i1], _screen[i1 + 1], _screen[i1 + 2] - bias,
-        _screen[i2], _screen[i2 + 1], _screen[i2 + 2] - bias,
-        colour);
-      rasterTriangle(target,
-        _screen[i0], _screen[i0 + 1], _screen[i0 + 2] - bias,
-        _screen[i2], _screen[i2 + 1], _screen[i2 + 2] - bias,
-        _screen[i3], _screen[i3 + 1], _screen[i3 + 2] - bias,
-        colour);
+      const colour = flat ? colourRamp[2] : colourRamp[shadeLevel(_n[0], ny, nz)];
+      const idx = face.i;
+      const i0 = idx[0];
+      for (let k = 1; k < idx.length - 1; k++) {
+        const i1 = idx[k], i2 = idx[k + 1];
+        rasterTriangle(target,
+          _sx[i0], _sy[i0], _sz[i0] - bias,
+          _sx[i1], _sy[i1], _sz[i1] - bias,
+          _sx[i2], _sy[i2], _sz[i2] - bias,
+          colour);
+      }
     }
   }
 
@@ -386,7 +377,7 @@
     identity, multiply, translation, scaling, rotationX, rotationY, rotationZ,
     transformPoint, transformDirection,
     pack, hexToRgb, mixRgb, ramp, buildRamp,
-    createTarget, clearTarget, drawBox, traceOutline, blit,
+    createTarget, clearTarget, drawMesh, traceOutline, blit,
     fillRect, strokeRect, fillEllipse, createPresenter, makeCamera,
     rasterTriangle, shadeLevel
   };

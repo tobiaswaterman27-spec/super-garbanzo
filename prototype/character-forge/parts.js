@@ -89,41 +89,49 @@
 
   const BRASS = '#9c7b33';
 
-  /* ---------- box helper ---------- */
+  /* ---------- shape helpers ---------- */
 
-  function b(x, y, z, w, h, d) { return { x: x, y: y, z: z, w: w, h: h, d: d }; }
+  const G = global.Geo;
 
-  /* ---------- hair ----------
-   *
-   * Every piece is anchored to TOP (= hh + 0.5) and overlaps the cap by 1.2
-   * units. Pieces that merely *touched* left a one-pixel seam ringing the
-   * skull once the model was rotated, which is the gap that was showing.
-   */
+  // Must match the skull in character.js, so hair sits concentric with it.
+  const HEAD_E = 0.42;
+  const HAIRLINE = 5.75;   // just clear of the brows, which top out at 5.6
 
-  function top(hh) { return hh + 0.5; }
+  function b(x, y, z, w, h, d) { return G.box(x, y, z, w, h, d); }
 
-  function capBox(hw, hh, hd, thickness) {
-    const t = thickness === undefined ? 2.4 : thickness;
-    return b(-hw / 2 - 0.35, top(hh) - t, -hd / 2 - 0.35, hw + 0.7, t, hd + 0.7);
+  // The crown is a dome *concentric with the skull*, sliced off at the
+  // hairline. Sitting a separate rounded lump on top of the head instead is
+  // what made every character look like they were wearing a mushroom.
+  function crown(hw, hh, hd, hairline, grow) {
+    const g = grow === undefined ? 0.35 : grow;
+    return G.dome(0, hh / 2, 0, hw / 2 + g, hh / 2 + g, hd / 2 + g, HEAD_E,
+      hairline === undefined ? HAIRLINE : hairline, 4, 12);
   }
 
-  function backBox(hw, hh, hd, len, thick) {
-    const t = thick === undefined ? 1.2 : thick;
-    return b(-hw / 2 - 0.35, top(hh) - 1.2 - len, -hd / 2 - 0.35, hw + 0.7, len + 1.2, t);
+  // Hair falling down the back, narrowing as it goes.
+  function fall(hw, hh, hd, len, width, taperTo, fromY) {
+    const w = hw * (width === undefined ? 1 : width);
+    const top = fromY === undefined ? 6.4 : fromY;
+    return G.slab(-w / 2, top - len, -hd / 2 - 0.55, w, len, 1.8, 1,
+      taperTo === undefined ? 0.78 : taperTo);
   }
 
-  function sideBoxes(hw, hh, hd, len, thick) {
-    const t = thick === undefined ? 0.95 : thick;
+  function sideFall(hw, hh, hd, len, taperTo, fromY) {
+    const t = taperTo === undefined ? 0.75 : taperTo;
+    const top = fromY === undefined ? 6.2 : fromY;
     return [
-      b(-hw / 2 - 0.35, top(hh) - 1.2 - len, -hd / 2 - 0.35, t, len + 1.2, hd + 0.7),
-      b(hw / 2 + 0.35 - t, top(hh) - 1.2 - len, -hd / 2 - 0.35, t, len + 1.2, hd + 0.7)
+      G.slab(-hw / 2 - 0.45, top - len, -hd / 2 - 0.1, 1.25, len, hd + 0.2, 1, t),
+      G.slab(hw / 2 - 0.8, top - len, -hd / 2 - 0.1, 1.25, len, hd + 0.2, 1, t)
     ];
   }
 
-  function fringeBox(hw, hh, hd, drop) {
-    const d0 = drop === undefined ? 1.4 : drop;
-    return b(-hw / 2 - 0.35, top(hh) - 1.2 - d0, hd / 2 - 0.55, hw + 0.7, d0 + 1.2, 1.05);
+  // `drop` is how far below the hairline it hangs over the brow.
+  function fringe(hw, hh, hd, drop) {
+    const d0 = drop === undefined ? 0.5 : drop;
+    return G.slab(-hw / 2 + 0.2, HAIRLINE - d0, hd / 2 - 1.1, hw - 0.4, d0 + 0.9, 1.6, 1, 0.92);
   }
+
+  /* ---------- hair ---------- */
 
   const HAIR_STYLES = [
     {
@@ -133,114 +141,114 @@
     {
       id: 'buzz', label: 'Buzzed', femaleBias: 0.06,
       build: function (hw, hh, hd) {
-        return [capBox(hw, hh, hd, 1.6), backBox(hw, hh, hd, 0.6, 0.7)]
-          .concat(sideBoxes(hw, hh, hd, 0.6, 0.6));
+        return [crown(hw, hh, hd, 6.1, 0.18)];
       }
     },
     {
       id: 'crop', label: 'Cropped', femaleBias: 0.18,
       build: function (hw, hh, hd) {
-        return [capBox(hw, hh, hd, 2.2), fringeBox(hw, hh, hd, 0.7), backBox(hw, hh, hd, 1.5)]
-          .concat(sideBoxes(hw, hh, hd, 1.2));
+        return [crown(hw, hh, hd), fringe(hw, hh, hd, 0.45), fall(hw, hh, hd, 1.5, 0.95)];
       }
     },
     {
       id: 'bowl', label: 'Bowl cut', femaleBias: 0.4,
       build: function (hw, hh, hd) {
-        return [capBox(hw, hh, hd), fringeBox(hw, hh, hd, 1.7), backBox(hw, hh, hd, 2.4)]
-          .concat(sideBoxes(hw, hh, hd, 2.4));
+        return [crown(hw, hh, hd, 5.5), fringe(hw, hh, hd, 1.4), fall(hw, hh, hd, 2.6, 1, 0.95)]
+          .concat(sideFall(hw, hh, hd, 2.8, 0.95));
       }
     },
     {
       id: 'sidepart', label: 'Side part', femaleBias: 0.3,
       build: function (hw, hh, hd) {
         return [
-          capBox(hw, hh, hd),
-          // the parting: a thicker sweep on one side, a flat sweep on the other
-          b(-hw / 2 - 0.35, top(hh) - 3.1, hd / 2 - 0.55, hw * 0.6, 1.9, 1.05),
-          b(hw * 0.1, top(hh) - 2.5, hd / 2 - 0.55, hw * 0.4 + 0.35, 1.3, 1.05),
-          backBox(hw, hh, hd, 1.6)
-        ].concat(sideBoxes(hw, hh, hd, 1.5));
+          crown(hw, hh, hd),
+          // a sweep across the brow, thicker on one side
+          G.slab(-hw / 2 + 0.1, HAIRLINE - 0.9, hd / 2 - 1.1, hw * 0.58, 1.9, 1.7, 1, 0.62),
+          G.slab(hw * 0.02, HAIRLINE - 0.3, hd / 2 - 1.1, hw * 0.46, 1.3, 1.6, 1, 0.72),
+          fall(hw, hh, hd, 1.5, 0.95)
+        ];
       }
     },
     {
       id: 'spiky', label: 'Spiked', femaleBias: 0.2,
       build: function (hw, hh, hd) {
-        // A thick cap, then each spike gets a wide base sunk into that cap and a
-        // narrower tip above it, so the spikes read as one joined mass of hair
-        // rather than separate floating blocks.
-        const out = [capBox(hw, hh, hd, 2.6), backBox(hw, hh, hd, 1.0, 0.9)];
-        const t = top(hh);
+        // Real spikes: pyramids rising out of the crown and leaning outward,
+        // rather than stacked cubes pretending to be points.
+        const out = [crown(hw, hh, hd, 6.0, 0.25)];
         const spikes = [
-          [-2.9, -1.9, 2.0], [-0.9, 0.9, 2.7], [1.3, -0.7, 2.2],
-          [2.2, 1.7, 1.7], [-1.6, -2.9, 1.6], [0.4, 2.4, 1.9]
+          [-2.6, -1.7, 3.4, -0.9, -0.7], [-0.5, 0.8, 4.3, -0.2, 0.5],
+          [1.7, -1.0, 3.8, 0.8, -0.5], [2.5, 1.4, 3.0, 1.1, 0.8],
+          [-1.9, 2.4, 3.2, -0.6, 1.0], [0.6, -2.8, 3.6, 0.2, -1.1],
+          [-3.0, 0.6, 2.8, -1.2, 0.3], [1.2, 2.7, 2.6, 0.5, 1.2]
         ];
         for (let i = 0; i < spikes.length; i++) {
-          const sx = spikes[i][0] * (hw / 8), sz = spikes[i][1] * (hd / 8), hgt = spikes[i][2];
-          // The base is buried in the cap and the tip is buried in the base —
-          // each pair overlaps by a full unit, so the spikes read as one mass
-          // of hair rising out of the scalp rather than floating blocks.
-          out.push(b(sx, t - 1.4, sz, 2.2, 2.2, 2.2));
-          out.push(b(sx + 0.45, t - 0.4, sz + 0.45, 1.3, hgt + 1.1, 1.3));
+          const sx = spikes[i][0] * (hw / 8), sz = spikes[i][1] * (hd / 8);
+          const len = spikes[i][2], lx = spikes[i][3], lz = spikes[i][4];
+          out.push(G.pyramid(sx - 1.2, hh - 1.7, sz - 1.2, 2.4, len, 2.4, lx, lz));
         }
-        return out.concat(sideBoxes(hw, hh, hd, 0.8, 0.7));
+        return out;
       }
     },
     {
       id: 'mohawk', label: 'Mohawk', femaleBias: 0.25,
       build: function (hw, hh, hd) {
-        const t = top(hh);
-        return [
-          b(-hw / 2 - 0.35, t - 1.3, -hd / 2 - 0.35, hw + 0.7, 1.3, hd + 0.7),
-          b(-1.1, t - 0.6, -hd / 2 - 0.2, 2.2, 2.0, hd + 0.4),
-          b(-0.8, t + 1.2, -hd / 2 + 0.4, 1.6, 1.4, hd - 0.4)
-        ];
+        const out = [crown(hw, hh, hd, 6.6, 0.14)];
+        for (let i = 0; i < 5; i++) {
+          const t = i / 4;
+          const sz = -hd / 2 + 0.6 + t * (hd - 1.2);
+          const hgt = 2.2 + Math.sin(t * Math.PI) * 1.6;
+          out.push(G.pyramid(-1.0, hh - 1.6, sz - 0.9, 2.0, hgt, 1.8, 0, 0));
+        }
+        return out;
       }
     },
     {
       id: 'topknot', label: 'Top knot', femaleBias: 0.45,
       build: function (hw, hh, hd) {
         return [
-          capBox(hw, hh, hd, 2.2),
-          b(-1.7, top(hh) - 0.6, -1.7, 3.4, 2.4, 3.4),
-          backBox(hw, hh, hd, 1.4)
-        ].concat(sideBoxes(hw, hh, hd, 1.2));
+          crown(hw, hh, hd),
+          G.taper(-0.9, hh + 0.1, -0.9, 1.8, 1.3, 1.8, 0.8),
+          G.superellipsoid(0, hh + 2.0, 0, 1.8, 1.6, 1.8, 0.85, 4, 8),
+          fall(hw, hh, hd, 1.3, 0.9)
+        ];
       }
     },
     {
       id: 'shoulder', label: 'Shoulder length', femaleBias: 0.66,
       build: function (hw, hh, hd) {
-        return [capBox(hw, hh, hd), fringeBox(hw, hh, hd, 1.3), backBox(hw, hh, hd, 5.2, 1.4)]
-          .concat(sideBoxes(hw, hh, hd, 4.4, 1.1));
+        return [crown(hw, hh, hd), fringe(hw, hh, hd, 0.7), fall(hw, hh, hd, 5.6, 1.0, 0.72)]
+          .concat(sideFall(hw, hh, hd, 4.6, 0.7));
       }
     },
     {
       id: 'long', label: 'Long', femaleBias: 0.78,
       build: function (hw, hh, hd) {
-        return [capBox(hw, hh, hd), fringeBox(hw, hh, hd, 1.2), backBox(hw, hh, hd, 9.0, 1.5)]
-          .concat(sideBoxes(hw, hh, hd, 6.6, 1.2));
+        return [crown(hw, hh, hd), fringe(hw, hh, hd, 0.6), fall(hw, hh, hd, 9.8, 1.02, 0.6)]
+          .concat(sideFall(hw, hh, hd, 7.0, 0.62));
       }
     },
     {
       id: 'ponytail', label: 'Ponytail', femaleBias: 0.7,
       build: function (hw, hh, hd) {
         return [
-          capBox(hw, hh, hd), backBox(hw, hh, hd, 1.6),
-          b(-1.2, top(hh) - 4.2, -hd / 2 - 1.9, 2.4, 2.2, 1.8),
-          b(-1.0, top(hh) - 9.2, -hd / 2 - 2.3, 2.0, 5.2, 1.7)
-        ].concat(sideBoxes(hw, hh, hd, 1.6));
+          crown(hw, hh, hd),
+          fall(hw, hh, hd, 1.5, 0.95),
+          G.superellipsoid(0, 6.0, -hd / 2 - 1.2, 1.5, 1.3, 1.3, 0.8, 4, 8),
+          // the tail itself, tapering and swept back
+          G.slab(-1.1, 0.4, -hd / 2 - 2.8, 2.2, 5.6, 2.2, 0.45, 1.0, 0, -0.9)
+        ];
       }
     },
     {
       id: 'braids', label: 'Twin braids', femaleBias: 0.85,
       build: function (hw, hh, hd) {
-        const out = [capBox(hw, hh, hd), fringeBox(hw, hh, hd, 1.2), backBox(hw, hh, hd, 2.2)]
-          .concat(sideBoxes(hw, hh, hd, 2.0));
+        const out = [crown(hw, hh, hd), fringe(hw, hh, hd, 0.6), fall(hw, hh, hd, 2.0, 1)];
         for (let side = 0; side < 2; side++) {
-          const sx = side === 0 ? -hw / 2 - 1.1 : hw / 2 - 0.4;
-          for (let k = 0; k < 4; k++) {
-            const w = 1.6 - k * 0.16;
-            out.push(b(sx + (1.5 - w) / 2, top(hh) - 3.6 - k * 1.7, -0.9 - k * 0.22, w, 1.8, 1.7));
+          const sx = side === 0 ? -hw / 2 - 0.9 : hw / 2 - 0.9;
+          for (let k = 0; k < 5; k++) {
+            const w = 1.9 - k * 0.22;
+            out.push(G.superellipsoid(sx + 0.9, 5.4 - k * 1.55, -0.5 - k * 0.3,
+              w / 2, 0.95, w / 2, 0.75, 3, 7));
           }
         }
         return out;
@@ -250,26 +258,25 @@
       id: 'pigtails', label: 'Pigtails', femaleBias: 0.88,
       build: function (hw, hh, hd) {
         return [
-          capBox(hw, hh, hd), fringeBox(hw, hh, hd, 1.3), backBox(hw, hh, hd, 1.8),
-          b(-hw / 2 - 2.3, top(hh) - 4.6, -1.5, 2.5, 2.9, 2.9),
-          b(hw / 2 - 0.2, top(hh) - 4.6, -1.5, 2.5, 2.9, 2.9)
-        ].concat(sideBoxes(hw, hh, hd, 2.0));
+          crown(hw, hh, hd), fringe(hw, hh, hd, 0.6), fall(hw, hh, hd, 1.7, 0.95),
+          G.superellipsoid(-hw / 2 - 1.0, 5.6, -0.4, 2.0, 1.9, 1.9, 0.8, 4, 8),
+          G.superellipsoid(hw / 2 + 1.0, 5.6, -0.4, 2.0, 1.9, 1.9, 0.8, 4, 8)
+        ];
       }
     },
     {
       id: 'curly', label: 'Curled', femaleBias: 0.55,
       build: function (hw, hh, hd) {
-        // overlapping puffs, each sunk into the cap so no seams open up
-        const out = [capBox(hw, hh, hd, 2.2)].concat(sideBoxes(hw, hh, hd, 1.6));
-        const t = top(hh);
-        const puffs = [
-          [-hw / 2 - 0.9, t - 2.0, -1.7], [hw / 2 - 1.4, t - 2.0, -1.7],
-          [-hw / 2 - 0.8, t - 3.9, -2.4], [hw / 2 - 1.5, t - 3.9, -2.4],
-          [-2.4, t - 0.9, -hd / 2 - 1.1], [0.3, t - 0.9, -hd / 2 - 1.1],
-          [-2.5, t - 0.7, hd / 2 - 1.2], [0.4, t - 0.7, hd / 2 - 1.2]
+        // a mass of overlapping balls rather than a slab
+        const out = [crown(hw, hh, hd, 5.6, 0.25)];
+        const ring = [
+          [-3.4, 0.4, -1.6], [3.4, 0.4, -1.6], [-3.2, -1.6, -2.0], [3.2, -1.6, -2.0],
+          [-2.2, 1.4, -4.0], [1.4, 1.4, -4.0], [-2.4, 1.2, 3.2], [1.6, 1.2, 3.2],
+          [-1.0, 2.4, 0.0], [1.6, 2.2, -2.2], [0.0, -1.8, -4.2]
         ];
-        for (let i = 0; i < puffs.length; i++) {
-          out.push(b(puffs[i][0], puffs[i][1], puffs[i][2], 2.4, 2.4, 2.4));
+        for (let i = 0; i < ring.length; i++) {
+          out.push(G.superellipsoid(ring[i][0], 6.6 + ring[i][1], ring[i][2],
+            1.5, 1.4, 1.5, 0.85, 3, 7));
         }
         return out;
       }
@@ -278,17 +285,17 @@
       id: 'bun', label: 'Coiled bun', femaleBias: 0.82,
       build: function (hw, hh, hd) {
         return [
-          capBox(hw, hh, hd), fringeBox(hw, hh, hd, 1.0), backBox(hw, hh, hd, 2.0),
-          b(-2.0, top(hh) - 3.4, -hd / 2 - 2.5, 4.0, 3.6, 2.8)
-        ].concat(sideBoxes(hw, hh, hd, 2.4));
+          crown(hw, hh, hd), fringe(hw, hh, hd, 0.45), fall(hw, hh, hd, 1.6, 0.95),
+          G.superellipsoid(0, 6.4, -hd / 2 - 1.9, 2.4, 2.2, 2.0, 0.8, 4, 9)
+        ];
       }
     }
   ];
 
   /* ---------- moustaches ----------
    *
-   * Separate from beards, and always seated below the nose (the nose bottoms
-   * out at y 2.5, the mouth starts at 1.9).
+   * Always seated below the nose (which bottoms out at y 2.5) and above the
+   * mouth (which starts at 1.9). They sit proud of the face, not flush to it.
    */
 
   const MOUSTACHE_Y = 1.92;
@@ -298,40 +305,38 @@
     {
       id: 'thin', label: 'Thin', maleBias: 0.14,
       build: function (hw, hh, hd) {
-        return [b(-1.7, MOUSTACHE_Y + 0.1, hd / 2 - 0.12, 3.4, 0.5, 0.62)];
+        return [G.slab(-1.7, MOUSTACHE_Y + 0.1, hd / 2 - 0.15, 3.4, 0.5, 0.85, 1, 0.8)];
       }
     },
     {
       id: 'full', label: 'Full', maleBias: 0.18,
       build: function (hw, hh, hd) {
-        return [b(-2.1, MOUSTACHE_Y, hd / 2 - 0.12, 4.2, 0.72, 0.72)];
+        return [G.slab(-2.1, MOUSTACHE_Y, hd / 2 - 0.2, 4.2, 0.8, 1.1, 0.85, 1)];
       }
     },
     {
       id: 'handlebar', label: 'Handlebar', maleBias: 0.1,
       build: function (hw, hh, hd) {
         return [
-          b(-2.0, MOUSTACHE_Y, hd / 2 - 0.12, 4.0, 0.68, 0.7),
-          b(-2.9, MOUSTACHE_Y + 0.5, hd / 2 - 0.12, 0.9, 0.62, 0.66),
-          b(2.0, MOUSTACHE_Y + 0.5, hd / 2 - 0.12, 0.9, 0.62, 0.66)
+          G.slab(-2.0, MOUSTACHE_Y, hd / 2 - 0.2, 4.0, 0.7, 1.0, 0.9, 1),
+          // curled ends, tapering to a point and sweeping upward
+          G.taper(-3.1, MOUSTACHE_Y + 0.3, hd / 2 - 0.15, 1.2, 1.1, 0.85, 0.25, -0.35, 0),
+          G.taper(1.9, MOUSTACHE_Y + 0.3, hd / 2 - 0.15, 1.2, 1.1, 0.85, 0.25, 0.35, 0)
         ];
       }
     },
     {
       id: 'walrus', label: 'Walrus', maleBias: 0.09,
       build: function (hw, hh, hd) {
-        return [
-          b(-2.4, MOUSTACHE_Y - 0.35, hd / 2 - 0.12, 4.8, 1.05, 0.8),
-          b(-2.0, MOUSTACHE_Y - 0.75, hd / 2 - 0.1, 4.0, 0.5, 0.7)
-        ];
+        return [G.slab(-2.5, MOUSTACHE_Y - 0.9, hd / 2 - 0.25, 5.0, 1.7, 1.3, 1, 0.78)];
       }
     }
   ];
 
   /* ---------- beards ----------
    *
-   * No moustache component anywhere in here; the two are chosen independently.
-   * Side panels stop short of the cheekbone so the face stays readable.
+   * No moustache component anywhere in here. Long beards hang off the chin and
+   * taper to a point rather than being a brick glued to the jaw.
    */
 
   const BEARDS = [
@@ -339,25 +344,21 @@
     {
       id: 'stubble', label: 'Stubble', maleBias: 0.18,
       build: function (hw, hh, hd) {
-        return [
-          b(-hw / 2 + 0.2, 0.35, hd / 2 - 0.1, hw - 0.4, 1.5, 0.4),
-          b(-hw / 2 - 0.4, 0.35, -hd / 2 + 1.6, 0.4, 1.9, hd - 1.6),
-          b(hw / 2, 0.35, -hd / 2 + 1.6, 0.4, 1.9, hd - 1.6)
-        ];
+        return [G.superellipsoid(0, 1.1, 0.35, hw / 2 + 0.12, 1.7, hd / 2 + 0.12, 0.45, 4, 9)];
       }
     },
     {
       id: 'chin', label: 'Chin patch', maleBias: 0.09,
       build: function (hw, hh, hd) {
-        return [b(-1.1, 0.25, hd / 2 - 0.12, 2.2, 1.3, 0.7)];
+        return [G.slab(-1.1, 0.2, hd / 2 - 0.4, 2.2, 1.4, 1.1, 0.8, 1)];
       }
     },
     {
       id: 'goatee', label: 'Goatee', maleBias: 0.12,
       build: function (hw, hh, hd) {
         return [
-          b(-1.3, 0.1, hd / 2 - 0.12, 2.6, 1.8, 0.75),
-          b(-1.0, -1.4, hd / 2 - 0.5, 2.0, 1.5, 1.2)
+          G.slab(-1.3, 0.0, hd / 2 - 0.5, 2.6, 1.8, 1.3, 0.85, 1),
+          G.taper(-1.0, -2.2, hd / 2 - 0.6, 2.0, 2.3, 1.3, 0.3, 0, 0.2)
         ];
       }
     },
@@ -365,8 +366,8 @@
       id: 'chops', label: 'Mutton chops', maleBias: 0.06,
       build: function (hw, hh, hd) {
         return [
-          b(-hw / 2 - 0.5, 1.0, -hd / 2 + 1.8, 0.65, 2.8, hd - 1.6),
-          b(hw / 2 - 0.15, 1.0, -hd / 2 + 1.8, 0.65, 2.8, hd - 1.6)
+          G.slab(-hw / 2 - 0.55, 0.9, -hd / 2 + 1.6, 1.0, 3.0, hd - 1.4, 1, 0.55),
+          G.slab(hw / 2 - 0.45, 0.9, -hd / 2 + 1.6, 1.0, 3.0, hd - 1.4, 1, 0.55)
         ];
       }
     },
@@ -374,10 +375,8 @@
       id: 'short', label: 'Short beard', maleBias: 0.13,
       build: function (hw, hh, hd) {
         return [
-          b(-hw / 2 + 0.1, 0.0, hd / 2 - 0.12, hw - 0.2, 1.9, 0.8),
-          b(-hw / 2 - 0.5, 0.0, -hd / 2 + 1.4, 0.6, 2.4, hd - 1.3),
-          b(hw / 2 - 0.1, 0.0, -hd / 2 + 1.4, 0.6, 2.4, hd - 1.3),
-          b(-hw / 2 + 0.7, -0.9, hd / 2 - 1.7, hw - 1.4, 1.1, 1.9)
+          G.superellipsoid(0, 0.8, 0.5, hw / 2 + 0.25, 2.1, hd / 2 + 0.25, 0.45, 4, 9),
+          G.slab(-hw / 2 + 0.7, -1.2, hd / 2 - 1.9, hw - 1.4, 1.6, 2.2, 1, 0.75)
         ];
       }
     },
@@ -385,10 +384,8 @@
       id: 'full', label: 'Full beard', maleBias: 0.08,
       build: function (hw, hh, hd) {
         return [
-          b(-hw / 2 - 0.1, -0.9, hd / 2 - 0.15, hw + 0.2, 2.7, 0.92),
-          b(-hw / 2 - 0.55, -0.5, -hd / 2 + 1.0, 0.68, 3.2, hd - 0.9),
-          b(hw / 2 - 0.13, -0.5, -hd / 2 + 1.0, 0.68, 3.2, hd - 0.9),
-          b(-hw / 2 + 0.6, -2.6, hd / 2 - 2.2, hw - 1.2, 1.9, 2.4)
+          G.superellipsoid(0, 0.5, 0.6, hw / 2 + 0.4, 2.4, hd / 2 + 0.4, 0.45, 5, 10),
+          G.slab(-hw / 2 + 0.4, -3.0, hd / 2 - 2.4, hw - 0.8, 3.2, 2.8, 1, 0.7)
         ];
       }
     },
@@ -396,11 +393,10 @@
       id: 'long', label: 'Long beard', maleBias: 0.04,
       build: function (hw, hh, hd) {
         return [
-          b(-hw / 2 - 0.1, -1.3, hd / 2 - 0.15, hw + 0.2, 3.1, 0.92),
-          b(-hw / 2 - 0.55, -0.9, -hd / 2 + 1.0, 0.68, 3.6, hd - 0.9),
-          b(hw / 2 - 0.13, -0.9, -hd / 2 + 1.0, 0.68, 3.6, hd - 0.9),
-          b(-hw / 2 + 0.7, -4.6, hd / 2 - 2.5, hw - 1.4, 3.4, 2.7),
-          b(-1.7, -7.0, hd / 2 - 2.3, 3.4, 2.5, 2.3)
+          G.superellipsoid(0, 0.3, 0.6, hw / 2 + 0.4, 2.5, hd / 2 + 0.4, 0.45, 5, 10),
+          G.slab(-hw / 2 + 0.5, -4.4, hd / 2 - 2.5, hw - 1.0, 4.4, 2.9, 1, 0.66),
+          // it hangs free of the chin and comes to a point
+          G.taper(-1.7, -8.0, hd / 2 - 2.2, 3.4, 3.8, 2.4, 0.22, 0, 0.1)
         ];
       }
     }

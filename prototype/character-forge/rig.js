@@ -346,7 +346,7 @@
       }
       f.links = links;
       f.p = p;
-      f.bodyR = actor.model.dims.torsoW / 2 + actor.model.dims.armW * 0.32;
+      f.body = bodyVolumes(actor.model.dims);
     }
 
     f.active = true;
@@ -405,7 +405,7 @@
         a.x += ox; a.y += oy; a.z += oz;
         b.x -= ox; b.y -= oy; b.z -= oz;
       }
-      avoidTorso(f);
+      separateLimbs(f);
       for (const key in p) {
         const q = p[key];
         if (q.y < q.r) {
@@ -418,27 +418,237 @@
     }
   }
 
-  /* Keeps hands and elbows out of the torso. Without it the constraints are
-   * happy to let an arm swing straight through the chest, which is what makes
-   * the limbs look like they are folding the wrong way. */
-  function avoidTorso(f) {
-    const a = f.p.pelvis, b = f.p.chest;
-    if (!a || !b) return;
-    const bx = b.x - a.x, by = b.y - a.y, bz = b.z - a.z;
-    const len2 = bx * bx + by * by + bz * bz || 1e-6;
-    const r = f.bodyR || 4.4;
-    const limbs = ['elbowR', 'elbowL', 'handR', 'handL'];
-    for (let i = 0; i < limbs.length; i++) {
-      const q = f.p[limbs[i]];
-      if (!q) continue;
-      let t = ((q.x - a.x) * bx + (q.y - a.y) * by + (q.z - a.z) * bz) / len2;
+  /* ------------------------------------------------------------------ *
+   * Solid-body separation.
+   *
+   * The distance constraints alone are perfectly happy to let an arm swing
+   * straight through the chest or the two legs scissor through each other,
+   * because nothing in the solver knows the body has any volume. Since every
+   * bone is drawn as a box spanning two particles, a segment that crosses the
+   * torso is a limb visibly inside the body.
+   *
+   * So each frame we treat the body as solids and push overlapping parts
+   * apart: an elliptical torso column (wide, shallow — a person is not a
+   * cylinder), a head sphere, and the limbs as capsules against each other.
+   * ------------------------------------------------------------------ */
+
+  function bodyVolumes(d) {
+    return {
+      // Padded just under where an arm hangs at rest, so a limb lying along
+      // the body touches the surface instead of being held off it — any more
+      // and the solver splays the arms permanently.
+      torsoX: d.torsoW / 2 + d.armW * 0.30,
+      torsoZ: d.torsoD / 2 + d.armW * 0.30,
+      headR: d.headW * 0.5 + d.armW * 0.2,
+      armR: d.armW * 0.5,
+      legR: d.legW * 0.5
+    };
+  }
+
+  const DEFAULT_BODY = { torsoX: 4.6, torsoZ: 3.1, headR: 4.9, armR: 1.5, legR: 1.75 };
+
+  // Limb segments tested against the torso and head, with which end is
+  // anchored to the body itself (that end never moves — it *is* the torso).
+  const LIMB_SEGMENTS = [
+    { a: 'shoulderR', b: 'elbowR', rootA: true, vsHead: false },
+    { a: 'elbowR', b: 'handR', rootA: false, vsHead: true },
+    { a: 'shoulderL', b: 'elbowL', rootA: true, vsHead: false },
+    { a: 'elbowL', b: 'handL', rootA: false, vsHead: true },
+    { a: 'hipR', b: 'kneeR', rootA: true, vsHead: false },
+    { a: 'kneeR', b: 'footR', rootA: false, vsHead: true },
+    { a: 'hipL', b: 'kneeL', rootA: true, vsHead: false },
+    { a: 'kneeL', b: 'footL', rootA: false, vsHead: true }
+  ];
+
+  // Limb pairs that must not pass through one another. Same-side arm/leg is
+  // included: an arm sweeping through its own thigh reads just as wrong as
+  // the legs crossing.
+  const LIMB_PAIRS = [
+    ['armR', 'armL'], ['armR', 'foreL'], ['foreR', 'armL'], ['foreR', 'foreL'],
+    ['legR', 'legL'], ['legR', 'shinL'], ['shinR', 'legL'], ['shinR', 'shinL'],
+    ['foreR', 'legR'], ['foreR', 'legL'], ['foreL', 'legL'], ['foreL', 'legR'],
+    ['foreR', 'shinR'], ['foreL', 'shinL']
+  ];
+
+  const LIMB_BONES = {
+    armR: ['shoulderR', 'elbowR', 'armR'], foreR: ['elbowR', 'handR', 'armR'],
+    armL: ['shoulderL', 'elbowL', 'armR'], foreL: ['elbowL', 'handL', 'armR'],
+    legR: ['hipR', 'kneeR', 'legR'], shinR: ['kneeR', 'footR', 'legR'],
+    legL: ['hipL', 'kneeL', 'legR'], shinL: ['kneeL', 'footL', 'legR']
+  };
+
+  // Scratch frame, reused every iteration — this runs 8 times per substep.
+  const _fr = {
+    ox: 0, oy: 0, oz: 0, len: 1,
+    ux: 0, uy: 1, uz: 0, lx: 1, ly: 0, lz: 0, fx: 0, fy: 0, fz: 1
+  };
+
+  /* Builds the torso's own axes: up along pelvis->neck, lateral across the
+   * shoulders, forward as the cross product. Without a real frame the torso
+   * can only be a round column, and a round column either lets arms through
+   * at the front or holds them out at the sides. */
+  function torsoFrame(p) {
+    const a = p.pelvis, b = p.neck || p.chest;
+    if (!a || !b) return null;
+    let ux = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z;
+    const ul = Math.hypot(ux, uy, uz);
+    if (ul < 1e-5) return null;
+    ux /= ul; uy /= ul; uz /= ul;
+
+    let lx, ly, lz;
+    const sr = p.shoulderR, sl = p.shoulderL;
+    if (sr && sl) { lx = sr.x - sl.x; ly = sr.y - sl.y; lz = sr.z - sl.z; }
+    else { lx = 1; ly = 0; lz = 0; }
+    const dot = lx * ux + ly * uy + lz * uz;
+    lx -= ux * dot; ly -= uy * dot; lz -= uz * dot;
+    let ll = Math.hypot(lx, ly, lz);
+    if (ll < 1e-4) {
+      // shoulders collapsed onto the spine: any perpendicular will do
+      lx = Math.abs(ux) < 0.9 ? 1 : 0; ly = 0; lz = Math.abs(ux) < 0.9 ? 0 : 1;
+      const d2 = lx * ux + ly * uy + lz * uz;
+      lx -= ux * d2; ly -= uy * d2; lz -= uz * d2;
+      ll = Math.hypot(lx, ly, lz) || 1;
+    }
+    lx /= ll; ly /= ll; lz /= ll;
+
+    _fr.ox = a.x; _fr.oy = a.y; _fr.oz = a.z;
+    _fr.len = ul;
+    _fr.ux = ux; _fr.uy = uy; _fr.uz = uz;
+    _fr.lx = lx; _fr.ly = ly; _fr.lz = lz;
+    _fr.fx = uy * lz - uz * ly;
+    _fr.fy = uz * lx - ux * lz;
+    _fr.fz = ux * ly - uy * lx;
+    return _fr;
+  }
+
+  // Push accumulator: a sample point can be pushed by torso and head in the
+  // same pass, and both ends of a segment share what their samples ask for.
+  const _push = { x: 0, y: 0, z: 0, hit: false };
+
+  /* How far this point has to move to sit outside the torso column. */
+  function torsoEscape(fr, body, x, y, z) {
+    const dx = x - fr.ox, dy = y - fr.oy, dz = z - fr.oz;
+    const s = dx * fr.ux + dy * fr.uy + dz * fr.uz;
+    // The column starts above the hip block, not at the pelvis: the thighs
+    // are *rooted* inside the pelvis, so testing them against it has the
+    // solver fighting the skeleton's own geometry forever.
+    if (s < fr.len * 0.3 || s > fr.len + 0.4) return false;
+    const u = dx * fr.lx + dy * fr.ly + dz * fr.lz;
+    const v = dx * fr.fx + dy * fr.fy + dz * fr.fz;
+    const nu = u / body.torsoX, nv = v / body.torsoZ;
+    const m = Math.hypot(nu, nv);
+    if (m >= 1) return false;
+    // scale out to the ellipse surface along the ray through the axis
+    const k = m < 1e-4 ? 1 : 1 / m;
+    const tu = u * k, tv = v * k;
+    const eu = tu - u, ev = tv - v;
+    _push.x = fr.lx * eu + fr.fx * ev;
+    _push.y = fr.ly * eu + fr.fy * ev;
+    _push.z = fr.lz * eu + fr.fz * ev;
+    return true;
+  }
+
+  function headEscape(p, body, x, y, z) {
+    const h = p.headTop, n = p.neck;
+    if (!h || !n) return false;
+    // the skull sits between the neck and the crown particle
+    const cx = (h.x + n.x) * 0.5, cy = (h.y + n.y) * 0.5, cz = (h.z + n.z) * 0.5;
+    const dx = x - cx, dy = y - cy, dz = z - cz;
+    const d = Math.hypot(dx, dy, dz);
+    if (d >= body.headR) return false;
+    const k = d < 1e-4 ? 0 : (body.headR - d) / d;
+    if (d < 1e-4) { _push.x = 0; _push.y = body.headR; _push.z = 0; return true; }
+    _push.x = dx * k; _push.y = dy * k; _push.z = dz * k;
+    return true;
+  }
+
+  const SAMPLES = [0.25, 0.55, 0.8, 1.0];
+
+  /* Samples each limb segment along its length rather than only at the
+   * joints. Testing endpoints alone is what let a forearm lie across the
+   * chest with both the elbow and the hand clear of it. */
+  function separateLimbs(f) {
+    const p = f.p;
+    const body = f.body || DEFAULT_BODY;
+    const fr = torsoFrame(p);
+
+    for (let i = 0; i < LIMB_SEGMENTS.length; i++) {
+      const seg = LIMB_SEGMENTS[i];
+      const a = p[seg.a], b = p[seg.b];
+      if (!a || !b) continue;
+      let ax = 0, ay = 0, az = 0, bx = 0, by = 0, bz = 0, any = false;
+
+      for (let j = 0; j < SAMPLES.length; j++) {
+        const t = SAMPLES[j];
+        const x = a.x + (b.x - a.x) * t;
+        const y = a.y + (b.y - a.y) * t;
+        const z = a.z + (b.z - a.z) * t;
+        let ex = 0, ey = 0, ez = 0, hit = false;
+        if (fr && torsoEscape(fr, body, x, y, z)) {
+          ex += _push.x; ey += _push.y; ez += _push.z; hit = true;
+        }
+        if (seg.vsHead && headEscape(p, body, x, y, z)) {
+          ex += _push.x; ey += _push.y; ez += _push.z; hit = true;
+        }
+        if (!hit) continue;
+        any = true;
+        // Share the correction between the ends by how close the sample is to
+        // each. A root end is welded to the torso, so it only takes a token
+        // share — but not none: you cannot get a thigh out of your own chest
+        // without your hips moving, and pushing only the knee leaves the
+        // middle of the limb buried.
+        const wa = seg.rootA ? (1 - t) * 0.3 : (1 - t);
+        const wb = seg.rootA ? 1 : t;
+        const sum = wa + wb || 1;
+        ax += ex * wa / sum; ay += ey * wa / sum; az += ez * wa / sum;
+        bx += ex * wb / sum; by += ey * wb / sum; bz += ez * wb / sum;
+      }
+
+      if (!any) continue;
+      const n = SAMPLES.length;
+      if (!seg.rootA) { a.x += ax / n; a.y += ay / n; a.z += az / n; }
+      b.x += bx / n; b.y += by / n; b.z += bz / n;
+    }
+
+    separateLimbPairs(p, body);
+  }
+
+  // Closest points between two segments, then push them apart along that line.
+  function separateLimbPairs(p, body) {
+    for (let i = 0; i < LIMB_PAIRS.length; i++) {
+      const A = LIMB_BONES[LIMB_PAIRS[i][0]], B = LIMB_BONES[LIMB_PAIRS[i][1]];
+      const a0 = p[A[0]], a1 = p[A[1]], b0 = p[B[0]], b1 = p[B[1]];
+      if (!a0 || !a1 || !b0 || !b1) continue;
+      const want = body[A[2]] + body[B[2]];
+
+      const ux = a1.x - a0.x, uy = a1.y - a0.y, uz = a1.z - a0.z;
+      const vx = b1.x - b0.x, vy = b1.y - b0.y, vz = b1.z - b0.z;
+      const wx = a0.x - b0.x, wy = a0.y - b0.y, wz = a0.z - b0.z;
+      const uu = ux * ux + uy * uy + uz * uz;
+      const uv = ux * vx + uy * vy + uz * vz;
+      const vv = vx * vx + vy * vy + vz * vz;
+      const uw = ux * wx + uy * wy + uz * wz;
+      const vw = vx * wx + vy * wy + vz * wz;
+      const den = uu * vv - uv * uv;
+      let s, t;
+      if (den < 1e-8) { s = 0; t = vv < 1e-8 ? 0 : vw / vv; }
+      else { s = (uv * vw - vv * uw) / den; t = (uu * vw - uv * uw) / den; }
+      s = s < 0 ? 0 : s > 1 ? 1 : s;
       t = t < 0 ? 0 : t > 1 ? 1 : t;
-      const cx = a.x + bx * t, cy = a.y + by * t, cz = a.z + bz * t;
-      const dx = q.x - cx, dy = q.y - cy, dz = q.z - cz;
-      const d = Math.hypot(dx, dy, dz);
-      if (d >= r || d < 1e-6) continue;
-      const push = (r - d) / d;
-      q.x += dx * push; q.y += dy * push; q.z += dz * push;
+
+      const cax = a0.x + ux * s, cay = a0.y + uy * s, caz = a0.z + uz * s;
+      const cbx = b0.x + vx * t, cby = b0.y + vy * t, cbz = b0.z + vz * t;
+      let dx = cax - cbx, dy = cay - cby, dz = caz - cbz;
+      let d = Math.hypot(dx, dy, dz);
+      if (d >= want) continue;
+      if (d < 1e-4) { dx = 1; dy = 0; dz = 0; d = 1; }
+      // half each, softened — limbs are flesh, they can graze
+      const k = (want - d) / d * 0.5 * 0.6;
+      const px = dx * k, py = dy * k, pz = dz * k;
+      a0.x += px * (1 - s); a0.y += py * (1 - s); a0.z += pz * (1 - s);
+      a1.x += px * s; a1.y += py * s; a1.z += pz * s;
+      b0.x -= px * (1 - t); b0.y -= py * (1 - t); b0.z -= pz * (1 - t);
+      b1.x -= px * t; b1.y -= py * t; b1.z -= pz * t;
     }
   }
 
@@ -493,6 +703,7 @@
   // once every joint has arrived.
   function settleOntoPose(f, target, dt) {
     pullToward(f, target, Math.min(1, dt * 16), null, 0.45);
+    separateLimbs(f);
     return worstError(f, target) < SETTLE_EPSILON;
   }
 
@@ -529,6 +740,7 @@
           acc -= step;
         }
         pullToward(f, target, Math.min(1, dt * 16), SOFT_PULL);
+        separateLimbs(f);
         f.timer -= dt;
         return;
       }
@@ -599,6 +811,10 @@
         if (q && target[key][1] < q.r) target[key][1] = q.r;
       }
       pullToward(f, target, Math.min(1, dt * (2.5 + 9 * k)));
+      // The pull aims at a keyframe, and a keyframe can put an arm where the
+      // body is. Separate again afterwards or the last word each frame is the
+      // pose, not the solid.
+      separateLimbs(f);
 
       if (k >= 1) {
         // Blend the last of the way onto the pose rather than cutting over on

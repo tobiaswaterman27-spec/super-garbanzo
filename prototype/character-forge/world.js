@@ -358,6 +358,42 @@
     Rig.nudge(player, n.nx, n.ny, 0.6, tall ? CHEST_H : SHIN_H);
   }
 
+  /* Villagers are solid to each other, not just to the player. Without this
+   * two of them walking the same line simply occupy the same spot and you
+   * watch one body slide through the other. No reaction, no knockdown — they
+   * just cannot share the ground. */
+  function separateVillagers(world) {
+    const list = world.actors;
+    for (let i = 1; i < list.length; i++) {
+      const a = list[i];
+      for (let j = i + 1; j < list.length; j++) {
+        const b = list[j];
+        const dx = b.x - a.x, dy = (b.y - a.y) * 1.5;
+        const dist = Math.hypot(dx, dy);
+        const min = 13;
+        if (dist >= min) continue;
+
+        let nx, ny;
+        if (dist < 1e-4) {
+          // exactly coincident: pick a side off their index so they don't
+          // jitter against each other forever
+          nx = (i % 2) ? 1 : -1; ny = 0;
+        } else {
+          nx = dx / dist; ny = dy / dist / 1.5;
+        }
+        // A body on the floor is dead weight — the one still standing steps
+        // around it rather than shoving it along the ground.
+        const aDown = Rig.isDown(a), bDown = Rig.isDown(b);
+        if (aDown && bDown) continue;
+        const push = (min - dist) * 0.5;
+        const wa = bDown ? 1 : aDown ? 0 : 0.5;
+        const wb = 1 - wa;
+        a.x -= nx * push * wa * 2; a.y -= ny * push * wa * 2;
+        b.x += nx * push * wb * 2; b.y += ny * push * wb * 2;
+      }
+    }
+  }
+
   function resolveActorCollisions(world) {
     const player = world.player;
     for (let i = 1; i < world.actors.length; i++) {
@@ -769,6 +805,8 @@
         a.y - (a._py === undefined ? a.y : a._py)) / Math.max(dt, 1e-4);
       if (speed < 40) continue;
 
+      // Villagers only. A body landing on the player shoves them, it never
+      // takes them down — the player is only ever floored by scenery.
       for (let j = 0; j < world.actors.length; j++) {
         const b = world.actors[j];
         if (b === a || Rig.isDown(b) || b.hitCooldown > 0) continue;
@@ -776,6 +814,12 @@
         const d = Math.hypot(dx, dy);
         if (d > 15 || d === 0) continue;
         const nx = dx / d, ny = dy / d / 1.5;
+        if (b === world.player) {
+          Rig.stumble(b, nx, ny, 22, 0.4);
+          Rig.nudge(b, nx, ny, 0.8, SHIN_H);
+          b.hitCooldown = 0.5;
+          continue;
+        }
         Rig.knockDown(b, nx, ny, 2.2 + speed / 45);
         if (b.brain) {
           if (b.brain.partner) endChat(b, 6);
@@ -795,6 +839,7 @@
     updatePlayer(world, dt);
     for (let i = 1; i < world.actors.length; i++) updateVillager(world, world.actors[i], dt);
     resolveActorCollisions(world);
+    separateVillagers(world);
     resolveRagdollCollisions(world, dt);
     D.update(world.box, dt);
 

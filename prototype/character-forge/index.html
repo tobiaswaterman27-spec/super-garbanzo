@@ -135,6 +135,11 @@
     .workbench { grid-template-columns: minmax(0, 1fr); }
   }
 
+  /* While playing, the whole editor gets out of the way. */
+  body.playing .workbench { grid-template-columns: minmax(0, 1fr); }
+  body.playing .rail { display: none; }
+  body.playing .stage { position: static; }
+
   /* ---------- stage ---------- */
 
   .stage {
@@ -433,8 +438,10 @@
       <div class="stage-foot" id="world-foot" hidden>
         <p class="hint">
           <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> to walk &middot;
-          <kbd>Shift</kbd> to run &middot; click a villager to talk &middot;
-          <kbd>Space</kbd> or click to turn the page
+          double-tap <kbd>W</kbd> to sprint &middot;
+          <kbd>E</kbd> to talk when close &middot;
+          <kbd>E</kbd> or click to turn the page &middot;
+          sprint into someone to knock them over
         </p>
       </div>
     </section>

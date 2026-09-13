@@ -99,15 +99,31 @@
   }
 
   // Shadows drift toward cold slate rather than pure black; highlights drift
-  // toward a warm bone. Three steps only — more would stop reading as pixel art.
+  // toward a warm bone.
   const SHADOW_TINT = [34, 40, 58];
   const LIGHT_TINT = [255, 248, 226];
 
+  function scaleRgb(c, f) {
+    return [Math.round(c[0] * f), Math.round(c[1] * f), Math.round(c[2] * f)];
+  }
+
+  // Five steps, because four is not enough to keep every pair of *adjacent*
+  // faces distinct. A box can show its top plus two perpendicular sides at
+  // once; if any two of those land on the same step the form goes flat and the
+  // model reads as a silhouette with no depth.
   function buildRamp(hex) {
     const base = hexToRgb(hex);
-    const dark = mixRgb([base[0] * 0.62, base[1] * 0.62, base[2] * 0.66].map(Math.round), SHADOW_TINT, 0.28);
-    const light = mixRgb(base, LIGHT_TINT, 0.2);
-    return [pack(dark[0], dark[1], dark[2]), pack(base[0], base[1], base[2]), pack(light[0], light[1], light[2])];
+    const s2 = mixRgb(scaleRgb(base, 0.44), SHADOW_TINT, 0.34);
+    const s1 = mixRgb(scaleRgb(base, 0.68), SHADOW_TINT, 0.2);
+    const l1 = mixRgb(base, LIGHT_TINT, 0.17);
+    const l2 = mixRgb(base, LIGHT_TINT, 0.35);
+    return [
+      pack(s2[0], s2[1], s2[2]),
+      pack(s1[0], s1[1], s1[2]),
+      pack(base[0], base[1], base[2]),
+      pack(l1[0], l1[1], l1[2]),
+      pack(l2[0], l2[1], l2[2])
+    ];
   }
 
   const rampCache = new Map();
@@ -176,11 +192,21 @@
 
   // Light lives in view space so the key light stays on the character's
   // upper-left no matter which way they turn — a sprite-sheet convention.
-  const LIGHT = (function () {
-    const v = [-0.42, 0.76, 0.5];
-    const len = Math.hypot(v[0], v[1], v[2]);
-    return [v[0] / len, v[1] / len, v[2] / len];
-  })();
+  // Faces are shaded by which way they point on screen, not by a dot product
+  // against a light vector. A plain lambert term gives perpendicular faces the
+  // same value whenever they sit at equal angles to the light, which is what
+  // was flattening the models; banding by orientation cannot do that.
+  //
+  //   4  top          3  angled toward the key light (screen-left)
+  //   2  square on    1  angled away (screen-right)      0  underside
+  function shadeLevel(nx, ny, nz) {
+    if (ny > 0.5) return 4;
+    if (ny < -0.4) return 0;
+    const azimuth = Math.atan2(nx, nz);
+    if (azimuth < -0.35) return 3;
+    if (azimuth > 0.35) return 1;
+    return 2;
+  }
 
   const FACES = [
     { idx: [0, 1, 3, 2], n: [-1, 0, 0] }, // -X
@@ -195,12 +221,6 @@
   const _n = [0, 0, 0];
   const _corners = new Float32Array(24);
   const _screen = new Float32Array(24);
-
-  function shadeIndex(dot) {
-    if (dot > 0.72) return 2;
-    if (dot > 0.33) return 1;
-    return 0;
-  }
 
   function drawBox(target, matrix, box, colourRamp, camera, opts) {
     const x0 = box.x - 0.01, x1 = box.x + box.w + 0.01;
@@ -234,13 +254,9 @@
       const nz = _n[1] * camera.sinPitch + _n[2] * camera.cosPitch;
       if (nz <= 0.015) continue; // facing away from the camera
 
-      let colour;
-      if (opts && opts.flat) {
-        colour = colourRamp[1];
-      } else {
-        const dot = _n[0] * LIGHT[0] + ny * LIGHT[1] + nz * LIGHT[2];
-        colour = colourRamp[shadeIndex(dot)];
-      }
+      const colour = (opts && opts.flat)
+        ? colourRamp[2]
+        : colourRamp[shadeLevel(_n[0], ny, nz)];
 
       const i0 = face.idx[0] * 3, i1 = face.idx[1] * 3;
       const i2 = face.idx[2] * 3, i3 = face.idx[3] * 3;
@@ -372,6 +388,6 @@
     pack, hexToRgb, mixRgb, ramp, buildRamp,
     createTarget, clearTarget, drawBox, traceOutline, blit,
     fillRect, strokeRect, fillEllipse, createPresenter, makeCamera,
-    rasterTriangle
+    rasterTriangle, shadeLevel
   };
 })(window);

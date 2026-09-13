@@ -24,6 +24,7 @@
     poseDuration: 1.2,
     playingTrack: false,
     trackTime: 0,
+    sprinting: false,
     editingPose: Rig.emptyPose(),
     world: null
   };
@@ -237,7 +238,7 @@
       state.character.sex = v;
       // female characters default back to clean shaven, but every facial hair
       // option stays selectable below
-      if (v === 'female' && state.character.facialHair !== 'none') state.character.facialHair = 'none';
+      if (v === 'female') { state.character.moustache = 'none'; state.character.beard = 'none'; }
     }));
 
     const note = document.createElement('p');
@@ -254,8 +255,12 @@
     const hair = group('Hair', P.HAIR_STYLES.length + ' styles');
     hair.appendChild(makeSelect('Style', P.HAIR_STYLES, getter('hairStyle'), setter('hairStyle')));
     hair.appendChild(makeSwatches('Hair colour', P.HAIR_COLOURS, getter('hairColour'), setter('hairColour')));
-    hair.appendChild(makeSelect('Facial hair', P.FACIAL_HAIR, getter('facialHair'), setter('facialHair')));
     panel.appendChild(hair);
+
+    const facial = group('Facial hair', 'chosen separately');
+    facial.appendChild(makeSelect('Moustache', P.MOUSTACHES, getter('moustache'), setter('moustache')));
+    facial.appendChild(makeSelect('Beard', P.BEARDS, getter('beard'), setter('beard')));
+    panel.appendChild(facial);
 
     const face = group('Face');
     face.appendChild(makeSwatches('Eye colour', P.EYE_COLOURS, getter('eyeColour'), setter('eyeColour')));
@@ -626,13 +631,24 @@
     el('world-canvas').hidden = forge;
     el('forge-foot').hidden = !forge;
     el('world-foot').hidden = forge;
+    el('readout').hidden = !forge;       // forge status has no place in the world
     el('mode-forge').classList.toggle('is-active', forge);
     el('mode-world').classList.toggle('is-active', !forge);
-    document.querySelector('.rail').style.opacity = forge ? '1' : '0.55';
-    if (!forge) el('world-canvas').focus();
+    document.body.classList.toggle('playing', !forge);
+    if (!forge) {
+      state.sprinting = false;
+      el('world-canvas').focus();
+    }
   }
 
   const keys = Object.create(null);
+  const MOVE_KEYS = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'];
+  const DOUBLE_TAP_MS = 330;
+  let lastForwardTap = 0;
+
+  function toggleSprint() {
+    state.sprinting = !state.sprinting;
+  }
 
   function wireWorldInput() {
     const canvas = el('world-canvas');
@@ -640,25 +656,32 @@
 
     window.addEventListener('keydown', function (e) {
       const k = e.key.toLowerCase();
+      if (state.mode !== 'world') { keys[k] = true; return; }
+
+      // Double-tapping forward toggles the sprint; tapping it again drops back
+      // to a walk, as does coming to a stop.
+      if ((k === 'w' || k === 'arrowup') && !e.repeat) {
+        const now = (window.performance || Date).now();
+        if (now - lastForwardTap < DOUBLE_TAP_MS) { toggleSprint(); lastForwardTap = 0; }
+        else lastForwardTap = now;
+      }
       keys[k] = true;
-      if (state.mode !== 'world') return;
-      if (k === ' ' || k === 'enter') {
+
+      if (k === 'e' || k === 'enter' || k === ' ') {
         e.preventDefault();
-        if (state.world && state.world.box.open) D.advance(state.world.box);
+        if (state.world) W.tryTalk(state.world);
       }
-      if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].indexOf(k) >= 0) {
-        e.preventDefault();
-      }
+      if (MOVE_KEYS.indexOf(k) >= 0) e.preventDefault();
     });
     window.addEventListener('keyup', function (e) { keys[e.key.toLowerCase()] = false; });
-    window.addEventListener('blur', function () { for (const k in keys) keys[k] = false; });
+    window.addEventListener('blur', function () {
+      for (const k in keys) keys[k] = false;
+      state.sprinting = false;
+    });
 
-    canvas.addEventListener('click', function (e) {
-      if (!state.world) return;
-      const rect = canvas.getBoundingClientRect();
-      const wx = (e.clientX - rect.left) / rect.width * W.VIEW_W + state.world.camX;
-      const wy = (e.clientY - rect.top) / rect.height * W.VIEW_H + state.world.camY;
-      W.tryInteract(state.world, wx, wy);
+    // Clicking only turns the page; talking is E or Enter, and only up close.
+    canvas.addEventListener('click', function () {
+      if (state.world && state.world.box.open) D.advance(state.world.box);
     });
   }
 
@@ -668,9 +691,10 @@
     if (keys.d || keys.arrowright) dx += 1;
     if (keys.w || keys.arrowup) dy -= 1;
     if (keys.s || keys.arrowdown) dy += 1;
+    if (!dx && !dy) state.sprinting = false;   // stopping ends the sprint
     world.input.dx = dx;
     world.input.dy = dy;
-    world.input.run = !!keys.shift;
+    world.input.sprint = state.sprinting;
   }
 
   /* ---------- main loop ---------- */

@@ -223,16 +223,18 @@
   /* How hard each joint is dragged back toward where the animation says it
    * should be. The feet and hips are held firmly so a soft hit cannot topple
    * anyone; the further up the body, the more freely it swings. */
+  /* A jostle is an arms-only reaction. Everything from the shoulders inward is
+   * held exactly on the animated pose, so a knock never moves a character's
+   * legs or neck — only a fall or a stumble does that. Letting the torso join
+   * in is what kept reading as a flail. */
   const SOFT_PULL = {
-    footR: 1, footL: 1, hipR: 0.9, hipL: 0.9, pelvis: 0.85,
-    kneeR: 0.7, kneeL: 0.7,
-    chest: 0.45, neck: 0.4, headTop: 0.32,
-    shoulderR: 0.48, shoulderL: 0.48,
-    elbowR: 0.3, elbowL: 0.3, handR: 0.24, handL: 0.24
+    footR: 1, footL: 1, hipR: 1, hipL: 1, pelvis: 1,
+    kneeR: 1, kneeL: 1,
+    chest: 1, neck: 1, headTop: 1,
+    shoulderR: 0.85, shoulderL: 0.85,
+    elbowR: 0.16, elbowL: 0.16, handR: 0.1, handL: 0.1
   };
-  const LOWER_BODY = ['footR', 'footL', 'hipR', 'hipL', 'pelvis', 'kneeR', 'kneeL'];
   const SOFT_TIME = 0.5;
-  const TRIP_TIME = 1.0;
 
   // How close every joint has to be to the animated pose before control is
   // handed back. Switching on a timer instead leaves the body wherever the
@@ -289,7 +291,7 @@
     const px = dirX / len, pz = dirY / len;
     const full = mode === 'full';
     const cap = full ? 9.0 : 5.0;
-    const impulse = Math.max(0.6, Math.min(cap, force)) * SUBSTEP * (full ? 7.5 : 3.1);
+    const impulse = Math.max(0.6, Math.min(cap, force)) * SUBSTEP * (full ? 7.5 : 1.9);
 
     let tallest = 1;
     for (let i = 0; i < JOINT_NAMES.length; i++) {
@@ -345,7 +347,7 @@
     f.active = true;
     f.mode = mode;
     f.state = full ? 'falling' : 'jostled';
-    f.timer = mode === 'trip' ? TRIP_TIME : (full ? 0 : SOFT_TIME);
+    f.timer = full ? 0 : SOFT_TIME;
     f.still = 0;
     f.rise = 0;
     f.settle = 0;
@@ -361,13 +363,6 @@
     if (actor.fall.active && actor.fall.mode === 'full') return false;
     return applyImpulse(actor, dirX, dirY, force, 'soft',
       contactY === undefined ? null : { contactY: contactY });
-  }
-
-  // A stumble: the legs let go for a moment so the body pitches over whatever
-  // it caught on, then gets back under itself. Nobody hits the ground.
-  function trip(actor, dirX, dirY, force) {
-    if (actor.fall.active && actor.fall.mode === 'full') return false;
-    return applyImpulse(actor, dirX, dirY, force, 'trip', null);
   }
 
   // Knocked off their feet entirely.
@@ -416,42 +411,6 @@
     }
   }
 
-  /* A falling person is not a sack. They throw their hands out and tuck their
-   * head — so the arms and head are driven while the rest stays at the mercy
-   * of the physics. Cheap, and it is the difference between a ragdoll and
-   * someone actually going down. */
-  function braceDuringFall(f, dt) {
-    const p = f.p;
-    let dx = p.chest.x - p.chest.px, dz = p.chest.z - p.chest.pz;
-    const len = Math.hypot(dx, dz);
-    if (len < 1e-4) { dx = 0; dz = 1; } else { dx /= len; dz /= len; }
-
-    const reach = Math.min(1, dt * 5);
-    const sides = [['shoulderR', 'elbowR', 'handR'], ['shoulderL', 'elbowL', 'handL']];
-    for (let s = 0; s < sides.length; s++) {
-      const sh = p[sides[s][0]], el = p[sides[s][1]], hd = p[sides[s][2]];
-      if (!sh || !el || !hd) continue;
-      // hands out ahead of the shoulders and down toward the ground
-      const tx = sh.x + dx * 5.5;
-      const ty = Math.max(1.6, sh.y - 7.5);
-      const tz = sh.z + dz * 5.5;
-      hd.x += (tx - hd.x) * reach;
-      hd.y += (ty - hd.y) * reach;
-      hd.z += (tz - hd.z) * reach;
-      el.x += ((sh.x + tx) / 2 - el.x) * reach * 0.6;
-      el.y += ((sh.y + ty) / 2 - el.y) * reach * 0.6;
-      el.z += ((sh.z + tz) / 2 - el.z) * reach * 0.6;
-    }
-
-    // chin toward the chest
-    const head = p.headTop, chest = p.chest;
-    if (head && chest) {
-      const tuck = Math.min(1, dt * 2.2);
-      head.x += (chest.x - head.x) * tuck * 0.25;
-      head.z += (chest.z - head.z) * tuck * 0.25;
-    }
-  }
-
   function kineticEnergy(f) {
     let e = 0;
     for (const k in f.p) {
@@ -470,7 +429,21 @@
       const q = f.p[key];
       const t = target[key];
       if (!t) continue;
-      const k = Math.min(1, strength * (perJoint ? (perJoint[key] || 0.3) : 1));
+      const weight = perJoint
+        ? (perJoint[key] === undefined ? 0.3 : perJoint[key])
+        : 1;
+
+      // A weight of 1 means pinned: put the joint exactly on the pose and stop
+      // it dead. Running it through the per-frame strength instead only closed
+      // about a quarter of the gap each frame, which let a knock drift the
+      // whole body when the intent was to hold it still.
+      if (weight >= 1) {
+        q.x = t[0]; q.y = t[1]; q.z = t[2];
+        q.px = t[0]; q.py = t[1]; q.pz = t[2];
+        continue;
+      }
+
+      const k = Math.min(1, strength * weight);
       const dx = (t[0] - q.x) * k, dy = (t[1] - q.y) * k, dz = (t[2] - q.z) * k;
       q.x += dx; q.y += dy; q.z += dz;
       // Moving the previous position by the same amount makes this a pure
@@ -513,7 +486,7 @@
     const f = actor.fall;
     if (!f.active || !f.p) return;
 
-    /* ---- jostled or tripping: reacts, recovers, never goes down ---- */
+    /* ---- jostled: the arms swing, nothing else moves ---- */
     if (f.mode !== 'full') {
       const target = standingTarget(actor);
 
@@ -521,24 +494,10 @@
         let acc = Math.min(dt, 0.05);
         while (acc > 0) {
           const step = Math.min(SUBSTEP, acc);
-          simulate(f, step, f.mode === 'trip' ? 0.7 : 0.25);
+          simulate(f, step, 0.25);
           acc -= step;
         }
-
-        const pull = Math.min(1, dt * 16);
-        if (f.mode === 'trip') {
-          // The legs are let go at first, which makes it a stumble rather than
-          // a wobble, then are hauled back under the body.
-          const released = Math.max(0, Math.min(1, f.timer / TRIP_TIME));
-          const lower = 0.3 + 0.7 * (1 - released);
-          const scaled = {};
-          for (const k in SOFT_PULL) {
-            scaled[k] = SOFT_PULL[k] * (LOWER_BODY.indexOf(k) >= 0 ? lower : 1);
-          }
-          pullToward(f, target, pull, scaled);
-        } else {
-          pullToward(f, target, pull, SOFT_PULL);
-        }
+        pullToward(f, target, Math.min(1, dt * 16), SOFT_PULL);
         f.timer -= dt;
         return;
       }
@@ -594,7 +553,6 @@
       simulate(f, step, 1);
       acc -= step;
     }
-    if (f.state === 'falling') braceDuringFall(f, dt);
 
     // hand the pelvis drift back to the actor so a tumbling body travels
     const pelvis = f.p.pelvis;
@@ -1080,7 +1038,7 @@
     emptyPose, clonePose, applyPose, lerpPose, samplePoseTrack,
     yawForDirection, snapToEight, directionName, shortestAngle,
     createActor, rebuildActorModel, updateActorMotion, updateBlink,
-    createFall, knockDown, nudge, trip, applyImpulse, updateFall, isDown,
+    createFall, knockDown, nudge, applyImpulse, updateFall, isDown,
     shove, stumble, applyShove,
     GESTURES, GESTURE_IDS, startGesture, applyGesture,
     jointPositions, segmentMatrix, drawRagdoll,

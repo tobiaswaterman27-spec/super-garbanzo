@@ -68,18 +68,17 @@ test for it: no two co-visible perpendicular faces may ever share a step.
   the limbs are tuned; a person shoved aside reads as a collision. Walk into
   a villager and they step aside; jog into them and they stumble several
   paces away; hit them flat out and they go over.
-- Three ragdoll strengths layer on top of that, and only the hardest puts
-  anyone on the ground:
-  - **Jostle** — any contact above a walking pace. The impulse is aimed at the
-    height the hit landed, so bumping someone's shoulder moves their shoulder
-    rather than all of them.
-  - **Trip** — running into something. The legs let go for a moment so the body
-    pitches over whatever it caught on, then gets back under itself. Low
-    obstacles pitch you forward over the top; a tree stops you dead and you
-    stumble back off it. You stay on your feet either way.
-  - **Fall** — only a tree, only at nearly full sprint.
-- A character going down is not limp: their arms reach for the ground and
-  their head tucks while the rest of the body is left to the physics.
+- **Ragdoll physics only ever run at full throttle.** Below that a collision
+  is answered by moving the body and swinging the arms. Two strengths:
+  - **Jostle** — any contact above a walking pace. An arms-only reaction:
+    everything from the shoulders inward is pinned exactly to the animated
+    pose, so a knock never moves a character's legs or neck. Letting the torso
+    join in is what kept reading as a flail.
+  - **Fall** — a flat-out run into a tree, and nothing else.
+- Between those, the body is simply moved: clipping a trunk at speed spins you
+  off it, something knee-high gives a short stumble and you pull up at it, and
+  a villager you charge stumbles several paces away.
+- A character going down is limp — the arms flail rather than being driven.
 - Idle villagers pick **gestures** now — waving at a neighbour, flinching from
   someone sprinting at them, laughing, pondering, carrying something. These
   are the only thing besides eyes and mouth that moves a standing character,
@@ -118,6 +117,10 @@ corner does not.
   written against that box so they scale with the skull.
 - **Randomness is seeded.** `CharacterModel.makeRng(seed)` everywhere, so a
   given seed always rebuilds the same village.
+- **Cloth is laid over a whole limb, never used to build one.** Making the
+  forearm out of a sleeve piece plus a skin piece left a bare band where
+  neither reached the elbow. The arm is always built full length in skin and
+  the sleeve goes on top of it.
 - **Every bending joint needs a ball.** A tapered limb capped with a flat face
   opens a wedge-shaped hole the moment the joint bends, which is why the
   characters had no elbows. There are spheres at the shoulder, elbow, hip and

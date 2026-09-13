@@ -332,22 +332,28 @@
 
       const fore = bone(right ? 'foreR' : 'foreL', [0, -d.upperArmH, 0]);
       const foreW = d.armW * 0.92;
+
+      // The bare arm, full length, always. Building the forearm out of a
+      // sleeve piece and a skin piece instead meant neither reached the joint,
+      // so the cloth appeared to stop short of the elbow.
+      fore.parts.push(part(
+        G.slab(-foreW / 2, -d.lowerArmH, -foreW / 2, foreW, d.lowerArmH, foreW, 1, 0.85),
+        c.skin));
+
       // Elbow ball at the joint itself. Without it the forearm swings away
       // from the flat underside of the upper arm and opens a visible gap.
       fore.parts.push(part(G.superellipsoid(0, 0, 0,
         d.armW * 0.47, d.armW * 0.47, d.armW * 0.47, 0.6, 3, 7),
         longSleeve ? c.tunic : c.skin));
+
       if (longSleeve) {
-        const flare = g.sleeves === 'wide' ? 1.5 : 0.15;
+        // Laid over the top of the arm, running from the elbow down, so it
+        // always meets both the elbow ball and the upper arm above it.
+        const flare = g.sleeves === 'wide' ? 1.6 : 0.34;
+        const cuff = d.lowerArmH * (g.sleeves === 'wide' ? 0.84 : 0.56);
         fore.parts.push(part(
-          B(-(foreW + flare) / 2, -d.lowerArmH, -(foreW + flare) / 2,
-            foreW + flare, d.lowerArmH * 0.78, foreW + flare), c.tunic));
-        fore.parts.push(part(
-          B(-foreW / 2, -d.lowerArmH, -foreW / 2, foreW, d.lowerArmH * 0.4, foreW), c.skin));
-      } else {
-        fore.parts.push(part(
-          G.slab(-foreW / 2, -d.lowerArmH, -foreW / 2, foreW, d.lowerArmH, foreW, 1, 0.85),
-          c.skin));
+          G.slab(-(foreW + flare) / 2, -cuff, -(foreW + flare) / 2,
+            foreW + flare, cuff + 0.4, foreW + flare, 1, 0.9), c.tunic));
       }
       fore.parts.push(part(
         G.superellipsoid(0, -d.lowerArmH - 0.75, 0,

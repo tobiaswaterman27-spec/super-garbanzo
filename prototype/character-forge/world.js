@@ -301,7 +301,9 @@
     return { speed: worst, prop: hit, nx: hx, ny: hy };
   }
 
-  // Everything that happens to the player when they run into scenery.
+  // Everything that happens to the player when they run into scenery. Only a
+  // flat-out run at a tree produces an actual ragdoll; everything below that
+  // is handled by moving the body and swinging the arms.
   function reactToProp(player, impact) {
     if (!impact.prop || impact.speed < NUDGE_SPEED) return;
     if (player.hitCooldown > 0) return;
@@ -310,8 +312,7 @@
     const tall = impact.prop.tall;
 
     if (tall && impact.speed > FALL_SPEED) {
-      // Hitting a tree at nearly full sprint is the one thing that actually
-      // puts the player on the ground.
+      // Full throttle into a tree. The only thing here that floors anyone.
       Rig.knockDown(player, n.nx, n.ny, 3.2 + impact.speed / 40);
       player.vx = n.nx * impact.speed * 0.2;
       player.vy = n.ny * impact.speed * 0.2;
@@ -319,15 +320,19 @@
     }
 
     if (impact.speed > TRIP_SPEED) {
-      // Anything knee-high catches your legs and pitches you over the top of
-      // it; a tree stops you dead and you stumble back off it. Either way you
-      // stay on your feet.
-      if (tall) Rig.trip(player, n.nx, n.ny, 2.6 + impact.speed / 48);
-      else Rig.trip(player, -n.nx, -n.ny, 2.8 + impact.speed / 44);
+      if (tall) {
+        // Clipping a trunk spins you off it, arms swinging.
+        Rig.shove(player, n.nx, n.ny, 26 + impact.speed * 0.28);
+        Rig.nudge(player, n.nx, n.ny, 1.0, CHEST_H);
+      } else {
+        // Something knee-high: a short stumble and you pull up at it.
+        Rig.stumble(player, n.nx, n.ny, 14, 0.5);
+        Rig.nudge(player, n.nx, n.ny, 0.9, SHIN_H);
+      }
       return;
     }
 
-    Rig.nudge(player, n.nx, n.ny, 0.7 + impact.speed / 90, tall ? CHEST_H : SHIN_H);
+    Rig.nudge(player, n.nx, n.ny, 0.6, tall ? CHEST_H : SHIN_H);
   }
 
   function resolveActorCollisions(world) {

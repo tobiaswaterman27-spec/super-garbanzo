@@ -12,7 +12,13 @@
 
   /* ---------- preview stage geometry ---------- */
 
-  const PV = { w: 132, h: 152, ox: 66, oy: 138, scale: 3.6, pitch: 0.26 };
+  // Rendered at the canvas's own resolution — no upscaling, no pixel grid.
+  const PV_ZOOM = 3;
+  const PV = {
+    w: 132 * PV_ZOOM, h: 152 * PV_ZOOM,
+    ox: 66 * PV_ZOOM, oy: 138 * PV_ZOOM,
+    scale: 3.6 * PV_ZOOM, pitch: 0.26
+  };
 
   const state = {
     character: CM.defaultCharacter(),
@@ -38,6 +44,7 @@
   let worldTarget = null;
   let worldCamera = null;
   let presentWorld = null;
+  let worldCtx = null;
 
   const el = function (id) { return document.getElementById(id); };
 
@@ -321,17 +328,6 @@
       Rig.knockDown(previewActor, Math.sin(angle), Math.cos(angle), 4 + Math.random() * 4);
     });
 
-    const jostleBtn = document.createElement('button');
-    jostleBtn.type = 'button';
-    jostleBtn.className = 'btn';
-    jostleBtn.id = 'jostle';
-    jostleBtn.textContent = 'Jostle';
-    jostleBtn.addEventListener('click', function () {
-      const angle = Math.random() * Math.PI * 2;
-      Rig.nudge(previewActor, Math.sin(angle), Math.cos(angle), 2 + Math.random() * 2.5);
-    });
-
-    knockRow.appendChild(jostleBtn);
     knockRow.appendChild(knockBtn);
     playback.appendChild(knockRow);
 
@@ -599,8 +595,8 @@
       const c = R.mixRgb(BACKDROP_TOP, BACKDROP_BOTTOM, t * t);
       R.fillRect(previewTarget, 0, y, PV.w, 1, R.pack(c[0], c[1], c[2]));
     }
-    R.fillEllipse(previewTarget, PV.ox, PV.oy + 3, 42, 10, FLOOR, 1);
-    R.fillEllipse(previewTarget, PV.ox, PV.oy + 3, 20, 5.5, FLOOR_SHADOW, 0.45);
+    R.fillEllipse(previewTarget, PV.ox, PV.oy + 3 * PV_ZOOM, 42 * PV_ZOOM, 10 * PV_ZOOM, FLOOR, 1);
+    R.fillEllipse(previewTarget, PV.ox, PV.oy + 3 * PV_ZOOM, 20 * PV_ZOOM, 5.5 * PV_ZOOM, FLOOR_SHADOW, 0.45);
 
     Rig.renderActor(previewActor, actorTarget, previewCamera, {});
     R.blit(previewTarget, actorTarget, 0, 0);
@@ -652,9 +648,7 @@
     const c = state.character;
     const hairLabel = P.HAIR_STYLES[CM.indexOfId(P.HAIR_STYLES, c.hairStyle)].label;
     const anim = previewActor.fall.active
-      ? (previewActor.fall.mode === 'full'
-        ? 'ragdoll ' + previewActor.fall.state
-        : previewActor.fall.mode)
+      ? 'ragdoll ' + previewActor.fall.state
       : previewActor.gesture
         ? Rig.GESTURES[previewActor.gesture.id].label.toLowerCase()
       : state.animation === 'pose'
@@ -805,6 +799,7 @@
       W.update(state.world, dt);
       W.draw(state.world, worldTarget, worldCamera);
       presentWorld(worldTarget);
+      W.drawOverlay(state.world, worldCtx, W.RENDER_W, W.RENDER_H);
     }
     requestAnimationFrame(frame);
   }
@@ -835,11 +830,18 @@
     previewTarget = R.createTarget(PV.w, PV.h);
     actorTarget = R.createTarget(PV.w, PV.h);
     previewCamera = R.makeCamera(PV.pitch, PV.scale, PV.ox, PV.oy);
-    presentPreview = R.createPresenter(el('preview-canvas'), PV.w, PV.h);
+    const pc = el('preview-canvas');
+    pc.width = PV.w;
+    pc.height = PV.h;
+    presentPreview = R.createPresenter(pc, PV.w, PV.h);
 
-    worldTarget = R.createTarget(W.VIEW_W, W.VIEW_H);
+    worldTarget = R.createTarget(W.RENDER_W, W.RENDER_H);
     worldCamera = R.makeCamera(W.CAM_PITCH, W.CAM_SCALE, W.ACTOR_BUF.ox, W.ACTOR_BUF.oy);
-    presentWorld = R.createPresenter(el('world-canvas'), W.VIEW_W, W.VIEW_H);
+    const worldCanvas = el('world-canvas');
+    worldCanvas.width = W.RENDER_W;
+    worldCanvas.height = W.RENDER_H;
+    worldCtx = worldCanvas.getContext('2d', { alpha: false });
+    presentWorld = R.createPresenter(worldCanvas, W.RENDER_W, W.RENDER_H);
 
     previewActor = Rig.createActor(state.character, 0, 0, 99);
     previewActor.targetYaw = state.yaw;

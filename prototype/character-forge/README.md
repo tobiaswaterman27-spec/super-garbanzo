@@ -10,8 +10,7 @@ For a single file you can hand to someone — no server, works offline — run
 
 ## Why it looks the way it does
 
-Characters are **real 3D models rendered down to pixels**, not hand-drawn sprite
-sheets. `render.js` is a small orthographic software rasteriser with a z-buffer.
+Characters are **real 3D models**, not hand-drawn sprite sheets. `render.js` is a small orthographic software rasteriser with a z-buffer.
 That is what makes a character correct from all eight facing directions, and
 turning a genuine rotation rather than a sprite swap.
 
@@ -68,16 +67,10 @@ test for it: no two co-visible perpendicular faces may ever share a step.
   the limbs are tuned; a person shoved aside reads as a collision. Walk into
   a villager and they step aside; jog into them and they stumble several
   paces away; hit them flat out and they go over.
-- **Ragdoll physics only ever run at full throttle.** Below that a collision
-  is answered by moving the body and swinging the arms. Two strengths:
-  - **Jostle** — any contact above a walking pace. An arms-only reaction:
-    everything from the shoulders inward is pinned exactly to the animated
-    pose, so a knock never moves a character's legs or neck. Letting the torso
-    join in is what kept reading as a flail.
-  - **Fall** — a flat-out run into a tree, and nothing else.
-- Between those, the body is simply moved: clipping a trunk at speed spins you
-  off it, something knee-high gives a short stumble and you pull up at it, and
-  a villager you charge stumbles several paces away.
+- **The ragdoll only ever runs when somebody actually goes down.** Every other
+  collision is answered by moving the body: clipping a trunk at speed spins you
+  off it, something knee-high gives a short stumble and you pull up at it, and a
+  villager you charge steps aside or stumbles several paces away.
 - A character going down is limp — the arms flail rather than being driven.
 - **Villagers talk to each other.** Two who end up near each other pair off,
   turn to face, and take turns speaking — mouth shapes only, the body stays
@@ -173,7 +166,12 @@ measured and the whole body rights itself from there, because targeting an
 upright pose from frame one is exactly what a teleport looks like.
 
 Hands and elbows are kept outside a capsule around the spine, or the distance
-constraints will happily swing an arm straight through the chest. A new impulse at any
+constraints will happily swing an arm straight through the chest.
+
+The arms do the work of standing up. For the first half of the sequence the
+hands are planted on the ground out in front and held there while the body
+levers up over them; without that the torso simply rises and the character
+looks like they are floating upright. A new impulse at any
 point, recovery included, puts them straight back down.
 
 A jostle is the same solver with the lower body pinned: the feet, hips and

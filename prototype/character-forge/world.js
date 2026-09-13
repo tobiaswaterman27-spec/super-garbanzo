@@ -14,7 +14,12 @@
   const Rig = global.Rig;
   const D = global.Dialogue;
 
+  // The field of view, in world units. PIXEL is how many rendered pixels each
+  // of those units gets — the characters are no longer pixel art, so this is
+  // simply the render resolution.
   const VIEW_W = 320, VIEW_H = 180;
+  const PIXEL = 3;
+  const RENDER_W = VIEW_W * PIXEL, RENDER_H = VIEW_H * PIXEL;
   // Large enough that the camera can stay locked to the player without ever
   // running off the edge of the generated ground.
   const WORLD_W = 1200, WORLD_H = 800;
@@ -22,9 +27,9 @@
   // The same camera pitch as the forge preview at a fraction of its scale, so
   // a villager in the world is the forge model sized down rather than a
   // differently-proportioned one.
-  const ACTOR_BUF = { w: 112, h: 104, ox: 56, oy: 80 };
+  const ACTOR_BUF = { w: 112 * PIXEL, h: 104 * PIXEL, ox: 56 * PIXEL, oy: 80 * PIXEL };
   const CAM_PITCH = 0.26;
-  const CAM_SCALE = 1.35;
+  const CAM_SCALE = 1.35 * PIXEL;
 
   const SPEED = { walk: 52, run: 112, npc: 26 };
   const ACCEL = 520;           // px/s^2 while steering
@@ -117,9 +122,8 @@
     const camera = R.makeCamera(CAM_PITCH, scale, ox, oy);
     const identity = R.identity();
     for (let i = 0; i < boxes.length; i++) {
-      R.drawMesh(target, identity, boxes[i].mesh, R.ramp(boxes[i].colour), camera, {});
+      R.drawMesh(target, identity, boxes[i].mesh, R.rgbOf(boxes[i].colour), camera, {});
     }
-    R.traceOutline(target, Rig.OUTLINE);
     return target;
   }
 
@@ -140,7 +144,7 @@
         colour: rng() < 0.5 ? '#39572f' : '#2f4a28'
       });
     }
-    return renderBoxes(boxes, 104, 136, 52, 128, CAM_SCALE);
+    return renderBoxes(boxes, 104 * PIXEL, 136 * PIXEL, 52 * PIXEL, 128 * PIXEL, CAM_SCALE);
   }
 
   function makeRock(rng) {
@@ -155,7 +159,7 @@
         colour: rng() < 0.5 ? '#6d6a63' : '#5a5750'
       });
     }
-    return renderBoxes(boxes, 44, 44, 22, 36, CAM_SCALE);
+    return renderBoxes(boxes, 44 * PIXEL, 44 * PIXEL, 22 * PIXEL, 36 * PIXEL, CAM_SCALE);
   }
 
   function makeBarrel() {
@@ -165,7 +169,7 @@
     boxes.push({ mesh: G.superellipsoid(0, 4.2, 0, 3.6, 4.3, 3.6, 0.45, 5, 10), colour: '#6b4a2c' });
     boxes.push({ mesh: G.superellipsoid(0, 2.0, 0, 3.7, 0.55, 3.7, 0.4, 3, 10), colour: '#4a4038' });
     boxes.push({ mesh: G.superellipsoid(0, 6.4, 0, 3.7, 0.55, 3.7, 0.4, 3, 10), colour: '#4a4038' });
-    return renderBoxes(boxes, 40, 48, 20, 40, CAM_SCALE);
+    return renderBoxes(boxes, 40 * PIXEL, 48 * PIXEL, 20 * PIXEL, 40 * PIXEL, CAM_SCALE);
   }
 
   function makeCart() {
@@ -180,7 +184,7 @@
       boxes.push({ mesh: G.superellipsoid(-9, 4.4, z, 0.9, 4.4, 4.4, 0.95, 4, 10), colour: '#43301e' });
       boxes.push({ mesh: G.superellipsoid(9, 4.4, z, 0.9, 4.4, 4.4, 0.95, 4, 10), colour: '#43301e' });
     }
-    return renderBoxes(boxes, 72, 60, 36, 48, CAM_SCALE);
+    return renderBoxes(boxes, 72 * PIXEL, 60 * PIXEL, 36 * PIXEL, 48 * PIXEL, CAM_SCALE);
   }
 
   /* ---------- world construction ---------- */
@@ -323,18 +327,13 @@
 
     if (impact.speed > TRIP_SPEED) {
       if (tall) {
-        // Clipping a trunk spins you off it, arms swinging.
+        // Clipping a trunk spins you off it.
         Rig.shove(player, n.nx, n.ny, 26 + impact.speed * 0.28);
-        Rig.nudge(player, n.nx, n.ny, 1.0, CHEST_H);
       } else {
         // Something knee-high: a short stumble and you pull up at it.
         Rig.stumble(player, n.nx, n.ny, 14, 0.5);
-        Rig.nudge(player, n.nx, n.ny, 0.9, SHIN_H);
       }
-      return;
     }
-
-    Rig.nudge(player, n.nx, n.ny, 0.6, tall ? CHEST_H : SHIN_H);
   }
 
   function resolveActorCollisions(world) {
@@ -368,11 +367,9 @@
         } else if (speed > TRIP_SPEED) {
           // a proper shoulder charge: they stagger several steps away
           Rig.stumble(a, nx, ny, 70 + speed * 0.5, 0.7);
-          Rig.nudge(a, nx, ny, 1.0, CHEST_H);
         } else {
           // a bump in passing: they step aside
           Rig.shove(a, nx, ny, 14 + speed * 0.18);
-          Rig.nudge(a, nx, ny, 0.6, CHEST_H);
         }
         a.hitCooldown = 0.45;
         if (world.talkingTo === a) D.close(world.box);
@@ -380,7 +377,6 @@
         // The player brushes past or stumbles; they never flail.
         if (speed > TRIP_SPEED) {
           Rig.stumble(player, -nx, -ny, 20, 0.4);
-          Rig.nudge(player, -nx, -ny, 0.7, CHEST_H);
           player.vx *= 0.62;
           player.vy *= 0.62;
         } else {
@@ -783,8 +779,10 @@
     // follows the *rounded* player position, which lands the player sprite on
     // the same exact pixel every frame; tracking the unrounded position makes
     // them jitter a pixel back and forth as they walk.
-    world.camX = Math.round(world.player.x) - (VIEW_W >> 1);
-    world.camY = Math.round(world.player.y) - (VIEW_H >> 1);
+    // No rounding any more: the camera can sit between world units because
+    // the scene is no longer being snapped to a pixel grid.
+    world.camX = world.player.x - VIEW_W / 2;
+    world.camY = world.player.y - VIEW_H / 2;
   }
 
   /* ---------- drawing ---------- */
@@ -794,17 +792,45 @@
   const LABEL_SHADOW = R.pack(20, 22, 28);
   const PROMPT = R.pack(232, 198, 116);
 
+  /* The ground is stored at one texel per world unit and drawn at several
+   * pixels per unit, so it is interpolated. Written out longhand with the
+   * source coordinate stepped incrementally — this is half a million samples a
+   * frame and a per-pixel function call was the single most expensive thing on
+   * screen. */
   function drawGround(world, target) {
-    const cx = world.camX, cy = world.camY;
-    for (let y = 0; y < VIEW_H; y++) {
-      const sy = cy + y;
-      if (sy < 0 || sy >= WORLD_H) continue;
-      const srow = sy * WORLD_W;
-      const trow = y * VIEW_W;
-      for (let x = 0; x < VIEW_W; x++) {
-        const sx = cx + x;
-        if (sx < 0 || sx >= WORLD_W) continue;
-        target.colour[trow + x] = world.ground[srow + sx];
+    const src = world.ground;
+    const step = 1 / PIXEL;
+    const out = target.colour;
+
+    for (let y = 0; y < RENDER_H; y++) {
+      let v = world.camY + y * step;
+      if (v < 0) v = 0; else if (v > WORLD_H - 1.001) v = WORLD_H - 1.001;
+      const y0 = v | 0;
+      const fy = v - y0;
+      const rowA = y0 * WORLD_W;
+      const rowB = rowA + WORLD_W;
+      const trow = y * RENDER_W;
+
+      let u = world.camX;
+      for (let x = 0; x < RENDER_W; x++, u += step) {
+        let uu = u;
+        if (uu < 0) uu = 0; else if (uu > WORLD_W - 1.001) uu = WORLD_W - 1.001;
+        const x0 = uu | 0;
+        const fx = uu - x0;
+
+        const c00 = src[rowA + x0], c10 = src[rowA + x0 + 1];
+        const c01 = src[rowB + x0], c11 = src[rowB + x0 + 1];
+        const w00 = (1 - fx) * (1 - fy), w10 = fx * (1 - fy);
+        const w01 = (1 - fx) * fy, w11 = fx * fy;
+
+        const r = (c00 & 255) * w00 + (c10 & 255) * w10 +
+          (c01 & 255) * w01 + (c11 & 255) * w11;
+        const g = ((c00 >> 8) & 255) * w00 + ((c10 >> 8) & 255) * w10 +
+          ((c01 >> 8) & 255) * w01 + ((c11 >> 8) & 255) * w11;
+        const b = ((c00 >> 16) & 255) * w00 + ((c10 >> 16) & 255) * w10 +
+          ((c01 >> 16) & 255) * w01 + ((c11 >> 16) & 255) * w11;
+
+        out[trow + x] = (0xff000000 | (b << 16) | (g << 8) | r) >>> 0;
       }
     }
   }
@@ -832,38 +858,49 @@
       const d = drawables[i];
       if (d.prop) {
         const p = d.prop;
-        R.fillEllipse(target, Math.round(p.x) - cx, Math.round(p.y) - cy,
-          p.shadowR, p.shadowR * 0.4, SHADOW, 0.3);
-        R.blit(target, p.sprite, Math.round(p.x) - cx - Math.round(p.sprite.w / 2),
-          Math.round(p.y) - cy - p.footY);
+        R.fillEllipse(target, (p.x - cx) * PIXEL, (p.y - cy) * PIXEL,
+          p.shadowR * PIXEL, p.shadowR * 0.4 * PIXEL, SHADOW, 0.3);
+        R.blit(target, p.sprite, Math.round((p.x - cx) * PIXEL - p.sprite.w / 2),
+          Math.round((p.y - cy) * PIXEL) - p.footY);
       } else {
         const a = d.actor;
         const down = Rig.isDown(a) ? 1 : 0;
-        R.fillEllipse(target, Math.round(a.x) - cx, Math.round(a.y) - cy,
-          7 + down * 7, 3 + down * 2, SHADOW, 0.34);
+        R.fillEllipse(target, (a.x - cx) * PIXEL, (a.y - cy) * PIXEL,
+          (7 + down * 7) * PIXEL, (3 + down * 2) * PIXEL, SHADOW, 0.34);
         Rig.renderActor(a, a.buffer, camera, {});
-        R.blit(target, a.buffer, Math.round(a.x) - cx - ACTOR_BUF.ox, Math.round(a.y) - cy - ACTOR_BUF.oy);
+        R.blit(target, a.buffer, Math.round((a.x - cx) * PIXEL) - ACTOR_BUF.ox,
+          Math.round((a.y - cy) * PIXEL) - ACTOR_BUF.oy);
       }
     }
 
-    // name plate and the talk prompt for whoever is in reach
+  }
+
+  /* Text is drawn on the canvas itself rather than into the pixel buffer, so
+   * it is anti-aliased like everything else now. */
+  function drawOverlay(world, ctx, canvasW, canvasH) {
+    const scale = canvasW / RENDER_W;
+    const cx = world.camX, cy = world.camY;
+    ctx.save();
+    ctx.scale(scale, scale);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+
     const npc = world.prompt;
     if (npc) {
-      const name = npc.character.name;
-      const nx = Math.round(npc.x) - cx - Math.round(T.measure(name) / 2);
-      const ny = Math.round(npc.y) - cy - 58;
-      T.drawShadowed(target, name, nx, ny, LABEL, LABEL_SHADOW);
-      const hint = 'E  talk';
-      T.drawShadowed(target, hint, Math.round(npc.x) - cx - Math.round(T.measure(hint) / 2),
-        ny - 11, PROMPT, LABEL_SHADOW);
+      const x = (npc.x - cx) * PIXEL;
+      const y = (npc.y - cy) * PIXEL - 58 * PIXEL;
+      T.label(ctx, npc.character.name, x, y, 17, '#f2ede0');
+      T.label(ctx, 'E  talk', x, y - 21, 14, '#e8c674');
     }
 
-    D.draw(world.box, target);
+    D.draw(world.box, ctx, RENDER_W, RENDER_H);
+    ctx.restore();
   }
 
   global.World = {
-    VIEW_W, VIEW_H, WORLD_W, WORLD_H, ACTOR_BUF, CAM_PITCH, CAM_SCALE,
+    VIEW_W, VIEW_H, RENDER_W, RENDER_H, PIXEL, WORLD_W, WORLD_H,
+    ACTOR_BUF, CAM_PITCH, CAM_SCALE,
     SPEED, TALK_RANGE, NUDGE_SPEED, TRIP_SPEED, FALL_SPEED, TEST_PAGES,
-    createWorld, update, draw, tryTalk, nearestTalkable, distance, beginConversation
+    createWorld, update, draw, drawOverlay, tryTalk, nearestTalkable, distance, beginConversation
   };
 })(window);

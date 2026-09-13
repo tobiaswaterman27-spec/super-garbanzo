@@ -1,105 +1,51 @@
-/* font.js — crisp pixel text.
+/* font.js — text.
  *
- * Canvas text is anti-aliased, which turns to mush once the low-res buffer is
- * scaled up. So each glyph is rasterised once, thresholded to a 1-bit mask and
- * cached; drawing is then a straight pixel blit with no grey fringe anywhere.
+ * Previously this thresholded every glyph to a 1-bit mask so it would survive
+ * being scaled up as pixel art. Nothing is pixel art now, so text is simply
+ * drawn on the canvas and anti-aliased like everything else.
  */
 (function (global) {
   'use strict';
 
-  // Press Start 2P is drawn on an 8px grid specifically to stay readable at
-  // this size; Silkscreen is narrower but its letterforms mush together once
-  // thresholded. Kept as the fallback because the metrics are close.
-  const FAMILY = '"Press Start 2P", "Silkscreen", "Courier New", monospace';
-  const CELL_H = 13;
-  const BASELINE = 10;
-  const SIZE = 8;
+  const FAMILY = '"Outfit", "Trebuchet MS", "Segoe UI", system-ui, sans-serif';
 
-  const glyphs = new Map();
-  let scratch = null;
-  let sctx = null;
-  let ready = false;
-
-  function ensureScratch() {
-    if (scratch) return;
-    scratch = document.createElement('canvas');
-    scratch.width = 28;
-    scratch.height = CELL_H;
-    sctx = scratch.getContext('2d', { willReadFrequently: true });
+  function font(size, weight) {
+    return (weight || 500) + ' ' + size + 'px ' + FAMILY;
   }
 
-  function buildGlyph(ch) {
-    ensureScratch();
-    sctx.setTransform(1, 0, 0, 1, 0, 0);
-    sctx.clearRect(0, 0, scratch.width, scratch.height);
-    sctx.font = SIZE + 'px ' + FAMILY;
-    sctx.textBaseline = 'alphabetic';
-    sctx.fillStyle = '#fff';
-    sctx.fillText(ch, 1, BASELINE);
-
-    const advance = Math.max(1, Math.round(sctx.measureText(ch).width));
-    const w = Math.min(scratch.width, advance + 3);
-    const data = sctx.getImageData(0, 0, w, CELL_H).data;
-    const mask = new Uint8Array(w * CELL_H);
-    for (let i = 0; i < w * CELL_H; i++) {
-      // Threshold rather than blend: a pixel is either on or it is not.
-      mask[i] = data[i * 4 + 3] > 110 ? 1 : 0;
-    }
-    const g = { w: w, h: CELL_H, mask: mask, advance: advance };
-    glyphs.set(ch, g);
-    return g;
+  function measure(ctx, text, size, weight) {
+    ctx.font = font(size, weight);
+    return ctx.measureText(text).width;
   }
 
-  function glyph(ch) {
-    let g = glyphs.get(ch);
-    if (!g) g = buildGlyph(ch);
-    return g;
+  // A label over the world: soft shadow behind, so it stays readable on grass.
+  function label(ctx, text, x, y, size, colour, weight) {
+    ctx.font = font(size, weight || 600);
+    ctx.save();
+    ctx.shadowColor = 'rgba(12, 14, 18, 0.85)';
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetY = 1;
+    ctx.fillStyle = colour;
+    ctx.fillText(text, x, y);
+    ctx.restore();
   }
 
-  function measure(text) {
-    let x = 0;
-    for (let i = 0; i < text.length; i++) x += glyph(text[i]).advance;
-    return x;
+  function draw(ctx, text, x, y, size, colour, weight, align) {
+    ctx.font = font(size, weight || 500);
+    ctx.textAlign = align || 'left';
+    ctx.fillStyle = colour;
+    ctx.fillText(text, x, y);
   }
 
-  function draw(target, text, x, y, colour) {
-    let cx = Math.round(x);
-    const cy = Math.round(y);
-    for (let i = 0; i < text.length; i++) {
-      const ch = text[i];
-      const g = glyph(ch);
-      if (ch !== ' ') {
-        for (let gy = 0; gy < g.h; gy++) {
-          const ty = cy + gy;
-          if (ty < 0 || ty >= target.h) continue;
-          const trow = ty * target.w;
-          const grow = gy * g.w;
-          for (let gx = 0; gx < g.w; gx++) {
-            if (!g.mask[grow + gx]) continue;
-            const tx = cx + gx;
-            if (tx < 0 || tx >= target.w) continue;
-            target.colour[trow + tx] = colour;
-          }
-        }
-      }
-      cx += g.advance;
-    }
-    return cx - Math.round(x);
-  }
-
-  // Draws text with a 1px drop shadow — used for labels over the world.
-  function drawShadowed(target, text, x, y, colour, shadow) {
-    draw(target, text, x, y + 1, shadow);
-    draw(target, text, x, y, colour);
-  }
-
-  function wrap(text, maxWidth) {
+  // Greedy wrap against a real measured width.
+  function wrap(ctx, text, maxWidth, size, weight) {
+    ctx.font = font(size, weight || 500);
     const words = text.split(' ');
     const lines = [];
     let line = '';
     for (let i = 0; i < words.length; i++) {
       const candidate = line ? line + ' ' + words[i] : words[i];
-      if (measure(candidate) > maxWidth && line) {
+      if (ctx.measureText(candidate).width > maxWidth && line) {
         lines.push(line);
         line = words[i];
       } else {
@@ -110,30 +56,16 @@
     return lines;
   }
 
-  function reset() { glyphs.clear(); }
-
   function whenReady(cb) {
-    if (ready) { cb(); return; }
-    const finish = function () {
-      ready = true;
-      reset(); // rebuild any glyph cached against the fallback face
-      cb();
-    };
     if (document.fonts && document.fonts.load) {
       Promise.race([
-        Promise.all([
-          document.fonts.load('8px "Press Start 2P"'),
-          document.fonts.load('8px Silkscreen')
-        ]).then(function () { return document.fonts.ready; }),
+        document.fonts.load('600 16px Outfit').then(function () { return document.fonts.ready; }),
         new Promise(function (r) { setTimeout(r, 2500); })
-      ]).then(finish, finish);
+      ]).then(cb, cb);
     } else {
-      finish();
+      cb();
     }
   }
 
-  global.Text = {
-    CELL_H, SIZE, LINE_H: CELL_H,
-    glyph, measure, draw, drawShadowed, wrap, reset, whenReady
-  };
+  global.Text = { FAMILY, font, measure, label, draw, wrap, whenReady };
 })(window);

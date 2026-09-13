@@ -98,39 +98,35 @@
     ];
   }
 
-  // Shadows drift toward cold slate rather than pure black; highlights drift
-  // toward a warm bone.
-  const SHADOW_TINT = [34, 40, 58];
-  const LIGHT_TINT = [255, 248, 226];
+  // Light in view space, so the key stays on a character's upper-left however
+  // they turn.
+  const LIGHT = (function () {
+    const v = [-0.52, 0.74, 0.42];
+    const len = Math.hypot(v[0], v[1], v[2]);
+    return [v[0] / len, v[1] / len, v[2] / len];
+  })();
 
-  function scaleRgb(c, f) {
-    return [Math.round(c[0] * f), Math.round(c[1] * f), Math.round(c[2] * f)];
+  const AMBIENT = 0.4;
+
+  const rgbCache = new Map();
+  function rgbOf(hex) {
+    let c = rgbCache.get(hex);
+    if (!c) { c = hexToRgb(hex); rgbCache.set(hex, c); }
+    return c;
   }
 
-  // Five steps, because four is not enough to keep every pair of *adjacent*
-  // faces distinct. A box can show its top plus two perpendicular sides at
-  // once; if any two of those land on the same step the form goes flat and the
-  // model reads as a silhouette with no depth.
-  function buildRamp(hex) {
-    const base = hexToRgb(hex);
-    const s2 = mixRgb(scaleRgb(base, 0.44), SHADOW_TINT, 0.34);
-    const s1 = mixRgb(scaleRgb(base, 0.68), SHADOW_TINT, 0.2);
-    const l1 = mixRgb(base, LIGHT_TINT, 0.17);
-    const l2 = mixRgb(base, LIGHT_TINT, 0.35);
-    return [
-      pack(s2[0], s2[1], s2[2]),
-      pack(s1[0], s1[1], s1[2]),
-      pack(base[0], base[1], base[2]),
-      pack(l1[0], l1[1], l1[2]),
-      pack(l2[0], l2[1], l2[2])
-    ];
-  }
-
-  const rampCache = new Map();
-  function ramp(hex) {
-    let r = rampCache.get(hex);
-    if (!r) { r = buildRamp(hex); rampCache.set(hex, r); }
-    return r;
+  /* Flat per face, but continuously lit rather than snapped to a handful of
+   * steps. The banding was there to make the shading survive being squashed
+   * into a few dozen pixels; at full resolution it just looks like banding. */
+  function shadeFace(rgb, nx, ny, nz) {
+    let d = nx * LIGHT[0] + ny * LIGHT[1] + nz * LIGHT[2];
+    if (d < 0) d = 0;
+    const b = AMBIENT + (1 - AMBIENT) * d;
+    let r = rgb[0] * b, g = rgb[1] * b, bl = rgb[2] * b;
+    if (r > 255) r = 255;
+    if (g > 255) g = 255;
+    if (bl > 255) bl = 255;
+    return pack(r | 0, g | 0, bl | 0);
   }
 
   /* ---------- render target ---------- */
@@ -192,22 +188,6 @@
 
   // Light lives in view space so the key light stays on the character's
   // upper-left no matter which way they turn — a sprite-sheet convention.
-  // Faces are shaded by which way they point on screen, not by a dot product
-  // against a light vector. A plain lambert term gives perpendicular faces the
-  // same value whenever they sit at equal angles to the light, which is what
-  // was flattening the models; banding by orientation cannot do that.
-  //
-  //   4  top          3  angled toward the key light (screen-left)
-  //   2  square on    1  angled away (screen-right)      0  underside
-  function shadeLevel(nx, ny, nz) {
-    if (ny > 0.5) return 4;
-    if (ny < -0.4) return 0;
-    const azimuth = Math.atan2(nx, nz);
-    if (azimuth < -0.35) return 3;
-    if (azimuth > 0.35) return 1;
-    return 2;
-  }
-
   let _sx = new Float32Array(512);
   let _sy = new Float32Array(512);
   let _sz = new Float32Array(512);
@@ -226,7 +206,7 @@
 
   /* Draws one convex mesh. Vertices are projected once, then each face is
    * culled, shaded by orientation and fan-triangulated. */
-  function drawMesh(target, matrix, mesh, colourRamp, camera, opts) {
+  function drawMesh(target, matrix, mesh, rgb, camera, opts) {
     const verts = mesh.verts;
     const count = verts.length / 3;
     ensureScratch(count);
@@ -252,7 +232,7 @@
       const nz = _n[1] * camera.sinPitch + _n[2] * camera.cosPitch;
       if (nz <= 0.015) continue; // facing away from the camera
 
-      const colour = flat ? colourRamp[2] : colourRamp[shadeLevel(_n[0], ny, nz)];
+      const colour = flat ? pack(rgb[0], rgb[1], rgb[2]) : shadeFace(rgb, _n[0], ny, nz);
       const idx = face.i;
       const i0 = idx[0];
       for (let k = 1; k < idx.length - 1; k++) {
@@ -344,22 +324,42 @@
 
   function createPresenter(canvas, w, h) {
     const ctx = canvas.getContext('2d', { alpha: false });
-    ctx.imageSmoothingEnabled = false;
     const image = ctx.createImageData(w, h);
     const view = new Uint32Array(image.data.buffer);
     const staging = document.createElement('canvas');
     staging.width = w;
     staging.height = h;
     const sctx = staging.getContext('2d');
-    sctx.imageSmoothingEnabled = false;
 
     return function present(target) {
       view.set(target.colour);
       sctx.putImageData(image, 0, 0);
-      ctx.imageSmoothingEnabled = false;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(staging, 0, 0, w, h, 0, 0, canvas.width, canvas.height);
     };
+  }
+
+  /* Samples a source image with bilinear filtering. The ground is stored at
+   * one texel per world unit; drawn at several pixels per unit it has to be
+   * interpolated or it comes out as squares. */
+  function sampleBilinear(src, srcW, srcH, u, v) {
+    if (u < 0) u = 0; else if (u > srcW - 1.001) u = srcW - 1.001;
+    if (v < 0) v = 0; else if (v > srcH - 1.001) v = srcH - 1.001;
+    const x0 = u | 0, y0 = v | 0;
+    const fx = u - x0, fy = v - y0;
+    const i00 = y0 * srcW + x0, i10 = i00 + 1;
+    const i01 = i00 + srcW, i11 = i01 + 1;
+    const c00 = src[i00], c10 = src[i10], c01 = src[i01], c11 = src[i11];
+    const w00 = (1 - fx) * (1 - fy), w10 = fx * (1 - fy);
+    const w01 = (1 - fx) * fy, w11 = fx * fy;
+    const r = (c00 & 255) * w00 + (c10 & 255) * w10 + (c01 & 255) * w01 + (c11 & 255) * w11;
+    const g = ((c00 >> 8) & 255) * w00 + ((c10 >> 8) & 255) * w10 +
+      ((c01 >> 8) & 255) * w01 + ((c11 >> 8) & 255) * w11;
+    const b = ((c00 >> 16) & 255) * w00 + ((c10 >> 16) & 255) * w10 +
+      ((c01 >> 16) & 255) * w01 + ((c11 >> 16) & 255) * w11;
+    return pack(r | 0, g | 0, b | 0);
   }
 
   function makeCamera(pitch, scale, ox, oy) {
@@ -376,9 +376,9 @@
   global.Render = {
     identity, multiply, translation, scaling, rotationX, rotationY, rotationZ,
     transformPoint, transformDirection,
-    pack, hexToRgb, mixRgb, ramp, buildRamp,
+    pack, hexToRgb, mixRgb, rgbOf, shadeFace, sampleBilinear,
     createTarget, clearTarget, drawMesh, traceOutline, blit,
     fillRect, strokeRect, fillEllipse, createPresenter, makeCamera,
-    rasterTriangle, shadeLevel
+    rasterTriangle
   };
 })(window);

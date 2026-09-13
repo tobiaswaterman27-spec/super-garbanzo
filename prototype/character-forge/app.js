@@ -662,14 +662,31 @@
     document.body.classList.toggle('playing', !forge);
     if (!forge) {
       state.sprinting = false;
+      lastMoveAt = 0;
       el('world-canvas').focus();
     }
   }
 
   const keys = Object.create(null);
   const MOVE_KEYS = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'];
+
+  // WASD and the arrows are the same four directions, so a double-tap counts
+  // whichever pair you use — W then Up works as well as W then W.
+  const DIRECTION_OF = {
+    w: 'up', arrowup: 'up',
+    s: 'down', arrowdown: 'down',
+    a: 'left', arrowleft: 'left',
+    d: 'right', arrowright: 'right'
+  };
+  const TALK_KEYS = ['e', 'enter', ' ', 'spacebar'];
   const DOUBLE_TAP_MS = 330;
-  let lastForwardTap = 0;
+  // Coming to a stop ends the sprint, but only after a real pause. A
+  // double-tap releases the key for a moment on its way to the second press,
+  // and cancelling on that release meant the toggle could switch the sprint
+  // on but never back off.
+  const STOP_GRACE_MS = 200;
+  const lastTap = Object.create(null);
+  let lastMoveAt = 0;
 
   function toggleSprint() {
     state.sprinting = !state.sprinting;
@@ -683,16 +700,23 @@
       const k = e.key.toLowerCase();
       if (state.mode !== 'world') { keys[k] = true; return; }
 
-      // Double-tapping forward toggles the sprint; tapping it again drops back
-      // to a walk, as does coming to a stop.
-      if ((k === 'w' || k === 'arrowup') && !e.repeat) {
+      // Double-tapping any direction toggles the sprint; tapping that
+      // direction twice again drops back to a walk, as does coming to a stop.
+      // Tracking per direction rather than globally means that swinging from
+      // W to D while turning a corner does not read as a double-tap.
+      const direction = DIRECTION_OF[k];
+      if (direction && !e.repeat) {
         const now = (window.performance || Date).now();
-        if (now - lastForwardTap < DOUBLE_TAP_MS) { toggleSprint(); lastForwardTap = 0; }
-        else lastForwardTap = now;
+        if (now - (lastTap[direction] || 0) < DOUBLE_TAP_MS) {
+          toggleSprint();
+          lastTap[direction] = 0;
+        } else {
+          lastTap[direction] = now;
+        }
       }
       keys[k] = true;
 
-      if (k === 'e' || k === 'enter' || k === ' ') {
+      if (TALK_KEYS.indexOf(k) >= 0) {
         e.preventDefault();
         if (state.world) W.tryTalk(state.world);
       }
@@ -704,7 +728,7 @@
       state.sprinting = false;
     });
 
-    // Clicking only turns the page; talking is E or Enter, and only up close.
+    // Clicking only turns the page; talking is E, Enter or Space, up close.
     canvas.addEventListener('click', function () {
       if (state.world && state.world.box.open) D.advance(state.world.box);
     });
@@ -716,7 +740,9 @@
     if (keys.d || keys.arrowright) dx += 1;
     if (keys.w || keys.arrowup) dy -= 1;
     if (keys.s || keys.arrowdown) dy += 1;
-    if (!dx && !dy) state.sprinting = false;   // stopping ends the sprint
+    const now = (window.performance || Date).now();
+    if (dx || dy) lastMoveAt = now;
+    else if (now - lastMoveAt > STOP_GRACE_MS) state.sprinting = false;
     world.input.dx = dx;
     world.input.dy = dy;
     world.input.sprint = state.sprinting;

@@ -59,8 +59,8 @@ test for it: no two co-visible perpendicular faces may ever share a step.
   mouth width, height, frame, garment and three clothing colours.
 - Movement with momentum: input steers a velocity, friction bleeds it off, and
   reversing at speed costs control and makes you skid instead of pivoting.
-- Sprint by double-tapping forward. Double-tap again, or come to a stop, to
-  drop back to a walk.
+- Sprint by double-tapping any direction. Double-tap again, or come to a
+  stop, to drop back to a walk.
 - Trees, rocks, barrels and the cart are solid. Hitting one kills your inward
   velocity, bleeds the rest and staggers you if you were moving fast.
 - Sprint into a villager and they go down: a rigid-body tip driven by angular
@@ -72,7 +72,7 @@ test for it: no two co-visible perpendicular faces may ever share a step.
 - A pose editor: 10 joints x 3 axes, keyframe capture and looping playback.
 - Villagers generated at random, with names, hair and facial hair chosen
   according to sex.
-- Walk up to a villager and press E or Enter: they turn to face you, or step
+- Walk up to a villager and press E, Enter or Space: they turn to face you, or step
   closer first, then a three-page text box opens. Repeatable.
 
 ## Controls
@@ -80,9 +80,13 @@ test for it: no two co-visible perpendicular faces may ever share a step.
 | Key | Action |
 | --- | --- |
 | `W` `A` `S` `D` / arrows | Move |
-| Double-tap `W` / `Up` | Toggle sprint |
-| `E` / `Enter` | Talk to a nearby villager, and turn the page |
+| Double-tap any direction | Toggle sprint |
+| `E` / `Enter` / `Space` | Talk to a nearby villager, and turn the page |
 | Click | Turn the page |
+
+Double-taps are tracked per direction, and WASD and the arrows share those
+directions — so `W` then `Up` counts, while swinging from `W` to `D` around a
+corner does not.
 
 ## Conventions worth knowing before editing
 

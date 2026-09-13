@@ -319,6 +319,18 @@
       const angle = Math.random() * Math.PI * 2;
       Rig.knockDown(previewActor, Math.sin(angle), Math.cos(angle), 4 + Math.random() * 4);
     });
+
+    const jostleBtn = document.createElement('button');
+    jostleBtn.type = 'button';
+    jostleBtn.className = 'btn';
+    jostleBtn.id = 'jostle';
+    jostleBtn.textContent = 'Jostle';
+    jostleBtn.addEventListener('click', function () {
+      const angle = Math.random() * Math.PI * 2;
+      Rig.nudge(previewActor, Math.sin(angle), Math.cos(angle), 2 + Math.random() * 2.5);
+    });
+
+    knockRow.appendChild(jostleBtn);
     knockRow.appendChild(knockBtn);
     playback.appendChild(knockRow);
 
@@ -577,7 +589,9 @@
   function updatePreviewActor(dt) {
     const a = previewActor;
 
-    if (a.fall.active) {
+    // A soft jostle plays over whatever cycle is selected; only a real fall
+    // takes the animation over entirely.
+    if (Rig.isDown(a)) {
       a.customPose = null;
       a.gait = 'idle';
       a.speaking = false;
@@ -616,7 +630,7 @@
     const c = state.character;
     const hairLabel = P.HAIR_STYLES[CM.indexOfId(P.HAIR_STYLES, c.hairStyle)].label;
     const anim = previewActor.fall.active
-      ? ('ragdoll ' + previewActor.fall.state)
+      ? (previewActor.fall.mode === 'soft' ? 'jostled' : 'ragdoll ' + previewActor.fall.state)
       : state.animation === 'pose'
         ? (state.playingTrack ? 'track' : 'posed')
         : state.animation;

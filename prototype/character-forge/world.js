@@ -19,9 +19,12 @@
   // running off the edge of the generated ground.
   const WORLD_W = 1200, WORLD_H = 800;
 
-  const ACTOR_BUF = { w: 104, h: 96, ox: 52, oy: 74 };
-  const CAM_PITCH = 0.30;
-  const CAM_SCALE = 1.35;
+  // Exactly half the forge preview's scale and the same camera pitch, so a
+  // villager in the world is the forge model sized down rather than a
+  // differently-proportioned one.
+  const ACTOR_BUF = { w: 140, h: 128, ox: 70, oy: 100 };
+  const CAM_PITCH = 0.26;
+  const CAM_SCALE = 1.8;
 
   const SPEED = { walk: 52, run: 112, npc: 26 };
   const ACCEL = 520;           // px/s^2 while steering
@@ -30,9 +33,11 @@
   const SKID_FRICTION = 150;   // you slide before you stop
 
   const PLAYER_R = 6.5;
+  const NUDGE_SPEED = 30;      // above this, any bump visibly jostles you
+  const VAULT_SPEED = 86;      // above this, an obstacle takes you off your feet
   const KNOCK_SPEED = 82;      // must be genuinely sprinting to floor someone
-  const TALK_RANGE = 34;
-  const COMFORT_RANGE = 22;
+  const TALK_RANGE = 40;
+  const COMFORT_RANGE = 24;
 
   const TEST_PAGES = ['test123 test123', 'test123 test123', 'test123 test123'];
 
@@ -114,22 +119,23 @@
   }
 
   function makeTree(rng) {
-    const B = global.Parts.box;
     const boxes = [];
-    const trunkH = 14 + rng() * 6;
-    boxes.push({ mesh: G.slab(-1.9, 0, -1.9, 3.8, trunkH, 3.8, 0.72, 1), colour: '#4d3726' });
-    const clumps = 5 + Math.floor(rng() * 3);
+    // Roughly three times a person, so running into one is obviously running
+    // into something you cannot go over.
+    const trunkH = 36 + rng() * 14;
+    boxes.push({ mesh: G.slab(-2.4, 0, -2.4, 4.8, trunkH, 4.8, 0.62, 1), colour: '#4d3726' });
+    const clumps = 7 + Math.floor(rng() * 4);
     for (let i = 0; i < clumps; i++) {
-      const s = 5.5 + rng() * 4;
+      const s = 8 + rng() * 6;
       const a = (i / clumps) * Math.PI * 2 + rng();
-      const rad = i === 0 ? 0 : 3.4 + rng() * 2.4;
+      const rad = i === 0 ? 0 : 4.5 + rng() * 4;
       boxes.push({
-        mesh: G.superellipsoid(Math.cos(a) * rad, trunkH - 1 + rng() * 5 + s / 2, Math.sin(a) * rad,
+        mesh: G.superellipsoid(Math.cos(a) * rad, trunkH - 2 + rng() * 8 + s / 2, Math.sin(a) * rad,
           s / 2, s / 2, s / 2, 0.8, 4, 8),
         colour: rng() < 0.5 ? '#39572f' : '#2f4a28'
       });
     }
-    return renderBoxes(boxes, 72, 86, 36, 76, CAM_SCALE);
+    return renderBoxes(boxes, 132, 190, 66, 182, CAM_SCALE);
   }
 
   function makeRock(rng) {
@@ -144,7 +150,7 @@
         colour: rng() < 0.5 ? '#6d6a63' : '#5a5750'
       });
     }
-    return renderBoxes(boxes, 44, 44, 22, 38, CAM_SCALE);
+    return renderBoxes(boxes, 56, 56, 28, 48, CAM_SCALE);
   }
 
   function makeBarrel() {
@@ -154,7 +160,7 @@
     boxes.push({ mesh: G.superellipsoid(0, 4.2, 0, 3.6, 4.3, 3.6, 0.45, 5, 10), colour: '#6b4a2c' });
     boxes.push({ mesh: G.superellipsoid(0, 2.0, 0, 3.7, 0.55, 3.7, 0.4, 3, 10), colour: '#4a4038' });
     boxes.push({ mesh: G.superellipsoid(0, 6.4, 0, 3.7, 0.55, 3.7, 0.4, 3, 10), colour: '#4a4038' });
-    return renderBoxes(boxes, 36, 44, 18, 38, CAM_SCALE);
+    return renderBoxes(boxes, 48, 60, 24, 50, CAM_SCALE);
   }
 
   function makeCart() {
@@ -169,7 +175,7 @@
       boxes.push({ mesh: G.superellipsoid(-9, 4.4, z, 0.9, 4.4, 4.4, 0.95, 4, 10), colour: '#43301e' });
       boxes.push({ mesh: G.superellipsoid(9, 4.4, z, 0.9, 4.4, 4.4, 0.95, 4, 10), colour: '#43301e' });
     }
-    return renderBoxes(boxes, 64, 56, 32, 48, CAM_SCALE);
+    return renderBoxes(boxes, 88, 76, 44, 62, CAM_SCALE);
   }
 
   /* ---------- world construction ---------- */
@@ -196,24 +202,29 @@
     const barrelSprite = makeBarrel();
     const cartSprite = makeCart();
 
-    function addProp(sprite, x, y, footY, r) {
-      world.props.push({ sprite: sprite, x: x, y: y, footY: footY, r: r, shadowR: r * 1.5 });
+    // `tall` decides what happens when you hit it at speed: you go over a low
+    // obstacle, you bounce off a tall one.
+    function addProp(sprite, x, y, footY, r, tall) {
+      world.props.push({
+        sprite: sprite, x: x, y: y, footY: footY, r: r,
+        shadowR: r * 1.5, tall: !!tall
+      });
     }
 
     for (let i = 0; i < 34; i++) {
       const x = 40 + rng() * (WORLD_W - 80);
       const y = 40 + rng() * (WORLD_H - 80);
       if (Math.abs(y - pathCentre(x)) < 36) continue; // keep the road clear
-      addProp(treeSprites[Math.floor(rng() * treeSprites.length)], x, y, 76, 5);
+      addProp(treeSprites[Math.floor(rng() * treeSprites.length)], x, y, 182, 6, true);
     }
     for (let i = 0; i < 22; i++) {
       addProp(rockSprites[Math.floor(rng() * rockSprites.length)],
-        40 + rng() * (WORLD_W - 80), 40 + rng() * (WORLD_H - 80), 38, 4.5);
+        40 + rng() * (WORLD_W - 80), 40 + rng() * (WORLD_H - 80), 48, 4.5, false);
     }
-    addProp(cartSprite, WORLD_W * 0.46, pathCentre(WORLD_W * 0.46) - 26, 48, 10);
-    addProp(barrelSprite, WORLD_W * 0.42, WORLD_H * 0.5, 38, 4);
-    addProp(barrelSprite, WORLD_W * 0.435, WORLD_H * 0.52, 38, 4);
-    addProp(barrelSprite, WORLD_W * 0.415, WORLD_H * 0.535, 38, 4);
+    addProp(cartSprite, WORLD_W * 0.46, pathCentre(WORLD_W * 0.46) - 26, 62, 10, false);
+    addProp(barrelSprite, WORLD_W * 0.42, WORLD_H * 0.5, 50, 4, false);
+    addProp(barrelSprite, WORLD_W * 0.435, WORLD_H * 0.52, 50, 4, false);
+    addProp(barrelSprite, WORLD_W * 0.415, WORLD_H * 0.535, 50, 4, false);
 
     /* player */
     const player = Rig.createActor(playerCharacter, WORLD_W * 0.4, WORLD_H * 0.55, 1);
@@ -242,9 +253,12 @@
 
   // The player is held inside the region where the camera can stay centred on
   // them without showing anything outside the generated ground.
+  // The camera is locked to the player, so the player has to stay inside the
+  // region where a full viewport of generated ground exists around them.
+  // Letting them past that edge leaves blank bands on screen.
   function clampPlayer(a) {
     a.x = Math.max(VIEW_W / 2, Math.min(WORLD_W - VIEW_W / 2, a.x));
-    a.y = Math.max(VIEW_H / 2 + 12, Math.min(WORLD_H - VIEW_H / 2 + 40, a.y));
+    a.y = Math.max(VIEW_H / 2, Math.min(WORLD_H - VIEW_H / 2, a.y));
   }
 
   function clampVillager(a) {
@@ -254,10 +268,10 @@
 
   /* ---------- collision ---------- */
 
-  // Pushes `a` out of any prop it overlaps and returns how much speed the
-  // impact cost, so the caller can decide whether to stagger.
+  // Pushes `a` out of any prop it overlaps. Returns the worst closing speed and
+  // the prop that caused it, so the caller can decide how hard to react.
   function resolvePropCollisions(world, a, radius) {
-    let worstImpact = 0;
+    let worst = 0, hit = null, hx = 0, hy = 0;
     for (let i = 0; i < world.props.length; i++) {
       const p = world.props[i];
       const dx = a.x - p.x, dy = (a.y - p.y) * 1.6; // props are wider than deep
@@ -270,23 +284,49 @@
       a.x += nx * push;
       a.y += ny * push / 1.6;
 
-      // kill the velocity component heading into the obstacle
-      const into = a.vx * nx + a.vy * ny;
-      if (into < 0) {
-        worstImpact = Math.max(worstImpact, -into);
-        a.vx -= nx * into;
-        a.vy -= ny * into;
-        a.vx *= 0.55;   // and bleed the rest: you lose your momentum on impact
+      const into = -(a.vx * nx + a.vy * ny);
+      if (into > 0) {
+        if (into > worst) { worst = into; hit = p; hx = nx; hy = ny / 1.6; }
+        // kill the component heading into the obstacle, bleed the rest
+        a.vx += nx * into;
+        a.vy += ny * into;
+        a.vx *= 0.55;
         a.vy *= 0.55;
       }
     }
-    return worstImpact;
+    return { speed: worst, prop: hit, nx: hx, ny: hy };
   }
 
-  function resolveActorCollisions(world, dt) {
+  // Everything that happens to the player when they run into scenery.
+  function reactToProp(world, player, impact) {
+    if (!impact.prop || impact.speed < NUDGE_SPEED) return;
+    const p = player;
+    const n = impact;
+
+    if (impact.speed > VAULT_SPEED) {
+      if (impact.prop.tall) {
+        // A tree does not give. You come off it backwards.
+        Rig.knockDown(p, n.nx, n.ny, 3.4 + impact.speed / 34);
+        p.vx = n.nx * impact.speed * 0.28;
+        p.vy = n.ny * impact.speed * 0.28;
+      } else {
+        // Something around knee height trips you straight over the top of it.
+        Rig.knockDown(p, -n.nx, -n.ny, 3.0 + impact.speed / 38);
+        p.vx = -n.nx * impact.speed * 0.2;
+        p.vy = -n.ny * impact.speed * 0.2;
+      }
+    } else {
+      // Not fast enough to floor you — you just take the knock.
+      Rig.nudge(p, n.nx, n.ny, 1.2 + impact.speed / 46);
+    }
+  }
+
+  function resolveActorCollisions(world) {
     const player = world.player;
     for (let i = 1; i < world.actors.length; i++) {
       const a = world.actors[i];
+      if (Rig.isDown(a) && Rig.isDown(player)) continue;
+
       const dx = a.x - player.x, dy = (a.y - player.y) * 1.5;
       const dist = Math.hypot(dx, dy);
       const min = PLAYER_R + 7;
@@ -294,24 +334,26 @@
 
       const nx = dx / dist, ny = dy / dist;
       const speed = Math.hypot(player.vx, player.vy);
-      const closing = -(player.vx * -nx + player.vy * -ny);
 
-      if (speed >= KNOCK_SPEED && closing > 0 && !a.fall.active) {
-        // a sprinting shoulder-charge puts them down
+      if (speed >= KNOCK_SPEED && !Rig.isDown(a)) {
+        // A sprinting shoulder-charge is the only thing that floors anyone.
         Rig.knockDown(a, nx, ny / 1.5, 2.6 + speed / 30);
         if (a.brain) { a.brain.state = 'downed'; a.brain.timer = 0; }
         if (world.talkingTo === a) D.close(world.box);
-
-        // and the player pays for it too
+        Rig.nudge(player, -nx, -ny / 1.5, 2.8);
         player.vx *= 0.3;
         player.vy *= 0.3;
-        player.stagger = 1;
       } else {
-        // otherwise just push each other apart, gently
+        // Otherwise both of them just get jostled and pushed apart.
         const push = (min - dist) * 0.5;
         a.x += nx * push; a.y += ny * push / 1.5;
         player.x -= nx * push; player.y -= ny * push / 1.5;
-        if (speed > SPEED.walk) { player.vx *= 0.86; player.vy *= 0.86; }
+        if (speed > NUDGE_SPEED) {
+          if (!Rig.isDown(a)) Rig.nudge(a, nx, ny / 1.5, 1.0 + speed / 52);
+          Rig.nudge(player, -nx, -ny / 1.5, 0.9 + speed / 64);
+          player.vx *= 0.82;
+          player.vy *= 0.82;
+        }
       }
     }
   }
@@ -320,13 +362,13 @@
 
   function updatePlayer(world, dt) {
     const p = world.player;
-    const locked = world.box.open || p.fall.active;
+    const locked = world.box.open || Rig.isDown(p);
     const input = world.input;
     let dx = locked ? 0 : input.dx;
     let dy = locked ? 0 : input.dy;
 
     const speed = Math.hypot(p.vx, p.vy);
-    let skidding = false;
+    let sliding = false;
 
     if (dx || dy) {
       const len = Math.hypot(dx, dy);
@@ -335,10 +377,10 @@
       // How much of the current motion agrees with where the player now wants
       // to go. Reversing at speed means sliding, not pivoting.
       const agree = speed > 4 ? (p.vx * dx + p.vy * dy) / speed : 1;
-      skidding = speed > SPEED.walk * 1.2 && agree < 0.25;
+      sliding = speed > SPEED.walk * 1.2 && agree < 0.25;
 
       const target = input.sprint ? SPEED.run : SPEED.walk;
-      const accel = (skidding ? SKID_ACCEL : ACCEL) * (p.stagger > 0.1 ? 0.4 : 1);
+      const accel = sliding ? SKID_ACCEL : ACCEL;
       const tx = dx * target, ty = dy * target;
       const ax = tx - p.vx, ay = ty - p.vy;
       const mag = Math.hypot(ax, ay);
@@ -348,28 +390,29 @@
         p.vy += (ay / mag) * step;
       }
       // face the way you are steering, but hold your facing through a skid
-      if (!skidding) p.targetYaw = Rig.snapToEight(dx, dy);
+      if (!sliding) p.targetYaw = Rig.snapToEight(dx, dy);
     } else if (speed > 0) {
       const decel = (speed > SPEED.walk * 1.25 ? SKID_FRICTION : FRICTION) * dt;
       const next = Math.max(0, speed - decel);
       p.vx = (p.vx / speed) * next;
       p.vy = (p.vy / speed) * next;
-      skidding = speed > SPEED.walk * 1.3;
+      sliding = speed > SPEED.walk * 1.3;
     }
 
     p.x += p.vx * dt;
     p.y += p.vy * dt;
 
     const impact = resolvePropCollisions(world, p, PLAYER_R);
-    if (impact > SPEED.walk * 1.1) p.stagger = Math.min(1, impact / SPEED.run);
+    reactToProp(world, p, impact);
     clampPlayer(p);
 
+    // Sliding to a halt uses the still pose. A dedicated skid animation read as
+    // a jumble at this size, and legs pumping while you slide backwards looks
+    // worse than legs that have simply stopped.
     const nowSpeed = Math.hypot(p.vx, p.vy);
-    if (p.fall.active) p.gait = 'idle';
-    else if (skidding && nowSpeed > SPEED.walk) {
-      p.gait = 'skid';
-      p.skidLean = 1;
-    } else if (nowSpeed > SPEED.walk * 1.25) p.gait = 'run';
+    if (Rig.isDown(p)) p.gait = 'idle';
+    else if (sliding) p.gait = 'idle';
+    else if (nowSpeed > SPEED.walk * 1.25) p.gait = 'run';
     else if (nowSpeed > 6) p.gait = 'walk';
     else p.gait = 'idle';
 
@@ -384,7 +427,7 @@
 
     // While down, the ragdoll itself moves the body — it hands its drift back
     // to the actor position each step, so nothing else should push it.
-    if (a.fall.active) {
+    if (Rig.isDown(a)) {
       a.vx = 0; a.vy = 0;
       a.gait = 'idle';
       brain.state = 'downed';
@@ -477,7 +520,7 @@
     let best = null, bestD = TALK_RANGE;
     for (let i = 1; i < world.actors.length; i++) {
       const a = world.actors[i];
-      if (a.fall.active || a.brain.state === 'downed') continue;
+      if (Rig.isDown(a) || a.brain.state === 'downed') continue;
       const d = distance(a, world.player);
       if (d < bestD) { bestD = d; best = a; }
     }
@@ -487,7 +530,7 @@
   // Bound to E / Enter. Returns true if it did something.
   function tryTalk(world) {
     if (world.box.open) { D.advance(world.box); return true; }
-    if (world.player.fall.active) return false;
+    if (Rig.isDown(world.player)) return false;
     const npc = nearestTalkable(world);
     if (!npc) return false;
     npc.brain.state = distance(npc, world.player) > COMFORT_RANGE ? 'approach' : 'face';
@@ -499,7 +542,7 @@
   function update(world, dt) {
     updatePlayer(world, dt);
     for (let i = 1; i < world.actors.length; i++) updateVillager(world, world.actors[i], dt);
-    resolveActorCollisions(world, dt);
+    resolveActorCollisions(world);
     D.update(world.box, dt);
 
     world.prompt = world.box.open ? null : nearestTalkable(world);
@@ -563,7 +606,7 @@
           Math.round(p.y) - cy - p.footY);
       } else {
         const a = d.actor;
-        const down = a.fall.active ? 1 : 0;
+        const down = Rig.isDown(a) ? 1 : 0;
         R.fillEllipse(target, Math.round(a.x) - cx, Math.round(a.y) - cy,
           7 + down * 7, 3 + down * 2, SHADOW, 0.34);
         Rig.renderActor(a, a.buffer, camera, {});
@@ -583,16 +626,12 @@
         ny - 11, PROMPT, LABEL_SHADOW);
     }
 
-    if (world.input.sprint && !world.box.open) {
-      T.drawShadowed(target, 'SPRINT', 6, 6, PROMPT, LABEL_SHADOW);
-    }
-
     D.draw(world.box, target);
   }
 
   global.World = {
     VIEW_W, VIEW_H, WORLD_W, WORLD_H, ACTOR_BUF, CAM_PITCH, CAM_SCALE,
-    SPEED, TALK_RANGE, KNOCK_SPEED, TEST_PAGES,
+    SPEED, TALK_RANGE, KNOCK_SPEED, VAULT_SPEED, NUDGE_SPEED, TEST_PAGES,
     createWorld, update, draw, tryTalk, nearestTalkable, distance, beginConversation
   };
 })(window);

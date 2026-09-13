@@ -130,38 +130,39 @@
     if (!box.open) return;
 
     const margin = 10;
-    const h = 46;
+    const h = 62;
     const w = target.w - margin * 2;
     const x = margin;
-    const y = target.h - h - 8;
+    const y = target.h - h - 6;
 
     panel(target, x, y, w, h);
 
     if (box.speaker) {
-      const nameW = T.measure(box.speaker) + 10;
+      const plateH = T.CELL_H + 4;
+      const nameW = T.measure(box.speaker) + 12;
       const plateX = x + 6;
-      const plateY = y - 11;
-      R.fillRect(target, plateX, plateY, nameW, 12, COLOURS.plate);
-      R.strokeRect(target, plateX, plateY, nameW, 12, COLOURS.border);
+      const plateY = y - plateH + 1;
+      R.fillRect(target, plateX, plateY, nameW, plateH, COLOURS.plate);
+      R.strokeRect(target, plateX, plateY, nameW, plateH, COLOURS.border);
       R.fillRect(target, plateX, plateY, 1, 1, 0);
       R.fillRect(target, plateX + nameW - 1, plateY, 1, 1, 0);
-      T.draw(target, box.speaker, plateX + 5, plateY + 1, COLOURS.plateText);
+      T.draw(target, box.speaker, plateX + 6, plateY + 2, COLOURS.plateText);
     }
 
     const page = currentPage(box);
     const shown = page.slice(0, Math.floor(box.revealed));
-    const lines = T.wrap(page, w - 20);
+    const lines = T.wrap(page, w - 22);
 
     // Wrap the full page once, then reveal per line, so text never re-flows
     // mid-reveal — re-flowing is the classic typewriter bug.
     let remaining = shown.length;
-    let ty = y + 8;
+    let ty = y + 9;
     for (let i = 0; i < lines.length && i < 3; i++) {
       const line = lines[i];
       const take = Math.max(0, Math.min(line.length, remaining));
       if (take > 0) T.draw(target, line.slice(0, take), x + 10, ty, COLOURS.text);
       remaining -= line.length + 1; // +1 for the space the wrap consumed
-      ty += T.LINE_H + 2;
+      ty += T.LINE_H + 3;
     }
 
     if (pageComplete(box)) {

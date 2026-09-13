@@ -7,9 +7,12 @@
 (function (global) {
   'use strict';
 
-  const FAMILY = '"Silkscreen", "Courier New", monospace';
-  const CELL_H = 11;
-  const BASELINE = 8;
+  // Press Start 2P is drawn on an 8px grid specifically to stay readable at
+  // this size; Silkscreen is narrower but its letterforms mush together once
+  // thresholded. Kept as the fallback because the metrics are close.
+  const FAMILY = '"Press Start 2P", "Silkscreen", "Courier New", monospace';
+  const CELL_H = 13;
+  const BASELINE = 10;
   const SIZE = 8;
 
   const glyphs = new Map();
@@ -20,7 +23,7 @@
   function ensureScratch() {
     if (scratch) return;
     scratch = document.createElement('canvas');
-    scratch.width = 24;
+    scratch.width = 28;
     scratch.height = CELL_H;
     sctx = scratch.getContext('2d', { willReadFrequently: true });
   }
@@ -118,7 +121,10 @@
     };
     if (document.fonts && document.fonts.load) {
       Promise.race([
-        document.fonts.load('8px Silkscreen').then(function () { return document.fonts.ready; }),
+        Promise.all([
+          document.fonts.load('8px "Press Start 2P"'),
+          document.fonts.load('8px Silkscreen')
+        ]).then(function () { return document.fonts.ready; }),
         new Promise(function (r) { setTimeout(r, 2500); })
       ]).then(finish, finish);
     } else {

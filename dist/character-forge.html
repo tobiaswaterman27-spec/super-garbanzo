@@ -1,7 +1,7 @@
 <title>Character Forge</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Press+Start+2P&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 
 <style>
   :root {
@@ -435,14 +435,7 @@
         <button class="btn" id="turn-right" type="button">Turn &#8594;</button>
       </div>
 
-      <div class="stage-foot" id="world-foot" hidden>
-        <p class="hint">
-          <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows to walk &middot;
-          double-tap any direction to sprint &middot;
-          <kbd>E</kbd> <kbd>Enter</kbd> <kbd>Space</kbd> to talk when close, and to turn the page &middot;
-          sprint into someone to knock them over
-        </p>
-      </div>
+      <div class="stage-foot" id="world-foot" hidden></div>
     </section>
 
     <div class="rail">
@@ -1189,7 +1182,7 @@
 
   // Must match the skull in character.js, so hair sits concentric with it.
   const HEAD_E = 0.42;
-  const HAIRLINE = 5.75;   // just clear of the brows, which top out at 5.6
+  const HAIRLINE = 6.5;    // clear of the brow band, which tops out at 6.32
 
   function b(x, y, z, w, h, d) { return G.box(x, y, z, w, h, d); }
 
@@ -1221,7 +1214,7 @@
 
   // `drop` is how far below the hairline it hangs over the brow.
   function fringe(hw, hh, hd, drop) {
-    const d0 = drop === undefined ? 0.5 : drop;
+    const d0 = drop === undefined ? 0.35 : drop;
     return G.slab(-hw / 2 + 0.2, HAIRLINE - d0, hd / 2 - 1.1, hw - 0.4, d0 + 0.9, 1.6, 1, 0.92);
   }
 
@@ -1247,7 +1240,7 @@
     {
       id: 'bowl', label: 'Bowl cut', femaleBias: 0.4,
       build: function (hw, hh, hd) {
-        return [crown(hw, hh, hd, 5.5), fringe(hw, hh, hd, 1.4), fall(hw, hh, hd, 2.6, 1, 0.95)]
+        return [crown(hw, hh, hd, 5.5), fringe(hw, hh, hd, 1.15), fall(hw, hh, hd, 2.6, 1, 0.95)]
           .concat(sideFall(hw, hh, hd, 2.8, 0.95));
       }
     },
@@ -1310,14 +1303,14 @@
     {
       id: 'shoulder', label: 'Shoulder length', femaleBias: 0.66,
       build: function (hw, hh, hd) {
-        return [crown(hw, hh, hd), fringe(hw, hh, hd, 0.7), fall(hw, hh, hd, 5.6, 1.0, 0.72)]
+        return [crown(hw, hh, hd), fringe(hw, hh, hd, 0.5), fall(hw, hh, hd, 5.6, 1.0, 0.72)]
           .concat(sideFall(hw, hh, hd, 4.6, 0.7));
       }
     },
     {
       id: 'long', label: 'Long', femaleBias: 0.78,
       build: function (hw, hh, hd) {
-        return [crown(hw, hh, hd), fringe(hw, hh, hd, 0.6), fall(hw, hh, hd, 9.8, 1.02, 0.6)]
+        return [crown(hw, hh, hd), fringe(hw, hh, hd, 0.45), fall(hw, hh, hd, 9.8, 1.02, 0.6)]
           .concat(sideFall(hw, hh, hd, 7.0, 0.62));
       }
     },
@@ -1336,7 +1329,7 @@
     {
       id: 'braids', label: 'Twin braids', femaleBias: 0.85,
       build: function (hw, hh, hd) {
-        const out = [crown(hw, hh, hd), fringe(hw, hh, hd, 0.6), fall(hw, hh, hd, 2.0, 1)];
+        const out = [crown(hw, hh, hd), fringe(hw, hh, hd, 0.45), fall(hw, hh, hd, 2.0, 1)];
         for (let side = 0; side < 2; side++) {
           const sx = side === 0 ? -hw / 2 - 0.9 : hw / 2 - 0.9;
           for (let k = 0; k < 5; k++) {
@@ -1352,7 +1345,7 @@
       id: 'pigtails', label: 'Pigtails', femaleBias: 0.88,
       build: function (hw, hh, hd) {
         return [
-          crown(hw, hh, hd), fringe(hw, hh, hd, 0.6), fall(hw, hh, hd, 1.7, 0.95),
+          crown(hw, hh, hd), fringe(hw, hh, hd, 0.45), fall(hw, hh, hd, 1.7, 0.95),
           G.superellipsoid(-hw / 2 - 1.0, 5.6, -0.4, 2.0, 1.9, 1.9, 0.8, 4, 8),
           G.superellipsoid(hw / 2 + 1.0, 5.6, -0.4, 2.0, 1.9, 1.9, 0.8, 4, 8)
         ];
@@ -1510,11 +1503,11 @@
   // space between the pair so they never meet in the middle.
   const BROW_SHAPES = [
     { id: 'flat', label: 'Flat', inner: 0, outer: 0, thick: 0.5, gap: 0.5 },
-    { id: 'raised', label: 'Raised', inner: 0.0, outer: 0.5, thick: 0.48, gap: 0.55 },
-    { id: 'angled', label: 'Angled', inner: -0.45, outer: 0.32, thick: 0.55, gap: 0.4 },
-    { id: 'arched', label: 'Arched', inner: 0.42, outer: 0.08, thick: 0.44, gap: 0.6 },
-    { id: 'heavy', label: 'Heavy', inner: -0.18, outer: -0.08, thick: 0.85, gap: 0.35 },
-    { id: 'fine', label: 'Fine', inner: 0.1, outer: 0.22, thick: 0.36, gap: 0.7 }
+    { id: 'raised', label: 'Raised', inner: 0.0, outer: 0.3, thick: 0.48, gap: 0.55 },
+    { id: 'angled', label: 'Angled', inner: -0.3, outer: 0.22, thick: 0.55, gap: 0.4 },
+    { id: 'arched', label: 'Arched', inner: 0.28, outer: 0.06, thick: 0.44, gap: 0.6 },
+    { id: 'heavy', label: 'Heavy', inner: -0.14, outer: -0.06, thick: 0.62, gap: 0.35 },
+    { id: 'fine', label: 'Fine', inner: 0.08, outer: 0.18, thick: 0.36, gap: 0.7 }
   ];
 
   const NOSE_SHAPES = [
@@ -1962,15 +1955,15 @@
   const MOUTH_Y = 1.15;
 
   const VISEMES = {
-    rest: { w: 2.1, h: 0.5 },
-    closed: { w: 2.0, h: 0.42 },
-    ah: { w: 2.5, h: 1.9 },
-    eh: { w: 2.9, h: 1.1 },
-    oh: { w: 1.7, h: 1.7 },
-    oo: { w: 1.2, h: 1.2 },
-    ee: { w: 3.0, h: 0.7 },
-    ff: { w: 2.3, h: 0.6 },
-    ll: { w: 2.0, h: 1.3 }
+    rest: { w: 2.9, h: 0.9 },
+    closed: { w: 2.8, h: 0.8 },
+    ah: { w: 3.2, h: 2.4 },
+    eh: { w: 3.6, h: 1.6 },
+    oh: { w: 2.4, h: 2.2 },
+    oo: { w: 1.9, h: 1.7 },
+    ee: { w: 3.8, h: 1.1 },
+    ff: { w: 3.0, h: 1.0 },
+    ll: { w: 2.8, h: 1.8 }
   };
 
   const LETTER_VISEME = {
@@ -2031,8 +2024,8 @@
 
       // Brow, drawn as two segments so it can tilt. `gap` pushes the inner end
       // outward from the centre line — without it the pair met as a monobrow.
-      const innerY = EYE_Y + shape.h + 0.5 + brow.inner;
-      const outerY = EYE_Y + shape.h + 0.5 + brow.outer;
+      const innerY = EYE_Y + shape.h + 0.2 + brow.inner;
+      const outerY = EYE_Y + shape.h + 0.2 + brow.outer;
       const segW = shape.w * 0.55;
       const innerEdge = sign < 0 ? -(EYE_INNER + brow.gap + segW) : EYE_INNER + brow.gap;
       const outerEdge = sign < 0 ? -(EYE_INNER + brow.gap + segW * 2) : EYE_INNER + brow.gap + segW;
@@ -2054,9 +2047,13 @@
     const v = VISEMES[(state && state.viseme) || 'rest'] || VISEMES.rest;
     const mw = v.w * (0.75 + ch.mouthWidth * 0.5);
     const my = MOUTH_Y - (v.h - 0.5) * 0.35;
-    out.push(part(B(-mw / 2, my, front - 0.06, mw, v.h, 0.22), c.skinDeep, { flat: true }));
-    out.push(part(B(-mw / 2 + 0.2, my - 0.42, front - 0.05, mw - 0.4, 0.4, 0.2),
+    out.push(part(B(-mw / 2, my, front - 0.06, mw, v.h, 0.24), c.skinDeep, { flat: true }));
+    // a lit lower lip under it, so the mouth reads as a feature rather than a
+    // dark smudge, and an upper lip line to close it off
+    out.push(part(B(-mw / 2 + 0.15, my - 0.6, front - 0.05, mw - 0.3, 0.55, 0.22),
       c.skinLight, { flat: true }));
+    out.push(part(B(-mw / 2 + 0.25, my + v.h, front - 0.05, mw - 0.5, 0.3, 0.2),
+      c.skinDark, { flat: true }));
 
     return out;
   }
@@ -2080,9 +2077,12 @@
 (function (global) {
   'use strict';
 
-  const FAMILY = '"Silkscreen", "Courier New", monospace';
-  const CELL_H = 11;
-  const BASELINE = 8;
+  // Press Start 2P is drawn on an 8px grid specifically to stay readable at
+  // this size; Silkscreen is narrower but its letterforms mush together once
+  // thresholded. Kept as the fallback because the metrics are close.
+  const FAMILY = '"Press Start 2P", "Silkscreen", "Courier New", monospace';
+  const CELL_H = 13;
+  const BASELINE = 10;
   const SIZE = 8;
 
   const glyphs = new Map();
@@ -2093,7 +2093,7 @@
   function ensureScratch() {
     if (scratch) return;
     scratch = document.createElement('canvas');
-    scratch.width = 24;
+    scratch.width = 28;
     scratch.height = CELL_H;
     sctx = scratch.getContext('2d', { willReadFrequently: true });
   }
@@ -2191,7 +2191,10 @@
     };
     if (document.fonts && document.fonts.load) {
       Promise.race([
-        document.fonts.load('8px Silkscreen').then(function () { return document.fonts.ready; }),
+        Promise.all([
+          document.fonts.load('8px "Press Start 2P"'),
+          document.fonts.load('8px Silkscreen')
+        ]).then(function () { return document.fonts.ready; }),
         new Promise(function (r) { setTimeout(r, 2500); })
       ]).then(finish, finish);
     } else {
@@ -2274,20 +2277,18 @@
    *   rot[2] on an arm: positive pushes the elbow away from the ribs.
    */
 
-  function poseIdle(model, t) {
+  // Deliberately motionless. A breathing cycle at this scale cannot move less
+  // than a whole pixel, so every "subtle" sway became a visible crawl across
+  // the whole model. Idle characters hold perfectly still; only their eyes and
+  // mouth move.
+  function poseIdle(model) {
     clearPose(model);
-    const breath = Math.sin(t * 1.5);
-    const sway = Math.sin(t * 0.41);
-
-    model.bob = breath * 0.1;
-    setRot(model, 'torso', 0.02 + breath * 0.016, sway * 0.025, 0);
-    setRot(model, 'head', -0.026 - breath * 0.018, sway * 0.08, 0);
-
-    const armSway = Math.sin(t * 1.5 + 0.7) * 0.03;
-    setRot(model, 'armR', armSway, 0, 0.07);
-    setRot(model, 'armL', armSway, 0, -0.07);
-    setRot(model, 'foreR', -0.1 - breath * 0.025, 0, 0);
-    setRot(model, 'foreL', -0.1 - breath * 0.025, 0, 0);
+    model.bob = 0;
+    setRot(model, 'torso', 0.02, 0, 0);
+    setRot(model, 'armR', 0, 0, 0.07);
+    setRot(model, 'armL', 0, 0, -0.07);
+    setRot(model, 'foreR', -0.1, 0, 0);
+    setRot(model, 'foreL', -0.1, 0, 0);
   }
 
   function poseWalk(model, t, run) {
@@ -2316,39 +2317,10 @@
     setRot(model, 'head', -lean * 0.8, -Math.sin(p) * 0.045, 0);
   }
 
-  function poseTalk(model, t) {
-    poseIdle(model, t);
-    const beat = Math.sin(t * 5.2);
-    addRot(model, 'head', beat * 0.04, Math.sin(t * 1.9) * 0.055, 0);
-    setRot(model, 'armR', -0.32 + beat * 0.07, 0, 0.2);
-    setRot(model, 'foreR', -0.8 + beat * 0.1, 0, 0.1);
-  }
-
-  // A skid: weight thrown back against the direction of travel.
-  function poseSkid(model, t, lean) {
-    clearPose(model);
-    model.bob = -0.3;
-    setRot(model, 'torso', -0.3 * lean, 0, 0);
-    setRot(model, 'head', 0.16 * lean, 0, 0);
-    setRot(model, 'legR', -0.5 * lean, 0, 0);
-    setRot(model, 'legL', 0.28 * lean, 0, 0);
-    setRot(model, 'shinR', 0.25, 0, 0);
-    setRot(model, 'shinL', 0.55, 0, 0);
-    setRot(model, 'armR', -0.7, 0, 0.5);
-    setRot(model, 'armL', -0.55, 0, -0.62);
-    setRot(model, 'foreR', -0.5, 0, 0);
-    setRot(model, 'foreL', -0.45, 0, 0);
-  }
-
-  // Recoil from a collision — the body folds around the impact for a moment.
-  function poseStagger(model, t, amount) {
-    poseIdle(model, t);
-    addRot(model, 'torso', -0.35 * amount, 0.12 * amount, 0);
-    addRot(model, 'head', 0.25 * amount, 0, 0);
-    addRot(model, 'armR', -0.5 * amount, 0, 0.45 * amount);
-    addRot(model, 'armL', -0.42 * amount, 0, -0.5 * amount);
-    addRot(model, 'foreR', -0.5 * amount, 0, 0);
-    addRot(model, 'legR', -0.2 * amount, 0, 0);
+  // Speaking is carried entirely by the visemes; the body stays still for the
+  // same reason idle does.
+  function poseTalk(model) {
+    poseIdle(model);
   }
 
   /* ---------- ragdoll ----------
@@ -2451,15 +2423,62 @@
   }
 
   function createFall() {
-    return { active: false, state: 'up', p: null, links: null, timer: 0, still: 0, rise: 0 };
+    return {
+      active: false,
+      mode: 'soft',      // soft = jostled but stays upright; full = goes down
+      state: 'up',       // up | falling | down | rising
+      p: null, links: null, timer: 0, still: 0, rise: 0
+    };
   }
+
+  /* How hard each joint is dragged back toward where the animation says it
+   * should be. The feet and hips are held firmly so a soft hit cannot topple
+   * anyone; the further up the body, the more freely it swings. */
+  const SOFT_PULL = {
+    footR: 1, footL: 1, hipR: 0.9, hipL: 0.9, pelvis: 0.85,
+    kneeR: 0.7, kneeL: 0.7,
+    chest: 0.3, neck: 0.26, headTop: 0.2,
+    shoulderR: 0.32, shoulderL: 0.32,
+    elbowR: 0.18, elbowL: 0.18, handR: 0.13, handL: 0.13
+  };
+  const SOFT_TIME = 0.8;
+
+  /* Getting up, as poses rather than a straight interpolation back to
+   * standing: face down with the arms planted, push the hips up, come onto a
+   * knee, then stand. The physics still runs underneath, so the limbs collide
+   * with the ground on the way through. */
+  function getupKeys() {
+    const k = [];
+    function frame(spec) {
+      const pose = emptyPose();
+      for (const name in spec) pose[name] = spec[name].slice();
+      k.push(pose);
+    }
+    frame({ torso: [1.15, 0, 0], head: [-0.55, 0, 0],
+      armR: [1.0, 0, 0.55], armL: [1.0, 0, -0.55], foreR: [-1.5, 0, 0], foreL: [-1.5, 0, 0],
+      legR: [-1.15, 0, 0.3], legL: [-1.0, 0, -0.3], shinR: [1.8, 0, 0], shinL: [1.7, 0, 0] });
+    frame({ torso: [0.95, 0, 0], head: [-0.5, 0, 0],
+      armR: [0.35, 0, 0.4], armL: [0.35, 0, -0.4], foreR: [-0.5, 0, 0], foreL: [-0.5, 0, 0],
+      legR: [-1.45, 0, 0.22], legL: [-1.3, 0, -0.22], shinR: [2.0, 0, 0], shinL: [1.9, 0, 0] });
+    frame({ torso: [0.4, 0, 0], head: [-0.18, 0, 0],
+      armR: [-0.25, 0, 0.3], armL: [0.15, 0, -0.2], foreR: [-0.7, 0, 0], foreL: [-0.3, 0, 0],
+      legR: [-1.0, 0, 0.16], legL: [-0.25, 0, -0.12], shinR: [1.5, 0, 0], shinL: [0.45, 0, 0] });
+    frame({ torso: [0.12, 0, 0], head: [-0.05, 0, 0],
+      armR: [0, 0, 0.12], armL: [0, 0, -0.12], foreR: [-0.2, 0, 0], foreL: [-0.2, 0, 0],
+      legR: [-0.2, 0, 0.06], legL: [-0.05, 0, -0.04], shinR: [0.3, 0, 0], shinL: [0.1, 0, 0] });
+    frame({ torso: [0.02, 0, 0], armR: [0, 0, 0.07], armL: [0, 0, -0.07],
+      foreR: [-0.1, 0, 0], foreL: [-0.1, 0, 0] });
+    return k;
+  }
+  const GETUP_KEYS = getupKeys();
+  const RISE_TIME = 1.9;
 
   function distanceBetween(a, b) {
     return Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
   }
 
   // dirX/dirY is the world push direction (world y is depth, which is local z).
-  function knockDown(actor, dirX, dirY, force) {
+  function applyImpulse(actor, dirX, dirY, force, mode) {
     const f = actor.fall;
     const model = actor.model;
 
@@ -2467,11 +2486,14 @@
     poseActor(actor, quantiseTime(actor.animTime));
     const joints = jointPositions(model, actor.yaw);
 
+    // A soft jostle already in progress can be escalated to a real fall.
     const reuse = f.active && f.p;
     const p = reuse ? f.p : {};
     const len = Math.hypot(dirX, dirY) || 1;
     const px = dirX / len, pz = dirY / len;
-    const impulse = Math.max(2.0, Math.min(9.0, force)) * SUBSTEP * 7.5;
+    const cap = mode === 'soft' ? 5.0 : 9.0;
+    const impulse = Math.max(1.0, Math.min(cap, force)) * SUBSTEP *
+      (mode === 'soft' ? 6.0 : 7.5);
 
     let tallest = 1;
     for (let i = 0; i < JOINT_NAMES.length; i++) {
@@ -2509,8 +2531,9 @@
     }
 
     f.active = true;
-    f.state = 'falling';
-    f.timer = 0;
+    f.mode = mode;
+    f.state = mode === 'soft' ? 'jostled' : 'falling';
+    f.timer = mode === 'soft' ? SOFT_TIME : 0;
     f.still = 0;
     f.rise = 0;
     actor.gait = 'idle';
@@ -2519,9 +2542,20 @@
     return true;
   }
 
-  function simulate(f, dt) {
+  // Jostled but still on their feet: the body reacts, nobody goes down.
+  function nudge(actor, dirX, dirY, force) {
+    if (actor.fall.active && actor.fall.mode === 'full') return false;
+    return applyImpulse(actor, dirX, dirY, force, 'soft');
+  }
+
+  // Knocked off their feet entirely.
+  function knockDown(actor, dirX, dirY, force) {
+    return applyImpulse(actor, dirX, dirY, force, 'full');
+  }
+
+  function simulate(f, dt, gravityScale) {
     const p = f.p;
-    const gStep = GRAVITY * dt * dt;
+    const gStep = GRAVITY * (gravityScale === undefined ? 1 : gravityScale) * dt * dt;
 
     for (const k in p) {
       const q = p[k];
@@ -2569,24 +2603,71 @@
     return e;
   }
 
+  // Drags every particle toward where a given pose says the joint belongs.
+  // Moving the previous position by the same amount makes this a pure
+  // correction, so it repositions the body without wiping out its momentum —
+  // which is what leaves the wobble in.
+  function pullToward(f, target, strength, perJoint) {
+    for (const key in f.p) {
+      const q = f.p[key];
+      const t = target[key];
+      if (!t) continue;
+      const k = Math.min(1, strength * (perJoint ? (perJoint[key] || 0.3) : 1));
+      const dx = (t[0] - q.x) * k, dy = (t[1] - q.y) * k, dz = (t[2] - q.z) * k;
+      q.x += dx; q.y += dy; q.z += dz;
+      q.px += dx; q.py += dy; q.pz += dz;
+    }
+  }
+
+  function standingTarget(actor) {
+    poseActor(actor, quantiseTime(actor.animTime));
+    return jointPositions(actor.model, actor.yaw);
+  }
+
   function updateFall(actor, dt) {
     const f = actor.fall;
     if (!f.active || !f.p) return;
 
-    if (f.state === 'rising') {
-      f.rise += dt / 1.15;
-      const k = Math.min(1, f.rise);
-      const ease = k * k * (3 - 2 * k);
-      poseIdle(actor.model, quantiseTime(actor.animTime));
-      const target = jointPositions(actor.model, actor.yaw);
-      for (const key in f.p) {
-        const q = f.p[key], t = target[key];
-        if (!t) continue;
-        q.x += (t[0] - q.x) * ease * 0.35;
-        q.y += (t[1] - q.y) * ease * 0.35;
-        q.z += (t[2] - q.z) * ease * 0.35;
-        q.px = q.x; q.py = q.y; q.pz = q.z;
+    /* ---- jostled: reacts, recovers, never falls ---- */
+    if (f.mode === 'soft') {
+      let acc = Math.min(dt, 0.05);
+      while (acc > 0) {
+        const step = Math.min(SUBSTEP, acc);
+        simulate(f, step, 0.25);
+        acc -= step;
       }
+      const target = standingTarget(actor);
+      pullToward(f, target, Math.min(1, dt * 16), SOFT_PULL);
+
+      f.timer -= dt;
+      if (f.timer <= 0 || kineticEnergy(f) < 0.004) {
+        f.active = false;
+        f.state = 'up';
+        f.p = null;
+      }
+      return;
+    }
+
+    /* ---- getting back up, under its own power ---- */
+    if (f.state === 'rising') {
+      f.rise += dt / RISE_TIME;
+      const k = Math.min(1, f.rise);
+
+      let acc = Math.min(dt, 0.05);
+      while (acc > 0) {
+        const step = Math.min(SUBSTEP, acc);
+        simulate(f, step, 0.55);
+        acc -= step;
+      }
+
+      // walk the get-up keyframes and haul the body toward each in turn
+      const seg = k * (GETUP_KEYS.length - 1);
+      const i = Math.min(GETUP_KEYS.length - 2, Math.floor(seg));
+      const pose = lerpPose(GETUP_KEYS[i], GETUP_KEYS[i + 1], seg - i);
+      applyPose(actor.model, pose, 0);
+      const target = jointPositions(actor.model, actor.yaw);
+      pullToward(f, target, Math.min(1, dt * (5 + 22 * k)));
+
       if (k >= 1) {
         f.active = false;
         f.state = 'up';
@@ -2595,10 +2676,11 @@
       return;
     }
 
+    /* ---- going down ---- */
     let acc = Math.min(dt, 0.05);
     while (acc > 0) {
       const step = Math.min(SUBSTEP, acc);
-      simulate(f, step);
+      simulate(f, step, 1);
       acc -= step;
     }
 
@@ -2618,7 +2700,7 @@
     if (f.state === 'falling') {
       if (kineticEnergy(f) < 0.02) {
         f.still += dt;
-        if (f.still > 0.35) { f.state = 'down'; f.timer = 0.7 + actor.rng() * 1.0; }
+        if (f.still > 0.3) { f.state = 'down'; f.timer = 0.5 + actor.rng() * 0.7; }
       } else {
         f.still = 0;
       }
@@ -2628,7 +2710,8 @@
     }
   }
 
-  function isDown(actor) { return actor.fall.active; }
+  // Down on the ground, as opposed to merely jostled.
+  function isDown(actor) { return actor.fall.active && actor.fall.mode === 'full'; }
 
   /* ---------- drawing a ragdoll ---------- */
 
@@ -2794,8 +2877,6 @@
       yaw: 0,
       targetYaw: 0,
       gait: 'idle',          // idle | walk | run | skid
-      skidLean: 0,
-      stagger: 0,
       animTime: Math.random() * 10,
       rng: CM.makeRng(seed === undefined ? (Math.random() * 0xffffffff) >>> 0 : seed),
       blink: 0,
@@ -2826,7 +2907,6 @@
     else actor.yaw += Math.sign(diff) * maxStep;
 
     actor.animTime += dt;
-    if (actor.stagger > 0) actor.stagger = Math.max(0, actor.stagger - dt * 1.9);
     updateFall(actor, dt);
     updateBlink(actor, dt);
   }
@@ -2855,12 +2935,9 @@
   function poseActor(actor, qTime) {
     const model = actor.model;
     if (actor.customPose) { applyPose(model, actor.customPose, actor.customBob || 0); return; }
-    if (actor.stagger > 0.02) { poseStagger(model, qTime, actor.stagger); return; }
-    if (actor.gait === 'skid') { poseSkid(model, qTime, actor.skidLean); return; }
     if (actor.gait === 'walk') poseWalk(model, qTime, false);
     else if (actor.gait === 'run') poseWalk(model, qTime, true);
-    else if (actor.speaking) poseTalk(model, qTime);
-    else poseIdle(model, qTime);
+    else poseIdle(model);
   }
 
   /* ---------- drawing ---------- */
@@ -2913,8 +2990,7 @@
     // A ragdoll changes every frame, so it never reuses a cached buffer.
     const key = f.active ? null : [
       qTime, qYaw, actor.gait, actor.blink > 0.5 ? 1 : actor.blink > 0 ? 2 : 0,
-      actor.viseme, actor.speaking ? 1 : 0, actor.customPose ? 'p' + actor.animTime : '',
-      actor.stagger.toFixed(2), actor.skidLean.toFixed(1)
+      actor.viseme, actor.customPose ? 'p' + actor.animTime : ''
     ].join('|');
     if (key !== null && key === actor._key && !(opts && opts.force)) return target;
     actor._key = key === null ? '' : key;
@@ -2939,11 +3015,11 @@
   global.Rig = {
     JOINTS, DIRECTIONS, ANIM_FPS, YAW_STEPS,
     quantiseTime, quantiseYaw,
-    clearPose, setRot, addRot, poseIdle, poseWalk, poseTalk, poseSkid, poseStagger,
+    clearPose, setRot, addRot, poseIdle, poseWalk, poseTalk,
     emptyPose, clonePose, applyPose, lerpPose, samplePoseTrack,
     yawForDirection, snapToEight, directionName, shortestAngle,
     createActor, rebuildActorModel, updateActorMotion, updateBlink,
-    createFall, knockDown, updateFall, isDown,
+    createFall, knockDown, nudge, applyImpulse, updateFall, isDown,
     jointPositions, segmentMatrix, drawRagdoll,
     poseActor, drawModel, renderActor, OUTLINE
   };
@@ -3082,38 +3158,39 @@
     if (!box.open) return;
 
     const margin = 10;
-    const h = 46;
+    const h = 62;
     const w = target.w - margin * 2;
     const x = margin;
-    const y = target.h - h - 8;
+    const y = target.h - h - 6;
 
     panel(target, x, y, w, h);
 
     if (box.speaker) {
-      const nameW = T.measure(box.speaker) + 10;
+      const plateH = T.CELL_H + 4;
+      const nameW = T.measure(box.speaker) + 12;
       const plateX = x + 6;
-      const plateY = y - 11;
-      R.fillRect(target, plateX, plateY, nameW, 12, COLOURS.plate);
-      R.strokeRect(target, plateX, plateY, nameW, 12, COLOURS.border);
+      const plateY = y - plateH + 1;
+      R.fillRect(target, plateX, plateY, nameW, plateH, COLOURS.plate);
+      R.strokeRect(target, plateX, plateY, nameW, plateH, COLOURS.border);
       R.fillRect(target, plateX, plateY, 1, 1, 0);
       R.fillRect(target, plateX + nameW - 1, plateY, 1, 1, 0);
-      T.draw(target, box.speaker, plateX + 5, plateY + 1, COLOURS.plateText);
+      T.draw(target, box.speaker, plateX + 6, plateY + 2, COLOURS.plateText);
     }
 
     const page = currentPage(box);
     const shown = page.slice(0, Math.floor(box.revealed));
-    const lines = T.wrap(page, w - 20);
+    const lines = T.wrap(page, w - 22);
 
     // Wrap the full page once, then reveal per line, so text never re-flows
     // mid-reveal — re-flowing is the classic typewriter bug.
     let remaining = shown.length;
-    let ty = y + 8;
+    let ty = y + 9;
     for (let i = 0; i < lines.length && i < 3; i++) {
       const line = lines[i];
       const take = Math.max(0, Math.min(line.length, remaining));
       if (take > 0) T.draw(target, line.slice(0, take), x + 10, ty, COLOURS.text);
       remaining -= line.length + 1; // +1 for the space the wrap consumed
-      ty += T.LINE_H + 2;
+      ty += T.LINE_H + 3;
     }
 
     if (pageComplete(box)) {
@@ -3172,9 +3249,12 @@
   // running off the edge of the generated ground.
   const WORLD_W = 1200, WORLD_H = 800;
 
-  const ACTOR_BUF = { w: 104, h: 96, ox: 52, oy: 74 };
-  const CAM_PITCH = 0.30;
-  const CAM_SCALE = 1.35;
+  // Exactly half the forge preview's scale and the same camera pitch, so a
+  // villager in the world is the forge model sized down rather than a
+  // differently-proportioned one.
+  const ACTOR_BUF = { w: 140, h: 128, ox: 70, oy: 100 };
+  const CAM_PITCH = 0.26;
+  const CAM_SCALE = 1.8;
 
   const SPEED = { walk: 52, run: 112, npc: 26 };
   const ACCEL = 520;           // px/s^2 while steering
@@ -3183,9 +3263,11 @@
   const SKID_FRICTION = 150;   // you slide before you stop
 
   const PLAYER_R = 6.5;
+  const NUDGE_SPEED = 30;      // above this, any bump visibly jostles you
+  const VAULT_SPEED = 86;      // above this, an obstacle takes you off your feet
   const KNOCK_SPEED = 82;      // must be genuinely sprinting to floor someone
-  const TALK_RANGE = 34;
-  const COMFORT_RANGE = 22;
+  const TALK_RANGE = 40;
+  const COMFORT_RANGE = 24;
 
   const TEST_PAGES = ['test123 test123', 'test123 test123', 'test123 test123'];
 
@@ -3267,22 +3349,23 @@
   }
 
   function makeTree(rng) {
-    const B = global.Parts.box;
     const boxes = [];
-    const trunkH = 14 + rng() * 6;
-    boxes.push({ mesh: G.slab(-1.9, 0, -1.9, 3.8, trunkH, 3.8, 0.72, 1), colour: '#4d3726' });
-    const clumps = 5 + Math.floor(rng() * 3);
+    // Roughly three times a person, so running into one is obviously running
+    // into something you cannot go over.
+    const trunkH = 36 + rng() * 14;
+    boxes.push({ mesh: G.slab(-2.4, 0, -2.4, 4.8, trunkH, 4.8, 0.62, 1), colour: '#4d3726' });
+    const clumps = 7 + Math.floor(rng() * 4);
     for (let i = 0; i < clumps; i++) {
-      const s = 5.5 + rng() * 4;
+      const s = 8 + rng() * 6;
       const a = (i / clumps) * Math.PI * 2 + rng();
-      const rad = i === 0 ? 0 : 3.4 + rng() * 2.4;
+      const rad = i === 0 ? 0 : 4.5 + rng() * 4;
       boxes.push({
-        mesh: G.superellipsoid(Math.cos(a) * rad, trunkH - 1 + rng() * 5 + s / 2, Math.sin(a) * rad,
+        mesh: G.superellipsoid(Math.cos(a) * rad, trunkH - 2 + rng() * 8 + s / 2, Math.sin(a) * rad,
           s / 2, s / 2, s / 2, 0.8, 4, 8),
         colour: rng() < 0.5 ? '#39572f' : '#2f4a28'
       });
     }
-    return renderBoxes(boxes, 72, 86, 36, 76, CAM_SCALE);
+    return renderBoxes(boxes, 132, 190, 66, 182, CAM_SCALE);
   }
 
   function makeRock(rng) {
@@ -3297,7 +3380,7 @@
         colour: rng() < 0.5 ? '#6d6a63' : '#5a5750'
       });
     }
-    return renderBoxes(boxes, 44, 44, 22, 38, CAM_SCALE);
+    return renderBoxes(boxes, 56, 56, 28, 48, CAM_SCALE);
   }
 
   function makeBarrel() {
@@ -3307,7 +3390,7 @@
     boxes.push({ mesh: G.superellipsoid(0, 4.2, 0, 3.6, 4.3, 3.6, 0.45, 5, 10), colour: '#6b4a2c' });
     boxes.push({ mesh: G.superellipsoid(0, 2.0, 0, 3.7, 0.55, 3.7, 0.4, 3, 10), colour: '#4a4038' });
     boxes.push({ mesh: G.superellipsoid(0, 6.4, 0, 3.7, 0.55, 3.7, 0.4, 3, 10), colour: '#4a4038' });
-    return renderBoxes(boxes, 36, 44, 18, 38, CAM_SCALE);
+    return renderBoxes(boxes, 48, 60, 24, 50, CAM_SCALE);
   }
 
   function makeCart() {
@@ -3322,7 +3405,7 @@
       boxes.push({ mesh: G.superellipsoid(-9, 4.4, z, 0.9, 4.4, 4.4, 0.95, 4, 10), colour: '#43301e' });
       boxes.push({ mesh: G.superellipsoid(9, 4.4, z, 0.9, 4.4, 4.4, 0.95, 4, 10), colour: '#43301e' });
     }
-    return renderBoxes(boxes, 64, 56, 32, 48, CAM_SCALE);
+    return renderBoxes(boxes, 88, 76, 44, 62, CAM_SCALE);
   }
 
   /* ---------- world construction ---------- */
@@ -3349,24 +3432,29 @@
     const barrelSprite = makeBarrel();
     const cartSprite = makeCart();
 
-    function addProp(sprite, x, y, footY, r) {
-      world.props.push({ sprite: sprite, x: x, y: y, footY: footY, r: r, shadowR: r * 1.5 });
+    // `tall` decides what happens when you hit it at speed: you go over a low
+    // obstacle, you bounce off a tall one.
+    function addProp(sprite, x, y, footY, r, tall) {
+      world.props.push({
+        sprite: sprite, x: x, y: y, footY: footY, r: r,
+        shadowR: r * 1.5, tall: !!tall
+      });
     }
 
     for (let i = 0; i < 34; i++) {
       const x = 40 + rng() * (WORLD_W - 80);
       const y = 40 + rng() * (WORLD_H - 80);
       if (Math.abs(y - pathCentre(x)) < 36) continue; // keep the road clear
-      addProp(treeSprites[Math.floor(rng() * treeSprites.length)], x, y, 76, 5);
+      addProp(treeSprites[Math.floor(rng() * treeSprites.length)], x, y, 182, 6, true);
     }
     for (let i = 0; i < 22; i++) {
       addProp(rockSprites[Math.floor(rng() * rockSprites.length)],
-        40 + rng() * (WORLD_W - 80), 40 + rng() * (WORLD_H - 80), 38, 4.5);
+        40 + rng() * (WORLD_W - 80), 40 + rng() * (WORLD_H - 80), 48, 4.5, false);
     }
-    addProp(cartSprite, WORLD_W * 0.46, pathCentre(WORLD_W * 0.46) - 26, 48, 10);
-    addProp(barrelSprite, WORLD_W * 0.42, WORLD_H * 0.5, 38, 4);
-    addProp(barrelSprite, WORLD_W * 0.435, WORLD_H * 0.52, 38, 4);
-    addProp(barrelSprite, WORLD_W * 0.415, WORLD_H * 0.535, 38, 4);
+    addProp(cartSprite, WORLD_W * 0.46, pathCentre(WORLD_W * 0.46) - 26, 62, 10, false);
+    addProp(barrelSprite, WORLD_W * 0.42, WORLD_H * 0.5, 50, 4, false);
+    addProp(barrelSprite, WORLD_W * 0.435, WORLD_H * 0.52, 50, 4, false);
+    addProp(barrelSprite, WORLD_W * 0.415, WORLD_H * 0.535, 50, 4, false);
 
     /* player */
     const player = Rig.createActor(playerCharacter, WORLD_W * 0.4, WORLD_H * 0.55, 1);
@@ -3395,9 +3483,12 @@
 
   // The player is held inside the region where the camera can stay centred on
   // them without showing anything outside the generated ground.
+  // The camera is locked to the player, so the player has to stay inside the
+  // region where a full viewport of generated ground exists around them.
+  // Letting them past that edge leaves blank bands on screen.
   function clampPlayer(a) {
     a.x = Math.max(VIEW_W / 2, Math.min(WORLD_W - VIEW_W / 2, a.x));
-    a.y = Math.max(VIEW_H / 2 + 12, Math.min(WORLD_H - VIEW_H / 2 + 40, a.y));
+    a.y = Math.max(VIEW_H / 2, Math.min(WORLD_H - VIEW_H / 2, a.y));
   }
 
   function clampVillager(a) {
@@ -3407,10 +3498,10 @@
 
   /* ---------- collision ---------- */
 
-  // Pushes `a` out of any prop it overlaps and returns how much speed the
-  // impact cost, so the caller can decide whether to stagger.
+  // Pushes `a` out of any prop it overlaps. Returns the worst closing speed and
+  // the prop that caused it, so the caller can decide how hard to react.
   function resolvePropCollisions(world, a, radius) {
-    let worstImpact = 0;
+    let worst = 0, hit = null, hx = 0, hy = 0;
     for (let i = 0; i < world.props.length; i++) {
       const p = world.props[i];
       const dx = a.x - p.x, dy = (a.y - p.y) * 1.6; // props are wider than deep
@@ -3423,23 +3514,49 @@
       a.x += nx * push;
       a.y += ny * push / 1.6;
 
-      // kill the velocity component heading into the obstacle
-      const into = a.vx * nx + a.vy * ny;
-      if (into < 0) {
-        worstImpact = Math.max(worstImpact, -into);
-        a.vx -= nx * into;
-        a.vy -= ny * into;
-        a.vx *= 0.55;   // and bleed the rest: you lose your momentum on impact
+      const into = -(a.vx * nx + a.vy * ny);
+      if (into > 0) {
+        if (into > worst) { worst = into; hit = p; hx = nx; hy = ny / 1.6; }
+        // kill the component heading into the obstacle, bleed the rest
+        a.vx += nx * into;
+        a.vy += ny * into;
+        a.vx *= 0.55;
         a.vy *= 0.55;
       }
     }
-    return worstImpact;
+    return { speed: worst, prop: hit, nx: hx, ny: hy };
   }
 
-  function resolveActorCollisions(world, dt) {
+  // Everything that happens to the player when they run into scenery.
+  function reactToProp(world, player, impact) {
+    if (!impact.prop || impact.speed < NUDGE_SPEED) return;
+    const p = player;
+    const n = impact;
+
+    if (impact.speed > VAULT_SPEED) {
+      if (impact.prop.tall) {
+        // A tree does not give. You come off it backwards.
+        Rig.knockDown(p, n.nx, n.ny, 3.4 + impact.speed / 34);
+        p.vx = n.nx * impact.speed * 0.28;
+        p.vy = n.ny * impact.speed * 0.28;
+      } else {
+        // Something around knee height trips you straight over the top of it.
+        Rig.knockDown(p, -n.nx, -n.ny, 3.0 + impact.speed / 38);
+        p.vx = -n.nx * impact.speed * 0.2;
+        p.vy = -n.ny * impact.speed * 0.2;
+      }
+    } else {
+      // Not fast enough to floor you — you just take the knock.
+      Rig.nudge(p, n.nx, n.ny, 1.2 + impact.speed / 46);
+    }
+  }
+
+  function resolveActorCollisions(world) {
     const player = world.player;
     for (let i = 1; i < world.actors.length; i++) {
       const a = world.actors[i];
+      if (Rig.isDown(a) && Rig.isDown(player)) continue;
+
       const dx = a.x - player.x, dy = (a.y - player.y) * 1.5;
       const dist = Math.hypot(dx, dy);
       const min = PLAYER_R + 7;
@@ -3447,24 +3564,26 @@
 
       const nx = dx / dist, ny = dy / dist;
       const speed = Math.hypot(player.vx, player.vy);
-      const closing = -(player.vx * -nx + player.vy * -ny);
 
-      if (speed >= KNOCK_SPEED && closing > 0 && !a.fall.active) {
-        // a sprinting shoulder-charge puts them down
+      if (speed >= KNOCK_SPEED && !Rig.isDown(a)) {
+        // A sprinting shoulder-charge is the only thing that floors anyone.
         Rig.knockDown(a, nx, ny / 1.5, 2.6 + speed / 30);
         if (a.brain) { a.brain.state = 'downed'; a.brain.timer = 0; }
         if (world.talkingTo === a) D.close(world.box);
-
-        // and the player pays for it too
+        Rig.nudge(player, -nx, -ny / 1.5, 2.8);
         player.vx *= 0.3;
         player.vy *= 0.3;
-        player.stagger = 1;
       } else {
-        // otherwise just push each other apart, gently
+        // Otherwise both of them just get jostled and pushed apart.
         const push = (min - dist) * 0.5;
         a.x += nx * push; a.y += ny * push / 1.5;
         player.x -= nx * push; player.y -= ny * push / 1.5;
-        if (speed > SPEED.walk) { player.vx *= 0.86; player.vy *= 0.86; }
+        if (speed > NUDGE_SPEED) {
+          if (!Rig.isDown(a)) Rig.nudge(a, nx, ny / 1.5, 1.0 + speed / 52);
+          Rig.nudge(player, -nx, -ny / 1.5, 0.9 + speed / 64);
+          player.vx *= 0.82;
+          player.vy *= 0.82;
+        }
       }
     }
   }
@@ -3473,13 +3592,13 @@
 
   function updatePlayer(world, dt) {
     const p = world.player;
-    const locked = world.box.open || p.fall.active;
+    const locked = world.box.open || Rig.isDown(p);
     const input = world.input;
     let dx = locked ? 0 : input.dx;
     let dy = locked ? 0 : input.dy;
 
     const speed = Math.hypot(p.vx, p.vy);
-    let skidding = false;
+    let sliding = false;
 
     if (dx || dy) {
       const len = Math.hypot(dx, dy);
@@ -3488,10 +3607,10 @@
       // How much of the current motion agrees with where the player now wants
       // to go. Reversing at speed means sliding, not pivoting.
       const agree = speed > 4 ? (p.vx * dx + p.vy * dy) / speed : 1;
-      skidding = speed > SPEED.walk * 1.2 && agree < 0.25;
+      sliding = speed > SPEED.walk * 1.2 && agree < 0.25;
 
       const target = input.sprint ? SPEED.run : SPEED.walk;
-      const accel = (skidding ? SKID_ACCEL : ACCEL) * (p.stagger > 0.1 ? 0.4 : 1);
+      const accel = sliding ? SKID_ACCEL : ACCEL;
       const tx = dx * target, ty = dy * target;
       const ax = tx - p.vx, ay = ty - p.vy;
       const mag = Math.hypot(ax, ay);
@@ -3501,28 +3620,29 @@
         p.vy += (ay / mag) * step;
       }
       // face the way you are steering, but hold your facing through a skid
-      if (!skidding) p.targetYaw = Rig.snapToEight(dx, dy);
+      if (!sliding) p.targetYaw = Rig.snapToEight(dx, dy);
     } else if (speed > 0) {
       const decel = (speed > SPEED.walk * 1.25 ? SKID_FRICTION : FRICTION) * dt;
       const next = Math.max(0, speed - decel);
       p.vx = (p.vx / speed) * next;
       p.vy = (p.vy / speed) * next;
-      skidding = speed > SPEED.walk * 1.3;
+      sliding = speed > SPEED.walk * 1.3;
     }
 
     p.x += p.vx * dt;
     p.y += p.vy * dt;
 
     const impact = resolvePropCollisions(world, p, PLAYER_R);
-    if (impact > SPEED.walk * 1.1) p.stagger = Math.min(1, impact / SPEED.run);
+    reactToProp(world, p, impact);
     clampPlayer(p);
 
+    // Sliding to a halt uses the still pose. A dedicated skid animation read as
+    // a jumble at this size, and legs pumping while you slide backwards looks
+    // worse than legs that have simply stopped.
     const nowSpeed = Math.hypot(p.vx, p.vy);
-    if (p.fall.active) p.gait = 'idle';
-    else if (skidding && nowSpeed > SPEED.walk) {
-      p.gait = 'skid';
-      p.skidLean = 1;
-    } else if (nowSpeed > SPEED.walk * 1.25) p.gait = 'run';
+    if (Rig.isDown(p)) p.gait = 'idle';
+    else if (sliding) p.gait = 'idle';
+    else if (nowSpeed > SPEED.walk * 1.25) p.gait = 'run';
     else if (nowSpeed > 6) p.gait = 'walk';
     else p.gait = 'idle';
 
@@ -3537,7 +3657,7 @@
 
     // While down, the ragdoll itself moves the body — it hands its drift back
     // to the actor position each step, so nothing else should push it.
-    if (a.fall.active) {
+    if (Rig.isDown(a)) {
       a.vx = 0; a.vy = 0;
       a.gait = 'idle';
       brain.state = 'downed';
@@ -3630,7 +3750,7 @@
     let best = null, bestD = TALK_RANGE;
     for (let i = 1; i < world.actors.length; i++) {
       const a = world.actors[i];
-      if (a.fall.active || a.brain.state === 'downed') continue;
+      if (Rig.isDown(a) || a.brain.state === 'downed') continue;
       const d = distance(a, world.player);
       if (d < bestD) { bestD = d; best = a; }
     }
@@ -3640,7 +3760,7 @@
   // Bound to E / Enter. Returns true if it did something.
   function tryTalk(world) {
     if (world.box.open) { D.advance(world.box); return true; }
-    if (world.player.fall.active) return false;
+    if (Rig.isDown(world.player)) return false;
     const npc = nearestTalkable(world);
     if (!npc) return false;
     npc.brain.state = distance(npc, world.player) > COMFORT_RANGE ? 'approach' : 'face';
@@ -3652,7 +3772,7 @@
   function update(world, dt) {
     updatePlayer(world, dt);
     for (let i = 1; i < world.actors.length; i++) updateVillager(world, world.actors[i], dt);
-    resolveActorCollisions(world, dt);
+    resolveActorCollisions(world);
     D.update(world.box, dt);
 
     world.prompt = world.box.open ? null : nearestTalkable(world);
@@ -3716,7 +3836,7 @@
           Math.round(p.y) - cy - p.footY);
       } else {
         const a = d.actor;
-        const down = a.fall.active ? 1 : 0;
+        const down = Rig.isDown(a) ? 1 : 0;
         R.fillEllipse(target, Math.round(a.x) - cx, Math.round(a.y) - cy,
           7 + down * 7, 3 + down * 2, SHADOW, 0.34);
         Rig.renderActor(a, a.buffer, camera, {});
@@ -3736,16 +3856,12 @@
         ny - 11, PROMPT, LABEL_SHADOW);
     }
 
-    if (world.input.sprint && !world.box.open) {
-      T.drawShadowed(target, 'SPRINT', 6, 6, PROMPT, LABEL_SHADOW);
-    }
-
     D.draw(world.box, target);
   }
 
   global.World = {
     VIEW_W, VIEW_H, WORLD_W, WORLD_H, ACTOR_BUF, CAM_PITCH, CAM_SCALE,
-    SPEED, TALK_RANGE, KNOCK_SPEED, TEST_PAGES,
+    SPEED, TALK_RANGE, KNOCK_SPEED, VAULT_SPEED, NUDGE_SPEED, TEST_PAGES,
     createWorld, update, draw, tryTalk, nearestTalkable, distance, beginConversation
   };
 })(window);
@@ -4072,6 +4188,18 @@
       const angle = Math.random() * Math.PI * 2;
       Rig.knockDown(previewActor, Math.sin(angle), Math.cos(angle), 4 + Math.random() * 4);
     });
+
+    const jostleBtn = document.createElement('button');
+    jostleBtn.type = 'button';
+    jostleBtn.className = 'btn';
+    jostleBtn.id = 'jostle';
+    jostleBtn.textContent = 'Jostle';
+    jostleBtn.addEventListener('click', function () {
+      const angle = Math.random() * Math.PI * 2;
+      Rig.nudge(previewActor, Math.sin(angle), Math.cos(angle), 2 + Math.random() * 2.5);
+    });
+
+    knockRow.appendChild(jostleBtn);
     knockRow.appendChild(knockBtn);
     playback.appendChild(knockRow);
 
@@ -4330,7 +4458,9 @@
   function updatePreviewActor(dt) {
     const a = previewActor;
 
-    if (a.fall.active) {
+    // A soft jostle plays over whatever cycle is selected; only a real fall
+    // takes the animation over entirely.
+    if (Rig.isDown(a)) {
       a.customPose = null;
       a.gait = 'idle';
       a.speaking = false;
@@ -4369,7 +4499,7 @@
     const c = state.character;
     const hairLabel = P.HAIR_STYLES[CM.indexOfId(P.HAIR_STYLES, c.hairStyle)].label;
     const anim = previewActor.fall.active
-      ? ('ragdoll ' + previewActor.fall.state)
+      ? (previewActor.fall.mode === 'soft' ? 'jostled' : 'ragdoll ' + previewActor.fall.state)
       : state.animation === 'pose'
         ? (state.playingTrack ? 'track' : 'posed')
         : state.animation;

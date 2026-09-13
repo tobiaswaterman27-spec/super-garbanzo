@@ -386,15 +386,15 @@
   const MOUTH_Y = 1.15;
 
   const VISEMES = {
-    rest: { w: 2.1, h: 0.5 },
-    closed: { w: 2.0, h: 0.42 },
-    ah: { w: 2.5, h: 1.9 },
-    eh: { w: 2.9, h: 1.1 },
-    oh: { w: 1.7, h: 1.7 },
-    oo: { w: 1.2, h: 1.2 },
-    ee: { w: 3.0, h: 0.7 },
-    ff: { w: 2.3, h: 0.6 },
-    ll: { w: 2.0, h: 1.3 }
+    rest: { w: 2.9, h: 0.9 },
+    closed: { w: 2.8, h: 0.8 },
+    ah: { w: 3.2, h: 2.4 },
+    eh: { w: 3.6, h: 1.6 },
+    oh: { w: 2.4, h: 2.2 },
+    oo: { w: 1.9, h: 1.7 },
+    ee: { w: 3.8, h: 1.1 },
+    ff: { w: 3.0, h: 1.0 },
+    ll: { w: 2.8, h: 1.8 }
   };
 
   const LETTER_VISEME = {
@@ -455,8 +455,8 @@
 
       // Brow, drawn as two segments so it can tilt. `gap` pushes the inner end
       // outward from the centre line — without it the pair met as a monobrow.
-      const innerY = EYE_Y + shape.h + 0.5 + brow.inner;
-      const outerY = EYE_Y + shape.h + 0.5 + brow.outer;
+      const innerY = EYE_Y + shape.h + 0.2 + brow.inner;
+      const outerY = EYE_Y + shape.h + 0.2 + brow.outer;
       const segW = shape.w * 0.55;
       const innerEdge = sign < 0 ? -(EYE_INNER + brow.gap + segW) : EYE_INNER + brow.gap;
       const outerEdge = sign < 0 ? -(EYE_INNER + brow.gap + segW * 2) : EYE_INNER + brow.gap + segW;
@@ -478,9 +478,13 @@
     const v = VISEMES[(state && state.viseme) || 'rest'] || VISEMES.rest;
     const mw = v.w * (0.75 + ch.mouthWidth * 0.5);
     const my = MOUTH_Y - (v.h - 0.5) * 0.35;
-    out.push(part(B(-mw / 2, my, front - 0.06, mw, v.h, 0.22), c.skinDeep, { flat: true }));
-    out.push(part(B(-mw / 2 + 0.2, my - 0.42, front - 0.05, mw - 0.4, 0.4, 0.2),
+    out.push(part(B(-mw / 2, my, front - 0.06, mw, v.h, 0.24), c.skinDeep, { flat: true }));
+    // a lit lower lip under it, so the mouth reads as a feature rather than a
+    // dark smudge, and an upper lip line to close it off
+    out.push(part(B(-mw / 2 + 0.15, my - 0.6, front - 0.05, mw - 0.3, 0.55, 0.22),
       c.skinLight, { flat: true }));
+    out.push(part(B(-mw / 2 + 0.25, my + v.h, front - 0.05, mw - 0.5, 0.3, 0.2),
+      c.skinDark, { flat: true }));
 
     return out;
   }

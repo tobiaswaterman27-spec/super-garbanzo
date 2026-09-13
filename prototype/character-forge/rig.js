@@ -66,20 +66,18 @@
    *   rot[2] on an arm: positive pushes the elbow away from the ribs.
    */
 
-  function poseIdle(model, t) {
+  // Deliberately motionless. A breathing cycle at this scale cannot move less
+  // than a whole pixel, so every "subtle" sway became a visible crawl across
+  // the whole model. Idle characters hold perfectly still; only their eyes and
+  // mouth move.
+  function poseIdle(model) {
     clearPose(model);
-    const breath = Math.sin(t * 1.5);
-    const sway = Math.sin(t * 0.41);
-
-    model.bob = breath * 0.1;
-    setRot(model, 'torso', 0.02 + breath * 0.016, sway * 0.025, 0);
-    setRot(model, 'head', -0.026 - breath * 0.018, sway * 0.08, 0);
-
-    const armSway = Math.sin(t * 1.5 + 0.7) * 0.03;
-    setRot(model, 'armR', armSway, 0, 0.07);
-    setRot(model, 'armL', armSway, 0, -0.07);
-    setRot(model, 'foreR', -0.1 - breath * 0.025, 0, 0);
-    setRot(model, 'foreL', -0.1 - breath * 0.025, 0, 0);
+    model.bob = 0;
+    setRot(model, 'torso', 0.02, 0, 0);
+    setRot(model, 'armR', 0, 0, 0.07);
+    setRot(model, 'armL', 0, 0, -0.07);
+    setRot(model, 'foreR', -0.1, 0, 0);
+    setRot(model, 'foreL', -0.1, 0, 0);
   }
 
   function poseWalk(model, t, run) {
@@ -108,39 +106,10 @@
     setRot(model, 'head', -lean * 0.8, -Math.sin(p) * 0.045, 0);
   }
 
-  function poseTalk(model, t) {
-    poseIdle(model, t);
-    const beat = Math.sin(t * 5.2);
-    addRot(model, 'head', beat * 0.04, Math.sin(t * 1.9) * 0.055, 0);
-    setRot(model, 'armR', -0.32 + beat * 0.07, 0, 0.2);
-    setRot(model, 'foreR', -0.8 + beat * 0.1, 0, 0.1);
-  }
-
-  // A skid: weight thrown back against the direction of travel.
-  function poseSkid(model, t, lean) {
-    clearPose(model);
-    model.bob = -0.3;
-    setRot(model, 'torso', -0.3 * lean, 0, 0);
-    setRot(model, 'head', 0.16 * lean, 0, 0);
-    setRot(model, 'legR', -0.5 * lean, 0, 0);
-    setRot(model, 'legL', 0.28 * lean, 0, 0);
-    setRot(model, 'shinR', 0.25, 0, 0);
-    setRot(model, 'shinL', 0.55, 0, 0);
-    setRot(model, 'armR', -0.7, 0, 0.5);
-    setRot(model, 'armL', -0.55, 0, -0.62);
-    setRot(model, 'foreR', -0.5, 0, 0);
-    setRot(model, 'foreL', -0.45, 0, 0);
-  }
-
-  // Recoil from a collision — the body folds around the impact for a moment.
-  function poseStagger(model, t, amount) {
-    poseIdle(model, t);
-    addRot(model, 'torso', -0.35 * amount, 0.12 * amount, 0);
-    addRot(model, 'head', 0.25 * amount, 0, 0);
-    addRot(model, 'armR', -0.5 * amount, 0, 0.45 * amount);
-    addRot(model, 'armL', -0.42 * amount, 0, -0.5 * amount);
-    addRot(model, 'foreR', -0.5 * amount, 0, 0);
-    addRot(model, 'legR', -0.2 * amount, 0, 0);
+  // Speaking is carried entirely by the visemes; the body stays still for the
+  // same reason idle does.
+  function poseTalk(model) {
+    poseIdle(model);
   }
 
   /* ---------- ragdoll ----------
@@ -243,15 +212,62 @@
   }
 
   function createFall() {
-    return { active: false, state: 'up', p: null, links: null, timer: 0, still: 0, rise: 0 };
+    return {
+      active: false,
+      mode: 'soft',      // soft = jostled but stays upright; full = goes down
+      state: 'up',       // up | falling | down | rising
+      p: null, links: null, timer: 0, still: 0, rise: 0
+    };
   }
+
+  /* How hard each joint is dragged back toward where the animation says it
+   * should be. The feet and hips are held firmly so a soft hit cannot topple
+   * anyone; the further up the body, the more freely it swings. */
+  const SOFT_PULL = {
+    footR: 1, footL: 1, hipR: 0.9, hipL: 0.9, pelvis: 0.85,
+    kneeR: 0.7, kneeL: 0.7,
+    chest: 0.3, neck: 0.26, headTop: 0.2,
+    shoulderR: 0.32, shoulderL: 0.32,
+    elbowR: 0.18, elbowL: 0.18, handR: 0.13, handL: 0.13
+  };
+  const SOFT_TIME = 0.8;
+
+  /* Getting up, as poses rather than a straight interpolation back to
+   * standing: face down with the arms planted, push the hips up, come onto a
+   * knee, then stand. The physics still runs underneath, so the limbs collide
+   * with the ground on the way through. */
+  function getupKeys() {
+    const k = [];
+    function frame(spec) {
+      const pose = emptyPose();
+      for (const name in spec) pose[name] = spec[name].slice();
+      k.push(pose);
+    }
+    frame({ torso: [1.15, 0, 0], head: [-0.55, 0, 0],
+      armR: [1.0, 0, 0.55], armL: [1.0, 0, -0.55], foreR: [-1.5, 0, 0], foreL: [-1.5, 0, 0],
+      legR: [-1.15, 0, 0.3], legL: [-1.0, 0, -0.3], shinR: [1.8, 0, 0], shinL: [1.7, 0, 0] });
+    frame({ torso: [0.95, 0, 0], head: [-0.5, 0, 0],
+      armR: [0.35, 0, 0.4], armL: [0.35, 0, -0.4], foreR: [-0.5, 0, 0], foreL: [-0.5, 0, 0],
+      legR: [-1.45, 0, 0.22], legL: [-1.3, 0, -0.22], shinR: [2.0, 0, 0], shinL: [1.9, 0, 0] });
+    frame({ torso: [0.4, 0, 0], head: [-0.18, 0, 0],
+      armR: [-0.25, 0, 0.3], armL: [0.15, 0, -0.2], foreR: [-0.7, 0, 0], foreL: [-0.3, 0, 0],
+      legR: [-1.0, 0, 0.16], legL: [-0.25, 0, -0.12], shinR: [1.5, 0, 0], shinL: [0.45, 0, 0] });
+    frame({ torso: [0.12, 0, 0], head: [-0.05, 0, 0],
+      armR: [0, 0, 0.12], armL: [0, 0, -0.12], foreR: [-0.2, 0, 0], foreL: [-0.2, 0, 0],
+      legR: [-0.2, 0, 0.06], legL: [-0.05, 0, -0.04], shinR: [0.3, 0, 0], shinL: [0.1, 0, 0] });
+    frame({ torso: [0.02, 0, 0], armR: [0, 0, 0.07], armL: [0, 0, -0.07],
+      foreR: [-0.1, 0, 0], foreL: [-0.1, 0, 0] });
+    return k;
+  }
+  const GETUP_KEYS = getupKeys();
+  const RISE_TIME = 1.9;
 
   function distanceBetween(a, b) {
     return Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
   }
 
   // dirX/dirY is the world push direction (world y is depth, which is local z).
-  function knockDown(actor, dirX, dirY, force) {
+  function applyImpulse(actor, dirX, dirY, force, mode) {
     const f = actor.fall;
     const model = actor.model;
 
@@ -259,11 +275,14 @@
     poseActor(actor, quantiseTime(actor.animTime));
     const joints = jointPositions(model, actor.yaw);
 
+    // A soft jostle already in progress can be escalated to a real fall.
     const reuse = f.active && f.p;
     const p = reuse ? f.p : {};
     const len = Math.hypot(dirX, dirY) || 1;
     const px = dirX / len, pz = dirY / len;
-    const impulse = Math.max(2.0, Math.min(9.0, force)) * SUBSTEP * 7.5;
+    const cap = mode === 'soft' ? 5.0 : 9.0;
+    const impulse = Math.max(1.0, Math.min(cap, force)) * SUBSTEP *
+      (mode === 'soft' ? 6.0 : 7.5);
 
     let tallest = 1;
     for (let i = 0; i < JOINT_NAMES.length; i++) {
@@ -301,8 +320,9 @@
     }
 
     f.active = true;
-    f.state = 'falling';
-    f.timer = 0;
+    f.mode = mode;
+    f.state = mode === 'soft' ? 'jostled' : 'falling';
+    f.timer = mode === 'soft' ? SOFT_TIME : 0;
     f.still = 0;
     f.rise = 0;
     actor.gait = 'idle';
@@ -311,9 +331,20 @@
     return true;
   }
 
-  function simulate(f, dt) {
+  // Jostled but still on their feet: the body reacts, nobody goes down.
+  function nudge(actor, dirX, dirY, force) {
+    if (actor.fall.active && actor.fall.mode === 'full') return false;
+    return applyImpulse(actor, dirX, dirY, force, 'soft');
+  }
+
+  // Knocked off their feet entirely.
+  function knockDown(actor, dirX, dirY, force) {
+    return applyImpulse(actor, dirX, dirY, force, 'full');
+  }
+
+  function simulate(f, dt, gravityScale) {
     const p = f.p;
-    const gStep = GRAVITY * dt * dt;
+    const gStep = GRAVITY * (gravityScale === undefined ? 1 : gravityScale) * dt * dt;
 
     for (const k in p) {
       const q = p[k];
@@ -361,24 +392,71 @@
     return e;
   }
 
+  // Drags every particle toward where a given pose says the joint belongs.
+  // Moving the previous position by the same amount makes this a pure
+  // correction, so it repositions the body without wiping out its momentum —
+  // which is what leaves the wobble in.
+  function pullToward(f, target, strength, perJoint) {
+    for (const key in f.p) {
+      const q = f.p[key];
+      const t = target[key];
+      if (!t) continue;
+      const k = Math.min(1, strength * (perJoint ? (perJoint[key] || 0.3) : 1));
+      const dx = (t[0] - q.x) * k, dy = (t[1] - q.y) * k, dz = (t[2] - q.z) * k;
+      q.x += dx; q.y += dy; q.z += dz;
+      q.px += dx; q.py += dy; q.pz += dz;
+    }
+  }
+
+  function standingTarget(actor) {
+    poseActor(actor, quantiseTime(actor.animTime));
+    return jointPositions(actor.model, actor.yaw);
+  }
+
   function updateFall(actor, dt) {
     const f = actor.fall;
     if (!f.active || !f.p) return;
 
-    if (f.state === 'rising') {
-      f.rise += dt / 1.15;
-      const k = Math.min(1, f.rise);
-      const ease = k * k * (3 - 2 * k);
-      poseIdle(actor.model, quantiseTime(actor.animTime));
-      const target = jointPositions(actor.model, actor.yaw);
-      for (const key in f.p) {
-        const q = f.p[key], t = target[key];
-        if (!t) continue;
-        q.x += (t[0] - q.x) * ease * 0.35;
-        q.y += (t[1] - q.y) * ease * 0.35;
-        q.z += (t[2] - q.z) * ease * 0.35;
-        q.px = q.x; q.py = q.y; q.pz = q.z;
+    /* ---- jostled: reacts, recovers, never falls ---- */
+    if (f.mode === 'soft') {
+      let acc = Math.min(dt, 0.05);
+      while (acc > 0) {
+        const step = Math.min(SUBSTEP, acc);
+        simulate(f, step, 0.25);
+        acc -= step;
       }
+      const target = standingTarget(actor);
+      pullToward(f, target, Math.min(1, dt * 16), SOFT_PULL);
+
+      f.timer -= dt;
+      if (f.timer <= 0 || kineticEnergy(f) < 0.004) {
+        f.active = false;
+        f.state = 'up';
+        f.p = null;
+      }
+      return;
+    }
+
+    /* ---- getting back up, under its own power ---- */
+    if (f.state === 'rising') {
+      f.rise += dt / RISE_TIME;
+      const k = Math.min(1, f.rise);
+
+      let acc = Math.min(dt, 0.05);
+      while (acc > 0) {
+        const step = Math.min(SUBSTEP, acc);
+        simulate(f, step, 0.55);
+        acc -= step;
+      }
+
+      // walk the get-up keyframes and haul the body toward each in turn
+      const seg = k * (GETUP_KEYS.length - 1);
+      const i = Math.min(GETUP_KEYS.length - 2, Math.floor(seg));
+      const pose = lerpPose(GETUP_KEYS[i], GETUP_KEYS[i + 1], seg - i);
+      applyPose(actor.model, pose, 0);
+      const target = jointPositions(actor.model, actor.yaw);
+      pullToward(f, target, Math.min(1, dt * (5 + 22 * k)));
+
       if (k >= 1) {
         f.active = false;
         f.state = 'up';
@@ -387,10 +465,11 @@
       return;
     }
 
+    /* ---- going down ---- */
     let acc = Math.min(dt, 0.05);
     while (acc > 0) {
       const step = Math.min(SUBSTEP, acc);
-      simulate(f, step);
+      simulate(f, step, 1);
       acc -= step;
     }
 
@@ -410,7 +489,7 @@
     if (f.state === 'falling') {
       if (kineticEnergy(f) < 0.02) {
         f.still += dt;
-        if (f.still > 0.35) { f.state = 'down'; f.timer = 0.7 + actor.rng() * 1.0; }
+        if (f.still > 0.3) { f.state = 'down'; f.timer = 0.5 + actor.rng() * 0.7; }
       } else {
         f.still = 0;
       }
@@ -420,7 +499,8 @@
     }
   }
 
-  function isDown(actor) { return actor.fall.active; }
+  // Down on the ground, as opposed to merely jostled.
+  function isDown(actor) { return actor.fall.active && actor.fall.mode === 'full'; }
 
   /* ---------- drawing a ragdoll ---------- */
 
@@ -586,8 +666,6 @@
       yaw: 0,
       targetYaw: 0,
       gait: 'idle',          // idle | walk | run | skid
-      skidLean: 0,
-      stagger: 0,
       animTime: Math.random() * 10,
       rng: CM.makeRng(seed === undefined ? (Math.random() * 0xffffffff) >>> 0 : seed),
       blink: 0,
@@ -618,7 +696,6 @@
     else actor.yaw += Math.sign(diff) * maxStep;
 
     actor.animTime += dt;
-    if (actor.stagger > 0) actor.stagger = Math.max(0, actor.stagger - dt * 1.9);
     updateFall(actor, dt);
     updateBlink(actor, dt);
   }
@@ -647,12 +724,9 @@
   function poseActor(actor, qTime) {
     const model = actor.model;
     if (actor.customPose) { applyPose(model, actor.customPose, actor.customBob || 0); return; }
-    if (actor.stagger > 0.02) { poseStagger(model, qTime, actor.stagger); return; }
-    if (actor.gait === 'skid') { poseSkid(model, qTime, actor.skidLean); return; }
     if (actor.gait === 'walk') poseWalk(model, qTime, false);
     else if (actor.gait === 'run') poseWalk(model, qTime, true);
-    else if (actor.speaking) poseTalk(model, qTime);
-    else poseIdle(model, qTime);
+    else poseIdle(model);
   }
 
   /* ---------- drawing ---------- */
@@ -705,8 +779,7 @@
     // A ragdoll changes every frame, so it never reuses a cached buffer.
     const key = f.active ? null : [
       qTime, qYaw, actor.gait, actor.blink > 0.5 ? 1 : actor.blink > 0 ? 2 : 0,
-      actor.viseme, actor.speaking ? 1 : 0, actor.customPose ? 'p' + actor.animTime : '',
-      actor.stagger.toFixed(2), actor.skidLean.toFixed(1)
+      actor.viseme, actor.customPose ? 'p' + actor.animTime : ''
     ].join('|');
     if (key !== null && key === actor._key && !(opts && opts.force)) return target;
     actor._key = key === null ? '' : key;
@@ -731,11 +804,11 @@
   global.Rig = {
     JOINTS, DIRECTIONS, ANIM_FPS, YAW_STEPS,
     quantiseTime, quantiseYaw,
-    clearPose, setRot, addRot, poseIdle, poseWalk, poseTalk, poseSkid, poseStagger,
+    clearPose, setRot, addRot, poseIdle, poseWalk, poseTalk,
     emptyPose, clonePose, applyPose, lerpPose, samplePoseTrack,
     yawForDirection, snapToEight, directionName, shortestAngle,
     createActor, rebuildActorModel, updateActorMotion, updateBlink,
-    createFall, knockDown, updateFall, isDown,
+    createFall, knockDown, nudge, applyImpulse, updateFall, isDown,
     jointPositions, segmentMatrix, drawRagdoll,
     poseActor, drawModel, renderActor, OUTLINE
   };

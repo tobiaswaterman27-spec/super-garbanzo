@@ -95,7 +95,7 @@
 
   // Must match the skull in character.js, so hair sits concentric with it.
   const HEAD_E = 0.42;
-  const HAIRLINE = 5.75;   // just clear of the brows, which top out at 5.6
+  const HAIRLINE = 6.5;    // clear of the brow band, which tops out at 6.32
 
   function b(x, y, z, w, h, d) { return G.box(x, y, z, w, h, d); }
 
@@ -127,7 +127,7 @@
 
   // `drop` is how far below the hairline it hangs over the brow.
   function fringe(hw, hh, hd, drop) {
-    const d0 = drop === undefined ? 0.5 : drop;
+    const d0 = drop === undefined ? 0.35 : drop;
     return G.slab(-hw / 2 + 0.2, HAIRLINE - d0, hd / 2 - 1.1, hw - 0.4, d0 + 0.9, 1.6, 1, 0.92);
   }
 
@@ -153,7 +153,7 @@
     {
       id: 'bowl', label: 'Bowl cut', femaleBias: 0.4,
       build: function (hw, hh, hd) {
-        return [crown(hw, hh, hd, 5.5), fringe(hw, hh, hd, 1.4), fall(hw, hh, hd, 2.6, 1, 0.95)]
+        return [crown(hw, hh, hd, 5.5), fringe(hw, hh, hd, 1.15), fall(hw, hh, hd, 2.6, 1, 0.95)]
           .concat(sideFall(hw, hh, hd, 2.8, 0.95));
       }
     },
@@ -216,14 +216,14 @@
     {
       id: 'shoulder', label: 'Shoulder length', femaleBias: 0.66,
       build: function (hw, hh, hd) {
-        return [crown(hw, hh, hd), fringe(hw, hh, hd, 0.7), fall(hw, hh, hd, 5.6, 1.0, 0.72)]
+        return [crown(hw, hh, hd), fringe(hw, hh, hd, 0.5), fall(hw, hh, hd, 5.6, 1.0, 0.72)]
           .concat(sideFall(hw, hh, hd, 4.6, 0.7));
       }
     },
     {
       id: 'long', label: 'Long', femaleBias: 0.78,
       build: function (hw, hh, hd) {
-        return [crown(hw, hh, hd), fringe(hw, hh, hd, 0.6), fall(hw, hh, hd, 9.8, 1.02, 0.6)]
+        return [crown(hw, hh, hd), fringe(hw, hh, hd, 0.45), fall(hw, hh, hd, 9.8, 1.02, 0.6)]
           .concat(sideFall(hw, hh, hd, 7.0, 0.62));
       }
     },
@@ -242,7 +242,7 @@
     {
       id: 'braids', label: 'Twin braids', femaleBias: 0.85,
       build: function (hw, hh, hd) {
-        const out = [crown(hw, hh, hd), fringe(hw, hh, hd, 0.6), fall(hw, hh, hd, 2.0, 1)];
+        const out = [crown(hw, hh, hd), fringe(hw, hh, hd, 0.45), fall(hw, hh, hd, 2.0, 1)];
         for (let side = 0; side < 2; side++) {
           const sx = side === 0 ? -hw / 2 - 0.9 : hw / 2 - 0.9;
           for (let k = 0; k < 5; k++) {
@@ -258,7 +258,7 @@
       id: 'pigtails', label: 'Pigtails', femaleBias: 0.88,
       build: function (hw, hh, hd) {
         return [
-          crown(hw, hh, hd), fringe(hw, hh, hd, 0.6), fall(hw, hh, hd, 1.7, 0.95),
+          crown(hw, hh, hd), fringe(hw, hh, hd, 0.45), fall(hw, hh, hd, 1.7, 0.95),
           G.superellipsoid(-hw / 2 - 1.0, 5.6, -0.4, 2.0, 1.9, 1.9, 0.8, 4, 8),
           G.superellipsoid(hw / 2 + 1.0, 5.6, -0.4, 2.0, 1.9, 1.9, 0.8, 4, 8)
         ];
@@ -416,11 +416,11 @@
   // space between the pair so they never meet in the middle.
   const BROW_SHAPES = [
     { id: 'flat', label: 'Flat', inner: 0, outer: 0, thick: 0.5, gap: 0.5 },
-    { id: 'raised', label: 'Raised', inner: 0.0, outer: 0.5, thick: 0.48, gap: 0.55 },
-    { id: 'angled', label: 'Angled', inner: -0.45, outer: 0.32, thick: 0.55, gap: 0.4 },
-    { id: 'arched', label: 'Arched', inner: 0.42, outer: 0.08, thick: 0.44, gap: 0.6 },
-    { id: 'heavy', label: 'Heavy', inner: -0.18, outer: -0.08, thick: 0.85, gap: 0.35 },
-    { id: 'fine', label: 'Fine', inner: 0.1, outer: 0.22, thick: 0.36, gap: 0.7 }
+    { id: 'raised', label: 'Raised', inner: 0.0, outer: 0.3, thick: 0.48, gap: 0.55 },
+    { id: 'angled', label: 'Angled', inner: -0.3, outer: 0.22, thick: 0.55, gap: 0.4 },
+    { id: 'arched', label: 'Arched', inner: 0.28, outer: 0.06, thick: 0.44, gap: 0.6 },
+    { id: 'heavy', label: 'Heavy', inner: -0.14, outer: -0.06, thick: 0.62, gap: 0.35 },
+    { id: 'fine', label: 'Fine', inner: 0.08, outer: 0.18, thick: 0.36, gap: 0.7 }
   ];
 
   const NOSE_SHAPES = [

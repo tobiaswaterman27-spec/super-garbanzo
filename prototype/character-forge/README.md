@@ -63,12 +63,17 @@ test for it: no two co-visible perpendicular faces may ever share a step.
   stop, to drop back to a walk.
 - Trees, rocks, barrels and the cart are solid. Hitting one kills your inward
   velocity, bleeds the rest and staggers you if you were moving fast.
-- Sprint into a villager and they go down: a rigid-body tip driven by angular
-  velocity and gravity torque, with a randomised sprawl, a ground bounce, a
-  pause and then a spring back to their feet. They can be knocked down again
-  mid-recovery. The player recoils and loses most of their momentum too.
-- Breathing on idle, random blinking every few seconds (sometimes a double
-  blink), mouth shapes driven by the letter currently being revealed.
+- Two reaction strengths. Any contact above a walking pace **jostles** you:
+  the ragdoll runs, but the feet and hips are held to the animated pose so the
+  body lurches and recovers without going down. Only a real impact takes
+  someone off their feet.
+- Run into something at a sprint and you go down properly. Low obstacles
+  (rocks, barrels, the cart) trip you straight over the top; a tree throws you
+  back the way you came. Villagers only hit the floor when the player charges
+  them at sprint speed — otherwise they are jostled like anything else.
+- Idle characters hold perfectly still. The only things that move are eyes
+  (random blinks, sometimes a double) and mouth shapes driven by whichever
+  letter is currently being revealed.
 - A pose editor: 10 joints x 3 axes, keyframe capture and looping playback.
 - Villagers generated at random, with names, hair and facial hair chosen
   according to sex.
@@ -109,7 +114,11 @@ corner does not.
   every character look like they are wearing a mushroom.
 - **The camera is locked to the player.** To keep it there without ever showing
   the edge of the generated ground, the player is confined to the world inset by
-  half a viewport. Villagers roam the whole map.
+  exactly half a viewport — no further, or blank bands appear at the screen
+  edge. Villagers roam the whole map.
+- **The world camera is the forge camera, halved.** Same pitch, half the scale,
+  so a villager is the preview model sized down rather than a differently
+  proportioned one.
 
 ## The ragdoll
 
@@ -129,8 +138,16 @@ and elbows keep pointing somewhere sensible. The simulation is re-centred on
 the pelvis each frame and the drift handed back to the actor's world position,
 so a body that tumbles actually travels across the ground.
 
-Getting up eases the particles back toward the standing pose over 1.15s. A new
-impulse at any point — including mid-recovery — puts them straight back down.
+Getting up is animated rather than interpolated: the ragdoll is hauled through
+a series of get-up poses — face down with the arms planted, hips pushed up,
+onto a knee, then standing — while the physics keeps running underneath, so
+the limbs collide with the ground on the way through. A new impulse at any
+point, recovery included, puts them straight back down.
+
+A soft jostle is the same solver with the lower body pinned: the feet, hips
+and knees are dragged hard onto the animated pose each frame while the chest,
+arms and head are left loose. The body reacts and settles in under a second
+and cannot topple.
 
 ## Not done yet
 

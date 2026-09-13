@@ -171,9 +171,13 @@
   // model units with the feet at the origin. Used both to seed the ragdoll and
   // to give it something to stand back up into.
   const _jp = [0, 0, 0];
-  function jointPositions(model, yaw) {
+  function jointPositions(model, yaw, tiltPitch, tiltRoll) {
     const d = model.dims;
-    const base = R.rotationY(yaw);
+    let base = R.rotationY(yaw);
+    // Tilt about the feet. Getting up needs targets for a body that is still
+    // lying down, not for one that is already standing.
+    if (tiltPitch) base = R.multiply(base, R.rotationX(tiltPitch));
+    if (tiltRoll) base = R.multiply(base, R.rotationZ(tiltRoll));
 
     (function walk(node, parent) {
       let local = R.translation(node.origin[0], node.origin[1], node.origin[2]);
@@ -232,7 +236,7 @@
     kneeR: 1, kneeL: 1,
     chest: 1, neck: 1, headTop: 1,
     shoulderR: 0.85, shoulderL: 0.85,
-    elbowR: 0.16, elbowL: 0.16, handR: 0.1, handL: 0.1
+    elbowR: 0.26, elbowL: 0.26, handR: 0.19, handL: 0.19
   };
   const SOFT_TIME = 0.5;
 
@@ -252,10 +256,10 @@
       for (const name in spec) pose[name] = spec[name].slice();
       k.push(pose);
     }
-    frame({ torso: [1.15, 0, 0], head: [-0.55, 0, 0],
+    frame({ torso: [0.62, 0, 0], head: [-0.4, 0, 0],
       armR: [1.0, 0, 0.55], armL: [1.0, 0, -0.55], foreR: [-1.5, 0, 0], foreL: [-1.5, 0, 0],
       legR: [-1.15, 0, 0.3], legL: [-1.0, 0, -0.3], shinR: [1.8, 0, 0], shinL: [1.7, 0, 0] });
-    frame({ torso: [0.95, 0, 0], head: [-0.5, 0, 0],
+    frame({ torso: [0.72, 0, 0], head: [-0.42, 0, 0],
       armR: [0.35, 0, 0.4], armL: [0.35, 0, -0.4], foreR: [-0.5, 0, 0], foreL: [-0.5, 0, 0],
       legR: [-1.45, 0, 0.22], legL: [-1.3, 0, -0.22], shinR: [2.0, 0, 0], shinL: [1.9, 0, 0] });
     frame({ torso: [0.4, 0, 0], head: [-0.18, 0, 0],
@@ -269,7 +273,7 @@
     return k;
   }
   const GETUP_KEYS = getupKeys();
-  const RISE_TIME = 1.0;
+  const RISE_TIME = 1.5;
 
   function distanceBetween(a, b) {
     return Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
@@ -342,6 +346,7 @@
       }
       f.links = links;
       f.p = p;
+      f.bodyR = actor.model.dims.torsoW / 2 + actor.model.dims.armW * 0.32;
     }
 
     f.active = true;
@@ -351,6 +356,7 @@
     f.still = 0;
     f.rise = 0;
     f.settle = 0;
+    f.riseReady = false;
     actor.gait = 'idle';
     actor.speaking = false;
     actor.viseme = 'rest';
@@ -399,6 +405,7 @@
         a.x += ox; a.y += oy; a.z += oz;
         b.x -= ox; b.y -= oy; b.z -= oz;
       }
+      avoidTorso(f);
       for (const key in p) {
         const q = p[key];
         if (q.y < q.r) {
@@ -408,6 +415,30 @@
           q.pz += (q.z - q.pz) * 0.4;
         }
       }
+    }
+  }
+
+  /* Keeps hands and elbows out of the torso. Without it the constraints are
+   * happy to let an arm swing straight through the chest, which is what makes
+   * the limbs look like they are folding the wrong way. */
+  function avoidTorso(f) {
+    const a = f.p.pelvis, b = f.p.chest;
+    if (!a || !b) return;
+    const bx = b.x - a.x, by = b.y - a.y, bz = b.z - a.z;
+    const len2 = bx * bx + by * by + bz * bz || 1e-6;
+    const r = f.bodyR || 4.4;
+    const limbs = ['elbowR', 'elbowL', 'handR', 'handL'];
+    for (let i = 0; i < limbs.length; i++) {
+      const q = f.p[limbs[i]];
+      if (!q) continue;
+      let t = ((q.x - a.x) * bx + (q.y - a.y) * by + (q.z - a.z) * bz) / len2;
+      t = t < 0 ? 0 : t > 1 ? 1 : t;
+      const cx = a.x + bx * t, cy = a.y + by * t, cz = a.z + bz * t;
+      const dx = q.x - cx, dy = q.y - cy, dz = q.z - cz;
+      const d = Math.hypot(dx, dy, dz);
+      if (d >= r || d < 1e-6) continue;
+      const push = (r - d) / d;
+      q.x += dx * push; q.y += dy * push; q.z += dz * push;
     }
   }
 
@@ -429,15 +460,15 @@
       const q = f.p[key];
       const t = target[key];
       if (!t) continue;
+      // A weight of 1 in an explicit table means pinned: put the joint exactly
+      // on the pose and stop it dead. Only ever from a table — treating a
+      // missing table as "pin everything" turned the get-up and the settle
+      // into instant snaps, which is what made characters teleport upright.
       const weight = perJoint
         ? (perJoint[key] === undefined ? 0.3 : perJoint[key])
         : 1;
 
-      // A weight of 1 means pinned: put the joint exactly on the pose and stop
-      // it dead. Running it through the per-frame strength instead only closed
-      // about a quarter of the gap each frame, which let a knock drift the
-      // whole body when the intent was to hold it still.
-      if (weight >= 1) {
+      if (perJoint && weight >= 1) {
         q.x = t[0]; q.y = t[1]; q.z = t[2];
         q.px = t[0]; q.py = t[1]; q.pz = t[2];
         continue;
@@ -461,7 +492,7 @@
   // the picture and the motion damped, so it always converges. Returns true
   // once every joint has arrived.
   function settleOntoPose(f, target, dt) {
-    pullToward(f, target, Math.min(1, dt * 11), null, 0.4);
+    pullToward(f, target, Math.min(1, dt * 16), null, 0.45);
     return worstError(f, target) < SETTLE_EPSILON;
   }
 
@@ -514,8 +545,34 @@
 
     /* ---- getting back up, under its own power ---- */
     if (f.state === 'rising') {
+      if (!f.riseReady) {
+        // Read which way the body is actually lying, so the get-up starts from
+        // there. Pulling a prone body toward an upright pose is the teleport:
+        // the very first target is already standing.
+        const pel = f.p.pelvis, ch = f.p.chest;
+        let ux = ch.x - pel.x, uy = ch.y - pel.y, uz = ch.z - pel.z;
+        const L = Math.hypot(ux, uy, uz) || 1;
+        ux /= L; uy /= L; uz /= L;
+        const cy = Math.cos(actor.yaw), sy = Math.sin(actor.yaw);
+        const side = ux * cy - uz * sy;
+        const fwd = ux * sy + uz * cy;
+        f.riseRoll = Math.asin(Math.max(-1, Math.min(1, -side)));
+        f.risePitch = Math.atan2(fwd, uy);
+        // Never tilt past flat. Someone who landed chest-down has their chest
+        // below their pelvis, which reads as a tilt beyond ninety degrees, and
+        // the get-up target then points the whole body into the ground.
+        const lean = Math.hypot(f.risePitch, f.riseRoll);
+        if (lean > Math.PI / 2) {
+          const s = (Math.PI / 2) / lean;
+          f.risePitch *= s;
+          f.riseRoll *= s;
+        }
+        f.riseReady = true;
+      }
+
       f.rise += dt / RISE_TIME;
       const k = Math.min(1, f.rise);
+      const ease = k * k * (3 - 2 * k);
 
       let acc = Math.min(dt, 0.05);
       while (acc > 0) {
@@ -524,13 +581,24 @@
         acc -= step;
       }
 
-      // walk the get-up keyframes and haul the body toward each in turn
+      // walk the get-up keyframes, with the whole body righting itself from
+      // however it landed toward vertical as the sequence plays
       const seg = k * (GETUP_KEYS.length - 1);
       const i = Math.min(GETUP_KEYS.length - 2, Math.floor(seg));
       const pose = lerpPose(GETUP_KEYS[i], GETUP_KEYS[i + 1], seg - i);
       applyPose(actor.model, pose, 0);
-      const target = jointPositions(actor.model, actor.yaw);
-      pullToward(f, target, Math.min(1, dt * (5 + 22 * k)));
+      const target = jointPositions(actor.model, actor.yaw,
+        f.risePitch * (1 - ease), f.riseRoll * (1 - ease));
+
+      // Lift the target itself off the floor before pulling toward it. The
+      // keyframe's own forward lean adds to the body's tilt, which can aim a
+      // joint well under the ground; correcting afterwards just moved the
+      // snap somewhere else.
+      for (const key in target) {
+        const q = f.p[key];
+        if (q && target[key][1] < q.r) target[key][1] = q.r;
+      }
+      pullToward(f, target, Math.min(1, dt * (2.5 + 9 * k)));
 
       if (k >= 1) {
         // Blend the last of the way onto the pose rather than cutting over on
@@ -576,7 +644,7 @@
       }
     } else if (f.state === 'down') {
       f.timer -= dt;
-      if (f.timer <= 0) { f.state = 'rising'; f.rise = 0; }
+      if (f.timer <= 0) { f.state = 'rising'; f.rise = 0; f.riseReady = false; }
     }
   }
 
@@ -935,7 +1003,7 @@
       if (p >= 1) {
         actor.blink = 0;
         if (actor.blinkQueue > 0) { actor.blinkQueue--; actor.blinkTimer = 0.09; }
-        else actor.blinkTimer = 2.0 + actor.rng() * 4.5;
+        else actor.blinkTimer = 5.0 + actor.rng() * 7.0;
       } else {
         actor.blink = p < 0.4 ? p / 0.4 : 1 - (p - 0.4) / 0.6;
       }
@@ -945,7 +1013,7 @@
     if (actor.blinkTimer <= 0) {
       actor.blink = 0.001;
       actor.blinkPhase = 0;
-      actor.blinkQueue = actor.rng() < 0.18 ? 1 : 0;
+      actor.blinkQueue = actor.rng() < 0.07 ? 1 : 0;
     }
   }
 

@@ -79,10 +79,16 @@ test for it: no two co-visible perpendicular faces may ever share a step.
   off it, something knee-high gives a short stumble and you pull up at it, and
   a villager you charge stumbles several paces away.
 - A character going down is limp — the arms flail rather than being driven.
-- Idle villagers pick **gestures** now — waving at a neighbour, flinching from
-  someone sprinting at them, laughing, pondering, carrying something. These
-  are the only thing besides eyes and mouth that moves a standing character,
-  and they read as intent rather than as drift.
+- **Villagers talk to each other.** Two who end up near each other pair off,
+  turn to face, and take turns speaking — mouth shapes only, the body stays
+  still — nodding and laughing while they listen. The conversation runs its
+  course and they part. Talking to either of them breaks it up.
+- **Gestures only fire for a reason.** They wave at someone arriving and
+  flinch at someone sprinting at them; nothing goes off at random. Gestures
+  and mouths are the only things besides blinking that move a standing
+  character.
+- **A body going down at speed takes out whoever it lands on**, and those
+  villagers can bring down others in turn.
 - Idle characters hold perfectly still. The only things that move are eyes
   (random blinks, sometimes a double) and mouth shapes driven by whichever
   letter is currently being revealed.
@@ -161,7 +167,13 @@ so a body that tumbles actually travels across the ground.
 Getting up is animated rather than interpolated: the ragdoll is hauled through
 a series of get-up poses — face down with the arms planted, hips pushed up,
 onto a knee, then standing — while the physics keeps running underneath, so
-the limbs collide with the ground on the way through. A new impulse at any
+the limbs collide with the ground on the way through. The sequence starts from
+**however the body actually landed**: the lie of the pelvis-to-chest axis is
+measured and the whole body rights itself from there, because targeting an
+upright pose from frame one is exactly what a teleport looks like.
+
+Hands and elbows are kept outside a capsule around the spine, or the distance
+constraints will happily swing an arm straight through the chest. A new impulse at any
 point, recovery included, puts them straight back down.
 
 A jostle is the same solver with the lower body pinned: the feet, hips and

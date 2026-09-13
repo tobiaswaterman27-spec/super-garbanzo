@@ -64,7 +64,15 @@
 
   /* ---------- box ---------- */
 
+  /* Boxes are grown a hair on every face. Two that merely abut share an exact
+   * edge, and rounding on either side of it can leave a one-pixel seam through
+   * the model — a pinhole in the clothing that moves as the character turns.
+   * Overlapping slightly costs nothing and closes them. */
+  const SEAM = 0.012;
+
   function box(x, y, z, w, h, d) {
+    x -= SEAM; y -= SEAM; z -= SEAM;
+    w += SEAM * 2; h += SEAM * 2; d += SEAM * 2;
     const x1 = x + w, y1 = y + h, z1 = z + d;
     const verts = [
       x, y, z, x, y, z1, x, y1, z, x, y1, z1,
@@ -83,6 +91,8 @@
    * gives a spike or a lock of hair; tapering to zero gives a cone.
    */
   function taper(x, y, z, w, h, d, topScale, offX, offZ) {
+    x -= SEAM; y -= SEAM; z -= SEAM;
+    w += SEAM * 2; h += SEAM * 2; d += SEAM * 2;
     const ts = Math.max(0.001, topScale === undefined ? 0.4 : topScale);
     const ox = offX || 0, oz = offZ || 0;
     const cx = x + w / 2, cz = z + d / 2;
@@ -207,6 +217,8 @@
 
   function slab(x, y, z, w, h, d, topScale, botScale, offX, offZ) {
     // like taper but the bottom can shrink too — used for hanging hair
+    x -= SEAM; y -= SEAM; z -= SEAM;
+    w += SEAM * 2; h += SEAM * 2; d += SEAM * 2;
     const bs = botScale === undefined ? 1 : botScale;
     const ts = topScale === undefined ? 1 : topScale;
     const cx = x + w / 2, cz = z + d / 2;

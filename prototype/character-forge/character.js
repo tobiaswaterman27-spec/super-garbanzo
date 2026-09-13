@@ -205,7 +205,9 @@
       upperLegH: 5.8, lowerLegH: 5.6,
       legTotal: 11.4,
       // a long skirt restrains the stride; hose does not
-      legSwing: garment.skirt > 6 ? 0.5 : 1,
+      // A skirt both hides and restrains the legs; without shortening the
+      // stride the thigh swings straight out through the cloth.
+      legSwing: garment.skirt > 6 ? 0.34 : (garment.skirt > 0 ? 0.62 : 1),
       heightScale: (male ? 1 : 0.955) * (0.9 + ch.height * 0.2)
     };
   }
@@ -280,8 +282,10 @@
       const steps = g.skirt > 6 ? 3 : 2;
       for (let i = 0; i < steps; i++) {
         const t0 = i / steps, t1 = (i + 1) / steps;
-        const w = d.hipW + 0.5 + t1 * (g.skirt > 6 ? 3.4 : 1.4);
-        const dep = d.torsoD + 0.7 + t1 * (g.skirt > 6 ? 2.6 : 1.0);
+        const w = d.hipW + 0.8 + t1 * (g.skirt > 6 ? 3.6 : 2.0);
+        // Depth matters more than width: a thigh swings forward and back, so
+        // this is what stops the legs passing through the cloth.
+        const dep = d.torsoD + 2.6 + t1 * (g.skirt > 6 ? 3.4 : 2.6);
         pelvis.parts.push(part(
           B(-w / 2, 0.4 - g.skirt * t1, -dep / 2, w, g.skirt * (t1 - t0) + 0.25, dep), c.tunic));
       }
@@ -329,6 +333,12 @@
       // Shoulder ball, so the top of the arm stays attached as it swings.
       upper.parts.push(part(G.superellipsoid(0, 0, 0,
         d.armW * 0.5, d.armW * 0.5, d.armW * 0.5, 0.6, 3, 7), c.tunic));
+      if (g.sleeves === 'wide') {
+        // meets the flared cuff below, so the two never leave a step
+        upper.parts.push(part(
+          G.slab(-(d.armW + 1.1) / 2, -d.upperArmH, -(d.armW + 1.1) / 2,
+            d.armW + 1.1, d.upperArmH * 0.62, d.armW + 1.1, 0.78, 1), c.tunic));
+      }
 
       const fore = bone(right ? 'foreR' : 'foreL', [0, -d.upperArmH, 0]);
       const foreW = d.armW * 0.92;
@@ -347,13 +357,14 @@
         longSleeve ? c.tunic : c.skin));
 
       if (longSleeve) {
-        // Laid over the top of the arm, running from the elbow down, so it
-        // always meets both the elbow ball and the upper arm above it.
-        const flare = g.sleeves === 'wide' ? 1.6 : 0.34;
+        // Laid over the top of the arm, running from the elbow down. It has to
+        // reach well past the joint: a flared cuff that merely touches the
+        // elbow leaves a lip, and the lip opens into a hole as the arm bends.
+        const flare = g.sleeves === 'wide' ? 1.4 : 0.34;
         const cuff = d.lowerArmH * (g.sleeves === 'wide' ? 0.84 : 0.56);
         fore.parts.push(part(
           G.slab(-(foreW + flare) / 2, -cuff, -(foreW + flare) / 2,
-            foreW + flare, cuff + 0.4, foreW + flare, 1, 0.9), c.tunic));
+            foreW + flare, cuff + 1.3, foreW + flare, 1, 0.9), c.tunic));
       }
       fore.parts.push(part(
         G.superellipsoid(0, -d.lowerArmH - 0.75, 0,

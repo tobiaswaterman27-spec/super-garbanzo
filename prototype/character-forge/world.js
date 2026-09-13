@@ -29,8 +29,8 @@
   const SPEED = { walk: 52, run: 112, npc: 26 };
   const ACCEL = 520;           // px/s^2 while steering
   const SKID_ACCEL = 165;      // reduced authority through a hard turn
-  const FRICTION = 420;        // px/s^2 once input stops
-  const SKID_FRICTION = 150;   // you slide before you stop
+  const FRICTION = 680;        // px/s^2 once input stops
+  const SKID_FRICTION = 380;   // a short slide, not a long one
 
   const PLAYER_R = 6.5;
   const NUDGE_SPEED = 30;      // above this, a bump visibly jostles you
@@ -39,6 +39,8 @@
   const CHEST_H = 20;          // contact heights, in model units
   const SHIN_H = 7;
   const TALK_RANGE = 40;
+  const CHAT_RANGE = 62;       // how close two villagers get talking
+  const GREET_RANGE = 70;
   const COMFORT_RANGE = 24;
 
   const TEST_PAGES = ['test123 test123', 'test123 test123', 'test123 test123'];
@@ -244,7 +246,7 @@
         (seed + i * 977) >>> 0);
       a.buffer = R.createTarget(ACTOR_BUF.w, ACTOR_BUF.h);
       a.brain = { state: 'pause', timer: 0.5 + rng() * 2.5, dirIndex: Math.floor(rng() * 8),
-        gestureCooldown: rng() * 5 };
+        gestureCooldown: rng() * 5, partner: null, chatCooldown: rng() * 8 };
       world.actors.push(a);
     }
 
@@ -455,22 +457,132 @@
 
   /* ---------- villagers ---------- */
 
-  /* A villager standing about picks something to do now and then: waving at a
-   * neighbour, flinching from someone sprinting at them, or just shifting a
-   * load. These are the only thing besides eyes and mouth that moves a
-   * standing character, and they read as intent rather than as drift. */
-  function chooseGesture(world, a) {
-    const player = world.player;
-    const playerSpeed = Math.hypot(player.vx, player.vy);
-    if (playerSpeed > TRIP_SPEED && distance(a, player) < 76) return 'fear';
+  /* ---------- villagers talking to each other ---------- */
 
+  // Mouth shapes for someone mid-sentence. There are no words behind it; at
+  // this scale a plausible run of shapes is indistinguishable from one.
+  const BABBLE = 'aeioumbpflstrwdnkgh';
+
+  function babble(a) {
+    a.speaking = true;
+    a.viseme = CM.visemeForLetter(BABBLE[Math.floor(a.animTime * 7) % BABBLE.length]);
+  }
+
+  function hush(a) {
+    a.speaking = false;
+    a.viseme = 'rest';
+  }
+
+  function startChat(a, b) {
+    const length = 9 + a.rng() * 12;
+    [[a, b], [b, a]].forEach(function (pair, i) {
+      const self = pair[0];
+      self.brain.state = 'chatting';
+      self.brain.partner = pair[1];
+      self.brain.chatTimer = length;
+      self.brain.turnTimer = 1.5 + a.rng() * 1.6;
+      self.brain.speakingTurn = i === 0;
+      self.gesture = null;
+    });
+  }
+
+  function endChat(a, cooldown) {
+    const partner = a.brain.partner;
+    [a, partner].forEach(function (self) {
+      if (!self) return;
+      hush(self);
+      self.brain.partner = null;
+      self.brain.chatCooldown = cooldown === undefined ? 12 + self.rng() * 18 : cooldown;
+      if (self.brain.state === 'chatting') {
+        self.brain.state = 'pause';
+        self.brain.timer = 0.6 + self.rng() * 1.5;
+      }
+    });
+  }
+
+  function updateChat(world, a, dt) {
+    const brain = a.brain;
+    const partner = brain.partner;
+
+    // anything that breaks the pair breaks the conversation
+    if (!partner || Rig.isDown(partner) || partner.brain.partner !== a ||
+        distance(a, partner) > CHAT_RANGE * 1.8) {
+      endChat(a, 4);
+      return;
+    }
+
+    a.gait = 'idle';
+    a.targetYaw = Rig.yawForDirection(partner.x - a.x, partner.y - a.y);
+
+    brain.turnTimer -= dt;
+    if (brain.turnTimer <= 0) {
+      // hand the floor over
+      brain.speakingTurn = !brain.speakingTurn;
+      partner.brain.speakingTurn = !brain.speakingTurn;
+      brain.turnTimer = partner.brain.turnTimer = 1.5 + a.rng() * 1.8;
+    }
+
+    if (brain.speakingTurn) {
+      babble(a);
+      if (!a.gesture && a.rng() < 0.004) Rig.startGesture(a, 'laugh');
+    } else {
+      hush(a);
+      // listening: the odd nod or laugh, not constant motion
+      if (!a.gesture && a.rng() < 0.006) {
+        Rig.startGesture(a, a.rng() < 0.4 ? 'laugh' : 'greet');
+      }
+    }
+
+    brain.chatTimer -= dt;
+    if (brain.chatTimer <= 0) {
+      Rig.startGesture(a, 'greet');
+      endChat(a);
+    }
+  }
+
+  // Villagers only gesture for a reason: they wave at someone arriving, and
+  // they flinch at someone sprinting at them. Nothing fires at random.
+  function reactiveGesture(world, a, dt) {
+    const brain = a.brain;
+    brain.gestureCooldown = (brain.gestureCooldown || 0) - dt;
+    if (a.gesture || brain.gestureCooldown > 0) return;
+
+    const player = world.player;
+    if (Math.hypot(player.vx, player.vy) > TRIP_SPEED && distance(a, player) < 76) {
+      Rig.startGesture(a, 'fear');
+      brain.gestureCooldown = 4 + a.rng() * 4;
+      return;
+    }
+
+    // someone they know has just come into range
+    let nearest = Infinity;
     for (let i = 1; i < world.actors.length; i++) {
       const other = world.actors[i];
       if (other === a || Rig.isDown(other)) continue;
-      if (distance(a, other) < 74) return a.rng() < 0.5 ? 'wave' : 'greet';
+      const d = distance(a, other);
+      if (d < nearest) nearest = d;
     }
-    const idle = ['ponder', 'carry', 'laugh', 'greet'];
-    return idle[Math.floor(a.rng() * idle.length)];
+    const was = brain.nearDist === undefined ? Infinity : brain.nearDist;
+    brain.nearDist = nearest;
+    if (was > GREET_RANGE * 1.25 && nearest <= GREET_RANGE) {
+      Rig.startGesture(a, a.rng() < 0.65 ? 'wave' : 'greet');
+      brain.gestureCooldown = 10 + a.rng() * 14;
+    }
+  }
+
+  function tryStartChat(world, a) {
+    const brain = a.brain;
+    brain.chatCooldown = (brain.chatCooldown || 0) - 1 / 60;
+    if (brain.partner || brain.chatCooldown > 0 || a.gesture) return;
+    for (let i = 1; i < world.actors.length; i++) {
+      const other = world.actors[i];
+      if (other === a || Rig.isDown(other) || other.gesture) continue;
+      if (other.brain.partner || (other.brain.chatCooldown || 0) > 0) continue;
+      if (other.brain.state !== 'pause' && other.brain.state !== 'wander') continue;
+      if (distance(a, other) > CHAT_RANGE) continue;
+      startChat(a, other);
+      return;
+    }
   }
 
   function updateVillager(world, a, dt) {
@@ -494,7 +606,10 @@
     // While down, the ragdoll itself moves the body — it hands its drift back
     // to the actor position each step, so nothing else should push it.
     if (Rig.isDown(a)) {
+      if (brain.partner) endChat(a, 6);
       a.vx = 0; a.vy = 0;
+      a.gesture = null;
+      hush(a);
       a.gait = 'idle';
       brain.state = 'downed';
       Rig.updateActorMotion(a, dt);
@@ -506,6 +621,12 @@
       brain.state = 'pause';
       brain.timer = 0.7 + a.rng() * 1.2;
       a.vx = 0; a.vy = 0;
+    }
+
+    if (brain.state === 'chatting') {
+      updateChat(world, a, dt);
+      Rig.updateActorMotion(a, dt);
+      return;
     }
 
     if (brain.state === 'approach' || brain.state === 'face' || brain.state === 'talk') {
@@ -540,12 +661,10 @@
     if (brain.state === 'pause') {
       a.gait = 'idle';
 
-      brain.gestureCooldown = (brain.gestureCooldown || 0) - dt;
-      if (!a.gesture && brain.gestureCooldown <= 0 && a.rng() < 0.55) {
-        Rig.startGesture(a, chooseGesture(world, a));
-        brain.gestureCooldown = 3.5 + a.rng() * 6;
-        brain.timer = Math.max(brain.timer, a.gesture.duration + 0.4);
-      }
+      reactiveGesture(world, a, dt);
+      tryStartChat(world, a);
+      if (brain.state === 'chatting') return;
+      if (a.gesture) brain.timer = Math.max(brain.timer, 0.3);
 
       if (brain.timer <= 0) {
         brain.state = 'wander';
@@ -553,7 +672,8 @@
         brain.dirIndex = Math.floor(a.rng() * 8);
       }
     } else if (brain.state === 'wander') {
-      a.gesture = null;
+      reactiveGesture(world, a, dt);
+      if (a.gesture) { a.gait = 'idle'; Rig.updateActorMotion(a, dt); return; }
       const dir = Rig.DIRECTIONS[brain.dirIndex];
       a.targetYaw = Rig.yawForDirection(dir.dx, dir.dy);
       if (Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 0.5) {
@@ -596,6 +716,7 @@
     for (let i = 1; i < world.actors.length; i++) {
       const a = world.actors[i];
       if (Rig.isDown(a) || a.brain.state === 'downed') continue;
+      if (a.stumbleTime > 0) continue;
       const d = distance(a, world.player);
       if (d < bestD) { bestD = d; best = a; }
     }
@@ -608,16 +729,52 @@
     if (Rig.isDown(world.player)) return false;
     const npc = nearestTalkable(world);
     if (!npc) return false;
+    // whoever they were chatting to is dropped
+    if (npc.brain.partner) endChat(npc, 10);
+    npc.gesture = null;
     npc.brain.state = distance(npc, world.player) > COMFORT_RANGE ? 'approach' : 'face';
     world.player.targetYaw = Rig.snapToEight(npc.x - world.player.x, npc.y - world.player.y);
     world.player.vx = 0; world.player.vy = 0;
     return true;
   }
 
+  /* Someone going down at speed takes out whoever they land on. */
+  function resolveRagdollCollisions(world, dt) {
+    for (let i = 0; i < world.actors.length; i++) {
+      const a = world.actors[i];
+      if (!Rig.isDown(a) || a.fall.state !== 'falling') continue;
+
+      const speed = Math.hypot(a.x - (a._px === undefined ? a.x : a._px),
+        a.y - (a._py === undefined ? a.y : a._py)) / Math.max(dt, 1e-4);
+      if (speed < 40) continue;
+
+      for (let j = 0; j < world.actors.length; j++) {
+        const b = world.actors[j];
+        if (b === a || Rig.isDown(b) || b.hitCooldown > 0) continue;
+        const dx = b.x - a.x, dy = (b.y - a.y) * 1.5;
+        const d = Math.hypot(dx, dy);
+        if (d > 15 || d === 0) continue;
+        const nx = dx / d, ny = dy / d / 1.5;
+        Rig.knockDown(b, nx, ny, 2.2 + speed / 45);
+        if (b.brain) {
+          if (b.brain.partner) endChat(b, 6);
+          b.brain.state = 'downed';
+          b.brain.timer = 0;
+        }
+        b.hitCooldown = 0.5;
+      }
+    }
+    for (let i = 0; i < world.actors.length; i++) {
+      world.actors[i]._px = world.actors[i].x;
+      world.actors[i]._py = world.actors[i].y;
+    }
+  }
+
   function update(world, dt) {
     updatePlayer(world, dt);
     for (let i = 1; i < world.actors.length; i++) updateVillager(world, world.actors[i], dt);
     resolveActorCollisions(world);
+    resolveRagdollCollisions(world, dt);
     D.update(world.box, dt);
 
     world.prompt = world.box.open ? null : nearestTalkable(world);

@@ -527,7 +527,15 @@
 
   /* ---------- box ---------- */
 
+  /* Boxes are grown a hair on every face. Two that merely abut share an exact
+   * edge, and rounding on either side of it can leave a one-pixel seam through
+   * the model — a pinhole in the clothing that moves as the character turns.
+   * Overlapping slightly costs nothing and closes them. */
+  const SEAM = 0.012;
+
   function box(x, y, z, w, h, d) {
+    x -= SEAM; y -= SEAM; z -= SEAM;
+    w += SEAM * 2; h += SEAM * 2; d += SEAM * 2;
     const x1 = x + w, y1 = y + h, z1 = z + d;
     const verts = [
       x, y, z, x, y, z1, x, y1, z, x, y1, z1,
@@ -546,6 +554,8 @@
    * gives a spike or a lock of hair; tapering to zero gives a cone.
    */
   function taper(x, y, z, w, h, d, topScale, offX, offZ) {
+    x -= SEAM; y -= SEAM; z -= SEAM;
+    w += SEAM * 2; h += SEAM * 2; d += SEAM * 2;
     const ts = Math.max(0.001, topScale === undefined ? 0.4 : topScale);
     const ox = offX || 0, oz = offZ || 0;
     const cx = x + w / 2, cz = z + d / 2;
@@ -670,6 +680,8 @@
 
   function slab(x, y, z, w, h, d, topScale, botScale, offX, offZ) {
     // like taper but the bottom can shrink too — used for hanging hair
+    x -= SEAM; y -= SEAM; z -= SEAM;
+    w += SEAM * 2; h += SEAM * 2; d += SEAM * 2;
     const bs = botScale === undefined ? 1 : botScale;
     const ts = topScale === undefined ? 1 : topScale;
     const cx = x + w / 2, cz = z + d / 2;
@@ -1774,7 +1786,9 @@
       upperLegH: 5.8, lowerLegH: 5.6,
       legTotal: 11.4,
       // a long skirt restrains the stride; hose does not
-      legSwing: garment.skirt > 6 ? 0.5 : 1,
+      // A skirt both hides and restrains the legs; without shortening the
+      // stride the thigh swings straight out through the cloth.
+      legSwing: garment.skirt > 6 ? 0.34 : (garment.skirt > 0 ? 0.62 : 1),
       heightScale: (male ? 1 : 0.955) * (0.9 + ch.height * 0.2)
     };
   }
@@ -1849,8 +1863,10 @@
       const steps = g.skirt > 6 ? 3 : 2;
       for (let i = 0; i < steps; i++) {
         const t0 = i / steps, t1 = (i + 1) / steps;
-        const w = d.hipW + 0.5 + t1 * (g.skirt > 6 ? 3.4 : 1.4);
-        const dep = d.torsoD + 0.7 + t1 * (g.skirt > 6 ? 2.6 : 1.0);
+        const w = d.hipW + 0.8 + t1 * (g.skirt > 6 ? 3.6 : 2.0);
+        // Depth matters more than width: a thigh swings forward and back, so
+        // this is what stops the legs passing through the cloth.
+        const dep = d.torsoD + 2.6 + t1 * (g.skirt > 6 ? 3.4 : 2.6);
         pelvis.parts.push(part(
           B(-w / 2, 0.4 - g.skirt * t1, -dep / 2, w, g.skirt * (t1 - t0) + 0.25, dep), c.tunic));
       }
@@ -1898,6 +1914,12 @@
       // Shoulder ball, so the top of the arm stays attached as it swings.
       upper.parts.push(part(G.superellipsoid(0, 0, 0,
         d.armW * 0.5, d.armW * 0.5, d.armW * 0.5, 0.6, 3, 7), c.tunic));
+      if (g.sleeves === 'wide') {
+        // meets the flared cuff below, so the two never leave a step
+        upper.parts.push(part(
+          G.slab(-(d.armW + 1.1) / 2, -d.upperArmH, -(d.armW + 1.1) / 2,
+            d.armW + 1.1, d.upperArmH * 0.62, d.armW + 1.1, 0.78, 1), c.tunic));
+      }
 
       const fore = bone(right ? 'foreR' : 'foreL', [0, -d.upperArmH, 0]);
       const foreW = d.armW * 0.92;
@@ -1916,13 +1938,14 @@
         longSleeve ? c.tunic : c.skin));
 
       if (longSleeve) {
-        // Laid over the top of the arm, running from the elbow down, so it
-        // always meets both the elbow ball and the upper arm above it.
-        const flare = g.sleeves === 'wide' ? 1.6 : 0.34;
+        // Laid over the top of the arm, running from the elbow down. It has to
+        // reach well past the joint: a flared cuff that merely touches the
+        // elbow leaves a lip, and the lip opens into a hole as the arm bends.
+        const flare = g.sleeves === 'wide' ? 1.4 : 0.34;
         const cuff = d.lowerArmH * (g.sleeves === 'wide' ? 0.84 : 0.56);
         fore.parts.push(part(
           G.slab(-(foreW + flare) / 2, -cuff, -(foreW + flare) / 2,
-            foreW + flare, cuff + 0.4, foreW + flare, 1, 0.9), c.tunic));
+            foreW + flare, cuff + 1.3, foreW + flare, 1, 0.9), c.tunic));
       }
       fore.parts.push(part(
         G.superellipsoid(0, -d.lowerArmH - 0.75, 0,
@@ -2410,9 +2433,13 @@
   // model units with the feet at the origin. Used both to seed the ragdoll and
   // to give it something to stand back up into.
   const _jp = [0, 0, 0];
-  function jointPositions(model, yaw) {
+  function jointPositions(model, yaw, tiltPitch, tiltRoll) {
     const d = model.dims;
-    const base = R.rotationY(yaw);
+    let base = R.rotationY(yaw);
+    // Tilt about the feet. Getting up needs targets for a body that is still
+    // lying down, not for one that is already standing.
+    if (tiltPitch) base = R.multiply(base, R.rotationX(tiltPitch));
+    if (tiltRoll) base = R.multiply(base, R.rotationZ(tiltRoll));
 
     (function walk(node, parent) {
       let local = R.translation(node.origin[0], node.origin[1], node.origin[2]);
@@ -2471,7 +2498,7 @@
     kneeR: 1, kneeL: 1,
     chest: 1, neck: 1, headTop: 1,
     shoulderR: 0.85, shoulderL: 0.85,
-    elbowR: 0.16, elbowL: 0.16, handR: 0.1, handL: 0.1
+    elbowR: 0.26, elbowL: 0.26, handR: 0.19, handL: 0.19
   };
   const SOFT_TIME = 0.5;
 
@@ -2491,10 +2518,10 @@
       for (const name in spec) pose[name] = spec[name].slice();
       k.push(pose);
     }
-    frame({ torso: [1.15, 0, 0], head: [-0.55, 0, 0],
+    frame({ torso: [0.62, 0, 0], head: [-0.4, 0, 0],
       armR: [1.0, 0, 0.55], armL: [1.0, 0, -0.55], foreR: [-1.5, 0, 0], foreL: [-1.5, 0, 0],
       legR: [-1.15, 0, 0.3], legL: [-1.0, 0, -0.3], shinR: [1.8, 0, 0], shinL: [1.7, 0, 0] });
-    frame({ torso: [0.95, 0, 0], head: [-0.5, 0, 0],
+    frame({ torso: [0.72, 0, 0], head: [-0.42, 0, 0],
       armR: [0.35, 0, 0.4], armL: [0.35, 0, -0.4], foreR: [-0.5, 0, 0], foreL: [-0.5, 0, 0],
       legR: [-1.45, 0, 0.22], legL: [-1.3, 0, -0.22], shinR: [2.0, 0, 0], shinL: [1.9, 0, 0] });
     frame({ torso: [0.4, 0, 0], head: [-0.18, 0, 0],
@@ -2508,7 +2535,7 @@
     return k;
   }
   const GETUP_KEYS = getupKeys();
-  const RISE_TIME = 1.0;
+  const RISE_TIME = 1.5;
 
   function distanceBetween(a, b) {
     return Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
@@ -2581,6 +2608,7 @@
       }
       f.links = links;
       f.p = p;
+      f.bodyR = actor.model.dims.torsoW / 2 + actor.model.dims.armW * 0.32;
     }
 
     f.active = true;
@@ -2590,6 +2618,7 @@
     f.still = 0;
     f.rise = 0;
     f.settle = 0;
+    f.riseReady = false;
     actor.gait = 'idle';
     actor.speaking = false;
     actor.viseme = 'rest';
@@ -2638,6 +2667,7 @@
         a.x += ox; a.y += oy; a.z += oz;
         b.x -= ox; b.y -= oy; b.z -= oz;
       }
+      avoidTorso(f);
       for (const key in p) {
         const q = p[key];
         if (q.y < q.r) {
@@ -2647,6 +2677,30 @@
           q.pz += (q.z - q.pz) * 0.4;
         }
       }
+    }
+  }
+
+  /* Keeps hands and elbows out of the torso. Without it the constraints are
+   * happy to let an arm swing straight through the chest, which is what makes
+   * the limbs look like they are folding the wrong way. */
+  function avoidTorso(f) {
+    const a = f.p.pelvis, b = f.p.chest;
+    if (!a || !b) return;
+    const bx = b.x - a.x, by = b.y - a.y, bz = b.z - a.z;
+    const len2 = bx * bx + by * by + bz * bz || 1e-6;
+    const r = f.bodyR || 4.4;
+    const limbs = ['elbowR', 'elbowL', 'handR', 'handL'];
+    for (let i = 0; i < limbs.length; i++) {
+      const q = f.p[limbs[i]];
+      if (!q) continue;
+      let t = ((q.x - a.x) * bx + (q.y - a.y) * by + (q.z - a.z) * bz) / len2;
+      t = t < 0 ? 0 : t > 1 ? 1 : t;
+      const cx = a.x + bx * t, cy = a.y + by * t, cz = a.z + bz * t;
+      const dx = q.x - cx, dy = q.y - cy, dz = q.z - cz;
+      const d = Math.hypot(dx, dy, dz);
+      if (d >= r || d < 1e-6) continue;
+      const push = (r - d) / d;
+      q.x += dx * push; q.y += dy * push; q.z += dz * push;
     }
   }
 
@@ -2668,15 +2722,15 @@
       const q = f.p[key];
       const t = target[key];
       if (!t) continue;
+      // A weight of 1 in an explicit table means pinned: put the joint exactly
+      // on the pose and stop it dead. Only ever from a table — treating a
+      // missing table as "pin everything" turned the get-up and the settle
+      // into instant snaps, which is what made characters teleport upright.
       const weight = perJoint
         ? (perJoint[key] === undefined ? 0.3 : perJoint[key])
         : 1;
 
-      // A weight of 1 means pinned: put the joint exactly on the pose and stop
-      // it dead. Running it through the per-frame strength instead only closed
-      // about a quarter of the gap each frame, which let a knock drift the
-      // whole body when the intent was to hold it still.
-      if (weight >= 1) {
+      if (perJoint && weight >= 1) {
         q.x = t[0]; q.y = t[1]; q.z = t[2];
         q.px = t[0]; q.py = t[1]; q.pz = t[2];
         continue;
@@ -2700,7 +2754,7 @@
   // the picture and the motion damped, so it always converges. Returns true
   // once every joint has arrived.
   function settleOntoPose(f, target, dt) {
-    pullToward(f, target, Math.min(1, dt * 11), null, 0.4);
+    pullToward(f, target, Math.min(1, dt * 16), null, 0.45);
     return worstError(f, target) < SETTLE_EPSILON;
   }
 
@@ -2753,8 +2807,34 @@
 
     /* ---- getting back up, under its own power ---- */
     if (f.state === 'rising') {
+      if (!f.riseReady) {
+        // Read which way the body is actually lying, so the get-up starts from
+        // there. Pulling a prone body toward an upright pose is the teleport:
+        // the very first target is already standing.
+        const pel = f.p.pelvis, ch = f.p.chest;
+        let ux = ch.x - pel.x, uy = ch.y - pel.y, uz = ch.z - pel.z;
+        const L = Math.hypot(ux, uy, uz) || 1;
+        ux /= L; uy /= L; uz /= L;
+        const cy = Math.cos(actor.yaw), sy = Math.sin(actor.yaw);
+        const side = ux * cy - uz * sy;
+        const fwd = ux * sy + uz * cy;
+        f.riseRoll = Math.asin(Math.max(-1, Math.min(1, -side)));
+        f.risePitch = Math.atan2(fwd, uy);
+        // Never tilt past flat. Someone who landed chest-down has their chest
+        // below their pelvis, which reads as a tilt beyond ninety degrees, and
+        // the get-up target then points the whole body into the ground.
+        const lean = Math.hypot(f.risePitch, f.riseRoll);
+        if (lean > Math.PI / 2) {
+          const s = (Math.PI / 2) / lean;
+          f.risePitch *= s;
+          f.riseRoll *= s;
+        }
+        f.riseReady = true;
+      }
+
       f.rise += dt / RISE_TIME;
       const k = Math.min(1, f.rise);
+      const ease = k * k * (3 - 2 * k);
 
       let acc = Math.min(dt, 0.05);
       while (acc > 0) {
@@ -2763,13 +2843,24 @@
         acc -= step;
       }
 
-      // walk the get-up keyframes and haul the body toward each in turn
+      // walk the get-up keyframes, with the whole body righting itself from
+      // however it landed toward vertical as the sequence plays
       const seg = k * (GETUP_KEYS.length - 1);
       const i = Math.min(GETUP_KEYS.length - 2, Math.floor(seg));
       const pose = lerpPose(GETUP_KEYS[i], GETUP_KEYS[i + 1], seg - i);
       applyPose(actor.model, pose, 0);
-      const target = jointPositions(actor.model, actor.yaw);
-      pullToward(f, target, Math.min(1, dt * (5 + 22 * k)));
+      const target = jointPositions(actor.model, actor.yaw,
+        f.risePitch * (1 - ease), f.riseRoll * (1 - ease));
+
+      // Lift the target itself off the floor before pulling toward it. The
+      // keyframe's own forward lean adds to the body's tilt, which can aim a
+      // joint well under the ground; correcting afterwards just moved the
+      // snap somewhere else.
+      for (const key in target) {
+        const q = f.p[key];
+        if (q && target[key][1] < q.r) target[key][1] = q.r;
+      }
+      pullToward(f, target, Math.min(1, dt * (2.5 + 9 * k)));
 
       if (k >= 1) {
         // Blend the last of the way onto the pose rather than cutting over on
@@ -2815,7 +2906,7 @@
       }
     } else if (f.state === 'down') {
       f.timer -= dt;
-      if (f.timer <= 0) { f.state = 'rising'; f.rise = 0; }
+      if (f.timer <= 0) { f.state = 'rising'; f.rise = 0; f.riseReady = false; }
     }
   }
 
@@ -3174,7 +3265,7 @@
       if (p >= 1) {
         actor.blink = 0;
         if (actor.blinkQueue > 0) { actor.blinkQueue--; actor.blinkTimer = 0.09; }
-        else actor.blinkTimer = 2.0 + actor.rng() * 4.5;
+        else actor.blinkTimer = 5.0 + actor.rng() * 7.0;
       } else {
         actor.blink = p < 0.4 ? p / 0.4 : 1 - (p - 0.4) / 0.6;
       }
@@ -3184,7 +3275,7 @@
     if (actor.blinkTimer <= 0) {
       actor.blink = 0.001;
       actor.blinkPhase = 0;
-      actor.blinkQueue = actor.rng() < 0.18 ? 1 : 0;
+      actor.blinkQueue = actor.rng() < 0.07 ? 1 : 0;
     }
   }
 
@@ -3519,8 +3610,8 @@
   const SPEED = { walk: 52, run: 112, npc: 26 };
   const ACCEL = 520;           // px/s^2 while steering
   const SKID_ACCEL = 165;      // reduced authority through a hard turn
-  const FRICTION = 420;        // px/s^2 once input stops
-  const SKID_FRICTION = 150;   // you slide before you stop
+  const FRICTION = 680;        // px/s^2 once input stops
+  const SKID_FRICTION = 380;   // a short slide, not a long one
 
   const PLAYER_R = 6.5;
   const NUDGE_SPEED = 30;      // above this, a bump visibly jostles you
@@ -3529,6 +3620,8 @@
   const CHEST_H = 20;          // contact heights, in model units
   const SHIN_H = 7;
   const TALK_RANGE = 40;
+  const CHAT_RANGE = 62;       // how close two villagers get talking
+  const GREET_RANGE = 70;
   const COMFORT_RANGE = 24;
 
   const TEST_PAGES = ['test123 test123', 'test123 test123', 'test123 test123'];
@@ -3734,7 +3827,7 @@
         (seed + i * 977) >>> 0);
       a.buffer = R.createTarget(ACTOR_BUF.w, ACTOR_BUF.h);
       a.brain = { state: 'pause', timer: 0.5 + rng() * 2.5, dirIndex: Math.floor(rng() * 8),
-        gestureCooldown: rng() * 5 };
+        gestureCooldown: rng() * 5, partner: null, chatCooldown: rng() * 8 };
       world.actors.push(a);
     }
 
@@ -3945,22 +4038,132 @@
 
   /* ---------- villagers ---------- */
 
-  /* A villager standing about picks something to do now and then: waving at a
-   * neighbour, flinching from someone sprinting at them, or just shifting a
-   * load. These are the only thing besides eyes and mouth that moves a
-   * standing character, and they read as intent rather than as drift. */
-  function chooseGesture(world, a) {
-    const player = world.player;
-    const playerSpeed = Math.hypot(player.vx, player.vy);
-    if (playerSpeed > TRIP_SPEED && distance(a, player) < 76) return 'fear';
+  /* ---------- villagers talking to each other ---------- */
 
+  // Mouth shapes for someone mid-sentence. There are no words behind it; at
+  // this scale a plausible run of shapes is indistinguishable from one.
+  const BABBLE = 'aeioumbpflstrwdnkgh';
+
+  function babble(a) {
+    a.speaking = true;
+    a.viseme = CM.visemeForLetter(BABBLE[Math.floor(a.animTime * 7) % BABBLE.length]);
+  }
+
+  function hush(a) {
+    a.speaking = false;
+    a.viseme = 'rest';
+  }
+
+  function startChat(a, b) {
+    const length = 9 + a.rng() * 12;
+    [[a, b], [b, a]].forEach(function (pair, i) {
+      const self = pair[0];
+      self.brain.state = 'chatting';
+      self.brain.partner = pair[1];
+      self.brain.chatTimer = length;
+      self.brain.turnTimer = 1.5 + a.rng() * 1.6;
+      self.brain.speakingTurn = i === 0;
+      self.gesture = null;
+    });
+  }
+
+  function endChat(a, cooldown) {
+    const partner = a.brain.partner;
+    [a, partner].forEach(function (self) {
+      if (!self) return;
+      hush(self);
+      self.brain.partner = null;
+      self.brain.chatCooldown = cooldown === undefined ? 12 + self.rng() * 18 : cooldown;
+      if (self.brain.state === 'chatting') {
+        self.brain.state = 'pause';
+        self.brain.timer = 0.6 + self.rng() * 1.5;
+      }
+    });
+  }
+
+  function updateChat(world, a, dt) {
+    const brain = a.brain;
+    const partner = brain.partner;
+
+    // anything that breaks the pair breaks the conversation
+    if (!partner || Rig.isDown(partner) || partner.brain.partner !== a ||
+        distance(a, partner) > CHAT_RANGE * 1.8) {
+      endChat(a, 4);
+      return;
+    }
+
+    a.gait = 'idle';
+    a.targetYaw = Rig.yawForDirection(partner.x - a.x, partner.y - a.y);
+
+    brain.turnTimer -= dt;
+    if (brain.turnTimer <= 0) {
+      // hand the floor over
+      brain.speakingTurn = !brain.speakingTurn;
+      partner.brain.speakingTurn = !brain.speakingTurn;
+      brain.turnTimer = partner.brain.turnTimer = 1.5 + a.rng() * 1.8;
+    }
+
+    if (brain.speakingTurn) {
+      babble(a);
+      if (!a.gesture && a.rng() < 0.004) Rig.startGesture(a, 'laugh');
+    } else {
+      hush(a);
+      // listening: the odd nod or laugh, not constant motion
+      if (!a.gesture && a.rng() < 0.006) {
+        Rig.startGesture(a, a.rng() < 0.4 ? 'laugh' : 'greet');
+      }
+    }
+
+    brain.chatTimer -= dt;
+    if (brain.chatTimer <= 0) {
+      Rig.startGesture(a, 'greet');
+      endChat(a);
+    }
+  }
+
+  // Villagers only gesture for a reason: they wave at someone arriving, and
+  // they flinch at someone sprinting at them. Nothing fires at random.
+  function reactiveGesture(world, a, dt) {
+    const brain = a.brain;
+    brain.gestureCooldown = (brain.gestureCooldown || 0) - dt;
+    if (a.gesture || brain.gestureCooldown > 0) return;
+
+    const player = world.player;
+    if (Math.hypot(player.vx, player.vy) > TRIP_SPEED && distance(a, player) < 76) {
+      Rig.startGesture(a, 'fear');
+      brain.gestureCooldown = 4 + a.rng() * 4;
+      return;
+    }
+
+    // someone they know has just come into range
+    let nearest = Infinity;
     for (let i = 1; i < world.actors.length; i++) {
       const other = world.actors[i];
       if (other === a || Rig.isDown(other)) continue;
-      if (distance(a, other) < 74) return a.rng() < 0.5 ? 'wave' : 'greet';
+      const d = distance(a, other);
+      if (d < nearest) nearest = d;
     }
-    const idle = ['ponder', 'carry', 'laugh', 'greet'];
-    return idle[Math.floor(a.rng() * idle.length)];
+    const was = brain.nearDist === undefined ? Infinity : brain.nearDist;
+    brain.nearDist = nearest;
+    if (was > GREET_RANGE * 1.25 && nearest <= GREET_RANGE) {
+      Rig.startGesture(a, a.rng() < 0.65 ? 'wave' : 'greet');
+      brain.gestureCooldown = 10 + a.rng() * 14;
+    }
+  }
+
+  function tryStartChat(world, a) {
+    const brain = a.brain;
+    brain.chatCooldown = (brain.chatCooldown || 0) - 1 / 60;
+    if (brain.partner || brain.chatCooldown > 0 || a.gesture) return;
+    for (let i = 1; i < world.actors.length; i++) {
+      const other = world.actors[i];
+      if (other === a || Rig.isDown(other) || other.gesture) continue;
+      if (other.brain.partner || (other.brain.chatCooldown || 0) > 0) continue;
+      if (other.brain.state !== 'pause' && other.brain.state !== 'wander') continue;
+      if (distance(a, other) > CHAT_RANGE) continue;
+      startChat(a, other);
+      return;
+    }
   }
 
   function updateVillager(world, a, dt) {
@@ -3984,7 +4187,10 @@
     // While down, the ragdoll itself moves the body — it hands its drift back
     // to the actor position each step, so nothing else should push it.
     if (Rig.isDown(a)) {
+      if (brain.partner) endChat(a, 6);
       a.vx = 0; a.vy = 0;
+      a.gesture = null;
+      hush(a);
       a.gait = 'idle';
       brain.state = 'downed';
       Rig.updateActorMotion(a, dt);
@@ -3996,6 +4202,12 @@
       brain.state = 'pause';
       brain.timer = 0.7 + a.rng() * 1.2;
       a.vx = 0; a.vy = 0;
+    }
+
+    if (brain.state === 'chatting') {
+      updateChat(world, a, dt);
+      Rig.updateActorMotion(a, dt);
+      return;
     }
 
     if (brain.state === 'approach' || brain.state === 'face' || brain.state === 'talk') {
@@ -4030,12 +4242,10 @@
     if (brain.state === 'pause') {
       a.gait = 'idle';
 
-      brain.gestureCooldown = (brain.gestureCooldown || 0) - dt;
-      if (!a.gesture && brain.gestureCooldown <= 0 && a.rng() < 0.55) {
-        Rig.startGesture(a, chooseGesture(world, a));
-        brain.gestureCooldown = 3.5 + a.rng() * 6;
-        brain.timer = Math.max(brain.timer, a.gesture.duration + 0.4);
-      }
+      reactiveGesture(world, a, dt);
+      tryStartChat(world, a);
+      if (brain.state === 'chatting') return;
+      if (a.gesture) brain.timer = Math.max(brain.timer, 0.3);
 
       if (brain.timer <= 0) {
         brain.state = 'wander';
@@ -4043,7 +4253,8 @@
         brain.dirIndex = Math.floor(a.rng() * 8);
       }
     } else if (brain.state === 'wander') {
-      a.gesture = null;
+      reactiveGesture(world, a, dt);
+      if (a.gesture) { a.gait = 'idle'; Rig.updateActorMotion(a, dt); return; }
       const dir = Rig.DIRECTIONS[brain.dirIndex];
       a.targetYaw = Rig.yawForDirection(dir.dx, dir.dy);
       if (Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 0.5) {
@@ -4086,6 +4297,7 @@
     for (let i = 1; i < world.actors.length; i++) {
       const a = world.actors[i];
       if (Rig.isDown(a) || a.brain.state === 'downed') continue;
+      if (a.stumbleTime > 0) continue;
       const d = distance(a, world.player);
       if (d < bestD) { bestD = d; best = a; }
     }
@@ -4098,16 +4310,52 @@
     if (Rig.isDown(world.player)) return false;
     const npc = nearestTalkable(world);
     if (!npc) return false;
+    // whoever they were chatting to is dropped
+    if (npc.brain.partner) endChat(npc, 10);
+    npc.gesture = null;
     npc.brain.state = distance(npc, world.player) > COMFORT_RANGE ? 'approach' : 'face';
     world.player.targetYaw = Rig.snapToEight(npc.x - world.player.x, npc.y - world.player.y);
     world.player.vx = 0; world.player.vy = 0;
     return true;
   }
 
+  /* Someone going down at speed takes out whoever they land on. */
+  function resolveRagdollCollisions(world, dt) {
+    for (let i = 0; i < world.actors.length; i++) {
+      const a = world.actors[i];
+      if (!Rig.isDown(a) || a.fall.state !== 'falling') continue;
+
+      const speed = Math.hypot(a.x - (a._px === undefined ? a.x : a._px),
+        a.y - (a._py === undefined ? a.y : a._py)) / Math.max(dt, 1e-4);
+      if (speed < 40) continue;
+
+      for (let j = 0; j < world.actors.length; j++) {
+        const b = world.actors[j];
+        if (b === a || Rig.isDown(b) || b.hitCooldown > 0) continue;
+        const dx = b.x - a.x, dy = (b.y - a.y) * 1.5;
+        const d = Math.hypot(dx, dy);
+        if (d > 15 || d === 0) continue;
+        const nx = dx / d, ny = dy / d / 1.5;
+        Rig.knockDown(b, nx, ny, 2.2 + speed / 45);
+        if (b.brain) {
+          if (b.brain.partner) endChat(b, 6);
+          b.brain.state = 'downed';
+          b.brain.timer = 0;
+        }
+        b.hitCooldown = 0.5;
+      }
+    }
+    for (let i = 0; i < world.actors.length; i++) {
+      world.actors[i]._px = world.actors[i].x;
+      world.actors[i]._py = world.actors[i].y;
+    }
+  }
+
   function update(world, dt) {
     updatePlayer(world, dt);
     for (let i = 1; i < world.actors.length; i++) updateVillager(world, world.actors[i], dt);
     resolveActorCollisions(world);
+    resolveRagdollCollisions(world, dt);
     D.update(world.box, dt);
 
     world.prompt = world.box.open ? null : nearestTalkable(world);

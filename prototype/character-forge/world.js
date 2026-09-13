@@ -43,7 +43,7 @@
   const PLAYER_R = 6.5;
   const NUDGE_SPEED = 30;      // above this, a bump visibly jostles you
   const TRIP_SPEED = 62;       // above this, an obstacle trips you
-  const FALL_SPEED = 104;      // only a tree, at nearly full sprint, floors you
+  const FALL_SPEED = 104;      // scenery at nearly full sprint floors you
   const CHEST_H = 20;          // contact heights, in model units
   const TALK_RANGE = 40;
   const CHAT_RANGE = 62;       // how close two villagers get talking
@@ -257,10 +257,10 @@
 
     // `tall` decides what happens when you hit it at speed: you go over a low
     // obstacle, you bounce off a tall one.
-    function addProp(sprite, x, y, r, tall, tree) {
+    function addProp(sprite, x, y, r, tall) {
       world.props.push({
         sprite: sprite, x: x, y: y, footY: sprite.footY, r: r,
-        shadowR: r * 1.5, tall: !!tall, tree: !!tree
+        shadowR: r * 1.5, tall: !!tall
       });
     }
 
@@ -268,7 +268,7 @@
       const x = 40 + rng() * (WORLD_W - 80);
       const y = 40 + rng() * (WORLD_H - 80);
       if (Math.abs(y - pathCentre(x)) < 36) continue; // keep the road clear
-      addProp(treeSprites[Math.floor(rng() * treeSprites.length)], x, y, 7.5, true, true);
+      addProp(treeSprites[Math.floor(rng() * treeSprites.length)], x, y, 7.5, true);
     }
     for (let i = 0; i < 22; i++) {
       addProp(rockSprites[Math.floor(rng() * rockSprites.length)],
@@ -326,8 +326,13 @@
   // the prop that caused it, so the caller can decide how hard to react.
   function resolvePropCollisions(world, a, radius) {
     let worst = 0, hit = null, hx = 0, hy = 0;
+    // Once you are on the floor a knee-high rock no longer stops you — you
+    // slide over it. Otherwise tripping over something low pins you against
+    // the very thing you were supposed to go over the top of.
+    const down = Rig.isDown(a);
     for (let i = 0; i < world.props.length; i++) {
       const p = world.props[i];
+      if (down && !p.tall) continue;
       const dx = a.x - p.x, dy = (a.y - p.y) * 1.6; // props are wider than deep
       const dist = Math.hypot(dx, dy);
       const min = radius + p.r;
@@ -357,18 +362,27 @@
    * jostle. Watching your own character's arms wobble every time you clip a
    * barrel reads as a glitch, not as impact. What the player feels is the
    * movement: you are stopped, turned off the thing, or put on the floor.
-   * A tree at full sprint is the one and only thing that floors you. */
+   * Scenery at full sprint floors you; villagers never do. */
   function reactToProp(player, impact) {
     if (!impact.prop || impact.speed < NUDGE_SPEED) return;
     if (player.hitCooldown > 0) return;
     player.hitCooldown = 0.4;
     const n = impact;
 
-    if (impact.prop.tree && impact.speed > FALL_SPEED) {
-      // Full throttle into a tree. The only thing in the game that floors you.
-      Rig.knockDown(player, n.nx, n.ny, 3.2 + impact.speed / 40);
-      player.vx = n.nx * impact.speed * 0.2;
-      player.vy = n.ny * impact.speed * 0.2;
+    if (impact.speed > FALL_SPEED) {
+      // Full throttle into scenery puts you on the floor, but which way you go
+      // depends on what you hit. Something tall stops you dead and you land
+      // back off it; something low takes your legs and you go over the top of
+      // it, still travelling.
+      if (impact.prop.tall) {
+        Rig.knockDown(player, n.nx, n.ny, 3.2 + impact.speed / 40);
+        player.vx = n.nx * impact.speed * 0.2;
+        player.vy = n.ny * impact.speed * 0.2;
+      } else {
+        Rig.knockDown(player, -n.nx, -n.ny, 2.6 + impact.speed / 52);
+        player.vx = -n.nx * impact.speed * 0.34;
+        player.vy = -n.ny * impact.speed * 0.34;
+      }
       return;
     }
 

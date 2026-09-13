@@ -4,6 +4,10 @@ The character creator and NPC prototype for the medieval simulation RPG.
 
 Open `index.html` in a browser. No build step, no dependencies.
 
+For a single file you can hand to someone — no server, works offline — run
+`node prototype/character-forge/build.js`, which inlines every script into
+`dist/character-forge.html`. Re-run it after changing anything here.
+
 ## Why it looks the way it does
 
 Characters are **real 3D box models rendered down to pixels**, not hand-drawn
@@ -40,6 +44,7 @@ test for it: no two co-visible perpendicular faces may ever share a step.
 | `dialogue.js` | The paged text box, typewriter reveal, bobbing arrow |
 | `world.js` | Ground, props, the villager brain, click-to-talk |
 | `app.js` | Editor UI, preview stage, world mode |
+| `build.js` | Inlines all of the above into `dist/character-forge.html` |
 
 ## What is implemented
 

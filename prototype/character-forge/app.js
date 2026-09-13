@@ -306,6 +306,7 @@
     ], function () { return state.animation; }, function (v) {
       state.animation = v;
       state.playingTrack = false;
+      previewActor.gesture = null;
     }));
 
     const knockRow = document.createElement('div');
@@ -344,6 +345,27 @@
     knockRow.appendChild(tripBtn);
     knockRow.appendChild(knockBtn);
     playback.appendChild(knockRow);
+
+    const gestureField = field('Gesture');
+    const gestureRow = document.createElement('div');
+    gestureRow.className = 'btn-row';
+    Rig.GESTURE_IDS.forEach(function (id) {
+      const g = document.createElement('button');
+      g.type = 'button';
+      g.className = 'btn';
+      g.id = 'gesture-' + id;
+      g.textContent = Rig.GESTURES[id].label;
+      g.addEventListener('click', function () {
+        state.animation = 'idle';
+        state.playingTrack = false;
+        previewActor.customPose = null;
+        Rig.startGesture(previewActor, id);
+        refreshControls();
+      });
+      gestureRow.appendChild(g);
+    });
+    gestureField.appendChild(gestureRow);
+    playback.appendChild(gestureField);
 
     const facing = document.createElement('div');
     facing.className = 'field';
@@ -641,7 +663,11 @@
     const c = state.character;
     const hairLabel = P.HAIR_STYLES[CM.indexOfId(P.HAIR_STYLES, c.hairStyle)].label;
     const anim = previewActor.fall.active
-      ? (previewActor.fall.mode === 'soft' ? 'jostled' : 'ragdoll ' + previewActor.fall.state)
+      ? (previewActor.fall.mode === 'full'
+        ? 'ragdoll ' + previewActor.fall.state
+        : previewActor.fall.mode)
+      : previewActor.gesture
+        ? Rig.GESTURES[previewActor.gesture.id].label.toLowerCase()
       : state.animation === 'pose'
         ? (state.playingTrack ? 'track' : 'posed')
         : state.animation;

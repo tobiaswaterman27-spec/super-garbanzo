@@ -326,8 +326,17 @@
         G.slab(-d.armW / 2, -d.upperArmH, -d.armW / 2, d.armW, d.upperArmH, d.armW, 1, 0.88),
         c.tunic));
 
+      // Shoulder ball, so the top of the arm stays attached as it swings.
+      upper.parts.push(part(G.superellipsoid(0, 0, 0,
+        d.armW * 0.5, d.armW * 0.5, d.armW * 0.5, 0.6, 3, 7), c.tunic));
+
       const fore = bone(right ? 'foreR' : 'foreL', [0, -d.upperArmH, 0]);
       const foreW = d.armW * 0.92;
+      // Elbow ball at the joint itself. Without it the forearm swings away
+      // from the flat underside of the upper arm and opens a visible gap.
+      fore.parts.push(part(G.superellipsoid(0, 0, 0,
+        d.armW * 0.47, d.armW * 0.47, d.armW * 0.47, 0.6, 3, 7),
+        longSleeve ? c.tunic : c.skin));
       if (longSleeve) {
         const flare = g.sleeves === 'wide' ? 1.5 : 0.15;
         fore.parts.push(part(
@@ -356,9 +365,14 @@
       upper.parts.push(part(
         G.slab(-d.legW / 2, -d.upperLegH, -d.legW / 2, d.legW, d.upperLegH, d.legW, 1, 0.9),
         c.trouser));
+      upper.parts.push(part(G.superellipsoid(0, 0, 0,
+        d.legW * 0.5, d.legW * 0.5, d.legW * 0.5, 0.6, 3, 7), c.trouser));
 
       const shin = bone(right ? 'shinR' : 'shinL', [0, -d.upperLegH, 0]);
       const shinW = d.legW * 0.94;
+      // Knee ball, for the same reason as the elbow.
+      shin.parts.push(part(G.superellipsoid(0, 0, 0,
+        d.legW * 0.48, d.legW * 0.48, d.legW * 0.48, 0.6, 3, 7), c.trouser));
       shin.parts.push(part(
         G.slab(-shinW / 2, -d.lowerLegH, -shinW / 2, shinW, d.lowerLegH, shinW, 1, 0.82),
         c.trouser));

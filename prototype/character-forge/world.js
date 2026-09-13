@@ -243,7 +243,8 @@
         player.x + (rng() - 0.5) * 420, player.y + (rng() - 0.5) * 280,
         (seed + i * 977) >>> 0);
       a.buffer = R.createTarget(ACTOR_BUF.w, ACTOR_BUF.h);
-      a.brain = { state: 'pause', timer: 0.5 + rng() * 2.5, dirIndex: Math.floor(rng() * 8) };
+      a.brain = { state: 'pause', timer: 0.5 + rng() * 2.5, dirIndex: Math.floor(rng() * 8),
+        gestureCooldown: rng() * 5 };
       world.actors.push(a);
     }
 
@@ -303,6 +304,8 @@
   // Everything that happens to the player when they run into scenery.
   function reactToProp(player, impact) {
     if (!impact.prop || impact.speed < NUDGE_SPEED) return;
+    if (player.hitCooldown > 0) return;
+    player.hitCooldown = 0.4;
     const n = impact;
     const tall = impact.prop.tall;
 
@@ -324,7 +327,7 @@
       return;
     }
 
-    Rig.nudge(player, n.nx, n.ny, 1.0 + impact.speed / 60, tall ? CHEST_H : SHIN_H);
+    Rig.nudge(player, n.nx, n.ny, 0.7 + impact.speed / 90, tall ? CHEST_H : SHIN_H);
   }
 
   function resolveActorCollisions(world) {
@@ -346,15 +349,38 @@
       a.x += nx * push; a.y += ny * push;
       player.x -= nx * push; player.y -= ny * push;
 
-      // Running into someone knocks them about — it never puts them down.
-      // The impulse is aimed at the height it landed, so a shoulder charge
-      // moves a shoulder rather than the whole person.
-      if (speed > NUDGE_SPEED) {
-        if (!Rig.isDown(a)) Rig.nudge(a, nx, ny, 1.1 + speed / 42, CHEST_H);
-        Rig.nudge(player, -nx, -ny, 0.9 + speed / 52, CHEST_H);
-        player.vx *= 0.72;
-        player.vy *= 0.72;
+      // Running into someone moves them out of the way. The body takes a
+      // small knock at the height it was hit, but the reaction you actually
+      // read is the displacement — a person rooted to the spot waving their
+      // limbs looks like a flail however the limbs are tuned.
+      if (speed > NUDGE_SPEED && !Rig.isDown(a) && a.hitCooldown <= 0) {
+        if (speed > FALL_SPEED) {
+          // flat out: they go over
+          Rig.knockDown(a, nx, ny, 2.4 + speed / 38);
+          if (a.brain) { a.brain.state = 'downed'; a.brain.timer = 0; }
+        } else if (speed > TRIP_SPEED) {
+          // a proper shoulder charge: they stagger several steps away
+          Rig.stumble(a, nx, ny, 70 + speed * 0.5, 0.7);
+          Rig.nudge(a, nx, ny, 1.0, CHEST_H);
+        } else {
+          // a bump in passing: they step aside
+          Rig.shove(a, nx, ny, 14 + speed * 0.18);
+          Rig.nudge(a, nx, ny, 0.6, CHEST_H);
+        }
+        a.hitCooldown = 0.45;
         if (world.talkingTo === a) D.close(world.box);
+
+        // The player brushes past or stumbles; they never flail.
+        if (speed > TRIP_SPEED) {
+          Rig.stumble(player, -nx, -ny, 20, 0.4);
+          Rig.nudge(player, -nx, -ny, 0.7, CHEST_H);
+          player.vx *= 0.62;
+          player.vy *= 0.62;
+        } else {
+          player.vx *= 0.88;
+          player.vy *= 0.88;
+        }
+        player.hitCooldown = 0.45;
       }
     }
   }
@@ -402,6 +428,7 @@
 
     p.x += p.vx * dt;
     p.y += p.vy * dt;
+    Rig.applyShove(p, dt);
 
     const impact = resolvePropCollisions(world, p, PLAYER_R);
     reactToProp(p, impact);
@@ -412,6 +439,7 @@
     // worse than legs that have simply stopped.
     const nowSpeed = Math.hypot(p.vx, p.vy);
     if (Rig.isDown(p)) p.gait = 'idle';
+    else if (p.stumbleTime > 0) p.gait = 'walk';
     else if (sliding) p.gait = 'idle';
     else if (nowSpeed > SPEED.walk * 1.25) p.gait = 'run';
     else if (nowSpeed > 6) p.gait = 'walk';
@@ -422,9 +450,41 @@
 
   /* ---------- villagers ---------- */
 
+  /* A villager standing about picks something to do now and then: waving at a
+   * neighbour, flinching from someone sprinting at them, or just shifting a
+   * load. These are the only thing besides eyes and mouth that moves a
+   * standing character, and they read as intent rather than as drift. */
+  function chooseGesture(world, a) {
+    const player = world.player;
+    const playerSpeed = Math.hypot(player.vx, player.vy);
+    if (playerSpeed > TRIP_SPEED && distance(a, player) < 76) return 'fear';
+
+    for (let i = 1; i < world.actors.length; i++) {
+      const other = world.actors[i];
+      if (other === a || Rig.isDown(other)) continue;
+      if (distance(a, other) < 74) return a.rng() < 0.5 ? 'wave' : 'greet';
+    }
+    const idle = ['ponder', 'carry', 'laugh', 'greet'];
+    return idle[Math.floor(a.rng() * idle.length)];
+  }
+
   function updateVillager(world, a, dt) {
     const brain = a.brain;
     const player = world.player;
+
+    Rig.applyShove(a, dt);
+
+    // Shoved hard enough to have to catch themselves: they walk it off,
+    // facing the way they are being pushed.
+    if (a.stumbleTime > 0 && !Rig.isDown(a)) {
+      a.gesture = null;
+      a.gait = 'walk';
+      if (a.shoveX || a.shoveY) a.targetYaw = Rig.yawForDirection(a.shoveX, a.shoveY);
+      clampVillager(a);
+      Rig.updateActorMotion(a, dt);
+      if (brain.state === 'wander' || brain.state === 'pause') brain.timer = 0.5 + a.rng();
+      return;
+    }
 
     // While down, the ragdoll itself moves the body — it hands its drift back
     // to the actor position each step, so nothing else should push it.
@@ -474,12 +534,21 @@
     brain.timer -= dt;
     if (brain.state === 'pause') {
       a.gait = 'idle';
+
+      brain.gestureCooldown = (brain.gestureCooldown || 0) - dt;
+      if (!a.gesture && brain.gestureCooldown <= 0 && a.rng() < 0.55) {
+        Rig.startGesture(a, chooseGesture(world, a));
+        brain.gestureCooldown = 3.5 + a.rng() * 6;
+        brain.timer = Math.max(brain.timer, a.gesture.duration + 0.4);
+      }
+
       if (brain.timer <= 0) {
         brain.state = 'wander';
         brain.timer = 1.2 + a.rng() * 3.2;
         brain.dirIndex = Math.floor(a.rng() * 8);
       }
     } else if (brain.state === 'wander') {
+      a.gesture = null;
       const dir = Rig.DIRECTIONS[brain.dirIndex];
       a.targetYaw = Rig.yawForDirection(dir.dx, dir.dy);
       if (Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 0.5) {

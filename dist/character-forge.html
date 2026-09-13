@@ -1895,8 +1895,17 @@
         G.slab(-d.armW / 2, -d.upperArmH, -d.armW / 2, d.armW, d.upperArmH, d.armW, 1, 0.88),
         c.tunic));
 
+      // Shoulder ball, so the top of the arm stays attached as it swings.
+      upper.parts.push(part(G.superellipsoid(0, 0, 0,
+        d.armW * 0.5, d.armW * 0.5, d.armW * 0.5, 0.6, 3, 7), c.tunic));
+
       const fore = bone(right ? 'foreR' : 'foreL', [0, -d.upperArmH, 0]);
       const foreW = d.armW * 0.92;
+      // Elbow ball at the joint itself. Without it the forearm swings away
+      // from the flat underside of the upper arm and opens a visible gap.
+      fore.parts.push(part(G.superellipsoid(0, 0, 0,
+        d.armW * 0.47, d.armW * 0.47, d.armW * 0.47, 0.6, 3, 7),
+        longSleeve ? c.tunic : c.skin));
       if (longSleeve) {
         const flare = g.sleeves === 'wide' ? 1.5 : 0.15;
         fore.parts.push(part(
@@ -1925,9 +1934,14 @@
       upper.parts.push(part(
         G.slab(-d.legW / 2, -d.upperLegH, -d.legW / 2, d.legW, d.upperLegH, d.legW, 1, 0.9),
         c.trouser));
+      upper.parts.push(part(G.superellipsoid(0, 0, 0,
+        d.legW * 0.5, d.legW * 0.5, d.legW * 0.5, 0.6, 3, 7), c.trouser));
 
       const shin = bone(right ? 'shinR' : 'shinL', [0, -d.upperLegH, 0]);
       const shinW = d.legW * 0.94;
+      // Knee ball, for the same reason as the elbow.
+      shin.parts.push(part(G.superellipsoid(0, 0, 0,
+        d.legW * 0.48, d.legW * 0.48, d.legW * 0.48, 0.6, 3, 7), c.trouser));
       shin.parts.push(part(
         G.slab(-shinW / 2, -d.lowerLegH, -shinW / 2, shinW, d.lowerLegH, shinW, 1, 0.82),
         c.trouser));
@@ -2445,12 +2459,12 @@
   const SOFT_PULL = {
     footR: 1, footL: 1, hipR: 0.9, hipL: 0.9, pelvis: 0.85,
     kneeR: 0.7, kneeL: 0.7,
-    chest: 0.3, neck: 0.26, headTop: 0.2,
-    shoulderR: 0.32, shoulderL: 0.32,
-    elbowR: 0.18, elbowL: 0.18, handR: 0.13, handL: 0.13
+    chest: 0.45, neck: 0.4, headTop: 0.32,
+    shoulderR: 0.48, shoulderL: 0.48,
+    elbowR: 0.3, elbowL: 0.3, handR: 0.24, handL: 0.24
   };
   const LOWER_BODY = ['footR', 'footL', 'hipR', 'hipL', 'pelvis', 'kneeR', 'kneeL'];
-  const SOFT_TIME = 0.7;
+  const SOFT_TIME = 0.5;
   const TRIP_TIME = 1.0;
 
   // How close every joint has to be to the animated pose before control is
@@ -2508,7 +2522,7 @@
     const px = dirX / len, pz = dirY / len;
     const full = mode === 'full';
     const cap = full ? 9.0 : 5.0;
-    const impulse = Math.max(1.0, Math.min(cap, force)) * SUBSTEP * (full ? 7.5 : 6.0);
+    const impulse = Math.max(0.6, Math.min(cap, force)) * SUBSTEP * (full ? 7.5 : 3.1);
 
     let tallest = 1;
     for (let i = 0; i < JOINT_NAMES.length; i++) {
@@ -2632,6 +2646,42 @@
           q.pz += (q.z - q.pz) * 0.4;
         }
       }
+    }
+  }
+
+  /* A falling person is not a sack. They throw their hands out and tuck their
+   * head — so the arms and head are driven while the rest stays at the mercy
+   * of the physics. Cheap, and it is the difference between a ragdoll and
+   * someone actually going down. */
+  function braceDuringFall(f, dt) {
+    const p = f.p;
+    let dx = p.chest.x - p.chest.px, dz = p.chest.z - p.chest.pz;
+    const len = Math.hypot(dx, dz);
+    if (len < 1e-4) { dx = 0; dz = 1; } else { dx /= len; dz /= len; }
+
+    const reach = Math.min(1, dt * 5);
+    const sides = [['shoulderR', 'elbowR', 'handR'], ['shoulderL', 'elbowL', 'handL']];
+    for (let s = 0; s < sides.length; s++) {
+      const sh = p[sides[s][0]], el = p[sides[s][1]], hd = p[sides[s][2]];
+      if (!sh || !el || !hd) continue;
+      // hands out ahead of the shoulders and down toward the ground
+      const tx = sh.x + dx * 5.5;
+      const ty = Math.max(1.6, sh.y - 7.5);
+      const tz = sh.z + dz * 5.5;
+      hd.x += (tx - hd.x) * reach;
+      hd.y += (ty - hd.y) * reach;
+      hd.z += (tz - hd.z) * reach;
+      el.x += ((sh.x + tx) / 2 - el.x) * reach * 0.6;
+      el.y += ((sh.y + ty) / 2 - el.y) * reach * 0.6;
+      el.z += ((sh.z + tz) / 2 - el.z) * reach * 0.6;
+    }
+
+    // chin toward the chest
+    const head = p.headTop, chest = p.chest;
+    if (head && chest) {
+      const tuck = Math.min(1, dt * 2.2);
+      head.x += (chest.x - head.x) * tuck * 0.25;
+      head.z += (chest.z - head.z) * tuck * 0.25;
     }
   }
 
@@ -2777,6 +2827,7 @@
       simulate(f, step, 1);
       acc -= step;
     }
+    if (f.state === 'falling') braceDuringFall(f, dt);
 
     // hand the pelvis drift back to the actor so a tumbling body travels
     const pelvis = f.p.pelvis;
@@ -2874,6 +2925,113 @@
           R.drawMesh(target, m, part.mesh, R.ramp(part.colour), camera, part);
         }
       }
+    }
+  }
+
+  /* ---------- gestures ----------
+   *
+   * Deliberate, occasional actions layered over the still idle pose. They are
+   * the one thing besides eyes and mouth allowed to move a standing character,
+   * because they read as someone doing something rather than as drift.
+   *
+   * Each returns bone rotations to add to the idle pose; an envelope eases
+   * them in and out so nothing snaps.
+   */
+
+  const TWO_PI = Math.PI * 2;
+
+  const GESTURES = {
+    wave: {
+      duration: 2.1,
+      label: 'Wave',
+      pose: function (t) {
+        return {
+          armR: [-0.25, 0, -2.35],
+          foreR: [0, 0, Math.sin(t * TWO_PI * 3) * 0.45 - 0.6],
+          head: [0, 0.16, 0],
+          torso: [0, 0.05, 0]
+        };
+      }
+    },
+    fear: {
+      duration: 1.7,
+      label: 'Alarm',
+      pose: function (t) {
+        const flinch = 1 - Math.min(1, t * 3);
+        return {
+          armR: [-1.45, 0, -0.42], foreR: [-1.35, 0, 0],
+          armL: [-1.45, 0, 0.42], foreL: [-1.35, 0, 0],
+          torso: [-0.26 - flinch * 0.1, 0, 0],
+          head: [0.22, 0, 0]
+        };
+      }
+    },
+    laugh: {
+      duration: 2.2,
+      label: 'Laugh',
+      pose: function (t) {
+        const rock = Math.sin(t * TWO_PI * 3.2);
+        return {
+          torso: [0.2 + rock * 0.15, 0, 0],
+          head: [-0.3 + rock * 0.1, 0, 0],
+          armR: [-0.85, 0, 0.7], foreR: [-1.6, 0, 0],
+          armL: [0.15, 0, -0.2]
+        };
+      }
+    },
+    ponder: {
+      duration: 2.6,
+      label: 'Ponder',
+      pose: function (t) {
+        return {
+          armR: [-1.25, 0, 0.5], foreR: [-1.95, 0, 0.15],
+          head: [0.08, 0.12, 0.14],
+          torso: [0.04, 0.06, 0]
+        };
+      }
+    },
+    carry: {
+      duration: 3.2,
+      label: 'Carry',
+      pose: function (t) {
+        const sway = Math.sin(t * TWO_PI) * 0.05;
+        return {
+          armR: [-0.28, 0, 0.16], foreR: [-1.5 + sway, 0, 0.1],
+          armL: [-0.28, 0, -0.16], foreL: [-1.5 - sway, 0, -0.1]
+        };
+      }
+    },
+    greet: {
+      duration: 1.6,
+      label: 'Nod',
+      pose: function (t) {
+        const nod = Math.sin(t * TWO_PI * 1.5);
+        return { head: [nod * 0.26, 0, 0], torso: [nod * 0.06, 0, 0] };
+      }
+    }
+  };
+
+  const GESTURE_IDS = Object.keys(GESTURES);
+
+  function startGesture(actor, id) {
+    const g = GESTURES[id];
+    if (!g) return false;
+    actor.gesture = { id: id, t: 0, duration: g.duration };
+    return true;
+  }
+
+  function applyGesture(model, gesture, qTime) {
+    poseIdle(model);
+    const g = GESTURES[gesture.id];
+    if (!g) return;
+    const t = Math.min(gesture.duration, quantiseTime(gesture.t));
+    const phase = t / gesture.duration;
+    // ease in and out so a gesture never starts or ends on a jump
+    const env = Math.min(1, phase / 0.14) * Math.min(1, (1 - phase) / 0.18);
+    const offs = g.pose(phase);
+    for (const name in offs) {
+      const v = offs[name];
+      addRot(model, name, v[0] * env, v[1] * env, v[2] * env);
     }
   }
 
@@ -2980,6 +3138,8 @@
       viseme: 'rest',
       gaze: 0,
       speaking: false,
+      shoveX: 0, shoveY: 0, stumbleTime: 0, hitCooldown: 0,
+      gesture: null,
       fall: createFall(),
       brain: null,
       buffer: null,
@@ -2992,6 +3152,40 @@
     actor._key = '';
   }
 
+  /* Being shoved moves the whole character. A bump should push someone aside,
+   * not leave them rooted to the spot waving their arms — that reads as a
+   * flail no matter how the limbs are tuned. */
+  function shove(actor, dirX, dirY, speed) {
+    const len = Math.hypot(dirX, dirY) || 1;
+    actor.shoveX += (dirX / len) * speed;
+    actor.shoveY += (dirY / len) * speed;
+  }
+
+  // A stumble: shoved hard enough that they have to put their feet down. The
+  // walk cycle runs for the duration so the legs actually catch them.
+  function stumble(actor, dirX, dirY, speed, duration) {
+    shove(actor, dirX, dirY, speed);
+    actor.stumbleTime = Math.max(actor.stumbleTime || 0, duration === undefined ? 0.55 : duration);
+  }
+
+  function applyShove(actor, dt) {
+    if (actor.stumbleTime > 0) actor.stumbleTime = Math.max(0, actor.stumbleTime - dt);
+    // One reaction per contact. Bodies stay overlapped for many frames while
+    // they are pushed apart, and re-reacting on each of those frames stacks
+    // into a shove several times the size of the one that was intended.
+    if (actor.hitCooldown > 0) actor.hitCooldown = Math.max(0, actor.hitCooldown - dt);
+    if (!actor.shoveX && !actor.shoveY) return;
+    actor.x += actor.shoveX * dt;
+    actor.y += actor.shoveY * dt;
+    const decay = Math.exp(-dt * 5.5);
+    actor.shoveX *= decay;
+    actor.shoveY *= decay;
+    if (Math.abs(actor.shoveX) < 0.6 && Math.abs(actor.shoveY) < 0.6) {
+      actor.shoveX = 0;
+      actor.shoveY = 0;
+    }
+  }
+
   const TURN_RATE = 11.0;
 
   function updateActorMotion(actor, dt) {
@@ -3001,6 +3195,10 @@
     else actor.yaw += Math.sign(diff) * maxStep;
 
     actor.animTime += dt;
+    if (actor.gesture) {
+      actor.gesture.t += dt;
+      if (actor.gesture.t >= actor.gesture.duration) actor.gesture = null;
+    }
     updateFall(actor, dt);
     updateBlink(actor, dt);
   }
@@ -3031,6 +3229,7 @@
     if (actor.customPose) { applyPose(model, actor.customPose, actor.customBob || 0); return; }
     if (actor.gait === 'walk') poseWalk(model, qTime, false);
     else if (actor.gait === 'run') poseWalk(model, qTime, true);
+    else if (actor.gesture) applyGesture(model, actor.gesture, qTime);
     else poseIdle(model);
   }
 
@@ -3084,7 +3283,8 @@
     // A ragdoll changes every frame, so it never reuses a cached buffer.
     const key = f.active ? null : [
       qTime, qYaw, actor.gait, actor.blink > 0.5 ? 1 : actor.blink > 0 ? 2 : 0,
-      actor.viseme, actor.customPose ? 'p' + actor.animTime : ''
+      actor.viseme, actor.customPose ? 'p' + actor.animTime : '',
+      actor.gesture ? actor.gesture.id + quantiseTime(actor.gesture.t) : ''
     ].join('|');
     if (key !== null && key === actor._key && !(opts && opts.force)) return target;
     actor._key = key === null ? '' : key;
@@ -3114,6 +3314,8 @@
     yawForDirection, snapToEight, directionName, shortestAngle,
     createActor, rebuildActorModel, updateActorMotion, updateBlink,
     createFall, knockDown, nudge, trip, applyImpulse, updateFall, isDown,
+    shove, stumble, applyShove,
+    GESTURES, GESTURE_IDS, startGesture, applyGesture,
     jointPositions, segmentMatrix, drawRagdoll,
     poseActor, drawModel, renderActor, OUTLINE
   };
@@ -3567,7 +3769,8 @@
         player.x + (rng() - 0.5) * 420, player.y + (rng() - 0.5) * 280,
         (seed + i * 977) >>> 0);
       a.buffer = R.createTarget(ACTOR_BUF.w, ACTOR_BUF.h);
-      a.brain = { state: 'pause', timer: 0.5 + rng() * 2.5, dirIndex: Math.floor(rng() * 8) };
+      a.brain = { state: 'pause', timer: 0.5 + rng() * 2.5, dirIndex: Math.floor(rng() * 8),
+        gestureCooldown: rng() * 5 };
       world.actors.push(a);
     }
 
@@ -3627,6 +3830,8 @@
   // Everything that happens to the player when they run into scenery.
   function reactToProp(player, impact) {
     if (!impact.prop || impact.speed < NUDGE_SPEED) return;
+    if (player.hitCooldown > 0) return;
+    player.hitCooldown = 0.4;
     const n = impact;
     const tall = impact.prop.tall;
 
@@ -3648,7 +3853,7 @@
       return;
     }
 
-    Rig.nudge(player, n.nx, n.ny, 1.0 + impact.speed / 60, tall ? CHEST_H : SHIN_H);
+    Rig.nudge(player, n.nx, n.ny, 0.7 + impact.speed / 90, tall ? CHEST_H : SHIN_H);
   }
 
   function resolveActorCollisions(world) {
@@ -3670,15 +3875,38 @@
       a.x += nx * push; a.y += ny * push;
       player.x -= nx * push; player.y -= ny * push;
 
-      // Running into someone knocks them about — it never puts them down.
-      // The impulse is aimed at the height it landed, so a shoulder charge
-      // moves a shoulder rather than the whole person.
-      if (speed > NUDGE_SPEED) {
-        if (!Rig.isDown(a)) Rig.nudge(a, nx, ny, 1.1 + speed / 42, CHEST_H);
-        Rig.nudge(player, -nx, -ny, 0.9 + speed / 52, CHEST_H);
-        player.vx *= 0.72;
-        player.vy *= 0.72;
+      // Running into someone moves them out of the way. The body takes a
+      // small knock at the height it was hit, but the reaction you actually
+      // read is the displacement — a person rooted to the spot waving their
+      // limbs looks like a flail however the limbs are tuned.
+      if (speed > NUDGE_SPEED && !Rig.isDown(a) && a.hitCooldown <= 0) {
+        if (speed > FALL_SPEED) {
+          // flat out: they go over
+          Rig.knockDown(a, nx, ny, 2.4 + speed / 38);
+          if (a.brain) { a.brain.state = 'downed'; a.brain.timer = 0; }
+        } else if (speed > TRIP_SPEED) {
+          // a proper shoulder charge: they stagger several steps away
+          Rig.stumble(a, nx, ny, 70 + speed * 0.5, 0.7);
+          Rig.nudge(a, nx, ny, 1.0, CHEST_H);
+        } else {
+          // a bump in passing: they step aside
+          Rig.shove(a, nx, ny, 14 + speed * 0.18);
+          Rig.nudge(a, nx, ny, 0.6, CHEST_H);
+        }
+        a.hitCooldown = 0.45;
         if (world.talkingTo === a) D.close(world.box);
+
+        // The player brushes past or stumbles; they never flail.
+        if (speed > TRIP_SPEED) {
+          Rig.stumble(player, -nx, -ny, 20, 0.4);
+          Rig.nudge(player, -nx, -ny, 0.7, CHEST_H);
+          player.vx *= 0.62;
+          player.vy *= 0.62;
+        } else {
+          player.vx *= 0.88;
+          player.vy *= 0.88;
+        }
+        player.hitCooldown = 0.45;
       }
     }
   }
@@ -3726,6 +3954,7 @@
 
     p.x += p.vx * dt;
     p.y += p.vy * dt;
+    Rig.applyShove(p, dt);
 
     const impact = resolvePropCollisions(world, p, PLAYER_R);
     reactToProp(p, impact);
@@ -3736,6 +3965,7 @@
     // worse than legs that have simply stopped.
     const nowSpeed = Math.hypot(p.vx, p.vy);
     if (Rig.isDown(p)) p.gait = 'idle';
+    else if (p.stumbleTime > 0) p.gait = 'walk';
     else if (sliding) p.gait = 'idle';
     else if (nowSpeed > SPEED.walk * 1.25) p.gait = 'run';
     else if (nowSpeed > 6) p.gait = 'walk';
@@ -3746,9 +3976,41 @@
 
   /* ---------- villagers ---------- */
 
+  /* A villager standing about picks something to do now and then: waving at a
+   * neighbour, flinching from someone sprinting at them, or just shifting a
+   * load. These are the only thing besides eyes and mouth that moves a
+   * standing character, and they read as intent rather than as drift. */
+  function chooseGesture(world, a) {
+    const player = world.player;
+    const playerSpeed = Math.hypot(player.vx, player.vy);
+    if (playerSpeed > TRIP_SPEED && distance(a, player) < 76) return 'fear';
+
+    for (let i = 1; i < world.actors.length; i++) {
+      const other = world.actors[i];
+      if (other === a || Rig.isDown(other)) continue;
+      if (distance(a, other) < 74) return a.rng() < 0.5 ? 'wave' : 'greet';
+    }
+    const idle = ['ponder', 'carry', 'laugh', 'greet'];
+    return idle[Math.floor(a.rng() * idle.length)];
+  }
+
   function updateVillager(world, a, dt) {
     const brain = a.brain;
     const player = world.player;
+
+    Rig.applyShove(a, dt);
+
+    // Shoved hard enough to have to catch themselves: they walk it off,
+    // facing the way they are being pushed.
+    if (a.stumbleTime > 0 && !Rig.isDown(a)) {
+      a.gesture = null;
+      a.gait = 'walk';
+      if (a.shoveX || a.shoveY) a.targetYaw = Rig.yawForDirection(a.shoveX, a.shoveY);
+      clampVillager(a);
+      Rig.updateActorMotion(a, dt);
+      if (brain.state === 'wander' || brain.state === 'pause') brain.timer = 0.5 + a.rng();
+      return;
+    }
 
     // While down, the ragdoll itself moves the body — it hands its drift back
     // to the actor position each step, so nothing else should push it.
@@ -3798,12 +4060,21 @@
     brain.timer -= dt;
     if (brain.state === 'pause') {
       a.gait = 'idle';
+
+      brain.gestureCooldown = (brain.gestureCooldown || 0) - dt;
+      if (!a.gesture && brain.gestureCooldown <= 0 && a.rng() < 0.55) {
+        Rig.startGesture(a, chooseGesture(world, a));
+        brain.gestureCooldown = 3.5 + a.rng() * 6;
+        brain.timer = Math.max(brain.timer, a.gesture.duration + 0.4);
+      }
+
       if (brain.timer <= 0) {
         brain.state = 'wander';
         brain.timer = 1.2 + a.rng() * 3.2;
         brain.dirIndex = Math.floor(a.rng() * 8);
       }
     } else if (brain.state === 'wander') {
+      a.gesture = null;
       const dir = Rig.DIRECTIONS[brain.dirIndex];
       a.targetYaw = Rig.yawForDirection(dir.dx, dir.dy);
       if (Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 0.5) {
@@ -4270,6 +4541,7 @@
     ], function () { return state.animation; }, function (v) {
       state.animation = v;
       state.playingTrack = false;
+      previewActor.gesture = null;
     }));
 
     const knockRow = document.createElement('div');
@@ -4308,6 +4580,27 @@
     knockRow.appendChild(tripBtn);
     knockRow.appendChild(knockBtn);
     playback.appendChild(knockRow);
+
+    const gestureField = field('Gesture');
+    const gestureRow = document.createElement('div');
+    gestureRow.className = 'btn-row';
+    Rig.GESTURE_IDS.forEach(function (id) {
+      const g = document.createElement('button');
+      g.type = 'button';
+      g.className = 'btn';
+      g.id = 'gesture-' + id;
+      g.textContent = Rig.GESTURES[id].label;
+      g.addEventListener('click', function () {
+        state.animation = 'idle';
+        state.playingTrack = false;
+        previewActor.customPose = null;
+        Rig.startGesture(previewActor, id);
+        refreshControls();
+      });
+      gestureRow.appendChild(g);
+    });
+    gestureField.appendChild(gestureRow);
+    playback.appendChild(gestureField);
 
     const facing = document.createElement('div');
     facing.className = 'field';
@@ -4605,7 +4898,11 @@
     const c = state.character;
     const hairLabel = P.HAIR_STYLES[CM.indexOfId(P.HAIR_STYLES, c.hairStyle)].label;
     const anim = previewActor.fall.active
-      ? (previewActor.fall.mode === 'soft' ? 'jostled' : 'ragdoll ' + previewActor.fall.state)
+      ? (previewActor.fall.mode === 'full'
+        ? 'ragdoll ' + previewActor.fall.state
+        : previewActor.fall.mode)
+      : previewActor.gesture
+        ? Rig.GESTURES[previewActor.gesture.id].label.toLowerCase()
       : state.animation === 'pose'
         ? (state.playingTrack ? 'track' : 'posed')
         : state.animation;

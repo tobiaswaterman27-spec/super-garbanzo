@@ -63,7 +63,13 @@ test for it: no two co-visible perpendicular faces may ever share a step.
   stop, to drop back to a walk.
 - Trees, rocks, barrels and the cart are solid. Hitting one kills your inward
   velocity, bleeds the rest and staggers you if you were moving fast.
-- Three reaction strengths, and only the hardest puts anyone on the ground:
+- Collisions are answered mostly by **moving the body**, not by waving its
+  limbs about. A person rooted to the spot flapping reads as a flail however
+  the limbs are tuned; a person shoved aside reads as a collision. Walk into
+  a villager and they step aside; jog into them and they stumble several
+  paces away; hit them flat out and they go over.
+- Three ragdoll strengths layer on top of that, and only the hardest puts
+  anyone on the ground:
   - **Jostle** — any contact above a walking pace. The impulse is aimed at the
     height the hit landed, so bumping someone's shoulder moves their shoulder
     rather than all of them.
@@ -72,8 +78,12 @@ test for it: no two co-visible perpendicular faces may ever share a step.
     obstacles pitch you forward over the top; a tree stops you dead and you
     stumble back off it. You stay on your feet either way.
   - **Fall** — only a tree, only at nearly full sprint.
-- Villagers are never knocked to the ground by a collision; they are jostled
-  and stay standing.
+- A character going down is not limp: their arms reach for the ground and
+  their head tucks while the rest of the body is left to the physics.
+- Idle villagers pick **gestures** now — waving at a neighbour, flinching from
+  someone sprinting at them, laughing, pondering, carrying something. These
+  are the only thing besides eyes and mouth that moves a standing character,
+  and they read as intent rather than as drift.
 - Idle characters hold perfectly still. The only things that move are eyes
   (random blinks, sometimes a double) and mouth shapes driven by whichever
   letter is currently being revealed.
@@ -108,6 +118,10 @@ corner does not.
   written against that box so they scale with the skull.
 - **Randomness is seeded.** `CharacterModel.makeRng(seed)` everywhere, so a
   given seed always rebuilds the same village.
+- **Every bending joint needs a ball.** A tapered limb capped with a flat face
+  opens a wedge-shaped hole the moment the joint bends, which is why the
+  characters had no elbows. There are spheres at the shoulder, elbow, hip and
+  knee.
 - **Hair must be one connected mass.** Every piece of a hairstyle has to overlap
   at least one other on all three axes, or a seam opens up around the skull once
   the head rotates. There is a test for this.

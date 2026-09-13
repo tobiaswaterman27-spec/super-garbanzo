@@ -3843,7 +3843,6 @@
   const TRIP_SPEED = 62;       // above this, an obstacle trips you
   const FALL_SPEED = 104;      // only a tree, at nearly full sprint, floors you
   const CHEST_H = 20;          // contact heights, in model units
-  const SHIN_H = 7;
   const TALK_RANGE = 40;
   const CHAT_RANGE = 62;       // how close two villagers get talking
   const GREET_RANGE = 70;
@@ -3946,20 +3945,48 @@
     const boxes = [];
     // Roughly three times a person, so running into one is obviously running
     // into something you cannot go over.
-    const trunkH = 36 + rng() * 14;
-    boxes.push({ mesh: G.slab(-2.4, 0, -2.4, 4.8, trunkH, 4.8, 0.62, 1), colour: '#4d3726' });
-    const clumps = 7 + Math.floor(rng() * 4);
-    for (let i = 0; i < clumps; i++) {
-      const s = 8 + rng() * 6;
-      const a = (i / clumps) * Math.PI * 2 + rng();
-      const rad = i === 0 ? 0 : 4.5 + rng() * 4;
+    const trunkH = 34 + rng() * 13;
+    const tw = 7.6 + rng() * 1.6;                 // a trunk you clearly cannot pass
+    boxes.push({ mesh: G.slab(-tw / 2, 0, -tw / 2, tw, trunkH, tw, 0.62, 1), colour: '#4d3726' });
+    // a flare at the base so it meets the ground like a tree, not a post
+    boxes.push({
+      mesh: G.taper(-(tw + 2.6) / 2, 0, -(tw + 2.6) / 2, tw + 2.6, 5.5, tw + 2.6, 0.72),
+      colour: '#42301f'
+    });
+
+    /* Canopy: two rings of clumps plus a crown, so the top reads as a mass of
+     * leaves rather than a handful of separate blobs. The lower ring is
+     * pushed out and down to give the silhouette a wide, heavy skirt. */
+    const dark = ['#2f4a28', '#274123', '#345127'];
+    const light = ['#3d5f31', '#446a36', '#39572f'];
+    function clump(x, y, z, s, lit) {
       boxes.push({
-        mesh: G.superellipsoid(Math.cos(a) * rad, trunkH - 2 + rng() * 8 + s / 2, Math.sin(a) * rad,
-          s / 2, s / 2, s / 2, 0.8, 4, 8),
-        colour: rng() < 0.5 ? '#39572f' : '#2f4a28'
+        mesh: G.superellipsoid(x, y, z, s / 2, s / 2 * 0.86, s / 2, 0.78, 5, 10),
+        colour: (lit ? light : dark)[Math.floor(rng() * 3)]
       });
     }
-    return renderBoxes(boxes, 104 * PIXEL, 136 * PIXEL, 52 * PIXEL, 128 * PIXEL, CAM_SCALE);
+    // Each clump is wider than the gap to its neighbour, so the ring reads as
+    // one mass of foliage. Spaced any further and you just see the individual
+    // balls the canopy is built from.
+    const base = trunkH - 3;
+    const lower = 7 + Math.floor(rng() * 2);
+    for (let i = 0; i < lower; i++) {
+      const a = (i / lower) * Math.PI * 2 + rng() * 0.4;
+      const rad = 8.5 + rng() * 1.8;
+      const s = 15 + rng() * 4;
+      clump(Math.cos(a) * rad, base + 1 + rng() * 2, Math.sin(a) * rad, s, false);
+    }
+    const upper = 6;
+    for (let i = 0; i < upper; i++) {
+      const a = (i / upper) * Math.PI * 2 + rng() * 0.4 + 0.5;
+      const rad = 5 + rng() * 1.8;
+      const s = 14 + rng() * 4;
+      clump(Math.cos(a) * rad, base + 8 + rng() * 2.5, Math.sin(a) * rad, s, rng() < 0.65);
+    }
+    // crown, and a filler under it so the two rings never show daylight
+    clump(0, base + 5, 0, 16 + rng() * 2, false);
+    clump(rng() * 2 - 1, base + 14 + rng() * 2, rng() * 2 - 1, 14 + rng() * 3, true);
+    return renderBoxes(boxes, 128 * PIXEL, 168 * PIXEL, 64 * PIXEL, 158 * PIXEL, CAM_SCALE);
   }
 
   function makeRock(rng) {
@@ -4028,10 +4055,10 @@
 
     // `tall` decides what happens when you hit it at speed: you go over a low
     // obstacle, you bounce off a tall one.
-    function addProp(sprite, x, y, r, tall) {
+    function addProp(sprite, x, y, r, tall, tree) {
       world.props.push({
         sprite: sprite, x: x, y: y, footY: sprite.footY, r: r,
-        shadowR: r * 1.5, tall: !!tall
+        shadowR: r * 1.5, tall: !!tall, tree: !!tree
       });
     }
 
@@ -4039,7 +4066,7 @@
       const x = 40 + rng() * (WORLD_W - 80);
       const y = 40 + rng() * (WORLD_H - 80);
       if (Math.abs(y - pathCentre(x)) < 36) continue; // keep the road clear
-      addProp(treeSprites[Math.floor(rng() * treeSprites.length)], x, y, 6, true);
+      addProp(treeSprites[Math.floor(rng() * treeSprites.length)], x, y, 7.5, true, true);
     }
     for (let i = 0; i < 22; i++) {
       addProp(rockSprites[Math.floor(rng() * rockSprites.length)],
@@ -4122,18 +4149,21 @@
     return { speed: worst, prop: hit, nx: hx, ny: hy };
   }
 
-  // Everything that happens to the player when they run into scenery. Only a
-  // flat-out run at a tree produces an actual ragdoll; everything below that
-  // is handled by moving the body and swinging the arms.
+  /* Everything that happens to the player when they run into scenery.
+   *
+   * The player never plays a hit reaction on the body — no arm swing, no
+   * jostle. Watching your own character's arms wobble every time you clip a
+   * barrel reads as a glitch, not as impact. What the player feels is the
+   * movement: you are stopped, turned off the thing, or put on the floor.
+   * A tree at full sprint is the one and only thing that floors you. */
   function reactToProp(player, impact) {
     if (!impact.prop || impact.speed < NUDGE_SPEED) return;
     if (player.hitCooldown > 0) return;
     player.hitCooldown = 0.4;
     const n = impact;
-    const tall = impact.prop.tall;
 
-    if (tall && impact.speed > FALL_SPEED) {
-      // Full throttle into a tree. The only thing here that floors anyone.
+    if (impact.prop.tree && impact.speed > FALL_SPEED) {
+      // Full throttle into a tree. The only thing in the game that floors you.
       Rig.knockDown(player, n.nx, n.ny, 3.2 + impact.speed / 40);
       player.vx = n.nx * impact.speed * 0.2;
       player.vy = n.ny * impact.speed * 0.2;
@@ -4141,19 +4171,14 @@
     }
 
     if (impact.speed > TRIP_SPEED) {
-      if (tall) {
-        // Clipping a trunk spins you off it, arms swinging.
+      if (impact.prop.tall) {
+        // Clipping a trunk turns you off it and kills the run.
         Rig.shove(player, n.nx, n.ny, 26 + impact.speed * 0.28);
-        Rig.nudge(player, n.nx, n.ny, 1.0, CHEST_H);
       } else {
         // Something knee-high: a short stumble and you pull up at it.
         Rig.stumble(player, n.nx, n.ny, 14, 0.5);
-        Rig.nudge(player, n.nx, n.ny, 0.9, SHIN_H);
       }
-      return;
     }
-
-    Rig.nudge(player, n.nx, n.ny, 0.6, tall ? CHEST_H : SHIN_H);
   }
 
   /* Villagers are solid to each other, not just to the player. Without this
@@ -4232,10 +4257,10 @@
         a.hitCooldown = 0.45;
         if (world.talkingTo === a) D.close(world.box);
 
-        // The player brushes past or stumbles; they never flail.
+        // The player brushes past or stumbles. No reaction is played on their
+        // body at all — only where they end up changes.
         if (speed > TRIP_SPEED) {
           Rig.stumble(player, -nx, -ny, 20, 0.4);
-          Rig.nudge(player, -nx, -ny, 0.7, CHEST_H);
           player.vx *= 0.62;
           player.vy *= 0.62;
         } else {
@@ -4614,7 +4639,6 @@
         const nx = dx / d, ny = dy / d / 1.5;
         if (b === world.player) {
           Rig.stumble(b, nx, ny, 22, 0.4);
-          Rig.nudge(b, nx, ny, 0.8, SHIN_H);
           b.hitCooldown = 0.5;
           continue;
         }

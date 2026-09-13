@@ -8,6 +8,8 @@
   'use strict';
 
   const P = global.Parts;
+  const G = global.Geo;
+  const HEAD_E = 0.5;   // must match parts.js HEAD_E, or hair will not sit on the skull
 
   /* ---------- seeded randomness ---------- */
 
@@ -229,7 +231,6 @@
     const c = resolve(ch);
     const g = c.garment;
     const B = P.box;
-    const G = global.Geo;
 
     const root = bone('root', [0, 0, 0]);
     root.scale = d.heightScale;
@@ -240,7 +241,8 @@
     /* ---- torso ---- */
     const torso = bone('torso', [0, 0, 0]);
     torso.parts.push(part(
-      B(-d.torsoW / 2, 0, -d.torsoD / 2, d.torsoW, d.torsoH, d.torsoD), c.tunic));
+      G.roundedBox(-d.torsoW / 2, 0, -d.torsoD / 2, d.torsoW, d.torsoH, d.torsoD, 0.26, 7, 14),
+      c.tunic));
 
     // neckline: a darker band where the tunic opens at the throat
     torso.parts.push(part(
@@ -248,7 +250,7 @@
         d.torsoW + 0.24, 1.5, d.torsoD + 0.24), c.tunicDark));
     // neck
     torso.parts.push(part(
-      B(-1.5, d.torsoH - 0.3, -1.4, 3.0, d.neckH + 0.5, 2.8), c.skin));
+      G.roundedBox(-1.5, d.torsoH - 0.5, -1.4, 3.0, d.neckH + 0.8, 2.8, 0.45, 5, 10), c.skin));
 
     if (g.tabard) {
       // surcoat panels hanging front and back over the tunic
@@ -297,10 +299,10 @@
     // biggest reason these characters read as wrong.
     head.parts.push(part(G.superellipsoid(0, d.headH / 2, 0,
       d.headW / 2, d.headH / 2, d.headD / 2, 0.42, 6, 12), c.skin));
-    head.parts.push(part(G.superellipsoid(-d.headW / 2 - 0.15, 4.2, 0,
-      0.55, 1.15, 0.95, 0.7, 3, 7), c.skin));
-    head.parts.push(part(G.superellipsoid(d.headW / 2 + 0.15, 4.2, 0,
-      0.55, 1.15, 0.95, 0.7, 3, 7), c.skin));
+    head.parts.push(part(G.superellipsoid(-d.headW / 2 - 0.1, 4.2, -0.1,
+      0.6, 1.2, 1.0, 0.85, 4, 9), c.skin));
+    head.parts.push(part(G.superellipsoid(d.headW / 2 + 0.1, 4.2, -0.1,
+      0.6, 1.2, 1.0, 0.85, 4, 9), c.skin));
 
     const hairBoxes = c.hairStyle.build(d.headW, d.headH, d.headD);
     for (let i = 0; i < hairBoxes.length; i++) head.parts.push(part(hairBoxes[i], c.hair));
@@ -312,9 +314,15 @@
     for (let i = 0; i < moBoxes.length; i++) head.parts.push(part(moBoxes[i], c.hairDark));
 
     // the nose is a real protruding box so profiles read correctly
-    head.parts.push(part(
-      G.slab(-c.nose.w / 2, NOSE_BOTTOM, d.headD / 2 - 0.55, c.nose.w, c.nose.h,
-        c.nose.len + 0.75, 0.72, 1, 0, -c.nose.len * 0.35), c.skin));
+    // Nose: a bridge running down off the brow and a rounded tip on the end,
+    // rather than one wedge stuck to a flat face.
+    const noseFront = d.headD / 2 - 0.5;
+    head.parts.push(part(G.roundedBox(
+      -c.nose.w * 0.34, NOSE_BOTTOM + 0.3, noseFront,
+      c.nose.w * 0.68, c.nose.h, c.nose.len + 0.7, 0.42, 5, 10), c.skin));
+    head.parts.push(part(G.lens(
+      0, NOSE_BOTTOM + 0.42, noseFront + c.nose.len + 0.45,
+      c.nose.w * 0.5, c.nose.h * 0.36, c.nose.len * 0.5 + 0.3, 0.9, 4, 10), c.skin));
 
     torso.children.push(head);
 
@@ -327,8 +335,8 @@
       const sign = right ? -1 : 1;
       const upper = bone(right ? 'armR' : 'armL', [sign * shoulderX, shoulderY, 0]);
       upper.parts.push(part(
-        G.slab(-d.armW / 2, -d.upperArmH, -d.armW / 2, d.armW, d.upperArmH, d.armW, 1, 0.88),
-        c.tunic));
+        G.roundedBox(-d.armW / 2, -d.upperArmH, -d.armW / 2,
+          d.armW, d.upperArmH, d.armW, 0.34, 6, 11), c.tunic));
 
       // Shoulder ball, so the top of the arm stays attached as it swings.
       upper.parts.push(part(G.superellipsoid(0, 0, 0,
@@ -347,8 +355,8 @@
       // sleeve piece and a skin piece instead meant neither reached the joint,
       // so the cloth appeared to stop short of the elbow.
       fore.parts.push(part(
-        G.slab(-foreW / 2, -d.lowerArmH, -foreW / 2, foreW, d.lowerArmH, foreW, 1, 0.85),
-        c.skin));
+        G.roundedBox(-foreW / 2, -d.lowerArmH, -foreW / 2,
+          foreW, d.lowerArmH, foreW, 0.34, 6, 11), c.skin));
 
       // Elbow ball at the joint itself. Without it the forearm swings away
       // from the flat underside of the upper arm and opens a visible gap.
@@ -380,8 +388,8 @@
       const sign = right ? -1 : 1;
       const upper = bone(right ? 'legR' : 'legL', [sign * hipX, 0, 0]);
       upper.parts.push(part(
-        G.slab(-d.legW / 2, -d.upperLegH, -d.legW / 2, d.legW, d.upperLegH, d.legW, 1, 0.9),
-        c.trouser));
+        G.roundedBox(-d.legW / 2, -d.upperLegH, -d.legW / 2,
+          d.legW, d.upperLegH, d.legW, 0.32, 6, 11), c.trouser));
       upper.parts.push(part(G.superellipsoid(0, 0, 0,
         d.legW * 0.5, d.legW * 0.5, d.legW * 0.5, 0.6, 3, 7), c.trouser));
 
@@ -391,15 +399,15 @@
       shin.parts.push(part(G.superellipsoid(0, 0, 0,
         d.legW * 0.48, d.legW * 0.48, d.legW * 0.48, 0.6, 3, 7), c.trouser));
       shin.parts.push(part(
-        G.slab(-shinW / 2, -d.lowerLegH, -shinW / 2, shinW, d.lowerLegH, shinW, 1, 0.82),
-        c.trouser));
+        G.roundedBox(-shinW / 2, -d.lowerLegH, -shinW / 2,
+          shinW, d.lowerLegH, shinW, 0.32, 6, 11), c.trouser));
       // a turned-down boot cuff, then the boot itself with a toe
       shin.parts.push(part(
         B(-d.legW / 2 - 0.25, -d.lowerLegH + 1.6, -d.legW / 2 - 0.25,
           d.legW + 0.5, 0.9, d.legW + 0.5), c.belt));
       shin.parts.push(part(
-        B(-d.legW / 2 - 0.2, -d.lowerLegH - 0.1, -d.legW / 2 - 0.2,
-          d.legW + 0.4, 2.0, d.legW + 1.8), c.boot));
+        G.roundedBox(-d.legW / 2 - 0.2, -d.lowerLegH - 0.1, -d.legW / 2 - 0.3,
+          d.legW + 0.4, 2.0, d.legW + 1.9, 0.3, 5, 11), c.boot));
       upper.children.push(shin);
       pelvis.children.push(upper);
     }
@@ -448,82 +456,109 @@
   }
 
   // state: { blink: 0..1 how closed, viseme: key, gaze: -1..1 }
+  //
+  // Every feature is a rounded solid seated into the skull, not a flat panel
+  // pasted on the front of it. Four squares stuck on a box is exactly what a
+  // face made of decals looks like.
   function buildFaceParts(model, state) {
     const ch = model.character;
     const c = model.colours;
     const d = model.dims;
-    const B = P.box;
     const out = [];
 
-    const front = d.headD / 2 + 0.08;
     const shape = c.eyeShape;
     const brow = c.brow;
     const blink = state && state.blink ? state.blink : 0;
     const gaze = state && state.gaze ? state.gaze : 0;
 
+    /* Where the front of the skull actually is at a given point on the face.
+     * This has to be the real superellipsoid surface, not an approximation of
+     * it: guess a fifth of a unit too shallow and every feature ends up buried
+     * inside the head, which is exactly what happened. */
+    const surfaceAt = function (x, y) {
+      const rx = d.headW / 2, ry = d.headH / 2, rz = d.headD / 2;
+      const ty = Math.min(0.999, Math.abs((y - d.headH / 2) / ry));
+      const sinU = Math.pow(ty, 1 / HEAD_E);
+      const cosU = Math.sqrt(Math.max(0, 1 - sinU * sinU));
+      const cu = Math.pow(cosU, HEAD_E);
+      if (cu < 1e-4) return 0;
+      const tx = Math.min(0.999, Math.abs(x) / (rx * cu));
+      const cosV = Math.pow(tx, 1 / HEAD_E);
+      const sinV = Math.sqrt(Math.max(0, 1 - cosV * cosV));
+      return rz * cu * Math.pow(sinV, HEAD_E);
+    };
+
+    // Seats a feature of half-depth `rd` on the surface, standing `proud` of it.
+    const seat = function (front, rd, proud) { return front - rd + proud; };
+
     for (let s = 0; s < 2; s++) {
       const sign = s === 0 ? -1 : 1;
-      const x = sign < 0 ? -(EYE_INNER + shape.w) : EYE_INNER;
+      const ex = sign * (EYE_INNER + shape.w / 2);
+      const ey = EYE_Y + shape.h / 2;
+      const front = surfaceAt(ex, ey);
 
-      if (blink > 0.5) {
-        // closed lid: a crease line with a hint of lash below it
-        out.push(part(B(x - 0.15, EYE_Y + shape.h * 0.4, front - 0.08, shape.w + 0.3, 0.45, 0.24),
-          c.skinDeep, { flat: true }));
+      // socket: a shallow dish the eye sits in
+      out.push(part(G.lens(ex, ey, seat(front, 0.75, -0.04),
+        shape.w * 0.56, shape.h * 0.6, 0.75, 0.8, 4, 10), c.skinDark));
+
+      if (blink > 0.52) {
+        // lid closed, with a lash line along it
+        out.push(part(G.lens(ex, ey, seat(front, 0.62, 0.08),
+          shape.w * 0.58, shape.h * 0.6, 0.62, 0.85, 4, 10), c.skin));
+        out.push(part(G.lens(ex, ey + shape.h * 0.06, seat(front, 0.4, 0.18),
+          shape.w * 0.5, 0.11, 0.4, 0.9, 3, 9), c.skinDeep));
       } else {
-        const openH = shape.h * (1 - blink);
-        const midY = EYE_Y + (shape.h - openH) / 2;
-        // socket: a dark rim that gives the eye an edge instead of floating
-        out.push(part(B(x - 0.15, midY - 0.15, front - 0.1, shape.w + 0.3, openH + 0.3, 0.2),
-          c.skinDeep, { flat: true }));
-        out.push(part(B(x, midY, front - 0.04, shape.w, openH, 0.2),
-          c.sclera, { flat: true }));
-        // iris, then a darker pupil inside it
-        const irisW = Math.min(1.45, shape.w * 0.66);
-        const irisH = Math.min(openH, 1.35);
-        const irisX = x + (shape.w - irisW) / 2 + gaze * (shape.w - irisW) * 0.5;
-        const irisY = midY + (openH - irisH) / 2;
-        out.push(part(B(irisX, irisY, front + 0.06, irisW, irisH, 0.16), c.eye, { flat: true }));
-        // Only worth drawing when it lands on at least a whole pixel; below
-        // that it flickers in and out as the head turns.
-        if (irisH > 1.05) {
-          out.push(part(B(irisX + irisW * 0.26, irisY + irisH * 0.22, front + 0.14,
-            irisW * 0.48, irisH * 0.52, 0.12), '#1a151a', { flat: true }));
+        const open = 1 - blink;
+        // eyeball, then iris, then pupil, each seated on the one behind it
+        out.push(part(G.lens(ex, ey, seat(front, 0.62, 0.06),
+          shape.w * 0.5, shape.h * 0.52 * open, 0.62, 0.9, 4, 11), c.sclera));
+        const ix = ex + gaze * shape.w * 0.16;
+        const irisR = Math.min(shape.w * 0.3, shape.h * 0.42);
+        out.push(part(G.lens(ix, ey, seat(front, 0.36, 0.14),
+          irisR, Math.min(irisR, shape.h * 0.5 * open), 0.36, 0.95, 4, 11), c.eye));
+        if (open > 0.55) {
+          out.push(part(G.lens(ix, ey, seat(front, 0.22, 0.2),
+            irisR * 0.48, Math.min(irisR * 0.48, shape.h * 0.3 * open), 0.22, 0.95, 3, 9),
+            '#17121a'));
         }
+        // upper lid shading, which is what gives an eye its shape
+        out.push(part(G.lens(ex, ey + shape.h * 0.46 * open, seat(front, 0.5, 0.16),
+          shape.w * 0.55, shape.h * 0.12, 0.5, 0.85, 3, 9), c.skinDark));
       }
 
-      // Brow, drawn as two segments so it can tilt. `gap` pushes the inner end
-      // outward from the centre line — without it the pair met as a monobrow.
-      const innerY = EYE_Y + shape.h + 0.2 + brow.inner;
-      const outerY = EYE_Y + shape.h + 0.2 + brow.outer;
-      const segW = shape.w * 0.55;
-      const innerEdge = sign < 0 ? -(EYE_INNER + brow.gap + segW) : EYE_INNER + brow.gap;
-      const outerEdge = sign < 0 ? -(EYE_INNER + brow.gap + segW * 2) : EYE_INNER + brow.gap + segW;
-      out.push(part(B(innerEdge, innerY, front - 0.06, segW, brow.thick, 0.22),
-        c.hairDark, { flat: true }));
-      out.push(part(B(outerEdge, outerY, front - 0.06, segW, brow.thick, 0.22),
-        c.hairDark, { flat: true }));
+      // brow: a short arc of beads rather than two blocks
+      const beads = 7;
+      for (let k = 0; k < beads; k++) {
+        const t = k / (beads - 1);
+        const along = brow.gap + shape.w * t;
+        const bx = sign * (EYE_INNER + along);
+        const lift = brow.inner + (brow.outer - brow.inner) * t;
+        const arch = Math.sin(t * Math.PI) * 0.16;
+        const by = EYE_Y + shape.h + 0.28 + lift + arch;
+        out.push(part(G.lens(bx, by, seat(surfaceAt(bx, by), 0.34, 0.12),
+          shape.w * 0.28, brow.thick * 0.6, 0.34, 0.85, 3, 8), c.hairDark));
+      }
     }
 
-    // nostrils, sunk into the front face of the nose
-    const noseFront = front - 0.25 + c.nose.len + 0.25;
-    const nostrilX = c.nose.w / 2 - 0.42;
-    out.push(part(B(-nostrilX, NOSE_BOTTOM + 0.12, noseFront - 0.12, 0.36, 0.34, 0.2),
-      c.skinDeep, { flat: true }));
-    out.push(part(B(nostrilX - 0.36, NOSE_BOTTOM + 0.12, noseFront - 0.12, 0.36, 0.34, 0.2),
-      c.skinDeep, { flat: true }));
+    // nostrils, tucked under the tip
+    const nf = surfaceAt(0, NOSE_BOTTOM) + c.nose.len * 0.55;
+    for (let s = 0; s < 2; s++) {
+      const nx = (s === 0 ? -1 : 1) * c.nose.w * 0.28;
+      out.push(part(G.lens(nx, NOSE_BOTTOM + 0.22, nf,
+        0.17, 0.13, 0.22, 0.9, 3, 8), c.skinDeep));
+    }
 
-    // mouth, with a lit lower lip beneath it so it is not just a dark slot
+    // mouth: a rounded opening with lips around it, not a slot
     const v = VISEMES[(state && state.viseme) || 'rest'] || VISEMES.rest;
     const mw = v.w * (0.75 + ch.mouthWidth * 0.5);
-    const my = MOUTH_Y - (v.h - 0.5) * 0.35;
-    out.push(part(B(-mw / 2, my, front - 0.06, mw, v.h, 0.26), c.mouth, { flat: true }));
-    // A lit lower lip beneath and a shadowed upper lip above. Three bands of
-    // real contrast is the least that still reads as a mouth once the head is
-    // only about eleven pixels across.
-    out.push(part(B(-mw / 2 + 0.1, my - 0.75, front - 0.05, mw - 0.2, 0.7, 0.24),
-      c.lip, { flat: true }));
-    out.push(part(B(-mw / 2 + 0.2, my + v.h, front - 0.05, mw - 0.4, 0.42, 0.22),
-      c.skinDark, { flat: true }));
+    const my = MOUTH_Y - (v.h - 0.5) * 0.35 + v.h / 2;
+    const mf = surfaceAt(0, my);
+    out.push(part(G.lens(0, my, seat(mf, 0.5, 0.06),
+      mw / 2, v.h / 2, 0.5, 0.8, 4, 12), c.mouth));
+    out.push(part(G.lens(0, my - v.h / 2 - 0.3, seat(mf, 0.42, 0.16),
+      mw * 0.46, 0.32, 0.42, 0.85, 3, 11), c.lip));
+    out.push(part(G.lens(0, my + v.h / 2 + 0.2, seat(mf, 0.38, 0.12),
+      mw * 0.42, 0.2, 0.38, 0.85, 3, 11), c.skinDark));
 
     return out;
   }

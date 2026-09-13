@@ -163,80 +163,26 @@
   }
 
   function makeBarrel() {
+    const B = global.Parts.box;
     const boxes = [];
-    // staves around a bulging body, with two iron hoops
-    const staves = 12;
-    for (let i = 0; i < staves; i++) {
-      const a = (i / staves) * Math.PI * 2;
-      boxes.push({
-        mesh: G.superellipsoid(Math.cos(a) * 3.3, 4.3, Math.sin(a) * 3.3,
-          0.62, 4.2, 0.62, 0.45, 5, 7),
-        colour: i % 2 ? '#6b4a2c' : '#634327'
-      });
-    }
-    boxes.push({ mesh: G.superellipsoid(0, 4.3, 0, 3.2, 4.1, 3.2, 0.5, 6, 14), colour: '#6b4a2c' });
-    boxes.push({ mesh: G.superellipsoid(0, 1.9, 0, 3.6, 0.42, 3.6, 0.75, 3, 16), colour: '#4a4038' });
-    boxes.push({ mesh: G.superellipsoid(0, 6.6, 0, 3.6, 0.42, 3.6, 0.75, 3, 16), colour: '#4a4038' });
-    boxes.push({ mesh: G.superellipsoid(0, 8.3, 0, 3.0, 0.5, 3.0, 0.6, 3, 14), colour: '#5a4028' });
-    return renderBoxes(boxes, 48 * PIXEL, 60 * PIXEL, 24 * PIXEL, 50 * PIXEL, CAM_SCALE);
-  }
-
-  /* A bench, built like one: a plank seat on four legs with a slatted back and
-   * arms. The shape has to be legible from a single fixed camera angle, which
-   * means the back and the legs both have to be visible silhouette, not
-   * implied. */
-  function makeBench() {
-    const boxes = [];
-    const W_ = 26, D_ = 8, SEAT = 7.5;
-    const wood = '#6d4a2a', woodDark = '#5a3d22', woodLight = '#7d5730';
-
-    // seat planks
-    for (let i = 0; i < 3; i++) {
-      boxes.push({
-        mesh: G.roundedBox(-W_ / 2, SEAT, -D_ / 2 + i * (D_ / 3) + 0.2,
-          W_, 1.1, D_ / 3 - 0.5, 0.3, 4, 8),
-        colour: i === 1 ? woodLight : wood
-      });
-    }
-    // legs
-    [[-W_ / 2 + 1.4, -D_ / 2 + 1.2], [W_ / 2 - 2.6, -D_ / 2 + 1.2],
-     [-W_ / 2 + 1.4, D_ / 2 - 2.4], [W_ / 2 - 2.6, D_ / 2 - 2.4]].forEach(function (p) {
-      boxes.push({ mesh: G.roundedBox(p[0], 0, p[1], 1.6, SEAT, 1.6, 0.3, 4, 8), colour: woodDark });
-    });
-    // back uprights and slats
-    [-W_ / 2 + 1.4, W_ / 2 - 2.6].forEach(function (x) {
-      boxes.push({ mesh: G.roundedBox(x, SEAT, -D_ / 2 + 1.2, 1.6, 9, 1.6, 0.3, 4, 8), colour: woodDark });
-    });
-    for (let i = 0; i < 2; i++) {
-      boxes.push({
-        mesh: G.roundedBox(-W_ / 2 + 1.2, SEAT + 3.4 + i * 3.2, -D_ / 2 + 1.5,
-          W_ - 2.4, 1.9, 1.0, 0.3, 4, 8),
-        colour: wood
-      });
-    }
-    // arm rests
-    [-W_ / 2 + 1.2, W_ / 2 - 2.8].forEach(function (x) {
-      boxes.push({ mesh: G.roundedBox(x, SEAT + 4.2, -D_ / 2 + 1.2, 2.0, 1.0, D_ - 2.6, 0.3, 4, 8),
-        colour: woodLight });
-    });
-    return renderBoxes(boxes, 70 * PIXEL, 56 * PIXEL, 35 * PIXEL, 46 * PIXEL, CAM_SCALE);
+    // barrels bulge in the middle
+    boxes.push({ mesh: G.superellipsoid(0, 4.2, 0, 3.6, 4.3, 3.6, 0.45, 5, 10), colour: '#6b4a2c' });
+    boxes.push({ mesh: G.superellipsoid(0, 2.0, 0, 3.7, 0.55, 3.7, 0.4, 3, 10), colour: '#4a4038' });
+    boxes.push({ mesh: G.superellipsoid(0, 6.4, 0, 3.7, 0.55, 3.7, 0.4, 3, 10), colour: '#4a4038' });
+    return renderBoxes(boxes, 40 * PIXEL, 48 * PIXEL, 20 * PIXEL, 40 * PIXEL, CAM_SCALE);
   }
 
   function makeCart() {
+    const B = global.Parts.box;
     const boxes = [];
-    boxes.push({ mesh: G.roundedBox(-9, 4.5, -5, 18, 3.5, 10, 0.25, 5, 10), colour: '#6b4f31' });
-    boxes.push({ mesh: G.roundedBox(-9, 7.6, -5.4, 18, 3.0, 1.1, 0.3, 4, 8), colour: '#5a4128' });
-    boxes.push({ mesh: G.roundedBox(-9, 7.6, 4.3, 18, 3.0, 1.1, 0.3, 4, 8), colour: '#5a4128' });
-    boxes.push({ mesh: G.roundedBox(-9.4, 7.6, -5, 1.1, 3.0, 10, 0.3, 4, 8), colour: '#5a4128' });
-    // shafts running forward
-    boxes.push({ mesh: G.roundedBox(-8, 5.4, -13, 1.2, 1.2, 9, 0.4, 4, 8), colour: '#5a4128' });
-    boxes.push({ mesh: G.roundedBox(6.8, 5.4, -13, 1.2, 1.2, 9, 0.4, 4, 8), colour: '#5a4128' });
+    boxes.push({ mesh: B(-9, 4.5, -5, 18, 3.5, 10), colour: '#6b4f31' });
+    boxes.push({ mesh: B(-9, 8, -5, 18, 2.5, 1), colour: '#5a4128' });
+    boxes.push({ mesh: B(-9, 8, 4, 18, 2.5, 1), colour: '#5a4128' });
     for (let i = 0; i < 2; i++) {
       const z = i === 0 ? -5.5 : 5.5;
-      [-9.4, 8.2].forEach(function (x) {
-        boxes.push({ mesh: G.superellipsoid(x, 4.4, z, 0.8, 4.4, 4.4, 0.95, 4, 16), colour: '#43301e' });
-        boxes.push({ mesh: G.superellipsoid(x, 4.4, z, 0.95, 1.3, 1.3, 0.9, 3, 10), colour: '#5a4128' });
-      });
+      // round cartwheels
+      boxes.push({ mesh: G.superellipsoid(-9, 4.4, z, 0.9, 4.4, 4.4, 0.95, 4, 10), colour: '#43301e' });
+      boxes.push({ mesh: G.superellipsoid(9, 4.4, z, 0.9, 4.4, 4.4, 0.95, 4, 10), colour: '#43301e' });
     }
     return renderBoxes(boxes, 72 * PIXEL, 60 * PIXEL, 36 * PIXEL, 48 * PIXEL, CAM_SCALE);
   }
@@ -264,7 +210,6 @@
     const rockSprites = [makeRock(rng), makeRock(rng)];
     const barrelSprite = makeBarrel();
     const cartSprite = makeCart();
-    const benchSprite = makeBench();
 
     // `tall` decides what happens when you hit it at speed: you go over a low
     // obstacle, you bounce off a tall one.
@@ -285,12 +230,7 @@
       addProp(rockSprites[Math.floor(rng() * rockSprites.length)],
         40 + rng() * (WORLD_W - 80), 40 + rng() * (WORLD_H - 80), 4.5, false);
     }
-    addProp(cartSprite, WORLD_W * 0.46, pathCentre(WORLD_W * 0.46) - 30, 10, false);
-    // benches set back from the road
-    for (let i = 0; i < 5; i++) {
-      const bx = WORLD_W * (0.16 + i * 0.17);
-      addProp(benchSprite, bx, pathCentre(bx) - 30 - (i % 2) * 6, 9, false);
-    }
+    addProp(cartSprite, WORLD_W * 0.46, pathCentre(WORLD_W * 0.46) - 26, 10, false);
     addProp(barrelSprite, WORLD_W * 0.42, WORLD_H * 0.5, 4, false);
     addProp(barrelSprite, WORLD_W * 0.435, WORLD_H * 0.52, 4, false);
     addProp(barrelSprite, WORLD_W * 0.415, WORLD_H * 0.535, 4, false);

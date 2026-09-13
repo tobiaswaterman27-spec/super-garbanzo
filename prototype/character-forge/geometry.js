@@ -237,21 +237,6 @@
     return finish(verts, faces);
   }
 
-  /* A box with its corners and edges rounded off — the same proportions as
-   * box(), but a solid rather than a slab with hard edges. `e` near 0.2 is
-   * barely softened; near 0.6 is closer to a pill. */
-  function roundedBox(x, y, z, w, h, d, e, rings, segs) {
-    return superellipsoid(x + w / 2, y + h / 2, z + d / 2,
-      w / 2, h / 2, d / 2, e === undefined ? 0.3 : e, rings || 5, segs || 10);
-  }
-
-  /* A flattened blob — an eye, an iris, a lip. Sits proud of whatever surface
-   * it is placed on rather than being a rectangle pasted onto it. */
-  function lens(cx, cy, cz, rw, rh, rd, e, rings, segs) {
-    return superellipsoid(cx, cy, cz, rw, rh, rd,
-      e === undefined ? 0.85 : e, rings || 4, segs || 10);
-  }
-
   function overlapsAabb(a, b) {
     const p = a.aabb, q = b.aabb;
     return p.x < q.x + q.w && q.x < p.x + p.w &&
@@ -259,8 +244,5 @@
            p.z < q.z + q.d && q.z < p.z + p.d;
   }
 
-  global.Geo = {
-    finish, box, taper, pyramid, wedge, superellipsoid, dome, latitudeAt,
-    slab, roundedBox, lens, overlapsAabb
-  };
+  global.Geo = { finish, box, taper, pyramid, wedge, superellipsoid, dome, latitudeAt, slab, overlapsAabb };
 })(window);

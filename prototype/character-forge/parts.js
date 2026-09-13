@@ -94,7 +94,7 @@
   const G = global.Geo;
 
   // Must match the skull in character.js, so hair sits concentric with it.
-  const HEAD_E = 0.5;
+  const HEAD_E = 0.42;
   const HAIRLINE = 6.5;    // clear of the brow band, which tops out at 6.32
 
   function b(x, y, z, w, h, d) { return G.box(x, y, z, w, h, d); }

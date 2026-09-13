@@ -15,16 +15,9 @@ That is what makes a character correct from all eight facing directions, and
 turning a genuine rotation rather than a sprite swap.
 
 They are not limited to boxes. `geometry.js` builds general convex meshes, so a
-spike is a pyramid, a beard hangs and tapers to a point, and every major form —
-skull, torso, limbs — is a rounded solid rather than a slab with hard edges.
-
-**The face is built, not pasted on.** Eyes are eyeballs seated in a socket with
-an iris and pupil on top of them, the nose is a bridge with a rounded tip, the
-brows are an arc, and the mouth is a rounded opening with lips around it. Every
-one of them is placed against the *real* superellipsoid surface of the skull,
-computed exactly — an approximation a fifth of a unit too shallow buries every
-feature inside the head, which is what a face made of flat decals looks like
-anyway.
+spike is a pyramid, a beard hangs and tapers to a point, and a skull is a
+superellipsoid rather than a cube — a hard-edged box head was the single biggest
+reason these characters read as wrong.
 
 Two rules do the heavy lifting on top of that, and both are load-bearing:
 

@@ -330,7 +330,18 @@
       Rig.nudge(previewActor, Math.sin(angle), Math.cos(angle), 2 + Math.random() * 2.5);
     });
 
+    const tripBtn = document.createElement('button');
+    tripBtn.type = 'button';
+    tripBtn.className = 'btn';
+    tripBtn.id = 'trip';
+    tripBtn.textContent = 'Trip';
+    tripBtn.addEventListener('click', function () {
+      const angle = Math.random() * Math.PI * 2;
+      Rig.trip(previewActor, Math.sin(angle), Math.cos(angle), 3.5 + Math.random() * 2);
+    });
+
     knockRow.appendChild(jostleBtn);
+    knockRow.appendChild(tripBtn);
     knockRow.appendChild(knockBtn);
     playback.appendChild(knockRow);
 

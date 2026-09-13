@@ -19,12 +19,12 @@
   // running off the edge of the generated ground.
   const WORLD_W = 1200, WORLD_H = 800;
 
-  // Exactly half the forge preview's scale and the same camera pitch, so a
-  // villager in the world is the forge model sized down rather than a
+  // The same camera pitch as the forge preview at a fraction of its scale, so
+  // a villager in the world is the forge model sized down rather than a
   // differently-proportioned one.
-  const ACTOR_BUF = { w: 140, h: 128, ox: 70, oy: 100 };
+  const ACTOR_BUF = { w: 112, h: 104, ox: 56, oy: 80 };
   const CAM_PITCH = 0.26;
-  const CAM_SCALE = 1.8;
+  const CAM_SCALE = 1.35;
 
   const SPEED = { walk: 52, run: 112, npc: 26 };
   const ACCEL = 520;           // px/s^2 while steering
@@ -33,9 +33,11 @@
   const SKID_FRICTION = 150;   // you slide before you stop
 
   const PLAYER_R = 6.5;
-  const NUDGE_SPEED = 30;      // above this, any bump visibly jostles you
-  const VAULT_SPEED = 86;      // above this, an obstacle takes you off your feet
-  const KNOCK_SPEED = 82;      // must be genuinely sprinting to floor someone
+  const NUDGE_SPEED = 30;      // above this, a bump visibly jostles you
+  const TRIP_SPEED = 62;       // above this, an obstacle trips you
+  const FALL_SPEED = 104;      // only a tree, at nearly full sprint, floors you
+  const CHEST_H = 20;          // contact heights, in model units
+  const SHIN_H = 7;
   const TALK_RANGE = 40;
   const COMFORT_RANGE = 24;
 
@@ -108,6 +110,7 @@
 
   function renderBoxes(boxes, bufW, bufH, ox, oy, scale) {
     const target = R.createTarget(bufW, bufH);
+    target.footY = oy;   // where the ground line sits inside the sprite
     R.clearTarget(target);
     const camera = R.makeCamera(CAM_PITCH, scale, ox, oy);
     const identity = R.identity();
@@ -135,7 +138,7 @@
         colour: rng() < 0.5 ? '#39572f' : '#2f4a28'
       });
     }
-    return renderBoxes(boxes, 132, 190, 66, 182, CAM_SCALE);
+    return renderBoxes(boxes, 104, 136, 52, 128, CAM_SCALE);
   }
 
   function makeRock(rng) {
@@ -150,7 +153,7 @@
         colour: rng() < 0.5 ? '#6d6a63' : '#5a5750'
       });
     }
-    return renderBoxes(boxes, 56, 56, 28, 48, CAM_SCALE);
+    return renderBoxes(boxes, 44, 44, 22, 36, CAM_SCALE);
   }
 
   function makeBarrel() {
@@ -160,7 +163,7 @@
     boxes.push({ mesh: G.superellipsoid(0, 4.2, 0, 3.6, 4.3, 3.6, 0.45, 5, 10), colour: '#6b4a2c' });
     boxes.push({ mesh: G.superellipsoid(0, 2.0, 0, 3.7, 0.55, 3.7, 0.4, 3, 10), colour: '#4a4038' });
     boxes.push({ mesh: G.superellipsoid(0, 6.4, 0, 3.7, 0.55, 3.7, 0.4, 3, 10), colour: '#4a4038' });
-    return renderBoxes(boxes, 48, 60, 24, 50, CAM_SCALE);
+    return renderBoxes(boxes, 40, 48, 20, 40, CAM_SCALE);
   }
 
   function makeCart() {
@@ -175,7 +178,7 @@
       boxes.push({ mesh: G.superellipsoid(-9, 4.4, z, 0.9, 4.4, 4.4, 0.95, 4, 10), colour: '#43301e' });
       boxes.push({ mesh: G.superellipsoid(9, 4.4, z, 0.9, 4.4, 4.4, 0.95, 4, 10), colour: '#43301e' });
     }
-    return renderBoxes(boxes, 88, 76, 44, 62, CAM_SCALE);
+    return renderBoxes(boxes, 72, 60, 36, 48, CAM_SCALE);
   }
 
   /* ---------- world construction ---------- */
@@ -204,9 +207,9 @@
 
     // `tall` decides what happens when you hit it at speed: you go over a low
     // obstacle, you bounce off a tall one.
-    function addProp(sprite, x, y, footY, r, tall) {
+    function addProp(sprite, x, y, r, tall) {
       world.props.push({
-        sprite: sprite, x: x, y: y, footY: footY, r: r,
+        sprite: sprite, x: x, y: y, footY: sprite.footY, r: r,
         shadowR: r * 1.5, tall: !!tall
       });
     }
@@ -215,16 +218,16 @@
       const x = 40 + rng() * (WORLD_W - 80);
       const y = 40 + rng() * (WORLD_H - 80);
       if (Math.abs(y - pathCentre(x)) < 36) continue; // keep the road clear
-      addProp(treeSprites[Math.floor(rng() * treeSprites.length)], x, y, 182, 6, true);
+      addProp(treeSprites[Math.floor(rng() * treeSprites.length)], x, y, 6, true);
     }
     for (let i = 0; i < 22; i++) {
       addProp(rockSprites[Math.floor(rng() * rockSprites.length)],
-        40 + rng() * (WORLD_W - 80), 40 + rng() * (WORLD_H - 80), 48, 4.5, false);
+        40 + rng() * (WORLD_W - 80), 40 + rng() * (WORLD_H - 80), 4.5, false);
     }
-    addProp(cartSprite, WORLD_W * 0.46, pathCentre(WORLD_W * 0.46) - 26, 62, 10, false);
-    addProp(barrelSprite, WORLD_W * 0.42, WORLD_H * 0.5, 50, 4, false);
-    addProp(barrelSprite, WORLD_W * 0.435, WORLD_H * 0.52, 50, 4, false);
-    addProp(barrelSprite, WORLD_W * 0.415, WORLD_H * 0.535, 50, 4, false);
+    addProp(cartSprite, WORLD_W * 0.46, pathCentre(WORLD_W * 0.46) - 26, 10, false);
+    addProp(barrelSprite, WORLD_W * 0.42, WORLD_H * 0.5, 4, false);
+    addProp(barrelSprite, WORLD_W * 0.435, WORLD_H * 0.52, 4, false);
+    addProp(barrelSprite, WORLD_W * 0.415, WORLD_H * 0.535, 4, false);
 
     /* player */
     const player = Rig.createActor(playerCharacter, WORLD_W * 0.4, WORLD_H * 0.55, 1);
@@ -298,27 +301,30 @@
   }
 
   // Everything that happens to the player when they run into scenery.
-  function reactToProp(world, player, impact) {
+  function reactToProp(player, impact) {
     if (!impact.prop || impact.speed < NUDGE_SPEED) return;
-    const p = player;
     const n = impact;
+    const tall = impact.prop.tall;
 
-    if (impact.speed > VAULT_SPEED) {
-      if (impact.prop.tall) {
-        // A tree does not give. You come off it backwards.
-        Rig.knockDown(p, n.nx, n.ny, 3.4 + impact.speed / 34);
-        p.vx = n.nx * impact.speed * 0.28;
-        p.vy = n.ny * impact.speed * 0.28;
-      } else {
-        // Something around knee height trips you straight over the top of it.
-        Rig.knockDown(p, -n.nx, -n.ny, 3.0 + impact.speed / 38);
-        p.vx = -n.nx * impact.speed * 0.2;
-        p.vy = -n.ny * impact.speed * 0.2;
-      }
-    } else {
-      // Not fast enough to floor you — you just take the knock.
-      Rig.nudge(p, n.nx, n.ny, 1.2 + impact.speed / 46);
+    if (tall && impact.speed > FALL_SPEED) {
+      // Hitting a tree at nearly full sprint is the one thing that actually
+      // puts the player on the ground.
+      Rig.knockDown(player, n.nx, n.ny, 3.2 + impact.speed / 40);
+      player.vx = n.nx * impact.speed * 0.2;
+      player.vy = n.ny * impact.speed * 0.2;
+      return;
     }
+
+    if (impact.speed > TRIP_SPEED) {
+      // Anything knee-high catches your legs and pitches you over the top of
+      // it; a tree stops you dead and you stumble back off it. Either way you
+      // stay on your feet.
+      if (tall) Rig.trip(player, n.nx, n.ny, 2.6 + impact.speed / 48);
+      else Rig.trip(player, -n.nx, -n.ny, 2.8 + impact.speed / 44);
+      return;
+    }
+
+    Rig.nudge(player, n.nx, n.ny, 1.0 + impact.speed / 60, tall ? CHEST_H : SHIN_H);
   }
 
   function resolveActorCollisions(world) {
@@ -332,28 +338,23 @@
       const min = PLAYER_R + 7;
       if (dist >= min || dist === 0) continue;
 
-      const nx = dx / dist, ny = dy / dist;
+      const nx = dx / dist, ny = dy / dist / 1.5;
       const speed = Math.hypot(player.vx, player.vy);
 
-      if (speed >= KNOCK_SPEED && !Rig.isDown(a)) {
-        // A sprinting shoulder-charge is the only thing that floors anyone.
-        Rig.knockDown(a, nx, ny / 1.5, 2.6 + speed / 30);
-        if (a.brain) { a.brain.state = 'downed'; a.brain.timer = 0; }
+      // Push apart first, so nobody ends up standing inside anybody.
+      const push = (min - dist) * 0.5;
+      a.x += nx * push; a.y += ny * push;
+      player.x -= nx * push; player.y -= ny * push;
+
+      // Running into someone knocks them about — it never puts them down.
+      // The impulse is aimed at the height it landed, so a shoulder charge
+      // moves a shoulder rather than the whole person.
+      if (speed > NUDGE_SPEED) {
+        if (!Rig.isDown(a)) Rig.nudge(a, nx, ny, 1.1 + speed / 42, CHEST_H);
+        Rig.nudge(player, -nx, -ny, 0.9 + speed / 52, CHEST_H);
+        player.vx *= 0.72;
+        player.vy *= 0.72;
         if (world.talkingTo === a) D.close(world.box);
-        Rig.nudge(player, -nx, -ny / 1.5, 2.8);
-        player.vx *= 0.3;
-        player.vy *= 0.3;
-      } else {
-        // Otherwise both of them just get jostled and pushed apart.
-        const push = (min - dist) * 0.5;
-        a.x += nx * push; a.y += ny * push / 1.5;
-        player.x -= nx * push; player.y -= ny * push / 1.5;
-        if (speed > NUDGE_SPEED) {
-          if (!Rig.isDown(a)) Rig.nudge(a, nx, ny / 1.5, 1.0 + speed / 52);
-          Rig.nudge(player, -nx, -ny / 1.5, 0.9 + speed / 64);
-          player.vx *= 0.82;
-          player.vy *= 0.82;
-        }
       }
     }
   }
@@ -403,7 +404,7 @@
     p.y += p.vy * dt;
 
     const impact = resolvePropCollisions(world, p, PLAYER_R);
-    reactToProp(world, p, impact);
+    reactToProp(p, impact);
     clampPlayer(p);
 
     // Sliding to a halt uses the still pose. A dedicated skid animation read as
@@ -631,7 +632,7 @@
 
   global.World = {
     VIEW_W, VIEW_H, WORLD_W, WORLD_H, ACTOR_BUF, CAM_PITCH, CAM_SCALE,
-    SPEED, TALK_RANGE, KNOCK_SPEED, VAULT_SPEED, NUDGE_SPEED, TEST_PAGES,
+    SPEED, TALK_RANGE, NUDGE_SPEED, TRIP_SPEED, FALL_SPEED, TEST_PAGES,
     createWorld, update, draw, tryTalk, nearestTalkable, distance, beginConversation
   };
 })(window);

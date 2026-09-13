@@ -160,6 +160,11 @@
       // the white of the eye picks up the skin tone, otherwise it glares on
       // darker complexions
       sclera: shade(shade(skin, 0.72), 0.2),
+      // The mouth gets its own near-black rather than a shade of skin. A
+      // darker skin tone is still a skin tone, and against the face it read as
+      // a smudge instead of an opening.
+      mouth: '#2a1618',
+      lip: shade(skin, 0.3),
       hair: hair,
       hairDark: shade(hair, -0.2),
       eye: hexOf(P.EYE_COLOURS, ch.eyeColour),
@@ -386,15 +391,15 @@
   const MOUTH_Y = 1.15;
 
   const VISEMES = {
-    rest: { w: 2.9, h: 0.9 },
-    closed: { w: 2.8, h: 0.8 },
-    ah: { w: 3.2, h: 2.4 },
-    eh: { w: 3.6, h: 1.6 },
-    oh: { w: 2.4, h: 2.2 },
-    oo: { w: 1.9, h: 1.7 },
-    ee: { w: 3.8, h: 1.1 },
-    ff: { w: 3.0, h: 1.0 },
-    ll: { w: 2.8, h: 1.8 }
+    rest: { w: 3.3, h: 1.3 },
+    closed: { w: 3.1, h: 1.1 },
+    ah: { w: 3.5, h: 2.8 },
+    eh: { w: 3.9, h: 2.0 },
+    oh: { w: 2.7, h: 2.6 },
+    oo: { w: 2.2, h: 2.1 },
+    ee: { w: 4.1, h: 1.5 },
+    ff: { w: 3.3, h: 1.4 },
+    ll: { w: 3.1, h: 2.2 }
   };
 
   const LETTER_VISEME = {
@@ -447,7 +452,9 @@
         const irisX = x + (shape.w - irisW) / 2 + gaze * (shape.w - irisW) * 0.5;
         const irisY = midY + (openH - irisH) / 2;
         out.push(part(B(irisX, irisY, front + 0.06, irisW, irisH, 0.16), c.eye, { flat: true }));
-        if (irisH > 0.7) {
+        // Only worth drawing when it lands on at least a whole pixel; below
+        // that it flickers in and out as the head turns.
+        if (irisH > 1.05) {
           out.push(part(B(irisX + irisW * 0.26, irisY + irisH * 0.22, front + 0.14,
             irisW * 0.48, irisH * 0.52, 0.12), '#1a151a', { flat: true }));
         }
@@ -478,12 +485,13 @@
     const v = VISEMES[(state && state.viseme) || 'rest'] || VISEMES.rest;
     const mw = v.w * (0.75 + ch.mouthWidth * 0.5);
     const my = MOUTH_Y - (v.h - 0.5) * 0.35;
-    out.push(part(B(-mw / 2, my, front - 0.06, mw, v.h, 0.24), c.skinDeep, { flat: true }));
-    // a lit lower lip under it, so the mouth reads as a feature rather than a
-    // dark smudge, and an upper lip line to close it off
-    out.push(part(B(-mw / 2 + 0.15, my - 0.6, front - 0.05, mw - 0.3, 0.55, 0.22),
-      c.skinLight, { flat: true }));
-    out.push(part(B(-mw / 2 + 0.25, my + v.h, front - 0.05, mw - 0.5, 0.3, 0.2),
+    out.push(part(B(-mw / 2, my, front - 0.06, mw, v.h, 0.26), c.mouth, { flat: true }));
+    // A lit lower lip beneath and a shadowed upper lip above. Three bands of
+    // real contrast is the least that still reads as a mouth once the head is
+    // only about eleven pixels across.
+    out.push(part(B(-mw / 2 + 0.1, my - 0.75, front - 0.05, mw - 0.2, 0.7, 0.24),
+      c.lip, { flat: true }));
+    out.push(part(B(-mw / 2 + 0.2, my + v.h, front - 0.05, mw - 0.4, 0.42, 0.22),
       c.skinDark, { flat: true }));
 
     return out;

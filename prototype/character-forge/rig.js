@@ -216,7 +216,7 @@
       active: false,
       mode: 'soft',      // soft = jostled but stays upright; full = goes down
       state: 'up',       // up | falling | down | rising
-      p: null, links: null, timer: 0, still: 0, rise: 0
+      p: null, links: null, timer: 0, still: 0, rise: 0, settle: 0
     };
   }
 
@@ -230,7 +230,14 @@
     shoulderR: 0.32, shoulderL: 0.32,
     elbowR: 0.18, elbowL: 0.18, handR: 0.13, handL: 0.13
   };
-  const SOFT_TIME = 0.8;
+  const LOWER_BODY = ['footR', 'footL', 'hipR', 'hipL', 'pelvis', 'kneeR', 'kneeL'];
+  const SOFT_TIME = 0.7;
+  const TRIP_TIME = 1.0;
+
+  // How close every joint has to be to the animated pose before control is
+  // handed back. Switching on a timer instead leaves the body wherever the
+  // physics happened to put it and the model jumps — that is the teleport.
+  const SETTLE_EPSILON = 0.22;
 
   /* Getting up, as poses rather than a straight interpolation back to
    * standing: face down with the arms planted, push the hips up, come onto a
@@ -260,14 +267,14 @@
     return k;
   }
   const GETUP_KEYS = getupKeys();
-  const RISE_TIME = 1.9;
+  const RISE_TIME = 1.0;
 
   function distanceBetween(a, b) {
     return Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
   }
 
   // dirX/dirY is the world push direction (world y is depth, which is local z).
-  function applyImpulse(actor, dirX, dirY, force, mode) {
+  function applyImpulse(actor, dirX, dirY, force, mode, opts) {
     const f = actor.fall;
     const model = actor.model;
 
@@ -280,15 +287,26 @@
     const p = reuse ? f.p : {};
     const len = Math.hypot(dirX, dirY) || 1;
     const px = dirX / len, pz = dirY / len;
-    const cap = mode === 'soft' ? 5.0 : 9.0;
-    const impulse = Math.max(1.0, Math.min(cap, force)) * SUBSTEP *
-      (mode === 'soft' ? 6.0 : 7.5);
+    const full = mode === 'full';
+    const cap = full ? 9.0 : 5.0;
+    const impulse = Math.max(1.0, Math.min(cap, force)) * SUBSTEP * (full ? 7.5 : 6.0);
 
     let tallest = 1;
     for (let i = 0; i < JOINT_NAMES.length; i++) {
       const k = JOINT_NAMES[i];
       if (joints[k] && joints[k][1] > tallest) tallest = joints[k][1];
     }
+
+    // Where the hit landed, in the actor's own frame: out on the side the
+    // push came from, at whatever height the caller says it struck. Given
+    // one, the impulse falls off with distance from that point, so bumping
+    // someone's shoulder moves their shoulder rather than all of them.
+    // jointPositions() already applies the actor's yaw, so particle space is
+    // world-aligned and the push direction needs no further rotation.
+    const contactY = opts && opts.contactY;
+    const localised = typeof contactY === 'number';
+    const cx = -px * 4.2, cy = contactY, cz = -pz * 4.2;
+    const SIGMA2 = 2 * 7 * 7;
 
     for (let i = 0; i < JOINT_NAMES.length; i++) {
       const k = JOINT_NAMES[i];
@@ -299,12 +317,17 @@
           r: PARTICLE_RADIUS[k] || 1.2 };
       }
       const q = p[k];
-      // A push that scales with height topples rather than slides: the feet
-      // barely move, the shoulders take the hit.
-      const lever = 0.25 + 1.5 * (q.y / tallest);
-      q.px -= px * impulse * lever;
-      q.pz -= pz * impulse * lever;
-      q.py -= impulse * 0.16 * lever;
+      let weight;
+      if (localised) {
+        const dx = q.x - cx, dy = q.y - cy, dz = q.z - cz;
+        weight = 2.6 * Math.exp(-(dx * dx + dy * dy + dz * dz) / SIGMA2);
+      } else {
+        // whole-body shove: scales with height, so it topples rather than slides
+        weight = 0.25 + 1.5 * (q.y / tallest);
+      }
+      q.px -= px * impulse * weight;
+      q.pz -= pz * impulse * weight;
+      q.py -= impulse * 0.16 * weight;
     }
 
     if (!reuse) {
@@ -321,10 +344,11 @@
 
     f.active = true;
     f.mode = mode;
-    f.state = mode === 'soft' ? 'jostled' : 'falling';
-    f.timer = mode === 'soft' ? SOFT_TIME : 0;
+    f.state = full ? 'falling' : 'jostled';
+    f.timer = mode === 'trip' ? TRIP_TIME : (full ? 0 : SOFT_TIME);
     f.still = 0;
     f.rise = 0;
+    f.settle = 0;
     actor.gait = 'idle';
     actor.speaking = false;
     actor.viseme = 'rest';
@@ -332,9 +356,18 @@
   }
 
   // Jostled but still on their feet: the body reacts, nobody goes down.
-  function nudge(actor, dirX, dirY, force) {
+  // `contactY` localises the reaction to the height the hit landed at.
+  function nudge(actor, dirX, dirY, force, contactY) {
     if (actor.fall.active && actor.fall.mode === 'full') return false;
-    return applyImpulse(actor, dirX, dirY, force, 'soft');
+    return applyImpulse(actor, dirX, dirY, force, 'soft',
+      contactY === undefined ? null : { contactY: contactY });
+  }
+
+  // A stumble: the legs let go for a moment so the body pitches over whatever
+  // it caught on, then gets back under itself. Nobody hits the ground.
+  function trip(actor, dirX, dirY, force) {
+    if (actor.fall.active && actor.fall.mode === 'full') return false;
+    return applyImpulse(actor, dirX, dirY, force, 'trip', null);
   }
 
   // Knocked off their feet entirely.
@@ -396,7 +429,7 @@
   // Moving the previous position by the same amount makes this a pure
   // correction, so it repositions the body without wiping out its momentum —
   // which is what leaves the wobble in.
-  function pullToward(f, target, strength, perJoint) {
+  function pullToward(f, target, strength, perJoint, damp) {
     for (const key in f.p) {
       const q = f.p[key];
       const t = target[key];
@@ -404,8 +437,23 @@
       const k = Math.min(1, strength * (perJoint ? (perJoint[key] || 0.3) : 1));
       const dx = (t[0] - q.x) * k, dy = (t[1] - q.y) * k, dz = (t[2] - q.z) * k;
       q.x += dx; q.y += dy; q.z += dz;
+      // Moving the previous position by the same amount makes this a pure
+      // correction, leaving the body's momentum — and so its wobble — intact.
       q.px += dx; q.py += dy; q.pz += dz;
+      if (damp) {
+        q.px += (q.x - q.px) * damp;
+        q.py += (q.y - q.py) * damp;
+        q.pz += (q.z - q.pz) * damp;
+      }
     }
+  }
+
+  // Blends the last of the way back onto the animated pose with gravity out of
+  // the picture and the motion damped, so it always converges. Returns true
+  // once every joint has arrived.
+  function settleOntoPose(f, target, dt) {
+    pullToward(f, target, Math.min(1, dt * 11), null, 0.4);
+    return worstError(f, target) < SETTLE_EPSILON;
   }
 
   function standingTarget(actor) {
@@ -413,25 +461,57 @@
     return jointPositions(actor.model, actor.yaw);
   }
 
+  // Furthest any joint currently sits from where the animation wants it.
+  function worstError(f, target) {
+    let worst = 0;
+    for (const key in f.p) {
+      const q = f.p[key], t = target[key];
+      if (!t) continue;
+      const d = Math.hypot(t[0] - q.x, t[1] - q.y, t[2] - q.z);
+      if (d > worst) worst = d;
+    }
+    return worst;
+  }
+
   function updateFall(actor, dt) {
     const f = actor.fall;
     if (!f.active || !f.p) return;
 
-    /* ---- jostled: reacts, recovers, never falls ---- */
-    if (f.mode === 'soft') {
-      let acc = Math.min(dt, 0.05);
-      while (acc > 0) {
-        const step = Math.min(SUBSTEP, acc);
-        simulate(f, step, 0.25);
-        acc -= step;
-      }
+    /* ---- jostled or tripping: reacts, recovers, never goes down ---- */
+    if (f.mode !== 'full') {
       const target = standingTarget(actor);
-      pullToward(f, target, Math.min(1, dt * 16), SOFT_PULL);
 
-      f.timer -= dt;
-      if (f.timer <= 0 || kineticEnergy(f) < 0.004) {
+      if (f.timer > 0) {
+        let acc = Math.min(dt, 0.05);
+        while (acc > 0) {
+          const step = Math.min(SUBSTEP, acc);
+          simulate(f, step, f.mode === 'trip' ? 0.7 : 0.25);
+          acc -= step;
+        }
+
+        const pull = Math.min(1, dt * 16);
+        if (f.mode === 'trip') {
+          // The legs are let go at first, which makes it a stumble rather than
+          // a wobble, then are hauled back under the body.
+          const released = Math.max(0, Math.min(1, f.timer / TRIP_TIME));
+          const lower = 0.3 + 0.7 * (1 - released);
+          const scaled = {};
+          for (const k in SOFT_PULL) {
+            scaled[k] = SOFT_PULL[k] * (LOWER_BODY.indexOf(k) >= 0 ? lower : 1);
+          }
+          pullToward(f, target, pull, scaled);
+        } else {
+          pullToward(f, target, pull, SOFT_PULL);
+        }
+        f.timer -= dt;
+        return;
+      }
+
+      f.settle = (f.settle || 0) + dt;
+      if (settleOntoPose(f, target, dt) || f.settle > 1.5) {
         f.active = false;
         f.state = 'up';
+        f.settle = 0;
         f.p = null;
       }
       return;
@@ -458,9 +538,15 @@
       pullToward(f, target, Math.min(1, dt * (5 + 22 * k)));
 
       if (k >= 1) {
-        f.active = false;
-        f.state = 'up';
-        f.p = null;
+        // Blend the last of the way onto the pose rather than cutting over on
+        // the clock, which is what made the model jump at the end.
+        f.settle = (f.settle || 0) + dt;
+        if (settleOntoPose(f, target, dt) || f.settle > 1.5) {
+          f.active = false;
+          f.state = 'up';
+          f.settle = 0;
+          f.p = null;
+        }
       }
       return;
     }
@@ -487,9 +573,9 @@
     }
 
     if (f.state === 'falling') {
-      if (kineticEnergy(f) < 0.02) {
+      if (kineticEnergy(f) < 0.05) {
         f.still += dt;
-        if (f.still > 0.3) { f.state = 'down'; f.timer = 0.5 + actor.rng() * 0.7; }
+        if (f.still > 0.15) { f.state = 'down'; f.timer = 0.18 + actor.rng() * 0.28; }
       } else {
         f.still = 0;
       }
@@ -808,7 +894,7 @@
     emptyPose, clonePose, applyPose, lerpPose, samplePoseTrack,
     yawForDirection, snapToEight, directionName, shortestAngle,
     createActor, rebuildActorModel, updateActorMotion, updateBlink,
-    createFall, knockDown, nudge, applyImpulse, updateFall, isDown,
+    createFall, knockDown, nudge, trip, applyImpulse, updateFall, isDown,
     jointPositions, segmentMatrix, drawRagdoll,
     poseActor, drawModel, renderActor, OUTLINE
   };

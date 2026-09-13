@@ -1729,6 +1729,11 @@
       // the white of the eye picks up the skin tone, otherwise it glares on
       // darker complexions
       sclera: shade(shade(skin, 0.72), 0.2),
+      // The mouth gets its own near-black rather than a shade of skin. A
+      // darker skin tone is still a skin tone, and against the face it read as
+      // a smudge instead of an opening.
+      mouth: '#2a1618',
+      lip: shade(skin, 0.3),
       hair: hair,
       hairDark: shade(hair, -0.2),
       eye: hexOf(P.EYE_COLOURS, ch.eyeColour),
@@ -1955,15 +1960,15 @@
   const MOUTH_Y = 1.15;
 
   const VISEMES = {
-    rest: { w: 2.9, h: 0.9 },
-    closed: { w: 2.8, h: 0.8 },
-    ah: { w: 3.2, h: 2.4 },
-    eh: { w: 3.6, h: 1.6 },
-    oh: { w: 2.4, h: 2.2 },
-    oo: { w: 1.9, h: 1.7 },
-    ee: { w: 3.8, h: 1.1 },
-    ff: { w: 3.0, h: 1.0 },
-    ll: { w: 2.8, h: 1.8 }
+    rest: { w: 3.3, h: 1.3 },
+    closed: { w: 3.1, h: 1.1 },
+    ah: { w: 3.5, h: 2.8 },
+    eh: { w: 3.9, h: 2.0 },
+    oh: { w: 2.7, h: 2.6 },
+    oo: { w: 2.2, h: 2.1 },
+    ee: { w: 4.1, h: 1.5 },
+    ff: { w: 3.3, h: 1.4 },
+    ll: { w: 3.1, h: 2.2 }
   };
 
   const LETTER_VISEME = {
@@ -2016,7 +2021,9 @@
         const irisX = x + (shape.w - irisW) / 2 + gaze * (shape.w - irisW) * 0.5;
         const irisY = midY + (openH - irisH) / 2;
         out.push(part(B(irisX, irisY, front + 0.06, irisW, irisH, 0.16), c.eye, { flat: true }));
-        if (irisH > 0.7) {
+        // Only worth drawing when it lands on at least a whole pixel; below
+        // that it flickers in and out as the head turns.
+        if (irisH > 1.05) {
           out.push(part(B(irisX + irisW * 0.26, irisY + irisH * 0.22, front + 0.14,
             irisW * 0.48, irisH * 0.52, 0.12), '#1a151a', { flat: true }));
         }
@@ -2047,12 +2054,13 @@
     const v = VISEMES[(state && state.viseme) || 'rest'] || VISEMES.rest;
     const mw = v.w * (0.75 + ch.mouthWidth * 0.5);
     const my = MOUTH_Y - (v.h - 0.5) * 0.35;
-    out.push(part(B(-mw / 2, my, front - 0.06, mw, v.h, 0.24), c.skinDeep, { flat: true }));
-    // a lit lower lip under it, so the mouth reads as a feature rather than a
-    // dark smudge, and an upper lip line to close it off
-    out.push(part(B(-mw / 2 + 0.15, my - 0.6, front - 0.05, mw - 0.3, 0.55, 0.22),
-      c.skinLight, { flat: true }));
-    out.push(part(B(-mw / 2 + 0.25, my + v.h, front - 0.05, mw - 0.5, 0.3, 0.2),
+    out.push(part(B(-mw / 2, my, front - 0.06, mw, v.h, 0.26), c.mouth, { flat: true }));
+    // A lit lower lip beneath and a shadowed upper lip above. Three bands of
+    // real contrast is the least that still reads as a mouth once the head is
+    // only about eleven pixels across.
+    out.push(part(B(-mw / 2 + 0.1, my - 0.75, front - 0.05, mw - 0.2, 0.7, 0.24),
+      c.lip, { flat: true }));
+    out.push(part(B(-mw / 2 + 0.2, my + v.h, front - 0.05, mw - 0.4, 0.42, 0.22),
       c.skinDark, { flat: true }));
 
     return out;
@@ -2427,7 +2435,7 @@
       active: false,
       mode: 'soft',      // soft = jostled but stays upright; full = goes down
       state: 'up',       // up | falling | down | rising
-      p: null, links: null, timer: 0, still: 0, rise: 0
+      p: null, links: null, timer: 0, still: 0, rise: 0, settle: 0
     };
   }
 
@@ -2441,7 +2449,14 @@
     shoulderR: 0.32, shoulderL: 0.32,
     elbowR: 0.18, elbowL: 0.18, handR: 0.13, handL: 0.13
   };
-  const SOFT_TIME = 0.8;
+  const LOWER_BODY = ['footR', 'footL', 'hipR', 'hipL', 'pelvis', 'kneeR', 'kneeL'];
+  const SOFT_TIME = 0.7;
+  const TRIP_TIME = 1.0;
+
+  // How close every joint has to be to the animated pose before control is
+  // handed back. Switching on a timer instead leaves the body wherever the
+  // physics happened to put it and the model jumps — that is the teleport.
+  const SETTLE_EPSILON = 0.22;
 
   /* Getting up, as poses rather than a straight interpolation back to
    * standing: face down with the arms planted, push the hips up, come onto a
@@ -2471,14 +2486,14 @@
     return k;
   }
   const GETUP_KEYS = getupKeys();
-  const RISE_TIME = 1.9;
+  const RISE_TIME = 1.0;
 
   function distanceBetween(a, b) {
     return Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
   }
 
   // dirX/dirY is the world push direction (world y is depth, which is local z).
-  function applyImpulse(actor, dirX, dirY, force, mode) {
+  function applyImpulse(actor, dirX, dirY, force, mode, opts) {
     const f = actor.fall;
     const model = actor.model;
 
@@ -2491,15 +2506,26 @@
     const p = reuse ? f.p : {};
     const len = Math.hypot(dirX, dirY) || 1;
     const px = dirX / len, pz = dirY / len;
-    const cap = mode === 'soft' ? 5.0 : 9.0;
-    const impulse = Math.max(1.0, Math.min(cap, force)) * SUBSTEP *
-      (mode === 'soft' ? 6.0 : 7.5);
+    const full = mode === 'full';
+    const cap = full ? 9.0 : 5.0;
+    const impulse = Math.max(1.0, Math.min(cap, force)) * SUBSTEP * (full ? 7.5 : 6.0);
 
     let tallest = 1;
     for (let i = 0; i < JOINT_NAMES.length; i++) {
       const k = JOINT_NAMES[i];
       if (joints[k] && joints[k][1] > tallest) tallest = joints[k][1];
     }
+
+    // Where the hit landed, in the actor's own frame: out on the side the
+    // push came from, at whatever height the caller says it struck. Given
+    // one, the impulse falls off with distance from that point, so bumping
+    // someone's shoulder moves their shoulder rather than all of them.
+    // jointPositions() already applies the actor's yaw, so particle space is
+    // world-aligned and the push direction needs no further rotation.
+    const contactY = opts && opts.contactY;
+    const localised = typeof contactY === 'number';
+    const cx = -px * 4.2, cy = contactY, cz = -pz * 4.2;
+    const SIGMA2 = 2 * 7 * 7;
 
     for (let i = 0; i < JOINT_NAMES.length; i++) {
       const k = JOINT_NAMES[i];
@@ -2510,12 +2536,17 @@
           r: PARTICLE_RADIUS[k] || 1.2 };
       }
       const q = p[k];
-      // A push that scales with height topples rather than slides: the feet
-      // barely move, the shoulders take the hit.
-      const lever = 0.25 + 1.5 * (q.y / tallest);
-      q.px -= px * impulse * lever;
-      q.pz -= pz * impulse * lever;
-      q.py -= impulse * 0.16 * lever;
+      let weight;
+      if (localised) {
+        const dx = q.x - cx, dy = q.y - cy, dz = q.z - cz;
+        weight = 2.6 * Math.exp(-(dx * dx + dy * dy + dz * dz) / SIGMA2);
+      } else {
+        // whole-body shove: scales with height, so it topples rather than slides
+        weight = 0.25 + 1.5 * (q.y / tallest);
+      }
+      q.px -= px * impulse * weight;
+      q.pz -= pz * impulse * weight;
+      q.py -= impulse * 0.16 * weight;
     }
 
     if (!reuse) {
@@ -2532,10 +2563,11 @@
 
     f.active = true;
     f.mode = mode;
-    f.state = mode === 'soft' ? 'jostled' : 'falling';
-    f.timer = mode === 'soft' ? SOFT_TIME : 0;
+    f.state = full ? 'falling' : 'jostled';
+    f.timer = mode === 'trip' ? TRIP_TIME : (full ? 0 : SOFT_TIME);
     f.still = 0;
     f.rise = 0;
+    f.settle = 0;
     actor.gait = 'idle';
     actor.speaking = false;
     actor.viseme = 'rest';
@@ -2543,9 +2575,18 @@
   }
 
   // Jostled but still on their feet: the body reacts, nobody goes down.
-  function nudge(actor, dirX, dirY, force) {
+  // `contactY` localises the reaction to the height the hit landed at.
+  function nudge(actor, dirX, dirY, force, contactY) {
     if (actor.fall.active && actor.fall.mode === 'full') return false;
-    return applyImpulse(actor, dirX, dirY, force, 'soft');
+    return applyImpulse(actor, dirX, dirY, force, 'soft',
+      contactY === undefined ? null : { contactY: contactY });
+  }
+
+  // A stumble: the legs let go for a moment so the body pitches over whatever
+  // it caught on, then gets back under itself. Nobody hits the ground.
+  function trip(actor, dirX, dirY, force) {
+    if (actor.fall.active && actor.fall.mode === 'full') return false;
+    return applyImpulse(actor, dirX, dirY, force, 'trip', null);
   }
 
   // Knocked off their feet entirely.
@@ -2607,7 +2648,7 @@
   // Moving the previous position by the same amount makes this a pure
   // correction, so it repositions the body without wiping out its momentum —
   // which is what leaves the wobble in.
-  function pullToward(f, target, strength, perJoint) {
+  function pullToward(f, target, strength, perJoint, damp) {
     for (const key in f.p) {
       const q = f.p[key];
       const t = target[key];
@@ -2615,8 +2656,23 @@
       const k = Math.min(1, strength * (perJoint ? (perJoint[key] || 0.3) : 1));
       const dx = (t[0] - q.x) * k, dy = (t[1] - q.y) * k, dz = (t[2] - q.z) * k;
       q.x += dx; q.y += dy; q.z += dz;
+      // Moving the previous position by the same amount makes this a pure
+      // correction, leaving the body's momentum — and so its wobble — intact.
       q.px += dx; q.py += dy; q.pz += dz;
+      if (damp) {
+        q.px += (q.x - q.px) * damp;
+        q.py += (q.y - q.py) * damp;
+        q.pz += (q.z - q.pz) * damp;
+      }
     }
+  }
+
+  // Blends the last of the way back onto the animated pose with gravity out of
+  // the picture and the motion damped, so it always converges. Returns true
+  // once every joint has arrived.
+  function settleOntoPose(f, target, dt) {
+    pullToward(f, target, Math.min(1, dt * 11), null, 0.4);
+    return worstError(f, target) < SETTLE_EPSILON;
   }
 
   function standingTarget(actor) {
@@ -2624,25 +2680,57 @@
     return jointPositions(actor.model, actor.yaw);
   }
 
+  // Furthest any joint currently sits from where the animation wants it.
+  function worstError(f, target) {
+    let worst = 0;
+    for (const key in f.p) {
+      const q = f.p[key], t = target[key];
+      if (!t) continue;
+      const d = Math.hypot(t[0] - q.x, t[1] - q.y, t[2] - q.z);
+      if (d > worst) worst = d;
+    }
+    return worst;
+  }
+
   function updateFall(actor, dt) {
     const f = actor.fall;
     if (!f.active || !f.p) return;
 
-    /* ---- jostled: reacts, recovers, never falls ---- */
-    if (f.mode === 'soft') {
-      let acc = Math.min(dt, 0.05);
-      while (acc > 0) {
-        const step = Math.min(SUBSTEP, acc);
-        simulate(f, step, 0.25);
-        acc -= step;
-      }
+    /* ---- jostled or tripping: reacts, recovers, never goes down ---- */
+    if (f.mode !== 'full') {
       const target = standingTarget(actor);
-      pullToward(f, target, Math.min(1, dt * 16), SOFT_PULL);
 
-      f.timer -= dt;
-      if (f.timer <= 0 || kineticEnergy(f) < 0.004) {
+      if (f.timer > 0) {
+        let acc = Math.min(dt, 0.05);
+        while (acc > 0) {
+          const step = Math.min(SUBSTEP, acc);
+          simulate(f, step, f.mode === 'trip' ? 0.7 : 0.25);
+          acc -= step;
+        }
+
+        const pull = Math.min(1, dt * 16);
+        if (f.mode === 'trip') {
+          // The legs are let go at first, which makes it a stumble rather than
+          // a wobble, then are hauled back under the body.
+          const released = Math.max(0, Math.min(1, f.timer / TRIP_TIME));
+          const lower = 0.3 + 0.7 * (1 - released);
+          const scaled = {};
+          for (const k in SOFT_PULL) {
+            scaled[k] = SOFT_PULL[k] * (LOWER_BODY.indexOf(k) >= 0 ? lower : 1);
+          }
+          pullToward(f, target, pull, scaled);
+        } else {
+          pullToward(f, target, pull, SOFT_PULL);
+        }
+        f.timer -= dt;
+        return;
+      }
+
+      f.settle = (f.settle || 0) + dt;
+      if (settleOntoPose(f, target, dt) || f.settle > 1.5) {
         f.active = false;
         f.state = 'up';
+        f.settle = 0;
         f.p = null;
       }
       return;
@@ -2669,9 +2757,15 @@
       pullToward(f, target, Math.min(1, dt * (5 + 22 * k)));
 
       if (k >= 1) {
-        f.active = false;
-        f.state = 'up';
-        f.p = null;
+        // Blend the last of the way onto the pose rather than cutting over on
+        // the clock, which is what made the model jump at the end.
+        f.settle = (f.settle || 0) + dt;
+        if (settleOntoPose(f, target, dt) || f.settle > 1.5) {
+          f.active = false;
+          f.state = 'up';
+          f.settle = 0;
+          f.p = null;
+        }
       }
       return;
     }
@@ -2698,9 +2792,9 @@
     }
 
     if (f.state === 'falling') {
-      if (kineticEnergy(f) < 0.02) {
+      if (kineticEnergy(f) < 0.05) {
         f.still += dt;
-        if (f.still > 0.3) { f.state = 'down'; f.timer = 0.5 + actor.rng() * 0.7; }
+        if (f.still > 0.15) { f.state = 'down'; f.timer = 0.18 + actor.rng() * 0.28; }
       } else {
         f.still = 0;
       }
@@ -3019,7 +3113,7 @@
     emptyPose, clonePose, applyPose, lerpPose, samplePoseTrack,
     yawForDirection, snapToEight, directionName, shortestAngle,
     createActor, rebuildActorModel, updateActorMotion, updateBlink,
-    createFall, knockDown, nudge, applyImpulse, updateFall, isDown,
+    createFall, knockDown, nudge, trip, applyImpulse, updateFall, isDown,
     jointPositions, segmentMatrix, drawRagdoll,
     poseActor, drawModel, renderActor, OUTLINE
   };
@@ -3249,12 +3343,12 @@
   // running off the edge of the generated ground.
   const WORLD_W = 1200, WORLD_H = 800;
 
-  // Exactly half the forge preview's scale and the same camera pitch, so a
-  // villager in the world is the forge model sized down rather than a
+  // The same camera pitch as the forge preview at a fraction of its scale, so
+  // a villager in the world is the forge model sized down rather than a
   // differently-proportioned one.
-  const ACTOR_BUF = { w: 140, h: 128, ox: 70, oy: 100 };
+  const ACTOR_BUF = { w: 112, h: 104, ox: 56, oy: 80 };
   const CAM_PITCH = 0.26;
-  const CAM_SCALE = 1.8;
+  const CAM_SCALE = 1.35;
 
   const SPEED = { walk: 52, run: 112, npc: 26 };
   const ACCEL = 520;           // px/s^2 while steering
@@ -3263,9 +3357,11 @@
   const SKID_FRICTION = 150;   // you slide before you stop
 
   const PLAYER_R = 6.5;
-  const NUDGE_SPEED = 30;      // above this, any bump visibly jostles you
-  const VAULT_SPEED = 86;      // above this, an obstacle takes you off your feet
-  const KNOCK_SPEED = 82;      // must be genuinely sprinting to floor someone
+  const NUDGE_SPEED = 30;      // above this, a bump visibly jostles you
+  const TRIP_SPEED = 62;       // above this, an obstacle trips you
+  const FALL_SPEED = 104;      // only a tree, at nearly full sprint, floors you
+  const CHEST_H = 20;          // contact heights, in model units
+  const SHIN_H = 7;
   const TALK_RANGE = 40;
   const COMFORT_RANGE = 24;
 
@@ -3338,6 +3434,7 @@
 
   function renderBoxes(boxes, bufW, bufH, ox, oy, scale) {
     const target = R.createTarget(bufW, bufH);
+    target.footY = oy;   // where the ground line sits inside the sprite
     R.clearTarget(target);
     const camera = R.makeCamera(CAM_PITCH, scale, ox, oy);
     const identity = R.identity();
@@ -3365,7 +3462,7 @@
         colour: rng() < 0.5 ? '#39572f' : '#2f4a28'
       });
     }
-    return renderBoxes(boxes, 132, 190, 66, 182, CAM_SCALE);
+    return renderBoxes(boxes, 104, 136, 52, 128, CAM_SCALE);
   }
 
   function makeRock(rng) {
@@ -3380,7 +3477,7 @@
         colour: rng() < 0.5 ? '#6d6a63' : '#5a5750'
       });
     }
-    return renderBoxes(boxes, 56, 56, 28, 48, CAM_SCALE);
+    return renderBoxes(boxes, 44, 44, 22, 36, CAM_SCALE);
   }
 
   function makeBarrel() {
@@ -3390,7 +3487,7 @@
     boxes.push({ mesh: G.superellipsoid(0, 4.2, 0, 3.6, 4.3, 3.6, 0.45, 5, 10), colour: '#6b4a2c' });
     boxes.push({ mesh: G.superellipsoid(0, 2.0, 0, 3.7, 0.55, 3.7, 0.4, 3, 10), colour: '#4a4038' });
     boxes.push({ mesh: G.superellipsoid(0, 6.4, 0, 3.7, 0.55, 3.7, 0.4, 3, 10), colour: '#4a4038' });
-    return renderBoxes(boxes, 48, 60, 24, 50, CAM_SCALE);
+    return renderBoxes(boxes, 40, 48, 20, 40, CAM_SCALE);
   }
 
   function makeCart() {
@@ -3405,7 +3502,7 @@
       boxes.push({ mesh: G.superellipsoid(-9, 4.4, z, 0.9, 4.4, 4.4, 0.95, 4, 10), colour: '#43301e' });
       boxes.push({ mesh: G.superellipsoid(9, 4.4, z, 0.9, 4.4, 4.4, 0.95, 4, 10), colour: '#43301e' });
     }
-    return renderBoxes(boxes, 88, 76, 44, 62, CAM_SCALE);
+    return renderBoxes(boxes, 72, 60, 36, 48, CAM_SCALE);
   }
 
   /* ---------- world construction ---------- */
@@ -3434,9 +3531,9 @@
 
     // `tall` decides what happens when you hit it at speed: you go over a low
     // obstacle, you bounce off a tall one.
-    function addProp(sprite, x, y, footY, r, tall) {
+    function addProp(sprite, x, y, r, tall) {
       world.props.push({
-        sprite: sprite, x: x, y: y, footY: footY, r: r,
+        sprite: sprite, x: x, y: y, footY: sprite.footY, r: r,
         shadowR: r * 1.5, tall: !!tall
       });
     }
@@ -3445,16 +3542,16 @@
       const x = 40 + rng() * (WORLD_W - 80);
       const y = 40 + rng() * (WORLD_H - 80);
       if (Math.abs(y - pathCentre(x)) < 36) continue; // keep the road clear
-      addProp(treeSprites[Math.floor(rng() * treeSprites.length)], x, y, 182, 6, true);
+      addProp(treeSprites[Math.floor(rng() * treeSprites.length)], x, y, 6, true);
     }
     for (let i = 0; i < 22; i++) {
       addProp(rockSprites[Math.floor(rng() * rockSprites.length)],
-        40 + rng() * (WORLD_W - 80), 40 + rng() * (WORLD_H - 80), 48, 4.5, false);
+        40 + rng() * (WORLD_W - 80), 40 + rng() * (WORLD_H - 80), 4.5, false);
     }
-    addProp(cartSprite, WORLD_W * 0.46, pathCentre(WORLD_W * 0.46) - 26, 62, 10, false);
-    addProp(barrelSprite, WORLD_W * 0.42, WORLD_H * 0.5, 50, 4, false);
-    addProp(barrelSprite, WORLD_W * 0.435, WORLD_H * 0.52, 50, 4, false);
-    addProp(barrelSprite, WORLD_W * 0.415, WORLD_H * 0.535, 50, 4, false);
+    addProp(cartSprite, WORLD_W * 0.46, pathCentre(WORLD_W * 0.46) - 26, 10, false);
+    addProp(barrelSprite, WORLD_W * 0.42, WORLD_H * 0.5, 4, false);
+    addProp(barrelSprite, WORLD_W * 0.435, WORLD_H * 0.52, 4, false);
+    addProp(barrelSprite, WORLD_W * 0.415, WORLD_H * 0.535, 4, false);
 
     /* player */
     const player = Rig.createActor(playerCharacter, WORLD_W * 0.4, WORLD_H * 0.55, 1);
@@ -3528,27 +3625,30 @@
   }
 
   // Everything that happens to the player when they run into scenery.
-  function reactToProp(world, player, impact) {
+  function reactToProp(player, impact) {
     if (!impact.prop || impact.speed < NUDGE_SPEED) return;
-    const p = player;
     const n = impact;
+    const tall = impact.prop.tall;
 
-    if (impact.speed > VAULT_SPEED) {
-      if (impact.prop.tall) {
-        // A tree does not give. You come off it backwards.
-        Rig.knockDown(p, n.nx, n.ny, 3.4 + impact.speed / 34);
-        p.vx = n.nx * impact.speed * 0.28;
-        p.vy = n.ny * impact.speed * 0.28;
-      } else {
-        // Something around knee height trips you straight over the top of it.
-        Rig.knockDown(p, -n.nx, -n.ny, 3.0 + impact.speed / 38);
-        p.vx = -n.nx * impact.speed * 0.2;
-        p.vy = -n.ny * impact.speed * 0.2;
-      }
-    } else {
-      // Not fast enough to floor you — you just take the knock.
-      Rig.nudge(p, n.nx, n.ny, 1.2 + impact.speed / 46);
+    if (tall && impact.speed > FALL_SPEED) {
+      // Hitting a tree at nearly full sprint is the one thing that actually
+      // puts the player on the ground.
+      Rig.knockDown(player, n.nx, n.ny, 3.2 + impact.speed / 40);
+      player.vx = n.nx * impact.speed * 0.2;
+      player.vy = n.ny * impact.speed * 0.2;
+      return;
     }
+
+    if (impact.speed > TRIP_SPEED) {
+      // Anything knee-high catches your legs and pitches you over the top of
+      // it; a tree stops you dead and you stumble back off it. Either way you
+      // stay on your feet.
+      if (tall) Rig.trip(player, n.nx, n.ny, 2.6 + impact.speed / 48);
+      else Rig.trip(player, -n.nx, -n.ny, 2.8 + impact.speed / 44);
+      return;
+    }
+
+    Rig.nudge(player, n.nx, n.ny, 1.0 + impact.speed / 60, tall ? CHEST_H : SHIN_H);
   }
 
   function resolveActorCollisions(world) {
@@ -3562,28 +3662,23 @@
       const min = PLAYER_R + 7;
       if (dist >= min || dist === 0) continue;
 
-      const nx = dx / dist, ny = dy / dist;
+      const nx = dx / dist, ny = dy / dist / 1.5;
       const speed = Math.hypot(player.vx, player.vy);
 
-      if (speed >= KNOCK_SPEED && !Rig.isDown(a)) {
-        // A sprinting shoulder-charge is the only thing that floors anyone.
-        Rig.knockDown(a, nx, ny / 1.5, 2.6 + speed / 30);
-        if (a.brain) { a.brain.state = 'downed'; a.brain.timer = 0; }
+      // Push apart first, so nobody ends up standing inside anybody.
+      const push = (min - dist) * 0.5;
+      a.x += nx * push; a.y += ny * push;
+      player.x -= nx * push; player.y -= ny * push;
+
+      // Running into someone knocks them about — it never puts them down.
+      // The impulse is aimed at the height it landed, so a shoulder charge
+      // moves a shoulder rather than the whole person.
+      if (speed > NUDGE_SPEED) {
+        if (!Rig.isDown(a)) Rig.nudge(a, nx, ny, 1.1 + speed / 42, CHEST_H);
+        Rig.nudge(player, -nx, -ny, 0.9 + speed / 52, CHEST_H);
+        player.vx *= 0.72;
+        player.vy *= 0.72;
         if (world.talkingTo === a) D.close(world.box);
-        Rig.nudge(player, -nx, -ny / 1.5, 2.8);
-        player.vx *= 0.3;
-        player.vy *= 0.3;
-      } else {
-        // Otherwise both of them just get jostled and pushed apart.
-        const push = (min - dist) * 0.5;
-        a.x += nx * push; a.y += ny * push / 1.5;
-        player.x -= nx * push; player.y -= ny * push / 1.5;
-        if (speed > NUDGE_SPEED) {
-          if (!Rig.isDown(a)) Rig.nudge(a, nx, ny / 1.5, 1.0 + speed / 52);
-          Rig.nudge(player, -nx, -ny / 1.5, 0.9 + speed / 64);
-          player.vx *= 0.82;
-          player.vy *= 0.82;
-        }
       }
     }
   }
@@ -3633,7 +3728,7 @@
     p.y += p.vy * dt;
 
     const impact = resolvePropCollisions(world, p, PLAYER_R);
-    reactToProp(world, p, impact);
+    reactToProp(p, impact);
     clampPlayer(p);
 
     // Sliding to a halt uses the still pose. A dedicated skid animation read as
@@ -3861,7 +3956,7 @@
 
   global.World = {
     VIEW_W, VIEW_H, WORLD_W, WORLD_H, ACTOR_BUF, CAM_PITCH, CAM_SCALE,
-    SPEED, TALK_RANGE, KNOCK_SPEED, VAULT_SPEED, NUDGE_SPEED, TEST_PAGES,
+    SPEED, TALK_RANGE, NUDGE_SPEED, TRIP_SPEED, FALL_SPEED, TEST_PAGES,
     createWorld, update, draw, tryTalk, nearestTalkable, distance, beginConversation
   };
 })(window);
@@ -4199,7 +4294,18 @@
       Rig.nudge(previewActor, Math.sin(angle), Math.cos(angle), 2 + Math.random() * 2.5);
     });
 
+    const tripBtn = document.createElement('button');
+    tripBtn.type = 'button';
+    tripBtn.className = 'btn';
+    tripBtn.id = 'trip';
+    tripBtn.textContent = 'Trip';
+    tripBtn.addEventListener('click', function () {
+      const angle = Math.random() * Math.PI * 2;
+      Rig.trip(previewActor, Math.sin(angle), Math.cos(angle), 3.5 + Math.random() * 2);
+    });
+
     knockRow.appendChild(jostleBtn);
+    knockRow.appendChild(tripBtn);
     knockRow.appendChild(knockBtn);
     playback.appendChild(knockRow);
 

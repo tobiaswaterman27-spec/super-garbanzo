@@ -63,14 +63,17 @@ test for it: no two co-visible perpendicular faces may ever share a step.
   stop, to drop back to a walk.
 - Trees, rocks, barrels and the cart are solid. Hitting one kills your inward
   velocity, bleeds the rest and staggers you if you were moving fast.
-- Two reaction strengths. Any contact above a walking pace **jostles** you:
-  the ragdoll runs, but the feet and hips are held to the animated pose so the
-  body lurches and recovers without going down. Only a real impact takes
-  someone off their feet.
-- Run into something at a sprint and you go down properly. Low obstacles
-  (rocks, barrels, the cart) trip you straight over the top; a tree throws you
-  back the way you came. Villagers only hit the floor when the player charges
-  them at sprint speed — otherwise they are jostled like anything else.
+- Three reaction strengths, and only the hardest puts anyone on the ground:
+  - **Jostle** — any contact above a walking pace. The impulse is aimed at the
+    height the hit landed, so bumping someone's shoulder moves their shoulder
+    rather than all of them.
+  - **Trip** — running into something. The legs let go for a moment so the body
+    pitches over whatever it caught on, then gets back under itself. Low
+    obstacles pitch you forward over the top; a tree stops you dead and you
+    stumble back off it. You stay on your feet either way.
+  - **Fall** — only a tree, only at nearly full sprint.
+- Villagers are never knocked to the ground by a collision; they are jostled
+  and stay standing.
 - Idle characters hold perfectly still. The only things that move are eyes
   (random blinks, sometimes a double) and mouth shapes driven by whichever
   letter is currently being revealed.
@@ -144,10 +147,18 @@ onto a knee, then standing — while the physics keeps running underneath, so
 the limbs collide with the ground on the way through. A new impulse at any
 point, recovery included, puts them straight back down.
 
-A soft jostle is the same solver with the lower body pinned: the feet, hips
-and knees are dragged hard onto the animated pose each frame while the chest,
-arms and head are left loose. The body reacts and settles in under a second
-and cannot topple.
+A jostle is the same solver with the lower body pinned: the feet, hips and
+knees are dragged hard onto the animated pose each frame while the chest, arms
+and head are left loose. The body reacts and settles in under a second and
+cannot topple. A trip releases that lower-body grip for a moment first, which
+is the difference between a stumble and a wobble.
+
+Control is handed back only once **every joint is within a fifth of a unit of
+the animated pose**, never on a timer. Cutting over on the clock leaves the
+body wherever the physics happened to put it, and the model jumps — that is
+what the teleport was. The last of the distance is closed with gravity out of
+the picture and the motion damped, so it always converges: measured, the
+remaining jump at hand-over is under half a pixel.
 
 ## Not done yet
 

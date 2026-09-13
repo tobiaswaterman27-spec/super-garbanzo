@@ -14,20 +14,23 @@
   const Rig = global.Rig;
   const D = global.Dialogue;
 
-  // The field of view, in world units. PIXEL is how many rendered pixels each
-  // of those units gets — the characters are no longer pixel art, so this is
-  // simply the render resolution.
+  // The field of view in world units, and how many art pixels each unit gets.
+  // Raising PIXEL makes the pixels smaller and more numerous — finer pixel
+  // art, same amount of world on screen.
   const VIEW_W = 320, VIEW_H = 180;
   const PIXEL = 3;
   const RENDER_W = VIEW_W * PIXEL, RENDER_H = VIEW_H * PIXEL;
   // Large enough that the camera can stay locked to the player without ever
   // running off the edge of the generated ground.
   const WORLD_W = 1200, WORLD_H = 800;
+  const GROUND_W = WORLD_W * PIXEL, GROUND_H = WORLD_H * PIXEL;
 
   // The same camera pitch as the forge preview at a fraction of its scale, so
   // a villager in the world is the forge model sized down rather than a
   // differently-proportioned one.
-  const ACTOR_BUF = { w: 112 * PIXEL, h: 104 * PIXEL, ox: 56 * PIXEL, oy: 80 * PIXEL };
+  const ACTOR_BUF = {
+    w: 112 * PIXEL, h: 104 * PIXEL, ox: 56 * PIXEL, oy: 80 * PIXEL
+  };
   const CAM_PITCH = 0.26;
   const CAM_SCALE = 1.35 * PIXEL;
 
@@ -52,14 +55,16 @@
 
   /* ---------- ground ---------- */
 
-  const GRASS = ['#4a6b3a', '#53743f', '#456535', '#5c7d46', '#3f5c32'].map(function (h) {
+  const GRASS = ['#4a6b3a', '#53743f', '#456535', '#5c7d46', '#3f5c32'];
+  const DIRT = ['#7d6844', '#8a7450', '#6f5c3c', '#937d57'];
+
+  // One flat palette so the ground can be stored as one byte per pixel. At
+  // three pixels per world unit a full-colour buffer would be 34MB.
+  const GROUND_PALETTE = GRASS.concat(DIRT).map(function (h) {
     const c = R.hexToRgb(h);
     return R.pack(c[0], c[1], c[2]);
   });
-  const DIRT = ['#7d6844', '#8a7450', '#6f5c3c', '#937d57'].map(function (h) {
-    const c = R.hexToRgb(h);
-    return R.pack(c[0], c[1], c[2]);
-  });
+  const DIRT0 = GRASS.length;
 
   function pathCentre(x) {
     return WORLD_H * 0.6 + Math.sin(x * 0.008) * 48 + Math.sin(x * 0.028) * 9;
@@ -67,45 +72,56 @@
 
   function buildGround(seed) {
     const rng = CM.makeRng(seed);
-    const buf = new Uint32Array(WORLD_W * WORLD_H);
+    const buf = new Uint8Array(GROUND_W * GROUND_H);
+    const inv = 1 / PIXEL;
 
-    for (let y = 0; y < WORLD_H; y++) {
-      for (let x = 0; x < WORLD_W; x++) {
+    for (let py = 0; py < GROUND_H; py++) {
+      const y = py * inv;
+      const row = py * GROUND_W;
+      for (let px = 0; px < GROUND_W; px++) {
+        const x = px * inv;
         const n = Math.sin(x * 0.09) * Math.cos(y * 0.11) + Math.sin((x + y) * 0.05) * 0.6;
         let idx = n > 0.8 ? 3 : n > 0.15 ? 1 : n > -0.5 ? 0 : 2;
         if (rng() < 0.05) idx = 4;
-        buf[y * WORLD_W + x] = GRASS[idx];
+        buf[row + px] = idx;
       }
     }
 
-    for (let x = 0; x < WORLD_W; x++) {
+    // the road, and the track running north off it
+    for (let px = 0; px < GROUND_W; px++) {
+      const x = px * inv;
       const centre = pathCentre(x);
       const halfWidth = 14 + Math.sin(x * 0.02) * 3;
-      for (let y = Math.floor(centre - halfWidth); y < centre + halfWidth; y++) {
-        if (y < 0 || y >= WORLD_H) continue;
-        const edge = Math.abs(y - centre) / halfWidth;
+      const from = Math.floor((centre - halfWidth) * PIXEL);
+      const to = Math.ceil((centre + halfWidth) * PIXEL);
+      for (let py = from; py < to; py++) {
+        if (py < 0 || py >= GROUND_H) continue;
+        const edge = Math.abs(py * inv - centre) / halfWidth;
         if (edge > 0.86 && rng() < 0.55) continue;
-        buf[y * WORLD_W + x] = DIRT[edge > 0.6 ? 2 : (rng() < 0.25 ? 1 : 0)];
+        buf[py * GROUND_W + px] = DIRT0 + (edge > 0.6 ? 2 : (rng() < 0.25 ? 1 : 0));
       }
     }
-    for (let y = 0; y < WORLD_H * 0.62; y++) {
+    for (let py = 0; py < GROUND_H * 0.62; py++) {
+      const y = py * inv;
       const centre = WORLD_W * 0.38 + Math.sin(y * 0.014) * 20;
-      for (let x = Math.floor(centre - 10); x < centre + 10; x++) {
-        if (x < 0 || x >= WORLD_W) continue;
-        const edge = Math.abs(x - centre) / 10;
+      const from = Math.floor((centre - 10) * PIXEL), to = Math.ceil((centre + 10) * PIXEL);
+      for (let px = from; px < to; px++) {
+        if (px < 0 || px >= GROUND_W) continue;
+        const edge = Math.abs(px * inv - centre) / 10;
         if (edge > 0.8 && rng() < 0.5) continue;
-        buf[y * WORLD_W + x] = DIRT[edge > 0.6 ? 2 : 0];
+        buf[py * GROUND_W + px] = DIRT0 + (edge > 0.6 ? 2 : 0);
       }
     }
 
-    for (let i = 0; i < 2600; i++) {
-      const x = Math.floor(rng() * WORLD_W), y = Math.floor(rng() * WORLD_H);
-      const isDirt = DIRT.indexOf(buf[y * WORLD_W + x]) >= 0;
-      const c = isDirt ? DIRT[3] : GRASS[rng() < 0.5 ? 3 : 4];
-      const len = 1 + Math.floor(rng() * 2);
+    // tufts and pebbles, now at the finer pixel size
+    for (let i = 0; i < 2600 * PIXEL; i++) {
+      const px = Math.floor(rng() * GROUND_W), py = Math.floor(rng() * GROUND_H);
+      const on = buf[py * GROUND_W + px];
+      const c = on >= DIRT0 ? DIRT0 + 3 : (rng() < 0.5 ? 3 : 4);
+      const len = 1 + Math.floor(rng() * 2 * PIXEL);
       for (let k = 0; k < len; k++) {
-        const yy = y - k;
-        if (yy >= 0) buf[yy * WORLD_W + x] = c;
+        const yy = py - k;
+        if (yy >= 0) buf[yy * GROUND_W + px] = c;
       }
     }
     return buf;
@@ -122,8 +138,9 @@
     const camera = R.makeCamera(CAM_PITCH, scale, ox, oy);
     const identity = R.identity();
     for (let i = 0; i < boxes.length; i++) {
-      R.drawMesh(target, identity, boxes[i].mesh, R.rgbOf(boxes[i].colour), camera, {});
+      R.drawMesh(target, identity, boxes[i].mesh, R.ramp(boxes[i].colour), camera, {});
     }
+    R.traceOutline(target, Rig.OUTLINE);
     return target;
   }
 
@@ -327,13 +344,18 @@
 
     if (impact.speed > TRIP_SPEED) {
       if (tall) {
-        // Clipping a trunk spins you off it.
+        // Clipping a trunk spins you off it, arms swinging.
         Rig.shove(player, n.nx, n.ny, 26 + impact.speed * 0.28);
+        Rig.nudge(player, n.nx, n.ny, 1.0, CHEST_H);
       } else {
         // Something knee-high: a short stumble and you pull up at it.
         Rig.stumble(player, n.nx, n.ny, 14, 0.5);
+        Rig.nudge(player, n.nx, n.ny, 0.9, SHIN_H);
       }
+      return;
     }
+
+    Rig.nudge(player, n.nx, n.ny, 0.6, tall ? CHEST_H : SHIN_H);
   }
 
   function resolveActorCollisions(world) {
@@ -367,9 +389,11 @@
         } else if (speed > TRIP_SPEED) {
           // a proper shoulder charge: they stagger several steps away
           Rig.stumble(a, nx, ny, 70 + speed * 0.5, 0.7);
+          Rig.nudge(a, nx, ny, 1.0, CHEST_H);
         } else {
           // a bump in passing: they step aside
           Rig.shove(a, nx, ny, 14 + speed * 0.18);
+          Rig.nudge(a, nx, ny, 0.6, CHEST_H);
         }
         a.hitCooldown = 0.45;
         if (world.talkingTo === a) D.close(world.box);
@@ -377,6 +401,7 @@
         // The player brushes past or stumbles; they never flail.
         if (speed > TRIP_SPEED) {
           Rig.stumble(player, -nx, -ny, 20, 0.4);
+          Rig.nudge(player, -nx, -ny, 0.7, CHEST_H);
           player.vx *= 0.62;
           player.vy *= 0.62;
         } else {
@@ -779,10 +804,8 @@
     // follows the *rounded* player position, which lands the player sprite on
     // the same exact pixel every frame; tracking the unrounded position makes
     // them jitter a pixel back and forth as they walk.
-    // No rounding any more: the camera can sit between world units because
-    // the scene is no longer being snapped to a pixel grid.
-    world.camX = world.player.x - VIEW_W / 2;
-    world.camY = world.player.y - VIEW_H / 2;
+    world.camX = Math.round(world.player.x) - (VIEW_W >> 1);
+    world.camY = Math.round(world.player.y) - (VIEW_H >> 1);
   }
 
   /* ---------- drawing ---------- */
@@ -792,45 +815,19 @@
   const LABEL_SHADOW = R.pack(20, 22, 28);
   const PROMPT = R.pack(232, 198, 116);
 
-  /* The ground is stored at one texel per world unit and drawn at several
-   * pixels per unit, so it is interpolated. Written out longhand with the
-   * source coordinate stepped incrementally — this is half a million samples a
-   * frame and a per-pixel function call was the single most expensive thing on
-   * screen. */
   function drawGround(world, target) {
-    const src = world.ground;
-    const step = 1 / PIXEL;
+    // The camera sits on whole world units, so this stays a straight copy —
+    // no interpolation, which is what keeps the ground crisp.
+    const sx0 = world.camX * PIXEL, sy0 = world.camY * PIXEL;
+    const ground = world.ground;
     const out = target.colour;
-
     for (let y = 0; y < RENDER_H; y++) {
-      let v = world.camY + y * step;
-      if (v < 0) v = 0; else if (v > WORLD_H - 1.001) v = WORLD_H - 1.001;
-      const y0 = v | 0;
-      const fy = v - y0;
-      const rowA = y0 * WORLD_W;
-      const rowB = rowA + WORLD_W;
+      const sy = sy0 + y;
+      if (sy < 0 || sy >= GROUND_H) continue;
+      const srow = sy * GROUND_W + sx0;
       const trow = y * RENDER_W;
-
-      let u = world.camX;
-      for (let x = 0; x < RENDER_W; x++, u += step) {
-        let uu = u;
-        if (uu < 0) uu = 0; else if (uu > WORLD_W - 1.001) uu = WORLD_W - 1.001;
-        const x0 = uu | 0;
-        const fx = uu - x0;
-
-        const c00 = src[rowA + x0], c10 = src[rowA + x0 + 1];
-        const c01 = src[rowB + x0], c11 = src[rowB + x0 + 1];
-        const w00 = (1 - fx) * (1 - fy), w10 = fx * (1 - fy);
-        const w01 = (1 - fx) * fy, w11 = fx * fy;
-
-        const r = (c00 & 255) * w00 + (c10 & 255) * w10 +
-          (c01 & 255) * w01 + (c11 & 255) * w11;
-        const g = ((c00 >> 8) & 255) * w00 + ((c10 >> 8) & 255) * w10 +
-          ((c01 >> 8) & 255) * w01 + ((c11 >> 8) & 255) * w11;
-        const b = ((c00 >> 16) & 255) * w00 + ((c10 >> 16) & 255) * w10 +
-          ((c01 >> 16) & 255) * w01 + ((c11 >> 16) & 255) * w11;
-
-        out[trow + x] = (0xff000000 | (b << 16) | (g << 8) | r) >>> 0;
+      for (let x = 0; x < RENDER_W; x++) {
+        out[trow + x] = GROUND_PALETTE[ground[srow + x]];
       }
     }
   }
@@ -858,49 +855,40 @@
       const d = drawables[i];
       if (d.prop) {
         const p = d.prop;
-        R.fillEllipse(target, (p.x - cx) * PIXEL, (p.y - cy) * PIXEL,
+        R.fillEllipse(target, (Math.round(p.x) - cx) * PIXEL, (Math.round(p.y) - cy) * PIXEL,
           p.shadowR * PIXEL, p.shadowR * 0.4 * PIXEL, SHADOW, 0.3);
-        R.blit(target, p.sprite, Math.round((p.x - cx) * PIXEL - p.sprite.w / 2),
-          Math.round((p.y - cy) * PIXEL) - p.footY);
+        R.blit(target, p.sprite, (Math.round(p.x) - cx) * PIXEL - Math.round(p.sprite.w / 2),
+          (Math.round(p.y) - cy) * PIXEL - p.footY);
       } else {
         const a = d.actor;
         const down = Rig.isDown(a) ? 1 : 0;
-        R.fillEllipse(target, (a.x - cx) * PIXEL, (a.y - cy) * PIXEL,
+        R.fillEllipse(target, (Math.round(a.x) - cx) * PIXEL, (Math.round(a.y) - cy) * PIXEL,
           (7 + down * 7) * PIXEL, (3 + down * 2) * PIXEL, SHADOW, 0.34);
         Rig.renderActor(a, a.buffer, camera, {});
-        R.blit(target, a.buffer, Math.round((a.x - cx) * PIXEL) - ACTOR_BUF.ox,
-          Math.round((a.y - cy) * PIXEL) - ACTOR_BUF.oy);
+        R.blit(target, a.buffer, (Math.round(a.x) - cx) * PIXEL - ACTOR_BUF.ox,
+          (Math.round(a.y) - cy) * PIXEL - ACTOR_BUF.oy);
       }
     }
 
-  }
-
-  /* Text is drawn on the canvas itself rather than into the pixel buffer, so
-   * it is anti-aliased like everything else now. */
-  function drawOverlay(world, ctx, canvasW, canvasH) {
-    const scale = canvasW / RENDER_W;
-    const cx = world.camX, cy = world.camY;
-    ctx.save();
-    ctx.scale(scale, scale);
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'alphabetic';
-
+    // name plate and the talk prompt for whoever is in reach
     const npc = world.prompt;
     if (npc) {
-      const x = (npc.x - cx) * PIXEL;
-      const y = (npc.y - cy) * PIXEL - 58 * PIXEL;
-      T.label(ctx, npc.character.name, x, y, 17, '#f2ede0');
-      T.label(ctx, 'E  talk', x, y - 21, 14, '#e8c674');
+      const name = npc.character.name;
+      const nx = (Math.round(npc.x) - cx) * PIXEL - Math.round(T.measure(name) / 2);
+      const ny = (Math.round(npc.y) - cy) * PIXEL - 58 * PIXEL;
+      T.drawShadowed(target, name, nx, ny, LABEL, LABEL_SHADOW);
+      const hint = 'E  talk';
+      T.drawShadowed(target, hint, (Math.round(npc.x) - cx) * PIXEL - Math.round(T.measure(hint) / 2),
+        ny - 11 * PIXEL, PROMPT, LABEL_SHADOW);
     }
 
-    D.draw(world.box, ctx, RENDER_W, RENDER_H);
-    ctx.restore();
+    D.draw(world.box, target);
   }
 
   global.World = {
     VIEW_W, VIEW_H, RENDER_W, RENDER_H, PIXEL, WORLD_W, WORLD_H,
     ACTOR_BUF, CAM_PITCH, CAM_SCALE,
     SPEED, TALK_RANGE, NUDGE_SPEED, TRIP_SPEED, FALL_SPEED, TEST_PAGES,
-    createWorld, update, draw, drawOverlay, tryTalk, nearestTalkable, distance, beginConversation
+    createWorld, update, draw, tryTalk, nearestTalkable, distance, beginConversation
   };
 })(window);

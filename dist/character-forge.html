@@ -1,7 +1,7 @@
 <title>Character Forge</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Press+Start+2P&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 
 <style>
   :root {
@@ -18,7 +18,7 @@
     --verdigris:  #4f8f7d;
     --danger:     #b5565c;
 
-    --display: "Outfit", "Trebuchet MS", system-ui, sans-serif;
+    --pixel: "Silkscreen", "Courier New", monospace;
     --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
     --gutter: 20px;
@@ -103,7 +103,7 @@
   }
 
   h1 {
-    font-family: var(--display);
+    font-family: var(--pixel);
     font-size: 19px;
     font-weight: 400;
     letter-spacing: 0.02em;
@@ -158,6 +158,8 @@
   @media (max-width: 880px) { .stage { position: static; } }
 
   canvas {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
     display: block;
     max-width: 100%;
     height: auto;
@@ -165,8 +167,10 @@
     border-radius: 2px;
   }
 
-  #preview-canvas { width: 100%; max-width: 340px; }
-  #world-canvas { width: 100%; max-width: 820px; }
+  /* Shown at their own resolution where there is room, so one art pixel
+     lands on one screen pixel. */
+  #preview-canvas { width: 100%; max-width: 396px; }
+  #world-canvas { width: 100%; max-width: 960px; }
 
   .stage-foot {
     display: flex;
@@ -178,7 +182,7 @@
   }
 
   .readout {
-    font-family: var(--display);
+    font-family: var(--pixel);
     font-size: 9px;
     color: var(--muted);
     letter-spacing: 0.06em;
@@ -207,9 +211,9 @@
     border-right: 1px solid var(--line);
     background: var(--panel);
     color: var(--muted);
-    font-family: var(--display);
-    font-size: 10px;
-    letter-spacing: 0.06em;
+    font-family: var(--pixel);
+    font-size: 9px;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     padding: 10px 4px;
     cursor: pointer;
@@ -232,10 +236,10 @@
   .group { display: flex; flex-direction: column; gap: 9px; }
 
   .group > h2 {
-    font-family: var(--display);
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.1em;
+    font-family: var(--pixel);
+    font-size: 9px;
+    font-weight: 400;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--brass);
     margin: 0;
@@ -274,7 +278,7 @@
     font-family: var(--mono);
     font-size: 13px;
   }
-  input[type="text"] { font-family: var(--display); font-size: 14px; letter-spacing: 0.02em; }
+  input[type="text"] { font-family: var(--pixel); font-size: 12px; letter-spacing: 0.04em; }
 
   select { cursor: pointer; }
 
@@ -293,9 +297,9 @@
   /* ---------- buttons ---------- */
 
   .btn {
-    font-family: var(--display);
-    font-size: 10px;
-    letter-spacing: 0.06em;
+    font-family: var(--pixel);
+    font-size: 9px;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     background: var(--panel-2);
     color: var(--bone);
@@ -366,7 +370,7 @@
     background: var(--panel-2);
   }
   .joint > h3 {
-    font-family: var(--display);
+    font-family: var(--pixel);
     font-size: 9px;
     font-weight: 400;
     letter-spacing: 0.06em;
@@ -383,7 +387,7 @@
 
   .keyframes { display: flex; flex-wrap: wrap; gap: 4px; }
   .keyframe {
-    font-family: var(--display); font-size: 9px;
+    font-family: var(--pixel); font-size: 9px;
     border: 1px solid var(--line); background: var(--panel-2);
     color: var(--muted); border-radius: 2px; padding: 6px 8px; cursor: pointer;
   }
@@ -397,7 +401,7 @@
     max-width: 62ch;
   }
   .hint kbd {
-    font-family: var(--display); font-size: 9px;
+    font-family: var(--pixel); font-size: 9px;
     border: 1px solid var(--line); border-bottom-width: 2px;
     border-radius: 2px; padding: 1px 4px; color: var(--bone);
     background: var(--panel-2);
@@ -413,7 +417,7 @@
 <div class="shell">
   <header class="masthead">
     <h1>Character Forge</h1>
-    <p class="tagline">Procedural villagers &mdash; modelled, lit and animated live.</p>
+    <p class="tagline">Procedural pixel villagers &mdash; modelled in 3D, rendered to pixels, animated live.</p>
     <div class="mode-switch">
       <button class="btn is-active" id="mode-forge" type="button">Forge</button>
       <button class="btn" id="mode-world" type="button">World</button>
@@ -809,35 +813,39 @@
     ];
   }
 
-  // Light in view space, so the key stays on a character's upper-left however
-  // they turn.
-  const LIGHT = (function () {
-    const v = [-0.52, 0.74, 0.42];
-    const len = Math.hypot(v[0], v[1], v[2]);
-    return [v[0] / len, v[1] / len, v[2] / len];
-  })();
+  // Shadows drift toward cold slate rather than pure black; highlights drift
+  // toward a warm bone.
+  const SHADOW_TINT = [34, 40, 58];
+  const LIGHT_TINT = [255, 248, 226];
 
-  const AMBIENT = 0.4;
-
-  const rgbCache = new Map();
-  function rgbOf(hex) {
-    let c = rgbCache.get(hex);
-    if (!c) { c = hexToRgb(hex); rgbCache.set(hex, c); }
-    return c;
+  function scaleRgb(c, f) {
+    return [Math.round(c[0] * f), Math.round(c[1] * f), Math.round(c[2] * f)];
   }
 
-  /* Flat per face, but continuously lit rather than snapped to a handful of
-   * steps. The banding was there to make the shading survive being squashed
-   * into a few dozen pixels; at full resolution it just looks like banding. */
-  function shadeFace(rgb, nx, ny, nz) {
-    let d = nx * LIGHT[0] + ny * LIGHT[1] + nz * LIGHT[2];
-    if (d < 0) d = 0;
-    const b = AMBIENT + (1 - AMBIENT) * d;
-    let r = rgb[0] * b, g = rgb[1] * b, bl = rgb[2] * b;
-    if (r > 255) r = 255;
-    if (g > 255) g = 255;
-    if (bl > 255) bl = 255;
-    return pack(r | 0, g | 0, bl | 0);
+  // Five steps, because four is not enough to keep every pair of *adjacent*
+  // faces distinct. A box can show its top plus two perpendicular sides at
+  // once; if any two of those land on the same step the form goes flat and the
+  // model reads as a silhouette with no depth.
+  function buildRamp(hex) {
+    const base = hexToRgb(hex);
+    const s2 = mixRgb(scaleRgb(base, 0.44), SHADOW_TINT, 0.34);
+    const s1 = mixRgb(scaleRgb(base, 0.68), SHADOW_TINT, 0.2);
+    const l1 = mixRgb(base, LIGHT_TINT, 0.17);
+    const l2 = mixRgb(base, LIGHT_TINT, 0.35);
+    return [
+      pack(s2[0], s2[1], s2[2]),
+      pack(s1[0], s1[1], s1[2]),
+      pack(base[0], base[1], base[2]),
+      pack(l1[0], l1[1], l1[2]),
+      pack(l2[0], l2[1], l2[2])
+    ];
+  }
+
+  const rampCache = new Map();
+  function ramp(hex) {
+    let r = rampCache.get(hex);
+    if (!r) { r = buildRamp(hex); rampCache.set(hex, r); }
+    return r;
   }
 
   /* ---------- render target ---------- */
@@ -899,6 +907,22 @@
 
   // Light lives in view space so the key light stays on the character's
   // upper-left no matter which way they turn — a sprite-sheet convention.
+  // Faces are shaded by which way they point on screen, not by a dot product
+  // against a light vector. A plain lambert term gives perpendicular faces the
+  // same value whenever they sit at equal angles to the light, which is what
+  // was flattening the models; banding by orientation cannot do that.
+  //
+  //   4  top          3  angled toward the key light (screen-left)
+  //   2  square on    1  angled away (screen-right)      0  underside
+  function shadeLevel(nx, ny, nz) {
+    if (ny > 0.5) return 4;
+    if (ny < -0.4) return 0;
+    const azimuth = Math.atan2(nx, nz);
+    if (azimuth < -0.35) return 3;
+    if (azimuth > 0.35) return 1;
+    return 2;
+  }
+
   let _sx = new Float32Array(512);
   let _sy = new Float32Array(512);
   let _sz = new Float32Array(512);
@@ -917,7 +941,7 @@
 
   /* Draws one convex mesh. Vertices are projected once, then each face is
    * culled, shaded by orientation and fan-triangulated. */
-  function drawMesh(target, matrix, mesh, rgb, camera, opts) {
+  function drawMesh(target, matrix, mesh, colourRamp, camera, opts) {
     const verts = mesh.verts;
     const count = verts.length / 3;
     ensureScratch(count);
@@ -943,7 +967,7 @@
       const nz = _n[1] * camera.sinPitch + _n[2] * camera.cosPitch;
       if (nz <= 0.015) continue; // facing away from the camera
 
-      const colour = flat ? pack(rgb[0], rgb[1], rgb[2]) : shadeFace(rgb, _n[0], ny, nz);
+      const colour = flat ? colourRamp[2] : colourRamp[shadeLevel(_n[0], ny, nz)];
       const idx = face.i;
       const i0 = idx[0];
       for (let k = 1; k < idx.length - 1; k++) {
@@ -1035,42 +1059,22 @@
 
   function createPresenter(canvas, w, h) {
     const ctx = canvas.getContext('2d', { alpha: false });
+    ctx.imageSmoothingEnabled = false;
     const image = ctx.createImageData(w, h);
     const view = new Uint32Array(image.data.buffer);
     const staging = document.createElement('canvas');
     staging.width = w;
     staging.height = h;
     const sctx = staging.getContext('2d');
+    sctx.imageSmoothingEnabled = false;
 
     return function present(target) {
       view.set(target.colour);
       sctx.putImageData(image, 0, 0);
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
+      ctx.imageSmoothingEnabled = false;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(staging, 0, 0, w, h, 0, 0, canvas.width, canvas.height);
     };
-  }
-
-  /* Samples a source image with bilinear filtering. The ground is stored at
-   * one texel per world unit; drawn at several pixels per unit it has to be
-   * interpolated or it comes out as squares. */
-  function sampleBilinear(src, srcW, srcH, u, v) {
-    if (u < 0) u = 0; else if (u > srcW - 1.001) u = srcW - 1.001;
-    if (v < 0) v = 0; else if (v > srcH - 1.001) v = srcH - 1.001;
-    const x0 = u | 0, y0 = v | 0;
-    const fx = u - x0, fy = v - y0;
-    const i00 = y0 * srcW + x0, i10 = i00 + 1;
-    const i01 = i00 + srcW, i11 = i01 + 1;
-    const c00 = src[i00], c10 = src[i10], c01 = src[i01], c11 = src[i11];
-    const w00 = (1 - fx) * (1 - fy), w10 = fx * (1 - fy);
-    const w01 = (1 - fx) * fy, w11 = fx * fy;
-    const r = (c00 & 255) * w00 + (c10 & 255) * w10 + (c01 & 255) * w01 + (c11 & 255) * w11;
-    const g = ((c00 >> 8) & 255) * w00 + ((c10 >> 8) & 255) * w10 +
-      ((c01 >> 8) & 255) * w01 + ((c11 >> 8) & 255) * w11;
-    const b = ((c00 >> 16) & 255) * w00 + ((c10 >> 16) & 255) * w10 +
-      ((c01 >> 16) & 255) * w01 + ((c11 >> 16) & 255) * w11;
-    return pack(r | 0, g | 0, b | 0);
   }
 
   function makeCamera(pitch, scale, ox, oy) {
@@ -1087,10 +1091,10 @@
   global.Render = {
     identity, multiply, translation, scaling, rotationX, rotationY, rotationZ,
     transformPoint, transformDirection,
-    pack, hexToRgb, mixRgb, rgbOf, shadeFace, sampleBilinear,
+    pack, hexToRgb, mixRgb, ramp, buildRamp,
     createTarget, clearTarget, drawMesh, traceOutline, blit,
     fillRect, strokeRect, fillEllipse, createPresenter, makeCamera,
-    rasterTriangle
+    rasterTriangle, shadeLevel
   };
 })(window);
 
@@ -2117,54 +2121,111 @@
 })(window);
 
 /* ===== font.js ===== */
-/* font.js — text.
+/* font.js — crisp pixel text.
  *
- * Previously this thresholded every glyph to a 1-bit mask so it would survive
- * being scaled up as pixel art. Nothing is pixel art now, so text is simply
- * drawn on the canvas and anti-aliased like everything else.
+ * Canvas text is anti-aliased, which turns to mush once the low-res buffer is
+ * scaled up. So each glyph is rasterised once, thresholded to a 1-bit mask and
+ * cached; drawing is then a straight pixel blit with no grey fringe anywhere.
  */
 (function (global) {
   'use strict';
 
-  const FAMILY = '"Outfit", "Trebuchet MS", "Segoe UI", system-ui, sans-serif';
+  // Press Start 2P is drawn on an 8px grid specifically to stay readable at
+  // this size; Silkscreen is narrower but its letterforms mush together once
+  // thresholded. Kept as the fallback because the metrics are close.
+  const FAMILY = '"Press Start 2P", "Silkscreen", "Courier New", monospace';
+  // A whole multiple of the face's own 8px grid, so it stays crisp when the
+  // render resolution goes up rather than being resampled.
+  const SCALE = 3;
+  const CELL_H = 13 * SCALE;
+  const BASELINE = 10 * SCALE;
+  const SIZE = 8 * SCALE;
 
-  function font(size, weight) {
-    return (weight || 500) + ' ' + size + 'px ' + FAMILY;
+  const glyphs = new Map();
+  let scratch = null;
+  let sctx = null;
+  let ready = false;
+
+  function ensureScratch() {
+    if (scratch) return;
+    scratch = document.createElement('canvas');
+    scratch.width = 28 * SCALE;
+    scratch.height = CELL_H;
+    sctx = scratch.getContext('2d', { willReadFrequently: true });
   }
 
-  function measure(ctx, text, size, weight) {
-    ctx.font = font(size, weight);
-    return ctx.measureText(text).width;
+  function buildGlyph(ch) {
+    ensureScratch();
+    sctx.setTransform(1, 0, 0, 1, 0, 0);
+    sctx.clearRect(0, 0, scratch.width, scratch.height);
+    sctx.font = SIZE + 'px ' + FAMILY;
+    sctx.textBaseline = 'alphabetic';
+    sctx.fillStyle = '#fff';
+    sctx.fillText(ch, 1, BASELINE);
+
+    const advance = Math.max(1, Math.round(sctx.measureText(ch).width));
+    const w = Math.min(scratch.width, advance + 3);
+    const data = sctx.getImageData(0, 0, w, CELL_H).data;
+    const mask = new Uint8Array(w * CELL_H);
+    for (let i = 0; i < w * CELL_H; i++) {
+      // Threshold rather than blend: a pixel is either on or it is not.
+      mask[i] = data[i * 4 + 3] > 110 ? 1 : 0;
+    }
+    const g = { w: w, h: CELL_H, mask: mask, advance: advance };
+    glyphs.set(ch, g);
+    return g;
   }
 
-  // A label over the world: soft shadow behind, so it stays readable on grass.
-  function label(ctx, text, x, y, size, colour, weight) {
-    ctx.font = font(size, weight || 600);
-    ctx.save();
-    ctx.shadowColor = 'rgba(12, 14, 18, 0.85)';
-    ctx.shadowBlur = 4;
-    ctx.shadowOffsetY = 1;
-    ctx.fillStyle = colour;
-    ctx.fillText(text, x, y);
-    ctx.restore();
+  function glyph(ch) {
+    let g = glyphs.get(ch);
+    if (!g) g = buildGlyph(ch);
+    return g;
   }
 
-  function draw(ctx, text, x, y, size, colour, weight, align) {
-    ctx.font = font(size, weight || 500);
-    ctx.textAlign = align || 'left';
-    ctx.fillStyle = colour;
-    ctx.fillText(text, x, y);
+  function measure(text) {
+    let x = 0;
+    for (let i = 0; i < text.length; i++) x += glyph(text[i]).advance;
+    return x;
   }
 
-  // Greedy wrap against a real measured width.
-  function wrap(ctx, text, maxWidth, size, weight) {
-    ctx.font = font(size, weight || 500);
+  function draw(target, text, x, y, colour) {
+    let cx = Math.round(x);
+    const cy = Math.round(y);
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      const g = glyph(ch);
+      if (ch !== ' ') {
+        for (let gy = 0; gy < g.h; gy++) {
+          const ty = cy + gy;
+          if (ty < 0 || ty >= target.h) continue;
+          const trow = ty * target.w;
+          const grow = gy * g.w;
+          for (let gx = 0; gx < g.w; gx++) {
+            if (!g.mask[grow + gx]) continue;
+            const tx = cx + gx;
+            if (tx < 0 || tx >= target.w) continue;
+            target.colour[trow + tx] = colour;
+          }
+        }
+      }
+      cx += g.advance;
+    }
+    return cx - Math.round(x);
+  }
+
+  // Draws text with a 1px drop shadow — used for labels over the world.
+  function drawShadowed(target, text, x, y, colour, shadow) {
+    draw(target, text, x, y + 1, shadow);
+    draw(target, text, x, y, colour);
+  }
+
+  function wrap(text, maxWidth) {
     const words = text.split(' ');
     const lines = [];
     let line = '';
     for (let i = 0; i < words.length; i++) {
       const candidate = line ? line + ' ' + words[i] : words[i];
-      if (ctx.measureText(candidate).width > maxWidth && line) {
+      if (measure(candidate) > maxWidth && line) {
         lines.push(line);
         line = words[i];
       } else {
@@ -2175,26 +2236,48 @@
     return lines;
   }
 
+  function reset() { glyphs.clear(); }
+
   function whenReady(cb) {
+    if (ready) { cb(); return; }
+    const finish = function () {
+      ready = true;
+      reset(); // rebuild any glyph cached against the fallback face
+      cb();
+    };
     if (document.fonts && document.fonts.load) {
       Promise.race([
-        document.fonts.load('600 16px Outfit').then(function () { return document.fonts.ready; }),
+        Promise.all([
+          document.fonts.load(SIZE + 'px "Press Start 2P"'),
+          document.fonts.load(SIZE + 'px Silkscreen')
+        ]).then(function () { return document.fonts.ready; }),
         new Promise(function (r) { setTimeout(r, 2500); })
-      ]).then(cb, cb);
+      ]).then(finish, finish);
     } else {
-      cb();
+      finish();
     }
   }
 
-  global.Text = { FAMILY, font, measure, label, draw, wrap, whenReady };
+  global.Text = {
+    CELL_H, SIZE, SCALE, LINE_H: CELL_H,
+    glyph, measure, draw, drawShadowed, wrap, reset, whenReady
+  };
 })(window);
 
 /* ===== rig.js ===== */
 /* rig.js — posing, animation, knockdowns and drawing the bone tree.
  *
- * Characters are rendered smoothly rather than as pixel art, so nothing here
- * snaps: rotation is continuous, the pose clock runs at the display rate, and
- * faces are lit continuously rather than banded.
+ * Two quantisation rules do most of the visual work here:
+ *
+ *   1. Poses are sampled at ANIM_FPS, not at the display refresh rate.
+ *   2. Yaw is snapped to YAW_STEPS discrete angles before rendering.
+ *
+ * Without them the model rotates and breathes by fractions of a pixel every
+ * frame, so every box edge flickers between two pixel columns at 60Hz. That
+ * shimmer is what makes a rendered-to-pixels character read as mush instead of
+ * as pixel art, and it destroys the depth cues the shading is trying to give.
+ * Real sprite work runs at 8-12fps with a fixed set of facing angles; this
+ * reproduces that discipline on a model that is genuinely 3D underneath.
  */
 (function (global) {
   'use strict';
@@ -2202,12 +2285,12 @@
   const R = global.Render;
   const CM = global.CharacterModel;
 
-  // Kept as identity now that the characters are rendered smoothly rather than
-  // as pixel art. Snapping the pose clock and the facing angle was there to
-  // stop sub-pixel movement flickering whole pixels on and off; at full
-  // resolution it only makes the motion look stepped.
-  function quantiseTime(t) { return t; }
-  function quantiseYaw(y) { return y; }
+  const ANIM_FPS = 12;
+  const YAW_STEPS = 16;
+  const YAW_STEP = (Math.PI * 2) / YAW_STEPS;
+
+  function quantiseTime(t) { return Math.floor(t * ANIM_FPS) / ANIM_FPS; }
+  function quantiseYaw(y) { return Math.round(y / YAW_STEP) * YAW_STEP; }
 
   const JOINTS = [
     { name: 'head', label: 'Head', axes: ['Nod', 'Turn', 'Tilt'] },
@@ -2402,6 +2485,7 @@
   function createFall() {
     return {
       active: false,
+      mode: 'soft',      // soft = jostled but stays upright; full = goes down
       state: 'up',       // up | falling | down | rising
       p: null, links: null, timer: 0, still: 0, rise: 0, settle: 0
     };
@@ -2410,6 +2494,18 @@
   /* How hard each joint is dragged back toward where the animation says it
    * should be. The feet and hips are held firmly so a soft hit cannot topple
    * anyone; the further up the body, the more freely it swings. */
+  /* A jostle is an arms-only reaction. Everything from the shoulders inward is
+   * held exactly on the animated pose, so a knock never moves a character's
+   * legs or neck — only a fall or a stumble does that. Letting the torso join
+   * in is what kept reading as a flail. */
+  const SOFT_PULL = {
+    footR: 1, footL: 1, hipR: 1, hipL: 1, pelvis: 1,
+    kneeR: 1, kneeL: 1,
+    chest: 1, neck: 1, headTop: 1,
+    shoulderR: 0.85, shoulderL: 0.85,
+    elbowR: 0.26, elbowL: 0.26, handR: 0.19, handL: 0.19
+  };
+  const SOFT_TIME = 0.5;
 
   // How close every joint has to be to the animated pose before control is
   // handed back. Switching on a timer instead leaves the body wherever the
@@ -2451,7 +2547,7 @@
   }
 
   // dirX/dirY is the world push direction (world y is depth, which is local z).
-  function applyImpulse(actor, dirX, dirY, force, opts) {
+  function applyImpulse(actor, dirX, dirY, force, mode, opts) {
     const f = actor.fall;
     const model = actor.model;
 
@@ -2459,12 +2555,14 @@
     poseActor(actor, quantiseTime(actor.animTime));
     const joints = jointPositions(model, actor.yaw);
 
-    // A fall already in progress just takes the extra hit.
+    // A soft jostle already in progress can be escalated to a real fall.
     const reuse = f.active && f.p;
     const p = reuse ? f.p : {};
     const len = Math.hypot(dirX, dirY) || 1;
     const px = dirX / len, pz = dirY / len;
-    const impulse = Math.max(0.6, Math.min(9.0, force)) * SUBSTEP * 7.5;
+    const full = mode === 'full';
+    const cap = full ? 9.0 : 5.0;
+    const impulse = Math.max(0.6, Math.min(cap, force)) * SUBSTEP * (full ? 7.5 : 1.9);
 
     let tallest = 1;
     for (let i = 0; i < JOINT_NAMES.length; i++) {
@@ -2519,9 +2617,9 @@
     }
 
     f.active = true;
-    f.mode = 'full';
-    f.state = 'falling';
-    f.timer = 0;
+    f.mode = mode;
+    f.state = full ? 'falling' : 'jostled';
+    f.timer = full ? 0 : SOFT_TIME;
     f.still = 0;
     f.rise = 0;
     f.settle = 0;
@@ -2530,6 +2628,14 @@
     actor.speaking = false;
     actor.viseme = 'rest';
     return true;
+  }
+
+  // Jostled but still on their feet: the body reacts, nobody goes down.
+  // `contactY` localises the reaction to the height the hit landed at.
+  function nudge(actor, dirX, dirY, force, contactY) {
+    if (actor.fall.active && actor.fall.mode === 'full') return false;
+    return applyImpulse(actor, dirX, dirY, force, 'soft',
+      contactY === undefined ? null : { contactY: contactY });
   }
 
   // Knocked off their feet entirely.
@@ -2678,6 +2784,32 @@
     const f = actor.fall;
     if (!f.active || !f.p) return;
 
+    /* ---- jostled: the arms swing, nothing else moves ---- */
+    if (f.mode !== 'full') {
+      const target = standingTarget(actor);
+
+      if (f.timer > 0) {
+        let acc = Math.min(dt, 0.05);
+        while (acc > 0) {
+          const step = Math.min(SUBSTEP, acc);
+          simulate(f, step, 0.25);
+          acc -= step;
+        }
+        pullToward(f, target, Math.min(1, dt * 16), SOFT_PULL);
+        f.timer -= dt;
+        return;
+      }
+
+      f.settle = (f.settle || 0) + dt;
+      if (settleOntoPose(f, target, dt) || f.settle > 1.5) {
+        f.active = false;
+        f.state = 'up';
+        f.settle = 0;
+        f.p = null;
+      }
+      return;
+    }
+
     /* ---- getting back up, under its own power ---- */
     if (f.state === 'rising') {
       if (!f.riseReady) {
@@ -2714,35 +2846,6 @@
         const step = Math.min(SUBSTEP, acc);
         simulate(f, step, 0.55);
         acc -= step;
-      }
-
-      /* Plant the hands and push. For the first half of the sequence the
-       * hands are held on the ground out in front, and the body levers up
-       * over them — without that the torso simply rises and the character
-       * looks like they are floating upright. */
-      if (k < 0.62) {
-        const pel = f.p.pelvis, ch = f.p.chest;
-        let fx = ch.x - pel.x, fz = ch.z - pel.z;
-        const fl = Math.hypot(fx, fz);
-        if (fl > 0.01) { fx /= fl; fz /= fl; } else { fx = 0; fz = 1; }
-        const grip = Math.min(1, dt * 9);
-        const spread = actor.model.dims.torsoW * 0.62;
-        const sides = [['shoulderR', 'elbowR', 'handR', -1], ['shoulderL', 'elbowL', 'handL', 1]];
-        for (let s = 0; s < sides.length; s++) {
-          const sh = f.p[sides[s][0]], el = f.p[sides[s][1]], hd = f.p[sides[s][2]];
-          const side = sides[s][3];
-          // planted a little ahead of the shoulders and out to the side
-          const px2 = pel.x + fx * 7.5 - fz * side * spread;
-          const pz2 = pel.z + fz * 7.5 + fx * side * spread;
-          hd.x += (px2 - hd.x) * grip;
-          hd.z += (pz2 - hd.z) * grip;
-          hd.y += (hd.r - hd.y) * grip;
-          hd.px = hd.x; hd.py = hd.y; hd.pz = hd.z;   // the hand does not slip
-          // elbow rides above the midpoint, so the arm reads as bracing
-          el.x += ((sh.x + hd.x) / 2 - el.x) * grip * 0.5;
-          el.z += ((sh.z + hd.z) / 2 - el.z) * grip * 0.5;
-          el.y += (Math.max(hd.y + 2.2, (sh.y + hd.y) / 2) - el.y) * grip * 0.5;
-        }
       }
 
       // walk the get-up keyframes, with the whole body righting itself from
@@ -2812,8 +2915,8 @@
     }
   }
 
-  // On the ground.
-  function isDown(actor) { return actor.fall.active; }
+  // Down on the ground, as opposed to merely jostled.
+  function isDown(actor) { return actor.fall.active && actor.fall.mode === 'full'; }
 
   /* ---------- drawing a ragdoll ---------- */
 
@@ -2874,12 +2977,12 @@
 
       for (let k = 0; k < bone.parts.length; k++) {
         const part = bone.parts[k];
-        R.drawMesh(target, m, part.mesh, R.rgbOf(part.colour), camera, part);
+        R.drawMesh(target, m, part.mesh, R.ramp(part.colour), camera, part);
       }
       if (faceParts && seg.bone === 'head') {
         for (let k = 0; k < faceParts.length; k++) {
           const part = faceParts[k];
-          R.drawMesh(target, m, part.mesh, R.rgbOf(part.colour), camera, part);
+          R.drawMesh(target, m, part.mesh, R.ramp(part.colour), camera, part);
         }
       }
     }
@@ -3214,17 +3317,19 @@
 
       for (let i = 0; i < node.parts.length; i++) {
         const p = node.parts[i];
-        R.drawMesh(target, m, p.mesh, R.rgbOf(p.colour), camera, p);
+        R.drawMesh(target, m, p.mesh, R.ramp(p.colour), camera, p);
       }
       if (faceParts && node.name === 'head') {
         for (let i = 0; i < faceParts.length; i++) {
           const p = faceParts[i];
-          R.drawMesh(target, m, p.mesh, R.rgbOf(p.colour), camera, p);
+          R.drawMesh(target, m, p.mesh, R.ramp(p.colour), camera, p);
         }
       }
       for (let i = 0; i < node.children.length; i++) walk(node.children[i], m);
     })(model.root, base);
   }
+
+  const OUTLINE = R.pack(17, 19, 27);
 
   // Renders one actor into its own buffer and outlines it. Both the pose clock
   // and the facing angle are quantised first; if neither moved since the last
@@ -3257,21 +3362,22 @@
       poseActor(actor, qTime);
       drawModel(target, actor.model, camera, { yaw: qYaw, faceParts: face });
     }
+    R.traceOutline(target, (opts && opts.outline) || OUTLINE);
     return target;
   }
 
   global.Rig = {
-    JOINTS, DIRECTIONS,
+    JOINTS, DIRECTIONS, ANIM_FPS, YAW_STEPS,
     quantiseTime, quantiseYaw,
     clearPose, setRot, addRot, poseIdle, poseWalk, poseTalk,
     emptyPose, clonePose, applyPose, lerpPose, samplePoseTrack,
     yawForDirection, snapToEight, directionName, shortestAngle,
     createActor, rebuildActorModel, updateActorMotion, updateBlink,
-    createFall, knockDown, applyImpulse, updateFall, isDown,
+    createFall, knockDown, nudge, applyImpulse, updateFall, isDown,
     shove, stumble, applyShove,
     GESTURES, GESTURE_IDS, startGesture, applyGesture,
     jointPositions, segmentMatrix, drawRagdoll,
-    poseActor, drawModel, renderActor
+    poseActor, drawModel, renderActor, OUTLINE
   };
 })(window);
 
@@ -3290,6 +3396,17 @@
   const CM = global.CharacterModel;
 
   const CHARS_PER_SECOND = 34;
+
+  const COLOURS = {
+    panel: R.pack(243, 236, 217),
+    panelShade: R.pack(214, 202, 175),
+    border: R.pack(58, 46, 38),
+    inner: R.pack(255, 251, 240),
+    text: R.pack(48, 38, 32),
+    plate: R.pack(200, 150, 62),
+    plateText: R.pack(36, 28, 22),
+    arrow: R.pack(122, 78, 40)
+  };
 
   function create() {
     return {
@@ -3368,114 +3485,97 @@
     if (box.onClose) box.onClose();
   }
 
-  /* ---------- drawing ----------
-   *
-   * Straight onto the canvas now rather than into the pixel buffer, so the
-   * panel has real rounded corners and the text is anti-aliased.
-   */
+  /* ---------- drawing ---------- */
 
-  const STYLE = {
-    panel: 'rgba(247, 242, 230, 0.97)',
-    border: 'rgba(58, 46, 38, 0.9)',
-    text: '#2f2620',
-    plate: '#c08c3a',
-    plateText: '#221a12',
-    arrow: '#7a4e28',
-    pip: '#7a4e28',
-    pipOff: 'rgba(122, 78, 40, 0.25)'
-  };
-
-  function roundRect(ctx, x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
+  function panel(target, x, y, w, h) {
+    R.fillRect(target, x, y, w, h, COLOURS.panel);
+    // notch the corners so the box reads as rounded at this scale
+    for (let i = 0; i < 2; i++) {
+      const n = 2 - i;
+      R.fillRect(target, x + i, y + i, n, 1, 0);
+      R.fillRect(target, x + w - i - n, y + i, n, 1, 0);
+      R.fillRect(target, x + i, y + h - i - 1, n, 1, 0);
+      R.fillRect(target, x + w - i - n, y + h - i - 1, n, 1, 0);
+    }
+    R.strokeRect(target, x, y, w, h, COLOURS.border);
+    // clip the border's own corner pixels to match the notch
+    R.fillRect(target, x, y, 1, 1, 0);
+    R.fillRect(target, x + w - 1, y, 1, 1, 0);
+    R.fillRect(target, x, y + h - 1, 1, 1, 0);
+    R.fillRect(target, x + w - 1, y + h - 1, 1, 1, 0);
+    // inner bevel
+    R.fillRect(target, x + 2, y + 1, w - 4, 1, COLOURS.inner);
+    R.fillRect(target, x + 1, y + 2, 1, h - 4, COLOURS.inner);
+    R.fillRect(target, x + 2, y + h - 2, w - 4, 1, COLOURS.panelShade);
+    R.fillRect(target, x + w - 2, y + 2, 1, h - 4, COLOURS.panelShade);
   }
 
-  function draw(box, ctx, viewW, viewH) {
+  function draw(box, target) {
     if (!box.open) return;
 
-    const margin = 34;
-    const h = 150;
-    const w = viewW - margin * 2;
+    const S = T.SCALE;
+    const margin = 10 * S;
+    const h = 62 * S;
+    const w = target.w - margin * 2;
     const x = margin;
-    const y = viewH - h - 22;
-    const fontSize = 26;
-    const lineHeight = 36;
+    const y = target.h - h - 6 * S;
 
-    ctx.save();
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
-
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
-    ctx.shadowBlur = 18;
-    ctx.shadowOffsetY = 5;
-    ctx.fillStyle = STYLE.panel;
-    roundRect(ctx, x, y, w, h, 14);
-    ctx.fill();
-    ctx.shadowColor = 'transparent';
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = STYLE.border;
-    ctx.stroke();
+    panel(target, x, y, w, h);
 
     if (box.speaker) {
-      const nameSize = 20;
-      const nameW = T.measure(ctx, box.speaker, nameSize, 700) + 28;
-      const plateH = 34;
-      const px = x + 18, py = y - plateH + 6;
-      ctx.fillStyle = STYLE.plate;
-      roundRect(ctx, px, py, nameW, plateH, 9);
-      ctx.fill();
-      ctx.strokeStyle = STYLE.border;
-      ctx.stroke();
-      T.draw(ctx, box.speaker, px + 14, py + 23, nameSize, STYLE.plateText, 700);
+      const plateH = T.CELL_H + 4;
+      const nameW = T.measure(box.speaker) + 12 * S;
+      const plateX = x + 6 * S;
+      const plateY = y - plateH + 1;
+      R.fillRect(target, plateX, plateY, nameW, plateH, COLOURS.plate);
+      R.strokeRect(target, plateX, plateY, nameW, plateH, COLOURS.border);
+      R.fillRect(target, plateX, plateY, 1, 1, 0);
+      R.fillRect(target, plateX + nameW - 1, plateY, 1, 1, 0);
+      T.draw(target, box.speaker, plateX + 6 * S, plateY + 2 * S, COLOURS.plateText);
     }
 
     const page = currentPage(box);
-    const shown = Math.floor(box.revealed);
-    const lines = T.wrap(ctx, page, w - 56, fontSize);
+    const shown = page.slice(0, Math.floor(box.revealed));
+    const lines = T.wrap(page, w - 22 * S);
 
-    // wrap the whole page once, then reveal along it, so nothing re-flows
-    let remaining = shown;
-    let ty = y + 48;
+    // Wrap the full page once, then reveal per line, so text never re-flows
+    // mid-reveal — re-flowing is the classic typewriter bug.
+    let remaining = shown.length;
+    let ty = y + 9 * S;
     for (let i = 0; i < lines.length && i < 3; i++) {
-      const take = Math.max(0, Math.min(lines[i].length, remaining));
-      if (take > 0) T.draw(ctx, lines[i].slice(0, take), x + 28, ty, fontSize, STYLE.text);
-      remaining -= lines[i].length + 1;
-      ty += lineHeight;
+      const line = lines[i];
+      const take = Math.max(0, Math.min(line.length, remaining));
+      if (take > 0) T.draw(target, line.slice(0, take), x + 10 * S, ty, COLOURS.text);
+      remaining -= line.length + 1; // +1 for the space the wrap consumed
+      ty += T.LINE_H + 3 * S;
     }
 
     if (pageComplete(box)) {
-      const bob = Math.sin(box.time * 5) * 4;
-      const ax = x + w - 34, ay = y + h - 30 + bob;
-      ctx.fillStyle = STYLE.arrow;
-      ctx.beginPath();
-      ctx.moveTo(ax - 10, ay - 6);
-      ctx.lineTo(ax + 10, ay - 6);
-      ctx.lineTo(ax, ay + 8);
-      ctx.closePath();
-      ctx.fill();
+      const bob = Math.round(Math.sin(box.time * 5.0) * 1.5) * S;
+      drawArrow(target, x + w - 13 * S, y + h - 12 * S + bob, S);
     }
 
+    // page pips, so you can see how much is left
     const pips = box.pages.length;
     if (pips > 1) {
       for (let i = 0; i < pips; i++) {
-        ctx.fillStyle = i <= box.pageIndex ? STYLE.pip : STYLE.pipOff;
-        ctx.beginPath();
-        ctx.arc(x + w - 22 - (pips - 1 - i) * 16, y + 20, 5, 0, Math.PI * 2);
-        ctx.fill();
+        const px = x + w - 10 * S - (pips - 1 - i) * 5 * S;
+        const on = i <= box.pageIndex;
+        R.fillRect(target, px, y + 5 * S, 3 * S, 3 * S, on ? COLOURS.arrow : COLOURS.panelShade);
       }
     }
+  }
 
-    ctx.restore();
+  // A downward chevron, drawn as explicit pixel rows.
+  function drawArrow(target, x, y, s) {
+    for (let i = 0; i < 4; i++) {
+      R.fillRect(target, x + i * s, y + i * s, (7 - i * 2) * s, s, COLOURS.arrow);
+    }
   }
 
   global.Dialogue = {
     create, start, update, advance, close, draw,
-    currentPage, pageComplete, STYLE
+    currentPage, pageComplete, COLOURS
   };
 })(window);
 
@@ -3496,20 +3596,23 @@
   const Rig = global.Rig;
   const D = global.Dialogue;
 
-  // The field of view, in world units. PIXEL is how many rendered pixels each
-  // of those units gets — the characters are no longer pixel art, so this is
-  // simply the render resolution.
+  // The field of view in world units, and how many art pixels each unit gets.
+  // Raising PIXEL makes the pixels smaller and more numerous — finer pixel
+  // art, same amount of world on screen.
   const VIEW_W = 320, VIEW_H = 180;
   const PIXEL = 3;
   const RENDER_W = VIEW_W * PIXEL, RENDER_H = VIEW_H * PIXEL;
   // Large enough that the camera can stay locked to the player without ever
   // running off the edge of the generated ground.
   const WORLD_W = 1200, WORLD_H = 800;
+  const GROUND_W = WORLD_W * PIXEL, GROUND_H = WORLD_H * PIXEL;
 
   // The same camera pitch as the forge preview at a fraction of its scale, so
   // a villager in the world is the forge model sized down rather than a
   // differently-proportioned one.
-  const ACTOR_BUF = { w: 112 * PIXEL, h: 104 * PIXEL, ox: 56 * PIXEL, oy: 80 * PIXEL };
+  const ACTOR_BUF = {
+    w: 112 * PIXEL, h: 104 * PIXEL, ox: 56 * PIXEL, oy: 80 * PIXEL
+  };
   const CAM_PITCH = 0.26;
   const CAM_SCALE = 1.35 * PIXEL;
 
@@ -3534,14 +3637,16 @@
 
   /* ---------- ground ---------- */
 
-  const GRASS = ['#4a6b3a', '#53743f', '#456535', '#5c7d46', '#3f5c32'].map(function (h) {
+  const GRASS = ['#4a6b3a', '#53743f', '#456535', '#5c7d46', '#3f5c32'];
+  const DIRT = ['#7d6844', '#8a7450', '#6f5c3c', '#937d57'];
+
+  // One flat palette so the ground can be stored as one byte per pixel. At
+  // three pixels per world unit a full-colour buffer would be 34MB.
+  const GROUND_PALETTE = GRASS.concat(DIRT).map(function (h) {
     const c = R.hexToRgb(h);
     return R.pack(c[0], c[1], c[2]);
   });
-  const DIRT = ['#7d6844', '#8a7450', '#6f5c3c', '#937d57'].map(function (h) {
-    const c = R.hexToRgb(h);
-    return R.pack(c[0], c[1], c[2]);
-  });
+  const DIRT0 = GRASS.length;
 
   function pathCentre(x) {
     return WORLD_H * 0.6 + Math.sin(x * 0.008) * 48 + Math.sin(x * 0.028) * 9;
@@ -3549,45 +3654,56 @@
 
   function buildGround(seed) {
     const rng = CM.makeRng(seed);
-    const buf = new Uint32Array(WORLD_W * WORLD_H);
+    const buf = new Uint8Array(GROUND_W * GROUND_H);
+    const inv = 1 / PIXEL;
 
-    for (let y = 0; y < WORLD_H; y++) {
-      for (let x = 0; x < WORLD_W; x++) {
+    for (let py = 0; py < GROUND_H; py++) {
+      const y = py * inv;
+      const row = py * GROUND_W;
+      for (let px = 0; px < GROUND_W; px++) {
+        const x = px * inv;
         const n = Math.sin(x * 0.09) * Math.cos(y * 0.11) + Math.sin((x + y) * 0.05) * 0.6;
         let idx = n > 0.8 ? 3 : n > 0.15 ? 1 : n > -0.5 ? 0 : 2;
         if (rng() < 0.05) idx = 4;
-        buf[y * WORLD_W + x] = GRASS[idx];
+        buf[row + px] = idx;
       }
     }
 
-    for (let x = 0; x < WORLD_W; x++) {
+    // the road, and the track running north off it
+    for (let px = 0; px < GROUND_W; px++) {
+      const x = px * inv;
       const centre = pathCentre(x);
       const halfWidth = 14 + Math.sin(x * 0.02) * 3;
-      for (let y = Math.floor(centre - halfWidth); y < centre + halfWidth; y++) {
-        if (y < 0 || y >= WORLD_H) continue;
-        const edge = Math.abs(y - centre) / halfWidth;
+      const from = Math.floor((centre - halfWidth) * PIXEL);
+      const to = Math.ceil((centre + halfWidth) * PIXEL);
+      for (let py = from; py < to; py++) {
+        if (py < 0 || py >= GROUND_H) continue;
+        const edge = Math.abs(py * inv - centre) / halfWidth;
         if (edge > 0.86 && rng() < 0.55) continue;
-        buf[y * WORLD_W + x] = DIRT[edge > 0.6 ? 2 : (rng() < 0.25 ? 1 : 0)];
+        buf[py * GROUND_W + px] = DIRT0 + (edge > 0.6 ? 2 : (rng() < 0.25 ? 1 : 0));
       }
     }
-    for (let y = 0; y < WORLD_H * 0.62; y++) {
+    for (let py = 0; py < GROUND_H * 0.62; py++) {
+      const y = py * inv;
       const centre = WORLD_W * 0.38 + Math.sin(y * 0.014) * 20;
-      for (let x = Math.floor(centre - 10); x < centre + 10; x++) {
-        if (x < 0 || x >= WORLD_W) continue;
-        const edge = Math.abs(x - centre) / 10;
+      const from = Math.floor((centre - 10) * PIXEL), to = Math.ceil((centre + 10) * PIXEL);
+      for (let px = from; px < to; px++) {
+        if (px < 0 || px >= GROUND_W) continue;
+        const edge = Math.abs(px * inv - centre) / 10;
         if (edge > 0.8 && rng() < 0.5) continue;
-        buf[y * WORLD_W + x] = DIRT[edge > 0.6 ? 2 : 0];
+        buf[py * GROUND_W + px] = DIRT0 + (edge > 0.6 ? 2 : 0);
       }
     }
 
-    for (let i = 0; i < 2600; i++) {
-      const x = Math.floor(rng() * WORLD_W), y = Math.floor(rng() * WORLD_H);
-      const isDirt = DIRT.indexOf(buf[y * WORLD_W + x]) >= 0;
-      const c = isDirt ? DIRT[3] : GRASS[rng() < 0.5 ? 3 : 4];
-      const len = 1 + Math.floor(rng() * 2);
+    // tufts and pebbles, now at the finer pixel size
+    for (let i = 0; i < 2600 * PIXEL; i++) {
+      const px = Math.floor(rng() * GROUND_W), py = Math.floor(rng() * GROUND_H);
+      const on = buf[py * GROUND_W + px];
+      const c = on >= DIRT0 ? DIRT0 + 3 : (rng() < 0.5 ? 3 : 4);
+      const len = 1 + Math.floor(rng() * 2 * PIXEL);
       for (let k = 0; k < len; k++) {
-        const yy = y - k;
-        if (yy >= 0) buf[yy * WORLD_W + x] = c;
+        const yy = py - k;
+        if (yy >= 0) buf[yy * GROUND_W + px] = c;
       }
     }
     return buf;
@@ -3604,8 +3720,9 @@
     const camera = R.makeCamera(CAM_PITCH, scale, ox, oy);
     const identity = R.identity();
     for (let i = 0; i < boxes.length; i++) {
-      R.drawMesh(target, identity, boxes[i].mesh, R.rgbOf(boxes[i].colour), camera, {});
+      R.drawMesh(target, identity, boxes[i].mesh, R.ramp(boxes[i].colour), camera, {});
     }
+    R.traceOutline(target, Rig.OUTLINE);
     return target;
   }
 
@@ -3809,13 +3926,18 @@
 
     if (impact.speed > TRIP_SPEED) {
       if (tall) {
-        // Clipping a trunk spins you off it.
+        // Clipping a trunk spins you off it, arms swinging.
         Rig.shove(player, n.nx, n.ny, 26 + impact.speed * 0.28);
+        Rig.nudge(player, n.nx, n.ny, 1.0, CHEST_H);
       } else {
         // Something knee-high: a short stumble and you pull up at it.
         Rig.stumble(player, n.nx, n.ny, 14, 0.5);
+        Rig.nudge(player, n.nx, n.ny, 0.9, SHIN_H);
       }
+      return;
     }
+
+    Rig.nudge(player, n.nx, n.ny, 0.6, tall ? CHEST_H : SHIN_H);
   }
 
   function resolveActorCollisions(world) {
@@ -3849,9 +3971,11 @@
         } else if (speed > TRIP_SPEED) {
           // a proper shoulder charge: they stagger several steps away
           Rig.stumble(a, nx, ny, 70 + speed * 0.5, 0.7);
+          Rig.nudge(a, nx, ny, 1.0, CHEST_H);
         } else {
           // a bump in passing: they step aside
           Rig.shove(a, nx, ny, 14 + speed * 0.18);
+          Rig.nudge(a, nx, ny, 0.6, CHEST_H);
         }
         a.hitCooldown = 0.45;
         if (world.talkingTo === a) D.close(world.box);
@@ -3859,6 +3983,7 @@
         // The player brushes past or stumbles; they never flail.
         if (speed > TRIP_SPEED) {
           Rig.stumble(player, -nx, -ny, 20, 0.4);
+          Rig.nudge(player, -nx, -ny, 0.7, CHEST_H);
           player.vx *= 0.62;
           player.vy *= 0.62;
         } else {
@@ -4261,10 +4386,8 @@
     // follows the *rounded* player position, which lands the player sprite on
     // the same exact pixel every frame; tracking the unrounded position makes
     // them jitter a pixel back and forth as they walk.
-    // No rounding any more: the camera can sit between world units because
-    // the scene is no longer being snapped to a pixel grid.
-    world.camX = world.player.x - VIEW_W / 2;
-    world.camY = world.player.y - VIEW_H / 2;
+    world.camX = Math.round(world.player.x) - (VIEW_W >> 1);
+    world.camY = Math.round(world.player.y) - (VIEW_H >> 1);
   }
 
   /* ---------- drawing ---------- */
@@ -4274,45 +4397,19 @@
   const LABEL_SHADOW = R.pack(20, 22, 28);
   const PROMPT = R.pack(232, 198, 116);
 
-  /* The ground is stored at one texel per world unit and drawn at several
-   * pixels per unit, so it is interpolated. Written out longhand with the
-   * source coordinate stepped incrementally — this is half a million samples a
-   * frame and a per-pixel function call was the single most expensive thing on
-   * screen. */
   function drawGround(world, target) {
-    const src = world.ground;
-    const step = 1 / PIXEL;
+    // The camera sits on whole world units, so this stays a straight copy —
+    // no interpolation, which is what keeps the ground crisp.
+    const sx0 = world.camX * PIXEL, sy0 = world.camY * PIXEL;
+    const ground = world.ground;
     const out = target.colour;
-
     for (let y = 0; y < RENDER_H; y++) {
-      let v = world.camY + y * step;
-      if (v < 0) v = 0; else if (v > WORLD_H - 1.001) v = WORLD_H - 1.001;
-      const y0 = v | 0;
-      const fy = v - y0;
-      const rowA = y0 * WORLD_W;
-      const rowB = rowA + WORLD_W;
+      const sy = sy0 + y;
+      if (sy < 0 || sy >= GROUND_H) continue;
+      const srow = sy * GROUND_W + sx0;
       const trow = y * RENDER_W;
-
-      let u = world.camX;
-      for (let x = 0; x < RENDER_W; x++, u += step) {
-        let uu = u;
-        if (uu < 0) uu = 0; else if (uu > WORLD_W - 1.001) uu = WORLD_W - 1.001;
-        const x0 = uu | 0;
-        const fx = uu - x0;
-
-        const c00 = src[rowA + x0], c10 = src[rowA + x0 + 1];
-        const c01 = src[rowB + x0], c11 = src[rowB + x0 + 1];
-        const w00 = (1 - fx) * (1 - fy), w10 = fx * (1 - fy);
-        const w01 = (1 - fx) * fy, w11 = fx * fy;
-
-        const r = (c00 & 255) * w00 + (c10 & 255) * w10 +
-          (c01 & 255) * w01 + (c11 & 255) * w11;
-        const g = ((c00 >> 8) & 255) * w00 + ((c10 >> 8) & 255) * w10 +
-          ((c01 >> 8) & 255) * w01 + ((c11 >> 8) & 255) * w11;
-        const b = ((c00 >> 16) & 255) * w00 + ((c10 >> 16) & 255) * w10 +
-          ((c01 >> 16) & 255) * w01 + ((c11 >> 16) & 255) * w11;
-
-        out[trow + x] = (0xff000000 | (b << 16) | (g << 8) | r) >>> 0;
+      for (let x = 0; x < RENDER_W; x++) {
+        out[trow + x] = GROUND_PALETTE[ground[srow + x]];
       }
     }
   }
@@ -4340,50 +4437,41 @@
       const d = drawables[i];
       if (d.prop) {
         const p = d.prop;
-        R.fillEllipse(target, (p.x - cx) * PIXEL, (p.y - cy) * PIXEL,
+        R.fillEllipse(target, (Math.round(p.x) - cx) * PIXEL, (Math.round(p.y) - cy) * PIXEL,
           p.shadowR * PIXEL, p.shadowR * 0.4 * PIXEL, SHADOW, 0.3);
-        R.blit(target, p.sprite, Math.round((p.x - cx) * PIXEL - p.sprite.w / 2),
-          Math.round((p.y - cy) * PIXEL) - p.footY);
+        R.blit(target, p.sprite, (Math.round(p.x) - cx) * PIXEL - Math.round(p.sprite.w / 2),
+          (Math.round(p.y) - cy) * PIXEL - p.footY);
       } else {
         const a = d.actor;
         const down = Rig.isDown(a) ? 1 : 0;
-        R.fillEllipse(target, (a.x - cx) * PIXEL, (a.y - cy) * PIXEL,
+        R.fillEllipse(target, (Math.round(a.x) - cx) * PIXEL, (Math.round(a.y) - cy) * PIXEL,
           (7 + down * 7) * PIXEL, (3 + down * 2) * PIXEL, SHADOW, 0.34);
         Rig.renderActor(a, a.buffer, camera, {});
-        R.blit(target, a.buffer, Math.round((a.x - cx) * PIXEL) - ACTOR_BUF.ox,
-          Math.round((a.y - cy) * PIXEL) - ACTOR_BUF.oy);
+        R.blit(target, a.buffer, (Math.round(a.x) - cx) * PIXEL - ACTOR_BUF.ox,
+          (Math.round(a.y) - cy) * PIXEL - ACTOR_BUF.oy);
       }
     }
 
-  }
-
-  /* Text is drawn on the canvas itself rather than into the pixel buffer, so
-   * it is anti-aliased like everything else now. */
-  function drawOverlay(world, ctx, canvasW, canvasH) {
-    const scale = canvasW / RENDER_W;
-    const cx = world.camX, cy = world.camY;
-    ctx.save();
-    ctx.scale(scale, scale);
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'alphabetic';
-
+    // name plate and the talk prompt for whoever is in reach
     const npc = world.prompt;
     if (npc) {
-      const x = (npc.x - cx) * PIXEL;
-      const y = (npc.y - cy) * PIXEL - 58 * PIXEL;
-      T.label(ctx, npc.character.name, x, y, 17, '#f2ede0');
-      T.label(ctx, 'E  talk', x, y - 21, 14, '#e8c674');
+      const name = npc.character.name;
+      const nx = (Math.round(npc.x) - cx) * PIXEL - Math.round(T.measure(name) / 2);
+      const ny = (Math.round(npc.y) - cy) * PIXEL - 58 * PIXEL;
+      T.drawShadowed(target, name, nx, ny, LABEL, LABEL_SHADOW);
+      const hint = 'E  talk';
+      T.drawShadowed(target, hint, (Math.round(npc.x) - cx) * PIXEL - Math.round(T.measure(hint) / 2),
+        ny - 11 * PIXEL, PROMPT, LABEL_SHADOW);
     }
 
-    D.draw(world.box, ctx, RENDER_W, RENDER_H);
-    ctx.restore();
+    D.draw(world.box, target);
   }
 
   global.World = {
     VIEW_W, VIEW_H, RENDER_W, RENDER_H, PIXEL, WORLD_W, WORLD_H,
     ACTOR_BUF, CAM_PITCH, CAM_SCALE,
     SPEED, TALK_RANGE, NUDGE_SPEED, TRIP_SPEED, FALL_SPEED, TEST_PAGES,
-    createWorld, update, draw, drawOverlay, tryTalk, nearestTalkable, distance, beginConversation
+    createWorld, update, draw, tryTalk, nearestTalkable, distance, beginConversation
   };
 })(window);
 
@@ -4402,12 +4490,12 @@
 
   /* ---------- preview stage geometry ---------- */
 
-  // Rendered at the canvas's own resolution — no upscaling, no pixel grid.
-  const PV_ZOOM = 3;
+  // Same framing as before at three times the pixel count.
+  const PV_PIXEL = 3;
   const PV = {
-    w: 132 * PV_ZOOM, h: 152 * PV_ZOOM,
-    ox: 66 * PV_ZOOM, oy: 138 * PV_ZOOM,
-    scale: 3.6 * PV_ZOOM, pitch: 0.26
+    w: 132 * PV_PIXEL, h: 152 * PV_PIXEL,
+    ox: 66 * PV_PIXEL, oy: 138 * PV_PIXEL,
+    scale: 3.6 * PV_PIXEL, pitch: 0.26
   };
 
   const state = {
@@ -4434,7 +4522,6 @@
   let worldTarget = null;
   let worldCamera = null;
   let presentWorld = null;
-  let worldCtx = null;
 
   const el = function (id) { return document.getElementById(id); };
 
@@ -4718,6 +4805,17 @@
       Rig.knockDown(previewActor, Math.sin(angle), Math.cos(angle), 4 + Math.random() * 4);
     });
 
+    const jostleBtn = document.createElement('button');
+    jostleBtn.type = 'button';
+    jostleBtn.className = 'btn';
+    jostleBtn.id = 'jostle';
+    jostleBtn.textContent = 'Jostle';
+    jostleBtn.addEventListener('click', function () {
+      const angle = Math.random() * Math.PI * 2;
+      Rig.nudge(previewActor, Math.sin(angle), Math.cos(angle), 2 + Math.random() * 2.5);
+    });
+
+    knockRow.appendChild(jostleBtn);
     knockRow.appendChild(knockBtn);
     playback.appendChild(knockRow);
 
@@ -4985,8 +5083,10 @@
       const c = R.mixRgb(BACKDROP_TOP, BACKDROP_BOTTOM, t * t);
       R.fillRect(previewTarget, 0, y, PV.w, 1, R.pack(c[0], c[1], c[2]));
     }
-    R.fillEllipse(previewTarget, PV.ox, PV.oy + 3 * PV_ZOOM, 42 * PV_ZOOM, 10 * PV_ZOOM, FLOOR, 1);
-    R.fillEllipse(previewTarget, PV.ox, PV.oy + 3 * PV_ZOOM, 20 * PV_ZOOM, 5.5 * PV_ZOOM, FLOOR_SHADOW, 0.45);
+    R.fillEllipse(previewTarget, PV.ox, PV.oy + 3 * PV_PIXEL,
+      42 * PV_PIXEL, 10 * PV_PIXEL, FLOOR, 1);
+    R.fillEllipse(previewTarget, PV.ox, PV.oy + 3 * PV_PIXEL,
+      20 * PV_PIXEL, 5.5 * PV_PIXEL, FLOOR_SHADOW, 0.45);
 
     Rig.renderActor(previewActor, actorTarget, previewCamera, {});
     R.blit(previewTarget, actorTarget, 0, 0);
@@ -5038,7 +5138,9 @@
     const c = state.character;
     const hairLabel = P.HAIR_STYLES[CM.indexOfId(P.HAIR_STYLES, c.hairStyle)].label;
     const anim = previewActor.fall.active
-      ? 'ragdoll ' + previewActor.fall.state
+      ? (previewActor.fall.mode === 'full'
+        ? 'ragdoll ' + previewActor.fall.state
+        : previewActor.fall.mode)
       : previewActor.gesture
         ? Rig.GESTURES[previewActor.gesture.id].label.toLowerCase()
       : state.animation === 'pose'
@@ -5189,7 +5291,6 @@
       W.update(state.world, dt);
       W.draw(state.world, worldTarget, worldCamera);
       presentWorld(worldTarget);
-      W.drawOverlay(state.world, worldCtx, W.RENDER_W, W.RENDER_H);
     }
     requestAnimationFrame(frame);
   }
@@ -5227,11 +5328,10 @@
 
     worldTarget = R.createTarget(W.RENDER_W, W.RENDER_H);
     worldCamera = R.makeCamera(W.CAM_PITCH, W.CAM_SCALE, W.ACTOR_BUF.ox, W.ACTOR_BUF.oy);
-    const worldCanvas = el('world-canvas');
-    worldCanvas.width = W.RENDER_W;
-    worldCanvas.height = W.RENDER_H;
-    worldCtx = worldCanvas.getContext('2d', { alpha: false });
-    presentWorld = R.createPresenter(worldCanvas, W.RENDER_W, W.RENDER_H);
+    const wc = el('world-canvas');
+    wc.width = W.RENDER_W;
+    wc.height = W.RENDER_H;
+    presentWorld = R.createPresenter(wc, W.RENDER_W, W.RENDER_H);
 
     previewActor = Rig.createActor(state.character, 0, 0, 99);
     previewActor.targetYaw = state.yaw;

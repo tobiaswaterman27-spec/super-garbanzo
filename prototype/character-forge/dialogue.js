@@ -13,6 +13,17 @@
 
   const CHARS_PER_SECOND = 34;
 
+  const COLOURS = {
+    panel: R.pack(243, 236, 217),
+    panelShade: R.pack(214, 202, 175),
+    border: R.pack(58, 46, 38),
+    inner: R.pack(255, 251, 240),
+    text: R.pack(48, 38, 32),
+    plate: R.pack(200, 150, 62),
+    plateText: R.pack(36, 28, 22),
+    arrow: R.pack(122, 78, 40)
+  };
+
   function create() {
     return {
       open: false,
@@ -90,113 +101,96 @@
     if (box.onClose) box.onClose();
   }
 
-  /* ---------- drawing ----------
-   *
-   * Straight onto the canvas now rather than into the pixel buffer, so the
-   * panel has real rounded corners and the text is anti-aliased.
-   */
+  /* ---------- drawing ---------- */
 
-  const STYLE = {
-    panel: 'rgba(247, 242, 230, 0.97)',
-    border: 'rgba(58, 46, 38, 0.9)',
-    text: '#2f2620',
-    plate: '#c08c3a',
-    plateText: '#221a12',
-    arrow: '#7a4e28',
-    pip: '#7a4e28',
-    pipOff: 'rgba(122, 78, 40, 0.25)'
-  };
-
-  function roundRect(ctx, x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
+  function panel(target, x, y, w, h) {
+    R.fillRect(target, x, y, w, h, COLOURS.panel);
+    // notch the corners so the box reads as rounded at this scale
+    for (let i = 0; i < 2; i++) {
+      const n = 2 - i;
+      R.fillRect(target, x + i, y + i, n, 1, 0);
+      R.fillRect(target, x + w - i - n, y + i, n, 1, 0);
+      R.fillRect(target, x + i, y + h - i - 1, n, 1, 0);
+      R.fillRect(target, x + w - i - n, y + h - i - 1, n, 1, 0);
+    }
+    R.strokeRect(target, x, y, w, h, COLOURS.border);
+    // clip the border's own corner pixels to match the notch
+    R.fillRect(target, x, y, 1, 1, 0);
+    R.fillRect(target, x + w - 1, y, 1, 1, 0);
+    R.fillRect(target, x, y + h - 1, 1, 1, 0);
+    R.fillRect(target, x + w - 1, y + h - 1, 1, 1, 0);
+    // inner bevel
+    R.fillRect(target, x + 2, y + 1, w - 4, 1, COLOURS.inner);
+    R.fillRect(target, x + 1, y + 2, 1, h - 4, COLOURS.inner);
+    R.fillRect(target, x + 2, y + h - 2, w - 4, 1, COLOURS.panelShade);
+    R.fillRect(target, x + w - 2, y + 2, 1, h - 4, COLOURS.panelShade);
   }
 
-  function draw(box, ctx, viewW, viewH) {
+  function draw(box, target) {
     if (!box.open) return;
 
-    const margin = 34;
-    const h = 150;
-    const w = viewW - margin * 2;
+    const S = T.SCALE;
+    const margin = 10 * S;
+    const h = 62 * S;
+    const w = target.w - margin * 2;
     const x = margin;
-    const y = viewH - h - 22;
-    const fontSize = 26;
-    const lineHeight = 36;
+    const y = target.h - h - 6 * S;
 
-    ctx.save();
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
-
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
-    ctx.shadowBlur = 18;
-    ctx.shadowOffsetY = 5;
-    ctx.fillStyle = STYLE.panel;
-    roundRect(ctx, x, y, w, h, 14);
-    ctx.fill();
-    ctx.shadowColor = 'transparent';
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = STYLE.border;
-    ctx.stroke();
+    panel(target, x, y, w, h);
 
     if (box.speaker) {
-      const nameSize = 20;
-      const nameW = T.measure(ctx, box.speaker, nameSize, 700) + 28;
-      const plateH = 34;
-      const px = x + 18, py = y - plateH + 6;
-      ctx.fillStyle = STYLE.plate;
-      roundRect(ctx, px, py, nameW, plateH, 9);
-      ctx.fill();
-      ctx.strokeStyle = STYLE.border;
-      ctx.stroke();
-      T.draw(ctx, box.speaker, px + 14, py + 23, nameSize, STYLE.plateText, 700);
+      const plateH = T.CELL_H + 4;
+      const nameW = T.measure(box.speaker) + 12 * S;
+      const plateX = x + 6 * S;
+      const plateY = y - plateH + 1;
+      R.fillRect(target, plateX, plateY, nameW, plateH, COLOURS.plate);
+      R.strokeRect(target, plateX, plateY, nameW, plateH, COLOURS.border);
+      R.fillRect(target, plateX, plateY, 1, 1, 0);
+      R.fillRect(target, plateX + nameW - 1, plateY, 1, 1, 0);
+      T.draw(target, box.speaker, plateX + 6 * S, plateY + 2 * S, COLOURS.plateText);
     }
 
     const page = currentPage(box);
-    const shown = Math.floor(box.revealed);
-    const lines = T.wrap(ctx, page, w - 56, fontSize);
+    const shown = page.slice(0, Math.floor(box.revealed));
+    const lines = T.wrap(page, w - 22 * S);
 
-    // wrap the whole page once, then reveal along it, so nothing re-flows
-    let remaining = shown;
-    let ty = y + 48;
+    // Wrap the full page once, then reveal per line, so text never re-flows
+    // mid-reveal — re-flowing is the classic typewriter bug.
+    let remaining = shown.length;
+    let ty = y + 9 * S;
     for (let i = 0; i < lines.length && i < 3; i++) {
-      const take = Math.max(0, Math.min(lines[i].length, remaining));
-      if (take > 0) T.draw(ctx, lines[i].slice(0, take), x + 28, ty, fontSize, STYLE.text);
-      remaining -= lines[i].length + 1;
-      ty += lineHeight;
+      const line = lines[i];
+      const take = Math.max(0, Math.min(line.length, remaining));
+      if (take > 0) T.draw(target, line.slice(0, take), x + 10 * S, ty, COLOURS.text);
+      remaining -= line.length + 1; // +1 for the space the wrap consumed
+      ty += T.LINE_H + 3 * S;
     }
 
     if (pageComplete(box)) {
-      const bob = Math.sin(box.time * 5) * 4;
-      const ax = x + w - 34, ay = y + h - 30 + bob;
-      ctx.fillStyle = STYLE.arrow;
-      ctx.beginPath();
-      ctx.moveTo(ax - 10, ay - 6);
-      ctx.lineTo(ax + 10, ay - 6);
-      ctx.lineTo(ax, ay + 8);
-      ctx.closePath();
-      ctx.fill();
+      const bob = Math.round(Math.sin(box.time * 5.0) * 1.5) * S;
+      drawArrow(target, x + w - 13 * S, y + h - 12 * S + bob, S);
     }
 
+    // page pips, so you can see how much is left
     const pips = box.pages.length;
     if (pips > 1) {
       for (let i = 0; i < pips; i++) {
-        ctx.fillStyle = i <= box.pageIndex ? STYLE.pip : STYLE.pipOff;
-        ctx.beginPath();
-        ctx.arc(x + w - 22 - (pips - 1 - i) * 16, y + 20, 5, 0, Math.PI * 2);
-        ctx.fill();
+        const px = x + w - 10 * S - (pips - 1 - i) * 5 * S;
+        const on = i <= box.pageIndex;
+        R.fillRect(target, px, y + 5 * S, 3 * S, 3 * S, on ? COLOURS.arrow : COLOURS.panelShade);
       }
     }
+  }
 
-    ctx.restore();
+  // A downward chevron, drawn as explicit pixel rows.
+  function drawArrow(target, x, y, s) {
+    for (let i = 0; i < 4; i++) {
+      R.fillRect(target, x + i * s, y + i * s, (7 - i * 2) * s, s, COLOURS.arrow);
+    }
   }
 
   global.Dialogue = {
     create, start, update, advance, close, draw,
-    currentPage, pageComplete, STYLE
+    currentPage, pageComplete, COLOURS
   };
 })(window);

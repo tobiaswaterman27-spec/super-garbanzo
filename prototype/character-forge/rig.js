@@ -1,8 +1,16 @@
 /* rig.js — posing, animation, knockdowns and drawing the bone tree.
  *
- * Characters are rendered smoothly rather than as pixel art, so nothing here
- * snaps: rotation is continuous, the pose clock runs at the display rate, and
- * faces are lit continuously rather than banded.
+ * Two quantisation rules do most of the visual work here:
+ *
+ *   1. Poses are sampled at ANIM_FPS, not at the display refresh rate.
+ *   2. Yaw is snapped to YAW_STEPS discrete angles before rendering.
+ *
+ * Without them the model rotates and breathes by fractions of a pixel every
+ * frame, so every box edge flickers between two pixel columns at 60Hz. That
+ * shimmer is what makes a rendered-to-pixels character read as mush instead of
+ * as pixel art, and it destroys the depth cues the shading is trying to give.
+ * Real sprite work runs at 8-12fps with a fixed set of facing angles; this
+ * reproduces that discipline on a model that is genuinely 3D underneath.
  */
 (function (global) {
   'use strict';
@@ -10,12 +18,12 @@
   const R = global.Render;
   const CM = global.CharacterModel;
 
-  // Kept as identity now that the characters are rendered smoothly rather than
-  // as pixel art. Snapping the pose clock and the facing angle was there to
-  // stop sub-pixel movement flickering whole pixels on and off; at full
-  // resolution it only makes the motion look stepped.
-  function quantiseTime(t) { return t; }
-  function quantiseYaw(y) { return y; }
+  const ANIM_FPS = 12;
+  const YAW_STEPS = 16;
+  const YAW_STEP = (Math.PI * 2) / YAW_STEPS;
+
+  function quantiseTime(t) { return Math.floor(t * ANIM_FPS) / ANIM_FPS; }
+  function quantiseYaw(y) { return Math.round(y / YAW_STEP) * YAW_STEP; }
 
   const JOINTS = [
     { name: 'head', label: 'Head', axes: ['Nod', 'Turn', 'Tilt'] },
@@ -210,6 +218,7 @@
   function createFall() {
     return {
       active: false,
+      mode: 'soft',      // soft = jostled but stays upright; full = goes down
       state: 'up',       // up | falling | down | rising
       p: null, links: null, timer: 0, still: 0, rise: 0, settle: 0
     };
@@ -218,6 +227,18 @@
   /* How hard each joint is dragged back toward where the animation says it
    * should be. The feet and hips are held firmly so a soft hit cannot topple
    * anyone; the further up the body, the more freely it swings. */
+  /* A jostle is an arms-only reaction. Everything from the shoulders inward is
+   * held exactly on the animated pose, so a knock never moves a character's
+   * legs or neck — only a fall or a stumble does that. Letting the torso join
+   * in is what kept reading as a flail. */
+  const SOFT_PULL = {
+    footR: 1, footL: 1, hipR: 1, hipL: 1, pelvis: 1,
+    kneeR: 1, kneeL: 1,
+    chest: 1, neck: 1, headTop: 1,
+    shoulderR: 0.85, shoulderL: 0.85,
+    elbowR: 0.26, elbowL: 0.26, handR: 0.19, handL: 0.19
+  };
+  const SOFT_TIME = 0.5;
 
   // How close every joint has to be to the animated pose before control is
   // handed back. Switching on a timer instead leaves the body wherever the
@@ -259,7 +280,7 @@
   }
 
   // dirX/dirY is the world push direction (world y is depth, which is local z).
-  function applyImpulse(actor, dirX, dirY, force, opts) {
+  function applyImpulse(actor, dirX, dirY, force, mode, opts) {
     const f = actor.fall;
     const model = actor.model;
 
@@ -267,12 +288,14 @@
     poseActor(actor, quantiseTime(actor.animTime));
     const joints = jointPositions(model, actor.yaw);
 
-    // A fall already in progress just takes the extra hit.
+    // A soft jostle already in progress can be escalated to a real fall.
     const reuse = f.active && f.p;
     const p = reuse ? f.p : {};
     const len = Math.hypot(dirX, dirY) || 1;
     const px = dirX / len, pz = dirY / len;
-    const impulse = Math.max(0.6, Math.min(9.0, force)) * SUBSTEP * 7.5;
+    const full = mode === 'full';
+    const cap = full ? 9.0 : 5.0;
+    const impulse = Math.max(0.6, Math.min(cap, force)) * SUBSTEP * (full ? 7.5 : 1.9);
 
     let tallest = 1;
     for (let i = 0; i < JOINT_NAMES.length; i++) {
@@ -327,9 +350,9 @@
     }
 
     f.active = true;
-    f.mode = 'full';
-    f.state = 'falling';
-    f.timer = 0;
+    f.mode = mode;
+    f.state = full ? 'falling' : 'jostled';
+    f.timer = full ? 0 : SOFT_TIME;
     f.still = 0;
     f.rise = 0;
     f.settle = 0;
@@ -338,6 +361,14 @@
     actor.speaking = false;
     actor.viseme = 'rest';
     return true;
+  }
+
+  // Jostled but still on their feet: the body reacts, nobody goes down.
+  // `contactY` localises the reaction to the height the hit landed at.
+  function nudge(actor, dirX, dirY, force, contactY) {
+    if (actor.fall.active && actor.fall.mode === 'full') return false;
+    return applyImpulse(actor, dirX, dirY, force, 'soft',
+      contactY === undefined ? null : { contactY: contactY });
   }
 
   // Knocked off their feet entirely.
@@ -486,6 +517,32 @@
     const f = actor.fall;
     if (!f.active || !f.p) return;
 
+    /* ---- jostled: the arms swing, nothing else moves ---- */
+    if (f.mode !== 'full') {
+      const target = standingTarget(actor);
+
+      if (f.timer > 0) {
+        let acc = Math.min(dt, 0.05);
+        while (acc > 0) {
+          const step = Math.min(SUBSTEP, acc);
+          simulate(f, step, 0.25);
+          acc -= step;
+        }
+        pullToward(f, target, Math.min(1, dt * 16), SOFT_PULL);
+        f.timer -= dt;
+        return;
+      }
+
+      f.settle = (f.settle || 0) + dt;
+      if (settleOntoPose(f, target, dt) || f.settle > 1.5) {
+        f.active = false;
+        f.state = 'up';
+        f.settle = 0;
+        f.p = null;
+      }
+      return;
+    }
+
     /* ---- getting back up, under its own power ---- */
     if (f.state === 'rising') {
       if (!f.riseReady) {
@@ -522,35 +579,6 @@
         const step = Math.min(SUBSTEP, acc);
         simulate(f, step, 0.55);
         acc -= step;
-      }
-
-      /* Plant the hands and push. For the first half of the sequence the
-       * hands are held on the ground out in front, and the body levers up
-       * over them — without that the torso simply rises and the character
-       * looks like they are floating upright. */
-      if (k < 0.62) {
-        const pel = f.p.pelvis, ch = f.p.chest;
-        let fx = ch.x - pel.x, fz = ch.z - pel.z;
-        const fl = Math.hypot(fx, fz);
-        if (fl > 0.01) { fx /= fl; fz /= fl; } else { fx = 0; fz = 1; }
-        const grip = Math.min(1, dt * 9);
-        const spread = actor.model.dims.torsoW * 0.62;
-        const sides = [['shoulderR', 'elbowR', 'handR', -1], ['shoulderL', 'elbowL', 'handL', 1]];
-        for (let s = 0; s < sides.length; s++) {
-          const sh = f.p[sides[s][0]], el = f.p[sides[s][1]], hd = f.p[sides[s][2]];
-          const side = sides[s][3];
-          // planted a little ahead of the shoulders and out to the side
-          const px2 = pel.x + fx * 7.5 - fz * side * spread;
-          const pz2 = pel.z + fz * 7.5 + fx * side * spread;
-          hd.x += (px2 - hd.x) * grip;
-          hd.z += (pz2 - hd.z) * grip;
-          hd.y += (hd.r - hd.y) * grip;
-          hd.px = hd.x; hd.py = hd.y; hd.pz = hd.z;   // the hand does not slip
-          // elbow rides above the midpoint, so the arm reads as bracing
-          el.x += ((sh.x + hd.x) / 2 - el.x) * grip * 0.5;
-          el.z += ((sh.z + hd.z) / 2 - el.z) * grip * 0.5;
-          el.y += (Math.max(hd.y + 2.2, (sh.y + hd.y) / 2) - el.y) * grip * 0.5;
-        }
       }
 
       // walk the get-up keyframes, with the whole body righting itself from
@@ -620,8 +648,8 @@
     }
   }
 
-  // On the ground.
-  function isDown(actor) { return actor.fall.active; }
+  // Down on the ground, as opposed to merely jostled.
+  function isDown(actor) { return actor.fall.active && actor.fall.mode === 'full'; }
 
   /* ---------- drawing a ragdoll ---------- */
 
@@ -682,12 +710,12 @@
 
       for (let k = 0; k < bone.parts.length; k++) {
         const part = bone.parts[k];
-        R.drawMesh(target, m, part.mesh, R.rgbOf(part.colour), camera, part);
+        R.drawMesh(target, m, part.mesh, R.ramp(part.colour), camera, part);
       }
       if (faceParts && seg.bone === 'head') {
         for (let k = 0; k < faceParts.length; k++) {
           const part = faceParts[k];
-          R.drawMesh(target, m, part.mesh, R.rgbOf(part.colour), camera, part);
+          R.drawMesh(target, m, part.mesh, R.ramp(part.colour), camera, part);
         }
       }
     }
@@ -1022,17 +1050,19 @@
 
       for (let i = 0; i < node.parts.length; i++) {
         const p = node.parts[i];
-        R.drawMesh(target, m, p.mesh, R.rgbOf(p.colour), camera, p);
+        R.drawMesh(target, m, p.mesh, R.ramp(p.colour), camera, p);
       }
       if (faceParts && node.name === 'head') {
         for (let i = 0; i < faceParts.length; i++) {
           const p = faceParts[i];
-          R.drawMesh(target, m, p.mesh, R.rgbOf(p.colour), camera, p);
+          R.drawMesh(target, m, p.mesh, R.ramp(p.colour), camera, p);
         }
       }
       for (let i = 0; i < node.children.length; i++) walk(node.children[i], m);
     })(model.root, base);
   }
+
+  const OUTLINE = R.pack(17, 19, 27);
 
   // Renders one actor into its own buffer and outlines it. Both the pose clock
   // and the facing angle are quantised first; if neither moved since the last
@@ -1065,20 +1095,21 @@
       poseActor(actor, qTime);
       drawModel(target, actor.model, camera, { yaw: qYaw, faceParts: face });
     }
+    R.traceOutline(target, (opts && opts.outline) || OUTLINE);
     return target;
   }
 
   global.Rig = {
-    JOINTS, DIRECTIONS,
+    JOINTS, DIRECTIONS, ANIM_FPS, YAW_STEPS,
     quantiseTime, quantiseYaw,
     clearPose, setRot, addRot, poseIdle, poseWalk, poseTalk,
     emptyPose, clonePose, applyPose, lerpPose, samplePoseTrack,
     yawForDirection, snapToEight, directionName, shortestAngle,
     createActor, rebuildActorModel, updateActorMotion, updateBlink,
-    createFall, knockDown, applyImpulse, updateFall, isDown,
+    createFall, knockDown, nudge, applyImpulse, updateFall, isDown,
     shove, stumble, applyShove,
     GESTURES, GESTURE_IDS, startGesture, applyGesture,
     jointPositions, segmentMatrix, drawRagdoll,
-    poseActor, drawModel, renderActor
+    poseActor, drawModel, renderActor, OUTLINE
   };
 })(window);

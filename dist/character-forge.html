@@ -8324,7 +8324,10 @@
    * over them, or another guard going down beside them all stagger them —
    * none of it lays them out. Only a real blow does that. Without this a
    * chase collapses in a heap the moment two of them collide. */
-  function chasing(a) { return !!(a.brain && a.brain.guard && a.brain.guardState === 'chase'); }
+  function chasing(a) {
+    if (!a.brain || !a.brain.guard) return false;
+    return a.brain.guardState === 'chase' || a.brain.guardState === 'rousing';
+  }
 
   /* ---------- swinging ---------- */
 
@@ -9007,9 +9010,32 @@
     caller.gesture = null;
   }
 
+  /* Nobody reacts the instant something happens, and five men do not all
+   * react on the same frame. A guard who sees it takes a beat to register it;
+   * one who only hears it shouted takes longer, and further off is longer
+   * still. The rng is the guard's own, so a jumpy one is consistently jumpy
+   * and the group fans out instead of moving as a block. */
   function alertGuard(world, g, x, y, alarm) {
     const brain = g.brain;
-    brain.guardState = 'chase';
+    if (brain.guardState === 'chase' || brain.guardState === 'rousing') {
+      // Already coming, or already getting to his feet: update where he is
+      // headed, but do not restart his clock. Re-rolling the delay every time
+      // somebody shouts again means he never actually sets off.
+      brain.chaseX = x; brain.chaseY = y;
+      brain.giveUp = Math.max(brain.giveUp, GUARD_GIVE_UP * (0.6 + alarm * 0.7));
+      return;
+    }
+    // Each guard has his own reaction time, rolled once, so the same man is
+    // always the quick one and the group fans out rather than moving as a
+    // block. Distance and second-hand news both add to it.
+    if (brain.reactionTime === undefined) {
+      brain.reactionTime = 0.2 + (g.rng ? g.rng() : Math.random()) * 1.25;
+    }
+    const far = Math.min(1, distance(g, world.player) / SEE_RANGE);
+    const delay = brain.reactionTime + far * 0.7 + (1 - alarm) * 1.1;
+
+    brain.guardState = 'rousing';
+    brain.rouse = delay;
     brain.target = world.player;
     brain.chaseX = x; brain.chaseY = y;
     brain.giveUp = GUARD_GIVE_UP * (0.6 + alarm * 0.7);
@@ -9018,6 +9044,19 @@
     g.gesture = null;
     if (brain.partner) {
       if (brain.state === 'closing') abandonClosing(g); else endChat(g, 30);
+    }
+  }
+
+  /* The beat before they move: they turn and look at it, then go. */
+  function updateRousing(world, g, dt) {
+    const brain = g.brain;
+    brain.rouse -= dt;
+    g.gait = 'idle';
+    g.vx = 0; g.vy = 0;
+    g.targetYaw = Rig.yawForDirection(brain.chaseX - g.x, brain.chaseY - g.y);
+    if (brain.rouse <= 0) {
+      brain.guardState = 'chase';
+      brain.spreadTimer = 0.2 + (g.rng ? g.rng() : Math.random()) * 0.6;
     }
   }
 
@@ -9871,6 +9910,12 @@
       }
       Rig.updateBlink(a, dt);
       a.animTime += dt;
+      return;
+    }
+
+    if (brain.guard && brain.guardState === 'rousing' && !Rig.isDown(a)) {
+      updateRousing(world, a, dt);
+      Rig.updateActorMotion(a, dt);
       return;
     }
 

@@ -710,6 +710,7 @@
     f.state = full ? 'falling' : 'jostled';
     f.timer = full ? 0 : SOFT_TIME;
     f.still = 0;
+    f.fallTime = 0;
     f.rise = 0;
     f.settle = 0;
     f.riseReady = false;
@@ -1181,6 +1182,10 @@
           f.state = 'up';
           f.settle = 0;
           f.p = null;
+          /* A moment's grace on your feet. Standing up inside whatever put you
+           * down means the next frame's contact floors you again, and you are
+           * pinned there for ever getting up and falling over. */
+          actor.hitCooldown = Math.max(actor.hitCooldown || 0, 0.9);
         }
       }
       return;
@@ -1208,12 +1213,20 @@
     }
 
     if (f.state === 'falling') {
+      /* Either it has come to rest, or it has been jittering long enough that
+       * it never will. A body wedged against a tree is pushed out of the
+       * trunk every frame, which keeps feeding the solver energy, so the
+       * stillness test never trips and the character lies there for ever.
+       * That is the freeze: not a pose that stops updating, a get-up that
+       * never starts. */
+      f.fallTime = (f.fallTime || 0) + dt;
       if (kineticEnergy(f) < 0.05) {
         f.still += dt;
         if (f.still > 0.15) { f.state = 'down'; f.timer = 0.18 + actor.rng() * 0.28; }
       } else {
         f.still = 0;
       }
+      if (f.fallTime > 2.6) { f.state = 'down'; f.timer = 0.12; }
     } else if (f.state === 'down') {
       f.timer -= dt;
       if (f.timer <= 0) { f.state = 'rising'; f.rise = 0; f.riseReady = false; }

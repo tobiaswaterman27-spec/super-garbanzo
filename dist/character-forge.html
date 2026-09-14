@@ -3010,6 +3010,7 @@
     f.state = full ? 'falling' : 'jostled';
     f.timer = full ? 0 : SOFT_TIME;
     f.still = 0;
+    f.fallTime = 0;
     f.rise = 0;
     f.settle = 0;
     f.riseReady = false;
@@ -3481,6 +3482,10 @@
           f.state = 'up';
           f.settle = 0;
           f.p = null;
+          /* A moment's grace on your feet. Standing up inside whatever put you
+           * down means the next frame's contact floors you again, and you are
+           * pinned there for ever getting up and falling over. */
+          actor.hitCooldown = Math.max(actor.hitCooldown || 0, 0.9);
         }
       }
       return;
@@ -3508,12 +3513,20 @@
     }
 
     if (f.state === 'falling') {
+      /* Either it has come to rest, or it has been jittering long enough that
+       * it never will. A body wedged against a tree is pushed out of the
+       * trunk every frame, which keeps feeding the solver energy, so the
+       * stillness test never trips and the character lies there for ever.
+       * That is the freeze: not a pose that stops updating, a get-up that
+       * never starts. */
+      f.fallTime = (f.fallTime || 0) + dt;
       if (kineticEnergy(f) < 0.05) {
         f.still += dt;
         if (f.still > 0.15) { f.state = 'down'; f.timer = 0.18 + actor.rng() * 0.28; }
       } else {
         f.still = 0;
       }
+      if (f.fallTime > 2.6) { f.state = 'down'; f.timer = 0.12; }
     } else if (f.state === 'down') {
       f.timer -= dt;
       if (f.timer <= 0) { f.state = 'rising'; f.rise = 0; f.riseReady = false; }
@@ -7002,9 +7015,11 @@
 
     /* villagers, and among them the watch */
     const GUARD_KIT = ['sword', 'club', 'spear', 'sword', 'bow'];
-    for (let i = 0; i < 16; i++) {
+    /* Enough of them that seating eleven in the carts and on horseback still
+     * leaves a village walking about. */
+    for (let i = 0; i < 26; i++) {
       const ch = CM.randomCharacter(rng);
-      const guard = i < 5;
+      const guard = i < 6;
       if (guard) {
         // the livery: a guard off duty is just a person, but on duty they are
         // unmistakably one of them
@@ -7013,7 +7028,7 @@
         ch.garment = 'surcoat';
       }
       const a = Rig.createActor(ch,
-        player.x + (rng() - 0.5) * 640, player.y + (rng() - 0.5) * 460,
+        player.x + (rng() - 0.5) * 900, player.y + (rng() - 0.5) * 620,
         (seed + i * 977) >>> 0);
       a._id = 'v' + i;
       a.buffer = R.createTarget(ACTOR_BUF.w, ACTOR_BUF.h);
@@ -7049,16 +7064,34 @@
       world.horses.push(h);
     }
 
-    /* A couple of villagers are out riding. The road is not only for guards. */
-    for (let i = 0; i < 2; i++) {
-      const rider = world.actors[3 + i];
-      const h = world.horses[i];
-      if (!rider || !h) continue;
-      rider.mount = h; h.rider = rider;
-      rider.mountTime = MOUNT_TIME;
-      rider.x = h.x; rider.y = h.y;
-      rider.brain.rides = true;
-      rider.brain.rideTimer = 2 + rng() * 5;
+    /* People are out and about, and they travel together. Two up on a horse,
+     * a cart with three in the back, two riding on the chest cart and one
+     * alone in the carriage — which is rather the point of a carriage. */
+    let next = 8;
+    function spare() {
+      while (next < world.actors.length) {
+        const a = world.actors[next++];
+        if (a && !a.brain.guard && !a.mount && !a.seat) return a;
+      }
+      return null;
+    }
+
+    const ridden = world.horses[0];
+    if (ridden) {
+      const rider = spare();
+      if (rider) {
+        rider.mount = ridden; ridden.rider = rider;
+        rider.mountTime = MOUNT_TIME;
+        rider.x = ridden.x; rider.y = ridden.y;
+        rider.brain.rides = true;
+        rider.brain.rideTimer = 2 + rng() * 5;
+        const pillion = spare();
+        if (pillion) {
+          ridden.pillion = pillion;
+          pillion.carriedBy = ridden;
+          pillion.x = ridden.x; pillion.y = ridden.y;
+        }
+      }
     }
 
     /* one of each cart, parked where you can get to them */
@@ -7081,6 +7114,32 @@
       }
       world.carts.push(c);
     }
+
+    // each cart gets a horse in the shafts, a driver and its passengers
+    const LOAD = { cart: 3, chestCart: 2, luxuryCart: 1 };
+    for (let i = 0; i < world.carts.length; i++) {
+      const c = world.carts[i];
+      const h = world.horses[2 + i];
+      if (!h || h.rider) continue;
+      hitchCart(world, h, c);
+      const driver = spare();
+      if (!driver) continue;
+      c.rider = driver;
+      driver.seat = c;
+      driver.brain.drives = true;
+      driver.brain.rideTimer = 2 + rng() * 6;
+      driver.x = c.x; driver.y = c.y;
+      c.riders = [];
+      const n = LOAD[c.type] || 1;
+      for (let k = 0; k < n; k++) {
+        const pass = spare();
+        if (!pass) break;
+        pass.carriedBy = c;
+        pass.x = c.x; pass.y = c.y;
+        c.riders.push(pass);
+      }
+    }
+
 
     return world;
   }
@@ -7151,6 +7210,12 @@
    * Scenery at full sprint floors you; villagers never do. */
   function reactToProp(player, impact) {
     if (!impact.prop || impact.speed < NUDGE_SPEED) return;
+    /* You cannot trip over a tree you are already lying against. The ragdoll
+     * hands its drift back as movement, which carried the body into the trunk
+     * and read as a fresh impact, so the player was knocked down again every
+     * time they nearly got up — the freeze was being floored on a loop, not a
+     * pose that stopped animating. */
+    if (Rig.isDown(player)) return;
     if (player.hitCooldown > 0) return;
     player.hitCooldown = 0.4;
     const n = impact;
@@ -7190,10 +7255,14 @@
   function separateVillagers(world) {
     const list = world.actors;
     for (let i = 1; i < list.length; i++) {
-      if (list[i].mount || list[i].seat) continue;
+      // Anyone being carried sits at their vehicle's own position, so several
+      // of them share a point by design. Pushing those apart would drag the
+      // passengers out of the cart they are sitting in.
+      if (list[i].mount || list[i].seat || list[i].carriedBy) continue;
       const a = list[i];
       for (let j = i + 1; j < list.length; j++) {
         const b = list[j];
+        if (b.mount || b.seat || b.carriedBy) continue;
         const dx = b.x - a.x, dy = (b.y - a.y) * 1.5;
         const dist = Math.hypot(dx, dy);
         const min = 13;
@@ -7402,8 +7471,12 @@
         /* Two horses meeting at speed is a collision, not a nudge. The one
          * carrying less momentum into it goes over, and whoever is on it goes
          * with it. */
-        const closing = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
-        if (closing > 110 && a.hitCooldown <= 0 && b.hitCooldown <= 0) {
+        // A trot into a standing horse is enough to put one of them over; it
+        // does not have to be two gallops meeting head on.
+        const closing = Math.max(
+          (a.vx - b.vx) * nx + (a.vy - b.vy) * ny,
+          Math.max(Math.hypot(a.vx, a.vy), Math.hypot(b.vx, b.vy)) * 0.72);
+        if (closing > 62 && a.hitCooldown <= 0 && b.hitCooldown <= 0) {
           const aPow = HM.power(a.horse) * Math.hypot(a.vx, a.vy);
           const bPow = HM.power(b.horse) * Math.hypot(b.vx, b.vy);
           const loser = aPow < bPow ? a : b;
@@ -7941,10 +8014,30 @@
 
     const drivenFromSaddle = h.rider === world.player && world.player.mountTime >= MOUNT_TIME;
     const drivenFromBench = h.cart && h.cart.rider === world.player;
+    const npcDriver = h.cart && h.cart.rider && h.cart.rider !== world.player
+      ? h.cart.rider : null;
+    if (npcDriver && npcDriver.brain) {
+      // a carter ambling between nowhere and nowhere
+      const br = npcDriver.brain;
+      br.rideTimer = (br.rideTimer || 0) - dt;
+      if (br.rideTimer <= 0) {
+        br.rideTimer = 5 + npcDriver.rng() * 9;
+        br.rideDir = npcDriver.rng() < 0.2 ? null : npcDriver.rng() * Math.PI * 2;
+      }
+      if (br.rideDir === null || br.rideDir === undefined) {
+        h.npcDrive = { dx: 0, dy: 0, sprint: false };
+      } else {
+        const want = br.rideDir;
+        const clear = steerAround(world, h, want, 46);
+        const use = clear === null ? want + Math.PI : clear;
+        h.npcDrive = { dx: Math.sin(use), dy: Math.cos(use), sprint: false };
+        h.targetYaw = use;
+      }
+    }
     if (drivenFromSaddle || drivenFromBench) {
       const input = world.input;
       if (!world.box.open) { dx = input.dx; dy = input.dy; sprint = input.sprint; }
-    } else if (h.npcDrive && h.rider) {
+    } else if (h.npcDrive && (h.rider || npcDriver)) {
       dx = h.npcDrive.dx; dy = h.npcDrive.dy; sprint = h.npcDrive.sprint;
     } else if (h.spooked > 0) {
       // bolting after being struck
@@ -9177,6 +9270,48 @@
     if (r.swap === 'stow') stowWeapon(a); else drawWeapon(a);
   }
 
+
+  /* ---------- getting round things ----------
+   *
+   * Villagers used to walk into a tree and keep walking. Rather than a path
+   * graph for a field with thirty trees in it, they look a short way down the
+   * heading they want and, if it is blocked, fan out either side until they
+   * find one that is clear. It is enough to make them walk round things, and
+   * it costs nothing.
+   */
+
+  const LOOK_AHEAD = 30;
+  const FAN = [0, 0.4, -0.4, 0.85, -0.85, 1.35, -1.35, 1.9, -1.9];
+
+  function blockedAhead(world, a, yaw, reach) {
+    const fx = Math.sin(yaw), fy = Math.cos(yaw);
+    for (let step = 12; step <= reach; step += 9) {
+      const px = a.x + fx * step, py = a.y + fy * step;
+      for (let i = 0; i < world.props.length; i++) {
+        const pr = world.props[i];
+        const dx = px - pr.x, dy = (py - pr.y) * 1.6;
+        if (Math.hypot(dx, dy) < pr.r + 8) return true;
+      }
+      for (let i = 0; i < world.carts.length; i++) {
+        const c = world.carts[i];
+        if (Math.hypot(px - c.x, (py - c.y) * 1.4) < CART_R + 7) return true;
+      }
+      if (px < 24 || px > WORLD_W - 24 || py < 30 || py > WORLD_H - 18) return true;
+    }
+    return false;
+  }
+
+  /* The nearest clear heading to the one they wanted, or null if they are
+   * boxed in on every side. */
+  function steerAround(world, a, wantYaw, reach) {
+    const r = reach === undefined ? LOOK_AHEAD : reach;
+    for (let i = 0; i < FAN.length; i++) {
+      const yaw = wantYaw + FAN[i];
+      if (!blockedAhead(world, a, yaw, r)) return yaw;
+    }
+    return null;
+  }
+
   /* ================== guards ==================
    *
    * A guard is an ordinary villager with a job. Off duty they wander and chat
@@ -9315,6 +9450,8 @@
     /* Run them down. A guard in pursuit turns faster than a villager
      * ambling about and does not stop dead to do it — waiting to be square on
      * before taking a step is how a chase turns into a stroll. */
+    const clearYaw = steerAround(world, g, g.targetYaw, 34);
+    if (clearYaw !== null) g.targetYaw = clearYaw;
     const turn = Rig.shortestAngle(g.yaw, g.targetYaw);
     const rate = 7.5 * dt;
     g.yaw += Math.abs(turn) < rate ? turn : Math.sign(turn) * rate;
@@ -9401,10 +9538,11 @@
         break;
       }
       case 'flee': {
-        a.targetYaw = Rig.snapToEight(dx, dy);
+        const away2 = steerAround(world, a, Rig.yawForDirection(dx, dy), 38);
+        a.targetYaw = away2 === null ? Rig.yawForDirection(dx, dy) : away2;
         if (Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 1.2) {
-          a.x += (dx / away) * speed * 1.35 * dt;
-          a.y += (dy / away) * speed * 1.35 * dt;
+          a.x += Math.sin(a.yaw) * speed * 1.35 * dt;
+          a.y += Math.cos(a.yaw) * speed * 1.35 * dt;
           resolvePropCollisions(world, a, 6);
           clampVillager(a);
         }
@@ -9822,12 +9960,12 @@
       return;
     }
     const mx = (a.x + other.x) / 2, my = (a.y + other.y) / 2;
-    const dx = mx - a.x, dy = my - a.y;
-    const len = Math.hypot(dx, dy) || 1;
-    a.targetYaw = Rig.snapToEight(dx, dy);
+    const want = Rig.yawForDirection(mx - a.x, my - a.y);
+    const clear = steerAround(world, a, want, 26);
+    a.targetYaw = clear === null ? want : clear;
     if (Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 0.7) {
-      a.x += (dx / len) * SPEED.npc * dt;
-      a.y += (dy / len) * SPEED.npc * dt;
+      a.x += Math.sin(a.yaw) * SPEED.npc * dt;
+      a.y += Math.cos(a.yaw) * SPEED.npc * dt;
       resolvePropCollisions(world, a, 6);
       clampVillager(a);
     }
@@ -9889,6 +10027,35 @@
       return;
     }
 
+    /* Being carried: they sit where the vehicle is and take no part in
+     * anything on the ground. They are drawn into its sprite, so all that has
+     * to happen here is keeping their position and their blinking honest. */
+    if (a.carriedBy) {
+      const v = a.carriedBy;
+      const gone = v.broken || v.dead || (v.body && v.body.dead) || HM.isDown(v);
+      if (gone) {
+        // turfed out when the thing carrying them comes apart
+        if (v.riders) {
+          const at = v.riders.indexOf(a);
+          if (at >= 0) v.riders.splice(at, 1);
+        }
+        if (v.pillion === a) v.pillion = null;
+        a.carriedBy = null;
+        Rig.stumble(a, Math.cos(a.yaw), Math.sin(a.yaw), 40, 0.5);
+        brain.state = 'react';
+        brain.response = 'flee';
+        brain.responseTimer = 4;
+        brain.fleeFrom = { x: v.x, y: v.y };
+      } else {
+        a.x = v.x; a.y = v.y;
+        a.yaw = v.yaw; a.targetYaw = v.yaw;
+        a.gait = 'idle';
+        Rig.updateBlink(a, dt);
+        a.animTime += dt;
+        return;
+      }
+    }
+
     // an npc riding a horse steers it and does nothing else on foot
     if (a.mount) {
       a.x = a.mount.x; a.y = a.mount.y; a.yaw = a.mount.yaw;
@@ -9902,11 +10069,14 @@
           brain.rideDir = a.rng() < 0.25 ? null : a.rng() * Math.PI * 2;
         }
         const d = brain.rideDir;
-        a.mount.npcDrive = d === null || d === undefined
-          ? { dx: 0, dy: 0, sprint: false }
-          : { dx: Math.sin(d), dy: Math.cos(d), sprint: a.rng() < 0.004 };
-        a.mount.targetYaw = d === null || d === undefined ? a.mount.yaw
-          : Rig.yawForDirection(Math.sin(d), Math.cos(d));
+        if (d === null || d === undefined) {
+          a.mount.npcDrive = { dx: 0, dy: 0, sprint: false };
+        } else {
+          const clear = steerAround(world, a.mount, d, 46);
+          const use = clear === null ? d + Math.PI : clear;
+          a.mount.npcDrive = { dx: Math.sin(use), dy: Math.cos(use), sprint: a.rng() < 0.004 };
+          a.mount.targetYaw = use;
+        }
       }
       Rig.updateBlink(a, dt);
       a.animTime += dt;
@@ -10029,16 +10199,23 @@
       reactiveGesture(world, a, dt);
       if (a.gesture) { a.gait = 'idle'; Rig.updateActorMotion(a, dt); return; }
       const dir = Rig.DIRECTIONS[brain.dirIndex];
-      a.targetYaw = Rig.yawForDirection(dir.dx, dir.dy);
-      if (Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 0.5) {
-        a.x += dir.dx * SPEED.npc * dt;
-        a.y += dir.dy * SPEED.npc * dt;
-        const bx = a.x, by = a.y;
-        resolvePropCollisions(world, a, 6);
-        clampVillager(a);
-        if (Math.abs(a.x - bx) > 0.01 || Math.abs(a.y - by) > 0.01) brain.timer = 0;
+      const want = Rig.yawForDirection(dir.dx, dir.dy);
+      const clear = steerAround(world, a, want);
+      if (clear === null) {
+        // boxed in: turn round and pick somewhere else
+        brain.timer = 0;
+        brain.dirIndex = (brain.dirIndex + 4) % 8;
+        a.gait = 'idle';
+      } else {
+        a.targetYaw = clear;
+        if (Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 0.5) {
+          a.x += Math.sin(a.yaw) * SPEED.npc * dt;
+          a.y += Math.cos(a.yaw) * SPEED.npc * dt;
+          resolvePropCollisions(world, a, 6);
+          clampVillager(a);
+        }
+        a.gait = 'walk';
       }
-      a.gait = 'walk';
       if (brain.timer <= 0) { brain.state = 'pause'; brain.timer = 0.8 + a.rng() * 3.5; }
     }
     Rig.updateActorMotion(a, dt);
@@ -10523,6 +10700,9 @@
     } else {
       HM.poseGait(h.model, qTime, h.gait);
       Rig.drawModel(h.buffer, h.model, camera, { yaw: qYaw });
+      // the pillion goes on first, so the rider in front overlaps them
+      if (h.pillion) drawPassenger(h.buffer, h.pillion, camera, qYaw,
+        pillionOffset(h), h.gait, 0.42);
       if (rider) drawRider(h.buffer, rider, h, camera, qYaw);
     }
     R.traceOutline(h.buffer, Rig.OUTLINE);
@@ -10543,6 +10723,22 @@
   function seatHeight(rider, saddleY) {
     const scale = rider.model.root.scale || 1;
     return saddleY - rider.model.dims.legTotal * scale;
+  }
+
+  /* Where a passenger sits, in the vehicle's own space: behind the saddle on
+   * a horse, in rows down the bed of a cart. */
+  function pillionOffset(h) {
+    const d = HM.dimensionsFor(h.horse);
+    const scale = h.model.root.scale || 1;
+    return { fwd: -d.bodyLen * 0.20 * scale, lift: (d.legY + d.bodyH * 0.5 + 1.2) * scale };
+  }
+
+  function benchSeats(c) {
+    const L = c.def.length;
+    // the driver has the front; passengers fill the bed behind them
+    if (c.def.cushions) return [{ x: 0, z: -L * 0.02 }];
+    if (c.def.chest) return [{ x: -5.5, z: L * 0.28 }, { x: 5.5, z: L * 0.28 }];
+    return [{ x: -5.5, z: L * 0.06 }, { x: 5.5, z: L * 0.06 }, { x: 0, z: -L * 0.22 }];
   }
 
   function drawRider(target, rider, h, camera, qYaw) {
@@ -10594,6 +10790,25 @@
     });
   }
 
+  /* Anyone being carried, posed sitting and planted at their seat. */
+  function drawPassenger(target, who, camera, qYaw, seat, gait, jolt) {
+    const face = CM.buildFaceParts(who.model, {
+      blink: who.blink, viseme: who.viseme, gaze: who.gaze
+    });
+    if (seat.astride) {
+      Rig.poseRide(who.model, HM.quantiseTime(who.animTime),
+        { gait: gait, rein: 0, turn: 0 });
+    } else {
+      Rig.poseDrive(who.model, HM.quantiseTime(who.animTime),
+        { rein: 0, turn: 0, jolt: jolt || 0 });
+    }
+    Rig.drawModel(target, who.model, camera, {
+      yaw: qYaw, faceParts: face,
+      offset: seatOffset(qYaw, seat.fwd, seatHeight(who, seat.lift)),
+      extra: Rig.actorExtras(who)
+    });
+  }
+
   function renderCart(c) {
     const camera = CART_CAM;
     const qYaw = HM.quantiseYaw(c.yaw);
@@ -10605,7 +10820,14 @@
       : '-';
     const qBounce = Math.round((c.bounce || 0) * 2) / 2;
     const qLean = Math.round((c.lean || 0) * 12) / 12;
-    const key = [qYaw, c.stage, c.hitFlash > 0 ? 1 : 0, qBounce, qLean, driverKey].join('|');
+    let riderKey2 = '';
+    if (c.riders) {
+      for (let i = 0; i < c.riders.length; i++) {
+        riderKey2 += c.riders[i].character.name + HM.quantiseTime(c.riders[i].animTime) + ';';
+      }
+    }
+    const key = [qYaw, c.stage, c.hitFlash > 0 ? 1 : 0, qBounce, qLean,
+      driverKey, riderKey2].join('|');
     if (key === c._key) return c.buffer;
     c._key = key;
 
@@ -10622,6 +10844,15 @@
       const pt = c.parts[i];
       R.drawMesh(c.buffer, m, pt.mesh,
         R.ramp(c.hitFlash > 0 ? CM.shade(pt.colour, 0.35) : pt.colour), camera, pt);
+    }
+    if (c.riders && c.riders.length) {
+      const seats = benchSeats(c);
+      for (let i = 0; i < c.riders.length && i < seats.length; i++) {
+        const st = seats[i];
+        drawPassenger(c.buffer, c.riders[i], camera, qYaw,
+          { fwd: st.z, lift: c.def.deckY + c.def.sideH * 0.4 + 3.2 + qBounce },
+          'idle', qBounce * 0.5);
+      }
     }
     if (driver) {
       const face = CM.buildFaceParts(driver.model, {

@@ -8414,8 +8414,10 @@
      * else. Without this, five guards converging on you spend the fight
      * cutting each other down — which is both wrong and hands you the chase. */
     const only = a.brain ? a.brain.target : null;
+    const wantsHorse = !!(only && only.isHorse);
 
     for (let i = 0; i < world.actors.length; i++) {
+      if (wantsHorse) break;
       const t = world.actors[i];
       if (t === a || !t.body || t.body.dead) continue;
       if (only && t !== only) continue;
@@ -8433,6 +8435,10 @@
     for (let i = 0; i < world.horses.length; i++) {
       const h = world.horses[i];
       if (h === a.mount || h.dead) continue;
+      // An NPC cuts at the thing it chose and nothing else; only the player
+      // swings at whatever happens to be in front of them.
+      if (only) { if (only !== h) continue; }
+      else if (a.brain) continue;
       const dx = h.x - a.x, dy = (h.y - a.y) * 1.35;
       const d = Math.hypot(dx, dy);
       if (d > reach + 12) continue;
@@ -9212,14 +9218,45 @@
     g.aimYaw = g.targetYaw;
 
     if (g.mount) {
-      // ridden chase: steer the horse, shoot from the saddle if armed for it
+      /* A guard on a horse fights from it with whatever is in his hand, not
+       * only with a bow. And he has two things he can go for: you, or the
+       * animal under you. Killing the horse is often the better move — it is
+       * a bigger target, and it ends the chase — so he weighs it. */
       const h = g.mount;
+      const mounted = w.reach + 14;
+      const quarryHorse = player.mount;
+
+      if (quarryHorse && !g.brain.aimAt) {
+        // decided once per chase, not re-rolled every frame
+        g.brain.aimAt = (g.rng ? g.rng() : Math.random()) < (w.ranged ? 0.45 : 0.6)
+          ? 'horse' : 'rider';
+      }
+      if (!quarryHorse) g.brain.aimAt = null;
+      const atHorse = g.brain.aimAt === 'horse' && quarryHorse && !quarryHorse.dead;
+      const mark = atHorse ? quarryHorse : player;
+      const md = distance(g, mark);
+      g.targetYaw = Rig.yawForDirection(mark.x - g.x, mark.y - g.y);
+      g.aimYaw = g.targetYaw;
       h.targetYaw = g.targetYaw;
-      const want = (sees && d < 34) ? 0 : 1;
-      h.npcDrive = { dx: (dx / len) * want, dy: (dy / len) * want, sprint: d > 60 };
-      if (w.ranged && sees && d < w.range && canAttack(g)) beginAttack(world, g);
+      g.brain.mark = mark;
+
+      // ride alongside to swing, or hold off at a distance to shoot
+      const hold = w.ranged ? Math.min(w.range * 0.55, 150) : mounted * 0.7;
+      const want = (sees && md < hold) ? 0 : 1;
+      h.npcDrive = { dx: (dx / len) * want, dy: (dy / len) * want, sprint: md > hold * 1.3 };
+
+      if (!sees || !canAttack(g)) return true;
+      if (w.ranged) {
+        if (md < w.range) beginAttack(world, g);
+      } else if (md < mounted) {
+        // the swing itself is resolved against whichever they chose
+        g.brain.target = mark;
+        beginAttack(world, g);
+      }
       return true;
     }
+    g.brain.aimAt = null;
+    if (g.brain.mark) { g.brain.target = player; g.brain.mark = null; }
 
     if (w.ranged && sees && d < w.range && d > 40 && !swapping) {
       if (canAttack(g)) beginAttack(world, g);
@@ -9243,13 +9280,18 @@
     const rate = 7.5 * dt;
     g.yaw += Math.abs(turn) < rate ? turn : Math.sign(turn) * rate;
     g.targetYaw = g.yaw;
+    /* Flat out until they are close enough to swing, and not a step slower.
+     * Throttling back at some fixed distance means that whenever you ease off
+     * they ease off with you, and the moment you go again they are behind —
+     * which reads as the watch politely pacing you rather than chasing you. */
     const facing = Math.max(0.25, 1 - Math.abs(turn) / 2.2);
-    const sp = (d > 55 ? GUARD_SPEED.run : GUARD_SPEED.walk * 1.6) * facing;
+    const closeEnough = w.reach * 0.85 + 8;
+    const sp = (d > closeEnough ? GUARD_SPEED.run : GUARD_SPEED.walk * 1.6) * facing;
     g.x += Math.sin(g.yaw) * sp * dt;
     g.y += Math.cos(g.yaw) * sp * dt;
     resolvePropCollisions(world, g, 6);
     clampVillager(g);
-    g.gait = d > 55 ? 'run' : 'walk';
+    g.gait = d > closeEnough ? 'run' : 'walk';
     return true;
   }
 

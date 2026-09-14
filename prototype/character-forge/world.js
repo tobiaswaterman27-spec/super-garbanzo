@@ -15,6 +15,8 @@
   const D = global.Dialogue;
   const HM = global.HorseModel;
   const V = global.Vehicle;
+  const CB = global.Combat;
+  const I = global.Items;
 
   // The field of view in world units, and how many art pixels each unit gets.
   // Raising PIXEL makes the pixels smaller and more numerous — finer pixel
@@ -24,7 +26,9 @@
   const RENDER_W = VIEW_W * PIXEL, RENDER_H = VIEW_H * PIXEL;
   // Large enough that the camera can stay locked to the player without ever
   // running off the edge of the generated ground.
-  const WORLD_W = 1200, WORLD_H = 800;
+  // Room to run. A chase that ends at the edge of the map after four seconds
+  // is not a chase, so the field is far larger than the village needs.
+  const WORLD_W = 2600, WORLD_H = 1800;
   const GROUND_W = WORLD_W * PIXEL, GROUND_H = WORLD_H * PIXEL;
 
   // The same camera pitch as the forge preview at a fraction of its scale, so
@@ -92,15 +96,22 @@
     const buf = new Uint8Array(GROUND_W * GROUND_H);
     const inv = 1 / PIXEL;
 
-    for (let py = 0; py < GROUND_H; py++) {
-      const y = py * inv;
-      const row = py * GROUND_W;
-      for (let px = 0; px < GROUND_W; px++) {
-        const x = px * inv;
-        const n = Math.sin(x * 0.09) * Math.cos(y * 0.11) + Math.sin((x + y) * 0.05) * 0.6;
-        let idx = n > 0.8 ? 3 : n > 0.15 ? 1 : n > -0.5 ? 0 : 2;
-        if (rng() < 0.05) idx = 4;
-        buf[row + px] = idx;
+    /* The field noise varies over world units, not over art pixels, so it is
+     * evaluated once per world unit and filled into the PIXEL x PIXEL block —
+     * nine times fewer trig calls for an identical result. The speckle stays
+     * per pixel, because that is the grass texture. */
+    for (let wy = 0; wy < WORLD_H; wy++) {
+      const y = wy;
+      const cosY = Math.cos(y * 0.11);
+      for (let wx = 0; wx < WORLD_W; wx++) {
+        const n = Math.sin(wx * 0.09) * cosY + Math.sin((wx + y) * 0.05) * 0.6;
+        const base = n > 0.8 ? 3 : n > 0.15 ? 1 : n > -0.5 ? 0 : 2;
+        for (let sy = 0; sy < PIXEL; sy++) {
+          const row = (wy * PIXEL + sy) * GROUND_W + wx * PIXEL;
+          for (let sx = 0; sx < PIXEL; sx++) {
+            buf[row + sx] = rng() < 0.05 ? 4 : base;
+          }
+        }
       }
     }
 
@@ -263,6 +274,16 @@
       horses: [],
       carts: [],
       debris: [],
+      arrows: [],
+      blood: [],
+      loot: [],            // items lying on the grass
+      container: null,      // the chest you have open, if any
+      ui: { open: false, hover: null, drag: null, mx: 0, my: 0 },
+      time: 0,
+      wanted: 0,
+      reputation: 0,
+      reputationCriminal: 0,
+      lastSeenAt: -999,
       camX: 0, camY: 0,
       box: D.create(),
       talkingTo: null,
@@ -307,19 +328,45 @@
     /* player */
     const player = Rig.createActor(playerCharacter, WORLD_W * 0.4, WORLD_H * 0.55, 1);
     player.isPlayer = true;
+    player._id = 'player';
+    player.leftHanded = !!playerCharacter.leftHanded;
+    I.add(player.inv, 'arrow', 24);
+    I.add(player.inv, 'bandage', 2);
     player.buffer = R.createTarget(ACTOR_BUF.w, ACTOR_BUF.h);
     world.actors.push(player);
     world.player = player;
 
-    /* villagers */
-    for (let i = 0; i < 8; i++) {
+    /* villagers, and among them the watch */
+    const GUARD_KIT = ['sword', 'club', 'spear', 'sword', 'bow'];
+    for (let i = 0; i < 16; i++) {
       const ch = CM.randomCharacter(rng);
+      const guard = i < 5;
+      if (guard) {
+        // the livery: a guard off duty is just a person, but on duty they are
+        // unmistakably one of them
+        ch.tunic = 'slate';
+        ch.trouser = 'charcoal';
+        ch.garment = 'surcoat';
+      }
       const a = Rig.createActor(ch,
-        player.x + (rng() - 0.5) * 420, player.y + (rng() - 0.5) * 280,
+        player.x + (rng() - 0.5) * 640, player.y + (rng() - 0.5) * 460,
         (seed + i * 977) >>> 0);
+      a._id = 'v' + i;
       a.buffer = R.createTarget(ACTOR_BUF.w, ACTOR_BUF.h);
+      a.leftHanded = rng() < 0.12;
       a.brain = { state: 'pause', timer: 0.5 + rng() * 2.5, dirIndex: Math.floor(rng() * 8),
-        gestureCooldown: rng() * 5, partner: null, chatCooldown: rng() * 8 };
+        gestureCooldown: rng() * 5, partner: null, chatCooldown: rng() * 8,
+        guard: guard, guardState: 'patrol' };
+      if (guard) {
+        const kit = GUARD_KIT[i % GUARD_KIT.length];
+        a.inv[I.HAND] = I.stack(kit, 1);
+        if (kit === 'bow') I.add(a.inv, 'arrow', 18);
+        else a.inv[I.SHIELD] = I.stack('shield', 1);
+        a.alert = true;
+      } else if (rng() < 0.2) {
+        a.inv[I.HAND] = I.stack(rng() < 0.6 ? 'dagger' : 'club', 1);
+      }
+      if (rng() < 0.6) I.add(a.inv, 'coin', 3 + Math.floor(rng() * 30));
       world.actors.push(a);
     }
 
@@ -343,6 +390,16 @@
         (seed + 9001 + i * 311) >>> 0);
       c.yaw = Math.PI / 2;
       c.buffer = R.createTarget(CART_BUF.w, CART_BUF.h);
+      if (c.def.chest) {
+        // something to actually find, so the container is worth opening
+        c.store = I.createInventory(I.CHEST_SLOTS, false);
+        const loot = ['sword', 'axe', 'mace', 'dagger', 'club', 'spear',
+          'greatsword', 'poleaxe', 'bow', 'crossbow', 'shield', 'buckler'];
+        for (let k = 0; k < loot.length; k++) I.add(c.store, loot[k], 1);
+        I.add(c.store, 'arrow', 40);
+        I.add(c.store, 'bolt', 25);
+        I.add(c.store, 'bandage', 4);
+      }
       world.carts.push(c);
     }
 
@@ -523,6 +580,10 @@
         }
         a.hitCooldown = 0.45;
         if (world.talkingTo === a) D.close(world.box);
+        // Barging someone is an assault. A small one, but people notice, and
+        // the watch does not like it.
+        witness(world, player, a, 'shove', a.x, a.y);
+        reactToHit(world, a, player, { severity: 'minor', zone: 'chest' });
 
         // The player brushes past or stumbles. No reaction is played on their
         // body at all — only where they end up changes.
@@ -723,6 +784,335 @@
     }
   }
 
+
+
+  /* ================== inventory ==================
+   *
+   * Drawn into the same pixel buffer as the world, because a DOM panel over a
+   * pixel-art game looks like a DOM panel over a pixel-art game. The world
+   * keeps running behind it: opening your bag is not a pause button.
+   */
+
+  const SLOT = 21;            // view units
+  const SLOT_GAP = 2;
+  const UI = {
+    panel: R.pack(38, 33, 29, 242),
+    panelEdge: R.pack(92, 78, 60),
+    slot: R.pack(58, 51, 44),
+    slotEdge: R.pack(24, 21, 19),
+    slotHot: R.pack(96, 84, 62),
+    handSlot: R.pack(70, 57, 40),
+    text: R.pack(238, 232, 216),
+    dim: R.pack(168, 156, 136),
+    shadow: R.pack(18, 16, 20),
+    tip: R.pack(26, 22, 30, 246),
+    tipEdge: R.pack(120, 100, 70)
+  };
+
+  const ICON_CAM = R.makeCamera(0.34, 1.05 * PIXEL, 0, 0);
+
+  function slotRect(x, y) {
+    return { x: x, y: y, w: SLOT, h: SLOT };
+  }
+
+  /* The player's own layout: shield on the left, the four-by-two block in the
+   * middle, weapon on the right. Being left-handed swaps which hand holds
+   * what, not where the slots sit — moving them would mean relearning the
+   * grid for no reason at all. */
+  function playerSlots(ox, oy) {
+    const out = [];
+    const gridW = I.GRID_COLS * SLOT + (I.GRID_COLS - 1) * SLOT_GAP;
+    const gx = ox + SLOT + 10;
+    for (let r = 0; r < I.GRID_ROWS; r++) {
+      for (let c = 0; c < I.GRID_COLS; c++) {
+        out.push({ index: r * I.GRID_COLS + c,
+          x: gx + c * (SLOT + SLOT_GAP), y: oy + r * (SLOT + SLOT_GAP) });
+      }
+    }
+    const midY = oy + (I.GRID_ROWS * SLOT + (I.GRID_ROWS - 1) * SLOT_GAP - SLOT) / 2;
+    out.push({ index: I.SHIELD, x: ox, y: midY, hand: 'shield' });
+    out.push({ index: I.HAND, x: gx + gridW + 10, y: midY, hand: 'weapon' });
+    return out;
+  }
+
+  function chestSlots(ox, oy) {
+    const out = [];
+    for (let r = 0; r < 5; r++) {
+      for (let c = 0; c < 3; c++) {
+        const i = r * 3 + c;
+        if (i >= I.CHEST_SLOTS) continue;
+        out.push({ index: i, x: ox + c * (SLOT + SLOT_GAP), y: oy + r * (SLOT + SLOT_GAP) });
+      }
+    }
+    return out;
+  }
+
+  function layout(world) {
+    const playerW = SLOT * 2 + 20 + I.GRID_COLS * SLOT + (I.GRID_COLS - 1) * SLOT_GAP;
+    const playerH = I.GRID_ROWS * SLOT + (I.GRID_ROWS - 1) * SLOT_GAP;
+    if (!world.container) {
+      const ox = Math.round((VIEW_W - playerW) / 2);
+      const oy = Math.round(VIEW_H - playerH - 22);
+      return { player: playerSlots(ox, oy), chest: null,
+        playerBox: { x: ox - 7, y: oy - 13, w: playerW + 14, h: playerH + 20 } };
+    }
+    // side by side: the chest on the left, what you are carrying on the right
+    const chestW = 3 * SLOT + 2 * SLOT_GAP;
+    const chestH = 5 * SLOT + 4 * SLOT_GAP;
+    const gap = 16;
+    const totalW = chestW + gap + playerW;
+    const ox = Math.round((VIEW_W - totalW) / 2);
+    const oy = Math.round((VIEW_H - chestH) / 2) + 4;
+    const py = oy + Math.round((chestH - playerH) / 2);
+    return {
+      chest: chestSlots(ox, oy),
+      player: playerSlots(ox + chestW + gap, py),
+      chestBox: { x: ox - 7, y: oy - 13, w: chestW + 14, h: chestH + 20 },
+      playerBox: { x: ox + chestW + gap - 7, y: py - 13, w: playerW + 14, h: playerH + 20 }
+    };
+  }
+
+  function hitSlot(world, vx, vy) {
+    const lay = layout(world);
+    for (const side of ['player', 'chest']) {
+      const list = lay[side];
+      if (!list) continue;
+      for (let i = 0; i < list.length; i++) {
+        const sl = list[i];
+        if (vx >= sl.x && vx < sl.x + SLOT && vy >= sl.y && vy < sl.y + SLOT) {
+          return { side: side, index: sl.index, x: sl.x, y: sl.y };
+        }
+      }
+    }
+    return null;
+  }
+
+  function invOf(world, side) {
+    return side === 'chest' ? (world.container ? world.container.store : null)
+      : world.player.inv;
+  }
+
+  function drawPanel(target, box) {
+    R.fillRect(target, (box.x - 1) * PIXEL, (box.y - 1) * PIXEL,
+      (box.w + 2) * PIXEL, (box.h + 2) * PIXEL, UI.panelEdge);
+    R.fillRect(target, box.x * PIXEL, box.y * PIXEL, box.w * PIXEL, box.h * PIXEL, UI.panel);
+  }
+
+  function drawSlot(target, sl, inv, hot, hand) {
+    const x = sl.x * PIXEL, y = sl.y * PIXEL, s = SLOT * PIXEL;
+    R.fillRect(target, x - PIXEL, y - PIXEL, s + PIXEL * 2, s + PIXEL * 2, UI.slotEdge);
+    R.fillRect(target, x, y, s, s, hot ? UI.slotHot : (hand ? UI.handSlot : UI.slot));
+    const st = inv ? inv[sl.index] : null;
+    if (!st) return;
+    drawIcon(target, st.id, sl.x + SLOT / 2, sl.y + SLOT / 2);
+    if (st.count > 1) {
+      const label = String(st.count);
+      T.drawShadowed(target, label,
+        x + s - T.measure(label) - PIXEL, y + s - 9 * PIXEL, UI.text, UI.shadow);
+    }
+  }
+
+  const _iconBuf = {};
+  function drawIcon(target, id, cxView, cyView) {
+    // one buffer per item type, drawn once and blitted thereafter
+    let buf = _iconBuf[id];
+    if (!buf) {
+      const size = (SLOT - 3) * PIXEL;
+      buf = _iconBuf[id] = R.createTarget(size, size);
+      R.clearTarget(buf);
+      const view = I.iconView(id);
+      const cam = R.makeCamera(0.34, 1.05 * PIXEL * view.scale, size / 2, size / 2 + 2 * PIXEL);
+      let m = R.multiply(R.rotationY(view.yaw), R.rotationX(view.pitch));
+      const parts = I.iconParts(id);
+      for (let i = 0; i < parts.length; i++) {
+        R.drawMesh(buf, m, parts[i].mesh, R.ramp(parts[i].colour), cam, parts[i]);
+      }
+      R.traceOutline(buf, Rig.OUTLINE);
+    }
+    R.blit(target, buf, Math.round(cxView * PIXEL - buf.w / 2),
+      Math.round(cyView * PIXEL - buf.h / 2));
+  }
+
+  /* The name of whatever is under the cursor, in a little box above it. */
+  function drawTooltip(target, world, label, vx, vy) {
+    const w = T.measure(label) / PIXEL + 8;
+    const h = 13;
+    let x = vx + 5, y = vy - h - 3;
+    if (x + w > VIEW_W - 2) x = VIEW_W - 2 - w;
+    if (y < 2) y = vy + 8;
+    R.fillRect(target, (x - 1) * PIXEL, (y - 1) * PIXEL, (w + 2) * PIXEL, (h + 2) * PIXEL, UI.tipEdge);
+    R.fillRect(target, x * PIXEL, y * PIXEL, w * PIXEL, h * PIXEL, UI.tip);
+    T.drawShadowed(target, label, (x + 4) * PIXEL, (y + 3) * PIXEL, UI.text, UI.shadow);
+    void world;
+  }
+
+  function drawInventory(world, target) {
+    const ui = world.ui;
+    const lay = layout(world);
+    if (lay.chestBox) {
+      drawPanel(target, lay.chestBox);
+      T.drawShadowed(target, world.container.def.label,
+        lay.chestBox.x * PIXEL + 4 * PIXEL, lay.chestBox.y * PIXEL + 2 * PIXEL,
+        UI.text, UI.shadow);
+      const store = world.container.store;
+      for (let i = 0; i < lay.chest.length; i++) {
+        const sl = lay.chest[i];
+        const hot = ui.hover && ui.hover.side === 'chest' && ui.hover.index === sl.index;
+        drawSlot(target, sl, store, hot, false);
+      }
+    }
+    drawPanel(target, lay.playerBox);
+    T.drawShadowed(target, world.player.character.name,
+      lay.playerBox.x * PIXEL + 4 * PIXEL, lay.playerBox.y * PIXEL + 2 * PIXEL,
+      UI.text, UI.shadow);
+    for (let i = 0; i < lay.player.length; i++) {
+      const sl = lay.player[i];
+      const hot = ui.hover && ui.hover.side === 'player' && ui.hover.index === sl.index;
+      drawSlot(target, sl, world.player.inv, hot, !!sl.hand);
+    }
+
+    // the stack on the cursor, and the name of whatever is under it
+    if (ui.drag) {
+      drawIcon(target, ui.drag.id, ui.mx, ui.my);
+      if (ui.drag.count > 1) {
+        const label = String(ui.drag.count);
+        T.drawShadowed(target, label, (ui.mx + 5) * PIXEL, (ui.my + 2) * PIXEL,
+          UI.text, UI.shadow);
+      }
+    } else if (ui.hover) {
+      const inv = invOf(world, ui.hover.side);
+      const st = inv ? inv[ui.hover.index] : null;
+      if (st) {
+        const d = I.def(st.id);
+        drawTooltip(target, world, d ? d.label : st.id, ui.mx, ui.my);
+      }
+    }
+  }
+
+  /* ---------- inventory input ---------- */
+
+  function openInventory(world) {
+    world.ui.open = true;
+    return true;
+  }
+
+  function closeInventory(world) {
+    const ui = world.ui;
+    // anything still on the cursor goes back where there is room, or on the floor
+    if (ui.drag) {
+      const left = I.add(world.player.inv, ui.drag.id, ui.drag.count);
+      if (left > 0) spawnItem(world, world.player.x, world.player.y, ui.drag.id, left, 0, 0, 0.3);
+      ui.drag = null;
+    }
+    ui.open = false;
+    world.container = null;
+    return true;
+  }
+
+  function invVisible(world) { return world.ui.open || !!world.container; }
+
+  function invMove(world, vx, vy) {
+    world.ui.mx = vx; world.ui.my = vy;
+    world.ui.hover = hitSlot(world, vx, vy);
+  }
+
+  function invClick(world, vx, vy) {
+    const ui = world.ui;
+    invMove(world, vx, vy);
+    const hit = ui.hover;
+    if (!hit) {
+      // clicking outside drops what you are holding
+      if (ui.drag) {
+        spawnItem(world, world.player.x, world.player.y, ui.drag.id, ui.drag.count, 0, 0, 0.4);
+        ui.drag = null;
+      }
+      return true;
+    }
+    const inv = invOf(world, hit.side);
+    if (!inv) return false;
+
+    if (!ui.drag) {
+      const st = inv[hit.index];
+      if (!st) return false;
+      ui.drag = { id: st.id, count: st.count, from: hit.side, fromIndex: hit.index };
+      inv[hit.index] = null;
+      return true;
+    }
+    // placing: hands only take what belongs in them
+    const d = I.def(ui.drag.id);
+    const isHand = hit.side === 'player' && (hit.index === I.HAND || hit.index === I.SHIELD);
+    if (isHand) {
+      if (hit.index === I.HAND && !(d && d.hand)) return false;
+      if (hit.index === I.SHIELD && !(d && d.shield)) return false;
+      // you cannot hold a shield and a weapon that needs both hands
+      if (hit.index === I.SHIELD && I.held(world.player.inv)
+        && I.held(world.player.inv).twoHanded) return false;
+      if (hit.index === I.HAND && d.twoHanded && world.player.inv[I.SHIELD]) return false;
+    }
+    const there = inv[hit.index];
+    if (there && there.id === ui.drag.id) {
+      const room = d.stack - there.count;
+      const take = Math.min(room, ui.drag.count);
+      there.count += take;
+      ui.drag.count -= take;
+      if (ui.drag.count <= 0) ui.drag = null;
+      return true;
+    }
+    inv[hit.index] = { id: ui.drag.id, count: ui.drag.count };
+    ui.drag = there ? { id: there.id, count: there.count } : null;
+    return true;
+  }
+
+  /* ---------- containers ---------- */
+
+  /* Reachable only from the chest end of the cart. The shaft end is where a
+   * horse goes, and pressing the same key in the same place for two different
+   * things is how you end up hitching a horse when you meant to open a box. */
+  function nearestChest(world) {
+    const p = world.player;
+    let best = null, bestD = 26;
+    for (let i = 0; i < world.carts.length; i++) {
+      const c = world.carts[i];
+      if (!c.store || c.broken) continue;
+      // the chest sits a little behind the middle; the shafts run forward
+      const back = -c.def.length * 0.06;
+      const cx = c.x + back * Math.sin(c.yaw);
+      const cy = c.y + back * Math.cos(c.yaw);
+      const d = Math.hypot(cx - p.x, (cy - p.y) * 1.4);
+      // and you have to be behind the axle line, not out in front of it
+      const ahead = (p.x - c.x) * Math.sin(c.yaw) + (p.y - c.y) * Math.cos(c.yaw);
+      if (ahead > c.def.length * 0.3) continue;
+      if (d < bestD) { bestD = d; best = c; }
+    }
+    return best;
+  }
+
+  function openContainer(world, cart) {
+    world.container = cart;
+    world.ui.open = false;
+    world.player.vx = 0; world.player.vy = 0;
+    if (world.box.open) D.close(world.box);
+    return true;
+  }
+
+  function closeContainer(world) {
+    world.container = null;
+    return true;
+  }
+
+  /* ---------- the player swinging ---------- */
+
+  function playerAttack(world) {
+    const p = world.player;
+    if (world.container) return false;
+    if (world.box.open) return false;
+    return beginAttack(world, p);
+  }
+
+  function playerAim(world, yaw) {
+    world.player.aimYaw = yaw;
+  }
+
   /* ---------- hitching and riding on the cart ---------- */
 
   function nearestCart(world, from, range) {
@@ -805,6 +1195,28 @@
 
   function updateHorse(world, h, dt) {
     h.hitCooldown = Math.max(0, h.hitCooldown - dt);
+    if (h.body) {
+      const before = h.body.dead;
+      CB.updateBody(h, dt);
+      if (h.body.dead && !before) killHorse(world, h, 0.4, 0.2);
+      if (h.body.bleed > 0.1) {
+        h.dripTimer = (h.dripTimer || 0) - dt;
+        if (h.dripTimer <= 0) {
+          h.dripTimer = 0.5;
+          bleedAt(world, h.x + (Math.random() - 0.5) * 9, h.y + (Math.random() - 0.5) * 6,
+            HM.isDown(h) ? 3.4 : 1.6, 'edged');
+        }
+      }
+    }
+    if (h.dead) {
+      // a dead horse lies where it fell, like everything else
+      if (HM.isDown(h)) {
+        if (h.fall.state === 'rising') { h.fall.state = 'falling'; h.fall.still = 0; }
+        HM.updateFall(h, dt);
+      }
+      h.vx = 0; h.vy = 0;
+      return;
+    }
 
     if (HM.isDown(h)) {
       HM.updateFall(h, dt);
@@ -821,6 +1233,12 @@
     if (drivenFromSaddle || drivenFromBench) {
       const input = world.input;
       if (!world.box.open) { dx = input.dx; dy = input.dy; sprint = input.sprint; }
+    } else if (h.npcDrive && h.rider) {
+      dx = h.npcDrive.dx; dy = h.npcDrive.dy; sprint = h.npcDrive.sprint;
+    } else if (h.spooked > 0) {
+      // bolting after being struck
+      h.spooked -= dt;
+      dx = Math.sin(h.wanderDir); dy = Math.cos(h.wanderDir); sprint = true;
     } else if (!h.rider && !drivenFromBench) {
       // loose horses drift about and graze
       h.wanderTimer -= dt;
@@ -897,6 +1315,28 @@
       const push = (HORSE_R + 8 - d);
       a.x += nx * push; a.y += ny * push;
       if (speed > NUDGE_SPEED) {
+        /* Being ridden down is not being bumped into. It does real damage,
+         * scaled by the animal, and the watch treats it as what it is. */
+        const rider = h.rider;
+        if (rider) {
+          const roll = CB.rollDamage(CB.weapon('club'), a, {
+            rng: a.rng || Math.random, aim: 0.55,
+            charge: (0.8 + speed / 130) * powerOf
+          });
+          roll.knock = 1.4;
+          const cy2 = Math.cos(a.yaw), sy2 = Math.sin(a.yaw);
+          const local = [-(nx * cy2 - ny * sy2), -(nx * sy2 + ny * cy2)];
+          const res = CB.applyDamage(a, roll, local, a.rng);
+          if (res) {
+            splash(world, a, roll, nx, ny);
+            dropFromHit(world, a, res.severity, nx, ny);
+            reactToHit(world, a, rider, res);
+            if (rider === world.player) {
+              witness(world, rider, a, res.severity === 'fatal' ? 'kill' : 'mountedShove',
+                a.x, a.y);
+            }
+          }
+        }
         if (speed > TRIP_SPEED) {
           Rig.knockDown(a, nx, ny, (2.6 + speed / 26) * powerOf);
           if (a.brain) { a.brain.state = 'downed'; a.brain.timer = 0; }
@@ -1142,6 +1582,943 @@
     }
   }
 
+
+  /* ================== combat ================== */
+
+  const SEE_RANGE = 150;        // how far a guard notices a crime
+  const SEE_RANGE_CIVIL = 120;
+  const SHOUT_RANGE = 200;      // how far a guard passes it on
+  const GUARD_GIVE_UP = 26;     // seconds of losing you before they stop
+  const WANTED_DECAY = 0.9;     // per minute, while unseen
+  const BLOOD_MAX = 260;
+
+  /* Crimes, and what each is worth in wanted level and in what people think
+   * of you afterwards. Shoving someone is a crime; it is just a small one. */
+  const CRIMES = {
+    shove: { wanted: 4, rep: -1, alarm: 0.25, label: 'assault' },
+    mountedShove: { wanted: 16, rep: -5, alarm: 0.75, label: 'riding someone down' },
+    strike: { wanted: 12, rep: -3, alarm: 0.6, label: 'assault' },
+    wound: { wanted: 26, rep: -8, alarm: 0.9, label: 'wounding' },
+    kill: { wanted: 70, rep: -30, alarm: 1, label: 'murder' },
+    horseKill: { wanted: 10, rep: -4, alarm: 0.4, label: 'killing a horse' }
+  };
+
+  function isGuard(a) { return !!(a.brain && a.brain.guard); }
+
+  /* ---------- swinging ---------- */
+
+  function canAttack(a) {
+    if (Rig.isDown(a) || (a.body && (a.body.dead || a.body.dying))) return false;
+    if (a.attack || a.attackCooldown > 0) return false;
+    if (a.mount && a.mountTime < MOUNT_TIME) return false;
+    return true;
+  }
+
+  function beginAttack(world, a) {
+    if (!canAttack(a)) return false;
+    const w = I.heldWeapon(a.inv);
+    if (a.stamina < w.stamina * 0.5) return false;
+    a.stamina = Math.max(0, a.stamina - w.stamina);
+    const duration = w.swing + w.recover;
+    a.attack = {
+      weapon: w,
+      anim: w.anim,
+      t: 0,
+      duration: duration,
+      // The blow lands when the animation shows it landing, not on a separate
+      // timer. Otherwise an axe connects while the arm is still going up.
+      hitAt: duration * Rig.attackHitFraction(w.anim),
+      landed: false
+    };
+    a.reaction = null;
+    a.gesture = null;
+    a.alert = true;
+    return true;
+  }
+
+  function updateAttack(world, a, dt) {
+    a.attackCooldown = Math.max(0, a.attackCooldown - dt);
+    a.stamina = Math.min(100, a.stamina + dt * (a.gait === 'run' ? 6 : 16));
+    const atk = a.attack;
+    if (!atk) return;
+    const was = atk.t;
+    atk.t += dt;
+    if (!atk.landed && was < atk.hitAt && atk.t >= atk.hitAt) {
+      atk.landed = true;
+      if (atk.weapon.ranged) loose(world, a, atk.weapon);
+      else resolveSwing(world, a, atk.weapon);
+    }
+    if (atk.t >= atk.duration) {
+      a.attack = null;
+      a.attackCooldown = 0.06;
+    }
+  }
+
+  /* A melee blow sweeps a cone in front of the attacker and takes the first
+   * thing in it. Reach and arc come off the weapon, so a dagger really does
+   * have to be up close and a poleaxe really does clear a room. */
+  function resolveSwing(world, a, w) {
+    const fx = Math.sin(a.yaw), fy = Math.cos(a.yaw);
+    const mounted = !!a.mount;
+    const reach = w.reach + (mounted ? 14 : 0);
+    let best = null, bestD = 1e9;
+
+    for (let i = 0; i < world.actors.length; i++) {
+      const t = world.actors[i];
+      if (t === a || !t.body || t.body.dead) continue;
+      if (t.mount === a.mount && a.mount) continue;
+      const dx = t.x - a.x, dy = (t.y - a.y) * 1.35;
+      const d = Math.hypot(dx, dy);
+      if (d > reach + 8) continue;
+      const dot = (dx / (d || 1)) * fx + (dy / (d || 1)) * fy;
+      if (d > 4 && Math.acos(Math.max(-1, Math.min(1, dot))) > w.arc) continue;
+      if (d < bestD) { bestD = d; best = t; }
+    }
+    // horses are in reach too, and a sword across a horse is a real thing
+    let bestHorse = null, bestHD = 1e9;
+    for (let i = 0; i < world.horses.length; i++) {
+      const h = world.horses[i];
+      if (h === a.mount || h.dead) continue;
+      const dx = h.x - a.x, dy = (h.y - a.y) * 1.35;
+      const d = Math.hypot(dx, dy);
+      if (d > reach + 12) continue;
+      const dot = (dx / (d || 1)) * fx + (dy / (d || 1)) * fy;
+      if (d > 4 && Math.acos(Math.max(-1, Math.min(1, dot))) > w.arc) continue;
+      if (d < bestHD) { bestHD = d; bestHorse = h; }
+    }
+
+    if (best && bestD <= bestHD) { strike(world, a, best, w, 1); return true; }
+    if (bestHorse) { strikeHorse(world, a, bestHorse, w, 1); return true; }
+    return false;
+  }
+
+  /* How well the blow was thrown: standing your ground and facing them beats
+   * flailing while running away. */
+  function aimQuality(a, target) {
+    const speed = Math.hypot(a.vx || 0, a.vy || 0);
+    const dx = target.x - a.x, dy = target.y - a.y;
+    const want = Rig.yawForDirection(dx, dy);
+    const off = Math.abs(Rig.shortestAngle(a.yaw, want));
+    let q = 1 - off / Math.PI - Math.min(0.35, speed / 300);
+    if (a.mount) q += 0.1;
+    return Math.max(0.05, Math.min(1, q));
+  }
+
+  function strike(world, a, target, w, charge) {
+    const rng = a.rng || Math.random;
+    const roll = CB.rollDamage(w, target, {
+      rng: rng, aim: aimQuality(a, target), charge: charge || 1,
+      defenceless: Rig.isDown(target) || !!target.reaction
+    });
+    const dx = target.x - a.x, dy = target.y - a.y;
+    const d = Math.hypot(dx, dy) || 1;
+    const nx = dx / d, ny = dy / d;
+    // the blow's direction in the target's own frame, so the wound lands on
+    // the side it came from
+    const cy = Math.cos(target.yaw), sy = Math.sin(target.yaw);
+    const local = [-(nx * cy - ny * sy), -(nx * sy + ny * cy)];
+    const res = CB.applyDamage(target, roll, local, rng);
+    if (!res) return;
+
+    splash(world, target, roll, nx, ny);
+    knockFrom(world, a, target, roll, nx, ny);
+    dropFromHit(world, target, res.severity, nx, ny);
+    reactToHit(world, target, a, res);
+    witness(world, a, target, res.severity === 'fatal' ? 'kill'
+      : res.severity === 'serious' ? 'wound' : 'strike', target.x, target.y);
+  }
+
+  function knockFrom(world, a, target, roll, nx, ny) {
+    if (Rig.isDown(target)) return;
+    const k = roll.knock;
+    if (k > 0.85 || roll.amount > 40) {
+      Rig.knockDown(target, nx, ny, 2.2 + k * 2.2 + roll.amount / 26);
+      if (target.brain) { target.brain.state = 'downed'; target.brain.timer = 0; }
+      target.hitCooldown = 0.5;
+    } else if (k > 0.35) {
+      Rig.stumble(target, nx, ny, 26 + k * 60, 0.45);
+    } else {
+      Rig.shove(target, nx, ny, 12 + k * 40);
+    }
+    if (world.talkingTo === target) D.close(world.box);
+  }
+
+  /* ---------- arrows ---------- */
+
+  function loose(world, a, w) {
+    const ammo = w.id === 'crossbow' ? 'bolt' : 'arrow';
+    if (I.countOf(a.inv, ammo) <= 0) return false;
+    I.take(a.inv, ammo, 1);
+    const aim = a.aimYaw === undefined ? a.yaw : a.aimYaw;
+    // a shot from a moving horse scatters
+    const spread = (a.mount ? 0.09 : 0.03) + Math.min(0.08, Math.hypot(a.vx || 0, a.vy || 0) / 1600);
+    const yaw = aim + ((a.rng ? a.rng() : Math.random()) - 0.5) * spread * 2;
+    world.arrows.push({
+      x: a.x, y: a.y, z: (a.mount ? 34 : 19),
+      vx: Math.sin(yaw) * w.ranged,
+      vy: Math.cos(yaw) * w.ranged,
+      vz: 14,
+      yaw: yaw,
+      kind: ammo,
+      weapon: w,
+      owner: a,
+      life: 0,
+      stuck: false
+    });
+    return true;
+  }
+
+  const ARROW_G = 130;
+
+  function updateArrows(world, dt) {
+    for (let i = world.arrows.length - 1; i >= 0; i--) {
+      const ar = world.arrows[i];
+      ar.life += dt;
+      if (ar.stuck) {
+        if (ar.life > 14) world.arrows.splice(i, 1);
+        continue;
+      }
+      const px = ar.x, py = ar.y;
+      ar.vz -= ARROW_G * dt;
+      ar.x += ar.vx * dt;
+      ar.y += ar.vy * dt;
+      ar.z += ar.vz * dt;
+      ar.pitch = Math.atan2(ar.vz, Math.hypot(ar.vx, ar.vy));
+
+      let hit = null, hitHorse = null;
+      for (let k = 0; k < world.actors.length; k++) {
+        const t = world.actors[k];
+        if (t === ar.owner || !t.body || t.body.dead) continue;
+        if (t.mount && t.mount === ar.owner.mount) continue;
+        const d = Math.hypot(t.x - ar.x, (t.y - ar.y) * 1.4);
+        const low = t.mount ? 16 : 0, high = t.mount ? 52 : 34;
+        if (d < 8 && ar.z > low && ar.z < high) { hit = t; break; }
+      }
+      if (!hit) {
+        for (let k = 0; k < world.horses.length; k++) {
+          const h = world.horses[k];
+          if (h === ar.owner.mount || h.dead) continue;
+          const d = Math.hypot(h.x - ar.x, (h.y - ar.y) * 1.4);
+          if (d < 13 && ar.z > 14 && ar.z < 42) { hitHorse = h; break; }
+        }
+      }
+
+      if (hit) {
+        const dx = hit.x - px, dy = hit.y - py;
+        const d = Math.hypot(dx, dy) || 1;
+        const rng = ar.owner.rng || Math.random;
+        const roll = CB.rollDamage(ar.weapon, hit, { rng: rng, aim: 0.7 });
+        const cy = Math.cos(hit.yaw), sy = Math.sin(hit.yaw);
+        const nx = dx / d, ny = dy / d;
+        const local = [-(nx * cy - ny * sy), -(nx * sy + ny * cy)];
+        const res = CB.applyDamage(hit, roll, local, rng);
+        if (res) {
+          splash(world, hit, roll, nx, ny);
+          knockFrom(world, ar.owner, hit, roll, nx, ny);
+          dropFromHit(world, hit, res.severity, nx, ny);
+          reactToHit(world, hit, ar.owner, res);
+          witness(world, ar.owner, hit, res.severity === 'fatal' ? 'kill'
+            : res.severity === 'serious' ? 'wound' : 'strike', hit.x, hit.y);
+        }
+        world.arrows.splice(i, 1);
+        continue;
+      }
+      if (hitHorse) {
+        strikeHorse(world, ar.owner, hitHorse, ar.weapon, 1);
+        world.arrows.splice(i, 1);
+        continue;
+      }
+      if (ar.z <= 0) {
+        ar.z = 0; ar.stuck = true; ar.life = 0;
+        ar.pitch = -0.9;
+      }
+      if (ar.x < 0 || ar.x > WORLD_W || ar.y < 0 || ar.y > WORLD_H) {
+        world.arrows.splice(i, 1);
+      }
+    }
+  }
+
+  /* ---------- horses take hits too ---------- */
+
+  function strikeHorse(world, a, h, w, charge) {
+    if (!h.body) h.body = CB.createBody();
+    if (h.body.dead) return;
+    const rng = a.rng || Math.random;
+    const roll = CB.rollDamage(w, h, { rng: rng, aim: 0.75, charge: charge || 1 });
+    // a horse is a big animal; the same blow does proportionally less
+    roll.amount *= 0.72;
+    h.body.hp = Math.max(0, h.body.hp - roll.amount);
+    h.body.bleed += roll.bleed * 0.8;
+    const dx = h.x - a.x, dy = h.y - a.y;
+    const d = Math.hypot(dx, dy) || 1;
+    bleedAt(world, h.x, h.y, roll.bleed > 0.1 ? 3.5 : 2, roll.kind);
+    if (h.body.hp <= 0) {
+      killHorse(world, h, dx / d, dy / d);
+      witness(world, a, h, 'horseKill', h.x, h.y);
+    } else {
+      if (!HM.isDown(h) && (roll.knock > 0.7 || roll.amount > 30)) {
+        if (h.rider) unseat(world, h, -dx / d, -dy / d, 3);
+        HM.knockDown(h, dx / d, dy / d, 3 + roll.amount / 12);
+      }
+      // it bolts
+      h.spooked = 4 + rng() * 5;
+      h.wanderDir = Math.atan2(dx / d, dy / d);
+      witness(world, a, h, 'strike', h.x, h.y);
+    }
+  }
+
+  function killHorse(world, h, nx, ny) {
+    h.dead = true;
+    h.body.dead = true;
+    h.body.bleed = 0;
+    if (h.rider) unseat(world, h, -nx, -ny, 4);
+    if (h.cart) unhitchCart(world, h);
+    if (!HM.isDown(h)) HM.knockDown(h, nx, ny, 5.5);
+    bleedAt(world, h.x, h.y, 9, 'edged');
+  }
+
+  /* ---------- blood ---------- */
+
+  function splash(world, target, roll, nx, ny) {
+    if (roll.kind === 'blunt' && roll.amount < 26) return;
+    const n = roll.kind === 'blunt' ? 1 : 2 + Math.floor(roll.amount / 18);
+    const rng = target.rng || Math.random;
+    for (let i = 0; i < n; i++) {
+      world.blood.push({
+        x: target.x + nx * (2 + rng() * 9) + (rng() - 0.5) * 8,
+        y: target.y + ny * (2 + rng() * 6) + (rng() - 0.5) * 5,
+        r: 1.4 + rng() * 2.6,
+        age: 0
+      });
+    }
+    trimBlood(world);
+  }
+
+  function bleedAt(world, x, y, r, kind) {
+    world.blood.push({ x: x, y: y, r: r, age: 0 });
+    void kind;
+    trimBlood(world);
+  }
+
+  function trimBlood(world) {
+    while (world.blood.length > BLOOD_MAX) world.blood.shift();
+  }
+
+  /* A bleeding body leaves a trail, and a pool where it lies. */
+  function updateBleedTrail(world, a, dt) {
+    const body = a.body;
+    if (!body || body.dead || body.bleed <= 0.12) return;
+    a.dripTimer = (a.dripTimer || 0) - dt;
+    if (a.dripTimer > 0) return;
+    a.dripTimer = 0.55 / Math.min(4, body.bleed + 0.4);
+    const rng = a.rng || Math.random;
+    world.blood.push({
+      x: a.x + (rng() - 0.5) * 7,
+      y: a.y + (rng() - 0.5) * 5,
+      r: Rig.isDown(a) ? 2.2 + rng() * 3.4 : 1.0 + rng() * 1.3,
+      age: 0
+    });
+    trimBlood(world);
+  }
+
+
+  /* ================== being hit ==================
+   *
+   * hit -> pain -> assess -> respond. The assessment is what makes two
+   * villagers behave differently: the same punch reads as an outrage to a
+   * brave guard and as a reason to be somewhere else to a frightened baker.
+   */
+
+  const RESPONSES = ['fight', 'backAway', 'flee', 'cower', 'callHelp', 'protect',
+    'surrender', 'collapse'];
+
+  function chooseResponse(world, victim, attacker, res) {
+    const body = victim.body;
+    const brain = victim.brain;
+    const ch = victim.character;
+    const brave = ch ? (ch.brave === undefined ? bravery(victim) : ch.brave) : 0.5;
+    const armed = !!(victim.inv && victim.inv[I.HAND]);
+    const hurt = 1 - body.hp / CB.MAX_HP;
+
+    if (body.dying || body.hp <= 0) return 'collapse';
+    if (body.hp < 26 && brave < 0.75) return 'surrender';
+
+    // someone they care about is being hurt in front of them handled elsewhere;
+    // this is their own skin
+    const willFight = brave + (armed ? 0.3 : 0) + (isGuard(victim) ? 0.45 : 0)
+      - hurt * 0.9 - (res.severity === 'serious' ? 0.3 : 0);
+    if (willFight > 0.72) return 'fight';
+    if (willFight > 0.42) return brain && brain.guard ? 'fight' : 'backAway';
+    if (brave < 0.22) return 'cower';
+    if (hurt > 0.4 || res.severity !== 'minor') return 'flee';
+    return world.actors.some(function (o) { return isGuard(o) && distance(o, victim) < 220; })
+      ? 'callHelp' : 'flee';
+  }
+
+  function bravery(a) {
+    // derived once from the seeded rng, so a given villager is consistently
+    // the sort of person who stands their ground or is not
+    if (a._brave === undefined) a._brave = a.rng ? a.rng() : Math.random();
+    return a._brave;
+  }
+
+  function reactToHit(world, victim, attacker, res) {
+    const brain = victim.brain;
+    victim.gesture = null;
+    if (brain && brain.partner) {
+      if (brain.state === 'closing') abandonClosing(victim); else endChat(victim, 20);
+    }
+    if (world.talkingTo === victim) D.close(world.box);
+
+    const body = victim.body;
+    victim.alert = true;
+    victim.lastAttacker = attacker;
+    victim.threatTimer = 16;
+
+    if (victim === world.player) {
+      // the player reacts by being hurt, not by being told what to do
+      return;
+    }
+    if (!brain) return;
+
+    const choice = chooseResponse(world, victim, attacker, res);
+    brain.response = choice;
+    brain.responseTimer = 3 + (victim.rng ? victim.rng() : Math.random()) * 4;
+    brain.target = attacker;
+
+    if (choice === 'collapse') {
+      brain.state = 'downed';
+      if (!Rig.isDown(victim)) Rig.knockDown(victim, 0.4, 0.2, 2.6);
+      return;
+    }
+    // a serious wound gets clutched whatever else they decide to do
+    if (res.severity === 'serious' && !Rig.isDown(victim)) {
+      victim.reaction = { kind: 'clutch', k: 0, zone: res.zone, t: 0,
+        duration: 1.1 + Math.random() * 0.8 };
+    } else if (choice === 'cower' || choice === 'surrender') {
+      victim.reaction = { kind: choice === 'cower' ? 'guard' : 'surrender', k: 0, t: 0,
+        duration: choice === 'surrender' ? 6 : 2.5 };
+    }
+    brain.state = 'react';
+    if (choice === 'callHelp') shout(world, victim, attacker);
+  }
+
+  function updateReaction(a, dt) {
+    const r = a.reaction;
+    if (!r) return;
+    r.t += dt;
+    // eases in, holds, eases out
+    const inK = Math.min(1, r.t / 0.18);
+    const outK = Math.min(1, Math.max(0, (r.duration - r.t) / 0.3));
+    r.k = Math.min(inK, outK);
+    if (r.t >= r.duration) a.reaction = null;
+  }
+
+  /* ================== dropping things ================== */
+
+  function dropFromHit(world, victim, severity, nx, ny) {
+    if (!victim.inv) return;
+    const rng = victim.rng || Math.random;
+    let n = 0;
+    if (severity === 'fatal') n = 99;
+    else if (severity === 'serious') n = 1 + Math.floor(rng() * 3);
+    else if (severity === 'wounded') n = rng() < 0.45 ? 1 : 0;
+    else n = rng() < 0.12 ? 1 : 0;
+    if (n <= 0) return;
+    const loose = I.shakeLoose(victim.inv, rng, n, severity === 'fatal');
+    for (let i = 0; i < loose.length; i++) {
+      spawnItem(world, victim.x, victim.y, loose[i].id, loose[i].count, nx, ny,
+        severity === 'fatal' ? 1 : 0.6);
+    }
+    // they will want it back, once it is safe to bend down
+    if (victim.brain && loose.length) victim.brain.wantsPickup = 5 + rng() * 6;
+  }
+
+  function spawnItem(world, x, y, id, count, nx, ny, force) {
+    const f = force === undefined ? 0.6 : force;
+    const ang = Math.random() * Math.PI * 2;
+    const spread = 10 + Math.random() * 26 * f;
+    world.loot.push({
+      id: id, count: count || 1,
+      x: x + Math.cos(ang) * 3, y: y + Math.sin(ang) * 2,
+      z: 9 + Math.random() * 7,
+      vx: Math.cos(ang) * spread + (nx || 0) * 30 * f,
+      vy: Math.sin(ang) * spread * 0.6 + (ny || 0) * 30 * f,
+      vz: 22 + Math.random() * 40 * f,
+      pitch: Math.random() * 6.28, roll: Math.random() * 6.28, yaw: Math.random() * 6.28,
+      spinP: (Math.random() - 0.5) * 12, spinR: (Math.random() - 0.5) * 12,
+      spinY: (Math.random() - 0.5) * 8,
+      rest: 0, settled: false, buffer: null, _key: ''
+    });
+    if (world.loot.length > 220) world.loot.shift();
+  }
+
+  const ITEM_G = 190;
+
+  function updateGroundItems(world, dt) {
+    const list = world.loot;
+    for (let i = 0; i < list.length; i++) {
+      const d = list[i];
+      if (d.settled) continue;
+      d.vz -= ITEM_G * dt;
+      d.x += d.vx * dt; d.y += d.vy * dt; d.z += d.vz * dt;
+      d.pitch += d.spinP * dt; d.roll += d.spinR * dt; d.yaw += d.spinY * dt;
+      if (d.z <= 0) {
+        d.z = 0;
+        if (Math.abs(d.vz) < 20) {
+          d.vz = 0; d.vx *= 0.2; d.vy *= 0.2;
+          d.spinP *= 0.2; d.spinR *= 0.2; d.spinY *= 0.3;
+          d.rest += dt;
+          if (d.rest > 0.3) {
+            d.settled = true;
+            d.pitch = Math.round(d.pitch / (Math.PI / 2)) * (Math.PI / 2);
+            d.roll = Math.round(d.roll / (Math.PI / 2)) * (Math.PI / 2);
+            d.vx = 0; d.vy = 0; d.spinP = 0; d.spinR = 0; d.spinY = 0;
+          }
+        } else {
+          d.vz = -d.vz * 0.34; d.vx *= 0.6; d.vy *= 0.6; d.rest = 0;
+        }
+      }
+      if (d.z <= 0.01) {
+        const sp = Math.hypot(d.vx, d.vy);
+        if (sp > 0) {
+          const next = Math.max(0, sp - 150 * dt);
+          d.vx = (d.vx / sp) * next; d.vy = (d.vy / sp) * next;
+        }
+      }
+    }
+  }
+
+  function nearestGroundItem(world, a, range) {
+    let best = -1, bestD = range === undefined ? 22 : range;
+    const list = world.loot;
+    for (let i = 0; i < list.length; i++) {
+      const g = list[i];
+      const d = Math.hypot(g.x - a.x, (g.y - a.y) * 1.4);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    return best;
+  }
+
+  function pickUp(world, a, index) {
+    const list = world.loot;
+    const g = list[index];
+    if (!g || !a.inv) return false;
+    const room = I.roomFor(a.inv, g.id, g.count);
+    if (room <= 0) return false;
+    I.add(a.inv, g.id, room);
+    g.count -= room;
+    if (g.count <= 0) list.splice(index, 1);
+    return true;
+  }
+
+
+  /* ================== who saw it ==================
+   *
+   * Two separate numbers, because they answer different questions. Wanted is
+   * how hard the guards are looking for you right now and it cools off.
+   * Reputation is what people think of you and it does not.
+   */
+
+  function witness(world, attacker, victim, crimeId, x, y) {
+    if (attacker !== world.player) return;
+    const crime = CRIMES[crimeId];
+    if (!crime) return;
+
+    let seen = false;
+    for (let i = 1; i < world.actors.length; i++) {
+      const o = world.actors[i];
+      if (o === victim || !o.body || o.body.dead || Rig.isDown(o)) continue;
+      const d = distance(o, world.player);
+      const range = isGuard(o) ? SEE_RANGE : SEE_RANGE_CIVIL;
+      if (d > range) continue;
+      // facing matters: someone with their back to it only half sees it
+      const want = Rig.yawForDirection(world.player.x - o.x, world.player.y - o.y);
+      const facing = Math.abs(Rig.shortestAngle(o.yaw, want)) < 1.5;
+      if (!facing && d > range * 0.45) continue;
+      seen = true;
+      // What they took away from it is not always what happened. This is the
+      // raw material the investigation will eventually work from.
+      o.saw = {
+        crime: crime.label,
+        at: world.time,
+        // one witness in four mistakes the detail
+        weapon: (o.rng ? o.rng() : Math.random()) < 0.75
+          ? (I.held(world.player.inv) || { label: 'bare hands' }).label : 'a weapon',
+        sure: 0.35 + (o.rng ? o.rng() : Math.random()) * 0.65
+      };
+      if (isGuard(o)) {
+        alertGuard(world, o, x, y, crime.alarm);
+      } else {
+        civilianAlarm(world, o, crime.alarm, x, y);
+      }
+    }
+
+    world.wanted = Math.min(100, world.wanted + crime.wanted * (seen ? 1 : 0.18));
+    world.reputation = Math.max(-100, Math.min(100, world.reputation + crime.rep));
+    if (seen) world.lastSeenAt = world.time;
+    if (crimeId === 'kill' || crimeId === 'wound') world.reputationCriminal =
+      Math.min(100, (world.reputationCriminal || 0) + (crimeId === 'kill' ? 9 : 3));
+    void victim;
+  }
+
+  function shout(world, caller, attacker) {
+    for (let i = 1; i < world.actors.length; i++) {
+      const o = world.actors[i];
+      if (o === caller || !isGuard(o)) continue;
+      if (distance(o, caller) > SHOUT_RANGE) continue;
+      alertGuard(world, o, attacker.x, attacker.y, 0.8);
+    }
+    caller.gesture = null;
+  }
+
+  function alertGuard(world, g, x, y, alarm) {
+    const brain = g.brain;
+    brain.guardState = 'chase';
+    brain.chaseX = x; brain.chaseY = y;
+    brain.giveUp = GUARD_GIVE_UP * (0.6 + alarm * 0.7);
+    brain.response = null;
+    g.alert = true;
+    g.gesture = null;
+    if (brain.partner) {
+      if (brain.state === 'closing') abandonClosing(g); else endChat(g, 30);
+    }
+  }
+
+  function civilianAlarm(world, c, alarm, x, y) {
+    const brain = c.brain;
+    if (!brain) return;
+    if (brain.partner) {
+      if (brain.state === 'closing') abandonClosing(c); else endChat(c, 25);
+    }
+    const brave = bravery(c);
+    brain.state = 'react';
+    brain.response = alarm > 0.7 && brave < 0.6 ? 'flee'
+      : alarm > 0.4 ? 'backAway' : 'cower';
+    brain.responseTimer = 4 + alarm * 6;
+    brain.target = world.player;
+    brain.fleeFrom = { x: x, y: y };
+    if (alarm > 0.55 && brave < 0.35) {
+      c.reaction = { kind: 'guard', k: 0, t: 0, duration: 1.4 };
+    }
+  }
+
+  /* Guards pass a chase on to whoever they run past, and clear civilians out
+   * of the way as they come through. */
+  function guardSpread(world, g, dt) {
+    g.brain.spreadTimer = (g.brain.spreadTimer || 0) - dt;
+    if (g.brain.spreadTimer > 0) return;
+    g.brain.spreadTimer = 1.2;
+    for (let i = 1; i < world.actors.length; i++) {
+      const o = world.actors[i];
+      if (o === g || !o.brain || Rig.isDown(o) || (o.body && o.body.dead)) continue;
+      const d = distance(o, g);
+      if (isGuard(o)) {
+        if (d < SHOUT_RANGE && o.brain.guardState !== 'chase') {
+          alertGuard(world, o, g.brain.chaseX, g.brain.chaseY, 0.7);
+        }
+      } else if (d < 90 && o.brain.state !== 'react') {
+        o.brain.state = 'react';
+        o.brain.response = 'backAway';
+        o.brain.responseTimer = 1.6 + (o.rng ? o.rng() : Math.random()) * 2;
+        o.brain.fleeFrom = { x: g.x, y: g.y };
+      }
+    }
+  }
+
+  function updateWanted(world, dt) {
+    world.time += dt;
+    const unseen = world.time - (world.lastSeenAt || -999);
+    if (unseen > 12 && world.wanted > 0) {
+      world.wanted = Math.max(0, world.wanted - WANTED_DECAY / 60 * dt * 60);
+    }
+    // any guard actively chasing keeps it hot
+    for (let i = 1; i < world.actors.length; i++) {
+      const g = world.actors[i];
+      if (isGuard(g) && g.brain.guardState === 'chase'
+        && distance(g, world.player) < SEE_RANGE) {
+        world.lastSeenAt = world.time;
+        break;
+      }
+    }
+  }
+
+
+  /* ================== guards ==================
+   *
+   * A guard is an ordinary villager with a job. Off duty they wander and chat
+   * like anyone else; on duty they wear the livery, watch a patch, and if they
+   * see something they come for you — on foot, or on a horse if one is handy.
+   */
+
+  const GUARD_SPEED = { walk: 30, run: 132 };
+
+  function updateGuard(world, g, dt) {
+    const brain = g.brain;
+    const player = world.player;
+    const state = brain.guardState || 'patrol';
+
+    if (state === 'patrol') {
+      // watching: notice a crime already in progress, or a body on the ground
+      if (world.wanted > 8 && distance(g, player) < SEE_RANGE
+        && !Rig.isDown(player) && armedAndOpen(world, player)) {
+        alertGuard(world, g, player.x, player.y, 0.5);
+      }
+      return false;
+    }
+
+    // chasing
+    brain.giveUp -= dt;
+    const d = distance(g, player);
+    const sees = d < SEE_RANGE && !Rig.isDown(player);
+    if (sees) {
+      brain.chaseX = player.x; brain.chaseY = player.y;
+      brain.giveUp = GUARD_GIVE_UP;
+    }
+    guardSpread(world, g, dt);
+
+    // get on a horse if the quarry is mounted and one is standing about
+    if (!g.mount && player.mount && d > 90) {
+      const h = freeHorseNear(world, g, 110);
+      if (h) { mountNpc(world, g, h); }
+    }
+    // and get off to fight
+    if (g.mount && d < 34 && !player.mount) { dismountNpc(world, g); }
+
+    if (brain.giveUp <= 0) {
+      brain.guardState = 'patrol';
+      brain.state = 'pause';
+      brain.timer = 1.5;
+      if (g.mount) dismountNpc(world, g);
+      return true;
+    }
+
+    const w = I.heldWeapon(g.inv);
+    const dx = brain.chaseX - g.x, dy = brain.chaseY - g.y;
+    const len = Math.hypot(dx, dy) || 1;
+    g.targetYaw = Rig.yawForDirection(dx, dy);
+    g.aimYaw = g.targetYaw;
+
+    if (g.mount) {
+      // ridden chase: steer the horse, shoot from the saddle if armed for it
+      const h = g.mount;
+      h.targetYaw = g.targetYaw;
+      const want = (sees && d < 34) ? 0 : 1;
+      h.npcDrive = { dx: (dx / len) * want, dy: (dy / len) * want, sprint: d > 60 };
+      if (w.ranged && sees && d < w.range && canAttack(g)) beginAttack(world, g);
+      return true;
+    }
+
+    if (w.ranged && sees && d < w.range && d > 40) {
+      if (canAttack(g)) beginAttack(world, g);
+      g.gait = 'idle';
+      return true;
+    }
+    if (d < w.reach * 0.85 + 8) {
+      if (sees && canAttack(g)) beginAttack(world, g);
+      g.gait = 'idle';
+      return true;
+    }
+    /* Run them down. A guard in pursuit turns faster than a villager
+     * ambling about and does not stop dead to do it — waiting to be square on
+     * before taking a step is how a chase turns into a stroll. */
+    const turn = Rig.shortestAngle(g.yaw, g.targetYaw);
+    const rate = 7.5 * dt;
+    g.yaw += Math.abs(turn) < rate ? turn : Math.sign(turn) * rate;
+    g.targetYaw = g.yaw;
+    const facing = Math.max(0.25, 1 - Math.abs(turn) / 2.2);
+    const sp = (d > 55 ? GUARD_SPEED.run : GUARD_SPEED.walk * 1.6) * facing;
+    g.x += Math.sin(g.yaw) * sp * dt;
+    g.y += Math.cos(g.yaw) * sp * dt;
+    resolvePropCollisions(world, g, 6);
+    clampVillager(g);
+    g.gait = d > 55 ? 'run' : 'walk';
+    return true;
+  }
+
+  function armedAndOpen(world, p) {
+    const d = I.held(p.inv);
+    return !!(d && d.weapon && d.weapon !== 'fists');
+  }
+
+  function freeHorseNear(world, a, range) {
+    let best = null, bestD = range;
+    for (let i = 0; i < world.horses.length; i++) {
+      const h = world.horses[i];
+      if (h.rider || HM.isDown(h) || h.dead) continue;
+      const d = distance(h, a);
+      if (d < bestD) { bestD = d; best = h; }
+    }
+    return best;
+  }
+
+  function mountNpc(world, a, h) {
+    h.rider = a;
+    a.mount = h;
+    a.mountTime = MOUNT_TIME;   // an npc does not need the swing-up beat
+    a.vx = 0; a.vy = 0;
+    a.gait = 'idle';
+  }
+
+  function dismountNpc(world, a) {
+    const h = a.mount;
+    if (!h) return;
+    const side = h.yaw + Math.PI / 2;
+    a.x = h.x + Math.cos(side) * 14;
+    a.y = h.y - Math.sin(side) * 10;
+    a.mount = null;
+    h.rider = null;
+    h.npcDrive = null;
+  }
+
+  /* ---------- how a villager who has been hurt behaves ---------- */
+
+  function updateResponse(world, a, dt) {
+    const brain = a.brain;
+    brain.responseTimer -= dt;
+    const target = brain.target || world.player;
+    const from = brain.fleeFrom || target;
+    const dx = a.x - from.x, dy = a.y - from.y;
+    const away = Math.hypot(dx, dy) || 1;
+    const hurt = a.body ? 1 - a.body.hp / CB.MAX_HP : 0;
+    const speed = SPEED.npc * (1 + (1 - hurt) * 2.6);
+
+    switch (brain.response) {
+      case 'fight': {
+        const d = distance(a, target);
+        a.targetYaw = Rig.yawForDirection(target.x - a.x, target.y - a.y);
+        a.aimYaw = a.targetYaw;
+        const w = I.heldWeapon(a.inv);
+        if (d < w.reach * 0.85 + 8) {
+          if (canAttack(a) && Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 0.8) {
+            beginAttack(world, a);
+          }
+          a.gait = 'idle';
+        } else if (Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 1.0) {
+          a.x += ((target.x - a.x) / (d || 1)) * speed * dt;
+          a.y += ((target.y - a.y) / (d || 1)) * speed * dt;
+          a.gait = 'walk';
+          clampVillager(a);
+        }
+        break;
+      }
+      case 'flee': {
+        a.targetYaw = Rig.snapToEight(dx, dy);
+        if (Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 1.2) {
+          a.x += (dx / away) * speed * 1.35 * dt;
+          a.y += (dy / away) * speed * 1.35 * dt;
+          resolvePropCollisions(world, a, 6);
+          clampVillager(a);
+        }
+        a.gait = 'run';
+        break;
+      }
+      case 'backAway': {
+        // keeping their eyes on it while they go
+        a.targetYaw = Rig.yawForDirection(-dx, -dy);
+        a.x += (dx / away) * speed * 0.55 * dt;
+        a.y += (dy / away) * speed * 0.55 * dt;
+        clampVillager(a);
+        a.gait = 'walk';
+        break;
+      }
+      case 'callHelp': {
+        a.targetYaw = Rig.yawForDirection(-dx, -dy);
+        a.gait = 'idle';
+        a.speaking = true;
+        babble(a);
+        brain.shoutTimer = (brain.shoutTimer || 0) - dt;
+        if (brain.shoutTimer <= 0) { brain.shoutTimer = 1.4; shout(world, a, target); }
+        break;
+      }
+      case 'protect': {
+        const friend = brain.protecting;
+        if (friend) {
+          const fd = distance(a, friend);
+          a.targetYaw = Rig.yawForDirection(friend.x - a.x, friend.y - a.y);
+          if (fd > 20) {
+            a.x += ((friend.x - a.x) / (fd || 1)) * speed * dt;
+            a.y += ((friend.y - a.y) / (fd || 1)) * speed * dt;
+            a.gait = 'walk';
+          } else { a.gait = 'idle'; }
+        }
+        break;
+      }
+      case 'surrender':
+      case 'cower':
+      default: {
+        a.gait = 'idle';
+        a.targetYaw = Rig.yawForDirection(-dx, -dy);
+        if (!a.reaction) {
+          a.reaction = { kind: brain.response === 'surrender' ? 'surrender' : 'guard',
+            k: 0, t: 0, duration: Math.max(0.6, brain.responseTimer) };
+        }
+        break;
+      }
+    }
+
+    if (brain.responseTimer <= 0) {
+      hush(a);
+      brain.response = null;
+      brain.state = 'pause';
+      brain.timer = 0.8 + (a.rng ? a.rng() : Math.random()) * 2;
+    }
+  }
+
+  /* Once the fighting stops, people go and get their things back. */
+  function tryRecoverItems(world, a, dt) {
+    const brain = a.brain;
+    if (!brain.wantsPickup || brain.wantsPickup <= 0) return false;
+    // not while anyone is still swinging nearby
+    if (a.threatTimer > 0 || brain.response) { brain.wantsPickup -= dt * 0.3; return false; }
+    const idx = nearestGroundItem(world, a, 90);
+    if (idx < 0) { brain.wantsPickup = 0; return false; }
+    const g = world.loot[idx];
+    const d = Math.hypot(g.x - a.x, (g.y - a.y) * 1.4);
+    if (d < 13) {
+      pickUp(world, a, idx);
+      brain.wantsPickup -= 1.5;
+      a.gait = 'idle';
+      return true;
+    }
+    a.targetYaw = Rig.snapToEight(g.x - a.x, g.y - a.y);
+    if (Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 0.9) {
+      const len = Math.hypot(g.x - a.x, g.y - a.y) || 1;
+      a.x += ((g.x - a.x) / len) * SPEED.npc * dt;
+      a.y += ((g.y - a.y) / len) * SPEED.npc * dt;
+      clampVillager(a);
+    }
+    a.gait = 'walk';
+    brain.wantsPickup -= dt * 0.25;
+    return true;
+  }
+
+  /* Someone sees a body. They do not step over it. */
+  function noticeCasualties(world, a, dt) {
+    const brain = a.brain;
+    brain.scanTimer = (brain.scanTimer || 0) - dt;
+    if (brain.scanTimer > 0) return false;
+    brain.scanTimer = 1.5 + (a.rng ? a.rng() : Math.random());
+    for (let i = 1; i < world.actors.length; i++) {
+      const o = world.actors[i];
+      if (o === a || !o.body) continue;
+      if (!o.body.dead && !o.body.dying) continue;
+      if (o.seenBy && o.seenBy[a._id]) continue;
+      if (distance(a, o) > 110) continue;
+      o.seenBy = o.seenBy || {};
+      o.seenBy[a._id] = true;
+      const brave = bravery(a);
+      brain.state = 'react';
+      brain.target = o;
+      brain.fleeFrom = { x: o.x, y: o.y };
+      brain.response = isGuard(a) ? 'callHelp' : (brave < 0.4 ? 'flee' : 'callHelp');
+      brain.responseTimer = 4 + Math.random() * 4;
+      if (!isGuard(a)) a.reaction = { kind: 'guard', k: 0, t: 0, duration: 1.2 };
+      return true;
+    }
+    return false;
+  }
+
   /* ---------- player ---------- */
 
   /* Riding and driving both take the player's own movement code out of the
@@ -1192,6 +2569,26 @@
 
   function updatePlayer(world, dt) {
     const p = world.player;
+    if (p.body && p.body.dead) {
+      // down for good. No hospitals yet, so the body stays where it fell.
+      if (!Rig.isDown(p)) Rig.knockDown(p, 0.3, 0.2, 2.4);
+      else if (p.fall.state === 'rising') { p.fall.state = 'falling'; p.fall.still = 0; }
+      if (p.mount) dismount(world);
+      if (p.seat) leaveSeat(world);
+      p.vx = 0; p.vy = 0;
+      p.gait = 'idle';
+      if (world.box.open) D.close(world.box);
+      if (invVisible(world)) closeInventory(world);
+      Rig.updateFall(p, dt);
+      return;
+    }
+    if (p.body && p.body.dying) {
+      if (!Rig.isDown(p)) Rig.knockDown(p, 0.3, 0.2, 2.2);
+      p.vx = 0; p.vy = 0;
+      p.gait = 'idle';
+      Rig.updateActorMotion(p, dt);
+      return;
+    }
     if (p.mount || p.seat) { updateMountedPlayer(world, p, dt); return; }
     const locked = world.box.open || Rig.isDown(p);
     const input = world.input;
@@ -1448,6 +2845,59 @@
     const brain = a.brain;
     const player = world.player;
 
+    updateAttack(world, a, dt);
+    updateReaction(a, dt);
+    a.threatTimer = Math.max(0, (a.threatTimer || 0) - dt);
+    updateBleedTrail(world, a, dt);
+    const died = CB.updateBody(a, dt);
+    if (died === 'died') {
+      // everything they were carrying goes on the floor with them
+      const all = I.contents(a.inv);
+      for (let k = 0; k < all.length; k++) {
+        spawnItem(world, a.x, a.y, all[k].id, all[k].count, 0, 0, 0.5);
+      }
+      I.clearAll(a.inv);
+      a.gesture = null;
+      hush(a);
+    }
+    if (a.body.dead) {
+      // a body stays where it fell. Nothing picks it up; there is nowhere yet
+      // for it to be taken.
+      if (!Rig.isDown(a)) Rig.knockDown(a, 0.3, 0.2, 2.2);
+      else if (a.fall.state === 'rising') { a.fall.state = 'falling'; a.fall.still = 0; }
+      a.vx = 0; a.vy = 0;
+      a.gait = 'idle';
+      brain.state = 'dead';
+      Rig.updateFall(a, dt);
+      clampVillager(a);
+      return;
+    }
+    if (a.body.dying) {
+      // on the floor, going. They stop trying to do anything else.
+      if (!Rig.isDown(a)) Rig.knockDown(a, 0.3, 0.2, 2.0);
+      a.vx = 0; a.vy = 0;
+      a.gait = 'idle';
+      brain.state = 'downed';
+      Rig.updateActorMotion(a, dt);
+      clampVillager(a);
+      return;
+    }
+
+    // an npc riding a horse steers it and does nothing else on foot
+    if (a.mount) {
+      a.x = a.mount.x; a.y = a.mount.y; a.yaw = a.mount.yaw;
+      if (brain.guard) updateGuard(world, a, dt);
+      Rig.updateBlink(a, dt);
+      a.animTime += dt;
+      return;
+    }
+
+    if (brain.guard && brain.guardState === 'chase' && !Rig.isDown(a)) {
+      updateGuard(world, a, dt);
+      Rig.updateActorMotion(a, dt);
+      return;
+    }
+
     Rig.applyShove(a, dt);
 
     // Shoved hard enough to have to catch themselves: they walk it off,
@@ -1482,6 +2932,16 @@
       brain.timer = 0.7 + a.rng() * 1.2;
       a.vx = 0; a.vy = 0;
     }
+
+    if (brain.state === 'react') {
+      updateResponse(world, a, dt);
+      Rig.updateActorMotion(a, dt);
+      return;
+    }
+
+    if (brain.guard) updateGuard(world, a, dt);
+    if (noticeCasualties(world, a, dt)) { Rig.updateActorMotion(a, dt); return; }
+    if (tryRecoverItems(world, a, dt)) { Rig.updateActorMotion(a, dt); return; }
 
     if (brain.state === 'closing') {
       updateClosing(world, a, dt);
@@ -1526,6 +2986,7 @@
     brain.timer -= dt;
     if (brain.state === 'pause') {
       a.gait = 'idle';
+      if (a.attack) { Rig.updateActorMotion(a, dt); return; }
 
       reactiveGesture(world, a, dt);
       tryStartChat(world, a);
@@ -1597,6 +3058,16 @@
     if (world.box.open) { D.advance(world.box); return true; }
     const p = world.player;
     if (Rig.isDown(p)) return false;
+
+    if (world.container) { closeContainer(world); return true; }
+
+    // A chest on a cart is opened from the chest end, not from the shafts
+    const chest = nearestChest(world);
+    if (chest && !p.mount) { openContainer(world, chest); return true; }
+
+    // then anything lying on the grass
+    const gi = nearestGroundItem(world, p, 24);
+    if (gi >= 0 && !p.mount) { return pickUp(world, p, gi); }
 
     if (p.mount) {
       // in the saddle: hitch a cart if one is right behind, otherwise get off
@@ -1672,11 +3143,19 @@
     for (let i = 0; i < world.horses.length; i++) updateHorse(world, world.horses[i], dt);
     for (let i = world.carts.length - 1; i >= 0; i--) updateCart(world, world.carts[i], dt);
     updatePlayer(world, dt);
+    updateAttack(world, world.player, dt);
+    updateReaction(world.player, dt);
+    world.player.threatTimer = Math.max(0, (world.player.threatTimer || 0) - dt);
+    CB.updateBody(world.player, dt);
+    updateBleedTrail(world, world.player, dt);
     for (let i = 1; i < world.actors.length; i++) updateVillager(world, world.actors[i], dt);
     if (!world.player.mount && !world.player.seat) resolveActorCollisions(world);
     separateVillagers(world);
     resolveRagdollCollisions(world, dt);
     updateDebris(world, dt);
+    updateGroundItems(world, dt);
+    updateArrows(world, dt);
+    updateWanted(world, dt);
     separateHorses(world);
     D.update(world.box, dt);
 
@@ -1990,6 +3469,47 @@
     return c.buffer;
   }
 
+  const BLOOD_COL = R.pack(96, 18, 26);
+
+  function renderGroundItem(world, g) {
+    const qp = Math.round(g.pitch / DEBRIS_STEP) * DEBRIS_STEP;
+    const qr = Math.round(g.roll / DEBRIS_STEP) * DEBRIS_STEP;
+    const qy = Math.round(g.yaw / DEBRIS_STEP) * DEBRIS_STEP;
+    const key = [g.id, qp, qr, qy].join('|');
+    if (g.buffer && key === g._key) return g.buffer;
+    g._key = key;
+    if (!g.buffer) g.buffer = R.createTarget(DEBRIS_BUF.w, DEBRIS_BUF.h);
+    R.clearTarget(g.buffer);
+    let m = R.multiply(R.rotationY(qy), R.rotationX(qp));
+    m = R.multiply(m, R.rotationZ(qr));
+    const view = I.iconView(g.id);
+    if (view.scale !== 1) m = R.multiply(m, R.scaling(view.scale));
+    const parts = I.iconParts(g.id);
+    for (let i = 0; i < parts.length; i++) {
+      R.drawMesh(g.buffer, m, parts[i].mesh, R.ramp(parts[i].colour), DEBRIS_CAM, parts[i]);
+    }
+    R.traceOutline(g.buffer, Rig.OUTLINE);
+    return g.buffer;
+  }
+
+  function renderArrow(world, ar) {
+    const qy = Math.round(ar.yaw / DEBRIS_STEP) * DEBRIS_STEP;
+    const qp = Math.round((ar.pitch || 0) / DEBRIS_STEP) * DEBRIS_STEP;
+    const key = [ar.kind, qy, qp].join('|');
+    if (ar.buffer && key === ar._key) return ar.buffer;
+    ar._key = key;
+    if (!ar.buffer) ar.buffer = R.createTarget(DEBRIS_BUF.w, DEBRIS_BUF.h);
+    R.clearTarget(ar.buffer);
+    // the shaft lies along its flight, nose down as it falls
+    let m = R.multiply(R.rotationY(qy), R.rotationX(Math.PI / 2 + qp));
+    const parts = I.iconParts(ar.kind);
+    for (let i = 0; i < parts.length; i++) {
+      R.drawMesh(ar.buffer, m, parts[i].mesh, R.ramp(parts[i].colour), DEBRIS_CAM, parts[i]);
+    }
+    R.traceOutline(ar.buffer, Rig.OUTLINE);
+    return ar.buffer;
+  }
+
   const DEBRIS_STEP = Math.PI / 8;
   function renderDebris(world, d) {
     const camera = DEBRIS_CAM;
@@ -2039,6 +3559,16 @@
     drawGround(world, target);
 
     const cx = world.camX, cy = world.camY;
+
+    // Blood goes down before anything stands on it. It is flat on the ground,
+    // so it has no business in the depth sort.
+    for (let i = 0; i < world.blood.length; i++) {
+      const b = world.blood[i];
+      if (b.x - cx < -20 || b.x - cx > VIEW_W + 20 || b.y - cy < -20 || b.y - cy > VIEW_H + 20) continue;
+      R.fillEllipse(target, (Math.round(b.x) - cx) * PIXEL, (Math.round(b.y) - cy) * PIXEL,
+        b.r * PIXEL, b.r * 0.55 * PIXEL, BLOOD_COL, 0.82);
+    }
+
     const drawables = [];
 
     for (let i = 0; i < world.props.length; i++) {
@@ -2068,6 +3598,16 @@
       if (d.x - cx < -40 || d.x - cx > VIEW_W + 40 || d.y - cy < -60 || d.y - cy > VIEW_H + 40) continue;
       drawables.push({ y: d.y, debris: d });
     }
+    for (let i = 0; i < world.loot.length; i++) {
+      const g = world.loot[i];
+      if (g.x - cx < -40 || g.x - cx > VIEW_W + 40 || g.y - cy < -60 || g.y - cy > VIEW_H + 40) continue;
+      drawables.push({ y: g.y, item: g });
+    }
+    for (let i = 0; i < world.arrows.length; i++) {
+      const ar = world.arrows[i];
+      if (ar.x - cx < -40 || ar.x - cx > VIEW_W + 40 || ar.y - cy < -60 || ar.y - cy > VIEW_H + 40) continue;
+      drawables.push({ y: ar.y, arrow: ar });
+    }
     drawables.sort(function (a, b) { return a.y - b.y; });
 
     for (let i = 0; i < drawables.length; i++) {
@@ -2089,6 +3629,18 @@
           (Math.round(c.x) - cx) * PIXEL - CART_BUF.ox,
           (Math.round(c.y) - cy) * PIXEL - CART_BUF.oy);
         if (c.rider && c.hitch) drawReins(target, c.hitch);
+      } else if (d.item) {
+        const g = d.item;
+        R.fillEllipse(target, (Math.round(g.x) - cx) * PIXEL, (Math.round(g.y) - cy) * PIXEL,
+          4 * PIXEL, 1.8 * PIXEL, SHADOW, 0.2);
+        R.blit(target, renderGroundItem(world, g),
+          (Math.round(g.x) - cx) * PIXEL - DEBRIS_BUF.ox,
+          (Math.round(g.y) - cy) * PIXEL - DEBRIS_BUF.oy - Math.round(g.z * CAM_SCALE));
+      } else if (d.arrow) {
+        const ar = d.arrow;
+        R.blit(target, renderArrow(world, ar),
+          (Math.round(ar.x) - cx) * PIXEL - DEBRIS_BUF.ox,
+          (Math.round(ar.y) - cy) * PIXEL - DEBRIS_BUF.oy - Math.round(ar.z * CAM_SCALE));
       } else if (d.debris) {
         const b = d.debris;
         R.fillEllipse(target, (Math.round(b.x) - cx) * PIXEL, (Math.round(b.y) - cy) * PIXEL,
@@ -2130,6 +3682,7 @@
 
 
     D.draw(world.box, target);
+    if (invVisible(world)) drawInventory(world, target);
   }
 
   global.World = {
@@ -2137,6 +3690,9 @@
     ACTOR_BUF, CAM_PITCH, CAM_SCALE,
     SPEED, TALK_RANGE, NUDGE_SPEED, TRIP_SPEED, FALL_SPEED, TEST_PAGES,
     createWorld, update, draw, tryTalk, nearestTalkable, distance, beginConversation,
+    playerAttack, playerAim, beginAttack, openContainer, closeContainer, nearestChest,
+    nearestGroundItem, pickUp, spawnItem, strike, witness, CRIMES, isGuard,
+    openInventory, closeInventory, invVisible, invMove, invClick, layout,
     mount, dismount, hitchCart, unhitchCart, takeSeat, leaveSeat,
     nearestHorse, nearestCart, damageCart, breakCart, promptFor,
     MOUNT_RANGE, HITCH_RANGE, HORSE_FALL_SPEED

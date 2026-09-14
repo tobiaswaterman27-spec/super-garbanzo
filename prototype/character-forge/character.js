@@ -75,7 +75,8 @@
       garment: 'tunic',
       tunicColour: 'walnut',
       trouserColour: 'bark',
-      bootColour: 'brown'
+      bootColour: 'brown',
+      leftHanded: false
     };
   }
 

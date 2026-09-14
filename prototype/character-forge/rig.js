@@ -108,6 +108,225 @@
 
   // Speaking is carried entirely by the visemes; the body stays still for the
   // same reason idle does.
+  /* ================= attacking ================= *
+   *
+   * One pose function per swing shape, all driven by the same clock: `k` runs
+   * 0 to 1 across wind-up and follow-through, and the blow lands at `hit`.
+   * Keeping the landing fraction explicit means the animation and the damage
+   * agree about when contact happens, rather than the damage firing on a timer
+   * while the arm is still going back.
+   */
+
+  const ATTACKS = {
+    // a short straight punch
+    jab: {
+      hit: 0.45,
+      pose: function (model, k, side) {
+        const wind = Math.min(1, k / 0.45);
+        const punch = k < 0.45 ? 0 : Math.min(1, (k - 0.45) / 0.3);
+        const back = k < 0.45 ? 0 : Math.max(0, (k - 0.75) / 0.25);
+        const reach = punch - back;
+        setRot(model, 'arm' + side, -0.5 * wind - 1.05 * reach, 0, side === 'R' ? 0.2 : -0.2);
+        setRot(model, 'fore' + side, -1.6 + 1.45 * reach, 0, 0);
+        setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -0.35, 0, side === 'R' ? -0.3 : 0.3);
+        setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -1.5, 0, 0);
+        setRot(model, 'torso', 0.06, (side === 'R' ? -0.3 : 0.3) * (wind - reach * 1.6), 0);
+      }
+    },
+    // horizontal cut across the body
+    slash: {
+      hit: 0.52,
+      pose: function (model, k, side) {
+        const sgn = side === 'R' ? 1 : -1;
+        const wind = Math.min(1, k / 0.52);
+        const cut = k < 0.52 ? 0 : Math.min(1, (k - 0.52) / 0.34);
+        const sweep = -1.15 * wind + 2.5 * cut;
+        setRot(model, 'arm' + side, -0.55 - 0.5 * wind + 0.95 * cut, 0, sgn * (0.95 - sweep * 0.42));
+        setRot(model, 'fore' + side, -0.55 - 0.8 * wind + 0.7 * cut, 0, 0);
+        setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -0.3, 0, -sgn * 0.35);
+        setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -0.9, 0, 0);
+        setRot(model, 'torso', 0.08, sgn * (0.55 * wind - 1.05 * cut), 0);
+        setRot(model, 'head', 0, sgn * (-0.2 * wind + 0.4 * cut), 0);
+        model.bob = -0.25 * cut;
+      }
+    },
+    // raised overhead and brought straight down
+    overhead: {
+      hit: 0.58,
+      pose: function (model, k, side) {
+        const sgn = side === 'R' ? 1 : -1;
+        const wind = Math.min(1, k / 0.58);
+        const fall = k < 0.58 ? 0 : Math.min(1, (k - 0.58) / 0.3);
+        setRot(model, 'arm' + side, -2.5 * wind + 3.3 * fall, 0, sgn * 0.3);
+        setRot(model, 'fore' + side, -1.5 * wind + 1.4 * fall, 0, 0);
+        setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -2.1 * wind + 2.8 * fall, 0, -sgn * 0.28);
+        setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -1.3 * wind + 1.2 * fall, 0, 0);
+        setRot(model, 'torso', -0.22 * wind + 0.58 * fall, 0, 0);
+        setRot(model, 'head', 0.18 * wind - 0.3 * fall, 0, 0);
+        model.bob = 0.5 * wind - 0.9 * fall;
+      }
+    },
+    // short hard stab
+    stab: {
+      hit: 0.42,
+      pose: function (model, k, side) {
+        const sgn = side === 'R' ? 1 : -1;
+        const wind = Math.min(1, k / 0.42);
+        const drive = k < 0.42 ? 0 : Math.min(1, (k - 0.42) / 0.26);
+        const back = Math.max(0, (k - 0.72) / 0.28);
+        const reach = drive - back;
+        setRot(model, 'arm' + side, 0.5 * wind - 1.6 * reach, 0, sgn * (0.5 - reach * 0.4));
+        setRot(model, 'fore' + side, -2.0 * wind + 1.9 * reach, 0, 0);
+        setRot(model, 'torso', 0.05, sgn * (0.35 * wind - 0.55 * reach), 0);
+        setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -0.25, 0, -sgn * 0.3);
+        setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -1.1, 0, 0);
+      }
+    },
+    // two hands driving a shaft forward
+    thrust: {
+      hit: 0.46,
+      pose: function (model, k, side) {
+        const sgn = side === 'R' ? 1 : -1;
+        const wind = Math.min(1, k / 0.46);
+        const drive = k < 0.46 ? 0 : Math.min(1, (k - 0.46) / 0.3);
+        const back = Math.max(0, (k - 0.76) / 0.24);
+        const reach = drive - back;
+        setRot(model, 'armR', -0.35 + 0.45 * wind - 1.5 * reach, 0, 0.42 - reach * 0.3);
+        setRot(model, 'foreR', -1.75 + 1.55 * reach, 0, 0);
+        setRot(model, 'armL', -0.35 + 0.45 * wind - 1.5 * reach, 0, -0.42 + reach * 0.3);
+        setRot(model, 'foreL', -1.75 + 1.55 * reach, 0, 0);
+        setRot(model, 'torso', 0.1, sgn * (0.28 * wind - 0.42 * reach), 0);
+        model.bob = -0.4 * reach;
+      }
+    },
+    // nock, draw, loose
+    draw: {
+      hit: 0.78,
+      pose: function (model, k, side) {
+        const sgn = side === 'R' ? 1 : -1;
+        const pull = Math.min(1, k / 0.78);
+        const loose = k < 0.78 ? 0 : Math.min(1, (k - 0.78) / 0.22);
+        // bow arm out straight, string hand back past the cheek
+        setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -1.5, 0, -sgn * 0.12);
+        setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -0.12, 0, 0);
+        setRot(model, 'arm' + side, -1.1 - 0.25 * pull, 0, sgn * (0.5 + 0.35 * pull));
+        setRot(model, 'fore' + side, -0.7 - 1.5 * pull + 1.7 * loose, 0, 0);
+        setRot(model, 'torso', 0.02, sgn * (0.5 + 0.18 * pull - 0.3 * loose), 0);
+        setRot(model, 'head', 0, sgn * (-0.45 - 0.1 * pull), 0);
+      }
+    },
+    // crossbow: already spanned, so it is raise, sight, release
+    aim: {
+      hit: 0.62,
+      pose: function (model, k, side) {
+        const sgn = side === 'R' ? 1 : -1;
+        const up = Math.min(1, k / 0.62);
+        const kick = k < 0.62 ? 0 : Math.min(1, (k - 0.62) / 0.2) * (1 - Math.min(1, (k - 0.72) / 0.28));
+        setRot(model, 'arm' + side, -1.35 * up + 0.2 * kick, 0, sgn * 0.3);
+        setRot(model, 'fore' + side, -0.55 * up - 0.25 * kick, 0, 0);
+        setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -1.2 * up, 0, -sgn * 0.5);
+        setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -0.85 * up, 0, 0);
+        setRot(model, 'torso', 0.03, sgn * 0.42 * up, 0);
+        setRot(model, 'head', 0, sgn * -0.35 * up, 0);
+      }
+    },
+    // a big two-handed swing, for clubs and the like
+    swing: {
+      hit: 0.5,
+      pose: function (model, k, side) {
+        const sgn = side === 'R' ? 1 : -1;
+        const wind = Math.min(1, k / 0.5);
+        const cut = k < 0.5 ? 0 : Math.min(1, (k - 0.5) / 0.35);
+        setRot(model, 'arm' + side, -1.9 * wind + 2.5 * cut, 0, sgn * (0.7 - cut * 0.5));
+        setRot(model, 'fore' + side, -1.2 * wind + 1.0 * cut, 0, 0);
+        setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -0.3, 0, -sgn * 0.3);
+        setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -1.0, 0, 0);
+        setRot(model, 'torso', 0.05, sgn * (0.42 * wind - 0.8 * cut), 0);
+        model.bob = -0.3 * cut;
+      }
+    }
+  };
+
+  /* Where the blow lands, as a fraction through the animation. */
+  function attackHitFraction(anim) {
+    const a = ATTACKS[anim] || ATTACKS.slash;
+    return a.hit;
+  }
+
+  function poseAttack(model, anim, k, side, gait, t) {
+    clearPose(model);
+    // feet keep doing whatever the legs were doing; you can swing while walking
+    if (gait === 'walk' || gait === 'run') {
+      const swingScale = model.dims.legSwing;
+      const rate = gait === 'run' ? 12.4 : 7.6;
+      const pp = t * rate;
+      const amount = (gait === 'run' ? 1.05 : 0.66) * swingScale;
+      setRot(model, 'legR', -Math.sin(pp) * amount, 0, 0);
+      setRot(model, 'legL', Math.sin(pp) * amount, 0, 0);
+      setRot(model, 'shinR', Math.max(0, Math.sin(pp - 0.55)) * 0.92, 0, 0);
+      setRot(model, 'shinL', Math.max(0, Math.sin(pp - 0.55 + Math.PI)) * 0.92, 0, 0);
+    } else {
+      // braced: front foot forward, weight through it
+      setRot(model, 'leg' + side, -0.22, 0, 0);
+      setRot(model, 'leg' + (side === 'R' ? 'L' : 'R'), 0.26, 0, 0);
+      setRot(model, 'shin' + (side === 'R' ? 'L' : 'R'), 0.2, 0, 0);
+    }
+    const a = ATTACKS[anim] || ATTACKS.slash;
+    a.pose(model, Math.max(0, Math.min(1, k)), side);
+  }
+
+  /* Both hands up over the head, the thing every frightened person does. */
+  function poseGuard(model, k, side) {
+    clearPose(model);
+    const g = Math.max(0, Math.min(1, k));
+    setRot(model, 'armR', -1.55 * g, 0, 0.55 * g);
+    setRot(model, 'armL', -1.55 * g, 0, -0.55 * g);
+    setRot(model, 'foreR', -1.5 * g, 0, 0);
+    setRot(model, 'foreL', -1.5 * g, 0, 0);
+    setRot(model, 'torso', 0.16 * g, 0, 0);
+    setRot(model, 'head', 0.2 * g, 0, 0);
+    void side;
+  }
+
+  /* Clutching a wound. `zone` says where the hand goes, which is what makes
+   * it read as pain in a place rather than a generic hurt animation. */
+  function poseClutch(model, k, zone, side) {
+    clearPose(model);
+    const g = Math.max(0, Math.min(1, k));
+    const sgn = side === 'R' ? 1 : -1;
+    if (zone === 'head') {
+      setRot(model, 'arm' + side, -1.95 * g, 0, sgn * 0.35 * g);
+      setRot(model, 'fore' + side, -1.75 * g, 0, 0);
+      setRot(model, 'head', 0.3 * g, 0, 0);
+    } else if (zone === 'leg') {
+      setRot(model, 'arm' + side, -0.95 * g, 0, sgn * 0.5 * g);
+      setRot(model, 'fore' + side, -0.6 * g, 0, 0);
+      setRot(model, 'torso', 0.65 * g, 0, 0);
+      setRot(model, 'leg' + side, -0.3 * g, 0, 0);
+    } else {
+      // chest, gut or arm: hand across the body onto the wound
+      setRot(model, 'arm' + side, -1.05 * g, 0, sgn * 0.75 * g);
+      setRot(model, 'fore' + side, -1.85 * g, 0, 0);
+      setRot(model, 'torso', 0.34 * g, sgn * -0.2 * g, 0);
+      setRot(model, 'head', 0.22 * g, 0, 0);
+    }
+    setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -0.3 * g, 0, -sgn * 0.25 * g);
+    setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -0.8 * g, 0, 0);
+    model.bob = -0.55 * g;
+  }
+
+  /* A shield up, and a weapon held ready rather than hanging. */
+  function poseReady(model, side, shield) {
+    const sgn = side === 'R' ? 1 : -1;
+    setRot(model, 'arm' + side, -0.55, 0, sgn * 0.42);
+    setRot(model, 'fore' + side, -1.15, 0, 0);
+    if (shield) {
+      setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -1.0, 0, -sgn * 0.15);
+      setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -1.35, 0, 0);
+    }
+    setRot(model, 'torso', 0.05, sgn * 0.22, 0);
+  }
+
   /* In the saddle. The thighs come forward and open around the barrel, the
    * knees fold back under, and the hands stay out in front on the reins. The
    * rider rises with the gait rather than sitting rigid, because a figure
@@ -977,7 +1196,7 @@
     return m;
   }
 
-  function drawRagdoll(target, model, camera, fall, faceParts) {
+  function drawRagdoll(target, model, camera, fall, faceParts, extra) {
     const p = fall.p;
     const scale = model.root.scale || 1;
     const scaleM = R.scaling(scale);
@@ -1006,6 +1225,14 @@
         for (let k = 0; k < faceParts.length; k++) {
           const part = faceParts[k];
           R.drawMesh(target, m, part.mesh, R.ramp(part.colour), camera, part);
+        }
+      }
+      if (extra && extra[seg.bone]) {
+        const list = extra[seg.bone];
+        for (let k = 0; k < list.length; k++) {
+          const part = list[k];
+          const mm = part.at ? R.multiply(m, part.at) : m;
+          R.drawMesh(target, mm, part.mesh, R.ramp(part.colour), camera, part);
         }
       }
     }
@@ -1226,6 +1453,13 @@
       fall: createFall(),
       brain: null,
       buffer: null,
+      // combat and carrying, filled in by whoever creates the actor
+      body: global.Combat ? global.Combat.createBody() : null,
+      inv: global.Items ? global.Items.createInventory(undefined, true) : null,
+      leftHanded: false,
+      attack: null,
+      attackCooldown: 0,
+      stamina: 100,
       _key: ''
     };
   }
@@ -1310,10 +1544,28 @@
   function poseActor(actor, qTime) {
     const model = actor.model;
     if (actor.customPose) { applyPose(model, actor.customPose, actor.customBob || 0); return; }
+    const side = actor.leftHanded ? 'L' : 'R';
+    if (actor.attack) {
+      poseAttack(model, actor.attack.anim, actor.attack.t / actor.attack.duration,
+        side, actor.gait, qTime);
+      return;
+    }
+    if (actor.reaction) {
+      const r = actor.reaction;
+      if (r.kind === 'clutch') { poseClutch(model, r.k, r.zone, side); return; }
+      if (r.kind === 'guard' || r.kind === 'surrender') { poseGuard(model, r.k, side); return; }
+    }
     if (actor.gait === 'walk') poseWalk(model, qTime, false);
     else if (actor.gait === 'run') poseWalk(model, qTime, true);
     else if (actor.gesture) applyGesture(model, actor.gesture, qTime);
-    else poseIdle(model);
+    else {
+      poseIdle(model);
+      // someone holding a weapon holds it ready, not dangling
+      const I = global.Items;
+      if (I && actor.inv && actor.inv[I.HAND] && actor.alert) {
+        poseReady(model, actor.leftHanded ? 'L' : 'R', !!actor.inv[I.SHIELD]);
+      }
+    }
   }
 
   /* ---------- drawing ---------- */
@@ -1322,6 +1574,7 @@
     const yaw = (opts && opts.yaw) || 0;
     const faceParts = opts && opts.faceParts;
     const offset = opts && opts.offset;
+    const extra = opts && opts.extra;
     const scale = model.root.scale || 1;
 
     // Yaw, then scale, then the bob — and the bob is rounded to a whole screen
@@ -1352,6 +1605,17 @@
           R.drawMesh(target, m, p.mesh, R.ramp(p.colour), camera, p);
         }
       }
+      // A held weapon hangs off the forearm at the hand, and a wound is
+      // stitched to whichever bone took it — both follow the limb, which is
+      // the whole point of drawing them here instead of over the sprite.
+      if (extra && extra[node.name]) {
+        const list = extra[node.name];
+        for (let i = 0; i < list.length; i++) {
+          const p = list[i];
+          const mm = p.at ? R.multiply(m, p.at) : m;
+          R.drawMesh(target, mm, p.mesh, R.ramp(p.colour), camera, p);
+        }
+      }
       for (let i = 0; i < node.children.length; i++) walk(node.children[i], m);
     })(model.root, base);
   }
@@ -1362,6 +1626,62 @@
   // and the facing angle are quantised first; if neither moved since the last
   // frame the existing buffer is reused untouched, which is both cheaper and
   // exactly what keeps the pixels still.
+  /* What hangs off this actor's bones beyond their own body: the weapon in
+   * their hand, a shield on the other arm, and every wound they are carrying.
+   * Collected per frame so a swing, a bleed and a dropped sword all show up
+   * without anyone having to remember to rebuild the model. */
+  const _handM = {};
+  function handMatrix(model, side) {
+    const key = side + (model.dims.lowerArmH | 0);
+    if (!_handM[key]) {
+      _handM[key] = R.translation(0, -model.dims.lowerArmH - 0.9, 0);
+    }
+    return _handM[key];
+  }
+
+  function actorExtras(actor) {
+    const I = global.Items, C = global.Combat;
+    let out = null;
+    if (I && actor.inv) {
+      const mainSide = actor.leftHanded ? 'L' : 'R';
+      const offSide = actor.leftHanded ? 'R' : 'L';
+      const hand = actor.inv[I.HAND];
+      if (hand) {
+        const parts = I.iconParts(hand.id);
+        if (parts && parts.length) {
+          const at = handMatrix(actor.model, mainSide);
+          const list = (out = out || {})['fore' + mainSide] = [];
+          for (let i = 0; i < parts.length; i++) {
+            list.push({ mesh: parts[i].mesh, colour: parts[i].colour, at: at });
+          }
+        }
+      }
+      const sh = actor.inv[I.SHIELD];
+      if (sh) {
+        const parts = I.iconParts(sh.id);
+        if (parts && parts.length) {
+          const at = R.multiply(handMatrix(actor.model, offSide), R.rotationX(1.45));
+          const list = (out = out || {})['fore' + offSide] = [];
+          for (let i = 0; i < parts.length; i++) {
+            list.push({ mesh: parts[i].mesh, colour: parts[i].colour, at: at });
+          }
+        }
+      }
+    }
+    if (C && actor.body && actor.body.wounds.length) {
+      const byBone = C.woundParts(actor.model, actor.body.wounds);
+      if (byBone) {
+        out = out || {};
+        for (const bone in byBone) {
+          const dst = out[bone] || (out[bone] = []);
+          const src = byBone[bone];
+          for (let i = 0; i < src.length; i++) dst.push(src[i]);
+        }
+      }
+    }
+    return out;
+  }
+
   function renderActor(actor, target, camera, opts) {
     const qTime = quantiseTime(actor.animTime);
     const qYaw = quantiseYaw((opts && opts.yaw !== undefined) ? opts.yaw : actor.yaw);
@@ -1371,7 +1691,12 @@
     const key = f.active ? null : [
       qTime, qYaw, actor.gait, actor.blink > 0.5 ? 1 : actor.blink > 0 ? 2 : 0,
       actor.viseme, actor.customPose ? 'p' + actor.animTime : '',
-      actor.gesture ? actor.gesture.id + quantiseTime(actor.gesture.t) : ''
+      actor.gesture ? actor.gesture.id + quantiseTime(actor.gesture.t) : '',
+      actor.attack ? actor.attack.anim + Math.round(actor.attack.t * 40) : '',
+      actor.body ? actor.body.wounds.length + ':' + Math.round(actor.body.bleed * 4) : '',
+      actor.inv && actor.inv[8] ? actor.inv[8].id : '',
+      actor.inv && actor.inv[9] ? actor.inv[9].id : '',
+      actor.reaction ? actor.reaction.kind + Math.round((actor.reaction.k || 0) * 8) : ''
     ].join('|');
     if (key !== null && key === actor._key && !(opts && opts.force)) return target;
     actor._key = key === null ? '' : key;
@@ -1383,11 +1708,12 @@
       gaze: actor.gaze
     });
 
+    const extra = actorExtras(actor);
     if (f.active && f.p) {
-      drawRagdoll(target, actor.model, camera, f, face);
+      drawRagdoll(target, actor.model, camera, f, face, extra);
     } else {
       poseActor(actor, qTime);
-      drawModel(target, actor.model, camera, { yaw: qYaw, faceParts: face });
+      drawModel(target, actor.model, camera, { yaw: qYaw, faceParts: face, extra: extra });
     }
     R.traceOutline(target, (opts && opts.outline) || OUTLINE);
     return target;
@@ -1398,13 +1724,14 @@
     quantiseTime, quantiseYaw,
     clearPose, setRot, addRot, poseIdle, poseWalk, poseTalk,
     poseRide, poseMount, poseDrive,
+    ATTACKS, poseAttack, attackHitFraction, poseGuard, poseClutch, poseReady,
     emptyPose, clonePose, applyPose, lerpPose, samplePoseTrack,
     yawForDirection, snapToEight, directionName, shortestAngle,
     createActor, rebuildActorModel, updateActorMotion, updateBlink,
     createFall, knockDown, nudge, applyImpulse, updateFall, isDown,
     shove, stumble, applyShove,
     GESTURES, GESTURE_IDS, startGesture, applyGesture,
-    jointPositions, segmentMatrix, drawRagdoll,
+    jointPositions, segmentMatrix, drawRagdoll, actorExtras,
     poseActor, drawModel, renderActor, OUTLINE
   };
 })(window);

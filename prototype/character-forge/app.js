@@ -228,6 +228,19 @@
     nameRow.appendChild(rollName);
     g.appendChild(nameRow);
 
+    // Which hand holds the weapon. It swaps the model's hands, not the
+    // inventory: the slots stay where they are so the grid does not have to be
+    // relearned.
+    g.appendChild(makeSegmented('Weapon hand', [
+      { id: 'right', label: 'Right' },
+      { id: 'left', label: 'Left' }
+    ], function () { return state.character.leftHanded ? 'left' : 'right'; },
+    function (v) {
+      state.character.leftHanded = v === 'left';
+      if (state.world) state.world.player.leftHanded = state.character.leftHanded;
+      onCharacterChanged();
+    }));
+
     // sex
     g.appendChild(makeSegmented('Sex', [
       { id: 'male', label: 'Male' },
@@ -719,6 +732,7 @@
     d: 'right', arrowright: 'right'
   };
   const TALK_KEYS = ['e', 'enter', ' ', 'spacebar'];
+  const INVENTORY_KEYS = ['q', 'i', 'tab'];
   const DOUBLE_TAP_MS = 330;
   // Coming to a stop ends the sprint, but only after a real pause. A
   // double-tap releases the key for a moment on its way to the second press,
@@ -756,6 +770,19 @@
       }
       keys[k] = true;
 
+      if (INVENTORY_KEYS.indexOf(k) >= 0) {
+        e.preventDefault();
+        if (state.world) {
+          if (W.invVisible(state.world)) W.closeInventory(state.world);
+          else W.openInventory(state.world);
+        }
+        return;
+      }
+      if (k === 'escape' && state.world && W.invVisible(state.world)) {
+        e.preventDefault();
+        W.closeInventory(state.world);
+        return;
+      }
       if (TALK_KEYS.indexOf(k) >= 0) {
         e.preventDefault();
         if (state.world) W.tryTalk(state.world);
@@ -768,14 +795,41 @@
       state.sprinting = false;
     });
 
-    // Clicking only turns the page; talking is E, Enter or Space, up close.
-    canvas.addEventListener('click', function () {
-      if (state.world && state.world.box.open) D.advance(state.world.box);
+    /* The mouse is the weapon. Click swings whatever is in your hand — but
+     * not while the bag is open, because the same click is moving a stack
+     * around in there, and not while someone is mid-sentence. */
+    function viewPoint(e) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (e.clientX - rect.left) / rect.width * W.VIEW_W,
+        y: (e.clientY - rect.top) / rect.height * W.VIEW_H
+      };
+    }
+    canvas.addEventListener('mousemove', function (e) {
+      if (!state.world) return;
+      const v = viewPoint(e);
+      if (W.invVisible(state.world)) { W.invMove(state.world, v.x, v.y); return; }
+      // aim where the cursor is, which is what a bow needs
+      W.playerAim(state.world, Math.atan2(v.x - W.VIEW_W / 2, -(v.y - W.VIEW_H / 2)));
     });
+    canvas.addEventListener('mousedown', function (e) {
+      if (!state.world) return;
+      e.preventDefault();
+      const v = viewPoint(e);
+      if (W.invVisible(state.world)) { W.invClick(state.world, v.x, v.y); return; }
+      if (state.world.box.open) { D.advance(state.world.box); return; }
+      W.playerAim(state.world, Math.atan2(v.x - W.VIEW_W / 2, -(v.y - W.VIEW_H / 2)));
+      W.playerAttack(state.world);
+    });
+    canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
   }
 
   function readWorldInput(world) {
     let dx = 0, dy = 0;
+    if (W.invVisible(world)) {
+      world.input.dx = 0; world.input.dy = 0; world.input.sprint = false;
+      return;
+    }
     if (keys.a || keys.arrowleft) dx -= 1;
     if (keys.d || keys.arrowright) dx += 1;
     if (keys.w || keys.arrowup) dy -= 1;

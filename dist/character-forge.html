@@ -1690,7 +1690,8 @@
       garment: 'tunic',
       tunicColour: 'walnut',
       trouserColour: 'bark',
-      bootColour: 'brown'
+      bootColour: 'brown',
+      leftHanded: false
     };
   }
 
@@ -2407,6 +2408,225 @@
 
   // Speaking is carried entirely by the visemes; the body stays still for the
   // same reason idle does.
+  /* ================= attacking ================= *
+   *
+   * One pose function per swing shape, all driven by the same clock: `k` runs
+   * 0 to 1 across wind-up and follow-through, and the blow lands at `hit`.
+   * Keeping the landing fraction explicit means the animation and the damage
+   * agree about when contact happens, rather than the damage firing on a timer
+   * while the arm is still going back.
+   */
+
+  const ATTACKS = {
+    // a short straight punch
+    jab: {
+      hit: 0.45,
+      pose: function (model, k, side) {
+        const wind = Math.min(1, k / 0.45);
+        const punch = k < 0.45 ? 0 : Math.min(1, (k - 0.45) / 0.3);
+        const back = k < 0.45 ? 0 : Math.max(0, (k - 0.75) / 0.25);
+        const reach = punch - back;
+        setRot(model, 'arm' + side, -0.5 * wind - 1.05 * reach, 0, side === 'R' ? 0.2 : -0.2);
+        setRot(model, 'fore' + side, -1.6 + 1.45 * reach, 0, 0);
+        setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -0.35, 0, side === 'R' ? -0.3 : 0.3);
+        setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -1.5, 0, 0);
+        setRot(model, 'torso', 0.06, (side === 'R' ? -0.3 : 0.3) * (wind - reach * 1.6), 0);
+      }
+    },
+    // horizontal cut across the body
+    slash: {
+      hit: 0.52,
+      pose: function (model, k, side) {
+        const sgn = side === 'R' ? 1 : -1;
+        const wind = Math.min(1, k / 0.52);
+        const cut = k < 0.52 ? 0 : Math.min(1, (k - 0.52) / 0.34);
+        const sweep = -1.15 * wind + 2.5 * cut;
+        setRot(model, 'arm' + side, -0.55 - 0.5 * wind + 0.95 * cut, 0, sgn * (0.95 - sweep * 0.42));
+        setRot(model, 'fore' + side, -0.55 - 0.8 * wind + 0.7 * cut, 0, 0);
+        setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -0.3, 0, -sgn * 0.35);
+        setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -0.9, 0, 0);
+        setRot(model, 'torso', 0.08, sgn * (0.55 * wind - 1.05 * cut), 0);
+        setRot(model, 'head', 0, sgn * (-0.2 * wind + 0.4 * cut), 0);
+        model.bob = -0.25 * cut;
+      }
+    },
+    // raised overhead and brought straight down
+    overhead: {
+      hit: 0.58,
+      pose: function (model, k, side) {
+        const sgn = side === 'R' ? 1 : -1;
+        const wind = Math.min(1, k / 0.58);
+        const fall = k < 0.58 ? 0 : Math.min(1, (k - 0.58) / 0.3);
+        setRot(model, 'arm' + side, -2.5 * wind + 3.3 * fall, 0, sgn * 0.3);
+        setRot(model, 'fore' + side, -1.5 * wind + 1.4 * fall, 0, 0);
+        setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -2.1 * wind + 2.8 * fall, 0, -sgn * 0.28);
+        setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -1.3 * wind + 1.2 * fall, 0, 0);
+        setRot(model, 'torso', -0.22 * wind + 0.58 * fall, 0, 0);
+        setRot(model, 'head', 0.18 * wind - 0.3 * fall, 0, 0);
+        model.bob = 0.5 * wind - 0.9 * fall;
+      }
+    },
+    // short hard stab
+    stab: {
+      hit: 0.42,
+      pose: function (model, k, side) {
+        const sgn = side === 'R' ? 1 : -1;
+        const wind = Math.min(1, k / 0.42);
+        const drive = k < 0.42 ? 0 : Math.min(1, (k - 0.42) / 0.26);
+        const back = Math.max(0, (k - 0.72) / 0.28);
+        const reach = drive - back;
+        setRot(model, 'arm' + side, 0.5 * wind - 1.6 * reach, 0, sgn * (0.5 - reach * 0.4));
+        setRot(model, 'fore' + side, -2.0 * wind + 1.9 * reach, 0, 0);
+        setRot(model, 'torso', 0.05, sgn * (0.35 * wind - 0.55 * reach), 0);
+        setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -0.25, 0, -sgn * 0.3);
+        setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -1.1, 0, 0);
+      }
+    },
+    // two hands driving a shaft forward
+    thrust: {
+      hit: 0.46,
+      pose: function (model, k, side) {
+        const sgn = side === 'R' ? 1 : -1;
+        const wind = Math.min(1, k / 0.46);
+        const drive = k < 0.46 ? 0 : Math.min(1, (k - 0.46) / 0.3);
+        const back = Math.max(0, (k - 0.76) / 0.24);
+        const reach = drive - back;
+        setRot(model, 'armR', -0.35 + 0.45 * wind - 1.5 * reach, 0, 0.42 - reach * 0.3);
+        setRot(model, 'foreR', -1.75 + 1.55 * reach, 0, 0);
+        setRot(model, 'armL', -0.35 + 0.45 * wind - 1.5 * reach, 0, -0.42 + reach * 0.3);
+        setRot(model, 'foreL', -1.75 + 1.55 * reach, 0, 0);
+        setRot(model, 'torso', 0.1, sgn * (0.28 * wind - 0.42 * reach), 0);
+        model.bob = -0.4 * reach;
+      }
+    },
+    // nock, draw, loose
+    draw: {
+      hit: 0.78,
+      pose: function (model, k, side) {
+        const sgn = side === 'R' ? 1 : -1;
+        const pull = Math.min(1, k / 0.78);
+        const loose = k < 0.78 ? 0 : Math.min(1, (k - 0.78) / 0.22);
+        // bow arm out straight, string hand back past the cheek
+        setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -1.5, 0, -sgn * 0.12);
+        setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -0.12, 0, 0);
+        setRot(model, 'arm' + side, -1.1 - 0.25 * pull, 0, sgn * (0.5 + 0.35 * pull));
+        setRot(model, 'fore' + side, -0.7 - 1.5 * pull + 1.7 * loose, 0, 0);
+        setRot(model, 'torso', 0.02, sgn * (0.5 + 0.18 * pull - 0.3 * loose), 0);
+        setRot(model, 'head', 0, sgn * (-0.45 - 0.1 * pull), 0);
+      }
+    },
+    // crossbow: already spanned, so it is raise, sight, release
+    aim: {
+      hit: 0.62,
+      pose: function (model, k, side) {
+        const sgn = side === 'R' ? 1 : -1;
+        const up = Math.min(1, k / 0.62);
+        const kick = k < 0.62 ? 0 : Math.min(1, (k - 0.62) / 0.2) * (1 - Math.min(1, (k - 0.72) / 0.28));
+        setRot(model, 'arm' + side, -1.35 * up + 0.2 * kick, 0, sgn * 0.3);
+        setRot(model, 'fore' + side, -0.55 * up - 0.25 * kick, 0, 0);
+        setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -1.2 * up, 0, -sgn * 0.5);
+        setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -0.85 * up, 0, 0);
+        setRot(model, 'torso', 0.03, sgn * 0.42 * up, 0);
+        setRot(model, 'head', 0, sgn * -0.35 * up, 0);
+      }
+    },
+    // a big two-handed swing, for clubs and the like
+    swing: {
+      hit: 0.5,
+      pose: function (model, k, side) {
+        const sgn = side === 'R' ? 1 : -1;
+        const wind = Math.min(1, k / 0.5);
+        const cut = k < 0.5 ? 0 : Math.min(1, (k - 0.5) / 0.35);
+        setRot(model, 'arm' + side, -1.9 * wind + 2.5 * cut, 0, sgn * (0.7 - cut * 0.5));
+        setRot(model, 'fore' + side, -1.2 * wind + 1.0 * cut, 0, 0);
+        setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -0.3, 0, -sgn * 0.3);
+        setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -1.0, 0, 0);
+        setRot(model, 'torso', 0.05, sgn * (0.42 * wind - 0.8 * cut), 0);
+        model.bob = -0.3 * cut;
+      }
+    }
+  };
+
+  /* Where the blow lands, as a fraction through the animation. */
+  function attackHitFraction(anim) {
+    const a = ATTACKS[anim] || ATTACKS.slash;
+    return a.hit;
+  }
+
+  function poseAttack(model, anim, k, side, gait, t) {
+    clearPose(model);
+    // feet keep doing whatever the legs were doing; you can swing while walking
+    if (gait === 'walk' || gait === 'run') {
+      const swingScale = model.dims.legSwing;
+      const rate = gait === 'run' ? 12.4 : 7.6;
+      const pp = t * rate;
+      const amount = (gait === 'run' ? 1.05 : 0.66) * swingScale;
+      setRot(model, 'legR', -Math.sin(pp) * amount, 0, 0);
+      setRot(model, 'legL', Math.sin(pp) * amount, 0, 0);
+      setRot(model, 'shinR', Math.max(0, Math.sin(pp - 0.55)) * 0.92, 0, 0);
+      setRot(model, 'shinL', Math.max(0, Math.sin(pp - 0.55 + Math.PI)) * 0.92, 0, 0);
+    } else {
+      // braced: front foot forward, weight through it
+      setRot(model, 'leg' + side, -0.22, 0, 0);
+      setRot(model, 'leg' + (side === 'R' ? 'L' : 'R'), 0.26, 0, 0);
+      setRot(model, 'shin' + (side === 'R' ? 'L' : 'R'), 0.2, 0, 0);
+    }
+    const a = ATTACKS[anim] || ATTACKS.slash;
+    a.pose(model, Math.max(0, Math.min(1, k)), side);
+  }
+
+  /* Both hands up over the head, the thing every frightened person does. */
+  function poseGuard(model, k, side) {
+    clearPose(model);
+    const g = Math.max(0, Math.min(1, k));
+    setRot(model, 'armR', -1.55 * g, 0, 0.55 * g);
+    setRot(model, 'armL', -1.55 * g, 0, -0.55 * g);
+    setRot(model, 'foreR', -1.5 * g, 0, 0);
+    setRot(model, 'foreL', -1.5 * g, 0, 0);
+    setRot(model, 'torso', 0.16 * g, 0, 0);
+    setRot(model, 'head', 0.2 * g, 0, 0);
+    void side;
+  }
+
+  /* Clutching a wound. `zone` says where the hand goes, which is what makes
+   * it read as pain in a place rather than a generic hurt animation. */
+  function poseClutch(model, k, zone, side) {
+    clearPose(model);
+    const g = Math.max(0, Math.min(1, k));
+    const sgn = side === 'R' ? 1 : -1;
+    if (zone === 'head') {
+      setRot(model, 'arm' + side, -1.95 * g, 0, sgn * 0.35 * g);
+      setRot(model, 'fore' + side, -1.75 * g, 0, 0);
+      setRot(model, 'head', 0.3 * g, 0, 0);
+    } else if (zone === 'leg') {
+      setRot(model, 'arm' + side, -0.95 * g, 0, sgn * 0.5 * g);
+      setRot(model, 'fore' + side, -0.6 * g, 0, 0);
+      setRot(model, 'torso', 0.65 * g, 0, 0);
+      setRot(model, 'leg' + side, -0.3 * g, 0, 0);
+    } else {
+      // chest, gut or arm: hand across the body onto the wound
+      setRot(model, 'arm' + side, -1.05 * g, 0, sgn * 0.75 * g);
+      setRot(model, 'fore' + side, -1.85 * g, 0, 0);
+      setRot(model, 'torso', 0.34 * g, sgn * -0.2 * g, 0);
+      setRot(model, 'head', 0.22 * g, 0, 0);
+    }
+    setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -0.3 * g, 0, -sgn * 0.25 * g);
+    setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -0.8 * g, 0, 0);
+    model.bob = -0.55 * g;
+  }
+
+  /* A shield up, and a weapon held ready rather than hanging. */
+  function poseReady(model, side, shield) {
+    const sgn = side === 'R' ? 1 : -1;
+    setRot(model, 'arm' + side, -0.55, 0, sgn * 0.42);
+    setRot(model, 'fore' + side, -1.15, 0, 0);
+    if (shield) {
+      setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -1.0, 0, -sgn * 0.15);
+      setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -1.35, 0, 0);
+    }
+    setRot(model, 'torso', 0.05, sgn * 0.22, 0);
+  }
+
   /* In the saddle. The thighs come forward and open around the barrel, the
    * knees fold back under, and the hands stay out in front on the reins. The
    * rider rises with the gait rather than sitting rigid, because a figure
@@ -3276,7 +3496,7 @@
     return m;
   }
 
-  function drawRagdoll(target, model, camera, fall, faceParts) {
+  function drawRagdoll(target, model, camera, fall, faceParts, extra) {
     const p = fall.p;
     const scale = model.root.scale || 1;
     const scaleM = R.scaling(scale);
@@ -3305,6 +3525,14 @@
         for (let k = 0; k < faceParts.length; k++) {
           const part = faceParts[k];
           R.drawMesh(target, m, part.mesh, R.ramp(part.colour), camera, part);
+        }
+      }
+      if (extra && extra[seg.bone]) {
+        const list = extra[seg.bone];
+        for (let k = 0; k < list.length; k++) {
+          const part = list[k];
+          const mm = part.at ? R.multiply(m, part.at) : m;
+          R.drawMesh(target, mm, part.mesh, R.ramp(part.colour), camera, part);
         }
       }
     }
@@ -3525,6 +3753,13 @@
       fall: createFall(),
       brain: null,
       buffer: null,
+      // combat and carrying, filled in by whoever creates the actor
+      body: global.Combat ? global.Combat.createBody() : null,
+      inv: global.Items ? global.Items.createInventory(undefined, true) : null,
+      leftHanded: false,
+      attack: null,
+      attackCooldown: 0,
+      stamina: 100,
       _key: ''
     };
   }
@@ -3609,10 +3844,28 @@
   function poseActor(actor, qTime) {
     const model = actor.model;
     if (actor.customPose) { applyPose(model, actor.customPose, actor.customBob || 0); return; }
+    const side = actor.leftHanded ? 'L' : 'R';
+    if (actor.attack) {
+      poseAttack(model, actor.attack.anim, actor.attack.t / actor.attack.duration,
+        side, actor.gait, qTime);
+      return;
+    }
+    if (actor.reaction) {
+      const r = actor.reaction;
+      if (r.kind === 'clutch') { poseClutch(model, r.k, r.zone, side); return; }
+      if (r.kind === 'guard' || r.kind === 'surrender') { poseGuard(model, r.k, side); return; }
+    }
     if (actor.gait === 'walk') poseWalk(model, qTime, false);
     else if (actor.gait === 'run') poseWalk(model, qTime, true);
     else if (actor.gesture) applyGesture(model, actor.gesture, qTime);
-    else poseIdle(model);
+    else {
+      poseIdle(model);
+      // someone holding a weapon holds it ready, not dangling
+      const I = global.Items;
+      if (I && actor.inv && actor.inv[I.HAND] && actor.alert) {
+        poseReady(model, actor.leftHanded ? 'L' : 'R', !!actor.inv[I.SHIELD]);
+      }
+    }
   }
 
   /* ---------- drawing ---------- */
@@ -3621,6 +3874,7 @@
     const yaw = (opts && opts.yaw) || 0;
     const faceParts = opts && opts.faceParts;
     const offset = opts && opts.offset;
+    const extra = opts && opts.extra;
     const scale = model.root.scale || 1;
 
     // Yaw, then scale, then the bob — and the bob is rounded to a whole screen
@@ -3651,6 +3905,17 @@
           R.drawMesh(target, m, p.mesh, R.ramp(p.colour), camera, p);
         }
       }
+      // A held weapon hangs off the forearm at the hand, and a wound is
+      // stitched to whichever bone took it — both follow the limb, which is
+      // the whole point of drawing them here instead of over the sprite.
+      if (extra && extra[node.name]) {
+        const list = extra[node.name];
+        for (let i = 0; i < list.length; i++) {
+          const p = list[i];
+          const mm = p.at ? R.multiply(m, p.at) : m;
+          R.drawMesh(target, mm, p.mesh, R.ramp(p.colour), camera, p);
+        }
+      }
       for (let i = 0; i < node.children.length; i++) walk(node.children[i], m);
     })(model.root, base);
   }
@@ -3661,6 +3926,62 @@
   // and the facing angle are quantised first; if neither moved since the last
   // frame the existing buffer is reused untouched, which is both cheaper and
   // exactly what keeps the pixels still.
+  /* What hangs off this actor's bones beyond their own body: the weapon in
+   * their hand, a shield on the other arm, and every wound they are carrying.
+   * Collected per frame so a swing, a bleed and a dropped sword all show up
+   * without anyone having to remember to rebuild the model. */
+  const _handM = {};
+  function handMatrix(model, side) {
+    const key = side + (model.dims.lowerArmH | 0);
+    if (!_handM[key]) {
+      _handM[key] = R.translation(0, -model.dims.lowerArmH - 0.9, 0);
+    }
+    return _handM[key];
+  }
+
+  function actorExtras(actor) {
+    const I = global.Items, C = global.Combat;
+    let out = null;
+    if (I && actor.inv) {
+      const mainSide = actor.leftHanded ? 'L' : 'R';
+      const offSide = actor.leftHanded ? 'R' : 'L';
+      const hand = actor.inv[I.HAND];
+      if (hand) {
+        const parts = I.iconParts(hand.id);
+        if (parts && parts.length) {
+          const at = handMatrix(actor.model, mainSide);
+          const list = (out = out || {})['fore' + mainSide] = [];
+          for (let i = 0; i < parts.length; i++) {
+            list.push({ mesh: parts[i].mesh, colour: parts[i].colour, at: at });
+          }
+        }
+      }
+      const sh = actor.inv[I.SHIELD];
+      if (sh) {
+        const parts = I.iconParts(sh.id);
+        if (parts && parts.length) {
+          const at = R.multiply(handMatrix(actor.model, offSide), R.rotationX(1.45));
+          const list = (out = out || {})['fore' + offSide] = [];
+          for (let i = 0; i < parts.length; i++) {
+            list.push({ mesh: parts[i].mesh, colour: parts[i].colour, at: at });
+          }
+        }
+      }
+    }
+    if (C && actor.body && actor.body.wounds.length) {
+      const byBone = C.woundParts(actor.model, actor.body.wounds);
+      if (byBone) {
+        out = out || {};
+        for (const bone in byBone) {
+          const dst = out[bone] || (out[bone] = []);
+          const src = byBone[bone];
+          for (let i = 0; i < src.length; i++) dst.push(src[i]);
+        }
+      }
+    }
+    return out;
+  }
+
   function renderActor(actor, target, camera, opts) {
     const qTime = quantiseTime(actor.animTime);
     const qYaw = quantiseYaw((opts && opts.yaw !== undefined) ? opts.yaw : actor.yaw);
@@ -3670,7 +3991,12 @@
     const key = f.active ? null : [
       qTime, qYaw, actor.gait, actor.blink > 0.5 ? 1 : actor.blink > 0 ? 2 : 0,
       actor.viseme, actor.customPose ? 'p' + actor.animTime : '',
-      actor.gesture ? actor.gesture.id + quantiseTime(actor.gesture.t) : ''
+      actor.gesture ? actor.gesture.id + quantiseTime(actor.gesture.t) : '',
+      actor.attack ? actor.attack.anim + Math.round(actor.attack.t * 40) : '',
+      actor.body ? actor.body.wounds.length + ':' + Math.round(actor.body.bleed * 4) : '',
+      actor.inv && actor.inv[8] ? actor.inv[8].id : '',
+      actor.inv && actor.inv[9] ? actor.inv[9].id : '',
+      actor.reaction ? actor.reaction.kind + Math.round((actor.reaction.k || 0) * 8) : ''
     ].join('|');
     if (key !== null && key === actor._key && !(opts && opts.force)) return target;
     actor._key = key === null ? '' : key;
@@ -3682,11 +4008,12 @@
       gaze: actor.gaze
     });
 
+    const extra = actorExtras(actor);
     if (f.active && f.p) {
-      drawRagdoll(target, actor.model, camera, f, face);
+      drawRagdoll(target, actor.model, camera, f, face, extra);
     } else {
       poseActor(actor, qTime);
-      drawModel(target, actor.model, camera, { yaw: qYaw, faceParts: face });
+      drawModel(target, actor.model, camera, { yaw: qYaw, faceParts: face, extra: extra });
     }
     R.traceOutline(target, (opts && opts.outline) || OUTLINE);
     return target;
@@ -3697,13 +4024,14 @@
     quantiseTime, quantiseYaw,
     clearPose, setRot, addRot, poseIdle, poseWalk, poseTalk,
     poseRide, poseMount, poseDrive,
+    ATTACKS, poseAttack, attackHitFraction, poseGuard, poseClutch, poseReady,
     emptyPose, clonePose, applyPose, lerpPose, samplePoseTrack,
     yawForDirection, snapToEight, directionName, shortestAngle,
     createActor, rebuildActorModel, updateActorMotion, updateBlink,
     createFall, knockDown, nudge, applyImpulse, updateFall, isDown,
     shove, stumble, applyShove,
     GESTURES, GESTURE_IDS, startGesture, applyGesture,
-    jointPositions, segmentMatrix, drawRagdoll,
+    jointPositions, segmentMatrix, drawRagdoll, actorExtras,
     poseActor, drawModel, renderActor, OUTLINE
   };
 })(window);
@@ -5163,6 +5491,757 @@
   };
 })(window);
 
+/* ===== combat.js ===== */
+/* combat.js — weapons, wounds, blood and dying.
+ *
+ * Nothing here is deterministic. A mace that always killed in one hit would
+ * be a rule rather than a fight, so every blow is
+ *
+ *     damage = weapon power x hit quality x target vulnerability x variation
+ *
+ * and the same swing can drop one villager and leave another standing. What
+ * *is* deterministic is where the wound goes: the blow is resolved against a
+ * height on the body, the wound is stitched to the bone it landed on, and it
+ * bleeds from there until the bleeding stops — which is either because they
+ * were bandaged, or because there is nothing left to bleed.
+ */
+(function (global) {
+  'use strict';
+
+  const G = global.Geo;
+  const CM = global.CharacterModel;
+
+  /* ================= weapons ================= */
+
+  const BLOOD = '#6d1119';
+  const BLOOD_DARK = '#48070d';
+  const STEEL = '#b9bec6';
+  const STEEL_DARK = '#7d838c';
+  const HAFT = '#6b4a29';
+  const HAFT_DARK = '#4a3119';
+  const LEATHER = '#4b3320';
+  const BRASS = '#a8852f';
+
+  function part(mesh, colour) { return { mesh: mesh, colour: colour }; }
+
+  /* Every weapon is modelled in the hand's own space: the grip sits at the
+   * origin and the business end runs along -Y, which is the direction the
+   * forearm already points. That way one attachment point serves all of them
+   * and a weapon needs no bone of its own. */
+  const BUILD = {
+    fists: function () { return []; },
+
+    club: function () {
+      const p = [];
+      p.push(part(G.slab(-0.85, -1.2, -0.85, 1.7, 7.0, 1.7, 0.9, 1), HAFT));
+      p.push(part(G.taper(-1.6, -8.2, -1.6, 3.2, 7.0, 3.2, 1.35), HAFT_DARK));
+      p.push(part(G.slab(-0.95, -1.4, -0.95, 1.9, 1.4, 1.9, 0.8, 1), LEATHER));
+      return p;
+    },
+
+    dagger: function () {
+      const p = [];
+      p.push(part(G.slab(-0.7, -0.6, -0.7, 1.4, 3.2, 1.4, 0.85, 1), LEATHER));
+      p.push(part(G.box(-1.5, -1.0, -0.5, 3.0, 0.7, 1.0), BRASS));
+      p.push(part(G.taper(-0.85, -7.8, -0.35, 1.7, 6.9, 0.7, 0.28), STEEL));
+      p.push(part(G.superellipsoid(0, 2.9, 0, 0.75, 0.7, 0.75, 0.6, 3, 7), BRASS));
+      return p;
+    },
+
+    sword: function () {
+      const p = [];
+      p.push(part(G.slab(-0.72, -0.4, -0.72, 1.44, 3.6, 1.44, 0.85, 1), LEATHER));
+      // crossguard
+      p.push(part(G.box(-3.4, -1.2, -0.55, 6.8, 0.95, 1.1), STEEL_DARK));
+      // blade, with a fuller down the middle
+      p.push(part(G.taper(-1.15, -17.5, -0.42, 2.3, 16.4, 0.84, 0.42), STEEL));
+      p.push(part(G.box(-0.35, -16.0, -0.5, 0.7, 14.6, 1.0), STEEL_DARK));
+      p.push(part(G.superellipsoid(0, 3.3, 0, 0.9, 0.85, 0.9, 0.55, 3, 7), BRASS));
+      return p;
+    },
+
+    axe: function () {
+      const p = [];
+      p.push(part(G.slab(-0.8, -1.0, -0.8, 1.6, 11.5, 1.6, 0.9, 1), HAFT));
+      // head: a bearded blade hanging off one side of the haft
+      p.push(part(G.box(-0.9, -11.8, -1.1, 1.8, 3.6, 2.2), STEEL_DARK));
+      p.push(part(G.taper(-0.6, -12.6, -6.4, 1.2, 5.2, 6.6, 1.0, 0, 2.6), STEEL));
+      p.push(part(G.box(-0.7, -13.2, -6.9, 1.4, 4.4, 1.2), STEEL));
+      p.push(part(G.slab(-0.9, -1.2, -0.9, 1.8, 1.6, 1.8, 0.8, 1), LEATHER));
+      return p;
+    },
+
+    mace: function () {
+      const p = [];
+      p.push(part(G.slab(-0.82, -1.0, -0.82, 1.64, 9.0, 1.64, 0.9, 1), HAFT_DARK));
+      p.push(part(G.superellipsoid(0, -10.6, 0, 2.5, 2.7, 2.5, 0.55, 4, 8), STEEL_DARK));
+      // flanges
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * Math.PI * 2;
+        p.push(part(G.box(Math.cos(a) * 2.1 - 0.5, -12.2, Math.sin(a) * 2.1 - 0.5,
+          1.0, 3.2, 1.0), STEEL));
+      }
+      p.push(part(G.superellipsoid(0, -13.4, 0, 1.2, 0.9, 1.2, 0.5, 3, 7), STEEL));
+      return p;
+    },
+
+    spear: function () {
+      const p = [];
+      p.push(part(G.slab(-0.62, 6.0, -0.62, 1.24, 26.0, 1.24, 0.92, 1), HAFT));
+      p.push(part(G.taper(-1.0, -24.5, -0.4, 2.0, 5.2, 0.8, 0.12), STEEL));
+      p.push(part(G.box(-0.8, -19.6, -0.45, 1.6, 1.4, 0.9), STEEL_DARK));
+      p.push(part(G.slab(-0.72, -1.0, -0.72, 1.44, 2.2, 1.44, 0.8, 1), LEATHER));
+      return p;
+    },
+
+    greatsword: function () {
+      const p = [];
+      p.push(part(G.slab(-0.8, 0.4, -0.8, 1.6, 6.4, 1.6, 0.85, 1), LEATHER));
+      p.push(part(G.box(-4.6, -1.4, -0.65, 9.2, 1.1, 1.3), STEEL_DARK));
+      p.push(part(G.taper(-1.45, -25.0, -0.5, 2.9, 23.6, 1.0, 0.46), STEEL));
+      p.push(part(G.box(-0.45, -23.0, -0.6, 0.9, 21.0, 1.2), STEEL_DARK));
+      p.push(part(G.superellipsoid(0, 6.6, 0, 1.1, 1.1, 1.1, 0.5, 3, 8), BRASS));
+      return p;
+    },
+
+    poleaxe: function () {
+      const p = [];
+      p.push(part(G.slab(-0.72, 4.0, -0.72, 1.44, 30.0, 1.44, 0.92, 1), HAFT));
+      p.push(part(G.box(-0.85, -26.5, -1.0, 1.7, 4.2, 2.0), STEEL_DARK));
+      p.push(part(G.taper(-0.6, -27.4, -6.0, 1.2, 5.6, 6.2, 1.0, 0, 2.4), STEEL));
+      // hammer poll on the far side, and a spike on top
+      p.push(part(G.box(-0.9, -27.0, 1.0, 1.8, 3.4, 2.6), STEEL));
+      p.push(part(G.taper(-0.7, -31.5, -0.7, 1.4, 4.4, 1.4, 0.15), STEEL));
+      return p;
+    },
+
+    bow: function () {
+      const p = [];
+      // a stave curving away from the hand, strung down the inside
+      for (let i = -4; i <= 4; i++) {
+        if (i === 0) continue;
+        const t = i / 4;
+        const y = -t * 13.5;
+        const z = -(1 - t * t) * 2.8;
+        p.push(part(G.slab(-0.55, y - 1.9, z - 0.55, 1.1, 3.8, 1.1, 0.85, 1),
+          Math.abs(i) === 4 ? HAFT_DARK : HAFT));
+      }
+      p.push(part(G.slab(-0.72, -2.0, -0.9, 1.44, 4.0, 1.5, 0.8, 1), LEATHER));
+      for (let i = -4; i < 4; i++) {
+        const y0 = (i / 4) * -13.5, y1 = ((i + 1) / 4) * -13.5;
+        p.push(part(G.box(-0.2, Math.min(y0, y1), 0.35, 0.4, Math.abs(y1 - y0), 0.4),
+          '#ddd6c2'));
+      }
+      return p;
+    },
+
+    crossbow: function () {
+      const p = [];
+      p.push(part(G.box(-0.9, -12.5, -1.0, 1.8, 15.0, 2.0), HAFT));
+      p.push(part(G.box(-7.5, -11.0, -0.7, 15.0, 1.2, 1.4), HAFT_DARK));
+      p.push(part(G.box(-7.9, -11.4, -0.6, 1.2, 2.0, 1.2), STEEL_DARK));
+      p.push(part(G.box(6.7, -11.4, -0.6, 1.2, 2.0, 1.2), STEEL_DARK));
+      p.push(part(G.box(-6.9, -10.6, 0.1, 13.8, 0.4, 0.4), '#ddd6c2'));
+      p.push(part(G.box(-0.7, 2.0, -0.9, 1.4, 2.6, 1.8), LEATHER));
+      return p;
+    }
+  };
+
+  /* power        — the base of the damage roll
+   * reach        — how far in front the blow lands, in model units
+   * swing        — seconds from the start of the attack to the moment it lands
+   * recover      — seconds after that before you can swing again
+   * kind         — blunt staggers and knocks down; edged and pierce bleed
+   * bleed        — how much a wound from this weapon bleeds, per second
+   * arc          — how wide a cone it covers, in radians either side
+   * gore         — whether a hit leaves a slash across the body */
+  const WEAPONS = {
+    fists: { id: 'fists', label: 'Fists', kind: 'blunt', power: 7, reach: 12,
+      swing: 0.17, recover: 0.16, bleed: 0.0, arc: 0.6, stamina: 2, anim: 'jab',
+      gore: 0, knock: 0.35, twoHanded: false },
+    club: { id: 'club', label: 'Club', kind: 'blunt', power: 17, reach: 19,
+      swing: 0.24, recover: 0.30, bleed: 0.02, arc: 0.75, stamina: 5, anim: 'swing',
+      gore: 0, knock: 0.85, twoHanded: false },
+    dagger: { id: 'dagger', label: 'Dagger', kind: 'pierce', power: 23, reach: 14,
+      swing: 0.13, recover: 0.16, bleed: 0.85, arc: 0.5, stamina: 3, anim: 'stab',
+      gore: 0.4, knock: 0.15, twoHanded: false },
+    sword: { id: 'sword', label: 'Sword', kind: 'edged', power: 31, reach: 27,
+      swing: 0.21, recover: 0.28, bleed: 0.9, arc: 0.95, stamina: 6, anim: 'slash',
+      gore: 1, knock: 0.45, twoHanded: false },
+    axe: { id: 'axe', label: 'Axe', kind: 'edged', power: 39, reach: 24,
+      swing: 0.31, recover: 0.40, bleed: 1.25, arc: 0.7, stamina: 8, anim: 'overhead',
+      gore: 1, knock: 0.8, twoHanded: false },
+    mace: { id: 'mace', label: 'Mace', kind: 'blunt', power: 43, reach: 21,
+      swing: 0.33, recover: 0.44, bleed: 0.12, arc: 0.7, stamina: 9, anim: 'overhead',
+      gore: 0, knock: 1.25, twoHanded: false },
+    spear: { id: 'spear', label: 'Spear', kind: 'pierce', power: 34, reach: 40,
+      swing: 0.22, recover: 0.34, bleed: 0.95, arc: 0.4, stamina: 6, anim: 'thrust',
+      gore: 0.5, knock: 0.5, twoHanded: true },
+    greatsword: { id: 'greatsword', label: 'Greatsword', kind: 'edged', power: 49,
+      reach: 35, swing: 0.42, recover: 0.52, bleed: 1.5, arc: 1.25, stamina: 12,
+      anim: 'slash', gore: 1, knock: 1.1, twoHanded: true },
+    poleaxe: { id: 'poleaxe', label: 'Poleaxe', kind: 'edged', power: 52, reach: 42,
+      swing: 0.48, recover: 0.58, bleed: 1.4, arc: 0.9, stamina: 13, anim: 'overhead',
+      gore: 1, knock: 1.35, twoHanded: true },
+    bow: { id: 'bow', label: 'Bow', kind: 'pierce', power: 29, reach: 0,
+      swing: 0.52, recover: 0.45, bleed: 0.8, arc: 0, stamina: 5, anim: 'draw',
+      gore: 0.3, knock: 0.2, twoHanded: true, ranged: 340, range: 260 },
+    crossbow: { id: 'crossbow', label: 'Crossbow', kind: 'pierce', power: 45, reach: 0,
+      swing: 0.36, recover: 1.5, bleed: 1.0, arc: 0, stamina: 6, anim: 'aim',
+      gore: 0.4, knock: 0.35, twoHanded: true, ranged: 430, range: 300 }
+  };
+
+  const MELEE_IDS = ['club', 'dagger', 'sword', 'axe', 'mace', 'spear', 'greatsword', 'poleaxe'];
+  const ALL_IDS = MELEE_IDS.concat(['bow', 'crossbow']);
+
+  const _cache = {};
+  function weaponParts(id) {
+    if (!BUILD[id]) return [];
+    if (!_cache[id]) _cache[id] = BUILD[id]();
+    return _cache[id];
+  }
+
+  function weapon(id) { return WEAPONS[id] || WEAPONS.fists; }
+
+  /* ================= the damage roll ================= */
+
+  const MAX_HP = 100;
+
+  /* Where on the body a blow landed, as a fraction of standing height, and
+   * how badly that place takes it. Deciding this before the damage is what
+   * lets the wound be stitched to the right bone afterwards. */
+  const ZONES = [
+    { id: 'head', bone: 'head', from: 0.82, to: 1.0, quality: 1.85, lethal: 2.2 },
+    { id: 'chest', bone: 'torso', from: 0.58, to: 0.82, quality: 1.25, lethal: 1.5 },
+    { id: 'gut', bone: 'torso', from: 0.44, to: 0.58, quality: 1.1, lethal: 1.25 },
+    { id: 'arm', bone: 'armR', from: 0.60, to: 0.78, quality: 0.65, lethal: 0.5 },
+    { id: 'leg', bone: 'legR', from: 0.0, to: 0.44, quality: 0.7, lethal: 0.45 }
+  ];
+
+  function zoneFor(id) {
+    for (let i = 0; i < ZONES.length; i++) if (ZONES[i].id === id) return ZONES[i];
+    return ZONES[1];
+  }
+
+  /* Rolls where a blow lands. Most blows go to the body; a careful attacker
+   * (standing still, close, facing them) lands higher and better. */
+  function rollZone(rng, aim) {
+    const r = rng();
+    const good = aim === undefined ? 0.5 : aim;
+    if (r < 0.06 + good * 0.14) return zoneFor('head');
+    if (r < 0.52 + good * 0.12) return zoneFor('chest');
+    if (r < 0.70) return zoneFor('gut');
+    if (r < 0.86) return zoneFor('arm');
+    return zoneFor('leg');
+  }
+
+  /* damage = power x hit quality x vulnerability x variation.
+   *
+   * Hit quality folds in where it landed and how well it was thrown. Being
+   * already hurt makes the next blow worse, which is what produces fights
+   * that turn rather than fights that grind. */
+  function rollDamage(w, target, opts) {
+    const o = opts || {};
+    const rng = o.rng || Math.random;
+    const zone = o.zone || rollZone(rng, o.aim);
+    // the health lives on the body, not on the actor that owns it
+    const body = target.body || target;
+    const hp = typeof body.hp === 'number' ? body.hp : MAX_HP;
+    const hurt = 1 - Math.max(0, Math.min(1, hp / MAX_HP));
+    const vulnerable = 1 + hurt * 0.75 + (o.defenceless ? 0.4 : 0)
+      + (body.blocking ? -0.55 : 0);
+    const variation = 0.72 + rng() * 0.62;
+    const quality = zone.quality * (0.75 + (o.aim === undefined ? 0.5 : o.aim) * 0.5)
+      * (o.charge || 1);
+    const amount = w.power * quality * Math.max(0.15, vulnerable) * variation;
+    return {
+      amount: amount,
+      zone: zone,
+      // bleeding scales with how deep it went, not just how hard
+      bleed: w.bleed * (0.6 + variation * 0.7) * zone.lethal * 0.7,
+      knock: w.knock * variation * (zone.id === 'leg' ? 1.3 : 1),
+      kind: w.kind,
+      gore: w.gore
+    };
+  }
+
+  /* ================= wounds ================= */
+
+  /* A wound is a mark stitched to a bone, at a spot on that bone. It is drawn
+   * with the body, so it turns with them, swings with the limb it is on, and
+   * stays where the blow landed rather than floating at chest height. */
+  function makeWound(model, zone, dirLocal, kind, gore, rng) {
+    const d = model.dims;
+    const bone = model.bones[zone.bone] ? zone.bone : 'torso';
+    // a spot on the front-ish surface of that bone, offset by where the blow
+    // came from, so a hit from the left lands on the left
+    const spreadX = (zone.id === 'head' ? d.headW : d.torsoW) * 0.34;
+    const x = (dirLocal[0] * 0.55 + (rng() - 0.5) * 0.5) * spreadX;
+    const z = (dirLocal[1] * 0.5 + (rng() - 0.5) * 0.4)
+      * (zone.id === 'head' ? d.headD : d.torsoD) * 0.52;
+    let y;
+    if (zone.bone === 'head') y = 1.5 + rng() * 4.5;
+    else if (zone.bone === 'torso') y = zone.id === 'gut' ? 1.0 + rng() * 3.0 : 4.5 + rng() * 5.5;
+    else if (zone.bone === 'armR') y = -1.0 - rng() * 3.5;
+    else y = -1.5 - rng() * 4.0;
+
+    const slash = kind === 'edged' && gore >= 1;
+    return {
+      bone: bone,
+      x: x, y: y, z: z,
+      // a slash is a long cut across the body; a stab or a bruise is a patch
+      w: slash ? 5.5 + rng() * 4.5 : 1.6 + rng() * 1.6,
+      h: slash ? 0.9 + rng() * 0.5 : 1.5 + rng() * 1.3,
+      angle: slash ? (rng() - 0.5) * 1.4 : 0,
+      kind: kind,
+      age: 0,
+      // how far the blood has run down from it
+      run: 0,
+      maxRun: slash ? 5 + rng() * 6 : 2 + rng() * 4
+    };
+  }
+
+  /* Rebuilt every frame the actor is drawn, like the face is. Cheap, and it
+   * means a wound that is still spreading looks like it is still spreading. */
+  function woundParts(model, wounds) {
+    if (!wounds || !wounds.length) return null;
+    const byBone = {};
+    for (let i = 0; i < wounds.length; i++) {
+      const wd = wounds[i];
+      const list = byBone[wd.bone] || (byBone[wd.bone] = []);
+      const deep = wd.kind !== 'blunt';
+      const col = deep ? BLOOD : BLOOD_DARK;
+      const ca = Math.cos(wd.angle), sa = Math.sin(wd.angle);
+      const half = wd.w / 2;
+      const steps = wd.w > 3 ? 5 : 1;
+      for (let k = 0; k < steps; k++) {
+        const t = steps === 1 ? 0 : (k / (steps - 1) - 0.5) * 2;
+        const ox = ca * half * t, oy = sa * half * t;
+        list.push(part(G.box(wd.x + ox - wd.h * 0.5, wd.y + oy - wd.h * 0.5,
+          wd.z - 0.2, wd.h, wd.h, 0.45), col));
+      }
+      // the run of blood below it, growing as they bleed
+      if (wd.run > 0.3) {
+        list.push(part(G.box(wd.x - 0.45, wd.y - wd.run, wd.z - 0.16,
+          0.9, wd.run, 0.38), BLOOD_DARK));
+      }
+    }
+    return byBone;
+  }
+
+  /* ================= bleeding out ================= */
+
+  function createBody() {
+    return {
+      hp: MAX_HP,
+      bleed: 0,            // hp per second
+      wounds: [],
+      dead: false,
+      dying: false,
+      deathTimer: 0,
+      lastHitBy: null,
+      lastHitAt: 0,
+      pain: 0,
+      blocking: false
+    };
+  }
+
+  /* Applies a rolled blow. Returns what happened, so the caller can decide
+   * how the victim reacts and whether anyone saw it. */
+  function applyDamage(target, roll, dirLocal, rng) {
+    const body = target.body;
+    if (!body || body.dead) return null;
+    body.hp = Math.max(0, body.hp - roll.amount);
+    body.bleed += roll.bleed;
+    body.pain = Math.min(1, body.pain + roll.amount / 55);
+    if (roll.bleed > 0.05 || roll.amount > 12) {
+      if (body.wounds.length < 9) {
+        body.wounds.push(makeWound(target.model, roll.zone, dirLocal,
+          roll.kind, roll.gore, rng || Math.random));
+      }
+    }
+    const severity = body.hp <= 0 ? 'fatal'
+      : roll.amount > 34 || body.hp < 28 ? 'serious'
+        : roll.amount > 14 ? 'wounded' : 'minor';
+    if (body.hp <= 0 && !body.dying) {
+      body.dying = true;
+      body.deathTimer = 0.35 + (rng ? rng() : Math.random()) * 1.4;
+    }
+    return { severity: severity, amount: roll.amount, zone: roll.zone.id, roll: roll };
+  }
+
+  /* Bleeding is the other way to die. A blow that does not drop someone can
+   * still finish them a minute later, which is why a dagger is dangerous. */
+  function updateBody(actor, dt) {
+    const body = actor.body;
+    if (!body || body.dead) return null;
+    body.pain = Math.max(0, body.pain - dt * 0.55);
+
+    if (body.bleed > 0) {
+      body.hp = Math.max(0, body.hp - body.bleed * dt);
+      // it slows as it clots, unless the wound is wide open
+      body.bleed = Math.max(0, body.bleed - dt * 0.055);
+      for (let i = 0; i < body.wounds.length; i++) {
+        const wd = body.wounds[i];
+        wd.age += dt;
+        if (wd.run < wd.maxRun) wd.run = Math.min(wd.maxRun, wd.run + dt * 1.4);
+      }
+      if (body.hp <= 0 && !body.dying) {
+        body.dying = true;
+        body.deathTimer = 0.6 + Math.random() * 1.2;
+      }
+    }
+
+    if (body.dying && !body.dead) {
+      body.deathTimer -= dt;
+      if (body.deathTimer <= 0) {
+        body.dead = true;
+        // once the heart stops the bleeding stops with it
+        body.bleed = 0;
+        return 'died';
+      }
+    }
+    return null;
+  }
+
+  function severityOf(body) {
+    if (body.dead) return 'dead';
+    if (body.dying) return 'dying';
+    if (body.hp < 34 || body.bleed > 0.55) return 'serious';
+    if (body.hp < 68) return 'wounded';
+    return 'fine';
+  }
+
+  global.Combat = {
+    WEAPONS, MELEE_IDS, ALL_IDS, ZONES, MAX_HP, BLOOD, BLOOD_DARK,
+    weapon, weaponParts, rollZone, rollDamage, zoneFor,
+    createBody, applyDamage, updateBody, makeWound, woundParts, severityOf
+  };
+  void CM;
+})(window);
+
+/* ===== items.js ===== */
+/* items.js — what people carry, where it goes, and how it gets there.
+ *
+ * An inventory here is eight general slots in a four-by-two block, plus a main
+ * hand and a shield hand. The two hands are kept out of the block deliberately:
+ * they are the only slots that change what a character can *do*, and a
+ * left-handed character swaps which hand is which without the icons moving,
+ * because moving them would mean relearning the grid for no reason.
+ */
+(function (global) {
+  'use strict';
+
+  const G = global.Geo;
+  const C = global.Combat;
+
+  const GRID_COLS = 4;
+  const GRID_ROWS = 2;
+  const GRID_SLOTS = GRID_COLS * GRID_ROWS;   // 8
+  const TOTAL_SLOTS = GRID_SLOTS + 2;          // + main hand + shield
+  const HAND = GRID_SLOTS;                     // index of the weapon hand
+  const SHIELD = GRID_SLOTS + 1;
+  const CHEST_SLOTS = 15;
+
+  /* ---------- the things themselves ---------- */
+
+  const DEFS = {};
+
+  function define(id, label, opts) {
+    DEFS[id] = Object.assign({ id: id, label: label, stack: 1, kind: 'thing' }, opts || {});
+    return DEFS[id];
+  }
+
+  // weapons come straight out of the combat table, so there is one definition
+  // of what a sword is rather than two that can drift apart
+  for (let i = 0; i < C.ALL_IDS.length; i++) {
+    const id = C.ALL_IDS[i];
+    const w = C.WEAPONS[id];
+    define(id, w.label, { kind: 'weapon', weapon: id, hand: true, twoHanded: w.twoHanded });
+  }
+
+  define('shield', 'Shield', { kind: 'shield', shield: true });
+  define('buckler', 'Buckler', { kind: 'shield', shield: true, small: true });
+  define('plank', 'Plank', { kind: 'material', stack: 12 });
+  define('wheel', 'Cart wheel', { kind: 'material', stack: 4 });
+  define('leather', 'Leather', { kind: 'material', stack: 8 });
+  define('feather', 'Feathers', { kind: 'material', stack: 16 });
+  define('arrow', 'Arrows', { kind: 'ammo', stack: 30 });
+  define('bolt', 'Bolts', { kind: 'ammo', stack: 20 });
+  define('coin', 'Coins', { kind: 'valuable', stack: 250 });
+  define('bandage', 'Bandage', { kind: 'aid', stack: 5 });
+
+  function def(id) { return DEFS[id] || null; }
+
+  /* ---------- icons ----------
+   *
+   * Drawn as tiny 3D models rather than sprites, so an item in a slot is
+   * visibly the same object that was lying on the grass a moment ago. */
+
+  const STEEL = '#b9bec6', STEEL_DARK = '#7d838c';
+  const WOOD = '#7d5c36', WOOD_DARK = '#5e441f';
+  const HIDE = '#6b4526', BONE = '#e0d9c6', GOLD = '#c8a23c';
+
+  function p(mesh, colour) { return { mesh: mesh, colour: colour }; }
+
+  const ICONS = {
+    shield: function () {
+      return [
+        p(G.taper(-4.6, -5.5, -0.9, 9.2, 10.5, 1.8, 0.55), WOOD),
+        p(G.taper(-3.8, -4.6, -1.3, 7.6, 8.8, 1.0, 0.6), '#8d3a2e'),
+        p(G.superellipsoid(0, 0.6, -1.5, 1.5, 1.5, 0.9, 0.5, 3, 8), STEEL)
+      ];
+    },
+    buckler: function () {
+      return [
+        p(G.superellipsoid(0, 0, 0, 3.6, 3.6, 0.9, 0.5, 4, 10), WOOD_DARK),
+        p(G.superellipsoid(0, 0, -0.9, 1.5, 1.5, 0.9, 0.5, 3, 8), STEEL)
+      ];
+    },
+    plank: function () { return [p(G.box(-5, -0.6, -1.3, 10, 1.2, 2.6), WOOD)]; },
+    wheel: function () {
+      return global.Vehicle
+        ? global.Vehicle.wheelParts(0, 0, 0, 4.4, 0.9, WOOD_DARK, STEEL_DARK)
+        : [p(G.box(-4, -4, -0.8, 8, 8, 1.6), WOOD_DARK)];
+    },
+    leather: function () {
+      return [p(G.box(-3.4, -0.5, -2.6, 6.8, 1.0, 5.2), HIDE),
+        p(G.box(-3.0, 0.5, -2.2, 6.0, 0.5, 4.4), '#8a5c33')];
+    },
+    feather: function () {
+      const out = [];
+      for (let i = 0; i < 3; i++) {
+        out.push(p(G.taper(-0.6 + i * 1.3, -2.6, -0.5, 1.2, 5.4, 1.0, 0.25), BONE));
+      }
+      return out;
+    },
+    arrow: function () {
+      return [p(G.box(-0.35, -5.5, -0.35, 0.7, 11, 0.7), WOOD),
+        p(G.taper(-0.6, 5.0, -0.6, 1.2, 2.0, 1.2, 0.1), STEEL),
+        p(G.box(-0.25, -5.6, -1.0, 0.5, 2.4, 2.0), BONE)];
+    },
+    bolt: function () {
+      return [p(G.box(-0.4, -3.2, -0.4, 0.8, 6.4, 0.8), WOOD_DARK),
+        p(G.taper(-0.7, 2.8, -0.7, 1.4, 1.8, 1.4, 0.1), STEEL)];
+    },
+    coin: function () {
+      const out = [];
+      for (let i = 0; i < 3; i++) {
+        out.push(p(G.superellipsoid((i - 1) * 1.4, -1.2 + i * 0.5, 0,
+          1.7, 1.7, 0.35, 0.5, 3, 9), GOLD));
+      }
+      return out;
+    },
+    bandage: function () {
+      return [p(G.slab(-2.2, -1.4, -1.4, 4.4, 2.8, 2.8, 0.8, 1), '#ddd6c2'),
+        p(G.box(-2.4, -0.4, -1.5, 4.8, 0.8, 3.0), '#c4bda8')];
+    }
+  };
+
+  const _icons = {};
+  function iconParts(id) {
+    if (_icons[id]) return _icons[id];
+    let parts;
+    if (DEFS[id] && DEFS[id].kind === 'weapon') parts = C.weaponParts(DEFS[id].weapon);
+    else if (ICONS[id]) parts = ICONS[id]();
+    else parts = [p(G.box(-2, -2, -2, 4, 4, 4), '#8a7f6d')];
+    _icons[id] = parts;
+    return parts;
+  }
+
+  /* How big each item draws in a slot and how it is turned, so a greatsword
+   * and a coin both read at the same icon size. */
+  const ICON_VIEW = {
+    fists: { scale: 1, yaw: 0, pitch: 0 },
+    sword: { scale: 0.60, yaw: 0.5, pitch: -0.9 },
+    greatsword: { scale: 0.42, yaw: 0.5, pitch: -0.9 },
+    poleaxe: { scale: 0.32, yaw: 0.5, pitch: -0.9 },
+    spear: { scale: 0.33, yaw: 0.5, pitch: -0.9 },
+    axe: { scale: 0.68, yaw: 0.7, pitch: -0.8 },
+    mace: { scale: 0.72, yaw: 0.4, pitch: -0.85 },
+    club: { scale: 0.85, yaw: 0.4, pitch: -0.85 },
+    dagger: { scale: 1.05, yaw: 0.5, pitch: -0.85 },
+    bow: { scale: 0.72, yaw: 0.9, pitch: -0.2 },
+    crossbow: { scale: 0.62, yaw: 0.3, pitch: -0.7 },
+    shield: { scale: 0.9, yaw: 0.4, pitch: 0.1 },
+    buckler: { scale: 1.1, yaw: 0.4, pitch: 0.1 },
+    wheel: { scale: 0.95, yaw: 1.1, pitch: 0.1 },
+    plank: { scale: 0.85, yaw: 0.6, pitch: 0.5 },
+    default: { scale: 1, yaw: 0.6, pitch: 0.35 }
+  };
+  function iconView(id) { return ICON_VIEW[id] || ICON_VIEW.default; }
+
+  /* ---------- stacks and inventories ---------- */
+
+  function stack(id, count) {
+    const d = def(id);
+    return d ? { id: id, count: Math.max(1, count || 1) } : null;
+  }
+
+  /* `hands` marks an inventory as belonging to a person, whose last two slots
+   * are the weapon and shield hands. A container has none: every slot in a
+   * chest is a general slot, however many there are. */
+  function createInventory(slots, hands) {
+    const n = slots === undefined ? TOTAL_SLOTS : slots;
+    const a = new Array(n);
+    for (let i = 0; i < n; i++) a[i] = null;
+    Object.defineProperty(a, 'hands', {
+      value: hands === undefined ? n >= TOTAL_SLOTS && slots === undefined : !!hands,
+      enumerable: false, writable: true
+    });
+    return a;
+  }
+
+  function capacityOf(inv) { return inv.length; }
+
+  /* Only the eight general slots take loose goods; the hands are for what you
+   * are holding. Picking things up must never silently disarm you. */
+  function generalRange(inv) {
+    return inv.hands ? GRID_SLOTS : inv.length;
+  }
+
+  function add(inv, id, count) {
+    const d = def(id);
+    if (!d) return count || 1;
+    let left = count === undefined ? 1 : count;
+    const limit = generalRange(inv);
+    // top up part-filled stacks before opening a new slot
+    for (let i = 0; i < limit && left > 0; i++) {
+      const s = inv[i];
+      if (!s || s.id !== id || s.count >= d.stack) continue;
+      const room = d.stack - s.count;
+      const take = Math.min(room, left);
+      s.count += take;
+      left -= take;
+    }
+    for (let i = 0; i < limit && left > 0; i++) {
+      if (inv[i]) continue;
+      const take = Math.min(d.stack, left);
+      inv[i] = { id: id, count: take };
+      left -= take;
+    }
+    return left;   // what would not fit
+  }
+
+  function roomFor(inv, id, count) {
+    const d = def(id);
+    if (!d) return 0;
+    let room = 0;
+    const limit = generalRange(inv);
+    for (let i = 0; i < limit; i++) {
+      const s = inv[i];
+      if (!s) room += d.stack;
+      else if (s.id === id) room += Math.max(0, d.stack - s.count);
+    }
+    return Math.min(room, count === undefined ? 1 : count);
+  }
+
+  function countOf(inv, id) {
+    let n = 0;
+    for (let i = 0; i < inv.length; i++) if (inv[i] && inv[i].id === id) n += inv[i].count;
+    return n;
+  }
+
+  function take(inv, id, count) {
+    let left = count === undefined ? 1 : count;
+    for (let i = 0; i < inv.length && left > 0; i++) {
+      const s = inv[i];
+      if (!s || s.id !== id) continue;
+      const got = Math.min(s.count, left);
+      s.count -= got;
+      left -= got;
+      if (s.count <= 0) inv[i] = null;
+    }
+    return (count === undefined ? 1 : count) - left;
+  }
+
+  /* Moving a stack between two slots, which may be in different inventories.
+   * Same item merges up to its stack size; anything else swaps. */
+  function move(fromInv, fromIdx, toInv, toIdx) {
+    const src = fromInv[fromIdx];
+    if (!src) return false;
+    const dst = toInv[toIdx];
+    const handSlot = !!toInv.hands && (toIdx === HAND || toIdx === SHIELD);
+    if (handSlot) {
+      const d = def(src.id);
+      if (toIdx === HAND && !(d && d.hand)) return false;
+      if (toIdx === SHIELD && !(d && d.shield)) return false;
+    }
+    if (dst && dst.id === src.id) {
+      const d = def(src.id);
+      const room = d.stack - dst.count;
+      if (room > 0) {
+        const take2 = Math.min(room, src.count);
+        dst.count += take2;
+        src.count -= take2;
+        if (src.count <= 0) fromInv[fromIdx] = null;
+        return true;
+      }
+    }
+    fromInv[fromIdx] = dst || null;
+    toInv[toIdx] = src;
+    return true;
+  }
+
+  function held(inv) {
+    const s = inv[HAND];
+    return s ? def(s.id) : null;
+  }
+
+  function heldWeapon(inv) {
+    const d = held(inv);
+    return d && d.weapon ? C.weapon(d.weapon) : C.weapon('fists');
+  }
+
+  function shieldOf(inv) {
+    const s = inv[SHIELD];
+    return s ? def(s.id) : null;
+  }
+
+  /* Everything a body is carrying, flattened — used when someone is robbed or
+   * dies and the lot goes on the floor. */
+  function contents(inv) {
+    const out = [];
+    for (let i = 0; i < inv.length; i++) {
+      if (inv[i]) out.push({ id: inv[i].id, count: inv[i].count, slot: i });
+    }
+    return out;
+  }
+
+  function clearAll(inv) {
+    for (let i = 0; i < inv.length; i++) inv[i] = null;
+  }
+
+  /* Picks some of what someone is carrying, for a hit that shakes things
+   * loose. Never the weapon in their hand unless it is a killing blow. */
+  function shakeLoose(inv, rng, howMany, includeHands) {
+    const out = [];
+    const limit = includeHands ? inv.length : generalRange(inv);
+    const order = [];
+    for (let i = 0; i < limit; i++) if (inv[i]) order.push(i);
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      const t = order[i]; order[i] = order[j]; order[j] = t;
+    }
+    for (let k = 0; k < order.length && out.length < howMany; k++) {
+      const i = order[k];
+      const s = inv[i];
+      const n = s.count > 1 ? 1 + Math.floor(rng() * Math.min(s.count, 3)) : 1;
+      out.push({ id: s.id, count: n });
+      s.count -= n;
+      if (s.count <= 0) inv[i] = null;
+    }
+    return out;
+  }
+
+  global.Items = {
+    GRID_COLS, GRID_ROWS, GRID_SLOTS, TOTAL_SLOTS, HAND, SHIELD, CHEST_SLOTS,
+    DEFS, def, iconParts, iconView, stack, createInventory, capacityOf,
+    add, roomFor, countOf, take, move, held, heldWeapon, shieldOf,
+    contents, clearAll, shakeLoose, generalRange
+  };
+})(window);
+
 /* ===== dialogue.js ===== */
 /* dialogue.js — the paged text box.
  *
@@ -5379,6 +6458,8 @@
   const D = global.Dialogue;
   const HM = global.HorseModel;
   const V = global.Vehicle;
+  const CB = global.Combat;
+  const I = global.Items;
 
   // The field of view in world units, and how many art pixels each unit gets.
   // Raising PIXEL makes the pixels smaller and more numerous — finer pixel
@@ -5388,7 +6469,9 @@
   const RENDER_W = VIEW_W * PIXEL, RENDER_H = VIEW_H * PIXEL;
   // Large enough that the camera can stay locked to the player without ever
   // running off the edge of the generated ground.
-  const WORLD_W = 1200, WORLD_H = 800;
+  // Room to run. A chase that ends at the edge of the map after four seconds
+  // is not a chase, so the field is far larger than the village needs.
+  const WORLD_W = 2600, WORLD_H = 1800;
   const GROUND_W = WORLD_W * PIXEL, GROUND_H = WORLD_H * PIXEL;
 
   // The same camera pitch as the forge preview at a fraction of its scale, so
@@ -5456,15 +6539,22 @@
     const buf = new Uint8Array(GROUND_W * GROUND_H);
     const inv = 1 / PIXEL;
 
-    for (let py = 0; py < GROUND_H; py++) {
-      const y = py * inv;
-      const row = py * GROUND_W;
-      for (let px = 0; px < GROUND_W; px++) {
-        const x = px * inv;
-        const n = Math.sin(x * 0.09) * Math.cos(y * 0.11) + Math.sin((x + y) * 0.05) * 0.6;
-        let idx = n > 0.8 ? 3 : n > 0.15 ? 1 : n > -0.5 ? 0 : 2;
-        if (rng() < 0.05) idx = 4;
-        buf[row + px] = idx;
+    /* The field noise varies over world units, not over art pixels, so it is
+     * evaluated once per world unit and filled into the PIXEL x PIXEL block —
+     * nine times fewer trig calls for an identical result. The speckle stays
+     * per pixel, because that is the grass texture. */
+    for (let wy = 0; wy < WORLD_H; wy++) {
+      const y = wy;
+      const cosY = Math.cos(y * 0.11);
+      for (let wx = 0; wx < WORLD_W; wx++) {
+        const n = Math.sin(wx * 0.09) * cosY + Math.sin((wx + y) * 0.05) * 0.6;
+        const base = n > 0.8 ? 3 : n > 0.15 ? 1 : n > -0.5 ? 0 : 2;
+        for (let sy = 0; sy < PIXEL; sy++) {
+          const row = (wy * PIXEL + sy) * GROUND_W + wx * PIXEL;
+          for (let sx = 0; sx < PIXEL; sx++) {
+            buf[row + sx] = rng() < 0.05 ? 4 : base;
+          }
+        }
       }
     }
 
@@ -5627,6 +6717,16 @@
       horses: [],
       carts: [],
       debris: [],
+      arrows: [],
+      blood: [],
+      loot: [],            // items lying on the grass
+      container: null,      // the chest you have open, if any
+      ui: { open: false, hover: null, drag: null, mx: 0, my: 0 },
+      time: 0,
+      wanted: 0,
+      reputation: 0,
+      reputationCriminal: 0,
+      lastSeenAt: -999,
       camX: 0, camY: 0,
       box: D.create(),
       talkingTo: null,
@@ -5671,19 +6771,45 @@
     /* player */
     const player = Rig.createActor(playerCharacter, WORLD_W * 0.4, WORLD_H * 0.55, 1);
     player.isPlayer = true;
+    player._id = 'player';
+    player.leftHanded = !!playerCharacter.leftHanded;
+    I.add(player.inv, 'arrow', 24);
+    I.add(player.inv, 'bandage', 2);
     player.buffer = R.createTarget(ACTOR_BUF.w, ACTOR_BUF.h);
     world.actors.push(player);
     world.player = player;
 
-    /* villagers */
-    for (let i = 0; i < 8; i++) {
+    /* villagers, and among them the watch */
+    const GUARD_KIT = ['sword', 'club', 'spear', 'sword', 'bow'];
+    for (let i = 0; i < 16; i++) {
       const ch = CM.randomCharacter(rng);
+      const guard = i < 5;
+      if (guard) {
+        // the livery: a guard off duty is just a person, but on duty they are
+        // unmistakably one of them
+        ch.tunic = 'slate';
+        ch.trouser = 'charcoal';
+        ch.garment = 'surcoat';
+      }
       const a = Rig.createActor(ch,
-        player.x + (rng() - 0.5) * 420, player.y + (rng() - 0.5) * 280,
+        player.x + (rng() - 0.5) * 640, player.y + (rng() - 0.5) * 460,
         (seed + i * 977) >>> 0);
+      a._id = 'v' + i;
       a.buffer = R.createTarget(ACTOR_BUF.w, ACTOR_BUF.h);
+      a.leftHanded = rng() < 0.12;
       a.brain = { state: 'pause', timer: 0.5 + rng() * 2.5, dirIndex: Math.floor(rng() * 8),
-        gestureCooldown: rng() * 5, partner: null, chatCooldown: rng() * 8 };
+        gestureCooldown: rng() * 5, partner: null, chatCooldown: rng() * 8,
+        guard: guard, guardState: 'patrol' };
+      if (guard) {
+        const kit = GUARD_KIT[i % GUARD_KIT.length];
+        a.inv[I.HAND] = I.stack(kit, 1);
+        if (kit === 'bow') I.add(a.inv, 'arrow', 18);
+        else a.inv[I.SHIELD] = I.stack('shield', 1);
+        a.alert = true;
+      } else if (rng() < 0.2) {
+        a.inv[I.HAND] = I.stack(rng() < 0.6 ? 'dagger' : 'club', 1);
+      }
+      if (rng() < 0.6) I.add(a.inv, 'coin', 3 + Math.floor(rng() * 30));
       world.actors.push(a);
     }
 
@@ -5707,6 +6833,16 @@
         (seed + 9001 + i * 311) >>> 0);
       c.yaw = Math.PI / 2;
       c.buffer = R.createTarget(CART_BUF.w, CART_BUF.h);
+      if (c.def.chest) {
+        // something to actually find, so the container is worth opening
+        c.store = I.createInventory(I.CHEST_SLOTS, false);
+        const loot = ['sword', 'axe', 'mace', 'dagger', 'club', 'spear',
+          'greatsword', 'poleaxe', 'bow', 'crossbow', 'shield', 'buckler'];
+        for (let k = 0; k < loot.length; k++) I.add(c.store, loot[k], 1);
+        I.add(c.store, 'arrow', 40);
+        I.add(c.store, 'bolt', 25);
+        I.add(c.store, 'bandage', 4);
+      }
       world.carts.push(c);
     }
 
@@ -5887,6 +7023,10 @@
         }
         a.hitCooldown = 0.45;
         if (world.talkingTo === a) D.close(world.box);
+        // Barging someone is an assault. A small one, but people notice, and
+        // the watch does not like it.
+        witness(world, player, a, 'shove', a.x, a.y);
+        reactToHit(world, a, player, { severity: 'minor', zone: 'chest' });
 
         // The player brushes past or stumbles. No reaction is played on their
         // body at all — only where they end up changes.
@@ -6087,6 +7227,335 @@
     }
   }
 
+
+
+  /* ================== inventory ==================
+   *
+   * Drawn into the same pixel buffer as the world, because a DOM panel over a
+   * pixel-art game looks like a DOM panel over a pixel-art game. The world
+   * keeps running behind it: opening your bag is not a pause button.
+   */
+
+  const SLOT = 21;            // view units
+  const SLOT_GAP = 2;
+  const UI = {
+    panel: R.pack(38, 33, 29, 242),
+    panelEdge: R.pack(92, 78, 60),
+    slot: R.pack(58, 51, 44),
+    slotEdge: R.pack(24, 21, 19),
+    slotHot: R.pack(96, 84, 62),
+    handSlot: R.pack(70, 57, 40),
+    text: R.pack(238, 232, 216),
+    dim: R.pack(168, 156, 136),
+    shadow: R.pack(18, 16, 20),
+    tip: R.pack(26, 22, 30, 246),
+    tipEdge: R.pack(120, 100, 70)
+  };
+
+  const ICON_CAM = R.makeCamera(0.34, 1.05 * PIXEL, 0, 0);
+
+  function slotRect(x, y) {
+    return { x: x, y: y, w: SLOT, h: SLOT };
+  }
+
+  /* The player's own layout: shield on the left, the four-by-two block in the
+   * middle, weapon on the right. Being left-handed swaps which hand holds
+   * what, not where the slots sit — moving them would mean relearning the
+   * grid for no reason at all. */
+  function playerSlots(ox, oy) {
+    const out = [];
+    const gridW = I.GRID_COLS * SLOT + (I.GRID_COLS - 1) * SLOT_GAP;
+    const gx = ox + SLOT + 10;
+    for (let r = 0; r < I.GRID_ROWS; r++) {
+      for (let c = 0; c < I.GRID_COLS; c++) {
+        out.push({ index: r * I.GRID_COLS + c,
+          x: gx + c * (SLOT + SLOT_GAP), y: oy + r * (SLOT + SLOT_GAP) });
+      }
+    }
+    const midY = oy + (I.GRID_ROWS * SLOT + (I.GRID_ROWS - 1) * SLOT_GAP - SLOT) / 2;
+    out.push({ index: I.SHIELD, x: ox, y: midY, hand: 'shield' });
+    out.push({ index: I.HAND, x: gx + gridW + 10, y: midY, hand: 'weapon' });
+    return out;
+  }
+
+  function chestSlots(ox, oy) {
+    const out = [];
+    for (let r = 0; r < 5; r++) {
+      for (let c = 0; c < 3; c++) {
+        const i = r * 3 + c;
+        if (i >= I.CHEST_SLOTS) continue;
+        out.push({ index: i, x: ox + c * (SLOT + SLOT_GAP), y: oy + r * (SLOT + SLOT_GAP) });
+      }
+    }
+    return out;
+  }
+
+  function layout(world) {
+    const playerW = SLOT * 2 + 20 + I.GRID_COLS * SLOT + (I.GRID_COLS - 1) * SLOT_GAP;
+    const playerH = I.GRID_ROWS * SLOT + (I.GRID_ROWS - 1) * SLOT_GAP;
+    if (!world.container) {
+      const ox = Math.round((VIEW_W - playerW) / 2);
+      const oy = Math.round(VIEW_H - playerH - 22);
+      return { player: playerSlots(ox, oy), chest: null,
+        playerBox: { x: ox - 7, y: oy - 13, w: playerW + 14, h: playerH + 20 } };
+    }
+    // side by side: the chest on the left, what you are carrying on the right
+    const chestW = 3 * SLOT + 2 * SLOT_GAP;
+    const chestH = 5 * SLOT + 4 * SLOT_GAP;
+    const gap = 16;
+    const totalW = chestW + gap + playerW;
+    const ox = Math.round((VIEW_W - totalW) / 2);
+    const oy = Math.round((VIEW_H - chestH) / 2) + 4;
+    const py = oy + Math.round((chestH - playerH) / 2);
+    return {
+      chest: chestSlots(ox, oy),
+      player: playerSlots(ox + chestW + gap, py),
+      chestBox: { x: ox - 7, y: oy - 13, w: chestW + 14, h: chestH + 20 },
+      playerBox: { x: ox + chestW + gap - 7, y: py - 13, w: playerW + 14, h: playerH + 20 }
+    };
+  }
+
+  function hitSlot(world, vx, vy) {
+    const lay = layout(world);
+    for (const side of ['player', 'chest']) {
+      const list = lay[side];
+      if (!list) continue;
+      for (let i = 0; i < list.length; i++) {
+        const sl = list[i];
+        if (vx >= sl.x && vx < sl.x + SLOT && vy >= sl.y && vy < sl.y + SLOT) {
+          return { side: side, index: sl.index, x: sl.x, y: sl.y };
+        }
+      }
+    }
+    return null;
+  }
+
+  function invOf(world, side) {
+    return side === 'chest' ? (world.container ? world.container.store : null)
+      : world.player.inv;
+  }
+
+  function drawPanel(target, box) {
+    R.fillRect(target, (box.x - 1) * PIXEL, (box.y - 1) * PIXEL,
+      (box.w + 2) * PIXEL, (box.h + 2) * PIXEL, UI.panelEdge);
+    R.fillRect(target, box.x * PIXEL, box.y * PIXEL, box.w * PIXEL, box.h * PIXEL, UI.panel);
+  }
+
+  function drawSlot(target, sl, inv, hot, hand) {
+    const x = sl.x * PIXEL, y = sl.y * PIXEL, s = SLOT * PIXEL;
+    R.fillRect(target, x - PIXEL, y - PIXEL, s + PIXEL * 2, s + PIXEL * 2, UI.slotEdge);
+    R.fillRect(target, x, y, s, s, hot ? UI.slotHot : (hand ? UI.handSlot : UI.slot));
+    const st = inv ? inv[sl.index] : null;
+    if (!st) return;
+    drawIcon(target, st.id, sl.x + SLOT / 2, sl.y + SLOT / 2);
+    if (st.count > 1) {
+      const label = String(st.count);
+      T.drawShadowed(target, label,
+        x + s - T.measure(label) - PIXEL, y + s - 9 * PIXEL, UI.text, UI.shadow);
+    }
+  }
+
+  const _iconBuf = {};
+  function drawIcon(target, id, cxView, cyView) {
+    // one buffer per item type, drawn once and blitted thereafter
+    let buf = _iconBuf[id];
+    if (!buf) {
+      const size = (SLOT - 3) * PIXEL;
+      buf = _iconBuf[id] = R.createTarget(size, size);
+      R.clearTarget(buf);
+      const view = I.iconView(id);
+      const cam = R.makeCamera(0.34, 1.05 * PIXEL * view.scale, size / 2, size / 2 + 2 * PIXEL);
+      let m = R.multiply(R.rotationY(view.yaw), R.rotationX(view.pitch));
+      const parts = I.iconParts(id);
+      for (let i = 0; i < parts.length; i++) {
+        R.drawMesh(buf, m, parts[i].mesh, R.ramp(parts[i].colour), cam, parts[i]);
+      }
+      R.traceOutline(buf, Rig.OUTLINE);
+    }
+    R.blit(target, buf, Math.round(cxView * PIXEL - buf.w / 2),
+      Math.round(cyView * PIXEL - buf.h / 2));
+  }
+
+  /* The name of whatever is under the cursor, in a little box above it. */
+  function drawTooltip(target, world, label, vx, vy) {
+    const w = T.measure(label) / PIXEL + 8;
+    const h = 13;
+    let x = vx + 5, y = vy - h - 3;
+    if (x + w > VIEW_W - 2) x = VIEW_W - 2 - w;
+    if (y < 2) y = vy + 8;
+    R.fillRect(target, (x - 1) * PIXEL, (y - 1) * PIXEL, (w + 2) * PIXEL, (h + 2) * PIXEL, UI.tipEdge);
+    R.fillRect(target, x * PIXEL, y * PIXEL, w * PIXEL, h * PIXEL, UI.tip);
+    T.drawShadowed(target, label, (x + 4) * PIXEL, (y + 3) * PIXEL, UI.text, UI.shadow);
+    void world;
+  }
+
+  function drawInventory(world, target) {
+    const ui = world.ui;
+    const lay = layout(world);
+    if (lay.chestBox) {
+      drawPanel(target, lay.chestBox);
+      T.drawShadowed(target, world.container.def.label,
+        lay.chestBox.x * PIXEL + 4 * PIXEL, lay.chestBox.y * PIXEL + 2 * PIXEL,
+        UI.text, UI.shadow);
+      const store = world.container.store;
+      for (let i = 0; i < lay.chest.length; i++) {
+        const sl = lay.chest[i];
+        const hot = ui.hover && ui.hover.side === 'chest' && ui.hover.index === sl.index;
+        drawSlot(target, sl, store, hot, false);
+      }
+    }
+    drawPanel(target, lay.playerBox);
+    T.drawShadowed(target, world.player.character.name,
+      lay.playerBox.x * PIXEL + 4 * PIXEL, lay.playerBox.y * PIXEL + 2 * PIXEL,
+      UI.text, UI.shadow);
+    for (let i = 0; i < lay.player.length; i++) {
+      const sl = lay.player[i];
+      const hot = ui.hover && ui.hover.side === 'player' && ui.hover.index === sl.index;
+      drawSlot(target, sl, world.player.inv, hot, !!sl.hand);
+    }
+
+    // the stack on the cursor, and the name of whatever is under it
+    if (ui.drag) {
+      drawIcon(target, ui.drag.id, ui.mx, ui.my);
+      if (ui.drag.count > 1) {
+        const label = String(ui.drag.count);
+        T.drawShadowed(target, label, (ui.mx + 5) * PIXEL, (ui.my + 2) * PIXEL,
+          UI.text, UI.shadow);
+      }
+    } else if (ui.hover) {
+      const inv = invOf(world, ui.hover.side);
+      const st = inv ? inv[ui.hover.index] : null;
+      if (st) {
+        const d = I.def(st.id);
+        drawTooltip(target, world, d ? d.label : st.id, ui.mx, ui.my);
+      }
+    }
+  }
+
+  /* ---------- inventory input ---------- */
+
+  function openInventory(world) {
+    world.ui.open = true;
+    return true;
+  }
+
+  function closeInventory(world) {
+    const ui = world.ui;
+    // anything still on the cursor goes back where there is room, or on the floor
+    if (ui.drag) {
+      const left = I.add(world.player.inv, ui.drag.id, ui.drag.count);
+      if (left > 0) spawnItem(world, world.player.x, world.player.y, ui.drag.id, left, 0, 0, 0.3);
+      ui.drag = null;
+    }
+    ui.open = false;
+    world.container = null;
+    return true;
+  }
+
+  function invVisible(world) { return world.ui.open || !!world.container; }
+
+  function invMove(world, vx, vy) {
+    world.ui.mx = vx; world.ui.my = vy;
+    world.ui.hover = hitSlot(world, vx, vy);
+  }
+
+  function invClick(world, vx, vy) {
+    const ui = world.ui;
+    invMove(world, vx, vy);
+    const hit = ui.hover;
+    if (!hit) {
+      // clicking outside drops what you are holding
+      if (ui.drag) {
+        spawnItem(world, world.player.x, world.player.y, ui.drag.id, ui.drag.count, 0, 0, 0.4);
+        ui.drag = null;
+      }
+      return true;
+    }
+    const inv = invOf(world, hit.side);
+    if (!inv) return false;
+
+    if (!ui.drag) {
+      const st = inv[hit.index];
+      if (!st) return false;
+      ui.drag = { id: st.id, count: st.count, from: hit.side, fromIndex: hit.index };
+      inv[hit.index] = null;
+      return true;
+    }
+    // placing: hands only take what belongs in them
+    const d = I.def(ui.drag.id);
+    const isHand = hit.side === 'player' && (hit.index === I.HAND || hit.index === I.SHIELD);
+    if (isHand) {
+      if (hit.index === I.HAND && !(d && d.hand)) return false;
+      if (hit.index === I.SHIELD && !(d && d.shield)) return false;
+      // you cannot hold a shield and a weapon that needs both hands
+      if (hit.index === I.SHIELD && I.held(world.player.inv)
+        && I.held(world.player.inv).twoHanded) return false;
+      if (hit.index === I.HAND && d.twoHanded && world.player.inv[I.SHIELD]) return false;
+    }
+    const there = inv[hit.index];
+    if (there && there.id === ui.drag.id) {
+      const room = d.stack - there.count;
+      const take = Math.min(room, ui.drag.count);
+      there.count += take;
+      ui.drag.count -= take;
+      if (ui.drag.count <= 0) ui.drag = null;
+      return true;
+    }
+    inv[hit.index] = { id: ui.drag.id, count: ui.drag.count };
+    ui.drag = there ? { id: there.id, count: there.count } : null;
+    return true;
+  }
+
+  /* ---------- containers ---------- */
+
+  /* Reachable only from the chest end of the cart. The shaft end is where a
+   * horse goes, and pressing the same key in the same place for two different
+   * things is how you end up hitching a horse when you meant to open a box. */
+  function nearestChest(world) {
+    const p = world.player;
+    let best = null, bestD = 26;
+    for (let i = 0; i < world.carts.length; i++) {
+      const c = world.carts[i];
+      if (!c.store || c.broken) continue;
+      // the chest sits a little behind the middle; the shafts run forward
+      const back = -c.def.length * 0.06;
+      const cx = c.x + back * Math.sin(c.yaw);
+      const cy = c.y + back * Math.cos(c.yaw);
+      const d = Math.hypot(cx - p.x, (cy - p.y) * 1.4);
+      // and you have to be behind the axle line, not out in front of it
+      const ahead = (p.x - c.x) * Math.sin(c.yaw) + (p.y - c.y) * Math.cos(c.yaw);
+      if (ahead > c.def.length * 0.3) continue;
+      if (d < bestD) { bestD = d; best = c; }
+    }
+    return best;
+  }
+
+  function openContainer(world, cart) {
+    world.container = cart;
+    world.ui.open = false;
+    world.player.vx = 0; world.player.vy = 0;
+    if (world.box.open) D.close(world.box);
+    return true;
+  }
+
+  function closeContainer(world) {
+    world.container = null;
+    return true;
+  }
+
+  /* ---------- the player swinging ---------- */
+
+  function playerAttack(world) {
+    const p = world.player;
+    if (world.container) return false;
+    if (world.box.open) return false;
+    return beginAttack(world, p);
+  }
+
+  function playerAim(world, yaw) {
+    world.player.aimYaw = yaw;
+  }
+
   /* ---------- hitching and riding on the cart ---------- */
 
   function nearestCart(world, from, range) {
@@ -6169,6 +7638,28 @@
 
   function updateHorse(world, h, dt) {
     h.hitCooldown = Math.max(0, h.hitCooldown - dt);
+    if (h.body) {
+      const before = h.body.dead;
+      CB.updateBody(h, dt);
+      if (h.body.dead && !before) killHorse(world, h, 0.4, 0.2);
+      if (h.body.bleed > 0.1) {
+        h.dripTimer = (h.dripTimer || 0) - dt;
+        if (h.dripTimer <= 0) {
+          h.dripTimer = 0.5;
+          bleedAt(world, h.x + (Math.random() - 0.5) * 9, h.y + (Math.random() - 0.5) * 6,
+            HM.isDown(h) ? 3.4 : 1.6, 'edged');
+        }
+      }
+    }
+    if (h.dead) {
+      // a dead horse lies where it fell, like everything else
+      if (HM.isDown(h)) {
+        if (h.fall.state === 'rising') { h.fall.state = 'falling'; h.fall.still = 0; }
+        HM.updateFall(h, dt);
+      }
+      h.vx = 0; h.vy = 0;
+      return;
+    }
 
     if (HM.isDown(h)) {
       HM.updateFall(h, dt);
@@ -6185,6 +7676,12 @@
     if (drivenFromSaddle || drivenFromBench) {
       const input = world.input;
       if (!world.box.open) { dx = input.dx; dy = input.dy; sprint = input.sprint; }
+    } else if (h.npcDrive && h.rider) {
+      dx = h.npcDrive.dx; dy = h.npcDrive.dy; sprint = h.npcDrive.sprint;
+    } else if (h.spooked > 0) {
+      // bolting after being struck
+      h.spooked -= dt;
+      dx = Math.sin(h.wanderDir); dy = Math.cos(h.wanderDir); sprint = true;
     } else if (!h.rider && !drivenFromBench) {
       // loose horses drift about and graze
       h.wanderTimer -= dt;
@@ -6261,6 +7758,28 @@
       const push = (HORSE_R + 8 - d);
       a.x += nx * push; a.y += ny * push;
       if (speed > NUDGE_SPEED) {
+        /* Being ridden down is not being bumped into. It does real damage,
+         * scaled by the animal, and the watch treats it as what it is. */
+        const rider = h.rider;
+        if (rider) {
+          const roll = CB.rollDamage(CB.weapon('club'), a, {
+            rng: a.rng || Math.random, aim: 0.55,
+            charge: (0.8 + speed / 130) * powerOf
+          });
+          roll.knock = 1.4;
+          const cy2 = Math.cos(a.yaw), sy2 = Math.sin(a.yaw);
+          const local = [-(nx * cy2 - ny * sy2), -(nx * sy2 + ny * cy2)];
+          const res = CB.applyDamage(a, roll, local, a.rng);
+          if (res) {
+            splash(world, a, roll, nx, ny);
+            dropFromHit(world, a, res.severity, nx, ny);
+            reactToHit(world, a, rider, res);
+            if (rider === world.player) {
+              witness(world, rider, a, res.severity === 'fatal' ? 'kill' : 'mountedShove',
+                a.x, a.y);
+            }
+          }
+        }
         if (speed > TRIP_SPEED) {
           Rig.knockDown(a, nx, ny, (2.6 + speed / 26) * powerOf);
           if (a.brain) { a.brain.state = 'downed'; a.brain.timer = 0; }
@@ -6506,6 +8025,943 @@
     }
   }
 
+
+  /* ================== combat ================== */
+
+  const SEE_RANGE = 150;        // how far a guard notices a crime
+  const SEE_RANGE_CIVIL = 120;
+  const SHOUT_RANGE = 200;      // how far a guard passes it on
+  const GUARD_GIVE_UP = 26;     // seconds of losing you before they stop
+  const WANTED_DECAY = 0.9;     // per minute, while unseen
+  const BLOOD_MAX = 260;
+
+  /* Crimes, and what each is worth in wanted level and in what people think
+   * of you afterwards. Shoving someone is a crime; it is just a small one. */
+  const CRIMES = {
+    shove: { wanted: 4, rep: -1, alarm: 0.25, label: 'assault' },
+    mountedShove: { wanted: 16, rep: -5, alarm: 0.75, label: 'riding someone down' },
+    strike: { wanted: 12, rep: -3, alarm: 0.6, label: 'assault' },
+    wound: { wanted: 26, rep: -8, alarm: 0.9, label: 'wounding' },
+    kill: { wanted: 70, rep: -30, alarm: 1, label: 'murder' },
+    horseKill: { wanted: 10, rep: -4, alarm: 0.4, label: 'killing a horse' }
+  };
+
+  function isGuard(a) { return !!(a.brain && a.brain.guard); }
+
+  /* ---------- swinging ---------- */
+
+  function canAttack(a) {
+    if (Rig.isDown(a) || (a.body && (a.body.dead || a.body.dying))) return false;
+    if (a.attack || a.attackCooldown > 0) return false;
+    if (a.mount && a.mountTime < MOUNT_TIME) return false;
+    return true;
+  }
+
+  function beginAttack(world, a) {
+    if (!canAttack(a)) return false;
+    const w = I.heldWeapon(a.inv);
+    if (a.stamina < w.stamina * 0.5) return false;
+    a.stamina = Math.max(0, a.stamina - w.stamina);
+    const duration = w.swing + w.recover;
+    a.attack = {
+      weapon: w,
+      anim: w.anim,
+      t: 0,
+      duration: duration,
+      // The blow lands when the animation shows it landing, not on a separate
+      // timer. Otherwise an axe connects while the arm is still going up.
+      hitAt: duration * Rig.attackHitFraction(w.anim),
+      landed: false
+    };
+    a.reaction = null;
+    a.gesture = null;
+    a.alert = true;
+    return true;
+  }
+
+  function updateAttack(world, a, dt) {
+    a.attackCooldown = Math.max(0, a.attackCooldown - dt);
+    a.stamina = Math.min(100, a.stamina + dt * (a.gait === 'run' ? 6 : 16));
+    const atk = a.attack;
+    if (!atk) return;
+    const was = atk.t;
+    atk.t += dt;
+    if (!atk.landed && was < atk.hitAt && atk.t >= atk.hitAt) {
+      atk.landed = true;
+      if (atk.weapon.ranged) loose(world, a, atk.weapon);
+      else resolveSwing(world, a, atk.weapon);
+    }
+    if (atk.t >= atk.duration) {
+      a.attack = null;
+      a.attackCooldown = 0.06;
+    }
+  }
+
+  /* A melee blow sweeps a cone in front of the attacker and takes the first
+   * thing in it. Reach and arc come off the weapon, so a dagger really does
+   * have to be up close and a poleaxe really does clear a room. */
+  function resolveSwing(world, a, w) {
+    const fx = Math.sin(a.yaw), fy = Math.cos(a.yaw);
+    const mounted = !!a.mount;
+    const reach = w.reach + (mounted ? 14 : 0);
+    let best = null, bestD = 1e9;
+
+    for (let i = 0; i < world.actors.length; i++) {
+      const t = world.actors[i];
+      if (t === a || !t.body || t.body.dead) continue;
+      if (t.mount === a.mount && a.mount) continue;
+      const dx = t.x - a.x, dy = (t.y - a.y) * 1.35;
+      const d = Math.hypot(dx, dy);
+      if (d > reach + 8) continue;
+      const dot = (dx / (d || 1)) * fx + (dy / (d || 1)) * fy;
+      if (d > 4 && Math.acos(Math.max(-1, Math.min(1, dot))) > w.arc) continue;
+      if (d < bestD) { bestD = d; best = t; }
+    }
+    // horses are in reach too, and a sword across a horse is a real thing
+    let bestHorse = null, bestHD = 1e9;
+    for (let i = 0; i < world.horses.length; i++) {
+      const h = world.horses[i];
+      if (h === a.mount || h.dead) continue;
+      const dx = h.x - a.x, dy = (h.y - a.y) * 1.35;
+      const d = Math.hypot(dx, dy);
+      if (d > reach + 12) continue;
+      const dot = (dx / (d || 1)) * fx + (dy / (d || 1)) * fy;
+      if (d > 4 && Math.acos(Math.max(-1, Math.min(1, dot))) > w.arc) continue;
+      if (d < bestHD) { bestHD = d; bestHorse = h; }
+    }
+
+    if (best && bestD <= bestHD) { strike(world, a, best, w, 1); return true; }
+    if (bestHorse) { strikeHorse(world, a, bestHorse, w, 1); return true; }
+    return false;
+  }
+
+  /* How well the blow was thrown: standing your ground and facing them beats
+   * flailing while running away. */
+  function aimQuality(a, target) {
+    const speed = Math.hypot(a.vx || 0, a.vy || 0);
+    const dx = target.x - a.x, dy = target.y - a.y;
+    const want = Rig.yawForDirection(dx, dy);
+    const off = Math.abs(Rig.shortestAngle(a.yaw, want));
+    let q = 1 - off / Math.PI - Math.min(0.35, speed / 300);
+    if (a.mount) q += 0.1;
+    return Math.max(0.05, Math.min(1, q));
+  }
+
+  function strike(world, a, target, w, charge) {
+    const rng = a.rng || Math.random;
+    const roll = CB.rollDamage(w, target, {
+      rng: rng, aim: aimQuality(a, target), charge: charge || 1,
+      defenceless: Rig.isDown(target) || !!target.reaction
+    });
+    const dx = target.x - a.x, dy = target.y - a.y;
+    const d = Math.hypot(dx, dy) || 1;
+    const nx = dx / d, ny = dy / d;
+    // the blow's direction in the target's own frame, so the wound lands on
+    // the side it came from
+    const cy = Math.cos(target.yaw), sy = Math.sin(target.yaw);
+    const local = [-(nx * cy - ny * sy), -(nx * sy + ny * cy)];
+    const res = CB.applyDamage(target, roll, local, rng);
+    if (!res) return;
+
+    splash(world, target, roll, nx, ny);
+    knockFrom(world, a, target, roll, nx, ny);
+    dropFromHit(world, target, res.severity, nx, ny);
+    reactToHit(world, target, a, res);
+    witness(world, a, target, res.severity === 'fatal' ? 'kill'
+      : res.severity === 'serious' ? 'wound' : 'strike', target.x, target.y);
+  }
+
+  function knockFrom(world, a, target, roll, nx, ny) {
+    if (Rig.isDown(target)) return;
+    const k = roll.knock;
+    if (k > 0.85 || roll.amount > 40) {
+      Rig.knockDown(target, nx, ny, 2.2 + k * 2.2 + roll.amount / 26);
+      if (target.brain) { target.brain.state = 'downed'; target.brain.timer = 0; }
+      target.hitCooldown = 0.5;
+    } else if (k > 0.35) {
+      Rig.stumble(target, nx, ny, 26 + k * 60, 0.45);
+    } else {
+      Rig.shove(target, nx, ny, 12 + k * 40);
+    }
+    if (world.talkingTo === target) D.close(world.box);
+  }
+
+  /* ---------- arrows ---------- */
+
+  function loose(world, a, w) {
+    const ammo = w.id === 'crossbow' ? 'bolt' : 'arrow';
+    if (I.countOf(a.inv, ammo) <= 0) return false;
+    I.take(a.inv, ammo, 1);
+    const aim = a.aimYaw === undefined ? a.yaw : a.aimYaw;
+    // a shot from a moving horse scatters
+    const spread = (a.mount ? 0.09 : 0.03) + Math.min(0.08, Math.hypot(a.vx || 0, a.vy || 0) / 1600);
+    const yaw = aim + ((a.rng ? a.rng() : Math.random()) - 0.5) * spread * 2;
+    world.arrows.push({
+      x: a.x, y: a.y, z: (a.mount ? 34 : 19),
+      vx: Math.sin(yaw) * w.ranged,
+      vy: Math.cos(yaw) * w.ranged,
+      vz: 14,
+      yaw: yaw,
+      kind: ammo,
+      weapon: w,
+      owner: a,
+      life: 0,
+      stuck: false
+    });
+    return true;
+  }
+
+  const ARROW_G = 130;
+
+  function updateArrows(world, dt) {
+    for (let i = world.arrows.length - 1; i >= 0; i--) {
+      const ar = world.arrows[i];
+      ar.life += dt;
+      if (ar.stuck) {
+        if (ar.life > 14) world.arrows.splice(i, 1);
+        continue;
+      }
+      const px = ar.x, py = ar.y;
+      ar.vz -= ARROW_G * dt;
+      ar.x += ar.vx * dt;
+      ar.y += ar.vy * dt;
+      ar.z += ar.vz * dt;
+      ar.pitch = Math.atan2(ar.vz, Math.hypot(ar.vx, ar.vy));
+
+      let hit = null, hitHorse = null;
+      for (let k = 0; k < world.actors.length; k++) {
+        const t = world.actors[k];
+        if (t === ar.owner || !t.body || t.body.dead) continue;
+        if (t.mount && t.mount === ar.owner.mount) continue;
+        const d = Math.hypot(t.x - ar.x, (t.y - ar.y) * 1.4);
+        const low = t.mount ? 16 : 0, high = t.mount ? 52 : 34;
+        if (d < 8 && ar.z > low && ar.z < high) { hit = t; break; }
+      }
+      if (!hit) {
+        for (let k = 0; k < world.horses.length; k++) {
+          const h = world.horses[k];
+          if (h === ar.owner.mount || h.dead) continue;
+          const d = Math.hypot(h.x - ar.x, (h.y - ar.y) * 1.4);
+          if (d < 13 && ar.z > 14 && ar.z < 42) { hitHorse = h; break; }
+        }
+      }
+
+      if (hit) {
+        const dx = hit.x - px, dy = hit.y - py;
+        const d = Math.hypot(dx, dy) || 1;
+        const rng = ar.owner.rng || Math.random;
+        const roll = CB.rollDamage(ar.weapon, hit, { rng: rng, aim: 0.7 });
+        const cy = Math.cos(hit.yaw), sy = Math.sin(hit.yaw);
+        const nx = dx / d, ny = dy / d;
+        const local = [-(nx * cy - ny * sy), -(nx * sy + ny * cy)];
+        const res = CB.applyDamage(hit, roll, local, rng);
+        if (res) {
+          splash(world, hit, roll, nx, ny);
+          knockFrom(world, ar.owner, hit, roll, nx, ny);
+          dropFromHit(world, hit, res.severity, nx, ny);
+          reactToHit(world, hit, ar.owner, res);
+          witness(world, ar.owner, hit, res.severity === 'fatal' ? 'kill'
+            : res.severity === 'serious' ? 'wound' : 'strike', hit.x, hit.y);
+        }
+        world.arrows.splice(i, 1);
+        continue;
+      }
+      if (hitHorse) {
+        strikeHorse(world, ar.owner, hitHorse, ar.weapon, 1);
+        world.arrows.splice(i, 1);
+        continue;
+      }
+      if (ar.z <= 0) {
+        ar.z = 0; ar.stuck = true; ar.life = 0;
+        ar.pitch = -0.9;
+      }
+      if (ar.x < 0 || ar.x > WORLD_W || ar.y < 0 || ar.y > WORLD_H) {
+        world.arrows.splice(i, 1);
+      }
+    }
+  }
+
+  /* ---------- horses take hits too ---------- */
+
+  function strikeHorse(world, a, h, w, charge) {
+    if (!h.body) h.body = CB.createBody();
+    if (h.body.dead) return;
+    const rng = a.rng || Math.random;
+    const roll = CB.rollDamage(w, h, { rng: rng, aim: 0.75, charge: charge || 1 });
+    // a horse is a big animal; the same blow does proportionally less
+    roll.amount *= 0.72;
+    h.body.hp = Math.max(0, h.body.hp - roll.amount);
+    h.body.bleed += roll.bleed * 0.8;
+    const dx = h.x - a.x, dy = h.y - a.y;
+    const d = Math.hypot(dx, dy) || 1;
+    bleedAt(world, h.x, h.y, roll.bleed > 0.1 ? 3.5 : 2, roll.kind);
+    if (h.body.hp <= 0) {
+      killHorse(world, h, dx / d, dy / d);
+      witness(world, a, h, 'horseKill', h.x, h.y);
+    } else {
+      if (!HM.isDown(h) && (roll.knock > 0.7 || roll.amount > 30)) {
+        if (h.rider) unseat(world, h, -dx / d, -dy / d, 3);
+        HM.knockDown(h, dx / d, dy / d, 3 + roll.amount / 12);
+      }
+      // it bolts
+      h.spooked = 4 + rng() * 5;
+      h.wanderDir = Math.atan2(dx / d, dy / d);
+      witness(world, a, h, 'strike', h.x, h.y);
+    }
+  }
+
+  function killHorse(world, h, nx, ny) {
+    h.dead = true;
+    h.body.dead = true;
+    h.body.bleed = 0;
+    if (h.rider) unseat(world, h, -nx, -ny, 4);
+    if (h.cart) unhitchCart(world, h);
+    if (!HM.isDown(h)) HM.knockDown(h, nx, ny, 5.5);
+    bleedAt(world, h.x, h.y, 9, 'edged');
+  }
+
+  /* ---------- blood ---------- */
+
+  function splash(world, target, roll, nx, ny) {
+    if (roll.kind === 'blunt' && roll.amount < 26) return;
+    const n = roll.kind === 'blunt' ? 1 : 2 + Math.floor(roll.amount / 18);
+    const rng = target.rng || Math.random;
+    for (let i = 0; i < n; i++) {
+      world.blood.push({
+        x: target.x + nx * (2 + rng() * 9) + (rng() - 0.5) * 8,
+        y: target.y + ny * (2 + rng() * 6) + (rng() - 0.5) * 5,
+        r: 1.4 + rng() * 2.6,
+        age: 0
+      });
+    }
+    trimBlood(world);
+  }
+
+  function bleedAt(world, x, y, r, kind) {
+    world.blood.push({ x: x, y: y, r: r, age: 0 });
+    void kind;
+    trimBlood(world);
+  }
+
+  function trimBlood(world) {
+    while (world.blood.length > BLOOD_MAX) world.blood.shift();
+  }
+
+  /* A bleeding body leaves a trail, and a pool where it lies. */
+  function updateBleedTrail(world, a, dt) {
+    const body = a.body;
+    if (!body || body.dead || body.bleed <= 0.12) return;
+    a.dripTimer = (a.dripTimer || 0) - dt;
+    if (a.dripTimer > 0) return;
+    a.dripTimer = 0.55 / Math.min(4, body.bleed + 0.4);
+    const rng = a.rng || Math.random;
+    world.blood.push({
+      x: a.x + (rng() - 0.5) * 7,
+      y: a.y + (rng() - 0.5) * 5,
+      r: Rig.isDown(a) ? 2.2 + rng() * 3.4 : 1.0 + rng() * 1.3,
+      age: 0
+    });
+    trimBlood(world);
+  }
+
+
+  /* ================== being hit ==================
+   *
+   * hit -> pain -> assess -> respond. The assessment is what makes two
+   * villagers behave differently: the same punch reads as an outrage to a
+   * brave guard and as a reason to be somewhere else to a frightened baker.
+   */
+
+  const RESPONSES = ['fight', 'backAway', 'flee', 'cower', 'callHelp', 'protect',
+    'surrender', 'collapse'];
+
+  function chooseResponse(world, victim, attacker, res) {
+    const body = victim.body;
+    const brain = victim.brain;
+    const ch = victim.character;
+    const brave = ch ? (ch.brave === undefined ? bravery(victim) : ch.brave) : 0.5;
+    const armed = !!(victim.inv && victim.inv[I.HAND]);
+    const hurt = 1 - body.hp / CB.MAX_HP;
+
+    if (body.dying || body.hp <= 0) return 'collapse';
+    if (body.hp < 26 && brave < 0.75) return 'surrender';
+
+    // someone they care about is being hurt in front of them handled elsewhere;
+    // this is their own skin
+    const willFight = brave + (armed ? 0.3 : 0) + (isGuard(victim) ? 0.45 : 0)
+      - hurt * 0.9 - (res.severity === 'serious' ? 0.3 : 0);
+    if (willFight > 0.72) return 'fight';
+    if (willFight > 0.42) return brain && brain.guard ? 'fight' : 'backAway';
+    if (brave < 0.22) return 'cower';
+    if (hurt > 0.4 || res.severity !== 'minor') return 'flee';
+    return world.actors.some(function (o) { return isGuard(o) && distance(o, victim) < 220; })
+      ? 'callHelp' : 'flee';
+  }
+
+  function bravery(a) {
+    // derived once from the seeded rng, so a given villager is consistently
+    // the sort of person who stands their ground or is not
+    if (a._brave === undefined) a._brave = a.rng ? a.rng() : Math.random();
+    return a._brave;
+  }
+
+  function reactToHit(world, victim, attacker, res) {
+    const brain = victim.brain;
+    victim.gesture = null;
+    if (brain && brain.partner) {
+      if (brain.state === 'closing') abandonClosing(victim); else endChat(victim, 20);
+    }
+    if (world.talkingTo === victim) D.close(world.box);
+
+    const body = victim.body;
+    victim.alert = true;
+    victim.lastAttacker = attacker;
+    victim.threatTimer = 16;
+
+    if (victim === world.player) {
+      // the player reacts by being hurt, not by being told what to do
+      return;
+    }
+    if (!brain) return;
+
+    const choice = chooseResponse(world, victim, attacker, res);
+    brain.response = choice;
+    brain.responseTimer = 3 + (victim.rng ? victim.rng() : Math.random()) * 4;
+    brain.target = attacker;
+
+    if (choice === 'collapse') {
+      brain.state = 'downed';
+      if (!Rig.isDown(victim)) Rig.knockDown(victim, 0.4, 0.2, 2.6);
+      return;
+    }
+    // a serious wound gets clutched whatever else they decide to do
+    if (res.severity === 'serious' && !Rig.isDown(victim)) {
+      victim.reaction = { kind: 'clutch', k: 0, zone: res.zone, t: 0,
+        duration: 1.1 + Math.random() * 0.8 };
+    } else if (choice === 'cower' || choice === 'surrender') {
+      victim.reaction = { kind: choice === 'cower' ? 'guard' : 'surrender', k: 0, t: 0,
+        duration: choice === 'surrender' ? 6 : 2.5 };
+    }
+    brain.state = 'react';
+    if (choice === 'callHelp') shout(world, victim, attacker);
+  }
+
+  function updateReaction(a, dt) {
+    const r = a.reaction;
+    if (!r) return;
+    r.t += dt;
+    // eases in, holds, eases out
+    const inK = Math.min(1, r.t / 0.18);
+    const outK = Math.min(1, Math.max(0, (r.duration - r.t) / 0.3));
+    r.k = Math.min(inK, outK);
+    if (r.t >= r.duration) a.reaction = null;
+  }
+
+  /* ================== dropping things ================== */
+
+  function dropFromHit(world, victim, severity, nx, ny) {
+    if (!victim.inv) return;
+    const rng = victim.rng || Math.random;
+    let n = 0;
+    if (severity === 'fatal') n = 99;
+    else if (severity === 'serious') n = 1 + Math.floor(rng() * 3);
+    else if (severity === 'wounded') n = rng() < 0.45 ? 1 : 0;
+    else n = rng() < 0.12 ? 1 : 0;
+    if (n <= 0) return;
+    const loose = I.shakeLoose(victim.inv, rng, n, severity === 'fatal');
+    for (let i = 0; i < loose.length; i++) {
+      spawnItem(world, victim.x, victim.y, loose[i].id, loose[i].count, nx, ny,
+        severity === 'fatal' ? 1 : 0.6);
+    }
+    // they will want it back, once it is safe to bend down
+    if (victim.brain && loose.length) victim.brain.wantsPickup = 5 + rng() * 6;
+  }
+
+  function spawnItem(world, x, y, id, count, nx, ny, force) {
+    const f = force === undefined ? 0.6 : force;
+    const ang = Math.random() * Math.PI * 2;
+    const spread = 10 + Math.random() * 26 * f;
+    world.loot.push({
+      id: id, count: count || 1,
+      x: x + Math.cos(ang) * 3, y: y + Math.sin(ang) * 2,
+      z: 9 + Math.random() * 7,
+      vx: Math.cos(ang) * spread + (nx || 0) * 30 * f,
+      vy: Math.sin(ang) * spread * 0.6 + (ny || 0) * 30 * f,
+      vz: 22 + Math.random() * 40 * f,
+      pitch: Math.random() * 6.28, roll: Math.random() * 6.28, yaw: Math.random() * 6.28,
+      spinP: (Math.random() - 0.5) * 12, spinR: (Math.random() - 0.5) * 12,
+      spinY: (Math.random() - 0.5) * 8,
+      rest: 0, settled: false, buffer: null, _key: ''
+    });
+    if (world.loot.length > 220) world.loot.shift();
+  }
+
+  const ITEM_G = 190;
+
+  function updateGroundItems(world, dt) {
+    const list = world.loot;
+    for (let i = 0; i < list.length; i++) {
+      const d = list[i];
+      if (d.settled) continue;
+      d.vz -= ITEM_G * dt;
+      d.x += d.vx * dt; d.y += d.vy * dt; d.z += d.vz * dt;
+      d.pitch += d.spinP * dt; d.roll += d.spinR * dt; d.yaw += d.spinY * dt;
+      if (d.z <= 0) {
+        d.z = 0;
+        if (Math.abs(d.vz) < 20) {
+          d.vz = 0; d.vx *= 0.2; d.vy *= 0.2;
+          d.spinP *= 0.2; d.spinR *= 0.2; d.spinY *= 0.3;
+          d.rest += dt;
+          if (d.rest > 0.3) {
+            d.settled = true;
+            d.pitch = Math.round(d.pitch / (Math.PI / 2)) * (Math.PI / 2);
+            d.roll = Math.round(d.roll / (Math.PI / 2)) * (Math.PI / 2);
+            d.vx = 0; d.vy = 0; d.spinP = 0; d.spinR = 0; d.spinY = 0;
+          }
+        } else {
+          d.vz = -d.vz * 0.34; d.vx *= 0.6; d.vy *= 0.6; d.rest = 0;
+        }
+      }
+      if (d.z <= 0.01) {
+        const sp = Math.hypot(d.vx, d.vy);
+        if (sp > 0) {
+          const next = Math.max(0, sp - 150 * dt);
+          d.vx = (d.vx / sp) * next; d.vy = (d.vy / sp) * next;
+        }
+      }
+    }
+  }
+
+  function nearestGroundItem(world, a, range) {
+    let best = -1, bestD = range === undefined ? 22 : range;
+    const list = world.loot;
+    for (let i = 0; i < list.length; i++) {
+      const g = list[i];
+      const d = Math.hypot(g.x - a.x, (g.y - a.y) * 1.4);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    return best;
+  }
+
+  function pickUp(world, a, index) {
+    const list = world.loot;
+    const g = list[index];
+    if (!g || !a.inv) return false;
+    const room = I.roomFor(a.inv, g.id, g.count);
+    if (room <= 0) return false;
+    I.add(a.inv, g.id, room);
+    g.count -= room;
+    if (g.count <= 0) list.splice(index, 1);
+    return true;
+  }
+
+
+  /* ================== who saw it ==================
+   *
+   * Two separate numbers, because they answer different questions. Wanted is
+   * how hard the guards are looking for you right now and it cools off.
+   * Reputation is what people think of you and it does not.
+   */
+
+  function witness(world, attacker, victim, crimeId, x, y) {
+    if (attacker !== world.player) return;
+    const crime = CRIMES[crimeId];
+    if (!crime) return;
+
+    let seen = false;
+    for (let i = 1; i < world.actors.length; i++) {
+      const o = world.actors[i];
+      if (o === victim || !o.body || o.body.dead || Rig.isDown(o)) continue;
+      const d = distance(o, world.player);
+      const range = isGuard(o) ? SEE_RANGE : SEE_RANGE_CIVIL;
+      if (d > range) continue;
+      // facing matters: someone with their back to it only half sees it
+      const want = Rig.yawForDirection(world.player.x - o.x, world.player.y - o.y);
+      const facing = Math.abs(Rig.shortestAngle(o.yaw, want)) < 1.5;
+      if (!facing && d > range * 0.45) continue;
+      seen = true;
+      // What they took away from it is not always what happened. This is the
+      // raw material the investigation will eventually work from.
+      o.saw = {
+        crime: crime.label,
+        at: world.time,
+        // one witness in four mistakes the detail
+        weapon: (o.rng ? o.rng() : Math.random()) < 0.75
+          ? (I.held(world.player.inv) || { label: 'bare hands' }).label : 'a weapon',
+        sure: 0.35 + (o.rng ? o.rng() : Math.random()) * 0.65
+      };
+      if (isGuard(o)) {
+        alertGuard(world, o, x, y, crime.alarm);
+      } else {
+        civilianAlarm(world, o, crime.alarm, x, y);
+      }
+    }
+
+    world.wanted = Math.min(100, world.wanted + crime.wanted * (seen ? 1 : 0.18));
+    world.reputation = Math.max(-100, Math.min(100, world.reputation + crime.rep));
+    if (seen) world.lastSeenAt = world.time;
+    if (crimeId === 'kill' || crimeId === 'wound') world.reputationCriminal =
+      Math.min(100, (world.reputationCriminal || 0) + (crimeId === 'kill' ? 9 : 3));
+    void victim;
+  }
+
+  function shout(world, caller, attacker) {
+    for (let i = 1; i < world.actors.length; i++) {
+      const o = world.actors[i];
+      if (o === caller || !isGuard(o)) continue;
+      if (distance(o, caller) > SHOUT_RANGE) continue;
+      alertGuard(world, o, attacker.x, attacker.y, 0.8);
+    }
+    caller.gesture = null;
+  }
+
+  function alertGuard(world, g, x, y, alarm) {
+    const brain = g.brain;
+    brain.guardState = 'chase';
+    brain.chaseX = x; brain.chaseY = y;
+    brain.giveUp = GUARD_GIVE_UP * (0.6 + alarm * 0.7);
+    brain.response = null;
+    g.alert = true;
+    g.gesture = null;
+    if (brain.partner) {
+      if (brain.state === 'closing') abandonClosing(g); else endChat(g, 30);
+    }
+  }
+
+  function civilianAlarm(world, c, alarm, x, y) {
+    const brain = c.brain;
+    if (!brain) return;
+    if (brain.partner) {
+      if (brain.state === 'closing') abandonClosing(c); else endChat(c, 25);
+    }
+    const brave = bravery(c);
+    brain.state = 'react';
+    brain.response = alarm > 0.7 && brave < 0.6 ? 'flee'
+      : alarm > 0.4 ? 'backAway' : 'cower';
+    brain.responseTimer = 4 + alarm * 6;
+    brain.target = world.player;
+    brain.fleeFrom = { x: x, y: y };
+    if (alarm > 0.55 && brave < 0.35) {
+      c.reaction = { kind: 'guard', k: 0, t: 0, duration: 1.4 };
+    }
+  }
+
+  /* Guards pass a chase on to whoever they run past, and clear civilians out
+   * of the way as they come through. */
+  function guardSpread(world, g, dt) {
+    g.brain.spreadTimer = (g.brain.spreadTimer || 0) - dt;
+    if (g.brain.spreadTimer > 0) return;
+    g.brain.spreadTimer = 1.2;
+    for (let i = 1; i < world.actors.length; i++) {
+      const o = world.actors[i];
+      if (o === g || !o.brain || Rig.isDown(o) || (o.body && o.body.dead)) continue;
+      const d = distance(o, g);
+      if (isGuard(o)) {
+        if (d < SHOUT_RANGE && o.brain.guardState !== 'chase') {
+          alertGuard(world, o, g.brain.chaseX, g.brain.chaseY, 0.7);
+        }
+      } else if (d < 90 && o.brain.state !== 'react') {
+        o.brain.state = 'react';
+        o.brain.response = 'backAway';
+        o.brain.responseTimer = 1.6 + (o.rng ? o.rng() : Math.random()) * 2;
+        o.brain.fleeFrom = { x: g.x, y: g.y };
+      }
+    }
+  }
+
+  function updateWanted(world, dt) {
+    world.time += dt;
+    const unseen = world.time - (world.lastSeenAt || -999);
+    if (unseen > 12 && world.wanted > 0) {
+      world.wanted = Math.max(0, world.wanted - WANTED_DECAY / 60 * dt * 60);
+    }
+    // any guard actively chasing keeps it hot
+    for (let i = 1; i < world.actors.length; i++) {
+      const g = world.actors[i];
+      if (isGuard(g) && g.brain.guardState === 'chase'
+        && distance(g, world.player) < SEE_RANGE) {
+        world.lastSeenAt = world.time;
+        break;
+      }
+    }
+  }
+
+
+  /* ================== guards ==================
+   *
+   * A guard is an ordinary villager with a job. Off duty they wander and chat
+   * like anyone else; on duty they wear the livery, watch a patch, and if they
+   * see something they come for you — on foot, or on a horse if one is handy.
+   */
+
+  const GUARD_SPEED = { walk: 30, run: 132 };
+
+  function updateGuard(world, g, dt) {
+    const brain = g.brain;
+    const player = world.player;
+    const state = brain.guardState || 'patrol';
+
+    if (state === 'patrol') {
+      // watching: notice a crime already in progress, or a body on the ground
+      if (world.wanted > 8 && distance(g, player) < SEE_RANGE
+        && !Rig.isDown(player) && armedAndOpen(world, player)) {
+        alertGuard(world, g, player.x, player.y, 0.5);
+      }
+      return false;
+    }
+
+    // chasing
+    brain.giveUp -= dt;
+    const d = distance(g, player);
+    const sees = d < SEE_RANGE && !Rig.isDown(player);
+    if (sees) {
+      brain.chaseX = player.x; brain.chaseY = player.y;
+      brain.giveUp = GUARD_GIVE_UP;
+    }
+    guardSpread(world, g, dt);
+
+    // get on a horse if the quarry is mounted and one is standing about
+    if (!g.mount && player.mount && d > 90) {
+      const h = freeHorseNear(world, g, 110);
+      if (h) { mountNpc(world, g, h); }
+    }
+    // and get off to fight
+    if (g.mount && d < 34 && !player.mount) { dismountNpc(world, g); }
+
+    if (brain.giveUp <= 0) {
+      brain.guardState = 'patrol';
+      brain.state = 'pause';
+      brain.timer = 1.5;
+      if (g.mount) dismountNpc(world, g);
+      return true;
+    }
+
+    const w = I.heldWeapon(g.inv);
+    const dx = brain.chaseX - g.x, dy = brain.chaseY - g.y;
+    const len = Math.hypot(dx, dy) || 1;
+    g.targetYaw = Rig.yawForDirection(dx, dy);
+    g.aimYaw = g.targetYaw;
+
+    if (g.mount) {
+      // ridden chase: steer the horse, shoot from the saddle if armed for it
+      const h = g.mount;
+      h.targetYaw = g.targetYaw;
+      const want = (sees && d < 34) ? 0 : 1;
+      h.npcDrive = { dx: (dx / len) * want, dy: (dy / len) * want, sprint: d > 60 };
+      if (w.ranged && sees && d < w.range && canAttack(g)) beginAttack(world, g);
+      return true;
+    }
+
+    if (w.ranged && sees && d < w.range && d > 40) {
+      if (canAttack(g)) beginAttack(world, g);
+      g.gait = 'idle';
+      return true;
+    }
+    if (d < w.reach * 0.85 + 8) {
+      if (sees && canAttack(g)) beginAttack(world, g);
+      g.gait = 'idle';
+      return true;
+    }
+    /* Run them down. A guard in pursuit turns faster than a villager
+     * ambling about and does not stop dead to do it — waiting to be square on
+     * before taking a step is how a chase turns into a stroll. */
+    const turn = Rig.shortestAngle(g.yaw, g.targetYaw);
+    const rate = 7.5 * dt;
+    g.yaw += Math.abs(turn) < rate ? turn : Math.sign(turn) * rate;
+    g.targetYaw = g.yaw;
+    const facing = Math.max(0.25, 1 - Math.abs(turn) / 2.2);
+    const sp = (d > 55 ? GUARD_SPEED.run : GUARD_SPEED.walk * 1.6) * facing;
+    g.x += Math.sin(g.yaw) * sp * dt;
+    g.y += Math.cos(g.yaw) * sp * dt;
+    resolvePropCollisions(world, g, 6);
+    clampVillager(g);
+    g.gait = d > 55 ? 'run' : 'walk';
+    return true;
+  }
+
+  function armedAndOpen(world, p) {
+    const d = I.held(p.inv);
+    return !!(d && d.weapon && d.weapon !== 'fists');
+  }
+
+  function freeHorseNear(world, a, range) {
+    let best = null, bestD = range;
+    for (let i = 0; i < world.horses.length; i++) {
+      const h = world.horses[i];
+      if (h.rider || HM.isDown(h) || h.dead) continue;
+      const d = distance(h, a);
+      if (d < bestD) { bestD = d; best = h; }
+    }
+    return best;
+  }
+
+  function mountNpc(world, a, h) {
+    h.rider = a;
+    a.mount = h;
+    a.mountTime = MOUNT_TIME;   // an npc does not need the swing-up beat
+    a.vx = 0; a.vy = 0;
+    a.gait = 'idle';
+  }
+
+  function dismountNpc(world, a) {
+    const h = a.mount;
+    if (!h) return;
+    const side = h.yaw + Math.PI / 2;
+    a.x = h.x + Math.cos(side) * 14;
+    a.y = h.y - Math.sin(side) * 10;
+    a.mount = null;
+    h.rider = null;
+    h.npcDrive = null;
+  }
+
+  /* ---------- how a villager who has been hurt behaves ---------- */
+
+  function updateResponse(world, a, dt) {
+    const brain = a.brain;
+    brain.responseTimer -= dt;
+    const target = brain.target || world.player;
+    const from = brain.fleeFrom || target;
+    const dx = a.x - from.x, dy = a.y - from.y;
+    const away = Math.hypot(dx, dy) || 1;
+    const hurt = a.body ? 1 - a.body.hp / CB.MAX_HP : 0;
+    const speed = SPEED.npc * (1 + (1 - hurt) * 2.6);
+
+    switch (brain.response) {
+      case 'fight': {
+        const d = distance(a, target);
+        a.targetYaw = Rig.yawForDirection(target.x - a.x, target.y - a.y);
+        a.aimYaw = a.targetYaw;
+        const w = I.heldWeapon(a.inv);
+        if (d < w.reach * 0.85 + 8) {
+          if (canAttack(a) && Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 0.8) {
+            beginAttack(world, a);
+          }
+          a.gait = 'idle';
+        } else if (Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 1.0) {
+          a.x += ((target.x - a.x) / (d || 1)) * speed * dt;
+          a.y += ((target.y - a.y) / (d || 1)) * speed * dt;
+          a.gait = 'walk';
+          clampVillager(a);
+        }
+        break;
+      }
+      case 'flee': {
+        a.targetYaw = Rig.snapToEight(dx, dy);
+        if (Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 1.2) {
+          a.x += (dx / away) * speed * 1.35 * dt;
+          a.y += (dy / away) * speed * 1.35 * dt;
+          resolvePropCollisions(world, a, 6);
+          clampVillager(a);
+        }
+        a.gait = 'run';
+        break;
+      }
+      case 'backAway': {
+        // keeping their eyes on it while they go
+        a.targetYaw = Rig.yawForDirection(-dx, -dy);
+        a.x += (dx / away) * speed * 0.55 * dt;
+        a.y += (dy / away) * speed * 0.55 * dt;
+        clampVillager(a);
+        a.gait = 'walk';
+        break;
+      }
+      case 'callHelp': {
+        a.targetYaw = Rig.yawForDirection(-dx, -dy);
+        a.gait = 'idle';
+        a.speaking = true;
+        babble(a);
+        brain.shoutTimer = (brain.shoutTimer || 0) - dt;
+        if (brain.shoutTimer <= 0) { brain.shoutTimer = 1.4; shout(world, a, target); }
+        break;
+      }
+      case 'protect': {
+        const friend = brain.protecting;
+        if (friend) {
+          const fd = distance(a, friend);
+          a.targetYaw = Rig.yawForDirection(friend.x - a.x, friend.y - a.y);
+          if (fd > 20) {
+            a.x += ((friend.x - a.x) / (fd || 1)) * speed * dt;
+            a.y += ((friend.y - a.y) / (fd || 1)) * speed * dt;
+            a.gait = 'walk';
+          } else { a.gait = 'idle'; }
+        }
+        break;
+      }
+      case 'surrender':
+      case 'cower':
+      default: {
+        a.gait = 'idle';
+        a.targetYaw = Rig.yawForDirection(-dx, -dy);
+        if (!a.reaction) {
+          a.reaction = { kind: brain.response === 'surrender' ? 'surrender' : 'guard',
+            k: 0, t: 0, duration: Math.max(0.6, brain.responseTimer) };
+        }
+        break;
+      }
+    }
+
+    if (brain.responseTimer <= 0) {
+      hush(a);
+      brain.response = null;
+      brain.state = 'pause';
+      brain.timer = 0.8 + (a.rng ? a.rng() : Math.random()) * 2;
+    }
+  }
+
+  /* Once the fighting stops, people go and get their things back. */
+  function tryRecoverItems(world, a, dt) {
+    const brain = a.brain;
+    if (!brain.wantsPickup || brain.wantsPickup <= 0) return false;
+    // not while anyone is still swinging nearby
+    if (a.threatTimer > 0 || brain.response) { brain.wantsPickup -= dt * 0.3; return false; }
+    const idx = nearestGroundItem(world, a, 90);
+    if (idx < 0) { brain.wantsPickup = 0; return false; }
+    const g = world.loot[idx];
+    const d = Math.hypot(g.x - a.x, (g.y - a.y) * 1.4);
+    if (d < 13) {
+      pickUp(world, a, idx);
+      brain.wantsPickup -= 1.5;
+      a.gait = 'idle';
+      return true;
+    }
+    a.targetYaw = Rig.snapToEight(g.x - a.x, g.y - a.y);
+    if (Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 0.9) {
+      const len = Math.hypot(g.x - a.x, g.y - a.y) || 1;
+      a.x += ((g.x - a.x) / len) * SPEED.npc * dt;
+      a.y += ((g.y - a.y) / len) * SPEED.npc * dt;
+      clampVillager(a);
+    }
+    a.gait = 'walk';
+    brain.wantsPickup -= dt * 0.25;
+    return true;
+  }
+
+  /* Someone sees a body. They do not step over it. */
+  function noticeCasualties(world, a, dt) {
+    const brain = a.brain;
+    brain.scanTimer = (brain.scanTimer || 0) - dt;
+    if (brain.scanTimer > 0) return false;
+    brain.scanTimer = 1.5 + (a.rng ? a.rng() : Math.random());
+    for (let i = 1; i < world.actors.length; i++) {
+      const o = world.actors[i];
+      if (o === a || !o.body) continue;
+      if (!o.body.dead && !o.body.dying) continue;
+      if (o.seenBy && o.seenBy[a._id]) continue;
+      if (distance(a, o) > 110) continue;
+      o.seenBy = o.seenBy || {};
+      o.seenBy[a._id] = true;
+      const brave = bravery(a);
+      brain.state = 'react';
+      brain.target = o;
+      brain.fleeFrom = { x: o.x, y: o.y };
+      brain.response = isGuard(a) ? 'callHelp' : (brave < 0.4 ? 'flee' : 'callHelp');
+      brain.responseTimer = 4 + Math.random() * 4;
+      if (!isGuard(a)) a.reaction = { kind: 'guard', k: 0, t: 0, duration: 1.2 };
+      return true;
+    }
+    return false;
+  }
+
   /* ---------- player ---------- */
 
   /* Riding and driving both take the player's own movement code out of the
@@ -6556,6 +9012,26 @@
 
   function updatePlayer(world, dt) {
     const p = world.player;
+    if (p.body && p.body.dead) {
+      // down for good. No hospitals yet, so the body stays where it fell.
+      if (!Rig.isDown(p)) Rig.knockDown(p, 0.3, 0.2, 2.4);
+      else if (p.fall.state === 'rising') { p.fall.state = 'falling'; p.fall.still = 0; }
+      if (p.mount) dismount(world);
+      if (p.seat) leaveSeat(world);
+      p.vx = 0; p.vy = 0;
+      p.gait = 'idle';
+      if (world.box.open) D.close(world.box);
+      if (invVisible(world)) closeInventory(world);
+      Rig.updateFall(p, dt);
+      return;
+    }
+    if (p.body && p.body.dying) {
+      if (!Rig.isDown(p)) Rig.knockDown(p, 0.3, 0.2, 2.2);
+      p.vx = 0; p.vy = 0;
+      p.gait = 'idle';
+      Rig.updateActorMotion(p, dt);
+      return;
+    }
     if (p.mount || p.seat) { updateMountedPlayer(world, p, dt); return; }
     const locked = world.box.open || Rig.isDown(p);
     const input = world.input;
@@ -6812,6 +9288,59 @@
     const brain = a.brain;
     const player = world.player;
 
+    updateAttack(world, a, dt);
+    updateReaction(a, dt);
+    a.threatTimer = Math.max(0, (a.threatTimer || 0) - dt);
+    updateBleedTrail(world, a, dt);
+    const died = CB.updateBody(a, dt);
+    if (died === 'died') {
+      // everything they were carrying goes on the floor with them
+      const all = I.contents(a.inv);
+      for (let k = 0; k < all.length; k++) {
+        spawnItem(world, a.x, a.y, all[k].id, all[k].count, 0, 0, 0.5);
+      }
+      I.clearAll(a.inv);
+      a.gesture = null;
+      hush(a);
+    }
+    if (a.body.dead) {
+      // a body stays where it fell. Nothing picks it up; there is nowhere yet
+      // for it to be taken.
+      if (!Rig.isDown(a)) Rig.knockDown(a, 0.3, 0.2, 2.2);
+      else if (a.fall.state === 'rising') { a.fall.state = 'falling'; a.fall.still = 0; }
+      a.vx = 0; a.vy = 0;
+      a.gait = 'idle';
+      brain.state = 'dead';
+      Rig.updateFall(a, dt);
+      clampVillager(a);
+      return;
+    }
+    if (a.body.dying) {
+      // on the floor, going. They stop trying to do anything else.
+      if (!Rig.isDown(a)) Rig.knockDown(a, 0.3, 0.2, 2.0);
+      a.vx = 0; a.vy = 0;
+      a.gait = 'idle';
+      brain.state = 'downed';
+      Rig.updateActorMotion(a, dt);
+      clampVillager(a);
+      return;
+    }
+
+    // an npc riding a horse steers it and does nothing else on foot
+    if (a.mount) {
+      a.x = a.mount.x; a.y = a.mount.y; a.yaw = a.mount.yaw;
+      if (brain.guard) updateGuard(world, a, dt);
+      Rig.updateBlink(a, dt);
+      a.animTime += dt;
+      return;
+    }
+
+    if (brain.guard && brain.guardState === 'chase' && !Rig.isDown(a)) {
+      updateGuard(world, a, dt);
+      Rig.updateActorMotion(a, dt);
+      return;
+    }
+
     Rig.applyShove(a, dt);
 
     // Shoved hard enough to have to catch themselves: they walk it off,
@@ -6846,6 +9375,16 @@
       brain.timer = 0.7 + a.rng() * 1.2;
       a.vx = 0; a.vy = 0;
     }
+
+    if (brain.state === 'react') {
+      updateResponse(world, a, dt);
+      Rig.updateActorMotion(a, dt);
+      return;
+    }
+
+    if (brain.guard) updateGuard(world, a, dt);
+    if (noticeCasualties(world, a, dt)) { Rig.updateActorMotion(a, dt); return; }
+    if (tryRecoverItems(world, a, dt)) { Rig.updateActorMotion(a, dt); return; }
 
     if (brain.state === 'closing') {
       updateClosing(world, a, dt);
@@ -6890,6 +9429,7 @@
     brain.timer -= dt;
     if (brain.state === 'pause') {
       a.gait = 'idle';
+      if (a.attack) { Rig.updateActorMotion(a, dt); return; }
 
       reactiveGesture(world, a, dt);
       tryStartChat(world, a);
@@ -6961,6 +9501,16 @@
     if (world.box.open) { D.advance(world.box); return true; }
     const p = world.player;
     if (Rig.isDown(p)) return false;
+
+    if (world.container) { closeContainer(world); return true; }
+
+    // A chest on a cart is opened from the chest end, not from the shafts
+    const chest = nearestChest(world);
+    if (chest && !p.mount) { openContainer(world, chest); return true; }
+
+    // then anything lying on the grass
+    const gi = nearestGroundItem(world, p, 24);
+    if (gi >= 0 && !p.mount) { return pickUp(world, p, gi); }
 
     if (p.mount) {
       // in the saddle: hitch a cart if one is right behind, otherwise get off
@@ -7036,11 +9586,19 @@
     for (let i = 0; i < world.horses.length; i++) updateHorse(world, world.horses[i], dt);
     for (let i = world.carts.length - 1; i >= 0; i--) updateCart(world, world.carts[i], dt);
     updatePlayer(world, dt);
+    updateAttack(world, world.player, dt);
+    updateReaction(world.player, dt);
+    world.player.threatTimer = Math.max(0, (world.player.threatTimer || 0) - dt);
+    CB.updateBody(world.player, dt);
+    updateBleedTrail(world, world.player, dt);
     for (let i = 1; i < world.actors.length; i++) updateVillager(world, world.actors[i], dt);
     if (!world.player.mount && !world.player.seat) resolveActorCollisions(world);
     separateVillagers(world);
     resolveRagdollCollisions(world, dt);
     updateDebris(world, dt);
+    updateGroundItems(world, dt);
+    updateArrows(world, dt);
+    updateWanted(world, dt);
     separateHorses(world);
     D.update(world.box, dt);
 
@@ -7354,6 +9912,47 @@
     return c.buffer;
   }
 
+  const BLOOD_COL = R.pack(96, 18, 26);
+
+  function renderGroundItem(world, g) {
+    const qp = Math.round(g.pitch / DEBRIS_STEP) * DEBRIS_STEP;
+    const qr = Math.round(g.roll / DEBRIS_STEP) * DEBRIS_STEP;
+    const qy = Math.round(g.yaw / DEBRIS_STEP) * DEBRIS_STEP;
+    const key = [g.id, qp, qr, qy].join('|');
+    if (g.buffer && key === g._key) return g.buffer;
+    g._key = key;
+    if (!g.buffer) g.buffer = R.createTarget(DEBRIS_BUF.w, DEBRIS_BUF.h);
+    R.clearTarget(g.buffer);
+    let m = R.multiply(R.rotationY(qy), R.rotationX(qp));
+    m = R.multiply(m, R.rotationZ(qr));
+    const view = I.iconView(g.id);
+    if (view.scale !== 1) m = R.multiply(m, R.scaling(view.scale));
+    const parts = I.iconParts(g.id);
+    for (let i = 0; i < parts.length; i++) {
+      R.drawMesh(g.buffer, m, parts[i].mesh, R.ramp(parts[i].colour), DEBRIS_CAM, parts[i]);
+    }
+    R.traceOutline(g.buffer, Rig.OUTLINE);
+    return g.buffer;
+  }
+
+  function renderArrow(world, ar) {
+    const qy = Math.round(ar.yaw / DEBRIS_STEP) * DEBRIS_STEP;
+    const qp = Math.round((ar.pitch || 0) / DEBRIS_STEP) * DEBRIS_STEP;
+    const key = [ar.kind, qy, qp].join('|');
+    if (ar.buffer && key === ar._key) return ar.buffer;
+    ar._key = key;
+    if (!ar.buffer) ar.buffer = R.createTarget(DEBRIS_BUF.w, DEBRIS_BUF.h);
+    R.clearTarget(ar.buffer);
+    // the shaft lies along its flight, nose down as it falls
+    let m = R.multiply(R.rotationY(qy), R.rotationX(Math.PI / 2 + qp));
+    const parts = I.iconParts(ar.kind);
+    for (let i = 0; i < parts.length; i++) {
+      R.drawMesh(ar.buffer, m, parts[i].mesh, R.ramp(parts[i].colour), DEBRIS_CAM, parts[i]);
+    }
+    R.traceOutline(ar.buffer, Rig.OUTLINE);
+    return ar.buffer;
+  }
+
   const DEBRIS_STEP = Math.PI / 8;
   function renderDebris(world, d) {
     const camera = DEBRIS_CAM;
@@ -7403,6 +10002,16 @@
     drawGround(world, target);
 
     const cx = world.camX, cy = world.camY;
+
+    // Blood goes down before anything stands on it. It is flat on the ground,
+    // so it has no business in the depth sort.
+    for (let i = 0; i < world.blood.length; i++) {
+      const b = world.blood[i];
+      if (b.x - cx < -20 || b.x - cx > VIEW_W + 20 || b.y - cy < -20 || b.y - cy > VIEW_H + 20) continue;
+      R.fillEllipse(target, (Math.round(b.x) - cx) * PIXEL, (Math.round(b.y) - cy) * PIXEL,
+        b.r * PIXEL, b.r * 0.55 * PIXEL, BLOOD_COL, 0.82);
+    }
+
     const drawables = [];
 
     for (let i = 0; i < world.props.length; i++) {
@@ -7432,6 +10041,16 @@
       if (d.x - cx < -40 || d.x - cx > VIEW_W + 40 || d.y - cy < -60 || d.y - cy > VIEW_H + 40) continue;
       drawables.push({ y: d.y, debris: d });
     }
+    for (let i = 0; i < world.loot.length; i++) {
+      const g = world.loot[i];
+      if (g.x - cx < -40 || g.x - cx > VIEW_W + 40 || g.y - cy < -60 || g.y - cy > VIEW_H + 40) continue;
+      drawables.push({ y: g.y, item: g });
+    }
+    for (let i = 0; i < world.arrows.length; i++) {
+      const ar = world.arrows[i];
+      if (ar.x - cx < -40 || ar.x - cx > VIEW_W + 40 || ar.y - cy < -60 || ar.y - cy > VIEW_H + 40) continue;
+      drawables.push({ y: ar.y, arrow: ar });
+    }
     drawables.sort(function (a, b) { return a.y - b.y; });
 
     for (let i = 0; i < drawables.length; i++) {
@@ -7453,6 +10072,18 @@
           (Math.round(c.x) - cx) * PIXEL - CART_BUF.ox,
           (Math.round(c.y) - cy) * PIXEL - CART_BUF.oy);
         if (c.rider && c.hitch) drawReins(target, c.hitch);
+      } else if (d.item) {
+        const g = d.item;
+        R.fillEllipse(target, (Math.round(g.x) - cx) * PIXEL, (Math.round(g.y) - cy) * PIXEL,
+          4 * PIXEL, 1.8 * PIXEL, SHADOW, 0.2);
+        R.blit(target, renderGroundItem(world, g),
+          (Math.round(g.x) - cx) * PIXEL - DEBRIS_BUF.ox,
+          (Math.round(g.y) - cy) * PIXEL - DEBRIS_BUF.oy - Math.round(g.z * CAM_SCALE));
+      } else if (d.arrow) {
+        const ar = d.arrow;
+        R.blit(target, renderArrow(world, ar),
+          (Math.round(ar.x) - cx) * PIXEL - DEBRIS_BUF.ox,
+          (Math.round(ar.y) - cy) * PIXEL - DEBRIS_BUF.oy - Math.round(ar.z * CAM_SCALE));
       } else if (d.debris) {
         const b = d.debris;
         R.fillEllipse(target, (Math.round(b.x) - cx) * PIXEL, (Math.round(b.y) - cy) * PIXEL,
@@ -7494,6 +10125,7 @@
 
 
     D.draw(world.box, target);
+    if (invVisible(world)) drawInventory(world, target);
   }
 
   global.World = {
@@ -7501,6 +10133,9 @@
     ACTOR_BUF, CAM_PITCH, CAM_SCALE,
     SPEED, TALK_RANGE, NUDGE_SPEED, TRIP_SPEED, FALL_SPEED, TEST_PAGES,
     createWorld, update, draw, tryTalk, nearestTalkable, distance, beginConversation,
+    playerAttack, playerAim, beginAttack, openContainer, closeContainer, nearestChest,
+    nearestGroundItem, pickUp, spawnItem, strike, witness, CRIMES, isGuard,
+    openInventory, closeInventory, invVisible, invMove, invClick, layout,
     mount, dismount, hitchCart, unhitchCart, takeSeat, leaveSeat,
     nearestHorse, nearestCart, damageCart, breakCart, promptFor,
     MOUNT_RANGE, HITCH_RANGE, HORSE_FALL_SPEED
@@ -7737,6 +10372,19 @@
     });
     nameRow.appendChild(rollName);
     g.appendChild(nameRow);
+
+    // Which hand holds the weapon. It swaps the model's hands, not the
+    // inventory: the slots stay where they are so the grid does not have to be
+    // relearned.
+    g.appendChild(makeSegmented('Weapon hand', [
+      { id: 'right', label: 'Right' },
+      { id: 'left', label: 'Left' }
+    ], function () { return state.character.leftHanded ? 'left' : 'right'; },
+    function (v) {
+      state.character.leftHanded = v === 'left';
+      if (state.world) state.world.player.leftHanded = state.character.leftHanded;
+      onCharacterChanged();
+    }));
 
     // sex
     g.appendChild(makeSegmented('Sex', [
@@ -8229,6 +10877,7 @@
     d: 'right', arrowright: 'right'
   };
   const TALK_KEYS = ['e', 'enter', ' ', 'spacebar'];
+  const INVENTORY_KEYS = ['q', 'i', 'tab'];
   const DOUBLE_TAP_MS = 330;
   // Coming to a stop ends the sprint, but only after a real pause. A
   // double-tap releases the key for a moment on its way to the second press,
@@ -8266,6 +10915,19 @@
       }
       keys[k] = true;
 
+      if (INVENTORY_KEYS.indexOf(k) >= 0) {
+        e.preventDefault();
+        if (state.world) {
+          if (W.invVisible(state.world)) W.closeInventory(state.world);
+          else W.openInventory(state.world);
+        }
+        return;
+      }
+      if (k === 'escape' && state.world && W.invVisible(state.world)) {
+        e.preventDefault();
+        W.closeInventory(state.world);
+        return;
+      }
       if (TALK_KEYS.indexOf(k) >= 0) {
         e.preventDefault();
         if (state.world) W.tryTalk(state.world);
@@ -8278,14 +10940,41 @@
       state.sprinting = false;
     });
 
-    // Clicking only turns the page; talking is E, Enter or Space, up close.
-    canvas.addEventListener('click', function () {
-      if (state.world && state.world.box.open) D.advance(state.world.box);
+    /* The mouse is the weapon. Click swings whatever is in your hand — but
+     * not while the bag is open, because the same click is moving a stack
+     * around in there, and not while someone is mid-sentence. */
+    function viewPoint(e) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (e.clientX - rect.left) / rect.width * W.VIEW_W,
+        y: (e.clientY - rect.top) / rect.height * W.VIEW_H
+      };
+    }
+    canvas.addEventListener('mousemove', function (e) {
+      if (!state.world) return;
+      const v = viewPoint(e);
+      if (W.invVisible(state.world)) { W.invMove(state.world, v.x, v.y); return; }
+      // aim where the cursor is, which is what a bow needs
+      W.playerAim(state.world, Math.atan2(v.x - W.VIEW_W / 2, -(v.y - W.VIEW_H / 2)));
     });
+    canvas.addEventListener('mousedown', function (e) {
+      if (!state.world) return;
+      e.preventDefault();
+      const v = viewPoint(e);
+      if (W.invVisible(state.world)) { W.invClick(state.world, v.x, v.y); return; }
+      if (state.world.box.open) { D.advance(state.world.box); return; }
+      W.playerAim(state.world, Math.atan2(v.x - W.VIEW_W / 2, -(v.y - W.VIEW_H / 2)));
+      W.playerAttack(state.world);
+    });
+    canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
   }
 
   function readWorldInput(world) {
     let dx = 0, dy = 0;
+    if (W.invVisible(world)) {
+      world.input.dx = 0; world.input.dy = 0; world.input.sprint = false;
+      return;
+    }
     if (keys.a || keys.arrowleft) dx -= 1;
     if (keys.d || keys.arrowright) dx += 1;
     if (keys.w || keys.arrowup) dy -= 1;

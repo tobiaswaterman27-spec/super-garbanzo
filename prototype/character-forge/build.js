@@ -56,7 +56,8 @@ if (/<script src=/.test(html)) {
 
 // Each module ends by assigning its global; if one is absent the page will
 // load and then quietly render nothing, which is exactly what happened before.
-const EXPECTED_GLOBALS = ['Geo', 'Render', 'Parts', 'CharacterModel', 'Text', 'Rig', 'Dialogue', 'World'];
+const EXPECTED_GLOBALS = ['Geo', 'Render', 'Parts', 'CharacterModel', 'Text', 'Rig',
+  'HorseModel', 'Vehicle', 'Combat', 'Items', 'Dialogue', 'World'];
 const absent = EXPECTED_GLOBALS.filter(function (name) {
   return html.indexOf('global.' + name + ' = {') === -1 &&
          html.indexOf('global.' + name + ' =') === -1;

@@ -108,6 +108,80 @@
 
   // Speaking is carried entirely by the visemes; the body stays still for the
   // same reason idle does.
+  /* In the saddle. The thighs come forward and open around the barrel, the
+   * knees fold back under, and the hands stay out in front on the reins. The
+   * rider rises with the gait rather than sitting rigid, because a figure
+   * bolted to a moving horse is the thing that makes riding look wrong. */
+  function poseRide(model, t, opts) {
+    clearPose(model);
+    const o = opts || {};
+    const gait = o.gait || 'idle';
+    const rate = gait === 'gallop' ? 9.2 : gait === 'trot' ? 7.2 : gait === 'walk' ? 4.4 : 0;
+    const amp = gait === 'gallop' ? 0.85 : gait === 'trot' ? 0.55 : gait === 'walk' ? 0.2 : 0;
+    const p = t * rate;
+    const rise = rate ? Math.abs(Math.sin(p)) : 0;
+    const lean = (o.lean || 0) + (gait === 'gallop' ? 0.42 : gait === 'trot' ? 0.2 : 0.06);
+    const rein = o.rein || 0;
+
+    model.bob = rise * amp - amp * 0.4;
+
+    // legs astride
+    setRot(model, 'legR', -0.92, 0, -0.36);
+    setRot(model, 'legL', -0.92, 0, 0.36);
+    setRot(model, 'shinR', 1.28 + rise * 0.08, 0, 0.1);
+    setRot(model, 'shinL', 1.28 + rise * 0.08, 0, -0.1);
+
+    // hands forward on the reins, pulled back when the rider hauls on them
+    const reach = -1.02 + rein * 0.55;
+    setRot(model, 'armR', reach, 0, 0.16);
+    setRot(model, 'armL', reach, 0, -0.16);
+    setRot(model, 'foreR', -0.62 - rein * 0.5, 0, 0);
+    setRot(model, 'foreL', -0.62 - rein * 0.5, 0, 0);
+
+    setRot(model, 'torso', lean - rise * 0.06, (o.turn || 0) * 0.12, 0);
+    setRot(model, 'head', -lean * 0.75, -(o.turn || 0) * 0.2, 0);
+  }
+
+  /* Swinging up into the saddle: k runs 0 to 1. The rider reaches for the
+   * pommel, kicks the outside leg over, and lands astride. */
+  function poseMount(model, k) {
+    clearPose(model);
+    const e = k < 0.5 ? (k / 0.5) : 1;
+    const land = k < 0.5 ? 0 : (k - 0.5) / 0.5;
+    model.bob = Math.sin(Math.min(1, k) * Math.PI) * 2.6;
+    setRot(model, 'armR', -1.9 + land * 0.9, 0, 0.3);
+    setRot(model, 'armL', -1.6 + land * 0.6, 0, -0.3);
+    setRot(model, 'foreR', -0.5, 0, 0);
+    setRot(model, 'foreL', -0.7, 0, 0);
+    // the outside leg swings up and over, the inside one takes the weight
+    setRot(model, 'legR', -0.4 - e * 0.6, 0, -e * 1.1 + land * 0.75);
+    setRot(model, 'legL', -0.2 - e * 0.55, 0, e * 0.25 + land * 0.1);
+    setRot(model, 'shinR', 0.5 + land * 0.8, 0, 0);
+    setRot(model, 'shinL', 0.9 + land * 0.4, 0, 0);
+    setRot(model, 'torso', 0.34 - land * 0.1, 0, -0.18 + land * 0.18);
+  }
+
+  /* Sitting on a cart's bench, reins in hand. Knees together and forward,
+   * back straighter than in the saddle. */
+  function poseDrive(model, t, opts) {
+    clearPose(model);
+    const o = opts || {};
+    const jolt = o.jolt || 0;
+    const rein = o.rein || 0;
+    model.bob = jolt;
+    setRot(model, 'legR', -1.32, 0, -0.12);
+    setRot(model, 'legL', -1.32, 0, 0.12);
+    setRot(model, 'shinR', 1.42, 0, 0);
+    setRot(model, 'shinL', 1.42, 0, 0);
+    const reach = -0.88 + rein * 0.6;
+    setRot(model, 'armR', reach, 0, 0.2);
+    setRot(model, 'armL', reach, 0, -0.2);
+    setRot(model, 'foreR', -0.7 - rein * 0.45, 0, 0);
+    setRot(model, 'foreL', -0.7 - rein * 0.45, 0, 0);
+    setRot(model, 'torso', 0.1 + jolt * 0.05, (o.turn || 0) * 0.1, 0);
+    setRot(model, 'head', -0.06, -(o.turn || 0) * 0.18, 0);
+  }
+
   function poseTalk(model) {
     poseIdle(model);
   }
@@ -1247,6 +1321,7 @@
   function drawModel(target, model, camera, opts) {
     const yaw = (opts && opts.yaw) || 0;
     const faceParts = opts && opts.faceParts;
+    const offset = opts && opts.offset;
     const scale = model.root.scale || 1;
 
     // Yaw, then scale, then the bob — and the bob is rounded to a whole screen
@@ -1256,6 +1331,9 @@
     const bob = pixel > 0 ? Math.round((model.bob || 0) * pixel) / pixel : 0;
     let base = R.multiply(R.rotationY(yaw), R.scaling(scale));
     base = R.multiply(base, R.translation(0, bob, 0));
+    // A world-space offset applied after the yaw, so a rider can be planted on
+    // a saddle that is itself already rotated.
+    if (offset) base = R.multiply(R.translation(offset[0], offset[1], offset[2]), base);
 
     (function walk(node, parent) {
       let local = R.translation(node.origin[0], node.origin[1], node.origin[2]);
@@ -1319,6 +1397,7 @@
     JOINTS, DIRECTIONS, ANIM_FPS, YAW_STEPS,
     quantiseTime, quantiseYaw,
     clearPose, setRot, addRot, poseIdle, poseWalk, poseTalk,
+    poseRide, poseMount, poseDrive,
     emptyPose, clonePose, applyPose, lerpPose, samplePoseTrack,
     yawForDirection, snapToEight, directionName, shortestAngle,
     createActor, rebuildActorModel, updateActorMotion, updateBlink,

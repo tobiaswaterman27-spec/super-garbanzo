@@ -211,6 +211,9 @@
       }
     });
 
+    // No house name here. A surname is a villager's — it places them in a
+    // family the simulation knows about. The player is one person, not a
+    // lineage, so the field would be decoration they cannot use.
     const nameRow = document.createElement('div');
     nameRow.className = 'btn-row';
     const rollName = document.createElement('button');
@@ -222,18 +225,7 @@
       state.character.name = CM.randomName(null, state.character.sex);
       onCharacterChanged();
     });
-    const rollSurname = document.createElement('button');
-    rollSurname.type = 'button';
-    rollSurname.className = 'btn';
-    rollSurname.id = 'roll-surname';
-    rollSurname.addEventListener('click', function () {
-      const rng = CM.makeRng((Math.random() * 0xffffffff) >>> 0);
-      state.character.surname = CM.pick(rng, P.SURNAMES);
-      onCharacterChanged();
-    });
-    controls.push(function () { rollSurname.textContent = 'House: ' + state.character.surname; });
     nameRow.appendChild(rollName);
-    nameRow.appendChild(rollSurname);
     g.appendChild(nameRow);
 
     // sex
@@ -670,7 +662,7 @@
         : state.animation;
     el('readout').innerHTML = '';
     const bits = [
-      [c.name || '(unnamed)', c.surname],
+      [c.name || '(unnamed)', ''],
       ['facing', Rig.directionName(previewActor.yaw)],
       ['cycle', anim],
       ['hair', hairLabel]

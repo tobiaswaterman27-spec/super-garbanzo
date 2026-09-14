@@ -351,13 +351,15 @@
    * arc          — how wide a cone it covers, in radians either side
    * gore         — whether a hit leaves a slash across the body */
   const WEAPONS = {
-    fists: { id: 'fists', label: 'Fists', kind: 'blunt', power: 7, reach: 12,
+    // Reach has to clear the distance two people are held apart, or they can
+    // stand toe to toe and still be out of range of each other.
+    fists: { id: 'fists', label: 'Fists', kind: 'blunt', power: 7, reach: 17,
       swing: 0.17, recover: 0.16, bleed: 0.0, arc: 0.6, stamina: 2, anim: 'jab',
       gore: 0, knock: 0.35, twoHanded: false },
     club: { id: 'club', label: 'Club', kind: 'blunt', power: 17, reach: 19,
       swing: 0.24, recover: 0.30, bleed: 0.02, arc: 0.75, stamina: 5, anim: 'swing',
       gore: 0, knock: 0.85, twoHanded: false },
-    dagger: { id: 'dagger', label: 'Dagger', kind: 'pierce', power: 23, reach: 14,
+    dagger: { id: 'dagger', label: 'Dagger', kind: 'pierce', power: 23, reach: 19,
       swing: 0.13, recover: 0.16, bleed: 0.85, arc: 0.5, stamina: 3, anim: 'stab',
       gore: 0.4, knock: 0.15, twoHanded: false },
     sword: { id: 'sword', label: 'Sword', kind: 'edged', power: 31, reach: 27,

@@ -438,7 +438,7 @@
     }
 
     // each cart gets a horse in the shafts, a driver and its passengers
-    const LOAD = { cart: 3, chestCart: 2, luxuryCart: 1 };
+    const LOAD = { cart: 2, chestCart: 2, luxuryCart: 1 };
     for (let i = 0; i < world.carts.length; i++) {
       const c = world.carts[i];
       const h = world.horses[2 + i];
@@ -1015,23 +1015,57 @@
     }
   }
 
+  /* Icons are drawn into a generous buffer, measured, and then fitted to the
+   * slot from what is actually there. Guessing a scale per item and hoping it
+   * lands inside the box is how a poleaxe ends up with its head sticking out
+   * of the top and its butt out of the bottom. */
   const _iconBuf = {};
-  function drawIcon(target, id, cxView, cyView) {
-    // one buffer per item type, drawn once and blitted thereafter
-    let buf = _iconBuf[id];
-    if (!buf) {
-      const size = (SLOT - 3) * PIXEL;
-      buf = _iconBuf[id] = R.createTarget(size, size);
-      R.clearTarget(buf);
-      const view = I.iconView(id);
-      const cam = R.makeCamera(0.34, 1.05 * PIXEL * view.scale, size / 2, size / 2 + 2 * PIXEL);
-      let m = R.multiply(R.rotationY(view.yaw), R.rotationX(view.pitch));
-      const parts = I.iconParts(id);
-      for (let i = 0; i < parts.length; i++) {
-        R.drawMesh(buf, m, parts[i].mesh, R.ramp(parts[i].colour), cam, parts[i]);
-      }
-      R.traceOutline(buf, Rig.OUTLINE);
+  function buildIcon(id) {
+    const slot = (SLOT - 3) * PIXEL;
+    const big = slot * 3;
+    const scratch = R.createTarget(big, big);
+    R.clearTarget(scratch);
+    const view = I.iconView(id);
+    const cam = R.makeCamera(0.34, 1.05 * PIXEL, big / 2, big / 2);
+    let m = R.multiply(R.rotationY(view.yaw), R.rotationX(view.pitch));
+    const parts = I.iconParts(id);
+    for (let i = 0; i < parts.length; i++) {
+      R.drawMesh(scratch, m, parts[i].mesh, R.ramp(parts[i].colour), cam, parts[i]);
     }
+
+    // what did it actually cover?
+    let minX = big, minY = big, maxX = -1, maxY = -1;
+    for (let y = 0; y < big; y++) {
+      const row = y * big;
+      for (let x = 0; x < big; x++) {
+        if (scratch.colour[row + x] === 0) continue;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+    const buf = R.createTarget(slot, slot);
+    R.clearTarget(buf);
+    if (maxX < 0) return buf;
+
+    // redraw at the scale that makes the longest side fill the slot
+    const w = maxX - minX + 1, h = maxY - minY + 1;
+    const fit = (slot - 3) / Math.max(w, h);
+    const cx = (minX + maxX) / 2 - big / 2;
+    const cy = (minY + maxY) / 2 - big / 2;
+    const cam2 = R.makeCamera(0.34, 1.05 * PIXEL * fit,
+      slot / 2 - cx * fit, slot / 2 - cy * fit);
+    for (let i = 0; i < parts.length; i++) {
+      R.drawMesh(buf, m, parts[i].mesh, R.ramp(parts[i].colour), cam2, parts[i]);
+    }
+    R.traceOutline(buf, Rig.OUTLINE);
+    return buf;
+  }
+
+  function drawIcon(target, id, cxView, cyView) {
+    let buf = _iconBuf[id];
+    if (!buf) buf = _iconBuf[id] = buildIcon(id);
     R.blit(target, buf, Math.round(cxView * PIXEL - buf.w / 2),
       Math.round(cyView * PIXEL - buf.h / 2));
   }
@@ -1793,6 +1827,7 @@
     const r = a.reaction;
     if (!r || !r.nock) return;
     if (r.t < r.duration) return;
+    r.nock = false;
     a.nocked = true;
     a.reaction = null;
     beginAttack(world, a);
@@ -2306,7 +2341,11 @@
     const inK = Math.min(1, r.t / 0.18);
     const outK = Math.min(1, Math.max(0, (r.duration - r.t) / 0.3));
     r.k = Math.min(inK, outK);
-    if (r.t >= r.duration) a.reaction = null;
+    // A nock or a weapon swap owns its own ending — the generic timer used to
+    // clear the nock on the same frame it completed, one frame before the
+    // code that turns it into a shot ever looked at it, so a bow could be
+    // drawn for ever and never loose.
+    if (r.t >= r.duration && !r.nock && !r.swap) a.reaction = null;
   }
 
   /* ================== dropping things ================== */
@@ -2640,10 +2679,12 @@
 
   function serviceSwap(a) {
     const r = a.reaction;
-    if (!r || !r.swap || r.done) return;
-    if (r.t < r.duration * 0.55) return;
-    r.done = true;
-    if (r.swap === 'stow') stowWeapon(a); else drawWeapon(a);
+    if (!r || !r.swap) return;
+    if (!r.done && r.t >= r.duration * 0.55) {
+      r.done = true;
+      if (r.swap === 'stow') stowWeapon(a); else drawWeapon(a);
+    }
+    if (r.t >= r.duration) a.reaction = null;
   }
 
 
@@ -2688,6 +2729,126 @@
     return null;
   }
 
+
+
+
+  /* ---------- people get on and off ----------
+   *
+   * A cart that was loaded once at dawn and never touched again is scenery.
+   * Passengers get down when they feel like it and walk away; anyone on foot
+   * who passes an empty seat may climb up and ride along.
+   */
+
+  function alight(world, a) {
+    const v = a.carriedBy;
+    if (!v) return false;
+    if (v.riders) {
+      const at = v.riders.indexOf(a);
+      if (at >= 0) v.riders.splice(at, 1);
+    }
+    if (v.pillion === a) v.pillion = null;
+    a.carriedBy = null;
+    // step down to the near side
+    const side = (v.yaw || 0) + Math.PI / 2;
+    a.x = v.x + Math.cos(side) * 16;
+    a.y = v.y - Math.sin(side) * 11;
+    a.brain.state = 'pause';
+    a.brain.timer = 0.6 + a.rng() * 1.6;
+    a.brain.boardCooldown = 12 + a.rng() * 18;
+    clampVillager(a);
+    return true;
+  }
+
+  function seatsFree(c) {
+    const LOAD = { cart: 2, chestCart: 2, luxuryCart: 1 };
+    const cap = LOAD[c.type] || 1;
+    return cap - ((c.riders && c.riders.length) || 0);
+  }
+
+  function tryBoard(world, a) {
+    const brain = a.brain;
+    brain.boardCooldown = (brain.boardCooldown || 0) - 1 / 60;
+    if (brain.boardCooldown > 0 || brain.partner || brain.response) return false;
+    if (a.rng() > 0.05) return false;
+
+    // an empty pillion on a horse somebody is already riding
+    for (let i = 0; i < world.horses.length; i++) {
+      const h = world.horses[i];
+      if (!h.rider || h.pillion || h.dead || HM.isDown(h)) continue;
+      if (h.rider === world.player) continue;
+      if (distance(a, h) > 40) continue;
+      h.pillion = a;
+      a.carriedBy = h;
+      a.brain.state = 'pause';
+      return true;
+    }
+    // or a seat in a cart
+    for (let i = 0; i < world.carts.length; i++) {
+      const c = world.carts[i];
+      if (c.broken || !c.hitch) continue;
+      if (seatsFree(c) <= 0) continue;
+      if (distance(a, c) > 42) continue;
+      c.riders = c.riders || [];
+      c.riders.push(a);
+      a.carriedBy = c;
+      a.brain.state = 'pause';
+      return true;
+    }
+    return false;
+  }
+
+  /* ---------- how a crowd fights one person ----------
+   *
+   * Everyone who wants a piece of you running at your exact position gets you
+   * a scrum: six people pressed against your back, none of them with room to
+   * swing. So the ones who want to fight are ranked, the nearest two get to
+   * close, and the rest hold at a ring and work round it waiting for a gap.
+   */
+
+  const ENGAGE_SLOTS = 2;
+  const RING = 44;
+
+  function assignEngagement(world, dt) {
+    world.engageTimer = (world.engageTimer || 0) - dt;
+    if (world.engageTimer > 0) return;
+    world.engageTimer = 0.55;
+
+    const keen = [];
+    for (let i = 1; i < world.actors.length; i++) {
+      const a = world.actors[i];
+      if (!a.brain || a.carriedBy || Rig.isDown(a)) continue;
+      if (a.body && (a.body.dead || a.body.dying)) continue;
+      const wantsIn = (a.brain.state === 'react' && a.brain.response === 'fight')
+        || (a.brain.guard && a.brain.guardState === 'chase' && a.brain.role === 'pursue');
+      if (!wantsIn) { a.brain.engaged = false; continue; }
+      keen.push(a);
+    }
+    if (!keen.length) return;
+    const p = world.player;
+    keen.sort(function (x, y) { return distance(x, p) - distance(y, p); });
+    for (let i = 0; i < keen.length; i++) {
+      keen[i].brain.engaged = i < ENGAGE_SLOTS;
+      if (!keen[i].brain.engaged) {
+        // a place on the ring, kept for as long as they are waiting
+        if (keen[i].brain.ringAt === undefined) {
+          keen[i].brain.ringAt = (i % 2 ? 1 : -1) * (0.9 + (i / keen.length) * 1.6);
+        }
+        keen[i].brain.ringDrift = keen[i].brain.ringDrift || ((i % 2) ? 0.5 : -0.5);
+      } else {
+        keen[i].brain.ringAt = undefined;
+      }
+    }
+  }
+
+  /* Where somebody waiting their turn should stand: out on the ring, off to
+   * one side, drifting round it so the group does not freeze into a diagram. */
+  function ringSpot(world, a, target) {
+    const brain = a.brain;
+    brain.ringAt = (brain.ringAt || 0) + (brain.ringDrift || 0.4) * 0.012;
+    const base = Rig.yawForDirection(a.x - target.x, a.y - target.y);
+    const ang = base + brain.ringAt * 0.12;
+    return { x: target.x + Math.sin(ang) * RING, y: target.y + Math.cos(ang) * RING };
+  }
 
   /* ---------- the watch working together ----------
    *
@@ -2892,7 +3053,7 @@
     // once a flanker is ahead of you and close, they stop cutting and close in
     if (brain.role === 'cutOff' && d < 70) { brain.role = 'pursue'; }
 
-    if (d < w.reach * 0.85 + 8) {
+    if (d < w.reach + 4) {
       // a guard restraining you stops the moment you are on the ground or
       // badly hurt; only a lethal one keeps going
       const done = intent === 'restrain'
@@ -2916,7 +3077,7 @@
      * they ease off with you, and the moment you go again they are behind —
      * which reads as the watch politely pacing you rather than chasing you. */
     const facing = Math.max(0.25, 1 - Math.abs(turn) / 2.2);
-    const closeEnough = w.reach * 0.85 + 8;
+    const closeEnough = w.reach + 4;
     const sp = (d > closeEnough ? GUARD_SPEED.run : GUARD_SPEED.walk * 1.6) * facing;
     g.x += Math.sin(g.yaw) * sp * dt;
     g.y += Math.cos(g.yaw) * sp * dt;
@@ -2979,10 +3140,29 @@
         const want = Rig.yawForDirection(target.x - a.x, target.y - a.y);
         a.aimYaw = want;
         const w = I.heldWeapon(a.inv);
-        // Fists reach about as far as the distance two people are kept apart,
-        // so the range to start swinging has to clear that or they close for
-        // ever without ever being close enough.
-        const strikeAt = Math.max(w.reach * 0.85, 11) + 10;
+
+        // waiting their turn: hold the ring and face them
+        if (brain.engaged === false && d < RING * 2.4) {
+          const spot = ringSpot(world, a, target);
+          const toSpot = Math.hypot(spot.x - a.x, spot.y - a.y);
+          a.targetYaw = want;
+          if (toSpot > 8) {
+            const head = Rig.yawForDirection(spot.x - a.x, spot.y - a.y);
+            const clear = steerAround(world, a, head, 26);
+            const use = clear === null ? head : clear;
+            a.x += Math.sin(use) * speed * 0.8 * dt;
+            a.y += Math.cos(use) * speed * 0.8 * dt;
+            clampVillager(a);
+            a.gait = 'walk';
+          } else {
+            a.gait = 'idle';
+          }
+          break;
+        }
+        /* Swing from strictly inside the distance the blow can actually
+         * cover. Stopping at the very edge of reach meant they closed, stopped
+         * and swung at nothing, for ever. */
+        const strikeAt = w.reach + 4;
         if (d < strikeAt) {
           a.targetYaw = want;
           if (canAttack(a) && Math.abs(Rig.shortestAngle(a.yaw, want)) < 1.0) {
@@ -3572,12 +3752,19 @@
         brain.responseTimer = 4;
         brain.fleeFrom = { x: v.x, y: v.y };
       } else {
-        a.x = v.x; a.y = v.y;
-        a.yaw = v.yaw; a.targetYaw = v.yaw;
-        a.gait = 'idle';
-        Rig.updateBlink(a, dt);
-        a.animTime += dt;
-        return;
+        // riding along, until they decide they have arrived
+        brain.rideFor = (brain.rideFor === undefined ? 45 + a.rng() * 120 : brain.rideFor) - dt;
+        if (brain.rideFor <= 0 && Math.hypot(v.vx || 0, v.vy || 0) < 20) {
+          brain.rideFor = undefined;
+          alight(world, a);
+        } else {
+          a.x = v.x; a.y = v.y;
+          a.yaw = v.yaw; a.targetYaw = v.yaw;
+          a.gait = 'idle';
+          Rig.updateBlink(a, dt);
+          a.animTime += dt;
+          return;
+        }
       }
     }
 
@@ -3588,6 +3775,18 @@
         updateGuard(world, a, dt);
       } else if (brain.rides) {
         // ambling about: a heading held for a while, then a new one
+        brain.dismountIn = (brain.dismountIn === undefined
+          ? 40 + a.rng() * 70 : brain.dismountIn) - dt;
+        if (brain.dismountIn <= 0 && Math.hypot(a.mount.vx, a.mount.vy) < 18) {
+          brain.dismountIn = undefined;
+          brain.rides = false;
+          brain.boardCooldown = 15 + a.rng() * 20;
+          if (a.mount.pillion) alight(world, a.mount.pillion);
+          a.mount.npcDrive = null;
+          dismountNpc(world, a);
+          Rig.updateActorMotion(a, dt);
+          return;
+        }
         brain.rideTimer -= dt;
         if (brain.rideTimer <= 0) {
           brain.rideTimer = 4 + a.rng() * 8;
@@ -3730,6 +3929,7 @@
       tryStartChat(world, a);
       if (brain.state === 'chatting') return;
       if (a.gesture) brain.timer = Math.max(brain.timer, 0.3);
+      if (tryBoard(world, a)) { Rig.updateActorMotion(a, dt); return; }
 
       if (brain.timer <= 0) {
         brain.state = 'wander';
@@ -3913,6 +4113,7 @@
     updateArrows(world, dt);
     updateWanted(world, dt);
     assignRoles(world, dt);
+    assignEngagement(world, dt);
     separateHorses(world);
     D.update(world.box, dt);
 
@@ -3927,9 +4128,17 @@
 
     // reins last: they are solved in screen space, so they need this frame's
     // camera and this frame's final positions for both ends
+    /* Ropes are solved in screen space, so only bother with the ones that can
+     * actually be seen. Solving reins for every horse in the county was a
+     * fistful of jangling lines on screen at once and a rope left hanging off
+     * anything whose rider had got down. */
     for (let i = 0; i < world.horses.length; i++) {
-      updateReins(world, world.horses[i], dt);
-      updateTraces(world, world.horses[i], dt);
+      const h = world.horses[i];
+      const near = Math.abs(h.x - world.camX - VIEW_W / 2) < VIEW_W
+        && Math.abs(h.y - world.camY - VIEW_H / 2) < VIEW_H;
+      if (!near) { h.reins = null; h.traces = null; continue; }
+      updateReins(world, h, dt);
+      updateTraces(world, h, dt);
     }
   }
 
@@ -3993,7 +4202,10 @@
    * the rings of the bit either side of the horse's mouth. */
   function reinAnchors(world, h) {
     const holder = h.rider || (h.cart && h.cart.rider);
-    if (!holder || HM.isDown(h)) return null;
+    if (!holder || HM.isDown(h) || h.dead) return null;
+    if (Rig.isDown(holder) || (holder.body && holder.body.dead)) return null;
+    // the holder has to still be on the thing they are holding the reins of
+    if (holder.mount !== h && (!h.cart || holder.seat !== h.cart)) return null;
 
     /* The bit goes where the horse's mouth actually is, read off the posed
      * skeleton. Guessing it from the body dimensions puts it somewhere around
@@ -4038,7 +4250,7 @@
 
   function updateReins(world, h, dt) {
     const a = reinAnchors(world, h);
-    if (!a) { h.reins = null; return; }
+    if (!a) { h.reins = null; h.reinCamX = undefined; h.reinCamY = undefined; return; }
     if (!h.reins) {
       h.reins = [];
       for (let i = 0; i < 2; i++) {
@@ -4117,7 +4329,7 @@
 
   function updateTraces(world, h, dt) {
     const a = traceAnchors(world, h);
-    if (!a) { h.traces = null; return; }
+    if (!a) { h.traces = null; h.traceCam = null; return; }
     h.traces = solveRope(h.traces, a, world, h, dt, 'traceCam');
   }
 
@@ -4565,8 +4777,8 @@
         R.blit(target, renderMount(h),
           (Math.round(h.x) - cx) * PIXEL - HORSE_BUF.ox,
           (Math.round(h.y) - cy) * PIXEL - HORSE_BUF.oy);
-        if (h.rider) drawReins(target, h);
-        if (h.cart) drawTraces(target, h);
+        if (h.rider && h.reins) drawReins(target, h);
+        if (h.cart && !h.cart.broken && h.traces) drawTraces(target, h);
       } else if (d.cart) {
         const c = d.cart;
         R.fillEllipse(target, (Math.round(c.x) - cx) * PIXEL, (Math.round(c.y) - cy) * PIXEL,
@@ -4574,7 +4786,7 @@
         R.blit(target, renderCart(c),
           (Math.round(c.x) - cx) * PIXEL - CART_BUF.ox,
           (Math.round(c.y) - cy) * PIXEL - CART_BUF.oy);
-        if (c.rider && c.hitch) drawReins(target, c.hitch);
+        if (c.rider && c.hitch && c.hitch.reins) drawReins(target, c.hitch);
       } else if (d.item) {
         const g = d.item;
         R.fillEllipse(target, (Math.round(g.x) - cx) * PIXEL, (Math.round(g.y) - cy) * PIXEL,

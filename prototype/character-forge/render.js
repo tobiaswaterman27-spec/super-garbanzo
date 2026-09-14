@@ -342,6 +342,38 @@
 
   /* ---------- presenting a target to a canvas ---------- */
 
+  /* A thick line straight into the pixel buffer, no z-buffer. Used for things
+   * that hang between two sprites — a rein spanning the gap from a driver's
+   * hands to a horse's bit belongs to neither model, so it cannot be drawn
+   * inside either one's buffer. */
+  function drawLine(target, x0, y0, x1, y1, colour, thick) {
+    x0 = Math.round(x0); y0 = Math.round(y0);
+    x1 = Math.round(x1); y1 = Math.round(y1);
+    const t = Math.max(1, thick || 1);
+    const half = (t - 1) >> 1;
+    let dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+    const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+    let err = dx - dy;
+    const w = target.w, h = target.h, col = target.colour;
+    let guard = dx + dy + 4;
+    for (;;) {
+      for (let oy = -half; oy < t - half; oy++) {
+        const py = y0 + oy;
+        if (py < 0 || py >= h) continue;
+        const row = py * w;
+        for (let ox = -half; ox < t - half; ox++) {
+          const px = x0 + ox;
+          if (px < 0 || px >= w) continue;
+          col[row + px] = colour;
+        }
+      }
+      if ((x0 === x1 && y0 === y1) || guard-- <= 0) break;
+      const e2 = err * 2;
+      if (e2 > -dy) { err -= dy; x0 += sx; }
+      if (e2 < dx) { err += dx; y0 += sy; }
+    }
+  }
+
   function createPresenter(canvas, w, h) {
     const ctx = canvas.getContext('2d', { alpha: false });
     ctx.imageSmoothingEnabled = false;
@@ -378,7 +410,7 @@
     transformPoint, transformDirection,
     pack, hexToRgb, mixRgb, ramp, buildRamp,
     createTarget, clearTarget, drawMesh, traceOutline, blit,
-    fillRect, strokeRect, fillEllipse, createPresenter, makeCamera,
+    fillRect, strokeRect, fillEllipse, drawLine, createPresenter, makeCamera,
     rasterTriangle, shadeLevel
   };
 })(window);

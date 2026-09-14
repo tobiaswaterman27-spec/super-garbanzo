@@ -497,31 +497,32 @@
   /* Walks the posed tree and reports where each named joint has ended up, in
    * world units with the hooves at y=0. */
   const _jp = [0, 0, 0];
-  function jointPositions(model, yaw) {
+  function jointPositions(model, yaw, tiltPitch, tiltRoll) {
     const d = model.dims;
     const scale = model.root.scale || 1;
-    const cy = Math.cos(yaw), sy = Math.sin(yaw);
-    const out = {};
+    let base = R.rotationY(yaw);
+    // Tilt about the hooves, so a get-up can aim at a body that is still on
+    // its side rather than at one that is already standing.
+    if (tiltPitch) base = R.multiply(base, R.rotationX(tiltPitch));
+    if (tiltRoll) base = R.multiply(base, R.rotationZ(tiltRoll));
+    base = R.multiply(base, R.scaling(scale));
+    base = R.multiply(base, R.translation(0, model.bob || 0, 0));
 
+    (function walk(node, parent) {
+      let local = R.translation(node.origin[0], node.origin[1], node.origin[2]);
+      if (node.rot[2]) local = R.multiply(local, R.rotationZ(node.rot[2]));
+      if (node.rot[1]) local = R.multiply(local, R.rotationY(node.rot[1]));
+      if (node.rot[0]) local = R.multiply(local, R.rotationX(node.rot[0]));
+      node._m = R.multiply(parent, local);
+      for (let i = 0; i < node.children.length; i++) walk(node.children[i], node._m);
+    })(model.root, base);
+
+    const out = {};
     function at(boneName, lx, ly, lz, key) {
       const b = model.bones[boneName];
       if (!b) return;
-      // accumulate the chain from the root down to this bone
-      const stack = [];
-      let node = b;
-      while (node) { stack.unshift(node); node = node._parent; }
-      let m = R.identity();
-      for (let i = 0; i < stack.length; i++) {
-        const n = stack[i];
-        let local = R.translation(n.origin[0], n.origin[1], n.origin[2]);
-        if (n.rot[2]) local = R.multiply(local, R.rotationZ(n.rot[2]));
-        if (n.rot[1]) local = R.multiply(local, R.rotationY(n.rot[1]));
-        if (n.rot[0]) local = R.multiply(local, R.rotationX(n.rot[0]));
-        m = R.multiply(m, local);
-      }
-      R.transformPoint(m, lx, ly, lz, _jp);
-      const x = _jp[0] * scale, y = _jp[1] * scale + (model.bob || 0) * scale, z = _jp[2] * scale;
-      out[key] = [x * cy + z * sy, y, -x * sy + z * cy];
+      R.transformPoint(b._m, lx, ly, lz, _jp);
+      out[key] = [_jp[0], _jp[1], _jp[2]];
     }
 
     at('body', 0, 0, 0, 'croup');
@@ -562,10 +563,12 @@
   const GRAVITY = 130;
   const SUBSTEP = 1 / 120;
   const ITERATIONS = 8;
+  const MAX_STEP = 1.05;   // model units per 120Hz substep, ~126 units/second
   const STILL_TIME = 1.4;
 
   function createFall() {
-    return { active: false, p: null, links: null, state: 'up', still: 0, rise: 0, timer: 0 };
+    return { active: false, p: null, links: null, state: 'up', still: 0, rise: 0, timer: 0,
+      risePitch: 0, riseRoll: 0, vol: null };
   }
 
   function knockDown(entity, dirX, dirY, force) {
@@ -576,7 +579,7 @@
     const len = Math.hypot(dirX, dirY) || 1;
     const px = dirX / len, pz = dirY / len;
     const p = {};
-    const impulse = Math.max(1, Math.min(11, force)) * SUBSTEP * 5.2;
+    const impulse = Math.max(1, Math.min(11, force)) * SUBSTEP * 4.4;
 
     for (let i = 0; i < JOINT_NAMES.length; i++) {
       const k = JOINT_NAMES[i];
@@ -602,6 +605,12 @@
       links.push({ a: a, b: b, len: Math.hypot(dx, dy, dz), stiff: LINKS[i][2] });
     }
 
+    // Centre the body on the entity before anything else. The solver works in
+    // a local frame whose origin is the middle of the barrel, and hands back
+    // how far that middle moved each step; if it does not start at zero, the
+    // very first step hands back the model's own layout as if it were motion.
+    recentre(p);
+
     f.p = p;
     f.links = links;
     f.active = true;
@@ -613,12 +622,208 @@
     return true;
   }
 
-  function simulate(f, dt) {
+  /* Midpoint of the barrel, in whatever frame the particles are currently in. */
+  function bodyMid(p) {
+    const c = p.croup, w = p.withers;
+    return { x: (c.x + w.x) * 0.5, z: (c.z + w.z) * 0.5 };
+  }
+
+  function recentre(p) {
+    const m = bodyMid(p);
+    for (const k in p) {
+      const q = p[k];
+      q.x -= m.x; q.z -= m.z;
+      q.px -= m.x; q.pz -= m.z;
+    }
+    return m;
+  }
+
+
+  /* ---------- solid body ---------- */
+
+  /* The same problem the villagers had: the distance constraints are happy to
+   * let a foreleg swing straight through the barrel, and every bone is drawn
+   * as a box spanning two particles, so a segment crossing the body is a leg
+   * visibly inside the horse. The barrel is an elliptical column along the
+   * spine — a horse is far deeper than it is wide — plus a neck capsule, and
+   * every limb is sampled along its length rather than only at the joints. */
+  function bodyVolumes(d) {
+    return {
+      barrelW: d.bodyW / 2 + d.legW * 0.44,
+      barrelH: d.bodyH / 2 + d.legW * 0.44,
+      neckR: d.neckW * 0.5 + d.legW * 0.2,
+      legR: d.legW * 0.5
+    };
+  }
+
+  const LIMB_SEGMENTS = [
+    { a: 'rootFL', b: 'kneeFL', root: true }, { a: 'kneeFL', b: 'hoofFL', root: false },
+    { a: 'rootFR', b: 'kneeFR', root: true }, { a: 'kneeFR', b: 'hoofFR', root: false },
+    { a: 'rootBL', b: 'kneeBL', root: true }, { a: 'kneeBL', b: 'hoofBL', root: false },
+    { a: 'rootBR', b: 'kneeBR', root: true }, { a: 'kneeBR', b: 'hoofBR', root: false }
+  ];
+
+  const LIMB_PAIRS = [
+    [['rootFL', 'kneeFL'], ['rootFR', 'kneeFR']], [['kneeFL', 'hoofFL'], ['kneeFR', 'hoofFR']],
+    [['rootBL', 'kneeBL'], ['rootBR', 'kneeBR']], [['kneeBL', 'hoofBL'], ['kneeBR', 'hoofBR']],
+    [['kneeFL', 'hoofFL'], ['kneeBL', 'hoofBL']], [['kneeFR', 'hoofFR'], ['kneeBR', 'hoofBR']]
+  ];
+
+  const _hf = { ox: 0, oy: 0, oz: 0, len: 1, ax: 0, ay: 0, az: 1,
+    lx: 1, ly: 0, lz: 0, ux: 0, uy: 1, uz: 0 };
+
+  /* Barrel frame: the spine runs croup to withers, the lateral axis across
+   * the shoulders, and up is their cross product. Without a real frame the
+   * barrel can only be a round tube, which either lets legs through at the
+   * belly or holds them out at the flanks. */
+  function barrelFrame(p) {
+    const a = p.croup, b = p.withers;
+    if (!a || !b) return null;
+    let ax = b.x - a.x, ay = b.y - a.y, az = b.z - a.z;
+    const al = Math.hypot(ax, ay, az);
+    if (al < 1e-5) return null;
+    ax /= al; ay /= al; az /= al;
+
+    let lx = p.rootFL.x - p.rootFR.x, ly = p.rootFL.y - p.rootFR.y, lz = p.rootFL.z - p.rootFR.z;
+    const dot = lx * ax + ly * ay + lz * az;
+    lx -= ax * dot; ly -= ay * dot; lz -= az * dot;
+    let ll = Math.hypot(lx, ly, lz);
+    if (ll < 1e-4) {
+      lx = Math.abs(ax) < 0.9 ? 1 : 0; ly = 0; lz = Math.abs(ax) < 0.9 ? 0 : 1;
+      const d2 = lx * ax + ly * ay + lz * az;
+      lx -= ax * d2; ly -= ay * d2; lz -= az * d2;
+      ll = Math.hypot(lx, ly, lz) || 1;
+    }
+    lx /= ll; ly /= ll; lz /= ll;
+
+    _hf.ox = a.x; _hf.oy = a.y; _hf.oz = a.z; _hf.len = al;
+    _hf.ax = ax; _hf.ay = ay; _hf.az = az;
+    _hf.lx = lx; _hf.ly = ly; _hf.lz = lz;
+    _hf.ux = ay * lz - az * ly;
+    _hf.uy = az * lx - ax * lz;
+    _hf.uz = ax * ly - ay * lx;
+    return _hf;
+  }
+
+  const _push = { x: 0, y: 0, z: 0 };
+
+  function barrelEscape(fr, v, x, y, z) {
+    const dx = x - fr.ox, dy = y - fr.oy, dz = z - fr.oz;
+    const s = dx * fr.ax + dy * fr.ay + dz * fr.az;
+    // Only the run of the barrel itself. The legs are rooted at its ends, so
+    // testing them against those is the solver fighting the skeleton.
+    if (s < fr.len * 0.16 || s > fr.len * 0.94) return false;
+    const u = dx * fr.lx + dy * fr.ly + dz * fr.lz;
+    const w = dx * fr.ux + dy * fr.uy + dz * fr.uz;
+    const nu = u / v.barrelW, nw = w / v.barrelH;
+    const m = Math.hypot(nu, nw);
+    if (m >= 1) return false;
+    const k = m < 1e-4 ? 1 : 1 / m;
+    const eu = u * k - u, ew = w * k - w;
+    _push.x = fr.lx * eu + fr.ux * ew;
+    _push.y = fr.ly * eu + fr.uy * ew;
+    _push.z = fr.lz * eu + fr.uz * ew;
+    return true;
+  }
+
+  function capsuleEscape(a, b, r, x, y, z) {
+    const bx = b.x - a.x, by = b.y - a.y, bz = b.z - a.z;
+    const len2 = bx * bx + by * by + bz * bz || 1e-6;
+    let t = ((x - a.x) * bx + (y - a.y) * by + (z - a.z) * bz) / len2;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const cx = a.x + bx * t, cy = a.y + by * t, cz = a.z + bz * t;
+    const dx = x - cx, dy = y - cy, dz = z - cz;
+    const d = Math.hypot(dx, dy, dz);
+    if (d >= r) return false;
+    if (d < 1e-4) { _push.x = 0; _push.y = r; _push.z = 0; return true; }
+    const k = (r - d) / d;
+    _push.x = dx * k; _push.y = dy * k; _push.z = dz * k;
+    return true;
+  }
+
+  const SAMPLES = [0.22, 0.45, 0.68, 0.86, 1.0];
+
+  function separateLimbs(f, dims) {
+    const p = f.p;
+    const v = f.vol || (f.vol = bodyVolumes(dims));
+    const fr = barrelFrame(p);
+
+    for (let i = 0; i < LIMB_SEGMENTS.length; i++) {
+      const seg = LIMB_SEGMENTS[i];
+      const a = p[seg.a], b = p[seg.b];
+      if (!a || !b) continue;
+      let ax = 0, ay = 0, az = 0, bx = 0, by = 0, bz = 0, any = false;
+      for (let j = 0; j < SAMPLES.length; j++) {
+        const t = SAMPLES[j];
+        const x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t, z = a.z + (b.z - a.z) * t;
+        let ex = 0, ey = 0, ez = 0, hit = false;
+        if (fr && barrelEscape(fr, v, x, y, z)) {
+          ex += _push.x; ey += _push.y; ez += _push.z; hit = true;
+        }
+        if (!seg.root && capsuleEscape(p.withers, p.poll, v.neckR, x, y, z)) {
+          ex += _push.x; ey += _push.y; ez += _push.z; hit = true;
+        }
+        if (!hit) continue;
+        any = true;
+        // a root end is welded to the body, so it only takes a token share
+        const wa = seg.root ? (1 - t) * 0.45 : (1 - t);
+        const wb = seg.root ? 1 : t;
+        const sum = wa + wb || 1;
+        ax += ex * wa / sum; ay += ey * wa / sum; az += ez * wa / sum;
+        bx += ex * wb / sum; by += ey * wb / sum; bz += ez * wb / sum;
+      }
+      if (!any) continue;
+      const n = SAMPLES.length;
+      if (!seg.root) { a.x += ax / n; a.y += ay / n; a.z += az / n; }
+      b.x += bx / n; b.y += by / n; b.z += bz / n;
+    }
+
+    // and the legs against each other, so they cannot scissor through
+    for (let i = 0; i < LIMB_PAIRS.length; i++) {
+      const A = LIMB_PAIRS[i][0], B = LIMB_PAIRS[i][1];
+      const a0 = p[A[0]], a1 = p[A[1]], b0 = p[B[0]], b1 = p[B[1]];
+      if (!a0 || !a1 || !b0 || !b1) continue;
+      const want = v.legR * 2;
+      const ux = a1.x - a0.x, uy = a1.y - a0.y, uz = a1.z - a0.z;
+      const vx = b1.x - b0.x, vy = b1.y - b0.y, vz = b1.z - b0.z;
+      const wx = a0.x - b0.x, wy = a0.y - b0.y, wz = a0.z - b0.z;
+      const uu = ux * ux + uy * uy + uz * uz;
+      const uv = ux * vx + uy * vy + uz * vz;
+      const vv = vx * vx + vy * vy + vz * vz;
+      const uw = ux * wx + uy * wy + uz * wz;
+      const vw = vx * wx + vy * wy + vz * wz;
+      const den = uu * vv - uv * uv;
+      let sa, tb;
+      if (den < 1e-8) { sa = 0; tb = vv < 1e-8 ? 0 : vw / vv; }
+      else { sa = (uv * vw - vv * uw) / den; tb = (uu * vw - uv * uw) / den; }
+      sa = sa < 0 ? 0 : sa > 1 ? 1 : sa;
+      tb = tb < 0 ? 0 : tb > 1 ? 1 : tb;
+      let dx = (a0.x + ux * sa) - (b0.x + vx * tb);
+      let dy = (a0.y + uy * sa) - (b0.y + vy * tb);
+      let dz = (a0.z + uz * sa) - (b0.z + vz * tb);
+      let d = Math.hypot(dx, dy, dz);
+      if (d >= want) continue;
+      if (d < 1e-4) { dx = 1; dy = 0; dz = 0; d = 1; }
+      const k = (want - d) / d * 0.5 * 0.6;
+      const px = dx * k, py = dy * k, pz = dz * k;
+      a0.x += px * (1 - sa); a0.y += py * (1 - sa); a0.z += pz * (1 - sa);
+      a1.x += px * sa; a1.y += py * sa; a1.z += pz * sa;
+      b0.x -= px * (1 - tb); b0.y -= py * (1 - tb); b0.z -= pz * (1 - tb);
+      b1.x -= px * tb; b1.y -= py * tb; b1.z -= pz * tb;
+    }
+  }
+
+  function simulate(f, dt, dims) {
     const p = f.p;
     const gStep = GRAVITY * dt * dt;
     for (const k in p) {
       const q = p[k];
-      const vx = (q.x - q.px) * 0.992, vy = (q.y - q.py) * 0.992, vz = (q.z - q.pz) * 0.992;
+      let vx = (q.x - q.px) * 0.992, vy = (q.y - q.py) * 0.992, vz = (q.z - q.pz) * 0.992;
+      // A constraint resolving against a hoof the ground is holding can fling
+      // a particle a long way in one substep. Capping the step keeps a hard
+      // landing from turning into the horse being launched across the map.
+      const sp = Math.hypot(vx, vy, vz);
+      if (sp > MAX_STEP) { const s2 = MAX_STEP / sp; vx *= s2; vy *= s2; vz *= s2; }
       q.px = q.x; q.py = q.y; q.pz = q.z;
       q.x += vx; q.y += vy - gStep; q.z += vz;
     }
@@ -633,12 +838,13 @@
         a.x += dx * k; a.y += dy * k; a.z += dz * k;
         b.x -= dx * k; b.y -= dy * k; b.z -= dz * k;
       }
+      separateLimbs(f, dims);
       for (const key in p) {
         const q = p[key];
         if (q.y < q.r * 0.34) {
           q.y = q.r * 0.34;
-          q.px += (q.x - q.px) * 0.60;
-          q.pz += (q.z - q.pz) * 0.60;
+          q.px += (q.x - q.px) * 0.74;
+          q.pz += (q.z - q.pz) * 0.74;
         }
       }
     }
@@ -654,6 +860,36 @@
   }
 
   const RISE_TIME = 1.9;
+  const RISE_DRIFT = 16;   // model units per second a get-up may travel
+  const FALL_DRIFT = 130;  // and a crash slide — under its own gallop speed
+
+  /* Reads which way the animal is lying and points the get-up at that, rather
+   * than at whatever heading it had before it went down. Dragging a prone
+   * horse through a ninety degree turn each frame, against hooves the ground
+   * friction is holding, is what made it plough across the field. */
+  function beginRise(entity) {
+    const f = entity.fall;
+    const c = f.p.croup, w = f.p.withers;
+    let ax = w.x - c.x, ay = w.y - c.y, az = w.z - c.z;
+    const flat = Math.hypot(ax, az);
+    if (flat > 0.4) entity.yaw = Math.atan2(ax, az);
+    entity.targetYaw = entity.yaw;
+
+    // how far the spine is from level, split into the animal's own pitch and
+    // roll so the target starts lying down and eases upright
+    const L = Math.hypot(ax, ay, az) || 1;
+    ax /= L; ay /= L; az /= L;
+    const cy = Math.cos(entity.yaw), sy = Math.sin(entity.yaw);
+    const side = ax * cy - az * sy;
+    f.risePitch = Math.atan2(ay, flat / L || 1e-6) - Math.PI / 2;
+    f.riseRoll = Math.asin(Math.max(-1, Math.min(1, side)));
+    const lean = Math.hypot(f.risePitch, f.riseRoll);
+    if (lean > Math.PI / 2) {
+      const sc = (Math.PI / 2) / lean;
+      f.risePitch *= sc;
+      f.riseRoll *= sc;
+    }
+  }
 
   function updateFall(entity, dt) {
     const f = entity.fall;
@@ -662,21 +898,44 @@
     let acc = Math.min(dt, 0.05);
     while (acc > 0) {
       const step = Math.min(SUBSTEP, acc);
-      simulate(f, step);
+      simulate(f, step, entity.model.dims);
       acc -= step;
     }
 
-    // The body drifts as it tumbles; hand that back to the entity so the world
-    // sees the horse actually slide across the ground.
-    const c = f.p.croup, w = f.p.withers;
-    const cx = (c.x + w.x) * 0.5, cz = (c.z + w.z) * 0.5;
-    entity.x += cx;
-    entity.y += cz;
-    for (const k in f.p) { f.p[k].x -= cx; f.p[k].z -= cz; f.p[k].px -= cx; f.p[k].pz -= cz; }
+    /* Hand the body's drift back to the entity, so the world sees the horse
+     * slide across the ground rather than the sprite sliding out of its own
+     * position. Rate-limited: a crash can throw a horse a long way, but a horse
+     * heaving itself upright travels barely at all, and without a limit the
+     * solver's fight with the get-up pose reads as the animal dragging itself
+     * across the field. Whatever is held back stays as particle offset and is
+     * delivered over the following frames, so a real slide still arrives — it
+     * just cannot arrive faster than a horse can move. */
+    const m = bodyMid(f.p);
+    const cap = (f.state === 'rising' ? RISE_DRIFT : FALL_DRIFT) * dt;
+    const travelled = Math.hypot(m.x, m.z);
+    let gx = m.x, gz = m.z;
+    if (travelled > cap) {
+      const scale = cap / travelled;
+      gx = m.x * scale; gz = m.z * scale;
+    }
+    entity.x += gx;
+    entity.y += gz;
+    for (const key in f.p) {
+      const q = f.p[key];
+      q.x -= gx; q.z -= gz; q.px -= gx; q.pz -= gz;
+    }
 
     if (f.state === 'falling') {
-      f.still = energy(f) < 0.55 ? f.still + dt : 0;
-      if (f.still > STILL_TIME) { f.state = 'rising'; f.rise = 0; }
+      // Either it has settled, or it has been thrashing long enough that it
+      // is never going to — a horse pinballing off scenery for fifteen
+      // seconds is a solver that will not converge, not an animal.
+      f.timer += dt;
+      f.still = energy(f) < 0.7 ? f.still + dt : 0;
+      if (f.still > STILL_TIME || f.timer > 3.6) {
+        f.state = 'rising';
+        f.rise = 0;
+        beginRise(entity);
+      }
       return;
     }
 
@@ -686,7 +945,17 @@
     const k = Math.min(1, f.rise);
     const ease = k * k * (3 - 2 * k);
     poseGait(entity.model, 0, 'idle');
-    const target = jointPositions(entity.model, entity.yaw);
+    const target = jointPositions(entity.model, entity.yaw,
+      f.risePitch * (1 - ease), f.riseRoll * (1 - ease));
+    // The standing pose has its own barrel midpoint, nowhere near the origin.
+    // Pulling toward it uncentred means every single frame hands that offset
+    // back as drift — which is a horse that walks itself across the field
+    // while lying on its side.
+    const tm = {
+      x: (target.croup[0] + target.withers[0]) * 0.5,
+      z: (target.croup[2] + target.withers[2]) * 0.5
+    };
+    for (const key in target) { target[key][0] -= tm.x; target[key][2] -= tm.z; }
     const pull = Math.min(1, dt * (1.6 + 8 * k));
     for (const key in f.p) {
       const q = f.p[key], t = target[key];
@@ -696,6 +965,7 @@
       q.x += dx; q.y += dy; q.z += dz;
       q.px += dx; q.py += dy; q.pz += dz;
     }
+    separateLimbs(f, entity.model.dims);
     if (k >= 1) {
       let worst = 0;
       for (const key in f.p) {

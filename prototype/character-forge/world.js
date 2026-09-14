@@ -48,7 +48,9 @@
   const FALL_SPEED = 104;      // scenery at nearly full sprint floors you
   const CHEST_H = 20;          // contact heights, in model units
   const TALK_RANGE = 40;
-  const CHAT_RANGE = 62;       // how close two villagers get talking
+  const CHAT_NOTICE = 110;     // far enough to catch someone's eye
+  const CHAT_CLOSE = 20;       // how close they actually stand to talk
+  const CHAT_BREAK = 54;       // drift further apart than this and it is over
   const GREET_RANGE = 70;
   const COMFORT_RANGE = 24;
 
@@ -276,10 +278,14 @@
 
     // `tall` decides what happens when you hit it at speed: you go over a low
     // obstacle, you bounce off a tall one.
-    function addProp(sprite, x, y, r, tall) {
+    /* `hardness` is how much of an impact the object gives back. A trunk does
+     * not move, so all of it goes into the cart; a barrel tips over and takes
+     * most of it with it. */
+    function addProp(sprite, x, y, r, tall, hardness) {
       world.props.push({
         sprite: sprite, x: x, y: y, footY: sprite.footY, r: r,
-        shadowR: r * 1.5, tall: !!tall
+        shadowR: r * 1.5, tall: !!tall,
+        hardness: hardness === undefined ? 1 : hardness
       });
     }
 
@@ -287,16 +293,16 @@
       const x = 40 + rng() * (WORLD_W - 80);
       const y = 40 + rng() * (WORLD_H - 80);
       if (Math.abs(y - pathCentre(x)) < 36) continue; // keep the road clear
-      addProp(treeSprites[Math.floor(rng() * treeSprites.length)], x, y, 7.5, true);
+      addProp(treeSprites[Math.floor(rng() * treeSprites.length)], x, y, 7.5, true, 1.0);
     }
     for (let i = 0; i < 22; i++) {
       addProp(rockSprites[Math.floor(rng() * rockSprites.length)],
-        40 + rng() * (WORLD_W - 80), 40 + rng() * (WORLD_H - 80), 4.5, false);
+        40 + rng() * (WORLD_W - 80), 40 + rng() * (WORLD_H - 80), 4.5, false, 0.8);
     }
-    addProp(cartSprite, WORLD_W * 0.46, pathCentre(WORLD_W * 0.46) - 26, 10, false);
-    addProp(barrelSprite, WORLD_W * 0.42, WORLD_H * 0.5, 4, false);
-    addProp(barrelSprite, WORLD_W * 0.435, WORLD_H * 0.52, 4, false);
-    addProp(barrelSprite, WORLD_W * 0.415, WORLD_H * 0.535, 4, false);
+    addProp(cartSprite, WORLD_W * 0.46, pathCentre(WORLD_W * 0.46) - 26, 10, false, 0.55);
+    addProp(barrelSprite, WORLD_W * 0.42, WORLD_H * 0.5, 4, false, 0.35);
+    addProp(barrelSprite, WORLD_W * 0.435, WORLD_H * 0.52, 4, false, 0.35);
+    addProp(barrelSprite, WORLD_W * 0.415, WORLD_H * 0.535, 4, false, 0.35);
 
     /* player */
     const player = Rig.createActor(playerCharacter, WORLD_W * 0.4, WORLD_H * 0.55, 1);
@@ -662,18 +668,25 @@
     if (Rig.isDown(p)) return null;
     if (p.mount) {
       const c = nearestCart(world, p.mount, HITCH_RANGE);
-      if (c && !p.mount.cart) return { kind: 'hitch', label: 'hitch cart', at: c };
-      if (p.mount.cart) return { kind: 'unhitch', label: 'unhitch', at: p.mount.cart };
-      return { kind: 'dismount', label: 'dismount', at: p.mount,
-        name: p.mount.horse.name, horse: p.mount.horse };
+      // Whatever E happens to do from up here, the label is the horse's name.
+      const named = { name: p.mount.horse.name, at: p.mount };
+      if (c && !p.mount.cart) return { kind: 'hitch', at: named.at, name: named.name };
+      if (p.mount.cart) return { kind: 'unhitch', at: named.at, name: named.name };
+      return { kind: 'dismount', at: named.at, name: named.name };
     }
-    if (p.seat) return { kind: 'standup', label: 'get down', at: p.seat };
+    if (p.seat) {
+      const h2 = p.seat.hitch;
+      return { kind: 'standup', at: p.seat, name: h2 ? h2.horse.name : null };
+    }
     const h = nearestHorse(world);
-    if (h) return { kind: 'mount', label: 'ride', at: h, name: h.horse.name, horse: h.horse };
+    if (h) return { kind: 'mount', at: h, name: h.horse.name };
     const bench = nearestBench(world);
-    if (bench) return { kind: 'board', label: 'take the reins', at: bench };
+    if (bench) {
+      const h2 = bench.hitch;
+      return { kind: 'board', at: bench, name: h2 ? h2.horse.name : null };
+    }
     const npc = nearestTalkable(world);
-    if (npc) return { kind: 'talk', label: 'talk', at: npc, name: npc.character.name };
+    if (npc) return { kind: 'talk', at: npc, name: npc.character.name };
     return null;
   }
 
@@ -922,13 +935,34 @@
       c.vx = (c.x - prevX) / Math.max(dt, 1e-4);
       c.vy = (c.y - prevY) / Math.max(dt, 1e-4);
 
-      // The body lags the hitch line. Faster means a looser, later swing.
+      /* The body lags the hitch line, and carries angular momentum of its own.
+       * A rigid "point along the shaft" cart never swings, however fast you
+       * turn; letting the tail overshoot and settle back is what makes a hard
+       * turn throw the back end wide and put it into whatever is there. */
       const want = Rig.yawForDirection(-nx, -ny);
       const sp = Math.hypot(c.vx, c.vy);
-      const lag = Math.max(1.6, 9.5 - sp * 0.035);
       const turn = Rig.shortestAngle(c.yaw, want);
-      c.yaw += turn * Math.min(1, lag * dt);
-      c.sway = (c.sway || 0) * 0.88 + turn * 0.35;
+      // springy, with damping that drops off at speed — fast means loose
+      const spring = 14 + sp * 0.05;
+      const damp = Math.max(2.4, 7.0 - sp * 0.030);
+      c.spin = (c.spin || 0) + (turn * spring - (c.spin || 0) * damp) * dt;
+      const maxSpin = 7.5;
+      if (c.spin > maxSpin) c.spin = maxSpin;
+      if (c.spin < -maxSpin) c.spin = -maxSpin;
+      c.yaw += c.spin * dt;
+      // A cart can jackknife; it cannot fold flat against its own shafts and
+      // swing round through the horse.
+      const off = Rig.shortestAngle(want, c.yaw);
+      const LIMIT = 1.22;
+      if (Math.abs(off) > LIMIT) {
+        c.yaw = want - Math.sign(off) * LIMIT;
+        c.spin *= -0.25;
+      }
+      c.sway = (c.sway || 0) * 0.86 + c.spin * 0.09;
+      // and the tail physically swings out to the side of the shaft line
+      const lat = Math.max(-1, Math.min(1, c.spin * 0.16));
+      c.x += -ny * lat * sp * dt * 0.55;
+      c.y += nx * lat * sp * dt * 0.55;
     } else {
       const sp = Math.hypot(c.vx, c.vy);
       if (sp > 0) {
@@ -937,18 +971,43 @@
       }
       c.x += c.vx * dt;
       c.y += c.vy * dt;
+      c.spin = (c.spin || 0) * Math.max(0, 1 - 3.4 * dt);
+      c.yaw += c.spin * dt;
       c.sway = (c.sway || 0) * 0.9;
     }
     clampToWorld(c);
 
+    /* Bounce. A cart on wooden axles does not glide: it pitches over ruts at
+     * a rate set by how fast it is going, and lurches when the tail swings.
+     * Quantised to the same 12fps clock as everything else so it does not
+     * reintroduce the crawl. */
+    const rolling = Math.hypot(c.vx, c.vy);
+    c.rollT = (c.rollT || 0) + rolling * dt * 0.06;
+    const jolt = Math.sin(c.rollT * 6.1) * 0.55 + Math.sin(c.rollT * 2.7) * 0.35;
+    c.bounce = jolt * Math.min(1, rolling / 60) * (1 + (c.stage || 0) * 0.45)
+      + Math.abs(c.sway || 0) * 0.8;
+    c.lean = (c.sway || 0) * 0.22;
+
     if (c.broken) return;
 
-    // scenery: the cart takes the damage, not the horse
+    /* Scenery: the cart takes the damage, not the horse, and how much depends
+     * on three things — how fast it hit, what it hit, and whether it was
+     * swinging. A cart that clips a barrel head-on is barely scratched; the
+     * same cart whipping round sideways into a trunk loses a wheel. */
     const impact = resolvePropCollisions(world, c, CART_R);
     if (impact.prop && impact.speed > 24 && c.hitCooldown <= 0) {
       c.hitCooldown = 0.35;
-      damageCart(world, c, 12 + impact.speed * 0.36, impact.nx, impact.ny);
-      if (h) { h.vx *= 0.72; h.vy *= 0.72; }
+      // the component of travel across the cart's own axis: its swing
+      const fwdX = Math.sin(c.yaw), fwdY = Math.cos(c.yaw);
+      const lateral = Math.abs(c.vx * fwdY - c.vy * fwdX);
+      const swing = 1 + Math.min(1.8, lateral / 70) + Math.abs(c.sway || 0) * 1.6;
+      const hardness = impact.prop.hardness === undefined ? 1 : impact.prop.hardness;
+      const weak = c.def.frail || 1;
+      damageCart(world, c, (7 + impact.speed * 0.30) * swing * hardness * weak,
+        impact.nx, impact.ny);
+      if (h) { h.vx *= 0.72 - hardness * 0.12; h.vy *= 0.72 - hardness * 0.12; }
+      // a broadside hit throws the tail of the cart round
+      c.sway = (c.sway || 0) - (c.vx * fwdY - c.vy * fwdX) / 240;
     }
 
     // and it knocks people down as readily as the horse does
@@ -1126,8 +1185,8 @@
       p.rein = Math.max(0, Math.min(1, (p.rein || 0) * 0.86 + Math.abs(want) * 7 * dt));
       p.turn = want;
       // the bench jolts over rough ground and with the cart's own sway
-      p.jolt = Math.sin(p.animTime * 17) * Math.min(1.1, Math.hypot(c.vx, c.vy) / 90)
-        + (c.sway || 0) * 0.8;
+      // the driver rides the cart's own bounce rather than a separate wobble
+      p.jolt = (c.bounce || 0) * 0.5;
     }
   }
 
@@ -1246,7 +1305,7 @@
 
     // anything that breaks the pair breaks the conversation
     if (!partner || Rig.isDown(partner) || partner.brain.partner !== a ||
-        distance(a, partner) > CHAT_RANGE * 1.8) {
+        distance(a, partner) > CHAT_BREAK) {
       endChat(a, 4);
       return;
     }
@@ -1310,19 +1369,79 @@
     }
   }
 
+  /* Catching someone's eye is not the same as talking to them. Two villagers
+   * who decide to speak now walk over to each other first and only start once
+   * they are close enough to be heard — standing sixty units apart shouting is
+   * what made the old version read as two people ignoring each other. */
   function tryStartChat(world, a) {
     const brain = a.brain;
     brain.chatCooldown = (brain.chatCooldown || 0) - 1 / 60;
     if (brain.partner || brain.chatCooldown > 0 || a.gesture) return;
+    let best = null, bestD = CHAT_NOTICE;
     for (let i = 1; i < world.actors.length; i++) {
       const other = world.actors[i];
       if (other === a || Rig.isDown(other) || other.gesture) continue;
       if (other.brain.partner || (other.brain.chatCooldown || 0) > 0) continue;
       if (other.brain.state !== 'pause' && other.brain.state !== 'wander') continue;
-      if (distance(a, other) > CHAT_RANGE) continue;
-      startChat(a, other);
+      const d = distance(a, other);
+      if (d < bestD) { bestD = d; best = other; }
+    }
+    if (!best) return;
+    if (bestD <= CHAT_CLOSE) { startChat(a, best); return; }
+    // both of them commit to closing the gap, so neither wanders off
+    [[a, best], [best, a]].forEach(function (pair) {
+      pair[0].brain.state = 'closing';
+      pair[0].brain.partner = pair[1];
+      pair[0].brain.closeTimer = 7;
+      pair[0].gesture = null;
+    });
+  }
+
+  /* Walking over. They aim at the midpoint rather than at each other, so they
+   * meet instead of one chasing the other across the field. */
+  function updateClosing(world, a, dt) {
+    const brain = a.brain;
+    const other = brain.partner;
+    brain.closeTimer -= dt;
+    if (!other || Rig.isDown(other) || other.brain.partner !== a || brain.closeTimer <= 0) {
+      abandonClosing(a);
       return;
     }
+    const d = distance(a, other);
+    if (d <= CHAT_CLOSE) {
+      a.gait = 'idle';
+      // wait for the other one to arrive before either starts talking
+      if (other.brain.state === 'closing' || other.brain.state === 'chatting') {
+        brain.partner = null;
+        other.brain.partner = null;
+        startChat(a, other);
+      }
+      return;
+    }
+    const mx = (a.x + other.x) / 2, my = (a.y + other.y) / 2;
+    const dx = mx - a.x, dy = my - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    a.targetYaw = Rig.snapToEight(dx, dy);
+    if (Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 0.7) {
+      a.x += (dx / len) * SPEED.npc * dt;
+      a.y += (dy / len) * SPEED.npc * dt;
+      resolvePropCollisions(world, a, 6);
+      clampVillager(a);
+    }
+    a.gait = 'walk';
+  }
+
+  function abandonClosing(a) {
+    const other = a.brain.partner;
+    [a, other].forEach(function (self) {
+      if (!self || self.brain.state !== 'closing') return;
+      self.brain.partner = null;
+      self.brain.state = 'pause';
+      self.brain.timer = 0.5 + self.rng() * 1.5;
+      self.brain.chatCooldown = 6 + self.rng() * 8;
+      self.gait = 'idle';
+    });
+    if (a.brain.partner) a.brain.partner = null;
   }
 
   function updateVillager(world, a, dt) {
@@ -1346,7 +1465,8 @@
     // While down, the ragdoll itself moves the body — it hands its drift back
     // to the actor position each step, so nothing else should push it.
     if (Rig.isDown(a)) {
-      if (brain.partner) endChat(a, 6);
+      if (brain.state === 'closing') abandonClosing(a);
+      else if (brain.partner) endChat(a, 6);
       a.vx = 0; a.vy = 0;
       a.gesture = null;
       hush(a);
@@ -1361,6 +1481,12 @@
       brain.state = 'pause';
       brain.timer = 0.7 + a.rng() * 1.2;
       a.vx = 0; a.vy = 0;
+    }
+
+    if (brain.state === 'closing') {
+      updateClosing(world, a, dt);
+      Rig.updateActorMotion(a, dt);
+      return;
     }
 
     if (brain.state === 'chatting') {
@@ -1491,7 +1617,8 @@
     const npc = nearestTalkable(world);
     if (!npc) return false;
     // whoever they were chatting to is dropped
-    if (npc.brain.partner) endChat(npc, 10);
+    if (npc.brain.state === 'closing') abandonClosing(npc);
+    else if (npc.brain.partner) endChat(npc, 10);
     npc.gesture = null;
     npc.brain.state = distance(npc, world.player) > COMFORT_RANGE ? 'approach' : 'face';
     world.player.targetYaw = Rig.snapToEight(npc.x - world.player.x, npc.y - world.player.y);
@@ -1525,7 +1652,8 @@
         }
         Rig.knockDown(b, nx, ny, 2.2 + speed / 45);
         if (b.brain) {
-          if (b.brain.partner) endChat(b, 6);
+          if (b.brain.state === 'closing') abandonClosing(b);
+          else if (b.brain.partner) endChat(b, 6);
           b.brain.state = 'downed';
           b.brain.timer = 0;
         }
@@ -1560,6 +1688,10 @@
     // them jitter a pixel back and forth as they walk.
     world.camX = Math.round(world.player.x) - (VIEW_W >> 1);
     world.camY = Math.round(world.player.y) - (VIEW_H >> 1);
+
+    // reins last: they are solved in screen space, so they need this frame's
+    // camera and this frame's final positions for both ends
+    for (let i = 0; i < world.horses.length; i++) updateReins(world, world.horses[i], dt);
   }
 
   /* ---------- drawing ---------- */
@@ -1567,7 +1699,6 @@
   const SHADOW = R.pack(26, 40, 26);
   const LABEL = R.pack(238, 232, 216);
   const LABEL_SHADOW = R.pack(20, 22, 28);
-  const PROMPT = R.pack(232, 198, 116);
 
   function drawGround(world, target) {
     // The camera sits on whole world units, so this stays a straight copy —
@@ -1586,6 +1717,150 @@
     }
   }
 
+
+
+  /* ================== reins ==================
+   *
+   * A rein belongs to neither sprite: it spans the gap from the driver's hands
+   * to the horse's bit, and those two are drawn into different buffers. So it
+   * is solved and drawn in screen space instead — a short verlet rope with
+   * both ends pinned, gravity pulling the middle down. That gives it the sag
+   * of a slack rein at a standstill and the snap of a taut one when the horse
+   * pulls away, for free, and it swings with the horse rather than being a
+   * rigid line stuck between two points.
+   */
+
+  const REIN_POINTS = 6;
+  const REIN_GRAV = 26;
+  const REIN_ITER = 4;
+  const REIN_COLOUR = R.pack(58, 42, 26);
+  const REIN_LIGHT = R.pack(84, 62, 38);
+
+  /* Screen position of a point given in a model's own space, for a model
+   * standing at (ex, ey) in the world and rotated by `yaw`. The buffer's own
+   * origin cancels out, so this does not care which sprite the model is in. */
+  function projectModelPoint(world, ex, ey, yaw, lx, ly, lz) {
+    const c = Math.cos(yaw), s = Math.sin(yaw);
+    const wx = lx * c + lz * s;
+    const wz = -lx * s + lz * c;
+    const cosP = Math.cos(CAM_PITCH), sinP = Math.sin(CAM_PITCH);
+    return {
+      x: (Math.round(ex) - world.camX) * PIXEL + wx * CAM_SCALE,
+      y: (Math.round(ey) - world.camY) * PIXEL - (ly * cosP - wz * sinP) * CAM_SCALE
+    };
+  }
+
+  /* Where the reins are held and where they end: the driver's two hands, and
+   * the rings of the bit either side of the horse's mouth. */
+  function reinAnchors(world, h) {
+    const holder = h.rider || (h.cart && h.cart.rider);
+    if (!holder || HM.isDown(h)) return null;
+
+    /* The bit goes where the horse's mouth actually is, read off the posed
+     * skeleton. Guessing it from the body dimensions puts it somewhere around
+     * the withers, and the rein then spans about seven pixels. */
+    HM.poseGait(h.model, HM.quantiseTime(h.animTime), h.gait);
+    const j = HM.jointPositions(h.model, 0);
+    const poll = j.poll, muzzle = j.muzzle;
+    // a little back from the nose, where the bit sits in the mouth
+    const bitY = muzzle[1] + (poll[1] - muzzle[1]) * 0.22;
+    const bitZ = muzzle[2] + (poll[2] - muzzle[2]) * 0.22;
+    const scale = h.model.root.scale || 1;
+    const spread = h.model.dims.headW * 0.5 * scale + 0.7;
+
+    let hx, hy, yaw, fwd, lift;
+    if (h.rider === holder) {
+      const sp = HM.saddlePoint(h.model);
+      hx = holder.x; hy = holder.y; yaw = h.yaw;
+      // hands out in front of the chest, which sits above the seat
+      fwd = sp.z + 8.5;
+      lift = seatHeight(holder, sp.y) + holder.model.dims.legTotal
+        + holder.model.dims.torsoH * 0.62;
+    } else {
+      const c = h.cart;
+      hx = holder.x; hy = holder.y; yaw = c.yaw;
+      fwd = 7.0;
+      lift = seatHeight(holder, c.def.deckY + c.def.sideH * 0.55 + 4.0)
+        + holder.model.dims.legTotal + holder.model.dims.torsoH * 0.62 + (c.bounce || 0);
+    }
+
+    const hand = [];
+    const bit = [];
+    for (let i = 0; i < 2; i++) {
+      const side = i ? 1 : -1;
+      hand.push(projectModelPoint(world, hx, hy, yaw, side * 3.2, lift, fwd));
+      bit.push(projectModelPoint(world, h.x, h.y, h.yaw, side * spread, bitY, bitZ));
+    }
+    return { hand: hand, bit: bit };
+  }
+
+  function updateReins(world, h, dt) {
+    const a = reinAnchors(world, h);
+    if (!a) { h.reins = null; return; }
+    if (!h.reins) {
+      h.reins = [];
+      for (let i = 0; i < 2; i++) {
+        const pts = [];
+        for (let k = 0; k < REIN_POINTS; k++) {
+          const t = k / (REIN_POINTS - 1);
+          pts.push({
+            x: a.hand[i].x + (a.bit[i].x - a.hand[i].x) * t,
+            y: a.hand[i].y + (a.bit[i].y - a.hand[i].y) * t,
+            px: 0, py: 0
+          });
+          pts[k].px = pts[k].x; pts[k].py = pts[k].y;
+        }
+        h.reins.push(pts);
+      }
+    }
+    // The camera moves under the rope; without this the whole rein lags a
+    // frame behind the world every time the view scrolls.
+    const shiftX = (world.camX - (h.reinCamX === undefined ? world.camX : h.reinCamX)) * PIXEL;
+    const shiftY = (world.camY - (h.reinCamY === undefined ? world.camY : h.reinCamY)) * PIXEL;
+    h.reinCamX = world.camX; h.reinCamY = world.camY;
+
+    for (let i = 0; i < 2; i++) {
+      const pts = h.reins[i];
+      const span = Math.hypot(a.bit[i].x - a.hand[i].x, a.bit[i].y - a.hand[i].y);
+      // a little longer than the gap, so it hangs slack until the horse pulls
+      const seg = (span * 1.06 + 4) / (REIN_POINTS - 1);
+      for (let k = 0; k < pts.length; k++) {
+        const q = pts[k];
+        q.x -= shiftX; q.y -= shiftY;
+        q.px -= shiftX; q.py -= shiftY;
+        const vx = (q.x - q.px) * 0.94, vy = (q.y - q.py) * 0.94;
+        q.px = q.x; q.py = q.y;
+        q.x += vx; q.y += vy + REIN_GRAV * dt;
+      }
+      for (let it = 0; it < REIN_ITER; it++) {
+        pts[0].x = a.hand[i].x; pts[0].y = a.hand[i].y;
+        pts[pts.length - 1].x = a.bit[i].x; pts[pts.length - 1].y = a.bit[i].y;
+        for (let k = 0; k < pts.length - 1; k++) {
+          const p0 = pts[k], p1 = pts[k + 1];
+          const dx = p1.x - p0.x, dy = p1.y - p0.y;
+          const d = Math.hypot(dx, dy) || 1e-5;
+          const f = ((d - seg) / d) * 0.5;
+          const ox = dx * f, oy = dy * f;
+          if (k > 0) { p0.x += ox; p0.y += oy; }
+          if (k + 1 < pts.length - 1) { p1.x -= ox; p1.y -= oy; }
+        }
+      }
+      pts[0].x = a.hand[i].x; pts[0].y = a.hand[i].y;
+      pts[pts.length - 1].x = a.bit[i].x; pts[pts.length - 1].y = a.bit[i].y;
+    }
+  }
+
+  function drawReins(target, h) {
+    if (!h.reins) return;
+    for (let i = 0; i < 2; i++) {
+      const pts = h.reins[i];
+      // the far rein is drawn a shade lighter, so the two read as two
+      const col = i ? REIN_COLOUR : REIN_LIGHT;
+      for (let k = 0; k < pts.length - 1; k++) {
+        R.drawLine(target, pts[k].x, pts[k].y, pts[k + 1].x, pts[k + 1].y, col, PIXEL);
+      }
+    }
+  }
 
   /* ---------- drawing horses, carts and wreckage ---------- */
 
@@ -1678,7 +1953,9 @@
         driver.blink > 0.5 ? 1 : 0, Math.round((driver.rein || 0) * 4),
         Math.round((driver.jolt || 0) * 3)].join(',')
       : '-';
-    const key = [qYaw, c.stage, c.hitFlash > 0 ? 1 : 0, driverKey].join('|');
+    const qBounce = Math.round((c.bounce || 0) * 2) / 2;
+    const qLean = Math.round((c.lean || 0) * 12) / 12;
+    const key = [qYaw, c.stage, c.hitFlash > 0 ? 1 : 0, qBounce, qLean, driverKey].join('|');
     if (key === c._key) return c.buffer;
     c._key = key;
 
@@ -1688,7 +1965,9 @@
       c.spriteStage = c.stage;
     }
     R.clearTarget(c.buffer);
-    const m = R.rotationY(qYaw);
+    let m = R.rotationY(qYaw);
+    if (qLean) m = R.multiply(m, R.rotationZ(qLean));
+    m = R.multiply(m, R.translation(0, qBounce, 0));
     for (let i = 0; i < c.parts.length; i++) {
       const pt = c.parts[i];
       R.drawMesh(c.buffer, m, pt.mesh,
@@ -1704,7 +1983,7 @@
       Rig.drawModel(c.buffer, driver.model, camera, {
         yaw: qYaw, faceParts: face,
         offset: seatOffset(qYaw, -c.def.length * 0.22,
-          seatHeight(driver, c.def.deckY + c.def.sideH * 0.55 + 4.0))
+          seatHeight(driver, c.def.deckY + c.def.sideH * 0.55 + 4.0) + qBounce)
       });
     }
     R.traceOutline(c.buffer, Rig.OUTLINE);
@@ -1740,38 +2019,10 @@
   const HP_BACK = R.pack(28, 26, 30);
   const HP_EDGE = R.pack(74, 66, 58);
 
-  /* A horse's papers: what it is and what it can do. Every one of these is a
-   * rolled trait that actually drives the animal, so it is worth reading
-   * before you pick which one to steal. */
-  function horseLine(h) {
-    const coat = HM.COATS[HM.indexOf(HM.COATS, h.coat)];
-    const breed = HM.BREEDS[HM.indexOf(HM.BREEDS, h.breed)];
-    const size = HM.SIZES[HM.indexOf(HM.SIZES, h.size)];
-    return coat.label + ' ' + breed.label.toLowerCase() + ' | ' + size.label.toLowerCase()
-      + ' | ' + h.age + 'yr';
-  }
-
   function bar(target, x, y, w, h, frac, colour) {
     R.fillRect(target, x - PIXEL, y - PIXEL, w + PIXEL * 2, h + PIXEL * 2, HP_EDGE);
     R.fillRect(target, x, y, w, h, HP_BACK);
     R.fillRect(target, x, y, Math.round(w * Math.max(0, Math.min(1, frac)) / PIXEL) * PIXEL, h, colour);
-  }
-
-  const STAT_SPEED = R.pack(196, 154, 62);
-  const STAT_STAM = R.pack(126, 168, 84);
-  const STAT_TEMP = R.pack(122, 148, 196);
-
-  function drawHorseCard(target, horse) {
-    const x = 8 * PIXEL, y = 10 * PIXEL;
-    T.drawShadowed(target, horse.name, x, y, LABEL, LABEL_SHADOW);
-    T.drawShadowed(target, horseLine(horse), x, y + 11 * PIXEL, PROMPT, LABEL_SHADOW);
-    const rows = [['SPD', horse.speed, STAT_SPEED], ['STM', horse.stamina, STAT_STAM],
-      ['TMP', horse.temper, STAT_TEMP]];
-    for (let i = 0; i < rows.length; i++) {
-      const ry = y + (22 + i * 9) * PIXEL;
-      T.drawShadowed(target, rows[i][0], x, ry, PROMPT, LABEL_SHADOW);
-      bar(target, x + 26 * PIXEL, ry + PIXEL, 44 * PIXEL, 4 * PIXEL, rows[i][1], rows[i][2]);
-    }
   }
 
   function drawCartHealth(target, c) {
@@ -1829,6 +2080,7 @@
         R.blit(target, renderMount(h),
           (Math.round(h.x) - cx) * PIXEL - HORSE_BUF.ox,
           (Math.round(h.y) - cy) * PIXEL - HORSE_BUF.oy);
+        if (h.rider) drawReins(target, h);
       } else if (d.cart) {
         const c = d.cart;
         R.fillEllipse(target, (Math.round(c.x) - cx) * PIXEL, (Math.round(c.y) - cy) * PIXEL,
@@ -1836,6 +2088,7 @@
         R.blit(target, renderCart(c),
           (Math.round(c.x) - cx) * PIXEL - CART_BUF.ox,
           (Math.round(c.y) - cy) * PIXEL - CART_BUF.oy);
+        if (c.rider && c.hitch) drawReins(target, c.hitch);
       } else if (d.debris) {
         const b = d.debris;
         R.fillEllipse(target, (Math.round(b.x) - cx) * PIXEL, (Math.round(b.y) - cy) * PIXEL,
@@ -1860,31 +2113,21 @@
       }
     }
 
-    // whatever E would do right now, floated over the thing it would do it to
+    /* No hints. A horse gets its name over its head, the same way a villager
+     * does, and nothing else — the controls are not a tutorial and the stats
+     * are the animal's business, not a readout. */
     const pr = world.prompt;
-    if (pr) {
+    if (pr && pr.name) {
       const at = pr.at;
-      const lift = pr.kind === 'talk' ? 58 : 62;
-      const ax = (Math.round(at.x) - cx) * PIXEL;
-      const ny = (Math.round(at.y) - cy) * PIXEL - lift * PIXEL;
-      if (pr.name) {
-        T.drawShadowed(target, pr.name, ax - Math.round(T.measure(pr.name) / 2), ny,
-          LABEL, LABEL_SHADOW);
-      }
-      const hint = 'E  ' + pr.label;
-      T.drawShadowed(target, hint, ax - Math.round(T.measure(hint) / 2),
-        ny - (pr.name ? 11 : 0) * PIXEL, PROMPT, LABEL_SHADOW);
+      const nx = (Math.round(at.x) - cx) * PIXEL - Math.round(T.measure(pr.name) / 2);
+      const ny = (Math.round(at.y) - cy) * PIXEL - (pr.kind === 'talk' ? 58 : 66) * PIXEL;
+      T.drawShadowed(target, pr.name, nx, ny, LABEL, LABEL_SHADOW);
     }
 
     // the cart's condition, while you are the one driving it
     const driven = world.player.seat || (world.player.mount && world.player.mount.cart);
     if (driven && !driven.broken) drawCartHealth(target, driven);
 
-    // and the horse's own card while you are on it or standing next to it
-    const card = world.player.mount ? world.player.mount.horse
-      : (pr && pr.horse ? pr.horse : (world.player.seat && world.player.seat.hitch
-        ? world.player.seat.hitch.horse : null));
-    if (card) drawHorseCard(target, card);
 
     D.draw(world.box, target);
   }

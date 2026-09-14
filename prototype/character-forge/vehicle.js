@@ -20,14 +20,16 @@
       id: 'cart', label: 'Cart',
       wood: '#7d5c36', woodDark: '#5e441f', iron: '#4a4540',
       hp: 100, mass: 1, length: 30, width: 19, deckY: 11,
-      sideH: 6.5, chest: false, cushion: false,
+      sideH: 6.5, chest: false, cushion: false, frail: 1,
       drops: { plank: 8, wheel: 4 }
     },
     chestCart: {
       id: 'chestCart', label: 'Chest cart',
       wood: '#6f5330', woodDark: '#523b1c', iron: '#4a4540',
       hp: 130, mass: 1.25, length: 32, width: 20, deckY: 11,
-      sideH: 8.0, chest: true, cushion: false,
+      // low sides, so the chest is the thing you see rather than a box
+      // peeking over a fence
+      sideH: 5.0, chest: true, cushion: false, frail: 0.85,
       // a heavier body, plus whatever was in the chest
       drops: { plank: 12, wheel: 4, wheelLoose: 3 }
     },
@@ -36,7 +38,8 @@
       wood: '#241f1d', woodDark: '#15110f', iron: '#3a3530', trim: '#a8842f',
       cushion: '#8e2230', cushionDark: '#6a1622',
       hp: 110, mass: 1.15, length: 32, width: 20, deckY: 12,
-      sideH: 10.5, chest: false, cushions: true,
+      // lighter build, finer joinery: it comes apart more readily
+      sideH: 10.5, chest: false, cushions: true, frail: 1.25,
       drops: { plank: 8, wheel: 4, leather: 4, feather: 6 }
     }
   };
@@ -66,22 +69,86 @@
     return G.finish(verts, faces);
   }
 
+  /* A cartwheel is an iron tyre over a wooden felloe, spokes, and a hub that
+   * stands proud of both faces. Built in that order so the spokes read as
+   * spokes: they have to span from the hub out to the rim with daylight
+   * between them, not sit as four studs on a disc. */
   function wheelParts(x, y, z, radius, halfWidth, rim, iron) {
     const out = [];
-    out.push({ mesh: wheelMesh(x, y, z, radius, halfWidth, 12), colour: rim, tag: 'wheel' });
-    out.push({ mesh: wheelMesh(x, y, z, radius * 0.72, halfWidth * 0.55, 12), colour: iron, tag: 'wheel' });
-    out.push({ mesh: wheelMesh(x, y, z, radius * 0.30, halfWidth * 1.35, 8), colour: iron, tag: 'wheel' });
-    // four spokes, enough to read as a spoked wheel without turning into mush
-    for (let k = 0; k < 4; k++) {
-      const a = (k / 4) * Math.PI * 2 + Math.PI / 8;
-      const sy = Math.cos(a) * radius * 0.5, sz = Math.sin(a) * radius * 0.5;
+    const hubR = radius * 0.26;
+    const rimIn = radius * 0.80;
+
+    // iron tyre, then the felloe just inside it
+    out.push({ mesh: ringMesh(x, y, z, radius, radius * 0.90, halfWidth * 0.62, 12),
+      colour: iron, tag: 'wheel' });
+    out.push({ mesh: ringMesh(x, y, z, radius * 0.92, rimIn, halfWidth, 12),
+      colour: rim, tag: 'wheel' });
+
+    // spokes, hub to felloe
+    const SPOKES = 8;
+    for (let k = 0; k < SPOKES; k++) {
+      const a = (k / SPOKES) * Math.PI * 2 + Math.PI / SPOKES;
+      const ca = Math.cos(a), sa = Math.sin(a);
+      const mid = (hubR + rimIn) * 0.5;
+      const len = rimIn - hubR;
       out.push({
-        mesh: G.box(x - halfWidth * 0.55, y + sy - 0.6, z + sz - 0.6,
-          halfWidth * 1.1, 1.2, 1.2),
+        mesh: spokeMesh(x, y + ca * mid, z + sa * mid, halfWidth * 0.52,
+          len * 0.5, 0.62, a),
         colour: rim, tag: 'wheel'
       });
     }
+
+    // hub, standing proud of both faces, with an iron band round it
+    out.push({ mesh: wheelMesh(x, y, z, hubR, halfWidth * 1.55, 10), colour: rim, tag: 'wheel' });
+    out.push({ mesh: wheelMesh(x, y, z, hubR * 0.78, halfWidth * 1.75, 8), colour: iron, tag: 'wheel' });
     return out;
+  }
+
+  /* An annulus: the rim with a hole in it, so you can see through the spokes. */
+  function ringMesh(cx, cy0, cz0, outer, inner, halfWidth, sides) {
+    const verts = [];
+    const faces = [];
+    const n = sides || 12;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      const ca = Math.cos(a), sa = Math.sin(a);
+      verts.push(cx - halfWidth, cy0 + ca * outer, cz0 + sa * outer);
+      verts.push(cx + halfWidth, cy0 + ca * outer, cz0 + sa * outer);
+      verts.push(cx - halfWidth, cy0 + ca * inner, cz0 + sa * inner);
+      verts.push(cx + halfWidth, cy0 + ca * inner, cz0 + sa * inner);
+    }
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const a0 = i * 4, b0 = j * 4;
+      faces.push([a0, b0, b0 + 1, a0 + 1]);             // outer rim
+      faces.push([a0 + 2, a0 + 3, b0 + 3, b0 + 2]);     // inner bore
+      faces.push([a0, a0 + 2, b0 + 2, b0]);             // left face
+      faces.push([a0 + 1, b0 + 1, b0 + 3, a0 + 3]);     // right face
+    }
+    return G.finish(verts, faces);
+  }
+
+  /* One spoke, a slim bar lying in the wheel's plane at the given angle. */
+  function spokeMesh(cx, cy, cz, halfWidth, halfLen, halfThick, angle) {
+    const ca = Math.cos(angle), sa = Math.sin(angle);
+    const verts = [];
+    const faces = [];
+    for (let i = 0; i < 4; i++) {
+      const u = (i & 1) ? halfLen : -halfLen;
+      const v = (i & 2) ? halfThick : -halfThick;
+      const py = cy + ca * u - sa * v;
+      const pz = cz + sa * u + ca * v;
+      verts.push(cx - halfWidth, py, pz);
+      verts.push(cx + halfWidth, py, pz);
+    }
+    const q = [0, 2, 6, 4];
+    faces.push([q[0], q[1], q[2], q[3]]);
+    faces.push([q[3] + 1, q[2] + 1, q[1] + 1, q[0] + 1]);
+    for (let i = 0; i < 4; i++) {
+      const a0 = q[i], b0 = q[(i + 1) % 4];
+      faces.push([a0, b0, b0 + 1, a0 + 1]);
+    }
+    return G.finish(verts, faces);
   }
 
   /* ---------- parts, tagged so damage can take them away ---------- */
@@ -150,16 +217,47 @@
 
     /* type-specific fittings */
     if (t.chest) {
-      const cw = W - 6, cl = 11, ch = 7;
-      const lidTilt = stage > 1 ? 1.4 : 0;
-      parts.push(part(G.box(-cw / 2, deck + 1.1, -cl / 2 - 2, cw, ch, cl),
-        stage > 1 ? t.woodDark : '#5a4227', 'chest'));
-      parts.push(part(G.box(-cw / 2 - 0.4, deck + 1.1 + ch + lidTilt, -cl / 2 - 2.4,
-        cw + 0.8, 1.4, cl + 0.8), '#4a3620', 'chest'));
-      for (let s = -1; s <= 1; s += 2) {
-        parts.push(part(G.box(s * cw * 0.3 - 0.5, deck + 1.0, -cl / 2 - 2.5, 1.0, ch + 1, 0.7),
-          t.iron, 'chest'));
+      /* Planked box, a domed lid banded in iron, corner straps, a hasp and a
+       * lockplate. A plain cube on the deck reads as a crate; it is the
+       * curved lid and the ironwork that say chest. */
+      const cw = W - 5.0, cl = 13, ch = 8.6;
+      const cz = -cl / 2 - 1.5;
+      const body = stage > 1 ? t.woodDark : '#5a4227';
+      const band = '#3b3530';
+      const brass = '#9c7b32';
+      const y0 = deck + 1.1;
+      parts.push(part(G.box(-cw / 2, y0, cz, cw, ch, cl), body, 'chest'));
+      // vertical plank grooves down the front and back
+      for (let i = -1; i <= 1; i++) {
+        parts.push(part(G.box(i * cw * 0.26 - 0.3, y0 + 0.4, cz - 0.28, 0.6, ch - 0.8, 0.4),
+          '#4a3620', 'chest'));
+        parts.push(part(G.box(i * cw * 0.26 - 0.3, y0 + 0.4, cz + cl - 0.12, 0.6, ch - 0.8, 0.4),
+          '#4a3620', 'chest'));
       }
+      // iron corner straps
+      for (let sx = -1; sx <= 1; sx += 2) {
+        for (let sz = 0; sz <= 1; sz++) {
+          parts.push(part(G.box(sx * (cw / 2 - 0.9) - 0.45, y0, cz + sz * (cl - 0.9) - 0.2,
+            0.9, ch, 1.1), band, 'chest'));
+        }
+      }
+      // domed lid: three courses, each narrower and taller than the last
+      const tilt = stage > 1 ? 2.2 : 0;
+      const lid = [[1.00, 1.5], [0.88, 1.3], [0.68, 1.1], [0.40, 0.8]];
+      let ly = y0 + ch + tilt;
+      for (let i = 0; i < lid.length; i++) {
+        const f = lid[i][0], hgt = lid[i][1];
+        parts.push(part(G.box(-cw / 2 * f - 0.3, ly, cz + (cl * (1 - f)) / 2 - 0.3,
+          cw * f + 0.6, hgt, cl * f + 0.6), i === 0 ? '#4a3620' : body, 'chest'));
+        ly += hgt;
+      }
+      // the band over the crown of the lid, and the hasp and lock at the front
+      parts.push(part(G.box(-cw * 0.09, y0 + ch + tilt, cz - 0.4,
+        cw * 0.18, ly - (y0 + ch + tilt), cl + 0.8), band, 'chest'));
+      parts.push(part(G.box(-1.5, y0 + ch - 2.4 + tilt * 0.4, cz - 0.55, 3.0, 3.0, 0.7),
+        brass, 'chest'));
+      parts.push(part(G.box(-0.8, y0 + ch - 3.4 + tilt * 0.4, cz - 0.75, 1.6, 1.6, 0.5),
+        band, 'chest'));
     }
     if (t.cushions) {
       // a bench with padded cushions, and gilt trim along the top rail
@@ -266,6 +364,7 @@
   }
 
   global.Vehicle = {
-    TYPES, DEBRIS, buildParts, debrisMesh, wreckage, stageFor, create
+    TYPES, DEBRIS, buildParts, debrisMesh, wreckage, stageFor, create,
+    wheelMesh, ringMesh, spokeMesh, wheelParts
   };
 })(window);

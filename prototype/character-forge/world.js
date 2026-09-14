@@ -330,8 +330,7 @@
     player.isPlayer = true;
     player._id = 'player';
     player.leftHanded = !!playerCharacter.leftHanded;
-    I.add(player.inv, 'arrow', 24);
-    I.add(player.inv, 'bandage', 2);
+    // You start with nothing. Everything you carry, you took from somewhere.
     player.buffer = R.createTarget(ACTOR_BUF.w, ACTOR_BUF.h);
     world.actors.push(player);
     world.player = player;
@@ -362,16 +361,19 @@
         a.inv[I.HAND] = I.stack(kit, 1);
         if (kit === 'bow') I.add(a.inv, 'arrow', 18);
         else a.inv[I.SHIELD] = I.stack('shield', 1);
+        // A guard always keeps a slot free. It is what lets them put the
+        // weapon away and deal with something without killing anybody.
+        a.stowed = undefined;
         a.alert = true;
-      } else if (rng() < 0.2) {
-        a.inv[I.HAND] = I.stack(rng() < 0.6 ? 'dagger' : 'club', 1);
       }
+      // Villagers are not armed. A town where every baker is carrying a club
+      // turns any incident into a brawl, and it makes the watch meaningless.
       if (rng() < 0.6) I.add(a.inv, 'coin', 3 + Math.floor(rng() * 30));
       world.actors.push(a);
     }
 
     /* horses, loose on the grass near where the player starts */
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 9; i++) {
       const hr = CM.makeRng((seed + 4001 + i * 733) >>> 0);
       const h = HM.createEntity(HM.randomHorse(hr),
         player.x + (rng() - 0.5) * 300, player.y + 60 + (rng() - 0.5) * 260,
@@ -380,6 +382,18 @@
       h.targetYaw = h.yaw;
       h.buffer = R.createTarget(HORSE_BUF.w, HORSE_BUF.h);
       world.horses.push(h);
+    }
+
+    /* A couple of villagers are out riding. The road is not only for guards. */
+    for (let i = 0; i < 2; i++) {
+      const rider = world.actors[3 + i];
+      const h = world.horses[i];
+      if (!rider || !h) continue;
+      rider.mount = h; h.rider = rider;
+      rider.mountTime = MOUNT_TIME;
+      rider.x = h.x; rider.y = h.y;
+      rider.brain.rides = true;
+      rider.brain.rideTimer = 2 + rng() * 5;
     }
 
     /* one of each cart, parked where you can get to them */
@@ -564,15 +578,24 @@
       // small knock at the height it was hit, but the reaction you actually
       // read is the displacement — a person rooted to the spot waving their
       // limbs looks like a flail however the limbs are tuned.
+      /* A shoulder is not a weapon. Running into someone drives them back on
+       * their heels with their arms up — it does not put them on the floor,
+       * however fast you were going. Before this, sprinting through a line of
+       * guards flattened all of them, which turned every chase into a walk. */
       if (speed > NUDGE_SPEED && !Rig.isDown(a) && a.hitCooldown <= 0) {
-        if (speed > FALL_SPEED) {
-          // flat out: they go over
-          Rig.knockDown(a, nx, ny, 2.4 + speed / 38);
-          if (a.brain) { a.brain.state = 'downed'; a.brain.timer = 0; }
-        } else if (speed > TRIP_SPEED) {
-          // a proper shoulder charge: they stagger several steps away
+        const side = (nx * Math.cos(a.yaw) - ny * Math.sin(a.yaw)) > 0 ? 1 : -1;
+        if (chasing(a)) {
+          // you cannot body-check your way past the watch
+          Rig.stumble(a, nx, ny, 30, 0.22);
+          player.vx *= 0.7; player.vy *= 0.7;
+          a.hitCooldown = 0.35;
+          continue;
+        }
+        if (speed > TRIP_SPEED) {
           Rig.stumble(a, nx, ny, 70 + speed * 0.5, 0.7);
-          Rig.nudge(a, nx, ny, 1.0, CHEST_H);
+          a.reaction = { kind: 'stagger', k: 0, t: 0, side: side,
+            duration: 0.34 + Math.min(0.3, speed / 500) };
+          a.attack = null;
         } else {
           // a bump in passing: they step aside
           Rig.shove(a, nx, ny, 14 + speed * 0.18);
@@ -580,10 +603,13 @@
         }
         a.hitCooldown = 0.45;
         if (world.talkingTo === a) D.close(world.box);
-        // Barging someone is an assault. A small one, but people notice, and
-        // the watch does not like it.
-        witness(world, player, a, 'shove', a.x, a.y);
-        reactToHit(world, a, player, { severity: 'minor', zone: 'chest' });
+        /* Walking into someone is not a crime. Barging them hard enough to
+         * put them off their feet is. The watch does not care that you were
+         * standing near a person; it cares that you shoved one. */
+        if (speed > TRIP_SPEED) {
+          witness(world, player, a, 'shove', a.x, a.y);
+          reactToHit(world, a, player, { severity: 'minor', zone: 'chest' });
+        }
 
         // The player brushes past or stumbles. No reaction is played on their
         // body at all — only where they end up changes.
@@ -707,6 +733,23 @@
         const push = (min - d) * 0.5;
         a.x -= nx * push; a.y -= ny * push;
         b.x += nx * push; b.y += ny * push;
+
+        /* Two horses meeting at speed is a collision, not a nudge. The one
+         * carrying less momentum into it goes over, and whoever is on it goes
+         * with it. */
+        const closing = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
+        if (closing > 110 && a.hitCooldown <= 0 && b.hitCooldown <= 0) {
+          const aPow = HM.power(a.horse) * Math.hypot(a.vx, a.vy);
+          const bPow = HM.power(b.horse) * Math.hypot(b.vx, b.vy);
+          const loser = aPow < bPow ? a : b;
+          const winner = loser === a ? b : a;
+          const sx = loser === a ? -nx : nx, sy = loser === a ? -ny : ny;
+          if (loser.rider) unseat(world, loser, sx, sy, closing / 26);
+          HM.knockDown(loser, sx, sy, 3.2 + closing / 32);
+          winner.vx *= 0.55; winner.vy *= 0.55;
+          a.hitCooldown = 0.7; b.hitCooldown = 0.7;
+          bleedAt(world, loser.x, loser.y, 1.2, 'blunt');
+        }
       }
       // a person on foot cannot stand inside a horse
       const p = world.player;
@@ -1034,6 +1077,9 @@
     if (!ui.drag) {
       const st = inv[hit.index];
       if (!st) return false;
+      // Lifting something out of someone else's chest is theft, whether or
+      // not you have decided yet where to put it.
+      if (hit.side === 'chest') reportTheft(world, world.player.x, world.player.y);
       ui.drag = { id: st.id, count: st.count, from: hit.side, fromIndex: hit.index };
       inv[hit.index] = null;
       return true;
@@ -1317,7 +1363,10 @@
       if (speed > NUDGE_SPEED) {
         /* Being ridden down is not being bumped into. It does real damage,
          * scaled by the animal, and the watch treats it as what it is. */
-        const rider = h.rider;
+        /* Only a rider who meant it does damage. A villager ambling past on a
+         * horse jostles you; before this, a wandering NPC rider was clubbing
+         * guards off their feet mid-chase and nobody could see why. */
+        const rider = h.rider === world.player ? h.rider : null;
         if (rider) {
           const roll = CB.rollDamage(CB.weapon('club'), a, {
             rng: a.rng || Math.random, aim: 0.55,
@@ -1337,7 +1386,7 @@
             }
           }
         }
-        if (speed > TRIP_SPEED) {
+        if (speed > TRIP_SPEED && !chasing(a)) {
           Rig.knockDown(a, nx, ny, (2.6 + speed / 26) * powerOf);
           if (a.brain) { a.brain.state = 'downed'; a.brain.timer = 0; }
         } else {
@@ -1595,6 +1644,7 @@
   /* Crimes, and what each is worth in wanted level and in what people think
    * of you afterwards. Shoving someone is a crime; it is just a small one. */
   const CRIMES = {
+    theft: { wanted: 9, rep: -3, alarm: 0.35, label: 'theft' },
     shove: { wanted: 4, rep: -1, alarm: 0.25, label: 'assault' },
     mountedShove: { wanted: 16, rep: -5, alarm: 0.75, label: 'riding someone down' },
     strike: { wanted: 12, rep: -3, alarm: 0.6, label: 'assault' },
@@ -1604,6 +1654,12 @@
   };
 
   function isGuard(a) { return !!(a.brain && a.brain.guard); }
+
+  /* A guard in pursuit is braced and running hard. Barging them, tripping
+   * over them, or another guard going down beside them all stagger them —
+   * none of it lays them out. Only a real blow does that. Without this a
+   * chase collapses in a heap the moment two of them collide. */
+  function chasing(a) { return !!(a.brain && a.brain.guard && a.brain.guardState === 'chase'); }
 
   /* ---------- swinging ---------- */
 
@@ -1618,6 +1674,19 @@
     if (!canAttack(a)) return false;
     const w = I.heldWeapon(a.inv);
     if (a.stamina < w.stamina * 0.5) return false;
+    if (w.ranged) {
+      // no ammunition, no shot — and nocking is a beat of its own before the
+      // draw, so an arrow is visibly fetched rather than conjured
+      const ammo = w.id === 'crossbow' ? 'bolt' : 'arrow';
+      if (I.countOf(a.inv, ammo) <= 0) return false;
+      if (!a.nocked) {
+        a.reaction = { kind: 'nock', k: 0, t: 0,
+          duration: w.id === 'crossbow' ? 0.55 : 0.36, nock: true };
+        return true;
+      }
+      // face the shot: you loose where you are looking
+      if (a.aimYaw !== undefined) { a.yaw = a.aimYaw; a.targetYaw = a.aimYaw; }
+    }
     a.stamina = Math.max(0, a.stamina - w.stamina);
     const duration = w.swing + w.recover;
     a.attack = {
@@ -1630,14 +1699,25 @@
       hitAt: duration * Rig.attackHitFraction(w.anim),
       landed: false
     };
-    a.reaction = null;
     a.gesture = null;
     a.alert = true;
+    if (!a.reaction || !a.reaction.nock) a.reaction = null;
     return true;
+  }
+
+  /* The nock finishing is what arms the shot. */
+  function serviceNock(world, a) {
+    const r = a.reaction;
+    if (!r || !r.nock) return;
+    if (r.t < r.duration) return;
+    a.nocked = true;
+    a.reaction = null;
+    beginAttack(world, a);
   }
 
   function updateAttack(world, a, dt) {
     a.attackCooldown = Math.max(0, a.attackCooldown - dt);
+    serviceNock(world, a);
     a.stamina = Math.min(100, a.stamina + dt * (a.gait === 'run' ? 6 : 16));
     const atk = a.attack;
     if (!atk) return;
@@ -1650,7 +1730,9 @@
     }
     if (atk.t >= atk.duration) {
       a.attack = null;
-      a.attackCooldown = 0.06;
+      // A short breath between swings, longer for a crossbow which has to be
+      // spanned again. Never long enough to feel like waiting.
+      a.attackCooldown = atk.weapon.id === 'crossbow' ? 0.35 : 0.08;
     }
   }
 
@@ -1663,9 +1745,16 @@
     const reach = w.reach + (mounted ? 14 : 0);
     let best = null, bestD = 1e9;
 
+    /* An NPC swings at the person they are actually fighting and at nobody
+     * else. Without this, five guards converging on you spend the fight
+     * cutting each other down — which is both wrong and hands you the chase. */
+    const only = a.brain ? a.brain.target : null;
+
     for (let i = 0; i < world.actors.length; i++) {
       const t = world.actors[i];
       if (t === a || !t.body || t.body.dead) continue;
+      if (only && t !== only) continue;
+      if (!only && a.brain && isGuard(a) && isGuard(t)) continue;
       if (t.mount === a.mount && a.mount) continue;
       const dx = t.x - a.x, dy = (t.y - a.y) * 1.35;
       const d = Math.hypot(dx, dy);
@@ -1694,6 +1783,8 @@
 
   /* How well the blow was thrown: standing your ground and facing them beats
    * flailing while running away. */
+  function witnessTarget(world, a, target) { void world; void a; void target; }
+
   function aimQuality(a, target) {
     const speed = Math.hypot(a.vx || 0, a.vy || 0);
     const dx = target.x - a.x, dy = target.y - a.y;
@@ -1702,6 +1793,24 @@
     let q = 1 - off / Math.PI - Math.min(0.35, speed / 300);
     if (a.mount) q += 0.1;
     return Math.max(0.05, Math.min(1, q));
+  }
+
+  /* Whether the blow landed on the shield. A shield covers the front and the
+   * off-hand side; it covers nothing behind, which is why getting round
+   * someone is worth doing. */
+  function shieldBlocks(target, nx, ny) {
+    if (!target.inv || !I.shieldOf(target.inv)) return 0;
+    if (Rig.isDown(target) || (target.body && target.body.dying)) return 0;
+    // the direction the blow came from, relative to where they are facing
+    const fx = Math.sin(target.yaw), fy = Math.cos(target.yaw);
+    const facing = -(nx * fx + ny * fy);          // 1 = straight at their front
+    if (facing < 0.1) return 0;                   // from behind or the far side
+    const side = -(nx * fy - ny * fx);            // which side it came from
+    const offHand = target.leftHanded ? 1 : -1;
+    const onShield = facing * 0.6 + Math.max(0, side * offHand) * 0.55;
+    if (onShield < 0.4) return 0;
+    const small = I.shieldOf(target.inv).small;
+    return Math.min(small ? 0.7 : 0.94, onShield * (small ? 0.75 : 1));
   }
 
   function strike(world, a, target, w, charge) {
@@ -1713,6 +1822,21 @@
     const dx = target.x - a.x, dy = target.y - a.y;
     const d = Math.hypot(dx, dy) || 1;
     const nx = dx / d, ny = dy / d;
+
+    const blocked = shieldBlocks(target, nx, ny);
+    if (blocked > 0) {
+      roll.amount *= 1 - blocked;
+      roll.bleed *= 1 - blocked * 1.1;
+      roll.knock *= 1 - blocked * 0.5;
+      if (blocked > 0.6) {
+        // caught square: it rings off the boss and shoves them back
+        Rig.stumble(target, nx, ny, 18 + roll.knock * 30, 0.3);
+        target.reaction = { kind: 'stagger', k: 0, t: 0, duration: 0.34,
+          side: (nx * Math.cos(target.yaw) - ny * Math.sin(target.yaw)) > 0 ? 1 : -1 };
+        if (target === world.player) witnessTarget(world, a, target);
+        return;
+      }
+    }
     // the blow's direction in the target's own frame, so the wound lands on
     // the side it came from
     const cy = Math.cos(target.yaw), sy = Math.sin(target.yaw);
@@ -1721,24 +1845,41 @@
     if (!res) return;
 
     splash(world, target, roll, nx, ny);
-    knockFrom(world, a, target, roll, nx, ny);
+    knockFrom(world, a, target, roll, nx, ny, res.severity);
     dropFromHit(world, target, res.severity, nx, ny);
     reactToHit(world, target, a, res);
     witness(world, a, target, res.severity === 'fatal' ? 'kill'
       : res.severity === 'serious' ? 'wound' : 'strike', target.x, target.y);
   }
 
-  function knockFrom(world, a, target, roll, nx, ny) {
+  /* Getting hit does not put you on the floor. It drives you backwards with
+   * your arms up, and you stay on your feet — you only go down if the blow
+   * was genuinely serious, or if it killed you. Anything else is a hobble. */
+  function knockFrom(world, a, target, roll, nx, ny, severity) {
     if (Rig.isDown(target)) return;
-    const k = roll.knock;
-    if (k > 0.85 || roll.amount > 40) {
-      Rig.knockDown(target, nx, ny, 2.2 + k * 2.2 + roll.amount / 26);
+    const body = target.body;
+    const fatal = severity === 'fatal' || (body && (body.dead || body.dying));
+    const serious = severity === 'serious';
+    const side = (nx * Math.cos(target.yaw) - ny * Math.sin(target.yaw)) > 0 ? 1 : -1;
+
+    if (chasing(target) && !fatal && !serious) {
+      // a running guard eats a light blow and keeps coming
+      Rig.stumble(target, nx, ny, 22 + roll.knock * 30, 0.26);
+      target.reaction = { kind: 'stagger', k: 0, t: 0, side: side, duration: 0.26 };
+      if (world.talkingTo === target) D.close(world.box);
+      return;
+    }
+    if (fatal || (serious && roll.knock > 0.7) || roll.amount > 52) {
+      Rig.knockDown(target, nx, ny, 2.2 + roll.knock * 2.2 + roll.amount / 26);
       if (target.brain) { target.brain.state = 'downed'; target.brain.timer = 0; }
       target.hitCooldown = 0.5;
-    } else if (k > 0.35) {
-      Rig.stumble(target, nx, ny, 26 + k * 60, 0.45);
     } else {
-      Rig.shove(target, nx, ny, 12 + k * 40);
+      // driven back on their heels, arms thrown up
+      const push = 26 + roll.knock * 55 + roll.amount * 0.7;
+      Rig.stumble(target, nx, ny, push, 0.34 + roll.knock * 0.3);
+      target.reaction = { kind: 'stagger', k: 0, t: 0, side: side,
+        duration: 0.32 + Math.min(0.4, roll.amount / 90) };
+      target.attack = null;
     }
     if (world.talkingTo === target) D.close(world.box);
   }
@@ -1749,6 +1890,7 @@
     const ammo = w.id === 'crossbow' ? 'bolt' : 'arrow';
     if (I.countOf(a.inv, ammo) <= 0) return false;
     I.take(a.inv, ammo, 1);
+    a.nocked = false;
     const aim = a.aimYaw === undefined ? a.yaw : a.aimYaw;
     // a shot from a moving horse scatters
     const spread = (a.mount ? 0.09 : 0.03) + Math.min(0.08, Math.hypot(a.vx || 0, a.vy || 0) / 1600);
@@ -1789,6 +1931,7 @@
       for (let k = 0; k < world.actors.length; k++) {
         const t = world.actors[k];
         if (t === ar.owner || !t.body || t.body.dead) continue;
+        if (ar.owner.brain && isGuard(ar.owner) && isGuard(t)) continue;
         if (t.mount && t.mount === ar.owner.mount) continue;
         const d = Math.hypot(t.x - ar.x, (t.y - ar.y) * 1.4);
         const low = t.mount ? 16 : 0, high = t.mount ? 52 : 34;
@@ -1810,11 +1953,20 @@
         const roll = CB.rollDamage(ar.weapon, hit, { rng: rng, aim: 0.7 });
         const cy = Math.cos(hit.yaw), sy = Math.sin(hit.yaw);
         const nx = dx / d, ny = dy / d;
+        const stopped = shieldBlocks(hit, nx, ny);
+        if (stopped > 0.55) {
+          // it sticks in the shield and does nothing
+          Rig.stumble(hit, nx, ny, 10, 0.2);
+          world.arrows.splice(i, 1);
+          continue;
+        }
+        roll.amount *= 1 - stopped;
+        roll.bleed *= 1 - stopped;
         const local = [-(nx * cy - ny * sy), -(nx * sy + ny * cy)];
         const res = CB.applyDamage(hit, roll, local, rng);
         if (res) {
           splash(world, hit, roll, nx, ny);
-          knockFrom(world, ar.owner, hit, roll, nx, ny);
+          knockFrom(world, ar.owner, hit, roll, nx, ny, res.severity);
           dropFromHit(world, hit, res.severity, nx, ny);
           reactToHit(world, hit, ar.owner, res);
           witness(world, ar.owner, hit, res.severity === 'fatal' ? 'kill'
@@ -2034,12 +2186,13 @@
     if (victim.brain && loose.length) victim.brain.wantsPickup = 5 + rng() * 6;
   }
 
-  function spawnItem(world, x, y, id, count, nx, ny, force) {
+  function spawnItem(world, x, y, id, count, nx, ny, force, owner) {
     const f = force === undefined ? 0.6 : force;
     const ang = Math.random() * Math.PI * 2;
     const spread = 10 + Math.random() * 26 * f;
     world.loot.push({
       id: id, count: count || 1,
+      owner: owner || null,
       x: x + Math.cos(ang) * 3, y: y + Math.sin(ang) * 2,
       z: 9 + Math.random() * 7,
       vx: Math.cos(ang) * spread + (nx || 0) * 30 * f,
@@ -2106,10 +2259,21 @@
     if (!g || !a.inv) return false;
     const room = I.roomFor(a.inv, g.id, g.count);
     if (room <= 0) return false;
+    // Taking something that belongs to someone else, in front of them, is
+    // theft. Picking up a plank off a wrecked cart is not.
+    if (a === world.player && g.owner) reportTheft(world, g.x, g.y);
     I.add(a.inv, g.id, room);
     g.count -= room;
     if (g.count <= 0) list.splice(index, 1);
     return true;
+  }
+
+  /* Someone has to see it. Theft with nobody watching is just a quiet day. */
+  function reportTheft(world, x, y) {
+    world.theftCooldown = world.theftCooldown || 0;
+    if (world.time < world.theftCooldown) return;
+    world.theftCooldown = world.time + 1.2;
+    witness(world, world.player, null, 'theft', x, y);
   }
 
 
@@ -2128,7 +2292,7 @@
     let seen = false;
     for (let i = 1; i < world.actors.length; i++) {
       const o = world.actors[i];
-      if (o === victim || !o.body || o.body.dead || Rig.isDown(o)) continue;
+      if ((victim && o === victim) || !o.body || o.body.dead || Rig.isDown(o)) continue;
       const d = distance(o, world.player);
       const range = isGuard(o) ? SEE_RANGE : SEE_RANGE_CIVIL;
       if (d > range) continue;
@@ -2175,6 +2339,7 @@
   function alertGuard(world, g, x, y, alarm) {
     const brain = g.brain;
     brain.guardState = 'chase';
+    brain.target = world.player;
     brain.chaseX = x; brain.chaseY = y;
     brain.giveUp = GUARD_GIVE_UP * (0.6 + alarm * 0.7);
     brain.response = null;
@@ -2244,6 +2409,64 @@
   }
 
 
+
+  /* ---------- what the watch is prepared to do ----------
+   *
+   * A guard who draws steel on someone who shoved a fishmonger is not a
+   * guard, he is the problem. So the response is graded: below the line they
+   * put the weapon away and give you a shove to say stop, and they take it
+   * back out only when you have earned it.
+   */
+
+  const LETHAL_WANTED = 45;
+
+  function guardIntent(world, g) {
+    // already bleeding from you, or you are wanted for something real
+    const hurt = g.body && g.body.hp < CB.MAX_HP * 0.72;
+    return (world.wanted >= LETHAL_WANTED || hurt) ? 'lethal' : 'restrain';
+  }
+
+  /* Stowing a weapon puts it in a general slot, which is why guards are given
+   * one free: a guard who cannot put his sword away has no way to be lenient. */
+  function stowWeapon(a) {
+    if (!a.inv || !a.inv[I.HAND]) return false;
+    const limit = I.generalRange(a.inv);
+    for (let i = 0; i < limit; i++) {
+      if (a.inv[i]) continue;
+      a.inv[i] = a.inv[I.HAND];
+      a.inv[I.HAND] = null;
+      a.stowed = i;
+      return true;
+    }
+    return false;
+  }
+
+  function drawWeapon(a) {
+    if (!a.inv || a.inv[I.HAND]) return false;
+    const i = a.stowed;
+    if (i === undefined || !a.inv[i]) return false;
+    a.inv[I.HAND] = a.inv[i];
+    a.inv[i] = null;
+    a.stowed = undefined;
+    return true;
+  }
+
+  /* One beat of reaching for the belt, so the weapon does not teleport into
+   * or out of the hand. */
+  function startSwap(world, a, putting) {
+    a.reaction = { kind: putting ? 'sheathe' : 'draw', k: 0, t: 0, duration: 0.42,
+      swap: putting ? 'stow' : 'draw', done: false };
+    a.attack = null;
+  }
+
+  function serviceSwap(a) {
+    const r = a.reaction;
+    if (!r || !r.swap || r.done) return;
+    if (r.t < r.duration * 0.55) return;
+    r.done = true;
+    if (r.swap === 'stow') stowWeapon(a); else drawWeapon(a);
+  }
+
   /* ================== guards ==================
    *
    * A guard is an ordinary villager with a job. Off duty they wander and chat
@@ -2251,7 +2474,10 @@
    * see something they come for you — on foot, or on a horse if one is handy.
    */
 
-  const GUARD_SPEED = { walk: 30, run: 132 };
+  /* Faster flat out than a sprinting player. A guard who cannot catch you is
+   * scenery, and the whole point of a wanted level is that it costs you
+   * something. Turning still slows them, so weaving buys real distance. */
+  const GUARD_SPEED = { walk: 34, run: 152 };
 
   function updateGuard(world, g, dt) {
     const brain = g.brain;
@@ -2259,6 +2485,12 @@
     const state = brain.guardState || 'patrol';
 
     if (state === 'patrol') {
+      // back to carrying it openly once the fuss is over
+      if (!g.inv[I.HAND] && g.stowed !== undefined
+        && (!g.reaction || !g.reaction.swap)) {
+        startSwap(world, g, false);
+      }
+      serviceSwap(g);
       // watching: notice a crime already in progress, or a body on the ground
       if (world.wanted > 8 && distance(g, player) < SEE_RANGE
         && !Rig.isDown(player) && armedAndOpen(world, player)) {
@@ -2293,6 +2525,21 @@
       return true;
     }
 
+    /* Draw or stow to match what this is worth. Doing it here rather than at
+     * the moment of the swing means you can see them decide. */
+    const intent = guardIntent(world, g);
+    const armed = !!g.inv[I.HAND];
+    if (!g.reaction || !g.reaction.swap) {
+      if (intent === 'restrain' && armed) { startSwap(world, g, true); }
+      else if (intent === 'lethal' && !armed && g.stowed !== undefined) {
+        startSwap(world, g, false);
+      }
+    }
+    serviceSwap(g);
+    // They put it away on the move. Stopping to do it hands you the distance
+    // back, which is the one thing a pursuit cannot afford.
+    const swapping = !!(g.reaction && g.reaction.swap);
+
     const w = I.heldWeapon(g.inv);
     const dx = brain.chaseX - g.x, dy = brain.chaseY - g.y;
     const len = Math.hypot(dx, dy) || 1;
@@ -2309,13 +2556,18 @@
       return true;
     }
 
-    if (w.ranged && sees && d < w.range && d > 40) {
+    if (w.ranged && sees && d < w.range && d > 40 && !swapping) {
       if (canAttack(g)) beginAttack(world, g);
       g.gait = 'idle';
       return true;
     }
     if (d < w.reach * 0.85 + 8) {
-      if (sees && canAttack(g)) beginAttack(world, g);
+      // a guard restraining you stops the moment you are on the ground or
+      // badly hurt; only a lethal one keeps going
+      const done = intent === 'restrain'
+        && (Rig.isDown(player) || (player.body && player.body.hp < CB.MAX_HP * 0.45));
+      if (sees && !done && !swapping && canAttack(g)) beginAttack(world, g);
+      if (done) { brain.giveUp = Math.min(brain.giveUp, 2.5); }
       g.gait = 'idle';
       return true;
     }
@@ -2543,9 +2795,17 @@
       // turn or pulling up, and settle when the horse is running straight.
       const want = Rig.shortestAngle(h.yaw, h.targetYaw);
       const braking = !world.input.dx && !world.input.dy && Math.hypot(h.vx, h.vy) > 30;
-      p.rein = Math.max(0, Math.min(1,
+      // Shooting from the saddle means letting go of the reins. They stay
+      // buckled to the bit and hang, which is exactly what the rope solver
+      // already does once nothing is pinning the near end.
+      const shooting = !!(p.attack && p.attack.weapon.ranged)
+        || !!(p.reaction && p.reaction.nock);
+      p.reinsDropped = shooting;
+      p.rein = shooting ? 0 : Math.max(0, Math.min(1,
         (p.rein || 0) * 0.86 + (Math.abs(want) * 1.4 + (braking ? 0.6 : 0)) * dt * 5));
       p.turn = want;
+      // the horse keeps its head while you shoot over it
+      if (shooting) { p.yaw = p.aimYaw === undefined ? h.yaw : p.aimYaw; }
       return;
     }
 
@@ -2886,7 +3146,22 @@
     // an npc riding a horse steers it and does nothing else on foot
     if (a.mount) {
       a.x = a.mount.x; a.y = a.mount.y; a.yaw = a.mount.yaw;
-      if (brain.guard) updateGuard(world, a, dt);
+      if (brain.guard) {
+        updateGuard(world, a, dt);
+      } else if (brain.rides) {
+        // ambling about: a heading held for a while, then a new one
+        brain.rideTimer -= dt;
+        if (brain.rideTimer <= 0) {
+          brain.rideTimer = 4 + a.rng() * 8;
+          brain.rideDir = a.rng() < 0.25 ? null : a.rng() * Math.PI * 2;
+        }
+        const d = brain.rideDir;
+        a.mount.npcDrive = d === null || d === undefined
+          ? { dx: 0, dy: 0, sprint: false }
+          : { dx: Math.sin(d), dy: Math.cos(d), sprint: a.rng() < 0.004 };
+        a.mount.targetYaw = d === null || d === undefined ? a.mount.yaw
+          : Rig.yawForDirection(Math.sin(d), Math.cos(d));
+      }
       Rig.updateBlink(a, dt);
       a.animTime += dt;
       return;
@@ -2904,7 +3179,7 @@
     // facing the way they are being pushed.
     if (a.stumbleTime > 0 && !Rig.isDown(a)) {
       a.gesture = null;
-      a.gait = 'walk';
+      a.gait = a.reaction && a.reaction.kind === 'stagger' ? 'idle' : 'walk';
       if (a.shoveX || a.shoveY) a.targetYaw = Rig.yawForDirection(a.shoveX, a.shoveY);
       clampVillager(a);
       Rig.updateActorMotion(a, dt);
@@ -3112,6 +3387,16 @@
       for (let j = 0; j < world.actors.length; j++) {
         const b = world.actors[j];
         if (b === a || Rig.isDown(b) || b.hitCooldown > 0) continue;
+        if (chasing(b)) {
+          // braced: shoved aside, not taken down with them
+          const ddx = b.x - a.x, ddy = (b.y - a.y) * 1.5;
+          const dd = Math.hypot(ddx, ddy);
+          if (dd < 15 && dd > 0) {
+            Rig.stumble(b, ddx / dd, ddy / dd / 1.5, 34, 0.3);
+            b.hitCooldown = 0.4;
+          }
+          continue;
+        }
         const dx = b.x - a.x, dy = (b.y - a.y) * 1.5;
         const d = Math.hypot(dx, dy);
         if (d > 15 || d === 0) continue;
@@ -3170,7 +3455,10 @@
 
     // reins last: they are solved in screen space, so they need this frame's
     // camera and this frame's final positions for both ends
-    for (let i = 0; i < world.horses.length; i++) updateReins(world, world.horses[i], dt);
+    for (let i = 0; i < world.horses.length; i++) {
+      updateReins(world, world.horses[i], dt);
+      updateTraces(world, world.horses[i], dt);
+    }
   }
 
   /* ---------- drawing ---------- */
@@ -3247,14 +3535,17 @@
     const scale = h.model.root.scale || 1;
     const spread = h.model.dims.headW * 0.5 * scale + 0.7;
 
+    // A rider who has dropped the reins is not holding them: the near end
+    // falls to the saddle bow and the rope hangs from the bit.
+    const dropped = !!holder.reinsDropped;
     let hx, hy, yaw, fwd, lift;
     if (h.rider === holder) {
       const sp = HM.saddlePoint(h.model);
       hx = holder.x; hy = holder.y; yaw = h.yaw;
       // hands out in front of the chest, which sits above the seat
-      fwd = sp.z + 8.5;
+      fwd = sp.z + (dropped ? 2.0 : 8.5);
       lift = seatHeight(holder, sp.y) + holder.model.dims.legTotal
-        + holder.model.dims.torsoH * 0.62;
+        + holder.model.dims.torsoH * (dropped ? 0.05 : 0.62);
     } else {
       const c = h.cart;
       hx = holder.x; hy = holder.y; yaw = c.yaw;
@@ -3329,6 +3620,107 @@
     }
   }
 
+  /* The cart is roped to the horse. Two traces run from the shaft tips to the
+   * harness, solved the same way the reins are — they sag when the cart is
+   * rolling free and go taut the moment the horse pulls. */
+  function traceAnchors(world, h) {
+    const c = h.cart;
+    if (!c || c.broken || HM.isDown(h)) return null;
+    const d = HM.dimensionsFor(h.horse);
+    const scale = h.model.root.scale || 1;
+    const harnessY = (d.legY + d.bodyH * 0.18) * scale;
+    const harnessZ = -d.bodyLen * 0.34 * scale;
+    const spread = d.bodyW * 0.42 * scale;
+    const shaftOut = c.def.length * 0.5 + 15;
+    const shaftSide = c.def.width * 0.5 - 3.5;
+    const shaftY = c.def.deckY - 1.0 + (c.bounce || 0);
+    const front = [], back = [];
+    for (let i = 0; i < 2; i++) {
+      const side = i ? 1 : -1;
+      back.push(projectModelPoint(world, h.x, h.y, h.yaw, side * spread, harnessY, harnessZ));
+      front.push(projectModelPoint(world, c.x, c.y, c.yaw, side * shaftSide, shaftY, shaftOut));
+    }
+    return { hand: front, bit: back };
+  }
+
+  function updateTraces(world, h, dt) {
+    const a = traceAnchors(world, h);
+    if (!a) { h.traces = null; return; }
+    h.traces = solveRope(h.traces, a, world, h, dt, 'traceCam');
+  }
+
+  /* One rope solver, used by both the reins and the traces. */
+  function solveRope(rope, a, world, h, dt, camKey) {
+    if (!rope) {
+      rope = [];
+      for (let i = 0; i < 2; i++) {
+        const pts = [];
+        for (let k = 0; k < REIN_POINTS; k++) {
+          const t = k / (REIN_POINTS - 1);
+          const q = {
+            x: a.hand[i].x + (a.bit[i].x - a.hand[i].x) * t,
+            y: a.hand[i].y + (a.bit[i].y - a.hand[i].y) * t,
+            px: 0, py: 0
+          };
+          q.px = q.x; q.py = q.y;
+          pts.push(q);
+        }
+        rope.push(pts);
+      }
+      h[camKey] = { x: world.camX, y: world.camY };
+    }
+    const cam = h[camKey] || (h[camKey] = { x: world.camX, y: world.camY });
+    const shiftX = (world.camX - cam.x) * PIXEL;
+    const shiftY = (world.camY - cam.y) * PIXEL;
+    cam.x = world.camX; cam.y = world.camY;
+
+    for (let i = 0; i < 2; i++) {
+      const pts = rope[i];
+      const span = Math.hypot(a.bit[i].x - a.hand[i].x, a.bit[i].y - a.hand[i].y);
+      const seg = (span * 1.06 + 4) / (REIN_POINTS - 1);
+      for (let k = 0; k < pts.length; k++) {
+        const q = pts[k];
+        q.x -= shiftX; q.y -= shiftY;
+        q.px -= shiftX; q.py -= shiftY;
+        const vx = (q.x - q.px) * 0.94, vy = (q.y - q.py) * 0.94;
+        q.px = q.x; q.py = q.y;
+        q.x += vx; q.y += vy + REIN_GRAV * dt;
+      }
+      for (let it = 0; it < REIN_ITER; it++) {
+        pts[0].x = a.hand[i].x; pts[0].y = a.hand[i].y;
+        pts[pts.length - 1].x = a.bit[i].x; pts[pts.length - 1].y = a.bit[i].y;
+        for (let k = 0; k < pts.length - 1; k++) {
+          const p0 = pts[k], p1 = pts[k + 1];
+          const dx = p1.x - p0.x, dy = p1.y - p0.y;
+          const d = Math.hypot(dx, dy) || 1e-5;
+          const f = ((d - seg) / d) * 0.5;
+          const ox = dx * f, oy = dy * f;
+          if (k > 0) { p0.x += ox; p0.y += oy; }
+          if (k + 1 < pts.length - 1) { p1.x -= ox; p1.y -= oy; }
+        }
+      }
+      pts[0].x = a.hand[i].x; pts[0].y = a.hand[i].y;
+      pts[pts.length - 1].x = a.bit[i].x; pts[pts.length - 1].y = a.bit[i].y;
+    }
+    return rope;
+  }
+
+  function drawRope(target, rope, near, far) {
+    if (!rope) return;
+    for (let i = 0; i < 2; i++) {
+      const pts = rope[i];
+      const col = i ? far : near;
+      for (let k = 0; k < pts.length - 1; k++) {
+        R.drawLine(target, pts[k].x, pts[k].y, pts[k + 1].x, pts[k + 1].y, col, PIXEL);
+      }
+    }
+  }
+
+  const TRACE_COLOUR = R.pack(74, 54, 32);
+  const TRACE_LIGHT = R.pack(102, 78, 48);
+
+  function drawTraces(target, h) { drawRope(target, h.traces, TRACE_LIGHT, TRACE_COLOUR); }
+
   function drawReins(target, h) {
     if (!h.reins) return;
     for (let i = 0; i < 2; i++) {
@@ -3364,6 +3756,9 @@
       ? [rider.character.name, HM.quantiseTime(rider.animTime),
         rider.blink > 0.5 ? 1 : rider.blink > 0 ? 2 : 0,
         Math.round((rider.rein || 0) * 4),
+        rider.attack ? rider.attack.anim + Math.round(rider.attack.t * 30) : '',
+        rider.reaction ? rider.reaction.kind + Math.round(rider.reaction.k * 6) : '',
+        rider.inv && rider.inv[8] ? rider.inv[8].id : '',
         Math.round((rider.mountTime || 0) / MOUNT_TIME * 6)].join(',')
       : '-';
     const key = HM.isDown(h) ? null : [qTime, qYaw, h.gait, riderKey].join('|');
@@ -3408,18 +3803,42 @@
       // still swinging up: the rider rises from beside the horse to the seat
       const k = rider.mountTime / MOUNT_TIME;
       Rig.poseMount(rider.model, k);
-      const off = seatOffset(qYaw, sp.z, seatY * (0.2 + 0.8 * k));
-      // swings in from the near side as they rise
-      off[0] += Math.cos(qYaw) * (1 - k) * 13;
-      off[2] += -Math.sin(qYaw) * (1 - k) * 13;
+      /* Up and over, not through. They start on the ground clear of the
+       * horse's flank and swing in along an arc, so at no point is the rider
+       * inside the animal. */
+      const clear = h.model.dims.bodyW * 0.5 * (h.model.root.scale || 1) + 7;
+      const ease = k * k * (3 - 2 * k);
+      const lateral = clear * (1 - ease);
+      const rise = seatY * ease + Math.sin(k * Math.PI) * 5.5;
+      const off = seatOffset(qYaw, sp.z, rise);
+      off[0] += Math.cos(qYaw) * lateral;
+      off[2] += -Math.sin(qYaw) * lateral;
       Rig.drawModel(target, rider.model, camera, { yaw: qYaw, faceParts: face, offset: off });
       return;
     }
-    Rig.poseRide(rider.model, HM.quantiseTime(rider.animTime), {
-      gait: h.gait, rein: rider.rein || 0, turn: rider.turn || 0
-    });
+    if (rider.attack) {
+      Rig.poseAttack(rider.model, rider.attack.anim,
+        rider.attack.t / rider.attack.duration,
+        rider.leftHanded ? 'L' : 'R', 'idle', HM.quantiseTime(rider.animTime));
+      // legs stay round the horse whatever the arms are doing
+      Rig.setRot(rider.model, 'legR', -0.92, 0, -0.36);
+      Rig.setRot(rider.model, 'legL', -0.92, 0, 0.36);
+      Rig.setRot(rider.model, 'shinR', 1.28, 0, 0.1);
+      Rig.setRot(rider.model, 'shinL', 1.28, 0, -0.1);
+    } else if (rider.reaction && rider.reaction.nock) {
+      Rig.poseNock(rider.model, rider.reaction.k, rider.leftHanded ? 'L' : 'R');
+      Rig.setRot(rider.model, 'legR', -0.92, 0, -0.36);
+      Rig.setRot(rider.model, 'legL', -0.92, 0, 0.36);
+      Rig.setRot(rider.model, 'shinR', 1.28, 0, 0.1);
+      Rig.setRot(rider.model, 'shinL', 1.28, 0, -0.1);
+    } else {
+      Rig.poseRide(rider.model, HM.quantiseTime(rider.animTime), {
+        gait: h.gait, rein: rider.rein || 0, turn: rider.turn || 0
+      });
+    }
     Rig.drawModel(target, rider.model, camera, {
-      yaw: qYaw, faceParts: face, offset: seatOffset(qYaw, sp.z, seatY)
+      yaw: qYaw, faceParts: face, offset: seatOffset(qYaw, sp.z, seatY),
+      extra: Rig.actorExtras(rider)
     });
   }
 
@@ -3621,6 +4040,7 @@
           (Math.round(h.x) - cx) * PIXEL - HORSE_BUF.ox,
           (Math.round(h.y) - cy) * PIXEL - HORSE_BUF.oy);
         if (h.rider) drawReins(target, h);
+        if (h.cart) drawTraces(target, h);
       } else if (d.cart) {
         const c = d.cart;
         R.fillEllipse(target, (Math.round(c.x) - cx) * PIXEL, (Math.round(c.y) - cy) * PIXEL,
@@ -3693,6 +4113,7 @@
     playerAttack, playerAim, beginAttack, openContainer, closeContainer, nearestChest,
     nearestGroundItem, pickUp, spawnItem, strike, witness, CRIMES, isGuard,
     openInventory, closeInventory, invVisible, invMove, invClick, layout,
+    shieldBlocks, knockFrom, stowWeapon, drawWeapon, guardIntent,
     mount, dismount, hitchCart, unhitchCart, takeSeat, leaveSeat,
     nearestHorse, nearestCart, damageCart, breakCart, promptFor,
     MOUNT_RANGE, HITCH_RANGE, HORSE_FALL_SPEED

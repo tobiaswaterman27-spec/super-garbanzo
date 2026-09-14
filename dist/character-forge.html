@@ -2615,6 +2615,58 @@
     model.bob = -0.55 * g;
   }
 
+  /* Taking a hit and staying on your feet: driven backwards, arms thrown up,
+   * head turned away. A punch should not put anyone on the floor — it should
+   * put them on their back foot. */
+  function poseStagger(model, k, dirSide) {
+    clearPose(model);
+    const g = Math.max(0, Math.min(1, k));
+    const lurch = Math.sin(g * Math.PI);
+    const side = dirSide || 0;
+    setRot(model, 'torso', -0.42 * lurch, side * 0.3 * lurch, side * 0.18 * lurch);
+    setRot(model, 'head', -0.3 * lurch, side * 0.4 * lurch, 0);
+    // arms fly up and out, which is what people actually do
+    setRot(model, 'armR', -1.45 * lurch, 0, 0.85 * lurch);
+    setRot(model, 'armL', -1.35 * lurch, 0, -0.95 * lurch);
+    setRot(model, 'foreR', -1.1 * lurch, 0, 0);
+    setRot(model, 'foreL', -1.25 * lurch, 0, 0);
+    // back foot goes out to catch the weight
+    setRot(model, 'legR', 0.55 * lurch, 0, 0.12 * lurch);
+    setRot(model, 'legL', -0.35 * lurch, 0, -0.1 * lurch);
+    setRot(model, 'shinR', 0.5 * lurch, 0, 0);
+    setRot(model, 'shinL', 0.2 * lurch, 0, 0);
+    model.bob = -1.1 * lurch;
+  }
+
+  /* Reaching across to draw from the belt, or putting something away. */
+  function poseSheathe(model, k, side, putting) {
+    clearPose(model);
+    const g = Math.max(0, Math.min(1, k));
+    const reach = Math.sin(g * Math.PI);
+    const sgn = side === 'R' ? 1 : -1;
+    setRot(model, 'arm' + side, -0.15 - 0.55 * reach, 0, sgn * (0.2 + 0.7 * reach));
+    setRot(model, 'fore' + side, -0.4 - 1.5 * reach, 0, 0);
+    setRot(model, 'torso', 0.12 * reach, sgn * -0.28 * reach, 0);
+    setRot(model, 'head', 0.16 * reach, sgn * -0.3 * reach, 0);
+    void putting;
+  }
+
+  /* Nocking an arrow, or laying a bolt in the groove. */
+  function poseNock(model, k, side) {
+    clearPose(model);
+    const g = Math.max(0, Math.min(1, k));
+    const sgn = side === 'R' ? 1 : -1;
+    // reach to the quiver at the hip, bring it up to the string
+    const grab = Math.min(1, g / 0.45);
+    const lift = Math.max(0, (g - 0.45) / 0.55);
+    setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -1.3 * lift - 0.2, 0, -sgn * 0.14);
+    setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -0.2, 0, 0);
+    setRot(model, 'arm' + side, 0.5 * grab - 1.6 * lift, 0, sgn * (0.55 - 0.15 * lift));
+    setRot(model, 'fore' + side, -0.5 - 1.4 * grab + 0.9 * lift, 0, 0);
+    setRot(model, 'torso', 0.16 * grab - 0.08 * lift, sgn * 0.3 * lift, 0);
+    setRot(model, 'head', 0.1 * grab, sgn * -0.2 * lift, 0);
+  }
+
   /* A shield up, and a weapon held ready rather than hanging. */
   function poseReady(model, side, shield) {
     const sgn = side === 'R' ? 1 : -1;
@@ -2889,6 +2941,10 @@
     const full = mode === 'full';
     const cap = full ? 9.0 : 5.0;
     const impulse = Math.max(0.6, Math.min(cap, force)) * SUBSTEP * (full ? 7.5 : 1.9);
+    // Arms go up. A body that falls with its arms at its sides reads as a
+    // dropped plank, so the hands and elbows get a good deal more of the
+    // impulse than the trunk does, thrown up and out.
+    const FLAIL = { handR: 3.2, handL: 3.2, elbowR: 2.1, elbowL: 2.1, headTop: 1.4 };
 
     let tallest = 1;
     for (let i = 0; i < JOINT_NAMES.length; i++) {
@@ -2927,6 +2983,13 @@
       q.px -= px * impulse * weight;
       q.pz -= pz * impulse * weight;
       q.py -= impulse * 0.16 * weight;
+      const fl = FLAIL[k];
+      if (fl && full) {
+        const spin = (i % 2 ? 1 : -1) * impulse * fl;
+        q.px -= pz * spin * 0.5;
+        q.pz += px * spin * 0.5;
+        q.py -= impulse * fl * 0.55;
+      }
     }
 
     if (!reuse) {
@@ -3853,6 +3916,9 @@
     if (actor.reaction) {
       const r = actor.reaction;
       if (r.kind === 'clutch') { poseClutch(model, r.k, r.zone, side); return; }
+      if (r.kind === 'stagger') { poseStagger(model, r.k, r.side || 0); return; }
+      if (r.kind === 'sheathe' || r.kind === 'draw') { poseSheathe(model, r.k, side); return; }
+      if (r.kind === 'nock') { poseNock(model, r.k, side); return; }
       if (r.kind === 'guard' || r.kind === 'surrender') { poseGuard(model, r.k, side); return; }
     }
     if (actor.gait === 'walk') poseWalk(model, qTime, false);
@@ -4025,6 +4091,7 @@
     clearPose, setRot, addRot, poseIdle, poseWalk, poseTalk,
     poseRide, poseMount, poseDrive,
     ATTACKS, poseAttack, attackHitFraction, poseGuard, poseClutch, poseReady,
+    poseStagger, poseSheathe, poseNock,
     emptyPose, clonePose, applyPose, lerpPose, samplePoseTrack,
     yawForDirection, snapToEight, directionName, shortestAngle,
     createActor, rebuildActorModel, updateActorMotion, updateBlink,
@@ -4899,7 +4966,7 @@
   }
 
   const RISE_TIME = 1.9;
-  const RISE_DRIFT = 16;   // model units per second a get-up may travel
+  const RISE_DRIFT = 6;    // model units per second a get-up may travel
   const FALL_DRIFT = 130;  // and a crash slide — under its own gallop speed
 
   /* Reads which way the animal is lying and points the get-up at that, rather
@@ -5521,8 +5588,42 @@
   const HAFT_DARK = '#4a3119';
   const LEATHER = '#4b3320';
   const BRASS = '#a8852f';
+  const BONE_COL = '#ddd6c2';
 
   function part(mesh, colour) { return { mesh: mesh, colour: colour }; }
+
+  /* An axe blade is a crescent, and a crescent is the one shape a stack of
+   * boxes cannot fake. This lays a fan of quads from the eye out to a curved
+   * edge and closes it into a solid, so the head is one piece of steel that
+   * actually meets the haft. */
+  function bladeMesh(y0, y1, reach, halfWidth, curve, back) {
+    const verts = [];
+    const faces = [];
+    const N = 7;
+    const ring = [];
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      // the edge bows out from the socket and sweeps back at both horns
+      const bow = Math.sin(t * Math.PI);
+      const y = y0 + (y1 - y0) * t;
+      const z = -(back + reach * (0.35 + 0.65 * bow) * curve);
+      ring.push([y, z]);
+      verts.push(-halfWidth, y, -back);
+      verts.push(halfWidth, y, -back);
+      verts.push(-halfWidth * (0.45 + 0.3 * bow), y, z);
+      verts.push(halfWidth * (0.45 + 0.3 * bow), y, z);
+    }
+    for (let i = 0; i < N; i++) {
+      const a = i * 4, b = (i + 1) * 4;
+      faces.push([a, a + 2, b + 2, b]);           // left face
+      faces.push([a + 1, b + 1, b + 3, a + 3]);   // right face
+      faces.push([a + 2, a + 3, b + 3, b + 2]);   // the edge itself
+      faces.push([a, b, b + 1, a + 1]);           // the back, against the haft
+    }
+    faces.push([0, 1, 3, 2]);
+    faces.push([N * 4, N * 4 + 2, N * 4 + 3, N * 4 + 1]);
+    return G.finish(verts, faces);
+  }
 
   /* Every weapon is modelled in the hand's own space: the grip sits at the
    * origin and the business end runs along -Y, which is the direction the
@@ -5531,118 +5632,239 @@
   const BUILD = {
     fists: function () { return []; },
 
+    /* Every weapon is laid out from one set of numbers so the pieces meet:
+     * the grip runs from GRIP_TOP down to GRIP_BOT, the guard sits exactly at
+     * GRIP_TOP, and the blade starts where the guard ends. Eyeballing offsets
+     * is what leaves a blade floating a unit clear of its own crossguard. */
     club: function () {
       const p = [];
-      p.push(part(G.slab(-0.85, -1.2, -0.85, 1.7, 7.0, 1.7, 0.9, 1), HAFT));
-      p.push(part(G.taper(-1.6, -8.2, -1.6, 3.2, 7.0, 3.2, 1.35), HAFT_DARK));
-      p.push(part(G.slab(-0.95, -1.4, -0.95, 1.9, 1.4, 1.9, 0.8, 1), LEATHER));
+      const gripBot = 1.6, gripTop = -6.0, headTop = -14.2;
+      p.push(part(G.slab(-0.85, gripTop, -0.85, 1.7, gripBot - gripTop, 1.7, 0.9, 1), HAFT_DARK));
+      // wrapped grip, in bands
+      for (let i = 0; i < 4; i++) {
+        p.push(part(G.slab(-0.98, gripBot - 1.0 - i * 1.7, -0.98, 1.96, 1.1, 1.96, 0.85, 1),
+          i % 2 ? LEATHER : '#3a2617'));
+      }
+      /* The head is the point of a club, so it is genuinely fat: a long
+       * swelling that starts halfway down the shaft and is nearly three times
+       * its width at the crown. */
+      p.push(part(G.taper(-0.85, gripTop, -0.85, 1.7, 3.0, 1.7, 1.75), HAFT));
+      p.push(part(G.slab(-1.5, gripTop - 3.0, -1.5, 3.0, 2.0, 3.0, 0.8, 1), HAFT));
+      p.push(part(G.taper(-1.5, gripTop - 6.4, -1.5, 3.0, 3.4, 3.0, 1.45), HAFT));
+      p.push(part(G.slab(-2.2, gripTop - 7.2, -2.2, 4.4, (gripTop - 7.2) - headTop, 4.4, 0.72, 1), HAFT));
+      p.push(part(G.superellipsoid(0, headTop + 0.6, 0, 2.2, 1.5, 2.2, 0.55, 4, 9), HAFT));
+      // iron bands and studs round the crown
+      p.push(part(G.slab(-2.35, gripTop - 8.4, -2.35, 4.7, 0.9, 4.7, 0.85, 1), STEEL_DARK));
+      p.push(part(G.slab(-2.35, headTop + 1.6, -2.35, 4.7, 0.9, 4.7, 0.85, 1), STEEL_DARK));
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2 + 0.3;
+        p.push(part(G.superellipsoid(Math.cos(a) * 2.1, headTop + 3.4, Math.sin(a) * 2.1,
+          0.72, 0.72, 0.72, 0.5, 3, 7), STEEL));
+      }
       return p;
     },
 
     dagger: function () {
       const p = [];
-      p.push(part(G.slab(-0.7, -0.6, -0.7, 1.4, 3.2, 1.4, 0.85, 1), LEATHER));
-      p.push(part(G.box(-1.5, -1.0, -0.5, 3.0, 0.7, 1.0), BRASS));
-      p.push(part(G.taper(-0.85, -7.8, -0.35, 1.7, 6.9, 0.7, 0.28), STEEL));
-      p.push(part(G.superellipsoid(0, 2.9, 0, 0.75, 0.7, 0.75, 0.6, 3, 7), BRASS));
+      const gripTop = -0.9, gripBot = 3.4, guardH = 0.9, bladeLen = 7.4;
+      p.push(part(G.slab(-0.62, gripTop, -0.62, 1.24, gripBot - gripTop, 1.24, 0.8, 1), LEATHER));
+      // wire wrap
+      for (let i = 0; i < 4; i++) {
+        p.push(part(G.box(-0.72, gripTop + 0.5 + i * 0.8, -0.72, 1.44, 0.32, 1.44), '#3a2617'));
+      }
+      // pommel, sitting on the end of the grip
+      p.push(part(G.superellipsoid(0, gripBot + 0.5, 0, 0.85, 0.75, 0.85, 0.5, 3, 8), BRASS));
+      // guard, its top face flush with the grip's bottom
+      p.push(part(G.box(-1.7, gripTop - guardH, -0.55, 3.4, guardH, 1.1), BRASS));
+      p.push(part(G.box(-1.9, gripTop - guardH, -0.4, 0.55, guardH + 0.4, 0.8), BRASS));
+      p.push(part(G.box(1.35, gripTop - guardH, -0.4, 0.55, guardH + 0.4, 0.8), BRASS));
+      // blade starts where the guard ends
+      const b0 = gripTop - guardH;
+      p.push(part(G.taper(-0.8, b0 - bladeLen, -0.32, 1.6, bladeLen, 0.64, 0.18), STEEL));
+      p.push(part(G.box(-0.16, b0 - bladeLen + 1.2, -0.38, 0.32, bladeLen - 1.6, 0.76), STEEL_DARK));
       return p;
     },
 
     sword: function () {
       const p = [];
-      p.push(part(G.slab(-0.72, -0.4, -0.72, 1.44, 3.6, 1.44, 0.85, 1), LEATHER));
-      // crossguard
-      p.push(part(G.box(-3.4, -1.2, -0.55, 6.8, 0.95, 1.1), STEEL_DARK));
-      // blade, with a fuller down the middle
-      p.push(part(G.taper(-1.15, -17.5, -0.42, 2.3, 16.4, 0.84, 0.42), STEEL));
-      p.push(part(G.box(-0.35, -16.0, -0.5, 0.7, 14.6, 1.0), STEEL_DARK));
-      p.push(part(G.superellipsoid(0, 3.3, 0, 0.9, 0.85, 0.9, 0.55, 3, 7), BRASS));
+      const gripTop = -1.1, gripBot = 3.2, guardH = 1.0, bladeLen = 17.0;
+      p.push(part(G.slab(-0.66, gripTop, -0.66, 1.32, gripBot - gripTop, 1.32, 0.85, 1), LEATHER));
+      for (let i = 0; i < 5; i++) {
+        p.push(part(G.box(-0.78, gripTop + 0.35 + i * 0.75, -0.78, 1.56, 0.28, 1.56), '#2f2317'));
+      }
+      p.push(part(G.superellipsoid(0, gripBot + 0.7, 0, 1.05, 0.95, 1.05, 0.45, 4, 8), BRASS));
+      p.push(part(G.box(-0.5, gripBot - 0.1, -0.5, 1.0, 0.9, 1.0), BRASS));
+      // crossguard: a bar with slightly swept tips, flush under the grip
+      p.push(part(G.box(-3.2, gripTop - guardH, -0.6, 6.4, guardH, 1.2), STEEL_DARK));
+      p.push(part(G.box(-3.7, gripTop - guardH - 0.5, -0.45, 0.7, guardH + 0.9, 0.9), STEEL_DARK));
+      p.push(part(G.box(3.0, gripTop - guardH - 0.5, -0.45, 0.7, guardH + 0.9, 0.9), STEEL_DARK));
+      // ricasso, then the blade, then the point
+      const b0 = gripTop - guardH;
+      p.push(part(G.box(-0.95, b0 - 2.0, -0.42, 1.9, 2.0, 0.84), STEEL));
+      p.push(part(G.taper(-1.05, b0 - bladeLen, -0.46, 2.1, bladeLen - 2.0, 0.92, 0.66, 0, 0), STEEL));
+      p.push(part(G.taper(-0.7, b0 - bladeLen - 2.1, -0.3, 1.4, 2.1, 0.6, 0.1), STEEL));
+      // fuller down the centre
+      p.push(part(G.box(-0.3, b0 - bladeLen + 1.0, -0.5, 0.6, bladeLen - 3.4, 1.0), STEEL_DARK));
       return p;
     },
 
     axe: function () {
       const p = [];
-      p.push(part(G.slab(-0.8, -1.0, -0.8, 1.6, 11.5, 1.6, 0.9, 1), HAFT));
-      // head: a bearded blade hanging off one side of the haft
-      p.push(part(G.box(-0.9, -11.8, -1.1, 1.8, 3.6, 2.2), STEEL_DARK));
-      p.push(part(G.taper(-0.6, -12.6, -6.4, 1.2, 5.2, 6.6, 1.0, 0, 2.6), STEEL));
-      p.push(part(G.box(-0.7, -13.2, -6.9, 1.4, 4.4, 1.2), STEEL));
-      p.push(part(G.slab(-0.9, -1.2, -0.9, 1.8, 1.6, 1.8, 0.8, 1), LEATHER));
+      const haftTop = -13.0, haftBot = 3.0;
+      p.push(part(G.slab(-0.78, haftTop, -0.78, 1.56, haftBot - haftTop, 1.56, 0.92, 1), HAFT));
+      p.push(part(G.slab(-0.9, haftBot - 2.4, -0.9, 1.8, 2.4, 1.8, 0.85, 1), LEATHER));
+      p.push(part(G.superellipsoid(0, haftBot + 0.3, 0, 1.0, 0.7, 1.0, 0.5, 3, 7), STEEL_DARK));
+      // the eye: a collar clamped round the haft, which the head grows out of
+      p.push(part(G.box(-1.0, haftTop - 0.6, -1.3, 2.0, 5.6, 2.6), STEEL_DARK));
+      p.push(part(G.box(-1.15, haftTop + 3.6, -1.45, 2.3, 0.9, 2.9), STEEL_DARK));
+      p.push(part(G.box(-1.15, haftTop - 0.9, -1.45, 2.3, 0.9, 2.9), STEEL_DARK));
+      // one solid bearded blade sweeping out of the eye
+      p.push(part(bladeMesh(haftTop - 1.2, haftTop + 4.4, 5.6, 0.75, 1, 1.0), STEEL));
+      p.push(part(bladeMesh(haftTop - 1.0, haftTop + 4.2, 5.9, 0.34, 1, 1.0), '#d9dde2'));
+      // a short spike opposite the blade
+      p.push(part(G.taper(-0.6, haftTop + 1.0, 1.2, 1.2, 2.4, 1.7, 0.3), STEEL_DARK));
       return p;
     },
 
     mace: function () {
       const p = [];
-      p.push(part(G.slab(-0.82, -1.0, -0.82, 1.64, 9.0, 1.64, 0.9, 1), HAFT_DARK));
-      p.push(part(G.superellipsoid(0, -10.6, 0, 2.5, 2.7, 2.5, 0.55, 4, 8), STEEL_DARK));
-      // flanges
-      for (let i = 0; i < 4; i++) {
-        const a = (i / 4) * Math.PI * 2;
-        p.push(part(G.box(Math.cos(a) * 2.1 - 0.5, -12.2, Math.sin(a) * 2.1 - 0.5,
-          1.0, 3.2, 1.0), STEEL));
+      const haftTop = -10.0, haftBot = 2.6;
+      p.push(part(G.slab(-0.72, haftTop, -0.72, 1.44, haftBot - haftTop, 1.44, 0.9, 1), STEEL_DARK));
+      for (let i = 0; i < 5; i++) {
+        p.push(part(G.box(-0.84, haftBot - 1.0 - i * 1.5, -0.84, 1.68, 0.5, 1.68), LEATHER));
       }
-      p.push(part(G.superellipsoid(0, -13.4, 0, 1.2, 0.9, 1.2, 0.5, 3, 7), STEEL));
+      p.push(part(G.superellipsoid(0, haftBot + 0.4, 0, 0.95, 0.75, 0.95, 0.5, 3, 7), STEEL));
+      // collar, head, cap — all touching
+      p.push(part(G.box(-0.95, haftTop, -0.95, 1.9, 1.2, 1.9), STEEL));
+      p.push(part(G.superellipsoid(0, haftTop - 2.4, 0, 1.9, 2.5, 1.9, 0.6, 5, 9), STEEL_DARK));
+      // six flanges standing off the head
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        const cx = Math.cos(a), cz = Math.sin(a);
+        p.push(part(G.taper(cx * 1.5 - 0.42, haftTop - 4.3, cz * 1.5 - 0.42,
+          0.84, 4.0, 0.84, 0.35, cx * 1.5, cz * 1.5), STEEL));
+      }
+      p.push(part(G.superellipsoid(0, haftTop - 5.1, 0, 1.15, 1.0, 1.15, 0.5, 3, 8), STEEL));
       return p;
     },
 
     spear: function () {
       const p = [];
-      p.push(part(G.slab(-0.62, 6.0, -0.62, 1.24, 26.0, 1.24, 0.92, 1), HAFT));
-      p.push(part(G.taper(-1.0, -24.5, -0.4, 2.0, 5.2, 0.8, 0.12), STEEL));
-      p.push(part(G.box(-0.8, -19.6, -0.45, 1.6, 1.4, 0.9), STEEL_DARK));
-      p.push(part(G.slab(-0.72, -1.0, -0.72, 1.44, 2.2, 1.44, 0.8, 1), LEATHER));
+      const shaftTop = -20.0, shaftBot = 9.0;
+      p.push(part(G.slab(-0.58, shaftTop, -0.58, 1.16, shaftBot - shaftTop, 1.16, 0.94, 1), HAFT));
+      // two grip wraps where the hands go
+      p.push(part(G.slab(-0.7, -1.2, -0.7, 1.4, 2.6, 1.4, 0.88, 1), LEATHER));
+      p.push(part(G.slab(-0.7, 4.4, -0.7, 1.4, 2.6, 1.4, 0.88, 1), LEATHER));
+      p.push(part(G.box(-0.66, shaftBot - 0.9, -0.66, 1.32, 0.9, 1.32), STEEL_DARK));
+      // socket, wings, then the head
+      p.push(part(G.taper(-0.78, shaftTop, -0.78, 1.56, 2.6, 1.56, 1.25), STEEL_DARK));
+      p.push(part(G.box(-1.7, shaftTop + 0.4, -0.35, 3.4, 0.8, 0.7), STEEL_DARK));
+      p.push(part(G.taper(-1.0, shaftTop - 4.6, -0.4, 2.0, 4.6, 0.8, 0.9, 0, 0), STEEL));
+      p.push(part(G.taper(-0.9, shaftTop - 7.4, -0.36, 1.8, 2.8, 0.72, 0.08), STEEL));
+      p.push(part(G.box(-0.2, shaftTop - 6.6, -0.42, 0.4, 6.4, 0.84), '#d6dade'));
       return p;
     },
 
     greatsword: function () {
       const p = [];
-      p.push(part(G.slab(-0.8, 0.4, -0.8, 1.6, 6.4, 1.6, 0.85, 1), LEATHER));
-      p.push(part(G.box(-4.6, -1.4, -0.65, 9.2, 1.1, 1.3), STEEL_DARK));
-      p.push(part(G.taper(-1.45, -25.0, -0.5, 2.9, 23.6, 1.0, 0.46), STEEL));
-      p.push(part(G.box(-0.45, -23.0, -0.6, 0.9, 21.0, 1.2), STEEL_DARK));
-      p.push(part(G.superellipsoid(0, 6.6, 0, 1.1, 1.1, 1.1, 0.5, 3, 8), BRASS));
+      const gripTop = -1.3, gripBot = 6.6, guardH = 1.2, bladeLen = 24.0;
+      p.push(part(G.slab(-0.72, gripTop, -0.72, 1.44, gripBot - gripTop, 1.44, 0.88, 1), LEATHER));
+      for (let i = 0; i < 8; i++) {
+        p.push(part(G.box(-0.84, gripTop + 0.6 + i * 0.95, -0.84, 1.68, 0.3, 1.68), '#2f2317'));
+      }
+      p.push(part(G.superellipsoid(0, gripBot + 0.9, 0, 1.25, 1.1, 1.25, 0.45, 4, 9), BRASS));
+      p.push(part(G.box(-0.55, gripBot - 0.1, -0.55, 1.1, 1.0, 1.1), BRASS));
+      p.push(part(G.box(-4.4, gripTop - guardH, -0.7, 8.8, guardH, 1.4), STEEL_DARK));
+      p.push(part(G.box(-4.9, gripTop - guardH - 0.7, -0.5, 0.8, guardH + 1.1, 1.0), STEEL_DARK));
+      p.push(part(G.box(4.1, gripTop - guardH - 0.7, -0.5, 0.8, guardH + 1.1, 1.0), STEEL_DARK));
+      const b0 = gripTop - guardH;
+      // a long ricasso, the way a real greatsword is gripped above the guard
+      p.push(part(G.box(-1.1, b0 - 3.4, -0.5, 2.2, 3.4, 1.0), STEEL_DARK));
+      p.push(part(G.box(-1.6, b0 - 4.2, -0.5, 0.7, 1.0, 1.0), STEEL_DARK));
+      p.push(part(G.box(0.9, b0 - 4.2, -0.5, 0.7, 1.0, 1.0), STEEL_DARK));
+      p.push(part(G.taper(-1.35, b0 - bladeLen, -0.52, 2.7, bladeLen - 3.4, 1.04, 0.7, 0, 0), STEEL));
+      p.push(part(G.taper(-0.95, b0 - bladeLen - 2.8, -0.36, 1.9, 2.8, 0.72, 0.1), STEEL));
+      p.push(part(G.box(-0.36, b0 - bladeLen + 1.4, -0.58, 0.72, bladeLen - 5.6, 1.16), STEEL_DARK));
       return p;
     },
 
     poleaxe: function () {
       const p = [];
-      p.push(part(G.slab(-0.72, 4.0, -0.72, 1.44, 30.0, 1.44, 0.92, 1), HAFT));
-      p.push(part(G.box(-0.85, -26.5, -1.0, 1.7, 4.2, 2.0), STEEL_DARK));
-      p.push(part(G.taper(-0.6, -27.4, -6.0, 1.2, 5.6, 6.2, 1.0, 0, 2.4), STEEL));
-      // hammer poll on the far side, and a spike on top
-      p.push(part(G.box(-0.9, -27.0, 1.0, 1.8, 3.4, 2.6), STEEL));
-      p.push(part(G.taper(-0.7, -31.5, -0.7, 1.4, 4.4, 1.4, 0.15), STEEL));
+      const shaftTop = -26.0, shaftBot = 7.0;
+      p.push(part(G.slab(-0.68, shaftTop, -0.68, 1.36, shaftBot - shaftTop, 1.36, 0.94, 1), HAFT));
+      p.push(part(G.slab(-0.8, -1.4, -0.8, 1.6, 3.0, 1.6, 0.88, 1), LEATHER));
+      p.push(part(G.slab(-0.8, 3.2, -0.8, 1.6, 3.0, 1.6, 0.88, 1), LEATHER));
+      // langets: the iron straps running down the shaft from the head
+      p.push(part(G.box(-0.82, shaftTop + 2.0, -0.3, 0.42, 7.0, 0.6), STEEL_DARK));
+      p.push(part(G.box(0.4, shaftTop + 2.0, -0.3, 0.42, 7.0, 0.6), STEEL_DARK));
+      // the head: axe blade one side, hammer the other, spike on top
+      p.push(part(G.box(-0.95, shaftTop - 0.4, -1.2, 1.9, 6.0, 2.4), STEEL_DARK));
+      p.push(part(bladeMesh(shaftTop - 0.8, shaftTop + 5.0, 5.2, 0.7, 1, 1.0), STEEL));
+      p.push(part(bladeMesh(shaftTop - 0.6, shaftTop + 4.8, 5.5, 0.32, 1, 1.0), '#d9dde2'));
+      // hammer poll on the far side, with a studded face
+      p.push(part(G.box(-0.95, shaftTop + 1.0, 1.1, 1.9, 3.6, 2.6), STEEL));
+      for (let i = 0; i < 4; i++) {
+        const sx = (i & 1) ? 0.3 : -0.8, sy = (i & 2) ? 2.6 : 1.4;
+        p.push(part(G.box(sx, shaftTop + sy, 3.6, 0.5, 0.5, 0.35), STEEL_DARK));
+      }
+      p.push(part(G.taper(-0.62, shaftTop - 4.6, -0.62, 1.24, 4.8, 1.24, 0.1), STEEL));
       return p;
     },
 
+    /* A bow is a stave that bends. Segments are placed along a curve and each
+     * one is long enough to overlap its neighbour, so the limb reads as one
+     * piece of wood rather than as a row of blocks. */
     bow: function () {
       const p = [];
-      // a stave curving away from the hand, strung down the inside
-      for (let i = -4; i <= 4; i++) {
-        if (i === 0) continue;
-        const t = i / 4;
-        const y = -t * 13.5;
-        const z = -(1 - t * t) * 2.8;
-        p.push(part(G.slab(-0.55, y - 1.9, z - 0.55, 1.1, 3.8, 1.1, 0.85, 1),
-          Math.abs(i) === 4 ? HAFT_DARK : HAFT));
+      const N = 9, SPAN = 17.0;
+      let prev = null;
+      for (let i = 0; i <= N; i++) {
+        const t = (i / N) * 2 - 1;
+        const y = -t * SPAN;
+        const z = -(1 - t * t) * 3.4;
+        if (prev) {
+          const my = (y + prev.y) / 2, mz = (z + prev.z) / 2;
+          const len = Math.hypot(y - prev.y, z - prev.z) * 0.62;
+          const thick = 0.62 - Math.abs(t) * 0.22;
+          p.push(part(G.slab(-thick, my - len, mz - thick, thick * 2, len * 2, thick * 2, 0.8, 1),
+            Math.abs(t) > 0.82 ? HAFT_DARK : HAFT));
+        }
+        prev = { y: y, z: z };
       }
-      p.push(part(G.slab(-0.72, -2.0, -0.9, 1.44, 4.0, 1.5, 0.8, 1), LEATHER));
-      for (let i = -4; i < 4; i++) {
-        const y0 = (i / 4) * -13.5, y1 = ((i + 1) / 4) * -13.5;
-        p.push(part(G.box(-0.2, Math.min(y0, y1), 0.35, 0.4, Math.abs(y1 - y0), 0.4),
-          '#ddd6c2'));
-      }
+      // the grip, and horn nocks at the tips
+      p.push(part(G.slab(-0.82, -2.4, -0.62 - 0.9, 1.64, 4.8, 1.9, 0.82, 1), LEATHER));
+      p.push(part(G.superellipsoid(0, SPAN, 0, 0.55, 0.9, 0.55, 0.5, 3, 7), BONE_COL));
+      p.push(part(G.superellipsoid(0, -SPAN, 0, 0.55, 0.9, 0.55, 0.5, 3, 7), BONE_COL));
+      // string, straight between the nocks
+      p.push(part(G.box(-0.16, -SPAN, -0.16, 0.32, SPAN * 2, 0.32), '#e6e0cc'));
       return p;
     },
 
     crossbow: function () {
       const p = [];
-      p.push(part(G.box(-0.9, -12.5, -1.0, 1.8, 15.0, 2.0), HAFT));
-      p.push(part(G.box(-7.5, -11.0, -0.7, 15.0, 1.2, 1.4), HAFT_DARK));
-      p.push(part(G.box(-7.9, -11.4, -0.6, 1.2, 2.0, 1.2), STEEL_DARK));
-      p.push(part(G.box(6.7, -11.4, -0.6, 1.2, 2.0, 1.2), STEEL_DARK));
-      p.push(part(G.box(-6.9, -10.6, 0.1, 13.8, 0.4, 0.4), '#ddd6c2'));
-      p.push(part(G.box(-0.7, 2.0, -0.9, 1.4, 2.6, 1.8), LEATHER));
+      const stockTop = -13.0, stockBot = 5.0, prodY = -11.4;
+      // stock, tapering to the butt
+      p.push(part(G.box(-0.95, stockTop, -1.1, 1.9, stockBot - stockTop, 2.2), HAFT));
+      p.push(part(G.taper(-1.05, stockBot - 1.0, -1.35, 2.1, 3.2, 2.7, 0.75), HAFT_DARK));
+      // the channel the bolt sits in
+      p.push(part(G.box(-0.42, stockTop + 0.4, -1.3, 0.84, 9.0, 0.5), '#3a2617'));
+      // prod, curving forward, built as overlapping segments
+      const N = 7, SPAN = 8.2;
+      for (let i = 0; i < N; i++) {
+        const t = ((i + 0.5) / N) * 2 - 1;
+        const x = t * SPAN;
+        const z = -1.0 - (1 - t * t) * 1.8;
+        const thick = 0.68 - Math.abs(t) * 0.2;
+        p.push(part(G.slab(x - SPAN / N, prodY - thick, z - thick,
+          (SPAN / N) * 2.1, thick * 2, thick * 2, 0.8, 1),
+          Math.abs(t) > 0.8 ? STEEL_DARK : HAFT_DARK));
+      }
+      p.push(part(G.box(-1.5, prodY - 0.9, -1.4, 3.0, 1.8, 2.8), STEEL_DARK));
+      // string across the tips, and the nut and trigger
+      p.push(part(G.box(-SPAN, prodY - 0.18, -0.9, SPAN * 2, 0.36, 0.36), '#e6e0cc'));
+      p.push(part(G.superellipsoid(0, stockTop + 5.4, -0.7, 0.85, 0.85, 0.7, 0.5, 3, 8), BONE_COL));
+      p.push(part(G.box(-0.35, stockTop + 5.0, 0.2, 0.7, 2.6, 0.7), STEEL_DARK));
+      p.push(part(G.box(-0.5, stockTop + 7.2, -0.4, 1.0, 0.8, 1.6), STEEL_DARK));
       return p;
     }
   };
@@ -6773,8 +6995,7 @@
     player.isPlayer = true;
     player._id = 'player';
     player.leftHanded = !!playerCharacter.leftHanded;
-    I.add(player.inv, 'arrow', 24);
-    I.add(player.inv, 'bandage', 2);
+    // You start with nothing. Everything you carry, you took from somewhere.
     player.buffer = R.createTarget(ACTOR_BUF.w, ACTOR_BUF.h);
     world.actors.push(player);
     world.player = player;
@@ -6805,16 +7026,19 @@
         a.inv[I.HAND] = I.stack(kit, 1);
         if (kit === 'bow') I.add(a.inv, 'arrow', 18);
         else a.inv[I.SHIELD] = I.stack('shield', 1);
+        // A guard always keeps a slot free. It is what lets them put the
+        // weapon away and deal with something without killing anybody.
+        a.stowed = undefined;
         a.alert = true;
-      } else if (rng() < 0.2) {
-        a.inv[I.HAND] = I.stack(rng() < 0.6 ? 'dagger' : 'club', 1);
       }
+      // Villagers are not armed. A town where every baker is carrying a club
+      // turns any incident into a brawl, and it makes the watch meaningless.
       if (rng() < 0.6) I.add(a.inv, 'coin', 3 + Math.floor(rng() * 30));
       world.actors.push(a);
     }
 
     /* horses, loose on the grass near where the player starts */
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 9; i++) {
       const hr = CM.makeRng((seed + 4001 + i * 733) >>> 0);
       const h = HM.createEntity(HM.randomHorse(hr),
         player.x + (rng() - 0.5) * 300, player.y + 60 + (rng() - 0.5) * 260,
@@ -6823,6 +7047,18 @@
       h.targetYaw = h.yaw;
       h.buffer = R.createTarget(HORSE_BUF.w, HORSE_BUF.h);
       world.horses.push(h);
+    }
+
+    /* A couple of villagers are out riding. The road is not only for guards. */
+    for (let i = 0; i < 2; i++) {
+      const rider = world.actors[3 + i];
+      const h = world.horses[i];
+      if (!rider || !h) continue;
+      rider.mount = h; h.rider = rider;
+      rider.mountTime = MOUNT_TIME;
+      rider.x = h.x; rider.y = h.y;
+      rider.brain.rides = true;
+      rider.brain.rideTimer = 2 + rng() * 5;
     }
 
     /* one of each cart, parked where you can get to them */
@@ -7007,15 +7243,24 @@
       // small knock at the height it was hit, but the reaction you actually
       // read is the displacement — a person rooted to the spot waving their
       // limbs looks like a flail however the limbs are tuned.
+      /* A shoulder is not a weapon. Running into someone drives them back on
+       * their heels with their arms up — it does not put them on the floor,
+       * however fast you were going. Before this, sprinting through a line of
+       * guards flattened all of them, which turned every chase into a walk. */
       if (speed > NUDGE_SPEED && !Rig.isDown(a) && a.hitCooldown <= 0) {
-        if (speed > FALL_SPEED) {
-          // flat out: they go over
-          Rig.knockDown(a, nx, ny, 2.4 + speed / 38);
-          if (a.brain) { a.brain.state = 'downed'; a.brain.timer = 0; }
-        } else if (speed > TRIP_SPEED) {
-          // a proper shoulder charge: they stagger several steps away
+        const side = (nx * Math.cos(a.yaw) - ny * Math.sin(a.yaw)) > 0 ? 1 : -1;
+        if (chasing(a)) {
+          // you cannot body-check your way past the watch
+          Rig.stumble(a, nx, ny, 30, 0.22);
+          player.vx *= 0.7; player.vy *= 0.7;
+          a.hitCooldown = 0.35;
+          continue;
+        }
+        if (speed > TRIP_SPEED) {
           Rig.stumble(a, nx, ny, 70 + speed * 0.5, 0.7);
-          Rig.nudge(a, nx, ny, 1.0, CHEST_H);
+          a.reaction = { kind: 'stagger', k: 0, t: 0, side: side,
+            duration: 0.34 + Math.min(0.3, speed / 500) };
+          a.attack = null;
         } else {
           // a bump in passing: they step aside
           Rig.shove(a, nx, ny, 14 + speed * 0.18);
@@ -7023,10 +7268,13 @@
         }
         a.hitCooldown = 0.45;
         if (world.talkingTo === a) D.close(world.box);
-        // Barging someone is an assault. A small one, but people notice, and
-        // the watch does not like it.
-        witness(world, player, a, 'shove', a.x, a.y);
-        reactToHit(world, a, player, { severity: 'minor', zone: 'chest' });
+        /* Walking into someone is not a crime. Barging them hard enough to
+         * put them off their feet is. The watch does not care that you were
+         * standing near a person; it cares that you shoved one. */
+        if (speed > TRIP_SPEED) {
+          witness(world, player, a, 'shove', a.x, a.y);
+          reactToHit(world, a, player, { severity: 'minor', zone: 'chest' });
+        }
 
         // The player brushes past or stumbles. No reaction is played on their
         // body at all — only where they end up changes.
@@ -7150,6 +7398,23 @@
         const push = (min - d) * 0.5;
         a.x -= nx * push; a.y -= ny * push;
         b.x += nx * push; b.y += ny * push;
+
+        /* Two horses meeting at speed is a collision, not a nudge. The one
+         * carrying less momentum into it goes over, and whoever is on it goes
+         * with it. */
+        const closing = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
+        if (closing > 110 && a.hitCooldown <= 0 && b.hitCooldown <= 0) {
+          const aPow = HM.power(a.horse) * Math.hypot(a.vx, a.vy);
+          const bPow = HM.power(b.horse) * Math.hypot(b.vx, b.vy);
+          const loser = aPow < bPow ? a : b;
+          const winner = loser === a ? b : a;
+          const sx = loser === a ? -nx : nx, sy = loser === a ? -ny : ny;
+          if (loser.rider) unseat(world, loser, sx, sy, closing / 26);
+          HM.knockDown(loser, sx, sy, 3.2 + closing / 32);
+          winner.vx *= 0.55; winner.vy *= 0.55;
+          a.hitCooldown = 0.7; b.hitCooldown = 0.7;
+          bleedAt(world, loser.x, loser.y, 1.2, 'blunt');
+        }
       }
       // a person on foot cannot stand inside a horse
       const p = world.player;
@@ -7477,6 +7742,9 @@
     if (!ui.drag) {
       const st = inv[hit.index];
       if (!st) return false;
+      // Lifting something out of someone else's chest is theft, whether or
+      // not you have decided yet where to put it.
+      if (hit.side === 'chest') reportTheft(world, world.player.x, world.player.y);
       ui.drag = { id: st.id, count: st.count, from: hit.side, fromIndex: hit.index };
       inv[hit.index] = null;
       return true;
@@ -7760,7 +8028,10 @@
       if (speed > NUDGE_SPEED) {
         /* Being ridden down is not being bumped into. It does real damage,
          * scaled by the animal, and the watch treats it as what it is. */
-        const rider = h.rider;
+        /* Only a rider who meant it does damage. A villager ambling past on a
+         * horse jostles you; before this, a wandering NPC rider was clubbing
+         * guards off their feet mid-chase and nobody could see why. */
+        const rider = h.rider === world.player ? h.rider : null;
         if (rider) {
           const roll = CB.rollDamage(CB.weapon('club'), a, {
             rng: a.rng || Math.random, aim: 0.55,
@@ -7780,7 +8051,7 @@
             }
           }
         }
-        if (speed > TRIP_SPEED) {
+        if (speed > TRIP_SPEED && !chasing(a)) {
           Rig.knockDown(a, nx, ny, (2.6 + speed / 26) * powerOf);
           if (a.brain) { a.brain.state = 'downed'; a.brain.timer = 0; }
         } else {
@@ -8038,6 +8309,7 @@
   /* Crimes, and what each is worth in wanted level and in what people think
    * of you afterwards. Shoving someone is a crime; it is just a small one. */
   const CRIMES = {
+    theft: { wanted: 9, rep: -3, alarm: 0.35, label: 'theft' },
     shove: { wanted: 4, rep: -1, alarm: 0.25, label: 'assault' },
     mountedShove: { wanted: 16, rep: -5, alarm: 0.75, label: 'riding someone down' },
     strike: { wanted: 12, rep: -3, alarm: 0.6, label: 'assault' },
@@ -8047,6 +8319,12 @@
   };
 
   function isGuard(a) { return !!(a.brain && a.brain.guard); }
+
+  /* A guard in pursuit is braced and running hard. Barging them, tripping
+   * over them, or another guard going down beside them all stagger them —
+   * none of it lays them out. Only a real blow does that. Without this a
+   * chase collapses in a heap the moment two of them collide. */
+  function chasing(a) { return !!(a.brain && a.brain.guard && a.brain.guardState === 'chase'); }
 
   /* ---------- swinging ---------- */
 
@@ -8061,6 +8339,19 @@
     if (!canAttack(a)) return false;
     const w = I.heldWeapon(a.inv);
     if (a.stamina < w.stamina * 0.5) return false;
+    if (w.ranged) {
+      // no ammunition, no shot — and nocking is a beat of its own before the
+      // draw, so an arrow is visibly fetched rather than conjured
+      const ammo = w.id === 'crossbow' ? 'bolt' : 'arrow';
+      if (I.countOf(a.inv, ammo) <= 0) return false;
+      if (!a.nocked) {
+        a.reaction = { kind: 'nock', k: 0, t: 0,
+          duration: w.id === 'crossbow' ? 0.55 : 0.36, nock: true };
+        return true;
+      }
+      // face the shot: you loose where you are looking
+      if (a.aimYaw !== undefined) { a.yaw = a.aimYaw; a.targetYaw = a.aimYaw; }
+    }
     a.stamina = Math.max(0, a.stamina - w.stamina);
     const duration = w.swing + w.recover;
     a.attack = {
@@ -8073,14 +8364,25 @@
       hitAt: duration * Rig.attackHitFraction(w.anim),
       landed: false
     };
-    a.reaction = null;
     a.gesture = null;
     a.alert = true;
+    if (!a.reaction || !a.reaction.nock) a.reaction = null;
     return true;
+  }
+
+  /* The nock finishing is what arms the shot. */
+  function serviceNock(world, a) {
+    const r = a.reaction;
+    if (!r || !r.nock) return;
+    if (r.t < r.duration) return;
+    a.nocked = true;
+    a.reaction = null;
+    beginAttack(world, a);
   }
 
   function updateAttack(world, a, dt) {
     a.attackCooldown = Math.max(0, a.attackCooldown - dt);
+    serviceNock(world, a);
     a.stamina = Math.min(100, a.stamina + dt * (a.gait === 'run' ? 6 : 16));
     const atk = a.attack;
     if (!atk) return;
@@ -8093,7 +8395,9 @@
     }
     if (atk.t >= atk.duration) {
       a.attack = null;
-      a.attackCooldown = 0.06;
+      // A short breath between swings, longer for a crossbow which has to be
+      // spanned again. Never long enough to feel like waiting.
+      a.attackCooldown = atk.weapon.id === 'crossbow' ? 0.35 : 0.08;
     }
   }
 
@@ -8106,9 +8410,16 @@
     const reach = w.reach + (mounted ? 14 : 0);
     let best = null, bestD = 1e9;
 
+    /* An NPC swings at the person they are actually fighting and at nobody
+     * else. Without this, five guards converging on you spend the fight
+     * cutting each other down — which is both wrong and hands you the chase. */
+    const only = a.brain ? a.brain.target : null;
+
     for (let i = 0; i < world.actors.length; i++) {
       const t = world.actors[i];
       if (t === a || !t.body || t.body.dead) continue;
+      if (only && t !== only) continue;
+      if (!only && a.brain && isGuard(a) && isGuard(t)) continue;
       if (t.mount === a.mount && a.mount) continue;
       const dx = t.x - a.x, dy = (t.y - a.y) * 1.35;
       const d = Math.hypot(dx, dy);
@@ -8137,6 +8448,8 @@
 
   /* How well the blow was thrown: standing your ground and facing them beats
    * flailing while running away. */
+  function witnessTarget(world, a, target) { void world; void a; void target; }
+
   function aimQuality(a, target) {
     const speed = Math.hypot(a.vx || 0, a.vy || 0);
     const dx = target.x - a.x, dy = target.y - a.y;
@@ -8145,6 +8458,24 @@
     let q = 1 - off / Math.PI - Math.min(0.35, speed / 300);
     if (a.mount) q += 0.1;
     return Math.max(0.05, Math.min(1, q));
+  }
+
+  /* Whether the blow landed on the shield. A shield covers the front and the
+   * off-hand side; it covers nothing behind, which is why getting round
+   * someone is worth doing. */
+  function shieldBlocks(target, nx, ny) {
+    if (!target.inv || !I.shieldOf(target.inv)) return 0;
+    if (Rig.isDown(target) || (target.body && target.body.dying)) return 0;
+    // the direction the blow came from, relative to where they are facing
+    const fx = Math.sin(target.yaw), fy = Math.cos(target.yaw);
+    const facing = -(nx * fx + ny * fy);          // 1 = straight at their front
+    if (facing < 0.1) return 0;                   // from behind or the far side
+    const side = -(nx * fy - ny * fx);            // which side it came from
+    const offHand = target.leftHanded ? 1 : -1;
+    const onShield = facing * 0.6 + Math.max(0, side * offHand) * 0.55;
+    if (onShield < 0.4) return 0;
+    const small = I.shieldOf(target.inv).small;
+    return Math.min(small ? 0.7 : 0.94, onShield * (small ? 0.75 : 1));
   }
 
   function strike(world, a, target, w, charge) {
@@ -8156,6 +8487,21 @@
     const dx = target.x - a.x, dy = target.y - a.y;
     const d = Math.hypot(dx, dy) || 1;
     const nx = dx / d, ny = dy / d;
+
+    const blocked = shieldBlocks(target, nx, ny);
+    if (blocked > 0) {
+      roll.amount *= 1 - blocked;
+      roll.bleed *= 1 - blocked * 1.1;
+      roll.knock *= 1 - blocked * 0.5;
+      if (blocked > 0.6) {
+        // caught square: it rings off the boss and shoves them back
+        Rig.stumble(target, nx, ny, 18 + roll.knock * 30, 0.3);
+        target.reaction = { kind: 'stagger', k: 0, t: 0, duration: 0.34,
+          side: (nx * Math.cos(target.yaw) - ny * Math.sin(target.yaw)) > 0 ? 1 : -1 };
+        if (target === world.player) witnessTarget(world, a, target);
+        return;
+      }
+    }
     // the blow's direction in the target's own frame, so the wound lands on
     // the side it came from
     const cy = Math.cos(target.yaw), sy = Math.sin(target.yaw);
@@ -8164,24 +8510,41 @@
     if (!res) return;
 
     splash(world, target, roll, nx, ny);
-    knockFrom(world, a, target, roll, nx, ny);
+    knockFrom(world, a, target, roll, nx, ny, res.severity);
     dropFromHit(world, target, res.severity, nx, ny);
     reactToHit(world, target, a, res);
     witness(world, a, target, res.severity === 'fatal' ? 'kill'
       : res.severity === 'serious' ? 'wound' : 'strike', target.x, target.y);
   }
 
-  function knockFrom(world, a, target, roll, nx, ny) {
+  /* Getting hit does not put you on the floor. It drives you backwards with
+   * your arms up, and you stay on your feet — you only go down if the blow
+   * was genuinely serious, or if it killed you. Anything else is a hobble. */
+  function knockFrom(world, a, target, roll, nx, ny, severity) {
     if (Rig.isDown(target)) return;
-    const k = roll.knock;
-    if (k > 0.85 || roll.amount > 40) {
-      Rig.knockDown(target, nx, ny, 2.2 + k * 2.2 + roll.amount / 26);
+    const body = target.body;
+    const fatal = severity === 'fatal' || (body && (body.dead || body.dying));
+    const serious = severity === 'serious';
+    const side = (nx * Math.cos(target.yaw) - ny * Math.sin(target.yaw)) > 0 ? 1 : -1;
+
+    if (chasing(target) && !fatal && !serious) {
+      // a running guard eats a light blow and keeps coming
+      Rig.stumble(target, nx, ny, 22 + roll.knock * 30, 0.26);
+      target.reaction = { kind: 'stagger', k: 0, t: 0, side: side, duration: 0.26 };
+      if (world.talkingTo === target) D.close(world.box);
+      return;
+    }
+    if (fatal || (serious && roll.knock > 0.7) || roll.amount > 52) {
+      Rig.knockDown(target, nx, ny, 2.2 + roll.knock * 2.2 + roll.amount / 26);
       if (target.brain) { target.brain.state = 'downed'; target.brain.timer = 0; }
       target.hitCooldown = 0.5;
-    } else if (k > 0.35) {
-      Rig.stumble(target, nx, ny, 26 + k * 60, 0.45);
     } else {
-      Rig.shove(target, nx, ny, 12 + k * 40);
+      // driven back on their heels, arms thrown up
+      const push = 26 + roll.knock * 55 + roll.amount * 0.7;
+      Rig.stumble(target, nx, ny, push, 0.34 + roll.knock * 0.3);
+      target.reaction = { kind: 'stagger', k: 0, t: 0, side: side,
+        duration: 0.32 + Math.min(0.4, roll.amount / 90) };
+      target.attack = null;
     }
     if (world.talkingTo === target) D.close(world.box);
   }
@@ -8192,6 +8555,7 @@
     const ammo = w.id === 'crossbow' ? 'bolt' : 'arrow';
     if (I.countOf(a.inv, ammo) <= 0) return false;
     I.take(a.inv, ammo, 1);
+    a.nocked = false;
     const aim = a.aimYaw === undefined ? a.yaw : a.aimYaw;
     // a shot from a moving horse scatters
     const spread = (a.mount ? 0.09 : 0.03) + Math.min(0.08, Math.hypot(a.vx || 0, a.vy || 0) / 1600);
@@ -8232,6 +8596,7 @@
       for (let k = 0; k < world.actors.length; k++) {
         const t = world.actors[k];
         if (t === ar.owner || !t.body || t.body.dead) continue;
+        if (ar.owner.brain && isGuard(ar.owner) && isGuard(t)) continue;
         if (t.mount && t.mount === ar.owner.mount) continue;
         const d = Math.hypot(t.x - ar.x, (t.y - ar.y) * 1.4);
         const low = t.mount ? 16 : 0, high = t.mount ? 52 : 34;
@@ -8253,11 +8618,20 @@
         const roll = CB.rollDamage(ar.weapon, hit, { rng: rng, aim: 0.7 });
         const cy = Math.cos(hit.yaw), sy = Math.sin(hit.yaw);
         const nx = dx / d, ny = dy / d;
+        const stopped = shieldBlocks(hit, nx, ny);
+        if (stopped > 0.55) {
+          // it sticks in the shield and does nothing
+          Rig.stumble(hit, nx, ny, 10, 0.2);
+          world.arrows.splice(i, 1);
+          continue;
+        }
+        roll.amount *= 1 - stopped;
+        roll.bleed *= 1 - stopped;
         const local = [-(nx * cy - ny * sy), -(nx * sy + ny * cy)];
         const res = CB.applyDamage(hit, roll, local, rng);
         if (res) {
           splash(world, hit, roll, nx, ny);
-          knockFrom(world, ar.owner, hit, roll, nx, ny);
+          knockFrom(world, ar.owner, hit, roll, nx, ny, res.severity);
           dropFromHit(world, hit, res.severity, nx, ny);
           reactToHit(world, hit, ar.owner, res);
           witness(world, ar.owner, hit, res.severity === 'fatal' ? 'kill'
@@ -8477,12 +8851,13 @@
     if (victim.brain && loose.length) victim.brain.wantsPickup = 5 + rng() * 6;
   }
 
-  function spawnItem(world, x, y, id, count, nx, ny, force) {
+  function spawnItem(world, x, y, id, count, nx, ny, force, owner) {
     const f = force === undefined ? 0.6 : force;
     const ang = Math.random() * Math.PI * 2;
     const spread = 10 + Math.random() * 26 * f;
     world.loot.push({
       id: id, count: count || 1,
+      owner: owner || null,
       x: x + Math.cos(ang) * 3, y: y + Math.sin(ang) * 2,
       z: 9 + Math.random() * 7,
       vx: Math.cos(ang) * spread + (nx || 0) * 30 * f,
@@ -8549,10 +8924,21 @@
     if (!g || !a.inv) return false;
     const room = I.roomFor(a.inv, g.id, g.count);
     if (room <= 0) return false;
+    // Taking something that belongs to someone else, in front of them, is
+    // theft. Picking up a plank off a wrecked cart is not.
+    if (a === world.player && g.owner) reportTheft(world, g.x, g.y);
     I.add(a.inv, g.id, room);
     g.count -= room;
     if (g.count <= 0) list.splice(index, 1);
     return true;
+  }
+
+  /* Someone has to see it. Theft with nobody watching is just a quiet day. */
+  function reportTheft(world, x, y) {
+    world.theftCooldown = world.theftCooldown || 0;
+    if (world.time < world.theftCooldown) return;
+    world.theftCooldown = world.time + 1.2;
+    witness(world, world.player, null, 'theft', x, y);
   }
 
 
@@ -8571,7 +8957,7 @@
     let seen = false;
     for (let i = 1; i < world.actors.length; i++) {
       const o = world.actors[i];
-      if (o === victim || !o.body || o.body.dead || Rig.isDown(o)) continue;
+      if ((victim && o === victim) || !o.body || o.body.dead || Rig.isDown(o)) continue;
       const d = distance(o, world.player);
       const range = isGuard(o) ? SEE_RANGE : SEE_RANGE_CIVIL;
       if (d > range) continue;
@@ -8618,6 +9004,7 @@
   function alertGuard(world, g, x, y, alarm) {
     const brain = g.brain;
     brain.guardState = 'chase';
+    brain.target = world.player;
     brain.chaseX = x; brain.chaseY = y;
     brain.giveUp = GUARD_GIVE_UP * (0.6 + alarm * 0.7);
     brain.response = null;
@@ -8687,6 +9074,64 @@
   }
 
 
+
+  /* ---------- what the watch is prepared to do ----------
+   *
+   * A guard who draws steel on someone who shoved a fishmonger is not a
+   * guard, he is the problem. So the response is graded: below the line they
+   * put the weapon away and give you a shove to say stop, and they take it
+   * back out only when you have earned it.
+   */
+
+  const LETHAL_WANTED = 45;
+
+  function guardIntent(world, g) {
+    // already bleeding from you, or you are wanted for something real
+    const hurt = g.body && g.body.hp < CB.MAX_HP * 0.72;
+    return (world.wanted >= LETHAL_WANTED || hurt) ? 'lethal' : 'restrain';
+  }
+
+  /* Stowing a weapon puts it in a general slot, which is why guards are given
+   * one free: a guard who cannot put his sword away has no way to be lenient. */
+  function stowWeapon(a) {
+    if (!a.inv || !a.inv[I.HAND]) return false;
+    const limit = I.generalRange(a.inv);
+    for (let i = 0; i < limit; i++) {
+      if (a.inv[i]) continue;
+      a.inv[i] = a.inv[I.HAND];
+      a.inv[I.HAND] = null;
+      a.stowed = i;
+      return true;
+    }
+    return false;
+  }
+
+  function drawWeapon(a) {
+    if (!a.inv || a.inv[I.HAND]) return false;
+    const i = a.stowed;
+    if (i === undefined || !a.inv[i]) return false;
+    a.inv[I.HAND] = a.inv[i];
+    a.inv[i] = null;
+    a.stowed = undefined;
+    return true;
+  }
+
+  /* One beat of reaching for the belt, so the weapon does not teleport into
+   * or out of the hand. */
+  function startSwap(world, a, putting) {
+    a.reaction = { kind: putting ? 'sheathe' : 'draw', k: 0, t: 0, duration: 0.42,
+      swap: putting ? 'stow' : 'draw', done: false };
+    a.attack = null;
+  }
+
+  function serviceSwap(a) {
+    const r = a.reaction;
+    if (!r || !r.swap || r.done) return;
+    if (r.t < r.duration * 0.55) return;
+    r.done = true;
+    if (r.swap === 'stow') stowWeapon(a); else drawWeapon(a);
+  }
+
   /* ================== guards ==================
    *
    * A guard is an ordinary villager with a job. Off duty they wander and chat
@@ -8694,7 +9139,10 @@
    * see something they come for you — on foot, or on a horse if one is handy.
    */
 
-  const GUARD_SPEED = { walk: 30, run: 132 };
+  /* Faster flat out than a sprinting player. A guard who cannot catch you is
+   * scenery, and the whole point of a wanted level is that it costs you
+   * something. Turning still slows them, so weaving buys real distance. */
+  const GUARD_SPEED = { walk: 34, run: 152 };
 
   function updateGuard(world, g, dt) {
     const brain = g.brain;
@@ -8702,6 +9150,12 @@
     const state = brain.guardState || 'patrol';
 
     if (state === 'patrol') {
+      // back to carrying it openly once the fuss is over
+      if (!g.inv[I.HAND] && g.stowed !== undefined
+        && (!g.reaction || !g.reaction.swap)) {
+        startSwap(world, g, false);
+      }
+      serviceSwap(g);
       // watching: notice a crime already in progress, or a body on the ground
       if (world.wanted > 8 && distance(g, player) < SEE_RANGE
         && !Rig.isDown(player) && armedAndOpen(world, player)) {
@@ -8736,6 +9190,21 @@
       return true;
     }
 
+    /* Draw or stow to match what this is worth. Doing it here rather than at
+     * the moment of the swing means you can see them decide. */
+    const intent = guardIntent(world, g);
+    const armed = !!g.inv[I.HAND];
+    if (!g.reaction || !g.reaction.swap) {
+      if (intent === 'restrain' && armed) { startSwap(world, g, true); }
+      else if (intent === 'lethal' && !armed && g.stowed !== undefined) {
+        startSwap(world, g, false);
+      }
+    }
+    serviceSwap(g);
+    // They put it away on the move. Stopping to do it hands you the distance
+    // back, which is the one thing a pursuit cannot afford.
+    const swapping = !!(g.reaction && g.reaction.swap);
+
     const w = I.heldWeapon(g.inv);
     const dx = brain.chaseX - g.x, dy = brain.chaseY - g.y;
     const len = Math.hypot(dx, dy) || 1;
@@ -8752,13 +9221,18 @@
       return true;
     }
 
-    if (w.ranged && sees && d < w.range && d > 40) {
+    if (w.ranged && sees && d < w.range && d > 40 && !swapping) {
       if (canAttack(g)) beginAttack(world, g);
       g.gait = 'idle';
       return true;
     }
     if (d < w.reach * 0.85 + 8) {
-      if (sees && canAttack(g)) beginAttack(world, g);
+      // a guard restraining you stops the moment you are on the ground or
+      // badly hurt; only a lethal one keeps going
+      const done = intent === 'restrain'
+        && (Rig.isDown(player) || (player.body && player.body.hp < CB.MAX_HP * 0.45));
+      if (sees && !done && !swapping && canAttack(g)) beginAttack(world, g);
+      if (done) { brain.giveUp = Math.min(brain.giveUp, 2.5); }
       g.gait = 'idle';
       return true;
     }
@@ -8986,9 +9460,17 @@
       // turn or pulling up, and settle when the horse is running straight.
       const want = Rig.shortestAngle(h.yaw, h.targetYaw);
       const braking = !world.input.dx && !world.input.dy && Math.hypot(h.vx, h.vy) > 30;
-      p.rein = Math.max(0, Math.min(1,
+      // Shooting from the saddle means letting go of the reins. They stay
+      // buckled to the bit and hang, which is exactly what the rope solver
+      // already does once nothing is pinning the near end.
+      const shooting = !!(p.attack && p.attack.weapon.ranged)
+        || !!(p.reaction && p.reaction.nock);
+      p.reinsDropped = shooting;
+      p.rein = shooting ? 0 : Math.max(0, Math.min(1,
         (p.rein || 0) * 0.86 + (Math.abs(want) * 1.4 + (braking ? 0.6 : 0)) * dt * 5));
       p.turn = want;
+      // the horse keeps its head while you shoot over it
+      if (shooting) { p.yaw = p.aimYaw === undefined ? h.yaw : p.aimYaw; }
       return;
     }
 
@@ -9329,7 +9811,22 @@
     // an npc riding a horse steers it and does nothing else on foot
     if (a.mount) {
       a.x = a.mount.x; a.y = a.mount.y; a.yaw = a.mount.yaw;
-      if (brain.guard) updateGuard(world, a, dt);
+      if (brain.guard) {
+        updateGuard(world, a, dt);
+      } else if (brain.rides) {
+        // ambling about: a heading held for a while, then a new one
+        brain.rideTimer -= dt;
+        if (brain.rideTimer <= 0) {
+          brain.rideTimer = 4 + a.rng() * 8;
+          brain.rideDir = a.rng() < 0.25 ? null : a.rng() * Math.PI * 2;
+        }
+        const d = brain.rideDir;
+        a.mount.npcDrive = d === null || d === undefined
+          ? { dx: 0, dy: 0, sprint: false }
+          : { dx: Math.sin(d), dy: Math.cos(d), sprint: a.rng() < 0.004 };
+        a.mount.targetYaw = d === null || d === undefined ? a.mount.yaw
+          : Rig.yawForDirection(Math.sin(d), Math.cos(d));
+      }
       Rig.updateBlink(a, dt);
       a.animTime += dt;
       return;
@@ -9347,7 +9844,7 @@
     // facing the way they are being pushed.
     if (a.stumbleTime > 0 && !Rig.isDown(a)) {
       a.gesture = null;
-      a.gait = 'walk';
+      a.gait = a.reaction && a.reaction.kind === 'stagger' ? 'idle' : 'walk';
       if (a.shoveX || a.shoveY) a.targetYaw = Rig.yawForDirection(a.shoveX, a.shoveY);
       clampVillager(a);
       Rig.updateActorMotion(a, dt);
@@ -9555,6 +10052,16 @@
       for (let j = 0; j < world.actors.length; j++) {
         const b = world.actors[j];
         if (b === a || Rig.isDown(b) || b.hitCooldown > 0) continue;
+        if (chasing(b)) {
+          // braced: shoved aside, not taken down with them
+          const ddx = b.x - a.x, ddy = (b.y - a.y) * 1.5;
+          const dd = Math.hypot(ddx, ddy);
+          if (dd < 15 && dd > 0) {
+            Rig.stumble(b, ddx / dd, ddy / dd / 1.5, 34, 0.3);
+            b.hitCooldown = 0.4;
+          }
+          continue;
+        }
         const dx = b.x - a.x, dy = (b.y - a.y) * 1.5;
         const d = Math.hypot(dx, dy);
         if (d > 15 || d === 0) continue;
@@ -9613,7 +10120,10 @@
 
     // reins last: they are solved in screen space, so they need this frame's
     // camera and this frame's final positions for both ends
-    for (let i = 0; i < world.horses.length; i++) updateReins(world, world.horses[i], dt);
+    for (let i = 0; i < world.horses.length; i++) {
+      updateReins(world, world.horses[i], dt);
+      updateTraces(world, world.horses[i], dt);
+    }
   }
 
   /* ---------- drawing ---------- */
@@ -9690,14 +10200,17 @@
     const scale = h.model.root.scale || 1;
     const spread = h.model.dims.headW * 0.5 * scale + 0.7;
 
+    // A rider who has dropped the reins is not holding them: the near end
+    // falls to the saddle bow and the rope hangs from the bit.
+    const dropped = !!holder.reinsDropped;
     let hx, hy, yaw, fwd, lift;
     if (h.rider === holder) {
       const sp = HM.saddlePoint(h.model);
       hx = holder.x; hy = holder.y; yaw = h.yaw;
       // hands out in front of the chest, which sits above the seat
-      fwd = sp.z + 8.5;
+      fwd = sp.z + (dropped ? 2.0 : 8.5);
       lift = seatHeight(holder, sp.y) + holder.model.dims.legTotal
-        + holder.model.dims.torsoH * 0.62;
+        + holder.model.dims.torsoH * (dropped ? 0.05 : 0.62);
     } else {
       const c = h.cart;
       hx = holder.x; hy = holder.y; yaw = c.yaw;
@@ -9772,6 +10285,107 @@
     }
   }
 
+  /* The cart is roped to the horse. Two traces run from the shaft tips to the
+   * harness, solved the same way the reins are — they sag when the cart is
+   * rolling free and go taut the moment the horse pulls. */
+  function traceAnchors(world, h) {
+    const c = h.cart;
+    if (!c || c.broken || HM.isDown(h)) return null;
+    const d = HM.dimensionsFor(h.horse);
+    const scale = h.model.root.scale || 1;
+    const harnessY = (d.legY + d.bodyH * 0.18) * scale;
+    const harnessZ = -d.bodyLen * 0.34 * scale;
+    const spread = d.bodyW * 0.42 * scale;
+    const shaftOut = c.def.length * 0.5 + 15;
+    const shaftSide = c.def.width * 0.5 - 3.5;
+    const shaftY = c.def.deckY - 1.0 + (c.bounce || 0);
+    const front = [], back = [];
+    for (let i = 0; i < 2; i++) {
+      const side = i ? 1 : -1;
+      back.push(projectModelPoint(world, h.x, h.y, h.yaw, side * spread, harnessY, harnessZ));
+      front.push(projectModelPoint(world, c.x, c.y, c.yaw, side * shaftSide, shaftY, shaftOut));
+    }
+    return { hand: front, bit: back };
+  }
+
+  function updateTraces(world, h, dt) {
+    const a = traceAnchors(world, h);
+    if (!a) { h.traces = null; return; }
+    h.traces = solveRope(h.traces, a, world, h, dt, 'traceCam');
+  }
+
+  /* One rope solver, used by both the reins and the traces. */
+  function solveRope(rope, a, world, h, dt, camKey) {
+    if (!rope) {
+      rope = [];
+      for (let i = 0; i < 2; i++) {
+        const pts = [];
+        for (let k = 0; k < REIN_POINTS; k++) {
+          const t = k / (REIN_POINTS - 1);
+          const q = {
+            x: a.hand[i].x + (a.bit[i].x - a.hand[i].x) * t,
+            y: a.hand[i].y + (a.bit[i].y - a.hand[i].y) * t,
+            px: 0, py: 0
+          };
+          q.px = q.x; q.py = q.y;
+          pts.push(q);
+        }
+        rope.push(pts);
+      }
+      h[camKey] = { x: world.camX, y: world.camY };
+    }
+    const cam = h[camKey] || (h[camKey] = { x: world.camX, y: world.camY });
+    const shiftX = (world.camX - cam.x) * PIXEL;
+    const shiftY = (world.camY - cam.y) * PIXEL;
+    cam.x = world.camX; cam.y = world.camY;
+
+    for (let i = 0; i < 2; i++) {
+      const pts = rope[i];
+      const span = Math.hypot(a.bit[i].x - a.hand[i].x, a.bit[i].y - a.hand[i].y);
+      const seg = (span * 1.06 + 4) / (REIN_POINTS - 1);
+      for (let k = 0; k < pts.length; k++) {
+        const q = pts[k];
+        q.x -= shiftX; q.y -= shiftY;
+        q.px -= shiftX; q.py -= shiftY;
+        const vx = (q.x - q.px) * 0.94, vy = (q.y - q.py) * 0.94;
+        q.px = q.x; q.py = q.y;
+        q.x += vx; q.y += vy + REIN_GRAV * dt;
+      }
+      for (let it = 0; it < REIN_ITER; it++) {
+        pts[0].x = a.hand[i].x; pts[0].y = a.hand[i].y;
+        pts[pts.length - 1].x = a.bit[i].x; pts[pts.length - 1].y = a.bit[i].y;
+        for (let k = 0; k < pts.length - 1; k++) {
+          const p0 = pts[k], p1 = pts[k + 1];
+          const dx = p1.x - p0.x, dy = p1.y - p0.y;
+          const d = Math.hypot(dx, dy) || 1e-5;
+          const f = ((d - seg) / d) * 0.5;
+          const ox = dx * f, oy = dy * f;
+          if (k > 0) { p0.x += ox; p0.y += oy; }
+          if (k + 1 < pts.length - 1) { p1.x -= ox; p1.y -= oy; }
+        }
+      }
+      pts[0].x = a.hand[i].x; pts[0].y = a.hand[i].y;
+      pts[pts.length - 1].x = a.bit[i].x; pts[pts.length - 1].y = a.bit[i].y;
+    }
+    return rope;
+  }
+
+  function drawRope(target, rope, near, far) {
+    if (!rope) return;
+    for (let i = 0; i < 2; i++) {
+      const pts = rope[i];
+      const col = i ? far : near;
+      for (let k = 0; k < pts.length - 1; k++) {
+        R.drawLine(target, pts[k].x, pts[k].y, pts[k + 1].x, pts[k + 1].y, col, PIXEL);
+      }
+    }
+  }
+
+  const TRACE_COLOUR = R.pack(74, 54, 32);
+  const TRACE_LIGHT = R.pack(102, 78, 48);
+
+  function drawTraces(target, h) { drawRope(target, h.traces, TRACE_LIGHT, TRACE_COLOUR); }
+
   function drawReins(target, h) {
     if (!h.reins) return;
     for (let i = 0; i < 2; i++) {
@@ -9807,6 +10421,9 @@
       ? [rider.character.name, HM.quantiseTime(rider.animTime),
         rider.blink > 0.5 ? 1 : rider.blink > 0 ? 2 : 0,
         Math.round((rider.rein || 0) * 4),
+        rider.attack ? rider.attack.anim + Math.round(rider.attack.t * 30) : '',
+        rider.reaction ? rider.reaction.kind + Math.round(rider.reaction.k * 6) : '',
+        rider.inv && rider.inv[8] ? rider.inv[8].id : '',
         Math.round((rider.mountTime || 0) / MOUNT_TIME * 6)].join(',')
       : '-';
     const key = HM.isDown(h) ? null : [qTime, qYaw, h.gait, riderKey].join('|');
@@ -9851,18 +10468,42 @@
       // still swinging up: the rider rises from beside the horse to the seat
       const k = rider.mountTime / MOUNT_TIME;
       Rig.poseMount(rider.model, k);
-      const off = seatOffset(qYaw, sp.z, seatY * (0.2 + 0.8 * k));
-      // swings in from the near side as they rise
-      off[0] += Math.cos(qYaw) * (1 - k) * 13;
-      off[2] += -Math.sin(qYaw) * (1 - k) * 13;
+      /* Up and over, not through. They start on the ground clear of the
+       * horse's flank and swing in along an arc, so at no point is the rider
+       * inside the animal. */
+      const clear = h.model.dims.bodyW * 0.5 * (h.model.root.scale || 1) + 7;
+      const ease = k * k * (3 - 2 * k);
+      const lateral = clear * (1 - ease);
+      const rise = seatY * ease + Math.sin(k * Math.PI) * 5.5;
+      const off = seatOffset(qYaw, sp.z, rise);
+      off[0] += Math.cos(qYaw) * lateral;
+      off[2] += -Math.sin(qYaw) * lateral;
       Rig.drawModel(target, rider.model, camera, { yaw: qYaw, faceParts: face, offset: off });
       return;
     }
-    Rig.poseRide(rider.model, HM.quantiseTime(rider.animTime), {
-      gait: h.gait, rein: rider.rein || 0, turn: rider.turn || 0
-    });
+    if (rider.attack) {
+      Rig.poseAttack(rider.model, rider.attack.anim,
+        rider.attack.t / rider.attack.duration,
+        rider.leftHanded ? 'L' : 'R', 'idle', HM.quantiseTime(rider.animTime));
+      // legs stay round the horse whatever the arms are doing
+      Rig.setRot(rider.model, 'legR', -0.92, 0, -0.36);
+      Rig.setRot(rider.model, 'legL', -0.92, 0, 0.36);
+      Rig.setRot(rider.model, 'shinR', 1.28, 0, 0.1);
+      Rig.setRot(rider.model, 'shinL', 1.28, 0, -0.1);
+    } else if (rider.reaction && rider.reaction.nock) {
+      Rig.poseNock(rider.model, rider.reaction.k, rider.leftHanded ? 'L' : 'R');
+      Rig.setRot(rider.model, 'legR', -0.92, 0, -0.36);
+      Rig.setRot(rider.model, 'legL', -0.92, 0, 0.36);
+      Rig.setRot(rider.model, 'shinR', 1.28, 0, 0.1);
+      Rig.setRot(rider.model, 'shinL', 1.28, 0, -0.1);
+    } else {
+      Rig.poseRide(rider.model, HM.quantiseTime(rider.animTime), {
+        gait: h.gait, rein: rider.rein || 0, turn: rider.turn || 0
+      });
+    }
     Rig.drawModel(target, rider.model, camera, {
-      yaw: qYaw, faceParts: face, offset: seatOffset(qYaw, sp.z, seatY)
+      yaw: qYaw, faceParts: face, offset: seatOffset(qYaw, sp.z, seatY),
+      extra: Rig.actorExtras(rider)
     });
   }
 
@@ -10064,6 +10705,7 @@
           (Math.round(h.x) - cx) * PIXEL - HORSE_BUF.ox,
           (Math.round(h.y) - cy) * PIXEL - HORSE_BUF.oy);
         if (h.rider) drawReins(target, h);
+        if (h.cart) drawTraces(target, h);
       } else if (d.cart) {
         const c = d.cart;
         R.fillEllipse(target, (Math.round(c.x) - cx) * PIXEL, (Math.round(c.y) - cy) * PIXEL,
@@ -10136,6 +10778,7 @@
     playerAttack, playerAim, beginAttack, openContainer, closeContainer, nearestChest,
     nearestGroundItem, pickUp, spawnItem, strike, witness, CRIMES, isGuard,
     openInventory, closeInventory, invVisible, invMove, invClick, layout,
+    shieldBlocks, knockFrom, stowWeapon, drawWeapon, guardIntent,
     mount, dismount, hitchCart, unhitchCart, takeSeat, leaveSeat,
     nearestHorse, nearestCart, damageCart, breakCart, promptFor,
     MOUNT_RANGE, HITCH_RANGE, HORSE_FALL_SPEED

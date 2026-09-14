@@ -860,7 +860,7 @@
   }
 
   const RISE_TIME = 1.9;
-  const RISE_DRIFT = 16;   // model units per second a get-up may travel
+  const RISE_DRIFT = 6;    // model units per second a get-up may travel
   const FALL_DRIFT = 130;  // and a crash slide — under its own gallop speed
 
   /* Reads which way the animal is lying and points the get-up at that, rather

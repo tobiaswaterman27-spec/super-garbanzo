@@ -315,6 +315,58 @@
     model.bob = -0.55 * g;
   }
 
+  /* Taking a hit and staying on your feet: driven backwards, arms thrown up,
+   * head turned away. A punch should not put anyone on the floor — it should
+   * put them on their back foot. */
+  function poseStagger(model, k, dirSide) {
+    clearPose(model);
+    const g = Math.max(0, Math.min(1, k));
+    const lurch = Math.sin(g * Math.PI);
+    const side = dirSide || 0;
+    setRot(model, 'torso', -0.42 * lurch, side * 0.3 * lurch, side * 0.18 * lurch);
+    setRot(model, 'head', -0.3 * lurch, side * 0.4 * lurch, 0);
+    // arms fly up and out, which is what people actually do
+    setRot(model, 'armR', -1.45 * lurch, 0, 0.85 * lurch);
+    setRot(model, 'armL', -1.35 * lurch, 0, -0.95 * lurch);
+    setRot(model, 'foreR', -1.1 * lurch, 0, 0);
+    setRot(model, 'foreL', -1.25 * lurch, 0, 0);
+    // back foot goes out to catch the weight
+    setRot(model, 'legR', 0.55 * lurch, 0, 0.12 * lurch);
+    setRot(model, 'legL', -0.35 * lurch, 0, -0.1 * lurch);
+    setRot(model, 'shinR', 0.5 * lurch, 0, 0);
+    setRot(model, 'shinL', 0.2 * lurch, 0, 0);
+    model.bob = -1.1 * lurch;
+  }
+
+  /* Reaching across to draw from the belt, or putting something away. */
+  function poseSheathe(model, k, side, putting) {
+    clearPose(model);
+    const g = Math.max(0, Math.min(1, k));
+    const reach = Math.sin(g * Math.PI);
+    const sgn = side === 'R' ? 1 : -1;
+    setRot(model, 'arm' + side, -0.15 - 0.55 * reach, 0, sgn * (0.2 + 0.7 * reach));
+    setRot(model, 'fore' + side, -0.4 - 1.5 * reach, 0, 0);
+    setRot(model, 'torso', 0.12 * reach, sgn * -0.28 * reach, 0);
+    setRot(model, 'head', 0.16 * reach, sgn * -0.3 * reach, 0);
+    void putting;
+  }
+
+  /* Nocking an arrow, or laying a bolt in the groove. */
+  function poseNock(model, k, side) {
+    clearPose(model);
+    const g = Math.max(0, Math.min(1, k));
+    const sgn = side === 'R' ? 1 : -1;
+    // reach to the quiver at the hip, bring it up to the string
+    const grab = Math.min(1, g / 0.45);
+    const lift = Math.max(0, (g - 0.45) / 0.55);
+    setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -1.3 * lift - 0.2, 0, -sgn * 0.14);
+    setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -0.2, 0, 0);
+    setRot(model, 'arm' + side, 0.5 * grab - 1.6 * lift, 0, sgn * (0.55 - 0.15 * lift));
+    setRot(model, 'fore' + side, -0.5 - 1.4 * grab + 0.9 * lift, 0, 0);
+    setRot(model, 'torso', 0.16 * grab - 0.08 * lift, sgn * 0.3 * lift, 0);
+    setRot(model, 'head', 0.1 * grab, sgn * -0.2 * lift, 0);
+  }
+
   /* A shield up, and a weapon held ready rather than hanging. */
   function poseReady(model, side, shield) {
     const sgn = side === 'R' ? 1 : -1;
@@ -589,6 +641,10 @@
     const full = mode === 'full';
     const cap = full ? 9.0 : 5.0;
     const impulse = Math.max(0.6, Math.min(cap, force)) * SUBSTEP * (full ? 7.5 : 1.9);
+    // Arms go up. A body that falls with its arms at its sides reads as a
+    // dropped plank, so the hands and elbows get a good deal more of the
+    // impulse than the trunk does, thrown up and out.
+    const FLAIL = { handR: 3.2, handL: 3.2, elbowR: 2.1, elbowL: 2.1, headTop: 1.4 };
 
     let tallest = 1;
     for (let i = 0; i < JOINT_NAMES.length; i++) {
@@ -627,6 +683,13 @@
       q.px -= px * impulse * weight;
       q.pz -= pz * impulse * weight;
       q.py -= impulse * 0.16 * weight;
+      const fl = FLAIL[k];
+      if (fl && full) {
+        const spin = (i % 2 ? 1 : -1) * impulse * fl;
+        q.px -= pz * spin * 0.5;
+        q.pz += px * spin * 0.5;
+        q.py -= impulse * fl * 0.55;
+      }
     }
 
     if (!reuse) {
@@ -1553,6 +1616,9 @@
     if (actor.reaction) {
       const r = actor.reaction;
       if (r.kind === 'clutch') { poseClutch(model, r.k, r.zone, side); return; }
+      if (r.kind === 'stagger') { poseStagger(model, r.k, r.side || 0); return; }
+      if (r.kind === 'sheathe' || r.kind === 'draw') { poseSheathe(model, r.k, side); return; }
+      if (r.kind === 'nock') { poseNock(model, r.k, side); return; }
       if (r.kind === 'guard' || r.kind === 'surrender') { poseGuard(model, r.k, side); return; }
     }
     if (actor.gait === 'walk') poseWalk(model, qTime, false);
@@ -1725,6 +1791,7 @@
     clearPose, setRot, addRot, poseIdle, poseWalk, poseTalk,
     poseRide, poseMount, poseDrive,
     ATTACKS, poseAttack, attackHitFraction, poseGuard, poseClutch, poseReady,
+    poseStagger, poseSheathe, poseNock,
     emptyPose, clonePose, applyPose, lerpPose, samplePoseTrack,
     yawForDirection, snapToEight, directionName, shortestAngle,
     createActor, rebuildActorModel, updateActorMotion, updateBlink,

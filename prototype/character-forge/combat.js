@@ -27,8 +27,42 @@
   const HAFT_DARK = '#4a3119';
   const LEATHER = '#4b3320';
   const BRASS = '#a8852f';
+  const BONE_COL = '#ddd6c2';
 
   function part(mesh, colour) { return { mesh: mesh, colour: colour }; }
+
+  /* An axe blade is a crescent, and a crescent is the one shape a stack of
+   * boxes cannot fake. This lays a fan of quads from the eye out to a curved
+   * edge and closes it into a solid, so the head is one piece of steel that
+   * actually meets the haft. */
+  function bladeMesh(y0, y1, reach, halfWidth, curve, back) {
+    const verts = [];
+    const faces = [];
+    const N = 7;
+    const ring = [];
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      // the edge bows out from the socket and sweeps back at both horns
+      const bow = Math.sin(t * Math.PI);
+      const y = y0 + (y1 - y0) * t;
+      const z = -(back + reach * (0.35 + 0.65 * bow) * curve);
+      ring.push([y, z]);
+      verts.push(-halfWidth, y, -back);
+      verts.push(halfWidth, y, -back);
+      verts.push(-halfWidth * (0.45 + 0.3 * bow), y, z);
+      verts.push(halfWidth * (0.45 + 0.3 * bow), y, z);
+    }
+    for (let i = 0; i < N; i++) {
+      const a = i * 4, b = (i + 1) * 4;
+      faces.push([a, a + 2, b + 2, b]);           // left face
+      faces.push([a + 1, b + 1, b + 3, a + 3]);   // right face
+      faces.push([a + 2, a + 3, b + 3, b + 2]);   // the edge itself
+      faces.push([a, b, b + 1, a + 1]);           // the back, against the haft
+    }
+    faces.push([0, 1, 3, 2]);
+    faces.push([N * 4, N * 4 + 2, N * 4 + 3, N * 4 + 1]);
+    return G.finish(verts, faces);
+  }
 
   /* Every weapon is modelled in the hand's own space: the grip sits at the
    * origin and the business end runs along -Y, which is the direction the
@@ -37,118 +71,239 @@
   const BUILD = {
     fists: function () { return []; },
 
+    /* Every weapon is laid out from one set of numbers so the pieces meet:
+     * the grip runs from GRIP_TOP down to GRIP_BOT, the guard sits exactly at
+     * GRIP_TOP, and the blade starts where the guard ends. Eyeballing offsets
+     * is what leaves a blade floating a unit clear of its own crossguard. */
     club: function () {
       const p = [];
-      p.push(part(G.slab(-0.85, -1.2, -0.85, 1.7, 7.0, 1.7, 0.9, 1), HAFT));
-      p.push(part(G.taper(-1.6, -8.2, -1.6, 3.2, 7.0, 3.2, 1.35), HAFT_DARK));
-      p.push(part(G.slab(-0.95, -1.4, -0.95, 1.9, 1.4, 1.9, 0.8, 1), LEATHER));
+      const gripBot = 1.6, gripTop = -6.0, headTop = -14.2;
+      p.push(part(G.slab(-0.85, gripTop, -0.85, 1.7, gripBot - gripTop, 1.7, 0.9, 1), HAFT_DARK));
+      // wrapped grip, in bands
+      for (let i = 0; i < 4; i++) {
+        p.push(part(G.slab(-0.98, gripBot - 1.0 - i * 1.7, -0.98, 1.96, 1.1, 1.96, 0.85, 1),
+          i % 2 ? LEATHER : '#3a2617'));
+      }
+      /* The head is the point of a club, so it is genuinely fat: a long
+       * swelling that starts halfway down the shaft and is nearly three times
+       * its width at the crown. */
+      p.push(part(G.taper(-0.85, gripTop, -0.85, 1.7, 3.0, 1.7, 1.75), HAFT));
+      p.push(part(G.slab(-1.5, gripTop - 3.0, -1.5, 3.0, 2.0, 3.0, 0.8, 1), HAFT));
+      p.push(part(G.taper(-1.5, gripTop - 6.4, -1.5, 3.0, 3.4, 3.0, 1.45), HAFT));
+      p.push(part(G.slab(-2.2, gripTop - 7.2, -2.2, 4.4, (gripTop - 7.2) - headTop, 4.4, 0.72, 1), HAFT));
+      p.push(part(G.superellipsoid(0, headTop + 0.6, 0, 2.2, 1.5, 2.2, 0.55, 4, 9), HAFT));
+      // iron bands and studs round the crown
+      p.push(part(G.slab(-2.35, gripTop - 8.4, -2.35, 4.7, 0.9, 4.7, 0.85, 1), STEEL_DARK));
+      p.push(part(G.slab(-2.35, headTop + 1.6, -2.35, 4.7, 0.9, 4.7, 0.85, 1), STEEL_DARK));
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2 + 0.3;
+        p.push(part(G.superellipsoid(Math.cos(a) * 2.1, headTop + 3.4, Math.sin(a) * 2.1,
+          0.72, 0.72, 0.72, 0.5, 3, 7), STEEL));
+      }
       return p;
     },
 
     dagger: function () {
       const p = [];
-      p.push(part(G.slab(-0.7, -0.6, -0.7, 1.4, 3.2, 1.4, 0.85, 1), LEATHER));
-      p.push(part(G.box(-1.5, -1.0, -0.5, 3.0, 0.7, 1.0), BRASS));
-      p.push(part(G.taper(-0.85, -7.8, -0.35, 1.7, 6.9, 0.7, 0.28), STEEL));
-      p.push(part(G.superellipsoid(0, 2.9, 0, 0.75, 0.7, 0.75, 0.6, 3, 7), BRASS));
+      const gripTop = -0.9, gripBot = 3.4, guardH = 0.9, bladeLen = 7.4;
+      p.push(part(G.slab(-0.62, gripTop, -0.62, 1.24, gripBot - gripTop, 1.24, 0.8, 1), LEATHER));
+      // wire wrap
+      for (let i = 0; i < 4; i++) {
+        p.push(part(G.box(-0.72, gripTop + 0.5 + i * 0.8, -0.72, 1.44, 0.32, 1.44), '#3a2617'));
+      }
+      // pommel, sitting on the end of the grip
+      p.push(part(G.superellipsoid(0, gripBot + 0.5, 0, 0.85, 0.75, 0.85, 0.5, 3, 8), BRASS));
+      // guard, its top face flush with the grip's bottom
+      p.push(part(G.box(-1.7, gripTop - guardH, -0.55, 3.4, guardH, 1.1), BRASS));
+      p.push(part(G.box(-1.9, gripTop - guardH, -0.4, 0.55, guardH + 0.4, 0.8), BRASS));
+      p.push(part(G.box(1.35, gripTop - guardH, -0.4, 0.55, guardH + 0.4, 0.8), BRASS));
+      // blade starts where the guard ends
+      const b0 = gripTop - guardH;
+      p.push(part(G.taper(-0.8, b0 - bladeLen, -0.32, 1.6, bladeLen, 0.64, 0.18), STEEL));
+      p.push(part(G.box(-0.16, b0 - bladeLen + 1.2, -0.38, 0.32, bladeLen - 1.6, 0.76), STEEL_DARK));
       return p;
     },
 
     sword: function () {
       const p = [];
-      p.push(part(G.slab(-0.72, -0.4, -0.72, 1.44, 3.6, 1.44, 0.85, 1), LEATHER));
-      // crossguard
-      p.push(part(G.box(-3.4, -1.2, -0.55, 6.8, 0.95, 1.1), STEEL_DARK));
-      // blade, with a fuller down the middle
-      p.push(part(G.taper(-1.15, -17.5, -0.42, 2.3, 16.4, 0.84, 0.42), STEEL));
-      p.push(part(G.box(-0.35, -16.0, -0.5, 0.7, 14.6, 1.0), STEEL_DARK));
-      p.push(part(G.superellipsoid(0, 3.3, 0, 0.9, 0.85, 0.9, 0.55, 3, 7), BRASS));
+      const gripTop = -1.1, gripBot = 3.2, guardH = 1.0, bladeLen = 17.0;
+      p.push(part(G.slab(-0.66, gripTop, -0.66, 1.32, gripBot - gripTop, 1.32, 0.85, 1), LEATHER));
+      for (let i = 0; i < 5; i++) {
+        p.push(part(G.box(-0.78, gripTop + 0.35 + i * 0.75, -0.78, 1.56, 0.28, 1.56), '#2f2317'));
+      }
+      p.push(part(G.superellipsoid(0, gripBot + 0.7, 0, 1.05, 0.95, 1.05, 0.45, 4, 8), BRASS));
+      p.push(part(G.box(-0.5, gripBot - 0.1, -0.5, 1.0, 0.9, 1.0), BRASS));
+      // crossguard: a bar with slightly swept tips, flush under the grip
+      p.push(part(G.box(-3.2, gripTop - guardH, -0.6, 6.4, guardH, 1.2), STEEL_DARK));
+      p.push(part(G.box(-3.7, gripTop - guardH - 0.5, -0.45, 0.7, guardH + 0.9, 0.9), STEEL_DARK));
+      p.push(part(G.box(3.0, gripTop - guardH - 0.5, -0.45, 0.7, guardH + 0.9, 0.9), STEEL_DARK));
+      // ricasso, then the blade, then the point
+      const b0 = gripTop - guardH;
+      p.push(part(G.box(-0.95, b0 - 2.0, -0.42, 1.9, 2.0, 0.84), STEEL));
+      p.push(part(G.taper(-1.05, b0 - bladeLen, -0.46, 2.1, bladeLen - 2.0, 0.92, 0.66, 0, 0), STEEL));
+      p.push(part(G.taper(-0.7, b0 - bladeLen - 2.1, -0.3, 1.4, 2.1, 0.6, 0.1), STEEL));
+      // fuller down the centre
+      p.push(part(G.box(-0.3, b0 - bladeLen + 1.0, -0.5, 0.6, bladeLen - 3.4, 1.0), STEEL_DARK));
       return p;
     },
 
     axe: function () {
       const p = [];
-      p.push(part(G.slab(-0.8, -1.0, -0.8, 1.6, 11.5, 1.6, 0.9, 1), HAFT));
-      // head: a bearded blade hanging off one side of the haft
-      p.push(part(G.box(-0.9, -11.8, -1.1, 1.8, 3.6, 2.2), STEEL_DARK));
-      p.push(part(G.taper(-0.6, -12.6, -6.4, 1.2, 5.2, 6.6, 1.0, 0, 2.6), STEEL));
-      p.push(part(G.box(-0.7, -13.2, -6.9, 1.4, 4.4, 1.2), STEEL));
-      p.push(part(G.slab(-0.9, -1.2, -0.9, 1.8, 1.6, 1.8, 0.8, 1), LEATHER));
+      const haftTop = -13.0, haftBot = 3.0;
+      p.push(part(G.slab(-0.78, haftTop, -0.78, 1.56, haftBot - haftTop, 1.56, 0.92, 1), HAFT));
+      p.push(part(G.slab(-0.9, haftBot - 2.4, -0.9, 1.8, 2.4, 1.8, 0.85, 1), LEATHER));
+      p.push(part(G.superellipsoid(0, haftBot + 0.3, 0, 1.0, 0.7, 1.0, 0.5, 3, 7), STEEL_DARK));
+      // the eye: a collar clamped round the haft, which the head grows out of
+      p.push(part(G.box(-1.0, haftTop - 0.6, -1.3, 2.0, 5.6, 2.6), STEEL_DARK));
+      p.push(part(G.box(-1.15, haftTop + 3.6, -1.45, 2.3, 0.9, 2.9), STEEL_DARK));
+      p.push(part(G.box(-1.15, haftTop - 0.9, -1.45, 2.3, 0.9, 2.9), STEEL_DARK));
+      // one solid bearded blade sweeping out of the eye
+      p.push(part(bladeMesh(haftTop - 1.2, haftTop + 4.4, 5.6, 0.75, 1, 1.0), STEEL));
+      p.push(part(bladeMesh(haftTop - 1.0, haftTop + 4.2, 5.9, 0.34, 1, 1.0), '#d9dde2'));
+      // a short spike opposite the blade
+      p.push(part(G.taper(-0.6, haftTop + 1.0, 1.2, 1.2, 2.4, 1.7, 0.3), STEEL_DARK));
       return p;
     },
 
     mace: function () {
       const p = [];
-      p.push(part(G.slab(-0.82, -1.0, -0.82, 1.64, 9.0, 1.64, 0.9, 1), HAFT_DARK));
-      p.push(part(G.superellipsoid(0, -10.6, 0, 2.5, 2.7, 2.5, 0.55, 4, 8), STEEL_DARK));
-      // flanges
-      for (let i = 0; i < 4; i++) {
-        const a = (i / 4) * Math.PI * 2;
-        p.push(part(G.box(Math.cos(a) * 2.1 - 0.5, -12.2, Math.sin(a) * 2.1 - 0.5,
-          1.0, 3.2, 1.0), STEEL));
+      const haftTop = -10.0, haftBot = 2.6;
+      p.push(part(G.slab(-0.72, haftTop, -0.72, 1.44, haftBot - haftTop, 1.44, 0.9, 1), STEEL_DARK));
+      for (let i = 0; i < 5; i++) {
+        p.push(part(G.box(-0.84, haftBot - 1.0 - i * 1.5, -0.84, 1.68, 0.5, 1.68), LEATHER));
       }
-      p.push(part(G.superellipsoid(0, -13.4, 0, 1.2, 0.9, 1.2, 0.5, 3, 7), STEEL));
+      p.push(part(G.superellipsoid(0, haftBot + 0.4, 0, 0.95, 0.75, 0.95, 0.5, 3, 7), STEEL));
+      // collar, head, cap — all touching
+      p.push(part(G.box(-0.95, haftTop, -0.95, 1.9, 1.2, 1.9), STEEL));
+      p.push(part(G.superellipsoid(0, haftTop - 2.4, 0, 1.9, 2.5, 1.9, 0.6, 5, 9), STEEL_DARK));
+      // six flanges standing off the head
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        const cx = Math.cos(a), cz = Math.sin(a);
+        p.push(part(G.taper(cx * 1.5 - 0.42, haftTop - 4.3, cz * 1.5 - 0.42,
+          0.84, 4.0, 0.84, 0.35, cx * 1.5, cz * 1.5), STEEL));
+      }
+      p.push(part(G.superellipsoid(0, haftTop - 5.1, 0, 1.15, 1.0, 1.15, 0.5, 3, 8), STEEL));
       return p;
     },
 
     spear: function () {
       const p = [];
-      p.push(part(G.slab(-0.62, 6.0, -0.62, 1.24, 26.0, 1.24, 0.92, 1), HAFT));
-      p.push(part(G.taper(-1.0, -24.5, -0.4, 2.0, 5.2, 0.8, 0.12), STEEL));
-      p.push(part(G.box(-0.8, -19.6, -0.45, 1.6, 1.4, 0.9), STEEL_DARK));
-      p.push(part(G.slab(-0.72, -1.0, -0.72, 1.44, 2.2, 1.44, 0.8, 1), LEATHER));
+      const shaftTop = -20.0, shaftBot = 9.0;
+      p.push(part(G.slab(-0.58, shaftTop, -0.58, 1.16, shaftBot - shaftTop, 1.16, 0.94, 1), HAFT));
+      // two grip wraps where the hands go
+      p.push(part(G.slab(-0.7, -1.2, -0.7, 1.4, 2.6, 1.4, 0.88, 1), LEATHER));
+      p.push(part(G.slab(-0.7, 4.4, -0.7, 1.4, 2.6, 1.4, 0.88, 1), LEATHER));
+      p.push(part(G.box(-0.66, shaftBot - 0.9, -0.66, 1.32, 0.9, 1.32), STEEL_DARK));
+      // socket, wings, then the head
+      p.push(part(G.taper(-0.78, shaftTop, -0.78, 1.56, 2.6, 1.56, 1.25), STEEL_DARK));
+      p.push(part(G.box(-1.7, shaftTop + 0.4, -0.35, 3.4, 0.8, 0.7), STEEL_DARK));
+      p.push(part(G.taper(-1.0, shaftTop - 4.6, -0.4, 2.0, 4.6, 0.8, 0.9, 0, 0), STEEL));
+      p.push(part(G.taper(-0.9, shaftTop - 7.4, -0.36, 1.8, 2.8, 0.72, 0.08), STEEL));
+      p.push(part(G.box(-0.2, shaftTop - 6.6, -0.42, 0.4, 6.4, 0.84), '#d6dade'));
       return p;
     },
 
     greatsword: function () {
       const p = [];
-      p.push(part(G.slab(-0.8, 0.4, -0.8, 1.6, 6.4, 1.6, 0.85, 1), LEATHER));
-      p.push(part(G.box(-4.6, -1.4, -0.65, 9.2, 1.1, 1.3), STEEL_DARK));
-      p.push(part(G.taper(-1.45, -25.0, -0.5, 2.9, 23.6, 1.0, 0.46), STEEL));
-      p.push(part(G.box(-0.45, -23.0, -0.6, 0.9, 21.0, 1.2), STEEL_DARK));
-      p.push(part(G.superellipsoid(0, 6.6, 0, 1.1, 1.1, 1.1, 0.5, 3, 8), BRASS));
+      const gripTop = -1.3, gripBot = 6.6, guardH = 1.2, bladeLen = 24.0;
+      p.push(part(G.slab(-0.72, gripTop, -0.72, 1.44, gripBot - gripTop, 1.44, 0.88, 1), LEATHER));
+      for (let i = 0; i < 8; i++) {
+        p.push(part(G.box(-0.84, gripTop + 0.6 + i * 0.95, -0.84, 1.68, 0.3, 1.68), '#2f2317'));
+      }
+      p.push(part(G.superellipsoid(0, gripBot + 0.9, 0, 1.25, 1.1, 1.25, 0.45, 4, 9), BRASS));
+      p.push(part(G.box(-0.55, gripBot - 0.1, -0.55, 1.1, 1.0, 1.1), BRASS));
+      p.push(part(G.box(-4.4, gripTop - guardH, -0.7, 8.8, guardH, 1.4), STEEL_DARK));
+      p.push(part(G.box(-4.9, gripTop - guardH - 0.7, -0.5, 0.8, guardH + 1.1, 1.0), STEEL_DARK));
+      p.push(part(G.box(4.1, gripTop - guardH - 0.7, -0.5, 0.8, guardH + 1.1, 1.0), STEEL_DARK));
+      const b0 = gripTop - guardH;
+      // a long ricasso, the way a real greatsword is gripped above the guard
+      p.push(part(G.box(-1.1, b0 - 3.4, -0.5, 2.2, 3.4, 1.0), STEEL_DARK));
+      p.push(part(G.box(-1.6, b0 - 4.2, -0.5, 0.7, 1.0, 1.0), STEEL_DARK));
+      p.push(part(G.box(0.9, b0 - 4.2, -0.5, 0.7, 1.0, 1.0), STEEL_DARK));
+      p.push(part(G.taper(-1.35, b0 - bladeLen, -0.52, 2.7, bladeLen - 3.4, 1.04, 0.7, 0, 0), STEEL));
+      p.push(part(G.taper(-0.95, b0 - bladeLen - 2.8, -0.36, 1.9, 2.8, 0.72, 0.1), STEEL));
+      p.push(part(G.box(-0.36, b0 - bladeLen + 1.4, -0.58, 0.72, bladeLen - 5.6, 1.16), STEEL_DARK));
       return p;
     },
 
     poleaxe: function () {
       const p = [];
-      p.push(part(G.slab(-0.72, 4.0, -0.72, 1.44, 30.0, 1.44, 0.92, 1), HAFT));
-      p.push(part(G.box(-0.85, -26.5, -1.0, 1.7, 4.2, 2.0), STEEL_DARK));
-      p.push(part(G.taper(-0.6, -27.4, -6.0, 1.2, 5.6, 6.2, 1.0, 0, 2.4), STEEL));
-      // hammer poll on the far side, and a spike on top
-      p.push(part(G.box(-0.9, -27.0, 1.0, 1.8, 3.4, 2.6), STEEL));
-      p.push(part(G.taper(-0.7, -31.5, -0.7, 1.4, 4.4, 1.4, 0.15), STEEL));
+      const shaftTop = -26.0, shaftBot = 7.0;
+      p.push(part(G.slab(-0.68, shaftTop, -0.68, 1.36, shaftBot - shaftTop, 1.36, 0.94, 1), HAFT));
+      p.push(part(G.slab(-0.8, -1.4, -0.8, 1.6, 3.0, 1.6, 0.88, 1), LEATHER));
+      p.push(part(G.slab(-0.8, 3.2, -0.8, 1.6, 3.0, 1.6, 0.88, 1), LEATHER));
+      // langets: the iron straps running down the shaft from the head
+      p.push(part(G.box(-0.82, shaftTop + 2.0, -0.3, 0.42, 7.0, 0.6), STEEL_DARK));
+      p.push(part(G.box(0.4, shaftTop + 2.0, -0.3, 0.42, 7.0, 0.6), STEEL_DARK));
+      // the head: axe blade one side, hammer the other, spike on top
+      p.push(part(G.box(-0.95, shaftTop - 0.4, -1.2, 1.9, 6.0, 2.4), STEEL_DARK));
+      p.push(part(bladeMesh(shaftTop - 0.8, shaftTop + 5.0, 5.2, 0.7, 1, 1.0), STEEL));
+      p.push(part(bladeMesh(shaftTop - 0.6, shaftTop + 4.8, 5.5, 0.32, 1, 1.0), '#d9dde2'));
+      // hammer poll on the far side, with a studded face
+      p.push(part(G.box(-0.95, shaftTop + 1.0, 1.1, 1.9, 3.6, 2.6), STEEL));
+      for (let i = 0; i < 4; i++) {
+        const sx = (i & 1) ? 0.3 : -0.8, sy = (i & 2) ? 2.6 : 1.4;
+        p.push(part(G.box(sx, shaftTop + sy, 3.6, 0.5, 0.5, 0.35), STEEL_DARK));
+      }
+      p.push(part(G.taper(-0.62, shaftTop - 4.6, -0.62, 1.24, 4.8, 1.24, 0.1), STEEL));
       return p;
     },
 
+    /* A bow is a stave that bends. Segments are placed along a curve and each
+     * one is long enough to overlap its neighbour, so the limb reads as one
+     * piece of wood rather than as a row of blocks. */
     bow: function () {
       const p = [];
-      // a stave curving away from the hand, strung down the inside
-      for (let i = -4; i <= 4; i++) {
-        if (i === 0) continue;
-        const t = i / 4;
-        const y = -t * 13.5;
-        const z = -(1 - t * t) * 2.8;
-        p.push(part(G.slab(-0.55, y - 1.9, z - 0.55, 1.1, 3.8, 1.1, 0.85, 1),
-          Math.abs(i) === 4 ? HAFT_DARK : HAFT));
+      const N = 9, SPAN = 17.0;
+      let prev = null;
+      for (let i = 0; i <= N; i++) {
+        const t = (i / N) * 2 - 1;
+        const y = -t * SPAN;
+        const z = -(1 - t * t) * 3.4;
+        if (prev) {
+          const my = (y + prev.y) / 2, mz = (z + prev.z) / 2;
+          const len = Math.hypot(y - prev.y, z - prev.z) * 0.62;
+          const thick = 0.62 - Math.abs(t) * 0.22;
+          p.push(part(G.slab(-thick, my - len, mz - thick, thick * 2, len * 2, thick * 2, 0.8, 1),
+            Math.abs(t) > 0.82 ? HAFT_DARK : HAFT));
+        }
+        prev = { y: y, z: z };
       }
-      p.push(part(G.slab(-0.72, -2.0, -0.9, 1.44, 4.0, 1.5, 0.8, 1), LEATHER));
-      for (let i = -4; i < 4; i++) {
-        const y0 = (i / 4) * -13.5, y1 = ((i + 1) / 4) * -13.5;
-        p.push(part(G.box(-0.2, Math.min(y0, y1), 0.35, 0.4, Math.abs(y1 - y0), 0.4),
-          '#ddd6c2'));
-      }
+      // the grip, and horn nocks at the tips
+      p.push(part(G.slab(-0.82, -2.4, -0.62 - 0.9, 1.64, 4.8, 1.9, 0.82, 1), LEATHER));
+      p.push(part(G.superellipsoid(0, SPAN, 0, 0.55, 0.9, 0.55, 0.5, 3, 7), BONE_COL));
+      p.push(part(G.superellipsoid(0, -SPAN, 0, 0.55, 0.9, 0.55, 0.5, 3, 7), BONE_COL));
+      // string, straight between the nocks
+      p.push(part(G.box(-0.16, -SPAN, -0.16, 0.32, SPAN * 2, 0.32), '#e6e0cc'));
       return p;
     },
 
     crossbow: function () {
       const p = [];
-      p.push(part(G.box(-0.9, -12.5, -1.0, 1.8, 15.0, 2.0), HAFT));
-      p.push(part(G.box(-7.5, -11.0, -0.7, 15.0, 1.2, 1.4), HAFT_DARK));
-      p.push(part(G.box(-7.9, -11.4, -0.6, 1.2, 2.0, 1.2), STEEL_DARK));
-      p.push(part(G.box(6.7, -11.4, -0.6, 1.2, 2.0, 1.2), STEEL_DARK));
-      p.push(part(G.box(-6.9, -10.6, 0.1, 13.8, 0.4, 0.4), '#ddd6c2'));
-      p.push(part(G.box(-0.7, 2.0, -0.9, 1.4, 2.6, 1.8), LEATHER));
+      const stockTop = -13.0, stockBot = 5.0, prodY = -11.4;
+      // stock, tapering to the butt
+      p.push(part(G.box(-0.95, stockTop, -1.1, 1.9, stockBot - stockTop, 2.2), HAFT));
+      p.push(part(G.taper(-1.05, stockBot - 1.0, -1.35, 2.1, 3.2, 2.7, 0.75), HAFT_DARK));
+      // the channel the bolt sits in
+      p.push(part(G.box(-0.42, stockTop + 0.4, -1.3, 0.84, 9.0, 0.5), '#3a2617'));
+      // prod, curving forward, built as overlapping segments
+      const N = 7, SPAN = 8.2;
+      for (let i = 0; i < N; i++) {
+        const t = ((i + 0.5) / N) * 2 - 1;
+        const x = t * SPAN;
+        const z = -1.0 - (1 - t * t) * 1.8;
+        const thick = 0.68 - Math.abs(t) * 0.2;
+        p.push(part(G.slab(x - SPAN / N, prodY - thick, z - thick,
+          (SPAN / N) * 2.1, thick * 2, thick * 2, 0.8, 1),
+          Math.abs(t) > 0.8 ? STEEL_DARK : HAFT_DARK));
+      }
+      p.push(part(G.box(-1.5, prodY - 0.9, -1.4, 3.0, 1.8, 2.8), STEEL_DARK));
+      // string across the tips, and the nut and trigger
+      p.push(part(G.box(-SPAN, prodY - 0.18, -0.9, SPAN * 2, 0.36, 0.36), '#e6e0cc'));
+      p.push(part(G.superellipsoid(0, stockTop + 5.4, -0.7, 0.85, 0.85, 0.7, 0.5, 3, 8), BONE_COL));
+      p.push(part(G.box(-0.35, stockTop + 5.0, 0.2, 0.7, 2.6, 0.7), STEEL_DARK));
+      p.push(part(G.box(-0.5, stockTop + 7.2, -0.4, 1.0, 0.8, 1.6), STEEL_DARK));
       return p;
     }
   };

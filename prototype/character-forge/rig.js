@@ -19,10 +19,16 @@
   const CM = global.CharacterModel;
 
   const ANIM_FPS = 12;
+  /* A swing is over in a fifth of a second. Sampling it at twelve frames
+   * gives it two or three poses, which is what makes fighting look like a
+   * slideshow — so attacks and reactions get their own finer clock while
+   * standing and walking keep the sprite discipline. */
+  const ACTION_FPS = 30;
   const YAW_STEPS = 16;
   const YAW_STEP = (Math.PI * 2) / YAW_STEPS;
 
   function quantiseTime(t) { return Math.floor(t * ANIM_FPS) / ANIM_FPS; }
+  function quantiseAction(t) { return Math.floor(t * ACTION_FPS) / ACTION_FPS; }
   function quantiseYaw(y) { return Math.round(y / YAW_STEP) * YAW_STEP; }
 
   const JOINTS = [
@@ -1622,14 +1628,15 @@
     if (actor.customPose) { applyPose(model, actor.customPose, actor.customBob || 0); return; }
     const side = actor.leftHanded ? 'L' : 'R';
     if (actor.attack) {
-      poseAttack(model, actor.attack.anim, actor.attack.t / actor.attack.duration,
-        side, actor.gait, qTime);
+      const k = quantiseAction(actor.attack.t) / actor.attack.duration;
+      poseAttack(model, actor.attack.anim, k, side, actor.gait, qTime);
       return;
     }
     if (actor.reaction) {
       const r = actor.reaction;
-      if (r.kind === 'clutch') { poseClutch(model, r.k, r.zone, side); return; }
-      if (r.kind === 'stagger') { poseStagger(model, r.k, r.side || 0); return; }
+      const rk = Math.round(r.k * ACTION_FPS) / ACTION_FPS;
+      if (r.kind === 'clutch') { poseClutch(model, rk, r.zone, side); return; }
+      if (r.kind === 'stagger') { poseStagger(model, rk, r.side || 0); return; }
       if (r.kind === 'sheathe' || r.kind === 'draw') { poseSheathe(model, r.k, side); return; }
       if (r.kind === 'nock') { poseNock(model, r.k, side); return; }
       if (r.kind === 'guard' || r.kind === 'surrender') { poseGuard(model, r.k, side); return; }
@@ -1709,11 +1716,29 @@
    * their hand, a shield on the other arm, and every wound they are carrying.
    * Collected per frame so a swing, a bleed and a dropped sword all show up
    * without anyone having to remember to rebuild the model. */
+  /* Weapons were built at full model scale and hung straight down the arm,
+   * which made them too long for the body and ran the blade through the hip
+   * and thigh. They are now scaled to the wielder and canted out and forward
+   * so the steel is beside the leg rather than inside it. */
+  const WEAPON_SCALE = 0.78;
+  const WEAPON_CANT = 0.30;    // out from the body
+  const WEAPON_PITCH = -0.38;  // and forward
+
   const _handM = {};
-  function handMatrix(model, side) {
-    const key = side + (model.dims.lowerArmH | 0);
+  function handMatrix(model, side, shield) {
+    const key = side + (shield ? 's' : 'w') + (model.dims.lowerArmH | 0);
     if (!_handM[key]) {
-      _handM[key] = R.translation(0, -model.dims.lowerArmH - 0.9, 0);
+      const sgn = side === 'R' ? 1 : -1;
+      let m = R.translation(0, -model.dims.lowerArmH - 0.9, 0);
+      if (shield) {
+        m = R.multiply(m, R.rotationX(1.45));
+        m = R.multiply(m, R.scaling(0.92));
+      } else {
+        m = R.multiply(m, R.rotationZ(sgn * WEAPON_CANT));
+        m = R.multiply(m, R.rotationX(WEAPON_PITCH));
+        m = R.multiply(m, R.scaling(WEAPON_SCALE));
+      }
+      _handM[key] = m;
     }
     return _handM[key];
   }
@@ -1728,7 +1753,7 @@
       if (hand) {
         const parts = I.iconParts(hand.id);
         if (parts && parts.length) {
-          const at = handMatrix(actor.model, mainSide);
+          const at = handMatrix(actor.model, mainSide, false);
           const list = (out = out || {})['fore' + mainSide] = [];
           for (let i = 0; i < parts.length; i++) {
             list.push({ mesh: parts[i].mesh, colour: parts[i].colour, at: at });
@@ -1739,7 +1764,7 @@
       if (sh) {
         const parts = I.iconParts(sh.id);
         if (parts && parts.length) {
-          const at = R.multiply(handMatrix(actor.model, offSide), R.rotationX(1.45));
+          const at = handMatrix(actor.model, offSide, true);
           const list = (out = out || {})['fore' + offSide] = [];
           for (let i = 0; i < parts.length; i++) {
             list.push({ mesh: parts[i].mesh, colour: parts[i].colour, at: at });
@@ -1771,11 +1796,11 @@
       qTime, qYaw, actor.gait, actor.blink > 0.5 ? 1 : actor.blink > 0 ? 2 : 0,
       actor.viseme, actor.customPose ? 'p' + actor.animTime : '',
       actor.gesture ? actor.gesture.id + quantiseTime(actor.gesture.t) : '',
-      actor.attack ? actor.attack.anim + Math.round(actor.attack.t * 40) : '',
+      actor.attack ? actor.attack.anim + Math.round(actor.attack.t * ACTION_FPS) : '',
       actor.body ? actor.body.wounds.length + ':' + Math.round(actor.body.bleed * 4) : '',
       actor.inv && actor.inv[8] ? actor.inv[8].id : '',
       actor.inv && actor.inv[9] ? actor.inv[9].id : '',
-      actor.reaction ? actor.reaction.kind + Math.round((actor.reaction.k || 0) * 8) : ''
+      actor.reaction ? actor.reaction.kind + Math.round((actor.reaction.k || 0) * ACTION_FPS) : ''
     ].join('|');
     if (key !== null && key === actor._key && !(opts && opts.force)) return target;
     actor._key = key === null ? '' : key;
@@ -1800,7 +1825,7 @@
 
   global.Rig = {
     JOINTS, DIRECTIONS, ANIM_FPS, YAW_STEPS,
-    quantiseTime, quantiseYaw,
+    quantiseTime, quantiseAction, quantiseYaw, ACTION_FPS,
     clearPose, setRot, addRot, poseIdle, poseWalk, poseTalk,
     poseRide, poseMount, poseDrive,
     ATTACKS, poseAttack, attackHitFraction, poseGuard, poseClutch, poseReady,

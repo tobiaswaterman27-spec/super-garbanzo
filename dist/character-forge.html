@@ -2319,10 +2319,16 @@
   const CM = global.CharacterModel;
 
   const ANIM_FPS = 12;
+  /* A swing is over in a fifth of a second. Sampling it at twelve frames
+   * gives it two or three poses, which is what makes fighting look like a
+   * slideshow — so attacks and reactions get their own finer clock while
+   * standing and walking keep the sprite discipline. */
+  const ACTION_FPS = 30;
   const YAW_STEPS = 16;
   const YAW_STEP = (Math.PI * 2) / YAW_STEPS;
 
   function quantiseTime(t) { return Math.floor(t * ANIM_FPS) / ANIM_FPS; }
+  function quantiseAction(t) { return Math.floor(t * ACTION_FPS) / ACTION_FPS; }
   function quantiseYaw(y) { return Math.round(y / YAW_STEP) * YAW_STEP; }
 
   const JOINTS = [
@@ -3922,14 +3928,15 @@
     if (actor.customPose) { applyPose(model, actor.customPose, actor.customBob || 0); return; }
     const side = actor.leftHanded ? 'L' : 'R';
     if (actor.attack) {
-      poseAttack(model, actor.attack.anim, actor.attack.t / actor.attack.duration,
-        side, actor.gait, qTime);
+      const k = quantiseAction(actor.attack.t) / actor.attack.duration;
+      poseAttack(model, actor.attack.anim, k, side, actor.gait, qTime);
       return;
     }
     if (actor.reaction) {
       const r = actor.reaction;
-      if (r.kind === 'clutch') { poseClutch(model, r.k, r.zone, side); return; }
-      if (r.kind === 'stagger') { poseStagger(model, r.k, r.side || 0); return; }
+      const rk = Math.round(r.k * ACTION_FPS) / ACTION_FPS;
+      if (r.kind === 'clutch') { poseClutch(model, rk, r.zone, side); return; }
+      if (r.kind === 'stagger') { poseStagger(model, rk, r.side || 0); return; }
       if (r.kind === 'sheathe' || r.kind === 'draw') { poseSheathe(model, r.k, side); return; }
       if (r.kind === 'nock') { poseNock(model, r.k, side); return; }
       if (r.kind === 'guard' || r.kind === 'surrender') { poseGuard(model, r.k, side); return; }
@@ -4009,11 +4016,29 @@
    * their hand, a shield on the other arm, and every wound they are carrying.
    * Collected per frame so a swing, a bleed and a dropped sword all show up
    * without anyone having to remember to rebuild the model. */
+  /* Weapons were built at full model scale and hung straight down the arm,
+   * which made them too long for the body and ran the blade through the hip
+   * and thigh. They are now scaled to the wielder and canted out and forward
+   * so the steel is beside the leg rather than inside it. */
+  const WEAPON_SCALE = 0.78;
+  const WEAPON_CANT = 0.30;    // out from the body
+  const WEAPON_PITCH = -0.38;  // and forward
+
   const _handM = {};
-  function handMatrix(model, side) {
-    const key = side + (model.dims.lowerArmH | 0);
+  function handMatrix(model, side, shield) {
+    const key = side + (shield ? 's' : 'w') + (model.dims.lowerArmH | 0);
     if (!_handM[key]) {
-      _handM[key] = R.translation(0, -model.dims.lowerArmH - 0.9, 0);
+      const sgn = side === 'R' ? 1 : -1;
+      let m = R.translation(0, -model.dims.lowerArmH - 0.9, 0);
+      if (shield) {
+        m = R.multiply(m, R.rotationX(1.45));
+        m = R.multiply(m, R.scaling(0.92));
+      } else {
+        m = R.multiply(m, R.rotationZ(sgn * WEAPON_CANT));
+        m = R.multiply(m, R.rotationX(WEAPON_PITCH));
+        m = R.multiply(m, R.scaling(WEAPON_SCALE));
+      }
+      _handM[key] = m;
     }
     return _handM[key];
   }
@@ -4028,7 +4053,7 @@
       if (hand) {
         const parts = I.iconParts(hand.id);
         if (parts && parts.length) {
-          const at = handMatrix(actor.model, mainSide);
+          const at = handMatrix(actor.model, mainSide, false);
           const list = (out = out || {})['fore' + mainSide] = [];
           for (let i = 0; i < parts.length; i++) {
             list.push({ mesh: parts[i].mesh, colour: parts[i].colour, at: at });
@@ -4039,7 +4064,7 @@
       if (sh) {
         const parts = I.iconParts(sh.id);
         if (parts && parts.length) {
-          const at = R.multiply(handMatrix(actor.model, offSide), R.rotationX(1.45));
+          const at = handMatrix(actor.model, offSide, true);
           const list = (out = out || {})['fore' + offSide] = [];
           for (let i = 0; i < parts.length; i++) {
             list.push({ mesh: parts[i].mesh, colour: parts[i].colour, at: at });
@@ -4071,11 +4096,11 @@
       qTime, qYaw, actor.gait, actor.blink > 0.5 ? 1 : actor.blink > 0 ? 2 : 0,
       actor.viseme, actor.customPose ? 'p' + actor.animTime : '',
       actor.gesture ? actor.gesture.id + quantiseTime(actor.gesture.t) : '',
-      actor.attack ? actor.attack.anim + Math.round(actor.attack.t * 40) : '',
+      actor.attack ? actor.attack.anim + Math.round(actor.attack.t * ACTION_FPS) : '',
       actor.body ? actor.body.wounds.length + ':' + Math.round(actor.body.bleed * 4) : '',
       actor.inv && actor.inv[8] ? actor.inv[8].id : '',
       actor.inv && actor.inv[9] ? actor.inv[9].id : '',
-      actor.reaction ? actor.reaction.kind + Math.round((actor.reaction.k || 0) * 8) : ''
+      actor.reaction ? actor.reaction.kind + Math.round((actor.reaction.k || 0) * ACTION_FPS) : ''
     ].join('|');
     if (key !== null && key === actor._key && !(opts && opts.force)) return target;
     actor._key = key === null ? '' : key;
@@ -4100,7 +4125,7 @@
 
   global.Rig = {
     JOINTS, DIRECTIONS, ANIM_FPS, YAW_STEPS,
-    quantiseTime, quantiseYaw,
+    quantiseTime, quantiseAction, quantiseYaw, ACTION_FPS,
     clearPose, setRot, addRot, poseIdle, poseWalk, poseTalk,
     poseRide, poseMount, poseDrive,
     ATTACKS, poseAttack, attackHitFraction, poseGuard, poseClutch, poseReady,
@@ -5597,11 +5622,15 @@
   const BLOOD_DARK = '#48070d';
   const STEEL = '#b9bec6';
   const STEEL_DARK = '#7d838c';
+  const STEEL_EDGE = '#e6ebf2';   // the bright line down a sharpened edge
+  const STEEL_DEEP = '#565b63';   // the shadow in a fuller or a socket
+  const BRASS_LIT = '#d8b45c';
   const HAFT = '#6b4a29';
   const HAFT_DARK = '#4a3119';
   const LEATHER = '#4b3320';
   const BRASS = '#a8852f';
   const BONE_COL = '#ddd6c2';
+  void BRASS_LIT;
 
   function part(mesh, colour) { return { mesh: mesh, colour: colour }; }
 
@@ -5694,7 +5723,10 @@
       // blade starts where the guard ends
       const b0 = gripTop - guardH;
       p.push(part(G.taper(-0.8, b0 - bladeLen, -0.32, 1.6, bladeLen, 0.64, 0.18), STEEL));
-      p.push(part(G.box(-0.16, b0 - bladeLen + 1.2, -0.38, 0.32, bladeLen - 1.6, 0.76), STEEL_DARK));
+      p.push(part(G.box(-0.16, b0 - bladeLen + 1.2, -0.38, 0.32, bladeLen - 1.6, 0.76), STEEL_DEEP));
+      // sharpened edges, catching the light down both sides
+      p.push(part(G.box(-0.84, b0 - bladeLen + 0.8, -0.2, 0.26, bladeLen - 1.2, 0.4), STEEL_EDGE));
+      p.push(part(G.box(0.58, b0 - bladeLen + 0.8, -0.2, 0.26, bladeLen - 1.2, 0.4), STEEL_EDGE));
       return p;
     },
 
@@ -5713,11 +5745,22 @@
       p.push(part(G.box(3.0, gripTop - guardH - 0.5, -0.45, 0.7, guardH + 0.9, 0.9), STEEL_DARK));
       // ricasso, then the blade, then the point
       const b0 = gripTop - guardH;
-      p.push(part(G.box(-0.95, b0 - 2.0, -0.42, 1.9, 2.0, 0.84), STEEL));
+      p.push(part(G.box(-0.95, b0 - 2.0, -0.42, 1.9, 2.0, 0.84), STEEL_DARK));
       p.push(part(G.taper(-1.05, b0 - bladeLen, -0.46, 2.1, bladeLen - 2.0, 0.92, 0.66, 0, 0), STEEL));
       p.push(part(G.taper(-0.7, b0 - bladeLen - 2.1, -0.3, 1.4, 2.1, 0.6, 0.1), STEEL));
-      // fuller down the centre
-      p.push(part(G.box(-0.3, b0 - bladeLen + 1.0, -0.5, 0.6, bladeLen - 3.4, 1.0), STEEL_DARK));
+      // fuller down the centre, sunk into the flat
+      p.push(part(G.box(-0.32, b0 - bladeLen + 1.0, -0.52, 0.64, bladeLen - 3.4, 1.04), STEEL_DEEP));
+      // and a bright edge down each side, narrowing with the taper
+      for (let i = 0; i < 6; i++) {
+        const t0 = i / 6, t1 = (i + 1) / 6;
+        const wid = 1.05 - t0 * 0.34;
+        p.push(part(G.box(-wid, b0 - 2.0 - (bladeLen - 2.0) * t1, -0.22,
+          0.24, (bladeLen - 2.0) / 6, 0.44), STEEL_EDGE));
+        p.push(part(G.box(wid - 0.24, b0 - 2.0 - (bladeLen - 2.0) * t1, -0.22,
+          0.24, (bladeLen - 2.0) / 6, 0.44), STEEL_EDGE));
+      }
+      // a brass collar where the blade meets the guard
+      p.push(part(G.box(-1.15, b0 - 0.5, -0.55, 2.3, 0.55, 1.1), BRASS_LIT));
       return p;
     },
 
@@ -5732,8 +5775,10 @@
       p.push(part(G.box(-1.15, haftTop + 3.6, -1.45, 2.3, 0.9, 2.9), STEEL_DARK));
       p.push(part(G.box(-1.15, haftTop - 0.9, -1.45, 2.3, 0.9, 2.9), STEEL_DARK));
       // one solid bearded blade sweeping out of the eye
-      p.push(part(bladeMesh(haftTop - 1.2, haftTop + 4.4, 5.6, 0.75, 1, 1.0), STEEL));
-      p.push(part(bladeMesh(haftTop - 1.0, haftTop + 4.2, 5.9, 0.34, 1, 1.0), '#d9dde2'));
+      p.push(part(bladeMesh(haftTop - 1.2, haftTop + 4.4, 5.6, 0.75, 1, 1.0), STEEL_DARK));
+      p.push(part(bladeMesh(haftTop - 1.1, haftTop + 4.3, 5.75, 0.5, 1, 1.0), STEEL));
+      p.push(part(bladeMesh(haftTop - 1.0, haftTop + 4.2, 5.95, 0.24, 1, 1.0), STEEL_EDGE));
+      p.push(part(G.box(-1.2, haftTop + 4.4, -1.5, 2.4, 0.7, 3.0), BRASS_LIT));
       // a short spike opposite the blade
       p.push(part(G.taper(-0.6, haftTop + 1.0, 1.2, 1.2, 2.4, 1.7, 0.3), STEEL_DARK));
       return p;
@@ -5755,7 +5800,9 @@
         const a = (i / 6) * Math.PI * 2;
         const cx = Math.cos(a), cz = Math.sin(a);
         p.push(part(G.taper(cx * 1.5 - 0.42, haftTop - 4.3, cz * 1.5 - 0.42,
-          0.84, 4.0, 0.84, 0.35, cx * 1.5, cz * 1.5), STEEL));
+          0.84, 4.0, 0.84, 0.35, cx * 1.5, cz * 1.5), STEEL_DARK));
+        p.push(part(G.taper(cx * 1.72 - 0.22, haftTop - 4.2, cz * 1.72 - 0.22,
+          0.44, 3.7, 0.44, 0.3, cx * 1.5, cz * 1.5), STEEL_EDGE));
       }
       p.push(part(G.superellipsoid(0, haftTop - 5.1, 0, 1.15, 1.0, 1.15, 0.5, 3, 8), STEEL));
       return p;
@@ -5774,7 +5821,9 @@
       p.push(part(G.box(-1.7, shaftTop + 0.4, -0.35, 3.4, 0.8, 0.7), STEEL_DARK));
       p.push(part(G.taper(-1.0, shaftTop - 4.6, -0.4, 2.0, 4.6, 0.8, 0.9, 0, 0), STEEL));
       p.push(part(G.taper(-0.9, shaftTop - 7.4, -0.36, 1.8, 2.8, 0.72, 0.08), STEEL));
-      p.push(part(G.box(-0.2, shaftTop - 6.6, -0.42, 0.4, 6.4, 0.84), '#d6dade'));
+      p.push(part(G.box(-0.2, shaftTop - 6.6, -0.44, 0.4, 6.4, 0.88), STEEL_DEEP));
+      p.push(part(G.box(-0.98, shaftTop - 6.2, -0.24, 0.26, 5.4, 0.48), STEEL_EDGE));
+      p.push(part(G.box(0.72, shaftTop - 6.2, -0.24, 0.26, 5.4, 0.48), STEEL_EDGE));
       return p;
     },
 
@@ -5797,7 +5846,16 @@
       p.push(part(G.box(0.9, b0 - 4.2, -0.5, 0.7, 1.0, 1.0), STEEL_DARK));
       p.push(part(G.taper(-1.35, b0 - bladeLen, -0.52, 2.7, bladeLen - 3.4, 1.04, 0.7, 0, 0), STEEL));
       p.push(part(G.taper(-0.95, b0 - bladeLen - 2.8, -0.36, 1.9, 2.8, 0.72, 0.1), STEEL));
-      p.push(part(G.box(-0.36, b0 - bladeLen + 1.4, -0.58, 0.72, bladeLen - 5.6, 1.16), STEEL_DARK));
+      p.push(part(G.box(-0.38, b0 - bladeLen + 1.4, -0.6, 0.76, bladeLen - 5.6, 1.2), STEEL_DEEP));
+      for (let i = 0; i < 7; i++) {
+        const t0 = i / 7, t1 = (i + 1) / 7;
+        const wid = 1.35 - t0 * 0.42;
+        p.push(part(G.box(-wid, b0 - 3.4 - (bladeLen - 3.4) * t1, -0.26,
+          0.28, (bladeLen - 3.4) / 7, 0.52), STEEL_EDGE));
+        p.push(part(G.box(wid - 0.28, b0 - 3.4 - (bladeLen - 3.4) * t1, -0.26,
+          0.28, (bladeLen - 3.4) / 7, 0.52), STEEL_EDGE));
+      }
+      p.push(part(G.box(-1.45, b0 - 0.6, -0.62, 2.9, 0.6, 1.24), BRASS_LIT));
       return p;
     },
 
@@ -5812,8 +5870,9 @@
       p.push(part(G.box(0.4, shaftTop + 2.0, -0.3, 0.42, 7.0, 0.6), STEEL_DARK));
       // the head: axe blade one side, hammer the other, spike on top
       p.push(part(G.box(-0.95, shaftTop - 0.4, -1.2, 1.9, 6.0, 2.4), STEEL_DARK));
-      p.push(part(bladeMesh(shaftTop - 0.8, shaftTop + 5.0, 5.2, 0.7, 1, 1.0), STEEL));
-      p.push(part(bladeMesh(shaftTop - 0.6, shaftTop + 4.8, 5.5, 0.32, 1, 1.0), '#d9dde2'));
+      p.push(part(bladeMesh(shaftTop - 0.8, shaftTop + 5.0, 5.2, 0.7, 1, 1.0), STEEL_DARK));
+      p.push(part(bladeMesh(shaftTop - 0.7, shaftTop + 4.9, 5.35, 0.46, 1, 1.0), STEEL));
+      p.push(part(bladeMesh(shaftTop - 0.6, shaftTop + 4.8, 5.55, 0.22, 1, 1.0), STEEL_EDGE));
       // hammer poll on the far side, with a studded face
       p.push(part(G.box(-0.95, shaftTop + 1.0, 1.1, 1.9, 3.6, 2.6), STEEL));
       for (let i = 0; i < 4; i++) {
@@ -8864,14 +8923,40 @@
 
     // someone they care about is being hurt in front of them handled elsewhere;
     // this is their own skin
-    const willFight = brave + (armed ? 0.3 : 0) + (isGuard(victim) ? 0.45 : 0)
-      - hurt * 0.9 - (res.severity === 'serious' ? 0.3 : 0);
-    if (willFight > 0.72) return 'fight';
-    if (willFight > 0.42) return brain && brain.guard ? 'fight' : 'backAway';
+    /* Being hit makes people angry as well as frightened, and it stacks: the
+     * third punch from the same person gets a very different answer from the
+     * first. Somebody with their back to a wall of trees fights because there
+     * is nowhere to go, and somebody with a friend beside them is braver than
+     * the same person alone. */
+    brain.grudge = (brain.grudge || 0) + (res.severity === 'minor' ? 0.35 : 0.6);
+    const friends = world.actors.filter(function (o) {
+      return o !== victim && o !== attacker && o.brain && !o.brain.guard
+        && !Rig.isDown(o) && distance(o, victim) < 90;
+    }).length;
+    const cornered = steerAround(world, victim,
+      Rig.yawForDirection(victim.x - attacker.x, victim.y - attacker.y), 34) === null;
+
+    const willFight = brave
+      + (armed ? 0.45 : 0)
+      + (isGuard(victim) ? 0.55 : 0)
+      + brain.grudge * 0.45
+      + Math.min(0.4, friends * 0.13)
+      + (cornered ? 0.5 : 0)
+      - hurt * 0.9
+      - (res.severity === 'serious' ? 0.3 : 0)
+      - (attackerArmed(attacker) ? 0.35 : 0);
+    if (willFight > 0.85) return 'fight';
+    if (willFight > 0.5) return brain && brain.guard ? 'fight' : 'backAway';
     if (brave < 0.22) return 'cower';
     if (hurt > 0.4 || res.severity !== 'minor') return 'flee';
     return world.actors.some(function (o) { return isGuard(o) && distance(o, victim) < 220; })
       ? 'callHelp' : 'flee';
+  }
+
+  function attackerArmed(a) {
+    if (!a || !a.inv) return false;
+    const d = I.held(a.inv);
+    return !!(d && d.weapon && d.weapon !== 'fists');
   }
 
   function bravery(a) {
@@ -8900,6 +8985,7 @@
     }
     if (!brain) return;
 
+    rallyFriends(world, victim, attacker);
     const choice = chooseResponse(world, victim, attacker, res);
     brain.response = choice;
     brain.responseTimer = 3 + (victim.rng ? victim.rng() : Math.random()) * 4;
@@ -8920,6 +9006,33 @@
     }
     brain.state = 'react';
     if (choice === 'callHelp') shout(world, victim, attacker);
+  }
+
+  /* Watching someone get hit in front of you. Most people back off; a brave
+   * one, or one who has already seen too much of it, comes in. */
+  function rallyFriends(world, victim, attacker) {
+    if (attacker !== world.player) return;
+    for (let i = 1; i < world.actors.length; i++) {
+      const o = world.actors[i];
+      if (o === victim || !o.brain || o.carriedBy || Rig.isDown(o)) continue;
+      if (o.body && (o.body.dead || o.body.dying)) continue;
+      if (distance(o, victim) > 70) continue;
+      const brave = bravery(o);
+      o.brain.grudge = (o.brain.grudge || 0) + 0.25;
+      const willing = brave + (isGuard(o) ? 0.6 : 0) + o.brain.grudge * 0.4
+        + (attackerArmed(attacker) ? -0.3 : 0.15);
+      if (o.brain.state === 'react' && o.brain.response === 'fight') continue;
+      if (o.brain.partner) {
+        if (o.brain.state === 'closing') abandonClosing(o); else endChat(o, 15);
+      }
+      o.brain.state = 'react';
+      o.brain.target = attacker;
+      o.brain.fleeFrom = { x: attacker.x, y: attacker.y };
+      o.brain.responseTimer = 4 + Math.random() * 4;
+      o.brain.response = willing > 1.05 ? 'fight'
+        : willing > 0.55 ? 'protect' : (brave < 0.3 ? 'flee' : 'callHelp');
+      if (o.brain.response === 'protect') o.brain.protecting = victim;
+    }
   }
 
   function updateReaction(a, dt) {
@@ -9312,6 +9425,80 @@
     return null;
   }
 
+
+  /* ---------- the watch working together ----------
+   *
+   * Five men running at the same point arrive in single file behind you and
+   * never catch anything. Instead they take roles: one runs you down from
+   * behind, the rest cut ahead of where you are going and come at you from
+   * the sides. Roles are handed out by whoever is best placed for each, and
+   * reissued as the chase moves.
+   */
+
+  const CUT_OFF_LEAD = 1.7;    // seconds ahead of you they aim for
+
+  function assignRoles(world, dt) {
+    world.roleTimer = (world.roleTimer || 0) - dt;
+    if (world.roleTimer > 0) return;
+    world.roleTimer = 0.9;
+
+    const p = world.player;
+    const pack = [];
+    for (let i = 1; i < world.actors.length; i++) {
+      const g = world.actors[i];
+      if (!isGuard(g) || g.brain.guardState !== 'chase') continue;
+      if (Rig.isDown(g) || (g.body && g.body.dead)) continue;
+      pack.push(g);
+    }
+    if (!pack.length) return;
+
+    // whoever is closest runs them down; the rest go round
+    pack.sort(function (a, b) { return distance(a, p) - distance(b, p); });
+    const speed = Math.hypot(p.vx, p.vy);
+    const heading = speed > 8 ? Math.atan2(p.vx, p.vy) : p.yaw;
+
+    for (let i = 0; i < pack.length; i++) {
+      const g = pack[i];
+      if (i === 0) { g.brain.role = 'pursue'; g.brain.flank = 0; continue; }
+      g.brain.role = 'cutOff';
+      // alternate sides, and swing wider the further down the pecking order
+      const side = (i % 2 ? 1 : -1) * (0.55 + Math.floor((i - 1) / 2) * 0.35);
+      g.brain.flank = Math.max(-1.4, Math.min(1.4, side));
+      g.brain.heading = heading;
+      g.brain.leadSpeed = speed;
+    }
+  }
+
+  /* Where this guard is actually running to. The pursuer goes at you; a
+   * flanker goes at where you will be, offset to one side, so they arrive
+   * across your path rather than in your wake. */
+  function chaseGoal(world, g) {
+    const p = world.player;
+    const brain = g.brain;
+    // A guard put into a chase without a last-known position still has to
+    // have somewhere to run: the quarry themselves.
+    if (brain.chaseX === undefined || brain.chaseY === undefined) {
+      brain.chaseX = p.x; brain.chaseY = p.y;
+    }
+    if (brain.role !== 'cutOff') return { x: brain.chaseX, y: brain.chaseY };
+    const speed = brain.leadSpeed || Math.hypot(p.vx, p.vy);
+    if (speed < 14) {
+      // standing still: just fan out around them
+      const a = (brain.heading || p.yaw) + brain.flank * 1.6;
+      return { x: p.x + Math.sin(a) * 34, y: p.y + Math.cos(a) * 26 };
+    }
+    const h = brain.heading || Math.atan2(p.vx, p.vy);
+    const lead = Math.min(220, speed * CUT_OFF_LEAD);
+    const ax = p.x + Math.sin(h) * lead;
+    const ay = p.y + Math.cos(h) * lead;
+    // and out to the side of that point, across the line they are running
+    const side = h + Math.PI / 2;
+    return {
+      x: ax + Math.sin(side) * brain.flank * 46,
+      y: ay + Math.cos(side) * brain.flank * 34
+    };
+  }
+
   /* ================== guards ==================
    *
    * A guard is an ordinary villager with a job. Off duty they wander and chat
@@ -9386,7 +9573,9 @@
     const swapping = !!(g.reaction && g.reaction.swap);
 
     const w = I.heldWeapon(g.inv);
-    const dx = brain.chaseX - g.x, dy = brain.chaseY - g.y;
+    // A flanker runs at where you are going, not at where you are.
+    const goal = chaseGoal(world, g);
+    const dx = goal.x - g.x, dy = goal.y - g.y;
     const len = Math.hypot(dx, dy) || 1;
     g.targetYaw = Rig.yawForDirection(dx, dy);
     g.aimYaw = g.targetYaw;
@@ -9437,6 +9626,9 @@
       g.gait = 'idle';
       return true;
     }
+    // once a flanker is ahead of you and close, they stop cutting and close in
+    if (brain.role === 'cutOff' && d < 70) { brain.role = 'pursue'; }
+
     if (d < w.reach * 0.85 + 8) {
       // a guard restraining you stops the moment you are on the ground or
       // badly hurt; only a lethal one keeps going
@@ -9521,19 +9713,33 @@
     switch (brain.response) {
       case 'fight': {
         const d = distance(a, target);
-        a.targetYaw = Rig.yawForDirection(target.x - a.x, target.y - a.y);
-        a.aimYaw = a.targetYaw;
+        const want = Rig.yawForDirection(target.x - a.x, target.y - a.y);
+        a.aimYaw = want;
         const w = I.heldWeapon(a.inv);
-        if (d < w.reach * 0.85 + 8) {
-          if (canAttack(a) && Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 0.8) {
+        // Fists reach about as far as the distance two people are kept apart,
+        // so the range to start swinging has to clear that or they close for
+        // ever without ever being close enough.
+        const strikeAt = Math.max(w.reach * 0.85, 11) + 10;
+        if (d < strikeAt) {
+          a.targetYaw = want;
+          if (canAttack(a) && Math.abs(Rig.shortestAngle(a.yaw, want)) < 1.0) {
             beginAttack(world, a);
           }
           a.gait = 'idle';
-        } else if (Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 1.0) {
-          a.x += ((target.x - a.x) / (d || 1)) * speed * dt;
-          a.y += ((target.y - a.y) / (d || 1)) * speed * dt;
-          a.gait = 'walk';
-          clampVillager(a);
+        } else {
+          const clear = steerAround(world, a, want, 30);
+          a.targetYaw = clear === null ? want : clear;
+          if (Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 1.1) {
+            a.x += Math.sin(a.yaw) * speed * dt;
+            a.y += Math.cos(a.yaw) * speed * dt;
+            clampVillager(a);
+          }
+          a.gait = d > 60 ? 'run' : 'walk';
+        }
+        // as long as they are still angry, they keep at it
+        if (brain.responseTimer < 1 && (brain.grudge || 0) > 0.5 && d < 120) {
+          brain.responseTimer = 3;
+          brain.grudge -= 0.2;
         }
         break;
       }
@@ -9626,6 +9832,62 @@
     }
     a.gait = 'walk';
     brain.wantsPickup -= dt * 0.25;
+    return true;
+  }
+
+  /* An armed stranger walking about is its own event. You do not have to be
+   * attacked to decide you would rather be elsewhere — and whether you back
+   * off, run, or shout for the watch depends on what you are, what they are
+   * carrying, and what they have already done today. */
+  function noticeWeapon(world, a, dt) {
+    const brain = a.brain;
+    brain.wareTimer = (brain.wareTimer || 0) - dt;
+    if (brain.wareTimer > 0) return false;
+    brain.wareTimer = 0.7 + (a.rng ? a.rng() : Math.random()) * 0.8;
+
+    const p = world.player;
+    if (Rig.isDown(p) || (p.body && p.body.dead)) return false;
+    const held = I.held(p.inv);
+    if (!held || !held.weapon || held.weapon === 'fists') return false;
+
+    const d = distance(a, p);
+    const w = CB.weapon(held.weapon);
+    // a greatsword is noticed further off than a dagger
+    const notice = 62 + w.power * 0.9 + (world.wanted > 20 ? 40 : 0);
+    if (d > notice) return false;
+    // they have to be looking your way
+    const want = Rig.yawForDirection(p.x - a.x, p.y - a.y);
+    if (Math.abs(Rig.shortestAngle(a.yaw, want)) > 1.7 && d > notice * 0.4) return false;
+
+    const brave = bravery(a);
+    if (isGuard(a)) {
+      // the watch keeps an eye on anyone carrying steel, and moves in if that
+      // person is already wanted for something
+      if (world.wanted > 20 && brain.guardState === 'patrol') {
+        alertGuard(world, a, p.x, p.y, 0.35);
+        return true;
+      }
+      return false;
+    }
+
+    const threat = (w.power / 55) + (world.wanted / 70) + (1 - d / notice) * 0.5;
+    if (threat < 0.55 + brave * 0.6) return false;
+
+    if (brain.partner) {
+      if (brain.state === 'closing') abandonClosing(a); else endChat(a, 18);
+    }
+    brain.state = 'react';
+    brain.target = p;
+    brain.fleeFrom = { x: p.x, y: p.y };
+    brain.responseTimer = 2.5 + (a.rng ? a.rng() : Math.random()) * 3;
+    if (threat > 1.5 && brave < 0.45) {
+      brain.response = 'flee';
+      a.reaction = { kind: 'guard', k: 0, t: 0, duration: 0.9 };
+    } else if (world.wanted > 30 && brave > 0.5) {
+      brain.response = 'callHelp';
+    } else {
+      brain.response = 'backAway';
+    }
     return true;
   }
 
@@ -10138,6 +10400,7 @@
 
     if (brain.guard) updateGuard(world, a, dt);
     if (noticeCasualties(world, a, dt)) { Rig.updateActorMotion(a, dt); return; }
+    if (noticeWeapon(world, a, dt)) { Rig.updateActorMotion(a, dt); return; }
     if (tryRecoverItems(world, a, dt)) { Rig.updateActorMotion(a, dt); return; }
 
     if (brain.state === 'closing') {
@@ -10156,6 +10419,21 @@
       const d = distance(a, player);
       const dx = player.x - a.x, dy = player.y - a.y;
       a.targetYaw = Rig.yawForDirection(dx, dy);
+
+      /* Somebody you spoke to once does not trail you round the county. If
+       * you walk off, they give up — immediately if you are already well
+       * away, and after a few seconds of being led about in any case. */
+      brain.approachTimer = (brain.approachTimer || 0) + dt;
+      if (d > TALK_RANGE * 2.2 || brain.approachTimer > 6
+        || (brain.state !== 'talk' && !world.box.open && brain.approachTimer > 4)) {
+        brain.state = 'pause';
+        brain.timer = 0.8 + a.rng() * 2;
+        brain.approachTimer = 0;
+        a.gait = 'idle';
+        if (world.talkingTo === a) { world.talkingTo = null; hush(a); }
+        Rig.updateActorMotion(a, dt);
+        return;
+      }
 
       if (brain.state === 'approach') {
         if (d > COMFORT_RANGE) {
@@ -10295,6 +10573,7 @@
     if (npc.brain.state === 'closing') abandonClosing(npc);
     else if (npc.brain.partner) endChat(npc, 10);
     npc.gesture = null;
+    npc.brain.approachTimer = 0;
     npc.brain.state = distance(npc, world.player) > COMFORT_RANGE ? 'approach' : 'face';
     world.player.targetYaw = Rig.snapToEight(npc.x - world.player.x, npc.y - world.player.y);
     world.player.vx = 0; world.player.vy = 0;
@@ -10370,6 +10649,7 @@
     updateGroundItems(world, dt);
     updateArrows(world, dt);
     updateWanted(world, dt);
+    assignRoles(world, dt);
     separateHorses(world);
     D.update(world.box, dt);
 
@@ -10685,8 +10965,8 @@
       ? [rider.character.name, HM.quantiseTime(rider.animTime),
         rider.blink > 0.5 ? 1 : rider.blink > 0 ? 2 : 0,
         Math.round((rider.rein || 0) * 4),
-        rider.attack ? rider.attack.anim + Math.round(rider.attack.t * 30) : '',
-        rider.reaction ? rider.reaction.kind + Math.round(rider.reaction.k * 6) : '',
+        rider.attack ? rider.attack.anim + Math.round(rider.attack.t * Rig.ACTION_FPS) : '',
+        rider.reaction ? rider.reaction.kind + Math.round(rider.reaction.k * Rig.ACTION_FPS) : '',
         rider.inv && rider.inv[8] ? rider.inv[8].id : '',
         Math.round((rider.mountTime || 0) / MOUNT_TIME * 6)].join(',')
       : '-';
@@ -10766,7 +11046,7 @@
     }
     if (rider.attack) {
       Rig.poseAttack(rider.model, rider.attack.anim,
-        rider.attack.t / rider.attack.duration,
+        Rig.quantiseAction(rider.attack.t) / rider.attack.duration,
         rider.leftHanded ? 'L' : 'R', 'idle', HM.quantiseTime(rider.animTime));
       // legs stay round the horse whatever the arms are doing
       Rig.setRot(rider.model, 'legR', -0.92, 0, -0.36);

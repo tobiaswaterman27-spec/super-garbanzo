@@ -2186,14 +2186,40 @@
 
     // someone they care about is being hurt in front of them handled elsewhere;
     // this is their own skin
-    const willFight = brave + (armed ? 0.3 : 0) + (isGuard(victim) ? 0.45 : 0)
-      - hurt * 0.9 - (res.severity === 'serious' ? 0.3 : 0);
-    if (willFight > 0.72) return 'fight';
-    if (willFight > 0.42) return brain && brain.guard ? 'fight' : 'backAway';
+    /* Being hit makes people angry as well as frightened, and it stacks: the
+     * third punch from the same person gets a very different answer from the
+     * first. Somebody with their back to a wall of trees fights because there
+     * is nowhere to go, and somebody with a friend beside them is braver than
+     * the same person alone. */
+    brain.grudge = (brain.grudge || 0) + (res.severity === 'minor' ? 0.35 : 0.6);
+    const friends = world.actors.filter(function (o) {
+      return o !== victim && o !== attacker && o.brain && !o.brain.guard
+        && !Rig.isDown(o) && distance(o, victim) < 90;
+    }).length;
+    const cornered = steerAround(world, victim,
+      Rig.yawForDirection(victim.x - attacker.x, victim.y - attacker.y), 34) === null;
+
+    const willFight = brave
+      + (armed ? 0.45 : 0)
+      + (isGuard(victim) ? 0.55 : 0)
+      + brain.grudge * 0.45
+      + Math.min(0.4, friends * 0.13)
+      + (cornered ? 0.5 : 0)
+      - hurt * 0.9
+      - (res.severity === 'serious' ? 0.3 : 0)
+      - (attackerArmed(attacker) ? 0.35 : 0);
+    if (willFight > 0.85) return 'fight';
+    if (willFight > 0.5) return brain && brain.guard ? 'fight' : 'backAway';
     if (brave < 0.22) return 'cower';
     if (hurt > 0.4 || res.severity !== 'minor') return 'flee';
     return world.actors.some(function (o) { return isGuard(o) && distance(o, victim) < 220; })
       ? 'callHelp' : 'flee';
+  }
+
+  function attackerArmed(a) {
+    if (!a || !a.inv) return false;
+    const d = I.held(a.inv);
+    return !!(d && d.weapon && d.weapon !== 'fists');
   }
 
   function bravery(a) {
@@ -2222,6 +2248,7 @@
     }
     if (!brain) return;
 
+    rallyFriends(world, victim, attacker);
     const choice = chooseResponse(world, victim, attacker, res);
     brain.response = choice;
     brain.responseTimer = 3 + (victim.rng ? victim.rng() : Math.random()) * 4;
@@ -2242,6 +2269,33 @@
     }
     brain.state = 'react';
     if (choice === 'callHelp') shout(world, victim, attacker);
+  }
+
+  /* Watching someone get hit in front of you. Most people back off; a brave
+   * one, or one who has already seen too much of it, comes in. */
+  function rallyFriends(world, victim, attacker) {
+    if (attacker !== world.player) return;
+    for (let i = 1; i < world.actors.length; i++) {
+      const o = world.actors[i];
+      if (o === victim || !o.brain || o.carriedBy || Rig.isDown(o)) continue;
+      if (o.body && (o.body.dead || o.body.dying)) continue;
+      if (distance(o, victim) > 70) continue;
+      const brave = bravery(o);
+      o.brain.grudge = (o.brain.grudge || 0) + 0.25;
+      const willing = brave + (isGuard(o) ? 0.6 : 0) + o.brain.grudge * 0.4
+        + (attackerArmed(attacker) ? -0.3 : 0.15);
+      if (o.brain.state === 'react' && o.brain.response === 'fight') continue;
+      if (o.brain.partner) {
+        if (o.brain.state === 'closing') abandonClosing(o); else endChat(o, 15);
+      }
+      o.brain.state = 'react';
+      o.brain.target = attacker;
+      o.brain.fleeFrom = { x: attacker.x, y: attacker.y };
+      o.brain.responseTimer = 4 + Math.random() * 4;
+      o.brain.response = willing > 1.05 ? 'fight'
+        : willing > 0.55 ? 'protect' : (brave < 0.3 ? 'flee' : 'callHelp');
+      if (o.brain.response === 'protect') o.brain.protecting = victim;
+    }
   }
 
   function updateReaction(a, dt) {
@@ -2634,6 +2688,80 @@
     return null;
   }
 
+
+  /* ---------- the watch working together ----------
+   *
+   * Five men running at the same point arrive in single file behind you and
+   * never catch anything. Instead they take roles: one runs you down from
+   * behind, the rest cut ahead of where you are going and come at you from
+   * the sides. Roles are handed out by whoever is best placed for each, and
+   * reissued as the chase moves.
+   */
+
+  const CUT_OFF_LEAD = 1.7;    // seconds ahead of you they aim for
+
+  function assignRoles(world, dt) {
+    world.roleTimer = (world.roleTimer || 0) - dt;
+    if (world.roleTimer > 0) return;
+    world.roleTimer = 0.9;
+
+    const p = world.player;
+    const pack = [];
+    for (let i = 1; i < world.actors.length; i++) {
+      const g = world.actors[i];
+      if (!isGuard(g) || g.brain.guardState !== 'chase') continue;
+      if (Rig.isDown(g) || (g.body && g.body.dead)) continue;
+      pack.push(g);
+    }
+    if (!pack.length) return;
+
+    // whoever is closest runs them down; the rest go round
+    pack.sort(function (a, b) { return distance(a, p) - distance(b, p); });
+    const speed = Math.hypot(p.vx, p.vy);
+    const heading = speed > 8 ? Math.atan2(p.vx, p.vy) : p.yaw;
+
+    for (let i = 0; i < pack.length; i++) {
+      const g = pack[i];
+      if (i === 0) { g.brain.role = 'pursue'; g.brain.flank = 0; continue; }
+      g.brain.role = 'cutOff';
+      // alternate sides, and swing wider the further down the pecking order
+      const side = (i % 2 ? 1 : -1) * (0.55 + Math.floor((i - 1) / 2) * 0.35);
+      g.brain.flank = Math.max(-1.4, Math.min(1.4, side));
+      g.brain.heading = heading;
+      g.brain.leadSpeed = speed;
+    }
+  }
+
+  /* Where this guard is actually running to. The pursuer goes at you; a
+   * flanker goes at where you will be, offset to one side, so they arrive
+   * across your path rather than in your wake. */
+  function chaseGoal(world, g) {
+    const p = world.player;
+    const brain = g.brain;
+    // A guard put into a chase without a last-known position still has to
+    // have somewhere to run: the quarry themselves.
+    if (brain.chaseX === undefined || brain.chaseY === undefined) {
+      brain.chaseX = p.x; brain.chaseY = p.y;
+    }
+    if (brain.role !== 'cutOff') return { x: brain.chaseX, y: brain.chaseY };
+    const speed = brain.leadSpeed || Math.hypot(p.vx, p.vy);
+    if (speed < 14) {
+      // standing still: just fan out around them
+      const a = (brain.heading || p.yaw) + brain.flank * 1.6;
+      return { x: p.x + Math.sin(a) * 34, y: p.y + Math.cos(a) * 26 };
+    }
+    const h = brain.heading || Math.atan2(p.vx, p.vy);
+    const lead = Math.min(220, speed * CUT_OFF_LEAD);
+    const ax = p.x + Math.sin(h) * lead;
+    const ay = p.y + Math.cos(h) * lead;
+    // and out to the side of that point, across the line they are running
+    const side = h + Math.PI / 2;
+    return {
+      x: ax + Math.sin(side) * brain.flank * 46,
+      y: ay + Math.cos(side) * brain.flank * 34
+    };
+  }
+
   /* ================== guards ==================
    *
    * A guard is an ordinary villager with a job. Off duty they wander and chat
@@ -2708,7 +2836,9 @@
     const swapping = !!(g.reaction && g.reaction.swap);
 
     const w = I.heldWeapon(g.inv);
-    const dx = brain.chaseX - g.x, dy = brain.chaseY - g.y;
+    // A flanker runs at where you are going, not at where you are.
+    const goal = chaseGoal(world, g);
+    const dx = goal.x - g.x, dy = goal.y - g.y;
     const len = Math.hypot(dx, dy) || 1;
     g.targetYaw = Rig.yawForDirection(dx, dy);
     g.aimYaw = g.targetYaw;
@@ -2759,6 +2889,9 @@
       g.gait = 'idle';
       return true;
     }
+    // once a flanker is ahead of you and close, they stop cutting and close in
+    if (brain.role === 'cutOff' && d < 70) { brain.role = 'pursue'; }
+
     if (d < w.reach * 0.85 + 8) {
       // a guard restraining you stops the moment you are on the ground or
       // badly hurt; only a lethal one keeps going
@@ -2843,19 +2976,33 @@
     switch (brain.response) {
       case 'fight': {
         const d = distance(a, target);
-        a.targetYaw = Rig.yawForDirection(target.x - a.x, target.y - a.y);
-        a.aimYaw = a.targetYaw;
+        const want = Rig.yawForDirection(target.x - a.x, target.y - a.y);
+        a.aimYaw = want;
         const w = I.heldWeapon(a.inv);
-        if (d < w.reach * 0.85 + 8) {
-          if (canAttack(a) && Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 0.8) {
+        // Fists reach about as far as the distance two people are kept apart,
+        // so the range to start swinging has to clear that or they close for
+        // ever without ever being close enough.
+        const strikeAt = Math.max(w.reach * 0.85, 11) + 10;
+        if (d < strikeAt) {
+          a.targetYaw = want;
+          if (canAttack(a) && Math.abs(Rig.shortestAngle(a.yaw, want)) < 1.0) {
             beginAttack(world, a);
           }
           a.gait = 'idle';
-        } else if (Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 1.0) {
-          a.x += ((target.x - a.x) / (d || 1)) * speed * dt;
-          a.y += ((target.y - a.y) / (d || 1)) * speed * dt;
-          a.gait = 'walk';
-          clampVillager(a);
+        } else {
+          const clear = steerAround(world, a, want, 30);
+          a.targetYaw = clear === null ? want : clear;
+          if (Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 1.1) {
+            a.x += Math.sin(a.yaw) * speed * dt;
+            a.y += Math.cos(a.yaw) * speed * dt;
+            clampVillager(a);
+          }
+          a.gait = d > 60 ? 'run' : 'walk';
+        }
+        // as long as they are still angry, they keep at it
+        if (brain.responseTimer < 1 && (brain.grudge || 0) > 0.5 && d < 120) {
+          brain.responseTimer = 3;
+          brain.grudge -= 0.2;
         }
         break;
       }
@@ -2948,6 +3095,62 @@
     }
     a.gait = 'walk';
     brain.wantsPickup -= dt * 0.25;
+    return true;
+  }
+
+  /* An armed stranger walking about is its own event. You do not have to be
+   * attacked to decide you would rather be elsewhere — and whether you back
+   * off, run, or shout for the watch depends on what you are, what they are
+   * carrying, and what they have already done today. */
+  function noticeWeapon(world, a, dt) {
+    const brain = a.brain;
+    brain.wareTimer = (brain.wareTimer || 0) - dt;
+    if (brain.wareTimer > 0) return false;
+    brain.wareTimer = 0.7 + (a.rng ? a.rng() : Math.random()) * 0.8;
+
+    const p = world.player;
+    if (Rig.isDown(p) || (p.body && p.body.dead)) return false;
+    const held = I.held(p.inv);
+    if (!held || !held.weapon || held.weapon === 'fists') return false;
+
+    const d = distance(a, p);
+    const w = CB.weapon(held.weapon);
+    // a greatsword is noticed further off than a dagger
+    const notice = 62 + w.power * 0.9 + (world.wanted > 20 ? 40 : 0);
+    if (d > notice) return false;
+    // they have to be looking your way
+    const want = Rig.yawForDirection(p.x - a.x, p.y - a.y);
+    if (Math.abs(Rig.shortestAngle(a.yaw, want)) > 1.7 && d > notice * 0.4) return false;
+
+    const brave = bravery(a);
+    if (isGuard(a)) {
+      // the watch keeps an eye on anyone carrying steel, and moves in if that
+      // person is already wanted for something
+      if (world.wanted > 20 && brain.guardState === 'patrol') {
+        alertGuard(world, a, p.x, p.y, 0.35);
+        return true;
+      }
+      return false;
+    }
+
+    const threat = (w.power / 55) + (world.wanted / 70) + (1 - d / notice) * 0.5;
+    if (threat < 0.55 + brave * 0.6) return false;
+
+    if (brain.partner) {
+      if (brain.state === 'closing') abandonClosing(a); else endChat(a, 18);
+    }
+    brain.state = 'react';
+    brain.target = p;
+    brain.fleeFrom = { x: p.x, y: p.y };
+    brain.responseTimer = 2.5 + (a.rng ? a.rng() : Math.random()) * 3;
+    if (threat > 1.5 && brave < 0.45) {
+      brain.response = 'flee';
+      a.reaction = { kind: 'guard', k: 0, t: 0, duration: 0.9 };
+    } else if (world.wanted > 30 && brave > 0.5) {
+      brain.response = 'callHelp';
+    } else {
+      brain.response = 'backAway';
+    }
     return true;
   }
 
@@ -3460,6 +3663,7 @@
 
     if (brain.guard) updateGuard(world, a, dt);
     if (noticeCasualties(world, a, dt)) { Rig.updateActorMotion(a, dt); return; }
+    if (noticeWeapon(world, a, dt)) { Rig.updateActorMotion(a, dt); return; }
     if (tryRecoverItems(world, a, dt)) { Rig.updateActorMotion(a, dt); return; }
 
     if (brain.state === 'closing') {
@@ -3478,6 +3682,21 @@
       const d = distance(a, player);
       const dx = player.x - a.x, dy = player.y - a.y;
       a.targetYaw = Rig.yawForDirection(dx, dy);
+
+      /* Somebody you spoke to once does not trail you round the county. If
+       * you walk off, they give up — immediately if you are already well
+       * away, and after a few seconds of being led about in any case. */
+      brain.approachTimer = (brain.approachTimer || 0) + dt;
+      if (d > TALK_RANGE * 2.2 || brain.approachTimer > 6
+        || (brain.state !== 'talk' && !world.box.open && brain.approachTimer > 4)) {
+        brain.state = 'pause';
+        brain.timer = 0.8 + a.rng() * 2;
+        brain.approachTimer = 0;
+        a.gait = 'idle';
+        if (world.talkingTo === a) { world.talkingTo = null; hush(a); }
+        Rig.updateActorMotion(a, dt);
+        return;
+      }
 
       if (brain.state === 'approach') {
         if (d > COMFORT_RANGE) {
@@ -3617,6 +3836,7 @@
     if (npc.brain.state === 'closing') abandonClosing(npc);
     else if (npc.brain.partner) endChat(npc, 10);
     npc.gesture = null;
+    npc.brain.approachTimer = 0;
     npc.brain.state = distance(npc, world.player) > COMFORT_RANGE ? 'approach' : 'face';
     world.player.targetYaw = Rig.snapToEight(npc.x - world.player.x, npc.y - world.player.y);
     world.player.vx = 0; world.player.vy = 0;
@@ -3692,6 +3912,7 @@
     updateGroundItems(world, dt);
     updateArrows(world, dt);
     updateWanted(world, dt);
+    assignRoles(world, dt);
     separateHorses(world);
     D.update(world.box, dt);
 
@@ -4007,8 +4228,8 @@
       ? [rider.character.name, HM.quantiseTime(rider.animTime),
         rider.blink > 0.5 ? 1 : rider.blink > 0 ? 2 : 0,
         Math.round((rider.rein || 0) * 4),
-        rider.attack ? rider.attack.anim + Math.round(rider.attack.t * 30) : '',
-        rider.reaction ? rider.reaction.kind + Math.round(rider.reaction.k * 6) : '',
+        rider.attack ? rider.attack.anim + Math.round(rider.attack.t * Rig.ACTION_FPS) : '',
+        rider.reaction ? rider.reaction.kind + Math.round(rider.reaction.k * Rig.ACTION_FPS) : '',
         rider.inv && rider.inv[8] ? rider.inv[8].id : '',
         Math.round((rider.mountTime || 0) / MOUNT_TIME * 6)].join(',')
       : '-';
@@ -4088,7 +4309,7 @@
     }
     if (rider.attack) {
       Rig.poseAttack(rider.model, rider.attack.anim,
-        rider.attack.t / rider.attack.duration,
+        Rig.quantiseAction(rider.attack.t) / rider.attack.duration,
         rider.leftHanded ? 'L' : 'R', 'idle', HM.quantiseTime(rider.animTime));
       // legs stay round the horse whatever the arms are doing
       Rig.setRot(rider.model, 'legR', -0.92, 0, -0.36);

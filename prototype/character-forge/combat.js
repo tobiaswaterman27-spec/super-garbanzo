@@ -23,11 +23,15 @@
   const BLOOD_DARK = '#48070d';
   const STEEL = '#b9bec6';
   const STEEL_DARK = '#7d838c';
+  const STEEL_EDGE = '#e6ebf2';   // the bright line down a sharpened edge
+  const STEEL_DEEP = '#565b63';   // the shadow in a fuller or a socket
+  const BRASS_LIT = '#d8b45c';
   const HAFT = '#6b4a29';
   const HAFT_DARK = '#4a3119';
   const LEATHER = '#4b3320';
   const BRASS = '#a8852f';
   const BONE_COL = '#ddd6c2';
+  void BRASS_LIT;
 
   function part(mesh, colour) { return { mesh: mesh, colour: colour }; }
 
@@ -120,7 +124,10 @@
       // blade starts where the guard ends
       const b0 = gripTop - guardH;
       p.push(part(G.taper(-0.8, b0 - bladeLen, -0.32, 1.6, bladeLen, 0.64, 0.18), STEEL));
-      p.push(part(G.box(-0.16, b0 - bladeLen + 1.2, -0.38, 0.32, bladeLen - 1.6, 0.76), STEEL_DARK));
+      p.push(part(G.box(-0.16, b0 - bladeLen + 1.2, -0.38, 0.32, bladeLen - 1.6, 0.76), STEEL_DEEP));
+      // sharpened edges, catching the light down both sides
+      p.push(part(G.box(-0.84, b0 - bladeLen + 0.8, -0.2, 0.26, bladeLen - 1.2, 0.4), STEEL_EDGE));
+      p.push(part(G.box(0.58, b0 - bladeLen + 0.8, -0.2, 0.26, bladeLen - 1.2, 0.4), STEEL_EDGE));
       return p;
     },
 
@@ -139,11 +146,22 @@
       p.push(part(G.box(3.0, gripTop - guardH - 0.5, -0.45, 0.7, guardH + 0.9, 0.9), STEEL_DARK));
       // ricasso, then the blade, then the point
       const b0 = gripTop - guardH;
-      p.push(part(G.box(-0.95, b0 - 2.0, -0.42, 1.9, 2.0, 0.84), STEEL));
+      p.push(part(G.box(-0.95, b0 - 2.0, -0.42, 1.9, 2.0, 0.84), STEEL_DARK));
       p.push(part(G.taper(-1.05, b0 - bladeLen, -0.46, 2.1, bladeLen - 2.0, 0.92, 0.66, 0, 0), STEEL));
       p.push(part(G.taper(-0.7, b0 - bladeLen - 2.1, -0.3, 1.4, 2.1, 0.6, 0.1), STEEL));
-      // fuller down the centre
-      p.push(part(G.box(-0.3, b0 - bladeLen + 1.0, -0.5, 0.6, bladeLen - 3.4, 1.0), STEEL_DARK));
+      // fuller down the centre, sunk into the flat
+      p.push(part(G.box(-0.32, b0 - bladeLen + 1.0, -0.52, 0.64, bladeLen - 3.4, 1.04), STEEL_DEEP));
+      // and a bright edge down each side, narrowing with the taper
+      for (let i = 0; i < 6; i++) {
+        const t0 = i / 6, t1 = (i + 1) / 6;
+        const wid = 1.05 - t0 * 0.34;
+        p.push(part(G.box(-wid, b0 - 2.0 - (bladeLen - 2.0) * t1, -0.22,
+          0.24, (bladeLen - 2.0) / 6, 0.44), STEEL_EDGE));
+        p.push(part(G.box(wid - 0.24, b0 - 2.0 - (bladeLen - 2.0) * t1, -0.22,
+          0.24, (bladeLen - 2.0) / 6, 0.44), STEEL_EDGE));
+      }
+      // a brass collar where the blade meets the guard
+      p.push(part(G.box(-1.15, b0 - 0.5, -0.55, 2.3, 0.55, 1.1), BRASS_LIT));
       return p;
     },
 
@@ -158,8 +176,10 @@
       p.push(part(G.box(-1.15, haftTop + 3.6, -1.45, 2.3, 0.9, 2.9), STEEL_DARK));
       p.push(part(G.box(-1.15, haftTop - 0.9, -1.45, 2.3, 0.9, 2.9), STEEL_DARK));
       // one solid bearded blade sweeping out of the eye
-      p.push(part(bladeMesh(haftTop - 1.2, haftTop + 4.4, 5.6, 0.75, 1, 1.0), STEEL));
-      p.push(part(bladeMesh(haftTop - 1.0, haftTop + 4.2, 5.9, 0.34, 1, 1.0), '#d9dde2'));
+      p.push(part(bladeMesh(haftTop - 1.2, haftTop + 4.4, 5.6, 0.75, 1, 1.0), STEEL_DARK));
+      p.push(part(bladeMesh(haftTop - 1.1, haftTop + 4.3, 5.75, 0.5, 1, 1.0), STEEL));
+      p.push(part(bladeMesh(haftTop - 1.0, haftTop + 4.2, 5.95, 0.24, 1, 1.0), STEEL_EDGE));
+      p.push(part(G.box(-1.2, haftTop + 4.4, -1.5, 2.4, 0.7, 3.0), BRASS_LIT));
       // a short spike opposite the blade
       p.push(part(G.taper(-0.6, haftTop + 1.0, 1.2, 1.2, 2.4, 1.7, 0.3), STEEL_DARK));
       return p;
@@ -181,7 +201,9 @@
         const a = (i / 6) * Math.PI * 2;
         const cx = Math.cos(a), cz = Math.sin(a);
         p.push(part(G.taper(cx * 1.5 - 0.42, haftTop - 4.3, cz * 1.5 - 0.42,
-          0.84, 4.0, 0.84, 0.35, cx * 1.5, cz * 1.5), STEEL));
+          0.84, 4.0, 0.84, 0.35, cx * 1.5, cz * 1.5), STEEL_DARK));
+        p.push(part(G.taper(cx * 1.72 - 0.22, haftTop - 4.2, cz * 1.72 - 0.22,
+          0.44, 3.7, 0.44, 0.3, cx * 1.5, cz * 1.5), STEEL_EDGE));
       }
       p.push(part(G.superellipsoid(0, haftTop - 5.1, 0, 1.15, 1.0, 1.15, 0.5, 3, 8), STEEL));
       return p;
@@ -200,7 +222,9 @@
       p.push(part(G.box(-1.7, shaftTop + 0.4, -0.35, 3.4, 0.8, 0.7), STEEL_DARK));
       p.push(part(G.taper(-1.0, shaftTop - 4.6, -0.4, 2.0, 4.6, 0.8, 0.9, 0, 0), STEEL));
       p.push(part(G.taper(-0.9, shaftTop - 7.4, -0.36, 1.8, 2.8, 0.72, 0.08), STEEL));
-      p.push(part(G.box(-0.2, shaftTop - 6.6, -0.42, 0.4, 6.4, 0.84), '#d6dade'));
+      p.push(part(G.box(-0.2, shaftTop - 6.6, -0.44, 0.4, 6.4, 0.88), STEEL_DEEP));
+      p.push(part(G.box(-0.98, shaftTop - 6.2, -0.24, 0.26, 5.4, 0.48), STEEL_EDGE));
+      p.push(part(G.box(0.72, shaftTop - 6.2, -0.24, 0.26, 5.4, 0.48), STEEL_EDGE));
       return p;
     },
 
@@ -223,7 +247,16 @@
       p.push(part(G.box(0.9, b0 - 4.2, -0.5, 0.7, 1.0, 1.0), STEEL_DARK));
       p.push(part(G.taper(-1.35, b0 - bladeLen, -0.52, 2.7, bladeLen - 3.4, 1.04, 0.7, 0, 0), STEEL));
       p.push(part(G.taper(-0.95, b0 - bladeLen - 2.8, -0.36, 1.9, 2.8, 0.72, 0.1), STEEL));
-      p.push(part(G.box(-0.36, b0 - bladeLen + 1.4, -0.58, 0.72, bladeLen - 5.6, 1.16), STEEL_DARK));
+      p.push(part(G.box(-0.38, b0 - bladeLen + 1.4, -0.6, 0.76, bladeLen - 5.6, 1.2), STEEL_DEEP));
+      for (let i = 0; i < 7; i++) {
+        const t0 = i / 7, t1 = (i + 1) / 7;
+        const wid = 1.35 - t0 * 0.42;
+        p.push(part(G.box(-wid, b0 - 3.4 - (bladeLen - 3.4) * t1, -0.26,
+          0.28, (bladeLen - 3.4) / 7, 0.52), STEEL_EDGE));
+        p.push(part(G.box(wid - 0.28, b0 - 3.4 - (bladeLen - 3.4) * t1, -0.26,
+          0.28, (bladeLen - 3.4) / 7, 0.52), STEEL_EDGE));
+      }
+      p.push(part(G.box(-1.45, b0 - 0.6, -0.62, 2.9, 0.6, 1.24), BRASS_LIT));
       return p;
     },
 
@@ -238,8 +271,9 @@
       p.push(part(G.box(0.4, shaftTop + 2.0, -0.3, 0.42, 7.0, 0.6), STEEL_DARK));
       // the head: axe blade one side, hammer the other, spike on top
       p.push(part(G.box(-0.95, shaftTop - 0.4, -1.2, 1.9, 6.0, 2.4), STEEL_DARK));
-      p.push(part(bladeMesh(shaftTop - 0.8, shaftTop + 5.0, 5.2, 0.7, 1, 1.0), STEEL));
-      p.push(part(bladeMesh(shaftTop - 0.6, shaftTop + 4.8, 5.5, 0.32, 1, 1.0), '#d9dde2'));
+      p.push(part(bladeMesh(shaftTop - 0.8, shaftTop + 5.0, 5.2, 0.7, 1, 1.0), STEEL_DARK));
+      p.push(part(bladeMesh(shaftTop - 0.7, shaftTop + 4.9, 5.35, 0.46, 1, 1.0), STEEL));
+      p.push(part(bladeMesh(shaftTop - 0.6, shaftTop + 4.8, 5.55, 0.22, 1, 1.0), STEEL_EDGE));
       // hammer poll on the far side, with a studded face
       p.push(part(G.box(-0.95, shaftTop + 1.0, 1.1, 1.9, 3.6, 2.6), STEEL));
       for (let i = 0; i < 4; i++) {

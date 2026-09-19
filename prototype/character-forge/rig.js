@@ -754,16 +754,34 @@
 
   /* Sitting on a cart's bench, reins in hand. Knees together and forward,
    * back straighter than in the saddle. */
+  /* The seated leg, as two angles, named once so that the pose and the
+   * arithmetic that works out where to put the seat cannot drift apart. */
+  const SIT_THIGH = 1.32;   // forward from the hip
+  const SIT_SHIN = 1.42;    // bent back under the knee
+
+  /* How far below the backside the feet end up, sitting. Whoever plants a
+   * passenger in a vehicle needs this: place the pelvis at the seat and the
+   * feet land wherever they land, which on a cart was a good unit below the
+   * floorboards with the shins hanging out of the bottom of the thing. */
+  function seatedLegDrop(model) {
+    const d = model.dims;
+    const scale = model.root.scale || 1;
+    const knee = d.upperLegH * Math.cos(SIT_THIGH);
+    // the foot box hangs a little past the end of the shin bone
+    const foot = (d.lowerLegH + 0.7) * Math.cos(SIT_THIGH - SIT_SHIN);
+    return (knee + foot) * scale;
+  }
+
   function poseDrive(model, t, opts) {
     clearPose(model);
     const o = opts || {};
     const jolt = o.jolt || 0;
     const rein = o.rein || 0;
     model.bob = jolt;
-    setRot(model, 'legR', -1.32, 0, -0.12);
-    setRot(model, 'legL', -1.32, 0, 0.12);
-    setRot(model, 'shinR', 1.42, 0, 0);
-    setRot(model, 'shinL', 1.42, 0, 0);
+    setRot(model, 'legR', -SIT_THIGH, 0, -0.12);
+    setRot(model, 'legL', -SIT_THIGH, 0, 0.12);
+    setRot(model, 'shinR', SIT_SHIN, 0, 0);
+    setRot(model, 'shinL', SIT_SHIN, 0, 0);
     const reach = -0.88 + rein * 0.6;
     setRot(model, 'armR', reach, 0, 0.2);
     setRot(model, 'armL', reach, 0, -0.2);
@@ -2454,7 +2472,7 @@
     createFall, knockDown, nudge, applyImpulse, updateFall, isDown,
     shove, stumble, applyShove,
     GESTURES, GESTURE_IDS, startGesture, applyGesture, isOverlayGesture,
-    carryMode, weaponDrop,
+    carryMode, weaponDrop, seatedLegDrop,
     collapse, updateCollapse, isFloored, poseCollapse,
     jointPositions, segmentMatrix, drawRagdoll, actorExtras,
     poseActor, drawModel, renderActor, OUTLINE

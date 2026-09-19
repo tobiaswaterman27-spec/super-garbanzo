@@ -84,7 +84,13 @@ test for it: no two co-visible perpendicular faces may ever share a step.
   still — nodding and laughing while they listen. The conversation runs its
   course and they part. Talking to either of them breaks it up.
 - **Gestures only fire for a reason.** They wave at someone arriving and
-  flinch at someone sprinting at them; nothing goes off at random. Gestures
+  flinch at someone running *at* them — which is not the same as someone
+  running past. The flinch used to fire on any player moving faster than a
+  jog within seventy-six units, so sprinting through a village set the whole
+  street cowering at a man carrying nothing who was not even coming their
+  way. It now wants the runner to actually be bearing down on them, and to
+  be worth being frightened of: a drawn weapon, a name, or close enough to
+  be about to collide. Gestures
   and mouths are the only things besides blinking that move a standing
   character.
 - **A body going down at speed takes out whoever it lands on**, and those
@@ -155,6 +161,19 @@ test for it: no two co-visible perpendicular faces may ever share a step.
   the moment the next blow lands.
 - Response is still graded: below a wanted level of 45 they put the weapon
   away and restrain you, and stop the moment you are down.
+
+### Riding in a cart
+
+Passengers sit with their **feet on the floorboards**. The seat height had
+been a guess at where a backside ought to be and it was about a unit low: a
+seated leg drops roughly seven units from the pelvis to the sole, so every
+passenger in the game had their shins and boots hanging through the floor
+and out of the bottom of the cart, always. The drop is now measured off the
+seated pose itself — the two angles `poseDrive` uses are named once and the
+arithmetic reads them — so it lands right whatever size the person is.
+
+Two passengers also no longer share one spot: the bench layout always had a
+sideways offset per seat, and the drawing code was throwing it away.
 
 ### Horses are mortal
 

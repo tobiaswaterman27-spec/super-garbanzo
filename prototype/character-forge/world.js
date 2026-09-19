@@ -4772,11 +4772,31 @@
     brain.gestureCooldown = (brain.gestureCooldown || 0) - dt;
     if (a.gesture || brain.gestureCooldown > 0) return;
 
+    /* Somebody running is not somebody to be frightened of.
+     *
+     * This used to fire on any player moving faster than a jog within
+     * seventy-six units, which meant sprinting through a village set the
+     * whole street flinching at a man carrying nothing who was not even
+     * coming their way. What alarms people is being run *at*, and by
+     * somebody who looks like a problem. */
     const player = world.player;
-    if (Math.hypot(player.vx, player.vy) > TRIP_SPEED && distance(a, player) < 76) {
-      Rig.startGesture(a, 'fear');
-      brain.gestureCooldown = 4 + a.rng() * 4;
-      return;
+    const sp = Math.hypot(player.vx, player.vy);
+    const d = distance(a, player);
+    if (sp > TRIP_SPEED && d < 52) {
+      // is the runner actually bearing down on them?
+      const at = ((a.x - player.x) * player.vx + (a.y - player.y) * player.vy) / (sp * (d || 1));
+      const held = I.held(player.inv);
+      const armed = !!(held && held.weapon && held.weapon !== 'fists');
+      // somebody with a name for it, whether or not they are carrying anything
+      const known = world.wanted > 12 || recordForce(world) > FORCE.none
+        || world.reputation < -25;
+      // a drawn weapon, a name, or somebody who is very nearly on top of them
+      const alarming = armed || known || d < 22;
+      if (at > 0.65 && alarming) {
+        Rig.startGesture(a, 'fear');
+        brain.gestureCooldown = 5 + a.rng() * 5;
+        return;
+      }
     }
 
     // someone they know has just come into range
@@ -5744,8 +5764,11 @@
    * the saddle point has to be rotated into world space here. Passing the raw
    * model-space offset leaves the rider pinned to world north while the horse
    * turns underneath them. */
-  function seatOffset(yaw, forward, lift) {
-    return [forward * Math.sin(yaw), lift, forward * Math.cos(yaw)];
+  function seatOffset(yaw, forward, lift, across) {
+    const s = Math.sin(yaw), c = Math.cos(yaw);
+    const a = across || 0;
+    // forward is along the vehicle's nose; across is out to its side
+    return [forward * s + a * c, lift, forward * c - a * s];
   }
 
   /* The rider's model has its origin at the feet, so planting it at the
@@ -5835,7 +5858,7 @@
     }
     Rig.drawModel(target, who.model, camera, {
       yaw: qYaw, faceParts: face,
-      offset: seatOffset(qYaw, seat.fwd, seatHeight(who, seat.lift)),
+      offset: seatOffset(qYaw, seat.fwd, seatHeight(who, seat.lift), seat.across),
       extra: Rig.actorExtras(who)
     });
   }
@@ -5880,9 +5903,21 @@
       const seats = benchSeats(c);
       for (let i = 0; i < c.riders.length && i < seats.length; i++) {
         const st = seats[i];
-        drawPassenger(c.buffer, c.riders[i], camera, qYaw,
-          { fwd: st.z, lift: c.def.deckY + c.def.sideH * 0.4 + 3.2 + qBounce },
-          'idle', qBounce * 0.5);
+        const who = c.riders[i];
+        /* Sit them so their feet are on the floor of the cart.
+         *
+         * The seat height had been a guess at where a backside should be,
+         * and it put one about a unit too low: a seated leg drops about
+         * seven units from the pelvis to the sole, so the shins and boots
+         * hung through the floorboards and out of the bottom of the cart,
+         * on every passenger, always. Measuring the drop off the pose
+         * instead means it lands right whatever size the person is. */
+        const floor = c.def.deckY + 0.8;
+        drawPassenger(c.buffer, who, camera, qYaw, {
+          fwd: st.z,
+          across: st.x,          // and two of them no longer share one spot
+          lift: floor + Rig.seatedLegDrop(who.model) + qBounce
+        }, 'idle', qBounce * 0.5);
       }
     }
     if (driver) {

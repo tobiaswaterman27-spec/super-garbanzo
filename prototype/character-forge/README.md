@@ -98,6 +98,90 @@ test for it: no two co-visible perpendicular faces may ever share a step.
 - Walk up to a villager and press E, Enter or Space: they turn to face you, or step
   closer first, then a three-page text box opens. Repeatable.
 
+### The watch
+
+- **A guard is unmistakably a guard**: one fixed livery — dark tunic, madder
+  surcoat with the town's device, a mail collar and a kettle hat with a brass
+  finial. You can tell one at ten pixels, before you can see a face or a
+  weapon. Everyone else is drawn from the same random palette as always.
+- **On duty they are labelled.** A guard who is actually working carries his
+  name over his head with `TOWN WATCH` above it in brass, drawn in a 3x5 face
+  built by hand for the purpose — Press Start 2P turns to porridge below eight
+  pixels. Off duty he is just somebody in the street and gets nothing.
+- **The watch has to be told.** A guard acts on what he sees himself. Anybody
+  else who sees a crime panics for a beat, then runs — flat out, the one
+  errand a villager sprints for — to the nearest guard and points back at
+  where it happened. That run is time you can use: from a killing to the first
+  man moving is several seconds, not none.
+- **They arrive in ones**, not as a block. Each guard has his own reaction
+  time, rolled once, so the same man is always the quick one, and news
+  arriving second-hand takes longer to act on than seeing it yourself.
+- **One man runs you down; the rest cut you off.** Roles are handed out by who
+  is best placed — the runner is whoever is already behind you — and the
+  stations are *kept*, because reshuffling them every time the pecking order
+  changed was what put the whole watch in one knot. Flankers run at where you
+  are going rather than where you are, hold their post once they reach it, and
+  close only when the runner has actually stopped you or you walk into them.
+  Stand still and they form a ring around you rather than a scrum.
+- Guards are quicker than villagers at a walk, and only *just* quicker than a
+  sprinting player. They used to be half again as fast, which made them
+  unloseable and made everything tactical they did pointless: a man who can
+  run you down never needs to cut anyone off.
+- **They do not want help.** A villager who wades in on the watch's behalf is
+  told to get back, once, and goes — and having been told, he does not rejoin
+  the moment the next blow lands.
+- Response is still graded: below a wanted level of 45 they put the weapon
+  away and restrain you, and stop the moment you are down.
+
+### Getting hurt by the world
+
+- Running flat out into a trunk puts you on the floor **and hurts you**,
+  through the same wound machinery as a sword — there is no second kind of
+  health. So does being thrown from a horse, and so does a cart coming apart
+  under you. NPCs take it on the same terms.
+- Every blow a cart takes is shared with whoever is riding on it. A cart has
+  no suspension; the people on the boards are thrown against it.
+- A cart that breaks now turfs out its passengers as well as its driver.
+  Leaving them attached to a vehicle that no longer exists had them riding an
+  invisible wreck around the county.
+- **Passengers get off a cart they do not like the look of**: a stranger at
+  the reins, unless they have met you and your name is worth something; or
+  themselves bleeding; or the cart itself taking damage. Above a walking pace
+  they jump rather than wait, and land badly.
+
+### Carrying a weapon
+
+Measured against the rig, the hand sits about eleven units off the ground and
+every weapon but the dagger is longer than that — a sword reached five units
+into the turf, a poleaxe thirteen. Nothing clipped, because a character is
+drawn whole into its own sprite and blitted at the feet, so the point simply
+hung in front of the grass looking like it ought to be buried in it.
+
+So weapons are now carried, and how far each one has to come up is measured
+off its own mesh rather than listed in a table:
+
+- short enough to hang (a dagger) — it hangs;
+- too long for that — the elbow comes up and it rides forward across the leg;
+- too long for *that* (sword, spear, greatsword, poleaxe) — it is turned over
+  in the hand and stood up, butt by the hip and point above the shoulder.
+
+A bow is never stood up: turning it over would put the top limb through the
+ground instead of the bottom one, so it rides forward like the rest. The
+ready stance still levels a short weapon at you, but a pole gets stood up
+there too, because twenty-four units of poleaxe held at chest height goes
+straight through whoever is beside you.
+
+### Reactions to the dead
+
+- Come across a body with the killer still standing over it and people run, or
+  shout for the watch, and somebody goes to fetch it.
+- Come across one with nobody about and they walk over, stop short of it, and
+  bow their heads. Nothing useful happens; that is the point of it.
+- Fleeing villagers now flail their arms, and witnesses point at what they
+  saw. Both are **overlay** gestures — they play on top of a walk or a run
+  rather than instead of it, which is the only way fear reads on someone who
+  is moving.
+
 ## Controls
 
 | Key | Action |

@@ -1400,6 +1400,79 @@
         const nod = Math.sin(t * TWO_PI * 1.5);
         return { head: [nod * 0.26, 0, 0], torso: [nod * 0.06, 0, 0] };
       }
+    },
+
+    /* The arm goes out straight and stays out. Used by a witness telling the
+     * watch where it happened and by a guard telling an onlooker to get back,
+     * so it has to read while the pointer is moving — hence the overlay. */
+    point: {
+      duration: 1.9,
+      label: 'Point',
+      overlay: true,
+      pose: function (t) {
+        // a jab at the start, then held
+        const jab = Math.max(0, 1 - t * 5) * 0.3;
+        return {
+          armR: [-1.42 - jab, 0, 0.34],
+          foreR: [0.22 + jab * 0.6, 0, 0],
+          torso: [-0.06, 0.18, 0],
+          head: [-0.04, 0.2, 0]
+        };
+      }
+    },
+
+    /* Hands thrown up and shaken, which is what somebody running away from
+     * something actually does with their arms. Overlaid, because it is only
+     * ever wanted on top of a run. */
+    flail: {
+      duration: 1.5,
+      label: 'Panic',
+      overlay: true,
+      pose: function (t) {
+        const w = Math.sin(t * TWO_PI * 5.4);
+        const w2 = Math.sin(t * TWO_PI * 5.4 + 2.1);
+        return {
+          armR: [-2.0 - w * 0.35, 0, -0.55],
+          foreR: [-0.5 + w * 0.5, 0, 0],
+          armL: [-2.0 - w2 * 0.35, 0, 0.55],
+          foreL: [-0.5 + w2 * 0.5, 0, 0],
+          head: [-0.18, w * 0.12, 0],
+          torso: [-0.1, 0, 0]
+        };
+      }
+    },
+
+    /* Standing over somebody. The head goes down and the hands come together
+     * in front, and nothing else happens at all — the stillness is the whole
+     * of it. */
+    mourn: {
+      duration: 3.4,
+      label: 'Bow head',
+      pose: function (t) {
+        const breathe = Math.sin(t * TWO_PI * 0.8) * 0.02;
+        return {
+          head: [0.62 + breathe, 0, 0],
+          torso: [0.16 + breathe, 0, 0],
+          armR: [-0.42, 0, 0.30], foreR: [-1.30, 0, -0.18],
+          armL: [-0.42, 0, -0.30], foreL: [-1.34, 0, 0.18]
+        };
+      }
+    },
+
+    /* The other kind: a hand up to the face, shoulders down, and a shake
+     * they cannot quite keep still. */
+    sorrow: {
+      duration: 3.8,
+      label: 'Grieve',
+      pose: function (t) {
+        const shake = Math.sin(t * TWO_PI * 2.6) * 0.045;
+        return {
+          head: [0.5 + shake, -0.1, 0],
+          torso: [0.3, -0.06, 0],
+          armR: [-1.15, 0, 0.5], foreR: [-1.95, 0, 0.2],
+          armL: [0.16, 0, -0.12], foreL: [-0.3, 0, 0]
+        };
+      }
     }
   };
 
@@ -1412,19 +1485,32 @@
     return true;
   }
 
-  function applyGesture(model, gesture, qTime) {
-    poseIdle(model);
+  /* The rotations a gesture is adding this frame, eased in and out so it
+   * never starts or ends on a jump. Separated from applying them because an
+   * overlay gesture adds the same numbers on top of a walk instead of on top
+   * of the idle pose. */
+  function gestureOffsets(model, gesture, qTime) {
     const g = GESTURES[gesture.id];
     if (!g) return;
     const t = Math.min(gesture.duration, quantiseTime(gesture.t));
     const phase = t / gesture.duration;
-    // ease in and out so a gesture never starts or ends on a jump
     const env = Math.min(1, phase / 0.14) * Math.min(1, (1 - phase) / 0.18);
     const offs = g.pose(phase);
     for (const name in offs) {
       const v = offs[name];
       addRot(model, name, v[0] * env, v[1] * env, v[2] * env);
     }
+    void qTime;
+  }
+
+  function applyGesture(model, gesture, qTime) {
+    poseIdle(model);
+    gestureOffsets(model, gesture, qTime);
+  }
+
+  function isOverlayGesture(gesture) {
+    const g = gesture && GESTURES[gesture.id];
+    return !!(g && g.overlay);
   }
 
   /* ---------- custom poses and keyframes ---------- */
@@ -1641,16 +1727,155 @@
       if (r.kind === 'nock') { poseNock(model, r.k, side); return; }
       if (r.kind === 'guard' || r.kind === 'surrender') { poseGuard(model, r.k, side); return; }
     }
+    const mode = carryMode(actor);
     if (actor.gait === 'walk') poseWalk(model, qTime, false);
     else if (actor.gait === 'run') poseWalk(model, qTime, true);
-    else if (actor.gesture) applyGesture(model, actor.gesture, qTime);
-    else {
+    else if (actor.gesture && !isOverlayGesture(actor.gesture)) {
+      applyGesture(model, actor.gesture, qTime);
+    } else {
       poseIdle(model);
       // someone holding a weapon holds it ready, not dangling
       const I = global.Items;
-      if (I && actor.inv && actor.inv[I.HAND] && actor.alert) {
+      if (I && actor.inv && actor.inv[I.HAND] && actor.alert && mode !== 'upright') {
         poseReady(model, actor.leftHanded ? 'L' : 'R', !!actor.inv[I.SHIELD]);
       }
+    }
+    poseCarry(actor, model, side, mode);
+    // Fear and accusation have to read while somebody is moving, so those
+    // gestures are added on top of whatever the legs are doing rather than
+    // replacing it.
+    if (actor.gesture && isOverlayGesture(actor.gesture)) {
+      gestureOffsets(model, actor.gesture, qTime);
+    }
+  }
+
+  /* ---------- carrying a weapon ----------
+   *
+   * A weapon hangs off the forearm and runs down the arm's own axis, so with
+   * the arm at rest it points at the floor. Measured against the rig, the
+   * grip sits about eleven units up and every weapon but the dagger is longer
+   * than that: a sword stuck five units into the turf, a poleaxe thirteen.
+   * Nothing clipped, because the sprite is drawn whole and blitted at the
+   * feet — so the point simply hung in front of the grass looking like it
+   * ought to be buried in it.
+   *
+   * The fix is to carry the thing properly. How much it has to come up is not
+   * a guess: it is whatever angle keeps the far end of that particular
+   * weapon off the ground, measured from its own mesh. Short blades still
+   * hang; long ones ride up across the body; a polearm goes over the
+   * shoulder because nothing else will fit.
+   */
+
+  const CARRY_CLEAR = 3.2;       // how far above the grass the point rides
+  // A walk drops the shoulder a little and a run drops it further, so the
+  // point needs more room the faster somebody is going.
+  const CARRY_GAIT_CLEAR = { walk: 0.8, run: 1.8 };
+  // Past this much tilt the thing is simply too long to carry in front of
+  // you, and it goes on the shoulder instead.
+  const CARRY_SHOULDER = 1.02;
+
+  const _wLen = Object.create(null);
+
+  /* How far a weapon reaches past the hand, in model units, once it has been
+   * scaled to the wielder. Read off the mesh rather than listed, so a
+   * redesigned blade carries correctly without anyone remembering to update a
+   * table. */
+  function weaponDrop(id) {
+    let d = _wLen[id];
+    if (d !== undefined) return d;
+    const I = global.Items;
+    const parts = I && I.iconParts ? I.iconParts(id) : null;
+    let lo = 0;
+    if (parts) {
+      for (let i = 0; i < parts.length; i++) {
+        const a = parts[i].mesh.aabb;
+        if (a.y < lo) lo = a.y;
+      }
+    }
+    d = -lo * WEAPON_SCALE;
+    _wLen[id] = d;
+    return d;
+  }
+
+  /* Where the hand sits with the arm hanging, measured off this body rather
+   * than assumed, so a short character does not carry a sword differently
+   * from a tall one by accident. */
+  function gripHeight(model) {
+    const d = model.dims;
+    return d.legTotal + d.torsoH - 1.0 - d.upperArmH - d.lowerArmH - 0.9;
+  }
+
+  /* How this person is carrying what is in their hand, this frame. Both the
+   * pose and the grip need the answer and they are worked out at different
+   * points in the draw, so it is decided once, here, from the same facts.
+   *
+   *   none     something else owns the arm — a swing, a flinch, a ready
+   *            stance, a gesture. The weapon goes where that pose puts it.
+   *   hang     short enough to hang at the side on its own.
+   *   trail    too long to hang: the elbow comes up and it rides forward.
+   *   upright  too long for that too: it is turned over in the hand and
+   *            stood up, butt by the hip and point above the shoulder.
+   */
+  function carryMode(actor) {
+    const I = global.Items;
+    if (!I || !actor.inv || !actor.inv[I.HAND]) return 'none';
+    if (actor.customPose || actor.attack || actor.reaction) return 'none';
+    if (actor.fall && actor.fall.active) return 'none';
+    const moving = actor.gait === 'walk' || actor.gait === 'run';
+    if (!moving && actor.gesture && !isOverlayGesture(actor.gesture)) return 'none';
+
+    const hand = actor.inv[I.HAND];
+    const drop = weaponDrop(hand.id);
+    const room = gripHeight(actor.model) - CARRY_CLEAR
+      - (CARRY_GAIT_CLEAR[actor.gait] || 0);
+    let cls;
+    if (drop <= room) cls = 'hang';
+    else if (Math.acos(Math.max(-1, Math.min(1, room / drop))) < CARRY_SHOULDER) {
+      cls = 'trail';
+    } else {
+      /* A bow is never stood up: it is held by the grip with its limbs either
+       * side of the hand, and turning it over would put the top limb through
+       * the ground instead of the bottom one. It rides forward like the
+       * rest. */
+      const C = global.Combat;
+      const d = I.def(hand.id);
+      cls = (C && d && d.weapon && C.weapon(d.weapon).ranged) ? 'trail' : 'upright';
+    }
+    /* Standing ready owns the arm — except for a pole. Levelling twenty-four
+     * units of poleaxe at chest height runs it straight through whoever is
+     * standing beside you, which is exactly the thing that reads as a bug. A
+     * watchman at rest stands it up instead, and it is the better pose
+     * anyway. */
+    if (!moving && actor.alert && cls !== 'upright') return 'none';
+    return cls;
+  }
+
+  function carryNeed(actor) {
+    const I = global.Items;
+    const hand = actor.inv[I.HAND];
+    const drop = weaponDrop(hand.id);
+    const room = gripHeight(actor.model) - CARRY_CLEAR
+      - (CARRY_GAIT_CLEAR[actor.gait] || 0);
+    return Math.acos(Math.max(-1, Math.min(1, room / Math.max(room, drop))));
+  }
+
+  function poseCarry(actor, model, side, mode) {
+    const sgn = side === 'R' ? 1 : -1;
+    if (mode === 'trail') {
+      /* The elbow comes up and the blade rides forward across the front of
+       * the leg. The shoulder takes a little of it and the elbow the rest,
+       * because an elbow doing all of it reads as a cramp. */
+      const need = carryNeed(actor);
+      setRot(model, 'arm' + side, -need * 0.3, 0, sgn * 0.22);
+      setRot(model, 'fore' + side, -need * 0.7, 0, 0);
+      return;
+    }
+    if (mode === 'upright') {
+      /* Stood up in the hand. The arm barely moves — it is the weapon that
+       * is the other way round — so the hand stays at the hip where a hand
+       * belongs, and the shaft runs up past the ear. */
+      setRot(model, 'arm' + side, -0.06, 0, sgn * 0.12);
+      setRot(model, 'fore' + side, -0.14, 0, 0);
     }
   }
 
@@ -1725,14 +1950,23 @@
   const WEAPON_PITCH = -0.38;  // and forward
 
   const _handM = {};
-  function handMatrix(model, side, shield) {
-    const key = side + (shield ? 's' : 'w') + (model.dims.lowerArmH | 0);
+  function handMatrix(model, side, shield, upright) {
+    const key = side + (shield ? 's' : upright ? 'u' : 'w') + (model.dims.lowerArmH | 0);
     if (!_handM[key]) {
       const sgn = side === 'R' ? 1 : -1;
       let m = R.translation(0, -model.dims.lowerArmH - 0.9, 0);
       if (shield) {
         m = R.multiply(m, R.rotationX(1.45));
         m = R.multiply(m, R.scaling(0.92));
+      } else if (upright) {
+        /* Turned over in the hand. A pike is not carried point-down and a
+         * greatsword is not dragged: you stand it up, and the whole length
+         * that used to be buried in the turf is now over your shoulder where
+         * everyone can see it. The lean is away from the head, so the shaft
+         * passes the ear rather than the skull. */
+        m = R.multiply(m, R.rotationZ(sgn * 0.16));
+        m = R.multiply(m, R.rotationX(Math.PI - 0.10));
+        m = R.multiply(m, R.scaling(WEAPON_SCALE));
       } else {
         m = R.multiply(m, R.rotationZ(sgn * WEAPON_CANT));
         m = R.multiply(m, R.rotationX(WEAPON_PITCH));
@@ -1753,7 +1987,8 @@
       if (hand) {
         const parts = I.iconParts(hand.id);
         if (parts && parts.length) {
-          const at = handMatrix(actor.model, mainSide, false);
+          const at = handMatrix(actor.model, mainSide, false,
+            carryMode(actor) === 'upright');
           const list = (out = out || {})['fore' + mainSide] = [];
           for (let i = 0; i < parts.length; i++) {
             list.push({ mesh: parts[i].mesh, colour: parts[i].colour, at: at });
@@ -1800,6 +2035,7 @@
       actor.body ? actor.body.wounds.length + ':' + Math.round(actor.body.bleed * 4) : '',
       actor.inv && actor.inv[8] ? actor.inv[8].id : '',
       actor.inv && actor.inv[9] ? actor.inv[9].id : '',
+      actor.alert ? 'a' : '',
       actor.reaction ? actor.reaction.kind + Math.round((actor.reaction.k || 0) * ACTION_FPS) : ''
     ].join('|');
     if (key !== null && key === actor._key && !(opts && opts.force)) return target;
@@ -1835,7 +2071,8 @@
     createActor, rebuildActorModel, updateActorMotion, updateBlink,
     createFall, knockDown, nudge, applyImpulse, updateFall, isDown,
     shove, stumble, applyShove,
-    GESTURES, GESTURE_IDS, startGesture, applyGesture,
+    GESTURES, GESTURE_IDS, startGesture, applyGesture, isOverlayGesture,
+    carryMode, weaponDrop,
     jointPositions, segmentMatrix, drawRagdoll, actorExtras,
     poseActor, drawModel, renderActor, OUTLINE
   };

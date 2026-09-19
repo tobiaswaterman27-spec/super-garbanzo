@@ -176,6 +176,15 @@
       boot: boot,
       belt: shade(boot, -0.14),
       brass: P.BRASS,
+      /* The watch's colours. A guard has to be readable as a guard from ten
+       * pixels away, before you can see a face or a weapon, so the livery is
+       * one fixed scheme worn by all of them rather than another point on the
+       * same random palette everyone else is drawn from. */
+      livery: LIVERY,
+      liveryDark: shade(LIVERY, -0.26),
+      steel: STEEL,
+      steelDark: shade(STEEL, -0.26),
+      steelLight: shade(STEEL, 0.18),
       eyeShape: entryOf(P.EYE_SHAPES, ch.eyeShape),
       brow: entryOf(P.BROW_SHAPES, ch.brow),
       nose: entryOf(P.NOSE_SHAPES, ch.nose),
@@ -185,6 +194,9 @@
       garment: entryOf(P.GARMENTS, ch.garment)
     };
   }
+
+  const LIVERY = '#8c2f28';     // madder red, the one dye a town watch could afford
+  const STEEL = '#8b909b';
 
   /* ---------- dimensions ---------- */
 
@@ -253,10 +265,29 @@
 
     if (g.tabard) {
       // surcoat panels hanging front and back over the tunic
+      const panel = ch.livery ? c.livery : c.tunicDark;
       torso.parts.push(part(
-        B(-d.torsoW * 0.34, 1.2, d.torsoD / 2 - 0.05, d.torsoW * 0.68, d.torsoH - 3.0, 0.5), c.tunicDark));
+        B(-d.torsoW * 0.34, 1.2, d.torsoD / 2 - 0.05, d.torsoW * 0.68, d.torsoH - 3.0, 0.5), panel));
       torso.parts.push(part(
-        B(-d.torsoW * 0.34, 1.2, -d.torsoD / 2 - 0.45, d.torsoW * 0.68, d.torsoH - 3.0, 0.5), c.tunicDark));
+        B(-d.torsoW * 0.34, 1.2, -d.torsoD / 2 - 0.45, d.torsoW * 0.68, d.torsoH - 3.0, 0.5), panel));
+      if (ch.livery) {
+        // a pale bar across the chest: the town's device, at the only level of
+        // detail that survives being three pixels tall
+        torso.parts.push(part(
+          B(-d.torsoW * 0.34, d.torsoH * 0.52, d.torsoD / 2 + 0.38,
+            d.torsoW * 0.68, 1.3, 0.3), c.steelLight));
+        torso.parts.push(part(
+          B(-0.85, d.torsoH * 0.34, d.torsoD / 2 + 0.38, 1.7, 3.6, 0.3), c.steelLight));
+      }
+    }
+
+    /* A mail collar over the shoulders. It is two pixels of grey, and it is
+     * most of what makes the outline read as armoured rather than as a man in
+     * a red coat. */
+    if (ch.livery) {
+      torso.parts.push(part(
+        B(-d.torsoW / 2 - 0.8, d.torsoH - 3.6, -d.torsoD / 2 - 0.8,
+          d.torsoW + 1.6, 2.6, d.torsoD + 1.6), c.steelDark));
     }
 
     if (g.hood) {
@@ -311,6 +342,23 @@
 
     const moBoxes = c.moustache.build(d.headW, d.headH, d.headD);
     for (let i = 0; i < moBoxes.length; i++) head.parts.push(part(moBoxes[i], c.hairDark));
+
+    /* The kettle hat. A shallow dome and a wide flat brim, which is the
+     * cheapest silhouette in the world that reads unmistakably as a soldier
+     * at this size — the brim breaks the head's outline, and nothing else in
+     * the village has an outline like it. It goes on over whatever hair is
+     * underneath and is cut low enough to cover it. */
+    if (ch.livery) {
+      const hw = d.headW, hh = d.headH, hd = d.headD;
+      head.parts.push(part(G.dome(0, hh / 2, 0,
+        hw / 2 + 1.0, hh / 2 + 1.5, hd / 2 + 1.0, 0.42, 5.2, 4, 12), c.steel));
+      // the brim, flared and tilted down at the edge
+      head.parts.push(part(G.superellipsoid(0, 5.55, 0,
+        hw / 2 + 2.25, 0.62, hd / 2 + 2.25, 0.6, 3, 12), c.steelDark));
+      // and a little brass finial, which is how you tell a watchman from a
+      // man who found a helmet
+      head.parts.push(part(G.pyramid(-0.65, hh + 1.2, -0.65, 1.3, 1.8, 1.3, 0, 0), c.brass));
+    }
 
     // the nose is a real protruding box so profiles read correctly
     head.parts.push(part(

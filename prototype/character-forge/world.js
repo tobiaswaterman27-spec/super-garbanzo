@@ -41,6 +41,10 @@
   const CAM_SCALE = 1.35 * PIXEL;
 
   const SPEED = { walk: 52, run: 112, npc: 26 };
+  /* A guard walks a beat rather than ambling to market, so they cover ground
+   * faster than a villager even when nothing is happening — otherwise the man
+   * whose job is to get somewhere arrives after everyone else. */
+  const NPC_SPEED = { villager: 26, guard: 41 };
   const ACCEL = 520;           // px/s^2 while steering
   const SKID_ACCEL = 165;      // reduced authority through a hard turn
   const FRICTION = 680;        // px/s^2 once input stops
@@ -343,11 +347,16 @@
       const ch = CM.randomCharacter(rng);
       const guard = i < 6;
       if (guard) {
-        // the livery: a guard off duty is just a person, but on duty they are
-        // unmistakably one of them
-        ch.tunic = 'slate';
-        ch.trouser = 'charcoal';
+        /* The watch dress alike on purpose. Everything here is fixed rather
+         * than rolled: the same dark tunic, the same surcoat, and the livery
+         * flag that puts a red tabard, a mail collar and a kettle hat on
+         * them. A guard has to be a guard before you can see his face. */
+        ch.tunicColour = 'charcoal';
+        ch.trouserColour = 'slate';
         ch.garment = 'surcoat';
+        ch.livery = true;
+        // a helmet does not fit over a mohawk
+        ch.hairStyle = 'crop';
       }
       const a = Rig.createActor(ch,
         player.x + (rng() - 0.5) * 900, player.y + (rng() - 0.5) * 620,
@@ -523,6 +532,39 @@
     return { speed: worst, prop: hit, nx: hx, ny: hy };
   }
 
+  /* A blow with no weapon behind it: a trunk, a cart floor, the ground at
+   * speed. It goes through the same wound machinery as a sword so that a
+   * crash bruises, bleeds and kills on the same terms as everything else —
+   * there is no second kind of health.
+   *
+   * Nothing here reports a crime. Running yourself into a tree is your own
+   * business, and the watch has no view on it. */
+  function impactDamage(world, a, amount, nx, ny, zoneId) {
+    const body = a.body;
+    if (!body || body.dead || amount < 1) return null;
+    const rng = a.rng || Math.random;
+    const zone = zoneId ? CB.zoneFor(zoneId) : CB.rollZone(rng, 0.2);
+    const roll = {
+      amount: amount,
+      // a blunt impact splits skin only when it is a bad one
+      bleed: amount > 16 ? (amount - 16) * 0.012 : 0,
+      zone: zone,
+      kind: 'blunt',
+      gore: 0.25
+    };
+    const dirLocal = [nx || 0, ny || 0];
+    const res = CB.applyDamage(a, roll, dirLocal, rng);
+    if (!res) return null;
+    if (res.severity !== 'minor') splash(world, a, roll, nx || 0, ny || 0);
+    if (body.dead || body.dying) return res;
+    // The player is never given a hit animation — see below — and anyone in
+    // a ragdoll is busy being a ragdoll.
+    if (a !== world.player && !Rig.isDown(a) && res.severity !== 'minor') {
+      a.reaction = { kind: 'clutch', k: 0, t: 0, duration: 0.55, zone: res.zone };
+    }
+    return res;
+  }
+
   /* Everything that happens to the player when they run into scenery.
    *
    * The player never plays a hit reaction on the body — no arm swing, no
@@ -530,7 +572,21 @@
    * barrel reads as a glitch, not as impact. What the player feels is the
    * movement: you are stopped, turned off the thing, or put on the floor.
    * Scenery at full sprint floors you; villagers never do. */
-  function reactToProp(player, impact) {
+  /* Going down at a trunk costs you. A tree is unyielding, so the whole of
+   * the speed goes into you; something low takes your legs instead and most
+   * of it goes into the fall. Below the knockdown threshold you are only
+   * stopped, and being stopped has never hurt anybody. */
+  function crashDamage(world, a, impact) {
+    if (!world) return;
+    const over = impact.speed - FALL_SPEED;
+    if (over < 0) return;
+    const hard = impact.prop.tall ? 1 : 0.55;
+    const amount = (5 + over * 0.30) * hard
+      * (impact.prop.hardness === undefined ? 1 : impact.prop.hardness);
+    impactDamage(world, a, amount, impact.nx, impact.ny);
+  }
+
+  function reactToProp(world, player, impact) {
     if (!impact.prop || impact.speed < NUDGE_SPEED) return;
     /* You cannot trip over a tree you are already lying against. The ragdoll
      * hands its drift back as movement, which carried the body into the trunk
@@ -556,6 +612,7 @@
         player.vx = -n.nx * impact.speed * 0.34;
         player.vy = -n.ny * impact.speed * 0.34;
       }
+      crashDamage(world, player, impact);
       return;
     }
 
@@ -768,6 +825,9 @@
     Rig.knockDown(p, dirX / len, dirY / len, 4.2 + force * 0.5);
     p.vx = (dirX / len) * (30 + force * 9);
     p.vy = (dirY / len) * (30 + force * 9);
+    // Coming off at a gallop is a fall from about six feet onto whatever the
+    // horse just hit, and it hurts whether the rider is you or a stranger.
+    impactDamage(world, p, 4 + force * 1.5, dirX / len, dirY / len);
     if (world.box.open) D.close(world.box);
   }
 
@@ -1130,6 +1190,8 @@
 
   function openInventory(world) {
     world.ui.open = true;
+    // whatever you were doing, you have stopped to do this
+    world.player.vx = 0; world.player.vy = 0;
     return true;
   }
 
@@ -1392,7 +1454,16 @@
     }
     if (drivenFromSaddle || drivenFromBench) {
       const input = world.input;
-      if (!world.box.open) { dx = input.dx; dy = input.dy; sprint = input.sprint; }
+      if (!world.box.open && !invVisible(world)) {
+        dx = input.dx; dy = input.dy; sprint = input.sprint;
+      } else {
+        // Reading your bag is not steering. The animal is pulled up rather
+        // than merely left alone, because a horse that is only ignored keeps
+        // going, and coasting half a field while the panel is up was the
+        // whole of "you can still move in your inventory".
+        h.vx *= Math.max(0, 1 - dt * 6);
+        h.vy *= Math.max(0, 1 - dt * 6);
+      }
     } else if (h.npcDrive && (h.rider || npcDriver)) {
       dx = h.npcDrive.dx; dy = h.npcDrive.dy; sprint = h.npcDrive.sprint;
     } else if (h.spooked > 0) {
@@ -1639,11 +1710,24 @@
     const before = c.stage;
     c.hp = Math.max(0, c.hp - amount);
     c.hitFlash = 0.18;
+    c.lastHurtAt = world.time;
     c.stage = V.stageFor(c.hp, c.maxHp);
     if (c.stage !== before) {
       c.spriteStage = -1;
       const n = c.stage === 1 ? 2 : 3;
       for (let i = 0; i < n; i++) spawnDebris(world, c, 'plank', nx, ny, 0.8);
+    }
+    /* A cart has no suspension. Whatever it runs into, the people on the
+     * boards are thrown against it, and they take a slice of the same blow —
+     * a fraction of it, because the cart is what breaks. */
+    const share = amount * 0.22;
+    if (share >= 1) {
+      const aboard = [];
+      if (c.rider) aboard.push(c.rider);
+      if (c.riders) for (let i = 0; i < c.riders.length; i++) aboard.push(c.riders[i]);
+      for (let i = 0; i < aboard.length; i++) {
+        impactDamage(world, aboard[i], share, nx, ny);
+      }
     }
     if (c.hp <= 0) breakCart(world, c, nx, ny);
   }
@@ -1655,13 +1739,28 @@
       spawnDebris(world, c, list[i], nx, ny, 1);
     }
     if (c.hitch) { c.hitch.cart = null; c.hitch = null; }
-    if (c.rider) {
-      const p = c.rider;
-      p.seat = null;
-      c.rider = null;
-      Rig.knockDown(p, nx || 1, ny || 0, 4.0);
-      p.x = c.x; p.y = c.y;
-      p.vx = c.vx * 0.5; p.vy = c.vy * 0.5;
+    /* Everyone goes over the side, not just whoever had the reins. A
+     * passenger left attached to a cart that no longer exists rides an
+     * invisible wreck around the county for the rest of the game. */
+    const thrown = [];
+    if (c.rider) { c.rider.seat = null; thrown.push(c.rider); c.rider = null; }
+    if (c.riders) {
+      for (let i = 0; i < c.riders.length; i++) {
+        const q = c.riders[i];
+        if (q.carriedBy === c) q.carriedBy = null;
+        thrown.push(q);
+      }
+      c.riders.length = 0;
+    }
+    for (let i = 0; i < thrown.length; i++) {
+      const q = thrown[i];
+      const spread = (i - (thrown.length - 1) / 2) * 0.7;
+      const dx = (nx || 1) * Math.cos(spread) - (ny || 0) * Math.sin(spread);
+      const dy = (nx || 1) * Math.sin(spread) + (ny || 0) * Math.cos(spread);
+      Rig.knockDown(q, dx, dy, 4.0);
+      q.x = c.x + dx * 6; q.y = c.y + dy * 4;
+      q.vx = c.vx * 0.5 + dx * 22; q.vy = c.vy * 0.5 + dy * 16;
+      impactDamage(world, q, 9 + Math.hypot(c.vx, c.vy) * 0.10, dx, dy);
     }
     // the wreck itself stops being a thing in the world
     const idx = world.carts.indexOf(c);
@@ -1768,6 +1867,10 @@
   };
 
   function isGuard(a) { return !!(a.brain && a.brain.guard); }
+
+  /* How fast this person walks when they are simply going somewhere. A guard
+   * is on his way to a post; a baker is on his way to a chat. */
+  function walkSpeed(a) { return isGuard(a) ? NPC_SPEED.guard : NPC_SPEED.villager; }
 
   /* A guard in pursuit is braced and running hard. Barging them, tripping
    * over them, or another guard going down beside them all stagger them —
@@ -1967,6 +2070,14 @@
     const local = [-(nx * cy - ny * sy), -(nx * sy + ny * cy)];
     const res = CB.applyDamage(target, roll, local, rng);
     if (!res) return;
+    if (target.body) {
+      target.body.lastHitBy = a;
+      // Who left this here, which is what decides whether the next person
+      // along runs or kneels.
+      if (a === world.player && (target.body.dead || target.body.dying)) {
+        target.body.killedByPlayer = true;
+      }
+    }
 
     splash(world, target, roll, nx, ny);
     knockFrom(world, a, target, roll, nx, ny, res.severity);
@@ -2243,7 +2354,8 @@
       - hurt * 0.9
       - (res.severity === 'serious' ? 0.3 : 0)
       - (attackerArmed(attacker) ? 0.35 : 0);
-    if (willFight > 0.85) return 'fight';
+    const told = brain.standDownUntil !== undefined && world.time < brain.standDownUntil;
+    if (willFight > 0.85 && !(told && !brain.guard)) return 'fight';
     if (willFight > 0.5) return brain && brain.guard ? 'fight' : 'backAway';
     if (brave < 0.22) return 'cower';
     if (hurt > 0.4 || res.severity !== 'minor') return 'flee';
@@ -2315,10 +2427,15 @@
       if (o === victim || !o.brain || o.carriedBy || Rig.isDown(o)) continue;
       if (o.body && (o.body.dead || o.body.dying)) continue;
       if (distance(o, victim) > 70) continue;
+      // Somebody the watch has already sent away does not come back for
+      // another go the moment the next blow lands.
+      const told = o.brain.standDownUntil !== undefined
+        && world.time < o.brain.standDownUntil;
       const brave = bravery(o);
       o.brain.grudge = (o.brain.grudge || 0) + 0.25;
       const willing = brave + (isGuard(o) ? 0.6 : 0) + o.brain.grudge * 0.4
-        + (attackerArmed(attacker) ? -0.3 : 0.15);
+        + (attackerArmed(attacker) ? -0.3 : 0.15)
+        - (told ? 2 : 0);
       if (o.brain.state === 'react' && o.brain.response === 'fight') continue;
       if (o.brain.partner) {
         if (o.brain.state === 'closing') abandonClosing(o); else endChat(o, 15);
@@ -2497,6 +2614,11 @@
         alertGuard(world, o, x, y, crime.alarm);
       } else {
         civilianAlarm(world, o, crime.alarm, x, y);
+        /* And then they go and tell somebody. This is the whole difference
+         * between a watch that knows what you did the instant you do it and
+         * one that has to be fetched: the guard three streets away is coming
+         * because a baker ran to him, and that run takes time you can use. */
+        startReport(world, o, crimeId, x, y);
       }
     }
 
@@ -2507,6 +2629,102 @@
       Math.min(100, (world.reputationCriminal || 0) + (crimeId === 'kill' ? 9 : 3));
     void victim;
   }
+
+  /* How far a frightened witness will go looking for the watch, and how long
+   * they will keep looking before deciding it is not their business. */
+  const REPORT_RANGE = 900;
+  const REPORT_GIVE_UP = 55;
+  const PANIC_BEFORE_REPORT = 2.2;   // seconds of being frightened first
+
+  function nearestGuardTo(world, from, range) {
+    let best = null, bestD = range;
+    for (let i = 1; i < world.actors.length; i++) {
+      const o = world.actors[i];
+      if (!isGuard(o) || Rig.isDown(o) || (o.body && o.body.dead)) continue;
+      const d = distance(o, from);
+      if (d < bestD) { bestD = d; best = o; }
+    }
+    return best;
+  }
+
+  /* A witness picks a guard and sets off. They keep the crime and the place
+   * with them, because what they eventually say is what they saw, not what
+   * happened. */
+  function startReport(world, a, crimeId, x, y) {
+    const brain = a.brain;
+    if (!brain || brain.guard) return false;
+    // already carrying a worse tale: the worse one wins
+    const crime = CRIMES[crimeId];
+    if (brain.report && CRIMES[brain.report.crime]
+      && CRIMES[brain.report.crime].alarm >= crime.alarm) {
+      brain.report.x = x; brain.report.y = y;
+      return false;
+    }
+    const g = nearestGuardTo(world, a, REPORT_RANGE);
+    if (!g) return false;
+    brain.report = { crime: crimeId, x: x, y: y, to: g, timer: REPORT_GIVE_UP };
+    /* Somebody with an errand does not stand there being frightened for ten
+     * seconds first. They get clear, and then they go — otherwise the panic
+     * carries them the wrong way across half the parish before the errand
+     * ever starts, and the watch hears about a murder a minute late. */
+    if (brain.responseTimer > PANIC_BEFORE_REPORT) {
+      brain.responseTimer = PANIC_BEFORE_REPORT;
+    }
+    return true;
+  }
+
+  /* Running to find the watch. Returns true when it has taken the frame.
+   *
+   * They run flat out — this is the one errand a villager does at a sprint —
+   * and the moment they are within earshot they point and say it. */
+  function updateReport(world, a, dt) {
+    const rep = a.brain.report;
+    if (!rep) return false;
+    rep.timer -= dt;
+    let g = rep.to;
+    const stale = !g || Rig.isDown(g) || (g.body && g.body.dead);
+    if (stale) {
+      g = nearestGuardTo(world, a, REPORT_RANGE);
+      rep.to = g;
+    }
+    if (!g || rep.timer <= 0) { a.brain.report = null; return false; }
+
+    const d = distance(a, g);
+    if (d < CHAT_CLOSE + 12) {
+      // close enough to be heard
+      alertGuard(world, g, rep.x, rep.y, (CRIMES[rep.crime] || CRIMES.strike).alarm);
+      g.brain.toldBy = a;
+      a.brain.report = null;
+      a.brain.state = 'react';
+      a.brain.response = 'backAway';
+      a.brain.responseTimer = 3 + a.rng() * 3;
+      a.brain.fleeFrom = { x: rep.x, y: rep.y };
+      // and they turn and point back at where it happened
+      Rig.startGesture(a, 'point');
+      a.targetYaw = Rig.yawForDirection(rep.x - a.x, rep.y - a.y);
+      return true;
+    }
+
+    const want = Rig.yawForDirection(g.x - a.x, g.y - a.y);
+    const clear = steerAround(world, a, want, 30);
+    a.targetYaw = clear === null ? want : clear;
+    const turn = Rig.shortestAngle(a.yaw, a.targetYaw);
+    const rate = 6.5 * dt;
+    a.yaw += Math.abs(turn) < rate ? turn : Math.sign(turn) * rate;
+    if (Math.abs(turn) < 0.9) {
+      const sp = REPORT_SPEED;
+      a.x += Math.sin(a.yaw) * sp * dt;
+      a.y += Math.cos(a.yaw) * sp * dt;
+      resolvePropCollisions(world, a, 6);
+      clampVillager(a);
+    }
+    a.gait = 'run';
+    a.alert = true;
+    return true;
+  }
+
+  // Fetching the watch is the one errand anybody runs at.
+  const REPORT_SPEED = 96;
 
   function shout(world, caller, attacker) {
     for (let i = 1; i < world.actors.length; i++) {
@@ -2739,6 +2957,58 @@
    * who passes an empty seat may climb up and ride along.
    */
 
+  /* Whether this person would get in a cart you were driving. Having actually
+   * spoken to you is most of it — a stranger at the reins is a stranger at
+   * the reins — and the rest is what your name is worth. A bad name outweighs
+   * an introduction, which is the point of having one. */
+  function trustsPlayer(world, a) {
+    if (!a.brain) return false;
+    const met = a.brain.knowsYou ? 0.55 : 0;
+    const good = Math.max(0, world.reputation) / 100 * 0.6;
+    const bad = Math.max(0, -world.reputation) / 100 * 1.4;
+    return met + good - bad >= 0.5;
+  }
+
+  /* Reasons to get off something that is moving. Any of them is enough. */
+  function wantsOff(world, a, v) {
+    // somebody they do not know has taken the reins
+    if (v.rider === world.player && !trustsPlayer(world, a)) return true;
+    // they are bleeding
+    if (a.body && (a.body.hp < CB.MAX_HP * 0.9 || a.body.bleed > 0.05)) return true;
+    // or the thing they are sitting in is coming apart under them
+    if (v.lastHurtAt !== undefined && world.time - v.lastHurtAt < 3) return true;
+    if (v.stage >= 1) return true;
+    return false;
+  }
+
+  /* Getting off in a hurry, rather than waiting for it to stop. You land
+   * badly, which is the price of not waiting. */
+  function bailOut(world, a) {
+    const v = a.carriedBy;
+    if (!v) return false;
+    const speed = Math.hypot(v.vx || 0, v.vy || 0);
+    if (speed < 22) return alight(world, a);
+    if (v.riders) {
+      const at = v.riders.indexOf(a);
+      if (at >= 0) v.riders.splice(at, 1);
+    }
+    if (v.pillion === a) v.pillion = null;
+    a.carriedBy = null;
+    const side = (v.yaw || 0) + Math.PI / 2;
+    const dx = Math.cos(side), dy = -Math.sin(side);
+    a.x = v.x + dx * 14; a.y = v.y + dy * 9;
+    Rig.knockDown(a, dx, dy, 2.4 + speed / 46);
+    a.vx = (v.vx || 0) * 0.55 + dx * 26;
+    a.vy = (v.vy || 0) * 0.55 + dy * 18;
+    impactDamage(world, a, 3 + speed * 0.07, dx, dy);
+    a.brain.state = 'react';
+    a.brain.response = 'flee';
+    a.brain.responseTimer = 4 + a.rng() * 3;
+    a.brain.fleeFrom = { x: v.x, y: v.y };
+    a.brain.boardCooldown = 25 + a.rng() * 20;
+    return true;
+  }
+
   function alight(world, a) {
     const v = a.carriedBy;
     if (!v) return false;
@@ -2859,7 +3129,11 @@
    * reissued as the chase moves.
    */
 
-  const CUT_OFF_LEAD = 1.7;    // seconds ahead of you they aim for
+  const CUT_OFF_LEAD = 1.9;    // seconds ahead of you they aim for
+  /* The ladder of flanking stations, in half-widths either side of the line
+   * the quarry is running. The first pair sit close enough to cut the corner,
+   * the later ones swing wide enough to close a ring. */
+  const FLANK_LADDER = [0.8, -0.8, 1.5, -1.5, 2.1, -2.1];
 
   function assignRoles(world, dt) {
     world.roleTimer = (world.roleTimer || 0) - dt;
@@ -2876,20 +3150,63 @@
     }
     if (!pack.length) return;
 
-    // whoever is closest runs them down; the rest go round
-    pack.sort(function (a, b) { return distance(a, p) - distance(b, p); });
     const speed = Math.hypot(p.vx, p.vy);
     const heading = speed > 8 ? Math.atan2(p.vx, p.vy) : p.yaw;
 
+    /* Exactly one man runs them down; everybody else goes round. The runner
+     * is whoever is already behind them and nearest, because a guard out in
+     * front who turns round to give chase has given up the one thing he had.
+     */
+    let runner = null, runnerScore = Infinity;
     for (let i = 0; i < pack.length; i++) {
       const g = pack[i];
-      if (i === 0) { g.brain.role = 'pursue'; g.brain.flank = 0; continue; }
+      // how far round the back of the quarry this guard already is
+      const ahead = (g.x - p.x) * Math.sin(heading) + (g.y - p.y) * Math.cos(heading);
+      const score = distance(g, p) + Math.max(0, ahead) * 1.6;
+      if (score < runnerScore) { runnerScore = score; runner = g; }
+    }
+
+    /* The rest take stations, and keep them. Reshuffling the ladder every
+     * time the pecking order changes is what made the watch cross behind each
+     * other in a knot: a man would be sent left, then right, then left again,
+     * and end up running the same line as everyone else. A station is given
+     * up only when its holder leaves the chase.
+     *
+     * Which side a guard is given is the side he is already on, so nobody has
+     * to cross the quarry's path to reach his post. */
+    const taken = {};
+    const needing = [];
+    for (let i = 0; i < pack.length; i++) {
+      const g = pack[i];
+      if (g === runner) { g.brain.role = 'pursue'; g.brain.flank = 0; g.brain.slot = -1; continue; }
       g.brain.role = 'cutOff';
-      // alternate sides, and swing wider the further down the pecking order
-      const side = (i % 2 ? 1 : -1) * (0.55 + Math.floor((i - 1) / 2) * 0.35);
-      g.brain.flank = Math.max(-1.4, Math.min(1.4, side));
       g.brain.heading = heading;
       g.brain.leadSpeed = speed;
+      const slot = g.brain.slot;
+      if (slot !== undefined && slot >= 0 && !taken[slot]) { taken[slot] = true; continue; }
+      needing.push(g);
+    }
+    for (let i = 0; i < needing.length; i++) {
+      const g = needing[i];
+      // which side of the quarry's line he is on already
+      const side = (g.x - p.x) * Math.cos(heading) - (g.y - p.y) * Math.sin(heading);
+      let best = -1, bestCost = Infinity;
+      for (let k = 0; k < FLANK_LADDER.length; k++) {
+        if (taken[k]) continue;
+        // prefer a station on the side he is already standing, and an inner
+        // one over an outer one
+        const wrongSide = (FLANK_LADDER[k] > 0) !== (side > 0) ? 60 : 0;
+        const cost = Math.abs(FLANK_LADDER[k]) * 30 + wrongSide;
+        if (cost < bestCost) { bestCost = cost; best = k; }
+      }
+      if (best < 0) { g.brain.role = 'pursue'; g.brain.flank = 0; g.brain.slot = -1; continue; }
+      taken[best] = true;
+      g.brain.slot = best;
+    }
+    for (let i = 0; i < pack.length; i++) {
+      const g = pack[i];
+      if (g.brain.role !== 'cutOff') continue;
+      g.brain.flank = FLANK_LADDER[g.brain.slot] || 0.8;
     }
   }
 
@@ -2907,21 +3224,27 @@
     if (brain.role !== 'cutOff') return { x: brain.chaseX, y: brain.chaseY };
     const speed = brain.leadSpeed || Math.hypot(p.vx, p.vy);
     if (speed < 14) {
-      // standing still: just fan out around them
-      const a = (brain.heading || p.yaw) + brain.flank * 1.6;
-      return { x: p.x + Math.sin(a) * 34, y: p.y + Math.cos(a) * 26 };
+      // Standing still: they close the ring rather than pile on. Each man
+      // takes his own arc of it, so the quarry is surrounded rather than
+      // buried.
+      const a = (brain.heading || p.yaw) + brain.flank * 1.5;
+      return { x: p.x + Math.sin(a) * RING_HOLD, y: p.y + Math.cos(a) * RING_HOLD * 0.78, ring: true };
     }
     const h = brain.heading || Math.atan2(p.vx, p.vy);
-    const lead = Math.min(220, speed * CUT_OFF_LEAD);
+    const lead = Math.min(240, speed * CUT_OFF_LEAD);
     const ax = p.x + Math.sin(h) * lead;
     const ay = p.y + Math.cos(h) * lead;
     // and out to the side of that point, across the line they are running
     const side = h + Math.PI / 2;
     return {
-      x: ax + Math.sin(side) * brain.flank * 46,
-      y: ay + Math.cos(side) * brain.flank * 34
+      x: ax + Math.sin(side) * brain.flank * 40,
+      y: ay + Math.cos(side) * brain.flank * 30
     };
   }
+
+  /* How far off a standing quarry a flanker plants himself. Close enough to
+   * be a wall, far enough that five men are a cordon and not a scrum. */
+  const RING_HOLD = 46;
 
   /* ================== guards ==================
    *
@@ -2930,10 +3253,15 @@
    * see something they come for you — on foot, or on a horse if one is handy.
    */
 
-  /* Faster flat out than a sprinting player. A guard who cannot catch you is
-   * scenery, and the whole point of a wanted level is that it costs you
-   * something. Turning still slows them, so weaving buys real distance. */
-  const GUARD_SPEED = { walk: 34, run: 152 };
+  /* Barely faster flat out than a sprinting player — a handful of units, so
+   * a straight line loses eventually rather than immediately.
+   *
+   * It used to be half again as fast, which made the watch unloseable and,
+   * worse, made everything they did tactically pointless: a man who can
+   * simply run you down never has to cut anybody off. The cordon is what is
+   * supposed to catch you. Turning still slows them, so weaving buys real
+   * distance, and it now buys enough of it to be worth doing. */
+  const GUARD_SPEED = { walk: 41, run: 119 };
 
   function updateGuard(world, g, dt) {
     const brain = g.brain;
@@ -2957,6 +3285,7 @@
 
     // chasing
     brain.giveUp -= dt;
+    orderStandDown(world, g, dt);
     const d = distance(g, player);
     const sees = d < SEE_RANGE && !Rig.isDown(player);
     if (sees) {
@@ -3050,8 +3379,31 @@
       g.gait = 'idle';
       return true;
     }
-    // once a flanker is ahead of you and close, they stop cutting and close in
-    if (brain.role === 'cutOff' && d < 70) { brain.role = 'pursue'; }
+    /* A flanker's job is to be in the way, not to arrive. Collapsing every
+     * man onto the quarry the moment he got within seventy units is exactly
+     * what turned the watch into a queue: they all converged, all arrived in
+     * single file behind, and nobody was ever across the path.
+     *
+     * So he holds his station until one of two things is true: the quarry has
+     * walked into his reach anyway, or the man running them down already has
+     * them stopped, at which point standing off is pointless. */
+    const goalD = Math.hypot(goal.x - g.x, goal.y - g.y);
+    if (brain.role === 'cutOff') {
+      const runnerOn = pursuerEngaged(world, g);
+      if (d < w.reach - 2 || runnerOn) {
+        brain.role = 'pursue';
+      } else if (goalD < 16) {
+        // planted: square up on them and wait, weapon ready
+        g.targetYaw = Rig.yawForDirection(player.x - g.x, player.y - g.y);
+        g.aimYaw = g.targetYaw;
+        const t = Rig.shortestAngle(g.yaw, g.targetYaw);
+        const r = 7.5 * dt;
+        g.yaw += Math.abs(t) < r ? t : Math.sign(t) * r;
+        g.gait = 'idle';
+        g.alert = true;
+        return true;
+      }
+    }
 
     if (d < w.reach + 4) {
       // a guard restraining you stops the moment you are on the ground or
@@ -3085,6 +3437,69 @@
     clampVillager(g);
     g.gait = d > closeEnough ? 'run' : 'walk';
     return true;
+  }
+
+  /* Whether the man running the quarry down has actually caught them. A
+   * cordon exists to stop someone getting away; once they are not getting
+   * away, it turns into the arrest. */
+  function pursuerEngaged(world, g) {
+    for (let i = 1; i < world.actors.length; i++) {
+      const o = world.actors[i];
+      if (o === g || !isGuard(o) || o.brain.role !== 'pursue') continue;
+      if (o.brain.guardState !== 'chase' || Rig.isDown(o)) continue;
+      const w = I.heldWeapon(o.inv);
+      if (distance(o, world.player) > w.reach) continue;
+      /* In contact is not the same as having them. Somebody still going flat
+       * out is still getting away, and the cordon that was about to close in
+       * front of them is the only thing that is going to stop that — folding
+       * it because one man has briefly drawn level throws away the catch. */
+      if (Math.hypot(world.player.vx, world.player.vy) > SPEED.walk * 1.1) continue;
+      return true;
+    }
+    return false;
+  }
+
+  /* A guard clearing amateurs out of his arrest.
+   *
+   * Somebody wading in on the watch's behalf is not helping: he is one more
+   * body between a guard and the man he is trying to take, and if it goes
+   * wrong the parish has two casualties instead of one. So he is told, once,
+   * and he goes. */
+  const STAND_DOWN_RANGE = 105;
+  const STAND_DOWN_FOR = 22;      // how long being told keeps somebody out
+
+  function orderStandDown(world, g, dt) {
+    const brain = g.brain;
+    brain.orderTimer = (brain.orderTimer || 0) - dt;
+    if (brain.orderTimer > 0) return;
+    brain.orderTimer = 1.1;
+
+    for (let i = 1; i < world.actors.length; i++) {
+      const o = world.actors[i];
+      if (o === g || isGuard(o) || !o.brain) continue;
+      if (Rig.isDown(o) || (o.body && o.body.dead)) continue;
+      // only the ones who have joined in
+      if (o.brain.response !== 'fight' && o.brain.response !== 'protect') continue;
+      if (o.brain.target !== world.player && o.brain.protecting === undefined) continue;
+      if (distance(o, g) > STAND_DOWN_RANGE) continue;
+
+      o.brain.response = 'backAway';
+      o.brain.responseTimer = 3.5 + o.rng() * 3;
+      o.brain.state = 'react';
+      o.brain.fleeFrom = { x: world.player.x, y: world.player.y };
+      o.brain.standDownUntil = world.time + STAND_DOWN_FOR;
+      o.brain.engaged = false;
+      o.attack = null;
+      o.alert = false;
+      Rig.startGesture(o, 'fear');
+
+      // and the guard makes it clear it was an order
+      if (!g.attack && !g.gesture) {
+        Rig.startGesture(g, 'point');
+        g.targetYaw = Rig.yawForDirection(o.x - g.x, o.y - g.y);
+      }
+      return;
+    }
   }
 
   function armedAndOpen(world, p) {
@@ -3124,6 +3539,9 @@
 
   /* ---------- how a villager who has been hurt behaves ---------- */
 
+  // How close anybody gets to a body before they stop and look at it.
+  const MOURN_STAND = 17;
+
   function updateResponse(world, a, dt) {
     const brain = a.brain;
     brain.responseTimer -= dt;
@@ -3132,7 +3550,7 @@
     const dx = a.x - from.x, dy = a.y - from.y;
     const away = Math.hypot(dx, dy) || 1;
     const hurt = a.body ? 1 - a.body.hp / CB.MAX_HP : 0;
-    const speed = SPEED.npc * (1 + (1 - hurt) * 2.6);
+    const speed = walkSpeed(a) * (1 + (1 - hurt) * 2.6);
 
     switch (brain.response) {
       case 'fight': {
@@ -3187,6 +3605,9 @@
         break;
       }
       case 'flee': {
+        // Somebody running for their life does not run tidily. The flail is
+        // an overlay, so it goes on top of the run rather than instead of it.
+        if (!a.gesture && bravery(a) < 0.72) Rig.startGesture(a, 'flail');
         const away2 = steerAround(world, a, Rig.yawForDirection(dx, dy), 38);
         a.targetYaw = away2 === null ? Rig.yawForDirection(dx, dy) : away2;
         if (Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 1.2) {
@@ -3199,8 +3620,11 @@
         break;
       }
       case 'backAway': {
-        // keeping their eyes on it while they go
-        a.targetYaw = Rig.yawForDirection(-dx, -dy);
+        // keeping their eyes on it while they go — unless they are in the
+        // middle of pointing at it, in which case that is where they look
+        if (!(a.gesture && a.gesture.id === 'point')) {
+          a.targetYaw = Rig.yawForDirection(-dx, -dy);
+        }
         a.x += (dx / away) * speed * 0.55 * dt;
         a.y += (dy / away) * speed * 0.55 * dt;
         clampVillager(a);
@@ -3214,6 +3638,33 @@
         babble(a);
         brain.shoutTimer = (brain.shoutTimer || 0) - dt;
         if (brain.shoutTimer <= 0) { brain.shoutTimer = 1.4; shout(world, a, target); }
+        break;
+      }
+      /* Standing over someone who is not getting up. They come the last few
+       * steps slowly, stop short of the body, and bow their head. Nothing
+       * useful happens here — that is the point of it. */
+      case 'mourn': {
+        const body = brain.target;
+        if (!body) { brain.responseTimer = 0; break; }
+        const bd = distance(a, body);
+        a.targetYaw = Rig.yawForDirection(body.x - a.x, body.y - a.y);
+        if (bd > MOURN_STAND) {
+          const want = steerAround(world, a, a.targetYaw, 26);
+          if (want !== null) a.targetYaw = want;
+          if (Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 0.8) {
+            a.x += Math.sin(a.yaw) * speed * 0.5 * dt;
+            a.y += Math.cos(a.yaw) * speed * 0.5 * dt;
+            resolvePropCollisions(world, a, 6);
+            clampVillager(a);
+          }
+          a.gait = 'walk';
+        } else {
+          a.gait = 'idle';
+          a.alert = false;
+          if (!a.gesture) {
+            Rig.startGesture(a, a.rng() < 0.55 ? 'mourn' : 'sorrow');
+          }
+        }
         break;
       }
       case 'protect': {
@@ -3269,8 +3720,8 @@
     a.targetYaw = Rig.snapToEight(g.x - a.x, g.y - a.y);
     if (Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 0.9) {
       const len = Math.hypot(g.x - a.x, g.y - a.y) || 1;
-      a.x += ((g.x - a.x) / len) * SPEED.npc * dt;
-      a.y += ((g.y - a.y) / len) * SPEED.npc * dt;
+      a.x += ((g.x - a.x) / len) * walkSpeed(a) * dt;
+      a.y += ((g.y - a.y) / len) * walkSpeed(a) * dt;
       clampVillager(a);
     }
     a.gait = 'walk';
@@ -3344,17 +3795,47 @@
       const o = world.actors[i];
       if (o === a || !o.body) continue;
       if (!o.body.dead && !o.body.dying) continue;
-      if (o.seenBy && o.seenBy[a._id]) continue;
       if (distance(a, o) > 110) continue;
+
+      /* Whether whoever did this is still standing over it. A killer the
+       * watch is looking for, close enough to be next, is a reason to be
+       * somewhere else; an empty field with a body in it is a reason to go
+       * and look. */
+      const p = world.player;
+      const killerHere = !Rig.isDown(p) && !(p.body && p.body.dead)
+        && distance(a, p) < 135 && distance(p, o) < 150
+        && (world.wanted > 6 || o.body.killedByPlayer);
+
       o.seenBy = o.seenBy || {};
-      o.seenBy[a._id] = true;
-      const brave = bravery(a);
+      if (!o.seenBy[a._id]) {
+        o.seenBy[a._id] = true;
+        if (killerHere) {
+          const brave = bravery(a);
+          brain.state = 'react';
+          brain.target = o;
+          brain.fleeFrom = { x: p.x, y: p.y };
+          brain.response = isGuard(a) ? 'callHelp' : (brave < 0.55 ? 'flee' : 'callHelp');
+          brain.responseTimer = 4 + Math.random() * 4;
+          if (!isGuard(a)) {
+            a.reaction = { kind: 'guard', k: 0, t: 0, duration: 1.2 };
+            // and somebody goes for the watch
+            startReport(world, a, 'kill', o.x, o.y);
+          }
+          return true;
+        }
+      }
+
+      /* Nobody dangerous about. They go over. A guard has a report to write
+       * and does not stand about grieving; everyone else does. */
+      if (killerHere || isGuard(a)) continue;
+      o.mournedBy = o.mournedBy || {};
+      if (o.mournedBy[a._id]) continue;
+      o.mournedBy[a._id] = true;
       brain.state = 'react';
       brain.target = o;
       brain.fleeFrom = { x: o.x, y: o.y };
-      brain.response = isGuard(a) ? 'callHelp' : (brave < 0.4 ? 'flee' : 'callHelp');
-      brain.responseTimer = 4 + Math.random() * 4;
-      if (!isGuard(a)) a.reaction = { kind: 'guard', k: 0, t: 0, duration: 1.2 };
+      brain.response = 'mourn';
+      brain.responseTimer = 7 + a.rng() * 7;
       return true;
     }
     return false;
@@ -3439,7 +3920,9 @@
       return;
     }
     if (p.mount || p.seat) { updateMountedPlayer(world, p, dt); return; }
-    const locked = world.box.open || Rig.isDown(p);
+    // The bag belongs in the lock with the conversation box. Leaving it to
+    // the input layer meant the keys went quiet but the momentum did not.
+    const locked = world.box.open || invVisible(world) || Rig.isDown(p);
     const input = world.input;
     let dx = locked ? 0 : input.dx;
     let dy = locked ? 0 : input.dy;
@@ -3482,7 +3965,7 @@
     clampToWorld(p);
 
     const impact = resolvePropCollisions(world, p, PLAYER_R);
-    reactToProp(p, impact);
+    reactToProp(world, p, impact);
     reactToCart(world, p);
     clampPlayer(p);
 
@@ -3669,8 +4152,8 @@
     const clear = steerAround(world, a, want, 26);
     a.targetYaw = clear === null ? want : clear;
     if (Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 0.7) {
-      a.x += Math.sin(a.yaw) * SPEED.npc * dt;
-      a.y += Math.cos(a.yaw) * SPEED.npc * dt;
+      a.x += Math.sin(a.yaw) * walkSpeed(a) * dt;
+      a.y += Math.cos(a.yaw) * walkSpeed(a) * dt;
       resolvePropCollisions(world, a, 6);
       clampVillager(a);
     }
@@ -3751,6 +4234,9 @@
         brain.response = 'flee';
         brain.responseTimer = 4;
         brain.fleeFrom = { x: v.x, y: v.y };
+      } else if (wantsOff(world, a, v)) {
+        brain.rideFor = undefined;
+        bailOut(world, a);
       } else {
         // riding along, until they decide they have arrived
         brain.rideFor = (brain.rideFor === undefined ? 45 + a.rng() * 120 : brain.rideFor) - dt;
@@ -3821,6 +4307,22 @@
 
     Rig.applyShove(a, dt);
 
+    /* Carried into a trunk by a horse, or thrown off a cart into one. A
+     * villager's own two feet never get them anywhere near this fast, so this
+     * only ever fires on something that was done to them. */
+    if (!Rig.isDown(a) && a.hitCooldown <= 0) {
+      const crash = resolvePropCollisions(world, a, 6);
+      if (crash.prop && crash.speed > TRIP_SPEED) {
+        a.hitCooldown = 0.5;
+        if (crash.speed > FALL_SPEED) {
+          Rig.knockDown(a, crash.nx, crash.ny, 3.0 + crash.speed / 44);
+          crashDamage(world, a, crash);
+        } else {
+          Rig.stumble(a, crash.nx, crash.ny, 16, 0.5);
+        }
+      }
+    }
+
     // Shoved hard enough to have to catch themselves: they walk it off,
     // facing the way they are being pushed.
     if (a.stumbleTime > 0 && !Rig.isDown(a)) {
@@ -3861,6 +4363,12 @@
     }
 
     if (brain.guard) updateGuard(world, a, dt);
+    // Fetching the watch comes before anything else a villager might be
+    // doing, because nothing else they might be doing matters as much.
+    if (!brain.guard && updateReport(world, a, dt)) {
+      Rig.updateActorMotion(a, dt);
+      return;
+    }
     if (noticeCasualties(world, a, dt)) { Rig.updateActorMotion(a, dt); return; }
     if (noticeWeapon(world, a, dt)) { Rig.updateActorMotion(a, dt); return; }
     if (tryRecoverItems(world, a, dt)) { Rig.updateActorMotion(a, dt); return; }
@@ -3900,8 +4408,8 @@
       if (brain.state === 'approach') {
         if (d > COMFORT_RANGE) {
           const len = Math.hypot(dx, dy) || 1;
-          a.x += (dx / len) * SPEED.npc * dt;
-          a.y += (dy / len) * SPEED.npc * dt;
+          a.x += (dx / len) * walkSpeed(a) * dt;
+          a.y += (dy / len) * walkSpeed(a) * dt;
           a.gait = 'walk';
           clampVillager(a);
         } else {
@@ -3950,8 +4458,8 @@
       } else {
         a.targetYaw = clear;
         if (Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 0.5) {
-          a.x += Math.sin(a.yaw) * SPEED.npc * dt;
-          a.y += Math.cos(a.yaw) * SPEED.npc * dt;
+          a.x += Math.sin(a.yaw) * walkSpeed(a) * dt;
+          a.y += Math.cos(a.yaw) * walkSpeed(a) * dt;
           resolvePropCollisions(world, a, 6);
           clampVillager(a);
         }
@@ -3966,6 +4474,9 @@
 
   function beginConversation(world, npc) {
     npc.speaking = true;
+    // From here on you are somebody they have met, which is most of what it
+    // takes to be trusted with their cart.
+    npc.brain.knowsYou = true;
     world.talkingTo = npc;
     D.start(world.box, TEST_PAGES, npc.character.name, {
       onLetter: function (letter) {
@@ -4146,6 +4657,9 @@
 
   const SHADOW = R.pack(26, 40, 26);
   const LABEL = R.pack(238, 232, 216);
+  // The occupation line. Brass rather than a signal yellow, so it belongs to
+  // the same world as the belt buckles.
+  const JOB_LABEL = R.pack(232, 188, 62);
   const LABEL_SHADOW = R.pack(20, 22, 28);
 
   function drawGround(world, target) {
@@ -4180,9 +4694,15 @@
 
   const REIN_POINTS = 6;
   const REIN_GRAV = 26;
+  const ROPE_CLEAR = 2 * PIXEL;   // how far above the grass a rope may hang
   const REIN_ITER = 4;
   const REIN_COLOUR = R.pack(58, 42, 26);
   const REIN_LIGHT = R.pack(84, 62, 38);
+
+  /* The screen row the grass sits on under a given world y. */
+  function groundLine(world, wy) {
+    return (Math.round(wy) - world.camY) * PIXEL;
+  }
 
   /* Screen position of a point given in a model's own space, for a model
    * standing at (ex, ey) in the world and rotated by `yaw`. The buffer's own
@@ -4245,63 +4765,19 @@
       hand.push(projectModelPoint(world, hx, hy, yaw, side * 3.2, lift, fwd));
       bit.push(projectModelPoint(world, h.x, h.y, h.yaw, side * spread, bitY, bitZ));
     }
-    return { hand: hand, bit: bit };
+    return {
+      hand: hand, bit: bit,
+      // Where the grass is under each end. A rope solved in screen space has
+      // no idea the world has a floor, and a slack rein was sagging straight
+      // through it.
+      floorA: groundLine(world, hy), floorB: groundLine(world, h.y)
+    };
   }
 
   function updateReins(world, h, dt) {
     const a = reinAnchors(world, h);
-    if (!a) { h.reins = null; h.reinCamX = undefined; h.reinCamY = undefined; return; }
-    if (!h.reins) {
-      h.reins = [];
-      for (let i = 0; i < 2; i++) {
-        const pts = [];
-        for (let k = 0; k < REIN_POINTS; k++) {
-          const t = k / (REIN_POINTS - 1);
-          pts.push({
-            x: a.hand[i].x + (a.bit[i].x - a.hand[i].x) * t,
-            y: a.hand[i].y + (a.bit[i].y - a.hand[i].y) * t,
-            px: 0, py: 0
-          });
-          pts[k].px = pts[k].x; pts[k].py = pts[k].y;
-        }
-        h.reins.push(pts);
-      }
-    }
-    // The camera moves under the rope; without this the whole rein lags a
-    // frame behind the world every time the view scrolls.
-    const shiftX = (world.camX - (h.reinCamX === undefined ? world.camX : h.reinCamX)) * PIXEL;
-    const shiftY = (world.camY - (h.reinCamY === undefined ? world.camY : h.reinCamY)) * PIXEL;
-    h.reinCamX = world.camX; h.reinCamY = world.camY;
-
-    for (let i = 0; i < 2; i++) {
-      const pts = h.reins[i];
-      const span = Math.hypot(a.bit[i].x - a.hand[i].x, a.bit[i].y - a.hand[i].y);
-      // a little longer than the gap, so it hangs slack until the horse pulls
-      const seg = (span * 1.06 + 4) / (REIN_POINTS - 1);
-      for (let k = 0; k < pts.length; k++) {
-        const q = pts[k];
-        q.x -= shiftX; q.y -= shiftY;
-        q.px -= shiftX; q.py -= shiftY;
-        const vx = (q.x - q.px) * 0.94, vy = (q.y - q.py) * 0.94;
-        q.px = q.x; q.py = q.y;
-        q.x += vx; q.y += vy + REIN_GRAV * dt;
-      }
-      for (let it = 0; it < REIN_ITER; it++) {
-        pts[0].x = a.hand[i].x; pts[0].y = a.hand[i].y;
-        pts[pts.length - 1].x = a.bit[i].x; pts[pts.length - 1].y = a.bit[i].y;
-        for (let k = 0; k < pts.length - 1; k++) {
-          const p0 = pts[k], p1 = pts[k + 1];
-          const dx = p1.x - p0.x, dy = p1.y - p0.y;
-          const d = Math.hypot(dx, dy) || 1e-5;
-          const f = ((d - seg) / d) * 0.5;
-          const ox = dx * f, oy = dy * f;
-          if (k > 0) { p0.x += ox; p0.y += oy; }
-          if (k + 1 < pts.length - 1) { p1.x -= ox; p1.y -= oy; }
-        }
-      }
-      pts[0].x = a.hand[i].x; pts[0].y = a.hand[i].y;
-      pts[pts.length - 1].x = a.bit[i].x; pts[pts.length - 1].y = a.bit[i].y;
-    }
+    if (!a) { h.reins = null; h.reinCam = null; return; }
+    h.reins = solveRope(h.reins, a, world, h, dt, 'reinCam');
   }
 
   /* The cart is roped to the horse. Two traces run from the shaft tips to the
@@ -4324,7 +4800,10 @@
       back.push(projectModelPoint(world, h.x, h.y, h.yaw, side * spread, harnessY, harnessZ));
       front.push(projectModelPoint(world, c.x, c.y, c.yaw, side * shaftSide, shaftY, shaftOut));
     }
-    return { hand: front, bit: back };
+    return {
+      hand: front, bit: back,
+      floorA: groundLine(world, c.y), floorB: groundLine(world, h.y)
+    };
   }
 
   function updateTraces(world, h, dt) {
@@ -4358,6 +4837,11 @@
     const shiftY = (world.camY - cam.y) * PIXEL;
     cam.x = world.camX; cam.y = world.camY;
 
+    // The floor under the rope, sloping from one end to the other. Screen y
+    // grows downward, so a point is under the grass when its y is the larger.
+    const fA = a.floorA === undefined ? Infinity : a.floorA - ROPE_CLEAR;
+    const fB = a.floorB === undefined ? Infinity : a.floorB - ROPE_CLEAR;
+
     for (let i = 0; i < 2; i++) {
       const pts = rope[i];
       const span = Math.hypot(a.bit[i].x - a.hand[i].x, a.bit[i].y - a.hand[i].y);
@@ -4369,6 +4853,11 @@
         const vx = (q.x - q.px) * 0.94, vy = (q.y - q.py) * 0.94;
         q.px = q.x; q.py = q.y;
         q.x += vx; q.y += vy + REIN_GRAV * dt;
+        const floor = fA + (fB - fA) * (k / (pts.length - 1));
+        // Land on it rather than pass through it, and stop falling once it
+        // has, or the rope keeps building speed against a limit it can never
+        // cross and snaps taut the moment the horse moves.
+        if (q.y > floor) { q.y = floor; q.py = floor; }
       }
       for (let it = 0; it < REIN_ITER; it++) {
         pts[0].x = a.hand[i].x; pts[0].y = a.hand[i].y;
@@ -4711,6 +5200,23 @@
     T.drawShadowed(target, label, x + w + 4 * PIXEL, y - PIXEL, LABEL, LABEL_SHADOW);
   }
 
+  /* What this person is doing for a living, right now, or nothing at all.
+   * Only what they are in the middle of counts: a watchman on his own time is
+   * not on duty and gets no tag. */
+  const JOBS = { watch: 'TOWN WATCH' };
+
+  function jobLabel(a) {
+    if (!a || !a.brain || !a.character) return null;
+    if (Rig.isDown(a) || (a.body && a.body.dead)) return null;
+    if (a.carriedBy) return null;
+    if (a.brain.guard) {
+      const st = a.brain.guardState;
+      if (st === 'chase' || st === 'rousing') return JOBS.watch;
+      return null;
+    }
+    return null;
+  }
+
   function draw(world, target, camera) {
     R.clearTarget(target);
     drawGround(world, target);
@@ -4823,15 +5329,50 @@
       }
     }
 
+    /* Anyone working gets their name up, and their trade above it in brass.
+     * Off duty they are just somebody in the street and get nothing — which
+     * is the point: the tag is not an identity badge, it is notice that this
+     * person is currently acting in an official capacity and that what you do
+     * next is being taken down. */
+    const tags = [];
+    for (let i = 1; i < world.actors.length; i++) {
+      const a = world.actors[i];
+      const job = jobLabel(a);
+      if (!job) continue;
+      if (a.x - cx < -40 || a.x - cx > VIEW_W + 40) continue;
+      if (a.y - cy < -40 || a.y - cy > VIEW_H + 40) continue;
+      tags.push({ a: a, job: job });
+    }
+    // Back to front, so a name in the distance never covers one in front of
+    // it. Six of the watch in a huddle is otherwise a wall of text with no
+    // way to tell which label belongs to which man.
+    tags.sort(function (m, n) { return m.a.y - n.a.y; });
+    for (let i = 0; i < tags.length; i++) {
+      const a = tags[i].a;
+      const ax = (Math.round(a.x) - cx) * PIXEL;
+      const ay = (Math.round(a.y) - cy) * PIXEL;
+      const nameY = ay - 58 * PIXEL;
+      const name = a.character.name;
+      T.drawShadowed(target, name, ax - Math.round(T.measure(name) / 2), nameY,
+        LABEL, LABEL_SHADOW);
+      T.drawTinyShadowed(target, tags[i].job,
+        ax - Math.round(T.measureTiny(tags[i].job, PIXEL) / 2),
+        nameY - T.tinyHeight(PIXEL) - 2 * PIXEL,
+        JOB_LABEL, LABEL_SHADOW, PIXEL);
+    }
+
     /* No hints. A horse gets its name over its head, the same way a villager
      * does, and nothing else — the controls are not a tutorial and the stats
      * are the animal's business, not a readout. */
     const pr = world.prompt;
     if (pr && pr.name) {
       const at = pr.at;
-      const nx = (Math.round(at.x) - cx) * PIXEL - Math.round(T.measure(pr.name) / 2);
-      const ny = (Math.round(at.y) - cy) * PIXEL - (pr.kind === 'talk' ? 58 : 66) * PIXEL;
-      T.drawShadowed(target, pr.name, nx, ny, LABEL, LABEL_SHADOW);
+      // somebody already labelled for being on duty does not need it twice
+      if (!(pr.kind === 'talk' && jobLabel(at))) {
+        const nx = (Math.round(at.x) - cx) * PIXEL - Math.round(T.measure(pr.name) / 2);
+        const ny = (Math.round(at.y) - cy) * PIXEL - (pr.kind === 'talk' ? 58 : 66) * PIXEL;
+        T.drawShadowed(target, pr.name, nx, ny, LABEL, LABEL_SHADOW);
+      }
     }
 
     // the cart's condition, while you are the one driving it

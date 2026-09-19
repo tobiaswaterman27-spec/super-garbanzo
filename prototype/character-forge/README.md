@@ -108,21 +108,44 @@ test for it: no two co-visible perpendicular faces may ever share a step.
   name over his head with `TOWN WATCH` above it in brass, drawn in a 3x5 face
   built by hand for the purpose — Press Start 2P turns to porridge below eight
   pixels. Off duty he is just somebody in the street and gets nothing.
+- **Three of them, in the whole parish.** A small place has a handful of men,
+  not a garrison. Six turned every incident into a crowd and made fetching one
+  pointless — there was always another round the corner.
 - **The watch has to be told.** A guard acts on what he sees himself. Anybody
   else who sees a crime panics for a beat, then runs — flat out, the one
   errand a villager sprints for — to the nearest guard and points back at
   where it happened. That run is time you can use: from a killing to the first
   man moving is several seconds, not none.
+- **News is a thing people hold and hand on.** Whoever knows about a crime
+  tells whoever they end up next to, and that person carries it too. One
+  mechanism covers a baker telling a baker, a baker telling a watchman and a
+  watchman calling another watchman; the only differences are how far the
+  voice carries and what the listener does about it. Each incident has an id,
+  so a piece of news goes round a village without coming back to the person
+  who started it and nobody is frightened by the same thing twice.
+  Knowing a thing is deliberately separate from having somewhere to take it —
+  a witness who cannot find a guard keeps the news and hands it on when they
+  finally meet someone, which is what makes the relay work across a map with
+  three guards on it.
+- **The hue and cry.** A watchman who wants the rest of the watch does not
+  walk over and mention it, he shouts, and that carries across a village
+  rather than across a conversation. He does it when the thing is actually
+  serious — somebody the watch is prepared to kill, or somebody armed, or when
+  he is already bleeding from them — and otherwise gets on with it himself.
+  Otherwise three men spread over a parish are three men, not a watch.
 - **They arrive in ones**, not as a block. Each guard has his own reaction
   time, rolled once, so the same man is always the quick one, and news
   arriving second-hand takes longer to act on than seeing it yourself.
 - **One man runs you down; the rest cut you off.** Roles are handed out by who
   is best placed — the runner is whoever is already behind you — and the
   stations are *kept*, because reshuffling them every time the pecking order
-  changed was what put the whole watch in one knot. Flankers run at where you
-  are going rather than where you are, hold their post once they reach it, and
-  close only when the runner has actually stopped you or you walk into them.
-  Stand still and they form a ring around you rather than a scrum.
+  changed was what put the whole watch in one knot. Stations are also balanced
+  across the two sides: a cordon with both men on the same side is not a
+  cordon, so a crowded side costs more than a walk across. Flankers run at
+  where you are going rather than where you are, hold their post once they
+  reach it, and close only when the runner has actually stopped you or you
+  walk into them. Stand still and they form a ring around you rather than a
+  scrum.
 - Guards are quicker than villagers at a walk, and only *just* quicker than a
   sprinting player. They used to be half again as fast, which made them
   unloseable and made everything tactical they did pointless: a man who can

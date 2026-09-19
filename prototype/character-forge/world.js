@@ -288,6 +288,7 @@
       reputation: 0,
       reputationCriminal: 0,
       lastSeenAt: -999,
+      crimeSeq: 0,
       camX: 0, camY: 0,
       box: D.create(),
       talkingTo: null,
@@ -340,12 +341,12 @@
     world.player = player;
 
     /* villagers, and among them the watch */
-    const GUARD_KIT = ['sword', 'club', 'spear', 'sword', 'bow'];
+    const GUARD_KIT = ['sword', 'spear', 'bow', 'club', 'sword'];
     /* Enough of them that seating eleven in the carts and on horseback still
      * leaves a village walking about. */
     for (let i = 0; i < 26; i++) {
       const ch = CM.randomCharacter(rng);
-      const guard = i < 6;
+      const guard = i < GUARD_COUNT;
       if (guard) {
         /* The watch dress alike on purpose. Everything here is fixed rather
          * than rolled: the same dark tunic, the same surcoat, and the livery
@@ -1847,6 +1848,13 @@
 
   /* ================== combat ================== */
 
+  /* A small parish has a handful of men, not a garrison. Six of them turned
+   * every incident into a crowd and made the whole business of fetching one
+   * pointless — there was always another round the corner. Three means the
+   * nearest one may be a long way off, which is what gives word of mouth
+   * something to do. */
+  const GUARD_COUNT = 3;
+
   const SEE_RANGE = 150;        // how far a guard notices a crime
   const SEE_RANGE_CIVIL = 120;
   const SHOUT_RANGE = 200;      // how far a guard passes it on
@@ -2588,6 +2596,9 @@
     const crime = CRIMES[crimeId];
     if (!crime) return;
 
+    // One incident, one identity, so a piece of news can go round a village
+    // without coming back to the person who started it.
+    const incident = ++world.crimeSeq;
     let seen = false;
     for (let i = 1; i < world.actors.length; i++) {
       const o = world.actors[i];
@@ -2610,6 +2621,7 @@
           ? (I.held(world.player.inv) || { label: 'bare hands' }).label : 'a weapon',
         sure: 0.35 + (o.rng ? o.rng() : Math.random()) * 0.65
       };
+      learnOf(world, o, crimeId, x, y, incident, world.time);
       if (isGuard(o)) {
         alertGuard(world, o, x, y, crime.alarm);
       } else {
@@ -2618,7 +2630,7 @@
          * between a watch that knows what you did the instant you do it and
          * one that has to be fetched: the guard three streets away is coming
          * because a baker ran to him, and that run takes time you can use. */
-        startReport(world, o, crimeId, x, y);
+        startReport(world, o, crimeId, x, y, incident, world.time);
       }
     }
 
@@ -2632,9 +2644,131 @@
 
   /* How far a frightened witness will go looking for the watch, and how long
    * they will keep looking before deciding it is not their business. */
-  const REPORT_RANGE = 900;
+  /* No cap worth the name. A witness to a murder will cross the parish to
+   * find the watch, and with three men in it the nearest one may genuinely be
+   * on the other side. The give-up timer is what bounds the errand. */
+  const REPORT_RANGE = 4000;
   const REPORT_GIVE_UP = 55;
   const PANIC_BEFORE_REPORT = 2.2;   // seconds of being frightened first
+
+  /* ---------- word of mouth ----------
+   *
+   * News of a crime is a thing somebody holds and can hand to somebody else.
+   * A witness has it first-hand; anyone they meet on the way gets told and
+   * carries it on themselves, and a guard who is told acts on it. That one
+   * mechanism covers a baker telling a baker, a baker telling a watchman and
+   * a watchman shouting to another watchman — the only differences are how
+   * far a voice carries and what the listener does about it.
+   *
+   * Each incident gets an id so that a piece of news can be passed round a
+   * village without coming back to the person who started it, and so that
+   * somebody who has already heard it is not frightened by it twice.
+   */
+  const TELL_RANGE = 42;        // close enough to say something to somebody
+  /* A watchman who wants the rest of the watch does not walk over and mention
+   * it. He raises the hue and cry, and that carries across a village — which
+   * is the only way three men spread over a parish are ever a watch rather
+   * than three men. He does not do it for every pickpocket; see below. */
+  const GUARD_CALL_RANGE = 640;
+  const NEWS_LIFE = 50;         // after this it is gossip, not an alarm
+  const HEARD_MAX = 24;         // how many incidents anyone keeps track of
+
+  function knowsOf(a, id) {
+    return !!(a.brain && a.brain.heard && a.brain.heard[id] !== undefined);
+  }
+
+  function markHeard(world, a, id) {
+    const brain = a.brain;
+    if (!brain) return;
+    const heard = brain.heard || (brain.heard = {});
+    heard[id] = world.time;
+    // Nobody remembers everything. Drop the oldest once the list is long.
+    const keys = Object.keys(heard);
+    if (keys.length <= HEARD_MAX) return;
+    keys.sort(function (m, n) { return heard[m] - heard[n]; });
+    for (let i = 0; i < keys.length - HEARD_MAX; i++) delete heard[keys[i]];
+  }
+
+  /* Whatever this person currently knows and would say out loud. A villager
+   * knows it because they are carrying it to the watch; a guard knows it
+   * because he is acting on it. */
+  function newsOf(a) {
+    if (!a.brain) return null;
+    return a.brain.news || null;
+  }
+
+  /* Learning something. Kept separate from deciding to do anything about it,
+   * because the two come apart: somebody can know a thing with nobody to
+   * tell, and that is precisely the person who has to be able to pass it on
+   * when they finally meet someone. Tying what you know to the errand you are
+   * running meant a witness who could not find a guard forgot the murder. */
+  function learnOf(world, a, crimeId, x, y, id, at) {
+    const brain = a.brain;
+    if (!brain) return null;
+    const incident = id === undefined ? ++world.crimeSeq : id;
+    if (knowsOf(a, incident)) return brain.news;
+    markHeard(world, a, incident);
+    const when = at === undefined ? world.time : at;
+    const crime = CRIMES[crimeId] || CRIMES.strike;
+    const prev = brain.news;
+    const stale = !prev || world.time - (prev.at || 0) > NEWS_LIFE;
+    // the worse tale is the one they tell
+    if (stale || (CRIMES[prev.crime] || CRIMES.strike).alarm <= crime.alarm) {
+      brain.news = { id: incident, crime: crimeId, x: x, y: y, at: when };
+    }
+    return brain.news;
+  }
+
+  /* Telling whoever is in earshot. A guard shouts and is heard across the
+   * square; everyone else has to be next to you. */
+  function spreadNews(world, a, dt) {
+    const brain = a.brain;
+    const news = newsOf(a);
+    if (!news || news.id === undefined) return;
+    if (world.time - (news.at || 0) > NEWS_LIFE) return;
+    brain.tellTimer = (brain.tellTimer || 0) - dt;
+    if (brain.tellTimer > 0) return;
+    brain.tellTimer = 0.7;
+
+    const speakerIsGuard = isGuard(a);
+    const voice = speakerIsGuard
+      ? (brain.calling ? GUARD_CALL_RANGE : SHOUT_RANGE)
+      : TELL_RANGE;
+    const alarm = (CRIMES[news.crime] || CRIMES.strike).alarm;
+    let toldSomebody = null;
+
+    for (let i = 1; i < world.actors.length; i++) {
+      const o = world.actors[i];
+      if (o === a || !o.brain || o.carriedBy) continue;
+      if (Rig.isDown(o) || (o.body && (o.body.dead || o.body.dying))) continue;
+      if (knowsOf(o, news.id)) continue;
+      // A guard is worth crossing a square to tell, and worth shouting at.
+      // The hue and cry is for the watch; bystanders only hear you if they
+      // are standing there.
+      const range = isGuard(o) ? Math.max(voice, SHOUT_RANGE)
+        : Math.min(voice, TELL_RANGE * 2);
+      if (distance(o, a) > range) continue;
+
+      learnOf(world, o, news.crime, news.x, news.y, news.id, news.at);
+      if (isGuard(o)) {
+        alertGuard(world, o, news.x, news.y, alarm);
+        o.brain.toldBy = a;
+      } else {
+        /* Word gets round. They take it on themselves, which is what turns
+         * three guards in a large parish into a watch that still finds out:
+         * the news walks even when nobody who saw it can reach anyone. */
+        startReport(world, o, news.crime, news.x, news.y, news.id, news.at);
+        if (!o.gesture && alarm > 0.5) Rig.startGesture(o, 'fear');
+      }
+      toldSomebody = o;
+      break;      // one at a time; a person says a thing to a person
+    }
+
+    if (toldSomebody && !a.attack && !a.gesture) {
+      Rig.startGesture(a, 'point');
+      a.targetYaw = Rig.yawForDirection(news.x - a.x, news.y - a.y);
+    }
+  }
 
   function nearestGuardTo(world, from, range) {
     let best = null, bestD = range;
@@ -2650,19 +2784,24 @@
   /* A witness picks a guard and sets off. They keep the crime and the place
    * with them, because what they eventually say is what they saw, not what
    * happened. */
-  function startReport(world, a, crimeId, x, y) {
+  function startReport(world, a, crimeId, x, y, id, at) {
     const brain = a.brain;
     if (!brain || brain.guard) return false;
-    // already carrying a worse tale: the worse one wins
     const crime = CRIMES[crimeId];
+    const news = learnOf(world, a, crimeId, x, y, id, at);
+    if (!news) return false;
+    // already carrying a worse tale: the worse one wins
     if (brain.report && CRIMES[brain.report.crime]
       && CRIMES[brain.report.crime].alarm >= crime.alarm) {
       brain.report.x = x; brain.report.y = y;
       return false;
     }
     const g = nearestGuardTo(world, a, REPORT_RANGE);
+    // Nobody to take it to is not the same as nothing to say. They keep the
+    // news and hand it to whoever they meet.
     if (!g) return false;
-    brain.report = { crime: crimeId, x: x, y: y, to: g, timer: REPORT_GIVE_UP };
+    brain.report = { crime: crimeId, x: x, y: y, to: g, timer: REPORT_GIVE_UP,
+      id: news.id, at: news.at };
     /* Somebody with an errand does not stand there being frightened for ten
      * seconds first. They get clear, and then they go — otherwise the panic
      * carries them the wrong way across half the parish before the errand
@@ -2692,6 +2831,7 @@
     const d = distance(a, g);
     if (d < CHAT_CLOSE + 12) {
       // close enough to be heard
+      learnOf(world, g, rep.crime, rep.x, rep.y, rep.id, rep.at);
       alertGuard(world, g, rep.x, rep.y, (CRIMES[rep.crime] || CRIMES.strike).alarm);
       g.brain.toldBy = a;
       a.brain.report = null;
@@ -2749,6 +2889,7 @@
       // somebody shouts again means he never actually sets off.
       brain.chaseX = x; brain.chaseY = y;
       brain.giveUp = Math.max(brain.giveUp, GUARD_GIVE_UP * (0.6 + alarm * 0.7));
+      if (brain.news) { brain.news.x = x; brain.news.y = y; }
       return;
     }
     // Each guard has his own reaction time, rolled once, so the same man is
@@ -2768,6 +2909,16 @@
     brain.response = null;
     g.alert = true;
     g.gesture = null;
+    /* He is acting on something, so he has something to say about it — which
+     * is what lets one watchman fetch another. A caller who knows which
+     * incident this is overwrites it straight after; a guard who saw it with
+     * his own eyes mints one here. */
+    if (!brain.news || world.time - (brain.news.at || 0) > NEWS_LIFE) {
+      brain.news = { id: ++world.crimeSeq, crime: 'strike', x: x, y: y, at: world.time };
+      markHeard(world, g, brain.news.id);
+    } else {
+      brain.news.x = x; brain.news.y = y;
+    }
     if (brain.partner) {
       if (brain.state === 'closing') abandonClosing(g); else endChat(g, 30);
     }
@@ -2804,21 +2955,19 @@
     }
   }
 
-  /* Guards pass a chase on to whoever they run past, and clear civilians out
-   * of the way as they come through. */
+  /* Clearing the street as they come through. Passing the chase on to other
+   * guards used to live here too; it is word of mouth now — a guard shouting
+   * is the same mechanism as a baker telling a baker, just with a longer
+   * voice and a listener who does something about it. */
   function guardSpread(world, g, dt) {
     g.brain.spreadTimer = (g.brain.spreadTimer || 0) - dt;
     if (g.brain.spreadTimer > 0) return;
     g.brain.spreadTimer = 1.2;
     for (let i = 1; i < world.actors.length; i++) {
       const o = world.actors[i];
-      if (o === g || !o.brain || Rig.isDown(o) || (o.body && o.body.dead)) continue;
-      const d = distance(o, g);
-      if (isGuard(o)) {
-        if (d < SHOUT_RANGE && o.brain.guardState !== 'chase') {
-          alertGuard(world, o, g.brain.chaseX, g.brain.chaseY, 0.7);
-        }
-      } else if (d < 90 && o.brain.state !== 'react') {
+      if (o === g || !o.brain || isGuard(o)) continue;
+      if (Rig.isDown(o) || (o.body && o.body.dead)) continue;
+      if (distance(o, g) < 90 && o.brain.state !== 'react') {
         o.brain.state = 'react';
         o.brain.response = 'backAway';
         o.brain.responseTimer = 1.6 + (o.rng ? o.rng() : Math.random()) * 2;
@@ -3190,13 +3339,21 @@
       const g = needing[i];
       // which side of the quarry's line he is on already
       const side = (g.x - p.x) * Math.cos(heading) - (g.y - p.y) * Math.sin(heading);
+      // how many stations are already manned on each side
+      let onLeft = 0, onRight = 0;
+      for (let k = 0; k < FLANK_LADDER.length; k++) {
+        if (!taken[k]) continue;
+        if (FLANK_LADDER[k] > 0) onRight++; else onLeft++;
+      }
       let best = -1, bestCost = Infinity;
       for (let k = 0; k < FLANK_LADDER.length; k++) {
         if (taken[k]) continue;
         // prefer a station on the side he is already standing, and an inner
-        // one over an outer one
+        // one over an outer one — but a cordon with both men on the same side
+        // is not a cordon, so a crowded side costs more than a walk across.
         const wrongSide = (FLANK_LADDER[k] > 0) !== (side > 0) ? 60 : 0;
-        const cost = Math.abs(FLANK_LADDER[k]) * 30 + wrongSide;
+        const crowded = (FLANK_LADDER[k] > 0 ? onRight : onLeft) * 45;
+        const cost = Math.abs(FLANK_LADDER[k]) * 30 + wrongSide + crowded;
         if (cost < bestCost) { bestCost = cost; best = k; }
       }
       if (best < 0) { g.brain.role = 'pursue'; g.brain.flank = 0; g.brain.slot = -1; continue; }
@@ -3287,6 +3444,7 @@
     brain.giveUp -= dt;
     orderStandDown(world, g, dt);
     const d = distance(g, player);
+    callForHelp(world, g);
     const sees = d < SEE_RANGE && !Rig.isDown(player);
     if (sees) {
       brain.chaseX = player.x; brain.chaseY = player.y;
@@ -3306,6 +3464,8 @@
       brain.guardState = 'patrol';
       brain.state = 'pause';
       brain.timer = 1.5;
+      brain.news = null;
+      brain.calling = false;
       if (g.mount) dismountNpc(world, g);
       return true;
     }
@@ -3500,6 +3660,26 @@
       }
       return;
     }
+  }
+
+  /* Whether this is a job for the whole watch or for one man.
+   *
+   * A guard who raised the hue and cry over every shoved fishmonger would
+   * have the parish permanently at a run, and it would make the whole
+   * business of having three of them pointless. So he shouts when the thing
+   * is actually serious — somebody the watch is prepared to kill, or somebody
+   * armed, or a man who is already bleeding from them — and otherwise gets on
+   * with it himself. */
+  function callForHelp(world, g) {
+    const brain = g.brain;
+    if (brain.calling) return;
+    const hurt = g.body && g.body.hp < CB.MAX_HP * 0.84;
+    const lethal = guardIntent(world, g) === 'lethal';
+    const armed = armedAndOpen(world, world.player);
+    if (!hurt && !lethal && !armed) return;
+    brain.calling = true;
+    // and it is worth watching him do it
+    if (!g.attack && !g.gesture) Rig.startGesture(g, 'point');
   }
 
   function armedAndOpen(world, p) {
@@ -3818,8 +3998,11 @@
           brain.responseTimer = 4 + Math.random() * 4;
           if (!isGuard(a)) {
             a.reaction = { kind: 'guard', k: 0, t: 0, duration: 1.2 };
-            // and somebody goes for the watch
-            startReport(world, a, 'kill', o.x, o.y);
+            // and somebody goes for the watch. The body is one incident
+            // however many people come across it, so the news about it is
+            // the same piece of news and does not go round twice.
+            if (o.body.incident === undefined) o.body.incident = ++world.crimeSeq;
+            startReport(world, a, 'kill', o.x, o.y, o.body.incident, world.time);
           }
           return true;
         }
@@ -4181,6 +4364,14 @@
     updateReaction(a, dt);
     a.threatTimer = Math.max(0, (a.threatTimer || 0) - dt);
     updateBleedTrail(world, a, dt);
+    /* Anyone carrying news says it to whoever they end up next to, whether
+     * they are running an errand, running away, or standing on a corner
+     * being the watch. It goes here, before every early return below, because
+     * somebody frightened enough to be fleeing is exactly the person most
+     * likely to be shouting about it. */
+    if (!Rig.isDown(a) && !(a.body && (a.body.dead || a.body.dying))) {
+      spreadNews(world, a, dt);
+    }
     const died = CB.updateBody(a, dt);
     if (died === 'died') {
       // everything they were carrying goes on the floor with them

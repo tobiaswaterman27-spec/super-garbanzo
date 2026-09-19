@@ -344,6 +344,188 @@
     model.bob = -1.1 * lurch;
   }
 
+  /* ---------- going down without a ragdoll ----------
+   *
+   * The verlet ragdoll is for being run over by a horse. Most of the time a
+   * body that goes down should go down the way it was hit — folding, landing
+   * on its back, lying there, and getting up again — and none of that wants
+   * to be simulated. A simulation cannot be asked to land somebody on their
+   * back looking winded; it can only be asked to drop them and hope.
+   *
+   * So this is a posed fall. The whole model is tipped over at the root,
+   * which is at the feet, so the body swings down about the ankles the way a
+   * person actually goes over. Which way it tips is the direction of the blow
+   * in the victim's own frame: punched in the face, they go backwards.
+   *
+   * `k` runs 0..1 through whichever phase is current.
+   */
+
+  const DOWN_ANGLE = 1.46;      // flat on the floor, near enough
+
+  function poseCollapse(model, phase, k, dirSide, dirFront, zone, side) {
+    clearPose(model);
+    const g = Math.max(0, Math.min(1, k));
+
+    /* How far over, and about which axis. A blow from in front tips them
+     * backwards (positive X at the root lays the body away from the camera),
+     * one from the side drops them sideways, and most blows are some of
+     * both. */
+    let lay;
+    if (phase === 'fall') {
+      // fast at first as the legs give, slowing as the shoulders meet the
+      // ground: a body does not fall at a constant rate
+      lay = 1 - Math.pow(1 - g, 2.2);
+    } else if (phase === 'rise') {
+      // and getting up is the other way about: slow to start, then quick
+      lay = Math.pow(1 - g, 1.7);
+    } else {
+      lay = 1;
+    }
+
+    const len = Math.hypot(dirSide, dirFront) || 1;
+    const fs = dirFront / len, ss = dirSide / len;
+    const root = model.bones.root;
+    if (root) {
+      root.rot[0] = DOWN_ANGLE * lay * fs;
+      root.rot[2] = DOWN_ANGLE * lay * ss;
+      root.rot[1] = 0;
+    }
+
+    if (phase === 'fall') {
+      /* The legs go first, which is what makes it a collapse rather than a
+       * felled tree, and the arms come up and back as they try to catch
+       * themselves. */
+      const buckle = Math.sin(Math.min(1, g * 1.4) * Math.PI) * 0.9 + g * 0.3;
+      /* Over the last of it the flail settles into the pose they will be
+       * lying in, so the frame where the shoulders hit the ground is the
+       * frame the lying pose starts from. Without this the two phases meet at
+       * two different poses and the landing reads as a skipped frame. */
+      const land = Math.max(0, (g - 0.62) / 0.38);
+      const mix = function (name, a0, a1, a2, b0, b1, b2) {
+        setRot(model, name,
+          a0 + (b0 - a0) * land, a1 + (b1 - a1) * land, a2 + (b2 - a2) * land);
+      };
+      mix('legR', -0.35 * buckle, 0, 0.12 * buckle, -0.22, 0, 0.16);
+      mix('legL', -0.5 * buckle, 0, -0.1 * buckle, -0.34, 0, -0.12);
+      mix('shinR', 1.15 * buckle, 0, 0, 0.5, 0, 0);
+      mix('shinL', 0.9 * buckle, 0, 0, 0.28, 0, 0);
+      mix('torso', 0.38 * g, ss * 0.2, -ss * 0.2 * g, 0.12, 0, 0);
+      mix('head', -0.45 * g, ss * 0.35, 0, -0.22, ss * 0.5, 0);
+      const sgn0 = side === 'R' ? 1 : -1;
+      const off0 = side === 'R' ? 'L' : 'R';
+      const hold = zone === 'head' ? [-1.7, 0, sgn0 * 0.3, -1.85]
+        : zone === 'leg' ? [-0.8, 0, sgn0 * 0.45, -1.0]
+          : [-0.95, 0, sgn0 * 0.7, -1.75];
+      mix('arm' + side, -1.5 * g, 0, sgn0 * 0.8 * g, hold[0], hold[1], hold[2]);
+      mix('fore' + side, -0.7 * g, 0, 0, hold[3], 0, 0);
+      mix('arm' + off0, -1.4 * g, 0, -sgn0 * 0.85 * g, -0.9, 0, -sgn0 * 1.15);
+      mix('fore' + off0, -0.75 * g, 0, 0, -0.35, 0, 0);
+      return;
+    }
+
+    if (phase === 'down') {
+      /* Lying there. The only thing moving is the chest, and a hand resting
+       * on whatever hurts. Stillness is what sells it — a body on the floor
+       * that keeps shifting reads as a physics bug. */
+      const breathe = Math.sin(g * Math.PI * 2 * 3) * 0.035;
+      setRot(model, 'torso', 0.12 + breathe, 0, 0);
+      setRot(model, 'head', -0.22, ss * 0.5, 0);
+      setRot(model, 'legR', -0.22, 0, 0.16);
+      setRot(model, 'legL', -0.34, 0, -0.12);
+      setRot(model, 'shinR', 0.5, 0, 0);
+      setRot(model, 'shinL', 0.28, 0, 0);
+      // the free arm lies out; the other one is on the wound
+      const off = side === 'R' ? 'L' : 'R';
+      const sgn = side === 'R' ? 1 : -1;
+      setRot(model, 'arm' + off, -0.9, 0, -sgn * 1.15);
+      setRot(model, 'fore' + off, -0.35, 0, 0);
+      if (zone === 'head') {
+        setRot(model, 'arm' + side, -1.7, 0, sgn * 0.3);
+        setRot(model, 'fore' + side, -1.85, 0, 0);
+      } else if (zone === 'leg') {
+        setRot(model, 'arm' + side, -0.8, 0, sgn * 0.45);
+        setRot(model, 'fore' + side, -1.0, 0, 0);
+      } else {
+        setRot(model, 'arm' + side, -0.95, 0, sgn * 0.7);
+        setRot(model, 'fore' + side, -1.75, 0, 0);
+      }
+      return;
+    }
+
+    /* Getting up. They roll onto one elbow, get a knee under themselves and
+     * push, so the arms are doing work rather than hanging there while the
+     * body floats upright. */
+    const push = Math.sin(Math.min(1, (1 - g) * 1.6) * Math.PI);
+    const sgn = side === 'R' ? 1 : -1;
+    setRot(model, 'arm' + side, -0.55 - 0.7 * push, 0, sgn * (0.35 + 0.5 * push));
+    setRot(model, 'fore' + side, -1.35 * push - 0.2, 0, 0);
+    setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -0.4 - 0.4 * push, 0, -sgn * 0.3);
+    setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -0.9 * push, 0, 0);
+    setRot(model, 'legR', -0.3 - 0.75 * push, 0, 0.1);
+    setRot(model, 'shinR', 1.5 * push, 0, 0);
+    setRot(model, 'legL', -0.15 - 0.3 * push, 0, -0.08);
+    setRot(model, 'shinL', 0.8 * push, 0, 0);
+    setRot(model, 'torso', 0.45 * push + 0.1 * lay, 0, 0);
+    setRot(model, 'head', -0.2 - 0.25 * push, 0, 0);
+  }
+
+  /* Puts somebody on the floor without the solver. `dirLocal` is the blow in
+   * the victim's own frame — [sideways, frontways], the same pair the wounds
+   * are placed with, so a punch in the face and the cut it leaves agree about
+   * which way the blow came from. */
+  function collapse(actor, dirLocal, opts) {
+    if (actor.collapse) return false;
+    const o = opts || {};
+    const rng = actor.rng || Math.random;
+    // A blow from the front (dirLocal[1] positive) puts them on their back.
+    actor.collapse = {
+      phase: 'fall',
+      t: 0,
+      fallFor: 0.42 + rng() * 0.12,
+      downFor: o.downFor === undefined ? 4.5 + rng() * 5 : o.downFor,
+      riseFor: 1.35 + rng() * 0.3,
+      side: dirLocal ? dirLocal[0] : 0,
+      front: dirLocal ? dirLocal[1] : 1,
+      zone: o.zone || 'chest',
+      hand: actor.leftHanded ? 'L' : 'R'
+    };
+    // whatever they were doing, they are not doing it
+    actor.attack = null;
+    actor.reaction = null;
+    actor.gesture = null;
+    actor.gait = 'idle';
+    actor.vx = 0; actor.vy = 0;
+    return true;
+  }
+
+  /* Runs the clock. Returns 'up' on the frame they finish getting up. */
+  function updateCollapse(actor, dt) {
+    const c = actor.collapse;
+    if (!c) return null;
+    c.t += dt;
+    if (c.phase === 'fall') {
+      if (c.t >= c.fallFor) { c.phase = 'down'; c.t = 0; }
+      return null;
+    }
+    if (c.phase === 'down') {
+      if (c.t >= c.downFor) { c.phase = 'rise'; c.t = 0; }
+      return null;
+    }
+    if (c.t >= c.riseFor) {
+      actor.collapse = null;
+      // a beat of grace so the first thing that happens to them on standing
+      // is not being knocked straight back down
+      actor.hitCooldown = Math.max(actor.hitCooldown || 0, 0.8);
+      return 'up';
+    }
+    return null;
+  }
+
+  /* On the floor by any means: crumpled by a punch, or thrown by a horse. */
+  function isFloored(actor) {
+    return !!actor.collapse || (actor.fall && actor.fall.active && actor.fall.mode === 'full');
+  }
+
   /* Reaching across to draw from the belt, or putting something away. */
   function poseSheathe(model, k, side, putting) {
     clearPose(model);
@@ -1240,7 +1422,15 @@
   }
 
   // Down on the ground, as opposed to merely jostled.
-  function isDown(actor) { return actor.fall.active && actor.fall.mode === 'full'; }
+  /* On the floor by any means. A posed collapse counts as down for every
+   * purpose the rest of the game has — you cannot swing, cannot be talked to,
+   * and anyone who walks past can see that you are lying there. The only code
+   * that cares which of the two it is is the code that drives them, and that
+   * asks for the state directly. */
+  function isDown(actor) {
+    if (actor.collapse) return true;
+    return actor.fall.active && actor.fall.mode === 'full';
+  }
 
   /* ---------- drawing a ragdoll ---------- */
 
@@ -1455,6 +1645,29 @@
           torso: [0.16 + breathe, 0, 0],
           armR: [-0.42, 0, 0.30], foreR: [-1.30, 0, -0.18],
           armL: [-0.42, 0, -0.30], foreL: [-1.34, 0, 0.18]
+        };
+      }
+    },
+
+    /* Stooping over somebody on the floor. Bent at the waist, one hand out
+     * toward them, head down — the shape of asking whether they are alright,
+     * which is different from the shape of grief because the hand is
+     * reaching rather than covering. */
+    tend: {
+      duration: 3.0,
+      label: 'Tend',
+      pose: function (t) {
+        const reach = Math.min(1, t * 3.5) * (1 - Math.max(0, (t - 0.8) / 0.2));
+        return {
+          torso: [0.72, 0.1, 0],
+          head: [0.34, -0.12, 0],
+          armR: [-0.55 - reach * 0.75, 0, 0.3],
+          foreR: [-0.5 - reach * 0.5, 0, 0],
+          armL: [0.2, 0, -0.22],
+          foreL: [-0.45, 0, 0],
+          legR: [0.16, 0, 0.1],
+          shinR: [0.35, 0, 0],
+          legL: [-0.1, 0, -0.08]
         };
       }
     },
@@ -1713,6 +1926,15 @@
     const model = actor.model;
     if (actor.customPose) { applyPose(model, actor.customPose, actor.customBob || 0); return; }
     const side = actor.leftHanded ? 'L' : 'R';
+    if (actor.collapse) {
+      const c = actor.collapse;
+      const span = c.phase === 'fall' ? c.fallFor : c.phase === 'down' ? c.downFor : c.riseFor;
+      // the fall and the get-up run on the action clock; lying there runs on
+      // the slow one, because a body on the floor has nothing quick to do
+      const t = c.phase === 'down' ? quantiseTime(c.t) : quantiseAction(c.t);
+      poseCollapse(model, c.phase, span > 0 ? t / span : 1, c.side, c.front, c.zone, c.hand);
+      return;
+    }
     if (actor.attack) {
       const k = quantiseAction(actor.attack.t) / actor.attack.duration;
       poseAttack(model, actor.attack.anim, k, side, actor.gait, qTime);
@@ -2036,6 +2258,9 @@
       actor.inv && actor.inv[8] ? actor.inv[8].id : '',
       actor.inv && actor.inv[9] ? actor.inv[9].id : '',
       actor.alert ? 'a' : '',
+      actor.collapse ? actor.collapse.phase
+        + Math.round(actor.collapse.t * (actor.collapse.phase === 'down' ? ANIM_FPS : ACTION_FPS))
+        : '',
       actor.reaction ? actor.reaction.kind + Math.round((actor.reaction.k || 0) * ACTION_FPS) : ''
     ].join('|');
     if (key !== null && key === actor._key && !(opts && opts.force)) return target;
@@ -2073,6 +2298,7 @@
     shove, stumble, applyShove,
     GESTURES, GESTURE_IDS, startGesture, applyGesture, isOverlayGesture,
     carryMode, weaponDrop,
+    collapse, updateCollapse, isFloored, poseCollapse,
     jointPositions, segmentMatrix, drawRagdoll, actorExtras,
     poseActor, drawModel, renderActor, OUTLINE
   };

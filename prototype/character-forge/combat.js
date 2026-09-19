@@ -21,6 +21,13 @@
 
   const BLOOD = '#6d1119';
   const BLOOD_DARK = '#48070d';
+  /* A bruise is not blood. It is a different colour, it is flat, and it does
+   * not run — which is the whole reason a fist reads differently from a
+   * knife without anyone having to be told which one hit them. Three stages,
+   * because a bruise that never changes colour is just a stain. */
+  const BRUISE = ['#7a3b46', '#5d3b5c', '#6b5a3c'];
+  const SHAFT = '#6b4c2a';
+  const FLETCH = '#c9bda6';
   const STEEL = '#b9bec6';
   const STEEL_DARK = '#7d838c';
   const STEEL_EDGE = '#e6ebf2';   // the bright line down a sharpened edge
@@ -403,6 +410,8 @@
   /* ================= the damage roll ================= */
 
   const MAX_HP = 100;
+  // How much bare-handed punishment somebody takes before the skin goes.
+  const SPLIT_AT = 26;
 
   /* Where on the body a blow landed, as a fraction of standing height, and
    * how badly that place takes it. Deciding this before the damage is what
@@ -467,35 +476,161 @@
   /* A wound is a mark stitched to a bone, at a spot on that bone. It is drawn
    * with the body, so it turns with them, swings with the limb it is on, and
    * stays where the blow landed rather than floating at chest height. */
-  function makeWound(model, zone, dirLocal, kind, gore, rng) {
+  /* A wound is a mark stitched to a bone. What it looks like is decided by
+   * what made it, not by how much damage it did:
+   *
+   *   edged   a slash, laid along the line the blade travelled. Long, thin,
+   *           and it runs.
+   *   pierce  a small deep hole. Barely wider than the blade, dark, and it
+   *           runs hard because a puncture does. An arrow leaves the shaft
+   *           in it.
+   *   blunt   a bruise. Broad, flat, soft, no run at all, and it changes
+   *           colour over the days rather than shrinking much.
+   *
+   * `travel` is the direction the weapon was moving in the victim's own
+   * frame, which is what a slash lies along; without it every cut on a body
+   * is at a random angle and a row of them reads as a rash.
+   */
+  function makeWound(model, zone, dirLocal, opts) {
+    const o = opts || {};
+    const rng = o.rng || Math.random;
+    const kind = o.kind || 'blunt';
+    const gore = o.gore === undefined ? 0 : o.gore;
+    const power = o.power === undefined ? 20 : o.power;
     const d = model.dims;
-    const bone = model.bones[zone.bone] ? zone.bone : 'torso';
-    // a spot on the front-ish surface of that bone, offset by where the blow
-    // came from, so a hit from the left lands on the left
-    const spreadX = (zone.id === 'head' ? d.headW : d.torsoW) * 0.34;
-    const x = (dirLocal[0] * 0.55 + (rng() - 0.5) * 0.5) * spreadX;
-    const z = (dirLocal[1] * 0.5 + (rng() - 0.5) * 0.4)
-      * (zone.id === 'head' ? d.headD : d.torsoD) * 0.52;
+    /* A limb wound goes on the limb the blow actually reached. The zone table
+     * names the right arm because it has to name one, but a sword coming in
+     * from somebody's left does not land on their right arm. */
+    let boneName = zone.bone;
+    if (boneName === 'armR' && dirLocal[0] < 0) boneName = 'armL';
+    if (boneName === 'legR' && dirLocal[0] < 0) boneName = 'legL';
+    const bone = model.bones[boneName] ? boneName : 'torso';
+
+    /* Which face of the body it landed on, and where that face is.
+     *
+     * This matters more than it sounds. A wound placed at some fraction of
+     * the body's depth sits *inside* the body, and since the torso is wearing
+     * a tunic over the top of that, it is invisible — which is exactly what
+     * was happening: every cut in the game was being drawn under somebody's
+     * shirt. It has to be put on the surface, and on the surface the blow
+     * came from. */
+    const onHead = bone === 'head';
+    const onLimb = bone.indexOf('arm') === 0 || bone.indexOf('leg') === 0;
+    let halfW, halfD;
+    if (onHead) { halfW = d.headW * 0.5; halfD = d.headD * 0.5; }
+    else if (onLimb) {
+      const t = bone.indexOf('arm') === 0 ? d.armW : d.legW;
+      // clothing sits on a limb too, just not as thickly
+      halfW = t * 0.5 + 0.55; halfD = t * 0.5 + 0.55;
+    } else {
+      // the tunic, the surcoat and the belt all stand proud of the torso
+      halfW = d.torsoW * 0.5 + 0.7; halfD = d.torsoD * 0.5 + 0.7;
+    }
+
+    const side = dirLocal[0], front = dirLocal[1];
+    const useSide = Math.abs(side) > Math.abs(front);
+    const face = useSide ? (side > 0 ? 'right' : 'left')
+      : (front >= 0 ? 'front' : 'back');
+    const jitter = (rng() - 0.5) * 0.7;
+
+    let x, z;
+    if (useSide) {
+      x = (side > 0 ? 1 : -1) * (halfW + 0.2);
+      z = jitter * halfD;
+    } else {
+      z = (front >= 0 ? 1 : -1) * (halfD + 0.2);
+      x = jitter * halfW;
+    }
+
     let y;
-    if (zone.bone === 'head') y = 1.5 + rng() * 4.5;
-    else if (zone.bone === 'torso') y = zone.id === 'gut' ? 1.0 + rng() * 3.0 : 4.5 + rng() * 5.5;
-    else if (zone.bone === 'armR') y = -1.0 - rng() * 3.5;
+    if (bone === 'head') y = 1.5 + rng() * 4.5;
+    else if (bone === 'torso') y = zone.id === 'gut' ? 1.0 + rng() * 3.0 : 4.5 + rng() * 5.5;
+    else if (bone.indexOf('arm') === 0) y = -1.0 - rng() * 3.5;
     else y = -1.5 - rng() * 4.0;
 
-    const slash = kind === 'edged' && gore >= 1;
-    return {
+    // how heavy the blow was, as a fraction of the worst thing in the game
+    const heft = Math.max(0.2, Math.min(1.4, power / 45));
+    const wound = {
       bone: bone,
       x: x, y: y, z: z,
-      // a slash is a long cut across the body; a stab or a bruise is a patch
-      w: slash ? 5.5 + rng() * 4.5 : 1.6 + rng() * 1.6,
-      h: slash ? 0.9 + rng() * 0.5 : 1.5 + rng() * 1.3,
-      angle: slash ? (rng() - 0.5) * 1.4 : 0,
+      face: face,
       kind: kind,
       age: 0,
-      // how far the blood has run down from it
       run: 0,
-      maxRun: slash ? 5 + rng() * 6 : 2 + rng() * 4
+      // Size is what heals. Everything drawn is scaled by it, so a wound
+      // closing up is one number going down rather than a second set of
+      // shapes.
+      size: 1,
+      day: 0,
+      bruise: 0
     };
+
+    if (kind === 'edged') {
+      /* Along the swing. A cut lies across the body in the direction the
+       * edge was travelling, which is why an overhead leaves a vertical one
+       * and a horizontal slash leaves a belt across the chest. */
+      const tx = o.travel ? o.travel[0] : (rng() - 0.5);
+      const ty = o.travel ? o.travel[1] : 0.2;
+      wound.angle = Math.atan2(ty, tx) + (rng() - 0.5) * 0.5;
+      wound.w = (3.4 + gore * 3.2 + rng() * 2.6) * heft;
+      wound.h = (0.75 + rng() * 0.4) * (0.7 + heft * 0.5);
+      wound.maxRun = (4 + rng() * 5) * heft;
+      wound.heal = 0.075;        // a fortnight or so
+    } else if (kind === 'pierce') {
+      wound.angle = 0;
+      wound.w = (1.1 + rng() * 0.8) * (0.7 + heft * 0.4);
+      wound.h = wound.w * (0.9 + rng() * 0.3);
+      // a hole runs harder than it looks like it should
+      wound.maxRun = (4.5 + rng() * 5.5) * heft;
+      wound.heal = 0.055;        // the deepest, and the slowest
+      if (o.shaft) {
+        wound.shaft = true;
+        wound.shaftLen = 5 + rng() * 3;
+      }
+    } else {
+      /* A bruise. It comes up broad and flat, it does not bleed, and it takes
+       * its time going — but it goes through the colours while it does. */
+      wound.angle = (rng() - 0.5) * 0.8;
+      wound.w = (2.2 + rng() * 1.8) * (0.6 + heft * 0.7);
+      wound.h = wound.w * (0.65 + rng() * 0.4);
+      wound.maxRun = 0;
+      wound.heal = 0.22;         // four or five days
+      wound.bruise = 1;
+    }
+    return wound;
+  }
+
+  /* ---------- healing ----------
+   *
+   * A wound is not permanent and it is not instant either. Each day it closes
+   * a little, and when there is nothing left of it, it goes. A bruise passes
+   * through its colours on the way out; a cut just gets shorter and stops
+   * running.
+   *
+   * There are no days yet. This is driven by `advanceDay`, which nothing
+   * calls on a timer — when the world grows a clock, that is the one line
+   * that has to be hooked up to it.
+   */
+  const DAY = 1;
+
+  function advanceDay(body, days) {
+    if (!body || !body.wounds) return 0;
+    const n = days === undefined ? 1 : days;
+    let closed = 0;
+    for (let i = body.wounds.length - 1; i >= 0; i--) {
+      const wd = body.wounds[i];
+      wd.day += n;
+      wd.size -= (wd.heal === undefined ? 0.1 : wd.heal) * n;
+      // the blood dries and stops running long before the cut has gone
+      wd.run = Math.max(0, wd.run - n * 1.6);
+      wd.maxRun = Math.max(0, wd.maxRun - n * 1.2);
+      if (wd.size <= 0.12) { body.wounds.splice(i, 1); closed++; }
+    }
+    // and a night's rest does something for the rest of it
+    body.hp = Math.min(MAX_HP, body.hp + n * 14);
+    body.bleed = Math.max(0, body.bleed - n * 2);
+    body.bruised = Math.max(0, (body.bruised || 0) - n * 1.2);
+    return closed;
   }
 
   /* Rebuilt every frame the actor is drawn, like the face is. Cheap, and it
@@ -506,21 +641,98 @@
     for (let i = 0; i < wounds.length; i++) {
       const wd = wounds[i];
       const list = byBone[wd.bone] || (byBone[wd.bone] = []);
-      const deep = wd.kind !== 'blunt';
-      const col = deep ? BLOOD : BLOOD_DARK;
+      // Everything shrinks by the one number that heals.
+      const size = wd.size === undefined ? 1 : Math.max(0, wd.size);
+      const w = wd.w * size, h = wd.h * size;
       const ca = Math.cos(wd.angle), sa = Math.sin(wd.angle);
-      const half = wd.w / 2;
-      const steps = wd.w > 3 ? 5 : 1;
-      for (let k = 0; k < steps; k++) {
-        const t = steps === 1 ? 0 : (k / (steps - 1) - 0.5) * 2;
-        const ox = ca * half * t, oy = sa * half * t;
-        list.push(part(G.box(wd.x + ox - wd.h * 0.5, wd.y + oy - wd.h * 0.5,
-          wd.z - 0.2, wd.h, wd.h, 0.45), col));
+
+      /* A wound lies flat on the face it landed on. On the chest that is a
+       * thin plate in Z; on somebody's flank it is a thin plate in X, and
+       * drawing it in Z there would leave a blade of colour sticking out of
+       * their side. `out` is which way is away from the body. */
+      const sideFace = wd.face === 'left' || wd.face === 'right';
+      const out = (wd.face === 'back' || wd.face === 'left') ? -1 : 1;
+      /* Lays a slab of the given width and height on that face, `depth`
+       * thick, standing `lift` clear of it. */
+      const onFace = function (cx, cy, ww, hh, depth, lift) {
+        const off = out * lift;
+        return sideFace
+          ? G.box(wd.x + off - (out > 0 ? 0 : depth), cy - hh * 0.5, cx - ww * 0.5,
+            depth, hh, ww)
+          : G.box(cx - ww * 0.5, cy - hh * 0.5, wd.z + off - (out > 0 ? 0 : depth),
+            ww, hh, depth);
+      };
+      // where along the face this wound sits, in that face's own two axes
+      const u0 = sideFace ? wd.z : wd.x;
+
+      if (wd.kind === 'blunt') {
+        /* A bruise: a broad flat patch that changes colour as it ages rather
+         * than a cut that shrinks. Yellow-green by the time it is nearly
+         * gone, which is the only honest way to draw one going. */
+        const stage = wd.day >= 4 ? 2 : wd.day >= 2 ? 1 : 0;
+        list.push(part(onFace(u0, wd.y, w, h, 0.4, 0), BRUISE[stage]));
+        // and a darker heart to it while it is fresh
+        if (wd.day < 3) {
+          list.push(part(onFace(u0, wd.y, w * 0.5, h * 0.5, 0.45, 0.04), BRUISE[0]));
+        }
+        continue;
       }
+
+      const col = BLOOD;
+      if (wd.kind === 'pierce') {
+        // a hole, not a line: one dark mark barely wider than what made it
+        list.push(part(onFace(u0, wd.y, w, h, 0.5, 0), BLOOD_DARK));
+        list.push(part(onFace(u0, wd.y, w * 0.55, h * 0.55, 0.55, 0.06), col));
+        if (wd.shaft && size > 0.6) {
+          /* An arrow does not disappear on contact. The shaft stands out of
+           * them until somebody pulls it out, and it is the single clearest
+           * way to read at a glance what hit whom. */
+          /* Built as a stepped stack rather than one box, so the shaft
+           * slopes down and out of them instead of pointing straight at the
+           * camera. An arrow aimed exactly along the view axis projects to
+           * about two pixels and reads as a smudge; one at an angle reads as
+           * a stick, which is the entire point of leaving it in. */
+          const len = wd.shaftLen * size;
+          const SEG = 5;
+          for (let k = 0; k < SEG; k++) {
+            const t = k / SEG;
+            const outAt = out * len * t;
+            const dropAt = -len * 0.34 * t;      // it hangs as it comes out
+            const seg = len / SEG + 0.3;
+            list.push(part(sideFace
+              ? G.box(wd.x + outAt, wd.y + dropAt - 0.28, u0 - 0.28, out * seg, 0.56, 0.56)
+              : G.box(u0 - 0.28, wd.y + dropAt - 0.28, wd.z + outAt, 0.56, 0.56, out * seg),
+            SHAFT));
+          }
+          // the flights, three of them, out at the far end
+          const tipOut = out * len * 0.92;
+          const tipY = -len * 0.34 * 0.92;
+          for (let f = 0; f < 3; f++) {
+            const ang = (f / 3) * Math.PI * 2;
+            const fu = Math.cos(ang) * 0.6, fy = Math.sin(ang) * 0.6;
+            list.push(part(sideFace
+              ? G.box(wd.x + tipOut, wd.y + tipY + fy - 0.17, u0 + fu - 0.17, out * 1.7, 0.34, 0.34)
+              : G.box(u0 + fu - 0.17, wd.y + tipY + fy - 0.17, wd.z + tipOut, 0.34, 0.34, out * 1.7),
+            FLETCH));
+          }
+        }
+      } else {
+        // a slash, laid along the line the edge travelled
+        const half = w / 2;
+        const steps = w > 3 ? 6 : w > 1.6 ? 3 : 1;
+        for (let k = 0; k < steps; k++) {
+          const t = steps === 1 ? 0 : (k / (steps - 1) - 0.5) * 2;
+          // deepest in the middle, tapering to nothing at both ends
+          const taper = 0.55 + 0.45 * Math.cos(t * Math.PI * 0.5);
+          const ou = ca * half * t, oy = sa * half * t;
+          const th = h * taper;
+          list.push(part(onFace(u0 + ou, wd.y + oy, th, th, 0.45, 0), col));
+        }
+      }
+
       // the run of blood below it, growing as they bleed
       if (wd.run > 0.3) {
-        list.push(part(G.box(wd.x - 0.45, wd.y - wd.run, wd.z - 0.16,
-          0.9, wd.run, 0.38), BLOOD_DARK));
+        list.push(part(onFace(u0, wd.y - wd.run * 0.5, 0.9, wd.run, 0.4, 0.02), BLOOD_DARK));
       }
     }
     return byBone;
@@ -539,23 +751,47 @@
       lastHitBy: null,
       lastHitAt: 0,
       pain: 0,
+      // How much of a beating they have taken bare-handed. Fists do not cut
+      // anybody open on the first punch; they do on the fifth.
+      bruised: 0,
       blocking: false
     };
   }
 
   /* Applies a rolled blow. Returns what happened, so the caller can decide
    * how the victim reacts and whether anyone saw it. */
-  function applyDamage(target, roll, dirLocal, rng) {
+  function applyDamage(target, roll, dirLocal, rng, opts) {
     const body = target.body;
     if (!body || body.dead) return null;
+    const o = opts || {};
+    const rand = rng || Math.random;
     body.hp = Math.max(0, body.hp - roll.amount);
     body.bleed += roll.bleed;
     body.pain = Math.min(1, body.pain + roll.amount / 55);
-    if (roll.bleed > 0.05 || roll.amount > 12) {
-      if (body.wounds.length < 9) {
-        body.wounds.push(makeWound(target.model, roll.zone, dirLocal,
-          roll.kind, roll.gore, rng || Math.random));
+
+    /* A punch marks somebody before it opens them. The first few leave
+     * bruises; keep it up and the skin goes, which is the point at which a
+     * fist fight starts producing blood. */
+    let kind = roll.kind;
+    let gore = roll.gore;
+    if (kind === 'blunt') {
+      body.bruised = (body.bruised || 0) + roll.amount;
+      if (body.bruised > SPLIT_AT && rand() < 0.55) {
+        // split. It is a small cut and it bleeds like one.
+        kind = 'edged';
+        gore = 0.2;
+        body.bleed += 0.12 + rand() * 0.16;
+        body.bruised -= SPLIT_AT * 0.5;
       }
+    }
+
+    const worthMarking = roll.bleed > 0.05 || roll.amount > 12
+      || (roll.kind === 'blunt' && roll.amount > 4);
+    if (worthMarking && body.wounds.length < 9) {
+      body.wounds.push(makeWound(target.model, roll.zone, dirLocal, {
+        kind: kind, gore: gore, power: o.power === undefined ? roll.amount * 1.6 : o.power,
+        travel: o.travel, shaft: o.shaft, rng: rand
+      }));
     }
     const severity = body.hp <= 0 ? 'fatal'
       : roll.amount > 34 || body.hp < 28 ? 'serious'
@@ -610,9 +846,11 @@
   }
 
   global.Combat = {
-    WEAPONS, MELEE_IDS, ALL_IDS, ZONES, MAX_HP, BLOOD, BLOOD_DARK,
+    WEAPONS, MELEE_IDS, ALL_IDS, ZONES, MAX_HP, BLOOD, BLOOD_DARK, BRUISE,
+    DAY, SPLIT_AT,
     weapon, weaponParts, rollZone, rollDamage, zoneFor,
-    createBody, applyDamage, updateBody, makeWound, woundParts, severityOf
+    createBody, applyDamage, updateBody, makeWound, woundParts, severityOf,
+    advanceDay
   };
   void CM;
 })(window);

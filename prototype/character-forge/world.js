@@ -289,6 +289,12 @@
       reputationCriminal: 0,
       lastSeenAt: -999,
       crimeSeq: 0,
+      /* There is no clock yet. When there is one, this is the number it
+       * increments and `advanceDay` is the one line it has to call: wounds
+       * close a little, bruises change colour and eventually go, and a
+       * night's rest gives back some of what the day took. Everything that
+       * has to happen is already written; nothing drives it. */
+      day: 0,
       camX: 0, camY: 0,
       box: D.create(),
       talkingTo: null,
@@ -2048,6 +2054,28 @@
     return Math.min(small ? 0.7 : 0.94, onShield * (small ? 0.75 : 1));
   }
 
+  /* Which way the weapon was moving when it landed, in the victim's own
+   * frame, so a cut lies along the line the edge took. A horizontal slash
+   * leaves a belt across the chest; an overhead leaves one down it. Without
+   * this every cut on a body sits at a random angle and three of them read as
+   * a rash rather than as three sword blows. */
+  const SWING_TRAVEL = {
+    slash: [1, 0.18],
+    swing: [1, 0.3],
+    overhead: [0.22, 1],
+    thrust: [0.35, 0.25],
+    stab: [0.3, 0.4],
+    jab: [0.5, 0.2],
+    draw: [0.2, 0.3],
+    aim: [0.2, 0.3]
+  };
+
+  function travelFor(w, side) {
+    const t = SWING_TRAVEL[w.anim] || SWING_TRAVEL.slash;
+    // mirrored for a left-hander, and for a blow coming from the other side
+    return [t[0] * (side < 0 ? -1 : 1), t[1]];
+  }
+
   function strike(world, a, target, w, charge) {
     const rng = a.rng || Math.random;
     const roll = CB.rollDamage(w, target, {
@@ -2076,7 +2104,10 @@
     // the side it came from
     const cy = Math.cos(target.yaw), sy = Math.sin(target.yaw);
     const local = [-(nx * cy - ny * sy), -(nx * sy + ny * cy)];
-    const res = CB.applyDamage(target, roll, local, rng);
+    const res = CB.applyDamage(target, roll, local, rng, {
+      power: w.power,
+      travel: travelFor(w, (a.leftHanded ? -1 : 1) * (local[0] >= 0 ? 1 : -1))
+    });
     if (!res) return;
     if (target.body) {
       target.body.lastHitBy = a;
@@ -2104,6 +2135,7 @@
     const fatal = severity === 'fatal' || (body && (body.dead || body.dying));
     const serious = severity === 'serious';
     const side = (nx * Math.cos(target.yaw) - ny * Math.sin(target.yaw)) > 0 ? 1 : -1;
+    const rng = target.rng || Math.random;
 
     if (chasing(target) && !fatal && !serious) {
       // a running guard eats a light blow and keeps coming
@@ -2112,11 +2144,40 @@
       if (world.talkingTo === target) D.close(world.box);
       return;
     }
-    if (fatal || (serious && roll.knock > 0.7) || roll.amount > 52) {
+
+    /* Dead is limp, and limp is the ragdoll: a body that has stopped has no
+     * business holding a pose. Everything short of that folds up instead —
+     * a person who is knocked down but still alive goes down the way they
+     * were hit, lies there, and gets up, and none of that is something a
+     * solver can be asked for. */
+    if (fatal) {
       Rig.knockDown(target, nx, ny, 2.2 + roll.knock * 2.2 + roll.amount / 26);
       if (target.brain) { target.brain.state = 'downed'; target.brain.timer = 0; }
       target.hitCooldown = 0.5;
-    } else {
+      return;
+    }
+
+    const bad = serious || roll.amount > 38;
+    if (bad && rng() < (serious ? 0.85 : 0.5)) {
+      const cy = Math.cos(target.yaw), sy = Math.sin(target.yaw);
+      const local = [-(nx * cy - ny * sy), -(nx * sy + ny * cy)];
+      /* How long they are on the floor: how hard it was, and how much of it
+       * is still running out of them. A man who has been opened up stays
+       * down a good deal longer than one who has been hit very hard. */
+      const downFor = 3.2 + roll.amount * 0.1 + roll.bleed * 5 + rng() * 2.5;
+      Rig.collapse(target, local, {
+        zone: roll.zone ? roll.zone.id : 'chest',
+        downFor: Math.min(16, downFor)
+      });
+      if (target.brain) { target.brain.state = 'downed'; target.brain.timer = 0; }
+      target.hitCooldown = 0.6;
+      // they go down where the blow took them, not where they were standing
+      target.x += nx * 3; target.y += ny * 2;
+      clampToWorld(target);
+      if (world.talkingTo === target) D.close(world.box);
+      return;
+    }
+    {
       // driven back on their heels, arms thrown up
       const push = 26 + roll.knock * 55 + roll.amount * 0.7;
       Rig.stumble(target, nx, ny, push, 0.34 + roll.knock * 0.3);
@@ -2206,7 +2267,11 @@
         roll.amount *= 1 - stopped;
         roll.bleed *= 1 - stopped;
         const local = [-(nx * cy - ny * sy), -(nx * sy + ny * cy)];
-        const res = CB.applyDamage(hit, roll, local, rng);
+        /* The shaft stays in them. Nothing else in the game tells you at a
+         * glance who has been shot and who has merely been hit. */
+        const res = CB.applyDamage(hit, roll, local, rng, {
+          power: roll.amount * 1.5, shaft: true, travel: [0.3, 0.3]
+        });
         if (res) {
           splash(world, hit, roll, nx, ny);
           knockFrom(world, ar.owner, hit, roll, nx, ny, res.severity);
@@ -2353,12 +2418,19 @@
     const cornered = steerAround(world, victim,
       Rig.yawForDirection(victim.x - attacker.x, victim.y - attacker.y), 34) === null;
 
+    /* A fist fight is a different thing from being attacked. Somebody who
+     * has been punched by somebody who is also unarmed squares up, because
+     * that is what a brawl is — it is only steel that makes running the
+     * sensible answer. This is the single biggest reason a village used to
+     * scatter from a shoving match. */
+    const fists = !attackerArmed(attacker) && !armed;
     const willFight = brave
       + (armed ? 0.45 : 0)
       + (isGuard(victim) ? 0.55 : 0)
       + brain.grudge * 0.45
       + Math.min(0.4, friends * 0.13)
       + (cornered ? 0.5 : 0)
+      + (fists ? 0.75 : 0)
       - hurt * 0.9
       - (res.severity === 'serious' ? 0.3 : 0)
       - (attackerArmed(attacker) ? 0.35 : 0);
@@ -3847,6 +3919,35 @@
         }
         break;
       }
+      /* Seeing whether they are alright. They come the last few steps,
+       * stop short, and stoop over them — and stay stooped until either the
+       * person gets up or they lose interest. */
+      case 'help': {
+        const who = brain.target;
+        if (!who || (who.body && (who.body.dead || who.body.dying))) {
+          brain.responseTimer = 0; break;
+        }
+        const hd = distance(a, who);
+        a.targetYaw = Rig.yawForDirection(who.x - a.x, who.y - a.y);
+        if (hd > HELP_STAND) {
+          const want = steerAround(world, a, a.targetYaw, 26);
+          if (want !== null) a.targetYaw = want;
+          if (Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 0.8) {
+            a.x += Math.sin(a.yaw) * speed * 0.9 * dt;
+            a.y += Math.cos(a.yaw) * speed * 0.9 * dt;
+            resolvePropCollisions(world, a, 6);
+            clampVillager(a);
+          }
+          a.gait = 'walk';
+        } else {
+          a.gait = 'idle';
+          a.alert = false;
+          // once they are on their feet again there is nothing to stoop over
+          if (!Rig.isDown(who)) { brain.responseTimer = Math.min(brain.responseTimer, 1.2); }
+          else if (!a.gesture) Rig.startGesture(a, 'tend');
+        }
+        break;
+      }
       case 'protect': {
         const friend = brain.protecting;
         if (friend) {
@@ -3966,6 +4067,53 @@
   }
 
   /* Someone sees a body. They do not step over it. */
+  /* Somebody on the floor who is not dead.
+   *
+   * People do not walk past that. They come over, stoop, and have a look, and
+   * then either stay a moment or think better of it — which is the whole
+   * behaviour, and it is worth having because the alternative is a village
+   * that steps over a man bleeding in the road. Guards do it too, and a guard
+   * doing it is the difference between a watch and a militia.
+   *
+   * Nobody does it while whoever put them there is still standing over them.
+   */
+  const HELP_RANGE = 130;
+  const HELP_STAND = 19;
+
+  function noticeFallen(world, a, dt) {
+    const brain = a.brain;
+    brain.helpTimer = (brain.helpTimer || 0) - dt;
+    if (brain.helpTimer > 0) return false;
+    brain.helpTimer = 1.3 + a.rng() * 1.4;
+    if (brain.response || brain.report) return false;
+
+    const p = world.player;
+    for (let i = 0; i < world.actors.length; i++) {
+      const o = world.actors[i];
+      if (o === a || !o.body || o.body.dead || o.body.dying) continue;
+      if (!Rig.isDown(o)) continue;
+      if (o.helpedBy && o.helpedBy[a._id]) continue;
+      const d = distance(a, o);
+      if (d > HELP_RANGE) continue;
+      // not while the person who did it is standing there
+      const danger = o !== p && !Rig.isDown(p) && distance(p, o) < 90
+        && (world.wanted > 6 || (o.body.lastHitBy === p));
+      if (danger) continue;
+      // and not if they are frightened of the man on the floor himself
+      if (o === p && world.wanted > 30 && bravery(a) < 0.6 && !isGuard(a)) continue;
+
+      o.helpedBy = o.helpedBy || {};
+      o.helpedBy[a._id] = true;
+      brain.state = 'react';
+      brain.response = 'help';
+      brain.target = o;
+      brain.fleeFrom = { x: o.x, y: o.y };
+      brain.responseTimer = 7 + a.rng() * 5;
+      return true;
+    }
+    return false;
+  }
+
   function noticeCasualties(world, a, dt) {
     const brain = a.brain;
     brain.scanTimer = (brain.scanTimer || 0) - dt;
@@ -4082,6 +4230,11 @@
 
   function updatePlayer(world, dt) {
     const p = world.player;
+    if (p.body && (p.body.dead || p.body.dying)) {
+      // Dying is limp. Whatever pose they were holding on the floor, they
+      // stop holding it.
+      p.collapse = null;
+    }
     if (p.body && p.body.dead) {
       // down for good. No hospitals yet, so the body stays where it fell.
       if (!Rig.isDown(p)) Rig.knockDown(p, 0.3, 0.2, 2.4);
@@ -4100,6 +4253,22 @@
       p.vx = 0; p.vy = 0;
       p.gait = 'idle';
       Rig.updateActorMotion(p, dt);
+      return;
+    }
+    /* Folded up on the floor. Nothing they were doing continues, and the
+     * only thing that happens is the clock running down until they get
+     * themselves up again. */
+    if (p.collapse) {
+      p.vx = 0; p.vy = 0;
+      p.gait = 'idle';
+      p.hitCooldown = Math.max(0, p.hitCooldown - dt);
+      p.animTime += dt;
+      Rig.updateBlink(p, dt);
+      Rig.updateCollapse(p, dt);
+      if (world.box.open) D.close(world.box);
+      if (invVisible(world)) closeInventory(world);
+      updateBleedTrail(world, p, dt);
+      CB.updateBody(p, dt);
       return;
     }
     if (p.mount || p.seat) { updateMountedPlayer(world, p, dt); return; }
@@ -4383,6 +4552,7 @@
       a.gesture = null;
       hush(a);
     }
+    if (a.body.dead || a.body.dying) a.collapse = null;
     if (a.body.dead) {
       // a body stays where it fell. Nothing picks it up; there is nowhere yet
       // for it to be taken.
@@ -4402,6 +4572,23 @@
       a.gait = 'idle';
       brain.state = 'downed';
       Rig.updateActorMotion(a, dt);
+      clampVillager(a);
+      return;
+    }
+
+    /* Folded up on the floor and waiting to be able to get up again. */
+    if (a.collapse) {
+      a.vx = 0; a.vy = 0;
+      a.gait = 'idle';
+      a.hitCooldown = Math.max(0, a.hitCooldown - dt);
+      a.animTime += dt;
+      Rig.updateBlink(a, dt);
+      if (Rig.updateCollapse(a, dt) === 'up') {
+        brain.state = 'react';
+        brain.response = brain.response === 'fight' ? 'fight' : 'backAway';
+        brain.responseTimer = 3 + a.rng() * 3;
+        if (!brain.fleeFrom) brain.fleeFrom = { x: a.x, y: a.y + 10 };
+      }
       clampVillager(a);
       return;
     }
@@ -4561,6 +4748,7 @@
       return;
     }
     if (noticeCasualties(world, a, dt)) { Rig.updateActorMotion(a, dt); return; }
+    if (noticeFallen(world, a, dt)) { Rig.updateActorMotion(a, dt); return; }
     if (noticeWeapon(world, a, dt)) { Rig.updateActorMotion(a, dt); return; }
     if (tryRecoverItems(world, a, dt)) { Rig.updateActorMotion(a, dt); return; }
 
@@ -4701,6 +4889,27 @@
   /* Everything E does, in the order it is offered. Riding beats talking:
    * standing next to your own horse and getting a conversation instead is
    * the kind of thing that makes a control feel broken. */
+  /* A night passing. Nothing calls this on a timer — see `world.day`. It is
+   * here, tested and exported, so that the day the world grows a clock this
+   * is a one-line hook rather than a system to write. */
+  function advanceDay(world, days) {
+    const n = days === undefined ? 1 : days;
+    world.day += n;
+    let closed = 0;
+    for (let i = 0; i < world.actors.length; i++) {
+      const a = world.actors[i];
+      if (!a.body || a.body.dead) continue;
+      closed += CB.advanceDay(a.body, n);
+      a._key = '';        // their sprite is out of date now
+    }
+    // blood on the grass goes with it
+    for (let i = world.blood.length - 1; i >= 0; i--) {
+      world.blood[i].r *= Math.pow(0.45, n);
+      if (world.blood[i].r < 0.8) world.blood.splice(i, 1);
+    }
+    return closed;
+  }
+
   function tryTalk(world) {
     if (world.box.open) { D.advance(world.box); return true; }
     const p = world.player;
@@ -5582,6 +5791,7 @@
     createWorld, update, draw, tryTalk, nearestTalkable, distance, beginConversation,
     playerAttack, playerAim, beginAttack, openContainer, closeContainer, nearestChest,
     nearestGroundItem, pickUp, spawnItem, strike, witness, CRIMES, isGuard,
+    advanceDay,
     openInventory, closeInventory, invVisible, invMove, invClick, layout,
     shieldBlocks, knockFrom, stowWeapon, drawWeapon, guardIntent,
     mount, dismount, hitchCart, unhitchCart, takeSeat, leaveSeat,

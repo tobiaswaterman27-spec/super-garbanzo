@@ -194,6 +194,83 @@ ready stance still levels a short weapon at you, but a pole gets stood up
 there too, because twenty-four units of poleaxe held at chest height goes
 straight through whoever is beside you.
 
+### Going down
+
+**Dead is limp; everything short of it is not.** The verlet ragdoll is for
+being run over by a horse — it is the right answer when a body has stopped
+and has no business holding a pose. A person who has been knocked down but
+is still alive goes down the way they were *hit*: folding at the knees,
+landing on their back, lying there a while, and getting themselves up again.
+None of that is something a solver can be asked for. A simulation can be
+told to drop somebody; it cannot be told to land them on their back looking
+winded.
+
+So a collapse is posed. The whole model tips at the root — which is at the
+feet — so the body swings down about the ankles the way a person actually
+goes over, and which way it tips is the direction of the blow in the
+victim's own frame. Punched in the face, they go backwards. It runs in three
+phases: the fall on the 30fps action clock, lying there on the slow 12fps
+one (a body on the floor has nothing quick to do), and the get-up, which
+rolls them onto an elbow and puts a knee under them. The last third of the
+fall eases into the pose they will be lying in, so the frame the shoulders
+hit the ground is the frame the lying pose starts from.
+
+`Rig.isDown` covers both, because every other system in the game means "on
+the floor" by it. Only the code that drives them asks which.
+
+### Fights
+
+- **A punch starts a fight, not a rout.** Somebody punched by somebody who
+  is also unarmed squares up, because that is what a brawl is — it is steel
+  that makes running the sensible answer. This one term is the biggest
+  reason a village used to scatter from a shoving match.
+- **Fists mark before they cut.** Bare-handed damage accumulates as bruising;
+  past a threshold the skin goes and the next punch draws blood. A fist
+  fight that never produces any is a pillow fight.
+- Being hit badly enough puts them on the floor bleeding, and the bleeding
+  goes on taking hp while they are down there.
+- **People check on the fallen.** Anyone who passes somebody lying in the
+  road who is not dead comes over, stops short, and stoops over them — and
+  stays stooped until they get up or the onlooker loses interest. Guards do
+  it too. Nobody does it while whoever put them there is still standing over
+  them.
+
+### Wounds
+
+What a wound looks like is decided by what made it, not by how much damage
+it did:
+
+| Kind | Shape |
+| --- | --- |
+| `edged` | A slash, laid along the line the edge travelled, length scaling with the weapon. It runs. |
+| `pierce` | A small deep hole. Barely wider than the blade, and it runs hard, because a puncture does. |
+| `blunt` | A bruise: broad, flat, no run at all, and it changes colour over the days rather than shrinking. |
+
+The swing direction matters and is passed through from the animation, so a
+horizontal slash leaves a belt across the chest and an overhead leaves one
+down it. Without it every cut sits at a random angle and three of them read
+as a rash rather than as three sword blows. An arrow leaves the shaft in
+them, built as a stepped stack so it slopes down and out — one aimed exactly
+along the view axis projects to about two pixels and reads as a smudge.
+
+Wounds are placed on the **surface** of the body, on the face the blow came
+from. Placing one at some fraction of the body's depth puts it inside the
+body, and since the torso is wearing a tunic over that, it is invisible —
+which is exactly what had been happening: every cut in the game was being
+drawn under somebody's shirt. A limb wound also goes on the limb the blow
+actually reached; the zone table names the right arm because it has to name
+one, but a sword coming in from somebody's left does not land on their
+right.
+
+**Wounds heal over days.** Each day one closes a little, its blood dries and
+stops running, and when there is nothing left of it, it goes — a bruise in
+about four days, a cut in a fortnight, a deep puncture rather longer. A
+bruise passes through its colours on the way out rather than just fading.
+
+*There is no clock yet.* All of it is driven by `World.advanceDay`, which
+nothing calls on a timer. When the world grows a day, that is the one line
+that has to be hooked up to it.
+
 ### Reactions to the dead
 
 - Come across a body with the killer still standing over it and people run, or

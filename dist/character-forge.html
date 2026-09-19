@@ -2935,6 +2935,188 @@
     model.bob = -1.1 * lurch;
   }
 
+  /* ---------- going down without a ragdoll ----------
+   *
+   * The verlet ragdoll is for being run over by a horse. Most of the time a
+   * body that goes down should go down the way it was hit — folding, landing
+   * on its back, lying there, and getting up again — and none of that wants
+   * to be simulated. A simulation cannot be asked to land somebody on their
+   * back looking winded; it can only be asked to drop them and hope.
+   *
+   * So this is a posed fall. The whole model is tipped over at the root,
+   * which is at the feet, so the body swings down about the ankles the way a
+   * person actually goes over. Which way it tips is the direction of the blow
+   * in the victim's own frame: punched in the face, they go backwards.
+   *
+   * `k` runs 0..1 through whichever phase is current.
+   */
+
+  const DOWN_ANGLE = 1.46;      // flat on the floor, near enough
+
+  function poseCollapse(model, phase, k, dirSide, dirFront, zone, side) {
+    clearPose(model);
+    const g = Math.max(0, Math.min(1, k));
+
+    /* How far over, and about which axis. A blow from in front tips them
+     * backwards (positive X at the root lays the body away from the camera),
+     * one from the side drops them sideways, and most blows are some of
+     * both. */
+    let lay;
+    if (phase === 'fall') {
+      // fast at first as the legs give, slowing as the shoulders meet the
+      // ground: a body does not fall at a constant rate
+      lay = 1 - Math.pow(1 - g, 2.2);
+    } else if (phase === 'rise') {
+      // and getting up is the other way about: slow to start, then quick
+      lay = Math.pow(1 - g, 1.7);
+    } else {
+      lay = 1;
+    }
+
+    const len = Math.hypot(dirSide, dirFront) || 1;
+    const fs = dirFront / len, ss = dirSide / len;
+    const root = model.bones.root;
+    if (root) {
+      root.rot[0] = DOWN_ANGLE * lay * fs;
+      root.rot[2] = DOWN_ANGLE * lay * ss;
+      root.rot[1] = 0;
+    }
+
+    if (phase === 'fall') {
+      /* The legs go first, which is what makes it a collapse rather than a
+       * felled tree, and the arms come up and back as they try to catch
+       * themselves. */
+      const buckle = Math.sin(Math.min(1, g * 1.4) * Math.PI) * 0.9 + g * 0.3;
+      /* Over the last of it the flail settles into the pose they will be
+       * lying in, so the frame where the shoulders hit the ground is the
+       * frame the lying pose starts from. Without this the two phases meet at
+       * two different poses and the landing reads as a skipped frame. */
+      const land = Math.max(0, (g - 0.62) / 0.38);
+      const mix = function (name, a0, a1, a2, b0, b1, b2) {
+        setRot(model, name,
+          a0 + (b0 - a0) * land, a1 + (b1 - a1) * land, a2 + (b2 - a2) * land);
+      };
+      mix('legR', -0.35 * buckle, 0, 0.12 * buckle, -0.22, 0, 0.16);
+      mix('legL', -0.5 * buckle, 0, -0.1 * buckle, -0.34, 0, -0.12);
+      mix('shinR', 1.15 * buckle, 0, 0, 0.5, 0, 0);
+      mix('shinL', 0.9 * buckle, 0, 0, 0.28, 0, 0);
+      mix('torso', 0.38 * g, ss * 0.2, -ss * 0.2 * g, 0.12, 0, 0);
+      mix('head', -0.45 * g, ss * 0.35, 0, -0.22, ss * 0.5, 0);
+      const sgn0 = side === 'R' ? 1 : -1;
+      const off0 = side === 'R' ? 'L' : 'R';
+      const hold = zone === 'head' ? [-1.7, 0, sgn0 * 0.3, -1.85]
+        : zone === 'leg' ? [-0.8, 0, sgn0 * 0.45, -1.0]
+          : [-0.95, 0, sgn0 * 0.7, -1.75];
+      mix('arm' + side, -1.5 * g, 0, sgn0 * 0.8 * g, hold[0], hold[1], hold[2]);
+      mix('fore' + side, -0.7 * g, 0, 0, hold[3], 0, 0);
+      mix('arm' + off0, -1.4 * g, 0, -sgn0 * 0.85 * g, -0.9, 0, -sgn0 * 1.15);
+      mix('fore' + off0, -0.75 * g, 0, 0, -0.35, 0, 0);
+      return;
+    }
+
+    if (phase === 'down') {
+      /* Lying there. The only thing moving is the chest, and a hand resting
+       * on whatever hurts. Stillness is what sells it — a body on the floor
+       * that keeps shifting reads as a physics bug. */
+      const breathe = Math.sin(g * Math.PI * 2 * 3) * 0.035;
+      setRot(model, 'torso', 0.12 + breathe, 0, 0);
+      setRot(model, 'head', -0.22, ss * 0.5, 0);
+      setRot(model, 'legR', -0.22, 0, 0.16);
+      setRot(model, 'legL', -0.34, 0, -0.12);
+      setRot(model, 'shinR', 0.5, 0, 0);
+      setRot(model, 'shinL', 0.28, 0, 0);
+      // the free arm lies out; the other one is on the wound
+      const off = side === 'R' ? 'L' : 'R';
+      const sgn = side === 'R' ? 1 : -1;
+      setRot(model, 'arm' + off, -0.9, 0, -sgn * 1.15);
+      setRot(model, 'fore' + off, -0.35, 0, 0);
+      if (zone === 'head') {
+        setRot(model, 'arm' + side, -1.7, 0, sgn * 0.3);
+        setRot(model, 'fore' + side, -1.85, 0, 0);
+      } else if (zone === 'leg') {
+        setRot(model, 'arm' + side, -0.8, 0, sgn * 0.45);
+        setRot(model, 'fore' + side, -1.0, 0, 0);
+      } else {
+        setRot(model, 'arm' + side, -0.95, 0, sgn * 0.7);
+        setRot(model, 'fore' + side, -1.75, 0, 0);
+      }
+      return;
+    }
+
+    /* Getting up. They roll onto one elbow, get a knee under themselves and
+     * push, so the arms are doing work rather than hanging there while the
+     * body floats upright. */
+    const push = Math.sin(Math.min(1, (1 - g) * 1.6) * Math.PI);
+    const sgn = side === 'R' ? 1 : -1;
+    setRot(model, 'arm' + side, -0.55 - 0.7 * push, 0, sgn * (0.35 + 0.5 * push));
+    setRot(model, 'fore' + side, -1.35 * push - 0.2, 0, 0);
+    setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -0.4 - 0.4 * push, 0, -sgn * 0.3);
+    setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -0.9 * push, 0, 0);
+    setRot(model, 'legR', -0.3 - 0.75 * push, 0, 0.1);
+    setRot(model, 'shinR', 1.5 * push, 0, 0);
+    setRot(model, 'legL', -0.15 - 0.3 * push, 0, -0.08);
+    setRot(model, 'shinL', 0.8 * push, 0, 0);
+    setRot(model, 'torso', 0.45 * push + 0.1 * lay, 0, 0);
+    setRot(model, 'head', -0.2 - 0.25 * push, 0, 0);
+  }
+
+  /* Puts somebody on the floor without the solver. `dirLocal` is the blow in
+   * the victim's own frame — [sideways, frontways], the same pair the wounds
+   * are placed with, so a punch in the face and the cut it leaves agree about
+   * which way the blow came from. */
+  function collapse(actor, dirLocal, opts) {
+    if (actor.collapse) return false;
+    const o = opts || {};
+    const rng = actor.rng || Math.random;
+    // A blow from the front (dirLocal[1] positive) puts them on their back.
+    actor.collapse = {
+      phase: 'fall',
+      t: 0,
+      fallFor: 0.42 + rng() * 0.12,
+      downFor: o.downFor === undefined ? 4.5 + rng() * 5 : o.downFor,
+      riseFor: 1.35 + rng() * 0.3,
+      side: dirLocal ? dirLocal[0] : 0,
+      front: dirLocal ? dirLocal[1] : 1,
+      zone: o.zone || 'chest',
+      hand: actor.leftHanded ? 'L' : 'R'
+    };
+    // whatever they were doing, they are not doing it
+    actor.attack = null;
+    actor.reaction = null;
+    actor.gesture = null;
+    actor.gait = 'idle';
+    actor.vx = 0; actor.vy = 0;
+    return true;
+  }
+
+  /* Runs the clock. Returns 'up' on the frame they finish getting up. */
+  function updateCollapse(actor, dt) {
+    const c = actor.collapse;
+    if (!c) return null;
+    c.t += dt;
+    if (c.phase === 'fall') {
+      if (c.t >= c.fallFor) { c.phase = 'down'; c.t = 0; }
+      return null;
+    }
+    if (c.phase === 'down') {
+      if (c.t >= c.downFor) { c.phase = 'rise'; c.t = 0; }
+      return null;
+    }
+    if (c.t >= c.riseFor) {
+      actor.collapse = null;
+      // a beat of grace so the first thing that happens to them on standing
+      // is not being knocked straight back down
+      actor.hitCooldown = Math.max(actor.hitCooldown || 0, 0.8);
+      return 'up';
+    }
+    return null;
+  }
+
+  /* On the floor by any means: crumpled by a punch, or thrown by a horse. */
+  function isFloored(actor) {
+    return !!actor.collapse || (actor.fall && actor.fall.active && actor.fall.mode === 'full');
+  }
+
   /* Reaching across to draw from the belt, or putting something away. */
   function poseSheathe(model, k, side, putting) {
     clearPose(model);
@@ -3831,7 +4013,15 @@
   }
 
   // Down on the ground, as opposed to merely jostled.
-  function isDown(actor) { return actor.fall.active && actor.fall.mode === 'full'; }
+  /* On the floor by any means. A posed collapse counts as down for every
+   * purpose the rest of the game has — you cannot swing, cannot be talked to,
+   * and anyone who walks past can see that you are lying there. The only code
+   * that cares which of the two it is is the code that drives them, and that
+   * asks for the state directly. */
+  function isDown(actor) {
+    if (actor.collapse) return true;
+    return actor.fall.active && actor.fall.mode === 'full';
+  }
 
   /* ---------- drawing a ragdoll ---------- */
 
@@ -4046,6 +4236,29 @@
           torso: [0.16 + breathe, 0, 0],
           armR: [-0.42, 0, 0.30], foreR: [-1.30, 0, -0.18],
           armL: [-0.42, 0, -0.30], foreL: [-1.34, 0, 0.18]
+        };
+      }
+    },
+
+    /* Stooping over somebody on the floor. Bent at the waist, one hand out
+     * toward them, head down — the shape of asking whether they are alright,
+     * which is different from the shape of grief because the hand is
+     * reaching rather than covering. */
+    tend: {
+      duration: 3.0,
+      label: 'Tend',
+      pose: function (t) {
+        const reach = Math.min(1, t * 3.5) * (1 - Math.max(0, (t - 0.8) / 0.2));
+        return {
+          torso: [0.72, 0.1, 0],
+          head: [0.34, -0.12, 0],
+          armR: [-0.55 - reach * 0.75, 0, 0.3],
+          foreR: [-0.5 - reach * 0.5, 0, 0],
+          armL: [0.2, 0, -0.22],
+          foreL: [-0.45, 0, 0],
+          legR: [0.16, 0, 0.1],
+          shinR: [0.35, 0, 0],
+          legL: [-0.1, 0, -0.08]
         };
       }
     },
@@ -4304,6 +4517,15 @@
     const model = actor.model;
     if (actor.customPose) { applyPose(model, actor.customPose, actor.customBob || 0); return; }
     const side = actor.leftHanded ? 'L' : 'R';
+    if (actor.collapse) {
+      const c = actor.collapse;
+      const span = c.phase === 'fall' ? c.fallFor : c.phase === 'down' ? c.downFor : c.riseFor;
+      // the fall and the get-up run on the action clock; lying there runs on
+      // the slow one, because a body on the floor has nothing quick to do
+      const t = c.phase === 'down' ? quantiseTime(c.t) : quantiseAction(c.t);
+      poseCollapse(model, c.phase, span > 0 ? t / span : 1, c.side, c.front, c.zone, c.hand);
+      return;
+    }
     if (actor.attack) {
       const k = quantiseAction(actor.attack.t) / actor.attack.duration;
       poseAttack(model, actor.attack.anim, k, side, actor.gait, qTime);
@@ -4627,6 +4849,9 @@
       actor.inv && actor.inv[8] ? actor.inv[8].id : '',
       actor.inv && actor.inv[9] ? actor.inv[9].id : '',
       actor.alert ? 'a' : '',
+      actor.collapse ? actor.collapse.phase
+        + Math.round(actor.collapse.t * (actor.collapse.phase === 'down' ? ANIM_FPS : ACTION_FPS))
+        : '',
       actor.reaction ? actor.reaction.kind + Math.round((actor.reaction.k || 0) * ACTION_FPS) : ''
     ].join('|');
     if (key !== null && key === actor._key && !(opts && opts.force)) return target;
@@ -4664,6 +4889,7 @@
     shove, stumble, applyShove,
     GESTURES, GESTURE_IDS, startGesture, applyGesture, isOverlayGesture,
     carryMode, weaponDrop,
+    collapse, updateCollapse, isFloored, poseCollapse,
     jointPositions, segmentMatrix, drawRagdoll, actorExtras,
     poseActor, drawModel, renderActor, OUTLINE
   };
@@ -6148,6 +6374,13 @@
 
   const BLOOD = '#6d1119';
   const BLOOD_DARK = '#48070d';
+  /* A bruise is not blood. It is a different colour, it is flat, and it does
+   * not run — which is the whole reason a fist reads differently from a
+   * knife without anyone having to be told which one hit them. Three stages,
+   * because a bruise that never changes colour is just a stain. */
+  const BRUISE = ['#7a3b46', '#5d3b5c', '#6b5a3c'];
+  const SHAFT = '#6b4c2a';
+  const FLETCH = '#c9bda6';
   const STEEL = '#b9bec6';
   const STEEL_DARK = '#7d838c';
   const STEEL_EDGE = '#e6ebf2';   // the bright line down a sharpened edge
@@ -6530,6 +6763,8 @@
   /* ================= the damage roll ================= */
 
   const MAX_HP = 100;
+  // How much bare-handed punishment somebody takes before the skin goes.
+  const SPLIT_AT = 26;
 
   /* Where on the body a blow landed, as a fraction of standing height, and
    * how badly that place takes it. Deciding this before the damage is what
@@ -6594,35 +6829,161 @@
   /* A wound is a mark stitched to a bone, at a spot on that bone. It is drawn
    * with the body, so it turns with them, swings with the limb it is on, and
    * stays where the blow landed rather than floating at chest height. */
-  function makeWound(model, zone, dirLocal, kind, gore, rng) {
+  /* A wound is a mark stitched to a bone. What it looks like is decided by
+   * what made it, not by how much damage it did:
+   *
+   *   edged   a slash, laid along the line the blade travelled. Long, thin,
+   *           and it runs.
+   *   pierce  a small deep hole. Barely wider than the blade, dark, and it
+   *           runs hard because a puncture does. An arrow leaves the shaft
+   *           in it.
+   *   blunt   a bruise. Broad, flat, soft, no run at all, and it changes
+   *           colour over the days rather than shrinking much.
+   *
+   * `travel` is the direction the weapon was moving in the victim's own
+   * frame, which is what a slash lies along; without it every cut on a body
+   * is at a random angle and a row of them reads as a rash.
+   */
+  function makeWound(model, zone, dirLocal, opts) {
+    const o = opts || {};
+    const rng = o.rng || Math.random;
+    const kind = o.kind || 'blunt';
+    const gore = o.gore === undefined ? 0 : o.gore;
+    const power = o.power === undefined ? 20 : o.power;
     const d = model.dims;
-    const bone = model.bones[zone.bone] ? zone.bone : 'torso';
-    // a spot on the front-ish surface of that bone, offset by where the blow
-    // came from, so a hit from the left lands on the left
-    const spreadX = (zone.id === 'head' ? d.headW : d.torsoW) * 0.34;
-    const x = (dirLocal[0] * 0.55 + (rng() - 0.5) * 0.5) * spreadX;
-    const z = (dirLocal[1] * 0.5 + (rng() - 0.5) * 0.4)
-      * (zone.id === 'head' ? d.headD : d.torsoD) * 0.52;
+    /* A limb wound goes on the limb the blow actually reached. The zone table
+     * names the right arm because it has to name one, but a sword coming in
+     * from somebody's left does not land on their right arm. */
+    let boneName = zone.bone;
+    if (boneName === 'armR' && dirLocal[0] < 0) boneName = 'armL';
+    if (boneName === 'legR' && dirLocal[0] < 0) boneName = 'legL';
+    const bone = model.bones[boneName] ? boneName : 'torso';
+
+    /* Which face of the body it landed on, and where that face is.
+     *
+     * This matters more than it sounds. A wound placed at some fraction of
+     * the body's depth sits *inside* the body, and since the torso is wearing
+     * a tunic over the top of that, it is invisible — which is exactly what
+     * was happening: every cut in the game was being drawn under somebody's
+     * shirt. It has to be put on the surface, and on the surface the blow
+     * came from. */
+    const onHead = bone === 'head';
+    const onLimb = bone.indexOf('arm') === 0 || bone.indexOf('leg') === 0;
+    let halfW, halfD;
+    if (onHead) { halfW = d.headW * 0.5; halfD = d.headD * 0.5; }
+    else if (onLimb) {
+      const t = bone.indexOf('arm') === 0 ? d.armW : d.legW;
+      // clothing sits on a limb too, just not as thickly
+      halfW = t * 0.5 + 0.55; halfD = t * 0.5 + 0.55;
+    } else {
+      // the tunic, the surcoat and the belt all stand proud of the torso
+      halfW = d.torsoW * 0.5 + 0.7; halfD = d.torsoD * 0.5 + 0.7;
+    }
+
+    const side = dirLocal[0], front = dirLocal[1];
+    const useSide = Math.abs(side) > Math.abs(front);
+    const face = useSide ? (side > 0 ? 'right' : 'left')
+      : (front >= 0 ? 'front' : 'back');
+    const jitter = (rng() - 0.5) * 0.7;
+
+    let x, z;
+    if (useSide) {
+      x = (side > 0 ? 1 : -1) * (halfW + 0.2);
+      z = jitter * halfD;
+    } else {
+      z = (front >= 0 ? 1 : -1) * (halfD + 0.2);
+      x = jitter * halfW;
+    }
+
     let y;
-    if (zone.bone === 'head') y = 1.5 + rng() * 4.5;
-    else if (zone.bone === 'torso') y = zone.id === 'gut' ? 1.0 + rng() * 3.0 : 4.5 + rng() * 5.5;
-    else if (zone.bone === 'armR') y = -1.0 - rng() * 3.5;
+    if (bone === 'head') y = 1.5 + rng() * 4.5;
+    else if (bone === 'torso') y = zone.id === 'gut' ? 1.0 + rng() * 3.0 : 4.5 + rng() * 5.5;
+    else if (bone.indexOf('arm') === 0) y = -1.0 - rng() * 3.5;
     else y = -1.5 - rng() * 4.0;
 
-    const slash = kind === 'edged' && gore >= 1;
-    return {
+    // how heavy the blow was, as a fraction of the worst thing in the game
+    const heft = Math.max(0.2, Math.min(1.4, power / 45));
+    const wound = {
       bone: bone,
       x: x, y: y, z: z,
-      // a slash is a long cut across the body; a stab or a bruise is a patch
-      w: slash ? 5.5 + rng() * 4.5 : 1.6 + rng() * 1.6,
-      h: slash ? 0.9 + rng() * 0.5 : 1.5 + rng() * 1.3,
-      angle: slash ? (rng() - 0.5) * 1.4 : 0,
+      face: face,
       kind: kind,
       age: 0,
-      // how far the blood has run down from it
       run: 0,
-      maxRun: slash ? 5 + rng() * 6 : 2 + rng() * 4
+      // Size is what heals. Everything drawn is scaled by it, so a wound
+      // closing up is one number going down rather than a second set of
+      // shapes.
+      size: 1,
+      day: 0,
+      bruise: 0
     };
+
+    if (kind === 'edged') {
+      /* Along the swing. A cut lies across the body in the direction the
+       * edge was travelling, which is why an overhead leaves a vertical one
+       * and a horizontal slash leaves a belt across the chest. */
+      const tx = o.travel ? o.travel[0] : (rng() - 0.5);
+      const ty = o.travel ? o.travel[1] : 0.2;
+      wound.angle = Math.atan2(ty, tx) + (rng() - 0.5) * 0.5;
+      wound.w = (3.4 + gore * 3.2 + rng() * 2.6) * heft;
+      wound.h = (0.75 + rng() * 0.4) * (0.7 + heft * 0.5);
+      wound.maxRun = (4 + rng() * 5) * heft;
+      wound.heal = 0.075;        // a fortnight or so
+    } else if (kind === 'pierce') {
+      wound.angle = 0;
+      wound.w = (1.1 + rng() * 0.8) * (0.7 + heft * 0.4);
+      wound.h = wound.w * (0.9 + rng() * 0.3);
+      // a hole runs harder than it looks like it should
+      wound.maxRun = (4.5 + rng() * 5.5) * heft;
+      wound.heal = 0.055;        // the deepest, and the slowest
+      if (o.shaft) {
+        wound.shaft = true;
+        wound.shaftLen = 5 + rng() * 3;
+      }
+    } else {
+      /* A bruise. It comes up broad and flat, it does not bleed, and it takes
+       * its time going — but it goes through the colours while it does. */
+      wound.angle = (rng() - 0.5) * 0.8;
+      wound.w = (2.2 + rng() * 1.8) * (0.6 + heft * 0.7);
+      wound.h = wound.w * (0.65 + rng() * 0.4);
+      wound.maxRun = 0;
+      wound.heal = 0.22;         // four or five days
+      wound.bruise = 1;
+    }
+    return wound;
+  }
+
+  /* ---------- healing ----------
+   *
+   * A wound is not permanent and it is not instant either. Each day it closes
+   * a little, and when there is nothing left of it, it goes. A bruise passes
+   * through its colours on the way out; a cut just gets shorter and stops
+   * running.
+   *
+   * There are no days yet. This is driven by `advanceDay`, which nothing
+   * calls on a timer — when the world grows a clock, that is the one line
+   * that has to be hooked up to it.
+   */
+  const DAY = 1;
+
+  function advanceDay(body, days) {
+    if (!body || !body.wounds) return 0;
+    const n = days === undefined ? 1 : days;
+    let closed = 0;
+    for (let i = body.wounds.length - 1; i >= 0; i--) {
+      const wd = body.wounds[i];
+      wd.day += n;
+      wd.size -= (wd.heal === undefined ? 0.1 : wd.heal) * n;
+      // the blood dries and stops running long before the cut has gone
+      wd.run = Math.max(0, wd.run - n * 1.6);
+      wd.maxRun = Math.max(0, wd.maxRun - n * 1.2);
+      if (wd.size <= 0.12) { body.wounds.splice(i, 1); closed++; }
+    }
+    // and a night's rest does something for the rest of it
+    body.hp = Math.min(MAX_HP, body.hp + n * 14);
+    body.bleed = Math.max(0, body.bleed - n * 2);
+    body.bruised = Math.max(0, (body.bruised || 0) - n * 1.2);
+    return closed;
   }
 
   /* Rebuilt every frame the actor is drawn, like the face is. Cheap, and it
@@ -6633,21 +6994,98 @@
     for (let i = 0; i < wounds.length; i++) {
       const wd = wounds[i];
       const list = byBone[wd.bone] || (byBone[wd.bone] = []);
-      const deep = wd.kind !== 'blunt';
-      const col = deep ? BLOOD : BLOOD_DARK;
+      // Everything shrinks by the one number that heals.
+      const size = wd.size === undefined ? 1 : Math.max(0, wd.size);
+      const w = wd.w * size, h = wd.h * size;
       const ca = Math.cos(wd.angle), sa = Math.sin(wd.angle);
-      const half = wd.w / 2;
-      const steps = wd.w > 3 ? 5 : 1;
-      for (let k = 0; k < steps; k++) {
-        const t = steps === 1 ? 0 : (k / (steps - 1) - 0.5) * 2;
-        const ox = ca * half * t, oy = sa * half * t;
-        list.push(part(G.box(wd.x + ox - wd.h * 0.5, wd.y + oy - wd.h * 0.5,
-          wd.z - 0.2, wd.h, wd.h, 0.45), col));
+
+      /* A wound lies flat on the face it landed on. On the chest that is a
+       * thin plate in Z; on somebody's flank it is a thin plate in X, and
+       * drawing it in Z there would leave a blade of colour sticking out of
+       * their side. `out` is which way is away from the body. */
+      const sideFace = wd.face === 'left' || wd.face === 'right';
+      const out = (wd.face === 'back' || wd.face === 'left') ? -1 : 1;
+      /* Lays a slab of the given width and height on that face, `depth`
+       * thick, standing `lift` clear of it. */
+      const onFace = function (cx, cy, ww, hh, depth, lift) {
+        const off = out * lift;
+        return sideFace
+          ? G.box(wd.x + off - (out > 0 ? 0 : depth), cy - hh * 0.5, cx - ww * 0.5,
+            depth, hh, ww)
+          : G.box(cx - ww * 0.5, cy - hh * 0.5, wd.z + off - (out > 0 ? 0 : depth),
+            ww, hh, depth);
+      };
+      // where along the face this wound sits, in that face's own two axes
+      const u0 = sideFace ? wd.z : wd.x;
+
+      if (wd.kind === 'blunt') {
+        /* A bruise: a broad flat patch that changes colour as it ages rather
+         * than a cut that shrinks. Yellow-green by the time it is nearly
+         * gone, which is the only honest way to draw one going. */
+        const stage = wd.day >= 4 ? 2 : wd.day >= 2 ? 1 : 0;
+        list.push(part(onFace(u0, wd.y, w, h, 0.4, 0), BRUISE[stage]));
+        // and a darker heart to it while it is fresh
+        if (wd.day < 3) {
+          list.push(part(onFace(u0, wd.y, w * 0.5, h * 0.5, 0.45, 0.04), BRUISE[0]));
+        }
+        continue;
       }
+
+      const col = BLOOD;
+      if (wd.kind === 'pierce') {
+        // a hole, not a line: one dark mark barely wider than what made it
+        list.push(part(onFace(u0, wd.y, w, h, 0.5, 0), BLOOD_DARK));
+        list.push(part(onFace(u0, wd.y, w * 0.55, h * 0.55, 0.55, 0.06), col));
+        if (wd.shaft && size > 0.6) {
+          /* An arrow does not disappear on contact. The shaft stands out of
+           * them until somebody pulls it out, and it is the single clearest
+           * way to read at a glance what hit whom. */
+          /* Built as a stepped stack rather than one box, so the shaft
+           * slopes down and out of them instead of pointing straight at the
+           * camera. An arrow aimed exactly along the view axis projects to
+           * about two pixels and reads as a smudge; one at an angle reads as
+           * a stick, which is the entire point of leaving it in. */
+          const len = wd.shaftLen * size;
+          const SEG = 5;
+          for (let k = 0; k < SEG; k++) {
+            const t = k / SEG;
+            const outAt = out * len * t;
+            const dropAt = -len * 0.34 * t;      // it hangs as it comes out
+            const seg = len / SEG + 0.3;
+            list.push(part(sideFace
+              ? G.box(wd.x + outAt, wd.y + dropAt - 0.28, u0 - 0.28, out * seg, 0.56, 0.56)
+              : G.box(u0 - 0.28, wd.y + dropAt - 0.28, wd.z + outAt, 0.56, 0.56, out * seg),
+            SHAFT));
+          }
+          // the flights, three of them, out at the far end
+          const tipOut = out * len * 0.92;
+          const tipY = -len * 0.34 * 0.92;
+          for (let f = 0; f < 3; f++) {
+            const ang = (f / 3) * Math.PI * 2;
+            const fu = Math.cos(ang) * 0.6, fy = Math.sin(ang) * 0.6;
+            list.push(part(sideFace
+              ? G.box(wd.x + tipOut, wd.y + tipY + fy - 0.17, u0 + fu - 0.17, out * 1.7, 0.34, 0.34)
+              : G.box(u0 + fu - 0.17, wd.y + tipY + fy - 0.17, wd.z + tipOut, 0.34, 0.34, out * 1.7),
+            FLETCH));
+          }
+        }
+      } else {
+        // a slash, laid along the line the edge travelled
+        const half = w / 2;
+        const steps = w > 3 ? 6 : w > 1.6 ? 3 : 1;
+        for (let k = 0; k < steps; k++) {
+          const t = steps === 1 ? 0 : (k / (steps - 1) - 0.5) * 2;
+          // deepest in the middle, tapering to nothing at both ends
+          const taper = 0.55 + 0.45 * Math.cos(t * Math.PI * 0.5);
+          const ou = ca * half * t, oy = sa * half * t;
+          const th = h * taper;
+          list.push(part(onFace(u0 + ou, wd.y + oy, th, th, 0.45, 0), col));
+        }
+      }
+
       // the run of blood below it, growing as they bleed
       if (wd.run > 0.3) {
-        list.push(part(G.box(wd.x - 0.45, wd.y - wd.run, wd.z - 0.16,
-          0.9, wd.run, 0.38), BLOOD_DARK));
+        list.push(part(onFace(u0, wd.y - wd.run * 0.5, 0.9, wd.run, 0.4, 0.02), BLOOD_DARK));
       }
     }
     return byBone;
@@ -6666,23 +7104,47 @@
       lastHitBy: null,
       lastHitAt: 0,
       pain: 0,
+      // How much of a beating they have taken bare-handed. Fists do not cut
+      // anybody open on the first punch; they do on the fifth.
+      bruised: 0,
       blocking: false
     };
   }
 
   /* Applies a rolled blow. Returns what happened, so the caller can decide
    * how the victim reacts and whether anyone saw it. */
-  function applyDamage(target, roll, dirLocal, rng) {
+  function applyDamage(target, roll, dirLocal, rng, opts) {
     const body = target.body;
     if (!body || body.dead) return null;
+    const o = opts || {};
+    const rand = rng || Math.random;
     body.hp = Math.max(0, body.hp - roll.amount);
     body.bleed += roll.bleed;
     body.pain = Math.min(1, body.pain + roll.amount / 55);
-    if (roll.bleed > 0.05 || roll.amount > 12) {
-      if (body.wounds.length < 9) {
-        body.wounds.push(makeWound(target.model, roll.zone, dirLocal,
-          roll.kind, roll.gore, rng || Math.random));
+
+    /* A punch marks somebody before it opens them. The first few leave
+     * bruises; keep it up and the skin goes, which is the point at which a
+     * fist fight starts producing blood. */
+    let kind = roll.kind;
+    let gore = roll.gore;
+    if (kind === 'blunt') {
+      body.bruised = (body.bruised || 0) + roll.amount;
+      if (body.bruised > SPLIT_AT && rand() < 0.55) {
+        // split. It is a small cut and it bleeds like one.
+        kind = 'edged';
+        gore = 0.2;
+        body.bleed += 0.12 + rand() * 0.16;
+        body.bruised -= SPLIT_AT * 0.5;
       }
+    }
+
+    const worthMarking = roll.bleed > 0.05 || roll.amount > 12
+      || (roll.kind === 'blunt' && roll.amount > 4);
+    if (worthMarking && body.wounds.length < 9) {
+      body.wounds.push(makeWound(target.model, roll.zone, dirLocal, {
+        kind: kind, gore: gore, power: o.power === undefined ? roll.amount * 1.6 : o.power,
+        travel: o.travel, shaft: o.shaft, rng: rand
+      }));
     }
     const severity = body.hp <= 0 ? 'fatal'
       : roll.amount > 34 || body.hp < 28 ? 'serious'
@@ -6737,9 +7199,11 @@
   }
 
   global.Combat = {
-    WEAPONS, MELEE_IDS, ALL_IDS, ZONES, MAX_HP, BLOOD, BLOOD_DARK,
+    WEAPONS, MELEE_IDS, ALL_IDS, ZONES, MAX_HP, BLOOD, BLOOD_DARK, BRUISE,
+    DAY, SPLIT_AT,
     weapon, weaponParts, rollZone, rollDamage, zoneFor,
-    createBody, applyDamage, updateBody, makeWound, woundParts, severityOf
+    createBody, applyDamage, updateBody, makeWound, woundParts, severityOf,
+    advanceDay
   };
   void CM;
 })(window);
@@ -7556,6 +8020,12 @@
       reputationCriminal: 0,
       lastSeenAt: -999,
       crimeSeq: 0,
+      /* There is no clock yet. When there is one, this is the number it
+       * increments and `advanceDay` is the one line it has to call: wounds
+       * close a little, bruises change colour and eventually go, and a
+       * night's rest gives back some of what the day took. Everything that
+       * has to happen is already written; nothing drives it. */
+      day: 0,
       camX: 0, camY: 0,
       box: D.create(),
       talkingTo: null,
@@ -9315,6 +9785,28 @@
     return Math.min(small ? 0.7 : 0.94, onShield * (small ? 0.75 : 1));
   }
 
+  /* Which way the weapon was moving when it landed, in the victim's own
+   * frame, so a cut lies along the line the edge took. A horizontal slash
+   * leaves a belt across the chest; an overhead leaves one down it. Without
+   * this every cut on a body sits at a random angle and three of them read as
+   * a rash rather than as three sword blows. */
+  const SWING_TRAVEL = {
+    slash: [1, 0.18],
+    swing: [1, 0.3],
+    overhead: [0.22, 1],
+    thrust: [0.35, 0.25],
+    stab: [0.3, 0.4],
+    jab: [0.5, 0.2],
+    draw: [0.2, 0.3],
+    aim: [0.2, 0.3]
+  };
+
+  function travelFor(w, side) {
+    const t = SWING_TRAVEL[w.anim] || SWING_TRAVEL.slash;
+    // mirrored for a left-hander, and for a blow coming from the other side
+    return [t[0] * (side < 0 ? -1 : 1), t[1]];
+  }
+
   function strike(world, a, target, w, charge) {
     const rng = a.rng || Math.random;
     const roll = CB.rollDamage(w, target, {
@@ -9343,7 +9835,10 @@
     // the side it came from
     const cy = Math.cos(target.yaw), sy = Math.sin(target.yaw);
     const local = [-(nx * cy - ny * sy), -(nx * sy + ny * cy)];
-    const res = CB.applyDamage(target, roll, local, rng);
+    const res = CB.applyDamage(target, roll, local, rng, {
+      power: w.power,
+      travel: travelFor(w, (a.leftHanded ? -1 : 1) * (local[0] >= 0 ? 1 : -1))
+    });
     if (!res) return;
     if (target.body) {
       target.body.lastHitBy = a;
@@ -9371,6 +9866,7 @@
     const fatal = severity === 'fatal' || (body && (body.dead || body.dying));
     const serious = severity === 'serious';
     const side = (nx * Math.cos(target.yaw) - ny * Math.sin(target.yaw)) > 0 ? 1 : -1;
+    const rng = target.rng || Math.random;
 
     if (chasing(target) && !fatal && !serious) {
       // a running guard eats a light blow and keeps coming
@@ -9379,11 +9875,40 @@
       if (world.talkingTo === target) D.close(world.box);
       return;
     }
-    if (fatal || (serious && roll.knock > 0.7) || roll.amount > 52) {
+
+    /* Dead is limp, and limp is the ragdoll: a body that has stopped has no
+     * business holding a pose. Everything short of that folds up instead —
+     * a person who is knocked down but still alive goes down the way they
+     * were hit, lies there, and gets up, and none of that is something a
+     * solver can be asked for. */
+    if (fatal) {
       Rig.knockDown(target, nx, ny, 2.2 + roll.knock * 2.2 + roll.amount / 26);
       if (target.brain) { target.brain.state = 'downed'; target.brain.timer = 0; }
       target.hitCooldown = 0.5;
-    } else {
+      return;
+    }
+
+    const bad = serious || roll.amount > 38;
+    if (bad && rng() < (serious ? 0.85 : 0.5)) {
+      const cy = Math.cos(target.yaw), sy = Math.sin(target.yaw);
+      const local = [-(nx * cy - ny * sy), -(nx * sy + ny * cy)];
+      /* How long they are on the floor: how hard it was, and how much of it
+       * is still running out of them. A man who has been opened up stays
+       * down a good deal longer than one who has been hit very hard. */
+      const downFor = 3.2 + roll.amount * 0.1 + roll.bleed * 5 + rng() * 2.5;
+      Rig.collapse(target, local, {
+        zone: roll.zone ? roll.zone.id : 'chest',
+        downFor: Math.min(16, downFor)
+      });
+      if (target.brain) { target.brain.state = 'downed'; target.brain.timer = 0; }
+      target.hitCooldown = 0.6;
+      // they go down where the blow took them, not where they were standing
+      target.x += nx * 3; target.y += ny * 2;
+      clampToWorld(target);
+      if (world.talkingTo === target) D.close(world.box);
+      return;
+    }
+    {
       // driven back on their heels, arms thrown up
       const push = 26 + roll.knock * 55 + roll.amount * 0.7;
       Rig.stumble(target, nx, ny, push, 0.34 + roll.knock * 0.3);
@@ -9473,7 +9998,11 @@
         roll.amount *= 1 - stopped;
         roll.bleed *= 1 - stopped;
         const local = [-(nx * cy - ny * sy), -(nx * sy + ny * cy)];
-        const res = CB.applyDamage(hit, roll, local, rng);
+        /* The shaft stays in them. Nothing else in the game tells you at a
+         * glance who has been shot and who has merely been hit. */
+        const res = CB.applyDamage(hit, roll, local, rng, {
+          power: roll.amount * 1.5, shaft: true, travel: [0.3, 0.3]
+        });
         if (res) {
           splash(world, hit, roll, nx, ny);
           knockFrom(world, ar.owner, hit, roll, nx, ny, res.severity);
@@ -9620,12 +10149,19 @@
     const cornered = steerAround(world, victim,
       Rig.yawForDirection(victim.x - attacker.x, victim.y - attacker.y), 34) === null;
 
+    /* A fist fight is a different thing from being attacked. Somebody who
+     * has been punched by somebody who is also unarmed squares up, because
+     * that is what a brawl is — it is only steel that makes running the
+     * sensible answer. This is the single biggest reason a village used to
+     * scatter from a shoving match. */
+    const fists = !attackerArmed(attacker) && !armed;
     const willFight = brave
       + (armed ? 0.45 : 0)
       + (isGuard(victim) ? 0.55 : 0)
       + brain.grudge * 0.45
       + Math.min(0.4, friends * 0.13)
       + (cornered ? 0.5 : 0)
+      + (fists ? 0.75 : 0)
       - hurt * 0.9
       - (res.severity === 'serious' ? 0.3 : 0)
       - (attackerArmed(attacker) ? 0.35 : 0);
@@ -11114,6 +11650,35 @@
         }
         break;
       }
+      /* Seeing whether they are alright. They come the last few steps,
+       * stop short, and stoop over them — and stay stooped until either the
+       * person gets up or they lose interest. */
+      case 'help': {
+        const who = brain.target;
+        if (!who || (who.body && (who.body.dead || who.body.dying))) {
+          brain.responseTimer = 0; break;
+        }
+        const hd = distance(a, who);
+        a.targetYaw = Rig.yawForDirection(who.x - a.x, who.y - a.y);
+        if (hd > HELP_STAND) {
+          const want = steerAround(world, a, a.targetYaw, 26);
+          if (want !== null) a.targetYaw = want;
+          if (Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 0.8) {
+            a.x += Math.sin(a.yaw) * speed * 0.9 * dt;
+            a.y += Math.cos(a.yaw) * speed * 0.9 * dt;
+            resolvePropCollisions(world, a, 6);
+            clampVillager(a);
+          }
+          a.gait = 'walk';
+        } else {
+          a.gait = 'idle';
+          a.alert = false;
+          // once they are on their feet again there is nothing to stoop over
+          if (!Rig.isDown(who)) { brain.responseTimer = Math.min(brain.responseTimer, 1.2); }
+          else if (!a.gesture) Rig.startGesture(a, 'tend');
+        }
+        break;
+      }
       case 'protect': {
         const friend = brain.protecting;
         if (friend) {
@@ -11233,6 +11798,53 @@
   }
 
   /* Someone sees a body. They do not step over it. */
+  /* Somebody on the floor who is not dead.
+   *
+   * People do not walk past that. They come over, stoop, and have a look, and
+   * then either stay a moment or think better of it — which is the whole
+   * behaviour, and it is worth having because the alternative is a village
+   * that steps over a man bleeding in the road. Guards do it too, and a guard
+   * doing it is the difference between a watch and a militia.
+   *
+   * Nobody does it while whoever put them there is still standing over them.
+   */
+  const HELP_RANGE = 130;
+  const HELP_STAND = 19;
+
+  function noticeFallen(world, a, dt) {
+    const brain = a.brain;
+    brain.helpTimer = (brain.helpTimer || 0) - dt;
+    if (brain.helpTimer > 0) return false;
+    brain.helpTimer = 1.3 + a.rng() * 1.4;
+    if (brain.response || brain.report) return false;
+
+    const p = world.player;
+    for (let i = 0; i < world.actors.length; i++) {
+      const o = world.actors[i];
+      if (o === a || !o.body || o.body.dead || o.body.dying) continue;
+      if (!Rig.isDown(o)) continue;
+      if (o.helpedBy && o.helpedBy[a._id]) continue;
+      const d = distance(a, o);
+      if (d > HELP_RANGE) continue;
+      // not while the person who did it is standing there
+      const danger = o !== p && !Rig.isDown(p) && distance(p, o) < 90
+        && (world.wanted > 6 || (o.body.lastHitBy === p));
+      if (danger) continue;
+      // and not if they are frightened of the man on the floor himself
+      if (o === p && world.wanted > 30 && bravery(a) < 0.6 && !isGuard(a)) continue;
+
+      o.helpedBy = o.helpedBy || {};
+      o.helpedBy[a._id] = true;
+      brain.state = 'react';
+      brain.response = 'help';
+      brain.target = o;
+      brain.fleeFrom = { x: o.x, y: o.y };
+      brain.responseTimer = 7 + a.rng() * 5;
+      return true;
+    }
+    return false;
+  }
+
   function noticeCasualties(world, a, dt) {
     const brain = a.brain;
     brain.scanTimer = (brain.scanTimer || 0) - dt;
@@ -11349,6 +11961,11 @@
 
   function updatePlayer(world, dt) {
     const p = world.player;
+    if (p.body && (p.body.dead || p.body.dying)) {
+      // Dying is limp. Whatever pose they were holding on the floor, they
+      // stop holding it.
+      p.collapse = null;
+    }
     if (p.body && p.body.dead) {
       // down for good. No hospitals yet, so the body stays where it fell.
       if (!Rig.isDown(p)) Rig.knockDown(p, 0.3, 0.2, 2.4);
@@ -11367,6 +11984,22 @@
       p.vx = 0; p.vy = 0;
       p.gait = 'idle';
       Rig.updateActorMotion(p, dt);
+      return;
+    }
+    /* Folded up on the floor. Nothing they were doing continues, and the
+     * only thing that happens is the clock running down until they get
+     * themselves up again. */
+    if (p.collapse) {
+      p.vx = 0; p.vy = 0;
+      p.gait = 'idle';
+      p.hitCooldown = Math.max(0, p.hitCooldown - dt);
+      p.animTime += dt;
+      Rig.updateBlink(p, dt);
+      Rig.updateCollapse(p, dt);
+      if (world.box.open) D.close(world.box);
+      if (invVisible(world)) closeInventory(world);
+      updateBleedTrail(world, p, dt);
+      CB.updateBody(p, dt);
       return;
     }
     if (p.mount || p.seat) { updateMountedPlayer(world, p, dt); return; }
@@ -11650,6 +12283,7 @@
       a.gesture = null;
       hush(a);
     }
+    if (a.body.dead || a.body.dying) a.collapse = null;
     if (a.body.dead) {
       // a body stays where it fell. Nothing picks it up; there is nowhere yet
       // for it to be taken.
@@ -11669,6 +12303,23 @@
       a.gait = 'idle';
       brain.state = 'downed';
       Rig.updateActorMotion(a, dt);
+      clampVillager(a);
+      return;
+    }
+
+    /* Folded up on the floor and waiting to be able to get up again. */
+    if (a.collapse) {
+      a.vx = 0; a.vy = 0;
+      a.gait = 'idle';
+      a.hitCooldown = Math.max(0, a.hitCooldown - dt);
+      a.animTime += dt;
+      Rig.updateBlink(a, dt);
+      if (Rig.updateCollapse(a, dt) === 'up') {
+        brain.state = 'react';
+        brain.response = brain.response === 'fight' ? 'fight' : 'backAway';
+        brain.responseTimer = 3 + a.rng() * 3;
+        if (!brain.fleeFrom) brain.fleeFrom = { x: a.x, y: a.y + 10 };
+      }
       clampVillager(a);
       return;
     }
@@ -11828,6 +12479,7 @@
       return;
     }
     if (noticeCasualties(world, a, dt)) { Rig.updateActorMotion(a, dt); return; }
+    if (noticeFallen(world, a, dt)) { Rig.updateActorMotion(a, dt); return; }
     if (noticeWeapon(world, a, dt)) { Rig.updateActorMotion(a, dt); return; }
     if (tryRecoverItems(world, a, dt)) { Rig.updateActorMotion(a, dt); return; }
 
@@ -11968,6 +12620,27 @@
   /* Everything E does, in the order it is offered. Riding beats talking:
    * standing next to your own horse and getting a conversation instead is
    * the kind of thing that makes a control feel broken. */
+  /* A night passing. Nothing calls this on a timer — see `world.day`. It is
+   * here, tested and exported, so that the day the world grows a clock this
+   * is a one-line hook rather than a system to write. */
+  function advanceDay(world, days) {
+    const n = days === undefined ? 1 : days;
+    world.day += n;
+    let closed = 0;
+    for (let i = 0; i < world.actors.length; i++) {
+      const a = world.actors[i];
+      if (!a.body || a.body.dead) continue;
+      closed += CB.advanceDay(a.body, n);
+      a._key = '';        // their sprite is out of date now
+    }
+    // blood on the grass goes with it
+    for (let i = world.blood.length - 1; i >= 0; i--) {
+      world.blood[i].r *= Math.pow(0.45, n);
+      if (world.blood[i].r < 0.8) world.blood.splice(i, 1);
+    }
+    return closed;
+  }
+
   function tryTalk(world) {
     if (world.box.open) { D.advance(world.box); return true; }
     const p = world.player;
@@ -12849,6 +13522,7 @@
     createWorld, update, draw, tryTalk, nearestTalkable, distance, beginConversation,
     playerAttack, playerAim, beginAttack, openContainer, closeContainer, nearestChest,
     nearestGroundItem, pickUp, spawnItem, strike, witness, CRIMES, isGuard,
+    advanceDay,
     openInventory, closeInventory, invVisible, invMove, invClick, layout,
     shieldBlocks, knockFrom, stowWeapon, drawWeapon, guardIntent,
     mount, dismount, hitchCart, unhitchCart, takeSeat, leaveSeat,

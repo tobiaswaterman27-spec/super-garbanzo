@@ -399,6 +399,11 @@
       h.yaw = Math.floor(rng() * 4) * (Math.PI / 2);
       h.targetYaw = h.yaw;
       h.buffer = R.createTarget(HORSE_BUF.w, HORSE_BUF.h);
+      // Horses are mortal on the same terms as everybody else. Building the
+      // body lazily on the first blow meant nothing could hurt one except a
+      // weapon — a horse could be driven into an oak at a gallop and walk it
+      // off, because it had no health to lose.
+      h.body = CB.createBody();
       world.horses.push(h);
     }
 
@@ -485,6 +490,49 @@
   /* ---------- helpers ---------- */
 
   function distance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+
+  /* Whether this person is standing on the grass, as opposed to riding in
+   * something. It matters more than it sounds: anybody aboard a cart is at
+   * the cart's position and moving with it, so picking them as a target for
+   * anything that involves walking over means walking after a moving vehicle
+   * for ever. That is the whole of the villagers-chase-carts business — a man
+   * on the road would decide to go and have a chat with a passenger, commit
+   * to closing the gap, and follow the cart across the county. */
+  function onFoot(a) {
+    return !!a && !a.carriedBy && !a.mount && !a.seat;
+  }
+
+  /* Being put on the floor takes you out of whatever you were riding.
+   *
+   * Without this a blow that collapses a mounted player leaves them flagged
+   * as mounted: the collapse branch freezes their position, the draw skips
+   * anyone who is mounted, and the camera follows a player who is both
+   * invisible and no longer moving. Which is exactly what it looks like. */
+  function spillFromRide(world, a) {
+    if (a.mount) {
+      const h = a.mount;
+      if (a === world.player) dismount(world);
+      else dismountNpc(world, a);
+      a.x = h.x; a.y = h.y;
+    }
+    if (a.seat) {
+      const c = a.seat;
+      if (a === world.player) leaveSeat(world);
+      else { if (c.rider === a) c.rider = null; a.seat = null; if (a.brain) a.brain.drives = false; }
+      a.x = c.x; a.y = c.y;
+    }
+    if (a.carriedBy) {
+      const v = a.carriedBy;
+      if (v.riders) {
+        const at = v.riders.indexOf(a);
+        if (at >= 0) v.riders.splice(at, 1);
+      }
+      if (v.pillion === a) v.pillion = null;
+      a.carriedBy = null;
+      a.x = v.x; a.y = v.y;
+      if (a.brain) a.brain.boardCooldown = 18 + (a.rng ? a.rng() : Math.random()) * 15;
+    }
+  }
 
   // The player is held inside the region where the camera can stay centred on
   // them without showing anything outside the generated ground.
@@ -876,6 +924,9 @@
           winner.vx *= 0.55; winner.vy *= 0.55;
           a.hitCooldown = 0.7; b.hitCooldown = 0.7;
           bleedAt(world, loser.x, loser.y, 1.2, 'blunt');
+          // half a ton of animal hitting another one costs them both
+          hurtHorse(world, loser, 4 + (closing - 62) * 0.18, sx, sy);
+          hurtHorse(world, winner, 2 + (closing - 62) * 0.07, -sx, -sy);
         }
       }
       // a person on foot cannot stand inside a horse
@@ -944,12 +995,19 @@
       p.vx *= 0.5; p.vy *= 0.5;
       if (into < NUDGE_SPEED || p.hitCooldown > 0) continue;
       p.hitCooldown = 0.4;
+      /* The cart takes it, and so does everyone riding on it: damageCart
+       * shares the blow out, and anyone aboard who is suddenly bleeding or
+       * sitting in something that is coming apart gets down. */
       damageCart(world, c, 8 + into * 0.22, -nx, -ny);
       if (into > FALL_SPEED) {
-        Rig.knockDown(p, nx, ny, 3.0 + into / 42);
-        p.vx = nx * into * 0.2; p.vy = ny * into * 0.2;
+        // and a cart is as hard as a tree when you run into one
+        spillFromRide(world, p);
+        Rig.collapse(p, [0, 1], { zone: 'chest', downFor: 2.6 + into / 60 });
+        p.vx = 0; p.vy = 0;
+        impactDamage(world, p, 4 + (into - FALL_SPEED) * 0.24, nx, ny);
       } else if (into > TRIP_SPEED) {
         Rig.shove(p, nx, ny, 22 + into * 0.24);
+        impactDamage(world, p, (into - TRIP_SPEED) * 0.12, nx, ny);
       }
     }
   }
@@ -1427,6 +1485,23 @@
       return;
     }
 
+    /* Bleeding kills an animal the way it kills anybody. Nothing was ticking
+     * a horse's body at all, so one could be opened up by an axe and then
+     * trot about indefinitely on no blood. */
+    if (h.body && h.body.bleed > 0) {
+      h.body.hp = Math.max(0, h.body.hp - h.body.bleed * dt);
+      h.body.bleed = Math.max(0, h.body.bleed - dt * 0.05);
+      h.bleedDrip = (h.bleedDrip || 0) - dt;
+      if (h.bleedDrip <= 0 && h.body.bleed > 0.15) {
+        h.bleedDrip = 0.5;
+        bleedAt(world, h.x, h.y, 1.6 + h.body.bleed, 'edged');
+      }
+      if (h.body.hp <= 0) {
+        killHorse(world, h, Math.sin(h.yaw), Math.cos(h.yaw));
+        return;
+      }
+    }
+
     if (HM.isDown(h)) {
       HM.updateFall(h, dt);
       h.vx = 0; h.vy = 0;
@@ -1536,6 +1611,10 @@
         if (h.rider) unseat(world, h, -impact.nx, -impact.ny, impact.speed / 22);
         HM.knockDown(h, impact.nx, impact.ny, f);
         if (h.cart) damageCart(world, h.cart, 26 + impact.speed * 0.2, impact.nx, impact.ny);
+        // and the animal itself, which is the part that was free before
+        const hard = impact.prop.hardness === undefined ? 1 : impact.prop.hardness;
+        hurtHorse(world, h, (6 + (impact.speed - HORSE_FALL_SPEED) * 0.26) * hard,
+          impact.nx, impact.ny);
       } else if (impact.speed > TRIP_SPEED) {
         h.vx *= 0.3; h.vy *= 0.3;
       }
@@ -1745,7 +1824,19 @@
     for (let i = 0; i < list.length; i++) {
       spawnDebris(world, c, list[i], nx, ny, 1);
     }
-    if (c.hitch) { c.hitch.cart = null; c.hitch = null; }
+    if (c.hitch) {
+      /* The horse is strapped to the thing that just came apart. It is
+       * dragged over and it is hurt, which is the honest answer to driving a
+       * loaded cart into an oak at a gallop. */
+      const h = c.hitch;
+      h.cart = null; c.hitch = null;
+      const speed = Math.hypot(c.vx || 0, c.vy || 0);
+      if (!HM.isDown(h) && !h.dead) {
+        if (h.rider) unseat(world, h, -(nx || 1), -(ny || 0), speed / 24);
+        HM.knockDown(h, nx || 1, ny || 0, 3.4 + speed / 30);
+      }
+      hurtHorse(world, h, 10 + speed * 0.16, nx || 1, ny || 0);
+    }
     /* Everyone goes over the side, not just whoever had the reins. A
      * passenger left attached to a cart that no longer exists rides an
      * invisible wreck around the county for the rest of the game. */
@@ -2223,6 +2314,9 @@
        * is still running out of them. A man who has been opened up stays
        * down a good deal longer than one who has been hit very hard. */
       const downFor = 3.2 + roll.amount * 0.1 + roll.bleed * 5 + rng() * 2.5;
+      // off the horse first, or they fold up in mid-air on a saddle that
+      // rides away without them
+      spillFromRide(world, target);
       Rig.collapse(target, local, {
         zone: roll.zone ? roll.zone.id : 'chest',
         downFor: Math.min(16, downFor)
@@ -2390,6 +2484,25 @@
       h.spooked = 4 + rng() * 5;
       h.wanderDir = Math.atan2(dx / d, dy / d);
       witness(world, a, h, 'strike', h.x, h.y);
+    }
+  }
+
+  /* A blow to a horse that did not come off a blade: an oak at a gallop,
+   * another horse, the cart it was pulling coming apart around it. Runs
+   * through the same accounting as a weapon so that a horse that has been
+   * shot twice and then hits a tree dies of the tree. */
+  function hurtHorse(world, h, amount, nx, ny) {
+    if (!h.body) h.body = CB.createBody();
+    if (h.body.dead || amount < 1) return;
+    h.body.hp = Math.max(0, h.body.hp - amount);
+    if (amount > 14) h.body.bleed += (amount - 14) * 0.02;
+    bleedAt(world, h.x, h.y, amount > 22 ? 3.5 : 2, 'blunt');
+    if (h.body.hp <= 0) {
+      killHorse(world, h, nx || 1, ny || 0);
+    } else if (amount > 18) {
+      // it bolts, the way a frightened animal does
+      h.spooked = Math.max(h.spooked || 0, 3 + amount / 12);
+      h.wanderDir = Math.atan2(nx || 1, ny || 0);
     }
   }
 
@@ -2965,6 +3078,8 @@
     for (let i = 1; i < world.actors.length; i++) {
       const o = world.actors[i];
       if (!isGuard(o) || Rig.isDown(o) || (o.body && o.body.dead)) continue;
+      // a watchman riding past on a cart cannot be run up to and told
+      if (!onFoot(o)) continue;
       const d = distance(o, from);
       if (d < bestD) { bestD = d; best = o; }
     }
@@ -3399,6 +3514,9 @@
       if (distance(a, h) > 40) continue;
       h.pillion = a;
       a.carriedBy = h;
+      if (a.brain.partner) {
+        if (a.brain.state === 'closing') abandonClosing(a); else endChat(a, 20);
+      }
       a.brain.state = 'pause';
       return true;
     }
@@ -3411,6 +3529,11 @@
       c.riders = c.riders || [];
       c.riders.push(a);
       a.carriedBy = c;
+      // whoever was walking over for a word is released, or they walk after
+      // the cart instead
+      if (a.brain.partner) {
+        if (a.brain.state === 'closing') abandonClosing(a); else endChat(a, 20);
+      }
       a.brain.state = 'pause';
       return true;
     }
@@ -4472,6 +4595,13 @@
      * only thing that happens is the clock running down until they get
      * themselves up again. */
     if (p.collapse) {
+      /* Whatever route put them on the floor, they are not still riding.
+       * Catching it here as well as at the blow means no future path can
+       * reintroduce the frozen, invisible player: the draw skips anybody
+       * mounted, and a collapse branch that returns early never updates
+       * their position, so the camera sits on a man who is neither there
+       * nor moving. */
+      if (p.mount || p.seat) spillFromRide(world, p);
       p.vx = 0; p.vy = 0;
       p.gait = 'idle';
       p.hitCooldown = Math.max(0, p.hitCooldown - dt);
@@ -4677,6 +4807,8 @@
     for (let i = 1; i < world.actors.length; i++) {
       const other = world.actors[i];
       if (other === a || Rig.isDown(other) || other.gesture) continue;
+      // somebody riding past is not somebody you can go and talk to
+      if (!onFoot(other)) continue;
       if (other.brain.partner || (other.brain.chatCooldown || 0) > 0) continue;
       if (other.brain.state !== 'pause' && other.brain.state !== 'wander') continue;
       const d = distance(a, other);
@@ -4793,6 +4925,7 @@
 
     /* Folded up on the floor and waiting to be able to get up again. */
     if (a.collapse) {
+      if (a.mount || a.seat || a.carriedBy) spillFromRide(world, a);
       a.vx = 0; a.vy = 0;
       a.gait = 'idle';
       a.hitCooldown = Math.max(0, a.hitCooldown - dt);
@@ -5124,7 +5257,7 @@
     for (let i = 1; i < world.actors.length; i++) {
       const a = world.actors[i];
       if (Rig.isDown(a) || a.brain.state === 'downed') continue;
-      if (a.stumbleTime > 0) continue;
+      if (a.stumbleTime > 0 || !onFoot(a)) continue;
       const d = distance(a, world.player);
       if (d < bestD) { bestD = d; best = a; }
     }

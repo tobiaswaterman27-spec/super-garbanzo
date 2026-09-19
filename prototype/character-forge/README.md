@@ -156,6 +156,17 @@ test for it: no two co-visible perpendicular faces may ever share a step.
 - Response is still graded: below a wanted level of 45 they put the weapon
   away and restrain you, and stop the moment you are down.
 
+### Horses are mortal
+
+A horse has a body from the moment it exists, rather than growing one the
+first time somebody hits it — which had meant nothing could hurt one except
+a weapon, so a horse could be driven into an oak at a gallop and walk it
+off. They now take it from a tree at speed, from another horse meeting them
+hard, and from the cart coming apart in the shafts behind them, and they
+bleed the way anything else does. Ridden into a trunk at a gallop, a healthy
+horse loses about a fifth of its health and throws you; a hurt one dies
+there.
+
 ### Getting hurt by the world
 
 - Running flat out into a trunk puts you on the floor **and hurts you**,
@@ -163,7 +174,10 @@ test for it: no two co-visible perpendicular faces may ever share a step.
   health. So does being thrown from a horse, and so does a cart coming apart
   under you. NPCs take it on the same terms.
 - Every blow a cart takes is shared with whoever is riding on it. A cart has
-  no suspension; the people on the boards are thrown against it.
+  no suspension; the people on the boards are thrown against it. Running into
+  one yourself does the same: a full-speed charge into a loaded cart took 31
+  off it, seven off each passenger, five off the man doing the charging, and
+  emptied it — everyone aboard got down.
 - A cart that breaks now turfs out its passengers as well as its driver.
   Leaving them attached to a vehicle that no longer exists had them riding an
   invisible wreck around the county.

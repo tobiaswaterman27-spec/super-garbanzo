@@ -728,7 +728,7 @@
          * standing near a person; it cares that you shoved one. */
         if (speed > TRIP_SPEED) {
           witness(world, player, a, 'shove', a.x, a.y);
-          reactToHit(world, a, player, { severity: 'minor', zone: 'chest' });
+          takeOffence(world, a, player);
         }
 
         // The player brushes past or stumbles. No reaction is played on their
@@ -1870,15 +1870,59 @@
 
   /* Crimes, and what each is worth in wanted level and in what people think
    * of you afterwards. Shoving someone is a crime; it is just a small one. */
+  /* How much force the watch is prepared to bring, in order.
+   *
+   *   none      not their business. Whoever you did it to deals with it.
+   *   restrain  they come with their hands, or put the sword away and use the
+   *             flat of it. The point is to stop you, and they stop when you
+   *             are stopped.
+   *   subdue    a real weapon and a real chase. They will hurt you badly and
+   *             a bowman will shoot you down if you run. They do not finish
+   *             you off on the ground.
+   *   lethal    they are trying to kill you.
+   */
+  const FORCE = { none: 0, restrain: 1, subdue: 2, lethal: 3 };
+  const FORCE_NAME = ['none', 'restrain', 'subdue', 'lethal'];
+
   const CRIMES = {
-    theft: { wanted: 9, rep: -3, alarm: 0.35, label: 'theft' },
-    shove: { wanted: 4, rep: -1, alarm: 0.25, label: 'assault' },
-    mountedShove: { wanted: 16, rep: -5, alarm: 0.75, label: 'riding someone down' },
-    strike: { wanted: 12, rep: -3, alarm: 0.6, label: 'assault' },
-    wound: { wanted: 26, rep: -8, alarm: 0.9, label: 'wounding' },
-    kill: { wanted: 70, rep: -30, alarm: 1, label: 'murder' },
-    horseKill: { wanted: 10, rep: -4, alarm: 0.4, label: 'killing a horse' }
+    // Barging someone off their feet is between the two of you. The man you
+    // shoved may well come and hit you; the watch has better things to do.
+    shove: { wanted: 4, rep: -1, alarm: 0.25, label: 'assault', force: FORCE.none },
+    theft: { wanted: 9, rep: -3, alarm: 0.35, label: 'theft', force: FORCE.subdue },
+    horseKill: { wanted: 10, rep: -4, alarm: 0.4, label: 'killing a horse',
+      force: FORCE.restrain },
+    strike: { wanted: 12, rep: -3, alarm: 0.6, label: 'assault', force: FORCE.restrain },
+    // Riding a man down is not a scuffle, but it is not murder either.
+    mountedShove: { wanted: 16, rep: -5, alarm: 0.75, label: 'riding someone down',
+      force: FORCE.restrain },
+    wound: { wanted: 26, rep: -8, alarm: 0.9, label: 'wounding', force: FORCE.subdue },
+    kill: { wanted: 70, rep: -30, alarm: 1, label: 'murder', force: FORCE.lethal }
   };
+
+  /* What the parish knows you have done before.
+   *
+   * This is the thing that makes a record a record: the watch answering a
+   * shoving match does not treat it as a shoving match if the man doing the
+   * shoving is known for seven murders. Only what was *seen* counts — a crime
+   * nobody witnessed leaves your name alone. */
+  function convict(world, crimeId) {
+    const r = world.record || (world.record = { kill: 0, wound: 0, theft: 0, other: 0 });
+    if (crimeId === 'kill') r.kill++;
+    else if (crimeId === 'wound') r.wound++;
+    else if (crimeId === 'theft') r.theft++;
+    else r.other++;
+  }
+
+  /* The force your history alone justifies, before anything you have just
+   * done is taken into account. */
+  function recordForce(world) {
+    const r = world.record;
+    if (!r) return FORCE.none;
+    if (r.kill >= 2) return FORCE.lethal;
+    if (r.kill >= 1 || r.wound >= 3) return FORCE.subdue;
+    if (r.wound >= 1 || r.theft >= 2) return FORCE.restrain;
+    return FORCE.none;
+  }
 
   function isGuard(a) { return !!(a.brain && a.brain.guard); }
 
@@ -2086,6 +2130,20 @@
     const d = Math.hypot(dx, dy) || 1;
     const nx = dx / d, ny = dy / d;
 
+    /* A watchman who came to arrest you does not accidentally kill you.
+     *
+     * Stopping when you are beaten is not enough on its own, because the blow
+     * that beats you is the same blow that might finish you: a sword landing
+     * on a man at a quarter health takes him straight past it. So the force
+     * they came with also caps what any one blow can do, the same way bare
+     * hands are capped. Only a guard who has decided on killing you is
+     * allowed to. */
+    if (isGuard(a) && target === world.player) {
+      const intent = guardIntent(world, a);
+      if (intent === 'restrain') roll.floor = Math.max(roll.floor || 0, 26);
+      else if (intent === 'subdue') roll.floor = Math.max(roll.floor || 0, 9);
+    }
+
     const blocked = shieldBlocks(target, nx, ny);
     if (blocked > 0) {
       roll.amount *= 1 - blocked;
@@ -2267,6 +2325,14 @@
         roll.amount *= 1 - stopped;
         roll.bleed *= 1 - stopped;
         const local = [-(nx * cy - ny * sy), -(nx * sy + ny * cy)];
+        // An arrow loosed by the watch is capped the same way their swings
+        // are. It comes down the same wire and it needs the same limit, or
+        // the one guard with a bow quietly ignores the whole ladder.
+        if (isGuard(ar.owner) && hit === world.player) {
+          const intent = guardIntent(world, ar.owner);
+          if (intent === 'restrain') roll.floor = Math.max(roll.floor || 0, 26);
+          else if (intent === 'subdue') roll.floor = Math.max(roll.floor || 0, 9);
+        }
         /* The shaft stays in them. Nothing else in the game tells you at a
          * glance who has been shot and who has merely been hit. */
         const res = CB.applyDamage(hit, roll, local, rng, {
@@ -2500,6 +2566,39 @@
 
   /* Watching someone get hit in front of you. Most people back off; a brave
    * one, or one who has already seen too much of it, comes in. */
+  /* Somebody has barged you off your feet. Not everybody does anything about
+   * it — most people pick themselves up and get on with their day — but the
+   * ones who do come over, hit you, and then go, and none of it involves the
+   * watch. Being armed makes it much less likely anyone tries. */
+  function takeOffence(world, victim, attacker) {
+    const brain = victim.brain;
+    if (!brain) return;
+    if (brain.response === 'fight' || brain.response === 'retaliate') return;
+    if (Rig.isDown(victim) || (victim.body && victim.body.dead)) return;
+    victim.alert = true;
+    victim.lastAttacker = attacker;
+    victim.threatTimer = 12;
+    if (brain.partner) {
+      if (brain.state === 'closing') abandonClosing(victim); else endChat(victim, 15);
+    }
+    if (world.talkingTo === victim) D.close(world.box);
+
+    brain.grudge = (brain.grudge || 0) + 0.4;
+    const nerve = bravery(victim) + brain.grudge * 0.4 + (isGuard(victim) ? 0.5 : 0)
+      - (attackerArmed(attacker) ? 0.55 : 0);
+    brain.state = 'react';
+    brain.target = attacker;
+    brain.fleeFrom = { x: attacker.x, y: attacker.y };
+    if (nerve > 0.75) {
+      brain.response = 'retaliate';
+      brain.swungAt = 0;
+      brain.responseTimer = 7 + victim.rng() * 3;
+    } else {
+      brain.response = nerve > 0.35 ? 'backAway' : 'flee';
+      brain.responseTimer = 2 + victim.rng() * 2.5;
+    }
+  }
+
   function rallyFriends(world, victim, attacker) {
     if (attacker !== world.player) return;
     for (let i = 1; i < world.actors.length; i++) {
@@ -2671,6 +2770,12 @@
     // One incident, one identity, so a piece of news can go round a village
     // without coming back to the person who started it.
     const incident = ++world.crimeSeq;
+    /* Whether this is the watch's business at all. Barging somebody over is
+     * between the two of you — unless the man doing the barging is already
+     * known for something, in which case everything he does is the watch's
+     * business. */
+    const answer = Math.max(crime.force, recordForce(world));
+    const fetchTheWatch = answer > FORCE.none;
     let seen = false;
     for (let i = 1; i < world.actors.length; i++) {
       const o = world.actors[i];
@@ -2693,6 +2798,10 @@
           ? (I.held(world.player.inv) || { label: 'bare hands' }).label : 'a weapon',
         sure: 0.35 + (o.rng ? o.rng() : Math.random()) * 0.65
       };
+      if (!fetchTheWatch) {
+        // they saw it and they have an opinion about you, and that is all
+        continue;
+      }
       learnOf(world, o, crimeId, x, y, incident, world.time);
       if (isGuard(o)) {
         alertGuard(world, o, x, y, crime.alarm);
@@ -2708,7 +2817,16 @@
 
     world.wanted = Math.min(100, world.wanted + crime.wanted * (seen ? 1 : 0.18));
     world.reputation = Math.max(-100, Math.min(100, world.reputation + crime.rep));
-    if (seen) world.lastSeenAt = world.time;
+    if (seen) {
+      world.lastSeenAt = world.time;
+      // Only what was seen goes on your record. What nobody saw is between
+      // you and the grass.
+      convict(world, crimeId);
+      /* And the watch answers the worst thing they know about, not the last
+       * thing that happened — otherwise a murderer who then shoves somebody
+       * is dealt with as a man who shoves people. */
+      world.forceWanted = Math.max(world.forceWanted || 0, crime.force);
+    }
     if (crimeId === 'kill' || crimeId === 'wound') world.reputationCriminal =
       Math.min(100, (world.reputationCriminal || 0) + (crimeId === 'kill' ? 9 : 3));
     void victim;
@@ -3077,10 +3195,21 @@
 
   const LETHAL_WANTED = 45;
 
+  /* How hard this guard is going to come at you, right now.
+   *
+   * Three things feed it and the worst one wins: what you have just been seen
+   * doing, what the parish already knows you for, and whether you have put
+   * this particular man on the floor — a guard bleeding from you stops being
+   * interested in the difference between a shove and a stabbing. */
   function guardIntent(world, g) {
-    // already bleeding from you, or you are wanted for something real
-    const hurt = g.body && g.body.hp < CB.MAX_HP * 0.72;
-    return (world.wanted >= LETHAL_WANTED || hurt) ? 'lethal' : 'restrain';
+    let level = Math.max(world.forceWanted || 0, recordForce(world));
+    if (world.wanted >= LETHAL_WANTED) level = Math.max(level, FORCE.subdue);
+    if (g && g.body) {
+      if (g.body.hp < CB.MAX_HP * 0.72) level = Math.max(level, FORCE.subdue);
+      if (g.body.hp < CB.MAX_HP * 0.42) level = FORCE.lethal;
+    }
+    // somebody who is wanted for nothing at all still gets stopped
+    return FORCE_NAME[Math.max(FORCE.restrain, level)];
   }
 
   /* Stowing a weapon puts it in a general slot, which is why guards are given
@@ -3547,8 +3676,9 @@
     const intent = guardIntent(world, g);
     const armed = !!g.inv[I.HAND];
     if (!g.reaction || !g.reaction.swap) {
+      // Hands for an arrest; steel for anything above it.
       if (intent === 'restrain' && armed) { startSwap(world, g, true); }
-      else if (intent === 'lethal' && !armed && g.stowed !== undefined) {
+      else if (intent !== 'restrain' && !armed && g.stowed !== undefined) {
         startSwap(world, g, false);
       }
     }
@@ -3606,7 +3736,26 @@
     g.brain.aimAt = null;
     if (g.brain.mark) { g.brain.target = player; g.brain.mark = null; }
 
-    if (w.ranged && sees && d < w.range && d > 40 && !swapping) {
+    /* Whether this man is already stopped. An arrest ends the moment you are
+     * on the ground or plainly beaten; subduing you goes further, but not so
+     * far as standing over somebody who cannot get up. Only murder earns a
+     * guard who keeps going.
+     *
+     * This is worked out here rather than down in the swing, because a
+     * bowman does not have to walk up to you to make the mistake: he was
+     * putting arrows into a man lying face down in the road. */
+    const hp = player.body ? player.body.hp : CB.MAX_HP;
+    const floored = Rig.isDown(player);
+    const stopped = intent === 'restrain'
+      ? (floored || hp < CB.MAX_HP * 0.45)
+      : intent === 'subdue' ? (floored || hp < CB.MAX_HP * 0.22) : false;
+
+    /* Shooting a man in the back is not how you stop a brawler, and a guard
+     * who does it over a shoving match is the problem rather than the
+     * answer. A bow comes out for somebody the watch has decided to put down
+     * — a thief who will not stop, or worse. */
+    if (w.ranged && sees && d < w.range && d > 40 && !swapping
+      && intent !== 'restrain' && !stopped) {
       if (canAttack(g)) beginAttack(world, g);
       g.gait = 'idle';
       return true;
@@ -3638,12 +3787,8 @@
     }
 
     if (d < w.reach + 4) {
-      // a guard restraining you stops the moment you are on the ground or
-      // badly hurt; only a lethal one keeps going
-      const done = intent === 'restrain'
-        && (Rig.isDown(player) || (player.body && player.body.hp < CB.MAX_HP * 0.45));
-      if (sees && !done && !swapping && canAttack(g)) beginAttack(world, g);
-      if (done) { brain.giveUp = Math.min(brain.giveUp, 2.5); }
+      if (sees && !stopped && !swapping && canAttack(g)) beginAttack(world, g);
+      if (stopped) { brain.giveUp = Math.min(brain.giveUp, 2.5); }
       g.gait = 'idle';
       return true;
     }
@@ -3793,6 +3938,8 @@
 
   // How close anybody gets to a body before they stop and look at it.
   const MOURN_STAND = 17;
+  // close enough to throw a punch
+  const FISTS_REACH = 16;
 
   function updateResponse(world, a, dt) {
     const brain = a.brain;
@@ -3810,6 +3957,27 @@
         const want = Rig.yawForDirection(target.x - a.x, target.y - a.y);
         a.aimYaw = want;
         const w = I.heldWeapon(a.inv);
+
+        /* A baker who has won a fight does not then kill the man.
+         *
+         * Villagers break off the moment the other is on the floor or
+         * plainly finished. They are frightened and angry, not murderers,
+         * and nobody knowing when to stop was the one thing turning every
+         * scuffle in this village into a body. Only the watch goes past
+         * this, and only when the watch has decided to. */
+        const beaten = Rig.isDown(target)
+          || (target.body && (target.body.dying || target.body.hp < CB.MAX_HP * 0.34));
+        const mayFinish = isGuard(a) && guardIntent(world, a) === 'lethal';
+        if (beaten && !mayFinish) {
+          brain.response = 'backAway';
+          brain.responseTimer = 2.2 + a.rng() * 2.5;
+          brain.fleeFrom = { x: target.x, y: target.y };
+          brain.grudge = 0;
+          brain.engaged = false;
+          a.attack = null;
+          a.alert = false;
+          break;
+        }
 
         // waiting their turn: hold the ring and face them
         if (brain.engaged === false && d < RING * 2.4) {
@@ -3892,6 +4060,51 @@
         if (brain.shoutTimer <= 0) { brain.shoutTimer = 1.4; shout(world, a, target); }
         break;
       }
+      /* Having been barged off your feet and deciding to do something about
+       * it. They walk over, hit you once or twice, and then walk off — which
+       * is the whole of it. A shove is not a blood feud, and the watch is
+       * not involved in one. */
+      case 'retaliate': {
+        const who = brain.target || world.player;
+        const rd = distance(a, who);
+        const facing = Rig.yawForDirection(who.x - a.x, who.y - a.y);
+        a.aimYaw = facing;
+        if (Rig.isDown(who) || (who.body && who.body.hp < CB.MAX_HP * 0.6)) {
+          // they have had enough of a lesson
+          brain.responseTimer = Math.min(brain.responseTimer, 0.6);
+          a.gait = 'idle';
+          break;
+        }
+        if (rd > FISTS_REACH) {
+          const clear = steerAround(world, a, facing, 28);
+          a.targetYaw = clear === null ? facing : clear;
+          if (Math.abs(Rig.shortestAngle(a.yaw, a.targetYaw)) < 1.0) {
+            a.x += Math.sin(a.yaw) * speed * dt;
+            a.y += Math.cos(a.yaw) * speed * dt;
+            resolvePropCollisions(world, a, 6);
+            clampVillager(a);
+          }
+          a.gait = rd > 70 ? 'run' : 'walk';
+          break;
+        }
+        a.targetYaw = facing;
+        a.gait = 'idle';
+        a.alert = true;
+        brain.swungAt = brain.swungAt || 0;
+        if (brain.swungAt < 2 && canAttack(a)
+          && Math.abs(Rig.shortestAngle(a.yaw, facing)) < 0.9) {
+          // with their hands, whatever they happen to be carrying
+          const held = a.inv[I.HAND];
+          a.inv[I.HAND] = null;
+          brain.target = who;
+          beginAttack(world, a);
+          a.inv[I.HAND] = held;
+          brain.swungAt++;
+        }
+        if (brain.swungAt >= 2) brain.responseTimer = Math.min(brain.responseTimer, 1.1);
+        break;
+      }
+
       /* Standing over someone who is not getting up. They come the last few
        * steps slowly, stop short of the body, and bow their head. Nothing
        * useful happens here — that is the point of it. */
@@ -4267,8 +4480,10 @@
       Rig.updateCollapse(p, dt);
       if (world.box.open) D.close(world.box);
       if (invVisible(world)) closeInventory(world);
-      updateBleedTrail(world, p, dt);
-      CB.updateBody(p, dt);
+      /* The bleeding and the body clock are driven once, from update(), for
+       * the player. Running them again here meant a collapsed player bled at
+       * twice the rate and every timer on their body burned down twice as
+       * fast — which is what was quietly killing men the watch had spared. */
       return;
     }
     if (p.mount || p.seat) { updateMountedPlayer(world, p, dt); return; }
@@ -4591,6 +4806,37 @@
       }
       clampVillager(a);
       return;
+    }
+
+    /* Driving. A driver is drawn into the cart's sprite, so nothing on the
+     * ground ever showed that their own position had drifted — but the reins
+     * anchor to it, and they were quietly walking off across the parish
+     * trailing a rope behind them. Measured at up to three hundred and eighty
+     * units of it. They sit on the bench like the passengers do. */
+    if (a.seat) {
+      const c = a.seat;
+      if (c.broken || world.carts.indexOf(c) < 0) {
+        a.seat = null;
+        if (c.rider === a) c.rider = null;
+        brain.drives = false;
+      } else {
+        const cy = Math.cos(c.yaw), sy = Math.sin(c.yaw);
+        const fwd = -c.def.length * 0.22;
+        a.x = c.x + fwd * sy;
+        a.y = c.y + fwd * cy;
+        a.yaw = c.yaw; a.targetYaw = c.yaw;
+        a.vx = c.vx; a.vy = c.vy;
+        a.gait = 'idle';
+        // hauling on the reins when the horse is being asked to turn
+        const h2 = c.hitch;
+        const want = h2 ? Rig.shortestAngle(h2.yaw, h2.targetYaw) : 0;
+        a.rein = Math.max(0, Math.min(1, (a.rein || 0) * 0.86 + Math.abs(want) * 7 * dt));
+        a.turn = want;
+        a.jolt = (c.bounce || 0) * 0.5;
+        Rig.updateBlink(a, dt);
+        a.animTime += dt;
+        return;
+      }
     }
 
     /* Being carried: they sit where the vehicle is and take no part in
@@ -5095,6 +5341,8 @@
   const REIN_POINTS = 6;
   const REIN_GRAV = 26;
   const ROPE_CLEAR = 2 * PIXEL;   // how far above the grass a rope may hang
+  // how far a rein's holder may be from their own seat before it is nonsense
+  const REIN_SLIP = 34;
   const REIN_ITER = 4;
   const REIN_COLOUR = R.pack(58, 42, 26);
   const REIN_LIGHT = R.pack(84, 62, 38);
@@ -5126,6 +5374,12 @@
     if (Rig.isDown(holder) || (holder.body && holder.body.dead)) return null;
     // the holder has to still be on the thing they are holding the reins of
     if (holder.mount !== h && (!h.cart || holder.seat !== h.cart)) return null;
+    /* And they have to actually be there. Being seated is a flag; being in
+     * the seat is a position, and when the two come apart the rope is what
+     * shows it. A rein that would have to stretch across a field is not a
+     * rein, so it is not drawn. */
+    const seatAt = holder.mount === h ? h : h.cart;
+    if (Math.hypot(holder.x - seatAt.x, holder.y - seatAt.y) > REIN_SLIP) return null;
 
     /* The bit goes where the horse's mouth actually is, read off the posed
      * skeleton. Guessing it from the body dimensions puts it somewhere around
@@ -5791,7 +6045,7 @@
     createWorld, update, draw, tryTalk, nearestTalkable, distance, beginConversation,
     playerAttack, playerAim, beginAttack, openContainer, closeContainer, nearestChest,
     nearestGroundItem, pickUp, spawnItem, strike, witness, CRIMES, isGuard,
-    advanceDay,
+    advanceDay, guardIntent, recordForce, FORCE, CRIMES,
     openInventory, closeInventory, invVisible, invMove, invClick, layout,
     shieldBlocks, knockFrom, stowWeapon, drawWeapon, guardIntent,
     mount, dismount, hitchCart, unhitchCart, takeSeat, leaveSeat,

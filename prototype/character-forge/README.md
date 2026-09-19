@@ -218,6 +218,43 @@ hit the ground is the frame the lying pose starts from.
 `Rig.isDown` covers both, because every other system in the game means "on
 the floor" by it. Only the code that drives them asks which.
 
+### What the watch will do about it
+
+The response is graded, and the grade is the crime's, not the wanted bar's:
+
+| What you did | What happens |
+| --- | --- |
+| Walk into somebody | Nothing. It is not a crime and nobody minds. |
+| Barge them off their feet | Their business, not the watch's. They may well come over and hit you — and then go back to their day. |
+| Ride somebody down | A guard comes with his hands, or puts the sword away first. |
+| Theft | They come after you, and they will hurt you badly. A bowman will shoot you down if you run. |
+| Wounding | The same. |
+| Murder | They are trying to kill you. |
+
+Three things feed the decision and the worst one wins: what you have just
+been seen doing, **what the parish already knows you for**, and whether you
+have put this particular guard on the floor. A shove by a man with seven
+murders behind him is answered as murder; a shove by a man with two thefts
+behind him is still a shove. Only what was *witnessed* goes on your record —
+a crime nobody saw leaves your name alone.
+
+Force also caps damage, which is the part that makes the ladder real rather
+than decorative. Stopping when you are beaten is not enough on its own,
+because the blow that beats you is the blow that might finish you: a sword
+landing on a man at a quarter health takes him straight past it. So a guard
+who came to arrest you cannot take you below 26, one who came to subdue you
+cannot take you below 9, and neither can leave you bleeding hard enough to
+die of it afterwards. Only a guard who has decided on killing you is allowed
+to. Bare hands have the same cap for the same reason: **sixty punches and two
+minutes of bleeding killed 0 of 300**, and left every one of them at about
+twelve health and in no state to argue. A dagger still kills 200 of 200, so
+the cap has not defanged anything that was supposed to be dangerous.
+
+Villagers never kill. They break off the moment the other is on the floor or
+plainly finished — frightened and angry, not murderers. Nobody knowing when
+to stop was the single thing turning every scuffle in this village into a
+funeral.
+
 ### Fights
 
 - **A punch starts a fight, not a rout.** Somebody punched by somebody who
@@ -319,6 +356,35 @@ carries a stack to wherever you let go, and a plain tap lifts it and leaves it
 on your fingertip for a second tap — the same two ways a mouse can do it.
 Taps on the world itself are swallowed rather than acted on: a fumbled thumb
 should not swing an axe in a market square.
+
+## The swings
+
+Every attack pose was too polite: the limb moved a little, the body did not
+move at all, and the legs never moved once, which is why they read as a
+mannequin being adjusted rather than as a person hitting something.
+
+A human blow is not made by the arm. It starts at the feet, turns at the
+hips, and arrives at the hand last, and the eye reads that order. So each one
+now has four things it lacked:
+
+- **anticipation** — the windup goes the opposite way from the strike, far
+  enough to be its own silhouette;
+- **a driving torso** — the twist leads the arm and reverses through the blow;
+- **a committed stance** — the legs step, lunge or brace;
+- **follow-through** — the limb carries past the target before it settles.
+
+The timing is two curves: eased into the windup, then `snap` — fast out of
+the gate and decelerating — through contact, which is what makes a blow
+*land* rather than arrive.
+
+And the blow now lands when it looks like it lands. Every `hit` fraction had
+been set to the moment the strike *begins*, so the damage fired with the fist
+still chambered and the blade still behind the shoulder; they are now set to
+contact, in the middle of the limb's travel.
+
+A bow is held in the **bow hand**, not the drawing hand, and turned across
+the wrist so its limbs stand vertical. It had been hanging off the drawing
+arm, lying flat across the body like a plank.
 
 ## Conventions worth knowing before editing
 

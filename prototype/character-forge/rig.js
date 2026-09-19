@@ -123,132 +123,264 @@
    * while the arm is still going back.
    */
 
+  /* ---------- swings ----------
+   *
+   * Every one of these was too polite. The limb moved a little, the body did
+   * not move at all, and the legs never moved once — which is why they read
+   * as a mannequin being adjusted rather than as a person hitting something.
+   *
+   * A human blow is not made by the arm. It starts at the feet, turns at the
+   * hips, and arrives at the hand last, and the eye reads the order. So each
+   * of these now has four things the old ones lacked:
+   *
+   *   anticipation  the windup goes the opposite way from the strike, far
+   *                 enough to be a separate silhouette;
+   *   a driving torso  the twist leads the arm and reverses through the blow;
+   *   a committed stance  the legs step, lunge or brace;
+   *   follow-through  the limb carries past the target before it settles.
+   *
+   * `ease` shapes the strike: slow out of the windup for a frame, then very
+   * fast through contact, which is what makes a hit land rather than arrive.
+   */
+
+  function ease(t) {
+    const u = Math.max(0, Math.min(1, t));
+    return u * u * (3 - 2 * u);
+  }
+  // fast out of the gate and decelerating: for a limb already travelling
+  function snap(t) {
+    const u = Math.max(0, Math.min(1, t));
+    return 1 - (1 - u) * (1 - u) * (1 - u);
+  }
+
+  /* The legs, for a blow thrown standing. `drive` is how far into the strike
+   * they are. The leading foot goes forward and the back one braces, which
+   * is most of what "committed" looks like from the side. */
+  function stance(model, drive, brace, lead) {
+    const front = lead === 'R' ? 'R' : 'L';
+    const back = front === 'R' ? 'L' : 'R';
+    setRot(model, 'leg' + front, -0.30 * drive - 0.06 * brace, 0, 0.1 * drive);
+    setRot(model, 'shin' + front, 0.18 * drive, 0, 0);
+    setRot(model, 'leg' + back, 0.34 * drive + 0.10 * brace, 0, -0.08 * drive);
+    setRot(model, 'shin' + back, 0.46 * drive, 0, 0);
+  }
+
+  /* Where each strike *starts*, as opposed to `hit`, which is where it
+   * lands. Keeping them separate is the whole point: the arm begins to
+   * travel at `from`, contact is somewhere in the middle of that travel, and
+   * tying the damage to the start is what used to fire it with the fist
+   * still chambered. */
   const ATTACKS = {
-    // a short straight punch
+    /* A straight punch. Chambered at the ribs with the shoulder back and the
+     * body turned away, then the hip comes round, the shoulder follows, and
+     * the arm goes last. The other hand stays up the whole time, because a
+     * hand that drops is a hand that is not guarding anything. */
     jab: {
-      hit: 0.45,
-      pose: function (model, k, side) {
-        const wind = Math.min(1, k / 0.45);
-        const punch = k < 0.45 ? 0 : Math.min(1, (k - 0.45) / 0.3);
-        const back = k < 0.45 ? 0 : Math.max(0, (k - 0.75) / 0.25);
-        const reach = punch - back;
-        setRot(model, 'arm' + side, -0.5 * wind - 1.05 * reach, 0, side === 'R' ? 0.2 : -0.2);
-        setRot(model, 'fore' + side, -1.6 + 1.45 * reach, 0, 0);
-        setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -0.35, 0, side === 'R' ? -0.3 : 0.3);
-        setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -1.5, 0, 0);
-        setRot(model, 'torso', 0.06, (side === 'R' ? -0.3 : 0.3) * (wind - reach * 1.6), 0);
-      }
-    },
-    // horizontal cut across the body
-    slash: {
-      hit: 0.52,
-      pose: function (model, k, side) {
-        const sgn = side === 'R' ? 1 : -1;
-        const wind = Math.min(1, k / 0.52);
-        const cut = k < 0.52 ? 0 : Math.min(1, (k - 0.52) / 0.34);
-        const sweep = -1.15 * wind + 2.5 * cut;
-        setRot(model, 'arm' + side, -0.55 - 0.5 * wind + 0.95 * cut, 0, sgn * (0.95 - sweep * 0.42));
-        setRot(model, 'fore' + side, -0.55 - 0.8 * wind + 0.7 * cut, 0, 0);
-        setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -0.3, 0, -sgn * 0.35);
-        setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -0.9, 0, 0);
-        setRot(model, 'torso', 0.08, sgn * (0.55 * wind - 1.05 * cut), 0);
-        setRot(model, 'head', 0, sgn * (-0.2 * wind + 0.4 * cut), 0);
-        model.bob = -0.25 * cut;
-      }
-    },
-    // raised overhead and brought straight down
-    overhead: {
       hit: 0.58,
       pose: function (model, k, side) {
         const sgn = side === 'R' ? 1 : -1;
-        const wind = Math.min(1, k / 0.58);
-        const fall = k < 0.58 ? 0 : Math.min(1, (k - 0.58) / 0.3);
-        setRot(model, 'arm' + side, -2.5 * wind + 3.3 * fall, 0, sgn * 0.3);
-        setRot(model, 'fore' + side, -1.5 * wind + 1.4 * fall, 0, 0);
-        setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -2.1 * wind + 2.8 * fall, 0, -sgn * 0.28);
-        setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -1.3 * wind + 1.2 * fall, 0, 0);
-        setRot(model, 'torso', -0.22 * wind + 0.58 * fall, 0, 0);
-        setRot(model, 'head', 0.18 * wind - 0.3 * fall, 0, 0);
-        model.bob = 0.5 * wind - 0.9 * fall;
+        const off = side === 'R' ? 'L' : 'R';
+        const wind = ease(k / 0.45);
+        const hit = k < 0.45 ? 0 : snap((k - 0.45) / 0.22);
+        const back = k < 0.67 ? 0 : ease((k - 0.67) / 0.33);
+        const reach = hit - back * 0.92;
+
+        // chambered: elbow shut, fist at the ribs, shoulder drawn back
+        setRot(model, 'arm' + side, 0.45 * wind - 1.75 * reach, 0, sgn * (0.30 - 0.22 * reach));
+        setRot(model, 'fore' + side, -2.25 * wind + 2.05 * reach, 0, 0);
+        // guard hand, up by the cheek
+        setRot(model, 'arm' + off, -0.70 - 0.2 * reach, 0, -sgn * 0.30);
+        setRot(model, 'fore' + off, -2.0, 0, 0);
+        // the hips do the work: coiled away, then through and past
+        setRot(model, 'torso', 0.10 * wind + 0.12 * reach, sgn * (0.62 * wind - 1.05 * reach), 0);
+        setRot(model, 'head', -0.05, sgn * (-0.30 * wind + 0.42 * reach), 0);
+        stance(model, reach, wind, side);
+        model.bob = -0.25 * wind - 0.55 * reach;
       }
     },
-    // short hard stab
+
+    /* A horizontal cut. The blade goes back over the far shoulder, the body
+     * winds up behind it, and then the whole lot unwinds together and carries
+     * through to the other side. The travel here is enormous compared to what
+     * was there before, and that is the entire point — a sword that moves
+     * four inches is a sword being waved. */
+    slash: {
+      hit: 0.66,
+      pose: function (model, k, side) {
+        const sgn = side === 'R' ? 1 : -1;
+        const off = side === 'R' ? 'L' : 'R';
+        const wind = ease(k / 0.52);
+        const cut = k < 0.52 ? 0 : snap((k - 0.52) / 0.30);
+        const settle = k < 0.82 ? 0 : ease((k - 0.82) / 0.18);
+
+        // arm: cocked high and across, then sweeping down and round
+        setRot(model, 'arm' + side, -0.35 - 1.25 * wind + 1.95 * cut - 0.45 * settle, 0,
+          sgn * (0.30 - 1.30 * wind + 2.25 * cut - 0.55 * settle));
+        setRot(model, 'fore' + side, -0.40 - 1.35 * wind + 1.55 * cut - 0.2 * settle, 0, 0);
+        // the free arm counterbalances, out the other way
+        setRot(model, 'arm' + off, -0.25 - 0.35 * wind + 0.9 * cut, 0,
+          -sgn * (0.30 + 0.55 * wind - 0.75 * cut));
+        setRot(model, 'fore' + off, -0.85 - 0.3 * wind, 0, 0);
+        // torso leads it and keeps going after the blade has passed
+        setRot(model, 'torso', 0.06 + 0.16 * cut - 0.1 * settle,
+          sgn * (0.72 * wind - 1.55 * cut + 0.3 * settle), sgn * 0.14 * cut);
+        setRot(model, 'head', -0.04, sgn * (-0.35 * wind + 0.70 * cut), 0);
+        stance(model, cut - settle * 0.4, wind, side);
+        model.bob = 0.3 * wind - 0.95 * cut + 0.3 * settle;
+      }
+    },
+
+    /* Straight up and straight down, with the whole body behind it. They rise
+     * onto the toes at the top of the lift and drop through the blow. */
+    overhead: {
+      hit: 0.73,
+      pose: function (model, k, side) {
+        const sgn = side === 'R' ? 1 : -1;
+        const off = side === 'R' ? 'L' : 'R';
+        const wind = ease(k / 0.58);
+        const fall = k < 0.58 ? 0 : snap((k - 0.58) / 0.26);
+        const settle = k < 0.84 ? 0 : ease((k - 0.84) / 0.16);
+
+        setRot(model, 'arm' + side, -2.75 * wind + 3.65 * fall - 0.5 * settle, 0, sgn * 0.26);
+        setRot(model, 'fore' + side, -1.70 * wind + 1.65 * fall, 0, 0);
+        setRot(model, 'arm' + off, -2.40 * wind + 3.25 * fall - 0.5 * settle, 0, -sgn * 0.24);
+        setRot(model, 'fore' + off, -1.50 * wind + 1.45 * fall, 0, 0);
+        // arched back at the top, folded forward at the bottom
+        setRot(model, 'torso', -0.38 * wind + 0.95 * fall - 0.25 * settle, 0, 0);
+        setRot(model, 'head', 0.30 * wind - 0.48 * fall, 0, 0);
+        // up on the toes, then everything drops
+        setRot(model, 'legR', -0.1 * wind + 0.22 * fall, 0, 0.08 * fall);
+        setRot(model, 'legL', -0.1 * wind - 0.30 * fall, 0, -0.08 * fall);
+        setRot(model, 'shinR', 0.12 * wind + 0.55 * fall, 0, 0);
+        setRot(model, 'shinL', 0.12 * wind + 0.25 * fall, 0, 0);
+        model.bob = 0.95 * wind - 1.9 * fall + 0.6 * settle;
+      }
+    },
+
+    /* A knife. Drawn back to the hip with the body coiled right round, then
+     * everything goes forward at once and the hand travels a long way. */
     stab: {
-      hit: 0.42,
+      hit: 0.56,
       pose: function (model, k, side) {
         const sgn = side === 'R' ? 1 : -1;
-        const wind = Math.min(1, k / 0.42);
-        const drive = k < 0.42 ? 0 : Math.min(1, (k - 0.42) / 0.26);
-        const back = Math.max(0, (k - 0.72) / 0.28);
-        const reach = drive - back;
-        setRot(model, 'arm' + side, 0.5 * wind - 1.6 * reach, 0, sgn * (0.5 - reach * 0.4));
-        setRot(model, 'fore' + side, -2.0 * wind + 1.9 * reach, 0, 0);
-        setRot(model, 'torso', 0.05, sgn * (0.35 * wind - 0.55 * reach), 0);
-        setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -0.25, 0, -sgn * 0.3);
-        setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -1.1, 0, 0);
+        const off = side === 'R' ? 'L' : 'R';
+        const wind = ease(k / 0.42);
+        const drive = k < 0.42 ? 0 : snap((k - 0.42) / 0.24);
+        const back = k < 0.66 ? 0 : ease((k - 0.66) / 0.34);
+        const reach = drive - back * 0.9;
+
+        setRot(model, 'arm' + side, 0.80 * wind - 2.15 * reach, 0,
+          sgn * (0.45 - 0.35 * reach));
+        setRot(model, 'fore' + side, -2.30 * wind + 2.25 * reach, 0, 0);
+        setRot(model, 'arm' + off, -0.55, 0, -sgn * 0.35);
+        setRot(model, 'fore' + off, -1.55, 0, 0);
+        setRot(model, 'torso', 0.08 * wind + 0.18 * reach,
+          sgn * (0.70 * wind - 1.10 * reach), 0);
+        setRot(model, 'head', -0.06, sgn * (-0.35 * wind + 0.45 * reach), 0);
+        stance(model, reach * 1.15, wind, side);
+        model.bob = -0.2 * wind - 0.7 * reach;
       }
     },
-    // two hands driving a shaft forward
+
+    /* Two hands on a shaft. The spear is pulled back along the side, and then
+     * they lunge — this one is a step as much as a thrust. */
     thrust: {
-      hit: 0.46,
+      hit: 0.61,
       pose: function (model, k, side) {
         const sgn = side === 'R' ? 1 : -1;
-        const wind = Math.min(1, k / 0.46);
-        const drive = k < 0.46 ? 0 : Math.min(1, (k - 0.46) / 0.3);
-        const back = Math.max(0, (k - 0.76) / 0.24);
-        const reach = drive - back;
-        setRot(model, 'armR', -0.35 + 0.45 * wind - 1.5 * reach, 0, 0.42 - reach * 0.3);
-        setRot(model, 'foreR', -1.75 + 1.55 * reach, 0, 0);
-        setRot(model, 'armL', -0.35 + 0.45 * wind - 1.5 * reach, 0, -0.42 + reach * 0.3);
-        setRot(model, 'foreL', -1.75 + 1.55 * reach, 0, 0);
-        setRot(model, 'torso', 0.1, sgn * (0.28 * wind - 0.42 * reach), 0);
-        model.bob = -0.4 * reach;
+        const wind = ease(k / 0.46);
+        const drive = k < 0.46 ? 0 : snap((k - 0.46) / 0.26);
+        const back = k < 0.72 ? 0 : ease((k - 0.72) / 0.28);
+        const reach = drive - back * 0.88;
+
+        setRot(model, 'armR', 0.30 * wind - 1.85 * reach, 0, 0.40 - 0.28 * reach);
+        setRot(model, 'foreR', -2.15 * wind + 2.00 * reach, 0, 0);
+        setRot(model, 'armL', 0.10 * wind - 1.70 * reach, 0, -0.40 + 0.26 * reach);
+        setRot(model, 'foreL', -1.85 * wind + 1.75 * reach, 0, 0);
+        setRot(model, 'torso', 0.10 * wind + 0.24 * reach,
+          sgn * (0.48 * wind - 0.72 * reach), 0);
+        setRot(model, 'head', -0.05, sgn * (-0.22 * wind + 0.32 * reach), 0);
+        // a real lunge: the leading leg goes right out
+        stance(model, reach * 1.6, wind, side);
+        model.bob = -0.15 * wind - 1.15 * reach;
       }
     },
-    // nock, draw, loose
+
+    /* A bow. The bow arm goes out straight at the target and stays there —
+     * everything that moves is the string hand, which comes back past the
+     * cheek and flies off it on the loose. The bow itself is turned upright
+     * in the grip; see handMatrix. */
     draw: {
-      hit: 0.78,
+      hit: 0.82,
       pose: function (model, k, side) {
         const sgn = side === 'R' ? 1 : -1;
-        const pull = Math.min(1, k / 0.78);
-        const loose = k < 0.78 ? 0 : Math.min(1, (k - 0.78) / 0.22);
-        // bow arm out straight, string hand back past the cheek
-        setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -1.5, 0, -sgn * 0.12);
-        setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -0.12, 0, 0);
-        setRot(model, 'arm' + side, -1.1 - 0.25 * pull, 0, sgn * (0.5 + 0.35 * pull));
-        setRot(model, 'fore' + side, -0.7 - 1.5 * pull + 1.7 * loose, 0, 0);
-        setRot(model, 'torso', 0.02, sgn * (0.5 + 0.18 * pull - 0.3 * loose), 0);
-        setRot(model, 'head', 0, sgn * (-0.45 - 0.1 * pull), 0);
+        const off = side === 'R' ? 'L' : 'R';
+        const raise = ease(Math.min(1, k / 0.26));
+        const pull = ease(Math.max(0, (k - 0.2) / 0.58));
+        const loose = k < 0.78 ? 0 : snap((k - 0.78) / 0.22);
+
+        // bow arm: straight out at the mark, locked
+        setRot(model, 'arm' + off, -1.62 * raise, 0, -sgn * (0.06 + 0.10 * raise));
+        setRot(model, 'fore' + off, -0.08 * raise, 0, 0);
+        // string hand: from the bow, back past the cheek, then flung away
+        setRot(model, 'arm' + side, -1.50 * raise + 0.10 * pull + 0.25 * loose, 0,
+          sgn * (0.10 + 0.95 * pull + 0.45 * loose));
+        setRot(model, 'fore' + side, -0.15 * raise - 2.10 * pull + 1.15 * loose, 0, 0);
+        // squared up to the shot, opening a little as the string comes back
+        setRot(model, 'torso', 0.02, sgn * (0.60 + 0.22 * pull - 0.34 * loose), 0);
+        setRot(model, 'head', 0, sgn * (-0.55 - 0.08 * pull), 0);
+        // feet apart and planted, side on
+        setRot(model, 'legR', -0.16 * raise, 0, 0.12 * raise);
+        setRot(model, 'legL', 0.16 * raise, 0, -0.12 * raise);
+        model.bob = -0.15 * pull;
       }
     },
-    // crossbow: already spanned, so it is raise, sight, release
+
+    /* A crossbow is already spanned, so all there is to do is bring it up,
+     * hold it level and take the kick. */
     aim: {
-      hit: 0.62,
+      hit: 0.65,
       pose: function (model, k, side) {
         const sgn = side === 'R' ? 1 : -1;
-        const up = Math.min(1, k / 0.62);
-        const kick = k < 0.62 ? 0 : Math.min(1, (k - 0.62) / 0.2) * (1 - Math.min(1, (k - 0.72) / 0.28));
-        setRot(model, 'arm' + side, -1.35 * up + 0.2 * kick, 0, sgn * 0.3);
-        setRot(model, 'fore' + side, -0.55 * up - 0.25 * kick, 0, 0);
-        setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -1.2 * up, 0, -sgn * 0.5);
-        setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -0.85 * up, 0, 0);
-        setRot(model, 'torso', 0.03, sgn * 0.42 * up, 0);
-        setRot(model, 'head', 0, sgn * -0.35 * up, 0);
+        const off = side === 'R' ? 'L' : 'R';
+        const up = ease(k / 0.62);
+        const kick = k < 0.62 ? 0
+          : snap((k - 0.62) / 0.1) * (1 - ease(Math.max(0, (k - 0.72) / 0.28)));
+
+        setRot(model, 'arm' + side, -1.42 * up + 0.30 * kick, 0, sgn * (0.26 + 0.1 * kick));
+        setRot(model, 'fore' + side, -0.60 * up - 0.35 * kick, 0, 0);
+        setRot(model, 'arm' + off, -1.34 * up + 0.18 * kick, 0, -sgn * 0.44);
+        setRot(model, 'fore' + off, -0.72 * up, 0, 0);
+        setRot(model, 'torso', 0.03 + 0.08 * kick, sgn * (0.46 * up - 0.1 * kick), 0);
+        setRot(model, 'head', 0, sgn * -0.38 * up, 0);
+        setRot(model, 'legR', -0.12 * up, 0, 0.1 * up);
+        setRot(model, 'legL', 0.12 * up, 0, -0.1 * up);
+        model.bob = -0.1 * up - 0.3 * kick;
       }
     },
-    // a big two-handed swing, for clubs and the like
+
+    /* A heavy round swing, for a club or a mace. Slower and lower than a
+     * sword cut, and it takes the body further round with it. */
     swing: {
-      hit: 0.5,
+      hit: 0.66,
       pose: function (model, k, side) {
         const sgn = side === 'R' ? 1 : -1;
-        const wind = Math.min(1, k / 0.5);
-        const cut = k < 0.5 ? 0 : Math.min(1, (k - 0.5) / 0.35);
-        setRot(model, 'arm' + side, -1.9 * wind + 2.5 * cut, 0, sgn * (0.7 - cut * 0.5));
-        setRot(model, 'fore' + side, -1.2 * wind + 1.0 * cut, 0, 0);
-        setRot(model, 'arm' + (side === 'R' ? 'L' : 'R'), -0.3, 0, -sgn * 0.3);
-        setRot(model, 'fore' + (side === 'R' ? 'L' : 'R'), -1.0, 0, 0);
-        setRot(model, 'torso', 0.05, sgn * (0.42 * wind - 0.8 * cut), 0);
-        model.bob = -0.3 * cut;
+        const off = side === 'R' ? 'L' : 'R';
+        const wind = ease(k / 0.5);
+        const cut = k < 0.5 ? 0 : snap((k - 0.5) / 0.32);
+        const settle = k < 0.82 ? 0 : ease((k - 0.82) / 0.18);
+
+        setRot(model, 'arm' + side, -0.2 - 1.75 * wind + 2.55 * cut - 0.5 * settle, 0,
+          sgn * (0.35 - 0.95 * wind + 1.75 * cut - 0.45 * settle));
+        setRot(model, 'fore' + side, -0.5 - 1.15 * wind + 1.30 * cut, 0, 0);
+        setRot(model, 'arm' + off, -0.25 - 0.3 * wind + 0.8 * cut, 0,
+          -sgn * (0.28 + 0.45 * wind - 0.6 * cut));
+        setRot(model, 'fore' + off, -0.95, 0, 0);
+        setRot(model, 'torso', 0.08 + 0.2 * cut - 0.12 * settle,
+          sgn * (0.66 * wind - 1.35 * cut + 0.25 * settle), sgn * 0.1 * cut);
+        setRot(model, 'head', -0.04, sgn * (-0.3 * wind + 0.6 * cut), 0);
+        stance(model, cut - settle * 0.4, wind, side);
+        model.bob = 0.2 * wind - 1.05 * cut + 0.35 * settle;
       }
     }
   };
@@ -2172,14 +2304,23 @@
   const WEAPON_PITCH = -0.38;  // and forward
 
   const _handM = {};
-  function handMatrix(model, side, shield, upright) {
-    const key = side + (shield ? 's' : upright ? 'u' : 'w') + (model.dims.lowerArmH | 0);
+  function handMatrix(model, side, shield, upright, crossways) {
+    const key = side + (shield ? 's' : crossways ? 'x' : upright ? 'u' : 'w')
+      + (model.dims.lowerArmH | 0);
     if (!_handM[key]) {
       const sgn = side === 'R' ? 1 : -1;
       let m = R.translation(0, -model.dims.lowerArmH - 0.9, 0);
       if (shield) {
         m = R.multiply(m, R.rotationX(1.45));
         m = R.multiply(m, R.scaling(0.92));
+      } else if (crossways) {
+        /* Turned across the wrist, so the length of the thing runs at right
+         * angles to the forearm. With the bow arm held out at the mark that
+         * stands the limbs straight up, which is how a bow is held and is
+         * nothing like the horizontal plank it was being drawn as. */
+        m = R.multiply(m, R.rotationX(-Math.PI / 2));
+        m = R.multiply(m, R.rotationZ(sgn * 0.10));
+        m = R.multiply(m, R.scaling(WEAPON_SCALE));
       } else if (upright) {
         /* Turned over in the hand. A pike is not carried point-down and a
          * greatsword is not dragged: you stand it up, and the whole length
@@ -2199,6 +2340,16 @@
     return _handM[key];
   }
 
+  /* Whether the thing in their hand is a bow they are shooting with, which
+   * is the one case where the weapon is held across the wrist rather than
+   * along the forearm. A bow being carried is another matter; that is the
+   * carry pose's business. */
+  function bowInHand(actor) {
+    const anim = actor.attack ? actor.attack.anim
+      : (actor.reaction && actor.reaction.nock) ? 'draw' : null;
+    return anim === 'draw' || anim === 'aim';
+  }
+
   function actorExtras(actor) {
     const I = global.Items, C = global.Combat;
     let out = null;
@@ -2209,9 +2360,15 @@
       if (hand) {
         const parts = I.iconParts(hand.id);
         if (parts && parts.length) {
-          const at = handMatrix(actor.model, mainSide, false,
-            carryMode(actor) === 'upright');
-          const list = (out = out || {})['fore' + mainSide] = [];
+          /* A bow lives in the *bow* hand, which is the off hand — the
+           * string hand only ever touches the string. Hanging it off the
+           * drawing arm put the whole bow back beside the archer's ear. */
+          const drawing = bowInHand(actor);
+          const boneSide = drawing ? offSide : mainSide;
+          const at = handMatrix(actor.model, boneSide, false,
+            carryMode(actor) === 'upright', drawing);
+          out = out || {};
+          const list = out['fore' + boneSide] || (out['fore' + boneSide] = []);
           for (let i = 0; i < parts.length; i++) {
             list.push({ mesh: parts[i].mesh, colour: parts[i].colour, at: at });
           }

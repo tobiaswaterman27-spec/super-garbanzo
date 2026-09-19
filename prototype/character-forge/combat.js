@@ -360,9 +360,14 @@
   const WEAPONS = {
     // Reach has to clear the distance two people are held apart, or they can
     // stand toe to toe and still be out of range of each other.
+    /* `floor` is the hp a weapon will not take anybody below. Bare hands have
+     * one because a fist fight is not a duel: you can be beaten senseless
+     * with them and you can be left on the floor bleeding from a split lip,
+     * but four punches from a baker do not kill a man, and a world where they
+     * do is a world where every scuffle in the market ends in a funeral. */
     fists: { id: 'fists', label: 'Fists', kind: 'blunt', power: 7, reach: 17,
       swing: 0.17, recover: 0.16, bleed: 0.0, arc: 0.6, stamina: 2, anim: 'jab',
-      gore: 0, knock: 0.35, twoHanded: false },
+      gore: 0, knock: 0.35, twoHanded: false, floor: 12 },
     club: { id: 'club', label: 'Club', kind: 'blunt', power: 17, reach: 19,
       swing: 0.24, recover: 0.30, bleed: 0.02, arc: 0.75, stamina: 5, anim: 'swing',
       gore: 0, knock: 0.85, twoHanded: false },
@@ -412,6 +417,13 @@
   const MAX_HP = 100;
   // How much bare-handed punishment somebody takes before the skin goes.
   const SPLIT_AT = 26;
+  // and how much the skin going is allowed to bleed, all told
+  const SPLIT_BLEED_CAP = 0.16;
+  /* How long a beating that was not meant to kill you holds you above the
+   * line. Long enough for the bleeding it caused to clot. */
+  const SPARED_FOR = 32;
+  // and how hard a pulled blow is allowed to leave somebody bleeding
+  const SPARED_BLEED_CAP = 0.45;
 
   /* Where on the body a blow landed, as a fraction of standing height, and
    * how badly that place takes it. Deciding this before the damage is what
@@ -467,7 +479,8 @@
       bleed: w.bleed * (0.6 + variation * 0.7) * zone.lethal * 0.7,
       knock: w.knock * variation * (zone.id === 'leg' ? 1.3 : 1),
       kind: w.kind,
-      gore: w.gore
+      gore: w.gore,
+      floor: w.floor
     };
   }
 
@@ -751,6 +764,9 @@
       lastHitBy: null,
       lastHitAt: 0,
       pain: 0,
+      // the line a non-lethal beating is holding them above, and for how long
+      floor: 0,
+      floorFor: 0,
       // How much of a beating they have taken bare-handed. Fists do not cut
       // anybody open on the first punch; they do on the fifth.
       bruised: 0,
@@ -765,8 +781,31 @@
     if (!body || body.dead) return null;
     const o = opts || {};
     const rand = rng || Math.random;
-    body.hp = Math.max(0, body.hp - roll.amount);
+    /* A weapon with a floor cannot be the thing that kills you. It will take
+     * you down to the floor and no further; if you are already below it, it
+     * does nothing more to your health at all, and what it does instead is
+     * hurt — the pain and the bruising still go up. */
+    const floor = roll.floor === undefined ? 0 : roll.floor;
+    body.hp = Math.max(Math.min(body.hp, floor), body.hp - roll.amount);
+    if (floor > 0) {
+      /* Being beaten by somebody who was not trying to kill you leaves you
+       * held above the line for a while, rather than merely stopping the
+       * blows there. The bleeding still runs — you are badly hurt and you
+       * have to do something about it — but it clots inside the window, so
+       * the arrest does not quietly finish you twenty seconds later in a
+       * field. Without this the whole graded response was theatre: the watch
+       * pulled their punches and you died anyway. */
+      body.floor = Math.max(body.floor || 0, floor);
+      body.floorFor = Math.max(body.floorFor || 0, SPARED_FOR);
+      /* And they did not open an artery either. Holding somebody above the
+       * line while leaving them bleeding three points a second is not mercy,
+       * it is a slower way of doing the same thing: the hold runs out and
+       * they die in a field anyway. A blow pulled on purpose cuts shallow. */
+      body.bleed = Math.min(body.bleed, SPARED_BLEED_CAP);
+      roll.bleed = Math.min(roll.bleed, SPARED_BLEED_CAP);
+    }
     body.bleed += roll.bleed;
+    if (floor > 0) body.bleed = Math.min(body.bleed, SPARED_BLEED_CAP);
     body.pain = Math.min(1, body.pain + roll.amount / 55);
 
     /* A punch marks somebody before it opens them. The first few leave
@@ -777,10 +816,14 @@
     if (kind === 'blunt') {
       body.bruised = (body.bruised || 0) + roll.amount;
       if (body.bruised > SPLIT_AT && rand() < 0.55) {
-        // split. It is a small cut and it bleeds like one.
+        /* Split. It is a small cut and it bleeds like one — which is to say
+         * hardly at all, and it clots. A split lip has never killed anybody,
+         * and letting these stack was quietly making bare hands lethal by the
+         * back door: the floor stopped the punches at twelve and then the
+         * bleeding finished the job anyway. */
         kind = 'edged';
         gore = 0.2;
-        body.bleed += 0.12 + rand() * 0.16;
+        body.bleed = Math.min(SPLIT_BLEED_CAP, body.bleed + 0.03 + rand() * 0.05);
         body.bruised -= SPLIT_AT * 0.5;
       }
     }
@@ -810,8 +853,14 @@
     if (!body || body.dead) return null;
     body.pain = Math.max(0, body.pain - dt * 0.55);
 
+    if (body.floorFor > 0) {
+      body.floorFor -= dt;
+      if (body.floorFor <= 0) { body.floorFor = 0; body.floor = 0; }
+    }
+    const held = body.floorFor > 0 ? body.floor : 0;
+
     if (body.bleed > 0) {
-      body.hp = Math.max(0, body.hp - body.bleed * dt);
+      body.hp = Math.max(held, body.hp - body.bleed * dt);
       // it slows as it clots, unless the wound is wide open
       body.bleed = Math.max(0, body.bleed - dt * 0.055);
       for (let i = 0; i < body.wounds.length; i++) {
@@ -819,7 +868,7 @@
         wd.age += dt;
         if (wd.run < wd.maxRun) wd.run = Math.min(wd.maxRun, wd.run + dt * 1.4);
       }
-      if (body.hp <= 0 && !body.dying) {
+      if (body.hp <= 0 && !body.dying && held <= 0) {
         body.dying = true;
         body.deathTimer = 0.6 + Math.random() * 1.2;
       }

@@ -105,11 +105,36 @@ test for it: no two co-visible perpendicular faces may ever share a step.
 | `W` `A` `S` `D` / arrows | Move |
 | Double-tap any direction | Toggle sprint |
 | `E` / `Enter` / `Space` | Talk to a nearby villager, and turn the page |
-| Click | Turn the page |
+| `Q` / `I` / `Tab` | Open the bag |
+| Move the mouse | Aim |
+| Click | Swing, turn the page, move a stack around the bag |
 
 Double-taps are tracked per direction, and WASD and the arrows share those
 directions — so `W` then `Up` counts, while swinging from `W` to `D` around a
 corner does not.
+
+### On a touchscreen
+
+An overlay appears over the viewport the first time something without a mouse
+touches it, or straight away when the browser reports a coarse pointer. It is
+sized against the viewport rather than the screen, because the world is a
+letterbox on a handset held upright and a stick measured in `vmin` ended up
+half as tall as the picture under it.
+
+| Control | Action |
+| --- | --- |
+| Stick, bottom left | Move. Walking clears the aim, so you face where you are going again |
+| `RUN` | Toggle sprint. Unlike the double-tap it latches, so standing still does not un-press it |
+| `E` | The `E` key: talk, mount, hitch, open a chest, pick something up, turn the page |
+| `BAG` | Open and close the bag |
+| `HIT` | Press to take aim, drag to point it, let go to swing or loose |
+
+With the bag open the overlay steps aside and only `BAG` stays, so nothing
+sits over a slot a thumb is reaching for. Inside the bag a press and drag
+carries a stack to wherever you let go, and a plain tap lifts it and leaves it
+on your fingertip for a second tap — the same two ways a mouse can do it.
+Taps on the world itself are swallowed rather than acted on: a fumbled thumb
+should not swing an axe in a market square.
 
 ## Conventions worth knowing before editing
 

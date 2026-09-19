@@ -170,7 +170,121 @@
   /* Shown at their own resolution where there is room, so one art pixel
      lands on one screen pixel. */
   #preview-canvas { width: 100%; max-width: 396px; }
-  #world-canvas { width: 100%; max-width: 960px; }
+  #world-canvas { width: 100%; max-width: 960px; display: block; }
+
+  /* ---- touch controls ----
+   * Overlaid on the viewport rather than below it, because a phone has no
+   * room to spare and a thumb has to reach them without leaving the screen.
+   * Everything is sized in vmin so it stays thumb-sized on any handset. */
+  #world-wrap { position: relative; width: 100%; max-width: 960px; }
+
+  #touch {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* Sized against the viewport rather than the screen. The world is a
+   * letterbox on a phone held upright, and a stick measured in vmin ended up
+   * half as tall as the picture it was sitting on. */
+  #stick {
+    position: absolute;
+    left: 3%;
+    bottom: 7%;
+    height: 46%;
+    aspect-ratio: 1 / 1;
+    min-height: 68px;
+    max-height: 150px;
+    border-radius: 50%;
+    background: rgba(24, 21, 19, 0.42);
+    border: 2px solid rgba(232, 214, 176, 0.35);
+    pointer-events: auto;
+    touch-action: none;
+  }
+  #stick-knob {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 42%;
+    height: 42%;
+    margin: -21% 0 0 -21%;
+    border-radius: 50%;
+    background: rgba(226, 208, 168, 0.72);
+    border: 2px solid rgba(40, 33, 26, 0.6);
+    pointer-events: none;
+  }
+
+  #pads {
+    position: absolute;
+    right: 3%;
+    bottom: 6%;
+    width: 36%;
+    min-width: 124px;
+    max-width: 230px;
+    height: 68%;
+    max-height: 216px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    /* bag, then the two it sits above, then the swing across the bottom
+     * where the thumb already is */
+    grid-template-rows: 0.8fr 1fr 1.3fr;
+    gap: 5%;
+    pointer-events: none;
+  }
+  .pad {
+    pointer-events: auto;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    min-width: 0;
+    padding: 0;
+    border-radius: 12px;
+    border: 2px solid rgba(232, 214, 176, 0.4);
+    background: rgba(28, 24, 21, 0.58);
+    color: #efe6d2;
+    font: inherit;
+    font-size: clamp(10px, 2.6vmin, 15px);
+    letter-spacing: 0.06em;
+    cursor: pointer;
+  }
+  .pad:active, .pad[aria-pressed="true"] {
+    background: rgba(150, 112, 44, 0.85);
+    border-color: rgba(246, 230, 190, 0.85);
+  }
+  .pad-wide { grid-column: 1 / -1; }
+  .pad-act { background: rgba(46, 74, 46, 0.62); }
+  .pad-hit { grid-column: 1 / -1; background: rgba(96, 36, 32, 0.66); }
+
+  /* The attack pad doubles as an aim pad: press and drag to point the shot. */
+  #pad-attack.aiming { background: rgba(160, 60, 48, 0.9); }
+
+  /* With the bag open the screen belongs to the bag. Only the button that
+   * closes it again stays put, so nothing sits over a slot you are reaching
+   * for. */
+  #touch.inv-open #stick,
+  #touch.inv-open #pad-sprint,
+  #touch.inv-open #pad-action,
+  #touch.inv-open #pad-attack { display: none; }
+  #touch.inv-open #pad-bag { background: rgba(96, 36, 32, 0.72); }
+
+  @media (pointer: coarse) {
+    #world-canvas { max-width: none; touch-action: none; }
+    #world-wrap { max-width: none; }
+    /* Every pixel of a phone screen belongs to the picture while playing. */
+    body.playing { padding-inline: 0; padding-block: 8px 0; }
+    body.playing .stage {
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      /* The picture sits in the middle of the handset rather than clinging to
+       * the top with a screenful of nothing under it. */
+      justify-content: center;
+      min-height: calc(100svh - 74px);
+    }
+    body.playing .workbench { gap: 0; }
+  }
 
   .stage-foot {
     display: flex;
@@ -427,7 +541,18 @@
   <div class="workbench">
     <section class="stage" aria-label="Viewport">
       <canvas id="preview-canvas" width="396" height="456" aria-label="Character preview"></canvas>
-      <canvas id="world-canvas" width="960" height="540" hidden aria-label="Test scene"></canvas>
+      <div id="world-wrap" hidden>
+        <canvas id="world-canvas" width="960" height="540" aria-label="Test scene"></canvas>
+        <div id="touch" hidden aria-hidden="true">
+          <div id="stick"><div id="stick-knob"></div></div>
+          <div id="pads">
+            <button class="pad pad-wide" id="pad-bag" type="button">BAG</button>
+            <button class="pad" id="pad-sprint" type="button">RUN</button>
+            <button class="pad pad-act" id="pad-action" type="button">E</button>
+            <button class="pad pad-hit" id="pad-attack" type="button">HIT</button>
+          </div>
+        </div>
+      </div>
 
       <div class="readout" id="readout"></div>
 
@@ -12306,7 +12431,7 @@
     state.mode = mode;
     const forge = mode === 'forge';
     el('preview-canvas').hidden = !forge;
-    el('world-canvas').hidden = forge;
+    el('world-wrap').hidden = forge;
     el('forge-foot').hidden = !forge;
     el('world-foot').hidden = forge;
     el('readout').hidden = !forge;       // forge status has no place in the world
@@ -12315,6 +12440,7 @@
     document.body.classList.toggle('playing', !forge);
     if (!forge) {
       state.sprinting = false;
+      sprintLatched = false;
       lastMoveAt = 0;
       el('world-canvas').focus();
     }
@@ -12342,8 +12468,14 @@
   const lastTap = Object.create(null);
   let lastMoveAt = 0;
 
+  // A double-tapped sprint lapses when you stop, which is what a keyboard
+  // wants. A button pressed on purpose does not: standing still to look at
+  // something should not quietly un-press it.
+  let sprintLatched = false;
+
   function toggleSprint() {
     state.sprinting = !state.sprinting;
+    sprintLatched = false;
   }
 
   function wireWorldInput() {
@@ -12393,6 +12525,8 @@
     window.addEventListener('blur', function () {
       for (const k in keys) keys[k] = false;
       state.sprinting = false;
+      sprintLatched = false;
+      touchMove.dx = 0; touchMove.dy = 0;
     });
 
     /* The mouse is the weapon. Click swings whatever is in your hand — but
@@ -12424,22 +12558,244 @@
     canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
   }
 
+  /* ---------- touch controls ----------
+   * A phone has no keys and no cursor, so every input the game already has
+   * needs a thumb-sized twin: a stick to walk with, a toggle for the sprint
+   * the keyboard gets from a double-tap, one button for E (talk, mount,
+   * hitch, open a chest, pick something up, turn the page of a
+   * conversation), one for the bag, and one that both aims and swings.
+   * The overlay only appears once something without a mouse touches it, so
+   * nothing is in the way on a desktop. */
+  const touchMove = { id: null, dx: 0, dy: 0 };
+  let touchLive = false;
+  let sprintPad = null;
+
+  function showTouch() {
+    if (touchLive) return;
+    touchLive = true;
+    const t = el('touch');
+    t.hidden = false;
+    t.setAttribute('aria-hidden', 'false');
+  }
+
+  /* Pointer events rather than touch events, so the same code answers a
+   * finger, a stylus and a mouse — which is the only way to drive these from
+   * a desktop browser while testing. */
+  function holdable(node, onDown, onMove, onUp) {
+    let held = null;
+    node.addEventListener('pointerdown', function (e) {
+      if (held !== null) return;
+      e.preventDefault();
+      if (e.pointerType !== 'mouse') showTouch();
+      held = e.pointerId;
+      // Capture keeps the moves coming when a thumb slides off the button.
+      // Some pointers cannot be captured, and that is never a reason to drop
+      // the press itself.
+      try { if (node.setPointerCapture) node.setPointerCapture(e.pointerId); } catch (err) { /* no capture, no matter */ }
+      if (onDown) onDown(e);
+    });
+    node.addEventListener('pointermove', function (e) {
+      if (e.pointerId !== held) return;
+      e.preventDefault();
+      if (onMove) onMove(e);
+    });
+    function release(e) {
+      if (e.pointerId !== held) return;
+      e.preventDefault();
+      held = null;
+      if (onUp) onUp(e);
+    }
+    node.addEventListener('pointerup', release);
+    node.addEventListener('pointercancel', release);
+    node.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  }
+
+  function wireStick() {
+    const stick = el('stick');
+    const knob = el('stick-knob');
+    let cx = 0, cy = 0, radius = 1;
+
+    function steer(e) {
+      let dx = (e.clientX - cx) / radius;
+      let dy = (e.clientY - cy) / radius;
+      const len = Math.hypot(dx, dy);
+      if (len > 1) { dx /= len; dy /= len; }
+      // A thumb resting on the stick is not a step in any direction.
+      if (len < 0.24) { dx = 0; dy = 0; }
+      touchMove.dx = dx;
+      touchMove.dy = dy;
+      knob.style.transform = 'translate(' + (dx * radius * 0.5).toFixed(1) + 'px,'
+        + (dy * radius * 0.5).toFixed(1) + 'px)';
+      // Walking looks where it is walking again. Without this a shot aimed a
+      // minute ago would keep the player's eyes on a hedge for ever, because
+      // there is no mouse moving the aim along with them.
+      if ((dx || dy) && state.world && !aimPad.aiming) W.playerAim(state.world, undefined);
+    }
+
+    holdable(stick, function (e) {
+      const r = stick.getBoundingClientRect();
+      cx = r.left + r.width / 2;
+      cy = r.top + r.height / 2;
+      radius = r.width / 2;
+      steer(e);
+    }, steer, function () {
+      touchMove.dx = 0; touchMove.dy = 0;
+      knob.style.transform = '';
+    });
+  }
+
+  /* Press to take aim, drag to point it, let go to swing or loose. Melee
+   * ignores the aim and goes where you are facing; a bow needs it, and the
+   * nock runs on for a beat after the release, so a shot can still be walked
+   * onto its target with the thumb still down. */
+  const aimPad = { aiming: false };
+
+  function wireAimPad() {
+    const pad = el('pad-attack');
+    let ox = 0, oy = 0;
+
+    holdable(pad, function (e) {
+      ox = e.clientX; oy = e.clientY;
+      aimPad.aiming = true;
+      pad.classList.add('aiming');
+    }, function (e) {
+      const dx = e.clientX - ox, dy = e.clientY - oy;
+      // Below this the thumb has not chosen a direction, it has just landed.
+      if (Math.hypot(dx, dy) < 12 || !state.world) return;
+      W.playerAim(state.world, Math.atan2(dx, -dy));
+    }, function () {
+      aimPad.aiming = false;
+      pad.classList.remove('aiming');
+      if (state.world) W.playerAttack(state.world);
+    });
+  }
+
+  function wirePads() {
+    sprintPad = el('pad-sprint');
+    sprintPad.setAttribute('aria-pressed', 'false');
+    holdable(sprintPad, null, null, function () {
+      toggleSprint();
+      sprintLatched = state.sprinting;
+      syncSprintPad();
+    });
+
+    holdable(el('pad-action'), function () {
+      if (state.world) W.tryTalk(state.world);
+    });
+
+    holdable(el('pad-bag'), function () {
+      if (!state.world) return;
+      if (W.invVisible(state.world)) W.closeInventory(state.world);
+      else W.openInventory(state.world);
+    });
+  }
+
+  function syncSprintPad() {
+    if (sprintPad) sprintPad.setAttribute('aria-pressed', state.sprinting ? 'true' : 'false');
+  }
+
+  /* Dragging a stack around the bag. The bag already works as lift-then-drop
+   * with a mouse, and a finger should be able to do either: press and drag
+   * carries the stack to wherever you let go, while a plain tap lifts it and
+   * leaves it on your fingertip for a second tap, exactly as a click does. */
+  function wireTouchCanvas() {
+    const canvas = el('world-canvas');
+    let dragId = null, ox = 0, oy = 0, moved = false;
+
+    function at(t) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (t.clientX - rect.left) / rect.width * W.VIEW_W,
+        y: (t.clientY - rect.top) / rect.height * W.VIEW_H
+      };
+    }
+    function touchOf(e, id) {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === id) return e.changedTouches[i];
+      }
+      return null;
+    }
+
+    // Every touch on the viewport is swallowed, both so the page does not
+    // scroll out from under the game and so the browser stops following a
+    // tap with a synthetic mouse click — which would otherwise reach the
+    // handlers above and have a fumbled thumb swinging an axe in a market
+    // square. Only bag work is acted on here; everything else on a phone is
+    // a button.
+    canvas.addEventListener('touchstart', function (e) {
+      e.preventDefault();
+      showTouch();
+      if (!state.world || !W.invVisible(state.world)) return;
+      if (dragId !== null) return;
+      const t = e.changedTouches[0];
+      dragId = t.identifier;
+      ox = t.clientX; oy = t.clientY; moved = false;
+      const v = at(t);
+      W.invClick(state.world, v.x, v.y);
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', function (e) {
+      e.preventDefault();
+      if (dragId === null || !state.world) return;
+      const t = touchOf(e, dragId);
+      if (!t) return;
+      if (Math.hypot(t.clientX - ox, t.clientY - oy) > 10) moved = true;
+      const v = at(t);
+      W.invMove(state.world, v.x, v.y);
+    }, { passive: false });
+
+    function endDrag(e) {
+      e.preventDefault();
+      if (dragId === null) return;
+      const t = touchOf(e, dragId);
+      if (!t) return;
+      dragId = null;
+      if (!state.world || !W.invVisible(state.world)) return;
+      // A tap leaves the stack on the fingertip; a drag puts it down.
+      if (!moved) return;
+      const v = at(t);
+      W.invClick(state.world, v.x, v.y);
+    }
+    canvas.addEventListener('touchend', endDrag, { passive: false });
+    canvas.addEventListener('touchcancel', function () { dragId = null; }, { passive: false });
+  }
+
+  function wireTouch() {
+    wireStick();
+    wireAimPad();
+    wirePads();
+    wireTouchCanvas();
+    const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    if (coarse || 'ontouchstart' in window) showTouch();
+  }
+
   function readWorldInput(world) {
+    const bagOpen = W.invVisible(world);
+    // With the bag up the overlay gets out of its way, or the stick would be
+    // sitting on top of the slots a thumb is reaching for.
+    if (touchLive) el('touch').classList.toggle('inv-open', bagOpen);
     let dx = 0, dy = 0;
-    if (W.invVisible(world)) {
+    if (bagOpen) {
       world.input.dx = 0; world.input.dy = 0; world.input.sprint = false;
+      syncSprintPad();
       return;
     }
     if (keys.a || keys.arrowleft) dx -= 1;
     if (keys.d || keys.arrowright) dx += 1;
     if (keys.w || keys.arrowup) dy -= 1;
     if (keys.s || keys.arrowdown) dy += 1;
+    // The stick only speaks up when no key is down, so plugging a keyboard
+    // into a tablet does not leave the two fighting over the same step.
+    if (!dx && !dy) { dx = touchMove.dx; dy = touchMove.dy; }
     const now = (window.performance || Date).now();
     if (dx || dy) lastMoveAt = now;
-    else if (now - lastMoveAt > STOP_GRACE_MS) state.sprinting = false;
+    else if (now - lastMoveAt > STOP_GRACE_MS && !sprintLatched) state.sprinting = false;
     world.input.dx = dx;
     world.input.dy = dy;
     world.input.sprint = state.sprinting;
+    // The sprint can also lapse on its own after a pause, so the button has
+    // to be told rather than just toggled.
+    syncSprintPad();
   }
 
   /* ---------- main loop ---------- */
@@ -12511,6 +12867,7 @@
     buildAnimPanel();
     wireTabs();
     wireWorldInput();
+    wireTouch();
 
     el('randomise').addEventListener('click', randomiseAll);
     el('enter-world').addEventListener('click', enterWorld);

@@ -706,7 +706,7 @@
     state.mode = mode;
     const forge = mode === 'forge';
     el('preview-canvas').hidden = !forge;
-    el('world-canvas').hidden = forge;
+    el('world-wrap').hidden = forge;
     el('forge-foot').hidden = !forge;
     el('world-foot').hidden = forge;
     el('readout').hidden = !forge;       // forge status has no place in the world
@@ -715,6 +715,7 @@
     document.body.classList.toggle('playing', !forge);
     if (!forge) {
       state.sprinting = false;
+      sprintLatched = false;
       lastMoveAt = 0;
       el('world-canvas').focus();
     }
@@ -742,8 +743,14 @@
   const lastTap = Object.create(null);
   let lastMoveAt = 0;
 
+  // A double-tapped sprint lapses when you stop, which is what a keyboard
+  // wants. A button pressed on purpose does not: standing still to look at
+  // something should not quietly un-press it.
+  let sprintLatched = false;
+
   function toggleSprint() {
     state.sprinting = !state.sprinting;
+    sprintLatched = false;
   }
 
   function wireWorldInput() {
@@ -793,6 +800,8 @@
     window.addEventListener('blur', function () {
       for (const k in keys) keys[k] = false;
       state.sprinting = false;
+      sprintLatched = false;
+      touchMove.dx = 0; touchMove.dy = 0;
     });
 
     /* The mouse is the weapon. Click swings whatever is in your hand — but
@@ -824,22 +833,244 @@
     canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
   }
 
+  /* ---------- touch controls ----------
+   * A phone has no keys and no cursor, so every input the game already has
+   * needs a thumb-sized twin: a stick to walk with, a toggle for the sprint
+   * the keyboard gets from a double-tap, one button for E (talk, mount,
+   * hitch, open a chest, pick something up, turn the page of a
+   * conversation), one for the bag, and one that both aims and swings.
+   * The overlay only appears once something without a mouse touches it, so
+   * nothing is in the way on a desktop. */
+  const touchMove = { id: null, dx: 0, dy: 0 };
+  let touchLive = false;
+  let sprintPad = null;
+
+  function showTouch() {
+    if (touchLive) return;
+    touchLive = true;
+    const t = el('touch');
+    t.hidden = false;
+    t.setAttribute('aria-hidden', 'false');
+  }
+
+  /* Pointer events rather than touch events, so the same code answers a
+   * finger, a stylus and a mouse — which is the only way to drive these from
+   * a desktop browser while testing. */
+  function holdable(node, onDown, onMove, onUp) {
+    let held = null;
+    node.addEventListener('pointerdown', function (e) {
+      if (held !== null) return;
+      e.preventDefault();
+      if (e.pointerType !== 'mouse') showTouch();
+      held = e.pointerId;
+      // Capture keeps the moves coming when a thumb slides off the button.
+      // Some pointers cannot be captured, and that is never a reason to drop
+      // the press itself.
+      try { if (node.setPointerCapture) node.setPointerCapture(e.pointerId); } catch (err) { /* no capture, no matter */ }
+      if (onDown) onDown(e);
+    });
+    node.addEventListener('pointermove', function (e) {
+      if (e.pointerId !== held) return;
+      e.preventDefault();
+      if (onMove) onMove(e);
+    });
+    function release(e) {
+      if (e.pointerId !== held) return;
+      e.preventDefault();
+      held = null;
+      if (onUp) onUp(e);
+    }
+    node.addEventListener('pointerup', release);
+    node.addEventListener('pointercancel', release);
+    node.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  }
+
+  function wireStick() {
+    const stick = el('stick');
+    const knob = el('stick-knob');
+    let cx = 0, cy = 0, radius = 1;
+
+    function steer(e) {
+      let dx = (e.clientX - cx) / radius;
+      let dy = (e.clientY - cy) / radius;
+      const len = Math.hypot(dx, dy);
+      if (len > 1) { dx /= len; dy /= len; }
+      // A thumb resting on the stick is not a step in any direction.
+      if (len < 0.24) { dx = 0; dy = 0; }
+      touchMove.dx = dx;
+      touchMove.dy = dy;
+      knob.style.transform = 'translate(' + (dx * radius * 0.5).toFixed(1) + 'px,'
+        + (dy * radius * 0.5).toFixed(1) + 'px)';
+      // Walking looks where it is walking again. Without this a shot aimed a
+      // minute ago would keep the player's eyes on a hedge for ever, because
+      // there is no mouse moving the aim along with them.
+      if ((dx || dy) && state.world && !aimPad.aiming) W.playerAim(state.world, undefined);
+    }
+
+    holdable(stick, function (e) {
+      const r = stick.getBoundingClientRect();
+      cx = r.left + r.width / 2;
+      cy = r.top + r.height / 2;
+      radius = r.width / 2;
+      steer(e);
+    }, steer, function () {
+      touchMove.dx = 0; touchMove.dy = 0;
+      knob.style.transform = '';
+    });
+  }
+
+  /* Press to take aim, drag to point it, let go to swing or loose. Melee
+   * ignores the aim and goes where you are facing; a bow needs it, and the
+   * nock runs on for a beat after the release, so a shot can still be walked
+   * onto its target with the thumb still down. */
+  const aimPad = { aiming: false };
+
+  function wireAimPad() {
+    const pad = el('pad-attack');
+    let ox = 0, oy = 0;
+
+    holdable(pad, function (e) {
+      ox = e.clientX; oy = e.clientY;
+      aimPad.aiming = true;
+      pad.classList.add('aiming');
+    }, function (e) {
+      const dx = e.clientX - ox, dy = e.clientY - oy;
+      // Below this the thumb has not chosen a direction, it has just landed.
+      if (Math.hypot(dx, dy) < 12 || !state.world) return;
+      W.playerAim(state.world, Math.atan2(dx, -dy));
+    }, function () {
+      aimPad.aiming = false;
+      pad.classList.remove('aiming');
+      if (state.world) W.playerAttack(state.world);
+    });
+  }
+
+  function wirePads() {
+    sprintPad = el('pad-sprint');
+    sprintPad.setAttribute('aria-pressed', 'false');
+    holdable(sprintPad, null, null, function () {
+      toggleSprint();
+      sprintLatched = state.sprinting;
+      syncSprintPad();
+    });
+
+    holdable(el('pad-action'), function () {
+      if (state.world) W.tryTalk(state.world);
+    });
+
+    holdable(el('pad-bag'), function () {
+      if (!state.world) return;
+      if (W.invVisible(state.world)) W.closeInventory(state.world);
+      else W.openInventory(state.world);
+    });
+  }
+
+  function syncSprintPad() {
+    if (sprintPad) sprintPad.setAttribute('aria-pressed', state.sprinting ? 'true' : 'false');
+  }
+
+  /* Dragging a stack around the bag. The bag already works as lift-then-drop
+   * with a mouse, and a finger should be able to do either: press and drag
+   * carries the stack to wherever you let go, while a plain tap lifts it and
+   * leaves it on your fingertip for a second tap, exactly as a click does. */
+  function wireTouchCanvas() {
+    const canvas = el('world-canvas');
+    let dragId = null, ox = 0, oy = 0, moved = false;
+
+    function at(t) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (t.clientX - rect.left) / rect.width * W.VIEW_W,
+        y: (t.clientY - rect.top) / rect.height * W.VIEW_H
+      };
+    }
+    function touchOf(e, id) {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === id) return e.changedTouches[i];
+      }
+      return null;
+    }
+
+    // Every touch on the viewport is swallowed, both so the page does not
+    // scroll out from under the game and so the browser stops following a
+    // tap with a synthetic mouse click — which would otherwise reach the
+    // handlers above and have a fumbled thumb swinging an axe in a market
+    // square. Only bag work is acted on here; everything else on a phone is
+    // a button.
+    canvas.addEventListener('touchstart', function (e) {
+      e.preventDefault();
+      showTouch();
+      if (!state.world || !W.invVisible(state.world)) return;
+      if (dragId !== null) return;
+      const t = e.changedTouches[0];
+      dragId = t.identifier;
+      ox = t.clientX; oy = t.clientY; moved = false;
+      const v = at(t);
+      W.invClick(state.world, v.x, v.y);
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', function (e) {
+      e.preventDefault();
+      if (dragId === null || !state.world) return;
+      const t = touchOf(e, dragId);
+      if (!t) return;
+      if (Math.hypot(t.clientX - ox, t.clientY - oy) > 10) moved = true;
+      const v = at(t);
+      W.invMove(state.world, v.x, v.y);
+    }, { passive: false });
+
+    function endDrag(e) {
+      e.preventDefault();
+      if (dragId === null) return;
+      const t = touchOf(e, dragId);
+      if (!t) return;
+      dragId = null;
+      if (!state.world || !W.invVisible(state.world)) return;
+      // A tap leaves the stack on the fingertip; a drag puts it down.
+      if (!moved) return;
+      const v = at(t);
+      W.invClick(state.world, v.x, v.y);
+    }
+    canvas.addEventListener('touchend', endDrag, { passive: false });
+    canvas.addEventListener('touchcancel', function () { dragId = null; }, { passive: false });
+  }
+
+  function wireTouch() {
+    wireStick();
+    wireAimPad();
+    wirePads();
+    wireTouchCanvas();
+    const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    if (coarse || 'ontouchstart' in window) showTouch();
+  }
+
   function readWorldInput(world) {
+    const bagOpen = W.invVisible(world);
+    // With the bag up the overlay gets out of its way, or the stick would be
+    // sitting on top of the slots a thumb is reaching for.
+    if (touchLive) el('touch').classList.toggle('inv-open', bagOpen);
     let dx = 0, dy = 0;
-    if (W.invVisible(world)) {
+    if (bagOpen) {
       world.input.dx = 0; world.input.dy = 0; world.input.sprint = false;
+      syncSprintPad();
       return;
     }
     if (keys.a || keys.arrowleft) dx -= 1;
     if (keys.d || keys.arrowright) dx += 1;
     if (keys.w || keys.arrowup) dy -= 1;
     if (keys.s || keys.arrowdown) dy += 1;
+    // The stick only speaks up when no key is down, so plugging a keyboard
+    // into a tablet does not leave the two fighting over the same step.
+    if (!dx && !dy) { dx = touchMove.dx; dy = touchMove.dy; }
     const now = (window.performance || Date).now();
     if (dx || dy) lastMoveAt = now;
-    else if (now - lastMoveAt > STOP_GRACE_MS) state.sprinting = false;
+    else if (now - lastMoveAt > STOP_GRACE_MS && !sprintLatched) state.sprinting = false;
     world.input.dx = dx;
     world.input.dy = dy;
     world.input.sprint = state.sprinting;
+    // The sprint can also lapse on its own after a pause, so the button has
+    // to be told rather than just toggled.
+    syncSprintPad();
   }
 
   /* ---------- main loop ---------- */
@@ -911,6 +1142,7 @@
     buildAnimPanel();
     wireTabs();
     wireWorldInput();
+    wireTouch();
 
     el('randomise').addEventListener('click', randomiseAll);
     el('enter-world').addEventListener('click', enterWorld);

@@ -170,7 +170,121 @@
   /* Shown at their own resolution where there is room, so one art pixel
      lands on one screen pixel. */
   #preview-canvas { width: 100%; max-width: 396px; }
-  #world-canvas { width: 100%; max-width: 960px; }
+  #world-canvas { width: 100%; max-width: 960px; display: block; }
+
+  /* ---- touch controls ----
+   * Overlaid on the viewport rather than below it, because a phone has no
+   * room to spare and a thumb has to reach them without leaving the screen.
+   * Everything is sized in vmin so it stays thumb-sized on any handset. */
+  #world-wrap { position: relative; width: 100%; max-width: 960px; }
+
+  #touch {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* Sized against the viewport rather than the screen. The world is a
+   * letterbox on a phone held upright, and a stick measured in vmin ended up
+   * half as tall as the picture it was sitting on. */
+  #stick {
+    position: absolute;
+    left: 3%;
+    bottom: 7%;
+    height: 46%;
+    aspect-ratio: 1 / 1;
+    min-height: 68px;
+    max-height: 150px;
+    border-radius: 50%;
+    background: rgba(24, 21, 19, 0.42);
+    border: 2px solid rgba(232, 214, 176, 0.35);
+    pointer-events: auto;
+    touch-action: none;
+  }
+  #stick-knob {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 42%;
+    height: 42%;
+    margin: -21% 0 0 -21%;
+    border-radius: 50%;
+    background: rgba(226, 208, 168, 0.72);
+    border: 2px solid rgba(40, 33, 26, 0.6);
+    pointer-events: none;
+  }
+
+  #pads {
+    position: absolute;
+    right: 3%;
+    bottom: 6%;
+    width: 36%;
+    min-width: 124px;
+    max-width: 230px;
+    height: 68%;
+    max-height: 216px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    /* bag, then the two it sits above, then the swing across the bottom
+     * where the thumb already is */
+    grid-template-rows: 0.8fr 1fr 1.3fr;
+    gap: 5%;
+    pointer-events: none;
+  }
+  .pad {
+    pointer-events: auto;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    min-width: 0;
+    padding: 0;
+    border-radius: 12px;
+    border: 2px solid rgba(232, 214, 176, 0.4);
+    background: rgba(28, 24, 21, 0.58);
+    color: #efe6d2;
+    font: inherit;
+    font-size: clamp(10px, 2.6vmin, 15px);
+    letter-spacing: 0.06em;
+    cursor: pointer;
+  }
+  .pad:active, .pad[aria-pressed="true"] {
+    background: rgba(150, 112, 44, 0.85);
+    border-color: rgba(246, 230, 190, 0.85);
+  }
+  .pad-wide { grid-column: 1 / -1; }
+  .pad-act { background: rgba(46, 74, 46, 0.62); }
+  .pad-hit { grid-column: 1 / -1; background: rgba(96, 36, 32, 0.66); }
+
+  /* The attack pad doubles as an aim pad: press and drag to point the shot. */
+  #pad-attack.aiming { background: rgba(160, 60, 48, 0.9); }
+
+  /* With the bag open the screen belongs to the bag. Only the button that
+   * closes it again stays put, so nothing sits over a slot you are reaching
+   * for. */
+  #touch.inv-open #stick,
+  #touch.inv-open #pad-sprint,
+  #touch.inv-open #pad-action,
+  #touch.inv-open #pad-attack { display: none; }
+  #touch.inv-open #pad-bag { background: rgba(96, 36, 32, 0.72); }
+
+  @media (pointer: coarse) {
+    #world-canvas { max-width: none; touch-action: none; }
+    #world-wrap { max-width: none; }
+    /* Every pixel of a phone screen belongs to the picture while playing. */
+    body.playing { padding-inline: 0; padding-block: 8px 0; }
+    body.playing .stage {
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      /* The picture sits in the middle of the handset rather than clinging to
+       * the top with a screenful of nothing under it. */
+      justify-content: center;
+      min-height: calc(100svh - 74px);
+    }
+    body.playing .workbench { gap: 0; }
+  }
 
   .stage-foot {
     display: flex;
@@ -427,7 +541,18 @@
   <div class="workbench">
     <section class="stage" aria-label="Viewport">
       <canvas id="preview-canvas" width="396" height="456" aria-label="Character preview"></canvas>
-      <canvas id="world-canvas" width="960" height="540" hidden aria-label="Test scene"></canvas>
+      <div id="world-wrap" hidden>
+        <canvas id="world-canvas" width="960" height="540" aria-label="Test scene"></canvas>
+        <div id="touch" hidden aria-hidden="true">
+          <div id="stick"><div id="stick-knob"></div></div>
+          <div id="pads">
+            <button class="pad pad-wide" id="pad-bag" type="button">BAG</button>
+            <button class="pad" id="pad-sprint" type="button">RUN</button>
+            <button class="pad pad-act" id="pad-action" type="button">E</button>
+            <button class="pad pad-hit" id="pad-attack" type="button">HIT</button>
+          </div>
+        </div>
+      </div>
 
       <div class="readout" id="readout"></div>
 

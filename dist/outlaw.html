@@ -142,7 +142,7 @@ main > .wrap { overflow: auto; }
 </style>
 
 <header class="top">
-  <div class="brand">Outlaw<small>BUILD 0.4 · DOORS OPEN</small></div>
+  <div class="brand">Outlaw<small>BUILD 0.5 · WEATHER & MASONS</small></div>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" role="tab" aria-selected="true" data-tab="play">Play</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="forge">Character</button>
@@ -1799,7 +1799,62 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     }
     if (spec.extras) for (const e of spec.extras) e(B, meta, rng);
     const canvas = B.toCanvas();
-    return Object.assign(meta, { canvas });
+    // roof mask (for snow cover / wet sheen), kept as a white silhouette of roof pixels
+    const rm = document.createElement('canvas'); rm.width = W; rm.height = H;
+    const rc = rm.getContext('2d'), rid = rc.createImageData(W, H);
+    for (let i = 0; i < W * H; i++) if (B.mat[i] >= 0 && B.group[i] === 2) { const y = (i / W) | 0; const s = B.shade[i]; const v = s >= 3 ? 250 : s === 2 ? 232 : 206; rid.data[i * 4] = v; rid.data[i * 4 + 1] = v + 3; rid.data[i * 4 + 2] = Math.min(255, v + 12); rid.data[i * 4 + 3] = (y + (i % W)) % 7 === 0 ? 150 : 255; }
+    rc.putImageData(rid, 0, 0);
+    return Object.assign(meta, { canvas, roofMask: rm, buf: B, wallH, x0, x1 });
+  }
+
+  // Construction stages 0-10: the finished building is revealed part by part — stakes and string,
+  // cleared ground, foundation, timber frame, walls rising, floors, rafters, roof covering laid from
+  // the eaves up, doors and windows, fitting out — with scaffolding until the end.
+  function staged(spec, stage, prog) {
+    const fin = spec._fin || (spec._fin = building(spec)), FB = fin.buf, W = fin.W, H = fin.H;
+    if (stage >= 10) return fin;
+    const B = new MB(W, H);
+    const x0 = fin.x0, x1 = fin.x1, wallTop = fin.wallTop, foot = spec.d * T;
+    const dirt = P.mat('#8a6a44', 'cloth'), beam = M.beam(), stake = P.mat('#c8a070', 'wood'), stringM = P.mat('#e8e0d0', 'cloth');
+    const copy = (fn) => { for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = y * W + x; if (FB.mat[i] < 0) continue; if (fn(x, y, FB.group[i])) { B.part(FB.group[i]); B.plot(x, y, FB.mat[i], FB.shade[i]); } } };
+    // cleared, trodden ground over the footprint
+    if (stage >= 1) { B.part(0); for (let y = H - foot; y < H; y++) for (let x = x0 - 1; x <= x1 + 1; x++) B.plot(x, y, dirt, O.noise2(x * 0.7, y * 0.7, 5) > 0.6 ? 3 : O.noise2(x, y, 9) > 0.85 ? 1 : 2); }
+    else { // stakes and string
+      B.part(9);
+      for (const [sx, sy] of [[x0, H - foot], [x1, H - foot], [x0, H - 1], [x1, H - 1]]) { B.plot(sx, sy, stake, 3); B.plot(sx, sy - 1, stake, 3); B.plot(sx, sy - 2, stake, 2); }
+      for (let x = x0; x <= x1; x += 2) { B.plot(x, H - foot - 1, stringM, 3); B.plot(x, H - 2, stringM, 3); }
+      for (let y = H - foot; y < H; y += 2) { B.plot(x0, y - 1, stringM, 3); B.plot(x1, y - 1, stringM, 3); }
+    }
+    if (stage >= 2) copy((x, y, g) => g === 1 && y >= H - 3); // foundation plinth
+    const wallRise = stage === 4 ? Math.round(H - 3 - prog * (fin.wallH - 3)) : stage > 4 ? -1 : H;
+    if (stage >= 4) copy((x, y, g) => (g === 1 && y >= Math.max(wallRise, wallTop) && y < H - 2) || (g === 6 && stage >= 8 && (stage > 8 || prog > 0.5)));
+    if (stage >= 4 && stage < 8) { // openings left dark where windows and doors will go
+      B.part(6); const dk = P.mat('#2a2024', 'cloth');
+      for (let y = Math.max(wallRise, wallTop); y < H - 3; y++) for (let x = x0; x <= x1; x++) if (FB.group[y * W + x] === 6 && FB.mat[y * W + x] >= 0) B.plot(x, y, dk, 1);
+    }
+    if (stage >= 5) copy((x, y, g) => g === 1 && y < wallTop); // gable walls / upper floor
+    if (stage >= 3 && stage < 6) { // timber frame
+      B.part(7);
+      const posts = Math.max(2, Math.round((x1 - x0) / 16) + 1);
+      for (let k = 0; k < posts; k++) { const px = Math.round(x0 + (k * (x1 - x0 - 1)) / (posts - 1)); for (let y = wallTop; y < H - 3; y++) { if (B.matAt(px, y) < 0 || stage === 3) { B.plot(px, y, beam, 2); B.plot(px + 1, y, beam, 1); } } }
+      for (let x = x0; x <= x1; x++) { B.plot(x, wallTop, beam, 3); B.plot(x, wallTop + 1, beam, 1); }
+    }
+    if (stage >= 6) { // rafters across the roof shape, covering laid from the eaves upward
+      const roofPix = []; let top = H, bot = 0;
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = y * W + x; if (FB.mat[i] >= 0 && FB.group[i] === 2) { roofPix.push(i); top = Math.min(top, y); bot = Math.max(bot, y); } }
+      const cover = stage === 6 ? bot + 1 : stage === 7 ? Math.round(bot - prog * (bot - top)) : top;
+      B.part(2);
+      for (const i of roofPix) { const x = i % W, y = (i / W) | 0; if (y >= cover) B.plot(x, y, FB.mat[i], FB.shade[i]); else if (x % 6 === 0 || y % 9 === 0) B.plot(x, y, beam, x % 6 === 0 ? 2 : 3); }
+    }
+    if (stage >= 8) copy((x, y, g) => g === 3 || g === 4 || g === 5);
+    if (stage >= 3 && stage <= 9) { // scaffolding: poles and planks in front of the walls
+      B.part(8); const pole = P.mat('#b08a5a', 'wood');
+      const topY = Math.max(2, (stage >= 6 ? wallTop - 4 : wallTop));
+      for (const px of [x0 - 2, Math.round((x0 + x1) / 2) + 6, x1 + 2]) for (let y = topY; y < H; y++) B.plot(px, y, pole, px < W / 2 ? 3 : 2);
+      for (let y = H - 12; y > topY; y -= 12) for (let x = x0 - 3; x <= x1 + 3; x++) { B.plot(x, y, pole, 3); B.plot(x, y + 1, pole, 1); }
+    }
+    const canvas = B.toCanvas();
+    return Object.assign({}, fin, { canvas, windows: stage >= 9 ? fin.windows : [], chimney: stage >= 8 ? fin.chimney : null, roofMask: stage >= 7 ? fin.roofMask : null });
   }
 
   function texWall(B, kind, m, x0, y0, x1, y1, rng, cond, gableOnly) {
@@ -2174,7 +2229,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     return out;
   }
 
-  O.Env = { building, tree, prop, T, M };
+  O.Env = { building, staged, tree, prop, T, M };
 })();
 
 </script>
@@ -2467,7 +2522,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       this.particles = [];
       this.touch = { x: 0, y: 0, active: false };
       this.running = false;
-      this.hooks = { update: [], drawWorld: [], hud: [] };
+      this.hooks = { update: [], drawWorld: [], hud: [], drawGround: [], drawTop: [] };
+      this.weatherTint = [1, 1, 1]; this.snowAlpha = 0;
       this.keyHandlers = [];
       this.scene = null;
     }
@@ -2479,6 +2535,13 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       for (const b of world.buildings) b.sprite = O.Env.building(b.spec);
       for (const t of world.trees) t.sprite = O.Env.tree(t.seed, t.kind, this.season);
       for (const p of world.props) p.sprite = O.Env.prop(p.kind, p.seed, p.v);
+      this.rebuildStatics();
+      this.player = { x: (46 * T) + 8, y: 32 * T + 4, dir: 0, anim: 'idle', ft: 0, a: playerAppearance, speed: 0 };
+      this.actors = [this.player];
+    }
+
+    rebuildStatics() {
+      const world = this.world, T = world.T;
       // depth-sorted static drawables (base y); dynamic actors are merged per frame
       this.statics = [];
       for (const b of world.buildings) this.statics.push({ y: (b.bottom + 1) * T, b });
@@ -2487,10 +2550,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       this.statics.sort((a, b) => a.y - b.y);
       this.flatProps = this.statics.filter((s) => s.p && s.p.flat);
       this.statics = this.statics.filter((s) => !(s.p && s.p.flat));
-      const sq = world.buildings.find((b) => b.type === 'tavern');
-      this.player = { x: (46 * T) + 8, y: 32 * T + 4, dir: 0, anim: 'idle', ft: 0, a: playerAppearance, speed: 0 };
-      void sq;
-      this.actors = [this.player];
+      for (const t of world.trees) if (!t.sprite) t.sprite = O.Env.tree(t.seed, t.kind, this.season);
+      for (const p of world.props) if (!p.sprite) p.sprite = O.Env.prop(p.kind, p.seed, p.v);
+      world.dirtyStatics = false;
     }
 
     setPlayerAppearance(a) { if (this.player) this.player.a = a; }
@@ -2589,11 +2651,12 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     }
 
     draw() {
-      if (this.scene) { this.scene.draw(this.ctx); return; }
+      if (this.scene) { this.scene.draw(this.ctx); for (const h of this.hooks.drawTop) h(this.ctx, this.cam, true); return; }
       const { ctx, cam, vw, vh } = this, w = this.world, T = w.T;
       ctx.drawImage(this.ground, cam.x, cam.y, vw, vh, 0, 0, vw, vh);
       const inView = (x, y, wd, ht) => x + wd >= cam.x && x <= cam.x + vw && y + ht >= cam.y && y <= cam.y + vh;
       for (const s of this.flatProps) { const p = s.p, sp = p.sprite; const x = p.x - sp.ox, y = p.y - sp.oy; if (inView(x, y, sp.W, sp.H)) ctx.drawImage(sp.canvas, x - cam.x, y - cam.y); }
+      for (const h of this.hooks.drawGround) h(ctx, cam);
       // depth-sort statics + actors (actors inserted by feet y)
       const actors = this.actors.filter((a) => !a.hidden).slice().sort((a, b) => a.y - b.y);
       let ai = 0;
@@ -2609,7 +2672,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         while (ai < actors.length && actors[ai].y < s.y) drawActor(actors[ai++]);
         if (s.b) {
           const b = s.b, sp = b.sprite, x = b.x * T - sp.OV, y = (b.bottom + 1) * T - sp.H;
-          if (inView(x, y, sp.W, sp.H)) ctx.drawImage(sp.canvas, x - cam.x, y - cam.y);
+          if (inView(x, y, sp.W, sp.H)) { ctx.drawImage(sp.canvas, x - cam.x, y - cam.y); if (this.snowAlpha > 0.04 && sp.roofMask) { ctx.globalAlpha = this.snowAlpha; ctx.drawImage(sp.roofMask, x - cam.x, y - cam.y); ctx.globalAlpha = 1; } }
         } else {
           const o = s.t || s.p, sp = o.sprite, x = o.x - sp.ox, y = o.y - sp.oy;
           if (inView(x, y, sp.W, sp.H)) ctx.drawImage(sp.canvas, x - cam.x, y - cam.y);
@@ -2626,6 +2689,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         ctx.fillStyle = `rgba(214,210,206,${a.toFixed(2)})`; ctx.fillRect(Math.round(q.x - cam.x), Math.round(q.y - cam.y), sz, sz);
       }
       this.drawLighting();
+      for (const h of this.hooks.drawTop) h(ctx, cam);
     }
 
     // Day/night: ambient tint multiplied over the frame, with stepped pixel light pools punched out
@@ -2635,7 +2699,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const keys = [[0, [52, 60, 112]], [4.5, [58, 66, 118]], [6, [236, 170, 140]], [7.5, [255, 250, 244]], [17, [255, 246, 232]], [19, [240, 160, 120]], [20.5, [90, 86, 140]], [22, [56, 62, 114]], [24, [52, 60, 112]]];
       for (let i = 0; i < keys.length - 1; i++) {
         const [h0, c0] = keys[i], [h1, c1] = keys[i + 1];
-        if (h >= h0 && h <= h1) { const t = (h - h0) / (h1 - h0); return c0.map((v, k) => Math.round(v + (c1[k] - v) * t)); }
+        if (h >= h0 && h <= h1) { const t = (h - h0) / (h1 - h0); return c0.map((v, k) => Math.round((v + (c1[k] - v) * t) * this.weatherTint[k])); }
       }
       return [255, 255, 255];
     }
@@ -2659,7 +2723,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     }
 
     drawLighting() {
-      const amb = this.ambient(); if (amb[0] > 250 && amb[1] > 245) return;
+      const amb = this.ambient(); if (amb[0] > 250 && amb[1] > 245 && amb[2] > 235) return;
       const { ctx, cam, vw, vh } = this, w = this.world, T = w.T;
       const L = this.light, lc = L.getContext('2d');
       lc.globalCompositeOperation = 'source-over';
@@ -2730,6 +2794,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     logs: { name: 'Logs', base: 3, unit: 'bundle', slots: 2 },
     firewood: { name: 'Firewood', base: 1, unit: 'bundle', slots: 1 },
     iron: { name: 'Iron bar', base: 8, unit: 'bar', slots: 1 },
+    stone: { name: 'Building stone', base: 2, unit: 'block', slots: 2 },
     tools: { name: 'Tools', base: 24, unit: 'piece', slots: 1 },
     medicine: { name: 'Remedy', base: 10, unit: 'phial', slots: 1 },
     herbs: { name: 'Herbs', base: 2, unit: 'bunch', slots: 1 },
@@ -2833,6 +2898,209 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
 </script>
 <script>
+// Weather and seasons. Weather is a Markov chain stepped every game hour, biased by season.
+// It feeds the simulation (people shelter, work slows, roads get muddy, storms damage roofs) and
+// the renderer (rain, puddles, cloud shadows, fog, snow cover, lightning).
+'use strict';
+(function () {
+  const SEASONS = ['spring', 'summer', 'autumn', 'winter'];
+  const SEASON_DAYS = 14;
+  // transition weights per season: from any state toward these
+  const BIAS = {
+    spring: { clear: 4, cloudy: 4, rain: 3, heavy: 1, storm: 0.4, fog: 1.5, snow: 0, heat: 0 },
+    summer: { clear: 7, cloudy: 3, rain: 1.5, heavy: 0.6, storm: 0.6, fog: 0.4, snow: 0, heat: 2 },
+    autumn: { clear: 3, cloudy: 5, rain: 4, heavy: 1.5, storm: 0.8, fog: 2.5, snow: 0.2, heat: 0 },
+    winter: { clear: 3, cloudy: 5, rain: 1, heavy: 0.3, storm: 0.3, fog: 2, snow: 4, heat: 0 },
+  };
+  const LABEL = { clear: 'Clear', cloudy: 'Overcast', rain: 'Rain', heavy: 'Heavy rain', storm: 'Storm', fog: 'Fog', snow: 'Snow', heat: 'Heatwave' };
+
+  class Weather {
+    constructor(sim) {
+      this.sim = sim; this.kind = 'clear'; this.next = 'clear'; this.blend = 1; this.wet = 0; this.snowCover = 0; this.wind = 0.3;
+      this.lastHour = -1; this.flash = 0; this.rng = O.RNG(9091);
+      this.forced = null;
+    }
+    get season() { return SEASONS[Math.floor((this.sim.day - 1) / SEASON_DAYS + 1) % 4]; } // day 1 = summer
+    get dayOfSeason() { return ((this.sim.day - 1) % SEASON_DAYS) + 1; }
+    get raining() { return this.kind === 'rain' || this.kind === 'heavy' || this.kind === 'storm'; }
+    get severe() { return this.kind === 'heavy' || this.kind === 'storm' || (this.kind === 'snow' && this.snowCover > 0.5); }
+    get label() { return LABEL[this.kind]; }
+    intensity() { return { clear: 0, cloudy: 0, rain: 0.5, heavy: 0.85, storm: 1, fog: 0, snow: 0.6, heat: 0 }[this.kind]; }
+
+    hourly() {
+      const r = this.rng, season = this.season;
+      if (this.forced) { this.kind = this.forced; }
+      else if (r.chance(0.22)) {
+        const w = Object.entries(BIAS[season]).map(([k, v]) => [k, v * (k === this.kind ? 3 : 1)]);
+        const nk = r.weighted(w);
+        if (nk !== this.kind) { this.kind = nk; if (nk === 'storm') this.sim.log('A storm rolls in over Ashford.', 'weather'); if (nk === 'snow' && this.snowCover < 0.1) this.sim.log('The first snow is falling.', 'weather'); }
+      }
+      this.wind = this.kind === 'storm' ? 1 : this.kind === 'heavy' ? 0.7 : 0.25 + r.next() * 0.2;
+      // storms damage roofs: buildings lose condition; the damage becomes repair work
+      if (this.kind === 'storm' && r.chance(0.35)) {
+        const b = r.pick(this.sim.world.buildings.filter((x) => !x.site));
+        b.condition = Math.max(0.15, b.condition - r.float(0.08, 0.2));
+        b.needsRepair = true; b.dirty = true;
+        this.sim.log(`The storm tore at the roof of ${b.type === 'house' ? 'a house on ' + (b.bottom > 35 ? 'Mill Lane' : "the King's Road") : b.name}.`, 'weather');
+      }
+    }
+    tick(dtm) {
+      const h = Math.floor(this.sim.minute / 60);
+      if (h !== this.lastHour) { this.lastHour = h; this.hourly(); }
+      const rainK = this.intensity();
+      if (this.raining) this.wet = Math.min(1, this.wet + 0.004 * dtm * rainK);
+      else this.wet = Math.max(0, this.wet - 0.0012 * dtm * (this.kind === 'heat' ? 3 : this.kind === 'clear' ? 1.5 : 0.6));
+      if (this.kind === 'snow') this.snowCover = Math.min(1, this.snowCover + 0.002 * dtm);
+      else if (this.season !== 'winter' || this.kind === 'rain' || this.kind === 'heat') this.snowCover = Math.max(0, this.snowCover - 0.0015 * dtm * (this.season === 'winter' ? 0.3 : 2));
+    }
+  }
+
+  O.Weather = Weather; O.SEASONS = SEASONS; O.SEASON_DAYS = SEASON_DAYS;
+})();
+
+</script>
+<script>
+// Construction and the town council's building decisions.
+//
+// The council funds a project from the treasury. A building site appears on a free plot, hires
+// builders from people without work, and orders logs from the woodcutters and stone from travelling
+// traders. Each of the eleven stages needs worker-hours and materials; rain slows work, storms stop
+// it. When finished, scaffolding comes down, and a family arrives up the King's Road to move in.
+'use strict';
+(function () {
+  const STAGES = ['Planned', 'Site preparation', 'Foundation', 'Timber frame', 'Walls', 'Floors', 'Roof frame', 'Roof', 'Exterior', 'Interior', 'Finished'];
+  // worker-minutes for each stage, and the materials it consumes
+  const WORK = [60, 120, 260, 300, 420, 300, 240, 320, 240, 240];
+  const MATS = [{}, {}, { stone: 6 }, { logs: 6 }, { logs: 3, stone: 3 }, { logs: 3 }, { logs: 4 }, { logs: 2, stone: 2 }, { logs: 2 }, {}];
+  const PLOTS = [[48, 16, 4, 3], [40, 16, 4, 3], [36, 50, 4, 3], [41, 50, 4, 3], [48, 11, 3, 3]];
+
+  class Construction {
+    constructor(sim) { this.sim = sim; this.sites = []; this.nextCouncil = { day: 1, minute: 10 * 60 }; this.used = new Set(); }
+
+    plotFree(pl) {
+      const w = this.sim.world; const [x, bottom, bw, bd] = pl;
+      for (const b of w.buildings) if (!(x + bw + 1 <= b.x || x - 1 >= b.x + b.w || bottom + 2 <= b.y || bottom - bd - 1 >= b.bottom)) return false;
+      return true;
+    }
+
+    council() {
+      const sim = this.sim;
+      const free = PLOTS.filter((p, i) => !this.used.has(i) && this.plotFree(p));
+      const active = this.sites.filter((s) => s.stage < 10).length;
+      if (!free.length || active >= 1) return;
+      const cost = 160;
+      if (sim.treasury.cash < cost + 60) { sim.log(`The council wanted to build, but the treasury holds only ${Math.round(sim.treasury.cash)}d.`, 'politics'); return; }
+      this.start(PLOTS.indexOf(free[0]), cost);
+    }
+
+    start(pi, cost) {
+      const sim = this.sim, w = sim.world, r = sim.rng;
+      const [x, bottom, bw, bd] = PLOTS[pi]; this.used.add(pi);
+      // clear trees and scatter from the plot
+      const inPlot = (px, py) => px >= (x - 1) * 16 && px < (x + bw + 1) * 16 && py >= (bottom - bd) * 16 && py < (bottom + 2) * 16;
+      w.trees = w.trees.filter((t) => { if (inPlot(t.x, t.y)) { w.solid[Math.floor(t.y / 16) * w.W + Math.floor(t.x / 16)] = 0; return false; } return true; });
+      w.props = w.props.filter((p) => !inPlot(p.x, p.y));
+      const id = Math.max(...w.buildings.map((b) => b.id)) + 1;
+      const b = { id, type: 'house', name: 'Building site', x, bottom, w: bw, d: bd, y: bottom - bd + 1, floors: 1, wealth: 0.5, condition: 1, site: true };
+      b.spec = { seed: O.hash('site', id), w: bw, d: bd, floors: 1, wealth: 0.5, condition: 1, wall: r.pick(['timber', 'timber', 'stone']), roof: r.pick(['shingle', 'thatch', 'tile']), roofType: r.chance(0.5) ? 'gable' : 'side', chimney: true, doorTile: Math.floor(bw / 2), plaster: r.pick(['plaster', 'plasterOchre', 'plasterWhite']) };
+      b.doorX = x + b.spec.doorTile; b.doorY = bottom + 1;
+      for (let yy = b.y; yy <= bottom; yy++) for (let xx = x; xx < x + bw; xx++) w.solid[yy * w.W + xx] = 1;
+      w.buildings.push(b);
+      const site = { id, b, stage: 0, prog: 0, work: 0, stalled: null, started: sim.day };
+      this.sites.push(site);
+      // the site is run like a small business: builders, wages, material orders
+      const def = { label: 'Building site', jobs: [['builder', 3]], hours: [7, 17], recipes: [], sells: [], buys: { logs: 'woodcutter', stone: 'import' }, targets: { logs: 12, stone: 10 }, wage: { builder: 7 }, site: true };
+      const bz = { id, b, type: 'site', def, name: 'the new house site', owner: null, workers: [], stock: { logs: 0, stone: 0 }, cash: cost, sold: {}, bought: {}, open: false, orders: [], salesToday: 0, history: [] };
+      sim.biz.set(id, bz);
+      sim.treasury.cash -= cost; sim.treasury.spent += cost;
+      const idle = sim.people.filter((p) => !p.visitor && p.age >= 17 && p.age < 60 && (!p.job || p.job.role === 'porter')).slice(0, 3);
+      for (const p of idle) { p.job = { biz: id, role: 'builder' }; p.skills.builder = r.float(0.3, 0.7); bz.workers.push(p.id); sim.remember(p, 'Took work as a builder on the new house.', 'work', 1); }
+      sim.log(`The council has paid ${cost}d to build a new house ${bottom < 30 ? 'beside the north track' : 'south of Mill Lane'}. ${idle.length} villagers hired as builders.`, 'politics');
+      b.dirty = true; w.dirtyStatics = true; sim.path.recost(); sim.path.clear();
+      return site;
+    }
+
+    // called from Sim.work() when a builder is at the site
+    work(p, bz) {
+      const site = this.sites.find((s) => s.id === bz.id); if (!site || site.stage >= 10) return;
+      const wx = this.sim.weather;
+      const factor = wx ? (wx.kind === 'rain' ? 0.5 : wx.kind === 'snow' ? 0.3 : wx.kind === 'heavy' || wx.kind === 'storm' ? 0 : wx.kind === 'heat' ? 0.8 : 1) : 1;
+      const need = MATS[site.stage];
+      if (site.prog === 0) {
+        for (const [g, q] of Object.entries(need)) if ((bz.stock[g] || 0) < q) { if (site.stalled !== site.stage) { site.stalled = site.stage; this.sim.log(`Work on the new house waits for ${q} ${O.Data.GOODS[g].name.toLowerCase()}.`, 'construction'); } return; }
+        for (const [g, q] of Object.entries(need)) bz.stock[g] -= q;
+        site.stalled = null;
+      }
+      const sk = p.skills.builder || 0.4;
+      site.work += factor * (0.6 + sk * 0.6);
+      const req = WORK[site.stage] * ((site.b.w * site.b.d) / 12);
+      site.prog = Math.min(1, site.work / req);
+      const bucket = Math.floor(site.prog * 8);
+      if (bucket !== site.bucket) { site.bucket = bucket; site.b.dirty = true; }
+      if (site.prog >= 1) {
+        site.stage++; site.prog = 0; site.work = 0; site.b.dirty = true;
+        if (site.stage >= 4 && site.stage < 10) this.sim.log(`The new house: ${STAGES[site.stage - 1].toLowerCase()} done, ${STAGES[site.stage].toLowerCase()} begun.`, 'construction');
+        if (site.stage >= 10) this.finish(site);
+      }
+    }
+
+    finish(site) {
+      const sim = this.sim, b = site.b, r = sim.rng;
+      b.site = false; b.name = 'House'; b.dirty = true;
+      const bz = sim.biz.get(site.id);
+      for (const id of bz.workers) { const p = sim.byId.get(id); if (p) { p.job = null; sim.remember(p, 'We finished the new house. Back to looking for work.', 'work', 1); } }
+      sim.biz.delete(site.id);
+      // a family arrives from elsewhere to take the house (migration)
+      const region = r.pick(['east', 'north', 'west', 'south']);
+      const hh = { id: sim.households.length + 1, home: b.id, members: [], pantry: { bread: 4, cabbage: 2, firewood: 4 }, money: r.int(60, 140), surname: r.pick(O.Data.NAMES.sur) };
+      sim.households.push(hh); b.household = hh.id;
+      const mk = (sex, age, genes) => { const p = sim.newPerson({ sex, age, first: r.pick(O.Data.NAMES[sex]), sur: hh.surname, household: hh.id, home: b.id, genes: genes || O.Char.randomGenes(r, region), wealth: 0.5 }); p.name = `${p.first} ${p.sur}`; hh.members.push(p.id); return p; };
+      const a = mk('m', r.int(24, 40)), c = mk('f', r.int(22, 38)); a.spouse = c.id; c.spouse = a.id;
+      const kids = []; for (let i = 0; i < r.int(0, 3); i++) kids.push(mk(r.chance(0.5) ? 'm' : 'f', r.int(0, 12), O.Char.inheritGenes(r, c.genes, a.genes)));
+      a.children = c.children = kids.map((k) => k.id);
+      hh.shopper = c.id;
+      for (const p of [a, c, ...kids]) {
+        p.app = O.Char.makeAppearance(O.hash('person', p.id, p.first), { sex: p.sex, age: p.age, genes: p.genes, role: p.age < 13 ? 'child' : 'villager', wealth: 0.5, region });
+        p.agent = { x: (95 - (p.id % 3)) * 16, y: 31 * 16 - (p.id % 2) * 6, dir: 1, anim: 'walk', ft: 0, a: p.app, hidden: false, inside: null, path: null, goal: null, person: p, carrying: p === a ? { good: 'logs', qty: 1 } : null };
+        p.arriving = true; p.task = { act: 'move-in', b: b.id };
+        sim.remember(p, `We came from the ${region} to a new house in Ashford.`, 'life', 2);
+      }
+      sim.log(`The new house is finished. The ${hh.surname} family is coming up the King's Road from the ${region} to live in it.`, 'migration');
+      sim.world.dirtyStatics = true;
+    }
+
+    daily() {
+      const sim = this.sim;
+      // ageing buildings: slow deterioration; owners who can afford it repair
+      for (const b of sim.world.buildings) {
+        if (b.site) continue;
+        b.condition = Math.max(0.1, b.condition - 0.002);
+        const hh = b.household && sim.households[b.household - 1];
+        const purse = hh ? hh : sim.biz.get(b.id);
+        const money = hh ? hh.money : purse?.cash ?? 0;
+        if ((b.needsRepair || b.condition < 0.5) && money > 40) {
+          if (hh) hh.money -= 20; else purse.cash -= 20;
+          b.condition = Math.min(1, b.condition + 0.25); b.needsRepair = false; b.dirty = true;
+          sim.log(`${b.type === 'house' ? `The ${hh?.surname || ''} family` : b.name} paid 20d to repair their roof.`, 'construction');
+        }
+      }
+    }
+
+    tickMinute() {
+      const sim = this.sim;
+      if (sim.day > this.nextCouncil.day || (sim.day === this.nextCouncil.day && sim.minute >= this.nextCouncil.minute)) {
+        this.nextCouncil = { day: sim.day + 7, minute: 10 * 60 };
+        this.council();
+      }
+    }
+    siteInfo(id) { const s = this.sites.find((x) => x.id === id); return s ? { stage: s.stage, name: STAGES[s.stage], prog: s.prog } : null; }
+  }
+
+  O.Construction = Construction; O.STAGES = STAGES;
+})();
+
+</script>
+<script>
 // The living settlement simulation.
 //
 // Every resident is a Person with a family, a home, maybe a job, a purse shared with their household,
@@ -2859,8 +3127,11 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       this.day = 1; this.minute = 8 * 60 + 30; this._lastMin = -1;
       this.stats = { sales: 0, wages: 0, produced: {} };
       this.nextId = 1;
+      this.weather = new O.Weather(this);
+      this.build = new O.Construction(this);
       this.populate();
       this.placeAll();
+      this._season = this.season;
     }
 
     // ------------------------------------------------------------------ population
@@ -2958,6 +3229,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     entry(b) { return [b.doorX, b.doorY]; }
     tileCenter(tx, ty, p) { const j = p ? ((p.id * 7) % 5) - 2 : 0; return [tx * this.T + 8 + j * 2, ty * this.T + 10 + ((p?.id || 0) % 3)]; }
     get hour() { return this.minute / 60; }
+    get raining() { return this.weather ? this.weather.raining : false; }
+    get season() { return this.weather ? this.weather.season : 'summer'; }
     get weekday() { return (this.day - 1) % 7; }
     log(text, kind = 'event') { this.history.push({ day: this.day, minute: Math.floor(this.minute), text, kind }); if (this.history.length > 400) this.history.shift(); }
     remember(p, text, kind = 'event', strength = 1, about = null) {
@@ -2985,35 +3258,49 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       if (asleep) return { act: 'sleep', b: home };
       const sunday = wd === 6;
       if (sunday && h >= 9 && h < 10.5 && p.age >= 6) return { act: 'worship', b: this.chapelId };
+      if (sunday && h >= 6.5 && h < 8.8 && this.household(p).shopper === p.id) { const need = this.shoppingNeed(this.household(p)); if (need) return { act: 'shop', b: need.biz, good: need.good, qty: need.qty }; }
+      if (sunday && p.job?.role === 'baker' && h >= 5.5 && h < 9) return { act: 'work', b: p.job.biz };
       const job = p.job;
+      // the household shopper slips out on the lunch break if the pantry is low
+      if (h >= 12 && h < 12.75 && !sunday && this.household(p).shopper === p.id) {
+        const need = this.shoppingNeed(this.household(p));
+        if (need) return { act: 'shop', b: need.biz, good: need.good, qty: need.qty };
+      }
       if (job && job.biz) {
         const bz = this.biz.get(job.biz);
-        let [o, c] = bz.def.hours;
+        let [o, c] = bz ? bz.def.hours : [0, 0];
+        if (bz && bz.type === 'site') {
+          if (h >= o && h < c && !sunday && !(h >= 12 && h < 12.75)) return this.weather.severe ? { act: 'home', b: home } : { act: 'build', outdoor: true, zone: 'site', site: bz.id };
+        } else if (!bz) { /* job vanished */ }
+        else
         if (job.role.startsWith('guard')) { const day = p.shift === 'day'; const on = day ? h >= 6 && h < 18 : h >= 18 || h < 6; if (on) return job.role === 'guard' && (Math.floor(m / 90) + p.id) % 2 === 0 ? { act: 'patrol', outdoor: true } : { act: 'work', b: bz.id }; }
         else if (!(sunday && bz.type !== 'tavern' && bz.type !== 'chapel')) {
           if (bz.type === 'bakery' && job.role === 'baker') o = 4.5;
           if (this.has(p, 'lazy')) o += 0.5;
           if (h >= o && h < c && !(h >= 12 && h < 12.75 && bz.type !== 'tavern')) {
             // farm and woodcutting happen outside in the fields / woods
-            if (bz.type === 'farmhouse' && job.role !== 'farmer' || bz.type === 'farmhouse' && h > 7 && h < 11) return { act: 'fieldwork', outdoor: true, zone: 'farm' };
-            if (bz.type === 'woodcutter' && h > 8 && h < 16) return { act: 'chop', outdoor: true, zone: 'wood' };
-            if (job.role === 'herbalist' && h > 9 && h < 15) return { act: 'forage', outdoor: true, zone: 'wood' };
+            const harsh = this.weather.severe || (this.weather.kind === 'heat' && h >= 12 && h < 15) || this.season === 'winter';
+            if (!harsh && (bz.type === 'farmhouse' && job.role !== 'farmer' || bz.type === 'farmhouse' && h > 7 && h < 11)) return { act: 'fieldwork', outdoor: true, zone: 'farm' };
+            if (harsh && bz.type === 'farmhouse' && job.role !== 'farmer') return { act: 'home', b: home };
+            if (bz.type === 'woodcutter' && h > 8 && h < 16 && !this.weather.severe) return { act: 'chop', outdoor: true, zone: 'wood' };
+            if (job.role === 'herbalist' && h > 9 && h < 15 && !this.raining) return { act: 'forage', outdoor: true, zone: 'wood' };
             return { act: 'work', b: bz.id };
           }
         }
       }
       if (job && job.role === 'porter' && h >= 7 && h < 18 && !sunday) return { act: 'wait-work', outdoor: true, zone: 'square' };
       // meals
+      if (this.raining && (this.has(p, 'cautious') || this.weather.severe) && !(job && job.biz)) return { act: 'home', b: home };
       if (h >= 12 && h < 12.75 && p.needs.hunger < 75) return this.has(p, 'social') && this.household(p).money > 30 ? { act: 'eat-out', b: this.tavernId } : { act: 'eat', b: home };
       // children
-      if (p.stage === 'child' || p.stage === 'olderChild') {
+      if ((p.stage === 'child' || p.stage === 'olderChild') && !(this.household(p).shopper === p.id && h >= 9 && h < 16 && this.shoppingNeed(this.household(p)))) {
         if (h >= 8.5 && h < 17.5 && !this.raining) return { act: 'play', outdoor: true, zone: p.id % 3 ? 'square' : 'home' };
         return { act: 'home', b: home };
       }
       if (p.stage === 'baby') return { act: 'home', b: home };
       // shopping for the household when the pantry is running low
       const hh = this.household(p);
-      if (h >= 9 && h < 17.5 && p.age >= 16 && hh.shopper === p.id) {
+      if (h >= 9 && h < 17.5 && p.age >= 10 && hh.shopper === p.id) {
         const need = this.shoppingNeed(hh);
         if (need) return { act: 'shop', b: need.biz, good: need.good, qty: need.qty };
       }
@@ -3029,10 +3316,11 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     household(p) { return this.households[p.household - 1] || (p._purse = p._purse || { money: 200, pantry: {}, members: [p.id] }); }
     shoppingNeed(hh) {
       const n = hh.members.length;
-      const ok = (g) => !(hh.failed && hh.failed[g] === this.day);
-      if (hh.pantry.bread < n && ok('bread')) { const bz = this.supplierOf('bakery'); if (bz && (bz.stock.bread || 0) > 0) return { biz: bz.id, good: 'bread', qty: n * 2 }; }
-      if (hh.pantry.cabbage < Math.ceil(n / 2) && ok('cabbage')) { const bz = this.supplierOf('store'); if (bz && (bz.stock.cabbage || 0) > 0) return { biz: bz.id, good: 'cabbage', qty: n }; }
-      if (hh.pantry.firewood < 2 && ok('firewood')) { const bz = this.supplierOf('store'); if (bz && (bz.stock.firewood || 0) > 0) return { biz: bz.id, good: 'firewood', qty: 4 }; }
+      const ok = (g) => !(hh.failed && hh.failed[g] > this.day * 1440 + this.minute);
+      const openNow = (bz) => bz && bz.open;
+      if (hh.pantry.bread < n * (this.weekday === 5 ? 2.5 : 1.2) && ok('bread')) { const bz = this.supplierOf('bakery'); if (openNow(bz) && (bz.stock.bread || 0) > 0) return { biz: bz.id, good: 'bread', qty: n * (this.weekday === 5 ? 3 : 2) }; }
+      if (hh.pantry.cabbage < Math.ceil(n / 2) && ok('cabbage')) { const bz = this.supplierOf('store'); if (openNow(bz) && (bz.stock.cabbage || 0) > 0) return { biz: bz.id, good: 'cabbage', qty: n }; }
+      if (hh.pantry.firewood < 2 && ok('firewood')) { const bz = this.supplierOf('store'); if (openNow(bz) && (bz.stock.firewood || 0) > 0) return { biz: bz.id, good: 'firewood', qty: 4 }; }
       return null;
     }
 
@@ -3047,6 +3335,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         case 'bench': return [37, 23];
         case 'farm': return pick(7, 56, 33, 61);
         case 'wood': return pick(34, 4, 44, 12);
+        case 'site': { const b = this.building(p.activity?.site ?? p.job?.biz); if (!b) return [46, 29]; return pick(b.x - 1, b.bottom + 1, b.x + b.w, b.bottom + 2); }
         default: return pick(38, 23, 54, 29);
       }
     }
@@ -3070,19 +3359,20 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       }
     }
 
-    speedOf(p) { return p.stage === 'elder' ? WALK.elder : p.age < 13 ? WALK.child : WALK.adult; }
+    speedOf(p) { const base = p.stage === 'elder' ? WALK.elder : p.age < 13 ? WALK.child : WALK.adult; const w = this.weather; return base * (w && w.snowCover > 0.4 ? 0.78 : w && w.wet > 0.6 ? 0.9 : 1); }
 
     // dtm: elapsed game minutes this frame
     tick(dtm) {
       if (dtm <= 0) return;
       this.minute += dtm;
+      this.weather.tick(dtm);
       while (this.minute >= 1440) { this.minute -= 1440; this.day++; this.newDay(); }
       const curMin = Math.floor(this.minute);
       // per-minute logic (catch up when fast-forwarding, capped)
       let steps = (curMin - this._lastMin + 1440) % 1440;
       if (this._lastMin < 0) steps = 1;
       steps = Math.min(steps, 30);
-      for (let s = 0; s < steps; s++) this.minuteTick();
+      for (let s = 0; s < steps; s++) { this._m = (this._lastMin < 0 ? curMin : (this._lastMin + 1 + s) % 1440); this.minuteTick(); }
       this._lastMin = curMin;
       for (const p of this.people) this.move(p, dtm);
     }
@@ -3091,14 +3381,53 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const h = this.hour;
       for (const bz of this.biz.values()) {
         const [o, c] = bz.def.hours; const wasOpen = bz.open;
-        bz.open = this.weekday === 6 && bz.type !== 'tavern' && !bz.def.public ? false : h >= o && h < c;
+        bz.open = this.weekday === 6 && bz.type !== 'tavern' && !bz.def.public ? (bz.type === 'bakery' && h >= 6 && h < 9) : h >= o && h < c;
         if (bz.open && !wasOpen) this.openBusiness(bz);
         if (!bz.open && wasOpen) this.closeBusiness(bz);
-        if (bz.open && Math.floor(this.minute) % 90 === 0) this.openBusiness(bz);
-        if (bz.def.public && Math.floor(this.minute) === 18 * 60) this.payWages(bz);
-        for (const o of bz.orders) if (o.waiting && Math.floor(this.minute) % 20 === 0) { o.waiting = false; this.assignDelivery(o); }
+        if (bz.open && this._m % 90 === 0) this.openBusiness(bz);
+        if (bz.def.public && this._m === 18 * 60) this.payWages(bz);
+        for (const o of bz.orders) if (o.waiting && this._m % 20 === 0) { o.waiting = false; this.assignDelivery(o); }
       }
       for (const p of this.people) this.personMinute(p);
+      this.build.tickMinute();
+      const mm = this._m;
+      if (mm === 6 * 60 + 30) this.labourMarket();
+      if (mm === 18 * 60 + 5) this.endCasualDay();
+      if (mm === 18 * 60 + 30) this.parishRelief();
+    }
+
+    // Each morning people without work look for a day's labour where an employer can pay for it.
+    labourMarket() {
+      if (this.weekday === 6) return;
+      const seekers = this.people.filter((p) => !p.visitor && !p.job && p.age >= 14 && p.age < 63 && this.household(p).money < 80 && !p.arriving);
+      const employers = [...this.biz.values()].filter((bz) => !bz.def.public && bz.type !== 'tavern' && (bz.type !== 'farmhouse' || this.season !== 'winter'));
+      let hired = 0;
+      for (const p of seekers) {
+        const bz = employers.filter((b) => b.cash > 45 + b.workers.length * 6 && b.workers.filter((id) => this.byId.get(id)?.job?.casual).length < (b.type === 'site' ? 3 : 2)).sort((a, c) => c.cash - a.cash)[0];
+        if (!bz) break;
+        p.job = { biz: bz.id, role: bz.type === 'site' ? 'builder' : 'labourer', casual: true };
+        p.skills[p.job.role] = p.skills[p.job.role] || 0.3;
+        bz.workers.push(p.id); hired++;
+      }
+      if (hired) this.log(`${hired} villagers found a day's labour.`, 'economy');
+    }
+    endCasualDay() {
+      for (const p of this.people) if (p.job?.casual) { const bz = this.biz.get(p.job.biz); if (bz) bz.workers = bz.workers.filter((id) => id !== p.id); p.job = null; }
+    }
+    // The parish feeds households that have neither food nor money, paid from the treasury.
+    parishRelief() {
+      const bk = this.supplierOf('bakery'); if (!bk) return;
+      let fed = 0;
+      for (const hh of this.households) {
+        if (hh.money >= 8 || hh.pantry.bread >= 1) continue;
+        const loaves = Math.min(hh.members.length, Math.floor(bk.stock.bread || 0));
+        const cost = loaves * this.price(bk, 'bread');
+        if (!loaves || this.treasury.cash < cost) continue;
+        bk.stock.bread -= loaves; bk.cash += cost; this.treasury.cash -= cost; this.treasury.spent += cost;
+        hh.pantry.bread += loaves; fed++;
+        for (const id of hh.members) { const q = this.byId.get(id); if (q && q.age >= 13) this.remember(q, 'The parish gave us bread when we had nothing.', 'hardship', 1); }
+      }
+      if (fed) this.log(`Parish relief bought bread for ${fed} destitute ${fed === 1 ? 'family' : 'families'}.`, 'politics');
     }
 
     personMinute(p) {
@@ -3119,7 +3448,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       if (act.outdoor && !a.path && a.goal && a.inside == null) {
         a.wait = (a.wait || 0) + 1;
         this.doOutdoor(p, act);
-        if (a.wait > (act.act === 'sit' ? 90 : act.act === 'patrol' ? 2 : act.act === 'chop' || act.act === 'fieldwork' || act.act === 'forage' ? 40 : 18)) { a.goal = null; a.wait = 0; }
+        if (a.wait > (act.act === 'sit' ? 90 : act.act === 'patrol' ? 2 : act.act === 'chop' || act.act === 'fieldwork' || act.act === 'forage' || act.act === 'build' ? 40 : 18)) { a.goal = null; a.wait = 0; }
         return;
       }
       if (!a.path && !a.goal) this.route(p, act);
@@ -3164,7 +3493,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     idleAnim(p) {
       const act = p.activity?.act;
       if (act === 'sit') return 'sit';
-      if (act === 'chop' || act === 'fieldwork') return 'work';
+      if (act === 'chop' || act === 'fieldwork' || act === 'build') return 'work';
       if (act === 'forage') return 'crouch';
       if (act === 'wait-work' || act === 'stroll') return p.agent.talking ? 'talk' : 'idle';
       if (p.agent.talking) return 'talk';
@@ -3203,7 +3532,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         case 'socialise': {
           const bz = this.biz.get(act.b);
           p.needs.social = Math.min(100, p.needs.social + 0.25);
-          if (bz && this.minute % 45 < 1 && (bz.stock.ale || 0) >= 1) { const pr = this.price(bz, 'ale'); if (hh.money >= pr) this.sale(bz, 'ale', 1, pr, hh); }
+          if (bz && this._m % 45 === 0 && (bz.stock.ale || 0) >= 1) { const pr = this.price(bz, 'ale'); if (hh.money >= pr) this.sale(bz, 'ale', 1, pr, hh); }
           if (bz && p.needs.hunger < 50 && (bz.stock.meal || 0) >= 1) { const pr = this.price(bz, 'meal'); if (hh.money >= pr) { this.sale(bz, 'meal', 1, pr, hh); p.needs.hunger = Math.min(100, p.needs.hunger + 60); } }
           // meet others in the tavern
           if (this.rng.chance(0.03)) {
@@ -3220,7 +3549,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     }
 
     doOutdoor(p, act) {
-      if (act.act === 'fieldwork' || act.act === 'chop' || act.act === 'forage') this.work(p);
+      if (act.act === 'fieldwork' || act.act === 'chop' || act.act === 'forage' || act.act === 'build') this.work(p);
       if ((act.act === 'stroll' || act.act === 'wait-work') && this.rng.chance(0.01)) {
         const near = this.people.find((q) => q !== p && !q.agent.hidden && Math.hypot(q.agent.x - p.agent.x, q.agent.y - p.agent.y) < 30);
         if (near) { this.relate(p, near, 0.02); p.agent.talking = 20; }
@@ -3231,20 +3560,22 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     // ------------------------------------------------------------------ economy
     work(p) {
       const bz = this.biz.get(p.job.biz); if (!bz) return;
+      if (bz.type === 'site') return this.build.work(p, bz);
       const role = p.job.role; const sk = p.skills[role] || 0.3;
+      const seasonal = bz.type === 'farmhouse' ? { spring: 0.55, summer: 1, autumn: 1.5, winter: 0.15 }[this.season] * (this.weather.kind === 'heat' ? 0.8 : 1) : 1;
       p.skills[role] = Math.min(1, sk + 0.00004 * (this.has(p, 'ambitious') ? 1.6 : 1));
       p.needs.energy = Math.max(0, p.needs.energy - 0.04);
       for (const rc of bz.def.recipes) {
         if (rc.role && rc.role !== role) continue;
         // output scaled by skill: beginners work at half the pace of masters
-        const rate = (0.5 + sk * 0.75) / 60;
-        const target = bz.def.targets; let full = true;
-        for (const g of Object.keys(rc.out)) if ((bz.stock[g] || 0) >= (target[g] || 99) * 1.4) full = false;
-        if (!full) continue;
+        const rate = ((0.5 + sk * 0.75) / 60) * seasonal;
+        const target = bz.def.targets;
+        const room = Object.keys(rc.out).filter((g) => (bz.stock[g] || 0) < (target[g] || 99) * 1.4);
+        if (!room.length) continue;
         let ok = true; for (const [g, q] of Object.entries(rc.inp)) if ((bz.stock[g] || 0) < q * rate) ok = false;
         if (!ok) { if (!bz._shortNoted) { bz._shortNoted = true; this.log(`${bz.name} ran short of ${Object.keys(rc.inp).map((g) => G[g].name.toLowerCase()).join(' and ')}.`, 'economy'); } continue; }
         for (const [g, q] of Object.entries(rc.inp)) bz.stock[g] -= q * rate;
-        for (const [g, q] of Object.entries(rc.out)) { bz.stock[g] = (bz.stock[g] || 0) + q * rate; this.stats.produced[g] = (this.stats.produced[g] || 0) + q * rate; }
+        for (const [g, q] of Object.entries(rc.out)) { if (!room.includes(g)) continue; bz.stock[g] = (bz.stock[g] || 0) + q * rate; this.stats.produced[g] = (this.stats.produced[g] || 0) + q * rate; }
       }
     }
 
@@ -3258,11 +3589,11 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
     buy(p, act) {
       const bz = this.biz.get(act.b), hh = this.household(p);
-      if (!bz || !bz.open) { hh.failed = hh.failed || {}; hh.failed[act.good] = this.day; this.remember(p, `${bz?.name || 'The shop'} was shut when I went for ${G[act.good].name.toLowerCase()}.`, 'hardship', 0.5); return; }
+      if (!bz || !bz.open) { hh.failed = hh.failed || {}; hh.failed[act.good] = this.day * 1440 + this.minute + 60; this.remember(p, `${bz?.name || 'The shop'} was shut when I went for ${G[act.good].name.toLowerCase()}.`, 'hardship', 0.5); return; }
       const pr = this.price(bz, act.good);
       const affordable = Math.floor(hh.money / pr);
       const qty = Math.min(act.qty, Math.floor(bz.stock[act.good] || 0), affordable);
-      if (qty <= 0) { hh.failed = hh.failed || {}; hh.failed[act.good] = this.day; this.remember(p, affordable <= 0 ? `Couldn't afford ${G[act.good].name.toLowerCase()} at ${pr}d.` : `${bz.name} had no ${G[act.good].name.toLowerCase()} left.`, 'hardship', 1); p.task = null; return; }
+      if (qty <= 0) { hh.failed = hh.failed || {}; hh.failed[act.good] = this.day * 1440 + this.minute + (affordable <= 0 ? 600 : 120); this.remember(p, affordable <= 0 ? `Couldn't afford ${G[act.good].name.toLowerCase()} at ${pr}d.` : `${bz.name} had no ${G[act.good].name.toLowerCase()} left.`, 'hardship', 1); p.task = null; return; }
       this.sale(bz, act.good, qty, pr, hh);
       if (pr > G[act.good].base * 1.6) this.remember(p, `${G[act.good].name} has gone up to ${pr}d at ${bz.name}.`, 'economy', 0.8);
       // carry the goods home in person
@@ -3291,7 +3622,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       // pay wages at closing
       for (const wid of bz.workers) {
         const w = this.byId.get(wid); if (!w) continue;
-        const wage = bz.def.wage[w.job.role] || 0; if (!wage) continue;
+        const wage = bz.def.wage[w.job.role] || (w.job.casual ? 5 : 0); if (!wage) continue;
         const hh = this.household(w);
         if (bz.def.public) { this.treasury.cash -= wage; this.treasury.spent += wage; hh.money += wage; this.stats.wages += wage; continue; }
         const paid = Math.max(0, Math.min(wage, Math.floor(bz.cash)));
@@ -3360,13 +3691,19 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       // tools wear out with use and must be replaced from the smithy
       for (const bz of this.biz.values()) if (bz.def.targets.tools && bz.type !== 'smithy') bz.stock.tools = Math.max(0, (bz.stock.tools || 0) - 0.12 * bz.workers.length);
       // weekly hearth tax on Moonday
-      if (this.weekday === 0) for (const hh of this.households) { const t = Math.min(3, Math.max(0, hh.money)); hh.money -= t; this.treasury.cash += t; this.treasury.income += t; }
+      if (this.weekday === 0) for (const hh of this.households) {
+        const t = Math.min(3, Math.max(0, hh.money)) + (hh.money > 250 ? Math.floor((hh.money - 250) * 0.05) : 0);
+        hh.money -= t; this.treasury.cash += t; this.treasury.income += t;
+      }
       // households pick a shopper who is free in the day
       for (const hh of this.households) {
         const adults = hh.members.map((id) => this.byId.get(id)).filter((p) => p && p.age >= 16);
-        hh.shopper = (adults.find((p) => !p.job || p.shift === 'night') || adults[this.day % Math.max(1, adults.length)] || {}).id;
+        const errand = hh.members.map((id) => this.byId.get(id)).find((p) => p && p.age >= 10 && p.age < 16);
+        hh.shopper = (adults.find((p) => !p.job || p.shift === 'night') || errand || adults[this.day % Math.max(1, adults.length)] || {}).id;
       }
-      // trader visits finish
+      this.build.daily();
+      const season = this.season;
+      if (season !== this._season) { if (this._season) this.log(`${season[0].toUpperCase() + season.slice(1)} comes to Ashford.`, 'season'); this._season = season; this.seasonChanged = true; }
       this.log(`${DAYNAMES[this.weekday]} dawns over Ashford.`, 'day');
     }
 
@@ -3396,6 +3733,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   // carry-home and delivery tasks finish on entering the destination
   const _onEnter = Sim.prototype.onEnter;
   Sim.prototype.onEnter = function (p, bid) {
+    if (p.task?.act === 'move-in' && bid === p.task.b) { p.task = null; p.arriving = false; p.agent.carrying = null; return; }
     if (p.task?.act === 'carry-home' && bid === p.task.b) {
       const hh = this.household(p); hh.pantry[p.task.good] = (hh.pantry[p.task.good] || 0) + p.task.qty;
       p.task = null; p.agent.carrying = null; return;
@@ -3534,7 +3872,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   const cache = new Map();
   const wood = () => P.mat(P.wood.oak, 'wood'), dark = () => P.mat(P.wood.dark, 'wood'), pine = () => P.mat(P.wood.pine, 'wood');
   const stone = () => P.mat('#8e8880', 'cloth'), iron = () => P.mat(P.metal.darkIron, 'metal');
-  const GOOD_COL = { bread: '#c88a45', cabbage: '#6a9a44', flour: '#e6dcc4', wheat: '#d8b048', ale: '#8a5a30', meal: '#a0603a', logs: '#7c5a38', firewood: '#8a6239', iron: '#7a7e88', tools: '#9aa0aa', medicine: '#6a9ad0', herbs: '#5a9a40' };
+  const GOOD_COL = { bread: '#c88a45', cabbage: '#6a9a44', flour: '#e6dcc4', wheat: '#d8b048', ale: '#8a5a30', meal: '#a0603a', logs: '#7c5a38', firewood: '#8a6239', iron: '#7a7e88', tools: '#9aa0aa', medicine: '#6a9ad0', herbs: '#5a9a40', stone: '#9a948a' };
 
   function finish(B, ox, oy, opts) { return { canvas: B.toCanvas(opts), ox, oy, W: B.w, H: B.h }; }
 
@@ -4340,7 +4678,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   const G = O.Data.GOODS;
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const ACT_LABEL = {
-    sleep: 'asleep', work: 'working', fieldwork: 'working the fields', chop: 'felling timber', forage: 'gathering herbs', patrol: 'on patrol', eat: 'having a meal', 'eat-out': 'eating at the tavern',
+    sleep: 'asleep', work: 'working', fieldwork: 'working the fields', chop: 'felling timber', build: 'building the new house', 'move-in': 'moving to Ashford', forage: 'gathering herbs', patrol: 'on patrol', eat: 'having a meal', 'eat-out': 'eating at the tavern',
     home: 'at home', play: 'playing', shop: 'shopping', socialise: 'drinking at the Lantern', sit: 'resting on the bench', stroll: 'taking the air', worship: 'at chapel',
     'wait-work': 'waiting for carrying work', pickup: 'collecting goods', deliver: 'making a delivery', 'carry-home': 'carrying shopping home', import: 'bringing goods to market', rest: 'resting at the inn', leave: 'leaving town',
   };
@@ -4624,6 +4962,131 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   }
   O.escape = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   O.Interact = { setup };
+})();
+
+</script>
+<script>
+// Weather rendering: puddles and snow on the ground, snow on roofs, cloud shadows, rain and snow
+// particles with splashes, rolling fog and lightning. All drawn on the pixel grid.
+'use strict';
+(function () {
+  function setup(game, sim) {
+    const W = sim.weather, world = sim.world, T = world.T;
+    const pw = world.W * T, ph = world.H * T;
+    let puddles = null, snowLevels = [], fogTex = null;
+    const drops = [], flakes = [], splashes = [];
+
+    function makePuddles() {
+      const c = document.createElement('canvas'); c.width = pw; c.height = ph;
+      const ctx = c.getContext('2d'), id = ctx.createImageData(pw, ph), d = id.data;
+      const { ter, TER } = world;
+      for (let y = 1; y < ph - 1; y++) for (let x = 1; x < pw - 1; x++) {
+        const t = ter[Math.floor(y / T) * world.W + Math.floor(x / T)];
+        if (t !== TER.ROAD && t !== TER.YARD && t !== TER.COBBLE && t !== TER.FIELD) continue;
+        const n = O.fbm(x / 9, y / 5, 77, 2);
+        if (n < 0.66) continue;
+        const i = (y * pw + x) * 4;
+        const edge = O.fbm((x - 1) / 9, (y - 1) / 5, 77, 2) < 0.66;
+        const col = edge ? [150, 170, 190] : n > 0.72 ? [70, 84, 104] : [86, 100, 118];
+        d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255;
+      }
+      ctx.putImageData(id, 0, 0); return c;
+    }
+    function makeSnow(level) {
+      const c = document.createElement('canvas'); c.width = pw; c.height = ph;
+      const ctx = c.getContext('2d'), id = ctx.createImageData(pw, ph), d = id.data;
+      const { ter, TER } = world;
+      const ramp = O.Pal.makeRamp('#e6ecf2', 0.6);
+      for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) {
+        const t = ter[Math.floor(y / T) * world.W + Math.floor(x / T)];
+        if (t === TER.WATER) continue;
+        const n = O.fbm(x / 14, y / 14, 31, 3) * 0.8 + O.noise2(x * 0.9, y * 0.9, 3) * 0.2;
+        const thr = (t === TER.ROAD || t === TER.COBBLE ? 0.25 : 0) + (1 - level);
+        if (n < thr) continue;
+        const i = (y * pw + x) * 4, s = n > thr + 0.25 ? 4 : n > thr + 0.08 ? 3 : 2;
+        d[i] = ramp[s][0]; d[i + 1] = ramp[s][1]; d[i + 2] = ramp[s][2]; d[i + 3] = 255;
+      }
+      ctx.putImageData(id, 0, 0); return c;
+    }
+    function makeFog() {
+      const c = document.createElement('canvas'); c.width = 256; c.height = 128;
+      const ctx = c.getContext('2d'), id = ctx.createImageData(256, 128);
+      for (let y = 0; y < 128; y++) for (let x = 0; x < 256; x++) {
+        const n = O.fbm(x / 40, y / 14, 5, 3);
+        const a = n > 0.62 ? 120 : n > 0.5 ? 80 : n > 0.4 ? 40 : 0;
+        const i = (y * 256 + x) * 4; id.data[i] = 214; id.data[i + 1] = 218; id.data[i + 2] = 226; id.data[i + 3] = a;
+      }
+      ctx.putImageData(id, 0, 0); return c;
+    }
+
+    // tint the day by the weather (clouds darken, snow brightens to blue-white)
+    game.hooks.update.push((dt) => {
+      const k = W.kind;
+      game.weatherTint = k === 'storm' ? [0.62, 0.64, 0.74] : k === 'heavy' ? [0.72, 0.75, 0.84] : k === 'rain' ? [0.8, 0.83, 0.9] : k === 'cloudy' ? [0.88, 0.9, 0.94] : k === 'fog' ? [0.9, 0.92, 0.95] : k === 'snow' ? [0.9, 0.93, 1] : k === 'heat' ? [1, 0.97, 0.9] : [1, 1, 1];
+      game.snowAlpha = O.clamp(W.snowCover * 1.3 - 0.1, 0, 0.95);
+      if (k === 'storm' && Math.random() < dt * 0.25) W.flash = 1;
+      W.flash = Math.max(0, W.flash - dt * 2.5);
+      // particles in screen space
+      const vw = game.vw, vh = game.vh;
+      const rainN = W.raining ? Math.round((W.kind === 'rain' ? 70 : W.kind === 'heavy' ? 150 : 200) * (vw * vh) / (480 * 300)) : 0;
+      while (drops.length < rainN) drops.push({ x: Math.random() * (vw + 40) - 20, y: Math.random() * vh - vh, l: 3 + Math.random() * 3, v: 220 + Math.random() * 80, end: Math.random() * vh });
+      if (drops.length > rainN) drops.length = rainN;
+      const wind = W.wind * 60;
+      for (const d of drops) {
+        d.y += d.v * dt; d.x += wind * dt;
+        if (d.y > d.end) { if (splashes.length < 80) splashes.push({ x: d.x, y: d.end, t: 0 }); d.y = -Math.random() * 40; d.x = Math.random() * (vw + 40) - 20 - wind * 0.4; d.end = Math.random() * vh + 10; }
+      }
+      for (const s of splashes) s.t += dt;
+      while (splashes.length && splashes[0].t > 0.18) splashes.shift();
+      const snowN = W.kind === 'snow' ? Math.round(110 * (vw * vh) / (480 * 300)) : 0;
+      while (flakes.length < snowN) flakes.push({ x: Math.random() * vw, y: Math.random() * vh, v: 14 + Math.random() * 14, ph: Math.random() * 6, s: Math.random() < 0.3 ? 2 : 1 });
+      if (flakes.length > snowN) flakes.length = snowN;
+      for (const f of flakes) { f.y += f.v * dt; f.x += Math.sin(game.t * 1.5 + f.ph) * 8 * dt + wind * 0.2 * dt; if (f.y > vh) { f.y = -2; f.x = Math.random() * vw; } }
+    });
+
+    game.hooks.drawGround.push((ctx, cam) => {
+      if (W.wet > 0.05) { if (!puddles) puddles = makePuddles(); ctx.globalAlpha = Math.min(0.85, W.wet); ctx.drawImage(puddles, cam.x, cam.y, game.vw, game.vh, 0, 0, game.vw, game.vh); ctx.globalAlpha = 1; }
+      if (W.snowCover > 0.05) {
+        const lv = Math.min(3, Math.floor(W.snowCover * 4));
+        if (!snowLevels[lv]) snowLevels[lv] = makeSnow((lv + 1) / 4);
+        ctx.drawImage(snowLevels[lv], cam.x, cam.y, game.vw, game.vh, 0, 0, game.vw, game.vh);
+      }
+    });
+
+    // drifting cloud shadows over the world
+    game.hooks.drawWorld.push((ctx, cam) => {
+      const k = W.kind; if (!(k === 'cloudy' || k === 'rain' || k === 'heavy' || k === 'storm')) return;
+      ctx.fillStyle = 'rgba(24,22,44,0.13)';
+      const drift = game.t * (6 + W.wind * 20);
+      for (let i = 0; i < 7; i++) {
+        const cx = ((i * 431 + drift) % (pw + 400)) - 200 - cam.x, cy = ((i * 277) % ph) - cam.y;
+        const rx = 70 + (i % 3) * 30, ry = 40 + (i % 2) * 18;
+        if (cx < -rx * 1.5 || cx > game.vw + rx * 1.5 || cy < -ry * 1.5 || cy > game.vh + ry * 1.5) continue;
+        for (let y = -ry; y <= ry; y += 1) { const w = Math.round(rx * Math.sqrt(1 - (y * y) / (ry * ry)) * (1 + 0.15 * Math.sin(y * 0.3 + i))); ctx.fillRect(Math.round(cx - w), Math.round(cy + y), w * 2, 1); }
+      }
+    });
+
+    game.hooks.drawTop.push((ctx, cam, indoor) => {
+      if (indoor) return;
+      if (drops.length) {
+        ctx.fillStyle = 'rgba(190,206,232,0.55)';
+        const sl = W.wind * 0.35;
+        for (const d of drops) for (let k = 0; k < d.l; k++) ctx.fillRect(Math.round(d.x + k * sl), Math.round(d.y + k), 1, 1);
+        ctx.fillStyle = 'rgba(210,222,240,0.7)';
+        for (const s of splashes) { const r = s.t < 0.09 ? 1 : 2; ctx.fillRect(Math.round(s.x - r), Math.round(s.y), 1, 1); ctx.fillRect(Math.round(s.x + r), Math.round(s.y), 1, 1); if (r === 1) ctx.fillRect(Math.round(s.x), Math.round(s.y - 1), 1, 1); }
+      }
+      if (flakes.length) { ctx.fillStyle = '#f4f8ff'; for (const f of flakes) ctx.fillRect(Math.round(f.x), Math.round(f.y), f.s, f.s); }
+      if (W.kind === 'fog') {
+        if (!fogTex) fogTex = makeFog();
+        ctx.globalAlpha = 0.8;
+        const ox = Math.floor(game.t * 4) % 512, oy = 0;
+        for (let y = -((cam.y / 2) % 256) - 256; y < game.vh; y += 256) for (let x = -((cam.x / 2 + ox) % 512) - 512; x < game.vw; x += 512) ctx.drawImage(fogTex, Math.round(x), Math.round(y + oy), 512, 256);
+        ctx.globalAlpha = 1;
+      }
+      if (W.flash > 0.02) { ctx.fillStyle = `rgba(235,240,255,${(W.flash * 0.55).toFixed(2)})`; ctx.fillRect(0, 0, game.vw, game.vh); }
+    });
+  }
+  O.WeatherFX = { setup };
 })();
 
 </script>
@@ -4956,6 +5419,40 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     PS.tick(dt * game.clock.speed, false);
     game.actors = [game.player, ...sim.people.map((p) => p.agent)];
   });
+  O.WeatherFX.setup(game, sim);
+  // keep building sprites in step with the simulation (construction stages, storm damage, repairs)
+  // and swap foliage, ground and crops when the season turns
+  function cropFor(p, season, dos) {
+    const wheat = p.field === 'wheat';
+    if (season === 'spring') return ['sprout', 1];
+    if (season === 'summer') return wheat ? ['wheat', 2] : ['cabbage', 1];
+    if (season === 'autumn') return dos < 9 ? (wheat ? ['wheat', 3] : ['cabbage', 1]) : ['soilrow', 0];
+    return ['soilrow', 0];
+  }
+  function applySeason() {
+    const season = sim.season, dos = sim.weather.dayOfSeason;
+    game.season = season;
+    for (const p of world.props) if (p.field) { const [k, v] = cropFor(p, season, dos); if (p.kind !== k || p.v !== v) { p.kind = k; p.v = v; p.sprite = O.Env.prop(k, p.seed, v); } }
+  }
+  for (const p of world.props) if (p.kind === 'wheat' || p.kind === 'cabbage' || p.kind === 'sprout') p.field = p.kind === 'cabbage' ? 'cabbage' : 'wheat';
+  applySeason();
+  let lastHarvestCheck = -1;
+  game.hooks.update.push(() => {
+    for (const b of world.buildings) if (b.dirty) {
+      b.dirty = false;
+      if (b.site) { const si = sim.build.siteInfo(b.id); b.sprite = O.Env.staged(b.spec, si.stage, si.prog); }
+      else { b.spec.condition = b.condition; b.sprite = O.Env.building(b.spec); }
+    }
+    if (world.dirtyStatics) game.rebuildStatics();
+    if (sim.seasonChanged) {
+      sim.seasonChanged = false; game.season = sim.season;
+      game.ground = O.Terrain.renderGround(world, sim.season);
+      for (const t of world.trees) t.sprite = O.Env.tree(t.seed, t.kind, sim.season);
+      applySeason();
+      O.Panels.toast(`${sim.season[0].toUpperCase() + sim.season.slice(1)} has come.`);
+    }
+    if (sim.day !== lastHarvestCheck) { lastHarvestCheck = sim.day; applySeason(); }
+  });
   const npcUI = O.NpcUI.setup(game, sim);
   O.Interact.setup(game, sim, npcUI);
   const sbtn = document.createElement('button'); sbtn.className = 'btn ghost satchel-btn'; sbtn.textContent = 'Satchel (I)';
@@ -4974,7 +5471,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     const where = placeName();
     const bar = (v, c) => `<span class="bar ${c}"><i style="width:${Math.round(v)}%"></i></span>`;
     const wanted = PS.crimes.length ? (PS.rep.local < -0.3 ? 'SOUGHT' : 'WATCHED') : 'NONE';
-    tl.innerHTML = `<div class="place">${where}</div><div class="clock">${DAYS[(game.clock.day - 1) % 7].toUpperCase()} · DAY ${game.clock.day} · ${game.timeString()}</div><div class="lbl">${game.season.toUpperCase()} · CLEAR</div>
+    tl.innerHTML = `<div class="place">${where}</div><div class="clock">${DAYS[(game.clock.day - 1) % 7].toUpperCase()} · DAY ${game.clock.day} · ${game.timeString()}</div><div class="lbl">${sim.season.toUpperCase()} · DAY ${sim.weather.dayOfSeason} OF ${O.SEASON_DAYS} · ${sim.weather.label.toUpperCase()}</div>
       <div class="vitals"><span class="lbl">Health</span>${bar(PS.hp, PS.hp < 30 ? 'warn' : '')}<span class="lbl">Fed</span>${bar(PS.hunger, PS.hunger < 25 ? 'warn' : '')}<span class="lbl">Rested</span>${bar(PS.energy, PS.energy < 25 ? 'warn' : '')}</div>
       <div class="purse-row"><span class="lbl">Purse</span><b>${O.money(PS.money)}</b><span class="lbl">Wanted</span><b class="${wanted !== 'NONE' ? 'warn' : ''}">${wanted}</b></div>`;
   }

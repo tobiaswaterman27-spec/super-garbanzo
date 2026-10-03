@@ -16,6 +16,40 @@
     PS.tick(dt * game.clock.speed, false);
     game.actors = [game.player, ...sim.people.map((p) => p.agent)];
   });
+  O.WeatherFX.setup(game, sim);
+  // keep building sprites in step with the simulation (construction stages, storm damage, repairs)
+  // and swap foliage, ground and crops when the season turns
+  function cropFor(p, season, dos) {
+    const wheat = p.field === 'wheat';
+    if (season === 'spring') return ['sprout', 1];
+    if (season === 'summer') return wheat ? ['wheat', 2] : ['cabbage', 1];
+    if (season === 'autumn') return dos < 9 ? (wheat ? ['wheat', 3] : ['cabbage', 1]) : ['soilrow', 0];
+    return ['soilrow', 0];
+  }
+  function applySeason() {
+    const season = sim.season, dos = sim.weather.dayOfSeason;
+    game.season = season;
+    for (const p of world.props) if (p.field) { const [k, v] = cropFor(p, season, dos); if (p.kind !== k || p.v !== v) { p.kind = k; p.v = v; p.sprite = O.Env.prop(k, p.seed, v); } }
+  }
+  for (const p of world.props) if (p.kind === 'wheat' || p.kind === 'cabbage' || p.kind === 'sprout') p.field = p.kind === 'cabbage' ? 'cabbage' : 'wheat';
+  applySeason();
+  let lastHarvestCheck = -1;
+  game.hooks.update.push(() => {
+    for (const b of world.buildings) if (b.dirty) {
+      b.dirty = false;
+      if (b.site) { const si = sim.build.siteInfo(b.id); b.sprite = O.Env.staged(b.spec, si.stage, si.prog); }
+      else { b.spec.condition = b.condition; b.sprite = O.Env.building(b.spec); }
+    }
+    if (world.dirtyStatics) game.rebuildStatics();
+    if (sim.seasonChanged) {
+      sim.seasonChanged = false; game.season = sim.season;
+      game.ground = O.Terrain.renderGround(world, sim.season);
+      for (const t of world.trees) t.sprite = O.Env.tree(t.seed, t.kind, sim.season);
+      applySeason();
+      O.Panels.toast(`${sim.season[0].toUpperCase() + sim.season.slice(1)} has come.`);
+    }
+    if (sim.day !== lastHarvestCheck) { lastHarvestCheck = sim.day; applySeason(); }
+  });
   const npcUI = O.NpcUI.setup(game, sim);
   O.Interact.setup(game, sim, npcUI);
   const sbtn = document.createElement('button'); sbtn.className = 'btn ghost satchel-btn'; sbtn.textContent = 'Satchel (I)';
@@ -34,7 +68,7 @@
     const where = placeName();
     const bar = (v, c) => `<span class="bar ${c}"><i style="width:${Math.round(v)}%"></i></span>`;
     const wanted = PS.crimes.length ? (PS.rep.local < -0.3 ? 'SOUGHT' : 'WATCHED') : 'NONE';
-    tl.innerHTML = `<div class="place">${where}</div><div class="clock">${DAYS[(game.clock.day - 1) % 7].toUpperCase()} · DAY ${game.clock.day} · ${game.timeString()}</div><div class="lbl">${game.season.toUpperCase()} · CLEAR</div>
+    tl.innerHTML = `<div class="place">${where}</div><div class="clock">${DAYS[(game.clock.day - 1) % 7].toUpperCase()} · DAY ${game.clock.day} · ${game.timeString()}</div><div class="lbl">${sim.season.toUpperCase()} · DAY ${sim.weather.dayOfSeason} OF ${O.SEASON_DAYS} · ${sim.weather.label.toUpperCase()}</div>
       <div class="vitals"><span class="lbl">Health</span>${bar(PS.hp, PS.hp < 30 ? 'warn' : '')}<span class="lbl">Fed</span>${bar(PS.hunger, PS.hunger < 25 ? 'warn' : '')}<span class="lbl">Rested</span>${bar(PS.energy, PS.energy < 25 ? 'warn' : '')}</div>
       <div class="purse-row"><span class="lbl">Purse</span><b>${O.money(PS.money)}</b><span class="lbl">Wanted</span><b class="${wanted !== 'NONE' ? 'warn' : ''}">${wanted}</b></div>`;
   }

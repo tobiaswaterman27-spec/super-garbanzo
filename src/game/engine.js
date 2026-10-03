@@ -21,7 +21,8 @@
       this.particles = [];
       this.touch = { x: 0, y: 0, active: false };
       this.running = false;
-      this.hooks = { update: [], drawWorld: [], hud: [] };
+      this.hooks = { update: [], drawWorld: [], hud: [], drawGround: [], drawTop: [] };
+      this.weatherTint = [1, 1, 1]; this.snowAlpha = 0;
       this.keyHandlers = [];
       this.scene = null;
     }
@@ -33,6 +34,13 @@
       for (const b of world.buildings) b.sprite = O.Env.building(b.spec);
       for (const t of world.trees) t.sprite = O.Env.tree(t.seed, t.kind, this.season);
       for (const p of world.props) p.sprite = O.Env.prop(p.kind, p.seed, p.v);
+      this.rebuildStatics();
+      this.player = { x: (46 * T) + 8, y: 32 * T + 4, dir: 0, anim: 'idle', ft: 0, a: playerAppearance, speed: 0 };
+      this.actors = [this.player];
+    }
+
+    rebuildStatics() {
+      const world = this.world, T = world.T;
       // depth-sorted static drawables (base y); dynamic actors are merged per frame
       this.statics = [];
       for (const b of world.buildings) this.statics.push({ y: (b.bottom + 1) * T, b });
@@ -41,10 +49,9 @@
       this.statics.sort((a, b) => a.y - b.y);
       this.flatProps = this.statics.filter((s) => s.p && s.p.flat);
       this.statics = this.statics.filter((s) => !(s.p && s.p.flat));
-      const sq = world.buildings.find((b) => b.type === 'tavern');
-      this.player = { x: (46 * T) + 8, y: 32 * T + 4, dir: 0, anim: 'idle', ft: 0, a: playerAppearance, speed: 0 };
-      void sq;
-      this.actors = [this.player];
+      for (const t of world.trees) if (!t.sprite) t.sprite = O.Env.tree(t.seed, t.kind, this.season);
+      for (const p of world.props) if (!p.sprite) p.sprite = O.Env.prop(p.kind, p.seed, p.v);
+      world.dirtyStatics = false;
     }
 
     setPlayerAppearance(a) { if (this.player) this.player.a = a; }
@@ -143,11 +150,12 @@
     }
 
     draw() {
-      if (this.scene) { this.scene.draw(this.ctx); return; }
+      if (this.scene) { this.scene.draw(this.ctx); for (const h of this.hooks.drawTop) h(this.ctx, this.cam, true); return; }
       const { ctx, cam, vw, vh } = this, w = this.world, T = w.T;
       ctx.drawImage(this.ground, cam.x, cam.y, vw, vh, 0, 0, vw, vh);
       const inView = (x, y, wd, ht) => x + wd >= cam.x && x <= cam.x + vw && y + ht >= cam.y && y <= cam.y + vh;
       for (const s of this.flatProps) { const p = s.p, sp = p.sprite; const x = p.x - sp.ox, y = p.y - sp.oy; if (inView(x, y, sp.W, sp.H)) ctx.drawImage(sp.canvas, x - cam.x, y - cam.y); }
+      for (const h of this.hooks.drawGround) h(ctx, cam);
       // depth-sort statics + actors (actors inserted by feet y)
       const actors = this.actors.filter((a) => !a.hidden).slice().sort((a, b) => a.y - b.y);
       let ai = 0;
@@ -163,7 +171,7 @@
         while (ai < actors.length && actors[ai].y < s.y) drawActor(actors[ai++]);
         if (s.b) {
           const b = s.b, sp = b.sprite, x = b.x * T - sp.OV, y = (b.bottom + 1) * T - sp.H;
-          if (inView(x, y, sp.W, sp.H)) ctx.drawImage(sp.canvas, x - cam.x, y - cam.y);
+          if (inView(x, y, sp.W, sp.H)) { ctx.drawImage(sp.canvas, x - cam.x, y - cam.y); if (this.snowAlpha > 0.04 && sp.roofMask) { ctx.globalAlpha = this.snowAlpha; ctx.drawImage(sp.roofMask, x - cam.x, y - cam.y); ctx.globalAlpha = 1; } }
         } else {
           const o = s.t || s.p, sp = o.sprite, x = o.x - sp.ox, y = o.y - sp.oy;
           if (inView(x, y, sp.W, sp.H)) ctx.drawImage(sp.canvas, x - cam.x, y - cam.y);
@@ -180,6 +188,7 @@
         ctx.fillStyle = `rgba(214,210,206,${a.toFixed(2)})`; ctx.fillRect(Math.round(q.x - cam.x), Math.round(q.y - cam.y), sz, sz);
       }
       this.drawLighting();
+      for (const h of this.hooks.drawTop) h(ctx, cam);
     }
 
     // Day/night: ambient tint multiplied over the frame, with stepped pixel light pools punched out
@@ -189,7 +198,7 @@
       const keys = [[0, [52, 60, 112]], [4.5, [58, 66, 118]], [6, [236, 170, 140]], [7.5, [255, 250, 244]], [17, [255, 246, 232]], [19, [240, 160, 120]], [20.5, [90, 86, 140]], [22, [56, 62, 114]], [24, [52, 60, 112]]];
       for (let i = 0; i < keys.length - 1; i++) {
         const [h0, c0] = keys[i], [h1, c1] = keys[i + 1];
-        if (h >= h0 && h <= h1) { const t = (h - h0) / (h1 - h0); return c0.map((v, k) => Math.round(v + (c1[k] - v) * t)); }
+        if (h >= h0 && h <= h1) { const t = (h - h0) / (h1 - h0); return c0.map((v, k) => Math.round((v + (c1[k] - v) * t) * this.weatherTint[k])); }
       }
       return [255, 255, 255];
     }
@@ -213,7 +222,7 @@
     }
 
     drawLighting() {
-      const amb = this.ambient(); if (amb[0] > 250 && amb[1] > 245) return;
+      const amb = this.ambient(); if (amb[0] > 250 && amb[1] > 245 && amb[2] > 235) return;
       const { ctx, cam, vw, vh } = this, w = this.world, T = w.T;
       const L = this.light, lc = L.getContext('2d');
       lc.globalCompositeOperation = 'source-over';

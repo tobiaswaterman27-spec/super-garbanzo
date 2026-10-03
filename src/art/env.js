@@ -179,7 +179,62 @@
     }
     if (spec.extras) for (const e of spec.extras) e(B, meta, rng);
     const canvas = B.toCanvas();
-    return Object.assign(meta, { canvas });
+    // roof mask (for snow cover / wet sheen), kept as a white silhouette of roof pixels
+    const rm = document.createElement('canvas'); rm.width = W; rm.height = H;
+    const rc = rm.getContext('2d'), rid = rc.createImageData(W, H);
+    for (let i = 0; i < W * H; i++) if (B.mat[i] >= 0 && B.group[i] === 2) { const y = (i / W) | 0; const s = B.shade[i]; const v = s >= 3 ? 250 : s === 2 ? 232 : 206; rid.data[i * 4] = v; rid.data[i * 4 + 1] = v + 3; rid.data[i * 4 + 2] = Math.min(255, v + 12); rid.data[i * 4 + 3] = (y + (i % W)) % 7 === 0 ? 150 : 255; }
+    rc.putImageData(rid, 0, 0);
+    return Object.assign(meta, { canvas, roofMask: rm, buf: B, wallH, x0, x1 });
+  }
+
+  // Construction stages 0-10: the finished building is revealed part by part — stakes and string,
+  // cleared ground, foundation, timber frame, walls rising, floors, rafters, roof covering laid from
+  // the eaves up, doors and windows, fitting out — with scaffolding until the end.
+  function staged(spec, stage, prog) {
+    const fin = spec._fin || (spec._fin = building(spec)), FB = fin.buf, W = fin.W, H = fin.H;
+    if (stage >= 10) return fin;
+    const B = new MB(W, H);
+    const x0 = fin.x0, x1 = fin.x1, wallTop = fin.wallTop, foot = spec.d * T;
+    const dirt = P.mat('#8a6a44', 'cloth'), beam = M.beam(), stake = P.mat('#c8a070', 'wood'), stringM = P.mat('#e8e0d0', 'cloth');
+    const copy = (fn) => { for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = y * W + x; if (FB.mat[i] < 0) continue; if (fn(x, y, FB.group[i])) { B.part(FB.group[i]); B.plot(x, y, FB.mat[i], FB.shade[i]); } } };
+    // cleared, trodden ground over the footprint
+    if (stage >= 1) { B.part(0); for (let y = H - foot; y < H; y++) for (let x = x0 - 1; x <= x1 + 1; x++) B.plot(x, y, dirt, O.noise2(x * 0.7, y * 0.7, 5) > 0.6 ? 3 : O.noise2(x, y, 9) > 0.85 ? 1 : 2); }
+    else { // stakes and string
+      B.part(9);
+      for (const [sx, sy] of [[x0, H - foot], [x1, H - foot], [x0, H - 1], [x1, H - 1]]) { B.plot(sx, sy, stake, 3); B.plot(sx, sy - 1, stake, 3); B.plot(sx, sy - 2, stake, 2); }
+      for (let x = x0; x <= x1; x += 2) { B.plot(x, H - foot - 1, stringM, 3); B.plot(x, H - 2, stringM, 3); }
+      for (let y = H - foot; y < H; y += 2) { B.plot(x0, y - 1, stringM, 3); B.plot(x1, y - 1, stringM, 3); }
+    }
+    if (stage >= 2) copy((x, y, g) => g === 1 && y >= H - 3); // foundation plinth
+    const wallRise = stage === 4 ? Math.round(H - 3 - prog * (fin.wallH - 3)) : stage > 4 ? -1 : H;
+    if (stage >= 4) copy((x, y, g) => (g === 1 && y >= Math.max(wallRise, wallTop) && y < H - 2) || (g === 6 && stage >= 8 && (stage > 8 || prog > 0.5)));
+    if (stage >= 4 && stage < 8) { // openings left dark where windows and doors will go
+      B.part(6); const dk = P.mat('#2a2024', 'cloth');
+      for (let y = Math.max(wallRise, wallTop); y < H - 3; y++) for (let x = x0; x <= x1; x++) if (FB.group[y * W + x] === 6 && FB.mat[y * W + x] >= 0) B.plot(x, y, dk, 1);
+    }
+    if (stage >= 5) copy((x, y, g) => g === 1 && y < wallTop); // gable walls / upper floor
+    if (stage >= 3 && stage < 6) { // timber frame
+      B.part(7);
+      const posts = Math.max(2, Math.round((x1 - x0) / 16) + 1);
+      for (let k = 0; k < posts; k++) { const px = Math.round(x0 + (k * (x1 - x0 - 1)) / (posts - 1)); for (let y = wallTop; y < H - 3; y++) { if (B.matAt(px, y) < 0 || stage === 3) { B.plot(px, y, beam, 2); B.plot(px + 1, y, beam, 1); } } }
+      for (let x = x0; x <= x1; x++) { B.plot(x, wallTop, beam, 3); B.plot(x, wallTop + 1, beam, 1); }
+    }
+    if (stage >= 6) { // rafters across the roof shape, covering laid from the eaves upward
+      const roofPix = []; let top = H, bot = 0;
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = y * W + x; if (FB.mat[i] >= 0 && FB.group[i] === 2) { roofPix.push(i); top = Math.min(top, y); bot = Math.max(bot, y); } }
+      const cover = stage === 6 ? bot + 1 : stage === 7 ? Math.round(bot - prog * (bot - top)) : top;
+      B.part(2);
+      for (const i of roofPix) { const x = i % W, y = (i / W) | 0; if (y >= cover) B.plot(x, y, FB.mat[i], FB.shade[i]); else if (x % 6 === 0 || y % 9 === 0) B.plot(x, y, beam, x % 6 === 0 ? 2 : 3); }
+    }
+    if (stage >= 8) copy((x, y, g) => g === 3 || g === 4 || g === 5);
+    if (stage >= 3 && stage <= 9) { // scaffolding: poles and planks in front of the walls
+      B.part(8); const pole = P.mat('#b08a5a', 'wood');
+      const topY = Math.max(2, (stage >= 6 ? wallTop - 4 : wallTop));
+      for (const px of [x0 - 2, Math.round((x0 + x1) / 2) + 6, x1 + 2]) for (let y = topY; y < H; y++) B.plot(px, y, pole, px < W / 2 ? 3 : 2);
+      for (let y = H - 12; y > topY; y -= 12) for (let x = x0 - 3; x <= x1 + 3; x++) { B.plot(x, y, pole, 3); B.plot(x, y + 1, pole, 1); }
+    }
+    const canvas = B.toCanvas();
+    return Object.assign({}, fin, { canvas, windows: stage >= 9 ? fin.windows : [], chimney: stage >= 8 ? fin.chimney : null, roofMask: stage >= 7 ? fin.roofMask : null });
   }
 
   function texWall(B, kind, m, x0, y0, x1, y1, rng, cond, gableOnly) {
@@ -554,5 +609,5 @@
     return out;
   }
 
-  O.Env = { building, tree, prop, T, M };
+  O.Env = { building, staged, tree, prop, T, M };
 })();

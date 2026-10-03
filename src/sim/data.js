@@ -12,6 +12,7 @@
     logs: { name: 'Logs', base: 3, unit: 'bundle', slots: 2 },
     firewood: { name: 'Firewood', base: 1, unit: 'bundle', slots: 1 },
     iron: { name: 'Iron bar', base: 8, unit: 'bar', slots: 1 },
+    stone: { name: 'Building stone', base: 2, unit: 'block', slots: 2 },
     tools: { name: 'Tools', base: 24, unit: 'piece', slots: 1 },
     medicine: { name: 'Remedy', base: 10, unit: 'phial', slots: 1 },
     herbs: { name: 'Herbs', base: 2, unit: 'bunch', slots: 1 },

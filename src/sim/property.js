@@ -95,7 +95,7 @@
       this.log(`${bz.name} has closed its doors for good.`, 'economy');
     };
     S.openNewBusiness = function () {
-      const empty = this.world.buildings.filter((b) => b.closedShop && !this.biz.get(b.id));
+      const empty = this.world.buildings.filter((b) => b.closedShop && !b.ruined && !this.biz.get(b.id));
       if (!empty.length) return;
       const founder = this.people.filter((p) => !p.visitor && p.age >= 22 && p.age < 60 && (p.goal === 'open a shop' || p.traits.includes('ambitious')) && this.household(p).money > 80).sort((a, b) => this.household(b).money - this.household(a).money)[0];
       if (!founder) return;

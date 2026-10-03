@@ -55,7 +55,8 @@
     const world = game.world;
     for (const b of world.buildings) if (b.dirty) {
       b.dirty = false;
-      if (b.site) { const si = sim.build.siteInfo(b.id); b.sprite = O.Env.staged(b.spec, si.stage, si.prog); }
+      if (b.ruined) b.sprite = O.Env.ruin(b.spec);
+      else if (b.site) { const si = sim.build.siteInfo(b.id); b.sprite = O.Env.staged(b.spec, si.stage, si.prog); }
       else if (b.type === 'hideout') b.sprite = O.Env.hideout(b.level, b.spec);
       else { b.spec.condition = b.condition; b.sprite = O.Env.building(b.spec); }
     }
@@ -92,6 +93,7 @@
   O.WorkSetup.setup(game, sim, npcUI);
   O.WarUI.setup(game, home, npcUI);
   O.Craft.setup(game);
+  O.FireFX.setup(game, home);
   O.AudioSetup.setup(game, sim);
   if (loaded) { O.Save.hydrateLate(game, home); setTimeout(() => O.Panels.toast(`Welcome back. It is ${O.DAYNAMES[sim.weekday]}, day ${sim.day}, in Ashford.`), 300); }
   // autosave each dawn and whenever the page is hidden

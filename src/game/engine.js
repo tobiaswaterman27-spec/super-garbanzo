@@ -31,7 +31,7 @@
       this.world = world;
       const T = world.T;
       this.ground = O.Terrain.renderGround(world, this.season);
-      for (const b of world.buildings) if (!b.sprite) b.sprite = b.type === 'hideout' ? O.Env.hideout(b.level, b.spec) : O.Env.building(b.spec);
+      for (const b of world.buildings) if (!b.sprite) b.sprite = b.ruined ? O.Env.ruin(b.spec) : b.type === 'hideout' ? O.Env.hideout(b.level, b.spec) : O.Env.building(b.spec);
       for (const t of world.trees) if (!t.sprite || t.sprite.season !== this.season) { t.sprite = O.Env.tree(t.seed, t.kind, this.season); t.sprite.season = this.season; }
       for (const p of world.props) if (!p.sprite) p.sprite = O.Env.prop(p.kind, p.seed, p.v);
       this.rebuildStatics();
@@ -239,6 +239,7 @@
       if (night || amb[2] > amb[0]) {
         for (const s of this.statics) {
           if (s.p && s.p.kind === 'lamp') pools.push([s.p.x - cam.x, s.p.y - 26 - cam.y, 34]);
+          if (s.b && s.b.fire) pools.push([(s.b.x + s.b.w / 2) * T - cam.x, s.b.bottom * T - 30 - cam.y, 40 + s.b.fire.i * 60]);
           if (s.b && s.b.sprite) for (const wd of s.b.sprite.windows) pools.push([s.b.x * T - s.b.sprite.OV + wd.x + wd.w / 2 - cam.x, (s.b.bottom + 1) * T - s.b.sprite.H + wd.y + wd.h + 6 - cam.y, 16]);
         }
       }

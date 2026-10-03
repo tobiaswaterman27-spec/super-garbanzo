@@ -35,7 +35,8 @@
       for (const pr of sim.world.props) if (pr.kind === 'memorial' || (pr.kind === 'noticeboard' && pr.broadsheet)) { const d = Math.hypot(pr.x - p.x, pr.y - p.y); if (d < 22) out.push({ type: pr.kind === 'memorial' ? 'memorial' : 'broadsheet', prop: pr, d: d + 1, x: pr.x, y: pr.y - 30 }); }
       for (const pr of sim.world.props) if (pr.kind === 'gravestone') { const d = Math.hypot(pr.x - p.x, pr.y - p.y); if (d < 20) out.push({ type: 'grave', prop: pr, d: d + 2, x: pr.x, y: pr.y - 14 }); }
       for (const b of sim.world.buildings) {
-        if (b.site) continue;
+        if (b.site || b.ruined) continue;
+        if (b.fire) { const fx = b.doorX * T + 8, fy = (b.bottom + 1) * T + 6, fd = Math.hypot(fx - p.x, fy - p.y); if (fd < 60) out.push({ type: 'fire', b, d: fd - 30, x: fx, y: fy - 30 }); continue; }
         if (b.type === 'hideout' && b.level === 0) {
           const cx = b.x * T + 24, cy = (b.bottom + 1) * T;
           const d = Math.hypot(cx - p.x, cy - p.y);
@@ -60,6 +61,7 @@
         case 'memorial': return 'Read the memorial';
         case 'work': return O.Craft.RECIPES[c.it.kind] ? `${O.workLabel()} · or make your own` : O.workLabel();
         case 'craft': return O.craftLabel(c);
+        case 'fire': return O.fireLabel(c);
         case 'stall': return O.stallLabel();
         case 'portrait': return `Look at the portrait`;
         case 'broadsheet': return 'Buy a broadsheet · 1d';
@@ -194,6 +196,7 @@
         case 'memorial': O.ChronicleUI.memorial(cur.prop.epitaph); break;
         case 'work': if (O.Craft.RECIPES[cur.it.kind]) { const J = O.Work.job(); O.craftPanel({ it: cur.it, who: `${J.masterName}'s`, work: true }); } else O.workShift(); break;
         case 'craft': O.craftPanel(cur); break;
+        case 'fire': O.fightFire(cur); break;
         case 'stall': O.mindStall(); break;
         case 'portrait': { const pr = cur.it.portrait; O.Panels.toast(`A likeness of ${pr.name}, painted in life. Died ${O.Chronicle.dateLabel(pr.died)}.`); break; }
         case 'broadsheet': O.ChronicleUI.broadsheet(); break;

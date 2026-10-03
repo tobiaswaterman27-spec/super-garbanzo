@@ -706,5 +706,49 @@
     return out;
   }
 
-  O.Env = { building, staged, hideout, tree, prop, T, M };
+  // A burned-out shell: the walls stand to a ragged, blackened edge, the openings gape, a few charred
+  // rafters lean against the sky, and the floor is a heap of ash and fallen timber.
+  function ruin(spec) {
+    const fin = spec._fin || (spec._fin = building(spec)), FB = fin.buf, W = fin.W, H = fin.H;
+    const B = new MB(W, H), x0 = fin.x0, x1 = fin.x1, wallTop = fin.wallTop, foot = spec.d * T;
+    const char = P.mat('#2a2226', 'cloth'), soot = P.mat('#4a3e3c', 'cloth'), ash = P.mat('#6e6460', 'cloth'), ember = P.mat('#c8642a', 'metal'), beam = P.mat('#2e2420', 'wood');
+    // ash and rubble over the footprint
+    const dirt = P.mat('#7a6a56', 'cloth'), ashL = P.mat('#9a928a', 'cloth');
+    B.part(0); for (let y = H - foot; y < H; y++) for (let x = x0 - 1; x <= x1 + 1; x++) { const n = O.noise2(x * 0.35, y * 0.35, spec.seed % 97), f = O.noise2(x * 1.3, y * 1.3, 5); B.plot(x, y, n > 0.78 ? char : n > 0.55 ? soot : n > 0.3 ? ashL : dirt, f > 0.8 ? 3 : f < 0.2 ? 1 : 2); }
+    // the back and side walls still stand around the burnt floor, ragged and sooty
+    let wallMat = null; for (let i = FB.mat.length - 1; i >= 0 && wallMat == null; i--) if (FB.mat[i] >= 0 && FB.group[i] === 1) wallMat = FB.mat[i];
+    if (wallMat != null) {
+      B.part(1);
+      const fy = H - foot;
+      for (let x = x0; x <= x1; x++) {
+        const h = Math.round(5 + 14 * O.noise2(x * 0.15, 9.1, spec.seed % 53));
+        for (let y = fy - h; y <= fy + 1; y++) { const sootY = y - (fy - h); B.plot(x, y, sootY < 3 || O.noise2(x * 0.7, y * 0.7, 21) > 0.75 ? soot : wallMat, y === fy - h ? 3 : y >= fy ? 1 : 2); }
+      }
+      for (let y = fy; y < H - 2; y++) for (const sx of [x0, x0 + 1, x1 - 1, x1]) B.plot(sx, y, O.noise2(sx, y * 0.5, 4) > 0.7 ? soot : wallMat, sx <= x0 + 1 ? 3 : 1);
+    }
+    // fallen timbers lying across the floor
+    { const r2 = O.RNG(spec.seed + 11); B.part(0); for (let k = 0; k < 4; k++) { const y = H - foot + 4 + r2.int(0, Math.max(1, foot - 10)), xa = r2.int(x0, x1 - 10), len = r2.int(10, 26); for (let x = xa; x < Math.min(x1, xa + len); x++) { const yy = y + Math.round((x - xa) * r2.float(-0.15, 0.15)); B.plot(x, yy, beam, 3); B.plot(x, yy + 1, char, 1); } } }
+    // walls: everything below a ragged burn line survives, scorched toward the top
+    const span = Math.max(4, (H - 3) - wallTop);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = y * W + x; if (FB.mat[i] < 0) continue; const g = FB.group[i];
+      if (g === 2 || g === 3 || g === 5) continue; // roof, chimney top, sign: gone
+      const edge = wallTop + span * (0.25 + 0.45 * O.noise2(x * 0.18, 3.7, spec.seed % 31)) + (O.noise2(x * 0.9, 1.1, 7) > 0.75 ? 4 : 0);
+      if (y < edge) continue;
+      const scorch = (y - edge) / Math.max(1, H - edge);
+      B.part(g === 6 ? 6 : 1);
+      if (g === 6) B.plot(x, y, char, 0); // windows and door burnt out to black holes
+      else if (scorch < 0.1 || O.noise2(x * 0.6, y * 0.6, 13) > 0.3 + scorch * 0.9) B.plot(x, y, scorch < 0.05 ? char : soot, Math.max(0, FB.shade[i] - 2)); // soot thickest near the burnt edge
+      else B.plot(x, y, FB.mat[i], Math.max(0, FB.shade[i] - 1));
+    }
+    // charred rafters leaning in
+    B.part(7);
+    const r = O.RNG(spec.seed + 5);
+    for (let k = 0; k < 3; k++) { const bx = r.int(x0 + 4, x1 - 4), by = H - 4 - r.int(0, foot / 2), tx = bx + r.int(-14, 14), ty = Math.max(2, wallTop - r.int(0, 10)); B.capsule(bx, by, tx, ty, 1, 0.8, beam); }
+    // a few embers still glowing in the ash
+    B.part(9); for (let k = 0; k < 6; k++) B.plot(r.int(x0, x1), H - 2 - r.int(0, foot - 3), ember, 4);
+    return Object.assign({}, fin, { canvas: B.toCanvas(), windows: [], chimney: null, roofMask: null, sign: null, ruined: true });
+  }
+
+  O.Env = { building, staged, hideout, tree, prop, ruin, T, M };
 })();

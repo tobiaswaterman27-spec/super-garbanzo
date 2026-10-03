@@ -7,7 +7,7 @@
 
   function setup(game, sim) {
     const home = () => O.SimRef.home;
-    const forSale = (b) => !b.site && b.type !== 'hideout' && ((b.type === 'house' && !b.household) || b.closedShop) && (!b.owner || b.owner.kind !== 'player');
+    const forSale = (b) => !b.site && !b.ruined && !b.fire && b.type !== 'hideout' && ((b.type === 'house' && !b.household) || b.closedShop) && (!b.owner || b.owner.kind !== 'player');
     const owned = (b) => b.owner && b.owner.kind === 'player';
 
     // a little painted sign by the door of anything for sale

@@ -43,7 +43,7 @@
       this._last = this._last || {}; const key = kind + ':' + place;
       if (place && ['migration', 'growth', 'decline'].includes(kind) && this._last[key] > this.sim.day - 6) return;
       this._last[key] = this.sim.day;
-      this.news.push({ day: this.sim.day, text, kind, place }); if (this.news.length > 60) this.news.shift(); this.sim.log(text, 'kingdom'); }
+      this.news.push({ day: this.sim.day, text, kind, place }); if (this.news.length > 60) this.news.shift(); this.sim.log(text, kind === 'rulers' || kind === 'war' ? 'kingdom-' + kind : 'kingdom'); }
 
     daily() {
       const sim = this.sim, r = this.rng, season = sim.season;

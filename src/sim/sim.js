@@ -36,7 +36,7 @@
       this.demandScale();
       this.justiceInit();
       this.propertyInit();
-      if (opts.foreign) { this.gangs = []; this.kingdom = opts.kingdom; } else { this.gangsInit(); this.kingdom = new O.Kingdom(this); }
+      if (opts.foreign) { this.gangs = []; this.kingdom = opts.kingdom; } else { this.gangsInit(); this.kingdom = new O.Kingdom(this); this.kingdom.rulersInit && this.kingdom.rulersInit(); }
       if (opts.day) { this.day = opts.day; this.minute = opts.minute; this._lastMin = -1; this._season = this.season; for (const p of this.people) p.birthday = p.birthday || this.rng.int(1, 56); }
       this._season = this.season;
     }
@@ -794,6 +794,7 @@
       this.demandScale();
       this.newsDaily && this.newsDaily();
       this.warOrders && this.warOrders();
+      this.reeveDaily && this.reeveDaily();
       // a city's guilds, wharf fees and market rents fill the common chest beyond what the sales tax brings
       if (this.people.length > 220) { const dues = Math.round(this.people.length * 0.3); this.treasury.cash += dues; this.treasury.income += dues; }
       for (const p of this.people) {
@@ -823,7 +824,7 @@
       const season = this.season;
       if (season !== this._season) { if (this._season) this.log(`${season[0].toUpperCase() + season.slice(1)} comes to ${this.world.name}.`, 'season'); this._season = season; this.seasonChanged = true; }
       this.log(`${DAYNAMES[this.weekday]} dawns over ${this.world.name}.`, 'day');
-      if (this.festival()) this.log(`It is the harvest festival in ${this.world.name}: music in the square from mid-afternoon.`, 'festival');
+      if (this.festival()) this.log(this.festivalDay === this.day ? `${this.world.name} keeps a holiday for ${this.festivalWhy || 'the new monarch'}: music and dancing in the square from mid-afternoon.` : `It is the harvest festival in ${this.world.name}: music in the square from mid-afternoon.`, 'festival');
     }
 
     // trader tasks plug into plan() via p.task; handle arrival here
@@ -859,7 +860,7 @@
     if (p.task?.act === 'help') { const t = this.byId.get(p.task.target); if (t) return [Math.floor(t.agent.x / this.T), Math.floor((t.agent.y - 1) / this.T)]; }
     return _zone.call(this, p, zone);
   };
-  O.Health.install(Sim); O.Life.install(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim);
+  O.Health.install(Sim); O.Life.install(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
   // carry-home and delivery tasks finish on entering the destination

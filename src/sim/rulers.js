@@ -1,0 +1,153 @@
+// Rulers and succession. The crown and every lordship is held by a person who ages, may fall ill
+// and die. A death brings mourning bells, then a coronation (and a festival day) for the heir — or,
+// if the heir is a child or the claim is weak, a regency, and perhaps a pretender who raises the
+// banner of rebellion: a civil war fought with the same armies as any other. Lords of the realm's
+// places die and are succeeded by their heirs. In Ashford, when the reeve dies or leaves, the folk
+// hold a moot and choose another. Every reign is remembered.
+'use strict';
+(function () {
+  const MN = ['Aldred', 'Edmund', 'Henry', 'Robert', 'William', 'Geoffrey', 'Stephen', 'Hugh', 'Richard', 'Walter', 'Godric', 'Osric'];
+  const FN = ['Matilda', 'Eleanor', 'Isabel', 'Margery', 'Edith', 'Joan', 'Alys', 'Cecily', 'Agnes', 'Rohese'];
+  const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
+  const yearDays = () => O.SEASON_DAYS * 4;
+
+  function person(r, minAge, maxAge, sex) { sex = sex || (r.chance(0.6) ? 'm' : 'f'); return { name: r.pick(sex === 'm' ? MN : FN), sex, age: r.int(minAge, maxAge), ailing: false }; }
+  const crownTitle = (c) => `${c.sex === 'm' ? 'King' : 'Queen'} ${c.name}${c.regnal ? ' ' + c.regnal : ''}`;
+  const pron = (c) => (c.sex === 'm' ? 'his' : 'her');
+
+  function install(Kingdom) {
+    const K = Kingdom.prototype, _daily = K.daily;
+    K.daily = function () { _daily.call(this); try { this.rulersDaily(); } catch (e) { console.error(e); } };
+
+    K.rulersInit = function () {
+      if (this.rulers) return this.rulers;
+      const r = this.rng, day = this.sim.day;
+      const crown = Object.assign(person(r, 62, 70, 'm'), { name: 'Aldred', regnal: 'III', since: day - 9 * yearDays() });
+      crown.heir = person(r, 13, 22);
+      const R = this.rulers = { crown, pretender: { name: 'Robert', sex: 'm', age: 41, title: 'Duke of Harrowdale', seat: 'harrowdale', ambition: 0.5 + r.next() * 0.4 }, reigns: [{ who: crownTitle(crown), from: crown.since, to: null, how: 'inherited' }], lords: {}, mourning: null, regent: null };
+      // the lords of the realm's places become people too
+      const titles = { kingsbridge: ['the Lord Mayor', 'm'], thornbury: ['Lord', 'm'], saltmouth: ['the Port-reeve', null], harrowdale: ['the Steward', null], greymoor: ['the Headman', null], wheatley: ['the Reeve', null], oakhollow: ['the Woodward', null] };
+      for (const p of this.places) {
+        if (p.detailed) continue;
+        const t = titles[p.id] || ['the Reeve', null];
+        const L = p.id === 'thornbury' ? Object.assign(person(r, 52, 60, 'm'), { name: 'Edmund' }) : person(r, 35, 64, t[1]);
+        L.heir = person(r, 8, 30); L.title = t[0];
+        R.lords[p.id] = L; p.leader = this.lordName(p.id);
+      }
+      return R;
+    };
+    K.lordName = function (id) {
+      const L = this.rulers.lords[id], p = this.place(id); if (!L) return p.leader;
+      return L.title === 'Lord' ? `${L.sex === 'f' ? 'Lady' : 'Lord'} ${L.name} of ${p.name}` : `${L.name}, ${L.title.replace(/^the /, '')} of ${p.name}`;
+    };
+    K.crownTitle = function () { return crownTitle(this.rulersInit().crown); };
+
+    K.rulersDaily = function () {
+      const R = this.rulersInit(), r = this.rng, sim = this.sim, day = sim.day;
+      // birthdays once a year
+      if (day % yearDays() === 0) { for (const c of [R.crown, R.crown.heir, R.pretender, ...Object.values(R.lords), ...Object.values(R.lords).map((l) => l.heir)]) if (c) c.age++; }
+      // mourning ends in a coronation, a regency or a rebellion
+      if (R.mourning && day >= R.mourning.until) { const m = R.mourning; R.mourning = null; this.succeed(m); }
+      // the monarch's health
+      const c = R.crown;
+      if (!R.mourning && c) {
+        const risk = c.age < 50 ? 0.0002 : 0.0005 * (c.age - 48);
+        if (!c.ailing && r.chance(risk * 2.5)) { c.ailing = true; this.addNews(`${crownTitle(c)} is said to be gravely ill. Prayers are asked for in every church.`, 'rulers'); }
+        else if (c.ailing && r.chance(0.07)) this.crownDies(`died after a long illness`);
+        else if (c.ailing && r.chance(0.05)) { c.ailing = false; this.addNews(`${crownTitle(c)} has recovered, God be thanked.`, 'rulers'); }
+      }
+      { const ash = this.places.find((x) => x.detailed), rv = sim.reeveId && sim.byId.get(sim.reeveId); if (ash) ash.leader = rv && rv.alive !== false ? `${rv.name}, Reeve of ${ash.name}` : `the Reeve of ${ash.name}`; }
+      // the lords of the realm
+      for (const [id, L] of Object.entries(R.lords)) {
+        if (r.chance(L.age < 55 ? 0.0002 : 0.0004 * (L.age - 50))) {
+          const before = this.lordName(id), h = L.heir && L.heir.age >= 16 ? L.heir : person(r, 25, 45);
+          R.lords[id] = Object.assign(h, { title: L.title, heir: person(r, 0, 12) });
+          this.place(id).leader = this.lordName(id);
+          this.addNews(`${before} has died. ${h === L.heir ? `${pron(L) === 'his' ? 'His' : 'Her'} heir ${h.name}` : `The council has named ${h.name}`} now holds ${this.place(id).name}.`, 'rulers', id);
+        }
+      }
+      // an ambitious pretender grows restless under a weak crown
+      if (!R.mourning && R.regent && this.war?.phase !== 'war' && r.chance(0.01 * R.pretender.ambition)) this.rebellion();
+    };
+
+    K.crownDies = function (how) {
+      const R = this.rulers, c = R.crown;
+      this.addNews(`The bells toll: ${crownTitle(c)} has ${how}, aged ${c.age}, in the ${Math.max(1, Math.round((this.sim.day - c.since) / yearDays()))}th year of ${pron(c)} reign. The realm mourns.`, 'rulers');
+      const reign = R.reigns[R.reigns.length - 1]; if (reign) reign.to = this.sim.day;
+      R.mourning = { until: this.sim.day + 3, dead: crownTitle(c) };
+      R.crown = null;
+      this.sim.onMourning && this.sim.onMourning(R.mourning);
+      this.heirStore = c.heir;
+    };
+
+    K.succeed = function () {
+      const R = this.rulers, r = this.rng, h = this.heirStore || person(r, 20, 40);
+      this.heirStore = null;
+      const same = R.reigns.filter((x) => x.who.includes(` ${h.name}`)).length;
+      R.crown = Object.assign(h, { regnal: same ? ROMAN[same + 1] : '', since: this.sim.day, ailing: false, heir: person(r, 0, 6) });
+      if (h.age < 16) {
+        R.regent = { name: this.lordName('thornbury'), until: this.sim.day + (16 - h.age) * yearDays() };
+        R.reigns.push({ who: crownTitle(R.crown), from: this.sim.day, to: null, how: 'inherited as a child' });
+        this.addNews(`${crownTitle(R.crown)}, only ${h.age} years old, is proclaimed. ${R.regent.name} will rule as regent until ${pron(h) === 'his' ? 'he' : 'she'} comes of age.`, 'rulers');
+        if (r.chance(0.5 * R.pretender.ambition + 0.2)) this.rebellion();
+      } else {
+        R.regent = null;
+        R.reigns.push({ who: crownTitle(R.crown), from: this.sim.day, to: null, how: 'inherited' });
+        this.addNews(`Long live ${crownTitle(R.crown)}! ${pron(h) === 'his' ? 'He' : 'She'} was crowned today in the cathedral at Kingsbridge, and every town keeps a holiday.`, 'rulers');
+        this.sim.onCoronation && this.sim.onCoronation(crownTitle(R.crown));
+        if (r.chance(0.12 * R.pretender.ambition)) this.rebellion();
+      }
+    };
+
+    K.rebellion = function () {
+      const R = this.rulers, P = R.pretender; if (!P || (this.war && this.war.phase === 'war')) return;
+      this.warInit();
+      const seat = this.place(P.seat);
+      this.addNews(`REBELLION. ${P.name}, ${P.title}, claims the crown and has raised his banner at ${seat.name}. Lords must choose a side.`, 'rulers', P.seat);
+      this.declareWar({ civil: true, enemy: `${P.name} of Harrowdale and his rebels`, home: P.seat, men: 200, hostName: `the rebel host of ${P.name}`, crownName: R.crown ? `the host of ${crownTitle(R.crown)}` : "the King's host", announce: `CIVIL WAR. The crown calls every loyal town to arms against ${P.name}, ${P.title}. The King's host musters at Thornbury.` });
+    };
+    K.onCivilEnd = function (winner) {
+      const R = this.rulers, P = R.pretender, r = this.rng;
+      if (winner === 'enemy') {
+        const old = R.crown ? crownTitle(R.crown) : 'the young heir';
+        const reign = R.reigns[R.reigns.length - 1]; if (reign && !reign.to) reign.to = this.sim.day;
+        R.crown = { name: P.name, sex: P.sex, age: P.age, regnal: '', since: this.sim.day, ailing: false, heir: person(r, 4, 18) };
+        R.reigns.push({ who: crownTitle(R.crown), from: this.sim.day, to: null, how: 'took the crown by force' });
+        R.regent = null; R.pretender = { name: r.pick(MN), sex: 'm', age: r.int(20, 40), title: 'heir of the old line, in exile', seat: 'saltmouth', ambition: 0.6 };
+        this.addNews(`The rebels have won. ${P.name} is crowned as ${crownTitle(R.crown)}; ${old} has fled across the sea. Men who fought for the old crown keep their heads down.`, 'rulers');
+        this.sim.onCoronation && this.sim.onCoronation(crownTitle(R.crown));
+      } else {
+        this.addNews(`The rebellion is broken. ${P.name} has been taken and sent into exile beyond the sea; his lands at Harrowdale go to the crown.`, 'rulers');
+        R.pretender = { name: r.pick(MN), sex: 'm', age: r.int(25, 45), title: `the new Duke of Harrowdale`, seat: 'harrowdale', ambition: 0.2 + r.next() * 0.3 };
+      }
+    };
+  }
+
+  // ---------------------------------------------------------------- the village: mourning, holidays, the moot
+  function installSim(Sim) {
+    const S = Sim.prototype;
+    const _fest = S.festival;
+    S.festival = function () { return _fest.call(this) || this.festivalDay === this.day; };
+    S.onMourning = function (m) { this.mourningUntil = m.until; for (const p of this.people) if (!p.visitor && p.age >= 12 && this.rng.chance(0.6)) this.remember(p, `${m.dead} is dead. The bells rang all morning.`, 'politics', 1.5); };
+    S.onCoronation = function (who) { this.festivalDay = this.day + 1; this.festivalWhy = `the crowning of ${who}`; for (const p of this.people) if (!p.visitor && p.age >= 12 && this.rng.chance(0.4)) this.remember(p, `We have a new monarch: ${who}.`, 'politics', 1.2); };
+    // the reeve: when the office falls empty, the folk choose at a moot
+    S.reeveDaily = function () {
+      if (!this.reeveId) return;
+      const rv = this.byId.get(this.reeveId);
+      if (rv && rv.alive !== false && this.people.includes(rv)) return;
+      if (!this.reeveMoot) { this.reeveMoot = this.day + 2; this.log(`${this.world.name} has no reeve. A moot is called for ${O.DAYNAMES[(this.weekday + 2) % 7]} to choose one.`, 'politics'); return; }
+      if (this.day < this.reeveMoot) return;
+      this.reeveMoot = null;
+      const cands = this.people.filter((p) => !p.visitor && p.age >= 30 && !p.gang && !p.job?.role?.startsWith('guard'))
+        .map((p) => ({ p, votes: this.people.filter((q) => !q.visitor && q.age >= 16).reduce((s, q) => s + Math.max(0, (q.rel.get(p.id)?.affinity || 0)) + (this.household(p).money > 150 ? 0.03 : 0), 0) + p.age / 200 + this.rng.next() * 0.5 }))
+        .sort((a, b) => b.votes - a.votes);
+      const w = cands[0]; if (!w) return;
+      w.p.title = `Reeve of ${this.world.name}`; this.reeveId = w.p.id;
+      this.log(`At the moot, the folk of ${this.world.name} chose ${w.p.name} as their new reeve${cands[1] ? `, over ${cands[1].p.name}` : ''}.`, 'politics');
+      this.remember(w.p, `I was chosen reeve at the moot. God help me.`, 'life', 3);
+    };
+  }
+
+  O.Rulers = { install, installSim, crownTitle };
+  install(O.Kingdom);
+})();

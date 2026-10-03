@@ -46,6 +46,8 @@
     },
     classify(text, kind) {
       if (kind === 'day' || kind === 'season' || kind === 'death' || ROUTINE.test(text)) return null;
+      if (kind === 'kingdom-rulers') return { cat: 'rulers', imp: /dead|died|crowned|rebellion|proclaimed|won|broken/i.test(text) ? 5 : 3 };
+      if (kind === 'kingdom-war') return { cat: 'war', imp: /WAR|PEACE|Victory|Defeat|fallen on/.test(text) ? 4 : 2 };
       for (const [re, cat, imp] of RULES) if (re.test(text)) return { cat, imp };
       if (kind === 'kingdom') return { cat: 'markets', imp: 1 };
       return null;
@@ -62,7 +64,7 @@
       const c = C.classify(text, kind); if (!c) return null;
       const byPlayer = /\bthe (stranger|newcomer)\b|wanted stranger|the lord (raised|lowered|drew|has pardoned)/i.test(text) && (!/the lord/i.test(text) || !!(O.PlayerState && O.PlayerState.lord));
       let place = sim.world.placeId || 'ashford', placeName = sim.world.name;
-      if (kind === 'kingdom' && sim.kingdom) { const kp = sim.kingdom.places.find((q) => text.includes(q.name)); if (kp) { place = kp.id; placeName = kp.name; } }
+      if (String(kind).startsWith('kingdom') && sim.kingdom) { const kp = sim.kingdom.places.find((q) => text.includes(q.name)); if (kp) { place = kp.id; placeName = kp.name; } }
       return C.add({ day: sim.day, minute: Math.floor(sim.minute), place, placeName, cat: byPlayer && c.cat === 'politics' ? 'rulers' : c.cat, imp: c.imp + (byPlayer ? 1 : 0), text, byPlayer });
     },
     // a deed of the player's that only they may know the truth of

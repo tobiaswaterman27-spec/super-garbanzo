@@ -81,14 +81,16 @@
     // bunting across the square on festival days
     const FLAG = ['#a8382f', '#e0c040', '#3f5f8e', '#ece4d0', '#3d5e34'];
     game.hooks.drawWorld.push((ctx, cam) => {
-      if (game.scene || !sim.festival || !sim.festival()) return;
+      const mourning = sim.mourningUntil != null && sim.day <= sim.mourningUntil;
+      if (game.scene || game.world !== O.SimRef.home.world || (!mourning && !(sim.festival && sim.festival()))) return;
+      const COLS = mourning ? ['#1e1a22', '#3a2e48', '#1e1a22', '#4a4450'] : FLAG;
       const sq = sim.Z.square, y0 = sq[1] * 16 - 4, x0 = sq[0] * 16, x1 = sq[2] * 16 + 16;
       for (let row = 0; row < 3; row++) {
         const yy = y0 + row * 34 - cam.y;
         for (let x = x0; x < x1; x++) {
           const sag = Math.sin(((x - x0) / (x1 - x0)) * Math.PI) * 10, y = Math.round(yy + sag);
           ctx.fillStyle = '#3a2a1a'; ctx.fillRect(x - cam.x, y, 1, 1);
-          if ((x - x0) % 8 === 0) { ctx.fillStyle = FLAG[((x - x0) / 8 + row) % FLAG.length]; for (let k = 0; k < 4; k++) ctx.fillRect(x - cam.x + 1, y + 1 + k, 4 - k, 1); }
+          if ((x - x0) % 8 === 0) { ctx.fillStyle = COLS[((x - x0) / 8 + row) % COLS.length]; for (let k = 0; k < 4; k++) ctx.fillRect(x - cam.x + 1, y + 1 + k, 4 - k, 1); }
         }
       }
     });

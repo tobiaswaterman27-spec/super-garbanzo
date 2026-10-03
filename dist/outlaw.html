@@ -161,7 +161,7 @@ main > .wrap { overflow: auto; }
 </style>
 
 <header class="top">
-  <div class="brand">Outlaw<small>BUILD 0.28 · LAND</small></div>
+  <div class="brand">Outlaw<small>BUILD 0.29 · LAND</small></div>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" role="tab" aria-selected="true" data-tab="play">Play</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="forge">Character</button>
@@ -6216,7 +6216,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       for (const hh of this.households) {
         if (hh.gone || hh.money >= 12 || hh.pantry.bread >= 1) continue;
         const bk = this.supplierOf('bakery', 'bread');
-        const loaves = Math.min(hh.members.length, Math.floor(bk.stock.bread || 0));
+        const loaves = Math.min(hh.members.length * 2, Math.floor(bk.stock.bread || 0)); // a day's bread: two loaves a head
         const cost = loaves * this.price(bk, 'bread');
         if (!loaves || this.treasury.cash < cost) continue;
         bk.stock.bread -= loaves; bk.cash += cost; this.treasury.cash -= cost; this.treasury.spent += cost;
@@ -6230,6 +6230,10 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const a = p.agent;
       // needs drift
       p.needs.hunger = Math.max(0, p.needs.hunger - 0.055);
+      // a packed lunch: anyone out of the house at midday eats bread they took from home that morning
+      if (!p.visitor && p._lunch !== this.day && this._m >= 12 * 60 && this._m < 13 * 60 && a.inside !== p.home && p.needs.hunger < 55 && p.age >= 5) {
+        const hh = this.household(p); if (hh && this.eatAtHome(p, hh, 55)) p._lunch = this.day;
+      }
       p.needs.social = Math.max(0, p.needs.social - 0.02);
       const pl = this.plan(p);
       const changed = !p.activity || pl.act !== p.activity.act || pl.b !== p.activity.b || pl.zone !== p.activity.zone;

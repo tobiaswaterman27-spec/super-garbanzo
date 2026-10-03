@@ -60,6 +60,9 @@ input[type=range] { width: 100%; accent-color: var(--ember); }
 .ledger-btn { position: absolute; right: 12px; bottom: 12px; }
 .satchel-btn { position: absolute; right: 120px; bottom: 12px; }
 .gang-btn { position: absolute; right: 240px; bottom: 12px; }
+.savebar { display: flex; gap: 4px; }
+.savebar button { background: var(--ink); border: 2px solid var(--line); padding: 2px 8px; cursor: pointer; font-family: var(--pix); font-size: 9px; letter-spacing: 1px; }
+.savebar button:hover { border-color: var(--ember-2); color: var(--ember-2); }
 .map-btn { position: absolute; right: 344px; bottom: 12px; }
 .hud-b { max-width: calc(100% - 480px) !important; }
 .mapwrap { position: relative; width: 100%; max-width: 640px; margin: 0 auto; }
@@ -153,7 +156,7 @@ main > .wrap { overflow: auto; }
 </style>
 
 <header class="top">
-  <div class="brand">Outlaw<small>BUILD 0.11 · THE REALM</small></div>
+  <div class="brand">Outlaw<small>BUILD 0.12 · A LIFE THAT LASTS</small></div>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" role="tab" aria-selected="true" data-tab="play">Play</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="forge">Character</button>
@@ -261,4 +264,5 @@ main > .wrap { overflow: auto; }
 <script src="../src/game/kingdom-ui.js"></script>
 <script src="../src/game/creator.js"></script>
 <script src="../src/game/forge-ui.js"></script>
+<script src="../src/game/save.js"></script>
 <script src="../src/game/play.js"></script>

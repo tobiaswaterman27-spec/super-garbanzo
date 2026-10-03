@@ -77,7 +77,7 @@
     };
 
     // ---------------- reeve to council, crier, notices ----------------
-    const reeve = sim.people.filter((p) => p.age >= 35 && !p.visitor && !p.job?.role?.startsWith('guard') && !p.gang).sort((a, b) => sim.household(b).money - sim.household(a).money)[0];
+    const reeve = sim.reeveId ? sim.byId.get(sim.reeveId) : sim.people.filter((p) => p.age >= 35 && !p.visitor && !p.job?.role?.startsWith('guard') && !p.gang).sort((a, b) => sim.household(b).money - sim.household(a).money)[0];
     if (reeve) { reeve.title = 'Reeve of Ashford'; sim.reeveId = reeve.id; }
     const _plan = sim.plan.bind(sim);
     sim.plan = (p) => {
@@ -110,7 +110,7 @@
     });
 
     // notice board in the square
-    sim.world.props.push({ kind: 'noticeboard', x: 42 * T + 8, y: 29 * T + 14, seed: 5, solid: true }); sim.world.solid[29 * sim.world.W + 42] = 1; sim.world.dirtyStatics = true;
+    if (!sim.world.props.some((p) => p.kind === 'noticeboard')) { sim.world.props.push({ kind: 'noticeboard', x: 42 * T + 8, y: 29 * T + 14, seed: 5, solid: true }); sim.world.solid[29 * sim.world.W + 42] = 1; sim.world.dirtyStatics = true; }
     O.noticeCandidate = () => { if (game.scene) return null; const nb = sim.world.props.find((p) => p.kind === 'noticeboard'); const d = Math.hypot(nb.x - game.player.x, nb.y - game.player.y); return d < 22 ? { type: 'notices', d: d + 1, x: nb.x, y: nb.y - 26 } : null; };
     O.readNotices = () => {
       const wanted = sim.crimes.filter((c) => c.perp !== 'player' && c.investigated && !c.solved && Object.keys(c.profile || {}).length).slice(-3);

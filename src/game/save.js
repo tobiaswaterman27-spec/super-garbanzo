@@ -1,0 +1,135 @@
+// Saving and loading. The village regenerates deterministically from its seed, so a save stores
+// only what has changed: people and their lives, households, businesses, buildings and sites, trees
+// and props, the solid grid, weather, crimes, gangs, horses, the kingdom, and the player.
+// Appearances are rebuilt from genes and trade on load (palette ids aren't stable between sessions).
+'use strict';
+(function () {
+  const KEY = 'outlaw.save.v1';
+  const PS = O.PlayerState;
+
+  function encodeGrid(a) { let s = ''; for (let i = 0; i < a.length; i++) s += a[i] ? '1' : '0'; return s; }
+  function decodeGrid(s, a) { for (let i = 0; i < a.length; i++) a[i] = s.charCodeAt(i) === 49 ? 1 : 0; }
+
+  function snapshot(game, sim) {
+    const w = sim.world;
+    const strip = (p) => {
+      const o = {};
+      for (const [k, v] of Object.entries(p)) {
+        if (k === 'app' || k === 'agent' || k === 'activity') continue;
+        if (k === 'rel') { o.rel = [...v.entries()].map(([id, r]) => [id, +r.affinity.toFixed(3), +r.familiar.toFixed(3)]); continue; }
+        if (k === 'task') { if (v && (v.act === 'pickup' || v.act === 'deliver')) continue; o.task = v; continue; }
+        o[k] = v;
+      }
+      const a = p.agent; o.ag = a ? [Math.round(a.x), Math.round(a.y), a.dir, a.inside, a.hidden ? 1 : 0, a.carrying || null] : null;
+      return o;
+    };
+    return {
+      v: 1, seed: w.seed, savedAt: Date.now(),
+      sim: {
+        day: sim.day, minute: sim.minute, nextId: sim.nextId, treasury: sim.treasury, stats: sim.stats, history: sim.history.slice(-250), crimes: sim.crimes.slice(-150).map((c) => Object.assign({}, c, { seen: undefined, perp: c.perp === 'player' || c.perp == null ? c.perp : { id: c.perp.id } })),
+        settlement: sim.settlement, events: sim.events || [], graves: sim.graves, dead: sim.dead.map((d) => ({ id: d.id, name: d.name, first: d.first, sur: d.sur, age: d.age, household: d.household, died: d.died })),
+        rng: sim.rng.seed(), wrng: sim.weather.rng.seed(), krng: sim.kingdom.rng.seed(), season: sim._season, reeveId: sim.reeveId, guardRaised: sim._guardRaised || null,
+        weather: { kind: sim.weather.kind, wet: sim.weather.wet, snowCover: sim.weather.snowCover, lastHour: sim.weather.lastHour },
+        people: sim.people.map(strip), traderId: sim.trader ? sim.trader.id : null,
+        households: sim.households,
+        biz: [...sim.biz.values()].map((b) => ({ id: b.id, type: b.type, stock: b.stock, cash: b.cash, owner: b.owner, workers: b.workers, salesToday: b.salesToday, history: b.history, jobs: b.def.jobs, name: b.name, cost: b.def.site ? true : undefined })),
+        sites: sim.build.sites.map((s) => ({ id: s.id, stage: s.stage, prog: s.prog, work: s.work, started: s.started })), nextCouncil: sim.build.nextCouncil, plotsUsed: [...sim.build.used],
+        gangs: sim.gangs,
+        kingdom: { places: sim.kingdom.places, roads: sim.kingdom.roads, caravans: sim.kingdom.caravans.map((c) => Object.assign({}, c, { held: false })), news: sim.kingdom.news, treasury: sim.kingdom.treasury, taxRate: sim.kingdom.taxRate, councils: sim.kingdom.councils.slice(-6) },
+        horses: (sim.horses || []).map((h) => { const o = Object.assign({}, h); delete o._actor; return o; }),
+      },
+      world: {
+        buildings: w.buildings.map((b) => { const o = {}; for (const [k, v] of Object.entries(b)) if (k !== 'sprite' && k !== 'dirty') o[k] = k === 'spec' ? Object.assign({}, v, { _fin: undefined }) : v; return o; }),
+        trees: w.trees.map((t) => [t.kind, t.x, t.y, t.seed]),
+        props: w.props.map((p) => ({ kind: p.kind, x: p.x, y: p.y, seed: p.seed, v: p.v, solid: p.solid, flat: p.flat, field: p.field, grave: p.grave })),
+        solid: encodeGrid(w.solid),
+      },
+      player: {
+        x: Math.round(game.scene ? game.scene.b.doorX * 16 + 8 : game.player.x), y: Math.round(game.scene ? game.scene.b.doorY * 16 + 10 : game.player.y), dir: game.player.dir,
+        mount: game.player.mount ? game.player.mount.id : null,
+        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: PS.rep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled },
+      },
+    };
+  }
+
+  function save(game, sim, quiet) {
+    if (window.__noAutosave) return 0;
+    try {
+      const data = JSON.stringify(snapshot(game, sim));
+      localStorage.setItem(KEY, data);
+      if (!quiet) O.Panels.toast(`Saved: day ${sim.day}, ${game.timeString()}.`);
+      return data.length;
+    } catch (e) { if (!quiet) O.Panels.toast('Could not save in this browser (storage is unavailable or full).', 'bad'); return 0; }
+  }
+  function peek() { try { const s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
+  function clear() { try { localStorage.removeItem(KEY); } catch (e) { /* ignore */ } }
+
+  // Rebuild the simulation state from a save, on top of a freshly generated village.
+  function hydrate(game, sim, d) {
+    const w = sim.world, S = d.sim;
+    // world
+    const byId = new Map(w.buildings.map((b) => [b.id, b]));
+    w.buildings = d.world.buildings.map((sb) => { const b = byId.get(sb.id) || {}; Object.assign(b, sb); b.dirty = true; return b; });
+    w.trees = d.world.trees.map(([kind, x, y, seed]) => ({ kind, x, y, seed }));
+    w.props = d.world.props;
+    decodeGrid(d.world.solid, w.solid);
+    w.dirtyStatics = true;
+    // core sim
+    Object.assign(sim, { day: S.day, minute: S.minute, _lastMin: Math.floor(S.minute), nextId: S.nextId, treasury: S.treasury, stats: S.stats, history: S.history, crimes: S.crimes, settlement: S.settlement, events: S.events, graves: S.graves, _season: S.season, reeveId: S.reeveId, _guardRaised: S.guardRaised });
+    sim.rng = O.RNG(S.rng); sim.weather.rng = O.RNG(S.wrng); sim.kingdom.rng = O.RNG(S.krng);
+    Object.assign(sim.weather, S.weather);
+    sim.households = S.households;
+    sim.dead = S.dead.map((x) => Object.assign({ alive: false, rel: new Map(), memories: [], traits: [] }, x));
+    sim.people = S.people.map((o) => {
+      const p = Object.assign({}, o);
+      p.rel = new Map((o.rel || []).map(([id, a, f]) => [id, { affinity: a, familiar: f }]));
+      delete p.ag;
+      return p;
+    });
+    sim.byId = new Map(); for (const p of [...sim.people, ...sim.dead]) sim.byId.set(p.id, p);
+    for (const p of sim.people) {
+      const ag = S.people.find((x) => x.id === p.id).ag || [46 * 16, 30 * 16, 0, null, 0, null];
+      if (p.visitor) p.app = O.Char.makeAppearance(O.hash('trader', p.id), { sex: p.sex, age: p.age, genes: p.genes, role: 'merchant', wealth: 0.65, region: 'east' });
+      else { p.agent = { a: null }; sim.refreshLook(p); }
+      p.agent = { x: ag[0], y: ag[1], dir: ag[2], anim: 'idle', ft: Math.random() * 3, a: p.app, hidden: !!ag[4], inside: ag[3], path: null, goal: null, person: p, carrying: ag[5] };
+      p.activity = null;
+    }
+    sim.trader = S.traderId ? sim.byId.get(S.traderId) : null;
+    for (const c of sim.crimes) if (c.perp && c.perp !== 'player' && c.perp.id != null) c.perp = sim.byId.get(c.perp.id) || null;
+    // businesses and sites
+    for (const sb of S.biz) {
+      let bz = sim.biz.get(sb.id);
+      if (!bz && sb.type === 'site') {
+        const b = w.buildings.find((x) => x.id === sb.id);
+        const def = { label: 'Building site', jobs: sb.jobs, hours: [7, 17], recipes: [], sells: [], buys: { logs: 'woodcutter', stone: 'import' }, targets: { logs: 12, stone: 10 }, wage: { builder: 7 }, site: true };
+        bz = { id: sb.id, b, type: 'site', def, name: sb.name, sold: {}, bought: {}, orders: [] }; sim.biz.set(sb.id, bz);
+      }
+      if (!bz) continue;
+      Object.assign(bz, { stock: sb.stock, cash: sb.cash, owner: sb.owner, workers: sb.workers, salesToday: sb.salesToday, history: sb.history, orders: [], open: false });
+      bz.def = Object.assign({}, bz.def, { jobs: sb.jobs });
+      bz.b = w.buildings.find((x) => x.id === sb.id) || bz.b;
+    }
+    for (const id of [...sim.biz.keys()]) if (!S.biz.find((b) => b.id === id)) sim.biz.delete(id);
+    sim.build.sites = S.sites.map((s) => Object.assign({}, s, { b: w.buildings.find((x) => x.id === s.id) }));
+    sim.build.nextCouncil = S.nextCouncil; sim.build.used = new Set(S.plotsUsed);
+    sim.gangs = S.gangs;
+    Object.assign(sim.kingdom, S.kingdom);
+    sim.path.recost(); sim.path.clear();
+    // player
+    const P = d.player; Object.assign(PS, P.ps);
+    game.player.x = P.x; game.player.y = P.y; game.player.dir = P.dir;
+    game._pendingMount = P.mount;
+    sim.horsesSaved = S.horses;
+  }
+  // after the UI modules are set up: horses, mount
+  function hydrateLate(game, sim) {
+    if (sim.horsesSaved && O.Horses) {
+      const hs = O.Horses.horses; hs.length = 0; for (const h of sim.horsesSaved) hs.push(h); sim.horses = hs; delete sim.horsesSaved;
+      if (game._pendingMount) { const h = hs.find((x) => x.id === game._pendingMount); if (h) { game.player.mount = h; } game._pendingMount = null; }
+    }
+    const nb = sim.world.props.filter((p) => p.kind === 'noticeboard'); if (nb.length > 1) sim.world.props.splice(sim.world.props.indexOf(nb[1]), 1);
+    sim.world.dirtyStatics = true;
+  }
+
+  O.Save = { save, peek, clear, hydrate, hydrateLate, snapshot, KEY };
+})();

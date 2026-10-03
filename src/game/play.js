@@ -9,6 +9,10 @@
   const sim = new O.Sim(world, 11);
   O.sim = sim; game.sim = sim;
   const PS = O.PlayerState;
+  // continue a saved life if there is one
+  const saved = O.Save.peek();
+  let loaded = false;
+  if (saved && saved.seed === world.seed) { try { O.Save.hydrate(game, sim, saved); loaded = true; sim.seasonChanged = sim.season !== 'summer'; } catch (e) { console.warn('Save could not be loaded', e); } }
   // the simulation owns time; the engine reads it
   game.clock = { speed: 1, get minute() { return sim.minute; }, set minute(v) {}, get day() { return sim.day; }, set day(v) {} };
   game.hooks.update.push((dt) => {
@@ -67,6 +71,22 @@
   O.CombatSetup.setup(game, sim, npcUI);
   O.HorsesSetup.setup(game, sim, npcUI);
   O.KingdomUI.setup(game, sim, npcUI);
+  if (loaded) { O.Save.hydrateLate(game, sim); setTimeout(() => O.Panels.toast(`Welcome back. It is ${O.DAYNAMES[sim.weekday]}, day ${sim.day}, in Ashford.`), 300); }
+  // autosave each dawn and whenever the page is hidden
+  let lastAuto = sim.day;
+  game.hooks.update.push(() => { if (sim.day !== lastAuto && sim.hour >= 6) { lastAuto = sim.day; O.Save.save(game, sim, true); } });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) O.Save.save(game, sim, true); });
+  const tr = $('hudTR');
+  const sv = document.createElement('div'); sv.className = 'savebar';
+  const sb = document.createElement('button'); sb.textContent = 'Save'; sb.onclick = () => { O.Save.save(game, sim); game.canvas.focus(); };
+  const nb = document.createElement('button'); nb.textContent = 'New life';
+  nb.onclick = () => {
+    O.Panels.open('Begin a new life?', '<p class="caption">This forgets Ashford as you left it: every person, every crime, your band and your purse. The village will begin again on day 1.</p><div class="topics"><button data-yes="1">Yes, start over</button><button data-no="1">Keep playing</button></div>', (r) => {
+      r.querySelector('[data-no]').onclick = () => O.Panels.close();
+      r.querySelector('[data-yes]').onclick = () => { O.Save.clear(); window.__noAutosave = true; location.reload(); };
+    });
+  };
+  sv.append(sb, nb); tr.appendChild(sv);
   const mbtn = document.createElement('button'); mbtn.className = 'btn ghost map-btn'; mbtn.textContent = 'Map (M)';
   mbtn.onclick = () => (O.panelOpen ? O.Panels.close() : O.openMap()); $('tab-play').appendChild(mbtn);
   const gbtn = document.createElement('button'); gbtn.className = 'btn ghost gang-btn'; gbtn.textContent = 'Gang (G)';

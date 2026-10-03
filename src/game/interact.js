@@ -23,6 +23,7 @@
     function candidates() {
       const p = game.player, out = [];
       if (game.scene) return game.scene.candidates();
+      if (O.horseCandidate) { const hc = O.horseCandidate(); if (hc) out.push(hc); }
       for (const q of sim.people) { const a = q.agent; if (a.hidden) continue; const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < 26) out.push({ type: 'npc', person: q, d, x: a.x, y: a.y }); }
       const T = sim.T;
       for (const pr of sim.world.props) if (pr.kind === 'gravestone') { const d = Math.hypot(pr.x - p.x, pr.y - p.y); if (d < 20) out.push({ type: 'grave', prop: pr, d: d + 2, x: pr.x, y: pr.y - 14 }); }
@@ -49,6 +50,7 @@
         case 'door': return doorLocked(c.b) ? `${c.b.name} — locked` : `Enter ${c.b.type === 'house' ? 'house' : c.b.name}`;
         case 'container': return `Search ${c.it.kind}`;
         case 'grave': return 'Read the gravestone';
+        case 'horse': return `Look over ${c.h.owner === 'player' ? c.h.name : 'the horse'}`;
         case 'claim': return 'Claim the abandoned camp';
         case 'stash': return 'Open the stash';
         case 'campbed': return 'Sleep by the fire';
@@ -66,7 +68,7 @@
       cur = cs[0] || null;
       O.interactTarget = cur;
       if (cur) {
-        const quick = cur.type === 'container' ? '<kbd>F</kbd>Quick loot' : cur.type === 'npc' && O.Combat && O.Combat.lootable(cur.person) ? '<kbd>F</kbd>Search them' : cur.type === 'npc' && cur.person.age >= 8 ? '<kbd>Q</kbd>Pickpocket' : cur.type === 'door' && doorLocked(cur.b) && cur.b.type !== 'guard' ? '<kbd>Q</kbd>Pick the lock' : '';
+        const quick = cur.type === 'horse' ? (cur.h.owner === 'player' ? '<kbd>H</kbd>Ride' : '<kbd>Q</kbd>Steal the horse') : cur.type === 'container' ? '<kbd>F</kbd>Quick loot' : cur.type === 'npc' && O.Combat && O.Combat.lootable(cur.person) ? '<kbd>F</kbd>Search them' : cur.type === 'npc' && cur.person.age >= 8 ? '<kbd>Q</kbd>Pickpocket' : cur.type === 'door' && doorLocked(cur.b) && cur.b.type !== 'guard' ? '<kbd>Q</kbd>Pick the lock' : '';
         prompt.hidden = false; prompt.innerHTML = `<kbd>E</kbd>${O.escape(label(cur))}${quick ? ' &nbsp; ' + quick : ''}`;
       } else prompt.hidden = true;
     });
@@ -142,6 +144,7 @@
       if (e.code === 'KeyI') { if (O.panelOpen) O.Panels.close(); else O.Panels.inventory(); return true; }
       if (e.code === 'Escape' && O.panelOpen) { O.Panels.close(); return true; }
       if (O.panelOpen || searching > 0) return false;
+      if (e.code === 'KeyQ' && cur && cur.type === 'horse') return false;
       if (e.code === 'KeyQ') {
         if (cur && cur.type === 'npc' && cur.person.age >= 8) O.Law.pickpocket(cur);
         else if (cur && cur.type === 'door' && doorLocked(cur.b) && cur.b.type !== 'guard') O.Law.pickLock(cur.b);
@@ -156,11 +159,13 @@
         case 'npc': if (cur.person.health.hp <= 0) { O.Panels.toast(`${cur.person.first} is senseless.`); break; } npcUI.openTalk(cur.person); break;
         case 'door':
           if (doorLocked(cur.b)) { O.Panels.toast(`The door of ${cur.b.type === 'house' ? 'the house' : cur.b.name} is barred.`); break; }
+          if (game.player.mount) O.Horses.dismount();
           game.enterBuilding(cur.b, 0);
           O.Crime.onEnter(game, sim, cur.b);
           break;
         case 'container': search(cur.it, false); break;
         case 'claim': O.GangUI.claim(cur.b); break;
+        case 'horse': O.inspectHorse(cur.h); break;
         case 'stash': O.GangUI.stash(); break;
         case 'campbed': sleep(); break;
         case 'grave': { const g = cur.prop.grave; O.Panels.toast(g ? `“Here lies ${g.name}, ${g.age} years. ${g.cause.replace('died ', '').replace(/^./, (c) => c.toUpperCase())}.”` : 'The old stone is worn smooth; you can no longer read the name.'); break; }

@@ -147,7 +147,7 @@ main > .wrap { overflow: auto; }
 </style>
 
 <header class="top">
-  <div class="brand">Outlaw<small>BUILD 0.9 · STEEL & STRIFE</small></div>
+  <div class="brand">Outlaw<small>BUILD 0.10 · HORSE & HOUND</small></div>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" role="tab" aria-selected="true" data-tab="play">Play</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="forge">Character</button>
@@ -165,7 +165,7 @@ main > .wrap { overflow: auto; }
       <span class="lbl">Time</span>
       <div class="seg" id="speedSeg"></div>
     </div>
-    <div class="hud hud-b" id="hudB">WASD move · Shift run · E interact · Space strike · R weapon · Q steal/pick lock · F loot · I satchel · G gang · L ledger</div>
+    <div class="hud hud-b" id="hudB">WASD move · Shift run · E interact · Space strike · R weapon · H ride · Q steal · F loot · I satchel · G gang · L ledger</div>
   </section>
 
   <section class="wrap" id="tab-forge" hidden>
@@ -2351,6 +2351,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     // Woodcutter
     B({ type: 'woodcutter', name: "Woodcutter's Hut", x: 40, bottom: 9, w: 3, d: 3, wealth: 0.25, condition: 0.6, look: { wall: 'log', roof: 'shingle', roofType: 'gable', chimney: true, doorTile: 1 } });
 
+    // stables and paddock east of the square, beside the King's Road
+    B({ type: 'stable', name: 'Ashford Stables', x: 10, bottom: 34, w: 5, d: 3, wealth: 0.5, look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', roofType: 'side', bigDoor: true, doorTile: 2, chimney: false, noFlowers: true } });
     // hidden clearings in the woods: an abandoned camp anyone bold enough could claim, and the Crows' den
     B({ type: 'hideout', name: 'Abandoned camp', x: 8, bottom: 9, w: 3, d: 2, wealth: 0.2, condition: 0.6, level: 0, unclaimed: true, look: { wall: 'log', roof: 'shingle', roofType: 'gable', doorTile: 1, noFlowers: true } });
     B({ type: 'hideout', name: "The Crows' den", x: 89, bottom: 47, w: 3, d: 2, wealth: 0.2, condition: 0.6, level: 1, gang: 'crows', look: { wall: 'log', roof: 'thatch', roofType: 'gable', doorTile: 1, noFlowers: true } });
@@ -2385,6 +2387,12 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     P('hay', 30, 52); P('hay', 31, 54); P('cart', 17, 53, { v: 1 }); P('trough', 15, 54); P('woodpile', 9, 52);
     for (let x = 6; x <= 34; x++) { P('fenceH', x, 55, { solid: x !== 20 && x !== 21 }); }
     for (let x = 49; x <= 72; x++) if (x !== 60) P('fenceH', x, 44, { solid: true });
+    // paddock fence by the stables, and a small pasture west of the King's Road houses
+    for (let x = 16; x <= 22; x++) { P('fenceH', x, 32, { solid: true }); P('fenceH', x, 36, { solid: true }); }
+    for (let y = 33; y <= 35; y++) { P('fenceV', 22, y, { solid: true }); }
+    P('trough', 21, 35, { solid: true }); P('hay', 21, 33);
+    for (let x = 2; x <= 7; x++) { P('fenceH', x, 32, { solid: true }); P('fenceH', x, 36, { solid: true }); }
+    for (let y = 33; y <= 35; y++) { P('fenceV', 2, y, { solid: true }); P('fenceV', 7, y, { solid: true }); }
     // chapel graves
     for (let i = 0; i < 5; i++) P('gravestone', 68 + (i % 3), 37 - Math.floor(i / 3), { solid: true });
     // woodcutter
@@ -2657,12 +2665,12 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const len = Math.hypot(mx, my);
       if (len > 0) {
         mx /= len; my /= len;
-        const sp = run ? 92 : 50;
+        const sp = this.speedFor ? this.speedFor(run) : run ? 92 : 50;
         const nx = p.x + mx * sp * dt, ny = p.y + my * sp * dt;
         if (!this.blocked(nx, p.y)) p.x = nx;
         if (!this.blocked(p.x, ny)) p.y = ny;
         p.dir = Math.abs(mx) > Math.abs(my) + 0.01 ? (mx < 0 ? 1 : 2) : (my < 0 ? 3 : 0);
-        p.anim = run ? 'run' : 'walk';
+        p.anim = p.mount ? 'sit' : run ? 'run' : 'walk';
       } else if (p.anim === 'walk' || p.anim === 'run') p.anim = 'idle';
       p.moving = len > 0;
       for (const a of this.actors) a.ft += dt;
@@ -2701,11 +2709,14 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const actors = this.actors.filter((a) => !a.hidden).slice().sort((a, b) => a.y - b.y);
       let ai = 0;
       const drawActor = (a) => {
+        if (a.mount && this.riderDraw) { this.riderDraw(ctx, a); a._sx = null; return; }
         const fr = this.actorFrame(a), ox = fr.ox ?? 16;
-        const fx = Math.round(a.x - ox - cam.x), fy = Math.round(a.y - Ch.GROUND - cam.y);
+        const fx = Math.round(a.x - ox - cam.x), fy = Math.round(a.y - (fr.gy ?? Ch.GROUND) - cam.y);
         if (fx < -50 || fy < -60 || fx > vw + 40 || fy > vh + 60) return;
         ctx.fillStyle = 'rgba(28,20,44,0.32)';
-        if (fr.ox) ctx.fillRect(fx + 6, fy + Ch.GROUND - 1, 36, 3);
+        if (a.horse) ctx.fillRect(fx + 12, fy + fr.gy - 1, 36, 3);
+        else if (a.animal) ctx.fillRect(fx + Math.round(fr.width / 2) - 4, fy + fr.gy - 1, 8, 2);
+        else if (fr.ox) ctx.fillRect(fx + 6, fy + Ch.GROUND - 1, 36, 3);
         else { ctx.fillRect(fx + 11, fy + Ch.GROUND - 1, 10, 3); ctx.fillRect(fx + 9, fy + Ch.GROUND, 14, 1); }
         ctx.drawImage(fr, fx, fy);
         a._sx = fx; a._sy = fy;
@@ -2862,6 +2873,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     store: { label: 'General Store', jobs: [['shopkeeper', 1]], hours: [8, 18], recipes: [], sells: ['cabbage', 'firewood', 'flour'], buys: { cabbage: 'farmhouse', firewood: 'woodcutter', flour: 'mill' }, targets: { cabbage: 30, firewood: 30, flour: 10 }, wage: { shopkeeper: 0 } },
     doctor: { label: "Physician's", jobs: [['physician', 1], ['herbalist', 1]], hours: [8, 17], recipes: [{ out: { herbs: 1.2 }, inp: {}, role: 'herbalist' }, { out: { medicine: 0.4 }, inp: { herbs: 0.5 }, role: 'physician' }], sells: ['medicine', 'herbs'], targets: { herbs: 10, medicine: 8 }, wage: { physician: 0, herbalist: 6 } },
     guard: { label: 'Watch House', jobs: [['guard captain', 1], ['guard', 3]], hours: [0, 24], recipes: [], sells: [], targets: {}, public: true, wage: { 'guard captain': 12, guard: 8 } },
+    stable: { label: 'Stables', jobs: [['horse trader', 1], ['stablehand', 1]], hours: [7, 19], recipes: [], sells: [], buys: { wheat: 'farmhouse' }, targets: { wheat: 12 }, wage: { 'horse trader': 0, stablehand: 5 } },
     chapel: { label: 'Chapel', jobs: [['priest', 1]], hours: [6, 20], recipes: [], sells: [], targets: {}, public: true, wage: { priest: 6 } },
   };
 
@@ -2869,7 +2881,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   const ROLE_OUTFIT = {
     farmer: 'farmer', farmhand: 'farmhand', miller: 'miller', labourer: 'villager', baker: 'baker', apprentice: 'villager', woodcutter: 'woodcutter',
     blacksmith: 'blacksmith', innkeeper: 'innkeeper', server: 'innkeeper', cook: 'baker', shopkeeper: 'merchant', physician: 'doctor', assistant: 'villager',
-    'guard captain': 'guard', guard: 'guard', priest: 'priest', herbalist: 'farmhand', porter: 'villager', trader: 'merchant',
+    'guard captain': 'guard', guard: 'guard', priest: 'priest', herbalist: 'farmhand', 'horse trader': 'merchant', stablehand: 'farmhand', porter: 'villager', trader: 'merchant',
   };
 
   const NAMES = {
@@ -3528,12 +3540,14 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   // What can be seen of someone right now.
   function lookOf(a) {
     const o = a.outfit;
-    return { hood: o.hat === 'hood' ? colorOf(o.hatMat) : null, hat: o.hat && o.hat !== 'hood' ? o.hat : null, cloak: o.cloak ? colorOf(o.cloak) : null, tunic: colorOf(o.over), hair: o.hat === 'hood' ? null : hairOf(a.hair), height: a.height > 0.4 ? 'tall' : a.height < -0.4 ? 'short' : 'middling' };
+    const mount = O.game && O.game.player && O.game.player.a === a ? O.game.player.mount : null;
+    return { horse: mount ? mount.coat : null, hood: o.hat === 'hood' ? colorOf(o.hatMat) : null, hat: o.hat && o.hat !== 'hood' ? o.hat : null, cloak: o.cloak ? colorOf(o.cloak) : null, tunic: colorOf(o.over), hair: o.hat === 'hood' ? null : hairOf(a.hair), height: a.height > 0.4 ? 'tall' : a.height < -0.4 ? 'short' : 'middling' };
   }
   // A witness's memory of that look, degraded by accuracy.
   function remembered(look, acc, rng) {
     const d = {};
     const blur = (c) => (rng.chance(acc) ? c : rng.pick(SIMILAR[c] || COLOR_NAMES));
+    if (look.horse) d.horse = rng.chance(0.5 + acc * 0.5) ? look.horse : rng.pick(['bay', 'black', 'grey', 'chestnut']);
     if (look.hood) d.hood = blur(look.hood);
     if (look.cloak && rng.chance(0.4 + acc * 0.5)) d.cloak = blur(look.cloak);
     if (look.tunic && rng.chance(acc * 0.7)) d.tunic = blur(look.tunic);
@@ -3544,6 +3558,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   }
   function describe(d) {
     const bits = [];
+    if (d.horse) bits.push(`riding a ${d.horse} horse`);
     if (d.hood) bits.push(`a ${pretty(d.hood)} hood`);
     if (d.hat) bits.push(`a ${d.hat === 'feather' ? 'feathered cap' : d.hat}`);
     if (d.cloak) bits.push(`a ${pretty(d.cloak)} cloak`);
@@ -3554,15 +3569,16 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   }
   function matchScore(profile, look) {
     let n = 0, hit = 0;
-    for (const k of ['hood', 'cloak', 'tunic', 'hair', 'hat', 'height']) {
-      if (profile[k] == null) continue; n += k === 'height' ? 0.5 : 1;
+    for (const k of ['hood', 'cloak', 'tunic', 'hair', 'hat', 'height', 'horse']) {
+      if (profile[k] == null) continue;
+      if (k === 'horse' && look.horse == null) continue; // a rider on foot can't be matched by the horse n += k === 'height' ? 0.5 : 1;
       if (profile[k] === look[k]) hit += k === 'height' ? 0.5 : 1;
     }
     return n ? hit / n : 0;
   }
   function vote(descs) {
     const prof = {};
-    for (const k of ['hood', 'cloak', 'tunic', 'hair', 'hat', 'height']) {
+    for (const k of ['hood', 'cloak', 'tunic', 'hair', 'hat', 'height', 'horse']) {
       const c = {}; for (const d of descs) if (d[k]) c[d[k]] = (c[d[k]] || 0) + 1;
       const best = Object.entries(c).sort((a, b) => b[1] - a[1])[0]; if (best) prof[k] = best[0];
     }
@@ -5754,6 +5770,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     function candidates() {
       const p = game.player, out = [];
       if (game.scene) return game.scene.candidates();
+      if (O.horseCandidate) { const hc = O.horseCandidate(); if (hc) out.push(hc); }
       for (const q of sim.people) { const a = q.agent; if (a.hidden) continue; const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < 26) out.push({ type: 'npc', person: q, d, x: a.x, y: a.y }); }
       const T = sim.T;
       for (const pr of sim.world.props) if (pr.kind === 'gravestone') { const d = Math.hypot(pr.x - p.x, pr.y - p.y); if (d < 20) out.push({ type: 'grave', prop: pr, d: d + 2, x: pr.x, y: pr.y - 14 }); }
@@ -5780,6 +5797,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         case 'door': return doorLocked(c.b) ? `${c.b.name} — locked` : `Enter ${c.b.type === 'house' ? 'house' : c.b.name}`;
         case 'container': return `Search ${c.it.kind}`;
         case 'grave': return 'Read the gravestone';
+        case 'horse': return `Look over ${c.h.owner === 'player' ? c.h.name : 'the horse'}`;
         case 'claim': return 'Claim the abandoned camp';
         case 'stash': return 'Open the stash';
         case 'campbed': return 'Sleep by the fire';
@@ -5797,7 +5815,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       cur = cs[0] || null;
       O.interactTarget = cur;
       if (cur) {
-        const quick = cur.type === 'container' ? '<kbd>F</kbd>Quick loot' : cur.type === 'npc' && O.Combat && O.Combat.lootable(cur.person) ? '<kbd>F</kbd>Search them' : cur.type === 'npc' && cur.person.age >= 8 ? '<kbd>Q</kbd>Pickpocket' : cur.type === 'door' && doorLocked(cur.b) && cur.b.type !== 'guard' ? '<kbd>Q</kbd>Pick the lock' : '';
+        const quick = cur.type === 'horse' ? (cur.h.owner === 'player' ? '<kbd>H</kbd>Ride' : '<kbd>Q</kbd>Steal the horse') : cur.type === 'container' ? '<kbd>F</kbd>Quick loot' : cur.type === 'npc' && O.Combat && O.Combat.lootable(cur.person) ? '<kbd>F</kbd>Search them' : cur.type === 'npc' && cur.person.age >= 8 ? '<kbd>Q</kbd>Pickpocket' : cur.type === 'door' && doorLocked(cur.b) && cur.b.type !== 'guard' ? '<kbd>Q</kbd>Pick the lock' : '';
         prompt.hidden = false; prompt.innerHTML = `<kbd>E</kbd>${O.escape(label(cur))}${quick ? ' &nbsp; ' + quick : ''}`;
       } else prompt.hidden = true;
     });
@@ -5873,6 +5891,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       if (e.code === 'KeyI') { if (O.panelOpen) O.Panels.close(); else O.Panels.inventory(); return true; }
       if (e.code === 'Escape' && O.panelOpen) { O.Panels.close(); return true; }
       if (O.panelOpen || searching > 0) return false;
+      if (e.code === 'KeyQ' && cur && cur.type === 'horse') return false;
       if (e.code === 'KeyQ') {
         if (cur && cur.type === 'npc' && cur.person.age >= 8) O.Law.pickpocket(cur);
         else if (cur && cur.type === 'door' && doorLocked(cur.b) && cur.b.type !== 'guard') O.Law.pickLock(cur.b);
@@ -5887,11 +5906,13 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         case 'npc': if (cur.person.health.hp <= 0) { O.Panels.toast(`${cur.person.first} is senseless.`); break; } npcUI.openTalk(cur.person); break;
         case 'door':
           if (doorLocked(cur.b)) { O.Panels.toast(`The door of ${cur.b.type === 'house' ? 'the house' : cur.b.name} is barred.`); break; }
+          if (game.player.mount) O.Horses.dismount();
           game.enterBuilding(cur.b, 0);
           O.Crime.onEnter(game, sim, cur.b);
           break;
         case 'container': search(cur.it, false); break;
         case 'claim': O.GangUI.claim(cur.b); break;
+        case 'horse': O.inspectHorse(cur.h); break;
         case 'stash': O.GangUI.stash(); break;
         case 'campbed': sleep(); break;
         case 'grave': { const g = cur.prop.grave; O.Panels.toast(g ? `“Here lies ${g.name}, ${g.age} years. ${g.cause.replace('died ', '').replace(/^./, (c) => c.toUpperCase())}.”` : 'The old stone is worn smooth; you can no longer read the name.'); break; }
@@ -6573,6 +6594,352 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
 </script>
 <script>
+// Animal sprites in the same material raster: horses (4 directions, idle/walk/gallop, coats and
+// markings, optional saddle and bridle) and village animals (chickens, sheep, cows, pigs, dogs,
+// cats). Legs are capsules posed per frame, so gaits read clearly at small sizes.
+'use strict';
+(function () {
+  const P = O.Pal, MB = O.MatBuffer;
+  const COATS = {
+    bay: { body: '#8a4a26', mane: '#2a1c18', legs: '#2a1c18' }, chestnut: { body: '#a0582c', mane: '#7a3a1c', legs: '#8a4a26' },
+    black: { body: '#2e2828', mane: '#1c1818', legs: '#1c1818' }, grey: { body: '#a8a8a4', mane: '#e0ddd4', legs: '#6e6c6a' },
+    dun: { body: '#b8965e', mane: '#3a2a1c', legs: '#3a2a1c' }, palomino: { body: '#d2a856', mane: '#f0e6c8', legs: '#c89a4a' },
+    white: { body: '#e6e2d8', mane: '#f4f0e6', legs: '#d4cfc2' }, piebald: { body: '#2e2828', mane: '#1c1818', legs: '#e6e2d8', patches: '#e6e2d8' },
+  };
+  const HANIMS = { idle: { frames: 2, fps: 1.5 }, walk: { frames: 4, fps: 7 }, gallop: { frames: 4, fps: 11 } };
+  const HW = 60, HH = 52, HG = 49;
+
+  function horseFrame(h, dir, anim, f) {
+    const c = COATS[h.coat] || COATS.bay;
+    const body = P.mat(c.body, 'hair'), mane = P.mat(c.mane, 'hair'), legs = P.mat(c.legs, 'hair'), hoof = P.mat('#2a2420', 'cloth');
+    const white = P.mat('#ece8de', 'hair'), leather = P.mat(P.cloth.darkLeather), blanket = P.mat(h.blanket || P.cloth.madder);
+    const B = new MB(HW, HH);
+    B.mirror = dir === 1;
+    const n = HANIMS[anim]?.frames || 1, t = (f / n) * Math.PI * 2;
+    const gal = anim === 'gallop', walk = anim === 'walk';
+    const bob = gal ? Math.round(Math.sin(t * 2) * 1.5) : walk ? (f % 2) : 0;
+    const swing = (ph) => (gal ? Math.sin(t + ph) * 0.75 : walk ? Math.sin(t + ph) * 0.4 : 0);
+    if (dir === 1 || dir === 2) {
+      // side view, facing right: barrel body, neck up to the head at the right
+      const by = HG - 24 + bob, bx = 27;
+      const leg = (x, ph, far) => {
+        const sw = swing(ph), kneeX = x + Math.sin(sw) * 4, kneeY = by + 9 + Math.cos(sw) * 5;
+        const fx = kneeX + Math.sin(sw * 0.6) * 3, fy = Math.min(HG - 1, kneeY + 10 - (gal && Math.cos(t + ph) > 0.4 ? 3 : 0));
+        B.part(far ? 1 : 3);
+        B.capsule(x, by + 2, kneeX, kneeY, 2.1, 1.5, legs, { shadeBias: far ? -1 : 0 });
+        B.capsule(kneeX, kneeY, fx, fy - 1, 1.4, 1.2, (u) => (h.socks && !far && u > 0.4 ? white : legs), { shadeBias: far ? -1 : 0 });
+        B.rect(Math.round(fx) - 1, Math.round(fy) - 1, 3, 2, hoof, far ? 0 : 1);
+      };
+      leg(bx - 10, Math.PI, true); leg(bx + 9, 0, true);
+      B.part(2);
+      B.blob(bx, by, 16, 8.5, body, { power: 2.3 });
+      if (c.patches) for (let y = by - 6; y < by + 7; y++) for (let x = bx - 14; x < bx + 14; x++) if (B.matAt(x, y) === body && O.noise2(x / 5, y / 4, h.seed % 97) > 0.6) B.plot(x, y, P.mat(c.patches, 'hair'), 3);
+      // neck and head
+      const nx = bx + 13, ny = by - 4, hx = bx + 22 + (gal ? 2 : 0), hy = by - 15 + (gal ? 4 : 0) + (anim === 'idle' && f === 1 ? 1 : 0);
+      B.capsule(nx, ny, hx - 3, hy + 2, 5, 3.4, body);
+      B.blob(hx + 1, hy + 2, 4.6, 3.2, body, { power: 2.2 }); B.blob(hx + 4, hy + 4, 2.8, 2.2, body, { power: 2 });
+      if (h.blaze) for (let y = hy; y < hy + 6; y++) B.plot(hx + 3 + (y > hy + 3 ? 1 : 0), y, white, 3);
+      B.plot(hx + 1, hy + 1, P.mat('#141014', 'cloth'), 0); B.plot(hx + 6, hy + 5, P.mat('#141014', 'cloth'), 1); // eye, nostril
+      B.part(4); B.plot(hx - 2, hy - 3, body, 2); B.plot(hx - 1, hy - 4, body, 3); B.plot(hx - 2, hy - 2, body, 2); // ears
+      // mane along the neck, tail behind
+      for (let k = 0; k < 9; k++) { const mx = nx - 3 + k * 1.1, my = ny - 5 + k * -0.9 + (k > 6 ? 2 : 0); B.plot(mx, my, mane, 2 + (k % 2)); B.plot(mx - 1, my + 1, mane, 1); }
+      const tw = gal ? -2 : walk ? Math.sin(t) : 0;
+      B.capsule(bx - 14, by - 3, bx - 18 + tw, by + 9 + (gal ? -5 : 0), 1.6, 2.1, mane);
+      leg(bx - 9, 0, false); leg(bx + 10, Math.PI, false);
+      if (h.saddled) {
+        B.part(5);
+        B.poly([[bx - 6, by - 8], [bx + 6, by - 8], [bx + 7, by - 3], [bx - 7, by - 3]], [0, -0.6, 0.8], blanket);
+        B.blob(bx, by - 8, 5, 2, leather, { power: 2.5 }); B.capsule(bx + 1, by - 5, bx + 1, by + 6, 0.6, 0.6, leather);
+        B.capsule(hx - 1, hy + 2, hx + 4, hy + 5, 0.5, 0.5, leather); B.capsule(hx + 2, hy + 4, bx + 6, by - 7, 0.4, 0.4, leather);
+      }
+    } else {
+      // front (down) or back (up) view: chest, head, two legs either side
+      const front = dir === 0, cx = HW / 2, by = HG - 22 + bob;
+      const leg = (x, ph) => { const sw = swing(ph), lift = Math.max(0, Math.sin(sw)) * (gal ? 4 : 2); B.capsule(x, by + 2, x, HG - 2 - lift, 1.9, 1.4, (u) => (h.socks && u > 0.6 ? white : legs)); B.rect(Math.round(x) - 1, HG - 3 - Math.round(lift), 3, 2, hoof, 1); };
+      B.part(1); leg(cx - 4, Math.PI); leg(cx + 4, 0);
+      B.part(2); B.blob(cx, by - 2, 8, 10, body, { power: 2.2 });
+      if (front) {
+        B.part(3); B.capsule(cx, by - 10, cx, by - 18, 3.6, 3, body); B.blob(cx, by - 20, 3.6, 5, body, { power: 2.2 });
+        if (h.blaze) for (let y = by - 24; y < by - 16; y++) B.plot(cx, y, white, 3);
+        B.plot(cx - 3, by - 22, P.mat('#141014', 'cloth'), 0); B.plot(cx + 2, by - 22, P.mat('#141014', 'cloth'), 0);
+        B.plot(cx - 3, by - 26, body, 3); B.plot(cx + 2, by - 26, body, 2);
+        for (let y = by - 24; y < by - 12; y++) B.plot(cx - 1 + (y % 2), y - 1, mane, 2);
+      } else {
+        B.part(3); B.capsule(cx, by - 8, cx, by - 16, 3.6, 3, body); B.plot(cx - 3, by - 20, body, 3); B.plot(cx + 2, by - 20, body, 2);
+        for (let y = by - 18; y < by - 6; y++) B.plot(cx, y, mane, 2);
+        B.capsule(cx, by + 2, cx + (gal ? 2 : 0), by + 12, 1.6, 2, mane);
+      }
+      B.part(1); leg(cx - 5, 0); leg(cx + 5, Math.PI);
+      if (h.saddled) { B.part(5); B.rect(cx - 7, by - 6, 14, 5, blanket, 2); B.blob(cx, by - 7, 5, 2, leather, { power: 2.5 }); }
+    }
+    const cv = B.toCanvas(); cv.ox = HW / 2; cv.gy = HG; return cv;
+  }
+
+  const SMALL = { chicken: { frames: 2 }, sheep: { frames: 2 }, cow: { frames: 2 }, pig: { frames: 2 }, dog: { frames: 2 }, cat: { frames: 2 } };
+  function smallFrame(kind, seed, dir, moving, f) {
+    const r = O.RNG(seed);
+    const W = kind === 'cow' ? 40 : kind === 'chicken' ? 14 : 28, H = kind === 'cow' ? 32 : kind === 'chicken' ? 16 : 24;
+    const B = new MB(W, H); B.mirror = dir === 1;
+    const g = H - 2, step = moving ? (f % 2 ? 1 : -1) : 0;
+    const side = dir === 1 || dir === 2;
+    const coat = {
+      chicken: P.mat(r.pick(['#e8e2d4', '#8a5a34', '#2e2828', '#c8a060']), 'hair'), sheep: P.mat('#e6e0d0', 'hair'), cow: P.mat(r.pick(['#8a5a34', '#2e2828', '#c8a882']), 'hair'),
+      pig: P.mat('#e0a49a', 'skin'), dog: P.mat(r.pick(['#8a6a44', '#2e2828', '#c8a060', '#e6e0d0']), 'hair'), cat: P.mat(r.pick(['#e08a3a', '#2e2828', '#8a8a86', '#e6e0d0']), 'hair'),
+    }[kind];
+    const dark = P.mat('#2a2024', 'cloth');
+    const legsAt = (xs, len, rr, m) => xs.forEach((x, i) => B.capsule(x + (i % 2 ? step : -step) * 0.6, g - len, x + (i % 2 ? step : -step), g - 1, rr, rr, m));
+    B.part(1);
+    if (kind === 'chicken') {
+      legsAt([6, 8], 3, 0.5, P.mat('#d8a040', 'cloth'));
+      B.part(2); B.blob(7, 8, 4.2, 3.6, coat, { power: 2 }); B.blob(side ? 10 : 7, 5, 2.2, 2.2, coat, { power: 2 });
+      B.plot(side ? 12 : 7, 5, P.mat('#e0b040', 'cloth'), 3); B.plot(side ? 10 : 6, 2, P.mat('#c83a2a', 'cloth'), 3); B.plot(side ? 10 : 6, 4, dark, 0);
+      if (side) B.plot(3, 6, coat, 1);
+    } else if (kind === 'cow' || kind === 'sheep' || kind === 'pig') {
+      const bw = kind === 'cow' ? 13 : kind === 'sheep' ? 9 : 8, bh = kind === 'cow' ? 7 : 5.5;
+      const cx = W / 2 - (side ? 2 : 0), cy = g - (kind === 'cow' ? 12 : 8);
+      const lm = kind === 'sheep' ? P.mat('#3a3030', 'cloth') : kind === 'pig' ? coat : coat;
+      if (side) legsAt([cx - bw + 3, cx - bw + 5, cx + bw - 5, cx + bw - 3], kind === 'cow' ? 9 : 6, kind === 'cow' ? 1.4 : 1, lm);
+      else legsAt([cx - 3, cx + 3], kind === 'cow' ? 9 : 6, 1.3, lm);
+      B.part(2); B.blob(cx, cy, side ? bw : bw * 0.6, bh, coat, { power: 2.2 });
+      if (kind === 'sheep') for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (B.matAt(x, y) === coat && (x * 3 + y * 5) % 7 === 0) B.tweak(x, y, -1);
+      if (kind === 'cow' && r.chance(0.6)) for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (B.matAt(x, y) === coat && O.noise2(x / 4, y / 4, seed % 50) > 0.62) B.plot(x, y, P.mat('#ece8de', 'hair'), 3);
+      const hx = side ? cx + bw + 1 : cx, hy = cy - (kind === 'pig' ? 0 : 3);
+      B.part(3); B.blob(hx, hy, kind === 'cow' ? 4 : 3, kind === 'cow' ? 3.6 : 3, kind === 'sheep' ? P.mat('#3a3030', 'cloth') : coat, { power: 2 });
+      if (dir !== 3) B.plot(hx + (side ? 1 : -2), hy - 1, dark, 0);
+      if (kind === 'pig' && side) B.plot(hx + 3, hy + 1, P.mat('#c8807a', 'skin'), 2);
+      if (kind === 'cow') { B.plot(hx - 2, hy - 4, P.mat('#e8e0c8', 'cloth'), 3); B.plot(hx + 2, hy - 4, P.mat('#e8e0c8', 'cloth'), 3); }
+    } else { // dog, cat
+      const cx = W / 2, cy = g - 6;
+      if (side) legsAt([cx - 6, cx - 4, cx + 4, cx + 6], 5, 0.9, coat); else legsAt([cx - 2, cx + 2], 5, 1, coat);
+      B.part(2); B.blob(cx, cy, side ? 7.5 : 4, 3.4, coat, { power: 2.2 });
+      const hx = side ? cx + 8 : cx, hy = cy - 4;
+      B.part(3); B.blob(hx, hy, 3, 2.8, coat, { power: 2 });
+      if (kind === 'dog' && side) B.capsule(hx + 2, hy + 1, hx + 4, hy + 1, 1, 0.8, coat);
+      B.plot(hx - 2, hy - 3, coat, 3); B.plot(hx + 1, hy - 3, coat, 2);
+      if (dir !== 3) B.plot(hx + (side ? 1 : -1), hy - 1, dark, 0);
+      B.capsule(side ? cx - 7 : cx, cy - 1, side ? cx - 10 : cx + 1, cy - (kind === 'cat' ? 7 : 4) + (moving ? step : 0), 0.8, 0.7, coat);
+    }
+    const cv = B.toCanvas(); cv.ox = Math.floor(W / 2); cv.gy = g; return cv;
+  }
+
+  const cache = new Map();
+  function horse(h, dir, anim, f) {
+    const key = 'h' + h.id + ':' + (h.saddled ? 1 : 0) + ':' + dir + anim + f;
+    let c = cache.get(key); if (!c) { c = horseFrame(h, dir, anim, f); cache.set(key, c); if (cache.size > 3000) cache.delete(cache.keys().next().value); }
+    return c;
+  }
+  function animal(kind, seed, dir, moving, f) {
+    const key = kind + seed + ':' + dir + (moving ? 1 : 0) + f;
+    let c = cache.get(key); if (!c) { c = smallFrame(kind, seed, dir, moving, f); cache.set(key, c); }
+    return c;
+  }
+  O.Animals = { horse, animal, COATS, HANIMS, HW, HH, HG };
+})();
+
+</script>
+<script>
+// Horses and village animals.
+//
+// Every horse is an individual with a name, breed, age, speed, stamina, temperament, value, owner
+// and a history of every owner it has had (bought, sold, stolen, gifted). Horses graze in the
+// paddock or stand where their rider left them. The player can buy one from the stables, ride it
+// (H), gallop (Shift), board it, rename it, sell it — or steal one, which witnesses remember and
+// the horse trader may recognise.
+'use strict';
+(function () {
+  const PS = O.PlayerState, A = O.Animals;
+  const NAMES = ['Bramble', 'Thistle', 'Ember', 'Ash', 'Mabyn', 'Hob', 'Willow', 'Sorrel', 'Rook', 'Dancer', 'Old Tom', 'Bess', 'Morrow', 'Juniper', 'Flint', 'Hazel', 'Nutmeg', 'Grimald', 'Swallow', 'Duke'];
+  const BREEDS = { Courser: { speed: 1.25, stamina: 0.8, value: 140 }, Palfrey: { speed: 1.05, stamina: 1.1, value: 110 }, Rouncey: { speed: 1.0, stamina: 1.0, value: 70 }, Cob: { speed: 0.85, stamina: 1.25, value: 55 }, Jennet: { speed: 1.1, stamina: 0.95, value: 95 }, Destrier: { speed: 1.0, stamina: 1.2, value: 220 } };
+  const TEMPERS = ['calm', 'spirited', 'skittish', 'stubborn', 'gentle'];
+
+  function setup(game, sim, npcUI) {
+    const r = O.RNG(4242), T = sim.T;
+    const stable = sim.world.buildings.find((b) => b.type === 'stable');
+    const stableBiz = sim.biz.get(stable.id);
+    const paddock = { x0: 16, y0: 33, x1: 21, y1: 34 };
+    const horses = [];
+    let nextId = 1;
+    function make(owner, opts = {}) {
+      const breed = opts.breed || r.pick(Object.keys(BREEDS)), B = BREEDS[breed];
+      const age = r.int(3, 16);
+      const h = { id: nextId++, seed: r.int(1, 9999), name: r.pick(NAMES), breed, age, coat: r.pick(Object.keys(A.COATS)), blaze: r.chance(0.4), socks: r.chance(0.35),
+        speed: +(B.speed * r.float(0.9, 1.1) * (age > 13 ? 0.9 : 1)).toFixed(2), staminaMax: Math.round(100 * B.stamina * r.float(0.85, 1.1)), temper: r.pick(TEMPERS),
+        owner, history: [], x: 0, y: 0, dir: r.int(0, 3), anim: 'idle', ft: r.next() * 3, saddled: false, fed: 80 };
+      h.stamina = h.staminaMax;
+      h.value = Math.round(B.value * (age < 5 ? 0.85 : age > 12 ? 0.6 : 1) * h.speed);
+      h.history.push({ day: sim.day, event: opts.event || 'bred', owner: ownerName(owner) });
+      horses.push(h); return h;
+    }
+    function ownerName(o) { if (o === 'player') return 'you'; if (typeof o === 'string' && o.startsWith('biz:')) return sim.biz.get(+o.slice(4))?.name || 'a stable'; const p = sim.byId.get(o); return p ? p.name : 'unknown'; }
+    // the stables' stock, and two horses that belong to villagers
+    for (let i = 0; i < 4; i++) { const h = make('biz:' + stable.id); place(h, paddock); }
+    const doc = sim.people.find((q) => q.job?.role === 'physician');
+    if (doc) { const h = make(doc.id, { breed: 'Palfrey', event: 'bought' }); h.saddled = true; place(h, paddock); }
+    const rich = sim.households.filter((hh) => hh.money > 100)[0];
+    if (rich) { const p = sim.byId.get(rich.members[0]); const h = make(p.id, { breed: 'Cob', event: 'bought' }); place(h, paddock); }
+    function place(h, z) { h.x = r.int(z.x0, z.x1) * T + 8; h.y = r.int(z.y0, z.y1) * T + 12; }
+    sim.horses = horses;
+
+    // ---- village animals: chickens and pigs in the farmyard, sheep and cows in the pasture, dogs and cats about the houses
+    const fauna = [];
+    const zone = (x0, y0, x1, y1) => ({ x0, y0, x1, y1 });
+    const add = (kind, n, z, extra = {}) => { for (let i = 0; i < n; i++) fauna.push(Object.assign({ kind, seed: r.int(1, 9999), z, x: r.int(z.x0, z.x1) * T + 8, y: r.int(z.y0, z.y1) * T + 12, dir: r.int(0, 3), ft: r.next() * 2, tx: null, wait: r.next() * 4, speed: kind === 'chicken' ? 14 : kind === 'cow' ? 8 : 11 }, extra)); };
+    add('chicken', 7, zone(9, 52, 30, 54)); add('pig', 2, zone(27, 52, 33, 54));
+    add('sheep', 5, zone(3, 33, 6, 35)); add('cow', 2, zone(3, 33, 6, 35));
+    for (const b of sim.world.buildings.filter((x) => x.type === 'house' && x.wealth > 0.45).slice(0, 4)) add(r.chance(0.6) ? 'dog' : 'cat', 1, zone(b.x - 1, b.bottom + 1, b.x + b.w, b.bottom + 2));
+    add('cat', 1, zone(38, 22, 43, 23)); add('dog', 1, zone(30, 29, 35, 29));
+    O.fauna = fauna;
+
+    // horse and animal actors are drawn like people
+    const _frame = game.actorFrame.bind(game);
+    game.actorFrame = (a) => {
+      if (a.horse) { const H = O.Animals.HANIMS[a.anim] || O.Animals.HANIMS.idle; return O.Animals.horse(a.horse, a.dir, a.anim in O.Animals.HANIMS ? a.anim : 'idle', Math.floor(a.ft * H.fps) % H.frames); }
+      if (a.animal) return O.Animals.animal(a.animal.kind, a.animal.seed, a.dir, a.moving, Math.floor(a.ft * 4) % 2);
+      return _frame(a);
+    };
+
+    function horseActor(h) { return h._actor || (h._actor = { horse: h, x: h.x, y: h.y, dir: h.dir, anim: 'idle', ft: h.ft }); }
+    function animalActor(f) { return f._actor || (f._actor = { animal: f, x: f.x, y: f.y, dir: f.dir, ft: f.ft, moving: false }); }
+
+    // update: grazing wander, riding, stamina
+    game.hooks.update.push((dt) => {
+      const dtm = dt * game.clock.speed;
+      for (const f of fauna) {
+        f.ft += dt;
+        if (f.tx == null) { f.wait -= dt; if (f.wait <= 0) { f.tx = r.int(f.z.x0, f.z.x1) * T + r.int(2, 14); f.ty = r.int(f.z.y0, f.z.y1) * T + r.int(6, 14); } }
+        else {
+          const dx = f.tx - f.x, dy = f.ty - f.y, d = Math.hypot(dx, dy), step = Math.min(d, f.speed * Math.min(dtm, 3));
+          if (d < 1) { f.tx = null; f.wait = 2 + r.next() * 6; } else { f.x += (dx / d) * step; f.y += (dy / d) * step; f.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 1 : 2) : (dy < 0 ? 3 : 0); }
+        }
+        const a = animalActor(f); a.x = f.x; a.y = f.y; a.dir = f.dir; a.ft = f.ft; a.moving = f.tx != null;
+      }
+      const p = game.player, mount = p.mount;
+      for (const h of horses) {
+        h.ft += dt;
+        if (h === mount) { h.x = p.x; h.y = p.y; h.dir = p.dir; h.anim = p.moving ? (p.galloping ? 'gallop' : 'walk') : 'idle'; }
+        else if (h.inPaddock !== false && !h.tied) {
+          if (h.tx == null) { if (r.next() < dt * 0.15) { h.tx = r.int(paddock.x0, paddock.x1) * T + 8; h.ty = r.int(paddock.y0, paddock.y1) * T + 12; } h.anim = 'idle'; }
+          else { const dx = h.tx - h.x, dy = h.ty - h.y, d = Math.hypot(dx, dy); if (d < 1) h.tx = null; else { const st = Math.min(d, 10 * dt); h.x += (dx / d) * st; h.y += (dy / d) * st; h.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 1 : 2) : (dy < 0 ? 3 : 0); h.anim = 'walk'; } }
+        } else h.anim = 'idle';
+        if (h !== mount) h.stamina = Math.min(h.staminaMax, h.stamina + dt * 4);
+        const a = horseActor(h); a.x = h.x; a.y = h.y; a.dir = h.dir; a.anim = h.anim; a.ft = h.ft;
+      }
+      if (mount) {
+        p.galloping = game.keys.has('run') && mount.stamina > 5 && p.moving;
+        if (p.galloping) mount.stamina = Math.max(0, mount.stamina - dt * 9); else mount.stamina = Math.min(mount.staminaMax, mount.stamina + dt * 2);
+        if (p.galloping && mount.temper === 'skittish' && r.chance(dt * 0.02)) { dismount(true); O.Panels.toast(`${mount.name} shies and throws you!`, 'bad'); PS.hp -= 8; }
+      }
+      if (!game.scene) game.actors = [...game.actors.filter((a) => !a.horse && !a.animal), ...horses.filter((h) => h !== mount).map(horseActor), ...fauna.map(animalActor)];
+    });
+
+    // riding speed: replace the walking pace while mounted
+    const _blocked = game.blocked.bind(game);
+    game.speedFor = (run) => (game.player.mount ? (run && game.player.mount.stamina > 5 ? 150 : 82) * game.player.mount.speed : run ? 92 : 50);
+
+    // draw the rider on the horse
+    const _drawWorld = game.hooks.drawWorld;
+    game.riderDraw = (ctx, a, fx, fy) => {
+      const h = a.mount; if (!h) return false;
+      const hf = O.Animals.horse(h, a.dir, h.anim, Math.floor(h.ft * (O.Animals.HANIMS[h.anim]?.fps || 2)) % (O.Animals.HANIMS[h.anim]?.frames || 2));
+      const hx = Math.round(a.x - hf.ox - game.cam.x), hy = Math.round(a.y - hf.gy - game.cam.y);
+      ctx.fillStyle = 'rgba(28,20,44,0.3)'; ctx.fillRect(hx + 12, hy + hf.gy - 1, 36, 3);
+      const side = a.dir === 1 || a.dir === 2;
+      const rider = O.Char.frame(a.a, a.dir, 'sit', 0);
+      const ry = hy + hf.gy - 45 - (side ? 22 : 20), rx = Math.round(a.x - 16 - game.cam.x) + (side ? (a.dir === 2 ? -2 : 2) : 0);
+      if (a.dir === 3) { ctx.drawImage(hf, hx, hy); ctx.drawImage(rider, rx, ry); }
+      else if (a.dir === 0) { ctx.drawImage(hf, hx, hy); ctx.drawImage(rider, rx, ry); ctx.drawImage(hf, 0, 0, hf.width, 22, hx, hy, hf.width, 22); }
+      else { ctx.drawImage(hf, hx, hy); ctx.drawImage(rider, rx, ry); }
+      return true;
+    };
+    void _drawWorld; void _blocked;
+
+    function nearestHorse() { let best = null, bd = 26; for (const h of horses) { if (h === game.player.mount) continue; const d = Math.hypot(h.x - game.player.x, h.y - game.player.y); if (d < bd) { bd = d; best = h; } } return best; }
+    function mountHorse(h) { if (game.scene) return; game.player.mount = h; h.saddled = true; h.tied = false; h.inPaddock = false; game.player.x = h.x; game.player.y = h.y; O.Panels.toast(`You swing up onto ${h.owner === 'player' ? h.name : 'the ' + h.coat + ' ' + h.breed.toLowerCase()}. Shift to gallop, H to dismount.`); }
+    function dismount(thrown) { const h = game.player.mount; if (!h) return; game.player.mount = null; h.tied = true; h.x = game.player.x + (thrown ? 10 : 14); h.y = game.player.y; if (!thrown) O.Panels.toast(`You tie ${h.owner === 'player' ? h.name : 'the horse'} up.`); }
+    O.Horses = { horses, nearestHorse, dismount, mountHorse };
+
+    function inspect(h) {
+      const mine = h.owner === 'player';
+      O.Panels.open(`${mine ? h.name : 'A horse'}`, `<div class="kv">
+        <div><span class="lbl">Breed</span><b>${h.breed}</b><small>${h.coat}${h.blaze ? ', a white blaze' : ''}${h.socks ? ', white socks' : ''} · ${h.age} years</small></div>
+        <div><span class="lbl">Temperament</span><b>${h.temper}</b><small>speed ${Math.round(h.speed * 100)} · stamina ${h.staminaMax}</small></div>
+        <div><span class="lbl">Worth</span><b>${O.money(h.value)}</b><small>owner: ${O.escape(ownerName(h.owner))}</small></div></div>
+        <div class="lbl" style="margin-top:10px">History</div><ol class="chron">${h.history.map((e) => `<li>Day ${e.day}: ${e.event} — ${O.escape(e.owner)}</li>`).join('')}</ol>
+        ${mine ? `<label class="lbl" for="horseName" style="display:block;margin-top:10px">Rename</label><input type="text" id="horseName" value="${O.escape(h.name)}" maxlength="20" style="width:100%;margin:4px 0"><button class="btn" data-ren="1">Rename</button> <button class="btn ghost" data-feed="1">Feed (1 wheat or 1d)</button>` : ''}`, (rr) => {
+        const rn = rr.querySelector('[data-ren]'); if (rn) rn.onclick = () => { h.name = rr.querySelector('#horseName').value.trim() || h.name; inspect(h); };
+        const fd = rr.querySelector('[data-feed]'); if (fd) fd.onclick = () => { if (PS.remove('wheat')) h.fed = 100; else if (PS.money >= 1) { PS.money -= 1; h.fed = 100; } h.stamina = h.staminaMax; O.Panels.toast(`${h.name} eats happily.`); };
+      });
+    }
+
+    function trade(trader) {
+      const forSale = horses.filter((h) => h.owner === 'biz:' + stable.id);
+      const mine = horses.filter((h) => h.owner === 'player');
+      O.Panels.open('Ashford Stables', `<p class="caption">${O.escape(trader.name)} runs a hand down a horse's neck. “Good animals, every one. Fair prices.”</p>
+        <table><thead><tr><th>Horse</th><th>Breed</th><th class="n">Speed</th><th class="n">Price</th><th></th></tr></thead><tbody>${forSale.map((h) => `<tr><td>${O.escape(h.name)}<br><small class="lbl">${h.coat}, ${h.age}y, ${h.temper}</small></td><td>${h.breed}</td><td class="n">${Math.round(h.speed * 100)}</td><td class="n">${O.money(h.value)}</td><td><button data-buy="${h.id}">Buy</button></td></tr>`).join('') || '<tr><td colspan="5">No horses for sale.</td></tr>'}</tbody></table>
+        ${mine.length ? `<table style="margin-top:12px"><thead><tr><th>Your horses</th><th class="n">Offer</th><th></th></tr></thead><tbody>${mine.map((h) => `<tr><td>${O.escape(h.name)}</td><td class="n">${O.money(Math.round(h.value * 0.6))}</td><td><button data-sell="${h.id}">Sell</button></td></tr>`).join('')}</tbody></table>` : ''}`, (rr) => {
+        rr.querySelectorAll('[data-buy]').forEach((x) => x.onclick = () => {
+          const h = horses.find((z) => z.id === +x.dataset.buy);
+          if (PS.money < h.value) return O.Panels.toast(`You need ${O.money(h.value)}.`, 'bad');
+          PS.money -= h.value; stableBiz.cash += h.value; h.owner = 'player'; h.history.push({ day: sim.day, event: 'sold', owner: 'you' }); h.inPaddock = true;
+          sim.remember(trader, `Sold ${h.name} to the stranger for ${h.value}d.`, 'work', 1, 0);
+          O.Panels.toast(`${h.name} is yours. Find them in the paddock.`); trade(trader);
+        });
+        rr.querySelectorAll('[data-sell]').forEach((x) => x.onclick = () => {
+          const h = horses.find((z) => z.id === +x.dataset.sell);
+          // the trader knows the horses of Ashford
+          const stolen = h.history.find((e) => e.event === 'stolen');
+          if (stolen && sim.rng.chance(0.85)) {
+            const prev = h.history.filter((e) => e.event !== 'stolen').slice(-1)[0];
+            O.Panels.close(); O.Panels.toast(`${trader.first}: “That's ${prev?.owner || 'someone'}'s horse! Watch! Horse thief!”`, 'bad');
+            const cr = sim.recordCrime({ kind: 'horse theft', perp: 'player', placeName: 'Ashford Stables', tile: [stable.doorX, stable.doorY], seen: [trader], severity: 3 }); PS.crimes.push(cr.id); return;
+          }
+          if (game.player.mount === h) dismount();
+          const offer = Math.round(h.value * 0.6); PS.money += offer; stableBiz.cash -= offer; h.owner = 'biz:' + stable.id; h.history.push({ day: sim.day, event: 'sold', owner: stable.name }); h.inPaddock = true; h.tied = false; place(h, paddock);
+          trade(trader);
+        });
+      });
+    }
+
+    // talk-card hook for the horse trader
+    const prevExtra = npcUI.extraButtons, prevOn = npcUI.onExtra;
+    npcUI.extraButtons = (q) => { const out = prevExtra ? prevExtra(q) : []; if (q.job?.biz === stable.id && q.agent.inside === stable.id && stableBiz.open) out.push(['horses', 'Horses for sale']); return out; };
+    npcUI.onExtra = (q, key, render) => { if (key === 'horses') { npcUI.closeTalk(); return trade(q); } return prevOn && prevOn(q, key, render); };
+
+    game.keyHandlers.push((e) => {
+      if (O.panelOpen) return false;
+      if (e.code === 'KeyH') {
+        if (game.player.mount) { dismount(); return true; }
+        const h = nearestHorse(); if (!h) { O.Panels.toast('No horse within reach.'); return true; }
+        if (h.owner === 'player') mountHorse(h);
+        else O.Panels.toast(`That horse belongs to ${ownerName(h.owner)}. You could take it anyway (Q).`);
+        return true;
+      }
+      if (e.code === 'KeyQ' && !game.scene) {
+        const h = nearestHorse(); if (!h || h.owner === 'player') return false;
+        // horse theft: witnesses remember the horse as well as the rider
+        const seen = sim.seers(game.player.x, game.player.y).filter((q) => r.chance(0.6));
+        const prevOwner = ownerName(h.owner);
+        h.history.push({ day: sim.day, event: 'stolen', owner: 'a stranger' });
+        h.formerOwner = h.owner; h.owner = 'player';
+        mountHorse(h);
+        PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.06);
+        if (seen.length) { const cr = sim.recordCrime({ kind: 'horse theft', perp: 'player', placeName: sim.where({ x: h.x, y: h.y }), tile: [Math.floor(h.x / T), Math.floor(h.y / T)], seen, severity: 3 }); PS.crimes.push(cr.id); O.Panels.toast(`${seen[0].first} shouts: “Horse thief! That's ${prevOwner}'s horse!”`, 'bad'); }
+        else O.Panels.toast(`Nobody sees you lead ${prevOwner}'s horse away.`);
+        if (typeof h.formerOwner === 'number') { const v = sim.byId.get(h.formerOwner); if (v) sim.remember(v, `My horse ${h.name} has been stolen!`, 'crime', 2.5); }
+        return true;
+      }
+      return false;
+    });
+
+    // E on a horse inspects it (registered as an interaction candidate)
+    O.horseCandidate = () => { if (game.scene || game.player.mount) return null; const h = nearestHorse(); if (!h) return null; return { type: 'horse', h, d: Math.hypot(h.x - game.player.x, h.y - game.player.y) + 3, x: h.x, y: h.y - 30 }; };
+    O.inspectHorse = inspect;
+  }
+  O.HorsesSetup = { setup, BREEDS };
+})();
+
+</script>
+<script>
 // Character creation screen: builds the player's Appearance from explicit choices,
 // with a live 4-direction animated preview, a generated crowd and a genetics demo.
 'use strict';
@@ -6950,6 +7317,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   O.LawUI.setup(game, sim, npcUI);
   O.GangUISetup.setup(game, sim, npcUI);
   O.CombatSetup.setup(game, sim, npcUI);
+  O.HorsesSetup.setup(game, sim, npcUI);
   const gbtn = document.createElement('button'); gbtn.className = 'btn ghost gang-btn'; gbtn.textContent = 'Gang (G)';
   gbtn.onclick = () => (O.panelOpen ? O.Panels.close() : O.GangUI.ledger()); $('tab-play').appendChild(gbtn);
   const sbtn = document.createElement('button'); sbtn.className = 'btn ghost satchel-btn'; sbtn.textContent = 'Satchel (I)';

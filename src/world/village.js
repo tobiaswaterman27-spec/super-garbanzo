@@ -80,6 +80,8 @@
     // Woodcutter
     B({ type: 'woodcutter', name: "Woodcutter's Hut", x: 40, bottom: 9, w: 3, d: 3, wealth: 0.25, condition: 0.6, look: { wall: 'log', roof: 'shingle', roofType: 'gable', chimney: true, doorTile: 1 } });
 
+    // stables and paddock east of the square, beside the King's Road
+    B({ type: 'stable', name: 'Ashford Stables', x: 10, bottom: 34, w: 5, d: 3, wealth: 0.5, look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', roofType: 'side', bigDoor: true, doorTile: 2, chimney: false, noFlowers: true } });
     // hidden clearings in the woods: an abandoned camp anyone bold enough could claim, and the Crows' den
     B({ type: 'hideout', name: 'Abandoned camp', x: 8, bottom: 9, w: 3, d: 2, wealth: 0.2, condition: 0.6, level: 0, unclaimed: true, look: { wall: 'log', roof: 'shingle', roofType: 'gable', doorTile: 1, noFlowers: true } });
     B({ type: 'hideout', name: "The Crows' den", x: 89, bottom: 47, w: 3, d: 2, wealth: 0.2, condition: 0.6, level: 1, gang: 'crows', look: { wall: 'log', roof: 'thatch', roofType: 'gable', doorTile: 1, noFlowers: true } });
@@ -114,6 +116,12 @@
     P('hay', 30, 52); P('hay', 31, 54); P('cart', 17, 53, { v: 1 }); P('trough', 15, 54); P('woodpile', 9, 52);
     for (let x = 6; x <= 34; x++) { P('fenceH', x, 55, { solid: x !== 20 && x !== 21 }); }
     for (let x = 49; x <= 72; x++) if (x !== 60) P('fenceH', x, 44, { solid: true });
+    // paddock fence by the stables, and a small pasture west of the King's Road houses
+    for (let x = 16; x <= 22; x++) { P('fenceH', x, 32, { solid: true }); P('fenceH', x, 36, { solid: true }); }
+    for (let y = 33; y <= 35; y++) { P('fenceV', 22, y, { solid: true }); }
+    P('trough', 21, 35, { solid: true }); P('hay', 21, 33);
+    for (let x = 2; x <= 7; x++) { P('fenceH', x, 32, { solid: true }); P('fenceH', x, 36, { solid: true }); }
+    for (let y = 33; y <= 35; y++) { P('fenceV', 2, y, { solid: true }); P('fenceV', 7, y, { solid: true }); }
     // chapel graves
     for (let i = 0; i < 5; i++) P('gravestone', 68 + (i % 3), 37 - Math.floor(i / 3), { solid: true });
     // woodcutter

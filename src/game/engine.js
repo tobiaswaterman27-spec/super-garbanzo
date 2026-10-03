@@ -116,12 +116,12 @@
       const len = Math.hypot(mx, my);
       if (len > 0) {
         mx /= len; my /= len;
-        const sp = run ? 92 : 50;
+        const sp = this.speedFor ? this.speedFor(run) : run ? 92 : 50;
         const nx = p.x + mx * sp * dt, ny = p.y + my * sp * dt;
         if (!this.blocked(nx, p.y)) p.x = nx;
         if (!this.blocked(p.x, ny)) p.y = ny;
         p.dir = Math.abs(mx) > Math.abs(my) + 0.01 ? (mx < 0 ? 1 : 2) : (my < 0 ? 3 : 0);
-        p.anim = run ? 'run' : 'walk';
+        p.anim = p.mount ? 'sit' : run ? 'run' : 'walk';
       } else if (p.anim === 'walk' || p.anim === 'run') p.anim = 'idle';
       p.moving = len > 0;
       for (const a of this.actors) a.ft += dt;
@@ -160,11 +160,14 @@
       const actors = this.actors.filter((a) => !a.hidden).slice().sort((a, b) => a.y - b.y);
       let ai = 0;
       const drawActor = (a) => {
+        if (a.mount && this.riderDraw) { this.riderDraw(ctx, a); a._sx = null; return; }
         const fr = this.actorFrame(a), ox = fr.ox ?? 16;
-        const fx = Math.round(a.x - ox - cam.x), fy = Math.round(a.y - Ch.GROUND - cam.y);
+        const fx = Math.round(a.x - ox - cam.x), fy = Math.round(a.y - (fr.gy ?? Ch.GROUND) - cam.y);
         if (fx < -50 || fy < -60 || fx > vw + 40 || fy > vh + 60) return;
         ctx.fillStyle = 'rgba(28,20,44,0.32)';
-        if (fr.ox) ctx.fillRect(fx + 6, fy + Ch.GROUND - 1, 36, 3);
+        if (a.horse) ctx.fillRect(fx + 12, fy + fr.gy - 1, 36, 3);
+        else if (a.animal) ctx.fillRect(fx + Math.round(fr.width / 2) - 4, fy + fr.gy - 1, 8, 2);
+        else if (fr.ox) ctx.fillRect(fx + 6, fy + Ch.GROUND - 1, 36, 3);
         else { ctx.fillRect(fx + 11, fy + Ch.GROUND - 1, 10, 3); ctx.fillRect(fx + 9, fy + Ch.GROUND, 14, 1); }
         ctx.drawImage(fr, fx, fy);
         a._sx = fx; a._sy = fy;

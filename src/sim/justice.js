@@ -16,12 +16,14 @@
   // What can be seen of someone right now.
   function lookOf(a) {
     const o = a.outfit;
-    return { hood: o.hat === 'hood' ? colorOf(o.hatMat) : null, hat: o.hat && o.hat !== 'hood' ? o.hat : null, cloak: o.cloak ? colorOf(o.cloak) : null, tunic: colorOf(o.over), hair: o.hat === 'hood' ? null : hairOf(a.hair), height: a.height > 0.4 ? 'tall' : a.height < -0.4 ? 'short' : 'middling' };
+    const mount = O.game && O.game.player && O.game.player.a === a ? O.game.player.mount : null;
+    return { horse: mount ? mount.coat : null, hood: o.hat === 'hood' ? colorOf(o.hatMat) : null, hat: o.hat && o.hat !== 'hood' ? o.hat : null, cloak: o.cloak ? colorOf(o.cloak) : null, tunic: colorOf(o.over), hair: o.hat === 'hood' ? null : hairOf(a.hair), height: a.height > 0.4 ? 'tall' : a.height < -0.4 ? 'short' : 'middling' };
   }
   // A witness's memory of that look, degraded by accuracy.
   function remembered(look, acc, rng) {
     const d = {};
     const blur = (c) => (rng.chance(acc) ? c : rng.pick(SIMILAR[c] || COLOR_NAMES));
+    if (look.horse) d.horse = rng.chance(0.5 + acc * 0.5) ? look.horse : rng.pick(['bay', 'black', 'grey', 'chestnut']);
     if (look.hood) d.hood = blur(look.hood);
     if (look.cloak && rng.chance(0.4 + acc * 0.5)) d.cloak = blur(look.cloak);
     if (look.tunic && rng.chance(acc * 0.7)) d.tunic = blur(look.tunic);
@@ -32,6 +34,7 @@
   }
   function describe(d) {
     const bits = [];
+    if (d.horse) bits.push(`riding a ${d.horse} horse`);
     if (d.hood) bits.push(`a ${pretty(d.hood)} hood`);
     if (d.hat) bits.push(`a ${d.hat === 'feather' ? 'feathered cap' : d.hat}`);
     if (d.cloak) bits.push(`a ${pretty(d.cloak)} cloak`);
@@ -42,15 +45,16 @@
   }
   function matchScore(profile, look) {
     let n = 0, hit = 0;
-    for (const k of ['hood', 'cloak', 'tunic', 'hair', 'hat', 'height']) {
-      if (profile[k] == null) continue; n += k === 'height' ? 0.5 : 1;
+    for (const k of ['hood', 'cloak', 'tunic', 'hair', 'hat', 'height', 'horse']) {
+      if (profile[k] == null) continue;
+      if (k === 'horse' && look.horse == null) continue; // a rider on foot can't be matched by the horse n += k === 'height' ? 0.5 : 1;
       if (profile[k] === look[k]) hit += k === 'height' ? 0.5 : 1;
     }
     return n ? hit / n : 0;
   }
   function vote(descs) {
     const prof = {};
-    for (const k of ['hood', 'cloak', 'tunic', 'hair', 'hat', 'height']) {
+    for (const k of ['hood', 'cloak', 'tunic', 'hair', 'hat', 'height', 'horse']) {
       const c = {}; for (const d of descs) if (d[k]) c[d[k]] = (c[d[k]] || 0) + 1;
       const best = Object.entries(c).sort((a, b) => b[1] - a[1])[0]; if (best) prof[k] = best[0];
     }

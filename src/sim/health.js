@@ -11,6 +11,7 @@
     cold: { name: 'a chill', contagion: 0.02, grow: 0.04, heal: 0.16, max: 0.55 },
     flux: { name: 'the flux', contagion: 0.03, grow: 0.09, heal: 0.11, max: 1.1, water: true },
     fever: { name: 'a fever', contagion: 0.045, grow: 0.12, heal: 0.09, max: 1.3 },
+    pestilence: { name: 'the pestilence', contagion: 0.07, grow: 0.34, heal: 0.07, max: 1.2, lethal: 0.88 },
     injury: { name: 'an injury', contagion: 0, grow: 0, heal: 0.12, max: 1 },
   };
 
@@ -69,7 +70,7 @@
         if (days < 3) ill.sev += D.grow * (1 - (atDoctor ? 0.6 : 0)) * this.rng.float(0.4, 1.4);
         ill.sev -= heal * this.rng.float(0.6, 1.3);
         h.hp = Math.max(0, 100 - ill.sev * 90);
-        if (ill.sev > Math.min(D.max, 1) * (p.age > 70 || p.age < 3 ? 0.85 : 1) && ill.sev >= 1) { this.die(p, `died of ${D.name}`); continue; }
+        if (D.lethal ? ill.sev >= D.lethal * (p.age > 60 || p.age < 5 ? 0.85 : 1) : (ill.sev > Math.min(D.max, 1) * (p.age > 70 || p.age < 3 ? 0.85 : 1) && ill.sev >= 1)) { this.die(p, `died of ${D.name}`); continue; }
         if (ill.sev <= 0) { p.health.illness = null; h.state = 'healthy'; h.immune = this.day + 20; h.hp = 85; this.remember(p, 'Back on my feet again.', 'health', 0.6); if (p.activity?.act === 'treated') p.task = null; continue; }
         h.state = ill.sev > 0.85 ? 'incapacitated' : ill.sev > 0.5 ? 'seriously ill' : 'hurt';
       }

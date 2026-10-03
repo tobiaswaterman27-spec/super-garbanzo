@@ -26,7 +26,7 @@
     [/road.*(wash|damag|impassable|repair|mend)|bridge (is|was|has)/i, 'roads', 2],
     [/made lord|new lord|lordship|leader of|elected|reeve of/i, 'rulers', 4],
     [/council|tax|pardon|watchm|men-at-arms|bounty|banished|levy/i, 'politics', 2],
-    [/storm|flood|fire broke|first snow|blizzard|plague|outbreak|epidemic|fever is spreading|sickness/i, 'disaster', 2],
+    [/storm|flood|fire broke|first snow|blizzard|plague|pestilence|quarantine|outbreak|epidemic|fever is spreading|sickness|flood|burst its banks|waters/i, 'disaster', 2],
     [/has opened|has closed its doors|reopened|no heir|without a master/i, 'business', 2],
     [/is growing|in decline|market hall|shops stand empty/i, 'markets', 2],
     [/\bgang\b|crows|hideout|safehouse|new band|informer/i, 'gang', 2],

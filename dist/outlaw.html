@@ -160,7 +160,7 @@ main > .wrap { overflow: auto; }
 </style>
 
 <header class="top">
-  <div class="brand">Outlaw<small>BUILD 0.24 · TIMBER</small></div>
+  <div class="brand">Outlaw<small>BUILD 0.25 · FLOOD &amp; PESTILENCE</small></div>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" role="tab" aria-selected="true" data-tab="play">Play</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="forge">Character</button>
@@ -2622,7 +2622,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const t = ter[y * W + x]; if (t === TER.WATER) solid[y * W + x] = 1; }
     for (let x = 78; x <= 85; x++) { solid[30 * W + x] = 0; solid[31 * W + x] = 0; }
 
-    return { name: 'Ashford', placeId: 'ashford', region: 'south', W, H, T, ter, solid, buildings, props, trees, TER, seed, roadY: 30, exits: { west: [0, 30], east: [W - 1, 30] } };
+    return { name: 'Ashford', placeId: 'ashford', river: true, region: 'south', W, H, T, ter, solid, buildings, props, trees, TER, seed, roadY: 30, exits: { west: [0, 30], east: [W - 1, 30] } };
   }
 
   O.Village = { makeVillage, TER };
@@ -2966,7 +2966,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     if (!K.buildings.some((b) => b.type === 'doctor')) B({ type: 'doctor', name: 'Physician', x: 30, bottom: 79, w: 4, d: 4, floors: 2, look: look(0.6, { sign: 'herb' }) });
     P('lamp', 44, 43); P('lamp', 64, 43); P('signpost', 42, 46, { solid: false });
     K.scatter((x, y) => x > x0 && x < x1 && y > y0 && y < y1);
-    return K.finish({ roadY, exits: { west: [0, roadY], east: [W - 1, roadY] }, zones: { square: [45, 31, 63, 42], bench: [46, 31], farm: [8, 82, 30, 84], wood: [2, 82, 20, 86], east: [W - 1, roadY], patrol: [[55, 44], [20, 44], [40, 24], [80, 24], [110, 44], [96, 64], [60, 64], [40, 44]] }, city: true });
+    return K.finish({ roadY, exits: { west: [0, roadY], east: [W - 1, roadY] }, river: true, zones: { square: [45, 31, 63, 42], bench: [46, 31], farm: [8, 82, 30, 84], wood: [2, 82, 20, 86], east: [W - 1, roadY], patrol: [[55, 44], [20, 44], [40, 24], [80, 24], [110, 44], [96, 64], [60, 64], [40, 44]] }, city: true });
   }
 
   // Thornbury: a curtain-walled castle with a keep, and its village outside the gate.
@@ -3651,6 +3651,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     cold: { name: 'a chill', contagion: 0.02, grow: 0.04, heal: 0.16, max: 0.55 },
     flux: { name: 'the flux', contagion: 0.03, grow: 0.09, heal: 0.11, max: 1.1, water: true },
     fever: { name: 'a fever', contagion: 0.045, grow: 0.12, heal: 0.09, max: 1.3 },
+    pestilence: { name: 'the pestilence', contagion: 0.07, grow: 0.34, heal: 0.07, max: 1.2, lethal: 0.88 },
     injury: { name: 'an injury', contagion: 0, grow: 0, heal: 0.12, max: 1 },
   };
 
@@ -3709,7 +3710,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         if (days < 3) ill.sev += D.grow * (1 - (atDoctor ? 0.6 : 0)) * this.rng.float(0.4, 1.4);
         ill.sev -= heal * this.rng.float(0.6, 1.3);
         h.hp = Math.max(0, 100 - ill.sev * 90);
-        if (ill.sev > Math.min(D.max, 1) * (p.age > 70 || p.age < 3 ? 0.85 : 1) && ill.sev >= 1) { this.die(p, `died of ${D.name}`); continue; }
+        if (D.lethal ? ill.sev >= D.lethal * (p.age > 60 || p.age < 5 ? 0.85 : 1) : (ill.sev > Math.min(D.max, 1) * (p.age > 70 || p.age < 3 ? 0.85 : 1) && ill.sev >= 1)) { this.die(p, `died of ${D.name}`); continue; }
         if (ill.sev <= 0) { p.health.illness = null; h.state = 'healthy'; h.immune = this.day + 20; h.hp = 85; this.remember(p, 'Back on my feet again.', 'health', 0.6); if (p.activity?.act === 'treated') p.task = null; continue; }
         h.state = ill.sev > 0.85 ? 'incapacitated' : ill.sev > 0.5 ? 'seriously ill' : 'hurt';
       }
@@ -5235,6 +5236,152 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
 </script>
 <script>
+// Disasters beyond fire: floods and pestilence.
+//
+// Flood: days of heavy rain swell the river until it breaks its banks. The water creeps tile by tile
+// over the low ground (blocking lanes and paths while it lasts), soaks into houses and shops near
+// the river — damaging them, spoiling stored food and stock — drowns the crops in flooded fields,
+// and can tear at the bridge. When the rain stops it slowly drains away.
+//
+// Pestilence: from time to time a plague rises somewhere in the realm and creeps along the roads.
+// It reaches Ashford with travellers. The sick infect those they share a roof with; the council
+// orders a quarantine (the doors of sick houses are marked, the tavern is shut, gatherings are
+// cancelled), the physician is overwhelmed, and the plague burns out or is beaten.
+'use strict';
+(function () {
+  // ---------------------------------------------------------------- the kingdom: plague on the roads
+  function installKingdom(Kingdom) {
+    const K = Kingdom.prototype, _daily = K.daily;
+    K.daily = function () { _daily.call(this); try { this.plagueDaily(); } catch (e) { console.error(e); } };
+    K.plagueDaily = function () {
+      const r = this.rng, day = this.sim.day;
+      const sick = this.places.filter((p) => p.plague);
+      if (!sick.length && r.chance(0.004)) {
+        const p = r.pick(this.places.filter((x) => !x.detailed && x.pop > 100));
+        p.plague = { since: day }; p.health = Math.max(0.3, p.health - 0.3);
+        this.addNews(`Pestilence has broken out at ${p.name}. Travellers from there are turned away at the gates.`, 'health', p.id);
+      }
+      for (const p of sick) {
+        if (p.detailed) continue;
+        p.health = Math.max(0.25, p.health - 0.03); p.pop = Math.max(30, p.pop - Math.round(p.pop * 0.004)); p.happiness = Math.max(0.1, p.happiness - 0.02);
+        for (const n of this.neighbours(p.id)) { const q = this.place(n); if (!q.plague && !q.detailed && r.chance(0.05)) { q.plague = { since: day }; this.addNews(`The pestilence has spread along the road to ${q.name}.`, 'health', q.id); } }
+        if (day - p.plague.since > 14 && r.chance(0.15)) { p.plague = null; p.health = Math.min(1, p.health + 0.1); this.addNews(`The pestilence at ${p.name} has burned itself out.`, 'health', p.id); }
+      }
+    };
+  }
+
+  // ---------------------------------------------------------------- the village
+  function installSim(Sim) {
+    const S = Sim.prototype;
+
+    // --- plague ---
+    S.plagueDaily = function () {
+      if (this.opts && this.opts.foreign) return;
+      const K = this.kingdom, here = this.world.placeId || 'ashford';
+      const near = K.places.filter((p) => p.plague && (K.neighbours(here).includes(p.id) || p.id === here));
+      const cases = this.people.filter((p) => p.health.illness?.kind === 'pestilence');
+      // travellers bring it in
+      if (near.length && !cases.length && this.rng.chance(0.07)) {
+        const p = this.rng.pick(this.people.filter((q) => !q.visitor && q.age >= 14 && !q.health.illness));
+        if (p) { this.fallIll(p, 'pestilence', 0.3); this.log(`${p.name} has fallen sick with the pestilence after market folk came from ${near[0].name}.`, 'health'); }
+      }
+      // the council orders a quarantine
+      if (cases.length >= 3 && !this.quarantine) {
+        this.quarantine = { since: this.day };
+        this.log(`The council has ordered a quarantine against the pestilence: the sick keep to their houses, their doors are marked with a cross, the tavern is shut and there will be no gatherings.`, 'politics');
+        const doc = this.biz.get(this.docId); if (doc && this.treasury.cash > 60) { doc.cash += 40; doc.stock.herbs = (doc.stock.herbs || 0) + 12; doc.stock.medicine = (doc.stock.medicine || 0) + 6; this.treasury.cash -= 40; }
+      }
+      if (this.quarantine) {
+        // doors of sick households are marked
+        const sickHomes = new Set(cases.map((p) => p.home));
+        // the parish feeds the shut-in households: bread left on the step
+        for (const hh of this.households) if (!hh.gone && sickHomes.has(hh.home) && hh.pantry.bread < hh.members.length) { const n = hh.members.length; hh.pantry.bread += n; this.treasury.cash -= n * 2; this.treasury.spent += n * 2; }
+        for (const b of this.world.buildings) { const m = sickHomes.has(b.id); if (!!b.marked !== m) b.marked = m; }
+        if (!cases.length) { this.quarantineClear = (this.quarantineClear || 0) + 1; if (this.quarantineClear >= 3) { this.quarantine = null; this.quarantineClear = 0; for (const b of this.world.buildings) b.marked = false; this.log(`The quarantine is lifted. The pestilence has left ${this.world.name}; the bell rings for those it took.`, 'health'); } }
+        else this.quarantineClear = 0;
+      }
+    };
+    const _plan = S.plan;
+    S.plan = function (p) {
+      const pl = _plan.call(this, p);
+      if (!this.quarantine || p.visitor) return pl;
+      // the marked houses keep to themselves; the tavern is shut; no festival
+      if (this.world.buildings.find((b) => b.id === p.home)?.marked && !['to-doctor', 'treated', 'sick', 'help', 'escort'].includes(pl.act) && p.task?.act !== 'firefight') return { act: 'home', b: p.home };
+      if (pl.act === 'socialise' || pl.act === 'eat-out' || pl.act === 'festival') return { act: 'home', b: p.home };
+      return pl;
+    };
+
+    // --- flood ---
+    S.floodInit = function () {
+      if (this.floodState) return this.floodState;
+      const w = this.world; if (!w.river) return null;
+      // distance of every land tile from the river, walking over land only
+      const W = w.W, H = w.H, dist = new Int16Array(W * H).fill(-1), q = [];
+      for (let i = 0; i < W * H; i++) if (w.ter[i] === w.TER.WATER) { dist[i] = 0; q.push(i); }
+      for (let k = 0; k < q.length; k++) {
+        const i = q[k], x = i % W, y = (i / W) | 0;
+        if (dist[i] >= 6) continue;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue; const j = ny * W + nx; if (dist[j] >= 0) continue; const t = w.ter[j]; if (t === w.TER.BRIDGE) continue; dist[j] = dist[i] + 1; q.push(j); }
+      }
+      this.floodState = { level: 0, dist, set: [], peak: 0 };
+      return this.floodState;
+    };
+    S.floodHourly = function () {
+      const F = this.floodInit(); if (!F) return;
+      const W = this.weather, w = this.world;
+      const before = Math.floor(F.level);
+      if ((W.kind === 'heavy' || W.kind === 'storm') && W.wet > 0.7) F.level = Math.min(5, F.level + (W.kind === 'storm' ? 0.45 : 0.3));
+      else if (W.kind === 'rain' && W.wet > 0.9 && F.level > 0.5) F.level = Math.min(5, F.level + 0.05);
+      else F.level = Math.max(0, F.level - 0.12);
+      F.peak = Math.max(F.peak, F.level);
+      const lv = Math.floor(F.level);
+      if (lv !== before) {
+        // the water creeps up or drains back: flooded land can't be walked
+        for (const i of F.set) w.solid[i] = 0;
+        F.set = [];
+        if (lv >= 1) for (let i = 0; i < w.W * w.H; i++) if (F.dist[i] > 0 && F.dist[i] <= lv && !w.solid[i]) { w.solid[i] = 1; F.set.push(i); }
+        F.tiles = lv >= 1 ? new Set([...F.set, ...this.floodedBuildingTiles(lv)]) : null;
+        this.path.recost(); this.path.clear(); w.dirtyStatics = true;
+        if (lv >= 1 && before < 1) this.log(`The river has burst its banks! Water is spreading over the low ground by the bridge.`, 'disaster');
+        if (lv === 0 && before >= 1) { this.log(`The flood waters have drained away, leaving mud and ruin behind.`, 'disaster'); F.peak = 0; }
+      }
+      if (lv >= 1) this.floodDamage(lv);
+    };
+    S.floodedBuildingTiles = function (lv) { const out = []; const w = this.world; for (const b of w.buildings) for (let yy = b.y; yy <= b.bottom; yy++) for (let xx = b.x; xx < b.x + b.w; xx++) { const i = yy * w.W + xx; if (this.floodState.dist[i] > 0 && this.floodState.dist[i] <= lv) out.push(i); } return out; };
+    S.floodDamage = function (lv) {
+      const F = this.floodState, w = this.world, r = this.rng;
+      for (const b of w.buildings) {
+        if (b.site || b.ruined) continue;
+        let wet = false; for (let xx = b.x; xx < b.x + b.w && !wet; xx++) { const i = (b.bottom + 1) * w.W + xx; if (F.dist[i] > 0 && F.dist[i] <= lv) wet = true; const j = b.bottom * w.W + xx; if (F.dist[j] > 0 && F.dist[j] <= lv) wet = true; }
+        if (!wet) continue;
+        b.condition = Math.max(0.15, b.condition - 0.006); b.needsRepair = true;
+        if (!b.floodedDay || b.floodedDay !== this.day) {
+          b.floodedDay = this.day; b.dirty = true;
+          const hh = b.household && this.households[b.household - 1];
+          if (hh) { for (const g of Object.keys(hh.pantry)) hh.pantry[g] = Math.floor(hh.pantry[g] * 0.6); for (const id of hh.members) { const q = this.byId.get(id); if (q && q.age >= 10) this.remember(q, 'The flood came into the house. The flour is ruined and the floor is all mud.', 'hardship', 2); } }
+          const bz = this.biz.get(b.id); if (bz) for (const g of ['flour', 'bread', 'wheat', 'cabbage', 'meal', 'cloth', 'herbs']) if (bz.stock[g]) bz.stock[g] = Math.floor(bz.stock[g] * 0.6);
+          this.log(`Flood water has got into ${b.type === 'house' ? 'a house by the river' : b.name}.`, 'disaster');
+        }
+      }
+      // drowned fields
+      const fz = this.Z.farm, farm = this.supplierOf('farmhouse');
+      if (farm) { let n = 0; for (let y = fz[1]; y <= fz[3]; y++) for (let x = fz[0]; x <= fz[2]; x++) { const i = y * w.W + x; if (F.dist[i] > 0 && F.dist[i] <= lv) n++; } if (n) { farm.stock.wheat = Math.max(0, (farm.stock.wheat || 0) * (1 - Math.min(0.05, n / 400))); farm.stock.cabbage = Math.max(0, (farm.stock.cabbage || 0) * (1 - Math.min(0.05, n / 400))); } }
+      // the bridge takes a battering
+      if (lv >= 3 && this.weather.kind === 'storm' && r.chance(0.08)) { const K = this.kingdom, rd = K.roads.find((x) => x.bridge && (x.a === (w.placeId || 'ashford') || x.b === (w.placeId || 'ashford'))); if (rd && !rd.damaged) { rd.damaged = true; K.addNews(`The flood has torn at the bridge at ${w.name}. Carts are turned back until it is mended.`, 'roads'); } }
+    };
+
+    const _mt = S.minuteTick;
+    S.minuteTick = function () { _mt.call(this); if (this._m % 60 === 15) this.floodHourly(); if (this._m === 6 * 60 + 5) this.plagueDaily(); if (this.quarantine) { const tv = this.biz.get(this.tavernId); if (tv) tv.open = false; } };
+    const _fest = S.festival;
+    S.festival = function () { return !this.quarantine && _fest.call(this); };
+  }
+
+  O.Disasters = { installKingdom, installSim };
+  installKingdom(O.Kingdom);
+})();
+
+</script>
+<script>
 // Property: ownership, value, rent, debt and eviction; businesses closing, standing empty and being
 // reopened (sometimes as a different trade); families' fortunes showing in their houses and clothes;
 // and the lordship of Ashford, which the crown will sell to someone rich and respectable enough.
@@ -5405,7 +5552,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     [/road.*(wash|damag|impassable|repair|mend)|bridge (is|was|has)/i, 'roads', 2],
     [/made lord|new lord|lordship|leader of|elected|reeve of/i, 'rulers', 4],
     [/council|tax|pardon|watchm|men-at-arms|bounty|banished|levy/i, 'politics', 2],
-    [/storm|flood|fire broke|first snow|blizzard|plague|outbreak|epidemic|fever is spreading|sickness/i, 'disaster', 2],
+    [/storm|flood|fire broke|first snow|blizzard|plague|pestilence|quarantine|outbreak|epidemic|fever is spreading|sickness|flood|burst its banks|waters/i, 'disaster', 2],
     [/has opened|has closed its doors|reopened|no heir|without a master/i, 'business', 2],
     [/is growing|in decline|market hall|shops stand empty/i, 'markets', 2],
     [/\bgang\b|crows|hideout|safehouse|new band|informer/i, 'gang', 2],
@@ -6489,7 +6636,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     if (p.task?.act === 'help') { const t = this.byId.get(p.task.target); if (t) return [Math.floor(t.agent.x / this.T), Math.floor((t.agent.y - 1) / this.T)]; }
     return _zone.call(this, p, zone);
   };
-  O.Health.install(Sim); O.Life.install(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim);
+  O.Health.install(Sim); O.Life.install(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
   // carry-home and delivery tasks finish on entering the destination
@@ -10050,6 +10197,61 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
 </script>
 <script>
+// Floods and pestilence made visible: brown floodwater spreading over the land with drifting ripples
+// and a muddy fringe, and red crosses daubed on the doors of quarantined houses.
+'use strict';
+(function () {
+  function setup(game, home) {
+    const cur = () => O.SimRef.cur;
+    game.hooks.drawGround.push((ctx, cam) => {
+      const s = cur(); if (game.scene || game.world !== s.world) return;
+      const F = s.floodState; if (!F || !F.tiles) return;
+      const w = s.world, T = 16, t = game.t;
+      const x0 = Math.max(0, Math.floor(cam.x / T) - 1), y0 = Math.max(0, Math.floor(cam.y / T) - 1), x1 = Math.min(w.W - 1, Math.ceil((cam.x + game.vw) / T) + 1), y1 = Math.min(w.H - 1, Math.ceil((cam.y + game.vh) / T) + 1);
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+        const i = y * w.W + x; if (!F.tiles.has(i)) continue;
+        const px = x * T - cam.x, py = y * T - cam.y;
+        const edge = !F.tiles.has(i - 1) && w.ter[i - 1] !== w.TER.WATER || !F.tiles.has(i + 1) && w.ter[i + 1] !== w.TER.WATER || !F.tiles.has(i - w.W) && w.ter[i - w.W] !== w.TER.WATER || !F.tiles.has(i + w.W) && w.ter[i + w.W] !== w.TER.WATER;
+        const X = Math.round(px), Y = Math.round(py);
+        if (!edge) { ctx.fillStyle = 'rgba(78,96,84,0.93)'; ctx.fillRect(X, Y, T, T); }
+        else {
+          // a ragged, muddy shoreline in 2-pixel steps
+          for (let yy = 0; yy < T; yy += 2) for (let xx = 0; xx < T; xx += 2) {
+            const n = O.noise2((x * T + xx) * 0.18, (y * T + yy) * 0.18, 77);
+            if (n > 0.62) continue;
+            ctx.fillStyle = n > 0.48 ? 'rgba(110,90,60,0.75)' : 'rgba(78,96,84,0.9)';
+            ctx.fillRect(X + xx, Y + yy, 2, 2);
+          }
+        }
+        // ripples drifting downstream
+        ctx.fillStyle = 'rgba(176,190,170,0.6)';
+        const ph = Math.floor((t * 6 + x * 3 + y * 7) % 16);
+        ctx.fillRect(Math.round(px + ph), Math.round(py + ((x * 5 + y * 3) % 12) + 2), 3, 1);
+        if ((x + y) % 3 === 0) ctx.fillRect(Math.round(px + ((ph + 8) % 16)), Math.round(py + ((x * 7 + y) % 10) + 4), 2, 1);
+      }
+    });
+    // red crosses on marked doors
+    game.hooks.drawWorld.push((ctx, cam) => {
+      const s = cur(); if (game.scene || game.world !== s.world || !s.quarantine) return;
+      for (const b of s.world.buildings) {
+        if (!b.marked || !b.sprite || !b.sprite.door) continue;
+        const d = b.sprite.door, x = Math.round(b.x * 16 - b.sprite.OV + d.x + d.w / 2 - cam.x), y = Math.round((b.bottom + 1) * 16 - b.sprite.H + d.y + 4 - cam.y);
+        ctx.fillStyle = '#d8382c'; ctx.fillRect(x - 1, y - 4, 3, 11); ctx.fillRect(x - 4, y - 1, 9, 3);
+      }
+    });
+    let wasQ = false, wasF = false;
+    game.hooks.update.push(() => {
+      const s = home, q = !!s.quarantine, f = !!(s.floodState && s.floodState.level >= 1);
+      if (q && !wasQ && game.world === s.world) O.Panels.toast('Quarantine: the sick keep to their houses, marked with red crosses. The tavern is shut.', 'bad');
+      if (f && !wasF && game.world === s.world) O.Panels.toast('The river has burst its banks!', 'bad');
+      wasQ = q; wasF = f;
+    });
+  }
+  O.DisasterFX = { setup };
+})();
+
+</script>
+<script>
 // Procedural audio: no sound files, everything synthesised with WebAudio so it can follow the
 // simulation. Ambient beds (wind, rain, crowd murmur, fire crackle) are filtered noise whose levels
 // track the weather and who is nearby; point sounds (the smith's hammer, the chapel bell, birds,
@@ -10498,7 +10700,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         people: sim.people.map(strip), traderId: sim.trader ? sim.trader.id : null,
         households: sim.households,
         biz: [...sim.biz.values()].map((b) => ({ id: b.id, type: b.type, stock: b.stock, cash: b.cash, owner: b.owner, workers: b.workers, salesToday: b.salesToday, history: b.history, jobs: b.def.jobs, name: b.name, cost: b.def.site ? true : undefined, ownerPlayer: b.ownerPlayer, badDays: b.badDays, founded: b.founded })),
-        lordship: sim.lordship, forest: sim.forest || null, memorials: sim.memorials || [], levyDay: sim.levyDay || null, returnDay: sim.returnDay || null, festivalDay: sim.festivalDay || null, festivalWhy: sim.festivalWhy || null, mourningUntil: sim.mourningUntil || null, reeveMoot: sim.reeveMoot || null, lastMoot: sim.lastMoot || null,
+        lordship: sim.lordship, forest: sim.forest || null, flood: sim.floodState ? { level: sim.floodState.level, set: sim.floodState.set, peak: sim.floodState.peak } : null, quarantine: sim.quarantine || null, memorials: sim.memorials || [], levyDay: sim.levyDay || null, returnDay: sim.returnDay || null, festivalDay: sim.festivalDay || null, festivalWhy: sim.festivalWhy || null, mourningUntil: sim.mourningUntil || null, reeveMoot: sim.reeveMoot || null, lastMoot: sim.lastMoot || null,
         sites: sim.build.sites.map((s) => ({ id: s.id, stage: s.stage, prog: s.prog, work: s.work, started: s.started })), nextCouncil: sim.build.nextCouncil, plotsUsed: [...sim.build.used],
         gangs: sim.gangs,
         kingdom: { places: sim.kingdom.places, roads: sim.kingdom.roads, caravans: sim.kingdom.caravans.map((c) => Object.assign({}, c, { held: false })), news: sim.kingdom.news, war: sim.kingdom.war ? Object.assign({}, sim.kingdom.war, { soldiers: sim.kingdom.war.soldiers.map((x) => Object.assign({}, x, { snap: x.snap && !x.back ? strip(x.snap) : null })) }) : null, rulers: sim.kingdom.rulers, heirStore: sim.kingdom.heirStore || null, treasury: sim.kingdom.treasury, taxRate: sim.kingdom.taxRate, councils: sim.kingdom.councils.slice(-6) },
@@ -10543,7 +10745,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     // core sim
     Object.assign(sim, { day: S.day, minute: S.minute, _lastMin: Math.floor(S.minute), nextId: S.nextId, treasury: S.treasury, stats: S.stats, history: S.history, crimes: S.crimes, settlement: S.settlement, events: S.events, graves: S.graves, _season: S.season, reeveId: S.reeveId, _guardRaised: S.guardRaised });
     if (d.chronicle) Object.assign(O.Chronicle, { facts: d.chronicle.facts || [], heard: d.chronicle.heard || [], nextId: d.chronicle.nextId || 1 });
-    sim.memorials = S.memorials || []; sim.forest = S.forest || null; sim.levyDay = S.levyDay || null; sim.returnDay = S.returnDay || null; Object.assign(sim, { lastMoot: S.lastMoot || null, festivalDay: S.festivalDay || null, festivalWhy: S.festivalWhy || null, mourningUntil: S.mourningUntil || null, reeveMoot: S.reeveMoot || null });
+    sim.memorials = S.memorials || []; sim.forest = S.forest || null; sim.quarantine = S.quarantine || null;
+    if (S.flood && sim.floodInit && sim.floodInit()) { Object.assign(sim.floodState, S.flood); const lv = Math.floor(S.flood.level); sim.floodState.tiles = lv >= 1 ? new Set([...S.flood.set, ...sim.floodedBuildingTiles(lv)]) : null; } sim.levyDay = S.levyDay || null; sim.returnDay = S.returnDay || null; Object.assign(sim, { lastMoot: S.lastMoot || null, festivalDay: S.festivalDay || null, festivalWhy: S.festivalWhy || null, mourningUntil: S.mourningUntil || null, reeveMoot: S.reeveMoot || null });
     sim.rng = O.RNG(S.rng); sim.weather.rng = O.RNG(S.wrng); sim.kingdom.rng = O.RNG(S.krng);
     Object.assign(sim.weather, S.weather);
     sim.households = S.households;
@@ -10703,6 +10906,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   O.WarUI.setup(game, home, npcUI);
   O.Craft.setup(game);
   O.FireFX.setup(game, home);
+  O.DisasterFX.setup(game, home);
   O.AudioSetup.setup(game, sim);
   if (loaded) { O.Save.hydrateLate(game, home); setTimeout(() => O.Panels.toast(`Welcome back. It is ${O.DAYNAMES[sim.weekday]}, day ${sim.day}, in Ashford.`), 300); }
   // autosave each dawn and whenever the page is hidden

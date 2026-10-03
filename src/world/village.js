@@ -149,7 +149,7 @@
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const t = ter[y * W + x]; if (t === TER.WATER) solid[y * W + x] = 1; }
     for (let x = 78; x <= 85; x++) { solid[30 * W + x] = 0; solid[31 * W + x] = 0; }
 
-    return { name: 'Ashford', placeId: 'ashford', region: 'south', W, H, T, ter, solid, buildings, props, trees, TER, seed, roadY: 30, exits: { west: [0, 30], east: [W - 1, 30] } };
+    return { name: 'Ashford', placeId: 'ashford', river: true, region: 'south', W, H, T, ter, solid, buildings, props, trees, TER, seed, roadY: 30, exits: { west: [0, 30], east: [W - 1, 30] } };
   }
 
   O.Village = { makeVillage, TER };

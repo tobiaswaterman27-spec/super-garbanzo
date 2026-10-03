@@ -34,7 +34,7 @@
         people: sim.people.map(strip), traderId: sim.trader ? sim.trader.id : null,
         households: sim.households,
         biz: [...sim.biz.values()].map((b) => ({ id: b.id, type: b.type, stock: b.stock, cash: b.cash, owner: b.owner, workers: b.workers, salesToday: b.salesToday, history: b.history, jobs: b.def.jobs, name: b.name, cost: b.def.site ? true : undefined, ownerPlayer: b.ownerPlayer, badDays: b.badDays, founded: b.founded })),
-        lordship: sim.lordship, forest: sim.forest || null, memorials: sim.memorials || [], levyDay: sim.levyDay || null, returnDay: sim.returnDay || null, festivalDay: sim.festivalDay || null, festivalWhy: sim.festivalWhy || null, mourningUntil: sim.mourningUntil || null, reeveMoot: sim.reeveMoot || null, lastMoot: sim.lastMoot || null,
+        lordship: sim.lordship, forest: sim.forest || null, flood: sim.floodState ? { level: sim.floodState.level, set: sim.floodState.set, peak: sim.floodState.peak } : null, quarantine: sim.quarantine || null, memorials: sim.memorials || [], levyDay: sim.levyDay || null, returnDay: sim.returnDay || null, festivalDay: sim.festivalDay || null, festivalWhy: sim.festivalWhy || null, mourningUntil: sim.mourningUntil || null, reeveMoot: sim.reeveMoot || null, lastMoot: sim.lastMoot || null,
         sites: sim.build.sites.map((s) => ({ id: s.id, stage: s.stage, prog: s.prog, work: s.work, started: s.started })), nextCouncil: sim.build.nextCouncil, plotsUsed: [...sim.build.used],
         gangs: sim.gangs,
         kingdom: { places: sim.kingdom.places, roads: sim.kingdom.roads, caravans: sim.kingdom.caravans.map((c) => Object.assign({}, c, { held: false })), news: sim.kingdom.news, war: sim.kingdom.war ? Object.assign({}, sim.kingdom.war, { soldiers: sim.kingdom.war.soldiers.map((x) => Object.assign({}, x, { snap: x.snap && !x.back ? strip(x.snap) : null })) }) : null, rulers: sim.kingdom.rulers, heirStore: sim.kingdom.heirStore || null, treasury: sim.kingdom.treasury, taxRate: sim.kingdom.taxRate, councils: sim.kingdom.councils.slice(-6) },
@@ -79,7 +79,8 @@
     // core sim
     Object.assign(sim, { day: S.day, minute: S.minute, _lastMin: Math.floor(S.minute), nextId: S.nextId, treasury: S.treasury, stats: S.stats, history: S.history, crimes: S.crimes, settlement: S.settlement, events: S.events, graves: S.graves, _season: S.season, reeveId: S.reeveId, _guardRaised: S.guardRaised });
     if (d.chronicle) Object.assign(O.Chronicle, { facts: d.chronicle.facts || [], heard: d.chronicle.heard || [], nextId: d.chronicle.nextId || 1 });
-    sim.memorials = S.memorials || []; sim.forest = S.forest || null; sim.levyDay = S.levyDay || null; sim.returnDay = S.returnDay || null; Object.assign(sim, { lastMoot: S.lastMoot || null, festivalDay: S.festivalDay || null, festivalWhy: S.festivalWhy || null, mourningUntil: S.mourningUntil || null, reeveMoot: S.reeveMoot || null });
+    sim.memorials = S.memorials || []; sim.forest = S.forest || null; sim.quarantine = S.quarantine || null;
+    if (S.flood && sim.floodInit && sim.floodInit()) { Object.assign(sim.floodState, S.flood); const lv = Math.floor(S.flood.level); sim.floodState.tiles = lv >= 1 ? new Set([...S.flood.set, ...sim.floodedBuildingTiles(lv)]) : null; } sim.levyDay = S.levyDay || null; sim.returnDay = S.returnDay || null; Object.assign(sim, { lastMoot: S.lastMoot || null, festivalDay: S.festivalDay || null, festivalWhy: S.festivalWhy || null, mourningUntil: S.mourningUntil || null, reeveMoot: S.reeveMoot || null });
     sim.rng = O.RNG(S.rng); sim.weather.rng = O.RNG(S.wrng); sim.kingdom.rng = O.RNG(S.krng);
     Object.assign(sim.weather, S.weather);
     sim.households = S.households;

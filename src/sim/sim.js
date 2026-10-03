@@ -374,14 +374,17 @@
         const n = Math.min(free.length, 60, Math.floor((wh.cash - 40) / 8));
         for (let i = 0; i < n; i++) { const p = free[i]; p.job = { biz: wh.id, role: 'docker', casual: true }; wh.workers.push(p.id); hired++; }
       }
-      // well-off households take on a servant for the day
+      // well-off households take on servants for the day: one for every 200d they hold, up to four
       for (const hh of this.households) {
         if (hh.gone || hh.money < 180) continue;
         const b = this.building(hh.home); if (!b) continue;
-        const p = this.people.find((q) => !q.visitor && !q.job && q.age >= 14 && q.age < 60 && q.household !== hh.id && this.household(q).money < 60);
-        if (!p) break;
-        p.job = { biz: null, role: 'servant', house: b.id, payer: hh.id, casual: true, wage: 4 }; hired++;
-        if (!p._servedNoted) { p._servedNoted = true; this.remember(p, `Found work in service with the ${hh.surname} household.`, 'work', 1); }
+        const want = Math.min(4, Math.floor(hh.money / 200));
+        for (let k = 0; k < want; k++) {
+          const p = this.people.find((q) => !q.visitor && !q.job && q.age >= 14 && q.age < 60 && q.household !== hh.id && this.household(q).money < 60);
+          if (!p) break;
+          p.job = { biz: null, role: 'servant', house: b.id, payer: hh.id, casual: true, wage: hh.money > 600 ? 6 : 4 }; hired++;
+          if (!p._servedNoted) { p._servedNoted = true; this.remember(p, `Found work in service with the ${hh.surname} household.`, 'work', 1); }
+        }
       }
       if (hired) this.log(`${hired} ${this.people.length > 220 ? 'townsfolk' : 'villagers'} found a day's labour.`, 'economy');
     }
@@ -434,7 +437,7 @@
       if (!this.supplierOf('bakery')) return;
       let fed = 0;
       for (const hh of this.households) {
-        if (hh.money >= 8 || hh.pantry.bread >= 1) continue;
+        if (hh.gone || hh.money >= 12 || hh.pantry.bread >= 1) continue;
         const bk = this.supplierOf('bakery', 'bread');
         const loaves = Math.min(hh.members.length, Math.floor(bk.stock.bread || 0));
         const cost = loaves * this.price(bk, 'bread');
@@ -487,7 +490,7 @@
       a.goal = target;
       if (sx === target[0] && sy === target[1]) { a.path = []; a.pi = 0; return; }
       const path = this.path.find(sx, sy, target[0], target[1]);
-      if (!path) { a.path = null; a.goal = null; if (act.b) { a.inside = act.b; a.hidden = true; } return; }
+      if (!path) { a.path = null; a.goal = null; if (act.b) { a.inside = act.b; a.hidden = true; this.onEnter(p, act.b); } return; }
       a.path = path; a.pi = 0;
     }
 
@@ -538,15 +541,22 @@
       else if (act.act === 'shop') this.buy(p, act);
     }
 
+    // eat from the household pantry if hungry enough; returns whether anything was eaten
+    eatAtHome(p, hh, below) {
+      if (p.needs.hunger >= below || !(hh.pantry.bread > 0 || hh.pantry.cabbage > 0 || hh.pantry.fish > 0 || hh.pantry.meat > 0)) return false;
+      if (hh.pantry.meat > 0 && p.needs.hunger < 40) hh.pantry.meat -= 1; else if (hh.pantry.bread > 0) hh.pantry.bread -= p.age < 13 ? 0.5 : 1; else if (hh.pantry.fish > 0) hh.pantry.fish -= 1; else if (hh.pantry.cabbage > 0) hh.pantry.cabbage -= 1; else hh.pantry.meat -= 1;
+      hh.pantry.bread = Math.max(0, hh.pantry.bread); p.needs.hunger = Math.min(100, p.needs.hunger + 45);
+      return true;
+    }
     doIndoor(p, act) {
       const hh = this.household(p);
+      // anyone at home — sick in bed, moving in, resting — is fed from the pantry when hungry
+      if (p.agent.inside === p.home && act.act !== 'eat' && act.act !== 'home') this.eatAtHome(p, hh, 30);
+      if (p.task?.act === 'move-in' && p.agent.inside === p.task.b) { p.task = null; p.arriving = false; p.agent.carrying = null; }
       switch (act.act) {
         case 'sleep': p.needs.energy = Math.min(100, p.needs.energy + 0.2); break;
         case 'eat': case 'home':
-          if (p.needs.hunger < 55 && (hh.pantry.bread > 0 || hh.pantry.cabbage > 0 || hh.pantry.fish > 0 || hh.pantry.meat > 0)) {
-            if (hh.pantry.meat > 0 && p.needs.hunger < 40) hh.pantry.meat -= 1; else if (hh.pantry.bread > 0) hh.pantry.bread -= p.age < 13 ? 0.5 : 1; else if (hh.pantry.fish > 0) hh.pantry.fish -= 1; else if (hh.pantry.cabbage > 0) hh.pantry.cabbage -= 1; else hh.pantry.meat -= 1;
-            hh.pantry.bread = Math.max(0, hh.pantry.bread); p.needs.hunger = Math.min(100, p.needs.hunger + 45);
-          } else if (p.needs.hunger < 15 && !p._hungryNoted) { p._hungryNoted = true; this.remember(p, 'There was nothing to eat at home.', 'hardship', 1); }
+          if (!this.eatAtHome(p, hh, 55) && p.needs.hunger < 15 && !p._hungryNoted) { p._hungryNoted = true; this.remember(p, 'There was nothing to eat at home.', 'hardship', 1); }
           if (p.spouse && this.byId.get(p.spouse)?.agent.inside === p.home) p.needs.social = Math.min(100, p.needs.social + 0.15);
           break;
         case 'eat-out': {
@@ -635,9 +645,10 @@
         if ((bz.stock[good] || 0) > target * 0.45) continue;
         if (bz.orders.some((o) => o.good === good)) continue;
         const types = srcType.split('|');
-        const localType = types.find((t) => t !== 'import' && t !== 'none' && this.supplierOf(t));
-        if (!localType) { if (types.includes('import')) this.queueImport(bz, good, target - (bz.stock[good] || 0)); continue; }
-        const src = this.supplierOf(localType, good); if (!src) continue;
+        // try each local supplier in turn: if the first has nothing to spare, the next may
+        const locals = types.filter((t) => t !== 'import' && t !== 'none' && this.supplierOf(t));
+        if (!locals.length) { if (types.includes('import')) this.queueImport(bz, good, target - (bz.stock[good] || 0)); continue; }
+        const src = locals.map((t) => this.supplierOf(t, good)).filter((x) => x && x !== bz).sort((a, b) => (b.stock[good] || 0) - (a.stock[good] || 0))[0]; if (!src) continue;
         const qty = Math.min(Math.round(target - (bz.stock[good] || 0)), Math.floor((src.stock[good] || 0) * 0.7));
         // nothing to spare locally: a town on the river or the high road buys it in instead
         if (types.includes('import') && this.barges) {
@@ -792,6 +803,12 @@
 
     newDay() {
       this.demandScale();
+      // the Sunday tithe: households of means give a share of what they hold above a modest sum to the parish
+      if (this.weekday === 0) {
+        let tithe = 0;
+        for (const hh of this.households) { if (hh.gone || hh.money <= 100) continue; const t = Math.floor((hh.money - 100) * 0.06); hh.money -= t; tithe += t; }
+        if (tithe) { this.treasury.cash += tithe; this.treasury.income += tithe; if (tithe > 40) this.log(`The tithe brought ${tithe}d into the parish chest.`, 'politics'); }
+      }
       this.newsDaily && this.newsDaily();
       this.warOrders && this.warOrders();
       this.reeveDaily && this.reeveDaily();

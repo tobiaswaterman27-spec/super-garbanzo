@@ -21,9 +21,9 @@
       if (!this.supplierOf('woodcutter')) return;
       const F = this.forestInit(), w = this.world, r = this.rng, T = this.T;
       const Z = this.Z.wood, cx = (Z[0] + Z[2]) / 2, cy = (Z[1] + Z[3]) / 2;
-      // every ten bundles of logs is one tree down, taken from the edge of the woods nearest the hut
+      // every thirty bundles of logs is one tree down, taken from the edge of the woods nearest the hut
       const made = (this.stats.produced.logs || 0) - F.logs; F.logs = this.stats.produced.logs || 0;
-      let fell = Math.floor((made + (F.carry || 0)) / 10); F.carry = (made + (F.carry || 0)) % 10;
+      let fell = Math.floor((made + (F.carry || 0)) / 30); F.carry = (made + (F.carry || 0)) % 30; // a grown tree is a great deal of wood
       const nearTrees = () => w.trees.filter((t) => Math.hypot(t.x / T - cx, t.y / T - cy) < 18).sort((a, b) => Math.hypot(a.x / T - cx, a.y / T - cy) - Math.hypot(b.x / T - cx, b.y / T - cy));
       while (fell-- > 0) {
         const cand = nearTrees(); if (cand.length <= 4) break;
@@ -38,9 +38,9 @@
         if (p.kind === 'stump' && p.felled != null && this.day - p.felled >= 2 && r.chance(0.6)) { p.kind = 'sapling'; p.v = 0; p.planted = this.day; F.planted++; w.dirtyStatics = true; }
         else if (p.kind === 'sapling' && p.planted != null) {
           const age = this.day - p.planted;
-          const v = age >= 18 ? 2 : age >= 8 ? 1 : 0;
+          const v = age >= 12 ? 2 : age >= 5 ? 1 : 0;
           if (v !== p.v) { p.v = v; w.dirtyStatics = true; }
-          if (age >= 28) { p.grown = true; w.trees.push({ kind: p.treeKind || 'oak', x: p.x, y: p.y, seed: p.seed + 1 }); w.solid[Math.floor(p.y / T) * w.W + Math.floor(p.x / T)] = 1; w.dirtyStatics = true; }
+          if (age >= 20) { p.grown = true; w.trees.push({ kind: p.treeKind || 'oak', x: p.x, y: p.y, seed: p.seed + 1 }); w.solid[Math.floor(p.y / T) * w.W + Math.floor(p.x / T)] = 1; w.dirtyStatics = true; }
         }
       }
       w.props = w.props.filter((p) => !p.grown);
@@ -48,8 +48,8 @@
       const left = nearTrees().length, ratio = F.start ? left / F.start : 1;
       const wc = this.supplierOf('woodcutter');
       if (wc) {
-        wc.thin = ratio < 0.6;
-        if (ratio < 0.6 && !F.warned) { F.warned = true; this.log(`The woods above ${this.world.name} are thinning. The woodcutters must walk further for every load, and timber is getting dear.`, 'economy'); }
+        wc.thin = ratio < 0.45;
+        if (ratio < 0.45 && !F.warned) { F.warned = true; this.log(`The woods above ${this.world.name} are thinning. The woodcutters must walk further for every load, and timber is getting dear.`, 'economy'); }
         if (ratio > 0.75) F.warned = false;
       }
       // families with money to spare furnish their homes
@@ -67,7 +67,7 @@
     const _work = S.work;
     S.work = function (p) {
       const bz = this.biz.get(p.job?.biz);
-      if (bz && bz.type === 'woodcutter' && bz.thin) { const before = bz.stock.logs || 0; _work.call(this, p); const got = (bz.stock.logs || 0) - before; if (got > 0) bz.stock.logs -= got * 0.4; return; }
+      if (bz && bz.type === 'woodcutter' && bz.thin) { const before = bz.stock.logs || 0; _work.call(this, p); const got = (bz.stock.logs || 0) - before; if (got > 0) bz.stock.logs -= got * 0.25; return; }
       return _work.call(this, p);
     };
   }

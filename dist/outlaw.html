@@ -161,7 +161,7 @@ main > .wrap { overflow: auto; }
 </style>
 
 <header class="top">
-  <div class="brand">Outlaw<small>BUILD 0.27 · LAND</small></div>
+  <div class="brand">Outlaw<small>BUILD 0.28 · LAND</small></div>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" role="tab" aria-selected="true" data-tab="play">Play</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="forge">Character</button>
@@ -3333,10 +3333,10 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   const BUSINESS = {
     farmhouse: { label: 'Farm', jobs: [['farmer', 1], ['farmhand', 2]], hours: [6, 18], recipes: [{ out: { wheat: 4.5, cabbage: 2 }, inp: {} }], sells: ['cabbage', 'wheat'], buys: { tools: 'smithy' }, targets: { wheat: 60, cabbage: 40, tools: 3 }, wage: { farmer: 0, farmhand: 6 } },
     mill: { label: 'Mill', jobs: [['miller', 1], ['labourer', 1]], hours: [7, 17], recipes: [{ out: { flour: 2 }, inp: { wheat: 2 } }], sells: ['flour'], buys: { wheat: 'farmhouse|warehouse|import' }, targets: { wheat: 40, flour: 40 }, wage: { miller: 0, labourer: 6 } },
-    bakery: { label: 'Bakery', jobs: [['baker', 1], ['apprentice', 1]], hours: [5, 17], recipes: [{ out: { bread: 6 }, inp: { flour: 2, firewood: 0.5 } }], sells: ['bread'], buys: { flour: 'mill|import', firewood: 'woodcutter|import' }, targets: { flour: 30, firewood: 10, bread: 60 }, wage: { baker: 0, apprentice: 4 } },
+    bakery: { label: 'Bakery', jobs: [['baker', 1], ['apprentice', 1]], hours: [5, 17], recipes: [{ out: { bread: 6 }, inp: { flour: 2, firewood: 0.5 } }], sells: ['bread'], buys: { flour: 'mill|import', firewood: 'woodcutter|store|import' }, targets: { flour: 30, firewood: 10, bread: 60 }, wage: { baker: 0, apprentice: 4 } },
     woodcutter: { label: "Woodcutter's", jobs: [['woodcutter', 2]], hours: [7, 17], recipes: [{ out: { logs: 1.5, firewood: 5 }, inp: {} }], sells: ['firewood', 'logs'], buys: { tools: 'smithy' }, targets: { firewood: 40, logs: 20, tools: 2 }, wage: { woodcutter: 7 } },
     smithy: { label: 'Smithy', jobs: [['blacksmith', 1], ['apprentice', 1]], hours: [7, 18], recipes: [{ out: { tools: 0.25 }, inp: { iron: 0.5, firewood: 0.5 } }, { out: { dagger: 0.06, axe: 0.04 }, inp: { iron: 0.15, firewood: 0.1 }, role: 'blacksmith' }], sells: ['tools', 'dagger', 'axe'], buys: { firewood: 'woodcutter', iron: 'mine|import' }, targets: { iron: 10, firewood: 10, tools: 6, dagger: 3, axe: 2 }, wage: { blacksmith: 0, apprentice: 4 } },
-    tavern: { label: 'Tavern', jobs: [['innkeeper', 1], ['server', 1], ['cook', 1]], hours: [11, 24], recipes: [{ out: { meal: 4 }, inp: { bread: 1, cabbage: 1, firewood: 0.3 } }, { out: { ale: 5 }, inp: { wheat: 1 } }], sells: ['meal', 'ale'], buys: { bread: 'bakery', cabbage: 'farmhouse|import', wheat: 'farmhouse|import', firewood: 'woodcutter|import' }, targets: { bread: 12, cabbage: 12, wheat: 10, firewood: 8, meal: 20, ale: 30 }, wage: { innkeeper: 0, server: 6, cook: 7 } },
+    tavern: { label: 'Tavern', jobs: [['innkeeper', 1], ['server', 1], ['cook', 1]], hours: [11, 24], recipes: [{ out: { meal: 4 }, inp: { bread: 1, cabbage: 1, firewood: 0.3 } }, { out: { ale: 5 }, inp: { wheat: 1 } }], sells: ['meal', 'ale'], buys: { bread: 'bakery', cabbage: 'farmhouse|import', wheat: 'farmhouse|import', firewood: 'woodcutter|store|import' }, targets: { bread: 12, cabbage: 12, wheat: 10, firewood: 8, meal: 20, ale: 30 }, wage: { innkeeper: 0, server: 6, cook: 7 } },
     store: { label: 'General Store', jobs: [['shopkeeper', 1]], hours: [8, 18], recipes: [], sells: ['cabbage', 'firewood', 'flour', 'fish'], buys: { cabbage: 'farmhouse|import', firewood: 'woodcutter|import', flour: 'mill', fish: 'fishery|none' }, targets: { cabbage: 30, firewood: 30, flour: 10, fish: 12 }, wage: { shopkeeper: 0 } },
     doctor: { label: "Physician's", jobs: [['physician', 1], ['herbalist', 1]], hours: [8, 17], recipes: [{ out: { herbs: 1.2 }, inp: {}, role: 'herbalist' }, { out: { medicine: 0.4 }, inp: { herbs: 0.5 }, role: 'physician' }], sells: ['medicine', 'herbs'], targets: { herbs: 10, medicine: 8 }, wage: { physician: 0, herbalist: 6 } },
     guard: { label: 'Watch House', jobs: [['guard captain', 1], ['guard', 3]], hours: [0, 24], recipes: [], sells: [], targets: {}, public: true, wage: { 'guard captain': 12, guard: 8 } },
@@ -5182,9 +5182,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       if (!this.supplierOf('woodcutter')) return;
       const F = this.forestInit(), w = this.world, r = this.rng, T = this.T;
       const Z = this.Z.wood, cx = (Z[0] + Z[2]) / 2, cy = (Z[1] + Z[3]) / 2;
-      // every ten bundles of logs is one tree down, taken from the edge of the woods nearest the hut
+      // every thirty bundles of logs is one tree down, taken from the edge of the woods nearest the hut
       const made = (this.stats.produced.logs || 0) - F.logs; F.logs = this.stats.produced.logs || 0;
-      let fell = Math.floor((made + (F.carry || 0)) / 10); F.carry = (made + (F.carry || 0)) % 10;
+      let fell = Math.floor((made + (F.carry || 0)) / 30); F.carry = (made + (F.carry || 0)) % 30; // a grown tree is a great deal of wood
       const nearTrees = () => w.trees.filter((t) => Math.hypot(t.x / T - cx, t.y / T - cy) < 18).sort((a, b) => Math.hypot(a.x / T - cx, a.y / T - cy) - Math.hypot(b.x / T - cx, b.y / T - cy));
       while (fell-- > 0) {
         const cand = nearTrees(); if (cand.length <= 4) break;
@@ -5199,9 +5199,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         if (p.kind === 'stump' && p.felled != null && this.day - p.felled >= 2 && r.chance(0.6)) { p.kind = 'sapling'; p.v = 0; p.planted = this.day; F.planted++; w.dirtyStatics = true; }
         else if (p.kind === 'sapling' && p.planted != null) {
           const age = this.day - p.planted;
-          const v = age >= 18 ? 2 : age >= 8 ? 1 : 0;
+          const v = age >= 12 ? 2 : age >= 5 ? 1 : 0;
           if (v !== p.v) { p.v = v; w.dirtyStatics = true; }
-          if (age >= 28) { p.grown = true; w.trees.push({ kind: p.treeKind || 'oak', x: p.x, y: p.y, seed: p.seed + 1 }); w.solid[Math.floor(p.y / T) * w.W + Math.floor(p.x / T)] = 1; w.dirtyStatics = true; }
+          if (age >= 20) { p.grown = true; w.trees.push({ kind: p.treeKind || 'oak', x: p.x, y: p.y, seed: p.seed + 1 }); w.solid[Math.floor(p.y / T) * w.W + Math.floor(p.x / T)] = 1; w.dirtyStatics = true; }
         }
       }
       w.props = w.props.filter((p) => !p.grown);
@@ -5209,8 +5209,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const left = nearTrees().length, ratio = F.start ? left / F.start : 1;
       const wc = this.supplierOf('woodcutter');
       if (wc) {
-        wc.thin = ratio < 0.6;
-        if (ratio < 0.6 && !F.warned) { F.warned = true; this.log(`The woods above ${this.world.name} are thinning. The woodcutters must walk further for every load, and timber is getting dear.`, 'economy'); }
+        wc.thin = ratio < 0.45;
+        if (ratio < 0.45 && !F.warned) { F.warned = true; this.log(`The woods above ${this.world.name} are thinning. The woodcutters must walk further for every load, and timber is getting dear.`, 'economy'); }
         if (ratio > 0.75) F.warned = false;
       }
       // families with money to spare furnish their homes
@@ -5228,7 +5228,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     const _work = S.work;
     S.work = function (p) {
       const bz = this.biz.get(p.job?.biz);
-      if (bz && bz.type === 'woodcutter' && bz.thin) { const before = bz.stock.logs || 0; _work.call(this, p); const got = (bz.stock.logs || 0) - before; if (got > 0) bz.stock.logs -= got * 0.4; return; }
+      if (bz && bz.type === 'woodcutter' && bz.thin) { const before = bz.stock.logs || 0; _work.call(this, p); const got = (bz.stock.logs || 0) - before; if (got > 0) bz.stock.logs -= got * 0.25; return; }
       return _work.call(this, p);
     };
   }
@@ -6151,14 +6151,17 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         const n = Math.min(free.length, 60, Math.floor((wh.cash - 40) / 8));
         for (let i = 0; i < n; i++) { const p = free[i]; p.job = { biz: wh.id, role: 'docker', casual: true }; wh.workers.push(p.id); hired++; }
       }
-      // well-off households take on a servant for the day
+      // well-off households take on servants for the day: one for every 200d they hold, up to four
       for (const hh of this.households) {
         if (hh.gone || hh.money < 180) continue;
         const b = this.building(hh.home); if (!b) continue;
-        const p = this.people.find((q) => !q.visitor && !q.job && q.age >= 14 && q.age < 60 && q.household !== hh.id && this.household(q).money < 60);
-        if (!p) break;
-        p.job = { biz: null, role: 'servant', house: b.id, payer: hh.id, casual: true, wage: 4 }; hired++;
-        if (!p._servedNoted) { p._servedNoted = true; this.remember(p, `Found work in service with the ${hh.surname} household.`, 'work', 1); }
+        const want = Math.min(4, Math.floor(hh.money / 200));
+        for (let k = 0; k < want; k++) {
+          const p = this.people.find((q) => !q.visitor && !q.job && q.age >= 14 && q.age < 60 && q.household !== hh.id && this.household(q).money < 60);
+          if (!p) break;
+          p.job = { biz: null, role: 'servant', house: b.id, payer: hh.id, casual: true, wage: hh.money > 600 ? 6 : 4 }; hired++;
+          if (!p._servedNoted) { p._servedNoted = true; this.remember(p, `Found work in service with the ${hh.surname} household.`, 'work', 1); }
+        }
       }
       if (hired) this.log(`${hired} ${this.people.length > 220 ? 'townsfolk' : 'villagers'} found a day's labour.`, 'economy');
     }
@@ -6211,7 +6214,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       if (!this.supplierOf('bakery')) return;
       let fed = 0;
       for (const hh of this.households) {
-        if (hh.money >= 8 || hh.pantry.bread >= 1) continue;
+        if (hh.gone || hh.money >= 12 || hh.pantry.bread >= 1) continue;
         const bk = this.supplierOf('bakery', 'bread');
         const loaves = Math.min(hh.members.length, Math.floor(bk.stock.bread || 0));
         const cost = loaves * this.price(bk, 'bread');
@@ -6264,7 +6267,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       a.goal = target;
       if (sx === target[0] && sy === target[1]) { a.path = []; a.pi = 0; return; }
       const path = this.path.find(sx, sy, target[0], target[1]);
-      if (!path) { a.path = null; a.goal = null; if (act.b) { a.inside = act.b; a.hidden = true; } return; }
+      if (!path) { a.path = null; a.goal = null; if (act.b) { a.inside = act.b; a.hidden = true; this.onEnter(p, act.b); } return; }
       a.path = path; a.pi = 0;
     }
 
@@ -6315,15 +6318,22 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       else if (act.act === 'shop') this.buy(p, act);
     }
 
+    // eat from the household pantry if hungry enough; returns whether anything was eaten
+    eatAtHome(p, hh, below) {
+      if (p.needs.hunger >= below || !(hh.pantry.bread > 0 || hh.pantry.cabbage > 0 || hh.pantry.fish > 0 || hh.pantry.meat > 0)) return false;
+      if (hh.pantry.meat > 0 && p.needs.hunger < 40) hh.pantry.meat -= 1; else if (hh.pantry.bread > 0) hh.pantry.bread -= p.age < 13 ? 0.5 : 1; else if (hh.pantry.fish > 0) hh.pantry.fish -= 1; else if (hh.pantry.cabbage > 0) hh.pantry.cabbage -= 1; else hh.pantry.meat -= 1;
+      hh.pantry.bread = Math.max(0, hh.pantry.bread); p.needs.hunger = Math.min(100, p.needs.hunger + 45);
+      return true;
+    }
     doIndoor(p, act) {
       const hh = this.household(p);
+      // anyone at home — sick in bed, moving in, resting — is fed from the pantry when hungry
+      if (p.agent.inside === p.home && act.act !== 'eat' && act.act !== 'home') this.eatAtHome(p, hh, 30);
+      if (p.task?.act === 'move-in' && p.agent.inside === p.task.b) { p.task = null; p.arriving = false; p.agent.carrying = null; }
       switch (act.act) {
         case 'sleep': p.needs.energy = Math.min(100, p.needs.energy + 0.2); break;
         case 'eat': case 'home':
-          if (p.needs.hunger < 55 && (hh.pantry.bread > 0 || hh.pantry.cabbage > 0 || hh.pantry.fish > 0 || hh.pantry.meat > 0)) {
-            if (hh.pantry.meat > 0 && p.needs.hunger < 40) hh.pantry.meat -= 1; else if (hh.pantry.bread > 0) hh.pantry.bread -= p.age < 13 ? 0.5 : 1; else if (hh.pantry.fish > 0) hh.pantry.fish -= 1; else if (hh.pantry.cabbage > 0) hh.pantry.cabbage -= 1; else hh.pantry.meat -= 1;
-            hh.pantry.bread = Math.max(0, hh.pantry.bread); p.needs.hunger = Math.min(100, p.needs.hunger + 45);
-          } else if (p.needs.hunger < 15 && !p._hungryNoted) { p._hungryNoted = true; this.remember(p, 'There was nothing to eat at home.', 'hardship', 1); }
+          if (!this.eatAtHome(p, hh, 55) && p.needs.hunger < 15 && !p._hungryNoted) { p._hungryNoted = true; this.remember(p, 'There was nothing to eat at home.', 'hardship', 1); }
           if (p.spouse && this.byId.get(p.spouse)?.agent.inside === p.home) p.needs.social = Math.min(100, p.needs.social + 0.15);
           break;
         case 'eat-out': {
@@ -6412,9 +6422,10 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         if ((bz.stock[good] || 0) > target * 0.45) continue;
         if (bz.orders.some((o) => o.good === good)) continue;
         const types = srcType.split('|');
-        const localType = types.find((t) => t !== 'import' && t !== 'none' && this.supplierOf(t));
-        if (!localType) { if (types.includes('import')) this.queueImport(bz, good, target - (bz.stock[good] || 0)); continue; }
-        const src = this.supplierOf(localType, good); if (!src) continue;
+        // try each local supplier in turn: if the first has nothing to spare, the next may
+        const locals = types.filter((t) => t !== 'import' && t !== 'none' && this.supplierOf(t));
+        if (!locals.length) { if (types.includes('import')) this.queueImport(bz, good, target - (bz.stock[good] || 0)); continue; }
+        const src = locals.map((t) => this.supplierOf(t, good)).filter((x) => x && x !== bz).sort((a, b) => (b.stock[good] || 0) - (a.stock[good] || 0))[0]; if (!src) continue;
         const qty = Math.min(Math.round(target - (bz.stock[good] || 0)), Math.floor((src.stock[good] || 0) * 0.7));
         // nothing to spare locally: a town on the river or the high road buys it in instead
         if (types.includes('import') && this.barges) {
@@ -6569,6 +6580,12 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
     newDay() {
       this.demandScale();
+      // the Sunday tithe: households of means give a share of what they hold above a modest sum to the parish
+      if (this.weekday === 0) {
+        let tithe = 0;
+        for (const hh of this.households) { if (hh.gone || hh.money <= 100) continue; const t = Math.floor((hh.money - 100) * 0.06); hh.money -= t; tithe += t; }
+        if (tithe) { this.treasury.cash += tithe; this.treasury.income += tithe; if (tithe > 40) this.log(`The tithe brought ${tithe}d into the parish chest.`, 'politics'); }
+      }
       this.newsDaily && this.newsDaily();
       this.warOrders && this.warOrders();
       this.reeveDaily && this.reeveDaily();

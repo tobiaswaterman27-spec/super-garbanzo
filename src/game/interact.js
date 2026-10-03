@@ -24,7 +24,9 @@
       if (game.scene) return game.scene.candidates();
       for (const q of sim.people) { const a = q.agent; if (a.hidden) continue; const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < 26) out.push({ type: 'npc', person: q, d, x: a.x, y: a.y }); }
       const T = sim.T;
+      for (const pr of sim.world.props) if (pr.kind === 'gravestone') { const d = Math.hypot(pr.x - p.x, pr.y - p.y); if (d < 20) out.push({ type: 'grave', prop: pr, d: d + 2, x: pr.x, y: pr.y - 14 }); }
       for (const b of sim.world.buildings) {
+        if (b.site) continue;
         const dx = b.doorX * T + 8, dy = b.doorY * T + 4;
         const d = Math.hypot(dx - p.x, dy - p.y);
         if (d < 14) out.push({ type: 'door', b, d: d + 4, x: dx, y: dy - 18 });
@@ -36,6 +38,7 @@
         case 'npc': return `Talk to ${c.person.name}`;
         case 'door': return doorLocked(c.b) ? `${c.b.name} — locked` : `Enter ${c.b.type === 'house' ? 'house' : c.b.name}`;
         case 'container': return `Search ${c.it.kind}`;
+        case 'grave': return 'Read the gravestone';
         case 'bed': return mayUseBed(c.it) ? 'Sleep until morning' : 'Bed — not yours';
         case 'stairs': return game.scene.floor === 0 ? 'Go upstairs' : 'Go downstairs';
         default: return '';
@@ -138,6 +141,7 @@
           O.Crime.onEnter(game, sim, cur.b);
           break;
         case 'container': search(cur.it, false); break;
+        case 'grave': { const g = cur.prop.grave; O.Panels.toast(g ? `“Here lies ${g.name}, ${g.age} years. ${g.cause.replace('died ', '').replace(/^./, (c) => c.toUpperCase())}.”` : 'The old stone is worn smooth; you can no longer read the name.'); break; }
         case 'bed': if (mayUseBed(cur.it)) sleep(); else O.Panels.toast("That's someone else's bed."); break;
         case 'stairs': game.enterBuilding(game.scene.b, game.scene.floor === 0 ? 1 : 0, true); break;
       }

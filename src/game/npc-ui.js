@@ -4,7 +4,7 @@
   const G = O.Data.GOODS;
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const ACT_LABEL = {
-    sleep: 'asleep', work: 'working', fieldwork: 'working the fields', chop: 'felling timber', build: 'building the new house', 'move-in': 'moving to Ashford', forage: 'gathering herbs', patrol: 'on patrol', eat: 'having a meal', 'eat-out': 'eating at the tavern',
+    sleep: 'asleep', work: 'working', fieldwork: 'working the fields', chop: 'felling timber', market: 'coming to market', service: 'in service at a house', sick: 'ill in bed', collapsed: 'collapsed!', help: 'running to help someone', escort: 'helping a patient to the physician', 'to-doctor': 'going to the physician', treated: 'being treated by the physician', mourn: 'at a funeral', wedding: 'at a wedding', build: 'building the new house', 'move-in': 'moving to Ashford', forage: 'gathering herbs', patrol: 'on patrol', eat: 'having a meal', 'eat-out': 'eating at the tavern',
     home: 'at home', play: 'playing', shop: 'shopping', socialise: 'drinking at the Lantern', sit: 'resting on the bench', stroll: 'taking the air', worship: 'at chapel',
     'wait-work': 'waiting for carrying work', pickup: 'collecting goods', deliver: 'making a delivery', 'carry-home': 'carrying shopping home', import: 'bringing goods to market', rest: 'resting at the inn', leave: 'leaving town',
   };
@@ -108,7 +108,9 @@
           <div><span class="lbl">Employment</span><b>${employed}/${adults}</b><small>working-age adults with a trade</small></div>
           <div><span class="lbl">Going hungry</span><b class="${hungry ? 'warn' : ''}">${hungry}</b><small>residents with an empty belly</small></div>
           <div><span class="lbl">Treasury</span><b>${money(sim.treasury.cash)}</b><small>taxes in ${money(sim.treasury.income)} · wages out ${money(sim.treasury.spent)}</small></div>
-          <div><span class="lbl">Trade</span><b>${money(sim.stats.sales)}</b><small>all sales since you arrived · wages paid ${money(sim.stats.wages)}</small></div>
+          <div><span class="lbl">Trade</span><b>${money(sim.stats.sales)}</b><small>all sales since you arrived · wages paid ${money(sim.stats.wages)} · exports ${money(sim.stats.exports || 0)}</small></div>
+          <div><span class="lbl">Health</span><b class="${pop.filter((p) => p.health.illness).length > 6 ? 'warn' : ''}">${pop.filter((p) => p.health.illness).length} ill</b><small>sanitation ${Math.round(sim.settlement.sanitation * 100)}% · ${pop.filter((p) => p.activity?.act === 'treated').length} with the physician${sim.settlement.outbreak ? ' · OUTBREAK' : ''}</small></div>
+          <div><span class="lbl">Births & deaths</span><b>${sim.history.filter((h) => h.kind === 'life' && /was born/.test(h.text)).length} · ${sim.dead.length}</b><small>${sim.dead.slice(-2).map((d) => `${d.name} (${d.age})`).join(', ') || 'none buried yet'}</small></div>
           <div><span class="lbl">Produced</span><b>${Math.round(sim.stats.produced.bread || 0)} loaves</b><small>${Object.entries(sim.stats.produced).filter(([g]) => g !== 'bread').map(([g, q]) => `${Math.round(q)} ${G[g].name.toLowerCase()}`).join(', ')}</small></div>
         </div>`;
       } else {

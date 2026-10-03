@@ -50,6 +50,15 @@
     }
     if (sim.day !== lastHarvestCheck) { lastHarvestCheck = sim.day; applySeason(); }
   });
+  // the dead are buried in the chapel yard; each grave is a real prop you can read
+  const graveSpots = []; for (let y = 36; y >= 33; y--) for (let x = 68; x <= 72; x++) graveSpots.push([x, y]);
+  sim.onGrave = (p) => {
+    const spot = graveSpots.find(([x, y]) => !world.solid[y * world.W + x] && !world.props.some((q) => q.kind === 'gravestone' && Math.floor(q.x / 16) === x && Math.floor(q.y / 16) === y));
+    if (!spot) return;
+    const g = sim.graves[sim.graves.length - 1];
+    world.props.push({ kind: 'gravestone', x: spot[0] * 16 + 8, y: spot[1] * 16 + 14, seed: p.id, solid: true, grave: g });
+    world.solid[spot[1] * world.W + spot[0]] = 1; world.dirtyStatics = true;
+  };
   const npcUI = O.NpcUI.setup(game, sim);
   O.Interact.setup(game, sim, npcUI);
   const sbtn = document.createElement('button'); sbtn.className = 'btn ghost satchel-btn'; sbtn.textContent = 'Satchel (I)';

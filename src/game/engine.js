@@ -127,7 +127,7 @@
       for (const a of this.actors) a.ft += dt;
       // chimney smoke
       for (const b of this.world.buildings) {
-        if (!b.sprite.chimney || Math.random() > dt * 3) continue;
+        if (!b.sprite || !b.sprite.chimney || Math.random() > dt * 3) continue;
         const sx = b.x * this.world.T - b.sprite.OV + b.sprite.chimney.x, sy = (b.bottom + 1) * this.world.T - b.sprite.H + b.sprite.chimney.y;
         this.particles.push({ x: sx, y: sy, vx: 3 + Math.random() * 3, vy: -7 - Math.random() * 3, life: 0, max: 3 + Math.random() * 2, r: 1 });
       }
@@ -160,17 +160,20 @@
       const actors = this.actors.filter((a) => !a.hidden).slice().sort((a, b) => a.y - b.y);
       let ai = 0;
       const drawActor = (a) => {
-        const fx = Math.round(a.x - 16 - cam.x), fy = Math.round(a.y - Ch.GROUND - cam.y);
-        if (fx < -40 || fy < -60 || fx > vw + 40 || fy > vh + 60) return;
+        const fr = this.actorFrame(a), ox = fr.ox ?? 16;
+        const fx = Math.round(a.x - ox - cam.x), fy = Math.round(a.y - Ch.GROUND - cam.y);
+        if (fx < -50 || fy < -60 || fx > vw + 40 || fy > vh + 60) return;
         ctx.fillStyle = 'rgba(28,20,44,0.32)';
-        ctx.fillRect(fx + 11, fy + Ch.GROUND - 1, 10, 3); ctx.fillRect(fx + 9, fy + Ch.GROUND, 14, 1);
-        ctx.drawImage(this.actorFrame(a), fx, fy);
+        if (fr.ox) ctx.fillRect(fx + 6, fy + Ch.GROUND - 1, 36, 3);
+        else { ctx.fillRect(fx + 11, fy + Ch.GROUND - 1, 10, 3); ctx.fillRect(fx + 9, fy + Ch.GROUND, 14, 1); }
+        ctx.drawImage(fr, fx, fy);
         a._sx = fx; a._sy = fy;
       };
       for (const s of this.statics) {
         while (ai < actors.length && actors[ai].y < s.y) drawActor(actors[ai++]);
         if (s.b) {
-          const b = s.b, sp = b.sprite, x = b.x * T - sp.OV, y = (b.bottom + 1) * T - sp.H;
+          const b = s.b, sp = b.sprite; if (!sp) continue;
+          const x = b.x * T - sp.OV, y = (b.bottom + 1) * T - sp.H;
           if (inView(x, y, sp.W, sp.H)) { ctx.drawImage(sp.canvas, x - cam.x, y - cam.y); if (this.snowAlpha > 0.04 && sp.roofMask) { ctx.globalAlpha = this.snowAlpha; ctx.drawImage(sp.roofMask, x - cam.x, y - cam.y); ctx.globalAlpha = 1; } }
         } else {
           const o = s.t || s.p, sp = o.sprite, x = o.x - sp.ox, y = o.y - sp.oy;
@@ -232,7 +235,7 @@
       if (night || amb[2] > amb[0]) {
         for (const s of this.statics) {
           if (s.p && s.p.kind === 'lamp') pools.push([s.p.x - cam.x, s.p.y - 26 - cam.y, 34]);
-          if (s.b) for (const wd of s.b.sprite.windows) pools.push([s.b.x * T - s.b.sprite.OV + wd.x + wd.w / 2 - cam.x, (s.b.bottom + 1) * T - s.b.sprite.H + wd.y + wd.h + 6 - cam.y, 16]);
+          if (s.b && s.b.sprite) for (const wd of s.b.sprite.windows) pools.push([s.b.x * T - s.b.sprite.OV + wd.x + wd.w / 2 - cam.x, (s.b.bottom + 1) * T - s.b.sprite.H + wd.y + wd.h + 6 - cam.y, 16]);
         }
       }
       lc.globalCompositeOperation = 'lighter';
@@ -248,7 +251,7 @@
       ctx.globalCompositeOperation = 'multiply'; ctx.drawImage(L, 0, 0); ctx.globalCompositeOperation = 'source-over';
       if (night) { // lit window panes on top
         ctx.fillStyle = '#ffd27a';
-        for (const s of this.statics) if (s.b) { const b = s.b, sp = b.sprite, bx = b.x * T - sp.OV - cam.x, by = (b.bottom + 1) * T - sp.H - cam.y; if (bx > vw || by > vh || bx + sp.W < 0 || by + sp.H < 0) continue; for (const wd of sp.windows) { if ((b.id * 7 + wd.x) % 5 === 0) continue; ctx.fillRect(bx + wd.x, by + wd.y, wd.w, wd.h); ctx.fillStyle = '#c88a3a'; ctx.fillRect(bx + wd.x + Math.floor(wd.w / 2) - 0, by + wd.y, 1, wd.h); ctx.fillRect(bx + wd.x, by + wd.y + Math.floor(wd.h / 2), wd.w, 1); ctx.fillStyle = '#ffd27a'; } }
+        for (const s of this.statics) if (s.b && s.b.sprite) { const b = s.b, sp = b.sprite, bx = b.x * T - sp.OV - cam.x, by = (b.bottom + 1) * T - sp.H - cam.y; if (bx > vw || by > vh || bx + sp.W < 0 || by + sp.H < 0) continue; for (const wd of sp.windows) { if ((b.id * 7 + wd.x) % 5 === 0) continue; ctx.fillRect(bx + wd.x, by + wd.y, wd.w, wd.h); ctx.fillStyle = '#c88a3a'; ctx.fillRect(bx + wd.x + Math.floor(wd.w / 2) - 0, by + wd.y, 1, wd.h); ctx.fillRect(bx + wd.x, by + wd.y + Math.floor(wd.h / 2), wd.w, 1); ctx.fillStyle = '#ffd27a'; } }
         for (const s of this.statics) if (s.p && s.p.kind === 'lamp') { ctx.fillStyle = '#ffe08a'; ctx.fillRect(s.p.x - 2 - cam.x, s.p.y - 27 - cam.y, 4, 4); }
       }
     }

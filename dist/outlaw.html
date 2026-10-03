@@ -142,7 +142,7 @@ main > .wrap { overflow: auto; }
 </style>
 
 <header class="top">
-  <div class="brand">Outlaw<small>BUILD 0.5 · WEATHER & MASONS</small></div>
+  <div class="brand">Outlaw<small>BUILD 0.6 · LIFE & DEATH</small></div>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" role="tab" aria-selected="true" data-tab="play">Play</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="forge">Character</button>
@@ -755,7 +755,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     idle: { frames: 4, fps: 3 }, walk: { frames: 6, fps: 9 }, run: { frames: 6, fps: 13 },
     sit: { frames: 2, fps: 1.5 }, work: { frames: 4, fps: 6 }, eat: { frames: 4, fps: 3 },
     talk: { frames: 4, fps: 4 }, carry: { frames: 6, fps: 9 }, wave: { frames: 4, fps: 6 },
-    crouch: { frames: 2, fps: 2 }, sweep: { frames: 4, fps: 5 }, sleep: { frames: 2, fps: 1 },
+    crouch: { frames: 2, fps: 2 }, sweep: { frames: 4, fps: 5 }, sleep: { frames: 2, fps: 1 }, lie: { frames: 1, fps: 1 },
   };
 
   function pose(m, dir, anim, f) {
@@ -1596,7 +1596,11 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     const key = a.seed + ':' + a.cacheVer + ':' + dir + anim + f;
     let c = cache.get(key);
     if (c) { cache.delete(key); cache.set(key, c); return c; }
-    c = render(a, dir, anim, f);
+    if (anim === 'lie') {
+      // lying on the ground: the standing frame turned through exactly 90 degrees (pixel-perfect)
+      const src = render(a, 0, 'idle', 0); c = document.createElement('canvas'); c.width = 48; c.height = 48;
+      const x = c.getContext('2d'); x.translate(2, 47); x.rotate(-Math.PI / 2); x.drawImage(src, 0, 0); c.ox = 24;
+    } else c = render(a, dir, anim, f);
     cache.set(key, c);
     if (cache.size > MAX) cache.delete(cache.keys().next().value);
     return c;
@@ -1605,8 +1609,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
   // Build a full sprite sheet canvas: rows = anim x dir, cols = frames.
   function sheet(a, anims = Object.keys(ANIMS)) {
-    const rows = []; anims.forEach((an) => [0, 1, 2, 3].forEach((d) => rows.push([an, d])));
-    const maxF = Math.max(...anims.map((an) => ANIMS[an].frames));
+    const rows = []; anims.filter((an) => an !== 'lie').forEach((an) => [0, 1, 2, 3].forEach((d) => rows.push([an, d])));
+    const maxF = Math.max(...anims.map((an) => ANIMS[an].frames)); anims = anims.filter((an) => an !== 'lie');
     const c = document.createElement('canvas'); c.width = FW * maxF; c.height = FH * rows.length;
     const ctx = c.getContext('2d');
     rows.forEach(([an, d], r) => { for (let f = 0; f < ANIMS[an].frames; f++) ctx.drawImage(frame(a, d, an, f), f * FW, r * FH); });
@@ -2628,7 +2632,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       for (const a of this.actors) a.ft += dt;
       // chimney smoke
       for (const b of this.world.buildings) {
-        if (!b.sprite.chimney || Math.random() > dt * 3) continue;
+        if (!b.sprite || !b.sprite.chimney || Math.random() > dt * 3) continue;
         const sx = b.x * this.world.T - b.sprite.OV + b.sprite.chimney.x, sy = (b.bottom + 1) * this.world.T - b.sprite.H + b.sprite.chimney.y;
         this.particles.push({ x: sx, y: sy, vx: 3 + Math.random() * 3, vy: -7 - Math.random() * 3, life: 0, max: 3 + Math.random() * 2, r: 1 });
       }
@@ -2661,17 +2665,20 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const actors = this.actors.filter((a) => !a.hidden).slice().sort((a, b) => a.y - b.y);
       let ai = 0;
       const drawActor = (a) => {
-        const fx = Math.round(a.x - 16 - cam.x), fy = Math.round(a.y - Ch.GROUND - cam.y);
-        if (fx < -40 || fy < -60 || fx > vw + 40 || fy > vh + 60) return;
+        const fr = this.actorFrame(a), ox = fr.ox ?? 16;
+        const fx = Math.round(a.x - ox - cam.x), fy = Math.round(a.y - Ch.GROUND - cam.y);
+        if (fx < -50 || fy < -60 || fx > vw + 40 || fy > vh + 60) return;
         ctx.fillStyle = 'rgba(28,20,44,0.32)';
-        ctx.fillRect(fx + 11, fy + Ch.GROUND - 1, 10, 3); ctx.fillRect(fx + 9, fy + Ch.GROUND, 14, 1);
-        ctx.drawImage(this.actorFrame(a), fx, fy);
+        if (fr.ox) ctx.fillRect(fx + 6, fy + Ch.GROUND - 1, 36, 3);
+        else { ctx.fillRect(fx + 11, fy + Ch.GROUND - 1, 10, 3); ctx.fillRect(fx + 9, fy + Ch.GROUND, 14, 1); }
+        ctx.drawImage(fr, fx, fy);
         a._sx = fx; a._sy = fy;
       };
       for (const s of this.statics) {
         while (ai < actors.length && actors[ai].y < s.y) drawActor(actors[ai++]);
         if (s.b) {
-          const b = s.b, sp = b.sprite, x = b.x * T - sp.OV, y = (b.bottom + 1) * T - sp.H;
+          const b = s.b, sp = b.sprite; if (!sp) continue;
+          const x = b.x * T - sp.OV, y = (b.bottom + 1) * T - sp.H;
           if (inView(x, y, sp.W, sp.H)) { ctx.drawImage(sp.canvas, x - cam.x, y - cam.y); if (this.snowAlpha > 0.04 && sp.roofMask) { ctx.globalAlpha = this.snowAlpha; ctx.drawImage(sp.roofMask, x - cam.x, y - cam.y); ctx.globalAlpha = 1; } }
         } else {
           const o = s.t || s.p, sp = o.sprite, x = o.x - sp.ox, y = o.y - sp.oy;
@@ -2733,7 +2740,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       if (night || amb[2] > amb[0]) {
         for (const s of this.statics) {
           if (s.p && s.p.kind === 'lamp') pools.push([s.p.x - cam.x, s.p.y - 26 - cam.y, 34]);
-          if (s.b) for (const wd of s.b.sprite.windows) pools.push([s.b.x * T - s.b.sprite.OV + wd.x + wd.w / 2 - cam.x, (s.b.bottom + 1) * T - s.b.sprite.H + wd.y + wd.h + 6 - cam.y, 16]);
+          if (s.b && s.b.sprite) for (const wd of s.b.sprite.windows) pools.push([s.b.x * T - s.b.sprite.OV + wd.x + wd.w / 2 - cam.x, (s.b.bottom + 1) * T - s.b.sprite.H + wd.y + wd.h + 6 - cam.y, 16]);
         }
       }
       lc.globalCompositeOperation = 'lighter';
@@ -2749,7 +2756,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       ctx.globalCompositeOperation = 'multiply'; ctx.drawImage(L, 0, 0); ctx.globalCompositeOperation = 'source-over';
       if (night) { // lit window panes on top
         ctx.fillStyle = '#ffd27a';
-        for (const s of this.statics) if (s.b) { const b = s.b, sp = b.sprite, bx = b.x * T - sp.OV - cam.x, by = (b.bottom + 1) * T - sp.H - cam.y; if (bx > vw || by > vh || bx + sp.W < 0 || by + sp.H < 0) continue; for (const wd of sp.windows) { if ((b.id * 7 + wd.x) % 5 === 0) continue; ctx.fillRect(bx + wd.x, by + wd.y, wd.w, wd.h); ctx.fillStyle = '#c88a3a'; ctx.fillRect(bx + wd.x + Math.floor(wd.w / 2) - 0, by + wd.y, 1, wd.h); ctx.fillRect(bx + wd.x, by + wd.y + Math.floor(wd.h / 2), wd.w, 1); ctx.fillStyle = '#ffd27a'; } }
+        for (const s of this.statics) if (s.b && s.b.sprite) { const b = s.b, sp = b.sprite, bx = b.x * T - sp.OV - cam.x, by = (b.bottom + 1) * T - sp.H - cam.y; if (bx > vw || by > vh || bx + sp.W < 0 || by + sp.H < 0) continue; for (const wd of sp.windows) { if ((b.id * 7 + wd.x) % 5 === 0) continue; ctx.fillRect(bx + wd.x, by + wd.y, wd.w, wd.h); ctx.fillStyle = '#c88a3a'; ctx.fillRect(bx + wd.x + Math.floor(wd.w / 2) - 0, by + wd.y, 1, wd.h); ctx.fillRect(bx + wd.x, by + wd.y + Math.floor(wd.h / 2), wd.w, 1); ctx.fillStyle = '#ffd27a'; } }
         for (const s of this.statics) if (s.p && s.p.kind === 'lamp') { ctx.fillStyle = '#ffe08a'; ctx.fillRect(s.p.x - 2 - cam.x, s.p.y - 27 - cam.y, 4, 4); }
       }
     }
@@ -2989,7 +2996,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const active = this.sites.filter((s) => s.stage < 10).length;
       if (!free.length || active >= 1) return;
       const cost = 160;
-      if (sim.treasury.cash < cost + 60) { sim.log(`The council wanted to build, but the treasury holds only ${Math.round(sim.treasury.cash)}d.`, 'politics'); return; }
+      if (sim.treasury.cash < cost + 150) { sim.log(`The council wanted to build, but the treasury holds only ${Math.round(sim.treasury.cash)}d.`, 'politics'); return; }
       this.start(PLOTS.indexOf(free[0]), cost);
     }
 
@@ -3101,6 +3108,369 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
 </script>
 <script>
+// Health, illness, injury and healthcare.
+//
+// States: healthy -> hurt -> seriously ill/injured -> incapacitated -> dead. Illness starts from age,
+// hunger, season and sanitation, spreads between people who share a building, and is worsened by
+// overwork. The seriously ill rest in bed; anyone who collapses in the street is noticed by a
+// passer-by who helps them to the physician, where treatment (and remedies, if in stock) speeds
+// recovery. Outbreaks hit the workforce and the council responds.
+'use strict';
+(function () {
+  const DISEASES = {
+    cold: { name: 'a chill', contagion: 0.02, grow: 0.04, heal: 0.16, max: 0.55 },
+    flux: { name: 'the flux', contagion: 0.03, grow: 0.09, heal: 0.11, max: 1.1, water: true },
+    fever: { name: 'a fever', contagion: 0.045, grow: 0.12, heal: 0.09, max: 1.3 },
+    injury: { name: 'an injury', contagion: 0, grow: 0, heal: 0.12, max: 1 },
+  };
+
+  function install(Sim) {
+    const P = Sim.prototype;
+    P.healthInit = function () { this.settlement = { sanitation: 0.55, outbreak: false }; this.dead = []; };
+
+    P.sick = function (p) { return p.health.illness && p.health.illness.sev > 0; };
+    P.fallIll = function (p, kind, sev) {
+      if (p.health.illness || p.visitor) return;
+      p.health.illness = { kind, sev, since: this.day, treated: false };
+      p.health.state = sev > 0.6 ? 'seriously ill' : 'hurt';
+      this.remember(p, kind === 'injury' ? 'Hurt myself at work.' : `Came down with ${DISEASES[kind].name}.`, 'health', 1);
+    };
+
+    // hourly: contagion within buildings, work accidents
+    P.healthHourly = function () {
+      const byB = new Map();
+      for (const p of this.people) { const b = p.agent.inside; if (b == null) continue; if (!byB.has(b)) byB.set(b, []); byB.get(b).push(p); }
+      for (const group of byB.values()) {
+        const ill = group.filter((p) => p.health.illness && DISEASES[p.health.illness.kind].contagion > 0);
+        if (!ill.length) continue;
+        for (const q of group) {
+          if (q.health.illness || q.health.immune > this.day) continue;
+          for (const s of ill) if (this.rng.chance(DISEASES[s.health.illness.kind].contagion * s.health.illness.sev * (q.needs.hunger < 30 ? 1.6 : 1))) { this.fallIll(q, s.health.illness.kind, 0.15); break; }
+        }
+      }
+      for (const p of this.people) {
+        if (p.activity?.act !== 'work' && p.activity?.act !== 'chop' && p.activity?.act !== 'build') continue;
+        const risky = ['blacksmith', 'woodcutter', 'builder', 'miller'].includes(p.job?.role) ? 0.004 : 0.0008;
+        if (this.rng.chance(risky * (p.needs.energy < 25 ? 2 : 1))) { this.fallIll(p, 'injury', this.rng.float(0.25, 0.9)); this.log(`${p.name} was hurt at work.`, 'health'); }
+      }
+    };
+
+    // daily: new illness, progression, recovery, death from illness, outbreaks and the council response
+    P.healthDaily = function () {
+      const season = this.season, san = this.settlement.sanitation;
+      const doc = [...this.biz.values()].find((b) => b.type === 'doctor');
+      for (const p of [...this.people]) {
+        if (p.visitor || !p.alive) continue;
+        const h = p.health;
+        if (!h.illness) {
+          let risk = 0.003 + (p.age < 5 || p.age > 62 ? 0.004 : 0) + (p.needs.hunger < 30 ? 0.01 : 0) + (season === 'winter' ? 0.006 : season === 'autumn' ? 0.002 : 0);
+          if (this.rng.chance(risk)) this.fallIll(p, this.rng.weighted([['cold', 5], ['flux', 2 * (1.4 - san)], ['fever', 1]]), 0.12);
+          if (h.hp < 100) h.hp = Math.min(100, h.hp + 4);
+          continue;
+        }
+        const ill = h.illness, D = DISEASES[ill.kind];
+        const atDoctor = p.agent.inside === doc?.id && p.activity?.act === 'treated';
+        let heal = D.heal * (p.needs.hunger > 40 ? 1 : 0.5) * (p.age > 65 ? 0.7 : 1);
+        if (atDoctor) { heal *= 2.2; if (doc.stock.medicine >= 1) { doc.stock.medicine -= 1; heal *= 1.3; } }
+        else if (p.activity?.act === 'sick') heal *= 1.2;
+        // untreated illnesses grow for the first days
+        const days = this.day - ill.since;
+        if (days < 3) ill.sev += D.grow * (1 - (atDoctor ? 0.6 : 0)) * this.rng.float(0.4, 1.4);
+        ill.sev -= heal * this.rng.float(0.6, 1.3);
+        h.hp = Math.max(0, 100 - ill.sev * 90);
+        if (ill.sev > Math.min(D.max, 1) * (p.age > 70 || p.age < 3 ? 0.85 : 1) && ill.sev >= 1) { this.die(p, `died of ${D.name}`); continue; }
+        if (ill.sev <= 0) { p.health.illness = null; h.state = 'healthy'; h.immune = this.day + 20; h.hp = 85; this.remember(p, 'Back on my feet again.', 'health', 0.6); if (p.activity?.act === 'treated') p.task = null; continue; }
+        h.state = ill.sev > 0.85 ? 'incapacitated' : ill.sev > 0.5 ? 'seriously ill' : 'hurt';
+      }
+      const ill = this.people.filter((p) => p.health.illness && p.health.illness.kind !== 'injury').length;
+      const frac = ill / Math.max(1, this.people.length);
+      if (frac > 0.12 && !this.settlement.outbreak) {
+        this.settlement.outbreak = true;
+        this.log(`Sickness is spreading through Ashford: ${ill} people are ill.`, 'health');
+        // council response: pay for remedies and clean the well
+        if (doc && this.treasury.cash > 90) { doc.cash += 30; doc.stock.herbs = (doc.stock.herbs || 0) + 10; this.treasury.cash -= 30; this.treasury.spent += 30; this.log('The council paid the physician 30d for herbs and remedies.', 'politics'); }
+        if (this.treasury.cash > 140) { this.treasury.cash -= 40; this.treasury.spent += 40; this.settlement.sanitation = Math.min(0.95, this.settlement.sanitation + 0.12); this.log('The council paid men to clean the well and dig a new drain.', 'politics'); }
+      } else if (frac < 0.05 && this.settlement.outbreak) { this.settlement.outbreak = false; this.log('The sickness has passed.', 'health'); }
+      // doctor shortage pressure
+      const waiting = this.people.filter((p) => p.task?.act === 'to-doctor' || p.activity?.act === 'treated').length;
+      if (waiting > 4) this.log(`The physician is overwhelmed: ${waiting} patients and too few beds.`, 'health');
+    };
+
+    // per minute: behaviour of sick people, collapses, passers-by helping
+    P.healthMinute = function (p) {
+      const h = p.health, ill = h.illness;
+      if (!ill || p.visitor) return null;
+      const a = p.agent;
+      if (h.state === 'incapacitated') {
+        if (a.inside == null && !p.task) {
+          if (!p.collapsedAt) { p.collapsedAt = this.day * 1440 + this.minute; a.path = null; a.goal = null; this.log(`${p.name} collapsed ${this.where(a)}.`, 'health'); }
+          // someone nearby notices and helps
+          if (!p.helper) {
+            const helper = this.people.find((q) => q !== p && !q.agent.hidden && !q.task && q.age >= 16 && !q.health.illness && q.activity?.act !== 'sleep' && Math.hypot(q.agent.x - a.x, q.agent.y - a.y) < 110);
+            if (helper) {
+              p.helper = helper.id;
+              helper.task = { act: 'help', target: p.id, outdoor: true };
+              this.remember(helper, `Found ${p.name} collapsed and helped them to the physician.`, 'health', 1.2, p.id);
+              this.relate(p, helper, 0.3);
+            }
+          }
+          return { act: 'collapsed', outdoor: true };
+        }
+        if (a.inside != null && !p.task) return { act: 'sick', b: a.inside === this.docId ? this.docId : p.home };
+      }
+      if (p.task?.act === 'to-doctor' || p.task?.act === 'treated') return null;
+      if (ill.sev > 0.5 && a.inside === p.home && this.docId && ill.sev > 0.65 && !p.housecall) {
+        // a relative fetches the physician; the patient is taken there when able
+        p.task = { act: 'to-doctor', b: this.docId }; return null;
+      }
+      if (ill.sev > 0.35) return { act: 'sick', b: p.home };
+      return null;
+    };
+
+    P.where = function (a) { const tx = a.x / this.T, ty = a.y / this.T; return tx > 36 && tx < 56 && ty > 21 && ty < 30 ? 'in the square' : ty > 29 && ty < 32.5 ? "on the King's Road" : ty > 40 && ty < 43 ? 'on Mill Lane' : 'out in the village'; };
+
+    // helper reaches the patient, then both walk to the physician
+    P.helpArrive = function (helper) {
+      const p = this.byId.get(helper.task.target);
+      if (!p || !p.alive) { helper.task = null; return; }
+      p.health.state = 'seriously ill'; p.collapsedAt = null;
+      p.task = { act: 'to-doctor', b: this.docId };
+      helper.task = { act: 'escort', b: this.docId, target: p.id };
+    };
+
+    P.admit = function (p) {
+      const doc = this.biz.get(this.docId);
+      const hh = this.household(p);
+      const fee = 6;
+      if (hh.money >= fee) { hh.money -= fee; doc.cash += fee; }
+      else if (this.treasury.cash >= fee) { this.treasury.cash -= fee; this.treasury.spent += fee; doc.cash += fee; }
+      else this.remember(this.byId.get(doc.owner) || p, `Treated ${p.name} for nothing; they had no coin.`, 'work', 0.6);
+      p.task = { act: 'treated', b: this.docId };
+      if (p.health.illness) p.health.illness.treated = true;
+      this.log(`${p.name} is being treated by the physician.`, 'health');
+    };
+
+    P.die = function (p, cause) {
+      p.alive = false; p.health.state = 'dead'; p.died = { day: this.day, cause };
+      this.people = this.people.filter((q) => q !== p);
+      this.dead.push(p);
+      const hh = this.household(p);
+      if (hh && hh.members) hh.members = hh.members.filter((id) => id !== p.id);
+      this.log(`${p.name}, aged ${p.age}, ${cause}.`, 'death');
+      this.onDeath && this.onDeath(p, cause);
+    };
+  }
+
+  O.Health = { install, DISEASES };
+})();
+
+</script>
+<script>
+// The life cycle: birthdays and ageing, courtship and weddings, births, deaths with funerals and
+// graves, inheritance, vacancies refilled, and families leaving when life here fails them.
+// A year is four seasons of O.SEASON_DAYS days.
+'use strict';
+(function () {
+  const Ch = O.Char, D = O.Data;
+  const YEAR = () => O.SEASON_DAYS * 4;
+
+  function install(Sim) {
+    const P = Sim.prototype;
+    P.lifeInit = function () {
+      for (const p of this.people) if (p.birthday == null) p.birthday = this.rng.int(1, YEAR());
+      this.graves = [];
+    };
+    P.refreshLook = function (p) {
+      const role = p.job ? D.ROLE_OUTFIT[p.job.role] || 'villager' : p.age < 13 ? 'child' : 'villager';
+      const b = this.building(p.home);
+      p.app = Ch.makeAppearance(O.hash('person', p.id, p.first), { sex: p.sex, age: p.age, genes: p.genes, role, wealth: b?.wealth ?? 0.4, region: this.world.region });
+      p.stage = Ch.ageStage(p.age); p.agent.a = p.app;
+    };
+
+    P.lifeDaily = function () {
+      const doy = ((this.day - 1) % YEAR()) + 1;
+      // birthdays
+      for (const p of [...this.people]) {
+        if (p.visitor || p.birthday !== doy) continue;
+        const before = Ch.ageStage(p.age);
+        p.age++;
+        const after = Ch.ageStage(p.age);
+        if (before !== after) {
+          this.refreshLook(p);
+          if (after === 'teen') this.remember(p, 'I am old enough to learn a trade now.', 'life', 1);
+          if (after === 'youngAdult') this.remember(p, 'Grown at last.', 'life', 1);
+          if (after === 'elder' && p.job && !p.job.casual && this.rng.chance(0.5)) this.retire(p);
+        }
+      }
+      // natural death in old age
+      for (const p of [...this.people]) {
+        if (p.visitor || p.age < 60) continue;
+        const risk = (p.age - 58) * 0.00035 * (p.health.illness ? 3 : 1);
+        if (this.rng.chance(risk)) this.die(p, 'died peacefully in old age');
+      }
+      // courtship and weddings
+      if (this.rng.chance(0.25)) this.matchmake();
+      // births
+      for (const hh of this.households) {
+        const ms = hh.members.map((id) => this.byId.get(id)).filter(Boolean);
+        const wife = ms.find((p) => p.sex === 'f' && p.spouse && p.age >= 18 && p.age <= 42);
+        if (!wife || ms.length >= 7 || hh.money < 15) continue;
+        if (wife.pregnant) { if (this.day >= wife.pregnant) this.birth(wife, hh); continue; }
+        if (this.rng.chance(0.012 - (ms.length > 4 ? 0.006 : 0))) { wife.pregnant = this.day + 20; this.remember(wife, 'I am with child.', 'life', 1.5); }
+      }
+      // fill permanent vacancies
+      this.fillVacancies();
+      // leaving: households that are destitute for many days seek a living elsewhere
+      for (const hh of [...this.households]) {
+        if (!hh.members.length) continue;
+        hh.poorDays = hh.money < 3 && hh.pantry.bread < 1 ? (hh.poorDays || 0) + 1 : 0;
+        if (hh.poorDays >= 8 && this.rng.chance(0.35)) this.emigrate(hh);
+      }
+    };
+
+    P.retire = function (p) {
+      const bz = this.biz.get(p.job.biz);
+      if (bz) { bz.workers = bz.workers.filter((id) => id !== p.id); if (bz.owner === p.id) bz.owner = this.heirOf(p, bz) ?? null; }
+      this.log(`${p.name} has retired from ${bz ? bz.name : 'work'}.`, 'life');
+      p.job = null; this.refreshLook(p);
+    };
+
+    P.heirOf = function (p, bz) {
+      const kids = (p.children || []).map((id) => this.byId.get(id)).filter((c) => c && c.alive !== false && c.age >= 18).sort((a, b) => b.age - a.age);
+      const sp = p.spouse && this.byId.get(p.spouse);
+      const heir = kids[0] || (sp && sp.alive !== false ? sp : null);
+      if (!heir) return null;
+      if (heir.job && heir.job.biz !== bz.id) { const old = this.biz.get(heir.job.biz); if (old) old.workers = old.workers.filter((id) => id !== heir.id); }
+      heir.job = { biz: bz.id, role: bz.def.jobs[0][0] }; heir.skills[heir.job.role] = Math.max(heir.skills[heir.job.role] || 0, 0.35);
+      if (!bz.workers.includes(heir.id)) bz.workers.push(heir.id);
+      this.refreshLook(heir);
+      this.log(`${heir.name} has inherited ${bz.name}.`, 'life');
+      this.remember(heir, `I have taken over ${bz.name}.`, 'life', 2);
+      return heir.id;
+    };
+
+    P.fillVacancies = function () {
+      for (const bz of this.biz.values()) {
+        if (bz.type === 'site') continue;
+        for (const [role, n] of bz.def.jobs) {
+          const have = bz.workers.filter((id) => { const q = this.byId.get(id); return q && q.job?.role === role && !q.job.casual; }).length;
+          if (have >= n) continue;
+          if (bz.def.wage[role] === 0 && bz.owner) continue; // owner role filled by the owner
+          const pool = this.people.filter((q) => !q.visitor && (!q.job || q.job.casual) && q.age >= (role === 'apprentice' ? 13 : 16) && q.age < (role === 'apprentice' ? 22 : 62) && !q.health.illness);
+          if (!pool.length) continue;
+          const pick = pool.sort((a, b) => (b.skills[role] || 0) - (a.skills[role] || 0) || (a.age - b.age))[0];
+          if (pick.job?.casual) { const old = this.biz.get(pick.job.biz); if (old) old.workers = old.workers.filter((id) => id !== pick.id); }
+          pick.job = { biz: bz.id, role }; pick.skills[role] = pick.skills[role] || (role === 'apprentice' ? 0.15 : 0.3);
+          if (bz.def.wage[role] === 0) bz.owner = pick.id;
+          bz.workers.push(pick.id); this.refreshLook(pick);
+          this.remember(pick, `Taken on as ${role} at ${bz.name}.`, 'work', 1.5);
+          this.log(`${pick.name} was taken on as ${role} at ${bz.name}.`, 'economy');
+        }
+      }
+    };
+
+    P.matchmake = function () {
+      const singles = this.people.filter((p) => !p.visitor && !p.spouse && p.age >= 18 && p.age <= 45);
+      for (const a of singles) {
+        for (const [id, r] of a.rel) {
+          const b = this.byId.get(id);
+          if (!b || b.spouse || b.sex === a.sex || b.age < 18 || b.age > 48 || b.household === a.household) continue;
+          if (r.affinity < 0.25 || (b.rel.get(a.id)?.affinity || 0) < 0.2) continue;
+          return this.wed(a, b);
+        }
+      }
+      // otherwise a chance meeting at the tavern or chapel leads to courtship
+      if (singles.length > 1 && this.rng.chance(0.35)) {
+        const a = this.rng.pick(singles), b = this.rng.pick(singles.filter((x) => x.sex !== a.sex && x.household !== a.household));
+        if (b) { this.relate(a, b, 0.15); this.relate(b, a, 0.15); this.remember(a, `I've been walking out with ${b.name}.`, 'social', 1, b.id); }
+      }
+    };
+
+    P.wed = function (a, b) {
+      a.spouse = b.id; b.spouse = a.id;
+      // the bride moves to the household with the better house (or the groom's)
+      const ha = this.household(a), hb = this.household(b);
+      const ba = this.building(a.home), bb = this.building(b.home);
+      const [mover, stay] = (ba?.wealth || 0) >= (bb?.wealth || 0) ? [b, a] : [a, b];
+      const from = this.household(mover), to = this.household(stay);
+      from.members = from.members.filter((id) => id !== mover.id);
+      to.members.push(mover.id); mover.household = stay.household; mover.home = stay.home;
+      if (mover.sex === 'f') mover.sur = stay.sur, mover.name = `${mover.first} ${mover.sur}`;
+      const dowry = Math.min(20, Math.max(0, from.money * 0.3)); from.money -= dowry; to.money += dowry;
+      this.events = this.events || []; this.events.push({ kind: 'wedding', day: this.day + 1, a: a.id, b: b.id });
+      this.remember(a, `Married ${b.first}.`, 'life', 3, b.id); this.remember(b, `Married ${a.first}.`, 'life', 3, a.id);
+      this.log(`${a.first} and ${b.first} were married at the Chapel of St. Aldric.`, 'life');
+      if (!from.members.length) this.vacate(from);
+      void ha; void hb;
+    };
+
+    P.birth = function (mum, hh) {
+      mum.pregnant = null;
+      const dad = this.byId.get(mum.spouse);
+      const genes = Ch.inheritGenes(this.rng, mum.genes, dad ? dad.genes : Ch.randomGenes(this.rng, this.world.region));
+      const sex = this.rng.chance(0.5) ? 'm' : 'f';
+      const c = this.newPerson({ sex, age: 0, first: this.rng.pick(D.NAMES[sex]), sur: hh.surname, household: hh.id, home: mum.home, genes, wealth: 0.4 });
+      c.name = `${c.first} ${c.sur}`; c.birthday = ((this.day - 1) % YEAR()) + 1; c.parents = [mum.id, dad?.id].filter(Boolean);
+      c.app = Ch.makeAppearance(O.hash('person', c.id, c.first), { sex, age: 0, genes, role: 'child', wealth: 0.4 });
+      c.agent = { x: mum.agent.x, y: mum.agent.y, dir: 0, anim: 'idle', ft: 0, a: c.app, hidden: true, inside: mum.home, path: null, goal: null, person: c };
+      c.activity = { act: 'home', b: mum.home };
+      hh.members.push(c.id); (mum.children = mum.children || []).push(c.id); if (dad) (dad.children = dad.children || []).push(c.id);
+      this.remember(mum, `Gave birth to ${c.first}.`, 'life', 3, c.id); if (dad) this.remember(dad, `${c.first} was born.`, 'life', 3, c.id);
+      this.log(`A ${sex === 'm' ? 'son' : 'daughter'}, ${c.first}, was born to ${mum.first}${dad ? ' and ' + dad.first : ''} ${hh.surname}.`, 'life');
+    };
+
+    P.onDeath = function (p, cause) {
+      // family and friends grieve, the job falls vacant, property passes on, a grave is dug
+      const hh = this.household(p);
+      for (const id of [...(hh?.members || []), ...(p.children || [])]) { const q = this.byId.get(id); if (q) { q.mood -= 0.3; this.remember(q, `${p.first} ${cause.replace('died', 'has died')}. We buried them at St. Aldric's.`, 'grief', 3, p.id); } }
+      if (p.spouse) { const sp = this.byId.get(p.spouse); if (sp) { sp.spouse = null; sp.widowed = p.id; } }
+      for (const [id, r] of p.rel) { const q = this.byId.get(id); if (q && r.affinity > 0.3) this.remember(q, `My friend ${p.name} has died.`, 'grief', 1.5, p.id); }
+      if (p.job?.biz) {
+        const bz = this.biz.get(p.job.biz);
+        if (bz) { bz.workers = bz.workers.filter((id) => id !== p.id); if (bz.owner === p.id) { bz.owner = this.heirOf(p, bz); if (!bz.owner) this.log(`${bz.name} has no heir and stands without a master.`, 'economy'); } }
+      }
+      if (hh && hh.shopper === p.id) hh.shopper = hh.members.map((id) => this.byId.get(id)).find((q) => q && q.age >= 10)?.id;
+      if (hh && !hh.members.length) { const b = this.building(p.home); this.log(`${b?.type === 'house' ? 'A house' : b?.name || 'A home'} stands empty after ${p.name}'s death; their goods pass to the parish.`, 'life'); this.treasury.cash += Math.max(0, hh.money); hh.money = 0; this.vacate(hh); }
+      this.events = this.events || []; this.events.push({ kind: 'funeral', day: this.day + 1, who: p.id, name: p.name });
+      this.graves.push({ name: p.name, born: this.day - p.age * YEAR(), died: this.day, age: p.age, cause });
+      this.onGrave && this.onGrave(p);
+    };
+
+    P.vacate = function (hh) {
+      const b = this.building(hh.home);
+      if (b) { b.household = null; b.vacant = true; }
+      this.households = this.households.map((h) => (h === hh ? Object.assign(h, { members: [], gone: true }) : h));
+    };
+
+    P.emigrate = function (hh) {
+      const ms = hh.members.map((id) => this.byId.get(id)).filter(Boolean);
+      for (const p of ms) {
+        if (p.job?.biz) { const bz = this.biz.get(p.job.biz); if (bz) { bz.workers = bz.workers.filter((id) => id !== p.id); if (bz.owner === p.id) bz.owner = null; } }
+        p.job = null; p.task = { act: 'leave', outdoor: true, emigrating: true };
+        this.remember(p, 'There is no living to be had in Ashford. We are leaving.', 'life', 3);
+      }
+      this.log(`Unable to feed themselves, the ${hh.surname} family have packed up and left Ashford.`, 'migration');
+      this.vacate(hh);
+    };
+
+    // daily events: weddings and funerals gather people at the chapel
+    P.eventPlan = function (p) {
+      if (!this.events || p.visitor || p.age < 6) return null;
+      const h = this.hour;
+      for (const e of this.events) {
+        if (e.day !== this.day || h < 10 || h >= 11.5) continue;
+        const close = e.kind === 'funeral' ? (this.household(p)?.members.includes(e.who) || (p.rel.get(e.who)?.affinity || 0) > 0.2 || this.byId.get(e.who)?.household === p.household || (this.dead.find((d) => d.id === e.who)?.household === p.household)) : (p.id === e.a || p.id === e.b || (p.rel.get(e.a)?.familiar || 0) > 0.2 || (p.rel.get(e.b)?.familiar || 0) > 0.2 || this.household(p) === this.household(this.byId.get(e.a) || {}));
+        if (close) return { act: e.kind === 'funeral' ? 'mourn' : 'wedding', b: this.chapelId };
+      }
+      return null;
+    };
+  }
+
+  O.Life = { install, YEAR };
+})();
+
+</script>
+<script>
 // The living settlement simulation.
 //
 // Every resident is a Person with a family, a home, maybe a job, a purse shared with their household,
@@ -3130,6 +3500,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       this.weather = new O.Weather(this);
       this.build = new O.Construction(this);
       this.populate();
+      this.healthInit(); this.lifeInit();
       this.placeAll();
       this._season = this.season;
     }
@@ -3239,8 +3610,16 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     }
     relate(a, b, d) { const r = a.rel.get(b.id) || { affinity: 0, familiar: 0 }; r.affinity = O.clamp(r.affinity + d, -1, 1); r.familiar = Math.min(1, r.familiar + 0.05); a.rel.set(b.id, r); }
 
+    // Stock targets: the farm and mill build a reserve through autumn to last the winter.
+    target(bz, good) {
+      const t = bz.def.targets[good] || 10;
+      if ((bz.type === 'farmhouse' && (good === 'wheat' || good === 'cabbage')) || (bz.type === 'mill' && good === 'wheat')) {
+        const m = { spring: 2, summer: 1.5, autumn: 6, winter: 5 }[this.season]; return t * m;
+      }
+      return t;
+    }
     price(bz, good) {
-      const target = bz.def.targets[good] || 10, stock = bz.stock[good] || 0;
+      const target = this.target(bz, good), stock = bz.stock[good] || 0;
       const owner = this.byId.get(bz.owner);
       let m = O.clamp(Math.sqrt(target / (stock + 1)), 0.6, 2.5);
       if (owner && this.has(owner, 'greedy')) m *= 1.15; if (owner && this.has(owner, 'generous')) m *= 0.9;
@@ -3253,9 +3632,11 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     plan(p) {
       const h = this.hour, m = this.minute, wd = this.weekday;
       const home = p.home;
+      if (p.health.illness && p.task?.act !== 'help' && p.task?.act !== 'escort') { const hpl = this.healthMinute(p); if (hpl) return hpl; }
       if (p.task) return p.task;
       const asleep = m < p.wake || m >= p.bed;
       if (asleep) return { act: 'sleep', b: home };
+      const ev = this.eventPlan(p); if (ev) return ev;
       const sunday = wd === 6;
       if (sunday && h >= 9 && h < 10.5 && p.age >= 6) return { act: 'worship', b: this.chapelId };
       if (sunday && h >= 6.5 && h < 8.8 && this.household(p).shopper === p.id) { const need = this.shoppingNeed(this.household(p)); if (need) return { act: 'shop', b: need.biz, good: need.good, qty: need.qty }; }
@@ -3289,6 +3670,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         }
       }
       if (job && job.role === 'porter' && h >= 7 && h < 18 && !sunday) return { act: 'wait-work', outdoor: true, zone: 'square' };
+      if (job && job.role === 'servant' && h >= 8 && h < 17 && !(h >= 12 && h < 12.75)) return { act: 'service', b: job.house };
       // meals
       if (this.raining && (this.has(p, 'cautious') || this.weather.severe) && !(job && job.biz)) return { act: 'home', b: home };
       if (h >= 12 && h < 12.75 && p.needs.hunger < 75) return this.has(p, 'social') && this.household(p).money > 30 ? { act: 'eat-out', b: this.tavernId } : { act: 'eat', b: home };
@@ -3348,6 +3730,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     // ------------------------------------------------------------------ placement & movement
     placeAll() {
       this.tavernId = this.world.buildings.find((b) => b.type === 'tavern').id;
+      this.docId = this.world.buildings.find((b) => b.type === 'doctor').id;
       this.chapelId = this.world.buildings.find((b) => b.type === 'chapel').id;
       for (const hh of this.households) { const adults = hh.members.map((id) => this.byId.get(id)).filter((p) => p.age >= 16); hh.shopper = (adults.find((p) => !p.job) || adults[adults.length - 1] || {}).id; }
       for (const p of this.people) {
@@ -3359,7 +3742,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       }
     }
 
-    speedOf(p) { const base = p.stage === 'elder' ? WALK.elder : p.age < 13 ? WALK.child : WALK.adult; const w = this.weather; return base * (w && w.snowCover > 0.4 ? 0.78 : w && w.wet > 0.6 ? 0.9 : 1); }
+    speedOf(p) { if (p.task?.act === 'to-doctor' || p.task?.act === 'escort') return 18; const base = p.stage === 'elder' ? WALK.elder : p.age < 13 ? WALK.child : WALK.adult; const w = this.weather; return base * (w && w.snowCover > 0.4 ? 0.78 : w && w.wet > 0.6 ? 0.9 : 1); }
 
     // dtm: elapsed game minutes this frame
     tick(dtm) {
@@ -3391,7 +3774,10 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       for (const p of this.people) this.personMinute(p);
       this.build.tickMinute();
       const mm = this._m;
+      if (mm % 60 === 0) this.healthHourly();
+      for (const p of this.people) if (p.task?.emigrating && !p.agent.path && p.agent.x > 93 * this.T) { this.people = this.people.filter((q) => q !== p); (this.departed = this.departed || []).push(p); }
       if (mm === 6 * 60 + 30) this.labourMarket();
+      if (mm === 7 * 60) this.marketDay();
       if (mm === 18 * 60 + 5) this.endCasualDay();
       if (mm === 18 * 60 + 30) this.parishRelief();
     }
@@ -3403,17 +3789,67 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const employers = [...this.biz.values()].filter((bz) => !bz.def.public && bz.type !== 'tavern' && (bz.type !== 'farmhouse' || this.season !== 'winter'));
       let hired = 0;
       for (const p of seekers) {
-        const bz = employers.filter((b) => b.cash > 45 + b.workers.length * 6 && b.workers.filter((id) => this.byId.get(id)?.job?.casual).length < (b.type === 'site' ? 3 : 2)).sort((a, c) => c.cash - a.cash)[0];
+        const bz = employers.filter((b) => b.cash > 45 + b.workers.length * 6 && b.workers.filter((id) => this.byId.get(id)?.job?.casual).length < (b.type === 'site' ? 3 : Math.min(4, 1 + Math.floor(b.cash / 90)))).sort((a, c) => c.cash - a.cash)[0];
         if (!bz) break;
         p.job = { biz: bz.id, role: bz.type === 'site' ? 'builder' : 'labourer', casual: true };
         p.skills[p.job.role] = p.skills[p.job.role] || 0.3;
         bz.workers.push(p.id); hired++;
       }
+      // well-off households take on a servant for the day
+      for (const hh of this.households) {
+        if (hh.gone || hh.money < 180) continue;
+        const b = this.building(hh.home); if (!b) continue;
+        const p = this.people.find((q) => !q.visitor && !q.job && q.age >= 14 && q.age < 60 && q.household !== hh.id && this.household(q).money < 60);
+        if (!p) break;
+        p.job = { biz: null, role: 'servant', house: b.id, payer: hh.id, casual: true, wage: 4 }; hired++;
+        if (!p._servedNoted) { p._servedNoted = true; this.remember(p, `Found work in service with the ${hh.surname} household.`, 'work', 1); }
+      }
       if (hired) this.log(`${hired} villagers found a day's labour.`, 'economy');
     }
     endCasualDay() {
+      for (const p of this.people) if (p.job?.role === 'servant') { const payer = this.households[p.job.payer - 1]; const w = Math.min(p.job.wage, Math.max(0, Math.floor(payer.money))); payer.money -= w; this.household(p).money += w; this.stats.wages += w; p.job = null; }
       for (const p of this.people) if (p.job?.casual) { const bz = this.biz.get(p.job.biz); if (bz) bz.workers = bz.workers.filter((id) => id !== p.id); p.job = null; }
     }
+    // The council adjusts the sales tax to keep the treasury solvent; it's unpopular either way.
+    taxPolicy() {
+      const t = this.treasury, old = t.taxRate;
+      if (t.cash < 120 && t.taxRate < 0.15) t.taxRate = Math.min(0.15, t.taxRate + 0.02);
+      else if (t.cash > 500 && t.taxRate > 0.04) t.taxRate = Math.max(0.04, t.taxRate - 0.01);
+      if (t.taxRate !== old) {
+        this.log(`The council ${t.taxRate > old ? 'raised' : 'lowered'} the market tax to ${Math.round(t.taxRate * 100)} pence in the shilling-score.`, 'politics');
+        for (const p of this.people) if (p.age >= 18 && this.rng.chance(0.25)) this.remember(p, `The council ${t.taxRate > old ? 'raised' : 'cut'} the market tax.`, 'politics', 0.7);
+      }
+    }
+    // A family arrives when there are empty houses and work to be had.
+    immigrateMaybe() {
+      const empty = this.world.buildings.filter((b) => b.type === 'house' && !b.site && !b.household);
+      if (!empty.length) return;
+      const openJobs = [...this.biz.values()].reduce((n, bz) => n + bz.def.jobs.reduce((m, [role, k]) => m + Math.max(0, k - bz.workers.filter((id) => this.byId.get(id)?.job?.role === role).length), 0), 0);
+      const prosperity = this.households.filter((h) => !h.gone).reduce((s, h) => s + h.money, 0) / Math.max(1, this.households.filter((h) => !h.gone).length);
+      if (openJobs < 1 && prosperity < 60) return;
+      if (!this.rng.chance(0.5)) return;
+      this.immigrate(this.rng.pick(empty));
+    }
+    immigrate(b) {
+      const r = this.rng, region = r.pick(['east', 'north', 'west', 'south']);
+      const hh = { id: this.households.length + 1, home: b.id, members: [], pantry: { bread: 4, cabbage: 2, firewood: 4 }, money: r.int(50, 130), surname: r.pick(D.NAMES.sur) };
+      this.households.push(hh); b.household = hh.id; b.vacant = false;
+      const mk = (sex, age, genes) => { const p = this.newPerson({ sex, age, first: r.pick(D.NAMES[sex]), sur: hh.surname, household: hh.id, home: b.id, genes: genes || Ch.randomGenes(r, region), wealth: 0.5 }); p.name = `${p.first} ${p.sur}`; p.birthday = r.int(1, O.Life.YEAR()); hh.members.push(p.id); return p; };
+      const a = mk('m', r.int(22, 44)), c = r.chance(0.8) ? mk('f', r.int(20, 40)) : null;
+      if (c) { a.spouse = c.id; c.spouse = a.id; }
+      const kids = c ? Array.from({ length: r.int(0, 3) }, () => mk(r.chance(0.5) ? 'm' : 'f', r.int(0, 12), Ch.inheritGenes(r, c.genes, a.genes))) : [];
+      a.children = kids.map((k) => k.id); if (c) c.children = a.children;
+      hh.shopper = (c || a).id;
+      for (const p of [a, c, ...kids].filter(Boolean)) {
+        p.app = Ch.makeAppearance(O.hash('person', p.id, p.first), { sex: p.sex, age: p.age, genes: p.genes, role: p.age < 13 ? 'child' : 'villager', wealth: 0.5, region });
+        p.agent = { x: (95 - (p.id % 3)) * this.T, y: 31 * this.T - (p.id % 2) * 6, dir: 1, anim: 'walk', ft: 0, a: p.app, hidden: false, inside: null, path: null, goal: null, person: p, carrying: p === a ? { good: 'logs', qty: 1 } : null };
+        p.task = { act: 'move-in', b: b.id };
+        this.remember(p, `We came from the ${region} to make a new life in Ashford.`, 'life', 2);
+      }
+      this.log(`The ${hh.surname} family have come from the ${region} to settle in an empty house in Ashford.`, 'migration');
+      return hh;
+    }
+
     // The parish feeds households that have neither food nor money, paid from the treasury.
     parishRelief() {
       const bk = this.supplierOf('bakery'); if (!bk) return;
@@ -3439,6 +3875,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const changed = !p.activity || pl.act !== p.activity.act || pl.b !== p.activity.b || pl.zone !== p.activity.zone;
       if (changed) { p.activity = pl; a.goal = null; a.path = null; a.wait = 0; if (pl.b && a.inside === pl.b) this.onEnter(p, pl.b); }
       const act = p.activity;
+      if (act.act === 'collapsed') { a.path = null; a.goal = null; a.anim = 'lie'; return; }
+      if (act.act === 'help' && a.goal && !a.path && a.inside == null) { this.helpArrive(p); return; }
       // indoor activity in progress
       if (act.b && a.inside === act.b) {
         this.doIndoor(p, act);
@@ -3493,6 +3931,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     idleAnim(p) {
       const act = p.activity?.act;
       if (act === 'sit') return 'sit';
+      if (act === 'collapsed') return 'lie';
       if (act === 'chop' || act === 'fieldwork' || act === 'build') return 'work';
       if (act === 'forage') return 'crouch';
       if (act === 'wait-work' || act === 'stroll') return p.agent.talking ? 'talk' : 'idle';
@@ -3569,8 +4008,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         if (rc.role && rc.role !== role) continue;
         // output scaled by skill: beginners work at half the pace of masters
         const rate = ((0.5 + sk * 0.75) / 60) * seasonal;
-        const target = bz.def.targets;
-        const room = Object.keys(rc.out).filter((g) => (bz.stock[g] || 0) < (target[g] || 99) * 1.4);
+        const room = Object.keys(rc.out).filter((g) => (bz.stock[g] || 0) < (bz.def.targets[g] ? this.target(bz, g) : 99) * 1.4);
         if (!room.length) continue;
         let ok = true; for (const [g, q] of Object.entries(rc.inp)) if ((bz.stock[g] || 0) < q * rate) ok = false;
         if (!ok) { if (!bz._shortNoted) { bz._shortNoted = true; this.log(`${bz.name} ran short of ${Object.keys(rc.inp).map((g) => G[g].name.toLowerCase()).join(' and ')}.`, 'economy'); } continue; }
@@ -3604,7 +4042,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     openBusiness(bz) {
       // reorder inputs that are running low: the supplier sends a worker or porter with the goods
       for (const [good, srcType] of Object.entries(bz.def.buys || {})) {
-        const target = bz.def.targets[good] || 10;
+        const target = this.target(bz, good);
         if ((bz.stock[good] || 0) > target * 0.45) continue;
         if (bz.orders.some((o) => o.good === good)) continue;
         if (srcType === 'import') { this.queueImport(bz, good, target - (bz.stock[good] || 0)); continue; }
@@ -3624,7 +4062,12 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         const w = this.byId.get(wid); if (!w) continue;
         const wage = bz.def.wage[w.job.role] || (w.job.casual ? 5 : 0); if (!wage) continue;
         const hh = this.household(w);
-        if (bz.def.public) { this.treasury.cash -= wage; this.treasury.spent += wage; hh.money += wage; this.stats.wages += wage; continue; }
+        if (bz.def.public) {
+          const pay = Math.max(0, Math.min(wage, Math.floor(this.treasury.cash)));
+          this.treasury.cash -= pay; this.treasury.spent += pay; hh.money += pay; this.stats.wages += pay;
+          if (pay < wage) { this.remember(w, `The council couldn't pay my wages in full (${pay}d of ${wage}d).`, 'hardship', 1); w.mood -= 0.1; }
+          continue;
+        }
         const paid = Math.max(0, Math.min(wage, Math.floor(bz.cash)));
         bz.cash -= paid; hh.money += paid; this.stats.wages += paid;
         if (paid < wage) { this.remember(w, `${bz.name} could only pay ${paid}d of my ${wage}d.`, 'hardship', 1); w.mood -= 0.1; }
@@ -3632,6 +4075,11 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       // owners take a share of profit
       const owner = this.byId.get(bz.owner);
       if (owner && bz.cash > 120) { const take = Math.floor((bz.cash - 120) * 0.5); bz.cash -= take; this.household(owner).money += take; }
+      else if (!owner && !bz.def.public && bz.cash > 150) {
+        // no master: the workers share what's left over after a reserve
+        const ws = bz.workers.map((id) => this.byId.get(id)).filter((w) => w && !w.job?.casual);
+        if (ws.length) { const pot = Math.floor((bz.cash - 150) * 0.5), each = Math.floor(pot / ws.length); if (each > 0) { for (const w of ws) this.household(w).money += each; bz.cash -= each * ws.length; } }
+      }
       bz.history.push({ day: this.day, sales: bz.salesToday }); if (bz.history.length > 14) bz.history.shift();
       bz.salesToday = 0; bz._shortNoted = false;
     }
@@ -3667,18 +4115,41 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       this.log(`${p.name} delivered ${o.qty} ${G[o.good].name.toLowerCase()} from ${src.name} to ${dst.name}.`, 'trade');
     }
 
+    // Surplus is sold to the travelling trader and leaves for other towns; money comes into Ashford.
+    exports(tr) {
+      const deals = [];
+      for (const bz of this.biz.values()) {
+        if (bz.def.public || bz.type === 'site') continue;
+        for (const g of ['wheat', 'cabbage', 'logs', 'firewood', 'tools', 'flour']) {
+          const tgt = bz.def.targets[g] && this.target(bz, g); if (!tgt || !bz.def.sells.includes(g)) continue;
+          const surplus = Math.floor((bz.stock[g] || 0) - tgt * 0.9);
+          if (surplus < 3) continue;
+          const pr = Math.max(1, Math.round(G[g].base * 0.85)), pay = surplus * pr;
+          bz.stock[g] -= surplus; bz.cash += pay; this.stats.exports = (this.stats.exports || 0) + pay;
+          deals.push(`${surplus} ${G[g].name.toLowerCase()} from ${bz.name}`);
+        }
+      }
+      const toll = Math.round(deals.length * 4 + (this.stats.exportsToday = 0));
+      if (deals.length) { this.treasury.cash += toll; this.treasury.income += toll; }
+      if (deals.length) this.log(`${tr.name} paid ${toll}d in bridge tolls and bought ${deals.join(', ')} to sell in other towns.`, 'trade');
+    }
+    marketDay() {
+      if (this.trader || this.weekday !== 4) return;
+      this.queueImport(null, null, 0);
+    }
+
     queueImport(bz, good, qty) {
-      if (this.trader) return;
+      if (this.trader) { if (bz && !this.trader.extra) this.trader.extra = { b: bz.id, good, qty: Math.round(qty) }; return; }
       // a travelling trader comes up the King's Road from the east with a laden cart
       const r = this.rng;
       const tr = this.newPerson({ sex: 'm', age: r.int(28, 55), first: r.pick(D.NAMES.m), sur: r.pick(['of Eastmarch', 'Chapman', 'Packer']), household: 0, home: null, genes: Ch.randomGenes(r, 'east'), wealth: 0.6, visitor: true });
       tr.name = `${tr.first} ${tr.sur}`; tr.job = { biz: null, role: 'trader' };
       tr.app = Ch.makeAppearance(O.hash('trader', tr.id), { sex: 'm', age: tr.age, genes: tr.genes, role: 'merchant', wealth: 0.65, region: 'east' });
-      tr.agent = { x: 95 * this.T, y: 31 * this.T, dir: 1, anim: 'walk', ft: 0, a: tr.app, hidden: false, inside: null, path: null, goal: null, person: tr, carrying: { good, qty } };
-      tr.task = { act: 'import', b: bz.id, good, qty: Math.round(qty) };
+      tr.agent = { x: 95 * this.T, y: 31 * this.T, dir: 1, anim: 'walk', ft: 0, a: tr.app, hidden: false, inside: null, path: null, goal: null, person: tr, carrying: { good: good || 'iron', qty: qty || 1 } };
+      tr.task = bz ? { act: 'import', b: bz.id, good, qty: Math.round(qty) } : { act: 'market', b: this.tavernId };
       tr.wake = 0; tr.bed = 1440;
       this.trader = tr;
-      this.log(`A trader, ${tr.name}, is on the road with ${Math.round(qty)} ${G[good].name.toLowerCase()}s for ${bz.name}.`, 'trade');
+      this.log(bz ? `A trader, ${tr.name}, is on the road with ${Math.round(qty)} ${G[good].name.toLowerCase()}s for ${bz.name}.` : `It is market day: ${tr.name} the trader is coming up the King's Road.`, 'trade');
     }
 
     newDay() {
@@ -3691,6 +4162,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       // tools wear out with use and must be replaced from the smithy
       for (const bz of this.biz.values()) if (bz.def.targets.tools && bz.type !== 'smithy') bz.stock.tools = Math.max(0, (bz.stock.tools || 0) - 0.12 * bz.workers.length);
       // weekly hearth tax on Moonday
+      if (this.weekday === 0) this.taxPolicy();
       if (this.weekday === 0) for (const hh of this.households) {
         const t = Math.min(3, Math.max(0, hh.money)) + (hh.money > 250 ? Math.floor((hh.money - 250) * 0.05) : 0);
         hh.money -= t; this.treasury.cash += t; this.treasury.income += t;
@@ -3702,6 +4174,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         hh.shopper = (adults.find((p) => !p.job || p.shift === 'night') || errand || adults[this.day % Math.max(1, adults.length)] || {}).id;
       }
       this.build.daily();
+      this.healthDaily(); this.lifeDaily();
+      if (this.weekday === 3) this.immigrateMaybe();
+      if (this.events) this.events = this.events.filter((e) => e.day >= this.day);
       const season = this.season;
       if (season !== this._season) { if (this._season) this.log(`${season[0].toUpperCase() + season.slice(1)} comes to Ashford.`, 'season'); this._season = season; this.seasonChanged = true; }
       this.log(`${DAYNAMES[this.weekday]} dawns over Ashford.`, 'day');
@@ -3716,7 +4191,13 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         bz.stock[tr.task.good] = (bz.stock[tr.task.good] || 0) + qty;
         const pay = Math.min(bz.cash, qty * pr); bz.cash -= pay;
         this.log(`${tr.name} sold ${qty} ${G[tr.task.good].name.toLowerCase()}s to ${bz.name} for ${Math.round(pay)}d.`, 'trade');
-        tr.task = { act: 'rest', b: this.tavernId }; a.carrying = null; tr.leaveAt = this.day + 1;
+        this.exports(tr);
+        if (tr.extra) { tr.task = { act: 'import', ...tr.extra }; tr.extra = null; }
+        else { tr.task = { act: 'rest', b: this.tavernId }; a.carrying = null; tr.leaveAt = this.day + 1; }
+      }
+      if (tr.task.act === 'market' && a.inside === tr.task.b) {
+        this.exports(tr);
+        tr.task = tr.extra ? { act: 'import', ...tr.extra } : { act: 'rest', b: this.tavernId }; tr.extra = null; a.carrying = null; tr.leaveAt = this.day + 1;
       }
       if (tr.task.act === 'rest' && this.day >= tr.leaveAt && this.hour > 8) tr.task = { act: 'leave', outdoor: true };
       if (tr.task.act === 'leave') {
@@ -3727,12 +4208,19 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
   // leave: walk to the east edge
   const _zone = Sim.prototype.zoneTile;
-  Sim.prototype.zoneTile = function (p, zone) { if (p.task?.act === 'leave') return [95, 31]; return _zone.call(this, p, zone); };
+  Sim.prototype.zoneTile = function (p, zone) {
+    if (p.task?.act === 'leave') return [95, 31];
+    if (p.task?.act === 'help') { const t = this.byId.get(p.task.target); if (t) return [Math.floor(t.agent.x / this.T), Math.floor((t.agent.y - 1) / this.T)]; }
+    return _zone.call(this, p, zone);
+  };
+  O.Health.install(Sim); O.Life.install(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
   // carry-home and delivery tasks finish on entering the destination
   const _onEnter = Sim.prototype.onEnter;
   Sim.prototype.onEnter = function (p, bid) {
+    if (p.task?.act === 'to-doctor' && bid === p.task.b) { this.admit(p); return; }
+    if (p.task?.act === 'escort' && bid === p.task.b) { p.task = null; return; }
     if (p.task?.act === 'move-in' && bid === p.task.b) { p.task = null; p.arriving = false; p.agent.carrying = null; return; }
     if (p.task?.act === 'carry-home' && bid === p.task.b) {
       const hh = this.household(p); hh.pantry[p.task.good] = (hh.pantry[p.task.good] || 0) + p.task.qty;
@@ -3767,7 +4255,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     return {
       name: p.name, age: p.age, sex: p.sex, stage: p.stage, job, traits: p.traits, goal: p.goal,
       mood: p.mood, hunger: Math.round(p.needs.hunger), energy: Math.round(p.needs.energy), social: Math.round(p.needs.social),
-      householdMoney: Math.round(hh.money), pantry: { ...hh.pantry },
+      householdMoney: Math.round(hh.money), illness: p.health.illness ? { kind: p.health.illness.kind, sev: +p.health.illness.sev.toFixed(2) } : null, pantry: { ...hh.pantry },
       skill: p.job ? Math.round((p.skills[p.job.role] || 0) * 100) : null,
       activity: p.activity?.act, place: sim.world.name,
       memories: p.memories.slice(0, 6).map((m) => m.text),
@@ -3806,6 +4294,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     topic(ctx, topic, seed) {
       switch (topic) {
         case 'self': {
+          if (ctx.illness) return ctx.illness.kind === 'injury' ? pick(["Hurt my arm at work. It'll mend, God willing.", 'Took a knock at work. Still aches.'], seed) : ctx.illness.sev > 0.5 ? pick(["I'm burning up. Leave me be.", "I can barely stand."], seed) : pick(['A touch of something. Nothing that will keep me abed.', "Sniffling, that's all."], seed);
+          const grief = ctx.memories.find((m) => /has died|buried/.test(m));
+          if (grief) return `Hard days. ${grief}`;
           if (ctx.hunger < 25) return pick(["Truth be told I've not eaten since yesterday.", 'Hungry. The pot was empty this morning.'], seed);
           if (ctx.energy < 25) return "Dead on my feet. I'll sleep well tonight.";
           const hard = ctx.memories.find((m) => /afford|couldn't|could only pay|nothing to eat|shut/.test(m));
@@ -4434,14 +4925,19 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const idleTiles = []; for (let y = 0; y < L.d; y++) for (let x = 0; x < L.w; x++) if (!L.grid[y * L.w + x] && !(Math.abs(x - L.dc) <= 1 && y >= L.d - 2) && y > 0) idleTiles.push([x, y]);
       for (const q of inside) {
         const act = q.activity?.act;
-        const sleeping = act === 'sleep';
-        const fl = twoF ? (sleeping || (act === 'home' && q.id % 2) ? 1 : 0) : 0;
+        const sleeping = act === 'sleep' || act === 'sick';
+        const fl = twoF ? ((sleeping && b.id !== sim.docId) || (act === 'home' && q.id % 2) ? 1 : 0) : 0;
         if (b.type === 'tavern' && (act === 'rest') ) { /* travellers rest upstairs */ }
         const wantFloor = b.type === 'tavern' && act === 'rest' ? 1 : fl;
         if (wantFloor !== this.floor) continue;
         let x, y, dir = 0, anim = 'idle', over = null;
         let spot = null;
-        if (sleeping) { spot = free(bedsHere); if (spot) { const [ax, ay] = this.anchor(spot); x = ax; y = ay - 44 + Ch.GROUND; anim = 'sleep'; over = spot; } }
+        if (act === 'treated' || (act === 'sick' && b.id === sim.docId)) { spot = L.items.find((i) => i.medbed && !used.has(i)) || free(bedsHere); if (spot) { const [ax, ay] = this.anchor(spot); x = ax; y = ay - 44 + Ch.GROUND; anim = 'sleep'; } }
+        else if (sleeping) {
+          spot = free(bedsHere);
+          if (spot) { const [ax, ay] = this.anchor(spot); x = ax; y = ay - 44 + Ch.GROUND; anim = 'sleep'; over = spot; }
+          else { const t = idleTiles[(q.id * 5) % Math.max(1, idleTiles.length)] || [0, 1]; [x, y] = this.tileXY(t[0], t[1]); y += 14; anim = 'sleep'; } // a straw pallet on the floor
+        }
         else if (act === 'work' || act === 'pickup' && q.job?.biz === b.id) {
           const role = q.job?.role;
           spot = L.items.find((i) => !used.has(i) && i.work && i.work.includes(role)) || L.items.find((i) => !used.has(i) && i.counter);
@@ -4452,9 +4948,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
             else { x = ax + (spot.kind === 'oven' || spot.kind === 'forge' ? 0 : 0); y = ay + 13; dir = 3; anim = spot.kind === 'medbed' ? 'idle' : 'work'; }
             if (spot.kind === 'desk') anim = 'idle';
           }
-        } else if (['socialise', 'eat-out', 'eat', 'worship', 'rest'].includes(act) || (act === 'home' && q.stage !== 'baby')) {
+        } else if (['socialise', 'eat-out', 'eat', 'worship', 'rest', 'mourn', 'wedding'].includes(act) || (act === 'home' && q.stage !== 'baby')) {
           spot = act === 'home' && q.id % 3 === 0 ? null : free(seats);
-          if (spot) { const [ax, ay] = this.anchor(spot); x = ax; y = ay + 2; dir = spot.pew ? 3 : 0; anim = 'sit'; if (spot.pew) { const k = inside.filter((z) => z.activity?.act === 'worship').indexOf(q) % 3; x = ax + (k - 1) * 14; } }
+          if (spot) { const [ax, ay] = this.anchor(spot); x = ax; y = ay + 2; dir = spot.pew ? 3 : 0; anim = 'sit'; if (spot.pew) { const k = inside.filter((z) => ['worship', 'mourn', 'wedding'].includes(z.activity?.act)).indexOf(q) % 3; x = ax + (k - 1) * 14; } }
         } else if (act === 'shop' || act === 'deliver' || act === 'pickup' || act === 'carry-home' || act === 'import') {
           const c = L.items.find((i) => i.counter);
           if (c) { const [ax, ay] = this.anchor(c); x = ax + ((q.id % 3) - 1) * 12; y = ay + 14; dir = 3; anim = q.agent.carrying ? 'carry' : 'idle'; }
@@ -4498,7 +4994,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         const [ax, ay] = this.anchor(it);
         drawables.push({ y: sp.flat ? -1 : ay, draw: () => { ctx.drawImage(sp.canvas, Math.round(ax - sp.ox - cam.x), Math.round(ay - sp.oy - cam.y)); if (sp.fire) this.drawFire(ctx, ax - sp.ox + sp.fire.x - cam.x, ay - sp.oy + sp.fire.y - cam.y, sp.fire); if (sp.candles) for (const [cx, cy] of sp.candles) this.flame(ctx, ax - sp.ox + cx - cam.x, ay - sp.oy + cy - cam.y, 1); } });
       }
-      for (const a of this.actors.values()) drawables.push({ y: a.anim === 'sleep' ? a.y - 30 : a.y + (a.anim === 'sit' ? 0.5 : 0), draw: () => this.drawActor(ctx, a, cam, a.anim !== 'sleep') });
+      for (const a of this.actors.values()) drawables.push({ y: a.anim === 'sleep' ? a.y + 1 : a.y + (a.anim === 'sit' ? 0.5 : 0), draw: () => this.drawActor(ctx, a, cam, a.anim !== 'sleep') });
       const p = g.player; drawables.push({ y: p.y, draw: () => this.drawActor(ctx, p, cam, true) });
       drawables.sort((a, c) => a.y - c.y);
       for (const d of drawables) d.draw();
@@ -4517,9 +5013,10 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     }
 
     drawActor(ctx, a, cam, shadow) {
-      const fx = Math.round(a.x - 16 - cam.x), fy = Math.round(a.y - Ch.GROUND - cam.y);
-      if (shadow) { ctx.fillStyle = 'rgba(28,20,44,0.3)'; ctx.fillRect(fx + 11, fy + Ch.GROUND - 1, 10, 3); ctx.fillRect(fx + 9, fy + Ch.GROUND, 14, 1); }
-      ctx.drawImage(this.game.actorFrame(a), fx, fy);
+      const fr = this.game.actorFrame(a), ox = fr.ox ?? 16;
+      const fx = Math.round(a.x - ox - cam.x), fy = Math.round(a.y - Ch.GROUND - cam.y);
+      if (shadow && !fr.ox) { ctx.fillStyle = 'rgba(28,20,44,0.3)'; ctx.fillRect(fx + 11, fy + Ch.GROUND - 1, 10, 3); ctx.fillRect(fx + 9, fy + Ch.GROUND, 14, 1); }
+      ctx.drawImage(fr, fx, fy);
     }
     flame(ctx, x, y, s) {
       const f = Math.floor(this.t * 10 + x) % 3;
@@ -4678,7 +5175,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   const G = O.Data.GOODS;
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const ACT_LABEL = {
-    sleep: 'asleep', work: 'working', fieldwork: 'working the fields', chop: 'felling timber', build: 'building the new house', 'move-in': 'moving to Ashford', forage: 'gathering herbs', patrol: 'on patrol', eat: 'having a meal', 'eat-out': 'eating at the tavern',
+    sleep: 'asleep', work: 'working', fieldwork: 'working the fields', chop: 'felling timber', market: 'coming to market', service: 'in service at a house', sick: 'ill in bed', collapsed: 'collapsed!', help: 'running to help someone', escort: 'helping a patient to the physician', 'to-doctor': 'going to the physician', treated: 'being treated by the physician', mourn: 'at a funeral', wedding: 'at a wedding', build: 'building the new house', 'move-in': 'moving to Ashford', forage: 'gathering herbs', patrol: 'on patrol', eat: 'having a meal', 'eat-out': 'eating at the tavern',
     home: 'at home', play: 'playing', shop: 'shopping', socialise: 'drinking at the Lantern', sit: 'resting on the bench', stroll: 'taking the air', worship: 'at chapel',
     'wait-work': 'waiting for carrying work', pickup: 'collecting goods', deliver: 'making a delivery', 'carry-home': 'carrying shopping home', import: 'bringing goods to market', rest: 'resting at the inn', leave: 'leaving town',
   };
@@ -4782,7 +5279,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
           <div><span class="lbl">Employment</span><b>${employed}/${adults}</b><small>working-age adults with a trade</small></div>
           <div><span class="lbl">Going hungry</span><b class="${hungry ? 'warn' : ''}">${hungry}</b><small>residents with an empty belly</small></div>
           <div><span class="lbl">Treasury</span><b>${money(sim.treasury.cash)}</b><small>taxes in ${money(sim.treasury.income)} · wages out ${money(sim.treasury.spent)}</small></div>
-          <div><span class="lbl">Trade</span><b>${money(sim.stats.sales)}</b><small>all sales since you arrived · wages paid ${money(sim.stats.wages)}</small></div>
+          <div><span class="lbl">Trade</span><b>${money(sim.stats.sales)}</b><small>all sales since you arrived · wages paid ${money(sim.stats.wages)} · exports ${money(sim.stats.exports || 0)}</small></div>
+          <div><span class="lbl">Health</span><b class="${pop.filter((p) => p.health.illness).length > 6 ? 'warn' : ''}">${pop.filter((p) => p.health.illness).length} ill</b><small>sanitation ${Math.round(sim.settlement.sanitation * 100)}% · ${pop.filter((p) => p.activity?.act === 'treated').length} with the physician${sim.settlement.outbreak ? ' · OUTBREAK' : ''}</small></div>
+          <div><span class="lbl">Births & deaths</span><b>${sim.history.filter((h) => h.kind === 'life' && /was born/.test(h.text)).length} · ${sim.dead.length}</b><small>${sim.dead.slice(-2).map((d) => `${d.name} (${d.age})`).join(', ') || 'none buried yet'}</small></div>
           <div><span class="lbl">Produced</span><b>${Math.round(sim.stats.produced.bread || 0)} loaves</b><small>${Object.entries(sim.stats.produced).filter(([g]) => g !== 'bread').map(([g, q]) => `${Math.round(q)} ${G[g].name.toLowerCase()}`).join(', ')}</small></div>
         </div>`;
       } else {
@@ -4840,7 +5339,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       if (game.scene) return game.scene.candidates();
       for (const q of sim.people) { const a = q.agent; if (a.hidden) continue; const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < 26) out.push({ type: 'npc', person: q, d, x: a.x, y: a.y }); }
       const T = sim.T;
+      for (const pr of sim.world.props) if (pr.kind === 'gravestone') { const d = Math.hypot(pr.x - p.x, pr.y - p.y); if (d < 20) out.push({ type: 'grave', prop: pr, d: d + 2, x: pr.x, y: pr.y - 14 }); }
       for (const b of sim.world.buildings) {
+        if (b.site) continue;
         const dx = b.doorX * T + 8, dy = b.doorY * T + 4;
         const d = Math.hypot(dx - p.x, dy - p.y);
         if (d < 14) out.push({ type: 'door', b, d: d + 4, x: dx, y: dy - 18 });
@@ -4852,6 +5353,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         case 'npc': return `Talk to ${c.person.name}`;
         case 'door': return doorLocked(c.b) ? `${c.b.name} — locked` : `Enter ${c.b.type === 'house' ? 'house' : c.b.name}`;
         case 'container': return `Search ${c.it.kind}`;
+        case 'grave': return 'Read the gravestone';
         case 'bed': return mayUseBed(c.it) ? 'Sleep until morning' : 'Bed — not yours';
         case 'stairs': return game.scene.floor === 0 ? 'Go upstairs' : 'Go downstairs';
         default: return '';
@@ -4954,6 +5456,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
           O.Crime.onEnter(game, sim, cur.b);
           break;
         case 'container': search(cur.it, false); break;
+        case 'grave': { const g = cur.prop.grave; O.Panels.toast(g ? `“Here lies ${g.name}, ${g.age} years. ${g.cause.replace('died ', '').replace(/^./, (c) => c.toUpperCase())}.”` : 'The old stone is worn smooth; you can no longer read the name.'); break; }
         case 'bed': if (mayUseBed(cur.it)) sleep(); else O.Panels.toast("That's someone else's bed."); break;
         case 'stairs': game.enterBuilding(game.scene.b, game.scene.floor === 0 ? 1 : 0, true); break;
       }
@@ -5453,6 +5956,15 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     }
     if (sim.day !== lastHarvestCheck) { lastHarvestCheck = sim.day; applySeason(); }
   });
+  // the dead are buried in the chapel yard; each grave is a real prop you can read
+  const graveSpots = []; for (let y = 36; y >= 33; y--) for (let x = 68; x <= 72; x++) graveSpots.push([x, y]);
+  sim.onGrave = (p) => {
+    const spot = graveSpots.find(([x, y]) => !world.solid[y * world.W + x] && !world.props.some((q) => q.kind === 'gravestone' && Math.floor(q.x / 16) === x && Math.floor(q.y / 16) === y));
+    if (!spot) return;
+    const g = sim.graves[sim.graves.length - 1];
+    world.props.push({ kind: 'gravestone', x: spot[0] * 16 + 8, y: spot[1] * 16 + 14, seed: p.id, solid: true, grave: g });
+    world.solid[spot[1] * world.W + spot[0]] = 1; world.dirtyStatics = true;
+  };
   const npcUI = O.NpcUI.setup(game, sim);
   O.Interact.setup(game, sim, npcUI);
   const sbtn = document.createElement('button'); sbtn.className = 'btn ghost satchel-btn'; sbtn.textContent = 'Satchel (I)';

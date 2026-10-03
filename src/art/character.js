@@ -165,7 +165,7 @@
     idle: { frames: 4, fps: 3 }, walk: { frames: 6, fps: 9 }, run: { frames: 6, fps: 13 },
     sit: { frames: 2, fps: 1.5 }, work: { frames: 4, fps: 6 }, eat: { frames: 4, fps: 3 },
     talk: { frames: 4, fps: 4 }, carry: { frames: 6, fps: 9 }, wave: { frames: 4, fps: 6 },
-    crouch: { frames: 2, fps: 2 }, sweep: { frames: 4, fps: 5 }, sleep: { frames: 2, fps: 1 },
+    crouch: { frames: 2, fps: 2 }, sweep: { frames: 4, fps: 5 }, sleep: { frames: 2, fps: 1 }, lie: { frames: 1, fps: 1 },
   };
 
   function pose(m, dir, anim, f) {
@@ -1006,7 +1006,11 @@
     const key = a.seed + ':' + a.cacheVer + ':' + dir + anim + f;
     let c = cache.get(key);
     if (c) { cache.delete(key); cache.set(key, c); return c; }
-    c = render(a, dir, anim, f);
+    if (anim === 'lie') {
+      // lying on the ground: the standing frame turned through exactly 90 degrees (pixel-perfect)
+      const src = render(a, 0, 'idle', 0); c = document.createElement('canvas'); c.width = 48; c.height = 48;
+      const x = c.getContext('2d'); x.translate(2, 47); x.rotate(-Math.PI / 2); x.drawImage(src, 0, 0); c.ox = 24;
+    } else c = render(a, dir, anim, f);
     cache.set(key, c);
     if (cache.size > MAX) cache.delete(cache.keys().next().value);
     return c;
@@ -1015,8 +1019,8 @@
 
   // Build a full sprite sheet canvas: rows = anim x dir, cols = frames.
   function sheet(a, anims = Object.keys(ANIMS)) {
-    const rows = []; anims.forEach((an) => [0, 1, 2, 3].forEach((d) => rows.push([an, d])));
-    const maxF = Math.max(...anims.map((an) => ANIMS[an].frames));
+    const rows = []; anims.filter((an) => an !== 'lie').forEach((an) => [0, 1, 2, 3].forEach((d) => rows.push([an, d])));
+    const maxF = Math.max(...anims.map((an) => ANIMS[an].frames)); anims = anims.filter((an) => an !== 'lie');
     const c = document.createElement('canvas'); c.width = FW * maxF; c.height = FH * rows.length;
     const ctx = c.getContext('2d');
     rows.forEach(([an, d], r) => { for (let f = 0; f < ANIMS[an].frames; f++) ctx.drawImage(frame(a, d, an, f), f * FW, r * FH); });

@@ -19,7 +19,7 @@
     return {
       name: p.name, age: p.age, sex: p.sex, stage: p.stage, job, traits: p.traits, goal: p.goal,
       mood: p.mood, hunger: Math.round(p.needs.hunger), energy: Math.round(p.needs.energy), social: Math.round(p.needs.social),
-      householdMoney: Math.round(hh.money), pantry: { ...hh.pantry },
+      householdMoney: Math.round(hh.money), illness: p.health.illness ? { kind: p.health.illness.kind, sev: +p.health.illness.sev.toFixed(2) } : null, pantry: { ...hh.pantry },
       skill: p.job ? Math.round((p.skills[p.job.role] || 0) * 100) : null,
       activity: p.activity?.act, place: sim.world.name,
       memories: p.memories.slice(0, 6).map((m) => m.text),
@@ -58,6 +58,9 @@
     topic(ctx, topic, seed) {
       switch (topic) {
         case 'self': {
+          if (ctx.illness) return ctx.illness.kind === 'injury' ? pick(["Hurt my arm at work. It'll mend, God willing.", 'Took a knock at work. Still aches.'], seed) : ctx.illness.sev > 0.5 ? pick(["I'm burning up. Leave me be.", "I can barely stand."], seed) : pick(['A touch of something. Nothing that will keep me abed.', "Sniffling, that's all."], seed);
+          const grief = ctx.memories.find((m) => /has died|buried/.test(m));
+          if (grief) return `Hard days. ${grief}`;
           if (ctx.hunger < 25) return pick(["Truth be told I've not eaten since yesterday.", 'Hungry. The pot was empty this morning.'], seed);
           if (ctx.energy < 25) return "Dead on my feet. I'll sleep well tonight.";
           const hard = ctx.memories.find((m) => /afford|couldn't|could only pay|nothing to eat|shut/.test(m));

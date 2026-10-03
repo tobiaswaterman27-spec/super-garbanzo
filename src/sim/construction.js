@@ -27,7 +27,7 @@
       const active = this.sites.filter((s) => s.stage < 10).length;
       if (!free.length || active >= 1) return;
       const cost = 160;
-      if (sim.treasury.cash < cost + 60) { sim.log(`The council wanted to build, but the treasury holds only ${Math.round(sim.treasury.cash)}d.`, 'politics'); return; }
+      if (sim.treasury.cash < cost + 150) { sim.log(`The council wanted to build, but the treasury holds only ${Math.round(sim.treasury.cash)}d.`, 'politics'); return; }
       this.start(PLOTS.indexOf(free[0]), cost);
     }
 

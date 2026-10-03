@@ -51,14 +51,19 @@
       const idleTiles = []; for (let y = 0; y < L.d; y++) for (let x = 0; x < L.w; x++) if (!L.grid[y * L.w + x] && !(Math.abs(x - L.dc) <= 1 && y >= L.d - 2) && y > 0) idleTiles.push([x, y]);
       for (const q of inside) {
         const act = q.activity?.act;
-        const sleeping = act === 'sleep';
-        const fl = twoF ? (sleeping || (act === 'home' && q.id % 2) ? 1 : 0) : 0;
+        const sleeping = act === 'sleep' || act === 'sick';
+        const fl = twoF ? ((sleeping && b.id !== sim.docId) || (act === 'home' && q.id % 2) ? 1 : 0) : 0;
         if (b.type === 'tavern' && (act === 'rest') ) { /* travellers rest upstairs */ }
         const wantFloor = b.type === 'tavern' && act === 'rest' ? 1 : fl;
         if (wantFloor !== this.floor) continue;
         let x, y, dir = 0, anim = 'idle', over = null;
         let spot = null;
-        if (sleeping) { spot = free(bedsHere); if (spot) { const [ax, ay] = this.anchor(spot); x = ax; y = ay - 44 + Ch.GROUND; anim = 'sleep'; over = spot; } }
+        if (act === 'treated' || (act === 'sick' && b.id === sim.docId)) { spot = L.items.find((i) => i.medbed && !used.has(i)) || free(bedsHere); if (spot) { const [ax, ay] = this.anchor(spot); x = ax; y = ay - 44 + Ch.GROUND; anim = 'sleep'; } }
+        else if (sleeping) {
+          spot = free(bedsHere);
+          if (spot) { const [ax, ay] = this.anchor(spot); x = ax; y = ay - 44 + Ch.GROUND; anim = 'sleep'; over = spot; }
+          else { const t = idleTiles[(q.id * 5) % Math.max(1, idleTiles.length)] || [0, 1]; [x, y] = this.tileXY(t[0], t[1]); y += 14; anim = 'sleep'; } // a straw pallet on the floor
+        }
         else if (act === 'work' || act === 'pickup' && q.job?.biz === b.id) {
           const role = q.job?.role;
           spot = L.items.find((i) => !used.has(i) && i.work && i.work.includes(role)) || L.items.find((i) => !used.has(i) && i.counter);
@@ -69,9 +74,9 @@
             else { x = ax + (spot.kind === 'oven' || spot.kind === 'forge' ? 0 : 0); y = ay + 13; dir = 3; anim = spot.kind === 'medbed' ? 'idle' : 'work'; }
             if (spot.kind === 'desk') anim = 'idle';
           }
-        } else if (['socialise', 'eat-out', 'eat', 'worship', 'rest'].includes(act) || (act === 'home' && q.stage !== 'baby')) {
+        } else if (['socialise', 'eat-out', 'eat', 'worship', 'rest', 'mourn', 'wedding'].includes(act) || (act === 'home' && q.stage !== 'baby')) {
           spot = act === 'home' && q.id % 3 === 0 ? null : free(seats);
-          if (spot) { const [ax, ay] = this.anchor(spot); x = ax; y = ay + 2; dir = spot.pew ? 3 : 0; anim = 'sit'; if (spot.pew) { const k = inside.filter((z) => z.activity?.act === 'worship').indexOf(q) % 3; x = ax + (k - 1) * 14; } }
+          if (spot) { const [ax, ay] = this.anchor(spot); x = ax; y = ay + 2; dir = spot.pew ? 3 : 0; anim = 'sit'; if (spot.pew) { const k = inside.filter((z) => ['worship', 'mourn', 'wedding'].includes(z.activity?.act)).indexOf(q) % 3; x = ax + (k - 1) * 14; } }
         } else if (act === 'shop' || act === 'deliver' || act === 'pickup' || act === 'carry-home' || act === 'import') {
           const c = L.items.find((i) => i.counter);
           if (c) { const [ax, ay] = this.anchor(c); x = ax + ((q.id % 3) - 1) * 12; y = ay + 14; dir = 3; anim = q.agent.carrying ? 'carry' : 'idle'; }
@@ -115,7 +120,7 @@
         const [ax, ay] = this.anchor(it);
         drawables.push({ y: sp.flat ? -1 : ay, draw: () => { ctx.drawImage(sp.canvas, Math.round(ax - sp.ox - cam.x), Math.round(ay - sp.oy - cam.y)); if (sp.fire) this.drawFire(ctx, ax - sp.ox + sp.fire.x - cam.x, ay - sp.oy + sp.fire.y - cam.y, sp.fire); if (sp.candles) for (const [cx, cy] of sp.candles) this.flame(ctx, ax - sp.ox + cx - cam.x, ay - sp.oy + cy - cam.y, 1); } });
       }
-      for (const a of this.actors.values()) drawables.push({ y: a.anim === 'sleep' ? a.y - 30 : a.y + (a.anim === 'sit' ? 0.5 : 0), draw: () => this.drawActor(ctx, a, cam, a.anim !== 'sleep') });
+      for (const a of this.actors.values()) drawables.push({ y: a.anim === 'sleep' ? a.y + 1 : a.y + (a.anim === 'sit' ? 0.5 : 0), draw: () => this.drawActor(ctx, a, cam, a.anim !== 'sleep') });
       const p = g.player; drawables.push({ y: p.y, draw: () => this.drawActor(ctx, p, cam, true) });
       drawables.sort((a, c) => a.y - c.y);
       for (const d of drawables) d.draw();
@@ -134,9 +139,10 @@
     }
 
     drawActor(ctx, a, cam, shadow) {
-      const fx = Math.round(a.x - 16 - cam.x), fy = Math.round(a.y - Ch.GROUND - cam.y);
-      if (shadow) { ctx.fillStyle = 'rgba(28,20,44,0.3)'; ctx.fillRect(fx + 11, fy + Ch.GROUND - 1, 10, 3); ctx.fillRect(fx + 9, fy + Ch.GROUND, 14, 1); }
-      ctx.drawImage(this.game.actorFrame(a), fx, fy);
+      const fr = this.game.actorFrame(a), ox = fr.ox ?? 16;
+      const fx = Math.round(a.x - ox - cam.x), fy = Math.round(a.y - Ch.GROUND - cam.y);
+      if (shadow && !fr.ox) { ctx.fillStyle = 'rgba(28,20,44,0.3)'; ctx.fillRect(fx + 11, fy + Ch.GROUND - 1, 10, 3); ctx.fillRect(fx + 9, fy + Ch.GROUND, 14, 1); }
+      ctx.drawImage(fr, fx, fy);
     }
     flame(ctx, x, y, s) {
       const f = Math.floor(this.t * 10 + x) % 3;

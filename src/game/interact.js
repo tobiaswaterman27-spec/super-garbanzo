@@ -12,6 +12,7 @@
     function doorLocked(b) {
       const h = sim.hour, bz = sim.biz.get(b.id);
       if (b.type === 'barn') return false;
+      if (b.owner && b.owner.kind === 'player') return false;
       if (b.type === 'hideout') return b.gang !== 'player';
       if (PS.room && PS.room.b === b.id && sim.day <= PS.room.until) return false;
       if (bz && (bz.open || bz.def.public)) return false;
@@ -27,6 +28,7 @@
       if (O.caravanCandidate) { const cc = O.caravanCandidate(); if (cc) out.push(cc); }
       if (O.noticeCandidate) { const nc = O.noticeCandidate(); if (nc) out.push(nc); }
       if (O.exitCandidate) { const ec = O.exitCandidate(); if (ec) out.push(ec); }
+      if (O.saleCandidate) { const sc = O.saleCandidate(); if (sc) out.push(sc); }
       for (const q of sim.people) { const a = q.agent; if (a.hidden) continue; const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < 26) out.push({ type: 'npc', person: q, d, x: a.x, y: a.y }); }
       const T = sim.T;
       for (const pr of sim.world.props) if (pr.kind === 'gravestone') { const d = Math.hypot(pr.x - p.x, pr.y - p.y); if (d < 20) out.push({ type: 'grave', prop: pr, d: d + 2, x: pr.x, y: pr.y - 14 }); }
@@ -55,6 +57,7 @@
         case 'grave': return 'Read the gravestone';
         case 'caravan': return `Hail ${c.L.c.merchant}'s caravan`;
         case 'notices': return 'Read the notice board';
+        case 'property': return c.b.owner?.kind === 'player' ? 'Your property' : 'For sale: look it over';
         case 'exit': return `Leave ${sim.world.name} by the ${c.side} road`;
         case 'horse': return `Look over ${c.h.owner === 'player' ? c.h.name : 'the horse'}`;
         case 'claim': return 'Claim the abandoned camp';
@@ -65,7 +68,7 @@
         default: return '';
       }
     }
-    const mayUseBed = (it) => (it.gangBed && game.scene && game.scene.b.gang === 'player') || (it.rent && PS.room && game.scene && PS.room.b === game.scene.b.id && sim.day <= PS.room.until);
+    const mayUseBed = (it) => (game.scene && game.scene.b.owner?.kind === 'player') || (it.gangBed && game.scene && game.scene.b.gang === 'player') || (it.rent && PS.room && game.scene && PS.room.b === game.scene.b.id && sim.day <= PS.room.until);
 
     game.hooks.update.push((dt) => {
       if (searching > 0) { searching -= dt; game.player.anim = 'crouch'; game.player.locked = true; if (searching <= 0) { game.player.locked = false; game.player.anim = 'idle'; pendingSearch && pendingSearch(); pendingSearch = null; } }
@@ -89,6 +92,7 @@
     function contents(it) {
       const b = game.scene.b, hh = b.household ? sim.households[b.household - 1] : null, bz = sim.biz.get(b.id);
       const out = [];
+      if (b.owner?.kind === 'player' && !hh) { const st = (PS.homes = PS.homes || {}); const key = sim.world.placeId + ':' + b.id; (st[key] = st[key] || []).forEach((k) => out.push({ k, n: 1, src: 'homestash', key })); return { items: out, owner: 'you' }; }
       if (it.rentChest && PS.room && PS.room.b === b.id) { (PS.stash || (PS.stash = [])).forEach((k) => out.push({ k, n: 1, src: 'stash' })); return { items: out, owner: 'you' }; }
       if (it.stockOf && bz) {
         const goods = it.stockOf === 'farm' ? ['wheat', 'cabbage'] : it.stockOf === 'store' ? ['cabbage', 'firewood', 'flour'] : [it.stockOf];
@@ -116,11 +120,12 @@
         const n = c.src === 'stash' ? 1 : c.n; const got = PS.add(c.k, n);
         if (!got) { O.Panels.toast('Your satchel is full.', 'bad'); break; }
         if (c.src === 'stash') PS.stash.splice(PS.stash.indexOf(c.k), 1);
+        else if (c.src === 'homestash') PS.homes[c.key].splice(PS.homes[c.key].indexOf(c.k), 1);
         else if (c.src === 'pantry') hh.pantry[c.good] -= got;
         else if (c.src === 'biz') bz.stock[c.good] -= got;
         else if (c.src === 'farm') sim.supplierOf('farmhouse').stock.wheat -= got;
         else if (c.src === 'val') hh.valuables.splice(hh.valuables.indexOf(c.k), 1);
-        if (c.src !== 'stash') { stolen.push(`${got} ${G[c.k].name.toLowerCase()}`); PS.stolen[c.k] = (PS.stolen[c.k] || 0) + got; }
+        if (c.src !== 'stash' && c.src !== 'homestash') { stolen.push(`${got} ${G[c.k].name.toLowerCase()}`); PS.stolen[c.k] = (PS.stolen[c.k] || 0) + got; }
       }
       if (stolen.length) O.Crime.theft(game, sim, { building: b, floor: game.scene.floor, what: stolen.join(', '), owner, value: idxs.length });
       O.Panels.close();
@@ -175,6 +180,7 @@
         case 'caravan': O.caravanPanel(cur.L); break;
         case 'notices': O.readNotices(); break;
         case 'exit': O.travelPanel(cur.side); break;
+        case 'property': O.propertyPanel(cur.b); break;
         case 'stash': O.GangUI.stash(); break;
         case 'campbed': sleep(); break;
         case 'grave': { const g = cur.prop.grave; O.Panels.toast(g ? `“Here lies ${g.name}, ${g.age} years. ${g.cause.replace('died ', '').replace(/^./, (c) => c.toUpperCase())}.”` : 'The old stone is worn smooth; you can no longer read the name.'); break; }

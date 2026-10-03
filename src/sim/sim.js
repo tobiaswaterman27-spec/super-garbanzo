@@ -32,6 +32,7 @@
       this.healthInit(); this.lifeInit();
       this.placeAll();
       this.justiceInit();
+      this.propertyInit();
       if (opts.foreign) { this.gangs = []; this.kingdom = opts.kingdom; } else { this.gangsInit(); this.kingdom = new O.Kingdom(this); }
       if (opts.day) { this.day = opts.day; this.minute = opts.minute; this._lastMin = -1; this._season = this.season; for (const p of this.people) p.birthday = p.birthday || this.rng.int(1, 56); }
       this._season = this.season;
@@ -601,7 +602,7 @@
       // pay wages at closing
       for (const wid of bz.workers) {
         const w = this.byId.get(wid); if (!w) continue;
-        const wage = bz.def.wage[w.job.role] || (w.job.casual ? 5 : 0); if (!wage) continue;
+        const wage = bz.def.wage[w.job.role] || (w.job.manager ? 8 : w.job.casual ? 5 : 0); if (!wage) continue;
         const hh = this.household(w);
         if (bz.def.public) {
           const pay = Math.max(0, Math.min(wage, Math.floor(this.treasury.cash)));
@@ -648,7 +649,7 @@
       dst.stock[o.good] = (dst.stock[o.good] || 0) + o.qty;
       const cost = Math.round(o.qty * o.price);
       const pay = Math.min(cost, Math.max(0, Math.floor(dst.cash)));
-      dst.cash -= pay; src.cash += pay;
+      dst.cash -= pay; src.cash += pay; src.salesToday += pay;
       if (p.job?.role === 'porter') { const fee = 2; dst.cash -= fee; this.household(p).money += fee; }
       if (pay < cost) this.log(`${dst.name} could not pay ${src.name} in full for ${G[o.good].name.toLowerCase()} (${pay}d of ${cost}d).`, 'economy');
       dst.orders = dst.orders.filter((x) => x !== o);
@@ -666,7 +667,7 @@
           const surplus = Math.floor((bz.stock[g] || 0) - tgt * 0.9);
           if (surplus < 3) continue;
           const pr = Math.max(1, Math.round(G[g].base * 0.85)), pay = surplus * pr;
-          bz.stock[g] -= surplus; bz.cash += pay; this.stats.exports = (this.stats.exports || 0) + pay;
+          bz.stock[g] -= surplus; bz.cash += pay; bz.salesToday += pay; this.stats.exports = (this.stats.exports || 0) + pay;
           deals.push(`${surplus} ${G[g].name.toLowerCase()} from ${bz.name}`);
         }
       }
@@ -715,7 +716,7 @@
         hh.shopper = (adults.find((p) => !p.job || p.shift === 'night') || errand || adults[this.day % Math.max(1, adults.length)] || {}).id;
       }
       this.build.daily();
-      this.healthDaily(); this.lifeDaily(); this.justiceDaily(); this.gangsDaily(); if (!this.opts.foreign) this.kingdom.daily();
+      this.healthDaily(); this.lifeDaily(); this.justiceDaily(); this.gangsDaily(); this.businessDaily(); this.playerProfits(); if (this.weekday === 0) this.propertyWeekly(); if (!this.opts.foreign) this.kingdom.daily();
       if (this.weekday === 3) this.immigrateMaybe();
       if (this.events) this.events = this.events.filter((e) => e.day >= this.day);
       const season = this.season;
@@ -756,7 +757,7 @@
     if (p.task?.act === 'help') { const t = this.byId.get(p.task.target); if (t) return [Math.floor(t.agent.x / this.T), Math.floor((t.agent.y - 1) / this.T)]; }
     return _zone.call(this, p, zone);
   };
-  O.Health.install(Sim); O.Life.install(Sim); O.Justice.install(Sim); O.Gangs.install(Sim);
+  O.Health.install(Sim); O.Life.install(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
   // carry-home and delivery tasks finish on entering the destination

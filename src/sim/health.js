@@ -49,6 +49,7 @@
     P.healthDaily = function () {
       const season = this.season, san = this.settlement.sanitation;
       const doc = [...this.biz.values()].find((b) => b.type === 'doctor');
+      if (!doc) this.docId = null; else this.docId = doc.id;
       for (const p of [...this.people]) {
         if (p.visitor || !p.alive) continue;
         const h = p.health;
@@ -110,7 +111,7 @@
         if (a.inside != null && !p.task) return { act: 'sick', b: a.inside === this.docId ? this.docId : p.home };
       }
       if (p.task?.act === 'to-doctor' || p.task?.act === 'treated') return null;
-      if (ill.sev > 0.5 && a.inside === p.home && this.docId && ill.sev > 0.65 && !p.housecall) {
+      if (ill.sev > 0.5 && a.inside === p.home && this.docId && this.biz.get(this.docId) && ill.sev > 0.65 && !p.housecall) {
         // a relative fetches the physician; the patient is taken there when able
         p.task = { act: 'to-doctor', b: this.docId }; return null;
       }
@@ -125,12 +126,14 @@
       const p = this.byId.get(helper.task.target);
       if (!p || !p.alive) { helper.task = null; return; }
       p.health.state = 'seriously ill'; p.collapsedAt = null;
-      p.task = { act: 'to-doctor', b: this.docId };
-      helper.task = { act: 'escort', b: this.docId, target: p.id };
+      const dest = this.docId && this.biz.get(this.docId) ? this.docId : p.home;
+      p.task = dest === this.docId ? { act: 'to-doctor', b: dest } : { act: 'sick', b: dest };
+      helper.task = { act: 'escort', b: dest, target: p.id };
     };
 
     P.admit = function (p) {
       const doc = this.biz.get(this.docId);
+      if (!doc) { p.task = { act: 'sick', b: p.home }; return; }
       const hh = this.household(p);
       const fee = 6;
       if (hh.money >= fee) { hh.money -= fee; doc.cash += fee; }

@@ -156,7 +156,7 @@ main > .wrap { overflow: auto; }
 </style>
 
 <header class="top">
-  <div class="brand">Outlaw<small>BUILD 0.13 · THE OPEN ROAD</small></div>
+  <div class="brand">Outlaw<small>BUILD 0.14 · LAND & LORDSHIP</small></div>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" role="tab" aria-selected="true" data-tab="play">Play</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="forge">Character</button>
@@ -174,7 +174,7 @@ main > .wrap { overflow: auto; }
       <span class="lbl">Time</span>
       <div class="seg" id="speedSeg"></div>
     </div>
-    <div class="hud hud-b" id="hudB">WASD move · Shift run · E interact · Space strike · R weapon · H ride · Q steal · F loot · I satchel · G gang · M map · L ledger</div>
+    <div class="hud hud-b" id="hudB">WASD move · Shift run · E interact · Space strike · R weapon · H ride · Q steal · F loot · I satchel · G gang · P holdings · M map · L ledger</div>
   </section>
 
   <section class="wrap" id="tab-forge" hidden>
@@ -3367,6 +3367,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     P.healthDaily = function () {
       const season = this.season, san = this.settlement.sanitation;
       const doc = [...this.biz.values()].find((b) => b.type === 'doctor');
+      if (!doc) this.docId = null; else this.docId = doc.id;
       for (const p of [...this.people]) {
         if (p.visitor || !p.alive) continue;
         const h = p.health;
@@ -3428,7 +3429,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         if (a.inside != null && !p.task) return { act: 'sick', b: a.inside === this.docId ? this.docId : p.home };
       }
       if (p.task?.act === 'to-doctor' || p.task?.act === 'treated') return null;
-      if (ill.sev > 0.5 && a.inside === p.home && this.docId && ill.sev > 0.65 && !p.housecall) {
+      if (ill.sev > 0.5 && a.inside === p.home && this.docId && this.biz.get(this.docId) && ill.sev > 0.65 && !p.housecall) {
         // a relative fetches the physician; the patient is taken there when able
         p.task = { act: 'to-doctor', b: this.docId }; return null;
       }
@@ -3443,12 +3444,14 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const p = this.byId.get(helper.task.target);
       if (!p || !p.alive) { helper.task = null; return; }
       p.health.state = 'seriously ill'; p.collapsedAt = null;
-      p.task = { act: 'to-doctor', b: this.docId };
-      helper.task = { act: 'escort', b: this.docId, target: p.id };
+      const dest = this.docId && this.biz.get(this.docId) ? this.docId : p.home;
+      p.task = dest === this.docId ? { act: 'to-doctor', b: dest } : { act: 'sick', b: dest };
+      helper.task = { act: 'escort', b: dest, target: p.id };
     };
 
     P.admit = function (p) {
       const doc = this.biz.get(this.docId);
+      if (!doc) { p.task = { act: 'sick', b: p.home }; return; }
       const hh = this.household(p);
       const fee = 6;
       if (hh.money >= fee) { hh.money -= fee; doc.cash += fee; }
@@ -3564,13 +3567,13 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         for (const [role, n] of bz.def.jobs) {
           const have = bz.workers.filter((id) => { const q = this.byId.get(id); return q && q.job?.role === role && !q.job.casual; }).length;
           if (have >= n) continue;
-          if (bz.def.wage[role] === 0 && bz.owner) continue; // owner role filled by the owner
+          if (bz.def.wage[role] === 0 && (bz.owner || bz.ownerPlayer) && !(bz.ownerPlayer && have === 0)) continue; // owner role filled by the owner
           const pool = this.people.filter((q) => !q.visitor && (!q.job || q.job.casual) && q.age >= (role === 'apprentice' ? 13 : 16) && q.age < (role === 'apprentice' ? 22 : 62) && !q.health.illness);
           if (!pool.length) continue;
           const pick = pool.sort((a, b) => (b.skills[role] || 0) - (a.skills[role] || 0) || (a.age - b.age))[0];
           if (pick.job?.casual) { const old = this.biz.get(pick.job.biz); if (old) old.workers = old.workers.filter((id) => id !== pick.id); }
-          pick.job = { biz: bz.id, role }; pick.skills[role] = pick.skills[role] || (role === 'apprentice' ? 0.15 : 0.3);
-          if (bz.def.wage[role] === 0) bz.owner = pick.id;
+          pick.job = { biz: bz.id, role, manager: bz.ownerPlayer && bz.def.wage[role] === 0 ? true : undefined }; pick.skills[role] = pick.skills[role] || (role === 'apprentice' ? 0.15 : 0.3);
+          if (bz.def.wage[role] === 0 && !bz.ownerPlayer) bz.owner = pick.id;
           bz.workers.push(pick.id); this.refreshLook(pick);
           this.remember(pick, `Taken on as ${role} at ${bz.name}.`, 'work', 1.5);
           this.log(`${pick.name} was taken on as ${role} at ${bz.name}.`, 'economy');
@@ -4220,6 +4223,148 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
 </script>
 <script>
+// Property: ownership, value, rent, debt and eviction; businesses closing, standing empty and being
+// reopened (sometimes as a different trade); families' fortunes showing in their houses and clothes;
+// and the lordship of Ashford, which the crown will sell to someone rich and respectable enough.
+'use strict';
+(function () {
+  function install(Sim) {
+    const S = Sim.prototype;
+
+    S.propertyInit = function () {
+      const r = this.rng;
+      const houses = this.world.buildings.filter((b) => b.type === 'house' && b.household);
+      // the richest two households are landlords: they own a share of the village's houses
+      const rich = this.households.filter((h) => !h.gone).sort((a, b) => b.money - a.money).slice(0, 2);
+      for (const b of this.world.buildings) { b.owner = b.household ? { kind: 'household', id: b.household } : { kind: 'parish' }; }
+      for (const b of houses) {
+        if (rich.some((h) => h.id === b.household)) continue;
+        if (r.chance(0.35) && rich.length) { const L = r.pick(rich); b.owner = { kind: 'household', id: L.id }; b.rent = Math.max(2, Math.round(this.value(b) / 140)); }
+      }
+      for (const b of this.world.buildings) if (this.biz.get(b.id)) { const bz = this.biz.get(b.id); b.owner = bz.def.public ? { kind: 'parish' } : { kind: 'household', id: this.households.find((h) => h.home === b.id)?.id || null }; }
+      this.lordship = { holder: 'crown', price: 1500 };
+    };
+
+    // Value: size, condition, local wealth, location near the square, demand (vacancies)
+    S.value = function (b) {
+      const size = b.w * b.d * (b.floors || 1);
+      const sq = this.Z.square; const cx = (sq[0] + sq[2]) / 2, cy = (sq[1] + sq[3]) / 2;
+      const dist = Math.hypot(b.x + b.w / 2 - cx, b.bottom - cy);
+      const vacancy = this.world.buildings.filter((x) => x.type === 'house' && !x.household).length;
+      const demand = O.clamp(1.2 - vacancy * 0.06, 0.6, 1.3);
+      const loc = O.clamp(1.25 - dist / 60, 0.7, 1.25);
+      const avgPurse = this.households.filter((h) => !h.gone).reduce((s, h) => s + h.money, 0) / Math.max(1, this.households.filter((h) => !h.gone).length);
+      const local = O.clamp(0.7 + avgPurse / 300, 0.7, 1.4);
+      return Math.round(size * 14 * (0.5 + (b.condition ?? 0.8) * 0.6) * (0.7 + (b.wealth ?? 0.5) * 0.6) * loc * demand * local);
+    };
+    S.ownerName = function (o) {
+      if (!o || o.kind === 'parish') return 'the parish';
+      if (o.kind === 'player') return 'you';
+      if (o.kind === 'crown') return 'the crown';
+      const hh = this.households[o.id - 1]; return hh ? `the ${hh.surname} family` : 'no one';
+    };
+
+    // Weekly: rent is paid (or not), debts grow, evictions happen; houses and clothes follow fortunes
+    S.propertyWeekly = function () {
+      for (const b of this.world.buildings) {
+        if (b.type !== 'house' || !b.household || !b.owner || b.owner.kind === 'parish') continue;
+        if (b.owner.kind === 'household' && b.owner.id === b.household) continue;
+        const hh = this.households[b.household - 1]; if (!hh || hh.gone) continue;
+        const rent = b.rent || 3;
+        if (hh.money >= rent) {
+          hh.money -= rent; hh.debt = Math.max(0, (hh.debt || 0) - 1);
+          if (b.owner.kind === 'player') { O.PlayerState.money += rent; O.PlayerState.rentIncome = (O.PlayerState.rentIncome || 0) + rent; }
+          else { const L = this.households[b.owner.id - 1]; if (L) L.money += rent; }
+        } else {
+          hh.debt = (hh.debt || 0) + rent - Math.max(0, hh.money); hh.money = Math.max(0, hh.money) - Math.max(0, hh.money);
+          for (const id of hh.members) { const p = this.byId.get(id); if (p && p.age >= 16) this.remember(p, `We couldn't pay the rent this week. We owe ${hh.debt}d.`, 'hardship', 1.2); }
+          if (hh.debt > rent * 4) this.evict(b, hh);
+        }
+      }
+      // visible fortunes: a family's purse slowly shows in its house
+      for (const hh of this.households) {
+        if (hh.gone) continue; const b = this.building(hh.home); if (!b || b.type !== 'house') continue;
+        const target = O.clamp(hh.money / 260, 0.1, 0.95), old = b.wealth;
+        b.wealth = +(b.wealth + (target - b.wealth) * 0.2).toFixed(3);
+        if (hh.money > 120 && b.condition < 0.95) b.condition = Math.min(1, b.condition + 0.05);
+        if (Math.abs(b.wealth - (b._drawnWealth ?? old)) > 0.08) { b.spec.wealth = b.wealth; b._drawnWealth = b.wealth; b.dirty = true; O.Interior && O.Interior.invalidate(b); }
+        if (this.weekday === 0 && this.day % 14 === 1) for (const id of hh.members) { const p = this.byId.get(id); if (p && p.agent) this.refreshLook(p); }
+      }
+    };
+
+    S.evict = function (b, hh) {
+      this.log(`The ${hh.surname} family were evicted from their house for ${hh.debt}d of unpaid rent.`, 'economy');
+      for (const id of hh.members) { const p = this.byId.get(id); if (p) this.remember(p, `We were thrown out of our house over the rent.`, 'hardship', 3); }
+      // they look for another empty house, or leave
+      const other = this.world.buildings.find((x) => x.type === 'house' && !x.household && x !== b && (!x.owner || x.owner.kind === 'parish'));
+      b.household = null; b.vacant = true;
+      if (other && hh.money >= 0) { other.household = hh.id; other.vacant = false; hh.home = other.id; for (const id of hh.members) { const p = this.byId.get(id); if (p) p.home = other.id; } hh.debt = 0; }
+      else this.emigrate(hh);
+    };
+
+    // Businesses close when they can't pay their way; empty shops can be reopened by the ambitious
+    S.businessDaily = function () {
+      for (const bz of [...this.biz.values()]) {
+        if (bz.def.public || bz.type === 'site') continue;
+        bz.badDays = bz.cash < 0 ? (bz.badDays || 0) + 1 : 0;
+        if (bz.badDays >= 6 && !bz.closedDown) this.closeDown(bz);
+      }
+      if (this.rng.chance(0.25)) this.openNewBusiness();
+    };
+    S.closeDown = function (bz) {
+      bz.closedDown = true;
+      for (const id of bz.workers) { const p = this.byId.get(id); if (p) { this.remember(p, `${bz.name} has closed. I've lost my place.`, 'hardship', 2); p.job = null; } }
+      bz.workers = []; bz.owner = null;
+      this.biz.delete(bz.id);
+      const b = this.building(bz.id); b.closedShop = { type: bz.type, name: bz.name, day: this.day }; b.owner = { kind: 'parish' };
+      this.log(`${bz.name} has closed its doors for good.`, 'economy');
+    };
+    S.openNewBusiness = function () {
+      const empty = this.world.buildings.filter((b) => b.closedShop && !this.biz.get(b.id));
+      if (!empty.length) return;
+      const founder = this.people.filter((p) => !p.visitor && p.age >= 22 && p.age < 60 && (p.goal === 'open a shop' || p.traits.includes('ambitious')) && this.household(p).money > 80).sort((a, b) => this.household(b).money - this.household(a).money)[0];
+      if (!founder) return;
+      const b = empty[0];
+      // pick the trade the place needs most: what sells dearest, else what it was
+      const breadPrice = this.supplierOf('bakery') ? this.price(this.supplierOf('bakery'), 'bread') : 9;
+      const type = !this.supplierOf('bakery') || breadPrice >= 4 ? 'bakery' : !this.supplierOf('tavern') ? 'tavern' : b.closedShop.type;
+      this.startBusiness(b, type, founder);
+    };
+    S.startBusiness = function (b, type, owner) {
+      const def = O.Data.BUSINESS[type];
+      const stock = {}; for (const [g, t] of Object.entries(def.targets)) stock[g] = Math.round(t * 0.3);
+      const name = owner && owner !== 'player' ? `${owner.sur}'s ${def.label}` : def.label;
+      const bz = { id: b.id, b, type, def, name, owner: null, workers: [], stock, cash: 60, sold: {}, bought: {}, open: false, orders: [], salesToday: 0, history: [] };
+      this.biz.set(b.id, bz);
+      const repurposed = b.closedShop && b.closedShop.type !== type;
+      b.type = type; b.name = name; b.spec.sign = { bakery: 'bread', tavern: 'mug', smithy: 'anvil', store: 'scales', doctor: 'herb' }[type] || b.spec.sign; b.dirty = true; b.closedShop = null;
+      O.Interior && O.Interior.invalidate(b);
+      if (owner === 'player') { bz.ownerPlayer = true; b.owner = { kind: 'player' }; }
+      else if (owner) {
+        const hh = this.household(owner); hh.money -= 60;
+        if (owner.job) { const old = this.biz.get(owner.job.biz); if (old) old.workers = old.workers.filter((id) => id !== owner.id); }
+        owner.job = { biz: b.id, role: def.jobs[0][0] }; owner.skills[owner.job.role] = Math.max(owner.skills[owner.job.role] || 0, 0.35);
+        bz.owner = owner.id; bz.workers.push(owner.id); this.refreshLook(owner);
+        b.owner = { kind: 'household', id: owner.household };
+        this.remember(owner, `I've opened ${name}. God send customers.`, 'life', 3);
+        if (owner.goal === 'open a shop') owner.goal = 'become wealthy';
+      }
+      this.log(repurposed ? `The old ${O.Data.BUSINESS[b.closedShop?.type || type]?.label?.toLowerCase() || 'shop'} has reopened as ${name}.` : `${name} has opened.`, 'economy');
+      return bz;
+    };
+    // player-owned businesses: the master's share of profits goes to the player
+    S.playerProfits = function () {
+      for (const bz of this.biz.values()) {
+        if (!bz.ownerPlayer || bz.cash <= 120) continue;
+        const take = Math.floor((bz.cash - 120) * 0.5); bz.cash -= take; O.PlayerState.money += take; O.PlayerState.bizIncome = (O.PlayerState.bizIncome || 0) + take;
+      }
+    };
+  }
+  O.Property = { install };
+})();
+
+</script>
+<script>
 // The living settlement simulation.
 //
 // Every resident is a Person with a family, a home, maybe a job, a purse shared with their household,
@@ -4254,6 +4399,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       this.healthInit(); this.lifeInit();
       this.placeAll();
       this.justiceInit();
+      this.propertyInit();
       if (opts.foreign) { this.gangs = []; this.kingdom = opts.kingdom; } else { this.gangsInit(); this.kingdom = new O.Kingdom(this); }
       if (opts.day) { this.day = opts.day; this.minute = opts.minute; this._lastMin = -1; this._season = this.season; for (const p of this.people) p.birthday = p.birthday || this.rng.int(1, 56); }
       this._season = this.season;
@@ -4823,7 +4969,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       // pay wages at closing
       for (const wid of bz.workers) {
         const w = this.byId.get(wid); if (!w) continue;
-        const wage = bz.def.wage[w.job.role] || (w.job.casual ? 5 : 0); if (!wage) continue;
+        const wage = bz.def.wage[w.job.role] || (w.job.manager ? 8 : w.job.casual ? 5 : 0); if (!wage) continue;
         const hh = this.household(w);
         if (bz.def.public) {
           const pay = Math.max(0, Math.min(wage, Math.floor(this.treasury.cash)));
@@ -4870,7 +5016,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       dst.stock[o.good] = (dst.stock[o.good] || 0) + o.qty;
       const cost = Math.round(o.qty * o.price);
       const pay = Math.min(cost, Math.max(0, Math.floor(dst.cash)));
-      dst.cash -= pay; src.cash += pay;
+      dst.cash -= pay; src.cash += pay; src.salesToday += pay;
       if (p.job?.role === 'porter') { const fee = 2; dst.cash -= fee; this.household(p).money += fee; }
       if (pay < cost) this.log(`${dst.name} could not pay ${src.name} in full for ${G[o.good].name.toLowerCase()} (${pay}d of ${cost}d).`, 'economy');
       dst.orders = dst.orders.filter((x) => x !== o);
@@ -4888,7 +5034,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
           const surplus = Math.floor((bz.stock[g] || 0) - tgt * 0.9);
           if (surplus < 3) continue;
           const pr = Math.max(1, Math.round(G[g].base * 0.85)), pay = surplus * pr;
-          bz.stock[g] -= surplus; bz.cash += pay; this.stats.exports = (this.stats.exports || 0) + pay;
+          bz.stock[g] -= surplus; bz.cash += pay; bz.salesToday += pay; this.stats.exports = (this.stats.exports || 0) + pay;
           deals.push(`${surplus} ${G[g].name.toLowerCase()} from ${bz.name}`);
         }
       }
@@ -4937,7 +5083,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         hh.shopper = (adults.find((p) => !p.job || p.shift === 'night') || errand || adults[this.day % Math.max(1, adults.length)] || {}).id;
       }
       this.build.daily();
-      this.healthDaily(); this.lifeDaily(); this.justiceDaily(); this.gangsDaily(); if (!this.opts.foreign) this.kingdom.daily();
+      this.healthDaily(); this.lifeDaily(); this.justiceDaily(); this.gangsDaily(); this.businessDaily(); this.playerProfits(); if (this.weekday === 0) this.propertyWeekly(); if (!this.opts.foreign) this.kingdom.daily();
       if (this.weekday === 3) this.immigrateMaybe();
       if (this.events) this.events = this.events.filter((e) => e.day >= this.day);
       const season = this.season;
@@ -4978,7 +5124,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     if (p.task?.act === 'help') { const t = this.byId.get(p.task.target); if (t) return [Math.floor(t.agent.x / this.T), Math.floor((t.agent.y - 1) / this.T)]; }
     return _zone.call(this, p, zone);
   };
-  O.Health.install(Sim); O.Life.install(Sim); O.Justice.install(Sim); O.Gangs.install(Sim);
+  O.Health.install(Sim); O.Life.install(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
   // carry-home and delivery tasks finish on entering the destination
@@ -6118,6 +6264,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     function doorLocked(b) {
       const h = sim.hour, bz = sim.biz.get(b.id);
       if (b.type === 'barn') return false;
+      if (b.owner && b.owner.kind === 'player') return false;
       if (b.type === 'hideout') return b.gang !== 'player';
       if (PS.room && PS.room.b === b.id && sim.day <= PS.room.until) return false;
       if (bz && (bz.open || bz.def.public)) return false;
@@ -6133,6 +6280,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       if (O.caravanCandidate) { const cc = O.caravanCandidate(); if (cc) out.push(cc); }
       if (O.noticeCandidate) { const nc = O.noticeCandidate(); if (nc) out.push(nc); }
       if (O.exitCandidate) { const ec = O.exitCandidate(); if (ec) out.push(ec); }
+      if (O.saleCandidate) { const sc = O.saleCandidate(); if (sc) out.push(sc); }
       for (const q of sim.people) { const a = q.agent; if (a.hidden) continue; const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < 26) out.push({ type: 'npc', person: q, d, x: a.x, y: a.y }); }
       const T = sim.T;
       for (const pr of sim.world.props) if (pr.kind === 'gravestone') { const d = Math.hypot(pr.x - p.x, pr.y - p.y); if (d < 20) out.push({ type: 'grave', prop: pr, d: d + 2, x: pr.x, y: pr.y - 14 }); }
@@ -6161,6 +6309,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         case 'grave': return 'Read the gravestone';
         case 'caravan': return `Hail ${c.L.c.merchant}'s caravan`;
         case 'notices': return 'Read the notice board';
+        case 'property': return c.b.owner?.kind === 'player' ? 'Your property' : 'For sale: look it over';
         case 'exit': return `Leave ${sim.world.name} by the ${c.side} road`;
         case 'horse': return `Look over ${c.h.owner === 'player' ? c.h.name : 'the horse'}`;
         case 'claim': return 'Claim the abandoned camp';
@@ -6171,7 +6320,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         default: return '';
       }
     }
-    const mayUseBed = (it) => (it.gangBed && game.scene && game.scene.b.gang === 'player') || (it.rent && PS.room && game.scene && PS.room.b === game.scene.b.id && sim.day <= PS.room.until);
+    const mayUseBed = (it) => (game.scene && game.scene.b.owner?.kind === 'player') || (it.gangBed && game.scene && game.scene.b.gang === 'player') || (it.rent && PS.room && game.scene && PS.room.b === game.scene.b.id && sim.day <= PS.room.until);
 
     game.hooks.update.push((dt) => {
       if (searching > 0) { searching -= dt; game.player.anim = 'crouch'; game.player.locked = true; if (searching <= 0) { game.player.locked = false; game.player.anim = 'idle'; pendingSearch && pendingSearch(); pendingSearch = null; } }
@@ -6195,6 +6344,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     function contents(it) {
       const b = game.scene.b, hh = b.household ? sim.households[b.household - 1] : null, bz = sim.biz.get(b.id);
       const out = [];
+      if (b.owner?.kind === 'player' && !hh) { const st = (PS.homes = PS.homes || {}); const key = sim.world.placeId + ':' + b.id; (st[key] = st[key] || []).forEach((k) => out.push({ k, n: 1, src: 'homestash', key })); return { items: out, owner: 'you' }; }
       if (it.rentChest && PS.room && PS.room.b === b.id) { (PS.stash || (PS.stash = [])).forEach((k) => out.push({ k, n: 1, src: 'stash' })); return { items: out, owner: 'you' }; }
       if (it.stockOf && bz) {
         const goods = it.stockOf === 'farm' ? ['wheat', 'cabbage'] : it.stockOf === 'store' ? ['cabbage', 'firewood', 'flour'] : [it.stockOf];
@@ -6222,11 +6372,12 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         const n = c.src === 'stash' ? 1 : c.n; const got = PS.add(c.k, n);
         if (!got) { O.Panels.toast('Your satchel is full.', 'bad'); break; }
         if (c.src === 'stash') PS.stash.splice(PS.stash.indexOf(c.k), 1);
+        else if (c.src === 'homestash') PS.homes[c.key].splice(PS.homes[c.key].indexOf(c.k), 1);
         else if (c.src === 'pantry') hh.pantry[c.good] -= got;
         else if (c.src === 'biz') bz.stock[c.good] -= got;
         else if (c.src === 'farm') sim.supplierOf('farmhouse').stock.wheat -= got;
         else if (c.src === 'val') hh.valuables.splice(hh.valuables.indexOf(c.k), 1);
-        if (c.src !== 'stash') { stolen.push(`${got} ${G[c.k].name.toLowerCase()}`); PS.stolen[c.k] = (PS.stolen[c.k] || 0) + got; }
+        if (c.src !== 'stash' && c.src !== 'homestash') { stolen.push(`${got} ${G[c.k].name.toLowerCase()}`); PS.stolen[c.k] = (PS.stolen[c.k] || 0) + got; }
       }
       if (stolen.length) O.Crime.theft(game, sim, { building: b, floor: game.scene.floor, what: stolen.join(', '), owner, value: idxs.length });
       O.Panels.close();
@@ -6281,6 +6432,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         case 'caravan': O.caravanPanel(cur.L); break;
         case 'notices': O.readNotices(); break;
         case 'exit': O.travelPanel(cur.side); break;
+        case 'property': O.propertyPanel(cur.b); break;
         case 'stash': O.GangUI.stash(); break;
         case 'campbed': sleep(); break;
         case 'grave': { const g = cur.prop.grave; O.Panels.toast(g ? `“Here lies ${g.name}, ${g.age} years. ${g.cause.replace('died ', '').replace(/^./, (c) => c.toUpperCase())}.”` : 'The old stone is worn smooth; you can no longer read the name.'); break; }
@@ -7608,6 +7760,116 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
 </script>
 <script>
+// Property and lordship for the player: For Sale signs on empty houses and shops, buying, letting to
+// tenants, opening a business, selling, the Holdings panel (P), and — for the rich and respectable —
+// the lordship of Ashford with its powers over tax, the watch, relief and building.
+'use strict';
+(function () {
+  const PS = O.PlayerState, esc = (s) => O.escape(s);
+
+  function setup(game, sim) {
+    const home = () => O.SimRef.home;
+    const forSale = (b) => !b.site && b.type !== 'hideout' && ((b.type === 'house' && !b.household) || b.closedShop) && (!b.owner || b.owner.kind !== 'player');
+    const owned = (b) => b.owner && b.owner.kind === 'player';
+
+    // a little painted sign by the door of anything for sale
+    let signCanvas = null;
+    function sign() {
+      if (signCanvas) return signCanvas;
+      const P = O.Pal, B = new O.MatBuffer(22, 18); B.part(1); B.capsule(4, 17, 4, 3, 0.8, 0.8, P.mat(P.wood.oak, 'wood'));
+      B.part(2); B.rect(1, 2, 20, 9, P.mat('#e8dcc0', 'cloth'), 3); for (let x = 1; x < 21; x++) B.shadeAt(x, 10, 1);
+      const red = P.mat('#a8382f', 'cloth');
+      const FONT = { S: ['111', '100', '111', '001', '111'], A: ['010', '101', '111', '101', '101'], L: ['100', '100', '100', '100', '111'], E: ['111', '100', '110', '100', '111'] };
+      [...'SALE'].forEach((ch, i) => FONT[ch].forEach((row, y) => [...row].forEach((v, x) => { if (v === '1') B.plot(3 + i * 4 + x, 4 + y, red, 2); })));
+      signCanvas = B.toCanvas(); return signCanvas;
+    }
+    game.hooks.drawWorld.push((ctx, cam) => {
+      if (game.scene) return;
+      for (const b of sim.world.buildings) if (forSale(b)) { const x = b.doorX * 16 + 14 - cam.x, y = b.doorY * 16 - 14 - cam.y; if (x > -20 && y > -20 && x < game.vw + 20 && y < game.vh + 20) ctx.drawImage(sign(), Math.round(x), Math.round(y)); }
+    });
+    O.saleCandidate = () => {
+      if (game.scene) return null;
+      for (const b of sim.world.buildings) { if (!(forSale(b) || owned(b))) continue; const d = Math.hypot(b.doorX * 16 + 8 - game.player.x, b.doorY * 16 + 6 - game.player.y); if (d < 16) return { type: 'property', b, d: d + 2, x: b.doorX * 16 + 8, y: b.doorY * 16 - 20 }; }
+      return null;
+    };
+
+    function panel(b) {
+      const s = sim, v = s.value(b), mine = owned(b), shop = !!b.closedShop || (s.biz.get(b.id) && mine);
+      const tenants = b.household ? s.households[b.household - 1] : null;
+      const rentEst = Math.max(2, Math.round(v / 140));
+      O.Panels.open(mine ? `Your ${b.type === 'house' ? 'house' : 'property'}` : `${b.closedShop ? 'Empty shop' : 'Empty house'} for sale`, `<div class="kv">
+        <div><span class="lbl">Value</span><b>${O.money(v)}</b><small>${b.w * 2}×${b.d * 2} paces inside, ${b.floors || 1} floor${(b.floors || 1) > 1 ? 's' : ''}, condition ${Math.round((b.condition ?? 0.8) * 100)}%</small></div>
+        <div><span class="lbl">Owner</span><b>${esc(s.ownerName(b.owner))}</b><small>${tenants ? `let to the ${esc(tenants.surname)} family at ${b.rent || rentEst}d a week` : 'standing empty'}</small></div>
+        ${b.closedShop ? `<div><span class="lbl">Was</span><b>${esc(b.closedShop.name)}</b><small>closed on day ${b.closedShop.day}</small></div>` : ''}
+      </div>
+      <div class="topics" style="margin-top:10px">
+        ${!mine ? `<button data-a="buy">Buy for ${O.money(v)}</button>` : ''}
+        ${mine && b.type === 'house' && !b.household ? `<button data-a="let">Let it to a family (${rentEst}d a week)</button>` : ''}
+        ${mine && b.closedShop ? ['bakery', 'store', 'tavern', 'smithy'].map((t) => `<button data-open="${t}">Open a ${O.Data.BUSINESS[t].label.toLowerCase()} (60d)</button>`).join('') : ''}
+        ${mine ? `<button data-a="sell">Sell for ${O.money(Math.round(v * 0.8))}</button>` : ''}
+      </div>`, (r) => {
+        const on = (sel, f) => { const el = r.querySelector(sel); if (el) el.onclick = f; };
+        on('[data-a=buy]', () => {
+          if (PS.money < v) return O.Panels.toast(`You need ${O.money(v)}.`, 'bad');
+          PS.money -= v;
+          if (b.owner && b.owner.kind === 'household') { const hh = s.households[b.owner.id - 1]; if (hh) hh.money += v; } else s.treasury.cash += v;
+          b.owner = { kind: 'player' }; b.rent = b.household ? (b.rent || rentEst) : null;
+          s.log(`A newcomer has bought ${b.closedShop ? 'the old ' + b.closedShop.name : 'a house'} for ${v}d.`, 'economy');
+          PS.rep.merchant = Math.min(1, PS.rep.merchant + 0.05);
+          panel(b);
+        });
+        on('[data-a=let]', () => { if (!s.immigrate) return; const hh = s.immigrate(b); if (hh) { b.rent = rentEst; O.Panels.toast(`The ${hh.surname} family will take it at ${rentEst}d a week. They're on the road now.`); } O.Panels.close(); });
+        on('[data-a=sell]', () => { const pr = Math.round(v * 0.8); PS.money += pr; s.treasury.cash -= Math.min(s.treasury.cash, pr); b.owner = { kind: 'parish' }; const bz = s.biz.get(b.id); if (bz) bz.ownerPlayer = false; O.Panels.close(); O.Panels.toast(`Sold for ${O.money(pr)}.`); });
+        r.querySelectorAll('[data-open]').forEach((x) => x.onclick = () => { if (PS.money < 60) return O.Panels.toast('You need 60d to stock and staff it.', 'bad'); PS.money -= 60; const bz = s.startBusiness(b, x.dataset.open, 'player'); s.fillVacancies(); O.Panels.close(); O.Panels.toast(`${bz.name} opens under your ownership. A manager will run it; the profit is yours.`); });
+      });
+    }
+    O.propertyPanel = panel;
+
+    // ---- holdings and lordship ----
+    function holdings() {
+      const H = home();
+      const all = [...O.Travel.visited.values()].flatMap((v) => v.world.buildings.filter(owned).map((b) => ({ b, s: v.sim })));
+      const rows = all.map(({ b, s }) => `<tr><td>${esc(b.type === 'house' ? 'House' : b.name)}<br><small class="lbl">${esc(s.world.name)}</small></td><td class="n">${O.money(s.value(b))}</td><td>${b.household ? `${esc(s.households[b.household - 1]?.surname || '')} family, ${b.rent}d/wk` : s.biz.get(b.id)?.ownerPlayer ? `${esc(s.biz.get(b.id).name)}, till ${O.money(s.biz.get(b.id).cash)}` : 'empty'}</td></tr>`).join('');
+      const L = H.lordship, lord = L.holder === 'player';
+      const canPetition = !lord && PS.wantedLevel() === 0 && !PS.exiled && PS.rep.civilian > -0.2;
+      O.Panels.open('Holdings', `<div class="kv">
+          <div><span class="lbl">Rents received</span><b>${O.money(PS.rentIncome || 0)}</b><small>paid each Moonday</small></div>
+          <div><span class="lbl">Business profits</span><b>${O.money(PS.bizIncome || 0)}</b><small>your share as owner</small></div>
+          <div><span class="lbl">Lordship of Ashford</span><b>${lord ? 'Yours' : 'The crown\'s'}</b><small>${lord ? 'You set the tax, the watch and the works.' : `The crown asks ${O.money(L.price)} and an unstained name.`}</small></div>
+        </div>
+        <table style="margin-top:12px"><thead><tr><th>Property</th><th class="n">Value</th><th>Use</th></tr></thead><tbody>${rows || '<tr><td colspan="3">You own nothing yet. Look for For Sale signs by empty houses and shops.</td></tr>'}</tbody></table>
+        ${!lord ? `<p class="caption" style="margin-top:12px">${canPetition ? 'You could petition the Lord of Thornbury for the lordship.' : 'The crown will not sell a lordship to someone the watch is looking for, or whom the common folk despise.'}</p>${canPetition ? `<button class="btn" data-pet="1">Petition for the lordship (${O.money(L.price)})</button>` : ''}` : lordControls(H)}`, (r) => {
+        const pet = r.querySelector('[data-pet]');
+        if (pet) pet.onclick = () => { if (PS.money < L.price) return O.Panels.toast(`You need ${O.money(L.price)}.`, 'bad'); PS.money -= L.price; H.kingdom.treasury += L.price; L.holder = 'player'; PS.lord = true; H.log('By letters from Thornbury, the newcomer is made Lord of Ashford.', 'politics'); H.kingdom.addNews(`A new lord has been granted Ashford.`, 'politics'); for (const p of H.people) if (p.age >= 16 && H.rng.chance(0.5)) H.remember(p, 'We have a new lord, a stranger with deep pockets.', 'politics', 1.5); holdings(); };
+        bindLord(r, H);
+      });
+    }
+    function lordControls(H) {
+      const gh = H.biz.get(H.guardId), guards = gh ? gh.def.jobs[1][1] : 0;
+      return `<div class="lbl" style="margin-top:12px">As Lord of Ashford</div><div class="kv">
+        <div><span class="lbl">Market tax</span><b>${Math.round(H.treasury.taxRate * 100)}%</b><small><button data-tax="-1">Lower</button> <button data-tax="1">Raise</button></small></div>
+        <div><span class="lbl">Watchmen</span><b>${guards + 1}</b><small><button data-g="-1">Dismiss one</button> <button data-g="1">Hire one</button></small></div>
+        <div><span class="lbl">Treasury</span><b>${O.money(H.treasury.cash)}</b><small><button data-take="1">Take 50d for yourself</button></small></div>
+        <div><span class="lbl">Works</span><b>${H.build.sites.filter((x) => x.stage < 10).length ? 'Building' : 'Idle'}</b><small><button data-build="1">Order a new house (160d)</button></small></div>
+        <div><span class="lbl">Justice</span><b>Your word</b><small><button data-pardon="1">Pardon all outstanding crimes</button></small></div>
+      </div>`;
+    }
+    function bindLord(r, H) {
+      const t = (sel, f) => r.querySelectorAll(sel).forEach((x) => x.onclick = () => { f(x); holdings(); });
+      t('[data-tax]', (x) => { H.treasury.taxRate = O.clamp(H.treasury.taxRate + +x.dataset.tax * 0.02, 0.02, 0.2); H.log(`The lord ${+x.dataset.tax > 0 ? 'raised' : 'lowered'} the market tax to ${Math.round(H.treasury.taxRate * 100)}%.`, 'politics'); for (const p of H.people) if (p.age >= 18 && H.rng.chance(0.3)) { H.remember(p, `The new lord ${+x.dataset.tax > 0 ? 'raised' : 'cut'} the market tax.`, 'politics', 1); H.relate(p, { id: 0 }, +x.dataset.tax > 0 ? -0.05 : 0.05); } });
+      t('[data-g]', (x) => { const gh = H.biz.get(H.guardId); const n = O.clamp(gh.def.jobs[1][1] + +x.dataset.g, 1, 8); gh.def = Object.assign({}, gh.def, { jobs: [gh.def.jobs[0], ['guard', n]] }); if (+x.dataset.g < 0) { const g = H.people.find((q) => q.job?.biz === H.guardId && q.job.role === 'guard'); if (g) { g.job = null; gh.workers = gh.workers.filter((id) => id !== g.id); H.remember(g, 'The lord dismissed me from the watch.', 'hardship', 2); } } else H.fillVacancies(); });
+      t('[data-take]', () => { const n = Math.min(50, Math.floor(H.treasury.cash)); H.treasury.cash -= n; PS.money += n; H.log('The lord drew coin from the parish chest for their own use.', 'politics'); for (const p of H.people) if (p.age >= 18 && H.rng.chance(0.2)) H.relate(p, { id: 0 }, -0.08); });
+      t('[data-build]', () => { if (H.treasury.cash < 220) return O.Panels.toast('The treasury is too thin.', 'bad'); const free = [0, 1, 2, 3, 4].filter((i) => !H.build.used.has(i)); if (free.length) H.build.start(free[0], 160); });
+      t('[data-pardon]', () => { for (const c of H.crimes) if (c.perp === 'player') c.closed = 'pardoned'; PS.bounty = false; H.log('The lord has pardoned all outstanding crimes. Some say they pardoned themselves.', 'politics'); PS.rep.civilian = Math.max(-1, PS.rep.civilian - 0.1); });
+    }
+    O.holdings = holdings;
+    game.keyHandlers.push((e) => { if (e.code === 'KeyP' && !O.panelOpen) { holdings(); return true; } return false; });
+  }
+  O.PropertyUI = { setup };
+})();
+
+</script>
+<script>
 // Character creation screen: builds the player's Appearance from explicit choices,
 // with a live 4-direction animated preview, a generated crowd and a genetics demo.
 'use strict';
@@ -7952,7 +8214,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         weather: { kind: sim.weather.kind, wet: sim.weather.wet, snowCover: sim.weather.snowCover, lastHour: sim.weather.lastHour },
         people: sim.people.map(strip), traderId: sim.trader ? sim.trader.id : null,
         households: sim.households,
-        biz: [...sim.biz.values()].map((b) => ({ id: b.id, type: b.type, stock: b.stock, cash: b.cash, owner: b.owner, workers: b.workers, salesToday: b.salesToday, history: b.history, jobs: b.def.jobs, name: b.name, cost: b.def.site ? true : undefined })),
+        biz: [...sim.biz.values()].map((b) => ({ id: b.id, type: b.type, stock: b.stock, cash: b.cash, owner: b.owner, workers: b.workers, salesToday: b.salesToday, history: b.history, jobs: b.def.jobs, name: b.name, cost: b.def.site ? true : undefined, ownerPlayer: b.ownerPlayer, badDays: b.badDays })),
+        lordship: sim.lordship,
         sites: sim.build.sites.map((s) => ({ id: s.id, stage: s.stage, prog: s.prog, work: s.work, started: s.started })), nextCouncil: sim.build.nextCouncil, plotsUsed: [...sim.build.used],
         gangs: sim.gangs,
         kingdom: { places: sim.kingdom.places, roads: sim.kingdom.roads, caravans: sim.kingdom.caravans.map((c) => Object.assign({}, c, { held: false })), news: sim.kingdom.news, treasury: sim.kingdom.treasury, taxRate: sim.kingdom.taxRate, councils: sim.kingdom.councils.slice(-6) },
@@ -7967,7 +8230,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       player: {
         x: game.world !== sim.world ? (sim.world.W - 2) * 16 : Math.round(game.scene ? game.scene.b.doorX * 16 + 8 : game.player.x), y: game.world !== sim.world ? 30 * 16 + 10 : Math.round(game.scene ? game.scene.b.doorY * 16 + 10 : game.player.y), dir: game.player.dir,
         mount: game.player.mount ? game.player.mount.id : null,
-        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled },
+        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome },
       },
     };
   }
@@ -8024,7 +8287,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         const def = { label: 'Building site', jobs: sb.jobs, hours: [7, 17], recipes: [], sells: [], buys: { logs: 'woodcutter', stone: 'import' }, targets: { logs: 12, stone: 10 }, wage: { builder: 7 }, site: true };
         bz = { id: sb.id, b, type: 'site', def, name: sb.name, sold: {}, bought: {}, orders: [] }; sim.biz.set(sb.id, bz);
       }
+      if (!bz && O.Data.BUSINESS[sb.type]) { const b = w.buildings.find((x) => x.id === sb.id); bz = { id: sb.id, b, type: sb.type, def: O.Data.BUSINESS[sb.type], name: sb.name, sold: {}, bought: {}, orders: [] }; sim.biz.set(sb.id, bz); }
       if (!bz) continue;
+      bz.ownerPlayer = sb.ownerPlayer; bz.badDays = sb.badDays; bz.name = sb.name; bz.type = sb.type; if (O.Data.BUSINESS[sb.type] && bz.def !== O.Data.BUSINESS[sb.type] && !bz.def.site) bz.def = O.Data.BUSINESS[sb.type];
       Object.assign(bz, { stock: sb.stock, cash: sb.cash, owner: sb.owner, workers: sb.workers, salesToday: sb.salesToday, history: sb.history, orders: [], open: false });
       bz.def = Object.assign({}, bz.def, { jobs: sb.jobs });
       bz.b = w.buildings.find((x) => x.id === sb.id) || bz.b;
@@ -8033,6 +8298,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     sim.build.sites = S.sites.map((s) => Object.assign({}, s, { b: w.buildings.find((x) => x.id === s.id) }));
     sim.build.nextCouncil = S.nextCouncil; sim.build.used = new Set(S.plotsUsed);
     sim.gangs = S.gangs;
+    if (S.lordship) sim.lordship = S.lordship;
     Object.assign(sim.kingdom, S.kingdom);
     sim.path.recost(); sim.path.clear();
     // player
@@ -8145,6 +8411,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   O.HorsesSetup.setup(game, sim, npcUI);
   O.KingdomUI.setup(game, sim, npcUI);
   O.TravelSetup.setup(game, home, npcUI);
+  O.PropertyUI.setup(game, sim);
   if (loaded) { O.Save.hydrateLate(game, home); setTimeout(() => O.Panels.toast(`Welcome back. It is ${O.DAYNAMES[sim.weekday]}, day ${sim.day}, in Ashford.`), 300); }
   // autosave each dawn and whenever the page is hidden
   let lastAuto = sim.day;

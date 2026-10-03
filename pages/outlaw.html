@@ -56,6 +56,49 @@ input[type=range] { width: 100%; accent-color: var(--ember); }
 .legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 14px; font-size: 13px; color: var(--parch-dim); }
 .legend b { color: var(--parch); font-weight: 500; }
 [hidden] { display: none !important; }
+.hud-prompt { bottom: 52px; left: 50%; transform: translateX(-50%); white-space: nowrap; }
+.ledger-btn { position: absolute; right: 12px; bottom: 12px; }
+.talk { right: 12px; top: 92px; width: min(340px, calc(100% - 24px)); display: grid; gap: 10px; max-height: calc(100% - 160px); overflow: auto; }
+.talk-head { display: flex; gap: 10px; align-items: center; }
+.portrait { width: 64px; height: 96px; background: var(--ink); border: 2px solid #000; flex: none; }
+.talk-name { font-family: var(--display); font-size: 24px; color: var(--ember-2); line-height: 1.1; }
+.chips.small { margin-top: 4px; gap: 4px; }
+.chips.small span { font-family: var(--pix); font-size: 9px; letter-spacing: .8px; padding: 2px 5px; border: 1px solid var(--line); color: var(--parch-dim); }
+.speech { margin: 0; font-size: 17px; line-height: 1.4; color: var(--parch); background: var(--ink); border: 2px solid var(--line); padding: 8px 10px; }
+.talk-stats { display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; align-items: center; }
+.bar { display: inline-block; width: 100%; min-width: 50px; height: 7px; background: var(--ink); border: 1px solid #000; vertical-align: middle; }
+.bar i { display: block; height: 100%; background: var(--moss); }
+.bar.warn i { background: var(--blood); }
+.topics { display: flex; flex-wrap: wrap; gap: 6px; }
+.topics button { background: var(--ink-2); border: 2px solid var(--line); padding: 4px 8px; cursor: pointer; font-family: var(--pix); font-size: 10px; letter-spacing: .8px; }
+.topics button:hover { border-color: var(--ember-2); color: var(--ember-2); }
+.ledger { position: absolute; inset: 0; background: rgba(10,8,14,.72); display: grid; place-items: center; padding: 16px; }
+.ledger-in { background: var(--panel); border: 2px solid #000; box-shadow: inset 0 0 0 2px var(--line); width: min(1000px, 100%); max-height: 100%; display: flex; flex-direction: column; min-height: 0; }
+.ledger-in header { display: flex; gap: 12px; align-items: center; padding: 10px 14px; border-bottom: 2px solid var(--line); flex-wrap: wrap; }
+.ledger-in h2 { font-family: var(--display); font-weight: 400; font-size: 26px; margin: 0; color: var(--ember-2); }
+.ledger-in nav { display: flex; gap: 4px; flex-wrap: wrap; flex: 1; }
+.ledger-in nav button, .ledger-in .x { background: var(--ink); border: 2px solid var(--line); padding: 4px 10px; cursor: pointer; font-family: var(--pix); font-size: 10px; letter-spacing: 1px; }
+.ledger-in nav button[aria-pressed="true"] { background: var(--ember); color: var(--ink); border-color: #000; }
+.ledger-body { overflow: auto; padding: 12px 14px; min-height: 0; }
+.ledger table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.ledger th { text-align: left; font-family: var(--pix); font-size: 9px; letter-spacing: 1px; color: var(--parch-dim); font-weight: 400; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+.ledger td { padding: 3px 6px; border-bottom: 1px dashed rgba(61,51,73,.6); }
+.ledger tr[data-id] { cursor: pointer; } .ledger tr[data-id]:hover td, .ledger tr.sel td { background: var(--ink-2); }
+.n { text-align: right; font-variant-numeric: tabular-nums; }
+.bizgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.biz { background: var(--ink-2); border: 2px solid var(--line); padding: 10px; display: grid; gap: 6px; align-content: start; }
+.biz h3 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 20px; display: flex; justify-content: space-between; gap: 8px; }
+.pill { font-family: var(--pix); font-size: 9px; letter-spacing: 1px; padding: 2px 6px; border: 1px solid var(--line); color: var(--parch-dim); align-self: center; }
+.pill.ok { background: var(--moss); color: var(--ink); border-color: #000; }
+.kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.kv > div { background: var(--ink-2); border: 2px solid var(--line); padding: 10px; display: grid; gap: 2px; }
+.kv b { font-family: var(--display); font-weight: 400; font-size: 28px; color: var(--parch); font-variant-numeric: tabular-nums; }
+.kv b.warn, .warn { color: #e0705f; }
+.kv small { color: var(--parch-dim); }
+.chron { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 4px; }
+.chron li { font-size: 14px; }
+.detail { background: var(--ink-2); border: 2px solid var(--line); padding: 10px; margin-bottom: 10px; font-size: 14px; }
+.detail ul { margin: 4px 0 0; padding-left: 18px; }
 body { display: flex; flex-direction: column; }
 main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 main > .wrap { overflow: auto; }
@@ -74,7 +117,7 @@ main > .wrap { overflow: auto; }
 </style>
 
 <header class="top">
-  <div class="brand">Outlaw<small>BUILD 0.2 · ASHFORD</small></div>
+  <div class="brand">Outlaw<small>BUILD 0.3 · ASHFORD LIVES</small></div>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" role="tab" aria-selected="true" data-tab="play">Play</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="forge">Character</button>
@@ -92,7 +135,7 @@ main > .wrap { overflow: auto; }
       <span class="lbl">Time</span>
       <div class="seg" id="speedSeg"></div>
     </div>
-    <div class="hud hud-b" id="hudB">WASD / arrows to move · Shift to run · drag on touch screens</div>
+    <div class="hud hud-b" id="hudB">WASD / arrows move · Shift run · E talk · L ledger</div>
   </section>
 
   <section class="wrap" id="tab-forge" hidden>
@@ -154,6 +197,11 @@ main > .wrap { overflow: auto; }
 <script src="../src/world/village.js"></script>
 <script src="../src/world/terrain.js"></script>
 <script src="../src/game/engine.js"></script>
+<script src="../src/sim/data.js"></script>
+<script src="../src/sim/path.js"></script>
+<script src="../src/sim/sim.js"></script>
+<script src="../src/sim/dialogue.js"></script>
+<script src="../src/game/npc-ui.js"></script>
 <script src="../src/game/creator.js"></script>
 <script src="../src/game/forge-ui.js"></script>
 <script src="../src/game/play.js"></script>

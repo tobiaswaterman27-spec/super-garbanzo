@@ -1,0 +1,572 @@
+// The living settlement simulation.
+//
+// Every resident is a Person with a family, a home, maybe a job, a purse shared with their household,
+// needs, personality, skills, memories and relationships. Each game minute a person decides what they
+// should be doing (schedule by age, job, personality, day of week, need) and physically walks there
+// on the tile grid — nobody teleports. Businesses hold real stock, produce goods from inputs while
+// staffed, sell at supply-and-demand prices, pay wages, and order supplies that a worker carries
+// across the village by hand.
+'use strict';
+(function () {
+  const D = O.Data, G = D.GOODS, Ch = O.Char;
+  const WALK = { adult: 38, child: 44, elder: 27 };
+  const DAYNAMES = ['Moonday', 'Tewsday', 'Wodensday', 'Thorsday', 'Freyday', 'Saturnday', 'Sunday'];
+
+  class Sim {
+    constructor(world, seed = 11) {
+      this.world = world; this.T = world.T;
+      this.rng = O.RNG(seed);
+      this.path = O.Path.makePathfinder(world);
+      this.people = []; this.byId = new Map();
+      this.households = []; this.biz = new Map();
+      this.treasury = { cash: 400, taxRate: 0.05, income: 0, spent: 0 };
+      this.history = [];
+      this.day = 1; this.minute = 8 * 60 + 30; this._lastMin = -1;
+      this.stats = { sales: 0, wages: 0, produced: {} };
+      this.nextId = 1;
+      this.populate();
+      this.placeAll();
+    }
+
+    // ------------------------------------------------------------------ population
+    newPerson(o) {
+      const p = Object.assign({
+        id: this.nextId++, money: 0, job: null, traits: [], memories: [], rel: new Map(),
+        needs: { hunger: 70 + this.rng.int(0, 25), energy: 80, social: 60 }, health: { hp: 100, state: 'healthy', illness: null },
+        skills: {}, mood: 0.6, attitude: this.rng.float(-0.4, 0.8), alive: true,
+      }, o);
+      p.stage = Ch.ageStage(p.age);
+      // personality: one trait from up to three opposed pairs
+      const pairs = this.rng.pick([[0, 4, 2], [1, 5, 7], [3, 6, 8], [2, 4, 7], [0, 1, 5]]);
+      p.traits = pairs.map((k) => this.rng.pick(D.TRAITS[k]));
+      p.goal = p.age >= 16 ? this.rng.pick(D.GOALS) : null;
+      p.wake = 6 * 60 + this.rng.int(-40, 40) + (p.traits.includes('lazy') ? 40 : 0);
+      p.bed = 22 * 60 + this.rng.int(-60, 50) + (p.stage === 'child' ? -90 : 0);
+      this.people.push(p); this.byId.set(p.id, p);
+      return p;
+    }
+    has(p, t) { return p.traits.includes(t); }
+
+    populate() {
+      const r = this.rng, w = this.world;
+      const homeTypes = ['house', 'farmhouse', 'tavern', 'bakery', 'smithy', 'doctor', 'woodcutter', 'mill', 'store'];
+      for (const b of w.buildings) {
+        if (D.BUSINESS[b.type]) {
+          const def = D.BUSINESS[b.type];
+          const stock = {}; for (const [g, t] of Object.entries(def.targets)) stock[g] = Math.round(t * r.float(0.5, 0.9));
+          this.biz.set(b.id, { id: b.id, b, type: b.type, def, name: b.name, owner: null, workers: [], stock, cash: def.public ? 0 : r.int(80, 160), sold: {}, bought: {}, open: false, orders: [], salesToday: 0, history: [] });
+        }
+        if (!homeTypes.includes(b.type)) continue;
+        // household size from floor area and wealth
+        const area = b.w * b.d * b.floors;
+        const size = b.type === 'house' ? O.clamp(Math.round(area / 5 + r.int(-1, 1)), 1, 7) : r.int(2, 4);
+        const hh = { id: this.households.length + 1, home: b.id, members: [], pantry: { bread: r.int(2, 6), cabbage: r.int(1, 4), firewood: r.int(2, 5) }, money: Math.round(20 + b.wealth * 120 * r.float(0.6, 1.4)), surname: r.pick(D.NAMES.sur) };
+        if (b.type === 'bakery') hh.surname = 'Hobb'; if (b.type === 'farmhouse') hh.surname = 'Marsh';
+        this.households.push(hh); b.household = hh.id;
+        // build a family: a couple or a single adult, children, sometimes an elder
+        const headAge = r.int(24, 58);
+        const region = w.region;
+        const single = size === 1 || r.chance(0.15);
+        const mk = (sex, age, genes) => this.newPerson({ sex, age, first: r.pick(D.NAMES[sex]), sur: hh.surname, household: hh.id, home: b.id, genes: genes || Ch.randomGenes(r, region), wealth: b.wealth });
+        const a1 = mk(r.chance(0.5) ? 'm' : 'f', headAge);
+        hh.members.push(a1.id);
+        let a2 = null;
+        if (!single) { a2 = mk(a1.sex === 'm' ? 'f' : 'm', O.clamp(headAge + r.int(-5, 5), 18, 80)); hh.members.push(a2.id); a1.spouse = a2.id; a2.spouse = a1.id; }
+        let left = size - hh.members.length;
+        if (left > 0 && headAge > 40 && r.chance(0.3)) { const e = mk(r.chance(0.5) ? 'm' : 'f', headAge + r.int(22, 30)); e.sur = hh.surname; hh.members.push(e.id); left--; e.elderOf = a1.id; }
+        const mum = a1.sex === 'f' ? a1 : a2, dad = a1.sex === 'm' ? a1 : a2;
+        const kids = [];
+        for (let k = 0; k < left; k++) {
+          const maxAge = Math.max(0, headAge - 18);
+          const age = Math.max(0, Math.min(maxAge, r.int(0, 19)));
+          const genes = mum && dad ? Ch.inheritGenes(r, mum.genes, dad.genes) : Ch.inheritGenes(r, a1.genes, Ch.randomGenes(r, region));
+          const c = mk(r.chance(0.5) ? 'm' : 'f', age, genes);
+          hh.members.push(c.id); kids.push(c.id);
+          c.parents = [a1.id, a2?.id].filter(Boolean);
+        }
+        a1.children = kids; if (a2) a2.children = kids;
+      }
+      // jobs: business owners come from the household living there; others hired from the village
+      const adults = () => this.people.filter((p) => !p.job && p.age >= 16 && p.age < 66);
+      for (const bz of this.biz.values()) {
+        const hh = this.households.find((h) => h.home === bz.id);
+        for (const [role, n] of bz.def.jobs) {
+          for (let i = 0; i < n; i++) {
+            let cand = null;
+            const isOwnerRole = bz.def.wage[role] === 0;
+            if (hh && isOwnerRole) cand = hh.members.map((id) => this.byId.get(id)).find((p) => !p.job && p.age >= 20 && p.age < 66);
+            if (!cand) {
+              const pool = adults().filter((p) => (role === 'apprentice' ? p.age < 22 : role.startsWith('guard') ? p.age < 50 : true));
+              cand = pool.length ? r.pick(pool) : null;
+            }
+            if (!cand) continue;
+            cand.job = { biz: bz.id, role };
+            cand.skills[role] = role === 'apprentice' ? r.float(0.1, 0.3) : r.float(0.35, 0.95);
+            cand.shift = role.startsWith('guard') ? (bz.workers.length % 2 ? 'night' : 'day') : 'day';
+            if (isOwnerRole) bz.owner = cand.id;
+            bz.workers.push(cand.id);
+          }
+        }
+      }
+      // a couple of carters/porters who carry deliveries for the village
+      for (let i = 0; i < 2; i++) { const pool = adults(); if (pool.length) { const c = r.pick(pool); c.job = { biz: null, role: 'porter' }; c.skills.porter = 0.5; } }
+      for (const p of this.people) {
+        const role = p.job ? D.ROLE_OUTFIT[p.job.role] || 'villager' : p.age < 13 ? 'child' : 'villager';
+        p.app = Ch.makeAppearance(O.hash('person', p.id, p.first), { sex: p.sex, age: p.age, genes: p.genes, role, wealth: this.world.buildings.find((b) => b.id === p.home)?.wealth ?? 0.4, region: this.world.region });
+        p.name = `${p.first} ${p.sur}`;
+      }
+      this.log(`Ashford counts ${this.people.length} souls in ${this.households.length} households.`);
+    }
+
+    // ------------------------------------------------------------------ helpers
+    building(id) { return this.world.buildings.find((b) => b.id === id); }
+    entry(b) { return [b.doorX, b.doorY]; }
+    tileCenter(tx, ty, p) { const j = p ? ((p.id * 7) % 5) - 2 : 0; return [tx * this.T + 8 + j * 2, ty * this.T + 10 + ((p?.id || 0) % 3)]; }
+    get hour() { return this.minute / 60; }
+    get weekday() { return (this.day - 1) % 7; }
+    log(text, kind = 'event') { this.history.push({ day: this.day, minute: Math.floor(this.minute), text, kind }); if (this.history.length > 400) this.history.shift(); }
+    remember(p, text, kind = 'event', strength = 1, about = null) {
+      p.memories.unshift({ day: this.day, text, kind, strength, about });
+      if (p.memories.length > 30) p.memories.pop();
+    }
+    relate(a, b, d) { const r = a.rel.get(b.id) || { affinity: 0, familiar: 0 }; r.affinity = O.clamp(r.affinity + d, -1, 1); r.familiar = Math.min(1, r.familiar + 0.05); a.rel.set(b.id, r); }
+
+    price(bz, good) {
+      const target = bz.def.targets[good] || 10, stock = bz.stock[good] || 0;
+      const owner = this.byId.get(bz.owner);
+      let m = O.clamp(Math.sqrt(target / (stock + 1)), 0.6, 2.5);
+      if (owner && this.has(owner, 'greedy')) m *= 1.15; if (owner && this.has(owner, 'generous')) m *= 0.9;
+      return Math.max(1, Math.round(G[good].base * m));
+    }
+    supplierOf(type) { for (const bz of this.biz.values()) if (bz.type === type) return bz; return null; }
+
+    // ------------------------------------------------------------------ schedule
+    // Decide what a person should be doing right now. Returns { act, b?, tile?, outdoor? }.
+    plan(p) {
+      const h = this.hour, m = this.minute, wd = this.weekday;
+      const home = p.home;
+      if (p.task) return p.task;
+      const asleep = m < p.wake || m >= p.bed;
+      if (asleep) return { act: 'sleep', b: home };
+      const sunday = wd === 6;
+      if (sunday && h >= 9 && h < 10.5 && p.age >= 6) return { act: 'worship', b: this.chapelId };
+      const job = p.job;
+      if (job && job.biz) {
+        const bz = this.biz.get(job.biz);
+        let [o, c] = bz.def.hours;
+        if (job.role.startsWith('guard')) { const day = p.shift === 'day'; const on = day ? h >= 6 && h < 18 : h >= 18 || h < 6; if (on) return job.role === 'guard' && (Math.floor(m / 90) + p.id) % 2 === 0 ? { act: 'patrol', outdoor: true } : { act: 'work', b: bz.id }; }
+        else if (!(sunday && bz.type !== 'tavern' && bz.type !== 'chapel')) {
+          if (bz.type === 'bakery' && job.role === 'baker') o = 4.5;
+          if (this.has(p, 'lazy')) o += 0.5;
+          if (h >= o && h < c && !(h >= 12 && h < 12.75 && bz.type !== 'tavern')) {
+            // farm and woodcutting happen outside in the fields / woods
+            if (bz.type === 'farmhouse' && job.role !== 'farmer' || bz.type === 'farmhouse' && h > 7 && h < 11) return { act: 'fieldwork', outdoor: true, zone: 'farm' };
+            if (bz.type === 'woodcutter' && h > 8 && h < 16) return { act: 'chop', outdoor: true, zone: 'wood' };
+            if (job.role === 'herbalist' && h > 9 && h < 15) return { act: 'forage', outdoor: true, zone: 'wood' };
+            return { act: 'work', b: bz.id };
+          }
+        }
+      }
+      if (job && job.role === 'porter' && h >= 7 && h < 18 && !sunday) return { act: 'wait-work', outdoor: true, zone: 'square' };
+      // meals
+      if (h >= 12 && h < 12.75 && p.needs.hunger < 75) return this.has(p, 'social') && this.household(p).money > 30 ? { act: 'eat-out', b: this.tavernId } : { act: 'eat', b: home };
+      // children
+      if (p.stage === 'child' || p.stage === 'olderChild') {
+        if (h >= 8.5 && h < 17.5 && !this.raining) return { act: 'play', outdoor: true, zone: p.id % 3 ? 'square' : 'home' };
+        return { act: 'home', b: home };
+      }
+      if (p.stage === 'baby') return { act: 'home', b: home };
+      // shopping for the household when the pantry is running low
+      const hh = this.household(p);
+      if (h >= 9 && h < 17.5 && p.age >= 16 && hh.shopper === p.id) {
+        const need = this.shoppingNeed(hh);
+        if (need) return { act: 'shop', b: need.biz, good: need.good, qty: need.qty };
+      }
+      // evenings: the sociable go to the tavern
+      if (h >= 18.5 && h < 22 && p.age >= 18 && (this.has(p, 'social') || p.needs.social < 35) && hh.money > 10 && !this.raining) return { act: 'socialise', b: this.tavernId };
+      if (h >= 17.5 && h < 19 && p.needs.hunger < 70) return { act: 'eat', b: home };
+      // elders like the square bench on fine mornings
+      if (p.stage === 'elder' && h >= 9.5 && h < 11.5 && !this.raining) return { act: 'sit', outdoor: true, zone: 'bench' };
+      if (!job && p.age >= 16 && h >= 9 && h < 16 && !this.raining && (p.id + this.day) % 3 === 0) return { act: 'stroll', outdoor: true, zone: 'square' };
+      return { act: 'home', b: home };
+    }
+
+    household(p) { return this.households[p.household - 1] || (p._purse = p._purse || { money: 200, pantry: {}, members: [p.id] }); }
+    shoppingNeed(hh) {
+      const n = hh.members.length;
+      const ok = (g) => !(hh.failed && hh.failed[g] === this.day);
+      if (hh.pantry.bread < n && ok('bread')) { const bz = this.supplierOf('bakery'); if (bz && (bz.stock.bread || 0) > 0) return { biz: bz.id, good: 'bread', qty: n * 2 }; }
+      if (hh.pantry.cabbage < Math.ceil(n / 2) && ok('cabbage')) { const bz = this.supplierOf('store'); if (bz && (bz.stock.cabbage || 0) > 0) return { biz: bz.id, good: 'cabbage', qty: n }; }
+      if (hh.pantry.firewood < 2 && ok('firewood')) { const bz = this.supplierOf('store'); if (bz && (bz.stock.firewood || 0) > 0) return { biz: bz.id, good: 'firewood', qty: 4 }; }
+      return null;
+    }
+
+    zoneTile(p, zone) {
+      const r = O.RNG(O.hash(p.id, this.day, Math.floor(this.minute / 25)));
+      const w = this.world;
+      const free = (x, y) => !w.solid[y * w.W + x];
+      const pick = (x0, y0, x1, y1) => { for (let k = 0; k < 20; k++) { const x = r.int(x0, x1), y = r.int(y0, y1); if (free(x, y)) return [x, y]; } return [46, 29]; };
+      switch (zone) {
+        case 'square': return pick(38, 23, 54, 29);
+        case 'home': { const b = this.building(p.home); return pick(b.x - 1, b.bottom + 1, b.x + b.w, b.bottom + 2); }
+        case 'bench': return [37, 23];
+        case 'farm': return pick(7, 56, 33, 61);
+        case 'wood': return pick(34, 4, 44, 12);
+        default: return pick(38, 23, 54, 29);
+      }
+    }
+    patrolTile(p) {
+      const route = [[46, 30], [30, 31], [12, 30], [12, 41], [30, 42], [46, 41], [62, 42], [76, 30], [62, 30], [46, 24]];
+      const k = (Math.floor(this.minute / 12) + p.id) % route.length;
+      return route[k];
+    }
+
+    // ------------------------------------------------------------------ placement & movement
+    placeAll() {
+      this.tavernId = this.world.buildings.find((b) => b.type === 'tavern').id;
+      this.chapelId = this.world.buildings.find((b) => b.type === 'chapel').id;
+      for (const hh of this.households) { const adults = hh.members.map((id) => this.byId.get(id)).filter((p) => p.age >= 16); hh.shopper = (adults.find((p) => !p.job) || adults[adults.length - 1] || {}).id; }
+      for (const p of this.people) {
+        p.agent = { x: 0, y: 0, dir: 0, anim: 'idle', ft: Math.random() * 3, a: p.app, hidden: true, inside: p.home, path: null, goal: null, person: p };
+        const pl = this.plan(p);
+        if (pl.b) { p.agent.inside = pl.b; p.agent.hidden = true; const [ex, ey] = this.entry(this.building(pl.b)); [p.agent.x, p.agent.y] = this.tileCenter(ex, ey, p); }
+        else { const t = pl.act === 'patrol' ? this.patrolTile(p) : this.zoneTile(p, pl.zone); p.agent.inside = null; p.agent.hidden = false; [p.agent.x, p.agent.y] = this.tileCenter(t[0], t[1], p); }
+        p.activity = pl;
+      }
+    }
+
+    speedOf(p) { return p.stage === 'elder' ? WALK.elder : p.age < 13 ? WALK.child : WALK.adult; }
+
+    // dtm: elapsed game minutes this frame
+    tick(dtm) {
+      if (dtm <= 0) return;
+      this.minute += dtm;
+      while (this.minute >= 1440) { this.minute -= 1440; this.day++; this.newDay(); }
+      const curMin = Math.floor(this.minute);
+      // per-minute logic (catch up when fast-forwarding, capped)
+      let steps = (curMin - this._lastMin + 1440) % 1440;
+      if (this._lastMin < 0) steps = 1;
+      steps = Math.min(steps, 30);
+      for (let s = 0; s < steps; s++) this.minuteTick();
+      this._lastMin = curMin;
+      for (const p of this.people) this.move(p, dtm);
+    }
+
+    minuteTick() {
+      const h = this.hour;
+      for (const bz of this.biz.values()) {
+        const [o, c] = bz.def.hours; const wasOpen = bz.open;
+        bz.open = this.weekday === 6 && bz.type !== 'tavern' && !bz.def.public ? false : h >= o && h < c;
+        if (bz.open && !wasOpen) this.openBusiness(bz);
+        if (!bz.open && wasOpen) this.closeBusiness(bz);
+        if (bz.open && Math.floor(this.minute) % 90 === 0) this.openBusiness(bz);
+        if (bz.def.public && Math.floor(this.minute) === 18 * 60) this.payWages(bz);
+        for (const o of bz.orders) if (o.waiting && Math.floor(this.minute) % 20 === 0) { o.waiting = false; this.assignDelivery(o); }
+      }
+      for (const p of this.people) this.personMinute(p);
+    }
+
+    personMinute(p) {
+      const a = p.agent;
+      // needs drift
+      p.needs.hunger = Math.max(0, p.needs.hunger - 0.055);
+      p.needs.social = Math.max(0, p.needs.social - 0.02);
+      const pl = this.plan(p);
+      const changed = !p.activity || pl.act !== p.activity.act || pl.b !== p.activity.b || pl.zone !== p.activity.zone;
+      if (changed) { p.activity = pl; a.goal = null; a.path = null; a.wait = 0; if (pl.b && a.inside === pl.b) this.onEnter(p, pl.b); }
+      const act = p.activity;
+      // indoor activity in progress
+      if (act.b && a.inside === act.b) {
+        this.doIndoor(p, act);
+        return;
+      }
+      // outdoor activity at destination
+      if (act.outdoor && !a.path && a.goal && a.inside == null) {
+        a.wait = (a.wait || 0) + 1;
+        this.doOutdoor(p, act);
+        if (a.wait > (act.act === 'sit' ? 90 : act.act === 'patrol' ? 2 : act.act === 'chop' || act.act === 'fieldwork' || act.act === 'forage' ? 40 : 18)) { a.goal = null; a.wait = 0; }
+        return;
+      }
+      if (!a.path && !a.goal) this.route(p, act);
+    }
+
+    route(p, act) {
+      const a = p.agent;
+      let target;
+      if (act.b) { const b = this.building(act.b); target = this.entry(b); a.goalB = act.b; }
+      else { target = act.act === 'patrol' ? this.patrolTile(p) : this.zoneTile(p, act.zone); a.goalB = null; }
+      // leave the building we're in
+      if (a.inside != null) {
+        const b = this.building(a.inside); const [ex, ey] = this.entry(b);
+        [a.x, a.y] = this.tileCenter(ex, ey, p); a.inside = null; a.hidden = false;
+      }
+      const sx = Math.floor(a.x / this.T), sy = Math.floor((a.y - 1) / this.T);
+      a.goal = target;
+      if (sx === target[0] && sy === target[1]) { a.path = []; a.pi = 0; return; }
+      const path = this.path.find(sx, sy, target[0], target[1]);
+      if (!path) { a.path = null; a.goal = null; if (act.b) { a.inside = act.b; a.hidden = true; } return; }
+      a.path = path; a.pi = 0;
+    }
+
+    move(p, dtm) {
+      const a = p.agent;
+      if (a.hidden) return;
+      if (a.frozen) { a.anim = a.talking ? 'talk' : 'idle'; return; }
+      if (!a.path) { a.anim = this.idleAnim(p); return; }
+      let budget = this.speedOf(p) * dtm;
+      while (budget > 0 && a.path) {
+        if (a.pi >= a.path.length) { this.arrive(p); break; }
+        const [tx, ty] = a.path[a.pi];
+        const [gx, gy] = this.tileCenter(tx, ty, a.pi === a.path.length - 1 ? p : null);
+        const dx = gx - a.x, dy = gy - a.y, d = Math.hypot(dx, dy);
+        if (d <= budget) { a.x = gx; a.y = gy; budget -= d; a.pi++; }
+        else { a.x += (dx / d) * budget; a.y += (dy / d) * budget; budget = 0; }
+        if (d > 0.01) a.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 1 : 2) : (dy < 0 ? 3 : 0);
+      }
+      if (a.path) a.anim = a.carrying ? 'carry' : p.activity?.act === 'play' && p.id % 2 ? 'run' : 'walk';
+    }
+
+    idleAnim(p) {
+      const act = p.activity?.act;
+      if (act === 'sit') return 'sit';
+      if (act === 'chop' || act === 'fieldwork') return 'work';
+      if (act === 'forage') return 'crouch';
+      if (act === 'wait-work' || act === 'stroll') return p.agent.talking ? 'talk' : 'idle';
+      if (p.agent.talking) return 'talk';
+      return 'idle';
+    }
+
+    arrive(p) {
+      const a = p.agent; a.path = null;
+      if (a.goalB != null) { a.inside = a.goalB; a.hidden = true; a.enteredAt = this.minute; this.onEnter(p, a.goalB); }
+      else { a.wait = 0; if (p.activity?.act === 'sit') a.dir = 0; }
+    }
+
+    onEnter(p, bid) {
+      const act = p.activity; const t = p.task;
+      if (t && t.act === 'pickup' && bid === t.b) this.pickup(p);
+      else if (t && t.act === 'deliver' && bid === t.b) this.deliver(p);
+      else if (act.act === 'shop') this.buy(p, act);
+    }
+
+    doIndoor(p, act) {
+      const hh = this.household(p);
+      switch (act.act) {
+        case 'sleep': p.needs.energy = Math.min(100, p.needs.energy + 0.2); break;
+        case 'eat': case 'home':
+          if (p.needs.hunger < 55 && (hh.pantry.bread > 0 || hh.pantry.cabbage > 0)) {
+            if (hh.pantry.bread > 0) hh.pantry.bread -= p.age < 13 ? 0.5 : 1; else hh.pantry.cabbage -= 1;
+            hh.pantry.bread = Math.max(0, hh.pantry.bread); p.needs.hunger = Math.min(100, p.needs.hunger + 45);
+          } else if (p.needs.hunger < 15 && !p._hungryNoted) { p._hungryNoted = true; this.remember(p, 'There was nothing to eat at home.', 'hardship', 1); }
+          if (p.spouse && this.byId.get(p.spouse)?.agent.inside === p.home) p.needs.social = Math.min(100, p.needs.social + 0.15);
+          break;
+        case 'eat-out': {
+          const bz = this.biz.get(act.b);
+          if (!p._ateOut && bz && bz.stock.meal >= 1) { const pr = this.price(bz, 'meal'); if (hh.money >= pr) { this.sale(bz, 'meal', 1, pr, hh); p.needs.hunger = Math.min(100, p.needs.hunger + 60); p._ateOut = true; } }
+          break;
+        }
+        case 'socialise': {
+          const bz = this.biz.get(act.b);
+          p.needs.social = Math.min(100, p.needs.social + 0.25);
+          if (bz && this.minute % 45 < 1 && (bz.stock.ale || 0) >= 1) { const pr = this.price(bz, 'ale'); if (hh.money >= pr) this.sale(bz, 'ale', 1, pr, hh); }
+          if (bz && p.needs.hunger < 50 && (bz.stock.meal || 0) >= 1) { const pr = this.price(bz, 'meal'); if (hh.money >= pr) { this.sale(bz, 'meal', 1, pr, hh); p.needs.hunger = Math.min(100, p.needs.hunger + 60); } }
+          // meet others in the tavern
+          if (this.rng.chance(0.03)) {
+            const others = this.people.filter((q) => q !== p && q.agent.inside === act.b && q.activity?.act === 'socialise');
+            if (others.length) { const q = this.rng.pick(others); this.relate(p, q, 0.04); this.relate(q, p, 0.04); if (!p.rel.get(q.id) || p.rel.get(q.id).familiar < 0.1) this.remember(p, `Shared a jug with ${q.name} at the Lantern.`, 'social', 0.6, q.id); }
+          }
+          break;
+        }
+        case 'work': this.work(p); break;
+        case 'worship': p.needs.social = Math.min(100, p.needs.social + 0.1); break;
+        case 'shop': break;
+        default: break;
+      }
+    }
+
+    doOutdoor(p, act) {
+      if (act.act === 'fieldwork' || act.act === 'chop' || act.act === 'forage') this.work(p);
+      if ((act.act === 'stroll' || act.act === 'wait-work') && this.rng.chance(0.01)) {
+        const near = this.people.find((q) => q !== p && !q.agent.hidden && Math.hypot(q.agent.x - p.agent.x, q.agent.y - p.agent.y) < 30);
+        if (near) { this.relate(p, near, 0.02); p.agent.talking = 20; }
+      }
+      if (p.agent.talking) p.agent.talking--;
+    }
+
+    // ------------------------------------------------------------------ economy
+    work(p) {
+      const bz = this.biz.get(p.job.biz); if (!bz) return;
+      const role = p.job.role; const sk = p.skills[role] || 0.3;
+      p.skills[role] = Math.min(1, sk + 0.00004 * (this.has(p, 'ambitious') ? 1.6 : 1));
+      p.needs.energy = Math.max(0, p.needs.energy - 0.04);
+      for (const rc of bz.def.recipes) {
+        if (rc.role && rc.role !== role) continue;
+        // output scaled by skill: beginners work at half the pace of masters
+        const rate = (0.5 + sk * 0.75) / 60;
+        const target = bz.def.targets; let full = true;
+        for (const g of Object.keys(rc.out)) if ((bz.stock[g] || 0) >= (target[g] || 99) * 1.4) full = false;
+        if (!full) continue;
+        let ok = true; for (const [g, q] of Object.entries(rc.inp)) if ((bz.stock[g] || 0) < q * rate) ok = false;
+        if (!ok) { if (!bz._shortNoted) { bz._shortNoted = true; this.log(`${bz.name} ran short of ${Object.keys(rc.inp).map((g) => G[g].name.toLowerCase()).join(' and ')}.`, 'economy'); } continue; }
+        for (const [g, q] of Object.entries(rc.inp)) bz.stock[g] -= q * rate;
+        for (const [g, q] of Object.entries(rc.out)) { bz.stock[g] = (bz.stock[g] || 0) + q * rate; this.stats.produced[g] = (this.stats.produced[g] || 0) + q * rate; }
+      }
+    }
+
+    sale(bz, good, qty, unitPrice, hh) {
+      const total = unitPrice * qty;
+      bz.stock[good] -= qty; hh.money -= total;
+      const tax = total * this.treasury.taxRate; this.treasury.cash += tax; this.treasury.income += tax;
+      bz.cash += total - tax; bz.salesToday += total; bz.sold[good] = (bz.sold[good] || 0) + qty;
+      this.stats.sales += total;
+    }
+
+    buy(p, act) {
+      const bz = this.biz.get(act.b), hh = this.household(p);
+      if (!bz || !bz.open) { hh.failed = hh.failed || {}; hh.failed[act.good] = this.day; this.remember(p, `${bz?.name || 'The shop'} was shut when I went for ${G[act.good].name.toLowerCase()}.`, 'hardship', 0.5); return; }
+      const pr = this.price(bz, act.good);
+      const affordable = Math.floor(hh.money / pr);
+      const qty = Math.min(act.qty, Math.floor(bz.stock[act.good] || 0), affordable);
+      if (qty <= 0) { hh.failed = hh.failed || {}; hh.failed[act.good] = this.day; this.remember(p, affordable <= 0 ? `Couldn't afford ${G[act.good].name.toLowerCase()} at ${pr}d.` : `${bz.name} had no ${G[act.good].name.toLowerCase()} left.`, 'hardship', 1); p.task = null; return; }
+      this.sale(bz, act.good, qty, pr, hh);
+      if (pr > G[act.good].base * 1.6) this.remember(p, `${G[act.good].name} has gone up to ${pr}d at ${bz.name}.`, 'economy', 0.8);
+      // carry the goods home in person
+      p.task = { act: 'carry-home', b: p.home, good: act.good, qty };
+      p.agent.carrying = { good: act.good, qty };
+    }
+
+    openBusiness(bz) {
+      // reorder inputs that are running low: the supplier sends a worker or porter with the goods
+      for (const [good, srcType] of Object.entries(bz.def.buys || {})) {
+        const target = bz.def.targets[good] || 10;
+        if ((bz.stock[good] || 0) > target * 0.45) continue;
+        if (bz.orders.some((o) => o.good === good)) continue;
+        if (srcType === 'import') { this.queueImport(bz, good, target - (bz.stock[good] || 0)); continue; }
+        const src = this.supplierOf(srcType); if (!src) continue;
+        const qty = Math.min(Math.round(target - (bz.stock[good] || 0)), Math.floor((src.stock[good] || 0) * 0.7));
+        if (qty < 1 && good === 'tools' && (src.stock[good] || 0) >= 1) { /* single tool orders are fine */ }
+        else if (qty < 2 && good !== 'tools') { if (bz._wantNoted !== this.day + good) { bz._wantNoted = this.day + good; this.log(`${bz.name} wanted ${G[good].name.toLowerCase()} but ${src.name} had none to spare.`, 'economy'); } continue; }
+        const order = { good, qty, from: src.id, to: bz.id, price: this.price(src, good), id: Math.random() };
+        bz.orders.push(order);
+        this.assignDelivery(order);
+      }
+    }
+    closeBusiness(bz) { if (!bz.def.public) this.payWages(bz); }
+    payWages(bz) {
+      // pay wages at closing
+      for (const wid of bz.workers) {
+        const w = this.byId.get(wid); if (!w) continue;
+        const wage = bz.def.wage[w.job.role] || 0; if (!wage) continue;
+        const hh = this.household(w);
+        if (bz.def.public) { this.treasury.cash -= wage; this.treasury.spent += wage; hh.money += wage; this.stats.wages += wage; continue; }
+        const paid = Math.max(0, Math.min(wage, Math.floor(bz.cash)));
+        bz.cash -= paid; hh.money += paid; this.stats.wages += paid;
+        if (paid < wage) { this.remember(w, `${bz.name} could only pay ${paid}d of my ${wage}d.`, 'hardship', 1); w.mood -= 0.1; }
+      }
+      // owners take a share of profit
+      const owner = this.byId.get(bz.owner);
+      if (owner && bz.cash > 120) { const take = Math.floor((bz.cash - 120) * 0.5); bz.cash -= take; this.household(owner).money += take; }
+      bz.history.push({ day: this.day, sales: bz.salesToday }); if (bz.history.length > 14) bz.history.shift();
+      bz.salesToday = 0; bz._shortNoted = false;
+    }
+
+    assignDelivery(order) {
+      const src = this.biz.get(order.from);
+      // prefer an idle porter, then a non-owner worker of the supplier
+      const porters = this.people.filter((p) => p.job?.role === 'porter' && !p.task && p.activity?.act === 'wait-work');
+      const workers = src.workers.map((id) => this.byId.get(id)).filter((p) => p && p.id !== src.owner && !p.task);
+      const who = porters[0] || workers[0] || this.byId.get(src.owner);
+      if (!who || who.task) { order.waiting = true; return; }
+      who.task = { act: 'pickup', b: src.id, order };
+      this.remember(who, `Sent to fetch ${order.qty} ${G[order.good].unit}s of ${G[order.good].name.toLowerCase()} for ${this.biz.get(order.to).name}.`, 'work', 0.4);
+    }
+    pickup(p) {
+      const o = p.task.order, src = this.biz.get(o.from);
+      const qty = Math.min(o.qty, Math.floor(src.stock[o.good] || 0));
+      if (qty <= 0) { p.task = null; this.biz.get(o.to).orders = this.biz.get(o.to).orders.filter((x) => x !== o); return; }
+      src.stock[o.good] -= qty; o.qty = qty;
+      p.task = { act: 'deliver', b: o.to, order: o };
+      p.agent.carrying = { good: o.good, qty };
+    }
+    deliver(p) {
+      const o = p.task.order, dst = this.biz.get(o.to), src = this.biz.get(o.from);
+      dst.stock[o.good] = (dst.stock[o.good] || 0) + o.qty;
+      const cost = Math.round(o.qty * o.price);
+      const pay = Math.min(cost, Math.max(0, Math.floor(dst.cash)));
+      dst.cash -= pay; src.cash += pay;
+      if (p.job?.role === 'porter') { const fee = 2; dst.cash -= fee; this.household(p).money += fee; }
+      if (pay < cost) this.log(`${dst.name} could not pay ${src.name} in full for ${G[o.good].name.toLowerCase()} (${pay}d of ${cost}d).`, 'economy');
+      dst.orders = dst.orders.filter((x) => x !== o);
+      p.task = null; p.agent.carrying = null;
+      this.log(`${p.name} delivered ${o.qty} ${G[o.good].name.toLowerCase()} from ${src.name} to ${dst.name}.`, 'trade');
+    }
+
+    queueImport(bz, good, qty) {
+      if (this.trader) return;
+      // a travelling trader comes up the King's Road from the east with a laden cart
+      const r = this.rng;
+      const tr = this.newPerson({ sex: 'm', age: r.int(28, 55), first: r.pick(D.NAMES.m), sur: r.pick(['of Eastmarch', 'Chapman', 'Packer']), household: 0, home: null, genes: Ch.randomGenes(r, 'east'), wealth: 0.6, visitor: true });
+      tr.name = `${tr.first} ${tr.sur}`; tr.job = { biz: null, role: 'trader' };
+      tr.app = Ch.makeAppearance(O.hash('trader', tr.id), { sex: 'm', age: tr.age, genes: tr.genes, role: 'merchant', wealth: 0.65, region: 'east' });
+      tr.agent = { x: 95 * this.T, y: 31 * this.T, dir: 1, anim: 'walk', ft: 0, a: tr.app, hidden: false, inside: null, path: null, goal: null, person: tr, carrying: { good, qty } };
+      tr.task = { act: 'import', b: bz.id, good, qty: Math.round(qty) };
+      tr.wake = 0; tr.bed = 1440;
+      this.trader = tr;
+      this.log(`A trader, ${tr.name}, is on the road with ${Math.round(qty)} ${G[good].name.toLowerCase()}s for ${bz.name}.`, 'trade');
+    }
+
+    newDay() {
+      for (const p of this.people) {
+        p._ateOut = false; p._hungryNoted = false;
+        for (const m of p.memories) m.strength *= 0.88;
+        p.memories = p.memories.filter((m) => m.strength > 0.12);
+        if (p.needs.hunger < 20) { p.health.hp = Math.max(30, p.health.hp - 5); p.mood -= 0.05; }
+      }
+      // tools wear out with use and must be replaced from the smithy
+      for (const bz of this.biz.values()) if (bz.def.targets.tools && bz.type !== 'smithy') bz.stock.tools = Math.max(0, (bz.stock.tools || 0) - 0.12 * bz.workers.length);
+      // weekly hearth tax on Moonday
+      if (this.weekday === 0) for (const hh of this.households) { const t = Math.min(3, Math.max(0, hh.money)); hh.money -= t; this.treasury.cash += t; this.treasury.income += t; }
+      // households pick a shopper who is free in the day
+      for (const hh of this.households) {
+        const adults = hh.members.map((id) => this.byId.get(id)).filter((p) => p && p.age >= 16);
+        hh.shopper = (adults.find((p) => !p.job || p.shift === 'night') || adults[this.day % Math.max(1, adults.length)] || {}).id;
+      }
+      // trader visits finish
+      this.log(`${DAYNAMES[this.weekday]} dawns over Ashford.`, 'day');
+    }
+
+    // trader tasks plug into plan() via p.task; handle arrival here
+    handleTrader() {
+      const tr = this.trader; if (!tr) return;
+      const a = tr.agent;
+      if (tr.task.act === 'import' && a.inside === tr.task.b) {
+        const bz = this.biz.get(tr.task.b), qty = tr.task.qty, pr = G[tr.task.good].base;
+        bz.stock[tr.task.good] = (bz.stock[tr.task.good] || 0) + qty;
+        const pay = Math.min(bz.cash, qty * pr); bz.cash -= pay;
+        this.log(`${tr.name} sold ${qty} ${G[tr.task.good].name.toLowerCase()}s to ${bz.name} for ${Math.round(pay)}d.`, 'trade');
+        tr.task = { act: 'rest', b: this.tavernId }; a.carrying = null; tr.leaveAt = this.day + 1;
+      }
+      if (tr.task.act === 'rest' && this.day >= tr.leaveAt && this.hour > 8) tr.task = { act: 'leave', outdoor: true };
+      if (tr.task.act === 'leave') {
+        if (!a.path && a.inside == null && a.x > 93 * this.T) { this.people = this.people.filter((p) => p !== tr); this.byId.delete(tr.id); this.trader = null; this.log(`${tr.name} rode on east.`, 'trade'); }
+      }
+    }
+  }
+
+  // leave: walk to the east edge
+  const _zone = Sim.prototype.zoneTile;
+  Sim.prototype.zoneTile = function (p, zone) { if (p.task?.act === 'leave') return [95, 31]; return _zone.call(this, p, zone); };
+  const _tick = Sim.prototype.minuteTick;
+  Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
+  // carry-home and delivery tasks finish on entering the destination
+  const _onEnter = Sim.prototype.onEnter;
+  Sim.prototype.onEnter = function (p, bid) {
+    if (p.task?.act === 'carry-home' && bid === p.task.b) {
+      const hh = this.household(p); hh.pantry[p.task.good] = (hh.pantry[p.task.good] || 0) + p.task.qty;
+      p.task = null; p.agent.carrying = null; return;
+    }
+    _onEnter.call(this, p, bid);
+  };
+
+  O.Sim = Sim; O.DAYNAMES = DAYNAMES;
+})();

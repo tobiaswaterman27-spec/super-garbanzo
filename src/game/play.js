@@ -6,15 +6,24 @@
   const game = new O.Game($('game'));
   game.load(world, O.Forge.player);
   O.game = game;
+  const sim = new O.Sim(world, 11);
+  O.sim = sim;
+  // the simulation owns time; the engine reads it
+  game.clock = { speed: 1, get minute() { return sim.minute; }, set minute(v) {}, get day() { return sim.day; }, set day(v) {} };
+  game.hooks.update.push((dt) => {
+    sim.tick(dt * game.clock.speed);
+    game.actors = [game.player, ...sim.people.map((p) => p.agent)];
+  });
+  O.NpcUI.setup(game, sim);
 
-  const speeds = [[1, '1×'], [10, '10×'], [60, '60×']];
+  const speeds = [[1, '1×'], [10, '10×'], [60, '60×'], [240, '240×']];
   const seg = $('speedSeg');
   for (const [v, lab] of speeds) {
     const b = document.createElement('button'); b.textContent = lab; b.setAttribute('aria-pressed', v === game.clock.speed);
     b.onclick = () => { game.clock.speed = v; [...seg.children].forEach((x) => x.setAttribute('aria-pressed', x === b)); game.canvas.focus(); };
     seg.appendChild(b);
   }
-  const DAYS = ['Moonday', 'Tewsday', 'Wodensday', 'Thorsday', 'Freyday', 'Saturnday', 'Sunday'];
+  const DAYS = O.DAYNAMES;
   function hud() {
     const tl = $('hudTL');
     const where = placeName();

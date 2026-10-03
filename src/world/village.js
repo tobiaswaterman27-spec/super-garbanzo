@@ -72,7 +72,8 @@
     B({ type: 'store', name: 'General Store', x: 28, bottom: 40, w: 5, d: 4, wealth: 0.55, look: { wall: 'timber', plaster: 'plasterPink', roof: 'shingle', roofType: 'gable', chimney: true, sign: 'scales', doorTile: 2, shopWindow: true } });
     house(34, 40, 4, 4); house(39, 40, 5, 4, { floors: 2 }); house(48, 40, 4, 4); house(53, 40, 4, 3); house(58, 40, 4, 4);
     B({ type: 'chapel', name: 'Chapel of St. Aldric', x: 63, bottom: 40, w: 5, d: 5, wealth: 0.6, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 2, wallH: 38, noFlowers: true } });
-    house(70, 40, 4, 3);
+    house(69, 40, 4, 3);
+    B({ type: 'mill', name: 'Ashford Mill', x: 74, bottom: 40, w: 4, d: 4, floors: 2, wealth: 0.5, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'thatch', roofType: 'gable', doorTile: 1, noFlowers: true } });
     // Farm
     B({ type: 'farmhouse', name: 'Marsh Farm', x: 10, bottom: 51, w: 4, d: 3, wealth: 0.4, look: { wall: 'timber', roof: 'thatch', chimney: true, doorTile: 1 } });
     B({ type: 'barn', name: 'Marsh Barn', x: 23, bottom: 51, w: 6, d: 5, wealth: 0.3, look: { wall: 'plank', plankMat: 'plankRed', roof: 'shingle', roofType: 'gable', bigDoor: true, doorTile: 2, noFlowers: true } });

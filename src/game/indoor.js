@@ -186,6 +186,7 @@
         if (it.kind === 'stairs') out.push({ type: 'stairs', it, d: d - 2, x: cx, y: cy });
         if (it.portrait) out.push({ type: 'portrait', it, d: d + 2, x: cx, y: cy - 30 });
         if (O.workCandidate) { const wc = O.workCandidate(this, it, d, cx, cy); if (wc) out.push(wc); }
+        if (O.craftCandidate) { const cc = O.craftCandidate(this, it, d, cx, cy); if (cc) out.push(cc); }
       }
       return out;
     }

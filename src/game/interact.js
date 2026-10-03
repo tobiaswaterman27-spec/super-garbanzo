@@ -29,6 +29,7 @@
       if (O.noticeCandidate) { const nc = O.noticeCandidate(); if (nc) out.push(nc); }
       if (O.exitCandidate) { const ec = O.exitCandidate(); if (ec) out.push(ec); }
       if (O.saleCandidate) { const sc = O.saleCandidate(); if (sc) out.push(sc); }
+      if (O.stallCandidate) { const st = O.stallCandidate(); if (st) out.push(st); }
       for (const q of sim.people) { const a = q.agent; if (a.hidden) continue; const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < 26) out.push({ type: 'npc', person: q, d, x: a.x, y: a.y }); }
       const T = sim.T;
       for (const pr of sim.world.props) if (pr.kind === 'memorial' || (pr.kind === 'noticeboard' && pr.broadsheet)) { const d = Math.hypot(pr.x - p.x, pr.y - p.y); if (d < 22) out.push({ type: pr.kind === 'memorial' ? 'memorial' : 'broadsheet', prop: pr, d: d + 1, x: pr.x, y: pr.y - 30 }); }
@@ -57,7 +58,9 @@
         case 'container': return `Search ${c.it.kind}`;
         case 'grave': return 'Read the gravestone';
         case 'memorial': return 'Read the memorial';
-        case 'work': return O.workLabel();
+        case 'work': return O.Craft.RECIPES[c.it.kind] ? `${O.workLabel()} · or make your own` : O.workLabel();
+        case 'craft': return O.craftLabel(c);
+        case 'stall': return O.stallLabel();
         case 'portrait': return `Look at the portrait`;
         case 'broadsheet': return 'Buy a broadsheet · 1d';
         case 'caravan': return `Hail ${c.L.c.merchant}'s caravan`;
@@ -189,7 +192,9 @@
         case 'stash': O.GangUI.stash(); break;
         case 'campbed': sleep(); break;
         case 'memorial': O.ChronicleUI.memorial(cur.prop.epitaph); break;
-        case 'work': O.workShift(); break;
+        case 'work': if (O.Craft.RECIPES[cur.it.kind]) { const J = O.Work.job(); O.craftPanel({ it: cur.it, who: `${J.masterName}'s`, work: true }); } else O.workShift(); break;
+        case 'craft': O.craftPanel(cur); break;
+        case 'stall': O.mindStall(); break;
         case 'portrait': { const pr = cur.it.portrait; O.Panels.toast(`A likeness of ${pr.name}, painted in life. Died ${O.Chronicle.dateLabel(pr.died)}.`); break; }
         case 'broadsheet': O.ChronicleUI.broadsheet(); break;
         case 'grave': { const g = cur.prop.grave; O.Panels.toast(g ? `“Here lies ${g.name}, ${g.age} years. ${g.cause.replace('died ', '').replace(/^./, (c) => c.toUpperCase())}.”` : 'The old stone is worn smooth; you can no longer read the name.'); break; }

@@ -73,15 +73,22 @@
             const behind = spot.counter || spot.kind === 'desk' || spot.kind === 'altar' || spot.kind === 'bar';
             if (behind) { x = ax + (spot.kind === 'bar' ? ((q.id % 3) - 1) * 14 : 0); y = ay - spot.fh * T - (spot.kind === 'altar' ? -2 : 0) + (spot.kind === 'altar' ? 18 : 0); dir = 0; anim = q.agent.talking ? 'talk' : 'idle'; if (spot.kind === 'altar') { y = ay + 12; dir = 3; } }
             else { x = ax + (spot.kind === 'oven' || spot.kind === 'forge' ? 0 : 0); y = ay + 13; dir = 3; anim = spot.kind === 'medbed' ? 'idle' : 'work'; }
-            if (spot.kind === 'desk') anim = 'idle';
+            if (spot.kind === 'desk') anim = 'read';
+            if (spot.kind === 'altar') anim = (Math.floor(this.t / 8) + q.id) % 2 ? 'read' : 'talk';
+            if (spot.kind === 'cauldron') anim = 'cook';
+            if (spot.kind === 'bar' && q.agent.talking) anim = 'talk';
           }
-        } else if (['socialise', 'eat-out', 'eat', 'worship', 'rest', 'mourn', 'wedding', 'gangmeet'].includes(act) || (act === 'home' && q.stage !== 'baby')) {
+        } else if (act === 'mourn' || act === 'wedding') {
+          const c = L.items.find((i) => i.kind === 'altar') || L.items[0]; const [ax, ay] = this.anchor(c); const k = inside.filter((z) => z.activity?.act === act).indexOf(q);
+          x = ax + ((k % 6) - 2.5) * 12; y = ay + 26 + Math.floor(k / 6) * 14; dir = 3; anim = act === 'mourn' ? 'mourn' : (k % 3 === 0 ? 'celebrate' : 'idle');
+        } else if (['socialise', 'eat-out', 'eat', 'worship', 'rest', 'gangmeet', 'lessons', 'feast'].includes(act) || (act === 'home' && q.stage !== 'baby')) {
           spot = act === 'home' && q.id % 3 === 0 ? null : free(seats);
-          if (spot) { const [ax, ay] = this.anchor(spot); x = ax; y = ay + 2; dir = spot.pew ? 3 : 0; anim = 'sit'; if (spot.pew) { const k = inside.filter((z) => ['worship', 'mourn', 'wedding'].includes(z.activity?.act)).indexOf(q) % 3; x = ax + (k - 1) * 14; } }
+          if (spot) { const [ax, ay] = this.anchor(spot); x = ax; y = ay + 2; dir = spot.pew ? 3 : 0; anim = 'sit'; if (spot.pew) { const k = inside.filter((z) => ['worship', 'lessons'].includes(z.activity?.act)).indexOf(q) % 3; x = ax + (k - 1) * 14; } }
         } else if (act === 'shop' || act === 'deliver' || act === 'pickup' || act === 'carry-home' || act === 'import') {
           const c = L.items.find((i) => i.counter);
           if (c) { const [ax, ay] = this.anchor(c); x = ax + ((q.id % 3) - 1) * 12; y = ay + 14; dir = 3; anim = q.agent.carrying ? 'carry' : 'idle'; }
         }
+        if (x == null && act === 'socialise' && b.type === 'tavern') { const bar = L.items.find((i) => i.kind === 'bar'); if (bar) { const [ax, ay] = this.anchor(bar); const k = q.id % 5; x = ax - 24 + k * 12; y = ay + 14; dir = 3; anim = (Math.floor(this.t / 3) + q.id) % 3 ? 'drink' : 'talk'; } }
         if (x == null) { const t = idleTiles[(q.id * 7) % Math.max(1, idleTiles.length)] || [0, 0]; [x, y] = this.tileXY(t[0], t[1]); x += (q.id % 3) * 3 - 3; dir = (q.id + Math.floor(this.t / 6)) % 4 === 3 ? 0 : (q.id + Math.floor(this.t / 6)) % 4; anim = q.agent.talking ? 'talk' : q.stage === 'baby' ? 'crouch' : 'idle'; }
         if (spot && spot.kind !== 'pew' && spot.kind !== 'bar') used.add(spot);
         let a = this.actors.get(q.id);

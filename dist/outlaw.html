@@ -61,6 +61,8 @@ input[type=range] { width: 100%; accent-color: var(--ember); }
 .satchel-btn { position: absolute; right: 120px; bottom: 12px; }
 .gang-btn { position: absolute; right: 240px; bottom: 12px; }
 .savebar { display: flex; gap: 4px; }
+.soundbtn { background: var(--ink); border: 2px solid var(--line); padding: 2px 8px; cursor: pointer; font-family: var(--pix); font-size: 9px; letter-spacing: 1px; justify-self: end; }
+.soundbtn[aria-pressed="true"] { border-color: var(--ember-2); color: var(--ember-2); }
 .savebar button { background: var(--ink); border: 2px solid var(--line); padding: 2px 8px; cursor: pointer; font-family: var(--pix); font-size: 9px; letter-spacing: 1px; }
 .savebar button:hover { border-color: var(--ember-2); color: var(--ember-2); }
 .map-btn { position: absolute; right: 344px; bottom: 12px; }
@@ -156,7 +158,7 @@ main > .wrap { overflow: auto; }
 </style>
 
 <header class="top">
-  <div class="brand">Outlaw<small>BUILD 0.14 · LAND & LORDSHIP</small></div>
+  <div class="brand">Outlaw<small>BUILD 0.15 · FAIR DAYS</small></div>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" role="tab" aria-selected="true" data-tab="play">Play</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="forge">Character</button>
@@ -770,6 +772,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     sit: { frames: 2, fps: 1.5 }, work: { frames: 4, fps: 6 }, eat: { frames: 4, fps: 3 },
     talk: { frames: 4, fps: 4 }, carry: { frames: 6, fps: 9 }, wave: { frames: 4, fps: 6 },
     crouch: { frames: 2, fps: 2 }, sweep: { frames: 4, fps: 5 }, sleep: { frames: 2, fps: 1 }, lie: { frames: 1, fps: 1 },
+    drink: { frames: 4, fps: 2.5 }, read: { frames: 2, fps: 1 }, celebrate: { frames: 4, fps: 5 }, mourn: { frames: 2, fps: 1 },
+    point: { frames: 2, fps: 2 }, dig: { frames: 4, fps: 4 }, cook: { frames: 4, fps: 4 },
   };
 
   function pose(m, dir, anim, f) {
@@ -814,6 +818,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     const shY = hipY - m.torso;
     p.hipY = hipY; p.shY = shY; p.sitting = sitting; p.crouch = crouch;
     p.headCy = shY - 1 - m.headRy + 1 + (m.stoop ? 1 : 0);
+    if (anim === 'read' || anim === 'mourn') p.headCy += 1;
     p.headCx = cx + (side ? p.lean * 0.8 + (m.stoop ? 1 : 0) : 0);
 
     const legLen = m.leg; const up = legLen * 0.52, lo = legLen - up;
@@ -933,6 +938,48 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       if (side) { A.el = [sx + 1.5, sy + 4]; A.hand = [sx + 3 + s, sy + 7]; }
       else { const sg = sx < 16 ? -1 : 1; A.el = [sx + sg * 0.8, sy + 4]; A.hand = [sx + sg * (s - 1), sy + 8]; }
       p.toolAngle = (s - 1) * 0.3;
+    }
+    // everyday actions
+    const both = (fn) => { for (const k of ['armA', 'armB']) fn(p[k], k); };
+    const sgnOf = (a) => (side ? 1 : a.sh[0] < 16 ? -1 : 1);
+    if (anim === 'drink') {
+      const up = f === 1 || f === 2, sx = A.sh[0], sy = A.sh[1], sg = sgnOf(A);
+      if (side) { A.el = [sx + 2.4, sy + 3.5]; A.hand = up ? [sx + 3.5, p.headCy + 2.5] : [sx + 5, sy + 4.5]; }
+      else { A.el = [sx + sg, sy + 4]; A.hand = up ? [sx - sg * 2.5, p.headCy + 3] : [sx - sg * 1, sy + 6]; }
+      p.heldOverride = 'mug'; p.mouth = up ? 0 : 0;
+    }
+    if (anim === 'read') {
+      both((a) => { const sg = sgnOf(a); if (side) { a.el = [a.sh[0] + 1.5, a.sh[1] + 4]; a.hand = [a.sh[0] + 4.5, a.sh[1] + 4]; } else { a.el = [a.sh[0] + sg * 0.6, a.sh[1] + 4.2]; a.hand = [a.sh[0] - sg * 2.6, a.sh[1] + 5.2]; } });
+      p.heldOverride = 'book'; p.headDown = 1;
+    }
+    if (anim === 'celebrate') {
+      const hi = f % 2 === 0;
+      both((a, k) => {
+        if (side) { const far = k === 'armB'; a.el = [a.sh[0] + (far ? 2 : 4.5), a.sh[1] - 2]; a.hand = [a.sh[0] + (far ? 3 : 8) + (hi ? 0.5 : 0), a.sh[1] - (hi ? 8 : 7)]; return; }
+        const sg = sgnOf(a); a.el = [a.sh[0] + sg * 3, a.sh[1] - 2.5]; a.hand = [a.sh[0] + sg * (hi ? 5.5 : 4.5), a.sh[1] - (hi ? 9 : 7.5)];
+      });
+      p.bob = hi ? -1 : 0; p.mouth = 1;
+    }
+    if (anim === 'mourn') {
+      both((a) => { const sg = sgnOf(a); if (side) { a.el = [a.sh[0] + 1, a.sh[1] + 4]; a.hand = [a.sh[0] + 3, a.sh[1] + 6]; } else { a.el = [a.sh[0] + sg * 0.3, a.sh[1] + 4.5]; a.hand = [p.cx + sg * 0.8, a.sh[1] + 7]; } });
+      p.headDown = 1; p.blinkForce = true;
+    }
+    if (anim === 'point') {
+      const sx = A.sh[0], sy = A.sh[1], sg = sgnOf(A);
+      if (side) { A.el = [sx + 4.5, sy + 0.5]; A.hand = [sx + 9.5, sy - 0.5 - f]; } else { A.el = [sx + sg * 4, sy + 1]; A.hand = [sx + sg * 8, sy + 0.5 - f]; }
+      p.mouth = f;
+    }
+    if (anim === 'dig') {
+      const ph = [0, 1, 2, 1][f], sx = A.sh[0], sy = A.sh[1], sg = sgnOf(A);
+      if (side) { A.el = [sx + 2, sy + 3 + ph]; A.hand = [sx + 4 + ph, sy + 6 + ph * 1.5]; const B2 = p.armB; B2.el = [B2.sh[0] + 2.5, B2.sh[1] + 2]; B2.hand = [B2.sh[0] + 5, B2.sh[1] + 2 + ph]; }
+      else { A.el = [sx + sg, sy + 4]; A.hand = [sx - sg * 0.5, sy + 6 + ph * 1.5]; }
+      p.heldOverride = 'spade'; p.toolAngle = side ? 2.5 + ph * 0.2 : 3.0; p.crouchLean = ph;
+    }
+    if (anim === 'cook') {
+      const ph = f % 4, sx = A.sh[0], sy = A.sh[1], sg = sgnOf(A);
+      if (side) { A.el = [sx + 2.5, sy + 3.5]; A.hand = [sx + 5 + (ph % 2), sy + 5 + (ph > 1 ? 1 : 0)]; }
+      else { A.el = [sx + sg * 0.5, sy + 4]; A.hand = [sx - sg * (1 + (ph % 2)), sy + 6.5 + (ph > 1 ? 0.5 : 0)]; }
+      p.heldOverride = 'ladle'; p.toolAngle = 2.6;
     }
     if (anim === 'sit' && !side) {
       for (const k of ['armA', 'armB']) { const a = p[k]; a.el = [a.sh[0] + (a.sh[0] < 16 ? -0.5 : 0.5), a.sh[1] + m.armU]; a.hand = [a.el[0] + (a.sh[0] < 16 ? 1.5 : -1.5), a.el[1] + 3.5]; }
@@ -1062,7 +1109,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     const o = a.outfit;
     if (o.sleeves === 'long') B.tweak(A.el[0], A.el[1] + (p.side ? 0 : 0.6), -1);
     // tool
-    if (isToolArm && o.item && !p.carrying && p.anim !== 'sleep') { B.part(G.ITEM); drawItem(B, a, o.item, A, p); B.part(G.ARMS); }
+    const held = p.heldOverride || o.item;
+    if (isToolArm && held && !p.carrying && p.anim !== 'sleep') { B.part(G.ITEM); drawItem(B, a, held, A, p); B.part(G.ARMS); }
   }
 
   function drawTorso(B, a, m, p, cov) {
@@ -1210,7 +1258,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     }
     if (dir === 3) return;
     const eyeY = Math.floor(hy + 0.5);
-    const blink = p.anim === 'idle' && p.f === 3 && (a.variant % 3 === 0);
+    const blink = (p.anim === 'idle' && p.f === 3 && (a.variant % 3 === 0)) || p.blinkForce;
     const elder = a.stage === 'elder';
     const plotFlat = (x, y, mt, s) => { B.plot(x, y, mt, s, 1); };
     if (dir === 0) {
@@ -1561,7 +1609,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       case 'bread': B.blob(hx + dirx * 1.5, hy, 2.4, 1.5, P.mat('#c48a45', 'wood'), { power: 2 }); break;
       case 'mug': B.blob(hx + dirx, hy - 0.5, 1.4, 1.8, P.mat(P.wood.walnut, 'wood'), { power: 3 }); B.plot(hx + dirx, hy - 2, P.mat(C.white), 3); break;
       case 'basket': { const bm = P.mat('#b08850', 'wood'); B.blob(hx, hy + 2, 2.8, 2, bm, { power: 3 }); for (let x = -2; x <= 2; x++) B.tweak(hx + x, hy + 2 + (x % 2), -1); break; }
-      case 'book': B.blob(hx + dirx, hy + 0.5, 1.6, 2, P.mat(C.crimson), { power: 4 }); break;
+      case 'book': if (p.anim === 'read') { const bx = p.side ? hx - 1 : p.cx, by = hy - 1; B.blob(bx, by, p.side ? 1.4 : 3.2, 2, P.mat(C.crimson), { power: 4 }); B.plot(bx, by - 1, P.mat(C.white), 3); if (!p.side) { B.plot(bx - 1, by - 1, P.mat(C.white), 3); B.plot(bx + 1, by - 1, P.mat(C.white), 3); } } else B.blob(hx + dirx, hy + 0.5, 1.6, 2, P.mat(C.crimson), { power: 4 }); break;
+      case 'spade': { const a0 = along(-5), a1 = along(9); B.capsule(a0[0], a0[1], a1[0], a1[1], 0.6, 0.6, W); B.blob(a1[0], a1[1] + 1, 1.6, 2, I, { power: 3 }); break; }
+      case 'ladle': { const a1 = along(6); B.capsule(hx, hy, a1[0], a1[1], 0.5, 0.5, W); B.blob(a1[0], a1[1], 1.2, 1, I, { power: 2 }); break; }
       case 'satchel': break; // carried at hip, drawn with belt pouch
       case 'sack': B.blob(hx, hy + 2, 2.5, 3, P.mat(C.linen), { power: 2 }); break;
       case 'net': { const nm = P.mat('#9a8a6a', 'cloth'); for (let k = 0; k < 4; k++) for (let j = 0; j < 3; j++) B.plot(hx + dirx * (k - 1), hy + 1 + j * 1.5 + (k % 2) * 0.7, nm, 2); break; }
@@ -3670,6 +3720,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       if (!this.events || p.visitor || p.age < 6) return null;
       const h = this.hour;
       for (const e of this.events) {
+        // the wedding feast at the tavern that evening
+        if (e.kind === 'wedding' && e.day === this.day && h >= 18 && h < 22 && (p.id === e.a || p.id === e.b || (p.rel.get(e.a)?.familiar || 0) > 0.2 || (p.rel.get(e.b)?.familiar || 0) > 0.2)) return { act: 'feast', b: this.tavernId };
         if (e.day !== this.day || h < 10 || h >= 11.5) continue;
         const close = e.kind === 'funeral' ? (this.household(p)?.members.includes(e.who) || (p.rel.get(e.who)?.affinity || 0) > 0.2 || this.byId.get(e.who)?.household === p.household || (this.dead.find((d) => d.id === e.who)?.household === p.household)) : (p.id === e.a || p.id === e.b || (p.rel.get(e.a)?.familiar || 0) > 0.2 || (p.rel.get(e.b)?.familiar || 0) > 0.2 || this.household(p) === this.household(this.byId.get(e.a) || {}));
         if (close) return { act: e.kind === 'funeral' ? 'mourn' : 'wedding', b: this.chapelId };
@@ -4500,6 +4552,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     entry(b) { return [b.doorX, b.doorY]; }
     tileCenter(tx, ty, p) { const j = p ? ((p.id * 7) % 5) - 2 : 0; return [tx * this.T + 8 + j * 2, ty * this.T + 10 + ((p?.id || 0) % 3)]; }
     get hour() { return this.minute / 60; }
+    festival() { return this.season === 'autumn' && this.weather && this.weather.dayOfSeason === 10; }
     get raining() { return this.weather ? this.weather.raining : false; }
     get season() { return this.weather ? this.weather.season : 'summer'; }
     get weekday() { return (this.day - 1) % 7; }
@@ -4537,6 +4590,10 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const asleep = m < p.wake || m >= p.bed;
       if (asleep) return { act: 'sleep', b: home };
       const ev = this.eventPlan(p); if (ev) return ev;
+      // the harvest festival: the square fills from mid-afternoon
+      if (this.festival() && h >= 15 && h < 21.5 && p.age >= 3 && !(p.job?.role?.startsWith('guard') && (p.id % 2))) return { act: 'festival', outdoor: true, zone: 'square' };
+      // children's lessons at the chapel on weekday mornings; the priest teaches letters
+      if (wd !== 6 && h >= 9 && h < 12 && p.age >= 6 && p.age <= 12 && (p.id + this.day) % 5 !== 0) return { act: 'lessons', b: this.chapelId };
       const gp = this.gangPlan(p); if (gp) return gp;
       const sunday = wd === 6;
       if (sunday && h >= 9 && h < 10.5 && p.age >= 6) return { act: 'worship', b: this.chapelId };
@@ -4791,7 +4848,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       if (act.outdoor && !a.path && a.goal && a.inside == null) {
         a.wait = (a.wait || 0) + 1;
         this.doOutdoor(p, act);
-        if (a.wait > (act.act === 'sit' ? 90 : act.act === 'patrol' ? 2 : act.act === 'chop' || act.act === 'fieldwork' || act.act === 'forage' || act.act === 'build' || act.act === 'gangmeet' ? 40 : 18)) { a.goal = null; a.wait = 0; }
+        if (a.wait > (act.act === 'sit' ? 90 : act.act === 'patrol' ? 2 : act.act === 'chop' || act.act === 'fieldwork' || act.act === 'forage' || act.act === 'build' || act.act === 'gangmeet' ? 40 : act.act === 'festival' ? 25 : 18)) { a.goal = null; a.wait = 0; }
         return;
       }
       if (!a.path && !a.goal) this.route(p, act);
@@ -4838,7 +4895,10 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const act = p.activity?.act;
       if (act === 'sit') return 'sit';
       if (act === 'collapsed') return 'lie';
-      if (act === 'chop' || act === 'fieldwork' || act === 'build') return 'work';
+      if (act === 'fieldwork') return this.season === 'spring' ? 'dig' : 'work';
+      if (act === 'chop' || act === 'build') return 'work';
+      if (act === 'festival') { const k = (p.id + Math.floor(this.minute / 7)) % 5; return p.age < 13 ? (k % 2 ? 'run' : 'celebrate') : k === 0 ? 'celebrate' : k === 1 ? 'drink' : k === 2 ? 'talk' : 'idle'; }
+      if (act === 'cry') return 'point';
       if (act === 'forage') return 'crouch';
       if (act === 'gangmeet') return p.agent.talking ? 'talk' : 'idle';
       if (act === 'wait-work' || act === 'stroll') return p.agent.talking ? 'talk' : 'idle';
@@ -4889,6 +4949,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         }
         case 'work': this.work(p); break;
         case 'worship': p.needs.social = Math.min(100, p.needs.social + 0.1); break;
+        case 'lessons': p.literacy = Math.min(1, (p.literacy || 0) + 0.0004); p.needs.social = Math.min(100, p.needs.social + 0.05); break;
+        case 'feast': p.needs.social = Math.min(100, p.needs.social + 0.3); if (p.needs.hunger < 70) p.needs.hunger = Math.min(100, p.needs.hunger + 0.5); break;
         case 'shop': break;
         default: break;
       }
@@ -5089,6 +5151,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const season = this.season;
       if (season !== this._season) { if (this._season) this.log(`${season[0].toUpperCase() + season.slice(1)} comes to ${this.world.name}.`, 'season'); this._season = season; this.seasonChanged = true; }
       this.log(`${DAYNAMES[this.weekday]} dawns over ${this.world.name}.`, 'day');
+      if (this.festival()) this.log(`It is the harvest festival in ${this.world.name}: music in the square from mid-afternoon.`, 'festival');
     }
 
     // trader tasks plug into plan() via p.task; handle arrival here
@@ -5876,15 +5939,22 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
             const behind = spot.counter || spot.kind === 'desk' || spot.kind === 'altar' || spot.kind === 'bar';
             if (behind) { x = ax + (spot.kind === 'bar' ? ((q.id % 3) - 1) * 14 : 0); y = ay - spot.fh * T - (spot.kind === 'altar' ? -2 : 0) + (spot.kind === 'altar' ? 18 : 0); dir = 0; anim = q.agent.talking ? 'talk' : 'idle'; if (spot.kind === 'altar') { y = ay + 12; dir = 3; } }
             else { x = ax + (spot.kind === 'oven' || spot.kind === 'forge' ? 0 : 0); y = ay + 13; dir = 3; anim = spot.kind === 'medbed' ? 'idle' : 'work'; }
-            if (spot.kind === 'desk') anim = 'idle';
+            if (spot.kind === 'desk') anim = 'read';
+            if (spot.kind === 'altar') anim = (Math.floor(this.t / 8) + q.id) % 2 ? 'read' : 'talk';
+            if (spot.kind === 'cauldron') anim = 'cook';
+            if (spot.kind === 'bar' && q.agent.talking) anim = 'talk';
           }
-        } else if (['socialise', 'eat-out', 'eat', 'worship', 'rest', 'mourn', 'wedding', 'gangmeet'].includes(act) || (act === 'home' && q.stage !== 'baby')) {
+        } else if (act === 'mourn' || act === 'wedding') {
+          const c = L.items.find((i) => i.kind === 'altar') || L.items[0]; const [ax, ay] = this.anchor(c); const k = inside.filter((z) => z.activity?.act === act).indexOf(q);
+          x = ax + ((k % 6) - 2.5) * 12; y = ay + 26 + Math.floor(k / 6) * 14; dir = 3; anim = act === 'mourn' ? 'mourn' : (k % 3 === 0 ? 'celebrate' : 'idle');
+        } else if (['socialise', 'eat-out', 'eat', 'worship', 'rest', 'gangmeet', 'lessons', 'feast'].includes(act) || (act === 'home' && q.stage !== 'baby')) {
           spot = act === 'home' && q.id % 3 === 0 ? null : free(seats);
-          if (spot) { const [ax, ay] = this.anchor(spot); x = ax; y = ay + 2; dir = spot.pew ? 3 : 0; anim = 'sit'; if (spot.pew) { const k = inside.filter((z) => ['worship', 'mourn', 'wedding'].includes(z.activity?.act)).indexOf(q) % 3; x = ax + (k - 1) * 14; } }
+          if (spot) { const [ax, ay] = this.anchor(spot); x = ax; y = ay + 2; dir = spot.pew ? 3 : 0; anim = 'sit'; if (spot.pew) { const k = inside.filter((z) => ['worship', 'lessons'].includes(z.activity?.act)).indexOf(q) % 3; x = ax + (k - 1) * 14; } }
         } else if (act === 'shop' || act === 'deliver' || act === 'pickup' || act === 'carry-home' || act === 'import') {
           const c = L.items.find((i) => i.counter);
           if (c) { const [ax, ay] = this.anchor(c); x = ax + ((q.id % 3) - 1) * 12; y = ay + 14; dir = 3; anim = q.agent.carrying ? 'carry' : 'idle'; }
         }
+        if (x == null && act === 'socialise' && b.type === 'tavern') { const bar = L.items.find((i) => i.kind === 'bar'); if (bar) { const [ax, ay] = this.anchor(bar); const k = q.id % 5; x = ax - 24 + k * 12; y = ay + 14; dir = 3; anim = (Math.floor(this.t / 3) + q.id) % 3 ? 'drink' : 'talk'; } }
         if (x == null) { const t = idleTiles[(q.id * 7) % Math.max(1, idleTiles.length)] || [0, 0]; [x, y] = this.tileXY(t[0], t[1]); x += (q.id % 3) * 3 - 3; dir = (q.id + Math.floor(this.t / 6)) % 4 === 3 ? 0 : (q.id + Math.floor(this.t / 6)) % 4; anim = q.agent.talking ? 'talk' : q.stage === 'baby' ? 'crouch' : 'idle'; }
         if (spot && spot.kind !== 'pew' && spot.kind !== 'bar') used.add(spot);
         let a = this.actors.get(q.id);
@@ -6109,7 +6179,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   const G = O.Data.GOODS;
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const ACT_LABEL = {
-    sleep: 'asleep', work: 'working', fieldwork: 'working the fields', chop: 'felling timber', council: 'away at the castle council', cry: 'crying the news', gangmeet: 'meeting at the hideout', report: 'reporting a crime to the watch', investigate: 'investigating a crime', jailed: 'locked in the cell', market: 'coming to market', service: 'in service at a house', sick: 'ill in bed', collapsed: 'collapsed!', help: 'running to help someone', escort: 'helping a patient to the physician', 'to-doctor': 'going to the physician', treated: 'being treated by the physician', mourn: 'at a funeral', wedding: 'at a wedding', build: 'building the new house', 'move-in': 'moving to Ashford', forage: 'gathering herbs', patrol: 'on patrol', eat: 'having a meal', 'eat-out': 'eating at the tavern',
+    sleep: 'asleep', work: 'working', fieldwork: 'working the fields', chop: 'felling timber', festival: 'at the harvest festival', lessons: 'at lessons in the chapel', feast: 'at a wedding feast', council: 'away at the castle council', cry: 'crying the news', gangmeet: 'meeting at the hideout', report: 'reporting a crime to the watch', investigate: 'investigating a crime', jailed: 'locked in the cell', market: 'coming to market', service: 'in service at a house', sick: 'ill in bed', collapsed: 'collapsed!', help: 'running to help someone', escort: 'helping a patient to the physician', 'to-doctor': 'going to the physician', treated: 'being treated by the physician', mourn: 'at a funeral', wedding: 'at a wedding', build: 'building the new house', 'move-in': 'moving to Ashford', forage: 'gathering herbs', patrol: 'on patrol', eat: 'having a meal', 'eat-out': 'eating at the tavern',
     home: 'at home', play: 'playing', shop: 'shopping', socialise: 'drinking at the Lantern', sit: 'resting on the bench', stroll: 'taking the air', worship: 'at chapel',
     'wait-work': 'waiting for carrying work', pickup: 'collecting goods', deliver: 'making a delivery', 'carry-home': 'carrying shopping home', import: 'bringing goods to market', rest: 'resting at the inn', leave: 'leaving town',
   };
@@ -6951,6 +7021,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     function posOf(q) { if (game.scene) return game.scene.personPos(q); return q.agent.hidden ? null : [q.agent.x, q.agent.y]; }
 
     function puff(x, y, blade) {
+      O.Sound && O.Sound.play('thud', 0.8);
       for (let i = 0; i < 6; i++) fx.push({ x, y: y - 10, vx: (Math.random() - 0.5) * 40, vy: -Math.random() * 30, t: 0, max: 0.35, c: 'rgba(170,140,100,0.8)' });
       if (blade) for (let i = 0; i < 3; i++) fx.push({ x, y: y - 14, vx: (Math.random() - 0.5) * 30, vy: Math.random() * 20, t: 0, max: 0.25, c: 'rgba(170,40,40,0.85)' });
       fx.push({ x, y: y - 16, flash: true, t: 0, max: 0.12 });
@@ -7550,6 +7621,21 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       });
     };
 
+    // bunting across the square on festival days
+    const FLAG = ['#a8382f', '#e0c040', '#3f5f8e', '#ece4d0', '#3d5e34'];
+    game.hooks.drawWorld.push((ctx, cam) => {
+      if (game.scene || !sim.festival || !sim.festival()) return;
+      const sq = sim.Z.square, y0 = sq[1] * 16 - 4, x0 = sq[0] * 16, x1 = sq[2] * 16 + 16;
+      for (let row = 0; row < 3; row++) {
+        const yy = y0 + row * 34 - cam.y;
+        for (let x = x0; x < x1; x++) {
+          const sag = Math.sin(((x - x0) / (x1 - x0)) * Math.PI) * 10, y = Math.round(yy + sag);
+          ctx.fillStyle = '#3a2a1a'; ctx.fillRect(x - cam.x, y, 1, 1);
+          if ((x - x0) % 8 === 0) { ctx.fillStyle = FLAG[((x - x0) / 8 + row) % FLAG.length]; for (let k = 0; k < 4; k++) ctx.fillRect(x - cam.x + 1, y + 1 + k, 4 - k, 1); }
+        }
+      }
+    });
+
     // ---------------- reeve to council, crier, notices ----------------
     const reeve = sim.reeveId ? sim.byId.get(sim.reeveId) : sim.people.filter((p) => p.age >= 35 && !p.visitor && !p.job?.role?.startsWith('guard') && !p.gang).sort((a, b) => sim.household(b).money - sim.household(a).money)[0];
     if (reeve) { reeve.title = 'Reeve of Ashford'; sim.reeveId = reeve.id; }
@@ -7866,6 +7952,108 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     game.keyHandlers.push((e) => { if (e.code === 'KeyP' && !O.panelOpen) { holdings(); return true; } return false; });
   }
   O.PropertyUI = { setup };
+})();
+
+</script>
+<script>
+// Procedural audio: no sound files, everything synthesised with WebAudio so it can follow the
+// simulation. Ambient beds (wind, rain, crowd murmur, fire crackle) are filtered noise whose levels
+// track the weather and who is nearby; point sounds (the smith's hammer, the chapel bell, birds,
+// crickets, the dawn rooster, hoofbeats, footsteps, blows) are short synth voices placed in the
+// world and attenuated by distance. Outdoor sound is muffled when you are indoors.
+'use strict';
+(function () {
+  function setup(game, sim) {
+    let ctx = null, master, outBus, outFilter, inBus, noise, beds = {}, enabled = false;
+    const pref = (() => { try { return localStorage.getItem('outlaw.sound') === 'on'; } catch (e) { return false; } })();
+    const btn = document.createElement('button'); btn.className = 'soundbtn'; btn.setAttribute('aria-pressed', 'false'); btn.textContent = 'Sound: off';
+    document.getElementById('hudTR').appendChild(btn);
+
+    function start() {
+      if (ctx) { ctx.resume(); return; }
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      master = ctx.createGain(); master.gain.value = 0.55; master.connect(ctx.destination);
+      outFilter = ctx.createBiquadFilter(); outFilter.type = 'lowpass'; outFilter.frequency.value = 18000; outFilter.connect(master);
+      outBus = ctx.createGain(); outBus.connect(outFilter);
+      inBus = ctx.createGain(); inBus.connect(master);
+      const len = ctx.sampleRate * 2; noise = ctx.createBuffer(1, len, ctx.sampleRate); const d = noise.getChannelData(0); for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      const bed = (bus, type, freq, q) => { const src = ctx.createBufferSource(); src.buffer = noise; src.loop = true; const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q; const g = ctx.createGain(); g.gain.value = 0; src.connect(f); f.connect(g); g.connect(bus); src.start(); return { g, f }; };
+      beds.wind = bed(outBus, 'bandpass', 380, 0.6);
+      beds.rain = bed(outBus, 'highpass', 1800, 0.4);
+      beds.crowd = bed(outBus, 'bandpass', 720, 1.4);
+      beds.fire = bed(inBus, 'lowpass', 1400, 0.5);
+      beds.room = bed(inBus, 'bandpass', 600, 1.2);
+    }
+    function setEnabled(v) {
+      enabled = v; btn.textContent = v ? 'Sound: on' : 'Sound: off'; btn.setAttribute('aria-pressed', String(v));
+      try { localStorage.setItem('outlaw.sound', v ? 'on' : 'off'); } catch (e) { /* ignore */ }
+      if (v) start(); else if (ctx) ctx.suspend();
+    }
+    btn.onclick = () => { setEnabled(!enabled); game.canvas.focus(); };
+    // sound can only begin after the player interacts; honour a remembered preference then
+    const kick = () => { if (pref && !enabled) setEnabled(true); window.removeEventListener('keydown', kick); window.removeEventListener('pointerdown', kick); };
+    window.addEventListener('keydown', kick); window.addEventListener('pointerdown', kick);
+
+    // ---- voices ----
+    const now = () => ctx.currentTime;
+    function env(g, t, a, peak, decay) { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + decay); }
+    function tone(bus, freq, type, peak, decay, t = now(), detune = 0) { const o = ctx.createOscillator(); o.type = type; o.frequency.value = freq; o.detune.value = detune; const g = ctx.createGain(); o.connect(g); g.connect(bus); env(g, t, 0.005, peak, decay); o.start(t); o.stop(t + decay + 0.05); return o; }
+    function burst(bus, type, freq, peak, decay, t = now()) { const s = ctx.createBufferSource(); s.buffer = noise; s.playbackRate.value = 0.8 + Math.random() * 0.4; const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; const g = ctx.createGain(); s.connect(f); f.connect(g); g.connect(bus); env(g, t, 0.003, peak, decay); s.start(t, Math.random()); s.stop(t + decay + 0.05); }
+    const V = {
+      bell(strikes, vol) { for (let i = 0; i < strikes; i++) { const t = now() + i * 1.6; for (const [r, a] of [[1, 1], [2, 0.5], [2.4, 0.35], [3, 0.25], [4.2, 0.15]]) tone(outBus, 196 * r, 'sine', 0.18 * a * vol, 3.2, t); } },
+      hammer(vol, bus = outBus) { const t = now(); for (const [f, a] of [[1180, 1], [1730, 0.6], [2650, 0.4]]) tone(bus, f, 'sine', 0.12 * a * vol, 0.22, t); burst(bus, 'highpass', 3000, 0.08 * vol, 0.04, t); },
+      bird(vol) { const t0 = now(), n = 2 + Math.floor(Math.random() * 3), base = 2200 + Math.random() * 1500; for (let i = 0; i < n; i++) { const t = t0 + i * 0.12; const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(base, t); o.frequency.exponentialRampToValueAtTime(base * 1.5, t + 0.07); const g = ctx.createGain(); o.connect(g); g.connect(outBus); env(g, t, 0.01, 0.05 * vol, 0.08); o.start(t); o.stop(t + 0.12); } },
+      cricket(vol) { const t0 = now(); for (let i = 0; i < 6; i++) tone(outBus, 4600, 'square', 0.012 * vol, 0.025, t0 + i * 0.05); },
+      rooster(vol) { const t = now(); const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(520, t); o.frequency.linearRampToValueAtTime(760, t + 0.25); o.frequency.linearRampToValueAtTime(700, t + 0.7); o.frequency.linearRampToValueAtTime(480, t + 1.1); const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1400; f.Q.value = 2; const g = ctx.createGain(); o.connect(f); f.connect(g); g.connect(outBus); env(g, t, 0.05, 0.08 * vol, 1.1); o.start(t); o.stop(t + 1.3); },
+      hoof(vol) { burst(outBus, 'lowpass', 500, 0.16 * vol, 0.07); },
+      step(vol, bus = outBus) { burst(bus, 'bandpass', 900, 0.03 * vol, 0.05); },
+      thud(vol) { tone(outBus, 90, 'sine', 0.3 * vol, 0.18); burst(outBus, 'lowpass', 1200, 0.15 * vol, 0.08); },
+      pluck(freq, vol, bus = outBus) { tone(bus, freq, 'triangle', 0.08 * vol, 0.9); tone(bus, freq * 2, 'sine', 0.02 * vol, 0.4); },
+    };
+    const SCALE = [196, 220, 246.9, 261.6, 293.7, 329.6, 349.2, 392]; // D dorian-ish on a lute
+    const TUNE = [0, 2, 4, 5, 4, 2, 3, 1, 0, 4, 7, 5, 4, 2, 1, 0];
+    let tunePos = 0, tuneT = 0, birdT = 0, hammerT = 0, stepT = 0, lastHour = -1, cricketT = 0;
+
+    const dist = (x, y) => Math.hypot(x - game.player.x, y - game.player.y);
+    const near = (d, range) => Math.pow(O.clamp(1 - d / range, 0, 1), 2);
+    const B = (type) => sim.world.buildings.find((b) => b.type === type);
+    const doorPos = (b) => [b.doorX * 16 + 8, b.doorY * 16];
+
+    game.hooks.update.push((dt) => {
+      if (!enabled || !ctx) return;
+      const t = now(), W = sim.weather, h = sim.hour, inside = game.scene ? game.scene.b : null;
+      outFilter.frequency.setTargetAtTime(inside ? 700 : 18000, t, 0.2);
+      outBus.gain.setTargetAtTime(inside ? 0.5 : 1, t, 0.2);
+      beds.wind.g.gain.setTargetAtTime(0.04 + W.wind * 0.12, t, 1);
+      beds.rain.g.gain.setTargetAtTime(W.raining ? 0.05 + W.intensity() * 0.12 : 0, t, 1.5);
+      const crowd = inside ? 0 : sim.people.filter((p) => !p.agent.hidden && dist(p.agent.x, p.agent.y) < 140).length;
+      beds.crowd.g.gain.setTargetAtTime(Math.min(0.08, crowd * 0.006), t, 0.8);
+      // indoors: a fire if there is one; a busy room murmurs
+      const fire = inside && game.scene.L.items.some((i) => i.kind === 'fireplace' || i.kind === 'oven' || i.kind === 'forge');
+      beds.fire.g.gain.setTargetAtTime(fire ? 0.02 + Math.random() * 0.03 : 0, t, 0.05);
+      beds.room.g.gain.setTargetAtTime(inside ? Math.min(0.07, game.scene.actors.size * 0.008) : 0, t, 0.6);
+      // the chapel bell strikes the hour (from 6 in the morning to 9 at night)
+      const hr = Math.floor(h);
+      if (hr !== lastHour) { lastHour = hr; if (hr >= 6 && hr <= 21 && game.clock.speed <= 10) { const c = B('chapel'); if (c) { const [x, y] = doorPos(c); V.bell(hr > 12 ? hr - 12 : hr, Math.max(0.25, near(dist(x, y), 1400))); } } if (hr === 6) V.rooster(0.8); }
+      if (game.clock.speed > 10) return;
+      // the smith at the anvil
+      hammerT -= dt;
+      const sm = B('smithy'), smith = sm && sim.people.find((p) => p.job?.role === 'blacksmith' && p.agent.inside === sm.id && p.activity?.act === 'work');
+      if (smith && hammerT <= 0) { hammerT = 0.7 + Math.random() * 0.3; const v = inside === sm ? 1 : inside ? 0 : near(dist(...doorPos(sm)), 420); if (v > 0.01) V.hammer(v, inside === sm ? inBus : outBus); }
+      // tavern music in the evening
+      const tv = B('tavern');
+      if (tv && h >= 18 && h < 23.5) { tuneT -= dt; if (tuneT <= 0) { tuneT = 0.32; const v = inside === tv ? 0.9 : inside ? 0 : near(dist(...doorPos(tv)), 300) * 0.6; if (v > 0.01) V.pluck(SCALE[TUNE[tunePos % TUNE.length]], v, inside === tv ? inBus : outBus); tunePos++; } }
+      // birds by day, crickets by night
+      if (!inside && !W.raining) {
+        birdT -= dt; if (h > 5.5 && h < 19.5 && birdT <= 0) { birdT = 1.5 + Math.random() * 4; V.bird(0.6 + Math.random() * 0.4); }
+        cricketT -= dt; if ((h > 20.5 || h < 4.5) && sim.season !== 'winter' && cricketT <= 0) { cricketT = 0.6 + Math.random() * 1.2; V.cricket(0.7); }
+      }
+      // feet and hooves
+      if (game.player.moving) { stepT -= dt; if (stepT <= 0) { if (game.player.mount) { stepT = game.player.galloping ? 0.13 : 0.24; V.hoof(0.8); } else { stepT = game.keys.has('run') ? 0.2 : 0.32; V.step(1, inside ? inBus : outBus); } } }
+    });
+    O.Sound = { V, play: (k, ...a) => enabled && ctx && V[k] && V[k](...a), get on() { return enabled; } };
+  }
+  O.AudioSetup = { setup };
 })();
 
 </script>
@@ -8412,6 +8600,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   O.KingdomUI.setup(game, sim, npcUI);
   O.TravelSetup.setup(game, home, npcUI);
   O.PropertyUI.setup(game, sim);
+  O.AudioSetup.setup(game, sim);
   if (loaded) { O.Save.hydrateLate(game, home); setTimeout(() => O.Panels.toast(`Welcome back. It is ${O.DAYNAMES[sim.weekday]}, day ${sim.day}, in Ashford.`), 300); }
   // autosave each dawn and whenever the page is hidden
   let lastAuto = sim.day;

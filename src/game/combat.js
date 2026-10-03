@@ -28,6 +28,7 @@
     function posOf(q) { if (game.scene) return game.scene.personPos(q); return q.agent.hidden ? null : [q.agent.x, q.agent.y]; }
 
     function puff(x, y, blade) {
+      O.Sound && O.Sound.play('thud', 0.8);
       for (let i = 0; i < 6; i++) fx.push({ x, y: y - 10, vx: (Math.random() - 0.5) * 40, vy: -Math.random() * 30, t: 0, max: 0.35, c: 'rgba(170,140,100,0.8)' });
       if (blade) for (let i = 0; i < 3; i++) fx.push({ x, y: y - 14, vx: (Math.random() - 0.5) * 30, vy: Math.random() * 20, t: 0, max: 0.25, c: 'rgba(170,40,40,0.85)' });
       fx.push({ x, y: y - 16, flash: true, t: 0, max: 0.12 });

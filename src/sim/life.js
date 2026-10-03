@@ -190,6 +190,8 @@
       if (!this.events || p.visitor || p.age < 6) return null;
       const h = this.hour;
       for (const e of this.events) {
+        // the wedding feast at the tavern that evening
+        if (e.kind === 'wedding' && e.day === this.day && h >= 18 && h < 22 && (p.id === e.a || p.id === e.b || (p.rel.get(e.a)?.familiar || 0) > 0.2 || (p.rel.get(e.b)?.familiar || 0) > 0.2)) return { act: 'feast', b: this.tavernId };
         if (e.day !== this.day || h < 10 || h >= 11.5) continue;
         const close = e.kind === 'funeral' ? (this.household(p)?.members.includes(e.who) || (p.rel.get(e.who)?.affinity || 0) > 0.2 || this.byId.get(e.who)?.household === p.household || (this.dead.find((d) => d.id === e.who)?.household === p.household)) : (p.id === e.a || p.id === e.b || (p.rel.get(e.a)?.familiar || 0) > 0.2 || (p.rel.get(e.b)?.familiar || 0) > 0.2 || this.household(p) === this.household(this.byId.get(e.a) || {}));
         if (close) return { act: e.kind === 'funeral' ? 'mourn' : 'wedding', b: this.chapelId };

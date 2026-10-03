@@ -166,6 +166,8 @@
     sit: { frames: 2, fps: 1.5 }, work: { frames: 4, fps: 6 }, eat: { frames: 4, fps: 3 },
     talk: { frames: 4, fps: 4 }, carry: { frames: 6, fps: 9 }, wave: { frames: 4, fps: 6 },
     crouch: { frames: 2, fps: 2 }, sweep: { frames: 4, fps: 5 }, sleep: { frames: 2, fps: 1 }, lie: { frames: 1, fps: 1 },
+    drink: { frames: 4, fps: 2.5 }, read: { frames: 2, fps: 1 }, celebrate: { frames: 4, fps: 5 }, mourn: { frames: 2, fps: 1 },
+    point: { frames: 2, fps: 2 }, dig: { frames: 4, fps: 4 }, cook: { frames: 4, fps: 4 },
   };
 
   function pose(m, dir, anim, f) {
@@ -210,6 +212,7 @@
     const shY = hipY - m.torso;
     p.hipY = hipY; p.shY = shY; p.sitting = sitting; p.crouch = crouch;
     p.headCy = shY - 1 - m.headRy + 1 + (m.stoop ? 1 : 0);
+    if (anim === 'read' || anim === 'mourn') p.headCy += 1;
     p.headCx = cx + (side ? p.lean * 0.8 + (m.stoop ? 1 : 0) : 0);
 
     const legLen = m.leg; const up = legLen * 0.52, lo = legLen - up;
@@ -329,6 +332,48 @@
       if (side) { A.el = [sx + 1.5, sy + 4]; A.hand = [sx + 3 + s, sy + 7]; }
       else { const sg = sx < 16 ? -1 : 1; A.el = [sx + sg * 0.8, sy + 4]; A.hand = [sx + sg * (s - 1), sy + 8]; }
       p.toolAngle = (s - 1) * 0.3;
+    }
+    // everyday actions
+    const both = (fn) => { for (const k of ['armA', 'armB']) fn(p[k], k); };
+    const sgnOf = (a) => (side ? 1 : a.sh[0] < 16 ? -1 : 1);
+    if (anim === 'drink') {
+      const up = f === 1 || f === 2, sx = A.sh[0], sy = A.sh[1], sg = sgnOf(A);
+      if (side) { A.el = [sx + 2.4, sy + 3.5]; A.hand = up ? [sx + 3.5, p.headCy + 2.5] : [sx + 5, sy + 4.5]; }
+      else { A.el = [sx + sg, sy + 4]; A.hand = up ? [sx - sg * 2.5, p.headCy + 3] : [sx - sg * 1, sy + 6]; }
+      p.heldOverride = 'mug'; p.mouth = up ? 0 : 0;
+    }
+    if (anim === 'read') {
+      both((a) => { const sg = sgnOf(a); if (side) { a.el = [a.sh[0] + 1.5, a.sh[1] + 4]; a.hand = [a.sh[0] + 4.5, a.sh[1] + 4]; } else { a.el = [a.sh[0] + sg * 0.6, a.sh[1] + 4.2]; a.hand = [a.sh[0] - sg * 2.6, a.sh[1] + 5.2]; } });
+      p.heldOverride = 'book'; p.headDown = 1;
+    }
+    if (anim === 'celebrate') {
+      const hi = f % 2 === 0;
+      both((a, k) => {
+        if (side) { const far = k === 'armB'; a.el = [a.sh[0] + (far ? 2 : 4.5), a.sh[1] - 2]; a.hand = [a.sh[0] + (far ? 3 : 8) + (hi ? 0.5 : 0), a.sh[1] - (hi ? 8 : 7)]; return; }
+        const sg = sgnOf(a); a.el = [a.sh[0] + sg * 3, a.sh[1] - 2.5]; a.hand = [a.sh[0] + sg * (hi ? 5.5 : 4.5), a.sh[1] - (hi ? 9 : 7.5)];
+      });
+      p.bob = hi ? -1 : 0; p.mouth = 1;
+    }
+    if (anim === 'mourn') {
+      both((a) => { const sg = sgnOf(a); if (side) { a.el = [a.sh[0] + 1, a.sh[1] + 4]; a.hand = [a.sh[0] + 3, a.sh[1] + 6]; } else { a.el = [a.sh[0] + sg * 0.3, a.sh[1] + 4.5]; a.hand = [p.cx + sg * 0.8, a.sh[1] + 7]; } });
+      p.headDown = 1; p.blinkForce = true;
+    }
+    if (anim === 'point') {
+      const sx = A.sh[0], sy = A.sh[1], sg = sgnOf(A);
+      if (side) { A.el = [sx + 4.5, sy + 0.5]; A.hand = [sx + 9.5, sy - 0.5 - f]; } else { A.el = [sx + sg * 4, sy + 1]; A.hand = [sx + sg * 8, sy + 0.5 - f]; }
+      p.mouth = f;
+    }
+    if (anim === 'dig') {
+      const ph = [0, 1, 2, 1][f], sx = A.sh[0], sy = A.sh[1], sg = sgnOf(A);
+      if (side) { A.el = [sx + 2, sy + 3 + ph]; A.hand = [sx + 4 + ph, sy + 6 + ph * 1.5]; const B2 = p.armB; B2.el = [B2.sh[0] + 2.5, B2.sh[1] + 2]; B2.hand = [B2.sh[0] + 5, B2.sh[1] + 2 + ph]; }
+      else { A.el = [sx + sg, sy + 4]; A.hand = [sx - sg * 0.5, sy + 6 + ph * 1.5]; }
+      p.heldOverride = 'spade'; p.toolAngle = side ? 2.5 + ph * 0.2 : 3.0; p.crouchLean = ph;
+    }
+    if (anim === 'cook') {
+      const ph = f % 4, sx = A.sh[0], sy = A.sh[1], sg = sgnOf(A);
+      if (side) { A.el = [sx + 2.5, sy + 3.5]; A.hand = [sx + 5 + (ph % 2), sy + 5 + (ph > 1 ? 1 : 0)]; }
+      else { A.el = [sx + sg * 0.5, sy + 4]; A.hand = [sx - sg * (1 + (ph % 2)), sy + 6.5 + (ph > 1 ? 0.5 : 0)]; }
+      p.heldOverride = 'ladle'; p.toolAngle = 2.6;
     }
     if (anim === 'sit' && !side) {
       for (const k of ['armA', 'armB']) { const a = p[k]; a.el = [a.sh[0] + (a.sh[0] < 16 ? -0.5 : 0.5), a.sh[1] + m.armU]; a.hand = [a.el[0] + (a.sh[0] < 16 ? 1.5 : -1.5), a.el[1] + 3.5]; }
@@ -458,7 +503,8 @@
     const o = a.outfit;
     if (o.sleeves === 'long') B.tweak(A.el[0], A.el[1] + (p.side ? 0 : 0.6), -1);
     // tool
-    if (isToolArm && o.item && !p.carrying && p.anim !== 'sleep') { B.part(G.ITEM); drawItem(B, a, o.item, A, p); B.part(G.ARMS); }
+    const held = p.heldOverride || o.item;
+    if (isToolArm && held && !p.carrying && p.anim !== 'sleep') { B.part(G.ITEM); drawItem(B, a, held, A, p); B.part(G.ARMS); }
   }
 
   function drawTorso(B, a, m, p, cov) {
@@ -606,7 +652,7 @@
     }
     if (dir === 3) return;
     const eyeY = Math.floor(hy + 0.5);
-    const blink = p.anim === 'idle' && p.f === 3 && (a.variant % 3 === 0);
+    const blink = (p.anim === 'idle' && p.f === 3 && (a.variant % 3 === 0)) || p.blinkForce;
     const elder = a.stage === 'elder';
     const plotFlat = (x, y, mt, s) => { B.plot(x, y, mt, s, 1); };
     if (dir === 0) {
@@ -957,7 +1003,9 @@
       case 'bread': B.blob(hx + dirx * 1.5, hy, 2.4, 1.5, P.mat('#c48a45', 'wood'), { power: 2 }); break;
       case 'mug': B.blob(hx + dirx, hy - 0.5, 1.4, 1.8, P.mat(P.wood.walnut, 'wood'), { power: 3 }); B.plot(hx + dirx, hy - 2, P.mat(C.white), 3); break;
       case 'basket': { const bm = P.mat('#b08850', 'wood'); B.blob(hx, hy + 2, 2.8, 2, bm, { power: 3 }); for (let x = -2; x <= 2; x++) B.tweak(hx + x, hy + 2 + (x % 2), -1); break; }
-      case 'book': B.blob(hx + dirx, hy + 0.5, 1.6, 2, P.mat(C.crimson), { power: 4 }); break;
+      case 'book': if (p.anim === 'read') { const bx = p.side ? hx - 1 : p.cx, by = hy - 1; B.blob(bx, by, p.side ? 1.4 : 3.2, 2, P.mat(C.crimson), { power: 4 }); B.plot(bx, by - 1, P.mat(C.white), 3); if (!p.side) { B.plot(bx - 1, by - 1, P.mat(C.white), 3); B.plot(bx + 1, by - 1, P.mat(C.white), 3); } } else B.blob(hx + dirx, hy + 0.5, 1.6, 2, P.mat(C.crimson), { power: 4 }); break;
+      case 'spade': { const a0 = along(-5), a1 = along(9); B.capsule(a0[0], a0[1], a1[0], a1[1], 0.6, 0.6, W); B.blob(a1[0], a1[1] + 1, 1.6, 2, I, { power: 3 }); break; }
+      case 'ladle': { const a1 = along(6); B.capsule(hx, hy, a1[0], a1[1], 0.5, 0.5, W); B.blob(a1[0], a1[1], 1.2, 1, I, { power: 2 }); break; }
       case 'satchel': break; // carried at hip, drawn with belt pouch
       case 'sack': B.blob(hx, hy + 2, 2.5, 3, P.mat(C.linen), { power: 2 }); break;
       case 'net': { const nm = P.mat('#9a8a6a', 'cloth'); for (let k = 0; k < 4; k++) for (let j = 0; j < 3; j++) B.plot(hx + dirx * (k - 1), hy + 1 + j * 1.5 + (k % 2) * 0.7, nm, 2); break; }

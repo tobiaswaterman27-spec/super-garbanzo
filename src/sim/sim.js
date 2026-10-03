@@ -133,6 +133,7 @@
     entry(b) { return [b.doorX, b.doorY]; }
     tileCenter(tx, ty, p) { const j = p ? ((p.id * 7) % 5) - 2 : 0; return [tx * this.T + 8 + j * 2, ty * this.T + 10 + ((p?.id || 0) % 3)]; }
     get hour() { return this.minute / 60; }
+    festival() { return this.season === 'autumn' && this.weather && this.weather.dayOfSeason === 10; }
     get raining() { return this.weather ? this.weather.raining : false; }
     get season() { return this.weather ? this.weather.season : 'summer'; }
     get weekday() { return (this.day - 1) % 7; }
@@ -170,6 +171,10 @@
       const asleep = m < p.wake || m >= p.bed;
       if (asleep) return { act: 'sleep', b: home };
       const ev = this.eventPlan(p); if (ev) return ev;
+      // the harvest festival: the square fills from mid-afternoon
+      if (this.festival() && h >= 15 && h < 21.5 && p.age >= 3 && !(p.job?.role?.startsWith('guard') && (p.id % 2))) return { act: 'festival', outdoor: true, zone: 'square' };
+      // children's lessons at the chapel on weekday mornings; the priest teaches letters
+      if (wd !== 6 && h >= 9 && h < 12 && p.age >= 6 && p.age <= 12 && (p.id + this.day) % 5 !== 0) return { act: 'lessons', b: this.chapelId };
       const gp = this.gangPlan(p); if (gp) return gp;
       const sunday = wd === 6;
       if (sunday && h >= 9 && h < 10.5 && p.age >= 6) return { act: 'worship', b: this.chapelId };
@@ -424,7 +429,7 @@
       if (act.outdoor && !a.path && a.goal && a.inside == null) {
         a.wait = (a.wait || 0) + 1;
         this.doOutdoor(p, act);
-        if (a.wait > (act.act === 'sit' ? 90 : act.act === 'patrol' ? 2 : act.act === 'chop' || act.act === 'fieldwork' || act.act === 'forage' || act.act === 'build' || act.act === 'gangmeet' ? 40 : 18)) { a.goal = null; a.wait = 0; }
+        if (a.wait > (act.act === 'sit' ? 90 : act.act === 'patrol' ? 2 : act.act === 'chop' || act.act === 'fieldwork' || act.act === 'forage' || act.act === 'build' || act.act === 'gangmeet' ? 40 : act.act === 'festival' ? 25 : 18)) { a.goal = null; a.wait = 0; }
         return;
       }
       if (!a.path && !a.goal) this.route(p, act);
@@ -471,7 +476,10 @@
       const act = p.activity?.act;
       if (act === 'sit') return 'sit';
       if (act === 'collapsed') return 'lie';
-      if (act === 'chop' || act === 'fieldwork' || act === 'build') return 'work';
+      if (act === 'fieldwork') return this.season === 'spring' ? 'dig' : 'work';
+      if (act === 'chop' || act === 'build') return 'work';
+      if (act === 'festival') { const k = (p.id + Math.floor(this.minute / 7)) % 5; return p.age < 13 ? (k % 2 ? 'run' : 'celebrate') : k === 0 ? 'celebrate' : k === 1 ? 'drink' : k === 2 ? 'talk' : 'idle'; }
+      if (act === 'cry') return 'point';
       if (act === 'forage') return 'crouch';
       if (act === 'gangmeet') return p.agent.talking ? 'talk' : 'idle';
       if (act === 'wait-work' || act === 'stroll') return p.agent.talking ? 'talk' : 'idle';
@@ -522,6 +530,8 @@
         }
         case 'work': this.work(p); break;
         case 'worship': p.needs.social = Math.min(100, p.needs.social + 0.1); break;
+        case 'lessons': p.literacy = Math.min(1, (p.literacy || 0) + 0.0004); p.needs.social = Math.min(100, p.needs.social + 0.05); break;
+        case 'feast': p.needs.social = Math.min(100, p.needs.social + 0.3); if (p.needs.hunger < 70) p.needs.hunger = Math.min(100, p.needs.hunger + 0.5); break;
         case 'shop': break;
         default: break;
       }
@@ -722,6 +732,7 @@
       const season = this.season;
       if (season !== this._season) { if (this._season) this.log(`${season[0].toUpperCase() + season.slice(1)} comes to ${this.world.name}.`, 'season'); this._season = season; this.seasonChanged = true; }
       this.log(`${DAYNAMES[this.weekday]} dawns over ${this.world.name}.`, 'day');
+      if (this.festival()) this.log(`It is the harvest festival in ${this.world.name}: music in the square from mid-afternoon.`, 'festival');
     }
 
     // trader tasks plug into plan() via p.task; handle arrival here

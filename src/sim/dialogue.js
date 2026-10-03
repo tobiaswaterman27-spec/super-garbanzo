@@ -17,7 +17,7 @@
     const bake = sim.supplierOf('bakery');
     const opinion = p.rel.get(0) || { affinity: 0, familiar: 0 };
     return {
-      name: p.name, age: p.age, sex: p.sex, stage: p.stage, job, traits: p.traits, goal: p.goal,
+      name: p.name, gang: p.gang || null, age: p.age, sex: p.sex, stage: p.stage, job, traits: p.traits, goal: p.goal,
       mood: p.mood, hunger: Math.round(p.needs.hunger), energy: Math.round(p.needs.energy), social: Math.round(p.needs.social),
       householdMoney: Math.round(hh.money), illness: p.health.illness ? { kind: p.health.illness.kind, sev: +p.health.illness.sev.toFixed(2) } : null, pantry: { ...hh.pantry },
       skill: p.job ? Math.round((p.skills[p.job.role] || 0) * 100) : null,
@@ -49,6 +49,7 @@
     name: 'local',
     greet(ctx, seed) {
       const a = ctx.opinionOfPlayer.affinity, f = ctx.opinionOfPlayer.familiar;
+      if (ctx.gang === 'player') return pick(['Boss.', 'Evening, chief. Quiet so far.', "What's the job?"], seed);
       if (ctx.sawPlayerCrime) return pick(["You! I know your face. You're the thief!", 'Stay back. I saw what you did.', "I've told the watch about you."], seed);
       if (ctx.stage === 'child' || ctx.stage === 'olderChild') return pick(['Are you a soldier? You look like a soldier.', "Mam says I'm not to talk to strangers.", 'Have you seen a dog with one ear? He\'s mine.'], seed);
       if (ctx.traits.includes('hostile') || a < -0.3) return pick(['What do you want?', "Keep walking, stranger.", "I've nothing for you."], seed);

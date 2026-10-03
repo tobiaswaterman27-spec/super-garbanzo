@@ -80,11 +80,16 @@
     // Woodcutter
     B({ type: 'woodcutter', name: "Woodcutter's Hut", x: 40, bottom: 9, w: 3, d: 3, wealth: 0.25, condition: 0.6, look: { wall: 'log', roof: 'shingle', roofType: 'gable', chimney: true, doorTile: 1 } });
 
+    // hidden clearings in the woods: an abandoned camp anyone bold enough could claim, and the Crows' den
+    B({ type: 'hideout', name: 'Abandoned camp', x: 8, bottom: 9, w: 3, d: 2, wealth: 0.2, condition: 0.6, level: 0, unclaimed: true, look: { wall: 'log', roof: 'shingle', roofType: 'gable', doorTile: 1, noFlowers: true } });
+    B({ type: 'hideout', name: "The Crows' den", x: 89, bottom: 47, w: 3, d: 2, wealth: 0.2, condition: 0.6, level: 1, gang: 'crows', look: { wall: 'log', roof: 'thatch', roofType: 'gable', doorTile: 1, noFlowers: true } });
+
     // footprints, doorsteps
     for (const b of buildings) {
       for (let y = b.y; y <= b.bottom; y++) for (let x = b.x; x < b.x + b.w; x++) { solid[y * W + x] = 1; if (ter[y * W + x] === TER.FOREST) set(x, y, TER.GRASS); }
       b.doorX = b.x + b.spec.doorTile; b.doorY = b.bottom + 1;
       if (ter[b.doorY * W + b.doorX] === TER.GRASS || ter[b.doorY * W + b.doorX] === TER.FOREST) set(b.doorX, b.doorY, TER.YARD);
+      if (b.type === 'hideout') for (let y = b.y - 1; y <= b.bottom + 2; y++) for (let x = b.x - 1; x <= b.x + b.w; x++) if (ter[y * W + x] === TER.FOREST) set(x, y, TER.GRASS);
     }
     // woodcutter path
     fill(41, 10, 44, 10, TER.ROAD);
@@ -123,7 +128,7 @@
       const t = ter[y * W + x];
       if (occupied(x, y)) continue;
       // keep a clear ring around buildings so roofs aren't buried in canopy
-      let near = false; for (const b of buildings) if (x >= b.x - 2 && x <= b.x + b.w + 1 && y >= b.y - 3 && y <= b.bottom + 2) near = true;
+      let near = false; for (const b of buildings) if (x >= b.x - 2 && x <= b.x + b.w + 1 && y >= b.y - 3 && y <= b.bottom + (b.type === 'hideout' ? 3 : 2)) near = true;
       const forest = t === TER.FOREST;
       const r = rng.next();
       if (!near && (forest ? r < 0.33 : r < 0.025) && !(y >= 29 && y <= 32) && (x + y) % 2 === 0) {

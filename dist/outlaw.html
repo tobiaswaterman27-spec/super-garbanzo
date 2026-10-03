@@ -59,6 +59,10 @@ input[type=range] { width: 100%; accent-color: var(--ember); }
 .hud-prompt { bottom: 52px; left: 50%; transform: translateX(-50%); white-space: nowrap; }
 .ledger-btn { position: absolute; right: 12px; bottom: 12px; }
 .satchel-btn { position: absolute; right: 120px; bottom: 12px; }
+.gang-btn { position: absolute; right: 240px; bottom: 12px; }
+@media (max-width: 760px) { .hud-b { display: none; } }
+.kv small button, .ledger td button { background: var(--ink); color: var(--parch); border: 2px solid var(--line); padding: 1px 6px; cursor: pointer; font-family: var(--pix); font-size: 9px; }
+.ledger select { background: var(--ink); border: 2px solid var(--line); padding: 2px 4px; font-size: 12px; max-width: 220px; }
 .vitals { display: grid; grid-template-columns: auto 1fr; gap: 3px 8px; align-items: center; margin-top: 6px; }
 .purse-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: 4px 8px; align-items: baseline; margin-top: 4px; }
 .purse-row b { font-family: var(--pix); font-size: 11px; font-weight: 400; font-variant-numeric: tabular-nums; }
@@ -136,14 +140,14 @@ main > .wrap { overflow: auto; }
 .hud-tl .place { font-family: var(--display); font-size: 22px; color: var(--ember-2); line-height: 1.1; }
 .hud-tl .clock { font-family: var(--pix); font-size: 12px; letter-spacing: 1px; font-variant-numeric: tabular-nums; }
 .hud-tr { top: 12px; right: 12px; display: grid; gap: 6px; justify-items: end; }
-.hud-b { bottom: 12px; left: 50%; transform: translateX(-50%); font-family: var(--pix); font-size: 10px; letter-spacing: 1px; color: var(--parch-dim); white-space: nowrap; max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; }
+.hud-b { bottom: 12px; left: 12px; font-family: var(--pix); font-size: 10px; letter-spacing: 1px; color: var(--parch-dim); white-space: nowrap; max-width: calc(100% - 400px); overflow: hidden; text-overflow: ellipsis; }
 .prompt { font-family: var(--pix); font-size: 11px; color: var(--parch); }
 .prompt kbd { display: inline-block; background: var(--ember-2); color: var(--ink); border: 2px solid #000; padding: 0 5px; margin-right: 6px; font-family: var(--pix); }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
 </style>
 
 <header class="top">
-  <div class="brand">Outlaw<small>BUILD 0.7 · THE WATCH</small></div>
+  <div class="brand">Outlaw<small>BUILD 0.8 · BANDS OF THE WOOD</small></div>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" role="tab" aria-selected="true" data-tab="play">Play</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="forge">Character</button>
@@ -161,7 +165,7 @@ main > .wrap { overflow: auto; }
       <span class="lbl">Time</span>
       <div class="seg" id="speedSeg"></div>
     </div>
-    <div class="hud hud-b" id="hudB">WASD move · Shift run · E interact · Q steal/pick lock · F quick loot · I satchel · L ledger</div>
+    <div class="hud hud-b" id="hudB">WASD move · Shift run · E interact · Q steal/pick lock · F loot · I satchel · G gang · L ledger</div>
   </section>
 
   <section class="wrap" id="tab-forge" hidden>
@@ -2234,7 +2238,33 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     return out;
   }
 
-  O.Env = { building, staged, tree, prop, T, M };
+  // Gang hideouts grow in place: a hidden camp, a lean-to hideout, a log safehouse, a timber hall.
+  function hideout(level, spec) {
+    if (level >= 1) {
+      const sp = Object.assign({}, spec, level === 1 ? { wall: 'plank', plankMat: 'plank', roof: 'thatch', roofType: 'side', chimney: false, wallH: 22, condition: 0.5 } : level === 2 ? { wall: 'log', roof: 'shingle', roofType: 'gable', chimney: true, condition: 0.75 } : { wall: 'log', roof: 'shingle', roofType: 'gable', chimney: true, floors: 2, condition: 0.9, sign: 'sword' });
+      return building(sp);
+    }
+    // level 0: a canvas tent, a campfire ring, a bedroll and a stash chest
+    const w = spec.w, OV = 4, FW = w * T, W = FW + OV * 2, H = spec.d * T + 30;
+    const B = new MB(W, H);
+    const canvasM = P.mat('#b0a078', 'cloth'), pole = M.beam(), stone = M.stoneDark();
+    B.part(2);
+    const base = H - 6, apexY = base - 24, cx = 18;
+    B.poly([[cx - 16, base], [cx, apexY], [cx + 1, apexY], [cx + 1, base]], [-0.6, -0.3, 0.7], canvasM);
+    B.poly([[cx + 1, apexY], [cx + 16, base], [cx + 1, base]], [0.5, -0.3, 0.75], canvasM);
+    for (let y = apexY; y < base; y++) { B.plot(cx, y, pole, 2); if ((y - apexY) % 5 === 0) for (let x = cx - 14; x < cx + 15; x++) if (B.matAt(x, y) === canvasM) B.tweak(x, y, -1); }
+    B.part(6); B.poly([[cx - 4, base], [cx + 1, base - 13], [cx + 5, base]], [0, 0, 1], P.mat('#2a2024', 'cloth'), { maxShade: 0 });
+    B.part(3); // fire ring
+    const fx = W - 14, fy = base - 2;
+    for (let a = 0; a < 10; a++) B.blob(fx + Math.cos(a / 10 * 6.28) * 5, fy + Math.sin(a / 10 * 6.28) * 2.2, 1.3, 1, stone, { power: 2 });
+    B.capsule(fx - 3, fy, fx + 3, fy - 1, 0.9, 0.9, M.log()); B.capsule(fx - 2, fy - 1, fx + 3, fy + 1, 0.9, 0.9, M.log());
+    B.part(4); B.rect(2, base + 1, 10, 3, P.mat('#6a5a3a', 'cloth'), 2); // bedroll
+    const out = { canvas: B.toCanvas(), W, H, OV, windows: [], door: null, chimney: { x: fx - OV + OV, y: fy - 4 - (H - (H)) }, sign: null, wallTop: H, roofMask: null, campfire: { x: fx, y: fy } };
+    out.chimney = { x: fx, y: fy - 3 };
+    return out;
+  }
+
+  O.Env = { building, staged, hideout, tree, prop, T, M };
 })();
 
 </script>
@@ -2321,11 +2351,16 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     // Woodcutter
     B({ type: 'woodcutter', name: "Woodcutter's Hut", x: 40, bottom: 9, w: 3, d: 3, wealth: 0.25, condition: 0.6, look: { wall: 'log', roof: 'shingle', roofType: 'gable', chimney: true, doorTile: 1 } });
 
+    // hidden clearings in the woods: an abandoned camp anyone bold enough could claim, and the Crows' den
+    B({ type: 'hideout', name: 'Abandoned camp', x: 8, bottom: 9, w: 3, d: 2, wealth: 0.2, condition: 0.6, level: 0, unclaimed: true, look: { wall: 'log', roof: 'shingle', roofType: 'gable', doorTile: 1, noFlowers: true } });
+    B({ type: 'hideout', name: "The Crows' den", x: 89, bottom: 47, w: 3, d: 2, wealth: 0.2, condition: 0.6, level: 1, gang: 'crows', look: { wall: 'log', roof: 'thatch', roofType: 'gable', doorTile: 1, noFlowers: true } });
+
     // footprints, doorsteps
     for (const b of buildings) {
       for (let y = b.y; y <= b.bottom; y++) for (let x = b.x; x < b.x + b.w; x++) { solid[y * W + x] = 1; if (ter[y * W + x] === TER.FOREST) set(x, y, TER.GRASS); }
       b.doorX = b.x + b.spec.doorTile; b.doorY = b.bottom + 1;
       if (ter[b.doorY * W + b.doorX] === TER.GRASS || ter[b.doorY * W + b.doorX] === TER.FOREST) set(b.doorX, b.doorY, TER.YARD);
+      if (b.type === 'hideout') for (let y = b.y - 1; y <= b.bottom + 2; y++) for (let x = b.x - 1; x <= b.x + b.w; x++) if (ter[y * W + x] === TER.FOREST) set(x, y, TER.GRASS);
     }
     // woodcutter path
     fill(41, 10, 44, 10, TER.ROAD);
@@ -2364,7 +2399,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const t = ter[y * W + x];
       if (occupied(x, y)) continue;
       // keep a clear ring around buildings so roofs aren't buried in canopy
-      let near = false; for (const b of buildings) if (x >= b.x - 2 && x <= b.x + b.w + 1 && y >= b.y - 3 && y <= b.bottom + 2) near = true;
+      let near = false; for (const b of buildings) if (x >= b.x - 2 && x <= b.x + b.w + 1 && y >= b.y - 3 && y <= b.bottom + (b.type === 'hideout' ? 3 : 2)) near = true;
       const forest = t === TER.FOREST;
       const r = rng.next();
       if (!near && (forest ? r < 0.33 : r < 0.025) && !(y >= 29 && y <= 32) && (x + y) % 2 === 0) {
@@ -2537,7 +2572,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       this.world = world;
       const T = world.T;
       this.ground = O.Terrain.renderGround(world, this.season);
-      for (const b of world.buildings) b.sprite = O.Env.building(b.spec);
+      for (const b of world.buildings) b.sprite = b.type === 'hideout' ? O.Env.hideout(b.level, b.spec) : O.Env.building(b.spec);
       for (const t of world.trees) t.sprite = O.Env.tree(t.seed, t.kind, this.season);
       for (const p of world.props) p.sprite = O.Env.prop(p.kind, p.seed, p.v);
       this.rebuildStatics();
@@ -3589,7 +3624,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         // a villager who happens to fit the description may be wrongly accused
         const look = lookOf(O.game.player.a);
         const innocents = this.people.filter((q) => !q.visitor && q.age >= 15 && matchScore(crime.profile, lookOf(q.app)) > matchScore(crime.profile, look) + 0.15);
-        if (innocents.length && crime.evidence < 1.6 && this.rng.chance(0.35)) this.arrestNPC(this.rng.pick(innocents), crime, true);
+        if (innocents.length && Object.keys(crime.profile).filter((k) => k !== 'height').length >= 2 && crime.evidence < 1.6 && this.rng.chance(0.35)) this.arrestNPC(this.rng.pick(innocents), crime, true);
       }
     };
 
@@ -3597,6 +3632,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const scored = this.people.filter((q) => !q.visitor && q.age >= 13).map((q) => [q, matchScore(crime.profile, lookOf(q.app))]).sort((a, b) => b[1] - a[1]);
       if (!scored.length) return;
       const [best, sc] = scored[0];
+      if (Object.keys(crime.profile).filter((k) => k !== 'height').length < 2) return; // too vague to arrest anyone
       if (sc > 0.5 && this.rng.chance(0.4 + crime.evidence * 0.2)) this.arrestNPC(best, crime, best !== crime.perp);
     };
 
@@ -3647,6 +3683,175 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
 </script>
 <script>
+// Gangs: membership, loyalty, wages, a shared purse, roles, a hideout that grows, night jobs, and
+// the risks of all of it. The player can found a gang; the Crows already run one.
+'use strict';
+(function () {
+  const ROLES = ['recruit', 'member', 'lookout', 'burglar', 'fence', 'quartermaster', 'recruiter', 'lieutenant'];
+  const LEVELS = [
+    { name: 'Hidden camp', cost: 0, beds: 1 },
+    { name: 'Hideout', cost: 60, beds: 3 },
+    { name: 'Safehouse', cost: 160, beds: 5 },
+    { name: 'Headquarters', cost: 400, beds: 8 },
+  ];
+
+  function install(Sim) {
+    const S = Sim.prototype;
+    S.gangsInit = function () {
+      this.gangs = [];
+      const den = this.world.buildings.find((b) => b.gang === 'crows');
+      const r = this.rng;
+      // The Crows: a small outfit of villagers who've turned to thieving
+      const cands = this.people.filter((p) => !p.visitor && p.age >= 18 && p.age < 50 && !p.job?.role?.startsWith('guard') && p.attitude < 0.2).sort((a, b) => a.attitude - b.attitude);
+      const crows = { id: 'crows', name: 'The Crows', leader: null, members: [], purse: 60, hideout: den?.id, level: den?.level ?? 1, influence: 0.2, rel: { player: 'neutral' }, log: [] };
+      for (const p of cands.slice(0, 3)) { crows.members.push({ id: p.id, role: crows.members.length ? 'member' : 'leader', loyalty: r.float(0.5, 0.9), wage: 3 }); p.gang = 'crows'; p.attitude = Math.min(p.attitude, -0.2); }
+      crows.leader = crows.members[0]?.id ?? null;
+      if (crows.leader) this.byId.get(crows.leader).traits = [...new Set([...this.byId.get(crows.leader).traits, 'risk-taking'])];
+      this.gangs.push(crows);
+    };
+    S.gang = function (id) { return this.gangs.find((g) => g.id === id); };
+    S.playerGang = function () { return this.gang('player'); };
+
+    S.foundGang = function (name, b) {
+      const g = { id: 'player', name, leader: 'player', members: [], purse: 0, hideout: b.id, level: 0, influence: 0.05, rel: { crows: 'rival' }, orders: [], log: [] };
+      this.gangs.push(g); b.unclaimed = false; b.gang = 'player'; b.name = `${name}'s camp`;
+      this.gang('crows').rel.player = 'rival';
+      this.log(`Word in the taverns: a new band calling itself ${name} has made camp in Ashford Wood.`, 'gang');
+      return g;
+    };
+
+    // Would this person throw in their lot with the player's gang?
+    S.recruitChance = function (p) {
+      const PS = O.PlayerState, hh = this.household(p);
+      if (p.age < 16 || p.job?.role?.startsWith('guard') || p.gang) return 0;
+      let c = 0.1 + Math.max(0, -p.attitude) * 0.6 + (hh.money < 30 ? 0.2 : 0) + (!p.job ? 0.15 : 0) + (p.traits.includes('risk-taking') ? 0.15 : 0) + (p.traits.includes('greedy') ? 0.1 : 0) - (p.traits.includes('cautious') ? 0.2 : 0) - (p.traits.includes('loyal') && p.job ? 0.1 : 0);
+      c += (p.rel.get(0)?.affinity || 0) * 0.4 + PS.rep.criminal * 0.3 - (p.memories.some((m) => m.kind === 'crime' && m.about === 0) ? 0.4 : 0);
+      return O.clamp(c, 0, 0.9);
+    };
+    S.joinGang = function (p, gid, wage) {
+      const g = this.gang(gid);
+      g.members.push({ id: p.id, role: 'recruit', loyalty: 0.45 + Math.max(0, -p.attitude) * 0.3, wage, joined: this.day });
+      p.gang = gid; p.attitude = Math.min(p.attitude, 0);
+      this.remember(p, `Threw in my lot with ${g.name}.`, 'gang', 2, 0);
+      g.log.push(`Day ${this.day}: ${p.name} joined as a recruit for ${wage}d a day.`);
+    };
+    S.leaveGang = function (m, g, why) {
+      g.members = g.members.filter((x) => x !== m);
+      const p = this.byId.get(m.id); if (p) { p.gang = null; this.remember(p, `Left ${g.name}: ${why}.`, 'gang', 2); }
+      g.log.push(`Day ${this.day}: ${p?.name || 'A member'} left — ${why}.`);
+      if (g.id === 'player') O.Panels && O.Panels.toast(`${p?.first || 'A member'} has left ${g.name}: ${why}.`, 'bad');
+      // a bitter ex-member may go to the watch with a true description of the leader
+      if (g.id === 'player' && p && m.loyalty < 0.1 && this.rng.chance(0.5)) this.inform(p, g);
+    };
+    S.inform = function (p, g) {
+      const look = O.Justice.lookOf(O.game.player.a);
+      const crime = this.recordCrime({ kind: 'banditry', perp: 'player', placeName: 'Ashford Wood', tile: [9, 10], seen: [], severity: 2 });
+      crime.witnesses.push({ id: p.id, desc: Object.assign({}, look), acc: 1 });
+      crime.reported = true; crime.profile = Object.assign({}, look); crime.investigated = true; crime.evidence = 1.6;
+      O.PlayerState.crimes.push(crime.id);
+      this.log(`${p.name} has turned informer and told the watch everything about ${g.name}'s leader.`, 'crime');
+      if (O.Panels) O.Panels.toast(`${p.first} has informed on you to the watch!`, 'bad');
+    };
+
+    // Evenings: members gather at the hideout
+    S.gangPlan = function (p) {
+      if (!p.gang) return null;
+      const g = this.gang(p.gang), h = this.hour;
+      if (!g || this.weekday === 6) return null;
+      if (h >= 19.5 && h < 22.5) {
+        const b = this.building(g.hideout);
+        if (!b) return null;
+        return g.level >= 1 ? { act: 'gangmeet', b: b.id } : { act: 'gangmeet', outdoor: true, zone: 'camp', camp: b.id };
+      }
+      return null;
+    };
+
+    // Daily: wages, loyalty, influence, upkeep; the player gang's ordered jobs happen at 2 am
+    S.gangsDaily = function () {
+      for (const g of this.gangs) {
+        for (const m of [...g.members]) {
+          const p = this.byId.get(m.id);
+          if (!p || p.alive === false) { g.members = g.members.filter((x) => x !== m); continue; }
+          if (m.role === 'leader') continue;
+          if (g.purse >= m.wage) { g.purse -= m.wage; this.household(p).money += m.wage; m.loyalty = Math.min(1, m.loyalty + 0.02); }
+          else { m.loyalty -= 0.12; this.remember(p, `${g.name} couldn't pay me.`, 'gang', 1); }
+          if (p.jailUntil) m.loyalty -= 0.04;
+          if (m.loyalty < 0.15 && this.rng.chance(0.5)) this.leaveGang(m, g, m.loyalty < 0.05 ? 'bitter and unpaid' : 'tired of the life');
+        }
+        g.influence = O.clamp(0.04 + g.members.length * 0.04 + g.level * 0.05 + (g.recentJobs || 0) * 0.02, 0, 1);
+        g.recentJobs = Math.max(0, (g.recentJobs || 0) - 0.3);
+      }
+      // the council answers a crime wave with more watchmen (and it costs them)
+      const week = this.crimes.filter((c) => c.day > this.day - 7).length;
+      const gh = this.biz.get(this.guardId);
+      if (gh && week >= 5 && this.treasury.cash > 150 && gh.def.jobs[1][1] < 6 && !this._guardRaised) {
+        gh.def = Object.assign({}, gh.def, { jobs: [gh.def.jobs[0], ['guard', gh.def.jobs[1][1] + 1]] });
+        this._guardRaised = this.day + 7;
+        this.log(`With ${week} crimes this week, the council has voted to hire another watchman.`, 'politics');
+      }
+      if (this._guardRaised && this.day > this._guardRaised) this._guardRaised = null;
+    };
+
+    S.gangNight = function () {
+      // the Crows burgle on their own account
+      const crows = this.gang('crows');
+      if (crows && crows.members.length && this.rng.chance(0.25)) {
+        const thief = this.byId.get(this.rng.pick(crows.members).id);
+        if (thief && !thief.jailUntil) this.gangJob(crows, thief, null);
+      }
+      const g = this.playerGang(); if (!g || !g.orders) return;
+      for (const o of g.orders.splice(0)) {
+        const m = g.members.find((x) => x.id === o.member); const p = m && this.byId.get(m.id);
+        if (!p || p.jailUntil) continue;
+        this.gangJob(g, p, o.target, m);
+      }
+    };
+
+    // A night burglary by a gang member: success adds loot to the purse; failure risks the cell
+    S.gangJob = function (g, p, targetHouse, m) {
+      const homes = this.households.filter((h) => !h.gone && h.id !== p.household);
+      const hh = targetHouse ? this.households.find((h) => h.home === targetHouse) : this.rng.pick(homes);
+      if (!hh) return;
+      const b = this.building(hh.home);
+      const lookout = g.members.some((x) => x.role === 'lookout' && x.id !== p.id);
+      const skill = (m && m.role === 'burglar' ? 0.2 : 0) + (lookout ? 0.12 : 0) + (p.traits.includes('risk-taking') ? 0.05 : 0);
+      const risk = 0.25 + b.wealth * 0.25 + (this.gangs.length ? 0 : 0) - skill + (this.people.filter((q) => q.job?.role?.startsWith('guard') && q.shift === 'night').length * 0.03);
+      const coin = Math.floor(Math.max(0, hh.money) * (0.15 + b.wealth * 0.15)); const goods = Math.min(2, Math.floor(hh.pantry.bread || 0));
+      if (this.rng.chance(1 - O.clamp(risk, 0.1, 0.8))) {
+        hh.money -= coin; hh.pantry.bread -= goods; g.purse += coin + goods * 2; g.recentJobs = (g.recentJobs || 0) + 1;
+        if (m) m.loyalty = Math.min(1, m.loyalty + 0.06);
+        const crime = this.recordCrime({ kind: 'burglary', perp: p, gang: g.id, placeName: b.type === 'house' ? `the ${hh.surname} house` : b.name, tile: [b.doorX, b.doorY], victim: hh.id, seen: [], severity: 1 });
+        const owner = hh.members.map((id) => this.byId.get(id)).find((q) => q && q.age >= 16);
+        if (owner) { this.remember(owner, `Thieves broke in during the night and took ${coin}d.`, 'crime', 1.5); if (!owner.task) owner.task = { act: 'report', b: this.guardId, crime: crime.id }; }
+        if (g.id === 'player') g.log.push(`Day ${this.day}: ${p.first} burgled the ${hh.surname} house: ${coin}d and ${goods} loaves.`);
+      } else {
+        const crime = this.recordCrime({ kind: 'burglary', perp: p, gang: g.id, placeName: `the ${hh.surname} house`, tile: [b.doorX, b.doorY], victim: hh.id, seen: hh.members.map((id) => this.byId.get(id)).filter((q) => q && q.age >= 12).slice(0, 2), severity: 2 });
+        if (this.rng.chance(0.55)) this.arrestNPC(p, crime, false);
+        if (m) m.loyalty -= 0.08;
+        if (g.id === 'player') { g.log.push(`Day ${this.day}: ${p.first} was disturbed at the ${hh.surname} house${p.jailUntil ? ' and taken by the watch' : ' and fled'}.`); O.Panels && O.Panels.toast(`${p.first}'s job went wrong${p.jailUntil ? ' — taken by the watch!' : '.'}`, 'bad'); }
+        // a jailed member with little loyalty may talk
+        if (g.id === 'player' && p.jailUntil && m && m.loyalty < 0.35 && this.rng.chance(0.5)) this.inform(p, g);
+      }
+    };
+
+    S.upgradeHideout = function (g) {
+      const next = LEVELS[g.level + 1]; if (!next) return false;
+      if (g.purse < next.cost) return false;
+      g.purse -= next.cost; g.level++;
+      const b = this.building(g.hideout); b.level = g.level; b.dirty = true; b.name = `${g.name}'s ${next.name.toLowerCase()}`;
+      if (g.level >= 1) { b.floors = g.level >= 3 ? 2 : 1; b.spec.floors = b.floors; }
+      O.Interior && O.Interior.invalidate && O.Interior.invalidate(b);
+      g.log.push(`Day ${this.day}: the camp became a ${next.name.toLowerCase()}.`);
+      this.log(`Smoke rises over a new ${next.name.toLowerCase()} in Ashford Wood.`, 'gang');
+      return true;
+    };
+  }
+
+  O.Gangs = { install, ROLES, LEVELS };
+})();
+
+</script>
+<script>
 // The living settlement simulation.
 //
 // Every resident is a Person with a family, a home, maybe a job, a purse shared with their household,
@@ -3679,6 +3884,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       this.healthInit(); this.lifeInit();
       this.placeAll();
       this.justiceInit();
+      this.gangsInit();
       this._season = this.season;
     }
 
@@ -3814,6 +4020,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const asleep = m < p.wake || m >= p.bed;
       if (asleep) return { act: 'sleep', b: home };
       const ev = this.eventPlan(p); if (ev) return ev;
+      const gp = this.gangPlan(p); if (gp) return gp;
       const sunday = wd === 6;
       if (sunday && h >= 9 && h < 10.5 && p.age >= 6) return { act: 'worship', b: this.chapelId };
       if (sunday && h >= 6.5 && h < 8.8 && this.household(p).shopper === p.id) { const need = this.shoppingNeed(this.household(p)); if (need) return { act: 'shop', b: need.biz, good: need.good, qty: need.qty }; }
@@ -3954,6 +4161,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       if (mm % 60 === 0) this.healthHourly();
       for (const p of this.people) if (p.task?.emigrating && !p.agent.path && p.agent.x > 93 * this.T) { this.people = this.people.filter((q) => q !== p); (this.departed = this.departed || []).push(p); }
       if (mm === 2 * 60) this.npcCrimeNightly();
+      if (mm === 2 * 60 + 30) this.gangNight();
       if (mm === 6 * 60 + 30) this.labourMarket();
       if (mm === 7 * 60) this.marketDay();
       if (mm === 18 * 60 + 5) this.endCasualDay();
@@ -4065,7 +4273,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       if (act.outdoor && !a.path && a.goal && a.inside == null) {
         a.wait = (a.wait || 0) + 1;
         this.doOutdoor(p, act);
-        if (a.wait > (act.act === 'sit' ? 90 : act.act === 'patrol' ? 2 : act.act === 'chop' || act.act === 'fieldwork' || act.act === 'forage' || act.act === 'build' ? 40 : 18)) { a.goal = null; a.wait = 0; }
+        if (a.wait > (act.act === 'sit' ? 90 : act.act === 'patrol' ? 2 : act.act === 'chop' || act.act === 'fieldwork' || act.act === 'forage' || act.act === 'build' || act.act === 'gangmeet' ? 40 : 18)) { a.goal = null; a.wait = 0; }
         return;
       }
       if (!a.path && !a.goal) this.route(p, act);
@@ -4114,6 +4322,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       if (act === 'collapsed') return 'lie';
       if (act === 'chop' || act === 'fieldwork' || act === 'build') return 'work';
       if (act === 'forage') return 'crouch';
+      if (act === 'gangmeet') return p.agent.talking ? 'talk' : 'idle';
       if (act === 'wait-work' || act === 'stroll') return p.agent.talking ? 'talk' : 'idle';
       if (p.agent.talking) return 'talk';
       return 'idle';
@@ -4169,7 +4378,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
     doOutdoor(p, act) {
       if (act.act === 'fieldwork' || act.act === 'chop' || act.act === 'forage' || act.act === 'build') this.work(p);
-      if ((act.act === 'stroll' || act.act === 'wait-work') && this.rng.chance(0.01)) {
+      if ((act.act === 'stroll' || act.act === 'wait-work' || act.act === 'gangmeet') && this.rng.chance(0.01)) {
         const near = this.people.find((q) => q !== p && !q.agent.hidden && Math.hypot(q.agent.x - p.agent.x, q.agent.y - p.agent.y) < 30);
         if (near) { this.relate(p, near, 0.02); p.agent.talking = 20; }
       }
@@ -4354,7 +4563,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         hh.shopper = (adults.find((p) => !p.job || p.shift === 'night') || errand || adults[this.day % Math.max(1, adults.length)] || {}).id;
       }
       this.build.daily();
-      this.healthDaily(); this.lifeDaily(); this.justiceDaily();
+      this.healthDaily(); this.lifeDaily(); this.justiceDaily(); this.gangsDaily();
       if (this.weekday === 3) this.immigrateMaybe();
       if (this.events) this.events = this.events.filter((e) => e.day >= this.day);
       const season = this.season;
@@ -4391,10 +4600,11 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   Sim.prototype.zoneTile = function (p, zone) {
     if (p.task?.act === 'leave') return [95, 31];
     if (p.task?.act === 'investigate' && p.task.tile) return p.task.tile;
+    if (zone === 'camp' && p.activity?.camp) { const b = this.building(p.activity.camp); if (b) return [b.x + ((p.id % 3)), b.bottom + 1 + (p.id % 2)]; }
     if (p.task?.act === 'help') { const t = this.byId.get(p.task.target); if (t) return [Math.floor(t.agent.x / this.T), Math.floor((t.agent.y - 1) / this.T)]; }
     return _zone.call(this, p, zone);
   };
-  O.Health.install(Sim); O.Life.install(Sim); O.Justice.install(Sim);
+  O.Health.install(Sim); O.Life.install(Sim); O.Justice.install(Sim); O.Gangs.install(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
   // carry-home and delivery tasks finish on entering the destination
@@ -4435,7 +4645,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     const bake = sim.supplierOf('bakery');
     const opinion = p.rel.get(0) || { affinity: 0, familiar: 0 };
     return {
-      name: p.name, age: p.age, sex: p.sex, stage: p.stage, job, traits: p.traits, goal: p.goal,
+      name: p.name, gang: p.gang || null, age: p.age, sex: p.sex, stage: p.stage, job, traits: p.traits, goal: p.goal,
       mood: p.mood, hunger: Math.round(p.needs.hunger), energy: Math.round(p.needs.energy), social: Math.round(p.needs.social),
       householdMoney: Math.round(hh.money), illness: p.health.illness ? { kind: p.health.illness.kind, sev: +p.health.illness.sev.toFixed(2) } : null, pantry: { ...hh.pantry },
       skill: p.job ? Math.round((p.skills[p.job.role] || 0) * 100) : null,
@@ -4467,6 +4677,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     name: 'local',
     greet(ctx, seed) {
       const a = ctx.opinionOfPlayer.affinity, f = ctx.opinionOfPlayer.familiar;
+      if (ctx.gang === 'player') return pick(['Boss.', 'Evening, chief. Quiet so far.', "What's the job?"], seed);
       if (ctx.sawPlayerCrime) return pick(["You! I know your face. You're the thief!", 'Stay back. I saw what you did.', "I've told the watch about you."], seed);
       if (ctx.stage === 'child' || ctx.stage === 'olderChild') return pick(['Are you a soldier? You look like a soldier.', "Mam says I'm not to talk to strangers.", 'Have you seen a dog with one ear? He\'s mine.'], seed);
       if (ctx.traits.includes('hostile') || a < -0.3) return pick(['What do you want?', "Keep walking, stranger.", "I've nothing for you."], seed);
@@ -4931,6 +5142,18 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         for (let i = 0; i < 4; i++) tryPut('sack', anywhere(), { stockOf: 'wheat', container: { slots: 2 } });
         tryPut('crate', anywhere()); tryPut('barrel', anywhere());
         break;
+      case 'hideout': {
+        const lvl = b.level || 1;
+        hearth();
+        for (let i = 0; i < Math.min(O.Gangs.LEVELS[lvl].beds, 6); i++) tryPut('bed', [[i * 2, 0], [i * 2, d - 2], ...anywhere(1, 2)], { bed: true, v: 0, gangBed: true });
+        const t = tryPut('table', [[Math.floor(w / 2) - 1, Math.floor(d / 2)], ...anywhere(2, 1)], { table: true, v: 0 });
+        if (t) { tryPut('stool', [[t.tx - 1, t.ty]], { seat: true }); tryPut('stool', [[t.tx + 2, t.ty]], { seat: true }); tryPut('stool', [[t.tx, t.ty + 1]], { seat: true }); }
+        tryPut('chest', [...along(0), ...anywhere()], { gangStash: true, noContainer: true });
+        if (lvl >= 2) { tryPut('rack', along(0, 2)); tryPut('workbench', anywhere(2, 1)); }
+        if (lvl >= 3) { tryPut('desk', anywhere(2, 1)); tryPut('rug', anywhere(2, 1), { flat: true }); }
+        tryPut('barrel', anywhere()); tryPut('woodpile', anywhere());
+        break;
+      }
       case 'woodcutter':
         hearth(); tryPut('bed', [[0, 0], [w - 1, 0], ...anywhere(1, 2)], { bed: true }); tryPut('woodpile', anywhere()); tryPut('rack', along(0, 2)); tryPut('stool', anywhere(), { seat: true }); storage();
         break;
@@ -4952,7 +5175,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     return L;
   }
 
-  O.Interior = { interior, layoutFor, FOOT };
+  O.Interior = { interior, layoutFor, FOOT, invalidate: (b) => { for (const k of [...cache.keys()]) if (k.startsWith(b.id + ':')) cache.delete(k); } };
 })();
 
 </script>
@@ -5131,7 +5354,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
             else { x = ax + (spot.kind === 'oven' || spot.kind === 'forge' ? 0 : 0); y = ay + 13; dir = 3; anim = spot.kind === 'medbed' ? 'idle' : 'work'; }
             if (spot.kind === 'desk') anim = 'idle';
           }
-        } else if (['socialise', 'eat-out', 'eat', 'worship', 'rest', 'mourn', 'wedding'].includes(act) || (act === 'home' && q.stage !== 'baby')) {
+        } else if (['socialise', 'eat-out', 'eat', 'worship', 'rest', 'mourn', 'wedding', 'gangmeet'].includes(act) || (act === 'home' && q.stage !== 'baby')) {
           spot = act === 'home' && q.id % 3 === 0 ? null : free(seats);
           if (spot) { const [ax, ay] = this.anchor(spot); x = ax; y = ay + 2; dir = spot.pew ? 3 : 0; anim = 'sit'; if (spot.pew) { const k = inside.filter((z) => ['worship', 'mourn', 'wedding'].includes(z.activity?.act)).indexOf(q) % 3; x = ax + (k - 1) * 14; } }
         } else if (act === 'shop' || act === 'deliver' || act === 'pickup' || act === 'carry-home' || act === 'import') {
@@ -5226,6 +5449,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         const cx = ax, cy = ay - it.fh * 8 + 4;
         const d = Math.hypot(cx - p.x, Math.max(0, cy - p.y - 8, p.y - ay - 6) + (Math.abs(cx - p.x) > it.fw * 8 + 6 ? 20 : 0));
         if (d > 22) continue;
+        if (it.gangStash && this.b.gang === 'player') out.push({ type: 'stash', it, d, x: cx, y: cy });
         if (it.container) out.push({ type: 'container', it, d, x: cx, y: cy });
         if (it.bed) out.push({ type: 'bed', it, d: d + 1, x: cx, y: cy });
         if (it.kind === 'stairs') out.push({ type: 'stairs', it, d: d - 2, x: cx, y: cy });
@@ -5358,7 +5582,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   const G = O.Data.GOODS;
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const ACT_LABEL = {
-    sleep: 'asleep', work: 'working', fieldwork: 'working the fields', chop: 'felling timber', report: 'reporting a crime to the watch', investigate: 'investigating a crime', jailed: 'locked in the cell', market: 'coming to market', service: 'in service at a house', sick: 'ill in bed', collapsed: 'collapsed!', help: 'running to help someone', escort: 'helping a patient to the physician', 'to-doctor': 'going to the physician', treated: 'being treated by the physician', mourn: 'at a funeral', wedding: 'at a wedding', build: 'building the new house', 'move-in': 'moving to Ashford', forage: 'gathering herbs', patrol: 'on patrol', eat: 'having a meal', 'eat-out': 'eating at the tavern',
+    sleep: 'asleep', work: 'working', fieldwork: 'working the fields', chop: 'felling timber', gangmeet: 'meeting at the hideout', report: 'reporting a crime to the watch', investigate: 'investigating a crime', jailed: 'locked in the cell', market: 'coming to market', service: 'in service at a house', sick: 'ill in bed', collapsed: 'collapsed!', help: 'running to help someone', escort: 'helping a patient to the physician', 'to-doctor': 'going to the physician', treated: 'being treated by the physician', mourn: 'at a funeral', wedding: 'at a wedding', build: 'building the new house', 'move-in': 'moving to Ashford', forage: 'gathering herbs', patrol: 'on patrol', eat: 'having a meal', 'eat-out': 'eating at the tavern',
     home: 'at home', play: 'playing', shop: 'shopping', socialise: 'drinking at the Lantern', sit: 'resting on the bench', stroll: 'taking the air', worship: 'at chapel',
     'wait-work': 'waiting for carrying work', pickup: 'collecting goods', deliver: 'making a delivery', 'carry-home': 'carrying shopping home', import: 'bringing goods to market', rest: 'resting at the inn', leave: 'leaving town',
   };
@@ -5397,7 +5621,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const bz = q.job?.biz ? sim.biz.get(q.job.biz) : null;
       const atWork = bz && bz.open && q.agent.inside === bz.id && q.activity?.act === 'work' && bz.def.sells.length;
       const innkeeper = bz && bz.type === 'tavern' && q.agent.inside === bz.id && bz.open;
-      const extra = (atWork ? '<button data-topic="trade" class="hot">Trade</button>' : '') + (innkeeper ? '<button data-topic="rent" class="hot">Rent a room · 6d</button>' : '');
+      const ext = (api.extraButtons ? api.extraButtons(q) : []).map(([k, l]) => `<button data-topic="x-${k}" class="hot">${l}</button>`).join('');
+      const extra = ext + (atWork ? '<button data-topic="trade" class="hot">Trade</button>' : '') + (innkeeper ? '<button data-topic="rent" class="hot">Rent a room · 6d</button>' : '');
       card.hidden = false;
       card.innerHTML = `
         <div class="talk-head"><canvas width="32" height="48" class="portrait"></canvas>
@@ -5410,6 +5635,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const pc = card.querySelector('.portrait').getContext('2d'); pc.imageSmoothingEnabled = false; pc.drawImage(O.Char.frame(q.app, 0, 'talk', 1), 0, 0);
       card.querySelectorAll('[data-topic]').forEach((b) => b.onclick = () => {
         const t = b.dataset.topic; if (t === 'bye') return closeTalk();
+        if (t.startsWith('x-')) return api.onExtra && api.onExtra(q, t.slice(2), renderTalk);
         if (t === 'trade') { closeTalk(); return O.Panels.trade(sim, bz, q); }
         if (t === 'rent') {
           const PS = O.PlayerState;
@@ -5489,7 +5715,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       if (e.code === 'Escape' && (talking || !ledger.hidden)) { closeTalk(); toggleLedger(false); return true; }
       return false;
     });
-    return { openTalk, closeTalk, toggleLedger, talking: () => talking };
+    const api = { openTalk, closeTalk, toggleLedger, talking: () => talking };
+    return api;
   }
   O.NpcUI = { setup };
 })();
@@ -5510,6 +5737,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     function doorLocked(b) {
       const h = sim.hour, bz = sim.biz.get(b.id);
       if (b.type === 'barn') return false;
+      if (b.type === 'hideout') return b.gang !== 'player';
       if (PS.room && PS.room.b === b.id && sim.day <= PS.room.until) return false;
       if (bz && (bz.open || bz.def.public)) return false;
       const home = b.household && sim.households[b.household - 1];
@@ -5525,6 +5753,15 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       for (const pr of sim.world.props) if (pr.kind === 'gravestone') { const d = Math.hypot(pr.x - p.x, pr.y - p.y); if (d < 20) out.push({ type: 'grave', prop: pr, d: d + 2, x: pr.x, y: pr.y - 14 }); }
       for (const b of sim.world.buildings) {
         if (b.site) continue;
+        if (b.type === 'hideout' && b.level === 0) {
+          const cx = b.x * T + 24, cy = (b.bottom + 1) * T;
+          const d = Math.hypot(cx - p.x, cy - p.y);
+          if (d < 34) {
+            if (b.unclaimed) out.push({ type: 'claim', b, d, x: cx, y: cy - 20 });
+            else if (b.gang === 'player') { out.push({ type: 'stash', b, d, x: cx, y: cy - 20 }); out.push({ type: 'campbed', b, d: d + 3, x: cx, y: cy - 20 }); }
+          }
+          continue;
+        }
         const dx = b.doorX * T + 8, dy = b.doorY * T + 4;
         const d = Math.hypot(dx - p.x, dy - p.y);
         if (d < 14) out.push({ type: 'door', b, d: d + 4, x: dx, y: dy - 18 });
@@ -5537,12 +5774,15 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         case 'door': return doorLocked(c.b) ? `${c.b.name} — locked` : `Enter ${c.b.type === 'house' ? 'house' : c.b.name}`;
         case 'container': return `Search ${c.it.kind}`;
         case 'grave': return 'Read the gravestone';
+        case 'claim': return 'Claim the abandoned camp';
+        case 'stash': return 'Open the stash';
+        case 'campbed': return 'Sleep by the fire';
         case 'bed': return mayUseBed(c.it) ? 'Sleep until morning' : 'Bed — not yours';
         case 'stairs': return game.scene.floor === 0 ? 'Go upstairs' : 'Go downstairs';
         default: return '';
       }
     }
-    const mayUseBed = (it) => it.rent && PS.room && game.scene && PS.room.b === game.scene.b.id && sim.day <= PS.room.until;
+    const mayUseBed = (it) => (it.gangBed && game.scene && game.scene.b.gang === 'player') || (it.rent && PS.room && game.scene && PS.room.b === game.scene.b.id && sim.day <= PS.room.until);
 
     game.hooks.update.push((dt) => {
       if (searching > 0) { searching -= dt; game.player.anim = 'crouch'; game.player.locked = true; if (searching <= 0) { game.player.locked = false; game.player.anim = 'idle'; pendingSearch && pendingSearch(); pendingSearch = null; } }
@@ -5644,6 +5884,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
           O.Crime.onEnter(game, sim, cur.b);
           break;
         case 'container': search(cur.it, false); break;
+        case 'claim': O.GangUI.claim(cur.b); break;
+        case 'stash': O.GangUI.stash(); break;
+        case 'campbed': sleep(); break;
         case 'grave': { const g = cur.prop.grave; O.Panels.toast(g ? `“Here lies ${g.name}, ${g.age} years. ${g.cause.replace('died ', '').replace(/^./, (c) => c.toUpperCase())}.”` : 'The old stone is worn smooth; you can no longer read the name.'); break; }
         case 'bed': if (mayUseBed(cur.it)) sleep(); else O.Panels.toast("That's someone else's bed."); break;
         case 'stairs': game.enterBuilding(game.scene.b, game.scene.floor === 0 ? 1 : 0, true); break;
@@ -6006,6 +6249,114 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
 </script>
 <script>
+// Gang interface: claiming the camp, recruiting in conversation, the gang ledger (G), the stash,
+// orders for night jobs, hideout upgrades, and selling stolen goods to your fence.
+'use strict';
+(function () {
+  const PS = O.PlayerState, G = O.Data.GOODS, esc = (s) => O.escape(s);
+  PS.stash = PS.stash || [];
+
+  function setup(game, sim, npcUI) {
+    const money = O.money;
+
+    function claim(b) {
+      O.Panels.open('Claim the camp', `<p class="caption">A cold fire ring, a torn tent, a chest with a broken hasp. Nobody has slept here in a year. Make it yours and you'll need a name men can whisper in taverns.</p>
+        <label class="lbl" for="gangName">Name your band</label><input type="text" id="gangName" maxlength="28" value="The Hollow Hands" style="margin:6px 0 10px;width:100%">
+        <button class="btn" data-claim="1">Claim it</button>`, (r) => {
+        r.querySelector('[data-claim]').onclick = () => {
+          const name = (r.querySelector('#gangName').value || '').trim() || 'The Hollow Hands';
+          sim.foundGang(name, b); b.dirty = true; PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.05);
+          O.Panels.close(); O.Panels.toast(`${name} has a home. Press G to manage your band.`);
+        };
+      });
+    }
+
+    function stash() {
+      const rows = PS.stash.map((k, i) => `<div class="slot"><img src="${O.icon(k)}" alt=""><span>${esc(G[k].name)}</span><button data-take="${i}">Take</button></div>`).join('');
+      const mine = PS.items.map((k, i) => `<div class="slot"><img src="${O.icon(k)}" alt=""><span>${esc(G[k].name)}</span><button data-put="${i}">Stash</button></div>`).join('');
+      O.Panels.open('Hideout stash', `<div class="lbl">In the stash · ${PS.stash.length}/40</div><div class="slots">${rows || '<p class="caption">Empty.</p>'}</div><div class="lbl" style="margin-top:12px">Your satchel</div><div class="slots">${mine || '<p class="caption">Nothing.</p>'}</div>`, (r) => {
+        r.querySelectorAll('[data-take]').forEach((x) => x.onclick = () => { const k = PS.stash[+x.dataset.take]; if (!PS.add(k)) return O.Panels.toast('Your satchel is full.'); PS.stash.splice(+x.dataset.take, 1); stash(); });
+        r.querySelectorAll('[data-put]').forEach((x) => x.onclick = () => { if (PS.stash.length >= 40) return; const k = PS.items[+x.dataset.put]; PS.items.splice(+x.dataset.put, 1); PS.stash.push(k); if (PS.stolen[k]) PS.stolen[k]--; stash(); });
+      });
+    }
+
+    function fence(seller, cut = 0.55) {
+      const vals = [...new Set(PS.items)].filter((k) => G[k].valuable || PS.stolen[k]);
+      const rows = vals.map((k) => `<tr><td><img class="ic" src="${O.icon(k)}" alt=""> ${G[k].name} ×${PS.count(k)}</td><td class="n">${Math.max(1, Math.round(G[k].base * cut))}d</td><td><button data-sell="${k}">Sell</button></td></tr>`).join('');
+      O.Panels.open(`${seller.name}, fence`, `<p class="caption">“No questions. Half and a bit of what it's worth, take it or leave it.”</p><table><thead><tr><th>Goods</th><th class="n">Offer</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="3">You have nothing worth fencing.</td></tr>'}</tbody></table>`, (r) => {
+        r.querySelectorAll('[data-sell]').forEach((x) => x.onclick = () => { const k = x.dataset.sell, pr = Math.max(1, Math.round(G[k].base * cut)); PS.remove(k); PS.money += pr; if (PS.stolen[k]) PS.stolen[k]--; PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.01); fence(seller, cut); });
+      });
+    }
+
+    function ledger() {
+      const g = sim.playerGang();
+      if (!g) return O.Panels.toast('You have no band yet. Find somewhere to make camp in Ashford Wood.');
+      const L = O.Gangs.LEVELS, next = L[g.level + 1];
+      const houses = sim.households.filter((h) => !h.gone && h.members.length).map((h) => ({ h, b: sim.building(h.home) })).filter((x) => x.b);
+      const mem = g.members.map((m, i) => {
+        const p = sim.byId.get(m.id); if (!p) return '';
+        const ordered = (g.orders || []).find((o) => o.member === m.id);
+        return `<tr><td>${esc(p.name)}<br><small class="lbl">${p.age} · ${esc(p.job?.role || 'no trade')}${p.jailUntil ? ' · IN THE CELL' : ''}</small></td>
+          <td><select data-role="${i}">${O.Gangs.ROLES.map((r) => `<option ${r === m.role ? 'selected' : ''}>${r}</option>`).join('')}</select></td>
+          <td><span class="bar ${m.loyalty < 0.3 ? 'warn' : ''}"><i style="width:${Math.round(m.loyalty * 100)}%"></i></span></td>
+          <td class="n">${m.wage}d <button data-wage="${i}" data-d="1">+</button><button data-wage="${i}" data-d="-1">−</button></td>
+          <td>${ordered ? `Tonight: the ${esc(sim.households.find((h) => h.home === ordered.target)?.surname || '')} house` : `<select data-job="${i}"><option value="">No job</option>${houses.map(({ h, b }) => `<option value="${b.id}">Burgle the ${esc(h.surname)} house (${b.wealth > 0.6 ? 'rich' : b.wealth > 0.35 ? 'comfortable' : 'poor'})</option>`).join('')}</select>`}</td></tr>`;
+      }).join('');
+      O.Panels.open(g.name, `<div class="kv">
+          <div><span class="lbl">Purse</span><b>${money(g.purse)}</b><small><button data-dep="10">Give 10d</button> <button data-wd="10">Take 10d</button></small></div>
+          <div><span class="lbl">Hideout</span><b>${L[g.level].name}</b><small>${next ? `<button data-up="1">Build a ${next.name.toLowerCase()} · ${next.cost}d</button>` : 'As grand as it gets.'}</small></div>
+          <div><span class="lbl">Influence</span><b>${Math.round(g.influence * 100)}%</b><small>rivals: the Crows (${Math.round((sim.gang('crows')?.influence || 0) * 100)}%)</small></div>
+          <div><span class="lbl">Wages due</span><b>${g.members.reduce((s, m) => s + m.wage, 0)}d/day</b><small>paid from the purse each dawn</small></div>
+        </div>
+        <table style="margin-top:12px"><thead><tr><th>Member</th><th>Role</th><th>Loyalty</th><th class="n">Wage</th><th>Tonight</th></tr></thead><tbody>${mem || '<tr><td colspan="5">No members yet. Sound out the desperate and the reckless — in the tavern, in the square.</td></tr>'}</tbody></table>
+        <div class="lbl" style="margin-top:12px">Recent</div><ol class="chron">${g.log.slice(-6).reverse().map((t) => `<li>${esc(t)}</li>`).join('') || '<li>Nothing yet.</li>'}</ol>`, (r) => {
+        r.querySelector('[data-dep]').onclick = () => { if (PS.money >= 10) { PS.money -= 10; g.purse += 10; ledger(); } };
+        r.querySelector('[data-wd]').onclick = () => { if (g.purse >= 10) { g.purse -= 10; PS.money += 10; ledger(); } };
+        const up = r.querySelector('[data-up]'); if (up) up.onclick = () => { if (sim.upgradeHideout(g)) { O.Panels.toast(`Your band now has a ${L[g.level].name.toLowerCase()}.`); ledger(); } else O.Panels.toast('The purse is too light for that.', 'bad'); };
+        r.querySelectorAll('[data-role]').forEach((x) => x.onchange = () => { g.members[+x.dataset.role].role = x.value; });
+        r.querySelectorAll('[data-wage]').forEach((x) => x.onclick = () => { const m = g.members[+x.dataset.wage]; m.wage = O.clamp(m.wage + +x.dataset.d, 0, 20); m.loyalty = O.clamp(m.loyalty + (+x.dataset.d > 0 ? 0.04 : -0.06), 0, 1); ledger(); });
+        r.querySelectorAll('[data-job]').forEach((x) => x.onchange = () => { if (!x.value) return; g.orders = g.orders || []; g.orders.push({ member: g.members[+x.dataset.job].id, target: +x.value }); ledger(); });
+      });
+    }
+
+    // talk-card extensions: recruit, fence, gang chatter
+    npcUI.extraButtons = (q) => {
+      const g = sim.playerGang(), out = [];
+      if (g && !q.gang && q.age >= 16 && !q.job?.role?.startsWith('guard')) out.push(['recruit', 'Sound them out']);
+      if (q.gang === 'player') { const m = g?.members.find((x) => x.id === q.id); if (m?.role === 'fence') out.push(['fence', 'Fence goods']); }
+      if (!g && q.gang === 'crows' && PS.rep.criminal > 0.04) out.push(['fence', 'Sell them stolen goods']);
+      return out;
+    };
+    npcUI.onExtra = (q, key, render) => {
+      if (key === 'fence') { npcUI.closeTalk(); return fence(q, q.gang === 'player' ? 0.6 : 0.45); }
+      if (key === 'recruit') {
+        const g = sim.playerGang();
+        if (q._asked === sim.day) return render('"I told you what I think. Leave it."');
+        q._asked = sim.day;
+        const c = sim.recruitChance(q);
+        if (sim.rng.chance(c)) {
+          const wage = Math.max(2, Math.min(8, Math.round(4 + (sim.household(q).money > 60 ? 2 : 0) - (q.traits.includes('loyal') ? 1 : 0))));
+          sim.joinGang(q, 'player', wage);
+          return render(`"…${wage} pence a day, and you keep my name out of it. I'm in."`);
+        }
+        sim.relate(q, { id: 0 }, -0.08);
+        if (c < 0.15 && sim.rng.chance(0.4)) { sim.remember(q, 'A stranger tried to recruit me into a gang.', 'crime', 1.2, 0); return render('"I know what you are. Get away from me before I call the watch."'); }
+        return render(q.traits.includes('cautious') ? '"That sort of life ends at the end of a rope."' : '"Not today. Ask me again when I\'m hungrier."');
+      }
+    };
+
+    game.keyHandlers.push((e) => {
+      if (e.code === 'KeyG' && !O.panelOpen) { ledger(); return true; }
+      return false;
+    });
+
+    O.GangUI = { claim, stash, ledger, fence };
+  }
+  O.GangUISetup = { setup };
+})();
+
+</script>
+<script>
 // Character creation screen: builds the player's Appearance from explicit choices,
 // with a live 4-direction animated preview, a generated crowd and a genetics demo.
 'use strict';
@@ -6356,6 +6707,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     for (const b of world.buildings) if (b.dirty) {
       b.dirty = false;
       if (b.site) { const si = sim.build.siteInfo(b.id); b.sprite = O.Env.staged(b.spec, si.stage, si.prog); }
+      else if (b.type === 'hideout') b.sprite = O.Env.hideout(b.level, b.spec);
       else { b.spec.condition = b.condition; b.sprite = O.Env.building(b.spec); }
     }
     if (world.dirtyStatics) game.rebuildStatics();
@@ -6380,6 +6732,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   const npcUI = O.NpcUI.setup(game, sim);
   O.Interact.setup(game, sim, npcUI);
   O.LawUI.setup(game, sim, npcUI);
+  O.GangUISetup.setup(game, sim, npcUI);
+  const gbtn = document.createElement('button'); gbtn.className = 'btn ghost gang-btn'; gbtn.textContent = 'Gang (G)';
+  gbtn.onclick = () => (O.panelOpen ? O.Panels.close() : O.GangUI.ledger()); $('tab-play').appendChild(gbtn);
   const sbtn = document.createElement('button'); sbtn.className = 'btn ghost satchel-btn'; sbtn.textContent = 'Satchel (I)';
   sbtn.onclick = () => (O.panelOpen ? O.Panels.close() : O.Panels.inventory()); $('tab-play').appendChild(sbtn);
 

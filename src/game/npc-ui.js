@@ -4,7 +4,7 @@
   const G = O.Data.GOODS;
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const ACT_LABEL = {
-    sleep: 'asleep', work: 'working', fieldwork: 'working the fields', chop: 'felling timber', report: 'reporting a crime to the watch', investigate: 'investigating a crime', jailed: 'locked in the cell', market: 'coming to market', service: 'in service at a house', sick: 'ill in bed', collapsed: 'collapsed!', help: 'running to help someone', escort: 'helping a patient to the physician', 'to-doctor': 'going to the physician', treated: 'being treated by the physician', mourn: 'at a funeral', wedding: 'at a wedding', build: 'building the new house', 'move-in': 'moving to Ashford', forage: 'gathering herbs', patrol: 'on patrol', eat: 'having a meal', 'eat-out': 'eating at the tavern',
+    sleep: 'asleep', work: 'working', fieldwork: 'working the fields', chop: 'felling timber', gangmeet: 'meeting at the hideout', report: 'reporting a crime to the watch', investigate: 'investigating a crime', jailed: 'locked in the cell', market: 'coming to market', service: 'in service at a house', sick: 'ill in bed', collapsed: 'collapsed!', help: 'running to help someone', escort: 'helping a patient to the physician', 'to-doctor': 'going to the physician', treated: 'being treated by the physician', mourn: 'at a funeral', wedding: 'at a wedding', build: 'building the new house', 'move-in': 'moving to Ashford', forage: 'gathering herbs', patrol: 'on patrol', eat: 'having a meal', 'eat-out': 'eating at the tavern',
     home: 'at home', play: 'playing', shop: 'shopping', socialise: 'drinking at the Lantern', sit: 'resting on the bench', stroll: 'taking the air', worship: 'at chapel',
     'wait-work': 'waiting for carrying work', pickup: 'collecting goods', deliver: 'making a delivery', 'carry-home': 'carrying shopping home', import: 'bringing goods to market', rest: 'resting at the inn', leave: 'leaving town',
   };
@@ -43,7 +43,8 @@
       const bz = q.job?.biz ? sim.biz.get(q.job.biz) : null;
       const atWork = bz && bz.open && q.agent.inside === bz.id && q.activity?.act === 'work' && bz.def.sells.length;
       const innkeeper = bz && bz.type === 'tavern' && q.agent.inside === bz.id && bz.open;
-      const extra = (atWork ? '<button data-topic="trade" class="hot">Trade</button>' : '') + (innkeeper ? '<button data-topic="rent" class="hot">Rent a room · 6d</button>' : '');
+      const ext = (api.extraButtons ? api.extraButtons(q) : []).map(([k, l]) => `<button data-topic="x-${k}" class="hot">${l}</button>`).join('');
+      const extra = ext + (atWork ? '<button data-topic="trade" class="hot">Trade</button>' : '') + (innkeeper ? '<button data-topic="rent" class="hot">Rent a room · 6d</button>' : '');
       card.hidden = false;
       card.innerHTML = `
         <div class="talk-head"><canvas width="32" height="48" class="portrait"></canvas>
@@ -56,6 +57,7 @@
       const pc = card.querySelector('.portrait').getContext('2d'); pc.imageSmoothingEnabled = false; pc.drawImage(O.Char.frame(q.app, 0, 'talk', 1), 0, 0);
       card.querySelectorAll('[data-topic]').forEach((b) => b.onclick = () => {
         const t = b.dataset.topic; if (t === 'bye') return closeTalk();
+        if (t.startsWith('x-')) return api.onExtra && api.onExtra(q, t.slice(2), renderTalk);
         if (t === 'trade') { closeTalk(); return O.Panels.trade(sim, bz, q); }
         if (t === 'rent') {
           const PS = O.PlayerState;
@@ -135,7 +137,8 @@
       if (e.code === 'Escape' && (talking || !ledger.hidden)) { closeTalk(); toggleLedger(false); return true; }
       return false;
     });
-    return { openTalk, closeTalk, toggleLedger, talking: () => talking };
+    const api = { openTalk, closeTalk, toggleLedger, talking: () => talking };
+    return api;
   }
   O.NpcUI = { setup };
 })();

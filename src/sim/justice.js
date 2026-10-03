@@ -115,7 +115,7 @@
         // a villager who happens to fit the description may be wrongly accused
         const look = lookOf(O.game.player.a);
         const innocents = this.people.filter((q) => !q.visitor && q.age >= 15 && matchScore(crime.profile, lookOf(q.app)) > matchScore(crime.profile, look) + 0.15);
-        if (innocents.length && crime.evidence < 1.6 && this.rng.chance(0.35)) this.arrestNPC(this.rng.pick(innocents), crime, true);
+        if (innocents.length && Object.keys(crime.profile).filter((k) => k !== 'height').length >= 2 && crime.evidence < 1.6 && this.rng.chance(0.35)) this.arrestNPC(this.rng.pick(innocents), crime, true);
       }
     };
 
@@ -123,6 +123,7 @@
       const scored = this.people.filter((q) => !q.visitor && q.age >= 13).map((q) => [q, matchScore(crime.profile, lookOf(q.app))]).sort((a, b) => b[1] - a[1]);
       if (!scored.length) return;
       const [best, sc] = scored[0];
+      if (Object.keys(crime.profile).filter((k) => k !== 'height').length < 2) return; // too vague to arrest anyone
       if (sc > 0.5 && this.rng.chance(0.4 + crime.evidence * 0.2)) this.arrestNPC(best, crime, best !== crime.perp);
     };
 

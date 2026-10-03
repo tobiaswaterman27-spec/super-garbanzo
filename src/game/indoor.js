@@ -75,7 +75,7 @@
             else { x = ax + (spot.kind === 'oven' || spot.kind === 'forge' ? 0 : 0); y = ay + 13; dir = 3; anim = spot.kind === 'medbed' ? 'idle' : 'work'; }
             if (spot.kind === 'desk') anim = 'idle';
           }
-        } else if (['socialise', 'eat-out', 'eat', 'worship', 'rest', 'mourn', 'wedding'].includes(act) || (act === 'home' && q.stage !== 'baby')) {
+        } else if (['socialise', 'eat-out', 'eat', 'worship', 'rest', 'mourn', 'wedding', 'gangmeet'].includes(act) || (act === 'home' && q.stage !== 'baby')) {
           spot = act === 'home' && q.id % 3 === 0 ? null : free(seats);
           if (spot) { const [ax, ay] = this.anchor(spot); x = ax; y = ay + 2; dir = spot.pew ? 3 : 0; anim = 'sit'; if (spot.pew) { const k = inside.filter((z) => ['worship', 'mourn', 'wedding'].includes(z.activity?.act)).indexOf(q) % 3; x = ax + (k - 1) * 14; } }
         } else if (act === 'shop' || act === 'deliver' || act === 'pickup' || act === 'carry-home' || act === 'import') {
@@ -170,6 +170,7 @@
         const cx = ax, cy = ay - it.fh * 8 + 4;
         const d = Math.hypot(cx - p.x, Math.max(0, cy - p.y - 8, p.y - ay - 6) + (Math.abs(cx - p.x) > it.fw * 8 + 6 ? 20 : 0));
         if (d > 22) continue;
+        if (it.gangStash && this.b.gang === 'player') out.push({ type: 'stash', it, d, x: cx, y: cy });
         if (it.container) out.push({ type: 'container', it, d, x: cx, y: cy });
         if (it.bed) out.push({ type: 'bed', it, d: d + 1, x: cx, y: cy });
         if (it.kind === 'stairs') out.push({ type: 'stairs', it, d: d - 2, x: cx, y: cy });

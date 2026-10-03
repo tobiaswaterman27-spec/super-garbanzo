@@ -1,0 +1,29 @@
+# Outlaw — build log and roadmap
+
+The game is a single HTML page built from `src/` by `node tools/build.mjs pages/outlaw.html dist/outlaw.html`.
+Each step was published as an artifact and screenshot-checked in headless Chromium
+(`tools/shot.mjs`, `tools/interiors.mjs`, `tools/simtest.mjs`).
+
+## Done
+
+| Step | Spec phases | What's in |
+|---|---|---|
+| 1 | Graphics | Material raster (hue-shifted ramps, normal shading, contact AO, selective outline); skeleton-posed modular characters, 12 animations × 4 directions; outfits by trade/wealth; genetics; character creator, crowd and family views; sprite sheets |
+| 2 | 1, world art | Procedural buildings (5 wall types, 4 roof types, side/gable), trees, props, noise-warped terrain with baked shadows; village of Ashford; movement, depth sorting, smoke, day/night light |
+| 3 | 2–8 | ~80 residents in families; schedules with A*; jobs, wages, homes, businesses with stock, recipes, supply/demand prices; hand-carried deliveries; trader imports; memories; dialogue; town ledger |
+| 4 | 9–10 | Interiors at 2× footprint with furniture by type, residents at beds/workstations/seats, live stock visuals, fire/window light, stairs; 10-slot satchel; trading; room rental; sleeping; container search tied to real pantries/purses/stock; F quick loot |
+| 5 | 11–12 | Weather chain (rain, storm, fog, snow, heat) affecting behaviour and work; puddles, snow, cloud shadows, particles, lightning; seasons, crops, harvest reserve; 11-stage construction; storm damage and repair; labour market, relief, exports, tolls, tax policy |
+| 6 | 13–16 | Illness, injury, contagion, sanitation, collapse → helper → physician, treatment; ageing, courtship, weddings, births, deaths, funerals, graves, inheritance, vacancies, migration |
+| 8 | 20 | Gangs: claim a camp, recruit in conversation, wages, loyalty, roles, purse, hideout that grows (camp → hideout → safehouse → HQ), stash, fence, night jobs, informers; rival Crows; council hires watchmen in crime waves |
+| 7 | 17–19 | Pickpocketing, lock-picking, witnesses with imperfect descriptions, reports, investigation, suspect profiles, disguise, recognition and chase, arrest/bribe/run, trial and sentences, NPC crime, wrongful arrests, rumours |
+
+## Next
+
+- 20 Gangs: recruits found in the tavern, loyalty, wages, hideout that grows, fence, gang jobs, rivals
+- 21 Reputation: per-town and per-faction effects on prices, guards, recruits
+- 22 Politics: castle meetings, councils voting on taxes/guards/roads, treasury decisions
+- 23–25 Trade and regions: other settlements on the map, caravans, roads, bridges, robberies with economic knock-on effects; town growth/decline
+- 26 History: world timeline UI, legacies
+- Combat (stylised, non-graphic injury states), horses with ownership history
+- Player property: buying houses, land, estates
+- NPC speech via OpenAI (see `SPEECH.md`)

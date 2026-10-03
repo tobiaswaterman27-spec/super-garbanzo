@@ -609,5 +609,31 @@
     return out;
   }
 
-  O.Env = { building, staged, tree, prop, T, M };
+  // Gang hideouts grow in place: a hidden camp, a lean-to hideout, a log safehouse, a timber hall.
+  function hideout(level, spec) {
+    if (level >= 1) {
+      const sp = Object.assign({}, spec, level === 1 ? { wall: 'plank', plankMat: 'plank', roof: 'thatch', roofType: 'side', chimney: false, wallH: 22, condition: 0.5 } : level === 2 ? { wall: 'log', roof: 'shingle', roofType: 'gable', chimney: true, condition: 0.75 } : { wall: 'log', roof: 'shingle', roofType: 'gable', chimney: true, floors: 2, condition: 0.9, sign: 'sword' });
+      return building(sp);
+    }
+    // level 0: a canvas tent, a campfire ring, a bedroll and a stash chest
+    const w = spec.w, OV = 4, FW = w * T, W = FW + OV * 2, H = spec.d * T + 30;
+    const B = new MB(W, H);
+    const canvasM = P.mat('#b0a078', 'cloth'), pole = M.beam(), stone = M.stoneDark();
+    B.part(2);
+    const base = H - 6, apexY = base - 24, cx = 18;
+    B.poly([[cx - 16, base], [cx, apexY], [cx + 1, apexY], [cx + 1, base]], [-0.6, -0.3, 0.7], canvasM);
+    B.poly([[cx + 1, apexY], [cx + 16, base], [cx + 1, base]], [0.5, -0.3, 0.75], canvasM);
+    for (let y = apexY; y < base; y++) { B.plot(cx, y, pole, 2); if ((y - apexY) % 5 === 0) for (let x = cx - 14; x < cx + 15; x++) if (B.matAt(x, y) === canvasM) B.tweak(x, y, -1); }
+    B.part(6); B.poly([[cx - 4, base], [cx + 1, base - 13], [cx + 5, base]], [0, 0, 1], P.mat('#2a2024', 'cloth'), { maxShade: 0 });
+    B.part(3); // fire ring
+    const fx = W - 14, fy = base - 2;
+    for (let a = 0; a < 10; a++) B.blob(fx + Math.cos(a / 10 * 6.28) * 5, fy + Math.sin(a / 10 * 6.28) * 2.2, 1.3, 1, stone, { power: 2 });
+    B.capsule(fx - 3, fy, fx + 3, fy - 1, 0.9, 0.9, M.log()); B.capsule(fx - 2, fy - 1, fx + 3, fy + 1, 0.9, 0.9, M.log());
+    B.part(4); B.rect(2, base + 1, 10, 3, P.mat('#6a5a3a', 'cloth'), 2); // bedroll
+    const out = { canvas: B.toCanvas(), W, H, OV, windows: [], door: null, chimney: { x: fx - OV + OV, y: fy - 4 - (H - (H)) }, sign: null, wallTop: H, roofMask: null, campfire: { x: fx, y: fy } };
+    out.chimney = { x: fx, y: fy - 3 };
+    return out;
+  }
+
+  O.Env = { building, staged, hideout, tree, prop, T, M };
 })();

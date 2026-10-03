@@ -38,6 +38,7 @@
     for (const b of world.buildings) if (b.dirty) {
       b.dirty = false;
       if (b.site) { const si = sim.build.siteInfo(b.id); b.sprite = O.Env.staged(b.spec, si.stage, si.prog); }
+      else if (b.type === 'hideout') b.sprite = O.Env.hideout(b.level, b.spec);
       else { b.spec.condition = b.condition; b.sprite = O.Env.building(b.spec); }
     }
     if (world.dirtyStatics) game.rebuildStatics();
@@ -62,6 +63,9 @@
   const npcUI = O.NpcUI.setup(game, sim);
   O.Interact.setup(game, sim, npcUI);
   O.LawUI.setup(game, sim, npcUI);
+  O.GangUISetup.setup(game, sim, npcUI);
+  const gbtn = document.createElement('button'); gbtn.className = 'btn ghost gang-btn'; gbtn.textContent = 'Gang (G)';
+  gbtn.onclick = () => (O.panelOpen ? O.Panels.close() : O.GangUI.ledger()); $('tab-play').appendChild(gbtn);
   const sbtn = document.createElement('button'); sbtn.className = 'btn ghost satchel-btn'; sbtn.textContent = 'Satchel (I)';
   sbtn.onclick = () => (O.panelOpen ? O.Panels.close() : O.Panels.inventory()); $('tab-play').appendChild(sbtn);
 

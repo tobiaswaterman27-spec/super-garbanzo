@@ -59,6 +59,10 @@ input[type=range] { width: 100%; accent-color: var(--ember); }
 .hud-prompt { bottom: 52px; left: 50%; transform: translateX(-50%); white-space: nowrap; }
 .ledger-btn { position: absolute; right: 12px; bottom: 12px; }
 .satchel-btn { position: absolute; right: 120px; bottom: 12px; }
+.gang-btn { position: absolute; right: 240px; bottom: 12px; }
+@media (max-width: 760px) { .hud-b { display: none; } }
+.kv small button, .ledger td button { background: var(--ink); color: var(--parch); border: 2px solid var(--line); padding: 1px 6px; cursor: pointer; font-family: var(--pix); font-size: 9px; }
+.ledger select { background: var(--ink); border: 2px solid var(--line); padding: 2px 4px; font-size: 12px; max-width: 220px; }
 .vitals { display: grid; grid-template-columns: auto 1fr; gap: 3px 8px; align-items: center; margin-top: 6px; }
 .purse-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: 4px 8px; align-items: baseline; margin-top: 4px; }
 .purse-row b { font-family: var(--pix); font-size: 11px; font-weight: 400; font-variant-numeric: tabular-nums; }
@@ -136,14 +140,14 @@ main > .wrap { overflow: auto; }
 .hud-tl .place { font-family: var(--display); font-size: 22px; color: var(--ember-2); line-height: 1.1; }
 .hud-tl .clock { font-family: var(--pix); font-size: 12px; letter-spacing: 1px; font-variant-numeric: tabular-nums; }
 .hud-tr { top: 12px; right: 12px; display: grid; gap: 6px; justify-items: end; }
-.hud-b { bottom: 12px; left: 50%; transform: translateX(-50%); font-family: var(--pix); font-size: 10px; letter-spacing: 1px; color: var(--parch-dim); white-space: nowrap; max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; }
+.hud-b { bottom: 12px; left: 12px; font-family: var(--pix); font-size: 10px; letter-spacing: 1px; color: var(--parch-dim); white-space: nowrap; max-width: calc(100% - 400px); overflow: hidden; text-overflow: ellipsis; }
 .prompt { font-family: var(--pix); font-size: 11px; color: var(--parch); }
 .prompt kbd { display: inline-block; background: var(--ember-2); color: var(--ink); border: 2px solid #000; padding: 0 5px; margin-right: 6px; font-family: var(--pix); }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
 </style>
 
 <header class="top">
-  <div class="brand">Outlaw<small>BUILD 0.7 · THE WATCH</small></div>
+  <div class="brand">Outlaw<small>BUILD 0.8 · BANDS OF THE WOOD</small></div>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" role="tab" aria-selected="true" data-tab="play">Play</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="forge">Character</button>
@@ -161,7 +165,7 @@ main > .wrap { overflow: auto; }
       <span class="lbl">Time</span>
       <div class="seg" id="speedSeg"></div>
     </div>
-    <div class="hud hud-b" id="hudB">WASD move · Shift run · E interact · Q steal/pick lock · F quick loot · I satchel · L ledger</div>
+    <div class="hud hud-b" id="hudB">WASD move · Shift run · E interact · Q steal/pick lock · F loot · I satchel · G gang · L ledger</div>
   </section>
 
   <section class="wrap" id="tab-forge" hidden>
@@ -230,6 +234,7 @@ main > .wrap { overflow: auto; }
 <script src="../src/sim/health.js"></script>
 <script src="../src/sim/life.js"></script>
 <script src="../src/sim/justice.js"></script>
+<script src="../src/sim/gangs.js"></script>
 <script src="../src/sim/sim.js"></script>
 <script src="../src/sim/dialogue.js"></script>
 <script src="../src/art/furniture.js"></script>
@@ -242,6 +247,7 @@ main > .wrap { overflow: auto; }
 <script src="../src/game/interact.js"></script>
 <script src="../src/game/weather-fx.js"></script>
 <script src="../src/game/law.js"></script>
+<script src="../src/game/gang-ui.js"></script>
 <script src="../src/game/creator.js"></script>
 <script src="../src/game/forge-ui.js"></script>
 <script src="../src/game/play.js"></script>

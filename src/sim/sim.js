@@ -30,6 +30,7 @@
       this.healthInit(); this.lifeInit();
       this.placeAll();
       this.justiceInit();
+      this.gangsInit();
       this._season = this.season;
     }
 
@@ -165,6 +166,7 @@
       const asleep = m < p.wake || m >= p.bed;
       if (asleep) return { act: 'sleep', b: home };
       const ev = this.eventPlan(p); if (ev) return ev;
+      const gp = this.gangPlan(p); if (gp) return gp;
       const sunday = wd === 6;
       if (sunday && h >= 9 && h < 10.5 && p.age >= 6) return { act: 'worship', b: this.chapelId };
       if (sunday && h >= 6.5 && h < 8.8 && this.household(p).shopper === p.id) { const need = this.shoppingNeed(this.household(p)); if (need) return { act: 'shop', b: need.biz, good: need.good, qty: need.qty }; }
@@ -305,6 +307,7 @@
       if (mm % 60 === 0) this.healthHourly();
       for (const p of this.people) if (p.task?.emigrating && !p.agent.path && p.agent.x > 93 * this.T) { this.people = this.people.filter((q) => q !== p); (this.departed = this.departed || []).push(p); }
       if (mm === 2 * 60) this.npcCrimeNightly();
+      if (mm === 2 * 60 + 30) this.gangNight();
       if (mm === 6 * 60 + 30) this.labourMarket();
       if (mm === 7 * 60) this.marketDay();
       if (mm === 18 * 60 + 5) this.endCasualDay();
@@ -416,7 +419,7 @@
       if (act.outdoor && !a.path && a.goal && a.inside == null) {
         a.wait = (a.wait || 0) + 1;
         this.doOutdoor(p, act);
-        if (a.wait > (act.act === 'sit' ? 90 : act.act === 'patrol' ? 2 : act.act === 'chop' || act.act === 'fieldwork' || act.act === 'forage' || act.act === 'build' ? 40 : 18)) { a.goal = null; a.wait = 0; }
+        if (a.wait > (act.act === 'sit' ? 90 : act.act === 'patrol' ? 2 : act.act === 'chop' || act.act === 'fieldwork' || act.act === 'forage' || act.act === 'build' || act.act === 'gangmeet' ? 40 : 18)) { a.goal = null; a.wait = 0; }
         return;
       }
       if (!a.path && !a.goal) this.route(p, act);
@@ -465,6 +468,7 @@
       if (act === 'collapsed') return 'lie';
       if (act === 'chop' || act === 'fieldwork' || act === 'build') return 'work';
       if (act === 'forage') return 'crouch';
+      if (act === 'gangmeet') return p.agent.talking ? 'talk' : 'idle';
       if (act === 'wait-work' || act === 'stroll') return p.agent.talking ? 'talk' : 'idle';
       if (p.agent.talking) return 'talk';
       return 'idle';
@@ -520,7 +524,7 @@
 
     doOutdoor(p, act) {
       if (act.act === 'fieldwork' || act.act === 'chop' || act.act === 'forage' || act.act === 'build') this.work(p);
-      if ((act.act === 'stroll' || act.act === 'wait-work') && this.rng.chance(0.01)) {
+      if ((act.act === 'stroll' || act.act === 'wait-work' || act.act === 'gangmeet') && this.rng.chance(0.01)) {
         const near = this.people.find((q) => q !== p && !q.agent.hidden && Math.hypot(q.agent.x - p.agent.x, q.agent.y - p.agent.y) < 30);
         if (near) { this.relate(p, near, 0.02); p.agent.talking = 20; }
       }
@@ -705,7 +709,7 @@
         hh.shopper = (adults.find((p) => !p.job || p.shift === 'night') || errand || adults[this.day % Math.max(1, adults.length)] || {}).id;
       }
       this.build.daily();
-      this.healthDaily(); this.lifeDaily(); this.justiceDaily();
+      this.healthDaily(); this.lifeDaily(); this.justiceDaily(); this.gangsDaily();
       if (this.weekday === 3) this.immigrateMaybe();
       if (this.events) this.events = this.events.filter((e) => e.day >= this.day);
       const season = this.season;
@@ -742,10 +746,11 @@
   Sim.prototype.zoneTile = function (p, zone) {
     if (p.task?.act === 'leave') return [95, 31];
     if (p.task?.act === 'investigate' && p.task.tile) return p.task.tile;
+    if (zone === 'camp' && p.activity?.camp) { const b = this.building(p.activity.camp); if (b) return [b.x + ((p.id % 3)), b.bottom + 1 + (p.id % 2)]; }
     if (p.task?.act === 'help') { const t = this.byId.get(p.task.target); if (t) return [Math.floor(t.agent.x / this.T), Math.floor((t.agent.y - 1) / this.T)]; }
     return _zone.call(this, p, zone);
   };
-  O.Health.install(Sim); O.Life.install(Sim); O.Justice.install(Sim);
+  O.Health.install(Sim); O.Life.install(Sim); O.Justice.install(Sim); O.Gangs.install(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
   // carry-home and delivery tasks finish on entering the destination

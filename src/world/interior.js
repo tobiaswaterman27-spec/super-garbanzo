@@ -127,6 +127,18 @@
         for (let i = 0; i < 4; i++) tryPut('sack', anywhere(), { stockOf: 'wheat', container: { slots: 2 } });
         tryPut('crate', anywhere()); tryPut('barrel', anywhere());
         break;
+      case 'hideout': {
+        const lvl = b.level || 1;
+        hearth();
+        for (let i = 0; i < Math.min(O.Gangs.LEVELS[lvl].beds, 6); i++) tryPut('bed', [[i * 2, 0], [i * 2, d - 2], ...anywhere(1, 2)], { bed: true, v: 0, gangBed: true });
+        const t = tryPut('table', [[Math.floor(w / 2) - 1, Math.floor(d / 2)], ...anywhere(2, 1)], { table: true, v: 0 });
+        if (t) { tryPut('stool', [[t.tx - 1, t.ty]], { seat: true }); tryPut('stool', [[t.tx + 2, t.ty]], { seat: true }); tryPut('stool', [[t.tx, t.ty + 1]], { seat: true }); }
+        tryPut('chest', [...along(0), ...anywhere()], { gangStash: true, noContainer: true });
+        if (lvl >= 2) { tryPut('rack', along(0, 2)); tryPut('workbench', anywhere(2, 1)); }
+        if (lvl >= 3) { tryPut('desk', anywhere(2, 1)); tryPut('rug', anywhere(2, 1), { flat: true }); }
+        tryPut('barrel', anywhere()); tryPut('woodpile', anywhere());
+        break;
+      }
       case 'woodcutter':
         hearth(); tryPut('bed', [[0, 0], [w - 1, 0], ...anywhere(1, 2)], { bed: true }); tryPut('woodpile', anywhere()); tryPut('rack', along(0, 2)); tryPut('stool', anywhere(), { seat: true }); storage();
         break;
@@ -148,5 +160,5 @@
     return L;
   }
 
-  O.Interior = { interior, layoutFor, FOOT };
+  O.Interior = { interior, layoutFor, FOOT, invalidate: (b) => { for (const k of [...cache.keys()]) if (k.startsWith(b.id + ':')) cache.delete(k); } };
 })();

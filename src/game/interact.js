@@ -12,6 +12,7 @@
     function doorLocked(b) {
       const h = sim.hour, bz = sim.biz.get(b.id);
       if (b.type === 'barn') return false;
+      if (b.type === 'hideout') return b.gang !== 'player';
       if (PS.room && PS.room.b === b.id && sim.day <= PS.room.until) return false;
       if (bz && (bz.open || bz.def.public)) return false;
       const home = b.household && sim.households[b.household - 1];
@@ -27,6 +28,15 @@
       for (const pr of sim.world.props) if (pr.kind === 'gravestone') { const d = Math.hypot(pr.x - p.x, pr.y - p.y); if (d < 20) out.push({ type: 'grave', prop: pr, d: d + 2, x: pr.x, y: pr.y - 14 }); }
       for (const b of sim.world.buildings) {
         if (b.site) continue;
+        if (b.type === 'hideout' && b.level === 0) {
+          const cx = b.x * T + 24, cy = (b.bottom + 1) * T;
+          const d = Math.hypot(cx - p.x, cy - p.y);
+          if (d < 34) {
+            if (b.unclaimed) out.push({ type: 'claim', b, d, x: cx, y: cy - 20 });
+            else if (b.gang === 'player') { out.push({ type: 'stash', b, d, x: cx, y: cy - 20 }); out.push({ type: 'campbed', b, d: d + 3, x: cx, y: cy - 20 }); }
+          }
+          continue;
+        }
         const dx = b.doorX * T + 8, dy = b.doorY * T + 4;
         const d = Math.hypot(dx - p.x, dy - p.y);
         if (d < 14) out.push({ type: 'door', b, d: d + 4, x: dx, y: dy - 18 });
@@ -39,12 +49,15 @@
         case 'door': return doorLocked(c.b) ? `${c.b.name} — locked` : `Enter ${c.b.type === 'house' ? 'house' : c.b.name}`;
         case 'container': return `Search ${c.it.kind}`;
         case 'grave': return 'Read the gravestone';
+        case 'claim': return 'Claim the abandoned camp';
+        case 'stash': return 'Open the stash';
+        case 'campbed': return 'Sleep by the fire';
         case 'bed': return mayUseBed(c.it) ? 'Sleep until morning' : 'Bed — not yours';
         case 'stairs': return game.scene.floor === 0 ? 'Go upstairs' : 'Go downstairs';
         default: return '';
       }
     }
-    const mayUseBed = (it) => it.rent && PS.room && game.scene && PS.room.b === game.scene.b.id && sim.day <= PS.room.until;
+    const mayUseBed = (it) => (it.gangBed && game.scene && game.scene.b.gang === 'player') || (it.rent && PS.room && game.scene && PS.room.b === game.scene.b.id && sim.day <= PS.room.until);
 
     game.hooks.update.push((dt) => {
       if (searching > 0) { searching -= dt; game.player.anim = 'crouch'; game.player.locked = true; if (searching <= 0) { game.player.locked = false; game.player.anim = 'idle'; pendingSearch && pendingSearch(); pendingSearch = null; } }
@@ -146,6 +159,9 @@
           O.Crime.onEnter(game, sim, cur.b);
           break;
         case 'container': search(cur.it, false); break;
+        case 'claim': O.GangUI.claim(cur.b); break;
+        case 'stash': O.GangUI.stash(); break;
+        case 'campbed': sleep(); break;
         case 'grave': { const g = cur.prop.grave; O.Panels.toast(g ? `“Here lies ${g.name}, ${g.age} years. ${g.cause.replace('died ', '').replace(/^./, (c) => c.toUpperCase())}.”` : 'The old stone is worn smooth; you can no longer read the name.'); break; }
         case 'bed': if (mayUseBed(cur.it)) sleep(); else O.Panels.toast("That's someone else's bed."); break;
         case 'stairs': game.enterBuilding(game.scene.b, game.scene.floor === 0 ? 1 : 0, true); break;

@@ -128,6 +128,26 @@
       this.shape(cx - Math.max(wt, wb) / 2 - 1, y0, cx + Math.max(wt, wb) / 2 + 1, y1, inside, normal, matFn, opts);
     }
 
+    // Filled polygon with a constant normal (roof planes, gables, flat panels).
+    poly(pts, nrm, matFn, opts = {}) {
+      let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      for (const [x, y] of pts) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+      const inside = (px, py) => {
+        let c = false;
+        for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+          const [xi, yi] = pts[i], [xj, yj] = pts[j];
+          if ((yi > py) !== (yj > py) && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) c = !c;
+        }
+        return c;
+      };
+      const n = typeof nrm === 'function' ? nrm : () => nrm;
+      this.shape(x0 - 1, y0 - 1, x1 + 1, y1 + 1, inside, n, matFn, opts);
+    }
+    rect(x, y, w, h, m, s) { for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) this.plot(xx, yy, m, s); }
+    // Set shade explicitly on painted pixels inside a rect (patterned textures).
+    shadeAt(x, y, s) { if (this.mirror) x = this.w - 1 - x; if (!this.inb(x, y)) return; const i = y * this.w + x; if (this.mat[i] >= 0) this.shade[i] = O.clamp(s, 0, 4); }
+    matAt(x, y) { return this.inb(x, y) ? this.mat[y * this.w + x] : -1; }
+
     // Resolve to RGBA ImageData-compatible pixel array.
     resolve(opts = {}) {
       const { w, h, mat, shade, group, order } = this;

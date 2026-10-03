@@ -1,0 +1,19 @@
+<!doctype html><meta charset="utf-8"><body style="background:#5d8a3e;margin:0">
+<canvas id="c"></canvas>
+<script src="../src/core/base.js"></script><script src="../src/art/palette.js"></script><script src="../src/art/raster.js"></script><script src="../src/art/env.js"></script>
+<script>
+const S=3, c=document.getElementById('c'), ctx=c.getContext('2d'); c.width=1600; c.height=1000; ctx.imageSmoothingEnabled=false;
+const E=O.Env; let x=4;
+const specs=[
+ {seed:1,w:4,d:3,wall:'timber',roof:'thatch',chimney:true,wealth:0.4},
+ {seed:2,w:5,d:4,floors:2,wall:'timber',roof:'tile',roofType:'gable',chimney:true,wealth:0.8,sign:'mug',plaster:'plasterOchre'},
+ {seed:3,w:4,d:3,wall:'stone',roof:'slate',chimney:true,wealth:0.6,sign:'anvil'},
+ {seed:4,w:3,d:3,wall:'log',roof:'shingle',roofType:'gable',wealth:0.2,condition:0.4},
+ {seed:5,w:6,d:5,wall:'plank',plankMat:'plankRed',roof:'shingle',roofType:'gable',bigDoor:true,wealth:0.3},
+];
+let row=0, px=4;
+for(const s of specs){const b=E.building(s); if(px+b.W>1600/S){px=4;row+=150;} ctx.drawImage(b.canvas,px*S,(row+150-b.H)*S,b.W*S,b.H*S); px+=b.W+8;}
+px=4; let y=320;
+for(const [k,s] of [['oak','summer'],['oak','autumn'],['pine','summer'],['birch','summer'],['oak','winter'],['pine','winter']]){const t=E.tree(7+px,k,s); ctx.drawImage(t.canvas,px*S,(y-t.H)*S,t.W*S,t.H*S); px+=t.W+4;}
+for(const k of ['barrel','crate','sack','well','stall','fenceH','fenceV','hay','woodpile','bush','rock','stump','cart','lamp','signpost','bench','trough','anvil','banner','gravestone']){const p=E.prop(k,3,1); if(px+p.W>530){px=4;y+=46;} ctx.drawImage(p.canvas,px*S,(y-p.H)*S,p.W*S,p.H*S); px+=p.W+4;}
+</script>

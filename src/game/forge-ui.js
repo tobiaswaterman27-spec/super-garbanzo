@@ -224,11 +224,12 @@
   }
 
   // ---------- tabs & loop ----------
-  let tab = 'forge';
+  let tab = 'play';
   document.querySelectorAll('.tab').forEach((b) => b.onclick = () => {
     tab = b.dataset.tab;
     document.querySelectorAll('.tab').forEach((x) => x.setAttribute('aria-selected', x === b));
-    ['forge', 'crowd', 'blood', 'sheet'].forEach((k) => ($('tab-' + k).hidden = k !== tab));
+    ['play', 'forge', 'crowd', 'blood', 'sheet'].forEach((k) => ($('tab-' + k).hidden = k !== tab));
+    O.onTab && O.onTab(tab);
   });
   ['north', 'east', 'south', 'west'].forEach(() => {});
   $('regionSeg').replaceWith(Object.assign(seg([['north', 'North'], ['east', 'East'], ['south', 'South'], ['west', 'West']], region, (v) => { region = v; makeCrowd(); }), { id: 'regionSeg' }));

@@ -80,7 +80,7 @@
         if (o.perp === 'player') this.relate(w, { id: 0 }, -0.4);
         // most honest folk go to the watch; the timid, the hostile and the player's friends may not
         const friend = (w.rel.get(0)?.affinity || 0) > 0.4 && o.perp === 'player';
-        if (!w.traits.includes('cowardly') && !friend && w.age >= 12 && (w.attitude > -0.2 || this.rng.chance(0.3)) && !w.task) w.task = { act: 'report', b: this.guardId, crime: crime.id };
+        if (!w.traits.includes('cowardly') && !friend && w.age >= 12 && w.health.hp > 0 && w.health.state !== 'incapacitated' && (w.attitude > -0.2 || this.rng.chance(0.3)) && !w.task) w.task = { act: 'report', b: this.guardId, crime: crime.id };
       }
       this.crimes.push(crime);
       return crime;

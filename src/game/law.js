@@ -147,7 +147,7 @@
       const greedy = g.traits.includes('greedy') || g.attitude < 0;
       O.Panels.open('Arrest', `<p class="speech">“${PS.exiled ? 'You were told never to come back.' : 'That\'s the one. You\'re coming with me to the Watch House.'}”</p>
         <p class="caption">${O.escape(g.name)} has you by the arm. The watch wants ${O.escape(PS.soughtFor() || 'you')}.</p>
-        <div class="topics"><button data-a="surrender">Surrender</button>${greedy ? `<button data-a="bribe">Offer ${bribe}d to look the other way</button>` : ''}<button data-a="run">Break free and run</button></div>`, (r) => {
+        <div class="topics"><button data-a="surrender">Surrender</button>${greedy ? `<button data-a="bribe">Offer ${bribe}d to look the other way</button>` : ''}<button data-a="run">Break free and run</button><button data-a="fight">Fight</button></div>`, (r) => {
         r.querySelector('.x').hidden = true;
         r.querySelector('[data-a=surrender]').onclick = () => { O.Panels.close(); jail(g); };
         const bb = r.querySelector('[data-a=bribe]');
@@ -158,6 +158,12 @@
           PS.bounty = false;
           sim.remember(g, 'Took coin from the stranger and let them go. Nobody needs to know.', 'crime', 2, 0);
           O.Panels.close(); endChase(false); O.Panels.toast(`${g.first} pockets the coin. “Never saw you.”`);
+        };
+        r.querySelector('[data-a=fight]').onclick = () => {
+          O.Panels.close(); endChase(false);
+          PS.bounty = true; PS.rep.guard = Math.max(-1, PS.rep.guard - 0.3);
+          if (O.Combat) O.Combat.fights.set(g.id, { mode: 'fight', t: 0, cd: 0.5 });
+          O.Panels.toast(`You draw on ${g.first} of the watch!`, 'bad');
         };
         r.querySelector('[data-a=run]').onclick = () => {
           O.Panels.close();
@@ -172,6 +178,7 @@
       void lvl;
     }
 
+    O.lawJail = (g) => jail(g);
     function jail(g) {
       endChase(false);
       const gh = sim.building(sim.guardId);

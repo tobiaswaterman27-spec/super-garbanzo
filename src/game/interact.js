@@ -45,7 +45,7 @@
     }
     function label(c) {
       switch (c.type) {
-        case 'npc': return `Talk to ${c.person.name}`;
+        case 'npc': return c.person.health.hp <= 0 ? `${c.person.name} lies senseless` : `Talk to ${c.person.name}`;
         case 'door': return doorLocked(c.b) ? `${c.b.name} — locked` : `Enter ${c.b.type === 'house' ? 'house' : c.b.name}`;
         case 'container': return `Search ${c.it.kind}`;
         case 'grave': return 'Read the gravestone';
@@ -66,7 +66,7 @@
       cur = cs[0] || null;
       O.interactTarget = cur;
       if (cur) {
-        const quick = cur.type === 'container' ? '<kbd>F</kbd>Quick loot' : cur.type === 'npc' && cur.person.age >= 8 ? '<kbd>Q</kbd>Pickpocket' : cur.type === 'door' && doorLocked(cur.b) && cur.b.type !== 'guard' ? '<kbd>Q</kbd>Pick the lock' : '';
+        const quick = cur.type === 'container' ? '<kbd>F</kbd>Quick loot' : cur.type === 'npc' && O.Combat && O.Combat.lootable(cur.person) ? '<kbd>F</kbd>Search them' : cur.type === 'npc' && cur.person.age >= 8 ? '<kbd>Q</kbd>Pickpocket' : cur.type === 'door' && doorLocked(cur.b) && cur.b.type !== 'guard' ? '<kbd>Q</kbd>Pick the lock' : '';
         prompt.hidden = false; prompt.innerHTML = `<kbd>E</kbd>${O.escape(label(cur))}${quick ? ' &nbsp; ' + quick : ''}`;
       } else prompt.hidden = true;
     });
@@ -147,12 +147,13 @@
         else if (cur && cur.type === 'door' && doorLocked(cur.b) && cur.b.type !== 'guard') O.Law.pickLock(cur.b);
         return true;
       }
+      if (e.code === 'KeyF' && cur && cur.type === 'npc' && O.Combat && O.Combat.lootable(cur.person)) { searching = 0.6; pendingSearch = () => O.Panels.toast(O.Combat.loot(cur.person)); return true; }
       if (e.code === 'KeyF') { if (cur && cur.type === 'container') search(cur.it, true); else O.Panels.toast('Nothing to loot here.'); return true; }
       if (e.code !== 'KeyE') return false;
       if (npcUI.talking()) { npcUI.closeTalk(); return true; }
       if (!cur) return false;
       switch (cur.type) {
-        case 'npc': npcUI.openTalk(cur.person); break;
+        case 'npc': if (cur.person.health.hp <= 0) { O.Panels.toast(`${cur.person.first} is senseless.`); break; } npcUI.openTalk(cur.person); break;
         case 'door':
           if (doorLocked(cur.b)) { O.Panels.toast(`The door of ${cur.b.type === 'house' ? 'the house' : cur.b.name} is barred.`); break; }
           game.enterBuilding(cur.b, 0);

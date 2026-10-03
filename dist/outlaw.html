@@ -147,7 +147,7 @@ main > .wrap { overflow: auto; }
 </style>
 
 <header class="top">
-  <div class="brand">Outlaw<small>BUILD 0.8 · BANDS OF THE WOOD</small></div>
+  <div class="brand">Outlaw<small>BUILD 0.9 · STEEL & STRIFE</small></div>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" role="tab" aria-selected="true" data-tab="play">Play</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="forge">Character</button>
@@ -165,7 +165,7 @@ main > .wrap { overflow: auto; }
       <span class="lbl">Time</span>
       <div class="seg" id="speedSeg"></div>
     </div>
-    <div class="hud hud-b" id="hudB">WASD move · Shift run · E interact · Q steal/pick lock · F loot · I satchel · G gang · L ledger</div>
+    <div class="hud hud-b" id="hudB">WASD move · Shift run · E interact · Space strike · R weapon · Q steal/pick lock · F loot · I satchel · G gang · L ledger</div>
   </section>
 
   <section class="wrap" id="tab-forge" hidden>
@@ -2842,6 +2842,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     medicine: { name: 'Remedy', base: 10, unit: 'phial', slots: 1 },
     herbs: { name: 'Herbs', base: 2, unit: 'bunch', slots: 1 },
     dagger: { name: 'Dagger', base: 14, unit: 'blade', slots: 1, weapon: true },
+    sword: { name: 'Sword', base: 40, unit: 'blade', slots: 2, weapon: true },
+    axe: { name: 'Hand axe', base: 18, unit: 'axe', slots: 1, weapon: true },
     spoon: { name: 'Silver spoon', base: 12, unit: 'spoon', slots: 1, valuable: true },
     brooch: { name: 'Brooch', base: 30, unit: 'brooch', slots: 1, valuable: true },
     candlestick: { name: 'Pewter candlestick', base: 9, unit: 'candlestick', slots: 1, valuable: true },
@@ -2855,7 +2857,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     mill: { label: 'Mill', jobs: [['miller', 1], ['labourer', 1]], hours: [7, 17], recipes: [{ out: { flour: 2 }, inp: { wheat: 2 } }], sells: ['flour'], buys: { wheat: 'farmhouse' }, targets: { wheat: 40, flour: 40 }, wage: { miller: 0, labourer: 6 } },
     bakery: { label: 'Bakery', jobs: [['baker', 1], ['apprentice', 1]], hours: [5, 17], recipes: [{ out: { bread: 6 }, inp: { flour: 2, firewood: 0.5 } }], sells: ['bread'], buys: { flour: 'mill', firewood: 'woodcutter' }, targets: { flour: 30, firewood: 10, bread: 60 }, wage: { baker: 0, apprentice: 4 } },
     woodcutter: { label: "Woodcutter's", jobs: [['woodcutter', 2]], hours: [7, 17], recipes: [{ out: { logs: 1.5, firewood: 5 }, inp: {} }], sells: ['firewood', 'logs'], buys: { tools: 'smithy' }, targets: { firewood: 40, logs: 20, tools: 2 }, wage: { woodcutter: 7 } },
-    smithy: { label: 'Smithy', jobs: [['blacksmith', 1], ['apprentice', 1]], hours: [7, 18], recipes: [{ out: { tools: 0.25 }, inp: { iron: 0.5, firewood: 0.5 } }], sells: ['tools'], buys: { firewood: 'woodcutter', iron: 'import' }, targets: { iron: 10, firewood: 10, tools: 6 }, wage: { blacksmith: 0, apprentice: 4 } },
+    smithy: { label: 'Smithy', jobs: [['blacksmith', 1], ['apprentice', 1]], hours: [7, 18], recipes: [{ out: { tools: 0.25 }, inp: { iron: 0.5, firewood: 0.5 } }, { out: { dagger: 0.06, axe: 0.04 }, inp: { iron: 0.15, firewood: 0.1 }, role: 'blacksmith' }], sells: ['tools', 'dagger', 'axe'], buys: { firewood: 'woodcutter', iron: 'import' }, targets: { iron: 10, firewood: 10, tools: 6, dagger: 3, axe: 2 }, wage: { blacksmith: 0, apprentice: 4 } },
     tavern: { label: 'Tavern', jobs: [['innkeeper', 1], ['server', 1], ['cook', 1]], hours: [11, 24], recipes: [{ out: { meal: 4 }, inp: { bread: 1, cabbage: 1, firewood: 0.3 } }, { out: { ale: 5 }, inp: { wheat: 1 } }], sells: ['meal', 'ale'], buys: { bread: 'bakery', cabbage: 'farmhouse', wheat: 'farmhouse', firewood: 'woodcutter' }, targets: { bread: 12, cabbage: 12, wheat: 10, firewood: 8, meal: 20, ale: 30 }, wage: { innkeeper: 0, server: 6, cook: 7 } },
     store: { label: 'General Store', jobs: [['shopkeeper', 1]], hours: [8, 18], recipes: [], sells: ['cabbage', 'firewood', 'flour'], buys: { cabbage: 'farmhouse', firewood: 'woodcutter', flour: 'mill' }, targets: { cabbage: 30, firewood: 30, flour: 10 }, wage: { shopkeeper: 0 } },
     doctor: { label: "Physician's", jobs: [['physician', 1], ['herbalist', 1]], hours: [8, 17], recipes: [{ out: { herbs: 1.2 }, inp: {}, role: 'herbalist' }, { out: { medicine: 0.4 }, inp: { herbs: 0.5 }, role: 'physician' }], sells: ['medicine', 'herbs'], targets: { herbs: 10, medicine: 8 }, wage: { physician: 0, herbalist: 6 } },
@@ -3238,6 +3240,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       if (!ill || p.visitor) return null;
       const a = p.agent;
       if (h.state === 'incapacitated') {
+        if (p.task && p.task.act !== 'to-doctor' && p.task.act !== 'treated') p.task = null;
         if (a.inside == null && !p.task) {
           if (!p.collapsedAt) { p.collapsedAt = this.day * 1440 + this.minute; a.path = null; a.goal = null; this.log(`${p.name} collapsed ${this.where(a)}.`, 'health'); }
           // someone nearby notices and helps
@@ -3589,7 +3592,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         if (o.perp === 'player') this.relate(w, { id: 0 }, -0.4);
         // most honest folk go to the watch; the timid, the hostile and the player's friends may not
         const friend = (w.rel.get(0)?.affinity || 0) > 0.4 && o.perp === 'player';
-        if (!w.traits.includes('cowardly') && !friend && w.age >= 12 && (w.attitude > -0.2 || this.rng.chance(0.3)) && !w.task) w.task = { act: 'report', b: this.guardId, crime: crime.id };
+        if (!w.traits.includes('cowardly') && !friend && w.age >= 12 && w.health.hp > 0 && w.health.state !== 'incapacitated' && (w.attitude > -0.2 || this.rng.chance(0.3)) && !w.task) w.task = { act: 'report', b: this.guardId, crime: crime.id };
       }
       this.crimes.push(crime);
       return crime;
@@ -5490,6 +5493,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       case 'medicine': B.rect(5, 4, 4, 8, m('#6a9ad0', 'metal'), 3); B.rect(6, 2, 2, 2, m('#c8b8a0'), 3); break;
       case 'herbs': for (let i = 0; i < 4; i++) B.capsule(5 + i * 1.5, 12, 3 + i * 2.5, 3, 0.6, 0.9, m('#5a9a40')); break;
       case 'dagger': B.capsule(3, 11, 10, 3, 0.9, 0.5, m('#c8ccd4', 'metal')); B.capsule(2, 9, 6, 13, 0.6, 0.6, m(P.metal.brass, 'metal')); break;
+      case 'sword': B.capsule(2, 12, 11, 3, 0.9, 0.6, m(P.metal.steel, 'metal')); B.capsule(2, 9, 6, 13, 0.7, 0.7, m(P.metal.brass, 'metal')); break;
+      case 'axe': B.capsule(4, 12, 9, 3, 0.7, 0.7, m('#8a6239', 'wood')); B.blob(10, 4, 2.6, 2, m(P.metal.steel, 'metal'), { power: 2 }); break;
       case 'spoon': B.capsule(3, 11, 9, 5, 0.6, 0.6, m(P.metal.silver, 'metal')); B.blob(10, 4, 2, 1.6, m(P.metal.silver, 'metal'), { power: 2 }); break;
       case 'brooch': B.blob(7, 7, 4.5, 4.5, m(P.metal.gold, 'metal'), { power: 2 }); B.blob(7, 7, 2, 2, m('#c83a3a'), { power: 2 }); break;
       case 'candlestick': B.rect(6, 4, 2, 7, m('#9a9a96', 'metal'), 3); B.rect(4, 11, 6, 2, m('#9a9a96', 'metal'), 2); B.rect(6, 2, 2, 2, m(P.cloth.white), 3); break;
@@ -5525,13 +5530,14 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
   function inventory() {
     const used = PS.slotsUsed();
-    const cells = PS.items.map((k, i) => `<div class="slot"><img src="${icon(k)}" alt=""><span>${esc(G[k].name)}</span>${G[k].food ? `<button data-eat="${i}">Eat</button>` : ''}<button data-drop="${i}" class="ghost">Drop</button></div>`).join('');
+    const cells = PS.items.map((k, i) => `<div class="slot"><img src="${icon(k)}" alt=""><span>${esc(G[k].name)}</span>${G[k].food ? `<button data-eat="${i}">Eat</button>` : ''}${G[k].weapon ? `<button data-eq="${k}">${PS.equipped === k ? 'In hand' : 'Hold'}</button>` : ''}<button data-drop="${i}" class="ghost">Drop</button></div>`).join('');
     const empty = Math.max(0, PS.SLOTS - used);
     open('Satchel', `<div class="lbl">${used}/${PS.SLOTS} slots · health ${Math.round(PS.hp)} · fed ${Math.round(PS.hunger)} · rested ${Math.round(PS.energy)}</div>
       <div class="slots">${cells}${'<div class="slot empty"></div>'.repeat(empty)}</div>
       <div class="lbl" style="margin-top:12px">Reputation</div>
       <div class="reps">${Object.entries(PS.rep).map(([k, v]) => `<div><span>${k}</span><b class="${v < -0.2 ? 'warn' : ''}">${v > 0.6 ? 'admired' : v > 0.2 ? 'liked' : v > -0.2 ? 'unknown' : v > -0.6 ? 'distrusted' : 'hated'}</b></div>`).join('')}</div>`, (r) => {
       r.querySelectorAll('[data-eat]').forEach((b) => b.onclick = () => { const k = PS.items[+b.dataset.eat]; PS.eat(k); toast(`You eat the ${G[k].name.toLowerCase()}.`); inventory(); });
+      r.querySelectorAll('[data-eq]').forEach((b) => b.onclick = () => { PS.equipped = PS.equipped === b.dataset.eq ? 'fists' : b.dataset.eq; const a = O.game.player.a; a.outfit.item = PS.equipped === 'fists' ? null : PS.equipped; O.Char.invalidate(a); inventory(); });
       r.querySelectorAll('[data-drop]').forEach((b) => b.onclick = () => { const k = PS.items[+b.dataset.drop]; PS.remove(k); toast(`Dropped ${G[k].name.toLowerCase()}.`); inventory(); });
     });
   }
@@ -5770,7 +5776,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     }
     function label(c) {
       switch (c.type) {
-        case 'npc': return `Talk to ${c.person.name}`;
+        case 'npc': return c.person.health.hp <= 0 ? `${c.person.name} lies senseless` : `Talk to ${c.person.name}`;
         case 'door': return doorLocked(c.b) ? `${c.b.name} — locked` : `Enter ${c.b.type === 'house' ? 'house' : c.b.name}`;
         case 'container': return `Search ${c.it.kind}`;
         case 'grave': return 'Read the gravestone';
@@ -5791,7 +5797,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       cur = cs[0] || null;
       O.interactTarget = cur;
       if (cur) {
-        const quick = cur.type === 'container' ? '<kbd>F</kbd>Quick loot' : cur.type === 'npc' && cur.person.age >= 8 ? '<kbd>Q</kbd>Pickpocket' : cur.type === 'door' && doorLocked(cur.b) && cur.b.type !== 'guard' ? '<kbd>Q</kbd>Pick the lock' : '';
+        const quick = cur.type === 'container' ? '<kbd>F</kbd>Quick loot' : cur.type === 'npc' && O.Combat && O.Combat.lootable(cur.person) ? '<kbd>F</kbd>Search them' : cur.type === 'npc' && cur.person.age >= 8 ? '<kbd>Q</kbd>Pickpocket' : cur.type === 'door' && doorLocked(cur.b) && cur.b.type !== 'guard' ? '<kbd>Q</kbd>Pick the lock' : '';
         prompt.hidden = false; prompt.innerHTML = `<kbd>E</kbd>${O.escape(label(cur))}${quick ? ' &nbsp; ' + quick : ''}`;
       } else prompt.hidden = true;
     });
@@ -5872,12 +5878,13 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         else if (cur && cur.type === 'door' && doorLocked(cur.b) && cur.b.type !== 'guard') O.Law.pickLock(cur.b);
         return true;
       }
+      if (e.code === 'KeyF' && cur && cur.type === 'npc' && O.Combat && O.Combat.lootable(cur.person)) { searching = 0.6; pendingSearch = () => O.Panels.toast(O.Combat.loot(cur.person)); return true; }
       if (e.code === 'KeyF') { if (cur && cur.type === 'container') search(cur.it, true); else O.Panels.toast('Nothing to loot here.'); return true; }
       if (e.code !== 'KeyE') return false;
       if (npcUI.talking()) { npcUI.closeTalk(); return true; }
       if (!cur) return false;
       switch (cur.type) {
-        case 'npc': npcUI.openTalk(cur.person); break;
+        case 'npc': if (cur.person.health.hp <= 0) { O.Panels.toast(`${cur.person.first} is senseless.`); break; } npcUI.openTalk(cur.person); break;
         case 'door':
           if (doorLocked(cur.b)) { O.Panels.toast(`The door of ${cur.b.type === 'house' ? 'the house' : cur.b.name} is barred.`); break; }
           game.enterBuilding(cur.b, 0);
@@ -6174,7 +6181,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const greedy = g.traits.includes('greedy') || g.attitude < 0;
       O.Panels.open('Arrest', `<p class="speech">“${PS.exiled ? 'You were told never to come back.' : 'That\'s the one. You\'re coming with me to the Watch House.'}”</p>
         <p class="caption">${O.escape(g.name)} has you by the arm. The watch wants ${O.escape(PS.soughtFor() || 'you')}.</p>
-        <div class="topics"><button data-a="surrender">Surrender</button>${greedy ? `<button data-a="bribe">Offer ${bribe}d to look the other way</button>` : ''}<button data-a="run">Break free and run</button></div>`, (r) => {
+        <div class="topics"><button data-a="surrender">Surrender</button>${greedy ? `<button data-a="bribe">Offer ${bribe}d to look the other way</button>` : ''}<button data-a="run">Break free and run</button><button data-a="fight">Fight</button></div>`, (r) => {
         r.querySelector('.x').hidden = true;
         r.querySelector('[data-a=surrender]').onclick = () => { O.Panels.close(); jail(g); };
         const bb = r.querySelector('[data-a=bribe]');
@@ -6185,6 +6192,12 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
           PS.bounty = false;
           sim.remember(g, 'Took coin from the stranger and let them go. Nobody needs to know.', 'crime', 2, 0);
           O.Panels.close(); endChase(false); O.Panels.toast(`${g.first} pockets the coin. “Never saw you.”`);
+        };
+        r.querySelector('[data-a=fight]').onclick = () => {
+          O.Panels.close(); endChase(false);
+          PS.bounty = true; PS.rep.guard = Math.max(-1, PS.rep.guard - 0.3);
+          if (O.Combat) O.Combat.fights.set(g.id, { mode: 'fight', t: 0, cd: 0.5 });
+          O.Panels.toast(`You draw on ${g.first} of the watch!`, 'bad');
         };
         r.querySelector('[data-a=run]').onclick = () => {
           O.Panels.close();
@@ -6199,6 +6212,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       void lvl;
     }
 
+    O.lawJail = (g) => jail(g);
     function jail(g) {
       endChase(false);
       const gh = sim.building(sim.guardId);
@@ -6353,6 +6367,208 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     O.GangUI = { claim, stash, ledger, fence };
   }
   O.GangUISetup = { setup };
+})();
+
+</script>
+<script>
+// Stylised, non-graphic combat. Hits produce a flash, a stagger and a little dust (a tiny brief red
+// fleck for blades), never wounds. Damage moves people through healthy -> hurt -> seriously
+// injured -> incapacitated, and those states feed the health system (the injured heal over days;
+// the incapacitated are found and helped to the physician). Reactions come from personality:
+// fight, flee, call the watch, or hand over the purse.
+'use strict';
+(function () {
+  const PS = O.PlayerState, G = O.Data.GOODS;
+  const WEAPONS = { fists: { dmg: 7, reach: 15, name: 'fists', blade: false }, dagger: { dmg: 13, reach: 17, name: 'dagger', blade: true }, sword: { dmg: 19, reach: 20, name: 'sword', blade: true }, axe: { dmg: 21, reach: 18, name: 'axe', blade: true } };
+
+  function setup(game, sim, npcUI) {
+    const fights = new Map(); // person id -> { mode, cd, t }
+    const fx = [];
+    let swing = 0, swingHit = false, playerCd = 0;
+    PS.equipped = PS.items.includes('dagger') ? 'dagger' : 'fists';
+
+    function weapon() { const w = PS.equipped; return WEAPONS[w && PS.items.includes(w) ? w : 'fists']; }
+    function syncLook() { const w = PS.equipped && PS.items.includes(PS.equipped) ? PS.equipped : null; if (game.player.a.outfit.item !== w) { game.player.a.outfit.item = w; O.Char.invalidate(game.player.a); } }
+
+    function personAt(px, py, reach, dir) {
+      const d = [[0, 1], [-1, 0], [1, 0], [0, -1]][dir];
+      const hx = px + d[0] * reach * 0.7, hy = py + d[1] * reach * 0.6;
+      let best = null, bd = reach;
+      const list = game.scene ? [...game.scene.actors.values()].map((a) => [a.person, a.x, a.y]) : sim.people.filter((q) => !q.agent.hidden).map((q) => [q, q.agent.x, q.agent.y]);
+      for (const [q, x, y] of list) { const dd = Math.hypot(x - hx, y - hy); if (dd < bd) { bd = dd; best = q; } }
+      return best;
+    }
+    function posOf(q) { if (game.scene) return game.scene.personPos(q); return q.agent.hidden ? null : [q.agent.x, q.agent.y]; }
+
+    function puff(x, y, blade) {
+      for (let i = 0; i < 6; i++) fx.push({ x, y: y - 10, vx: (Math.random() - 0.5) * 40, vy: -Math.random() * 30, t: 0, max: 0.35, c: 'rgba(170,140,100,0.8)' });
+      if (blade) for (let i = 0; i < 3; i++) fx.push({ x, y: y - 14, vx: (Math.random() - 0.5) * 30, vy: Math.random() * 20, t: 0, max: 0.25, c: 'rgba(170,40,40,0.85)' });
+      fx.push({ x, y: y - 16, flash: true, t: 0, max: 0.12 });
+    }
+
+    // damage applies to the shared health model
+    function hurt(q, dmg, byPlayer, blade) {
+      const h = q.health;
+      const armour = q.app.outfit.armour === 'mail' ? 0.65 : 1;
+      dmg = Math.round(dmg * armour * sim.rng.float(0.8, 1.2));
+      const wasDown = h.hp <= 0;
+      h.hp -= dmg;
+      const pos = posOf(q); if (pos) { puff(pos[0], pos[1], blade); if (!game.scene) { const d = Math.atan2(pos[1] - game.player.y, pos[0] - game.player.x); q.agent.x += Math.cos(d) * 4; q.agent.y += Math.sin(d) * 4; } }
+      q.agent.hitT = 0.15;
+      if (wasDown && h.hp < -35) { sim.die(q, 'was killed'); return 'dead'; }
+      const sev = O.clamp(1 - h.hp / 100, 0.1, 0.99);
+      if (!h.illness) h.illness = { kind: 'injury', sev, since: sim.day }; else h.illness.sev = Math.max(h.illness.sev, sev);
+      h.state = h.hp <= 0 ? 'incapacitated' : h.hp < 35 ? 'seriously injured' : 'hurt';
+      if (h.hp <= 0) { h.illness.sev = 0.9; q.agent.anim = 'lie'; q.agent.chasing = false; q.agent.frozen = false; fights.set(q.id, { mode: 'down', t: 0, looted: fights.get(q.id)?.looted }); }
+      return h.state;
+    }
+
+    function react(q) {
+      const brave = q.traits.includes('brave') || q.traits.includes('hostile'), coward = q.traits.includes('cowardly');
+      const guard = q.job?.role?.startsWith('guard');
+      if (q.health.hp <= 0) return 'down';
+      if (guard) return 'fight';
+      if (q.health.hp < 40 && !brave) return 'surrender';
+      if (coward || q.age < 14 || q.age > 68) return 'flee';
+      if (brave && q.age >= 16) return 'fight';
+      return sim.rng.chance(0.5) ? 'flee' : 'fight';
+    }
+
+    function crimeFor(q, kind, severity) {
+      const pos = posOf(q) || [game.player.x, game.player.y];
+      const seen = (game.scene ? [...game.scene.actors.values()].map((a) => a.person).filter((z) => z !== q && z.activity?.act !== 'sleep') : sim.seers(pos[0], pos[1], q));
+      const cr = sim.recordCrime({ kind, perp: 'player', placeName: game.scene ? game.scene.b.name : sim.where(q.agent), tile: [Math.floor(pos[0] / 16), Math.floor(pos[1] / 16)], seen: [q, ...seen].filter((z) => z.health.hp > 0), severity });
+      PS.crimes.push(cr.id);
+      PS.rep.local = Math.max(-1, PS.rep.local - 0.12 * severity); PS.rep.civilian = Math.max(-1, PS.rep.civilian - 0.08 * severity); PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.03 * severity);
+      return cr;
+    }
+
+    function attack() {
+      if (swing > 0 || playerCd > 0 || O.panelOpen || game.player.locked) return;
+      syncLook(); swing = 0.36; swingHit = false; playerCd = 0.45;
+      game.player.anim = 'work'; game.player.ft = 0;
+    }
+
+    game.keyHandlers.push((e) => {
+      if (e.code === 'Space') { attack(); return true; }
+      if (e.code === 'KeyR' && !O.panelOpen) { // cycle the weapon in hand
+        const opts = ['fists', ...['dagger', 'sword', 'axe'].filter((w) => PS.items.includes(w))];
+        PS.equipped = opts[(opts.indexOf(PS.equipped) + 1) % opts.length]; syncLook();
+        O.Panels.toast(PS.equipped === 'fists' ? 'You put your weapon away.' : `You draw your ${PS.equipped}.`);
+        return true;
+      }
+      return false;
+    });
+
+    game.hooks.update.push((dt) => {
+      playerCd = Math.max(0, playerCd - dt);
+      if (swing > 0) {
+        swing -= dt; game.player.anim = 'work';
+        if (!swingHit && swing < 0.2) {
+          swingHit = true;
+          const w = weapon();
+          const q = personAt(game.player.x, game.player.y - 2, w.reach, game.player.dir);
+          if (q) {
+            const first = !fights.has(q.id);
+            const res = hurt(q, w.dmg, true, w.blade);
+            if (first) { const c = crimeFor(q, q.job?.role?.startsWith('guard') ? 'assault on the watch' : 'assault', q.job?.role?.startsWith('guard') ? 3 : 2); if (q.job?.role?.startsWith('guard')) PS.bounty = true; void c; sim.remember(q, 'The stranger attacked me.', 'crime', 2.5, 0); sim.relate(q, { id: 0 }, -0.8); }
+            if (res === 'dead') { crimeFor(q, 'murder', 5); O.Panels.toast(`${q.first} lies still. You have killed a man of Ashford.`, 'bad'); PS.bounty = true; fights.delete(q.id); }
+            else if (res !== 'incapacitated') { const prev = fights.get(q.id); const mode = react(q); fights.set(q.id, { mode, t: prev?.t || 0, cd: prev ? prev.cd : 0.7, looted: prev?.looted }); if (mode === 'surrender' && prev?.mode !== 'surrender') O.Panels.toast(`${q.first}: “Enough! Take my purse, take it!”`, 'bad'); if (mode === 'flee' && prev?.mode !== 'flee') { O.Panels.toast(`${q.first} runs, shouting for the watch!`, 'bad'); } }
+            else O.Panels.toast(`${q.first} falls and does not get up.`, 'bad');
+          }
+        }
+        if (swing <= 0) game.player.anim = 'idle';
+      }
+      // NPC fighters and fleers act in real time
+      for (const [id, f] of [...fights]) {
+        const q = sim.byId.get(id); if (!q || q.alive === false) { fights.delete(id); continue; }
+        f.t += dt; f.cd = Math.max(0, (f.cd || 0) - dt);
+        if (q.agent.hitT) q.agent.hitT = Math.max(0, q.agent.hitT - dt);
+        if (f.mode === 'down') { if (q.health.hp > 0 || f.t > 600) fights.delete(id); continue; }
+        if (game.scene) { if (f.t > 20) fights.delete(id); continue; } // indoor brawls are handled abstractly
+        const a = q.agent; a.chasing = true; a.path = null;
+        const dx = game.player.x - a.x, dy = game.player.y - a.y, d = Math.hypot(dx, dy) || 1;
+        if (f.mode === 'fight') {
+          if (d > 14) { const sp = 70 * dt; const nx = a.x + (dx / d) * sp, ny = a.y + (dy / d) * sp; if (!game.solidAt(nx, ny)) { a.x = nx; a.y = ny; } a.anim = 'run'; }
+          else if (f.cd <= 0) {
+            f.cd = 0.9; a.anim = 'work';
+            const armed = q.app.outfit.item && ['spear', 'sword', 'axe', 'hammer', 'pitchfork', 'dagger'].includes(q.app.outfit.item);
+            const dmg = (armed ? 12 : 6) * (q.job?.role?.startsWith('guard') ? 1.2 : 1) * sim.rng.float(0.7, 1.2);
+            PS.hp -= dmg; fx.push({ x: game.player.x, y: game.player.y - 16, flash: true, t: 0, max: 0.12 });
+            for (let i = 0; i < 4; i++) fx.push({ x: game.player.x, y: game.player.y - 8, vx: (Math.random() - 0.5) * 40, vy: -Math.random() * 30, t: 0, max: 0.3, c: 'rgba(170,140,100,0.8)' });
+            if (PS.hp <= 0) return knockedOut(q);
+          }
+          a.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 1 : 2) : (dy < 0 ? 3 : 0);
+          if (d > 200 || f.t > 40) { fights.delete(id); a.chasing = false; }
+        } else if (f.mode === 'flee') {
+          const sp = 80 * dt; const nx = a.x - (dx / d) * sp, ny = a.y - (dy / d) * sp;
+          if (!game.solidAt(nx, ny)) { a.x = nx; a.y = ny; } else if (!game.solidAt(a.x - (dx / d) * sp, a.y)) a.x -= (dx / d) * sp; else a.y -= (dy / d) * sp;
+          a.anim = 'run'; a.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 2 : 1) : (dy < 0 ? 0 : 3);
+          if (f.t > 5) { fights.delete(id); a.chasing = false; const g = sim.people.find((z) => z.job?.role?.startsWith('guard') && !z.agent.hidden && !z.task); if (g) { const cr = sim.crimes.filter((c) => c.perp === 'player').pop(); if (cr && !cr.reported) { cr.reported = true; g.task = { act: 'investigate', outdoor: true, crime: cr.id, tile: cr.tile }; } } }
+        } else if (f.mode === 'surrender') { a.anim = 'idle'; a.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 1 : 2) : (dy < 0 ? 3 : 0); if (f.t > 12) { fights.delete(id); a.chasing = false; } }
+      }
+      for (const p of fx) { p.t += dt; if (!p.flash) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 80 * dt; } }
+      for (let i = fx.length - 1; i >= 0; i--) if (fx[i].t > fx[i].max) fx.splice(i, 1);
+      PS.hp = Math.max(0, PS.hp);
+    });
+
+    game.hooks.drawWorld.push((ctx, cam) => {
+      for (const p of fx) {
+        if (p.flash) { ctx.fillStyle = 'rgba(255,250,235,0.7)'; ctx.fillRect(Math.round(p.x - cam.x) - 3, Math.round(p.y - cam.y) - 3, 7, 7); ctx.clearRect; continue; }
+        ctx.fillStyle = p.c; ctx.fillRect(Math.round(p.x - cam.x), Math.round(p.y - cam.y), 1, 1);
+      }
+    });
+
+    function knockedOut(by) {
+      O.Panels.toast(`${by.first} beats you to the ground…`, 'bad');
+      for (const [id] of fights) { const q = sim.byId.get(id); if (q) q.agent.chasing = false; }
+      fights.clear();
+      const lost = Math.floor(PS.money * 0.3); PS.money -= lost;
+      PS.hp = 25;
+      if (by.job?.role?.startsWith('guard')) { O.Law && O.LawUI; O.Panels.toast('You wake in irons.'); setTimeout(() => O.lawJail && O.lawJail(by), 50); return; }
+      // carried to the physician like anyone else
+      const doc = sim.building(sim.docId);
+      if (game.scene) game.exitBuilding();
+      game.enterBuilding(doc, 0);
+      let g = 0; while (g++ < 300) { sim.tick(2); PS.tick(2, true); }
+      PS.hp = 60;
+      O.Panels.toast(`You wake in the physician's house, sore and ${lost ? lost + 'd lighter' : 'aching'}.`);
+    }
+
+    // talk card: threaten when armed
+    const prevExtra = npcUI.extraButtons, prevOn = npcUI.onExtra;
+    npcUI.extraButtons = (q) => { const out = prevExtra ? prevExtra(q) : []; if (O.Combat.armed() && q.gang !== 'player' && q.age >= 12) out.push(['rob', `Threaten with your ${PS.equipped}`]); return out; };
+    npcUI.onExtra = (q, key, render) => { if (key === 'rob') { const line = O.Combat.rob(q); npcUI.closeTalk(); O.Panels.toast(`${q.first}: ${line}`, 'bad'); return; } return prevOn && prevOn(q, key, render); };
+
+    // robbery and looting hooks for the talk card and F
+    O.Combat = {
+      armed: () => PS.equipped && PS.equipped !== 'fists' && PS.items.includes(PS.equipped),
+      rob(q) {
+        const brave = q.traits.includes('brave') || q.traits.includes('hostile');
+        const comply = q.traits.includes('cowardly') ? 0.9 : brave ? 0.2 : 0.6 - (q.job?.role?.startsWith('guard') ? 0.6 : 0);
+        crimeFor(q, 'robbery', 2);
+        if (sim.rng.chance(comply)) {
+          const hh = sim.household(q), n = Math.max(1, Math.min(30, Math.floor(hh.money * 0.25)));
+          hh.money -= n; PS.money += n; sim.remember(q, `Robbed at knifepoint of ${n}d by the stranger.`, 'crime', 3, 0);
+          fights.set(q.id, { mode: 'flee', t: 0 });
+          return `“Take it! Take it and go!” They hand over ${n}d.`;
+        }
+        fights.set(q.id, { mode: brave ? 'fight' : 'flee', t: 0, cd: 0.6 });
+        return brave ? '“Over my dead body.”' : '“Help! HELP! Robbers!”';
+      },
+      lootable(q) { return q.health.hp <= 0 || fights.get(q.id)?.mode === 'surrender'; },
+      loot(q) {
+        const hh = sim.household(q), n = Math.max(0, Math.min(40, Math.floor(hh.money * 0.3)));
+        hh.money -= n; PS.money += n;
+        const item = q.app.outfit.item && G[q.app.outfit.item] ? q.app.outfit.item : null;
+        if (item && PS.add(item)) { q.app.outfit.item = null; O.Char.invalidate(q.app); PS.stolen[item] = (PS.stolen[item] || 0) + 1; }
+        if (!fights.get(q.id)?.looted) { crimeFor(q, 'robbery', 2); const f = fights.get(q.id); if (f) f.looted = true; }
+        return `You search ${q.first} and take ${n}d${item ? ' and a ' + G[item].name.toLowerCase() : ''}.`;
+      },
+      fights,
+    };
+  }
+  O.CombatSetup = { setup, WEAPONS };
 })();
 
 </script>
@@ -6733,6 +6949,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   O.Interact.setup(game, sim, npcUI);
   O.LawUI.setup(game, sim, npcUI);
   O.GangUISetup.setup(game, sim, npcUI);
+  O.CombatSetup.setup(game, sim, npcUI);
   const gbtn = document.createElement('button'); gbtn.className = 'btn ghost gang-btn'; gbtn.textContent = 'Gang (G)';
   gbtn.onclick = () => (O.panelOpen ? O.Panels.close() : O.GangUI.ledger()); $('tab-play').appendChild(gbtn);
   const sbtn = document.createElement('button'); sbtn.className = 'btn ghost satchel-btn'; sbtn.textContent = 'Satchel (I)';

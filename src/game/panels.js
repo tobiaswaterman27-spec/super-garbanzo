@@ -25,6 +25,8 @@
       case 'medicine': B.rect(5, 4, 4, 8, m('#6a9ad0', 'metal'), 3); B.rect(6, 2, 2, 2, m('#c8b8a0'), 3); break;
       case 'herbs': for (let i = 0; i < 4; i++) B.capsule(5 + i * 1.5, 12, 3 + i * 2.5, 3, 0.6, 0.9, m('#5a9a40')); break;
       case 'dagger': B.capsule(3, 11, 10, 3, 0.9, 0.5, m('#c8ccd4', 'metal')); B.capsule(2, 9, 6, 13, 0.6, 0.6, m(P.metal.brass, 'metal')); break;
+      case 'sword': B.capsule(2, 12, 11, 3, 0.9, 0.6, m(P.metal.steel, 'metal')); B.capsule(2, 9, 6, 13, 0.7, 0.7, m(P.metal.brass, 'metal')); break;
+      case 'axe': B.capsule(4, 12, 9, 3, 0.7, 0.7, m('#8a6239', 'wood')); B.blob(10, 4, 2.6, 2, m(P.metal.steel, 'metal'), { power: 2 }); break;
       case 'spoon': B.capsule(3, 11, 9, 5, 0.6, 0.6, m(P.metal.silver, 'metal')); B.blob(10, 4, 2, 1.6, m(P.metal.silver, 'metal'), { power: 2 }); break;
       case 'brooch': B.blob(7, 7, 4.5, 4.5, m(P.metal.gold, 'metal'), { power: 2 }); B.blob(7, 7, 2, 2, m('#c83a3a'), { power: 2 }); break;
       case 'candlestick': B.rect(6, 4, 2, 7, m('#9a9a96', 'metal'), 3); B.rect(4, 11, 6, 2, m('#9a9a96', 'metal'), 2); B.rect(6, 2, 2, 2, m(P.cloth.white), 3); break;
@@ -60,13 +62,14 @@
 
   function inventory() {
     const used = PS.slotsUsed();
-    const cells = PS.items.map((k, i) => `<div class="slot"><img src="${icon(k)}" alt=""><span>${esc(G[k].name)}</span>${G[k].food ? `<button data-eat="${i}">Eat</button>` : ''}<button data-drop="${i}" class="ghost">Drop</button></div>`).join('');
+    const cells = PS.items.map((k, i) => `<div class="slot"><img src="${icon(k)}" alt=""><span>${esc(G[k].name)}</span>${G[k].food ? `<button data-eat="${i}">Eat</button>` : ''}${G[k].weapon ? `<button data-eq="${k}">${PS.equipped === k ? 'In hand' : 'Hold'}</button>` : ''}<button data-drop="${i}" class="ghost">Drop</button></div>`).join('');
     const empty = Math.max(0, PS.SLOTS - used);
     open('Satchel', `<div class="lbl">${used}/${PS.SLOTS} slots · health ${Math.round(PS.hp)} · fed ${Math.round(PS.hunger)} · rested ${Math.round(PS.energy)}</div>
       <div class="slots">${cells}${'<div class="slot empty"></div>'.repeat(empty)}</div>
       <div class="lbl" style="margin-top:12px">Reputation</div>
       <div class="reps">${Object.entries(PS.rep).map(([k, v]) => `<div><span>${k}</span><b class="${v < -0.2 ? 'warn' : ''}">${v > 0.6 ? 'admired' : v > 0.2 ? 'liked' : v > -0.2 ? 'unknown' : v > -0.6 ? 'distrusted' : 'hated'}</b></div>`).join('')}</div>`, (r) => {
       r.querySelectorAll('[data-eat]').forEach((b) => b.onclick = () => { const k = PS.items[+b.dataset.eat]; PS.eat(k); toast(`You eat the ${G[k].name.toLowerCase()}.`); inventory(); });
+      r.querySelectorAll('[data-eq]').forEach((b) => b.onclick = () => { PS.equipped = PS.equipped === b.dataset.eq ? 'fists' : b.dataset.eq; const a = O.game.player.a; a.outfit.item = PS.equipped === 'fists' ? null : PS.equipped; O.Char.invalidate(a); inventory(); });
       r.querySelectorAll('[data-drop]').forEach((b) => b.onclick = () => { const k = PS.items[+b.dataset.drop]; PS.remove(k); toast(`Dropped ${G[k].name.toLowerCase()}.`); inventory(); });
     });
   }

@@ -92,6 +92,7 @@
       if (!ill || p.visitor) return null;
       const a = p.agent;
       if (h.state === 'incapacitated') {
+        if (p.task && p.task.act !== 'to-doctor' && p.task.act !== 'treated') p.task = null;
         if (a.inside == null && !p.task) {
           if (!p.collapsedAt) { p.collapsedAt = this.day * 1440 + this.minute; a.path = null; a.goal = null; this.log(`${p.name} collapsed ${this.where(a)}.`, 'health'); }
           // someone nearby notices and helps

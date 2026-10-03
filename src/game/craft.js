@@ -11,7 +11,7 @@
     oven: [['Bake bread', { flour: 2, firewood: 1 }, { bread: 5 }, 'baking', 0.12]],
     fireplace: [['Cook a hot meal', { bread: 1, cabbage: 1 }, { meal: 2 }, 'serving', 0], ['Cook a hot meal (fish)', { bread: 1, fish: 1 }, { meal: 2 }, 'serving', 0], ['Cook a hot meal (meat)', { bread: 1, meat: 1 }, { meal: 3 }, 'serving', 0.1]],
     forge: [['Forge tools', { iron: 2, firewood: 1 }, { tools: 1 }, 'smithing', 0.25], ['Forge a dagger', { iron: 2, firewood: 1 }, { dagger: 1 }, 'smithing', 0.35], ['Forge a hand axe', { iron: 2, firewood: 1, logs: 1 }, { axe: 1 }, 'smithing', 0.4], ['Forge a sword', { iron: 4, firewood: 2 }, { sword: 1 }, 'smithing', 0.65], ['Beat out a helm', { iron: 4, firewood: 2 }, { helm: 1 }, 'smithing', 0.55]],
-    workbench: [['Split firewood', { logs: 1 }, { firewood: 3 }, 'woodcraft', 0], ['Make a chair', { logs: 3 }, { furniture: 1 }, 'woodcraft', 0.4]],
+    workbench: [['Split firewood', { logs: 1 }, { firewood: 3 }, 'woodcraft', 0], ['Saw planks', { logs: 1 }, { planks: 1 }, 'woodcraft', 0.15], ['Make a chair', { planks: 2 }, { furniture: 1 }, 'woodcraft', 0.4]],
     cauldron: [['Brew a remedy', { herbs: 2 }, { medicine: 1 }, 'physic', 0.3], ['Cook a stew', { cabbage: 2, meat: 1 }, { meal: 3 }, 'serving', 0.15]],
     millstone: [['Grind flour', { wheat: 2 }, { flour: 2 }, 'milling', 0]],
     barrel: [['Brew ale', { wheat: 2 }, { ale: 3 }, 'serving', 0.25]],

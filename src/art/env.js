@@ -537,6 +537,14 @@
         B.shape(1, 1, 13, 7, (px, py) => ((px - 7) / 5) ** 2 + ((py - 4.5) / 2) ** 2 <= 1, () => [0, -0.8, 0.5], P.mat('#c8a070', 'wood')); B.plot(7, 4, lm, 1);
         ox = 7; oy = 11; break;
       }
+      case 'sapling': { // a young tree staked against the wind; v = 0..2 growth
+        const h = 10 + v * 6;
+        B = new MB(16, h + 6); B.part(1);
+        const bark = P.mat('#6a4a30', 'wood'), stake = P.mat('#c8a070', 'wood'), leaf = P.mat(v ? '#4e7a34' : '#6a9a44', 'cloth');
+        B.capsule(8, h + 4, 8, 5, 0.7, 0.5, bark); B.capsule(5, h + 5, 5, h - 2, 0.5, 0.5, stake); B.plot(6, h - 1, P.mat('#e8e0d0', 'cloth'), 3);
+        B.part(2); B.blob(8, 5 + (2 - v), 3 + v * 1.5, 2.5 + v, leaf, { power: 2 }); for (let k = 0; k < 4 + v * 3; k++) B.tweak(4 + (k * 5) % 9, 3 + (k * 3) % (4 + v * 2), (k % 2) ? 1 : -1);
+        ox = 8; oy = h + 5; break;
+      }
       case 'flowers': {
         B = new MB(8, 6); B.part(1); const fl = P.mat(rng.pick(['#d84a4a', '#e8e0f0', '#e0c040', '#9a6ad0'])), st = P.mat('#4a7a32', 'cloth');
         for (let i = 0; i < 4; i++) { const x = rng.int(1, 6), y = rng.int(1, 3); B.plot(x, y + 1, st, 2); B.plot(x, y, fl, 3); }

@@ -8,7 +8,7 @@
 // and favoured customers less, and some won't serve you at all once your name is mud.
 'use strict';
 (function () {
-  const SKILL_OF = { bakery: 'baking', smithy: 'smithing', armourer: 'smithing', tavern: 'serving', farmhouse: 'farming', woodcutter: 'woodcraft', carpenter: 'woodcraft', mill: 'milling', store: 'trading', warehouse: 'hauling', butcher: 'butchery', stable: 'horsemanship', doctor: 'physic', apothecary: 'physic', fishery: 'fishing', mine: 'mining', jeweller: 'goldsmithing' };
+  const SKILL_OF = { bakery: 'baking', smithy: 'smithing', armourer: 'smithing', tavern: 'serving', farmhouse: 'farming', woodcutter: 'woodcraft', carpenter: 'woodcraft', mill: 'milling', store: 'trading', warehouse: 'hauling', butcher: 'butchery', stable: 'horsemanship', doctor: 'physic', apothecary: 'physic', fishery: 'fishing', mine: 'mining', jeweller: 'goldsmithing', sawmill: 'woodcraft', quarry: 'mining' };
   const SKILL_LABEL = { baking: 'Baking', smithing: 'Smithing', serving: 'Serving', farming: 'Farming', woodcraft: 'Woodcraft', milling: 'Milling', trading: 'Trading', hauling: 'Hauling', butchery: 'Butchery', horsemanship: 'Horsemanship', physic: 'Physic', fishing: 'Fishing', mining: 'Mining', goldsmithing: 'Goldsmithing', stealth: 'Stealth', lockpick: 'Lock-picking' };
   const rank = (v) => (v >= 0.7 ? 'master' : v >= 0.4 ? 'journeyman' : v >= 0.15 ? 'apprentice' : 'novice');
 

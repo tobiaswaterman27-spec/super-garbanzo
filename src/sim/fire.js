@@ -117,7 +117,7 @@
       ruin.spec = Object.assign({}, ruin.spec, { condition: 1, roof: ruin.spec.roof === 'thatch' ? 'shingle' : ruin.spec.roof, _fin: undefined });
       const site = { id, b: ruin, stage: 2, prog: 0, work: 0, stalled: null, started: this.day };
       this.build.sites.push(site);
-      const def = { label: 'Building site', jobs: [['builder', 3]], hours: [7, 17], recipes: [], sells: [], buys: { logs: 'woodcutter', stone: 'import' }, targets: { logs: 12, stone: 10 }, wage: { builder: 7 }, site: true };
+      const def = { label: 'Building site', jobs: [['builder', 3]], hours: [7, 17], recipes: [], sells: [], buys: { logs: 'woodcutter|import', stone: 'quarry|import' }, targets: { logs: 12, stone: 10 }, wage: { builder: 7 }, site: true };
       const bz = { id, b: ruin, type: 'site', def, name: 'the rebuilding', owner: null, workers: [], stock: { logs: 0, stone: 0 }, cash: cost, sold: {}, bought: {}, open: false, orders: [], salesToday: 0, history: [] };
       this.biz.set(id, bz); this.treasury.cash -= cost; this.treasury.spent += cost;
       const idle = this.people.filter((p) => !p.visitor && p.age >= 17 && p.age < 60 && (!p.job || p.job.role === 'porter')).slice(0, 3);

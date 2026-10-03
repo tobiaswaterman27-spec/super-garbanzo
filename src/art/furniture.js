@@ -6,7 +6,7 @@
   const cache = new Map();
   const wood = () => P.mat(P.wood.oak, 'wood'), dark = () => P.mat(P.wood.dark, 'wood'), pine = () => P.mat(P.wood.pine, 'wood');
   const stone = () => P.mat('#8e8880', 'cloth'), iron = () => P.mat(P.metal.darkIron, 'metal');
-  const GOOD_COL = { bread: '#c88a45', cabbage: '#6a9a44', flour: '#e6dcc4', wheat: '#d8b048', ale: '#8a5a30', meal: '#a0603a', logs: '#7c5a38', firewood: '#8a6239', iron: '#7a7e88', tools: '#9aa0aa', medicine: '#6a9ad0', herbs: '#5a9a40', stone: '#9a948a' };
+  const GOOD_COL = { bread: '#c88a45', cabbage: '#6a9a44', flour: '#e6dcc4', wheat: '#d8b048', ale: '#8a5a30', meal: '#a0603a', logs: '#7c5a38', planks: '#b08a5a', firewood: '#8a6239', iron: '#7a7e88', tools: '#9aa0aa', medicine: '#6a9ad0', herbs: '#5a9a40', stone: '#9a948a' };
 
   function finish(B, ox, oy, opts) { return { canvas: B.toCanvas(opts), ox, oy, W: B.w, H: B.h }; }
 

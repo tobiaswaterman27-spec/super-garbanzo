@@ -29,6 +29,7 @@
     furniture: { name: 'Chair', base: 16, unit: 'piece', slots: 3 },
     helm: { name: 'Iron helm', base: 30, unit: 'helm', slots: 2 },
     cloth: { name: 'Bolt of cloth', base: 10, unit: 'bolt', slots: 2 },
+    planks: { name: 'Planks', base: 5, unit: 'bundle', slots: 2 },
   };
 
   // Business definitions: roles (job slots), hours, recipes (per worker-hour at skill 1),
@@ -46,10 +47,12 @@
     stable: { label: 'Stables', jobs: [['horse trader', 1], ['stablehand', 1]], hours: [7, 19], recipes: [], sells: [], buys: { wheat: 'farmhouse' }, targets: { wheat: 12 }, wage: { 'horse trader': 0, stablehand: 5 } },
     fishery: { label: 'Fishery', jobs: [['fisher', 3]], hours: [5, 15], recipes: [{ out: { fish: 4 }, inp: {} }], sells: ['fish'], targets: { fish: 40 }, wage: { fisher: 6 } },
     mine: { label: 'Mine', jobs: [['mine foreman', 1], ['miner', 4]], hours: [6, 17], recipes: [{ out: { iron: 0.8, stone: 1 }, inp: {} }], sells: ['iron', 'stone'], targets: { iron: 40, stone: 30 }, wage: { 'mine foreman': 0, miner: 7 } },
+    sawmill: { label: 'Sawmill', jobs: [['sawyer', 1], ['labourer', 2]], hours: [7, 17], recipes: [{ out: { planks: 1.6 }, inp: { logs: 1 } }], sells: ['planks'], buys: { logs: 'woodcutter|import' }, targets: { logs: 20, planks: 30 }, wage: { sawyer: 0, labourer: 6 } },
+    quarry: { label: 'Quarry', jobs: [['quarry master', 1], ['quarryman', 3]], hours: [6, 17], recipes: [{ out: { stone: 1.5 }, inp: {} }], sells: ['stone'], targets: { stone: 40 }, wage: { 'quarry master': 0, quarryman: 7 } },
     butcher: { label: 'Butcher', jobs: [['butcher', 1], ['apprentice', 1]], hours: [6, 16], recipes: [{ out: { meat: 3 }, inp: {} }], sells: ['meat'], targets: { meat: 30 }, wage: { butcher: 0, apprentice: 4 } },
     jeweller: { label: 'Jeweller', jobs: [['jeweller', 1], ['night watchman', 1]], hours: [9, 17], recipes: [{ out: { ring: 0.05, brooch: 0.06 }, inp: {}, role: 'jeweller' }], sells: ['ring', 'brooch'], targets: { ring: 6, brooch: 5 }, wage: { jeweller: 0, 'night watchman': 7 }, security: 0.9 },
     apothecary: { label: 'Apothecary', jobs: [['apothecary', 1]], hours: [8, 18], recipes: [{ out: { medicine: 0.5, herbs: 0.6 }, inp: {} }], sells: ['medicine', 'herbs'], targets: { medicine: 12, herbs: 12 }, wage: { apothecary: 0 } },
-    carpenter: { label: 'Carpenter', jobs: [['carpenter', 1], ['apprentice', 1]], hours: [7, 17], recipes: [{ out: { furniture: 0.2 }, inp: { logs: 0.5 } }], sells: ['furniture'], buys: { logs: 'woodcutter|import' }, targets: { logs: 10, furniture: 6 }, wage: { carpenter: 0, apprentice: 4 } },
+    carpenter: { label: 'Carpenter', jobs: [['carpenter', 1], ['apprentice', 1]], hours: [7, 17], recipes: [{ out: { furniture: 0.25 }, inp: { planks: 0.5 } }], sells: ['furniture'], buys: { planks: 'sawmill|import' }, targets: { planks: 10, furniture: 6 }, wage: { carpenter: 0, apprentice: 4 } },
     armourer: { label: 'Armourer', jobs: [['armourer', 1]], hours: [7, 17], recipes: [{ out: { helm: 0.08, sword: 0.04 }, inp: { iron: 0.3 } }], sells: ['helm', 'sword'], buys: { iron: 'mine|import' }, targets: { iron: 10, helm: 4, sword: 2 }, wage: { armourer: 0 } },
     warehouse: { label: 'Warehouse', jobs: [['warehouse master', 1], ['warehouse worker', 2]], hours: [6, 18], recipes: [], sells: ['cloth', 'wheat', 'iron'], targets: { cloth: 30, wheat: 80, iron: 20 }, wage: { 'warehouse master': 0, 'warehouse worker': 6, docker: 8 }, security: 0.6 },
     townhall: { label: 'Town Hall', jobs: [['magistrate', 1], ['clerk', 2]], hours: [8, 17], recipes: [], sells: [], targets: {}, public: true, wage: { magistrate: 14, clerk: 7 }, security: 0.7 },
@@ -62,7 +65,7 @@
   const ROLE_OUTFIT = {
     farmer: 'farmer', farmhand: 'farmhand', miller: 'miller', labourer: 'villager', baker: 'baker', apprentice: 'villager', woodcutter: 'woodcutter',
     blacksmith: 'blacksmith', innkeeper: 'innkeeper', server: 'innkeeper', cook: 'baker', shopkeeper: 'merchant', physician: 'doctor', assistant: 'villager',
-    'guard captain': 'guard', guard: 'guard', priest: 'priest', herbalist: 'farmhand', butcher: 'baker', jeweller: 'merchant', 'night watchman': 'guard', apothecary: 'doctor', carpenter: 'woodcutter', armourer: 'blacksmith', 'warehouse master': 'merchant', 'warehouse worker': 'villager', docker: 'villager', magistrate: 'noble', clerk: 'merchant', nurse: 'villager', teacher: 'priest', fisher: 'fisher', miner: 'woodcutter', 'mine foreman': 'woodcutter', 'horse trader': 'merchant', stablehand: 'farmhand', porter: 'villager', trader: 'merchant',
+    'guard captain': 'guard', guard: 'guard', priest: 'priest', herbalist: 'farmhand', butcher: 'baker', jeweller: 'merchant', 'night watchman': 'guard', apothecary: 'doctor', carpenter: 'woodcutter', armourer: 'blacksmith', 'warehouse master': 'merchant', 'warehouse worker': 'villager', docker: 'villager', sawyer: 'woodcutter', 'quarry master': 'woodcutter', quarryman: 'woodcutter', magistrate: 'noble', clerk: 'merchant', nurse: 'villager', teacher: 'priest', fisher: 'fisher', miner: 'woodcutter', 'mine foreman': 'woodcutter', 'horse trader': 'merchant', stablehand: 'farmhand', porter: 'villager', trader: 'merchant',
   };
 
   const NAMES = {

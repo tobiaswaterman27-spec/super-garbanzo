@@ -179,6 +179,18 @@
         tryPut('counter', [[Math.max(0, w - 3), d - 2]], { counter: true });
         beds(); storage();
         break;
+      case 'sawmill':
+        tryPut('workbench', [[1, 1], ...anywhere(2, 1)], { work: ['sawyer', 'labourer'] });
+        tryPut('workbench', [[w - 3, 1], ...anywhere(2, 1)], { work: ['labourer'] });
+        for (let i = 0; i < 4; i++) tryPut('woodpile', anywhere(), { stockOf: i % 2 ? 'logs' : 'planks' });
+        tryPut('rack', along(0, 2)); beds(); storage();
+        break;
+      case 'quarry':
+        tryPut('desk', [[1, 1], ...anywhere(2, 1)], { work: ['quarry master'] });
+        tryPut('rack', along(0, 2), { work: ['quarryman'] }); tryPut('anvil', anywhere(), { work: ['quarryman'] });
+        for (let i = 0; i < 5; i++) tryPut('crate', anywhere(), { stockOf: 'stone' });
+        tryPut('barrel', anywhere()); storage();
+        break;
       case 'warehouse':
         for (let i = 0; i < Math.floor(w * d / 7); i++) tryPut(rng.pick(['crate', 'crate', 'barrel', 'sack']), anywhere(), { stockOf: 'warehouse' });
         tryPut('desk', [[1, d - 3], ...anywhere(2, 1)], { work: ['warehouse master'] });
@@ -253,7 +265,7 @@
     if (cache.has(key)) return cache.get(key);
     const L = layoutFor(b, floor, sim);
     const wallKind = b.spec.wall === 'stone' || b.spec.wall === 'log' || b.spec.wall === 'plank' ? b.spec.wall : 'timber';
-    const floorKind = ['smithy', 'chapel', 'guard', 'mill', 'armourer', 'warehouse', 'townhall', 'keep', 'hospital'].includes(b.type) ? 'stone' : b.type === 'barn' || (b.type === 'house' && b.wealth < 0.3) ? 'dirt' : 'wood';
+    const floorKind = ['smithy', 'chapel', 'guard', 'mill', 'quarry', 'armourer', 'warehouse', 'townhall', 'keep', 'hospital'].includes(b.type) ? 'stone' : b.type === 'barn' || (b.type === 'house' && b.wealth < 0.3) ? 'dirt' : 'wood';
     L.room = O.Furn.room({ w: L.w, d: L.d, wall: wallKind, floor: floorKind, wealth: b.wealth, seed: b.id * 3 + floor, windows: Math.max(1, Math.floor(b.w / 2) + 1), doorTile: floor === 0 ? L.dc : -5 });
     cache.set(key, L);
     return L;

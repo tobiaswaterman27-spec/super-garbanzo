@@ -48,7 +48,7 @@
       const site = { id, b, stage: 0, prog: 0, work: 0, stalled: null, started: sim.day };
       this.sites.push(site);
       // the site is run like a small business: builders, wages, material orders
-      const def = { label: 'Building site', jobs: [['builder', 3]], hours: [7, 17], recipes: [], sells: [], buys: { logs: 'woodcutter', stone: 'import' }, targets: { logs: 12, stone: 10 }, wage: { builder: 7 }, site: true };
+      const def = { label: 'Building site', jobs: [['builder', 3]], hours: [7, 17], recipes: [], sells: [], buys: { logs: 'woodcutter|import', stone: 'quarry|import' }, targets: { logs: 12, stone: 10 }, wage: { builder: 7 }, site: true };
       const bz = { id, b, type: 'site', def, name: 'the new house site', owner: null, workers: [], stock: { logs: 0, stone: 0 }, cash: cost, sold: {}, bought: {}, open: false, orders: [], salesToday: 0, history: [] };
       sim.biz.set(id, bz);
       sim.treasury.cash -= cost; sim.treasury.spent += cost;

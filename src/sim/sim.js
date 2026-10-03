@@ -62,7 +62,7 @@
 
     populate() {
       const r = this.rng, w = this.world;
-      const homeTypes = ['house', 'farmhouse', 'tavern', 'bakery', 'smithy', 'doctor', 'woodcutter', 'mill', 'store', 'butcher', 'jeweller', 'apothecary', 'carpenter', 'armourer', 'tenement', 'mansion', 'townhouse', 'keep'];
+      const homeTypes = ['house', 'farmhouse', 'tavern', 'bakery', 'smithy', 'doctor', 'woodcutter', 'mill', 'store', 'sawmill', 'butcher', 'jeweller', 'apothecary', 'carpenter', 'armourer', 'tenement', 'mansion', 'townhouse', 'keep'];
       for (const b of w.buildings) {
         if (D.BUSINESS[b.type]) {
           const def = D.BUSINESS[b.type];
@@ -795,6 +795,7 @@
       this.newsDaily && this.newsDaily();
       this.warOrders && this.warOrders();
       this.reeveDaily && this.reeveDaily();
+      this.forestDaily && this.forestDaily();
       // a city's guilds, wharf fees and market rents fill the common chest beyond what the sales tax brings
       if (this.people.length > 220) { const dues = Math.round(this.people.length * 0.3); this.treasury.cash += dues; this.treasury.income += dues; }
       for (const p of this.people) {
@@ -860,7 +861,7 @@
     if (p.task?.act === 'help') { const t = this.byId.get(p.task.target); if (t) return [Math.floor(t.agent.x / this.T), Math.floor((t.agent.y - 1) / this.T)]; }
     return _zone.call(this, p, zone);
   };
-  O.Health.install(Sim); O.Life.install(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim);
+  O.Health.install(Sim); O.Life.install(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
   // carry-home and delivery tasks finish on entering the destination

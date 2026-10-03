@@ -85,6 +85,8 @@
     B({ type: 'mill', name: place.region === 'south' || place.region === 'east' ? 'Windmill' : 'Mill', x: W - 14, bottom: laneY - 1, w: 4, d: 4, floors: 2, wealth: 0.5, look: { wall: 'stone', stoneMat: st.stoneMat, roof: 'thatch', roofType: 'gable', doorTile: 1, noFlowers: true } });
     B({ type: 'woodcutter', name: "Woodcutter's Hut", x: sqX + 1, bottom: 9, w: 3, d: 3, wealth: 0.25, condition: 0.6, look: { wall: 'log', roof: 'shingle', roofType: 'gable', chimney: true, doorTile: 1 } });
     if (coast) for (let i = 0; i < 3; i++) B({ type: i ? 'house' : 'fishery', name: i ? 'House' : 'Fishery', x: shoreX + 3 + i * 5, bottom: roadY - 13 + (i % 2), w: 4, d: 3, wealth: 0.35, look: { wall: 'plank', plankMat: 'plank', roof: 'thatch', roofType: 'side', chimney: true, doorTile: 1, noFlowers: true } });
+    if (place.region === 'north' || place.region === 'west') B({ type: 'sawmill', name: 'Sawmill', x: sqX + 5, bottom: 9, w: 4, d: 3, wealth: 0.3, condition: 0.7, look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', roofType: 'side', bigDoor: true, doorTile: 2, chimney: false, noFlowers: true } });
+    if (place.region === 'north') B({ type: 'quarry', name: `${place.name} Quarry`, x: W - 29, bottom: 10, w: 4, d: 3, wealth: 0.25, condition: 0.6, look: { wall: 'stone', stoneMat: 'stoneDark', roof: 'slate', roofType: 'side', bigDoor: true, doorTile: 1, chimney: false, noFlowers: true } });
     if (place.region === 'north') B({ type: 'mine', name: `${place.name} Mine`, x: W - 22, bottom: 10, w: 5, d: 3, wealth: 0.3, condition: 0.6, look: { wall: 'stone', stoneMat: 'stoneDark', roof: 'shingle', roofType: 'side', bigDoor: true, doorTile: 2, chimney: false, noFlowers: true } });
 
     for (const b of buildings) {
@@ -207,7 +209,7 @@
     for (const bottom of [52, 62, 72, 79]) { lots(8, 39, bottom, resi, 4); lots(42, riverX - 5, bottom, resi, 4); }
     for (const bottom of [33, 42]) lots(8, 39, bottom, [...resi, ...noble.slice(1, 2)], 4);
     // essential trades a living city needs, wherever they fit
-    const need = [['mill', 'Watermill', 4, 4], ['woodcutter', "Woodward's Yard", 4, 3], ['farmhouse', 'Market Garden', 4, 3]];
+    const need = [['mill', 'Watermill', 4, 4], ['woodcutter', "Woodward's Yard", 4, 3], ['sawmill', 'Riverside Sawmill', 5, 3], ['farmhouse', 'Market Garden', 4, 3]];
     for (const [type, name, w, d] of need) { for (let tries = 0; tries < 60; tries++) { const x = rng.int(8, W - 14), bottom = rng.pick([13, 22, 33, 52, 62, 72]); if (free(x, bottom, w, d)) { B({ type, name, x, bottom, w, d, floors: type === 'mill' ? 2 : 1, wealth: 0.4, look: look(0.4) }); break; } } }
     if (!K.buildings.some((b) => b.type === 'guard')) B({ type: 'guard', name: 'City Watch', x: 42, bottom: 79, w: 6, d: 4, look: { wall: 'stone', roof: 'slate', sign: 'shield', noFlowers: true, doorTile: 2 } });
     if (!K.buildings.some((b) => b.type === 'doctor')) B({ type: 'doctor', name: 'Physician', x: 30, bottom: 79, w: 4, d: 4, floors: 2, look: look(0.6, { sign: 'herb' }) });

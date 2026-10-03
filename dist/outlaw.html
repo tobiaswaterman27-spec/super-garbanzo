@@ -160,7 +160,7 @@ main > .wrap { overflow: auto; }
 </style>
 
 <header class="top">
-  <div class="brand">Outlaw<small>BUILD 0.23 · FIRE</small></div>
+  <div class="brand">Outlaw<small>BUILD 0.24 · TIMBER</small></div>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" role="tab" aria-selected="true" data-tab="play">Play</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="forge">Character</button>
@@ -2245,6 +2245,14 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         B.shape(1, 1, 13, 7, (px, py) => ((px - 7) / 5) ** 2 + ((py - 4.5) / 2) ** 2 <= 1, () => [0, -0.8, 0.5], P.mat('#c8a070', 'wood')); B.plot(7, 4, lm, 1);
         ox = 7; oy = 11; break;
       }
+      case 'sapling': { // a young tree staked against the wind; v = 0..2 growth
+        const h = 10 + v * 6;
+        B = new MB(16, h + 6); B.part(1);
+        const bark = P.mat('#6a4a30', 'wood'), stake = P.mat('#c8a070', 'wood'), leaf = P.mat(v ? '#4e7a34' : '#6a9a44', 'cloth');
+        B.capsule(8, h + 4, 8, 5, 0.7, 0.5, bark); B.capsule(5, h + 5, 5, h - 2, 0.5, 0.5, stake); B.plot(6, h - 1, P.mat('#e8e0d0', 'cloth'), 3);
+        B.part(2); B.blob(8, 5 + (2 - v), 3 + v * 1.5, 2.5 + v, leaf, { power: 2 }); for (let k = 0; k < 4 + v * 3; k++) B.tweak(4 + (k * 5) % 9, 3 + (k * 3) % (4 + v * 2), (k % 2) ? 1 : -1);
+        ox = 8; oy = h + 5; break;
+      }
       case 'flowers': {
         B = new MB(8, 6); B.part(1); const fl = P.mat(rng.pick(['#d84a4a', '#e8e0f0', '#e0c040', '#9a6ad0'])), st = P.mat('#4a7a32', 'cloth');
         for (let i = 0; i < 4; i++) { const x = rng.int(1, 6), y = rng.int(1, 3); B.plot(x, y + 1, st, 2); B.plot(x, y, fl, 3); }
@@ -2828,6 +2836,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     B({ type: 'mill', name: place.region === 'south' || place.region === 'east' ? 'Windmill' : 'Mill', x: W - 14, bottom: laneY - 1, w: 4, d: 4, floors: 2, wealth: 0.5, look: { wall: 'stone', stoneMat: st.stoneMat, roof: 'thatch', roofType: 'gable', doorTile: 1, noFlowers: true } });
     B({ type: 'woodcutter', name: "Woodcutter's Hut", x: sqX + 1, bottom: 9, w: 3, d: 3, wealth: 0.25, condition: 0.6, look: { wall: 'log', roof: 'shingle', roofType: 'gable', chimney: true, doorTile: 1 } });
     if (coast) for (let i = 0; i < 3; i++) B({ type: i ? 'house' : 'fishery', name: i ? 'House' : 'Fishery', x: shoreX + 3 + i * 5, bottom: roadY - 13 + (i % 2), w: 4, d: 3, wealth: 0.35, look: { wall: 'plank', plankMat: 'plank', roof: 'thatch', roofType: 'side', chimney: true, doorTile: 1, noFlowers: true } });
+    if (place.region === 'north' || place.region === 'west') B({ type: 'sawmill', name: 'Sawmill', x: sqX + 5, bottom: 9, w: 4, d: 3, wealth: 0.3, condition: 0.7, look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', roofType: 'side', bigDoor: true, doorTile: 2, chimney: false, noFlowers: true } });
+    if (place.region === 'north') B({ type: 'quarry', name: `${place.name} Quarry`, x: W - 29, bottom: 10, w: 4, d: 3, wealth: 0.25, condition: 0.6, look: { wall: 'stone', stoneMat: 'stoneDark', roof: 'slate', roofType: 'side', bigDoor: true, doorTile: 1, chimney: false, noFlowers: true } });
     if (place.region === 'north') B({ type: 'mine', name: `${place.name} Mine`, x: W - 22, bottom: 10, w: 5, d: 3, wealth: 0.3, condition: 0.6, look: { wall: 'stone', stoneMat: 'stoneDark', roof: 'shingle', roofType: 'side', bigDoor: true, doorTile: 2, chimney: false, noFlowers: true } });
 
     for (const b of buildings) {
@@ -2950,7 +2960,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     for (const bottom of [52, 62, 72, 79]) { lots(8, 39, bottom, resi, 4); lots(42, riverX - 5, bottom, resi, 4); }
     for (const bottom of [33, 42]) lots(8, 39, bottom, [...resi, ...noble.slice(1, 2)], 4);
     // essential trades a living city needs, wherever they fit
-    const need = [['mill', 'Watermill', 4, 4], ['woodcutter', "Woodward's Yard", 4, 3], ['farmhouse', 'Market Garden', 4, 3]];
+    const need = [['mill', 'Watermill', 4, 4], ['woodcutter', "Woodward's Yard", 4, 3], ['sawmill', 'Riverside Sawmill', 5, 3], ['farmhouse', 'Market Garden', 4, 3]];
     for (const [type, name, w, d] of need) { for (let tries = 0; tries < 60; tries++) { const x = rng.int(8, W - 14), bottom = rng.pick([13, 22, 33, 52, 62, 72]); if (free(x, bottom, w, d)) { B({ type, name, x, bottom, w, d, floors: type === 'mill' ? 2 : 1, wealth: 0.4, look: look(0.4) }); break; } } }
     if (!K.buildings.some((b) => b.type === 'guard')) B({ type: 'guard', name: 'City Watch', x: 42, bottom: 79, w: 6, d: 4, look: { wall: 'stone', roof: 'slate', sign: 'shield', noFlowers: true, doorTile: 2 } });
     if (!K.buildings.some((b) => b.type === 'doctor')) B({ type: 'doctor', name: 'Physician', x: 30, bottom: 79, w: 4, d: 4, floors: 2, look: look(0.6, { sign: 'herb' }) });
@@ -3314,6 +3324,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     furniture: { name: 'Chair', base: 16, unit: 'piece', slots: 3 },
     helm: { name: 'Iron helm', base: 30, unit: 'helm', slots: 2 },
     cloth: { name: 'Bolt of cloth', base: 10, unit: 'bolt', slots: 2 },
+    planks: { name: 'Planks', base: 5, unit: 'bundle', slots: 2 },
   };
 
   // Business definitions: roles (job slots), hours, recipes (per worker-hour at skill 1),
@@ -3331,10 +3342,12 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     stable: { label: 'Stables', jobs: [['horse trader', 1], ['stablehand', 1]], hours: [7, 19], recipes: [], sells: [], buys: { wheat: 'farmhouse' }, targets: { wheat: 12 }, wage: { 'horse trader': 0, stablehand: 5 } },
     fishery: { label: 'Fishery', jobs: [['fisher', 3]], hours: [5, 15], recipes: [{ out: { fish: 4 }, inp: {} }], sells: ['fish'], targets: { fish: 40 }, wage: { fisher: 6 } },
     mine: { label: 'Mine', jobs: [['mine foreman', 1], ['miner', 4]], hours: [6, 17], recipes: [{ out: { iron: 0.8, stone: 1 }, inp: {} }], sells: ['iron', 'stone'], targets: { iron: 40, stone: 30 }, wage: { 'mine foreman': 0, miner: 7 } },
+    sawmill: { label: 'Sawmill', jobs: [['sawyer', 1], ['labourer', 2]], hours: [7, 17], recipes: [{ out: { planks: 1.6 }, inp: { logs: 1 } }], sells: ['planks'], buys: { logs: 'woodcutter|import' }, targets: { logs: 20, planks: 30 }, wage: { sawyer: 0, labourer: 6 } },
+    quarry: { label: 'Quarry', jobs: [['quarry master', 1], ['quarryman', 3]], hours: [6, 17], recipes: [{ out: { stone: 1.5 }, inp: {} }], sells: ['stone'], targets: { stone: 40 }, wage: { 'quarry master': 0, quarryman: 7 } },
     butcher: { label: 'Butcher', jobs: [['butcher', 1], ['apprentice', 1]], hours: [6, 16], recipes: [{ out: { meat: 3 }, inp: {} }], sells: ['meat'], targets: { meat: 30 }, wage: { butcher: 0, apprentice: 4 } },
     jeweller: { label: 'Jeweller', jobs: [['jeweller', 1], ['night watchman', 1]], hours: [9, 17], recipes: [{ out: { ring: 0.05, brooch: 0.06 }, inp: {}, role: 'jeweller' }], sells: ['ring', 'brooch'], targets: { ring: 6, brooch: 5 }, wage: { jeweller: 0, 'night watchman': 7 }, security: 0.9 },
     apothecary: { label: 'Apothecary', jobs: [['apothecary', 1]], hours: [8, 18], recipes: [{ out: { medicine: 0.5, herbs: 0.6 }, inp: {} }], sells: ['medicine', 'herbs'], targets: { medicine: 12, herbs: 12 }, wage: { apothecary: 0 } },
-    carpenter: { label: 'Carpenter', jobs: [['carpenter', 1], ['apprentice', 1]], hours: [7, 17], recipes: [{ out: { furniture: 0.2 }, inp: { logs: 0.5 } }], sells: ['furniture'], buys: { logs: 'woodcutter|import' }, targets: { logs: 10, furniture: 6 }, wage: { carpenter: 0, apprentice: 4 } },
+    carpenter: { label: 'Carpenter', jobs: [['carpenter', 1], ['apprentice', 1]], hours: [7, 17], recipes: [{ out: { furniture: 0.25 }, inp: { planks: 0.5 } }], sells: ['furniture'], buys: { planks: 'sawmill|import' }, targets: { planks: 10, furniture: 6 }, wage: { carpenter: 0, apprentice: 4 } },
     armourer: { label: 'Armourer', jobs: [['armourer', 1]], hours: [7, 17], recipes: [{ out: { helm: 0.08, sword: 0.04 }, inp: { iron: 0.3 } }], sells: ['helm', 'sword'], buys: { iron: 'mine|import' }, targets: { iron: 10, helm: 4, sword: 2 }, wage: { armourer: 0 } },
     warehouse: { label: 'Warehouse', jobs: [['warehouse master', 1], ['warehouse worker', 2]], hours: [6, 18], recipes: [], sells: ['cloth', 'wheat', 'iron'], targets: { cloth: 30, wheat: 80, iron: 20 }, wage: { 'warehouse master': 0, 'warehouse worker': 6, docker: 8 }, security: 0.6 },
     townhall: { label: 'Town Hall', jobs: [['magistrate', 1], ['clerk', 2]], hours: [8, 17], recipes: [], sells: [], targets: {}, public: true, wage: { magistrate: 14, clerk: 7 }, security: 0.7 },
@@ -3347,7 +3360,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   const ROLE_OUTFIT = {
     farmer: 'farmer', farmhand: 'farmhand', miller: 'miller', labourer: 'villager', baker: 'baker', apprentice: 'villager', woodcutter: 'woodcutter',
     blacksmith: 'blacksmith', innkeeper: 'innkeeper', server: 'innkeeper', cook: 'baker', shopkeeper: 'merchant', physician: 'doctor', assistant: 'villager',
-    'guard captain': 'guard', guard: 'guard', priest: 'priest', herbalist: 'farmhand', butcher: 'baker', jeweller: 'merchant', 'night watchman': 'guard', apothecary: 'doctor', carpenter: 'woodcutter', armourer: 'blacksmith', 'warehouse master': 'merchant', 'warehouse worker': 'villager', docker: 'villager', magistrate: 'noble', clerk: 'merchant', nurse: 'villager', teacher: 'priest', fisher: 'fisher', miner: 'woodcutter', 'mine foreman': 'woodcutter', 'horse trader': 'merchant', stablehand: 'farmhand', porter: 'villager', trader: 'merchant',
+    'guard captain': 'guard', guard: 'guard', priest: 'priest', herbalist: 'farmhand', butcher: 'baker', jeweller: 'merchant', 'night watchman': 'guard', apothecary: 'doctor', carpenter: 'woodcutter', armourer: 'blacksmith', 'warehouse master': 'merchant', 'warehouse worker': 'villager', docker: 'villager', sawyer: 'woodcutter', 'quarry master': 'woodcutter', quarryman: 'woodcutter', magistrate: 'noble', clerk: 'merchant', nurse: 'villager', teacher: 'priest', fisher: 'fisher', miner: 'woodcutter', 'mine foreman': 'woodcutter', 'horse trader': 'merchant', stablehand: 'farmhand', porter: 'villager', trader: 'merchant',
   };
 
   const NAMES = {
@@ -3533,7 +3546,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const site = { id, b, stage: 0, prog: 0, work: 0, stalled: null, started: sim.day };
       this.sites.push(site);
       // the site is run like a small business: builders, wages, material orders
-      const def = { label: 'Building site', jobs: [['builder', 3]], hours: [7, 17], recipes: [], sells: [], buys: { logs: 'woodcutter', stone: 'import' }, targets: { logs: 12, stone: 10 }, wage: { builder: 7 }, site: true };
+      const def = { label: 'Building site', jobs: [['builder', 3]], hours: [7, 17], recipes: [], sells: [], buys: { logs: 'woodcutter|import', stone: 'quarry|import' }, targets: { logs: 12, stone: 10 }, wage: { builder: 7 }, site: true };
       const bz = { id, b, type: 'site', def, name: 'the new house site', owner: null, workers: [], stock: { logs: 0, stone: 0 }, cash: cost, sold: {}, bought: {}, open: false, orders: [], salesToday: 0, history: [] };
       sim.biz.set(id, bz);
       sim.treasury.cash -= cost; sim.treasury.spent += cost;
@@ -5116,7 +5129,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       ruin.spec = Object.assign({}, ruin.spec, { condition: 1, roof: ruin.spec.roof === 'thatch' ? 'shingle' : ruin.spec.roof, _fin: undefined });
       const site = { id, b: ruin, stage: 2, prog: 0, work: 0, stalled: null, started: this.day };
       this.build.sites.push(site);
-      const def = { label: 'Building site', jobs: [['builder', 3]], hours: [7, 17], recipes: [], sells: [], buys: { logs: 'woodcutter', stone: 'import' }, targets: { logs: 12, stone: 10 }, wage: { builder: 7 }, site: true };
+      const def = { label: 'Building site', jobs: [['builder', 3]], hours: [7, 17], recipes: [], sells: [], buys: { logs: 'woodcutter|import', stone: 'quarry|import' }, targets: { logs: 12, stone: 10 }, wage: { builder: 7 }, site: true };
       const bz = { id, b: ruin, type: 'site', def, name: 'the rebuilding', owner: null, workers: [], stock: { logs: 0, stone: 0 }, cash: cost, sold: {}, bought: {}, open: false, orders: [], salesToday: 0, history: [] };
       this.biz.set(id, bz); this.treasury.cash -= cost; this.treasury.spent += cost;
       const idle = this.people.filter((p) => !p.visitor && p.age >= 17 && p.age < 60 && (!p.job || p.job.role === 'porter')).slice(0, 3);
@@ -5139,6 +5152,85 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   }
 
   O.Fire = { installSim, FLAMMABLE };
+})();
+
+</script>
+<script>
+// The woods and the timber trade. Every bundle of logs comes from a real tree: as the woodcutters
+// work, trees near the woods fall and leave stumps. The forester plants a staked sapling in each
+// stump's place, and over a season and more it grows back into a tree. Cut faster than you plant
+// and the woods thin: the woodcutters walk further for less, and the price of timber rises. Logs go
+// to the sawmill for planks, planks to the carpenter for furniture, and furniture to the homes of
+// families who can afford it — which shows in their houses.
+'use strict';
+(function () {
+  function installSim(Sim) {
+    const S = Sim.prototype;
+
+    S.forestInit = function () {
+      if (this.forest) return this.forest;
+      const Z = this.Z.wood, cx = (Z[0] + Z[2]) / 2, cy = (Z[1] + Z[3]) / 2;
+      const near = this.world.trees.filter((t) => Math.hypot(t.x / this.T - cx, t.y / this.T - cy) < 18);
+      this.forest = { start: near.length, logs: (this.stats.produced.logs || 0), felled: 0, planted: 0 };
+      return this.forest;
+    };
+
+    S.forestDaily = function () {
+      if (!this.supplierOf('woodcutter')) return;
+      const F = this.forestInit(), w = this.world, r = this.rng, T = this.T;
+      const Z = this.Z.wood, cx = (Z[0] + Z[2]) / 2, cy = (Z[1] + Z[3]) / 2;
+      // every ten bundles of logs is one tree down, taken from the edge of the woods nearest the hut
+      const made = (this.stats.produced.logs || 0) - F.logs; F.logs = this.stats.produced.logs || 0;
+      let fell = Math.floor((made + (F.carry || 0)) / 10); F.carry = (made + (F.carry || 0)) % 10;
+      const nearTrees = () => w.trees.filter((t) => Math.hypot(t.x / T - cx, t.y / T - cy) < 18).sort((a, b) => Math.hypot(a.x / T - cx, a.y / T - cy) - Math.hypot(b.x / T - cx, b.y / T - cy));
+      while (fell-- > 0) {
+        const cand = nearTrees(); if (cand.length <= 4) break;
+        const t = cand[Math.min(cand.length - 1, r.int(0, 5))];
+        w.trees = w.trees.filter((x) => x !== t);
+        w.props.push({ kind: 'stump', x: t.x, y: t.y, seed: t.seed, v: 0, solid: false, felled: this.day, treeKind: t.kind });
+        w.solid[Math.floor(t.y / T) * w.W + Math.floor(t.x / T)] = 0;
+        F.felled++; w.dirtyStatics = true;
+      }
+      // the forester plants saplings in old stumps; saplings grow and become trees
+      for (const p of w.props) {
+        if (p.kind === 'stump' && p.felled != null && this.day - p.felled >= 2 && r.chance(0.6)) { p.kind = 'sapling'; p.v = 0; p.planted = this.day; F.planted++; w.dirtyStatics = true; }
+        else if (p.kind === 'sapling' && p.planted != null) {
+          const age = this.day - p.planted;
+          const v = age >= 18 ? 2 : age >= 8 ? 1 : 0;
+          if (v !== p.v) { p.v = v; w.dirtyStatics = true; }
+          if (age >= 28) { p.grown = true; w.trees.push({ kind: p.treeKind || 'oak', x: p.x, y: p.y, seed: p.seed + 1 }); w.solid[Math.floor(p.y / T) * w.W + Math.floor(p.x / T)] = 1; w.dirtyStatics = true; }
+        }
+      }
+      w.props = w.props.filter((p) => !p.grown);
+      // a thin wood: woodcutters work harder for less, and timber gets dear
+      const left = nearTrees().length, ratio = F.start ? left / F.start : 1;
+      const wc = this.supplierOf('woodcutter');
+      if (wc) {
+        wc.thin = ratio < 0.6;
+        if (ratio < 0.6 && !F.warned) { F.warned = true; this.log(`The woods above ${this.world.name} are thinning. The woodcutters must walk further for every load, and timber is getting dear.`, 'economy'); }
+        if (ratio > 0.75) F.warned = false;
+      }
+      // families with money to spare furnish their homes
+      const cp = this.supplierOf('carpenter', 'furniture');
+      if (cp && this.weekday === 2) for (const hh of this.households) {
+        if (hh.gone || hh.money < 220 || !cp.open && this.hour > 17) continue;
+        const b = this.building(hh.home); if (!b || (b.wealth ?? 0.5) > 0.92 || (cp.stock.furniture || 0) < 1 || !r.chance(0.3)) continue;
+        const pr = this.price(cp, 'furniture');
+        hh.money -= pr; cp.stock.furniture -= 1; cp.cash += pr; cp.salesToday += pr; this.stats.sales += pr;
+        b.wealth = Math.min(0.95, (b.wealth ?? 0.5) + 0.03); b.spec.wealth = b.wealth; b.dirty = true; O.Interior && O.Interior.invalidate(b);
+        for (const id of hh.members) { const q = this.byId.get(id); if (q && q.age >= 16 && r.chance(0.5)) this.remember(q, `We bought a new chair from ${cp.name}. The house looks finer for it.`, 'life', 0.8); }
+      }
+    };
+    // in a thin wood the woodcutters' work yields less
+    const _work = S.work;
+    S.work = function (p) {
+      const bz = this.biz.get(p.job?.biz);
+      if (bz && bz.type === 'woodcutter' && bz.thin) { const before = bz.stock.logs || 0; _work.call(this, p); const got = (bz.stock.logs || 0) - before; if (got > 0) bz.stock.logs -= got * 0.4; return; }
+      return _work.call(this, p);
+    };
+  }
+
+  O.Forestry = { installSim };
 })();
 
 </script>
@@ -5598,7 +5690,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
     populate() {
       const r = this.rng, w = this.world;
-      const homeTypes = ['house', 'farmhouse', 'tavern', 'bakery', 'smithy', 'doctor', 'woodcutter', 'mill', 'store', 'butcher', 'jeweller', 'apothecary', 'carpenter', 'armourer', 'tenement', 'mansion', 'townhouse', 'keep'];
+      const homeTypes = ['house', 'farmhouse', 'tavern', 'bakery', 'smithy', 'doctor', 'woodcutter', 'mill', 'store', 'sawmill', 'butcher', 'jeweller', 'apothecary', 'carpenter', 'armourer', 'tenement', 'mansion', 'townhouse', 'keep'];
       for (const b of w.buildings) {
         if (D.BUSINESS[b.type]) {
           const def = D.BUSINESS[b.type];
@@ -6331,6 +6423,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       this.newsDaily && this.newsDaily();
       this.warOrders && this.warOrders();
       this.reeveDaily && this.reeveDaily();
+      this.forestDaily && this.forestDaily();
       // a city's guilds, wharf fees and market rents fill the common chest beyond what the sales tax brings
       if (this.people.length > 220) { const dues = Math.round(this.people.length * 0.3); this.treasury.cash += dues; this.treasury.income += dues; }
       for (const p of this.people) {
@@ -6396,7 +6489,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     if (p.task?.act === 'help') { const t = this.byId.get(p.task.target); if (t) return [Math.floor(t.agent.x / this.T), Math.floor((t.agent.y - 1) / this.T)]; }
     return _zone.call(this, p, zone);
   };
-  O.Health.install(Sim); O.Life.install(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim);
+  O.Health.install(Sim); O.Life.install(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
   // carry-home and delivery tasks finish on entering the destination
@@ -6560,7 +6653,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   const cache = new Map();
   const wood = () => P.mat(P.wood.oak, 'wood'), dark = () => P.mat(P.wood.dark, 'wood'), pine = () => P.mat(P.wood.pine, 'wood');
   const stone = () => P.mat('#8e8880', 'cloth'), iron = () => P.mat(P.metal.darkIron, 'metal');
-  const GOOD_COL = { bread: '#c88a45', cabbage: '#6a9a44', flour: '#e6dcc4', wheat: '#d8b048', ale: '#8a5a30', meal: '#a0603a', logs: '#7c5a38', firewood: '#8a6239', iron: '#7a7e88', tools: '#9aa0aa', medicine: '#6a9ad0', herbs: '#5a9a40', stone: '#9a948a' };
+  const GOOD_COL = { bread: '#c88a45', cabbage: '#6a9a44', flour: '#e6dcc4', wheat: '#d8b048', ale: '#8a5a30', meal: '#a0603a', logs: '#7c5a38', planks: '#b08a5a', firewood: '#8a6239', iron: '#7a7e88', tools: '#9aa0aa', medicine: '#6a9ad0', herbs: '#5a9a40', stone: '#9a948a' };
 
   function finish(B, ox, oy, opts) { return { canvas: B.toCanvas(opts), ox, oy, W: B.w, H: B.h }; }
 
@@ -7008,6 +7101,18 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         tryPut('counter', [[Math.max(0, w - 3), d - 2]], { counter: true });
         beds(); storage();
         break;
+      case 'sawmill':
+        tryPut('workbench', [[1, 1], ...anywhere(2, 1)], { work: ['sawyer', 'labourer'] });
+        tryPut('workbench', [[w - 3, 1], ...anywhere(2, 1)], { work: ['labourer'] });
+        for (let i = 0; i < 4; i++) tryPut('woodpile', anywhere(), { stockOf: i % 2 ? 'logs' : 'planks' });
+        tryPut('rack', along(0, 2)); beds(); storage();
+        break;
+      case 'quarry':
+        tryPut('desk', [[1, 1], ...anywhere(2, 1)], { work: ['quarry master'] });
+        tryPut('rack', along(0, 2), { work: ['quarryman'] }); tryPut('anvil', anywhere(), { work: ['quarryman'] });
+        for (let i = 0; i < 5; i++) tryPut('crate', anywhere(), { stockOf: 'stone' });
+        tryPut('barrel', anywhere()); storage();
+        break;
       case 'warehouse':
         for (let i = 0; i < Math.floor(w * d / 7); i++) tryPut(rng.pick(['crate', 'crate', 'barrel', 'sack']), anywhere(), { stockOf: 'warehouse' });
         tryPut('desk', [[1, d - 3], ...anywhere(2, 1)], { work: ['warehouse master'] });
@@ -7082,7 +7187,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     if (cache.has(key)) return cache.get(key);
     const L = layoutFor(b, floor, sim);
     const wallKind = b.spec.wall === 'stone' || b.spec.wall === 'log' || b.spec.wall === 'plank' ? b.spec.wall : 'timber';
-    const floorKind = ['smithy', 'chapel', 'guard', 'mill', 'armourer', 'warehouse', 'townhall', 'keep', 'hospital'].includes(b.type) ? 'stone' : b.type === 'barn' || (b.type === 'house' && b.wealth < 0.3) ? 'dirt' : 'wood';
+    const floorKind = ['smithy', 'chapel', 'guard', 'mill', 'quarry', 'armourer', 'warehouse', 'townhall', 'keep', 'hospital'].includes(b.type) ? 'stone' : b.type === 'barn' || (b.type === 'house' && b.wealth < 0.3) ? 'dirt' : 'wood';
     L.room = O.Furn.room({ w: L.w, d: L.d, wall: wallKind, floor: floorKind, wealth: b.wealth, seed: b.id * 3 + floor, windows: Math.max(1, Math.floor(b.w / 2) + 1), doorTile: floor === 0 ? L.dc : -5 });
     cache.set(key, L);
     return L;
@@ -9495,7 +9600,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 // and favoured customers less, and some won't serve you at all once your name is mud.
 'use strict';
 (function () {
-  const SKILL_OF = { bakery: 'baking', smithy: 'smithing', armourer: 'smithing', tavern: 'serving', farmhouse: 'farming', woodcutter: 'woodcraft', carpenter: 'woodcraft', mill: 'milling', store: 'trading', warehouse: 'hauling', butcher: 'butchery', stable: 'horsemanship', doctor: 'physic', apothecary: 'physic', fishery: 'fishing', mine: 'mining', jeweller: 'goldsmithing' };
+  const SKILL_OF = { bakery: 'baking', smithy: 'smithing', armourer: 'smithing', tavern: 'serving', farmhouse: 'farming', woodcutter: 'woodcraft', carpenter: 'woodcraft', mill: 'milling', store: 'trading', warehouse: 'hauling', butcher: 'butchery', stable: 'horsemanship', doctor: 'physic', apothecary: 'physic', fishery: 'fishing', mine: 'mining', jeweller: 'goldsmithing', sawmill: 'woodcraft', quarry: 'mining' };
   const SKILL_LABEL = { baking: 'Baking', smithing: 'Smithing', serving: 'Serving', farming: 'Farming', woodcraft: 'Woodcraft', milling: 'Milling', trading: 'Trading', hauling: 'Hauling', butchery: 'Butchery', horsemanship: 'Horsemanship', physic: 'Physic', fishing: 'Fishing', mining: 'Mining', goldsmithing: 'Goldsmithing', stealth: 'Stealth', lockpick: 'Lock-picking' };
   const rank = (v) => (v >= 0.7 ? 'master' : v >= 0.4 ? 'journeyman' : v >= 0.15 ? 'apprentice' : 'novice');
 
@@ -9756,7 +9861,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     oven: [['Bake bread', { flour: 2, firewood: 1 }, { bread: 5 }, 'baking', 0.12]],
     fireplace: [['Cook a hot meal', { bread: 1, cabbage: 1 }, { meal: 2 }, 'serving', 0], ['Cook a hot meal (fish)', { bread: 1, fish: 1 }, { meal: 2 }, 'serving', 0], ['Cook a hot meal (meat)', { bread: 1, meat: 1 }, { meal: 3 }, 'serving', 0.1]],
     forge: [['Forge tools', { iron: 2, firewood: 1 }, { tools: 1 }, 'smithing', 0.25], ['Forge a dagger', { iron: 2, firewood: 1 }, { dagger: 1 }, 'smithing', 0.35], ['Forge a hand axe', { iron: 2, firewood: 1, logs: 1 }, { axe: 1 }, 'smithing', 0.4], ['Forge a sword', { iron: 4, firewood: 2 }, { sword: 1 }, 'smithing', 0.65], ['Beat out a helm', { iron: 4, firewood: 2 }, { helm: 1 }, 'smithing', 0.55]],
-    workbench: [['Split firewood', { logs: 1 }, { firewood: 3 }, 'woodcraft', 0], ['Make a chair', { logs: 3 }, { furniture: 1 }, 'woodcraft', 0.4]],
+    workbench: [['Split firewood', { logs: 1 }, { firewood: 3 }, 'woodcraft', 0], ['Saw planks', { logs: 1 }, { planks: 1 }, 'woodcraft', 0.15], ['Make a chair', { planks: 2 }, { furniture: 1 }, 'woodcraft', 0.4]],
     cauldron: [['Brew a remedy', { herbs: 2 }, { medicine: 1 }, 'physic', 0.3], ['Cook a stew', { cabbage: 2, meat: 1 }, { meal: 3 }, 'serving', 0.15]],
     millstone: [['Grind flour', { wheat: 2 }, { flour: 2 }, 'milling', 0]],
     barrel: [['Brew ale', { wheat: 2 }, { ale: 3 }, 'serving', 0.25]],
@@ -10393,7 +10498,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         people: sim.people.map(strip), traderId: sim.trader ? sim.trader.id : null,
         households: sim.households,
         biz: [...sim.biz.values()].map((b) => ({ id: b.id, type: b.type, stock: b.stock, cash: b.cash, owner: b.owner, workers: b.workers, salesToday: b.salesToday, history: b.history, jobs: b.def.jobs, name: b.name, cost: b.def.site ? true : undefined, ownerPlayer: b.ownerPlayer, badDays: b.badDays, founded: b.founded })),
-        lordship: sim.lordship, memorials: sim.memorials || [], levyDay: sim.levyDay || null, returnDay: sim.returnDay || null, festivalDay: sim.festivalDay || null, festivalWhy: sim.festivalWhy || null, mourningUntil: sim.mourningUntil || null, reeveMoot: sim.reeveMoot || null, lastMoot: sim.lastMoot || null,
+        lordship: sim.lordship, forest: sim.forest || null, memorials: sim.memorials || [], levyDay: sim.levyDay || null, returnDay: sim.returnDay || null, festivalDay: sim.festivalDay || null, festivalWhy: sim.festivalWhy || null, mourningUntil: sim.mourningUntil || null, reeveMoot: sim.reeveMoot || null, lastMoot: sim.lastMoot || null,
         sites: sim.build.sites.map((s) => ({ id: s.id, stage: s.stage, prog: s.prog, work: s.work, started: s.started })), nextCouncil: sim.build.nextCouncil, plotsUsed: [...sim.build.used],
         gangs: sim.gangs,
         kingdom: { places: sim.kingdom.places, roads: sim.kingdom.roads, caravans: sim.kingdom.caravans.map((c) => Object.assign({}, c, { held: false })), news: sim.kingdom.news, war: sim.kingdom.war ? Object.assign({}, sim.kingdom.war, { soldiers: sim.kingdom.war.soldiers.map((x) => Object.assign({}, x, { snap: x.snap && !x.back ? strip(x.snap) : null })) }) : null, rulers: sim.kingdom.rulers, heirStore: sim.kingdom.heirStore || null, treasury: sim.kingdom.treasury, taxRate: sim.kingdom.taxRate, councils: sim.kingdom.councils.slice(-6) },
@@ -10402,7 +10507,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       world: {
         buildings: w.buildings.map((b) => { const o = {}; for (const [k, v] of Object.entries(b)) if (k !== 'sprite' && k !== 'dirty') o[k] = k === 'spec' ? Object.assign({}, v, { _fin: undefined }) : v; return o; }),
         trees: w.trees.map((t) => [t.kind, t.x, t.y, t.seed]),
-        props: w.props.map((p) => ({ kind: p.kind, x: p.x, y: p.y, seed: p.seed, v: p.v, solid: p.solid, flat: p.flat, field: p.field, grave: p.grave, epitaph: p.epitaph, broadsheet: p.broadsheet })),
+        props: w.props.map((p) => ({ kind: p.kind, x: p.x, y: p.y, seed: p.seed, v: p.v, solid: p.solid, flat: p.flat, field: p.field, grave: p.grave, epitaph: p.epitaph, broadsheet: p.broadsheet, felled: p.felled, planted: p.planted, treeKind: p.treeKind })),
         solid: encodeGrid(w.solid),
       },
       player: {
@@ -10438,7 +10543,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     // core sim
     Object.assign(sim, { day: S.day, minute: S.minute, _lastMin: Math.floor(S.minute), nextId: S.nextId, treasury: S.treasury, stats: S.stats, history: S.history, crimes: S.crimes, settlement: S.settlement, events: S.events, graves: S.graves, _season: S.season, reeveId: S.reeveId, _guardRaised: S.guardRaised });
     if (d.chronicle) Object.assign(O.Chronicle, { facts: d.chronicle.facts || [], heard: d.chronicle.heard || [], nextId: d.chronicle.nextId || 1 });
-    sim.memorials = S.memorials || []; sim.levyDay = S.levyDay || null; sim.returnDay = S.returnDay || null; Object.assign(sim, { lastMoot: S.lastMoot || null, festivalDay: S.festivalDay || null, festivalWhy: S.festivalWhy || null, mourningUntil: S.mourningUntil || null, reeveMoot: S.reeveMoot || null });
+    sim.memorials = S.memorials || []; sim.forest = S.forest || null; sim.levyDay = S.levyDay || null; sim.returnDay = S.returnDay || null; Object.assign(sim, { lastMoot: S.lastMoot || null, festivalDay: S.festivalDay || null, festivalWhy: S.festivalWhy || null, mourningUntil: S.mourningUntil || null, reeveMoot: S.reeveMoot || null });
     sim.rng = O.RNG(S.rng); sim.weather.rng = O.RNG(S.wrng); sim.kingdom.rng = O.RNG(S.krng);
     Object.assign(sim.weather, S.weather);
     sim.households = S.households;

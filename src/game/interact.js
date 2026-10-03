@@ -57,6 +57,7 @@
         case 'container': return `Search ${c.it.kind}`;
         case 'grave': return 'Read the gravestone';
         case 'memorial': return 'Read the memorial';
+        case 'work': return O.workLabel();
         case 'portrait': return `Look at the portrait`;
         case 'broadsheet': return 'Buy a broadsheet · 1d';
         case 'caravan': return `Hail ${c.L.c.merchant}'s caravan`;
@@ -188,6 +189,7 @@
         case 'stash': O.GangUI.stash(); break;
         case 'campbed': sleep(); break;
         case 'memorial': O.ChronicleUI.memorial(cur.prop.epitaph); break;
+        case 'work': O.workShift(); break;
         case 'portrait': { const pr = cur.it.portrait; O.Panels.toast(`A likeness of ${pr.name}, painted in life. Died ${O.Chronicle.dateLabel(pr.died)}.`); break; }
         case 'broadsheet': O.ChronicleUI.broadsheet(); break;
         case 'grave': { const g = cur.prop.grave; O.Panels.toast(g ? `“Here lies ${g.name}, ${g.age} years. ${g.cause.replace('died ', '').replace(/^./, (c) => c.toUpperCase())}.”` : 'The old stone is worn smooth; you can no longer read the name.'); break; }

@@ -89,6 +89,7 @@
   O.TravelSetup.setup(game, home, npcUI);
   O.PropertyUI.setup(game, sim);
   O.ChronicleUI.setup(game, home);
+  O.WorkSetup.setup(game, sim, npcUI);
   O.AudioSetup.setup(game, sim);
   if (loaded) { O.Save.hydrateLate(game, home); setTimeout(() => O.Panels.toast(`Welcome back. It is ${O.DAYNAMES[sim.weekday]}, day ${sim.day}, in Ashford.`), 300); }
   // autosave each dawn and whenever the page is hidden

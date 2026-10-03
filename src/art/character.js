@@ -1007,12 +1007,21 @@
       case 'book': if (p.anim === 'read') { const bx = p.side ? hx - 1 : p.cx, by = hy - 1; B.blob(bx, by, p.side ? 1.4 : 3.2, 2, P.mat(C.crimson), { power: 4 }); B.plot(bx, by - 1, P.mat(C.white), 3); if (!p.side) { B.plot(bx - 1, by - 1, P.mat(C.white), 3); B.plot(bx + 1, by - 1, P.mat(C.white), 3); } } else B.blob(hx + dirx, hy + 0.5, 1.6, 2, P.mat(C.crimson), { power: 4 }); break;
       case 'spade': { const a0 = along(-5), a1 = along(9); B.capsule(a0[0], a0[1], a1[0], a1[1], 0.6, 0.6, W); B.blob(a1[0], a1[1] + 1, 1.6, 2, I, { power: 3 }); break; }
       case 'ladle': { const a1 = along(6); B.capsule(hx, hy, a1[0], a1[1], 0.5, 0.5, W); B.blob(a1[0], a1[1], 1.2, 1, I, { power: 2 }); break; }
-      case 'lute': { // body at the hip, neck across the chest
-        const lm = P.mat('#b07a3a', 'wood'), nk = P.mat(P.wood.dark, 'wood');
-        const bx = hx + (p.side ? -dirx * 1 : -2), by = hy + 1;
-        const nx = p.side ? bx + dirx * 7 : bx + 6, ny = by - 6;
-        B.capsule(bx, by, nx, ny, 0.7, 0.6, nk); B.plot(nx, ny - 1, nk, 3);
-        B.blob(bx, by, p.side ? 2.2 : 3, 3, lm, { power: 2 }); B.plot(Math.round(bx), Math.round(by - 0.5), P.mat('#2a1a10', 'wood'), 0);
+      case 'lute': { // side: body at the hand, neck forward; front: slung across the belly, neck up to the shoulder; back: only the neck shows past the shoulder
+        const lm = P.mat('#b07a3a', 'wood'), nk = P.mat(P.wood.dark, 'wood'), hole = P.mat('#2a1a10', 'wood');
+        if (p.side) {
+          const bx = hx - dirx, by = hy + 1, nx = bx + dirx * 8, ny = by - 6;
+          B.capsule(bx, by, nx, ny, 0.7, 0.6, nk); B.plot(nx + dirx, ny - 1, nk, 3);
+          B.blob(bx, by, 2.4, 3, lm, { power: 2 }); B.plot(Math.round(bx), Math.round(by - 0.5), hole, 0);
+        } else if (p.dir === 3) {
+          B.capsule(p.cx - 4, hy - 3, p.cx - 8, hy - 11, 0.7, 0.6, nk); B.plot(p.cx - 8, hy - 12, nk, 3);
+        } else {
+          const bx = p.cx + 3, by = hy - 1, nx = p.cx - 6, ny = hy - 10;
+          B.capsule(bx - 1, by - 1, nx, ny, 0.7, 0.6, nk); B.plot(nx - 1, ny - 1, nk, 3); B.plot(nx, ny - 1, nk, 3);
+          B.blob(bx, by, 3.4, 3, lm, { power: 2.2 });
+          B.plot(bx, by - 1, hole, 0); B.plot(bx - 1, by - 1, hole, 0);
+          for (let k = -1; k <= 1; k++) B.plot(bx - 3 + k, by - 3 - k, P.mat('#e8dcc0', 'cloth'), 3); // strings
+        }
         break;
       }
       case 'satchel': break; // carried at hip, drawn with belt pouch

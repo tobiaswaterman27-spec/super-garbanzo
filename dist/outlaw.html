@@ -159,7 +159,7 @@ main > .wrap { overflow: auto; }
 </style>
 
 <header class="top">
-  <div class="brand">Outlaw<small>BUILD 0.17 · CHRONICLES</small></div>
+  <div class="brand">Outlaw<small>BUILD 0.18 · HONEST WORK</small></div>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" role="tab" aria-selected="true" data-tab="play">Play</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="forge">Character</button>
@@ -1614,12 +1614,21 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       case 'book': if (p.anim === 'read') { const bx = p.side ? hx - 1 : p.cx, by = hy - 1; B.blob(bx, by, p.side ? 1.4 : 3.2, 2, P.mat(C.crimson), { power: 4 }); B.plot(bx, by - 1, P.mat(C.white), 3); if (!p.side) { B.plot(bx - 1, by - 1, P.mat(C.white), 3); B.plot(bx + 1, by - 1, P.mat(C.white), 3); } } else B.blob(hx + dirx, hy + 0.5, 1.6, 2, P.mat(C.crimson), { power: 4 }); break;
       case 'spade': { const a0 = along(-5), a1 = along(9); B.capsule(a0[0], a0[1], a1[0], a1[1], 0.6, 0.6, W); B.blob(a1[0], a1[1] + 1, 1.6, 2, I, { power: 3 }); break; }
       case 'ladle': { const a1 = along(6); B.capsule(hx, hy, a1[0], a1[1], 0.5, 0.5, W); B.blob(a1[0], a1[1], 1.2, 1, I, { power: 2 }); break; }
-      case 'lute': { // body at the hip, neck across the chest
-        const lm = P.mat('#b07a3a', 'wood'), nk = P.mat(P.wood.dark, 'wood');
-        const bx = hx + (p.side ? -dirx * 1 : -2), by = hy + 1;
-        const nx = p.side ? bx + dirx * 7 : bx + 6, ny = by - 6;
-        B.capsule(bx, by, nx, ny, 0.7, 0.6, nk); B.plot(nx, ny - 1, nk, 3);
-        B.blob(bx, by, p.side ? 2.2 : 3, 3, lm, { power: 2 }); B.plot(Math.round(bx), Math.round(by - 0.5), P.mat('#2a1a10', 'wood'), 0);
+      case 'lute': { // side: body at the hand, neck forward; front: slung across the belly, neck up to the shoulder; back: only the neck shows past the shoulder
+        const lm = P.mat('#b07a3a', 'wood'), nk = P.mat(P.wood.dark, 'wood'), hole = P.mat('#2a1a10', 'wood');
+        if (p.side) {
+          const bx = hx - dirx, by = hy + 1, nx = bx + dirx * 8, ny = by - 6;
+          B.capsule(bx, by, nx, ny, 0.7, 0.6, nk); B.plot(nx + dirx, ny - 1, nk, 3);
+          B.blob(bx, by, 2.4, 3, lm, { power: 2 }); B.plot(Math.round(bx), Math.round(by - 0.5), hole, 0);
+        } else if (p.dir === 3) {
+          B.capsule(p.cx - 4, hy - 3, p.cx - 8, hy - 11, 0.7, 0.6, nk); B.plot(p.cx - 8, hy - 12, nk, 3);
+        } else {
+          const bx = p.cx + 3, by = hy - 1, nx = p.cx - 6, ny = hy - 10;
+          B.capsule(bx - 1, by - 1, nx, ny, 0.7, 0.6, nk); B.plot(nx - 1, ny - 1, nk, 3); B.plot(nx, ny - 1, nk, 3);
+          B.blob(bx, by, 3.4, 3, lm, { power: 2.2 });
+          B.plot(bx, by - 1, hole, 0); B.plot(bx - 1, by - 1, hole, 0);
+          for (let k = -1; k <= 1; k++) B.plot(bx - 3 + k, by - 3 - k, P.mat('#e8dcc0', 'cloth'), 3); // strings
+        }
         break;
       }
       case 'satchel': break; // carried at hip, drawn with belt pouch
@@ -5777,6 +5786,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       prices: bake ? { bread: sim.price(bake, 'bread') } : {},
       news: sim.history.filter((h) => h.kind !== 'day').slice(-4).map((h) => h.text),
       heard: (p.heard || []).map((h) => ({ f: h.f, v: h.v, src: h.src })),
+      fame: (p.heard || []).filter((h) => { const f = O.Chronicle && O.Chronicle.byId(h.f); return f && f.byPlayer && !f.secret; }).map((h) => h.v),
       ancestors: [...(p.parents || []), p.widowed].filter(Boolean).map((id) => sim.byId.get(id)).filter((q) => q && q.alive === false).map((q) => ({ name: q.name, first: q.first, rel: (p.parents || []).includes(q.id) ? (q.sex === 'm' ? 'father' : 'mother') : (q.sex === 'm' ? 'husband' : 'wife'), mem: (sim.memorials || []).find((m) => m.name === q.name) })),
       time: { day: sim.day, minute: Math.floor(sim.minute) },
     };
@@ -5804,6 +5814,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       if (ctx.sawPlayerCrime) return pick(["You! I know your face. You're the thief!", 'Stay back. I saw what you did.', "I've told the watch about you."], seed);
       if (ctx.stage === 'child' || ctx.stage === 'olderChild') return pick(['Are you a soldier? You look like a soldier.', "Mam says I'm not to talk to strangers.", 'Have you seen a dog with one ear? He\'s mine.'], seed);
       if (ctx.traits.includes('hostile') || a < -0.3) return pick(['What do you want?', "Keep walking, stranger.", "I've nothing for you."], seed);
+      if (ctx.fame && ctx.fame.length && seed % 3 !== 0) return pick(['I know you! ', 'Ah, you\'re the one folk talk of. ', 'So it\'s you. '], seed) + pick(['Heard it said: ', 'They say ', 'Word is, '], seed + 1) + O.Chronicle.lower(pick(ctx.fame, seed + 2));
       if (f > 0.3) return pick([`Back again? Good day to you.`, `Ah, it's you. Fair day.`], seed);
       if (ctx.traits.includes('suspicious')) return pick([`You're not from ${ctx.place}. What's your business?`, 'Hm. Haven\'t seen you before.'], seed);
       return pick(['Good day to you.', "God keep you. Passing through?", 'Morning. Fine weather for it.', 'Well met, traveller.'], seed);
@@ -6708,6 +6719,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         if (it.bed) out.push({ type: 'bed', it, d: d + 1, x: cx, y: cy });
         if (it.kind === 'stairs') out.push({ type: 'stairs', it, d: d - 2, x: cx, y: cy });
         if (it.portrait) out.push({ type: 'portrait', it, d: d + 2, x: cx, y: cy - 30 });
+        if (O.workCandidate) { const wc = O.workCandidate(this, it, d, cx, cy); if (wc) out.push(wc); }
       }
       return out;
     }
@@ -6787,7 +6799,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     open('Satchel', `<div class="lbl">${used}/${PS.SLOTS} slots · health ${Math.round(PS.hp)} · fed ${Math.round(PS.hunger)} · rested ${Math.round(PS.energy)}</div>
       <div class="slots">${cells}${'<div class="slot empty"></div>'.repeat(empty)}</div>
       <div class="lbl" style="margin-top:12px">Reputation</div>
-      <div class="reps">${Object.entries(PS.rep).map(([k, v]) => `<div><span>${k}</span><b class="${v < -0.2 ? 'warn' : ''}">${v > 0.6 ? 'admired' : v > 0.2 ? 'liked' : v > -0.2 ? 'unknown' : v > -0.6 ? 'distrusted' : 'hated'}</b></div>`).join('')}</div>`, (r) => {
+      <div class="reps">${Object.entries(PS.rep).map(([k, v]) => `<div><span>${k === 'local' ? 'here' : k}</span><b class="${v < -0.2 ? 'warn' : ''}">${v > 0.6 ? 'admired' : v > 0.2 ? 'liked' : v > -0.2 ? 'unknown' : v > -0.6 ? 'distrusted' : 'hated'}</b></div>`).join('')}</div>
+      ${O.Work ? `<div class="lbl" style="margin-top:12px">Skills</div><div class="reps">${Object.entries(PS.skills || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div><span>${esc(O.Work.SKILL_LABEL[k] || k)}</span><b>${O.Work.rank(v)} · ${Math.round(v * 100)}</b></div>`).join('')}</div>
+      <p class="caption">${(() => { const J = PS.job; if (!J) return 'No employer. Ask a master at their workplace for a day\'s work.'; return `${J.apprentice ? 'Apprentice' : 'Hired for the day'} at ${esc(J.bizName)}, ${esc(J.placeName)}, under ${esc(J.masterName)}.`; })()}${PS.earned ? ` Earned honestly so far: ${money(PS.earned)}.` : ''}</p>` : ''}`, (r) => {
       r.querySelectorAll('[data-eat]').forEach((b) => b.onclick = () => { const k = PS.items[+b.dataset.eat]; PS.eat(k); toast(`You eat the ${G[k].name.toLowerCase()}.`); inventory(); });
       r.querySelectorAll('[data-eq]').forEach((b) => b.onclick = () => { PS.equipped = PS.equipped === b.dataset.eq ? 'fists' : b.dataset.eq; const a = O.game.player.a; a.outfit.item = PS.equipped === 'fists' ? null : PS.equipped; O.Char.invalidate(a); inventory(); });
       r.querySelectorAll('[data-drop]').forEach((b) => b.onclick = () => { const k = PS.items[+b.dataset.drop]; PS.remove(k); toast(`Dropped ${G[k].name.toLowerCase()}.`); inventory(); });
@@ -6795,17 +6809,19 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   }
 
   function trade(sim, bz, seller) {
+    const no = O.refusesTrade && O.refusesTrade(seller); if (no) return toast(no, 'bad');
+    const price = (g) => (O.priceFor ? O.priceFor(sim, bz, g, seller) : sim.price(bz, g));
     const sells = bz.def.sells.filter((g) => (bz.stock[g] || 0) >= 1);
     const buyable = [...new Set(PS.items)].filter((k) => bz.def.targets[k] != null && !G[k].valuable);
-    const rows = sells.map((g) => `<tr><td><img class="ic" src="${icon(g)}" alt=""> ${G[g].name}</td><td class="n">${Math.floor(bz.stock[g])}</td><td class="n">${sim.price(bz, g)}d</td><td><button data-buy="${g}">Buy</button></td></tr>`).join('') || '<tr><td colspan="4">Nothing for sale right now.</td></tr>';
-    const srows = buyable.map((g) => `<tr><td><img class="ic" src="${icon(g)}" alt=""> ${G[g].name} ×${PS.count(g)}</td><td class="n">${Math.max(1, Math.floor(sim.price(bz, g) * 0.6))}d</td><td><button data-sell="${g}">Sell</button></td></tr>`).join('');
+    const rows = sells.map((g) => `<tr><td><img class="ic" src="${icon(g)}" alt=""> ${G[g].name}</td><td class="n">${Math.floor(bz.stock[g])}</td><td class="n">${price(g)}d</td><td><button data-buy="${g}">Buy</button></td></tr>`).join('') || '<tr><td colspan="4">Nothing for sale right now.</td></tr>';
+    const srows = buyable.map((g) => `<tr><td><img class="ic" src="${icon(g)}" alt=""> ${G[g].name} ×${PS.count(g)}</td><td class="n">${Math.max(1, Math.floor(sim.price(bz, g) * 0.6 * (2 - price(g) / Math.max(1, sim.price(bz, g)))))}d</td><td><button data-sell="${g}">Sell</button></td></tr>`).join('');
     const vals = PS.items.filter((k) => G[k].valuable);
     open(`${bz.name}`, `<div class="lbl">${esc(seller.name)} minds the counter · till ${money(bz.cash)}</div>
       <table><thead><tr><th>For sale</th><th class="n">Stock</th><th class="n">Price</th><th></th></tr></thead><tbody>${rows}</tbody></table>
       ${srows ? `<table style="margin-top:12px"><thead><tr><th>You could sell</th><th class="n">Offer</th><th></th></tr></thead><tbody>${srows}</tbody></table>` : ''}
       ${vals.length ? `<p class="caption">${esc(seller.first)} eyes your ${G[vals[0]].name.toLowerCase()} but won't touch it. Honest traders don't buy goods like that. You'd need a fence.</p>` : ''}`, (r) => {
       r.querySelectorAll('[data-buy]').forEach((b) => b.onclick = () => {
-        const g = b.dataset.buy, pr = sim.price(bz, g);
+        const g = b.dataset.buy, pr = price(g);
         if (PS.money < pr) return toast(`You can't afford ${G[g].name.toLowerCase()} at ${pr}d.`, 'bad');
         if (!PS.canCarry(g)) return toast('Your satchel is full.', 'bad');
         PS.money -= pr; PS.add(g); bz.stock[g] -= 1; bz.cash += pr * (1 - sim.treasury.taxRate); sim.treasury.cash += pr * sim.treasury.taxRate; bz.salesToday += pr; sim.stats.sales += pr;
@@ -6814,7 +6830,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         trade(sim, bz, seller);
       });
       r.querySelectorAll('[data-sell]').forEach((b) => b.onclick = () => {
-        const g = b.dataset.sell, pr = Math.max(1, Math.floor(sim.price(bz, g) * 0.6));
+        const g = b.dataset.sell, pr = Math.max(1, Math.floor(sim.price(bz, g) * 0.6 * (2 - price(g) / Math.max(1, sim.price(bz, g)))));
         if (bz.cash < pr) return toast(`${bz.name} can't afford to buy.`, 'bad');
         PS.remove(g); PS.money += pr; bz.cash -= pr; bz.stock[g] = (bz.stock[g] || 0) + 1; trade(sim, bz, seller);
       });
@@ -7042,6 +7058,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         case 'container': return `Search ${c.it.kind}`;
         case 'grave': return 'Read the gravestone';
         case 'memorial': return 'Read the memorial';
+        case 'work': return O.workLabel();
         case 'portrait': return `Look at the portrait`;
         case 'broadsheet': return 'Buy a broadsheet · 1d';
         case 'caravan': return `Hail ${c.L.c.merchant}'s caravan`;
@@ -7173,6 +7190,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         case 'stash': O.GangUI.stash(); break;
         case 'campbed': sleep(); break;
         case 'memorial': O.ChronicleUI.memorial(cur.prop.epitaph); break;
+        case 'work': O.workShift(); break;
         case 'portrait': { const pr = cur.it.portrait; O.Panels.toast(`A likeness of ${pr.name}, painted in life. Died ${O.Chronicle.dateLabel(pr.died)}.`); break; }
         case 'broadsheet': O.ChronicleUI.broadsheet(); break;
         case 'grave': { const g = cur.prop.grave; O.Panels.toast(g ? `“Here lies ${g.name}, ${g.age} years. ${g.cause.replace('died ', '').replace(/^./, (c) => c.toUpperCase())}.”` : 'The old stone is worn smooth; you can no longer read the name.'); break; }
@@ -8754,6 +8772,140 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
 </script>
 <script>
+// Honest work. Ask a master at their workplace for a day's work; work hour-long shifts at the
+// trade's workstations (time passes, you tire and hunger, the business really produces, and you're
+// paid from its till); learn the trade's skill as you go. A few days' good work and the master may
+// take you on as an apprentice: steady work every day, faster learning. Skill earns you better pay
+// and a name: labourer, apprentice, journeyman, master.
+//
+// Reputation counts: masters won't hire a known thief, shopkeepers charge strangers and rogues more
+// and favoured customers less, and some won't serve you at all once your name is mud.
+'use strict';
+(function () {
+  const SKILL_OF = { bakery: 'baking', smithy: 'smithing', armourer: 'smithing', tavern: 'serving', farmhouse: 'farming', woodcutter: 'woodcraft', carpenter: 'woodcraft', mill: 'milling', store: 'trading', warehouse: 'hauling', butcher: 'butchery', stable: 'horsemanship', doctor: 'physic', apothecary: 'physic', fishery: 'fishing', mine: 'mining', jeweller: 'goldsmithing' };
+  const SKILL_LABEL = { baking: 'Baking', smithing: 'Smithing', serving: 'Serving', farming: 'Farming', woodcraft: 'Woodcraft', milling: 'Milling', trading: 'Trading', hauling: 'Hauling', butchery: 'Butchery', horsemanship: 'Horsemanship', physic: 'Physic', fishing: 'Fishing', mining: 'Mining', goldsmithing: 'Goldsmithing', stealth: 'Stealth', lockpick: 'Lock-picking' };
+  const rank = (v) => (v >= 0.7 ? 'master' : v >= 0.4 ? 'journeyman' : v >= 0.15 ? 'apprentice' : 'novice');
+
+  function setup(game, sim, npcUI) {
+    const PS = O.PlayerState, toast = (t, k) => O.Panels.toast(t, k);
+    PS.skills = PS.skills || { stealth: 0.1, lockpick: 0.1 };
+    const cur = () => O.SimRef.cur, placeId = () => cur().world.placeId || 'ashford';
+
+    // the current job, if still valid today
+    function job() {
+      const J = PS.job, s = cur();
+      if (!J) return null;
+      if (J.place !== placeId()) return null;
+      if (!s.biz.get(J.biz)) { PS.job = null; return null; }
+      if (!J.apprentice && J.day !== s.day) return null;
+      return J;
+    }
+    O.Work = { job, SKILL_OF, SKILL_LABEL, rank };
+
+    // ---------------------------------------------------------------- hiring
+    const isMaster = (q, bz) => bz && (bz.owner === q.id || bz.workers[0] === q.id || (q.job?.role && bz.def.jobs[0][0] === q.job.role));
+    function heardBadOf(q) { const Ch = O.Chronicle; return (q.heard || []).some((h) => { const f = Ch.byId(h.f); return f && f.byPlayer && !f.secret && f.cat === 'crime'; }); }
+    const prevExtra = npcUI.extraButtons, prevOn = npcUI.onExtra;
+    npcUI.extraButtons = (q) => {
+      const out = prevExtra ? prevExtra(q) : [];
+      const s = cur(), bz = q.job?.biz ? s.biz.get(q.job.biz) : null;
+      if (bz && SKILL_OF[bz.type] && q.agent.inside === bz.id && bz.open && isMaster(q, bz)) {
+        const J = job();
+        if (J && J.biz === bz.id) out.push(['quit', J.apprentice ? 'Leave your apprenticeship' : 'Finish for today']);
+        else out.push(['askwork', 'Ask for work']);
+      }
+      return out;
+    };
+    npcUI.onExtra = (q, key, render) => {
+      if (key === 'askwork') return render(askWork(q));
+      if (key === 'quit') { const J = PS.job; PS.job = null; if (J?.apprentice) { cur().remember(q, 'My apprentice, the stranger, has left me.', 'work', 1.5); cur().relate(q, { id: 0 }, -0.1); return render("Go, then. You'll not find a better master, mark me."); } return render('Good. Same again tomorrow, if you want it.'); }
+      return prevOn && prevOn(q, key, render);
+    };
+    function askWork(q) {
+      const s = cur(), bz = s.biz.get(q.job.biz), sk = SKILL_OF[bz.type];
+      const r0 = q.rel.get(0) || { affinity: 0, familiar: 0 };
+      if (PS.wantedLevel && PS.wantedLevel() >= 1 && (q.memories.some((m) => m.kind === 'crime' && m.about === 0) || heardBadOf(q))) return "Work? For you? I know what you are. Get out before I call the watch.";
+      if (PS.rep.local < -0.35 || r0.affinity < -0.3) return "I've no work for the likes of you.";
+      if (PS.job && PS.job.apprentice && PS.job.biz !== bz.id) return "You're bound to another master. Finish there first.";
+      if (bz.cash < 25) return "I can't pay the hands I've got. Try the farm, or the mill.";
+      if (PS.energy < 20) return 'You look dead on your feet. Sleep, and come back.';
+      const prev = PS.job && PS.job.biz === bz.id ? PS.job : null;
+      const days = (PS.workDays && PS.workDays[bz.id + '@' + placeId()]) || 0;
+      PS.job = { biz: bz.id, place: placeId(), placeName: s.world.name, bizName: bz.name, skill: sk, day: s.day, master: q.id, masterName: q.name, apprentice: !!(prev && prev.apprentice), hoursToday: 0 };
+      s.relate(q, { id: 0 }, 0.02);
+      if (days >= 4 && !PS.job.apprentice && (PS.skills[sk] || 0) >= 0.12 && r0.affinity > 0.05) {
+        PS.job.apprentice = true;
+        O.Chronicle.deed(s, `A newcomer has been taken on as apprentice at ${bz.name}.`, `${q.name} took you on as apprentice at ${bz.name}.`, 'player', 1, true);
+        s.remember(q, 'Took the stranger on as my apprentice. Good hands.', 'work', 2, 0);
+        return `You've worked well these ${days} days. Stay on as my apprentice: steady work, every day, and I'll teach you the trade properly.`;
+      }
+      const wage = hourly(bz, sk);
+      return days ? `Back again? Good. Same terms: ${wage < 1 ? 'three farthings' : wage + 'd'} the hour. Find a bench and set to.` : `I can use a pair of hands today. ${wage < 1 ? 'Three farthings' : wage + 'd'} the hour, paid as you go. Mind you don't spoil anything.`;
+    }
+    O.Work.askWork = askWork;
+    function hourly(bz, sk) {
+      const base = Math.max(...Object.values(bz.def.wage || { x: 6 }), 6);
+      return Math.round((base / 5) * (0.7 + (PS.skills[sk] || 0) * 1.3) * (PS.job && PS.job.apprentice ? 0.85 : 1) * 10) / 10;
+    }
+
+    // ---------------------------------------------------------------- the shift
+    O.workCandidate = (scene, it, d, cx, cy) => {
+      const J = job(); if (!J || scene.b.id !== J.biz || scene.floor !== 0) return null;
+      if (!(it.work || it.counter || it.kind === 'millstone' || it.kind === 'anvil' || it.kind === 'workbench')) return null;
+      return { type: 'work', it, d: d - 14, x: cx, y: cy }; // your own bench comes before chatting to the staff
+    };
+    O.workLabel = () => { const J = job(); const bz = J && cur().biz.get(J.biz); return bz ? `Work an hour · ${hourly(bz, J.skill).toFixed(1)}d` : 'Work'; };
+    O.workShift = () => {
+      const J = job(), s = cur(), bz = J && s.biz.get(J.biz);
+      if (!bz) return toast('You have no work here today.', 'bad');
+      if (!bz.open) return toast(`${bz.name} is closed. Come back in working hours.`, 'bad');
+      if (PS.energy < 12) return toast("You're too tired to work. Sleep first.", 'bad');
+      if (PS.hunger < 8) return toast("You're too hungry to work. Eat something.", 'bad');
+      const sk = J.skill, before = PS.skills[sk] || 0;
+      game.player.anim = 'work';
+      for (let i = 0; i < 30; i++) { s.tick(2); PS.tick(2, false); }
+      PS.energy = Math.max(0, PS.energy - 4);
+      // the work itself: the business's recipes run for an hour at your skill
+      const rate = 0.5 + before * 0.75;
+      let made = [];
+      for (const rc of bz.def.recipes) {
+        if (rc.role && rc.role !== bz.def.jobs[0][0]) continue;
+        if (Object.entries(rc.inp).some(([g, q]) => (bz.stock[g] || 0) < q * rate)) continue;
+        for (const [g, q] of Object.entries(rc.inp)) bz.stock[g] -= q * rate;
+        for (const [g, q] of Object.entries(rc.out)) { bz.stock[g] = (bz.stock[g] || 0) + q * rate; made.push(`${(q * rate).toFixed(q * rate < 2 ? 1 : 0)} ${O.Data.GOODS[g].name.toLowerCase()}`); }
+      }
+      if (!bz.def.recipes.length) bz.salesToday += 2; // hauling, serving and minding the counter bring custom
+      // pay from the till
+      // pay accrues in fractions of a penny and is handed over in whole pence
+      const wage = hourly(bz, sk); PS.owed = (PS.owed || 0) + wage;
+      const paid = Math.max(0, Math.min(Math.floor(PS.owed), Math.floor(bz.cash))); PS.owed -= paid;
+      bz.cash -= paid; PS.money += paid; PS.earned = (PS.earned || 0) + paid;
+      // learning: fast at first, slower toward mastery; an apprentice learns twice as fast
+      PS.skills[sk] = Math.min(1, before + 0.006 * (1 - before * 0.8) * (J.apprentice ? 2 : 1));
+      J.hoursToday = (J.day === s.day ? J.hoursToday || 0 : 0) + 1; J.day = s.day;
+      PS.workDays = PS.workDays || {}; const key = J.biz + '@' + J.place;
+      if (J.hoursToday === 4) { PS.workDays[key] = (PS.workDays[key] || 0) + 1; PS.rep.local = Math.min(1, PS.rep.local + 0.03); PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.01); const m = s.byId.get(J.master); if (m) { s.relate(m, { id: 0 }, 0.05); s.remember(m, 'The stranger did a fair day\'s work for me.', 'work', 1, 0); } }
+      const up = rank(PS.skills[sk]) !== rank(before) ? ` You are now a ${rank(PS.skills[sk])} in ${SKILL_LABEL[sk].toLowerCase()}.` : '';
+      if (up && rank(PS.skills[sk]) !== 'apprentice') O.Chronicle.deed(s, `The newcomer is now reckoned a ${rank(PS.skills[sk])} ${SKILL_LABEL[sk].toLowerCase()} hand in ${s.world.name}.`, `You became a ${rank(PS.skills[sk])} in ${SKILL_LABEL[sk].toLowerCase()}.`, 'player', 2, true);
+      toast(`An hour's work at ${bz.name}${made.length ? ': ' + made.join(', ') : ''}. ${paid ? `Paid ${paid}d` : 'Your pay is owing'}${PS.owed >= 0.1 ? ` (${PS.owed.toFixed(1)}d to come)` : ''}${bz.cash < 1 ? '; the till is empty' : ''}.${up}`);
+      setTimeout(() => { if (game.player.anim === 'work') game.player.anim = 'idle'; }, 1200);
+    };
+
+    // ---------------------------------------------------------------- prices and refusals
+    // a shopkeeper's price for you: favour knocks some off, a bad name puts it up
+    O.priceFor = (s, bz, g, seller) => {
+      const aff = seller ? (seller.rel.get(0)?.affinity || 0) : 0;
+      const k = O.clamp(1 - PS.rep.merchant * 0.12 - PS.rep.local * 0.1 - aff * 0.1 + (seller && heardBadOf(seller) ? 0.15 : 0), 0.8, 1.4);
+      return Math.max(1, Math.round(s.price(bz, g) * k));
+    };
+    O.refusesTrade = (seller) => (PS.rep.local < -0.55 || (seller && (seller.rel.get(0)?.affinity || 0) < -0.5)) ? `${seller.first} folds their arms. “We don't serve your kind here.”` : null;
+  }
+
+  O.WorkSetup = { setup };
+})();
+
+</script>
+<script>
 // Procedural audio: no sound files, everything synthesised with WebAudio so it can follow the
 // simulation. Ambient beds (wind, rain, crowd murmur, fire crackle) are filtered noise whose levels
 // track the weather and who is nearby; point sounds (the smith's hammer, the chapel bell, birds,
@@ -9217,7 +9369,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       player: {
         x: game.world !== sim.world ? (sim.world.W - 2) * 16 : Math.round(game.scene ? game.scene.b.doorX * 16 + 8 : game.player.x), y: game.world !== sim.world ? 30 * 16 + 10 : Math.round(game.scene ? game.scene.b.doorY * 16 + 10 : game.player.y), dir: game.player.dir,
         mount: game.player.mount ? game.player.mount.id : null,
-        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome },
+        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0 },
       },
     };
   }
@@ -9402,6 +9554,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   O.TravelSetup.setup(game, home, npcUI);
   O.PropertyUI.setup(game, sim);
   O.ChronicleUI.setup(game, home);
+  O.WorkSetup.setup(game, sim, npcUI);
   O.AudioSetup.setup(game, sim);
   if (loaded) { O.Save.hydrateLate(game, home); setTimeout(() => O.Panels.toast(`Welcome back. It is ${O.DAYNAMES[sim.weekday]}, day ${sim.day}, in Ashford.`), 300); }
   // autosave each dawn and whenever the page is hidden

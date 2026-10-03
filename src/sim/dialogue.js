@@ -28,6 +28,7 @@
       prices: bake ? { bread: sim.price(bake, 'bread') } : {},
       news: sim.history.filter((h) => h.kind !== 'day').slice(-4).map((h) => h.text),
       heard: (p.heard || []).map((h) => ({ f: h.f, v: h.v, src: h.src })),
+      fame: (p.heard || []).filter((h) => { const f = O.Chronicle && O.Chronicle.byId(h.f); return f && f.byPlayer && !f.secret; }).map((h) => h.v),
       ancestors: [...(p.parents || []), p.widowed].filter(Boolean).map((id) => sim.byId.get(id)).filter((q) => q && q.alive === false).map((q) => ({ name: q.name, first: q.first, rel: (p.parents || []).includes(q.id) ? (q.sex === 'm' ? 'father' : 'mother') : (q.sex === 'm' ? 'husband' : 'wife'), mem: (sim.memorials || []).find((m) => m.name === q.name) })),
       time: { day: sim.day, minute: Math.floor(sim.minute) },
     };
@@ -55,6 +56,7 @@
       if (ctx.sawPlayerCrime) return pick(["You! I know your face. You're the thief!", 'Stay back. I saw what you did.', "I've told the watch about you."], seed);
       if (ctx.stage === 'child' || ctx.stage === 'olderChild') return pick(['Are you a soldier? You look like a soldier.', "Mam says I'm not to talk to strangers.", 'Have you seen a dog with one ear? He\'s mine.'], seed);
       if (ctx.traits.includes('hostile') || a < -0.3) return pick(['What do you want?', "Keep walking, stranger.", "I've nothing for you."], seed);
+      if (ctx.fame && ctx.fame.length && seed % 3 !== 0) return pick(['I know you! ', 'Ah, you\'re the one folk talk of. ', 'So it\'s you. '], seed) + pick(['Heard it said: ', 'They say ', 'Word is, '], seed + 1) + O.Chronicle.lower(pick(ctx.fame, seed + 2));
       if (f > 0.3) return pick([`Back again? Good day to you.`, `Ah, it's you. Fair day.`], seed);
       if (ctx.traits.includes('suspicious')) return pick([`You're not from ${ctx.place}. What's your business?`, 'Hm. Haven\'t seen you before.'], seed);
       return pick(['Good day to you.', "God keep you. Passing through?", 'Morning. Fine weather for it.', 'Well met, traveller.'], seed);

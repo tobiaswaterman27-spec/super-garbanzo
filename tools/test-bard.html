@@ -1,0 +1,7 @@
+<!doctype html><meta charset="utf-8"><body style="background:#5d8a3e;margin:0"><canvas id="c"></canvas>
+<script src="../src/core/base.js"></script><script src="../src/art/palette.js"></script><script src="../src/art/raster.js"></script><script src="../src/art/character.js"></script>
+<script>
+const S=4,c=document.getElementById('c'),ctx=c.getContext('2d');const anims=['idle','walk','talk','sit'];c.width=16*32*S;c.height=anims.length*48*S;ctx.imageSmoothingEnabled=false;
+const a=O.Char.makeAppearance(77,{role:'bard',age:30,sex:'m'});
+anims.forEach((an,r)=>{for(let d=0;d<4;d++)for(let f=0;f<4;f++){ctx.drawImage(O.Char.frame(a,d,an,f%O.Char.ANIMS[an].frames),(d*4+f)*32*S,r*48*S,32*S,48*S);}});
+</script>

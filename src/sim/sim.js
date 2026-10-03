@@ -29,6 +29,7 @@
       this.populate();
       this.healthInit(); this.lifeInit();
       this.placeAll();
+      this.justiceInit();
       this._season = this.season;
     }
 
@@ -303,6 +304,7 @@
       const mm = this._m;
       if (mm % 60 === 0) this.healthHourly();
       for (const p of this.people) if (p.task?.emigrating && !p.agent.path && p.agent.x > 93 * this.T) { this.people = this.people.filter((q) => q !== p); (this.departed = this.departed || []).push(p); }
+      if (mm === 2 * 60) this.npcCrimeNightly();
       if (mm === 6 * 60 + 30) this.labourMarket();
       if (mm === 7 * 60) this.marketDay();
       if (mm === 18 * 60 + 5) this.endCasualDay();
@@ -404,6 +406,7 @@
       const act = p.activity;
       if (act.act === 'collapsed') { a.path = null; a.goal = null; a.anim = 'lie'; return; }
       if (act.act === 'help' && a.goal && !a.path && a.inside == null) { this.helpArrive(p); return; }
+      if (act.act === 'investigate' && a.goal && !a.path && a.inside == null) { this.investigate(p); return; }
       // indoor activity in progress
       if (act.b && a.inside === act.b) {
         this.doIndoor(p, act);
@@ -441,6 +444,7 @@
       const a = p.agent;
       if (a.hidden) return;
       if (a.frozen) { a.anim = a.talking ? 'talk' : 'idle'; return; }
+      if (a.chasing) return;
       if (!a.path) { a.anim = this.idleAnim(p); return; }
       let budget = this.speedOf(p) * dtm;
       while (budget > 0 && a.path) {
@@ -503,7 +507,7 @@
           // meet others in the tavern
           if (this.rng.chance(0.03)) {
             const others = this.people.filter((q) => q !== p && q.agent.inside === act.b && q.activity?.act === 'socialise');
-            if (others.length) { const q = this.rng.pick(others); this.relate(p, q, 0.04); this.relate(q, p, 0.04); if (!p.rel.get(q.id) || p.rel.get(q.id).familiar < 0.1) this.remember(p, `Shared a jug with ${q.name} at the Lantern.`, 'social', 0.6, q.id); }
+            if (others.length) { const q = this.rng.pick(others); this.relate(p, q, 0.04); this.relate(q, p, 0.04); this.gossip(p, q); if (!p.rel.get(q.id) || p.rel.get(q.id).familiar < 0.1) this.remember(p, `Shared a jug with ${q.name} at the Lantern.`, 'social', 0.6, q.id); }
           }
           break;
         }
@@ -701,7 +705,7 @@
         hh.shopper = (adults.find((p) => !p.job || p.shift === 'night') || errand || adults[this.day % Math.max(1, adults.length)] || {}).id;
       }
       this.build.daily();
-      this.healthDaily(); this.lifeDaily();
+      this.healthDaily(); this.lifeDaily(); this.justiceDaily();
       if (this.weekday === 3) this.immigrateMaybe();
       if (this.events) this.events = this.events.filter((e) => e.day >= this.day);
       const season = this.season;
@@ -737,16 +741,18 @@
   const _zone = Sim.prototype.zoneTile;
   Sim.prototype.zoneTile = function (p, zone) {
     if (p.task?.act === 'leave') return [95, 31];
+    if (p.task?.act === 'investigate' && p.task.tile) return p.task.tile;
     if (p.task?.act === 'help') { const t = this.byId.get(p.task.target); if (t) return [Math.floor(t.agent.x / this.T), Math.floor((t.agent.y - 1) / this.T)]; }
     return _zone.call(this, p, zone);
   };
-  O.Health.install(Sim); O.Life.install(Sim);
+  O.Health.install(Sim); O.Life.install(Sim); O.Justice.install(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
   // carry-home and delivery tasks finish on entering the destination
   const _onEnter = Sim.prototype.onEnter;
   Sim.prototype.onEnter = function (p, bid) {
     if (p.task?.act === 'to-doctor' && bid === p.task.b) { this.admit(p); return; }
+    if (p.task?.act === 'report' && bid === p.task.b) { this.reported(p); return; }
     if (p.task?.act === 'escort' && bid === p.task.b) { p.task = null; return; }
     if (p.task?.act === 'move-in' && bid === p.task.b) { p.task = null; p.arriving = false; p.agent.carrying = null; return; }
     if (p.task?.act === 'carry-home' && bid === p.task.b) {

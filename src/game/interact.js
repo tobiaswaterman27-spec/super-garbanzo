@@ -53,7 +53,7 @@
       cur = cs[0] || null;
       O.interactTarget = cur;
       if (cur) {
-        const quick = cur.type === 'container' ? '<kbd>F</kbd>Quick loot ' : '';
+        const quick = cur.type === 'container' ? '<kbd>F</kbd>Quick loot' : cur.type === 'npc' && cur.person.age >= 8 ? '<kbd>Q</kbd>Pickpocket' : cur.type === 'door' && doorLocked(cur.b) && cur.b.type !== 'guard' ? '<kbd>Q</kbd>Pick the lock' : '';
         prompt.hidden = false; prompt.innerHTML = `<kbd>E</kbd>${O.escape(label(cur))}${quick ? ' &nbsp; ' + quick : ''}`;
       } else prompt.hidden = true;
     });
@@ -99,7 +99,7 @@
         else if (c.src === 'biz') bz.stock[c.good] -= got;
         else if (c.src === 'farm') sim.supplierOf('farmhouse').stock.wheat -= got;
         else if (c.src === 'val') hh.valuables.splice(hh.valuables.indexOf(c.k), 1);
-        if (c.src !== 'stash') stolen.push(`${got} ${G[c.k].name.toLowerCase()}`);
+        if (c.src !== 'stash') { stolen.push(`${got} ${G[c.k].name.toLowerCase()}`); PS.stolen[c.k] = (PS.stolen[c.k] || 0) + got; }
       }
       if (stolen.length) O.Crime.theft(game, sim, { building: b, floor: game.scene.floor, what: stolen.join(', '), owner, value: idxs.length });
       O.Panels.close();
@@ -129,6 +129,11 @@
       if (e.code === 'KeyI') { if (O.panelOpen) O.Panels.close(); else O.Panels.inventory(); return true; }
       if (e.code === 'Escape' && O.panelOpen) { O.Panels.close(); return true; }
       if (O.panelOpen || searching > 0) return false;
+      if (e.code === 'KeyQ') {
+        if (cur && cur.type === 'npc' && cur.person.age >= 8) O.Law.pickpocket(cur);
+        else if (cur && cur.type === 'door' && doorLocked(cur.b) && cur.b.type !== 'guard') O.Law.pickLock(cur.b);
+        return true;
+      }
       if (e.code === 'KeyF') { if (cur && cur.type === 'container') search(cur.it, true); else O.Panels.toast('Nothing to loot here.'); return true; }
       if (e.code !== 'KeyE') return false;
       if (npcUI.talking()) { npcUI.closeTalk(); return true; }

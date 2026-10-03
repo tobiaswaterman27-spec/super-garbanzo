@@ -62,6 +62,7 @@ input[type=range] { width: 100%; accent-color: var(--ember); }
 .vitals { display: grid; grid-template-columns: auto 1fr; gap: 3px 8px; align-items: center; margin-top: 6px; }
 .purse-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: 4px 8px; align-items: baseline; margin-top: 4px; }
 .purse-row b { font-family: var(--pix); font-size: 11px; font-weight: 400; font-variant-numeric: tabular-nums; }
+.sought { font-size: 12px; color: #e0a090; max-width: 240px; margin-top: 2px; }
 .ledger-in.narrow { width: min(560px, 100%); }
 .purse { font-family: var(--pix); font-size: 12px; color: var(--ember-2); }
 .slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; margin-top: 8px; }
@@ -142,7 +143,7 @@ main > .wrap { overflow: auto; }
 </style>
 
 <header class="top">
-  <div class="brand">Outlaw<small>BUILD 0.6 · LIFE & DEATH</small></div>
+  <div class="brand">Outlaw<small>BUILD 0.7 · THE WATCH</small></div>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" role="tab" aria-selected="true" data-tab="play">Play</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="forge">Character</button>
@@ -160,7 +161,7 @@ main > .wrap { overflow: auto; }
       <span class="lbl">Time</span>
       <div class="seg" id="speedSeg"></div>
     </div>
-    <div class="hud hud-b" id="hudB">WASD move · Shift run · E interact · F quick loot · I satchel · L ledger</div>
+    <div class="hud hud-b" id="hudB">WASD move · Shift run · E interact · Q steal/pick lock · F quick loot · I satchel · L ledger</div>
   </section>
 
   <section class="wrap" id="tab-forge" hidden>
@@ -228,6 +229,7 @@ main > .wrap { overflow: auto; }
 <script src="../src/sim/construction.js"></script>
 <script src="../src/sim/health.js"></script>
 <script src="../src/sim/life.js"></script>
+<script src="../src/sim/justice.js"></script>
 <script src="../src/sim/sim.js"></script>
 <script src="../src/sim/dialogue.js"></script>
 <script src="../src/art/furniture.js"></script>
@@ -239,6 +241,7 @@ main > .wrap { overflow: auto; }
 <script src="../src/game/npc-ui.js"></script>
 <script src="../src/game/interact.js"></script>
 <script src="../src/game/weather-fx.js"></script>
+<script src="../src/game/law.js"></script>
 <script src="../src/game/creator.js"></script>
 <script src="../src/game/forge-ui.js"></script>
 <script src="../src/game/play.js"></script>

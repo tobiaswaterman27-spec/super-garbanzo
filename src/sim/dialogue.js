@@ -24,7 +24,7 @@
       activity: p.activity?.act, place: sim.world.name,
       memories: p.memories.slice(0, 6).map((m) => m.text),
       family: { spouse: p.spouse ? sim.byId.get(p.spouse)?.name : null, children: (p.children || []).map((id) => sim.byId.get(id)?.first).filter(Boolean) },
-      opinionOfPlayer: opinion, playerReputation: playerState?.reputation || { local: 0 },
+      opinionOfPlayer: opinion, sawPlayerCrime: p.memories.some((m) => m.kind === 'crime' && m.about === 0 && m.strength > 0.3) && (() => { const c = sim.crimes.filter((x) => x.perp === 'player' && x.witnesses.some((w) => w.id === p.id)).pop(); return c ? O.Justice.matchScore(c.witnesses.find((w) => w.id === p.id).desc, O.Justice.lookOf(O.game.player.a)) >= 0.5 : false; })(), playerReputation: playerState?.reputation || { local: 0 },
       prices: bake ? { bread: sim.price(bake, 'bread') } : {},
       news: sim.history.filter((h) => h.kind !== 'day').slice(-4).map((h) => h.text),
       time: { day: sim.day, minute: Math.floor(sim.minute) },
@@ -49,6 +49,7 @@
     name: 'local',
     greet(ctx, seed) {
       const a = ctx.opinionOfPlayer.affinity, f = ctx.opinionOfPlayer.familiar;
+      if (ctx.sawPlayerCrime) return pick(["You! I know your face. You're the thief!", 'Stay back. I saw what you did.', "I've told the watch about you."], seed);
       if (ctx.stage === 'child' || ctx.stage === 'olderChild') return pick(['Are you a soldier? You look like a soldier.', "Mam says I'm not to talk to strangers.", 'Have you seen a dog with one ear? He\'s mine.'], seed);
       if (ctx.traits.includes('hostile') || a < -0.3) return pick(['What do you want?', "Keep walking, stranger.", "I've nothing for you."], seed);
       if (f > 0.3) return pick([`Back again? Good day to you.`, `Ah, it's you. Fair day.`], seed);

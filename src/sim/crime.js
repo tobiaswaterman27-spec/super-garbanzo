@@ -23,24 +23,23 @@
 
   function theft(game, sim, ev) {
     const ws = witnessesIndoors(game, sim, ev.building, ev.floor);
-    const crime = { id: (sim.crimes = sim.crimes || []).length + 1, kind: 'theft', day: sim.day, minute: Math.floor(sim.minute), place: ev.building.name, what: ev.what, owner: ev.owner, witnesses: [], discovered: false, perpetrator: 'player' };
-    sim.crimes.push(crime);
-    PS.crimes.push(crime.id);
     PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.03);
-    if (!ws.length) { O.Panels.toast(`You pocket ${ev.what}. Nobody saw.`); return crime; }
-    for (const w of ws) {
-      const acc = O.clamp(0.4 + (w.traits.includes('curious') ? 0.25 : 0) + (w.traits.includes('suspicious') ? 0.15 : 0) - (w.age > 70 ? 0.2 : 0) + sim.rng.float(-0.2, 0.2), 0.1, 1);
-      const desc = describePlayer(game, acc);
-      crime.witnesses.push({ id: w.id, desc, accuracy: acc });
-      sim.remember(w, `Saw a thief take ${ev.what} at ${ev.building.name}: ${desc}.`, 'crime', 1.5, 0);
-      sim.relate(w, { id: 0 }, -0.6);
-      w.agent.talking = 40;
+    const placeName = ev.building.type === 'house' ? `the ${sim.households[ev.building.household - 1]?.surname || ''} house` : ev.building.name;
+    if (!ws.length) {
+      // unwitnessed: discovered later by the owner, who reports it without a description
+      const crime = sim.recordCrime({ kind: 'theft', perp: 'player', placeName, tile: [ev.building.doorX, ev.building.doorY], seen: [], severity: ev.value > 2 ? 2 : 1 });
+      PS.crimes.push(crime.id);
+      const owner = sim.people.find((q) => q.home === ev.building.id && q.age >= 16) || sim.people.find((q) => q.job?.biz === ev.building.id);
+      if (owner && sim.rng.chance(0.7)) { sim.remember(owner, `Things have gone missing from ${placeName}.`, 'crime', 1.2); owner.task = owner.task || { act: 'report', b: sim.guardId, crime: crime.id }; }
+      O.Panels.toast(`You pocket ${ev.what}. Nobody saw.`); return crime;
     }
-    crime.discovered = true;
+    const crime = sim.recordCrime({ kind: 'theft', perp: 'player', placeName, tile: [ev.building.doorX, ev.building.doorY], seen: ws, severity: ev.value > 2 ? 2 : 1 });
+    PS.crimes.push(crime.id);
+    for (const w of ws) { sim.relate(w, { id: 0 }, -0.3); w.agent.talking = 40; }
     PS.rep.local = Math.max(-1, PS.rep.local - 0.15 * ws.length);
     PS.rep.civilian = Math.max(-1, PS.rep.civilian - 0.1);
     if (ev.building.type !== 'house') PS.rep.merchant = Math.max(-1, PS.rep.merchant - 0.15);
-    sim.log(`Theft at ${ev.building.name}: ${ev.what} taken. Witnesses describe ${crime.witnesses[0].desc}.`, 'crime');
+    sim.log(`Theft at ${placeName}: ${ev.what} taken. Witnesses describe ${O.Justice.describe(crime.witnesses[0].desc)}.`, 'crime');
     const shout = ws[0];
     O.Panels.toast(`${shout.first} saw you! “Thief! Stop, thief!”`, 'bad');
     return crime;

@@ -58,7 +58,8 @@
         if (wantFloor !== this.floor) continue;
         let x, y, dir = 0, anim = 'idle', over = null;
         let spot = null;
-        if (act === 'treated' || (act === 'sick' && b.id === sim.docId)) { spot = L.items.find((i) => i.medbed && !used.has(i)) || free(bedsHere); if (spot) { const [ax, ay] = this.anchor(spot); x = ax; y = ay - 44 + Ch.GROUND; anim = 'sleep'; } }
+        if (act === 'jailed') { const c = L.items.find((i) => i.cell); if (c) { const [ax, ay] = this.anchor(c); x = ax + ((q.id % 3) - 1) * 6; y = ay - 6; anim = 'sit'; dir = 0; } }
+        else if (act === 'treated' || (act === 'sick' && b.id === sim.docId)) { spot = L.items.find((i) => i.medbed && !used.has(i)) || free(bedsHere); if (spot) { const [ax, ay] = this.anchor(spot); x = ax; y = ay - 44 + Ch.GROUND; anim = 'sleep'; } }
         else if (sleeping) {
           spot = free(bedsHere);
           if (spot) { const [ax, ay] = this.anchor(spot); x = ax; y = ay - 44 + Ch.GROUND; anim = 'sleep'; over = spot; }

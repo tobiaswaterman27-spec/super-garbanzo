@@ -692,15 +692,17 @@
       this.remember(who, `Sent to fetch ${order.qty} ${G[order.good].unit}s of ${G[order.good].name.toLowerCase()} for ${this.biz.get(order.to).name}.`, 'work', 0.4);
     }
     pickup(p) {
-      const o = p.task.order, src = this.biz.get(o.from);
-      const qty = Math.min(o.qty, Math.floor(src.stock[o.good] || 0));
-      if (qty <= 0) { p.task = null; this.biz.get(o.to).orders = this.biz.get(o.to).orders.filter((x) => x !== o); return; }
+      const o = p.task.order, src = this.biz.get(o.from), dst = this.biz.get(o.to);
+      const qty = src && dst ? Math.min(o.qty, Math.floor(src.stock[o.good] || 0)) : 0;
+      if (qty <= 0) { p.task = null; if (dst) dst.orders = dst.orders.filter((x) => x !== o); return; }
       src.stock[o.good] -= qty; o.qty = qty;
       p.task = { act: 'deliver', b: o.to, order: o };
       p.agent.carrying = { good: o.good, qty };
     }
     deliver(p) {
       const o = p.task.order, dst = this.biz.get(o.to), src = this.biz.get(o.from);
+      // the shop closed (or the supplier did) while the goods were on the road
+      if (!dst || !src) { if (src) src.stock[o.good] = (src.stock[o.good] || 0) + o.qty; p.task = null; p.agent.carrying = null; return; }
       dst.stock[o.good] = (dst.stock[o.good] || 0) + o.qty;
       const cost = Math.round(o.qty * o.price);
       const pay = Math.min(cost, Math.max(0, Math.floor(dst.cash)));
@@ -791,6 +793,7 @@
     newDay() {
       this.demandScale();
       this.newsDaily && this.newsDaily();
+      this.warOrders && this.warOrders();
       // a city's guilds, wharf fees and market rents fill the common chest beyond what the sales tax brings
       if (this.people.length > 220) { const dues = Math.round(this.people.length * 0.3); this.treasury.cash += dues; this.treasury.income += dues; }
       for (const p of this.people) {
@@ -856,7 +859,7 @@
     if (p.task?.act === 'help') { const t = this.byId.get(p.task.target); if (t) return [Math.floor(t.agent.x / this.T), Math.floor((t.agent.y - 1) / this.T)]; }
     return _zone.call(this, p, zone);
   };
-  O.Health.install(Sim); O.Life.install(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim);
+  O.Health.install(Sim); O.Life.install(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
   // carry-home and delivery tasks finish on entering the destination

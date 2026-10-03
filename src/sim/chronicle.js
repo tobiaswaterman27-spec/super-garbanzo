@@ -15,10 +15,11 @@
   const YEAR_DAYS = () => O.SEASON_DAYS * 4;
   const CATS = {
     rulers: 'Rulers', politics: 'Politics', roads: 'Roads & bridges', markets: 'Markets', harvest: 'Harvests', disaster: 'Disasters',
-    business: 'Trades', gang: 'Gangs', crime: 'Crimes', death: 'Deaths', people: 'People', player: 'Your deeds',
+    war: 'Wars', business: 'Trades', gang: 'Gangs', crime: 'Crimes', death: 'Deaths', people: 'People', player: 'Your deeds',
   };
   // order matters: the first match wins
   const RULES = [
+    [/\bwar\b|the king's host|battle|victory at|defeat at|treaty|truce|raiders|marcher lords|recruiting sergeant|fell in the fighting|soldiers came home|refugees/i, 'war', 3],
     [/caravan.*(robbed|attacked|plunder)|bandit|highway/i, 'crime', 3],
     [/harvest (has )?failed|famine|starv/i, 'harvest', 4],
     [/harvest festival|harvest is in|bumper|reaped/i, 'harvest', 2],
@@ -34,7 +35,7 @@
     [/married|wedding/i, 'people', 1],
     [/families are leaving|packed up and left|evicted|settled in|have arrived/i, 'people', 1],
   ];
-  const ROUTINE = /delivered|found a day's labour|ran short|wanted .* but|could not pay|could only pay|dawns over|paid \d+d in bridge|rode on|is coming along|barge unloaded|went downriver|parish relief|repair their roof|reported .* to the watch|has come\.?$/i;
+  const ROUTINE = /quartermaster bought|purveyors took|more raiders were seen|delivered|found a day's labour|ran short|wanted .* but|could not pay|could only pay|dawns over|paid \d+d in bridge|rode on|is coming along|barge unloaded|went downriver|parish relief|repair their roof|reported .* to the watch|has come\.?$/i;
 
   const C = {
     facts: [], heard: [], nextId: 1, CATS,

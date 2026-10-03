@@ -159,7 +159,7 @@ main > .wrap { overflow: auto; }
 </style>
 
 <header class="top">
-  <div class="brand">Outlaw<small>BUILD 0.18 · HONEST WORK</small></div>
+  <div class="brand">Outlaw<small>BUILD 0.19 · WAR IN THE NORTH</small></div>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" role="tab" aria-selected="true" data-tab="play">Play</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="forge">Character</button>
@@ -4488,6 +4488,259 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
 </script>
 <script>
+// War with the Marcher Lords of Varn, beyond the northern passes.
+//
+// Peace can sour into border raids; raids into war, if the castle council votes for it. In war the
+// crown musters an army at Thornbury and levies men from every place (in Ashford you can watch the
+// recruiting sergeant take them, and see the column march down the King's Road); war taxes rise;
+// grain is requisitioned; the smiths get crown orders; armies march by road, meet in battle (fought
+// in the abstract, reported without gore), besiege, burn and damage roads; refugees flee south. A
+// war ends in a treaty that remembers who had the better of it. Ashford's own soldiers come home —
+// or don't, and their families are told.
+'use strict';
+(function () {
+  const ENEMY = 'the Marcher Lords of Varn';
+
+  function install(Kingdom) {
+    const K = Kingdom.prototype, _daily = K.daily;
+    K.daily = function () {
+      _daily.call(this);
+      try { this.warDaily(); } catch (e) { console.error(e); }
+    };
+
+    K.warInit = function () {
+      if (!this.war) this.war = { phase: 'peace', since: this.sim.day, enemy: ENEMY, armies: [], battles: [], score: 0, wars: 0, soldiers: [], requisitioned: 0 };
+      return this.war;
+    };
+
+    K.warDaily = function () {
+      const W = this.warInit(), r = this.rng, sim = this.sim, day = sim.day;
+      const front = ['greymoor', 'harrowdale'];
+      if (W.phase === 'peace') {
+        // raids grow likelier the longer the peace and the weaker the north
+        const north = this.place('greymoor');
+        if (day - W.since > 12 && r.chance(0.012 + (north.security < 0.5 ? 0.01 : 0))) {
+          W.phase = 'tension'; W.since = day;
+          north.food = Math.max(0.4, north.food - 0.2); north.happiness = Math.max(0.1, north.happiness - 0.15); north.pop = Math.max(40, north.pop - 6);
+          this.addNews(`Riders from ${ENEMY} burned farms near Greymoor. The north asks the crown for protection.`, 'war', 'greymoor');
+        }
+      } else if (W.phase === 'tension') {
+        if (r.chance(0.3)) this.addNews(`More raiders were seen in the passes above Greymoor.`, 'war', 'greymoor');
+        if (day - W.since >= 4) {
+          // an emergency council: war or a bought peace
+          const hawks = this.places.filter((p) => p.leader && (p.priority === 'security' || p.region === 'north' || r.chance(0.4))).length;
+          const leaders = this.places.filter((p) => p.leader).length;
+          if (hawks > leaders / 2 && this.treasury > 300) this.declareWar();
+          else { W.phase = 'peace'; W.since = day; this.treasury -= Math.min(this.treasury, 200); this.addNews(`The council at Thornbury Castle paid ${ENEMY} 200 crowns to keep to their side of the mountains.`, 'politics'); }
+        }
+      } else if (W.phase === 'war') {
+        this.warCampaign();
+      } else if (W.phase === 'truce' && day - W.since > 20) { W.phase = 'peace'; W.since = day; }
+    };
+
+    K.declareWar = function () {
+      const W = this.war, sim = this.sim;
+      W.phase = 'war'; W.since = sim.day; W.wars++; W.score = 0; W.battles = []; W.taxBefore = this.taxRate;
+      this.taxRate = Math.min(0.2, this.taxRate + 0.04);
+      const levy = this.places.filter((p) => !p.detailed).reduce((s, p) => { const n = Math.round(p.pop * 0.02); p.pop -= n; return s + n; }, 0);
+      W.armies = [
+        { id: 1, side: 'crown', name: "the King's host", men: 220 + levy, at: 'thornbury', path: ['thornbury', 'harrowdale', 'greymoor'], morale: 0.7 },
+        { id: 2, side: 'enemy', name: `the host of ${ENEMY}`, men: 290 + this.rng.int(0, 180), at: 'greymoor', path: ['greymoor', 'harrowdale', 'thornbury'], morale: 0.7, wait: 2 },
+        { id: 3, side: 'crown', name: 'the Kingsbridge levy', men: 90, at: 'kingsbridge', path: ['kingsbridge', 'ashford', 'harrowdale'], morale: 0.6 },
+      ];
+      this.addNews(`WAR. The castle council has declared war on ${ENEMY}. The King's host musters at Thornbury and every town must send men.`, 'war');
+      this.addNews(`The crown tax is raised to ${Math.round(this.taxRate * 100)}% to pay for the war.`, 'politics');
+      sim.onWar && sim.onWar('declared');
+    };
+
+    K.warCampaign = function () {
+      const W = this.war, r = this.rng, sim = this.sim;
+      // requisitions every third day: the army eats
+      if ((sim.day - W.since) % 3 === 1) {
+        for (const p of this.places) if (!p.detailed) { const take = Math.round(p.stock.grain * 0.12); p.stock.grain -= take; W.requisitioned += take; }
+        const farm = sim.supplierOf && sim.supplierOf('farmhouse'); if (farm) { const t = Math.round((farm.stock.wheat || 0) * 0.15); farm.stock.wheat -= t; farm.cash += Math.round(t * 1.2); }
+        this.addNews(`The crown's purveyors took grain from every barn for the army, paying in promises.`, 'war');
+      }
+      // fresh men: the Marchers bring more over the passes, the crown levies again
+      if ((sim.day - W.since) % 6 === 5) {
+        const foe = W.armies.find((a) => a.side === 'enemy'), host = W.armies.find((a) => a.side === 'crown');
+        if (foe && W.score > -3) { foe.men += 50 + r.int(0, 60); foe.morale = Math.min(1, foe.morale + 0.05); }
+        if (host) { const add = this.places.filter((p) => !p.detailed).reduce((s, p) => { const n = Math.round(p.pop * 0.008); p.pop -= n; return s + n; }, 0); host.men += add; this.addNews(`A second levy of ${add} men has gone north to join the King's host.`, 'war'); }
+      }
+      // armies march toward each other by road; a host never marches away from a foe in its own camp
+      const alive = () => W.armies.filter((x) => x.men > 0);
+      const path = (from, to) => { if (from === to) return [from]; const prev = { [from]: null }, q = [from]; while (q.length) { const c = q.shift(); if (c === to) break; for (const n of this.neighbours(c)) if (!(n in prev)) { prev[n] = c; q.push(n); } } if (!(to in prev)) return null; const out = []; for (let c = to; c; c = prev[c]) out.unshift(c); return out; };
+      const near = (a, side) => alive().filter((x) => x.side === side).map((x) => ({ x, d: (path(a.at, x.at) || []).length })).sort((p1, p2) => p1.d - p2.d)[0]?.x;
+      for (const a of alive()) {
+        if (a.wait) { a.wait--; continue; }
+        if (alive().some((x) => x.side !== a.side && x.at === a.at)) continue;
+        let target;
+        if (a.side === 'crown') target = a.id === 3 && a.at !== 'harrowdale' && !a.joined ? 'harrowdale' : near(a, 'enemy')?.at || 'greymoor';
+        else target = (near(a, 'crown') && W.score >= 0) ? near(a, 'crown').at : 'thornbury';
+        const rt = path(a.at, target); if (!rt || rt.length < 2 || !r.chance(0.6)) continue;
+        const from = a.at, next = rt[1];
+        if (next === 'ashford' || from === 'ashford') sim.onArmyPasses && sim.onArmyPasses(a);
+        a.at = next;
+        if (a.side === 'enemy' && !alive().some((x) => x.side === 'crown' && x.at === next)) {
+          const pl = this.place(next); pl.happiness = Math.max(0.05, pl.happiness - 0.2); pl.food = Math.max(0.3, pl.food - 0.3); const lost = Math.round(pl.pop * 0.05); pl.pop -= lost;
+          const rd = this.road(from, next); if (rd && r.chance(0.5)) rd.damaged = true;
+          this.addNews(`${cap(a.name)} has fallen on ${pl.name}. Barns burn; ${lost} families have fled south.${rd && rd.damaged ? ` The road from ${this.place(from).name} is cut.` : ''}`, 'war', next);
+          if (sim.refugees) sim.refugees(Math.max(1, Math.round(lost / 12)), pl.name);
+        }
+      }
+      // crown hosts that meet join together
+      for (const a of alive().filter((x) => x.side === 'crown')) for (const b of alive().filter((x) => x.side === 'crown' && x !== a && x.at === a.at)) { if (a.men >= b.men) { a.men += b.men; b.men = 0; b.joined = true; this.addNews(`${cap(b.name)} has joined ${a.name} at ${this.place(a.at).name}.`, 'war'); } }
+      // battles where the hosts meet
+      const places = new Set(W.armies.filter((a) => a.men > 0).map((a) => a.at));
+      for (const at of places) {
+        const crown = W.armies.filter((a) => a.at === at && a.side === 'crown' && a.men > 0), foe = W.armies.filter((a) => a.at === at && a.side === 'enemy' && a.men > 0);
+        if (!crown.length || !foe.length) continue;
+        const cs = crown.reduce((s, a) => s + a.men * a.morale, 0) * r.float(0.75, 1.25), fs = foe.reduce((s, a) => s + a.men * a.morale, 0) * r.float(0.75, 1.25);
+        const crownWins = cs >= fs, pl = this.place(at);
+        const lossC = Math.round(crown.reduce((s, a) => s + a.men, 0) * (crownWins ? 0.08 : 0.2)), lossF = Math.round(foe.reduce((s, a) => s + a.men, 0) * (crownWins ? 0.22 : 0.07));
+        for (const a of crown) { a.men = Math.max(0, a.men - Math.round(lossC * (a.men / crown.reduce((s, b) => s + b.men, 1)))); a.morale = O.clamp(a.morale + (crownWins ? 0.1 : -0.15), 0.2, 1); }
+        for (const a of foe) { a.men = Math.max(0, a.men - Math.round(lossF * (a.men / foe.reduce((s, b) => s + b.men, 1)))); a.morale = O.clamp(a.morale + (crownWins ? -0.15 : 0.1), 0.2, 1); }
+        W.score += crownWins ? 1 : -1;
+        const b = { day: sim.day, at, crownWins, lossC, lossF }; W.battles.push(b);
+        // the loser falls back along its road
+        for (const a of crownWins ? foe : crown) { const home = a.side === 'crown' ? 'thornbury' : 'greymoor'; const rt = (() => { const prev = { [a.at]: null }, q = [a.at]; while (q.length) { const c = q.shift(); if (c === home) break; for (const n of this.neighbours(c)) if (!(n in prev)) { prev[n] = c; q.push(n); } } const out = []; for (let c = home; c && c in prev; c = prev[c]) out.unshift(c); return out; })(); if (rt.length > 1) a.at = rt[1]; a.wait = 2; }
+        for (const a of crownWins ? crown : foe) a.wait = 1;
+        if (!crownWins && at !== 'greymoor') { const pl = this.place(at); pl.happiness = Math.max(0.05, pl.happiness - 0.15); }
+        this.addNews(crownWins ? `Victory at ${pl.name}! ${cap(crown[0].name)} drove off ${foe[0].name}. ${lossC} of the King's men will not come home.` : `Defeat at ${pl.name}. ${cap(crown[0].name)} gave way before ${foe[0].name}; ${lossC} of the King's men fell.`, 'war', at);
+        sim.onBattle && sim.onBattle(b);
+      }
+      // the end: a decisive edge, exhaustion, or a long stalemate
+      const crownMen = W.armies.filter((a) => a.side === 'crown').reduce((s, a) => s + a.men, 0), foeMen = W.armies.filter((a) => a.side === 'enemy').reduce((s, a) => s + a.men, 0);
+      const long = sim.day - W.since > 32;
+      if (W.score >= 4 || foeMen < 60 || W.score <= -4 || crownMen < 60 || long) this.makePeace(W.score > 0 || foeMen < 80 ? 'crown' : W.score < 0 || crownMen < 80 ? 'enemy' : 'none');
+    };
+
+    K.makePeace = function (winner) {
+      const W = this.war, sim = this.sim;
+      W.phase = 'truce'; W.since = sim.day; W.winner = winner; W.armies = [];
+      this.taxRate = winner === 'enemy' ? Math.min(0.2, (W.taxBefore || 0.08) + 0.03) : (W.taxBefore || 0.08);
+      if (winner === 'crown') { this.treasury += 300; this.addNews(`PEACE. ${cap(ENEMY)} have sued for peace and paid tribute. The Treaty of Thornbury is sealed; bells ring in every town.`, 'war'); }
+      else if (winner === 'enemy') { this.treasury = Math.max(0, this.treasury - 400); const g = this.place('greymoor'); g.wealth = Math.max(0.05, g.wealth - 0.15); this.addNews(`PEACE, of a kind. The crown has bought an end to the war with gold and the northern pastures. The war tax stays.`, 'war'); }
+      else this.addNews(`Both hosts are spent. A truce is agreed at Harrowdale and the men are sent home.`, 'war');
+      sim.onWar && sim.onWar('peace', winner);
+    };
+  }
+  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+  // ---------------------------------------------------------------- the detailed village at war
+  function installSim(Sim) {
+    const S = Sim.prototype;
+    // Ashford's men: the sergeant takes the jobless and the young first; volunteers for the pay
+    S.levyMen = function (n) {
+      const cands = this.people.filter((p) => !p.visitor && p.sex === 'm' && p.age >= 17 && p.age <= 40 && !p.job?.role?.startsWith('guard') && !(this.biz.get(p.job?.biz)?.owner === p.id) && !p.title && p.health.state !== 'ill')
+        .sort((a, b) => (a.job ? 1 : 0) - (b.job ? 1 : 0) || (a.spouse ? 1 : 0) - (b.spouse ? 1 : 0) || a.age - b.age);
+      const taken = cands.slice(0, n), K = this.kingdom; const W = K.warInit();
+      for (const p of taken) {
+        if (p.job?.biz) { const bz = this.biz.get(p.job.biz); if (bz) bz.workers = bz.workers.filter((id) => id !== p.id); }
+        p.job = null; p.task = { act: 'leave', outdoor: true, emigrating: true, toWar: true };
+        this.remember(p, `I've taken the King's shilling. We march north.`, 'life', 3);
+        for (const id of this.household(p).members) { const q = this.byId.get(id); if (q && q !== p) this.remember(q, `${p.first} has gone to the war.`, 'grief', 2.5, p.id); }
+        W.soldiers.push({ id: p.id, name: p.name, household: p.household, home: p.home, left: this.day, snap: p }); // kept aside, not forgotten
+        this.household(p).money += 12; // the shilling goes to the family
+      }
+      if (taken.length) this.log(`The recruiting sergeant took ${taken.length} of ${this.world.name}'s men for the King's host: ${taken.map((p) => p.first).join(', ')}.`, 'war');
+      return taken;
+    };
+    S.onBattle = function (b) {
+      const W = this.kingdom.war;
+      for (const s of W.soldiers) {
+        if (s.dead || s.back || !s.snap) continue;
+        if (this.rng.chance(b.crownWins ? 0.06 : 0.16)) {
+          s.dead = { day: this.day, at: this.kingdom.place(b.at).name };
+          for (const id of (this.households[s.household - 1]?.members || [])) { const q = this.byId.get(id); if (q) { q.mood -= 0.4; this.remember(q, `A letter came: ${s.name} fell at ${s.dead.at}.`, 'grief', 3.5); } }
+          this.log(`Word came to ${this.world.name} that ${s.name} fell in the fighting at ${s.dead.at}.`, 'war');
+          (this.graves = this.graves || []).push({ name: s.name, born: this.day - (s.snap.age || 25) * 56, died: this.day, age: s.snap.age || 25, cause: `fell at ${s.dead.at}, far from home` });
+          this.onGrave && this.onGrave(s.snap);
+        } else if (this.rng.chance(0.08)) s.wounded = true;
+      }
+    };
+    // soldiers come home after the peace
+    S.soldiersReturn = function () {
+      const W = this.kingdom.war; if (!W) return;
+      for (const s of W.soldiers) {
+        if (s.dead || s.back || !s.snap) continue;
+        const hh = this.households[s.household - 1]; if (!hh || hh.gone) { s.back = 'no home'; continue; }
+        const p = s.snap; s.back = this.day;
+        p.task = null; p.alive = true; p.home = hh.home; p.household = hh.id;
+        if (!(p.rel instanceof Map)) p.rel = new Map((p.rel || []).map(([id, a, f]) => [id, { affinity: a, familiar: f }]));
+        if (!p.app) { p.agent = { a: null }; this.refreshLook(p); }
+        p.agent = { x: this.Z.east[0] * this.T, y: this.Z.east[1] * this.T, dir: 1, anim: 'walk', ft: 0, a: p.app, hidden: false, inside: null, path: null, goal: null, person: p };
+        if (!hh.members.includes(p.id)) hh.members.push(p.id);
+        this.people.push(p); this.byId.set(p.id, p);
+        if (s.wounded) { p.health.illness = { kind: 'injury', sev: 0.5, days: 0 }; p.health.state = 'ill'; }
+        this.remember(p, `Home from the war${s.wounded ? ', with a wound that aches when it rains' : ''}. I'll not speak of what I saw.`, 'life', 3);
+        for (const id of hh.members) { const q = this.byId.get(id); if (q && q !== p) { q.mood += 0.3; this.remember(q, `${p.first} came home from the war!`, 'life', 3, p.id); } }
+      }
+      const back = W.soldiers.filter((s) => s.back === this.day).length;
+      if (back) this.log(`${back} of ${this.world.name}'s soldiers came home from the war.`, 'war');
+    };
+    // the levy: a recruiting sergeant spends a day in the square, then marches off with the men
+    S.onWar = function (what) { if (what === 'declared') this.levyDay = this.day + 1; else this.returnDay = this.day + 2; };
+    const _mt = S.minuteTick;
+    S.minuteTick = function () {
+      _mt.call(this);
+      const mm = this._m;
+      if (this.levyDay === this.day && mm === 8 * 60) this.sergeantArrives();
+      if (this.levyDay === this.day && mm === 16 * 60) {
+        this.levyMen(this.rng.int(2, 4));
+        if (this.sergeant) { this.sergeant.task = { act: 'leave', outdoor: true, emigrating: true }; this.sergeant = null; }
+        this.levyDay = null;
+      }
+      if (this.returnDay === this.day && mm === 11 * 60) { this.soldiersReturn(); this.returnDay = null; }
+    };
+    S.sergeantArrives = function () {
+      const r = this.rng, D = O.Data, Ch = O.Char;
+      const p = this.newPerson({ sex: 'm', age: r.int(30, 48), first: r.pick(D.NAMES.m), sur: r.pick(D.NAMES.sur), household: 0, home: null, genes: Ch.randomGenes(r, 'east'), wealth: 0.5, visitor: true });
+      p.name = `Sergeant ${p.first} ${p.sur}`; p.title = "recruiting sergeant of the King's host"; p.job = { biz: null, role: 'recruiting sergeant' }; p.wake = 0; p.bed = 1440;
+      p.app = Ch.makeAppearance(O.hash('sergeant', p.id), { sex: 'm', age: p.age, genes: p.genes, role: 'guard', wealth: 0.6 });
+      const E = this.Z.east;
+      p.agent = { x: E[0] * this.T, y: E[1] * this.T, dir: 1, anim: 'walk', ft: 0, a: p.app, hidden: false, inside: null, path: null, goal: null, person: p };
+      p.task = { act: 'recruit', outdoor: true, zone: 'square' };
+      this.sergeant = p;
+      this.log(`A recruiting sergeant of the King's host has come to ${this.world.name}, calling for men.`, 'war');
+    };
+    // the crown's war levy on the parish chest, weekly
+    S.warLevy = function () {
+      const W = this.kingdom.war; if (!W || W.phase !== 'war' || this.weekday !== 0) return;
+      const take = Math.min(40, Math.floor(this.treasury.cash * 0.25)); if (take <= 0) return;
+      this.treasury.cash -= take; this.kingdom.treasury += take;
+      this.log(`The crown's war levy took ${take}d from ${this.world.name}'s common chest.`, 'politics');
+    };
+    // refugees from the north
+    S.refugees = function (n, from) {
+      let came = 0;
+      for (let i = 0; i < n; i++) {
+        const b = this.world.buildings.find((x) => x.type === 'house' && !x.household && !x.site); if (!b) break;
+        const before = this.households.length; this.immigrate(b); const hh = this.households[before]; if (!hh) continue;
+        hh.money = this.rng.int(4, 25); hh.refugees = from; came++;
+        for (const id of hh.members) { const q = this.byId.get(id); if (q && q.age >= 8) this.remember(q, `We fled ${from} when the raiders came. We have nothing left.`, 'hardship', 3); }
+      }
+      this.log(came ? `Refugees from ${from} have reached ${this.world.name}: ${came} famil${came === 1 ? 'y' : 'ies'} with what they could carry.` : `Refugees from ${from} passed through ${this.world.name}, finding no empty house.`, 'war');
+    };
+    // crown orders keep the smiths busy
+    S.warOrders = function () {
+      const W = this.kingdom.war; if (!W || W.phase !== 'war') return;
+      this.warLevy();
+      for (const bz of this.biz.values()) {
+        if (!['smithy', 'armourer'].includes(bz.type)) continue;
+        let paid = 0;
+        for (const g of ['dagger', 'axe', 'sword', 'helm', 'tools']) { const n = Math.floor((bz.stock[g] || 0) * 0.6); if (n < 1) continue; const pr = Math.round(O.Data.GOODS[g].base * 1.5) * n; bz.stock[g] -= n; bz.cash += pr; paid += pr; }
+        if (paid && this.rng.chance(0.4)) this.log(`The crown's quartermaster bought arms from ${bz.name} for ${paid}d.`, 'war');
+      }
+    };
+  }
+
+  O.War = { install, installSim, ENEMY };
+  install(O.Kingdom);
+})();
+
+</script>
+<script>
 // Property: ownership, value, rent, debt and eviction; businesses closing, standing empty and being
 // reopened (sometimes as a different trade); families' fortunes showing in their houses and clothes;
 // and the lordship of Ashford, which the crown will sell to someone rich and respectable enough.
@@ -4647,10 +4900,11 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   const YEAR_DAYS = () => O.SEASON_DAYS * 4;
   const CATS = {
     rulers: 'Rulers', politics: 'Politics', roads: 'Roads & bridges', markets: 'Markets', harvest: 'Harvests', disaster: 'Disasters',
-    business: 'Trades', gang: 'Gangs', crime: 'Crimes', death: 'Deaths', people: 'People', player: 'Your deeds',
+    war: 'Wars', business: 'Trades', gang: 'Gangs', crime: 'Crimes', death: 'Deaths', people: 'People', player: 'Your deeds',
   };
   // order matters: the first match wins
   const RULES = [
+    [/\bwar\b|the king's host|battle|victory at|defeat at|treaty|truce|raiders|marcher lords|recruiting sergeant|fell in the fighting|soldiers came home|refugees/i, 'war', 3],
     [/caravan.*(robbed|attacked|plunder)|bandit|highway/i, 'crime', 3],
     [/harvest (has )?failed|famine|starv/i, 'harvest', 4],
     [/harvest festival|harvest is in|bumper|reaped/i, 'harvest', 2],
@@ -4666,7 +4920,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     [/married|wedding/i, 'people', 1],
     [/families are leaving|packed up and left|evicted|settled in|have arrived/i, 'people', 1],
   ];
-  const ROUTINE = /delivered|found a day's labour|ran short|wanted .* but|could not pay|could only pay|dawns over|paid \d+d in bridge|rode on|is coming along|barge unloaded|went downriver|parish relief|repair their roof|reported .* to the watch|has come\.?$/i;
+  const ROUTINE = /quartermaster bought|purveyors took|more raiders were seen|delivered|found a day's labour|ran short|wanted .* but|could not pay|could only pay|dawns over|paid \d+d in bridge|rode on|is coming along|barge unloaded|went downriver|parish relief|repair their roof|reported .* to the watch|has come\.?$/i;
 
   const C = {
     facts: [], heard: [], nextId: 1, CATS,
@@ -5570,15 +5824,17 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       this.remember(who, `Sent to fetch ${order.qty} ${G[order.good].unit}s of ${G[order.good].name.toLowerCase()} for ${this.biz.get(order.to).name}.`, 'work', 0.4);
     }
     pickup(p) {
-      const o = p.task.order, src = this.biz.get(o.from);
-      const qty = Math.min(o.qty, Math.floor(src.stock[o.good] || 0));
-      if (qty <= 0) { p.task = null; this.biz.get(o.to).orders = this.biz.get(o.to).orders.filter((x) => x !== o); return; }
+      const o = p.task.order, src = this.biz.get(o.from), dst = this.biz.get(o.to);
+      const qty = src && dst ? Math.min(o.qty, Math.floor(src.stock[o.good] || 0)) : 0;
+      if (qty <= 0) { p.task = null; if (dst) dst.orders = dst.orders.filter((x) => x !== o); return; }
       src.stock[o.good] -= qty; o.qty = qty;
       p.task = { act: 'deliver', b: o.to, order: o };
       p.agent.carrying = { good: o.good, qty };
     }
     deliver(p) {
       const o = p.task.order, dst = this.biz.get(o.to), src = this.biz.get(o.from);
+      // the shop closed (or the supplier did) while the goods were on the road
+      if (!dst || !src) { if (src) src.stock[o.good] = (src.stock[o.good] || 0) + o.qty; p.task = null; p.agent.carrying = null; return; }
       dst.stock[o.good] = (dst.stock[o.good] || 0) + o.qty;
       const cost = Math.round(o.qty * o.price);
       const pay = Math.min(cost, Math.max(0, Math.floor(dst.cash)));
@@ -5669,6 +5925,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     newDay() {
       this.demandScale();
       this.newsDaily && this.newsDaily();
+      this.warOrders && this.warOrders();
       // a city's guilds, wharf fees and market rents fill the common chest beyond what the sales tax brings
       if (this.people.length > 220) { const dues = Math.round(this.people.length * 0.3); this.treasury.cash += dues; this.treasury.income += dues; }
       for (const p of this.people) {
@@ -5734,7 +5991,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     if (p.task?.act === 'help') { const t = this.byId.get(p.task.target); if (t) return [Math.floor(t.agent.x / this.T), Math.floor((t.agent.y - 1) / this.T)]; }
     return _zone.call(this, p, zone);
   };
-  O.Health.install(Sim); O.Life.install(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim);
+  O.Health.install(Sim); O.Life.install(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
   // carry-home and delivery tasks finish on entering the destination
@@ -6857,7 +7114,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const ACT_LABEL = {
     sleep: 'asleep', work: 'working', fieldwork: 'working the fields', chop: 'felling timber', festival: 'at the harvest festival', lessons: 'at lessons in the chapel', feast: 'at a wedding feast', council: 'away at the castle council', cry: 'crying the news', gangmeet: 'meeting at the hideout', report: 'reporting a crime to the watch', investigate: 'investigating a crime', jailed: 'locked in the cell', market: 'coming to market', service: 'in service at a house', sick: 'ill in bed', collapsed: 'collapsed!', help: 'running to help someone', escort: 'helping a patient to the physician', 'to-doctor': 'going to the physician', treated: 'being treated by the physician', mourn: 'at a funeral', wedding: 'at a wedding', build: 'building the new house', 'move-in': 'moving to Ashford', forage: 'gathering herbs', patrol: 'on patrol', eat: 'having a meal', 'eat-out': 'eating at the tavern',
-    home: 'at home', play: 'playing', shop: 'shopping', socialise: 'drinking at the tavern', sit: 'resting on the bench', stroll: 'taking the air', worship: 'at chapel',
+    home: 'at home', play: 'playing', shop: 'shopping', socialise: 'drinking at the tavern', perform: 'playing for the tavern', recruit: 'calling for recruits', leave: 'on the road out', sit: 'resting on the bench', stroll: 'taking the air', worship: 'at chapel',
     'wait-work': 'waiting for carrying work', pickup: 'collecting goods', deliver: 'making a delivery', 'carry-home': 'carrying shopping home', import: 'bringing goods to market', rest: 'resting at the inn', leave: 'leaving town',
   };
   O.ACT_LABEL = ACT_LABEL;
@@ -8906,6 +9163,106 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
 </script>
 <script>
+// War made visible: the King's host marching down the King's Road in column behind its banner, the
+// recruiting sergeant in the square (take the shilling and march, or take it and run), and the
+// armies and battles on the kingdom map.
+'use strict';
+(function () {
+  const PS = O.PlayerState, esc = (s) => O.escape(String(s));
+
+  function setup(game, home, npcUI) {
+    const K = home.kingdom, T = home.T, Ch = O.Char, live = [];
+    const banner = O.Env.prop('banner', 3, 0);
+
+    // ---------------- the column on the King's Road ----------------
+    home.onArmyPasses = (a) => {
+      if (live.length) return;
+      const n = O.clamp(Math.round(a.men / 10), 8, 26), y0 = (home.world.roadY || 30) * T + 22, x0 = home.world.W * T + 10;
+      const men = [];
+      for (let i = 0; i < n; i++) {
+        const row = Math.floor(i / 2), col = i % 2;
+        const ap = Ch.makeAppearance(O.hash('soldier', a.id, i), { role: i === 1 ? 'noble' : 'guard', sex: 'm', age: 18 + (i * 7) % 26, wealth: i === 1 ? 0.9 : 0.4 });
+        men.push({ a: ap, x: x0 + row * 26 + (col ? 9 : 0), y: y0 - col * 13, dir: 1, anim: 'walk', ft: i * 0.17, army: a, banner: i === 0 });
+      }
+      live.push({ a, men });
+      home.log(`${a.name.charAt(0).toUpperCase() + a.name.slice(1)} marched through ${home.world.name}, ${a.men} strong, bound for the north.`, 'war');
+      if (game.world === home.world && !game.scene) O.Panels.toast(`Drums on the King's Road: ${a.name} is marching through ${home.world.name}.`);
+    };
+    game.hooks.update.push((dt) => {
+      const dtm = Math.min(dt * game.clock.speed, 4);
+      for (const L of live) { for (const m of L.men) { m.x -= 30 * dtm; m.ft += dt; } if (L.men.every((m) => m.x < -40)) L.done = true; }
+      for (let i = live.length - 1; i >= 0; i--) if (live[i].done) live.splice(i, 1);
+      if (!game.scene && game.world === home.world) game.actors = [...game.actors.filter((x) => !x.army), ...live.flatMap((L) => L.men)];
+    });
+    // the standard-bearer's banner rides above the column
+    game.hooks.drawTop && game.hooks.drawTop.push((ctx, cam) => {
+      if (game.scene || game.world !== home.world) return;
+      for (const L of live) for (const m of L.men) if (m.banner) ctx.drawImage(banner.canvas, Math.round(m.x - banner.ox - cam.x + 5), Math.round(m.y - banner.oy - cam.y - 18));
+    });
+
+    // ---------------- the recruiting sergeant ----------------
+    const prevExtra = npcUI.extraButtons, prevOn = npcUI.onExtra;
+    npcUI.extraButtons = (q) => { const out = prevExtra ? prevExtra(q) : []; if (q.job?.role === 'recruiting sergeant' && !PS.enlisted) out.push(['shilling', "Take the King's shilling"]); return out; };
+    npcUI.onExtra = (q, key, render) => { if (key === 'shilling') { npcUI.closeTalk(); return enlist(q); } return prevOn && prevOn(q, key, render); };
+    function enlist(q) {
+      if (PS.wantedLevel && PS.wantedLevel() >= 2) return O.Panels.toast(`${q.first} looks at you hard. “I know a wanted face. The army's no hiding place for your sort.”`, 'bad');
+      PS.money += 12; PS.enlisted = { day: home.day };
+      O.Panels.open("The King's shilling", `<p class="speech">“Good lad. Twelve pence now, three a day on the march, and a share of whatever we take off the Marchers. We go north with the levy at four o'clock.”</p>
+        <p class="caption">Marching with the levy means about four days away from ${esc(home.world.name)}. Taking the shilling and slipping away is desertion: a crime, and the sergeant has seen your face.</p>
+        <div class="topics"><button data-a="march" class="hot">March north with the levy</button><button data-a="run">Pocket the shilling and slip away</button></div>`, (r) => {
+        r.querySelector('[data-a=march]').onclick = () => { O.Panels.close(); campaign(); };
+        r.querySelector('[data-a=run]').onclick = () => {
+          O.Panels.close(); PS.enlisted = null;
+          const cr = home.recordCrime({ kind: 'desertion', perp: 'player', placeName: home.world.name, tile: [Math.floor(game.player.x / T), Math.floor(game.player.y / T)], seen: [q], severity: 2 });
+          PS.crimes.push(cr.id); PS.rep.guard = Math.max(-1, PS.rep.guard - 0.2);
+          O.Panels.toast('You melt into the crowd with the King\'s coin. The sergeant will remember you.', 'bad');
+        };
+      });
+    }
+    function campaign() {
+      const W = K.war, startDay = home.day, battles0 = W ? W.battles.length : 0;
+      O.Panels.toast('You march north with the levy…');
+      for (let i = 0; i < 720 * 4; i++) { home.tick(2); PS.tick(2, i % 3 === 0); if (PS.hunger < 30) PS.hunger += 25; }
+      const fought = W ? W.battles.slice(battles0) : [];
+      const lost = fought.filter((b) => !b.crownWins).length, won = fought.length - lost;
+      const pay = 3 * (home.day - startDay) + (won ? 10 + home.rng.int(0, 30) : 0);
+      const hurt = fought.length ? (lost ? home.rng.int(20, 45) : home.rng.int(0, 20)) : 0;
+      PS.money += pay; PS.hp = Math.max(10, PS.hp - hurt); PS.enlisted = null;
+      PS.rep.guard = Math.min(1, PS.rep.guard + 0.2); PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.08); PS.rep.local = Math.min(1, PS.rep.local + 0.1);
+      const where = fought.length ? K.place(fought[fought.length - 1].at).name : null;
+      O.Chronicle.deed(home, where ? `A volunteer from ${home.world.name} fought with the King's host at ${where}.` : `A volunteer from ${home.world.name} marched with the King's host.`, where ? `You fought at ${where} with the King's host${lost ? ' and saw the line break' : ' and saw the Marchers run'}.` : 'You marched north with the levy; you saw no battle.', 'war', where ? 3 : 2, true);
+      game.player.x = (home.world.W - 3) * T; game.player.y = (home.world.roadY || 30) * T + 10; if (game.scene) game.exitBuilding();
+      O.Panels.open('Home from the north', `<p class="caption">${fought.length ? `You were in ${fought.length} fight${fought.length > 1 ? 's' : ''}: ${won} won, ${lost} lost. ` : 'Four days of marching, digging and waiting; the Marchers never came.'}${hurt ? ` You took a wound (−${hurt} health).` : ''}</p><p>The paymaster counts out <b>${O.money(pay)}</b>. Back in ${esc(home.world.name)}, people look at you differently.</p>`);
+    }
+
+    // ---------------- the war on the map ----------------
+    const _open = O.openMap;
+    O.openMap = () => {
+      _open();
+      const W = K.war, cv = document.getElementById('kmap'); if (!cv || !W) return;
+      const ctx = cv.getContext('2d'), sx = cv.width / 64, sy = cv.height / 40;
+      if (W.phase === 'war' || W.phase === 'tension') {
+        // the northern border, smoking
+        const g = K.place('greymoor'); ctx.fillStyle = 'rgba(160,40,30,.35)'; ctx.beginPath(); ctx.arc(g.x * sx, g.y * sy, 34, 0, Math.PI * 2); ctx.fill();
+      }
+      for (const a of W.armies || []) {
+        if (a.men <= 0) continue; const p = K.place(a.at); if (!p) continue;
+        const x = Math.round(p.x * sx) + (a.side === 'crown' ? -14 : 8), y = Math.round(p.y * sy) - 18;
+        ctx.fillStyle = '#2a2018'; ctx.fillRect(x, y, 2, 16);
+        ctx.fillStyle = a.side === 'crown' ? '#b8352a' : '#2a2a2a'; ctx.fillRect(x + 2, y, 9, 6);
+        ctx.fillStyle = a.side === 'crown' ? '#e0c040' : '#7a2a6a'; ctx.fillRect(x + 5, y + 2, 3, 2);
+      }
+      for (const b of (W.battles || []).slice(-4)) { const p = K.place(b.at); ctx.fillStyle = '#f0e0c0'; const x = Math.round(p.x * sx), y = Math.round(p.y * sy) + 8; ctx.fillRect(x - 3, y, 7, 1); ctx.fillRect(x, y - 3, 1, 7); }
+      const cap = document.querySelector('.mapwrap + .caption');
+      if (cap) cap.insertAdjacentHTML('beforeend', W.phase === 'war' ? ` <b class="warn">At war with ${esc(W.enemy)}</b> since day ${W.since}: red flags are the King's hosts, black the Marchers'; crosses mark battles. Battles won ${W.battles.filter((b) => b.crownWins).length}, lost ${W.battles.filter((b) => !b.crownWins).length}.` : W.phase === 'tension' ? ` <b class="warn">Raiders are troubling the north.</b>` : W.phase === 'truce' ? ` A truce holds with ${esc(W.enemy)}.` : '');
+    };
+  }
+
+  O.WarUI = { setup };
+})();
+
+</script>
+<script>
 // Procedural audio: no sound files, everything synthesised with WebAudio so it can follow the
 // simulation. Ambient beds (wind, rain, crowd murmur, fire crackle) are filtered noise whose levels
 // track the weather and who is nearby; point sounds (the smith's hammer, the chapel bell, birds,
@@ -9354,10 +9711,10 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         people: sim.people.map(strip), traderId: sim.trader ? sim.trader.id : null,
         households: sim.households,
         biz: [...sim.biz.values()].map((b) => ({ id: b.id, type: b.type, stock: b.stock, cash: b.cash, owner: b.owner, workers: b.workers, salesToday: b.salesToday, history: b.history, jobs: b.def.jobs, name: b.name, cost: b.def.site ? true : undefined, ownerPlayer: b.ownerPlayer, badDays: b.badDays, founded: b.founded })),
-        lordship: sim.lordship, memorials: sim.memorials || [],
+        lordship: sim.lordship, memorials: sim.memorials || [], levyDay: sim.levyDay || null, returnDay: sim.returnDay || null,
         sites: sim.build.sites.map((s) => ({ id: s.id, stage: s.stage, prog: s.prog, work: s.work, started: s.started })), nextCouncil: sim.build.nextCouncil, plotsUsed: [...sim.build.used],
         gangs: sim.gangs,
-        kingdom: { places: sim.kingdom.places, roads: sim.kingdom.roads, caravans: sim.kingdom.caravans.map((c) => Object.assign({}, c, { held: false })), news: sim.kingdom.news, treasury: sim.kingdom.treasury, taxRate: sim.kingdom.taxRate, councils: sim.kingdom.councils.slice(-6) },
+        kingdom: { places: sim.kingdom.places, roads: sim.kingdom.roads, caravans: sim.kingdom.caravans.map((c) => Object.assign({}, c, { held: false })), news: sim.kingdom.news, war: sim.kingdom.war ? Object.assign({}, sim.kingdom.war, { soldiers: sim.kingdom.war.soldiers.map((x) => Object.assign({}, x, { snap: x.snap && !x.back ? strip(x.snap) : null })) }) : null, treasury: sim.kingdom.treasury, taxRate: sim.kingdom.taxRate, councils: sim.kingdom.councils.slice(-6) },
         horses: (sim.horses || []).map((h) => { const o = Object.assign({}, h); delete o._actor; return o; }),
       },
       world: {
@@ -9399,7 +9756,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     // core sim
     Object.assign(sim, { day: S.day, minute: S.minute, _lastMin: Math.floor(S.minute), nextId: S.nextId, treasury: S.treasury, stats: S.stats, history: S.history, crimes: S.crimes, settlement: S.settlement, events: S.events, graves: S.graves, _season: S.season, reeveId: S.reeveId, _guardRaised: S.guardRaised });
     if (d.chronicle) Object.assign(O.Chronicle, { facts: d.chronicle.facts || [], heard: d.chronicle.heard || [], nextId: d.chronicle.nextId || 1 });
-    sim.memorials = S.memorials || [];
+    sim.memorials = S.memorials || []; sim.levyDay = S.levyDay || null; sim.returnDay = S.returnDay || null;
     sim.rng = O.RNG(S.rng); sim.weather.rng = O.RNG(S.wrng); sim.kingdom.rng = O.RNG(S.krng);
     Object.assign(sim.weather, S.weather);
     sim.households = S.households;
@@ -9555,6 +9912,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   O.PropertyUI.setup(game, sim);
   O.ChronicleUI.setup(game, home);
   O.WorkSetup.setup(game, sim, npcUI);
+  O.WarUI.setup(game, home, npcUI);
   O.AudioSetup.setup(game, sim);
   if (loaded) { O.Save.hydrateLate(game, home); setTimeout(() => O.Panels.toast(`Welcome back. It is ${O.DAYNAMES[sim.weekday]}, day ${sim.day}, in Ashford.`), 300); }
   // autosave each dawn and whenever the page is hidden

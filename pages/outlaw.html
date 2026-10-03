@@ -1,0 +1,129 @@
+<title>Outlaw</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Alegreya+Sans:wght@400;500;700&family=Silkscreen&display=swap">
+<style>
+/* Layout: a game shell — top bar with tabs, then a control column beside a pixel stage. Single dark "lantern-lit" look. */
+:root {
+  --ink: #15111c; --ink-2: #1f1a29; --panel: #2a2334; --line: #3d3349;
+  --parch: #e8dcc0; --parch-dim: #b3a68b; --ember: #d9893a; --ember-2: #f0b45c; --blood: #a8382f; --moss: #6f8f4e;
+  --display: 'Pirata One', 'UnifrakturCook', Georgia, serif;
+  --body: 'Alegreya Sans', 'Trebuchet MS', system-ui, sans-serif;
+  --pix: 'Silkscreen', ui-monospace, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--ink); color: var(--parch); font-family: var(--body); font-size: 15px; margin: 0; }
+* { box-sizing: border-box; }
+canvas { image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
+button, select, input { font: inherit; color: inherit; }
+.top { display: flex; align-items: center; gap: 20px; padding: 10px 16px; background: var(--ink-2); border-bottom: 2px solid var(--line); flex-wrap: wrap; }
+.brand { font-family: var(--display); font-size: 34px; line-height: 1; color: var(--ember-2); letter-spacing: 1px; text-shadow: 0 2px 0 #000; }
+.brand small { font-family: var(--pix); font-size: 10px; color: var(--parch-dim); letter-spacing: 1.5px; margin-left: 10px; vertical-align: middle; }
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.tab { background: transparent; border: 2px solid transparent; padding: 6px 12px; cursor: pointer; font-family: var(--pix); font-size: 11px; letter-spacing: 1px; color: var(--parch-dim); }
+.tab[aria-selected="true"] { color: var(--ink); background: var(--ember-2); border-color: #000; }
+.tab:hover:not([aria-selected="true"]) { color: var(--parch); border-color: var(--line); }
+.tab:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--ember-2); outline-offset: 2px; }
+.wrap { padding: 16px; display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 820px) { .wrap { grid-template-columns: 1fr; } }
+.panel { background: var(--panel); border: 2px solid #000; box-shadow: inset 0 0 0 2px var(--line); padding: 14px; }
+.panel h2 { font-family: var(--display); font-weight: 400; font-size: 24px; margin: 0 0 8px; color: var(--ember-2); text-wrap: balance; }
+.group { display: grid; gap: 8px; padding-block: 10px; border-top: 1px dashed var(--line); }
+.group:first-of-type { border-top: 0; }
+.lbl { font-family: var(--pix); font-size: 10px; letter-spacing: 1.2px; color: var(--parch-dim); text-transform: uppercase; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.row > label { display: grid; gap: 4px; flex: 1 1 120px; min-width: 0; }
+input[type=text], select { background: var(--ink); border: 2px solid var(--line); padding: 5px 8px; width: 100%; }
+input[type=range] { width: 100%; accent-color: var(--ember); }
+.sw { display: flex; gap: 4px; flex-wrap: wrap; }
+.sw button { width: 24px; height: 24px; border: 2px solid #000; cursor: pointer; padding: 0; box-shadow: inset 0 -3px 0 rgba(0,0,0,.25); }
+.sw button[aria-pressed="true"] { outline: 2px solid var(--ember-2); outline-offset: 1px; }
+.seg { display: inline-flex; border: 2px solid #000; }
+.seg button { background: var(--ink); border: 0; padding: 4px 10px; cursor: pointer; font-family: var(--pix); font-size: 10px; }
+.seg button[aria-pressed="true"] { background: var(--ember); color: var(--ink); }
+.row > label.chk, .chk { display: flex; flex: 0 0 auto; gap: 6px; align-items: center; cursor: pointer; }
+.btn { background: var(--ember); color: var(--ink); border: 2px solid #000; box-shadow: inset 0 -3px 0 rgba(0,0,0,.3); padding: 7px 14px; cursor: pointer; font-family: var(--pix); font-size: 11px; letter-spacing: 1px; }
+.btn.ghost { background: var(--ink); color: var(--parch); }
+.stage { display: grid; gap: 12px; min-width: 0; }
+.view { background: #000; border: 2px solid #000; box-shadow: inset 0 0 0 2px var(--line); overflow: auto; }
+.view canvas { margin: 0 auto; }
+.caption { font-size: 13px; color: var(--parch-dim); max-width: 70ch; }
+.nameplate { font-family: var(--display); font-size: 30px; color: var(--parch); }
+.nameplate span { font-family: var(--pix); font-size: 10px; color: var(--parch-dim); letter-spacing: 1px; margin-left: 8px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chips button { background: var(--ink-2); border: 2px solid var(--line); padding: 4px 9px; cursor: pointer; font-family: var(--pix); font-size: 10px; letter-spacing: 1px; color: var(--parch-dim); }
+.chips button[aria-pressed="true"] { border-color: var(--ember-2); color: var(--ember-2); }
+.legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 14px; font-size: 13px; color: var(--parch-dim); }
+.legend b { color: var(--parch); font-weight: 500; }
+[hidden] { display: none !important; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+</style>
+
+<header class="top">
+  <div class="brand">Outlaw<small>BUILD 0.1 · SPRITE FORGE</small></div>
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button class="tab" role="tab" aria-selected="true" data-tab="forge">Character</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="crowd">Townsfolk</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="blood">Bloodlines</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="sheet">Sprite sheet</button>
+  </nav>
+</header>
+
+<main>
+  <section class="wrap" id="tab-forge">
+    <div class="panel" id="controls"></div>
+    <div class="stage">
+      <div class="nameplate" id="nameplate"></div>
+      <div class="chips" id="animChips" aria-label="Animation"></div>
+      <div class="view"><canvas id="preview"></canvas></div>
+      <p class="caption">Every frame is generated from the same skeleton: skin, sleeves, trousers and boots are painted onto one set of limb shapes, so clothing can't leave gaps when arms and legs move. Lighting comes from the upper left on every sprite in the world.</p>
+    </div>
+  </section>
+
+  <section class="wrap" id="tab-crowd" hidden>
+    <div class="panel">
+      <h2>Townsfolk</h2>
+      <p class="caption">NPCs are assembled from shared parts: body by age, height and build genes; faces from eye, brow, nose and jaw genes; outfits from their trade and wealth. None of these are hand-placed.</p>
+      <div class="group">
+        <span class="lbl">Region</span>
+        <div class="seg" id="regionSeg"></div>
+      </div>
+      <div class="group">
+        <span class="lbl">Wealth</span>
+        <input type="range" id="crowdWealth" min="0" max="1" step="0.05" value="0.5" aria-label="Wealth">
+      </div>
+      <div class="group"><button class="btn" id="reroll">New faces</button></div>
+    </div>
+    <div class="stage">
+      <div class="view"><canvas id="crowd"></canvas></div>
+      <div class="legend" id="crowdLegend"></div>
+    </div>
+  </section>
+
+  <section class="wrap" id="tab-blood" hidden>
+    <div class="panel">
+      <h2>Bloodlines</h2>
+      <p class="caption">Children inherit skin tone, hair colour and type, eye colour, height, build and facial structure from both parents, with small mutations and an occasional throwback to an older generation. Siblings resemble each other without being copies.</p>
+      <div class="group"><button class="btn" id="newFamily">New family</button></div>
+    </div>
+    <div class="stage">
+      <div class="view"><canvas id="family"></canvas></div>
+      <div class="legend" id="familyLegend"></div>
+    </div>
+  </section>
+
+  <section class="wrap" id="tab-sheet" hidden>
+    <div class="panel">
+      <h2>Sprite sheet</h2>
+      <p class="caption">The full sheet for your character: 12 animations × 4 directions. Frames are 32×48 and generated on demand, then kept in a bounded cache so only nearby people hold pixel data.</p>
+    </div>
+    <div class="stage"><div class="view"><canvas id="sheet"></canvas></div></div>
+  </section>
+</main>
+
+<script src="../src/core/base.js"></script>
+<script src="../src/art/palette.js"></script>
+<script src="../src/art/raster.js"></script>
+<script src="../src/art/character.js"></script>
+<script src="../src/game/creator.js"></script>
+<script src="../src/game/forge-ui.js"></script>

@@ -66,6 +66,9 @@
   O.GangUISetup.setup(game, sim, npcUI);
   O.CombatSetup.setup(game, sim, npcUI);
   O.HorsesSetup.setup(game, sim, npcUI);
+  O.KingdomUI.setup(game, sim, npcUI);
+  const mbtn = document.createElement('button'); mbtn.className = 'btn ghost map-btn'; mbtn.textContent = 'Map (M)';
+  mbtn.onclick = () => (O.panelOpen ? O.Panels.close() : O.openMap()); $('tab-play').appendChild(mbtn);
   const gbtn = document.createElement('button'); gbtn.className = 'btn ghost gang-btn'; gbtn.textContent = 'Gang (G)';
   gbtn.onclick = () => (O.panelOpen ? O.Panels.close() : O.GangUI.ledger()); $('tab-play').appendChild(gbtn);
   const sbtn = document.createElement('button'); sbtn.className = 'btn ghost satchel-btn'; sbtn.textContent = 'Satchel (I)';

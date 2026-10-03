@@ -597,6 +597,15 @@
         B.part(2); const bm = P.mat(C.madder); B.poly([[3, 3], [9, 3], [9, 16], [6, 13], [3, 16]], [0, 0, 1], bm); for (let y = 3; y < 15; y++) B.shadeAt(8, y, 1); B.plot(5, 7, P.mat(P.metal.gold, 'metal'), 3); B.plot(6, 8, P.mat(P.metal.gold, 'metal'), 3); B.plot(5, 9, P.mat(P.metal.gold, 'metal'), 3);
         ox = 2; oy = 29; break;
       }
+      case 'noticeboard': {
+        B = new MB(24, 30); B.part(1); B.capsule(3, 29, 3, 6, 1, 1, wood); B.capsule(21, 29, 21, 6, 1, 1, wood);
+        B.part(2); B.rect(1, 4, 22, 16, P.mat('#7a5a3a', 'wood'), 2); for (let x = 1; x < 23; x++) { B.shadeAt(x, 4, 3); B.shadeAt(x, 19, 1); }
+        B.rect(0, 2, 24, 2, P.mat(P.wood.dark, 'wood'), 3);
+        B.part(3); const paper = P.mat('#ece2c8', 'cloth');
+        for (const [x, y, w, h] of [[3, 6, 6, 7], [10, 7, 5, 6], [16, 6, 5, 8], [5, 14, 7, 4]]) { B.rect(x, y, w, h, paper, 3); for (let yy = y + 1; yy < y + h - 1; yy += 2) for (let xx = x + 1; xx < x + w - 1; xx++) if ((xx + yy) % 3) B.shadeAt(xx, yy, 1); }
+        B.plot(12, 7, P.mat('#a8382f', 'cloth'), 3);
+        ox = 12; oy = 29; break;
+      }
       case 'gravestone': {
         B = new MB(10, 14); B.part(1); B.shape(1, 1, 9, 13, (px, py) => py > 4 ? Math.abs(px - 5) < 3.6 : (px - 5) ** 2 + (py - 4.5) ** 2 < 13, (px) => [(px - 5) / 4, 0, 0.8], stone);
         B.plot(5, 5, stone, 0); B.plot(4, 6, stone, 0); B.plot(5, 6, stone, 0); B.plot(6, 6, stone, 0); B.plot(5, 7, stone, 0);

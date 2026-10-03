@@ -24,6 +24,8 @@
       const p = game.player, out = [];
       if (game.scene) return game.scene.candidates();
       if (O.horseCandidate) { const hc = O.horseCandidate(); if (hc) out.push(hc); }
+      if (O.caravanCandidate) { const cc = O.caravanCandidate(); if (cc) out.push(cc); }
+      if (O.noticeCandidate) { const nc = O.noticeCandidate(); if (nc) out.push(nc); }
       for (const q of sim.people) { const a = q.agent; if (a.hidden) continue; const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < 26) out.push({ type: 'npc', person: q, d, x: a.x, y: a.y }); }
       const T = sim.T;
       for (const pr of sim.world.props) if (pr.kind === 'gravestone') { const d = Math.hypot(pr.x - p.x, pr.y - p.y); if (d < 20) out.push({ type: 'grave', prop: pr, d: d + 2, x: pr.x, y: pr.y - 14 }); }
@@ -50,6 +52,8 @@
         case 'door': return doorLocked(c.b) ? `${c.b.name} — locked` : `Enter ${c.b.type === 'house' ? 'house' : c.b.name}`;
         case 'container': return `Search ${c.it.kind}`;
         case 'grave': return 'Read the gravestone';
+        case 'caravan': return `Hail ${c.L.c.merchant}'s caravan`;
+        case 'notices': return 'Read the notice board';
         case 'horse': return `Look over ${c.h.owner === 'player' ? c.h.name : 'the horse'}`;
         case 'claim': return 'Claim the abandoned camp';
         case 'stash': return 'Open the stash';
@@ -166,6 +170,8 @@
         case 'container': search(cur.it, false); break;
         case 'claim': O.GangUI.claim(cur.b); break;
         case 'horse': O.inspectHorse(cur.h); break;
+        case 'caravan': O.caravanPanel(cur.L); break;
+        case 'notices': O.readNotices(); break;
         case 'stash': O.GangUI.stash(); break;
         case 'campbed': sleep(); break;
         case 'grave': { const g = cur.prop.grave; O.Panels.toast(g ? `“Here lies ${g.name}, ${g.age} years. ${g.cause.replace('died ', '').replace(/^./, (c) => c.toUpperCase())}.”` : 'The old stone is worn smooth; you can no longer read the name.'); break; }

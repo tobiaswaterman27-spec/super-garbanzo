@@ -31,6 +31,7 @@
       this.placeAll();
       this.justiceInit();
       this.gangsInit();
+      this.kingdom = new O.Kingdom(this);
       this._season = this.season;
     }
 
@@ -709,7 +710,7 @@
         hh.shopper = (adults.find((p) => !p.job || p.shift === 'night') || errand || adults[this.day % Math.max(1, adults.length)] || {}).id;
       }
       this.build.daily();
-      this.healthDaily(); this.lifeDaily(); this.justiceDaily(); this.gangsDaily();
+      this.healthDaily(); this.lifeDaily(); this.justiceDaily(); this.gangsDaily(); this.kingdom.daily();
       if (this.weekday === 3) this.immigrateMaybe();
       if (this.events) this.events = this.events.filter((e) => e.day >= this.day);
       const season = this.season;

@@ -60,6 +60,12 @@ input[type=range] { width: 100%; accent-color: var(--ember); }
 .ledger-btn { position: absolute; right: 12px; bottom: 12px; }
 .satchel-btn { position: absolute; right: 120px; bottom: 12px; }
 .gang-btn { position: absolute; right: 240px; bottom: 12px; }
+.map-btn { position: absolute; right: 344px; bottom: 12px; }
+.hud-b { max-width: calc(100% - 480px) !important; }
+.mapwrap { position: relative; width: 100%; max-width: 640px; margin: 0 auto; }
+.mapwrap canvas { width: 100%; height: auto; border: 2px solid #000; image-rendering: pixelated; }
+.maplabel { position: absolute; transform: translate(-50%, 6px); font-family: var(--pix); font-size: 9px; letter-spacing: .5px; color: #1b1424; background: rgba(232,220,192,.85); padding: 0 3px; white-space: nowrap; pointer-events: none; }
+.maplabel.here { background: var(--ember-2); }
 @media (max-width: 760px) { .hud-b { display: none; } }
 .kv small button, .ledger td button { background: var(--ink); color: var(--parch); border: 2px solid var(--line); padding: 1px 6px; cursor: pointer; font-family: var(--pix); font-size: 9px; }
 .ledger select { background: var(--ink); border: 2px solid var(--line); padding: 2px 4px; font-size: 12px; max-width: 220px; }
@@ -147,7 +153,7 @@ main > .wrap { overflow: auto; }
 </style>
 
 <header class="top">
-  <div class="brand">Outlaw<small>BUILD 0.10 · HORSE & HOUND</small></div>
+  <div class="brand">Outlaw<small>BUILD 0.11 · THE REALM</small></div>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" role="tab" aria-selected="true" data-tab="play">Play</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="forge">Character</button>
@@ -165,7 +171,7 @@ main > .wrap { overflow: auto; }
       <span class="lbl">Time</span>
       <div class="seg" id="speedSeg"></div>
     </div>
-    <div class="hud hud-b" id="hudB">WASD move · Shift run · E interact · Space strike · R weapon · H ride · Q steal · F loot · I satchel · G gang · L ledger</div>
+    <div class="hud hud-b" id="hudB">WASD move · Shift run · E interact · Space strike · R weapon · H ride · Q steal · F loot · I satchel · G gang · M map · L ledger</div>
   </section>
 
   <section class="wrap" id="tab-forge" hidden>
@@ -2226,6 +2232,15 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         B.part(2); const bm = P.mat(C.madder); B.poly([[3, 3], [9, 3], [9, 16], [6, 13], [3, 16]], [0, 0, 1], bm); for (let y = 3; y < 15; y++) B.shadeAt(8, y, 1); B.plot(5, 7, P.mat(P.metal.gold, 'metal'), 3); B.plot(6, 8, P.mat(P.metal.gold, 'metal'), 3); B.plot(5, 9, P.mat(P.metal.gold, 'metal'), 3);
         ox = 2; oy = 29; break;
       }
+      case 'noticeboard': {
+        B = new MB(24, 30); B.part(1); B.capsule(3, 29, 3, 6, 1, 1, wood); B.capsule(21, 29, 21, 6, 1, 1, wood);
+        B.part(2); B.rect(1, 4, 22, 16, P.mat('#7a5a3a', 'wood'), 2); for (let x = 1; x < 23; x++) { B.shadeAt(x, 4, 3); B.shadeAt(x, 19, 1); }
+        B.rect(0, 2, 24, 2, P.mat(P.wood.dark, 'wood'), 3);
+        B.part(3); const paper = P.mat('#ece2c8', 'cloth');
+        for (const [x, y, w, h] of [[3, 6, 6, 7], [10, 7, 5, 6], [16, 6, 5, 8], [5, 14, 7, 4]]) { B.rect(x, y, w, h, paper, 3); for (let yy = y + 1; yy < y + h - 1; yy += 2) for (let xx = x + 1; xx < x + w - 1; xx++) if ((xx + yy) % 3) B.shadeAt(xx, yy, 1); }
+        B.plot(12, 7, P.mat('#a8382f', 'cloth'), 3);
+        ox = 12; oy = 29; break;
+      }
       case 'gravestone': {
         B = new MB(10, 14); B.part(1); B.shape(1, 1, 9, 13, (px, py) => py > 4 ? Math.abs(px - 5) < 3.6 : (px - 5) ** 2 + (py - 4.5) ** 2 < 13, (px) => [(px - 5) / 4, 0, 0.8], stone);
         B.plot(5, 5, stone, 0); B.plot(4, 6, stone, 0); B.plot(5, 6, stone, 0); B.plot(6, 6, stone, 0); B.plot(5, 7, stone, 0);
@@ -3871,6 +3886,196 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
 </script>
 <script>
+// The kingdom: settlements simulated in the abstract (distance level 3), linked by roads, trading by
+// caravan, governed from Thornbury Castle. Ashford is the one settlement simulated in full; its
+// figures come from the detailed simulation.
+'use strict';
+(function () {
+  const GOODS = ['grain', 'iron', 'fish', 'wool', 'timber', 'cloth', 'wine', 'salt'];
+  const BASE = { grain: 2, iron: 8, fish: 3, wool: 4, timber: 3, cloth: 10, wine: 8, salt: 5 };
+
+  class Kingdom {
+    constructor(sim) {
+      this.sim = sim; this.rng = O.RNG(777);
+      this.treasury = 2400; this.taxRate = 0.08; this.news = []; this.caravans = []; this.councils = [];
+      const S = (o) => Object.assign({ wealth: 0.5, food: 1, security: 0.6, happiness: 0.6, crime: 0.2, health: 0.8, dev: 1, guards: 4, prices: {}, stock: {}, gang: 0.05, events: [] }, o);
+      // positions on a 64 x 40 map; region: north mountains, east wealth, south farms, west coast
+      this.places = [
+        S({ id: 'kingsbridge', name: 'Kingsbridge', kind: 'capital', region: 'east', x: 52, y: 20, pop: 4200, wealth: 0.85, produces: { cloth: 30, wine: 12, grain: 150 }, guards: 60, leader: 'the Lord Mayor of Kingsbridge', priority: 'trade' }),
+        S({ id: 'thornbury', name: 'Thornbury Castle', kind: 'castle', region: 'east', x: 47, y: 9, pop: 380, wealth: 0.9, produces: { grain: 14 }, guards: 80, leader: 'Lord Edmund of Thornbury', priority: 'security' }),
+        S({ id: 'saltmouth', name: 'Saltmouth', kind: 'port', region: 'west', x: 7, y: 22, pop: 1600, wealth: 0.6, produces: { fish: 60, salt: 25, wool: 10, grain: 20 }, guards: 18, leader: 'the Port-reeve of Saltmouth', priority: 'trade' }),
+        S({ id: 'harrowdale', name: 'Harrowdale', kind: 'town', region: 'north', x: 24, y: 6, pop: 900, wealth: 0.45, produces: { iron: 40, timber: 20, grain: 30 }, guards: 10, leader: 'the Steward of Harrowdale', priority: 'roads' }),
+        S({ id: 'greymoor', name: 'Greymoor', kind: 'village', region: 'north', x: 13, y: 9, pop: 160, wealth: 0.3, produces: { wool: 20, iron: 6, grain: 6 }, guards: 2, leader: 'the Headman of Greymoor', priority: 'food' }),
+        S({ id: 'wheatley', name: 'Wheatley', kind: 'village', region: 'south', x: 28, y: 33, pop: 340, wealth: 0.45, produces: { grain: 140, wine: 6 }, guards: 3, leader: 'the Reeve of Wheatley', priority: 'food' }),
+        S({ id: 'oakhollow', name: 'Oakhollow', kind: 'village', region: 'west', x: 16, y: 30, pop: 120, wealth: 0.3, produces: { timber: 40, grain: 5 }, guards: 1, leader: 'the Woodward of Oakhollow', priority: 'roads' }),
+        S({ id: 'ashford', name: 'Ashford', kind: 'village', region: 'south', x: 33, y: 22, pop: 80, wealth: 0.45, produces: { grain: 30, timber: 10 }, guards: 4, leader: 'the Reeve of Ashford', priority: 'security', detailed: true }),
+      ];
+      for (const p of this.places) for (const g of GOODS) { p.stock[g] = (p.produces[g] || 0) * 3 + 20; p.prices[g] = BASE[g]; }
+      // roads: [a, b, quality 0..1, danger 0..1, bridge]
+      this.roads = [
+        ['saltmouth', 'oakhollow', 0.5, 0.25, false], ['saltmouth', 'ashford', 0.7, 0.2, false], ['ashford', 'kingsbridge', 0.8, 0.15, true],
+        ['ashford', 'wheatley', 0.6, 0.1, false], ['ashford', 'harrowdale', 0.5, 0.3, false], ['harrowdale', 'greymoor', 0.35, 0.35, false],
+        ['harrowdale', 'thornbury', 0.6, 0.2, false], ['thornbury', 'kingsbridge', 0.9, 0.05, false], ['oakhollow', 'wheatley', 0.4, 0.3, false],
+      ].map(([a, b, q, d, br]) => ({ a, b, quality: q, danger: d, bridge: br, damaged: false }));
+    }
+    place(id) { return this.places.find((p) => p.id === id); }
+    road(a, b) { return this.roads.find((r) => (r.a === a && r.b === b) || (r.a === b && r.b === a)); }
+    neighbours(id) { return this.roads.filter((r) => r.a === id || r.b === id).map((r) => (r.a === id ? r.b : r.a)); }
+    dist(a, b) { const A = this.place(a), B = this.place(b); return Math.hypot(A.x - B.x, A.y - B.y); }
+    route(a, b) { // BFS by road (few nodes)
+      const prev = { [a]: null }, q = [a];
+      while (q.length) { const c = q.shift(); if (c === b) break; for (const n of this.neighbours(c)) if (!(n in prev) && !this.road(c, n).damaged) { prev[n] = c; q.push(n); } }
+      if (!(b in prev)) return null; const path = []; for (let c = b; c; c = prev[c]) path.unshift(c); return path;
+    }
+    addNews(text, kind = 'kingdom', place = null) {
+      this._last = this._last || {}; const key = kind + ':' + place;
+      if (place && ['migration', 'growth', 'decline'].includes(kind) && this._last[key] > this.sim.day - 6) return;
+      this._last[key] = this.sim.day;
+      this.news.push({ day: this.sim.day, text, kind, place }); if (this.news.length > 60) this.news.shift(); this.sim.log(text, 'kingdom'); }
+
+    daily() {
+      const sim = this.sim, r = this.rng, season = sim.season;
+      const ash = this.place('ashford');
+      // Ashford's figures come from the detailed simulation
+      const pop = sim.people.filter((p) => !p.visitor);
+      ash.pop = pop.length; ash.wealth = O.clamp(sim.households.filter((h) => !h.gone).reduce((s, h) => s + h.money, 0) / Math.max(1, sim.households.filter((h) => !h.gone).length) / 200, 0, 1);
+      ash.food = O.clamp(1 - pop.filter((p) => p.needs.hunger < 25).length / Math.max(1, pop.length) * 3, 0, 1.5);
+      ash.crime = O.clamp(sim.crimes.filter((c) => c.day > sim.day - 7).length / 8, 0, 1);
+      ash.health = 1 - pop.filter((p) => p.health.illness).length / Math.max(1, pop.length);
+      ash.guards = sim.people.filter((p) => p.job?.role?.startsWith('guard')).length;
+      ash.gang = Math.max(...sim.gangs.map((g) => g.influence), 0);
+      const seasonal = { spring: 0.6, summer: 1, autumn: 1.5, winter: 0.2 }[season];
+      for (const s of this.places) {
+        if (!s.detailed) {
+          // production and consumption
+          for (const [g, q] of Object.entries(s.produces)) s.stock[g] += q * (g === 'grain' || g === 'wine' ? seasonal : 1) * r.float(0.8, 1.2) * (s.happiness > 0.4 ? 1 : 0.7) * (s.events.includes('harvest failed') && g === 'grain' ? 0.3 : 1);
+          const need = s.pop / 25;
+          const eat = Math.min(need, s.stock.grain); s.stock.grain -= eat; const fish = Math.min(need - eat, s.stock.fish); s.stock.fish -= fish;
+          s.food = O.clamp((eat + fish) / need, 0, 1.5);
+          s.stock.timber = Math.max(0, s.stock.timber - s.pop / 400); s.stock.cloth = Math.max(0, s.stock.cloth - s.pop / 600);
+          // well-being
+          s.crime = O.clamp(s.crime + (s.food < 0.8 ? 0.02 : -0.01) + (s.gang - 0.1) * 0.02 - (s.guards / Math.max(1, s.pop / 60) - 1) * 0.01, 0.02, 0.9);
+          s.health = O.clamp(s.health + (s.food < 0.7 ? -0.02 : 0.01) + (r.chance(0.01) ? -0.25 : 0), 0.3, 1);
+          s.happiness = O.clamp(0.25 + s.food * 0.3 + s.wealth * 0.2 + s.health * 0.2 - s.crime * 0.3 - this.taxRate, 0, 1);
+          // migration and growth
+          if (s.happiness < 0.38 && s.pop > 40) { const n = Math.ceil(s.pop * 0.01); s.pop -= n; const to = this.place(this.neighbours(s.id).sort((a, b) => this.place(b).happiness - this.place(a).happiness)[0]); if (to && !to.detailed) to.pop += n; if (to && to.detailed && this.sim.immigrateMaybe) this.sim.immigrateMaybe(); this.addNews(`Families are leaving ${s.name}; ${n} more took the road this week to ${to?.name || 'elsewhere'}.`, 'migration', s.id); }
+          else if (s.happiness > 0.62 && s.food > 1) s.pop += Math.ceil(s.pop * 0.004);
+          s.wealth = O.clamp(s.wealth + (s.happiness - 0.5) * 0.004 + (s.tradeToday || 0) / 5000, 0.05, 1);
+          const devT = Math.floor(s.wealth * 4 + s.pop / 1500);
+          if (devT > s.dev && r.chance(0.2)) { s.dev++; this.addNews(`${s.name} is growing: a new market hall and houses are going up.`, 'growth', s.id); }
+          if (devT < s.dev - 1 && r.chance(0.2)) { s.dev--; this.addNews(`${s.name} is in decline; shops stand empty in the high street.`, 'decline', s.id); }
+          s.tradeToday = 0;
+          // occasional events
+          if (season === 'autumn' && s.produces.grain && r.chance(0.04) && !s.events.includes('harvest failed')) { s.events.push('harvest failed'); this.addNews(`The harvest has failed at ${s.name}. Grain will be dear this winter.`, 'harvest', s.id); }
+          if (season !== 'autumn') s.events = s.events.filter((e) => e !== 'harvest failed');
+        }
+        // prices: base x supply x demand x region
+        for (const g of GOODS) {
+          const need = g === 'grain' ? s.pop / 25 * 6 : s.pop / 80 + 10;
+          const supply = O.clamp(Math.sqrt(need / (s.stock[g] + 1)), 0.5, 3);
+          const region = { east: 1.15, west: 1, north: 0.95, south: 0.95 }[s.region];
+          s.prices[g] = +(BASE[g] * supply * region).toFixed(1);
+        }
+      }
+      // caravans: surplus goods go where they fetch the best price
+      if (r.chance(0.9)) this.spawnCaravan();
+      for (const c of this.caravans) this.advanceCaravan(c);
+      this.caravans = this.caravans.filter((c) => !c.done);
+      // the crown collects taxes
+      for (const s of this.places) if (!s.detailed) { const t = s.pop * s.wealth * this.taxRate * 0.05; this.treasury += t; }
+      // storms may damage roads/bridges (repair needs a council decision)
+      if (sim.weather.kind === 'storm' && r.chance(0.3)) { const rd = r.pick(this.roads.filter((x) => !x.damaged)); if (rd) { rd.damaged = true; this.addNews(`Storm damage has closed the road between ${this.place(rd.a).name} and ${this.place(rd.b).name}.`, 'roads'); } }
+      // council each season
+      if (sim.weather.dayOfSeason === 3) this.council();
+    }
+
+    spawnCaravan() {
+      const r = this.rng; const g = r.pick(GOODS);
+      const from = this.places.filter((p) => (p.produces[g] || 0) > 0 && p.stock[g] > 40).sort((a, b) => b.stock[g] - a.stock[g])[0];
+      if (!from) return;
+      const to = this.places.filter((p) => p !== from && p.prices[g] > from.prices[g] * 1.25).sort((a, b) => b.prices[g] - a.prices[g])[0];
+      if (!to) return;
+      const path = this.route(from.id, to.id); if (!path) return;
+      const qty = Math.min(Math.floor(from.stock[g] * 0.5), 80); from.stock[g] -= qty;
+      const danger = Math.max(...path.slice(1).map((n, i) => this.road(path[i], n).danger));
+      const merchant = r.pick(['Hugh Chapman', 'Alis Mercer', 'Robert Packer', 'Gilbert of Saltmouth', 'Joan Draper', 'Walter Vintner', 'Simon Ironside']);
+      const c = { id: Math.random().toString(36).slice(2, 7), good: g, qty, from: from.id, to: to.id, path, leg: 0, prog: 0, value: Math.round(qty * from.prices[g]), merchant, guards: danger > 0.25 ? 3 : danger > 0.15 ? 2 : 1, done: false };
+      this.caravans.push(c);
+    }
+    advanceCaravan(c) {
+      if (c.held) return;
+      const r = this.rng;
+      const a = c.path[c.leg], b = c.path[c.leg + 1];
+      if (!b) { this.arrive(c); return; }
+      const road = this.road(a, b);
+      if (road.damaged) { c.path = this.route(a, c.to) || c.path; if (this.road(a, c.path[1] || a)?.damaged) return; }
+      c.prog += (0.6 + road.quality * 0.6) / Math.max(1, this.dist(a, b) / 10);
+      // bandits on the road (influence of gangs raises the risk)
+      const gang = Math.max(...this.sim.gangs.map((g) => g.influence), 0);
+      if (r.chance(road.danger * 0.08 + gang * 0.04) && c.guards < 3) { c.done = true; this.robbed(c, 'bandits on the road between ' + this.place(a).name + ' and ' + this.place(b).name); return; }
+      // passing through Ashford: the caravan becomes visible on the King's Road
+      if (b === 'ashford' && c.prog >= 1 && !c.shown) { c.shown = true; c.held = true; this.sim.caravanArrives && this.sim.caravanArrives(c); return; }
+      if (c.prog >= 1) { c.prog = 0; c.leg++; }
+    }
+    arrive(c) {
+      const to = this.place(c.to); to.stock[c.good] += c.qty; to.tradeToday = (to.tradeToday || 0) + c.value;
+      const from = this.place(c.from); from.wealth = O.clamp(from.wealth + c.value / 20000, 0, 1);
+      c.done = true;
+    }
+    robbed(c, where) {
+      const to = this.place(c.to);
+      // merchants grow wary: the roads they use get more dangerous in their eyes, and prices rise
+      for (let i = 0; i < c.path.length - 1; i++) { const rd = this.road(c.path[i], c.path[i + 1]); rd.danger = Math.min(0.9, rd.danger + 0.05); }
+      to.prices[c.good] = +(to.prices[c.good] * 1.15).toFixed(1);
+      this.addNews(`A caravan of ${c.good} bound for ${to.name} was robbed by ${where}. Merchants are hiring more guards.`, 'crime', c.to);
+    }
+
+    // The castle council: leaders weigh the kingdom's troubles and vote.
+    council() {
+      const r = this.rng, sim = this.sim;
+      const issues = [];
+      for (const s of this.places) {
+        if (s.crime > 0.35 || (s.detailed && s.gang > 0.25)) issues.push({ kind: 'security', s, cost: 120, text: `send more men-at-arms to ${s.name}` });
+        if (s.food < 0.85) issues.push({ kind: 'food', s, cost: 150, text: `send grain to hungry ${s.name}` });
+        if (s.health < 0.6) issues.push({ kind: 'health', s, cost: 100, text: `pay physicians to go to ${s.name}` });
+      }
+      for (const rd of this.roads) if (rd.damaged || rd.quality < 0.45) issues.push({ kind: 'roads', rd, cost: 200, text: `${rd.damaged ? 'repair' : 'improve'} the road from ${this.place(rd.a).name} to ${this.place(rd.b).name}` });
+      const outlaw = O.PlayerState && (O.PlayerState.bounty || (sim.playerGang && sim.playerGang() && sim.playerGang().influence > 0.2));
+      if (outlaw) issues.push({ kind: 'bounty', cost: 60, text: 'post a bounty on the outlaws troubling Ashford' });
+      if (this.treasury < 600) issues.push({ kind: 'tax', cost: 0, text: 'raise the crown tax' });
+      if (!issues.length) { this.addNews('The council met at Thornbury Castle and found little to trouble it.', 'politics'); return; }
+      const agenda = issues.sort(() => r.next() - 0.5).slice(0, 3);
+      const leaders = this.places.filter((p) => p.leader);
+      const record = { day: sim.day, items: [] };
+      for (const it of agenda) {
+        let yes = 0;
+        const votes = leaders.map((l) => {
+          let v = 0.45 + (l.priority === it.kind ? 0.35 : 0) + (it.s === l ? 0.3 : 0) - (it.cost > 150 ? 0.1 : 0) - (it.kind === 'tax' ? (l.id === 'thornbury' ? -0.4 : 0.25) : 0) + r.float(-0.2, 0.2);
+          const aye = v > 0.5; if (aye) yes++; return { who: l.leader, aye };
+        });
+        const pass = yes > leaders.length / 2 && this.treasury >= it.cost;
+        record.items.push({ text: it.text, pass, yes, of: leaders.length, votes });
+        if (!pass) continue;
+        this.treasury -= it.cost;
+        if (it.kind === 'security') { it.s.guards += 2; it.s.crime = Math.max(0.05, it.s.crime - 0.1); if (it.s.detailed) { sim.treasury.cash += 80; const gh = sim.biz.get(sim.guardId); if (gh) gh.def = Object.assign({}, gh.def, { jobs: [gh.def.jobs[0], ['guard', gh.def.jobs[1][1] + 1]] }); } }
+        if (it.kind === 'food') { it.s.stock.grain += 200; if (it.s.detailed) { const bk = sim.supplierOf('mill'); if (bk) bk.stock.wheat += 60; } }
+        if (it.kind === 'health') { it.s.health = Math.min(1, it.s.health + 0.2); if (it.s.detailed) { const d = sim.biz.get(sim.docId); if (d) { d.stock.medicine += 10; d.cash += 30; } } }
+        if (it.kind === 'roads') { it.rd.damaged = false; it.rd.quality = Math.min(1, it.rd.quality + 0.25); }
+        if (it.kind === 'bounty') { O.PlayerState.bountyAmount = (O.PlayerState.bountyAmount || 0) + 40; }
+        if (it.kind === 'tax') this.taxRate = Math.min(0.15, this.taxRate + 0.02);
+      }
+      this.councils.push(record);
+      const passed = record.items.filter((x) => x.pass).map((x) => x.text);
+      this.addNews(passed.length ? `The council at Thornbury Castle voted to ${passed.join('; and to ')}.` : `The council at Thornbury Castle argued long and agreed nothing.`, 'politics');
+      for (const x of record.items.filter((i) => !i.pass)) this.addNews(`The motion to ${x.text} was defeated, ${x.yes} votes to ${x.of - x.yes}.`, 'politics');
+    }
+  }
+
+  O.Kingdom = Kingdom; O.KGOODS = GOODS;
+})();
+
+</script>
+<script>
 // The living settlement simulation.
 //
 // Every resident is a Person with a family, a home, maybe a job, a purse shared with their household,
@@ -3904,6 +4109,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       this.placeAll();
       this.justiceInit();
       this.gangsInit();
+      this.kingdom = new O.Kingdom(this);
       this._season = this.season;
     }
 
@@ -4582,7 +4788,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         hh.shopper = (adults.find((p) => !p.job || p.shift === 'night') || errand || adults[this.day % Math.max(1, adults.length)] || {}).id;
       }
       this.build.daily();
-      this.healthDaily(); this.lifeDaily(); this.justiceDaily(); this.gangsDaily();
+      this.healthDaily(); this.lifeDaily(); this.justiceDaily(); this.gangsDaily(); this.kingdom.daily();
       if (this.weekday === 3) this.immigrateMaybe();
       if (this.events) this.events = this.events.filter((e) => e.day >= this.day);
       const season = this.season;
@@ -5604,7 +5810,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   const G = O.Data.GOODS;
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const ACT_LABEL = {
-    sleep: 'asleep', work: 'working', fieldwork: 'working the fields', chop: 'felling timber', gangmeet: 'meeting at the hideout', report: 'reporting a crime to the watch', investigate: 'investigating a crime', jailed: 'locked in the cell', market: 'coming to market', service: 'in service at a house', sick: 'ill in bed', collapsed: 'collapsed!', help: 'running to help someone', escort: 'helping a patient to the physician', 'to-doctor': 'going to the physician', treated: 'being treated by the physician', mourn: 'at a funeral', wedding: 'at a wedding', build: 'building the new house', 'move-in': 'moving to Ashford', forage: 'gathering herbs', patrol: 'on patrol', eat: 'having a meal', 'eat-out': 'eating at the tavern',
+    sleep: 'asleep', work: 'working', fieldwork: 'working the fields', chop: 'felling timber', council: 'away at the castle council', cry: 'crying the news', gangmeet: 'meeting at the hideout', report: 'reporting a crime to the watch', investigate: 'investigating a crime', jailed: 'locked in the cell', market: 'coming to market', service: 'in service at a house', sick: 'ill in bed', collapsed: 'collapsed!', help: 'running to help someone', escort: 'helping a patient to the physician', 'to-doctor': 'going to the physician', treated: 'being treated by the physician', mourn: 'at a funeral', wedding: 'at a wedding', build: 'building the new house', 'move-in': 'moving to Ashford', forage: 'gathering herbs', patrol: 'on patrol', eat: 'having a meal', 'eat-out': 'eating at the tavern',
     home: 'at home', play: 'playing', shop: 'shopping', socialise: 'drinking at the Lantern', sit: 'resting on the bench', stroll: 'taking the air', worship: 'at chapel',
     'wait-work': 'waiting for carrying work', pickup: 'collecting goods', deliver: 'making a delivery', 'carry-home': 'carrying shopping home', import: 'bringing goods to market', rest: 'resting at the inn', leave: 'leaving town',
   };
@@ -5771,6 +5977,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const p = game.player, out = [];
       if (game.scene) return game.scene.candidates();
       if (O.horseCandidate) { const hc = O.horseCandidate(); if (hc) out.push(hc); }
+      if (O.caravanCandidate) { const cc = O.caravanCandidate(); if (cc) out.push(cc); }
+      if (O.noticeCandidate) { const nc = O.noticeCandidate(); if (nc) out.push(nc); }
       for (const q of sim.people) { const a = q.agent; if (a.hidden) continue; const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < 26) out.push({ type: 'npc', person: q, d, x: a.x, y: a.y }); }
       const T = sim.T;
       for (const pr of sim.world.props) if (pr.kind === 'gravestone') { const d = Math.hypot(pr.x - p.x, pr.y - p.y); if (d < 20) out.push({ type: 'grave', prop: pr, d: d + 2, x: pr.x, y: pr.y - 14 }); }
@@ -5797,6 +6005,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         case 'door': return doorLocked(c.b) ? `${c.b.name} — locked` : `Enter ${c.b.type === 'house' ? 'house' : c.b.name}`;
         case 'container': return `Search ${c.it.kind}`;
         case 'grave': return 'Read the gravestone';
+        case 'caravan': return `Hail ${c.L.c.merchant}'s caravan`;
+        case 'notices': return 'Read the notice board';
         case 'horse': return `Look over ${c.h.owner === 'player' ? c.h.name : 'the horse'}`;
         case 'claim': return 'Claim the abandoned camp';
         case 'stash': return 'Open the stash';
@@ -5913,6 +6123,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         case 'container': search(cur.it, false); break;
         case 'claim': O.GangUI.claim(cur.b); break;
         case 'horse': O.inspectHorse(cur.h); break;
+        case 'caravan': O.caravanPanel(cur.L); break;
+        case 'notices': O.readNotices(); break;
         case 'stash': O.GangUI.stash(); break;
         case 'campbed': sleep(); break;
         case 'grave': { const g = cur.prop.grave; O.Panels.toast(g ? `“Here lies ${g.name}, ${g.age} years. ${g.cause.replace('died ', '').replace(/^./, (c) => c.toUpperCase())}.”` : 'The old stone is worn smooth; you can no longer read the name.'); break; }
@@ -6940,6 +7152,189 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
 </script>
 <script>
+// The kingdom made visible: caravans that physically pass along the King's Road (and can be robbed),
+// the town crier, the notice board, the reeve riding to council, and a pixel map of the realm.
+'use strict';
+(function () {
+  const PS = O.PlayerState, esc = (s) => O.escape(s);
+  const WEST = ['saltmouth', 'oakhollow'];
+
+  function setup(game, sim, npcUI) {
+    const K = sim.kingdom, T = sim.T, Ch = O.Char;
+    const live = []; // caravans currently in Ashford
+
+    // ---------------- caravans on the King's Road ----------------
+    sim.caravanArrives = (c) => {
+      const prev = c.path[c.leg], fromWest = WEST.includes(prev) || (prev === 'ashford' && WEST.includes(c.from));
+      const dir = fromWest ? 1 : -1;
+      const x0 = fromWest ? 2 : sim.world.W * T - 2, y = 30 * T + 22;
+      const members = [];
+      const mk = (role, i) => { const a = Ch.makeAppearance(O.hash('car', c.id, i), { role, age: 25 + (i * 7) % 30, wealth: role === 'merchant' ? 0.7 : 0.4, region: K.place(c.from).region }); return { a, x: x0 - dir * i * 22, y: y - (i % 2) * 6, dir: dir > 0 ? 2 : 1, anim: 'walk', ft: i * 0.3, role, caravan: c }; };
+      members.push(mk('merchant', 0));
+      for (let i = 0; i < c.guards; i++) members.push(mk('guard', i + 1));
+      const cart = { cart: true, x: x0 - dir * 12, y: y + 4, dir, caravan: c };
+      live.push({ c, members, cart, dir, done: false, robbed: false });
+      sim.log(`A caravan of ${c.qty} ${c.good} from ${K.place(c.from).name} to ${K.place(c.to).name} is coming along the King's Road.`, 'trade');
+    };
+    const cartSprite = O.Env.prop('cart', 9, 1);
+    game.hooks.update.push((dt) => {
+      const dtm = dt * game.clock.speed;
+      for (const L of live) {
+        if (L.halted) { L.members.forEach((m) => (m.anim = 'idle')); continue; }
+        const step = 34 * Math.min(dtm, 4) * L.dir;
+        for (const m of L.members) { m.x += step; m.ft += dt; m.anim = 'walk'; }
+        L.cart.x += step;
+        const out = L.dir > 0 ? L.cart.x > sim.world.W * T + 30 : L.cart.x < -30;
+        if (out) { L.done = true; L.c.held = false; L.c.prog = 0; L.c.leg++; }
+      }
+      for (let i = live.length - 1; i >= 0; i--) if (live[i].done) live.splice(i, 1);
+      if (!game.scene) game.actors = [...game.actors.filter((a) => !a.caravan), ...live.flatMap((L) => L.members)];
+    });
+    game.hooks.drawWorld.push((ctx, cam) => {
+      for (const L of live) { const sp = cartSprite; const x = Math.round(L.cart.x - sp.ox - cam.x), y = Math.round(L.cart.y - sp.oy - cam.y); if (L.dir < 0) { ctx.save(); ctx.translate(x + sp.W, y); ctx.scale(-1, 1); ctx.drawImage(sp.canvas, 0, 0); ctx.restore(); } else ctx.drawImage(sp.canvas, x, y); }
+    });
+    // the caravan master can be talked to, traded with, or robbed
+    O.caravanCandidate = () => {
+      if (game.scene) return null;
+      for (const L of live) { const m = L.members[0]; const d = Math.hypot(m.x - game.player.x, m.y - game.player.y); if (d < 28) return { type: 'caravan', L, d, x: m.x, y: m.y }; }
+      return null;
+    };
+    O.caravanPanel = (L) => {
+      const c = L.c; L.halted = true;
+      const gangHere = sim.playerGang() ? sim.playerGang().members.filter((m) => { const p = sim.byId.get(m.id); return p && !p.agent.hidden && Math.hypot(p.agent.x - game.player.x, p.agent.y - game.player.y) < 160; }).length : 0;
+      const odds = O.clamp(0.25 + PS.rep.criminal * 0.4 + gangHere * 0.15 + (O.Combat && O.Combat.armed() ? 0.15 : 0) - c.guards * 0.12, 0.05, 0.9);
+      O.Panels.open(`${c.merchant}'s caravan`, `<p class="caption">${c.qty} loads of ${c.good}, from ${esc(K.place(c.from).name)} to ${esc(K.place(c.to).name)}. ${c.guards} hired guard${c.guards > 1 ? 's' : ''} walk beside the cart.</p>
+        <p class="speech">“Fair day. We'll be in ${esc(K.place(c.to).name)} by the week's end, God and the roads willing.”</p>
+        <div class="topics"><button data-a="ask">Ask about the road</button><button data-a="rob">Demand the cargo (${Math.round(odds * 100)}% they yield)</button><button data-a="go">Let them pass</button></div>`, (r) => {
+        r.querySelector('[data-a=go]').onclick = () => { L.halted = false; O.Panels.close(); };
+        r.querySelector('[data-a=ask]').onclick = () => { const nw = K.news.slice(-3).map((n) => n.text); O.Panels.toast(`${c.merchant}: “${nw.length ? nw[sim.rng.int(0, nw.length - 1)] : 'Quiet roads, thank God.'}”`); };
+        r.querySelector('[data-a=rob]').onclick = () => {
+          O.Panels.close();
+          const seen = [...sim.seers(game.player.x, game.player.y)];
+          const cr = sim.recordCrime({ kind: 'caravan robbery', perp: 'player', placeName: "the King's Road", tile: [Math.floor(game.player.x / T), 30], seen, severity: 4 });
+          // the caravan's own people are witnesses too (they describe you in the next town)
+          const look = O.Justice.lookOf(game.player.a);
+          cr.witnesses.push({ id: -1, desc: O.Justice.remembered(look, 0.8, sim.rng), acc: 0.8 }); cr.reported = true; cr.profile = O.Justice.vote(cr.witnesses.map((w) => w.desc)); cr.investigated = true; cr.evidence = 1.5;
+          PS.crimes.push(cr.id); PS.bounty = true; PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.15); PS.rep.merchant = Math.max(-1, PS.rep.merchant - 0.3);
+          if (sim.rng.chance(odds)) {
+            const coin = Math.round(c.value * 0.35); PS.money += coin; L.robbed = true; c.done = true; L.done = true;
+            const g = sim.playerGang(); if (g) { g.purse += Math.round(c.value * 0.15); g.recentJobs = (g.recentJobs || 0) + 2; }
+            K.robbed(c, 'outlaws on the King\'s Road near Ashford');
+            O.Panels.toast(`The guards throw down their staves. You take ${coin}d of goods and coin${g ? ' (and a share for the band)' : ''}.`, 'bad');
+          } else {
+            L.halted = false;
+            const dmg = 15 + c.guards * 8; PS.hp = Math.max(5, PS.hp - dmg);
+            O.Panels.toast(`The caravan guards beat you back! (−${dmg} health) They'll describe you in every town on the road.`, 'bad');
+          }
+        };
+      });
+    };
+
+    // ---------------- reeve to council, crier, notices ----------------
+    const reeve = sim.people.filter((p) => p.age >= 35 && !p.visitor && !p.job?.role?.startsWith('guard') && !p.gang).sort((a, b) => sim.household(b).money - sim.household(a).money)[0];
+    if (reeve) { reeve.title = 'Reeve of Ashford'; sim.reeveId = reeve.id; }
+    const _plan = sim.plan.bind(sim);
+    sim.plan = (p) => {
+      const dos = sim.weather.dayOfSeason, h = sim.hour;
+      if (p.id === sim.reeveId && !p.health.illness) {
+        if ((dos === 2 && h >= 8) || dos === 3 || (dos === 4 && h < 12)) return { act: 'council', outdoor: true, zone: 'east' };
+      }
+      if (p.job?.role === 'priest' && sim.weekday !== 6 && ((h >= 8.75 && h < 9.4) || (h >= 16.75 && h < 17.4))) return { act: 'cry', outdoor: true, zone: 'crier' };
+      return _plan(p);
+    };
+    const _zone = sim.zoneTile.bind(sim);
+    sim.zoneTile = (p, zone) => { if (zone === 'crier') return [44, 28]; if (zone === 'east') return [95, 31]; return _zone(p, zone); };
+    // the reeve disappears up the road while away
+    game.hooks.update.push(() => {
+      const rv = sim.byId.get(sim.reeveId);
+      if (rv && rv.activity?.act === 'council' && !rv.agent.path && rv.agent.x > 93 * T) rv.agent.hidden = true;
+      else if (rv && rv.activity?.act !== 'council' && rv.agent.hidden && rv.agent.inside == null) { rv.agent.hidden = false; }
+    });
+    // the crier calls the news when the player is within earshot
+    let lastCry = -1;
+    game.hooks.update.push(() => {
+      const cr = sim.people.find((p) => p.activity?.act === 'cry' && !p.agent.path && !p.agent.hidden);
+      if (!cr || game.scene) return;
+      const slot = sim.day * 2 + (sim.hour > 12 ? 1 : 0);
+      if (slot === lastCry) return;
+      if (Math.hypot(cr.agent.x - game.player.x, cr.agent.y - game.player.y) > 170) return;
+      lastCry = slot; cr.agent.talking = 60;
+      const items = [...K.news.slice(-2).map((n) => n.text), ...(PS.bountyAmount && PS.wantedLevel() >= 2 ? [`A reward of ${PS.bountyAmount}d is offered for the outlaw: ${PS.soughtFor()}.`] : [])];
+      O.Panels.toast(`${cr.first} the crier: “Hear ye, hear ye! ${items.length ? items.join(' ') : 'All is well in Ashford.'}”`);
+    });
+
+    // notice board in the square
+    sim.world.props.push({ kind: 'noticeboard', x: 42 * T + 8, y: 29 * T + 14, seed: 5, solid: true }); sim.world.solid[29 * sim.world.W + 42] = 1; sim.world.dirtyStatics = true;
+    O.noticeCandidate = () => { if (game.scene) return null; const nb = sim.world.props.find((p) => p.kind === 'noticeboard'); const d = Math.hypot(nb.x - game.player.x, nb.y - game.player.y); return d < 22 ? { type: 'notices', d: d + 1, x: nb.x, y: nb.y - 26 } : null; };
+    O.readNotices = () => {
+      const wanted = sim.crimes.filter((c) => c.perp !== 'player' && c.investigated && !c.solved && Object.keys(c.profile || {}).length).slice(-3);
+      const mine = PS.wantedLevel() >= 1 ? `<li><b>WANTED</b> for ${PS.crimes.length} crime${PS.crimes.length > 1 ? 's' : ''}: ${esc(PS.soughtFor() || 'a stranger')}.${PS.bountyAmount ? ` Reward ${PS.bountyAmount}d.` : ''}</li>` : '';
+      const prices = K.places.filter((p) => !p.detailed).map((p) => `<tr><td>${esc(p.name)}</td><td class="n">${p.prices.grain}d</td><td class="n">${p.prices.iron}d</td><td class="n">${p.prices.cloth}d</td></tr>`).join('');
+      O.Panels.open('Notice board', `<ol class="chron">${mine}${wanted.map((c) => `<li>Sought: ${esc(O.Justice.describe(c.profile))}, for ${esc(c.kind)} at ${esc(c.placeName || 'Ashford')}.</li>`).join('')}${K.councils.slice(-1).flatMap((r) => r.items.map((i) => `<li>By order of the council (day ${r.day}): to ${esc(i.text)} — ${i.pass ? 'CARRIED' : 'defeated'} ${i.yes}–${i.of - i.yes}.</li>`)).join('')}${K.news.slice(-4).reverse().map((n) => `<li>${esc(n.text)}</li>`).join('')}</ol>
+        <div class="lbl" style="margin-top:12px">Prices at market, by the last carter</div><table><thead><tr><th>Town</th><th class="n">Grain</th><th class="n">Iron</th><th class="n">Cloth</th></tr></thead><tbody>${prices}</tbody></table>`);
+    };
+
+    // ---------------- the kingdom map ----------------
+    let mapCanvas = null;
+    function renderMap() {
+      const W = 64, H = 40, S = 8; const c = document.createElement('canvas'); c.width = W * S; c.height = H * S;
+      const ctx = c.getContext('2d'); const img = ctx.createImageData(W * S, H * S);
+      const P = O.Pal; const R = { sea: P.makeRamp('#3a6a8a', 0.6), grass: P.makeRamp('#6a8a44', 0.6), farm: P.makeRamp('#a89a50', 0.6), forest: P.makeRamp('#3a5a34', 0.7), hill: P.makeRamp('#8a8070', 0.7), snow: P.makeRamp('#dfe4ea', 0.4) };
+      for (let y = 0; y < H * S; y++) for (let x = 0; x < W * S; x++) {
+        const mx = x / S, my = y / S, n = O.fbm(mx / 6, my / 6, 3, 3), f = O.noise2(x * 0.7, y * 0.7, 2);
+        const coast = 3.5 + Math.sin(my / 4) * 1.5 + n * 2;
+        let ramp, s = n > 0.55 ? 3 : n > 0.4 ? 2 : 1;
+        if (mx < coast) { ramp = R.sea; s = f > 0.85 ? 3 : 1; }
+        else if (my < 10 + n * 4) ramp = my < 5 + n * 3 ? R.snow : R.hill;
+        else if (my > 28 - n * 3) ramp = R.farm;
+        else if (n > 0.58) ramp = R.forest;
+        else ramp = R.grass;
+        if (f > 0.93) s = Math.min(4, s + 1);
+        const col = ramp[s], i = (y * W * S + x) * 4; img.data[i] = col[0]; img.data[i + 1] = col[1]; img.data[i + 2] = col[2]; img.data[i + 3] = 255;
+      }
+      ctx.putImageData(img, 0, 0);
+      return c;
+    }
+    function drawMap(cv) {
+      const S = 8, ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = false;
+      if (!mapCanvas) mapCanvas = renderMap();
+      ctx.drawImage(mapCanvas, 0, 0);
+      for (const rd of K.roads) {
+        const a = K.place(rd.a), b = K.place(rd.b), n = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) * S);
+        for (let i = 0; i <= n; i++) { const x = Math.round((a.x + (b.x - a.x) * i / n) * S), y = Math.round((a.y + (b.y - a.y) * i / n) * S); ctx.fillStyle = rd.damaged ? (i % 6 < 3 ? '#a8382f' : 'transparent') : rd.quality > 0.7 ? '#e0cfa0' : '#b39a6a'; if (ctx.fillStyle !== 'transparent' && ctx.fillStyle !== '#00000000') ctx.fillRect(x, y, 2, 2); }
+      }
+      for (const s of K.places) {
+        const x = s.x * S, y = s.y * S, sz = s.kind === 'capital' ? 6 : s.kind === 'castle' ? 5 : s.kind === 'town' || s.kind === 'port' ? 4 : 3;
+        ctx.fillStyle = '#1b1424'; ctx.fillRect(x - sz - 1, y - sz - 1, sz * 2 + 3, sz * 2 + 3);
+        ctx.fillStyle = s.detailed ? '#f0b45c' : s.kind === 'castle' ? '#c8ccd4' : s.happiness < 0.4 ? '#c87060' : '#e8dcc0';
+        ctx.fillRect(x - sz, y - sz, sz * 2 + 1, sz * 2 + 1);
+        if (s.kind === 'castle' || s.kind === 'capital') { ctx.fillStyle = '#1b1424'; for (let k = -sz; k <= sz; k += 2) ctx.fillRect(x + k, y - sz - 1, 1, 1); }
+      }
+      for (const c of K.caravans) {
+        const a = K.place(c.path[c.leg]), b = K.place(c.path[c.leg + 1] || c.path[c.leg]); const t = O.clamp(c.prog, 0, 1);
+        const x = Math.round((a.x + (b.x - a.x) * t) * S), y = Math.round((a.y + (b.y - a.y) * t) * S);
+        ctx.fillStyle = '#1b1424'; ctx.fillRect(x - 2, y - 2, 5, 5); ctx.fillStyle = '#d9893a'; ctx.fillRect(x - 1, y - 1, 3, 3);
+      }
+    }
+    O.openMap = () => {
+      const rows = K.places.map((s) => `<tr><td><b>${esc(s.name)}</b><br><small class="lbl">${s.kind} · ${s.region}</small></td><td class="n">${s.pop}</td><td><span class="bar ${s.food < 0.85 ? 'warn' : ''}"><i style="width:${Math.round(Math.min(1, s.food) * 100)}%"></i></span></td><td><span class="bar ${s.happiness < 0.4 ? 'warn' : ''}"><i style="width:${Math.round(s.happiness * 100)}%"></i></span></td><td><span class="bar ${s.crime > 0.35 ? 'warn' : ''}"><i style="width:${Math.round(s.crime * 100)}%"></i></span></td><td class="n">${s.prices.grain}d</td></tr>`).join('');
+      O.Panels.open('The Kingdom', `<div class="mapwrap"><canvas id="kmap" width="512" height="320"></canvas></div>
+        <p class="caption">Ashford is gold. Orange marks are caravans on the roads; red dashes are roads closed by damage. Crown treasury ${O.money(K.treasury)}, crown tax ${Math.round(K.taxRate * 100)}%.</p>
+        <table><thead><tr><th>Settlement</th><th class="n">People</th><th>Food</th><th>Content</th><th>Crime</th><th class="n">Grain</th></tr></thead><tbody>${rows}</tbody></table>
+        <div class="lbl" style="margin-top:12px">News from the realm</div><ol class="chron">${K.news.slice(-8).reverse().map((n) => `<li><span class="lbl">Day ${n.day}</span> ${esc(n.text)}</li>`).join('') || '<li>No news yet.</li>'}</ol>`, () => {
+        const cv = document.getElementById('kmap'); drawMap(cv);
+        // place labels as DOM so the type stays sharp
+        const wrap = cv.parentElement; for (const s of K.places) { const l = document.createElement('span'); l.className = 'maplabel' + (s.detailed ? ' here' : ''); l.textContent = s.name; l.style.left = (s.x / 64 * 100) + '%'; l.style.top = (s.y / 40 * 100) + '%'; wrap.appendChild(l); }
+      });
+      const inner = document.querySelector('.panel-modal .ledger-in'); if (inner) inner.classList.remove('narrow');
+    };
+    game.keyHandlers.push((e) => { if (e.code === 'KeyM' && !O.panelOpen) { O.openMap(); return true; } return false; });
+  }
+  O.KingdomUI = { setup };
+})();
+
+</script>
+<script>
 // Character creation screen: builds the player's Appearance from explicit choices,
 // with a live 4-direction animated preview, a generated crowd and a genetics demo.
 'use strict';
@@ -7318,6 +7713,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   O.GangUISetup.setup(game, sim, npcUI);
   O.CombatSetup.setup(game, sim, npcUI);
   O.HorsesSetup.setup(game, sim, npcUI);
+  O.KingdomUI.setup(game, sim, npcUI);
+  const mbtn = document.createElement('button'); mbtn.className = 'btn ghost map-btn'; mbtn.textContent = 'Map (M)';
+  mbtn.onclick = () => (O.panelOpen ? O.Panels.close() : O.openMap()); $('tab-play').appendChild(mbtn);
   const gbtn = document.createElement('button'); gbtn.className = 'btn ghost gang-btn'; gbtn.textContent = 'Gang (G)';
   gbtn.onclick = () => (O.panelOpen ? O.Panels.close() : O.GangUI.ledger()); $('tab-play').appendChild(gbtn);
   const sbtn = document.createElement('button'); sbtn.className = 'btn ghost satchel-btn'; sbtn.textContent = 'Satchel (I)';

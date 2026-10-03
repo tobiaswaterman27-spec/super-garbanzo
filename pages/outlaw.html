@@ -60,6 +60,12 @@ input[type=range] { width: 100%; accent-color: var(--ember); }
 .ledger-btn { position: absolute; right: 12px; bottom: 12px; }
 .satchel-btn { position: absolute; right: 120px; bottom: 12px; }
 .gang-btn { position: absolute; right: 240px; bottom: 12px; }
+.map-btn { position: absolute; right: 344px; bottom: 12px; }
+.hud-b { max-width: calc(100% - 480px) !important; }
+.mapwrap { position: relative; width: 100%; max-width: 640px; margin: 0 auto; }
+.mapwrap canvas { width: 100%; height: auto; border: 2px solid #000; image-rendering: pixelated; }
+.maplabel { position: absolute; transform: translate(-50%, 6px); font-family: var(--pix); font-size: 9px; letter-spacing: .5px; color: #1b1424; background: rgba(232,220,192,.85); padding: 0 3px; white-space: nowrap; pointer-events: none; }
+.maplabel.here { background: var(--ember-2); }
 @media (max-width: 760px) { .hud-b { display: none; } }
 .kv small button, .ledger td button { background: var(--ink); color: var(--parch); border: 2px solid var(--line); padding: 1px 6px; cursor: pointer; font-family: var(--pix); font-size: 9px; }
 .ledger select { background: var(--ink); border: 2px solid var(--line); padding: 2px 4px; font-size: 12px; max-width: 220px; }
@@ -147,7 +153,7 @@ main > .wrap { overflow: auto; }
 </style>
 
 <header class="top">
-  <div class="brand">Outlaw<small>BUILD 0.10 · HORSE & HOUND</small></div>
+  <div class="brand">Outlaw<small>BUILD 0.11 · THE REALM</small></div>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" role="tab" aria-selected="true" data-tab="play">Play</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="forge">Character</button>
@@ -165,7 +171,7 @@ main > .wrap { overflow: auto; }
       <span class="lbl">Time</span>
       <div class="seg" id="speedSeg"></div>
     </div>
-    <div class="hud hud-b" id="hudB">WASD move · Shift run · E interact · Space strike · R weapon · H ride · Q steal · F loot · I satchel · G gang · L ledger</div>
+    <div class="hud hud-b" id="hudB">WASD move · Shift run · E interact · Space strike · R weapon · H ride · Q steal · F loot · I satchel · G gang · M map · L ledger</div>
   </section>
 
   <section class="wrap" id="tab-forge" hidden>
@@ -235,6 +241,7 @@ main > .wrap { overflow: auto; }
 <script src="../src/sim/life.js"></script>
 <script src="../src/sim/justice.js"></script>
 <script src="../src/sim/gangs.js"></script>
+<script src="../src/sim/kingdom.js"></script>
 <script src="../src/sim/sim.js"></script>
 <script src="../src/sim/dialogue.js"></script>
 <script src="../src/art/furniture.js"></script>
@@ -251,6 +258,7 @@ main > .wrap { overflow: auto; }
 <script src="../src/game/combat.js"></script>
 <script src="../src/art/animals.js"></script>
 <script src="../src/game/horses.js"></script>
+<script src="../src/game/kingdom-ui.js"></script>
 <script src="../src/game/creator.js"></script>
 <script src="../src/game/forge-ui.js"></script>
 <script src="../src/game/play.js"></script>

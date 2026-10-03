@@ -38,7 +38,7 @@
         if (r.chance(0.3)) this.addNews(`More raiders were seen in the passes above Greymoor.`, 'war', 'greymoor');
         if (day - W.since >= 4) {
           // an emergency council: war or a bought peace
-          const hawks = this.places.filter((p) => p.leader && (p.priority === 'security' || p.region === 'north' || r.chance(0.4))).length;
+          const PSx = O.PlayerState, mine = PSx && (PSx.reeve || PSx.lord) && PSx.warStance; const hawks = this.places.filter((p) => p.leader && (p.detailed && mine ? PSx.warStance === 'hawk' : (p.priority === 'security' || p.region === 'north' || r.chance(0.4)))).length;
           const leaders = this.places.filter((p) => p.leader).length;
           if (hawks > leaders / 2 && this.treasury > 300) this.declareWar();
           else { W.phase = 'peace'; W.since = day; this.treasury -= Math.min(this.treasury, 200); this.addNews(`The council at Thornbury Castle paid ${ENEMY} 200 crowns to keep to their side of the mountains.`, 'politics'); }
@@ -205,6 +205,16 @@
         this.levyDay = null;
       }
       if (this.returnDay === this.day && mm === 11 * 60) { this.soldiersReturn(); this.returnDay = null; }
+      const W = this.kingdom && this.kingdom.war;
+      if (W && W.phase === 'war' && W.civil && mm === 19 * 60 && !this.rebelAgent && this.tavernId && this.rng.chance(0.5)) {
+        const r = this.rng, D = O.Data, Ch = O.Char;
+        const p = this.newPerson({ sex: 'm', age: r.int(24, 45), first: r.pick(D.NAMES.m), sur: r.pick(D.NAMES.sur), household: 0, home: null, genes: Ch.randomGenes(r, 'north'), wealth: 0.5, visitor: true });
+        p.name = `${p.first} ${p.sur}`; p.job = { biz: null, role: 'rebel agent' }; p.wake = 0; p.bed = 1440;
+        p.app = Ch.makeAppearance(O.hash('rebel', p.id), { sex: 'm', age: p.age, genes: p.genes, role: 'outlaw', wealth: 0.4 });
+        const E = this.Z.east; p.agent = { x: E[0] * this.T, y: E[1] * this.T, dir: 1, anim: 'walk', ft: 0, a: p.app, hidden: false, inside: null, path: null, goal: null, person: p };
+        p.task = { act: 'socialise', b: this.tavernId }; this.rebelAgent = p;
+      }
+      if (this.rebelAgent && (mm === 23 * 60 || !(W && W.phase === 'war' && W.civil))) { this.rebelAgent.task = { act: 'leave', outdoor: true, emigrating: true }; this.rebelAgent = null; }
     };
     S.sergeantArrives = function () {
       const r = this.rng, D = O.Data, Ch = O.Char;

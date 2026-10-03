@@ -96,6 +96,7 @@ img.ic { width: 21px; height: 21px; vertical-align: middle; }
 .warnnote { color: #e0a090; }
 .topics button.hot { border-color: var(--ember); color: var(--ember-2); }
 .toasts { position: absolute; left: 50%; top: 16px; transform: translateX(-50%); display: grid; gap: 6px; pointer-events: none; width: min(520px, calc(100% - 24px)); z-index: 5; }
+.toasts.low { top: auto; bottom: 60px; z-index: 30; }
 .toast { background: rgba(21,17,28,.94); border: 2px solid #000; box-shadow: inset 0 0 0 2px var(--line); padding: 8px 12px; font-size: 15px; text-align: center; animation: tin .2s ease-out; }
 .toast.bad { box-shadow: inset 0 0 0 2px var(--blood); }
 @keyframes tin { from { transform: translateY(-6px); opacity: 0; } to { transform: none; opacity: 1; } }
@@ -159,7 +160,7 @@ main > .wrap { overflow: auto; }
 </style>
 
 <header class="top">
-  <div class="brand">Outlaw<small>BUILD 0.21 · MADE BY HAND</small></div>
+  <div class="brand">Outlaw<small>BUILD 0.22 · THE MOOT</small></div>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" role="tab" aria-selected="true" data-tab="play">Play</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="forge">Character</button>
@@ -4462,6 +4463,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       for (const it of agenda) {
         let yes = 0;
         const votes = leaders.map((l) => {
+          const PSx = O.PlayerState; if (l.detailed && PSx && (PSx.reeve || PSx.lord)) { const aye = it.kind === (PSx.councilPriority || 'security') || it.s === l || (it.kind !== 'tax' && PSx.councilDefault === 'aye'); if (aye) yes++; return { who: 'you, for Ashford', aye }; }
           let v = 0.45 + (l.priority === it.kind ? 0.35 : 0) + (it.s === l ? 0.3 : 0) - (it.cost > 150 ? 0.1 : 0) - (it.kind === 'tax' ? (l.id === 'thornbury' ? -0.4 : 0.25) : 0) + r.float(-0.2, 0.2);
           const aye = v > 0.5; if (aye) yes++; return { who: l.leader, aye };
         });
@@ -4528,7 +4530,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         if (r.chance(0.3)) this.addNews(`More raiders were seen in the passes above Greymoor.`, 'war', 'greymoor');
         if (day - W.since >= 4) {
           // an emergency council: war or a bought peace
-          const hawks = this.places.filter((p) => p.leader && (p.priority === 'security' || p.region === 'north' || r.chance(0.4))).length;
+          const PSx = O.PlayerState, mine = PSx && (PSx.reeve || PSx.lord) && PSx.warStance; const hawks = this.places.filter((p) => p.leader && (p.detailed && mine ? PSx.warStance === 'hawk' : (p.priority === 'security' || p.region === 'north' || r.chance(0.4)))).length;
           const leaders = this.places.filter((p) => p.leader).length;
           if (hawks > leaders / 2 && this.treasury > 300) this.declareWar();
           else { W.phase = 'peace'; W.since = day; this.treasury -= Math.min(this.treasury, 200); this.addNews(`The council at Thornbury Castle paid ${ENEMY} 200 crowns to keep to their side of the mountains.`, 'politics'); }
@@ -4695,6 +4697,16 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         this.levyDay = null;
       }
       if (this.returnDay === this.day && mm === 11 * 60) { this.soldiersReturn(); this.returnDay = null; }
+      const W = this.kingdom && this.kingdom.war;
+      if (W && W.phase === 'war' && W.civil && mm === 19 * 60 && !this.rebelAgent && this.tavernId && this.rng.chance(0.5)) {
+        const r = this.rng, D = O.Data, Ch = O.Char;
+        const p = this.newPerson({ sex: 'm', age: r.int(24, 45), first: r.pick(D.NAMES.m), sur: r.pick(D.NAMES.sur), household: 0, home: null, genes: Ch.randomGenes(r, 'north'), wealth: 0.5, visitor: true });
+        p.name = `${p.first} ${p.sur}`; p.job = { biz: null, role: 'rebel agent' }; p.wake = 0; p.bed = 1440;
+        p.app = Ch.makeAppearance(O.hash('rebel', p.id), { sex: 'm', age: p.age, genes: p.genes, role: 'outlaw', wealth: 0.4 });
+        const E = this.Z.east; p.agent = { x: E[0] * this.T, y: E[1] * this.T, dir: 1, anim: 'walk', ft: 0, a: p.app, hidden: false, inside: null, path: null, goal: null, person: p };
+        p.task = { act: 'socialise', b: this.tavernId }; this.rebelAgent = p;
+      }
+      if (this.rebelAgent && (mm === 23 * 60 || !(W && W.phase === 'war' && W.civil))) { this.rebelAgent.task = { act: 'leave', outdoor: true, emigrating: true }; this.rebelAgent = null; }
     };
     S.sergeantArrives = function () {
       const r = this.rng, D = O.Data, Ch = O.Char;
@@ -4802,7 +4814,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         else if (c.ailing && r.chance(0.07)) this.crownDies(`died after a long illness`);
         else if (c.ailing && r.chance(0.05)) { c.ailing = false; this.addNews(`${crownTitle(c)} has recovered, God be thanked.`, 'rulers'); }
       }
-      { const ash = this.places.find((x) => x.detailed), rv = sim.reeveId && sim.byId.get(sim.reeveId); if (ash) ash.leader = rv && rv.alive !== false ? `${rv.name}, Reeve of ${ash.name}` : `the Reeve of ${ash.name}`; }
+      { const ash = this.places.find((x) => x.detailed), rv = sim.reeveId && sim.byId.get(sim.reeveId); if (ash && sim.reeveId === 'player') ash.leader = `you, as Reeve of ${ash.name}`; else if (ash) ash.leader = rv && rv.alive !== false ? `${rv.name}, Reeve of ${ash.name}` : `the Reeve of ${ash.name}`; }
       // the lords of the realm
       for (const [id, L] of Object.entries(R.lords)) {
         if (r.chance(L.age < 55 ? 0.0002 : 0.0004 * (L.age - 50))) {
@@ -4877,20 +4889,60 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     S.onMourning = function (m) { this.mourningUntil = m.until; for (const p of this.people) if (!p.visitor && p.age >= 12 && this.rng.chance(0.6)) this.remember(p, `${m.dead} is dead. The bells rang all morning.`, 'politics', 1.5); };
     S.onCoronation = function (who) { this.festivalDay = this.day + 1; this.festivalWhy = `the crowning of ${who}`; for (const p of this.people) if (!p.visitor && p.age >= 12 && this.rng.chance(0.4)) this.remember(p, `We have a new monarch: ${who}.`, 'politics', 1.2); };
     // the reeve: when the office falls empty, the folk choose at a moot
+    // A moot is called when the office falls empty, and every spring as of old, when anyone of
+    // standing may stand against the sitting reeve. The folk gather in the square at five o'clock
+    // and each one votes for whom they like and trust best.
     S.reeveDaily = function () {
-      if (!this.reeveId) return;
-      const rv = this.byId.get(this.reeveId);
-      if (rv && rv.alive !== false && this.people.includes(rv)) return;
-      if (!this.reeveMoot) { this.reeveMoot = this.day + 2; this.log(`${this.world.name} has no reeve. A moot is called for ${O.DAYNAMES[(this.weekday + 2) % 7]} to choose one.`, 'politics'); return; }
-      if (this.day < this.reeveMoot) return;
+      if (!this.reeveId || this.reeveMoot) return;
+      const PS = O.PlayerState;
+      const vacant = this.reeveId === 'player' ? !(PS && PS.reeve) : (() => { const rv = this.byId.get(this.reeveId); return !(rv && rv.alive !== false && this.people.includes(rv)); })();
+      const spring = this.season === 'spring' && this.weather.dayOfSeason === 1;
+      if (vacant || spring) {
+        this.reeveMoot = this.day + 2;
+        this.log(vacant ? `${this.world.name} has no reeve. A moot is called for ${O.DAYNAMES[(this.weekday + 2) % 7]} at five o'clock to choose one.` : `The spring moot is called for ${O.DAYNAMES[(this.weekday + 2) % 7]}: anyone of standing may stand for reeve.`, 'politics');
+      }
+    };
+    const _mt = S.minuteTick;
+    S.minuteTick = function () { _mt.call(this); if (this.reeveMoot === this.day && this._m === 18 * 60) this.holdMoot(); };
+    const _plan = S.plan;
+    S.plan = function (p) {
+      if (this.reeveMoot === this.day && this.hour >= 17 && this.hour < 18 && !p.visitor && p.age >= 16 && !p.task && !p.health.illness && !p.job?.role?.startsWith('guard')) return { act: 'moot', outdoor: true, zone: 'square' };
+      return _plan.call(this, p);
+    };
+    S.holdMoot = function () {
       this.reeveMoot = null;
+      const PS = O.PlayerState, sitting = this.reeveId;
+      const prestige = (p) => (this.household(p).money > 150 ? 0.15 : 0) + p.age / 300 + (p.id === sitting ? 0.15 : 0) + (p.traits.includes('friendly') ? 0.05 : 0);
       const cands = this.people.filter((p) => !p.visitor && p.age >= 30 && !p.gang && !p.job?.role?.startsWith('guard'))
-        .map((p) => ({ p, votes: this.people.filter((q) => !q.visitor && q.age >= 16).reduce((s, q) => s + Math.max(0, (q.rel.get(p.id)?.affinity || 0)) + (this.household(p).money > 150 ? 0.03 : 0), 0) + p.age / 200 + this.rng.next() * 0.5 }))
-        .sort((a, b) => b.votes - a.votes);
-      const w = cands[0]; if (!w) return;
-      w.p.title = `Reeve of ${this.world.name}`; this.reeveId = w.p.id;
-      this.log(`At the moot, the folk of ${this.world.name} chose ${w.p.name} as their new reeve${cands[1] ? `, over ${cands[1].p.name}` : ''}.`, 'politics');
-      this.remember(w.p, `I was chosen reeve at the moot. God help me.`, 'life', 3);
+        .map((p) => ({ p, pre: prestige(p) + this.people.reduce((s, q) => s + Math.max(0, q.rel.get(p.id)?.affinity || 0), 0) / 40 }))
+        .sort((a, b) => b.pre - a.pre).slice(0, 2);
+      if (PS && PS.standForReeve && PS.wantedLevel() === 0 && !PS.exiled) cands.push({ player: true, pre: PS.rep.local * 0.4 + PS.rep.civilian * 0.2 + (sitting === 'player' ? 0.15 : 0) });
+      if (!cands.length) return;
+      const tally = cands.map(() => 0);
+      for (const q of this.people) {
+        if (q.visitor || q.age < 16) continue;
+        let best = 0, bs = -9;
+        cands.forEach((c, i) => {
+          let sc = c.pre + this.rng.next() * 0.3;
+          if (c.player) { const r0 = q.rel.get(0); sc += (r0?.affinity || 0) * 1.2 + (r0?.familiar || 0) * 0.2; if (q.memories.some((m) => m.kind === 'crime' && m.about === 0)) sc -= 1; }
+          else { sc += (q.rel.get(c.p.id)?.affinity || 0) * 1.2 + (q.household === c.p.household ? 2 : 0); }
+          if (sc > bs) { bs = sc; best = i; }
+        });
+        tally[best]++;
+      }
+      const order = cands.map((c, i) => ({ c, v: tally[i] })).sort((a, b) => b.v - a.v);
+      const w = order[0], name = (c) => (c.player ? 'the newcomer' : c.p.name);
+      const old = sitting && sitting !== 'player' ? this.byId.get(sitting) : null;
+      if (old && (w.c.player || w.c.p !== old)) old.title = null;
+      if (w.c.player) { this.reeveId = 'player'; PS.reeve = true; PS.standForReeve = false; O.Chronicle && O.Chronicle.deed(this, `At the moot, the folk of ${this.world.name} chose the newcomer as reeve, ${w.v} votes to ${order[1]?.v || 0}.`, `You were chosen Reeve of ${this.world.name} at the moot, ${w.v} votes to ${order[1]?.v || 0}.`, 'rulers', 4, true); }
+      else {
+        if (sitting === 'player' && PS) PS.reeve = false;
+        w.c.p.title = `Reeve of ${this.world.name}`; this.reeveId = w.c.p.id;
+        if (w.c.p !== old) this.remember(w.c.p, `I was chosen reeve at the moot. God help me.`, 'life', 3);
+      }
+      if (PS) PS.standForReeve = false;
+      this.log(`At the moot, the folk of ${this.world.name} chose ${name(w.c)} as reeve, ${w.v} votes${order.slice(1).map((o) => `; ${name(o.c)} ${o.v}`).join('')}.`, 'politics');
+      this.lastMoot = { day: this.day, results: order.map((o) => ({ who: name(o.c), v: o.v })) };
     };
   }
 
@@ -7202,9 +7254,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     const d = document.createElement('div'); d.className = 'toast ' + kind; d.textContent = text; toastEl.appendChild(d);
     setTimeout(() => d.remove(), 4200);
   }
-  function close() { ensure(); root.hidden = true; root.innerHTML = ''; O.panelOpen = false; }
+  function close() { ensure(); root.hidden = true; root.innerHTML = ''; O.panelOpen = false; toastEl.classList.remove('low'); }
   function open(title, body, onBind) {
-    ensure(); O.panelOpen = true;
+    ensure(); O.panelOpen = true; toastEl.classList.add('low'); // toasts drop below the panel so they don't hide its title
     root.hidden = false;
     root.innerHTML = `<div class="ledger-in narrow"><header><h2>${esc(title)}</h2><div style="flex:1"></div><span class="purse">${money(PS.money)}</span><button class="x" aria-label="Close">✕</button></header><div class="ledger-body">${body}</div></div>`;
     root.querySelector('.x').onclick = close;
@@ -7277,7 +7329,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const ACT_LABEL = {
     sleep: 'asleep', work: 'working', fieldwork: 'working the fields', chop: 'felling timber', festival: 'at the harvest festival', lessons: 'at lessons in the chapel', feast: 'at a wedding feast', council: 'away at the castle council', cry: 'crying the news', gangmeet: 'meeting at the hideout', report: 'reporting a crime to the watch', investigate: 'investigating a crime', jailed: 'locked in the cell', market: 'coming to market', service: 'in service at a house', sick: 'ill in bed', collapsed: 'collapsed!', help: 'running to help someone', escort: 'helping a patient to the physician', 'to-doctor': 'going to the physician', treated: 'being treated by the physician', mourn: 'at a funeral', wedding: 'at a wedding', build: 'building the new house', 'move-in': 'moving to Ashford', forage: 'gathering herbs', patrol: 'on patrol', eat: 'having a meal', 'eat-out': 'eating at the tavern',
-    home: 'at home', play: 'playing', shop: 'shopping', socialise: 'drinking at the tavern', perform: 'playing for the tavern', recruit: 'calling for recruits', leave: 'on the road out', sit: 'resting on the bench', stroll: 'taking the air', worship: 'at chapel',
+    home: 'at home', play: 'playing', shop: 'shopping', socialise: 'drinking at the tavern', perform: 'playing for the tavern', recruit: 'calling for recruits', moot: 'at the moot in the square', leave: 'on the road out', sit: 'resting on the bench', stroll: 'taking the air', worship: 'at chapel',
     'wait-work': 'waiting for carrying work', pickup: 'collecting goods', deliver: 'making a delivery', 'carry-home': 'carrying shopping home', import: 'bringing goods to market', rest: 'resting at the inn', leave: 'leaving town',
   };
   O.ACT_LABEL = ACT_LABEL;
@@ -9045,11 +9097,35 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
           <div><span class="lbl">Lordship of Ashford</span><b>${lord ? 'Yours' : 'The crown\'s'}</b><small>${lord ? 'You set the tax, the watch and the works.' : `The crown asks ${O.money(L.price)} and an unstained name.`}</small></div>
         </div>
         <table style="margin-top:12px"><thead><tr><th>Property</th><th class="n">Value</th><th>Use</th></tr></thead><tbody>${rows || '<tr><td colspan="3">You own nothing yet. Look for For Sale signs by empty houses and shops.</td></tr>'}</tbody></table>
-        ${!lord ? `<p class="caption" style="margin-top:12px">${canPetition ? 'You could petition the Lord of Thornbury for the lordship.' : 'The crown will not sell a lordship to someone the watch is looking for, or whom the common folk despise.'}</p>${canPetition ? `<button class="btn" data-pet="1">Petition for the lordship (${O.money(L.price)})</button>` : ''}` : lordControls(H)}`, (r) => {
+        ${!lord ? `<p class="caption" style="margin-top:12px">${canPetition ? 'You could petition the Lord of Thornbury for the lordship.' : 'The crown will not sell a lordship to someone the watch is looking for, or whom the common folk despise.'}</p>${canPetition ? `<button class="btn" data-pet="1">Petition for the lordship (${O.money(L.price)})</button>` : ''}` : lordControls(H)}${PS.reeve && !lord ? reeveControls(H) : ''}${PS.reeve || lord ? officeControls(H) : ''}${moot(H)}`, (r) => {
         const pet = r.querySelector('[data-pet]');
         if (pet) pet.onclick = () => { if (PS.money < L.price) return O.Panels.toast(`You need ${O.money(L.price)}.`, 'bad'); PS.money -= L.price; H.kingdom.treasury += L.price; L.holder = 'player'; PS.lord = true; H.log('By letters from Thornbury, the newcomer is made Lord of Ashford.', 'politics'); H.kingdom.addNews(`A new lord has been granted Ashford.`, 'politics'); for (const p of H.people) if (p.age >= 16 && H.rng.chance(0.5)) H.remember(p, 'We have a new lord, a stranger with deep pockets.', 'politics', 1.5); holdings(); };
         bindLord(r, H);
       });
+    }
+    // Ashford's voice at the castle council, for its lord or its reeve
+    function officeControls(H) {
+      const pr = PS.councilPriority || 'security', st = PS.warStance || 'dove';
+      const m = H.lastMoot;
+      return `<div class="lbl" style="margin-top:12px">Ashford's voice at the castle council</div><div class="kv">
+        <div><span class="lbl">Ashford asks for</span><b style="font-size:20px">${pr}</b><small>${['security', 'food', 'health', 'roads'].map((k) => `<button data-pri="${k}">${k}</button>`).join(' ')}</small></div>
+        <div><span class="lbl">On other motions</span><b style="font-size:20px">${PS.councilDefault === 'aye' ? 'Aye' : 'Nay'}</b><small><button data-def="aye">Aye</button> <button data-def="nay">Nay</button></small></div>
+        <div><span class="lbl">On war</span><b style="font-size:20px">${st === 'hawk' ? 'Fight' : 'Pay for peace'}</b><small><button data-war="hawk">Fight</button> <button data-war="dove">Pay for peace</button></small></div>
+      </div>${m ? `<p class="caption">Last moot, ${O.Chronicle.dateLabel(m.day)}: ${m.results.map((x) => `${esc(x.who)} ${x.v}`).join(' · ')}.</p>` : ''}`;
+    }
+    function reeveControls(H) {
+      const gh = H.biz.get(H.guardId), guards = gh ? gh.def.jobs[1][1] : 0;
+      return `<div class="lbl" style="margin-top:12px">As Reeve of Ashford</div><div class="kv">
+        <div><span class="lbl">Market tax</span><b>${Math.round(H.treasury.taxRate * 100)}%</b><small><button data-tax="-1">Lower</button> <button data-tax="1">Raise</button></small></div>
+        <div><span class="lbl">Watchmen</span><b>${guards + 1}</b><small><button data-g="-1">Dismiss one</button> <button data-g="1">Hire one</button></small></div>
+        <div><span class="lbl">Common chest</span><b>${O.money(H.treasury.cash)}</b><small>the reeve keeps it, but may not take from it</small></div>
+        <div><span class="lbl">Works</span><b>${H.build.sites.filter((x) => x.stage < 10).length ? 'Building' : 'Idle'}</b><small><button data-build="1">Order a new house (160d)</button></small></div>
+      </div>`;
+    }
+    function moot(H) {
+      if (PS.reeve) return '';
+      if (H.reeveMoot) return PS.standForReeve ? `<p class="caption" style="margin-top:12px">You are standing for reeve at the moot on ${O.DAYNAMES[(H.weekday + H.reeveMoot - H.day) % 7]} at five. Be in the square, and be liked.</p>` : `<p class="caption" style="margin-top:12px">A moot is called for ${O.DAYNAMES[(H.weekday + H.reeveMoot - H.day) % 7]} to choose Ashford's reeve.</p>${PS.wantedLevel() === 0 && !PS.exiled ? '<button class="btn" data-stand="1">Stand for reeve</button>' : ''}`;
+      return `<p class="caption" style="margin-top:12px">Ashford chooses its reeve at a moot each spring, or when the office falls empty. Anyone of standing may stand.</p>`;
     }
     function lordControls(H) {
       const gh = H.biz.get(H.guardId), guards = gh ? gh.def.jobs[1][1] : 0;
@@ -9063,6 +9139,10 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     }
     function bindLord(r, H) {
       const t = (sel, f) => r.querySelectorAll(sel).forEach((x) => x.onclick = () => { f(x); holdings(); });
+      t('[data-pri]', (x) => { PS.councilPriority = x.dataset.pri; });
+      t('[data-def]', (x) => { PS.councilDefault = x.dataset.def; });
+      t('[data-war]', (x) => { PS.warStance = x.dataset.war; });
+      t('[data-stand]', () => { PS.standForReeve = true; H.log('The newcomer has put themselves forward at the moot.', 'politics'); for (const p of H.people) if (!p.visitor && p.age >= 16 && H.rng.chance(0.3)) H.remember(p, 'The newcomer is standing for reeve. Imagine.', 'politics', 1); });
       t('[data-tax]', (x) => { H.treasury.taxRate = O.clamp(H.treasury.taxRate + +x.dataset.tax * 0.02, 0.02, 0.2); H.log(`The lord ${+x.dataset.tax > 0 ? 'raised' : 'lowered'} the market tax to ${Math.round(H.treasury.taxRate * 100)}%.`, 'politics'); for (const p of H.people) if (p.age >= 18 && H.rng.chance(0.3)) { H.remember(p, `The new lord ${+x.dataset.tax > 0 ? 'raised' : 'cut'} the market tax.`, 'politics', 1); H.relate(p, { id: 0 }, +x.dataset.tax > 0 ? -0.05 : 0.05); } });
       t('[data-g]', (x) => { const gh = H.biz.get(H.guardId); const n = O.clamp(gh.def.jobs[1][1] + +x.dataset.g, 1, 8); gh.def = Object.assign({}, gh.def, { jobs: [gh.def.jobs[0], ['guard', n]] }); if (+x.dataset.g < 0) { const g = H.people.find((q) => q.job?.biz === H.guardId && q.job.role === 'guard'); if (g) { g.job = null; gh.workers = gh.workers.filter((id) => id !== g.id); H.remember(g, 'The lord dismissed me from the watch.', 'hardship', 2); } } else H.fillVacancies(); });
       t('[data-take]', () => { const n = Math.min(50, Math.floor(H.treasury.cash)); H.treasury.cash -= n; PS.money += n; H.log('The lord drew coin from the parish chest for their own use.', 'politics'); for (const p of H.people) if (p.age >= 18 && H.rng.chance(0.2)) H.relate(p, { id: 0 }, -0.08); });
@@ -9173,7 +9253,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   function notables(s, Ch) {
     const H = O.SimRef.home, K = H.kingdom;
     const reeve = H.reeveId ? H.byId.get(H.reeveId) : null;
-    const rulers = K.places.map((p) => `<li><b>${esc(p.name)}</b> — ${esc(p.id === 'ashford' ? (H.lordship?.holder === 'player' ? 'you, as Lord of Ashford' : reeve && reeve.alive !== false ? `${reeve.name}, Reeve of Ashford` : 'no reeve: a moot is called') : p.leader || 'a council')}</li>`).join('');
+    const rulers = K.places.map((p) => `<li><b>${esc(p.name)}</b> — ${esc(p.id === 'ashford' ? (H.lordship?.holder === 'player' ? 'you, as Lord of Ashford' : H.reeveId === 'player' ? 'you, as Reeve of Ashford' : reeve && reeve.alive !== false ? `${reeve.name}, Reeve of Ashford` : 'no reeve: a moot is called') : p.leader || 'a council')}</li>`).join('');
     const R = K.rulers;
     const crown = R ? `<div class="kv" style="margin-top:12px"><div><span class="lbl">The crown</span><b style="font-size:22px">${R.crown ? esc(O.Rulers.crownTitle(R.crown)) : 'Vacant — the realm mourns'}</b><small>${R.crown ? `aged ${R.crown.age}${R.crown.ailing ? ', gravely ill' : ''}; heir ${esc(R.crown.heir?.name || 'none')} (${R.crown.heir?.age ?? '?'})` : ''}${R.regent ? `. Regent: ${esc(R.regent.name)}` : ''}</small></div>
       <div><span class="lbl">Pretender</span><b style="font-size:22px">${esc(R.pretender?.name || 'none')}</b><small>${esc(R.pretender?.title || '')}</small></div></div>
@@ -9384,15 +9464,38 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
     // ---------------- the recruiting sergeant ----------------
     const prevExtra = npcUI.extraButtons, prevOn = npcUI.onExtra;
-    npcUI.extraButtons = (q) => { const out = prevExtra ? prevExtra(q) : []; if (q.job?.role === 'recruiting sergeant' && !PS.enlisted) out.push(['shilling', "Take the King's shilling"]); return out; };
-    npcUI.onExtra = (q, key, render) => { if (key === 'shilling') { npcUI.closeTalk(); return enlist(q); } return prevOn && prevOn(q, key, render); };
+    npcUI.extraButtons = (q) => { const out = prevExtra ? prevExtra(q) : []; if (q.job?.role === 'recruiting sergeant' && !PS.enlisted) out.push(['shilling', "Take the King's shilling"]); if (q.job?.role === 'rebel agent' && !PS.enlisted) out.push(['rebel', 'Join the rebellion']); return out; };
+    npcUI.onExtra = (q, key, render) => { if (key === 'shilling') { npcUI.closeTalk(); return enlist(q); } if (key === 'rebel') { npcUI.closeTalk(); return joinRebels(q); } return prevOn && prevOn(q, key, render); };
+    function joinRebels(q) {
+      const P = K.rulers?.pretender;
+      O.Panels.open('The rebellion', `<p class="speech">“${esc(P ? P.name : 'The Duke')} is the rightful king, and he remembers his friends. Ten pence now, a knighthood if we win. If we lose…” He shrugs. “Then we hang together.”</p>
+        <p class="caption">Fighting for the rebels is treason if they lose: the crown will hunt you. If they win, you'll be rewarded.</p>
+        <div class="topics"><button data-a="join" class="hot">March with the rebels</button><button data-a="no">Say nothing, and leave</button></div>`, (r) => {
+        r.querySelector('[data-a=no]').onclick = () => O.Panels.close();
+        r.querySelector('[data-a=join]').onclick = () => { O.Panels.close(); PS.money += 10; PS.side = { war: K.war.wars, side: 'rebel' }; campaign('rebel'); };
+      });
+    }
+    // the reckoning when a civil war ends
+    const _civ = K.onCivilEnd.bind(K);
+    K.onCivilEnd = (winner) => {
+      _civ(winner);
+      const S = PS.side; if (!S || S.war !== K.war.wars) return; PS.side = null;
+      const won = (S.side === 'rebel') === (winner === 'enemy');
+      if (won && S.side === 'rebel') { PS.knight = true; PS.money += 150; PS.rep.guard = 0.2; O.Chronicle.deed(home, `The new king has knighted a commoner who fought for him in ${home.world.name}'s country.`, 'The new king knighted you for fighting in the rebellion.', 'rulers', 4, true); O.Panels.toast('A royal messenger: the new king has knighted you, with 150d and his thanks. Sir, now.'); }
+      else if (won) { PS.money += 40; PS.rep.guard = Math.min(1, PS.rep.guard + 0.2); O.Panels.toast('The crown thanks its loyal volunteers: 40d from the treasury, and the watch salutes you.'); }
+      else if (S.side === 'rebel') {
+        const cr = home.recordCrime({ kind: 'treason', perp: 'player', placeName: 'the rebel host', tile: [0, 0], seen: [], severity: 5 });
+        cr.reported = true; cr.investigated = true; cr.evidence = 2; PS.crimes.push(cr.id); PS.bounty = true; PS.bountyAmount = (PS.bountyAmount || 0) + 120; PS.rep.guard = -0.8;
+        O.Panels.toast('The rebellion is broken, and the crown has your name. Treason. A bounty of 120d is posted.', 'bad');
+      }
+    };
     function enlist(q) {
       if (PS.wantedLevel && PS.wantedLevel() >= 2) return O.Panels.toast(`${q.first} looks at you hard. “I know a wanted face. The army's no hiding place for your sort.”`, 'bad');
       PS.money += 12; PS.enlisted = { day: home.day };
       O.Panels.open("The King's shilling", `<p class="speech">“Good lad. Twelve pence now, three a day on the march, and a share of whatever we take off the Marchers. We go north with the levy at four o'clock.”</p>
         <p class="caption">Marching with the levy means about four days away from ${esc(home.world.name)}. Taking the shilling and slipping away is desertion: a crime, and the sergeant has seen your face.</p>
         <div class="topics"><button data-a="march" class="hot">March north with the levy</button><button data-a="run">Pocket the shilling and slip away</button></div>`, (r) => {
-        r.querySelector('[data-a=march]').onclick = () => { O.Panels.close(); campaign(); };
+        r.querySelector('[data-a=march]').onclick = () => { O.Panels.close(); if (K.war?.civil) PS.side = { war: K.war.wars, side: 'crown' }; campaign('crown'); };
         r.querySelector('[data-a=run]').onclick = () => {
           O.Panels.close(); PS.enlisted = null;
           const cr = home.recordCrime({ kind: 'desertion', perp: 'player', placeName: home.world.name, tile: [Math.floor(game.player.x / T), Math.floor(game.player.y / T)], seen: [q], severity: 2 });
@@ -9401,18 +9504,19 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         };
       });
     }
-    function campaign() {
+    function campaign(side = 'crown') {
       const W = K.war, startDay = home.day, battles0 = W ? W.battles.length : 0;
-      O.Panels.toast('You march north with the levy…');
+      O.Panels.toast(side === 'rebel' ? 'You slip away north to the rebel camp…' : 'You march north with the levy…');
       for (let i = 0; i < 720 * 4; i++) { home.tick(2); PS.tick(2, i % 3 === 0); if (PS.hunger < 30) PS.hunger += 25; }
       const fought = W ? W.battles.slice(battles0) : [];
-      const lost = fought.filter((b) => !b.crownWins).length, won = fought.length - lost;
+      const lost = fought.filter((b) => (side === 'rebel' ? b.crownWins : !b.crownWins)).length, won = fought.length - lost;
       const pay = 3 * (home.day - startDay) + (won ? 10 + home.rng.int(0, 30) : 0);
       const hurt = fought.length ? (lost ? home.rng.int(20, 45) : home.rng.int(0, 20)) : 0;
       PS.money += pay; PS.hp = Math.max(10, PS.hp - hurt); PS.enlisted = null;
-      PS.rep.guard = Math.min(1, PS.rep.guard + 0.2); PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.08); PS.rep.local = Math.min(1, PS.rep.local + 0.1);
+      if (side !== 'rebel') PS.rep.guard = Math.min(1, PS.rep.guard + 0.2); PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.08); PS.rep.local = Math.min(1, PS.rep.local + 0.1);
       const where = fought.length ? K.place(fought[fought.length - 1].at).name : null;
-      O.Chronicle.deed(home, where ? `A volunteer from ${home.world.name} fought with the King's host at ${where}.` : `A volunteer from ${home.world.name} marched with the King's host.`, where ? `You fought at ${where} with the King's host${lost ? ' and saw the line break' : ' and saw the Marchers run'}.` : 'You marched north with the levy; you saw no battle.', 'war', where ? 3 : 2, true);
+      const host = side === 'rebel' ? 'the rebel host' : "the King's host";
+      O.Chronicle.deed(home, where ? `A volunteer from ${home.world.name} fought with ${host} at ${where}.` : `A volunteer from ${home.world.name} marched with ${host}.`, where ? `You fought at ${where} with ${host}${lost ? ' and saw the line break' : ' and saw the enemy run'}.` : `You marched with ${host}; you saw no battle.`, 'war', where ? 3 : 2, side !== 'rebel');
       game.player.x = (home.world.W - 3) * T; game.player.y = (home.world.roadY || 30) * T + 10; if (game.scene) game.exitBuilding();
       O.Panels.open('Home from the north', `<p class="caption">${fought.length ? `You were in ${fought.length} fight${fought.length > 1 ? 's' : ''}: ${won} won, ${lost} lost. ` : 'Four days of marching, digging and waiting; the Marchers never came.'}${hurt ? ` You took a wound (−${hurt} health).` : ''}</p><p>The paymaster counts out <b>${O.money(pay)}</b>. Back in ${esc(home.world.name)}, people look at you differently.</p>`);
     }
@@ -10010,7 +10114,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         people: sim.people.map(strip), traderId: sim.trader ? sim.trader.id : null,
         households: sim.households,
         biz: [...sim.biz.values()].map((b) => ({ id: b.id, type: b.type, stock: b.stock, cash: b.cash, owner: b.owner, workers: b.workers, salesToday: b.salesToday, history: b.history, jobs: b.def.jobs, name: b.name, cost: b.def.site ? true : undefined, ownerPlayer: b.ownerPlayer, badDays: b.badDays, founded: b.founded })),
-        lordship: sim.lordship, memorials: sim.memorials || [], levyDay: sim.levyDay || null, returnDay: sim.returnDay || null, festivalDay: sim.festivalDay || null, festivalWhy: sim.festivalWhy || null, mourningUntil: sim.mourningUntil || null, reeveMoot: sim.reeveMoot || null,
+        lordship: sim.lordship, memorials: sim.memorials || [], levyDay: sim.levyDay || null, returnDay: sim.returnDay || null, festivalDay: sim.festivalDay || null, festivalWhy: sim.festivalWhy || null, mourningUntil: sim.mourningUntil || null, reeveMoot: sim.reeveMoot || null, lastMoot: sim.lastMoot || null,
         sites: sim.build.sites.map((s) => ({ id: s.id, stage: s.stage, prog: s.prog, work: s.work, started: s.started })), nextCouncil: sim.build.nextCouncil, plotsUsed: [...sim.build.used],
         gangs: sim.gangs,
         kingdom: { places: sim.kingdom.places, roads: sim.kingdom.roads, caravans: sim.kingdom.caravans.map((c) => Object.assign({}, c, { held: false })), news: sim.kingdom.news, war: sim.kingdom.war ? Object.assign({}, sim.kingdom.war, { soldiers: sim.kingdom.war.soldiers.map((x) => Object.assign({}, x, { snap: x.snap && !x.back ? strip(x.snap) : null })) }) : null, rulers: sim.kingdom.rulers, heirStore: sim.kingdom.heirStore || null, treasury: sim.kingdom.treasury, taxRate: sim.kingdom.taxRate, councils: sim.kingdom.councils.slice(-6) },
@@ -10025,7 +10129,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       player: {
         x: game.world !== sim.world ? (sim.world.W - 2) * 16 : Math.round(game.scene ? game.scene.b.doorX * 16 + 8 : game.player.x), y: game.world !== sim.world ? 30 * 16 + 10 : Math.round(game.scene ? game.scene.b.doorY * 16 + 10 : game.player.y), dir: game.player.dir,
         mount: game.player.mount ? game.player.mount.id : null,
-        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0 },
+        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false },
       },
     };
   }
@@ -10055,7 +10159,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     // core sim
     Object.assign(sim, { day: S.day, minute: S.minute, _lastMin: Math.floor(S.minute), nextId: S.nextId, treasury: S.treasury, stats: S.stats, history: S.history, crimes: S.crimes, settlement: S.settlement, events: S.events, graves: S.graves, _season: S.season, reeveId: S.reeveId, _guardRaised: S.guardRaised });
     if (d.chronicle) Object.assign(O.Chronicle, { facts: d.chronicle.facts || [], heard: d.chronicle.heard || [], nextId: d.chronicle.nextId || 1 });
-    sim.memorials = S.memorials || []; sim.levyDay = S.levyDay || null; sim.returnDay = S.returnDay || null; Object.assign(sim, { festivalDay: S.festivalDay || null, festivalWhy: S.festivalWhy || null, mourningUntil: S.mourningUntil || null, reeveMoot: S.reeveMoot || null });
+    sim.memorials = S.memorials || []; sim.levyDay = S.levyDay || null; sim.returnDay = S.returnDay || null; Object.assign(sim, { lastMoot: S.lastMoot || null, festivalDay: S.festivalDay || null, festivalWhy: S.festivalWhy || null, mourningUntil: S.mourningUntil || null, reeveMoot: S.reeveMoot || null });
     sim.rng = O.RNG(S.rng); sim.weather.rng = O.RNG(S.wrng); sim.kingdom.rng = O.RNG(S.krng);
     Object.assign(sim.weather, S.weather);
     sim.households = S.households;

@@ -56,7 +56,7 @@
         else if (c.ailing && r.chance(0.07)) this.crownDies(`died after a long illness`);
         else if (c.ailing && r.chance(0.05)) { c.ailing = false; this.addNews(`${crownTitle(c)} has recovered, God be thanked.`, 'rulers'); }
       }
-      { const ash = this.places.find((x) => x.detailed), rv = sim.reeveId && sim.byId.get(sim.reeveId); if (ash) ash.leader = rv && rv.alive !== false ? `${rv.name}, Reeve of ${ash.name}` : `the Reeve of ${ash.name}`; }
+      { const ash = this.places.find((x) => x.detailed), rv = sim.reeveId && sim.byId.get(sim.reeveId); if (ash && sim.reeveId === 'player') ash.leader = `you, as Reeve of ${ash.name}`; else if (ash) ash.leader = rv && rv.alive !== false ? `${rv.name}, Reeve of ${ash.name}` : `the Reeve of ${ash.name}`; }
       // the lords of the realm
       for (const [id, L] of Object.entries(R.lords)) {
         if (r.chance(L.age < 55 ? 0.0002 : 0.0004 * (L.age - 50))) {
@@ -131,20 +131,60 @@
     S.onMourning = function (m) { this.mourningUntil = m.until; for (const p of this.people) if (!p.visitor && p.age >= 12 && this.rng.chance(0.6)) this.remember(p, `${m.dead} is dead. The bells rang all morning.`, 'politics', 1.5); };
     S.onCoronation = function (who) { this.festivalDay = this.day + 1; this.festivalWhy = `the crowning of ${who}`; for (const p of this.people) if (!p.visitor && p.age >= 12 && this.rng.chance(0.4)) this.remember(p, `We have a new monarch: ${who}.`, 'politics', 1.2); };
     // the reeve: when the office falls empty, the folk choose at a moot
+    // A moot is called when the office falls empty, and every spring as of old, when anyone of
+    // standing may stand against the sitting reeve. The folk gather in the square at five o'clock
+    // and each one votes for whom they like and trust best.
     S.reeveDaily = function () {
-      if (!this.reeveId) return;
-      const rv = this.byId.get(this.reeveId);
-      if (rv && rv.alive !== false && this.people.includes(rv)) return;
-      if (!this.reeveMoot) { this.reeveMoot = this.day + 2; this.log(`${this.world.name} has no reeve. A moot is called for ${O.DAYNAMES[(this.weekday + 2) % 7]} to choose one.`, 'politics'); return; }
-      if (this.day < this.reeveMoot) return;
+      if (!this.reeveId || this.reeveMoot) return;
+      const PS = O.PlayerState;
+      const vacant = this.reeveId === 'player' ? !(PS && PS.reeve) : (() => { const rv = this.byId.get(this.reeveId); return !(rv && rv.alive !== false && this.people.includes(rv)); })();
+      const spring = this.season === 'spring' && this.weather.dayOfSeason === 1;
+      if (vacant || spring) {
+        this.reeveMoot = this.day + 2;
+        this.log(vacant ? `${this.world.name} has no reeve. A moot is called for ${O.DAYNAMES[(this.weekday + 2) % 7]} at five o'clock to choose one.` : `The spring moot is called for ${O.DAYNAMES[(this.weekday + 2) % 7]}: anyone of standing may stand for reeve.`, 'politics');
+      }
+    };
+    const _mt = S.minuteTick;
+    S.minuteTick = function () { _mt.call(this); if (this.reeveMoot === this.day && this._m === 18 * 60) this.holdMoot(); };
+    const _plan = S.plan;
+    S.plan = function (p) {
+      if (this.reeveMoot === this.day && this.hour >= 17 && this.hour < 18 && !p.visitor && p.age >= 16 && !p.task && !p.health.illness && !p.job?.role?.startsWith('guard')) return { act: 'moot', outdoor: true, zone: 'square' };
+      return _plan.call(this, p);
+    };
+    S.holdMoot = function () {
       this.reeveMoot = null;
+      const PS = O.PlayerState, sitting = this.reeveId;
+      const prestige = (p) => (this.household(p).money > 150 ? 0.15 : 0) + p.age / 300 + (p.id === sitting ? 0.15 : 0) + (p.traits.includes('friendly') ? 0.05 : 0);
       const cands = this.people.filter((p) => !p.visitor && p.age >= 30 && !p.gang && !p.job?.role?.startsWith('guard'))
-        .map((p) => ({ p, votes: this.people.filter((q) => !q.visitor && q.age >= 16).reduce((s, q) => s + Math.max(0, (q.rel.get(p.id)?.affinity || 0)) + (this.household(p).money > 150 ? 0.03 : 0), 0) + p.age / 200 + this.rng.next() * 0.5 }))
-        .sort((a, b) => b.votes - a.votes);
-      const w = cands[0]; if (!w) return;
-      w.p.title = `Reeve of ${this.world.name}`; this.reeveId = w.p.id;
-      this.log(`At the moot, the folk of ${this.world.name} chose ${w.p.name} as their new reeve${cands[1] ? `, over ${cands[1].p.name}` : ''}.`, 'politics');
-      this.remember(w.p, `I was chosen reeve at the moot. God help me.`, 'life', 3);
+        .map((p) => ({ p, pre: prestige(p) + this.people.reduce((s, q) => s + Math.max(0, q.rel.get(p.id)?.affinity || 0), 0) / 40 }))
+        .sort((a, b) => b.pre - a.pre).slice(0, 2);
+      if (PS && PS.standForReeve && PS.wantedLevel() === 0 && !PS.exiled) cands.push({ player: true, pre: PS.rep.local * 0.4 + PS.rep.civilian * 0.2 + (sitting === 'player' ? 0.15 : 0) });
+      if (!cands.length) return;
+      const tally = cands.map(() => 0);
+      for (const q of this.people) {
+        if (q.visitor || q.age < 16) continue;
+        let best = 0, bs = -9;
+        cands.forEach((c, i) => {
+          let sc = c.pre + this.rng.next() * 0.3;
+          if (c.player) { const r0 = q.rel.get(0); sc += (r0?.affinity || 0) * 1.2 + (r0?.familiar || 0) * 0.2; if (q.memories.some((m) => m.kind === 'crime' && m.about === 0)) sc -= 1; }
+          else { sc += (q.rel.get(c.p.id)?.affinity || 0) * 1.2 + (q.household === c.p.household ? 2 : 0); }
+          if (sc > bs) { bs = sc; best = i; }
+        });
+        tally[best]++;
+      }
+      const order = cands.map((c, i) => ({ c, v: tally[i] })).sort((a, b) => b.v - a.v);
+      const w = order[0], name = (c) => (c.player ? 'the newcomer' : c.p.name);
+      const old = sitting && sitting !== 'player' ? this.byId.get(sitting) : null;
+      if (old && (w.c.player || w.c.p !== old)) old.title = null;
+      if (w.c.player) { this.reeveId = 'player'; PS.reeve = true; PS.standForReeve = false; O.Chronicle && O.Chronicle.deed(this, `At the moot, the folk of ${this.world.name} chose the newcomer as reeve, ${w.v} votes to ${order[1]?.v || 0}.`, `You were chosen Reeve of ${this.world.name} at the moot, ${w.v} votes to ${order[1]?.v || 0}.`, 'rulers', 4, true); }
+      else {
+        if (sitting === 'player' && PS) PS.reeve = false;
+        w.c.p.title = `Reeve of ${this.world.name}`; this.reeveId = w.c.p.id;
+        if (w.c.p !== old) this.remember(w.c.p, `I was chosen reeve at the moot. God help me.`, 'life', 3);
+      }
+      if (PS) PS.standForReeve = false;
+      this.log(`At the moot, the folk of ${this.world.name} chose ${name(w.c)} as reeve, ${w.v} votes${order.slice(1).map((o) => `; ${name(o.c)} ${o.v}`).join('')}.`, 'politics');
+      this.lastMoot = { day: this.day, results: order.map((o) => ({ who: name(o.c), v: o.v })) };
     };
   }
 

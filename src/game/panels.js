@@ -50,9 +50,9 @@
     const d = document.createElement('div'); d.className = 'toast ' + kind; d.textContent = text; toastEl.appendChild(d);
     setTimeout(() => d.remove(), 4200);
   }
-  function close() { ensure(); root.hidden = true; root.innerHTML = ''; O.panelOpen = false; }
+  function close() { ensure(); root.hidden = true; root.innerHTML = ''; O.panelOpen = false; toastEl.classList.remove('low'); }
   function open(title, body, onBind) {
-    ensure(); O.panelOpen = true;
+    ensure(); O.panelOpen = true; toastEl.classList.add('low'); // toasts drop below the panel so they don't hide its title
     root.hidden = false;
     root.innerHTML = `<div class="ledger-in narrow"><header><h2>${esc(title)}</h2><div style="flex:1"></div><span class="purse">${money(PS.money)}</span><button class="x" aria-label="Close">✕</button></header><div class="ledger-body">${body}</div></div>`;
     root.querySelector('.x').onclick = close;

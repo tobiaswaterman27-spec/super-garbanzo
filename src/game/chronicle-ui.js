@@ -94,7 +94,7 @@
   function notables(s, Ch) {
     const H = O.SimRef.home, K = H.kingdom;
     const reeve = H.reeveId ? H.byId.get(H.reeveId) : null;
-    const rulers = K.places.map((p) => `<li><b>${esc(p.name)}</b> — ${esc(p.id === 'ashford' ? (H.lordship?.holder === 'player' ? 'you, as Lord of Ashford' : reeve && reeve.alive !== false ? `${reeve.name}, Reeve of Ashford` : 'no reeve: a moot is called') : p.leader || 'a council')}</li>`).join('');
+    const rulers = K.places.map((p) => `<li><b>${esc(p.name)}</b> — ${esc(p.id === 'ashford' ? (H.lordship?.holder === 'player' ? 'you, as Lord of Ashford' : H.reeveId === 'player' ? 'you, as Reeve of Ashford' : reeve && reeve.alive !== false ? `${reeve.name}, Reeve of Ashford` : 'no reeve: a moot is called') : p.leader || 'a council')}</li>`).join('');
     const R = K.rulers;
     const crown = R ? `<div class="kv" style="margin-top:12px"><div><span class="lbl">The crown</span><b style="font-size:22px">${R.crown ? esc(O.Rulers.crownTitle(R.crown)) : 'Vacant — the realm mourns'}</b><small>${R.crown ? `aged ${R.crown.age}${R.crown.ailing ? ', gravely ill' : ''}; heir ${esc(R.crown.heir?.name || 'none')} (${R.crown.heir?.age ?? '?'})` : ''}${R.regent ? `. Regent: ${esc(R.regent.name)}` : ''}</small></div>
       <div><span class="lbl">Pretender</span><b style="font-size:22px">${esc(R.pretender?.name || 'none')}</b><small>${esc(R.pretender?.title || '')}</small></div></div>

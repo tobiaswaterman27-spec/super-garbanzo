@@ -162,6 +162,7 @@
       for (const it of agenda) {
         let yes = 0;
         const votes = leaders.map((l) => {
+          const PSx = O.PlayerState; if (l.detailed && PSx && (PSx.reeve || PSx.lord)) { const aye = it.kind === (PSx.councilPriority || 'security') || it.s === l || (it.kind !== 'tax' && PSx.councilDefault === 'aye'); if (aye) yes++; return { who: 'you, for Ashford', aye }; }
           let v = 0.45 + (l.priority === it.kind ? 0.35 : 0) + (it.s === l ? 0.3 : 0) - (it.cost > 150 ? 0.1 : 0) - (it.kind === 'tax' ? (l.id === 'thornbury' ? -0.4 : 0.25) : 0) + r.float(-0.2, 0.2);
           const aye = v > 0.5; if (aye) yes++; return { who: l.leader, aye };
         });

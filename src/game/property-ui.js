@@ -76,11 +76,35 @@
           <div><span class="lbl">Lordship of Ashford</span><b>${lord ? 'Yours' : 'The crown\'s'}</b><small>${lord ? 'You set the tax, the watch and the works.' : `The crown asks ${O.money(L.price)} and an unstained name.`}</small></div>
         </div>
         <table style="margin-top:12px"><thead><tr><th>Property</th><th class="n">Value</th><th>Use</th></tr></thead><tbody>${rows || '<tr><td colspan="3">You own nothing yet. Look for For Sale signs by empty houses and shops.</td></tr>'}</tbody></table>
-        ${!lord ? `<p class="caption" style="margin-top:12px">${canPetition ? 'You could petition the Lord of Thornbury for the lordship.' : 'The crown will not sell a lordship to someone the watch is looking for, or whom the common folk despise.'}</p>${canPetition ? `<button class="btn" data-pet="1">Petition for the lordship (${O.money(L.price)})</button>` : ''}` : lordControls(H)}`, (r) => {
+        ${!lord ? `<p class="caption" style="margin-top:12px">${canPetition ? 'You could petition the Lord of Thornbury for the lordship.' : 'The crown will not sell a lordship to someone the watch is looking for, or whom the common folk despise.'}</p>${canPetition ? `<button class="btn" data-pet="1">Petition for the lordship (${O.money(L.price)})</button>` : ''}` : lordControls(H)}${PS.reeve && !lord ? reeveControls(H) : ''}${PS.reeve || lord ? officeControls(H) : ''}${moot(H)}`, (r) => {
         const pet = r.querySelector('[data-pet]');
         if (pet) pet.onclick = () => { if (PS.money < L.price) return O.Panels.toast(`You need ${O.money(L.price)}.`, 'bad'); PS.money -= L.price; H.kingdom.treasury += L.price; L.holder = 'player'; PS.lord = true; H.log('By letters from Thornbury, the newcomer is made Lord of Ashford.', 'politics'); H.kingdom.addNews(`A new lord has been granted Ashford.`, 'politics'); for (const p of H.people) if (p.age >= 16 && H.rng.chance(0.5)) H.remember(p, 'We have a new lord, a stranger with deep pockets.', 'politics', 1.5); holdings(); };
         bindLord(r, H);
       });
+    }
+    // Ashford's voice at the castle council, for its lord or its reeve
+    function officeControls(H) {
+      const pr = PS.councilPriority || 'security', st = PS.warStance || 'dove';
+      const m = H.lastMoot;
+      return `<div class="lbl" style="margin-top:12px">Ashford's voice at the castle council</div><div class="kv">
+        <div><span class="lbl">Ashford asks for</span><b style="font-size:20px">${pr}</b><small>${['security', 'food', 'health', 'roads'].map((k) => `<button data-pri="${k}">${k}</button>`).join(' ')}</small></div>
+        <div><span class="lbl">On other motions</span><b style="font-size:20px">${PS.councilDefault === 'aye' ? 'Aye' : 'Nay'}</b><small><button data-def="aye">Aye</button> <button data-def="nay">Nay</button></small></div>
+        <div><span class="lbl">On war</span><b style="font-size:20px">${st === 'hawk' ? 'Fight' : 'Pay for peace'}</b><small><button data-war="hawk">Fight</button> <button data-war="dove">Pay for peace</button></small></div>
+      </div>${m ? `<p class="caption">Last moot, ${O.Chronicle.dateLabel(m.day)}: ${m.results.map((x) => `${esc(x.who)} ${x.v}`).join(' · ')}.</p>` : ''}`;
+    }
+    function reeveControls(H) {
+      const gh = H.biz.get(H.guardId), guards = gh ? gh.def.jobs[1][1] : 0;
+      return `<div class="lbl" style="margin-top:12px">As Reeve of Ashford</div><div class="kv">
+        <div><span class="lbl">Market tax</span><b>${Math.round(H.treasury.taxRate * 100)}%</b><small><button data-tax="-1">Lower</button> <button data-tax="1">Raise</button></small></div>
+        <div><span class="lbl">Watchmen</span><b>${guards + 1}</b><small><button data-g="-1">Dismiss one</button> <button data-g="1">Hire one</button></small></div>
+        <div><span class="lbl">Common chest</span><b>${O.money(H.treasury.cash)}</b><small>the reeve keeps it, but may not take from it</small></div>
+        <div><span class="lbl">Works</span><b>${H.build.sites.filter((x) => x.stage < 10).length ? 'Building' : 'Idle'}</b><small><button data-build="1">Order a new house (160d)</button></small></div>
+      </div>`;
+    }
+    function moot(H) {
+      if (PS.reeve) return '';
+      if (H.reeveMoot) return PS.standForReeve ? `<p class="caption" style="margin-top:12px">You are standing for reeve at the moot on ${O.DAYNAMES[(H.weekday + H.reeveMoot - H.day) % 7]} at five. Be in the square, and be liked.</p>` : `<p class="caption" style="margin-top:12px">A moot is called for ${O.DAYNAMES[(H.weekday + H.reeveMoot - H.day) % 7]} to choose Ashford's reeve.</p>${PS.wantedLevel() === 0 && !PS.exiled ? '<button class="btn" data-stand="1">Stand for reeve</button>' : ''}`;
+      return `<p class="caption" style="margin-top:12px">Ashford chooses its reeve at a moot each spring, or when the office falls empty. Anyone of standing may stand.</p>`;
     }
     function lordControls(H) {
       const gh = H.biz.get(H.guardId), guards = gh ? gh.def.jobs[1][1] : 0;
@@ -94,6 +118,10 @@
     }
     function bindLord(r, H) {
       const t = (sel, f) => r.querySelectorAll(sel).forEach((x) => x.onclick = () => { f(x); holdings(); });
+      t('[data-pri]', (x) => { PS.councilPriority = x.dataset.pri; });
+      t('[data-def]', (x) => { PS.councilDefault = x.dataset.def; });
+      t('[data-war]', (x) => { PS.warStance = x.dataset.war; });
+      t('[data-stand]', () => { PS.standForReeve = true; H.log('The newcomer has put themselves forward at the moot.', 'politics'); for (const p of H.people) if (!p.visitor && p.age >= 16 && H.rng.chance(0.3)) H.remember(p, 'The newcomer is standing for reeve. Imagine.', 'politics', 1); });
       t('[data-tax]', (x) => { H.treasury.taxRate = O.clamp(H.treasury.taxRate + +x.dataset.tax * 0.02, 0.02, 0.2); H.log(`The lord ${+x.dataset.tax > 0 ? 'raised' : 'lowered'} the market tax to ${Math.round(H.treasury.taxRate * 100)}%.`, 'politics'); for (const p of H.people) if (p.age >= 18 && H.rng.chance(0.3)) { H.remember(p, `The new lord ${+x.dataset.tax > 0 ? 'raised' : 'cut'} the market tax.`, 'politics', 1); H.relate(p, { id: 0 }, +x.dataset.tax > 0 ? -0.05 : 0.05); } });
       t('[data-g]', (x) => { const gh = H.biz.get(H.guardId); const n = O.clamp(gh.def.jobs[1][1] + +x.dataset.g, 1, 8); gh.def = Object.assign({}, gh.def, { jobs: [gh.def.jobs[0], ['guard', n]] }); if (+x.dataset.g < 0) { const g = H.people.find((q) => q.job?.biz === H.guardId && q.job.role === 'guard'); if (g) { g.job = null; gh.workers = gh.workers.filter((id) => id !== g.id); H.remember(g, 'The lord dismissed me from the watch.', 'hardship', 2); } } else H.fillVacancies(); });
       t('[data-take]', () => { const n = Math.min(50, Math.floor(H.treasury.cash)); H.treasury.cash -= n; PS.money += n; H.log('The lord drew coin from the parish chest for their own use.', 'politics'); for (const p of H.people) if (p.age >= 18 && H.rng.chance(0.2)) H.relate(p, { id: 0 }, -0.08); });

@@ -22,6 +22,8 @@
       this.touch = { x: 0, y: 0, active: false };
       this.running = false;
       this.hooks = { update: [], drawWorld: [], hud: [] };
+      this.keyHandlers = [];
+      this.scene = null;
     }
 
     load(world, playerAppearance) {
@@ -73,7 +75,7 @@
       window.addEventListener('keydown', (e) => {
         if (!this.running || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
         const k = map[e.code]; if (k) { this.keys.add(k); e.preventDefault(); }
-        this.onKey && this.onKey(e);
+        if (!e.repeat) for (const h of this.keyHandlers) if (h(e)) { e.preventDefault(); break; }
       });
       window.addEventListener('keyup', (e) => { const k = map[e.code]; if (k) this.keys.delete(k); });
       window.addEventListener('blur', () => this.keys.clear());
@@ -91,7 +93,7 @@
       return w.solid[ty * w.W + tx] === 1;
     }
     // feet box 8x4 centred on (x, y)
-    blocked(x, y) { return this.solidAt(x - 4, y - 3) || this.solidAt(x + 3, y - 3) || this.solidAt(x - 4, y) || this.solidAt(x + 3, y); }
+    blocked(x, y) { if (this.scene) return this.scene.blocked(x, y); return this.solidAt(x - 4, y - 3) || this.solidAt(x + 3, y - 3) || this.solidAt(x - 4, y) || this.solidAt(x + 3, y); }
 
     update(dt) {
       this.t += dt;
@@ -126,6 +128,8 @@
       for (const h of this.hooks.update) h(dt);
       // camera
       const T = this.world.T;
+      if (this.scene) { this.scene.update(dt); }
+      if (this.scene) { this.cam = this.scene.camera(); return; }
       this.cam = {
         x: Math.round(O.clamp(p.x - this.vw / 2, 0, this.world.W * T - this.vw)),
         y: Math.round(O.clamp(p.y - 20 - this.vh / 2, 0, this.world.H * T - this.vh)),
@@ -139,6 +143,7 @@
     }
 
     draw() {
+      if (this.scene) { this.scene.draw(this.ctx); return; }
       const { ctx, cam, vw, vh } = this, w = this.world, T = w.T;
       ctx.drawImage(this.ground, cam.x, cam.y, vw, vh, 0, 0, vw, vh);
       const inView = (x, y, wd, ht) => x + wd >= cam.x && x <= cam.x + vw && y + ht >= cam.y && y <= cam.y + vh;
@@ -190,6 +195,23 @@
     }
     isNight() { const h = this.clock.minute / 60; return h < 6.2 || h > 19.3; }
 
+    drawLightingWith(amb, pools) {
+      const { ctx, vw, vh } = this;
+      const L = this.light, lc = L.getContext('2d');
+      lc.globalCompositeOperation = 'source-over';
+      lc.fillStyle = `rgb(${amb[0]},${amb[1]},${amb[2]})`; lc.fillRect(0, 0, vw, vh);
+      lc.globalCompositeOperation = 'lighter';
+      for (const [x, y, r, kind] of pools) {
+        if (x < -r * 1.4 || y < -r || x > vw + r * 1.4 || y > vh + r) continue;
+        lc.fillStyle = kind === 'day' ? 'rgba(60,60,70,0.33)' : 'rgba(110,80,30,0.33)';
+        for (let k = 3; k >= 1; k--) {
+          const rr = Math.round((r * k) / 3), ry = Math.round(rr * 0.75);
+          for (let yy = -ry; yy <= ry; yy++) { const ww = Math.round(rr * 1.3 * Math.sqrt(1 - (yy * yy) / (ry * ry || 1))); lc.fillRect(Math.round(x - ww), Math.round(y + yy), ww * 2, 1); }
+        }
+      }
+      ctx.globalCompositeOperation = 'multiply'; ctx.drawImage(L, 0, 0); ctx.globalCompositeOperation = 'source-over';
+    }
+
     drawLighting() {
       const amb = this.ambient(); if (amb[0] > 250 && amb[1] > 245) return;
       const { ctx, cam, vw, vh } = this, w = this.world, T = w.T;
@@ -220,6 +242,21 @@
         for (const s of this.statics) if (s.b) { const b = s.b, sp = b.sprite, bx = b.x * T - sp.OV - cam.x, by = (b.bottom + 1) * T - sp.H - cam.y; if (bx > vw || by > vh || bx + sp.W < 0 || by + sp.H < 0) continue; for (const wd of sp.windows) { if ((b.id * 7 + wd.x) % 5 === 0) continue; ctx.fillRect(bx + wd.x, by + wd.y, wd.w, wd.h); ctx.fillStyle = '#c88a3a'; ctx.fillRect(bx + wd.x + Math.floor(wd.w / 2) - 0, by + wd.y, 1, wd.h); ctx.fillRect(bx + wd.x, by + wd.y + Math.floor(wd.h / 2), wd.w, 1); ctx.fillStyle = '#ffd27a'; } }
         for (const s of this.statics) if (s.p && s.p.kind === 'lamp') { ctx.fillStyle = '#ffe08a'; ctx.fillRect(s.p.x - 2 - cam.x, s.p.y - 27 - cam.y, 4, 4); }
       }
+    }
+
+    enterBuilding(b, floor = 0, fromStairs = false) {
+      if (!this.scene) this.outdoorPos = { x: this.player.x, y: this.player.y };
+      this.scene = new O.Indoor(this, this.sim, b, floor);
+      this.scene.enterAt(fromStairs);
+      this.scene.placeActors();
+      this.player.inside = b.id;
+      this.onSceneChange && this.onSceneChange();
+    }
+    exitBuilding() {
+      const b = this.scene.b; this.scene = null; this.player.inside = null;
+      const T = this.world.T;
+      this.player.x = b.doorX * T + 8; this.player.y = b.doorY * T + 10; this.player.dir = 0;
+      this.onSceneChange && this.onSceneChange();
     }
 
     timeString() {

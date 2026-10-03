@@ -58,6 +58,31 @@ input[type=range] { width: 100%; accent-color: var(--ember); }
 [hidden] { display: none !important; }
 .hud-prompt { bottom: 52px; left: 50%; transform: translateX(-50%); white-space: nowrap; }
 .ledger-btn { position: absolute; right: 12px; bottom: 12px; }
+.satchel-btn { position: absolute; right: 120px; bottom: 12px; }
+.vitals { display: grid; grid-template-columns: auto 1fr; gap: 3px 8px; align-items: center; margin-top: 6px; }
+.purse-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: 4px 8px; align-items: baseline; margin-top: 4px; }
+.purse-row b { font-family: var(--pix); font-size: 11px; font-weight: 400; font-variant-numeric: tabular-nums; }
+.ledger-in.narrow { width: min(560px, 100%); }
+.purse { font-family: var(--pix); font-size: 12px; color: var(--ember-2); }
+.slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; margin-top: 8px; }
+.slot { display: flex; align-items: center; gap: 6px; background: var(--ink); border: 2px solid var(--line); padding: 4px 6px; min-height: 40px; font-size: 13px; }
+.slot.empty { opacity: .45; }
+.slot img, img.ic { width: 28px; height: 28px; image-rendering: pixelated; flex: none; }
+img.ic { width: 21px; height: 21px; vertical-align: middle; }
+.slot span { flex: 1; min-width: 0; }
+.slot button, .ledger td button { background: var(--ember); color: var(--ink); border: 2px solid #000; padding: 1px 7px; cursor: pointer; font-family: var(--pix); font-size: 9px; }
+.slot button.ghost { background: var(--ink-2); color: var(--parch-dim); }
+.reps { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 4px 12px; margin-top: 4px; font-size: 13px; }
+.reps div { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px dashed var(--line); }
+.reps span { text-transform: capitalize; color: var(--parch-dim); }
+.reps b { font-weight: 500; }
+.warnnote { color: #e0a090; }
+.topics button.hot { border-color: var(--ember); color: var(--ember-2); }
+.toasts { position: absolute; left: 50%; top: 16px; transform: translateX(-50%); display: grid; gap: 6px; pointer-events: none; width: min(520px, calc(100% - 24px)); z-index: 5; }
+.toast { background: rgba(21,17,28,.94); border: 2px solid #000; box-shadow: inset 0 0 0 2px var(--line); padding: 8px 12px; font-size: 15px; text-align: center; animation: tin .2s ease-out; }
+.toast.bad { box-shadow: inset 0 0 0 2px var(--blood); }
+@keyframes tin { from { transform: translateY(-6px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
 .talk { right: 12px; top: 92px; width: min(340px, calc(100% - 24px)); display: grid; gap: 10px; max-height: calc(100% - 160px); overflow: auto; }
 .talk-head { display: flex; gap: 10px; align-items: center; }
 .portrait { width: 64px; height: 96px; background: var(--ink); border: 2px solid #000; flex: none; }
@@ -117,7 +142,7 @@ main > .wrap { overflow: auto; }
 </style>
 
 <header class="top">
-  <div class="brand">Outlaw<small>BUILD 0.3 · ASHFORD LIVES</small></div>
+  <div class="brand">Outlaw<small>BUILD 0.4 · DOORS OPEN</small></div>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" role="tab" aria-selected="true" data-tab="play">Play</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="forge">Character</button>
@@ -135,7 +160,7 @@ main > .wrap { overflow: auto; }
       <span class="lbl">Time</span>
       <div class="seg" id="speedSeg"></div>
     </div>
-    <div class="hud hud-b" id="hudB">WASD / arrows move · Shift run · E talk · L ledger</div>
+    <div class="hud hud-b" id="hudB">WASD move · Shift run · E interact · F quick loot · I satchel · L ledger</div>
   </section>
 
   <section class="wrap" id="tab-forge" hidden>
@@ -2443,6 +2468,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       this.touch = { x: 0, y: 0, active: false };
       this.running = false;
       this.hooks = { update: [], drawWorld: [], hud: [] };
+      this.keyHandlers = [];
+      this.scene = null;
     }
 
     load(world, playerAppearance) {
@@ -2494,7 +2521,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       window.addEventListener('keydown', (e) => {
         if (!this.running || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
         const k = map[e.code]; if (k) { this.keys.add(k); e.preventDefault(); }
-        this.onKey && this.onKey(e);
+        if (!e.repeat) for (const h of this.keyHandlers) if (h(e)) { e.preventDefault(); break; }
       });
       window.addEventListener('keyup', (e) => { const k = map[e.code]; if (k) this.keys.delete(k); });
       window.addEventListener('blur', () => this.keys.clear());
@@ -2512,7 +2539,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       return w.solid[ty * w.W + tx] === 1;
     }
     // feet box 8x4 centred on (x, y)
-    blocked(x, y) { return this.solidAt(x - 4, y - 3) || this.solidAt(x + 3, y - 3) || this.solidAt(x - 4, y) || this.solidAt(x + 3, y); }
+    blocked(x, y) { if (this.scene) return this.scene.blocked(x, y); return this.solidAt(x - 4, y - 3) || this.solidAt(x + 3, y - 3) || this.solidAt(x - 4, y) || this.solidAt(x + 3, y); }
 
     update(dt) {
       this.t += dt;
@@ -2547,6 +2574,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       for (const h of this.hooks.update) h(dt);
       // camera
       const T = this.world.T;
+      if (this.scene) { this.scene.update(dt); }
+      if (this.scene) { this.cam = this.scene.camera(); return; }
       this.cam = {
         x: Math.round(O.clamp(p.x - this.vw / 2, 0, this.world.W * T - this.vw)),
         y: Math.round(O.clamp(p.y - 20 - this.vh / 2, 0, this.world.H * T - this.vh)),
@@ -2560,6 +2589,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     }
 
     draw() {
+      if (this.scene) { this.scene.draw(this.ctx); return; }
       const { ctx, cam, vw, vh } = this, w = this.world, T = w.T;
       ctx.drawImage(this.ground, cam.x, cam.y, vw, vh, 0, 0, vw, vh);
       const inView = (x, y, wd, ht) => x + wd >= cam.x && x <= cam.x + vw && y + ht >= cam.y && y <= cam.y + vh;
@@ -2611,6 +2641,23 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     }
     isNight() { const h = this.clock.minute / 60; return h < 6.2 || h > 19.3; }
 
+    drawLightingWith(amb, pools) {
+      const { ctx, vw, vh } = this;
+      const L = this.light, lc = L.getContext('2d');
+      lc.globalCompositeOperation = 'source-over';
+      lc.fillStyle = `rgb(${amb[0]},${amb[1]},${amb[2]})`; lc.fillRect(0, 0, vw, vh);
+      lc.globalCompositeOperation = 'lighter';
+      for (const [x, y, r, kind] of pools) {
+        if (x < -r * 1.4 || y < -r || x > vw + r * 1.4 || y > vh + r) continue;
+        lc.fillStyle = kind === 'day' ? 'rgba(60,60,70,0.33)' : 'rgba(110,80,30,0.33)';
+        for (let k = 3; k >= 1; k--) {
+          const rr = Math.round((r * k) / 3), ry = Math.round(rr * 0.75);
+          for (let yy = -ry; yy <= ry; yy++) { const ww = Math.round(rr * 1.3 * Math.sqrt(1 - (yy * yy) / (ry * ry || 1))); lc.fillRect(Math.round(x - ww), Math.round(y + yy), ww * 2, 1); }
+        }
+      }
+      ctx.globalCompositeOperation = 'multiply'; ctx.drawImage(L, 0, 0); ctx.globalCompositeOperation = 'source-over';
+    }
+
     drawLighting() {
       const amb = this.ambient(); if (amb[0] > 250 && amb[1] > 245) return;
       const { ctx, cam, vw, vh } = this, w = this.world, T = w.T;
@@ -2643,6 +2690,21 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       }
     }
 
+    enterBuilding(b, floor = 0, fromStairs = false) {
+      if (!this.scene) this.outdoorPos = { x: this.player.x, y: this.player.y };
+      this.scene = new O.Indoor(this, this.sim, b, floor);
+      this.scene.enterAt(fromStairs);
+      this.scene.placeActors();
+      this.player.inside = b.id;
+      this.onSceneChange && this.onSceneChange();
+    }
+    exitBuilding() {
+      const b = this.scene.b; this.scene = null; this.player.inside = null;
+      const T = this.world.T;
+      this.player.x = b.doorX * T + 8; this.player.y = b.doorY * T + 10; this.player.dir = 0;
+      this.onSceneChange && this.onSceneChange();
+    }
+
     timeString() {
       const m = Math.floor(this.clock.minute), hh = Math.floor(m / 60), mm = m % 60;
       return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
@@ -2671,6 +2733,11 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     tools: { name: 'Tools', base: 24, unit: 'piece', slots: 1 },
     medicine: { name: 'Remedy', base: 10, unit: 'phial', slots: 1 },
     herbs: { name: 'Herbs', base: 2, unit: 'bunch', slots: 1 },
+    dagger: { name: 'Dagger', base: 14, unit: 'blade', slots: 1, weapon: true },
+    spoon: { name: 'Silver spoon', base: 12, unit: 'spoon', slots: 1, valuable: true },
+    brooch: { name: 'Brooch', base: 30, unit: 'brooch', slots: 1, valuable: true },
+    candlestick: { name: 'Pewter candlestick', base: 9, unit: 'candlestick', slots: 1, valuable: true },
+    key: { name: 'Room key', base: 0, unit: 'key', slots: 1, quest: true },
   };
 
   // Business definitions: roles (job slots), hours, recipes (per worker-hour at skill 1),
@@ -3459,6 +3526,814 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
 </script>
 <script>
+// Interior art: rooms (back wall, side walls, floors) and furniture, in the same material raster.
+// Furniture is anchored at the bottom-centre of its footprint like world props.
+'use strict';
+(function () {
+  const P = O.Pal, C = P.cloth, MB = O.MatBuffer, E = O.Env;
+  const cache = new Map();
+  const wood = () => P.mat(P.wood.oak, 'wood'), dark = () => P.mat(P.wood.dark, 'wood'), pine = () => P.mat(P.wood.pine, 'wood');
+  const stone = () => P.mat('#8e8880', 'cloth'), iron = () => P.mat(P.metal.darkIron, 'metal');
+  const GOOD_COL = { bread: '#c88a45', cabbage: '#6a9a44', flour: '#e6dcc4', wheat: '#d8b048', ale: '#8a5a30', meal: '#a0603a', logs: '#7c5a38', firewood: '#8a6239', iron: '#7a7e88', tools: '#9aa0aa', medicine: '#6a9ad0', herbs: '#5a9a40' };
+
+  function finish(B, ox, oy, opts) { return { canvas: B.toCanvas(opts), ox, oy, W: B.w, H: B.h }; }
+
+  function furniture(kind, v = 0, seed = 1) {
+    const key = kind + ':' + v + ':' + seed;
+    if (cache.has(key)) return cache.get(key);
+    const rng = O.RNG(seed);
+    let out;
+    switch (kind) {
+      case 'bed': { // 16 x 28 footprint, head against the wall (top)
+        const B = new MB(18, 30); const fr = v >= 2 ? dark() : wood();
+        const blanket = P.mat(v >= 2 ? rng.pick([C.crimson, C.navy, C.forest, C.plum]) : v === 1 ? rng.pick([C.woad, C.russet, C.ochre, C.sage]) : C.undyed);
+        B.part(1); B.rect(1, 1, 16, 7, fr, 2); for (let x = 1; x < 17; x++) { B.shadeAt(x, 1, 3); B.shadeAt(x, 7, 1); } // headboard
+        B.part(2); B.rect(2, 8, 14, 20, fr, 1);
+        B.part(3); B.blob(9, 10, 5.5, 2.2, P.mat(C.white), { power: 2.5 }); // pillow
+        B.part(4); B.poly([[2, 13], [16, 13], [16, 27], [2, 27]], (px, py) => [(px - 9) / 9, 0.1, 0.9], blanket);
+        for (let x = 2; x < 16; x++) B.shadeAt(x, 13, 3);
+        for (let y = 15; y < 27; y += 4) for (let x = 3; x < 16; x++) if ((x + y) % 7 === 0) B.tweak(x, y, -1);
+        if (v === 0) for (let i = 0; i < 4; i++) B.tweak(rng.int(3, 15), rng.int(15, 26), -1); // worn patches
+        B.part(5); B.rect(1, 27, 16, 2, fr, 1);
+        out = finish(B, 9, 29); break;
+      }
+      case 'table': {
+        const B = new MB(30, 20); const m = v >= 2 ? dark() : wood();
+        B.part(1); B.capsule(4, 19, 4, 10, 1, 1, m); B.capsule(26, 19, 26, 10, 1, 1, m);
+        B.part(2); B.rect(1, 3, 28, 8, m, 3); for (let x = 1; x < 29; x++) { B.shadeAt(x, 3, 4); B.shadeAt(x, 10, 1); } for (let x = 1; x < 29; x += 7) for (let y = 4; y < 10; y++) B.shadeAt(x, y, 2);
+        B.part(3); // things on the table
+        if (v !== 9) { B.blob(9, 6, 2.4, 1.5, P.mat('#c8b89a', 'cloth'), { power: 2 }); B.blob(20, 6, 1.4, 1.8, P.mat(P.wood.walnut, 'wood'), { power: 3 }); if (rng.chance(0.6)) B.blob(15, 5, 2.4, 1.4, P.mat(GOOD_COL.bread, 'wood'), { power: 2 }); }
+        out = finish(B, 15, 19); break;
+      }
+      case 'chair': case 'stool': {
+        const B = new MB(10, 16); const m = wood();
+        B.part(1); B.capsule(2, 15, 2, 9, 0.8, 0.8, m); B.capsule(8, 15, 8, 9, 0.8, 0.8, m);
+        B.part(2); B.rect(1, 7, 8, 3, m, 3); for (let x = 1; x < 9; x++) B.shadeAt(x, 9, 1);
+        if (kind === 'chair') { B.part(0); B.rect(1, 1, 8, 6, m, 2); for (let x = 1; x < 9; x++) B.shadeAt(x, 1, 3); for (let y = 2; y < 6; y++) B.shadeAt(4, y, 1); }
+        out = finish(B, 5, 15); break;
+      }
+      case 'fireplace': { // against the back wall: 24 wide
+        const B = new MB(28, 34); const s = stone();
+        B.part(1); B.rect(1, 1, 26, 32, s, 2);
+        for (let y = 1; y < 33; y++) for (let x = 1; x < 27; x++) { const r = (y - 1) % 5, off = Math.floor((y - 1) / 5) % 2 ? 3 : 0; if (r === 4 || (x + off) % 7 === 0) B.shadeAt(x, y, 0); else if (r === 0) B.shadeAt(x, y, 3); }
+        B.part(2); B.rect(5, 14, 18, 19, P.mat('#1c1418', 'cloth'), 0); // firebox
+        B.rect(0, 10, 28, 3, dark(), 3); for (let x = 0; x < 28; x++) B.shadeAt(x, 12, 1); // mantel
+        B.part(3); for (let i = 0; i < 4; i++) B.blob(9 + i * 3.5, 30, 1.8, 1.2, P.mat('#5a3d26', 'wood'), { power: 2 }); // logs
+        if (v) { B.part(4); B.blob(8, 8, 1.4, 1.8, P.mat('#c8b8a0', 'cloth'), { power: 3 }); B.blob(20, 8, 1.6, 1.6, P.mat(P.metal.copper, 'metal'), { power: 2 }); }
+        out = finish(B, 14, 33); out.fire = { x: 14, y: 26, w: 14 }; break;
+      }
+      case 'oven': { // baker's dome oven
+        const B = new MB(30, 32); const s = P.mat('#b8826a', 'cloth');
+        B.part(1); B.blob(15, 16, 13, 14, s, { power: 2.1 }); B.rect(2, 16, 26, 15, s, 2);
+        for (let y = 2; y < 31; y++) for (let x = 2; x < 29; x++) if (B.matAt(x, y) === s && ((y % 4 === 0) || ((x + (Math.floor(y / 4) % 2) * 2) % 5 === 0))) B.tweak(x, y, -1);
+        B.part(2); B.blob(15, 22, 6, 5, P.mat('#1c1418', 'cloth'), { power: 2.2 }, ); B.rect(9, 22, 12, 6, P.mat('#1c1418', 'cloth'), 0);
+        out = finish(B, 15, 31); out.fire = { x: 15, y: 25, w: 9 }; break;
+      }
+      case 'forge': {
+        const B = new MB(30, 26); const s = stone();
+        B.part(1); B.rect(1, 8, 28, 17, s, 2); for (let x = 1; x < 29; x++) { B.shadeAt(x, 8, 3); B.shadeAt(x, 24, 1); }
+        for (let y = 9; y < 24; y++) for (let x = 1; x < 29; x++) if ((y - 9) % 5 === 4 || (x + ((Math.floor((y - 9) / 5) % 2) * 3)) % 7 === 0) B.shadeAt(x, y, 0);
+        B.part(2); B.rect(4, 5, 22, 5, P.mat('#2a2024', 'cloth'), 1); // coal bed
+        B.part(3); B.rect(25, 0, 4, 9, P.mat(C.leather), 2); // bellows
+        out = finish(B, 15, 25); out.fire = { x: 15, y: 7, w: 20, coals: true }; break;
+      }
+      case 'anvil': out = E.prop('anvil', 1); break;
+      case 'barrel': out = E.prop('barrel', seed); break;
+      case 'crate': out = E.prop('crate', seed); break;
+      case 'sack': out = E.prop('sack', seed); break;
+      case 'hay': out = E.prop('hay', seed); break;
+      case 'woodpile': out = E.prop('woodpile', seed); break;
+      case 'cupboard': case 'wardrobe': {
+        const B = new MB(18, 30); const m = v >= 2 ? dark() : wood();
+        B.part(1); B.rect(1, 1, 16, 28, m, 2); for (let y = 1; y < 29; y++) { B.shadeAt(1, y, 3); B.shadeAt(16, y, 1); B.shadeAt(8, y, 1); } for (let x = 1; x < 17; x++) { B.shadeAt(x, 1, 4); B.shadeAt(x, 28, 0); }
+        B.plot(7, 15, P.mat(P.metal.brass, 'metal'), 4); B.plot(10, 15, P.mat(P.metal.brass, 'metal'), 4);
+        out = finish(B, 9, 29); break;
+      }
+      case 'chest': {
+        const B = new MB(18, 14); const m = v >= 2 ? dark() : wood();
+        B.part(1); B.rect(1, 5, 16, 8, m, 2); for (let x = 1; x < 17; x++) B.shadeAt(x, 12, 1);
+        B.part(2); B.blob(9, 4, 8, 3.5, m, { power: 3 }); for (let x = 1; x < 17; x++) B.plot(x, 6, iron(), 2);
+        B.plot(8, 8, P.mat(P.metal.brass, 'metal'), 4); B.plot(9, 8, P.mat(P.metal.brass, 'metal'), 3); B.plot(3, 3, iron(), 2); B.plot(14, 3, iron(), 2);
+        out = finish(B, 9, 13); break;
+      }
+      case 'shelf': { // wall shelf showing goods: v = fill level 0..3, seed picks good colour
+        const B = new MB(30, 30); const m = wood();
+        B.part(1); B.rect(1, 1, 28, 28, P.mat('#4a3424', 'wood'), 1); for (let y = 1; y < 29; y++) { B.shadeAt(1, y, 2); B.shadeAt(28, y, 0); }
+        for (const sy of [9, 18, 27]) { B.part(2); B.rect(1, sy, 28, 2, m, 3); B.shadeAt(1, sy + 1, 1); }
+        const goods = (cache.goodsFor && cache.goodsFor[seed]) || ['bread'];
+        let n = 0;
+        for (const sy of [9, 18, 27]) for (let i = 0; i < 6; i++) {
+          if (n++ >= v * 6) break;
+          const g = goods[(i + sy) % goods.length]; const gm = P.mat(GOOD_COL[g] || '#a0a0a0', g === 'tools' || g === 'iron' ? 'metal' : 'cloth');
+          B.part(3); const gx = 4 + i * 4.3;
+          if (g === 'bread') B.blob(gx, sy - 2, 1.9, 1.5, gm, { power: 2 });
+          else if (g === 'medicine' || g === 'ale') { B.rect(Math.round(gx) - 1, sy - 5, 3, 5, gm, 2); B.plot(Math.round(gx), sy - 6, P.mat('#c8b8a0', 'cloth'), 3); }
+          else if (g === 'tools') { B.capsule(gx, sy - 1, gx, sy - 6, 0.5, 0.5, P.mat(P.wood.oak, 'wood')); B.rect(Math.round(gx) - 1, sy - 7, 3, 2, gm, 3); }
+          else B.blob(gx, sy - 2, 1.8, 1.8, gm, { power: 2.2 });
+        }
+        out = finish(B, 15, 29); break;
+      }
+      case 'counter': {
+        const B = new MB(42, 20); const m = v >= 2 ? dark() : wood();
+        B.part(1); B.rect(1, 6, 40, 13, m, 2); for (let x = 1; x < 41; x += 6) for (let y = 7; y < 18; y++) B.shadeAt(x, y, 1);
+        B.part(2); B.rect(0, 3, 42, 4, m, 4); for (let x = 0; x < 42; x++) B.shadeAt(x, 6, 1);
+        if (seed === 7) { B.part(3); B.blob(8, 2, 2, 1.6, P.mat(P.metal.brass, 'metal'), { power: 2 }); } // scales/coin dish
+        out = finish(B, 21, 19); break;
+      }
+      case 'bar': { // tavern bar with taps
+        const B = new MB(58, 24); const m = dark();
+        B.part(1); B.rect(1, 9, 56, 14, m, 2); for (let x = 1; x < 57; x += 8) for (let y = 10; y < 22; y++) B.shadeAt(x, y, 1);
+        B.part(2); B.rect(0, 6, 58, 4, m, 4); for (let x = 0; x < 58; x++) B.shadeAt(x, 9, 1);
+        B.part(3); for (let i = 0; i < 4; i++) { B.blob(10 + i * 12, 3, 1.4, 1.9, P.mat(P.wood.walnut, 'wood'), { power: 3 }); }
+        out = finish(B, 29, 23); break;
+      }
+      case 'workbench': {
+        const B = new MB(30, 22); const m = wood();
+        B.part(1); B.capsule(3, 21, 3, 11, 1, 1, m); B.capsule(27, 21, 27, 11, 1, 1, m);
+        B.part(2); B.rect(1, 6, 28, 6, m, 3); for (let x = 1; x < 29; x++) { B.shadeAt(x, 6, 4); B.shadeAt(x, 11, 1); }
+        B.part(3); B.capsule(8, 4, 13, 2, 0.7, 0.7, m); B.rect(12, 1, 3, 2, iron(), 3); B.capsule(18, 5, 22, 5, 0.6, 0.6, iron()); B.blob(25, 4, 1.8, 1.2, P.mat(C.linen), { power: 2 });
+        out = finish(B, 15, 21); break;
+      }
+      case 'rack': { // weapon/tool rack against the wall
+        const B = new MB(26, 30); const m = dark();
+        B.part(1); B.rect(1, 4, 24, 3, m, 3); B.rect(1, 22, 24, 3, m, 2);
+        B.part(2); for (let i = 0; i < 4; i++) { const x = 4 + i * 6; B.capsule(x, 28, x, 2, 0.6, 0.6, P.mat(P.wood.oak, 'wood')); if (i % 2) B.capsule(x, 2, x, -2, 1.2, 0.3, P.mat(P.metal.steel, 'metal')); else B.rect(x - 2, 1, 5, 2, P.mat(P.metal.steel, 'metal'), 3); }
+        out = finish(B, 13, 29); break;
+      }
+      case 'desk': {
+        const B = new MB(30, 22); const m = dark();
+        B.part(1); B.rect(1, 7, 28, 14, m, 2); B.rect(4, 11, 9, 8, m, 1);
+        B.part(2); B.rect(0, 5, 30, 3, m, 4);
+        B.part(3); B.rect(15, 2, 7, 4, P.mat(C.white), 3); B.capsule(24, 4, 26, 0, 0.4, 0.3, P.mat(C.white)); B.blob(7, 3, 1.4, 2, P.mat('#e8d8a0', 'cloth'), { power: 3 });
+        out = finish(B, 15, 21); break;
+      }
+      case 'medbed': {
+        const B = new MB(18, 28); B.part(1); B.rect(1, 2, 16, 25, wood(), 1);
+        B.part(2); B.rect(2, 3, 14, 22, P.mat(C.white), 3); B.blob(9, 5, 5, 2, P.mat(C.linen), { power: 2.5 }); for (let y = 6; y < 25; y += 3) B.tweak(4, y, -1);
+        out = finish(B, 9, 27); break;
+      }
+      case 'pew': {
+        const B = new MB(46, 16); const m = dark();
+        B.part(1); B.rect(1, 1, 44, 8, m, 2); for (let x = 1; x < 45; x++) B.shadeAt(x, 1, 3);
+        B.part(2); B.rect(1, 9, 44, 3, m, 3); B.capsule(3, 15, 3, 11, 0.8, 0.8, m); B.capsule(43, 15, 43, 11, 0.8, 0.8, m);
+        out = finish(B, 23, 15); break;
+      }
+      case 'altar': {
+        const B = new MB(34, 30); const s = P.mat('#c8bca8', 'cloth');
+        B.part(1); B.rect(2, 12, 30, 17, s, 2); for (let x = 2; x < 32; x++) B.shadeAt(x, 12, 4);
+        B.part(2); B.rect(5, 13, 24, 10, P.mat(C.crimson), 2); for (let x = 5; x < 29; x++) B.plot(x, 22, P.mat(P.metal.gold, 'metal'), 3);
+        B.part(3); for (const cx of [7, 27]) { B.rect(cx - 1, 4, 2, 8, P.mat(C.white), 3); B.plot(cx - 1, 2, P.mat('#ffd060', 'metal'), 4); B.plot(cx - 1, 3, P.mat('#ff9a30', 'metal'), 3); }
+        const g = P.mat(P.metal.gold, 'metal'); for (let y = 2; y < 11; y++) B.plot(17, y, g, 3); for (let x = 14; x < 21; x++) B.plot(x, 5, g, 4);
+        out = finish(B, 17, 29); out.candles = [[6, 3], [26, 3]]; break;
+      }
+      case 'millstone': {
+        const B = new MB(30, 22); const s = stone();
+        B.part(1); B.rect(2, 10, 26, 11, wood(), 2);
+        B.part(2); B.blob(15, 9, 12, 5.5, s, { power: 2 }); B.blob(15, 7, 10, 4.5, s, { power: 2 }); B.blob(15, 6, 2, 1.2, P.mat('#2a2024', 'cloth'), { power: 2 });
+        for (let a = 0; a < 6; a++) B.tweak(15 + Math.cos(a) * 7, 7 + Math.sin(a) * 3, -1);
+        out = finish(B, 15, 21); break;
+      }
+      case 'stairs': {
+        const B = new MB(18, 34); const m = wood();
+        B.part(1); for (let k = 0; k < 8; k++) { const y = 2 + k * 4; B.rect(1, y, 16, 4, m, k % 2 ? 2 : 3); for (let x = 1; x < 17; x++) B.shadeAt(x, y + 3, 1); }
+        B.part(2); B.capsule(1, 33, 1, 1, 0.8, 0.8, dark()); B.capsule(17, 33, 17, 1, 0.8, 0.8, dark());
+        out = finish(B, 9, 33); break;
+      }
+      case 'rug': {
+        const B = new MB(34, 22); const m = P.mat(rng.pick([C.crimson, C.navy, C.madder, C.teal])); const t = P.mat(C.mustard);
+        B.part(1); B.rect(1, 1, 32, 20, m, 2); for (let x = 1; x < 33; x++) { B.plot(x, 2, t, 3); B.plot(x, 19, t, 2); } for (let y = 2; y < 20; y++) { B.plot(2, y, t, 3); B.plot(31, y, t, 2); }
+        for (let y = 6; y < 16; y += 3) for (let x = 8; x < 26; x += 4) B.plot(x + (y % 2), y, t, 3);
+        out = finish(B, 17, 21, { outline: false }); out.flat = true; break;
+      }
+      case 'cauldron': {
+        const B = new MB(16, 16); B.part(1); B.blob(8, 10, 6, 5, iron(), { power: 2 }); B.blob(8, 6, 5.5, 1.6, P.mat('#7a5a3a', 'cloth'), { power: 2 });
+        out = finish(B, 8, 15); break;
+      }
+      case 'doughtable': {
+        const B = new MB(30, 20); const m = pine();
+        B.part(1); B.capsule(4, 19, 4, 10, 1, 1, m); B.capsule(26, 19, 26, 10, 1, 1, m);
+        B.part(2); B.rect(1, 4, 28, 7, m, 3); for (let x = 1; x < 29; x++) B.shadeAt(x, 10, 1);
+        B.part(3); B.rect(4, 4, 14, 4, P.mat('#f0e8d8', 'cloth'), 3); for (let i = 0; i < 3; i++) B.blob(8 + i * 4, 4, 1.7, 1.3, P.mat('#e8d0a0', 'cloth'), { power: 2 }); B.capsule(21, 5, 27, 5, 0.8, 0.8, P.mat(P.wood.pine, 'wood'));
+        out = finish(B, 15, 19); break;
+      }
+      case 'bunk': out = furniture('bed', 0, seed); break;
+      case 'cell': { // iron bars
+        const B = new MB(34, 34); const m = iron();
+        B.part(1); for (let x = 1; x < 34; x += 4) for (let y = 1; y < 33; y++) B.plot(x, y, m, x < 17 ? 3 : 2);
+        for (let x = 1; x < 34; x++) { B.plot(x, 1, m, 3); B.plot(x, 16, m, 2); B.plot(x, 32, m, 1); }
+        out = finish(B, 17, 33); break;
+      }
+      default: { const B = new MB(4, 4); out = finish(B, 2, 3); }
+    }
+    cache.set(key, out);
+    return out;
+  }
+
+  // Room shell: back wall (with windows), side wall tops, floor. Size matches the building footprint.
+  function room(spec) {
+    const { w, d, wall, floor, wealth, seed, windows = 1, dark: isDark } = spec;
+    const T = 16, SW = 4, WH = 40, FW = w * T, FH = d * T;
+    const B = new MB(FW + SW * 2, WH + FH + SW);
+    const rng = O.RNG(seed);
+    const wm = wall === 'stone' ? P.mat('#8e8880', 'cloth') : wall === 'log' ? P.mat('#7c5a38', 'wood') : wall === 'plank' ? P.mat('#8a6239', 'wood') : P.mat(wealth > 0.6 ? '#e4d8bc' : '#d6c8a8', 'cloth');
+    B.part(1); B.rect(SW, 0, FW, WH, wm, 2);
+    for (let y = 0; y < WH; y++) for (let x = SW; x < SW + FW; x++) {
+      let s = 2;
+      if (wall === 'stone') { const r = y % 6, off = Math.floor(y / 6) % 2 ? 4 : 0; s = r === 5 || (x + off) % 9 === 0 ? 0 : r === 0 ? 3 : 2; }
+      else if (wall === 'log') { const r = y % 6; s = r === 0 ? 3 : r === 5 ? 0 : r === 4 ? 1 : 2; }
+      else if (wall === 'plank') { const c = (x - SW) % 6; s = c === 0 ? 0 : c === 1 ? 3 : 2; }
+      else { const n = O.fbm(x / 6, y / 6, 3, 2); s = n > 0.62 ? 3 : n < 0.32 ? 1 : 2; }
+      // lower wall darker (ambient occlusion near the floor), top darker under the ceiling
+      if (y > WH - 4) s = Math.max(0, s - 1); if (y < 3) s = Math.max(0, s - 1);
+      B.shadeAt(x, y, s);
+    }
+    if (wall === 'timber' || !wall) { const bm = P.mat(P.wood.dark, 'wood'); for (let x = SW; x < SW + FW; x += 32) for (let y = 0; y < WH; y++) { B.plot(x, y, bm, 2); B.plot(x + 1, y, bm, 1); } for (let x = SW; x < SW + FW; x++) { B.plot(x, 0, bm, 1); B.plot(x, 1, bm, 2); } }
+    // skirting
+    const sk = P.mat(P.wood.dark, 'wood'); for (let x = SW; x < SW + FW; x++) { B.plot(x, WH - 2, sk, 2); B.plot(x, WH - 1, sk, 1); }
+    // windows in the back wall
+    const winSpots = [];
+    const nW = Math.min(windows, Math.max(1, Math.floor(w / 2)));
+    for (let i = 0; i < nW; i++) {
+      const cx = Math.round(SW + ((i + 0.5) * FW) / nW), wx = cx - 5, wy = 9;
+      B.part(2);
+      const fm = P.mat(P.wood.dark, 'wood'), gm = P.mat(isDark ? '#1c2438' : '#a8c8e0', 'metal');
+      for (let y = wy; y < wy + 14; y++) for (let x = wx; x < wx + 10; x++) {
+        const edge = x === wx || y === wy || x === wx + 9 || y === wy + 13 || x === wx + 5 || y === wy + 6;
+        B.plot(x, y, edge ? fm : gm, edge ? 2 : (x - wx + y - wy) % 7 === 3 ? 4 : 3);
+      }
+      for (let x = wx - 1; x <= wx + 10; x++) B.plot(x, wy + 14, P.mat('#b8a888', 'cloth'), 3);
+      winSpots.push({ x: wx + 1, y: wy + 1, w: 8, h: 12 });
+    }
+    // floor
+    const fmat = floor === 'stone' ? P.mat('#8a847c', 'cloth') : floor === 'dirt' ? P.mat('#8a6e4c', 'cloth') : P.mat(wealth > 0.6 ? '#7a5434' : '#9a7448', 'wood');
+    B.part(3); B.rect(SW, WH, FW, FH, fmat, 2);
+    for (let y = WH; y < WH + FH; y++) for (let x = SW; x < SW + FW; x++) {
+      let s = 2; const ly = y - WH, lx = x - SW;
+      if (floor === 'stone') { const r = ly % 8, off = Math.floor(ly / 8) % 2 ? 6 : 0; s = r === 7 || (lx + off) % 12 === 0 ? 0 : r === 0 || (lx + off) % 12 === 1 ? 3 : 2; if (O.noise2(x / 3, y / 3, 5) > 0.8) s = Math.max(1, s - 1); }
+      else if (floor === 'dirt') { const n = O.fbm(x / 5, y / 5, 9, 2); s = n > 0.6 ? 3 : n < 0.35 ? 1 : 2; if (O.noise2(x * 2, y * 2, 4) > 0.9) B.plot(x, y, P.mat('#d0aa50', 'hair'), 3); }
+      else { const r = ly % 5, row = Math.floor(ly / 5), seam = (lx + row * 11) % 23 === 0; s = r === 4 || seam ? 0 : r === 0 ? 3 : 2; if (O.noise2(x * 0.4, row, 7) > 0.75 && s === 2) s = 1; }
+      if (ly < 3) s = Math.max(0, s - 1); // contact shadow under the back wall
+      B.shadeAt(x, y, s);
+    }
+    // side walls (tops) and front wall top with door gap
+    const wt = P.mat('#3a2e28', 'wood');
+    B.part(4);
+    for (let y = 0; y < WH + FH + SW; y++) for (let x = 0; x < SW; x++) { B.plot(x, y, wt, x === SW - 1 ? 3 : 1); B.plot(FW + SW * 2 - 1 - x, y, wt, x === SW - 1 ? 1 : 0); }
+    const doorX0 = SW + spec.doorTile * T, doorX1 = doorX0 + T;
+    for (let x = 0; x < FW + SW * 2; x++) { if (x >= doorX0 && x < doorX1) continue; for (let y = WH + FH; y < WH + FH + SW; y++) B.plot(x, y, wt, y === WH + FH ? 3 : 1); }
+    void rng;
+    return { canvas: B.toCanvas({ outline: false }), W: B.w, H: B.h, SW, WH, FW, FH, windows: winSpots, doorX0, doorX1 };
+  }
+
+  O.Furn = { furniture, room, GOOD_COL, setGoods: (seed, goods) => { cache.goodsFor = cache.goodsFor || {}; cache.goodsFor[seed] = goods; } };
+})();
+
+</script>
+<script>
+// Interior layouts. Every enterable building gets rooms whose floor area equals its exterior
+// footprint (w x d tiles), one scene per floor. A chimney means a fireplace or oven inside; two
+// floors mean stairs. Furniture is placed by building type, and each piece knows what it is for:
+// beds for sleeping, workstations for each trade, counters for trading, containers that hold the
+// household's real pantry and purse or the business's real stock.
+'use strict';
+(function () {
+  const T = 16;
+  const F = () => O.Furn;
+  const FOOT = { bed: [1, 2], medbed: [1, 2], table: [2, 1], chair: [1, 1], stool: [1, 1], fireplace: [2, 1], oven: [2, 1], forge: [2, 1], anvil: [1, 1], cupboard: [1, 1], wardrobe: [1, 1], chest: [1, 1], shelf: [2, 1], counter: [3, 1], bar: [4, 1], workbench: [2, 1], rack: [2, 1], desk: [2, 1], pew: [3, 1], altar: [2, 1], millstone: [2, 1], stairs: [1, 2], rug: [2, 1], cauldron: [1, 1], doughtable: [2, 1], barrel: [1, 1], crate: [1, 1], sack: [1, 1], hay: [1, 1], woodpile: [1, 1], cell: [2, 2] };
+  const CONTAINER = { cupboard: 15, wardrobe: 15, chest: 12, barrel: 5, crate: 5, sack: 2 };
+
+  function layoutFor(b, floor, sim) {
+    // Interiors use a constant 2x scale of the exterior footprint: big buildings stay big and small
+    // ones small, but people fit through the rooms.
+    const w = b.w * 2, d = b.d * 2, rng = O.RNG(O.hash('int', b.id, floor));
+    const grid = new Uint8Array(w * d);
+    const items = [];
+    const dc = floor === 0 ? b.spec.doorTile * 2 : -1;
+    const reserved = (x, y) => (Math.abs(x - dc) <= 1 && y >= d - 3);
+    const free = (x, y, fw, fh) => { if (x < 0 || y < 0 || x + fw > w || y + fh > d) return false; for (let yy = y; yy < y + fh; yy++) for (let xx = x; xx < x + fw; xx++) if (grid[yy * w + xx] || reserved(xx, yy)) return false; return true; };
+    const put = (kind, x, y, o = {}) => {
+      const [fw, fh] = FOOT[kind] || [1, 1];
+      if (!free(x, y, fw, fh)) return null;
+      if (!o.flat) for (let yy = y; yy < y + fh; yy++) for (let xx = x; xx < x + fw; xx++) grid[yy * w + xx] = 1;
+      const it = Object.assign({ kind, tx: x, ty: y, fw, fh, v: 0, seed: rng.int(1, 9999), id: items.length }, o);
+      if (CONTAINER[kind] && !o.noContainer) it.container = { slots: CONTAINER[kind] };
+      items.push(it); return it;
+    };
+    const tryPut = (kind, cands, o) => { for (const [x, y] of cands) { const r = put(kind, x, y, o); if (r) return r; } return null; };
+    const along = (y, fw = 1) => { const c = []; for (let x = 0; x <= w - fw; x++) c.push([x, y]); return c; };
+    const anywhere = (fw = 1, fh = 1) => { const c = []; for (let y = 0; y <= d - fh; y++) for (let x = 0; x <= w - fw; x++) c.push([x, y]); return c.sort(() => rng.next() - 0.5); };
+    const wealth = b.wealth, wv = wealth > 0.66 ? 2 : wealth > 0.36 ? 1 : 0;
+    const chimneyX = b.sprite?.chimney ? O.clamp(Math.round(((b.sprite.chimney.x - b.sprite.OV) / (b.w * T)) * w) - 1, 0, w - 2) : null;
+    const hh = sim && b.household ? sim.households[b.household - 1] : null;
+    const members = hh ? hh.members.length : 2;
+    const twoFloors = b.floors >= 2;
+    const hasStairs = twoFloors;
+    const stairsX = dc >= w - 2 ? 0 : w - 1;
+    if (hasStairs) put('stairs', stairsX, 0, { stairs: floor === 0 ? 1 : 0 });
+
+    const homeFloor = !twoFloors || floor === 1;
+    const living = floor === 0;
+    const beds = () => { const n = Math.min(Math.ceil(members / 2) + (members > 3 ? 1 : 0), 4); for (let i = 0; i < n; i++) tryPut('bed', [[0, 0], [w - 1, 0], [1, 0], [w - 2, 0], [0, d - 2], [w - 1, d - 2], ...anywhere(1, 2)], { v: wv, bed: true }); };
+    const hearth = () => { if (chimneyX != null) put('fireplace', chimneyX, 0, { v: wv }); };
+    const dining = () => { const t = tryPut('table', [[Math.floor(w / 2) - 1, Math.floor(d / 2)], ...anywhere(2, 1)], { v: wv, table: true }); if (t) { tryPut('chair', [[t.tx - 1, t.ty]], { seat: true }); tryPut('chair', [[t.tx + 2, t.ty]], { seat: true }); if (members > 2) tryPut('stool', [[t.tx, t.ty + 1], [t.tx + 1, t.ty + 1]], { seat: true }); } };
+    const storage = () => { tryPut('cupboard', along(0), { v: wv, pantry: true }); tryPut('chest', [...along(0), ...anywhere()], { v: wv, valuables: true }); if (rng.chance(0.6)) tryPut('barrel', anywhere(), { pantry: true }); };
+    const shelf = (goods, o = {}) => { const s = tryPut('shelf', along(0, 2), Object.assign({ shop: true, goods }, o)); if (s) O.Furn.setGoods(s.seed, goods); return s; };
+
+    switch (b.type) {
+      case 'house': case 'farmhouse':
+        if (living) { hearth(); if (wv >= 2) put('rug', Math.max(0, Math.floor(w / 2) - 1), Math.max(1, d - 2), { flat: true }); dining(); }
+        if (homeFloor) beds();
+        storage();
+        if (b.type === 'farmhouse') { tryPut('sack', anywhere(), { stockOf: 'farm' }); tryPut('barrel', anywhere()); }
+        break;
+      case 'bakery':
+        put('oven', chimneyX ?? 0, 0, { work: ['baker', 'apprentice'], fire: true });
+        shelf(['bread'], { stockGood: 'bread' });
+        tryPut('doughtable', [[0, 1], [w - 2, 1], ...anywhere(2, 1)], { work: ['apprentice', 'baker'] });
+        tryPut('counter', [[Math.max(0, w - 3), d - 2], [0, d - 2]], { counter: true });
+        for (let i = 0; i < 3; i++) tryPut('sack', anywhere(), { stockOf: 'flour', container: { slots: 2 } });
+        tryPut('woodpile', anywhere());
+        beds(); storage();
+        break;
+      case 'smithy':
+        put('forge', 0, 0, { work: ['blacksmith'], fire: true });
+        tryPut('anvil', [[2, 1], [1, 1], ...anywhere()], { work: ['blacksmith', 'apprentice'] });
+        tryPut('rack', along(0, 2), { stockGood: 'tools', shop: true });
+        tryPut('workbench', [[w - 2, 1], ...anywhere(2, 1)], { work: ['apprentice'] });
+        tryPut('counter', [[Math.max(0, w - 3), d - 2]], { counter: true });
+        tryPut('barrel', anywhere()); tryPut('woodpile', anywhere());
+        tryPut('bed', [[w - 1, 0], ...anywhere(1, 2)], { bed: true, v: wv }); tryPut('chest', anywhere(), { valuables: true });
+        break;
+      case 'tavern':
+        if (floor === 0) {
+          hearth();
+          put('bar', w - 6, 2, { counter: true, work: ['innkeeper', 'server'] });
+          for (let i = 0; i < 4; i++) tryPut('barrel', [[w - 2 - i, 0]], { stockOf: 'ale', container: { slots: 5 } });
+          for (const ty of [5, 8]) for (const tx of [1, 5, 9]) { const t = put('table', tx, ty, { table: true, v: 1 }); if (t) { tryPut('stool', [[tx, ty - 1]], { seat: true }); tryPut('stool', [[tx + 1, ty - 1]], { seat: true }); tryPut('chair', [[tx + 2, ty]], { seat: true }); tryPut('chair', [[tx - 1, ty]], { seat: true }); } }
+          tryPut('cauldron', [[2, 1], [3, 1], ...anywhere()], { work: ['cook'] });
+          tryPut('woodpile', [[0, 1], ...anywhere()]);
+        } else {
+          for (let i = 0; i < 5; i++) tryPut('bed', [[1 + i * 2, 0], [1 + i * 2, 4], ...anywhere(1, 2)], { bed: true, v: 1, rent: i < 3 });
+          tryPut('table', [[2, 7], ...anywhere(2, 1)], { table: true });
+          tryPut('chest', anywhere(), { valuables: true, rentChest: true });
+          storage();
+        }
+        break;
+      case 'store':
+        shelf(['cabbage', 'firewood', 'flour'], { stockGood: 'cabbage' });
+        shelf(['flour', 'cabbage'], { stockGood: 'flour' });
+        tryPut('counter', [[1, d - 2], [0, d - 2]], { counter: true, work: ['shopkeeper'] });
+        for (let i = 0; i < 4; i++) tryPut(rng.pick(['crate', 'barrel', 'sack']), anywhere(), { stockOf: 'store' });
+        beds(); storage();
+        break;
+      case 'doctor':
+        if (floor === 0) {
+          shelf(['medicine', 'herbs'], { stockGood: 'medicine' });
+          tryPut('desk', [[0, 1], ...anywhere(2, 1)], { work: ['physician'] });
+          tryPut('medbed', [[w - 2, 1], [0, 2], ...anywhere(1, 2)], { medbed: true, work: ['herbalist'] });
+          for (let i = 0; i < 2; i++) tryPut('chair', anywhere(), { seat: true, waiting: true });
+          tryPut('chest', anywhere(), { valuables: true });
+        } else { beds(); storage(); }
+        break;
+      case 'chapel':
+        put('altar', Math.floor(w / 2) - 1, 0, { work: ['priest'], candles: true });
+        for (let y = 3; y < d - 2; y += 2) { put('pew', 1, y, { pew: true }); put('pew', w - 4, y, { pew: true }); }
+        tryPut('chest', [[w - 1, 0], [0, 0]], { valuables: true, alms: true });
+        break;
+      case 'mill':
+        if (floor === 0) {
+          put('millstone', 1, 1, { work: ['miller', 'labourer'] });
+          for (let i = 0; i < 5; i++) tryPut('sack', anywhere(), { stockOf: i % 2 ? 'flour' : 'wheat', container: { slots: 2 } });
+          tryPut('crate', anywhere());
+        } else { beds(); storage(); }
+        break;
+      case 'guard':
+        tryPut('desk', [[1, 1], ...anywhere(2, 1)], { work: ['guard captain', 'guard'] });
+        tryPut('rack', along(0, 2));
+        put('cell', w - 2, d - 2, { cell: true });
+        tryPut('bed', [[0, 0], ...anywhere(1, 2)], { bed: true });
+        tryPut('chest', anywhere(), { valuables: true, evidence: true });
+        break;
+      case 'barn':
+        for (let i = 0; i < 6; i++) tryPut('hay', anywhere(), {});
+        for (let i = 0; i < 4; i++) tryPut('sack', anywhere(), { stockOf: 'wheat', container: { slots: 2 } });
+        tryPut('crate', anywhere()); tryPut('barrel', anywhere());
+        break;
+      case 'woodcutter':
+        hearth(); tryPut('bed', [[0, 0], [w - 1, 0], ...anywhere(1, 2)], { bed: true }); tryPut('woodpile', anywhere()); tryPut('rack', along(0, 2)); tryPut('stool', anywhere(), { seat: true }); storage();
+        break;
+      default: storage();
+    }
+    return { b, floor, w, d, items, grid, floors: b.floors, dc };
+  }
+
+  // Cached interior per building/floor (furniture is fixed; stock visuals update live).
+  const cache = new Map();
+  function interior(b, floor, sim) {
+    const key = b.id + ':' + floor;
+    if (cache.has(key)) return cache.get(key);
+    const L = layoutFor(b, floor, sim);
+    const wallKind = b.spec.wall === 'stone' || b.spec.wall === 'log' || b.spec.wall === 'plank' ? b.spec.wall : 'timber';
+    const floorKind = ['smithy', 'chapel', 'guard', 'mill'].includes(b.type) ? 'stone' : b.type === 'barn' || (b.type === 'house' && b.wealth < 0.3) ? 'dirt' : 'wood';
+    L.room = O.Furn.room({ w: L.w, d: L.d, wall: wallKind, floor: floorKind, wealth: b.wealth, seed: b.id * 3 + floor, windows: Math.max(1, Math.floor(b.w / 2) + 1), doorTile: floor === 0 ? L.dc : -5 });
+    cache.set(key, L);
+    return L;
+  }
+
+  O.Interior = { interior, layoutFor, FOOT };
+})();
+
+</script>
+<script>
+// The player's own state: purse, 10-slot inventory, needs, and separate reputations per group.
+'use strict';
+(function () {
+  const G = O.Data.GOODS;
+  const SLOTS = 10;
+  const P = {
+    money: 30, items: ['bread', 'bread', 'dagger'],
+    hp: 100, energy: 90, hunger: 75,
+    // reputation is never one number: towns, trades and the underworld each judge you separately
+    rep: { civilian: 0, criminal: 0, guard: 0, merchant: 0, local: 0 },
+    crimes: [], room: null, wanted: 0,
+    slotsUsed() { return this.items.reduce((s, k) => s + (G[k]?.slots || 1), 0); },
+    canCarry(k, n = 1) { return this.slotsUsed() + (G[k]?.slots || 1) * n <= SLOTS; },
+    add(k, n = 1) { let added = 0; for (let i = 0; i < n && this.canCarry(k); i++) { this.items.push(k); added++; } return added; },
+    remove(k, n = 1) { let r = 0; for (let i = 0; i < n; i++) { const j = this.items.indexOf(k); if (j < 0) break; this.items.splice(j, 1); r++; } return r; },
+    count(k) { return this.items.filter((x) => x === k).length; },
+    eat(k) {
+      const food = G[k]?.food; if (!food) return false;
+      this.remove(k); this.hunger = Math.min(100, this.hunger + 35 * food); this.hp = Math.min(100, this.hp + 3); return true;
+    },
+    tick(dtm, sleeping) {
+      this.hunger = Math.max(0, this.hunger - 0.05 * dtm);
+      this.energy = sleeping ? Math.min(100, this.energy + 0.2 * dtm) : Math.max(0, this.energy - 0.035 * dtm);
+      if (this.hunger <= 0) this.hp = Math.max(1, this.hp - 0.02 * dtm);
+      else if (this.hunger > 50 && this.hp < 100) this.hp = Math.min(100, this.hp + 0.01 * dtm);
+    },
+    SLOTS,
+  };
+  O.PlayerState = P;
+})();
+
+</script>
+<script>
+// Crime, first layer: thefts and trespass leave witnesses and memories. Witnesses remember what they
+// saw imperfectly (clothing, hair, build), and reputation changes per group, not globally.
+// Guards, investigations and trials build on these records in a later phase.
+'use strict';
+(function () {
+  const PS = O.PlayerState;
+  function describePlayer(game, accuracy) {
+    const a = game.player.a, o = a.outfit, P = O.Pal;
+    const nameOf = (m) => { const hex = P.mats[m]?.hex; const e = Object.entries(P.cloth).find(([, h]) => h === hex); return e ? e[0].replace(/([A-Z])/g, ' $1').toLowerCase() : 'dark'; };
+    const bits = [];
+    if (o.hat === 'hood') bits.push(`a ${nameOf(o.hatMat)} hood`);
+    if (o.cloak && accuracy > 0.3) bits.push(`a ${nameOf(o.cloak)} cloak`);
+    if (accuracy > 0.5 && o.hat !== 'hood') bits.push(`${Object.entries(P.hair).find(([, h]) => h === P.mats[a.hair]?.hex)?.[0]?.replace(/([A-Z])/g, ' $1').toLowerCase() || 'dark'} hair`);
+    if (accuracy > 0.7) bits.push(a.height > 0.4 ? 'tall' : a.height < -0.4 ? 'short' : 'middling height');
+    return bits.length ? bits.join(', ') : 'a stranger, hard to say';
+  }
+
+  function witnessesIndoors(game, sim, b, floor) {
+    const sc = game.scene;
+    return sim.people.filter((q) => q.agent.inside === b.id && q.activity?.act !== 'sleep' && (!sc || sc.actors.has(q.id)))
+      .concat(sim.people.filter((q) => q.agent.inside === b.id && q.activity?.act === 'sleep' && sim.rng.chance(0.15)));
+  }
+
+  function theft(game, sim, ev) {
+    const ws = witnessesIndoors(game, sim, ev.building, ev.floor);
+    const crime = { id: (sim.crimes = sim.crimes || []).length + 1, kind: 'theft', day: sim.day, minute: Math.floor(sim.minute), place: ev.building.name, what: ev.what, owner: ev.owner, witnesses: [], discovered: false, perpetrator: 'player' };
+    sim.crimes.push(crime);
+    PS.crimes.push(crime.id);
+    PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.03);
+    if (!ws.length) { O.Panels.toast(`You pocket ${ev.what}. Nobody saw.`); return crime; }
+    for (const w of ws) {
+      const acc = O.clamp(0.4 + (w.traits.includes('curious') ? 0.25 : 0) + (w.traits.includes('suspicious') ? 0.15 : 0) - (w.age > 70 ? 0.2 : 0) + sim.rng.float(-0.2, 0.2), 0.1, 1);
+      const desc = describePlayer(game, acc);
+      crime.witnesses.push({ id: w.id, desc, accuracy: acc });
+      sim.remember(w, `Saw a thief take ${ev.what} at ${ev.building.name}: ${desc}.`, 'crime', 1.5, 0);
+      sim.relate(w, { id: 0 }, -0.6);
+      w.agent.talking = 40;
+    }
+    crime.discovered = true;
+    PS.rep.local = Math.max(-1, PS.rep.local - 0.15 * ws.length);
+    PS.rep.civilian = Math.max(-1, PS.rep.civilian - 0.1);
+    if (ev.building.type !== 'house') PS.rep.merchant = Math.max(-1, PS.rep.merchant - 0.15);
+    sim.log(`Theft at ${ev.building.name}: ${ev.what} taken. Witnesses describe ${crime.witnesses[0].desc}.`, 'crime');
+    const shout = ws[0];
+    O.Panels.toast(`${shout.first} saw you! “Thief! Stop, thief!”`, 'bad');
+    return crime;
+  }
+
+  function onEnter(game, sim, b) {
+    if (b.type !== 'house' && b.type !== 'farmhouse') return;
+    const inside = sim.people.filter((q) => q.agent.inside === b.id && q.activity?.act !== 'sleep' && q.age >= 13);
+    if (!inside.length) return;
+    const q = inside[0];
+    const r = q.rel.get(0) || { affinity: 0, familiar: 0 };
+    if (r.affinity > 0.4) { O.Panels.toast(`${q.first}: “Come in, come in.”`); return; }
+    sim.relate(q, { id: 0 }, -0.08);
+    sim.remember(q, 'A stranger walked into our house uninvited.', 'player', 0.8, 0);
+    O.Panels.toast(`${q.first}: “${q.traits.includes('hostile') || q.traits.includes('suspicious') ? 'Get out of my house!' : 'Can I help you? This is a private house.'}”`, 'bad');
+  }
+
+  O.Crime = { theft, onEnter, describePlayer };
+})();
+
+</script>
+<script>
+// Indoor scene: renders a building's floor, places the residents who are actually inside it at the
+// furniture that matches what they're doing, shows stock levels on shelves and in sacks, and handles
+// collision, stairs and leaving by the door.
+'use strict';
+(function () {
+  const T = 16, Ch = O.Char;
+
+  class Indoor {
+    constructor(game, sim, b, floor = 0) {
+      this.game = game; this.sim = sim; this.b = b; this.floor = floor;
+      this.L = O.Interior.interior(b, floor, sim);
+      this.R = this.L.room;
+      this.actors = new Map(); // person id -> scene actor
+      this.t = 0;
+    }
+    // floor tile -> scene pixel (feet position)
+    tileXY(tx, ty) { return [this.R.SW + tx * T + 8, this.R.WH + ty * T + 12]; }
+    anchor(it) { return [this.R.SW + (it.tx + it.fw / 2) * T, this.R.WH + (it.ty + it.fh) * T - 1]; }
+    enterAt(fromStairs) {
+      const p = this.game.player;
+      if (fromStairs) { const st = this.L.items.find((i) => i.kind === 'stairs'); const [x, y] = this.anchor(st); p.x = x + (st.tx === 0 ? 14 : -14); p.y = y - 4; p.dir = 0; }
+      else { [p.x, p.y] = this.tileXY(this.L.dc, this.L.d - 1); p.y += 2; p.dir = 3; }
+    }
+    blocked(x, y) {
+      const R = this.R, L = this.L;
+      const test = (px, py) => {
+        const tx = Math.floor((px - R.SW) / T), ty = Math.floor((py - R.WH) / T);
+        if (py < R.WH + 5) return true;
+        if (tx < 0 || tx >= L.w) return true;
+        if (ty >= L.d) return !(this.floor === 0 && tx === L.dc);
+        return L.grid[ty * L.w + tx] === 1;
+      };
+      return test(x - 4, y - 3) || test(x + 3, y - 3) || test(x - 4, y) || test(x + 3, y);
+    }
+    update(dt) {
+      this.t += dt;
+      const p = this.game.player;
+      if (this.floor === 0 && p.y > this.R.WH + this.L.d * T + 2) this.game.exitBuilding();
+      this.placeActors();
+    }
+
+    // Who is inside, and where do they belong right now?
+    placeActors() {
+      const sim = this.sim, L = this.L, b = this.b;
+      const inside = sim.people.filter((q) => q.agent.inside === b.id).sort((a, c) => a.id - c.id);
+      const bedsHere = L.items.filter((i) => i.bed);
+      const twoF = b.floors >= 2;
+      const used = new Set(); const seen = new Set();
+      const free = (list) => list.find((i) => !used.has(i)) || null;
+      const seats = L.items.filter((i) => i.seat || i.pew);
+      const idleTiles = []; for (let y = 0; y < L.d; y++) for (let x = 0; x < L.w; x++) if (!L.grid[y * L.w + x] && !(Math.abs(x - L.dc) <= 1 && y >= L.d - 2) && y > 0) idleTiles.push([x, y]);
+      for (const q of inside) {
+        const act = q.activity?.act;
+        const sleeping = act === 'sleep';
+        const fl = twoF ? (sleeping || (act === 'home' && q.id % 2) ? 1 : 0) : 0;
+        if (b.type === 'tavern' && (act === 'rest') ) { /* travellers rest upstairs */ }
+        const wantFloor = b.type === 'tavern' && act === 'rest' ? 1 : fl;
+        if (wantFloor !== this.floor) continue;
+        let x, y, dir = 0, anim = 'idle', over = null;
+        let spot = null;
+        if (sleeping) { spot = free(bedsHere); if (spot) { const [ax, ay] = this.anchor(spot); x = ax; y = ay - 44 + Ch.GROUND; anim = 'sleep'; over = spot; } }
+        else if (act === 'work' || act === 'pickup' && q.job?.biz === b.id) {
+          const role = q.job?.role;
+          spot = L.items.find((i) => !used.has(i) && i.work && i.work.includes(role)) || L.items.find((i) => !used.has(i) && i.counter);
+          if (spot) {
+            const [ax, ay] = this.anchor(spot);
+            const behind = spot.counter || spot.kind === 'desk' || spot.kind === 'altar' || spot.kind === 'bar';
+            if (behind) { x = ax + (spot.kind === 'bar' ? ((q.id % 3) - 1) * 14 : 0); y = ay - spot.fh * T - (spot.kind === 'altar' ? -2 : 0) + (spot.kind === 'altar' ? 18 : 0); dir = 0; anim = q.agent.talking ? 'talk' : 'idle'; if (spot.kind === 'altar') { y = ay + 12; dir = 3; } }
+            else { x = ax + (spot.kind === 'oven' || spot.kind === 'forge' ? 0 : 0); y = ay + 13; dir = 3; anim = spot.kind === 'medbed' ? 'idle' : 'work'; }
+            if (spot.kind === 'desk') anim = 'idle';
+          }
+        } else if (['socialise', 'eat-out', 'eat', 'worship', 'rest'].includes(act) || (act === 'home' && q.stage !== 'baby')) {
+          spot = act === 'home' && q.id % 3 === 0 ? null : free(seats);
+          if (spot) { const [ax, ay] = this.anchor(spot); x = ax; y = ay + 2; dir = spot.pew ? 3 : 0; anim = 'sit'; if (spot.pew) { const k = inside.filter((z) => z.activity?.act === 'worship').indexOf(q) % 3; x = ax + (k - 1) * 14; } }
+        } else if (act === 'shop' || act === 'deliver' || act === 'pickup' || act === 'carry-home' || act === 'import') {
+          const c = L.items.find((i) => i.counter);
+          if (c) { const [ax, ay] = this.anchor(c); x = ax + ((q.id % 3) - 1) * 12; y = ay + 14; dir = 3; anim = q.agent.carrying ? 'carry' : 'idle'; }
+        }
+        if (x == null) { const t = idleTiles[(q.id * 7) % Math.max(1, idleTiles.length)] || [0, 0]; [x, y] = this.tileXY(t[0], t[1]); x += (q.id % 3) * 3 - 3; dir = (q.id + Math.floor(this.t / 6)) % 4 === 3 ? 0 : (q.id + Math.floor(this.t / 6)) % 4; anim = q.agent.talking ? 'talk' : q.stage === 'baby' ? 'crouch' : 'idle'; }
+        if (spot && spot.kind !== 'pew' && spot.kind !== 'bar') used.add(spot);
+        let a = this.actors.get(q.id);
+        if (!a) { a = { ft: Math.random() * 2, person: q, a: q.app }; this.actors.set(q.id, a); }
+        if (q.agent.frozen) { anim = 'talk'; dir = a.dir ?? dir; }
+        Object.assign(a, { x, y, dir: q.agent.frozen ? a.dir : dir, anim, a: q.app, hidden: false });
+        seen.add(q.id);
+      }
+      for (const id of [...this.actors.keys()]) if (!seen.has(id)) this.actors.delete(id);
+    }
+
+    camera() {
+      const g = this.game, R = this.R, p = g.player;
+      const cx = R.W <= g.vw ? Math.round((R.W - g.vw) / 2) : Math.round(O.clamp(p.x - g.vw / 2, 0, R.W - g.vw));
+      const cy = R.H <= g.vh ? Math.round((R.H - g.vh) / 2) : Math.round(O.clamp(p.y - 20 - g.vh / 2, 0, R.H - g.vh));
+      return { x: cx, y: cy };
+    }
+
+    draw(ctx) {
+      const g = this.game, cam = g.cam, R = this.R, L = this.L, sim = this.sim;
+      ctx.fillStyle = '#0d0a12'; ctx.fillRect(0, 0, g.vw, g.vh);
+      ctx.drawImage(R.canvas, -cam.x, -cam.y);
+      const night = g.isNight();
+      if (night) { ctx.fillStyle = '#141a2c'; for (const w of R.windows) ctx.fillRect(w.x - cam.x, w.y - cam.y, w.w, w.h); }
+      const bz = sim.biz.get(this.b.id);
+      const drawables = [];
+      for (const it of L.items) {
+        let v = it.v;
+        if (it.kind === 'shelf' || it.kind === 'rack') { const gd = it.stockGood; if (bz && gd) { const tgt = bz.def.targets[gd] || 10; v = Math.round(3 * O.clamp((bz.stock[gd] || 0) / tgt, 0, 1)); if (it.kind === 'rack') v = 0; } else v = 2; }
+        // sacks/barrels holding stock disappear as the stock runs down
+        if (it.stockOf && bz && O.Data.GOODS[it.stockOf]) {
+          const same = L.items.filter((i) => i.stockOf === it.stockOf); const k = same.indexOf(it);
+          const ratio = O.clamp((bz.stock[it.stockOf] || 0) / (bz.def.targets[it.stockOf] || 10), 0, 1);
+          if (k >= Math.ceil(ratio * same.length)) continue;
+        }
+        const sp = O.Furn.furniture(it.kind, v, it.seed);
+        const [ax, ay] = this.anchor(it);
+        drawables.push({ y: sp.flat ? -1 : ay, draw: () => { ctx.drawImage(sp.canvas, Math.round(ax - sp.ox - cam.x), Math.round(ay - sp.oy - cam.y)); if (sp.fire) this.drawFire(ctx, ax - sp.ox + sp.fire.x - cam.x, ay - sp.oy + sp.fire.y - cam.y, sp.fire); if (sp.candles) for (const [cx, cy] of sp.candles) this.flame(ctx, ax - sp.ox + cx - cam.x, ay - sp.oy + cy - cam.y, 1); } });
+      }
+      for (const a of this.actors.values()) drawables.push({ y: a.anim === 'sleep' ? a.y - 30 : a.y + (a.anim === 'sit' ? 0.5 : 0), draw: () => this.drawActor(ctx, a, cam, a.anim !== 'sleep') });
+      const p = g.player; drawables.push({ y: p.y, draw: () => this.drawActor(ctx, p, cam, true) });
+      drawables.sort((a, c) => a.y - c.y);
+      for (const d of drawables) d.draw();
+      for (const h of g.hooks.drawWorld) h(ctx, cam);
+      // lighting: dim interior, warm pools around fires and candles, daylight under windows
+      const amb = night ? [58, 52, 88] : g.ambient().map((c, k) => Math.round(c * [0.86, 0.82, 0.78][k]));
+      const pools = [];
+      for (const it of L.items) {
+        const [ax, ay] = this.anchor(it);
+        if (it.kind === 'fireplace' || it.kind === 'oven' || it.kind === 'forge') pools.push([ax - cam.x, ay - 10 - cam.y, 44 + Math.sin(this.t * 9 + it.id) * 2, 'fire']);
+        if (it.kind === 'altar') pools.push([ax - cam.x, ay - 20 - cam.y, 30, 'fire']);
+        if (it.kind === 'table' && night) pools.push([ax - cam.x, ay - 8 - cam.y, 22, 'fire']);
+      }
+      if (!night) for (const w of R.windows) pools.push([w.x + w.w / 2 - cam.x, R.WH + 10 - cam.y, 26, 'day']);
+      g.drawLightingWith(amb, pools);
+    }
+
+    drawActor(ctx, a, cam, shadow) {
+      const fx = Math.round(a.x - 16 - cam.x), fy = Math.round(a.y - Ch.GROUND - cam.y);
+      if (shadow) { ctx.fillStyle = 'rgba(28,20,44,0.3)'; ctx.fillRect(fx + 11, fy + Ch.GROUND - 1, 10, 3); ctx.fillRect(fx + 9, fy + Ch.GROUND, 14, 1); }
+      ctx.drawImage(this.game.actorFrame(a), fx, fy);
+    }
+    flame(ctx, x, y, s) {
+      const f = Math.floor(this.t * 10 + x) % 3;
+      ctx.fillStyle = '#ff9a30'; ctx.fillRect(Math.round(x), Math.round(y) - f % 2, s + 1, 2);
+      ctx.fillStyle = '#ffe080'; ctx.fillRect(Math.round(x), Math.round(y) - 1 - f % 2, 1, 1);
+    }
+    drawFire(ctx, x, y, f) {
+      const n = Math.max(3, Math.floor(f.w / 3)), t = this.t;
+      for (let i = 0; i < n; i++) {
+        const fx = Math.round(x - f.w / 2 + (i + 0.5) * (f.w / n));
+        const h = f.coals ? 1 + ((Math.floor(t * 8) + i) % 2) : 3 + Math.round((Math.sin(t * 11 + i * 2.3) + 1) * 2.2);
+        ctx.fillStyle = f.coals ? '#c83a20' : '#c84a20'; ctx.fillRect(fx - 1, Math.round(y) - h + 2, 3, h);
+        ctx.fillStyle = '#ff9a30'; ctx.fillRect(fx - 1, Math.round(y) - h + 3, 2, Math.max(1, h - 2));
+        ctx.fillStyle = '#ffe080'; ctx.fillRect(fx, Math.round(y) - h + 4, 1, Math.max(1, h - 4));
+      }
+    }
+
+    // ---- interaction candidates for the interact module ----
+    candidates() {
+      const p = this.game.player, out = [];
+      for (const a of this.actors.values()) { const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < 30 && a.anim !== 'sleep') out.push({ type: 'npc', person: a.person, d, x: a.x, y: a.y }); }
+      for (const it of this.L.items) {
+        const [ax, ay] = this.anchor(it);
+        const cx = ax, cy = ay - it.fh * 8 + 4;
+        const d = Math.hypot(cx - p.x, Math.max(0, cy - p.y - 8, p.y - ay - 6) + (Math.abs(cx - p.x) > it.fw * 8 + 6 ? 20 : 0));
+        if (d > 22) continue;
+        if (it.container) out.push({ type: 'container', it, d, x: cx, y: cy });
+        if (it.bed) out.push({ type: 'bed', it, d: d + 1, x: cx, y: cy });
+        if (it.kind === 'stairs') out.push({ type: 'stairs', it, d: d - 2, x: cx, y: cy });
+      }
+      return out;
+    }
+    personPos(q) { const a = this.actors.get(q.id); return a ? [a.x, a.y] : null; }
+  }
+  O.Indoor = Indoor;
+})();
+
+</script>
+<script>
+// Modal panels: inventory, trading, container search, toasts. Item icons are generated pixel art.
+'use strict';
+(function () {
+  const G = O.Data.GOODS, PS = O.PlayerState;
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const money = (d) => { d = Math.round(d); const s = Math.floor(d / 12), p = d % 12; return s ? `${s}s ${p}d` : `${p}d`; };
+  O.money = money;
+
+  // ---- 14x14 item icons drawn with the material raster ----
+  const iconCache = new Map();
+  function icon(k) {
+    if (iconCache.has(k)) return iconCache.get(k);
+    const P = O.Pal, B = new O.MatBuffer(14, 14), col = O.Furn.GOOD_COL[k];
+    B.part(1);
+    const m = (hex, kind = 'cloth') => P.mat(hex, kind);
+    switch (k) {
+      case 'bread': B.blob(7, 8, 5.5, 3.6, m('#c88a45', 'wood'), { power: 2 }); B.tweak(5, 6, 1); B.tweak(8, 6, 1); B.tweak(6, 7, -1); B.tweak(9, 7, -1); break;
+      case 'cabbage': B.blob(7, 8, 5, 4.5, m('#6a9a44'), { power: 2 }); B.tweak(7, 6, 1); B.tweak(5, 9, -1); B.tweak(9, 8, -1); break;
+      case 'flour': case 'wheat': B.blob(7, 8, 4.5, 5, m(k === 'flour' ? '#e6dcc4' : '#d8b048', k === 'flour' ? 'cloth' : 'hair'), { power: 2 }); B.rect(6, 2, 3, 2, m('#7a5634'), 1); break;
+      case 'ale': B.rect(4, 3, 6, 9, m('#7a5634', 'wood'), 2); B.rect(10, 5, 2, 4, m('#7a5634', 'wood'), 1); B.rect(4, 3, 6, 2, m('#f0e8d0'), 3); break;
+      case 'meal': B.blob(7, 9, 5.5, 3, m('#8a6239', 'wood'), { power: 2 }); B.blob(7, 7, 4, 1.5, m('#a0603a'), { power: 2 }); break;
+      case 'logs': case 'firewood': for (const [x, y] of [[4, 9], [10, 9], [7, 5]]) { B.blob(x, y, 2.6, 2.6, m('#7c5a38', 'wood'), { power: 2 }); B.plot(x, y, m('#c8a070', 'wood'), 3); } break;
+      case 'iron': B.poly([[2, 10], [12, 10], [10, 5], [4, 5]], [0, -0.6, 0.8], m('#7a7e88', 'metal')); break;
+      case 'tools': B.capsule(4, 12, 9, 4, 0.8, 0.8, m('#8a6239', 'wood')); B.rect(7, 2, 6, 3, m('#9aa0aa', 'metal'), 3); break;
+      case 'medicine': B.rect(5, 4, 4, 8, m('#6a9ad0', 'metal'), 3); B.rect(6, 2, 2, 2, m('#c8b8a0'), 3); break;
+      case 'herbs': for (let i = 0; i < 4; i++) B.capsule(5 + i * 1.5, 12, 3 + i * 2.5, 3, 0.6, 0.9, m('#5a9a40')); break;
+      case 'dagger': B.capsule(3, 11, 10, 3, 0.9, 0.5, m('#c8ccd4', 'metal')); B.capsule(2, 9, 6, 13, 0.6, 0.6, m(P.metal.brass, 'metal')); break;
+      case 'spoon': B.capsule(3, 11, 9, 5, 0.6, 0.6, m(P.metal.silver, 'metal')); B.blob(10, 4, 2, 1.6, m(P.metal.silver, 'metal'), { power: 2 }); break;
+      case 'brooch': B.blob(7, 7, 4.5, 4.5, m(P.metal.gold, 'metal'), { power: 2 }); B.blob(7, 7, 2, 2, m('#c83a3a'), { power: 2 }); break;
+      case 'candlestick': B.rect(6, 4, 2, 7, m('#9a9a96', 'metal'), 3); B.rect(4, 11, 6, 2, m('#9a9a96', 'metal'), 2); B.rect(6, 2, 2, 2, m(P.cloth.white), 3); break;
+      case 'key': B.blob(4, 7, 2.5, 2.5, m(P.metal.brass, 'metal'), { power: 2 }); B.rect(6, 6, 6, 2, m(P.metal.brass, 'metal'), 3); B.rect(10, 8, 2, 2, m(P.metal.brass, 'metal'), 2); break;
+      case 'coins': for (const [x, y] of [[5, 9], [9, 9], [7, 6]]) B.blob(x, y, 2.4, 1.6, m(P.metal.silver, 'metal'), { power: 2 }); break;
+      default: B.blob(7, 7, 4, 4, m(col || '#a0a0a0'), { power: 2 });
+    }
+    const c = B.toCanvas(); const url = c.toDataURL(); iconCache.set(k, url); return url;
+  }
+  O.icon = icon;
+
+  let root = null, toastEl = null;
+  function ensure() {
+    if (root) return;
+    const host = document.getElementById('tab-play');
+    root = document.createElement('div'); root.className = 'ledger panel-modal'; root.hidden = true; host.appendChild(root);
+    toastEl = document.createElement('div'); toastEl.className = 'toasts'; toastEl.setAttribute('aria-live', 'polite'); host.appendChild(toastEl);
+  }
+  function toast(text, kind = '') {
+    ensure();
+    const d = document.createElement('div'); d.className = 'toast ' + kind; d.textContent = text; toastEl.appendChild(d);
+    setTimeout(() => d.remove(), 4200);
+  }
+  function close() { ensure(); root.hidden = true; root.innerHTML = ''; O.panelOpen = false; }
+  function open(title, body, onBind) {
+    ensure(); O.panelOpen = true;
+    root.hidden = false;
+    root.innerHTML = `<div class="ledger-in narrow"><header><h2>${esc(title)}</h2><div style="flex:1"></div><span class="purse">${money(PS.money)}</span><button class="x" aria-label="Close">✕</button></header><div class="ledger-body">${body}</div></div>`;
+    root.querySelector('.x').onclick = close;
+    onBind && onBind(root);
+  }
+  const slotHTML = (k, btns = '') => `<div class="slot"><img src="${icon(k)}" alt=""><span>${esc(G[k]?.name || k)}</span>${btns}</div>`;
+
+  function inventory() {
+    const used = PS.slotsUsed();
+    const cells = PS.items.map((k, i) => `<div class="slot"><img src="${icon(k)}" alt=""><span>${esc(G[k].name)}</span>${G[k].food ? `<button data-eat="${i}">Eat</button>` : ''}<button data-drop="${i}" class="ghost">Drop</button></div>`).join('');
+    const empty = Math.max(0, PS.SLOTS - used);
+    open('Satchel', `<div class="lbl">${used}/${PS.SLOTS} slots · health ${Math.round(PS.hp)} · fed ${Math.round(PS.hunger)} · rested ${Math.round(PS.energy)}</div>
+      <div class="slots">${cells}${'<div class="slot empty"></div>'.repeat(empty)}</div>
+      <div class="lbl" style="margin-top:12px">Reputation</div>
+      <div class="reps">${Object.entries(PS.rep).map(([k, v]) => `<div><span>${k}</span><b class="${v < -0.2 ? 'warn' : ''}">${v > 0.6 ? 'admired' : v > 0.2 ? 'liked' : v > -0.2 ? 'unknown' : v > -0.6 ? 'distrusted' : 'hated'}</b></div>`).join('')}</div>`, (r) => {
+      r.querySelectorAll('[data-eat]').forEach((b) => b.onclick = () => { const k = PS.items[+b.dataset.eat]; PS.eat(k); toast(`You eat the ${G[k].name.toLowerCase()}.`); inventory(); });
+      r.querySelectorAll('[data-drop]').forEach((b) => b.onclick = () => { const k = PS.items[+b.dataset.drop]; PS.remove(k); toast(`Dropped ${G[k].name.toLowerCase()}.`); inventory(); });
+    });
+  }
+
+  function trade(sim, bz, seller) {
+    const sells = bz.def.sells.filter((g) => (bz.stock[g] || 0) >= 1);
+    const buyable = [...new Set(PS.items)].filter((k) => bz.def.targets[k] != null && !G[k].valuable);
+    const rows = sells.map((g) => `<tr><td><img class="ic" src="${icon(g)}" alt=""> ${G[g].name}</td><td class="n">${Math.floor(bz.stock[g])}</td><td class="n">${sim.price(bz, g)}d</td><td><button data-buy="${g}">Buy</button></td></tr>`).join('') || '<tr><td colspan="4">Nothing for sale right now.</td></tr>';
+    const srows = buyable.map((g) => `<tr><td><img class="ic" src="${icon(g)}" alt=""> ${G[g].name} ×${PS.count(g)}</td><td class="n">${Math.max(1, Math.floor(sim.price(bz, g) * 0.6))}d</td><td><button data-sell="${g}">Sell</button></td></tr>`).join('');
+    const vals = PS.items.filter((k) => G[k].valuable);
+    open(`${bz.name}`, `<div class="lbl">${esc(seller.name)} minds the counter · till ${money(bz.cash)}</div>
+      <table><thead><tr><th>For sale</th><th class="n">Stock</th><th class="n">Price</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+      ${srows ? `<table style="margin-top:12px"><thead><tr><th>You could sell</th><th class="n">Offer</th><th></th></tr></thead><tbody>${srows}</tbody></table>` : ''}
+      ${vals.length ? `<p class="caption">${esc(seller.first)} eyes your ${G[vals[0]].name.toLowerCase()} but won't touch it. Honest traders don't buy goods like that. You'd need a fence.</p>` : ''}`, (r) => {
+      r.querySelectorAll('[data-buy]').forEach((b) => b.onclick = () => {
+        const g = b.dataset.buy, pr = sim.price(bz, g);
+        if (PS.money < pr) return toast(`You can't afford ${G[g].name.toLowerCase()} at ${pr}d.`, 'bad');
+        if (!PS.canCarry(g)) return toast('Your satchel is full.', 'bad');
+        PS.money -= pr; PS.add(g); bz.stock[g] -= 1; bz.cash += pr * (1 - sim.treasury.taxRate); sim.treasury.cash += pr * sim.treasury.taxRate; bz.salesToday += pr; sim.stats.sales += pr;
+        const r0 = seller.rel.get(0) || { affinity: 0, familiar: 0 }; r0.affinity = Math.min(1, r0.affinity + 0.02); seller.rel.set(0, r0);
+        PS.rep.merchant = Math.min(1, PS.rep.merchant + 0.005);
+        trade(sim, bz, seller);
+      });
+      r.querySelectorAll('[data-sell]').forEach((b) => b.onclick = () => {
+        const g = b.dataset.sell, pr = Math.max(1, Math.floor(sim.price(bz, g) * 0.6));
+        if (bz.cash < pr) return toast(`${bz.name} can't afford to buy.`, 'bad');
+        PS.remove(g); PS.money += pr; bz.cash -= pr; bz.stock[g] = (bz.stock[g] || 0) + 1; trade(sim, bz, seller);
+      });
+    });
+  }
+
+  function container(title, items, onTake, note) {
+    const rows = items.map((it, i) => `<div class="slot"><img src="${icon(it.k)}" alt=""><span>${esc(it.k === 'coins' ? `${it.n}d in coin` : `${G[it.k].name}${it.n > 1 ? ' ×' + it.n : ''}`)}</span><button data-take="${i}">Take</button></div>`).join('');
+    open(title, `${note ? `<p class="caption warnnote">${esc(note)}</p>` : ''}<div class="slots">${rows || '<p class="caption">Empty.</p>'}</div>${items.length > 1 ? '<button class="btn" data-all="1" style="margin-top:10px">Take everything</button>' : ''}`, (r) => {
+      r.querySelectorAll('[data-take]').forEach((b) => b.onclick = () => onTake([+b.dataset.take]));
+      const all = r.querySelector('[data-all]'); if (all) all.onclick = () => onTake(items.map((_, i) => i));
+    });
+  }
+
+  O.Panels = { inventory, trade, container, toast, close, open, slotHTML };
+})();
+
+</script>
+<script>
 // NPC interaction (contextual prompt + talk card) and the Town Ledger inspector.
 'use strict';
 (function () {
@@ -3473,35 +4348,24 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
   function setup(game, sim) {
     const root = game.el.parentElement;
-    const prompt = document.createElement('div'); prompt.className = 'hud hud-prompt prompt'; prompt.hidden = true; root.appendChild(prompt);
     const card = document.createElement('aside'); card.className = 'hud talk'; card.hidden = true; card.setAttribute('aria-live', 'polite'); root.appendChild(card);
     const ledger = document.createElement('div'); ledger.className = 'ledger'; ledger.hidden = true; root.appendChild(ledger);
     const lbtn = document.createElement('button'); lbtn.className = 'btn ledger-btn'; lbtn.textContent = 'Ledger (L)'; root.appendChild(lbtn);
-    let target = null, talking = null, ltab = 'people', lsel = null;
+    let talking = null, ltab = 'people', lsel = null;
 
-    function nearest() {
-      const p = game.player; let best = null, bd = 26;
-      for (const q of sim.people) { const a = q.agent; if (a.hidden) continue; const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < bd) { bd = d; best = q; } }
-      return best;
-    }
     game.hooks.update.push(() => {
-      if (talking) { const a = talking.agent; if (a.hidden || Math.hypot(a.x - game.player.x, a.y - game.player.y) > 60) closeTalk(); }
-      target = talking ? talking : nearest();
-      if (target && !talking) { prompt.hidden = false; prompt.innerHTML = `<kbd>E</kbd>Talk to ${esc(target.name)}`; }
-      else prompt.hidden = true;
-    });
-    // marker above the NPC you'd talk to
-    game.hooks.drawWorld.push((ctx, cam) => {
-      if (!target) return; const a = target.agent; if (a.hidden) return;
-      const x = Math.round(a.x - cam.x), y = Math.round(a.y - O.Char.GROUND - cam.y + 1 + (Math.floor(game.t * 3) % 2));
-      ctx.fillStyle = '#1b1424'; ctx.fillRect(x - 3, y - 1, 7, 4);
-      ctx.fillStyle = '#f0b45c'; ctx.fillRect(x - 2, y, 5, 1); ctx.fillRect(x - 1, y + 1, 3, 1); ctx.fillRect(x, y + 2, 1, 1);
+      if (!talking) return;
+      const pos = game.scene ? game.scene.personPos(talking) : (talking.agent.hidden ? null : [talking.agent.x, talking.agent.y]);
+      if (!pos || Math.hypot(pos[0] - game.player.x, pos[1] - game.player.y) > 60) closeTalk();
     });
 
     function openTalk(q) {
       talking = q; q.agent.frozen = true;
-      const dx = game.player.x - q.agent.x, dy = game.player.y - q.agent.y;
+      const pos = game.scene ? game.scene.personPos(q) || [q.agent.x, q.agent.y] : [q.agent.x, q.agent.y];
+      const dx = game.player.x - pos[0], dy = game.player.y - pos[1];
       q.agent.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 1 : 2) : (dy < 0 ? 3 : 0);
+      if (game.scene) { const a = game.scene.actors.get(q.id); if (a) a.dir = q.agent.dir; }
+      game.player.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 2 : 1) : (dy < 0 ? 0 : 3);
       const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; r.familiar = Math.min(1, r.familiar + 0.1); q.rel.set(0, r);
       if (r.familiar <= 0.11) sim.remember(q, 'A stranger stopped me in the street to talk.', 'player', 0.8, 0);
       renderTalk(O.Dialogue.provider.greet(O.Dialogue.buildContext(sim, q), q.id + sim.day));
@@ -3512,6 +4376,10 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const q = talking, ctx = O.Dialogue.buildContext(sim, q);
       q.agent.talking = 30;
       const job = ctx.job.charAt(0).toUpperCase() + ctx.job.slice(1);
+      const bz = q.job?.biz ? sim.biz.get(q.job.biz) : null;
+      const atWork = bz && bz.open && q.agent.inside === bz.id && q.activity?.act === 'work' && bz.def.sells.length;
+      const innkeeper = bz && bz.type === 'tavern' && q.agent.inside === bz.id && bz.open;
+      const extra = (atWork ? '<button data-topic="trade" class="hot">Trade</button>' : '') + (innkeeper ? '<button data-topic="rent" class="hot">Rent a room · 6d</button>' : '');
       card.hidden = false;
       card.innerHTML = `
         <div class="talk-head"><canvas width="32" height="48" class="portrait"></canvas>
@@ -3520,10 +4388,19 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         <p class="speech">“${esc(line)}”</p>
         <div class="talk-stats"><span class="lbl">Fed</span>${bar(ctx.hunger)}<span class="lbl">Rested</span>${bar(ctx.energy)}<span class="lbl">Company</span>${bar(ctx.social)}</div>
         <div class="lbl doing">Now: ${esc(ACT_LABEL[ctx.activity] || ctx.activity)}</div>
-        <div class="topics">${[['self', 'How are you?'], ['work', 'Your work?'], ['prices', 'Prices?'], ['news', 'Any news?'], ['family', 'Family?']].map(([k, l]) => `<button data-topic="${k}">${l}</button>`).join('')}<button data-topic="bye">Goodbye</button></div>`;
+        <div class="topics">${[['self', 'How are you?'], ['work', 'Your work?'], ['prices', 'Prices?'], ['news', 'Any news?'], ['family', 'Family?']].map(([k, l]) => `<button data-topic="${k}">${l}</button>`).join('')}${extra}<button data-topic="bye">Goodbye</button></div>`;
       const pc = card.querySelector('.portrait').getContext('2d'); pc.imageSmoothingEnabled = false; pc.drawImage(O.Char.frame(q.app, 0, 'talk', 1), 0, 0);
       card.querySelectorAll('[data-topic]').forEach((b) => b.onclick = () => {
         const t = b.dataset.topic; if (t === 'bye') return closeTalk();
+        if (t === 'trade') { closeTalk(); return O.Panels.trade(sim, bz, q); }
+        if (t === 'rent') {
+          const PS = O.PlayerState;
+          if (PS.room && PS.room.b === bz.id && sim.day <= PS.room.until) return renderTalk('You\'ve a room already. Top of the stairs.');
+          if (PS.money < 6) return renderTalk('Six pence a night, and I don\'t do credit.');
+          PS.money -= 6; bz.cash += 6; PS.room = { b: bz.id, until: sim.day + 1 }; PS.add('key');
+          sim.remember(q, 'Let a room to a stranger.', 'work', 0.5, 0);
+          return renderTalk('Room\'s upstairs, first bed on the left. Chest is yours while you stay. Mind the third step.');
+        }
         const seed = q.id * 31 + sim.day + Math.floor(sim.minute / 7) + t.length;
         renderTalk(O.Dialogue.provider.topic(O.Dialogue.buildContext(sim, q), t, seed));
       });
@@ -3587,14 +4464,166 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     let acc = 0;
     game.hooks.update.push((dt) => { acc += dt; if (acc > 1.5 && !ledger.hidden) { acc = 0; const lb = ledger.querySelector('.ledger-body'); const st = lb ? lb.scrollTop : 0; renderLedger(); const nb = ledger.querySelector('.ledger-body'); if (nb) nb.scrollTop = st; } });
 
-    game.onKey = (e) => {
-      if (e.code === 'KeyE') { if (talking) closeTalk(); else if (target) openTalk(target); }
-      if (e.code === 'KeyL') toggleLedger();
-      if (e.code === 'Escape') { closeTalk(); toggleLedger(false); }
-    };
-    return { openTalk, closeTalk, toggleLedger };
+    game.keyHandlers.push((e) => {
+      if (e.code === 'KeyL') { toggleLedger(); return true; }
+      if (e.code === 'Escape' && (talking || !ledger.hidden)) { closeTalk(); toggleLedger(false); return true; }
+      return false;
+    });
+    return { openTalk, closeTalk, toggleLedger, talking: () => talking };
   }
   O.NpcUI = { setup };
+})();
+
+</script>
+<script>
+// Contextual interaction: finds what's in reach (people, doors, containers, beds, stairs), shows only
+// actions that make sense, and runs them. Taking what isn't yours is theft, and anyone awake in the
+// room sees it.
+'use strict';
+(function () {
+  const G = O.Data.GOODS, PS = O.PlayerState;
+
+  function setup(game, sim, npcUI) {
+    const prompt = document.createElement('div'); prompt.className = 'hud hud-prompt prompt'; prompt.hidden = true; game.el.parentElement.appendChild(prompt);
+    let cur = null, searching = 0, pendingSearch = null;
+
+    function doorLocked(b) {
+      const h = sim.hour, bz = sim.biz.get(b.id);
+      if (b.type === 'barn') return false;
+      if (PS.room && PS.room.b === b.id && sim.day <= PS.room.until) return false;
+      if (bz && (bz.open || bz.def.public)) return false;
+      const home = b.household && sim.households[b.household - 1];
+      const someoneIn = home && home.members.some((id) => sim.byId.get(id)?.agent.inside === b.id);
+      return !(someoneIn && h >= 7 && h < 21);
+    }
+
+    function candidates() {
+      const p = game.player, out = [];
+      if (game.scene) return game.scene.candidates();
+      for (const q of sim.people) { const a = q.agent; if (a.hidden) continue; const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < 26) out.push({ type: 'npc', person: q, d, x: a.x, y: a.y }); }
+      const T = sim.T;
+      for (const b of sim.world.buildings) {
+        const dx = b.doorX * T + 8, dy = b.doorY * T + 4;
+        const d = Math.hypot(dx - p.x, dy - p.y);
+        if (d < 14) out.push({ type: 'door', b, d: d + 4, x: dx, y: dy - 18 });
+      }
+      return out;
+    }
+    function label(c) {
+      switch (c.type) {
+        case 'npc': return `Talk to ${c.person.name}`;
+        case 'door': return doorLocked(c.b) ? `${c.b.name} — locked` : `Enter ${c.b.type === 'house' ? 'house' : c.b.name}`;
+        case 'container': return `Search ${c.it.kind}`;
+        case 'bed': return mayUseBed(c.it) ? 'Sleep until morning' : 'Bed — not yours';
+        case 'stairs': return game.scene.floor === 0 ? 'Go upstairs' : 'Go downstairs';
+        default: return '';
+      }
+    }
+    const mayUseBed = (it) => it.rent && PS.room && game.scene && PS.room.b === game.scene.b.id && sim.day <= PS.room.until;
+
+    game.hooks.update.push((dt) => {
+      if (searching > 0) { searching -= dt; game.player.anim = 'crouch'; game.player.locked = true; if (searching <= 0) { game.player.locked = false; game.player.anim = 'idle'; pendingSearch && pendingSearch(); pendingSearch = null; } }
+      if (O.panelOpen || npcUI.talking()) { prompt.hidden = true; cur = null; O.interactTarget = null; return; }
+      const cs = candidates().sort((a, b) => a.d - b.d);
+      cur = cs[0] || null;
+      O.interactTarget = cur;
+      if (cur) {
+        const quick = cur.type === 'container' ? '<kbd>F</kbd>Quick loot ' : '';
+        prompt.hidden = false; prompt.innerHTML = `<kbd>E</kbd>${O.escape(label(cur))}${quick ? ' &nbsp; ' + quick : ''}`;
+      } else prompt.hidden = true;
+    });
+    game.hooks.drawWorld.push((ctx, cam) => {
+      if (!cur || cur.type !== 'npc') return;
+      const x = Math.round(cur.x - cam.x), y = Math.round(cur.y - O.Char.GROUND - cam.y + 1 + (Math.floor(game.t * 3) % 2));
+      ctx.fillStyle = '#1b1424'; ctx.fillRect(x - 3, y - 1, 7, 4);
+      ctx.fillStyle = '#f0b45c'; ctx.fillRect(x - 2, y, 5, 1); ctx.fillRect(x - 1, y + 1, 3, 1); ctx.fillRect(x, y + 2, 1, 1);
+    });
+
+    // ----- container contents come from the real owners -----
+    function contents(it) {
+      const b = game.scene.b, hh = b.household ? sim.households[b.household - 1] : null, bz = sim.biz.get(b.id);
+      const out = [];
+      if (it.rentChest && PS.room && PS.room.b === b.id) { (PS.stash || (PS.stash = [])).forEach((k) => out.push({ k, n: 1, src: 'stash' })); return { items: out, owner: 'you' }; }
+      if (it.stockOf && bz) {
+        const goods = it.stockOf === 'farm' ? ['wheat', 'cabbage'] : it.stockOf === 'store' ? ['cabbage', 'firewood', 'flour'] : [it.stockOf];
+        for (const g of goods) { const n = Math.min(4, Math.floor(bz.stock[g] || 0)); if (n > 0) out.push({ k: g, n, src: 'biz', good: g }); }
+        return { items: out, owner: bz.name };
+      }
+      if (b.type === 'barn') { const farm = sim.supplierOf('farmhouse'); const n = Math.min(3, Math.floor(farm.stock.wheat || 0)); if (n) out.push({ k: 'wheat', n, src: 'farm' }); return { items: out, owner: 'Marsh Farm' }; }
+      if (hh && (it.pantry || it.kind === 'cupboard' || it.kind === 'barrel')) for (const g of ['bread', 'cabbage', 'firewood']) { const n = Math.floor(hh.pantry[g] || 0); if (n > 0) out.push({ k: g, n: Math.min(n, 3), src: 'pantry', good: g }); }
+      if (it.valuables || it.kind === 'chest' || it.kind === 'wardrobe') {
+        if (hh) {
+          if (!hh.valuables) { const r = O.RNG(hh.id * 77); hh.valuables = []; if (b.wealth > 0.4 && r.chance(0.7)) hh.valuables.push('spoon'); if (b.wealth > 0.6 && r.chance(0.5)) hh.valuables.push('brooch'); if (r.chance(0.5)) hh.valuables.push('candlestick'); }
+          const coin = Math.floor(Math.max(0, hh.money) * 0.35); if (coin > 0) out.push({ k: 'coins', n: coin, src: 'purse' });
+          hh.valuables.forEach((k) => out.push({ k, n: 1, src: 'val' }));
+        } else if (bz) { const coin = Math.floor(Math.max(0, bz.cash) * 0.3); if (coin > 0) out.push({ k: 'coins', n: coin, src: 'till' }); }
+      }
+      return { items: out, owner: hh ? `the ${hh.surname} household` : bz ? bz.name : 'someone' };
+    }
+
+    function take(it, items, idxs, owner) {
+      const b = game.scene.b, hh = b.household ? sim.households[b.household - 1] : null, bz = sim.biz.get(b.id);
+      const stolen = [];
+      for (const i of idxs) {
+        const c = items[i]; if (!c) continue;
+        if (c.k === 'coins') { PS.money += c.n; if (c.src === 'purse') hh.money -= c.n; else if (bz) bz.cash -= c.n; stolen.push(`${c.n}d`); continue; }
+        const n = c.src === 'stash' ? 1 : c.n; const got = PS.add(c.k, n);
+        if (!got) { O.Panels.toast('Your satchel is full.', 'bad'); break; }
+        if (c.src === 'stash') PS.stash.splice(PS.stash.indexOf(c.k), 1);
+        else if (c.src === 'pantry') hh.pantry[c.good] -= got;
+        else if (c.src === 'biz') bz.stock[c.good] -= got;
+        else if (c.src === 'farm') sim.supplierOf('farmhouse').stock.wheat -= got;
+        else if (c.src === 'val') hh.valuables.splice(hh.valuables.indexOf(c.k), 1);
+        if (c.src !== 'stash') stolen.push(`${got} ${G[c.k].name.toLowerCase()}`);
+      }
+      if (stolen.length) O.Crime.theft(game, sim, { building: b, floor: game.scene.floor, what: stolen.join(', '), owner, value: idxs.length });
+      O.Panels.close();
+    }
+
+    function search(it, quick) {
+      const { items, owner } = contents(it);
+      const own = owner === 'you';
+      if (quick && !own) { O.Panels.toast("That isn't yours to take. Search it with E — stealing has witnesses.", 'bad'); return; }
+      searching = 0.7; game.player.dir = 3;
+      pendingSearch = () => {
+        if (quick) { take(it, items, items.map((_, i) => i), owner); O.Panels.toast(items.length ? 'You gather your things.' : 'Nothing here.'); return; }
+        O.Panels.container(`${it.kind[0].toUpperCase() + it.kind.slice(1)} — ${owner}`, items, (idxs) => take(it, items, idxs, owner), own ? null : `This belongs to ${owner}. Anyone awake in the room will see you take it.`);
+      };
+    }
+
+    function sleep() {
+      O.Panels.toast('You sleep…');
+      const target = 7 * 60;
+      let guard = 0;
+      while (guard++ < 1000) { sim.tick(2); PS.tick(2, true); const m = sim.minute; if (m >= target && m < target + 4) break; }
+      game.player.anim = 'idle';
+      O.Panels.toast(`You wake on ${O.DAYNAMES[sim.weekday]}, rested.`);
+    }
+
+    game.keyHandlers.push((e) => {
+      if (e.code === 'KeyI') { if (O.panelOpen) O.Panels.close(); else O.Panels.inventory(); return true; }
+      if (e.code === 'Escape' && O.panelOpen) { O.Panels.close(); return true; }
+      if (O.panelOpen || searching > 0) return false;
+      if (e.code === 'KeyF') { if (cur && cur.type === 'container') search(cur.it, true); else O.Panels.toast('Nothing to loot here.'); return true; }
+      if (e.code !== 'KeyE') return false;
+      if (npcUI.talking()) { npcUI.closeTalk(); return true; }
+      if (!cur) return false;
+      switch (cur.type) {
+        case 'npc': npcUI.openTalk(cur.person); break;
+        case 'door':
+          if (doorLocked(cur.b)) { O.Panels.toast(`The door of ${cur.b.type === 'house' ? 'the house' : cur.b.name} is barred.`); break; }
+          game.enterBuilding(cur.b, 0);
+          O.Crime.onEnter(game, sim, cur.b);
+          break;
+        case 'container': search(cur.it, false); break;
+        case 'bed': if (mayUseBed(cur.it)) sleep(); else O.Panels.toast("That's someone else's bed."); break;
+        case 'stairs': game.enterBuilding(game.scene.b, game.scene.floor === 0 ? 1 : 0, true); break;
+      }
+      return true;
+    });
+  }
+  O.escape = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  O.Interact = { setup };
 })();
 
 </script>
@@ -3918,14 +4947,19 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   game.load(world, O.Forge.player);
   O.game = game;
   const sim = new O.Sim(world, 11);
-  O.sim = sim;
+  O.sim = sim; game.sim = sim;
+  const PS = O.PlayerState;
   // the simulation owns time; the engine reads it
   game.clock = { speed: 1, get minute() { return sim.minute; }, set minute(v) {}, get day() { return sim.day; }, set day(v) {} };
   game.hooks.update.push((dt) => {
     sim.tick(dt * game.clock.speed);
+    PS.tick(dt * game.clock.speed, false);
     game.actors = [game.player, ...sim.people.map((p) => p.agent)];
   });
-  O.NpcUI.setup(game, sim);
+  const npcUI = O.NpcUI.setup(game, sim);
+  O.Interact.setup(game, sim, npcUI);
+  const sbtn = document.createElement('button'); sbtn.className = 'btn ghost satchel-btn'; sbtn.textContent = 'Satchel (I)';
+  sbtn.onclick = () => (O.panelOpen ? O.Panels.close() : O.Panels.inventory()); $('tab-play').appendChild(sbtn);
 
   const speeds = [[1, '1×'], [10, '10×'], [60, '60×'], [240, '240×']];
   const seg = $('speedSeg');
@@ -3938,9 +4972,14 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   function hud() {
     const tl = $('hudTL');
     const where = placeName();
-    tl.innerHTML = `<div class="place">${where}</div><div class="clock">${DAYS[(game.clock.day - 1) % 7].toUpperCase()} · DAY ${game.clock.day} · ${game.timeString()}</div><div class="lbl">${game.season.toUpperCase()} · CLEAR</div>`;
+    const bar = (v, c) => `<span class="bar ${c}"><i style="width:${Math.round(v)}%"></i></span>`;
+    const wanted = PS.crimes.length ? (PS.rep.local < -0.3 ? 'SOUGHT' : 'WATCHED') : 'NONE';
+    tl.innerHTML = `<div class="place">${where}</div><div class="clock">${DAYS[(game.clock.day - 1) % 7].toUpperCase()} · DAY ${game.clock.day} · ${game.timeString()}</div><div class="lbl">${game.season.toUpperCase()} · CLEAR</div>
+      <div class="vitals"><span class="lbl">Health</span>${bar(PS.hp, PS.hp < 30 ? 'warn' : '')}<span class="lbl">Fed</span>${bar(PS.hunger, PS.hunger < 25 ? 'warn' : '')}<span class="lbl">Rested</span>${bar(PS.energy, PS.energy < 25 ? 'warn' : '')}</div>
+      <div class="purse-row"><span class="lbl">Purse</span><b>${O.money(PS.money)}</b><span class="lbl">Wanted</span><b class="${wanted !== 'NONE' ? 'warn' : ''}">${wanted}</b></div>`;
   }
   function placeName() {
+    if (game.scene) return game.scene.b.type === "house" ? `The ${sim.households[game.scene.b.household - 1]?.surname || ""} house` + (game.scene.floor ? ", upstairs" : "") : game.scene.b.name + (game.scene.floor ? ', upstairs' : '');
     const p = game.player, T = world.T, tx = p.x / T, ty = p.y / T;
     if (tx >= 37 && tx <= 56 && ty >= 22 && ty <= 30) return 'Ashford Square';
     if (ty >= 29.5 && ty <= 32.5) return tx > 77 && tx < 86 ? 'Ashford Bridge' : "King's Road";

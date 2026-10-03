@@ -12,35 +12,24 @@
 
   function setup(game, sim) {
     const root = game.el.parentElement;
-    const prompt = document.createElement('div'); prompt.className = 'hud hud-prompt prompt'; prompt.hidden = true; root.appendChild(prompt);
     const card = document.createElement('aside'); card.className = 'hud talk'; card.hidden = true; card.setAttribute('aria-live', 'polite'); root.appendChild(card);
     const ledger = document.createElement('div'); ledger.className = 'ledger'; ledger.hidden = true; root.appendChild(ledger);
     const lbtn = document.createElement('button'); lbtn.className = 'btn ledger-btn'; lbtn.textContent = 'Ledger (L)'; root.appendChild(lbtn);
-    let target = null, talking = null, ltab = 'people', lsel = null;
+    let talking = null, ltab = 'people', lsel = null;
 
-    function nearest() {
-      const p = game.player; let best = null, bd = 26;
-      for (const q of sim.people) { const a = q.agent; if (a.hidden) continue; const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < bd) { bd = d; best = q; } }
-      return best;
-    }
     game.hooks.update.push(() => {
-      if (talking) { const a = talking.agent; if (a.hidden || Math.hypot(a.x - game.player.x, a.y - game.player.y) > 60) closeTalk(); }
-      target = talking ? talking : nearest();
-      if (target && !talking) { prompt.hidden = false; prompt.innerHTML = `<kbd>E</kbd>Talk to ${esc(target.name)}`; }
-      else prompt.hidden = true;
-    });
-    // marker above the NPC you'd talk to
-    game.hooks.drawWorld.push((ctx, cam) => {
-      if (!target) return; const a = target.agent; if (a.hidden) return;
-      const x = Math.round(a.x - cam.x), y = Math.round(a.y - O.Char.GROUND - cam.y + 1 + (Math.floor(game.t * 3) % 2));
-      ctx.fillStyle = '#1b1424'; ctx.fillRect(x - 3, y - 1, 7, 4);
-      ctx.fillStyle = '#f0b45c'; ctx.fillRect(x - 2, y, 5, 1); ctx.fillRect(x - 1, y + 1, 3, 1); ctx.fillRect(x, y + 2, 1, 1);
+      if (!talking) return;
+      const pos = game.scene ? game.scene.personPos(talking) : (talking.agent.hidden ? null : [talking.agent.x, talking.agent.y]);
+      if (!pos || Math.hypot(pos[0] - game.player.x, pos[1] - game.player.y) > 60) closeTalk();
     });
 
     function openTalk(q) {
       talking = q; q.agent.frozen = true;
-      const dx = game.player.x - q.agent.x, dy = game.player.y - q.agent.y;
+      const pos = game.scene ? game.scene.personPos(q) || [q.agent.x, q.agent.y] : [q.agent.x, q.agent.y];
+      const dx = game.player.x - pos[0], dy = game.player.y - pos[1];
       q.agent.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 1 : 2) : (dy < 0 ? 3 : 0);
+      if (game.scene) { const a = game.scene.actors.get(q.id); if (a) a.dir = q.agent.dir; }
+      game.player.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 2 : 1) : (dy < 0 ? 0 : 3);
       const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; r.familiar = Math.min(1, r.familiar + 0.1); q.rel.set(0, r);
       if (r.familiar <= 0.11) sim.remember(q, 'A stranger stopped me in the street to talk.', 'player', 0.8, 0);
       renderTalk(O.Dialogue.provider.greet(O.Dialogue.buildContext(sim, q), q.id + sim.day));
@@ -51,6 +40,10 @@
       const q = talking, ctx = O.Dialogue.buildContext(sim, q);
       q.agent.talking = 30;
       const job = ctx.job.charAt(0).toUpperCase() + ctx.job.slice(1);
+      const bz = q.job?.biz ? sim.biz.get(q.job.biz) : null;
+      const atWork = bz && bz.open && q.agent.inside === bz.id && q.activity?.act === 'work' && bz.def.sells.length;
+      const innkeeper = bz && bz.type === 'tavern' && q.agent.inside === bz.id && bz.open;
+      const extra = (atWork ? '<button data-topic="trade" class="hot">Trade</button>' : '') + (innkeeper ? '<button data-topic="rent" class="hot">Rent a room · 6d</button>' : '');
       card.hidden = false;
       card.innerHTML = `
         <div class="talk-head"><canvas width="32" height="48" class="portrait"></canvas>
@@ -59,10 +52,19 @@
         <p class="speech">“${esc(line)}”</p>
         <div class="talk-stats"><span class="lbl">Fed</span>${bar(ctx.hunger)}<span class="lbl">Rested</span>${bar(ctx.energy)}<span class="lbl">Company</span>${bar(ctx.social)}</div>
         <div class="lbl doing">Now: ${esc(ACT_LABEL[ctx.activity] || ctx.activity)}</div>
-        <div class="topics">${[['self', 'How are you?'], ['work', 'Your work?'], ['prices', 'Prices?'], ['news', 'Any news?'], ['family', 'Family?']].map(([k, l]) => `<button data-topic="${k}">${l}</button>`).join('')}<button data-topic="bye">Goodbye</button></div>`;
+        <div class="topics">${[['self', 'How are you?'], ['work', 'Your work?'], ['prices', 'Prices?'], ['news', 'Any news?'], ['family', 'Family?']].map(([k, l]) => `<button data-topic="${k}">${l}</button>`).join('')}${extra}<button data-topic="bye">Goodbye</button></div>`;
       const pc = card.querySelector('.portrait').getContext('2d'); pc.imageSmoothingEnabled = false; pc.drawImage(O.Char.frame(q.app, 0, 'talk', 1), 0, 0);
       card.querySelectorAll('[data-topic]').forEach((b) => b.onclick = () => {
         const t = b.dataset.topic; if (t === 'bye') return closeTalk();
+        if (t === 'trade') { closeTalk(); return O.Panels.trade(sim, bz, q); }
+        if (t === 'rent') {
+          const PS = O.PlayerState;
+          if (PS.room && PS.room.b === bz.id && sim.day <= PS.room.until) return renderTalk('You\'ve a room already. Top of the stairs.');
+          if (PS.money < 6) return renderTalk('Six pence a night, and I don\'t do credit.');
+          PS.money -= 6; bz.cash += 6; PS.room = { b: bz.id, until: sim.day + 1 }; PS.add('key');
+          sim.remember(q, 'Let a room to a stranger.', 'work', 0.5, 0);
+          return renderTalk('Room\'s upstairs, first bed on the left. Chest is yours while you stay. Mind the third step.');
+        }
         const seed = q.id * 31 + sim.day + Math.floor(sim.minute / 7) + t.length;
         renderTalk(O.Dialogue.provider.topic(O.Dialogue.buildContext(sim, q), t, seed));
       });
@@ -126,12 +128,12 @@
     let acc = 0;
     game.hooks.update.push((dt) => { acc += dt; if (acc > 1.5 && !ledger.hidden) { acc = 0; const lb = ledger.querySelector('.ledger-body'); const st = lb ? lb.scrollTop : 0; renderLedger(); const nb = ledger.querySelector('.ledger-body'); if (nb) nb.scrollTop = st; } });
 
-    game.onKey = (e) => {
-      if (e.code === 'KeyE') { if (talking) closeTalk(); else if (target) openTalk(target); }
-      if (e.code === 'KeyL') toggleLedger();
-      if (e.code === 'Escape') { closeTalk(); toggleLedger(false); }
-    };
-    return { openTalk, closeTalk, toggleLedger };
+    game.keyHandlers.push((e) => {
+      if (e.code === 'KeyL') { toggleLedger(); return true; }
+      if (e.code === 'Escape' && (talking || !ledger.hidden)) { closeTalk(); toggleLedger(false); return true; }
+      return false;
+    });
+    return { openTalk, closeTalk, toggleLedger, talking: () => talking };
   }
   O.NpcUI = { setup };
 })();

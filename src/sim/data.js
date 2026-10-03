@@ -15,6 +15,11 @@
     tools: { name: 'Tools', base: 24, unit: 'piece', slots: 1 },
     medicine: { name: 'Remedy', base: 10, unit: 'phial', slots: 1 },
     herbs: { name: 'Herbs', base: 2, unit: 'bunch', slots: 1 },
+    dagger: { name: 'Dagger', base: 14, unit: 'blade', slots: 1, weapon: true },
+    spoon: { name: 'Silver spoon', base: 12, unit: 'spoon', slots: 1, valuable: true },
+    brooch: { name: 'Brooch', base: 30, unit: 'brooch', slots: 1, valuable: true },
+    candlestick: { name: 'Pewter candlestick', base: 9, unit: 'candlestick', slots: 1, valuable: true },
+    key: { name: 'Room key', base: 0, unit: 'key', slots: 1, quest: true },
   };
 
   // Business definitions: roles (job slots), hours, recipes (per worker-hour at skill 1),

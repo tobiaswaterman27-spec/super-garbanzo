@@ -67,6 +67,7 @@ input[type=range] { width: 100%; accent-color: var(--ember); }
 .savebar button:hover { border-color: var(--ember-2); color: var(--ember-2); }
 .map-btn { position: absolute; right: 344px; bottom: 12px; }
 .chron-btn { position: absolute; right: 446px; bottom: 12px; }
+.guide-btn { position: absolute; right: 12px; top: 196px; }
 .hud-b { max-width: calc(100% - 480px) !important; }
 .mapwrap { position: relative; width: 100%; max-width: 640px; margin: 0 auto; }
 .mapwrap canvas { width: 100%; height: auto; border: 2px solid #000; image-rendering: pixelated; }
@@ -153,14 +154,14 @@ main > .wrap { overflow: auto; }
 .hud-tl .place { font-family: var(--display); font-size: 22px; color: var(--ember-2); line-height: 1.1; }
 .hud-tl .clock { font-family: var(--pix); font-size: 12px; letter-spacing: 1px; font-variant-numeric: tabular-nums; }
 .hud-tr { top: 12px; right: 12px; display: grid; gap: 6px; justify-items: end; }
-.hud-b { bottom: 12px; left: 12px; font-family: var(--pix); font-size: 10px; letter-spacing: 1px; color: var(--parch-dim); white-space: nowrap; max-width: calc(100% - 600px); overflow: hidden; text-overflow: ellipsis; }
+.hud-b { bottom: 12px; left: 12px; font-family: var(--pix); font-size: 10px; letter-spacing: 1px; color: var(--parch-dim); white-space: nowrap; max-width: calc(100% - 640px); overflow: hidden; text-overflow: ellipsis; }
 .prompt { font-family: var(--pix); font-size: 11px; color: var(--parch); }
 .prompt kbd { display: inline-block; background: var(--ember-2); color: var(--ink); border: 2px solid #000; padding: 0 5px; margin-right: 6px; font-family: var(--pix); }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
 </style>
 
 <header class="top">
-  <div class="brand">Outlaw<small>BUILD 0.26 · LAND</small></div>
+  <div class="brand">Outlaw<small>BUILD 0.27 · LAND</small></div>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" role="tab" aria-selected="true" data-tab="play">Play</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="forge">Character</button>
@@ -178,7 +179,7 @@ main > .wrap { overflow: auto; }
       <span class="lbl">Time</span>
       <div class="seg" id="speedSeg"></div>
     </div>
-    <div class="hud hud-b" id="hudB">WASD move · Shift run · E interact · Space strike · R weapon · H ride · Q steal · F loot · I satchel · G gang · P holdings · M map · L ledger</div>
+    <div class="hud hud-b" id="hudB">WASD move · Shift run · E interact · Q steal · F loot · Space strike · / guide</div>
   </section>
 
   <section class="wrap" id="tab-forge" hidden>
@@ -10345,6 +10346,41 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
 </script>
 <script>
+// The guide (/ or the Guide button): controls, and the many ways to live in this world — honest
+// work, trade, property, crime, gangs, politics, war — with where each starts.
+'use strict';
+(function () {
+  const KEYS = [['WASD / arrows', 'walk'], ['Shift', 'run'], ['E', 'interact with whatever is nearest: talk, enter, work, buy, read, fight a fire…'], ['Q', 'steal: pickpocket, pick a lock, take a horse'], ['F', 'quick-loot a container or search someone beaten'], ['Space', 'strike'], ['R', 'change weapon'], ['H', 'mount or dismount your horse'], ['I', 'satchel, reputation and skills'], ['L', 'town ledger: people, families, businesses, news'], ['M', 'map of the realm'], ['G', 'your gang'], ['P', 'holdings: property, land, office'], ['C', 'the Chronicle: history, hearsay, your story'], ['/', 'this guide'], ['Esc', 'close a panel']];
+  const WAYS = [
+    ['Honest work', 'Talk to a master at their workplace during opening hours and ask for work. Work hour-long shifts at their benches for wages; skills grow; a good worker is offered an apprenticeship.'],
+    ['Craft and sell', 'Once skilled, make goods from your own materials at a bench you may use (your property or your employer\'s). Mind a market stall in the square to sell to the townsfolk; market day is Freyday.'],
+    ['Property and land', 'Buy houses or shops with For Sale signs, let them, open businesses. In Holdings (P), buy building plots, have a house built, buy strips of the common field. Enough land makes you gentry.'],
+    ['Office', 'Stand for reeve at the moot (spring, or when the office is empty) — friendships and good standing win votes. Or petition for the lordship. In office you set taxes, the watch, works and Ashford\'s voice at the castle council.'],
+    ['Crime', 'Pickpocket and burgle (Q), rob caravans on the King\'s Road, fence goods. Witnesses describe you imperfectly; the watch investigates; disguise helps. Get caught and you face trial.'],
+    ['Gangs', 'Claim the abandoned camp in the woods, recruit the poor and the bitter, pay them, plan night jobs, grow the hideout. The Crows will not like it.'],
+    ['War and politics', 'When war comes, a recruiting sergeant calls for men: take the King\'s shilling and march (or desert). In a rebellion, a rebel agent drinks in the tavern. Kings die; pretenders rise.'],
+    ['Travel', 'Leave by the road at the edge of the village to reach other towns, the walled capital Kingsbridge and Thornbury Castle. Each is a full simulation; the world goes on without you.'],
+    ['Keep your ears open', 'Ask people for news: what they tell you is what they heard, from whom, and it may be wrong. The crier, bards in the tavern and the Kingsbridge broadsheet all tell it their own way. The Chronicle keeps the record.'],
+    ['Disasters', 'Fires (grab a bucket), floods after heavy rain, pestilence with quarantines. Help, or profit, or flee.'],
+  ];
+  function open() {
+    O.Panels.open('Guide', `<div class="lbl">Controls</div><table><tbody>${KEYS.map(([k, d]) => `<tr><td style="white-space:nowrap"><kbd style="font-family:var(--pix);font-size:10px;border:2px solid var(--line);padding:1px 5px">${k}</kbd></td><td>${d}</td></tr>`).join('')}</tbody></table>
+      <div class="lbl" style="margin-top:12px">Ways to live</div><div class="kv">${WAYS.map(([t, d]) => `<div><span class="lbl">${t}</span><small style="color:var(--parch)">${d}</small></div>`).join('')}</div>
+      <p class="caption" style="margin-top:12px">Time runs at the speed set top-right (1× to 240×). The game saves itself each dawn; Save and New life are top-right too. Nobody here is waiting for you: the village lives its life whether you act or not.</p>`);
+    const inner = document.querySelector('.panel-modal .ledger-in'); if (inner) inner.classList.remove('narrow');
+  }
+  function setup(game) {
+    const btn = document.createElement('button'); btn.className = 'btn ghost guide-btn'; btn.textContent = 'Guide (/)';
+    btn.onclick = () => (O.panelOpen ? O.Panels.close() : open()); document.getElementById('tab-play').appendChild(btn);
+    game.keyHandlers.push((e) => { if ((e.code === 'Slash' || e.key === '?') && !O.panelOpen) { open(); return true; } return false; });
+    // first visit: show the guide once
+    try { if (!localStorage.getItem('outlaw.guided')) { localStorage.setItem('outlaw.guided', '1'); setTimeout(open, 600); } } catch (e) { /* storage unavailable */ }
+  }
+  O.Guide = { setup, open };
+})();
+
+</script>
+<script>
 // Procedural audio: no sound files, everything synthesised with WebAudio so it can follow the
 // simulation. Ambient beds (wind, rain, crowd murmur, fire crackle) are filtered noise whose levels
 // track the weather and who is nearby; point sounds (the smith's hammer, the chapel bell, birds,
@@ -11001,6 +11037,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   O.FireFX.setup(game, home);
   O.DisasterFX.setup(game, home);
   O.Estate.setup(game, home);
+  O.Guide.setup(game);
   O.AudioSetup.setup(game, sim);
   if (loaded) { O.Save.hydrateLate(game, home); setTimeout(() => O.Panels.toast(`Welcome back. It is ${O.DAYNAMES[sim.weekday]}, day ${sim.day}, in Ashford.`), 300); }
   // autosave each dawn and whenever the page is hidden

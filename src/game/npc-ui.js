@@ -118,7 +118,7 @@
       } else {
         body = `<ol class="chron">${sim.history.slice().reverse().slice(0, 80).map((h) => `<li><span class="lbl">Day ${h.day} ${String(Math.floor(h.minute / 60)).padStart(2, '0')}:${String(h.minute % 60).padStart(2, '0')}</span> ${esc(h.text)}</li>`).join('')}</ol>`;
       }
-      ledger.innerHTML = `<div class="ledger-in"><header><h2>Ashford Ledger</h2><nav>${tabs.map(([k, l]) => `<button data-lt="${k}" aria-pressed="${k === ltab}">${l}</button>`).join('')}</nav><button class="x" aria-label="Close ledger">✕</button></header><div class="ledger-body">${body}</div></div>`;
+      ledger.innerHTML = `<div class="ledger-in"><header><h2>${esc(sim.world.name)} Ledger</h2><nav>${tabs.map(([k, l]) => `<button data-lt="${k}" aria-pressed="${k === ltab}">${l}</button>`).join('')}</nav><button class="x" aria-label="Close ledger">✕</button></header><div class="ledger-body">${body}</div></div>`;
       ledger.querySelectorAll('[data-lt]').forEach((b) => b.onclick = () => { ltab = b.dataset.lt; lsel = null; renderLedger(); });
       ledger.querySelector('.x').onclick = () => toggleLedger(false);
       ledger.querySelectorAll('tr[data-id]').forEach((tr) => tr.onclick = () => { lsel = lsel === +tr.dataset.id ? null : +tr.dataset.id; renderLedger(); });

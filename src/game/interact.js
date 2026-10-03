@@ -26,6 +26,7 @@
       if (O.horseCandidate) { const hc = O.horseCandidate(); if (hc) out.push(hc); }
       if (O.caravanCandidate) { const cc = O.caravanCandidate(); if (cc) out.push(cc); }
       if (O.noticeCandidate) { const nc = O.noticeCandidate(); if (nc) out.push(nc); }
+      if (O.exitCandidate) { const ec = O.exitCandidate(); if (ec) out.push(ec); }
       for (const q of sim.people) { const a = q.agent; if (a.hidden) continue; const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < 26) out.push({ type: 'npc', person: q, d, x: a.x, y: a.y }); }
       const T = sim.T;
       for (const pr of sim.world.props) if (pr.kind === 'gravestone') { const d = Math.hypot(pr.x - p.x, pr.y - p.y); if (d < 20) out.push({ type: 'grave', prop: pr, d: d + 2, x: pr.x, y: pr.y - 14 }); }
@@ -54,6 +55,7 @@
         case 'grave': return 'Read the gravestone';
         case 'caravan': return `Hail ${c.L.c.merchant}'s caravan`;
         case 'notices': return 'Read the notice board';
+        case 'exit': return `Leave ${sim.world.name} by the ${c.side} road`;
         case 'horse': return `Look over ${c.h.owner === 'player' ? c.h.name : 'the horse'}`;
         case 'claim': return 'Claim the abandoned camp';
         case 'stash': return 'Open the stash';
@@ -172,6 +174,7 @@
         case 'horse': O.inspectHorse(cur.h); break;
         case 'caravan': O.caravanPanel(cur.L); break;
         case 'notices': O.readNotices(); break;
+        case 'exit': O.travelPanel(cur.side); break;
         case 'stash': O.GangUI.stash(); break;
         case 'campbed': sleep(); break;
         case 'grave': { const g = cur.prop.grave; O.Panels.toast(g ? `“Here lies ${g.name}, ${g.age} years. ${g.cause.replace('died ', '').replace(/^./, (c) => c.toUpperCase())}.”` : 'The old stone is worn smooth; you can no longer read the name.'); break; }

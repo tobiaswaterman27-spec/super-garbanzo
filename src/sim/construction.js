@@ -23,6 +23,7 @@
 
     council() {
       const sim = this.sim;
+      if (sim.opts && sim.opts.foreign) return; // other towns' councils are simulated in the abstract
       const free = PLOTS.filter((p, i) => !this.used.has(i) && this.plotFree(p));
       const active = this.sites.filter((s) => s.stage < 10).length;
       if (!free.length || active >= 1) return;

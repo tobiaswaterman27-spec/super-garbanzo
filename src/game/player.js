@@ -25,6 +25,10 @@
       else if (this.hunger > 50 && this.hp < 100) this.hp = Math.min(100, this.hp + 0.01 * dtm);
     },
     SLOTS,
+    localRep: {},
   };
+  // "local" standing is kept per settlement; the rest are kingdom-wide groups
+  delete P.rep.local;
+  Object.defineProperty(P.rep, 'local', { enumerable: true, get() { const id = O.game && O.game.world ? O.game.world.placeId : 'ashford'; return P.localRep[id] || 0; }, set(v) { const id = O.game && O.game.world ? O.game.world.placeId : 'ashford'; P.localRep[id] = v; } });
   O.PlayerState = P;
 })();

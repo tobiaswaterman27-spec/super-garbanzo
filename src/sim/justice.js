@@ -112,7 +112,7 @@
       const skill = g.skills[g.job.role] || 0.5;
       crime.evidence = Math.min(3, crime.witnesses.reduce((s, w) => s + w.acc, 0) * (0.6 + skill * 0.6));
       const desc = describe(crime.profile);
-      this.log(Object.keys(crime.profile).length ? `The watch is looking for ${desc} over the ${crime.kind} at ${crime.placeName || 'Ashford'}.` : `The watch has no description to go on over the ${crime.kind} at ${crime.placeName || 'Ashford'}.`, 'crime');
+      this.log(Object.keys(crime.profile).length ? `The watch is looking for ${desc} over the ${crime.kind} at ${crime.placeName || this.world.name}.` : `The watch has no description to go on over the ${crime.kind} at ${crime.placeName || this.world.name}.`, 'crime');
       this.remember(g, `Investigating a ${crime.kind}: we want ${describe(crime.profile)}.`, 'work', 1.5);
       // an NPC culprit can be found by matching the description against the village
       if (crime.perp !== 'player') this.searchSuspects(crime, g);

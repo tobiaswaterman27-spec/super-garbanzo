@@ -5,8 +5,9 @@
   const PS = O.PlayerState, G = O.Data.GOODS, esc = (s) => O.escape(s);
   PS.stash = PS.stash || [];
 
-  function setup(game, sim, npcUI) {
+  function setup(game, simRef, npcUI) {
     const money = O.money;
+    const sim = new Proxy({}, { get: (t, k) => { const s = O.SimRef.home; const v = s[k]; return typeof v === 'function' ? v.bind(s) : v; } });
 
     function claim(b) {
       O.Panels.open('Claim the camp', `<p class="caption">A cold fire ring, a torn tent, a chest with a broken hasp. Nobody has slept here in a year. Make it yours and you'll need a name men can whisper in taverns.</p>
@@ -71,7 +72,7 @@
     // talk-card extensions: recruit, fence, gang chatter
     npcUI.extraButtons = (q) => {
       const g = sim.playerGang(), out = [];
-      if (g && !q.gang && q.age >= 16 && !q.job?.role?.startsWith('guard')) out.push(['recruit', 'Sound them out']);
+      if (g && !q.gang && q.age >= 16 && !q.job?.role?.startsWith('guard') && O.SimRef.cur === O.SimRef.home) out.push(['recruit', 'Sound them out']);
       if (q.gang === 'player') { const m = g?.members.find((x) => x.id === q.id); if (m?.role === 'fence') out.push(['fence', 'Fence goods']); }
       if (!g && q.gang === 'crows' && PS.rep.criminal > 0.04) out.push(['fence', 'Sell them stolen goods']);
       return out;

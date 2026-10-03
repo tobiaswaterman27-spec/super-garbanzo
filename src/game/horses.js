@@ -27,7 +27,7 @@
         owner, history: [], x: 0, y: 0, dir: r.int(0, 3), anim: 'idle', ft: r.next() * 3, saddled: false, fed: 80 };
       h.stamina = h.staminaMax;
       h.value = Math.round(B.value * (age < 5 ? 0.85 : age > 12 ? 0.6 : 1) * h.speed);
-      h.history.push({ day: sim.day, event: opts.event || 'bred', owner: ownerName(owner) });
+      h.history.push({ day: sim.day, event: opts.event || 'bred', owner: ownerName(owner) }); h.world = 'ashford';
       horses.push(h); return h;
     }
     function ownerName(o) { if (o === 'player') return 'you'; if (typeof o === 'string' && o.startsWith('biz:')) return sim.biz.get(+o.slice(4))?.name || 'a stable'; const p = sim.byId.get(o); return p ? p.name : 'unknown'; }
@@ -77,7 +77,7 @@
       for (const h of horses) {
         h.ft += dt;
         if (h === mount) { h.x = p.x; h.y = p.y; h.dir = p.dir; h.anim = p.moving ? (p.galloping ? 'gallop' : 'walk') : 'idle'; }
-        else if (h.inPaddock !== false && !h.tied) {
+        else if (h.inPaddock !== false && !h.tied && (h.world || 'ashford') === 'ashford') {
           if (h.tx == null) { if (r.next() < dt * 0.15) { h.tx = r.int(paddock.x0, paddock.x1) * T + 8; h.ty = r.int(paddock.y0, paddock.y1) * T + 12; } h.anim = 'idle'; }
           else { const dx = h.tx - h.x, dy = h.ty - h.y, d = Math.hypot(dx, dy); if (d < 1) h.tx = null; else { const st = Math.min(d, 10 * dt); h.x += (dx / d) * st; h.y += (dy / d) * st; h.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 1 : 2) : (dy < 0 ? 3 : 0); h.anim = 'walk'; } }
         } else h.anim = 'idle';
@@ -89,7 +89,8 @@
         if (p.galloping) mount.stamina = Math.max(0, mount.stamina - dt * 9); else mount.stamina = Math.min(mount.staminaMax, mount.stamina + dt * 2);
         if (p.galloping && mount.temper === 'skittish' && r.chance(dt * 0.02)) { dismount(true); O.Panels.toast(`${mount.name} shies and throws you!`, 'bad'); PS.hp -= 8; }
       }
-      if (!game.scene) game.actors = [...game.actors.filter((a) => !a.horse && !a.animal), ...horses.filter((h) => h !== mount).map(horseActor), ...fauna.map(animalActor)];
+      const wid = game.world.placeId;
+      if (!game.scene) game.actors = [...game.actors.filter((a) => !a.horse && !a.animal), ...horses.filter((h) => h !== mount && (h.world || 'ashford') === wid).map(horseActor), ...(wid === 'ashford' ? fauna.map(animalActor) : [])];
     });
 
     // riding speed: replace the walking pace while mounted
@@ -113,7 +114,7 @@
     };
     void _drawWorld; void _blocked;
 
-    function nearestHorse() { let best = null, bd = 26; for (const h of horses) { if (h === game.player.mount) continue; const d = Math.hypot(h.x - game.player.x, h.y - game.player.y); if (d < bd) { bd = d; best = h; } } return best; }
+    function nearestHorse() { let best = null, bd = 26; for (const h of horses) { if (h === game.player.mount || (h.world || 'ashford') !== game.world.placeId) continue; const d = Math.hypot(h.x - game.player.x, h.y - game.player.y); if (d < bd) { bd = d; best = h; } } return best; }
     function mountHorse(h) { if (game.scene) return; game.player.mount = h; h.saddled = true; h.tied = false; h.inPaddock = false; game.player.x = h.x; game.player.y = h.y; O.Panels.toast(`You swing up onto ${h.owner === 'player' ? h.name : 'the ' + h.coat + ' ' + h.breed.toLowerCase()}. Shift to gallop, H to dismount.`); }
     function dismount(thrown) { const h = game.player.mount; if (!h) return; game.player.mount = null; h.tied = true; h.x = game.player.x + (thrown ? 10 : 14); h.y = game.player.y; if (!thrown) O.Panels.toast(`You tie ${h.owner === 'player' ? h.name : 'the horse'} up.`); }
     O.Horses = { horses, nearestHorse, dismount, mountHorse };

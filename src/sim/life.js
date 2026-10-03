@@ -179,9 +179,9 @@
       for (const p of ms) {
         if (p.job?.biz) { const bz = this.biz.get(p.job.biz); if (bz) { bz.workers = bz.workers.filter((id) => id !== p.id); if (bz.owner === p.id) bz.owner = null; } }
         p.job = null; p.task = { act: 'leave', outdoor: true, emigrating: true };
-        this.remember(p, 'There is no living to be had in Ashford. We are leaving.', 'life', 3);
+        this.remember(p, `There is no living to be had in ${this.world.name}. We are leaving.`, 'life', 3);
       }
-      this.log(`Unable to feed themselves, the ${hh.surname} family have packed up and left Ashford.`, 'migration');
+      this.log(`Unable to feed themselves, the ${hh.surname} family have packed up and left ${this.world.name}.`, 'migration');
       this.vacate(hh);
     };
 

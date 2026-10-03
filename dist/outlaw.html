@@ -156,7 +156,7 @@ main > .wrap { overflow: auto; }
 </style>
 
 <header class="top">
-  <div class="brand">Outlaw<small>BUILD 0.12 · A LIFE THAT LASTS</small></div>
+  <div class="brand">Outlaw<small>BUILD 0.13 · THE OPEN ROAD</small></div>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" role="tab" aria-selected="true" data-tab="play">Play</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="forge">Character</button>
@@ -2235,6 +2235,14 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         B.part(2); const bm = P.mat(C.madder); B.poly([[3, 3], [9, 3], [9, 16], [6, 13], [3, 16]], [0, 0, 1], bm); for (let y = 3; y < 15; y++) B.shadeAt(8, y, 1); B.plot(5, 7, P.mat(P.metal.gold, 'metal'), 3); B.plot(6, 8, P.mat(P.metal.gold, 'metal'), 3); B.plot(5, 9, P.mat(P.metal.gold, 'metal'), 3);
         ox = 2; oy = 29; break;
       }
+      case 'boat': {
+        B = new MB(40, 18); B.part(1); const hull = P.mat('#6a4a30', 'wood');
+        B.poly([[1, 6], [39, 6], [34, 15], [6, 15]], (px, py) => [0, (py - 10) / 6, 0.9], hull);
+        for (let x = 2; x < 38; x++) { B.shadeAt(x, 6, 4); B.shadeAt(x, 7, 3); if (B.matAt(x, 11) === hull) B.shadeAt(x, 11, 1); }
+        B.part(2); B.rect(6, 4, 28, 3, P.mat('#4a3424', 'wood'), 1); for (let x = 9; x < 32; x += 7) B.rect(x, 5, 2, 2, P.mat(P.wood.pine, 'wood'), 3);
+        B.part(3); B.capsule(14, 9, 28, 3, 0.6, 0.6, P.mat(P.wood.pine, 'wood'));
+        ox = 20; oy = 16; break;
+      }
       case 'noticeboard': {
         B = new MB(24, 30); B.part(1); B.capsule(3, 29, 3, 6, 1, 1, wood); B.capsule(21, 29, 21, 6, 1, 1, wood);
         B.part(2); B.rect(1, 4, 22, 16, P.mat('#7a5a3a', 'wood'), 2); for (let x = 1; x < 23; x++) { B.shadeAt(x, 4, 3); B.shadeAt(x, 19, 1); }
@@ -2438,7 +2446,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const t = ter[y * W + x]; if (t === TER.WATER) solid[y * W + x] = 1; }
     for (let x = 78; x <= 85; x++) { solid[30 * W + x] = 0; solid[31 * W + x] = 0; }
 
-    return { name: 'Ashford', region: 'south', W, H, T, ter, solid, buildings, props, trees, TER, seed };
+    return { name: 'Ashford', placeId: 'ashford', region: 'south', W, H, T, ter, solid, buildings, props, trees, TER, seed, roadY: 30, exits: { west: [0, 30], east: [W - 1, 30] } };
   }
 
   O.Village = { makeVillage, TER };
@@ -2565,6 +2573,133 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
 </script>
 <script>
+// Procedural settlements. Any place in the kingdom can be generated from its stats (kind, region,
+// population, wealth) into a map with the same structure as Ashford, following how settlements
+// grow: a through-road with exits at both ends, a green or market square where a track meets it,
+// houses fronting the streets, a back lane, trades placed where they belong (the smith on the
+// road, the mill by water, woodcutters at the forest edge, fishers on the shore, miners at the
+// hill), farmland outside, woods beyond. Regional character comes from materials and land.
+'use strict';
+(function () {
+  const T = 16, TER = O.Village.TER;
+  const STYLE = {
+    north: { walls: [['stone', 5], ['log', 2], ['timber', 1]], roofs: [['slate', 5], ['shingle', 2]], plasters: ['plaster', 'plasterWhite'], stoneMat: 'stoneNorth' },
+    east: { walls: [['timber', 4], ['stone', 2], ['brick', 2]], roofs: [['tile', 5], ['slate', 2]], plasters: ['plasterWhite', 'plasterPink', 'plasterOchre'], stoneMat: 'stoneWarm' },
+    south: { walls: [['timber', 4], ['stone', 2]], roofs: [['tile', 4], ['thatch', 3]], plasters: ['plasterOchre', 'plaster', 'plasterPink'], stoneMat: 'stoneWarm' },
+    west: { walls: [['plank', 3], ['log', 2], ['timber', 2], ['stone', 1]], roofs: [['thatch', 4], ['shingle', 3]], plasters: ['plaster', 'plasterWhite'], stoneMat: 'stone' },
+  };
+
+  function makeSettlement(place) {
+    const seed = O.hash('settle', place.id);
+    const rng = O.RNG(seed);
+    const town = place.kind === 'town' || place.kind === 'port' || place.pop > 600;
+    const W = town ? 100 : 80, H = town ? 64 : 56;
+    const ter = new Uint8Array(W * H), solid = new Uint8Array(W * H);
+    const set = (x, y, t) => { if (x >= 0 && y >= 0 && x < W && y < H) ter[y * W + x] = t; };
+    const fill = (x0, y0, x1, y1, t) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) set(x, y, t); };
+    const st = STYLE[place.region] || STYLE.south;
+    const coast = place.region === 'west';
+    const shoreX = coast ? 9 : -1;
+
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const edge = Math.min(y, H - 1 - y, W - 1 - x, coast ? 99 : x);
+      if (edge < 3 || (O.fbm(x / 6, y / 6, seed & 255, 2) > 0.7 && (y < 10 || x > W - 10))) set(x, y, TER.FOREST);
+      if (coast) { const sx = shoreX + Math.round(Math.sin(y / 6) * 1.5); if (x < sx) set(x, y, TER.WATER); else if (x < sx + 2) set(x, y, TER.SAND); }
+    }
+    const roadY = Math.floor(H / 2), laneY = roadY + 11, sqX = Math.floor(W / 2) - 8;
+    fill(coast ? shoreX + 2 : 0, roadY, W - 1, roadY + 1, TER.ROAD);
+    fill(sqX + 7, 4, sqX + 8, roadY - 1, TER.ROAD); // north track
+    if (town) fill(sqX, roadY - 8, sqX + 15, roadY - 1, TER.COBBLE); else fill(sqX + 2, roadY - 6, sqX + 13, roadY - 1, TER.GRASS);
+    fill(coast ? shoreX + 4 : 6, laneY, W - 8, laneY + 1, TER.ROAD);
+    fill(sqX + 7, roadY + 2, sqX + 8, laneY - 1, TER.ROAD);
+    // farmland south of the lane, or vineyard rows in the south
+    const fy0 = laneY + 6, fy1 = H - 6;
+    fill(W - 34, fy0, W - 8, fy1, TER.FIELD);
+    fill(coast ? shoreX + 5 : 6, laneY + 3, coast ? shoreX + 18 : 22, laneY + 4, TER.YARD);
+
+    const buildings = [], props = [], trees = [];
+    let nextId = 1;
+    const B = (o) => { const b = Object.assign({ id: nextId++, floors: 1, wealth: 0.5, condition: 0.9 }, o); b.y = b.bottom - b.d + 1; b.spec = Object.assign({ seed: O.hash('bld', seed, b.id), w: b.w, d: b.d, floors: b.floors, wealth: b.wealth, condition: b.condition }, b.look); buildings.push(b); return b; };
+    const wealthAt = (x) => O.clamp(place.wealth + 0.2 * (1 - Math.min(1, Math.abs(x - (sqX + 8)) / 30)) + rng.float(-0.15, 0.15), 0.1, 0.95);
+    const look = (wl, extra = {}) => Object.assign({ wall: rng.weighted(st.walls), roof: wl < 0.3 && place.region !== 'north' ? 'thatch' : rng.weighted(st.roofs), roofType: rng.chance(0.5) ? 'gable' : 'side', chimney: true, plaster: rng.pick(st.plasters), stoneMat: st.stoneMat, doorTile: 1 }, extra);
+    const house = (x, bottom, w, d) => { const wl = wealthAt(x); return B({ type: 'house', name: 'House', x, bottom, w, d, wealth: wl, floors: wl > 0.65 && rng.chance(0.5) ? 2 : 1, condition: O.clamp(0.35 + wl * 0.6, 0.2, 1), look: look(wl, { doorTile: rng.int(0, w - 1) }) }); };
+
+    // trades around the square (north side faces the cobbles/green)
+    const top = roadY - (town ? 9 : 7);
+    B({ type: 'tavern', name: `The ${rng.pick(['Golden', 'Drowned', 'Black', 'Merry', 'Old', 'Red'])} ${rng.pick(['Stag', 'Anchor', 'Goose', 'Plough', 'Boar', 'Bell'])}`, x: sqX, bottom: top, w: 6, d: 5, floors: 2, wealth: 0.65, look: look(0.65, { roofType: 'gable', sign: 'mug', doorTile: 2 }) });
+    B({ type: 'bakery', name: 'Bakery', x: sqX + 10, bottom: top, w: 4, d: 4, wealth: 0.55, look: look(0.55, { sign: 'bread', shopWindow: true }) });
+    B({ type: 'chapel', name: `Chapel of St. ${rng.pick(['Wilfrid', 'Brannoc', 'Petroc', 'Edith', 'Cuthbert', 'Agatha'])}`, x: sqX - 7, bottom: top, w: 5, d: 5, wealth: 0.6, look: { wall: 'stone', stoneMat: st.stoneMat, roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 2, wallH: 38, noFlowers: true } });
+    // the main road's north side
+    const rowBottom = roadY - 2;
+    let x = coast ? shoreX + 4 : 4;
+    const roadTrades = [
+      { type: 'smithy', name: 'Smithy', w: 5, d: 4, look: { wall: 'stone', stoneMat: st.stoneMat, roof: 'slate', chimney: true, chimneyX: 0.8, sign: 'anvil', doorTile: 1 } },
+      { type: 'store', name: 'General Store', w: 5, d: 4, look: look(0.55, { roofType: 'gable', sign: 'scales', doorTile: 2, shopWindow: true }) },
+      { type: 'guard', name: town ? 'Watch House' : 'Watch Hut', w: town ? 5 : 4, d: 4, look: { wall: 'stone', stoneMat: st.stoneMat, roof: 'slate', roofType: 'gable', chimney: true, sign: 'shield', doorTile: 1, noFlowers: true } },
+      { type: 'doctor', name: town ? "Physician's House" : "Herb-wife's Cottage", w: 4, d: 4, look: look(0.6, { sign: 'herb', doorTile: 1 }) },
+    ];
+    if (town) roadTrades.push({ type: 'stable', name: 'Stables', w: 5, d: 3, look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', bigDoor: true, doorTile: 2, chimney: false, noFlowers: true } });
+    const rowSlots = [];
+    while (x < W - 8) { const w = rng.int(3, 5); if (x + w >= sqX - 8 && x <= sqX + 15) { x = sqX + 17; continue; } rowSlots.push([x, w]); x += w + 1; }
+    rng.next();
+    for (const [sx, w] of rowSlots) {
+      const tr = roadTrades.length && rng.chance(0.45) ? roadTrades.shift() : null;
+      if (tr) B(Object.assign({ x: sx, bottom: rowBottom, wealth: 0.55, floors: tr.type === 'doctor' ? 2 : 1 }, tr, { w: Math.min(tr.w, w + 1) }));
+      else house(sx, rowBottom, w, rng.int(3, 4));
+    }
+    while (roadTrades.length) { const tr = roadTrades.shift(); const sx = sqX + 17 + buildings.filter((b) => b.bottom === top).length * 6; B(Object.assign({ x: Math.min(W - 10, sx), bottom: top, wealth: 0.55 }, tr)); }
+    // back lane, north side
+    x = coast ? shoreX + 4 : 6;
+    while (x < W - 12) { const w = rng.int(3, 4); if (x + w >= sqX + 6 && x <= sqX + 9) { x = sqX + 10; continue; } house(x, laneY - 1, w, rng.int(3, 4)); x += w + 1 + (rng.chance(0.2) ? 1 : 0); }
+    // farm, mill, woodcutter, and the regional trade
+    const fx = coast ? shoreX + 6 : 7;
+    B({ type: 'farmhouse', name: 'Farm', x: fx, bottom: laneY + 2 + 3, w: 4, d: 3, wealth: 0.4, look: look(0.4, { doorTile: 1 }) });
+    B({ type: 'barn', name: 'Barn', x: fx + 6, bottom: laneY + 2 + 3, w: 6, d: 4, wealth: 0.3, look: { wall: 'plank', plankMat: 'plankRed', roof: 'shingle', roofType: 'gable', bigDoor: true, doorTile: 2, noFlowers: true } });
+    B({ type: 'mill', name: place.region === 'south' || place.region === 'east' ? 'Windmill' : 'Mill', x: W - 14, bottom: laneY - 1, w: 4, d: 4, floors: 2, wealth: 0.5, look: { wall: 'stone', stoneMat: st.stoneMat, roof: 'thatch', roofType: 'gable', doorTile: 1, noFlowers: true } });
+    B({ type: 'woodcutter', name: "Woodcutter's Hut", x: sqX + 1, bottom: 9, w: 3, d: 3, wealth: 0.25, condition: 0.6, look: { wall: 'log', roof: 'shingle', roofType: 'gable', chimney: true, doorTile: 1 } });
+    if (coast) for (let i = 0; i < 3; i++) B({ type: i ? 'house' : 'fishery', name: i ? 'House' : 'Fishery', x: shoreX + 3 + i * 5, bottom: roadY - 13 + (i % 2), w: 4, d: 3, wealth: 0.35, look: { wall: 'plank', plankMat: 'plank', roof: 'thatch', roofType: 'side', chimney: true, doorTile: 1, noFlowers: true } });
+    if (place.region === 'north') B({ type: 'mine', name: `${place.name} Mine`, x: W - 22, bottom: 10, w: 5, d: 3, wealth: 0.3, condition: 0.6, look: { wall: 'stone', stoneMat: 'stoneDark', roof: 'shingle', roofType: 'side', bigDoor: true, doorTile: 2, chimney: false, noFlowers: true } });
+
+    for (const b of buildings) {
+      for (let yy = b.y; yy <= b.bottom; yy++) for (let xx = b.x; xx < b.x + b.w; xx++) { if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue; solid[yy * W + xx] = 1; if (ter[yy * W + xx] === TER.FOREST || ter[yy * W + xx] === TER.FIELD) set(xx, yy, TER.GRASS); }
+      b.doorX = b.x + b.spec.doorTile; b.doorY = b.bottom + 1;
+      if (ter[b.doorY * W + b.doorX] === TER.GRASS || ter[b.doorY * W + b.doorX] === TER.FOREST) set(b.doorX, b.doorY, TER.YARD);
+    }
+
+    const P = (kind, tx, ty, opts = {}) => { const p = Object.assign({ kind, x: tx * T + 8, y: ty * T + 14, seed: rng.int(1, 1e6), v: 0, solid: true }, opts); props.push(p); if (p.solid) solid[ty * W + tx] = 1; return p; };
+    P('well', sqX + 8, roadY - 4, { y: (roadY - 4) * T + 15 }); solid[(roadY - 4) * W + sqX + 7] = 1;
+    if (town) { P('stall', sqX + 3, roadY - 2, { v: 1 }); solid[(roadY - 2) * W + sqX + 2] = 1; solid[(roadY - 2) * W + sqX + 4] = 1; P('stall', sqX + 12, roadY - 2, { v: 2 }); solid[(roadY - 2) * W + sqX + 11] = 1; solid[(roadY - 2) * W + sqX + 13] = 1; }
+    P('lamp', sqX, roadY - 1); P('lamp', sqX + 15, roadY - 1); P('signpost', sqX + 9, roadY + 2, { solid: false }); P('bench', sqX + 2, roadY - 5, { solid: false });
+    for (let xx = W - 34; xx <= W - 8; xx++) P('fenceH', xx, fy0 - 1, { solid: xx !== W - 20 });
+    for (let yy = fy0; yy <= fy1; yy++) for (let xx = W - 34; xx <= W - 8; xx++) props.push({ kind: place.region === 'south' && xx > W - 20 ? 'cabbage' : 'wheat', x: xx * T + 8, y: yy * T + 15, seed: 1, v: 2, solid: false, flat: true, field: place.region === 'south' && xx > W - 20 ? 'cabbage' : 'wheat' });
+    if (coast) for (let i = 0; i < 4; i++) P('boat', shoreX - 1, roadY - 12 + i * 5, { solid: true, seed: i });
+    if (place.region === 'north') { P('cart', W - 15, 11, { v: 1 }); for (let i = 0; i < 6; i++) P('rock', W - 26 + i * 2, 12 + (i % 2), { solid: true }); }
+    P('hay', fx + 13, laneY + 7); P('woodpile', sqX + 4, 8);
+
+    const occupied = (xx, yy) => solid[yy * W + xx] || (ter[yy * W + xx] !== TER.GRASS && ter[yy * W + xx] !== TER.FOREST);
+    for (let yy = 1; yy < H; yy++) for (let xx = 0; xx < W; xx++) {
+      if (occupied(xx, yy)) continue;
+      let near = false; for (const b of buildings) if (xx >= b.x - 2 && xx <= b.x + b.w + 1 && yy >= b.y - 3 && yy <= b.bottom + 2) near = true;
+      const forest = ter[yy * W + xx] === TER.FOREST, r = rng.next();
+      if (!near && (forest ? r < 0.33 : r < 0.02) && Math.abs(yy - roadY) > 1 && (xx + yy) % 2 === 0) {
+        const kind = place.region === 'north' ? rng.weighted([['pine', 5], ['birch', 1]]) : place.region === 'west' ? rng.weighted([['pine', 2], ['oak', 2]]) : rng.weighted([['oak', 4], ['birch', 1], ['pine', 1]]);
+        trees.push({ kind, x: xx * T + 8 + rng.int(-3, 3), y: yy * T + 14, seed: rng.int(1, 1e6) }); solid[yy * W + xx] = 1;
+      } else if (!near && r < (forest ? 0.4 : 0.05)) props.push({ kind: rng.weighted([['bush', 2], ['rock', 1]]), x: xx * T + 8, y: yy * T + 13, seed: rng.int(1, 1e6), solid: false });
+      else if (r < 0.18) props.push({ kind: r < 0.06 ? 'flowers' : 'grass', x: xx * T + rng.int(2, 14), y: yy * T + rng.int(4, 14), seed: rng.int(1, 30), solid: false, flat: true });
+    }
+    for (let i = 0; i < W * H; i++) if (ter[i] === TER.WATER) solid[i] = 1;
+    const zones = {
+      square: [sqX + 1, roadY - 6, sqX + 14, roadY - 1], bench: [sqX + 2, roadY - 5], farm: [W - 33, fy0, W - 9, fy1], wood: [sqX - 6, 3, sqX + 12, 9], east: [W - 1, roadY],
+      patrol: [[sqX + 8, roadY], [Math.max(6, sqX - 20), roadY], [Math.max(8, sqX - 20), laneY], [sqX + 8, laneY], [Math.min(W - 10, sqX + 30), laneY], [Math.min(W - 6, sqX + 34), roadY], [sqX + 8, roadY - 3]],
+    };
+    return { zones, name: place.name, placeId: place.id, region: place.region, W, H, T, ter, solid, buildings, props, trees, TER, seed, roadY, exits: { west: [coast ? shoreX + 3 : 0, roadY], east: [W - 1, roadY] }, generated: true };
+  }
+
+  O.Gen = { makeSettlement, STYLE };
+})();
+
+</script>
+<script>
 // Game engine: world view, input, player movement, camera, depth-sorted rendering and lighting.
 // Renders at native pixel resolution into a small canvas that is scaled by an integer factor with
 // smoothing disabled, so every world pixel is the same size on screen.
@@ -2598,12 +2733,13 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       this.world = world;
       const T = world.T;
       this.ground = O.Terrain.renderGround(world, this.season);
-      for (const b of world.buildings) b.sprite = b.type === 'hideout' ? O.Env.hideout(b.level, b.spec) : O.Env.building(b.spec);
-      for (const t of world.trees) t.sprite = O.Env.tree(t.seed, t.kind, this.season);
-      for (const p of world.props) p.sprite = O.Env.prop(p.kind, p.seed, p.v);
+      for (const b of world.buildings) if (!b.sprite) b.sprite = b.type === 'hideout' ? O.Env.hideout(b.level, b.spec) : O.Env.building(b.spec);
+      for (const t of world.trees) if (!t.sprite || t.sprite.season !== this.season) { t.sprite = O.Env.tree(t.seed, t.kind, this.season); t.sprite.season = this.season; }
+      for (const p of world.props) if (!p.sprite) p.sprite = O.Env.prop(p.kind, p.seed, p.v);
       this.rebuildStatics();
-      this.player = { x: (46 * T) + 8, y: 32 * T + 4, dir: 0, anim: 'idle', ft: 0, a: playerAppearance, speed: 0 };
+      if (!this.player) this.player = { x: (46 * T) + 8, y: 32 * T + 4, dir: 0, anim: 'idle', ft: 0, a: playerAppearance, speed: 0 };
       this.actors = [this.player];
+      this.particles = [];
     }
 
     rebuildStatics() {
@@ -2861,6 +2997,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     flour: { name: 'Flour', base: 4, unit: 'sack', slots: 1 },
     bread: { name: 'Bread', base: 2, unit: 'loaf', slots: 1, food: 1 },
     cabbage: { name: 'Cabbage', base: 1, unit: 'head', slots: 1, food: 0.6 },
+    fish: { name: 'Fish', base: 2, unit: 'fish', slots: 1, food: 0.8 },
     ale: { name: 'Ale', base: 1, unit: 'jug', slots: 1 },
     meal: { name: 'Hot meal', base: 4, unit: 'bowl', slots: 1, food: 1.4 },
     logs: { name: 'Logs', base: 3, unit: 'bundle', slots: 2 },
@@ -2886,12 +3023,14 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     mill: { label: 'Mill', jobs: [['miller', 1], ['labourer', 1]], hours: [7, 17], recipes: [{ out: { flour: 2 }, inp: { wheat: 2 } }], sells: ['flour'], buys: { wheat: 'farmhouse' }, targets: { wheat: 40, flour: 40 }, wage: { miller: 0, labourer: 6 } },
     bakery: { label: 'Bakery', jobs: [['baker', 1], ['apprentice', 1]], hours: [5, 17], recipes: [{ out: { bread: 6 }, inp: { flour: 2, firewood: 0.5 } }], sells: ['bread'], buys: { flour: 'mill', firewood: 'woodcutter' }, targets: { flour: 30, firewood: 10, bread: 60 }, wage: { baker: 0, apprentice: 4 } },
     woodcutter: { label: "Woodcutter's", jobs: [['woodcutter', 2]], hours: [7, 17], recipes: [{ out: { logs: 1.5, firewood: 5 }, inp: {} }], sells: ['firewood', 'logs'], buys: { tools: 'smithy' }, targets: { firewood: 40, logs: 20, tools: 2 }, wage: { woodcutter: 7 } },
-    smithy: { label: 'Smithy', jobs: [['blacksmith', 1], ['apprentice', 1]], hours: [7, 18], recipes: [{ out: { tools: 0.25 }, inp: { iron: 0.5, firewood: 0.5 } }, { out: { dagger: 0.06, axe: 0.04 }, inp: { iron: 0.15, firewood: 0.1 }, role: 'blacksmith' }], sells: ['tools', 'dagger', 'axe'], buys: { firewood: 'woodcutter', iron: 'import' }, targets: { iron: 10, firewood: 10, tools: 6, dagger: 3, axe: 2 }, wage: { blacksmith: 0, apprentice: 4 } },
+    smithy: { label: 'Smithy', jobs: [['blacksmith', 1], ['apprentice', 1]], hours: [7, 18], recipes: [{ out: { tools: 0.25 }, inp: { iron: 0.5, firewood: 0.5 } }, { out: { dagger: 0.06, axe: 0.04 }, inp: { iron: 0.15, firewood: 0.1 }, role: 'blacksmith' }], sells: ['tools', 'dagger', 'axe'], buys: { firewood: 'woodcutter', iron: 'mine|import' }, targets: { iron: 10, firewood: 10, tools: 6, dagger: 3, axe: 2 }, wage: { blacksmith: 0, apprentice: 4 } },
     tavern: { label: 'Tavern', jobs: [['innkeeper', 1], ['server', 1], ['cook', 1]], hours: [11, 24], recipes: [{ out: { meal: 4 }, inp: { bread: 1, cabbage: 1, firewood: 0.3 } }, { out: { ale: 5 }, inp: { wheat: 1 } }], sells: ['meal', 'ale'], buys: { bread: 'bakery', cabbage: 'farmhouse', wheat: 'farmhouse', firewood: 'woodcutter' }, targets: { bread: 12, cabbage: 12, wheat: 10, firewood: 8, meal: 20, ale: 30 }, wage: { innkeeper: 0, server: 6, cook: 7 } },
-    store: { label: 'General Store', jobs: [['shopkeeper', 1]], hours: [8, 18], recipes: [], sells: ['cabbage', 'firewood', 'flour'], buys: { cabbage: 'farmhouse', firewood: 'woodcutter', flour: 'mill' }, targets: { cabbage: 30, firewood: 30, flour: 10 }, wage: { shopkeeper: 0 } },
+    store: { label: 'General Store', jobs: [['shopkeeper', 1]], hours: [8, 18], recipes: [], sells: ['cabbage', 'firewood', 'flour', 'fish'], buys: { cabbage: 'farmhouse', firewood: 'woodcutter', flour: 'mill', fish: 'fishery|none' }, targets: { cabbage: 30, firewood: 30, flour: 10, fish: 12 }, wage: { shopkeeper: 0 } },
     doctor: { label: "Physician's", jobs: [['physician', 1], ['herbalist', 1]], hours: [8, 17], recipes: [{ out: { herbs: 1.2 }, inp: {}, role: 'herbalist' }, { out: { medicine: 0.4 }, inp: { herbs: 0.5 }, role: 'physician' }], sells: ['medicine', 'herbs'], targets: { herbs: 10, medicine: 8 }, wage: { physician: 0, herbalist: 6 } },
     guard: { label: 'Watch House', jobs: [['guard captain', 1], ['guard', 3]], hours: [0, 24], recipes: [], sells: [], targets: {}, public: true, wage: { 'guard captain': 12, guard: 8 } },
     stable: { label: 'Stables', jobs: [['horse trader', 1], ['stablehand', 1]], hours: [7, 19], recipes: [], sells: [], buys: { wheat: 'farmhouse' }, targets: { wheat: 12 }, wage: { 'horse trader': 0, stablehand: 5 } },
+    fishery: { label: 'Fishery', jobs: [['fisher', 3]], hours: [5, 15], recipes: [{ out: { fish: 4 }, inp: {} }], sells: ['fish'], targets: { fish: 40 }, wage: { fisher: 6 } },
+    mine: { label: 'Mine', jobs: [['mine foreman', 1], ['miner', 4]], hours: [6, 17], recipes: [{ out: { iron: 0.8, stone: 1 }, inp: {} }], sells: ['iron', 'stone'], targets: { iron: 40, stone: 30 }, wage: { 'mine foreman': 0, miner: 7 } },
     chapel: { label: 'Chapel', jobs: [['priest', 1]], hours: [6, 20], recipes: [], sells: [], targets: {}, public: true, wage: { priest: 6 } },
   };
 
@@ -2899,7 +3038,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   const ROLE_OUTFIT = {
     farmer: 'farmer', farmhand: 'farmhand', miller: 'miller', labourer: 'villager', baker: 'baker', apprentice: 'villager', woodcutter: 'woodcutter',
     blacksmith: 'blacksmith', innkeeper: 'innkeeper', server: 'innkeeper', cook: 'baker', shopkeeper: 'merchant', physician: 'doctor', assistant: 'villager',
-    'guard captain': 'guard', guard: 'guard', priest: 'priest', herbalist: 'farmhand', 'horse trader': 'merchant', stablehand: 'farmhand', porter: 'villager', trader: 'merchant',
+    'guard captain': 'guard', guard: 'guard', priest: 'priest', herbalist: 'farmhand', fisher: 'fisher', miner: 'woodcutter', 'mine foreman': 'woodcutter', 'horse trader': 'merchant', stablehand: 'farmhand', porter: 'villager', trader: 'merchant',
   };
 
   const NAMES = {
@@ -3008,7 +3147,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       else if (r.chance(0.22)) {
         const w = Object.entries(BIAS[season]).map(([k, v]) => [k, v * (k === this.kind ? 3 : 1)]);
         const nk = r.weighted(w);
-        if (nk !== this.kind) { this.kind = nk; if (nk === 'storm') this.sim.log('A storm rolls in over Ashford.', 'weather'); if (nk === 'snow' && this.snowCover < 0.1) this.sim.log('The first snow is falling.', 'weather'); }
+        if (nk !== this.kind) { this.kind = nk; if (nk === 'storm') this.sim.log(`A storm rolls in over ${this.sim.world.name}.`, 'weather'); if (nk === 'snow' && this.snowCover < 0.1) this.sim.log('The first snow is falling.', 'weather'); }
       }
       this.wind = this.kind === 'storm' ? 1 : this.kind === 'heavy' ? 0.7 : 0.25 + r.next() * 0.2;
       // storms damage roofs: buildings lose condition; the damage becomes repair work
@@ -3060,6 +3199,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
     council() {
       const sim = this.sim;
+      if (sim.opts && sim.opts.foreign) return; // other towns' councils are simulated in the abstract
       const free = PLOTS.filter((p, i) => !this.used.has(i) && this.plotFree(p));
       const active = this.sites.filter((s) => s.stage < 10).length;
       if (!free.length || active >= 1) return;
@@ -3254,7 +3394,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const frac = ill / Math.max(1, this.people.length);
       if (frac > 0.12 && !this.settlement.outbreak) {
         this.settlement.outbreak = true;
-        this.log(`Sickness is spreading through Ashford: ${ill} people are ill.`, 'health');
+        this.log(`Sickness is spreading through ${this.world.name}: ${ill} people are ill.`, 'health');
         // council response: pay for remedies and clean the well
         if (doc && this.treasury.cash > 90) { doc.cash += 30; doc.stock.herbs = (doc.stock.herbs || 0) + 10; this.treasury.cash -= 30; this.treasury.spent += 30; this.log('The council paid the physician 30d for herbs and remedies.', 'politics'); }
         if (this.treasury.cash > 140) { this.treasury.cash -= 40; this.treasury.spent += 40; this.settlement.sanitation = Math.min(0.95, this.settlement.sanitation + 0.12); this.log('The council paid men to clean the well and dig a new drain.', 'politics'); }
@@ -3516,9 +3656,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       for (const p of ms) {
         if (p.job?.biz) { const bz = this.biz.get(p.job.biz); if (bz) { bz.workers = bz.workers.filter((id) => id !== p.id); if (bz.owner === p.id) bz.owner = null; } }
         p.job = null; p.task = { act: 'leave', outdoor: true, emigrating: true };
-        this.remember(p, 'There is no living to be had in Ashford. We are leaving.', 'life', 3);
+        this.remember(p, `There is no living to be had in ${this.world.name}. We are leaving.`, 'life', 3);
       }
-      this.log(`Unable to feed themselves, the ${hh.surname} family have packed up and left Ashford.`, 'migration');
+      this.log(`Unable to feed themselves, the ${hh.surname} family have packed up and left ${this.world.name}.`, 'migration');
       this.vacate(hh);
     };
 
@@ -3654,7 +3794,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const skill = g.skills[g.job.role] || 0.5;
       crime.evidence = Math.min(3, crime.witnesses.reduce((s, w) => s + w.acc, 0) * (0.6 + skill * 0.6));
       const desc = describe(crime.profile);
-      this.log(Object.keys(crime.profile).length ? `The watch is looking for ${desc} over the ${crime.kind} at ${crime.placeName || 'Ashford'}.` : `The watch has no description to go on over the ${crime.kind} at ${crime.placeName || 'Ashford'}.`, 'crime');
+      this.log(Object.keys(crime.profile).length ? `The watch is looking for ${desc} over the ${crime.kind} at ${crime.placeName || this.world.name}.` : `The watch has no description to go on over the ${crime.kind} at ${crime.placeName || this.world.name}.`, 'crime');
       this.remember(g, `Investigating a ${crime.kind}: we want ${describe(crime.profile)}.`, 'work', 1.5);
       // an NPC culprit can be found by matching the description against the village
       if (crime.perp !== 'player') this.searchSuspects(crime, g);
@@ -4095,8 +4235,10 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   const DAYNAMES = ['Moonday', 'Tewsday', 'Wodensday', 'Thorsday', 'Freyday', 'Saturnday', 'Sunday'];
 
   class Sim {
-    constructor(world, seed = 11) {
-      this.world = world; this.T = world.T;
+    constructor(world, seed = 11, opts = {}) {
+      this.world = world; this.T = world.T; this.opts = opts;
+      // per-world zones (Ashford's are set in village.js; generated places carry their own)
+      this.Z = Object.assign({ square: [38, 23, 54, 29], bench: [37, 23], farm: [7, 56, 33, 61], wood: [34, 4, 44, 12], east: [95, 31], patrol: [[46, 30], [30, 31], [12, 30], [12, 41], [30, 42], [46, 41], [62, 42], [76, 30], [62, 30], [46, 24]] }, world.zones || {});
       this.rng = O.RNG(seed);
       this.path = O.Path.makePathfinder(world);
       this.people = []; this.byId = new Map();
@@ -4112,8 +4254,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       this.healthInit(); this.lifeInit();
       this.placeAll();
       this.justiceInit();
-      this.gangsInit();
-      this.kingdom = new O.Kingdom(this);
+      if (opts.foreign) { this.gangs = []; this.kingdom = opts.kingdom; } else { this.gangsInit(); this.kingdom = new O.Kingdom(this); }
+      if (opts.day) { this.day = opts.day; this.minute = opts.minute; this._lastMin = -1; this._season = this.season; for (const p of this.people) p.birthday = p.birthday || this.rng.int(1, 56); }
       this._season = this.season;
     }
 
@@ -4204,7 +4346,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         p.app = Ch.makeAppearance(O.hash('person', p.id, p.first), { sex: p.sex, age: p.age, genes: p.genes, role, wealth: this.world.buildings.find((b) => b.id === p.home)?.wealth ?? 0.4, region: this.world.region });
         p.name = `${p.first} ${p.sur}`;
       }
-      this.log(`Ashford counts ${this.people.length} souls in ${this.households.length} households.`);
+      this.log(`${this.world.name} counts ${this.people.length} souls in ${this.households.length} households.`);
     }
 
     // ------------------------------------------------------------------ helpers
@@ -4315,6 +4457,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const openNow = (bz) => bz && bz.open;
       if (hh.pantry.bread < n * (this.weekday === 5 ? 2.5 : 1.2) && ok('bread')) { const bz = this.supplierOf('bakery'); if (openNow(bz) && (bz.stock.bread || 0) > 0) return { biz: bz.id, good: 'bread', qty: n * (this.weekday === 5 ? 3 : 2) }; }
       if (hh.pantry.cabbage < Math.ceil(n / 2) && ok('cabbage')) { const bz = this.supplierOf('store'); if (openNow(bz) && (bz.stock.cabbage || 0) > 0) return { biz: bz.id, good: 'cabbage', qty: n }; }
+      if ((hh.pantry.fish || 0) < 1 && ok('fish')) { const bz = this.supplierOf('store'); if (openNow(bz) && (bz.stock.fish || 0) > 2) return { biz: bz.id, good: 'fish', qty: n }; }
       if (hh.pantry.firewood < 2 && ok('firewood')) { const bz = this.supplierOf('store'); if (openNow(bz) && (bz.stock.firewood || 0) > 0) return { biz: bz.id, good: 'firewood', qty: 4 }; }
       return null;
     }
@@ -4325,17 +4468,17 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const free = (x, y) => !w.solid[y * w.W + x];
       const pick = (x0, y0, x1, y1) => { for (let k = 0; k < 20; k++) { const x = r.int(x0, x1), y = r.int(y0, y1); if (free(x, y)) return [x, y]; } return [46, 29]; };
       switch (zone) {
-        case 'square': return pick(38, 23, 54, 29);
+        case 'square': return pick(...this.Z.square);
         case 'home': { const b = this.building(p.home); return pick(b.x - 1, b.bottom + 1, b.x + b.w, b.bottom + 2); }
-        case 'bench': return [37, 23];
-        case 'farm': return pick(7, 56, 33, 61);
-        case 'wood': return pick(34, 4, 44, 12);
+        case 'bench': return this.Z.bench;
+        case 'farm': return pick(...this.Z.farm);
+        case 'wood': return pick(...this.Z.wood);
         case 'site': { const b = this.building(p.activity?.site ?? p.job?.biz); if (!b) return [46, 29]; return pick(b.x - 1, b.bottom + 1, b.x + b.w, b.bottom + 2); }
-        default: return pick(38, 23, 54, 29);
+        default: return pick(...this.Z.square);
       }
     }
     patrolTile(p) {
-      const route = [[46, 30], [30, 31], [12, 30], [12, 41], [30, 42], [46, 41], [62, 42], [76, 30], [62, 30], [46, 24]];
+      const route = this.Z.patrol;
       const k = (Math.floor(this.minute / 12) + p.id) % route.length;
       return route[k];
     }
@@ -4388,11 +4531,11 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       this.build.tickMinute();
       const mm = this._m;
       if (mm % 60 === 0) this.healthHourly();
-      for (const p of this.people) if (p.task?.emigrating && !p.agent.path && p.agent.x > 93 * this.T) { this.people = this.people.filter((q) => q !== p); (this.departed = this.departed || []).push(p); }
+      for (const p of this.people) if (p.task?.emigrating && !p.agent.path && p.agent.x > (this.Z.east[0] - 2) * this.T) { this.people = this.people.filter((q) => q !== p); (this.departed = this.departed || []).push(p); }
       if (mm === 2 * 60) this.npcCrimeNightly();
       if (mm === 2 * 60 + 30) this.gangNight();
       if (mm === 6 * 60 + 30) this.labourMarket();
-      if (mm === 7 * 60) this.marketDay();
+      if (mm === 7 * 60 && !this.opts.foreign) this.marketDay();
       if (mm === 18 * 60 + 5) this.endCasualDay();
       if (mm === 18 * 60 + 30) this.parishRelief();
     }
@@ -4459,9 +4602,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         p.app = Ch.makeAppearance(O.hash('person', p.id, p.first), { sex: p.sex, age: p.age, genes: p.genes, role: p.age < 13 ? 'child' : 'villager', wealth: 0.5, region });
         p.agent = { x: (95 - (p.id % 3)) * this.T, y: 31 * this.T - (p.id % 2) * 6, dir: 1, anim: 'walk', ft: 0, a: p.app, hidden: false, inside: null, path: null, goal: null, person: p, carrying: p === a ? { good: 'logs', qty: 1 } : null };
         p.task = { act: 'move-in', b: b.id };
-        this.remember(p, `We came from the ${region} to make a new life in Ashford.`, 'life', 2);
+        this.remember(p, `We came from the ${region} to make a new life in ${this.world.name}.`, 'life', 2);
       }
-      this.log(`The ${hh.surname} family have come from the ${region} to settle in an empty house in Ashford.`, 'migration');
+      this.log(`The ${hh.surname} family have come from the ${region} to settle in an empty house in ${this.world.name}.`, 'migration');
       return hh;
     }
 
@@ -4575,8 +4718,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       switch (act.act) {
         case 'sleep': p.needs.energy = Math.min(100, p.needs.energy + 0.2); break;
         case 'eat': case 'home':
-          if (p.needs.hunger < 55 && (hh.pantry.bread > 0 || hh.pantry.cabbage > 0)) {
-            if (hh.pantry.bread > 0) hh.pantry.bread -= p.age < 13 ? 0.5 : 1; else hh.pantry.cabbage -= 1;
+          if (p.needs.hunger < 55 && (hh.pantry.bread > 0 || hh.pantry.cabbage > 0 || hh.pantry.fish > 0)) {
+            if (hh.pantry.bread > 0) hh.pantry.bread -= p.age < 13 ? 0.5 : 1; else if (hh.pantry.fish > 0) hh.pantry.fish -= 1; else hh.pantry.cabbage -= 1;
             hh.pantry.bread = Math.max(0, hh.pantry.bread); p.needs.hunger = Math.min(100, p.needs.hunger + 45);
           } else if (p.needs.hunger < 15 && !p._hungryNoted) { p._hungryNoted = true; this.remember(p, 'There was nothing to eat at home.', 'hardship', 1); }
           if (p.spouse && this.byId.get(p.spouse)?.agent.inside === p.home) p.needs.social = Math.min(100, p.needs.social + 0.15);
@@ -4663,8 +4806,10 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         const target = this.target(bz, good);
         if ((bz.stock[good] || 0) > target * 0.45) continue;
         if (bz.orders.some((o) => o.good === good)) continue;
-        if (srcType === 'import') { this.queueImport(bz, good, target - (bz.stock[good] || 0)); continue; }
-        const src = this.supplierOf(srcType); if (!src) continue;
+        const types = srcType.split('|');
+        const localType = types.find((t) => t !== 'import' && t !== 'none' && this.supplierOf(t));
+        if (!localType) { if (types.includes('import')) this.queueImport(bz, good, target - (bz.stock[good] || 0)); continue; }
+        const src = this.supplierOf(localType); if (!src) continue;
         const qty = Math.min(Math.round(target - (bz.stock[good] || 0)), Math.floor((src.stock[good] || 0) * 0.7));
         if (qty < 1 && good === 'tools' && (src.stock[good] || 0) >= 1) { /* single tool orders are fine */ }
         else if (qty < 2 && good !== 'tools') { if (bz._wantNoted !== this.day + good) { bz._wantNoted = this.day + good; this.log(`${bz.name} wanted ${G[good].name.toLowerCase()} but ${src.name} had none to spare.`, 'economy'); } continue; }
@@ -4763,7 +4908,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const tr = this.newPerson({ sex: 'm', age: r.int(28, 55), first: r.pick(D.NAMES.m), sur: r.pick(['of Eastmarch', 'Chapman', 'Packer']), household: 0, home: null, genes: Ch.randomGenes(r, 'east'), wealth: 0.6, visitor: true });
       tr.name = `${tr.first} ${tr.sur}`; tr.job = { biz: null, role: 'trader' };
       tr.app = Ch.makeAppearance(O.hash('trader', tr.id), { sex: 'm', age: tr.age, genes: tr.genes, role: 'merchant', wealth: 0.65, region: 'east' });
-      tr.agent = { x: 95 * this.T, y: 31 * this.T, dir: 1, anim: 'walk', ft: 0, a: tr.app, hidden: false, inside: null, path: null, goal: null, person: tr, carrying: { good: good || 'iron', qty: qty || 1 } };
+      tr.agent = { x: this.Z.east[0] * this.T, y: this.Z.east[1] * this.T, dir: 1, anim: 'walk', ft: 0, a: tr.app, hidden: false, inside: null, path: null, goal: null, person: tr, carrying: { good: good || 'iron', qty: qty || 1 } };
       tr.task = bz ? { act: 'import', b: bz.id, good, qty: Math.round(qty) } : { act: 'market', b: this.tavernId };
       tr.wake = 0; tr.bed = 1440;
       this.trader = tr;
@@ -4792,12 +4937,12 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         hh.shopper = (adults.find((p) => !p.job || p.shift === 'night') || errand || adults[this.day % Math.max(1, adults.length)] || {}).id;
       }
       this.build.daily();
-      this.healthDaily(); this.lifeDaily(); this.justiceDaily(); this.gangsDaily(); this.kingdom.daily();
+      this.healthDaily(); this.lifeDaily(); this.justiceDaily(); this.gangsDaily(); if (!this.opts.foreign) this.kingdom.daily();
       if (this.weekday === 3) this.immigrateMaybe();
       if (this.events) this.events = this.events.filter((e) => e.day >= this.day);
       const season = this.season;
-      if (season !== this._season) { if (this._season) this.log(`${season[0].toUpperCase() + season.slice(1)} comes to Ashford.`, 'season'); this._season = season; this.seasonChanged = true; }
-      this.log(`${DAYNAMES[this.weekday]} dawns over Ashford.`, 'day');
+      if (season !== this._season) { if (this._season) this.log(`${season[0].toUpperCase() + season.slice(1)} comes to ${this.world.name}.`, 'season'); this._season = season; this.seasonChanged = true; }
+      this.log(`${DAYNAMES[this.weekday]} dawns over ${this.world.name}.`, 'day');
     }
 
     // trader tasks plug into plan() via p.task; handle arrival here
@@ -4819,7 +4964,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       }
       if (tr.task.act === 'rest' && this.day >= tr.leaveAt && this.hour > 8) tr.task = { act: 'leave', outdoor: true };
       if (tr.task.act === 'leave') {
-        if (!a.path && a.inside == null && a.x > 93 * this.T) { this.people = this.people.filter((p) => p !== tr); this.byId.delete(tr.id); this.trader = null; this.log(`${tr.name} rode on east.`, 'trade'); }
+        if (!a.path && a.inside == null && a.x > (this.Z.east[0] - 2) * this.T) { this.people = this.people.filter((p) => p !== tr); this.byId.delete(tr.id); this.trader = null; this.log(`${tr.name} rode on east.`, 'trade'); }
       }
     }
   }
@@ -4827,7 +4972,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   // leave: walk to the east edge
   const _zone = Sim.prototype.zoneTile;
   Sim.prototype.zoneTile = function (p, zone) {
-    if (p.task?.act === 'leave') return [95, 31];
+    if (p.task?.act === 'leave') return this.Z.east;
     if (p.task?.act === 'investigate' && p.task.tile) return p.task.tile;
     if (zone === 'camp' && p.activity?.camp) { const b = this.building(p.activity.camp); if (b) return [b.x + ((p.id % 3)), b.bottom + 1 + (p.id % 2)]; }
     if (p.task?.act === 'help') { const t = this.byId.get(p.task.target); if (t) return [Math.floor(t.agent.x / this.T), Math.floor((t.agent.y - 1) / this.T)]; }
@@ -4911,7 +5056,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       if (ctx.stage === 'child' || ctx.stage === 'olderChild') return pick(['Are you a soldier? You look like a soldier.', "Mam says I'm not to talk to strangers.", 'Have you seen a dog with one ear? He\'s mine.'], seed);
       if (ctx.traits.includes('hostile') || a < -0.3) return pick(['What do you want?', "Keep walking, stranger.", "I've nothing for you."], seed);
       if (f > 0.3) return pick([`Back again? Good day to you.`, `Ah, it's you. Fair day.`], seed);
-      if (ctx.traits.includes('suspicious')) return pick(["You're not from Ashford. What's your business?", 'Hm. Haven\'t seen you before.'], seed);
+      if (ctx.traits.includes('suspicious')) return pick([`You're not from ${ctx.place}. What's your business?`, 'Hm. Haven\'t seen you before.'], seed);
       return pick(['Good day to you.', "God keep you. Passing through?", 'Morning. Fine weather for it.', 'Well met, traveller.'], seed);
     },
     topic(ctx, topic, seed) {
@@ -4942,7 +5087,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         }
         case 'news': {
           const rumours = ctx.memories.filter((m) => !/^Sent to fetch|Shared a jug/.test(m)).concat(ctx.news);
-          if (!rumours.length) return 'Nothing happens in Ashford. That\'s why we like it.';
+          if (!rumours.length) return `Nothing happens in ${ctx.place}. That's why we like it.`;
           const r = pick(rumours, seed);
           return pick(['Heard tell that ', 'They\'re saying ', 'Word is, '], seed + 1) + r.charAt(0).toLowerCase() + r.slice(1);
         }
@@ -5436,7 +5581,11 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       else if (this.hunger > 50 && this.hp < 100) this.hp = Math.min(100, this.hp + 0.01 * dtm);
     },
     SLOTS,
+    localRep: {},
   };
+  // "local" standing is kept per settlement; the rest are kingdom-wide groups
+  delete P.rep.local;
+  Object.defineProperty(P.rep, 'local', { enumerable: true, get() { const id = O.game && O.game.world ? O.game.world.placeId : 'ashford'; return P.localRep[id] || 0; }, set(v) { const id = O.game && O.game.world ? O.game.world.placeId : 'ashford'; P.localRep[id] = v; } });
   O.PlayerState = P;
 })();
 
@@ -5928,7 +6077,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       } else {
         body = `<ol class="chron">${sim.history.slice().reverse().slice(0, 80).map((h) => `<li><span class="lbl">Day ${h.day} ${String(Math.floor(h.minute / 60)).padStart(2, '0')}:${String(h.minute % 60).padStart(2, '0')}</span> ${esc(h.text)}</li>`).join('')}</ol>`;
       }
-      ledger.innerHTML = `<div class="ledger-in"><header><h2>Ashford Ledger</h2><nav>${tabs.map(([k, l]) => `<button data-lt="${k}" aria-pressed="${k === ltab}">${l}</button>`).join('')}</nav><button class="x" aria-label="Close ledger">✕</button></header><div class="ledger-body">${body}</div></div>`;
+      ledger.innerHTML = `<div class="ledger-in"><header><h2>${esc(sim.world.name)} Ledger</h2><nav>${tabs.map(([k, l]) => `<button data-lt="${k}" aria-pressed="${k === ltab}">${l}</button>`).join('')}</nav><button class="x" aria-label="Close ledger">✕</button></header><div class="ledger-body">${body}</div></div>`;
       ledger.querySelectorAll('[data-lt]').forEach((b) => b.onclick = () => { ltab = b.dataset.lt; lsel = null; renderLedger(); });
       ledger.querySelector('.x').onclick = () => toggleLedger(false);
       ledger.querySelectorAll('tr[data-id]').forEach((tr) => tr.onclick = () => { lsel = lsel === +tr.dataset.id ? null : +tr.dataset.id; renderLedger(); });
@@ -5983,6 +6132,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       if (O.horseCandidate) { const hc = O.horseCandidate(); if (hc) out.push(hc); }
       if (O.caravanCandidate) { const cc = O.caravanCandidate(); if (cc) out.push(cc); }
       if (O.noticeCandidate) { const nc = O.noticeCandidate(); if (nc) out.push(nc); }
+      if (O.exitCandidate) { const ec = O.exitCandidate(); if (ec) out.push(ec); }
       for (const q of sim.people) { const a = q.agent; if (a.hidden) continue; const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < 26) out.push({ type: 'npc', person: q, d, x: a.x, y: a.y }); }
       const T = sim.T;
       for (const pr of sim.world.props) if (pr.kind === 'gravestone') { const d = Math.hypot(pr.x - p.x, pr.y - p.y); if (d < 20) out.push({ type: 'grave', prop: pr, d: d + 2, x: pr.x, y: pr.y - 14 }); }
@@ -6011,6 +6161,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         case 'grave': return 'Read the gravestone';
         case 'caravan': return `Hail ${c.L.c.merchant}'s caravan`;
         case 'notices': return 'Read the notice board';
+        case 'exit': return `Leave ${sim.world.name} by the ${c.side} road`;
         case 'horse': return `Look over ${c.h.owner === 'player' ? c.h.name : 'the horse'}`;
         case 'claim': return 'Claim the abandoned camp';
         case 'stash': return 'Open the stash';
@@ -6129,6 +6280,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         case 'horse': O.inspectHorse(cur.h); break;
         case 'caravan': O.caravanPanel(cur.L); break;
         case 'notices': O.readNotices(); break;
+        case 'exit': O.travelPanel(cur.side); break;
         case 'stash': O.GangUI.stash(); break;
         case 'campbed': sleep(); break;
         case 'grave': { const g = cur.prop.grave; O.Panels.toast(g ? `“Here lies ${g.name}, ${g.age} years. ${g.cause.replace('died ', '').replace(/^./, (c) => c.toUpperCase())}.”` : 'The old stone is worn smooth; you can no longer read the name.'); break; }
@@ -6149,9 +6301,16 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 'use strict';
 (function () {
   function setup(game, sim) {
-    const W = sim.weather, world = sim.world, T = world.T;
-    const pw = world.W * T, ph = world.H * T;
+    const T = 16;
+    let W = sim.weather, world = sim.world, pw = world.W * T, ph = world.H * T;
+    const caches = new Map();
     let puddles = null, snowLevels = [], fogTex = null;
+    const syncWorld = () => {
+      if (world === game.world && W === sim.weather) return;
+      if (world) caches.set(world, { puddles, snowLevels });
+      world = game.world; W = sim.weather; pw = world.W * T; ph = world.H * T;
+      const c = caches.get(world) || { puddles: null, snowLevels: [] }; puddles = c.puddles; snowLevels = c.snowLevels;
+    };
     const drops = [], flakes = [], splashes = [];
 
     function makePuddles() {
@@ -6199,6 +6358,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
     // tint the day by the weather (clouds darken, snow brightens to blue-white)
     game.hooks.update.push((dt) => {
+      syncWorld();
       const k = W.kind;
       game.weatherTint = k === 'storm' ? [0.62, 0.64, 0.74] : k === 'heavy' ? [0.72, 0.75, 0.84] : k === 'rain' ? [0.8, 0.83, 0.9] : k === 'cloudy' ? [0.88, 0.9, 0.94] : k === 'fog' ? [0.9, 0.92, 0.95] : k === 'snow' ? [0.9, 0.93, 1] : k === 'heat' ? [1, 0.97, 0.9] : [1, 1, 1];
       game.snowAlpha = O.clamp(W.snowCover * 1.3 - 0.1, 0, 0.95);
@@ -6507,8 +6667,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   const PS = O.PlayerState, G = O.Data.GOODS, esc = (s) => O.escape(s);
   PS.stash = PS.stash || [];
 
-  function setup(game, sim, npcUI) {
+  function setup(game, simRef, npcUI) {
     const money = O.money;
+    const sim = new Proxy({}, { get: (t, k) => { const s = O.SimRef.home; const v = s[k]; return typeof v === 'function' ? v.bind(s) : v; } });
 
     function claim(b) {
       O.Panels.open('Claim the camp', `<p class="caption">A cold fire ring, a torn tent, a chest with a broken hasp. Nobody has slept here in a year. Make it yours and you'll need a name men can whisper in taverns.</p>
@@ -6573,7 +6734,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     // talk-card extensions: recruit, fence, gang chatter
     npcUI.extraButtons = (q) => {
       const g = sim.playerGang(), out = [];
-      if (g && !q.gang && q.age >= 16 && !q.job?.role?.startsWith('guard')) out.push(['recruit', 'Sound them out']);
+      if (g && !q.gang && q.age >= 16 && !q.job?.role?.startsWith('guard') && O.SimRef.cur === O.SimRef.home) out.push(['recruit', 'Sound them out']);
       if (q.gang === 'player') { const m = g?.members.find((x) => x.id === q.id); if (m?.role === 'fence') out.push(['fence', 'Fence goods']); }
       if (!g && q.gang === 'crows' && PS.rep.criminal > 0.04) out.push(['fence', 'Sell them stolen goods']);
       return out;
@@ -6983,7 +7144,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         owner, history: [], x: 0, y: 0, dir: r.int(0, 3), anim: 'idle', ft: r.next() * 3, saddled: false, fed: 80 };
       h.stamina = h.staminaMax;
       h.value = Math.round(B.value * (age < 5 ? 0.85 : age > 12 ? 0.6 : 1) * h.speed);
-      h.history.push({ day: sim.day, event: opts.event || 'bred', owner: ownerName(owner) });
+      h.history.push({ day: sim.day, event: opts.event || 'bred', owner: ownerName(owner) }); h.world = 'ashford';
       horses.push(h); return h;
     }
     function ownerName(o) { if (o === 'player') return 'you'; if (typeof o === 'string' && o.startsWith('biz:')) return sim.biz.get(+o.slice(4))?.name || 'a stable'; const p = sim.byId.get(o); return p ? p.name : 'unknown'; }
@@ -7033,7 +7194,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       for (const h of horses) {
         h.ft += dt;
         if (h === mount) { h.x = p.x; h.y = p.y; h.dir = p.dir; h.anim = p.moving ? (p.galloping ? 'gallop' : 'walk') : 'idle'; }
-        else if (h.inPaddock !== false && !h.tied) {
+        else if (h.inPaddock !== false && !h.tied && (h.world || 'ashford') === 'ashford') {
           if (h.tx == null) { if (r.next() < dt * 0.15) { h.tx = r.int(paddock.x0, paddock.x1) * T + 8; h.ty = r.int(paddock.y0, paddock.y1) * T + 12; } h.anim = 'idle'; }
           else { const dx = h.tx - h.x, dy = h.ty - h.y, d = Math.hypot(dx, dy); if (d < 1) h.tx = null; else { const st = Math.min(d, 10 * dt); h.x += (dx / d) * st; h.y += (dy / d) * st; h.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 1 : 2) : (dy < 0 ? 3 : 0); h.anim = 'walk'; } }
         } else h.anim = 'idle';
@@ -7045,7 +7206,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         if (p.galloping) mount.stamina = Math.max(0, mount.stamina - dt * 9); else mount.stamina = Math.min(mount.staminaMax, mount.stamina + dt * 2);
         if (p.galloping && mount.temper === 'skittish' && r.chance(dt * 0.02)) { dismount(true); O.Panels.toast(`${mount.name} shies and throws you!`, 'bad'); PS.hp -= 8; }
       }
-      if (!game.scene) game.actors = [...game.actors.filter((a) => !a.horse && !a.animal), ...horses.filter((h) => h !== mount).map(horseActor), ...fauna.map(animalActor)];
+      const wid = game.world.placeId;
+      if (!game.scene) game.actors = [...game.actors.filter((a) => !a.horse && !a.animal), ...horses.filter((h) => h !== mount && (h.world || 'ashford') === wid).map(horseActor), ...(wid === 'ashford' ? fauna.map(animalActor) : [])];
     });
 
     // riding speed: replace the walking pace while mounted
@@ -7069,7 +7231,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     };
     void _drawWorld; void _blocked;
 
-    function nearestHorse() { let best = null, bd = 26; for (const h of horses) { if (h === game.player.mount) continue; const d = Math.hypot(h.x - game.player.x, h.y - game.player.y); if (d < bd) { bd = d; best = h; } } return best; }
+    function nearestHorse() { let best = null, bd = 26; for (const h of horses) { if (h === game.player.mount || (h.world || 'ashford') !== game.world.placeId) continue; const d = Math.hypot(h.x - game.player.x, h.y - game.player.y); if (d < bd) { bd = d; best = h; } } return best; }
     function mountHorse(h) { if (game.scene) return; game.player.mount = h; h.saddled = true; h.tied = false; h.inPaddock = false; game.player.x = h.x; game.player.y = h.y; O.Panels.toast(`You swing up onto ${h.owner === 'player' ? h.name : 'the ' + h.coat + ' ' + h.breed.toLowerCase()}. Shift to gallop, H to dismount.`); }
     function dismount(thrown) { const h = game.player.mount; if (!h) return; game.player.mount = null; h.tied = true; h.x = game.player.x + (thrown ? 10 : 14); h.y = game.player.y; if (!thrown) O.Panels.toast(`You tie ${h.owner === 'player' ? h.name : 'the horse'} up.`); }
     O.Horses = { horses, nearestHorse, dismount, mountHorse };
@@ -7192,14 +7354,16 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         if (out) { L.done = true; L.c.held = false; L.c.prog = 0; L.c.leg++; }
       }
       for (let i = live.length - 1; i >= 0; i--) if (live[i].done) live.splice(i, 1);
-      if (!game.scene) game.actors = [...game.actors.filter((a) => !a.caravan), ...live.flatMap((L) => L.members)];
+      if (!game.scene && game.world === O.SimRef.home.world) game.actors = [...game.actors.filter((a) => !a.caravan), ...live.flatMap((L) => L.members)];
     });
     game.hooks.drawWorld.push((ctx, cam) => {
+      if (game.scene || game.world !== O.SimRef.home.world) return;
       for (const L of live) { const sp = cartSprite; const x = Math.round(L.cart.x - sp.ox - cam.x), y = Math.round(L.cart.y - sp.oy - cam.y); if (L.dir < 0) { ctx.save(); ctx.translate(x + sp.W, y); ctx.scale(-1, 1); ctx.drawImage(sp.canvas, 0, 0); ctx.restore(); } else ctx.drawImage(sp.canvas, x, y); }
     });
     // the caravan master can be talked to, traded with, or robbed
+    const atHome = () => game.world === O.SimRef.home.world;
     O.caravanCandidate = () => {
-      if (game.scene) return null;
+      if (game.scene || !atHome()) return null;
       for (const L of live) { const m = L.members[0]; const d = Math.hypot(m.x - game.player.x, m.y - game.player.y); if (d < 28) return { type: 'caravan', L, d, x: m.x, y: m.y }; }
       return null;
     };
@@ -7258,7 +7422,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     let lastCry = -1;
     game.hooks.update.push(() => {
       const cr = sim.people.find((p) => p.activity?.act === 'cry' && !p.agent.path && !p.agent.hidden);
-      if (!cr || game.scene) return;
+      if (!cr || game.scene || game.world !== O.SimRef.home.world) return;
       const slot = sim.day * 2 + (sim.hour > 12 ? 1 : 0);
       if (slot === lastCry) return;
       if (Math.hypot(cr.agent.x - game.player.x, cr.agent.y - game.player.y) > 170) return;
@@ -7269,7 +7433,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
     // notice board in the square
     if (!sim.world.props.some((p) => p.kind === 'noticeboard')) { sim.world.props.push({ kind: 'noticeboard', x: 42 * T + 8, y: 29 * T + 14, seed: 5, solid: true }); sim.world.solid[29 * sim.world.W + 42] = 1; sim.world.dirtyStatics = true; }
-    O.noticeCandidate = () => { if (game.scene) return null; const nb = sim.world.props.find((p) => p.kind === 'noticeboard'); const d = Math.hypot(nb.x - game.player.x, nb.y - game.player.y); return d < 22 ? { type: 'notices', d: d + 1, x: nb.x, y: nb.y - 26 } : null; };
+    O.noticeCandidate = () => { if (game.scene) return null; const nb = sim.world.props.find((p) => p.kind === 'noticeboard'); if (!nb) return null; const d = Math.hypot(nb.x - game.player.x, nb.y - game.player.y); return d < 22 ? { type: 'notices', d: d + 1, x: nb.x, y: nb.y - 26 } : null; };
     O.readNotices = () => {
       const wanted = sim.crimes.filter((c) => c.perp !== 'player' && c.investigated && !c.solved && Object.keys(c.profile || {}).length).slice(-3);
       const mine = PS.wantedLevel() >= 1 ? `<li><b>WANTED</b> for ${PS.crimes.length} crime${PS.crimes.length > 1 ? 's' : ''}: ${esc(PS.soughtFor() || 'a stranger')}.${PS.bountyAmount ? ` Reward ${PS.bountyAmount}d.` : ''}</li>` : '';
@@ -7335,6 +7499,111 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     game.keyHandlers.push((e) => { if (e.code === 'KeyM' && !O.panelOpen) { O.openMap(); return true; } return false; });
   }
   O.KingdomUI = { setup };
+})();
+
+</script>
+<script>
+// Travel between settlements. Walk (or ride) to the edge of town on the high road and pick a road.
+// Time passes on the journey for every living settlement; the road may bring bandits or company.
+// Each place you reach is generated from its kingdom stats and simulated in full while you're
+// there; when you come back later it catches up on the time you were away.
+'use strict';
+(function () {
+  const PS = O.PlayerState, esc = (s) => O.escape(s);
+
+  function setup(game, home, npcUI) {
+    const K = home.kingdom, T = 16;
+    const visited = new Map(); // placeId -> { world, sim, leftAt }
+    visited.set('ashford', { world: home.world, sim: home, leftAt: null });
+    const now = () => home.day * 1440 + home.minute;
+    const cur = () => O.SimRef.cur;
+
+    function atExit() {
+      if (game.scene) return null;
+      const w = game.world, p = game.player;
+      if (Math.abs(p.y / T - (w.roadY + 1)) > 2.6) return null;
+      if (p.x < 26) return 'west';
+      if (p.x > w.W * T - 26) return 'east';
+      return null;
+    }
+    O.exitCandidate = () => { const side = atExit(); return side ? { type: 'exit', side, d: 1, x: game.player.x, y: game.player.y - 30 } : null; };
+
+    function hoursFor(a, b) { const road = K.road(a, b); const d = K.dist(a, b); return Math.max(2, Math.round(d * (game.player.mount ? 0.35 : 0.8) * (1.4 - road.quality * 0.5))); }
+
+    O.travelPanel = (side) => {
+      const here = game.world.placeId, me = K.place(here);
+      const opts = K.neighbours(here).map((id) => K.place(id)).filter((pl) => (side === 'east' ? pl.x >= me.x - 2 : pl.x <= me.x + 2) || K.neighbours(here).length <= 2);
+      const rows = opts.map((pl) => { const rd = K.road(here, pl.id); const h = hoursFor(here, pl.id); return `<tr><td><b>${esc(pl.name)}</b><br><small class="lbl">${pl.kind} · ${pl.region}${visited.has(pl.id) ? ' · visited' : ''}</small></td><td class="n">${h} h</td><td>${rd.damaged ? '<span class="warn">closed by storm damage</span>' : `${rd.quality > 0.7 ? 'good road' : rd.quality > 0.45 ? 'rutted track' : 'poor track'}, ${rd.danger > 0.3 ? '<span class="warn">bandits reported</span>' : rd.danger > 0.15 ? 'some danger' : 'safe'}`}</td><td>${rd.damaged ? '' : `<button data-go="${pl.id}">Set out</button>`}</td></tr>`; }).join('');
+      O.Panels.open(`Leave ${me.name}`, `<p class="caption">${game.player.mount ? `On ${esc(game.player.mount.name)}, the miles go quicker.` : 'On foot. A horse would halve the journey.'} Time will pass for everyone while you travel.</p>
+        <table><thead><tr><th>Road to</th><th class="n">Time</th><th>The road</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="4">No road leads this way.</td></tr>'}</tbody></table>`, (r) => {
+        r.querySelectorAll('[data-go]').forEach((b) => b.onclick = () => { O.Panels.close(); journey(here, b.dataset.go); });
+      });
+    };
+
+    function passTime(minutes) {
+      const steps = Math.ceil(minutes / 2);
+      for (let i = 0; i < steps; i++) { cur().tick(2); if (cur() !== home) home.tick(2); PS.tick(2, false); }
+    }
+
+    function journey(from, to) {
+      const rd = K.road(from, to), hours = hoursFor(from, to);
+      const r = home.rng;
+      // the road itself
+      const banditRisk = rd.danger * 0.7 + Math.max(...home.gangs.map((g) => (g.id === 'player' ? 0 : g.influence)), 0) * 0.1;
+      passTime(hours * 30);
+      if (r.chance(banditRisk)) return bandits(from, to, hours);
+      if (r.chance(0.3) && K.caravans.length) { const c = r.pick(K.caravans); O.Panels.toast(`On the road you fall in with ${c.merchant}'s caravan carrying ${c.good} to ${K.place(c.to).name}.`); }
+      passTime(hours * 30);
+      arrive(from, to);
+    }
+
+    function bandits(from, to, hours) {
+      const toll = 8 + Math.round(home.rng.next() * 20);
+      O.Panels.open('Bandits!', `<p class="speech">“That's far enough, friend. Road's ours. Purse or blood.”</p><p class="caption">Four ragged men step out from the trees between ${esc(K.place(from).name)} and ${esc(K.place(to).name)}.</p>
+        <div class="topics"><button data-b="pay">Pay ${toll}d</button><button data-b="fight">Fight</button><button data-b="flee">${game.player.mount ? 'Spur your horse through' : 'Run for it'}</button>${PS.rep.criminal > 0.3 ? '<button data-b="talk">Speak their language</button>' : ''}</div>`, (r) => {
+        r.querySelector('.x').hidden = true;
+        const done = (msg, bad) => { O.Panels.close(); if (msg) O.Panels.toast(msg, bad ? 'bad' : ''); passTime(hours * 30); arrive(from, to); };
+        r.querySelector('[data-b=pay]').onclick = () => { const paid = Math.min(PS.money, toll); PS.money -= paid; done(`You hand over ${paid}d. They melt back into the trees.`, true); };
+        r.querySelector('[data-b=fight]').onclick = () => {
+          const armed = O.Combat && O.Combat.armed(); const win = home.rng.chance(0.3 + (armed ? 0.25 : 0) + (PS.hp > 70 ? 0.1 : 0));
+          PS.hp = Math.max(5, PS.hp - (win ? 15 : 35));
+          if (win) { const loot = 5 + home.rng.int(0, 20); PS.money += loot; PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.03); done(`You drive them off and take ${loot}d from the one who fell.`); }
+          else { const lost = Math.floor(PS.money * 0.5); PS.money -= lost; done(`They beat you bloody and take ${lost}d.`, true); }
+        };
+        r.querySelector('[data-b=flee]').onclick = () => { const ok = home.rng.chance(game.player.mount ? 0.85 : 0.4); if (ok) done('You break away and leave them cursing in the road.'); else { const lost = Math.floor(PS.money * 0.3); PS.money -= lost; PS.hp = Math.max(5, PS.hp - 15); done(`They catch you. You lose ${lost}d and some skin.`, true); } };
+        const tk = r.querySelector('[data-b=talk]'); if (tk) tk.onclick = () => done('“Ah — one of ours. Go on, then.” They let you pass, and tell you where the soft caravans run.');
+      });
+    }
+
+    function arrive(from, to) {
+      // leave the current settlement
+      const leaving = visited.get(game.world.placeId); if (leaving) leaving.leftAt = now();
+      let v = visited.get(to);
+      if (!v) {
+        const place = K.place(to);
+        const world = O.Gen.makeSettlement(place);
+        const s = new O.Sim(world, O.hash('sim', to), { foreign: true, kingdom: K, day: home.day, minute: home.minute });
+        v = { world, sim: s, leftAt: null };
+        visited.set(to, v);
+        s.log(`A traveller arrived from ${K.place(from).name}.`, 'day');
+      } else if (v.leftAt != null && v.sim !== home) {
+        // catch up on the time we were away (up to two days in detail)
+        const missed = Math.min(2880, now() - v.leftAt);
+        for (let i = 0; i < missed / 2; i++) v.sim.tick(2);
+      }
+      O.SimRef.cur = v.sim;
+      game.season = v.sim.season;
+      const comingFromWest = K.place(from).x < K.place(to).x;
+      const ex = comingFromWest ? v.world.exits.west : v.world.exits.east;
+      game.load(v.world);
+      O.applySeason && O.applySeason();
+      game.player.x = (ex[0] + (comingFromWest ? 2 : -2)) * T + 8; game.player.y = (ex[1] + 1) * T + 6; game.player.dir = comingFromWest ? 2 : 1;
+      if (game.player.mount) game.player.mount.world = to;
+      O.Panels.toast(`You reach ${K.place(to).name}. It is ${O.DAYNAMES[v.sim.weekday]}, ${game.timeString()}.`);
+    }
+    O.Travel = { visited, journey, arrive };
+  }
+  O.TravelSetup = { setup };
 })();
 
 </script>
@@ -7696,9 +7965,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         solid: encodeGrid(w.solid),
       },
       player: {
-        x: Math.round(game.scene ? game.scene.b.doorX * 16 + 8 : game.player.x), y: Math.round(game.scene ? game.scene.b.doorY * 16 + 10 : game.player.y), dir: game.player.dir,
+        x: game.world !== sim.world ? (sim.world.W - 2) * 16 : Math.round(game.scene ? game.scene.b.doorX * 16 + 8 : game.player.x), y: game.world !== sim.world ? 30 * 16 + 10 : Math.round(game.scene ? game.scene.b.doorY * 16 + 10 : game.player.y), dir: game.player.dir,
         mount: game.player.mount ? game.player.mount.id : null,
-        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: PS.rep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled },
+        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled },
       },
     };
   }
@@ -7767,7 +8036,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     Object.assign(sim.kingdom, S.kingdom);
     sim.path.recost(); sim.path.clear();
     // player
-    const P = d.player; Object.assign(PS, P.ps);
+    const P = d.player; const { rep, ...rest } = P.ps; Object.assign(PS, rest); if (rep) for (const k of ['civilian', 'criminal', 'guard', 'merchant']) PS.rep[k] = rep[k] ?? 0;
     game.player.x = P.x; game.player.y = P.y; game.player.dir = P.dir;
     game._pendingMount = P.mount;
     sim.horsesSaved = S.horses;
@@ -7791,23 +8060,35 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 'use strict';
 (function () {
   const $ = (id) => document.getElementById(id);
-  const world = O.Village.makeVillage(7);
+  const homeWorld = O.Village.makeVillage(7);
   const game = new O.Game($('game'));
-  game.load(world, O.Forge.player);
+  game.load(homeWorld, O.Forge.player);
   O.game = game;
-  const sim = new O.Sim(world, 11);
+  const home = new O.Sim(homeWorld, 11);
+  // The game holds several living settlements; modules talk to whichever the player is in through
+  // this reference. Ashford (home) keeps running while you're away.
+  O.SimRef = { cur: home, home };
+  const sim = new Proxy({}, {
+    get(t, k) { const s = O.SimRef.cur; const v = s[k]; return typeof v === 'function' ? v.bind(s) : v; },
+    set(t, k, v) { O.SimRef.cur[k] = v; return true; },
+  });
   O.sim = sim; game.sim = sim;
+  let world = homeWorld;
+  Object.defineProperty(O, 'world', { get: () => game.world, configurable: true });
   const PS = O.PlayerState;
   // continue a saved life if there is one
   const saved = O.Save.peek();
   let loaded = false;
-  if (saved && saved.seed === world.seed) { try { O.Save.hydrate(game, sim, saved); loaded = true; sim.seasonChanged = sim.season !== 'summer'; } catch (e) { console.warn('Save could not be loaded', e); } }
+  if (saved && saved.seed === homeWorld.seed) { try { O.Save.hydrate(game, home, saved); loaded = true; home.seasonChanged = home.season !== 'summer'; } catch (e) { console.warn('Save could not be loaded', e); } }
   // the simulation owns time; the engine reads it
   game.clock = { speed: 1, get minute() { return sim.minute; }, set minute(v) {}, get day() { return sim.day; }, set day(v) {} };
   game.hooks.update.push((dt) => {
-    sim.tick(dt * game.clock.speed);
-    PS.tick(dt * game.clock.speed, false);
-    game.actors = [game.player, ...sim.people.map((p) => p.agent)];
+    const dtm = dt * game.clock.speed;
+    O.SimRef.cur.tick(dtm);
+    if (O.SimRef.cur !== home) home.tick(dtm);
+    PS.tick(dtm, false);
+    world = game.world;
+    game.actors = [game.player, ...O.SimRef.cur.people.map((p) => p.agent)];
   });
   O.WeatherFX.setup(game, sim);
   // keep building sprites in step with the simulation (construction stages, storm damage, repairs)
@@ -7822,12 +8103,14 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   function applySeason() {
     const season = sim.season, dos = sim.weather.dayOfSeason;
     game.season = season;
-    for (const p of world.props) if (p.field) { const [k, v] = cropFor(p, season, dos); if (p.kind !== k || p.v !== v) { p.kind = k; p.v = v; p.sprite = O.Env.prop(k, p.seed, v); } }
+    for (const p of game.world.props) if (p.field) { const [k, v] = cropFor(p, season, dos); if (p.kind !== k || p.v !== v) { p.kind = k; p.v = v; p.sprite = O.Env.prop(k, p.seed, v); } }
   }
   for (const p of world.props) if (p.kind === 'wheat' || p.kind === 'cabbage' || p.kind === 'sprout') p.field = p.kind === 'cabbage' ? 'cabbage' : 'wheat';
   applySeason();
   let lastHarvestCheck = -1;
+  O.applySeason = applySeason;
   game.hooks.update.push(() => {
+    const world = game.world;
     for (const b of world.buildings) if (b.dirty) {
       b.dirty = false;
       if (b.site) { const si = sim.build.siteInfo(b.id); b.sprite = O.Env.staged(b.spec, si.stage, si.prog); }
@@ -7846,10 +8129,11 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   });
   // the dead are buried in the chapel yard; each grave is a real prop you can read
   const graveSpots = []; for (let y = 36; y >= 33; y--) for (let x = 68; x <= 72; x++) graveSpots.push([x, y]);
-  sim.onGrave = (p) => {
+  home.onGrave = (p) => {
+    const world = homeWorld;
     const spot = graveSpots.find(([x, y]) => !world.solid[y * world.W + x] && !world.props.some((q) => q.kind === 'gravestone' && Math.floor(q.x / 16) === x && Math.floor(q.y / 16) === y));
     if (!spot) return;
-    const g = sim.graves[sim.graves.length - 1];
+    const g = home.graves[home.graves.length - 1];
     world.props.push({ kind: 'gravestone', x: spot[0] * 16 + 8, y: spot[1] * 16 + 14, seed: p.id, solid: true, grave: g });
     world.solid[spot[1] * world.W + spot[0]] = 1; world.dirtyStatics = true;
   };
@@ -7860,14 +8144,15 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   O.CombatSetup.setup(game, sim, npcUI);
   O.HorsesSetup.setup(game, sim, npcUI);
   O.KingdomUI.setup(game, sim, npcUI);
-  if (loaded) { O.Save.hydrateLate(game, sim); setTimeout(() => O.Panels.toast(`Welcome back. It is ${O.DAYNAMES[sim.weekday]}, day ${sim.day}, in Ashford.`), 300); }
+  O.TravelSetup.setup(game, home, npcUI);
+  if (loaded) { O.Save.hydrateLate(game, home); setTimeout(() => O.Panels.toast(`Welcome back. It is ${O.DAYNAMES[sim.weekday]}, day ${sim.day}, in Ashford.`), 300); }
   // autosave each dawn and whenever the page is hidden
   let lastAuto = sim.day;
-  game.hooks.update.push(() => { if (sim.day !== lastAuto && sim.hour >= 6) { lastAuto = sim.day; O.Save.save(game, sim, true); } });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) O.Save.save(game, sim, true); });
+  game.hooks.update.push(() => { if (home.day !== lastAuto && home.hour >= 6) { lastAuto = home.day; O.Save.save(game, home, true); } });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) O.Save.save(game, home, true); });
   const tr = $('hudTR');
   const sv = document.createElement('div'); sv.className = 'savebar';
-  const sb = document.createElement('button'); sb.textContent = 'Save'; sb.onclick = () => { O.Save.save(game, sim); game.canvas.focus(); };
+  const sb = document.createElement('button'); sb.textContent = 'Save'; sb.onclick = () => { O.Save.save(game, home); game.canvas.focus(); };
   const nb = document.createElement('button'); nb.textContent = 'New life';
   nb.onclick = () => {
     O.Panels.open('Begin a new life?', '<p class="caption">This forgets Ashford as you left it: every person, every crime, your band and your purse. The village will begin again on day 1.</p><div class="topics"><button data-yes="1">Yes, start over</button><button data-no="1">Keep playing</button></div>', (r) => {
@@ -7903,7 +8188,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   }
   function placeName() {
     if (game.scene) return game.scene.b.type === "house" ? `The ${sim.households[game.scene.b.household - 1]?.surname || ""} house` + (game.scene.floor ? ", upstairs" : "") : game.scene.b.name + (game.scene.floor ? ', upstairs' : '');
-    const p = game.player, T = world.T, tx = p.x / T, ty = p.y / T;
+    const p = game.player, T = 16, tx = p.x / T, ty = p.y / T;
+    if (game.world !== homeWorld) { const w = game.world; return Math.abs(ty - w.roadY) < 2 ? `${w.name}, high road` : ty < 10 ? `${w.name} woods` : w.name; }
     if (tx >= 37 && tx <= 56 && ty >= 22 && ty <= 30) return 'Ashford Square';
     if (ty >= 29.5 && ty <= 32.5) return tx > 77 && tx < 86 ? 'Ashford Bridge' : "King's Road";
     if (ty >= 40.5 && ty <= 43) return 'Mill Lane';

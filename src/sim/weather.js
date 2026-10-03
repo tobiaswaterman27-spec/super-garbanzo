@@ -33,7 +33,7 @@
       else if (r.chance(0.22)) {
         const w = Object.entries(BIAS[season]).map(([k, v]) => [k, v * (k === this.kind ? 3 : 1)]);
         const nk = r.weighted(w);
-        if (nk !== this.kind) { this.kind = nk; if (nk === 'storm') this.sim.log('A storm rolls in over Ashford.', 'weather'); if (nk === 'snow' && this.snowCover < 0.1) this.sim.log('The first snow is falling.', 'weather'); }
+        if (nk !== this.kind) { this.kind = nk; if (nk === 'storm') this.sim.log(`A storm rolls in over ${this.sim.world.name}.`, 'weather'); if (nk === 'snow' && this.snowCover < 0.1) this.sim.log('The first snow is falling.', 'weather'); }
       }
       this.wind = this.kind === 'storm' ? 1 : this.kind === 'heavy' ? 0.7 : 0.25 + r.next() * 0.2;
       // storms damage roofs: buildings lose condition; the damage becomes repair work

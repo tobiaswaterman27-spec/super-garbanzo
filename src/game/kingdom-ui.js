@@ -34,14 +34,16 @@
         if (out) { L.done = true; L.c.held = false; L.c.prog = 0; L.c.leg++; }
       }
       for (let i = live.length - 1; i >= 0; i--) if (live[i].done) live.splice(i, 1);
-      if (!game.scene) game.actors = [...game.actors.filter((a) => !a.caravan), ...live.flatMap((L) => L.members)];
+      if (!game.scene && game.world === O.SimRef.home.world) game.actors = [...game.actors.filter((a) => !a.caravan), ...live.flatMap((L) => L.members)];
     });
     game.hooks.drawWorld.push((ctx, cam) => {
+      if (game.scene || game.world !== O.SimRef.home.world) return;
       for (const L of live) { const sp = cartSprite; const x = Math.round(L.cart.x - sp.ox - cam.x), y = Math.round(L.cart.y - sp.oy - cam.y); if (L.dir < 0) { ctx.save(); ctx.translate(x + sp.W, y); ctx.scale(-1, 1); ctx.drawImage(sp.canvas, 0, 0); ctx.restore(); } else ctx.drawImage(sp.canvas, x, y); }
     });
     // the caravan master can be talked to, traded with, or robbed
+    const atHome = () => game.world === O.SimRef.home.world;
     O.caravanCandidate = () => {
-      if (game.scene) return null;
+      if (game.scene || !atHome()) return null;
       for (const L of live) { const m = L.members[0]; const d = Math.hypot(m.x - game.player.x, m.y - game.player.y); if (d < 28) return { type: 'caravan', L, d, x: m.x, y: m.y }; }
       return null;
     };
@@ -100,7 +102,7 @@
     let lastCry = -1;
     game.hooks.update.push(() => {
       const cr = sim.people.find((p) => p.activity?.act === 'cry' && !p.agent.path && !p.agent.hidden);
-      if (!cr || game.scene) return;
+      if (!cr || game.scene || game.world !== O.SimRef.home.world) return;
       const slot = sim.day * 2 + (sim.hour > 12 ? 1 : 0);
       if (slot === lastCry) return;
       if (Math.hypot(cr.agent.x - game.player.x, cr.agent.y - game.player.y) > 170) return;
@@ -111,7 +113,7 @@
 
     // notice board in the square
     if (!sim.world.props.some((p) => p.kind === 'noticeboard')) { sim.world.props.push({ kind: 'noticeboard', x: 42 * T + 8, y: 29 * T + 14, seed: 5, solid: true }); sim.world.solid[29 * sim.world.W + 42] = 1; sim.world.dirtyStatics = true; }
-    O.noticeCandidate = () => { if (game.scene) return null; const nb = sim.world.props.find((p) => p.kind === 'noticeboard'); const d = Math.hypot(nb.x - game.player.x, nb.y - game.player.y); return d < 22 ? { type: 'notices', d: d + 1, x: nb.x, y: nb.y - 26 } : null; };
+    O.noticeCandidate = () => { if (game.scene) return null; const nb = sim.world.props.find((p) => p.kind === 'noticeboard'); if (!nb) return null; const d = Math.hypot(nb.x - game.player.x, nb.y - game.player.y); return d < 22 ? { type: 'notices', d: d + 1, x: nb.x, y: nb.y - 26 } : null; };
     O.readNotices = () => {
       const wanted = sim.crimes.filter((c) => c.perp !== 'player' && c.investigated && !c.solved && Object.keys(c.profile || {}).length).slice(-3);
       const mine = PS.wantedLevel() >= 1 ? `<li><b>WANTED</b> for ${PS.crimes.length} crime${PS.crimes.length > 1 ? 's' : ''}: ${esc(PS.soughtFor() || 'a stranger')}.${PS.bountyAmount ? ` Reward ${PS.bountyAmount}d.` : ''}</li>` : '';

@@ -3,9 +3,16 @@
 'use strict';
 (function () {
   function setup(game, sim) {
-    const W = sim.weather, world = sim.world, T = world.T;
-    const pw = world.W * T, ph = world.H * T;
+    const T = 16;
+    let W = sim.weather, world = sim.world, pw = world.W * T, ph = world.H * T;
+    const caches = new Map();
     let puddles = null, snowLevels = [], fogTex = null;
+    const syncWorld = () => {
+      if (world === game.world && W === sim.weather) return;
+      if (world) caches.set(world, { puddles, snowLevels });
+      world = game.world; W = sim.weather; pw = world.W * T; ph = world.H * T;
+      const c = caches.get(world) || { puddles: null, snowLevels: [] }; puddles = c.puddles; snowLevels = c.snowLevels;
+    };
     const drops = [], flakes = [], splashes = [];
 
     function makePuddles() {
@@ -53,6 +60,7 @@
 
     // tint the day by the weather (clouds darken, snow brightens to blue-white)
     game.hooks.update.push((dt) => {
+      syncWorld();
       const k = W.kind;
       game.weatherTint = k === 'storm' ? [0.62, 0.64, 0.74] : k === 'heavy' ? [0.72, 0.75, 0.84] : k === 'rain' ? [0.8, 0.83, 0.9] : k === 'cloudy' ? [0.88, 0.9, 0.94] : k === 'fog' ? [0.9, 0.92, 0.95] : k === 'snow' ? [0.9, 0.93, 1] : k === 'heat' ? [1, 0.97, 0.9] : [1, 1, 1];
       game.snowAlpha = O.clamp(W.snowCover * 1.3 - 0.1, 0, 0.95);

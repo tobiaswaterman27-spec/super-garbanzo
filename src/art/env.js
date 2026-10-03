@@ -597,6 +597,14 @@
         B.part(2); const bm = P.mat(C.madder); B.poly([[3, 3], [9, 3], [9, 16], [6, 13], [3, 16]], [0, 0, 1], bm); for (let y = 3; y < 15; y++) B.shadeAt(8, y, 1); B.plot(5, 7, P.mat(P.metal.gold, 'metal'), 3); B.plot(6, 8, P.mat(P.metal.gold, 'metal'), 3); B.plot(5, 9, P.mat(P.metal.gold, 'metal'), 3);
         ox = 2; oy = 29; break;
       }
+      case 'boat': {
+        B = new MB(40, 18); B.part(1); const hull = P.mat('#6a4a30', 'wood');
+        B.poly([[1, 6], [39, 6], [34, 15], [6, 15]], (px, py) => [0, (py - 10) / 6, 0.9], hull);
+        for (let x = 2; x < 38; x++) { B.shadeAt(x, 6, 4); B.shadeAt(x, 7, 3); if (B.matAt(x, 11) === hull) B.shadeAt(x, 11, 1); }
+        B.part(2); B.rect(6, 4, 28, 3, P.mat('#4a3424', 'wood'), 1); for (let x = 9; x < 32; x += 7) B.rect(x, 5, 2, 2, P.mat(P.wood.pine, 'wood'), 3);
+        B.part(3); B.capsule(14, 9, 28, 3, 0.6, 0.6, P.mat(P.wood.pine, 'wood'));
+        ox = 20; oy = 16; break;
+      }
       case 'noticeboard': {
         B = new MB(24, 30); B.part(1); B.capsule(3, 29, 3, 6, 1, 1, wood); B.capsule(21, 29, 21, 6, 1, 1, wood);
         B.part(2); B.rect(1, 4, 22, 16, P.mat('#7a5a3a', 'wood'), 2); for (let x = 1; x < 23; x++) { B.shadeAt(x, 4, 3); B.shadeAt(x, 19, 1); }

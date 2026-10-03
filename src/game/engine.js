@@ -31,12 +31,13 @@
       this.world = world;
       const T = world.T;
       this.ground = O.Terrain.renderGround(world, this.season);
-      for (const b of world.buildings) b.sprite = b.type === 'hideout' ? O.Env.hideout(b.level, b.spec) : O.Env.building(b.spec);
-      for (const t of world.trees) t.sprite = O.Env.tree(t.seed, t.kind, this.season);
-      for (const p of world.props) p.sprite = O.Env.prop(p.kind, p.seed, p.v);
+      for (const b of world.buildings) if (!b.sprite) b.sprite = b.type === 'hideout' ? O.Env.hideout(b.level, b.spec) : O.Env.building(b.spec);
+      for (const t of world.trees) if (!t.sprite || t.sprite.season !== this.season) { t.sprite = O.Env.tree(t.seed, t.kind, this.season); t.sprite.season = this.season; }
+      for (const p of world.props) if (!p.sprite) p.sprite = O.Env.prop(p.kind, p.seed, p.v);
       this.rebuildStatics();
-      this.player = { x: (46 * T) + 8, y: 32 * T + 4, dir: 0, anim: 'idle', ft: 0, a: playerAppearance, speed: 0 };
+      if (!this.player) this.player = { x: (46 * T) + 8, y: 32 * T + 4, dir: 0, anim: 'idle', ft: 0, a: playerAppearance, speed: 0 };
       this.actors = [this.player];
+      this.particles = [];
     }
 
     rebuildStatics() {

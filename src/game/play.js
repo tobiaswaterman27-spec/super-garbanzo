@@ -95,6 +95,7 @@
   O.Craft.setup(game);
   O.FireFX.setup(game, home);
   O.DisasterFX.setup(game, home);
+  O.Estate.setup(game, home);
   O.AudioSetup.setup(game, sim);
   if (loaded) { O.Save.hydrateLate(game, home); setTimeout(() => O.Panels.toast(`Welcome back. It is ${O.DAYNAMES[sim.weekday]}, day ${sim.day}, in Ashford.`), 300); }
   // autosave each dawn and whenever the page is hidden

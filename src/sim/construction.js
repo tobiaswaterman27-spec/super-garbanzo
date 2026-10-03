@@ -32,7 +32,7 @@
       this.start(PLOTS.indexOf(free[0]), cost);
     }
 
-    start(pi, cost) {
+    start(pi, cost, opts = {}) {
       const sim = this.sim, w = sim.world, r = sim.rng;
       const [x, bottom, bw, bd] = PLOTS[pi]; this.used.add(pi);
       // clear trees and scatter from the plot
@@ -45,16 +45,16 @@
       b.doorX = x + b.spec.doorTile; b.doorY = bottom + 1;
       for (let yy = b.y; yy <= bottom; yy++) for (let xx = x; xx < x + bw; xx++) w.solid[yy * w.W + xx] = 1;
       w.buildings.push(b);
-      const site = { id, b, stage: 0, prog: 0, work: 0, stalled: null, started: sim.day };
+      const site = { id, b, stage: 0, prog: 0, work: 0, stalled: null, started: sim.day, player: !!opts.player };
       this.sites.push(site);
       // the site is run like a small business: builders, wages, material orders
       const def = { label: 'Building site', jobs: [['builder', 3]], hours: [7, 17], recipes: [], sells: [], buys: { logs: 'woodcutter|import', stone: 'quarry|import' }, targets: { logs: 12, stone: 10 }, wage: { builder: 7 }, site: true };
       const bz = { id, b, type: 'site', def, name: 'the new house site', owner: null, workers: [], stock: { logs: 0, stone: 0 }, cash: cost, sold: {}, bought: {}, open: false, orders: [], salesToday: 0, history: [] };
       sim.biz.set(id, bz);
-      sim.treasury.cash -= cost; sim.treasury.spent += cost;
+      if (!opts.player) { sim.treasury.cash -= cost; sim.treasury.spent += cost; }
       const idle = sim.people.filter((p) => !p.visitor && p.age >= 17 && p.age < 60 && (!p.job || p.job.role === 'porter')).slice(0, 3);
       for (const p of idle) { p.job = { biz: id, role: 'builder' }; p.skills.builder = r.float(0.3, 0.7); bz.workers.push(p.id); sim.remember(p, 'Took work as a builder on the new house.', 'work', 1); }
-      sim.log(`The council has paid ${cost}d to build a new house ${bottom < 30 ? 'beside the north track' : 'south of Mill Lane'}. ${idle.length} villagers hired as builders.`, 'politics');
+      sim.log(opts.player ? `Builders have started on the newcomer's own house ${bottom < 30 ? 'beside the north track' : 'south of Mill Lane'}. ${idle.length} villagers hired, paid from the newcomer's purse.` : `The council has paid ${cost}d to build a new house ${bottom < 30 ? 'beside the north track' : 'south of Mill Lane'}. ${idle.length} villagers hired as builders.`, opts.player ? 'economy' : 'politics');
       b.dirty = true; w.dirtyStatics = true; sim.path.recost(); sim.path.clear();
       return site;
     }
@@ -89,6 +89,7 @@
       const bz = sim.biz.get(site.id);
       for (const id of bz.workers) { const p = sim.byId.get(id); if (p) { p.job = null; sim.remember(p, 'We finished the new house. Back to looking for work.', 'work', 1); } }
       sim.biz.delete(site.id);
+      if (site.player) { b.owner = { kind: 'player' }; b.vacant = true; sim.log(`The newcomer's house is finished. Fresh timber and new thatch: the newcomer has a home of their own in ${sim.world.name}.`, 'economy'); O.Chronicle && O.Chronicle.deed(sim, `A newcomer built a house of their own in ${sim.world.name}.`, `Your own house in ${sim.world.name} is finished.`, 'player', 3, true); sim.world.dirtyStatics = true; return; }
       // a family arrives from elsewhere to take the house (migration)
       const region = r.pick(['east', 'north', 'west', 'south']);
       const hh = { id: sim.households.length + 1, home: b.id, members: [], pantry: { bread: 4, cabbage: 2, firewood: 4 }, money: r.int(60, 140), surname: r.pick(O.Data.NAMES.sur) };
@@ -135,5 +136,5 @@
     siteInfo(id) { const s = this.sites.find((x) => x.id === id); return s ? { stage: s.stage, name: STAGES[s.stage], prog: s.prog } : null; }
   }
 
-  O.Construction = Construction; O.STAGES = STAGES;
+  O.Construction = Construction; O.STAGES = STAGES; O.PLOTS = PLOTS;
 })();

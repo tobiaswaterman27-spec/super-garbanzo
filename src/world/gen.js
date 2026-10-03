@@ -15,6 +15,8 @@
   };
 
   function makeSettlement(place) {
+    if (place.kind === 'capital') return makeCity(place);
+    if (place.kind === 'castle') return makeCastle(place);
     const seed = O.hash('settle', place.id);
     const rng = O.RNG(seed);
     const town = place.kind === 'town' || place.kind === 'port' || place.pop > 600;
@@ -120,5 +122,128 @@
     return { zones, name: place.name, placeId: place.id, region: place.region, W, H, T, ter, solid, buildings, props, trees, TER, seed, roadY, exits: { west: [coast ? shoreX + 3 : 0, roadY], east: [W - 1, roadY] }, generated: true };
   }
 
-  O.Gen = { makeSettlement, STYLE };
+  // ---------------------------------------------------------------------------------------------
+  // Shared builder for walled places: terrain, buildings, props, trees, walls with towers and gates.
+  function kit(place, W, H, seed) {
+    const rng = O.RNG(seed);
+    const ter = new Uint8Array(W * H), solid = new Uint8Array(W * H);
+    const set = (x, y, t) => { if (x >= 0 && y >= 0 && x < W && y < H) ter[y * W + x] = t; };
+    const fill = (x0, y0, x1, y1, t) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) set(x, y, t); };
+    const buildings = [], props = [], trees = [];
+    let nextId = 1;
+    const st = STYLE[place.region] || STYLE.east;
+    const B = (o) => { const b = Object.assign({ id: nextId++, floors: 1, wealth: 0.6, condition: 0.9 }, o); b.y = b.bottom - b.d + 1; b.spec = Object.assign({ seed: O.hash('bld', seed, b.id), w: b.w, d: b.d, floors: b.floors, wealth: b.wealth, condition: b.condition }, b.look); buildings.push(b); return b; };
+    const look = (wl, extra = {}) => Object.assign({ wall: rng.weighted(st.walls), roof: rng.weighted(st.roofs), roofType: rng.chance(0.5) ? 'gable' : 'side', chimney: true, plaster: rng.pick(st.plasters), stoneMat: st.stoneMat, doorTile: 1 }, extra);
+    const P = (kind, tx, ty, opts = {}) => { const p = Object.assign({ kind, x: tx * T + 8, y: ty * T + 14, seed: rng.int(1, 1e6), v: 0, solid: true }, opts); props.push(p); if (p.solid && tx >= 0 && ty >= 0 && tx < W && ty < H) solid[ty * W + tx] = 1; return p; };
+    const free = (x, bottom, w, d) => { for (const b of buildings) if (!(x + w + 1 <= b.x || x - 1 >= b.x + b.w || bottom + 2 <= b.y || bottom - d - 1 >= b.bottom)) return false; for (let yy = bottom - d + 1; yy <= bottom + 1; yy++) for (let xx = x; xx < x + w; xx++) { const t = ter[yy * W + xx]; if (t === TER.ROAD || t === TER.COBBLE || t === TER.WATER || t === TER.BRIDGE || solid[yy * W + xx]) { if (yy <= bottom) return false; } } return true; };
+    // walls: a rectangle with towers at the corners and every so often, gates where roads cross
+    function walls(x0, y0, x1, y1, gates, v = 0) {
+      const gateAt = (x, y) => gates.some(([gx, gy]) => Math.abs(gx - x) <= 1 && Math.abs(gy - y) <= 1);
+      for (let x = x0; x <= x1; x++) for (const y of [y0, y1]) {
+        if (gateAt(x, y)) continue;
+        const tower = x === x0 || x === x1 || (x - x0) % 18 === 0;
+        P(tower ? 'tower' : 'wallH', x, y, { v: tower && x === Math.floor((x0 + x1) / 2) ? 2 : v, wall: true });
+      }
+      for (let y = y0 + 1; y < y1; y++) for (const x of [x0, x1]) { if (gateAt(x, y)) continue; P((y - y0) % 16 === 0 ? 'tower' : 'wallV', x, y, { v, wall: true, y: y * T + 15 }); }
+      for (const [gx, gy] of gates) { P('gatearch', gx, gy, { v, solid: false, y: gy * T + 15, x: gx * T + 8 }); P('tower', gx - 2, gy, { v }); P('tower', gx + 2, gy, { v }); }
+    }
+    function scatter(isIn) {
+      for (let yy = 1; yy < H; yy++) for (let xx = 0; xx < W; xx++) {
+        if (solid[yy * W + xx] || (ter[yy * W + xx] !== TER.GRASS && ter[yy * W + xx] !== TER.FOREST)) continue;
+        let near = false; for (const b of buildings) if (xx >= b.x - 2 && xx <= b.x + b.w + 1 && yy >= b.y - 3 && yy <= b.bottom + 2) near = true;
+        const r = rng.next(), forest = ter[yy * W + xx] === TER.FOREST, inside = isIn(xx, yy);
+        if (!near && !inside && (forest ? r < 0.3 : r < 0.02) && (xx + yy) % 2 === 0) { trees.push({ kind: rng.weighted([['oak', 4], ['birch', 1], ['pine', 1]]), x: xx * T + 8, y: yy * T + 14, seed: rng.int(1, 1e6) }); solid[yy * W + xx] = 1; }
+        else if (!near && r < (inside ? 0.01 : 0.05)) props.push({ kind: inside ? 'barrel' : rng.weighted([['bush', 2], ['rock', 1]]), x: xx * T + 8, y: yy * T + 13, seed: rng.int(1, 1e6), solid: inside });
+        else if (!inside && r < 0.15) props.push({ kind: r < 0.05 ? 'flowers' : 'grass', x: xx * T + rng.int(2, 14), y: yy * T + rng.int(4, 14), seed: rng.int(1, 30), solid: false, flat: true });
+      }
+    }
+    function finish(extra) {
+      for (const b of buildings) {
+        for (let yy = b.y; yy <= b.bottom; yy++) for (let xx = b.x; xx < b.x + b.w; xx++) { if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue; solid[yy * W + xx] = 1; if (ter[yy * W + xx] === TER.FOREST || ter[yy * W + xx] === TER.FIELD) set(xx, yy, TER.GRASS); }
+        b.doorX = b.x + b.spec.doorTile; b.doorY = b.bottom + 1;
+        const t = ter[b.doorY * W + b.doorX]; if (t === TER.GRASS || t === TER.FOREST) set(b.doorX, b.doorY, TER.YARD);
+        b.security = O.clamp((b.type === 'house' ? 0.1 + b.wealth * 0.35 : 0.3) + ({ mansion: 0.35, jeweller: 0.6, keep: 0.65, warehouse: 0.3, townhall: 0.4, townhouse: 0.15 }[b.type] || 0), 0, 0.95);
+      }
+      for (let i = 0; i < W * H; i++) if (ter[i] === TER.WATER) solid[i] = 1;
+      return Object.assign({ name: place.name, placeId: place.id, region: place.region, W, H, T, ter, solid, buildings, props, trees, TER, seed, generated: true }, extra);
+    }
+    return { rng, ter, solid, set, fill, buildings, props, trees, B, look, P, free, walls, scatter, finish, st };
+  }
+
+  // Kingsbridge: a walled city on a river, with a grand market, a wealthy quarter, workshops,
+  // warehouses by the water, and a crowded poor quarter.
+  function makeCity(place) {
+    const W = 128, H = 88, seed = O.hash('city', place.id);
+    const K = kit(place, W, H, seed), { rng, set, fill, B, look, P, free } = K;
+    const roadY = 44, x0 = 6, y0 = 6, x1 = W - 7, y1 = H - 7, riverX = 70;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const edge = Math.min(x, y, W - 1 - x, H - 1 - y); set(x, y, edge < 3 ? TER.FOREST : TER.GRASS); }
+    for (let y = 0; y < H; y++) { const wob = Math.round(Math.sin(y / 9) * 1.5); for (let x = riverX - 2 + wob; x <= riverX + 2 + wob; x++) set(x, y, x === riverX - 2 + wob || x === riverX + 2 + wob ? TER.SAND : TER.WATER); }
+    fill(0, roadY, W - 1, roadY + 1, TER.ROAD);
+    for (let x = riverX - 4; x <= riverX + 4; x++) { set(x, roadY, TER.BRIDGE); set(x, roadY + 1, TER.BRIDGE); }
+    fill(riverX - 4, 24, riverX + 4, 25, TER.BRIDGE);
+    // avenues and lanes inside the walls
+    fill(40, y0 + 1, 41, y1 - 1, TER.ROAD); fill(96, y0 + 1, 97, y1 - 1, TER.ROAD);
+    fill(x0 + 1, 24, W - 8, 25, TER.ROAD); fill(x0 + 1, 64, W - 8, 65, TER.ROAD);
+    for (let x = riverX - 4; x <= riverX + 4; x++) { set(x, 24, TER.BRIDGE); set(x, 25, TER.BRIDGE); }
+    fill(44, 30, 64, 43, TER.COBBLE); // the great market
+    K.walls(x0, y0, x1, y1, [[x0, roadY + 1], [x1, roadY + 1]], 0);
+    // market and civic buildings around the square
+    B({ type: 'townhall', name: 'Guildhall of Kingsbridge', x: 48, bottom: 28, w: 8, d: 5, floors: 2, wealth: 0.85, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'tile', roofType: 'gable', chimney: true, sign: 'scales', doorTile: 4, bigDoor: true, noFlowers: true } });
+    B({ type: 'chapel', name: 'Cathedral of St. Brannoc', x: 58, bottom: 21, w: 8, d: 7, wealth: 0.9, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 4, wallH: 46, bigDoor: true, noFlowers: true } });
+    for (let i = 0; i < 8; i++) { const sx = 46 + (i % 4) * 5, sy = 33 + Math.floor(i / 4) * 5; P('stall', sx, sy, { v: i % 4 }); K.solid[sy * W + sx - 1] = 1; K.solid[sy * W + sx + 1] = 1; }
+    P('well', 55, 41, { y: 41 * T + 15 }); K.solid[41 * W + 54] = 1;
+    // districts: [x range, y range, building mix]
+    const lots = (xa, xb, bottom, mix, d = 4) => { let x = xa; while (x < xb) { const pick = rng.weighted(mix); const w = pick.w || rng.int(4, 5); if (x + w > xb) break; if (free(x, bottom, w, pick.d || d)) { const wl = pick.wealth ?? rng.float(0.3, 0.8); B(Object.assign({ x, bottom, w, d: pick.d || d, wealth: wl, floors: pick.floors || (wl > 0.6 ? 2 : 1), look: look(wl, Object.assign({ doorTile: Math.floor(w / 2) }, pick.look || {})), name: pick.name || 'House' }, { type: pick.type })); } x += w + 1; } };
+    const noble = [[{ type: 'mansion', w: 6, d: 5, floors: 2, wealth: 0.92, name: 'Mansion', look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'tile', roofType: 'gable' } }, 3], [{ type: 'townhouse', w: 4, d: 4, floors: 3, wealth: 0.8, name: 'Townhouse' }, 4], [{ type: 'jeweller', w: 4, d: 4, floors: 2, wealth: 0.85, name: 'Aurifex the Jeweller', look: { sign: 'scales', shopWindow: true } }, 0.6], [{ type: 'apothecary', w: 4, d: 4, wealth: 0.7, name: 'Apothecary', look: { sign: 'herb' } }, 0.6], [{ type: 'school', w: 5, d: 4, wealth: 0.7, name: 'Cathedral School', look: { wall: 'stone', roof: 'slate' } }, 0.4]];
+    const work = [[{ type: 'smithy', w: 5, name: 'Smithy', look: { wall: 'stone', roof: 'slate', sign: 'anvil' } }, 1], [{ type: 'armourer', w: 5, name: 'Armourer', look: { wall: 'stone', roof: 'slate', sign: 'sword' } }, 1], [{ type: 'carpenter', w: 5, name: 'Carpenter', look: { sign: 'scales' } }, 1], [{ type: 'butcher', w: 4, name: 'Butcher' }, 1], [{ type: 'bakery', w: 4, name: 'Bakery', look: { sign: 'bread' } }, 1.2], [{ type: 'store', w: 5, name: 'Chandlery', look: { sign: 'scales' } }, 1], [{ type: 'tavern', w: 6, d: 5, floors: 2, name: 'The King\'s Head', look: { sign: 'mug', roofType: 'gable', doorTile: 2 } }, 0.7], [{ type: 'house', w: 4 }, 3]];
+    const ware = [[{ type: 'warehouse', w: 6, d: 5, name: 'River Warehouse', look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', bigDoor: true, chimney: false, noFlowers: true } }, 1]];
+    const poor = [[{ type: 'tenement', w: 5, d: 4, floors: 3, wealth: 0.15, name: 'Tenement', look: { wall: 'timber', roof: 'thatch', roofType: 'side' } }, 3], [{ type: 'house', w: 3, d: 3, wealth: 0.12 }, 2], [{ type: 'tavern', w: 5, d: 4, floors: 2, wealth: 0.3, name: 'The Drowned Rat', look: { sign: 'mug', doorTile: 2 } }, 0.3]];
+    const resi = [[{ type: 'house', w: 4 }, 5], [{ type: 'doctor', w: 5, d: 5, floors: 2, name: 'Physician', look: { sign: 'herb' } }, 0.3], [{ type: 'hospital', w: 7, d: 5, floors: 2, wealth: 0.6, name: "St. Agatha's Hospital", look: { wall: 'stone', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 3 } }, 0.3], [{ type: 'guard', w: 6, d: 4, name: 'City Watch', look: { wall: 'stone', roof: 'slate', sign: 'shield', noFlowers: true } }, 0.4], [{ type: 'stable', w: 5, d: 3, name: 'City Stables', look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', bigDoor: true, chimney: false } }, 0.3]];
+    for (const bottom of [13, 22]) { lots(8, 39, bottom, noble, 4); lots(42, 56, bottom, noble, 4); }
+    for (const bottom of [13, 22, 33, 42]) lots(74, 95, bottom, bottom === 42 ? ware : work, bottom === 42 ? 5 : 4);
+    for (const bottom of [13, 22, 33, 42]) lots(99, W - 9, bottom, work, 4);
+    for (const bottom of [52, 62, 72, 79]) { lots(74, 95, bottom, poor, 4); lots(99, W - 9, bottom, poor, 4); }
+    for (const bottom of [52, 62, 72, 79]) { lots(8, 39, bottom, resi, 4); lots(42, riverX - 5, bottom, resi, 4); }
+    for (const bottom of [33, 42]) lots(8, 39, bottom, [...resi, ...noble.slice(1, 2)], 4);
+    // essential trades a living city needs, wherever they fit
+    const need = [['mill', 'Watermill', 4, 4], ['woodcutter', "Woodward's Yard", 4, 3], ['farmhouse', 'Market Garden', 4, 3]];
+    for (const [type, name, w, d] of need) { for (let tries = 0; tries < 60; tries++) { const x = rng.int(8, W - 14), bottom = rng.pick([13, 22, 33, 52, 62, 72]); if (free(x, bottom, w, d)) { B({ type, name, x, bottom, w, d, floors: type === 'mill' ? 2 : 1, wealth: 0.4, look: look(0.4) }); break; } } }
+    if (!K.buildings.some((b) => b.type === 'guard')) B({ type: 'guard', name: 'City Watch', x: 42, bottom: 79, w: 6, d: 4, look: { wall: 'stone', roof: 'slate', sign: 'shield', noFlowers: true, doorTile: 2 } });
+    if (!K.buildings.some((b) => b.type === 'doctor')) B({ type: 'doctor', name: 'Physician', x: 30, bottom: 79, w: 4, d: 4, floors: 2, look: look(0.6, { sign: 'herb' }) });
+    P('lamp', 44, 43); P('lamp', 64, 43); P('signpost', 42, 46, { solid: false });
+    K.scatter((x, y) => x > x0 && x < x1 && y > y0 && y < y1);
+    return K.finish({ roadY, exits: { west: [0, roadY], east: [W - 1, roadY] }, zones: { square: [45, 31, 63, 42], bench: [46, 31], farm: [8, 82, 30, 84], wood: [2, 82, 20, 86], east: [W - 1, roadY], patrol: [[55, 44], [20, 44], [40, 24], [80, 24], [110, 44], [96, 64], [60, 64], [40, 44]] }, city: true });
+  }
+
+  // Thornbury: a curtain-walled castle with a keep, and its village outside the gate.
+  function makeCastle(place) {
+    const W = 96, H = 72, seed = O.hash('castle', place.id);
+    const K = kit(place, W, H, seed), { rng, set, fill, B, look, P, free } = K;
+    const roadY = 52, cx0 = 28, cy0 = 6, cx1 = 68, cy1 = 34, gateX = 48;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const edge = Math.min(x, y, W - 1 - x, H - 1 - y); set(x, y, edge < 3 || (O.fbm(x / 6, y / 6, seed & 255, 2) > 0.72 && (x < 18 || x > W - 18)) ? TER.FOREST : TER.GRASS); }
+    fill(0, roadY, W - 1, roadY + 1, TER.ROAD);
+    fill(gateX - 1, cy1 + 1, gateX, roadY - 1, TER.ROAD);
+    fill(cx0 + 1, cy0 + 1, cx1 - 1, cy1 - 1, TER.YARD); // the bailey
+    fill(gateX - 1, 22, gateX, cy1, TER.COBBLE);
+    K.walls(cx0, cy0, cx1, cy1, [[gateX, cy1]], 1);
+    B({ type: 'keep', name: 'The Keep of Thornbury', x: 42, bottom: 18, w: 9, d: 7, floors: 3, wealth: 0.95, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', roofType: 'gable', chimney: true, sign: 'shield', doorTile: 4, bigDoor: true, noFlowers: true, wallH: 56 } });
+    P('tower', 41, 18, { v: 2 }); P('tower', 51, 18, { v: 2 });
+    B({ type: 'guard', name: 'Barracks', x: 31, bottom: 15, w: 7, d: 4, wealth: 0.6, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', roofType: 'side', sign: 'shield', doorTile: 3, noFlowers: true } });
+    B({ type: 'chapel', name: 'Castle Chapel', x: 56, bottom: 15, w: 5, d: 5, wealth: 0.8, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 2, wallH: 38, noFlowers: true } });
+    B({ type: 'stable', name: 'Castle Stables', x: 31, bottom: 30, w: 6, d: 3, wealth: 0.6, look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', bigDoor: true, chimney: false, doorTile: 2, noFlowers: true } });
+    B({ type: 'armourer', name: 'Castle Armoury', x: 56, bottom: 30, w: 6, d: 4, wealth: 0.6, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', chimney: true, sign: 'sword', doorTile: 2, noFlowers: true } });
+    B({ type: 'tavern', name: 'The Great Hall', x: 40, bottom: 28, w: 6, d: 4, floors: 2, wealth: 0.8, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', roofType: 'gable', chimney: true, sign: 'mug', doorTile: 2 } });
+    P('well', 51, 25, { y: 25 * T + 15 }); K.solid[25 * W + 50] = 1;
+    P('banner', 46, 19, { solid: false }); P('banner', 50, 19, { solid: false });
+    // the village outside the gate
+    const v = [[{ type: 'house', w: 4 }, 6], [{ type: 'bakery', w: 4, name: 'Bakery', look: { sign: 'bread' } }, 0.5], [{ type: 'store', w: 5, name: 'Store', look: { sign: 'scales' } }, 0.5], [{ type: 'smithy', w: 5, name: 'Smithy', look: { wall: 'stone', roof: 'slate', sign: 'anvil' } }, 0.4], [{ type: 'doctor', w: 4, name: "Leech's House", look: { sign: 'herb' } }, 0.3], [{ type: 'mill', w: 4, floors: 2, name: 'Mill' }, 0.3], [{ type: 'farmhouse', w: 4, d: 3, name: 'Farm' }, 0.4], [{ type: 'woodcutter', w: 3, d: 3, name: "Forester's Hut" }, 0.3]];
+    const lots = (xa, xb, bottom) => { let x = xa; while (x < xb) { const pick = rng.weighted(v); const w = pick.w; if (x + w > xb) break; if (free(x, bottom, w, pick.d || 4)) { const wl = rng.float(0.3, 0.6); B(Object.assign({ x, bottom, w, d: pick.d || 4, wealth: wl, floors: pick.floors || 1, look: look(wl, Object.assign({ doorTile: Math.floor(w / 2) }, pick.look || {})), name: pick.name || 'House' }, { type: pick.type })); } x += w + 1; } };
+    lots(6, gateX - 3, roadY - 2); lots(gateX + 3, W - 6, roadY - 2); lots(6, W - 6, roadY + 10);
+    for (const [type, name] of [['mill', 'Mill'], ['farmhouse', 'Farm'], ['woodcutter', "Forester's Hut"], ['bakery', 'Bakery'], ['store', 'Store'], ['doctor', "Leech's House"]]) if (!K.buildings.some((b) => b.type === type)) for (let t = 0; t < 80; t++) { const x = rng.int(6, W - 10), bottom = rng.pick([roadY - 2, roadY + 10, roadY + 16]); if (free(x, bottom, 4, 3)) { B({ type, name, x, bottom, w: 4, d: 3, wealth: 0.4, floors: 1, look: look(0.4) }); break; } }
+    fill(8, roadY + 12, 40, H - 5, TER.FIELD);
+    K.scatter((x, y) => x > cx0 && x < cx1 && y > cy0 && y < cy1);
+    return K.finish({ roadY, exits: { west: [0, roadY], east: [W - 1, roadY] }, zones: { square: [gateX - 6, 22, gateX + 6, 32], bench: [gateX - 4, 23], farm: [9, roadY + 13, 39, H - 6], wood: [4, 4, 22, 20], east: [W - 1, roadY], patrol: [[gateX, 33], [gateX, 22], [36, 24], [62, 24], [gateX, roadY], [20, roadY], [76, roadY]] }, castle: true });
+  }
+
+  O.Gen = { makeSettlement, makeCity, makeCastle, STYLE };
 })();

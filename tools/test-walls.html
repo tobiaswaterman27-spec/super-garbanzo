@@ -1,0 +1,9 @@
+<!doctype html><meta charset="utf-8"><body style="background:#5d8a3e;margin:0"><canvas id="c"></canvas>
+<script src="../src/core/base.js"></script><script src="../src/art/palette.js"></script><script src="../src/art/raster.js"></script><script src="../src/art/env.js"></script>
+<script>
+const S=3,c=document.getElementById('c'),ctx=c.getContext('2d');c.width=1200;c.height=420;ctx.imageSmoothingEnabled=false;
+const d=(k,x,y,v=0,seed=1)=>{const p=O.Env.prop(k,seed,v);ctx.drawImage(p.canvas,(x-p.ox)*S,(y-p.oy)*S,p.W*S,p.H*S);};
+for(let i=0;i<6;i++)d('wallH',20+i*16,100,0,i);d('tower',6,100,0);d('tower',122,100,2);d('gatearch',160,100,0);for(let i=0;i<4;i++)d('wallH',200+i*16,100,0,i+7);
+for(let i=0;i<4;i++)d('wallV',300,40+i*30,1);d('tower',300,140,1);
+const k=O.Env.building({seed:5,w:8,d:6,floors:3,wall:'stone',stoneMat:'stoneWarm',roof:'slate',roofType:'gable',chimney:true,doorTile:4,bigDoor:true,noFlowers:true,sign:'shield'});ctx.drawImage(k.canvas,330*S,(140-k.H)*S,k.W*S,k.H*S);
+</script>

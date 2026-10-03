@@ -36,7 +36,7 @@
     const members = hh ? hh.members.length : 2;
     const twoFloors = b.floors >= 2;
     const hasStairs = twoFloors;
-    const stairsX = dc >= w - 2 ? 0 : w - 1;
+    const stairsX = b.spec.doorTile * 2 >= w - 2 ? 0 : w - 1; // same corner on every floor
     if (hasStairs) put('stairs', stairsX, 0, { stairs: floor === 0 ? 1 : 0 });
 
     const homeFloor = !twoFloors || floor === 1;
@@ -142,6 +142,93 @@
       case 'woodcutter':
         hearth(); tryPut('bed', [[0, 0], [w - 1, 0], ...anywhere(1, 2)], { bed: true }); tryPut('woodpile', anywhere()); tryPut('rack', along(0, 2)); tryPut('stool', anywhere(), { seat: true }); storage();
         break;
+      case 'butcher':
+        tryPut('workbench', [[0, 1], ...anywhere(2, 1)], { work: ['butcher', 'apprentice'] });
+        tryPut('rack', along(0, 2), { stockGood: 'meat', shop: true });
+        tryPut('counter', [[Math.max(0, w - 3), d - 2], [0, d - 2]], { counter: true });
+        for (let i = 0; i < 2; i++) tryPut('barrel', anywhere(), { stockOf: 'meat', container: { slots: 4 } });
+        beds(); storage();
+        break;
+      case 'jeweller':
+        if (floor === 0) {
+          tryPut('desk', [[0, 1], ...anywhere(2, 1)], { work: ['jeweller'] });
+          shelf(['ring', 'brooch'], { stockGood: 'ring' });
+          tryPut('counter', [[Math.max(0, w - 3), d - 2], [0, d - 2]], { counter: true });
+          tryPut('chest', [[w - 1, 1], ...anywhere()], { valuables: true, strongbox: true, container: { slots: 20 } });
+          tryPut('stool', anywhere(), { seat: true, work: ['night watchman'] });
+        } else { beds(); storage(); }
+        break;
+      case 'apothecary':
+        shelf(['medicine', 'herbs'], { stockGood: 'medicine' });
+        shelf(['herbs'], { stockGood: 'herbs' });
+        tryPut('cauldron', [[1, 1], ...anywhere()], { work: ['apothecary'] });
+        tryPut('counter', [[Math.max(0, w - 3), d - 2], [0, d - 2]], { counter: true });
+        beds(); storage();
+        break;
+      case 'carpenter':
+        tryPut('workbench', [[0, 1], ...anywhere(2, 1)], { work: ['carpenter'] });
+        tryPut('workbench', [[w - 2, 1], ...anywhere(2, 1)], { work: ['apprentice'] });
+        for (let i = 0; i < 3; i++) tryPut('woodpile', anywhere(), { stockOf: 'logs' });
+        tryPut('table', anywhere(2, 1), { stockGood: 'furniture', shop: true }); tryPut('chair', anywhere(), { shop: true });
+        beds(); storage();
+        break;
+      case 'armourer':
+        put('forge', 0, 0, { work: ['armourer'], fire: true });
+        tryPut('anvil', [[2, 1], ...anywhere()], { work: ['armourer'] });
+        tryPut('rack', along(0, 2), { stockGood: 'helm', shop: true }); tryPut('rack', along(0, 2), { stockGood: 'sword', shop: true });
+        tryPut('counter', [[Math.max(0, w - 3), d - 2]], { counter: true });
+        beds(); storage();
+        break;
+      case 'warehouse':
+        for (let i = 0; i < Math.floor(w * d / 7); i++) tryPut(rng.pick(['crate', 'crate', 'barrel', 'sack']), anywhere(), { stockOf: 'warehouse' });
+        tryPut('desk', [[1, d - 3], ...anywhere(2, 1)], { work: ['warehouse master'] });
+        tryPut('chest', anywhere(), { valuables: true });
+        break;
+      case 'townhall':
+        if (floor === 0) {
+          tryPut('desk', [[Math.floor(w / 2) - 1, 1], ...anywhere(2, 1)], { work: ['magistrate'] });
+          for (let i = 0; i < 2; i++) tryPut('desk', [[1 + i * (w - 4), 3], ...anywhere(2, 1)], { work: ['clerk'] });
+          for (let y = 5; y < d - 2; y += 2) { put('pew', 1, y, { pew: true }); put('pew', w - 4, y, { pew: true }); }
+          tryPut('shelf', along(0, 2)); tryPut('chest', anywhere(), { valuables: true, treasury: true });
+          if (wv >= 1) put('rug', Math.floor(w / 2) - 1, 3, { flat: true });
+        } else { tryPut('table', [[Math.floor(w / 2) - 1, Math.floor(d / 2)]], { table: true, v: 2 }); for (let i = 0; i < 4; i++) tryPut('chair', anywhere(), { seat: true }); tryPut('shelf', along(0, 2)); tryPut('shelf', along(0, 2)); }
+        break;
+      case 'hospital':
+        for (let x = 0; x + 1 < w; x += 2) { tryPut('medbed', [[x, 0]], { medbed: true, work: ['nurse'] }); tryPut('medbed', [[x, d - 4]], { medbed: true }); }
+        tryPut('desk', anywhere(2, 1), { work: ['physician'] }); tryPut('shelf', along(0, 2), { stockGood: 'medicine', shop: true });
+        tryPut('cauldron', anywhere(), {}); for (let i = 0; i < 2; i++) tryPut('chair', anywhere(), { seat: true, waiting: true });
+        break;
+      case 'school':
+        tryPut('desk', [[Math.floor(w / 2) - 1, 0], ...anywhere(2, 1)], { work: ['teacher'] });
+        for (let y = 3; y < d - 2; y += 2) { put('pew', 1, y, { pew: true }); put('pew', w - 4, y, { pew: true }); }
+        tryPut('shelf', along(0, 2));
+        break;
+      case 'tenement':
+        // each floor is crowded flats: beds wall to wall, a shared hearth, little else
+        if (floor === 0) hearth();
+        for (let i = 0; i < 6; i++) tryPut('bed', [[i * 2, 0], [i * 2, d - 2], ...anywhere(1, 2)], { bed: true, v: 0 });
+        tryPut('table', anywhere(2, 1), { table: true, v: 0 }); for (let i = 0; i < 3; i++) tryPut('stool', anywhere(), { seat: true });
+        for (let i = 0; i < 2; i++) tryPut('sack', anywhere(), { pantry: true });
+        tryPut('chest', anywhere(), { valuables: true });
+        break;
+      case 'mansion': case 'townhouse': case 'keep':
+        if (floor === 0) {
+          hearth(); put('rug', Math.max(0, Math.floor(w / 2) - 1), Math.max(1, Math.floor(d / 2) + 1), { flat: true });
+          const t = tryPut('table', [[Math.floor(w / 2) - 1, Math.floor(d / 2)], ...anywhere(2, 1)], { table: true, v: 2 });
+          if (t) { tryPut('chair', [[t.tx - 1, t.ty]], { seat: true }); tryPut('chair', [[t.tx + 2, t.ty]], { seat: true }); }
+          tryPut('cupboard', along(0), { v: 2, pantry: true }); tryPut('shelf', along(0, 2));
+          if (b.type === 'keep') {
+            // the great hall: a lord's high table, long tables with benches, arms on the walls
+            tryPut('desk', [[Math.floor(w / 2) - 1, 1]], { v: 2, lord: true });
+            for (let y = 4; y < d - 4; y += 3) for (const x of [2, w - 5]) { if (put('pew', x, y, { pew: true })) tryPut('table', [[x, y + 1]], { table: true, v: 1 }); }
+            tryPut('rack', along(0, 2)); tryPut('rack', along(0, 2)); tryPut('barrel', anywhere()); tryPut('barrel', anywhere());
+          }
+        } else {
+          beds(); tryPut('wardrobe', along(0), { v: 2 }); tryPut('chest', along(0), { v: 2, valuables: true, container: { slots: 18 } });
+          tryPut('rug', anywhere(2, 1), { flat: true }); tryPut('desk', anywhere(2, 1));
+        }
+        storage();
+        break;
       default: storage();
     }
     return { b, floor, w, d, items, grid, floors: b.floors, dc };
@@ -154,7 +241,7 @@
     if (cache.has(key)) return cache.get(key);
     const L = layoutFor(b, floor, sim);
     const wallKind = b.spec.wall === 'stone' || b.spec.wall === 'log' || b.spec.wall === 'plank' ? b.spec.wall : 'timber';
-    const floorKind = ['smithy', 'chapel', 'guard', 'mill'].includes(b.type) ? 'stone' : b.type === 'barn' || (b.type === 'house' && b.wealth < 0.3) ? 'dirt' : 'wood';
+    const floorKind = ['smithy', 'chapel', 'guard', 'mill', 'armourer', 'warehouse', 'townhall', 'keep', 'hospital'].includes(b.type) ? 'stone' : b.type === 'barn' || (b.type === 'house' && b.wealth < 0.3) ? 'dirt' : 'wood';
     L.room = O.Furn.room({ w: L.w, d: L.d, wall: wallKind, floor: floorKind, wealth: b.wealth, seed: b.id * 3 + floor, windows: Math.max(1, Math.floor(b.w / 2) + 1), doorTile: floor === 0 ? L.dc : -5 });
     cache.set(key, L);
     return L;

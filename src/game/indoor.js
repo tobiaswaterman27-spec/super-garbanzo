@@ -18,7 +18,7 @@
     anchor(it) { return [this.R.SW + (it.tx + it.fw / 2) * T, this.R.WH + (it.ty + it.fh) * T - 1]; }
     enterAt(fromStairs) {
       const p = this.game.player;
-      if (fromStairs) { const st = this.L.items.find((i) => i.kind === 'stairs'); const [x, y] = this.anchor(st); p.x = x + (st.tx === 0 ? 14 : -14); p.y = y - 4; p.dir = 0; }
+      if (fromStairs || this.L.dc < 0) { const st = this.L.items.find((i) => i.kind === 'stairs'); const [x, y] = this.anchor(st); p.x = x + (st.tx === 0 ? 14 : -14); p.y = y - 4; p.dir = 0; }
       else { [p.x, p.y] = this.tileXY(this.L.dc, this.L.d - 1); p.y += 2; p.dir = 3; }
     }
     blocked(x, y) {

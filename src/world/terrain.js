@@ -79,7 +79,7 @@
           col = R.sand[s]; break;
         }
         case TER.BRIDGE: {
-          const lx = x % T, ly = y - 30 * T; let s = lx % 4 === 0 ? 0 : lx % 4 === 1 ? 3 : 2;
+          const tx = Math.floor(x / T), ty = Math.floor(y / T), top = tAt(tx, ty - 1) === TER.BRIDGE ? ty - 1 : ty; const lx = x % T, ly = y - top * T; let s = lx % 4 === 0 ? 0 : lx % 4 === 1 ? 3 : 2;
           if (ly < 3 || ly > 28) s = ly === 0 || ly === 31 ? 0 : ly < 3 ? 3 : 1; // rails
           if (O.noise2(x * 0.3, y * 2, 5) > 0.8 && s === 2) s = 1;
           col = R.plank[s]; break;

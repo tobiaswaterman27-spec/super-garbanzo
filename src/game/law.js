@@ -64,8 +64,12 @@
     function pickLock(b) {
       busy = 2.2; game.player.anim = 'crouch';
       busyDone = () => {
-        const diff = 0.25 + b.wealth * 0.45 + (b.type !== 'house' ? 0.15 : 0);
+        // better locks on richer and guarded premises (b.security is set by the generator; Ashford falls back to wealth)
+        const diff = b.security != null ? 0.2 + b.security * 0.6 : 0.25 + b.wealth * 0.45 + (b.type !== 'house' ? 0.15 : 0);
         const seen = sim.seers(game.player.x, game.player.y).filter(() => sim.rng.chance(0.5));
+        // a watchman awake inside hears the pick
+        const watch = sim.people.find((q) => q.job?.role === 'night watchman' && q.job.biz === b.id && q.agent.inside === b.id && q.activity?.act === 'work');
+        if (watch && sim.rng.chance(0.7) && !seen.includes(watch)) seen.push(watch);
         if (seen.length) { const cr = sim.recordCrime({ kind: 'burglary', perp: 'player', placeName: b.type === 'house' ? `the ${sim.households[b.household - 1]?.surname || ''} house` : b.name, tile: [b.doorX, b.doorY], seen, severity: 2 }); PS.crimes.push(cr.id); O.Panels.toast(`${seen[0].first} sees you working at the lock!`, 'bad'); }
         if (sim.rng.chance(O.clamp(0.55 + PS.skills.lockpick * 0.4 - diff, 0.08, 0.92))) {
           PS.skills.lockpick = Math.min(1, PS.skills.lockpick + 0.04);

@@ -95,7 +95,7 @@
       if (b.owner?.kind === 'player' && !hh) { const st = (PS.homes = PS.homes || {}); const key = sim.world.placeId + ':' + b.id; (st[key] = st[key] || []).forEach((k) => out.push({ k, n: 1, src: 'homestash', key })); return { items: out, owner: 'you' }; }
       if (it.rentChest && PS.room && PS.room.b === b.id) { (PS.stash || (PS.stash = [])).forEach((k) => out.push({ k, n: 1, src: 'stash' })); return { items: out, owner: 'you' }; }
       if (it.stockOf && bz) {
-        const goods = it.stockOf === 'farm' ? ['wheat', 'cabbage'] : it.stockOf === 'store' ? ['cabbage', 'firewood', 'flour'] : [it.stockOf];
+        const goods = it.stockOf === 'farm' ? ['wheat', 'cabbage'] : it.stockOf === 'store' ? ['cabbage', 'firewood', 'flour'] : it.stockOf === 'warehouse' ? ['cloth', 'wheat', 'iron'] : [it.stockOf];
         for (const g of goods) { const n = Math.min(4, Math.floor(bz.stock[g] || 0)); if (n > 0) out.push({ k: g, n, src: 'biz', good: g }); }
         return { items: out, owner: bz.name };
       }

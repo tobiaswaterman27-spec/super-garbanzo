@@ -605,6 +605,48 @@
         B.part(3); B.capsule(14, 9, 28, 3, 0.6, 0.6, P.mat(P.wood.pine, 'wood'));
         ox = 20; oy = 16; break;
       }
+      case 'wallH': { // curtain wall running east-west: face below, walkway and merlons on top
+        const sm = v === 1 ? M.stoneNorth() : M.stoneWarm();
+        B = new MB(16, 44); B.part(1);
+        B.rect(0, 14, 16, 30, sm, 2);
+        for (let y = 14; y < 44; y++) for (let x = 0; x < 16; x++) { const r = (y - 14) % 6, off = Math.floor((y - 14) / 6) % 2 ? 4 : 0; B.shadeAt(x, y, r === 5 || (x + off) % 8 === 0 ? 0 : r === 0 ? 3 : y > 38 ? 1 : 2); }
+        B.part(2); B.rect(0, 4, 16, 10, sm, 3); for (let x = 0; x < 16; x++) { B.shadeAt(x, 4, 4); B.shadeAt(x, 13, 1); if ((x >> 2) % 2 === 0) { B.plot(x, 2, sm, 4); B.plot(x, 3, sm, 3); } }
+        for (let x = 0; x < 16; x++) if ((x >> 2) % 2 === 0) { B.plot(x, 12, sm, 3); B.plot(x, 11, sm, 4); }
+        if (seed % 5 === 0) { B.part(3); B.rect(6, 24, 3, 6, P.mat('#1c1418', 'cloth'), 0); } // arrow slit
+        ox = 8; oy = 43; break;
+      }
+      case 'wallV': { // wall running north-south: seen from above as its walkway and merlons
+        const sm = v === 1 ? M.stoneNorth() : M.stoneWarm();
+        B = new MB(16, 30); B.part(1);
+        B.rect(2, 0, 12, 30, sm, 3); for (let y = 0; y < 30; y++) { B.shadeAt(2, y, 4); B.shadeAt(13, y, 1); if ((y >> 2) % 2 === 0) { B.plot(1, y, sm, 4); B.plot(14, y, sm, 1); } }
+        for (let y = 0; y < 30; y += 6) for (let x = 3; x < 13; x++) B.shadeAt(x, y, 2);
+        ox = 8; oy = 29; break;
+      }
+      case 'tower': { // round tower with crenellated top
+        const sm = v === 1 ? M.stoneNorth() : M.stoneWarm();
+        B = new MB(36, 64); B.part(1);
+        B.shape(2, 14, 34, 63, (px, py) => Math.abs(px - 18) <= 15 && py > 14, (px) => { const nx = (px - 18) / 16; return [nx, 0, Math.sqrt(Math.max(0.05, 1 - nx * nx))]; }, sm);
+        for (let y = 15; y < 64; y++) for (let x = 3; x < 34; x++) if (B.matAt(x, y) === sm) { const r = (y - 15) % 6, off = Math.floor((y - 15) / 6) % 2 ? 3 : 0; if (r === 5 || (x + off) % 7 === 0) B.tweak(x, y, -1); }
+        B.part(2); B.blob(18, 13, 16, 6, sm, { power: 2 }); B.blob(18, 12, 12, 4, P.mat('#5a5048', 'cloth'), { power: 2 });
+        for (let a = 0; a < 12; a++) { const x = 18 + Math.cos((a / 12) * Math.PI * 2) * 15, y = 12 + Math.sin((a / 12) * Math.PI * 2) * 5.5; if (a % 2 === 0) B.rect(Math.round(x) - 1, Math.round(y) - 4, 3, 4, sm, y > 12 ? 2 : 4); }
+        B.part(3); for (const yy of [26, 42]) B.rect(17, yy, 2, 6, P.mat('#1c1418', 'cloth'), 0);
+        if (v === 2) { B.part(4); B.capsule(18, 6, 18, -8, 0.6, 0.6, M.beam()); B.poly([[19, -8], [29, -5], [19, -2]], [0, 0, 1], P.mat(C.madder)); }
+        ox = 18; oy = 63; break;
+      }
+      case 'gatearch': { // gateway arch over the road, portcullis raised; tall enough for a rider
+        const sm = v === 1 ? M.stoneNorth() : M.stoneWarm();
+        B = new MB(48, 76); B.part(1);
+        B.rect(0, 12, 48, 64, sm, 2);
+        for (let y = 12; y < 76; y++) for (let x = 0; x < 48; x++) { const r = (y - 12) % 6, off = Math.floor((y - 12) / 6) % 2 ? 4 : 0; B.shadeAt(x, y, r === 5 || (x + off) % 8 === 0 ? 0 : r === 0 ? 3 : 2); }
+        // the arch opening (cleared) — the road runs through it
+        for (let y = 18; y < 76; y++) for (let x = 0; x < 48; x++) { const dx = Math.abs(x - 23.5); if (dx < 15 && (y > 32 || Math.hypot(dx, (y - 32) * 1.2) < 15)) B.clear(x, y); }
+        // voussoirs: darker stones ringing the arch
+        for (let y = 12; y < 40; y++) for (let x = 0; x < 48; x++) { const dx = Math.abs(x - 23.5), r = Math.hypot(dx, (y - 32) * 1.2); if (r >= 15 && r < 18 && B.matAt(x, y) >= 0 && y < 33) B.shadeAt(x, y, (Math.round(Math.atan2(y - 32, x - 23.5) * 4) & 1) ? 1 : 2); }
+        for (let x = 9; x < 39; x += 3) for (let y = 18; y < 23; y++) if (B.matAt(x, y) < 0) B.plot(x, y, P.mat(P.metal.darkIron, 'metal'), 1);
+        B.part(2); B.rect(0, 6, 48, 6, sm, 3); for (let x = 0; x < 48; x++) { B.shadeAt(x, 6, 4); if ((x >> 2) % 2 === 0) { B.plot(x, 4, sm, 4); B.plot(x, 5, sm, 3); } }
+        B.plot(23, 9, P.mat(P.metal.gold, 'metal'), 4); B.plot(24, 9, P.mat(P.metal.gold, 'metal'), 3); B.plot(23, 10, P.mat(C.madder), 2); B.plot(24, 10, P.mat(C.madder), 2);
+        ox = 24; oy = 75; break;
+      }
       case 'noticeboard': {
         B = new MB(24, 30); B.part(1); B.capsule(3, 29, 3, 6, 1, 1, wood); B.capsule(21, 29, 21, 6, 1, 1, wood);
         B.part(2); B.rect(1, 4, 22, 16, P.mat('#7a5a3a', 'wood'), 2); for (let x = 1; x < 23; x++) { B.shadeAt(x, 4, 3); B.shadeAt(x, 19, 1); }

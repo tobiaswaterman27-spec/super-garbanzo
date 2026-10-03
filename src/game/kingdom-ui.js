@@ -122,7 +122,9 @@
       if (slot === lastCry) return;
       if (Math.hypot(cr.agent.x - game.player.x, cr.agent.y - game.player.y) > 170) return;
       lastCry = slot; cr.agent.talking = 60;
-      const items = [...K.news.slice(-2).map((n) => n.text), ...(PS.bountyAmount && PS.wantedLevel() >= 2 ? [`A reward of ${PS.bountyAmount}d is offered for the outlaw: ${PS.soughtFor()}.`] : [])];
+      const Ch = O.Chronicle, crierFacts = Ch.facts.filter((f) => f.imp >= 2 && f.day >= sim.day - 4 && !f.secret).sort((a, b) => b.imp - a.imp || b.day - a.day).slice(0, 2);
+      const told = crierFacts.map((f) => { const v = Ch.tell(f, 'crier', sim, sim.rng); Ch.playerHears(f, v, 'crier', cr.name); return v; });
+      const items = [...(told.length ? told : K.news.slice(-2).map((n) => n.text)), ...(PS.bountyAmount && PS.wantedLevel() >= 2 ? [`A reward of ${PS.bountyAmount}d is offered for the outlaw: ${PS.soughtFor()}.`] : [])];
       O.Panels.toast(`${cr.first} the crier: “Hear ye, hear ye! ${items.length ? items.join(' ') : 'All is well in Ashford.'}”`);
     });
 

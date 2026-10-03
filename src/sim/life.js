@@ -131,7 +131,7 @@
       const dowry = Math.min(20, Math.max(0, from.money * 0.3)); from.money -= dowry; to.money += dowry;
       this.events = this.events || []; this.events.push({ kind: 'wedding', day: this.day + 1, a: a.id, b: b.id });
       this.remember(a, `Married ${b.first}.`, 'life', 3, b.id); this.remember(b, `Married ${a.first}.`, 'life', 3, a.id);
-      this.log(`${a.first} and ${b.first} were married at the Chapel of St. Aldric.`, 'life');
+      this.log(`${a.first} and ${b.first} were married at the ${this.building(this.chapelId)?.name || 'chapel'}.`, 'life');
       if (!from.members.length) this.vacate(from);
       void ha; void hb;
     };
@@ -154,7 +154,7 @@
     P.onDeath = function (p, cause) {
       // family and friends grieve, the job falls vacant, property passes on, a grave is dug
       const hh = this.household(p);
-      for (const id of [...(hh?.members || []), ...(p.children || [])]) { const q = this.byId.get(id); if (q) { q.mood -= 0.3; this.remember(q, `${p.first} ${cause.replace('died', 'has died')}. We buried them at St. Aldric's.`, 'grief', 3, p.id); } }
+      for (const id of [...(hh?.members || []), ...(p.children || [])]) { const q = this.byId.get(id); if (q) { q.mood -= 0.3; this.remember(q, `${p.first} ${cause.replace('died', 'has died')}. We buried them at the ${this.building(this.chapelId)?.name || 'chapel'}.`, 'grief', 3, p.id); } }
       if (p.spouse) { const sp = this.byId.get(p.spouse); if (sp) { sp.spouse = null; sp.widowed = p.id; } }
       for (const [id, r] of p.rel) { const q = this.byId.get(id); if (q && r.affinity > 0.3) this.remember(q, `My friend ${p.name} has died.`, 'grief', 1.5, p.id); }
       if (p.job?.biz) {

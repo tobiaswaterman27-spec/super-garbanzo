@@ -14,6 +14,7 @@ Each step was published as an artifact and screenshot-checked in headless Chromi
 | 4 | 9–10 | Interiors at 2× footprint with furniture by type, residents at beds/workstations/seats, live stock visuals, fire/window light, stairs; 10-slot satchel; trading; room rental; sleeping; container search tied to real pantries/purses/stock; F quick loot |
 | 5 | 11–12 | Weather chain (rain, storm, fog, snow, heat) affecting behaviour and work; puddles, snow, cloud shadows, particles, lightning; seasons, crops, harvest reserve; 11-stage construction; storm damage and repair; labour market, relief, exports, tolls, tax policy |
 | 6 | 13–16 | Illness, injury, contagion, sanitation, collapse → helper → physician, treatment; ageing, courtship, weddings, births, deaths, funerals, graves, inheritance, vacancies, migration |
+| 17 | history, news, legacy | The Chronicle (C): a world timeline of facts sorted into rulers, politics, roads, markets, harvests, disasters, trades, gangs, crimes, deaths and people, across every place; facts stored apart from beliefs — each NPC keeps what they've heard and from whom; the same event told differently by eyewitnesses, the crier (the council's line), the watch, wandering bards (ballads that inflate and mythologise, sung in the tavern on Freyday and Saturnday nights), the Kingsbridge broadsheet (sensational), travelling merchants (muddled places) and rumour over a jug (names swapped, numbers drift); Hearsay tab sets each version beside the record; Your story records the player's deeds, including those only you know; notable dead get memorial stones in the churchyard with epitaphs and portraits on their family's wall; children speak of dead parents; trades remember their founders |
 | 16 | cities & castles | Kingsbridge, a walled capital on a river: curtain walls with towers and gatehouses, two bridges, a grand market of stalls, Guildhall, cathedral, and districts (noble quarter with mansions, townhouses, jeweller, apothecary and cathedral school; workshops with armourer, carpenter, butcher; riverside warehouse; tenements in the poor quarter; hospital); Thornbury Castle with keep, bailey, barracks, chapel, armoury, great hall and a village outside the gate; interiors for every new building type; tenements house several families; building security sets lock difficulty and jewellers keep a night watchman who hears the pick; city economy with river-barge imports, quay exports, dockers hired daily, guild dues, several shops per trade sharing custom |
 | 15 | atmosphere | Procedural WebAudio (wind, rain, crowd murmur, fire, chapel bell striking the hour, rooster, smith's hammer, tavern lute, birds and crickets, hooves, footsteps, blows; outdoor sound muffled indoors); new animations (drink, read, celebrate, mourn, point, dig, cook) used by NPCs; harvest festival with bunting; wedding feasts; school lessons and literacy |
 | 14 | property | Ownership of every building, property values (size, condition, location, local wealth, demand), landlords and weekly rent, debt and eviction; businesses close when broke and reopen (sometimes as a different trade, interior and sign changing); houses and clothes follow family fortunes; For Sale signs; buy houses and shops, let to tenants, open your own business with a hired manager; Holdings (P); buy the lordship of Ashford to set tax, watchmen, works, take from the treasury and pardon |
@@ -27,11 +28,7 @@ Each step was published as an artifact and screenshot-checked in headless Chromi
 
 ## Next
 
-- 20 Gangs: recruits found in the tavern, loyalty, wages, hideout that grows, fence, gang jobs, rivals
-- 21 Reputation: per-town and per-faction effects on prices, guards, recruits
-- 22 Politics: castle meetings, councils voting on taxes/guards/roads, treasury decisions
-- 23–25 Trade and regions: other settlements on the map, caravans, roads, bridges, robberies with economic knock-on effects; town growth/decline
-- 26 History: world timeline UI, legacies
-- Combat (stylised, non-graphic injury states), horses with ownership history
-- Player property: buying houses, land, estates
-- NPC speech via OpenAI (see `SPEECH.md`)
+- Reputation effects per town and faction on prices, guard attention and recruits (partly in)
+- Deeper education and skills for the player (apprenticeships, reading, trades)
+- Sieges and wars between places in the kingdom; rulers changing hands
+- NPC speech via OpenAI (see `SPEECH.md`): the dialogue brief now includes each NPC's beliefs

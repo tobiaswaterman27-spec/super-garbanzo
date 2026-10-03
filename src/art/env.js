@@ -661,6 +661,18 @@
         B.plot(5, 5, stone, 0); B.plot(4, 6, stone, 0); B.plot(5, 6, stone, 0); B.plot(6, 6, stone, 0); B.plot(5, 7, stone, 0);
         ox = 5; oy = 13; break;
       }
+      case 'memorial': { // a raised cross on a stepped plinth with a carved plaque, for the notable dead
+        const sw = M.stoneWarm();
+        B = new MB(18, 34); B.part(1);
+        B.rect(0, 28, 18, 6, sw, 2); for (let x = 0; x < 18; x++) { B.shadeAt(x, 28, 4); B.shadeAt(x, 33, 1); }
+        B.rect(2, 23, 14, 5, sw, 2); for (let x = 2; x < 16; x++) B.shadeAt(x, 23, 4); B.shadeAt(2, 25, 3); B.shadeAt(15, 25, 1);
+        B.part(2); B.rect(7, 4, 4, 19, sw, 2); for (let y = 4; y < 23; y++) { B.shadeAt(7, y, 3); B.shadeAt(10, y, 1); }
+        B.rect(3, 8, 12, 4, sw, 2); for (let x = 3; x < 15; x++) { B.shadeAt(x, 8, 4); B.shadeAt(x, 11, 1); }
+        B.rect(7, 3, 4, 1, sw, 4);
+        B.part(3); const brass = P.mat(P.metal.brass, 'metal'); B.rect(5, 24, 8, 3, brass, 3); for (let x = 6; x < 12; x += 2) B.plot(x, 25, brass, 1);
+        if (v === 1) { const fl = P.mat(C.madder); B.plot(3, 27, fl, 3); B.plot(4, 26, P.mat('#5a8a3a', 'cloth'), 2); B.plot(14, 27, P.mat('#e8d860', 'cloth'), 3); }
+        ox = 9; oy = 33; break;
+      }
       default: B = new MB(4, 4); ox = 2; oy = 3;
     }
     const out = { canvas: B.toCanvas(), ox, oy, W: B.w, H: B.h };

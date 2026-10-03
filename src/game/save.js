@@ -25,6 +25,7 @@
     };
     return {
       v: 1, seed: w.seed, savedAt: Date.now(),
+      chronicle: { facts: O.Chronicle.facts, heard: O.Chronicle.heard, nextId: O.Chronicle.nextId },
       sim: {
         day: sim.day, minute: sim.minute, nextId: sim.nextId, treasury: sim.treasury, stats: sim.stats, history: sim.history.slice(-250), crimes: sim.crimes.slice(-150).map((c) => Object.assign({}, c, { seen: undefined, perp: c.perp === 'player' || c.perp == null ? c.perp : { id: c.perp.id } })),
         settlement: sim.settlement, events: sim.events || [], graves: sim.graves, dead: sim.dead.map((d) => ({ id: d.id, name: d.name, first: d.first, sur: d.sur, age: d.age, household: d.household, died: d.died })),
@@ -32,8 +33,8 @@
         weather: { kind: sim.weather.kind, wet: sim.weather.wet, snowCover: sim.weather.snowCover, lastHour: sim.weather.lastHour },
         people: sim.people.map(strip), traderId: sim.trader ? sim.trader.id : null,
         households: sim.households,
-        biz: [...sim.biz.values()].map((b) => ({ id: b.id, type: b.type, stock: b.stock, cash: b.cash, owner: b.owner, workers: b.workers, salesToday: b.salesToday, history: b.history, jobs: b.def.jobs, name: b.name, cost: b.def.site ? true : undefined, ownerPlayer: b.ownerPlayer, badDays: b.badDays })),
-        lordship: sim.lordship,
+        biz: [...sim.biz.values()].map((b) => ({ id: b.id, type: b.type, stock: b.stock, cash: b.cash, owner: b.owner, workers: b.workers, salesToday: b.salesToday, history: b.history, jobs: b.def.jobs, name: b.name, cost: b.def.site ? true : undefined, ownerPlayer: b.ownerPlayer, badDays: b.badDays, founded: b.founded })),
+        lordship: sim.lordship, memorials: sim.memorials || [],
         sites: sim.build.sites.map((s) => ({ id: s.id, stage: s.stage, prog: s.prog, work: s.work, started: s.started })), nextCouncil: sim.build.nextCouncil, plotsUsed: [...sim.build.used],
         gangs: sim.gangs,
         kingdom: { places: sim.kingdom.places, roads: sim.kingdom.roads, caravans: sim.kingdom.caravans.map((c) => Object.assign({}, c, { held: false })), news: sim.kingdom.news, treasury: sim.kingdom.treasury, taxRate: sim.kingdom.taxRate, councils: sim.kingdom.councils.slice(-6) },
@@ -42,7 +43,7 @@
       world: {
         buildings: w.buildings.map((b) => { const o = {}; for (const [k, v] of Object.entries(b)) if (k !== 'sprite' && k !== 'dirty') o[k] = k === 'spec' ? Object.assign({}, v, { _fin: undefined }) : v; return o; }),
         trees: w.trees.map((t) => [t.kind, t.x, t.y, t.seed]),
-        props: w.props.map((p) => ({ kind: p.kind, x: p.x, y: p.y, seed: p.seed, v: p.v, solid: p.solid, flat: p.flat, field: p.field, grave: p.grave })),
+        props: w.props.map((p) => ({ kind: p.kind, x: p.x, y: p.y, seed: p.seed, v: p.v, solid: p.solid, flat: p.flat, field: p.field, grave: p.grave, epitaph: p.epitaph, broadsheet: p.broadsheet })),
         solid: encodeGrid(w.solid),
       },
       player: {
@@ -77,6 +78,8 @@
     w.dirtyStatics = true;
     // core sim
     Object.assign(sim, { day: S.day, minute: S.minute, _lastMin: Math.floor(S.minute), nextId: S.nextId, treasury: S.treasury, stats: S.stats, history: S.history, crimes: S.crimes, settlement: S.settlement, events: S.events, graves: S.graves, _season: S.season, reeveId: S.reeveId, _guardRaised: S.guardRaised });
+    if (d.chronicle) Object.assign(O.Chronicle, { facts: d.chronicle.facts || [], heard: d.chronicle.heard || [], nextId: d.chronicle.nextId || 1 });
+    sim.memorials = S.memorials || [];
     sim.rng = O.RNG(S.rng); sim.weather.rng = O.RNG(S.wrng); sim.kingdom.rng = O.RNG(S.krng);
     Object.assign(sim.weather, S.weather);
     sim.households = S.households;
@@ -108,7 +111,7 @@
       if (!bz && O.Data.BUSINESS[sb.type]) { const b = w.buildings.find((x) => x.id === sb.id); bz = { id: sb.id, b, type: sb.type, def: O.Data.BUSINESS[sb.type], name: sb.name, sold: {}, bought: {}, orders: [] }; sim.biz.set(sb.id, bz); }
       if (!bz) continue;
       bz.ownerPlayer = sb.ownerPlayer; bz.badDays = sb.badDays; bz.name = sb.name; bz.type = sb.type; if (O.Data.BUSINESS[sb.type] && bz.def !== O.Data.BUSINESS[sb.type] && !bz.def.site) bz.def = O.Data.BUSINESS[sb.type];
-      Object.assign(bz, { stock: sb.stock, cash: sb.cash, owner: sb.owner, workers: sb.workers, salesToday: sb.salesToday, history: sb.history, orders: [], open: false });
+      Object.assign(bz, { stock: sb.stock, cash: sb.cash, owner: sb.owner, workers: sb.workers, salesToday: sb.salesToday, history: sb.history, orders: [], open: false, founded: sb.founded });
       bz.def = Object.assign({}, bz.def, { jobs: sb.jobs });
       bz.b = w.buildings.find((x) => x.id === sb.id) || bz.b;
     }

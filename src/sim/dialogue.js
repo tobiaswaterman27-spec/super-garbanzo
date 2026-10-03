@@ -27,6 +27,8 @@
       opinionOfPlayer: opinion, sawPlayerCrime: p.memories.some((m) => m.kind === 'crime' && m.about === 0 && m.strength > 0.3) && (() => { const c = sim.crimes.filter((x) => x.perp === 'player' && x.witnesses.some((w) => w.id === p.id)).pop(); return c ? O.Justice.matchScore(c.witnesses.find((w) => w.id === p.id).desc, O.Justice.lookOf(O.game.player.a)) >= 0.5 : false; })(), playerReputation: playerState?.reputation || { local: 0 },
       prices: bake ? { bread: sim.price(bake, 'bread') } : {},
       news: sim.history.filter((h) => h.kind !== 'day').slice(-4).map((h) => h.text),
+      heard: (p.heard || []).map((h) => ({ f: h.f, v: h.v, src: h.src })),
+      ancestors: [...(p.parents || []), p.widowed].filter(Boolean).map((id) => sim.byId.get(id)).filter((q) => q && q.alive === false).map((q) => ({ name: q.name, first: q.first, rel: (p.parents || []).includes(q.id) ? (q.sex === 'm' ? 'father' : 'mother') : (q.sex === 'm' ? 'husband' : 'wife'), mem: (sim.memorials || []).find((m) => m.name === q.name) })),
       time: { day: sim.day, minute: Math.floor(sim.minute) },
     };
   }
@@ -84,6 +86,11 @@
           return `Bread's ${b}d a loaf at Hobb's. Same as ever, near enough.`;
         }
         case 'news': {
+          if (ctx.heard && ctx.heard.length && (seed % 4 !== 0)) {
+            const h = pick(ctx.heard, seed); ctx._picked = h;
+            const lead = { saw: 'I saw it myself: ', crier: 'The crier was calling it: ', watch: 'The watch put it about that ', bard: 'There was a bard at the tavern singing it: ', broadsheet: 'It was in the broadsheet: ', merchant: 'A merchant passing through told it: ', rumour: pick(['Heard tell that ', "They're saying ", 'Word is, '], seed + 1) }[h.src] || 'Word is, ';
+            return lead + (h.src === 'bard' || h.src === 'broadsheet' ? h.v : O.Chronicle.lower(h.v));
+          }
           const rumours = ctx.memories.filter((m) => !/^Sent to fetch|Shared a jug/.test(m)).concat(ctx.news);
           if (!rumours.length) return `Nothing happens in ${ctx.place}. That's why we like it.`;
           const r = pick(rumours, seed);
@@ -91,6 +98,8 @@
         }
         case 'family': {
           const f = ctx.family;
+          const anc = ctx.ancestors && ctx.ancestors.length && seed % 2 === 0 ? ctx.ancestors[seed % ctx.ancestors.length] : null;
+          if (anc) return anc.mem ? `My ${anc.rel}, ${anc.first}, was ${anc.mem.title || 'well known here'}. There's a stone for ${anc.rel === 'mother' || anc.rel === 'wife' ? 'her' : 'him'} by the chapel. ${anc.mem.deeds && anc.mem.deeds.length ? 'People still talk of it.' : 'We were proud.'}` : pick([`I think of my ${anc.rel} often. ${anc.first} is buried in the chapel yard.`, `My ${anc.rel}, God rest ${anc.rel === 'mother' || anc.rel === 'wife' ? 'her' : 'him'}, used to say this place would be the death of us. ${anc.first} was right in the end.`], seed);
           if (!f.spouse && !f.children.length) return pick(['Just me. Quieter that way.', 'No family to speak of.'], seed);
           return `${f.spouse ? `My ${ctx.sex === 'm' ? 'wife' : 'husband'}, ${f.spouse}` : 'Just me'}${f.children.length ? `, and the little ones: ${f.children.join(', ')}` : ''}.`;
         }

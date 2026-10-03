@@ -66,6 +66,7 @@ input[type=range] { width: 100%; accent-color: var(--ember); }
 .savebar button { background: var(--ink); border: 2px solid var(--line); padding: 2px 8px; cursor: pointer; font-family: var(--pix); font-size: 9px; letter-spacing: 1px; }
 .savebar button:hover { border-color: var(--ember-2); color: var(--ember-2); }
 .map-btn { position: absolute; right: 344px; bottom: 12px; }
+.chron-btn { position: absolute; right: 446px; bottom: 12px; }
 .hud-b { max-width: calc(100% - 480px) !important; }
 .mapwrap { position: relative; width: 100%; max-width: 640px; margin: 0 auto; }
 .mapwrap canvas { width: 100%; height: auto; border: 2px solid #000; image-rendering: pixelated; }
@@ -151,14 +152,14 @@ main > .wrap { overflow: auto; }
 .hud-tl .place { font-family: var(--display); font-size: 22px; color: var(--ember-2); line-height: 1.1; }
 .hud-tl .clock { font-family: var(--pix); font-size: 12px; letter-spacing: 1px; font-variant-numeric: tabular-nums; }
 .hud-tr { top: 12px; right: 12px; display: grid; gap: 6px; justify-items: end; }
-.hud-b { bottom: 12px; left: 12px; font-family: var(--pix); font-size: 10px; letter-spacing: 1px; color: var(--parch-dim); white-space: nowrap; max-width: calc(100% - 400px); overflow: hidden; text-overflow: ellipsis; }
+.hud-b { bottom: 12px; left: 12px; font-family: var(--pix); font-size: 10px; letter-spacing: 1px; color: var(--parch-dim); white-space: nowrap; max-width: calc(100% - 600px); overflow: hidden; text-overflow: ellipsis; }
 .prompt { font-family: var(--pix); font-size: 11px; color: var(--parch); }
 .prompt kbd { display: inline-block; background: var(--ember-2); color: var(--ink); border: 2px solid #000; padding: 0 5px; margin-right: 6px; font-family: var(--pix); }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
 </style>
 
 <header class="top">
-  <div class="brand">Outlaw<small>BUILD 0.16 · CITIES &amp; CASTLES</small></div>
+  <div class="brand">Outlaw<small>BUILD 0.17 · CHRONICLES</small></div>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" role="tab" aria-selected="true" data-tab="play">Play</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="forge">Character</button>
@@ -249,6 +250,7 @@ main > .wrap { overflow: auto; }
 <script src="../src/sim/gangs.js"></script>
 <script src="../src/sim/kingdom.js"></script>
 <script src="../src/sim/property.js"></script>
+<script src="../src/sim/chronicle.js"></script>
 <script src="../src/sim/sim.js"></script>
 <script src="../src/sim/dialogue.js"></script>
 <script src="../src/art/furniture.js"></script>
@@ -268,6 +270,7 @@ main > .wrap { overflow: auto; }
 <script src="../src/game/kingdom-ui.js"></script>
 <script src="../src/game/travel.js"></script>
 <script src="../src/game/property-ui.js"></script>
+<script src="../src/game/chronicle-ui.js"></script>
 <script src="../src/game/audio.js"></script>
 <script src="../src/game/creator.js"></script>
 <script src="../src/game/forge-ui.js"></script>

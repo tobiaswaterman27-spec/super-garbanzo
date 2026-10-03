@@ -78,6 +78,9 @@
             if (spot.kind === 'cauldron') anim = 'cook';
             if (spot.kind === 'bar' && q.agent.talking) anim = 'talk';
           }
+        } else if (act === 'perform') { // a bard plays by the hearth
+          const c = L.items.find((i) => i.kind === 'fireplace') || L.items.find((i) => i.kind === 'bar'); const [ax, ay] = c ? this.anchor(c) : this.tileXY(Math.floor(L.w / 2), 2);
+          x = ax + (c && c.kind === 'bar' ? -40 : 0); y = ay + 22; dir = 0; anim = (Math.floor(this.t / 4) % 3) ? 'talk' : 'idle';
         } else if (act === 'mourn' || act === 'wedding') {
           const c = L.items.find((i) => i.kind === 'altar') || L.items[0]; const [ax, ay] = this.anchor(c); const k = inside.filter((z) => z.activity?.act === act).indexOf(q);
           x = ax + ((k % 6) - 2.5) * 12; y = ay + 26 + Math.floor(k / 6) * 14; dir = 3; anim = act === 'mourn' ? 'mourn' : (k % 3 === 0 ? 'celebrate' : 'idle');
@@ -181,6 +184,7 @@
         if (it.container) out.push({ type: 'container', it, d, x: cx, y: cy });
         if (it.bed) out.push({ type: 'bed', it, d: d + 1, x: cx, y: cy });
         if (it.kind === 'stairs') out.push({ type: 'stairs', it, d: d - 2, x: cx, y: cy });
+        if (it.portrait) out.push({ type: 'portrait', it, d: d + 2, x: cx, y: cy - 30 });
       }
       return out;
     }

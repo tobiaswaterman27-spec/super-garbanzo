@@ -127,6 +127,7 @@
       case 'noble': o.over = P.mat(rng.pick(richCols)); o.overLen = sex === 'f' ? 0 : 1; o.cloak = P.mat(rng.pick(richCols)); o.trim = P.mat(P.metal.gold, 'metal'); o.hat = rng.chance(0.5) ? 'feather' : null; o.hatMat = P.mat(rng.pick(richCols)); o.boots = true; break;
       case 'outlaw': o.over = P.mat(rng.pick([C.darkBrown, C.forest, C.black, C.greyWool])); o.overLen = 1; o.hat = 'hood'; o.hatMat = P.mat(rng.pick([C.forest, C.darkBrown, C.black, C.russet])); o.item = rng.pick(['dagger', 'sword', null]); o.boots = true; o.cloak = rng.chance(0.5) ? o.hatMat : null; o.backItem = rng.chance(0.4) ? 'bow' : null; break;
       case 'fisher': o.hat = 'cap'; o.hatMat = P.mat(C.woad); o.item = 'net'; break;
+      case 'bard': o.over = P.mat(rng.pick([C.crimson, C.purple, C.teal, C.plum])); o.overLen = 1; o.hat = 'feather'; o.hatMat = P.mat(rng.pick([C.woad, C.olive, C.rose])); o.item = 'lute'; o.boots = true; o.trim = P.mat(P.metal.brass, 'metal'); break;
       case 'courier': o.item = 'satchel'; o.hat = 'feather'; o.hatMat = P.mat(col()); break;
       case 'child': o.item = null; break;
       default: break;
@@ -1006,6 +1007,14 @@
       case 'book': if (p.anim === 'read') { const bx = p.side ? hx - 1 : p.cx, by = hy - 1; B.blob(bx, by, p.side ? 1.4 : 3.2, 2, P.mat(C.crimson), { power: 4 }); B.plot(bx, by - 1, P.mat(C.white), 3); if (!p.side) { B.plot(bx - 1, by - 1, P.mat(C.white), 3); B.plot(bx + 1, by - 1, P.mat(C.white), 3); } } else B.blob(hx + dirx, hy + 0.5, 1.6, 2, P.mat(C.crimson), { power: 4 }); break;
       case 'spade': { const a0 = along(-5), a1 = along(9); B.capsule(a0[0], a0[1], a1[0], a1[1], 0.6, 0.6, W); B.blob(a1[0], a1[1] + 1, 1.6, 2, I, { power: 3 }); break; }
       case 'ladle': { const a1 = along(6); B.capsule(hx, hy, a1[0], a1[1], 0.5, 0.5, W); B.blob(a1[0], a1[1], 1.2, 1, I, { power: 2 }); break; }
+      case 'lute': { // body at the hip, neck across the chest
+        const lm = P.mat('#b07a3a', 'wood'), nk = P.mat(P.wood.dark, 'wood');
+        const bx = hx + (p.side ? -dirx * 1 : -2), by = hy + 1;
+        const nx = p.side ? bx + dirx * 7 : bx + 6, ny = by - 6;
+        B.capsule(bx, by, nx, ny, 0.7, 0.6, nk); B.plot(nx, ny - 1, nk, 3);
+        B.blob(bx, by, p.side ? 2.2 : 3, 3, lm, { power: 2 }); B.plot(Math.round(bx), Math.round(by - 0.5), P.mat('#2a1a10', 'wood'), 0);
+        break;
+      }
       case 'satchel': break; // carried at hip, drawn with belt pouch
       case 'sack': B.blob(hx, hy + 2, 2.5, 3, P.mat(C.linen), { power: 2 }); break;
       case 'net': { const nm = P.mat('#9a8a6a', 'cloth'); for (let k = 0; k < 4; k++) for (let j = 0; j < 3; j++) B.plot(hx + dirx * (k - 1), hy + 1 + j * 1.5 + (k % 2) * 0.7, nm, 2); break; }

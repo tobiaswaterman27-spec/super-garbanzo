@@ -126,6 +126,17 @@
         B.part(3); B.capsule(8, 4, 13, 2, 0.7, 0.7, m); B.rect(12, 1, 3, 2, iron(), 3); B.capsule(18, 5, 22, 5, 0.6, 0.6, iron()); B.blob(25, 4, 1.8, 1.2, P.mat(C.linen), { power: 2 });
         out = finish(B, 15, 21); break;
       }
+      case 'portrait': { // a framed likeness hung on the back wall; the seed picks the sitter's colouring
+        const r2 = O.RNG(seed * 7 + 3);
+        const B = new MB(14, 18); const fr = P.mat(v ? '#b8902a' : P.wood.dark, v ? 'metal' : 'wood');
+        B.part(1); B.rect(0, 0, 14, 18, fr, 3); for (let x = 0; x < 14; x++) { B.shadeAt(x, 0, 4); B.shadeAt(x, 17, 1); } for (let y = 0; y < 18; y++) { B.shadeAt(0, y, 3); B.shadeAt(13, y, 1); }
+        B.part(2); B.rect(2, 2, 10, 14, P.mat(r2.pick(['#3a4a3a', '#4a3a2a', '#2e3a4a', '#4a2e2e']), 'cloth'), 1);
+        const skin = P.mat(r2.pick(['#e8b896', '#d29a72', '#a8704a', '#7a4a32']), 'skin'), hair = P.mat(r2.pick(['#2a1e16', '#5a3a1e', '#b88a4a', '#8a8a8a', '#9a4a22']), 'hair'), coat = P.mat(r2.pick([C.crimson, C.navy, C.forest, '#5a4a6a', C.black].filter(Boolean)), 'cloth');
+        B.part(3); B.blob(7, 15, 4.5, 3, coat, { power: 2 }); B.blob(7, 8, 2.6, 3.2, skin, { power: 2.5 }); B.blob(7, 5.5, 3, 1.8, hair, { power: 2 });
+        B.plot(6, 8, P.mat('#2a1e16', 'cloth'), 1); B.plot(8, 8, P.mat('#2a1e16', 'cloth'), 1);
+        // hangs on the wall: drawn well above its floor anchor
+        out = finish(B, 7, 44); out.flat = true; break;
+      }
       case 'rack': { // weapon/tool rack against the wall
         const B = new MB(26, 30); const m = dark();
         B.part(1); B.rect(1, 4, 24, 3, m, 3); B.rect(1, 22, 24, 3, m, 2);

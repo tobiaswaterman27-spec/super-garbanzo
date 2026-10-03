@@ -31,6 +31,7 @@
       if (O.saleCandidate) { const sc = O.saleCandidate(); if (sc) out.push(sc); }
       for (const q of sim.people) { const a = q.agent; if (a.hidden) continue; const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < 26) out.push({ type: 'npc', person: q, d, x: a.x, y: a.y }); }
       const T = sim.T;
+      for (const pr of sim.world.props) if (pr.kind === 'memorial' || (pr.kind === 'noticeboard' && pr.broadsheet)) { const d = Math.hypot(pr.x - p.x, pr.y - p.y); if (d < 22) out.push({ type: pr.kind === 'memorial' ? 'memorial' : 'broadsheet', prop: pr, d: d + 1, x: pr.x, y: pr.y - 30 }); }
       for (const pr of sim.world.props) if (pr.kind === 'gravestone') { const d = Math.hypot(pr.x - p.x, pr.y - p.y); if (d < 20) out.push({ type: 'grave', prop: pr, d: d + 2, x: pr.x, y: pr.y - 14 }); }
       for (const b of sim.world.buildings) {
         if (b.site) continue;
@@ -55,6 +56,9 @@
         case 'door': return doorLocked(c.b) ? `${c.b.name} — locked` : `Enter ${c.b.type === 'house' ? 'house' : c.b.name}`;
         case 'container': return `Search ${c.it.kind}`;
         case 'grave': return 'Read the gravestone';
+        case 'memorial': return 'Read the memorial';
+        case 'portrait': return `Look at the portrait`;
+        case 'broadsheet': return 'Buy a broadsheet · 1d';
         case 'caravan': return `Hail ${c.L.c.merchant}'s caravan`;
         case 'notices': return 'Read the notice board';
         case 'property': return c.b.owner?.kind === 'player' ? 'Your property' : 'For sale: look it over';
@@ -183,6 +187,9 @@
         case 'property': O.propertyPanel(cur.b); break;
         case 'stash': O.GangUI.stash(); break;
         case 'campbed': sleep(); break;
+        case 'memorial': O.ChronicleUI.memorial(cur.prop.epitaph); break;
+        case 'portrait': { const pr = cur.it.portrait; O.Panels.toast(`A likeness of ${pr.name}, painted in life. Died ${O.Chronicle.dateLabel(pr.died)}.`); break; }
+        case 'broadsheet': O.ChronicleUI.broadsheet(); break;
         case 'grave': { const g = cur.prop.grave; O.Panels.toast(g ? `“Here lies ${g.name}, ${g.age} years. ${g.cause.replace('died ', '').replace(/^./, (c) => c.toUpperCase())}.”` : 'The old stone is worn smooth; you can no longer read the name.'); break; }
         case 'bed': if (mayUseBed(cur.it)) sleep(); else O.Panels.toast("That's someone else's bed."); break;
         case 'stairs': game.enterBuilding(game.scene.b, game.scene.floor === 0 ? 1 : 0, true); break;

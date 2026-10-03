@@ -231,6 +231,18 @@
         break;
       default: storage();
     }
+    // portraits of the family's notable dead hang on the back wall, clear of the windows
+    if (b.portraits && b.portraits.length && floor === 0) {
+      const nW = Math.min(Math.max(1, Math.floor(b.w / 2) + 1), Math.max(1, Math.floor(w / 2)));
+      const wins = []; for (let i = 0; i < nW; i++) wins.push(((i + 0.5) * w) / nW);
+      const taken = new Set();
+      for (const pr of b.portraits.slice(-3)) {
+        let best = null;
+        for (let x = 0; x < w; x++) { if (taken.has(x) || wins.some((c) => Math.abs(x + 0.5 - c) < 0.9)) continue; if (best == null || Math.abs(x - w / 2) < Math.abs(best - w / 2)) best = x; }
+        if (best == null) break; taken.add(best); taken.add(best - 1); taken.add(best + 1);
+        items.push({ kind: 'portrait', tx: best, ty: 0, fw: 1, fh: 1, v: wealth > 0.5 ? 1 : 0, seed: pr.seed, id: items.length, portrait: pr, flat: true });
+      }
+    }
     return { b, floor, w, d, items, grid, floors: b.floors, dc };
   }
 

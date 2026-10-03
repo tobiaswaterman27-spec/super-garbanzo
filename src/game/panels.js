@@ -45,11 +45,8 @@
     root = document.createElement('div'); root.className = 'ledger panel-modal'; root.hidden = true; host.appendChild(root);
     toastEl = document.createElement('div'); toastEl.className = 'toasts'; toastEl.setAttribute('aria-live', 'polite'); host.appendChild(toastEl);
   }
-  function toast(text, kind = '') {
-    ensure();
-    const d = document.createElement('div'); d.className = 'toast ' + kind; d.textContent = text; toastEl.appendChild(d);
-    setTimeout(() => d.remove(), 4200);
-  }
+  // happenings are read out one at a time along the bottom of the screen
+  function toast(text, kind = '') { O.UI && O.UI.say(text, kind); }
   function close() { ensure(); root.hidden = true; root.innerHTML = ''; O.panelOpen = false; toastEl.classList.remove('low'); }
   function open(title, body, onBind) {
     ensure(); O.panelOpen = true; toastEl.classList.add('low'); // toasts drop below the panel so they don't hide its title

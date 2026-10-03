@@ -57,7 +57,7 @@
     if (k === 'sex') { spec.style = v === 'f' ? 'hoodedDress' : 'hooded'; if (v === 'f' && O.Char.HAIR_STYLES_M.includes(spec.hairStyle) && !O.Char.HAIR_STYLES_F.includes(spec.hairStyle)) spec.hairStyle = 'long'; buildControls(); }
     player = O.Creator.appearanceFromSpec(spec);
     try { localStorage.setItem('outlaw.spec', JSON.stringify(spec)); } catch (e) { /* ignore */ }
-    nameplate(); drawSheet();
+    nameplate();
   }
   function nameplate() {
     $('nameplate').innerHTML = '';
@@ -223,29 +223,19 @@
     ctx.drawImage(sh.canvas, 0, 0, c.width, c.height);
   }
 
-  // ---------- tabs & loop ----------
-  let tab = 'play';
-  document.querySelectorAll('.tab').forEach((b) => b.onclick = () => {
-    tab = b.dataset.tab;
-    document.querySelectorAll('.tab').forEach((x) => x.setAttribute('aria-selected', x === b));
-    ['play', 'forge', 'crowd', 'blood', 'sheet'].forEach((k) => ($('tab-' + k).hidden = k !== tab));
-    O.onTab && O.onTab(tab);
-  });
-  ['north', 'east', 'south', 'west'].forEach(() => {});
-  $('regionSeg').replaceWith(Object.assign(seg([['north', 'North'], ['east', 'East'], ['south', 'South'], ['west', 'West']], region, (v) => { region = v; makeCrowd(); }), { id: 'regionSeg' }));
-  $('reroll').onclick = () => { crowdSeed++; makeCrowd(); };
-  $('crowdWealth').oninput = () => makeCrowd();
-  $('newFamily').onclick = () => { famSeed++; makeFamily(); };
-
-  function resize() { sizePreview(); sizeCrowd(); sizeFam(); drawSheet(); }
+  // ---------- one-time character creation ----------
+  // Shown only when a new life begins; afterwards the player is who they made.
+  let open = false, done = null;
+  function showCreator(cb) { open = true; done = cb; $('tab-forge').hidden = false; resize(); }
+  $('beginLife').onclick = () => {
+    open = false; $('tab-forge').hidden = true;
+    try { localStorage.setItem('outlaw.created', '1'); } catch (e) { /* ignore */ }
+    const f = done; done = null; f && f(player);
+  };
+  function resize() { sizePreview(); }
   window.addEventListener('resize', resize);
-  buildControls(); buildAnimChips(); nameplate(); makeCrowd(); makeFamily(); resize();
-  function loop(t) {
-    if (tab === 'forge') drawPreview(t);
-    else if (tab === 'crowd') drawCrowd(t);
-    else if (tab === 'blood') drawFamily(t);
-    requestAnimationFrame(loop);
-  }
+  buildControls(); buildAnimChips(); nameplate(); resize();
+  function loop(t) { if (open) drawPreview(t); requestAnimationFrame(loop); }
   requestAnimationFrame(loop);
-  O.Forge = { get player() { return player; }, spec: () => spec };
+  O.Forge = { get player() { return player; }, spec: () => spec, showCreator, created: () => { try { return localStorage.getItem('outlaw.created') === '1'; } catch (e) { return true; } } };
 })();

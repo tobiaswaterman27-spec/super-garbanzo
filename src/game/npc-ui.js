@@ -14,7 +14,6 @@
     const root = game.el.parentElement;
     const card = document.createElement('aside'); card.className = 'hud talk'; card.hidden = true; card.setAttribute('aria-live', 'polite'); root.appendChild(card);
     const ledger = document.createElement('div'); ledger.className = 'ledger'; ledger.hidden = true; root.appendChild(ledger);
-    const lbtn = document.createElement('button'); lbtn.className = 'btn ledger-btn'; lbtn.textContent = 'Ledger (L)'; root.appendChild(lbtn);
     let talking = null, ltab = 'people', lsel = null;
 
     game.hooks.update.push(() => {
@@ -34,44 +33,40 @@
       if (r.familiar <= 0.11) sim.remember(q, 'A stranger stopped me in the street to talk.', 'player', 0.8, 0);
       renderTalk(O.Dialogue.provider.greet(O.Dialogue.buildContext(sim, q), q.id + sim.day));
     }
-    function closeTalk() { if (talking) { talking.agent.frozen = false; talking.agent.talking = 0; } talking = null; card.hidden = true; }
+    function closeTalk() { if (talking) { talking.agent.frozen = false; talking.agent.talking = 0; } talking = null; card.hidden = true; if (O.UI.dialogOpen()) O.UI.dialog.close(); }
     function bar(v, cls = '') { return `<span class="bar ${cls}"><i style="width:${Math.round(O.clamp(v, 0, 100))}%"></i></span>`; }
+    // name tag in the colour of their clothes
+    function tagColour(q) { const m = q.app?.outfit?.over; const r = m != null && O.Pal.ramp ? O.Pal.ramp(m) : null; return r ? `rgb(${r[2][0]},${r[2][1]},${r[2][2]})` : '#b0683a'; }
     function renderTalk(line) {
-      const q = talking, ctx = O.Dialogue.buildContext(sim, q);
+      const q = talking; if (!q) return;
       q.agent.talking = 30;
-      const job = ctx.job.charAt(0).toUpperCase() + ctx.job.slice(1);
       const bz = q.job?.biz ? sim.biz.get(q.job.biz) : null;
       const atWork = bz && bz.open && q.agent.inside === bz.id && q.activity?.act === 'work' && bz.def.sells.length;
       const innkeeper = bz && bz.type === 'tavern' && q.agent.inside === bz.id && bz.open;
-      const ext = (api.extraButtons ? api.extraButtons(q) : []).map(([k, l]) => `<button data-topic="x-${k}" class="hot">${l}</button>`).join('');
-      const extra = ext + (atWork ? '<button data-topic="trade" class="hot">Trade</button>' : '') + (innkeeper ? '<button data-topic="rent" class="hot">Rent a room · 6d</button>' : '');
-      card.hidden = false;
-      card.innerHTML = `
-        <div class="talk-head"><canvas width="32" height="48" class="portrait"></canvas>
-          <div><div class="talk-name">${esc(q.name)}</div><div class="lbl">${q.age} · ${esc(job)}</div>
-          <div class="chips small">${q.traits.map((t) => `<span>${esc(t)}</span>`).join('')}</div></div></div>
-        <p class="speech">“${esc(line)}”</p>
-        <div class="talk-stats"><span class="lbl">Fed</span>${bar(ctx.hunger)}<span class="lbl">Rested</span>${bar(ctx.energy)}<span class="lbl">Company</span>${bar(ctx.social)}</div>
-        <div class="lbl doing">Now: ${esc(ACT_LABEL[ctx.activity] || ctx.activity)}</div>
-        <div class="topics">${[['self', 'How are you?'], ['work', 'Your work?'], ['prices', 'Prices?'], ['news', 'Any news?'], ['family', 'Family?']].map(([k, l]) => `<button data-topic="${k}">${l}</button>`).join('')}${extra}<button data-topic="bye">Goodbye</button></div>`;
-      const pc = card.querySelector('.portrait').getContext('2d'); pc.imageSmoothingEnabled = false; pc.drawImage(O.Char.frame(q.app, 0, 'talk', 1), 0, 0);
-      card.querySelectorAll('[data-topic]').forEach((b) => b.onclick = () => {
-        const t = b.dataset.topic; if (t === 'bye') return closeTalk();
-        if (t.startsWith('x-')) return api.onExtra && api.onExtra(q, t.slice(2), renderTalk);
-        if (t === 'trade') { closeTalk(); return O.Panels.trade(sim, bz, q); }
-        if (t === 'rent') {
-          const PS = O.PlayerState;
-          if (PS.room && PS.room.b === bz.id && sim.day <= PS.room.until) return renderTalk('You\'ve a room already. Top of the stairs.');
-          if (PS.money < 6) return renderTalk('Six pence a night, and I don\'t do credit.');
-          PS.money -= 6; bz.cash += 6; PS.room = { b: bz.id, until: sim.day + 1 }; PS.add('key');
-          sim.remember(q, 'Let a room to a stranger.', 'work', 0.5, 0);
-          return renderTalk('Room\'s upstairs, first bed on the left. Chest is yours while you stay. Mind the third step.');
-        }
-        const seed = q.id * 31 + sim.day + Math.floor(sim.minute / 7) + t.length;
-        const ctx = O.Dialogue.buildContext(sim, q), line = O.Dialogue.provider.topic(ctx, t, seed);
-        if (t === 'news' && ctx._picked && O.Chronicle) O.Chronicle.playerHears(O.Chronicle.byId(ctx._picked.f), ctx._picked.v, ctx._picked.src === 'saw' ? 'rumour' : ctx._picked.src, q.name);
-        renderTalk(line);
-      });
+      const options = [];
+      for (const [k, l] of (api.extraButtons ? api.extraButtons(q) : [])) options.push({ key: 'x-' + k, label: l, hot: true });
+      if (atWork) options.push({ key: 'trade', label: 'Show me your wares', hot: true });
+      if (innkeeper) options.push({ key: 'rent', label: 'A room for the night (6d)', hot: true });
+      for (const [k, l] of [['self', 'How are you?'], ['work', 'What do you do?'], ['news', 'Any news?'], ['prices', 'How are prices?'], ['family', 'Your family?']]) options.push({ key: k, label: l });
+      options.push({ key: 'bye', label: 'Goodbye' });
+      O.UI.dialog.open({ name: q.first + (q.title ? `, ${q.title}` : ''), color: tagColour(q), text: line, options, onPick: (t) => pickTopic(q, bz, t), onClose: () => { if (talking === q) { q.agent.frozen = false; q.agent.talking = 0; talking = null; } } });
+    }
+    function pickTopic(q, bz, t) {
+      if (t === 'bye') { const bye = ['Fare you well.', 'God keep you.', 'Mind how you go.', 'Until next time.'][(q.id + sim.day) % 4]; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: bye, options: [] }); talking = null; q.agent.frozen = false; setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1600); return; }
+      if (t.startsWith('x-')) return api.onExtra && api.onExtra(q, t.slice(2), renderTalk);
+      if (t === 'trade') { closeTalk(); return O.Panels.trade(sim, bz, q); }
+      if (t === 'rent') {
+        const PS = O.PlayerState;
+        if (PS.room && PS.room.b === bz.id && sim.day <= PS.room.until) return renderTalk("You've a room already. Top of the stairs.");
+        if (PS.money < 6) return renderTalk("Six pence a night, and I don't do credit.");
+        PS.money -= 6; bz.cash += 6; PS.room = { b: bz.id, until: sim.day + 1 }; PS.add('key');
+        sim.remember(q, 'Let a room to a stranger.', 'work', 0.5, 0);
+        return renderTalk("Room's upstairs, first bed on the left. Chest is yours while you stay. Mind the third step.");
+      }
+      const seed = q.id * 31 + sim.day + Math.floor(sim.minute / 7) + t.length;
+      const ctx = O.Dialogue.buildContext(sim, q), line = O.Dialogue.provider.topic(ctx, t, seed);
+      if (t === 'news' && ctx._picked && O.Chronicle) O.Chronicle.playerHears(O.Chronicle.byId(ctx._picked.f), ctx._picked.v, ctx._picked.src === 'saw' ? 'rumour' : ctx._picked.src, q.name);
+      renderTalk(line);
     }
 
     // ---------------- ledger ----------------
@@ -130,7 +125,6 @@
       ledger.hidden = v === undefined ? !ledger.hidden : !v;
       renderLedger(); const lb = ledger.querySelector('.ledger-body'); if (lb) lb.scrollTop = keep;
     }
-    lbtn.onclick = () => toggleLedger();
     let acc = 0;
     game.hooks.update.push((dt) => { acc += dt; if (acc > 1.5 && !ledger.hidden) { acc = 0; const lb = ledger.querySelector('.ledger-body'); const st = lb ? lb.scrollTop : 0; renderLedger(); const nb = ledger.querySelector('.ledger-body'); if (nb) nb.scrollTop = st; } });
 
@@ -140,6 +134,7 @@
       return false;
     });
     const api = { openTalk, closeTalk, toggleLedger, talking: () => talking };
+    O.npcUI = api;
     return api;
   }
   O.NpcUI = { setup };

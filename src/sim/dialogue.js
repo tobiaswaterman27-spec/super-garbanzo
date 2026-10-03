@@ -96,7 +96,7 @@
           const rumours = ctx.memories.filter((m) => !/^Sent to fetch|Shared a jug/.test(m)).concat(ctx.news);
           if (!rumours.length) return `Nothing happens in ${ctx.place}. That's why we like it.`;
           const r = pick(rumours, seed);
-          return pick(['Heard tell that ', 'They\'re saying ', 'Word is, '], seed + 1) + r.charAt(0).toLowerCase() + r.slice(1);
+          return pick(['Heard tell that ', 'They\'re saying ', 'Word is, '], seed + 1) + O.Chronicle.lower(r);
         }
         case 'family': {
           const f = ctx.family;

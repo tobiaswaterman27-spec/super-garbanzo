@@ -8,8 +8,7 @@
   function setup(game, sim) {
     let ctx = null, master, outBus, outFilter, inBus, noise, beds = {}, enabled = false;
     const pref = (() => { try { return localStorage.getItem('outlaw.sound') === 'on'; } catch (e) { return false; } })();
-    const btn = document.createElement('button'); btn.className = 'soundbtn'; btn.setAttribute('aria-pressed', 'false'); btn.textContent = 'Sound: off';
-    document.getElementById('hudTR').appendChild(btn);
+    const btn = { textContent: '', setAttribute() {} }; // sound is toggled from the pause menu
 
     function start() {
       if (ctx) { ctx.resume(); return; }
@@ -31,7 +30,7 @@
       try { localStorage.setItem('outlaw.sound', v ? 'on' : 'off'); } catch (e) { /* ignore */ }
       if (v) start(); else if (ctx) ctx.suspend();
     }
-    btn.onclick = () => { setEnabled(!enabled); game.canvas.focus(); };
+    O.AudioToggle = () => setEnabled(!enabled);
     // sound can only begin after the player interacts; honour a remembered preference then
     const kick = () => { if (pref && !enabled) setEnabled(true); window.removeEventListener('keydown', kick); window.removeEventListener('pointerdown', kick); };
     window.addEventListener('keydown', kick); window.addEventListener('pointerdown', kick);

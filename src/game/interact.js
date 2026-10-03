@@ -6,7 +6,7 @@
   const G = O.Data.GOODS, PS = O.PlayerState;
 
   function setup(game, sim, npcUI) {
-    const prompt = document.createElement('div'); prompt.className = 'hud hud-prompt prompt'; prompt.hidden = true; game.el.parentElement.appendChild(prompt);
+    const prompt = { hidden: true, innerHTML: '' }; // no on-screen hints: a small marker shows what you'd interact with
     let cur = null, searching = 0, pendingSearch = null;
 
     function doorLocked(b) {
@@ -91,12 +91,7 @@
         prompt.hidden = false; prompt.innerHTML = `<kbd>E</kbd>${O.escape(label(cur))}${quick ? ' &nbsp; ' + quick : ''}`;
       } else prompt.hidden = true;
     });
-    game.hooks.drawWorld.push((ctx, cam) => {
-      if (!cur || cur.type !== 'npc') return;
-      const x = Math.round(cur.x - cam.x), y = Math.round(cur.y - O.Char.GROUND - cam.y + 1 + (Math.floor(game.t * 3) % 2));
-      ctx.fillStyle = '#1b1424'; ctx.fillRect(x - 3, y - 1, 7, 4);
-      ctx.fillStyle = '#f0b45c'; ctx.fillRect(x - 2, y, 5, 1); ctx.fillRect(x - 1, y + 1, 3, 1); ctx.fillRect(x, y + 2, 1, 1);
-    });
+
 
     // ----- container contents come from the real owners -----
     function contents(it) {

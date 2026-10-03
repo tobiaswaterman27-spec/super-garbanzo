@@ -22,11 +22,9 @@
     const inner = document.querySelector('.panel-modal .ledger-in'); if (inner) inner.classList.remove('narrow');
   }
   function setup(game) {
-    const btn = document.createElement('button'); btn.className = 'btn ghost guide-btn'; btn.textContent = 'Guide (/)';
-    btn.onclick = () => (O.panelOpen ? O.Panels.close() : open()); document.getElementById('tab-play').appendChild(btn);
     game.keyHandlers.push((e) => { if ((e.code === 'Slash' || e.key === '?') && !O.panelOpen) { open(); return true; } return false; });
-    // first visit: show the guide once
-    try { if (!localStorage.getItem('outlaw.guided')) { localStorage.setItem('outlaw.guided', '1'); setTimeout(open, 600); } } catch (e) { /* storage unavailable */ }
   }
-  O.Guide = { setup, open };
+  // first life: show the guide once, after the character is made
+  function firstTime() { try { if (!localStorage.getItem('outlaw.guided')) { localStorage.setItem('outlaw.guided', '1'); open(); } } catch (e) { /* storage unavailable */ } }
+  O.Guide = { setup, open, firstTime };
 })();

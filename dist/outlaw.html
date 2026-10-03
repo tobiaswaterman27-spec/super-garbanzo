@@ -1,6 +1,6 @@
 <title>Outlaw</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Alegreya+Sans:wght@400;500;700&family=Silkscreen&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Alegreya+Sans:wght@400;500;700&family=Silkscreen&family=Nunito:wght@600;700;800&display=swap">
 <style>
 /* Layout: a game shell — top bar with tabs, then a control column beside a pixel stage. Single dark "lantern-lit" look. */
 :root {
@@ -56,6 +56,44 @@ input[type=range] { width: 100%; accent-color: var(--ember); }
 .legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 14px; font-size: 13px; color: var(--parch-dim); }
 .legend b { color: var(--parch); font-weight: 500; }
 [hidden] { display: none !important; }
+/* full-screen play */
+main { height: 100vh; }
+.play { min-height: 100vh; }
+/* one-time character creation */
+.creator { position: fixed; inset: 0; z-index: 50; overflow: auto; background: radial-gradient(ellipse at 30% 10%, #2a2334, #15111c 70%); padding: 24px; }
+.creator-head { grid-column: 1 / -1; display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.creator-head h1 { font-family: var(--display); font-weight: 400; font-size: 54px; margin: 0; color: var(--ember-2); text-shadow: 0 3px 0 #000; }
+.creator-head p { margin: 0; color: var(--parch-dim); flex: 1 1 260px; }
+.btn.begin { font-size: 14px; padding: 12px 22px; }
+/* the little clock */
+.ui-clock { position: absolute; top: 14px; left: 16px; color: #fff8e6; font-family: 'Nunito', var(--body); text-shadow: 0 2px 0 rgba(20,14,30,.75), 0 0 8px rgba(20,14,30,.5); pointer-events: none; display: grid; grid-template-columns: auto auto; column-gap: 4px; align-items: baseline; }
+.ui-clock b { font-size: 30px; font-weight: 800; line-height: 1; }
+.ui-clock small { font-size: 13px; font-weight: 800; }
+.ui-clock span { grid-column: 1 / -1; font-size: 13px; font-weight: 700; text-transform: capitalize; opacity: .92; }
+.ui-clock em { grid-column: 1 / -1; font-style: normal; font-size: 12px; font-weight: 700; opacity: .8; }
+.ui-status { position: absolute; top: 16px; right: 16px; display: flex; gap: 6px; pointer-events: none; }
+.ui-status span { font-family: 'Nunito', var(--body); font-weight: 800; font-size: 12px; color: #fff8e6; background: rgba(150,52,40,.82); padding: 3px 10px; border-radius: 999px; }
+/* the bottom line */
+.ui-ticker { position: absolute; left: 50%; bottom: 18px; transform: translate(-50%, 8px); max-width: min(720px, calc(100% - 32px)); padding: 8px 18px; border-radius: 999px; background: rgba(250,242,222,.94); color: #4a3826; font-family: 'Nunito', var(--body); font-weight: 700; font-size: 15px; box-shadow: 0 4px 0 rgba(60,40,20,.35); opacity: 0; transition: opacity .35s, transform .35s; pointer-events: none; text-align: center; z-index: 25; }
+.ui-ticker.on { opacity: 1; transform: translate(-50%, 0); }
+.ui-ticker.bad { color: #8a2a1e; }
+/* conversation box */
+.dlg { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); width: min(760px, calc(100% - 32px)); min-height: 118px; padding: 26px 34px 22px; border-radius: 34px; background: #fbf3dd; color: #4a3826; font-family: 'Nunito', var(--body); font-weight: 700; font-size: 19px; line-height: 1.45; box-shadow: 0 6px 0 rgba(70,48,26,.35), inset 0 0 0 3px #efe1bd; z-index: 30; cursor: pointer; }
+.dlg-name { position: absolute; top: -16px; left: 34px; transform: rotate(-3deg); padding: 4px 18px; border-radius: 999px; color: #fff; font-weight: 800; font-size: 16px; box-shadow: 0 3px 0 rgba(0,0,0,.25); text-shadow: 0 1px 0 rgba(0,0,0,.3); }
+.dlg-next { position: absolute; right: 26px; bottom: 12px; color: #d38a3a; font-size: 14px; animation: dlgbob 1s infinite; }
+@keyframes dlgbob { 50% { transform: translateY(3px); } }
+.dlg-opts { position: absolute; right: max(16px, calc(50% - 380px)); bottom: 160px; display: grid; gap: 2px; padding: 12px 14px; border-radius: 26px; background: #fbf3dd; box-shadow: 0 5px 0 rgba(70,48,26,.35), inset 0 0 0 3px #efe1bd; z-index: 31; min-width: 220px; }
+.dlg-opts button { text-align: left; background: none; border: 0; padding: 5px 10px 5px 26px; border-radius: 999px; font-family: 'Nunito', var(--body); font-weight: 800; font-size: 16px; color: #5a4632; cursor: pointer; position: relative; }
+.dlg-opts button.hot { color: #9a5a1e; }
+.dlg-opts button.sel { background: #f3e2b8; color: #3a2a1a; }
+.dlg-opts button.sel::before { content: ''; position: absolute; left: 9px; top: 50%; transform: translateY(-50%); border: 6px solid transparent; border-left: 9px solid #e0882e; border-right: 0; }
+/* pause menu */
+.ui-menu { position: absolute; inset: 0; background: rgba(15,10,20,.55); display: grid; place-items: center; z-index: 40; }
+.ui-menu-in { background: #fbf3dd; color: #4a3826; border-radius: 30px; padding: 22px 26px; display: grid; gap: 4px; min-width: 260px; box-shadow: 0 8px 0 rgba(60,40,20,.4); }
+.ui-menu-in h2 { font-family: var(--display); font-weight: 400; font-size: 36px; margin: 0 0 8px; color: #b0602a; text-align: center; }
+.ui-menu-in button { background: none; border: 0; border-radius: 999px; padding: 8px 16px; font-family: 'Nunito', var(--body); font-weight: 800; font-size: 16px; color: #5a4632; cursor: pointer; text-align: left; }
+.ui-menu-in button:hover, .ui-menu-in button:focus-visible { background: #f3e2b8; outline: none; }
+@media (max-width: 600px) { .dlg { font-size: 16px; padding: 22px 20px 18px; } .dlg-opts { right: 16px; bottom: 150px; } .ui-clock b { font-size: 24px; } }
 .hud-prompt { bottom: 52px; left: 50%; transform: translateX(-50%); white-space: nowrap; }
 .ledger-btn { position: absolute; right: 12px; bottom: 12px; }
 .satchel-btn { position: absolute; right: 120px; bottom: 12px; }
@@ -160,29 +198,15 @@ main > .wrap { overflow: auto; }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
 </style>
 
-<header class="top">
-  <div class="brand">Outlaw<small>BUILD 0.29 · LAND</small></div>
-  <nav class="tabs" role="tablist" aria-label="Sections">
-    <button class="tab" role="tab" aria-selected="true" data-tab="play">Play</button>
-    <button class="tab" role="tab" aria-selected="false" data-tab="forge">Character</button>
-    <button class="tab" role="tab" aria-selected="false" data-tab="crowd">Townsfolk</button>
-    <button class="tab" role="tab" aria-selected="false" data-tab="blood">Bloodlines</button>
-    <button class="tab" role="tab" aria-selected="false" data-tab="sheet">Sprite sheet</button>
-  </nav>
-</header>
-
 <main>
   <section id="tab-play" class="play">
     <div class="game" id="game"></div>
-    <div class="hud hud-tl" id="hudTL"></div>
-    <div class="hud hud-tr" id="hudTR">
-      <span class="lbl">Time</span>
-      <div class="seg" id="speedSeg"></div>
-    </div>
-    <div class="hud hud-b" id="hudB">WASD move · Shift run · E interact · Q steal · F loot · Space strike · / guide</div>
+    <div class="hud hud-tl" id="hudTL" hidden></div>
+    <div class="hud hud-tr" id="hudTR" hidden><div class="seg" id="speedSeg"></div></div>
   </section>
 
-  <section class="wrap" id="tab-forge" hidden>
+<section class="wrap creator" id="tab-forge" hidden>
+    <div class="creator-head"><h1>Outlaw</h1><p>Who are you, stranger? Nobody in Eldoria knows your name yet.</p><button class="btn begin" id="beginLife">Begin your life</button></div>
     <div class="panel" id="controls"></div>
     <div class="stage">
       <div class="nameplate" id="nameplate"></div>
@@ -192,7 +216,7 @@ main > .wrap { overflow: auto; }
     </div>
   </section>
 
-  <section class="wrap" id="tab-crowd" hidden>
+  <section class="wrap" id="tab-crowd" hidden style="display:none">
     <div class="panel">
       <h2>Townsfolk</h2>
       <p class="caption">NPCs are assembled from shared parts: body by age, height and build genes; faces from eye, brow, nose and jaw genes; outfits from their trade and wealth. None of these are hand-placed.</p>
@@ -6779,7 +6803,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
           const rumours = ctx.memories.filter((m) => !/^Sent to fetch|Shared a jug/.test(m)).concat(ctx.news);
           if (!rumours.length) return `Nothing happens in ${ctx.place}. That's why we like it.`;
           const r = pick(rumours, seed);
-          return pick(['Heard tell that ', 'They\'re saying ', 'Word is, '], seed + 1) + r.charAt(0).toLowerCase() + r.slice(1);
+          return pick(['Heard tell that ', 'They\'re saying ', 'Word is, '], seed + 1) + O.Chronicle.lower(r);
         }
         case 'family': {
           const f = ctx.family;
@@ -7374,7 +7398,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   const G = O.Data.GOODS;
   const SLOTS = 10;
   const P = {
-    money: 30, items: ['bread', 'bread', 'dagger'],
+    money: 0, items: [], // a stranger arrives with nothing
     hp: 100, energy: 90, hunger: 75,
     // reputation is never one number: towns, trades and the underworld each judge you separately
     rep: { civilian: 0, criminal: 0, guard: 0, merchant: 0, local: 0 },
@@ -7715,11 +7739,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     root = document.createElement('div'); root.className = 'ledger panel-modal'; root.hidden = true; host.appendChild(root);
     toastEl = document.createElement('div'); toastEl.className = 'toasts'; toastEl.setAttribute('aria-live', 'polite'); host.appendChild(toastEl);
   }
-  function toast(text, kind = '') {
-    ensure();
-    const d = document.createElement('div'); d.className = 'toast ' + kind; d.textContent = text; toastEl.appendChild(d);
-    setTimeout(() => d.remove(), 4200);
-  }
+  // happenings are read out one at a time along the bottom of the screen
+  function toast(text, kind = '') { O.UI && O.UI.say(text, kind); }
   function close() { ensure(); root.hidden = true; root.innerHTML = ''; O.panelOpen = false; toastEl.classList.remove('low'); }
   function open(title, body, onBind) {
     ensure(); O.panelOpen = true; toastEl.classList.add('low'); // toasts drop below the panel so they don't hide its title
@@ -7804,7 +7825,6 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     const root = game.el.parentElement;
     const card = document.createElement('aside'); card.className = 'hud talk'; card.hidden = true; card.setAttribute('aria-live', 'polite'); root.appendChild(card);
     const ledger = document.createElement('div'); ledger.className = 'ledger'; ledger.hidden = true; root.appendChild(ledger);
-    const lbtn = document.createElement('button'); lbtn.className = 'btn ledger-btn'; lbtn.textContent = 'Ledger (L)'; root.appendChild(lbtn);
     let talking = null, ltab = 'people', lsel = null;
 
     game.hooks.update.push(() => {
@@ -7824,44 +7844,40 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       if (r.familiar <= 0.11) sim.remember(q, 'A stranger stopped me in the street to talk.', 'player', 0.8, 0);
       renderTalk(O.Dialogue.provider.greet(O.Dialogue.buildContext(sim, q), q.id + sim.day));
     }
-    function closeTalk() { if (talking) { talking.agent.frozen = false; talking.agent.talking = 0; } talking = null; card.hidden = true; }
+    function closeTalk() { if (talking) { talking.agent.frozen = false; talking.agent.talking = 0; } talking = null; card.hidden = true; if (O.UI.dialogOpen()) O.UI.dialog.close(); }
     function bar(v, cls = '') { return `<span class="bar ${cls}"><i style="width:${Math.round(O.clamp(v, 0, 100))}%"></i></span>`; }
+    // name tag in the colour of their clothes
+    function tagColour(q) { const m = q.app?.outfit?.over; const r = m != null && O.Pal.ramp ? O.Pal.ramp(m) : null; return r ? `rgb(${r[2][0]},${r[2][1]},${r[2][2]})` : '#b0683a'; }
     function renderTalk(line) {
-      const q = talking, ctx = O.Dialogue.buildContext(sim, q);
+      const q = talking; if (!q) return;
       q.agent.talking = 30;
-      const job = ctx.job.charAt(0).toUpperCase() + ctx.job.slice(1);
       const bz = q.job?.biz ? sim.biz.get(q.job.biz) : null;
       const atWork = bz && bz.open && q.agent.inside === bz.id && q.activity?.act === 'work' && bz.def.sells.length;
       const innkeeper = bz && bz.type === 'tavern' && q.agent.inside === bz.id && bz.open;
-      const ext = (api.extraButtons ? api.extraButtons(q) : []).map(([k, l]) => `<button data-topic="x-${k}" class="hot">${l}</button>`).join('');
-      const extra = ext + (atWork ? '<button data-topic="trade" class="hot">Trade</button>' : '') + (innkeeper ? '<button data-topic="rent" class="hot">Rent a room · 6d</button>' : '');
-      card.hidden = false;
-      card.innerHTML = `
-        <div class="talk-head"><canvas width="32" height="48" class="portrait"></canvas>
-          <div><div class="talk-name">${esc(q.name)}</div><div class="lbl">${q.age} · ${esc(job)}</div>
-          <div class="chips small">${q.traits.map((t) => `<span>${esc(t)}</span>`).join('')}</div></div></div>
-        <p class="speech">“${esc(line)}”</p>
-        <div class="talk-stats"><span class="lbl">Fed</span>${bar(ctx.hunger)}<span class="lbl">Rested</span>${bar(ctx.energy)}<span class="lbl">Company</span>${bar(ctx.social)}</div>
-        <div class="lbl doing">Now: ${esc(ACT_LABEL[ctx.activity] || ctx.activity)}</div>
-        <div class="topics">${[['self', 'How are you?'], ['work', 'Your work?'], ['prices', 'Prices?'], ['news', 'Any news?'], ['family', 'Family?']].map(([k, l]) => `<button data-topic="${k}">${l}</button>`).join('')}${extra}<button data-topic="bye">Goodbye</button></div>`;
-      const pc = card.querySelector('.portrait').getContext('2d'); pc.imageSmoothingEnabled = false; pc.drawImage(O.Char.frame(q.app, 0, 'talk', 1), 0, 0);
-      card.querySelectorAll('[data-topic]').forEach((b) => b.onclick = () => {
-        const t = b.dataset.topic; if (t === 'bye') return closeTalk();
-        if (t.startsWith('x-')) return api.onExtra && api.onExtra(q, t.slice(2), renderTalk);
-        if (t === 'trade') { closeTalk(); return O.Panels.trade(sim, bz, q); }
-        if (t === 'rent') {
-          const PS = O.PlayerState;
-          if (PS.room && PS.room.b === bz.id && sim.day <= PS.room.until) return renderTalk('You\'ve a room already. Top of the stairs.');
-          if (PS.money < 6) return renderTalk('Six pence a night, and I don\'t do credit.');
-          PS.money -= 6; bz.cash += 6; PS.room = { b: bz.id, until: sim.day + 1 }; PS.add('key');
-          sim.remember(q, 'Let a room to a stranger.', 'work', 0.5, 0);
-          return renderTalk('Room\'s upstairs, first bed on the left. Chest is yours while you stay. Mind the third step.');
-        }
-        const seed = q.id * 31 + sim.day + Math.floor(sim.minute / 7) + t.length;
-        const ctx = O.Dialogue.buildContext(sim, q), line = O.Dialogue.provider.topic(ctx, t, seed);
-        if (t === 'news' && ctx._picked && O.Chronicle) O.Chronicle.playerHears(O.Chronicle.byId(ctx._picked.f), ctx._picked.v, ctx._picked.src === 'saw' ? 'rumour' : ctx._picked.src, q.name);
-        renderTalk(line);
-      });
+      const options = [];
+      for (const [k, l] of (api.extraButtons ? api.extraButtons(q) : [])) options.push({ key: 'x-' + k, label: l, hot: true });
+      if (atWork) options.push({ key: 'trade', label: 'Show me your wares', hot: true });
+      if (innkeeper) options.push({ key: 'rent', label: 'A room for the night (6d)', hot: true });
+      for (const [k, l] of [['self', 'How are you?'], ['work', 'What do you do?'], ['news', 'Any news?'], ['prices', 'How are prices?'], ['family', 'Your family?']]) options.push({ key: k, label: l });
+      options.push({ key: 'bye', label: 'Goodbye' });
+      O.UI.dialog.open({ name: q.first + (q.title ? `, ${q.title}` : ''), color: tagColour(q), text: line, options, onPick: (t) => pickTopic(q, bz, t), onClose: () => { if (talking === q) { q.agent.frozen = false; q.agent.talking = 0; talking = null; } } });
+    }
+    function pickTopic(q, bz, t) {
+      if (t === 'bye') { const bye = ['Fare you well.', 'God keep you.', 'Mind how you go.', 'Until next time.'][(q.id + sim.day) % 4]; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: bye, options: [] }); talking = null; q.agent.frozen = false; setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1600); return; }
+      if (t.startsWith('x-')) return api.onExtra && api.onExtra(q, t.slice(2), renderTalk);
+      if (t === 'trade') { closeTalk(); return O.Panels.trade(sim, bz, q); }
+      if (t === 'rent') {
+        const PS = O.PlayerState;
+        if (PS.room && PS.room.b === bz.id && sim.day <= PS.room.until) return renderTalk("You've a room already. Top of the stairs.");
+        if (PS.money < 6) return renderTalk("Six pence a night, and I don't do credit.");
+        PS.money -= 6; bz.cash += 6; PS.room = { b: bz.id, until: sim.day + 1 }; PS.add('key');
+        sim.remember(q, 'Let a room to a stranger.', 'work', 0.5, 0);
+        return renderTalk("Room's upstairs, first bed on the left. Chest is yours while you stay. Mind the third step.");
+      }
+      const seed = q.id * 31 + sim.day + Math.floor(sim.minute / 7) + t.length;
+      const ctx = O.Dialogue.buildContext(sim, q), line = O.Dialogue.provider.topic(ctx, t, seed);
+      if (t === 'news' && ctx._picked && O.Chronicle) O.Chronicle.playerHears(O.Chronicle.byId(ctx._picked.f), ctx._picked.v, ctx._picked.src === 'saw' ? 'rumour' : ctx._picked.src, q.name);
+      renderTalk(line);
     }
 
     // ---------------- ledger ----------------
@@ -7920,7 +7936,6 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       ledger.hidden = v === undefined ? !ledger.hidden : !v;
       renderLedger(); const lb = ledger.querySelector('.ledger-body'); if (lb) lb.scrollTop = keep;
     }
-    lbtn.onclick = () => toggleLedger();
     let acc = 0;
     game.hooks.update.push((dt) => { acc += dt; if (acc > 1.5 && !ledger.hidden) { acc = 0; const lb = ledger.querySelector('.ledger-body'); const st = lb ? lb.scrollTop : 0; renderLedger(); const nb = ledger.querySelector('.ledger-body'); if (nb) nb.scrollTop = st; } });
 
@@ -7930,6 +7945,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       return false;
     });
     const api = { openTalk, closeTalk, toggleLedger, talking: () => talking };
+    O.npcUI = api;
     return api;
   }
   O.NpcUI = { setup };
@@ -7945,7 +7961,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   const G = O.Data.GOODS, PS = O.PlayerState;
 
   function setup(game, sim, npcUI) {
-    const prompt = document.createElement('div'); prompt.className = 'hud hud-prompt prompt'; prompt.hidden = true; game.el.parentElement.appendChild(prompt);
+    const prompt = { hidden: true, innerHTML: '' }; // no on-screen hints: a small marker shows what you'd interact with
     let cur = null, searching = 0, pendingSearch = null;
 
     function doorLocked(b) {
@@ -8030,12 +8046,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         prompt.hidden = false; prompt.innerHTML = `<kbd>E</kbd>${O.escape(label(cur))}${quick ? ' &nbsp; ' + quick : ''}`;
       } else prompt.hidden = true;
     });
-    game.hooks.drawWorld.push((ctx, cam) => {
-      if (!cur || cur.type !== 'npc') return;
-      const x = Math.round(cur.x - cam.x), y = Math.round(cur.y - O.Char.GROUND - cam.y + 1 + (Math.floor(game.t * 3) % 2));
-      ctx.fillStyle = '#1b1424'; ctx.fillRect(x - 3, y - 1, 7, 4);
-      ctx.fillStyle = '#f0b45c'; ctx.fillRect(x - 2, y, 5, 1); ctx.fillRect(x - 1, y + 1, 3, 1); ctx.fillRect(x, y + 2, 1, 1);
-    });
+
 
     // ----- container contents come from the real owners -----
     function contents(it) {
@@ -9638,8 +9649,6 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   let tab = 'timeline', cat = 'all', minor = false, here = false;
 
   function setup(game, home) {
-    const btn = document.createElement('button'); btn.className = 'btn ghost chron-btn'; btn.textContent = 'Chronicle (C)';
-    btn.onclick = () => (O.panelOpen ? O.Panels.close() : open()); document.getElementById('tab-play').appendChild(btn);
     game.keyHandlers.push((e) => { if (e.code === 'KeyC' && !O.panelOpen) { open(); return true; } return false; });
 
     // memorial stones in the chapel yard of the home village
@@ -10367,6 +10376,151 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
 </script>
 <script>
+// The game's on-screen furniture, kept to a minimum: a small clock in the corner, a line of text
+// along the bottom for news and happenings (one message at a time, like a village notice read
+// aloud), a soft marker over whatever you could interact with, a conversation box in the style of
+// a storybook — the speaker's name on a tab, the words written out as they're spoken, your replies
+// in a bubble at the side — and a pause menu (Esc) that holds everything else.
+'use strict';
+(function () {
+  const esc = (s) => O.escape(String(s));
+  function setup(game) {
+    const root = game.el.parentElement;
+    const PS = O.PlayerState;
+
+    // ---------------------------------------------------------------- clock
+    const clock = document.createElement('div'); clock.className = 'ui-clock'; root.appendChild(clock);
+    const status = document.createElement('div'); status.className = 'ui-status'; root.appendChild(status);
+    let lastClock = '';
+    game.hooks.update.push(() => {
+      const s = O.SimRef.cur, m = Math.floor(s.minute), h = Math.floor(m / 60) % 24, mm = m % 60;
+      const ampm = h < 12 ? 'AM' : 'PM', hh = h % 12 === 0 ? 12 : h % 12;
+      const place = game.scene ? (game.scene.b.name || 'Indoors') : (O.placeName ? O.placeName() : s.world.name);
+      const txt = `<b>${hh}:${String(mm).padStart(2, '0')}</b><small>${ampm}</small><span>${O.DAYNAMES[s.weekday]} · ${s.season} ${s.weather.dayOfSeason}</span><em>${esc(place)}</em>`;
+      if (txt !== lastClock) { clock.innerHTML = txt; lastClock = txt; }
+      const st = [];
+      if (PS.hunger < 22) st.push('Hungry'); if (PS.energy < 18) st.push('Exhausted'); if (PS.hp < 35) st.push('Badly hurt');
+      if (PS.wantedLevel && PS.wantedLevel() >= 1) st.push('Wanted');
+      const sTxt = st.map((x) => `<span>${x}</span>`).join('');
+      if (status.innerHTML !== sTxt) status.innerHTML = sTxt;
+    });
+
+    // ---------------------------------------------------------------- the bottom line
+    const line = document.createElement('div'); line.className = 'ui-ticker'; line.setAttribute('aria-live', 'polite'); root.appendChild(line);
+    const queue = []; let showing = null, until = 0;
+    function say(text, kind = '') {
+      if (!text) return;
+      if (queue.some((q) => q.text === text) || (showing && showing.text === text)) return;
+      queue.push({ text, kind }); if (queue.length > 6) queue.shift();
+    }
+    game.hooks.update.push(() => {
+      const now = performance.now();
+      if (showing && now < until) return;
+      if (showing && !queue.length) { line.classList.remove('on'); showing = null; return; }
+      if (!queue.length) return;
+      showing = queue.shift();
+      line.className = 'ui-ticker on ' + showing.kind; line.textContent = showing.text;
+      until = now + Math.max(2600, Math.min(6500, showing.text.length * 55)) * (queue.length > 2 ? 0.6 : 1);
+    });
+    O.UI.say = say;
+
+    // ---------------------------------------------------------------- the target marker
+    game.hooks.drawTop.push((ctx, cam) => {
+      const c = O.interactTarget; if (!c || O.panelOpen || O.UI.dialogOpen()) return;
+      const bob = Math.round(Math.sin(game.t * 4) * 1.5);
+      const x = Math.round(c.x - cam.x), y = Math.round((c.type === 'npc' ? c.y - O.Char.GROUND - 4 : c.y - 6) - cam.y + bob);
+      ctx.fillStyle = 'rgba(20,14,30,0.65)'; ctx.fillRect(x - 3, y - 2, 7, 7);
+      ctx.fillStyle = '#fff6dc'; ctx.fillRect(x - 1, y - 1, 3, 5); ctx.fillRect(x - 2, y, 5, 3);
+      ctx.fillStyle = '#f0b45c'; ctx.fillRect(x, y + 1, 1, 1);
+    });
+
+    // ---------------------------------------------------------------- conversation
+    const box = document.createElement('div'); box.className = 'dlg'; box.hidden = true;
+    box.innerHTML = '<div class="dlg-name"></div><div class="dlg-text"></div><div class="dlg-next">▼</div>';
+    const opts = document.createElement('div'); opts.className = 'dlg-opts'; opts.hidden = true;
+    root.append(box, opts);
+    const nameEl = box.querySelector('.dlg-name'), textEl = box.querySelector('.dlg-text'), nextEl = box.querySelector('.dlg-next');
+    let D = null; // { text, shown, options, onPick, sel }
+    function open(o) {
+      D = { text: o.text, shown: 0, options: o.options || [], onPick: o.onPick, sel: 0, onClose: o.onClose };
+      nameEl.textContent = o.name || ''; nameEl.style.background = o.color || '#c8743a'; nameEl.hidden = !o.name;
+      box.hidden = false; opts.hidden = true; textEl.textContent = ''; nextEl.hidden = true;
+      game.player.locked = true;
+    }
+    function close() {
+      if (!D) return; const cb = D.onClose; D = null; box.hidden = true; opts.hidden = true; game.player.locked = false; cb && cb();
+    }
+    function showOptions() {
+      if (!D.options.length) { nextEl.hidden = false; return; }
+      opts.innerHTML = D.options.map((op, i) => `<button data-i="${i}" class="${i === D.sel ? 'sel' : ''}${op.hot ? ' hot' : ''}">${esc(op.label)}</button>`).join('');
+      opts.hidden = false;
+      opts.querySelectorAll('button').forEach((b) => { b.onclick = () => pick(+b.dataset.i); b.onmouseenter = () => { D.sel = +b.dataset.i; mark(); }; });
+    }
+    function mark() { opts.querySelectorAll('button').forEach((b, i) => b.classList.toggle('sel', i === D.sel)); }
+    function pick(i) { if (!D) return; const op = D.options[i]; if (!op) return; D.onPick && D.onPick(op.key, op); }
+    function finishText() { if (!D) return; D.shown = D.text.length; textEl.textContent = D.text; showOptions(); }
+    game.hooks.update.push((dt) => {
+      if (!D) return;
+      if (D.shown < D.text.length) { D.shown = Math.min(D.text.length, D.shown + dt * 48); textEl.textContent = D.text.slice(0, Math.floor(D.shown)); if (D.shown >= D.text.length) showOptions(); }
+    });
+    box.onclick = () => { if (!D) return; if (D.shown < D.text.length) finishText(); else if (!D.options.length) close(); };
+    game.keyHandlers.unshift((e) => {
+      if (!D) return false;
+      const k = e.code;
+      if (k === 'KeyE' || k === 'Enter' || k === 'Space') { if (D.shown < D.text.length) finishText(); else if (D.options.length) pick(D.sel); else close(); return true; }
+      if (k === 'ArrowDown' || k === 'KeyS') { D.sel = (D.sel + 1) % Math.max(1, D.options.length); mark(); return true; }
+      if (k === 'ArrowUp' || k === 'KeyW') { D.sel = (D.sel - 1 + D.options.length) % Math.max(1, D.options.length); mark(); return true; }
+      if (k === 'Escape') { const last = D.options.length - 1; if (last >= 0 && D.shown >= D.text.length) pick(last); else close(); return true; }
+      return true; // nothing else happens mid-conversation
+    });
+    O.UI.dialog = { open, close, set: (o) => open(Object.assign({ name: nameEl.textContent, color: nameEl.style.background }, o)) };
+    O.UI.dialogOpen = () => !!D;
+
+    // ---------------------------------------------------------------- pause menu
+    const menu = document.createElement('div'); menu.className = 'ui-menu'; menu.hidden = true; root.appendChild(menu);
+    function openMenu() {
+      const snd = O.Sound && O.Sound.on;
+      menu.innerHTML = `<div class="ui-menu-in"><h2>Outlaw</h2>
+        ${[['resume', 'Continue'], ['satchel', 'Satchel'], ['map', 'Map of Eldoria'], ['chron', 'Chronicle'], ['hold', 'Holdings'], ['gang', 'Gang'], ['ledger', 'Town ledger'], ['guide', 'Guide'], ['sound', `Sound: ${snd ? 'on' : 'off'}`], ['save', 'Save now'], ['new', 'Begin a new life']].map(([k, l]) => `<button data-m="${k}">${l}</button>`).join('')}</div>`;
+      menu.hidden = false; O.menuOpen = true; game.player.locked = true;
+      menu.querySelectorAll('[data-m]').forEach((b) => b.onclick = () => act(b.dataset.m));
+      menu.querySelector('button').focus();
+    }
+    function closeMenu() { menu.hidden = true; O.menuOpen = false; game.player.locked = false; game.canvas.focus(); }
+    function act(k) {
+      closeMenu();
+      if (k === 'satchel') O.Panels.inventory();
+      else if (k === 'map') O.openMap && O.openMap();
+      else if (k === 'chron') O.ChronicleUI && O.ChronicleUI.open();
+      else if (k === 'hold') O.holdings && O.holdings();
+      else if (k === 'gang') O.GangUI && O.GangUI.ledger();
+      else if (k === 'ledger') O.npcUI && O.npcUI.toggleLedger(true);
+      else if (k === 'guide') O.Guide && O.Guide.open();
+      else if (k === 'sound') O.AudioToggle && O.AudioToggle();
+      else if (k === 'save') { O.Save.save(game, O.SimRef.home); }
+      else if (k === 'new') confirmNew();
+    }
+    function confirmNew() {
+      O.Panels.open('Begin a new life?', '<p class="caption">This forgets the world as you left it: every person, every crime, your purse and your name. You will make a new character and start again.</p><div class="topics"><button data-yes="1">Yes, start over</button><button data-no="1">Keep playing</button></div>', (r) => {
+        r.querySelector('[data-no]').onclick = () => O.Panels.close();
+        r.querySelector('[data-yes]').onclick = () => { O.Save.clear(); try { localStorage.removeItem('outlaw.spec'); localStorage.removeItem('outlaw.created'); } catch (e) { /* ignore */ } window.__noAutosave = true; location.reload(); };
+      });
+    }
+    game.keyHandlers.push((e) => {
+      if (e.code !== 'Escape') return false;
+      if (!menu.hidden) { closeMenu(); return true; }
+      if (O.panelOpen || D) return false;
+      openMenu(); return true;
+    });
+    // the player stands still whenever a panel, menu or conversation has their attention (recomputed
+    // first each frame; actions like searching a chest add their own lock after this)
+    game.hooks.update.unshift(() => { game.player.locked = !!(O.panelOpen || O.menuOpen || D); });
+  }
+  O.UI = { setup, say: () => {}, dialogOpen: () => false };
+})();
+
+</script>
+<script>
 // The guide (/ or the Guide button): controls, and the many ways to live in this world — honest
 // work, trade, property, crime, gangs, politics, war — with where each starts.
 'use strict';
@@ -10391,13 +10545,11 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     const inner = document.querySelector('.panel-modal .ledger-in'); if (inner) inner.classList.remove('narrow');
   }
   function setup(game) {
-    const btn = document.createElement('button'); btn.className = 'btn ghost guide-btn'; btn.textContent = 'Guide (/)';
-    btn.onclick = () => (O.panelOpen ? O.Panels.close() : open()); document.getElementById('tab-play').appendChild(btn);
     game.keyHandlers.push((e) => { if ((e.code === 'Slash' || e.key === '?') && !O.panelOpen) { open(); return true; } return false; });
-    // first visit: show the guide once
-    try { if (!localStorage.getItem('outlaw.guided')) { localStorage.setItem('outlaw.guided', '1'); setTimeout(open, 600); } } catch (e) { /* storage unavailable */ }
   }
-  O.Guide = { setup, open };
+  // first life: show the guide once, after the character is made
+  function firstTime() { try { if (!localStorage.getItem('outlaw.guided')) { localStorage.setItem('outlaw.guided', '1'); open(); } } catch (e) { /* storage unavailable */ } }
+  O.Guide = { setup, open, firstTime };
 })();
 
 </script>
@@ -10412,8 +10564,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   function setup(game, sim) {
     let ctx = null, master, outBus, outFilter, inBus, noise, beds = {}, enabled = false;
     const pref = (() => { try { return localStorage.getItem('outlaw.sound') === 'on'; } catch (e) { return false; } })();
-    const btn = document.createElement('button'); btn.className = 'soundbtn'; btn.setAttribute('aria-pressed', 'false'); btn.textContent = 'Sound: off';
-    document.getElementById('hudTR').appendChild(btn);
+    const btn = { textContent: '', setAttribute() {} }; // sound is toggled from the pause menu
 
     function start() {
       if (ctx) { ctx.resume(); return; }
@@ -10435,7 +10586,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       try { localStorage.setItem('outlaw.sound', v ? 'on' : 'off'); } catch (e) { /* ignore */ }
       if (v) start(); else if (ctx) ctx.suspend();
     }
-    btn.onclick = () => { setEnabled(!enabled); game.canvas.focus(); };
+    O.AudioToggle = () => setEnabled(!enabled);
     // sound can only begin after the player interacts; honour a remembered preference then
     const kick = () => { if (pref && !enabled) setEnabled(true); window.removeEventListener('keydown', kick); window.removeEventListener('pointerdown', kick); };
     window.addEventListener('keydown', kick); window.addEventListener('pointerdown', kick);
@@ -10619,7 +10770,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     if (k === 'sex') { spec.style = v === 'f' ? 'hoodedDress' : 'hooded'; if (v === 'f' && O.Char.HAIR_STYLES_M.includes(spec.hairStyle) && !O.Char.HAIR_STYLES_F.includes(spec.hairStyle)) spec.hairStyle = 'long'; buildControls(); }
     player = O.Creator.appearanceFromSpec(spec);
     try { localStorage.setItem('outlaw.spec', JSON.stringify(spec)); } catch (e) { /* ignore */ }
-    nameplate(); drawSheet();
+    nameplate();
   }
   function nameplate() {
     $('nameplate').innerHTML = '';
@@ -10785,31 +10936,21 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     ctx.drawImage(sh.canvas, 0, 0, c.width, c.height);
   }
 
-  // ---------- tabs & loop ----------
-  let tab = 'play';
-  document.querySelectorAll('.tab').forEach((b) => b.onclick = () => {
-    tab = b.dataset.tab;
-    document.querySelectorAll('.tab').forEach((x) => x.setAttribute('aria-selected', x === b));
-    ['play', 'forge', 'crowd', 'blood', 'sheet'].forEach((k) => ($('tab-' + k).hidden = k !== tab));
-    O.onTab && O.onTab(tab);
-  });
-  ['north', 'east', 'south', 'west'].forEach(() => {});
-  $('regionSeg').replaceWith(Object.assign(seg([['north', 'North'], ['east', 'East'], ['south', 'South'], ['west', 'West']], region, (v) => { region = v; makeCrowd(); }), { id: 'regionSeg' }));
-  $('reroll').onclick = () => { crowdSeed++; makeCrowd(); };
-  $('crowdWealth').oninput = () => makeCrowd();
-  $('newFamily').onclick = () => { famSeed++; makeFamily(); };
-
-  function resize() { sizePreview(); sizeCrowd(); sizeFam(); drawSheet(); }
+  // ---------- one-time character creation ----------
+  // Shown only when a new life begins; afterwards the player is who they made.
+  let open = false, done = null;
+  function showCreator(cb) { open = true; done = cb; $('tab-forge').hidden = false; resize(); }
+  $('beginLife').onclick = () => {
+    open = false; $('tab-forge').hidden = true;
+    try { localStorage.setItem('outlaw.created', '1'); } catch (e) { /* ignore */ }
+    const f = done; done = null; f && f(player);
+  };
+  function resize() { sizePreview(); }
   window.addEventListener('resize', resize);
-  buildControls(); buildAnimChips(); nameplate(); makeCrowd(); makeFamily(); resize();
-  function loop(t) {
-    if (tab === 'forge') drawPreview(t);
-    else if (tab === 'crowd') drawCrowd(t);
-    else if (tab === 'blood') drawFamily(t);
-    requestAnimationFrame(loop);
-  }
+  buildControls(); buildAnimChips(); nameplate(); resize();
+  function loop(t) { if (open) drawPreview(t); requestAnimationFrame(loop); }
   requestAnimationFrame(loop);
-  O.Forge = { get player() { return player; }, spec: () => spec };
+  O.Forge = { get player() { return player; }, spec: () => spec, showCreator, created: () => { try { return localStorage.getItem('outlaw.created') === '1'; } catch (e) { return true; } } };
 })();
 
 </script>
@@ -11058,49 +11199,14 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   O.FireFX.setup(game, home);
   O.DisasterFX.setup(game, home);
   O.Estate.setup(game, home);
+  O.UI.setup(game);
   O.Guide.setup(game);
   O.AudioSetup.setup(game, sim);
-  if (loaded) { O.Save.hydrateLate(game, home); setTimeout(() => O.Panels.toast(`Welcome back. It is ${O.DAYNAMES[sim.weekday]}, day ${sim.day}, in Ashford.`), 300); }
+  if (loaded) { O.Save.hydrateLate(game, home); setTimeout(() => O.Panels.toast(`Welcome back. It is ${O.DAYNAMES[sim.weekday]}.`), 300); }
   // autosave each dawn and whenever the page is hidden
   let lastAuto = sim.day;
   game.hooks.update.push(() => { if (home.day !== lastAuto && home.hour >= 6) { lastAuto = home.day; O.Save.save(game, home, true); } });
   document.addEventListener('visibilitychange', () => { if (document.hidden) O.Save.save(game, home, true); });
-  const tr = $('hudTR');
-  const sv = document.createElement('div'); sv.className = 'savebar';
-  const sb = document.createElement('button'); sb.textContent = 'Save'; sb.onclick = () => { O.Save.save(game, home); game.canvas.focus(); };
-  const nb = document.createElement('button'); nb.textContent = 'New life';
-  nb.onclick = () => {
-    O.Panels.open('Begin a new life?', '<p class="caption">This forgets Ashford as you left it: every person, every crime, your band and your purse. The village will begin again on day 1.</p><div class="topics"><button data-yes="1">Yes, start over</button><button data-no="1">Keep playing</button></div>', (r) => {
-      r.querySelector('[data-no]').onclick = () => O.Panels.close();
-      r.querySelector('[data-yes]').onclick = () => { O.Save.clear(); window.__noAutosave = true; location.reload(); };
-    });
-  };
-  sv.append(sb, nb); tr.appendChild(sv);
-  const mbtn = document.createElement('button'); mbtn.className = 'btn ghost map-btn'; mbtn.textContent = 'Map (M)';
-  mbtn.onclick = () => (O.panelOpen ? O.Panels.close() : O.openMap()); $('tab-play').appendChild(mbtn);
-  const gbtn = document.createElement('button'); gbtn.className = 'btn ghost gang-btn'; gbtn.textContent = 'Gang (G)';
-  gbtn.onclick = () => (O.panelOpen ? O.Panels.close() : O.GangUI.ledger()); $('tab-play').appendChild(gbtn);
-  const sbtn = document.createElement('button'); sbtn.className = 'btn ghost satchel-btn'; sbtn.textContent = 'Satchel (I)';
-  sbtn.onclick = () => (O.panelOpen ? O.Panels.close() : O.Panels.inventory()); $('tab-play').appendChild(sbtn);
-
-  const speeds = [[1, '1×'], [10, '10×'], [60, '60×'], [240, '240×']];
-  const seg = $('speedSeg');
-  for (const [v, lab] of speeds) {
-    const b = document.createElement('button'); b.textContent = lab; b.setAttribute('aria-pressed', v === game.clock.speed);
-    b.onclick = () => { game.clock.speed = v; [...seg.children].forEach((x) => x.setAttribute('aria-pressed', x === b)); game.canvas.focus(); };
-    seg.appendChild(b);
-  }
-  const DAYS = O.DAYNAMES;
-  function hud() {
-    const tl = $('hudTL');
-    const where = placeName();
-    const bar = (v, c) => `<span class="bar ${c}"><i style="width:${Math.round(v)}%"></i></span>`;
-    const wanted = PS.wantedText ? PS.wantedText() : 'NONE';
-    const sought = PS.soughtFor ? PS.soughtFor() : '';
-    tl.innerHTML = `<div class="place">${where}</div><div class="clock">${DAYS[(game.clock.day - 1) % 7].toUpperCase()} · DAY ${game.clock.day} · ${game.timeString()}</div><div class="lbl">${sim.season.toUpperCase()} · DAY ${sim.weather.dayOfSeason} OF ${O.SEASON_DAYS} · ${sim.weather.label.toUpperCase()}</div>
-      <div class="vitals"><span class="lbl">Health</span>${bar(PS.hp, PS.hp < 30 ? 'warn' : '')}<span class="lbl">Fed</span>${bar(PS.hunger, PS.hunger < 25 ? 'warn' : '')}<span class="lbl">Rested</span>${bar(PS.energy, PS.energy < 25 ? 'warn' : '')}</div>
-      <div class="purse-row"><span class="lbl">Purse</span><b>${O.money(PS.money)}</b><span class="lbl">Wanted</span><b class="${wanted !== 'NONE' ? 'warn' : ''}">${wanted}</b></div>${wanted !== 'NONE' && sought ? `<div class="sought">The watch seeks ${O.escape(sought)}</div>` : ''}`;
-  }
   function placeName() {
     if (game.scene) return game.scene.b.type === "house" ? `The ${sim.households[game.scene.b.household - 1]?.surname || ""} house` + (game.scene.floor ? ", upstairs" : "") : game.scene.b.name + (game.scene.floor ? ', upstairs' : '');
     const p = game.player, T = 16, tx = p.x / T, ty = p.y / T;
@@ -11112,16 +11218,13 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     if (ty < 14) return 'Ashford Wood';
     return 'Ashford';
   }
-  let acc = 0;
-  game.hooks.update.push((dt) => { acc += dt; if (acc > 0.25) { acc = 0; hud(); } });
-  hud();
+  O.placeName = placeName;
 
-  O.onTab = (tab) => {
-    if (tab === 'play') { game.setPlayerAppearance(O.Forge.player); game.start(); setTimeout(() => game.resize(), 0); game.canvas.focus(); }
-    else game.stop();
-  };
-  game.start();
-  game.canvas.focus();
+  // a new life begins with the character maker; after that, straight into the world
+  if (!loaded || !O.Forge.created()) {
+    PS.money = 0; PS.items = [];
+    O.Forge.showCreator((a) => { game.setPlayerAppearance(a); game.start(); setTimeout(() => game.resize(), 0); game.canvas.focus(); setTimeout(() => O.Guide && O.Guide.firstTime(), 400); });
+  } else { game.start(); game.canvas.focus(); }
 })();
 
 </script>

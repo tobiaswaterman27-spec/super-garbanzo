@@ -4,7 +4,7 @@
   const G = O.Data.GOODS;
   const SLOTS = 10;
   const P = {
-    money: 30, items: ['bread', 'bread', 'dagger'],
+    money: 0, items: [], // a stranger arrives with nothing
     hp: 100, energy: 90, hunger: 75,
     // reputation is never one number: towns, trades and the underworld each judge you separately
     rep: { civilian: 0, criminal: 0, guard: 0, merchant: 0, local: 0 },

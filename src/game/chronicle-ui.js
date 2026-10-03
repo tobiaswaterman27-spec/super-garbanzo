@@ -9,8 +9,6 @@
   let tab = 'timeline', cat = 'all', minor = false, here = false;
 
   function setup(game, home) {
-    const btn = document.createElement('button'); btn.className = 'btn ghost chron-btn'; btn.textContent = 'Chronicle (C)';
-    btn.onclick = () => (O.panelOpen ? O.Panels.close() : open()); document.getElementById('tab-play').appendChild(btn);
     game.keyHandlers.push((e) => { if (e.code === 'KeyC' && !O.panelOpen) { open(); return true; } return false; });
 
     // memorial stones in the chapel yard of the home village

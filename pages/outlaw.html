@@ -1,6 +1,6 @@
 <title>Outlaw</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Alegreya+Sans:wght@400;500;700&family=Silkscreen&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Alegreya+Sans:wght@400;500;700&family=Silkscreen&family=Nunito:wght@600;700;800&display=swap">
 <style>
 /* Layout: a game shell — top bar with tabs, then a control column beside a pixel stage. Single dark "lantern-lit" look. */
 :root {
@@ -56,6 +56,44 @@ input[type=range] { width: 100%; accent-color: var(--ember); }
 .legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 14px; font-size: 13px; color: var(--parch-dim); }
 .legend b { color: var(--parch); font-weight: 500; }
 [hidden] { display: none !important; }
+/* full-screen play */
+main { height: 100vh; }
+.play { min-height: 100vh; }
+/* one-time character creation */
+.creator { position: fixed; inset: 0; z-index: 50; overflow: auto; background: radial-gradient(ellipse at 30% 10%, #2a2334, #15111c 70%); padding: 24px; }
+.creator-head { grid-column: 1 / -1; display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.creator-head h1 { font-family: var(--display); font-weight: 400; font-size: 54px; margin: 0; color: var(--ember-2); text-shadow: 0 3px 0 #000; }
+.creator-head p { margin: 0; color: var(--parch-dim); flex: 1 1 260px; }
+.btn.begin { font-size: 14px; padding: 12px 22px; }
+/* the little clock */
+.ui-clock { position: absolute; top: 14px; left: 16px; color: #fff8e6; font-family: 'Nunito', var(--body); text-shadow: 0 2px 0 rgba(20,14,30,.75), 0 0 8px rgba(20,14,30,.5); pointer-events: none; display: grid; grid-template-columns: auto auto; column-gap: 4px; align-items: baseline; }
+.ui-clock b { font-size: 30px; font-weight: 800; line-height: 1; }
+.ui-clock small { font-size: 13px; font-weight: 800; }
+.ui-clock span { grid-column: 1 / -1; font-size: 13px; font-weight: 700; text-transform: capitalize; opacity: .92; }
+.ui-clock em { grid-column: 1 / -1; font-style: normal; font-size: 12px; font-weight: 700; opacity: .8; }
+.ui-status { position: absolute; top: 16px; right: 16px; display: flex; gap: 6px; pointer-events: none; }
+.ui-status span { font-family: 'Nunito', var(--body); font-weight: 800; font-size: 12px; color: #fff8e6; background: rgba(150,52,40,.82); padding: 3px 10px; border-radius: 999px; }
+/* the bottom line */
+.ui-ticker { position: absolute; left: 50%; bottom: 18px; transform: translate(-50%, 8px); max-width: min(720px, calc(100% - 32px)); padding: 8px 18px; border-radius: 999px; background: rgba(250,242,222,.94); color: #4a3826; font-family: 'Nunito', var(--body); font-weight: 700; font-size: 15px; box-shadow: 0 4px 0 rgba(60,40,20,.35); opacity: 0; transition: opacity .35s, transform .35s; pointer-events: none; text-align: center; z-index: 25; }
+.ui-ticker.on { opacity: 1; transform: translate(-50%, 0); }
+.ui-ticker.bad { color: #8a2a1e; }
+/* conversation box */
+.dlg { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); width: min(760px, calc(100% - 32px)); min-height: 118px; padding: 26px 34px 22px; border-radius: 34px; background: #fbf3dd; color: #4a3826; font-family: 'Nunito', var(--body); font-weight: 700; font-size: 19px; line-height: 1.45; box-shadow: 0 6px 0 rgba(70,48,26,.35), inset 0 0 0 3px #efe1bd; z-index: 30; cursor: pointer; }
+.dlg-name { position: absolute; top: -16px; left: 34px; transform: rotate(-3deg); padding: 4px 18px; border-radius: 999px; color: #fff; font-weight: 800; font-size: 16px; box-shadow: 0 3px 0 rgba(0,0,0,.25); text-shadow: 0 1px 0 rgba(0,0,0,.3); }
+.dlg-next { position: absolute; right: 26px; bottom: 12px; color: #d38a3a; font-size: 14px; animation: dlgbob 1s infinite; }
+@keyframes dlgbob { 50% { transform: translateY(3px); } }
+.dlg-opts { position: absolute; right: max(16px, calc(50% - 380px)); bottom: 160px; display: grid; gap: 2px; padding: 12px 14px; border-radius: 26px; background: #fbf3dd; box-shadow: 0 5px 0 rgba(70,48,26,.35), inset 0 0 0 3px #efe1bd; z-index: 31; min-width: 220px; }
+.dlg-opts button { text-align: left; background: none; border: 0; padding: 5px 10px 5px 26px; border-radius: 999px; font-family: 'Nunito', var(--body); font-weight: 800; font-size: 16px; color: #5a4632; cursor: pointer; position: relative; }
+.dlg-opts button.hot { color: #9a5a1e; }
+.dlg-opts button.sel { background: #f3e2b8; color: #3a2a1a; }
+.dlg-opts button.sel::before { content: ''; position: absolute; left: 9px; top: 50%; transform: translateY(-50%); border: 6px solid transparent; border-left: 9px solid #e0882e; border-right: 0; }
+/* pause menu */
+.ui-menu { position: absolute; inset: 0; background: rgba(15,10,20,.55); display: grid; place-items: center; z-index: 40; }
+.ui-menu-in { background: #fbf3dd; color: #4a3826; border-radius: 30px; padding: 22px 26px; display: grid; gap: 4px; min-width: 260px; box-shadow: 0 8px 0 rgba(60,40,20,.4); }
+.ui-menu-in h2 { font-family: var(--display); font-weight: 400; font-size: 36px; margin: 0 0 8px; color: #b0602a; text-align: center; }
+.ui-menu-in button { background: none; border: 0; border-radius: 999px; padding: 8px 16px; font-family: 'Nunito', var(--body); font-weight: 800; font-size: 16px; color: #5a4632; cursor: pointer; text-align: left; }
+.ui-menu-in button:hover, .ui-menu-in button:focus-visible { background: #f3e2b8; outline: none; }
+@media (max-width: 600px) { .dlg { font-size: 16px; padding: 22px 20px 18px; } .dlg-opts { right: 16px; bottom: 150px; } .ui-clock b { font-size: 24px; } }
 .hud-prompt { bottom: 52px; left: 50%; transform: translateX(-50%); white-space: nowrap; }
 .ledger-btn { position: absolute; right: 12px; bottom: 12px; }
 .satchel-btn { position: absolute; right: 120px; bottom: 12px; }
@@ -160,29 +198,15 @@ main > .wrap { overflow: auto; }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
 </style>
 
-<header class="top">
-  <div class="brand">Outlaw<small>BUILD 0.29 · LAND</small></div>
-  <nav class="tabs" role="tablist" aria-label="Sections">
-    <button class="tab" role="tab" aria-selected="true" data-tab="play">Play</button>
-    <button class="tab" role="tab" aria-selected="false" data-tab="forge">Character</button>
-    <button class="tab" role="tab" aria-selected="false" data-tab="crowd">Townsfolk</button>
-    <button class="tab" role="tab" aria-selected="false" data-tab="blood">Bloodlines</button>
-    <button class="tab" role="tab" aria-selected="false" data-tab="sheet">Sprite sheet</button>
-  </nav>
-</header>
-
 <main>
   <section id="tab-play" class="play">
     <div class="game" id="game"></div>
-    <div class="hud hud-tl" id="hudTL"></div>
-    <div class="hud hud-tr" id="hudTR">
-      <span class="lbl">Time</span>
-      <div class="seg" id="speedSeg"></div>
-    </div>
-    <div class="hud hud-b" id="hudB">WASD move · Shift run · E interact · Q steal · F loot · Space strike · / guide</div>
+    <div class="hud hud-tl" id="hudTL" hidden></div>
+    <div class="hud hud-tr" id="hudTR" hidden><div class="seg" id="speedSeg"></div></div>
   </section>
 
-  <section class="wrap" id="tab-forge" hidden>
+<section class="wrap creator" id="tab-forge" hidden>
+    <div class="creator-head"><h1>Outlaw</h1><p>Who are you, stranger? Nobody in Eldoria knows your name yet.</p><button class="btn begin" id="beginLife">Begin your life</button></div>
     <div class="panel" id="controls"></div>
     <div class="stage">
       <div class="nameplate" id="nameplate"></div>
@@ -192,7 +216,7 @@ main > .wrap { overflow: auto; }
     </div>
   </section>
 
-  <section class="wrap" id="tab-crowd" hidden>
+  <section class="wrap" id="tab-crowd" hidden style="display:none">
     <div class="panel">
       <h2>Townsfolk</h2>
       <p class="caption">NPCs are assembled from shared parts: body by age, height and build genes; faces from eye, brow, nose and jaw genes; outfits from their trade and wealth. None of these are hand-placed.</p>
@@ -284,6 +308,7 @@ main > .wrap { overflow: auto; }
 <script src="../src/game/fire-fx.js"></script>
 <script src="../src/game/disaster-fx.js"></script>
 <script src="../src/game/estate.js"></script>
+<script src="../src/game/ui.js"></script>
 <script src="../src/game/guide.js"></script>
 <script src="../src/game/audio.js"></script>
 <script src="../src/game/creator.js"></script>

@@ -415,10 +415,13 @@
       case 'cell': { // iron bars round a straw floor
         S = canvasFor(4, 4, 30); const { B, fx, fx1, fy, fy1 } = S; const m = iron();
         B.part(0); for (let y = fy; y <= fy1; y++) for (let x = fx; x <= fx1; x++) if (O.noise2(x * 0.8, y * 0.8, 3) > 0.45) B.plot(x, y, P.mat('#c8a050', 'hair'), O.noise2(x, y, 7) > 0.7 ? 3 : 2);
-        B.part(1); for (let x = fx; x <= fx1; x += 4) for (let y = fy1 - 30; y <= fy1; y++) B.plot(x, y, m, x < (fx + fx1) / 2 ? 3 : 2);
-        for (let x = fx; x <= fx1; x++) { B.plot(x, fy1 - 30, m, 3); B.plot(x, fy1 - 14, m, 2); }
-        for (let y = fy - 30; y <= fy1 - 30; y++) { B.plot(fx, y, m, 2); B.plot(fx1, y, m, 2); }
-        out = finish(S); break;
+        // the back and sides of the cage go with the floor; the front bars are a layer drawn over whoever is inside
+        B.part(1); for (let x = fx; x <= fx1; x += 4) for (let y = fy - 30; y <= fy; y++) B.plot(x, y, m, 1);
+        for (let x = fx; x <= fx1; x++) B.plot(x, fy - 30, m, 2);
+        for (let y = fy - 30; y <= fy1; y++) { B.plot(fx, y - (y > fy ? 0 : 0), m, 2); B.plot(fx1, y, m, 2); }
+        out = finish(S); out.flat = true;
+        out.back = layer(S, (L) => { L.part(1); for (let x = fx; x <= fx1; x += 4) for (let y = fy1 - 30; y <= fy1; y++) L.plot(x, y, m, x < (fx + fx1) / 2 ? 3 : 2); for (let x = fx; x <= fx1; x++) { L.plot(x, fy1 - 30, m, 3); L.plot(x, fy1 - 14, m, 2); } for (let y = fy - 30; y <= fy1 - 30; y++) { L.plot(fx, y, m, 2); L.plot(fx1, y, m, 2); } });
+        break;
       }
       case 'vat': { // a great oak brewing vat, iron-hooped, steaming
         S = canvasFor(2, 2, 18); const { B, fx, fx1, fy1 } = S; const wd = P.mat('#8a6239', 'wood'), hoop = P.mat('#4a4a52', 'metal'), cx = (fx + fx1) / 2;

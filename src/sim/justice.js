@@ -44,6 +44,7 @@
     return bits.join(', ') || 'nobody could say much';
   }
   function matchScore(profile, look) {
+    if (!profile || !look) return 0;
     let n = 0, hit = 0;
     for (const k of ['hood', 'cloak', 'tunic', 'hair', 'hat', 'height', 'horse']) {
       if (profile[k] == null) continue;

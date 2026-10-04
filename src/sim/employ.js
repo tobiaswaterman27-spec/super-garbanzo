@@ -48,7 +48,7 @@
         bad = Math.max(0, -PS.rep.local) * 1.2 + (PS.wantedLevel && PS.wantedLevel() >= 1 && boss && boss.memories.some((m) => m.kind === 'crime' && m.about === 0) ? 1 : 0) + (bz.firedPlayer ? 0.6 : 0);
       } else {
         const r = boss ? boss.rel.get(who.id) || {} : {};
-        like = r.affinity || 0;
+        like = (r.affinity || 0) * 1.4; // friends are kept on, and enemies are let go first
         bad = (who.jailUntil ? 1 : 0) + (who.gang ? 0.3 : 0) + (who.memories.some((m) => m.kind === 'crime') ? 0.2 : 0) + Math.max(0, -who.attitude) * 0.3;
       }
       const score = 0.45 + like * 0.6 + des * 0.6 - bad;
@@ -65,6 +65,18 @@
         const vac = this.vacancies(bz);
         if (vac.length && bz.vacantSince == null) bz.vacantSince = this.day;
         if (!vac.length) bz.vacantSince = null;
+      }
+      // a master with a place to fill asks a friend first, or a friend's grown child
+      for (const bz of this.biz.values()) {
+        if (bz.type === 'site' || bz.def.public) continue;
+        const vac = this.vacancies(bz); if (!vac.length) continue;
+        const boss = this.bossOf(bz); if (!boss) continue;
+        const friend = this.people.filter((q) => !q.job && !q.visitor && q.alive !== false && q.age >= 16 && q.age < 60 && !q.jailUntil && !q.gentry && q.household !== boss.household)
+          .map((q) => [q, (boss.rel.get(q.id) || {}).affinity || 0]).filter(([, f]) => f > 0.35).sort((x, y) => y[1] - x[1])[0];
+        if (!friend) continue;
+        const q = friend[0], role = vac[vac.length - 1];
+        q.job = { biz: bz.id, role, hiredBy: boss.id }; bz.workers.push(q.id); this.refreshLook && this.refreshLook(q);
+        this.remember(q, `${boss.first} gave me work at ${bz.name}. It pays to have friends.`, 'work', 1.5, boss.id);
       }
       // the old filler places people; then each boss may send away one they'd never have chosen
       _fill.call(this);

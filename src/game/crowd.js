@@ -23,6 +23,7 @@
       for (const a of [...movers, ...fixed]) { const k = key(a.x, a.y); let c = grid.get(k); if (!c) grid.set(k, c = []); c.push(a); }
       const free = (x, y) => !game.solidAt(x - 3, y - 2) && !game.solidAt(x + 3, y - 2) && !game.solidAt(x, y);
       for (const a of movers) {
+        if (a.lane && game.t > (a.laneT || 0)) a.lane = 0; // back to the middle once they're by
         let px = 0, py = 0;
         const gx = Math.floor(a.x / 24), gy = Math.floor(a.y / 24);
         for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
@@ -31,6 +32,13 @@
             if (o === a) continue;
             const r = o.horse || o.cart ? R + 9 : o.animal ? R + 2 : R;
             const dx = a.x - o.x, dy = (a.y - o.y) * 1.6, d = Math.hypot(dx, dy);
+            // someone in the way ahead (coming the other way, or standing): step to your own right in good time,
+            // as they will to theirs, instead of pressing face to face
+            if (a.path && d < r * 2.6 && d > 0) {
+              const hv = O.Char.DIRV[a.dir] || [0, 1], ahead = -(dx * hv[0] + dy / 1.6 * hv[1]), side = -dx * -hv[1] + -dy / 1.6 * hv[0];
+              const oh = O.Char.DIRV[o.dir] || [0, 0], facing = !o.path || hv[0] * oh[0] + hv[1] * oh[1] < -0.3;
+              if (ahead > 0 && Math.abs(side) < r && facing) { const k = (1 - d / (r * 2.6)) * 1.4; px += -hv[1] * k; py += hv[0] * k * 1.6; a.lane = 8; a.laneT = game.t + 1.2; }
+            }
             if (d >= r || d === 0) { if (d === 0) px += (a.person ? a.person.id % 2 : 1) ? 1 : -1; continue; }
             const push = (r - d) / r;
             px += dx / d * push; py += dy / d * push;

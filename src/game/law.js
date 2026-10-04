@@ -198,7 +198,7 @@
     O.lawJail = (g) => jail(g); O.lawArrest = (g) => arrest(g); O.lawEndChase = () => { try { endChase(false); } catch (e) { /* no chase */ } };
     function jail(g) {
       endChase(false);
-      const gh = sim.building(sim.guardId);
+      const gh = sim.building(sim.prisonId ? sim.prisonId() : sim.guardId);
       // confiscate stolen goods
       let found = 0;
       for (const [k, n] of Object.entries(PS.stolen)) { const r = PS.remove(k, n); found += r; }
@@ -213,6 +213,25 @@
       trial(found);
     }
 
+    // serving time: locked in a cell while the days go by; the turnkey brings bread through the bars
+    function serve(days) {
+      const pb = sim.building(sim.prisonId ? sim.prisonId() : sim.guardId);
+      if (!game.scene || game.scene.b !== pb) { if (game.scene) game.exitBuilding(); game.enterBuilding(pb, 0); }
+      const cells = game.scene.L.items.filter((i) => i.cell), c = cells[cells.length - 1];
+      if (c) { const [ax, ay] = game.scene.anchor(c); game.player.x = ax; game.player.y = ay - 6; }
+      PS.gaol = { b: pb.id, until: sim.day + days, days, fed: -1 };
+      O.Panels.toast(`${days} days. The door is locked behind you.`, 'bad');
+    }
+    game.hooks.update.push(() => {
+      const G = PS.gaol; if (!G) return;
+      if (!game.scene || game.scene.b.id !== G.b) { const pb = sim.building(G.b); if (!pb) { PS.gaol = null; return; } if (game.scene) game.exitBuilding(); game.enterBuilding(pb, 0); const cells = game.scene.L.items.filter((i) => i.cell), c = cells[cells.length - 1]; if (c) { const [ax, ay] = game.scene.anchor(c); game.player.x = ax; game.player.y = ay - 6; } }
+      const p = game.player; p.locked = true; p.anim = 'sit';
+      for (let k = 0; k < 3; k++) { sim.tick(2); PS.tick(2, true); }
+      const mm = Math.floor(sim.minute), meal = [8 * 60, 12 * 60 + 30, 18 * 60].find((t) => mm >= t && mm < t + 8);
+      if (meal != null && G.fed !== sim.day * 1440 + meal) { G.fed = sim.day * 1440 + meal; PS.hunger = Math.min(100, PS.hunger + 35); const tk = sim.people.find((q) => q.job?.role === 'turnkey' && q.agent.inside === G.b) || sim.people.find((q) => q.job?.role === 'gaoler' || q.job?.role?.startsWith('guard')); if (tk) { O.Speech && O.Speech.say(tk, ['Bread. Eat it slow.', 'Your bread.', 'Water and a crust. Don\'t say I never feed you.'][sim.day % 3], 3); } O.UI.say('The turnkey pushes bread and a cup of water through the bars.'); }
+      if (sim.day >= G.until && sim.minute >= 8 * 60) { PS.gaol = null; p.locked = false; p.anim = 'idle'; O.Panels.toast(`After ${G.days} days of bread and water, you are let out.`); if (game.scene) game.exitBuilding(); }
+    });
+
     function trial(found) {
       const crimes = openCrimes();
       const evidence = crimes.reduce((s, c) => s + (c.evidence || 0.5), 0) + found * 0.5 + (PS.bounty ? 0.5 : 0);
@@ -223,13 +242,15 @@
       else if (evidence < 0.7) { verdict = 'acquitted'; body = 'The witnesses cannot agree on what they saw. There is not enough to hold you. You are free to go.'; }
       else if (PS.crimes.length >= 6 || (PS.bounty && crimes.length >= 3)) { verdict = 'exile'; body = 'For repeated crimes against the people of Ashford you are banished. If the watch sees you here again, they will take you on sight.'; }
       else if (evidence < 1.8 && PS.money >= fine) { verdict = 'fine'; body = `Guilty. You are fined ${fine}d, paid to those you wronged and the parish.`; }
-      else { verdict = 'prison'; body = `Guilty. ${PS.money < fine ? 'You cannot pay the fine. ' : ''}You will serve ${2 + Math.min(3, crimes.length)} days in the cell.`; }
-      O.Panels.open('The magistrate rules', `<p class="caption">Heard at the Watch House before ${O.escape(captain ? captain.name : 'the magistrate')}. Charges: ${crimes.map((c) => c.kind).join(', ') || 'evading the watch'}. Witnesses: ${crimes.reduce((s, c) => s + c.witnesses.length, 0)}.${found ? ` Stolen goods found on you: ${found}.` : ''}</p><p class="speech">${body}</p><button class="btn" data-ok="1">Accept the verdict</button>`, (r) => {
+      else { const dd = 2 + Math.min(3, crimes.length), bl = dd <= 3 ? 12 * dd : null; verdict = 'prison'; body = `Guilty. ${PS.money < fine ? 'You cannot pay the fine. ' : ''}You will serve ${dd} days in the cell${bl ? `, unless you can find ${bl}d bail` : ''}.`; }
+      O.Panels.open('The magistrate rules', `<p class="caption">Heard at the Watch House before ${O.escape(captain ? captain.name : 'the magistrate')}. Charges: ${crimes.map((c) => c.kind).join(', ') || 'evading the watch'}. Witnesses: ${crimes.reduce((s, c) => s + c.witnesses.length, 0)}.${found ? ` Stolen goods found on you: ${found}.` : ''}</p><p class="speech">${body}</p>${verdict === 'prison' && 2 + Math.min(3, crimes.length) <= 3 && PS.money >= 12 * (2 + Math.min(3, crimes.length)) ? `<button class="btn" data-bail="1">Pay ${12 * (2 + Math.min(3, crimes.length))}d bail</button> ` : ''}<button class="btn" data-ok="1">${verdict === 'prison' ? 'Serve the sentence' : 'Accept the verdict'}</button>`, (r) => {
         r.querySelector('.x').hidden = true;
+        const bb = r.querySelector('[data-bail]');
+        if (bb) bb.onclick = () => { const bl = 12 * (2 + Math.min(3, crimes.length)); PS.money -= bl; sim.treasury.cash += bl; sim.treasury.income += bl; for (const c of crimes) c.closed = 'bail'; PS.bounty = false; PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.05); O.Panels.close(); sim.log(`The stranger was found guilty and paid ${bl}d bail.`, 'crime'); O.Panels.toast(`You count out ${bl}d bail. The gaoler unlocks the door.`); game.exitBuilding(); };
         r.querySelector('[data-ok]').onclick = () => {
           O.Panels.close();
           if (verdict === 'fine') { PS.money -= fine; sim.treasury.cash += fine; sim.treasury.income += fine; }
-          if (verdict === 'prison') { const days = 2 + Math.min(3, crimes.length); let g = 0; const until = sim.day + days; while (sim.day < until && g++ < 5000) { sim.tick(2); PS.tick(2, true); } PS.hunger = Math.max(PS.hunger, 30); O.Panels.toast(`After ${days} days of bread and water, you are released.`); }
+          if (verdict === 'prison') { serve(2 + Math.min(3, crimes.length)); for (const c of crimes) c.closed = verdict; PS.bounty = false; PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.15); sim.log('The stranger was tried at the Watch House: prison.', 'crime'); return; }
           if (verdict === 'exile') { PS.exiled = true; sim.log('The stranger has been banished from Ashford.', 'crime'); }
           for (const c of crimes) c.closed = verdict;
           if (verdict !== 'exile') PS.bounty = false;

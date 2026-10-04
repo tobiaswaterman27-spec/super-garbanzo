@@ -407,7 +407,7 @@
     const big = kind === 'capital' || kind === 'city', town = big || kind === 'town' || kind === 'port' || pop >= 300, village = !town && (kind === 'village' || pop >= 60);
     const list = [], has = new Set((tw ? tw.buildings : []).map((b) => b.type));
     // first whatever the place needs and hasn't got: a hall to govern from, the everyday trades
-    const need = town || kind === 'mine' ? ['townhall', 'stable', 'butcher', 'carpenter', 'tailor', 'smithy'] : village || kind === 'castle' ? ['stable', 'butcher', 'carpenter', 'tailor', 'smithy'] : [];
+    const need = town ? ['townhall', 'gaol', 'stable', 'butcher', 'carpenter', 'tailor', 'smithy'] : kind === 'mine' ? ['townhall', 'stable', 'butcher', 'carpenter', 'tailor', 'smithy'] : village || kind === 'castle' ? ['stable', 'butcher', 'carpenter', 'tailor', 'smithy'] : [];
     for (const t of need) if (!has.has(t)) list.push(t);
     if (town) list.push(...TOWN_TRADES.slice(0, big ? 16 : 11));
     else if (village) list.push('posthouse', 'brewery', 'carrier');

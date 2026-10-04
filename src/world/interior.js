@@ -423,6 +423,15 @@
         tryPut('chest', nearWalls(2, 1), { valuables: true, evidence: true });
         break;
       }
+      case 'gaol': {
+        // a row of cells along the back, the gaoler's desk by the door, the keys on the rack, bread in a sack
+        for (let i = 0; i < 3; i++) tryPut('cell', backWall(4, true), { cell: true });
+        tryPut('desk', [...nearWalls(2, 1)], { work: ['gaoler', 'turnkey'] });
+        tryPut('rack', nearWalls(2, 1)); tryPut('bench', nearWalls(3, 1), { seat: true });
+        tryPut('sack', nearWalls(), { stockOf: 'bread' }); tryPut('barrel', nearWalls()); tryPut('chest', nearWalls(2, 1), { valuables: true, evidence: true });
+        tryPut('candlestand', nearWalls());
+        break;
+      }
       case 'barn':
         for (let i = 0; i < 10; i++) tryPut('hay', nearWalls(), {});
         for (let i = 0; i < 4; i++) tryPut('sack', nearWalls(), { stockOf: 'wheat', container: { slots: 2 } });

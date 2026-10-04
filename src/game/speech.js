@@ -41,6 +41,13 @@
         b.el.classList.toggle('far', d > b.range * 0.75);
         b.el.style.left = (r.left - hr.left + (p[0] - cam.x) * sc) + 'px';
         b.el.style.top = (r.top - hr.top + (p[1] - 38 - cam.y) * sc) + 'px';
+        b._x = p[0]; b._y = p[1] - 38; b._shown = true;
+      }
+      // two people talking close together: the later words sit above the earlier, never on top of them
+      const shown = [...live.values()].filter((b) => b.el.style.display !== 'none').sort((a, c) => a.until - c.until);
+      for (let i = 1; i < shown.length; i++) for (let j = 0; j < i; j++) {
+        const A = shown[j].el.getBoundingClientRect(), B = shown[i].el.getBoundingClientRect();
+        if (A.right > B.left && B.right > A.left && A.bottom > B.top && B.bottom > A.top) shown[i].el.style.top = (parseFloat(shown[i].el.style.top) - (B.bottom - A.top) - 4) + 'px';
       }
     });
     // leaving a building or a town clears what was being said there

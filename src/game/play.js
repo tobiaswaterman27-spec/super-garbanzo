@@ -90,6 +90,7 @@
   };
   const npcUI = O.NpcUI.setup(game, sim);
   O.Interact.setup(game, sim, npcUI);
+  O.SocialSetup.setup(game, npcUI);
   O.LawUI.setup(game, sim, npcUI);
   O.GangUISetup.setup(game, sim, npcUI);
   O.CombatSetup.setup(game, sim, npcUI);

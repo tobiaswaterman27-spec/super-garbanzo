@@ -3910,7 +3910,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     const big = kind === 'capital' || kind === 'city', town = big || kind === 'town' || kind === 'port' || pop >= 300, village = !town && (kind === 'village' || pop >= 60);
     const list = [], has = new Set((tw ? tw.buildings : []).map((b) => b.type));
     // first whatever the place needs and hasn't got: a hall to govern from, the everyday trades
-    const need = town || kind === 'mine' ? ['townhall', 'stable', 'butcher', 'carpenter', 'tailor', 'smithy'] : village || kind === 'castle' ? ['stable', 'butcher', 'carpenter', 'tailor', 'smithy'] : [];
+    const need = town ? ['townhall', 'gaol', 'stable', 'butcher', 'carpenter', 'tailor', 'smithy'] : kind === 'mine' ? ['townhall', 'stable', 'butcher', 'carpenter', 'tailor', 'smithy'] : village || kind === 'castle' ? ['stable', 'butcher', 'carpenter', 'tailor', 'smithy'] : [];
     for (const t of need) if (!has.has(t)) list.push(t);
     if (town) list.push(...TOWN_TRADES.slice(0, big ? 16 : 11));
     else if (village) list.push('posthouse', 'brewery', 'carrier');
@@ -4806,6 +4806,8 @@ O.snowMaskOf = function (src) {
       recipes: [], sells: [], targets: {}, wage: { ferryman: 4 }, equip: ['rack'] }),
     tollhouse: B({ label: 'Toll house', jobs: [['toll keeper', 1]], hours: [6, 21], site: 'town', w: 3, d: 3, look: { wall: 'stone', roof: 'slate' },
       recipes: [], sells: [], targets: {}, wage: { 'toll keeper': 4 }, public: true, equip: ['desk'] }),
+    gaol: B({ label: 'Gaol', jobs: [['gaoler', 1], ['turnkey', 2]], hours: [6, 22], site: 'town', w: 5, d: 4, look: { wall: 'stone', stoneMat: 'stoneDark', roof: 'slate' },
+      recipes: [], sells: [], buys: { bread: 'bakery|store|import' }, targets: { bread: 12 }, wage: { gaoler: 8, turnkey: 5 }, public: true, equip: ['cell', 'desk'], security: 0.9 }),
     posting: null,
   });
   delete D.BUSINESS.posting;
@@ -4862,7 +4864,7 @@ O.snowMaskOf = function (src) {
     'charcoal burner': 'woodcutter', 'clay digger': 'farmhand', brickmaker: 'builder', 'salt boiler': 'fisher', 'peat cutter': 'farmhand', dyer: 'villager', saddler: 'villager',
     glazier: 'blacksmith', 'rope-maker': 'villager', wainwright: 'woodcutter', boatwright: 'fisher', fletcher: 'villager', bowyer: 'woodcutter', scribe: 'merchant', postmaster: 'merchant',
     messenger: 'courier', 'mounted courier': 'courier', 'barber-surgeon': 'doctor', moneylender: 'merchant', laundress: 'servant', carter: 'farmhand', 'house agent': 'merchant', ferryman: 'fisher',
-    'toll keeper': 'guard', dairymaid: 'farmhand', chambermaid: 'servant', gaoler: 'guard', sergeant: 'guard', 'bounty hunter': 'outlaw', gravedigger: 'undertaker', 'bell-ringer': 'priest',
+    'toll keeper': 'guard', dairymaid: 'farmhand', chambermaid: 'servant', gaoler: 'guard', turnkey: 'guard', sergeant: 'guard', 'bounty hunter': 'outlaw', gravedigger: 'undertaker', 'bell-ringer': 'priest',
     'pilgrim guide': 'priest', bailiff: 'guard', 'market warden': 'merchant', 'town crier': 'courier', 'rat-catcher': 'villager', lamplighter: 'villager', 'chimney sweep': 'sweeper',
     'water carrier': 'villager', 'ballot clerk': 'merchant', midwife: 'doctor', herald: 'courier', 'master of horse': 'noble', 'royal guard': 'guard', 'captain of the royal guard': 'guard',
     jester: 'bard', falconer: 'woodcutter', executioner: 'outlaw', spy: 'villager', stablehand: 'farmhand', squire: 'servant', knight: 'guard', thatcher: 'builder', plasterer: 'builder', roofer: 'builder', potboy: 'innkeeper',
@@ -4878,7 +4880,7 @@ O.snowMaskOf = function (src) {
     jeweller: 'work', physician: 'write', herbalist: 'work', apothecary: 'mix', nurse: 'serve', bearer: 'carry', midwife: 'serve', 'barber-surgeon': 'work',
     scribe: 'write', clerk: 'write', postmaster: 'write', magistrate: 'write', moneylender: 'count', 'house agent': 'write', 'ballot clerk': 'count', teacher: 'read', priest: 'pray', 'parish clerk': 'write',
     'bell-ringer': 'pray', gravedigger: 'dig', undertaker: 'scrub', sweeper: 'sweep', 'chimney sweep': 'sweep', laundress: 'scrub', 'water carrier': 'bucket', lamplighter: 'point', 'rat-catcher': 'crouch',
-    'guard captain': 'write', guard: 'idle', gaoler: 'idle', sergeant: 'point', 'royal guard': 'idle', 'captain of the royal guard': 'point', 'tax collector': 'count', bailiff: 'point', 'market warden': 'count',
+    'guard captain': 'write', guard: 'idle', gaoler: 'idle', turnkey: 'place', sergeant: 'point', 'royal guard': 'idle', 'captain of the royal guard': 'point', 'tax collector': 'count', bailiff: 'point', 'market warden': 'count',
     'town crier': 'wave', herald: 'read', shopkeeper: 'count', 'horse trader': 'talk', stablehand: 'pitch', groom: 'scrub', 'master of horse': 'talk', gamekeeper: 'look', falconer: 'look',
     steward: 'write', chamberlain: 'write', butler: 'pour', maid: 'scrub', page: 'carry', 'lady-in-waiting': 'talk', 'master cook': 'cook', scullion: 'scrub', gardener: 'dig', jester: 'celebrate',
     executioner: 'idle', spy: 'look', squire: 'scrub', knight: 'idle', thatcher: 'work', plasterer: 'scrub', roofer: 'hammer', 'master builder': 'write', builder: 'hammer', carter: 'carry', ferryman: 'pitch',
@@ -6019,6 +6021,7 @@ O.snowMaskOf = function (src) {
     return bits.join(', ') || 'nobody could say much';
   }
   function matchScore(profile, look) {
+    if (!profile || !look) return 0;
     let n = 0, hit = 0;
     for (const k of ['hood', 'cloak', 'tunic', 'hair', 'hat', 'height', 'horse']) {
       if (profile[k] == null) continue;
@@ -8432,7 +8435,7 @@ O.snowMaskOf = function (src) {
         bad = Math.max(0, -PS.rep.local) * 1.2 + (PS.wantedLevel && PS.wantedLevel() >= 1 && boss && boss.memories.some((m) => m.kind === 'crime' && m.about === 0) ? 1 : 0) + (bz.firedPlayer ? 0.6 : 0);
       } else {
         const r = boss ? boss.rel.get(who.id) || {} : {};
-        like = r.affinity || 0;
+        like = (r.affinity || 0) * 1.4; // friends are kept on, and enemies are let go first
         bad = (who.jailUntil ? 1 : 0) + (who.gang ? 0.3 : 0) + (who.memories.some((m) => m.kind === 'crime') ? 0.2 : 0) + Math.max(0, -who.attitude) * 0.3;
       }
       const score = 0.45 + like * 0.6 + des * 0.6 - bad;
@@ -8449,6 +8452,18 @@ O.snowMaskOf = function (src) {
         const vac = this.vacancies(bz);
         if (vac.length && bz.vacantSince == null) bz.vacantSince = this.day;
         if (!vac.length) bz.vacantSince = null;
+      }
+      // a master with a place to fill asks a friend first, or a friend's grown child
+      for (const bz of this.biz.values()) {
+        if (bz.type === 'site' || bz.def.public) continue;
+        const vac = this.vacancies(bz); if (!vac.length) continue;
+        const boss = this.bossOf(bz); if (!boss) continue;
+        const friend = this.people.filter((q) => !q.job && !q.visitor && q.alive !== false && q.age >= 16 && q.age < 60 && !q.jailUntil && !q.gentry && q.household !== boss.household)
+          .map((q) => [q, (boss.rel.get(q.id) || {}).affinity || 0]).filter(([, f]) => f > 0.35).sort((x, y) => y[1] - x[1])[0];
+        if (!friend) continue;
+        const q = friend[0], role = vac[vac.length - 1];
+        q.job = { biz: bz.id, role, hiredBy: boss.id }; bz.workers.push(q.id); this.refreshLook && this.refreshLook(q);
+        this.remember(q, `${boss.first} gave me work at ${bz.name}. It pays to have friends.`, 'work', 1.5, boss.id);
       }
       // the old filler places people; then each boss may send away one they'd never have chosen
       _fill.call(this);
@@ -8631,6 +8646,56 @@ O.snowMaskOf = function (src) {
     return null;
   }
   O.Journeys = { installSim, tickJourneys, whereOn };
+})();
+
+</script>
+<script>
+// The gaol. Towns and cities keep a gaol, with a gaoler and turnkeys who hold the keys, bring the
+// prisoners their bread morning, noon and evening, and walk the row of cells; villages and hamlets
+// lock people in the cell at the watch house. A sentence is set by how bad the crime was: a night for
+// a scuffle, days for burglary, a week or more for blood. Short sentences can be bought off with bail
+// (a family with the coin pays it and has them home in the morning); long ones are served.
+'use strict';
+(function () {
+  const sentenceFor = (sev) => (sev <= 1 ? 1 : sev === 2 ? 3 : 3 + sev * 2);
+  const bailFor = (days, sev) => (days <= 3 ? 8 * days * Math.max(1, sev) : null);
+  function installSim(Sim) {
+    const S = Sim.prototype, _arrest = S.arrestNPC, _pm = S.personMinute, _daily = S.justiceDaily;
+    // where prisoners are held here: the gaol if the place has one, else the watch house cell
+    S.prisonId = function () { const g = this.world.buildings.find((b) => b.type === 'gaol' && this.biz.get(b.id)); return g ? g.id : this.guardId; };
+    S.arrestNPC = function (q, crime, wrong) {
+      _arrest.call(this, q, crime, wrong);
+      const sev = crime.severity || 1, days = sentenceFor(sev), bail = bailFor(days, sev);
+      q.jailUntil = this.day + days; q.task = { act: 'jailed', b: this.prisonId() };
+      q.sentence = { days, bail, from: this.day, crime: crime.kind };
+      const where = this.building(this.prisonId());
+      this.remember(q, `Sentenced to ${days} day${days > 1 ? 's' : ''} in ${where && where.type === 'gaol' ? 'the gaol' : 'the cell'}${bail ? `, or ${bail}d bail` : ''}.`, 'crime', 2);
+      // a family with the money pays the bail, and they're home after a night inside
+      const hh = this.household(q);
+      if (bail && hh && hh.money >= bail + 10 && this.rng.chance(0.8)) {
+        hh.money -= bail; this.treasury.cash += bail; this.treasury.income += bail;
+        q.jailUntil = this.day + 1; q.sentence.bailed = true;
+        this.log(`The ${hh.surname} family paid ${bail}d bail for ${q.first}.`, 'crime');
+      }
+    };
+    // prisoners are fed from the gaol's own bread; nobody walks out of a cell
+    S.personMinute = function (p) {
+      _pm.call(this, p);
+      if (p.task?.act !== 'jailed') return;
+      const m = this._m % 1440;
+      if (m === 8 * 60 || m === 12 * 60 + 30 || m === 18 * 60) {
+        const bz = this.biz.get(p.task.b); const have = bz && (bz.stock.bread || 0) >= 0.5;
+        if (have) bz.stock.bread -= 0.5;
+        p.needs.hunger = Math.min(100, p.needs.hunger + (have ? 40 : 20)); // water and a crust even when the sack is empty
+      }
+    };
+    S.justiceDaily = function () {
+      const was = new Set(this.people.filter((p) => p.jailUntil).map((p) => p.id));
+      _daily.call(this);
+      for (const p of this.people) if (was.has(p.id) && !p.jailUntil && p.sentence) { this.log(`${p.name} has been let out of ${this.building(this.prisonId())?.type === 'gaol' ? 'the gaol' : 'the cell'}${p.sentence.bailed ? ' on bail' : ', the sentence served'}.`, 'crime'); p.sentence = null; }
+    };
+  }
+  O.Prison = { installSim, sentenceFor, bailFor };
 })();
 
 </script>
@@ -8985,6 +9050,9 @@ O.snowMaskOf = function (src) {
         else if (!(sunday && bz.type !== 'tavern' && bz.type !== 'chapel')) {
           if (bz.type === 'bakery' && job.role === 'baker') o = 4.5;
           if (this.has(p, 'lazy')) o += 0.5;
+          // set off in time to get there: the walk from wherever they are, and their nature (the cautious and
+          // ambitious early, the impatient cutting it fine, the lazy late)
+          if (h < o && h > o - 2) o -= this.leadTime(p, bz);
           if (h >= o && h < c && !(h >= 12 && h < 12.75 && bz.type !== 'tavern')) {
             // farm and woodcutting happen outside in the fields / woods
             const harsh = this.weather.severe || (this.weather.kind === 'heat' && h >= 12 && h < 15) || this.season === 'winter';
@@ -9019,6 +9087,14 @@ O.snowMaskOf = function (src) {
       // elders like the square bench on fine mornings
       if (p.stage === 'elder' && h >= 9.5 && h < 11.5 && !this.raining) return { act: 'sit', outdoor: true, zone: 'bench' };
       if (!job && p.age >= 16 && h >= 9 && h < 16 && !this.raining && (p.id + this.day) % 3 === 0) return { act: 'stroll', outdoor: true, zone: 'square' };
+      // free time out of doors: a fine evening on the square or at a friend's door, a Sunday afternoon walk,
+      // a word in the street on the way home from work
+      if (p.age >= 14 && !this.raining && !(this.weather && this.weather.severe)) {
+        const warm = this.season !== 'winter', k = (p.id * 7 + this.day) % 6;
+        if (warm && h >= 19 && h < 21 && k < 2) return { act: 'stroll', outdoor: true, zone: k ? 'friend' : 'square' };
+        if (sunday && h >= 13 && h < 17 && k < 3) return { act: 'stroll', outdoor: true, zone: k === 1 ? 'friend' : 'square' };
+        if (job && h >= 17 && h < 17.75 && k === 4) return { act: 'stroll', outdoor: true, zone: 'square' };
+      }
       return { act: 'home', b: home };
     }
 
@@ -9041,6 +9117,11 @@ O.snowMaskOf = function (src) {
       const free = (x, y) => !w.solid[y * w.W + x];
       const pick = (x0, y0, x1, y1) => { for (let k = 0; k < 20; k++) { const x = r.int(x0, x1), y = r.int(y0, y1); if (free(x, y)) return [x, y]; } return [46, 29]; };
       switch (zone) {
+        case 'friend': { // the doorstep of the one they like best
+          let best = null, bf = 0.15; for (const [id, r0] of p.rel) { if (typeof id !== 'number' || id === 0 || (r0.affinity || 0) <= bf) continue; const f = this.byId.get(id); if (f && f.home && f.home !== p.home && f.alive !== false) { best = f; bf = r0.affinity; } }
+          const b = best && this.building(best.home); if (b && b.doorX != null) return pick(b.doorX - 1, b.doorY, b.doorX + 1, b.doorY + 1);
+          return this.zoneTile(p, 'square');
+        }
         case 'square': {
           // in a big place most people loaf near their own street rather than all in one market
           // the market holds only so many: about one person to every five tiles of it. The rest pass the
@@ -9080,6 +9161,16 @@ O.snowMaskOf = function (src) {
       }
     }
 
+    // hours before a start time someone leaves to arrive on time (or not quite) for it
+    leadTime(p, bz) {
+      const a = p.agent, b = bz.b || this.building(bz.id); if (!a || !b || b.doorX == null) return 0;
+      let x = a.x / this.T, y = a.y / this.T;
+      if (a.inside != null) { const ib = this.building(a.inside); if (ib && ib.doorX != null) { x = ib.doorX; y = ib.doorY; } }
+      if (a.inside === b.id) return 0;
+      const walk = (Math.abs(x - b.doorX) + Math.abs(y - b.doorY)) * this.T * 1.15 / (WALK[p.stage === 'elder' ? 'elder' : p.age < 13 ? 'child' : 'adult']); // minutes on foot
+      const nature = (this.has(p, 'cautious') || this.has(p, 'ambitious') ? 12 : 0) + (this.has(p, 'patient') ? 5 : 0) - (this.has(p, 'impatient') ? 6 : 0) + ((p.id * 37) % 13) - 5;
+      return O.clamp((walk + nature) / 60, 0, 1.5);
+    }
     speedOf(p) { if (p.task?.act === 'to-doctor' || p.task?.act === 'escort') return 18; if (p.agent && p.agent.sprint) return (p.stage === 'elder' ? WALK.elder : p.age < 13 ? WALK.child : WALK.adult) * 1.9; const base = p.stage === 'elder' ? WALK.elder : p.age < 13 ? WALK.child : WALK.adult; const w = this.weather; return base * (w && w.snowCover > 0.4 ? 0.78 : w && w.wet > 0.6 ? 0.9 : 1); }
 
     // dtm: elapsed game minutes this frame
@@ -9273,14 +9364,16 @@ O.snowMaskOf = function (src) {
     move(p, dtm) {
       const a = p.agent;
       if (a.hidden) return;
-      if (a.frozen) { a.anim = a.talking ? 'talk' : 'idle'; return; }
+      if (a.frozen) { a.anim = a.forceAnim || (a.talking ? 'talk' : 'idle'); return; }
       if (a.chasing) return;
       if (!a.path) { a.anim = this.idleAnim(p); return; }
       let budget = this.speedOf(p) * dtm;
       while (budget > 0 && a.path) {
         if (a.pi >= a.path.length) { this.arrive(p); break; }
         const [tx, ty] = a.path[a.pi];
-        const [gx, gy] = this.tileCenter(tx, ty, a.pi === a.path.length - 1 ? p : null);
+        let [gx, gy] = this.tileCenter(tx, ty, a.pi === a.path.length - 1 ? p : null);
+        // keeping to the right of the way to pass someone coming the other way
+        if (a.lane && a.pi < a.path.length - 1) { const nx = a.path[a.pi + 1], ex = nx[0] - tx, ey = nx[1] - ty, ed = Math.hypot(ex, ey) || 1; gx += (-ey / ed) * a.lane; gy += (ex / ed) * a.lane * 0.7; } // (to the right of the way the path runs)
         const dx = gx - a.x, dy = gy - a.y, d = Math.hypot(dx, dy);
         if (d <= budget) { a.x = gx; a.y = gy; budget -= d; a.pi++; }
         else { a.x += (dx / d) * budget; a.y += (dy / d) * budget; budget = 0; }
@@ -9661,7 +9754,7 @@ O.snowMaskOf = function (src) {
     if (p.task?.act === 'help') { const t = this.byId.get(p.task.target); if (t) return [Math.floor(t.agent.x / this.T), Math.floor((t.agent.y - 1) / this.T)]; }
     return _zone.call(this, p, zone);
   };
-  O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim); O.Aftermath.installSim(Sim); O.Government.installSim(Sim); O.Nobility.installSim(Sim); O.Trades.installSim(Sim); O.Inn.installSim(Sim); O.Employ.installSim(Sim); O.Council.installSim(Sim); O.Journeys.installSim(Sim);
+  O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim); O.Aftermath.installSim(Sim); O.Government.installSim(Sim); O.Nobility.installSim(Sim); O.Trades.installSim(Sim); O.Inn.installSim(Sim); O.Employ.installSim(Sim); O.Council.installSim(Sim); O.Journeys.installSim(Sim); O.Prison.installSim(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
   // everyone keeps their own clock: a few minutes either side, so a street doesn't empty in one minute
@@ -10241,10 +10334,13 @@ O.snowMaskOf = function (src) {
       case 'cell': { // iron bars round a straw floor
         S = canvasFor(4, 4, 30); const { B, fx, fx1, fy, fy1 } = S; const m = iron();
         B.part(0); for (let y = fy; y <= fy1; y++) for (let x = fx; x <= fx1; x++) if (O.noise2(x * 0.8, y * 0.8, 3) > 0.45) B.plot(x, y, P.mat('#c8a050', 'hair'), O.noise2(x, y, 7) > 0.7 ? 3 : 2);
-        B.part(1); for (let x = fx; x <= fx1; x += 4) for (let y = fy1 - 30; y <= fy1; y++) B.plot(x, y, m, x < (fx + fx1) / 2 ? 3 : 2);
-        for (let x = fx; x <= fx1; x++) { B.plot(x, fy1 - 30, m, 3); B.plot(x, fy1 - 14, m, 2); }
-        for (let y = fy - 30; y <= fy1 - 30; y++) { B.plot(fx, y, m, 2); B.plot(fx1, y, m, 2); }
-        out = finish(S); break;
+        // the back and sides of the cage go with the floor; the front bars are a layer drawn over whoever is inside
+        B.part(1); for (let x = fx; x <= fx1; x += 4) for (let y = fy - 30; y <= fy; y++) B.plot(x, y, m, 1);
+        for (let x = fx; x <= fx1; x++) B.plot(x, fy - 30, m, 2);
+        for (let y = fy - 30; y <= fy1; y++) { B.plot(fx, y - (y > fy ? 0 : 0), m, 2); B.plot(fx1, y, m, 2); }
+        out = finish(S); out.flat = true;
+        out.back = layer(S, (L) => { L.part(1); for (let x = fx; x <= fx1; x += 4) for (let y = fy1 - 30; y <= fy1; y++) L.plot(x, y, m, x < (fx + fx1) / 2 ? 3 : 2); for (let x = fx; x <= fx1; x++) { L.plot(x, fy1 - 30, m, 3); L.plot(x, fy1 - 14, m, 2); } for (let y = fy - 30; y <= fy1 - 30; y++) { L.plot(fx, y, m, 2); L.plot(fx1, y, m, 2); } });
+        break;
       }
       case 'vat': { // a great oak brewing vat, iron-hooped, steaming
         S = canvasFor(2, 2, 18); const { B, fx, fx1, fy1 } = S; const wd = P.mat('#8a6239', 'wood'), hoop = P.mat('#4a4a52', 'metal'), cx = (fx + fx1) / 2;
@@ -10944,6 +11040,15 @@ O.snowMaskOf = function (src) {
         tryPut('chest', nearWalls(2, 1), { valuables: true, evidence: true });
         break;
       }
+      case 'gaol': {
+        // a row of cells along the back, the gaoler's desk by the door, the keys on the rack, bread in a sack
+        for (let i = 0; i < 3; i++) tryPut('cell', backWall(4, true), { cell: true });
+        tryPut('desk', [...nearWalls(2, 1)], { work: ['gaoler', 'turnkey'] });
+        tryPut('rack', nearWalls(2, 1)); tryPut('bench', nearWalls(3, 1), { seat: true });
+        tryPut('sack', nearWalls(), { stockOf: 'bread' }); tryPut('barrel', nearWalls()); tryPut('chest', nearWalls(2, 1), { valuables: true, evidence: true });
+        tryPut('candlestand', nearWalls());
+        break;
+      }
       case 'barn':
         for (let i = 0; i < 10; i++) tryPut('hay', nearWalls(), {});
         for (let i = 0; i < 4; i++) tryPut('sack', nearWalls(), { stockOf: 'wheat', container: { slots: 2 } });
@@ -11363,9 +11468,16 @@ O.snowMaskOf = function (src) {
         const act = q.activity?.act;
         let x, y, dir = 0, anim = 'idle', spot = null, inBed = false, seat = null, sortY = null;
         if (bedOf.has(q.id)) { inBed = true; spot = bedOf.get(q.id).it; [x, y] = this.anchor(spot); }
-        else if (act === 'jailed') { const c = L.items.find((i) => i.cell); if (c) { const [ax, ay] = this.anchor(c); x = ax + ((q.id % 3) - 1) * 12; y = ay - 10; anim = 'sit'; dir = 0; } }
+        else if (act === 'jailed') { const cells = L.items.filter((i) => i.cell), jl = here.filter((z) => z.activity?.act === 'jailed'), ix = jl.indexOf(q), c = cells[ix % Math.max(1, cells.length)]; if (c) { const [ax, ay] = this.anchor(c); x = ax + ((Math.floor(ix / Math.max(1, cells.length)) % 3) - 1) * 14; y = ay - 18; sortY = ay - 1; anim = (Math.floor(this.t / 7) + q.id) % 4 ? 'sit' : 'idle'; dir = 0; } }
         else if (SLEEPY.has(act)) { // no bed free: dozing in a chair, never on the floor
           spot = seats.find((i) => !used.has(i)); if (spot) { seat = spot; anim = 'doze'; }
+        }
+        else if (act === 'work' && b.type === 'gaol' && q.job?.role === 'turnkey' && L.items.some((i) => i.cell)) {
+          // the turnkey walks the row of cells: bread through the bars at mealtimes, a look at the locks between
+          const cells = L.items.filter((i) => i.cell), mm = sim.minute % 1440, meal = (mm >= 480 && mm < 510) || (mm >= 750 && mm < 780) || (mm >= 1080 && mm < 1110);
+          const k = (Math.floor(this.t / 9) + q.id) % (cells.length + 1);
+          if (meal || k < cells.length) { const c = cells[meal ? (Math.floor(this.t / 6) + q.id) % cells.length : k]; const [ax, ay] = this.anchor(c); x = ax + ((q.id % 2) ? 10 : -10); y = ay + 14; dir = 3; anim = meal ? 'place' : (Math.floor(this.t / 3) % 2 ? 'look' : 'idle'); if (meal) q.agent.carrying = { good: 'bread', qty: 1 }; else q.agent.carrying = null; }
+          else { const d = L.items.find((i) => i.kind === 'desk'); if (d) { const [ax, ay] = this.anchor(d), [, ry0] = this.rect(d); x = ax; y = ry0 - 2; dir = 0; anim = 'write'; void ay; } }
         }
         else if (act === 'work' || (act === 'pickup' && q.job?.biz === b.id)) {
           const role = q.job?.role;
@@ -12567,7 +12679,7 @@ O.snowMaskOf = function (src) {
     O.lawJail = (g) => jail(g); O.lawArrest = (g) => arrest(g); O.lawEndChase = () => { try { endChase(false); } catch (e) { /* no chase */ } };
     function jail(g) {
       endChase(false);
-      const gh = sim.building(sim.guardId);
+      const gh = sim.building(sim.prisonId ? sim.prisonId() : sim.guardId);
       // confiscate stolen goods
       let found = 0;
       for (const [k, n] of Object.entries(PS.stolen)) { const r = PS.remove(k, n); found += r; }
@@ -12582,6 +12694,25 @@ O.snowMaskOf = function (src) {
       trial(found);
     }
 
+    // serving time: locked in a cell while the days go by; the turnkey brings bread through the bars
+    function serve(days) {
+      const pb = sim.building(sim.prisonId ? sim.prisonId() : sim.guardId);
+      if (!game.scene || game.scene.b !== pb) { if (game.scene) game.exitBuilding(); game.enterBuilding(pb, 0); }
+      const cells = game.scene.L.items.filter((i) => i.cell), c = cells[cells.length - 1];
+      if (c) { const [ax, ay] = game.scene.anchor(c); game.player.x = ax; game.player.y = ay - 6; }
+      PS.gaol = { b: pb.id, until: sim.day + days, days, fed: -1 };
+      O.Panels.toast(`${days} days. The door is locked behind you.`, 'bad');
+    }
+    game.hooks.update.push(() => {
+      const G = PS.gaol; if (!G) return;
+      if (!game.scene || game.scene.b.id !== G.b) { const pb = sim.building(G.b); if (!pb) { PS.gaol = null; return; } if (game.scene) game.exitBuilding(); game.enterBuilding(pb, 0); const cells = game.scene.L.items.filter((i) => i.cell), c = cells[cells.length - 1]; if (c) { const [ax, ay] = game.scene.anchor(c); game.player.x = ax; game.player.y = ay - 6; } }
+      const p = game.player; p.locked = true; p.anim = 'sit';
+      for (let k = 0; k < 3; k++) { sim.tick(2); PS.tick(2, true); }
+      const mm = Math.floor(sim.minute), meal = [8 * 60, 12 * 60 + 30, 18 * 60].find((t) => mm >= t && mm < t + 8);
+      if (meal != null && G.fed !== sim.day * 1440 + meal) { G.fed = sim.day * 1440 + meal; PS.hunger = Math.min(100, PS.hunger + 35); const tk = sim.people.find((q) => q.job?.role === 'turnkey' && q.agent.inside === G.b) || sim.people.find((q) => q.job?.role === 'gaoler' || q.job?.role?.startsWith('guard')); if (tk) { O.Speech && O.Speech.say(tk, ['Bread. Eat it slow.', 'Your bread.', 'Water and a crust. Don\'t say I never feed you.'][sim.day % 3], 3); } O.UI.say('The turnkey pushes bread and a cup of water through the bars.'); }
+      if (sim.day >= G.until && sim.minute >= 8 * 60) { PS.gaol = null; p.locked = false; p.anim = 'idle'; O.Panels.toast(`After ${G.days} days of bread and water, you are let out.`); if (game.scene) game.exitBuilding(); }
+    });
+
     function trial(found) {
       const crimes = openCrimes();
       const evidence = crimes.reduce((s, c) => s + (c.evidence || 0.5), 0) + found * 0.5 + (PS.bounty ? 0.5 : 0);
@@ -12592,13 +12723,15 @@ O.snowMaskOf = function (src) {
       else if (evidence < 0.7) { verdict = 'acquitted'; body = 'The witnesses cannot agree on what they saw. There is not enough to hold you. You are free to go.'; }
       else if (PS.crimes.length >= 6 || (PS.bounty && crimes.length >= 3)) { verdict = 'exile'; body = 'For repeated crimes against the people of Ashford you are banished. If the watch sees you here again, they will take you on sight.'; }
       else if (evidence < 1.8 && PS.money >= fine) { verdict = 'fine'; body = `Guilty. You are fined ${fine}d, paid to those you wronged and the parish.`; }
-      else { verdict = 'prison'; body = `Guilty. ${PS.money < fine ? 'You cannot pay the fine. ' : ''}You will serve ${2 + Math.min(3, crimes.length)} days in the cell.`; }
-      O.Panels.open('The magistrate rules', `<p class="caption">Heard at the Watch House before ${O.escape(captain ? captain.name : 'the magistrate')}. Charges: ${crimes.map((c) => c.kind).join(', ') || 'evading the watch'}. Witnesses: ${crimes.reduce((s, c) => s + c.witnesses.length, 0)}.${found ? ` Stolen goods found on you: ${found}.` : ''}</p><p class="speech">${body}</p><button class="btn" data-ok="1">Accept the verdict</button>`, (r) => {
+      else { const dd = 2 + Math.min(3, crimes.length), bl = dd <= 3 ? 12 * dd : null; verdict = 'prison'; body = `Guilty. ${PS.money < fine ? 'You cannot pay the fine. ' : ''}You will serve ${dd} days in the cell${bl ? `, unless you can find ${bl}d bail` : ''}.`; }
+      O.Panels.open('The magistrate rules', `<p class="caption">Heard at the Watch House before ${O.escape(captain ? captain.name : 'the magistrate')}. Charges: ${crimes.map((c) => c.kind).join(', ') || 'evading the watch'}. Witnesses: ${crimes.reduce((s, c) => s + c.witnesses.length, 0)}.${found ? ` Stolen goods found on you: ${found}.` : ''}</p><p class="speech">${body}</p>${verdict === 'prison' && 2 + Math.min(3, crimes.length) <= 3 && PS.money >= 12 * (2 + Math.min(3, crimes.length)) ? `<button class="btn" data-bail="1">Pay ${12 * (2 + Math.min(3, crimes.length))}d bail</button> ` : ''}<button class="btn" data-ok="1">${verdict === 'prison' ? 'Serve the sentence' : 'Accept the verdict'}</button>`, (r) => {
         r.querySelector('.x').hidden = true;
+        const bb = r.querySelector('[data-bail]');
+        if (bb) bb.onclick = () => { const bl = 12 * (2 + Math.min(3, crimes.length)); PS.money -= bl; sim.treasury.cash += bl; sim.treasury.income += bl; for (const c of crimes) c.closed = 'bail'; PS.bounty = false; PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.05); O.Panels.close(); sim.log(`The stranger was found guilty and paid ${bl}d bail.`, 'crime'); O.Panels.toast(`You count out ${bl}d bail. The gaoler unlocks the door.`); game.exitBuilding(); };
         r.querySelector('[data-ok]').onclick = () => {
           O.Panels.close();
           if (verdict === 'fine') { PS.money -= fine; sim.treasury.cash += fine; sim.treasury.income += fine; }
-          if (verdict === 'prison') { const days = 2 + Math.min(3, crimes.length); let g = 0; const until = sim.day + days; while (sim.day < until && g++ < 5000) { sim.tick(2); PS.tick(2, true); } PS.hunger = Math.max(PS.hunger, 30); O.Panels.toast(`After ${days} days of bread and water, you are released.`); }
+          if (verdict === 'prison') { serve(2 + Math.min(3, crimes.length)); for (const c of crimes) c.closed = verdict; PS.bounty = false; PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.15); sim.log('The stranger was tried at the Watch House: prison.', 'crime'); return; }
           if (verdict === 'exile') { PS.exiled = true; sim.log('The stranger has been banished from Ashford.', 'crime'); }
           for (const c of crimes) c.closed = verdict;
           if (verdict !== 'exile') PS.bounty = false;
@@ -13882,7 +14015,7 @@ O.snowMaskOf = function (src) {
     const forSale = (b) => !(O.isPublicBuilding && O.isPublicBuilding(b)) && !b.site && !b.ruined && !b.fire && b.type !== 'hideout' && ((b.type === 'house' && !b.household) || b.closedShop || b.listed) && (!b.owner || b.owner.kind !== 'player');
     O.forSale = forSale;
     // the realm's own buildings are never for sale: halls, the watch, churches, the morgue, hospitals, schools, castles
-    const PUBLIC = new Set(['townhall', 'guard', 'chapel', 'church', 'cathedral', 'morgue', 'hospital', 'school', 'keep', 'palace', 'kitchen', 'moothall', 'jail', 'harbour', 'minecourt', 'posthouse', 'gatehouse']);
+    const PUBLIC = new Set(['townhall', 'guard', 'chapel', 'church', 'cathedral', 'morgue', 'hospital', 'school', 'keep', 'palace', 'kitchen', 'moothall', 'jail', 'harbour', 'minecourt', 'posthouse', 'gatehouse', 'gaol']);
     O.isPublicBuilding = (b) => PUBLIC.has(b.type) || !!(O.Data.BUSINESS[b.type] && O.Data.BUSINESS[b.type].public);
     const owned = (b) => b.owner && b.owner.kind === 'player';
 
@@ -16124,6 +16257,7 @@ O.snowMaskOf = function (src) {
       for (const a of [...movers, ...fixed]) { const k = key(a.x, a.y); let c = grid.get(k); if (!c) grid.set(k, c = []); c.push(a); }
       const free = (x, y) => !game.solidAt(x - 3, y - 2) && !game.solidAt(x + 3, y - 2) && !game.solidAt(x, y);
       for (const a of movers) {
+        if (a.lane && game.t > (a.laneT || 0)) a.lane = 0; // back to the middle once they're by
         let px = 0, py = 0;
         const gx = Math.floor(a.x / 24), gy = Math.floor(a.y / 24);
         for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
@@ -16132,6 +16266,13 @@ O.snowMaskOf = function (src) {
             if (o === a) continue;
             const r = o.horse || o.cart ? R + 9 : o.animal ? R + 2 : R;
             const dx = a.x - o.x, dy = (a.y - o.y) * 1.6, d = Math.hypot(dx, dy);
+            // someone in the way ahead (coming the other way, or standing): step to your own right in good time,
+            // as they will to theirs, instead of pressing face to face
+            if (a.path && d < r * 2.6 && d > 0) {
+              const hv = O.Char.DIRV[a.dir] || [0, 1], ahead = -(dx * hv[0] + dy / 1.6 * hv[1]), side = -dx * -hv[1] + -dy / 1.6 * hv[0];
+              const oh = O.Char.DIRV[o.dir] || [0, 0], facing = !o.path || hv[0] * oh[0] + hv[1] * oh[1] < -0.3;
+              if (ahead > 0 && Math.abs(side) < r && facing) { const k = (1 - d / (r * 2.6)) * 1.4; px += -hv[1] * k; py += hv[0] * k * 1.6; a.lane = 8; a.laneT = game.t + 1.2; }
+            }
             if (d >= r || d === 0) { if (d === 0) px += (a.person ? a.person.id % 2 : 1) ? 1 : -1; continue; }
             const push = (r - d) / r;
             px += dx / d * push; py += dy / d * push;
@@ -16191,6 +16332,13 @@ O.snowMaskOf = function (src) {
         b.el.classList.toggle('far', d > b.range * 0.75);
         b.el.style.left = (r.left - hr.left + (p[0] - cam.x) * sc) + 'px';
         b.el.style.top = (r.top - hr.top + (p[1] - 38 - cam.y) * sc) + 'px';
+        b._x = p[0]; b._y = p[1] - 38; b._shown = true;
+      }
+      // two people talking close together: the later words sit above the earlier, never on top of them
+      const shown = [...live.values()].filter((b) => b.el.style.display !== 'none').sort((a, c) => a.until - c.until);
+      for (let i = 1; i < shown.length; i++) for (let j = 0; j < i; j++) {
+        const A = shown[j].el.getBoundingClientRect(), B = shown[i].el.getBoundingClientRect();
+        if (A.right > B.left && B.right > A.left && A.bottom > B.top && B.bottom > A.top) shown[i].el.style.top = (parseFloat(shown[i].el.style.top) - (B.bottom - A.top) - 4) + 'px';
       }
     });
     // leaving a building or a town clears what was being said there
@@ -16249,6 +16397,100 @@ O.snowMaskOf = function (src) {
     O.Errands = { send, finish, live };
   }
   O.ErrandsSetup = { setup };
+})();
+
+</script>
+<script>
+// The town's own social life, played out where you can see it. People who pass a friend wave and
+// call out; those with time on their hands stop and talk (about the weather, prices, work, family,
+// the news, each other), and their talk shows over their heads. Old enemies who meet trade words,
+// and now and then the words turn to blows: a scuffle in the street until one gives way or the watch
+// comes running to break it up. Every meeting moves how they feel about each other, and friendships
+// count when a master is choosing who to take on.
+'use strict';
+(function () {
+  function setup(game, npcUI) {
+    const live = []; let next = 0;
+    const busy = (q) => !q.agent || q.agent.hidden || q.agent.inside != null || q.agent.frozen || q.errand || q.agent.chasing || q.agent.chase || q.agent.fleeing || q.alive === false || (q.health && q.health.hp < 40) || q.age < 6 || q.visitor && q.journey == null || (npcUI.talking && npcUI.talking() === q) || q.arriving;
+    const FREE = new Set(['stroll', 'wait-work', 'shop', 'home', 'socialise', 'play', 'eat-out', 'festival', 'rest', 'leave', 'work', 'carry-home']);
+    const affinity = (a, b) => (a.rel.get(b.id) || {}).affinity || 0;
+    const pick = (arr, k) => arr[Math.abs(k) % arr.length];
+    function lines(s, a, b, kind) {
+      const k = a.id * 7 + b.id + s.day, w = s.weather?.kind || 'fair', K = s.kingdom, news = K && K.news && K.news.length ? K.news[K.news.length - 1 - (k % Math.min(3, K.news.length))].text : null;
+      const bread = s.biz && [...s.biz.values()].find((z) => z.type === 'bakery'), pr = bread && s.price ? s.price(bread, 'bread') : null;
+      if (kind === 'wave') return [[a, pick([`Morning, ${b.first}!`, `${b.first}! Well met.`, `God keep you, ${b.first}.`, `Mind how you go, ${b.first}.`], k)]];
+      if (kind === 'argue') return [
+        [a, pick([`You've some nerve showing your face, ${b.first}.`, `I've not forgotten what you did, ${b.first}.`, `Out of my way.`, `Still owe me, you do.`], k)],
+        [b, pick(['Say that again.', 'Mind your tongue.', 'You want to make something of it?', 'Go and boil your head.'], k + 1)],
+        [a, pick(['Liar and a cheat, the whole town knows it.', "Don't you turn your back on me!", 'You heard.', "I'll say it as loud as I like."], k + 2)],
+      ];
+      const topics = [
+        [[a, w === 'rain' || w === 'heavy' ? 'Will this rain never stop?' : w === 'snow' ? 'Bitter out, this snow.' : w === 'heat' ? 'Hot enough to bake bread on the step.' : 'Fine day for it.'], [b, pick(['It is that.', "Good for the crops, they say.", 'My knees could have told you.', 'Can\'t complain.'], k)]],
+        [[a, pr ? `Bread's ${pr}d a loaf now, did you hear?` : 'Everything costs more than it did.'], [b, pick(['Robbery, I call it.', 'And the loaves smaller.', 'Times are hard.', 'My mother paid a farthing.'], k)]],
+        [[a, a.job ? pick([`Long day at the ${a.job.role === 'baker' ? 'ovens' : 'work'}.`, `They've had me ${a.job.role === 'guard' ? 'on the gate' : 'run off my feet'} all week.`], k) : 'Still looking for work.'], [b, pick(['Keep at it.', 'Something will turn up.', "Better than idle hands.", 'Aye, me too.'], k + 3)]],
+        [[a, `How's the family, ${b.first}?`], [b, pick(['All well, thank God.', 'The little one has a cough.', 'Growing like weeds.', "Don't ask."], k + 5)]],
+        ...(news ? [[[a, `Heard the news? ${news.length > 90 ? news.slice(0, 87) + '…' : news}`], [b, pick(['Never!', 'So they say.', "I'll believe it when I see it.", 'What a world.'], k + 2)]]] : []),
+      ];
+      return pick(topics, k + Math.floor(game.t / 50));
+    }
+    function begin(s, a, b, kind) {
+      const ls = lines(s, a, b, kind);
+      const m = { s, a, b, kind, ls, i: 0, at: game.t, blows: 0 };
+      // stand a pace apart, face to face
+      if (kind !== 'wave') { const dx = b.agent.x - a.agent.x, dy = b.agent.y - a.agent.y, d = Math.hypot(dx, dy) || 1; if (d < 20) { const ux = Math.abs(dx) >= Math.abs(dy) * 0.5 ? Math.sign(dx || 1) : 0, uy = ux ? 0 : Math.sign(dy || 1); const nx = a.agent.x + ux * 20, ny = a.agent.y + uy * 14; if (!game.solidAt(nx, ny)) { b.agent.x = nx; b.agent.y = ny; } } }
+      if (kind !== 'wave') for (const [x, y] of [[a, b], [b, a]]) { x.agent.frozen = true; x.agent.dir = O.dirOf(y.agent.x - x.agent.x, y.agent.y - x.agent.y); x._social = m; }
+      live.push(m);
+    }
+    function end(m) {
+      const { s, a, b, kind } = m;
+      for (const x of [a, b]) { if (x._social !== m) continue; x._social = null; x.agent.forceAnim = null; if (!(npcUI.talking && npcUI.talking() === x)) x.agent.frozen = false; x._chatT = game.t + 45 + (x.id % 20); }
+      const d = { wave: 0.02, chat: 0.04, argue: -0.08, fight: -0.25 }[kind] || 0;
+      s.relate(a, b, d); s.relate(b, a, d);
+      if (kind === 'fight') { s.remember(a, `Came to blows with ${b.name} in the street.`, 'social', 2, b.id); s.remember(b, `${a.name} went for me in the street.`, 'social', 2, a.id); }
+      else if (kind === 'chat' && s.rng.chance(0.3)) s.remember(a, `Passed the time of day with ${b.first}.`, 'social', 0.5, b.id);
+    }
+    game.hooks.update.push(() => {
+      const s = O.SimRef.cur; if (!s || game.scene || s.world !== game.world) { while (live.length) end(live.pop()); return; }
+      // the meetings under way
+      for (let i = live.length - 1; i >= 0; i--) {
+        const m = live[i], { a, b } = m;
+        if (a.alive === false || b.alive === false || a.agent.hidden || b.agent.hidden) { end(m); live.splice(i, 1); continue; }
+        if (m.kind === 'wave') { if (m.i === 0) { O.Speech.say(m.ls[0][0], m.ls[0][1], 2.2); a.agent.anim = 'wave'; m.i = 1; } if (game.t - m.at > 1.2) { end(m); live.splice(i, 1); } continue; }
+        if (m.kind === 'fight') {
+          // blows traded in turn; the weaker gives way, or the watch arrives
+          const t = game.t - m.at, turn = Math.floor(t / 0.7) % 2, hitter = turn ? b : a, other = turn ? a : b;
+          hitter.agent.forceAnim = 'attack'; other.agent.forceAnim = Math.floor(t / 0.35) % 2 ? 'hurt' in O.Char.ANIMS ? 'hurt' : 'shocked' : 'idle';
+          if (Math.floor(t / 0.7) > m.blows) { m.blows++; other.health.hp = Math.max(35, other.health.hp - 4); if (m.blows % 2) O.Speech.say(hitter, pick(['Take that!', 'Had enough?', 'Come on then!', "That's for you!"], m.blows + a.id), 1.2, 'angry'); }
+          const g = m.guard;
+          if (!g && m.blows === 3) { const gd = s.people.filter((q) => q.job?.role?.startsWith('guard') && q.agent && !q.agent.hidden && q.agent.inside == null && !q.errand).sort((p, q) => Math.hypot(p.agent.x - a.agent.x, p.agent.y - a.agent.y) - Math.hypot(q.agent.x - a.agent.x, q.agent.y - a.agent.y))[0]; if (gd && Math.hypot(gd.agent.x - a.agent.x, gd.agent.y - a.agent.y) < 400) { m.guard = gd; O.Errands.send(s, gd, [Math.floor(a.agent.x / s.T), Math.floor(a.agent.y / s.T) + 1], { anim: 'point', secs: 2, face: 3, at: () => { O.Speech.say(gd, 'Break it up! Both of you!', 2.5, 'shout'); m.stopped = true; } }); } }
+          if (m.stopped || m.blows >= 10 || other.health.hp <= 40) { if (!m.stopped) { O.Speech.say(other, pick(['Enough! Enough!', 'All right, all right!', 'Pax!'], m.blows), 2, 'angry'); } other.agent.shockedUntil = s.minute + 2; end(m); live.splice(i, 1); }
+          continue;
+        }
+        // talk, a line at a time
+        if (game.t - m.at >= m.i * 2.4 && m.i < m.ls.length) { const [who, txt] = m.ls[m.i]; O.Speech.say(who, txt, 2.6, m.kind === 'argue' ? 'angry' : ''); who.agent.talking = 3; who.agent.forceAnim = m.kind === 'argue' ? 'point' : 'talk'; const o = who === a ? b : a; o.agent.forceAnim = m.kind === 'argue' ? 'idle' : 'idle'; m.i++; }
+        if (game.t - m.at > m.ls.length * 2.4 + 1) {
+          // a quarrel between two who hate each other, the hot-headed or the brave, may come to blows
+          if (m.kind === 'argue' && affinity(a, b) < -0.45 && (s.has(a, 'hostile') || s.has(a, 'brave') || s.has(b, 'hostile') || s.has(a, 'risk-taking')) && s.rng.chance(0.55)) { m.kind = 'fight'; m.at = game.t; m.blows = 0; O.Speech.say(a, 'Right, that does it!', 1.6, 'angry'); continue; }
+          end(m); live.splice(i, 1);
+        }
+      }
+      if (game.t < next) return; next = game.t + 1.2;
+      // new meetings, only where you'd see them
+      const P = game.player, near = s.people.filter((q) => !busy(q) && q._social == null && !(q._chatT > game.t) && FREE.has(q.activity?.act) && Math.abs(q.agent.x - P.x) < 240 && Math.abs(q.agent.y - P.y) < 170);
+      if (live.length >= 4) return;
+      for (let i = 0; i < near.length; i++) for (let j = i + 1; j < near.length; j++) {
+        const a = near[i], b = near[j]; if (a._social || b._social) continue;
+        const d = Math.hypot(a.agent.x - b.agent.x, a.agent.y - b.agent.y); if (d > 52) continue;
+        const fa = affinity(a, b), fb = affinity(b, a), walking = a.agent.path || b.agent.path;
+        if (fa < -0.3 || fb < -0.3) { if (s.rng.chance(0.5)) { begin(s, a, b, 'argue'); return; } continue; }
+        if (walking && (fa > 0.25 || fb > 0.25) && s.rng.chance(0.6)) { begin(s, a.agent.path ? a : b, a.agent.path ? b : a, 'wave'); a._chatT = b._chatT = game.t + 30; return; }
+        const sociable = (s.has(a, 'social') || s.has(a, 'friendly') ? 0.25 : 0) + (fa > 0.2 ? 0.25 : 0) + (a.activity?.act === 'stroll' || a.activity?.act === 'wait-work' ? 0.2 : 0) + (walking ? -0.15 : 0.1);
+        if (a.age >= 13 && b.age >= 13 && s.rng.chance(0.15 + sociable)) { begin(s, a, b, 'chat'); return; }
+      }
+    });
+    O.Social = { live, begin, stats: () => { const s = O.SimRef.cur, P = game.player; return s.people.filter((q) => !busy(q) && FREE.has(q.activity?.act) && Math.abs(q.agent.x - P.x) < 240 && Math.abs(q.agent.y - P.y) < 170).length; } };
+  }
+  O.SocialSetup = { setup };
 })();
 
 </script>
@@ -17576,7 +17818,7 @@ O.snowMaskOf = function (src) {
         x: away ? away[0] : Math.round(game.scene ? game.scene.b.doorX * 16 + 8 : game.player.x), y: away ? away[1] : Math.round(game.scene ? game.scene.b.doorY * 16 + 10 : game.player.y), dir: game.player.dir,
         mount: game.player.mount ? game.player.mount.id : null,
         region: game.world.island && !game.scene && game.world !== sim.world ? game.world.placeId : null, g: game.world.island && !game.scene ? O.Island.toGlobal(game.world, game.player.x, game.player.y).map(Math.round) : null,
-        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [], emp: PS.emp ? Object.assign({}, PS.emp, { tasks: [], onShift: false, dayInfo: null }) : null, posts: (PS.posts || []).map((x) => Object.assign({}, x, { tasks: [], onShift: false, dayInfo: null, _lm: null, _cur: x === PS.emp })), carry: PS.carry || null, firedSilently: PS.firedSilently || null, residence: PS.residence || null },
+        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [], emp: PS.emp ? Object.assign({}, PS.emp, { tasks: [], onShift: false, dayInfo: null }) : null, posts: (PS.posts || []).map((x) => Object.assign({}, x, { tasks: [], onShift: false, dayInfo: null, _lm: null, _cur: x === PS.emp })), carry: PS.carry || null, firedSilently: PS.firedSilently || null, residence: PS.residence || null, gaol: PS.gaol || null },
       },
     };
   }
@@ -17771,6 +18013,7 @@ O.snowMaskOf = function (src) {
   };
   const npcUI = O.NpcUI.setup(game, sim);
   O.Interact.setup(game, sim, npcUI);
+  O.SocialSetup.setup(game, npcUI);
   O.LawUI.setup(game, sim, npcUI);
   O.GangUISetup.setup(game, sim, npcUI);
   O.CombatSetup.setup(game, sim, npcUI);

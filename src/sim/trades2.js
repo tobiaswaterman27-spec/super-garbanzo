@@ -153,6 +153,8 @@
       recipes: [], sells: [], targets: {}, wage: { ferryman: 4 }, equip: ['rack'] }),
     tollhouse: B({ label: 'Toll house', jobs: [['toll keeper', 1]], hours: [6, 21], site: 'town', w: 3, d: 3, look: { wall: 'stone', roof: 'slate' },
       recipes: [], sells: [], targets: {}, wage: { 'toll keeper': 4 }, public: true, equip: ['desk'] }),
+    gaol: B({ label: 'Gaol', jobs: [['gaoler', 1], ['turnkey', 2]], hours: [6, 22], site: 'town', w: 5, d: 4, look: { wall: 'stone', stoneMat: 'stoneDark', roof: 'slate' },
+      recipes: [], sells: [], buys: { bread: 'bakery|store|import' }, targets: { bread: 12 }, wage: { gaoler: 8, turnkey: 5 }, public: true, equip: ['cell', 'desk'], security: 0.9 }),
     posting: null,
   });
   delete D.BUSINESS.posting;
@@ -209,7 +211,7 @@
     'charcoal burner': 'woodcutter', 'clay digger': 'farmhand', brickmaker: 'builder', 'salt boiler': 'fisher', 'peat cutter': 'farmhand', dyer: 'villager', saddler: 'villager',
     glazier: 'blacksmith', 'rope-maker': 'villager', wainwright: 'woodcutter', boatwright: 'fisher', fletcher: 'villager', bowyer: 'woodcutter', scribe: 'merchant', postmaster: 'merchant',
     messenger: 'courier', 'mounted courier': 'courier', 'barber-surgeon': 'doctor', moneylender: 'merchant', laundress: 'servant', carter: 'farmhand', 'house agent': 'merchant', ferryman: 'fisher',
-    'toll keeper': 'guard', dairymaid: 'farmhand', chambermaid: 'servant', gaoler: 'guard', sergeant: 'guard', 'bounty hunter': 'outlaw', gravedigger: 'undertaker', 'bell-ringer': 'priest',
+    'toll keeper': 'guard', dairymaid: 'farmhand', chambermaid: 'servant', gaoler: 'guard', turnkey: 'guard', sergeant: 'guard', 'bounty hunter': 'outlaw', gravedigger: 'undertaker', 'bell-ringer': 'priest',
     'pilgrim guide': 'priest', bailiff: 'guard', 'market warden': 'merchant', 'town crier': 'courier', 'rat-catcher': 'villager', lamplighter: 'villager', 'chimney sweep': 'sweeper',
     'water carrier': 'villager', 'ballot clerk': 'merchant', midwife: 'doctor', herald: 'courier', 'master of horse': 'noble', 'royal guard': 'guard', 'captain of the royal guard': 'guard',
     jester: 'bard', falconer: 'woodcutter', executioner: 'outlaw', spy: 'villager', stablehand: 'farmhand', squire: 'servant', knight: 'guard', thatcher: 'builder', plasterer: 'builder', roofer: 'builder', potboy: 'innkeeper',
@@ -225,7 +227,7 @@
     jeweller: 'work', physician: 'write', herbalist: 'work', apothecary: 'mix', nurse: 'serve', bearer: 'carry', midwife: 'serve', 'barber-surgeon': 'work',
     scribe: 'write', clerk: 'write', postmaster: 'write', magistrate: 'write', moneylender: 'count', 'house agent': 'write', 'ballot clerk': 'count', teacher: 'read', priest: 'pray', 'parish clerk': 'write',
     'bell-ringer': 'pray', gravedigger: 'dig', undertaker: 'scrub', sweeper: 'sweep', 'chimney sweep': 'sweep', laundress: 'scrub', 'water carrier': 'bucket', lamplighter: 'point', 'rat-catcher': 'crouch',
-    'guard captain': 'write', guard: 'idle', gaoler: 'idle', sergeant: 'point', 'royal guard': 'idle', 'captain of the royal guard': 'point', 'tax collector': 'count', bailiff: 'point', 'market warden': 'count',
+    'guard captain': 'write', guard: 'idle', gaoler: 'idle', turnkey: 'place', sergeant: 'point', 'royal guard': 'idle', 'captain of the royal guard': 'point', 'tax collector': 'count', bailiff: 'point', 'market warden': 'count',
     'town crier': 'wave', herald: 'read', shopkeeper: 'count', 'horse trader': 'talk', stablehand: 'pitch', groom: 'scrub', 'master of horse': 'talk', gamekeeper: 'look', falconer: 'look',
     steward: 'write', chamberlain: 'write', butler: 'pour', maid: 'scrub', page: 'carry', 'lady-in-waiting': 'talk', 'master cook': 'cook', scullion: 'scrub', gardener: 'dig', jester: 'celebrate',
     executioner: 'idle', spy: 'look', squire: 'scrub', knight: 'idle', thatcher: 'work', plasterer: 'scrub', roofer: 'hammer', 'master builder': 'write', builder: 'hammer', carter: 'carry', ferryman: 'pitch',

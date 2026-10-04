@@ -232,6 +232,9 @@
         else if (!(sunday && bz.type !== 'tavern' && bz.type !== 'chapel')) {
           if (bz.type === 'bakery' && job.role === 'baker') o = 4.5;
           if (this.has(p, 'lazy')) o += 0.5;
+          // set off in time to get there: the walk from wherever they are, and their nature (the cautious and
+          // ambitious early, the impatient cutting it fine, the lazy late)
+          if (h < o && h > o - 2) o -= this.leadTime(p, bz);
           if (h >= o && h < c && !(h >= 12 && h < 12.75 && bz.type !== 'tavern')) {
             // farm and woodcutting happen outside in the fields / woods
             const harsh = this.weather.severe || (this.weather.kind === 'heat' && h >= 12 && h < 15) || this.season === 'winter';
@@ -266,6 +269,14 @@
       // elders like the square bench on fine mornings
       if (p.stage === 'elder' && h >= 9.5 && h < 11.5 && !this.raining) return { act: 'sit', outdoor: true, zone: 'bench' };
       if (!job && p.age >= 16 && h >= 9 && h < 16 && !this.raining && (p.id + this.day) % 3 === 0) return { act: 'stroll', outdoor: true, zone: 'square' };
+      // free time out of doors: a fine evening on the square or at a friend's door, a Sunday afternoon walk,
+      // a word in the street on the way home from work
+      if (p.age >= 14 && !this.raining && !(this.weather && this.weather.severe)) {
+        const warm = this.season !== 'winter', k = (p.id * 7 + this.day) % 6;
+        if (warm && h >= 19 && h < 21 && k < 2) return { act: 'stroll', outdoor: true, zone: k ? 'friend' : 'square' };
+        if (sunday && h >= 13 && h < 17 && k < 3) return { act: 'stroll', outdoor: true, zone: k === 1 ? 'friend' : 'square' };
+        if (job && h >= 17 && h < 17.75 && k === 4) return { act: 'stroll', outdoor: true, zone: 'square' };
+      }
       return { act: 'home', b: home };
     }
 
@@ -288,6 +299,11 @@
       const free = (x, y) => !w.solid[y * w.W + x];
       const pick = (x0, y0, x1, y1) => { for (let k = 0; k < 20; k++) { const x = r.int(x0, x1), y = r.int(y0, y1); if (free(x, y)) return [x, y]; } return [46, 29]; };
       switch (zone) {
+        case 'friend': { // the doorstep of the one they like best
+          let best = null, bf = 0.15; for (const [id, r0] of p.rel) { if (typeof id !== 'number' || id === 0 || (r0.affinity || 0) <= bf) continue; const f = this.byId.get(id); if (f && f.home && f.home !== p.home && f.alive !== false) { best = f; bf = r0.affinity; } }
+          const b = best && this.building(best.home); if (b && b.doorX != null) return pick(b.doorX - 1, b.doorY, b.doorX + 1, b.doorY + 1);
+          return this.zoneTile(p, 'square');
+        }
         case 'square': {
           // in a big place most people loaf near their own street rather than all in one market
           // the market holds only so many: about one person to every five tiles of it. The rest pass the
@@ -327,6 +343,16 @@
       }
     }
 
+    // hours before a start time someone leaves to arrive on time (or not quite) for it
+    leadTime(p, bz) {
+      const a = p.agent, b = bz.b || this.building(bz.id); if (!a || !b || b.doorX == null) return 0;
+      let x = a.x / this.T, y = a.y / this.T;
+      if (a.inside != null) { const ib = this.building(a.inside); if (ib && ib.doorX != null) { x = ib.doorX; y = ib.doorY; } }
+      if (a.inside === b.id) return 0;
+      const walk = (Math.abs(x - b.doorX) + Math.abs(y - b.doorY)) * this.T * 1.15 / (WALK[p.stage === 'elder' ? 'elder' : p.age < 13 ? 'child' : 'adult']); // minutes on foot
+      const nature = (this.has(p, 'cautious') || this.has(p, 'ambitious') ? 12 : 0) + (this.has(p, 'patient') ? 5 : 0) - (this.has(p, 'impatient') ? 6 : 0) + ((p.id * 37) % 13) - 5;
+      return O.clamp((walk + nature) / 60, 0, 1.5);
+    }
     speedOf(p) { if (p.task?.act === 'to-doctor' || p.task?.act === 'escort') return 18; if (p.agent && p.agent.sprint) return (p.stage === 'elder' ? WALK.elder : p.age < 13 ? WALK.child : WALK.adult) * 1.9; const base = p.stage === 'elder' ? WALK.elder : p.age < 13 ? WALK.child : WALK.adult; const w = this.weather; return base * (w && w.snowCover > 0.4 ? 0.78 : w && w.wet > 0.6 ? 0.9 : 1); }
 
     // dtm: elapsed game minutes this frame
@@ -520,14 +546,16 @@
     move(p, dtm) {
       const a = p.agent;
       if (a.hidden) return;
-      if (a.frozen) { a.anim = a.talking ? 'talk' : 'idle'; return; }
+      if (a.frozen) { a.anim = a.forceAnim || (a.talking ? 'talk' : 'idle'); return; }
       if (a.chasing) return;
       if (!a.path) { a.anim = this.idleAnim(p); return; }
       let budget = this.speedOf(p) * dtm;
       while (budget > 0 && a.path) {
         if (a.pi >= a.path.length) { this.arrive(p); break; }
         const [tx, ty] = a.path[a.pi];
-        const [gx, gy] = this.tileCenter(tx, ty, a.pi === a.path.length - 1 ? p : null);
+        let [gx, gy] = this.tileCenter(tx, ty, a.pi === a.path.length - 1 ? p : null);
+        // keeping to the right of the way to pass someone coming the other way
+        if (a.lane && a.pi < a.path.length - 1) { const nx = a.path[a.pi + 1], ex = nx[0] - tx, ey = nx[1] - ty, ed = Math.hypot(ex, ey) || 1; gx += (-ey / ed) * a.lane; gy += (ex / ed) * a.lane * 0.7; } // (to the right of the way the path runs)
         const dx = gx - a.x, dy = gy - a.y, d = Math.hypot(dx, dy);
         if (d <= budget) { a.x = gx; a.y = gy; budget -= d; a.pi++; }
         else { a.x += (dx / d) * budget; a.y += (dy / d) * budget; budget = 0; }
@@ -908,7 +936,7 @@
     if (p.task?.act === 'help') { const t = this.byId.get(p.task.target); if (t) return [Math.floor(t.agent.x / this.T), Math.floor((t.agent.y - 1) / this.T)]; }
     return _zone.call(this, p, zone);
   };
-  O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim); O.Aftermath.installSim(Sim); O.Government.installSim(Sim); O.Nobility.installSim(Sim); O.Trades.installSim(Sim); O.Inn.installSim(Sim); O.Employ.installSim(Sim); O.Council.installSim(Sim); O.Journeys.installSim(Sim);
+  O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim); O.Aftermath.installSim(Sim); O.Government.installSim(Sim); O.Nobility.installSim(Sim); O.Trades.installSim(Sim); O.Inn.installSim(Sim); O.Employ.installSim(Sim); O.Council.installSim(Sim); O.Journeys.installSim(Sim); O.Prison.installSim(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
   // everyone keeps their own clock: a few minutes either side, so a street doesn't empty in one minute

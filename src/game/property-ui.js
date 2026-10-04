@@ -10,7 +10,7 @@
     const forSale = (b) => !(O.isPublicBuilding && O.isPublicBuilding(b)) && !b.site && !b.ruined && !b.fire && b.type !== 'hideout' && ((b.type === 'house' && !b.household) || b.closedShop || b.listed) && (!b.owner || b.owner.kind !== 'player');
     O.forSale = forSale;
     // the realm's own buildings are never for sale: halls, the watch, churches, the morgue, hospitals, schools, castles
-    const PUBLIC = new Set(['townhall', 'guard', 'chapel', 'church', 'cathedral', 'morgue', 'hospital', 'school', 'keep', 'palace', 'kitchen', 'moothall', 'jail', 'harbour', 'minecourt', 'posthouse', 'gatehouse']);
+    const PUBLIC = new Set(['townhall', 'guard', 'chapel', 'church', 'cathedral', 'morgue', 'hospital', 'school', 'keep', 'palace', 'kitchen', 'moothall', 'jail', 'harbour', 'minecourt', 'posthouse', 'gatehouse', 'gaol']);
     O.isPublicBuilding = (b) => PUBLIC.has(b.type) || !!(O.Data.BUSINESS[b.type] && O.Data.BUSINESS[b.type].public);
     const owned = (b) => b.owner && b.owner.kind === 'player';
 

@@ -90,7 +90,7 @@ Every job and every level of it, royal family and titles included, grouped under
 
 - [x] Lordship of Ashford: only offered if you live in Ashford (own a house there and live in it)
 - [ ] The "not done yet" items: business deals, relocating a business, the moneylender lending, riders on horseback, leaders visibly leaving for the council, journeys and council kept across a reload
-- [ ] Everyone visibly doing things; people leave in time for where they're going (by distance), early or late by personality
+- [x] Everyone visibly doing things; people leave in time for where they're going (by distance), early or late by personality
 - [x] Glitch: some people change their whole look at work but keep their name
 - [x] Beds only in buildings where someone lives, and only on the floor they sleep on
 - [x] Paths to every city, town, village and hamlet, and paths between buildings
@@ -98,13 +98,13 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Prices: bigger buildings cost and rent for more; also by economy and place (near the capital, good trade spots cost more)
 - [ ] People can send the player letters (an AI key will write them later)
 - [x] Criers heard only when you're near them
-- [ ] NPCs talk and do things with each other, sometimes fight, with animations; relationships and friends that affect jobs and so on
-- [ ] A prison: gaolers and keepers; law-breakers serve time or pay bail by sentence length; animations
-- [ ] Collisions: no seeing through things, no odd overlaps
+- [x] NPCs talk and do things with each other, sometimes fight, with animations; relationships and friends that affect jobs and so on
+- [x] A prison: gaolers and keepers; law-breakers serve time or pay bail by sentence length; animations
+- [x] Collisions: no seeing through things, no odd overlaps
 - [x] The for-sale sign is put up by a person, with animation
 - [x] Attack while sprinting
 - [ ] Preload the map
-- [ ] Better pathfinding: people walking head on don't jam
+- [x] Better pathfinding: people walking head on don't jam
 - [x] NPCs turn to face you when you talk to them
 - [x] Some buildings have no light: at least a candle unless too poor
 - [x] Inn: "a bed for the night" and "a room for the night" mean the same; the upstairs only where the building has one

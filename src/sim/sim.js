@@ -64,8 +64,8 @@
       const r = this.rng, w = this.world;
       const homeTypes = ['house', 'farmhouse', 'tavern', 'bakery', 'smithy', 'doctor', 'woodcutter', 'mill', 'store', 'sawmill', 'butcher', 'jeweller', 'apothecary', 'carpenter', 'armourer', 'tenement', 'mansion', 'townhouse', 'keep'];
       for (const b of w.buildings) {
-        if (D.BUSINESS[b.type]) {
-          const def = D.BUSINESS[b.type];
+        if (D.BUSINESS[b.biz || b.type]) {
+          const def = b.jobs ? Object.assign({}, D.BUSINESS[b.biz || b.type], { jobs: b.jobs }) : D.BUSINESS[b.biz || b.type];
           const stock = {}; for (const [g, t] of Object.entries(def.targets)) stock[g] = Math.round(t * r.float(0.5, 0.9));
           this.biz.set(b.id, { id: b.id, b, type: b.type, def, name: b.name, owner: null, workers: [], stock, cash: def.public ? 0 : r.int(80, 160), sold: {}, bought: {}, open: false, orders: [], salesToday: 0, history: [] });
         }
@@ -75,10 +75,11 @@
         // household size from floor area and wealth
         const area = b.w * b.d * b.floors;
         const flats = b.type === 'tenement' ? Math.max(2, Math.floor(area / 15)) : 1;
-        const big = w.W * w.H > 8000; // cities: smaller households so the streets stay walkable
+        const big = !!w.city; // cities: smaller households so the streets stay walkable
         for (let flat = 0; flat < flats; flat++) {
         const size = b.type === 'house' || b.type === 'tenement' ? O.clamp(Math.round((b.type === 'tenement' ? 3 : area / (big ? 8 : 5)) + r.int(-1, 1)), 1, 7) : b.type === 'mansion' || b.type === 'keep' ? r.int(3, 5) : r.int(2, 4);
         const hh = { id: this.households.length + 1, home: b.id, members: [], pantry: { bread: r.int(2, 6), cabbage: r.int(1, 4), firewood: r.int(2, 5) }, money: Math.round((b.type === 'keep' ? 2500 : b.type === 'mansion' ? 400 : b.type === 'tenement' ? 10 : 20) + b.wealth * 120 * r.float(0.6, 1.4)), surname: r.pick(D.NAMES.sur) };
+        if (b.lordly && this.lordFamily) { this.lordFamily(b, hh, r); continue; }
         if (b.type === 'bakery') hh.surname = 'Hobb'; if (b.type === 'farmhouse') hh.surname = 'Marsh';
         this.households.push(hh); b.household = b.household || hh.id; (b.households = b.households || []).push(hh.id);
         // build a family: a couple or a single adult, children, sometimes an elder
@@ -106,7 +107,7 @@
         }
       }
       // jobs: business owners come from the household living there; others hired from the village
-      const adults = () => this.people.filter((p) => !p.job && p.age >= 16 && p.age < 66);
+      const adults = () => this.people.filter((p) => !p.job && !p.gentry && p.age >= 16 && p.age < 66);
       for (const bz of this.biz.values()) {
         const hh = this.households.find((h) => h.home === bz.id);
         for (const [role, n] of bz.def.jobs) {
@@ -884,7 +885,7 @@
     if (p.task?.act === 'help') { const t = this.byId.get(p.task.target); if (t) return [Math.floor(t.agent.x / this.T), Math.floor((t.agent.y - 1) / this.T)]; }
     return _zone.call(this, p, zone);
   };
-  O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim); O.Aftermath.installSim(Sim); O.Government.installSim(Sim);
+  O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim); O.Aftermath.installSim(Sim); O.Government.installSim(Sim); O.Nobility.installSim(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
   // carry-home and delivery tasks finish on entering the destination

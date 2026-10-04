@@ -359,7 +359,7 @@
       case 'mansion': case 'townhouse': case 'keep':
         if (floor === 0) {
           hearth(); tryPut('rug', centre(3, 2), { flat: true, width: 3 });
-          dining(Math.max(members, b.type === 'keep' ? 12 : 6));
+          dining(Math.max(members, b.type === 'keep' ? (b.royal ? 20 : 12) : 6));
           tryPut('dresser', backWall(2, true), { v: 2, pantry: true }); tryPut('bookcase', backWall(2, true), { v: 2 });
           tryPut('candlestand', nearWalls()); tryPut('candlestand', nearWalls()); tryPut('plant', nearWalls());
           if (b.type === 'keep') { tryPut('desk', [[Math.floor(w / 2) - 1, 1]], { v: 2, lord: true }); tryPut('rack', backWall(2, true)); tryPut('rack', backWall(2, true)); tryPut('barrel', nearWalls()); tryPut('barrel', nearWalls()); }
@@ -368,6 +368,17 @@
           tryPut('rug', centre(3, 2), { flat: true, width: 3 }); tryPut('desk', nearWalls(2, 1)); tryPut('candlestand', nearWalls());
         }
         storage();
+        break;
+      case 'kitchen':
+        if (floor === 0) {
+          hearth(); tryPut('oven', backWall(3), { work: ['cook', 'master cook'], fire: true });
+          tryPut('cauldron', nearWalls(), { work: ['cook'] }); tryPut('cauldron', nearWalls(), { work: ['scullion'] });
+          tryPut('doughtable', nearWalls(3, 1), { work: ['master cook'] }); tryPut('doughtable', centre(3, 1), { work: ['cook'] });
+          tryPut('butcherblock', nearWalls(2, 1), { work: ['cook'] }); tryPut('washtub', nearWalls(), { work: ['scullion'] });
+          for (let i = 0; i < 4; i++) tryPut(rng.pick(['barrel', 'sack', 'crate']), nearWalls(), { pantry: true });
+          tryPut('woodpile', nearWalls()); tryPut('woodpile', nearWalls());
+          tryPut('longtable', centre(4, 1), { work: ['scullion'] });
+        }
         break;
       default: storage(); familyQuarters();
     }

@@ -763,6 +763,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       case 'woodcutter': o.item = 'axe'; o.hat = rng.chance(0.4) ? 'hood' : null; o.hatMat = P.mat(C.forest); o.boots = true; break;
       case 'miller': o.apron = P.mat(C.linen); o.hat = 'cap'; o.hatMat = P.mat(C.linen); o.item = 'sack'; break;
       case 'noble': o.over = P.mat(rng.pick(richCols)); o.overLen = sex === 'f' ? 0 : 1; o.cloak = P.mat(rng.pick(richCols)); o.trim = P.mat(P.metal.gold, 'metal'); o.hat = rng.chance(0.5) ? 'feather' : null; o.hatMat = P.mat(rng.pick(richCols)); o.boots = true; break;
+      case 'royal': o.over = P.mat(rng.pick([C.crimson, C.purple, C.plum])); o.overLen = sex === 'f' ? 0 : 2; if (sex === 'f') o.skirt = P.mat(rng.pick([C.crimson, C.purple, C.woad])); o.cloak = P.mat(C.white); o.trim = P.mat(P.metal.gold, 'metal'); o.hat = 'crown'; o.boots = true; o.pouch = false; break;
+      case 'servant': o.over = P.mat(rng.pick([C.greyWool, C.navy, C.brown])); o.overLen = sex === 'f' ? 0 : 1; o.apron = P.mat(C.white); o.hat = sex === 'f' ? 'coif' : null; o.hatMat = P.mat(C.white); o.item = null; o.pouch = false; break;
       case 'outlaw': o.over = P.mat(rng.pick([C.darkBrown, C.forest, C.black, C.greyWool])); o.overLen = 1; o.hat = 'hood'; o.hatMat = P.mat(rng.pick([C.forest, C.darkBrown, C.black, C.russet])); o.item = rng.pick(['dagger', 'sword', null]); o.boots = true; o.cloak = rng.chance(0.5) ? o.hatMat : null; o.backItem = rng.chance(0.4) ? 'bow' : null; break;
       case 'fisher': o.hat = 'cap'; o.hatMat = P.mat(C.woad); o.item = 'net'; break;
       case 'bard': o.over = P.mat(rng.pick([C.crimson, C.purple, C.teal, C.plum])); o.overLen = 1; o.hat = 'feather'; o.hatMat = P.mat(rng.pick([C.woad, C.olive, C.rose])); o.item = 'lute'; o.boots = true; o.trim = P.mat(P.metal.brass, 'metal'); break;
@@ -1668,10 +1670,10 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     const rng = O.RNG(spec.seed || 1);
     const w = spec.w, d = spec.d, floors = spec.floors || 1, OV = 4, FW = w * T, W = FW + OV * 2;
     const wallH = spec.wallH || floors * FLOOR + 9;
-    const gable = spec.roofType === 'gable';
+    const gable = spec.roofType === 'gable', castle = spec.roofType === 'battlement';
     const roofH = Math.round(d * T * 0.58) + 4;
     const gableH = Math.round(FW * 0.34), depthH = Math.round(d * T * 0.52);
-    const extraTop = 12;
+    const extraTop = castle ? 40 : 12;
     const H = wallH + (gable ? gableH + depthH + 2 : roofH) + extraTop;
     const B = new MB(W, H);
     const wallTop = H - wallH, x0 = OV, x1 = OV + FW - 1;
@@ -1734,6 +1736,14 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         const wx = cxw - Math.floor(ww / 2);
         if (f === 0 && wx + ww + 3 > dx && wx - 3 < dx + dw) continue;
         if (wx < x0 + 3 || wx + ww > x1 - 2) continue;
+        if (castle && (wx < x0 + 16 || wx + ww > x1 - 15)) continue; // the corner towers
+        if (castle && f === 0) { // arrow slits on the ground floor of a keep
+          const sl = P.mat('#141018', 'cloth'), sx = cxw - 1;
+          for (let y = wy + 2; y < wy + 16; y++) { B.plot(sx, y, sl, 1); B.plot(sx + 1, y, sl, 1); }
+          for (let y = wy + 7; y < wy + 9; y++) for (let x = sx - 2; x <= sx + 3; x++) B.plot(x, y, sl, 1);
+          for (let y = wy + 1; y < wy + 17; y++) { B.shadeAt(sx - 1, y, 1); B.shadeAt(sx + 2, y, 3); }
+          continue;
+        }
         drawWindow(B, wx, wy, ww, wh, shutterM, wealth, rng, spec.shopWindow && f === 0);
         meta.windows.push({ x: wx + 1, y: wy + 1, w: ww - 2, h: wh - 2 });
       }
@@ -1743,7 +1753,59 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     const roofKind = spec.roof || 'thatch';
     const RM = M[roofKind]();
     B.part(2);
-    if (!gable) {
+    if (castle) {
+      // a keep: a flat leaded roof behind a crenellated parapet, round corner towers with conical caps
+      const ry = wallTop - Math.round(roofH * 0.55), ey = wallTop;
+      B.poly([[x0, ey], [x1 + 1, ey], [x1 + 1, ry], [x0, ry]], [0, -0.3, 0.95], RM);
+      texRoof(B, roofKind, RM, x0, ry, x1 + 1, ey, rng, cond, null);
+      B.part(1);
+      const merlons = (ya, xa, xb, h) => { for (let x = xa; x <= xb; x++) { const up = Math.floor((x - xa) / 5) % 2 === 0; const top = ya - (up ? h : 2); for (let y = top; y <= ya + 2; y++) B.plot(x, y, wallMat, x === xa ? 3 : x === xb ? 1 : y === top ? 3 : 2); } };
+      merlons(ry, x0, x1, 6); // the far parapet
+      for (let y = ry; y <= ey; y++) { B.plot(x0, y, wallMat, 3); B.plot(x0 + 1, y, wallMat, 3); B.plot(x1, y, wallMat, 1); B.plot(x1 - 1, y, wallMat, 1); }
+      // a great keep has a tall central donjon rising out of the middle of the roof
+      if (w >= 12) {
+        const dw2 = 40, dx0 = Math.round(W / 2 - dw2 / 2), dTop = ry - 46, dBot = ey - 4;
+        for (let y = dTop; y <= dBot; y++) for (let x = dx0; x < dx0 + dw2; x++) B.plot(x, y, wallMat, x < dx0 + 3 ? 3 : x > dx0 + dw2 - 4 ? 1 : 2);
+        texWall(B, 'stone', wallMat, dx0, dTop, dx0 + dw2 - 1, dBot, rng, cond);
+        merlons(dTop, dx0 - 1, dx0 + dw2, 6);
+        for (let i = 0; i < 3; i++) drawWindow(B, dx0 + 6 + i * 11, dTop + 14, 7, 12, shutterM, wealth, rng, false, true);
+        const pole = M.iron(), fl = P.mat('#c8a040', 'cloth'), cxD = Math.round(W / 2);
+        for (let y = dTop - 22; y < dTop - 5; y++) B.plot(cxD, y, pole, 2);
+        for (let k = 0; k < 10; k++) for (let y = 0; y < 6 - (k > 6 ? 1 : 0); y++) B.plot(cxD + 1 + k, dTop - 22 + y + (k > 6 ? 1 : 0), (k + y) % 4 === 1 ? P.mat('#a02020', 'cloth') : fl, (k + y) % 3 ? 2 : 3);
+      }
+      merlons(ey - 1, x0, x1, 7); // the near parapet, along the top of the front wall
+      for (let x = x0; x <= x1; x++) { B.shadeAt(x, ey + 2, 1); B.shadeAt(x, ey + 3, 1); }
+      // string courses between the storeys, and a hood moulding over the great door
+      for (let f = 1; f < floors; f++) { const yb = H - 3 - f * FLOOR; for (let x = x0; x <= x1; x++) { B.plot(x, yb, wallMat, 3); B.plot(x, yb + 1, wallMat, 1); } }
+      for (let x = dx - 3; x <= dx + dw + 2; x++) { B.plot(x, dy - 3, wallMat, 3); B.plot(x, dy - 2, wallMat, 1); }
+      // corner towers rise above the parapet
+      const tw = 18;
+      for (const [tx0, side] of [[x0 - 3, -1], [x1 - tw + 4, 1]]) {
+        const tTop = ry - 22;
+        for (let y = tTop; y < H - 3; y++) for (let x = tx0; x < tx0 + tw; x++) {
+          const u = (x - tx0) / (tw - 1); const sh = u < 0.25 ? 3 : u > 0.75 ? 1 : 2;
+          B.plot(x, y, wallMat, sh);
+        }
+        texWall(B, 'stone', wallMat, tx0, tTop, tx0 + tw - 1, H - 4, rng, cond);
+        for (let y = tTop; y < H - 3; y++) { B.shadeAt(tx0, y, 3); B.shadeAt(tx0 + tw - 1, y, 1); }
+        // the tower's own slit windows and corbelled crown
+        const sl = P.mat('#141018', 'cloth');
+        for (const yy of [tTop + 18, wallTop + 14, wallTop + 14 + FLOOR]) if (yy < H - 20) for (let y = yy; y < yy + 9; y++) { B.plot(tx0 + 7, y, sl, 1); }
+        for (let x = tx0 - 1; x <= tx0 + tw; x++) { B.plot(x, tTop, wallMat, 3); B.plot(x, tTop + 1, wallMat, 1); }
+        // conical cap
+        B.part(2);
+        const capH = 26, cx = tx0 + (tw - 1) / 2;
+        B.poly([[tx0 - 2, tTop + 1], [cx, tTop - capH], [cx, tTop + 2]], [-0.6, -0.4, 0.7], RM);
+        B.poly([[cx, tTop + 2], [cx, tTop - capH], [tx0 + tw + 1, tTop + 1]], [0.6, -0.4, 0.7], RM);
+        texRoof(B, roofKind, RM, tx0 - 2, tTop - capH, tx0 + tw + 1, tTop + 2, rng, cond, null);
+        B.part(4);
+        const fl = P.mat(side < 0 ? '#b02a2a' : '#2a4aa0', 'cloth'), pole = M.iron();
+        for (let y = tTop - capH - 8; y < tTop - capH + 1; y++) B.plot(Math.round(cx), y, pole, 2);
+        for (let k = 0; k < 6; k++) for (let y = 0; y < 4 - (k > 3 ? 1 : 0); y++) B.plot(Math.round(cx) + 1 + k, tTop - capH - 8 + y + (k > 3 ? 1 : 0), fl, (k + y) % 3 ? 2 : 3);
+        B.part(1);
+      }
+      meta.roofTop = ry - 56;
+    } else if (!gable) {
       const ey = wallTop + 3, ry = wallTop - roofH;
       B.poly([[0, ey], [W, ey], [W - 2, ry], [2, ry]], [0, -0.45, 0.89], RM);
       texRoof(B, roofKind, RM, 0, ry, W, ey, rng, cond, null);
@@ -2711,13 +2773,31 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     west: { walls: [['plank', 3], ['log', 2], ['timber', 2], ['stone', 1]], roofs: [['thatch', 4], ['shingle', 3]], plasters: ['plaster', 'plasterWhite'], stoneMat: 'stone' },
   };
 
+  // How many people the living simulation keeps for a place: every soul in a small place, a
+  // representative share of a big one (the rest are counted, and traded for, in the kingdom).
+  const simTarget = (place) => (place.pop <= 120 ? place.pop : Math.round(120 + (place.pop - 120) * 0.27));
+  const HOMES = new Set(['farmhouse', 'tavern', 'bakery', 'smithy', 'doctor', 'woodcutter', 'mill', 'store', 'sawmill', 'butcher', 'jeweller', 'apothecary', 'carpenter', 'armourer', 'mansion', 'townhouse']);
+  const estPeople = (b) => (b.type === 'house' ? O.clamp(Math.round(b.w * b.d * (b.floors || 1) / 5), 1, 7) : b.type === 'tenement' ? Math.max(2, Math.floor(b.w * b.d * b.floors / 15)) * 3 : b.type === 'keep' ? 5 : HOMES.has(b.type) ? 3 : 0);
+  // Pull down the houses furthest from the heart of the place until it holds about as many people
+  // as it should: a place grows outward from its square, so its edges are where it thins.
+  function trimTo(buildings, target, cx, cy, minHouses = 2) {
+    let est = buildings.reduce((a, b) => a + estPeople(b), 0);
+    const houses = buildings.filter((b) => b.type === 'house').sort((a, b) => Math.hypot(b.x + b.w / 2 - cx, b.bottom - cy) - Math.hypot(a.x + a.w / 2 - cx, a.bottom - cy));
+    let left = houses.length;
+    for (const h of houses) { if (est <= target || left <= minHouses) break; buildings.splice(buildings.indexOf(h), 1); est -= estPeople(h); left--; }
+    return est;
+  }
+
   function makeSettlement(place) {
     if (place.kind === 'capital') return makeCity(place);
     if (place.kind === 'castle') return makeCastle(place);
+    if (place.kind === 'hamlet' || place.pop <= 70) return makeHamlet(place);
     const seed = O.hash('settle', place.id);
     const rng = O.RNG(seed);
     const town = place.kind === 'town' || place.kind === 'port' || place.pop > 600;
-    const W = town ? 100 : 80, H = town ? 64 : 56;
+    const target = simTarget(place), upper = target > 140;
+    // two streets hold about 0.9 people per tile of width; a third, upper street adds half again
+    const W = O.clamp(Math.round(target / (upper ? 1.3 : 0.9) + 14), 76, 170), H = town || upper ? 64 : 56;
     const ter = new Uint8Array(W * H), solid = new Uint8Array(W * H);
     const set = (x, y, t) => { if (x >= 0 && y >= 0 && x < W && y < H) ter[y * W + x] = t; };
     const fill = (x0, y0, x1, y1, t) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) set(x, y, t); };
@@ -2762,19 +2842,37 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       { type: 'guard', name: town ? 'Watch House' : 'Watch Hut', w: town ? 5 : 4, d: 4, look: { wall: 'stone', stoneMat: st.stoneMat, roof: 'slate', roofType: 'gable', chimney: true, sign: 'shield', doorTile: 1, noFlowers: true } },
       { type: 'doctor', name: town ? "Physician's House" : "Herb-wife's Cottage", w: 4, d: 4, look: look(0.6, { sign: 'herb', doorTile: 1 }) },
     ];
+    // bigger places have more trades: a butcher and a carpenter, an apothecary, an inn, a school, a second farm
+    const extra = [];
+    if (target >= 90) extra.push({ type: 'butcher', name: 'Butcher', w: 4, d: 4, look: look(0.5, { doorTile: 1, shopWindow: true }) }, { type: 'carpenter', name: 'Carpenter', w: 5, d: 4, look: look(0.5, { doorTile: 2, sign: 'scales' }) });
+    if (target >= 130) extra.push({ type: 'apothecary', name: 'Apothecary', w: 4, d: 4, look: look(0.6, { doorTile: 1, sign: 'herb', shopWindow: true }) }, { type: 'tavern', name: `The ${rng.pick(['Crown', 'White Hart', 'Swan', 'Black Bull', 'Three Tuns'])} Inn`, w: 6, d: 5, floors: 2, look: look(0.6, { roofType: 'gable', sign: 'mug', doorTile: 2 }) }, { type: 'farmhouse', name: 'Home Farm', w: 4, d: 3, look: look(0.4, { doorTile: 1 }) });
+    if (target >= 170) extra.push({ type: 'school', name: 'Grammar School', w: 5, d: 4, look: { wall: 'stone', stoneMat: st.stoneMat, roof: 'slate', roofType: 'gable', doorTile: 2, noFlowers: true } }, { type: 'bakery', name: 'Bakery', w: 4, d: 4, look: look(0.55, { sign: 'bread', shopWindow: true, doorTile: 1 }) }, { type: 'store', name: 'Chandler', w: 5, d: 4, look: look(0.55, { sign: 'scales', shopWindow: true, doorTile: 2 }) });
+    roadTrades.push(...extra);
     if (town) roadTrades.push({ type: 'stable', name: 'Stables', w: 5, d: 3, look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', bigDoor: true, doorTile: 2, chimney: false, noFlowers: true } });
     const rowSlots = [];
     while (x < W - 8) { const w = rng.int(3, 5); if (x + w >= sqX - 8 && x <= sqX + 15) { x = sqX + 17; continue; } rowSlots.push([x, w]); x += w + 1; }
     rng.next();
     for (const [sx, w] of rowSlots) {
-      const tr = roadTrades.length && rng.chance(0.45) ? roadTrades.shift() : null;
+      const tr = roadTrades.length && rng.chance(roadTrades.length > 5 ? 0.6 : 0.45) ? roadTrades.shift() : null;
       if (tr) B(Object.assign({ x: sx, bottom: rowBottom, wealth: 0.55, floors: tr.type === 'doctor' ? 2 : 1 }, tr, { w: Math.min(tr.w, w + 1) }));
       else house(sx, rowBottom, w, rng.int(3, 4));
     }
-    while (roadTrades.length) { const tr = roadTrades.shift(); const sx = sqX + 17 + buildings.filter((b) => b.bottom === top).length * 6; B(Object.assign({ x: Math.min(W - 10, sx), bottom: top, wealth: 0.55 }, tr)); }
+    const clear = (x0, bottom, w, d) => buildings.every((b) => x0 + w + 1 <= b.x || x0 - 1 >= b.x + b.w || bottom + 1 <= b.y || bottom - d >= b.bottom);
+    while (roadTrades.length) {
+      const tr = roadTrades.shift(); let placed = false;
+      for (let sx = sqX + 17; sx < W - 10 && !placed; sx++) if (clear(sx, top, tr.w, tr.d)) { B(Object.assign({ x: sx, bottom: top, wealth: 0.55 }, tr)); placed = true; }
+      for (let sx = coast ? shoreX + 4 : 4; sx < sqX - 9 && !placed; sx++) if (clear(sx, top, tr.w, tr.d) && sx + tr.w < sqX - 8) { B(Object.assign({ x: sx, bottom: top, wealth: 0.55 }, tr)); placed = true; }
+    }
     // back lane, north side
     x = coast ? shoreX + 4 : 6;
     while (x < W - 12) { const w = rng.int(3, 4); if (x + w >= sqX + 6 && x <= sqX + 9) { x = sqX + 10; continue; } house(x, laneY - 1, w, rng.int(3, 4)); x += w + 1 + (rng.chance(0.2) ? 1 : 0); }
+    // an upper street behind the square for the bigger places
+    if (upper && H >= 64) {
+      const uy = roadY - 15;
+      fill(coast ? shoreX + 4 : 4, uy, W - 6, uy + 1, TER.ROAD);
+      x = coast ? shoreX + 4 : 5;
+      while (x < W - 10) { const w = rng.int(3, 5); if (x + w >= sqX + 6 && x <= sqX + 9) { x = sqX + 10; continue; } house(x, uy - 1, w, rng.int(3, 4)); x += w + 1; }
+    }
     // farm, mill, woodcutter, and the regional trade
     const fx = coast ? shoreX + 6 : 7;
     B({ type: 'farmhouse', name: 'Farm', x: fx, bottom: laneY + 2 + 3, w: 4, d: 3, wealth: 0.4, look: look(0.4, { doorTile: 1 }) });
@@ -2786,6 +2884,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     if (place.region === 'north') B({ type: 'quarry', name: `${place.name} Quarry`, x: W - 29, bottom: 10, w: 4, d: 3, wealth: 0.25, condition: 0.6, look: { wall: 'stone', stoneMat: 'stoneDark', roof: 'slate', roofType: 'side', bigDoor: true, doorTile: 1, chimney: false, noFlowers: true } });
     if (place.region === 'north') B({ type: 'mine', name: `${place.name} Mine`, x: W - 22, bottom: 10, w: 5, d: 3, wealth: 0.3, condition: 0.6, look: { wall: 'stone', stoneMat: 'stoneDark', roof: 'shingle', roofType: 'side', bigDoor: true, doorTile: 2, chimney: false, noFlowers: true } });
 
+    trimTo(buildings, target, sqX + 8, roadY);
     for (const b of buildings) {
       for (let yy = b.y; yy <= b.bottom; yy++) for (let xx = b.x; xx < b.x + b.w; xx++) { if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue; solid[yy * W + xx] = 1; if (ter[yy * W + xx] === TER.FOREST || ter[yy * W + xx] === TER.FIELD) set(xx, yy, TER.GRASS); }
       b.doorX = b.x + b.spec.doorTile; b.doorY = b.bottom + 1;
@@ -2869,12 +2968,65 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     return { rng, ter, solid, set, fill, buildings, props, trees, B, look, P, free, walls, scatter, finish, st };
   }
 
+  // A hamlet: a handful of cottages around a green with a well, a farm and its barn, a bakehouse and an
+  // alehouse, and whatever the land gives — a woodward's hut, a fisher's shed — all along one road.
+  function makeHamlet(place) {
+    const target = simTarget(place), W = target > 40 ? 78 : 64, H = 46, seed = O.hash('hamlet', place.id);
+    const K = kit(place, W, H, seed), { rng, set, fill, B, look, P } = K;
+    const st = K.st, roadY = 24, cx = Math.floor(W / 2), res = place.produces || {};
+    const coast = place.region === 'west' && (res.fish || 0) >= 10;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const edge = Math.min(x, y, W - 1 - x, H - 1 - y);
+      set(x, y, edge < 3 || (O.fbm(x / 6, y / 6, seed & 255, 2) > 0.66 && (y < 9 || y > H - 8)) ? TER.FOREST : TER.GRASS);
+      if (coast && x < 6 + Math.round(Math.sin(y / 5) * 1.2)) set(x, y, x < 4 + Math.round(Math.sin(y / 5) * 1.2) ? TER.WATER : TER.SAND);
+    }
+    fill(coast ? 6 : 0, roadY, W - 1, roadY + 1, TER.ROAD);
+    // the green and the lane around it
+    const gx0 = cx - 9, gx1 = cx + 9, gy0 = roadY - 10;
+    fill(gx0, gy0, gx1, gy0, TER.ROAD); fill(gx0, gy0, gx0, roadY - 1, TER.ROAD); fill(gx1, gy0, gx1, roadY - 1, TER.ROAD);
+    fill(gx0 + 1, gy0 + 1, gx1 - 1, roadY - 1, TER.GRASS);
+    // south lane to the farm
+    const ly = roadY + 9;
+    fill(cx, roadY + 2, cx + 1, ly - 1, TER.ROAD); fill(10, ly, W - 10, ly, TER.ROAD);
+    fill(W - 30, ly + 4, W - 9, H - 5, TER.FIELD);
+    const lk = (wl, ex) => look(wl, Object.assign({ roof: wl < 0.45 && place.region !== 'north' ? 'thatch' : rng.weighted(st.roofs) }, ex || {}));
+    // the village trades: farm, bakehouse, alehouse
+    B({ type: 'farmhouse', name: 'Farm', x: 12, bottom: ly - 1, w: 4, d: 3, wealth: 0.4, look: lk(0.4, { doorTile: 1 }) });
+    B({ type: 'barn', name: 'Barn', x: 18, bottom: ly - 1, w: 6, d: 4, wealth: 0.3, look: { wall: 'plank', plankMat: 'plankRed', roof: 'shingle', roofType: 'gable', bigDoor: true, doorTile: 2, noFlowers: true } });
+    B({ type: 'tavern', name: `The ${rng.pick(['Plough', 'Wheatsheaf', 'Hare', 'Crook', 'Fleece', 'Lamb'])}`, x: gx0 + 1, bottom: gy0 - 1, w: 5, d: 4, wealth: 0.45, jobs: [['innkeeper', 1], ['server', 0], ['cook', 1]], look: lk(0.45, { roofType: 'gable', sign: 'mug', doorTile: 2 }) });
+    B({ type: 'bakery', name: 'Bakehouse', x: gx1 - 4, bottom: gy0 - 1, w: 4, d: 3, wealth: 0.4, jobs: [['baker', 1], ['apprentice', 0]], look: lk(0.4, { sign: 'bread', doorTile: 1 }) });
+    // a chapel of ease, the headman's house where wrongs are brought, and the herb-wife's cottage
+    B({ type: 'chapel', name: `Chapel of St. ${rng.pick(['Brannoc', 'Petroc', 'Edith', 'Swithun', 'Agatha'])}`, x: cx - 2, bottom: gy0 - 1, w: 4, d: 4, wealth: 0.45, jobs: [['priest', 1], ['parish clerk', 0]], look: { wall: 'stone', stoneMat: st.stoneMat, roof: rng.chance(0.5) ? 'thatch' : 'slate', roofType: 'gable', sign: 'cross', doorTile: 2, wallH: 56, noFlowers: true } });
+    B({ type: 'guard', name: "Headman's House", x: gx1 + 3, bottom: roadY - 2, w: 4, d: 3, wealth: 0.45, jobs: [['guard captain', 1], ['guard', 0]], look: lk(0.45, { sign: 'shield', doorTile: 1 }) });
+    B({ type: 'doctor', name: "Herb-wife's Cottage", x: gx0 - 6, bottom: roadY - 2, w: 4, d: 3, wealth: 0.35, jobs: [['physician', 1], ['herbalist', 0], ['bearer', 0]], look: lk(0.35, { sign: 'herb', doorTile: 1 }) });
+    if ((res.timber || 0) >= 8 || place.region === 'north') B({ type: 'woodcutter', name: "Woodward's Hut", x: W - 12, bottom: 9, w: 3, d: 3, wealth: 0.25, condition: 0.6, look: { wall: 'log', roof: 'shingle', roofType: 'gable', chimney: true, doorTile: 1 } });
+    if ((res.fish || 0) >= 6) B({ type: 'fishery', name: "Fisher's Shed", x: coast ? 8 : 4, bottom: roadY - 3, w: 4, d: 3, wealth: 0.3, look: { wall: 'plank', plankMat: 'plank', roof: 'thatch', roofType: 'side', chimney: true, doorTile: 1, noFlowers: true } });
+    if ((res.wool || 0) >= 6) P('fenceH', W - 18, roadY + 4, { solid: true });
+    // cottages: around the green first, then out along the road and the lane
+    const cot = (x, bottom, w, d) => { d = rng.chance(0.4) ? d + 1 : d; if (!K.free(x, bottom, w, d)) return; const wl = O.clamp(place.wealth + rng.float(-0.15, 0.1), 0.12, 0.7); B({ type: 'house', name: 'Cottage', x, bottom, w, d, wealth: wl, condition: O.clamp(0.35 + wl * 0.6, 0.2, 1), look: lk(wl, { doorTile: rng.int(0, w - 1) }) }); };
+    for (let x = gx0 - 8; x >= (coast ? 9 : 3); x -= 5) cot(x, roadY - 2, 4, 3);
+    for (let x = gx1 + 3; x < W - 6; x += 5) cot(x, roadY - 2, 4, 3);
+    for (let x = gx0 + 8; x < gx1 - 6; x += 5) cot(x, gy0 - 1, 4, 3);
+    for (let x = 27; x < W - 6; x += 5) if (Math.abs(x - cx) > 2) cot(x, ly - 1, 4, 3);
+    for (let x = gx0 - 8; x >= 3; x -= 5) cot(x, gy0 - 1, 4, 3);
+    trimTo(K.buildings, target, cx, roadY - 4, 1);
+    P('well', cx, roadY - 5, { y: (roadY - 5) * T + 15 }); K.solid[(roadY - 5) * W + cx - 1] = 1;
+    P('bench', cx - 4, roadY - 6, { solid: false }); P('signpost', cx + 3, roadY + 2, { solid: false });
+    P('hay', 26, ly + 2); P('woodpile', 10, ly + 2);
+    for (let xx = W - 30; xx <= W - 9; xx++) P('fenceH', xx, ly + 3, { solid: xx !== W - 20 });
+    for (let yy = ly + 4; yy <= H - 5; yy++) for (let xx = W - 30; xx <= W - 9; xx++) K.props.push({ kind: 'wheat', x: xx * T + 8, y: yy * T + 15, seed: 1, v: 2, solid: false, flat: true, field: 'wheat' });
+    if (coast) for (let i = 0; i < 2; i++) P('boat', 3, roadY - 8 + i * 6, { solid: true, seed: i });
+    K.scatter(() => false);
+    return K.finish({ roadY, exits: { west: [coast ? 7 : 0, roadY], east: [W - 1, roadY] }, hamlet: true,
+      zones: { square: [gx0 + 1, gy0 + 1, gx1 - 1, roadY - 1], bench: [cx - 4, roadY - 6], farm: [W - 29, ly + 4, W - 10, H - 6], wood: [W - 20, 3, W - 6, 9], east: [W - 1, roadY], patrol: [[cx, roadY], [8, roadY], [cx, gy0], [W - 8, roadY], [cx, ly]] } });
+  }
+
   // Aurelia: a walled city on a river, with a grand market, a wealthy quarter, workshops,
   // warehouses by the water, and a crowded poor quarter.
   function makeCity(place) {
-    const W = 128, H = 88, seed = O.hash('city', place.id);
+    const CW = 128, W = 174, H = 88, seed = O.hash('city', place.id);
     const K = kit(place, W, H, seed), { rng, set, fill, B, look, P, free } = K;
-    const roadY = 44, x0 = 6, y0 = 6, x1 = W - 7, y1 = H - 7, riverX = 70;
+    const roadY = 44, x0 = 6, y0 = 6, x1 = CW - 7, y1 = H - 7, riverX = 70;
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const edge = Math.min(x, y, W - 1 - x, H - 1 - y); set(x, y, edge < 3 ? TER.FOREST : TER.GRASS); }
     for (let y = 0; y < H; y++) { const wob = Math.round(Math.sin(y / 9) * 1.5); for (let x = riverX - 2 + wob; x <= riverX + 2 + wob; x++) set(x, y, x === riverX - 2 + wob || x === riverX + 2 + wob ? TER.SAND : TER.WATER); }
     fill(0, roadY, W - 1, roadY + 1, TER.ROAD);
@@ -2882,7 +3034,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     fill(riverX - 4, 24, riverX + 4, 25, TER.BRIDGE);
     // avenues and lanes inside the walls
     fill(40, y0 + 1, 41, y1 - 1, TER.ROAD); fill(96, y0 + 1, 97, y1 - 1, TER.ROAD);
-    fill(x0 + 1, 24, W - 8, 25, TER.ROAD); fill(x0 + 1, 64, W - 8, 65, TER.ROAD);
+    fill(x0 + 1, 24, CW - 8, 25, TER.ROAD); fill(x0 + 1, 64, CW - 8, 65, TER.ROAD);
     for (let x = riverX - 4; x <= riverX + 4; x++) { set(x, 24, TER.BRIDGE); set(x, 25, TER.BRIDGE); }
     fill(44, 30, 64, 43, TER.COBBLE); // the great market
     K.walls(x0, y0, x1, y1, [[x0, roadY + 1], [x1, roadY + 1]], 0);
@@ -2901,51 +3053,79 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     const resi = [[{ type: 'house', w: 4 }, 5], [{ type: 'doctor', w: 5, d: 5, floors: 2, name: 'Physician', look: { sign: 'herb' } }, 0.3], [{ type: 'hospital', w: 7, d: 5, floors: 2, wealth: 0.6, name: "St. Agatha's Hospital", look: { wall: 'stone', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 3 } }, 0.3], [{ type: 'guard', w: 6, d: 4, name: 'City Watch', look: { wall: 'stone', roof: 'slate', sign: 'shield', noFlowers: true } }, 0.4], [{ type: 'stable', w: 5, d: 3, name: 'City Stables', look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', bigDoor: true, chimney: false } }, 0.3]];
     for (const bottom of [13, 22]) { lots(8, 39, bottom, noble, 4); lots(42, 56, bottom, noble, 4); }
     for (const bottom of [13, 22, 33, 42]) lots(74, 95, bottom, bottom === 42 ? ware : work, bottom === 42 ? 5 : 4);
-    for (const bottom of [13, 22, 33, 42]) lots(99, W - 9, bottom, work, 4);
-    for (const bottom of [52, 62, 72, 79]) { lots(74, 95, bottom, poor, 4); lots(99, W - 9, bottom, poor, 4); }
+    for (const bottom of [13, 22, 33, 42]) lots(99, CW - 9, bottom, work, 4);
+    for (const bottom of [52, 62, 72, 79]) { lots(74, 95, bottom, poor, 4); lots(99, CW - 9, bottom, poor, 4); }
     for (const bottom of [52, 62, 72, 79]) { lots(8, 39, bottom, resi, 4); lots(42, riverX - 5, bottom, resi, 4); }
     for (const bottom of [33, 42]) lots(8, 39, bottom, [...resi, ...noble.slice(1, 2)], 4);
     // essential trades a living city needs, wherever they fit
     const need = [['mill', 'Watermill', 4, 4], ['woodcutter', "Woodward's Yard", 4, 3], ['sawmill', 'Riverside Sawmill', 5, 3], ['farmhouse', 'Market Garden', 4, 3]];
-    for (const [type, name, w, d] of need) { for (let tries = 0; tries < 60; tries++) { const x = rng.int(8, W - 14), bottom = rng.pick([13, 22, 33, 52, 62, 72]); if (free(x, bottom, w, d)) { B({ type, name, x, bottom, w, d, floors: type === 'mill' ? 2 : 1, wealth: 0.4, look: look(0.4) }); break; } } }
+    for (const [type, name, w, d] of need) { for (let tries = 0; tries < 60; tries++) { const x = rng.int(8, CW - 14), bottom = rng.pick([13, 22, 33, 52, 62, 72]); if (free(x, bottom, w, d)) { B({ type, name, x, bottom, w, d, floors: type === 'mill' ? 2 : 1, wealth: 0.4, look: look(0.4) }); break; } } }
     if (!K.buildings.some((b) => b.type === 'guard')) B({ type: 'guard', name: 'City Watch', x: 42, bottom: 79, w: 6, d: 4, look: { wall: 'stone', roof: 'slate', sign: 'shield', noFlowers: true, doorTile: 2 } });
     if (!K.buildings.some((b) => b.type === 'doctor')) B({ type: 'doctor', name: 'Physician', x: 30, bottom: 79, w: 4, d: 4, floors: 2, look: look(0.6, { sign: 'herb' }) });
+    // Aurelia Royal Castle, on the rise east of the city: the palace of King Aldric IV and Queen
+    // Elinora, with the royal kitchens, the Royal Guard's barracks, the royal chapel and stables, a
+    // servants' hall and a walled garden, behind its own curtain wall and gatehouse.
+    const rx0 = 128, ry0 = 6, rx1 = 168, ry1 = 38, rgX = 148;
+    fill(rx0 + 1, ry0 + 1, rx1 - 1, ry1 - 1, TER.YARD);
+    fill(rgX - 1, ry1, rgX, roadY - 1, TER.ROAD);
+    fill(rgX - 1, 24, rgX, ry1 - 1, TER.COBBLE); fill(rx0 + 2, 31, rx1 - 2, 31, TER.COBBLE);
+    K.walls(rx0, ry0, rx1, ry1, [[rgX, ry1]], 1);
+    B({ type: 'keep', biz: 'palace', royal: true, lordly: true, name: 'Aurelia Royal Castle', x: rgX - 7, bottom: 22, w: 14, d: 9, floors: 3, wealth: 1, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'battlement', chimney: true, sign: 'shield', doorTile: 7, bigDoor: true, noFlowers: true } });
+    P('banner', rgX - 3, 23, { solid: false }); P('banner', rgX + 2, 23, { solid: false });
+    B({ type: 'kitchen', biz: 'kitchen', name: 'Royal Kitchens', x: rx1 - 10, bottom: 29, w: 8, d: 5, wealth: 0.7, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'tile', roofType: 'side', chimney: true, chimneyX: 0.3, sign: 'bread', doorTile: 3, noFlowers: true } });
+    B({ type: 'guard', name: 'Royal Guard', x: rx0 + 3, bottom: 29, w: 8, d: 5, wealth: 0.7, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'side', sign: 'shield', doorTile: 4, noFlowers: true } });
+    B({ type: 'chapel', name: 'Royal Chapel', x: rx0 + 3, bottom: 19, w: 6, d: 6, wealth: 0.95, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 3, wallH: 70, noFlowers: true } });
+    B({ type: 'stable', name: 'Royal Stables', x: rx0 + 3, bottom: 36, w: 8, d: 3, wealth: 0.7, look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', bigDoor: true, chimney: false, doorTile: 3, noFlowers: true } });
+    B({ type: 'tenement', name: "Servants' Hall", x: rx1 - 10, bottom: 36, w: 7, d: 4, floors: 2, wealth: 0.35, look: { wall: 'timber', roof: 'tile', roofType: 'side', doorTile: 3 } });
+    // the queen's garden
+    for (let x = rx1 - 11; x <= rx1 - 3; x++) for (const y of [12, 18]) P('bush', x, y, { solid: true });
+    for (let x = rx1 - 10; x <= rx1 - 4; x++) for (let y = 13; y <= 17; y++) if ((x + y) % 2 === 0) P('flowers', x, y, { solid: false, flat: true });
+    P('well', rx1 - 7, 15, { y: 15 * T + 15 }); K.solid[15 * W + rx1 - 8] = 1;
+    P('bench', rx1 - 9, 16, { solid: false });
     P('signpost', 42, 46, { solid: false });
-    K.scatter((x, y) => x > x0 && x < x1 && y > y0 && y < y1);
+    K.scatter((x, y) => (x > x0 && x < x1 && y > y0 && y < y1) || (x > rx0 && x < rx1 && y > ry0 && y < ry1));
     return K.finish({ roadY, exits: { west: [0, roadY], east: [W - 1, roadY] }, river: true, zones: { square: [45, 31, 63, 42], bench: [46, 31], farm: [8, 82, 30, 84], wood: [2, 82, 20, 86], east: [W - 1, roadY], patrol: [[55, 44], [20, 44], [40, 24], [80, 24], [110, 44], [96, 64], [60, 64], [40, 44]] }, city: true });
   }
 
   // Highmere: a curtain-walled castle with a keep, and its village outside the gate.
   function makeCastle(place) {
-    const W = 96, H = 72, seed = O.hash('castle', place.id);
+    const W = 96, H = 74, seed = O.hash('castle', place.id);
     const K = kit(place, W, H, seed), { rng, set, fill, B, look, P, free } = K;
-    const roadY = 52, cx0 = 28, cy0 = 6, cx1 = 68, cy1 = 34, gateX = 48;
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const edge = Math.min(x, y, W - 1 - x, H - 1 - y); set(x, y, edge < 3 || (O.fbm(x / 6, y / 6, seed & 255, 2) > 0.72 && (x < 18 || x > W - 18)) ? TER.FOREST : TER.GRASS); }
+    const short = place.name.replace(/ Castle$/, ''), SM = K.st.stoneMat;
+    const sea = place.id === 'westcliff' || place.id === 'eastmarch'; // castles on the cliffs above the sea
+    const roadY = 54, cx0 = 28, cy0 = 8, cx1 = 68, cy1 = 36, gateX = 48;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const edge = Math.min(x, y, W - 1 - x, H - 1 - y);
+      set(x, y, edge < 3 || (O.fbm(x / 6, y / 6, seed & 255, 2) > 0.72 && (x < 18 || x > W - 18)) ? TER.FOREST : TER.GRASS);
+      if (sea) { const sy = 4 + Math.round(Math.sin(x / 7) * 1.2); if (y < sy) set(x, y, TER.WATER); else if (y < sy + 2) set(x, y, TER.ROCK || TER.SAND); }
+    }
     fill(0, roadY, W - 1, roadY + 1, TER.ROAD);
     fill(gateX - 1, cy1 + 1, gateX, roadY - 1, TER.ROAD);
     fill(cx0 + 1, cy0 + 1, cx1 - 1, cy1 - 1, TER.YARD); // the bailey
     fill(gateX - 1, 22, gateX, cy1, TER.COBBLE);
     K.walls(cx0, cy0, cx1, cy1, [[gateX, cy1]], 1);
-    B({ type: 'keep', name: 'The Keep of Highmere', x: 42, bottom: 18, w: 9, d: 7, floors: 3, wealth: 0.95, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', roofType: 'gable', chimney: true, sign: 'shield', doorTile: 4, bigDoor: true, noFlowers: true } });
-    P('tower', 41, 18, { v: 2 }); P('tower', 51, 18, { v: 2 });
-    B({ type: 'guard', name: 'Barracks', x: 31, bottom: 15, w: 7, d: 4, wealth: 0.6, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', roofType: 'side', sign: 'shield', doorTile: 3, noFlowers: true } });
-    B({ type: 'chapel', name: 'Castle Chapel', x: 56, bottom: 15, w: 5, d: 5, wealth: 0.8, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 2, wallH: 64, noFlowers: true } });
-    B({ type: 'stable', name: 'Castle Stables', x: 31, bottom: 30, w: 6, d: 3, wealth: 0.6, look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', bigDoor: true, chimney: false, doorTile: 2, noFlowers: true } });
-    B({ type: 'armourer', name: 'Castle Armoury', x: 56, bottom: 30, w: 6, d: 4, wealth: 0.6, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', chimney: true, sign: 'sword', doorTile: 2, noFlowers: true } });
-    B({ type: 'tavern', name: 'The Great Hall', x: 40, bottom: 28, w: 6, d: 4, floors: 2, wealth: 0.8, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', roofType: 'gable', chimney: true, sign: 'mug', doorTile: 2 } });
-    P('well', 51, 25, { y: 25 * T + 15 }); K.solid[25 * W + 50] = 1;
-    P('banner', 46, 19, { solid: false }); P('banner', 50, 19, { solid: false });
+    B({ type: 'keep', biz: 'keep', lordly: true, name: `The Keep of ${short}`, x: 42, bottom: 20, w: 9, d: 7, floors: 3, wealth: 0.95, look: { wall: 'stone', stoneMat: SM, roof: 'slate', roofType: 'battlement', chimney: true, sign: 'shield', doorTile: 4, bigDoor: true, noFlowers: true } });
+    B({ type: 'guard', name: `${short} Barracks`, x: 31, bottom: 17, w: 7, d: 4, wealth: 0.6, look: { wall: 'stone', stoneMat: SM, roof: 'slate', roofType: 'side', sign: 'shield', doorTile: 3, noFlowers: true } });
+    B({ type: 'chapel', name: 'Castle Chapel', x: 56, bottom: 17, w: 5, d: 5, wealth: 0.8, look: { wall: 'stone', stoneMat: SM, roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 2, wallH: 64, noFlowers: true } });
+    B({ type: 'stable', name: 'Castle Stables', x: 31, bottom: 32, w: 6, d: 3, wealth: 0.6, look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', bigDoor: true, chimney: false, doorTile: 2, noFlowers: true } });
+    B({ type: 'armourer', name: 'Castle Armoury', x: 56, bottom: 32, w: 6, d: 4, wealth: 0.6, look: { wall: 'stone', stoneMat: SM, roof: 'slate', chimney: true, sign: 'sword', doorTile: 2, noFlowers: true } });
+    B({ type: 'tavern', name: 'The Great Hall', x: 40, bottom: 30, w: 6, d: 4, floors: 2, wealth: 0.8, look: { wall: 'stone', stoneMat: SM, roof: 'slate', roofType: 'gable', chimney: true, sign: 'mug', doorTile: 2 } });
+    P('well', 51, 27, { y: 27 * T + 15 }); K.solid[27 * W + 50] = 1;
+    P('banner', 46, 21, { solid: false }); P('banner', 50, 21, { solid: false });
+    // the castle garden
+    for (let i = 0; i < 5; i++) P('flowers', 58 + i, 24, { solid: false, flat: true });
     // the village outside the gate
     const v = [[{ type: 'house', w: 4 }, 6], [{ type: 'bakery', w: 4, name: 'Bakery', look: { sign: 'bread' } }, 0.5], [{ type: 'store', w: 5, name: 'Store', look: { sign: 'scales' } }, 0.5], [{ type: 'smithy', w: 5, name: 'Smithy', look: { wall: 'stone', roof: 'slate', sign: 'anvil' } }, 0.4], [{ type: 'doctor', w: 4, name: "Leech's House", look: { sign: 'herb' } }, 0.3], [{ type: 'mill', w: 4, floors: 2, name: 'Mill' }, 0.3], [{ type: 'farmhouse', w: 4, d: 3, name: 'Farm' }, 0.4], [{ type: 'woodcutter', w: 3, d: 3, name: "Forester's Hut" }, 0.3]];
     const lots = (xa, xb, bottom) => { let x = xa; while (x < xb) { const pick = rng.weighted(v); const w = pick.w; if (x + w > xb) break; if (free(x, bottom, w, pick.d || 4)) { const wl = rng.float(0.3, 0.6); B(Object.assign({ x, bottom, w, d: pick.d || 4, wealth: wl, floors: pick.floors || 1, look: look(wl, Object.assign({ doorTile: Math.floor(w / 2) }, pick.look || {})), name: pick.name || 'House' }, { type: pick.type })); } x += w + 1; } };
     lots(6, gateX - 3, roadY - 2); lots(gateX + 3, W - 6, roadY - 2); lots(6, W - 6, roadY + 10);
+    trimTo(K.buildings, simTarget(place), gateX, roadY, 3);
     for (const [type, name] of [['mill', 'Mill'], ['farmhouse', 'Farm'], ['woodcutter', "Forester's Hut"], ['bakery', 'Bakery'], ['store', 'Store'], ['doctor', "Leech's House"]]) if (!K.buildings.some((b) => b.type === type)) for (let t = 0; t < 80; t++) { const x = rng.int(6, W - 10), bottom = rng.pick([roadY - 2, roadY + 10, roadY + 16]); if (free(x, bottom, 4, 3)) { B({ type, name, x, bottom, w: 4, d: 3, wealth: 0.4, floors: 1, look: look(0.4) }); break; } }
     fill(8, roadY + 12, 40, H - 5, TER.FIELD);
     K.scatter((x, y) => x > cx0 && x < cx1 && y > cy0 && y < cy1);
-    return K.finish({ roadY, exits: { west: [0, roadY], east: [W - 1, roadY] }, zones: { square: [gateX - 6, 22, gateX + 6, 32], bench: [gateX - 4, 23], farm: [9, roadY + 13, 39, H - 6], wood: [4, 4, 22, 20], east: [W - 1, roadY], patrol: [[gateX, 33], [gateX, 22], [36, 24], [62, 24], [gateX, roadY], [20, roadY], [76, roadY]] }, castle: true });
+    return K.finish({ roadY, exits: { west: [0, roadY], east: [W - 1, roadY] }, zones: { square: [gateX - 6, 24, gateX + 6, 34], bench: [gateX - 4, 25], farm: [9, roadY + 13, 39, H - 6], wood: [4, 6, 22, 22], east: [W - 1, roadY], patrol: [[gateX, 35], [gateX, 24], [36, 26], [62, 26], [gateX, roadY], [20, roadY], [76, roadY]] }, castle: true });
   }
 
-  O.Gen = { makeSettlement, makeCity, makeCastle, STYLE };
+  O.Gen = { makeSettlement, makeCity, makeCastle, makeHamlet, simTarget, STYLE };
 })();
 
 </script>
@@ -3354,6 +3534,9 @@ O.snowMaskOf = function (src) {
     townhall: { label: 'Town Hall', jobs: [['magistrate', 1], ['clerk', 2]], hours: [8, 17], recipes: [], sells: [], targets: {}, public: true, wage: { magistrate: 14, clerk: 7 }, security: 0.7 },
     hospital: { label: 'Hospital', jobs: [['physician', 2], ['nurse', 2], ['bearer', 4]], hours: [0, 24], recipes: [{ out: { medicine: 0.4 }, inp: {} }], sells: ['medicine'], targets: { medicine: 20 }, public: true, wage: { physician: 12, nurse: 6, bearer: 5 } },
     school: { label: 'School', jobs: [['teacher', 1]], hours: [8, 15], recipes: [], sells: [], targets: {}, public: true, wage: { teacher: 7 } },
+    keep: { label: 'Castle household', jobs: [['steward', 1], ['cook', 1], ['maid', 2], ['groom', 1]], hours: [6, 21], recipes: [{ out: { meal: 3 }, inp: { bread: 1, cabbage: 1, firewood: 0.3 }, role: 'cook' }], sells: [], buys: { bread: 'bakery|import', cabbage: 'farmhouse|import', firewood: 'woodcutter|store|import' }, targets: { bread: 10, cabbage: 10, firewood: 8, meal: 12 }, wage: { steward: 9, cook: 7, maid: 5, groom: 5 }, security: 0.8 },
+    palace: { label: 'Royal household', jobs: [['chamberlain', 1], ['lady-in-waiting', 2], ['maid', 4], ['page', 2], ['groom', 2]], hours: [6, 22], recipes: [], sells: [], targets: {}, wage: { chamberlain: 12, 'lady-in-waiting': 8, maid: 5, page: 3, groom: 5 }, security: 0.95 },
+    kitchen: { label: 'Royal Kitchens', jobs: [['master cook', 1], ['cook', 2], ['scullion', 2]], hours: [5, 21], recipes: [{ out: { meal: 6 }, inp: { bread: 1, cabbage: 1, meat: 0.5, firewood: 0.4 } }], sells: ['meal'], buys: { bread: 'bakery|import', cabbage: 'farmhouse|import', meat: 'butcher|import', firewood: 'woodcutter|store|import' }, targets: { bread: 20, cabbage: 20, meat: 10, firewood: 12, meal: 30 }, wage: { 'master cook': 9, cook: 7, scullion: 4 } },
     chapel: { label: 'Chapel', jobs: [['priest', 1], ['parish clerk', 1]], hours: [6, 20], recipes: [], sells: [], targets: {}, public: true, wage: { priest: 6, 'parish clerk': 3 } },
   };
 
@@ -3362,6 +3545,7 @@ O.snowMaskOf = function (src) {
     farmer: 'farmer', farmhand: 'farmhand', miller: 'miller', labourer: 'villager', baker: 'baker', apprentice: 'villager', woodcutter: 'woodcutter',
     blacksmith: 'blacksmith', innkeeper: 'innkeeper', server: 'innkeeper', cook: 'baker', shopkeeper: 'merchant', physician: 'doctor', assistant: 'villager',
     bearer: 'bearer', undertaker: 'undertaker', sweeper: 'sweeper', 'tax collector': 'courier', 'parish clerk': 'merchant',
+    steward: 'merchant', maid: 'servant', groom: 'farmhand', chamberlain: 'noble', 'lady-in-waiting': 'noble', page: 'servant', 'master cook': 'baker', scullion: 'servant',
     'guard captain': 'guard', guard: 'guard', priest: 'priest', herbalist: 'farmhand', butcher: 'baker', jeweller: 'merchant', 'night watchman': 'guard', apothecary: 'doctor', carpenter: 'woodcutter', armourer: 'blacksmith', 'warehouse master': 'merchant', 'warehouse worker': 'villager', docker: 'villager', sawyer: 'woodcutter', 'quarry master': 'woodcutter', quarryman: 'woodcutter', magistrate: 'noble', clerk: 'merchant', nurse: 'villager', teacher: 'priest', fisher: 'fisher', miner: 'woodcutter', 'mine foreman': 'woodcutter', 'horse trader': 'merchant', stablehand: 'farmhand', porter: 'villager', trader: 'merchant',
   };
 
@@ -6492,6 +6676,90 @@ O.snowMaskOf = function (src) {
 
 </script>
 <script>
+// The nobility in their seats. A castle's keep is home to its lord or lady and their family — the
+// same people the kingdom's rulers list names — with a steward, cooks, maids and a groom in their
+// service. In Aurelia the royal castle houses King Aldric IV, Queen Elinora and the royal children,
+// served by a chamberlain, ladies-in-waiting, maids, pages and grooms, fed from the Royal Kitchens.
+// The great houses of the capital belong to knights and their ladies. The gentry don't take work in
+// the town; their estates pay the wages of their servants every week.
+'use strict';
+(function () {
+  const D = O.Data, Ch = O.Char;
+
+  function installSim(Sim) {
+    const S = Sim.prototype;
+
+    S.lordFamily = function (b, hh, r) {
+      const K = this.opts.kingdom || this.kingdom, R = K && K.rulers, place = this.world.placeId;
+      const royal = !!b.royal, src = royal ? R && R.crown : R && R.lords && R.lords[place];
+      const short = (this.world.name || '').replace(/ Castle$/, '');
+      hh.surname = royal ? 'Aurel' : `of ${short}`;
+      hh.money = royal ? 20000 : 3000;
+      this.households.push(hh); b.household = hh.id; (b.households = b.households || []).push(hh.id);
+      const mk = (sex, age, first, extra) => {
+        const p = this.newPerson({ sex, age: O.clamp(Math.round(age), 0, 90), first, sur: hh.surname, household: hh.id, home: b.id, genes: Ch.randomGenes(r, this.world.region), wealth: 0.97 });
+        p.gentry = true; Object.assign(p, extra || {}); hh.members.push(p.id); return p;
+      };
+      const headSex = (src && src.sex) || (royal ? 'm' : 'm');
+      const head = mk(headSex, src ? src.age : r.int(40, 60), src ? src.name : r.pick(D.NAMES[headSex]),
+        royal ? { title: headSex === 'm' ? 'King' : 'Queen', regnal: src && src.regnal, royal: true } : { title: headSex === 'f' ? 'Lady' : 'Lord', lordOf: place });
+      const spouseSex = headSex === 'm' ? 'f' : 'm';
+      const q = royal && src && src.queen ? src.queen : null;
+      const spouse = mk(spouseSex, q ? q.age : head.age + r.int(-6, 4), q ? q.name : r.pick(D.NAMES[spouseSex]),
+        royal ? { title: spouseSex === 'f' ? 'Queen' : 'Prince', royal: true } : { title: spouseSex === 'f' ? 'Lady' : 'Lord' });
+      head.spouse = spouse.id; spouse.spouse = head.id;
+      const kids = [];
+      const heir = src && src.heir;
+      const kid = (sex, age, first) => { const c = mk(sex, Math.min(age, Math.max(0, Math.min(head.age, spouse.age) - 18)), first, royal ? { title: sex === 'm' ? 'Prince' : 'Princess', royal: true } : {}); c.parents = [head.id, spouse.id]; kids.push(c.id); return c; };
+      if (heir) kid(heir.sex, heir.age, heir.name); else kid(r.chance(0.5) ? 'm' : 'f', r.int(4, 20), null);
+      if (r.chance(0.7)) { const sx = r.chance(0.5) ? 'm' : 'f'; kid(sx, r.int(2, 16), r.pick(D.NAMES[sx])); }
+      for (const id of kids) { const c = this.byId.get(id); if (!c.first) c.first = r.pick(D.NAMES[c.sex]); }
+      head.children = kids; spouse.children = kids;
+      // a dowager or old uncle lives with the family sometimes
+      if (!royal && r.chance(0.35)) { const sx = r.chance(0.6) ? 'f' : 'm'; const e = mk(sx, head.age + r.int(20, 28), r.pick(D.NAMES[sx])); e.elderOf = head.id; }
+    };
+
+    const _pop = S.populate;
+    S.populate = function () {
+      _pop.call(this);
+      const r = this.rng, city = this.world.city;
+      for (const p of this.people) {
+        if (!p.gentry) continue;
+        if (p.title) p.name = `${p.title} ${p.first}${p.regnal ? ' ' + p.regnal : ''}`;
+        const role = p.royal && (p.title === 'King' || p.title === 'Queen') ? 'royal' : p.age < 13 ? 'child' : 'noble';
+        p.app = Ch.makeAppearance(O.hash('person', p.id, p.first), { sex: p.sex, age: p.age, genes: p.genes, role, wealth: 0.97, region: this.world.region });
+        p.attitude = Math.max(p.attitude, 0.3);
+      }
+      // the great houses of the capital belong to knights and their ladies
+      if (city) for (const b of this.world.buildings) {
+        if (b.type !== 'mansion' || !b.household) continue;
+        const hh = this.households.find((h) => h.id === b.household); if (!hh) continue;
+        b.name = `${hh.surname} House`;
+        for (const id of hh.members) { const p = this.byId.get(id); if (!p || p.age < 18 || (id !== hh.members[0] && p.spouse !== hh.members[0])) continue; p.title = p.sex === 'm' ? 'Sir' : 'Dame'; p.name = `${p.title} ${p.first} ${p.sur}`; if (!p.job) { p.gentry = true; p.app = Ch.makeAppearance(O.hash('person', p.id, p.first), { sex: p.sex, age: p.age, genes: p.genes, role: 'noble', wealth: 0.9, region: this.world.region }); } }
+      }
+      // the estates fund their households
+      for (const bz of this.biz.values()) { const k = bz.b.biz || bz.type; if (k === 'palace') bz.cash = 6000; else if (k === 'kitchen') bz.cash = 2000; else if (k === 'keep') bz.cash = 2500; }
+      void r;
+    };
+
+    const _nd = S.newDay;
+    S.newDay = function () {
+      _nd.call(this);
+      if (this.weekday !== 0) return;
+      for (const bz of this.biz.values()) {
+        const k = bz.b.biz || bz.type, rent = k === 'palace' ? 450 : k === 'kitchen' ? 220 : k === 'keep' ? 220 : 0;
+        if (!rent) continue;
+        bz.cash += rent;
+        if (k === 'palace') { const K = this.kingdom; if (K && K.treasury > rent) K.treasury -= rent; }
+      }
+    };
+  }
+
+  O.Nobility = { installSim };
+})();
+
+</script>
+<script>
 // The living settlement simulation.
 //
 // Every resident is a Person with a family, a home, maybe a job, a purse shared with their household,
@@ -6558,8 +6826,8 @@ O.snowMaskOf = function (src) {
       const r = this.rng, w = this.world;
       const homeTypes = ['house', 'farmhouse', 'tavern', 'bakery', 'smithy', 'doctor', 'woodcutter', 'mill', 'store', 'sawmill', 'butcher', 'jeweller', 'apothecary', 'carpenter', 'armourer', 'tenement', 'mansion', 'townhouse', 'keep'];
       for (const b of w.buildings) {
-        if (D.BUSINESS[b.type]) {
-          const def = D.BUSINESS[b.type];
+        if (D.BUSINESS[b.biz || b.type]) {
+          const def = b.jobs ? Object.assign({}, D.BUSINESS[b.biz || b.type], { jobs: b.jobs }) : D.BUSINESS[b.biz || b.type];
           const stock = {}; for (const [g, t] of Object.entries(def.targets)) stock[g] = Math.round(t * r.float(0.5, 0.9));
           this.biz.set(b.id, { id: b.id, b, type: b.type, def, name: b.name, owner: null, workers: [], stock, cash: def.public ? 0 : r.int(80, 160), sold: {}, bought: {}, open: false, orders: [], salesToday: 0, history: [] });
         }
@@ -6569,10 +6837,11 @@ O.snowMaskOf = function (src) {
         // household size from floor area and wealth
         const area = b.w * b.d * b.floors;
         const flats = b.type === 'tenement' ? Math.max(2, Math.floor(area / 15)) : 1;
-        const big = w.W * w.H > 8000; // cities: smaller households so the streets stay walkable
+        const big = !!w.city; // cities: smaller households so the streets stay walkable
         for (let flat = 0; flat < flats; flat++) {
         const size = b.type === 'house' || b.type === 'tenement' ? O.clamp(Math.round((b.type === 'tenement' ? 3 : area / (big ? 8 : 5)) + r.int(-1, 1)), 1, 7) : b.type === 'mansion' || b.type === 'keep' ? r.int(3, 5) : r.int(2, 4);
         const hh = { id: this.households.length + 1, home: b.id, members: [], pantry: { bread: r.int(2, 6), cabbage: r.int(1, 4), firewood: r.int(2, 5) }, money: Math.round((b.type === 'keep' ? 2500 : b.type === 'mansion' ? 400 : b.type === 'tenement' ? 10 : 20) + b.wealth * 120 * r.float(0.6, 1.4)), surname: r.pick(D.NAMES.sur) };
+        if (b.lordly && this.lordFamily) { this.lordFamily(b, hh, r); continue; }
         if (b.type === 'bakery') hh.surname = 'Hobb'; if (b.type === 'farmhouse') hh.surname = 'Marsh';
         this.households.push(hh); b.household = b.household || hh.id; (b.households = b.households || []).push(hh.id);
         // build a family: a couple or a single adult, children, sometimes an elder
@@ -6600,7 +6869,7 @@ O.snowMaskOf = function (src) {
         }
       }
       // jobs: business owners come from the household living there; others hired from the village
-      const adults = () => this.people.filter((p) => !p.job && p.age >= 16 && p.age < 66);
+      const adults = () => this.people.filter((p) => !p.job && !p.gentry && p.age >= 16 && p.age < 66);
       for (const bz of this.biz.values()) {
         const hh = this.households.find((h) => h.home === bz.id);
         for (const [role, n] of bz.def.jobs) {
@@ -7378,7 +7647,7 @@ O.snowMaskOf = function (src) {
     if (p.task?.act === 'help') { const t = this.byId.get(p.task.target); if (t) return [Math.floor(t.agent.x / this.T), Math.floor((t.agent.y - 1) / this.T)]; }
     return _zone.call(this, p, zone);
   };
-  O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim); O.Aftermath.installSim(Sim); O.Government.installSim(Sim);
+  O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim); O.Aftermath.installSim(Sim); O.Government.installSim(Sim); O.Nobility.installSim(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
   // carry-home and delivery tasks finish on entering the destination
@@ -8361,7 +8630,7 @@ O.snowMaskOf = function (src) {
       case 'mansion': case 'townhouse': case 'keep':
         if (floor === 0) {
           hearth(); tryPut('rug', centre(3, 2), { flat: true, width: 3 });
-          dining(Math.max(members, b.type === 'keep' ? 12 : 6));
+          dining(Math.max(members, b.type === 'keep' ? (b.royal ? 20 : 12) : 6));
           tryPut('dresser', backWall(2, true), { v: 2, pantry: true }); tryPut('bookcase', backWall(2, true), { v: 2 });
           tryPut('candlestand', nearWalls()); tryPut('candlestand', nearWalls()); tryPut('plant', nearWalls());
           if (b.type === 'keep') { tryPut('desk', [[Math.floor(w / 2) - 1, 1]], { v: 2, lord: true }); tryPut('rack', backWall(2, true)); tryPut('rack', backWall(2, true)); tryPut('barrel', nearWalls()); tryPut('barrel', nearWalls()); }
@@ -8370,6 +8639,17 @@ O.snowMaskOf = function (src) {
           tryPut('rug', centre(3, 2), { flat: true, width: 3 }); tryPut('desk', nearWalls(2, 1)); tryPut('candlestand', nearWalls());
         }
         storage();
+        break;
+      case 'kitchen':
+        if (floor === 0) {
+          hearth(); tryPut('oven', backWall(3), { work: ['cook', 'master cook'], fire: true });
+          tryPut('cauldron', nearWalls(), { work: ['cook'] }); tryPut('cauldron', nearWalls(), { work: ['scullion'] });
+          tryPut('doughtable', nearWalls(3, 1), { work: ['master cook'] }); tryPut('doughtable', centre(3, 1), { work: ['cook'] });
+          tryPut('butcherblock', nearWalls(2, 1), { work: ['cook'] }); tryPut('washtub', nearWalls(), { work: ['scullion'] });
+          for (let i = 0; i < 4; i++) tryPut(rng.pick(['barrel', 'sack', 'crate']), nearWalls(), { pantry: true });
+          tryPut('woodpile', nearWalls()); tryPut('woodpile', nearWalls());
+          tryPut('longtable', centre(4, 1), { work: ['scullion'] });
+        }
         break;
       default: storage(); familyQuarters();
     }
@@ -10297,7 +10577,8 @@ O.snowMaskOf = function (src) {
         owner, history: [], x: 0, y: 0, dir: r.int(0, 3), anim: 'idle', ft: r.next() * 3, saddled: false, fed: 80 };
       h.stamina = h.staminaMax;
       h.value = Math.round(B.value * (age < 5 ? 0.85 : age > 12 ? 0.6 : 1) * h.speed);
-      h.history.push({ day: sim.day, event: opts.event || 'bred', owner: ownerName(owner) }); h.world = 'ashford';
+      h.history.push({ day: sim.day, event: opts.event || 'bred', owner: ownerName(owner) }); h.world = opts.world || 'ashford';
+      if (opts.stable) { h.stable = opts.stable; h.pad = opts.pad; } else if (owner === 'biz:' + stable.id || opts.event === 'bought') { h.stable = stable.id; h.pad = paddock; }
       horses.push(h); return h;
     }
     function ownerName(o) { if (o === 'player') return 'you'; if (typeof o === 'string' && o.startsWith('biz:')) return sim.biz.get(+o.slice(4))?.name || 'a stable'; const p = sim.byId.get(o); return p ? p.name : 'unknown'; }
@@ -10332,6 +10613,16 @@ O.snowMaskOf = function (src) {
       return _frame(a);
     };
 
+    // every town's stables keep horses: a paddock by the door by day, a stall at night
+    const seeded = new Set(['ashford']);
+    function padFor(b) { return { x0: b.x, y0: b.bottom + 2, x1: b.x + b.w - 1, y1: b.bottom + 3 }; }
+    function seedStables(wid) {
+      seeded.add(wid);
+      for (const b of game.world.buildings.filter((x) => x.type === 'stable')) {
+        const royal = /Royal|Castle/.test(b.name), n = royal ? 5 : 3, pad = padFor(b);
+        for (let i = 0; i < n; i++) { const h = make('biz:' + b.id, { world: wid, stable: b.id, pad, breed: royal ? r.pick(['Destrier', 'Courser', 'Palfrey']) : null, event: 'bred' }); h.history[0].owner = b.name; h.x = (b.doorX + r.int(-1, 1)) * T + 8; h.y = (b.doorY + 1) * T + 10; }
+      }
+    }
     function horseActor(h) { return h._actor || (h._actor = { horse: h, x: h.x, y: h.y, dir: h.dir, anim: 'idle', ft: h.ft }); }
     function animalActor(f) { return f._actor || (f._actor = { animal: f, x: f.x, y: f.y, dir: f.dir, ft: f.ft, moving: false }); }
 
@@ -10352,9 +10643,15 @@ O.snowMaskOf = function (src) {
       for (const h of horses) {
         h.ft += dt;
         if (h === mount) { h.x = p.x; h.y = p.y; h.dir = p.dir; h.anim = p.moving ? (p.galloping ? 'gallop' : 'walk') : 'idle'; }
-        else if (h.inPaddock !== false && !h.tied && (h.world || 'ashford') === 'ashford') {
-          if (h.tx == null) { if (r.next() < dt * 0.15) { h.tx = r.int(paddock.x0, paddock.x1) * T + 8; h.ty = r.int(paddock.y0, paddock.y1) * T + 12; } h.anim = (h.id + Math.floor(h.ft / 8)) % 3 ? 'graze' : 'idle'; }
-          else { const dx = h.tx - h.x, dy = h.ty - h.y, d = Math.hypot(dx, dy); if (d < 1) h.tx = null; else { const st = Math.min(d, 10 * dt); h.x += (dx / d) * st; h.y += (dy / d) * st; h.dir = O.dirOf(dx, dy); h.anim = 'walk'; } }
+        else if (h.inPaddock !== false && !h.tied && (h.world || 'ashford') === game.world.placeId) {
+          const pad = h.pad || paddock, sb = h.stable != null && game.world.buildings.find((b) => b.id === h.stable);
+          const csim = O.SimRef.cur, hr = csim ? csim.hour : 12, night = sb && (hr >= 20.5 || hr < 6);
+          // at dusk the horses are led into the stables; at dawn they come out to graze
+          if (night && !h.stabled) { h.tx = sb.doorX * T + 8; h.ty = sb.doorY * T + 6; if (Math.hypot(h.tx - h.x, h.ty - h.y) < 3) { h.stabled = true; h.tx = null; } }
+          else if (!night && h.stabled) { h.stabled = false; h.x = sb.doorX * T + 8; h.y = sb.doorY * T + 8; h.tx = null; }
+          if (h.stabled) h.anim = 'idle';
+          else if (h.tx == null) { if (r.next() < dt * 0.15) { const tx = r.int(pad.x0, pad.x1), ty = r.int(pad.y0, pad.y1); if (!game.world.solid[ty * game.world.W + tx]) { h.tx = tx * T + 8; h.ty = ty * T + 12; } } h.anim = (h.id + Math.floor(h.ft / 8)) % 3 ? 'graze' : 'idle'; }
+          else { const dx = h.tx - h.x, dy = h.ty - h.y, d = Math.hypot(dx, dy); if (d < 1) h.tx = null; else { const st = Math.min(d, (night ? 16 : 10) * dt); h.x += (dx / d) * st; h.y += (dy / d) * st; h.dir = O.dirOf(dx, dy); h.anim = 'walk'; } }
         } else h.anim = 'idle';
         if (h !== mount) h.stamina = Math.min(h.staminaMax, h.stamina + dt * 4);
         const a = horseActor(h); a.x = h.x; a.y = h.y; a.dir = h.dir; a.anim = h.anim; a.ft = h.ft;
@@ -10365,7 +10662,8 @@ O.snowMaskOf = function (src) {
         if (p.galloping && mount.temper === 'skittish' && r.chance(dt * 0.02)) { dismount(true); O.Panels.toast(`${mount.name} shies and throws you!`, 'bad'); PS.hp -= 8; }
       }
       const wid = game.world.placeId;
-      if (!game.scene) game.actors = [...game.actors.filter((a) => !a.horse && !a.animal), ...horses.filter((h) => h !== mount && (h.world || 'ashford') === wid).map(horseActor), ...(wid === 'ashford' ? fauna.map(animalActor) : [])];
+      if (wid && !seeded.has(wid)) seedStables(wid);
+      if (!game.scene) game.actors = [...game.actors.filter((a) => !a.horse && !a.animal), ...horses.filter((h) => h !== mount && !h.stabled && (h.world || 'ashford') === wid).map(horseActor), ...(wid === 'ashford' ? fauna.map(animalActor) : [])];
     });
 
     // riding speed: replace the walking pace while mounted
@@ -10399,9 +10697,16 @@ O.snowMaskOf = function (src) {
     };
     void _drawWorld; void _blocked;
 
-    function nearestHorse() { let best = null, bd = 26; for (const h of horses) { if (h === game.player.mount || (h.world || 'ashford') !== game.world.placeId) continue; const d = Math.hypot(h.x - game.player.x, h.y - game.player.y); if (d < bd) { bd = d; best = h; } } return best; }
+    function nearestHorse() { let best = null, bd = 26; for (const h of horses) { if (h === game.player.mount || h.stabled || (h.world || 'ashford') !== game.world.placeId) continue; const d = Math.hypot(h.x - game.player.x, h.y - game.player.y); if (d < bd) { bd = d; best = h; } } return best; }
     function mountHorse(h) { if (game.scene) return; game.player.mount = h; h.saddled = true; h.tied = false; h.inPaddock = false; game.player.x = h.x; game.player.y = h.y; game.player.dir = h.dir; game.player.mountT = 0.5; O.Panels.toast(`You swing up onto ${h.owner === 'player' ? h.name : 'the ' + h.coat + ' ' + h.breed.toLowerCase()}. Shift to gallop, H to dismount.`); }
-    function dismount(thrown) { const h = game.player.mount; if (!h) return; game.player.mount = null; h.tied = true; h.x = game.player.x + (thrown ? 10 : 14); h.y = game.player.y; if (!thrown) O.Panels.toast(`You tie ${h.owner === 'player' ? h.name : 'the horse'} up.`); }
+    function dismount(thrown) {
+      const h = game.player.mount; if (!h) return; game.player.mount = null; h.tied = true; h.x = game.player.x + (thrown ? 10 : 14); h.y = game.player.y;
+      if (thrown) return;
+      // at a stable door you can leave your horse in the stablehand's care for a penny
+      const sb = game.world.buildings.find((b) => b.type === 'stable' && Math.hypot(b.doorX * T + 8 - game.player.x, b.doorY * T + 8 - game.player.y) < 40);
+      if (sb && h.owner === 'player' && PS.money >= 1) { PS.money -= 1; h.tied = false; h.inPaddock = true; h.stable = sb.id; h.pad = padFor(sb); h.world = game.world.placeId; O.Panels.toast(`You leave ${h.name} at ${sb.name} for a penny. ${h.name} will graze in the paddock by day and sleep in a stall at night.`); }
+      else O.Panels.toast(`You tie ${h.owner === 'player' ? h.name : 'the horse'} up.`);
+    }
     O.Horses = { horses, nearestHorse, dismount, mountHorse };
 
     function inspect(h) {

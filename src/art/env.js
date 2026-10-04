@@ -27,10 +27,10 @@
     const rng = O.RNG(spec.seed || 1);
     const w = spec.w, d = spec.d, floors = spec.floors || 1, OV = 4, FW = w * T, W = FW + OV * 2;
     const wallH = spec.wallH || floors * FLOOR + 9;
-    const gable = spec.roofType === 'gable';
+    const gable = spec.roofType === 'gable', castle = spec.roofType === 'battlement';
     const roofH = Math.round(d * T * 0.58) + 4;
     const gableH = Math.round(FW * 0.34), depthH = Math.round(d * T * 0.52);
-    const extraTop = 12;
+    const extraTop = castle ? 40 : 12;
     const H = wallH + (gable ? gableH + depthH + 2 : roofH) + extraTop;
     const B = new MB(W, H);
     const wallTop = H - wallH, x0 = OV, x1 = OV + FW - 1;
@@ -93,6 +93,14 @@
         const wx = cxw - Math.floor(ww / 2);
         if (f === 0 && wx + ww + 3 > dx && wx - 3 < dx + dw) continue;
         if (wx < x0 + 3 || wx + ww > x1 - 2) continue;
+        if (castle && (wx < x0 + 16 || wx + ww > x1 - 15)) continue; // the corner towers
+        if (castle && f === 0) { // arrow slits on the ground floor of a keep
+          const sl = P.mat('#141018', 'cloth'), sx = cxw - 1;
+          for (let y = wy + 2; y < wy + 16; y++) { B.plot(sx, y, sl, 1); B.plot(sx + 1, y, sl, 1); }
+          for (let y = wy + 7; y < wy + 9; y++) for (let x = sx - 2; x <= sx + 3; x++) B.plot(x, y, sl, 1);
+          for (let y = wy + 1; y < wy + 17; y++) { B.shadeAt(sx - 1, y, 1); B.shadeAt(sx + 2, y, 3); }
+          continue;
+        }
         drawWindow(B, wx, wy, ww, wh, shutterM, wealth, rng, spec.shopWindow && f === 0);
         meta.windows.push({ x: wx + 1, y: wy + 1, w: ww - 2, h: wh - 2 });
       }
@@ -102,7 +110,59 @@
     const roofKind = spec.roof || 'thatch';
     const RM = M[roofKind]();
     B.part(2);
-    if (!gable) {
+    if (castle) {
+      // a keep: a flat leaded roof behind a crenellated parapet, round corner towers with conical caps
+      const ry = wallTop - Math.round(roofH * 0.55), ey = wallTop;
+      B.poly([[x0, ey], [x1 + 1, ey], [x1 + 1, ry], [x0, ry]], [0, -0.3, 0.95], RM);
+      texRoof(B, roofKind, RM, x0, ry, x1 + 1, ey, rng, cond, null);
+      B.part(1);
+      const merlons = (ya, xa, xb, h) => { for (let x = xa; x <= xb; x++) { const up = Math.floor((x - xa) / 5) % 2 === 0; const top = ya - (up ? h : 2); for (let y = top; y <= ya + 2; y++) B.plot(x, y, wallMat, x === xa ? 3 : x === xb ? 1 : y === top ? 3 : 2); } };
+      merlons(ry, x0, x1, 6); // the far parapet
+      for (let y = ry; y <= ey; y++) { B.plot(x0, y, wallMat, 3); B.plot(x0 + 1, y, wallMat, 3); B.plot(x1, y, wallMat, 1); B.plot(x1 - 1, y, wallMat, 1); }
+      // a great keep has a tall central donjon rising out of the middle of the roof
+      if (w >= 12) {
+        const dw2 = 40, dx0 = Math.round(W / 2 - dw2 / 2), dTop = ry - 46, dBot = ey - 4;
+        for (let y = dTop; y <= dBot; y++) for (let x = dx0; x < dx0 + dw2; x++) B.plot(x, y, wallMat, x < dx0 + 3 ? 3 : x > dx0 + dw2 - 4 ? 1 : 2);
+        texWall(B, 'stone', wallMat, dx0, dTop, dx0 + dw2 - 1, dBot, rng, cond);
+        merlons(dTop, dx0 - 1, dx0 + dw2, 6);
+        for (let i = 0; i < 3; i++) drawWindow(B, dx0 + 6 + i * 11, dTop + 14, 7, 12, shutterM, wealth, rng, false, true);
+        const pole = M.iron(), fl = P.mat('#c8a040', 'cloth'), cxD = Math.round(W / 2);
+        for (let y = dTop - 22; y < dTop - 5; y++) B.plot(cxD, y, pole, 2);
+        for (let k = 0; k < 10; k++) for (let y = 0; y < 6 - (k > 6 ? 1 : 0); y++) B.plot(cxD + 1 + k, dTop - 22 + y + (k > 6 ? 1 : 0), (k + y) % 4 === 1 ? P.mat('#a02020', 'cloth') : fl, (k + y) % 3 ? 2 : 3);
+      }
+      merlons(ey - 1, x0, x1, 7); // the near parapet, along the top of the front wall
+      for (let x = x0; x <= x1; x++) { B.shadeAt(x, ey + 2, 1); B.shadeAt(x, ey + 3, 1); }
+      // string courses between the storeys, and a hood moulding over the great door
+      for (let f = 1; f < floors; f++) { const yb = H - 3 - f * FLOOR; for (let x = x0; x <= x1; x++) { B.plot(x, yb, wallMat, 3); B.plot(x, yb + 1, wallMat, 1); } }
+      for (let x = dx - 3; x <= dx + dw + 2; x++) { B.plot(x, dy - 3, wallMat, 3); B.plot(x, dy - 2, wallMat, 1); }
+      // corner towers rise above the parapet
+      const tw = 18;
+      for (const [tx0, side] of [[x0 - 3, -1], [x1 - tw + 4, 1]]) {
+        const tTop = ry - 22;
+        for (let y = tTop; y < H - 3; y++) for (let x = tx0; x < tx0 + tw; x++) {
+          const u = (x - tx0) / (tw - 1); const sh = u < 0.25 ? 3 : u > 0.75 ? 1 : 2;
+          B.plot(x, y, wallMat, sh);
+        }
+        texWall(B, 'stone', wallMat, tx0, tTop, tx0 + tw - 1, H - 4, rng, cond);
+        for (let y = tTop; y < H - 3; y++) { B.shadeAt(tx0, y, 3); B.shadeAt(tx0 + tw - 1, y, 1); }
+        // the tower's own slit windows and corbelled crown
+        const sl = P.mat('#141018', 'cloth');
+        for (const yy of [tTop + 18, wallTop + 14, wallTop + 14 + FLOOR]) if (yy < H - 20) for (let y = yy; y < yy + 9; y++) { B.plot(tx0 + 7, y, sl, 1); }
+        for (let x = tx0 - 1; x <= tx0 + tw; x++) { B.plot(x, tTop, wallMat, 3); B.plot(x, tTop + 1, wallMat, 1); }
+        // conical cap
+        B.part(2);
+        const capH = 26, cx = tx0 + (tw - 1) / 2;
+        B.poly([[tx0 - 2, tTop + 1], [cx, tTop - capH], [cx, tTop + 2]], [-0.6, -0.4, 0.7], RM);
+        B.poly([[cx, tTop + 2], [cx, tTop - capH], [tx0 + tw + 1, tTop + 1]], [0.6, -0.4, 0.7], RM);
+        texRoof(B, roofKind, RM, tx0 - 2, tTop - capH, tx0 + tw + 1, tTop + 2, rng, cond, null);
+        B.part(4);
+        const fl = P.mat(side < 0 ? '#b02a2a' : '#2a4aa0', 'cloth'), pole = M.iron();
+        for (let y = tTop - capH - 8; y < tTop - capH + 1; y++) B.plot(Math.round(cx), y, pole, 2);
+        for (let k = 0; k < 6; k++) for (let y = 0; y < 4 - (k > 3 ? 1 : 0); y++) B.plot(Math.round(cx) + 1 + k, tTop - capH - 8 + y + (k > 3 ? 1 : 0), fl, (k + y) % 3 ? 2 : 3);
+        B.part(1);
+      }
+      meta.roofTop = ry - 56;
+    } else if (!gable) {
       const ey = wallTop + 3, ry = wallTop - roofH;
       B.poly([[0, ey], [W, ey], [W - 2, ry], [2, ry]], [0, -0.45, 0.89], RM);
       texRoof(B, roofKind, RM, 0, ry, W, ey, rng, cond, null);

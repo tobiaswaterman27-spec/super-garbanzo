@@ -59,6 +59,9 @@
     townhall: { label: 'Town Hall', jobs: [['magistrate', 1], ['clerk', 2]], hours: [8, 17], recipes: [], sells: [], targets: {}, public: true, wage: { magistrate: 14, clerk: 7 }, security: 0.7 },
     hospital: { label: 'Hospital', jobs: [['physician', 2], ['nurse', 2], ['bearer', 4]], hours: [0, 24], recipes: [{ out: { medicine: 0.4 }, inp: {} }], sells: ['medicine'], targets: { medicine: 20 }, public: true, wage: { physician: 12, nurse: 6, bearer: 5 } },
     school: { label: 'School', jobs: [['teacher', 1]], hours: [8, 15], recipes: [], sells: [], targets: {}, public: true, wage: { teacher: 7 } },
+    keep: { label: 'Castle household', jobs: [['steward', 1], ['cook', 1], ['maid', 2], ['groom', 1]], hours: [6, 21], recipes: [{ out: { meal: 3 }, inp: { bread: 1, cabbage: 1, firewood: 0.3 }, role: 'cook' }], sells: [], buys: { bread: 'bakery|import', cabbage: 'farmhouse|import', firewood: 'woodcutter|store|import' }, targets: { bread: 10, cabbage: 10, firewood: 8, meal: 12 }, wage: { steward: 9, cook: 7, maid: 5, groom: 5 }, security: 0.8 },
+    palace: { label: 'Royal household', jobs: [['chamberlain', 1], ['lady-in-waiting', 2], ['maid', 4], ['page', 2], ['groom', 2]], hours: [6, 22], recipes: [], sells: [], targets: {}, wage: { chamberlain: 12, 'lady-in-waiting': 8, maid: 5, page: 3, groom: 5 }, security: 0.95 },
+    kitchen: { label: 'Royal Kitchens', jobs: [['master cook', 1], ['cook', 2], ['scullion', 2]], hours: [5, 21], recipes: [{ out: { meal: 6 }, inp: { bread: 1, cabbage: 1, meat: 0.5, firewood: 0.4 } }], sells: ['meal'], buys: { bread: 'bakery|import', cabbage: 'farmhouse|import', meat: 'butcher|import', firewood: 'woodcutter|store|import' }, targets: { bread: 20, cabbage: 20, meat: 10, firewood: 12, meal: 30 }, wage: { 'master cook': 9, cook: 7, scullion: 4 } },
     chapel: { label: 'Chapel', jobs: [['priest', 1], ['parish clerk', 1]], hours: [6, 20], recipes: [], sells: [], targets: {}, public: true, wage: { priest: 6, 'parish clerk': 3 } },
   };
 
@@ -67,6 +70,7 @@
     farmer: 'farmer', farmhand: 'farmhand', miller: 'miller', labourer: 'villager', baker: 'baker', apprentice: 'villager', woodcutter: 'woodcutter',
     blacksmith: 'blacksmith', innkeeper: 'innkeeper', server: 'innkeeper', cook: 'baker', shopkeeper: 'merchant', physician: 'doctor', assistant: 'villager',
     bearer: 'bearer', undertaker: 'undertaker', sweeper: 'sweeper', 'tax collector': 'courier', 'parish clerk': 'merchant',
+    steward: 'merchant', maid: 'servant', groom: 'farmhand', chamberlain: 'noble', 'lady-in-waiting': 'noble', page: 'servant', 'master cook': 'baker', scullion: 'servant',
     'guard captain': 'guard', guard: 'guard', priest: 'priest', herbalist: 'farmhand', butcher: 'baker', jeweller: 'merchant', 'night watchman': 'guard', apothecary: 'doctor', carpenter: 'woodcutter', armourer: 'blacksmith', 'warehouse master': 'merchant', 'warehouse worker': 'villager', docker: 'villager', sawyer: 'woodcutter', 'quarry master': 'woodcutter', quarryman: 'woodcutter', magistrate: 'noble', clerk: 'merchant', nurse: 'villager', teacher: 'priest', fisher: 'fisher', miner: 'woodcutter', 'mine foreman': 'woodcutter', 'horse trader': 'merchant', stablehand: 'farmhand', porter: 'villager', trader: 'merchant',
   };
 

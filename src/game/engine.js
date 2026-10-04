@@ -144,6 +144,11 @@
       };
     }
 
+    // a soft oval shadow on the ground
+    shadow(ctx, cx, cy, rx, ry) {
+      for (let y = -ry; y <= ry; y++) { const w = Math.round(rx * Math.sqrt(1 - (y / (ry + 0.5)) ** 2)); ctx.fillRect(cx - w, cy + y - 1, w * 2, 1); }
+    }
+
     actorFrame(a) {
       const A = Ch.ANIMS[a.anim] || Ch.ANIMS.idle;
       const f = Math.floor(a.ft * A.fps) % A.frames;
@@ -166,11 +171,11 @@
         const fx = Math.round(a.x - ox - cam.x), fy = Math.round(a.y - (fr.gy ?? Ch.GROUND) - cam.y);
         if (fx < -50 || fy < -60 || fx > vw + 40 || fy > vh + 60) return;
         ctx.fillStyle = 'rgba(28,20,44,0.32)';
-        if (a.horse) ctx.fillRect(fx + 12, fy + fr.gy - 1, 36, 3);
-        else if (a.animal) ctx.fillRect(fx + Math.round(fr.width / 2) - 4, fy + fr.gy - 1, 8, 2);
+        if (a.horse || a.animal) { const sd = a.dir === 1 || a.dir === 2 ? 1 : a.dir >= 4 ? 0.75 : 0.4, rx = Math.round((a.horse ? 17 : fr.width * 0.3) * sd + 3); this.shadow(ctx, Math.round(a.x - cam.x), Math.round(a.y - cam.y), rx, a.horse ? 3 : 2); }
         else if (fr.ox) ctx.fillRect(fx + 6, fy + Ch.GROUND - 1, 36, 3);
         else { ctx.fillRect(fx + 11, fy + Ch.GROUND - 1, 10, 3); ctx.fillRect(fx + 9, fy + Ch.GROUND, 14, 1); }
         ctx.drawImage(fr, fx, fy);
+        if (fr.front) ctx.drawImage(fr.front, fx, fy);
         a._sx = fx; a._sy = fy;
       };
       for (const s of this.statics) {

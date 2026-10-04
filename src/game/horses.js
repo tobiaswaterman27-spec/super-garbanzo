@@ -43,7 +43,7 @@
     // ---- village animals: chickens and pigs in the farmyard, sheep and cows in the pasture, dogs and cats about the houses
     const fauna = [];
     const zone = (x0, y0, x1, y1) => ({ x0, y0, x1, y1 });
-    const add = (kind, n, z, extra = {}) => { for (let i = 0; i < n; i++) fauna.push(Object.assign({ kind, seed: r.int(1, 9999), z, x: r.int(z.x0, z.x1) * T + 8, y: r.int(z.y0, z.y1) * T + 12, dir: r.int(0, 3), ft: r.next() * 2, tx: null, wait: r.next() * 4, speed: kind === 'chicken' ? 14 : kind === 'cow' ? 8 : 11 }, extra)); };
+    const add = (kind, n, z, extra = {}) => { for (let i = 0; i < n; i++) fauna.push(Object.assign({ kind, seed: r.int(1, 9999), z, x: r.int(z.x0, z.x1) * T + 8, y: r.int(z.y0, z.y1) * T + 12, dir: r.int(0, 7), ft: r.next() * 2, tx: null, wait: r.next() * 4, speed: kind === 'chicken' ? 14 : kind === 'cow' ? 8 : 11 }, extra)); };
     add('chicken', 7, zone(9, 52, 30, 54)); add('pig', 2, zone(27, 52, 33, 54));
     add('sheep', 5, zone(3, 33, 6, 35)); add('cow', 2, zone(3, 33, 6, 35));
     for (const b of sim.world.buildings.filter((x) => x.type === 'house' && x.wealth > 0.45).slice(0, 4)) add(r.chance(0.6) ? 'dog' : 'cat', 1, zone(b.x - 1, b.bottom + 1, b.x + b.w, b.bottom + 2));
@@ -54,7 +54,11 @@
     const _frame = game.actorFrame.bind(game);
     game.actorFrame = (a) => {
       if (a.horse) { const H = O.Animals.HANIMS[a.anim] || O.Animals.HANIMS.idle; return O.Animals.horse(a.horse, a.dir, a.anim in O.Animals.HANIMS ? a.anim : 'idle', Math.floor(a.ft * H.fps) % H.frames); }
-      if (a.animal) return O.Animals.animal(a.animal.kind, a.animal.seed, a.dir, a.moving, Math.floor(a.ft * 4) % 2);
+      if (a.animal) {
+        const k = a.animal.kind, grazer = k === 'cow' || k === 'sheep';
+        const an = a.moving ? 'walk' : grazer && (a.animal.seed + Math.floor(a.ft / 7)) % 3 ? 'graze' : 'idle';
+        const H = O.Animals.HANIMS[an]; return O.Animals.animal(k, a.animal.seed, a.dir, a.moving, Math.floor(a.ft * H.fps) % H.frames, an);
+      }
       return _frame(a);
     };
 
@@ -69,17 +73,18 @@
         if (f.tx == null) { f.wait -= dt; if (f.wait <= 0) { f.tx = r.int(f.z.x0, f.z.x1) * T + r.int(2, 14); f.ty = r.int(f.z.y0, f.z.y1) * T + r.int(6, 14); } }
         else {
           const dx = f.tx - f.x, dy = f.ty - f.y, d = Math.hypot(dx, dy), step = Math.min(d, f.speed * Math.min(dtm, 3));
-          if (d < 1) { f.tx = null; f.wait = 2 + r.next() * 6; } else { f.x += (dx / d) * step; f.y += (dy / d) * step; f.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 1 : 2) : (dy < 0 ? 3 : 0); }
+          if (d < 1) { f.tx = null; f.wait = 2 + r.next() * 6; } else { f.x += (dx / d) * step; f.y += (dy / d) * step; f.dir = O.dirOf(dx, dy); }
         }
         const a = animalActor(f); a.x = f.x; a.y = f.y; a.dir = f.dir; a.ft = f.ft; a.moving = f.tx != null;
       }
       const p = game.player, mount = p.mount;
+      if (p.mountT > 0) { p.mountT = Math.max(0, p.mountT - dt); p.locked = true; }
       for (const h of horses) {
         h.ft += dt;
-        if (h === mount) { h.x = p.x; h.y = p.y; h.dir = O.dir4(p.dir); h.anim = p.moving ? (p.galloping ? 'gallop' : 'walk') : 'idle'; }
+        if (h === mount) { h.x = p.x; h.y = p.y; h.dir = p.dir; h.anim = p.moving ? (p.galloping ? 'gallop' : 'walk') : 'idle'; }
         else if (h.inPaddock !== false && !h.tied && (h.world || 'ashford') === 'ashford') {
-          if (h.tx == null) { if (r.next() < dt * 0.15) { h.tx = r.int(paddock.x0, paddock.x1) * T + 8; h.ty = r.int(paddock.y0, paddock.y1) * T + 12; } h.anim = 'idle'; }
-          else { const dx = h.tx - h.x, dy = h.ty - h.y, d = Math.hypot(dx, dy); if (d < 1) h.tx = null; else { const st = Math.min(d, 10 * dt); h.x += (dx / d) * st; h.y += (dy / d) * st; h.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 1 : 2) : (dy < 0 ? 3 : 0); h.anim = 'walk'; } }
+          if (h.tx == null) { if (r.next() < dt * 0.15) { h.tx = r.int(paddock.x0, paddock.x1) * T + 8; h.ty = r.int(paddock.y0, paddock.y1) * T + 12; } h.anim = (h.id + Math.floor(h.ft / 8)) % 3 ? 'graze' : 'idle'; }
+          else { const dx = h.tx - h.x, dy = h.ty - h.y, d = Math.hypot(dx, dy); if (d < 1) h.tx = null; else { const st = Math.min(d, 10 * dt); h.x += (dx / d) * st; h.y += (dy / d) * st; h.dir = O.dirOf(dx, dy); h.anim = 'walk'; } }
         } else h.anim = 'idle';
         if (h !== mount) h.stamina = Math.min(h.staminaMax, h.stamina + dt * 4);
         const a = horseActor(h); a.x = h.x; a.y = h.y; a.dir = h.dir; a.anim = h.anim; a.ft = h.ft;
@@ -99,23 +104,33 @@
 
     // draw the rider on the horse
     const _drawWorld = game.hooks.drawWorld;
-    game.riderDraw = (ctx, a, fx, fy) => {
+    game.riderDraw = (ctx, a) => {
       const h = a.mount; if (!h) return false;
-      const hf = O.Animals.horse(h, a.dir, h.anim, Math.floor(h.ft * (O.Animals.HANIMS[h.anim]?.fps || 2)) % (O.Animals.HANIMS[h.anim]?.frames || 2));
+      const H = O.Animals.HANIMS[h.anim] || O.Animals.HANIMS.idle;
+      const hf = O.Animals.horse(h, a.dir, h.anim, Math.floor(h.ft * H.fps) % H.frames);
       const hx = Math.round(a.x - hf.ox - game.cam.x), hy = Math.round(a.y - hf.gy - game.cam.y);
-      ctx.fillStyle = 'rgba(28,20,44,0.3)'; ctx.fillRect(hx + 12, hy + hf.gy - 1, 36, 3);
-      const side = a.dir === 1 || a.dir === 2;
-      const rider = O.Char.frame(a.a, a.dir, 'sit', 0);
-      const ry = hy + hf.gy - 45 - (side ? 22 : 20), rx = Math.round(a.x - 16 - game.cam.x) + (side ? (a.dir === 2 ? -2 : 2) : 0);
-      if (a.dir === 3) { ctx.drawImage(hf, hx, hy); ctx.drawImage(rider, rx, ry); }
-      else if (a.dir === 0) { ctx.drawImage(hf, hx, hy); ctx.drawImage(rider, rx, ry); ctx.drawImage(hf, 0, 0, hf.width, 22, hx, hy, hf.width, 22); }
-      else { ctx.drawImage(hf, hx, hy); ctx.drawImage(rider, rx, ry); }
+      ctx.fillStyle = 'rgba(28,20,44,0.3)';
+      const sd = a.dir === 1 || a.dir === 2 ? 1 : a.dir >= 4 ? 0.75 : 0.4; game.shadow(ctx, Math.round(a.x - game.cam.x), Math.round(a.y - game.cam.y), Math.round(17 * sd + 3), 3);
+      // the rider sits on the saddle; while mounting they rise from the horse's side in an arc
+      const rider = O.Char.frame(a.a, a.dir, 'ride', 0), hip = O.Char.hipY(a.a, 'ride');
+      let sx = hx + (hf.seat ? hf.seat[0] : hf.ox), sy = hy + (hf.seat ? hf.seat[1] : 18);
+      let rframe = rider;
+      if (a.mountT > 0) {
+        const u = 1 - a.mountT / 0.5, side = O.Char.DIRV[a.dir] || [0, 1];
+        const across = Math.abs(side[0]) > 0.5, gx = sx + (across ? 0 : -12), gy = hy + hf.gy + (across ? 7 : 0);
+        const e = u * u * (3 - 2 * u);
+        sx = Math.round(gx + (sx - gx) * e); sy = Math.round(gy - O.Char.GROUND + hip + (sy - (gy - O.Char.GROUND + hip)) * e - Math.sin(u * Math.PI) * 6);
+        if (u < 0.35) rframe = O.Char.frame(a.a, a.dir, 'open', 1);
+      }
+      ctx.drawImage(hf, hx, hy);
+      ctx.drawImage(rframe, Math.round(sx - 16), Math.round(sy - hip));
+      if (hf.front) ctx.drawImage(hf.front, hx, hy);
       return true;
     };
     void _drawWorld; void _blocked;
 
     function nearestHorse() { let best = null, bd = 26; for (const h of horses) { if (h === game.player.mount || (h.world || 'ashford') !== game.world.placeId) continue; const d = Math.hypot(h.x - game.player.x, h.y - game.player.y); if (d < bd) { bd = d; best = h; } } return best; }
-    function mountHorse(h) { if (game.scene) return; game.player.mount = h; h.saddled = true; h.tied = false; h.inPaddock = false; game.player.x = h.x; game.player.y = h.y; O.Panels.toast(`You swing up onto ${h.owner === 'player' ? h.name : 'the ' + h.coat + ' ' + h.breed.toLowerCase()}. Shift to gallop, H to dismount.`); }
+    function mountHorse(h) { if (game.scene) return; game.player.mount = h; h.saddled = true; h.tied = false; h.inPaddock = false; game.player.x = h.x; game.player.y = h.y; game.player.dir = h.dir; game.player.mountT = 0.5; O.Panels.toast(`You swing up onto ${h.owner === 'player' ? h.name : 'the ' + h.coat + ' ' + h.breed.toLowerCase()}. Shift to gallop, H to dismount.`); }
     function dismount(thrown) { const h = game.player.mount; if (!h) return; game.player.mount = null; h.tied = true; h.x = game.player.x + (thrown ? 10 : 14); h.y = game.player.y; if (!thrown) O.Panels.toast(`You tie ${h.owner === 'player' ? h.name : 'the horse'} up.`); }
     O.Horses = { horses, nearestHorse, dismount, mountHorse };
 

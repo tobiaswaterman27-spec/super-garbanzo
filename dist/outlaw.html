@@ -833,7 +833,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     drink: { frames: 4, fps: 2.5 }, read: { frames: 2, fps: 1 }, celebrate: { frames: 4, fps: 5 }, mourn: { frames: 2, fps: 1 },
     point: { frames: 2, fps: 2 }, dig: { frames: 4, fps: 4 }, cook: { frames: 4, fps: 4 },
     attack: { frames: 4, fps: 12 }, open: { frames: 3, fps: 6 }, pickup: { frames: 2, fps: 3 }, hurt: { frames: 2, fps: 8 },
-    stretcher: { frames: 8, fps: 9 },
+    stretcher: { frames: 8, fps: 9 }, ride: { frames: 1, fps: 1 },
   };
 
   // Two-bone reach: the elbow (or knee) bends toward `pole`.
@@ -891,6 +891,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       case 'dig': L = { R: leg(1, 0.35, 0.5), L: leg(-1, -0.15, 0.2) }; P.lean = 1.5; break;
       case 'attack': L = { R: leg(1, f === 1 || f === 2 ? 0.35 : 0.1, 0.25), L: leg(-1, -0.25, 0.15) }; P.lean = f === 1 || f === 2 ? 1.4 : 0.2; break;
       case 'mourn': case 'read': P.headDown = 1; break;
+      case 'ride': L = { R: leg(1, 0.6, 1.0, 0.55), L: leg(-1, 0.6, 1.0, 0.55) }; P.lean = 0.3; break;
       default: break;
     }
     if (m.stoop) { P.lean += 1; P.headFwd += 0.8; }
@@ -969,6 +970,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       case 'point': A.R = reach(1, [1.5, shY + 1.5 - f, 12]); P.mouth = f; break;
       case 'dig': { const k = [0, 1, 2, 1][f]; A.R = reach(1, [1.2, chest + k * 1.5, D + 3]); A.L = reach(-1, [-0.2, chest + 4 + k * 1.5, D + 3.5]); P.held = 'spade'; P.toolDir = [0, 0.95, 0.35]; break; }
       case 'cook': { const k = f % 4; A.R = reach(1, [1.2 + (k % 2), chest + 4 + (k > 1 ? 0.6 : 0), D + 4]); P.held = 'ladle'; P.toolDir = [0, 0.9, 0.3]; break; }
+      case 'ride': A.R = reach(1, [1.8, hipY - 2.5, D + 5]); A.L = reach(-1, [-1.8, hipY - 2.5, D + 5]); break;
       case 'hurt': A.R = fwdArm(1, -0.3, 0.6, 0.25); A.L = fwdArm(-1, -0.3, 0.6, 0.25); break;
       default: break;
     }
@@ -1621,6 +1623,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     if (cache.size > MAX) cache.delete(cache.keys().next().value);
     return c;
   }
+  // where the hips sit in a frame (riders are placed on a saddle by their hips)
+  const hipCache = new Map();
+  function hipY(a, anim) { const k = a.seed + anim + a.age; if (!hipCache.has(k)) hipCache.set(k, pose(bodyMetrics(a), anim, 0, a).hipY); return hipCache.get(k); }
   function invalidate(a) { a.cacheVer = (a.cacheVer || 0) + 1; }
 
   // Build a full sprite sheet canvas: rows = anim x dir, cols = frames.
@@ -1634,7 +1639,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     return { canvas: c, rows, fw: FW, fh: FH };
   }
 
-  O.Char = { makeAppearance, randomGenes, inheritGenes, bodyMetrics, ageStage, outfitFor, render, frame, sheet, invalidate, ANIMS, FW, FH, GROUND, HAIR_STYLES_M, HAIR_STYLES_F, BEARDS, dirOf, dir4, DIRV };
+  O.Char = { makeAppearance, randomGenes, inheritGenes, bodyMetrics, ageStage, outfitFor, render, frame, sheet, invalidate, ANIMS, FW, FH, GROUND, HAIR_STYLES_M, HAIR_STYLES_F, BEARDS, dirOf, dir4, DIRV, hipY };
   O.dirOf = dirOf; O.dir4 = dir4;
 })();
 
@@ -3084,6 +3089,11 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       };
     }
 
+    // a soft oval shadow on the ground
+    shadow(ctx, cx, cy, rx, ry) {
+      for (let y = -ry; y <= ry; y++) { const w = Math.round(rx * Math.sqrt(1 - (y / (ry + 0.5)) ** 2)); ctx.fillRect(cx - w, cy + y - 1, w * 2, 1); }
+    }
+
     actorFrame(a) {
       const A = Ch.ANIMS[a.anim] || Ch.ANIMS.idle;
       const f = Math.floor(a.ft * A.fps) % A.frames;
@@ -3106,11 +3116,11 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         const fx = Math.round(a.x - ox - cam.x), fy = Math.round(a.y - (fr.gy ?? Ch.GROUND) - cam.y);
         if (fx < -50 || fy < -60 || fx > vw + 40 || fy > vh + 60) return;
         ctx.fillStyle = 'rgba(28,20,44,0.32)';
-        if (a.horse) ctx.fillRect(fx + 12, fy + fr.gy - 1, 36, 3);
-        else if (a.animal) ctx.fillRect(fx + Math.round(fr.width / 2) - 4, fy + fr.gy - 1, 8, 2);
+        if (a.horse || a.animal) { const sd = a.dir === 1 || a.dir === 2 ? 1 : a.dir >= 4 ? 0.75 : 0.4, rx = Math.round((a.horse ? 17 : fr.width * 0.3) * sd + 3); this.shadow(ctx, Math.round(a.x - cam.x), Math.round(a.y - cam.y), rx, a.horse ? 3 : 2); }
         else if (fr.ox) ctx.fillRect(fx + 6, fy + Ch.GROUND - 1, 36, 3);
         else { ctx.fillRect(fx + 11, fy + Ch.GROUND - 1, 10, 3); ctx.fillRect(fx + 9, fy + Ch.GROUND, 14, 1); }
         ctx.drawImage(fr, fx, fy);
+        if (fr.front) ctx.drawImage(fr.front, fx, fy);
         a._sx = fx; a._sy = fy;
       };
       for (const s of this.statics) {
@@ -8752,9 +8762,11 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
 </script>
 <script>
-// Animal sprites in the same material raster: horses (4 directions, idle/walk/gallop, coats and
-// markings, optional saddle and bridle) and village animals (chickens, sheep, cows, pigs, dogs,
-// cats). Legs are capsules posed per frame, so gaits read clearly at small sizes.
+// Animal sprites in the same material raster. Every animal is one rig — spine, neck, head, four
+// legs (two for a hen), tail — posed in body space and projected to any of eight facings, the same
+// way people are. Seen from the front you get the head and chest with the hindquarters behind; from
+// the back, the rump and tail with the head beyond. Gaits are real: a four-beat walk and a gallop
+// whose legs gather and stretch, with the body pitching over them.
 'use strict';
 (function () {
   const P = O.Pal, MB = O.MatBuffer;
@@ -8764,134 +8776,219 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     dun: { body: '#b8965e', mane: '#3a2a1c', legs: '#3a2a1c' }, palomino: { body: '#d2a856', mane: '#f0e6c8', legs: '#c89a4a' },
     white: { body: '#e6e2d8', mane: '#f4f0e6', legs: '#d4cfc2' }, piebald: { body: '#2e2828', mane: '#1c1818', legs: '#e6e2d8', patches: '#e6e2d8' },
   };
-  const HANIMS = { idle: { frames: 2, fps: 1.5 }, walk: { frames: 4, fps: 7 }, gallop: { frames: 4, fps: 11 } };
-  const HW = 60, HH = 52, HG = 49;
+  const HANIMS = { idle: { frames: 4, fps: 1.5 }, graze: { frames: 4, fps: 1.2 }, walk: { frames: 8, fps: 8 }, gallop: { frames: 8, fps: 14 } };
+  const K = 0.38;
+  const VIEW = { 0: [0, false], 1: [90, true], 2: [90, false], 3: [180, false], 4: [40, false], 5: [40, true], 6: [140, false], 7: [140, true] };
 
-  function horseFrame(h, dir, anim, f) {
-    const c = COATS[h.coat] || COATS.bay;
-    const body = P.mat(c.body, 'hair'), mane = P.mat(c.mane, 'hair'), legs = P.mat(c.legs, 'hair'), hoof = P.mat('#2a2420', 'cloth');
-    const white = P.mat('#ece8de', 'hair'), leather = P.mat(P.cloth.darkLeather), blanket = P.mat(h.blanket || P.cloth.madder);
-    const B = new MB(HW, HH);
-    B.mirror = dir === 1;
-    const n = HANIMS[anim]?.frames || 1, t = (f / n) * Math.PI * 2;
-    const gal = anim === 'gallop', walk = anim === 'walk';
-    const bob = gal ? Math.round(Math.sin(t * 2) * 1.5) : walk ? (f % 2) : 0;
-    const swing = (ph) => (gal ? Math.sin(t + ph) * 0.75 : walk ? Math.sin(t + ph) * 0.4 : 0);
-    if (dir === 1 || dir === 2) {
-      // side view, facing right: barrel body, neck up to the head at the right
-      const by = HG - 24 + bob, bx = 27;
-      const leg = (x, ph, far) => {
-        const sw = swing(ph), kneeX = x + Math.sin(sw) * 4, kneeY = by + 9 + Math.cos(sw) * 5;
-        const fx = kneeX + Math.sin(sw * 0.6) * 3, fy = Math.min(HG - 1, kneeY + 10 - (gal && Math.cos(t + ph) > 0.4 ? 3 : 0));
-        B.part(far ? 1 : 3);
-        B.capsule(x, by + 2, kneeX, kneeY, 2.1, 1.5, legs, { shadeBias: far ? -1 : 0 });
-        B.capsule(kneeX, kneeY, fx, fy - 1, 1.4, 1.2, (u) => (h.socks && !far && u > 0.4 ? white : legs), { shadeBias: far ? -1 : 0 });
-        B.rect(Math.round(fx) - 1, Math.round(fy) - 1, 3, 2, hoof, far ? 0 : 1);
-      };
-      leg(bx - 10, Math.PI, true); leg(bx + 9, 0, true);
-      B.part(2);
-      B.blob(bx, by, 16, 8.5, body, { power: 2.3 });
-      if (c.patches) for (let y = by - 6; y < by + 7; y++) for (let x = bx - 14; x < bx + 14; x++) if (B.matAt(x, y) === body && O.noise2(x / 5, y / 4, h.seed % 97) > 0.6) B.plot(x, y, P.mat(c.patches, 'hair'), 3);
-      // neck and head
-      const nx = bx + 13, ny = by - 4, hx = bx + 22 + (gal ? 2 : 0), hy = by - 15 + (gal ? 4 : 0) + (anim === 'idle' && f === 1 ? 1 : 0);
-      B.capsule(nx, ny, hx - 3, hy + 2, 5, 3.4, body);
-      B.blob(hx + 1, hy + 2, 4.6, 3.2, body, { power: 2.2 }); B.blob(hx + 4, hy + 4, 2.8, 2.2, body, { power: 2 });
-      if (h.blaze) for (let y = hy; y < hy + 6; y++) B.plot(hx + 3 + (y > hy + 3 ? 1 : 0), y, white, 3);
-      B.plot(hx + 1, hy + 1, P.mat('#141014', 'cloth'), 0); B.plot(hx + 6, hy + 5, P.mat('#141014', 'cloth'), 1); // eye, nostril
-      B.part(4); B.plot(hx - 2, hy - 3, body, 2); B.plot(hx - 1, hy - 4, body, 3); B.plot(hx - 2, hy - 2, body, 2); // ears
-      // mane along the neck, tail behind
-      for (let k = 0; k < 9; k++) { const mx = nx - 3 + k * 1.1, my = ny - 5 + k * -0.9 + (k > 6 ? 2 : 0); B.plot(mx, my, mane, 2 + (k % 2)); B.plot(mx - 1, my + 1, mane, 1); }
-      const tw = gal ? -2 : walk ? Math.sin(t) : 0;
-      B.capsule(bx - 14, by - 3, bx - 18 + tw, by + 9 + (gal ? -5 : 0), 1.6, 2.1, mane);
-      leg(bx - 9, 0, false); leg(bx + 10, Math.PI, false);
-      if (h.saddled) {
-        B.part(5);
-        B.poly([[bx - 6, by - 8], [bx + 6, by - 8], [bx + 7, by - 3], [bx - 7, by - 3]], [0, -0.6, 0.8], blanket);
-        B.blob(bx, by - 8, 5, 2, leather, { power: 2.5 }); B.capsule(bx + 1, by - 5, bx + 1, by + 6, 0.6, 0.6, leather);
-        B.capsule(hx - 1, hy + 2, hx + 4, hy + 5, 0.5, 0.5, leather); B.capsule(hx + 2, hy + 4, bx + 6, by - 7, 0.4, 0.4, leather);
-      }
-    } else {
-      // front (down) or back (up) view: chest, head, two legs either side
-      const front = dir === 0, cx = HW / 2, by = HG - 22 + bob;
-      const leg = (x, ph) => { const sw = swing(ph), lift = Math.max(0, Math.sin(sw)) * (gal ? 4 : 2); B.capsule(x, by + 2, x, HG - 2 - lift, 1.9, 1.4, (u) => (h.socks && u > 0.6 ? white : legs)); B.rect(Math.round(x) - 1, HG - 3 - Math.round(lift), 3, 2, hoof, 1); };
-      B.part(1); leg(cx - 4, Math.PI); leg(cx + 4, 0);
-      B.part(2); B.blob(cx, by - 2, 8, 10, body, { power: 2.2 });
-      if (front) {
-        B.part(3); B.capsule(cx, by - 10, cx, by - 18, 3.6, 3, body); B.blob(cx, by - 20, 3.6, 5, body, { power: 2.2 });
-        if (h.blaze) for (let y = by - 24; y < by - 16; y++) B.plot(cx, y, white, 3);
-        B.plot(cx - 3, by - 22, P.mat('#141014', 'cloth'), 0); B.plot(cx + 2, by - 22, P.mat('#141014', 'cloth'), 0);
-        B.plot(cx - 3, by - 26, body, 3); B.plot(cx + 2, by - 26, body, 2);
-        for (let y = by - 24; y < by - 12; y++) B.plot(cx - 1 + (y % 2), y - 1, mane, 2);
-      } else {
-        B.part(3); B.capsule(cx, by - 8, cx, by - 16, 3.6, 3, body); B.plot(cx - 3, by - 20, body, 3); B.plot(cx + 2, by - 20, body, 2);
-        for (let y = by - 18; y < by - 6; y++) B.plot(cx, y, mane, 2);
-        B.capsule(cx, by + 2, cx + (gal ? 2 : 0), by + 12, 1.6, 2, mane);
-      }
-      B.part(1); leg(cx - 5, 0); leg(cx + 5, Math.PI);
-      if (h.saddled) { B.part(5); B.rect(cx - 7, by - 6, 14, 5, blanket, 2); B.blob(cx, by - 7, 5, 2, leather, { power: 2.5 }); }
-    }
-    const cv = B.toCanvas(); cv.ox = HW / 2; cv.gy = HG; return cv;
+  // Proportions per species (pixels; y is up from the ground as negative numbers; z forward).
+  const SPEC = {
+    horse: { W: 64, H: 60, G: 52, spine: [[-11.5, -19.5, 6.9], [-1.5, -19, 7.8], [8.6, -20, 7.1]], hipX: 3.5, hipZ: -9.6, shZ: 8.4, hipY: -17, upper: 7, lower: 9.4, legR: [2.7, 1.6], hoof: 1.6,
+      neck: [[0, -23, 10.5], [0, -33, 15.2]], neckR: [5, 3.4], head: [[0, -34.6, 15.4], [0, -28.2, 22]], headR: [3.7, 2.6], ears: [1.5, -39.2, 14.8, 'tall'], eye: [2.6, -34, 17], tail: [[0, -24, -12.6], [0, -11, -15.5]], tailR: [1.7, 2.3], mane: true },
+    cow: { W: 56, H: 46, G: 39, spine: [[-11, -16.5, 6.6], [-1, -16, 7.4], [8.5, -16.5, 6.8]], hipX: 3.2, hipZ: -9, shZ: 8, hipY: -14.5, upper: 6, lower: 7.6, legR: [2.2, 1.4], hoof: 1.4,
+      neck: [[0, -18, 10.5], [0, -20.5, 14]], neckR: [4.6, 3.6], head: [[0, -21.5, 14.5], [0, -16, 18.6]], headR: [3.6, 2.8], ears: [3.2, -21.6, 14, 'side'], horns: true, eye: [2.6, -20.5, 16], tail: [[0, -20.5, -12.5], [0, -8, -13.5]], tailR: [0.8, 1.1], udder: true },
+    sheep: { W: 38, H: 34, G: 28, spine: [[-5.5, -10.5, 5], [0, -11, 5.6], [5, -11, 5]], hipX: 2.2, hipZ: -4.6, shZ: 4.4, hipY: -8, upper: 3.8, lower: 4.4, legR: [1.1, 0.9], hoof: 1,
+      neck: [[0, -12, 6], [0, -14, 8]], neckR: [3, 2.4], head: [[0, -14.5, 8.2], [0, -11.5, 11]], headR: [2.4, 1.7], ears: [2.4, -14.6, 8, 'side'], eye: [1.6, -13.6, 9.4], tail: [[0, -11, -6.5], [0, -8, -7.4]], tailR: [1.1, 1], wool: true },
+    pig: { W: 38, H: 30, G: 25, spine: [[-6, -8.5, 4.4], [0, -8.8, 5], [6, -8.6, 4.5]], hipX: 2, hipZ: -5, shZ: 5, hipY: -6.5, upper: 2.8, lower: 3.4, legR: [1.3, 1], hoof: 0.9,
+      neck: [[0, -9.5, 7.5], [0, -9.5, 8.5]], neckR: [3.6, 3.2], head: [[0, -10, 8.8], [0, -8.6, 12.5]], headR: [3.2, 2.2], ears: [1.8, -13, 8.6, 'flop'], eye: [1.7, -11, 10.4], tail: [[0, -10, -10], [0, -11.5, -11]], tailR: [0.6, 0.6], snout: true },
+    dog: { W: 34, H: 30, G: 25, spine: [[-5.5, -10, 3.2], [0, -10.2, 3.4], [5, -11, 3.6]], hipX: 1.6, hipZ: -5, shZ: 4.6, hipY: -9, upper: 4.6, lower: 4.6, legR: [1.1, 0.8], hoof: 0.8,
+      neck: [[0, -12, 5.5], [0, -15, 7.5]], neckR: [2.4, 2], head: [[0, -16, 7.8], [0, -14.6, 11.2]], headR: [2.5, 1.5], ears: [1.5, -18, 7.2, 'drop'], eye: [1.4, -16.6, 9.2], tail: [[0, -11.5, -8.5], [0, -16, -11]], tailR: [0.9, 0.6] },
+    cat: { W: 30, H: 26, G: 22, spine: [[-4.5, -7.5, 2.6], [0, -7.8, 2.8], [4, -8, 2.7]], hipX: 1.3, hipZ: -4, shZ: 3.8, hipY: -6.5, upper: 3.4, lower: 3.4, legR: [0.9, 0.7], hoof: 0.7,
+      neck: [[0, -9, 4.6], [0, -11, 5.6]], neckR: [2, 1.8], head: [[0, -11.6, 6], [0, -11, 7.6]], headR: [2.4, 1.8], ears: [1.4, -14.4, 5.8, 'point'], eye: [1.1, -12, 7.2], tail: [[0, -8.5, -6.5], [0, -15, -9]], tailR: [0.8, 0.7] },
+    chicken: { W: 20, H: 22, G: 18, biped: true, spine: [[-2.6, -6.6, 2.8], [0, -6.8, 3.4], [2.2, -7.4, 2.8]], hipX: 0.9, hipZ: 0, hipY: -4, upper: 2, lower: 2.2, legR: [0.5, 0.45], hoof: 0,
+      neck: [[0, -8.5, 2.4], [0, -11, 3.3]], neckR: [1.7, 1.4], head: [[0, -11.6, 3.4], [0, -11.4, 4.2]], headR: [1.6, 1.3], eye: [1, -12, 4], tail: [[0, -8, -2.6], [0, -11, -4.4]], tailR: [1.4, 0.9], beak: true, comb: true },
+  };
+
+  function view(dir) {
+    const [deg, mirror] = VIEW[dir] || VIEW[0];
+    const a = (deg * Math.PI) / 180, Fx = Math.sin(a), Fz = -Math.cos(a);
+    return { Fx, Fz, Rx: Fz, Rz: -Fx, mirror };
   }
 
-  const SMALL = { chicken: { frames: 2 }, sheep: { frames: 2 }, cow: { frames: 2 }, pig: { frames: 2 }, dog: { frames: 2 }, cat: { frames: 2 } };
-  function smallFrame(kind, seed, dir, moving, f) {
-    const r = O.RNG(seed);
-    const W = kind === 'cow' ? 40 : kind === 'chicken' ? 14 : 28, H = kind === 'cow' ? 32 : kind === 'chicken' ? 16 : 24;
-    const B = new MB(W, H); B.mirror = dir === 1;
-    const g = H - 2, step = moving ? (f % 2 ? 1 : -1) : 0;
-    const side = dir === 1 || dir === 2;
-    const coat = {
-      chicken: P.mat(r.pick(['#e8e2d4', '#8a5a34', '#2e2828', '#c8a060']), 'hair'), sheep: P.mat('#e6e0d0', 'hair'), cow: P.mat(r.pick(['#8a5a34', '#2e2828', '#c8a882']), 'hair'),
-      pig: P.mat('#e0a49a', 'skin'), dog: P.mat(r.pick(['#8a6a44', '#2e2828', '#c8a060', '#e6e0d0']), 'hair'), cat: P.mat(r.pick(['#e08a3a', '#2e2828', '#8a8a86', '#e6e0d0']), 'hair'),
-    }[kind];
-    const dark = P.mat('#2a2024', 'cloth');
-    const legsAt = (xs, len, rr, m) => xs.forEach((x, i) => B.capsule(x + (i % 2 ? step : -step) * 0.6, g - len, x + (i % 2 ? step : -step), g - 1, rr, rr, m));
-    B.part(1);
-    if (kind === 'chicken') {
-      legsAt([6, 8], 3, 0.5, P.mat('#d8a040', 'cloth'));
-      B.part(2); B.blob(7, 8, 4.2, 3.6, coat, { power: 2 }); B.blob(side ? 10 : 7, 5, 2.2, 2.2, coat, { power: 2 });
-      B.plot(side ? 12 : 7, 5, P.mat('#e0b040', 'cloth'), 3); B.plot(side ? 10 : 6, 2, P.mat('#c83a2a', 'cloth'), 3); B.plot(side ? 10 : 6, 4, dark, 0);
-      if (side) B.plot(3, 6, coat, 1);
-    } else if (kind === 'cow' || kind === 'sheep' || kind === 'pig') {
-      const bw = kind === 'cow' ? 13 : kind === 'sheep' ? 9 : 8, bh = kind === 'cow' ? 7 : 5.5;
-      const cx = W / 2 - (side ? 2 : 0), cy = g - (kind === 'cow' ? 12 : 8);
-      const lm = kind === 'sheep' ? P.mat('#3a3030', 'cloth') : kind === 'pig' ? coat : coat;
-      if (side) legsAt([cx - bw + 3, cx - bw + 5, cx + bw - 5, cx + bw - 3], kind === 'cow' ? 9 : 6, kind === 'cow' ? 1.4 : 1, lm);
-      else legsAt([cx - 3, cx + 3], kind === 'cow' ? 9 : 6, 1.3, lm);
-      B.part(2); B.blob(cx, cy, side ? bw : bw * 0.6, bh, coat, { power: 2.2 });
-      if (kind === 'sheep') for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (B.matAt(x, y) === coat && (x * 3 + y * 5) % 7 === 0) B.tweak(x, y, -1);
-      if (kind === 'cow' && r.chance(0.6)) for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (B.matAt(x, y) === coat && O.noise2(x / 4, y / 4, seed % 50) > 0.62) B.plot(x, y, P.mat('#ece8de', 'hair'), 3);
-      const hx = side ? cx + bw + 1 : cx, hy = cy - (kind === 'pig' ? 0 : 3);
-      B.part(3); B.blob(hx, hy, kind === 'cow' ? 4 : 3, kind === 'cow' ? 3.6 : 3, kind === 'sheep' ? P.mat('#3a3030', 'cloth') : coat, { power: 2 });
-      if (dir !== 3) B.plot(hx + (side ? 1 : -2), hy - 1, dark, 0);
-      if (kind === 'pig' && side) B.plot(hx + 3, hy + 1, P.mat('#c8807a', 'skin'), 2);
-      if (kind === 'cow') { B.plot(hx - 2, hy - 4, P.mat('#e8e0c8', 'cloth'), 3); B.plot(hx + 2, hy - 4, P.mat('#e8e0c8', 'cloth'), 3); }
-    } else { // dog, cat
-      const cx = W / 2, cy = g - 6;
-      if (side) legsAt([cx - 6, cx - 4, cx + 4, cx + 6], 5, 0.9, coat); else legsAt([cx - 2, cx + 2], 5, 1, coat);
-      B.part(2); B.blob(cx, cy, side ? 7.5 : 4, 3.4, coat, { power: 2.2 });
-      const hx = side ? cx + 8 : cx, hy = cy - 4;
-      B.part(3); B.blob(hx, hy, 3, 2.8, coat, { power: 2 });
-      if (kind === 'dog' && side) B.capsule(hx + 2, hy + 1, hx + 4, hy + 1, 1, 0.8, coat);
-      B.plot(hx - 2, hy - 3, coat, 3); B.plot(hx + 1, hy - 3, coat, 2);
-      if (dir !== 3) B.plot(hx + (side ? 1 : -1), hy - 1, dark, 0);
-      B.capsule(side ? cx - 7 : cx, cy - 1, side ? cx - 10 : cx + 1, cy - (kind === 'cat' ? 7 : 4) + (moving ? step : 0), 0.8, 0.7, coat);
+  // Leg swing per gait: [phase offset, amplitude, knee bend] for LH, LF, RH, RF
+  function legAngles(anim, t, kind) {
+    const quick = kind === 'chicken' || kind === 'cat' || kind === 'dog';
+    if (anim === 'walk') {
+      const ph = { LH: 0, LF: 0.25, RH: 0.5, RF: 0.75 }, A = quick ? 0.5 : 0.34, Bk = quick ? 1 : 0.95;
+      const o = {}; for (const k in ph) { const s = (t + ph[k]) * Math.PI * 2; o[k] = [A * Math.sin(s), Bk * Math.max(0, Math.cos(s)) ** 2]; } return o;
     }
-    const cv = B.toCanvas(); cv.ox = Math.floor(W / 2); cv.gy = g; return cv;
+    if (anim === 'gallop') {
+      const ph = { LH: 0, RH: 0.1, LF: 0.45, RF: 0.55 }, A = 0.72, Bk = 1.4;
+      const o = {}; for (const k in ph) { const s = (t + ph[k]) * Math.PI * 2; o[k] = [A * Math.sin(s), Bk * Math.max(0, Math.cos(s)) ** 1.5]; } return o;
+    }
+    return { LH: [0, 0.05], LF: [0, 0.05], RH: [0, 0.05], RF: [0, 0.05] };
+  }
+
+  // Build every part of the animal in body space, project, depth-sort, rasterise.
+  function build(kind, look, dir, anim, f, layers) {
+    const S = SPEC[kind], V = view(dir);
+    const B = new MB(S.W, S.H); B.mirror = V.mirror;
+    const n = HANIMS[anim]?.frames || 1, t = f / n;
+    const cx = S.W / 2, G = S.G;
+    const pj = (p) => { const wx = p[0] * V.Rx + p[2] * V.Fx, wz = p[0] * V.Rz + p[2] * V.Fz; return [cx + wx, G + p[1] - wz * K, wz]; };
+    const parts = [];
+    const cap = (a, b, ra, rb, mat, grp, opt) => parts.push({ kind: 'cap', a, b, ra, rb, mat, grp, opt, d: (pj(a)[2] + pj(b)[2]) / 2 + (opt?.dz || 0) });
+    // pitch and bob
+    const gal = anim === 'gallop', walk = anim === 'walk';
+    const s2 = Math.sin(t * Math.PI * 2);
+    const pitch = gal ? s2 * 1.2 : 0, bob = gal ? -Math.abs(Math.cos(t * Math.PI * 2)) * 1.5 : walk ? -(f % 2) * 0.5 : 0;
+    const grazing = anim === 'graze';
+    const sp = S.spine.map(([z, y, r]) => [0, y + bob + pitch * (z / 10), z, r]);
+    for (let i = 0; i < sp.length - 1; i++) cap(sp[i].slice(0, 3), sp[i + 1].slice(0, 3), sp[i][3], sp[i + 1][3], look.body, 2, { body: true });
+    // legs
+    const ang = legAngles(anim, t, kind);
+    const legsDef = S.biped ? [['LH', -1, S.hipZ], ['RH', 1, S.hipZ]] : [['LH', -1, S.hipZ], ['RH', 1, S.hipZ], ['LF', -1, S.shZ], ['RF', 1, S.shZ]];
+    const feet = [];
+    for (const [k, sx, z] of legsDef) {
+      const [sw, bend] = ang[k];
+      const yz = S.hipY + bob + pitch * (z / 10);
+      const hip = [sx * S.hipX, yz, z];
+      const knee = [hip[0], hip[1] + Math.cos(sw) * S.upper, hip[2] + Math.sin(sw) * S.upper];
+      const la = sw - bend * (k.endsWith('F') ? 1 : 0.7);
+      let foot = [knee[0], knee[1] + Math.cos(la) * S.lower, knee[2] + Math.sin(la) * S.lower];
+      feet.push({ k, hip, knee, foot });
+    }
+    // the lowest hoof rests on the ground; the body rides above it
+    const low = Math.max(...feet.map((q) => q.foot[1]));
+    const lift = -0.6 - low; // y of the ground is 0 in body space
+    const sh = (p) => [p[0], p[1] + lift, p[2]];
+    for (const pt of parts) { pt.a = sh(pt.a); pt.b = sh(pt.b); }
+    for (const q of feet) {
+      const hip = sh(q.hip), knee = sh(q.knee), foot = sh(q.foot);
+      const legMat = (u) => (look.socks && q.k.endsWith('F') === false && u > 0.45 ? look.white : look.legs);
+      cap(hip, knee, S.legR[0], (S.legR[0] + S.legR[1]) / 2, look.upperLeg || look.body, 3, { leg: q.k });
+      cap(knee, foot, (S.legR[0] + S.legR[1]) / 2 * 0.8, S.legR[1], (u) => (S.hoof && u > 0.86 ? look.hoof : legMat(u)), 3, { leg: q.k });
+      if (S.biped) cap(foot, [foot[0], foot[1], foot[2] + 1.4], 0.45, 0.4, look.legs, 3, { leg: q.k });
+    }
+    // neck and head (grazing lowers the head to the grass)
+    const nod = anim === 'idle' && f === 2 ? 0.8 : 0;
+    const graze = grazing ? 1 : 0;
+    const dropY = graze * (S.neck[1][1] * -0.75), fwdZ = graze * 2;
+    const n0 = sh([0, S.neck[0][1] + bob + pitch, S.neck[0][2]]), n1 = sh([0, S.neck[1][1] + bob + nod + dropY + pitch * 1.4, S.neck[1][2] + fwdZ]);
+    cap(n0, n1, S.neckR[0], S.neckR[1], look.body, 4, { neck: true });
+    const hd = [S.head[0][1] + bob + nod + dropY + pitch * 1.4, S.head[1][1] + bob + nod + dropY + pitch * 1.4 + graze * 2.5];
+    const h0 = sh([0, hd[0], S.head[0][2] + fwdZ]), h1 = sh([0, hd[1], S.head[1][2] + fwdZ - graze]);
+    cap(h0, h1, S.headR[0], S.headR[1], look.head || look.body, 5, { head: true, dz: -0.3 });
+    // tail
+    const swish = anim === 'idle' || grazing ? (f % 2 ? 1.2 : -0.6) : walk ? s2 * 1.4 : gal ? 0 : 0;
+    const tl0 = sh([0, S.tail[0][1] + bob - pitch, S.tail[0][2]]), tl1 = sh([swish, S.tail[1][1] + bob - pitch + (gal ? -6 : 0), S.tail[1][2] + (gal ? -4 : 0)]);
+    cap(tl0, tl1, S.tailR[0], S.tailR[1], look.mane || look.body, 6, { tail: true });
+
+    // sort far to near and draw
+    const front = []; // near parts kept for the rider sandwich
+    parts.sort((x, y) => y.d - x.d);
+    const saddleD = 0.2;
+    const drawPart = (pt, Bf) => {
+      Bf.part(pt.grp + (pt.d > 1.5 && pt.opt?.leg ? 10 : 0));
+      const a = pj(pt.a), b = pj(pt.b);
+      Bf.capsule(a[0], a[1], b[0], b[1], pt.ra, pt.rb, pt.mat, { shadeBias: pt.opt?.leg && pt.d > 1.5 ? -1 : 0 });
+    };
+    for (const pt of parts) { if (layers && pt.d < saddleD - 2.5 && !pt.opt?.body) { front.push(pt); continue; } drawPart(pt, B); }
+
+    // details: coat texture, patches, wool, mane, ears, eyes, muzzle
+    const detailHead = (Bt) => {
+      const headFacing = (sx) => { const nz = sx * V.Rz + 0.35 * V.Fz; return nz < 0.25; };
+      // ears
+      if (S.ears) {
+        const [ex, ey, ez, style] = S.ears;
+        for (const sx of [-1, 1]) {
+          const e0 = pj(sh([sx * ex, ey + (hd[0] - S.head[0][1]), ez + fwdZ])); const tip = style === 'tall' ? [0, -2.4, -0.3] : style === 'point' ? [0, -2, 0] : style === 'flop' ? [sx * 0.8, 1, 1.4] : style === 'drop' ? [sx * 0.6, 2.4, 0.3] : [sx * 2, 0.6, -0.5];
+          const e1 = pj(sh([sx * ex + tip[0], ey + tip[1] + (hd[0] - S.head[0][1]), ez + tip[2] + fwdZ]));
+          Bt.part(7); Bt.capsule(e0[0], e0[1], e1[0], e1[1], kind === 'horse' ? 1 : 0.8, 0.5, look.ear || look.head || look.body);
+        }
+      }
+      if (S.horns) for (const sx of [-1, 1]) { const a = pj(sh([sx * 1.6, hd[0] - 1.6, S.head[0][2] + 0.4])), b = pj(sh([sx * 3.4, hd[0] - 3.2, S.head[0][2] + 0.2])); Bt.part(7); Bt.capsule(a[0], a[1], b[0], b[1], 0.7, 0.4, look.horn); }
+      // eyes on whichever side faces us
+      if (S.eye) for (const sx of [-1, 1]) {
+        if (!headFacing(sx)) continue;
+        const e = pj(sh([sx * S.eye[0], S.eye[1] + (hd[0] - S.head[0][1]), S.eye[2] + fwdZ]));
+        Bt.plot(e[0], e[1], look.eyeM, 0, 1); if (kind === 'horse' || kind === 'cow') Bt.plot(e[0], e[1] - 1, look.eyeM, 1, 1);
+      }
+      // muzzle: nostrils, snout, beak, blaze
+      const m = pj(h1);
+      if (S.snout) { Bt.part(8); Bt.blob(m[0], m[1], 1.5, 1.2, look.snout, { power: 2 }); if (V.Fz < 0) { Bt.plot(m[0] - 0.5, m[1], look.eyeM, 1, 1); Bt.plot(m[0] + 0.5, m[1], look.eyeM, 1, 1); } }
+      if (S.beak) { const tip = pj(sh([0, hd[1] + 0.4, S.head[1][2] + 1.6])); Bt.part(8); Bt.capsule(m[0], m[1], tip[0], tip[1], 0.6, 0.35, look.beak); }
+      if (S.comb) { const c0 = pj(sh([0, hd[0] - 1.6, S.head[0][2]])); Bt.part(8); Bt.capsule(c0[0], c0[1], c0[0], c0[1] - 0.8, 0.8, 0.6, look.comb); const w = pj(sh([0, hd[1] + 1.6, S.head[1][2]])); Bt.plot(w[0], w[1], look.comb, 2); }
+      if ((kind === 'horse' || kind === 'cow') && V.Fz < 0.3) { const nn = pj(sh([0, hd[1] + 0.6, S.head[1][2] + 1.6 + fwdZ])); Bt.tweak(nn[0] - 1, nn[1], -2); Bt.tweak(nn[0] + 1, nn[1], -2); }
+      if (look.blaze && V.Fz < 0.6) { for (let k = 0; k <= 6; k++) { const q = pj(sh([0, hd[0] - 1 + (hd[1] - hd[0] + 1) * (k / 6), S.head[0][2] + 1.6 + (S.head[1][2] - S.head[0][2]) * (k / 6) + fwdZ])); if (Bt.get(Math.floor(q[0]), Math.floor(q[1])) === (look.head || look.body)) Bt.plot(q[0], q[1], look.white, 3); } }
+    };
+    // mane: a crest of hair along the top of the neck, and a forelock
+    const mane = (Bt) => {
+      if (!S.mane) return;
+      Bt.part(9);
+      const dy = n1[1] - n0[1], dz = n1[2] - n0[2], dl = Math.hypot(dy, dz) || 1, cy = -dz / dl, cz = dy / dl; // the crest of the neck
+      for (let k = 0; k <= 8; k++) { const u = k / 8, r = S.neckR[0] + (S.neckR[1] - S.neckR[0]) * u - 0.4; const q = pj([0, n0[1] + dy * u + cy * r, n0[2] + dz * u + cz * r]), q2 = pj([0, n0[1] + dy * u + cy * (r - 1.6), n0[2] + dz * u + cz * (r - 1.6)]); Bt.capsule(q[0], q[1], q2[0], q2[1], 1.1, 0.8, look.mane); }
+      const fl = pj([0, h0[1] - S.headR[0] + 0.5, h0[2] + 0.8]); Bt.capsule(fl[0], fl[1], fl[0], fl[1] + 1.6, 0.9, 0.6, look.mane);
+    };
+    const coat = (Bt) => {
+      for (let y = 0; y < S.H; y++) for (let x = 0; x < S.W; x++) {
+        const mm = Bt.matAt(x, y); if (mm !== look.body) continue;
+        if (S.wool && (x * 3 + y * 5) % 5 === 0) Bt.shadeAt(x, y, Math.max(1, Bt.shade[y * S.W + x] - 1));
+        if (look.patches && O.noise2(x / 5, y / 4, look.seed % 97) > 0.58) Bt.mat[y * S.W + x] = look.patches;
+      }
+    };
+    coat(B); mane(B);
+    const headNear = parts.find((x) => x.opt?.head);
+    if (!layers || !front.includes(headNear)) detailHead(B);
+    if (S.udder && V.Fz > -0.95) { const u = pj(sh([0, -9 + lift * 0, -4])); void u; }
+    // saddle and bridle
+    let seat = null;
+    if (look.saddled) {
+      const topY = Math.min(...sp.map((q) => q[1] - q[3])) + lift;
+      const s0 = pj([0, topY + 0.6, 1.5]);
+      seat = s0;
+      B.part(12);
+      const blanketPts = [[-5.2, -1.6], [5.2, -1.6], [5.6, 4.2], [-5.6, 4.2]];
+      for (const sx of [-1, 1]) { const q0 = pj([sx * 6.2, topY + 2.5, -3]), q1 = pj([sx * 6.4, topY + 7.8, -3]), q2 = pj([sx * 6.4, topY + 7.8, 6]), q3 = pj([sx * 6.2, topY + 2.5, 6]); if ((q0[2] + q2[2]) / 2 < 3) B.poly([q0, q1, q2, q3].map((q) => [q[0], q[1]]), [sx * V.Rx * 0.8, 0, 0.6], look.blanket); }
+      void blanketPts;
+      B.blob(s0[0], s0[1], Math.hypot(4.6 * V.Fx, 3.4 * V.Rx), 2, look.leather, { power: 2.4 });
+      const st = pj([V.Rz < 0 ? 6.4 : -6.4, topY + 9, 1.5]); B.capsule(s0[0], s0[1] + 1, st[0], st[1], 0.4, 0.4, look.leather); B.plot(st[0], st[1] + 1, look.iron, 3);
+      const bm = pj([0, hd[1] - 0.5, S.head[1][2] - 0.8]), bp = pj([0, hd[0], S.head[0][2]]); B.capsule(bm[0], bm[1], bp[0], bp[1], 0.45, 0.45, look.leather);
+    }
+    const cv = B.toCanvas(); cv.ox = Math.floor(S.W / 2); cv.gy = G;
+    if (!layers) return cv;
+    // the near parts (head and neck coming toward us, near legs) drawn on their own layer
+    const Bf = new MB(S.W, S.H); Bf.mirror = V.mirror;
+    for (const pt of front) drawPart(pt, Bf);
+    mane(Bf); if (front.includes(headNear)) detailHead(Bf);
+    const fc = Bf.toCanvas({ outline: true });
+    cv.front = fc; cv.seat = seat; return cv;
+  }
+
+  function horseLook(h) {
+    const c = COATS[h.coat] || COATS.bay;
+    return {
+      seed: h.seed || h.id || 1, body: P.mat(c.body, 'hair'), mane: P.mat(c.mane, 'hair'), legs: P.mat(c.legs, 'hair'), upperLeg: P.mat(c.body, 'hair'), hoof: P.mat('#2a2420', 'cloth'),
+      white: P.mat('#ece8de', 'hair'), patches: c.patches ? P.mat(c.patches, 'hair') : null, eyeM: P.mat('#141014', 'cloth'), socks: h.socks, blaze: h.blaze,
+      leather: P.mat(P.cloth.darkLeather), blanket: P.mat(h.blanket || P.cloth.madder), iron: P.mat(P.metal.iron, 'metal'), saddled: h.saddled,
+    };
+  }
+  function smallLook(kind, seed) {
+    const r = O.RNG(seed);
+    const eyeM = P.mat('#1a1418', 'cloth');
+    switch (kind) {
+      case 'chicken': { const b = P.mat(r.pick(['#e8e2d4', '#8a5a34', '#2e2828', '#c8a060', '#b0603a']), 'hair'); return { seed, body: b, head: b, mane: P.mat(r.pick(['#2e2828', '#5a3a24', '#e8e2d4']), 'hair'), legs: P.mat('#d8a040', 'cloth'), hoof: P.mat('#d8a040', 'cloth'), eyeM, beak: P.mat('#e0b040', 'cloth'), comb: P.mat('#c83a2a', 'cloth') }; }
+      case 'sheep': { const w = P.mat(r.pick(['#ece6d6', '#e6e0d0', '#d8d0bc', '#5a4a40']), 'hair'), d = P.mat('#3a3030', 'cloth'); return { seed, body: w, head: d, ear: d, legs: d, upperLeg: w, hoof: P.mat('#1e1818', 'cloth'), eyeM: P.mat('#d8c890', 'cloth'), mane: w }; }
+      case 'cow': { const b = P.mat(r.pick(['#8a5a34', '#2e2828', '#c8a882', '#a0582c']), 'hair'); return { seed, body: b, head: b, legs: b, hoof: P.mat('#2a2420', 'cloth'), eyeM, mane: b, horn: P.mat('#e8e0c8', 'cloth'), patches: r.chance(0.6) ? P.mat('#ece8de', 'hair') : null, white: P.mat('#ece8de', 'hair'), blaze: r.chance(0.4) }; }
+      case 'pig': { const b = P.mat(r.chance(0.8) ? '#e0a49a' : '#8a6a5a', 'skin'); return { seed, body: b, head: b, legs: b, hoof: P.mat('#6a4a40', 'cloth'), eyeM, mane: b, snout: P.mat('#c8807a', 'skin'), patches: r.chance(0.25) ? P.mat('#3a2e2a', 'skin') : null }; }
+      case 'dog': { const b = P.mat(r.pick(['#8a6a44', '#2e2828', '#c8a060', '#e6e0d0', '#6a4a30']), 'hair'); return { seed, body: b, head: b, legs: b, hoof: b, eyeM, mane: b, ear: P.mat(r.pick(['#5a3a24', '#2e2828']), 'hair'), patches: r.chance(0.35) ? P.mat('#ece8de', 'hair') : null }; }
+      default: { const b = P.mat(r.pick(['#e08a3a', '#2e2828', '#8a8a86', '#e6e0d0', '#6a5a4a']), 'hair'); return { seed, body: b, head: b, legs: b, hoof: b, eyeM: P.mat('#3a6a30', 'cloth'), mane: b, patches: r.chance(0.3) ? P.mat('#ece8de', 'hair') : null }; }
+    }
   }
 
   const cache = new Map();
+  function remember(key, make) { let c = cache.get(key); if (!c) { c = make(); cache.set(key, c); if (cache.size > 4000) cache.delete(cache.keys().next().value); } return c; }
+  // horse frames carry a `front` layer and a `seat` point so a rider can sit between them
   function horse(h, dir, anim, f) {
-    const key = 'h' + h.id + ':' + (h.saddled ? 1 : 0) + ':' + dir + anim + f;
-    let c = cache.get(key); if (!c) { c = horseFrame(h, dir, anim, f); cache.set(key, c); if (cache.size > 3000) cache.delete(cache.keys().next().value); }
-    return c;
+    anim = anim in HANIMS ? anim : 'idle'; f %= HANIMS[anim].frames;
+    return remember('h' + h.id + ':' + (h.saddled ? 1 : 0) + ':' + dir + anim + f, () => build('horse', horseLook(h), dir, anim, f, true));
   }
-  function animal(kind, seed, dir, moving, f) {
-    const key = kind + seed + ':' + dir + (moving ? 1 : 0) + f;
-    let c = cache.get(key); if (!c) { c = smallFrame(kind, seed, dir, moving, f); cache.set(key, c); }
-    return c;
+  // small animals: moving -> 8-frame walk, otherwise idle or (for grazers) grazing
+  function animal(kind, seed, dir, moving, f, anim) {
+    const an = anim || (moving ? 'walk' : 'idle'); f %= HANIMS[an].frames;
+    return remember(kind + seed + ':' + dir + an + f, () => build(kind, smallLook(kind, seed), dir, an, f, false));
   }
-  O.Animals = { horse, animal, COATS, HANIMS, HW, HH, HG };
+  const HW = SPEC.horse.W, HH = SPEC.horse.H, HG = SPEC.horse.G;
+  O.Animals = { horse, animal, COATS, HANIMS, HW, HH, HG, SPEC };
 })();
 
 </script>
@@ -8941,7 +9038,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     // ---- village animals: chickens and pigs in the farmyard, sheep and cows in the pasture, dogs and cats about the houses
     const fauna = [];
     const zone = (x0, y0, x1, y1) => ({ x0, y0, x1, y1 });
-    const add = (kind, n, z, extra = {}) => { for (let i = 0; i < n; i++) fauna.push(Object.assign({ kind, seed: r.int(1, 9999), z, x: r.int(z.x0, z.x1) * T + 8, y: r.int(z.y0, z.y1) * T + 12, dir: r.int(0, 3), ft: r.next() * 2, tx: null, wait: r.next() * 4, speed: kind === 'chicken' ? 14 : kind === 'cow' ? 8 : 11 }, extra)); };
+    const add = (kind, n, z, extra = {}) => { for (let i = 0; i < n; i++) fauna.push(Object.assign({ kind, seed: r.int(1, 9999), z, x: r.int(z.x0, z.x1) * T + 8, y: r.int(z.y0, z.y1) * T + 12, dir: r.int(0, 7), ft: r.next() * 2, tx: null, wait: r.next() * 4, speed: kind === 'chicken' ? 14 : kind === 'cow' ? 8 : 11 }, extra)); };
     add('chicken', 7, zone(9, 52, 30, 54)); add('pig', 2, zone(27, 52, 33, 54));
     add('sheep', 5, zone(3, 33, 6, 35)); add('cow', 2, zone(3, 33, 6, 35));
     for (const b of sim.world.buildings.filter((x) => x.type === 'house' && x.wealth > 0.45).slice(0, 4)) add(r.chance(0.6) ? 'dog' : 'cat', 1, zone(b.x - 1, b.bottom + 1, b.x + b.w, b.bottom + 2));
@@ -8952,7 +9049,11 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     const _frame = game.actorFrame.bind(game);
     game.actorFrame = (a) => {
       if (a.horse) { const H = O.Animals.HANIMS[a.anim] || O.Animals.HANIMS.idle; return O.Animals.horse(a.horse, a.dir, a.anim in O.Animals.HANIMS ? a.anim : 'idle', Math.floor(a.ft * H.fps) % H.frames); }
-      if (a.animal) return O.Animals.animal(a.animal.kind, a.animal.seed, a.dir, a.moving, Math.floor(a.ft * 4) % 2);
+      if (a.animal) {
+        const k = a.animal.kind, grazer = k === 'cow' || k === 'sheep';
+        const an = a.moving ? 'walk' : grazer && (a.animal.seed + Math.floor(a.ft / 7)) % 3 ? 'graze' : 'idle';
+        const H = O.Animals.HANIMS[an]; return O.Animals.animal(k, a.animal.seed, a.dir, a.moving, Math.floor(a.ft * H.fps) % H.frames, an);
+      }
       return _frame(a);
     };
 
@@ -8967,17 +9068,18 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         if (f.tx == null) { f.wait -= dt; if (f.wait <= 0) { f.tx = r.int(f.z.x0, f.z.x1) * T + r.int(2, 14); f.ty = r.int(f.z.y0, f.z.y1) * T + r.int(6, 14); } }
         else {
           const dx = f.tx - f.x, dy = f.ty - f.y, d = Math.hypot(dx, dy), step = Math.min(d, f.speed * Math.min(dtm, 3));
-          if (d < 1) { f.tx = null; f.wait = 2 + r.next() * 6; } else { f.x += (dx / d) * step; f.y += (dy / d) * step; f.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 1 : 2) : (dy < 0 ? 3 : 0); }
+          if (d < 1) { f.tx = null; f.wait = 2 + r.next() * 6; } else { f.x += (dx / d) * step; f.y += (dy / d) * step; f.dir = O.dirOf(dx, dy); }
         }
         const a = animalActor(f); a.x = f.x; a.y = f.y; a.dir = f.dir; a.ft = f.ft; a.moving = f.tx != null;
       }
       const p = game.player, mount = p.mount;
+      if (p.mountT > 0) { p.mountT = Math.max(0, p.mountT - dt); p.locked = true; }
       for (const h of horses) {
         h.ft += dt;
-        if (h === mount) { h.x = p.x; h.y = p.y; h.dir = O.dir4(p.dir); h.anim = p.moving ? (p.galloping ? 'gallop' : 'walk') : 'idle'; }
+        if (h === mount) { h.x = p.x; h.y = p.y; h.dir = p.dir; h.anim = p.moving ? (p.galloping ? 'gallop' : 'walk') : 'idle'; }
         else if (h.inPaddock !== false && !h.tied && (h.world || 'ashford') === 'ashford') {
-          if (h.tx == null) { if (r.next() < dt * 0.15) { h.tx = r.int(paddock.x0, paddock.x1) * T + 8; h.ty = r.int(paddock.y0, paddock.y1) * T + 12; } h.anim = 'idle'; }
-          else { const dx = h.tx - h.x, dy = h.ty - h.y, d = Math.hypot(dx, dy); if (d < 1) h.tx = null; else { const st = Math.min(d, 10 * dt); h.x += (dx / d) * st; h.y += (dy / d) * st; h.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 1 : 2) : (dy < 0 ? 3 : 0); h.anim = 'walk'; } }
+          if (h.tx == null) { if (r.next() < dt * 0.15) { h.tx = r.int(paddock.x0, paddock.x1) * T + 8; h.ty = r.int(paddock.y0, paddock.y1) * T + 12; } h.anim = (h.id + Math.floor(h.ft / 8)) % 3 ? 'graze' : 'idle'; }
+          else { const dx = h.tx - h.x, dy = h.ty - h.y, d = Math.hypot(dx, dy); if (d < 1) h.tx = null; else { const st = Math.min(d, 10 * dt); h.x += (dx / d) * st; h.y += (dy / d) * st; h.dir = O.dirOf(dx, dy); h.anim = 'walk'; } }
         } else h.anim = 'idle';
         if (h !== mount) h.stamina = Math.min(h.staminaMax, h.stamina + dt * 4);
         const a = horseActor(h); a.x = h.x; a.y = h.y; a.dir = h.dir; a.anim = h.anim; a.ft = h.ft;
@@ -8997,23 +9099,33 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
     // draw the rider on the horse
     const _drawWorld = game.hooks.drawWorld;
-    game.riderDraw = (ctx, a, fx, fy) => {
+    game.riderDraw = (ctx, a) => {
       const h = a.mount; if (!h) return false;
-      const hf = O.Animals.horse(h, a.dir, h.anim, Math.floor(h.ft * (O.Animals.HANIMS[h.anim]?.fps || 2)) % (O.Animals.HANIMS[h.anim]?.frames || 2));
+      const H = O.Animals.HANIMS[h.anim] || O.Animals.HANIMS.idle;
+      const hf = O.Animals.horse(h, a.dir, h.anim, Math.floor(h.ft * H.fps) % H.frames);
       const hx = Math.round(a.x - hf.ox - game.cam.x), hy = Math.round(a.y - hf.gy - game.cam.y);
-      ctx.fillStyle = 'rgba(28,20,44,0.3)'; ctx.fillRect(hx + 12, hy + hf.gy - 1, 36, 3);
-      const side = a.dir === 1 || a.dir === 2;
-      const rider = O.Char.frame(a.a, a.dir, 'sit', 0);
-      const ry = hy + hf.gy - 45 - (side ? 22 : 20), rx = Math.round(a.x - 16 - game.cam.x) + (side ? (a.dir === 2 ? -2 : 2) : 0);
-      if (a.dir === 3) { ctx.drawImage(hf, hx, hy); ctx.drawImage(rider, rx, ry); }
-      else if (a.dir === 0) { ctx.drawImage(hf, hx, hy); ctx.drawImage(rider, rx, ry); ctx.drawImage(hf, 0, 0, hf.width, 22, hx, hy, hf.width, 22); }
-      else { ctx.drawImage(hf, hx, hy); ctx.drawImage(rider, rx, ry); }
+      ctx.fillStyle = 'rgba(28,20,44,0.3)';
+      const sd = a.dir === 1 || a.dir === 2 ? 1 : a.dir >= 4 ? 0.75 : 0.4; game.shadow(ctx, Math.round(a.x - game.cam.x), Math.round(a.y - game.cam.y), Math.round(17 * sd + 3), 3);
+      // the rider sits on the saddle; while mounting they rise from the horse's side in an arc
+      const rider = O.Char.frame(a.a, a.dir, 'ride', 0), hip = O.Char.hipY(a.a, 'ride');
+      let sx = hx + (hf.seat ? hf.seat[0] : hf.ox), sy = hy + (hf.seat ? hf.seat[1] : 18);
+      let rframe = rider;
+      if (a.mountT > 0) {
+        const u = 1 - a.mountT / 0.5, side = O.Char.DIRV[a.dir] || [0, 1];
+        const across = Math.abs(side[0]) > 0.5, gx = sx + (across ? 0 : -12), gy = hy + hf.gy + (across ? 7 : 0);
+        const e = u * u * (3 - 2 * u);
+        sx = Math.round(gx + (sx - gx) * e); sy = Math.round(gy - O.Char.GROUND + hip + (sy - (gy - O.Char.GROUND + hip)) * e - Math.sin(u * Math.PI) * 6);
+        if (u < 0.35) rframe = O.Char.frame(a.a, a.dir, 'open', 1);
+      }
+      ctx.drawImage(hf, hx, hy);
+      ctx.drawImage(rframe, Math.round(sx - 16), Math.round(sy - hip));
+      if (hf.front) ctx.drawImage(hf.front, hx, hy);
       return true;
     };
     void _drawWorld; void _blocked;
 
     function nearestHorse() { let best = null, bd = 26; for (const h of horses) { if (h === game.player.mount || (h.world || 'ashford') !== game.world.placeId) continue; const d = Math.hypot(h.x - game.player.x, h.y - game.player.y); if (d < bd) { bd = d; best = h; } } return best; }
-    function mountHorse(h) { if (game.scene) return; game.player.mount = h; h.saddled = true; h.tied = false; h.inPaddock = false; game.player.x = h.x; game.player.y = h.y; O.Panels.toast(`You swing up onto ${h.owner === 'player' ? h.name : 'the ' + h.coat + ' ' + h.breed.toLowerCase()}. Shift to gallop, H to dismount.`); }
+    function mountHorse(h) { if (game.scene) return; game.player.mount = h; h.saddled = true; h.tied = false; h.inPaddock = false; game.player.x = h.x; game.player.y = h.y; game.player.dir = h.dir; game.player.mountT = 0.5; O.Panels.toast(`You swing up onto ${h.owner === 'player' ? h.name : 'the ' + h.coat + ' ' + h.breed.toLowerCase()}. Shift to gallop, H to dismount.`); }
     function dismount(thrown) { const h = game.player.mount; if (!h) return; game.player.mount = null; h.tied = true; h.x = game.player.x + (thrown ? 10 : 14); h.y = game.player.y; if (!thrown) O.Panels.toast(`You tie ${h.owner === 'player' ? h.name : 'the horse'} up.`); }
     O.Horses = { horses, nearestHorse, dismount, mountHorse };
 

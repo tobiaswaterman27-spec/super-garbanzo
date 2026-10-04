@@ -198,7 +198,7 @@
     drink: { frames: 4, fps: 2.5 }, read: { frames: 2, fps: 1 }, celebrate: { frames: 4, fps: 5 }, mourn: { frames: 2, fps: 1 },
     point: { frames: 2, fps: 2 }, dig: { frames: 4, fps: 4 }, cook: { frames: 4, fps: 4 },
     attack: { frames: 4, fps: 12 }, open: { frames: 3, fps: 6 }, pickup: { frames: 2, fps: 3 }, hurt: { frames: 2, fps: 8 },
-    stretcher: { frames: 8, fps: 9 },
+    stretcher: { frames: 8, fps: 9 }, ride: { frames: 1, fps: 1 },
   };
 
   // Two-bone reach: the elbow (or knee) bends toward `pole`.
@@ -256,6 +256,7 @@
       case 'dig': L = { R: leg(1, 0.35, 0.5), L: leg(-1, -0.15, 0.2) }; P.lean = 1.5; break;
       case 'attack': L = { R: leg(1, f === 1 || f === 2 ? 0.35 : 0.1, 0.25), L: leg(-1, -0.25, 0.15) }; P.lean = f === 1 || f === 2 ? 1.4 : 0.2; break;
       case 'mourn': case 'read': P.headDown = 1; break;
+      case 'ride': L = { R: leg(1, 0.6, 1.0, 0.55), L: leg(-1, 0.6, 1.0, 0.55) }; P.lean = 0.3; break;
       default: break;
     }
     if (m.stoop) { P.lean += 1; P.headFwd += 0.8; }
@@ -334,6 +335,7 @@
       case 'point': A.R = reach(1, [1.5, shY + 1.5 - f, 12]); P.mouth = f; break;
       case 'dig': { const k = [0, 1, 2, 1][f]; A.R = reach(1, [1.2, chest + k * 1.5, D + 3]); A.L = reach(-1, [-0.2, chest + 4 + k * 1.5, D + 3.5]); P.held = 'spade'; P.toolDir = [0, 0.95, 0.35]; break; }
       case 'cook': { const k = f % 4; A.R = reach(1, [1.2 + (k % 2), chest + 4 + (k > 1 ? 0.6 : 0), D + 4]); P.held = 'ladle'; P.toolDir = [0, 0.9, 0.3]; break; }
+      case 'ride': A.R = reach(1, [1.8, hipY - 2.5, D + 5]); A.L = reach(-1, [-1.8, hipY - 2.5, D + 5]); break;
       case 'hurt': A.R = fwdArm(1, -0.3, 0.6, 0.25); A.L = fwdArm(-1, -0.3, 0.6, 0.25); break;
       default: break;
     }
@@ -986,6 +988,9 @@
     if (cache.size > MAX) cache.delete(cache.keys().next().value);
     return c;
   }
+  // where the hips sit in a frame (riders are placed on a saddle by their hips)
+  const hipCache = new Map();
+  function hipY(a, anim) { const k = a.seed + anim + a.age; if (!hipCache.has(k)) hipCache.set(k, pose(bodyMetrics(a), anim, 0, a).hipY); return hipCache.get(k); }
   function invalidate(a) { a.cacheVer = (a.cacheVer || 0) + 1; }
 
   // Build a full sprite sheet canvas: rows = anim x dir, cols = frames.
@@ -999,6 +1004,6 @@
     return { canvas: c, rows, fw: FW, fh: FH };
   }
 
-  O.Char = { makeAppearance, randomGenes, inheritGenes, bodyMetrics, ageStage, outfitFor, render, frame, sheet, invalidate, ANIMS, FW, FH, GROUND, HAIR_STYLES_M, HAIR_STYLES_F, BEARDS, dirOf, dir4, DIRV };
+  O.Char = { makeAppearance, randomGenes, inheritGenes, bodyMetrics, ageStage, outfitFor, render, frame, sheet, invalidate, ANIMS, FW, FH, GROUND, HAIR_STYLES_M, HAIR_STYLES_F, BEARDS, dirOf, dir4, DIRV, hipY };
   O.dirOf = dirOf; O.dir4 = dir4;
 })();

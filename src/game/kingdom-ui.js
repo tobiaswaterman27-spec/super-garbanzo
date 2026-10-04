@@ -98,7 +98,7 @@
     // ---------------- reeve to council, crier, notices ----------------
     const reeve = sim.reeveId ? sim.byId.get(sim.reeveId) : sim.people.filter((p) => p.age >= 35 && !p.visitor && !p.job?.role?.startsWith('guard') && !p.gang).sort((a, b) => sim.household(b).money - sim.household(a).money)[0];
     if (reeve) { reeve.title = 'Reeve of Ashford'; sim.reeveId = reeve.id; }
-    const _plan = sim.plan.bind(sim);
+    const H0 = O.SimRef.cur, _plan = (p) => Object.getPrototypeOf(H0).plan.call(H0, p); // always the shared plan as it stands now (others add to it later)
     sim.plan = (p) => {
       const dos = sim.weather.dayOfSeason, h = sim.hour;
       if (p.id === sim.reeveId && !p.health.illness) {

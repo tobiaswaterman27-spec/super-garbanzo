@@ -26,7 +26,8 @@
       stamp[start] = run; g[start] = 0; from[start] = -1;
       push(start, h(start));
       let found = false, iter = 0;
-      while (open.length && iter++ < 20000) {
+      const LIMIT = Math.max(20000, Math.min(160000, (W * H) >> 1)); // a big city with one bridge needs a long search
+      while (open.length && iter++ < LIMIT) {
         const [, i] = pop();
         if (i === goal) { found = true; break; }
         if (closed[i] === run) continue;
@@ -38,7 +39,7 @@
           const c = j === goal ? Math.max(1, cost[j]) : cost[j]; if (!c) continue;
           if (dx && dy && (!cost[y * W + nx] || !cost[ny * W + x])) continue; // no corner cutting
           const ng = g[i] + c * (dx && dy ? 1.414 : 1);
-          if (closed[j] !== run && (stamp[j] !== run || ng < g[j])) { stamp[j] = run; g[j] = ng; from[j] = i; push(j, ng + h(j)); }
+          if (closed[j] !== run && (stamp[j] !== run || ng < g[j])) { stamp[j] = run; g[j] = ng; from[j] = i; push(j, ng + h(j) * 1.15); }
         }
       }
       let path = null;

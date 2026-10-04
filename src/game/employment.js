@@ -60,7 +60,7 @@
       if (!list.length) return '"Nobody\'s short of hands that I know of. Try again in a few days."';
       // they know best the places near them and their own trade
       list.sort((a, b) => (a.bz.id === q.job?.biz ? -1 : 0) - (b.bz.id === q.job?.biz ? -1 : 0) || ((a.bz.id * 7 + q.id) % 13) - ((b.bz.id * 7 + q.id) % 13));
-      const pick = list.slice(0, 3); PS.hiringLeads = pick.map((x) => x.boss.id); for (const x of pick) O.learnTrade && O.learnTrade(x.boss);
+      const pick = list.slice(0, 3); PS.hiringLeads = pick.map((x) => x.boss.id); for (const x of pick) O.learnTrade && O.learnTrade(x.boss); PS.lead = { place: s.world.placeId, id: pick[0].boss.id, until: s.day * 1440 + s.minute + 240 };
       return `"${pick.map((x, i) => `${i ? (i === pick.length - 1 ? 'and ' : '') : ''}${x.boss.first} at ${x.bz.name} wants ${/^[aeiou]/.test(x.role) ? 'an' : 'a'} ${x.role}`).join(', ')}. Go and ask ${pick.length > 1 ? 'them' : x0(pick)} yourself: talk to whoever runs the place."`;
     }
     const x0 = (p) => (p[0].boss.sex === 'f' ? 'her' : 'him');
@@ -407,6 +407,34 @@
       if (html === sig) return; sig = html; el.innerHTML = html; el.hidden = false;
     }
 
+    // an arrow at the edge of the view pointing the way to something off screen (kept clear of the clock and the job card)
+    function edgeArrow(ctx, cam, tx, ty) {
+      const P = game.player, vw = game.vw, vh = game.vh;
+      const px = P.x - cam.x, py = P.y - 16 - cam.y, ang = Math.atan2(ty - P.y, tx - P.x), mx = 22, top = 70, bot = 26;
+      const k = Math.min(Math.abs((Math.cos(ang) > 0 ? vw - mx - px : px - mx) / (Math.cos(ang) || 1e-6)), Math.abs((Math.sin(ang) > 0 ? vh - bot - py : py - top) / (Math.sin(ang) || 1e-6)));
+      const ax = Math.round(px + Math.cos(ang) * k), ay = Math.round(py + Math.sin(ang) * k), pulse = 1 + Math.sin(game.t * 5) * 0.12;
+      ctx.save(); ctx.translate(ax, ay); ctx.rotate(ang); ctx.scale(pulse * 1.6, pulse * 1.6);
+      ctx.fillStyle = '#1b1424'; ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(-8, -10); ctx.lineTo(-4, 0); ctx.lineTo(-8, 10); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#f0b45c'; ctx.beginPath(); ctx.moveTo(9, 0); ctx.lineTo(-6, -7); ctx.lineTo(-2, 0); ctx.lineTo(-6, 7); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+    O.edgeArrow = edgeArrow;
+    // before a shift, the way to work; and the way to whoever you've just been told to find
+    game.hooks.drawTop.push((ctx, cam, indoor) => {
+      const s = cur(), P = game.player, e = here(), vis = (x, y) => x - cam.x > 0 && x - cam.x < game.vw && y - 40 - cam.y > 0 && y - cam.y < game.vh;
+      if (indoor || game.scene) return;
+      const bob = Math.round(Math.sin(game.t * 4) * 2);
+      const mark = (x, y) => { x = Math.round(x - cam.x); y = Math.round(y - cam.y) + bob; ctx.fillStyle = '#1b1424'; ctx.fillRect(x - 3, y - 1, 7, 5); ctx.fillRect(x - 1, y + 4, 3, 2); ctx.fillStyle = '#f0b45c'; ctx.fillRect(x - 2, y, 5, 3); ctx.fillRect(x, y + 3, 1, 2); };
+      if (e && !e.onShift && e.place === s.world.placeId) {
+        const bz = s.biz.get(e.biz), [o] = hoursOf(e, bz);
+        if (bz && s.hour >= o - 1 && s.hour < o && s.day >= (e.firstDay || 0)) { const x = bz.b.doorX * T + 8, y = bz.b.doorY * T - 10; if (vis(x, y)) mark(x, y - 40); else edgeArrow(ctx, cam, x, y); return; }
+      }
+      const L = PS.lead; if (!L || L.place !== s.world.placeId || s.day * 1440 + s.minute > L.until) return;
+      const q = s.byId.get(L.id); if (!q || q.alive === false) return;
+      if (q.agent.hidden || q.agent.inside != null) { const b = q.agent.inside != null && s.building(q.agent.inside); if (!b || b.doorX == null) return; const x = b.doorX * T + 8, y = b.doorY * T - 10; if (vis(x, y)) mark(x, y - 40); else edgeArrow(ctx, cam, x, y); return; }
+      if (Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < 24) { PS.lead = null; return; } // found them
+      if (vis(q.agent.x, q.agent.y)) mark(q.agent.x, q.agent.y - 46); else edgeArrow(ctx, cam, q.agent.x, q.agent.y);
+    });
     // ---------------------------------------------------------------- markers over where the work is
     game.hooks.drawTop.push((ctx, cam, indoor) => {
       const e = here(); if (!e || !e.onShift) return;
@@ -434,14 +462,7 @@
       if (indoor && game.scene && game.scene.b.id !== bz.id && !targets.length) { const w = game.scene.wayIn ? game.scene.wayIn() : null; if (w) targets.push([w[0], w[1] + 10]); } // the way out
       if (!targets.length || targets.some(([x, y]) => x - cam.x > 0 && x - cam.x < vw && y - 40 - cam.y > 0 && y - cam.y < vh)) return;
       const [tx, ty] = targets.sort((a, b) => Math.hypot(a[0] - P.x, a[1] - P.y) - Math.hypot(b[0] - P.x, b[1] - P.y))[0];
-      // kept clear of the clock (top left) and the job card (top right)
-      const px = P.x - cam.x, py = P.y - 16 - cam.y, ang = Math.atan2(ty - P.y, tx - P.x), mx = 22, top = 70, bot = 26;
-      const k = Math.min(Math.abs((Math.cos(ang) > 0 ? vw - mx - px : px - mx) / (Math.cos(ang) || 1e-6)), Math.abs((Math.sin(ang) > 0 ? vh - bot - py : py - top) / (Math.sin(ang) || 1e-6)));
-      const ax = Math.round(px + Math.cos(ang) * k), ay = Math.round(py + Math.sin(ang) * k), pulse = 1 + Math.sin(game.t * 5) * 0.12;
-      ctx.save(); ctx.translate(ax, ay); ctx.rotate(ang); ctx.scale(pulse * 1.6, pulse * 1.6);
-      ctx.fillStyle = '#1b1424'; ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(-8, -10); ctx.lineTo(-4, 0); ctx.lineTo(-8, 10); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#f0b45c'; ctx.beginPath(); ctx.moveTo(9, 0); ctx.lineTo(-6, -7); ctx.lineTo(-2, 0); ctx.lineTo(-6, 7); ctx.closePath(); ctx.fill();
-      ctx.restore();
+      edgeArrow(ctx, cam, tx, ty);
     });
 
     // ---------------------------------------------------------------- any post at all (for trying the jobs out)

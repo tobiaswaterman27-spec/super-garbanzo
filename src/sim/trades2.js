@@ -25,6 +25,8 @@
     cake: { name: 'Honey cake', base: 3, unit: 'cake', slots: 1, food: 0.7, place: true },
     sausage: { name: 'Sausages', base: 3, unit: 'string', slots: 1, food: 1, place: true },
     stew: { name: 'Pottage', base: 2, unit: 'bowl', slots: 1, food: 1.1, place: true },
+    spices: { name: 'Spices', base: 12, unit: 'pouch', slots: 1 },
+    silk: { name: 'Silk', base: 40, unit: 'bolt', slots: 1 },
     wine: { name: 'Wine', base: 6, unit: 'flask', slots: 1, drink: 0.5, place: true },
     venison: { name: 'Venison', base: 7, unit: 'haunch', slots: 2, food: 1.5 },
     salt: { name: 'Salt', base: 2, unit: 'bag', slots: 1 },

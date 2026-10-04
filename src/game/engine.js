@@ -286,32 +286,24 @@
       // whatever stands in front of you (a roof, a tree) fades so you can see yourself behind it
       const P0 = this.player, px0 = P0.x - 9, px1 = P0.x + 9, py0 = P0.y - 36, py1 = P0.y - 2, dtF = Math.min(0.1, this.t - (this._fadeT || this.t)); this._fadeT = this.t;
       const fadeOf = () => 1; const fadeOld = (o, x, y, wd, ht) => { const cover = !P0.hidden && o.y > P0.y + 1 && x < px1 && x + wd > px0 && y < py1 && y + ht > py0; const tgt = cover ? 0.42 : 1; o._fade = o._fade == null ? 1 : o._fade + (tgt - o._fade) * Math.min(1, dtF * 8); return o._fade; };
-      let covered = false; P0._drawn = false;
+      P0._drawn = false;
       for (const s of this.statics) {
         while (ai < actors.length && actors[ai].y < s.y) { if (actors[ai] === P0) P0._drawn = true; drawActor(actors[ai++]); }
         if (s.b) {
           const b = s.b, sp = b.sprite; if (!sp) continue;
           const x = b.x * T - sp.OV, y = (b.bottom + 1) * T - sp.H;
           const fa = fadeOf(s, x, y, sp.W, sp.H - 6); if (fa < 0.99) ctx.globalAlpha = fa;
-          if (!covered && P0._drawn && x < px1 && x + sp.W > px0 && y < py1 && y + sp.H - 8 > py0) covered = true;
           if (inView(x, y, sp.W, sp.H)) { ctx.drawImage(sp.canvas, x - cam.x, y - cam.y); if (this.snowAlpha > 0.04 && sp.roofMask) { ctx.globalAlpha = this.snowAlpha; ctx.drawImage(sp.roofMask, x - cam.x, y - cam.y); ctx.globalAlpha = 1; } if (this.drawDoor) this.drawDoor(ctx, b, cam); }
           ctx.globalAlpha = 1;
         } else {
           const o = s.t || s.p, sp = o.sprite, x = o.x - sp.ox, y = o.y - sp.oy;
           const fa = s.t ? fadeOf(s, x, y, sp.W, sp.H) : 1; if (fa < 0.99) ctx.globalAlpha = fa;
-          if (!covered && P0._drawn && x < px1 && x + sp.W > px0 && y < py1 && y + sp.H - 8 > py0) covered = true;
           if (inView(x, y, sp.W, sp.H)) { ctx.drawImage(sp.canvas, x - cam.x, y - cam.y); if (this.snowAlpha > 0.04) { const m = sp.snowMask || (sp.snowMask = O.snowMaskOf(sp.canvas)); if (m) { ctx.globalAlpha = this.snowAlpha; ctx.drawImage(m, x - cam.x, y - cam.y); ctx.globalAlpha = 1; } } }
           ctx.globalAlpha = 1;
         }
       }
       while (ai < actors.length) drawActor(actors[ai++]);
       ctx.globalAlpha = 1;
-      // behind a roof: your outline shows through it, so you never lose yourself
-      if (covered && !P0.hidden && P0._sx != null && !P0.mount) {
-        const fr = this.actorFrame(P0), c = this._ghost || (this._ghost = document.createElement('canvas')); c.width = fr.width; c.height = fr.height;
-        const g = c.getContext('2d'); g.clearRect(0, 0, c.width, c.height); g.drawImage(fr, 0, 0); g.globalCompositeOperation = 'source-in'; g.fillStyle = 'rgba(244,232,200,0.55)'; g.fillRect(0, 0, c.width, c.height); g.globalCompositeOperation = 'source-over';
-        ctx.drawImage(c, P0._sx, P0._sy);
-      }
       for (const h of this.hooks.drawWorld) h(ctx, cam);
       // smoke
       for (const q of this.particles) {
@@ -414,6 +406,7 @@
     }
 
     enterBuilding(b, floor = 0, fromStairs = false) {
+      O.releaseLeavers && O.releaseLeavers();
       if (!this.scene) this.outdoorPos = { x: this.player.x, y: this.player.y };
       this.scene = new O.Indoor(this, this.sim, b, floor);
       this.scene.enterAt(fromStairs);
@@ -423,11 +416,13 @@
     }
     // into a room off a castle hallway, and back out to the hallway by its door
     enterRoom(room) {
+      O.releaseLeavers && O.releaseLeavers();
       this.scene = new O.Indoor(this, this.sim, room, 0);
       this.scene.enterAt(false); this.scene.placeActors(); this.player.inside = room.id;
       this.onSceneChange && this.onSceneChange();
     }
     exitBuilding() {
+      O.releaseLeavers && O.releaseLeavers();
       const b = this.scene.b;
       if (b.parent) {
         this.scene = new O.Indoor(this, this.sim, b.parent, b.roomFloor || 0);

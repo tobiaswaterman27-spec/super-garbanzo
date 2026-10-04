@@ -41,7 +41,7 @@
       const out = prevExtra ? prevExtra(q) : [], s = cur();
       const rec = here(s).find((m) => m.task && !m.task.done && m.task.kind === 'recruit' && m.task.target === q.id);
       if (rec) out.push(['grecruit', `Put in a word for ${rec.name.replace(/^the /, 'the ')}`]);
-      if (!q.gang && q.age >= 16 && s.gangs && s.gangs.length && !/guard|captain|sergeant/.test(q.job?.role || '') && !memberOfAny(s)) out.push(['gwho', 'Know anyone who works outside the law?']);
+      if (!q.gang && q.age >= 16 && s.gangs && s.gangs.length && !memberOfAny(s)) out.push(['gwho', 'Know anyone who works outside the law?']);
       if (!q.gang || q.gang === 'player' || !s.gangs) return out;
       const g = s.gang(q.gang); if (!g) return out;
       const m = memberOf(s, g.id);
@@ -63,9 +63,26 @@
     // everyone in the lanes knows.
     function gangLead(s, q) {
       const PSx = PS, aff = q.rel?.get(0)?.affinity || 0;
-      if (O.upright(s, q)) return `"${['I\'ll not help you into that sort of company.', 'Ask the watch, if you\'re so curious. In fact, I might.', 'God keep you from such people.'][q.id % 3]}"`;
-      const good = q.attitude > 0.35 || q.traits.includes('generous') && q.traits.includes('loyal');
-      if (good) return '"Me? I keep to honest work, and honest folk."';
+      const role = q.job?.role || '', LAW = /guard|sergeant|captain|watch|constable|bailiff|magistrate|bounty hunter|knight|gaoler|turnkey|spy/;
+      // ask the law who runs with the gangs, and the law takes an interest in you
+      if (LAW.test(role)) {
+        PSx.askedLaw = (PSx.askedLaw || 0) + 1;
+        if (PSx.askedLaw >= 2 || PSx.money < 5) {
+          const cr = s.recordCrime({ kind: 'consorting with outlaws', perp: 'player', placeName: O.placeName ? O.placeName() : s.world.name, tile: [Math.floor(game.player.x / 16), Math.floor(game.player.y / 16)], seen: [q], severity: 1 });
+          PSx.crimes.push(cr.id); O.lawReport && O.lawReport(cr, q);
+          return '"Asking after the gangs again? You\'ll come along with me and explain yourself."';
+        }
+        PSx.money -= 5; PSx.rep.guard = Math.max(-1, PSx.rep.guard - 0.1);
+        return '"Outlaws, is it? That\'s five aurins for loitering with intent, and I\'ll be watching you. Ask me again and you\'ll see the inside of a cell."';
+      }
+      const priestly = /priest|chaplain|monk|nun|friar|abbot|bell-ringer|sexton|pilgrim/.test(role);
+      const official = O.upright(s, q) && !priestly;
+      const good = q.attitude > 0.35 || (q.traits.includes('generous') && q.traits.includes('loyal'));
+      // the government may go to the watch about you
+      if (official && s.rng.chance(0.35)) { const cr = s.recordCrime({ kind: 'consorting with outlaws', perp: 'player', placeName: O.placeName ? O.placeName() : s.world.name, tile: [Math.floor(game.player.x / 16), Math.floor(game.player.y / 16)], seen: [q], severity: 1 }); PSx.crimes.push(cr.id); return '"I\'ll not answer that. And I think the watch should hear you asked."'; }
+      // the godly almost never tell, the government seldom, the good-hearted rarely
+      const tells = priestly ? 0.04 : official ? 0.1 : good ? 0.18 : 1;
+      if (tells < 1 && !(aff > 0.5 && s.rng.chance(tells * 2)) && !s.rng.chance(tells)) return `"${priestly ? ['God keep you from such people.', 'I\'ll pray for you, child. That\'s all the help I\'ll give in that.', 'The Church has nothing to do with such folk.'][q.id % 3] : official ? 'That\'s no question for me to answer.' : 'Me? I keep to honest work, and honest folk.'}"`;
       const rough = q.traits.includes('greedy') || q.traits.includes('hostile') || q.attitude < -0.1 || s.household(q).money < 15;
       const need = rough ? 0.1 : 0.35;
       if (aff < need && PSx.rep.criminal < 0.3) return `"${['Why would I tell you anything? I hardly know you.', 'I don\'t talk about such things with strangers.', 'Buy me a drink some time, and maybe we\'ll talk.'][q.id % 3]}"`;
@@ -74,7 +91,7 @@
       if (!knowsOf.length) return `"${['I wouldn\'t know. I keep my head down.', 'Not that I know of, and I\'d not want to.', 'Couldn\'t tell you. Nobody I know.'][q.id % 3]}"`;
       const m = knowsOf.sort((a, b) => ((a.id * 5 + q.id) % 11) - ((b.id * 5 + q.id) % 11))[0], g = s.gang(m.gang);
       const where = m.job?.biz != null && s.biz.get(m.job.biz) ? `you'll find ${m.sex === 'f' ? 'her' : 'him'} at ${s.biz.get(m.job.biz).name} in the day` : s.biz && [...s.biz.values()].find((z) => z.type === 'tavern') ? `${m.sex === 'f' ? 'she' : 'he'} drinks at ${[...s.biz.values()].find((z) => z.type === 'tavern').name} of an evening` : `${m.sex === 'f' ? 'she' : 'he'} lives about the town`;
-      PSx.gangLead = m.id; (PSx.knowsGang = PSx.knowsGang || {})[O.knowKey(m)] = 1;
+      PSx.gangLead = m.id; PSx.lead = { place: s.world.placeId, id: m.id, until: s.day * 1440 + s.minute + 240 }; (PSx.knowsGang = PSx.knowsGang || {})[O.knowKey(m)] = 1;
       return `"Keep your voice down. ${m.first} ${m.sur || ''} runs with ${g ? g.name : 'a crew'}: ${where}. Talk to ${m.sex === 'f' ? 'her' : 'him'}, and you never heard it from me."`;
     }
     npcUI.onExtra = (q, key, render) => {

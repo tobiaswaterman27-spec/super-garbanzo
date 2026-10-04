@@ -4,6 +4,10 @@
 // in sacks, and handles collision, stairs and leaving by the door.
 'use strict';
 (function () {
+  // someone walking out while you watch from inside: kept just inside the door till they reach it, then they step out
+  O.heldLeavers = new Set();
+  function release(q) { if (!q || !q.agent || !q.agent.held) return; const a = q.agent; a.held = false; a.frozen = false; a.hidden = false; O.heldLeavers.delete(q); }
+  O.releaseLeavers = () => { for (const q of [...O.heldLeavers]) release(q); };
   const T = 16, Ch = O.Char;
   const SLEEPY = new Set(['sleep', 'sick']);
 
@@ -165,7 +169,8 @@
         if (!a) {
           // someone coming in walks in from the door (or up the stairs); those here when you arrive are already in place
           a = { ft: Math.random() * 2, person: q, a: q.app };
-          if (this.t > 0.4) { [a.x, a.y] = this.wayIn(); } else { a.x = x; a.y = y; }
+          const justCame = q.agent.enteredAt != null && ((sim.minute - q.agent.enteredAt + 1440) % 1440) < 2.5; // came in just ahead of you: still in the doorway
+          if (this.t > 0.4 || justCame) { [a.x, a.y] = this.wayIn(); } else { a.x = x; a.y = y; }
           this.actors.set(q.id, a);
         }
         if (q.agent.frozen) { anim = anim === 'sit' ? 'sit' : 'talk'; dir = a.dir ?? dir; }
@@ -175,7 +180,7 @@
         seen.add(q.id);
       }
       // whoever has gone walks out of the door (or off up the stairs) rather than vanishing
-      for (const [id, a] of this.actors) if (!seen.has(id)) { if (!a.leaving) { a.leaving = true; a.leftAt = this.t; [a.gx, a.gy] = this.wayIn(); a.gBed = null; a.seat = null; a.gSortY = null; } }
+      for (const [id, a] of this.actors) if (!seen.has(id)) { if (!a.leaving) { a.leaving = true; a.leftAt = this.t; [a.gx, a.gy] = this.wayIn(); a.gBed = null; a.seat = null; a.gSortY = null; const ag = a.person.agent; if (ag && ag.inside == null && !ag.hidden && this.floor === 0 && !this.b.parent) { ag.held = true; ag.frozen = true; ag.hidden = true; O.heldLeavers.add(a.person); } } }
     }
     // where people come in and go out: the door on the ground floor, the stairs above
     wayIn() {
@@ -212,7 +217,7 @@
         const dx = a.gx - a.x, dy = a.gy - a.y, d = Math.hypot(dx, dy);
         if (d < 1.5) {
           a.x = a.gx; a.y = a.gy; a.stuck = 0;
-          if (a.leaving) { this.actors.delete(id); continue; }
+          if (a.leaving) { this.actors.delete(id); release(a.person); continue; }
           a.sortY = a.gSortY; a.dir = a.gDir; a.anim = a.gAnim; a.inBed = a.gBed; a.hidden = !!a.gBed;
           continue;
         }
@@ -225,7 +230,7 @@
           if (ed <= sp0 + 0.5) { a.x = wx; a.y = wy; a.route.shift(); } else { a.x += ex / ed * sp0; a.y += ey / ed * sp0; }
           if (ed > 0.2) a.dir = O.dirOf(ex, ey);
           a.anim = 'walk'; a.stuck = 0;
-          if (a.leaving && this.t - a.leftAt > 8) this.actors.delete(id);
+          if (a.leaving && this.t - a.leftAt > 8) { this.actors.delete(id); release(a.person); }
           continue;
         }
         const sp = 46 * dt, near = d < 18, ux = dx / d, uy = dy / d;
@@ -237,7 +242,7 @@
         }
         if (a.ghost && d < 4) a.ghost = false;
         a.dir = O.dirOf(nx - a.x, ny - a.y); a.x = nx; a.y = ny; a.anim = 'walk';
-        if (a.leaving && this.t - a.leftAt > 8) this.actors.delete(id);
+        if (a.leaving && this.t - a.leftAt > 8) { this.actors.delete(id); release(a.person); }
       }
     }
 
@@ -394,7 +399,7 @@
         if (it.kind === 'roomdoor') out.push({ type: 'roomdoor', it, b: this.b, d: d - 3, x: cx, y: it.front ? cy - 4 : cy - 34 });
         if (it.portrait) out.push({ type: 'portrait', it, d: d + 2, x: cx, y: cy - 30 });
         if (it.kind === 'hay') out.push({ type: 'hay', it, d: d + 3, x: cx, y: cy });
-        if (it.seat && !p.sitting && !(this.usedSeats && this.usedSeats.has(it) && it.kind !== 'pew' && it.kind !== 'bench')) out.push({ type: 'sit', it, d: d + 1.5, x: cx, y: cy });
+        if (it.seat && it.kind !== 'pew' && !p.sitting && !(this.usedSeats && this.usedSeats.has(it) && it.kind !== 'pew' && it.kind !== 'bench')) out.push({ type: 'sit', it, d: d + 1.5, x: cx, y: cy });
         // buy across the counter or from the shelves, when someone is serving
         if ((it.counter || it.shop) && bz && !bz.def.public) {
           const seller = [...this.actors.values()].find((a) => !a.hidden && a.person.job?.biz === this.b.id && a.person.activity?.act === 'work');

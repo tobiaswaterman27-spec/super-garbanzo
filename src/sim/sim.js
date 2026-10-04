@@ -556,7 +556,8 @@
         const [tx, ty] = a.path[a.pi];
         let [gx, gy] = this.tileCenter(tx, ty, a.pi === a.path.length - 1 ? p : null);
         // keeping to the right of the way to pass someone coming the other way
-        if (a.lane && a.pi < a.path.length - 1) { const nx = a.path[a.pi + 1], ex = nx[0] - tx, ey = nx[1] - ty, ed = Math.hypot(ex, ey) || 1; gx += (-ey / ed) * a.lane; gy += (ex / ed) * a.lane * 0.7; } // (to the right of the way the path runs)
+        const wt = this.world.ter, TW = this.world.TER || {}, onBridge = (x, y) => wt[y * this.world.W + x] === TW.BRIDGE || [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([ox, oy]) => wt[(y + oy) * this.world.W + x + ox] === TW.WATER);
+        if (a.lane && a.pi < a.path.length - 1 && !onBridge(tx, ty)) { /* never off the side of a bridge or a bank */ const nx = a.path[a.pi + 1], ex = nx[0] - tx, ey = nx[1] - ty, ed = Math.hypot(ex, ey) || 1; gx += (-ey / ed) * a.lane; gy += (ex / ed) * a.lane * 0.7; } // (to the right of the way the path runs)
         const dx = gx - a.x, dy = gy - a.y, d = Math.hypot(dx, dy);
         if (d <= budget) { a.x = gx; a.y = gy; budget -= d; a.pi++; }
         else { a.x += (dx / d) * budget; a.y += (dy / d) * budget; budget = 0; }
@@ -564,7 +565,7 @@
       }
       // hurrying: late for work, chasing someone down, or running from trouble
       const act = p.activity?.act, late = act === 'work' && p.job && this.biz?.get(p.job.biz)?.def && this.hour > this.biz.get(p.job.biz).def.hours[0] + 0.15 && this.hour < this.biz.get(p.job.biz).def.hours[0] + 1.5;
-      a.sprint = !!(a.chase || a.fleeing || late || p.task?.act === 'collect');
+      a.sprint = !!(a.chase || a.fleeing || late || p.task?.act === 'collect' || p.task?.act === 'report' || p.errand?.sprint); // those running to tell the watch run
       if (a.path) a.anim = a.carrying ? 'carry' : a.sprint || (act === 'play' && p.id % 2) ? 'run' : 'walk';
     }
 

@@ -118,6 +118,7 @@
   O.TownLifeSetup.setup(game, npcUI);
   O.DealsSetup.setup(game);
   O.WakeSetup.setup(game);
+  O.FestivalsSetup.setup(game, npcUI);
   O.WanderersSetup.setup(game, home);
   O.CouncilUI.setup(game, home);
   O.WarUI.setup(game, home, npcUI);

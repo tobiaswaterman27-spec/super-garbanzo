@@ -182,11 +182,11 @@ Every job and every level of it, royal family and titles included, grouped under
 
 ## Batch J (asked after step 75) - trust, and the next features
 
-- [ ] People of the law (and the government) are never in gangs
-- [ ] People only tell you things if they trust you enough; good people won't say (priests, most of the law and government), and nobody says what they don't know
-- [ ] You can't ask anyone about houses to let or for sale unless you know they deal in them
-- [ ] Getting a room: the words appear in the speech text, not the line at the bottom
-- [ ] Seasons and festivals that matter: harvest fair, midwinter feast at the castle, spring tournament (joust or bet), Sunday market with travelling merchants
+- [x] People of the law (and the government) are never in gangs
+- [x] People only tell you things if they trust you enough; good people won't say (priests, most of the law and government), and nobody says what they don't know
+- [x] You can't ask anyone about houses to let or for sale unless you know they deal in them
+- [x] Getting a room: the words appear in the speech text, not the line at the bottom
+- [x] Seasons and festivals that matter: harvest fair, midwinter feast at the castle, spring tournament (joust or bet), Sunday market with travelling merchants
 - [ ] Ruling as monarch: set the crown tax, pardon or condemn prisoners, grant titles, order works, declare war, hold audiences for petitions
 - [ ] Reputation you can see: guards nod or glare, merchants' prices, children following the famous
 - [ ] Bounty boards and hired work at the watch house and the tavern: catch a thief, escort a merchant, clear a bandit camp
@@ -194,3 +194,18 @@ Every job and every level of it, royal family and titles included, grouped under
 - [ ] Clean-up pass of the old Ashford-only systems (reeve, moot, lordship) against the whole island
 - Later, with the AI chat: marriage and family (court, marry, children, heirs)
 - Next after this batch: the AI chat (NPC speech by AI)
+
+## Batch K (asked during step 77) - quick fixes
+
+- [x] People still teleport, and aren't there when you go in or come out of a building
+- [x] People cross the river: they must use the bridge
+- [x] Someone going to tell (the watch, a guard) sprints and runs
+- [x] The arrow that tells you where to go: make sure it shows
+- [x] Priests can tell you about gangs but it's very unlikely; good people may not; the government may not; ask the wrong person (a guard, the government) and you may be punished
+- [x] You are drawn white (the outline behind roofs): remove it
+- [x] Invisible solid tiles still: find and fix
+- [x] Upstairs in the mill there's a strange brown-then-white thing: fix it
+- [x] You shouldn't be able to sit in the pews
+- [x] Some children have no walking animation
+- [ ] Hard to get the option to ask to join a gang (to be looked at again with the AI chat)
+- (Festivals in progress: Sunday market, harvest fair archery, spring tournament, midwinter feast)

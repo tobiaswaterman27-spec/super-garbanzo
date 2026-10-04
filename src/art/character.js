@@ -107,7 +107,7 @@
     };
     if (rich) o.trim = P.mat(rng.pick([P.metal.gold, C.white, C.mustard]), rng.chance(0.5) ? 'metal' : 'cloth');
     if (sex === 'f' && stage !== 'child') {
-      o.skirt = P.mat(col()); o.skirtLen = 1; o.shirt = P.mat(rng.pick([C.linen, C.white, C.undyed]));
+      o.skirt = P.mat(col()); o.skirtLen = stage === 'olderChild' ? 0.5 : 1; o.shirt = P.mat(rng.pick([C.linen, C.white, C.undyed]));
       o.over = rng.chance(0.75) ? P.mat(col()) : null; o.overLen = 0; o.dress = true;
     } else {
       o.over = rng.chance(0.85) ? P.mat(col()) : null; o.overLen = rng.chance(0.6) ? 1 : 0; // tunic to thigh
@@ -156,6 +156,7 @@
     if (genes.hairCurl > 0.78 && hairStyle !== 'bald' && hairStyle !== 'veil') hairStyle = sex === 'm' ? (rng.chance(0.6) ? 'shaggy' : hairStyle) : (rng.chance(0.6) ? 'curly' : hairStyle);
     if (!(sex === 'm' ? HAIR_STYLES_M : HAIR_STYLES_F).includes(hairStyle)) hairStyle = sex === 'm' ? 'short' : 'long'; // never the other's style
     if (sex === 'm' && age > 45 && rng.chance(0.25)) hairStyle = 'bald';
+    if (hairStyle === 'veil' && age < 14) hairStyle = rng.chance(0.5) ? 'braid' : 'long'; // only grown women go veiled
     const beard = sex === 'm' && age >= 18 ? (opts.beard || rng.pick(BEARDS)) : 'none';
     return {
       seed, sex, age, stage, genes, wealth, role: opts.role || 'villager',
@@ -588,7 +589,7 @@
     const { B, m, p, o, a } = S;
     const waist = p.waistY;
     let mat = null, hem = 0, flare = 0;
-    if (o.skirt) { mat = o.skirt; hem = p.sitting ? p.hipY + 5 : GROUND - 1.5 - (o.skirtLen ? 0 : 5); flare = 4; }
+    if (o.skirt) { mat = o.skirt; hem = p.sitting ? p.hipY + 5 : GROUND - 1.5 - (o.skirtLen === 1 ? 0 : o.skirtLen === 0.5 ? 3 : 5); flare = o.skirtLen === 0.5 ? 2.5 : 4; }
     else if (o.over && o.overLen >= 3) { mat = o.over; hem = GROUND - 1.5; flare = 3; }
     else if (o.over && o.overLen === 2) { mat = o.over; hem = p.hipY + m.leg * 0.62; flare = 3; }
     else if (o.over && o.overLen === 1) { mat = o.over; hem = p.hipY + 4.5; flare = 1.6; }

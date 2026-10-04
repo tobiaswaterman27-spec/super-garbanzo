@@ -79,6 +79,7 @@
         case 'work': return O.Craft.RECIPES[c.it.kind] ? `${O.workLabel()} · or make your own` : O.workLabel();
         case 'craft': return O.craftLabel(c);
         case 'fire': return O.fireLabel(c);
+        case 'custom': return c.label;
         case 'stall': return O.stallLabel();
         case 'portrait': return `Look at the portrait`;
         case 'broadsheet': return 'Buy a broadsheet · ₳1';
@@ -257,6 +258,7 @@
         case 'work': if (O.Craft.RECIPES[cur.it.kind]) { const J = O.Work.job(); O.craftPanel({ it: cur.it, who: `${J.masterName}'s`, work: true }); } else O.workShift(); break;
         case 'craft': O.craftPanel(cur); break;
         case 'fire': O.fightFire(cur); break;
+        case 'custom': cur.act(); break;
         case 'stall': O.mindStall(); break;
         case 'portrait': { const pr = cur.it.portrait; O.Panels.toast(`A likeness of ${pr.name}, painted in life. Died ${O.Chronicle.dateLabel(pr.died)}.`); break; }
         case 'broadsheet': O.ChronicleUI.broadsheet(); break;

@@ -387,10 +387,14 @@
           B.part(1); for (let k = 0; k < 9; k++) { const y = fy1 - 4 - k * 8, rise = k * 3.5; box(B, fx + 2, fx1 - 2, Math.round(y - rise - 3), 4, Math.round(y - rise + 3), m); }
           B.part(2); for (let k = 0; k <= 9; k++) { const y = fy1 - k * 8 - k * 3.5; B.plot(fx1, y, dark(), 3); B.plot(fx1, y - 1, dark(), 2); } B.capsule(fx1, fy1, fx1, fy - 30, 0.6, 0.6, dark());
           B.capsule(fx + 1, fy1, fx + 1, fy - 30, 0.6, 0.6, dark());
-        } else {
-          B.part(1); for (let y = fy; y <= fy1; y++) for (let x = fx; x <= fx1; x++) B.plot(x, y, P.mat('#1a1410', 'cloth'), 0);
-          for (let k = 0; k < 5; k++) { const y = fy + 4 + k * 9; box(B, fx + 3, fx1 - 3, y, 3, y + 2, m); for (let yy = y; yy < y + 6; yy++) for (let x = fx + 3; x <= fx1 - 3; x++) B.tweak(x, yy, -Math.floor(k / 2)); }
-          B.part(2); for (let x = fx; x <= fx1; x++) { B.plot(x, fy - 1, dark(), 3); } for (let y = fy - 18; y <= fy1; y++) { B.plot(fx, y, dark(), 3); B.plot(fx1, y, dark(), 1); } for (let x = fx; x <= fx1; x++) B.plot(x, fy - 18, dark(), 4);
+        } else { // the stairwell down: a hole in the boards with a low rail round it, the steps going down into the dark
+          const hole = P.mat('#1a1410', 'cloth');
+          B.part(1); for (let y = fy; y <= fy1; y++) for (let x = fx; x <= fx1; x++) { const rim = x <= fx + 1 || x >= fx1 - 1 || y <= fy + 1; B.plot(x, y, rim ? m : hole, rim ? 2 : 0); }
+          for (let k = 0; k < 6; k++) { const y = fy1 - 6 - k * 7; if (y < fy + 3) break; box(B, fx + 3, fx1 - 3, y, 2, y + 2, m); for (let yy = y - 1; yy < y + 4; yy++) for (let x = fx + 3; x <= fx1 - 3; x++) B.tweak(x, yy, -Math.min(2, Math.floor(k / 2))); }
+          B.part(2); const rail = wood();
+          for (let y = fy - 7; y <= fy1; y++) { B.plot(fx, y, rail, 2); B.plot(fx1, y, rail, 1); }
+          for (let x = fx; x <= fx1; x++) { B.plot(x, fy - 7, rail, 3); B.plot(x, fy - 6, rail, 2); }
+          for (const x of [fx + Math.round((fx1 - fx) / 2)]) for (let y = fy - 6; y <= fy; y++) B.plot(x, y, rail, 2);
         }
         out = finish(S); break;
       }

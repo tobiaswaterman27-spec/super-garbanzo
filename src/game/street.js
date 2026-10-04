@@ -25,7 +25,19 @@
       runner.t += dt;
       if (game.scene || q.alive === false || a.hidden || runner.t > 25 || s.world !== game.world) { release(); return; }
       const dx = p.x - a.x, dy = p.y - a.y, d = Math.hypot(dx, dy);
-      if (d > 20) { const sp = 95 * dt; a.x += dx / d * Math.min(sp, d - 18); a.y += dy / d * Math.min(sp, d - 18); a.dir = O.dirOf(dx, dy); a.anim = 'run'; return; }
+      if (d > 20) { // running to you by the streets and the bridge, never across the water
+        runner.rp = (runner.rp || 0) - dt;
+        if (runner.rp <= 0 || !runner.path) { runner.rp = 0.6; runner.path = s.path.find(Math.floor(a.x / T), Math.floor((a.y - 1) / T), Math.floor(p.x / T), Math.floor((p.y - 1) / T)) || []; runner.pi = 0; }
+        let budget = 95 * dt;
+        while (budget > 0) {
+          let tx, ty; if (runner.pi < runner.path.length) { const [px, py] = runner.path[runner.pi]; tx = px * T + 8; ty = py * T + 10; } else { tx = p.x; ty = p.y; }
+          const ex = tx - a.x, ey = ty - a.y, ed = Math.hypot(ex, ey);
+          if (ed <= budget) { a.x = tx; a.y = ty; budget -= ed; if (runner.pi < runner.path.length) runner.pi++; else break; } else { a.x += ex / ed * budget; a.y += ey / ed * budget; budget = 0; }
+          if (ed > 0.01) a.dir = O.dirOf(ex, ey);
+          if (Math.hypot(p.x - a.x, p.y - a.y) <= 20) break;
+        }
+        a.anim = 'run'; return;
+      }
       a.anim = 'talk'; a.frozen = true; a.dir = O.dirOf(dx, dy);
       const why = runner.why; release(); a.frozen = true;
       demand(s, q, why);
@@ -71,7 +83,7 @@
       let told = false;
       const tell = () => { if (told) return; told = true; if (g && !g.agent.hidden) say(`${q.first} points you out to ${g.first} of the watch.`, 'bad'); O.lawReport && O.lawReport(c, g); };
       if (!g) return tell();
-      const sent = O.Errands && O.Errands.send(s, q, [Math.floor(g.agent.x / T), Math.floor((g.agent.y - 1) / T)], { anim: 'talk', secs: 2, face: 0, at: tell, after: tell, giveUp: game.t + 25 });
+      const sent = O.Errands && O.Errands.send(s, q, [Math.floor(g.agent.x / T), Math.floor((g.agent.y - 1) / T)], { anim: 'talk', secs: 2, face: 0, at: tell, after: tell, giveUp: game.t + 25, sprint: true });
       if (!sent) tell();
     }
     // who comes looking for you, and when

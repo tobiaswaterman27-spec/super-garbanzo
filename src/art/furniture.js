@@ -141,18 +141,28 @@
         break;
       }
       case 'chair': case 'stool': {
-        // rot = which way the sitter faces: 0 toward us, 1 left, 2 right, 3 away
-        S = canvasFor(1, 1, 22); const { B, fx, fx1, fy, fy1 } = S; const m = woodFor(v);
-        const seatY = fy1 - 10;
-        B.part(1); leg(B, fx + 2, seatY, fy1, m, 1); leg(B, fx1 - 2, seatY, fy1, m, 1);
-        B.part(2); box(B, fx + 1, fx1 - 1, seatY - 8, 8, seatY + 1, m);
-        if (v >= 2 && kind === 'chair') for (let y = seatY - 7; y < seatY; y++) for (let x = fx + 2; x < fx1 - 1; x++) B.plot(x, y, P.mat(C.crimson), 3);
-        const back = (L) => { L.part(3); for (let y = seatY - 22; y <= seatY - 1; y++) for (let x = fx + 1; x <= fx1 - 1; x++) { const edge = x === fx + 1 || x === fx1 - 1 || y === seatY - 22 || y === seatY - 16; if (edge || (x - fx) % 4 === 0) L.plot(x, y, m, edge ? (y === seatY - 22 ? 4 : 2) : 1); } };
-        const sideBack = (L, right) => { L.part(3); const x = right ? fx1 - 1 : fx + 1; for (let y = seatY - 22; y <= seatY + 1; y++) for (let k = 0; k < 2; k++) L.plot(x + (right ? k - 1 : k), y, m, k ? 1 : 3); for (let y = seatY - 22; y <= seatY - 4; y += 6) for (let xx = fx + 2; xx < fx1 - 1; xx++) if (false) L.plot(xx, y, m, 2); };
-        if (kind === 'chair') { if (rot === 0) { const L = B; back(L); } else if (rot === 1) sideBack(B, true); else if (rot === 2) sideBack(B, false); }
+        // rot = which way the sitter faces: 0 toward us, 1 left, 2 right, 3 away. Four legs, a seat
+        // seen from above with its front edge, and a back rising from the rear edge of the seat
+        S = canvasFor(1, 1, 26); const { B, fx, fx1, fy1 } = S; const m = woodFor(v), dk = dark();
+        const seatTop = fy1 - 17, seatD = 6, seatF = seatTop + seatD; // top face, then the front edge
+        const velvet = v >= 2 && kind === 'chair' ? P.mat(C.crimson) : null;
+        // the far legs (behind the seat) and the near legs
+        B.part(1); for (const x of [fx + 2, fx1 - 3]) leg(B, x, seatF, fy1 - seatD + 1, dk, 2);
+        const backPanel = (L, y0, y1, xa, xb) => { L.part(3); for (let y = y0; y <= y1; y++) for (let x = xa; x <= xb; x++) { const rail = y <= y0 + 1 || y === y0 + 6, post = x <= xa + 1 || x >= xb - 1, slat = (x - xa) % 4 === 2 && y > y0 + 6; if (rail || post) L.plot(x, y, m, y === y0 ? 4 : x === xa ? 3 : 2); else if (velvet && y > y0 + 1) L.plot(x, y, velvet, 2); else if (slat) L.plot(x, y, m, 1); } };
+        if (kind === 'chair' && rot === 0) backPanel(B, seatTop - 15, seatTop + 1, fx + 1, fx1 - 1);
+        B.part(2); box(B, fx + 1, fx1 - 1, seatTop, seatD, seatF + 2, m);
+        if (velvet) for (let y = seatTop + 1; y < seatF - 1; y++) for (let x = fx + 2; x < fx1 - 1; x++) B.plot(x, y, velvet, (y === seatTop + 1) ? 3 : 2);
+        B.part(1); for (const x of [fx + 1, fx1 - 2]) leg(B, x, seatF + 2, fy1, m, 2);
+        if (kind === 'chair' && (rot === 1 || rot === 2)) {
+          // seen from the side: the back is an upright along the rear edge with a top rail
+          B.part(3); const right = rot === 1, x = right ? fx1 - 2 : fx + 1;
+          for (let y = seatTop - 15; y <= fy1; y++) for (let k = 0; k < 2; k++) B.plot(x + k, y, y > seatF + 2 ? dk : m, k ? 1 : 3);
+          for (let y = seatTop - 15; y <= seatTop - 13; y++) for (let k = -1; k < 3; k++) B.plot(x + k, y, m, y === seatTop - 15 ? 4 : 2);
+          if (velvet) for (let y = seatTop - 12; y < seatTop; y++) B.plot(right ? x - 1 : x + 2, y, velvet, 2);
+        }
         out = finish(S);
-        if (kind === 'chair' && rot === 3) out.back = layer(S, (L) => back(L));
-        out.seatY = seatY - 4 - S.fy1;
+        if (kind === 'chair' && rot === 3) out.back = layer(S, (L) => backPanel(L, seatTop - 8, seatF + 1, fx + 1, fx1 - 1));
+        out.seatY = seatTop + 3 - S.fy1;
         break;
       }
       case 'bench': {

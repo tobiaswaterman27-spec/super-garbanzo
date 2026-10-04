@@ -114,7 +114,14 @@
       let run = this.keys.has('run');
       if (this.touch.active) { const m = Math.hypot(this.touch.x, this.touch.y); if (m > 12) { mx = this.touch.x / m; my = this.touch.y / m; run = m > 70; } }
       if (p.locked) mx = my = 0;
-      const len = Math.hypot(mx, my);
+      let len = Math.hypot(mx, my);
+      // sitting: stay put in the seat until you move, then stand up where you were
+      if (p.sitting) {
+        const s = p.sitting;
+        if (!this.scene || this.scene.b.id !== s.b || this.scene.floor !== s.floor) p.sitting = null;
+        else if (len > 0) { p.sitting = null; p.x = s.sx; p.y = s.sy; p.anim = 'idle'; len = 0; mx = my = 0; }
+        else { p.x = s.x; p.y = s.y; p.dir = s.dir; p.anim = 'sit'; }
+      }
       if (len > 0) {
         mx /= len; my /= len;
         const sp = this.speedFor ? this.speedFor(run) : run ? 92 : 50;
@@ -123,7 +130,7 @@
         if (!this.blocked(p.x, ny)) p.y = ny;
         p.dir = O.dirOf(mx, my);
         p.anim = p.mount ? 'sit' : run ? 'run' : 'walk';
-      } else if (p.anim === 'walk' || p.anim === 'run') p.anim = 'idle';
+      } else if (!p.sitting && (p.anim === 'walk' || p.anim === 'run')) p.anim = 'idle';
       p.moving = len > 0;
       for (const a of this.actors) a.ft += dt;
       // chimney smoke

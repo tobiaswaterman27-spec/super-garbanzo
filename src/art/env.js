@@ -27,10 +27,10 @@
     const rng = O.RNG(spec.seed || 1);
     const w = spec.w, d = spec.d, floors = spec.floors || 1, OV = 4, FW = w * T, W = FW + OV * 2;
     const wallH = spec.wallH || floors * FLOOR + 9;
-    const gable = spec.roofType === 'gable', castle = spec.roofType === 'battlement', grand = castle && spec.grand;
+    const gable = spec.roofType === 'gable', castle = spec.roofType === 'battlement', grand = castle && spec.grand, church = spec.sign === 'cross' || spec.church;
     const roofH = Math.round(d * T * 0.58) + 4;
     const gableH = Math.round(FW * 0.34), depthH = Math.round(d * T * 0.52);
-    const extraTop = grand ? 84 : castle ? 40 : 12;
+    const extraTop = grand ? 84 : castle ? 40 : church ? 56 : 12;
     const H = wallH + (gable ? gableH + depthH + 2 : roofH) + extraTop;
     const B = new MB(W, H);
     const wallTop = H - wallH, x0 = OV, x1 = OV + FW - 1;
@@ -80,11 +80,33 @@
     // ---- door & windows ----
     const doorTile = spec.doorTile ?? Math.floor(w / 2);
     const dw = spec.bigDoor ? 28 : wealth > 0.7 ? 17 : 15, dh = spec.bigDoor ? 44 : 40;
-    const dx = Math.round(x0 + doorTile * T + T / 2 - dw / 2 + (spec.bigDoor ? 0 : 0)), dy = H - 2 - dh;
+    const dx = church ? Math.round(x0 + FW / 2 - dw / 2) : Math.round(x0 + doorTile * T + T / 2 - dw / 2 + (spec.bigDoor ? 0 : 0)), dy = H - 2 - dh;
     drawDoor(B, dx, dy, dw, dh, wealth, rng, spec.bigDoor);
+    if (church) {
+      // a pointed arch over the west door, and buttresses at the corners
+      for (let i = 0; i <= dw + 4; i++) { const t = i / (dw + 4), y = dy - 2 - Math.round(Math.sin(t * Math.PI) * 7); B.plot(dx - 2 + i, y, wallMat, 4); B.plot(dx - 2 + i, y + 1, wallMat, 1); }
+      for (const bx of [x0, x1 - 4]) for (let y = H - 34; y < H - 3; y++) for (let k = 0; k < 5; k++) B.plot(bx + k, y - (k > 2 ? 0 : 0), wallMat, k === 0 ? 3 : k === 4 ? 1 : (y - (H - 34)) % 10 === 0 ? 4 : 2);
+    }
     meta.door = { x: dx, y: dy, w: dw, h: dh, tile: doorTile };
     const shutterM = M.shutter(rng);
-    for (let f = 0; f < floors; f++) {
+    if (church) {
+      // tall lancet windows of coloured glass, in matching pairs either side of the door
+      const glass = [P.mat('#3a5aa0', 'metal'), P.mat('#a03a3a', 'metal'), P.mat('#d8b040', 'metal'), P.mat('#3a8a5a', 'metal')], lead = P.mat('#2a2430', 'cloth');
+      const cx = x0 + FW / 2, ww = 8, wh = Math.min(30, wallH - 30), wy = H - 3 - wh - 12;
+      for (let k = 1; k < 8; k++) for (const sgn of [-1, 1]) {
+        const wx = Math.round(cx + sgn * (dw / 2 + 6 + (k - 1) * 18 + 4) - ww / 2);
+        if (wx < x0 + 7 || wx + ww > x1 - 6) continue;
+        for (let y = wy; y < wy + wh; y++) for (let x = wx; x < wx + ww; x++) {
+          const ty = y - wy, half = ww / 2, inArch = ty >= half || Math.abs(x + 0.5 - (wx + half)) <= ty * 0.9 + 0.5;
+          if (!inArch) continue;
+          const edge = x === wx || x === wx + ww - 1 || ty === 0 || y === wy + wh - 1, mull = x === wx + half || (ty % 7 === 0);
+          B.plot(x, y, edge || mull ? lead : glass[(Math.floor(ty / 7) + (x > wx + half ? 1 : 0) + k) % 4], edge ? 1 : 3);
+        }
+        for (let x = wx - 1; x <= wx + ww; x++) B.plot(x, wy + wh, wallMat, 4);
+        meta.windows.push({ x: wx + 1, y: wy + 2, w: ww - 2, h: wh - 3 });
+      }
+    }
+    for (let f = 0; f < (church ? 0 : floors); f++) {
       const wy = H - 3 - f * FLOOR - 36 + (f ? 2 : 0);
       const slots = Math.max(1, Math.floor(FW / 24));
       for (let i = 0; i < slots; i++) {
@@ -250,7 +272,11 @@
         B.plot(x, y, bb, x < apexX ? 3 : 1); B.plot(x, y + 1, bb, x < apexX ? 2 : 1); B.plot(x, y - 1, RM, 3);
       }
       // small gable vent/window in the triangle
-      if (gableH > 14) drawWindow(B, Math.round(apexX - 3), Math.round(wallTop - gableH * 0.55), 6, 6, shutterM, wealth, rng, false, true);
+      if (church) {
+        const rcx = Math.round(apexX), rcy = Math.round(wallTop - gableH * 0.42), rr = Math.max(4, Math.min(9, Math.round(gableH * 0.22))), lead = P.mat('#2a2430', 'cloth');
+        const gl = [P.mat('#3a5aa0', 'metal'), P.mat('#a03a3a', 'metal'), P.mat('#d8b040', 'metal')];
+        for (let y = -rr; y <= rr; y++) for (let x = -rr; x <= rr; x++) { const d = Math.hypot(x, y); if (d > rr + 0.4) continue; const ang = Math.atan2(y, x), spoke = Math.abs(Math.sin(ang * 4)) < 0.22; B.plot(rcx + x, rcy + y, d > rr - 1 || spoke || d < 1.5 ? (d > rr - 1 ? wallMat : lead) : gl[Math.floor((ang + Math.PI) / (Math.PI / 4)) % 3], d > rr - 1 ? 4 : 3); }
+      } else if (gableH > 14) drawWindow(B, Math.round(apexX - 3), Math.round(wallTop - gableH * 0.55), 6, 6, shutterM, wealth, rng, false, true);
       meta.roofTop = aY - depthH;
       // eave shadow under bargeboard on wall
       B.part(1);
@@ -269,8 +295,27 @@
       B.plot(cxp - 1, cTop - 1, P.mat('#1e1820', 'cloth'), 1); B.plot(cxp, cTop - 1, P.mat('#1e1820', 'cloth'), 1);
       meta.chimney = { x: cxp, y: cTop - 2 };
     }
+    if (church && gable) {
+      // the bell tower rises from the front of the ridge: a square stage with louvred openings, a spire, a cross
+      const tw = Math.max(16, Math.min(26, Math.round(FW * 0.22))), tcx = Math.round(W / 2), tx0 = tcx - Math.floor(tw / 2);
+      const ridgeY = Math.round(wallTop - Math.round(FW * 0.34) - 1), tTop = ridgeY - 26, tBot = ridgeY + 10;
+      B.part(3);
+      for (let y = tTop; y <= tBot; y++) for (let x = tx0; x < tx0 + tw; x++) B.plot(x, y, wallMat, x === tx0 ? 3 : x === tx0 + tw - 1 ? 1 : 2);
+      texWall(B, 'stone', wallMat, tx0, tTop, tx0 + tw - 1, tBot, rng, cond);
+      const lv = P.mat('#2a2430', 'cloth');
+      for (const ox of tw > 20 ? [0.3, 0.7] : [0.5]) { const lx = Math.round(tx0 + tw * ox) - 2; for (let y = tTop + 5; y < tTop + 17; y++) for (let x = lx; x < lx + 4; x++) { const ty = y - (tTop + 5); if (ty < 2 && Math.abs(x - lx - 1.5) > ty + 0.5) continue; B.plot(x, y, (y - tTop) % 3 === 0 ? P.mat('#6a5a48', 'wood') : lv, 1); } }
+      for (let x = tx0 - 1; x <= tx0 + tw; x++) { B.plot(x, tTop, wallMat, 4); B.plot(x, tTop + 1, wallMat, 1); }
+      const sh = Math.round(tw * 1.6);
+      B.poly([[tx0 - 1, tTop + 1], [tcx, tTop - sh], [tcx, tTop + 1]], [-0.6, -0.4, 0.7], RM);
+      B.poly([[tcx, tTop + 1], [tcx, tTop - sh], [tx0 + tw, tTop + 1]], [0.6, -0.4, 0.7], RM);
+      texRoof(B, roofKind, RM, tx0 - 1, tTop - sh, tx0 + tw, tTop + 1, rng, cond, null);
+      const gold = P.mat(P.metal.gold, 'metal');
+      for (let y = tTop - sh - 8; y < tTop - sh + 1; y++) B.plot(tcx, y, gold, 3);
+      for (let x = tcx - 2; x <= tcx + 2; x++) B.plot(x, tTop - sh - 5, gold, 3);
+      meta.roofTop = Math.min(meta.roofTop, tTop - sh - 8);
+    }
     // ---- sign ----
-    if (spec.sign) {
+    if (spec.sign && !church) {
       B.part(4);
       const sx = Math.min(x1 - 6, dx + dw + 4), sy = Math.max(wallTop + 4, dy - 4);
       const br = M.iron();

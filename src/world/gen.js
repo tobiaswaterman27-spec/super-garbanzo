@@ -394,11 +394,11 @@
     fill(gateX - 1, 22, gateX, cy1, TER.COBBLE);
     K.walls(cx0, cy0, cx1, cy1, [[gateX, cy1]], 1);
     B({ type: 'keep', biz: 'keep', lordly: true, name: `The Keep of ${short}`, x: 42, bottom: 20, w: 9, d: 7, floors: 3, wealth: 0.95, look: { wall: 'stone', stoneMat: SM, roof: 'slate', roofType: 'battlement', chimney: true, sign: 'shield', doorTile: 4, bigDoor: true, noFlowers: true } });
-    B({ type: 'guard', name: `${short} Barracks`, x: 31, bottom: 17, w: 7, d: 4, wealth: 0.6, look: { wall: 'stone', stoneMat: SM, roof: 'slate', roofType: 'side', sign: 'shield', doorTile: 3, noFlowers: true } });
+    B({ type: 'guard', name: `${short} Barracks`, x: 31, bottom: 17, w: 7, d: 4, wealth: 0.6, look: { wall: 'stone', stoneMat: SM, roof: 'slate', roofType: 'battlement', sign: 'shield', doorTile: 3, noFlowers: true } });
     B({ type: 'chapel', name: 'Castle Chapel', x: 56, bottom: 17, w: 5, d: 5, wealth: 0.8, look: { wall: 'stone', stoneMat: SM, roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 2, wallH: 64, noFlowers: true } });
     B({ type: 'stable', name: 'Castle Stables', x: 31, bottom: 32, w: 6, d: 3, wealth: 0.6, look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', bigDoor: true, chimney: false, doorTile: 2, noFlowers: true } });
-    B({ type: 'armourer', name: 'Castle Armoury', x: 56, bottom: 32, w: 6, d: 4, wealth: 0.6, look: { wall: 'stone', stoneMat: SM, roof: 'slate', chimney: true, sign: 'sword', doorTile: 2, noFlowers: true } });
-    B({ type: 'tavern', name: 'The Great Hall', x: 40, bottom: 30, w: 6, d: 4, floors: 2, wealth: 0.8, look: { wall: 'stone', stoneMat: SM, roof: 'slate', roofType: 'gable', chimney: true, sign: 'mug', doorTile: 2 } });
+    B({ type: 'armourer', name: 'Castle Armoury', x: 56, bottom: 32, w: 6, d: 4, wealth: 0.6, look: { wall: 'stone', stoneMat: SM, roof: 'slate', roofType: 'battlement', chimney: true, sign: 'sword', doorTile: 2, noFlowers: true } });
+    B({ type: 'tavern', name: 'The Great Hall', x: 40, bottom: 30, w: 6, d: 4, floors: 2, wealth: 0.8, look: { wall: 'stone', stoneMat: SM, roof: 'slate', roofType: 'battlement', chimney: true, sign: 'mug', doorTile: 2 } });
     P('well', 51, 27, { y: 27 * T + 15 }); K.solid[27 * W + 50] = 1;
     P('banner', 46, 21, { solid: false }); P('banner', 50, 21, { solid: false });
     // the castle garden

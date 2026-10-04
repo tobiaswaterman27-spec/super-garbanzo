@@ -48,7 +48,7 @@
       const sim = this.sim, L = this.L, b = this.b;
       const inside = sim.people.filter((q) => q.agent.inside === b.id && q.alive !== false).sort((a, c) => a.id - c.id);
       const twoF = b.floors >= 2;
-      const used = new Set(), seen = new Set();
+      const used = new Set(), seen = new Set(); this.usedSeats = used;
       const seats = L.items.filter((i) => i.seat && i.kind !== 'pew');
       const pews = L.items.filter((i) => i.kind === 'pew');
       const counters = L.items.filter((i) => i.counter);
@@ -217,7 +217,7 @@
         if (sp.back) drawables.push({ y: ay + 4, draw: () => at(sp.back) }); // a chair or pew back in front of whoever sits in it
       }
       for (const a of this.actors.values()) if (!a.hidden) drawables.push({ y: a.sortY ?? a.y, draw: () => this.drawActor(ctx, a, cam, a.anim !== 'sit' && a.anim !== 'doze') });
-      const p = g.player; if (!p.inBed) drawables.push({ y: p.y, draw: () => this.drawActor(ctx, p, cam, true) });
+      const p = g.player; if (!p.inBed) drawables.push({ y: p.sitting ? p.sitting.sortY : p.y, draw: () => this.drawActor(ctx, p, cam, !p.sitting) });
       drawables.sort((a, c) => a.y - c.y);
       for (const d of drawables) d.draw();
       for (const h of g.hooks.drawWorld) h(ctx, cam);
@@ -257,6 +257,15 @@
       }
     }
 
+    // where you sit on a seat: a chair's own spot, or the nearest free place along a bench or pew
+    seatPose(it) {
+      const p = this.game.player, [ax, ay] = this.anchor(it), r = it.rot || 0;
+      if (it.kind === 'pew' || it.kind === 'bench' || it.fw > 1) {
+        const [rx0] = this.rect(it), k = O.clamp(Math.floor((p.x - rx0) / T), 0, it.fw - 1);
+        return { x: rx0 + 8 + k * T, y: ay - 2, dir: it.kind === 'pew' ? 3 : [0, 1, 2, 3][r], sortY: ay + 0.6 };
+      }
+      return { x: ax + (r === 1 ? 2 : r === 2 ? -2 : 0), y: ay + (r === 0 ? -3 : r === 3 ? -3 : 1), dir: [0, 1, 2, 3][r], sortY: ay + 0.6 };
+    }
     // ---- interaction candidates for the interact module ----
     candidates() {
       const p = this.game.player, out = [];
@@ -273,6 +282,7 @@
         if (it.kind === 'stairs') out.push({ type: 'stairs', it, d: d - 2, x: cx, y: cy });
         if (it.portrait) out.push({ type: 'portrait', it, d: d + 2, x: cx, y: cy - 30 });
         if (it.kind === 'hay') out.push({ type: 'hay', it, d: d + 3, x: cx, y: cy });
+        if (it.seat && !p.sitting && !(this.usedSeats && this.usedSeats.has(it) && it.kind !== 'pew' && it.kind !== 'bench')) out.push({ type: 'sit', it, d: d + 1.5, x: cx, y: cy });
         // buy across the counter or from the shelves, when someone is serving
         if ((it.counter || it.shop) && bz && !bz.def.public) {
           const seller = [...this.actors.values()].find((a) => !a.hidden && a.person.job?.biz === this.b.id && a.person.activity?.act === 'work');

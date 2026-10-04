@@ -1687,10 +1687,10 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     const rng = O.RNG(spec.seed || 1);
     const w = spec.w, d = spec.d, floors = spec.floors || 1, OV = 4, FW = w * T, W = FW + OV * 2;
     const wallH = spec.wallH || floors * FLOOR + 9;
-    const gable = spec.roofType === 'gable', castle = spec.roofType === 'battlement', grand = castle && spec.grand;
+    const gable = spec.roofType === 'gable', castle = spec.roofType === 'battlement', grand = castle && spec.grand, church = spec.sign === 'cross' || spec.church;
     const roofH = Math.round(d * T * 0.58) + 4;
     const gableH = Math.round(FW * 0.34), depthH = Math.round(d * T * 0.52);
-    const extraTop = grand ? 84 : castle ? 40 : 12;
+    const extraTop = grand ? 84 : castle ? 40 : church ? 56 : 12;
     const H = wallH + (gable ? gableH + depthH + 2 : roofH) + extraTop;
     const B = new MB(W, H);
     const wallTop = H - wallH, x0 = OV, x1 = OV + FW - 1;
@@ -1740,11 +1740,33 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     // ---- door & windows ----
     const doorTile = spec.doorTile ?? Math.floor(w / 2);
     const dw = spec.bigDoor ? 28 : wealth > 0.7 ? 17 : 15, dh = spec.bigDoor ? 44 : 40;
-    const dx = Math.round(x0 + doorTile * T + T / 2 - dw / 2 + (spec.bigDoor ? 0 : 0)), dy = H - 2 - dh;
+    const dx = church ? Math.round(x0 + FW / 2 - dw / 2) : Math.round(x0 + doorTile * T + T / 2 - dw / 2 + (spec.bigDoor ? 0 : 0)), dy = H - 2 - dh;
     drawDoor(B, dx, dy, dw, dh, wealth, rng, spec.bigDoor);
+    if (church) {
+      // a pointed arch over the west door, and buttresses at the corners
+      for (let i = 0; i <= dw + 4; i++) { const t = i / (dw + 4), y = dy - 2 - Math.round(Math.sin(t * Math.PI) * 7); B.plot(dx - 2 + i, y, wallMat, 4); B.plot(dx - 2 + i, y + 1, wallMat, 1); }
+      for (const bx of [x0, x1 - 4]) for (let y = H - 34; y < H - 3; y++) for (let k = 0; k < 5; k++) B.plot(bx + k, y - (k > 2 ? 0 : 0), wallMat, k === 0 ? 3 : k === 4 ? 1 : (y - (H - 34)) % 10 === 0 ? 4 : 2);
+    }
     meta.door = { x: dx, y: dy, w: dw, h: dh, tile: doorTile };
     const shutterM = M.shutter(rng);
-    for (let f = 0; f < floors; f++) {
+    if (church) {
+      // tall lancet windows of coloured glass, in matching pairs either side of the door
+      const glass = [P.mat('#3a5aa0', 'metal'), P.mat('#a03a3a', 'metal'), P.mat('#d8b040', 'metal'), P.mat('#3a8a5a', 'metal')], lead = P.mat('#2a2430', 'cloth');
+      const cx = x0 + FW / 2, ww = 8, wh = Math.min(30, wallH - 30), wy = H - 3 - wh - 12;
+      for (let k = 1; k < 8; k++) for (const sgn of [-1, 1]) {
+        const wx = Math.round(cx + sgn * (dw / 2 + 6 + (k - 1) * 18 + 4) - ww / 2);
+        if (wx < x0 + 7 || wx + ww > x1 - 6) continue;
+        for (let y = wy; y < wy + wh; y++) for (let x = wx; x < wx + ww; x++) {
+          const ty = y - wy, half = ww / 2, inArch = ty >= half || Math.abs(x + 0.5 - (wx + half)) <= ty * 0.9 + 0.5;
+          if (!inArch) continue;
+          const edge = x === wx || x === wx + ww - 1 || ty === 0 || y === wy + wh - 1, mull = x === wx + half || (ty % 7 === 0);
+          B.plot(x, y, edge || mull ? lead : glass[(Math.floor(ty / 7) + (x > wx + half ? 1 : 0) + k) % 4], edge ? 1 : 3);
+        }
+        for (let x = wx - 1; x <= wx + ww; x++) B.plot(x, wy + wh, wallMat, 4);
+        meta.windows.push({ x: wx + 1, y: wy + 2, w: ww - 2, h: wh - 3 });
+      }
+    }
+    for (let f = 0; f < (church ? 0 : floors); f++) {
       const wy = H - 3 - f * FLOOR - 36 + (f ? 2 : 0);
       const slots = Math.max(1, Math.floor(FW / 24));
       for (let i = 0; i < slots; i++) {
@@ -1910,7 +1932,11 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         B.plot(x, y, bb, x < apexX ? 3 : 1); B.plot(x, y + 1, bb, x < apexX ? 2 : 1); B.plot(x, y - 1, RM, 3);
       }
       // small gable vent/window in the triangle
-      if (gableH > 14) drawWindow(B, Math.round(apexX - 3), Math.round(wallTop - gableH * 0.55), 6, 6, shutterM, wealth, rng, false, true);
+      if (church) {
+        const rcx = Math.round(apexX), rcy = Math.round(wallTop - gableH * 0.42), rr = Math.max(4, Math.min(9, Math.round(gableH * 0.22))), lead = P.mat('#2a2430', 'cloth');
+        const gl = [P.mat('#3a5aa0', 'metal'), P.mat('#a03a3a', 'metal'), P.mat('#d8b040', 'metal')];
+        for (let y = -rr; y <= rr; y++) for (let x = -rr; x <= rr; x++) { const d = Math.hypot(x, y); if (d > rr + 0.4) continue; const ang = Math.atan2(y, x), spoke = Math.abs(Math.sin(ang * 4)) < 0.22; B.plot(rcx + x, rcy + y, d > rr - 1 || spoke || d < 1.5 ? (d > rr - 1 ? wallMat : lead) : gl[Math.floor((ang + Math.PI) / (Math.PI / 4)) % 3], d > rr - 1 ? 4 : 3); }
+      } else if (gableH > 14) drawWindow(B, Math.round(apexX - 3), Math.round(wallTop - gableH * 0.55), 6, 6, shutterM, wealth, rng, false, true);
       meta.roofTop = aY - depthH;
       // eave shadow under bargeboard on wall
       B.part(1);
@@ -1929,8 +1955,27 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       B.plot(cxp - 1, cTop - 1, P.mat('#1e1820', 'cloth'), 1); B.plot(cxp, cTop - 1, P.mat('#1e1820', 'cloth'), 1);
       meta.chimney = { x: cxp, y: cTop - 2 };
     }
+    if (church && gable) {
+      // the bell tower rises from the front of the ridge: a square stage with louvred openings, a spire, a cross
+      const tw = Math.max(16, Math.min(26, Math.round(FW * 0.22))), tcx = Math.round(W / 2), tx0 = tcx - Math.floor(tw / 2);
+      const ridgeY = Math.round(wallTop - Math.round(FW * 0.34) - 1), tTop = ridgeY - 26, tBot = ridgeY + 10;
+      B.part(3);
+      for (let y = tTop; y <= tBot; y++) for (let x = tx0; x < tx0 + tw; x++) B.plot(x, y, wallMat, x === tx0 ? 3 : x === tx0 + tw - 1 ? 1 : 2);
+      texWall(B, 'stone', wallMat, tx0, tTop, tx0 + tw - 1, tBot, rng, cond);
+      const lv = P.mat('#2a2430', 'cloth');
+      for (const ox of tw > 20 ? [0.3, 0.7] : [0.5]) { const lx = Math.round(tx0 + tw * ox) - 2; for (let y = tTop + 5; y < tTop + 17; y++) for (let x = lx; x < lx + 4; x++) { const ty = y - (tTop + 5); if (ty < 2 && Math.abs(x - lx - 1.5) > ty + 0.5) continue; B.plot(x, y, (y - tTop) % 3 === 0 ? P.mat('#6a5a48', 'wood') : lv, 1); } }
+      for (let x = tx0 - 1; x <= tx0 + tw; x++) { B.plot(x, tTop, wallMat, 4); B.plot(x, tTop + 1, wallMat, 1); }
+      const sh = Math.round(tw * 1.6);
+      B.poly([[tx0 - 1, tTop + 1], [tcx, tTop - sh], [tcx, tTop + 1]], [-0.6, -0.4, 0.7], RM);
+      B.poly([[tcx, tTop + 1], [tcx, tTop - sh], [tx0 + tw, tTop + 1]], [0.6, -0.4, 0.7], RM);
+      texRoof(B, roofKind, RM, tx0 - 1, tTop - sh, tx0 + tw, tTop + 1, rng, cond, null);
+      const gold = P.mat(P.metal.gold, 'metal');
+      for (let y = tTop - sh - 8; y < tTop - sh + 1; y++) B.plot(tcx, y, gold, 3);
+      for (let x = tcx - 2; x <= tcx + 2; x++) B.plot(x, tTop - sh - 5, gold, 3);
+      meta.roofTop = Math.min(meta.roofTop, tTop - sh - 8);
+    }
     // ---- sign ----
-    if (spec.sign) {
+    if (spec.sign && !church) {
       B.part(4);
       const sx = Math.min(x1 - 6, dx + dw + 4), sy = Math.max(wallTop + 4, dy - 4);
       const br = M.iron();
@@ -3272,11 +3317,11 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     fill(gateX - 1, 22, gateX, cy1, TER.COBBLE);
     K.walls(cx0, cy0, cx1, cy1, [[gateX, cy1]], 1);
     B({ type: 'keep', biz: 'keep', lordly: true, name: `The Keep of ${short}`, x: 42, bottom: 20, w: 9, d: 7, floors: 3, wealth: 0.95, look: { wall: 'stone', stoneMat: SM, roof: 'slate', roofType: 'battlement', chimney: true, sign: 'shield', doorTile: 4, bigDoor: true, noFlowers: true } });
-    B({ type: 'guard', name: `${short} Barracks`, x: 31, bottom: 17, w: 7, d: 4, wealth: 0.6, look: { wall: 'stone', stoneMat: SM, roof: 'slate', roofType: 'side', sign: 'shield', doorTile: 3, noFlowers: true } });
+    B({ type: 'guard', name: `${short} Barracks`, x: 31, bottom: 17, w: 7, d: 4, wealth: 0.6, look: { wall: 'stone', stoneMat: SM, roof: 'slate', roofType: 'battlement', sign: 'shield', doorTile: 3, noFlowers: true } });
     B({ type: 'chapel', name: 'Castle Chapel', x: 56, bottom: 17, w: 5, d: 5, wealth: 0.8, look: { wall: 'stone', stoneMat: SM, roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 2, wallH: 64, noFlowers: true } });
     B({ type: 'stable', name: 'Castle Stables', x: 31, bottom: 32, w: 6, d: 3, wealth: 0.6, look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', bigDoor: true, chimney: false, doorTile: 2, noFlowers: true } });
-    B({ type: 'armourer', name: 'Castle Armoury', x: 56, bottom: 32, w: 6, d: 4, wealth: 0.6, look: { wall: 'stone', stoneMat: SM, roof: 'slate', chimney: true, sign: 'sword', doorTile: 2, noFlowers: true } });
-    B({ type: 'tavern', name: 'The Great Hall', x: 40, bottom: 30, w: 6, d: 4, floors: 2, wealth: 0.8, look: { wall: 'stone', stoneMat: SM, roof: 'slate', roofType: 'gable', chimney: true, sign: 'mug', doorTile: 2 } });
+    B({ type: 'armourer', name: 'Castle Armoury', x: 56, bottom: 32, w: 6, d: 4, wealth: 0.6, look: { wall: 'stone', stoneMat: SM, roof: 'slate', roofType: 'battlement', chimney: true, sign: 'sword', doorTile: 2, noFlowers: true } });
+    B({ type: 'tavern', name: 'The Great Hall', x: 40, bottom: 30, w: 6, d: 4, floors: 2, wealth: 0.8, look: { wall: 'stone', stoneMat: SM, roof: 'slate', roofType: 'battlement', chimney: true, sign: 'mug', doorTile: 2 } });
     P('well', 51, 27, { y: 27 * T + 15 }); K.solid[27 * W + 50] = 1;
     P('banner', 46, 21, { solid: false }); P('banner', 50, 21, { solid: false });
     // the castle garden
@@ -3413,7 +3458,14 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       let run = this.keys.has('run');
       if (this.touch.active) { const m = Math.hypot(this.touch.x, this.touch.y); if (m > 12) { mx = this.touch.x / m; my = this.touch.y / m; run = m > 70; } }
       if (p.locked) mx = my = 0;
-      const len = Math.hypot(mx, my);
+      let len = Math.hypot(mx, my);
+      // sitting: stay put in the seat until you move, then stand up where you were
+      if (p.sitting) {
+        const s = p.sitting;
+        if (!this.scene || this.scene.b.id !== s.b || this.scene.floor !== s.floor) p.sitting = null;
+        else if (len > 0) { p.sitting = null; p.x = s.sx; p.y = s.sy; p.anim = 'idle'; len = 0; mx = my = 0; }
+        else { p.x = s.x; p.y = s.y; p.dir = s.dir; p.anim = 'sit'; }
+      }
       if (len > 0) {
         mx /= len; my /= len;
         const sp = this.speedFor ? this.speedFor(run) : run ? 92 : 50;
@@ -3422,7 +3474,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         if (!this.blocked(p.x, ny)) p.y = ny;
         p.dir = O.dirOf(mx, my);
         p.anim = p.mount ? 'sit' : run ? 'run' : 'walk';
-      } else if (p.anim === 'walk' || p.anim === 'run') p.anim = 'idle';
+      } else if (!p.sitting && (p.anim === 'walk' || p.anim === 'run')) p.anim = 'idle';
       p.moving = len > 0;
       for (const a of this.actors) a.ft += dt;
       // chimney smoke
@@ -8307,18 +8359,28 @@ O.snowMaskOf = function (src) {
         break;
       }
       case 'chair': case 'stool': {
-        // rot = which way the sitter faces: 0 toward us, 1 left, 2 right, 3 away
-        S = canvasFor(1, 1, 22); const { B, fx, fx1, fy, fy1 } = S; const m = woodFor(v);
-        const seatY = fy1 - 10;
-        B.part(1); leg(B, fx + 2, seatY, fy1, m, 1); leg(B, fx1 - 2, seatY, fy1, m, 1);
-        B.part(2); box(B, fx + 1, fx1 - 1, seatY - 8, 8, seatY + 1, m);
-        if (v >= 2 && kind === 'chair') for (let y = seatY - 7; y < seatY; y++) for (let x = fx + 2; x < fx1 - 1; x++) B.plot(x, y, P.mat(C.crimson), 3);
-        const back = (L) => { L.part(3); for (let y = seatY - 22; y <= seatY - 1; y++) for (let x = fx + 1; x <= fx1 - 1; x++) { const edge = x === fx + 1 || x === fx1 - 1 || y === seatY - 22 || y === seatY - 16; if (edge || (x - fx) % 4 === 0) L.plot(x, y, m, edge ? (y === seatY - 22 ? 4 : 2) : 1); } };
-        const sideBack = (L, right) => { L.part(3); const x = right ? fx1 - 1 : fx + 1; for (let y = seatY - 22; y <= seatY + 1; y++) for (let k = 0; k < 2; k++) L.plot(x + (right ? k - 1 : k), y, m, k ? 1 : 3); for (let y = seatY - 22; y <= seatY - 4; y += 6) for (let xx = fx + 2; xx < fx1 - 1; xx++) if (false) L.plot(xx, y, m, 2); };
-        if (kind === 'chair') { if (rot === 0) { const L = B; back(L); } else if (rot === 1) sideBack(B, true); else if (rot === 2) sideBack(B, false); }
+        // rot = which way the sitter faces: 0 toward us, 1 left, 2 right, 3 away. Four legs, a seat
+        // seen from above with its front edge, and a back rising from the rear edge of the seat
+        S = canvasFor(1, 1, 26); const { B, fx, fx1, fy1 } = S; const m = woodFor(v), dk = dark();
+        const seatTop = fy1 - 17, seatD = 6, seatF = seatTop + seatD; // top face, then the front edge
+        const velvet = v >= 2 && kind === 'chair' ? P.mat(C.crimson) : null;
+        // the far legs (behind the seat) and the near legs
+        B.part(1); for (const x of [fx + 2, fx1 - 3]) leg(B, x, seatF, fy1 - seatD + 1, dk, 2);
+        const backPanel = (L, y0, y1, xa, xb) => { L.part(3); for (let y = y0; y <= y1; y++) for (let x = xa; x <= xb; x++) { const rail = y <= y0 + 1 || y === y0 + 6, post = x <= xa + 1 || x >= xb - 1, slat = (x - xa) % 4 === 2 && y > y0 + 6; if (rail || post) L.plot(x, y, m, y === y0 ? 4 : x === xa ? 3 : 2); else if (velvet && y > y0 + 1) L.plot(x, y, velvet, 2); else if (slat) L.plot(x, y, m, 1); } };
+        if (kind === 'chair' && rot === 0) backPanel(B, seatTop - 15, seatTop + 1, fx + 1, fx1 - 1);
+        B.part(2); box(B, fx + 1, fx1 - 1, seatTop, seatD, seatF + 2, m);
+        if (velvet) for (let y = seatTop + 1; y < seatF - 1; y++) for (let x = fx + 2; x < fx1 - 1; x++) B.plot(x, y, velvet, (y === seatTop + 1) ? 3 : 2);
+        B.part(1); for (const x of [fx + 1, fx1 - 2]) leg(B, x, seatF + 2, fy1, m, 2);
+        if (kind === 'chair' && (rot === 1 || rot === 2)) {
+          // seen from the side: the back is an upright along the rear edge with a top rail
+          B.part(3); const right = rot === 1, x = right ? fx1 - 2 : fx + 1;
+          for (let y = seatTop - 15; y <= fy1; y++) for (let k = 0; k < 2; k++) B.plot(x + k, y, y > seatF + 2 ? dk : m, k ? 1 : 3);
+          for (let y = seatTop - 15; y <= seatTop - 13; y++) for (let k = -1; k < 3; k++) B.plot(x + k, y, m, y === seatTop - 15 ? 4 : 2);
+          if (velvet) for (let y = seatTop - 12; y < seatTop; y++) B.plot(right ? x - 1 : x + 2, y, velvet, 2);
+        }
         out = finish(S);
-        if (kind === 'chair' && rot === 3) out.back = layer(S, (L) => back(L));
-        out.seatY = seatY - 4 - S.fy1;
+        if (kind === 'chair' && rot === 3) out.back = layer(S, (L) => backPanel(L, seatTop - 8, seatF + 1, fx + 1, fx1 - 1));
+        out.seatY = seatTop + 3 - S.fy1;
         break;
       }
       case 'bench': {
@@ -9413,7 +9475,7 @@ O.snowMaskOf = function (src) {
       const sim = this.sim, L = this.L, b = this.b;
       const inside = sim.people.filter((q) => q.agent.inside === b.id && q.alive !== false).sort((a, c) => a.id - c.id);
       const twoF = b.floors >= 2;
-      const used = new Set(), seen = new Set();
+      const used = new Set(), seen = new Set(); this.usedSeats = used;
       const seats = L.items.filter((i) => i.seat && i.kind !== 'pew');
       const pews = L.items.filter((i) => i.kind === 'pew');
       const counters = L.items.filter((i) => i.counter);
@@ -9582,7 +9644,7 @@ O.snowMaskOf = function (src) {
         if (sp.back) drawables.push({ y: ay + 4, draw: () => at(sp.back) }); // a chair or pew back in front of whoever sits in it
       }
       for (const a of this.actors.values()) if (!a.hidden) drawables.push({ y: a.sortY ?? a.y, draw: () => this.drawActor(ctx, a, cam, a.anim !== 'sit' && a.anim !== 'doze') });
-      const p = g.player; if (!p.inBed) drawables.push({ y: p.y, draw: () => this.drawActor(ctx, p, cam, true) });
+      const p = g.player; if (!p.inBed) drawables.push({ y: p.sitting ? p.sitting.sortY : p.y, draw: () => this.drawActor(ctx, p, cam, !p.sitting) });
       drawables.sort((a, c) => a.y - c.y);
       for (const d of drawables) d.draw();
       for (const h of g.hooks.drawWorld) h(ctx, cam);
@@ -9622,6 +9684,15 @@ O.snowMaskOf = function (src) {
       }
     }
 
+    // where you sit on a seat: a chair's own spot, or the nearest free place along a bench or pew
+    seatPose(it) {
+      const p = this.game.player, [ax, ay] = this.anchor(it), r = it.rot || 0;
+      if (it.kind === 'pew' || it.kind === 'bench' || it.fw > 1) {
+        const [rx0] = this.rect(it), k = O.clamp(Math.floor((p.x - rx0) / T), 0, it.fw - 1);
+        return { x: rx0 + 8 + k * T, y: ay - 2, dir: it.kind === 'pew' ? 3 : [0, 1, 2, 3][r], sortY: ay + 0.6 };
+      }
+      return { x: ax + (r === 1 ? 2 : r === 2 ? -2 : 0), y: ay + (r === 0 ? -3 : r === 3 ? -3 : 1), dir: [0, 1, 2, 3][r], sortY: ay + 0.6 };
+    }
     // ---- interaction candidates for the interact module ----
     candidates() {
       const p = this.game.player, out = [];
@@ -9638,6 +9709,7 @@ O.snowMaskOf = function (src) {
         if (it.kind === 'stairs') out.push({ type: 'stairs', it, d: d - 2, x: cx, y: cy });
         if (it.portrait) out.push({ type: 'portrait', it, d: d + 2, x: cx, y: cy - 30 });
         if (it.kind === 'hay') out.push({ type: 'hay', it, d: d + 3, x: cx, y: cy });
+        if (it.seat && !p.sitting && !(this.usedSeats && this.usedSeats.has(it) && it.kind !== 'pew' && it.kind !== 'bench')) out.push({ type: 'sit', it, d: d + 1.5, x: cx, y: cy });
         // buy across the counter or from the shelves, when someone is serving
         if ((it.counter || it.shop) && bz && !bz.def.public) {
           const seller = [...this.actors.values()].find((a) => !a.hidden && a.person.job?.biz === this.b.id && a.person.activity?.act === 'work');
@@ -10002,6 +10074,7 @@ O.snowMaskOf = function (src) {
         case 'pickup': return `Pick up the ${(O.Data.GOODS[c.it.good]?.name || c.it.good).toLowerCase()}`;
         case 'shop': return `Buy from ${c.seller.first}`;
         case 'stairs': return c.it && c.it.stairs ? 'Go upstairs' : 'Go downstairs';
+        case 'sit': return c.it.kind === 'pew' ? 'Sit in the pew' : c.it.kind === 'bench' ? 'Sit on the bench' : c.it.kind === 'throne' ? 'Sit on the throne' : 'Sit down';
         default: return '';
       }
     }
@@ -10139,6 +10212,7 @@ O.snowMaskOf = function (src) {
         case 'broadsheet': O.ChronicleUI.broadsheet(); break;
         case 'grave': { const g = cur.prop.grave; O.Panels.toast(g ? `“Here lies ${g.name}, ${g.age} years. ${g.cause.replace('died ', '').replace(/^./, (c) => c.toUpperCase())}.”` : 'The old stone is worn smooth; you can no longer read the name.'); break; }
         case 'bed': if (mayUseBed(cur.it)) sleep(cur.it); else O.Panels.toast("That's someone else's bed."); break;
+        case 'sit': { const sc = game.scene, pose = sc.seatPose(cur.it), p = game.player; p.sitting = Object.assign(pose, { it: cur.it, sx: p.x, sy: p.y, b: sc.b.id, floor: sc.floor }); p.x = pose.x; p.y = pose.y; p.dir = pose.dir; p.anim = 'sit'; if (cur.it.kind === 'throne' && sim.byId) O.Panels.toast('You sit on the throne. Nobody seems pleased about it.'); break; }
         case 'stairs': { const up = cur.it ? !!cur.it.stairs : game.scene.floor === 0; game.enterBuilding(game.scene.b, game.scene.floor + (up ? 1 : -1), up ? 'up' : 'down'); break; }
         case 'shop': O.Panels.trade(sim, sim.biz.get(game.scene.b.id), cur.seller); break;
       }

@@ -335,6 +335,10 @@
           if (wv >= 1) tryPut('rug', [[Math.floor(w / 2) - 1, 3]], { flat: true, width: 3 });
         } else { dining(8); tryPut('bookcase', backWall(2, true)); tryPut('bookcase', backWall(2, true)); tryPut('shelf', backWall(3, true)); }
         break;
+      case 'morgue':
+        for (let x = 1; x + 2 <= w - 1; x += 3) tryPut('medbed', [[x, 0]], { slab: true });
+        tryPut('desk', nearWalls(2, 1), { work: ['undertaker'] }); tryPut('candlestand', nearWalls()); tryPut('candlestand', nearWalls()); tryPut('shelf', backWall(3, true)); tryPut('chest', nearWalls(2, 1));
+        break;
       case 'hospital':
         for (let x = 0; x + 2 <= w; x += 3) { tryPut('medbed', [[x, 0]], { medbed: true, bed: true, slots: 1, work: ['nurse'] }); tryPut('medbed', [[x, d - 6]], { medbed: true, bed: true, slots: 1 }); }
         tryPut('desk', nearWalls(2, 1), { work: ['physician'] }); tryPut('shelf', backWall(3, true), { stockGood: 'medicine', shop: true });

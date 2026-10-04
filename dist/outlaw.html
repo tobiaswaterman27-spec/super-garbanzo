@@ -765,6 +765,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       case 'bard': o.over = P.mat(rng.pick([C.crimson, C.purple, C.teal, C.plum])); o.overLen = 1; o.hat = 'feather'; o.hatMat = P.mat(rng.pick([C.woad, C.olive, C.rose])); o.item = 'lute'; o.boots = true; o.trim = P.mat(P.metal.brass, 'metal'); break;
       case 'courier': o.item = 'satchel'; o.hat = 'feather'; o.hatMat = P.mat(col()); break;
       case 'child': o.item = null; break;
+      case 'undertaker': o.over = P.mat(C.black); o.overLen = 2; o.hat = 'cap'; o.hatMat = P.mat(C.black); o.item = null; o.boots = true; break;
+      case 'bearer': o.over = P.mat(C.linen); o.overLen = 1; o.apron = null; o.item = null; o.sleeves = 'short'; break;
+      case 'sweeper': o.apron = P.mat(C.greyWool); o.item = 'broom'; o.hat = rng.chance(0.5) ? 'cap' : null; o.hatMat = P.mat(C.brown); break;
       default: break;
     }
     return o;
@@ -1602,7 +1605,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     if (c) { cache.delete(key); cache.set(key, c); return c; }
     if (anim === 'lie') {
       // lying on the ground: the standing frame turned through exactly 90 degrees (pixel-perfect)
-      const src = render(a, 0, 'idle', 0); c = document.createElement('canvas'); c.width = 48; c.height = 48;
+      const src = render(a, 0, 'sleep', 0); c = document.createElement('canvas'); c.width = 48; c.height = 48;
       const x = c.getContext('2d'); x.translate(2, 47); x.rotate(-Math.PI / 2); x.drawImage(src, 0, 0); c.ox = 24;
     } else c = render(a, dir, anim in ANIMS ? anim : 'idle', f % (ANIMS[anim]?.frames || 1));
     cache.set(key, c);
@@ -2475,6 +2478,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     house(34, 40, 4, 4); house(39, 40, 5, 4, { floors: 2 }); house(48, 40, 4, 4); house(53, 40, 4, 3); house(58, 40, 4, 4);
     B({ type: 'chapel', name: 'Chapel of St. Aldric', x: 63, bottom: 40, w: 5, d: 5, wealth: 0.6, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 2, wallH: 64, noFlowers: true } });
     house(69, 40, 4, 3);
+    B({ type: 'morgue', name: 'Ashford Morgue', x: 79, bottom: 40, w: 3, d: 3, wealth: 0.4, look: { wall: 'stone', stoneMat: 'stoneDark', roof: 'slate', roofType: 'gable', doorTile: 1, noFlowers: true, sign: 'cross' } });
     B({ type: 'mill', name: 'Ashford Mill', x: 74, bottom: 40, w: 4, d: 4, floors: 2, wealth: 0.5, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'thatch', roofType: 'gable', doorTile: 1, noFlowers: true } });
     // Farm
     B({ type: 'farmhouse', name: 'Marsh Farm', x: 10, bottom: 51, w: 4, d: 3, wealth: 0.4, look: { wall: 'timber', roof: 'thatch', chimney: true, doorTile: 1 } });
@@ -3112,6 +3116,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         else { ctx.fillRect(fx + 11, fy + Ch.GROUND - 1, 10, 3); ctx.fillRect(fx + 9, fy + Ch.GROUND, 14, 1); }
         ctx.drawImage(fr, fx, fy);
         if (fr.front) ctx.drawImage(fr.front, fx, fy);
+        if (this.drawWounds && !fr.ox && a.a && !a.horse && !a.animal) this.drawWounds(ctx, a, fx, fy);
         a._sx = fx; a._sy = fy;
       };
       for (const s of this.statics) {
@@ -3176,6 +3181,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
     drawLightingWith(amb, pools) {
       const { ctx, vw, vh } = this;
+      if (!this.light) return;
       const L = this.light, lc = L.getContext('2d');
       lc.globalCompositeOperation = 'source-over';
       lc.fillStyle = `rgb(${amb[0]},${amb[1]},${amb[2]})`; lc.fillRect(0, 0, vw, vh);
@@ -3192,6 +3198,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     }
 
     drawLighting() {
+      if (!this.light) return;
       const amb = this.ambient(); if (amb[0] > 250 && amb[1] > 245 && amb[2] > 235) return;
       const { ctx, cam, vw, vh } = this, w = this.world, T = w.T;
       const L = this.light, lc = L.getContext('2d');
@@ -3297,8 +3304,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     smithy: { label: 'Smithy', jobs: [['blacksmith', 1], ['apprentice', 1]], hours: [7, 18], recipes: [{ out: { tools: 0.25 }, inp: { iron: 0.5, firewood: 0.5 } }, { out: { dagger: 0.06, axe: 0.04 }, inp: { iron: 0.15, firewood: 0.1 }, role: 'blacksmith' }], sells: ['tools', 'dagger', 'axe'], buys: { firewood: 'woodcutter', iron: 'mine|import' }, targets: { iron: 10, firewood: 10, tools: 6, dagger: 3, axe: 2 }, wage: { blacksmith: 0, apprentice: 4 } },
     tavern: { label: 'Tavern', jobs: [['innkeeper', 1], ['server', 1], ['cook', 1]], hours: [11, 24], recipes: [{ out: { meal: 4 }, inp: { bread: 1, cabbage: 1, firewood: 0.3 } }, { out: { ale: 5 }, inp: { wheat: 1 } }], sells: ['meal', 'ale'], buys: { bread: 'bakery', cabbage: 'farmhouse|import', wheat: 'farmhouse|import', firewood: 'woodcutter|store|import' }, targets: { bread: 12, cabbage: 12, wheat: 10, firewood: 8, meal: 20, ale: 30 }, wage: { innkeeper: 0, server: 6, cook: 7 } },
     store: { label: 'General Store', jobs: [['shopkeeper', 1]], hours: [8, 18], recipes: [], sells: ['cabbage', 'firewood', 'flour', 'fish'], buys: { cabbage: 'farmhouse|import', firewood: 'woodcutter|import', flour: 'mill', fish: 'fishery|none' }, targets: { cabbage: 30, firewood: 30, flour: 10, fish: 12 }, wage: { shopkeeper: 0 } },
-    doctor: { label: "Physician's", jobs: [['physician', 1], ['herbalist', 1]], hours: [8, 17], recipes: [{ out: { herbs: 1.2 }, inp: {}, role: 'herbalist' }, { out: { medicine: 0.4 }, inp: { herbs: 0.5 }, role: 'physician' }], sells: ['medicine', 'herbs'], targets: { herbs: 10, medicine: 8 }, wage: { physician: 0, herbalist: 6 } },
-    guard: { label: 'Watch House', jobs: [['guard captain', 1], ['guard', 3]], hours: [0, 24], recipes: [], sells: [], targets: {}, public: true, wage: { 'guard captain': 12, guard: 8 } },
+    doctor: { label: "Physician's", jobs: [['physician', 1], ['herbalist', 1], ['bearer', 2]], hours: [8, 17], recipes: [{ out: { herbs: 1.2 }, inp: {}, role: 'herbalist' }, { out: { medicine: 0.4 }, inp: { herbs: 0.5 }, role: 'physician' }], sells: ['medicine', 'herbs'], targets: { herbs: 10, medicine: 8 }, wage: { physician: 0, herbalist: 6, bearer: 4 } },
+    guard: { label: 'Watch House', jobs: [['guard captain', 1], ['guard', 3], ['sweeper', 1]], hours: [0, 24], recipes: [], sells: [], targets: {}, public: true, wage: { 'guard captain': 12, guard: 8, sweeper: 4 } },
+    morgue: { label: 'Morgue', jobs: [['undertaker', 2]], hours: [0, 24], recipes: [], sells: [], targets: {}, public: true, wage: { undertaker: 6 } },
     stable: { label: 'Stables', jobs: [['horse trader', 1], ['stablehand', 1]], hours: [7, 19], recipes: [], sells: [], buys: { wheat: 'farmhouse' }, targets: { wheat: 12 }, wage: { 'horse trader': 0, stablehand: 5 } },
     fishery: { label: 'Fishery', jobs: [['fisher', 3]], hours: [5, 15], recipes: [{ out: { fish: 4 }, inp: {} }], sells: ['fish'], targets: { fish: 40 }, wage: { fisher: 6 } },
     mine: { label: 'Mine', jobs: [['mine foreman', 1], ['miner', 4]], hours: [6, 17], recipes: [{ out: { iron: 0.8, stone: 1 }, inp: {} }], sells: ['iron', 'stone'], targets: { iron: 40, stone: 30 }, wage: { 'mine foreman': 0, miner: 7 } },
@@ -3311,7 +3319,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     armourer: { label: 'Armourer', jobs: [['armourer', 1]], hours: [7, 17], recipes: [{ out: { helm: 0.08, sword: 0.04 }, inp: { iron: 0.3 } }], sells: ['helm', 'sword'], buys: { iron: 'mine|import' }, targets: { iron: 10, helm: 4, sword: 2 }, wage: { armourer: 0 } },
     warehouse: { label: 'Warehouse', jobs: [['warehouse master', 1], ['warehouse worker', 2]], hours: [6, 18], recipes: [], sells: ['cloth', 'wheat', 'iron'], targets: { cloth: 30, wheat: 80, iron: 20 }, wage: { 'warehouse master': 0, 'warehouse worker': 6, docker: 8 }, security: 0.6 },
     townhall: { label: 'Town Hall', jobs: [['magistrate', 1], ['clerk', 2]], hours: [8, 17], recipes: [], sells: [], targets: {}, public: true, wage: { magistrate: 14, clerk: 7 }, security: 0.7 },
-    hospital: { label: 'Hospital', jobs: [['physician', 2], ['nurse', 2]], hours: [0, 24], recipes: [{ out: { medicine: 0.4 }, inp: {} }], sells: ['medicine'], targets: { medicine: 20 }, public: true, wage: { physician: 12, nurse: 6 } },
+    hospital: { label: 'Hospital', jobs: [['physician', 2], ['nurse', 2], ['bearer', 4]], hours: [0, 24], recipes: [{ out: { medicine: 0.4 }, inp: {} }], sells: ['medicine'], targets: { medicine: 20 }, public: true, wage: { physician: 12, nurse: 6, bearer: 5 } },
     school: { label: 'School', jobs: [['teacher', 1]], hours: [8, 15], recipes: [], sells: [], targets: {}, public: true, wage: { teacher: 7 } },
     chapel: { label: 'Chapel', jobs: [['priest', 1]], hours: [6, 20], recipes: [], sells: [], targets: {}, public: true, wage: { priest: 6 } },
   };
@@ -3320,6 +3328,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   const ROLE_OUTFIT = {
     farmer: 'farmer', farmhand: 'farmhand', miller: 'miller', labourer: 'villager', baker: 'baker', apprentice: 'villager', woodcutter: 'woodcutter',
     blacksmith: 'blacksmith', innkeeper: 'innkeeper', server: 'innkeeper', cook: 'baker', shopkeeper: 'merchant', physician: 'doctor', assistant: 'villager',
+    bearer: 'bearer', undertaker: 'undertaker', sweeper: 'sweeper',
     'guard captain': 'guard', guard: 'guard', priest: 'priest', herbalist: 'farmhand', butcher: 'baker', jeweller: 'merchant', 'night watchman': 'guard', apothecary: 'doctor', carpenter: 'woodcutter', armourer: 'blacksmith', 'warehouse master': 'merchant', 'warehouse worker': 'villager', docker: 'villager', sawyer: 'woodcutter', 'quarry master': 'woodcutter', quarryman: 'woodcutter', magistrate: 'noble', clerk: 'merchant', nurse: 'villager', teacher: 'priest', fisher: 'fisher', miner: 'woodcutter', 'mine foreman': 'woodcutter', 'horse trader': 'merchant', stablehand: 'farmhand', porter: 'villager', trader: 'merchant',
   };
 
@@ -4093,6 +4102,288 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   }
 
   O.Homes = { installSim, sleepTimes };
+})();
+
+</script>
+<script>
+// What a fight leaves behind, and who deals with it. Wounds are real marks on real people — a split
+// lip from a fist, a stab from a dagger, a long cut from a sword, a gash from an axe — and they heal
+// slowly. Blood stays where it fell. Anyone badly hurt collapses where they stand, and two stretcher-
+// bearers come from the physician or the hospital to carry them in; when every bed is taken they
+// carry them on to the next town. The dead are fetched by the undertakers on a covered stretcher and
+// taken to the morgue (a puff of smoke, and they are gone), and a new grave is dug in the churchyard.
+// The council's sweepers wash the blood away and pick up whatever was dropped in the street, and
+// what they find is sold for the town purse.
+'use strict';
+(function () {
+  const WOUND = { fists: 'bruise', hammer: 'bruise', dagger: 'stab', spear: 'stab', pitchfork: 'stab', sword: 'slash', scythe: 'slash', axe: 'gash', hoe: 'gash' };
+  const BLOOD = { bruise: null, stab: 'drops', slash: 'streak', gash: 'splatter' };
+
+  function installSim(Sim) {
+    const S = Sim.prototype;
+    const init = (s) => { s.marks = s.marks || []; s.dropped = s.dropped || []; s.bodies = s.bodies || []; s.carries = s.carries || []; s.puffs = s.puffs || []; };
+
+    // ---- wounds and blood ----
+    S.wound = function (p, weapon, dmg, x, y) {
+      init(this);
+      const kind = WOUND[weapon] || 'bruise';
+      (p.wounds = p.wounds || []).push({ kind, sev: Math.min(1, dmg / 22), day: this.day, part: this.rng.pick(kind === 'bruise' ? ['face', 'face', 'torso'] : ['torso', 'torso', 'arm', 'face']), seed: this.rng.int(1, 999) });
+      if (p.wounds.length > 6) p.wounds.shift();
+      const bl = BLOOD[kind];
+      if (bl && x != null) this.marks.push({ x: x + this.rng.int(-4, 4), y: y + this.rng.int(-2, 3), kind: bl, size: Math.min(1, dmg / 18), day: this.day, min: this.minute, seed: this.rng.int(1, 9999) });
+      if (this.marks.length > 120) this.marks.shift();
+    };
+    S.bleed = function (x, y, kind, size) { init(this); this.marks.push({ x, y, kind, size, day: this.day, min: this.minute, seed: this.rng.int(1, 9999) }); };
+
+    // ---- things dropped in the street ----
+    S.drop = function (good, qty, x, y, from) { init(this); this.dropped.push({ id: this.rng.int(1, 1e9), good, qty, x, y, day: this.day, from: from || null }); };
+    S.pickUpDropped = function (it) { init(this); this.dropped = this.dropped.filter((d) => d !== it); };
+
+    // ---- care: where can a patient be carried? ----
+    S.careBeds = function (b) {
+      if (b._careBeds == null) { try { const L = O.Interior.layoutFor(b, 0, this); b._careBeds = Math.max(1, L.items.filter((i) => i.medbed).length); } catch (e) { b._careBeds = 2; } }
+      return b._careBeds;
+    };
+    S.careDest = function (x, y) {
+      init(this);
+      const care = this.world.buildings.filter((b) => (b.type === 'hospital' || b.type === 'doctor') && this.biz.get(b.id) && !b.fire && !b.ruined);
+      const using = (b) => this.people.filter((q) => q.agent.inside === b.id && (q.activity?.act === 'treated' || q.task?.act === 'treated')).length + this.carries.filter((c) => c.dest === b.id && c.kind === 'patient').length;
+      const ok = care.filter((b) => using(b) < this.careBeds(b)).sort((a, b) => Math.hypot(a.doorX * this.T - x, a.doorY * this.T - y) - Math.hypot(b.doorX * this.T - x, b.doorY * this.T - y));
+      return ok[0] || null;
+    };
+    S.morgue = function () { return this.world.buildings.find((b) => b.type === 'morgue' && !b.ruined) || this.building(this.chapelId); };
+
+    // send two of `role` to fetch someone (a patient) or something (a body)
+    S.sendStretcher = function (kind, target, x, y) {
+      init(this);
+      if (this.carries.some((c) => c.target === target && c.kind === kind)) return;
+      const role = kind === 'body' ? 'undertaker' : 'bearer';
+      let crew = this.people.filter((q) => q.job?.role === role && q.alive !== false && !q.task && q.activity?.act !== 'sleep' && q.health.hp > 40);
+      if (crew.length < 2) crew = crew.concat(this.people.filter((q) => q.job?.role === role && q.alive !== false && !q.task && !crew.includes(q))); // wake them if need be
+      if (crew.length < 2) return false;
+      const c = { id: this.rng.int(1, 1e9), kind, target, stage: 'fetch', bearers: [crew[0].id, crew[1].id], x, y, dest: null, since: this.day * 1440 + this.minute };
+      for (const q of crew.slice(0, 2)) q.task = { act: 'stretcher', outdoor: true, carry: c.id };
+      this.carries.push(c);
+      return true;
+    };
+
+    // the dead: the body lies where they fell (or at the door of the house they died in) until fetched
+    const _die = S.die;
+    S.die = function (p, cause) {
+      init(this);
+      const a = p.agent, inWorld = a && !p.visitor && (a.x || a.y);
+      let x = a ? a.x : 0, y = a ? a.y : 0;
+      if (a && a.inside != null) { const b = this.building(a.inside); if (b) { x = b.doorX * this.T + 8; y = (b.doorY + 1) * this.T + 2; } }
+      _die.call(this, p, cause);
+      if (a) a.hidden = true;
+      for (const c of this.carries) if (c.kind === 'patient' && c.target === p.id) c.died = true;
+      if (inWorld && this.world && !/far from home|abroad/.test(cause || '')) {
+        const violent = /killed|murder|fell|stab|slain/.test(cause || '');
+        const body = { id: p.id, name: p.name, app: p.app, x, y, day: this.day, violent, carried: false };
+        this.bodies.push(body);
+        if (violent) this.bleed(x, y + 1, 'pool', 1);
+        // the body is dropped where it lay, with what they carried
+        const it = p.app?.outfit?.item; if (it && O.Data.GOODS[it] && violent) this.drop(it, 1, x + 8, y + 2, p.id);
+        if (!this.sendStretcher('body', p.id, x, y)) body.waiting = true;
+      }
+    };
+
+    // stretcher-bearers instead of a passer-by when someone collapses in the street
+    const _healthMinute = S.healthMinute;
+    S.healthMinute = function (p) {
+      const r = _healthMinute.call(this, p);
+      if (r && r.act === 'collapsed' && !p._stretcherSent && p.agent.inside == null) {
+        if (this.people.some((q) => q.job?.role === 'bearer')) {
+          if (p.helper) { const h = this.byId.get(p.helper); if (h && h.task?.act === 'help') h.task = null; p.helper = null; }
+          if (this.sendStretcher('patient', p.id, p.agent.x, p.agent.y)) p._stretcherSent = true;
+        }
+      }
+      return r;
+    };
+    // the bearers are going to the patient: nobody else need help
+    const _plan = S.plan;
+    S.plan = function (p) {
+      if (p.carriedBy) return { act: 'carried', outdoor: true };
+      if (p.awayUntil) return { act: 'away', outdoor: true };
+      return _plan.call(this, p);
+    };
+
+    const crewOf = (s, c) => c.bearers.map((id) => s.byId.get(id)).filter(Boolean);
+    S.carryTick = function () {
+      init(this);
+      for (const c of [...this.carries]) {
+        const crew = crewOf(this, c);
+        if (crew.length < 2 || crew.some((q) => q.alive === false)) { this.endCarry(c, true); continue; }
+        if (c.stage === 'fetch') {
+          // they arrive when both stand by the patient
+          const there = crew.every((q) => q.agent.inside == null && Math.hypot(q.agent.x - c.x, q.agent.y - c.y) < 22);
+          const late = this.day * 1440 + this.minute - c.since > 180;
+          if (there || (late && crew.some((q) => Math.hypot(q.agent.x - c.x, q.agent.y - c.y) < 40))) {
+            if (c.kind === 'patient') {
+              const p = this.byId.get(c.target);
+              if (!p || p.alive === false || c.died) { this.endCarry(c, true); continue; }
+              p.carriedBy = c.id; p.agent.hidden = true; p.collapsedAt = null; p.helper = null;
+              const dest = this.careDest(c.x, c.y);
+              c.dest = dest ? dest.id : 'away';
+              if (!dest) this.log(`Every bed at the physician's is taken. The bearers are carrying ${p.name} on toward the next town.`, 'health');
+              else this.log(`Stretcher-bearers are carrying ${p.name} to ${dest.name}.`, 'health');
+            } else {
+              const body = this.bodies.find((b) => b.id === c.target); if (!body) { this.endCarry(c, true); continue; }
+              body.carried = c.id; const m = this.morgue(); c.dest = m ? m.id : null;
+            }
+            c.stage = 'carry';
+            const lead = crew[0];
+            lead.task = c.dest === 'away' || c.dest == null ? { act: 'stretcher-carry', outdoor: true, carry: c.id, away: true } : { act: 'stretcher-carry', b: c.dest, carry: c.id };
+            crew[1].task = { act: 'stretcher-follow', outdoor: true, carry: c.id };
+          }
+        } else if (c.stage === 'carry') {
+          const [lead, tail] = crew;
+          // the second bearer keeps the far end of the stretcher
+          if (lead.agent.inside == null && !lead.agent.hidden) {
+            if (c.lx != null && Math.hypot(lead.agent.x - c.lx, lead.agent.y - c.ly) > 0.5) c.hd = Math.atan2(lead.agent.y - c.ly, lead.agent.x - c.lx);
+            c.lx = lead.agent.x; c.ly = lead.agent.y;
+            const dx = Math.cos(c.hd ?? Math.PI), dy = Math.sin(c.hd ?? Math.PI);
+            tail.agent.hidden = false; tail.agent.inside = null; tail.agent.path = null;
+            tail.agent.x = lead.agent.x - dx * 30; tail.agent.y = lead.agent.y - dy * 30; tail.agent.dir = lead.agent.dir; tail.agent.anim = 'stretcher'; lead.agent.anim = 'stretcher';
+            c.x = (lead.agent.x + tail.agent.x) / 2; c.y = (lead.agent.y + tail.agent.y) / 2; c.dx = dx; c.dy = dy;
+          }
+          // carried out of the village to the next town
+          if (c.dest === 'away' && lead.agent.inside == null && Math.hypot(lead.agent.x - this.Z.east[0] * this.T, lead.agent.y - this.Z.east[1] * this.T) < 30) {
+            const p = this.byId.get(c.target);
+            if (p) { p.carriedBy = null; p.awayUntil = this.day + 4; p.agent.hidden = true; p.agent.inside = null; this.remember(p, 'Carried to the next town when there was no bed at home.', 'health', 2); }
+            for (const q of crew) { q.task = null; q.agent.anim = 'walk'; }
+            this.carries = this.carries.filter((x) => x !== c);
+          }
+        }
+      }
+      // patients sent away come home healed
+      for (const p of this.people) if (p.awayUntil && this.day >= p.awayUntil) {
+        p.awayUntil = null; p.health.illness = null; p.health.hp = 80; p.health.state = 'healthy';
+        p.agent.hidden = false; p.agent.inside = null; p.agent.x = this.Z.east[0] * this.T; p.agent.y = this.Z.east[1] * this.T; p.task = { act: 'move-in', b: p.home };
+        this.log(`${p.name} has come home, mended, from the infirmary in the next town.`, 'health');
+      }
+      // bodies nobody has yet fetched
+      if (this._m % 30 === 0) for (const b of [...this.bodies]) if (!b.carried && !this.carries.some((c) => c.kind === 'body' && c.target === b.id)) {
+        if (!this.sendStretcher('body', b.id, b.x, b.y) && (this.day * 1440 + this.minute) - (b.day * 1440) > 240 && !this.people.some((q) => q.job?.role === 'undertaker')) {
+          // no undertaker in the town: the family carry their dead to the churchyard themselves
+          this.bodies = this.bodies.filter((x) => x !== b); this.digGrave(b);
+        }
+      }
+    };
+
+    // arriving at the door with the stretcher
+    S.deliverStretcher = function (lead, bid) {
+      const c = this.carries.find((x) => x.id === lead.task.carry); if (!c) { lead.task = null; return; }
+      const crew = crewOf(this, c);
+      if (c.kind === 'patient') {
+        const p = this.byId.get(c.target);
+        if (p) { p.carriedBy = null; p.agent.inside = bid; p.agent.hidden = true; p.agent.x = lead.agent.x; p.agent.y = lead.agent.y; p.task = { act: 'to-doctor', b: bid }; this.docId = this.docId || bid; const old = this.docId; this.docId = bid; this.admit(p); this.docId = old; }
+      } else {
+        const body = this.bodies.find((b) => b.id === c.target);
+        if (body) {
+          this.bodies = this.bodies.filter((b) => b !== body);
+          const b = this.building(bid);
+          if (b) this.puffs.push({ x: b.doorX * this.T + 8, y: (b.doorY + 1) * this.T, t: 0 });
+          this.digGrave(body);
+        }
+      }
+      for (const q of crew) { q.task = null; q.agent.anim = 'walk'; if (q !== lead) { q.agent.inside = bid; q.agent.hidden = true; } }
+      this.carries = this.carries.filter((x) => x !== c);
+    };
+    S.endCarry = function (c, cancel) {
+      for (const q of crewOf(this, c)) if (q.task?.carry === c.id) q.task = null;
+      const p = c.kind === 'patient' ? this.byId.get(c.target) : null; if (p) { p.carriedBy = null; p._stretcherSent = false; if (p.agent.hidden && p.agent.inside == null) { p.agent.hidden = false; } }
+      const body = c.kind === 'body' ? this.bodies.find((b) => b.id === c.target) : null; if (body) body.carried = false;
+      this.carries = this.carries.filter((x) => x !== c);
+      void cancel;
+    };
+
+    // a new grave in the churchyard
+    S.digGrave = function (body) {
+      const w = this.world, T = this.T;
+      const ch = this.building(this.chapelId); if (!ch) return;
+      const taken = new Set(w.props.filter((p) => p.kind === 'gravestone').map((p) => Math.floor(p.x / T) + ',' + Math.floor(p.y / T)));
+      const isFree = (x, y) => x > 0 && y > 0 && x < w.W - 1 && y < w.H - 1 && !w.solid[y * w.W + x] && !taken.has(x + ',' + y) && !w.buildings.some((b) => x >= b.x - 1 && x < b.x + b.w + 1 && y >= b.y - 1 && y <= b.bottom + 1);
+      for (let r = 1; r < 12; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const x = ch.x + ch.w + 1 + dx, y = ch.y + 2 + dy * 1;
+        if ((x + y) % 2 || !isFree(x, y)) continue;
+        w.props.push({ kind: 'gravestone', x: x * T + 8, y: y * T + 14, seed: body.id * 7 + 3, v: 0, solid: true, grave: body.name });
+        w.solid[y * w.W + x] = 1; w.dirtyStatics = true;
+        return;
+      }
+    };
+
+    // the sweepers' round
+    S.sweepTick = function () {
+      init(this);
+      // blood fades in the rain and in time; a sweeper washes it sooner
+      const now = this.day * 1440 + this.minute;
+      this.marks = this.marks.filter((m) => now - (m.day * 1440 + m.min) < 3 * 1440);
+      const sweepers = this.people.filter((q) => q.job?.role === 'sweeper' && q.alive !== false && !q.task && q.activity?.act !== 'sleep' && this.hour >= 6 && this.hour < 19);
+      for (const sw of sweepers) {
+        const items = this.dropped.filter((d) => now - (d.day * 1440 + (d.min || 0)) > 120);
+        const targets = [...this.marks.filter((m) => !this.bodies.some((b) => Math.hypot(b.x - m.x, b.y - m.y) < 10)), ...items];
+        if (!targets.length) break;
+        const t = targets.sort((a, b) => Math.hypot(a.x - sw.agent.x, a.y - sw.agent.y) - Math.hypot(b.x - sw.agent.x, b.y - sw.agent.y))[0];
+        sw.task = { act: 'sweep', outdoor: true, x: t.x, y: t.y };
+      }
+    };
+    S.sweepArrive = function (sw) {
+      const { x, y } = sw.task; sw.task = null;
+      const before = this.marks.length;
+      this.marks = this.marks.filter((m) => Math.hypot(m.x - x, m.y - y) > 24);
+      const found = this.dropped.filter((d) => Math.hypot(d.x - x, d.y - y) < 24);
+      if (found.length) {
+        this.dropped = this.dropped.filter((d) => !found.includes(d));
+        const val = found.reduce((a, d) => a + (O.Data.GOODS[d.good]?.base || 1) * d.qty, 0), got = Math.max(1, Math.round(val * 0.6));
+        this.treasury.cash += got; this.treasury.income = (this.treasury.income || 0) + got;
+        this.log(`${sw.name} the sweeper handed in ${found.map((d) => O.Data.GOODS[d.good]?.name.toLowerCase() || d.good).join(', ')} found in the street; sold for ${got}d for the town purse.`, 'politics');
+      }
+      if (before !== this.marks.length) this.remember(sw, 'Scrubbed blood off the street today.', 'work', 0.5);
+    };
+
+    // daily: wounds close up
+    S.woundsDaily = function () {
+      for (const p of this.people) if (p.wounds && p.wounds.length) {
+        const treated = p.health.illness?.treated || p.activity?.act === 'treated';
+        for (const w of p.wounds) { w.sev -= treated ? 0.16 : 0.09; if (treated) w.bandage = true; }
+        p.wounds = p.wounds.filter((w) => w.sev > 0.05);
+      }
+    };
+
+    const _speed = S.speedOf;
+    S.speedOf = function (p) { const t = p.task?.act; if (t === 'stretcher-carry') return 16; if (t === 'stretcher') return 30; return _speed.call(this, p); };
+    const _tick = S.minuteTick;
+    S.minuteTick = function () { _tick.call(this); this.carryTick(); if (this._m % 15 === 0) this.sweepTick(); };
+    const _nd = S.newDay;
+    S.newDay = function () { _nd.call(this); this.woundsDaily(); };
+
+    // routing for the new errands
+    const _zone = S.zoneTile;
+    S.zoneTile = function (p, zone) {
+      const t = p.task;
+      if (t?.act === 'stretcher') { const c = (this.carries || []).find((x) => x.id === t.carry); if (c) return [Math.floor(c.x / this.T), Math.floor((c.y - 1) / this.T)]; }
+      if (t?.act === 'stretcher-carry' && t.away) return this.Z.east;
+      if (t?.act === 'sweep') return [Math.floor(t.x / this.T), Math.floor((t.y - 1) / this.T)];
+      if (t?.act === 'stretcher-follow') { const c = (this.carries || []).find((x) => x.id === t.carry); const lead = c && this.byId.get(c.bearers[0]); if (lead) return [Math.floor(lead.agent.x / this.T), Math.floor(lead.agent.y / this.T)]; }
+      return _zone.call(this, p, zone);
+    };
+    const _onEnter = S.onEnter;
+    S.onEnter = function (p, bid) {
+      if (p.task?.act === 'stretcher-carry' && bid === p.task.b) { this.deliverStretcher(p, bid); return; }
+      return _onEnter.call(this, p, bid);
+    };
+    const _doOutdoor = S.doOutdoor;
+    S.doOutdoor = function (p, act) {
+      if (act.act === 'sweep' && p.task?.act === 'sweep') { p.agent.anim = 'sweep'; if ((p.agent.wait || 0) > 8) this.sweepArrive(p); return; }
+      if (act.act === 'stretcher-follow' || act.act === 'carried' || act.act === 'away') return;
+      if (act.act === 'stretcher') return;
+      return _doOutdoor.call(this, p, act);
+    };
+  }
+
+  O.Aftermath = { installSim, WOUND, BLOOD };
 })();
 
 </script>
@@ -6757,7 +7048,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     if (p.task?.act === 'help') { const t = this.byId.get(p.task.target); if (t) return [Math.floor(t.agent.x / this.T), Math.floor((t.agent.y - 1) / this.T)]; }
     return _zone.call(this, p, zone);
   };
-  O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim);
+  O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim); O.Aftermath.installSim(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
   // carry-home and delivery tasks finish on entering the destination
@@ -7716,6 +8007,10 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
           if (wv >= 1) tryPut('rug', [[Math.floor(w / 2) - 1, 3]], { flat: true, width: 3 });
         } else { dining(8); tryPut('bookcase', backWall(2, true)); tryPut('bookcase', backWall(2, true)); tryPut('shelf', backWall(3, true)); }
         break;
+      case 'morgue':
+        for (let x = 1; x + 2 <= w - 1; x += 3) tryPut('medbed', [[x, 0]], { slab: true });
+        tryPut('desk', nearWalls(2, 1), { work: ['undertaker'] }); tryPut('candlestand', nearWalls()); tryPut('candlestand', nearWalls()); tryPut('shelf', backWall(3, true)); tryPut('chest', nearWalls(2, 1));
+        break;
       case 'hospital':
         for (let x = 0; x + 2 <= w; x += 3) { tryPut('medbed', [[x, 0]], { medbed: true, bed: true, slots: 1, work: ['nurse'] }); tryPut('medbed', [[x, d - 6]], { medbed: true, bed: true, slots: 1 }); }
         tryPut('desk', nearWalls(2, 1), { work: ['physician'] }); tryPut('shelf', backWall(3, true), { stockGood: 'medicine', shop: true });
@@ -8108,6 +8403,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const fx = Math.round(a.x - ox - cam.x), fy = Math.round(a.y - Ch.GROUND - cam.y);
       if (shadow && !fr.ox) { ctx.fillStyle = 'rgba(28,20,44,0.3)'; ctx.fillRect(fx + 11, fy + Ch.GROUND - 1, 10, 3); ctx.fillRect(fx + 9, fy + Ch.GROUND, 14, 1); }
       ctx.drawImage(fr, fx, fy);
+      if (this.game.drawWounds && !fr.ox) this.game.drawWounds(ctx, a, fx, fy);
     }
     flame(ctx, x, y, s) {
       const f = Math.floor(this.t * 10 + x) % 3;
@@ -8229,7 +8525,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       <p class="caption">${(() => { const J = PS.job; if (!J) return 'No employer. Ask a master at their workplace for a day\'s work.'; return `${J.apprentice ? 'Apprentice' : 'Hired for the day'} at ${esc(J.bizName)}, ${esc(J.placeName)}, under ${esc(J.masterName)}.`; })()}${PS.earned ? ` Earned honestly so far: ${money(PS.earned)}.` : ''}</p>` : ''}`, (r) => {
       r.querySelectorAll('[data-eat]').forEach((b) => b.onclick = () => { const k = PS.items[+b.dataset.eat]; PS.eat(k); toast(`You eat the ${G[k].name.toLowerCase()}.`); inventory(); });
       r.querySelectorAll('[data-eq]').forEach((b) => b.onclick = () => { PS.equipped = PS.equipped === b.dataset.eq ? 'fists' : b.dataset.eq; const a = O.game.player.a; a.outfit.item = PS.equipped === 'fists' ? null : PS.equipped; O.Char.invalidate(a); inventory(); });
-      r.querySelectorAll('[data-drop]').forEach((b) => b.onclick = () => { const k = PS.items[+b.dataset.drop]; PS.remove(k); toast(`Dropped ${G[k].name.toLowerCase()}.`); inventory(); });
+      r.querySelectorAll('[data-drop]').forEach((b) => b.onclick = () => { const k = PS.items[+b.dataset.drop]; if (O.dropItem) O.dropItem(k); else { PS.remove(k); toast(`Dropped ${G[k].name.toLowerCase()}.`); } inventory(); });
     });
   }
 
@@ -8451,6 +8747,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       if (O.exitCandidate) { const ec = O.exitCandidate(); if (ec) out.push(ec); }
       if (O.saleCandidate) { const sc = O.saleCandidate(); if (sc) out.push(sc); }
       if (O.stallCandidate) { const st = O.stallCandidate(); if (st) out.push(st); }
+      if (O.pickupCandidate) { const pc = O.pickupCandidate(); if (pc) out.push(pc); }
       for (const q of sim.people) { const a = q.agent; if (a.hidden) continue; const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < 26) out.push({ type: 'npc', person: q, d, x: a.x, y: a.y }); }
       const T = sim.T;
       for (const pr of sim.world.props) if (pr.kind === 'memorial' || (pr.kind === 'noticeboard' && pr.broadsheet)) { const d = Math.hypot(pr.x - p.x, pr.y - p.y); if (d < 22) out.push({ type: pr.kind === 'memorial' ? 'memorial' : 'broadsheet', prop: pr, d: d + 1, x: pr.x, y: pr.y - 30 }); }
@@ -8496,6 +8793,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         case 'campbed': return 'Sleep by the fire';
         case 'bed': return mayUseBed(c.it) ? 'Sleep until morning' : 'Bed — not yours';
         case 'hay': return 'Sleep in the hay';
+        case 'pickup': return `Pick up the ${(O.Data.GOODS[c.it.good]?.name || c.it.good).toLowerCase()}`;
         case 'shop': return `Buy from ${c.seller.first}`;
         case 'stairs': return game.scene.floor === 0 ? 'Go upstairs' : 'Go downstairs';
         default: return '';
@@ -8624,6 +8922,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         case 'stash': O.GangUI.stash(); break;
         case 'campbed': sleep(null, true); break;
         case 'hay': sleep(null, true); break;
+        case 'pickup': O.pickUp(cur.it); break;
         case 'memorial': O.ChronicleUI.memorial(cur.prop.epitaph); break;
         case 'work': if (O.Craft.RECIPES[cur.it.kind]) { const J = O.Work.job(); O.craftPanel({ it: cur.it, who: `${J.masterName}'s`, work: true }); } else O.workShift(); break;
         case 'craft': O.craftPanel(cur); break;
@@ -9132,7 +9431,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 'use strict';
 (function () {
   const PS = O.PlayerState, G = O.Data.GOODS;
-  const WEAPONS = { fists: { dmg: 7, reach: 15, name: 'fists', blade: false }, dagger: { dmg: 13, reach: 17, name: 'dagger', blade: true }, sword: { dmg: 19, reach: 20, name: 'sword', blade: true }, axe: { dmg: 21, reach: 18, name: 'axe', blade: true } };
+  const WEAPONS = { fists: { dmg: 7, reach: 15, name: 'fists', blade: false, key: 'fists' }, dagger: { dmg: 13, reach: 17, name: 'dagger', blade: true, key: 'dagger' }, sword: { dmg: 19, reach: 20, name: 'sword', blade: true, key: 'sword' }, axe: { dmg: 21, reach: 18, name: 'axe', blade: true, key: 'axe' }, hammer: { dmg: 15, reach: 16, name: 'hammer', blade: false, key: 'hammer' }, spear: { dmg: 18, reach: 26, name: 'spear', blade: true, key: 'spear' } };
 
   function setup(game, sim, npcUI) {
     const fights = new Map(); // person id -> { mode, cd, t }
@@ -9161,13 +9460,13 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     }
 
     // damage applies to the shared health model
-    function hurt(q, dmg, byPlayer, blade) {
+    function hurt(q, dmg, byPlayer, blade, wkey) {
       const h = q.health;
       const armour = q.app.outfit.armour === 'mail' ? 0.65 : 1;
       dmg = Math.round(dmg * armour * sim.rng.float(0.8, 1.2));
       const wasDown = h.hp <= 0;
       h.hp -= dmg;
-      const pos = posOf(q); if (pos) { puff(pos[0], pos[1], blade); if (!game.scene) { const d = Math.atan2(pos[1] - game.player.y, pos[0] - game.player.x); q.agent.x += Math.cos(d) * 4; q.agent.y += Math.sin(d) * 4; } }
+      const pos = posOf(q); sim.wound && sim.wound(q, wkey || (blade ? 'dagger' : 'fists'), dmg, pos && !game.scene ? pos[0] : null, pos && !game.scene ? pos[1] : null); if (pos) { puff(pos[0], pos[1], blade); if (!game.scene) { const d = Math.atan2(pos[1] - game.player.y, pos[0] - game.player.x); q.agent.x += Math.cos(d) * 4; q.agent.y += Math.sin(d) * 4; } }
       q.agent.hitT = 0.15;
       if (wasDown && h.hp < -35) { sim.die(q, 'was killed'); return 'dead'; }
       const sev = O.clamp(1 - h.hp / 100, 0.1, 0.99);
@@ -9224,8 +9523,18 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
           const q = personAt(game.player.x, game.player.y - 2, w.reach, game.player.dir);
           if (q) {
             const first = !fights.has(q.id);
-            const res = hurt(q, w.dmg, true, w.blade);
-            if (first) { const c = crimeFor(q, q.job?.role?.startsWith('guard') ? 'assault on the watch' : 'assault', q.job?.role?.startsWith('guard') ? 3 : 2); if (q.job?.role?.startsWith('guard')) PS.bounty = true; void c; sim.remember(q, 'The stranger attacked me.', 'crime', 2.5, 0); sim.relate(q, { id: 0 }, -0.8); }
+            const res = hurt(q, w.dmg, true, w.blade, w.key);
+            const guardHit = q.job?.role?.startsWith('guard');
+            q._punched = (q._punched || 0) + 1;
+            // a punch or two is a quarrel, not a crime: the victim and everyone watching think less of you.
+            // Keep going, or draw steel, and it's assault and the watch will hear of it.
+            const brawl = w.key === 'fists' && !guardHit && q._punched <= 2 && q.health.hp > 55;
+            if (brawl) {
+              sim.relate(q, { id: 0 }, -0.35); sim.remember(q, 'The stranger punched me.', 'social', 1.5, 0);
+              const pos = posOf(q) || [game.player.x, game.player.y];
+              for (const z of (game.scene ? [...game.scene.actors.values()].map((a) => a.person) : sim.seers(pos[0], pos[1], q))) { if (z === q) continue; sim.relate(z, { id: 0 }, -0.12); sim.remember(z, `Saw the stranger strike ${q.first}.`, 'social', 0.8, 0); }
+              PS.rep.local = Math.max(-1, PS.rep.local - 0.02);
+            } else if (first || !q._assaulted) { q._assaulted = true; const c = crimeFor(q, guardHit ? 'assault on the watch' : w.key === 'fists' ? 'brawling' : 'assault', guardHit ? 3 : w.key === 'fists' ? 1 : 2); if (guardHit) PS.bounty = true; void c; sim.remember(q, 'The stranger attacked me.', 'crime', 2.5, 0); sim.relate(q, { id: 0 }, -0.8); }
             if (res === 'dead') { crimeFor(q, 'murder', 5); O.Panels.toast(`${q.first} lies still. You have killed a man of Ashford.`, 'bad'); PS.bounty = true; fights.delete(q.id); }
             else if (res !== 'incapacitated') { const prev = fights.get(q.id); const mode = react(q); fights.set(q.id, { mode, t: prev?.t || 0, cd: prev ? prev.cd : 0.7, looted: prev?.looted }); if (mode === 'surrender' && prev?.mode !== 'surrender') O.Panels.toast(`${q.first}: “Enough! Take my purse, take it!”`, 'bad'); if (mode === 'flee' && prev?.mode !== 'flee') { O.Panels.toast(`${q.first} runs, shouting for the watch!`, 'bad'); } }
             else O.Panels.toast(`${q.first} falls and does not get up.`, 'bad');
@@ -9249,6 +9558,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
             const armed = q.app.outfit.item && ['spear', 'sword', 'axe', 'hammer', 'pitchfork', 'dagger'].includes(q.app.outfit.item);
             const dmg = (armed ? 12 : 6) * (q.job?.role?.startsWith('guard') ? 1.2 : 1) * sim.rng.float(0.7, 1.2);
             PS.hp -= dmg; fx.push({ x: game.player.x, y: game.player.y - 16, flash: true, t: 0, max: 0.12 });
+            { const wk = armed ? q.app.outfit.item : 'fists', kind = (O.Aftermath && O.Aftermath.WOUND[wk]) || 'bruise'; (PS.wounds = PS.wounds || []).push({ kind, sev: Math.min(1, dmg / 22), day: sim.day, part: sim.rng.pick(['face', 'torso', 'arm']), seed: sim.rng.int(1, 999) }); if (PS.wounds.length > 6) PS.wounds.shift(); const bl = O.Aftermath && O.Aftermath.BLOOD[kind]; if (bl && !game.scene) sim.bleed(game.player.x, game.player.y + 1, bl, dmg / 18); }
             for (let i = 0; i < 4; i++) fx.push({ x: game.player.x, y: game.player.y - 8, vx: (Math.random() - 0.5) * 40, vy: -Math.random() * 30, t: 0, max: 0.3, c: 'rgba(170,140,100,0.8)' });
             if (PS.hp <= 0) return knockedOut(q);
           } else if (f.cd < 0.55) a.anim = 'idle';
@@ -11204,6 +11514,153 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
 </script>
 <script>
+// Drawing what fights leave behind: blood on the ground (drops from a stab, a streak from a sword,
+// a splash from an axe, a dark pool where someone died), things dropped in the street, the dead
+// where they fell, stretchers carried through the village, the puff of smoke at the morgue door,
+// and wounds on people — bruises, cuts and bandages that shrink as they heal. Also: picking up
+// what's lying in the street.
+'use strict';
+(function () {
+  const RED = ['#7a1a1a', '#9a2222', '#b8302a'], DARK = '#4a0e10';
+  const ICON = { dagger: '#b8bcc4', sword: '#c8ccd4', axe: '#9aa0aa', bread: '#c88a45', spoon: '#c8ccd4', herbs: '#5a9a40', tools: '#9aa0aa', coin: '#e0c050' };
+
+  function setup(game) {
+    const PS = O.PlayerState;
+    const sim = () => O.SimRef.cur;
+
+    // ---------- blood and dropped things on the ground ----------
+    function drawMark(ctx, m, cam) {
+      const r = O.RNG(m.seed), x = Math.round(m.x - cam.x), y = Math.round(m.y - cam.y), s = m.size || 0.5;
+      const dot = (dx, dy, c, w = 1, h = 1) => { ctx.fillStyle = c; ctx.fillRect(x + dx, y + dy, w, h); };
+      if (m.kind === 'drops') for (let i = 0; i < 3 + s * 4; i++) dot(r.int(-4, 4), r.int(-2, 2), RED[r.int(0, 2)]);
+      else if (m.kind === 'streak') { const n = 5 + Math.round(s * 5), dir = r.chance(0.5) ? 1 : -1; for (let i = 0; i < n; i++) dot(i * dir - n / 2 * dir, Math.round(i * 0.4) - 1, RED[i % 3]); for (let i = 0; i < 3; i++) dot(r.int(-5, 5), r.int(-3, 3), RED[1]); }
+      else if (m.kind === 'splatter') { for (let i = 0; i < 10 + s * 10; i++) { const a = r.next() * Math.PI * 2, d = Math.pow(r.next(), 0.6) * (4 + s * 4); dot(Math.round(Math.cos(a) * d), Math.round(Math.sin(a) * d * 0.6), RED[r.int(0, 2)]); } dot(-2, -1, DARK, 4, 2); }
+      else if (m.kind === 'pool') { ctx.fillStyle = DARK; for (let yy = -3; yy <= 3; yy++) { const w = Math.round(9 * Math.sqrt(1 - (yy / 3.6) ** 2)); ctx.fillRect(x - w, y + yy, w * 2, 1); } ctx.fillStyle = RED[0]; ctx.fillRect(x - 5, y - 1, 6, 1); }
+    }
+    function drawDropped(ctx, d, cam) {
+      const x = Math.round(d.x - cam.x), y = Math.round(d.y - cam.y), c = ICON[d.good] || '#a08a6a';
+      ctx.fillStyle = 'rgba(28,20,44,0.3)'; ctx.fillRect(x - 3, y + 1, 7, 1);
+      if (['dagger', 'sword', 'axe', 'spear', 'tools'].includes(d.good)) { ctx.fillStyle = '#5a3d26'; ctx.fillRect(x - 3, y, 3, 1); ctx.fillStyle = c; ctx.fillRect(x, y - 1, d.good === 'sword' ? 6 : 4, 1); ctx.fillRect(x, y, d.good === 'sword' ? 5 : 3, 1); }
+      else { ctx.fillStyle = c; ctx.fillRect(x - 2, y - 2, 4, 3); ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fillRect(x - 1, y - 2, 1, 1); }
+      // a glint now and then, so you notice it
+      if (Math.floor(game.t * 2 + d.id) % 5 === 0) { ctx.fillStyle = '#fff6dc'; ctx.fillRect(x + 1, y - 3, 1, 1); }
+    }
+    game.hooks.drawGround.push((ctx, cam) => {
+      const s = sim(); if (!s || s.world !== game.world || game.scene) return;
+      for (const m of s.marks || []) drawMark(ctx, m, cam);
+      for (const d of s.dropped || []) drawDropped(ctx, d, cam);
+    });
+
+    // ---------- bodies and stretchers, sorted with everything else ----------
+    const covered = (app) => {
+      // a body under a sheet
+      const c = document.createElement('canvas'); c.width = 48; c.height = 16; const x = c.getContext('2d');
+      x.fillStyle = '#d8d0c0'; x.fillRect(4, 5, 38, 8); x.fillRect(6, 3, 34, 2); x.fillStyle = '#ece6d8'; x.fillRect(5, 5, 36, 2); x.fillStyle = '#a89e8c'; x.fillRect(4, 12, 38, 1); for (let i = 8; i < 40; i += 7) x.fillRect(i, 6, 1, 6);
+      void app; return c;
+    };
+    const headCache = new WeakMap();
+    function sleepHead(app) {
+      let c = headCache.get(app); if (c && c.ver === app.cacheVer) return c;
+      const fr = O.Char.frame(app, 0, 'sleep', 0), hy = O.Char.headY(app), top = Math.max(0, Math.round(hy.cy - hy.ry - 4)), h = Math.round(hy.ry * 2 + 6);
+      c = document.createElement('canvas'); c.width = 20; c.height = h; c.getContext('2d').drawImage(fr, 6, top, 20, h, 0, 0, 20, h); c.ver = app.cacheVer; c.cy = hy.ry + 4;
+      headCache.set(app, c); return c;
+    }
+    function stretcherFrame(c) {
+      const s = sim(), horiz = Math.abs(c.dx || 1) >= Math.abs(c.dy || 0), L = 40;
+      const cv = document.createElement('canvas'); cv.width = 56; cv.height = 56; const x = cv.getContext('2d');
+      const occ = c.kind === 'patient' ? s.byId.get(c.target) : (s.bodies || []).find((b) => b.id === c.target);
+      // poles and canvas
+      if (horiz) {
+        x.fillStyle = '#6e4a2c'; x.fillRect(28 - L / 2 - 4, 30, L + 8, 1); x.fillRect(28 - L / 2 - 4, 37, L + 8, 1);
+        x.fillStyle = '#c8b890'; x.fillRect(28 - L / 2, 31, L, 6);
+        if (c.kind === 'body') x.drawImage(covered(), 4, 26);
+        else if (occ) { const hd = sleepHead(occ.app); x.save(); x.translate(28 + (c.dx > 0 ? L / 2 - 6 : -L / 2 + 6), 34); x.rotate(c.dx > 0 ? Math.PI / 2 : -Math.PI / 2); x.drawImage(hd, -10, -hd.cy); x.restore(); x.fillStyle = '#7a8aa8'; x.fillRect(c.dx > 0 ? 28 - L / 2 + 2 : 28 - L / 2 + 10, 31, L - 12, 6); x.fillStyle = '#9aaac8'; x.fillRect(c.dx > 0 ? 28 - L / 2 + 2 : 28 - L / 2 + 10, 31, L - 12, 1); }
+      } else {
+        x.fillStyle = '#6e4a2c'; x.fillRect(22, 28 - L / 2 + 4, 1, L + 4); x.fillRect(33, 28 - L / 2 + 4, 1, L + 4);
+        x.fillStyle = '#c8b890'; x.fillRect(23, 28 - L / 2 + 6, 10, L);
+        if (c.kind === 'body') { x.fillStyle = '#d8d0c0'; x.fillRect(23, 28 - L / 2 + 8, 10, L - 4); x.fillStyle = '#ece6d8'; x.fillRect(24, 28 - L / 2 + 8, 8, 2); }
+        else if (occ) { const hd = sleepHead(occ.app), up = (c.dy || 0) < 0; x.drawImage(hd, 18, up ? 28 - L / 2 + 6 : 28 + L / 2 - hd.height); x.fillStyle = '#7a8aa8'; x.fillRect(23, up ? 28 - L / 2 + 18 : 28 - L / 2 + 8, 10, L - 16); }
+      }
+      cv.ox = 28; cv.gy = 46; return cv;
+    }
+    const pseudo = new Map();
+    game.hooks.update.push(() => {
+      const s = sim(); if (!s || game.scene || s.world !== game.world) return;
+      const want = [];
+      for (const b of s.bodies || []) if (!b.carried) { let a = pseudo.get('b' + b.id); if (!a) { a = { bodyOf: b, x: b.x, y: b.y, dir: 0, anim: 'lie', ft: 0, a: b.app }; pseudo.set('b' + b.id, a); } a.x = b.x; a.y = b.y; want.push(a); }
+      for (const c of s.carries || []) if (c.stage === 'carry' && c.x != null) { let a = pseudo.get('c' + c.id); if (!a) { a = { carry: c, x: c.x, y: c.y, ft: 0 }; pseudo.set('c' + c.id, a); } a.x = c.x; a.y = c.y + 0.5; want.push(a); }
+      const keys = new Set(want); for (const [k, a] of pseudo) if (!keys.has(a)) pseudo.delete(k);
+      game.actors = [...game.actors.filter((a) => !a.bodyOf && !a.carry), ...want];
+    });
+    const _frame = game.actorFrame.bind(game);
+    game.actorFrame = (a) => {
+      if (a.carry) return stretcherFrame(a.carry);
+      return _frame(a);
+    };
+
+    // your own cuts and bruises close up day by day
+    let lastDay = null;
+    game.hooks.update.push(() => { const s = sim(); if (!s) return; if (lastDay != null && s.day !== lastDay && PS.wounds) { for (const w of PS.wounds) w.sev -= 0.11; PS.wounds = PS.wounds.filter((w) => w.sev > 0.05); } lastDay = s.day; });
+
+    // ---------- the puff of smoke at the morgue ----------
+    game.hooks.drawWorld.push((ctx, cam) => {
+      const s = sim(); if (!s || !s.puffs || game.scene) return;
+      for (const p of s.puffs) { p.t += 1 / 60; const n = 10, r = 4 + p.t * 18, al = Math.max(0, 0.8 - p.t * 0.8); for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2 + p.t; ctx.fillStyle = `rgba(214,210,220,${al.toFixed(2)})`; const sz = 3 + Math.round(p.t * 3); ctx.fillRect(Math.round(p.x + Math.cos(a) * r - cam.x), Math.round(p.y - 14 + Math.sin(a) * r * 0.6 - p.t * 10 - cam.y), sz, sz); } }
+      s.puffs = s.puffs.filter((p) => p.t < 1.1);
+    });
+
+    // ---------- wounds on people ----------
+    const geo = new WeakMap();
+    function bodyGeo(app) { let g = geo.get(app); if (g && g.v === app.cacheVer) return g; const hy = O.Char.headY(app), hip = O.Char.hipY(app, 'idle'), m = O.Char.bodyMetrics(app); g = { cy: hy.cy, ry: hy.ry, hip, sh: hip - m.torso, v: app.cacheVer }; geo.set(app, g); return g; }
+    game.drawWounds = (ctx, a, fx, fy) => {
+      const ws = a === game.player ? PS.wounds : a.person?.wounds;
+      if (!ws || !ws.length || !a.a || a.anim === 'lie' || a.anim === 'sleep') return;
+      const g = bodyGeo(a.a), front = a.dir === 0 || a.dir === 4 || a.dir === 5, back = a.dir === 3 || a.dir === 6 || a.dir === 7;
+      for (const w of ws) {
+        const r = O.RNG(w.seed || 1), k = Math.max(1, Math.round(w.sev * 3));
+        let x = fx + 16, y = fy;
+        if (w.part === 'face') { if (!front) continue; x += r.chance(0.5) ? -2 : 2; y += Math.round(g.cy + 1); }
+        else if (w.part === 'arm') { x += r.chance(0.5) ? -6 : 6; y += Math.round(g.sh + 6); }
+        else { x += r.int(-3, 3); y += Math.round(g.sh + 4 + r.int(0, 4)); if (back && w.kind === 'bruise') continue; }
+        if (w.bandage && w.part !== 'face') { ctx.fillStyle = '#ece6d8'; ctx.fillRect(x - 2, y, 4, 2); ctx.fillStyle = '#c8b8a0'; ctx.fillRect(x - 2, y + 1, 4, 1); continue; }
+        if (w.kind === 'bruise') { ctx.fillStyle = w.sev > 0.4 ? '#6a3a5a' : '#8a6a6a'; ctx.fillRect(x, y, Math.min(2, k), 1 + (k > 2 ? 1 : 0)); }
+        else if (w.kind === 'stab') { ctx.fillStyle = '#8a1a1a'; ctx.fillRect(x, y, 1, 1); if (k > 1) { ctx.fillStyle = '#a83030'; ctx.fillRect(x, y + 1, 1, k - 1); } }
+        else if (w.kind === 'slash') { ctx.fillStyle = '#9a2222'; for (let i = 0; i < k + 1; i++) ctx.fillRect(x - 1 + i, y + i - 1, 1, 1); }
+        else { ctx.fillStyle = '#8a1a1a'; ctx.fillRect(x - 1, y, Math.min(3, k + 1), Math.min(2, k)); ctx.fillStyle = '#b8302a'; ctx.fillRect(x, y, 1, 1); }
+      }
+    };
+
+    // ---------- picking up what's in the street ----------
+    O.pickupCandidate = () => {
+      const s = sim(); if (!s || game.scene || !s.dropped || !s.dropped.length) return null;
+      const p = game.player; let best = null, bd = 18;
+      for (const d of s.dropped) { const dd = Math.hypot(d.x - p.x, d.y - p.y); if (dd < bd) { bd = dd; best = d; } }
+      return best ? { type: 'pickup', it: best, d: bd - 2, x: best.x, y: best.y - 8 } : null;
+    };
+    O.pickUp = (it) => {
+      const s = sim(), G = O.Data.GOODS;
+      if (it.good === 'coin') { PS.money += it.qty; s.pickUpDropped(it); return O.UI.say(`You pick up ${it.qty}d.`); }
+      let n = 0; for (let i = 0; i < it.qty; i++) if (PS.add(it.good)) n++;
+      if (!n) return O.UI.say('Your satchel is full.');
+      if (n < it.qty) it.qty -= n; else s.pickUpDropped(it);
+      O.UI.say(`You pick up ${n > 1 ? n + ' ' : 'a '}${(G[it.good]?.name || it.good).toLowerCase()}.`);
+      game.player.anim = 'pickup'; game.player.ft = 0; setTimeout(() => { if (game.player.anim === 'pickup') game.player.anim = 'idle'; }, 500);
+    };
+    // dropping something from the satchel
+    O.dropItem = (k) => {
+      const s = sim(); if (!PS.items.includes(k)) return;
+      const i = PS.items.indexOf(k); PS.items.splice(i, 1);
+      if (PS.equipped === k && !PS.items.includes(k)) PS.equipped = 'fists';
+      if (game.scene) { const b = game.scene.b; s.drop(k, 1, b.doorX * s.T + 8 + (Math.random() - 0.5) * 10, (b.doorY + 1) * s.T + 4); }
+      else s.drop(k, 1, game.player.x + 6, game.player.y + 2);
+      O.UI.say(`You put down the ${(O.Data.GOODS[k]?.name || k).toLowerCase()}.`);
+    };
+  }
+  O.AftermathFX = { setup };
+})();
+
+</script>
+<script>
 // The guide (/ or the Guide button): controls, and the many ways to live in this world — honest
 // work, trade, property, crime, gangs, politics, war — with where each starts.
 'use strict';
@@ -11884,6 +12341,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   O.Estate.setup(game, home);
   O.UI.setup(game);
   O.Doors.setup(game);
+  O.AftermathFX.setup(game);
   O.Guide.setup(game);
   O.AudioSetup.setup(game, sim);
   if (loaded) { O.Save.hydrateLate(game, home); setTimeout(() => O.Panels.toast(`Welcome back. It is ${O.DAYNAMES[sim.weekday]}.`), 300); }

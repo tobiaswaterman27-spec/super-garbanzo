@@ -223,6 +223,7 @@
       const fx = Math.round(a.x - ox - cam.x), fy = Math.round(a.y - Ch.GROUND - cam.y);
       if (shadow && !fr.ox) { ctx.fillStyle = 'rgba(28,20,44,0.3)'; ctx.fillRect(fx + 11, fy + Ch.GROUND - 1, 10, 3); ctx.fillRect(fx + 9, fy + Ch.GROUND, 14, 1); }
       ctx.drawImage(fr, fx, fy);
+      if (this.game.drawWounds && !fr.ox) this.game.drawWounds(ctx, a, fx, fy);
     }
     flame(ctx, x, y, s) {
       const f = Math.floor(this.t * 10 + x) % 3;

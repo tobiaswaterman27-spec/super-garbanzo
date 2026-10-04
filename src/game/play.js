@@ -98,6 +98,7 @@
   O.Estate.setup(game, home);
   O.UI.setup(game);
   O.Doors.setup(game);
+  O.AftermathFX.setup(game);
   O.Guide.setup(game);
   O.AudioSetup.setup(game, sim);
   if (loaded) { O.Save.hydrateLate(game, home); setTimeout(() => O.Panels.toast(`Welcome back. It is ${O.DAYNAMES[sim.weekday]}.`), 300); }

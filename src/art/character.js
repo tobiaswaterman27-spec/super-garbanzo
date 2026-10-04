@@ -130,6 +130,9 @@
       case 'bard': o.over = P.mat(rng.pick([C.crimson, C.purple, C.teal, C.plum])); o.overLen = 1; o.hat = 'feather'; o.hatMat = P.mat(rng.pick([C.woad, C.olive, C.rose])); o.item = 'lute'; o.boots = true; o.trim = P.mat(P.metal.brass, 'metal'); break;
       case 'courier': o.item = 'satchel'; o.hat = 'feather'; o.hatMat = P.mat(col()); break;
       case 'child': o.item = null; break;
+      case 'undertaker': o.over = P.mat(C.black); o.overLen = 2; o.hat = 'cap'; o.hatMat = P.mat(C.black); o.item = null; o.boots = true; break;
+      case 'bearer': o.over = P.mat(C.linen); o.overLen = 1; o.apron = null; o.item = null; o.sleeves = 'short'; break;
+      case 'sweeper': o.apron = P.mat(C.greyWool); o.item = 'broom'; o.hat = rng.chance(0.5) ? 'cap' : null; o.hatMat = P.mat(C.brown); break;
       default: break;
     }
     return o;
@@ -967,7 +970,7 @@
     if (c) { cache.delete(key); cache.set(key, c); return c; }
     if (anim === 'lie') {
       // lying on the ground: the standing frame turned through exactly 90 degrees (pixel-perfect)
-      const src = render(a, 0, 'idle', 0); c = document.createElement('canvas'); c.width = 48; c.height = 48;
+      const src = render(a, 0, 'sleep', 0); c = document.createElement('canvas'); c.width = 48; c.height = 48;
       const x = c.getContext('2d'); x.translate(2, 47); x.rotate(-Math.PI / 2); x.drawImage(src, 0, 0); c.ox = 24;
     } else c = render(a, dir, anim in ANIMS ? anim : 'idle', f % (ANIMS[anim]?.frames || 1));
     cache.set(key, c);

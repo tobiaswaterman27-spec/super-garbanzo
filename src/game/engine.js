@@ -177,6 +177,7 @@
         else { ctx.fillRect(fx + 11, fy + Ch.GROUND - 1, 10, 3); ctx.fillRect(fx + 9, fy + Ch.GROUND, 14, 1); }
         ctx.drawImage(fr, fx, fy);
         if (fr.front) ctx.drawImage(fr.front, fx, fy);
+        if (this.drawWounds && !fr.ox && a.a && !a.horse && !a.animal) this.drawWounds(ctx, a, fx, fy);
         a._sx = fx; a._sy = fy;
       };
       for (const s of this.statics) {
@@ -241,6 +242,7 @@
 
     drawLightingWith(amb, pools) {
       const { ctx, vw, vh } = this;
+      if (!this.light) return;
       const L = this.light, lc = L.getContext('2d');
       lc.globalCompositeOperation = 'source-over';
       lc.fillStyle = `rgb(${amb[0]},${amb[1]},${amb[2]})`; lc.fillRect(0, 0, vw, vh);
@@ -257,6 +259,7 @@
     }
 
     drawLighting() {
+      if (!this.light) return;
       const amb = this.ambient(); if (amb[0] > 250 && amb[1] > 245 && amb[2] > 235) return;
       const { ctx, cam, vw, vh } = this, w = this.world, T = w.T;
       const L = this.light, lc = L.getContext('2d');

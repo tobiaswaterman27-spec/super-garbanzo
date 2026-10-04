@@ -195,7 +195,7 @@
       void lvl;
     }
 
-    O.lawJail = (g) => jail(g); O.lawArrest = (g) => arrest(g);
+    O.lawJail = (g) => jail(g); O.lawArrest = (g) => arrest(g); O.lawEndChase = () => { try { endChase(false); } catch (e) { /* no chase */ } };
     function jail(g) {
       endChase(false);
       const gh = sim.building(sim.guardId);

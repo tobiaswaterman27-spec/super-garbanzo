@@ -71,18 +71,25 @@
       });
     }
 
+    // build a settlement (its map and its living people) ahead of time, so walking in is instant
+    function ensure(to) {
+      let v = visited.get(to);
+      if (v) return v;
+      const place = K.place(to);
+      const world = O.Gen.makeSettlement(place);
+      O.Roads.attachExits(world, K);
+      const s = new O.Sim(world, O.hash('sim', to), { foreign: true, kingdom: K, day: home.day, minute: home.minute });
+      v = { world, sim: s, leftAt: home.day * 1440 + home.minute }; // it keeps living until you arrive
+      visited.set(to, v);
+      return v;
+    }
     function arrive(from, to, viaRoad) {
       // leave the current settlement
       const leaving = visited.get(game.world.placeId); if (leaving) leaving.leftAt = now();
       let v = visited.get(to);
       if (!v) {
-        const place = K.place(to);
-        const world = O.Gen.makeSettlement(place);
-        O.Roads.attachExits(world, K);
-        const s = new O.Sim(world, O.hash('sim', to), { foreign: true, kingdom: K, day: home.day, minute: home.minute });
-        v = { world, sim: s, leftAt: null };
-        visited.set(to, v);
-        s.log(`A traveller arrived from ${K.place(from).name}.`, 'day');
+        v = ensure(to);
+        v.sim.log(`A traveller arrived from ${K.place(from).name}.`, 'day');
       } else if (v.leftAt != null && v.sim !== home) {
         // catch up on the time we were away (up to two days in detail)
         const missed = Math.min(2880, now() - v.leftAt);
@@ -100,7 +107,7 @@
       if (game.player.mount) game.player.mount.world = to;
       O.Panels.toast(`You reach ${K.place(to).name}. It is ${O.DAYNAMES[v.sim.weekday]}, ${game.timeString()}.`);
     }
-    O.Travel = { visited, journey, arrive };
+    O.Travel = { visited, journey, arrive, ensure };
   }
   O.TravelSetup = { setup };
 })();

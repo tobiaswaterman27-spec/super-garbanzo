@@ -30,7 +30,8 @@
     load(world, playerAppearance) {
       this.world = world;
       const T = world.T;
-      this.ground = O.Terrain.renderGround(world, this.season);
+      this.ground = world._ground && world._groundSeason === this.season ? world._ground : O.Terrain.renderGround(world, this.season);
+      world._ground = this.ground; world._groundSeason = this.season;
       for (const b of world.buildings) if (!b.sprite) b.sprite = b.ruined ? O.Env.ruin(b.spec) : b.type === 'hideout' ? O.Env.hideout(b.level, b.spec) : O.Env.building(b.spec);
       for (const t of world.trees) if (!t.sprite || t.sprite.season !== this.season) { t.sprite = O.Env.tree(t.seed, t.kind, this.season); t.sprite.season = this.season; }
       for (const p of world.props) if (!p.sprite) p.sprite = O.Env.prop(p.kind, p.seed, p.v);

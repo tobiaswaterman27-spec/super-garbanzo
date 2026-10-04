@@ -112,6 +112,9 @@ main { height: 100vh; }
 .mapbar button { min-width: 32px; }
 .mapwrap { position: relative; width: 100%; max-width: none; margin: 0; }
 .mapwrap canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+.settings { display: grid; grid-template-columns: max-content 1fr; gap: 6px 12px; align-items: center; }
+.settings h4 { grid-column: 1 / -1; margin: 10px 0 0; font-family: var(--pix); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; opacity: .8; }
+.settings button { min-width: 200px; text-align: left; }
 .maplabel { position: absolute; transform: translate(-50%, 6px); font-family: var(--pix); font-size: 9px; letter-spacing: .5px; color: #1b1424; background: rgba(232,220,192,.85); padding: 0 3px; white-space: nowrap; pointer-events: none; }
 .maplabel.here { background: var(--ember-2); }
 .maplabel.small { font-size: 7px; padding: 0 2px; background: rgba(232,220,192,.7); }
@@ -3375,7 +3378,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     load(world, playerAppearance) {
       this.world = world;
       const T = world.T;
-      this.ground = O.Terrain.renderGround(world, this.season);
+      this.ground = world._ground && world._groundSeason === this.season ? world._ground : O.Terrain.renderGround(world, this.season);
+      world._ground = this.ground; world._groundSeason = this.season;
       for (const b of world.buildings) if (!b.sprite) b.sprite = b.ruined ? O.Env.ruin(b.spec) : b.type === 'hideout' ? O.Env.hideout(b.level, b.spec) : O.Env.building(b.spec);
       for (const t of world.trees) if (!t.sprite || t.sprite.season !== this.season) { t.sprite = O.Env.tree(t.seed, t.kind, this.season); t.sprite.season = this.season; }
       for (const p of world.props) if (!p.sprite) p.sprite = O.Env.prop(p.kind, p.seed, p.v);
@@ -7207,7 +7211,7 @@ O.snowMaskOf = function (src) {
       this.households = []; this.biz = new Map();
       this.treasury = { cash: 400, taxRate: 0.05, income: 0, spent: 0 };
       this.history = [];
-      this.day = 1; this.minute = 8 * 60 + 30; this._lastMin = -1;
+      this.day = opts.day || 1; this.minute = opts.minute != null ? opts.minute : 8 * 60 + 30; this._lastMin = -1;
       this.stats = { sales: 0, wages: 0, produced: {} };
       this.nextId = 1;
       this.weather = new O.Weather(this);
@@ -7223,6 +7227,9 @@ O.snowMaskOf = function (src) {
       if (opts.foreign) { this.gangs = []; this.kingdom = opts.kingdom; } else { this.gangsInit(); this.kingdom = new O.Kingdom(this); this.kingdom.rulersInit && this.kingdom.rulersInit(); }
       if (opts.day) { this.day = opts.day; this.minute = opts.minute; this._lastMin = -1; this._season = this.season; for (const p of this.people) p.birthday = p.birthday || this.rng.int(1, 56); }
       this._season = this.season;
+      // the town was going about its day before you got here: run it for a while so everyone is
+      // already somewhere doing something, part-way along the street or at work, not all setting out at once
+      if (opts.warm !== false) { const end = this.minute; this.minute = Math.max(0, end - 45); this._lastMin = -1; for (let i = 0; i < 45 && this.minute < end; i++) this.tick(1); this.minute = end; }
     }
 
     // ------------------------------------------------------------------ population
@@ -8077,6 +8084,13 @@ O.snowMaskOf = function (src) {
   O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim); O.Aftermath.installSim(Sim); O.Government.installSim(Sim); O.Nobility.installSim(Sim); O.Trades.installSim(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
+  // everyone keeps their own clock: a few minutes either side, so a street doesn't empty in one minute
+  const _plan = Sim.prototype.plan;
+  Sim.prototype.plan = function (p) {
+    const m = this.minute, off = ((p.id * 37) % 41) - 20, m2 = m + off;
+    if (m2 < 0 || m2 >= 1440) return _plan.call(this, p);
+    this.minute = m2; try { return _plan.call(this, p); } finally { this.minute = m; }
+  };
   // carry-home and delivery tasks finish on entering the destination
   const _onEnter = Sim.prototype.onEnter;
   Sim.prototype.onEnter = function (p, bid) {
@@ -10645,7 +10659,7 @@ O.snowMaskOf = function (src) {
       void lvl;
     }
 
-    O.lawJail = (g) => jail(g); O.lawArrest = (g) => arrest(g);
+    O.lawJail = (g) => jail(g); O.lawArrest = (g) => arrest(g); O.lawEndChase = () => { try { endChase(false); } catch (e) { /* no chase */ } };
     function jail(g) {
       endChase(false);
       const gh = sim.building(sim.guardId);
@@ -11823,18 +11837,25 @@ O.snowMaskOf = function (src) {
       });
     }
 
+    // build a settlement (its map and its living people) ahead of time, so walking in is instant
+    function ensure(to) {
+      let v = visited.get(to);
+      if (v) return v;
+      const place = K.place(to);
+      const world = O.Gen.makeSettlement(place);
+      O.Roads.attachExits(world, K);
+      const s = new O.Sim(world, O.hash('sim', to), { foreign: true, kingdom: K, day: home.day, minute: home.minute });
+      v = { world, sim: s, leftAt: home.day * 1440 + home.minute }; // it keeps living until you arrive
+      visited.set(to, v);
+      return v;
+    }
     function arrive(from, to, viaRoad) {
       // leave the current settlement
       const leaving = visited.get(game.world.placeId); if (leaving) leaving.leftAt = now();
       let v = visited.get(to);
       if (!v) {
-        const place = K.place(to);
-        const world = O.Gen.makeSettlement(place);
-        O.Roads.attachExits(world, K);
-        const s = new O.Sim(world, O.hash('sim', to), { foreign: true, kingdom: K, day: home.day, minute: home.minute });
-        v = { world, sim: s, leftAt: null };
-        visited.set(to, v);
-        s.log(`A traveller arrived from ${K.place(from).name}.`, 'day');
+        v = ensure(to);
+        v.sim.log(`A traveller arrived from ${K.place(from).name}.`, 'day');
       } else if (v.leftAt != null && v.sim !== home) {
         // catch up on the time we were away (up to two days in detail)
         const missed = Math.min(2880, now() - v.leftAt);
@@ -11852,7 +11873,7 @@ O.snowMaskOf = function (src) {
       if (game.player.mount) game.player.mount.world = to;
       O.Panels.toast(`You reach ${K.place(to).name}. It is ${O.DAYNAMES[v.sim.weekday]}, ${game.timeString()}.`);
     }
-    O.Travel = { visited, journey, arrive };
+    O.Travel = { visited, journey, arrive, ensure };
   }
   O.TravelSetup = { setup };
 })();
@@ -12841,7 +12862,7 @@ O.snowMaskOf = function (src) {
     function openMenu() {
       const snd = O.Sound && O.Sound.on;
       menu.innerHTML = `<div class="ui-menu-in"><h2>Outlaw</h2>
-        ${[['resume', 'Continue'], ['satchel', 'Satchel'], ['map', 'Map of Eldoria'], ['chron', 'Chronicle'], ['hold', 'Holdings'], ['gang', 'Gang'], ['ledger', 'Town ledger'], ['guide', 'Guide'], ['sound', `Sound: ${snd ? 'on' : 'off'}`], ['save', 'Save now'], ['new', 'Begin a new life']].map(([k, l]) => `<button data-m="${k}">${l}</button>`).join('')}</div>`;
+        ${[['resume', 'Continue'], ['satchel', 'Satchel'], ['map', 'Map of Eldoria'], ['chron', 'Chronicle'], ['hold', 'Holdings'], ['gang', 'Gang'], ['ledger', 'Town ledger'], ['guide', 'Guide'], ['settings', 'Settings & saves'], ['save', 'Save now']].map(([k, l]) => `<button data-m="${k}">${l}</button>`).join('')}</div>`;
       menu.hidden = false; O.menuOpen = true; game.player.locked = true;
       menu.querySelectorAll('[data-m]').forEach((b) => b.onclick = () => act(b.dataset.m));
       menu.querySelector('button').focus();
@@ -12859,7 +12880,53 @@ O.snowMaskOf = function (src) {
       else if (k === 'sound') O.AudioToggle && O.AudioToggle();
       else if (k === 'save') { O.Save.save(game, O.SimRef.home); }
       else if (k === 'new') confirmNew();
+      else if (k === 'settings') settings();
     }
+    // ---------------------------------------------------------------- settings
+    function pardon() {
+      // for testing: wipe the slate — every crime forgiven, no bounty, the watch no longer looking
+      const sims = [O.SimRef.home, O.SimRef.cur].filter(Boolean);
+      for (const s of sims) for (const c of s.crimes || []) if (c.perp === 'player') c.closed = c.closed || 'pardoned';
+      PS.crimes = []; PS.bounty = false; PS.bountyAmount = 0; PS.exiled = false; PS.stolen = {}; PS.wanted = 0;
+      PS.rep.guard = Math.max(0, PS.rep.guard); PS.rep.civilian = Math.max(0, PS.rep.civilian);
+      O.lawEndChase && O.lawEndChase();
+    }
+    function resetMe() {
+      pardon();
+      PS.money = 0; PS.items = []; PS.hp = 100; PS.energy = 90; PS.hunger = 75; PS.wounds = []; PS.lease = null; PS.room = null;
+      PS.rep.civilian = 0; PS.rep.criminal = 0; PS.rep.guard = 0; PS.rep.merchant = 0; PS.localRep = {};
+      if (game.player.mount && O.Horses) O.Horses.dismount(true);
+    }
+    function settings() {
+      const snd = O.Sound && O.Sound.on, last = O.Save.peek();
+      const row = (k, l, note) => `<button data-s="${k}">${l}</button>${note ? `<span class="lbl">${note}</span>` : ''}`;
+      O.Panels.open('Settings & saves', `<div class="settings">
+        <h4>Saves</h4>
+        ${row('save', 'Save now', last ? `last saved on day ${last.sim?.day ?? last.day ?? '?'}` : 'no save yet')}
+        ${row('load', 'Load the last save', 'go back to where you last saved')}
+        ${row('restart', 'Restart this life', 'same character, the world made fresh')}
+        ${row('new', 'Begin a new life', 'a new character and a new world')}
+        <h4>Game</h4>
+        ${row('sound', `Sound: ${snd ? 'on' : 'off'}`)}
+        ${row('speed', `Time: ${game.clock.speed >= 2 ? 'fast' : 'normal'}`, 'how fast the days go by')}
+        <h4>Testing</h4>
+        ${row('pardon', 'Clear my wanted level', 'every crime forgiven, no bounty, no chase')}
+        ${row('reset', 'Reset me', 'purse, satchel, health, wounds, standing and wanted level back to a fresh arrival')}
+      </div>`, (r) => {
+        r.querySelectorAll('[data-s]').forEach((b) => b.onclick = () => {
+          const k = b.dataset.s;
+          if (k === 'save') { O.Save.save(game, O.SimRef.home); settings(); }
+          else if (k === 'load') { if (!O.Save.peek()) return O.Panels.toast('There is no save yet.', 'bad'); window.__noAutosave = true; location.reload(); }
+          else if (k === 'restart') { O.Save.clear(); window.__noAutosave = true; location.reload(); }
+          else if (k === 'new') confirmNew();
+          else if (k === 'sound') { O.AudioToggle && O.AudioToggle(); settings(); }
+          else if (k === 'speed') { game.clock.speed = game.clock.speed >= 2 ? 1 : 2; settings(); }
+          else if (k === 'pardon') { pardon(); O.Panels.close(); O.UI.say('Your slate is wiped clean. Nobody is looking for you.'); }
+          else if (k === 'reset') { resetMe(); O.Panels.close(); O.UI.say('You are a stranger again: empty-handed, unhurt, unknown and wanted by no one.'); }
+        });
+      });
+    }
+    O.openSettings = settings;
     function confirmNew() {
       O.Panels.open('Begin a new life?', '<p class="caption">This forgets the world as you left it: every person, every crime, your purse and your name. You will make a new character and start again.</p><div class="topics"><button data-yes="1">Yes, start over</button><button data-no="1">Keep playing</button></div>', (r) => {
         r.querySelector('[data-no]').onclick = () => O.Panels.close();
@@ -13505,6 +13572,76 @@ O.snowMaskOf = function (src) {
   }
 
   O.Roads = { attachExits, makeRoadWorld, roadSim, setup, GANGS };
+})();
+
+</script>
+<script>
+// Loading ahead. While you walk about, the places at the ends of the roads you could take are built
+// in the background a little at a time, between frames: the settlement's map and its people, the road
+// itself, the ground, and every building, tree and prop drawn and ready. A town you've already left
+// keeps living in the background too, so when you walk back in it is simply there, already going about
+// its day, with no pause.
+'use strict';
+(function () {
+  const jobs = [];
+  let busy = false;
+
+  // the sprites of a world, one at a time
+  function* paint(world, season) {
+    if (!world._ground || world._groundSeason !== season) { world._ground = O.Terrain.renderGround(world, season); world._groundSeason = season; yield; }
+    for (const b of world.buildings) { if (!b.sprite) { b.sprite = b.ruined ? O.Env.ruin(b.spec) : b.type === 'hideout' ? O.Env.hideout(b.level, b.spec) : O.Env.building(b.spec); yield; } }
+    for (const t of world.trees) { if (!t.sprite || t.sprite.season !== season) { t.sprite = O.Env.tree(t.seed, t.kind, season); t.sprite.season = season; yield; } }
+    for (const p of world.props) { if (!p.sprite) { p.sprite = O.Env.prop(p.kind, p.seed, p.v); } }
+    yield;
+  }
+
+  function add(key, gen) { if (jobs.some((j) => j.key === key)) return; jobs.push({ key, it: gen }); kick(); }
+  function kick() {
+    if (busy) return; busy = true;
+    const run = () => {
+      const t0 = performance.now();
+      while (jobs.length && performance.now() - t0 < 7) {
+        const j = jobs[0];
+        try { const r = j.it.next(); if (r.done) jobs.shift(); } catch (e) { console.warn('prefetch', j.key, e); jobs.shift(); }
+      }
+      if (jobs.length) setTimeout(run, 4); else busy = false;
+    };
+    setTimeout(run, 30);
+  }
+
+  function setup(game, home) {
+    const K = home.kingdom;
+    const now = () => home.day * 1440 + home.minute;
+    let last = null, t = 0;
+    game.hooks.update.push((dt) => {
+      t -= dt; if (t > 0) return; t = 2;
+      const w = game.world; if (!w || !K) return;
+      const season = game.season;
+      // the places the roads from here lead to
+      const targets = [];
+      if (w.road) targets.push(w.road.a, w.road.b);
+      else for (const id of Object.keys(w.exits || {})) if (K.place(id)) targets.push(id);
+      const here = w.road ? null : w.placeId;
+      if (last !== (w.road ? w.road.a + '|' + w.road.b : here)) {
+        last = w.road ? w.road.a + '|' + w.road.b : here;
+        for (const id of targets) {
+          if (id === 'ashford' || id === here) continue;
+          add('town:' + id, (function* () {
+            const v = O.Travel.ensure(id); yield;
+            yield* paint(v.world, season);
+          })());
+          if (here) add('road:' + [here, id].sort().join('|'), (function* () { const rw = O.Roads.roadFor(here, id); yield; yield* paint(rw, season); })());
+        }
+      }
+      // keep the places you've been to (and the ones made ready) living, a slice at a time
+      for (const [id, v] of O.Travel.visited) {
+        if (!v.sim || v.sim === O.SimRef.cur || v.sim === home || v.leftAt == null) continue;
+        if (now() - v.leftAt < 20) continue;
+        add('live:' + id, (function* () { let n = 0; while (now() - v.leftAt >= 2 && n++ < 60 && v.sim !== O.SimRef.cur) { v.sim.tick(2); v.leftAt += 2; yield; } })());
+      }
+    });
+  }
+  O.Prefetch = { setup, paint, add };
 })();
 
 </script>
@@ -14184,6 +14321,7 @@ O.snowMaskOf = function (src) {
   O.KingdomUI.setup(game, sim, npcUI);
   O.TravelSetup.setup(game, home, npcUI);
   O.Roads.setup(game, home);
+  O.Prefetch.setup(game, home);
   O.PropertyUI.setup(game, sim);
   O.ChronicleUI.setup(game, home);
   O.WorkSetup.setup(game, sim, npcUI);

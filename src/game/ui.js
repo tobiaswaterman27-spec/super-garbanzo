@@ -103,7 +103,7 @@
     function openMenu() {
       const snd = O.Sound && O.Sound.on;
       menu.innerHTML = `<div class="ui-menu-in"><h2>Outlaw</h2>
-        ${[['resume', 'Continue'], ['satchel', 'Satchel'], ['map', 'Map of Eldoria'], ['chron', 'Chronicle'], ['hold', 'Holdings'], ['gang', 'Gang'], ['ledger', 'Town ledger'], ['guide', 'Guide'], ['sound', `Sound: ${snd ? 'on' : 'off'}`], ['save', 'Save now'], ['new', 'Begin a new life']].map(([k, l]) => `<button data-m="${k}">${l}</button>`).join('')}</div>`;
+        ${[['resume', 'Continue'], ['satchel', 'Satchel'], ['map', 'Map of Eldoria'], ['chron', 'Chronicle'], ['hold', 'Holdings'], ['gang', 'Gang'], ['ledger', 'Town ledger'], ['guide', 'Guide'], ['settings', 'Settings & saves'], ['save', 'Save now']].map(([k, l]) => `<button data-m="${k}">${l}</button>`).join('')}</div>`;
       menu.hidden = false; O.menuOpen = true; game.player.locked = true;
       menu.querySelectorAll('[data-m]').forEach((b) => b.onclick = () => act(b.dataset.m));
       menu.querySelector('button').focus();
@@ -121,7 +121,53 @@
       else if (k === 'sound') O.AudioToggle && O.AudioToggle();
       else if (k === 'save') { O.Save.save(game, O.SimRef.home); }
       else if (k === 'new') confirmNew();
+      else if (k === 'settings') settings();
     }
+    // ---------------------------------------------------------------- settings
+    function pardon() {
+      // for testing: wipe the slate — every crime forgiven, no bounty, the watch no longer looking
+      const sims = [O.SimRef.home, O.SimRef.cur].filter(Boolean);
+      for (const s of sims) for (const c of s.crimes || []) if (c.perp === 'player') c.closed = c.closed || 'pardoned';
+      PS.crimes = []; PS.bounty = false; PS.bountyAmount = 0; PS.exiled = false; PS.stolen = {}; PS.wanted = 0;
+      PS.rep.guard = Math.max(0, PS.rep.guard); PS.rep.civilian = Math.max(0, PS.rep.civilian);
+      O.lawEndChase && O.lawEndChase();
+    }
+    function resetMe() {
+      pardon();
+      PS.money = 0; PS.items = []; PS.hp = 100; PS.energy = 90; PS.hunger = 75; PS.wounds = []; PS.lease = null; PS.room = null;
+      PS.rep.civilian = 0; PS.rep.criminal = 0; PS.rep.guard = 0; PS.rep.merchant = 0; PS.localRep = {};
+      if (game.player.mount && O.Horses) O.Horses.dismount(true);
+    }
+    function settings() {
+      const snd = O.Sound && O.Sound.on, last = O.Save.peek();
+      const row = (k, l, note) => `<button data-s="${k}">${l}</button>${note ? `<span class="lbl">${note}</span>` : ''}`;
+      O.Panels.open('Settings & saves', `<div class="settings">
+        <h4>Saves</h4>
+        ${row('save', 'Save now', last ? `last saved on day ${last.sim?.day ?? last.day ?? '?'}` : 'no save yet')}
+        ${row('load', 'Load the last save', 'go back to where you last saved')}
+        ${row('restart', 'Restart this life', 'same character, the world made fresh')}
+        ${row('new', 'Begin a new life', 'a new character and a new world')}
+        <h4>Game</h4>
+        ${row('sound', `Sound: ${snd ? 'on' : 'off'}`)}
+        ${row('speed', `Time: ${game.clock.speed >= 2 ? 'fast' : 'normal'}`, 'how fast the days go by')}
+        <h4>Testing</h4>
+        ${row('pardon', 'Clear my wanted level', 'every crime forgiven, no bounty, no chase')}
+        ${row('reset', 'Reset me', 'purse, satchel, health, wounds, standing and wanted level back to a fresh arrival')}
+      </div>`, (r) => {
+        r.querySelectorAll('[data-s]').forEach((b) => b.onclick = () => {
+          const k = b.dataset.s;
+          if (k === 'save') { O.Save.save(game, O.SimRef.home); settings(); }
+          else if (k === 'load') { if (!O.Save.peek()) return O.Panels.toast('There is no save yet.', 'bad'); window.__noAutosave = true; location.reload(); }
+          else if (k === 'restart') { O.Save.clear(); window.__noAutosave = true; location.reload(); }
+          else if (k === 'new') confirmNew();
+          else if (k === 'sound') { O.AudioToggle && O.AudioToggle(); settings(); }
+          else if (k === 'speed') { game.clock.speed = game.clock.speed >= 2 ? 1 : 2; settings(); }
+          else if (k === 'pardon') { pardon(); O.Panels.close(); O.UI.say('Your slate is wiped clean. Nobody is looking for you.'); }
+          else if (k === 'reset') { resetMe(); O.Panels.close(); O.UI.say('You are a stranger again: empty-handed, unhurt, unknown and wanted by no one.'); }
+        });
+      });
+    }
+    O.openSettings = settings;
     function confirmNew() {
       O.Panels.open('Begin a new life?', '<p class="caption">This forgets the world as you left it: every person, every crime, your purse and your name. You will make a new character and start again.</p><div class="topics"><button data-yes="1">Yes, start over</button><button data-no="1">Keep playing</button></div>', (r) => {
         r.querySelector('[data-no]').onclick = () => O.Panels.close();

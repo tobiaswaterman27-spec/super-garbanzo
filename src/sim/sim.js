@@ -23,7 +23,7 @@
       this.households = []; this.biz = new Map();
       this.treasury = { cash: 400, taxRate: 0.05, income: 0, spent: 0 };
       this.history = [];
-      this.day = 1; this.minute = 8 * 60 + 30; this._lastMin = -1;
+      this.day = opts.day || 1; this.minute = opts.minute != null ? opts.minute : 8 * 60 + 30; this._lastMin = -1;
       this.stats = { sales: 0, wages: 0, produced: {} };
       this.nextId = 1;
       this.weather = new O.Weather(this);
@@ -39,6 +39,9 @@
       if (opts.foreign) { this.gangs = []; this.kingdom = opts.kingdom; } else { this.gangsInit(); this.kingdom = new O.Kingdom(this); this.kingdom.rulersInit && this.kingdom.rulersInit(); }
       if (opts.day) { this.day = opts.day; this.minute = opts.minute; this._lastMin = -1; this._season = this.season; for (const p of this.people) p.birthday = p.birthday || this.rng.int(1, 56); }
       this._season = this.season;
+      // the town was going about its day before you got here: run it for a while so everyone is
+      // already somewhere doing something, part-way along the street or at work, not all setting out at once
+      if (opts.warm !== false) { const end = this.minute; this.minute = Math.max(0, end - 45); this._lastMin = -1; for (let i = 0; i < 45 && this.minute < end; i++) this.tick(1); this.minute = end; }
     }
 
     // ------------------------------------------------------------------ population
@@ -893,6 +896,13 @@
   O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim); O.Aftermath.installSim(Sim); O.Government.installSim(Sim); O.Nobility.installSim(Sim); O.Trades.installSim(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
+  // everyone keeps their own clock: a few minutes either side, so a street doesn't empty in one minute
+  const _plan = Sim.prototype.plan;
+  Sim.prototype.plan = function (p) {
+    const m = this.minute, off = ((p.id * 37) % 41) - 20, m2 = m + off;
+    if (m2 < 0 || m2 >= 1440) return _plan.call(this, p);
+    this.minute = m2; try { return _plan.call(this, p); } finally { this.minute = m; }
+  };
   // carry-home and delivery tasks finish on entering the destination
   const _onEnter = Sim.prototype.onEnter;
   Sim.prototype.onEnter = function (p, bid) {

@@ -112,6 +112,9 @@ main { height: 100vh; }
 .mapbar button { min-width: 32px; }
 .mapwrap { position: relative; width: 100%; max-width: none; margin: 0; }
 .mapwrap canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+.settings { display: grid; grid-template-columns: max-content 1fr; gap: 6px 12px; align-items: center; }
+.settings h4 { grid-column: 1 / -1; margin: 10px 0 0; font-family: var(--pix); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; opacity: .8; }
+.settings button { min-width: 200px; text-align: left; }
 .maplabel { position: absolute; transform: translate(-50%, 6px); font-family: var(--pix); font-size: 9px; letter-spacing: .5px; color: #1b1424; background: rgba(232,220,192,.85); padding: 0 3px; white-space: nowrap; pointer-events: none; }
 .maplabel.here { background: var(--ember-2); }
 .maplabel.small { font-size: 7px; padding: 0 2px; background: rgba(232,220,192,.7); }
@@ -328,6 +331,7 @@ main > .wrap { overflow: auto; }
 <script src="../src/game/aftermath-fx.js"></script>
 <script src="../src/game/parish.js"></script>
 <script src="../src/game/roads.js"></script>
+<script src="../src/game/prefetch.js"></script>
 <script src="../src/game/guide.js"></script>
 <script src="../src/game/audio.js"></script>
 <script src="../src/game/creator.js"></script>

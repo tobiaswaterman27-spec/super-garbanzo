@@ -76,6 +76,26 @@
           O.Roads.ambush({ camp: r.camp, rd: r.rd, name: r.rd.name || 'the road' });
         }
       }
+      // real people on their way from one town to another
+      const nowMin = home.day * 1440 + home.minute;
+      if (O.Journeys) {
+        O.Journeys.tickJourneys(K, nowMin);
+        for (const j of K.journeys || []) {
+          if (j.started == null || j.done || (j.arrived && !j.homeward) || nowMin < j.started) continue;
+          const at = O.Journeys.whereOn(K, j); if (!at || !active.includes(at.r)) continue;
+          j._actors = j._actors || (j.travellers || []).map((t, k) => ({ a: O.Char.makeAppearance(t.seed, { sex: t.sex, age: t.age, genes: t.genes, role: t.role === 'merchant' ? 'merchant' : 'villager', wealth: 0.55 }), name: t.name, role: t.role, traveller: true, journey: j, k, x: 0, y: 0, dir: 0, ft: k * 0.3, anim: 'walk' }));
+          const dirn = at.dir * (j.homeward ? 1 : 1);
+          for (const tr of j._actors) {
+            const sd = at.s - tr.k * 1.2 * dirn, [ax, ay] = I.pointAt(at.r, sd), [bx, by] = I.pointAt(at.r, sd + dirn), dd = Math.hypot(bx - ax, by - ay) || 1, side = 0.45 * dirn;
+            const [nx, ny] = local(ax + 0.5 - (by - ay) / dd * side, ay + 0.6 + (bx - ax) / dd * side);
+            if (tr.x || tr.y) tr.dir = O.dirOf(nx - tr.x, ny - tr.y);
+            tr.x = nx; tr.y = ny; tr.ft += dt; tr.anim = j.horse ? 'run' : 'walk'; tr.s = sd; tr.road = at.r; tr.dirn = dirn;
+            extra.push(tr);
+          }
+        }
+        // anyone whose journey was lost (an old save) simply comes home
+        for (const v of O.Travel.visited.values()) for (const q of v.sim.people) if (q.away && !(K.journeys || []).some((x) => x.id === q.away.journey && !x.done)) { q.away = null; q.agent.hidden = false; }
+      }
       if (extra.length) game.actors.push(...extra.filter((e) => e.x > -64 && e.y > -64 && e.x < w.W * T + 64 && e.y < w.H * T + 64));
     });
 
@@ -106,18 +126,23 @@
       return out;
     });
 
+    // journeys go on whether or not you're out on the road to see them
+    game.hooks.update.push(() => { if (O.Journeys) O.Journeys.tickJourneys(K, home.day * 1440 + home.minute); });
+
     // talk to travellers and look round the ruins out in the country
     const cand0 = O.roadCandidate, act0 = O.roadAct;
     O.roadCandidate = () => {
       const w = game.world; if (!w || game.scene) return null;
       if (!w.island) return cand0 ? cand0() : null;
       const p = game.player; let best = null, bd = 26;
+      for (const tr of game.actors) if (tr.journey) { const d = Math.hypot(tr.x - p.x, tr.y - p.y); if (d < bd) { bd = d; best = { type: 'traveller', tr, d, x: tr.x, y: tr.y - 44 }; } }
       for (const r of active) { const st = state.get(r.key); if (st) for (const tr of st.travellers) { if (tr.down) continue; const d = Math.hypot(tr.x - p.x, tr.y - p.y); if (d < bd) { bd = d; best = { type: 'traveller', tr, d, x: tr.x, y: tr.y - 44 }; } } }
       for (const b of w.buildings) if (b.ruined && b.ruinNote) { const d = Math.hypot(b.doorX * T + 8 - p.x, b.doorY * T - p.y); if (d < 40 && d < bd) { bd = d; best = { type: 'ruin', b, d, x: b.doorX * T + 8, y: b.doorY * T - 30 }; } }
       return best;
     };
     O.roadAct = (c) => {
       if (!game.world.island || c.type !== 'traveller') return act0(c);
+      if (c.tr.journey) { const j = c.tr.journey, to = K.place(j.homeward ? j.from : j.to), from = K.place(j.homeward ? j.to : j.from); const what = j.homeward ? `Home to ${to.name}, at last.` : j.purpose === 'trade' ? `Taking ${Object.entries(j.goods || {}).map(([g, n]) => `${n} ${O.Data.GOODS[g]?.name.toLowerCase()}`).join(' and ')} from ${from.name} to sell in ${to.name}.` : j.purpose === 'move' ? `We're leaving ${from.name} for good. There's nothing for us there now. ${to.name}, we hope.` : `Off to ${to.name} to see family.`; O.UI.dialog.open({ name: c.tr.name, color: '#8a6a4a', text: what, options: [] }); return; }
       const tr = c.tr, r = tr.road, to = K.place(tr.dirn > 0 ? r.rd.b : r.rd.a);
       const news = K.news.length ? K.news[K.news.length - 1].text : null;
       const lines = [`Bound for ${to.name}. Long way yet.`, r.camp ? `Mind ${r.camp.gang} further on. They keep a fire off the road and want paying.` : 'Quiet road, this. That suits me.', news ? `I hear ${news.charAt(0).toLowerCase() + news.slice(1)}` : 'Little news worth the telling.', 'Fine weather for walking, if it holds.', `${to.name}? Good ale there.`];

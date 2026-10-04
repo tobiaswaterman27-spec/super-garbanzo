@@ -25,6 +25,8 @@
       const b = scene.b;
       if (b.owner && b.owner.kind === 'player') return 'your own';
       if (PS.room && PS.room.b === b.id && cur().day <= PS.room.until) return null; // a rented bed isn't a workshop
+      if (PS.lease && PS.lease.b === b.id) return 'your rented';
+      const E = O.Employment && O.Employment.here(); if (E && E.biz === b.id) return `${E.masterName}'s`; // where you work
       const J = O.Work && O.Work.job(); const bz = J && cur().biz.get(J.biz);
       if (J && J.biz === b.id && bz && bz.open) return `${J.masterName}'s`;
       return null;

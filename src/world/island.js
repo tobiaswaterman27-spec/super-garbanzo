@@ -364,14 +364,20 @@
   // ---------- the outskirts ----------
   // Which of the realm's trades a place has round it, by its size and the land about it
   const TOWN_TRADES = ['posthouse', 'brewery', 'saddler', 'fletcher', 'scriptorium', 'barber', 'laundry', 'carrier', 'wainwright', 'ropewalk', 'glazier', 'agency', 'brickworks', 'dyer', 'moneylender', 'tollhouse'];
-  function outskirtsFor(pl) {
+  function outskirtsFor(pl, tw) {
     const pop = pl.pop || 100, kind = pl.kind;
     const big = kind === 'capital' || kind === 'city', town = big || kind === 'town' || kind === 'port' || pop >= 300, village = !town && (kind === 'village' || pop >= 60);
-    const list = [];
+    const list = [], has = new Set((tw ? tw.buildings : []).map((b) => b.type));
+    // first whatever the place needs and hasn't got: a hall to govern from, the everyday trades
+    const need = town || kind === 'mine' ? ['townhall', 'stable', 'butcher', 'carpenter', 'tailor', 'smithy'] : village || kind === 'castle' ? ['stable', 'butcher', 'carpenter', 'tailor', 'smithy'] : [];
+    for (const t of need) if (!has.has(t)) list.push(t);
     if (town) list.push(...TOWN_TRADES.slice(0, big ? 16 : 11));
     else if (village) list.push('posthouse', 'brewery', 'carrier');
     list.push('apiary', 'lodge', 'charcoal', 'claypit', 'saltworks', 'peatcut', 'vineyard', 'boatyard', 'fishery', 'ferry');
-    return list.filter((t) => O.Data.BUSINESS[t]).slice(0, big ? 26 : town ? 21 : village ? 9 : 4);
+    // a big place needs more than one of the common employers, so its people have work
+    if (big) list.push('carrier', 'laundry', 'ropewalk', 'brickworks', 'carpenter', 'tailor', 'brewery', 'butcher');
+    else if (town) list.push('carrier', 'laundry', 'carpenter');
+    return list.filter((t) => O.Data.BUSINESS[t]).slice(0, big ? 38 : town ? 29 : village ? 14 : 4);
   }
   function placeOutskirts(id, C) {
     const { W, H, R, ter, solid, trees, props, buildings, kindAt, inTown, TR, tw, ox, oy } = C;
@@ -427,7 +433,7 @@
       return b;
     };
     const step = 3;
-    for (const type of outskirtsFor(pl)) {
+    for (const type of outskirtsFor(pl, tw)) {
       const def = D.BUSINESS[type]; if (!def) continue;
       if (def.south && pl.region !== 'south') continue;
       if (type === 'fishery' && tw.buildings.some((b) => b.type === 'fishery')) continue;
@@ -438,8 +444,10 @@
         if (!fits(x, y, w, d)) continue; bs = sc; best = [x, y];
       }
       if (!best) continue;
+      const LOOK2 = { townhall: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'gable', chimney: true, sign: 'shield', floors: 2 }, stable: { wall: 'plank', plankMat: 'plank', roof: 'shingle', roofType: 'side', bigDoor: true }, butcher: { wall: 'timber', roof: 'tile', sign: 'scales' }, carpenter: { wall: 'plank', roof: 'shingle', sign: 'hammer' }, tailor: { wall: 'timber', roof: 'thatch', shopWindow: true }, smithy: { wall: 'stone', roof: 'slate', chimney: true, sign: 'anvil' } };
       const surname = O.Names ? rng.pick(O.Names.SUR) : 'Ward';
-      const b = build(type, w, d, Object.assign({ wall: 'timber', roof: 'thatch' }, def.look || {}), type === 'posthouse' || type === 'tollhouse' ? `${pl.name} ${def.label}` : `${surname}'s ${def.label}`, best[0], best[1], { floors: def.floors || 1 });
+      const lk = Object.assign({ wall: 'timber', roof: 'thatch' }, def.look || LOOK2[type] || {});
+      const b = build(type, w, d, lk, ['posthouse', 'tollhouse', 'townhall'].includes(type) ? `${pl.name} ${def.label}` : `${surname}'s ${def.label}`, best[0], best[1], { floors: def.floors || lk.floors || 1 });
       lane(b.doorX, b.doorY + 1);
       // a cottage nearby for the hands
       for (const [dx, dy] of [[w + 3, 0], [-7, 0], [0, 7], [w + 3, 6], [-7, 6]]) { const cx = best[0] + dx, cy = best[1] + dy; if (fits(cx, cy, 4, 3)) { const hb = build('house', 4, 3, { wall: rng.pick(['timber', 'plank', 'stone']), roof: rng.pick(['thatch', 'shingle']), chimney: true, doorTile: 1 }, 'Cottage', cx, cy); lane(hb.doorX, hb.doorY + 1); break; } }

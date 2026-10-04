@@ -1,5 +1,5 @@
 // The kingdom: settlements simulated in the abstract (distance level 3), linked by roads, trading by
-// caravan, governed from Thornbury Castle. Ashford is the one settlement simulated in full; its
+// caravan, governed from Highmere Castle. Ashford is the one settlement simulated in full; its
 // figures come from the detailed simulation.
 'use strict';
 (function () {
@@ -11,29 +11,15 @@
       this.sim = sim; this.rng = O.RNG(777);
       this.treasury = 2400; this.taxRate = 0.08; this.news = []; this.caravans = []; this.councils = [];
       const S = (o) => Object.assign({ wealth: 0.5, food: 1, security: 0.6, happiness: 0.6, crime: 0.2, health: 0.8, dev: 1, guards: 4, prices: {}, stock: {}, gang: 0.05, events: [] }, o);
-      // positions on a 64 x 40 map; region: north mountains, east wealth, south farms, west coast
-      this.places = [
-        S({ id: 'kingsbridge', name: 'Kingsbridge', kind: 'capital', region: 'east', x: 52, y: 20, pop: 4200, wealth: 0.85, produces: { cloth: 30, wine: 12, grain: 150 }, guards: 60, leader: 'the Lord Mayor of Kingsbridge', priority: 'trade' }),
-        S({ id: 'thornbury', name: 'Thornbury Castle', kind: 'castle', region: 'east', x: 47, y: 9, pop: 380, wealth: 0.9, produces: { grain: 14 }, guards: 80, leader: 'Lord Edmund of Thornbury', priority: 'security' }),
-        S({ id: 'saltmouth', name: 'Saltmouth', kind: 'port', region: 'west', x: 7, y: 22, pop: 1600, wealth: 0.6, produces: { fish: 60, salt: 25, wool: 10, grain: 20 }, guards: 18, leader: 'the Port-reeve of Saltmouth', priority: 'trade' }),
-        S({ id: 'harrowdale', name: 'Harrowdale', kind: 'town', region: 'north', x: 24, y: 6, pop: 900, wealth: 0.45, produces: { iron: 40, timber: 20, grain: 30 }, guards: 10, leader: 'the Steward of Harrowdale', priority: 'roads' }),
-        S({ id: 'greymoor', name: 'Greymoor', kind: 'village', region: 'north', x: 13, y: 9, pop: 160, wealth: 0.3, produces: { wool: 20, iron: 6, grain: 6 }, guards: 2, leader: 'the Headman of Greymoor', priority: 'food' }),
-        S({ id: 'wheatley', name: 'Wheatley', kind: 'village', region: 'south', x: 28, y: 33, pop: 340, wealth: 0.45, produces: { grain: 140, wine: 6 }, guards: 3, leader: 'the Reeve of Wheatley', priority: 'food' }),
-        S({ id: 'oakhollow', name: 'Oakhollow', kind: 'village', region: 'west', x: 16, y: 30, pop: 120, wealth: 0.3, produces: { timber: 40, grain: 5 }, guards: 1, leader: 'the Woodward of Oakhollow', priority: 'roads' }),
-        S({ id: 'ashford', name: 'Ashford', kind: 'village', region: 'south', x: 33, y: 22, pop: 80, wealth: 0.45, produces: { grain: 30, timber: 10 }, guards: 4, leader: 'the Reeve of Ashford', priority: 'security', detailed: true }),
-      ];
+      // the island of Eldoria: see eldoria.js
+      this.places = O.Eldoria.places(S);
       for (const p of this.places) for (const g of GOODS) { p.stock[g] = (p.produces[g] || 0) * 3 + 20; p.prices[g] = BASE[g]; }
-      // roads: [a, b, quality 0..1, danger 0..1, bridge]
-      this.roads = [
-        ['saltmouth', 'oakhollow', 0.5, 0.25, false], ['saltmouth', 'ashford', 0.7, 0.2, false], ['ashford', 'kingsbridge', 0.8, 0.15, true],
-        ['ashford', 'wheatley', 0.6, 0.1, false], ['ashford', 'harrowdale', 0.5, 0.3, false], ['harrowdale', 'greymoor', 0.35, 0.35, false],
-        ['harrowdale', 'thornbury', 0.6, 0.2, false], ['thornbury', 'kingsbridge', 0.9, 0.05, false], ['oakhollow', 'wheatley', 0.4, 0.3, false],
-      ].map(([a, b, q, d, br]) => ({ a, b, quality: q, danger: d, bridge: br, damaged: false }));
+      this.roads = O.Eldoria.roads();
     }
     place(id) { return this.places.find((p) => p.id === id); }
     road(a, b) { return this.roads.find((r) => (r.a === a && r.b === b) || (r.a === b && r.b === a)); }
     neighbours(id) { return this.roads.filter((r) => r.a === id || r.b === id).map((r) => (r.a === id ? r.b : r.a)); }
-    dist(a, b) { const A = this.place(a), B = this.place(b); return Math.hypot(A.x - B.x, A.y - B.y); }
+    dist(a, b) { const A = this.place(a), B = this.place(b); return Math.hypot(A.x - B.x, A.y - B.y) * 0.5; } // the island map is drawn at twice the old scale
     route(a, b) { // BFS by road (few nodes)
       const prev = { [a]: null }, q = [a];
       while (q.length) { const c = q.shift(); if (c === b) break; for (const n of this.neighbours(c)) if (!(n in prev) && !this.road(c, n).damaged) { prev[n] = c; q.push(n); } }
@@ -110,7 +96,7 @@
       const path = this.route(from.id, to.id); if (!path) return;
       const qty = Math.min(Math.floor(from.stock[g] * 0.5), 80); from.stock[g] -= qty;
       const danger = Math.max(...path.slice(1).map((n, i) => this.road(path[i], n).danger));
-      const merchant = r.pick(['Hugh Chapman', 'Alis Mercer', 'Robert Packer', 'Gilbert of Saltmouth', 'Joan Draper', 'Walter Vintner', 'Simon Ironside']);
+      const merchant = r.pick(['Hugh Chapman', 'Alis Mercer', 'Robert Packer', 'Gilbert of Westhaven', 'Joan Draper', 'Walter Vintner', 'Simon Ironside']);
       const c = { id: Math.random().toString(36).slice(2, 7), good: g, qty, from: from.id, to: to.id, path, leg: 0, prog: 0, value: Math.round(qty * from.prices[g]), merchant, guards: danger > 0.25 ? 3 : danger > 0.15 ? 2 : 1, done: false };
       this.caravans.push(c);
     }
@@ -155,7 +141,7 @@
       const outlaw = O.PlayerState && (O.PlayerState.bounty || (sim.playerGang && sim.playerGang() && sim.playerGang().influence > 0.2));
       if (outlaw) issues.push({ kind: 'bounty', cost: 60, text: 'post a bounty on the outlaws troubling Ashford' });
       if (this.treasury < 600) issues.push({ kind: 'tax', cost: 0, text: 'raise the crown tax' });
-      if (!issues.length) { this.addNews('The council met at Thornbury Castle and found little to trouble it.', 'politics'); return; }
+      if (!issues.length) { this.addNews('The council met at Highmere Castle and found little to trouble it.', 'politics'); return; }
       const agenda = issues.sort(() => r.next() - 0.5).slice(0, 3);
       const leaders = this.places.filter((p) => p.leader);
       const record = { day: sim.day, items: [] };
@@ -163,7 +149,7 @@
         let yes = 0;
         const votes = leaders.map((l) => {
           const PSx = O.PlayerState; if (l.detailed && PSx && (PSx.reeve || PSx.lord)) { const aye = it.kind === (PSx.councilPriority || 'security') || it.s === l || (it.kind !== 'tax' && PSx.councilDefault === 'aye'); if (aye) yes++; return { who: 'you, for Ashford', aye }; }
-          let v = 0.45 + (l.priority === it.kind ? 0.35 : 0) + (it.s === l ? 0.3 : 0) - (it.cost > 150 ? 0.1 : 0) - (it.kind === 'tax' ? (l.id === 'thornbury' ? -0.4 : 0.25) : 0) + r.float(-0.2, 0.2);
+          let v = 0.45 + (l.priority === it.kind ? 0.35 : 0) + (it.s === l ? 0.3 : 0) - (it.cost > 150 ? 0.1 : 0) - (it.kind === 'tax' ? (l.id === 'highmere' ? -0.4 : 0.25) : 0) + r.float(-0.2, 0.2);
           const aye = v > 0.5; if (aye) yes++; return { who: l.leader, aye };
         });
         const pass = yes > leaders.length / 2 && this.treasury >= it.cost;
@@ -179,7 +165,7 @@
       }
       this.councils.push(record);
       const passed = record.items.filter((x) => x.pass).map((x) => x.text);
-      this.addNews(passed.length ? `The council at Thornbury Castle voted to ${passed.join('; and to ')}.` : `The council at Thornbury Castle argued long and agreed nothing.`, 'politics');
+      this.addNews(passed.length ? `The council at Highmere Castle voted to ${passed.join('; and to ')}.` : `The council at Highmere Castle argued long and agreed nothing.`, 'politics');
       for (const x of record.items.filter((i) => !i.pass)) this.addNews(`The motion to ${x.text} was defeated, ${x.yes} votes to ${x.of - x.yes}.`, 'politics');
     }
   }

@@ -111,6 +111,9 @@ main { height: 100vh; }
 .mapwrap canvas { width: 100%; height: auto; border: 2px solid #000; image-rendering: pixelated; }
 .maplabel { position: absolute; transform: translate(-50%, 6px); font-family: var(--pix); font-size: 9px; letter-spacing: .5px; color: #1b1424; background: rgba(232,220,192,.85); padding: 0 3px; white-space: nowrap; pointer-events: none; }
 .maplabel.here { background: var(--ember-2); }
+.maplabel.small { font-size: 7px; padding: 0 2px; background: rgba(232,220,192,.7); }
+.maplabel.region { background: none; color: rgba(240,232,210,.85); font-style: italic; font-size: 8px; text-shadow: 0 1px 0 #1b1424; transform: translate(-50%, 0); }
+.maplabel.water { background: none; color: #cfe2f0; font-size: 7px; text-shadow: 0 1px 0 #1b2440; }
 @media (max-width: 760px) { .hud-b { display: none; } }
 .kv small button, .ledger td button { background: var(--ink); color: var(--parch); border: 2px solid var(--line); padding: 1px 6px; cursor: pointer; font-family: var(--pix); font-size: 9px; }
 .ledger select { background: var(--ink); border: 2px solid var(--line); padding: 2px 4px; font-size: 12px; max-width: 220px; }
@@ -2866,7 +2869,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     return { rng, ter, solid, set, fill, buildings, props, trees, B, look, P, free, walls, scatter, finish, st };
   }
 
-  // Kingsbridge: a walled city on a river, with a grand market, a wealthy quarter, workshops,
+  // Aurelia: a walled city on a river, with a grand market, a wealthy quarter, workshops,
   // warehouses by the water, and a crowded poor quarter.
   function makeCity(place) {
     const W = 128, H = 88, seed = O.hash('city', place.id);
@@ -2884,7 +2887,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     fill(44, 30, 64, 43, TER.COBBLE); // the great market
     K.walls(x0, y0, x1, y1, [[x0, roadY + 1], [x1, roadY + 1]], 0);
     // market and civic buildings around the square
-    B({ type: 'townhall', name: 'Guildhall of Kingsbridge', x: 48, bottom: 28, w: 8, d: 5, floors: 2, wealth: 0.85, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'tile', roofType: 'gable', chimney: true, sign: 'scales', doorTile: 4, bigDoor: true, noFlowers: true } });
+    B({ type: 'townhall', name: 'Guildhall of Aurelia', x: 48, bottom: 28, w: 8, d: 5, floors: 2, wealth: 0.85, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'tile', roofType: 'gable', chimney: true, sign: 'scales', doorTile: 4, bigDoor: true, noFlowers: true } });
     B({ type: 'chapel', name: 'Cathedral of St. Brannoc', x: 58, bottom: 21, w: 8, d: 7, wealth: 0.9, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 4, wallH: 86, bigDoor: true, noFlowers: true } });
     for (let i = 0; i < 8; i++) { const sx = 46 + (i % 4) * 5, sy = 33 + Math.floor(i / 4) * 5; P('stall', sx, sy, { v: i % 4 }); K.solid[sy * W + sx - 1] = 1; K.solid[sy * W + sx + 1] = 1; }
     P('noticeboard', 54, 42, { broadsheet: true }); // the broadsheet seller's board
@@ -2912,7 +2915,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     return K.finish({ roadY, exits: { west: [0, roadY], east: [W - 1, roadY] }, river: true, zones: { square: [45, 31, 63, 42], bench: [46, 31], farm: [8, 82, 30, 84], wood: [2, 82, 20, 86], east: [W - 1, roadY], patrol: [[55, 44], [20, 44], [40, 24], [80, 24], [110, 44], [96, 64], [60, 64], [40, 44]] }, city: true });
   }
 
-  // Thornbury: a curtain-walled castle with a keep, and its village outside the gate.
+  // Highmere: a curtain-walled castle with a keep, and its village outside the gate.
   function makeCastle(place) {
     const W = 96, H = 72, seed = O.hash('castle', place.id);
     const K = kit(place, W, H, seed), { rng, set, fill, B, look, P, free } = K;
@@ -2923,7 +2926,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     fill(cx0 + 1, cy0 + 1, cx1 - 1, cy1 - 1, TER.YARD); // the bailey
     fill(gateX - 1, 22, gateX, cy1, TER.COBBLE);
     K.walls(cx0, cy0, cx1, cy1, [[gateX, cy1]], 1);
-    B({ type: 'keep', name: 'The Keep of Thornbury', x: 42, bottom: 18, w: 9, d: 7, floors: 3, wealth: 0.95, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', roofType: 'gable', chimney: true, sign: 'shield', doorTile: 4, bigDoor: true, noFlowers: true } });
+    B({ type: 'keep', name: 'The Keep of Highmere', x: 42, bottom: 18, w: 9, d: 7, floors: 3, wealth: 0.95, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', roofType: 'gable', chimney: true, sign: 'shield', doorTile: 4, bigDoor: true, noFlowers: true } });
     P('tower', 41, 18, { v: 2 }); P('tower', 51, 18, { v: 2 });
     B({ type: 'guard', name: 'Barracks', x: 31, bottom: 15, w: 7, d: 4, wealth: 0.6, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', roofType: 'side', sign: 'shield', doorTile: 3, noFlowers: true } });
     B({ type: 'chapel', name: 'Castle Chapel', x: 56, bottom: 15, w: 5, d: 5, wealth: 0.8, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 2, wallH: 64, noFlowers: true } });
@@ -4787,8 +4790,163 @@ O.snowMaskOf = function (src) {
 
 </script>
 <script>
+// The island of Eldoria. About five thousand souls in thirty-three settlements, from the walled
+// capital of Aurelia on the River Aure, where King Aldric IV and Queen Elinora hold court in the
+// royal castle, down to Oldbridge, fifteen people and a broken bridge. Four castles keep the island:
+// the royal castle at Aurelia, Highmere in the northern peaks, Eastmarch on the east coast and
+// Westcliff above the western sea. Five great tracts of wild country — the Eldorian Peaks, the
+// Frostwood, the King's Forest, Blackpine and the Greenwood — lie between the farms, crossed by six
+// named roads and a web of lesser paths. Ruins of older times stand in the wild places.
+//
+// Map units: the island fits a 128 x 96 grid. `terrainAt(x, y)` says what the land is anywhere on
+// it, so the realm map and the countryside you walk through between towns agree.
+'use strict';
+(function () {
+  const W = 128, H = 96;
+
+  // regions: wild country with a centre and a size
+  const REGIONS = [
+    { id: 'peaks', name: 'the Eldorian Peaks', kind: 'mountain', x: 62, y: 18, rx: 20, ry: 10 },
+    { id: 'frostwood', name: 'the Frostwood', kind: 'forest', x: 36, y: 17, rx: 14, ry: 9, cold: true },
+    { id: 'blackpine', name: 'Blackpine', kind: 'forest', x: 22, y: 38, rx: 10, ry: 13, dark: true },
+    { id: 'kingsforest', name: "the King's Forest", kind: 'forest', x: 90, y: 30, rx: 12, ry: 8 },
+    { id: 'greenwood', name: 'the Greenwood', kind: 'forest', x: 58, y: 80, rx: 15, ry: 7 },
+  ];
+  const LAKES = [
+    { id: 'eldor', name: 'Lake Eldor', x: 57, y: 46, rx: 5.5, ry: 3.6 },
+    { id: 'frostmerelake', name: 'Frostmere Lake', x: 46, y: 24, rx: 4, ry: 2.8 },
+    { id: 'kingslake', name: "King's Lake", x: 82, y: 34, rx: 3.2, ry: 2.4 },
+    { id: 'southmere', name: 'Southmere', x: 72, y: 70, rx: 4, ry: 2.8 },
+  ];
+  const RIVERS = [
+    { id: 'aure', name: 'the River Aure', pts: [[64, 26], [70, 32], [75, 38], [78, 42], [84, 48], [89, 56], [98, 62], [106, 66], [114, 69]] },
+    { id: 'rivermere', name: 'the Rivermere', pts: [[52, 48], [46, 51], [40, 53], [32, 55], [24, 56], [16, 58], [9, 59]] },
+    { id: 'northflow', name: 'the Northflow', pts: [[56, 22], [50, 23], [44, 22], [38, 16], [33, 10], [30, 5]] },
+    { id: 'green', name: 'the Green River', pts: [[60, 49], [62, 56], [62, 63], [68, 68], [72, 70], [73, 78], [74, 86], [75, 92]] },
+    { id: 'blackwater', name: 'the Blackwater', pts: [[30, 30], [26, 36], [21, 41], [15, 44], [8, 46]] },
+  ];
+
+  // [id, name, kind, x, y, pop, region style, area, leader title, produces]
+  const S = [
+    ['aurelia', 'Aurelia', 'capital', 78, 42, 1100, 'east', 'the Heartland', 'the Lord Mayor', { cloth: 34, wine: 14, grain: 60 }],
+    ['westhaven', 'Westhaven', 'port', 12, 44, 650, 'west', 'the Western Shore', 'the Port-reeve', { fish: 60, salt: 10, wool: 10, timber: 10 }],
+    ['goldmere', 'Goldmere', 'town', 98, 36, 600, 'east', 'the Eastern Vale', 'the Master of the Guilds', { cloth: 20, wine: 12, iron: 6 }],
+    ['frostmere', 'Frostmere', 'town', 42, 27, 500, 'north', 'the Frostwood', 'the Steward', { iron: 36, timber: 26, wool: 8 }],
+    ['greenvale', 'Greenvale', 'town', 62, 64, 450, 'south', 'the Southern Farmlands', 'the Bailiff', { grain: 120, wool: 12, wine: 6 }],
+    ['rivermouth', 'Rivermouth', 'town', 24, 57, 350, 'west', 'the Rivermere', 'the Bridgemaster', { fish: 30, grain: 30, timber: 8 }],
+    ['eastwatch', 'Eastwatch', 'town', 112, 48, 300, 'east', 'the Eastern Shore', 'the Captain of the Watch', { fish: 40, salt: 12 }],
+    ['millhaven', 'Millhaven', 'village', 66, 56, 250, 'south', 'the Southern Farmlands', 'the Miller-reeve', { grain: 70 }],
+    ['crossfield', 'Crossfield', 'village', 64, 46, 220, 'south', 'the Heartland', 'the Market-reeve', { grain: 30, cloth: 4 }],
+    ['saltmere', 'Saltmere', 'village', 40, 84, 180, 'west', 'the Southern Shore', 'the Saltreeve', { salt: 30, fish: 18 }],
+    ['sunfield', 'Sunfield', 'village', 52, 70, 160, 'south', 'the Southern Farmlands', 'the Reeve', { grain: 90, wine: 4 }],
+    ['bellford', 'Bellford', 'village', 88, 57, 140, 'east', 'the Aure Valley', 'the Reeve', { grain: 30, fish: 6 }],
+    ['ashford', 'Ashford', 'village', 46, 51, 120, 'south', 'the Rivermere', 'the Reeve', { grain: 30, timber: 10 }],
+    ['highmere', 'Highmere Castle', 'castle', 58, 14, 90, 'north', 'the Eldorian Peaks', 'Lord', { grain: 6, iron: 4 }],
+    ['eastmarch', 'Eastmarch Castle', 'castle', 108, 38, 80, 'east', 'the Eastern Shore', 'Lord', { grain: 6 }],
+    ['westcliff', 'Westcliff Castle', 'castle', 9, 32, 70, 'west', 'the Western Shore', 'Lady', { fish: 6 }],
+    ['thornwick', 'Thornwick', 'village', 90, 24, 100, 'east', "the King's Forest", 'the Woodward', { timber: 30, grain: 8 }],
+    ['elmstead', 'Elmstead', 'village', 50, 79, 95, 'south', 'the Greenwood', 'the Woodward', { timber: 30, grain: 6 }],
+    ['brackenhurst', 'Brackenhurst', 'village', 84, 15, 90, 'north', 'the Northern Moors', 'the Headman', { wool: 26, grain: 6 }],
+    ['stonebridge', 'Stonebridge', 'village', 56, 36, 85, 'north', 'the Heartland', 'the Reeve', { grain: 16, timber: 6 }],
+    ['kettleby', 'Kettleby', 'village', 34, 45, 80, 'west', 'Blackpine', 'the Reeve', { timber: 14, grain: 10 }],
+    ['copperhill', 'Copperhill', 'mine', 70, 22, 75, 'north', 'the Eldorian Peaks', 'the Mine-master', { iron: 30 }],
+    ['marshby', 'Marshby', 'hamlet', 31, 65, 70, 'west', 'the Rivermere', 'the Headman', { fish: 10, grain: 8 }],
+    ['redwater', 'Redwater', 'hamlet', 22, 71, 60, 'west', 'the Southern Shore', 'the Headman', { fish: 12, salt: 4 }],
+    ['ravenscar', 'Ravenscar', 'hamlet', 30, 8, 60, 'north', 'the Northern Shore', 'the Headman', { fish: 14, wool: 10 }],
+    ['pinecrest', 'Pinecrest', 'hamlet', 24, 27, 55, 'west', 'Blackpine', 'the Woodward', { timber: 22 }],
+    ['foxley', 'Foxley', 'hamlet', 80, 68, 55, 'south', 'the Southern Farmlands', 'the Headman', { grain: 24 }],
+    ['wolfden', 'Wolfden', 'hamlet', 34, 18, 45, 'north', 'the Frostwood', 'the Headman', { timber: 14, wool: 6 }],
+    ['larkspur', 'Larkspur', 'hamlet', 96, 72, 45, 'east', 'the Southern Shore', 'the Headman', { grain: 14, fish: 6 }],
+    ['hollowmere', 'Hollowmere', 'hamlet', 44, 63, 40, 'south', 'the Rivermere', 'the Headman', { grain: 14 }],
+    ['fernbrook', 'Fernbrook', 'hamlet', 64, 84, 30, 'south', 'the Greenwood', 'the Headman', { timber: 8, grain: 4 }],
+    ['dunmore', 'Dunmore', 'hamlet', 102, 58, 25, 'east', 'the Eastern Shore', 'the Headman', { wool: 6 }],
+    ['oldbridge', 'Oldbridge', 'hamlet', 74, 51, 15, 'east', 'the Aure Valley', 'the Headman', { grain: 4 }],
+  ];
+
+  // [a, b, quality, danger, bridge, road name]
+  const ROADS = [
+    // the King's Road: Aurelia -> Crossfield -> (Ashford) -> Rivermouth -> (Hollowmere) -> Greenvale
+    ['aurelia', 'crossfield', 0.9, 0.05, true, "the King's Road"], ['crossfield', 'ashford', 0.8, 0.12, false, "the King's Road"], ['ashford', 'rivermouth', 0.75, 0.15, true, "the King's Road"],
+    ['rivermouth', 'hollowmere', 0.65, 0.2, false, "the King's Road"], ['hollowmere', 'greenvale', 0.7, 0.15, false, "the King's Road"],
+    // the Eastern Trade Road
+    ['aurelia', 'goldmere', 0.9, 0.08, false, 'the Eastern Trade Road'], ['goldmere', 'eastwatch', 0.75, 0.15, false, 'the Eastern Trade Road'],
+    // the Western Road
+    ['aurelia', 'stonebridge', 0.75, 0.15, true, 'the Western Road'], ['stonebridge', 'kettleby', 0.6, 0.25, false, 'the Western Road'], ['kettleby', 'rivermouth', 0.6, 0.25, false, 'the Western Road'], ['rivermouth', 'westhaven', 0.7, 0.2, true, 'the Western Road'],
+    // the Northern Road
+    ['stonebridge', 'frostmere', 0.6, 0.25, false, 'the Northern Road'], ['frostmere', 'ravenscar', 0.45, 0.35, false, 'the Northern Road'],
+    // the Iron Road, through the mines of the peaks
+    ['frostmere', 'highmere', 0.55, 0.3, false, 'the Iron Road'], ['highmere', 'copperhill', 0.55, 0.3, false, 'the Iron Road'], ['copperhill', 'thornwick', 0.5, 0.3, false, 'the Iron Road'], ['thornwick', 'goldmere', 0.6, 0.2, false, 'the Iron Road'],
+    // the Southern Farm Road
+    ['greenvale', 'sunfield', 0.65, 0.1, false, 'the Southern Farm Road'], ['sunfield', 'elmstead', 0.55, 0.2, false, 'the Southern Farm Road'], ['elmstead', 'saltmere', 0.5, 0.25, false, 'the Southern Farm Road'],
+    ['greenvale', 'millhaven', 0.7, 0.1, true, 'the Southern Farm Road'], ['millhaven', 'crossfield', 0.7, 0.1, false, 'the Southern Farm Road'],
+    // lesser paths
+    ['aurelia', 'oldbridge', 0.5, 0.15, true, 'the Aure path'], ['oldbridge', 'bellford', 0.5, 0.15, false, 'the Aure path'], ['bellford', 'dunmore', 0.4, 0.3, false, 'the cliff path'], ['dunmore', 'eastwatch', 0.4, 0.3, false, 'the cliff path'],
+    ['eastwatch', 'eastmarch', 0.6, 0.15, false, 'the castle road'], ['goldmere', 'eastmarch', 0.5, 0.2, false, 'the castle road'], ['westhaven', 'westcliff', 0.6, 0.15, false, 'the castle road'],
+    ['westhaven', 'pinecrest', 0.4, 0.35, false, 'the Blackpine track'], ['pinecrest', 'wolfden', 0.35, 0.45, false, 'the Blackpine track'], ['wolfden', 'frostmere', 0.4, 0.35, false, 'the Frostwood track'],
+    ['pinecrest', 'kettleby', 0.4, 0.35, false, 'the Blackpine track'], ['thornwick', 'brackenhurst', 0.45, 0.3, false, 'the moor road'], ['brackenhurst', 'highmere', 0.4, 0.35, false, 'the moor road'],
+    ['bellford', 'foxley', 0.5, 0.15, false, 'the Aure path'], ['foxley', 'larkspur', 0.45, 0.2, false, 'the coast path'], ['foxley', 'greenvale', 0.55, 0.12, false, 'the farm lane'],
+    ['rivermouth', 'marshby', 0.4, 0.25, false, 'the marsh path'], ['marshby', 'redwater', 0.4, 0.25, false, 'the marsh path'], ['redwater', 'saltmere', 0.45, 0.25, false, 'the salt path'],
+    ['elmstead', 'fernbrook', 0.4, 0.3, false, 'the Greenwood track'], ['ashford', 'sunfield', 0.5, 0.15, false, 'the farm lane'], ['millhaven', 'oldbridge', 0.45, 0.15, false, 'the farm lane'],
+  ];
+
+  // ruins of older times, in the wild places
+  const RUINS = [
+    { id: 'vaelhold', name: 'the ruins of Vaelhold', x: 48, y: 12, note: 'a broken keep of the old kings, above the Frostwood' },
+    { id: 'blackabbey', name: 'Black Abbey', x: 18, y: 36, note: 'a roofless abbey deep in Blackpine' },
+    { id: 'sunkenhall', name: 'the Sunken Hall', x: 56, y: 82, note: 'a hall half-swallowed by the Greenwood' },
+    { id: 'watchstone', name: 'the Watchstone', x: 100, y: 28, note: 'a ring of standing stones on the eastern moor' },
+    { id: 'drownedtower', name: 'the Drowned Tower', x: 58, y: 46, note: 'a tower standing in the shallows of Lake Eldor' },
+  ];
+
+  // ---------- the land itself ----------
+  const nz = (x, y, s) => O.fbm(x, y, s, 3);
+  function landAt(x, y) {
+    const wx = x + (nz(x / 14, y / 14, 501) - 0.5) * 14, wy = y + (nz(x / 14, y / 14, 503) - 0.5) * 12;
+    const d = ((wx - 62) / 58) ** 2 + ((wy - 48) / 44) ** 2;
+    return d < 1;
+  }
+  const segDist = (px, py, a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1; const t = O.clamp(((px - a[0]) * dx + (py - a[1]) * dy) / l2, 0, 1); return Math.hypot(px - (a[0] + dx * t), py - (a[1] + dy * t)); };
+  function riverAt(x, y) { for (const r of RIVERS) for (let i = 1; i < r.pts.length; i++) { const w = 0.32 + i * 0.045; if (segDist(x, y, r.pts[i - 1], r.pts[i]) < w) return r; } return null; }
+  function lakeAt(x, y) { for (const l of LAKES) { const wob = (nz(x / 3, y / 3, 11) - 0.5) * 0.35; if (((x - l.x) / l.rx) ** 2 + ((y - l.y) / l.ry) ** 2 < 1 + wob) return l; } return null; }
+  function regionAt(x, y) {
+    let best = null, bv = 1;
+    for (const r of REGIONS) { const wob = (nz(x / 5, y / 5, r.x) - 0.5) * 0.7; const v = ((x - r.x) / r.rx) ** 2 + ((y - r.y) / r.ry) ** 2 - wob; if (v < bv) { bv = v; best = r; } }
+    return best ? { r: best, depth: 1 - bv } : null;
+  }
+  // 'sea' | 'beach' | 'lake' | 'river' | 'peak' | 'mountain' | 'forest' | 'farm' | 'grass' | 'moor' | 'marsh'
+  function terrainAt(x, y) {
+    if (!landAt(x, y)) return 'sea';
+    if (!landAt(x + 1.2, y) || !landAt(x - 1.2, y) || !landAt(x, y + 1.2) || !landAt(x, y - 1.2)) return 'beach';
+    if (lakeAt(x, y)) return 'lake';
+    if (riverAt(x, y)) return 'river';
+    const g = regionAt(x, y);
+    if (g) {
+      if (g.r.kind === 'mountain') return g.depth > 0.55 ? 'peak' : 'mountain';
+      if (g.r.kind === 'forest') return 'forest';
+    }
+    if (y < 22 && x > 74) return 'moor';
+    const blob = (cx, cy, rx, ry, seed) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 < 1 + (nz(x / 5, y / 5, seed) - 0.5) * 1.2;
+    if (blob(28, 66, 7, 5, 9) || blob(20, 70, 5, 4, 13)) return 'marsh';
+    if ((blob(64, 64, 22, 10, 77) || blob(86, 64, 10, 7, 79) || blob(42, 58, 7, 5, 81)) && nz(x / 3, y / 3, 83) > 0.3) return 'farm';
+    return nz(x / 4, y / 4, 31) > 0.68 ? 'forest' : 'grass';
+  }
+  function regionName(x, y) { const g = regionAt(x, y); if (g) return g.r.name; const t = terrainAt(x, y); return t === 'farm' ? 'the farmlands' : t === 'moor' ? 'the moors' : t === 'marsh' ? 'the marshes' : 'open country'; }
+
+  function places(Sx) {
+    return S.map(([id, name, kind, x, y, pop, region, area, title, produces]) => Sx({ id, name, kind, x, y, pop, region, area, leader: `${title} of ${name.replace(' Castle', '')}`, produces,
+      wealth: kind === 'capital' ? 0.85 : kind === 'castle' ? 0.8 : id === 'goldmere' ? 0.75 : kind === 'town' || kind === 'port' ? 0.55 : kind === 'hamlet' ? 0.3 : 0.42,
+      guards: kind === 'capital' ? 60 : kind === 'castle' ? 40 : kind === 'town' || kind === 'port' ? 12 : kind === 'village' ? 3 : 1,
+      priority: kind === 'castle' ? 'security' : produces.grain > 60 ? 'food' : 'roads', detailed: id === 'ashford' }));
+  }
+  function roads() { return ROADS.map(([a, b, q, d, br, name]) => ({ a, b, quality: q, danger: d, bridge: br, name, damaged: false })); }
+
+  O.Eldoria = { W, H, REGIONS, LAKES, RIVERS, RUINS, SETTLEMENTS: S, ROADS, places, roads, terrainAt, landAt, regionAt, regionName, riverAt, lakeAt };
+})();
+
+</script>
+<script>
 // The kingdom: settlements simulated in the abstract (distance level 3), linked by roads, trading by
-// caravan, governed from Thornbury Castle. Ashford is the one settlement simulated in full; its
+// caravan, governed from Highmere Castle. Ashford is the one settlement simulated in full; its
 // figures come from the detailed simulation.
 'use strict';
 (function () {
@@ -4800,29 +4958,15 @@ O.snowMaskOf = function (src) {
       this.sim = sim; this.rng = O.RNG(777);
       this.treasury = 2400; this.taxRate = 0.08; this.news = []; this.caravans = []; this.councils = [];
       const S = (o) => Object.assign({ wealth: 0.5, food: 1, security: 0.6, happiness: 0.6, crime: 0.2, health: 0.8, dev: 1, guards: 4, prices: {}, stock: {}, gang: 0.05, events: [] }, o);
-      // positions on a 64 x 40 map; region: north mountains, east wealth, south farms, west coast
-      this.places = [
-        S({ id: 'kingsbridge', name: 'Kingsbridge', kind: 'capital', region: 'east', x: 52, y: 20, pop: 4200, wealth: 0.85, produces: { cloth: 30, wine: 12, grain: 150 }, guards: 60, leader: 'the Lord Mayor of Kingsbridge', priority: 'trade' }),
-        S({ id: 'thornbury', name: 'Thornbury Castle', kind: 'castle', region: 'east', x: 47, y: 9, pop: 380, wealth: 0.9, produces: { grain: 14 }, guards: 80, leader: 'Lord Edmund of Thornbury', priority: 'security' }),
-        S({ id: 'saltmouth', name: 'Saltmouth', kind: 'port', region: 'west', x: 7, y: 22, pop: 1600, wealth: 0.6, produces: { fish: 60, salt: 25, wool: 10, grain: 20 }, guards: 18, leader: 'the Port-reeve of Saltmouth', priority: 'trade' }),
-        S({ id: 'harrowdale', name: 'Harrowdale', kind: 'town', region: 'north', x: 24, y: 6, pop: 900, wealth: 0.45, produces: { iron: 40, timber: 20, grain: 30 }, guards: 10, leader: 'the Steward of Harrowdale', priority: 'roads' }),
-        S({ id: 'greymoor', name: 'Greymoor', kind: 'village', region: 'north', x: 13, y: 9, pop: 160, wealth: 0.3, produces: { wool: 20, iron: 6, grain: 6 }, guards: 2, leader: 'the Headman of Greymoor', priority: 'food' }),
-        S({ id: 'wheatley', name: 'Wheatley', kind: 'village', region: 'south', x: 28, y: 33, pop: 340, wealth: 0.45, produces: { grain: 140, wine: 6 }, guards: 3, leader: 'the Reeve of Wheatley', priority: 'food' }),
-        S({ id: 'oakhollow', name: 'Oakhollow', kind: 'village', region: 'west', x: 16, y: 30, pop: 120, wealth: 0.3, produces: { timber: 40, grain: 5 }, guards: 1, leader: 'the Woodward of Oakhollow', priority: 'roads' }),
-        S({ id: 'ashford', name: 'Ashford', kind: 'village', region: 'south', x: 33, y: 22, pop: 80, wealth: 0.45, produces: { grain: 30, timber: 10 }, guards: 4, leader: 'the Reeve of Ashford', priority: 'security', detailed: true }),
-      ];
+      // the island of Eldoria: see eldoria.js
+      this.places = O.Eldoria.places(S);
       for (const p of this.places) for (const g of GOODS) { p.stock[g] = (p.produces[g] || 0) * 3 + 20; p.prices[g] = BASE[g]; }
-      // roads: [a, b, quality 0..1, danger 0..1, bridge]
-      this.roads = [
-        ['saltmouth', 'oakhollow', 0.5, 0.25, false], ['saltmouth', 'ashford', 0.7, 0.2, false], ['ashford', 'kingsbridge', 0.8, 0.15, true],
-        ['ashford', 'wheatley', 0.6, 0.1, false], ['ashford', 'harrowdale', 0.5, 0.3, false], ['harrowdale', 'greymoor', 0.35, 0.35, false],
-        ['harrowdale', 'thornbury', 0.6, 0.2, false], ['thornbury', 'kingsbridge', 0.9, 0.05, false], ['oakhollow', 'wheatley', 0.4, 0.3, false],
-      ].map(([a, b, q, d, br]) => ({ a, b, quality: q, danger: d, bridge: br, damaged: false }));
+      this.roads = O.Eldoria.roads();
     }
     place(id) { return this.places.find((p) => p.id === id); }
     road(a, b) { return this.roads.find((r) => (r.a === a && r.b === b) || (r.a === b && r.b === a)); }
     neighbours(id) { return this.roads.filter((r) => r.a === id || r.b === id).map((r) => (r.a === id ? r.b : r.a)); }
-    dist(a, b) { const A = this.place(a), B = this.place(b); return Math.hypot(A.x - B.x, A.y - B.y); }
+    dist(a, b) { const A = this.place(a), B = this.place(b); return Math.hypot(A.x - B.x, A.y - B.y) * 0.5; } // the island map is drawn at twice the old scale
     route(a, b) { // BFS by road (few nodes)
       const prev = { [a]: null }, q = [a];
       while (q.length) { const c = q.shift(); if (c === b) break; for (const n of this.neighbours(c)) if (!(n in prev) && !this.road(c, n).damaged) { prev[n] = c; q.push(n); } }
@@ -4899,7 +5043,7 @@ O.snowMaskOf = function (src) {
       const path = this.route(from.id, to.id); if (!path) return;
       const qty = Math.min(Math.floor(from.stock[g] * 0.5), 80); from.stock[g] -= qty;
       const danger = Math.max(...path.slice(1).map((n, i) => this.road(path[i], n).danger));
-      const merchant = r.pick(['Hugh Chapman', 'Alis Mercer', 'Robert Packer', 'Gilbert of Saltmouth', 'Joan Draper', 'Walter Vintner', 'Simon Ironside']);
+      const merchant = r.pick(['Hugh Chapman', 'Alis Mercer', 'Robert Packer', 'Gilbert of Westhaven', 'Joan Draper', 'Walter Vintner', 'Simon Ironside']);
       const c = { id: Math.random().toString(36).slice(2, 7), good: g, qty, from: from.id, to: to.id, path, leg: 0, prog: 0, value: Math.round(qty * from.prices[g]), merchant, guards: danger > 0.25 ? 3 : danger > 0.15 ? 2 : 1, done: false };
       this.caravans.push(c);
     }
@@ -4944,7 +5088,7 @@ O.snowMaskOf = function (src) {
       const outlaw = O.PlayerState && (O.PlayerState.bounty || (sim.playerGang && sim.playerGang() && sim.playerGang().influence > 0.2));
       if (outlaw) issues.push({ kind: 'bounty', cost: 60, text: 'post a bounty on the outlaws troubling Ashford' });
       if (this.treasury < 600) issues.push({ kind: 'tax', cost: 0, text: 'raise the crown tax' });
-      if (!issues.length) { this.addNews('The council met at Thornbury Castle and found little to trouble it.', 'politics'); return; }
+      if (!issues.length) { this.addNews('The council met at Highmere Castle and found little to trouble it.', 'politics'); return; }
       const agenda = issues.sort(() => r.next() - 0.5).slice(0, 3);
       const leaders = this.places.filter((p) => p.leader);
       const record = { day: sim.day, items: [] };
@@ -4952,7 +5096,7 @@ O.snowMaskOf = function (src) {
         let yes = 0;
         const votes = leaders.map((l) => {
           const PSx = O.PlayerState; if (l.detailed && PSx && (PSx.reeve || PSx.lord)) { const aye = it.kind === (PSx.councilPriority || 'security') || it.s === l || (it.kind !== 'tax' && PSx.councilDefault === 'aye'); if (aye) yes++; return { who: 'you, for Ashford', aye }; }
-          let v = 0.45 + (l.priority === it.kind ? 0.35 : 0) + (it.s === l ? 0.3 : 0) - (it.cost > 150 ? 0.1 : 0) - (it.kind === 'tax' ? (l.id === 'thornbury' ? -0.4 : 0.25) : 0) + r.float(-0.2, 0.2);
+          let v = 0.45 + (l.priority === it.kind ? 0.35 : 0) + (it.s === l ? 0.3 : 0) - (it.cost > 150 ? 0.1 : 0) - (it.kind === 'tax' ? (l.id === 'highmere' ? -0.4 : 0.25) : 0) + r.float(-0.2, 0.2);
           const aye = v > 0.5; if (aye) yes++; return { who: l.leader, aye };
         });
         const pass = yes > leaders.length / 2 && this.treasury >= it.cost;
@@ -4968,7 +5112,7 @@ O.snowMaskOf = function (src) {
       }
       this.councils.push(record);
       const passed = record.items.filter((x) => x.pass).map((x) => x.text);
-      this.addNews(passed.length ? `The council at Thornbury Castle voted to ${passed.join('; and to ')}.` : `The council at Thornbury Castle argued long and agreed nothing.`, 'politics');
+      this.addNews(passed.length ? `The council at Highmere Castle voted to ${passed.join('; and to ')}.` : `The council at Highmere Castle argued long and agreed nothing.`, 'politics');
       for (const x of record.items.filter((i) => !i.pass)) this.addNews(`The motion to ${x.text} was defeated, ${x.yes} votes to ${x.of - x.yes}.`, 'politics');
     }
   }
@@ -5122,10 +5266,10 @@ O.snowMaskOf = function (src) {
 
 </script>
 <script>
-// War with the Marcher Lords of Varn, beyond the northern passes.
+// War with the Sea-Lords of Varn, across the northern strait.
 //
 // Peace can sour into border raids; raids into war, if the castle council votes for it. In war the
-// crown musters an army at Thornbury and levies men from every place (in Ashford you can watch the
+// crown musters an army at Highmere and levies men from every place (in Ashford you can watch the
 // recruiting sergeant take them, and see the column march down the King's Road); war taxes rise;
 // grain is requisitioned; the smiths get crown orders; armies march by road, meet in battle (fought
 // in the abstract, reported without gore), besiege, burn and damage roads; refugees flee south. A
@@ -5133,7 +5277,7 @@ O.snowMaskOf = function (src) {
 // or don't, and their families are told.
 'use strict';
 (function () {
-  const ENEMY = 'the Marcher Lords of Varn';
+  const ENEMY = 'the Sea-Lords of Varn';
 
   function install(Kingdom) {
     const K = Kingdom.prototype, _daily = K.daily;
@@ -5149,23 +5293,23 @@ O.snowMaskOf = function (src) {
 
     K.warDaily = function () {
       const W = this.warInit(), r = this.rng, sim = this.sim, day = sim.day;
-      const front = ['greymoor', 'harrowdale'];
+      const front = ['ravenscar', 'frostmere'];
       if (W.phase === 'peace') {
         // raids grow likelier the longer the peace and the weaker the north
-        const north = this.place('greymoor');
+        const north = this.place('ravenscar');
         if (day - W.since > 12 && r.chance(0.012 + (north.security < 0.5 ? 0.01 : 0))) {
           W.phase = 'tension'; W.since = day;
           north.food = Math.max(0.4, north.food - 0.2); north.happiness = Math.max(0.1, north.happiness - 0.15); north.pop = Math.max(40, north.pop - 6);
-          this.addNews(`Riders from ${ENEMY} burned farms near Greymoor. The north asks the crown for protection.`, 'war', 'greymoor');
+          this.addNews(`Riders from ${ENEMY} burned farms near Ravenscar. The north asks the crown for protection.`, 'war', 'ravenscar');
         }
       } else if (W.phase === 'tension') {
-        if (r.chance(0.3)) this.addNews(`More raiders were seen in the passes above Greymoor.`, 'war', 'greymoor');
+        if (r.chance(0.3)) this.addNews(`More raiders were seen in the passes above Ravenscar.`, 'war', 'ravenscar');
         if (day - W.since >= 4) {
           // an emergency council: war or a bought peace
           const PSx = O.PlayerState, mine = PSx && (PSx.reeve || PSx.lord) && PSx.warStance; const hawks = this.places.filter((p) => p.leader && (p.detailed && mine ? PSx.warStance === 'hawk' : (p.priority === 'security' || p.region === 'north' || r.chance(0.4)))).length;
           const leaders = this.places.filter((p) => p.leader).length;
           if (hawks > leaders / 2 && this.treasury > 300) this.declareWar();
-          else { W.phase = 'peace'; W.since = day; this.treasury -= Math.min(this.treasury, 200); this.addNews(`The council at Thornbury Castle paid ${ENEMY} 200 crowns to keep to their side of the mountains.`, 'politics'); }
+          else { W.phase = 'peace'; W.since = day; this.treasury -= Math.min(this.treasury, 200); this.addNews(`The council at Highmere Castle paid ${ENEMY} 200 crowns to keep to their side of the mountains.`, 'politics'); }
         }
       } else if (W.phase === 'war') {
         this.warCampaign();
@@ -5174,17 +5318,17 @@ O.snowMaskOf = function (src) {
 
     K.declareWar = function (opts = {}) {
       const W = this.war, sim = this.sim;
-      W.enemy = opts.enemy || ENEMY; W.foeHome = opts.home || 'greymoor'; W.civil = !!opts.civil;
+      W.enemy = opts.enemy || ENEMY; W.foeHome = opts.home || 'ravenscar'; W.civil = !!opts.civil;
       const FOE = W.enemy, fh = W.foeHome;
       W.phase = 'war'; W.since = sim.day; W.wars++; W.score = 0; W.battles = []; W.taxBefore = this.taxRate;
       this.taxRate = Math.min(0.2, this.taxRate + 0.04);
       const levy = this.places.filter((p) => !p.detailed).reduce((s, p) => { const n = Math.round(p.pop * 0.02); p.pop -= n; return s + n; }, 0);
       W.armies = [
-        { id: 1, side: 'crown', name: opts.crownName || "the King's host", men: 220 + levy, at: 'thornbury', path: ['thornbury', 'harrowdale', fh], morale: 0.7 },
-        { id: 2, side: 'enemy', name: opts.hostName || `the host of ${FOE}`, men: (opts.men || 290) + this.rng.int(0, 180), at: fh, path: [fh, 'harrowdale', 'thornbury'], morale: 0.7, wait: 2 },
-        { id: 3, side: 'crown', name: 'the Kingsbridge levy', men: 90, at: 'kingsbridge', path: ['kingsbridge', 'ashford', 'harrowdale'], morale: 0.6 },
+        { id: 1, side: 'crown', name: opts.crownName || "the King's host", men: 220 + levy, at: 'highmere', path: ['highmere', 'frostmere', fh], morale: 0.7 },
+        { id: 2, side: 'enemy', name: opts.hostName || `the host of ${FOE}`, men: (opts.men || 290) + this.rng.int(0, 180), at: fh, path: [fh, 'frostmere', 'highmere'], morale: 0.7, wait: 2 },
+        { id: 3, side: 'crown', name: 'the Aurelia levy', men: 90, at: 'aurelia', path: ['aurelia', 'ashford', 'frostmere'], morale: 0.6 },
       ];
-      this.addNews(opts.announce || `WAR. The castle council has declared war on ${FOE}. The King's host musters at Thornbury and every town must send men.`, 'war');
+      this.addNews(opts.announce || `WAR. The castle council has declared war on ${FOE}. The King's host musters at Highmere and every town must send men.`, 'war');
       this.addNews(`The crown tax is raised to ${Math.round(this.taxRate * 100)}% to pay for the war.`, 'politics');
       sim.onWar && sim.onWar('declared');
     };
@@ -5211,8 +5355,8 @@ O.snowMaskOf = function (src) {
         if (a.wait) { a.wait--; continue; }
         if (alive().some((x) => x.side !== a.side && x.at === a.at)) continue;
         let target;
-        if (a.side === 'crown') target = a.id === 3 && a.at !== 'harrowdale' && !a.joined ? 'harrowdale' : near(a, 'enemy')?.at || W.foeHome || 'greymoor';
-        else target = (near(a, 'crown') && W.score >= 0) ? near(a, 'crown').at : 'thornbury';
+        if (a.side === 'crown') target = a.id === 3 && a.at !== 'frostmere' && !a.joined ? 'frostmere' : near(a, 'enemy')?.at || W.foeHome || 'ravenscar';
+        else target = (near(a, 'crown') && W.score >= 0) ? near(a, 'crown').at : 'highmere';
         const rt = path(a.at, target); if (!rt || rt.length < 2 || !r.chance(0.6)) continue;
         const from = a.at, next = rt[1];
         if (next === 'ashford' || from === 'ashford') sim.onArmyPasses && sim.onArmyPasses(a);
@@ -5239,9 +5383,9 @@ O.snowMaskOf = function (src) {
         W.score += crownWins ? 1 : -1;
         const b = { day: sim.day, at, crownWins, lossC, lossF }; W.battles.push(b);
         // the loser falls back along its road
-        for (const a of crownWins ? foe : crown) { const home = a.side === 'crown' ? 'thornbury' : W.foeHome || 'greymoor'; const rt = (() => { const prev = { [a.at]: null }, q = [a.at]; while (q.length) { const c = q.shift(); if (c === home) break; for (const n of this.neighbours(c)) if (!(n in prev)) { prev[n] = c; q.push(n); } } const out = []; for (let c = home; c && c in prev; c = prev[c]) out.unshift(c); return out; })(); if (rt.length > 1) a.at = rt[1]; a.wait = 2; }
+        for (const a of crownWins ? foe : crown) { const home = a.side === 'crown' ? 'highmere' : W.foeHome || 'ravenscar'; const rt = (() => { const prev = { [a.at]: null }, q = [a.at]; while (q.length) { const c = q.shift(); if (c === home) break; for (const n of this.neighbours(c)) if (!(n in prev)) { prev[n] = c; q.push(n); } } const out = []; for (let c = home; c && c in prev; c = prev[c]) out.unshift(c); return out; })(); if (rt.length > 1) a.at = rt[1]; a.wait = 2; }
         for (const a of crownWins ? crown : foe) a.wait = 1;
-        if (!crownWins && at !== (W.foeHome || 'greymoor')) { const pl = this.place(at); pl.happiness = Math.max(0.05, pl.happiness - 0.15); }
+        if (!crownWins && at !== (W.foeHome || 'ravenscar')) { const pl = this.place(at); pl.happiness = Math.max(0.05, pl.happiness - 0.15); }
         this.addNews(crownWins ? `Victory at ${pl.name}! ${cap(crown[0].name)} drove off ${foe[0].name}. ${lossC} of the King's men will not come home.` : `Defeat at ${pl.name}. ${cap(crown[0].name)} gave way before ${foe[0].name}; ${lossC} of the King's men fell.`, 'war', at);
         sim.onBattle && sim.onBattle(b);
       }
@@ -5255,10 +5399,10 @@ O.snowMaskOf = function (src) {
       const W = this.war, sim = this.sim;
       W.phase = 'truce'; W.since = sim.day; W.winner = winner; W.armies = [];
       this.taxRate = winner === 'enemy' ? Math.min(0.2, (W.taxBefore || 0.08) + 0.03) : (W.taxBefore || 0.08);
-      if (W.civil) { W.enemy = ENEMY; W.foeHome = 'greymoor'; W.civil = false; this.taxRate = W.taxBefore || 0.08; this.onCivilEnd && this.onCivilEnd(winner); sim.onWar && sim.onWar('peace', winner); return; }
-      if (winner === 'crown') { this.treasury += 300; this.addNews(`PEACE. ${cap(W.enemy)} have sued for peace and paid tribute. The Treaty of Thornbury is sealed; bells ring in every town.`, 'war'); }
-      else if (winner === 'enemy') { this.treasury = Math.max(0, this.treasury - 400); const g = this.place('greymoor'); g.wealth = Math.max(0.05, g.wealth - 0.15); this.addNews(`PEACE, of a kind. The crown has bought an end to the war with gold and the northern pastures. The war tax stays.`, 'war'); }
-      else this.addNews(`Both hosts are spent. A truce is agreed at Harrowdale and the men are sent home.`, 'war');
+      if (W.civil) { W.enemy = ENEMY; W.foeHome = 'ravenscar'; W.civil = false; this.taxRate = W.taxBefore || 0.08; this.onCivilEnd && this.onCivilEnd(winner); sim.onWar && sim.onWar('peace', winner); return; }
+      if (winner === 'crown') { this.treasury += 300; this.addNews(`PEACE. ${cap(W.enemy)} have sued for peace and paid tribute. The Treaty of Highmere is sealed; bells ring in every town.`, 'war'); }
+      else if (winner === 'enemy') { this.treasury = Math.max(0, this.treasury - 400); const g = this.place('ravenscar'); g.wealth = Math.max(0.05, g.wealth - 0.15); this.addNews(`PEACE, of a kind. The crown has bought an end to the war with gold and the northern pastures. The war tax stays.`, 'war'); }
+      else this.addNews(`Both hosts are spent. A truce is agreed at Frostmere and the men are sent home.`, 'war');
       sim.onWar && sim.onWar('peace', winner);
     };
   }
@@ -5412,15 +5556,16 @@ O.snowMaskOf = function (src) {
     K.rulersInit = function () {
       if (this.rulers) return this.rulers;
       const r = this.rng, day = this.sim.day;
-      const crown = Object.assign(person(r, 62, 70, 'm'), { name: 'Aldred', regnal: 'III', since: day - 9 * yearDays() });
+      const crown = Object.assign(person(r, 62, 70, 'm'), { name: 'Aldric', regnal: 'IV', since: day - 9 * yearDays() });
+      crown.queen = { name: 'Elinora', sex: 'f', age: crown.age - 4 };
       crown.heir = person(r, 13, 22);
-      const R = this.rulers = { crown, pretender: { name: 'Robert', sex: 'm', age: 41, title: 'Duke of Harrowdale', seat: 'harrowdale', ambition: 0.5 + r.next() * 0.4 }, reigns: [{ who: crownTitle(crown), from: crown.since, to: null, how: 'inherited' }], lords: {}, mourning: null, regent: null };
+      const R = this.rulers = { crown, pretender: { name: 'Robert', sex: 'm', age: 41, title: 'Duke of Frostmere', seat: 'frostmere', ambition: 0.5 + r.next() * 0.4 }, reigns: [{ who: crownTitle(crown), from: crown.since, to: null, how: 'inherited' }], lords: {}, mourning: null, regent: null };
       // the lords of the realm's places become people too
-      const titles = { kingsbridge: ['the Lord Mayor', 'm'], thornbury: ['Lord', 'm'], saltmouth: ['the Port-reeve', null], harrowdale: ['the Steward', null], greymoor: ['the Headman', null], wheatley: ['the Reeve', null], oakhollow: ['the Woodward', null] };
+      const titles = { aurelia: ['the Lord Mayor', 'm'], highmere: ['Lord', 'm'], westhaven: ['the Port-reeve', null], frostmere: ['the Steward', null], ravenscar: ['the Headman', null], sunfield: ['the Reeve', null], elmstead: ['the Woodward', null] };
       for (const p of this.places) {
         if (p.detailed) continue;
-        const t = titles[p.id] || ['the Reeve', null];
-        const L = p.id === 'thornbury' ? Object.assign(person(r, 52, 60, 'm'), { name: 'Edmund' }) : person(r, 35, 64, t[1]);
+        const t = titles[p.id] || [(p.leader || 'the Reeve of x').split(' of ')[0], p.kind === 'castle' ? (p.leader || '').startsWith('Lady') ? 'f' : 'm' : null];
+        const L = p.id === 'highmere' ? Object.assign(person(r, 52, 60, 'm'), { name: 'Edmund' }) : person(r, 35, 64, t[1]);
         L.heir = person(r, 8, 30); L.title = t[0];
         R.lords[p.id] = L; p.leader = this.lordName(p.id);
       }
@@ -5476,14 +5621,14 @@ O.snowMaskOf = function (src) {
       const same = R.reigns.filter((x) => x.who.includes(` ${h.name}`)).length;
       R.crown = Object.assign(h, { regnal: same ? ROMAN[same + 1] : '', since: this.sim.day, ailing: false, heir: person(r, 0, 6) });
       if (h.age < 16) {
-        R.regent = { name: this.lordName('thornbury'), until: this.sim.day + (16 - h.age) * yearDays() };
+        R.regent = { name: this.lordName('highmere'), until: this.sim.day + (16 - h.age) * yearDays() };
         R.reigns.push({ who: crownTitle(R.crown), from: this.sim.day, to: null, how: 'inherited as a child' });
         this.addNews(`${crownTitle(R.crown)}, only ${h.age} years old, is proclaimed. ${R.regent.name} will rule as regent until ${pron(h) === 'his' ? 'he' : 'she'} comes of age.`, 'rulers');
         if (r.chance(0.5 * R.pretender.ambition + 0.2)) this.rebellion();
       } else {
         R.regent = null;
         R.reigns.push({ who: crownTitle(R.crown), from: this.sim.day, to: null, how: 'inherited' });
-        this.addNews(`Long live ${crownTitle(R.crown)}! ${pron(h) === 'his' ? 'He' : 'She'} was crowned today in the cathedral at Kingsbridge, and every town keeps a holiday.`, 'rulers');
+        this.addNews(`Long live ${crownTitle(R.crown)}! ${pron(h) === 'his' ? 'He' : 'She'} was crowned today in the cathedral at Aurelia, and every town keeps a holiday.`, 'rulers');
         this.sim.onCoronation && this.sim.onCoronation(crownTitle(R.crown));
         if (r.chance(0.12 * R.pretender.ambition)) this.rebellion();
       }
@@ -5494,7 +5639,7 @@ O.snowMaskOf = function (src) {
       this.warInit();
       const seat = this.place(P.seat);
       this.addNews(`REBELLION. ${P.name}, ${P.title}, claims the crown and has raised his banner at ${seat.name}. Lords must choose a side.`, 'rulers', P.seat);
-      this.declareWar({ civil: true, enemy: `${P.name} of Harrowdale and his rebels`, home: P.seat, men: 200, hostName: `the rebel host of ${P.name}`, crownName: R.crown ? `the host of ${crownTitle(R.crown)}` : "the King's host", announce: `CIVIL WAR. The crown calls every loyal town to arms against ${P.name}, ${P.title}. The King's host musters at Thornbury.` });
+      this.declareWar({ civil: true, enemy: `${P.name} of Frostmere and his rebels`, home: P.seat, men: 200, hostName: `the rebel host of ${P.name}`, crownName: R.crown ? `the host of ${crownTitle(R.crown)}` : "the King's host", announce: `CIVIL WAR. The crown calls every loyal town to arms against ${P.name}, ${P.title}. The King's host musters at Highmere.` });
     };
     K.onCivilEnd = function (winner) {
       const R = this.rulers, P = R.pretender, r = this.rng;
@@ -5503,12 +5648,12 @@ O.snowMaskOf = function (src) {
         const reign = R.reigns[R.reigns.length - 1]; if (reign && !reign.to) reign.to = this.sim.day;
         R.crown = { name: P.name, sex: P.sex, age: P.age, regnal: '', since: this.sim.day, ailing: false, heir: person(r, 4, 18) };
         R.reigns.push({ who: crownTitle(R.crown), from: this.sim.day, to: null, how: 'took the crown by force' });
-        R.regent = null; R.pretender = { name: r.pick(MN), sex: 'm', age: r.int(20, 40), title: 'heir of the old line, in exile', seat: 'saltmouth', ambition: 0.6 };
+        R.regent = null; R.pretender = { name: r.pick(MN), sex: 'm', age: r.int(20, 40), title: 'heir of the old line, in exile', seat: 'westhaven', ambition: 0.6 };
         this.addNews(`The rebels have won. ${P.name} is crowned as ${crownTitle(R.crown)}; ${old} has fled across the sea. Men who fought for the old crown keep their heads down.`, 'rulers');
         this.sim.onCoronation && this.sim.onCoronation(crownTitle(R.crown));
       } else {
-        this.addNews(`The rebellion is broken. ${P.name} has been taken and sent into exile beyond the sea; his lands at Harrowdale go to the crown.`, 'rulers');
-        R.pretender = { name: r.pick(MN), sex: 'm', age: r.int(25, 45), title: `the new Duke of Harrowdale`, seat: 'harrowdale', ambition: 0.2 + r.next() * 0.3 };
+        this.addNews(`The rebellion is broken. ${P.name} has been taken and sent into exile beyond the sea; his lands at Frostmere go to the crown.`, 'rulers');
+        R.pretender = { name: r.pick(MN), sex: 'm', age: r.int(25, 45), title: `the new Duke of Frostmere`, seat: 'frostmere', ambition: 0.2 + r.next() * 0.3 };
       }
     };
   }
@@ -10342,7 +10487,7 @@ O.snowMaskOf = function (src) {
 'use strict';
 (function () {
   const PS = O.PlayerState, esc = (s) => O.escape(s);
-  const WEST = ['saltmouth', 'oakhollow'];
+  const WEST = ['westhaven', 'elmstead'];
 
   function setup(game, sim, npcUI) {
     const K = sim.kingdom, T = sim.T, Ch = O.Char;
@@ -10482,55 +10627,71 @@ O.snowMaskOf = function (src) {
 
     // ---------------- the kingdom map ----------------
     let mapCanvas = null;
+    const E = O.Eldoria, MS = 4; // four pixels to a map unit
     function renderMap() {
-      const W = 64, H = 40, S = 8; const c = document.createElement('canvas'); c.width = W * S; c.height = H * S;
-      const ctx = c.getContext('2d'); const img = ctx.createImageData(W * S, H * S);
-      const P = O.Pal; const R = { sea: P.makeRamp('#3a6a8a', 0.6), grass: P.makeRamp('#6a8a44', 0.6), farm: P.makeRamp('#a89a50', 0.6), forest: P.makeRamp('#3a5a34', 0.7), hill: P.makeRamp('#8a8070', 0.7), snow: P.makeRamp('#dfe4ea', 0.4) };
-      for (let y = 0; y < H * S; y++) for (let x = 0; x < W * S; x++) {
-        const mx = x / S, my = y / S, n = O.fbm(mx / 6, my / 6, 3, 3), f = O.noise2(x * 0.7, y * 0.7, 2);
-        const coast = 3.5 + Math.sin(my / 4) * 1.5 + n * 2;
-        let ramp, s = n > 0.55 ? 3 : n > 0.4 ? 2 : 1;
-        if (mx < coast) { ramp = R.sea; s = f > 0.85 ? 3 : 1; }
-        else if (my < 10 + n * 4) ramp = my < 5 + n * 3 ? R.snow : R.hill;
-        else if (my > 28 - n * 3) ramp = R.farm;
-        else if (n > 0.58) ramp = R.forest;
-        else ramp = R.grass;
-        if (f > 0.93) s = Math.min(4, s + 1);
-        const col = ramp[s], i = (y * W * S + x) * 4; img.data[i] = col[0]; img.data[i + 1] = col[1]; img.data[i + 2] = col[2]; img.data[i + 3] = 255;
+      const c = document.createElement('canvas'); c.width = E.W * MS; c.height = E.H * MS;
+      const ctx = c.getContext('2d'); const img = ctx.createImageData(c.width, c.height);
+      const P = O.Pal;
+      const R = { sea: P.makeRamp('#2e5a7e', 0.6), beach: P.makeRamp('#c8b07a', 0.5), lake: P.makeRamp('#3f6f9a', 0.6), river: P.makeRamp('#4a80b0', 0.5), peak: P.makeRamp('#dfe6ea', 0.4), mountain: P.makeRamp('#8a8478', 0.8),
+        forest: P.makeRamp('#3f6a34', 0.7), frost: P.makeRamp('#4f6e5e', 0.6), black: P.makeRamp('#2e4630', 0.7), farm: P.makeRamp('#b0a050', 0.6), grass: P.makeRamp('#6a9a48', 0.6), moor: P.makeRamp('#8a8a5a', 0.6), marsh: P.makeRamp('#5a7a5a', 0.6) };
+      for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) {
+        const mx = x / MS, my = y / MS, t = E.terrainAt(mx, my), n = O.fbm(mx / 3, my / 3, 5, 3), f = O.noise2(x * 0.6, y * 0.6, 2);
+        let ramp = R[t] || R.grass, s = n > 0.58 ? 3 : n > 0.42 ? 2 : 1;
+        if (t === 'forest') { const g = E.regionAt(mx, my); ramp = g && g.r.cold ? R.frost : g && g.r.dark ? R.black : R.forest; if (f > 0.6) s = (x + y) % 3 ? 1 : 3; }
+        if (t === 'sea') { s = f > 0.9 ? 3 : n > 0.6 ? 2 : 1; if (((x + Math.floor(y / 6) * 3) % 11) === 0 && y % 6 === 0) s = 3; }
+        if (t === 'farm') s = (Math.floor(y / 3) + Math.floor(x / 9)) % 3 === 0 ? 3 : 2;
+        if (t === 'mountain' || t === 'peak') { s = n > 0.5 ? 3 : 1; if (O.noise2(x * 0.3, y * 0.3, 8) > 0.75) s = t === 'peak' ? 4 : 3; }
+        if (f > 0.95) s = Math.min(4, s + 1);
+        const col = ramp[s], i = (y * c.width + x) * 4; img.data[i] = col[0]; img.data[i + 1] = col[1]; img.data[i + 2] = col[2]; img.data[i + 3] = 255;
       }
       ctx.putImageData(img, 0, 0);
+      // ruins of older times
+      for (const r of E.RUINS) { const x = r.x * MS, y = r.y * MS; ctx.fillStyle = '#5a5248'; ctx.fillRect(x - 3, y - 2, 2, 4); ctx.fillRect(x + 1, y - 3, 2, 5); ctx.fillRect(x - 3, y + 2, 6, 1); }
       return c;
     }
+    const MAIN = new Set(["the King's Road", 'the Eastern Trade Road', 'the Western Road', 'the Northern Road', 'the Iron Road', 'the Southern Farm Road']);
     function drawMap(cv) {
-      const S = 8, ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = false;
+      const S = MS, ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = false;
       if (!mapCanvas) mapCanvas = renderMap();
       ctx.drawImage(mapCanvas, 0, 0);
       for (const rd of K.roads) {
-        const a = K.place(rd.a), b = K.place(rd.b), n = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) * S);
-        for (let i = 0; i <= n; i++) { const x = Math.round((a.x + (b.x - a.x) * i / n) * S), y = Math.round((a.y + (b.y - a.y) * i / n) * S); ctx.fillStyle = rd.damaged ? (i % 6 < 3 ? '#a8382f' : 'transparent') : rd.quality > 0.7 ? '#e0cfa0' : '#b39a6a'; if (ctx.fillStyle !== 'transparent' && ctx.fillStyle !== '#00000000') ctx.fillRect(x, y, 2, 2); }
+        const a = K.place(rd.a), b = K.place(rd.b), n = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) * S), main = MAIN.has(rd.name);
+        for (let i = 0; i <= n; i++) {
+          const x = Math.round((a.x + (b.x - a.x) * i / n) * S), y = Math.round((a.y + (b.y - a.y) * i / n) * S);
+          if (!main && i % 4 > 1) continue;
+          ctx.fillStyle = rd.damaged ? (i % 6 < 3 ? '#a8382f' : 'transparent') : main ? '#e8d49a' : '#c8b48a';
+          if (ctx.fillStyle !== 'transparent') { ctx.fillRect(x, y, main ? 2 : 1, main ? 2 : 1); }
+        }
       }
       for (const s of K.places) {
-        const x = s.x * S, y = s.y * S, sz = s.kind === 'capital' ? 6 : s.kind === 'castle' ? 5 : s.kind === 'town' || s.kind === 'port' ? 4 : 3;
+        const x = Math.round(s.x * S), y = Math.round(s.y * S), sz = s.kind === 'capital' ? 6 : s.kind === 'castle' ? 4 : s.pop >= 300 ? 4 : s.pop >= 100 ? 3 : 2;
         ctx.fillStyle = '#1b1424'; ctx.fillRect(x - sz - 1, y - sz - 1, sz * 2 + 3, sz * 2 + 3);
-        ctx.fillStyle = s.detailed ? '#f0b45c' : s.kind === 'castle' ? '#c8ccd4' : s.happiness < 0.4 ? '#c87060' : '#e8dcc0';
+        ctx.fillStyle = s.detailed ? '#f0b45c' : s.kind === 'castle' ? '#c8ccd4' : s.kind === 'capital' ? '#f4e8c8' : s.happiness < 0.4 ? '#c87060' : '#e8dcc0';
         ctx.fillRect(x - sz, y - sz, sz * 2 + 1, sz * 2 + 1);
-        if (s.kind === 'castle' || s.kind === 'capital') { ctx.fillStyle = '#1b1424'; for (let k = -sz; k <= sz; k += 2) ctx.fillRect(x + k, y - sz - 1, 1, 1); }
+        if (s.kind === 'castle' || s.kind === 'capital') { ctx.fillStyle = '#1b1424'; for (let k = -sz; k <= sz; k += 2) ctx.fillRect(x + k, y - sz - 1, 1, 1); ctx.fillRect(x, y - 1, 1, 3); }
       }
+      // you are here
+      const here = K.place(game.world.placeId);
+      if (here) { const x = Math.round(here.x * S), y = Math.round(here.y * S), b = Math.floor(game.t * 2) % 2; ctx.strokeStyle = b ? '#f0b45c' : '#fff6dc'; ctx.strokeRect(x - 9.5, y - 9.5, 19, 19); }
       for (const c of K.caravans) {
-        const a = K.place(c.path[c.leg]), b = K.place(c.path[c.leg + 1] || c.path[c.leg]); const t = O.clamp(c.prog, 0, 1);
+        const a = K.place(c.path[c.leg]), b = K.place(c.path[c.leg + 1] || c.path[c.leg]); if (!a || !b) continue; const t = O.clamp(c.prog, 0, 1);
         const x = Math.round((a.x + (b.x - a.x) * t) * S), y = Math.round((a.y + (b.y - a.y) * t) * S);
         ctx.fillStyle = '#1b1424'; ctx.fillRect(x - 2, y - 2, 5, 5); ctx.fillStyle = '#d9893a'; ctx.fillRect(x - 1, y - 1, 3, 3);
       }
     }
     O.openMap = () => {
       const rows = K.places.map((s) => `<tr><td><b>${esc(s.name)}</b><br><small class="lbl">${s.kind} · ${s.region}</small></td><td class="n">${s.pop}</td><td><span class="bar ${s.food < 0.85 ? 'warn' : ''}"><i style="width:${Math.round(Math.min(1, s.food) * 100)}%"></i></span></td><td><span class="bar ${s.happiness < 0.4 ? 'warn' : ''}"><i style="width:${Math.round(s.happiness * 100)}%"></i></span></td><td><span class="bar ${s.crime > 0.35 ? 'warn' : ''}"><i style="width:${Math.round(s.crime * 100)}%"></i></span></td><td class="n">${s.prices.grain}d</td></tr>`).join('');
-      O.Panels.open('The Kingdom', `<div class="mapwrap"><canvas id="kmap" width="512" height="320"></canvas></div>
+      O.Panels.open('The Island of Eldoria', `<div class="mapwrap"><canvas id="kmap" width="512" height="384"></canvas></div>
         <p class="caption">Ashford is gold. Orange marks are caravans on the roads; red dashes are roads closed by damage. Crown treasury ${O.money(K.treasury)}, crown tax ${Math.round(K.taxRate * 100)}%.</p>
         <table><thead><tr><th>Settlement</th><th class="n">People</th><th>Food</th><th>Content</th><th>Crime</th><th class="n">Grain</th></tr></thead><tbody>${rows}</tbody></table>
         <div class="lbl" style="margin-top:12px">News from the realm</div><ol class="chron">${K.news.slice(-8).reverse().map((n) => `<li><span class="lbl">Day ${n.day}</span> ${esc(n.text)}</li>`).join('') || '<li>No news yet.</li>'}</ol>`, () => {
         const cv = document.getElementById('kmap'); drawMap(cv);
         // place labels as DOM so the type stays sharp
-        const wrap = cv.parentElement; for (const s of K.places) { const l = document.createElement('span'); l.className = 'maplabel' + (s.detailed ? ' here' : ''); l.textContent = s.name; l.style.left = (s.x / 64 * 100) + '%'; l.style.top = (s.y / 40 * 100) + '%'; wrap.appendChild(l); }
+        const wrap = cv.parentElement;
+        // the bigger places and the castles are named; hamlets only where you are
+        for (const s of K.places) { if (s.pop < 100 && s.kind !== 'castle' && s.id !== game.world.placeId) continue; const l = document.createElement('span'); l.className = 'maplabel' + (s.id === game.world.placeId ? ' here' : '') + (s.pop < 200 && s.kind !== 'capital' ? ' small' : ''); l.textContent = s.name; l.style.left = (s.x / E.W * 100) + '%'; l.style.top = (s.y / E.H * 100) + '%'; wrap.appendChild(l); }
+        for (const r of E.REGIONS) { const l = document.createElement('span'); l.className = 'maplabel region'; l.textContent = r.name.replace(/^the /, ''); l.style.left = ((r.x + (r.kind === 'mountain' ? 8 : 0)) / E.W * 100) + '%'; l.style.top = ((r.y + (r.kind === 'mountain' ? 6 : -3)) / E.H * 100) + '%'; wrap.appendChild(l); }
+        for (const r of E.LAKES) { const l = document.createElement('span'); l.className = 'maplabel water'; l.textContent = r.name; l.style.left = (r.x / E.W * 100) + '%'; l.style.top = ((r.y + r.ry) / E.H * 100) + '%'; wrap.appendChild(l); }
       });
       const inner = document.querySelector('.panel-modal .ledger-in'); if (inner) inner.classList.remove('narrow');
     };
@@ -10724,10 +10885,10 @@ O.snowMaskOf = function (src) {
           <div><span class="lbl">Lordship of Ashford</span><b>${lord ? 'Yours' : 'The crown\'s'}</b><small>${lord ? 'You set the tax, the watch and the works.' : `The crown asks ${O.money(L.price)} and an unstained name.`}</small></div>
         </div>
         <table style="margin-top:12px"><thead><tr><th>Property</th><th class="n">Value</th><th>Use</th></tr></thead><tbody>${rows || '<tr><td colspan="3">You own nothing yet. Look for For Sale signs by empty houses and shops.</td></tr>'}</tbody></table>
-        ${!lord ? `<p class="caption" style="margin-top:12px">${canPetition ? 'You could petition the Lord of Thornbury for the lordship.' : 'The crown will not sell a lordship to someone the watch is looking for, or whom the common folk despise.'}</p>${canPetition ? `<button class="btn" data-pet="1">Petition for the lordship (${O.money(L.price)})</button>` : ''}` : lordControls(H)}${PS.reeve && !lord ? reeveControls(H) : ''}${PS.reeve || lord ? officeControls(H) : ''}${moot(H)}${O.landSection ? O.landSection() : ''}`, (r) => {
+        ${!lord ? `<p class="caption" style="margin-top:12px">${canPetition ? 'You could petition the Lord of Highmere for the lordship.' : 'The crown will not sell a lordship to someone the watch is looking for, or whom the common folk despise.'}</p>${canPetition ? `<button class="btn" data-pet="1">Petition for the lordship (${O.money(L.price)})</button>` : ''}` : lordControls(H)}${PS.reeve && !lord ? reeveControls(H) : ''}${PS.reeve || lord ? officeControls(H) : ''}${moot(H)}${O.landSection ? O.landSection() : ''}`, (r) => {
         if (O.bindLand) O.bindLand(r, holdings);
         const pet = r.querySelector('[data-pet]');
-        if (pet) pet.onclick = () => { if (PS.money < L.price) return O.Panels.toast(`You need ${O.money(L.price)}.`, 'bad'); PS.money -= L.price; H.kingdom.treasury += L.price; L.holder = 'player'; PS.lord = true; H.log('By letters from Thornbury, the newcomer is made Lord of Ashford.', 'politics'); H.kingdom.addNews(`A new lord has been granted Ashford.`, 'politics'); for (const p of H.people) if (p.age >= 16 && H.rng.chance(0.5)) H.remember(p, 'We have a new lord, a stranger with deep pockets.', 'politics', 1.5); holdings(); };
+        if (pet) pet.onclick = () => { if (PS.money < L.price) return O.Panels.toast(`You need ${O.money(L.price)}.`, 'bad'); PS.money -= L.price; H.kingdom.treasury += L.price; L.holder = 'player'; PS.lord = true; H.log('By letters from Highmere, the newcomer is made Lord of Ashford.', 'politics'); H.kingdom.addNews(`A new lord has been granted Ashford.`, 'politics'); for (const p of H.people) if (p.age >= 16 && H.rng.chance(0.5)) H.remember(p, 'We have a new lord, a stranger with deep pockets.', 'politics', 1.5); holdings(); };
         bindLord(r, H);
       });
     }
@@ -10863,7 +11024,7 @@ O.snowMaskOf = function (src) {
     return chips + `<ol class="chron">${out}</ol>`;
   }
   function hearsay(Ch) {
-    if (!Ch.heard.length) return '<p class="caption">You have heard nothing yet. Ask people for news, listen to the crier, sit in the tavern when a bard is in, or buy a broadsheet in Kingsbridge.</p>';
+    if (!Ch.heard.length) return '<p class="caption">You have heard nothing yet. Ask people for news, listen to the crier, sit in the tavern when a bard is in, or buy a broadsheet in Aurelia.</p>';
     const rows = Ch.heard.slice().reverse().map((h) => {
       const f = Ch.byId(h.f);
       const differs = f && h.text.replace(/[^a-z0-9]/gi, '').toLowerCase() !== f.text.replace(/[^a-z0-9]/gi, '').toLowerCase();
@@ -10908,8 +11069,8 @@ O.snowMaskOf = function (src) {
     PS.money -= 1;
     const rng = O.RNG(O.hash('sheet', s.day));
     const items = Ch.facts.filter((f) => f.imp >= 2 && f.day >= s.day - 14).sort((a, b) => b.imp - a.imp || b.day - a.day).slice(0, 5);
-    const rows = items.map((f) => { const v = Ch.tell(f, 'broadsheet', s, rng); Ch.playerHears(f, v, 'broadsheet', 'The Kingsbridge Crier'); return `<li><span class="lbl">${esc(f.placeName)}</span> ${esc(v)}</li>`; }).join('');
-    O.Panels.open('The Kingsbridge Crier', `<p class="caption">One penny. Printed this morning at the sign of the Bell, Cathedral Lane. “Truth, or near enough.”</p><ol class="chron">${rows || '<li>NOTHING HAS HAPPENED, which is itself remarkable!</li>'}</ol>`);
+    const rows = items.map((f) => { const v = Ch.tell(f, 'broadsheet', s, rng); Ch.playerHears(f, v, 'broadsheet', 'The Aurelia Crier'); return `<li><span class="lbl">${esc(f.placeName)}</span> ${esc(v)}</li>`; }).join('');
+    O.Panels.open('The Aurelia Crier', `<p class="caption">One penny. Printed this morning at the sign of the Bell, Cathedral Lane. “Truth, or near enough.”</p><ol class="chron">${rows || '<li>NOTHING HAS HAPPENED, which is itself remarkable!</li>'}</ol>`);
   }
 
   O.ChronicleUI = { setup, open, memorial, broadsheet };
@@ -11155,7 +11316,7 @@ O.snowMaskOf = function (src) {
       const ctx = cv.getContext('2d'), sx = cv.width / 64, sy = cv.height / 40;
       if (W.phase === 'war' || W.phase === 'tension') {
         // the northern border, smoking
-        const g = K.place('greymoor'); ctx.fillStyle = 'rgba(160,40,30,.35)'; ctx.beginPath(); ctx.arc(g.x * sx, g.y * sy, 34, 0, Math.PI * 2); ctx.fill();
+        const g = K.place('ravenscar'); ctx.fillStyle = 'rgba(160,40,30,.35)'; ctx.beginPath(); ctx.arc(g.x * sx, g.y * sy, 34, 0, Math.PI * 2); ctx.fill();
       }
       for (const a of W.armies || []) {
         if (a.men <= 0) continue; const p = K.place(a.at); if (!p) continue;
@@ -11983,8 +12144,8 @@ O.snowMaskOf = function (src) {
     ['Crime', 'Pickpocket and burgle (Q), rob caravans on the King\'s Road, fence goods. Witnesses describe you imperfectly; the watch investigates; disguise helps. Get caught and you face trial.'],
     ['Gangs', 'Claim the abandoned camp in the woods, recruit the poor and the bitter, pay them, plan night jobs, grow the hideout. The Crows will not like it.'],
     ['War and politics', 'When war comes, a recruiting sergeant calls for men: take the King\'s shilling and march (or desert). In a rebellion, a rebel agent drinks in the tavern. Kings die; pretenders rise.'],
-    ['Travel', 'Leave by the road at the edge of the village to reach other towns, the walled capital Kingsbridge and Thornbury Castle. Each is a full simulation; the world goes on without you.'],
-    ['Keep your ears open', 'Ask people for news: what they tell you is what they heard, from whom, and it may be wrong. The crier, bards in the tavern and the Kingsbridge broadsheet all tell it their own way. The Chronicle keeps the record.'],
+    ['Travel', 'Eldoria is an island of thirty-three settlements: the capital Aurelia on the River Aure, the port of Westhaven, Goldmere, Frostmere under the peaks, the farms of Greenvale and Sunfield, castles at Highmere, Eastmarch and Westcliff, and hamlets in the wild places. Leave by the road at the edge of a village. Each town lives its own life while you are away.'],
+    ['Keep your ears open', 'Ask people for news: what they tell you is what they heard, from whom, and it may be wrong. The crier, bards in the tavern and the Aurelia broadsheet all tell it their own way. The Chronicle keeps the record.'],
     ['Disasters', 'Fires (grab a bucket), floods after heavy rain, pestilence with quarantines. Help, or profit, or flee.'],
   ];
   function open() {

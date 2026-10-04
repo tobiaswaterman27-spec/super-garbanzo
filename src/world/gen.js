@@ -172,7 +172,7 @@
     return { rng, ter, solid, set, fill, buildings, props, trees, B, look, P, free, walls, scatter, finish, st };
   }
 
-  // Kingsbridge: a walled city on a river, with a grand market, a wealthy quarter, workshops,
+  // Aurelia: a walled city on a river, with a grand market, a wealthy quarter, workshops,
   // warehouses by the water, and a crowded poor quarter.
   function makeCity(place) {
     const W = 128, H = 88, seed = O.hash('city', place.id);
@@ -190,7 +190,7 @@
     fill(44, 30, 64, 43, TER.COBBLE); // the great market
     K.walls(x0, y0, x1, y1, [[x0, roadY + 1], [x1, roadY + 1]], 0);
     // market and civic buildings around the square
-    B({ type: 'townhall', name: 'Guildhall of Kingsbridge', x: 48, bottom: 28, w: 8, d: 5, floors: 2, wealth: 0.85, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'tile', roofType: 'gable', chimney: true, sign: 'scales', doorTile: 4, bigDoor: true, noFlowers: true } });
+    B({ type: 'townhall', name: 'Guildhall of Aurelia', x: 48, bottom: 28, w: 8, d: 5, floors: 2, wealth: 0.85, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'tile', roofType: 'gable', chimney: true, sign: 'scales', doorTile: 4, bigDoor: true, noFlowers: true } });
     B({ type: 'chapel', name: 'Cathedral of St. Brannoc', x: 58, bottom: 21, w: 8, d: 7, wealth: 0.9, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 4, wallH: 86, bigDoor: true, noFlowers: true } });
     for (let i = 0; i < 8; i++) { const sx = 46 + (i % 4) * 5, sy = 33 + Math.floor(i / 4) * 5; P('stall', sx, sy, { v: i % 4 }); K.solid[sy * W + sx - 1] = 1; K.solid[sy * W + sx + 1] = 1; }
     P('noticeboard', 54, 42, { broadsheet: true }); // the broadsheet seller's board
@@ -218,7 +218,7 @@
     return K.finish({ roadY, exits: { west: [0, roadY], east: [W - 1, roadY] }, river: true, zones: { square: [45, 31, 63, 42], bench: [46, 31], farm: [8, 82, 30, 84], wood: [2, 82, 20, 86], east: [W - 1, roadY], patrol: [[55, 44], [20, 44], [40, 24], [80, 24], [110, 44], [96, 64], [60, 64], [40, 44]] }, city: true });
   }
 
-  // Thornbury: a curtain-walled castle with a keep, and its village outside the gate.
+  // Highmere: a curtain-walled castle with a keep, and its village outside the gate.
   function makeCastle(place) {
     const W = 96, H = 72, seed = O.hash('castle', place.id);
     const K = kit(place, W, H, seed), { rng, set, fill, B, look, P, free } = K;
@@ -229,7 +229,7 @@
     fill(cx0 + 1, cy0 + 1, cx1 - 1, cy1 - 1, TER.YARD); // the bailey
     fill(gateX - 1, 22, gateX, cy1, TER.COBBLE);
     K.walls(cx0, cy0, cx1, cy1, [[gateX, cy1]], 1);
-    B({ type: 'keep', name: 'The Keep of Thornbury', x: 42, bottom: 18, w: 9, d: 7, floors: 3, wealth: 0.95, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', roofType: 'gable', chimney: true, sign: 'shield', doorTile: 4, bigDoor: true, noFlowers: true } });
+    B({ type: 'keep', name: 'The Keep of Highmere', x: 42, bottom: 18, w: 9, d: 7, floors: 3, wealth: 0.95, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', roofType: 'gable', chimney: true, sign: 'shield', doorTile: 4, bigDoor: true, noFlowers: true } });
     P('tower', 41, 18, { v: 2 }); P('tower', 51, 18, { v: 2 });
     B({ type: 'guard', name: 'Barracks', x: 31, bottom: 15, w: 7, d: 4, wealth: 0.6, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', roofType: 'side', sign: 'shield', doorTile: 3, noFlowers: true } });
     B({ type: 'chapel', name: 'Castle Chapel', x: 56, bottom: 15, w: 5, d: 5, wealth: 0.8, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 2, wallH: 64, noFlowers: true } });

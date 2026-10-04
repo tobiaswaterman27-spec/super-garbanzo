@@ -111,6 +111,9 @@ main { height: 100vh; }
 .mapwrap canvas { width: 100%; height: auto; border: 2px solid #000; image-rendering: pixelated; }
 .maplabel { position: absolute; transform: translate(-50%, 6px); font-family: var(--pix); font-size: 9px; letter-spacing: .5px; color: #1b1424; background: rgba(232,220,192,.85); padding: 0 3px; white-space: nowrap; pointer-events: none; }
 .maplabel.here { background: var(--ember-2); }
+.maplabel.small { font-size: 7px; padding: 0 2px; background: rgba(232,220,192,.7); }
+.maplabel.region { background: none; color: rgba(240,232,210,.85); font-style: italic; font-size: 8px; text-shadow: 0 1px 0 #1b1424; transform: translate(-50%, 0); }
+.maplabel.water { background: none; color: #cfe2f0; font-size: 7px; text-shadow: 0 1px 0 #1b2440; }
 @media (max-width: 760px) { .hud-b { display: none; } }
 .kv small button, .ledger td button { background: var(--ink); color: var(--parch); border: 2px solid var(--line); padding: 1px 6px; cursor: pointer; font-family: var(--pix); font-size: 9px; }
 .ledger select { background: var(--ink); border: 2px solid var(--line); padding: 2px 4px; font-size: 12px; max-width: 220px; }
@@ -276,6 +279,7 @@ main > .wrap { overflow: auto; }
 <script src="../src/sim/aftermath.js"></script>
 <script src="../src/sim/justice.js"></script>
 <script src="../src/sim/gangs.js"></script>
+<script src="../src/sim/eldoria.js"></script>
 <script src="../src/sim/kingdom.js"></script>
 <script src="../src/sim/government.js"></script>
 <script src="../src/sim/war.js"></script>

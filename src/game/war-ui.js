@@ -102,7 +102,7 @@
       const ctx = cv.getContext('2d'), sx = cv.width / 64, sy = cv.height / 40;
       if (W.phase === 'war' || W.phase === 'tension') {
         // the northern border, smoking
-        const g = K.place('greymoor'); ctx.fillStyle = 'rgba(160,40,30,.35)'; ctx.beginPath(); ctx.arc(g.x * sx, g.y * sy, 34, 0, Math.PI * 2); ctx.fill();
+        const g = K.place('ravenscar'); ctx.fillStyle = 'rgba(160,40,30,.35)'; ctx.beginPath(); ctx.arc(g.x * sx, g.y * sy, 34, 0, Math.PI * 2); ctx.fill();
       }
       for (const a of W.armies || []) {
         if (a.men <= 0) continue; const p = K.place(a.at); if (!p) continue;

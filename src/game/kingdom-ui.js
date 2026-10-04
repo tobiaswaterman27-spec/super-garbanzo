@@ -3,7 +3,7 @@
 'use strict';
 (function () {
   const PS = O.PlayerState, esc = (s) => O.escape(s);
-  const WEST = ['saltmouth', 'oakhollow'];
+  const WEST = ['westhaven', 'elmstead'];
 
   function setup(game, sim, npcUI) {
     const K = sim.kingdom, T = sim.T, Ch = O.Char;
@@ -143,55 +143,71 @@
 
     // ---------------- the kingdom map ----------------
     let mapCanvas = null;
+    const E = O.Eldoria, MS = 4; // four pixels to a map unit
     function renderMap() {
-      const W = 64, H = 40, S = 8; const c = document.createElement('canvas'); c.width = W * S; c.height = H * S;
-      const ctx = c.getContext('2d'); const img = ctx.createImageData(W * S, H * S);
-      const P = O.Pal; const R = { sea: P.makeRamp('#3a6a8a', 0.6), grass: P.makeRamp('#6a8a44', 0.6), farm: P.makeRamp('#a89a50', 0.6), forest: P.makeRamp('#3a5a34', 0.7), hill: P.makeRamp('#8a8070', 0.7), snow: P.makeRamp('#dfe4ea', 0.4) };
-      for (let y = 0; y < H * S; y++) for (let x = 0; x < W * S; x++) {
-        const mx = x / S, my = y / S, n = O.fbm(mx / 6, my / 6, 3, 3), f = O.noise2(x * 0.7, y * 0.7, 2);
-        const coast = 3.5 + Math.sin(my / 4) * 1.5 + n * 2;
-        let ramp, s = n > 0.55 ? 3 : n > 0.4 ? 2 : 1;
-        if (mx < coast) { ramp = R.sea; s = f > 0.85 ? 3 : 1; }
-        else if (my < 10 + n * 4) ramp = my < 5 + n * 3 ? R.snow : R.hill;
-        else if (my > 28 - n * 3) ramp = R.farm;
-        else if (n > 0.58) ramp = R.forest;
-        else ramp = R.grass;
-        if (f > 0.93) s = Math.min(4, s + 1);
-        const col = ramp[s], i = (y * W * S + x) * 4; img.data[i] = col[0]; img.data[i + 1] = col[1]; img.data[i + 2] = col[2]; img.data[i + 3] = 255;
+      const c = document.createElement('canvas'); c.width = E.W * MS; c.height = E.H * MS;
+      const ctx = c.getContext('2d'); const img = ctx.createImageData(c.width, c.height);
+      const P = O.Pal;
+      const R = { sea: P.makeRamp('#2e5a7e', 0.6), beach: P.makeRamp('#c8b07a', 0.5), lake: P.makeRamp('#3f6f9a', 0.6), river: P.makeRamp('#4a80b0', 0.5), peak: P.makeRamp('#dfe6ea', 0.4), mountain: P.makeRamp('#8a8478', 0.8),
+        forest: P.makeRamp('#3f6a34', 0.7), frost: P.makeRamp('#4f6e5e', 0.6), black: P.makeRamp('#2e4630', 0.7), farm: P.makeRamp('#b0a050', 0.6), grass: P.makeRamp('#6a9a48', 0.6), moor: P.makeRamp('#8a8a5a', 0.6), marsh: P.makeRamp('#5a7a5a', 0.6) };
+      for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) {
+        const mx = x / MS, my = y / MS, t = E.terrainAt(mx, my), n = O.fbm(mx / 3, my / 3, 5, 3), f = O.noise2(x * 0.6, y * 0.6, 2);
+        let ramp = R[t] || R.grass, s = n > 0.58 ? 3 : n > 0.42 ? 2 : 1;
+        if (t === 'forest') { const g = E.regionAt(mx, my); ramp = g && g.r.cold ? R.frost : g && g.r.dark ? R.black : R.forest; if (f > 0.6) s = (x + y) % 3 ? 1 : 3; }
+        if (t === 'sea') { s = f > 0.9 ? 3 : n > 0.6 ? 2 : 1; if (((x + Math.floor(y / 6) * 3) % 11) === 0 && y % 6 === 0) s = 3; }
+        if (t === 'farm') s = (Math.floor(y / 3) + Math.floor(x / 9)) % 3 === 0 ? 3 : 2;
+        if (t === 'mountain' || t === 'peak') { s = n > 0.5 ? 3 : 1; if (O.noise2(x * 0.3, y * 0.3, 8) > 0.75) s = t === 'peak' ? 4 : 3; }
+        if (f > 0.95) s = Math.min(4, s + 1);
+        const col = ramp[s], i = (y * c.width + x) * 4; img.data[i] = col[0]; img.data[i + 1] = col[1]; img.data[i + 2] = col[2]; img.data[i + 3] = 255;
       }
       ctx.putImageData(img, 0, 0);
+      // ruins of older times
+      for (const r of E.RUINS) { const x = r.x * MS, y = r.y * MS; ctx.fillStyle = '#5a5248'; ctx.fillRect(x - 3, y - 2, 2, 4); ctx.fillRect(x + 1, y - 3, 2, 5); ctx.fillRect(x - 3, y + 2, 6, 1); }
       return c;
     }
+    const MAIN = new Set(["the King's Road", 'the Eastern Trade Road', 'the Western Road', 'the Northern Road', 'the Iron Road', 'the Southern Farm Road']);
     function drawMap(cv) {
-      const S = 8, ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = false;
+      const S = MS, ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = false;
       if (!mapCanvas) mapCanvas = renderMap();
       ctx.drawImage(mapCanvas, 0, 0);
       for (const rd of K.roads) {
-        const a = K.place(rd.a), b = K.place(rd.b), n = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) * S);
-        for (let i = 0; i <= n; i++) { const x = Math.round((a.x + (b.x - a.x) * i / n) * S), y = Math.round((a.y + (b.y - a.y) * i / n) * S); ctx.fillStyle = rd.damaged ? (i % 6 < 3 ? '#a8382f' : 'transparent') : rd.quality > 0.7 ? '#e0cfa0' : '#b39a6a'; if (ctx.fillStyle !== 'transparent' && ctx.fillStyle !== '#00000000') ctx.fillRect(x, y, 2, 2); }
+        const a = K.place(rd.a), b = K.place(rd.b), n = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) * S), main = MAIN.has(rd.name);
+        for (let i = 0; i <= n; i++) {
+          const x = Math.round((a.x + (b.x - a.x) * i / n) * S), y = Math.round((a.y + (b.y - a.y) * i / n) * S);
+          if (!main && i % 4 > 1) continue;
+          ctx.fillStyle = rd.damaged ? (i % 6 < 3 ? '#a8382f' : 'transparent') : main ? '#e8d49a' : '#c8b48a';
+          if (ctx.fillStyle !== 'transparent') { ctx.fillRect(x, y, main ? 2 : 1, main ? 2 : 1); }
+        }
       }
       for (const s of K.places) {
-        const x = s.x * S, y = s.y * S, sz = s.kind === 'capital' ? 6 : s.kind === 'castle' ? 5 : s.kind === 'town' || s.kind === 'port' ? 4 : 3;
+        const x = Math.round(s.x * S), y = Math.round(s.y * S), sz = s.kind === 'capital' ? 6 : s.kind === 'castle' ? 4 : s.pop >= 300 ? 4 : s.pop >= 100 ? 3 : 2;
         ctx.fillStyle = '#1b1424'; ctx.fillRect(x - sz - 1, y - sz - 1, sz * 2 + 3, sz * 2 + 3);
-        ctx.fillStyle = s.detailed ? '#f0b45c' : s.kind === 'castle' ? '#c8ccd4' : s.happiness < 0.4 ? '#c87060' : '#e8dcc0';
+        ctx.fillStyle = s.detailed ? '#f0b45c' : s.kind === 'castle' ? '#c8ccd4' : s.kind === 'capital' ? '#f4e8c8' : s.happiness < 0.4 ? '#c87060' : '#e8dcc0';
         ctx.fillRect(x - sz, y - sz, sz * 2 + 1, sz * 2 + 1);
-        if (s.kind === 'castle' || s.kind === 'capital') { ctx.fillStyle = '#1b1424'; for (let k = -sz; k <= sz; k += 2) ctx.fillRect(x + k, y - sz - 1, 1, 1); }
+        if (s.kind === 'castle' || s.kind === 'capital') { ctx.fillStyle = '#1b1424'; for (let k = -sz; k <= sz; k += 2) ctx.fillRect(x + k, y - sz - 1, 1, 1); ctx.fillRect(x, y - 1, 1, 3); }
       }
+      // you are here
+      const here = K.place(game.world.placeId);
+      if (here) { const x = Math.round(here.x * S), y = Math.round(here.y * S), b = Math.floor(game.t * 2) % 2; ctx.strokeStyle = b ? '#f0b45c' : '#fff6dc'; ctx.strokeRect(x - 9.5, y - 9.5, 19, 19); }
       for (const c of K.caravans) {
-        const a = K.place(c.path[c.leg]), b = K.place(c.path[c.leg + 1] || c.path[c.leg]); const t = O.clamp(c.prog, 0, 1);
+        const a = K.place(c.path[c.leg]), b = K.place(c.path[c.leg + 1] || c.path[c.leg]); if (!a || !b) continue; const t = O.clamp(c.prog, 0, 1);
         const x = Math.round((a.x + (b.x - a.x) * t) * S), y = Math.round((a.y + (b.y - a.y) * t) * S);
         ctx.fillStyle = '#1b1424'; ctx.fillRect(x - 2, y - 2, 5, 5); ctx.fillStyle = '#d9893a'; ctx.fillRect(x - 1, y - 1, 3, 3);
       }
     }
     O.openMap = () => {
       const rows = K.places.map((s) => `<tr><td><b>${esc(s.name)}</b><br><small class="lbl">${s.kind} · ${s.region}</small></td><td class="n">${s.pop}</td><td><span class="bar ${s.food < 0.85 ? 'warn' : ''}"><i style="width:${Math.round(Math.min(1, s.food) * 100)}%"></i></span></td><td><span class="bar ${s.happiness < 0.4 ? 'warn' : ''}"><i style="width:${Math.round(s.happiness * 100)}%"></i></span></td><td><span class="bar ${s.crime > 0.35 ? 'warn' : ''}"><i style="width:${Math.round(s.crime * 100)}%"></i></span></td><td class="n">${s.prices.grain}d</td></tr>`).join('');
-      O.Panels.open('The Kingdom', `<div class="mapwrap"><canvas id="kmap" width="512" height="320"></canvas></div>
+      O.Panels.open('The Island of Eldoria', `<div class="mapwrap"><canvas id="kmap" width="512" height="384"></canvas></div>
         <p class="caption">Ashford is gold. Orange marks are caravans on the roads; red dashes are roads closed by damage. Crown treasury ${O.money(K.treasury)}, crown tax ${Math.round(K.taxRate * 100)}%.</p>
         <table><thead><tr><th>Settlement</th><th class="n">People</th><th>Food</th><th>Content</th><th>Crime</th><th class="n">Grain</th></tr></thead><tbody>${rows}</tbody></table>
         <div class="lbl" style="margin-top:12px">News from the realm</div><ol class="chron">${K.news.slice(-8).reverse().map((n) => `<li><span class="lbl">Day ${n.day}</span> ${esc(n.text)}</li>`).join('') || '<li>No news yet.</li>'}</ol>`, () => {
         const cv = document.getElementById('kmap'); drawMap(cv);
         // place labels as DOM so the type stays sharp
-        const wrap = cv.parentElement; for (const s of K.places) { const l = document.createElement('span'); l.className = 'maplabel' + (s.detailed ? ' here' : ''); l.textContent = s.name; l.style.left = (s.x / 64 * 100) + '%'; l.style.top = (s.y / 40 * 100) + '%'; wrap.appendChild(l); }
+        const wrap = cv.parentElement;
+        // the bigger places and the castles are named; hamlets only where you are
+        for (const s of K.places) { if (s.pop < 100 && s.kind !== 'castle' && s.id !== game.world.placeId) continue; const l = document.createElement('span'); l.className = 'maplabel' + (s.id === game.world.placeId ? ' here' : '') + (s.pop < 200 && s.kind !== 'capital' ? ' small' : ''); l.textContent = s.name; l.style.left = (s.x / E.W * 100) + '%'; l.style.top = (s.y / E.H * 100) + '%'; wrap.appendChild(l); }
+        for (const r of E.REGIONS) { const l = document.createElement('span'); l.className = 'maplabel region'; l.textContent = r.name.replace(/^the /, ''); l.style.left = ((r.x + (r.kind === 'mountain' ? 8 : 0)) / E.W * 100) + '%'; l.style.top = ((r.y + (r.kind === 'mountain' ? 6 : -3)) / E.H * 100) + '%'; wrap.appendChild(l); }
+        for (const r of E.LAKES) { const l = document.createElement('span'); l.className = 'maplabel water'; l.textContent = r.name; l.style.left = (r.x / E.W * 100) + '%'; l.style.top = ((r.y + r.ry) / E.H * 100) + '%'; wrap.appendChild(l); }
       });
       const inner = document.querySelector('.panel-modal .ledger-in'); if (inner) inner.classList.remove('narrow');
     };

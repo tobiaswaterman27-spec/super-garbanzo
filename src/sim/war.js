@@ -1,7 +1,7 @@
-// War with the Marcher Lords of Varn, beyond the northern passes.
+// War with the Sea-Lords of Varn, across the northern strait.
 //
 // Peace can sour into border raids; raids into war, if the castle council votes for it. In war the
-// crown musters an army at Thornbury and levies men from every place (in Ashford you can watch the
+// crown musters an army at Highmere and levies men from every place (in Ashford you can watch the
 // recruiting sergeant take them, and see the column march down the King's Road); war taxes rise;
 // grain is requisitioned; the smiths get crown orders; armies march by road, meet in battle (fought
 // in the abstract, reported without gore), besiege, burn and damage roads; refugees flee south. A
@@ -9,7 +9,7 @@
 // or don't, and their families are told.
 'use strict';
 (function () {
-  const ENEMY = 'the Marcher Lords of Varn';
+  const ENEMY = 'the Sea-Lords of Varn';
 
   function install(Kingdom) {
     const K = Kingdom.prototype, _daily = K.daily;
@@ -25,23 +25,23 @@
 
     K.warDaily = function () {
       const W = this.warInit(), r = this.rng, sim = this.sim, day = sim.day;
-      const front = ['greymoor', 'harrowdale'];
+      const front = ['ravenscar', 'frostmere'];
       if (W.phase === 'peace') {
         // raids grow likelier the longer the peace and the weaker the north
-        const north = this.place('greymoor');
+        const north = this.place('ravenscar');
         if (day - W.since > 12 && r.chance(0.012 + (north.security < 0.5 ? 0.01 : 0))) {
           W.phase = 'tension'; W.since = day;
           north.food = Math.max(0.4, north.food - 0.2); north.happiness = Math.max(0.1, north.happiness - 0.15); north.pop = Math.max(40, north.pop - 6);
-          this.addNews(`Riders from ${ENEMY} burned farms near Greymoor. The north asks the crown for protection.`, 'war', 'greymoor');
+          this.addNews(`Riders from ${ENEMY} burned farms near Ravenscar. The north asks the crown for protection.`, 'war', 'ravenscar');
         }
       } else if (W.phase === 'tension') {
-        if (r.chance(0.3)) this.addNews(`More raiders were seen in the passes above Greymoor.`, 'war', 'greymoor');
+        if (r.chance(0.3)) this.addNews(`More raiders were seen in the passes above Ravenscar.`, 'war', 'ravenscar');
         if (day - W.since >= 4) {
           // an emergency council: war or a bought peace
           const PSx = O.PlayerState, mine = PSx && (PSx.reeve || PSx.lord) && PSx.warStance; const hawks = this.places.filter((p) => p.leader && (p.detailed && mine ? PSx.warStance === 'hawk' : (p.priority === 'security' || p.region === 'north' || r.chance(0.4)))).length;
           const leaders = this.places.filter((p) => p.leader).length;
           if (hawks > leaders / 2 && this.treasury > 300) this.declareWar();
-          else { W.phase = 'peace'; W.since = day; this.treasury -= Math.min(this.treasury, 200); this.addNews(`The council at Thornbury Castle paid ${ENEMY} 200 crowns to keep to their side of the mountains.`, 'politics'); }
+          else { W.phase = 'peace'; W.since = day; this.treasury -= Math.min(this.treasury, 200); this.addNews(`The council at Highmere Castle paid ${ENEMY} 200 crowns to keep to their side of the mountains.`, 'politics'); }
         }
       } else if (W.phase === 'war') {
         this.warCampaign();
@@ -50,17 +50,17 @@
 
     K.declareWar = function (opts = {}) {
       const W = this.war, sim = this.sim;
-      W.enemy = opts.enemy || ENEMY; W.foeHome = opts.home || 'greymoor'; W.civil = !!opts.civil;
+      W.enemy = opts.enemy || ENEMY; W.foeHome = opts.home || 'ravenscar'; W.civil = !!opts.civil;
       const FOE = W.enemy, fh = W.foeHome;
       W.phase = 'war'; W.since = sim.day; W.wars++; W.score = 0; W.battles = []; W.taxBefore = this.taxRate;
       this.taxRate = Math.min(0.2, this.taxRate + 0.04);
       const levy = this.places.filter((p) => !p.detailed).reduce((s, p) => { const n = Math.round(p.pop * 0.02); p.pop -= n; return s + n; }, 0);
       W.armies = [
-        { id: 1, side: 'crown', name: opts.crownName || "the King's host", men: 220 + levy, at: 'thornbury', path: ['thornbury', 'harrowdale', fh], morale: 0.7 },
-        { id: 2, side: 'enemy', name: opts.hostName || `the host of ${FOE}`, men: (opts.men || 290) + this.rng.int(0, 180), at: fh, path: [fh, 'harrowdale', 'thornbury'], morale: 0.7, wait: 2 },
-        { id: 3, side: 'crown', name: 'the Kingsbridge levy', men: 90, at: 'kingsbridge', path: ['kingsbridge', 'ashford', 'harrowdale'], morale: 0.6 },
+        { id: 1, side: 'crown', name: opts.crownName || "the King's host", men: 220 + levy, at: 'highmere', path: ['highmere', 'frostmere', fh], morale: 0.7 },
+        { id: 2, side: 'enemy', name: opts.hostName || `the host of ${FOE}`, men: (opts.men || 290) + this.rng.int(0, 180), at: fh, path: [fh, 'frostmere', 'highmere'], morale: 0.7, wait: 2 },
+        { id: 3, side: 'crown', name: 'the Aurelia levy', men: 90, at: 'aurelia', path: ['aurelia', 'ashford', 'frostmere'], morale: 0.6 },
       ];
-      this.addNews(opts.announce || `WAR. The castle council has declared war on ${FOE}. The King's host musters at Thornbury and every town must send men.`, 'war');
+      this.addNews(opts.announce || `WAR. The castle council has declared war on ${FOE}. The King's host musters at Highmere and every town must send men.`, 'war');
       this.addNews(`The crown tax is raised to ${Math.round(this.taxRate * 100)}% to pay for the war.`, 'politics');
       sim.onWar && sim.onWar('declared');
     };
@@ -87,8 +87,8 @@
         if (a.wait) { a.wait--; continue; }
         if (alive().some((x) => x.side !== a.side && x.at === a.at)) continue;
         let target;
-        if (a.side === 'crown') target = a.id === 3 && a.at !== 'harrowdale' && !a.joined ? 'harrowdale' : near(a, 'enemy')?.at || W.foeHome || 'greymoor';
-        else target = (near(a, 'crown') && W.score >= 0) ? near(a, 'crown').at : 'thornbury';
+        if (a.side === 'crown') target = a.id === 3 && a.at !== 'frostmere' && !a.joined ? 'frostmere' : near(a, 'enemy')?.at || W.foeHome || 'ravenscar';
+        else target = (near(a, 'crown') && W.score >= 0) ? near(a, 'crown').at : 'highmere';
         const rt = path(a.at, target); if (!rt || rt.length < 2 || !r.chance(0.6)) continue;
         const from = a.at, next = rt[1];
         if (next === 'ashford' || from === 'ashford') sim.onArmyPasses && sim.onArmyPasses(a);
@@ -115,9 +115,9 @@
         W.score += crownWins ? 1 : -1;
         const b = { day: sim.day, at, crownWins, lossC, lossF }; W.battles.push(b);
         // the loser falls back along its road
-        for (const a of crownWins ? foe : crown) { const home = a.side === 'crown' ? 'thornbury' : W.foeHome || 'greymoor'; const rt = (() => { const prev = { [a.at]: null }, q = [a.at]; while (q.length) { const c = q.shift(); if (c === home) break; for (const n of this.neighbours(c)) if (!(n in prev)) { prev[n] = c; q.push(n); } } const out = []; for (let c = home; c && c in prev; c = prev[c]) out.unshift(c); return out; })(); if (rt.length > 1) a.at = rt[1]; a.wait = 2; }
+        for (const a of crownWins ? foe : crown) { const home = a.side === 'crown' ? 'highmere' : W.foeHome || 'ravenscar'; const rt = (() => { const prev = { [a.at]: null }, q = [a.at]; while (q.length) { const c = q.shift(); if (c === home) break; for (const n of this.neighbours(c)) if (!(n in prev)) { prev[n] = c; q.push(n); } } const out = []; for (let c = home; c && c in prev; c = prev[c]) out.unshift(c); return out; })(); if (rt.length > 1) a.at = rt[1]; a.wait = 2; }
         for (const a of crownWins ? crown : foe) a.wait = 1;
-        if (!crownWins && at !== (W.foeHome || 'greymoor')) { const pl = this.place(at); pl.happiness = Math.max(0.05, pl.happiness - 0.15); }
+        if (!crownWins && at !== (W.foeHome || 'ravenscar')) { const pl = this.place(at); pl.happiness = Math.max(0.05, pl.happiness - 0.15); }
         this.addNews(crownWins ? `Victory at ${pl.name}! ${cap(crown[0].name)} drove off ${foe[0].name}. ${lossC} of the King's men will not come home.` : `Defeat at ${pl.name}. ${cap(crown[0].name)} gave way before ${foe[0].name}; ${lossC} of the King's men fell.`, 'war', at);
         sim.onBattle && sim.onBattle(b);
       }
@@ -131,10 +131,10 @@
       const W = this.war, sim = this.sim;
       W.phase = 'truce'; W.since = sim.day; W.winner = winner; W.armies = [];
       this.taxRate = winner === 'enemy' ? Math.min(0.2, (W.taxBefore || 0.08) + 0.03) : (W.taxBefore || 0.08);
-      if (W.civil) { W.enemy = ENEMY; W.foeHome = 'greymoor'; W.civil = false; this.taxRate = W.taxBefore || 0.08; this.onCivilEnd && this.onCivilEnd(winner); sim.onWar && sim.onWar('peace', winner); return; }
-      if (winner === 'crown') { this.treasury += 300; this.addNews(`PEACE. ${cap(W.enemy)} have sued for peace and paid tribute. The Treaty of Thornbury is sealed; bells ring in every town.`, 'war'); }
-      else if (winner === 'enemy') { this.treasury = Math.max(0, this.treasury - 400); const g = this.place('greymoor'); g.wealth = Math.max(0.05, g.wealth - 0.15); this.addNews(`PEACE, of a kind. The crown has bought an end to the war with gold and the northern pastures. The war tax stays.`, 'war'); }
-      else this.addNews(`Both hosts are spent. A truce is agreed at Harrowdale and the men are sent home.`, 'war');
+      if (W.civil) { W.enemy = ENEMY; W.foeHome = 'ravenscar'; W.civil = false; this.taxRate = W.taxBefore || 0.08; this.onCivilEnd && this.onCivilEnd(winner); sim.onWar && sim.onWar('peace', winner); return; }
+      if (winner === 'crown') { this.treasury += 300; this.addNews(`PEACE. ${cap(W.enemy)} have sued for peace and paid tribute. The Treaty of Highmere is sealed; bells ring in every town.`, 'war'); }
+      else if (winner === 'enemy') { this.treasury = Math.max(0, this.treasury - 400); const g = this.place('ravenscar'); g.wealth = Math.max(0.05, g.wealth - 0.15); this.addNews(`PEACE, of a kind. The crown has bought an end to the war with gold and the northern pastures. The war tax stays.`, 'war'); }
+      else this.addNews(`Both hosts are spent. A truce is agreed at Frostmere and the men are sent home.`, 'war');
       sim.onWar && sim.onWar('peace', winner);
     };
   }

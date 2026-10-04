@@ -22,15 +22,16 @@
     K.rulersInit = function () {
       if (this.rulers) return this.rulers;
       const r = this.rng, day = this.sim.day;
-      const crown = Object.assign(person(r, 62, 70, 'm'), { name: 'Aldred', regnal: 'III', since: day - 9 * yearDays() });
+      const crown = Object.assign(person(r, 62, 70, 'm'), { name: 'Aldric', regnal: 'IV', since: day - 9 * yearDays() });
+      crown.queen = { name: 'Elinora', sex: 'f', age: crown.age - 4 };
       crown.heir = person(r, 13, 22);
-      const R = this.rulers = { crown, pretender: { name: 'Robert', sex: 'm', age: 41, title: 'Duke of Harrowdale', seat: 'harrowdale', ambition: 0.5 + r.next() * 0.4 }, reigns: [{ who: crownTitle(crown), from: crown.since, to: null, how: 'inherited' }], lords: {}, mourning: null, regent: null };
+      const R = this.rulers = { crown, pretender: { name: 'Robert', sex: 'm', age: 41, title: 'Duke of Frostmere', seat: 'frostmere', ambition: 0.5 + r.next() * 0.4 }, reigns: [{ who: crownTitle(crown), from: crown.since, to: null, how: 'inherited' }], lords: {}, mourning: null, regent: null };
       // the lords of the realm's places become people too
-      const titles = { kingsbridge: ['the Lord Mayor', 'm'], thornbury: ['Lord', 'm'], saltmouth: ['the Port-reeve', null], harrowdale: ['the Steward', null], greymoor: ['the Headman', null], wheatley: ['the Reeve', null], oakhollow: ['the Woodward', null] };
+      const titles = { aurelia: ['the Lord Mayor', 'm'], highmere: ['Lord', 'm'], westhaven: ['the Port-reeve', null], frostmere: ['the Steward', null], ravenscar: ['the Headman', null], sunfield: ['the Reeve', null], elmstead: ['the Woodward', null] };
       for (const p of this.places) {
         if (p.detailed) continue;
-        const t = titles[p.id] || ['the Reeve', null];
-        const L = p.id === 'thornbury' ? Object.assign(person(r, 52, 60, 'm'), { name: 'Edmund' }) : person(r, 35, 64, t[1]);
+        const t = titles[p.id] || [(p.leader || 'the Reeve of x').split(' of ')[0], p.kind === 'castle' ? (p.leader || '').startsWith('Lady') ? 'f' : 'm' : null];
+        const L = p.id === 'highmere' ? Object.assign(person(r, 52, 60, 'm'), { name: 'Edmund' }) : person(r, 35, 64, t[1]);
         L.heir = person(r, 8, 30); L.title = t[0];
         R.lords[p.id] = L; p.leader = this.lordName(p.id);
       }
@@ -86,14 +87,14 @@
       const same = R.reigns.filter((x) => x.who.includes(` ${h.name}`)).length;
       R.crown = Object.assign(h, { regnal: same ? ROMAN[same + 1] : '', since: this.sim.day, ailing: false, heir: person(r, 0, 6) });
       if (h.age < 16) {
-        R.regent = { name: this.lordName('thornbury'), until: this.sim.day + (16 - h.age) * yearDays() };
+        R.regent = { name: this.lordName('highmere'), until: this.sim.day + (16 - h.age) * yearDays() };
         R.reigns.push({ who: crownTitle(R.crown), from: this.sim.day, to: null, how: 'inherited as a child' });
         this.addNews(`${crownTitle(R.crown)}, only ${h.age} years old, is proclaimed. ${R.regent.name} will rule as regent until ${pron(h) === 'his' ? 'he' : 'she'} comes of age.`, 'rulers');
         if (r.chance(0.5 * R.pretender.ambition + 0.2)) this.rebellion();
       } else {
         R.regent = null;
         R.reigns.push({ who: crownTitle(R.crown), from: this.sim.day, to: null, how: 'inherited' });
-        this.addNews(`Long live ${crownTitle(R.crown)}! ${pron(h) === 'his' ? 'He' : 'She'} was crowned today in the cathedral at Kingsbridge, and every town keeps a holiday.`, 'rulers');
+        this.addNews(`Long live ${crownTitle(R.crown)}! ${pron(h) === 'his' ? 'He' : 'She'} was crowned today in the cathedral at Aurelia, and every town keeps a holiday.`, 'rulers');
         this.sim.onCoronation && this.sim.onCoronation(crownTitle(R.crown));
         if (r.chance(0.12 * R.pretender.ambition)) this.rebellion();
       }
@@ -104,7 +105,7 @@
       this.warInit();
       const seat = this.place(P.seat);
       this.addNews(`REBELLION. ${P.name}, ${P.title}, claims the crown and has raised his banner at ${seat.name}. Lords must choose a side.`, 'rulers', P.seat);
-      this.declareWar({ civil: true, enemy: `${P.name} of Harrowdale and his rebels`, home: P.seat, men: 200, hostName: `the rebel host of ${P.name}`, crownName: R.crown ? `the host of ${crownTitle(R.crown)}` : "the King's host", announce: `CIVIL WAR. The crown calls every loyal town to arms against ${P.name}, ${P.title}. The King's host musters at Thornbury.` });
+      this.declareWar({ civil: true, enemy: `${P.name} of Frostmere and his rebels`, home: P.seat, men: 200, hostName: `the rebel host of ${P.name}`, crownName: R.crown ? `the host of ${crownTitle(R.crown)}` : "the King's host", announce: `CIVIL WAR. The crown calls every loyal town to arms against ${P.name}, ${P.title}. The King's host musters at Highmere.` });
     };
     K.onCivilEnd = function (winner) {
       const R = this.rulers, P = R.pretender, r = this.rng;
@@ -113,12 +114,12 @@
         const reign = R.reigns[R.reigns.length - 1]; if (reign && !reign.to) reign.to = this.sim.day;
         R.crown = { name: P.name, sex: P.sex, age: P.age, regnal: '', since: this.sim.day, ailing: false, heir: person(r, 4, 18) };
         R.reigns.push({ who: crownTitle(R.crown), from: this.sim.day, to: null, how: 'took the crown by force' });
-        R.regent = null; R.pretender = { name: r.pick(MN), sex: 'm', age: r.int(20, 40), title: 'heir of the old line, in exile', seat: 'saltmouth', ambition: 0.6 };
+        R.regent = null; R.pretender = { name: r.pick(MN), sex: 'm', age: r.int(20, 40), title: 'heir of the old line, in exile', seat: 'westhaven', ambition: 0.6 };
         this.addNews(`The rebels have won. ${P.name} is crowned as ${crownTitle(R.crown)}; ${old} has fled across the sea. Men who fought for the old crown keep their heads down.`, 'rulers');
         this.sim.onCoronation && this.sim.onCoronation(crownTitle(R.crown));
       } else {
-        this.addNews(`The rebellion is broken. ${P.name} has been taken and sent into exile beyond the sea; his lands at Harrowdale go to the crown.`, 'rulers');
-        R.pretender = { name: r.pick(MN), sex: 'm', age: r.int(25, 45), title: `the new Duke of Harrowdale`, seat: 'harrowdale', ambition: 0.2 + r.next() * 0.3 };
+        this.addNews(`The rebellion is broken. ${P.name} has been taken and sent into exile beyond the sea; his lands at Frostmere go to the crown.`, 'rulers');
+        R.pretender = { name: r.pick(MN), sex: 'm', age: r.int(25, 45), title: `the new Duke of Frostmere`, seat: 'frostmere', ambition: 0.2 + r.next() * 0.3 };
       }
     };
   }

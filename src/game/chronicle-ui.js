@@ -76,7 +76,7 @@
     return chips + `<ol class="chron">${out}</ol>`;
   }
   function hearsay(Ch) {
-    if (!Ch.heard.length) return '<p class="caption">You have heard nothing yet. Ask people for news, listen to the crier, sit in the tavern when a bard is in, or buy a broadsheet in Kingsbridge.</p>';
+    if (!Ch.heard.length) return '<p class="caption">You have heard nothing yet. Ask people for news, listen to the crier, sit in the tavern when a bard is in, or buy a broadsheet in Aurelia.</p>';
     const rows = Ch.heard.slice().reverse().map((h) => {
       const f = Ch.byId(h.f);
       const differs = f && h.text.replace(/[^a-z0-9]/gi, '').toLowerCase() !== f.text.replace(/[^a-z0-9]/gi, '').toLowerCase();
@@ -121,8 +121,8 @@
     PS.money -= 1;
     const rng = O.RNG(O.hash('sheet', s.day));
     const items = Ch.facts.filter((f) => f.imp >= 2 && f.day >= s.day - 14).sort((a, b) => b.imp - a.imp || b.day - a.day).slice(0, 5);
-    const rows = items.map((f) => { const v = Ch.tell(f, 'broadsheet', s, rng); Ch.playerHears(f, v, 'broadsheet', 'The Kingsbridge Crier'); return `<li><span class="lbl">${esc(f.placeName)}</span> ${esc(v)}</li>`; }).join('');
-    O.Panels.open('The Kingsbridge Crier', `<p class="caption">One penny. Printed this morning at the sign of the Bell, Cathedral Lane. “Truth, or near enough.”</p><ol class="chron">${rows || '<li>NOTHING HAS HAPPENED, which is itself remarkable!</li>'}</ol>`);
+    const rows = items.map((f) => { const v = Ch.tell(f, 'broadsheet', s, rng); Ch.playerHears(f, v, 'broadsheet', 'The Aurelia Crier'); return `<li><span class="lbl">${esc(f.placeName)}</span> ${esc(v)}</li>`; }).join('');
+    O.Panels.open('The Aurelia Crier', `<p class="caption">One penny. Printed this morning at the sign of the Bell, Cathedral Lane. “Truth, or near enough.”</p><ol class="chron">${rows || '<li>NOTHING HAS HAPPENED, which is itself remarkable!</li>'}</ol>`);
   }
 
   O.ChronicleUI = { setup, open, memorial, broadsheet };

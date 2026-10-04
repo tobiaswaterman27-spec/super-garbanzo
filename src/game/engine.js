@@ -127,8 +127,9 @@
       p.moving = len > 0;
       for (const a of this.actors) a.ft += dt;
       // chimney smoke
+      this.hearthT = (this.hearthT || 0) - dt; if (this.hearthT <= 0) { this.hearthT = 1; this.updateHearths(); }
       for (const b of this.world.buildings) {
-        if (!b.sprite || !b.sprite.chimney || Math.random() > dt * 3) continue;
+        if (!b.sprite || !b.sprite.chimney || !this.lit.has(b.id) || Math.random() > dt * 3) continue;
         const sx = b.x * this.world.T - b.sprite.OV + b.sprite.chimney.x, sy = (b.bottom + 1) * this.world.T - b.sprite.H + b.sprite.chimney.y;
         this.particles.push({ x: sx, y: sy, vx: 3 + Math.random() * 3, vy: -7 - Math.random() * 3, life: 0, max: 3 + Math.random() * 2, r: 1 });
       }
@@ -203,6 +204,28 @@
       for (const h of this.hooks.drawTop) h(ctx, cam);
     }
 
+    // Which hearths are burning. There are no lamps in the streets and no glow in the windows:
+    // a fire is lit when somebody is home to tend it — to cook in the morning, at midday and in the
+    // evening, all day in the cold months — and in the trades that live by fire during working hours.
+    updateHearths() {
+      const sim = this.sim, lit = this.lit || (this.lit = new Set()); lit.clear();
+      if (!sim || this.world !== sim.world) { for (const b of this.world.buildings) if (b.sprite?.chimney && (b.id * 7 + Math.floor(this.clock.minute / 90)) % 3) lit.add(b.id); return; }
+      const inside = new Map(), dark = this.isNight();
+      for (const q of sim.people) if (q.agent) q.agent.torch = dark && !q.agent.hidden && q.alive !== false && !!q.job?.role?.startsWith('guard');
+      for (const q of sim.people) if (q.alive !== false && q.agent && q.agent.inside != null) inside.set(q.agent.inside, (inside.get(q.agent.inside) || 0) + 1);
+      const h = this.clock.minute / 60, cold = sim.season === 'Winter' || sim.season === 'Autumn' && (h < 8 || h > 18);
+      for (const b of this.world.buildings) {
+        if (!b.sprite?.chimney || b.ruined || b.site) continue;
+        const n = inside.get(b.id) || 0;
+        let on;
+        if (b.type === 'bakery') on = h >= 3 && h < 16;
+        else if (b.type === 'smithy' || b.type === 'armourer') on = n > 0 && h >= 6.5 && h < 18.5;
+        else if (b.type === 'tavern') on = h >= 8 && h < 24 && n > 0;
+        else on = n > 0 && (cold ? h >= 5 && h < 23 : (h >= 5.5 && h < 8.5) || (h >= 11.5 && h < 13) || (h >= 17 && h < 21.5));
+        if (on) lit.add(b.id);
+      }
+    }
+
     // Day/night: ambient tint multiplied over the frame, with stepped pixel light pools punched out
     // around lamps and lit windows.
     ambient() {
@@ -243,10 +266,14 @@
       const pools = [];
       if (night || amb[2] > amb[0]) {
         for (const s of this.statics) {
-          if (s.p && s.p.kind === 'lamp') pools.push([s.p.x - cam.x, s.p.y - 26 - cam.y, 34]);
           if (s.b && s.b.fire) pools.push([(s.b.x + s.b.w / 2) * T - cam.x, s.b.bottom * T - 30 - cam.y, 40 + s.b.fire.i * 60]);
-          if (s.b && s.b.sprite) for (const wd of s.b.sprite.windows) pools.push([s.b.x * T - s.b.sprite.OV + wd.x + wd.w / 2 - cam.x, (s.b.bottom + 1) * T - s.b.sprite.H + wd.y + wd.h + 6 - cam.y, 16]);
+          if (s.b && s.b.sprite?.campfire && this.lit?.has(s.b.id)) pools.push([s.b.x * T - s.b.sprite.OV + s.b.sprite.campfire.x - cam.x, (s.b.bottom + 1) * T - s.b.sprite.H + s.b.sprite.campfire.y - cam.y, 30]);
+          // the smith's forge and the baker's oven throw light out of the open door
+          if (s.b && s.b.sprite?.door && this.lit?.has(s.b.id) && ['smithy', 'bakery', 'armourer', 'tavern'].includes(s.b.type)) { const d = s.b.sprite.door; pools.push([s.b.x * T - s.b.sprite.OV + d.x + d.w / 2 - cam.x, (s.b.bottom + 1) * T - s.b.sprite.H + d.y + d.h - cam.y, 18]); }
         }
+        // the watch carry torches at night
+        if (night) for (const a of this.actors) if (!a.hidden && a.torch) pools.push([a.x - cam.x, a.y - 30 - cam.y, 30]);
+        if (night && this.player.torch && !this.scene) pools.push([this.player.x - cam.x, this.player.y - 30 - cam.y, 34]);
       }
       lc.globalCompositeOperation = 'lighter';
       for (const [x, y, r] of pools) {
@@ -259,10 +286,9 @@
         }
       }
       ctx.globalCompositeOperation = 'multiply'; ctx.drawImage(L, 0, 0); ctx.globalCompositeOperation = 'source-over';
-      if (night) { // lit window panes on top
-        ctx.fillStyle = '#ffd27a';
-        for (const s of this.statics) if (s.b && s.b.sprite) { const b = s.b, sp = b.sprite, bx = b.x * T - sp.OV - cam.x, by = (b.bottom + 1) * T - sp.H - cam.y; if (bx > vw || by > vh || bx + sp.W < 0 || by + sp.H < 0) continue; for (const wd of sp.windows) { if ((b.id * 7 + wd.x) % 5 === 0) continue; ctx.fillRect(bx + wd.x, by + wd.y, wd.w, wd.h); ctx.fillStyle = '#c88a3a'; ctx.fillRect(bx + wd.x + Math.floor(wd.w / 2) - 0, by + wd.y, 1, wd.h); ctx.fillRect(bx + wd.x, by + wd.y + Math.floor(wd.h / 2), wd.w, 1); ctx.fillStyle = '#ffd27a'; } }
-        for (const s of this.statics) if (s.p && s.p.kind === 'lamp') { ctx.fillStyle = '#ffe08a'; ctx.fillRect(s.p.x - 2 - cam.x, s.p.y - 27 - cam.y, 4, 4); }
+      if (night) { // torch flames
+        const fl = (x, y) => { const k = Math.floor(this.t * 10) % 2; ctx.fillStyle = '#ffb040'; ctx.fillRect(x - 1, y - 2 - k, 3, 3 + k); ctx.fillStyle = '#fff2a0'; ctx.fillRect(x, y - 1, 1, 2); };
+        for (const a of this.actors) if (!a.hidden && a.torch) fl(Math.round(a.x + 6 - cam.x), Math.round(a.y - 33 - cam.y));
       }
     }
 

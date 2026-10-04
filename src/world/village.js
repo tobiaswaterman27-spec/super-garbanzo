@@ -103,7 +103,7 @@
     P('stall', 51, 27, { v: 2 }); solid[27 * W + 50] = 1; solid[27 * W + 52] = 1;
     P('stall', 40, 24, { v: 3 }); solid[24 * W + 39] = 1; solid[24 * W + 41] = 1;
     P('crate', 43, 27); P('barrel', 53, 24); P('sack', 49, 27, { solid: false }); P('bench', 37, 23, { solid: false });
-    P('lamp', 37, 29); P('lamp', 55, 29); P('signpost', 47, 32, { solid: false });
+    P('signpost', 47, 32, { solid: false });
     // smithy yard
     P('anvil', 35, 29, { solid: false }); P('woodpile', 29, 28); P('barrel', 35, 27);
     // tavern

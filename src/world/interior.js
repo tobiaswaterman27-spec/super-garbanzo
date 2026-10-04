@@ -243,6 +243,8 @@
         break;
       default: storage();
     }
+    // a chimney always has a fire beneath it
+    if (chimneyX != null && floor === 0 && !items.some((i) => i.kind === 'fireplace' || i.kind === 'oven' || i.kind === 'forge' || i.kind === 'cauldron')) hearth();
     // portraits of the family's notable dead hang on the back wall, clear of the windows
     if (b.portraits && b.portraits.length && floor === 0) {
       const nW = Math.min(Math.max(1, Math.floor(b.w / 2) + 1), Math.max(1, Math.floor(w / 2)));

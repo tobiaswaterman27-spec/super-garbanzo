@@ -98,7 +98,7 @@
     const P = (kind, tx, ty, opts = {}) => { const p = Object.assign({ kind, x: tx * T + 8, y: ty * T + 14, seed: rng.int(1, 1e6), v: 0, solid: true }, opts); props.push(p); if (p.solid) solid[ty * W + tx] = 1; return p; };
     P('well', sqX + 8, roadY - 4, { y: (roadY - 4) * T + 15 }); solid[(roadY - 4) * W + sqX + 7] = 1;
     if (town) { P('stall', sqX + 3, roadY - 2, { v: 1 }); solid[(roadY - 2) * W + sqX + 2] = 1; solid[(roadY - 2) * W + sqX + 4] = 1; P('stall', sqX + 12, roadY - 2, { v: 2 }); solid[(roadY - 2) * W + sqX + 11] = 1; solid[(roadY - 2) * W + sqX + 13] = 1; }
-    P('lamp', sqX, roadY - 1); P('lamp', sqX + 15, roadY - 1); P('signpost', sqX + 9, roadY + 2, { solid: false }); P('bench', sqX + 2, roadY - 5, { solid: false });
+    P('signpost', sqX + 9, roadY + 2, { solid: false }); P('bench', sqX + 2, roadY - 5, { solid: false });
     for (let xx = W - 34; xx <= W - 8; xx++) P('fenceH', xx, fy0 - 1, { solid: xx !== W - 20 });
     for (let yy = fy0; yy <= fy1; yy++) for (let xx = W - 34; xx <= W - 8; xx++) props.push({ kind: place.region === 'south' && xx > W - 20 ? 'cabbage' : 'wheat', x: xx * T + 8, y: yy * T + 15, seed: 1, v: 2, solid: false, flat: true, field: place.region === 'south' && xx > W - 20 ? 'cabbage' : 'wheat' });
     if (coast) for (let i = 0; i < 4; i++) P('boat', shoreX - 1, roadY - 12 + i * 5, { solid: true, seed: i });
@@ -213,7 +213,7 @@
     for (const [type, name, w, d] of need) { for (let tries = 0; tries < 60; tries++) { const x = rng.int(8, W - 14), bottom = rng.pick([13, 22, 33, 52, 62, 72]); if (free(x, bottom, w, d)) { B({ type, name, x, bottom, w, d, floors: type === 'mill' ? 2 : 1, wealth: 0.4, look: look(0.4) }); break; } } }
     if (!K.buildings.some((b) => b.type === 'guard')) B({ type: 'guard', name: 'City Watch', x: 42, bottom: 79, w: 6, d: 4, look: { wall: 'stone', roof: 'slate', sign: 'shield', noFlowers: true, doorTile: 2 } });
     if (!K.buildings.some((b) => b.type === 'doctor')) B({ type: 'doctor', name: 'Physician', x: 30, bottom: 79, w: 4, d: 4, floors: 2, look: look(0.6, { sign: 'herb' }) });
-    P('lamp', 44, 43); P('lamp', 64, 43); P('signpost', 42, 46, { solid: false });
+    P('signpost', 42, 46, { solid: false });
     K.scatter((x, y) => x > x0 && x < x1 && y > y0 && y < y1);
     return K.finish({ roadY, exits: { west: [0, roadY], east: [W - 1, roadY] }, river: true, zones: { square: [45, 31, 63, 42], bench: [46, 31], farm: [8, 82, 30, 84], wood: [2, 82, 20, 86], east: [W - 1, roadY], patrol: [[55, 44], [20, 44], [40, 24], [80, 24], [110, 44], [96, 64], [60, 64], [40, 44]] }, city: true });
   }

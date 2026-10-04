@@ -2515,7 +2515,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     P('stall', 51, 27, { v: 2 }); solid[27 * W + 50] = 1; solid[27 * W + 52] = 1;
     P('stall', 40, 24, { v: 3 }); solid[24 * W + 39] = 1; solid[24 * W + 41] = 1;
     P('crate', 43, 27); P('barrel', 53, 24); P('sack', 49, 27, { solid: false }); P('bench', 37, 23, { solid: false });
-    P('lamp', 37, 29); P('lamp', 55, 29); P('signpost', 47, 32, { solid: false });
+    P('signpost', 47, 32, { solid: false });
     // smithy yard
     P('anvil', 35, 29, { solid: false }); P('woodpile', 29, 28); P('barrel', 35, 27);
     // tavern
@@ -2788,7 +2788,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     const P = (kind, tx, ty, opts = {}) => { const p = Object.assign({ kind, x: tx * T + 8, y: ty * T + 14, seed: rng.int(1, 1e6), v: 0, solid: true }, opts); props.push(p); if (p.solid) solid[ty * W + tx] = 1; return p; };
     P('well', sqX + 8, roadY - 4, { y: (roadY - 4) * T + 15 }); solid[(roadY - 4) * W + sqX + 7] = 1;
     if (town) { P('stall', sqX + 3, roadY - 2, { v: 1 }); solid[(roadY - 2) * W + sqX + 2] = 1; solid[(roadY - 2) * W + sqX + 4] = 1; P('stall', sqX + 12, roadY - 2, { v: 2 }); solid[(roadY - 2) * W + sqX + 11] = 1; solid[(roadY - 2) * W + sqX + 13] = 1; }
-    P('lamp', sqX, roadY - 1); P('lamp', sqX + 15, roadY - 1); P('signpost', sqX + 9, roadY + 2, { solid: false }); P('bench', sqX + 2, roadY - 5, { solid: false });
+    P('signpost', sqX + 9, roadY + 2, { solid: false }); P('bench', sqX + 2, roadY - 5, { solid: false });
     for (let xx = W - 34; xx <= W - 8; xx++) P('fenceH', xx, fy0 - 1, { solid: xx !== W - 20 });
     for (let yy = fy0; yy <= fy1; yy++) for (let xx = W - 34; xx <= W - 8; xx++) props.push({ kind: place.region === 'south' && xx > W - 20 ? 'cabbage' : 'wheat', x: xx * T + 8, y: yy * T + 15, seed: 1, v: 2, solid: false, flat: true, field: place.region === 'south' && xx > W - 20 ? 'cabbage' : 'wheat' });
     if (coast) for (let i = 0; i < 4; i++) P('boat', shoreX - 1, roadY - 12 + i * 5, { solid: true, seed: i });
@@ -2903,7 +2903,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     for (const [type, name, w, d] of need) { for (let tries = 0; tries < 60; tries++) { const x = rng.int(8, W - 14), bottom = rng.pick([13, 22, 33, 52, 62, 72]); if (free(x, bottom, w, d)) { B({ type, name, x, bottom, w, d, floors: type === 'mill' ? 2 : 1, wealth: 0.4, look: look(0.4) }); break; } } }
     if (!K.buildings.some((b) => b.type === 'guard')) B({ type: 'guard', name: 'City Watch', x: 42, bottom: 79, w: 6, d: 4, look: { wall: 'stone', roof: 'slate', sign: 'shield', noFlowers: true, doorTile: 2 } });
     if (!K.buildings.some((b) => b.type === 'doctor')) B({ type: 'doctor', name: 'Physician', x: 30, bottom: 79, w: 4, d: 4, floors: 2, look: look(0.6, { sign: 'herb' }) });
-    P('lamp', 44, 43); P('lamp', 64, 43); P('signpost', 42, 46, { solid: false });
+    P('signpost', 42, 46, { solid: false });
     K.scatter((x, y) => x > x0 && x < x1 && y > y0 && y < y1);
     return K.finish({ roadY, exits: { west: [0, roadY], east: [W - 1, roadY] }, river: true, zones: { square: [45, 31, 63, 42], bench: [46, 31], farm: [8, 82, 30, 84], wood: [2, 82, 20, 86], east: [W - 1, roadY], patrol: [[55, 44], [20, 44], [40, 24], [80, 24], [110, 44], [96, 64], [60, 64], [40, 44]] }, city: true });
   }
@@ -3072,8 +3072,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       p.moving = len > 0;
       for (const a of this.actors) a.ft += dt;
       // chimney smoke
+      this.hearthT = (this.hearthT || 0) - dt; if (this.hearthT <= 0) { this.hearthT = 1; this.updateHearths(); }
       for (const b of this.world.buildings) {
-        if (!b.sprite || !b.sprite.chimney || Math.random() > dt * 3) continue;
+        if (!b.sprite || !b.sprite.chimney || !this.lit.has(b.id) || Math.random() > dt * 3) continue;
         const sx = b.x * this.world.T - b.sprite.OV + b.sprite.chimney.x, sy = (b.bottom + 1) * this.world.T - b.sprite.H + b.sprite.chimney.y;
         this.particles.push({ x: sx, y: sy, vx: 3 + Math.random() * 3, vy: -7 - Math.random() * 3, life: 0, max: 3 + Math.random() * 2, r: 1 });
       }
@@ -3148,6 +3149,28 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       for (const h of this.hooks.drawTop) h(ctx, cam);
     }
 
+    // Which hearths are burning. There are no lamps in the streets and no glow in the windows:
+    // a fire is lit when somebody is home to tend it — to cook in the morning, at midday and in the
+    // evening, all day in the cold months — and in the trades that live by fire during working hours.
+    updateHearths() {
+      const sim = this.sim, lit = this.lit || (this.lit = new Set()); lit.clear();
+      if (!sim || this.world !== sim.world) { for (const b of this.world.buildings) if (b.sprite?.chimney && (b.id * 7 + Math.floor(this.clock.minute / 90)) % 3) lit.add(b.id); return; }
+      const inside = new Map(), dark = this.isNight();
+      for (const q of sim.people) if (q.agent) q.agent.torch = dark && !q.agent.hidden && q.alive !== false && !!q.job?.role?.startsWith('guard');
+      for (const q of sim.people) if (q.alive !== false && q.agent && q.agent.inside != null) inside.set(q.agent.inside, (inside.get(q.agent.inside) || 0) + 1);
+      const h = this.clock.minute / 60, cold = sim.season === 'Winter' || sim.season === 'Autumn' && (h < 8 || h > 18);
+      for (const b of this.world.buildings) {
+        if (!b.sprite?.chimney || b.ruined || b.site) continue;
+        const n = inside.get(b.id) || 0;
+        let on;
+        if (b.type === 'bakery') on = h >= 3 && h < 16;
+        else if (b.type === 'smithy' || b.type === 'armourer') on = n > 0 && h >= 6.5 && h < 18.5;
+        else if (b.type === 'tavern') on = h >= 8 && h < 24 && n > 0;
+        else on = n > 0 && (cold ? h >= 5 && h < 23 : (h >= 5.5 && h < 8.5) || (h >= 11.5 && h < 13) || (h >= 17 && h < 21.5));
+        if (on) lit.add(b.id);
+      }
+    }
+
     // Day/night: ambient tint multiplied over the frame, with stepped pixel light pools punched out
     // around lamps and lit windows.
     ambient() {
@@ -3188,10 +3211,14 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const pools = [];
       if (night || amb[2] > amb[0]) {
         for (const s of this.statics) {
-          if (s.p && s.p.kind === 'lamp') pools.push([s.p.x - cam.x, s.p.y - 26 - cam.y, 34]);
           if (s.b && s.b.fire) pools.push([(s.b.x + s.b.w / 2) * T - cam.x, s.b.bottom * T - 30 - cam.y, 40 + s.b.fire.i * 60]);
-          if (s.b && s.b.sprite) for (const wd of s.b.sprite.windows) pools.push([s.b.x * T - s.b.sprite.OV + wd.x + wd.w / 2 - cam.x, (s.b.bottom + 1) * T - s.b.sprite.H + wd.y + wd.h + 6 - cam.y, 16]);
+          if (s.b && s.b.sprite?.campfire && this.lit?.has(s.b.id)) pools.push([s.b.x * T - s.b.sprite.OV + s.b.sprite.campfire.x - cam.x, (s.b.bottom + 1) * T - s.b.sprite.H + s.b.sprite.campfire.y - cam.y, 30]);
+          // the smith's forge and the baker's oven throw light out of the open door
+          if (s.b && s.b.sprite?.door && this.lit?.has(s.b.id) && ['smithy', 'bakery', 'armourer', 'tavern'].includes(s.b.type)) { const d = s.b.sprite.door; pools.push([s.b.x * T - s.b.sprite.OV + d.x + d.w / 2 - cam.x, (s.b.bottom + 1) * T - s.b.sprite.H + d.y + d.h - cam.y, 18]); }
         }
+        // the watch carry torches at night
+        if (night) for (const a of this.actors) if (!a.hidden && a.torch) pools.push([a.x - cam.x, a.y - 30 - cam.y, 30]);
+        if (night && this.player.torch && !this.scene) pools.push([this.player.x - cam.x, this.player.y - 30 - cam.y, 34]);
       }
       lc.globalCompositeOperation = 'lighter';
       for (const [x, y, r] of pools) {
@@ -3204,10 +3231,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         }
       }
       ctx.globalCompositeOperation = 'multiply'; ctx.drawImage(L, 0, 0); ctx.globalCompositeOperation = 'source-over';
-      if (night) { // lit window panes on top
-        ctx.fillStyle = '#ffd27a';
-        for (const s of this.statics) if (s.b && s.b.sprite) { const b = s.b, sp = b.sprite, bx = b.x * T - sp.OV - cam.x, by = (b.bottom + 1) * T - sp.H - cam.y; if (bx > vw || by > vh || bx + sp.W < 0 || by + sp.H < 0) continue; for (const wd of sp.windows) { if ((b.id * 7 + wd.x) % 5 === 0) continue; ctx.fillRect(bx + wd.x, by + wd.y, wd.w, wd.h); ctx.fillStyle = '#c88a3a'; ctx.fillRect(bx + wd.x + Math.floor(wd.w / 2) - 0, by + wd.y, 1, wd.h); ctx.fillRect(bx + wd.x, by + wd.y + Math.floor(wd.h / 2), wd.w, 1); ctx.fillStyle = '#ffd27a'; } }
-        for (const s of this.statics) if (s.p && s.p.kind === 'lamp') { ctx.fillStyle = '#ffe08a'; ctx.fillRect(s.p.x - 2 - cam.x, s.p.y - 27 - cam.y, 4, 4); }
+      if (night) { // torch flames
+        const fl = (x, y) => { const k = Math.floor(this.t * 10) % 2; ctx.fillStyle = '#ffb040'; ctx.fillRect(x - 1, y - 2 - k, 3, 3 + k); ctx.fillStyle = '#fff2a0'; ctx.fillRect(x, y - 1, 1, 2); };
+        for (const a of this.actors) if (!a.hidden && a.torch) fl(Math.round(a.x + 6 - cam.x), Math.round(a.y - 33 - cam.y));
       }
     }
 
@@ -7278,6 +7304,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         break;
       default: storage();
     }
+    // a chimney always has a fire beneath it
+    if (chimneyX != null && floor === 0 && !items.some((i) => i.kind === 'fireplace' || i.kind === 'oven' || i.kind === 'forge' || i.kind === 'cauldron')) hearth();
     // portraits of the family's notable dead hang on the back wall, clear of the windows
     if (b.portraits && b.portraits.length && floor === 0) {
       const nW = Math.min(Math.max(1, Math.floor(b.w / 2) + 1), Math.max(1, Math.floor(w / 2)));

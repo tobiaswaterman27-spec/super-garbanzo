@@ -46,7 +46,7 @@
       if (bz && s.bossOf && s.bossOf(bz) === q) {
         const e = postAt(s, bz);
         if (e) { out.push(['otherjob', 'Ask about other work here']); out.push(['notice', 'Hand in your notice']); }
-        else out.push(['askjob', `Ask for work at ${bz.name}`]);
+        else if (O.knowsTrade && O.knowsTrade(q)) out.push(['askjob', `Ask for work at ${bz.name}`]);
       } else if (q.age >= 14) out.push(['whohires', "Who's taking on hands?"]);
       return out;
     };
@@ -60,7 +60,7 @@
       if (!list.length) return '"Nobody\'s short of hands that I know of. Try again in a few days."';
       // they know best the places near them and their own trade
       list.sort((a, b) => (a.bz.id === q.job?.biz ? -1 : 0) - (b.bz.id === q.job?.biz ? -1 : 0) || ((a.bz.id * 7 + q.id) % 13) - ((b.bz.id * 7 + q.id) % 13));
-      const pick = list.slice(0, 3); PS.hiringLeads = pick.map((x) => x.boss.id);
+      const pick = list.slice(0, 3); PS.hiringLeads = pick.map((x) => x.boss.id); for (const x of pick) O.learnTrade && O.learnTrade(x.boss);
       return `"${pick.map((x, i) => `${i ? (i === pick.length - 1 ? 'and ' : '') : ''}${x.boss.first} at ${x.bz.name} wants ${/^[aeiou]/.test(x.role) ? 'an' : 'a'} ${x.role}`).join(', ')}. Go and ask ${pick.length > 1 ? 'them' : x0(pick)} yourself: talk to whoever runs the place."`;
     }
     const x0 = (p) => (p[0].boss.sex === 'f' ? 'her' : 'him');

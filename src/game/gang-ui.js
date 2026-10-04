@@ -74,7 +74,7 @@
       const g = sim.playerGang(), out = [];
       if (g && !q.gang && q.age >= 16 && !q.job?.role?.startsWith('guard')) out.push(['recruit', 'Sound them out']);
       if (q.gang === 'player') { const m = g?.members.find((x) => x.id === q.id); if (m?.role === 'fence') out.push(['fence', 'Fence goods']); }
-      if (q.gang && q.gang !== 'player' && PS.rep.criminal > 0.04) out.push(['fence', 'Sell them stolen goods']);
+      if (q.gang && q.gang !== 'player' && PS.rep.criminal > 0.04 && ((PS.knowsGang || {})[O.knowKey(q)] || PS.rep.criminal > 0.35)) out.push(['fence', 'Sell them stolen goods']);
       return out;
     };
     npcUI.onExtra = (q, key, render) => {

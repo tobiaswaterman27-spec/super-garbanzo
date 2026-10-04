@@ -179,3 +179,18 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] At the inn, ask the innkeeper directly for a bed (no one at the counter shouldn't stop you)
 - [x] The job card says "next shift tomorrow" even when tomorrow has come: keep it current
 - [x] People randomly entering and leaving the empty tavern: fix
+
+## Batch J (asked after step 75) - trust, and the next features
+
+- [ ] People of the law (and the government) are never in gangs
+- [ ] People only tell you things if they trust you enough; good people won't say (priests, most of the law and government), and nobody says what they don't know
+- [ ] You can't ask anyone about houses to let or for sale unless you know they deal in them
+- [ ] Getting a room: the words appear in the speech text, not the line at the bottom
+- [ ] Seasons and festivals that matter: harvest fair, midwinter feast at the castle, spring tournament (joust or bet), Sunday market with travelling merchants
+- [ ] Ruling as monarch: set the crown tax, pardon or condemn prisoners, grant titles, order works, declare war, hold audiences for petitions
+- [ ] Reputation you can see: guards nod or glare, merchants' prices, children following the famous
+- [ ] Bounty boards and hired work at the watch house and the tavern: catch a thief, escort a merchant, clear a bandit camp
+- [ ] Disasters with choices: plague year, failed harvest, flood; help or profit
+- [ ] Clean-up pass of the old Ashford-only systems (reeve, moot, lordship) against the whole island
+- Later, with the AI chat: marriage and family (court, marry, children, heirs)
+- Next after this batch: the AI chat (NPC speech by AI)

@@ -16,6 +16,11 @@
     { name: 'Fortified hold', cost: 900, beds: 12 },
   ];
 
+  // the upright: the law, the government, the Church, the crown and the gentry. They never run with a gang,
+  // and they won't tell a stranger who does.
+  const UPRIGHT = /guard|sergeant|captain|watch|constable|gaoler|turnkey|bailiff|magistrate|tax collector|reeve|steward|chamberlain|clerk|warden|toll keeper|bounty hunter|knight|herald|priest|chaplain|monk|nun|friar|abbot|bell-ringer|sexton|spy|executioner|judge|treasurer|mayor|alderman|lord|lady|monarch|consort|heir/;
+  function upright(sim, p) { if (!p) return false; if (p.royal || p.gentry || p.title) return true; const r = p.job?.role || ''; if (UPRIGHT.test(r)) return true; const bz = p.job && sim.biz && sim.biz.get(p.job.biz); return !!(bz && (bz.def.public || bz.type === 'chapel' || bz.type === 'church')); }
+  O.upright = upright;
   function install(Sim) {
     const S = Sim.prototype;
     S.gangsInit = function () {
@@ -23,7 +28,7 @@
       const r = this.rng;
       // each den in the woods belongs to a gang of its own, with its own name, leader and hands
       const dens = this.world.buildings.filter((b) => b.type === 'hideout' && !b.roadKey && b.gang !== 'player');
-      const cands = this.people.filter((p) => !p.visitor && p.age >= 17 && p.age < 55 && !p.job?.role?.startsWith('guard') && !p.gentry && !p.royal).sort((a, b) => a.attitude - b.attitude);
+      const cands = this.people.filter((p) => !p.visitor && p.age >= 17 && p.age < 55 && !upright(this, p)).sort((a, b) => a.attitude - b.attitude);
       dens.forEach((den, k) => {
         const id = 'g' + k, name = gangName(r);
         const g = { id, name, leader: null, members: [], purse: r.int(30, 120), hideout: den.id, level: den.level ?? 1, influence: 0.15 + r.next() * 0.1, rel: { player: 'neutral' }, log: [], speciality: r.pick(['burglary', 'pickpocketing', 'smuggling', 'poaching', 'protection']) };
@@ -41,6 +46,9 @@
     };
     S.npcGangs = function () { return this.gangs.filter((g) => g.id !== 'player'); };
     S.gang = function (id) { return this.gangs.find((g) => g.id === id); };
+    // anyone who takes up a post in the law, the government or the Church leaves their gang
+    const _ndG = S.newDay;
+    S.newDay = function () { _ndG.call(this); for (const g of this.gangs || []) for (const m of [...g.members]) { const p = this.byId.get(m.id); if (p && upright(this, p)) this.leaveGang(m, g, 'took up an honest post'); } };
     S.playerGang = function () { return this.gang('player'); };
 
     S.foundGang = function (name, b) {
@@ -54,12 +62,13 @@
     // Would this person throw in their lot with the player's gang?
     S.recruitChance = function (p) {
       const PS = O.PlayerState, hh = this.household(p);
-      if (p.age < 16 || p.job?.role?.startsWith('guard') || p.gang) return 0;
+      if (p.age < 16 || upright(this, p) || p.gang) return 0;
       let c = 0.1 + Math.max(0, -p.attitude) * 0.6 + (hh.money < 30 ? 0.2 : 0) + (!p.job ? 0.15 : 0) + (p.traits.includes('risk-taking') ? 0.15 : 0) + (p.traits.includes('greedy') ? 0.1 : 0) - (p.traits.includes('cautious') ? 0.2 : 0) - (p.traits.includes('loyal') && p.job ? 0.1 : 0);
       c += (p.rel.get(0)?.affinity || 0) * 0.4 + PS.rep.criminal * 0.3 - (p.memories.some((m) => m.kind === 'crime' && m.about === 0) ? 0.4 : 0);
       return O.clamp(c, 0, 0.9);
     };
     S.joinGang = function (p, gid, wage) {
+      if (upright(this, p)) return;
       const g = this.gang(gid);
       g.members.push({ id: p.id, role: 'recruit', loyalty: 0.45 + Math.max(0, -p.attitude) * 0.3, wage, joined: this.day });
       p.gang = gid; p.attitude = Math.min(p.attitude, 0);

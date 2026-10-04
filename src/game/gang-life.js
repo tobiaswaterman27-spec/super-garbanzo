@@ -45,6 +45,7 @@
       if (!q.gang || q.gang === 'player' || !s.gangs) return out;
       const g = s.gang(q.gang); if (!g) return out;
       const m = memberOf(s, g.id);
+      if (!m && !((PS.knowsGang || {})[O.knowKey(q)] || PS.rep.criminal > 0.35)) return out; // you'd have to know they're one of them
       if (!m) out.push(['gjoin', `Ask to run with ${g.name}`]);
       else {
         if (!m.task || m.task.done) out.push(['gtask', 'Any work for me?']);
@@ -56,15 +57,24 @@
     };
     const memberOfAny = (s) => (s.gangs || []).some((g) => memberOf(s, g.id));
     // who'd know: the shady, the poor, the tavern crowd, and anyone who likes you; the honest won't say
+    // Who'll tell you, and what they actually know. The upright (the law, the government, the Church) and
+    // the good-hearted never say. Everyone else needs to trust you first, and can only name someone they
+    // know runs with a gang: kin, a friend, someone they drink with; or, for the town's rough sort, a face
+    // everyone in the lanes knows.
     function gangLead(s, q) {
-      const shady = q.traits.includes('greedy') || q.traits.includes('cunning') || q.attitude < 0 || s.household(q).money < 15 || q.activity?.act === 'socialise';
-      const fond = (q.rel?.get(0)?.affinity || 0) > 0.3;
-      if (!shady && !fond && PS.rep.criminal < 0.1) return `"${['Me? I keep to honest work.', 'I wouldn\'t know about that sort of thing.', 'Ask the watch, if you\'re so curious.'][q.id % 3]}"`;
-      const ms = s.people.filter((m) => m.gang && m.gang !== 'player' && m.alive !== false);
-      if (!ms.length) return '"There\'s no gang in this town that I know of."';
-      const m = ms.sort((a, b) => ((a.id * 5 + q.id) % 11) - ((b.id * 5 + q.id) % 11))[0], g = s.gang(m.gang);
+      const PSx = PS, aff = q.rel?.get(0)?.affinity || 0;
+      if (O.upright(s, q)) return `"${['I\'ll not help you into that sort of company.', 'Ask the watch, if you\'re so curious. In fact, I might.', 'God keep you from such people.'][q.id % 3]}"`;
+      const good = q.attitude > 0.35 || q.traits.includes('generous') && q.traits.includes('loyal');
+      if (good) return '"Me? I keep to honest work, and honest folk."';
+      const rough = q.traits.includes('greedy') || q.traits.includes('hostile') || q.attitude < -0.1 || s.household(q).money < 15;
+      const need = rough ? 0.1 : 0.35;
+      if (aff < need && PSx.rep.criminal < 0.3) return `"${['Why would I tell you anything? I hardly know you.', 'I don\'t talk about such things with strangers.', 'Buy me a drink some time, and maybe we\'ll talk.'][q.id % 3]}"`;
+      const ms = s.people.filter((m) => m.gang && m.gang !== 'player' && m.alive !== false && m !== q);
+      const knowsOf = ms.filter((m) => m.household === q.household || (q.rel?.get(m.id)?.affinity || 0) > 0.15 || (m.rel?.get(q.id)?.affinity || 0) > 0.15 || (rough && (m.id + q.id) % 3 === 0));
+      if (!knowsOf.length) return `"${['I wouldn\'t know. I keep my head down.', 'Not that I know of, and I\'d not want to.', 'Couldn\'t tell you. Nobody I know.'][q.id % 3]}"`;
+      const m = knowsOf.sort((a, b) => ((a.id * 5 + q.id) % 11) - ((b.id * 5 + q.id) % 11))[0], g = s.gang(m.gang);
       const where = m.job?.biz != null && s.biz.get(m.job.biz) ? `you'll find ${m.sex === 'f' ? 'her' : 'him'} at ${s.biz.get(m.job.biz).name} in the day` : s.biz && [...s.biz.values()].find((z) => z.type === 'tavern') ? `${m.sex === 'f' ? 'she' : 'he'} drinks at ${[...s.biz.values()].find((z) => z.type === 'tavern').name} of an evening` : `${m.sex === 'f' ? 'she' : 'he'} lives about the town`;
-      PS.gangLead = m.id;
+      PSx.gangLead = m.id; (PSx.knowsGang = PSx.knowsGang || {})[O.knowKey(m)] = 1;
       return `"Keep your voice down. ${m.first} ${m.sur || ''} runs with ${g ? g.name : 'a crew'}: ${where}. Talk to ${m.sex === 'f' ? 'her' : 'him'}, and you never heard it from me."`;
     }
     npcUI.onExtra = (q, key, render) => {
@@ -73,6 +83,7 @@
         const s = cur(), m = here(s).find((x) => x.task && !x.task.done && x.task.kind === 'recruit' && x.task.target === q.id), g = m && s.gang(m.gid);
         if (!g) return render('Eh?');
         const ch = 0.35 + Math.max(0, -(q.attitude || 0)) * 0.5 + ((q.rel.get(0) || {}).affinity || 0) * 0.5 + (s.household(q).money < 30 ? 0.2 : 0);
+        if (O.upright(s, q)) return render(`"Me? Run with them? I serve ${q.job?.biz != null && s.biz.get(q.job.biz)?.def.public ? 'the town' : 'the Church and the crown'}. Get away from me before I call the watch."`);
         if (s.rng.chance(ch)) { g.members.push({ id: q.id, role: 'recruit', loyalty: 0.5, wage: 3, joined: s.day }); q.gang = g.id; m.task.have = 1; complete(s, g, m); return render(`...All right. Tell them I'm in.`); }
         m.task.tries = (m.task.tries || 0) + 1; s.relate(q, { id: 0 }, -0.05);
         return render(m.task.tries >= 2 ? "I said no. Leave me be, or I'll tell the watch." : "Run with a gang? No. I've trouble enough.");

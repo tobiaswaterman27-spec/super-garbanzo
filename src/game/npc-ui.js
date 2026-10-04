@@ -27,6 +27,12 @@
       talking.agent.frozen = true;
     });
 
+    // what you know of someone's trade: they told you ("What do you do?"), someone told you, they're your
+    // master, or you can see them at it in their own workplace
+    const PSk = O.PlayerState;
+    const kk = (q) => (O.SimRef.cur.world.placeId || '') + ':' + q.id; O.knowKey = kk;
+    O.knowsTrade = (q) => !!(q && ((PSk.knows || {})[kk(q)] || (game.scene && q.job && game.scene.b.id === q.job.biz && q.activity?.act === 'work') || (PSk.posts || []).some((e) => e.master === q.id)));
+    O.learnTrade = (q) => { if (q) (PSk.knows = PSk.knows || {})[kk(q)] = 1; };
     function openTalk(q) {
       talking = q; q.agent.frozen = true;
       const pos = game.scene ? game.scene.personPos(q) || [q.agent.x, q.agent.y] : [q.agent.x, q.agent.y];
@@ -51,7 +57,7 @@
       const options = [];
       for (const [k, l] of (api.extraButtons ? api.extraButtons(q) : [])) options.push({ key: 'x-' + k, label: l, hot: true });
       if (atWork) options.push({ key: 'trade', label: 'Show me your wares', hot: true });
-      if (q.job?.role === 'parish clerk' && q.activity?.act === 'work') options.push({ key: 'houses', label: 'Houses to let or sell', hot: true });
+      if (q.job?.role === 'parish clerk' && q.activity?.act === 'work' && O.knowsTrade(q)) options.push({ key: 'houses', label: 'Houses to let or sell', hot: true });
       for (const [k, l] of [['self', 'How are you?'], ['work', 'What do you do?'], ['news', 'Any news?'], ['prices', 'How are prices?'], ['family', 'Your family?']]) options.push({ key: k, label: l });
       options.push({ key: 'bye', label: 'Goodbye' });
       O.UI.dialog.open({ name: q.gentry ? q.name : q.first + (q.title ? `, ${q.title}` : q.office ? `, ${q.office}` : ''), color: tagColour(q), text: line, options, onPick: (t) => pickTopic(q, bz, t), onClose: () => { if (talking === q) { q.agent.frozen = false; q.agent.talking = 0; talking = null; } } });
@@ -69,6 +75,7 @@
         sim.remember(q, 'Let a room to a stranger.', 'work', 0.5, 0);
         return renderTalk("Room's upstairs, first bed on the left. Chest is yours while you stay. Mind the third step.");
       }
+      if (t === 'work') O.learnTrade(q);
       const seed = q.id * 31 + sim.day + Math.floor(sim.minute / 7) + t.length;
       const ctx = O.Dialogue.buildContext(sim, q), line = O.Dialogue.provider.topic(ctx, t, seed);
       if (t === 'news' && ctx._picked && O.Chronicle) O.Chronicle.playerHears(O.Chronicle.byId(ctx._picked.f), ctx._picked.v, ctx._picked.src === 'saw' ? 'rumour' : ctx._picked.src, q.name);

@@ -37,9 +37,8 @@
       // a busy place with a full till will make room for one more pair of hands
       const extra = !vac.length && des > 0.35 && bz.cash > 120 ? (bz.def.jobs.find(([r]) => ['labourer', 'apprentice', 'server', 'farmhand', 'scullion', 'maid', 'potboy'].includes(r)) || bz.def.jobs[bz.def.jobs.length - 1])[0] : null;
       // somebody has to collect the pots: at an inn the player can always be the potboy (or potgirl)
-      const pots = isPlayer && bz.type === 'tavern' && !vac.length && !extra && bz.playerRole !== 'potboy' ? 'potboy' : null;
-      if (!vac.length && !extra && !pots) return { yes: false, why: 'none' };
-      const role = vac.length ? vac[vac.length - 1] : extra || pots;
+      if (!vac.length && !extra) return { yes: false, why: 'none' };
+      const role = vac.length ? vac[vac.length - 1] : extra;
       if (bz.def.wage[role] === 0 && !bz.ownerPlayer) return { yes: false, why: 'none' };
       let like = 0, bad = 0;
       if (isPlayer) {

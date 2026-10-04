@@ -23,7 +23,7 @@
       ];
       const topics = [
         [[a, w === 'rain' || w === 'heavy' ? 'Will this rain never stop?' : w === 'snow' ? 'Bitter out, this snow.' : w === 'heat' ? 'Hot enough to bake bread on the step.' : 'Fine day for it.'], [b, pick(['It is that.', "Good for the crops, they say.", 'My knees could have told you.', 'Can\'t complain.'], k)]],
-        [[a, pr ? `Bread's ${pr}d a loaf now, did you hear?` : 'Everything costs more than it did.'], [b, pick(['Robbery, I call it.', 'And the loaves smaller.', 'Times are hard.', 'My mother paid a farthing.'], k)]],
+        [[a, pr ? `Bread's ₳${pr} a loaf now, did you hear?` : 'Everything costs more than it did.'], [b, pick(['Robbery, I call it.', 'And the loaves smaller.', 'Times are hard.', 'My mother paid half an aurin.'], k)]],
         [[a, a.job ? pick([`Long day at the ${a.job.role === 'baker' ? 'ovens' : 'work'}.`, `They've had me ${a.job.role === 'guard' ? 'on the gate' : 'run off my feet'} all week.`], k) : 'Still looking for work.'], [b, pick(['Keep at it.', 'Something will turn up.', "Better than idle hands.", 'Aye, me too.'], k + 3)]],
         [[a, `How's the family, ${b.first}?`], [b, pick(['All well, thank God.', 'The little one has a cough.', 'Growing like weeds.', "Don't ask."], k + 5)]],
         ...(news ? [[[a, `Heard the news? ${news.length > 90 ? news.slice(0, 87) + '…' : news}`], [b, pick(['Never!', 'So they say.', "I'll believe it when I see it.", 'What a world.'], k + 2)]]] : []),
@@ -64,8 +64,8 @@
           continue;
         }
         // talk, a line at a time
-        if (game.t - m.at >= m.i * 2.4 && m.i < m.ls.length) { const [who, txt] = m.ls[m.i]; O.Speech.say(who, txt, 2.6, m.kind === 'argue' ? 'angry' : ''); who.agent.talking = 3; who.agent.forceAnim = m.kind === 'argue' ? 'point' : 'talk'; const o = who === a ? b : a; o.agent.forceAnim = m.kind === 'argue' ? 'idle' : 'idle'; m.i++; }
-        if (game.t - m.at > m.ls.length * 2.4 + 1) {
+        if (game.t >= (m.next || m.at) && m.i < m.ls.length) { const [who, txt] = m.ls[m.i]; O.Speech.say(who, txt, 2.6, m.kind === 'argue' ? 'angry' : '', 280); m.next = game.t + 2.4 + txt.length * 0.05; who.agent.talking = 3; who.agent.forceAnim = m.kind === 'argue' ? 'point' : 'talk'; const o = who === a ? b : a; o.agent.forceAnim = m.kind === 'argue' ? 'idle' : 'idle'; m.i++; }
+        if (m.i >= m.ls.length && game.t > (m.next || 0) + 0.5) {
           // a quarrel between two who hate each other, the hot-headed or the brave, may come to blows
           if (m.kind === 'argue' && affinity(a, b) < -0.45 && (s.has(a, 'hostile') || s.has(a, 'brave') || s.has(b, 'hostile') || s.has(a, 'risk-taking')) && s.rng.chance(0.55)) { m.kind = 'fight'; m.at = game.t; m.blows = 0; O.Speech.say(a, 'Right, that does it!', 1.6, 'angry'); continue; }
           end(m); live.splice(i, 1);

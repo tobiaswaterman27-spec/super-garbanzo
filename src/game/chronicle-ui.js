@@ -122,7 +122,7 @@
     const rng = O.RNG(O.hash('sheet', s.day));
     const items = Ch.facts.filter((f) => f.imp >= 2 && f.day >= s.day - 14).sort((a, b) => b.imp - a.imp || b.day - a.day).slice(0, 5);
     const rows = items.map((f) => { const v = Ch.tell(f, 'broadsheet', s, rng); Ch.playerHears(f, v, 'broadsheet', 'The Aurelia Crier'); return `<li><span class="lbl">${esc(f.placeName)}</span> ${esc(v)}</li>`; }).join('');
-    O.Panels.open('The Aurelia Crier', `<p class="caption">One penny. Printed this morning at the sign of the Bell, Cathedral Lane. “Truth, or near enough.”</p><ol class="chron">${rows || '<li>NOTHING HAS HAPPENED, which is itself remarkable!</li>'}</ol>`);
+    O.Panels.open('The Aurelia Crier', `<p class="caption">One aurin. Printed this morning at the sign of the Bell, Cathedral Lane. “Truth, or near enough.”</p><ol class="chron">${rows || '<li>NOTHING HAS HAPPENED, which is itself remarkable!</li>'}</ol>`);
   }
 
   O.ChronicleUI = { setup, open, memorial, broadsheet };

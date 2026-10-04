@@ -1,7 +1,7 @@
 // Static simulation data: goods, trades, names, personality traits.
 'use strict';
 (function () {
-  // Base prices in pennies (d). 12d = 1 shilling.
+  // Base prices in aurins (₳), the realm's one coin.
   const GOODS = {
     wheat: { name: 'Wheat', base: 2, unit: 'bushel', slots: 1 },
     flour: { name: 'Flour', base: 4, unit: 'sack', slots: 1 },

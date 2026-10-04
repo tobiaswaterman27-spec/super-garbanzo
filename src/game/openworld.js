@@ -35,6 +35,7 @@
       // coming into a town, or leaving it for open country
       const tlx = p.x / T - w.ox, tly = p.y / T - w.oy, inside = tlx >= 0 && tly >= 0 && tlx < (w.townW || 1e9) && tly < (w.townH || 1e9);
       const key = inside ? w.placeId : null;
+      if (key !== inTownShown && game.t < 4) { inTownShown = key; } // (not while the game is still putting you where you were)
       if (key !== inTownShown) { if (key) O.UI.say(`You come into ${w.name}.`); else if (inTownShown) { const r = O.Eldoria.regionName(gx / T / I.U, gy / T / I.U); O.UI.say(`You leave ${O.Island.data().place(inTownShown)?.name || 'the town'} behind for ${r}.`); } inTownShown = key; }
     });
   }

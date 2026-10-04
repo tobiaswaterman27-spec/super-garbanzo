@@ -122,7 +122,7 @@
       this.biz.set(id, bz); this.treasury.cash -= cost; this.treasury.spent += cost;
       const idle = this.people.filter((p) => !p.visitor && p.age >= 17 && p.age < 60 && (!p.job || p.job.role === 'porter')).slice(0, 3);
       for (const p of idle) { p.job = { biz: id, role: 'builder' }; p.skills.builder = r.float(0.3, 0.7); bz.workers.push(p.id); }
-      this.log(`The council has paid ${cost}d to rebuild the burned house${ruin.spec.roof !== 'thatch' ? ', this time under a roof that won\'t catch' : ''}. ${idle.length} hired as builders.`, 'politics');
+      this.log(`The council has paid ₳${cost} to rebuild the burned house${ruin.spec.roof !== 'thatch' ? ', this time under a roof that won\'t catch' : ''}. ${idle.length} hired as builders.`, 'politics');
     };
 
     // wire into the clock

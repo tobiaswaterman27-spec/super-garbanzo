@@ -44,7 +44,7 @@
       const out = prevExtra ? prevExtra(q) : [], s = cur();
       if (q.job?.role === 'moneylender' && q.agent.inside === q.job.biz) {
         const l = loans().find((x) => x.place === s.world.placeId && x.biz === q.job.biz);
-        out.push(l ? ['repay', `Pay back what I owe (${Math.ceil(l.owe)}d)`] : ['borrow', 'Borrow money']);
+        out.push(l ? ['repay', `Pay back what I owe (₳${Math.ceil(l.owe)})`] : ['borrow', 'Borrow money']);
       }
       return out;
     };
@@ -53,9 +53,9 @@
       const s = cur(), bz = s.biz.get(q.job.biz);
       if (key === 'repay') {
         const l = loans().find((x) => x.place === s.world.placeId && x.biz === bz.id), owe = Math.ceil(l.owe);
-        if (PS.money < owe) { const part = PS.money; if (part < 1) return render('Empty pockets pay no debts.'); PS.money = 0; l.owe -= part; bz.cash += part; return render(`${part}d off the debt. ${Math.ceil(l.owe)}d still owing. Don't make me send for you.`); }
+        if (PS.money < owe) { const part = PS.money; if (part < 1) return render('Empty pockets pay no debts.'); PS.money = 0; l.owe -= part; bz.cash += part; return render(`₳${part} off the debt. ₳${Math.ceil(l.owe)} still owing. Don't make me send for you.`); }
         PS.money -= owe; bz.cash += owe; PS.loans = loans().filter((x) => x !== l); s.relate(q, { id: 0 }, 0.15); PS.rep.merchant = Math.min(1, PS.rep.merchant + 0.05);
-        return render(`${owe}d. Paid in full. A pleasure to do business with you.`);
+        return render(`₳${owe}. Paid in full. A pleasure to do business with you.`);
       }
       // how much they'll lend: on your name, your property and your work
       const prop = s.world.buildings.filter((b) => b.owner?.kind === 'player').length, worth = 20 + prop * 60 + (PS.emp ? 20 : 0) + Math.max(0, PS.rep.merchant) * 80 - Math.max(0, -PS.rep.local) * 40;
@@ -63,9 +63,9 @@
       if (max < 10) return render("I don't lend to those I don't know, or those who don't pay. Come back with a house to your name, or a good post.");
       npcUI.closeTalk();
       const opts = [10, 20, 50, 100, 200].filter((v) => v <= max);
-      O.Panels.open(`${q.name}, moneylender`, `<p class="speech">“I can let you have up to ${max}d. A fifth on top, paid back within seven days. Late, and it's a tenth more each day, and I send someone to remind you.”</p><div class="topics">${opts.map((v) => `<button data-l="${v}">Borrow ${v}d (owe ${Math.ceil(v * 1.2)}d)</button>`).join('')}<button data-n="1">Not today</button></div>`, (r) => {
+      O.Panels.open(`${q.name}, moneylender`, `<p class="speech">“I can let you have up to ₳${max}. A fifth on top, paid back within seven days. Late, and it's a tenth more each day, and I send someone to remind you.”</p><div class="topics">${opts.map((v) => `<button data-l="${v}">Borrow ₳${v} (owe ₳${Math.ceil(v * 1.2)})</button>`).join('')}<button data-n="1">Not today</button></div>`, (r) => {
         r.querySelector('[data-n]').onclick = () => O.Panels.close();
-        r.querySelectorAll('[data-l]').forEach((b) => b.onclick = () => { const v = +b.dataset.l; bz.cash -= v; PS.money += v; loans().push({ place: s.world.placeId, placeName: s.world.name, biz: bz.id, bizName: bz.name, lender: q.id, lenderName: q.name, amount: v, owe: v * 1.2, due: s.day + 7, late: 0 }); s.remember(q, `Lent the stranger ${v}d.`, 'work', 1, 0); O.Panels.close(); say(`${q.first} counts ${v}d into your hand and writes your name in the book. ${Math.ceil(v * 1.2)}d by ${O.DAYNAMES[(s.weekday + 7) % 7]} next.`); game.player.anim = 'count'; });
+        r.querySelectorAll('[data-l]').forEach((b) => b.onclick = () => { const v = +b.dataset.l; bz.cash -= v; PS.money += v; loans().push({ place: s.world.placeId, placeName: s.world.name, biz: bz.id, bizName: bz.name, lender: q.id, lenderName: q.name, amount: v, owe: v * 1.2, due: s.day + 7, late: 0 }); s.remember(q, `Lent the stranger ₳${v}.`, 'work', 1, 0); O.Panels.close(); say(`${q.first} counts ₳${v} into your hand and writes your name in the book. ₳${Math.ceil(v * 1.2)} by ${O.DAYNAMES[(s.weekday + 7) % 7]} next.`); game.player.anim = 'count'; });
       });
       return null;
     };
@@ -77,8 +77,8 @@
     });
     O.Street.on('debt', (s, q, done) => {
       const l = loans().find((x) => x.place === s.world.placeId), owe = l ? Math.ceil(l.owe) : 0;
-      O.Panels.open(`${q.name}`, `<p class="speech">“${l.lenderName} sent me. ${owe}d, and it's late. Pay up, or I make sure you remember.”</p><div class="topics"><button data-a="pay">Pay ${owe}d</button><button data-a="no">I haven't got it</button></div>`, (r) => {
-        r.querySelector('[data-a=pay]').onclick = () => { if (PS.money < owe) return done("You haven't got it.", true); PS.money -= owe; const bz = s.biz.get(l.biz); if (bz) bz.cash += owe; PS.loans = loans().filter((x) => x !== l); done(`You pay ${owe}d. ${q.first} grunts and goes.`); };
+      O.Panels.open(`${q.name}`, `<p class="speech">“${l.lenderName} sent me. ₳${owe}, and it's late. Pay up, or I make sure you remember.”</p><div class="topics"><button data-a="pay">Pay ₳${owe}</button><button data-a="no">I haven't got it</button></div>`, (r) => {
+        r.querySelector('[data-a=pay]').onclick = () => { if (PS.money < owe) return done("You haven't got it.", true); PS.money -= owe; const bz = s.biz.get(l.biz); if (bz) bz.cash += owe; PS.loans = loans().filter((x) => x !== l); done(`You pay ₳${owe}. ${q.first} grunts and goes.`); };
         r.querySelector('[data-a=no]').onclick = () => { q.agent.anim = 'attack'; PS.hp = Math.max(5, PS.hp - 15); l.due = s.day + 2; game.player.anim = 'shocked'; done(`${q.first} hits you hard, once. “Two days. Then it's worse.”`, true); };
       });
     });
@@ -97,8 +97,8 @@
       const r = s.rng, e = PS.emp, L = PS.lease;
       const boss = e && e.place === s.world.placeId ? s.byId.get(e.master) : null;
       if (boss && e.stats.missed > (e._missedSeen || 0)) { e._missedSeen = e.stats.missed; return { from: boss, text: `To my ${e.role}. You were not at ${e.bizName} yesterday, and sent no word. I keep a place for those who come. See that you do. ${boss.name}.` }; }
-      if (L && L.place === s.world.placeId && L.paidUntil != null && s.day >= L.paidUntil - 1) { const b = s.building(L.b), hh = b && b.owner?.kind === 'household' ? s.households[b.owner.id - 1] : null, ll = hh && s.byId.get(hh.members[0]); if (ll && !L._warned) { L._warned = s.day; return { from: ll, text: `The rent on the house, ${L.rent}d, falls due ${s.day >= L.paidUntil ? 'today' : 'tomorrow'}. I'll be by for it. ${ll.name}.` }; } }
-      const loan = (PS.loans || []).find((x) => x.place === s.world.placeId && x.due - s.day === 1 && !x._warned); if (loan) { loan._warned = true; const q = s.byId.get(loan.lender); if (q) return { from: q, text: `A reminder, friend: ${Math.ceil(loan.owe)}d by tomorrow, at ${loan.bizName}. I'd hate for us to fall out. ${q.name}.` }; }
+      if (L && L.place === s.world.placeId && L.paidUntil != null && s.day >= L.paidUntil - 1) { const b = s.building(L.b), hh = b && b.owner?.kind === 'household' ? s.households[b.owner.id - 1] : null, ll = hh && s.byId.get(hh.members[0]); if (ll && !L._warned) { L._warned = s.day; return { from: ll, text: `The rent on the house, ₳${L.rent}, falls due ${s.day >= L.paidUntil ? 'today' : 'tomorrow'}. I'll be by for it. ${ll.name}.` }; } }
+      const loan = (PS.loans || []).find((x) => x.place === s.world.placeId && x.due - s.day === 1 && !x._warned); if (loan) { loan._warned = true; const q = s.byId.get(loan.lender); if (q) return { from: q, text: `A reminder, friend: ₳${Math.ceil(loan.owe)} by tomorrow, at ${loan.bizName}. I'd hate for us to fall out. ${q.name}.` }; }
       const gm = (PS.gangRanks || []).find((m) => m.place === s.world.placeId && (!m.task || m.task.done) && s.day - (m._summoned || -9) > 3); if (gm) { gm._summoned = s.day; const g = s.gang(gm.gid), b = g && s.byId.get(g.leader); if (b) return { from: b, text: `The boss wants a word. You know where. Burn this.` }; }
       const friends = s.people.filter((q) => q.alive !== false && q.age >= 16 && (q.rel.get(0)?.affinity || 0) > 0.4 && !q.visitor);
       if (friends.length && r.chance(0.5)) { const f = r.pick(friends), tav = s.building(s.tavernId); return { from: f, text: r.pick([`Come to ${tav ? tav.name : 'the tavern'} tonight after the bells. I'll stand you an ale. ${f.first}.`, `My thanks for your kindness the other day. If you need anything, you know my door. ${f.name}.`, `Have you heard what they're saying in the market? Come and find me, I'll tell you. ${f.first}.`]) }; }

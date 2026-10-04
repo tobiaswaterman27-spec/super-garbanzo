@@ -6,14 +6,14 @@
   function setup(game) {
     const st = document.createElement('style');
     st.textContent = `.speech-layer{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:3}
-.speech{position:absolute;transform:translate(-50%,-100%);max-width:220px;background:#f4e8c8;color:#2a1d14;border:2px solid #2a1d14;box-shadow:2px 2px 0 rgba(20,12,8,.45);padding:3px 7px;font:12px/1.25 Georgia,serif;text-align:center;white-space:normal;transition:opacity .25s}
+.speech{position:absolute;transform:translate(-50%,-100%);max-width:260px;background:#f4e8c8;color:#2a1d14;border:2px solid #2a1d14;box-shadow:2px 2px 0 rgba(20,12,8,.45);padding:3px 7px;font:14px/1.3 Georgia,serif;text-align:center;white-space:normal;transition:opacity .25s}
 .speech:after{content:'';position:absolute;left:50%;bottom:-7px;margin-left:-4px;border:4px solid transparent;border-top:5px solid #2a1d14}
 .speech.shout{background:#fff1c2;font-weight:bold}.speech.angry{background:#f2cdbd}.speech.far{opacity:.55}`;
     document.head.appendChild(st);
     const layer = document.createElement('div'); layer.className = 'speech-layer';
     const host = game.canvas.parentElement || document.body; if (getComputedStyle(host).position === 'static') host.style.position = 'relative'; host.appendChild(layer);
     const live = new Map();
-    const EAR = 110;
+    const EAR = 230;
     // where a speaker is in the view right now (null if not here)
     const posOf = (w) => {
       if (!w) return null;
@@ -26,6 +26,7 @@
       const key = who.id != null ? 'p' + who.id : who;
       let b = live.get(key);
       if (!b) { b = { el: document.createElement('div') }; b.el.className = 'speech'; layer.appendChild(b.el); live.set(key, b); }
+      secs = Math.max(secs, 2.2 + text.length * 0.055); // long enough to read
       b.who = who; b.until = game.t + secs; b.range = range; b.el.textContent = text; b.el.className = 'speech' + (kind ? ' ' + kind : '');
       if (who.agent) { who.agent.talking = Math.max(who.agent.talking || 0, secs); }
       return inEarshot(who, range);

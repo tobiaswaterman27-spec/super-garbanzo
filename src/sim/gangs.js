@@ -64,7 +64,7 @@
       g.members.push({ id: p.id, role: 'recruit', loyalty: 0.45 + Math.max(0, -p.attitude) * 0.3, wage, joined: this.day });
       p.gang = gid; p.attitude = Math.min(p.attitude, 0);
       this.remember(p, `Threw in my lot with ${g.name}.`, 'gang', 2, 0);
-      g.log.push(`Day ${this.day}: ${p.name} joined as a recruit for ${wage}d a day.`);
+      g.log.push(`Day ${this.day}: ${p.name} joined as a recruit for ₳${wage} a day.`);
     };
     S.leaveGang = function (m, g, why) {
       g.members = g.members.filter((x) => x !== m);
@@ -153,8 +153,8 @@
         if (m) m.loyalty = Math.min(1, m.loyalty + 0.06);
         const crime = this.recordCrime({ kind: 'burglary', perp: p, gang: g.id, placeName: b.type === 'house' ? `the ${hh.surname} house` : b.name, tile: [b.doorX, b.doorY], victim: hh.id, seen: [], severity: 1 });
         const owner = hh.members.map((id) => this.byId.get(id)).find((q) => q && q.age >= 16);
-        if (owner) { this.remember(owner, `Thieves broke in during the night and took ${coin}d.`, 'crime', 1.5); if (!owner.task) owner.task = { act: 'report', b: this.guardId, crime: crime.id }; }
-        if (g.id === 'player') g.log.push(`Day ${this.day}: ${p.first} burgled the ${hh.surname} house: ${coin}d and ${goods} loaves.`);
+        if (owner) { this.remember(owner, `Thieves broke in during the night and took ₳${coin}.`, 'crime', 1.5); if (!owner.task) owner.task = { act: 'report', b: this.guardId, crime: crime.id }; }
+        if (g.id === 'player') g.log.push(`Day ${this.day}: ${p.first} burgled the ${hh.surname} house: ₳${coin} and ${goods} loaves.`);
       } else {
         const crime = this.recordCrime({ kind: 'burglary', perp: p, gang: g.id, placeName: `the ${hh.surname} house`, tile: [b.doorX, b.doorY], victim: hh.id, seen: hh.members.map((id) => this.byId.get(id)).filter((q) => q && q.age >= 12).slice(0, 2), severity: 2 });
         if (this.rng.chance(0.55)) this.arrestNPC(p, crime, false);

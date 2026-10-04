@@ -42,7 +42,7 @@
       const m = memberOf(s, g.id);
       if (key === 'grank') return render(`You're ${/^[AEIOU]/.test(RANKS[m.rank]) ? 'an' : 'a'} ${RANKS[m.rank].toLowerCase()} with us. ${m.rank >= RANKS.length - 1 ? "There's nowhere higher but the boss's own chair." : `${Math.max(0, need(m) - m.done)} more good jobs and the boss might think of you for ${RANKS[m.rank + 1].toLowerCase()}.`}`);
       if (key === 'gtask') { const t = give(s, g, m, q); if (!t) return render('Nothing just now. Come back tomorrow.'); refresh(); return render(t.ask); }
-      if (key === 'gfence') { const n = Object.values(PS.stolen).reduce((a, b) => a + b, 0); let paid = 0; for (const [k, c] of Object.entries(PS.stolen)) { const r = PS.remove(k, c); paid += Math.max(1, Math.round((O.Data.GOODS[k]?.base || 2) * 0.5)) * r; } PS.stolen = {}; PS.money += paid; g.purse += Math.round(paid * 0.4); m.task.have = m.task.need; complete(s, g, m, q); return render(`${n} things. ${paid}d for you, the rest for the purse. Good.`); }
+      if (key === 'gfence') { const n = Object.values(PS.stolen).reduce((a, b) => a + b, 0); let paid = 0; for (const [k, c] of Object.entries(PS.stolen)) { const r = PS.remove(k, c); paid += Math.max(1, Math.round((O.Data.GOODS[k]?.base || 2) * 0.5)) * r; } PS.stolen = {}; PS.money += paid; g.purse += Math.round(paid * 0.4); m.task.have = m.task.need; complete(s, g, m, q); return render(`${n} things. ₳${paid} for you, the rest for the purse. Good.`); }
       if (key === 'gmanage') { npcUI.closeTalk(); return manage(s, g, m); }
     };
     function join(s, g, q, render) {
@@ -87,7 +87,7 @@
       if (k === 2) pool.push({ kind: 'lift', need: 2, text: 'Lift two purses in the crowd', ask: 'Two purses. Market, tavern, wherever the crowd is thick. Don\'t get caught.' });
       if (k === 3) { const h = r.pick(houses.filter((b) => (b.wealth || 0.4) > 0.35)) || r.pick(houses); if (h) pool.push({ kind: 'burgle', b: h.id, text: `Take something from the ${s.households[h.household - 1]?.surname} house`, ask: `The ${s.households[h.household - 1]?.surname} house. They keep more than they show. Get in at night, take what you can carry, get out.` }); }
       if (k === 4) {
-        const sp = r.pick(shops); if (sp) pool.push({ kind: 'protect', b: sp.id, at: [sp.b.doorX * T + 8, sp.b.doorY * T + 10], text: `Collect our due from ${sp.name}`, ask: `${sp.name} owes us for keeping it safe. ${PAY[k] * 2}d. Make sure they understand.`, label: `Lean on ${sp.name} for the gang's due` });
+        const sp = r.pick(shops); if (sp) pool.push({ kind: 'protect', b: sp.id, at: [sp.b.doorX * T + 8, sp.b.doorY * T + 10], text: `Collect our due from ${sp.name}`, ask: `${sp.name} owes us for keeping it safe. ₳${PAY[k] * 2}. Make sure they understand.`, label: `Lean on ${sp.name} for the gang's due` });
         const d = r.pick(people.filter((q) => q.job)); if (d) pool.push({ kind: 'rough', target: d.id, text: `Rough up ${d.name}`, ask: `${d.name} owes and won't pay. Put them on the ground. Don't kill them: dead men pay nothing.` });
       }
       if (k === 5) pool.push({ kind: 'manage', text: "Send the lads out on tonight's job", ask: "You run the night's work now. Pick a house, pick the hands, and keep the purse straight.", need: 1 });
@@ -106,7 +106,7 @@
       const pay = PAY[m.rank] + (t.kind === 'kill' ? 40 : 0), purse = g ? g.purse : 0, paid = Math.min(pay, Math.max(0, Math.floor(purse)));
       if (g) g.purse -= paid; PS.money += paid; PS.rep.criminal = Math.min(1, (PS.rep.criminal || 0) + 0.03 + m.rank * 0.01);
       m.done++; m.trust = Math.min(1, m.trust + 0.08);
-      say(`${t.text}: done. ${paid ? `Your cut: ${paid}d.` : 'The purse is empty; you\'re owed.'}`);
+      say(`${t.text}: done. ${paid ? `Your cut: ₳${paid}.` : 'The purse is empty; you\'re owed.'}`);
       if (g) g.log.push(`Day ${s.day}: the newcomer did the gang's work (${t.text.toLowerCase()}).`);
       // moving up
       if (m.done >= need(m) && m.rank < RANKS.length - 1 && m.trust > 0.35) {
@@ -139,7 +139,7 @@
         const bz = s.biz.get(t.b), keeper = bz && bz.workers.map((id) => s.byId.get(id)).find((q) => q && q.alive !== false) || null;
         p.anim = 'point'; setTimeout(() => { if (p.anim === 'point') p.anim = 'idle'; }, 900);
         const due = PAY[4] * 2, scared = s.rng.chance(0.65 + (PS.rep.criminal || 0) * 0.3);
-        if (bz && scared && bz.cash >= due) { bz.cash -= due; if (g) g.purse += due; t.have = 1; if (keeper) { keeper.agent.shockedUntil = s.minute + 2; s.relate(keeper, { id: 0 }, -0.3); O.Speech.say(keeper, 'All right, all right. Take it.', 2.5); } complete(s, g, m); say(`${keeper ? keeper.first : 'The keeper'} counts out ${due}d with shaking hands. It goes in the gang's purse.`); }
+        if (bz && scared && bz.cash >= due) { bz.cash -= due; if (g) g.purse += due; t.have = 1; if (keeper) { keeper.agent.shockedUntil = s.minute + 2; s.relate(keeper, { id: 0 }, -0.3); O.Speech.say(keeper, 'All right, all right. Take it.', 2.5); } complete(s, g, m); say(`${keeper ? keeper.first : 'The keeper'} counts out ₳${due} with shaking hands. It goes in the gang's purse.`); }
         else { if (keeper) { O.Speech.say(keeper, "I'll not pay. Get out, or I'll call the watch!", 3, 'angry'); s.relate(keeper, { id: 0 }, -0.4); } say("They won't pay. Make them, another way, or come back.", 'bad'); const c2 = s.recordCrime && s.recordCrime({ kind: 'extortion', perp: 'player', placeName: bz ? bz.name : s.world.name, tile: [Math.floor(p.x / T), Math.floor(p.y / T)], seen: keeper ? [keeper] : [], severity: 1 }); if (c2) PS.crimes.push(c2.id); }
       }
     };
@@ -162,10 +162,10 @@
       const hands = g.members.map((x) => [x, s.byId.get(x.id)]).filter(([, q]) => q && q.alive !== false && !q.jailUntil);
       const houses = s.world.buildings.filter((b) => b.type === 'house' && b.household && b.owner?.kind !== 'player').slice(0, 12);
       const set = g.playerOrder && g.playerOrder.day === s.day ? g.playerOrder : null;
-      O.Panels.open(`${g.name.replace(/^the /, 'The ')}: the night's work`, `<p class="caption">The purse holds ${Math.floor(g.purse)}d. ${hands.length} hands free. ${set ? `Tonight: the ${esc(s.households[s.building(set.b)?.household - 1]?.surname || '')} house, ${set.hands.length} hands.` : 'Nothing set for tonight.'}</p>
+      O.Panels.open(`${g.name.replace(/^the /, 'The ')}: the night's work`, `<p class="caption">The purse holds ₳${Math.floor(g.purse)}. ${hands.length} hands free. ${set ? `Tonight: the ${esc(s.households[s.building(set.b)?.household - 1]?.surname || '')} house, ${set.hands.length} hands.` : 'Nothing set for tonight.'}</p>
         <div class="lbl">Who goes</div>${hands.map(([x, q], i) => `<label style="display:block"><input type="checkbox" data-h="${i}" ${x.role !== 'leader' ? 'checked' : ''}> ${esc(q.name)} <small class="lbl">${esc(x.role)}, loyalty ${Math.round(x.loyalty * 100)}%</small></label>`).join('')}
         <div class="lbl" style="margin-top:8px">Which house</div><select data-b>${houses.map((b) => `<option value="${b.id}">The ${esc(s.households[b.household - 1]?.surname || '')} house (${b.wealth > 0.6 ? 'rich' : b.wealth > 0.35 ? 'comfortable' : 'poor'}, ${b.security > 0.4 ? 'well barred' : 'easy door'})</option>`).join('')}</select>
-        <div class="topics" style="margin-top:10px"><button data-go="1">Send them tonight</button><button data-wages="1">Pay the hands (${hands.length * 3}d)</button></div>`, (r) => {
+        <div class="topics" style="margin-top:10px"><button data-go="1">Send them tonight</button><button data-wages="1">Pay the hands (₳${hands.length * 3})</button></div>`, (r) => {
         r.querySelector('[data-go]').onclick = () => {
           const picked = [...r.querySelectorAll('[data-h]')].filter((x) => x.checked).map((x) => hands[+x.dataset.h][1].id); if (!picked.length) return O.Panels.toast('Send somebody.', 'bad');
           g.playerOrder = { day: s.day, b: +r.querySelector('[data-b]').value, hands: picked };
@@ -185,7 +185,7 @@
           o.ran = true; if (lastNight === s.day) { /* one report a night */ } lastNight = s.day;
           const b = s.building(o.b), hh = b && s.households[b.household - 1], hands = o.hands.map((id) => s.byId.get(id)).filter(Boolean);
           const odds = 0.35 + hands.length * 0.12 - (b?.security || 0.3) * 0.5;
-          if (hh && s.rng.chance(O.clamp(odds, 0.1, 0.85))) { const took = Math.min(hh.money, 10 + s.rng.int(0, 30)); hh.money -= took; g.purse += took; g.log.push(`Day ${s.day}: the night's work at the ${hh.surname} house brought in ${took}d.`); s.log(`The ${hh.surname} house was broken into in the night.`, 'crime'); PS.money += Math.round(took * 0.2); if (O.SimRef.cur === s) say(`Word from the den: the ${hh.surname} job went well. ${took}d, a fifth of it yours.`); }
+          if (hh && s.rng.chance(O.clamp(odds, 0.1, 0.85))) { const took = Math.min(hh.money, 10 + s.rng.int(0, 30)); hh.money -= took; g.purse += took; g.log.push(`Day ${s.day}: the night's work at the ${hh.surname} house brought in ₳${took}.`); s.log(`The ${hh.surname} house was broken into in the night.`, 'crime'); PS.money += Math.round(took * 0.2); if (O.SimRef.cur === s) say(`Word from the den: the ${hh.surname} job went well. ₳${took}, a fifth of it yours.`); }
           else { const caught = hands[0]; if (caught && s.arrestNPC) s.arrestNPC(caught, { kind: 'burglary', severity: 2, witnesses: [], profile: {} }, false); g.log.push(`Day ${s.day}: the night's work went wrong; ${caught ? caught.name + ' was taken' : 'nobody got in'}.`); if (O.SimRef.cur === s) say(`Word from the den: the job went wrong.${caught ? ` ${caught.first} was taken by the watch.` : ''}`, 'bad'); }
         }
       }
@@ -196,7 +196,7 @@
     function refresh() { sig = ''; }
     game.hooks.update.push(() => {
       if (!el) { el = document.createElement('div'); el.className = 'joblist ganglist'; (document.getElementById('tab-play') || document.body).appendChild(el); }
-      const list = mine(); if (!list.length) { el.hidden = true; return; }
+      const list = mine(); if (!list.length || O.panelOpen) { el.hidden = true; sig = ''; return; }
       const jl = document.querySelector('.joblist:not(.ganglist)'), top = jl && !jl.hidden ? jl.offsetTop + jl.offsetHeight + 10 : 12;
       const html = list.map((m) => `<div class="jh">${esc(RANKS[m.rank])} · ${esc(m.name.replace(/^the /, 'The '))}${m.place !== cur().world.placeId ? `, ${esc(m.placeName)}` : ''}</div>${m.task && !m.task.done ? `<ul><li>□ ${esc(m.task.text)}${m.task.need > 1 ? ` (${m.task.have}/${m.task.need})` : ''}</li></ul>` : '<div class="js">Ask any of them for work</div>'}`).join('');
       if (html + top !== sig) { sig = html + top; el.innerHTML = html; el.style.top = top + 'px'; }

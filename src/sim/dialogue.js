@@ -39,7 +39,7 @@
     return [
       `You are ${ctx.name}, ${ctx.age}, ${ctx.job} in the medieval village of ${ctx.place}.`,
       `Personality: ${ctx.traits.join(', ')}. Your goal: ${ctx.goal || 'none in particular'}.`,
-      `Right now: ${ctx.activity}. Hunger ${ctx.hunger}/100, energy ${ctx.energy}/100. Household purse ${ctx.householdMoney}d.`,
+      `Right now: ${ctx.activity}. Hunger ${ctx.hunger}/100, energy ${ctx.energy}/100. Household purse ₳${ctx.householdMoney}.`,
       `You remember: ${ctx.memories.join(' | ') || 'nothing notable lately'}.`,
       `Your opinion of the stranger talking to you: affinity ${ctx.opinionOfPlayer.affinity.toFixed(2)}, familiarity ${ctx.opinionOfPlayer.familiar.toFixed(2)}.`,
       `Only speak about things you could know. You may be wrong or repeat rumours. Reply in 1-3 short sentences, in plain period-flavoured English, no modern words.`,
@@ -83,9 +83,9 @@
         case 'prices': {
           const b = ctx.prices.bread;
           if (b == null) return "Couldn't tell you.";
-          if (b >= 4) return `Bread's ${b}d a loaf now. Robbery. Something's wrong at the mill, or the farm.`;
-          if (b <= 1) return `Bread's cheap, ${b}d. Good harvest, they say.`;
-          return `Bread's ${b}d a loaf at Hobb's. Same as ever, near enough.`;
+          if (b >= 4) return `Bread's ₳${b} a loaf now. Robbery. Something's wrong at the mill, or the farm.`;
+          if (b <= 1) return `Bread's cheap, ₳${b}. Good harvest, they say.`;
+          return `Bread's ₳${b} a loaf at Hobb's. Same as ever, near enough.`;
         }
         case 'news': {
           if (ctx.heard && ctx.heard.length && (seed % 4 !== 0)) {

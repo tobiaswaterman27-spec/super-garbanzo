@@ -145,7 +145,7 @@
       const days = 1 + (crime.severity > 1 ? 1 : 0);
       q.jailUntil = this.day + days; q.task = { act: 'jailed', b: this.guardId };
       const hh = this.household(q); const fine = Math.min(hh.money, 6 * crime.severity); hh.money -= fine; this.treasury.cash += fine; this.treasury.income += fine;
-      this.remember(q, wrong ? `Arrested for a ${crime.kind} I never did. Fined ${fine}d and locked up.` : `Caught for the ${crime.kind}. Fined ${fine}d and locked up.`, 'crime', 3);
+      this.remember(q, wrong ? `Arrested for a ${crime.kind} I never did. Fined ₳${fine} and locked up.` : `Caught for the ${crime.kind}. Fined ₳${fine} and locked up.`, 'crime', 3);
       for (const id of hh.members) { const m = this.byId.get(id); if (m && m !== q) this.remember(m, `${q.first} was taken by the watch${wrong ? ', for something they swear they never did' : ''}.`, 'crime', 1.5, q.id); }
       this.log(`The watch arrested ${q.name} for the ${crime.kind}${wrong ? ', though some say the wrong one was taken' : ''}.`, 'crime');
       if (wrong && crime.perp === 'player') { this.log('Somewhere, the real thief walks free.', 'crime'); }
@@ -163,7 +163,7 @@
         const b = this.building(v.home);
         const seen = this.rng.chance(0.3) ? v.members.map((id) => this.byId.get(id)).filter((m) => m && m.age >= 10).slice(0, 1) : [];
         const crime = this.recordCrime({ kind: 'burglary', perp: p, placeName: `the ${v.surname} house`, tile: [b.doorX, b.doorY], victim: v.id, seen, severity: 1 });
-        for (const id of v.members) { const m = this.byId.get(id); if (m && m.age >= 12) { this.remember(m, `Someone broke in at night and took ${took} loaves${coin ? ' and ' + coin + 'd' : ''}.`, 'crime', 1.5); if (!seen.length && !m.task && m.age >= 16 && this.rng.chance(0.6)) { m.task = { act: 'report', b: this.guardId, crime: crime.id }; break; } } }
+        for (const id of v.members) { const m = this.byId.get(id); if (m && m.age >= 12) { this.remember(m, `Someone broke in at night and took ${took} loaves${coin ? ' and ₳' + coin : ''}.`, 'crime', 1.5); if (!seen.length && !m.task && m.age >= 16 && this.rng.chance(0.6)) { m.task = { act: 'report', b: this.guardId, crime: crime.id }; break; } } }
         this.remember(p, 'Did something I am not proud of last night.', 'crime', 1);
       }
     };

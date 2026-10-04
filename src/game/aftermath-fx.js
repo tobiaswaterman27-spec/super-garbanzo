@@ -124,7 +124,7 @@
     };
     O.pickUp = (it) => {
       const s = sim(), G = O.Data.GOODS;
-      if (it.good === 'coin') { PS.money += it.qty; s.pickUpDropped(it); return O.UI.say(`You pick up ${it.qty}d.`); }
+      if (it.good === 'coin') { PS.money += it.qty; s.pickUpDropped(it); return O.UI.say(`You pick up ₳${it.qty}.`); }
       let n = 0; for (let i = 0; i < it.qty; i++) if (PS.add(it.good)) n++;
       if (!n) return O.UI.say('Your satchel is full.');
       if (n < it.qty) it.qty -= n; else s.pickUpDropped(it);

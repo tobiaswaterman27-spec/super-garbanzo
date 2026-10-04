@@ -420,7 +420,7 @@
         const n = Math.min(free.length, 60, Math.floor((wh.cash - 40) / 8));
         for (let i = 0; i < n; i++) { const p = free[i]; p.job = { biz: wh.id, role: 'docker', casual: true }; wh.workers.push(p.id); hired++; }
       }
-      // well-off households take on servants for the day: one for every 200d they hold, up to four
+      // well-off households take on servants for the day: one for every ₳200 they hold, up to four
       for (const hh of this.households) {
         if (hh.gone || hh.money < 180) continue;
         const b = this.building(hh.home); if (!b) continue;
@@ -444,7 +444,7 @@
       if (t.cash < 120 && t.taxRate < 0.15) t.taxRate = Math.min(0.15, t.taxRate + 0.02);
       else if (t.cash > 500 && t.taxRate > 0.04) t.taxRate = Math.max(0.04, t.taxRate - 0.01);
       if (t.taxRate !== old) {
-        this.log(`The council ${t.taxRate > old ? 'raised' : 'lowered'} the market tax to ${Math.round(t.taxRate * 100)} pence in the shilling-score.`, 'politics');
+        this.log(`The council ${t.taxRate > old ? 'raised' : 'lowered'} the market tax to ${Math.round(t.taxRate * 100)} aurins in the hundred.`, 'politics');
         for (const p of this.people) if (p.age >= 18 && this.rng.chance(0.25)) this.remember(p, `The council ${t.taxRate > old ? 'raised' : 'cut'} the market tax.`, 'politics', 0.7);
       }
     }
@@ -691,9 +691,9 @@
       const pr = this.price(bz, act.good);
       const affordable = Math.floor(hh.money / pr);
       const qty = Math.min(act.qty, Math.floor(bz.stock[act.good] || 0), affordable);
-      if (qty <= 0) { hh.failed = hh.failed || {}; hh.failed[act.good] = this.day * 1440 + this.minute + (affordable <= 0 ? 600 : 120); this.remember(p, affordable <= 0 ? `Couldn't afford ${G[act.good].name.toLowerCase()} at ${pr}d.` : `${bz.name} had no ${G[act.good].name.toLowerCase()} left.`, 'hardship', 1); p.task = null; return; }
+      if (qty <= 0) { hh.failed = hh.failed || {}; hh.failed[act.good] = this.day * 1440 + this.minute + (affordable <= 0 ? 600 : 120); this.remember(p, affordable <= 0 ? `Couldn't afford ${G[act.good].name.toLowerCase()} at ₳${pr}.` : `${bz.name} had no ${G[act.good].name.toLowerCase()} left.`, 'hardship', 1); p.task = null; return; }
       this.sale(bz, act.good, qty, pr, hh);
-      if (pr > G[act.good].base * 1.6) this.remember(p, `${G[act.good].name} has gone up to ${pr}d at ${bz.name}.`, 'economy', 0.8);
+      if (pr > G[act.good].base * 1.6) this.remember(p, `${G[act.good].name} has gone up to ₳${pr} at ${bz.name}.`, 'economy', 0.8);
       // carry the goods home in person
       p.task = { act: 'carry-home', b: p.home, good: act.good, qty };
       p.agent.carrying = { good: act.good, qty };
@@ -734,12 +734,12 @@
         if (bz.def.public) {
           const pay = Math.max(0, Math.min(wage, Math.floor(this.treasury.cash)));
           this.treasury.cash -= pay; this.treasury.spent += pay; hh.money += pay; this.stats.wages += pay;
-          if (pay < wage) { this.remember(w, `The council couldn't pay my wages in full (${pay}d of ${wage}d).`, 'hardship', 1); w.mood -= 0.1; }
+          if (pay < wage) { this.remember(w, `The council couldn't pay my wages in full (₳${pay} of ₳${wage}).`, 'hardship', 1); w.mood -= 0.1; }
           continue;
         }
         const paid = Math.max(0, Math.min(wage, Math.floor(bz.cash)));
         bz.cash -= paid; hh.money += paid; this.stats.wages += paid;
-        if (paid < wage) { this.remember(w, `${bz.name} could only pay ${paid}d of my ${wage}d.`, 'hardship', 1); w.mood -= 0.1; }
+        if (paid < wage) { this.remember(w, `${bz.name} could only pay ₳${paid} of my ₳${wage}.`, 'hardship', 1); w.mood -= 0.1; }
       }
       // owners take a share of profit
       const owner = this.byId.get(bz.owner);
@@ -780,7 +780,7 @@
       const pay = Math.min(cost, Math.max(0, Math.floor(dst.cash)));
       dst.cash -= pay; src.cash += pay; src.salesToday += pay;
       if (p.job?.role === 'porter') { const fee = 2; dst.cash -= fee; this.household(p).money += fee; }
-      if (pay < cost) this.log(`${dst.name} could not pay ${src.name} in full for ${G[o.good].name.toLowerCase()} (${pay}d of ${cost}d).`, 'economy');
+      if (pay < cost) this.log(`${dst.name} could not pay ${src.name} in full for ${G[o.good].name.toLowerCase()} (₳${pay} of ₳${cost}).`, 'economy');
       dst.orders = dst.orders.filter((x) => x !== o);
       p.task = null; p.agent.carrying = null;
       this.log(`${p.name} delivered ${o.qty} ${G[o.good].name.toLowerCase()} from ${src.name} to ${dst.name}.`, 'trade');
@@ -802,7 +802,7 @@
       }
       const toll = Math.round(deals.length * 4 + (this.stats.exportsToday = 0));
       if (deals.length) { this.treasury.cash += toll; this.treasury.income += toll; }
-      if (deals.length) this.log(`${tr.name} paid ${toll}d in bridge tolls and bought ${deals.join(', ')} to sell in other towns.`, 'trade');
+      if (deals.length) this.log(`${tr.name} paid ₳${toll} in bridge tolls and bought ${deals.join(', ')} to sell in other towns.`, 'trade');
     }
     marketDay() {
       if (this.trader || this.weekday !== 4) return;
@@ -826,7 +826,7 @@
       if (!value) return;
       const margin = Math.round(value * 0.4), toll = Math.round(value * 0.05);
       wh.cash += margin; this.treasury.cash += toll; this.treasury.income += toll; this.stats.exports = (this.stats.exports || 0) + value;
-      if (this.rng.chance(0.3)) this.log(`${lots} lots of the city's wares went downriver from the quay, worth ${value}d.`, 'trade');
+      if (this.rng.chance(0.3)) this.log(`${lots} lots of the city's wares went downriver from the quay, worth ₳${value}.`, 'trade');
     }
     bargesLand() {
       const now = this.day * 1440 + this.minute, wh = this.supplierOf('warehouse');
@@ -868,7 +868,7 @@
       if (this.weekday === 0) {
         let tithe = 0;
         for (const hh of this.households) { if (hh.gone || hh.money <= 100) continue; const t = Math.floor((hh.money - 100) * 0.06); hh.money -= t; tithe += t; }
-        if (tithe) { this.treasury.cash += tithe; this.treasury.income += tithe; if (tithe > 40) this.log(`The tithe brought ${tithe}d into the parish chest.`, 'politics'); }
+        if (tithe) { this.treasury.cash += tithe; this.treasury.income += tithe; if (tithe > 40) this.log(`The tithe brought ₳${tithe} into the parish chest.`, 'politics'); }
       }
       this.newsDaily && this.newsDaily();
       this.warOrders && this.warOrders();
@@ -912,7 +912,7 @@
         const bz = this.biz.get(tr.task.b), qty = tr.task.qty, pr = G[tr.task.good].base;
         bz.stock[tr.task.good] = (bz.stock[tr.task.good] || 0) + qty;
         const pay = Math.min(bz.cash, qty * pr); bz.cash -= pay;
-        this.log(`${tr.name} sold ${qty} ${G[tr.task.good].name.toLowerCase()}s to ${bz.name} for ${Math.round(pay)}d.`, 'trade');
+        this.log(`${tr.name} sold ${qty} ${G[tr.task.good].name.toLowerCase()}s to ${bz.name} for ₳${Math.round(pay)}.`, 'trade');
         this.exports(tr);
         if (tr.extra) { tr.task = { act: 'import', ...tr.extra }; tr.extra = null; }
         else { tr.task = { act: 'rest', b: this.tavernId }; a.carrying = null; tr.leaveAt = this.day + 1; }

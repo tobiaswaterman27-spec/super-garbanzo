@@ -79,16 +79,16 @@
       const rentEst = s.rentValue(b);
       O.Panels.open(mine ? `Your ${b.type === 'house' ? 'house' : 'property'}` : `${b.listed ? (s.biz.get(b.id) ? `${b.name}, a going concern,` : 'A let house') : b.closedShop ? 'Empty shop' : 'Empty house'} for sale`, `<div class="kv">
         <div><span class="lbl">Value</span><b>${O.money(v)}</b><small>${b.w * 2}×${b.d * 2} paces inside, ${b.floors || 1} floor${(b.floors || 1) > 1 ? 's' : ''}, condition ${Math.round((b.condition ?? 0.8) * 100)}%</small></div>
-        <div><span class="lbl">Owner</span><b>${esc(s.ownerName(b.owner))}</b><small>${tenants ? `let to the ${esc(tenants.surname)} family at ${b.rent || rentEst}d a week` : 'standing empty'}</small></div>
+        <div><span class="lbl">Owner</span><b>${esc(s.ownerName(b.owner))}</b><small>${tenants ? `let to the ${esc(tenants.surname)} family at ₳${b.rent || rentEst} a week` : 'standing empty'}</small></div>
         ${b.closedShop ? `<div><span class="lbl">Was</span><b>${esc(b.closedShop.name)}</b><small>closed on day ${b.closedShop.day}</small></div>` : ''}
       </div>
       <div class="topics" style="margin-top:10px">
         ${!mine ? `<button data-a="buy">Buy for ${O.money(v)}</button>` : ''}
-        ${!mine && !leased ? `<button data-a="rent">Rent it for ${s.rentValue(b)}d a week</button>` : ''}
+        ${!mine && !leased ? `<button data-a="rent">Rent it for ₳${s.rentValue(b)} a week</button>` : ''}
         ${mine && s.biz.get(b.id)?.ownerPlayer ? '<button data-a="run">Run the business</button>' : ''}
-        ${mine && b.type === 'house' && !b.household ? `<button data-a="let">Let it to a family (${rentEst}d a week)</button>` : ''}
-        ${mine && b.closedShop ? ['bakery', 'store', 'tavern', 'smithy'].map((t) => `<button data-open="${t}">Open a ${O.Data.BUSINESS[t].label.toLowerCase()} (60d)</button>`).join('') : ''}
-        ${(mine || leased) && O.fitsAs ? O.fitsAs(b).filter((t) => t !== b.type && !s.biz.get(b.id)).slice(0, 6).map((t) => `<button data-open2="${t}">Open as a ${O.Data.BUSINESS[t].label.toLowerCase()} (40d stock)</button>`).join('') : ''}
+        ${mine && b.type === 'house' && !b.household ? `<button data-a="let">Let it to a family (₳${rentEst} a week)</button>` : ''}
+        ${mine && b.closedShop ? ['bakery', 'store', 'tavern', 'smithy'].map((t) => `<button data-open="${t}">Open a ${O.Data.BUSINESS[t].label.toLowerCase()} (₳60)</button>`).join('') : ''}
+        ${(mine || leased) && O.fitsAs ? O.fitsAs(b).filter((t) => t !== b.type && !s.biz.get(b.id)).slice(0, 6).map((t) => `<button data-open2="${t}">Open as a ${O.Data.BUSINESS[t].label.toLowerCase()} (₳40 stock)</button>`).join('') : ''}
         ${mine ? ['stone', 'wood', 'dirt'].map((f) => `<button data-floor="${f}">Lay a ${f} floor</button>`).join('') + ['plank', 'timber', 'stone'].map((w2) => `<button data-wall="${w2}">${w2} walls</button>`).join('') : ''}
         ${mine && !O.isPublicBuilding(b) ? `<button data-a="sell">Sell for ${O.money(Math.round(v * 0.8))}</button>` : ''}
       </div>`, (r) => {
@@ -99,18 +99,18 @@
           if (b.owner && b.owner.kind === 'household') { const hh = s.households[b.owner.id - 1]; if (hh) hh.money += v; } else s.treasury.cash += v;
           b.owner = { kind: 'player' }; b.rent = b.household ? (b.rent || rentEst) : null;
           if (b.listed) { b.listed = null; const bz = s.biz.get(b.id); if (bz) { const seller = bz.owner != null && s.byId.get(bz.owner); if (seller) { const hh = s.household(seller); if (hh) hh.money += Math.round(v * 0.2); } bz.ownerPlayer = true; } }
-          s.log(`A newcomer has bought ${b.closedShop ? 'the old ' + b.closedShop.name : 'a house'} for ${v}d.`, 'economy');
+          s.log(`A newcomer has bought ${b.closedShop ? 'the old ' + b.closedShop.name : 'a house'} for ₳${v}.`, 'economy');
           PS.rep.merchant = Math.min(1, PS.rep.merchant + 0.05);
           panel(b);
         });
-        on('[data-a=let]', () => { if (!s.immigrate) return; const hh = s.immigrate(b); if (hh) { b.rent = rentEst; O.Panels.toast(`The ${hh.surname} family will take it at ${rentEst}d a week. They're on the road now.`); } O.Panels.close(); });
+        on('[data-a=let]', () => { if (!s.immigrate) return; const hh = s.immigrate(b); if (hh) { b.rent = rentEst; O.Panels.toast(`The ${hh.surname} family will take it at ₳${rentEst} a week. They're on the road now.`); } O.Panels.close(); });
         on('[data-a=sell]', () => { const pr = Math.round(v * 0.8); PS.money += pr; s.treasury.cash -= Math.min(s.treasury.cash, pr); b.owner = { kind: 'parish' }; const bz = s.biz.get(b.id); if (bz) bz.ownerPlayer = false; O.Panels.close(); O.Panels.toast(`Sold for ${O.money(pr)}.`); });
-        on('[data-a=rent]', () => { const rent = s.rentValue(b); if (PS.money < rent) return O.Panels.toast(`The first week's rent is ${rent}d.`, 'bad'); PS.money -= rent; if (b.owner?.kind === 'household') { const hh = s.households[b.owner.id - 1]; if (hh) hh.money += rent; } else s.treasury.cash += rent; PS.lease = { b: b.id, place: s.world.placeId, rent, paidUntil: s.day + 7 }; b.leasedToPlayer = true; b.listed = null; O.Panels.close(); O.Panels.toast(`It's yours to use at ${rent}d a week. The landlord will come for the rent.`); });
+        on('[data-a=rent]', () => { const rent = s.rentValue(b); if (PS.money < rent) return O.Panels.toast(`The first week's rent is ₳${rent}.`, 'bad'); PS.money -= rent; if (b.owner?.kind === 'household') { const hh = s.households[b.owner.id - 1]; if (hh) hh.money += rent; } else s.treasury.cash += rent; PS.lease = { b: b.id, place: s.world.placeId, rent, paidUntil: s.day + 7 }; b.leasedToPlayer = true; b.listed = null; O.Panels.close(); O.Panels.toast(`It's yours to use at ₳${rent} a week. The landlord will come for the rent.`); });
         on('[data-a=run]', () => runBusiness(b));
-        r.querySelectorAll('[data-open2]').forEach((x) => x.onclick = () => { if (PS.money < 40) return O.Panels.toast('You need 40d for the first stock.', 'bad'); PS.money -= 40; const bz = s.startBusiness(b, x.dataset.open2, 'player'); s.fillVacancies(); O.Panels.close(); O.Panels.toast(`${bz.name} opens. Its fittings make it what it is: take them out and it stops.`); });
+        r.querySelectorAll('[data-open2]').forEach((x) => x.onclick = () => { if (PS.money < 40) return O.Panels.toast('You need ₳40 for the first stock.', 'bad'); PS.money -= 40; const bz = s.startBusiness(b, x.dataset.open2, 'player'); s.fillVacancies(); O.Panels.close(); O.Panels.toast(`${bz.name} opens. Its fittings make it what it is: take them out and it stops.`); });
         r.querySelectorAll('[data-floor]').forEach((x) => x.onclick = () => { O.redecorate(b, 'floor', x.dataset.floor); panel(b); });
         r.querySelectorAll('[data-wall]').forEach((x) => x.onclick = () => { O.redecorate(b, 'wall', x.dataset.wall); panel(b); });
-        r.querySelectorAll('[data-open]').forEach((x) => x.onclick = () => { if (PS.money < 60) return O.Panels.toast('You need 60d to stock and staff it.', 'bad'); PS.money -= 60; const bz = s.startBusiness(b, x.dataset.open, 'player'); s.fillVacancies(); O.Panels.close(); O.Panels.toast(`${bz.name} opens under your ownership. A manager will run it; the profit is yours.`); });
+        r.querySelectorAll('[data-open]').forEach((x) => x.onclick = () => { if (PS.money < 60) return O.Panels.toast('You need ₳60 to stock and staff it.', 'bad'); PS.money -= 60; const bz = s.startBusiness(b, x.dataset.open, 'player'); s.fillVacancies(); O.Panels.close(); O.Panels.toast(`${bz.name} opens under your ownership. A manager will run it; the profit is yours.`); });
       });
     }
     O.propertyPanel = panel;
@@ -120,19 +120,19 @@
       const roles = bz.def.jobs.map((j) => j[0]);
       const goods = Object.keys(bz.def.buys || {}).filter((g) => O.Data.GOODS[g]);
       const moveTo = s.world.buildings.filter((x) => x !== b && !s.biz.get(x.id) && !x.household && !x.site && !x.ruined && !O.isPublicBuilding(x) && (x.owner?.kind === 'player' || (PS.lease && PS.lease.b === x.id && PS.lease.place === s.world.placeId)));
-      const rows = bz.workers.map((id) => s.byId.get(id)).filter(Boolean).map((q) => `<tr><td>${esc(q.name)}<br><small class="lbl">${esc(q.job.role)}${q.job.wage != null ? `, ${q.job.wage}d a day` : ''}</small></td><td><button data-raise="${q.id}">Raise</button>${roles.indexOf(q.job.role) > 0 ? `<button data-promote="${q.id}">Promote</button>` : ''}<button data-fire="${q.id}">Dismiss</button></td></tr>`).join('');
+      const rows = bz.workers.map((id) => s.byId.get(id)).filter(Boolean).map((q) => `<tr><td>${esc(q.name)}<br><small class="lbl">${esc(q.job.role)}${q.job.wage != null ? `, ₳${q.job.wage} a day` : ''}</small></td><td><button data-raise="${q.id}">Raise</button>${roles.indexOf(q.job.role) > 0 ? `<button data-promote="${q.id}">Promote</button>` : ''}<button data-fire="${q.id}">Dismiss</button></td></tr>`).join('');
       O.Panels.open(`Running ${bz.name}`, `<div class="kv"><div><span class="lbl">Business purse</span><b>${O.money(Math.floor(bz.cash))}</b><small>your hands spend it on what the business needs</small></div><div><span class="lbl">Today's takings</span><b>${O.money(Math.round(bz.salesToday || 0))}</b></div></div>
-        <div class="topics" style="margin:8px 0"><button data-fund="20">Put in 20d</button><button data-take="20">Take out 20d</button><button data-hire="1">Take on hands</button></div>
+        <div class="topics" style="margin:8px 0"><button data-fund="20">Put in ₳20</button><button data-take="20">Take out ₳20</button><button data-hire="1">Take on hands</button></div>
         <table><thead><tr><th>Hand</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="2">Nobody works here yet.</td></tr>'}</tbody></table>
-        <div class="lbl" style="margin-top:10px">Standing deals (delivered every Sunday morning)</div>
-        <ul class="chron">${(bz.deals || []).map((d, i) => `<li>${d.qty} ${esc(O.Data.GOODS[d.good]?.name.toLowerCase() || d.good)} from ${esc(d.fromName)} at ${d.price}d each <button data-undeal="${i}">End it</button></li>`).join('') || '<li>None.</li>'}</ul>
-        ${goods.length ? `<div class="topics"><select data-dg>${goods.map((g) => `<option value="${g}">${esc(O.Data.GOODS[g]?.name || g)}</option>`).join('')}</select><select data-dq><option>5</option><option selected>10</option><option>20</option></select><button data-deal="1">Offer a supplier a weekly deal</button></div>` : ''}
+        <div class="lbl" style="margin-top:10px">Standing deals</div>
+        <ul class="chron">${(bz.deals || []).map((d, i) => `<li>${d.qty} ${esc(O.Data.GOODS[d.good]?.name.toLowerCase() || d.good)} from ${esc(d.fromName)} at ₳${d.price} each, ${d.when === 'daily' ? 'every day' : 'every ' + O.DAYNAMES[d.when ?? 6]} <button data-undeal="${i}">End it</button></li>`).join('') || '<li>None.</li>'}</ul>
+        ${goods.length ? `<div class="topics"><select data-dg>${goods.map((g) => `<option value="${g}">${esc(O.Data.GOODS[g]?.name || g)}</option>`).join('')}</select><select data-dq><option>5</option><option selected>10</option><option>20</option></select><select data-dd><option value="daily">every day</option>${O.DAYNAMES.map((n, i) => `<option value="${i}" ${i === 6 ? 'selected' : ''}>every ${n}</option>`).join('')}</select><button data-deal="1">Offer a supplier a standing deal</button></div>` : ''}
         <div class="topics" style="margin-top:8px">${moveTo.length ? moveTo.map((x) => `<button data-move="${x.id}">Move the business to ${esc(x.type === 'house' ? 'your house' : x.closedShop ? 'the old ' + x.closedShop.name : x.name)}</button>`).join('') : '<small class="lbl">To move the business, first buy or rent empty premises.</small>'}</div>`, (r) => {
         const on = (sel, f) => r.querySelectorAll(sel).forEach((x) => x.onclick = () => f(x));
         on('[data-undeal]', (x) => { bz.deals.splice(+x.dataset.undeal, 1); runBusiness(b); });
-        on('[data-deal]', () => { const g = r.querySelector('[data-dg]').value, qty = +r.querySelector('[data-dq]').value; const res = O.Deals.offer(s, bz, g, qty); O.Panels.toast(res.msg, res.ok ? '' : 'bad'); if (res.ok) runBusiness(b); });
+        on('[data-deal]', () => { const g = r.querySelector('[data-dg]').value, qty = +r.querySelector('[data-dq]').value; const dd = r.querySelector('[data-dd]').value, res = O.Deals.offer(s, bz, g, qty, null, dd === 'daily' ? 'daily' : +dd); O.Panels.toast(res.msg, res.ok ? '' : 'bad'); if (res.ok) runBusiness(b); });
         on('[data-move]', (x) => { const nb = s.building(+x.dataset.move), res = O.Deals.relocate(s, bz, nb); O.Panels.close(); O.Panels.toast(res); });
-        on('[data-fund]', () => { if (PS.money < 20) return O.Panels.toast('You have not got 20d.', 'bad'); PS.money -= 20; bz.cash += 20; runBusiness(b); });
+        on('[data-fund]', () => { if (PS.money < 20) return O.Panels.toast('You have not got ₳20.', 'bad'); PS.money -= 20; bz.cash += 20; runBusiness(b); });
         on('[data-take]', () => { if (bz.cash < 20) return O.Panels.toast('The purse is too light.', 'bad'); bz.cash -= 20; PS.money += 20; runBusiness(b); });
         on('[data-hire]', () => { s.fillVacancies(); runBusiness(b); });
         on('[data-raise]', (x) => { const q = s.byId.get(+x.dataset.raise); q.job.wage = (q.job.wage ?? bz.def.wage[q.job.role] ?? 5) + 1; s.relate(q, { id: 0 }, 0.15); s.remember(q, 'The owner raised my pay.', 'work', 1.5, 0); runBusiness(b); });
@@ -146,7 +146,7 @@
     function holdings() {
       const H = home();
       const all = [...O.Travel.visited.values()].flatMap((v) => v.world.buildings.filter(owned).map((b) => ({ b, s: v.sim })));
-      const rows = all.map(({ b, s }) => `<tr><td>${esc(b.type === 'house' ? 'House' : b.name)}<br><small class="lbl">${esc(s.world.name)}</small></td><td class="n">${O.money(s.value(b))}</td><td>${b.household ? `${esc(s.households[b.household - 1]?.surname || '')} family, ${b.rent}d/wk` : s.biz.get(b.id)?.ownerPlayer ? `${esc(s.biz.get(b.id).name)}, till ${O.money(s.biz.get(b.id).cash)}` : 'empty'}</td></tr>`).join('');
+      const rows = all.map(({ b, s }) => `<tr><td>${esc(b.type === 'house' ? 'House' : b.name)}<br><small class="lbl">${esc(s.world.name)}</small></td><td class="n">${O.money(s.value(b))}</td><td>${b.household ? `${esc(s.households[b.household - 1]?.surname || '')} family, ₳${b.rent}/wk` : s.biz.get(b.id)?.ownerPlayer ? `${esc(s.biz.get(b.id).name)}, till ${O.money(s.biz.get(b.id).cash)}` : 'empty'}</td></tr>`).join('');
       const L = H.lordship, lord = L.holder === 'player';
       const resident = O.livesIn && O.livesIn(H.world.placeId || 'ashford');
       const canPetition = !lord && resident && PS.wantedLevel() === 0 && !PS.exiled && PS.rep.civilian > -0.2;
@@ -179,7 +179,7 @@
         <div><span class="lbl">Market tax</span><b>${Math.round(H.treasury.taxRate * 100)}%</b><small><button data-tax="-1">Lower</button> <button data-tax="1">Raise</button></small></div>
         <div><span class="lbl">Watchmen</span><b>${guards + 1}</b><small><button data-g="-1">Dismiss one</button> <button data-g="1">Hire one</button></small></div>
         <div><span class="lbl">Common chest</span><b>${O.money(H.treasury.cash)}</b><small>the reeve keeps it, but may not take from it</small></div>
-        <div><span class="lbl">Works</span><b>${H.build.sites.filter((x) => x.stage < 10).length ? 'Building' : 'Idle'}</b><small><button data-build="1">Order a new house (160d)</button></small></div>
+        <div><span class="lbl">Works</span><b>${H.build.sites.filter((x) => x.stage < 10).length ? 'Building' : 'Idle'}</b><small><button data-build="1">Order a new house (₳160)</button></small></div>
       </div>`;
     }
     function moot(H) {
@@ -192,8 +192,8 @@
       return `<div class="lbl" style="margin-top:12px">As Lord of Ashford</div><div class="kv">
         <div><span class="lbl">Market tax</span><b>${Math.round(H.treasury.taxRate * 100)}%</b><small><button data-tax="-1">Lower</button> <button data-tax="1">Raise</button></small></div>
         <div><span class="lbl">Watchmen</span><b>${guards + 1}</b><small><button data-g="-1">Dismiss one</button> <button data-g="1">Hire one</button></small></div>
-        <div><span class="lbl">Treasury</span><b>${O.money(H.treasury.cash)}</b><small><button data-take="1">Take 50d for yourself</button></small></div>
-        <div><span class="lbl">Works</span><b>${H.build.sites.filter((x) => x.stage < 10).length ? 'Building' : 'Idle'}</b><small><button data-build="1">Order a new house (160d)</button></small></div>
+        <div><span class="lbl">Treasury</span><b>${O.money(H.treasury.cash)}</b><small><button data-take="1">Take ₳50 for yourself</button></small></div>
+        <div><span class="lbl">Works</span><b>${H.build.sites.filter((x) => x.stage < 10).length ? 'Building' : 'Idle'}</b><small><button data-build="1">Order a new house (₳160)</button></small></div>
         <div><span class="lbl">Justice</span><b>Your word</b><small><button data-pardon="1">Pardon all outstanding crimes</button></small></div>
       </div>`;
     }

@@ -68,7 +68,7 @@
             const coin = Math.round(c.value * 0.35); PS.money += coin; L.robbed = true; c.done = true; L.done = true;
             const g = sim.playerGang(); if (g) { g.purse += Math.round(c.value * 0.15); g.recentJobs = (g.recentJobs || 0) + 2; }
             K.robbed(c, 'outlaws on the King\'s Road near Ashford');
-            O.Panels.toast(`The guards throw down their staves. You take ${coin}d of goods and coin${g ? ' (and a share for the band)' : ''}.`, 'bad');
+            O.Panels.toast(`The guards throw down their staves. You take ₳${coin} of goods and coin${g ? ' (and a share for the band)' : ''}.`, 'bad');
           } else {
             L.halted = false;
             const dmg = 15 + c.guards * 8; PS.hp = Math.max(5, PS.hp - dmg);
@@ -126,7 +126,7 @@
       lastCry = slot; cr.agent.talking = 60;
       const Ch = O.Chronicle, crierFacts = Ch.facts.filter((f) => f.imp >= 2 && f.day >= sim.day - 4 && !f.secret).sort((a, b) => b.imp - a.imp || b.day - a.day).slice(0, 2);
       const told = crierFacts.map((f) => { const v = Ch.tell(f, 'crier', sim, sim.rng); Ch.playerHears(f, v, 'crier', cr.name); return v; });
-      const items = [...(told.length ? told : K.news.slice(-2).map((n) => n.text)), ...(PS.bountyAmount && PS.wantedLevel() >= 2 ? [`A reward of ${PS.bountyAmount}d is offered for the outlaw: ${PS.soughtFor()}.`] : [])];
+      const items = [...(told.length ? told : K.news.slice(-2).map((n) => n.text)), ...(PS.bountyAmount && PS.wantedLevel() >= 2 ? [`A reward of ₳${PS.bountyAmount} is offered for the outlaw: ${PS.soughtFor()}.`] : [])];
       const words = `Hear ye, hear ye! ${items.length ? items.join(' ') : 'All is well in Ashford.'}`;
       cr.agent.anim = 'wave';
       O.Speech.say(cr, words.length > 160 ? words.slice(0, 157) + '…' : words, 9, 'shout', 140);
@@ -153,8 +153,8 @@
     O.noticeCandidate = () => { if (game.scene) return null; const nb = sim.world.props.find((p) => p.kind === 'noticeboard'); if (!nb) return null; const d = Math.hypot(nb.x - game.player.x, nb.y - game.player.y); return d < 22 ? { type: 'notices', d: d + 1, x: nb.x, y: nb.y - 26 } : null; };
     O.readNotices = () => {
       const wanted = sim.crimes.filter((c) => c.perp !== 'player' && c.investigated && !c.solved && Object.keys(c.profile || {}).length).slice(-3);
-      const mine = PS.wantedLevel() >= 1 ? `<li><b>WANTED</b> for ${PS.crimes.length} crime${PS.crimes.length > 1 ? 's' : ''}: ${esc(PS.soughtFor() || 'a stranger')}.${PS.bountyAmount ? ` Reward ${PS.bountyAmount}d.` : ''}</li>` : '';
-      const prices = K.places.filter((p) => !p.detailed).map((p) => `<tr><td>${esc(p.name)}</td><td class="n">${p.prices.grain}d</td><td class="n">${p.prices.iron}d</td><td class="n">${p.prices.cloth}d</td></tr>`).join('');
+      const mine = PS.wantedLevel() >= 1 ? `<li><b>WANTED</b> for ${PS.crimes.length} crime${PS.crimes.length > 1 ? 's' : ''}: ${esc(PS.soughtFor() || 'a stranger')}.${PS.bountyAmount ? ` Reward ₳${PS.bountyAmount}.` : ''}</li>` : '';
+      const prices = K.places.filter((p) => !p.detailed).map((p) => `<tr><td>${esc(p.name)}</td><td class="n">₳${p.prices.grain}</td><td class="n">₳${p.prices.iron}</td><td class="n">₳${p.prices.cloth}</td></tr>`).join('');
       O.Panels.open('Notice board', `<ol class="chron">${mine}${wanted.map((c) => `<li>Sought: ${esc(O.Justice.describe(c.profile))}, for ${esc(c.kind)} at ${esc(c.placeName || 'Ashford')}.</li>`).join('')}${K.councils.slice(-1).flatMap((r) => r.items.map((i) => `<li>By order of the council (day ${r.day}): to ${esc(i.text)}, ${i.pass ? 'CARRIED' : 'defeated'} ${i.yes}-${i.of - i.yes}.</li>`)).join('')}${K.news.slice(-4).reverse().map((n) => `<li>${esc(n.text)}</li>`).join('')}</ol>
         <div class="lbl" style="margin-top:12px">Prices at market, by the last carter</div><table><thead><tr><th>Town</th><th class="n">Grain</th><th class="n">Iron</th><th class="n">Cloth</th></tr></thead><tbody>${prices}</tbody></table>`);
     };

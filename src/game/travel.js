@@ -56,17 +56,17 @@
     function bandits(from, to, hours) {
       const toll = 8 + Math.round(home.rng.next() * 20);
       O.Panels.open('Bandits!', `<p class="speech">“That's far enough, friend. Road's ours. Purse or blood.”</p><p class="caption">Four ragged men step out from the trees between ${esc(K.place(from).name)} and ${esc(K.place(to).name)}.</p>
-        <div class="topics"><button data-b="pay">Pay ${toll}d</button><button data-b="fight">Fight</button><button data-b="flee">${game.player.mount ? 'Spur your horse through' : 'Run for it'}</button>${PS.rep.criminal > 0.3 ? '<button data-b="talk">Speak their language</button>' : ''}</div>`, (r) => {
+        <div class="topics"><button data-b="pay">Pay ₳${toll}</button><button data-b="fight">Fight</button><button data-b="flee">${game.player.mount ? 'Spur your horse through' : 'Run for it'}</button>${PS.rep.criminal > 0.3 ? '<button data-b="talk">Speak their language</button>' : ''}</div>`, (r) => {
         r.querySelector('.x').hidden = true;
         const done = (msg, bad) => { O.Panels.close(); if (msg) O.Panels.toast(msg, bad ? 'bad' : ''); passTime(hours * 30); arrive(from, to); };
-        r.querySelector('[data-b=pay]').onclick = () => { const paid = Math.min(PS.money, toll); PS.money -= paid; done(`You hand over ${paid}d. They melt back into the trees.`, true); };
+        r.querySelector('[data-b=pay]').onclick = () => { const paid = Math.min(PS.money, toll); PS.money -= paid; done(`You hand over ₳${paid}. They melt back into the trees.`, true); };
         r.querySelector('[data-b=fight]').onclick = () => {
           const armed = O.Combat && O.Combat.armed(); const win = home.rng.chance(0.3 + (armed ? 0.25 : 0) + (PS.hp > 70 ? 0.1 : 0));
           PS.hp = Math.max(5, PS.hp - (win ? 15 : 35));
-          if (win) { const loot = 5 + home.rng.int(0, 20); PS.money += loot; PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.03); done(`You drive them off and take ${loot}d from the one who fell.`); }
-          else { const lost = Math.floor(PS.money * 0.5); PS.money -= lost; done(`They beat you bloody and take ${lost}d.`, true); }
+          if (win) { const loot = 5 + home.rng.int(0, 20); PS.money += loot; PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.03); done(`You drive them off and take ₳${loot} from the one who fell.`); }
+          else { const lost = Math.floor(PS.money * 0.5); PS.money -= lost; done(`They beat you bloody and take ₳${lost}.`, true); }
         };
-        r.querySelector('[data-b=flee]').onclick = () => { const ok = home.rng.chance(game.player.mount ? 0.85 : 0.4); if (ok) done('You break away and leave them cursing in the road.'); else { const lost = Math.floor(PS.money * 0.3); PS.money -= lost; PS.hp = Math.max(5, PS.hp - 15); done(`They catch you. You lose ${lost}d and some skin.`, true); } };
+        r.querySelector('[data-b=flee]').onclick = () => { const ok = home.rng.chance(game.player.mount ? 0.85 : 0.4); if (ok) done('You break away and leave them cursing in the road.'); else { const lost = Math.floor(PS.money * 0.3); PS.money -= lost; PS.hp = Math.max(5, PS.hp - 15); done(`They catch you. You lose ₳${lost} and some skin.`, true); } };
         const tk = r.querySelector('[data-b=talk]'); if (tk) tk.onclick = () => done('“Ah, one of ours. Go on, then.” They let you pass, and tell you where the soft caravans run.');
       });
     }

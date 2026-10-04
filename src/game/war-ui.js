@@ -41,7 +41,7 @@
     npcUI.onExtra = (q, key, render) => { if (key === 'shilling') { npcUI.closeTalk(); return enlist(q); } if (key === 'rebel') { npcUI.closeTalk(); return joinRebels(q); } return prevOn && prevOn(q, key, render); };
     function joinRebels(q) {
       const P = K.rulers?.pretender;
-      O.Panels.open('The rebellion', `<p class="speech">“${esc(P ? P.name : 'The Duke')} is the rightful king, and he remembers his friends. Ten pence now, a knighthood if we win. If we lose…” He shrugs. “Then we hang together.”</p>
+      O.Panels.open('The rebellion', `<p class="speech">“${esc(P ? P.name : 'The Duke')} is the rightful king, and he remembers his friends. Ten aurins now, a knighthood if we win. If we lose…” He shrugs. “Then we hang together.”</p>
         <p class="caption">Fighting for the rebels is treason if they lose: the crown will hunt you. If they win, you'll be rewarded.</p>
         <div class="topics"><button data-a="join" class="hot">March with the rebels</button><button data-a="no">Say nothing, and leave</button></div>`, (r) => {
         r.querySelector('[data-a=no]').onclick = () => O.Panels.close();
@@ -54,18 +54,18 @@
       _civ(winner);
       const S = PS.side; if (!S || S.war !== K.war.wars) return; PS.side = null;
       const won = (S.side === 'rebel') === (winner === 'enemy');
-      if (won && S.side === 'rebel') { PS.knight = true; PS.money += 150; PS.rep.guard = 0.2; O.Chronicle.deed(home, `The new king has knighted a commoner who fought for him in ${home.world.name}'s country.`, 'The new king knighted you for fighting in the rebellion.', 'rulers', 4, true); O.Panels.toast('A royal messenger: the new king has knighted you, with 150d and his thanks. Sir, now.'); }
-      else if (won) { PS.money += 40; PS.rep.guard = Math.min(1, PS.rep.guard + 0.2); O.Panels.toast('The crown thanks its loyal volunteers: 40d from the treasury, and the watch salutes you.'); }
+      if (won && S.side === 'rebel') { PS.knight = true; PS.money += 150; PS.rep.guard = 0.2; O.Chronicle.deed(home, `The new king has knighted a commoner who fought for him in ${home.world.name}'s country.`, 'The new king knighted you for fighting in the rebellion.', 'rulers', 4, true); O.Panels.toast('A royal messenger: the new king has knighted you, with ₳150 and his thanks. Sir, now.'); }
+      else if (won) { PS.money += 40; PS.rep.guard = Math.min(1, PS.rep.guard + 0.2); O.Panels.toast('The crown thanks its loyal volunteers: ₳40 from the treasury, and the watch salutes you.'); }
       else if (S.side === 'rebel') {
         const cr = home.recordCrime({ kind: 'treason', perp: 'player', placeName: 'the rebel host', tile: [0, 0], seen: [], severity: 5 });
         cr.reported = true; cr.investigated = true; cr.evidence = 2; PS.crimes.push(cr.id); PS.bounty = true; PS.bountyAmount = (PS.bountyAmount || 0) + 120; PS.rep.guard = -0.8;
-        O.Panels.toast('The rebellion is broken, and the crown has your name. Treason. A bounty of 120d is posted.', 'bad');
+        O.Panels.toast('The rebellion is broken, and the crown has your name. Treason. A bounty of ₳120 is posted.', 'bad');
       }
     };
     function enlist(q) {
       if (PS.wantedLevel && PS.wantedLevel() >= 2) return O.Panels.toast(`${q.first} looks at you hard. “I know a wanted face. The army's no hiding place for your sort.”`, 'bad');
       PS.money += 12; PS.enlisted = { day: home.day };
-      O.Panels.open("The King's shilling", `<p class="speech">“Good lad. Twelve pence now, three a day on the march, and a share of whatever we take off the Marchers. We go north with the levy at four o'clock.”</p>
+      O.Panels.open("The King's shilling", `<p class="speech">“Good lad. Twelve aurins now, three a day on the march, and a share of whatever we take off the Marchers. We go north with the levy at four o'clock.”</p>
         <p class="caption">Marching with the levy means about four days away from ${esc(home.world.name)}. Taking the shilling and slipping away is desertion: a crime, and the sergeant has seen your face.</p>
         <div class="topics"><button data-a="march" class="hot">March north with the levy</button><button data-a="run">Pocket the shilling and slip away</button></div>`, (r) => {
         r.querySelector('[data-a=march]').onclick = () => { O.Panels.close(); if (K.war?.civil) PS.side = { war: K.war.wars, side: 'crown' }; campaign('crown'); };

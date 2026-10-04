@@ -3,7 +3,8 @@
 (function () {
   const G = O.Data.GOODS, PS = O.PlayerState;
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const money = (d) => { d = Math.round(d); const s = Math.floor(d / 12), p = d % 12; return s ? `${s}s ${p}d` : `${p}d`; };
+  // the realm's one coin: the aurin (₳), struck at Aurelia
+  const money = (d) => `₳${Math.round(d)}`;
   O.money = money;
 
   // ---- 14x14 item icons drawn with the material raster ----
@@ -67,7 +68,7 @@
       <div class="lbl" style="margin-top:12px">Reputation</div>
       <div class="reps">${Object.entries(PS.rep).map(([k, v]) => `<div><span>${k === 'local' ? 'here' : k}</span><b class="${v < -0.2 ? 'warn' : ''}">${v > 0.6 ? 'admired' : v > 0.2 ? 'liked' : v > -0.2 ? 'unknown' : v > -0.6 ? 'distrusted' : 'hated'}</b></div>`).join('')}</div>
       ${O.Work ? `<div class="lbl" style="margin-top:12px">Skills</div><div class="reps">${Object.entries(PS.skills || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div><span>${esc(O.Work.SKILL_LABEL[k] || k)}</span><b>${O.Work.rank(v)} · ${Math.round(v * 100)}</b></div>`).join('')}</div>
-      <p class="caption">${(() => { const E = PS.emp; if (!E) return 'No employer. Ask whoever runs a place for work.'; return `${esc(E.role)} at ${esc(E.bizName)}, ${esc(E.placeName)}, under ${esc(E.masterName)}, ${E.wage}d a day. ${E.stats.shifts} shifts worked, ${E.stats.late} late, ${E.stats.missed} missed.`; })()}${PS.earned ? ` Earned honestly so far: ${money(PS.earned)}.` : ''}</p>` : ''}`, (r) => {
+      <p class="caption">${(() => { const E = PS.emp; if (!E) return 'No employer. Ask whoever runs a place for work.'; return `${esc(E.role)} at ${esc(E.bizName)}, ${esc(E.placeName)}, under ${esc(E.masterName)}, ₳${E.wage} a day. ${E.stats.shifts} shifts worked, ${E.stats.late} late, ${E.stats.missed} missed.`; })()}${PS.earned ? ` Earned honestly so far: ${money(PS.earned)}.` : ''}</p>` : ''}`, (r) => {
       r.querySelectorAll('[data-read]').forEach((b) => b.onclick = () => { close(); O.readLetters && O.readLetters(); });
       r.querySelectorAll('[data-wear]').forEach((b) => b.onclick = () => { close(); O.wearDisguise && O.wearDisguise(b.dataset.wear); });
       r.querySelectorAll('[data-eat]').forEach((b) => b.onclick = () => { const k = PS.items[+b.dataset.eat]; close(); O.consume ? O.consume(k) : (PS.eat(k), toast(`You eat the ${G[k].name.toLowerCase()}.`)); });
@@ -83,8 +84,8 @@
     const price = (g) => (O.priceFor ? O.priceFor(sim, bz, g, seller) : sim.price(bz, g));
     const sells = bz.def.sells.filter((g) => (bz.stock[g] || 0) >= 1);
     const buyable = [...new Set(PS.items)].filter((k) => bz.def.targets[k] != null && !G[k].valuable);
-    const rows = sells.map((g) => `<tr><td><img class="ic" src="${icon(g)}" alt=""> ${G[g].name}</td><td class="n">${Math.floor(bz.stock[g])}</td><td class="n">${price(g)}d</td><td><button data-buy="${g}">Buy</button></td></tr>`).join('') || '<tr><td colspan="4">Nothing for sale right now.</td></tr>';
-    const srows = buyable.map((g) => `<tr><td><img class="ic" src="${icon(g)}" alt=""> ${G[g].name} ×${PS.count(g)}</td><td class="n">${Math.max(1, Math.floor(sim.price(bz, g) * 0.6 * (2 - price(g) / Math.max(1, sim.price(bz, g)))))}d</td><td><button data-sell="${g}">Sell</button></td></tr>`).join('');
+    const rows = sells.map((g) => `<tr><td><img class="ic" src="${icon(g)}" alt=""> ${G[g].name}</td><td class="n">${Math.floor(bz.stock[g])}</td><td class="n">₳${price(g)}</td><td><button data-buy="${g}">Buy</button></td></tr>`).join('') || '<tr><td colspan="4">Nothing for sale right now.</td></tr>';
+    const srows = buyable.map((g) => `<tr><td><img class="ic" src="${icon(g)}" alt=""> ${G[g].name} ×${PS.count(g)}</td><td class="n">₳${Math.max(1, Math.floor(sim.price(bz, g) * 0.6 * (2 - price(g) / Math.max(1, sim.price(bz, g)))))}</td><td><button data-sell="${g}">Sell</button></td></tr>`).join('');
     const vals = PS.items.filter((k) => G[k].valuable);
     open(`${bz.name}`, `<div class="lbl">${esc(seller.name)} minds the counter · till ${money(bz.cash)}</div>
       <table><thead><tr><th>For sale</th><th class="n">Stock</th><th class="n">Price</th><th></th></tr></thead><tbody>${rows}</tbody></table>
@@ -92,7 +93,7 @@
       ${vals.length ? `<p class="caption">${esc(seller.first)} eyes your ${G[vals[0]].name.toLowerCase()} but won't touch it. Honest traders don't buy goods like that. You'd need a fence.</p>` : ''}`, (r) => {
       r.querySelectorAll('[data-buy]').forEach((b) => b.onclick = () => {
         const g = b.dataset.buy, pr = price(g);
-        if (PS.money < pr) return toast(`You can't afford ${G[g].name.toLowerCase()} at ${pr}d.`, 'bad');
+        if (PS.money < pr) return toast(`You can't afford ${G[g].name.toLowerCase()} at ₳${pr}.`, 'bad');
         if (!PS.canCarry(g)) return toast('Your satchel is full.', 'bad');
         PS.money -= pr; PS.add(g); bz.stock[g] -= 1; bz.cash += pr * (1 - sim.treasury.taxRate); sim.treasury.cash += pr * sim.treasury.taxRate; bz.salesToday += pr; sim.stats.sales += pr;
         const r0 = seller.rel.get(0) || { affinity: 0, familiar: 0 }; r0.affinity = Math.min(1, r0.affinity + 0.02); seller.rel.set(0, r0);
@@ -108,7 +109,7 @@
   }
 
   function container(title, items, onTake, note) {
-    const rows = items.map((it, i) => `<div class="slot"><img src="${icon(it.k)}" alt=""><span>${esc(it.k === 'coins' ? `${it.n}d in coin` : `${G[it.k].name}${it.n > 1 ? ' ×' + it.n : ''}`)}</span><button data-take="${i}">Take</button></div>`).join('');
+    const rows = items.map((it, i) => `<div class="slot"><img src="${icon(it.k)}" alt=""><span>${esc(it.k === 'coins' ? `₳${it.n} in coin` : `${G[it.k].name}${it.n > 1 ? ' ×' + it.n : ''}`)}</span><button data-take="${i}">Take</button></div>`).join('');
     open(title, `${note ? `<p class="caption warnnote">${esc(note)}</p>` : ''}<div class="slots">${rows || '<p class="caption">Empty.</p>'}</div>${items.length > 1 ? '<button class="btn" data-all="1" style="margin-top:10px">Take everything</button>' : ''}`, (r) => {
       r.querySelectorAll('[data-take]').forEach((b) => b.onclick = () => onTake([+b.dataset.take]));
       const all = r.querySelector('[data-all]'); if (all) all.onclick = () => onTake(items.map((_, i) => i));

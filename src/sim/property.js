@@ -76,7 +76,7 @@
           else { const L = this.households[b.owner.id - 1]; if (L) L.money += rent; }
         } else {
           hh.debt = (hh.debt || 0) + rent - Math.max(0, hh.money); hh.money = Math.max(0, hh.money) - Math.max(0, hh.money);
-          for (const id of hh.members) { const p = this.byId.get(id); if (p && p.age >= 16) this.remember(p, `We couldn't pay the rent this week. We owe ${hh.debt}d.`, 'hardship', 1.2); }
+          for (const id of hh.members) { const p = this.byId.get(id); if (p && p.age >= 16) this.remember(p, `We couldn't pay the rent this week. We owe ₳${hh.debt}.`, 'hardship', 1.2); }
           if (hh.debt > rent * 4) this.evict(b, hh);
         }
       }
@@ -92,7 +92,7 @@
     };
 
     S.evict = function (b, hh) {
-      this.log(`The ${hh.surname} family were evicted from their house for ${hh.debt}d of unpaid rent.`, 'economy');
+      this.log(`The ${hh.surname} family were evicted from their house for ₳${hh.debt} of unpaid rent.`, 'economy');
       for (const id of hh.members) { const p = this.byId.get(id); if (p) this.remember(p, `We were thrown out of our house over the rent.`, 'hardship', 3); }
       // they look for another empty house, or leave
       const other = this.world.buildings.find((x) => x.type === 'house' && !x.household && x !== b && (!x.owner || x.owner.kind === 'parish'));

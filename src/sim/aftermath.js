@@ -235,7 +235,7 @@
         this.dropped = this.dropped.filter((d) => !found.includes(d));
         const val = found.reduce((a, d) => a + (O.Data.GOODS[d.good]?.base || 1) * d.qty, 0), got = Math.max(1, Math.round(val * 0.6));
         this.treasury.cash += got; this.treasury.income = (this.treasury.income || 0) + got;
-        this.log(`${sw.name} the sweeper handed in ${found.map((d) => O.Data.GOODS[d.good]?.name.toLowerCase() || d.good).join(', ')} found in the street; sold for ${got}d for the town purse.`, 'politics');
+        this.log(`${sw.name} the sweeper handed in ${found.map((d) => O.Data.GOODS[d.good]?.name.toLowerCase() || d.good).join(', ')} found in the street; sold for ₳${got} for the town purse.`, 'politics');
       }
       if (before !== this.marks.length) this.remember(sw, 'Scrubbed blood off the street today.', 'work', 0.5);
     };

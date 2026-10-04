@@ -40,11 +40,15 @@
           // two travellers meeting stop to pass the time of day; so does one you walk up to
           if (!tr.pause && !tr.chatCd) {
             const near = st.travellers.find((o) => o !== tr && !o.chatCd && !o.pause && Math.abs(o.s - tr.s) < 1.6 && o.dirn !== tr.dirn);
-            if (near) { tr.pause = near.pause = 4 + ((Math.floor(tr.s) * 7) % 4); tr.with = near; near.with = tr; }
+            if (near) { tr.pause = near.pause = 4 + ((Math.floor(tr.s) * 7) % 4); tr.with = near; near.with = tr;
+              // what they say to each other, for anyone near enough to hear
+              const k = Math.floor(tr.s * 3 + home.day), L = [['Good day to you. Far to go?', 'Far enough. And you?'], ['Is the road clear ahead?', 'Clear as far as the ford.'], ['Fine weather for walking.', 'Long may it last.'], ['Heard any news?', 'Only that bread is dear again.'], ['Watch your purse at the next inn.', 'I thank you for it.']][k % 5];
+              O.Speech && O.Speech.say(tr, L[0], 2.2); setTimeout(() => { O.Speech && O.Speech.say(near, L[1], 2.2); }, 1300); }
             else if (Math.hypot(pl.x - tr.x, pl.y - tr.y) < 30) { tr.pause = 2.5; tr.with = pl; }
           }
           if (tr.down) { tr.anim = 'lie'; [tr.x, tr.y] = I.toLocal(game.world, tr.down[0], tr.down[1]); extra.push(tr); continue; }
           if (tr.flee > 0) tr.flee = Math.max(0, tr.flee - dt);
+          if (tr.held) { tr.anim = 'talk'; tr.dir = O.dirOf(pl.x - tr.x, pl.y - tr.y); extra.push(tr); continue; }
           if (tr.pause && !tr.flee) {
             tr.pause = Math.max(0, tr.pause - dt); tr.anim = 'talk';
             if (tr.with) tr.dir = O.dirOf(tr.with.x - tr.x, tr.with.y - tr.y);
@@ -89,6 +93,8 @@
             const sd = at.s - tr.k * 1.2 * dirn, [ax, ay] = I.pointAt(at.r, sd), [bx, by] = I.pointAt(at.r, sd + dirn), dd = Math.hypot(bx - ax, by - ay) || 1, side = 0.45 * dirn;
             const [nx, ny] = local(ax + 0.5 - (by - ay) / dd * side, ay + 0.6 + (bx - ax) / dd * side);
             if (tr.x || tr.y) tr.dir = O.dirOf(nx - tr.x, ny - tr.y);
+            if (j._actors.some((x) => x.held)) { j.started += dt * game.clock.speed; } // the whole party waits while one of them talks to you
+            if (tr.held) { tr.anim = 'talk'; tr.dir = O.dirOf(game.player.x - tr.x, game.player.y - tr.y); extra.push(tr); continue; }
             tr.x = nx; tr.y = ny; tr.ft += dt; tr.anim = j.horse ? 'run' : 'walk'; tr.s = sd; tr.road = at.r; tr.dirn = dirn;
             extra.push(tr);
           }
@@ -121,7 +127,7 @@
         const take = Math.max(4, Math.round(c.value * 0.25)); PS.money += take; c.qty = Math.floor(c.qty * 0.6); c.value -= take; c.done = true;
         crime('highway robbery', 3, here()); PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.06);
         K.addNews && K.addNews(`${c.merchant}'s caravan of ${c.good} was robbed on the road.`, 'crime');
-        O.Panels.toast(`The carter cuts the horse loose and runs. You take ${take}d of ${c.good} from the cart.`, 'bad');
+        O.Panels.toast(`The carter cuts the horse loose and runs. You take ₳${take} of ${c.good} from the cart.`, 'bad');
       } }); }
       return out;
     });
@@ -142,11 +148,18 @@
     };
     O.roadAct = (c) => {
       if (!game.world.island || c.type !== 'traveller') return act0(c);
-      if (c.tr.journey) { const j = c.tr.journey, to = K.place(j.homeward ? j.from : j.to), from = K.place(j.homeward ? j.to : j.from); const what = j.homeward ? `Home to ${to.name}, at last.` : j.purpose === 'trade' ? `Taking ${Object.entries(j.goods || {}).map(([g, n]) => `${n} ${O.Data.GOODS[g]?.name.toLowerCase()}`).join(' and ')} from ${from.name} to sell in ${to.name}.` : j.purpose === 'move' ? `We're leaving ${from.name} for good. There's nothing for us there now. ${to.name}, we hope.` : `Off to ${to.name} to see family.`; O.UI.dialog.open({ name: c.tr.name, color: '#8a6a4a', text: what, options: [] }); return; }
-      const tr = c.tr, r = tr.road, to = K.place(tr.dirn > 0 ? r.rd.b : r.rd.a);
+      const tr = c.tr; tr.held = true; tr.dir = O.dirOf(game.player.x - tr.x, game.player.y - tr.y);
       const news = K.news.length ? K.news[K.news.length - 1].text : null;
-      const lines = [`Bound for ${to.name}. Long way yet.`, r.camp ? `Mind ${r.camp.gang} further on. They keep a fire off the road and want paying.` : 'Quiet road, this. That suits me.', news ? `I hear ${news.charAt(0).toLowerCase() + news.slice(1)}` : 'Little news worth the telling.', 'Fine weather for walking, if it holds.', `${to.name}? Good ale there.`];
-      O.UI.dialog.open({ name: tr.name, color: '#8a6a4a', text: lines[(Math.floor(tr.s) + home.day) % lines.length], options: [] });
+      let where, road;
+      if (tr.journey) { const j = tr.journey, to = K.place(j.homeward ? j.from : j.to), from = K.place(j.homeward ? j.to : j.from); where = j.homeward ? `Home to ${to.name}, at last.` : j.purpose === 'trade' ? `Taking ${Object.entries(j.goods || {}).map(([g, n]) => `${n} ${O.Data.GOODS[g]?.name.toLowerCase()}`).join(' and ')} from ${from.name} to sell in ${to.name}.` : j.purpose === 'move' ? `We're leaving ${from.name} for good. There's nothing for us there now. ${to.name}, we hope.` : j.purpose === 'perform' ? `To ${to.name}, to play at the tavern there. Come and hear us!` : `Off to ${to.name} to see family.`; road = 'Quiet enough, if you keep to the road by day.'; }
+      else { const r = tr.road, to = K.place(tr.dirn > 0 ? r.rd.b : r.rd.a); where = `Bound for ${to.name}. Long way yet.`; road = r.camp ? `Mind ${r.camp.gang} further on. They keep a fire off the road and want paying.` : 'Quiet road, this. That suits me.'; }
+      const answers = { where, road, news: news ? `I hear ${news.charAt(0).toLowerCase() + news.slice(1)}` : 'Little news worth the telling.', self: ['Tired feet, but well enough.', 'Better for the company.', 'Hungry, and the inn is miles off.'][Math.floor(home.day + (tr.k || 0)) % 3] };
+      const opts = [{ key: 'where', label: 'Where are you headed?' }, { key: 'road', label: 'Is the road safe?' }, { key: 'news', label: 'Any news?' }, { key: 'self', label: 'How are you?' }, { key: 'bye', label: 'Goodbye' }];
+      const release = () => { tr.held = false; };
+      const show = (text) => O.UI.dialog.open({ name: tr.name, color: '#8a6a4a', text, options: opts, onPick: (k) => { if (k === 'bye') { release(); O.UI.dialog.open({ name: tr.name, color: '#8a6a4a', text: 'God speed.', options: [] }); setTimeout(() => O.UI.dialogOpen() && O.UI.dialog.close(), 1200); return; } show(answers[k]); }, onClose: release });
+      show(['Good day to you.', 'Well met, stranger.', 'Morning. Fine day for the road.'][Math.floor(home.day + (tr.k || 0)) % 3]);
+      // walk away and they go on their way
+      const chk = setInterval(() => { if (!tr.held) return clearInterval(chk); if (Math.hypot(game.player.x - tr.x, game.player.y - tr.y) > 70) { release(); if (O.UI.dialogOpen()) O.UI.dialog.close(); clearInterval(chk); } }, 300);
     };
   }
   O.Wayfarers = { setup };

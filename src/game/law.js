@@ -40,7 +40,7 @@
         if (sim.rng.chance(O.clamp(chance, 0.05, 0.92))) {
           PS.skills.stealth = Math.min(1, PS.skills.stealth + 0.03);
           let got;
-          if (hh.money >= 3 && sim.rng.chance(0.75)) { const n = Math.max(1, Math.min(20, Math.floor(hh.money * 0.12))); hh.money -= n; PS.money += n; got = `${n}d`; }
+          if (hh.money >= 3 && sim.rng.chance(0.75)) { const n = Math.max(1, Math.min(20, Math.floor(hh.money * 0.12))); hh.money -= n; PS.money += n; got = `₳${n}`; }
           else { const k = sim.rng.pick(['bread', 'spoon', 'herbs']); if (PS.add(k)) { got = G[k].name.toLowerCase(); PS.stolen[k] = (PS.stolen[k] || 0) + 1; } else got = null; }
           if (!got) return O.Panels.toast('Your satchel is full.');
           // others nearby may still have noticed
@@ -155,7 +155,7 @@
       let settled = false;
       const done = () => { settled = true; O.UI.dialog.close(); };
       const options = [];
-      if (greedy) options.push({ key: 'bribe', label: `Slip ${g.first} ${bribe}d to look the other way` });
+      if (greedy) options.push({ key: 'bribe', label: `Slip ${g.first} ₳${bribe} to look the other way` });
       options.push({ key: 'run', label: 'Twist free and run' }, { key: 'fight', label: 'Fight' }, { key: 'surrender', label: 'Go quietly', hot: true });
       const sought = PS.soughtFor();
       const spec = {
@@ -242,12 +242,12 @@
       if (PS.rep.local > 0.5 && crimes.length <= 1) { verdict = 'pardon'; body = 'The magistrate notes the good you have done in Ashford. You are pardoned, this once.'; }
       else if (evidence < 0.7) { verdict = 'acquitted'; body = 'The witnesses cannot agree on what they saw. There is not enough to hold you. You are free to go.'; }
       else if (PS.crimes.length >= 6 || (PS.bounty && crimes.length >= 3)) { verdict = 'exile'; body = 'For repeated crimes against the people of Ashford you are banished. If the watch sees you here again, they will take you on sight.'; }
-      else if (evidence < 1.8 && PS.money >= fine) { verdict = 'fine'; body = `Guilty. You are fined ${fine}d, paid to those you wronged and the parish.`; }
-      else { const dd = 2 + Math.min(3, crimes.length), bl = dd <= 3 ? 12 * dd : null; verdict = 'prison'; body = `Guilty. ${PS.money < fine ? 'You cannot pay the fine. ' : ''}You will serve ${dd} days in the cell${bl ? `, unless you can find ${bl}d bail` : ''}.`; }
-      O.Panels.open('The magistrate rules', `<p class="caption">Heard at the Watch House before ${O.escape(captain ? captain.name : 'the magistrate')}. Charges: ${crimes.map((c) => c.kind).join(', ') || 'evading the watch'}. Witnesses: ${crimes.reduce((s, c) => s + c.witnesses.length, 0)}.${found ? ` Stolen goods found on you: ${found}.` : ''}</p><p class="speech">${body}</p>${verdict === 'prison' && 2 + Math.min(3, crimes.length) <= 3 && PS.money >= 12 * (2 + Math.min(3, crimes.length)) ? `<button class="btn" data-bail="1">Pay ${12 * (2 + Math.min(3, crimes.length))}d bail</button> ` : ''}<button class="btn" data-ok="1">${verdict === 'prison' ? 'Serve the sentence' : 'Accept the verdict'}</button>`, (r) => {
+      else if (evidence < 1.8 && PS.money >= fine) { verdict = 'fine'; body = `Guilty. You are fined ₳${fine}, paid to those you wronged and the parish.`; }
+      else { const dd = 2 + Math.min(3, crimes.length), bl = dd <= 3 ? 12 * dd : null; verdict = 'prison'; body = `Guilty. ${PS.money < fine ? 'You cannot pay the fine. ' : ''}You will serve ${dd} days in the cell${bl ? `, unless you can find ₳${bl} bail` : ''}.`; }
+      O.Panels.open('The magistrate rules', `<p class="caption">Heard at the Watch House before ${O.escape(captain ? captain.name : 'the magistrate')}. Charges: ${crimes.map((c) => c.kind).join(', ') || 'evading the watch'}. Witnesses: ${crimes.reduce((s, c) => s + c.witnesses.length, 0)}.${found ? ` Stolen goods found on you: ${found}.` : ''}</p><p class="speech">${body}</p>${verdict === 'prison' && 2 + Math.min(3, crimes.length) <= 3 && PS.money >= 12 * (2 + Math.min(3, crimes.length)) ? `<button class="btn" data-bail="1">Pay ₳${12 * (2 + Math.min(3, crimes.length))} bail</button> ` : ''}<button class="btn" data-ok="1">${verdict === 'prison' ? 'Serve the sentence' : 'Accept the verdict'}</button>`, (r) => {
         r.querySelector('.x').hidden = true;
         const bb = r.querySelector('[data-bail]');
-        if (bb) bb.onclick = () => { const bl = 12 * (2 + Math.min(3, crimes.length)); PS.money -= bl; sim.treasury.cash += bl; sim.treasury.income += bl; for (const c of crimes) c.closed = 'bail'; PS.bounty = false; PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.05); O.Panels.close(); sim.log(`The stranger was found guilty and paid ${bl}d bail.`, 'crime'); O.Panels.toast(`You count out ${bl}d bail. The gaoler unlocks the door.`); game.exitBuilding(); };
+        if (bb) bb.onclick = () => { const bl = 12 * (2 + Math.min(3, crimes.length)); PS.money -= bl; sim.treasury.cash += bl; sim.treasury.income += bl; for (const c of crimes) c.closed = 'bail'; PS.bounty = false; PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.05); O.Panels.close(); sim.log(`The stranger was found guilty and paid ₳${bl} bail.`, 'crime'); O.Panels.toast(`You count out ₳${bl} bail. The gaoler unlocks the door.`); game.exitBuilding(); };
         r.querySelector('[data-ok]').onclick = () => {
           O.Panels.close();
           if (verdict === 'fine') { PS.money -= fine; sim.treasury.cash += fine; sim.treasury.income += fine; }

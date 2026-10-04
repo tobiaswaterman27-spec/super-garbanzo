@@ -175,7 +175,7 @@
       game.enterBuilding(doc, 0);
       let g = 0; while (g++ < 300) { sim.tick(2); PS.tick(2, true); }
       PS.hp = 60;
-      O.Panels.toast(`You wake in the physician's house, sore and ${lost ? lost + 'd lighter' : 'aching'}.`);
+      O.Panels.toast(`You wake in the physician's house, sore and ${lost ? '₳' + lost + ' lighter' : 'aching'}.`);
     }
 
     // talk card: threaten when armed
@@ -193,9 +193,9 @@
         crimeFor(q, 'robbery', 2);
         if (sim.rng.chance(comply)) {
           const hh = sim.household(q), n = Math.max(1, Math.min(30, Math.floor(hh.money * 0.25)));
-          hh.money -= n; PS.money += n; sim.remember(q, `Robbed at knifepoint of ${n}d by the stranger.`, 'crime', 3, 0);
+          hh.money -= n; PS.money += n; sim.remember(q, `Robbed at knifepoint of ₳${n} by the stranger.`, 'crime', 3, 0);
           fights.set(q.id, { mode: 'flee', t: 0 });
-          return `“Take it! Take it and go!” They hand over ${n}d.`;
+          return `“Take it! Take it and go!” They hand over ₳${n}.`;
         }
         fights.set(q.id, { mode: brave ? 'fight' : 'flee', t: 0, cd: 0.6 });
         return brave ? '“Over my dead body.”' : '“Help! HELP! Robbers!”';
@@ -207,7 +207,7 @@
         const item = q.app.outfit.item && G[q.app.outfit.item] ? q.app.outfit.item : null;
         if (item && PS.add(item)) { q.app.outfit.item = null; O.Char.invalidate(q.app); PS.stolen[item] = (PS.stolen[item] || 0) + 1; }
         if (!fights.get(q.id)?.looted) { crimeFor(q, 'robbery', 2); const f = fights.get(q.id); if (f) f.looted = true; }
-        return `You search ${q.first} and take ${n}d${item ? ' and a ' + G[item].name.toLowerCase() : ''}.`;
+        return `You search ${q.first} and take ₳${n}${item ? ' and a ' + G[item].name.toLowerCase() : ''}.`;
       },
       fights,
     };

@@ -1,6 +1,6 @@
 // The inn. The innkeeper stands at the counter; beds are hired from them there and nowhere else. A
 // jobless husband or wife keeps the inn too, the two of them taking it in turns at the counter while the
-// other is out or resting, and children old enough help in the evenings for a penny or two. Every so
+// other is out or resting, and children old enough help in the evenings for an aurin or two. Every so
 // often whoever is on goes upstairs to look over the rooms. A poor innkeeping family lives upstairs.
 // The inn holds only so many: when the benches are full, a newcomer goes up to the counter, is told
 // there's no room, and goes home again.

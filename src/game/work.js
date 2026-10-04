@@ -66,7 +66,7 @@
         return `You've worked well these ${days} days. Stay on as my apprentice: steady work, every day, and I'll teach you the trade properly.`;
       }
       const wage = hourly(bz, sk);
-      return days ? `Back again? Good. Same terms: ${wage < 1 ? 'three farthings' : wage + 'd'} the hour. Find a bench and set to.` : `I can use a pair of hands today. ${wage < 1 ? 'Three farthings' : wage + 'd'} the hour, paid as you go. Mind you don't spoil anything.`;
+      return days ? `Back again? Good. Same terms: ${wage < 1 ? 'under an aurin' : '₳' + wage} the hour. Find a bench and set to.` : `I can use a pair of hands today. ${wage < 1 ? 'Under an aurin' : '₳' + wage} the hour, paid as you go. Mind you don't spoil anything.`;
     }
     O.Work.askWork = askWork;
     function hourly(bz, sk) {
@@ -80,7 +80,7 @@
       if (!(it.work || it.counter || it.kind === 'millstone' || it.kind === 'anvil' || it.kind === 'workbench')) return null;
       return { type: 'work', it, d: d - 14, x: cx, y: cy }; // your own bench comes before chatting to the staff
     };
-    O.workLabel = () => { const J = job(); const bz = J && cur().biz.get(J.biz); return bz ? `Work an hour · ${hourly(bz, J.skill).toFixed(1)}d` : 'Work'; };
+    O.workLabel = () => { const J = job(); const bz = J && cur().biz.get(J.biz); return bz ? `Work an hour · ₳${hourly(bz, J.skill).toFixed(1)}` : 'Work'; };
     O.workShift = () => {
       const J = job(), s = cur(), bz = J && s.biz.get(J.biz);
       if (!bz) return toast('You have no work here today.', 'bad');
@@ -102,7 +102,7 @@
       }
       if (!bz.def.recipes.length) bz.salesToday += 2; // hauling, serving and minding the counter bring custom
       // pay from the till
-      // pay accrues in fractions of a penny and is handed over in whole pence
+      // pay accrues in fractions of an aurin and is handed over in whole aurins
       const wage = hourly(bz, sk); PS.owed = (PS.owed || 0) + wage;
       const paid = Math.max(0, Math.min(Math.floor(PS.owed), Math.floor(bz.cash))); PS.owed -= paid;
       bz.cash -= paid; PS.money += paid; PS.earned = (PS.earned || 0) + paid;
@@ -113,7 +113,7 @@
       if (J.hoursToday === 4) { PS.workDays[key] = (PS.workDays[key] || 0) + 1; PS.rep.local = Math.min(1, PS.rep.local + 0.03); PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.01); const m = s.byId.get(J.master); if (m) { s.relate(m, { id: 0 }, 0.05); s.remember(m, 'The stranger did a fair day\'s work for me.', 'work', 1, 0); } }
       const up = rank(PS.skills[sk]) !== rank(before) ? ` You are now a ${rank(PS.skills[sk])} in ${SKILL_LABEL[sk].toLowerCase()}.` : '';
       if (up && rank(PS.skills[sk]) !== 'apprentice') O.Chronicle.deed(s, `The newcomer is now reckoned a ${rank(PS.skills[sk])} ${SKILL_LABEL[sk].toLowerCase()} hand in ${s.world.name}.`, `You became a ${rank(PS.skills[sk])} in ${SKILL_LABEL[sk].toLowerCase()}.`, 'player', 2, true);
-      toast(`An hour's work at ${bz.name}${made.length ? ': ' + made.join(', ') : ''}. ${paid ? `Paid ${paid}d` : 'Your pay is owing'}${PS.owed >= 0.1 ? ` (${PS.owed.toFixed(1)}d to come)` : ''}${bz.cash < 1 ? '; the till is empty' : ''}.${up}`);
+      toast(`An hour's work at ${bz.name}${made.length ? ': ' + made.join(', ') : ''}. ${paid ? `Paid ₳${paid}` : 'Your pay is owing'}${PS.owed >= 0.1 ? ` (₳${PS.owed.toFixed(1)} to come)` : ''}${bz.cash < 1 ? '; the till is empty' : ''}.${up}`);
       setTimeout(() => { if (game.player.anim === 'work') game.player.anim = 'idle'; }, 1200);
     };
 

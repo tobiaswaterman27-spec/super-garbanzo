@@ -232,7 +232,7 @@
       const W = this.kingdom.war; if (!W || W.phase !== 'war' || this.weekday !== 0) return;
       const take = Math.min(40, Math.floor(this.treasury.cash * 0.25)); if (take <= 0) return;
       this.treasury.cash -= take; this.kingdom.treasury += take;
-      this.log(`The crown's war levy took ${take}d from ${this.world.name}'s common chest.`, 'politics');
+      this.log(`The crown's war levy took ₳${take} from ${this.world.name}'s common chest.`, 'politics');
     };
     // refugees from the north
     S.refugees = function (n, from) {
@@ -253,7 +253,7 @@
         if (!['smithy', 'armourer'].includes(bz.type)) continue;
         let paid = 0;
         for (const g of ['dagger', 'axe', 'sword', 'helm', 'tools']) { const n = Math.floor((bz.stock[g] || 0) * 0.6); if (n < 1) continue; const pr = Math.round(O.Data.GOODS[g].base * 1.5) * n; bz.stock[g] -= n; bz.cash += pr; paid += pr; }
-        if (paid && this.rng.chance(0.4)) this.log(`The crown's quartermaster bought arms from ${bz.name} for ${paid}d.`, 'war');
+        if (paid && this.rng.chance(0.4)) this.log(`The crown's quartermaster bought arms from ${bz.name} for ₳${paid}.`, 'war');
       }
     };
   }

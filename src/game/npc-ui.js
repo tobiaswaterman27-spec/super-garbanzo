@@ -64,7 +64,7 @@
       if (t === 'rent') {
         const PS = O.PlayerState;
         if (PS.room && PS.room.b === bz.id && sim.day <= PS.room.until) return renderTalk("You've a room already. Top of the stairs.");
-        if (PS.money < 6) return renderTalk("Six pence a night, and I don't do credit.");
+        if (PS.money < 6) return renderTalk("Six aurins a night, and I don't do credit.");
         PS.money -= 6; bz.cash += 6; PS.room = { b: bz.id, until: sim.day + 1 }; PS.add('key');
         sim.remember(q, 'Let a room to a stranger.', 'work', 0.5, 0);
         return renderTalk("Room's upstairs, first bed on the left. Chest is yours while you stay. Mind the third step.");
@@ -76,7 +76,7 @@
     }
 
     // ---------------- ledger ----------------
-    function money(d) { d = Math.round(d); const s = Math.floor(d / 12), p = d % 12; return s ? `${s}s ${p}d` : `${p}d`; }
+    function money(d) { d = Math.round(d); return `₳${Math.round(d)}`; }
     function renderLedger() {
       if (ledger.hidden) return;
       const tabs = [['people', 'Residents'], ['biz', 'Businesses'], ['town', 'Town'], ['log', 'Chronicle']];
@@ -94,7 +94,7 @@
       } else if (ltab === 'biz') {
         body = `<div class="bizgrid">${[...sim.biz.values()].map((bz) => {
           const owner = sim.byId.get(bz.owner);
-          const stock = Object.entries(bz.stock).map(([g, q]) => `<tr><td>${G[g].name}</td><td class="n">${Math.floor(q)}</td><td class="n">${bz.def.sells.includes(g) ? sim.price(bz, g) + 'd' : '-'}</td></tr>`).join('');
+          const stock = Object.entries(bz.stock).map(([g, q]) => `<tr><td>${G[g].name}</td><td class="n">${Math.floor(q)}</td><td class="n">${bz.def.sells.includes(g) ? '₳' + sim.price(bz, g) : '-'}</td></tr>`).join('');
           const orders = bz.orders.map((o) => `${o.qty} ${G[o.good].name.toLowerCase()} from ${sim.biz.get(o.from)?.name || 'trader'}`).join('; ');
           return `<section class="biz"><h3>${esc(bz.name)} <span class="pill ${bz.open ? 'ok' : ''}">${bz.open ? 'OPEN' : 'CLOSED'}</span></h3>
             <div class="lbl">${owner ? 'Owner ' + esc(owner.name) + ' · ' : ''}${bz.workers.length} staff · till ${money(bz.cash)} · sold today ${money(bz.salesToday)}</div>
@@ -112,7 +112,7 @@
           <div><span class="lbl">Households</span><b>${sim.households.length}</b><small>combined purse ${money(purse)}</small></div>
           <div><span class="lbl">Employment</span><b>${employed}/${adults}</b><small>working-age adults with a trade</small></div>
           <div><span class="lbl">Going hungry</span><b class="${hungry ? 'warn' : ''}">${hungry}</b><small>residents with an empty belly</small></div>
-          <div><span class="lbl">Treasury</span><b>${money(sim.treasury.cash)}</b><small>market tax ${Math.round(sim.treasury.taxRate * 100)}% · hearth tax ${sim.treasury.hearth ?? 2}d · town wages ${money(sim.publicCosts ? sim.publicCosts().wages : 0)} a week</small></div>${(sim.treasury.weeks || []).length ? `<div style="grid-column:1/-1"><span class="lbl">The town's accounts, week by week</span><table><thead><tr><th>Week to day</th><th class="n">Taxes in</th><th class="n">Paid out</th><th class="n">To the crown</th><th class="n">From the crown</th><th class="n">In the chest</th></tr></thead><tbody>${sim.treasury.weeks.slice(-5).map((w) => `<tr><td>${w.day}</td><td class="n">${money(w.income)}</td><td class="n">${money(w.spent)}</td><td class="n">${money(w.levy)}</td><td class="n">${money(w.grant)}</td><td class="n">${money(w.cash)}</td></tr>`).join('')}</tbody></table></div>` : ''}
+          <div><span class="lbl">Treasury</span><b>${money(sim.treasury.cash)}</b><small>market tax ${Math.round(sim.treasury.taxRate * 100)}% · hearth tax ₳${sim.treasury.hearth ?? 2} · town wages ${money(sim.publicCosts ? sim.publicCosts().wages : 0)} a week</small></div>${(sim.treasury.weeks || []).length ? `<div style="grid-column:1/-1"><span class="lbl">The town's accounts, week by week</span><table><thead><tr><th>Week to day</th><th class="n">Taxes in</th><th class="n">Paid out</th><th class="n">To the crown</th><th class="n">From the crown</th><th class="n">In the chest</th></tr></thead><tbody>${sim.treasury.weeks.slice(-5).map((w) => `<tr><td>${w.day}</td><td class="n">${money(w.income)}</td><td class="n">${money(w.spent)}</td><td class="n">${money(w.levy)}</td><td class="n">${money(w.grant)}</td><td class="n">${money(w.cash)}</td></tr>`).join('')}</tbody></table></div>` : ''}
           <div><span class="lbl">Trade</span><b>${money(sim.stats.sales)}</b><small>all sales since you arrived · wages paid ${money(sim.stats.wages)} · exports ${money(sim.stats.exports || 0)}</small></div>
           <div><span class="lbl">Health</span><b class="${pop.filter((p) => p.health.illness).length > 6 ? 'warn' : ''}">${pop.filter((p) => p.health.illness).length} ill</b><small>sanitation ${Math.round(sim.settlement.sanitation * 100)}% · ${pop.filter((p) => p.activity?.act === 'treated').length} with the physician${sim.settlement.outbreak ? ' · OUTBREAK' : ''}</small></div>
           <div><span class="lbl">Births & deaths</span><b>${sim.history.filter((h) => h.kind === 'life' && /was born/.test(h.text)).length} · ${sim.dead.length}</b><small>${sim.dead.slice(-2).map((d) => `${d.name} (${d.age})`).join(', ') || 'none buried yet'}</small></div>

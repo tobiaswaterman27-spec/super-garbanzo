@@ -35,10 +35,31 @@
       for (const b of world.buildings) if (!b.sprite) b.sprite = b.ruined ? O.Env.ruin(b.spec) : b.type === 'hideout' ? O.Env.hideout(b.level, b.spec) : O.Env.building(b.spec);
       for (const t of world.trees) if (!t.sprite || t.sprite.season !== this.season) { t.sprite = O.Env.tree(t.seed, t.kind, this.season); t.sprite.season = this.season; }
       for (const p of world.props) if (!p.sprite) p.sprite = O.Env.prop(p.kind, p.seed, p.v);
+      if (!world._behind) this.blockBehind(world);
       this.rebuildStatics();
       if (!this.player) this.player = { x: (46 * T) + 8, y: 32 * T + 4, dir: 0, anim: 'idle', ft: 0, a: playerAppearance, speed: 0 };
       this.actors = [this.player];
       this.particles = [];
+    }
+
+    // Nobody walks where a roof would hide them: the ground just behind a building, as far back as its
+    // roof rises over a person's head, is closed off (roads, bridges and doorsteps stay open).
+    blockBehind(world) {
+      const T = world.T, W = world.W, R = world.TER || {}, doors = new Set(world.buildings.filter((b) => b.doorX != null).map((b) => b.doorY * W + b.doorX));
+      world._behind = [];
+      for (const b of world.buildings) {
+        const sp = b.sprite; if (!sp || b.site || b.ruined) continue;
+        const top = (b.bottom + 1) * T - sp.H;
+        for (let r = b.y - 1; r >= 0; r--) {
+          const head = r * T + 10 - 30; if (head + 8 < top) break; // they'd be seen from here back
+          for (let x = b.x; x < b.x + b.w; x++) {
+            const i = r * W + x; if (x < 0 || x >= W || world.solid[i]) continue;
+            const t = world.ter[i]; if (t === R.ROAD || t === R.COBBLE || t === R.BRIDGE || t === R.WATER || doors.has(i) || doors.has(i - W)) continue;
+            world.solid[i] = 1; world._behind.push(i);
+          }
+        }
+      }
+      const s = O.SimRef && O.SimRef.cur; if (s && s.world === world && s.path) { s.path.recost(); s.path.clear(); }
     }
 
     rebuildStatics() {
@@ -249,7 +270,7 @@
       };
       // whatever stands in front of you (a roof, a tree) fades so you can see yourself behind it
       const P0 = this.player, px0 = P0.x - 9, px1 = P0.x + 9, py0 = P0.y - 36, py1 = P0.y - 2, dtF = Math.min(0.1, this.t - (this._fadeT || this.t)); this._fadeT = this.t;
-      const fadeOf = (o, x, y, wd, ht) => { const cover = !P0.hidden && o.y > P0.y + 1 && x < px1 && x + wd > px0 && y < py1 && y + ht > py0; const tgt = cover ? 0.42 : 1; o._fade = o._fade == null ? 1 : o._fade + (tgt - o._fade) * Math.min(1, dtF * 8); return o._fade; };
+      const fadeOf = () => 1; const fadeOld = (o, x, y, wd, ht) => { const cover = !P0.hidden && o.y > P0.y + 1 && x < px1 && x + wd > px0 && y < py1 && y + ht > py0; const tgt = cover ? 0.42 : 1; o._fade = o._fade == null ? 1 : o._fade + (tgt - o._fade) * Math.min(1, dtF * 8); return o._fade; };
       for (const s of this.statics) {
         while (ai < actors.length && actors[ai].y < s.y) drawActor(actors[ai++]);
         if (s.b) {

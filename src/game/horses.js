@@ -84,14 +84,36 @@
         }
       }
     }
+    // inside a barn: whoever has been driven in, standing in the straw
+    const _extras = O.sceneExtras;
+    O.sceneExtras = (sc, ctx, cam) => {
+      const out = _extras ? _extras(sc, ctx, cam) : [];
+      if (sc.b.type !== 'barn' || sc.floor) return out;
+      const inside = fauna.filter((f) => f.inBarn && f.barn === sc.b.id), R = sc.R;
+      inside.forEach((f, i) => {
+        const x = 30 + ((i * 53 + f.seed * 7) % Math.max(40, R.W - 60)), y = R.WH + 36 + ((i * 37 + f.seed) % Math.max(20, R.H - R.WH - 60));
+        if (sc.blocked(x, y)) return;
+        out.push({ y, draw: () => { const an = (f.seed + Math.floor(sc.t / 5)) % 3 ? 'idle' : 'graze', H = O.Animals.HANIMS[an], fr = O.Animals.animal(f.kind, f.seed, (f.seed % 2) ? 1 : 2, false, Math.floor(sc.t * H.fps) % H.frames, an); ctx.drawImage(fr, Math.round(x - (fr.ox ?? fr.width / 2) - cam.x), Math.round(y - (fr.gy ?? fr.height) - cam.y)); } });
+      });
+      return out;
+    };
     function horseActor(h) { return h._actor || (h._actor = { horse: h, x: h.x, y: h.y, dir: h.dir, anim: 'idle', ft: h.ft }); }
     function animalActor(f) { return f._actor || (f._actor = { animal: f, x: f.x, y: f.y, dir: f.dir, ft: f.ft, moving: false }); }
 
     // update: grazing wander, riding, stamina
     game.hooks.update.push((dt) => {
       const dtm = dt * game.clock.speed;
+      const csim0 = O.SimRef.cur, hr0 = csim0 ? csim0.hour : 12, day0 = csim0 ? csim0.day : 0;
       for (const f of fauna) {
         f.ft += dt;
+        // the barn: they're driven in at dusk and out at dawn, and now and then kept in by day
+        if (f.barn === undefined && f.world === game.world.placeId) { const cx = (f.z.x0 + f.z.x1) / 2 * T, cy = (f.z.y0 + f.z.y1) / 2 * T; const bn = game.world.buildings.filter((b) => b.type === 'barn' && b.doorX != null).sort((a, b) => Math.hypot(a.doorX * T - cx, a.doorY * T - cy) - Math.hypot(b.doorX * T - cx, b.doorY * T - cy))[0]; f.barn = bn && Math.hypot(bn.doorX * T - cx, bn.doorY * T - cy) < 30 * T ? bn.id : null; }
+        if (f.barn != null && f.world === game.world.placeId) {
+          const bn = game.world.buildings.find((b) => b.id === f.barn), wantIn = hr0 >= 20 || hr0 < 6 || (csim0 && csim0.weather && csim0.weather.severe) || (f.seed + day0) % 6 === 0;
+          if (wantIn && !f.inBarn && bn) { f.tx = bn.doorX * T + 8; f.ty = bn.doorY * T + 12; if (Math.hypot(f.x - f.tx, f.y - f.ty) < 6) { f.inBarn = true; f.tx = null; } else { const dx = f.tx - f.x, dy = f.ty - f.y, d = Math.hypot(dx, dy), st = Math.min(d, f.speed * 1.6 * Math.min(dtm, 3)); f.x += dx / d * st; f.y += dy / d * st; f.dir = O.dirOf(dx, dy); const a0 = animalActor(f); a0.x = f.x; a0.y = f.y; a0.dir = f.dir; a0.ft = f.ft; a0.moving = true; continue; } }
+          if (!wantIn && f.inBarn && bn) { f.inBarn = false; f.x = bn.doorX * T + 8; f.y = (bn.doorY + 1) * T + 4; f.tx = null; f.wait = 0; }
+          if (f.inBarn) continue;
+        }
         if (f.tx == null) { f.wait -= dt; if (f.wait <= 0) { f.tx = r.int(f.z.x0, f.z.x1) * T + r.int(2, 14); f.ty = r.int(f.z.y0, f.z.y1) * T + r.int(6, 14); } }
         else {
           const dx = f.tx - f.x, dy = f.ty - f.y, d = Math.hypot(dx, dy), step = Math.min(d, f.speed * Math.min(dtm, 3));
@@ -118,18 +140,21 @@
         const a = horseActor(h); a.x = h.x; a.y = h.y; a.dir = h.dir; a.anim = h.anim; a.ft = h.ft;
       }
       if (mount) {
-        p.galloping = game.keys.has('run') && mount.stamina > 5 && p.moving;
+        // a blown horse walks until it has its wind back (no flickering between a gallop and a walk)
+        if (mount.stamina <= 5) mount.winded = true; else if (mount.stamina > 35) mount.winded = false;
+        if (mount.winded && game.keys.has('run') && p.moving && !mount._toldWinded) { mount._toldWinded = true; O.UI.say(`${mount.name || 'The horse'} is blown and can only walk for now.`); } else if (!mount.winded) mount._toldWinded = false;
+        p.galloping = game.keys.has('run') && !mount.winded && p.moving;
         if (p.galloping) mount.stamina = Math.max(0, mount.stamina - dt * 9); else mount.stamina = Math.min(mount.staminaMax, mount.stamina + dt * 2);
         if (p.galloping && mount.temper === 'skittish' && r.chance(dt * 0.02)) { dismount(true); O.Panels.toast(`${mount.name} shies and throws you!`, 'bad'); PS.hp -= 8; }
       }
       const wid = game.world.placeId;
       if (wid && !seeded.has(wid)) seedStables(wid);
-      if (!game.scene) game.actors = [...game.actors.filter((a) => !a.horse && !a.animal), ...horses.filter((h) => h !== mount && !h.stabled && (h.world || 'ashford') === wid).map(horseActor), ...fauna.filter((f) => f.world === wid).map(animalActor)];
+      if (!game.scene) game.actors = [...game.actors.filter((a) => !a.horse && !a.animal), ...horses.filter((h) => h !== mount && !h.stabled && (h.world || 'ashford') === wid).map(horseActor), ...fauna.filter((f) => f.world === wid && !f.inBarn).map(animalActor)];
     });
 
     // riding speed: replace the walking pace while mounted
     const _blocked = game.blocked.bind(game);
-    game.speedFor = (run) => (game.player.mount ? (run && game.player.mount.stamina > 5 ? 150 : 82) * game.player.mount.speed : run ? 92 : 50);
+    game.speedFor = (run) => (game.player.mount ? (run && !game.player.mount.winded ? 150 : 82) * game.player.mount.speed : run ? 92 : 50);
 
     // draw the rider on the horse
     const _drawWorld = game.hooks.drawWorld;
@@ -163,9 +188,9 @@
     function dismount(thrown) {
       const h = game.player.mount; if (!h) return; game.player.mount = null; h.tied = true; h.x = game.player.x + (thrown ? 10 : 14); h.y = game.player.y;
       if (thrown) return;
-      // at a stable door you can leave your horse in the stablehand's care for a penny
+      // at a stable door you can leave your horse in the stablehand's care for an aurin
       const sb = game.world.buildings.find((b) => b.type === 'stable' && Math.hypot(b.doorX * T + 8 - game.player.x, b.doorY * T + 8 - game.player.y) < 40);
-      if (sb && h.owner === 'player' && PS.money >= 1) { PS.money -= 1; h.tied = false; h.inPaddock = true; h.stable = sb.id; h.pad = padFor(sb); h.world = game.world.placeId; O.Panels.toast(`You leave ${h.name} at ${sb.name} for a penny. ${h.name} will graze in the paddock by day and sleep in a stall at night.`); }
+      if (sb && h.owner === 'player' && PS.money >= 1) { PS.money -= 1; h.tied = false; h.inPaddock = true; h.stable = sb.id; h.pad = padFor(sb); h.world = game.world.placeId; O.Panels.toast(`You leave ${h.name} at ${sb.name} for an aurin. ${h.name} will graze in the paddock by day and sleep in a stall at night.`); }
       else O.Panels.toast(`You tie ${h.owner === 'player' ? h.name : 'the horse'} up.`);
     }
     O.Horses = { horses, nearestHorse, dismount, mountHorse };
@@ -177,7 +202,7 @@
         <div><span class="lbl">Temperament</span><b>${h.temper}</b><small>speed ${Math.round(h.speed * 100)} · stamina ${h.staminaMax}</small></div>
         <div><span class="lbl">Worth</span><b>${O.money(h.value)}</b><small>owner: ${O.escape(ownerName(h.owner))}</small></div></div>
         <div class="lbl" style="margin-top:10px">History</div><ol class="chron">${h.history.map((e) => `<li>Day ${e.day}: ${e.event}, ${O.escape(e.owner)}</li>`).join('')}</ol>
-        ${mine ? `<label class="lbl" for="horseName" style="display:block;margin-top:10px">Rename</label><input type="text" id="horseName" value="${O.escape(h.name)}" maxlength="20" style="width:100%;margin:4px 0"><button class="btn" data-ren="1">Rename</button> <button class="btn ghost" data-feed="1">Feed (1 wheat or 1d)</button>` : ''}`, (rr) => {
+        ${mine ? `<label class="lbl" for="horseName" style="display:block;margin-top:10px">Rename</label><input type="text" id="horseName" value="${O.escape(h.name)}" maxlength="20" style="width:100%;margin:4px 0"><button class="btn" data-ren="1">Rename</button> <button class="btn ghost" data-feed="1">Feed (1 wheat or ₳1)</button>` : ''}`, (rr) => {
         const rn = rr.querySelector('[data-ren]'); if (rn) rn.onclick = () => { h.name = rr.querySelector('#horseName').value.trim() || h.name; inspect(h); };
         const fd = rr.querySelector('[data-feed]'); if (fd) fd.onclick = () => { if (PS.remove('wheat')) h.fed = 100; else if (PS.money >= 1) { PS.money -= 1; h.fed = 100; } h.stamina = h.staminaMax; O.Panels.toast(`${h.name} eats happily.`); };
       });
@@ -193,7 +218,7 @@
           const h = horses.find((z) => z.id === +x.dataset.buy);
           if (PS.money < h.value) return O.Panels.toast(`You need ${O.money(h.value)}.`, 'bad');
           PS.money -= h.value; stableBiz.cash += h.value; h.owner = 'player'; h.history.push({ day: sim.day, event: 'sold', owner: 'you' }); h.inPaddock = true;
-          sim.remember(trader, `Sold ${h.name} to the stranger for ${h.value}d.`, 'work', 1, 0);
+          sim.remember(trader, `Sold ${h.name} to the stranger for ₳${h.value}.`, 'work', 1, 0);
           O.Panels.toast(`${h.name} is yours. Find them in the paddock.`); trade(trader);
         });
         rr.querySelectorAll('[data-sell]').forEach((x) => x.onclick = () => {

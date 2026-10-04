@@ -36,7 +36,7 @@
       else if (runway > 8 && crime < 4) { t.taxRate = Math.max(0.03, t.taxRate - 0.01); t.hearth = Math.max(1, t.hearth - 1); }
       if (purse < 30) t.hearth = Math.max(1, t.hearth - 1); // you can't tax what people haven't got
       if (t.taxRate !== old || t.hearth !== oldH) {
-        const what = t.taxRate !== old ? `the market tax to ${Math.round(t.taxRate * 100)} pence in the shilling-score` : `the hearth tax to ${t.hearth}d a household`;
+        const what = t.taxRate !== old ? `the market tax to ${Math.round(t.taxRate * 100)} aurins in the hundred` : `the hearth tax to ₳${t.hearth} a household`;
         const up = t.taxRate > old || t.hearth > oldH;
         this.log(`The council ${up ? 'raised' : 'lowered'} ${what}${up ? `, the chest would pay the town's wages for only ${Math.max(0, runway).toFixed(1)} weeks` : ''}.`, 'politics');
         for (const p of this.people) if (p.age >= 18 && this.rng.chance(0.25)) this.remember(p, `The council ${up ? 'raised' : 'cut'} the taxes.`, 'politics', 0.7);
@@ -98,14 +98,14 @@
       const costs = this.publicCosts();
       t.weeks.push({ day: this.day, income: Math.round(income), spent: Math.round(spent), levy, grant: t._grant || 0, hearth: t.hearthTaken || 0, rate: t.taxRate, hearthRate: t.hearth, wages: costs.wages, cash: Math.round(t.cash) });
       if (t.weeks.length > 8) t.weeks.shift();
-      if (levy > 0) this.log(`${levy}d of the week's taxes went to the king's treasury.`, 'politics');
+      if (levy > 0) this.log(`₳${levy} of the week's taxes went to the king's treasury.`, 'politics');
       t._in0 = t.income; t._out0 = t.spent; t._grant = 0; t.hearthTaken = 0;
       this.taxPolicy();
       this.assessHearth();
     };
     S.crownGrant = function (amt, why) {
       const t = T(this); t.cash += amt; t.income += amt; t._grant = (t._grant || 0) + amt; t._in0 += amt; // a grant isn't taxed again
-      this.log(`The crown has sent ${amt}d ${why}.`, 'politics');
+      this.log(`The crown has sent ₳${amt} ${why}.`, 'politics');
     };
 
     const _tick = S.minuteTick;

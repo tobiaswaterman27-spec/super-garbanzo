@@ -53,9 +53,9 @@
       const e = clash[0], keep = posts().filter((x) => !clash.includes(x));
       npcUI.closeTalk && npcUI.closeTalk();
       const shown = d.role === 'potboy' && (O.Forge.player?.sex || O.Forge.player?.a?.sex) === 'f' ? 'potgirl' : d.role;
-      O.Panels.open(`Work at ${bz.name}`, `<p class="speech">“I could use a ${shown}.${d.role === 'potboy' ? ' Somebody has to gather the pots and wipe the tables of an evening.' : ''} ${d.wage}d a day, ${fmtH(o)} till ${fmtH(c)}${['tavern', 'chapel', 'guard', 'hospital'].includes(bz.type) ? ', every day' : ', Sundays off'}. Will you take it?”</p>${clash.length ? `<p class="caption">The hours clash: you'd give up your post as ${clash.map((x) => `${esc(x.role)} at ${esc(x.bizName)}`).join(' and ')}.</p>` : keep.length ? `<p class="caption">You'd keep your post as ${keep.map((x) => `${esc(x.role)} at ${esc(x.bizName)}`).join(' and ')} as well: the hours don't clash.</p>` : ''}<div class="topics"><button data-y="1">Take the job</button><button data-n="1">Not now</button></div>`, (r) => {
+      O.Panels.open(`Work at ${bz.name}`, `<p class="speech">“I could use a ${shown}.${d.role === 'potboy' ? ' Somebody has to gather the pots and wipe the tables of an evening.' : ''} ₳${d.wage} a day, ${fmtH(o)} till ${fmtH(c)}${['tavern', 'chapel', 'guard', 'hospital'].includes(bz.type) ? ', every day' : ', Sundays off'}. Will you take it?”</p>${clash.length ? `<p class="caption">The hours clash: you'd give up your post as ${clash.map((x) => `${esc(x.role)} at ${esc(x.bizName)}`).join(' and ')}.</p>` : keep.length ? `<p class="caption">You'd keep your post as ${keep.map((x) => `${esc(x.role)} at ${esc(x.bizName)}`).join(' and ')} as well: the hours don't clash.</p>` : ''}<div class="topics"><button data-y="1">Take the job</button><button data-n="1">Not now</button></div>`, (r) => {
         r.querySelector('[data-n]').onclick = () => O.Panels.close();
-        r.querySelector('[data-y]').onclick = () => { for (const x of clash) quit(null, x); void e; hire(s, bz, q, d.role, d.wage); O.Panels.close(); say(`You're taken on as ${d.role} at ${bz.name}. Your first shift is ${worksToday(s, bz) && s.hour < c ? 'today' : 'tomorrow'} at ${fmtH(o)}.`); };
+        r.querySelector('[data-y]').onclick = () => { for (const x of clash) quit(null, x); void e; hire(s, bz, q, d.role, d.wage); O.Panels.close(); say(`You're taken on as ${shown} at ${bz.name}. Your first shift is ${worksToday(s, bz) && s.hour < o ? 'today' : 'tomorrow'} at ${fmtH(o)}. When it starts, your tasks show in the corner and arrows show where to go.`); };
       });
       return null;
     }
@@ -64,6 +64,7 @@
       bz.playerRole = role;
       posts().push(PS.emp = Object.assign({ place: s.world.placeId, placeName: s.world.name, biz: bz.id, bizName: bz.name, role, wage, master: boss ? boss.id : null, masterName: boss ? boss.name : 'the crown', since: s.day,
         stats: { shifts: 0, late: 0, missed: 0, tasks: 0, excused: 0 }, day: null, tasks: [], level: 0 }, extra || {}));
+      { const [o0, c0] = hoursOf(PS.emp, bz), h0 = s.hour; if (h0 >= o0 && h0 < c0) PS.emp.firstDay = s.day + 1; } // taken on mid-shift: you start at the next one
       if (boss) { s.relate(boss, { id: 0 }, 0.05); s.remember(boss, `Took the stranger on as ${role}.`, 'work', 1.2, 0); }
       O.Chronicle && O.Chronicle.deed(s, `A newcomer has been taken on as ${role} at ${bz.name}.`, `You were taken on as ${role} at ${bz.name}.`, 'player', 1, true);
     }
@@ -95,9 +96,11 @@
       const n = 3;
       if (kind === 'make') { const rc = recipeFor(bz, e.role); if (rc) { const g = Object.keys(rc.out)[0]; out.push({ id: id(), kind: 'make', good: g, need: n, have: 0, text: `Make ${D.GOODS[g]?.name.toLowerCase() || g}` }); } else out.push({ id: id(), kind: 'sweep', need: n, have: 0, text: 'Tidy and sweep the place' }); }
       else if (kind === 'serve') out.push({ id: id(), kind: 'serve', need: n, have: 0, text: bz.type === 'tavern' ? 'Take orders and serve at the counter' : 'Serve at the counter' });
-      else out.push({ id: id(), kind, need: n, have: 0, text: { patrol: 'Walk your beat', field: 'Work the ground', chop: 'Fell and cut timber', fish: 'Fish the water', collect: 'Collect what is owed', deliver: 'Carry goods where they are wanted', sweep: 'Clean and sweep', service: 'Lead the prayers', teach: 'Teach the children', tend: 'Tend the sick', write: 'Keep the books', court: 'Hold court' }[kind] || 'Work' });
+      else out.push({ id: id(), kind, need: n, have: 0, text: { patrol: 'Walk your beat', field: 'Work the ground', chop: 'Fell and cut timber', fish: 'Fish the water', collect: 'Collect what is owed', deliver: 'Carry goods where they are wanted', sweep: bz.type === 'stable' ? 'Muck out the stalls' : 'Clean and sweep', service: 'Lead the prayers', teach: 'Teach the children', tend: 'Tend the sick', write: 'Keep the books', court: 'Hold court' }[kind] || 'Work' });
       // a fire to keep in
       if (bz.def.recipes.some((rc) => rc.inp.firewood) || ['bakery', 'smithy', 'tavern', 'kitchen'].includes(bz.type)) out.push({ id: id(), kind: 'fire', need: 1, have: 0, text: 'Keep the fire fed' });
+      // at an inn the cook, the server and the chambermaid gather the pots and wipe the tables too
+      if (bz.type === 'tavern' && ['cook', 'server', 'chambermaid', 'scullion'].includes(e.role)) out.push({ id: id(), kind: 'pots', need: 2, have: 0, text: 'Gather the pots and wipe the tables' });
       // the innkeeper looks over the rooms
       if (e.role === 'innkeeper') out.push({ id: id(), kind: 'rooms', need: 1, have: 0, text: 'Look over the rooms upstairs' });
       // fetch what's running short, with the business's money
@@ -127,6 +130,19 @@
       if (spots) { t._spots = spots; t._day = s.day; }
       return spots;
     }
+    // sweeping (and mucking out) is done on the open floor: three marked patches in the room
+    function floorSpots(t) {
+      const sc = game.scene; if (!sc) return [];
+      const key = sc.b.id + ':' + sc.floor;
+      if (t._fl && t._fl.key === key) return t._fl.pts;
+      const pts = [], r = O.RNG(O.hash(t.id, key)), R = sc.R;
+      for (let k = 0; k < 200 && pts.length < 3; k++) {
+        const x = r.int(20, Math.max(21, R.W - 20)), y = r.int(R.WH + 24, Math.max(R.WH + 25, R.H - 14));
+        if (sc.blocked(x, y) || sc.blocked(x - 6, y) || sc.blocked(x + 6, y) || pts.some(([px, py]) => Math.hypot(px - x, py - y) < 40)) continue;
+        pts.push([x, y]);
+      }
+      t._fl = { key, pts }; return pts;
+    }
     // indoor stations by task
     function stationOk(t, it, e) {
       switch (t.kind) {
@@ -138,6 +154,7 @@
         case 'teach': case 'write': return it.kind === 'desk' || it.kind === 'altar';
         case 'tend': return it.kind === 'medbed' || it.kind === 'desk' || it.kind === 'bed';
         case 'court': return it.kind === 'throne' || it.kind === 'desk';
+        case 'pots': return it.kind === 'table' || it.kind === 'longtable';
         case 'rooms': return game.scene && game.scene.floor === 1 && (it.kind === 'bed' || it.rent);
         case 'unload': return !!(it.counter || ['crate', 'sack', 'barrel', 'shelf', 'chest'].includes(it.kind));
         default: return false;
@@ -162,10 +179,11 @@
           continue;
         }
         if (!game.scene || game.scene.b.id !== bz.id) continue;
+        if (t.kind === 'sweep') { const pts = floorSpots(t); for (let k = 0; k < pts.length; k++) { if ((t.done || []).includes('f' + k)) continue; const [x, y] = pts[k]; if (Math.hypot(x - p.x, y - p.y) < 20) return { type: 'job', t, k: 'f' + k, d: -10, x, y: y - 30 }; } continue; }
         for (const it of game.scene.L.items) {
           if (!stationOk(t, it, e)) continue;
           const [x, y] = game.scene.anchor(it); const d = Math.hypot(x - p.x, y + 8 - p.y);
-          if (d < (t.kind === 'sweep' ? 26 : 36) && !(t.kind === 'sweep' && (t.swept || []).includes(it.id))) return { type: 'job', t, it, d: d - 16, x, y: y - 30 };
+          if (d < (t.kind === 'sweep' ? 26 : 36) && !((t.kind === 'sweep' || t.kind === 'pots') && (t.swept || []).includes(it.id))) return { type: 'job', t, it, d: -10 + d * 0.1, x, y: y - 30 }; // the work comes before the furniture
         }
       }
       return null;
@@ -173,7 +191,7 @@
     const LABEL = { make: (t) => `Make ${D.GOODS[t.good]?.name.toLowerCase() || 'goods'} (${t.have + 1}/${t.need})`, fire: () => 'Feed the fire with firewood', serve: (t) => `Serve (${t.have + 1}/${t.need})`, sweep: (t) => `Sweep here (${t.have + 1}/${t.need})`, patrol: (t) => `Look about your beat (${t.have + 1}/${t.need})`,
       field: (t) => `Work the ground (${t.have + 1}/${t.need})`, chop: (t) => `Fell and cut (${t.have + 1}/${t.need})`, fish: (t) => `Cast a line (${t.have + 1}/${t.need})`, collect: (t) => `Collect the dues (${t.have + 1}/${t.need})`, deliver: (t) => `Deliver here (${t.have + 1}/${t.need})`,
       fetch: (t) => `Buy ${t.qty} ${D.GOODS[t.good]?.name.toLowerCase()} for ${emp().bizName}`, unload: () => `Put away the ${D.GOODS[PS.carry?.good]?.name.toLowerCase() || 'goods'}`, service: (t) => `Lead the prayers (${t.have + 1}/${t.need})`, teach: (t) => `Teach a lesson (${t.have + 1}/${t.need})`,
-      write: (t) => `Write up the books (${t.have + 1}/${t.need})`, tend: (t) => `Tend the sick (${t.have + 1}/${t.need})`, court: (t) => `Hear petitions (${t.have + 1}/${t.need})`, rooms: () => 'Look over the rooms' };
+      write: (t) => `Write up the books (${t.have + 1}/${t.need})`, tend: (t) => `Tend the sick (${t.have + 1}/${t.need})`, court: (t) => `Hear petitions (${t.have + 1}/${t.need})`, rooms: () => 'Look over the rooms', pots: (t) => `Gather the pots here (${t.have + 1}/${t.need})` };
     O.jobLabel = (c) => (LABEL[c.t.kind] || (() => 'Work'))(c.t);
 
     // doing it: the action plays, time passes, and the work is real
@@ -189,7 +207,14 @@
         case 'make': {
           const rc = recipeFor(bz, e.role); if (!rc) return;
           const lack = Object.entries(rc.inp).find(([g, q]) => (bz.stock[g] || 0) < q * 2);
-          if (lack) { const g = lack[0]; say(`There's no ${D.GOODS[g]?.name.toLowerCase() || g} to work with.`, 'bad'); if (!e.tasks.some((x) => x.kind === 'fetch' && x.good === g && x.have < x.need)) { const sp = supplierFor(s, bz, g); if (sp) { e.tasks.push({ id: Math.random().toString(36).slice(2, 8), kind: 'fetch', good: g, qty: 4, from: sp.id, fromName: sp.name, need: 1, have: 0, text: `Buy 4 ${D.GOODS[g]?.name.toLowerCase()} at ${sp.name} (from the business purse)` }); refresh(); } } return; }
+          if (lack) {
+            const g = lack[0], pending = e.tasks.some((x) => x.kind === 'fetch' && x.good === g && x.have < x.need), sp = !pending && supplierFor(s, bz, g);
+            if (sp) { e.tasks.push({ id: Math.random().toString(36).slice(2, 8), kind: 'fetch', good: g, qty: 4, from: sp.id, fromName: sp.name, need: 1, have: 0, text: `Buy 4 ${D.GOODS[g]?.name.toLowerCase()} at ${sp.name} (from the business purse)` }); refresh(); say(`There's no ${D.GOODS[g]?.name.toLowerCase() || g} to work with. Go and buy some at ${sp.name}: it's on your list.`, 'bad'); return; }
+            if (pending) { say(`There's no ${D.GOODS[g]?.name.toLowerCase() || g} to work with. Fetch it first: it's on your list.`, 'bad'); return; }
+            // nothing to be had in town: the time goes on mending, sharpening and setting the place in order instead
+            act(ANIM_OF(t, e), 2.2, 30, () => tick(`No ${D.GOODS[g]?.name.toLowerCase() || g} to be had, so you spend the half hour mending and setting things straight.`));
+            return;
+          }
           act(ANIM_OF(t, e), 2.2, 30, () => { const made = []; for (const [g, q] of Object.entries(rc.inp)) bz.stock[g] -= q * 2; for (const [g, q] of Object.entries(rc.out)) { bz.stock[g] = (bz.stock[g] || 0) + q * 2; made.push(`${+(q * 2).toFixed(1)} ${D.GOODS[g]?.name.toLowerCase() || g}`); } tick(`Half an hour's work: ${made.join(', ')}.`); });
           break;
         }
@@ -200,17 +225,17 @@
         }
         case 'serve': {
           const customers = s.people.filter((q) => q.agent.inside === bz.id && ['shop', 'eat-out', 'socialise', 'deliver', 'import'].includes(q.activity?.act)).length;
-          act(ANIM_OF(t, e), 1.6, 15, () => { const sold = bz.def.sells[0]; if (customers && sold && (bz.stock[sold] || 0) >= 1) { const pr = s.price(bz, sold); bz.stock[sold] -= 1; bz.cash += pr; bz.salesToday += pr; tick(`You serve a customer: ${D.GOODS[sold]?.name.toLowerCase()} for ${pr}d into the till.`); } else tick(customers ? 'You see to a customer.' : 'Nobody waiting; you set the counter straight and wait for trade.'); });
+          act(ANIM_OF(t, e), 1.6, 15, () => { const sold = bz.def.sells[0]; if (customers && sold && (bz.stock[sold] || 0) >= 1) { const pr = s.price(bz, sold); bz.stock[sold] -= 1; bz.cash += pr; bz.salesToday += pr; tick(`You serve a customer: ${D.GOODS[sold]?.name.toLowerCase()} for ₳${pr} into the till.`); } else tick(customers ? 'You see to a customer.' : 'Nobody waiting; you set the counter straight and wait for trade.'); });
           break;
         }
-        case 'sweep': act('sweep', 1.6, 15, () => { (t.swept = t.swept || []).push(c.it ? c.it.id : c.k); tick(t.have + 1 >= t.need ? 'Swept clean.' : null); }); break;
+        case 'sweep': act('sweep', 1.6, 15, () => { (t.swept = t.swept || []).push(c.it ? c.it.id : c.k); tick(t.have + 1 >= t.need ? (bz.type === 'stable' ? 'The stalls are mucked out and fresh straw down.' : 'Swept clean.') : null); }); break;
         case 'patrol': act('look', 1.4, 15, () => tick(t.have + 1 >= t.need ? 'Your round is walked. All quiet.' : null)); break;
         case 'field': act(ANIM_OF(t, e), 2.4, 40, () => { const rc = recipeFor(bz, e.role); if (rc && !Object.keys(rc.inp).length) for (const [g, q] of Object.entries(rc.out)) bz.stock[g] = (bz.stock[g] || 0) + q * 2; tick(null); }); break;
         case 'chop': act('chop', 2.4, 40, () => { const rc = recipeFor(bz, e.role); if (rc) for (const [g, q] of Object.entries(rc.out)) if (!Object.keys(rc.inp).length) bz.stock[g] = (bz.stock[g] || 0) + q * 2; else bz.stock.logs = (bz.stock.logs || 0) + 1; tick(null); }); break;
         case 'fish': act('fish', 3, 45, () => { const got = s.rng.chance(0.7); if (got) { const g = bz.type === 'saltworks' ? 'salt' : 'fish'; bz.stock[g] = (bz.stock[g] || 0) + (g === 'fish' ? 3 : 2); } tick(got ? (bz.type === 'saltworks' ? 'The pan boils down to salt.' : 'Three fish in the basket.') : 'Nothing biting.'); }); break;
         case 'collect': {
           const b = s.building(t._spots[c.k][2]), hh = b && s.households[b.household - 1];
-          act('count', 1.6, 10, () => { if (!hh) return tick(null); const due = Math.max(1, Math.round(hh.members.length * 1.5)); if (hh.money >= due && s.rng.chance(0.8)) { hh.money -= due; if (bz.def.public) s.treasury.cash += due; else bz.cash += due; tick(`The ${hh.surname} household pays ${due}d.`); } else { const q = s.byId.get(hh.members[0]); if (q) { q.agent.shockedUntil = s.minute + 2; s.relate(q, { id: 0 }, -0.05); } tick(`The ${hh.surname} household can't pay. You note it down for the bailiff.`); } });
+          act('count', 1.6, 10, () => { if (!hh) return tick(null); const due = Math.max(1, Math.round(hh.members.length * 1.5)); if (hh.money >= due && s.rng.chance(0.8)) { hh.money -= due; if (bz.def.public) s.treasury.cash += due; else bz.cash += due; tick(`The ${hh.surname} household pays ₳${due}.`); } else { const q = s.byId.get(hh.members[0]); if (q) { q.agent.shockedUntil = s.minute + 2; s.relate(q, { id: 0 }, -0.05); } tick(`The ${hh.surname} household can't pay. You note it down for the bailiff.`); } });
           break;
         }
         case 'deliver': act('place', 1.4, 15, () => { const to = s.biz.get(t._spots[c.k][2]); const g = bz.def.sells[0]; if (to && g && (bz.stock[g] || 0) >= 1) { bz.stock[g] -= 1; to.stock[g] = (to.stock[g] || 0) + 1; const pr = s.price(bz, g); if (to.cash >= pr) { to.cash -= pr; bz.cash += pr; } } tick(to ? `Delivered to ${to.name}.` : null); }); break;
@@ -218,12 +243,13 @@
           const sp = s.biz.get(t.from), g = t.good; if (!sp) return;
           const qty = Math.min(t.qty, Math.floor(sp.stock[g] || 0)), cost = Math.round(s.price(sp, g) * qty);
           if (qty < 1) { say(`${sp.name} has no ${D.GOODS[g]?.name.toLowerCase()} to sell.`, 'bad'); return; }
-          if (bz.cash < cost) { say(`The business purse holds ${Math.floor(bz.cash)}d; that's ${cost}d of ${D.GOODS[g]?.name.toLowerCase()}. Ask the master to put more in.`, 'bad'); return; }
-          act('count', 1.4, 10, () => { sp.stock[g] -= qty; sp.cash += cost; bz.cash -= cost; PS.carry = { good: g, qty, for: bz.id }; e.tasks.push({ id: 'un' + t.id, kind: 'unload', need: 1, have: 0, text: `Bring the ${D.GOODS[g]?.name.toLowerCase()} back to ${bz.name}` }); tick(`You pay ${cost}d of ${bz.name}'s money and take ${qty} ${D.GOODS[g]?.name.toLowerCase()}. Carry it back.`); });
+          if (bz.cash < cost) { say(`The business purse holds ₳${Math.floor(bz.cash)}; that's ₳${cost} of ${D.GOODS[g]?.name.toLowerCase()}. Ask the master to put more in.`, 'bad'); return; }
+          act('count', 1.4, 10, () => { sp.stock[g] -= qty; sp.cash += cost; bz.cash -= cost; PS.carry = { good: g, qty, for: bz.id }; e.tasks.push({ id: 'un' + t.id, kind: 'unload', need: 1, have: 0, text: `Bring the ${D.GOODS[g]?.name.toLowerCase()} back to ${bz.name}` }); tick(`You pay ₳${cost} of ${bz.name}'s money and take ${qty} ${D.GOODS[g]?.name.toLowerCase()}. Carry it back.`); });
           break;
         }
         case 'unload': act('place', 1.2, 5, () => { const cy = PS.carry; if (cy) { bz.stock[cy.good] = (bz.stock[cy.good] || 0) + cy.qty; PS.carry = null; } const u = e.tasks.find((x) => x.kind === 'unload' && x.have < x.need); if (u) { u.have = 1; } e.stats.tasks++; refresh(); say('Put away.'); }); break;
         case 'rooms': act('look', 1.6, 10, () => tick('The rooms are in order.')); break;
+        case 'pots': act('scrub', 1.4, 10, () => { (t.swept = t.swept || []).push(c.it ? c.it.id : c.k); tick('You gather the pots and wipe the table down.'); }); break;
         case 'service': case 'teach': case 'write': case 'tend': case 'court': act(ANIM_OF(t, e), 2, 30, () => tick(null)); break;
         default: break;
       }
@@ -253,7 +279,7 @@
       const [o, c] = hoursOf(e, bz), h = s.hour + (s.hour < 6 && c > 24 ? 24 : 0), day = s.day;
       if (e.day !== day) { // a new day
         if (e.day != null && e.dayInfo) settle(s, bz, e);
-        e.day = day; e.dayInfo = { works: worksToday(s, bz), arrived: null, excused: e.excuseDay === day };
+        e.day = day; e.dayInfo = { works: worksToday(s, bz) && day >= (e.firstDay || 0), arrived: null, excused: e.excuseDay === day };
         e.tasks = []; e.onShift = false;
       }
       const D0 = e.dayInfo; if (!D0.works) return;
@@ -276,7 +302,7 @@
         const purse = bz.def.public ? s.treasury : bz; const paid = Math.min(pay, Math.floor(purse.cash));
         purse.cash -= paid; PS.money += paid; PS.earned = (PS.earned || 0) + paid;
         if (boss) s.relate(boss, { id: 0 }, done >= 3 ? 0.04 : 0.01);
-        say(`Your day's pay from ${bz.name}: ${paid}d${paid < pay ? ` (${pay - paid}d owing: the purse is empty)` : ''}.`);
+        say(`Your day's pay from ${bz.name}: ₳${paid}${paid < pay ? ` (₳${pay - paid} owing: the purse is empty)` : ''}.`);
       }
       // the sack: lateness and absence against how much they like you and how badly they need you
       const like = boss ? (boss.rel.get(0)?.affinity || 0) : 0, des = s.desperation ? s.desperation(bz) : 0;
@@ -293,8 +319,8 @@
       const sh = e.stats.shifts;
       if (sh > 0 && sh % 6 === 0 && e.stats.tasks / sh >= 3 && like > 0.2 && (bz.cash > 120 || bz.def.public)) {
         const roles = bz.def.jobs.map((j) => j[0]), i = roles.indexOf(e.role);
-        if (i > 0 && bz.def.wage[roles[i - 1]] !== 0) { const nr = roles[i - 1]; bz.playerRole = nr; e.role = nr; e.wage = Math.max(e.wage + 1, bz.def.wage[nr] || e.wage + 2); say(`${e.masterName || 'Your master'} puts you up to ${nr}, at ${e.wage}d a day.`); }
-        else { e.wage += 1; say(`${e.masterName || 'Your master'} raises your pay to ${e.wage}d a day.`); }
+        if (i > 0 && bz.def.wage[roles[i - 1]] !== 0) { const nr = roles[i - 1]; bz.playerRole = nr; e.role = nr; e.wage = Math.max(e.wage + 1, bz.def.wage[nr] || e.wage + 2); say(`${e.masterName || 'Your master'} puts you up to ${nr}, at ₳${e.wage} a day.`); }
+        else { e.wage += 1; say(`${e.masterName || 'Your master'} raises your pay to ₳${e.wage} a day.`); }
       }
     }
     // turning up after being quietly let go
@@ -308,7 +334,7 @@
     function refresh() { sig = ''; }
     function panel(e) {
       if (!el) { el = document.createElement('div'); el.className = 'joblist'; el.setAttribute('aria-live', 'polite'); (document.getElementById('tab-play') || document.body).appendChild(el); }
-      if (!e) { if (!el.hidden) el.hidden = true; return; }
+      if (!e || O.panelOpen) { if (!el.hidden) el.hidden = true; if (O.panelOpen) sig = ''; return; }
       const s = O.Travel?.visited.get(e.place)?.sim || cur();
       const bz = s.world.placeId === e.place ? s.biz.get(e.biz) : null, [o, c] = hoursOf(e, bz);
       const head = `<b>${esc(e.role)}</b> · ${esc(e.bizName)}${e.place !== cur().world.placeId ? `, ${esc(e.placeName)}` : ''}`;
@@ -316,7 +342,20 @@
       const tasks = e.onShift ? e.tasks.map((t) => `<li class="${t.have >= t.need ? 'done' : ''}">${t.have >= t.need ? '■' : '□'} ${esc(t.text)}${t.need > 1 ? ` (${Math.min(t.have, t.need)}/${t.need})` : ''}</li>`).join('') : '';
       const carry = PS.carry ? `<div class="carry">Carrying: ${PS.carry.qty} ${esc(D.GOODS[PS.carry.good]?.name.toLowerCase() || PS.carry.good)}</div>` : '';
       const others = posts().filter((x) => x !== e).map((x) => { const xs = O.Travel?.visited.get(x.place)?.sim || cur(), xb = xs.world.placeId === x.place ? xs.biz.get(x.biz) : null, [xo, xc] = hoursOf(x, xb); return `<div class="js">Also: ${esc(x.role)} at ${esc(x.bizName)}, ${fmtH(xo)}-${fmtH(xc)}</div>`; }).join('');
-      const html = `<div class="jh">${head}</div><div class="js">${shift} · ${e.wage}d a day</div>${tasks ? `<ul>${tasks}</ul>` : ''}${carry}${others}`;
+      // what to do next, in plain words
+      let hint = '';
+      if (e.onShift && bz) {
+        const t = e.tasks.find((x) => x.have < x.need), inHere = game.scene && game.scene.b.id === bz.id;
+        if (PS.carry) hint = inHere ? 'Take it to the arrow and press E to put it away.' : `Carry it back to ${bz.name}.`;
+        else if (t) {
+          const outside = ['patrol', 'field', 'chop', 'fish', 'collect', 'deliver', 'fetch'].includes(t.kind);
+          if (t.kind === 'fetch') hint = `Go to ${t.fromName} (follow the arrow), stand at the counter and press E to buy.`;
+          else if (outside) hint = 'Go to the arrows outside and press E at each one.';
+          else if (!inHere) hint = `Go inside ${bz.name}: the arrow is over the door.`;
+          else hint = t.kind === 'sweep' ? 'Stand on each arrow on the floor and press E to sweep there.' : 'Stand by the thing with the arrow over it and press E. Each press is a stretch of work.';
+        } else hint = 'All done for now. More work may come in before the shift ends.';
+      } else if (!e.onShift) hint = 'Come back when your shift starts. Being late or missing it counts against you.';
+      const html = `<div class="jh">${head}</div><div class="js">${shift} · ₳${e.wage} a day</div>${tasks ? `<ul>${tasks}</ul>` : ''}${carry}${hint ? `<div class="js" style="font-style:italic">${esc(hint)}</div>` : ''}${others}`;
       if (html === sig) return; sig = html; el.innerHTML = html; el.hidden = false;
     }
 
@@ -332,6 +371,7 @@
           if (t.kind === 'fetch' && game.scene.b.id === t.from) { const c = game.scene.L.items.find((i) => i.counter || i.kind === 'bar'); if (c) { const [x, y] = game.scene.anchor(c); mark(x, y - 40); } continue; }
           if (game.scene.b.id !== bz.id) continue;
           if (t.kind === 'unload') { const it = game.scene.L.items.find((i) => stationOk(t, i, e)); if (it) { const [x, y] = game.scene.anchor(it); mark(x, y - 40); } continue; }
+          if (t.kind === 'sweep') { floorSpots(t).forEach(([x, y], k) => { if (!(t.done || []).includes('f' + k)) mark(x, y - 30); }); continue; }
           const it = game.scene.L.items.find((i) => stationOk(t, i, e) && !(t.swept || []).includes(i.id)); if (it) { const [x, y] = game.scene.anchor(it); mark(x, y - 40); }
         } else {
           const spots = spotsFor(t, s, bz, e);

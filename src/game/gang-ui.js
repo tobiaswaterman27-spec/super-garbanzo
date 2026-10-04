@@ -32,7 +32,7 @@
 
     function fence(seller, cut = 0.55) {
       const vals = [...new Set(PS.items)].filter((k) => G[k].valuable || PS.stolen[k]);
-      const rows = vals.map((k) => `<tr><td><img class="ic" src="${O.icon(k)}" alt=""> ${G[k].name} ×${PS.count(k)}</td><td class="n">${Math.max(1, Math.round(G[k].base * cut))}d</td><td><button data-sell="${k}">Sell</button></td></tr>`).join('');
+      const rows = vals.map((k) => `<tr><td><img class="ic" src="${O.icon(k)}" alt=""> ${G[k].name} ×${PS.count(k)}</td><td class="n">₳${Math.max(1, Math.round(G[k].base * cut))}</td><td><button data-sell="${k}">Sell</button></td></tr>`).join('');
       O.Panels.open(`${seller.name}, fence`, `<p class="caption">“No questions. Half and a bit of what it's worth, take it or leave it.”</p><table><thead><tr><th>Goods</th><th class="n">Offer</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="3">You have nothing worth fencing.</td></tr>'}</tbody></table>`, (r) => {
         r.querySelectorAll('[data-sell]').forEach((x) => x.onclick = () => { const k = x.dataset.sell, pr = Math.max(1, Math.round(G[k].base * cut)); PS.remove(k); PS.money += pr; if (PS.stolen[k]) PS.stolen[k]--; PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.01); fence(seller, cut); });
       });
@@ -49,14 +49,14 @@
         return `<tr><td>${esc(p.name)}<br><small class="lbl">${p.age} · ${esc(p.job?.role || 'no trade')}${p.jailUntil ? ' · IN THE CELL' : ''}</small></td>
           <td><select data-role="${i}">${O.Gangs.ROLES.map((r) => `<option ${r === m.role ? 'selected' : ''}>${r}</option>`).join('')}</select></td>
           <td><span class="bar ${m.loyalty < 0.3 ? 'warn' : ''}"><i style="width:${Math.round(m.loyalty * 100)}%"></i></span></td>
-          <td class="n">${m.wage}d <button data-wage="${i}" data-d="1">+</button><button data-wage="${i}" data-d="-1">−</button></td>
+          <td class="n">₳${m.wage} <button data-wage="${i}" data-d="1">+</button><button data-wage="${i}" data-d="-1">−</button></td>
           <td>${ordered ? `Tonight: the ${esc(sim.households.find((h) => h.home === ordered.target)?.surname || '')} house` : `<select data-job="${i}"><option value="">No job</option>${houses.map(({ h, b }) => `<option value="${b.id}">Burgle the ${esc(h.surname)} house (${b.wealth > 0.6 ? 'rich' : b.wealth > 0.35 ? 'comfortable' : 'poor'})</option>`).join('')}</select>`}</td></tr>`;
       }).join('');
       O.Panels.open(g.name, `<div class="kv">
-          <div><span class="lbl">Purse</span><b>${money(g.purse)}</b><small><button data-dep="10">Give 10d</button> <button data-wd="10">Take 10d</button></small></div>
-          <div><span class="lbl">Hideout</span><b>${L[g.level].name}</b><small>${next ? `<button data-up="1">Build a ${next.name.toLowerCase()} · ${next.cost}d</button>` : 'As grand as it gets.'}</small></div>
+          <div><span class="lbl">Purse</span><b>${money(g.purse)}</b><small><button data-dep="10">Give ₳10</button> <button data-wd="10">Take ₳10</button></small></div>
+          <div><span class="lbl">Hideout</span><b>${L[g.level].name}</b><small>${next ? `<button data-up="1">Build a ${next.name.toLowerCase()} · ₳${next.cost}</button>` : 'As grand as it gets.'}</small></div>
           <div><span class="lbl">Influence</span><b>${Math.round(g.influence * 100)}%</b><small>rivals: ${sim.npcGangs().map((x) => `${esc(x.name)} (${Math.round(x.influence * 100)}%)`).join(', ') || 'none'}</small></div>
-          <div><span class="lbl">Wages due</span><b>${g.members.reduce((s, m) => s + m.wage, 0)}d/day</b><small>paid from the purse each dawn</small></div>
+          <div><span class="lbl">Wages due</span><b>₳${g.members.reduce((s, m) => s + m.wage, 0)}/day</b><small>paid from the purse each dawn</small></div>
         </div>
         <table style="margin-top:12px"><thead><tr><th>Member</th><th>Role</th><th>Loyalty</th><th class="n">Wage</th><th>Tonight</th></tr></thead><tbody>${mem || '<tr><td colspan="5">No members yet. Sound out the desperate and the reckless, in the tavern, in the square.</td></tr>'}</tbody></table>
         <div class="lbl" style="margin-top:12px">Recent</div><ol class="chron">${g.log.slice(-6).reverse().map((t) => `<li>${esc(t)}</li>`).join('') || '<li>Nothing yet.</li>'}</ol>`, (r) => {
@@ -87,7 +87,7 @@
         if (sim.rng.chance(c)) {
           const wage = Math.max(2, Math.min(8, Math.round(4 + (sim.household(q).money > 60 ? 2 : 0) - (q.traits.includes('loyal') ? 1 : 0))));
           sim.joinGang(q, 'player', wage);
-          return render(`"…${wage} pence a day, and you keep my name out of it. I'm in."`);
+          return render(`"…${wage} aurins a day, and you keep my name out of it. I'm in."`);
         }
         sim.relate(q, { id: 0 }, -0.08);
         if (c < 0.15 && sim.rng.chance(0.4)) { sim.remember(q, 'A stranger tried to recruit me into a gang.', 'crime', 1.2, 0); return render('"I know what you are. Get away from me before I call the watch."'); }

@@ -74,7 +74,7 @@
     S.comeHome = function (j) {
       const Z = this.Z || this.world.zones || {}, east = Z.east || [this.world.W - 2, 30];
       for (const id of j.people) { const p = this.byId.get(id); if (!p) continue; p.away = null; p.agent.hidden = false; p.agent.inside = null; p.agent.x = east[0] * this.T + 8; p.agent.y = east[1] * this.T + 10; p.agent.path = null; p.agent.goal = null; p.activity = null; }
-      if (j.earned) { const p = this.byId.get(j.people[0]); if (p) { this.household(p).money += j.earned; this.remember(p, `Came home from ${this.kingdom.place(j.to).name} with ${j.earned}d.`, 'trade', 1); } }
+      if (j.earned) { const p = this.byId.get(j.people[0]); if (p) { this.household(p).money += j.earned; this.remember(p, `Came home from ${this.kingdom.place(j.to).name} with ₳${j.earned}.`, 'trade', 1); } }
     };
     // a stranger arriving from the road: they come in, do what they came for, and go
     S.welcome = function (j) {

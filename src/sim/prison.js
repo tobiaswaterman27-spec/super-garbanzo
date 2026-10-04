@@ -17,13 +17,13 @@
       q.jailUntil = this.day + days; q.task = { act: 'jailed', b: this.prisonId() };
       q.sentence = { days, bail, from: this.day, crime: crime.kind };
       const where = this.building(this.prisonId());
-      this.remember(q, `Sentenced to ${days} day${days > 1 ? 's' : ''} in ${where && where.type === 'gaol' ? 'the gaol' : 'the cell'}${bail ? `, or ${bail}d bail` : ''}.`, 'crime', 2);
+      this.remember(q, `Sentenced to ${days} day${days > 1 ? 's' : ''} in ${where && where.type === 'gaol' ? 'the gaol' : 'the cell'}${bail ? `, or ₳${bail} bail` : ''}.`, 'crime', 2);
       // a family with the money pays the bail, and they're home after a night inside
       const hh = this.household(q);
       if (bail && hh && hh.money >= bail + 10 && this.rng.chance(0.8)) {
         hh.money -= bail; this.treasury.cash += bail; this.treasury.income += bail;
         q.jailUntil = this.day + 1; q.sentence.bailed = true;
-        this.log(`The ${hh.surname} family paid ${bail}d bail for ${q.first}.`, 'crime');
+        this.log(`The ${hh.surname} family paid ₳${bail} bail for ${q.first}.`, 'crime');
       }
     };
     // prisoners are fed from the gaol's own bread; nobody walks out of a cell

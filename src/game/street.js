@@ -34,19 +34,19 @@
       const done = (t, bad) => { O.Panels.close(); q.agent.frozen = false; if (t) say(t, bad ? 'bad' : ''); };
       if (why === 'tax') {
         const due = 4 + Math.round(s.treasury.taxRate * 40);
-        O.Panels.open(`${q.name}, tax collector`, `<p class="speech">“The town's dues, if you please: ${due}d. Everyone with a roof here or a wage here pays.”</p><div class="topics"><button data-a="pay">Pay ${due}d</button><button data-a="refuse">Refuse</button><button data-a="run">Run</button></div>`, (r) => {
-          r.querySelector('[data-a=pay]').onclick = () => { if (PS.money < due) return done(`You turn out your purse: ${PS.money}d. ${q.first} writes you down as owing.`, true); PS.money -= due; s.treasury.cash += due; PS.taxPaidDay = s.day; done(`You pay ${due}d. ${q.first} marks it in the book.`); };
+        O.Panels.open(`${q.name}, tax collector`, `<p class="speech">“The town's dues, if you please: ₳${due}. Everyone with a roof here or a wage here pays.”</p><div class="topics"><button data-a="pay">Pay ₳${due}</button><button data-a="refuse">Refuse</button><button data-a="run">Run</button></div>`, (r) => {
+          r.querySelector('[data-a=pay]').onclick = () => { if (PS.money < due) return done(`You turn out your purse: ₳${PS.money}. ${q.first} writes you down as owing.`, true); PS.money -= due; s.treasury.cash += due; PS.taxPaidDay = s.day; done(`You pay ₳${due}. ${q.first} marks it in the book.`); };
           r.querySelector('[data-a=refuse]').onclick = () => { PS.taxPaidDay = s.day; s.relate(q, { id: 0 }, -0.15); evade(s, q, 'refusing the town its dues'); done(`${q.first}: “Then the watch will have a word.”`, true); };
           r.querySelector('[data-a=run]').onclick = () => { PS.taxPaidDay = s.day; evade(s, q, 'running from the tax collector'); done('You run for it.', true); };
         });
       } else if (why === 'rent') {
         const L = PS.lease, due = (L && L.rent) || 4;
-        O.Panels.open(`${q.name}, your landlord`, `<p class="speech">“The rent, ${due}d. It's owed.”</p><div class="topics"><button data-a="pay">Pay ${due}d</button><button data-a="refuse">I can't</button></div>`, (r) => {
-          r.querySelector('[data-a=pay]').onclick = () => { if (PS.money < due) return done('You haven\'t got it.', true); PS.money -= due; const hh = s.household(q); if (hh) hh.money += due; if (L) L.paidUntil = s.day + 7; done(`You pay ${due}d of rent.`); };
+        O.Panels.open(`${q.name}, your landlord`, `<p class="speech">“The rent, ₳${due}. It's owed.”</p><div class="topics"><button data-a="pay">Pay ₳${due}</button><button data-a="refuse">I can't</button></div>`, (r) => {
+          r.querySelector('[data-a=pay]').onclick = () => { if (PS.money < due) return done('You haven\'t got it.', true); PS.money -= due; const hh = s.household(q); if (hh) hh.money += due; if (L) L.paidUntil = s.day + 7; done(`You pay ₳${due} of rent.`); };
           r.querySelector('[data-a=refuse]').onclick = () => { if (L) { L.owed = (L.owed || 0) + 1; if (L.owed >= 2) { PS.lease = null; done(`${q.first}: “Then you're out. I'll have the bailiff clear your things.”`, true); return; } } s.relate(q, { id: 0 }, -0.2); done(`${q.first}: “One more week. Then you're out.”`, true); };
         });
       } else if (why === 'beg') {
-        O.Panels.open(q.name, `<p class="speech">“A penny, for bread? God bless you.”</p><div class="topics"><button data-a="give">Give a penny</button><button data-a="no">Not today</button></div>`, (r) => {
+        O.Panels.open(q.name, `<p class="speech">“An aurin, for bread? God bless you.”</p><div class="topics"><button data-a="give">Give an aurin</button><button data-a="no">Not today</button></div>`, (r) => {
           r.querySelector('[data-a=give]').onclick = () => { if (PS.money >= 1) { PS.money -= 1; s.household(q).money += 1; s.relate(q, { id: 0 }, 0.2); PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.01); } done(`${q.first} blesses you.`); };
           r.querySelector('[data-a=no]').onclick = () => done(`${q.first} turns away.`);
         });
@@ -78,7 +78,7 @@
       const crowd = s.people.filter((x) => !x.agent.hidden && Math.hypot(x.agent.x - p.x, x.agent.y - p.y) < 50).length;
       if (crowd >= 4 && PS.money > 5 && s.rng.chance(0.04)) {
         const thief = s.people.find((x) => x.gang && x.gang !== 'player' && Math.hypot(x.agent.x - p.x, x.agent.y - p.y) < 70);
-        if (thief) { const took = Math.min(PS.money, 2 + s.rng.int(0, 6)); const noticed = s.rng.chance(0.4 + (PS.skills?.stealth || 0) * 0.5); PS.money -= took; s.household(thief).money += took; if (noticed) { shock(); say(`A hand in your purse! ${thief.first} slips away with ${took}d.`, 'bad'); thief.agent.fleeing = true; } }
+        if (thief) { const took = Math.min(PS.money, 2 + s.rng.int(0, 6)); const noticed = s.rng.chance(0.4 + (PS.skills?.stealth || 0) * 0.5); PS.money -= took; s.household(thief).money += took; if (noticed) { shock(); say(`A hand in your purse! ${thief.first} slips away with ₳${took}.`, 'bad'); thief.agent.fleeing = true; } }
       }
     });
 

@@ -57,7 +57,8 @@
       });
     };
     // drawn inside, in their proper place among the furniture and people
-    O.sceneExtras = (sc, ctx, cam) => (sc.b.placedItems || []).filter((x) => x.floor === sc.floor).map((x) => ({ y: x.top ? x.y + 10 : x.y, draw: () => { const sp = O.ItemArt.small(x.good); ctx.drawImage(sp, Math.round(x.x - 6 - cam.x), Math.round(x.y - 10 - cam.y)); } }));
+    const _extras0 = O.sceneExtras;
+    O.sceneExtras = (sc, ctx, cam) => [...(_extras0 ? _extras0(sc, ctx, cam) : []), ...(sc.b.placedItems || []).filter((x) => x.floor === sc.floor).map((x) => ({ y: x.top ? x.y + 10 : x.y, draw: () => { const sp = O.ItemArt.small(x.good); ctx.drawImage(sp, Math.round(x.x - 6 - cam.x), Math.round(x.y - 10 - cam.y)); } }))];
     // pick it up again, or eat it where it lies
     O.placedCandidate = () => {
       const p = game.player;
@@ -135,10 +136,10 @@
     // ---------------- floors and walls ----------------
     O.redecorate = (b, what, kind) => {
       const cost = what === 'floor' ? { stone: 30, wood: 18, dirt: 4 }[kind] : { stone: 34, plank: 16, timber: 20, log: 12 }[kind];
-      if (PS.money < cost) return say(`That work costs ${cost}d.`, 'bad');
+      if (PS.money < cost) return say(`That work costs ₳${cost}.`, 'bad');
       PS.money -= cost; b.decor = Object.assign({}, b.decor, { [what]: kind }); O.Interior.invalidate(b);
       if (game.scene && game.scene.b === b) rebuild(game.scene);
-      say(`The ${what === 'floor' ? 'floor is relaid' : 'walls are redone'} in ${kind}. ${cost}d.`);
+      say(`The ${what === 'floor' ? 'floor is relaid' : 'walls are redone'} in ${kind}. ₳${cost}.`);
     };
   }
   O.FittingSetup = { setup };

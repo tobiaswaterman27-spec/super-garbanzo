@@ -297,7 +297,7 @@
     }
     if (church && gable) {
       // the bell tower rises from the front of the ridge: a square stage with louvred openings, a spire, a cross
-      const tw = Math.max(16, Math.min(26, Math.round(FW * 0.22))), tcx = Math.round(W / 2), tx0 = tcx - Math.floor(tw / 2);
+      const even = (x1 - x0 + 1) % 2 === 0, tw0 = Math.max(15, Math.min(25, Math.round(FW * 0.22))), tw = even ? tw0 + (tw0 % 2) : tw0 | 1, tcx = Math.round((x0 + x1) / 2), tx0 = even ? tcx - tw / 2 : tcx - (tw - 1) / 2, mid = even ? tcx - 0.5 : tcx; // the tower, spire and cross sit dead centre over the nave
       const ridgeY = Math.round(wallTop - Math.round(FW * 0.34) - 1), tTop = ridgeY - 26, tBot = ridgeY + 10;
       B.part(3);
       for (let y = tTop; y <= tBot; y++) for (let x = tx0; x < tx0 + tw; x++) B.plot(x, y, wallMat, x === tx0 ? 3 : x === tx0 + tw - 1 ? 1 : 2);
@@ -306,12 +306,13 @@
       for (const ox of tw > 20 ? [0.3, 0.7] : [0.5]) { const lx = Math.round(tx0 + tw * ox) - 2; for (let y = tTop + 5; y < tTop + 17; y++) for (let x = lx; x < lx + 4; x++) { const ty = y - (tTop + 5); if (ty < 2 && Math.abs(x - lx - 1.5) > ty + 0.5) continue; B.plot(x, y, (y - tTop) % 3 === 0 ? P.mat('#6a5a48', 'wood') : lv, 1); } }
       for (let x = tx0 - 1; x <= tx0 + tw; x++) { B.plot(x, tTop, wallMat, 4); B.plot(x, tTop + 1, wallMat, 1); }
       const sh = Math.round(tw * 1.6);
-      B.poly([[tx0 - 1, tTop + 1], [tcx, tTop - sh], [tcx, tTop + 1]], [-0.6, -0.4, 0.7], RM);
-      B.poly([[tcx, tTop + 1], [tcx, tTop - sh], [tx0 + tw, tTop + 1]], [0.6, -0.4, 0.7], RM);
+      B.poly([[tx0 - 1, tTop + 1], [mid + 0.5, tTop - sh], [mid + 0.5, tTop + 1]], [-0.6, -0.4, 0.7], RM);
+      B.poly([[mid + 0.5, tTop + 1], [mid + 0.5, tTop - sh], [tx0 + tw, tTop + 1]], [0.6, -0.4, 0.7], RM);
       texRoof(B, roofKind, RM, tx0 - 1, tTop - sh, tx0 + tw, tTop + 1, rng, cond, null);
       const gold = P.mat(P.metal.gold, 'metal');
-      for (let y = tTop - sh - 8; y < tTop - sh + 1; y++) B.plot(tcx, y, gold, 3);
-      for (let x = tcx - 2; x <= tcx + 2; x++) B.plot(x, tTop - sh - 5, gold, 3);
+      const cols = even ? [tcx - 1, tcx] : [tcx];
+      for (let y = tTop - sh - 8; y < tTop - sh + 1; y++) for (const cx of cols) B.plot(cx, y, gold, 3);
+      for (let x = cols[0] - 2; x <= cols[cols.length - 1] + 2; x++) B.plot(x, tTop - sh - 5, gold, 3);
       meta.roofTop = Math.min(meta.roofTop, tTop - sh - 8);
     }
     // ---- sign ----

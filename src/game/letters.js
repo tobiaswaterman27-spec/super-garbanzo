@@ -52,7 +52,7 @@
           const post = [...s.biz.values()].find((bz) => bz.type === 'posthouse');
           const runner = post && post.workers.map((id) => s.byId.get(id)).find((q) => q && (q.job?.role === 'messenger' || q.job?.role === 'mounted courier') && !q.task && q.alive !== false);
           O.Panels.close();
-          if (runner) { if (PS.money >= 1) { PS.money -= 1; post.cash += 1; } runner.task = { act: 'letter', to, letter: L }; runner.agent.goal = null; runner.agent.path = null; say(`You seal the letter and pay a penny. ${runner.first}, the messenger, sets off with it.`); }
+          if (runner) { if (PS.money >= 1) { PS.money -= 1; post.cash += 1; } runner.task = { act: 'letter', to, letter: L }; runner.agent.goal = null; runner.agent.path = null; say(`You seal the letter and pay an aurin. ${runner.first}, the messenger, sets off with it.`); }
           else { (PS.sealed = PS.sealed || []).push(L); say('There is no messenger to be had here. You carry the sealed letter yourself: give it to them when you see them.'); }
           game.player.anim = 'write'; game.player.ft = 0; setTimeout(() => { if (game.player.anim === 'write') game.player.anim = 'idle'; }, 1200);
         });

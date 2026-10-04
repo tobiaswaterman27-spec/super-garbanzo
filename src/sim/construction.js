@@ -30,7 +30,7 @@
       const active = this.sites.filter((s) => s.stage < 10).length;
       if (!free.length || active >= 1) return;
       const cost = 160;
-      if (sim.treasury.cash < cost + 150) { sim.log(`The council wanted to build, but the treasury holds only ${Math.round(sim.treasury.cash)}d.`, 'politics'); return; }
+      if (sim.treasury.cash < cost + 150) { sim.log(`The council wanted to build, but the treasury holds only ₳${Math.round(sim.treasury.cash)}.`, 'politics'); return; }
       this.start(PLOTS.findIndex((p, i) => this.plot(i)[0] === free[0][0] && this.plot(i)[1] === free[0][1]), cost);
     }
 
@@ -64,7 +64,7 @@
       if (yard) for (const g of ['logs', 'stone']) { const q = Math.min(Math.floor((yard.stock[g] || 0) * 0.6), def.targets[g]); if (q > 0) { yard.stock[g] -= q; bz.stock[g] = (bz.stock[g] || 0) + q; const pay = Math.round(q * O.Data.GOODS[g].base); yard.cash += pay; bz.cash -= pay; } }
       const idle = sim.people.filter((p) => !p.visitor && !p.gentry && p.age >= 17 && p.age < 60 && (!p.job || p.job.role === 'porter')).slice(0, Math.max(0, 3 - crew.length));
       for (const p of idle) { p.job = { biz: id, role: 'builder' }; p.skills.builder = r.float(0.3, 0.7); bz.workers.push(p.id); sim.remember(p, 'Took work as a builder on the new house.', 'work', 1); }
-      sim.log(opts.player ? `Builders have started on the newcomer's own house ${bottom < 30 ? 'beside the north track' : 'south of Mill Lane'}. ${idle.length} villagers hired, paid from the newcomer's purse.` : `The council has paid ${cost}d to build a new house ${bottom < 30 ? 'beside the north track' : 'south of Mill Lane'}. ${idle.length} villagers hired as builders.`, opts.player ? 'economy' : 'politics');
+      sim.log(opts.player ? `Builders have started on the newcomer's own house ${bottom < 30 ? 'beside the north track' : 'south of Mill Lane'}. ${idle.length} villagers hired, paid from the newcomer's purse.` : `The council has paid ₳${cost} to build a new house ${bottom < 30 ? 'beside the north track' : 'south of Mill Lane'}. ${idle.length} villagers hired as builders.`, opts.player ? 'economy' : 'politics');
       b.dirty = true; w.dirtyStatics = true; sim.path.recost(); sim.path.clear();
       return site;
     }
@@ -151,7 +151,7 @@
           // the builder's yard does the work, from its own stock
           const yard = [...sim.biz.values()].find((x) => x.type === 'builder' && x.id !== b.id);
           if (yard) { yard.cash += 20; yard.stock.logs = Math.max(0, (yard.stock.logs || 0) - 1); yard.stock.planks = Math.max(0, (yard.stock.planks || 0) - 1); }
-          sim.log(`${b.type === 'house' ? `The ${hh?.surname || ''} family` : b.name} paid 20d to ${yard ? yard.name : 'a carpenter'} to repair their roof.`, 'construction');
+          sim.log(`${b.type === 'house' ? `The ${hh?.surname || ''} family` : b.name} paid ₳20 to ${yard ? yard.name : 'a carpenter'} to repair their roof.`, 'construction');
         }
       }
     }

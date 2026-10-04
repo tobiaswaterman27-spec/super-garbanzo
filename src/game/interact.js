@@ -26,7 +26,12 @@
 
     function candidates() {
       const p = game.player, out = [];
-      if (game.scene) return game.scene.candidates();
+      if (game.scene) {
+        // the room's own things, plus the work, the ballot box and what's been set down here
+        const ins = game.scene.candidates();
+        for (const f of [O.jobCandidate, O.gangCandidate, O.voteCandidate, O.placedCandidate, O.furnCandidate, O.pickupCandidate]) { if (!f) continue; const c = f(); if (c) ins.push(c); }
+        return ins;
+      }
       if (O.horseCandidate) { const hc = O.horseCandidate(); if (hc) out.push(hc); }
       if (O.caravanCandidate) { const cc = O.caravanCandidate(); if (cc) out.push(cc); }
       if (O.noticeCandidate) { const nc = O.noticeCandidate(); if (nc) out.push(nc); }
@@ -76,7 +81,7 @@
         case 'fire': return O.fireLabel(c);
         case 'stall': return O.stallLabel();
         case 'portrait': return `Look at the portrait`;
-        case 'broadsheet': return 'Buy a broadsheet · 1d';
+        case 'broadsheet': return 'Buy a broadsheet · ₳1';
         case 'caravan': return `Hail ${c.L.c.merchant}'s caravan`;
         case 'notices': return 'Read the notice board';
         case 'property': return c.b.owner?.kind === 'player' ? 'Your property' : 'For sale: look it over';
@@ -145,7 +150,7 @@
       const stolen = [];
       for (const i of idxs) {
         const c = items[i]; if (!c) continue;
-        if (c.k === 'coins') { PS.money += c.n; if (c.src === 'purse') hh.money -= c.n; else if (bz) bz.cash -= c.n; stolen.push(`${c.n}d`); continue; }
+        if (c.k === 'coins') { PS.money += c.n; if (c.src === 'purse') hh.money -= c.n; else if (bz) bz.cash -= c.n; stolen.push(`₳${c.n}`); continue; }
         const n = c.src === 'stash' ? 1 : c.n; const got = PS.add(c.k, n);
         if (!got) { O.Panels.toast('Your satchel is full.', 'bad'); break; }
         if (c.src === 'stash') PS.stash.splice(PS.stash.indexOf(c.k), 1);

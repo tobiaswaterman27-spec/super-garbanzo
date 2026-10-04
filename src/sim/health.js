@@ -80,7 +80,7 @@
         this.settlement.outbreak = true;
         this.log(`Sickness is spreading through ${this.world.name}: ${ill} people are ill.`, 'health');
         // council response: pay for remedies and clean the well
-        if (doc && this.treasury.cash > 90) { doc.cash += 30; doc.stock.herbs = (doc.stock.herbs || 0) + 10; this.treasury.cash -= 30; this.treasury.spent += 30; this.log('The council paid the physician 30d for herbs and remedies.', 'politics'); }
+        if (doc && this.treasury.cash > 90) { doc.cash += 30; doc.stock.herbs = (doc.stock.herbs || 0) + 10; this.treasury.cash -= 30; this.treasury.spent += 30; this.log('The council paid the physician ₳30 for herbs and remedies.', 'politics'); }
         if (this.treasury.cash > 140) { this.treasury.cash -= 40; this.treasury.spent += 40; this.settlement.sanitation = Math.min(0.95, this.settlement.sanitation + 0.12); this.log('The council paid men to clean the well and dig a new drain.', 'politics'); }
       } else if (frac < 0.05 && this.settlement.outbreak) { this.settlement.outbreak = false; this.log('The sickness has passed.', 'health'); }
       // doctor shortage pressure

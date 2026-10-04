@@ -50,6 +50,7 @@
           const victimSaw = !behind && sim.rng.chance(0.3) || q.traits.includes('suspicious') && sim.rng.chance(0.3);
           if (seen.length || victimSaw) { const cr = sim.recordCrime({ kind: 'pickpocket', perp: 'player', placeName: place, tile: tileOf(), seen, victimPerson: victimSaw ? q : null, victimLate: true, severity: 1 }); PS.crimes.push(cr.id); O.Panels.toast(seen.length ? `You lift ${got} from ${q.first}… but ${seen[0].first} saw you!` : `You lift ${got}, and ${q.first} turns, clutching an empty purse, and looks straight at you.`, 'bad'); PS.rep.local -= 0.1; }
           else O.Panels.toast(`You lift ${got} from ${q.first}'s purse. Nobody noticed.`);
+          O.Bus && O.Bus.emit('lift', { q, sim });
           sim.remember(q, 'My purse felt lighter today.', 'crime', 0.4);
         } else {
           const seen = [q, ...(game.scene ? [] : sim.seers(game.player.x, game.player.y, q).filter(() => sim.rng.chance(0.5)))];

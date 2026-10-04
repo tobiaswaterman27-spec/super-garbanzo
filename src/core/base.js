@@ -57,3 +57,6 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   for (let i = 0; i < oct; i++) { v += O.noise2(x * f, y * f, seed + i * 17) * amp; tot += amp; amp *= 0.5; f *= 2; }
   return v / tot;
 };
+
+// a tiny event bus, for one part of the game to tell another that something happened
+(function () { const h = {}; O.Bus = { on: (k, f) => { (h[k] = h[k] || []).push(f); }, emit: (k, d) => { for (const f of h[k] || []) { try { f(d); } catch (e) { console.error(e); } } } }; })();

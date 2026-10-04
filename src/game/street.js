@@ -16,7 +16,7 @@
       if (runner || O.panelOpen || game.scene) return;
       const a = q.agent; a.chasing = true; a.path = null; a.sprint = true;
       runner = { q, why, t: 0 }; shock();
-      if (why === 'tax' || why === 'rent') say(`${q.first} spots you and comes running.`);
+      if (why === 'tax' || why === 'rent' || why === 'debt') say(`${q.first} spots you and comes running.`); else if (why === 'letter') say(`${q.first} hurries over with a letter.`);
     }
     function release() { if (!runner) return; const a = runner.q.agent; a.chasing = false; a.sprint = false; a.frozen = false; a.path = null; a.goal = null; runner = null; }
     game.hooks.update.push((dt) => {
@@ -50,8 +50,11 @@
           r.querySelector('[data-a=give]').onclick = () => { if (PS.money >= 1) { PS.money -= 1; s.household(q).money += 1; s.relate(q, { id: 0 }, 0.2); PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.01); } done(`${q.first} blesses you.`); };
           r.querySelector('[data-a=no]').onclick = () => done(`${q.first} turns away.`);
         });
-      } else q.agent.frozen = false;
+      } else if (extra[why]) extra[why](s, q, done);
+      else q.agent.frozen = false;
     }
+    const extra = {};
+    O.Street = { sendAt, busy: () => !!runner, on: (why, fn) => { extra[why] = fn; } };
     function evade(s, q, what) {
       const c = s.recordCrime && s.recordCrime({ kind: 'tax evasion', perp: 'player', placeName: O.placeName ? O.placeName() : s.world.name, tile: [Math.floor(game.player.x / T), Math.floor(game.player.y / T)], seen: [q], severity: 1 });
       if (c) { PS.crimes.push(c.id); c.reported = true; }

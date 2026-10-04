@@ -60,7 +60,7 @@
 
   function inventory() {
     const used = PS.slotsUsed();
-    const cells = PS.items.map((k, i) => `<div class="slot"><img src="${icon(k)}" alt=""><span>${esc(G[k].name)}</span>${G[k].drink ? `<button data-eat="${i}">Drink</button>` : G[k].food ? `<button data-eat="${i}">Eat</button>` : ''}${k === 'letter' ? `<button data-write="${i}">Write</button>` : ''}${G[k].place || G[k].furniture ? `<button data-place="${i}">Set down</button>` : ''}${G[k].weapon ? `<button data-eq="${k}">${PS.equipped === k ? 'In hand' : 'Hold'}</button>` : ''}<button data-drop="${i}" class="ghost">Drop</button></div>`).join('');
+    const cells = PS.items.map((k, i) => `<div class="slot"><img src="${icon(k)}" alt=""><span>${esc(G[k].name)}</span>${G[k].drink ? `<button data-eat="${i}">Drink</button>` : G[k].food ? `<button data-eat="${i}">Eat</button>` : ''}${k === 'letter' ? `<button data-write="${i}">Write</button>` : ''}${k === 'letter_in' ? '<button data-read="1">Read</button>' : ''}${G[k].disguise ? `<button data-wear="${k}">${PS.disguise === k ? 'Take off' : 'Put on'}</button>` : ''}${G[k].place || G[k].furniture ? `<button data-place="${i}">Set down</button>` : ''}${G[k].weapon ? `<button data-eq="${k}">${PS.equipped === k ? 'In hand' : 'Hold'}</button>` : ''}<button data-drop="${i}" class="ghost">Drop</button></div>`).join('');
     const empty = Math.max(0, PS.SLOTS - used);
     open('Satchel', `<div class="lbl">${used}/${PS.SLOTS} slots · health ${Math.round(PS.hp)} · fed ${Math.round(PS.hunger)} · rested ${Math.round(PS.energy)}</div>
       <div class="slots">${cells}${'<div class="slot empty"></div>'.repeat(empty)}</div>
@@ -68,6 +68,8 @@
       <div class="reps">${Object.entries(PS.rep).map(([k, v]) => `<div><span>${k === 'local' ? 'here' : k}</span><b class="${v < -0.2 ? 'warn' : ''}">${v > 0.6 ? 'admired' : v > 0.2 ? 'liked' : v > -0.2 ? 'unknown' : v > -0.6 ? 'distrusted' : 'hated'}</b></div>`).join('')}</div>
       ${O.Work ? `<div class="lbl" style="margin-top:12px">Skills</div><div class="reps">${Object.entries(PS.skills || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div><span>${esc(O.Work.SKILL_LABEL[k] || k)}</span><b>${O.Work.rank(v)} · ${Math.round(v * 100)}</b></div>`).join('')}</div>
       <p class="caption">${(() => { const E = PS.emp; if (!E) return 'No employer. Ask whoever runs a place for work.'; return `${esc(E.role)} at ${esc(E.bizName)}, ${esc(E.placeName)}, under ${esc(E.masterName)}, ${E.wage}d a day. ${E.stats.shifts} shifts worked, ${E.stats.late} late, ${E.stats.missed} missed.`; })()}${PS.earned ? ` Earned honestly so far: ${money(PS.earned)}.` : ''}</p>` : ''}`, (r) => {
+      r.querySelectorAll('[data-read]').forEach((b) => b.onclick = () => { close(); O.readLetters && O.readLetters(); });
+      r.querySelectorAll('[data-wear]').forEach((b) => b.onclick = () => { close(); O.wearDisguise && O.wearDisguise(b.dataset.wear); });
       r.querySelectorAll('[data-eat]').forEach((b) => b.onclick = () => { const k = PS.items[+b.dataset.eat]; close(); O.consume ? O.consume(k) : (PS.eat(k), toast(`You eat the ${G[k].name.toLowerCase()}.`)); });
       r.querySelectorAll('[data-write]').forEach((b) => b.onclick = () => { close(); O.writeLetter && O.writeLetter(+b.dataset.write); });
       r.querySelectorAll('[data-place]').forEach((b) => b.onclick = () => { const k = PS.items[+b.dataset.place]; close(); O.placeItem && O.placeItem(k); });

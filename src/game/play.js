@@ -88,7 +88,7 @@
     world.props.push({ kind: 'gravestone', x: spot[0] * 16 + 8, y: spot[1] * 16 + 14, seed: p.id, solid: true, grave: g });
     world.solid[spot[1] * world.W + spot[0]] = 1; world.dirtyStatics = true;
   };
-  const npcUI = O.NpcUI.setup(game, sim);
+  const npcUI = O.NpcUI.setup(game, sim); game.npcUI = npcUI;
   O.Interact.setup(game, sim, npcUI);
   O.SocialSetup.setup(game, npcUI);
   O.LawUI.setup(game, sim, npcUI);
@@ -113,6 +113,8 @@
   O.LettersSetup.setup(game, home, npcUI);
   O.FittingSetup.setup(game);
   O.StreetSetup.setup(game, home);
+  O.GangLifeSetup.setup(game, npcUI);
+  O.TownLifeSetup.setup(game, npcUI);
   O.CouncilUI.setup(game, home);
   O.WarUI.setup(game, home, npcUI);
   O.Craft.setup(game);

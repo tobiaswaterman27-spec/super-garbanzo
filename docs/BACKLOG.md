@@ -96,7 +96,7 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Paths to every city, town, village and hamlet, and paths between buildings
 - [x] Construction: the lot is walkable, only what's built collides; stages by building size; no box, grass turns to dirt first; last stage is painting the house, the inside, and the sign
 - [x] Prices: bigger buildings cost and rent for more; also by economy and place (near the capital, good trade spots cost more)
-- [ ] People can send the player letters (an AI key will write them later)
+- [x] People can send the player letters (an AI key will write them later)
 - [x] Criers heard only when you're near them
 - [x] NPCs talk and do things with each other, sometimes fight, with animations; relationships and friends that affect jobs and so on
 - [x] A prison: gaolers and keepers; law-breakers serve time or pay bail by sentence length; animations
@@ -111,6 +111,6 @@ Every job and every level of it, royal family and titles included, grouped under
 - [ ] Population numbers for every place (answer in chat)
 - [x] Potboy or potgirl always takeable even when the inn's other posts are full; more than one job at once
 - [ ] Optional: minstrels and the hermit
-- [ ] Gangs: join any gang, climb the ranks, tasks per rank (management, pickpocketing, burglary, higher up assassinations); the tailor sells disguises so you aren't known
+- [x] Gangs: join any gang, climb the ranks, tasks per rank (management, pickpocketing, burglary, higher up assassinations); the tailor sells disguises so you aren't known
 - [ ] Next: how to get the other jobs (asked to come after this)
 - [ ] Say what should be added next; how many people are in the sim and how things change over time

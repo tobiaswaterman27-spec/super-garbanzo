@@ -165,6 +165,34 @@
       for (const r of E.RUINS) { const x = r.x * MS, y = r.y * MS; ctx.fillStyle = '#5a5248'; ctx.fillRect(x - 3, y - 2, 2, 4); ctx.fillRect(x + 1, y - 3, 2, 5); ctx.fillRect(x - 3, y + 2, 6, 1); }
       return c;
     }
+    // tiny pixel pictures of places: roofs, walls, towers, a spire, a keep
+    function drawPlace(ctx, s, x, y) {
+      const R = O.RNG(O.hash('icon', s.id)), dark = '#1b1424';
+      const roofs = ['#a8442e', '#8a5a34', '#b8683a', '#6a5a6a', '#c07a3a'], wall = '#e8dcc0', stone = '#a8a29a', stoneD = '#6a645c';
+      const px = (xx, yy, c) => { ctx.fillStyle = c; ctx.fillRect(xx, yy, 1, 1); };
+      const rect = (xx, yy, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(xx, yy, w, h); };
+      const house = (hx, hy, big) => {
+        const w = big ? 5 : 4, rf = R.pick(roofs);
+        rect(hx - 1, hy - 3, w + 2, 6, dark); rect(hx, hy - 4, w, 1, dark);
+        rect(hx + 1, hy - 3, w - 2, 1, rf); rect(hx, hy - 2, w, 1, rf); // a peaked roof
+        rect(hx, hy - 1, w, 2, wall); px(hx + Math.floor(w / 2), hy, '#5a3d26'); // walls and a door
+      };
+      const tower = (tx, ty, h) => { rect(tx - 2, ty - h - 1, 5, h + 2, dark); rect(tx - 1, ty - h, 3, h, stone); px(tx - 1, ty - h - 1, stone); px(tx + 1, ty - h - 1, stone); };
+      const ring = (r) => { ctx.strokeStyle = dark; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x + 0.5, y + 0.5, r, 0, Math.PI * 2); ctx.stroke(); ctx.strokeStyle = stone; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(x + 0.5, y + 0.5, r, 0, Math.PI * 2); ctx.stroke(); };
+      const spire = (sx, sy) => { rect(sx - 1, sy - 7, 3, 8, dark); rect(sx, sy - 6, 1, 6, stone); px(sx, sy - 7, '#e8c860'); };
+      const n = (k) => { for (let i = 0; i < k; i++) house(x + R.int(-7, 6), y + R.int(-4, 5), R.chance(0.3)); };
+      switch (s.kind) {
+        case 'capital': ring(13); for (let i = 0; i < 14; i++) house(x + R.int(-10, 8), y + R.int(-6, 9), R.chance(0.4)); for (const [dx, dy] of [[-12, 0], [12, 0], [0, -12], [0, 12], [-9, -9], [9, -9], [-9, 9], [9, 9]]) tower(x + dx, y + dy + 2, 4);
+          rect(x + 2, y - 12, 11, 9, dark); rect(x + 3, y - 11, 9, 7, stone); tower(x + 4, y - 4, 9); tower(x + 11, y - 4, 9); tower(x + 7, y - 6, 12); px(x + 7, y - 20, '#c03030'); px(x + 8, y - 20, '#c03030'); break;
+        case 'city': ring(9); for (let i = 0; i < 9; i++) house(x + R.int(-7, 5), y + R.int(-5, 6), R.chance(0.4)); for (const [dx, dy] of [[-9, 0], [9, 0], [0, -9], [0, 9]]) tower(x + dx, y + dy + 2, 4); spire(x + 1, y - 2); break;
+        case 'castle': rect(x - 7, y - 6, 15, 9, dark); rect(x - 6, y - 5, 13, 7, stone); for (let k = -6; k <= 6; k += 2) px(x + k, y - 6, stone); tower(x - 6, y + 2, 9); tower(x + 6, y + 2, 9); tower(x, y + 1, 12); rect(x - 1, y - 1, 3, 3, stoneD); px(x, y - 14, '#2a4aa0'); px(x + 1, y - 14, '#2a4aa0'); break;
+        case 'town': case 'port': n(s.pop > 500 ? 8 : 6); spire(x + R.int(-2, 2), y); if (s.kind === 'port') { rect(x - 9, y + 6, 6, 3, dark); rect(x - 8, y + 6, 4, 2, '#8a5a34'); px(x - 6, y + 3, wall); px(x - 6, y + 4, wall); px(x - 6, y + 5, dark); } break;
+        case 'village': for (let i = 0; i < 4; i++) house(x + R.int(-5, 3), y + R.int(-2, 3), false); if (s.pop > 140) spire(x + 3, y + 1); break;
+        case 'mine': rect(x - 5, y - 3, 11, 6, dark); rect(x - 4, y - 2, 9, 4, '#7a7064'); rect(x - 1, y - 1, 3, 3, '#1b1424'); house(x + 5, y + 3, false); break;
+        default: house(x - 2, y, false); if (s.pop > 30) house(x + 2, y + 2, false);
+      }
+      if (s.detailed) { ctx.strokeStyle = '#f0b45c'; ctx.lineWidth = 1; ctx.strokeRect(x - 7.5, y - 6.5, 15, 12); }
+    }
     const MAIN = new Set(["the King's Road", 'the Eastern Trade Road', 'the Western Road', 'the Northern Road', 'the Iron Road', 'the Southern Farm Road']);
     function drawMap(cv) {
       const S = MS, ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = false;
@@ -179,12 +207,10 @@
           if (ctx.fillStyle !== 'transparent') { ctx.fillRect(x, y, main ? 2 : 1, main ? 2 : 1); }
         }
       }
-      for (const s of K.places) {
-        const x = Math.round(s.x * S), y = Math.round(s.y * S), sz = s.kind === 'capital' ? 6 : s.kind === 'castle' ? 4 : s.pop >= 300 ? 3 : s.pop >= 80 ? 2 : 1;
-        ctx.fillStyle = '#1b1424'; ctx.fillRect(x - sz - 1, y - sz - 1, sz * 2 + 3, sz * 2 + 3);
-        ctx.fillStyle = s.detailed ? '#f0b45c' : s.kind === 'castle' ? '#c8ccd4' : s.kind === 'capital' ? '#f4e8c8' : s.happiness < 0.4 ? '#c87060' : '#e8dcc0';
-        ctx.fillRect(x - sz, y - sz, sz * 2 + 1, sz * 2 + 1);
-        if (s.kind === 'castle' || s.kind === 'capital') { ctx.fillStyle = '#1b1424'; for (let k = -sz; k <= sz; k += 2) ctx.fillRect(x + k, y - sz - 1, 1, 1); ctx.fillRect(x, y - 1, 1, 3); }
+      // every settlement drawn as a little picture of itself
+      for (const s of K.places.slice().sort((p, q) => p.y - q.y)) {
+        const big = ['capital', 'city', 'castle', 'town', 'port'].includes(s.kind), x = Math.round(s.x * S), y = Math.round(s.y * S);
+        if (big) { ctx.save(); ctx.translate(x, y); ctx.scale(2, 2); drawPlace(ctx, s, 0, 0); ctx.restore(); } else drawPlace(ctx, s, x, y);
       }
       // you are here
       const here = K.place(game.world.placeId);
@@ -214,7 +240,7 @@
         const cv = document.getElementById('kmap'); drawMap(cv);
         const wrap = cv.parentElement, view = wrap.parentElement;
         // every settlement is named; regions, lakes and rivers too
-        for (const s of K.places) { const l = document.createElement('span'); l.className = 'maplabel' + (s.id === game.world.placeId ? ' here' : '') + (s.kind === 'capital' ? ' capital' : s.kind === 'hamlet' ? ' small' : s.kind === 'village' || s.kind === 'mine' ? ' mid' : ''); l.textContent = s.name; l.style.left = (s.x / E.W * 100) + '%'; l.style.top = (s.y / E.H * 100) + '%'; wrap.appendChild(l); }
+        for (const s of K.places) { const l = document.createElement('span'); l.className = 'maplabel' + (s.id === game.world.placeId ? ' here' : '') + (s.kind === 'capital' ? ' capital' : s.kind === 'city' ? ' city' : s.kind === 'hamlet' ? ' small' : s.kind === 'village' || s.kind === 'mine' ? ' mid' : ''); l.textContent = s.name; const drop = { capital: 10, city: 7.5, castle: 3, town: 5.5, port: 5.5, village: 2.4, mine: 2.2 }[s.kind] ?? 1.6; l.style.left = (s.x / E.W * 100) + '%'; l.style.top = ((s.y + drop) / E.H * 100) + '%'; wrap.appendChild(l); }
         for (const r of E.REGIONS) { const l = document.createElement('span'); l.className = 'maplabel region'; l.textContent = r.name.replace(/^the /, ''); l.style.left = ((r.x + (r.kind === 'mountain' ? r.rx * 0.4 : 0)) / E.W * 100) + '%'; l.style.top = ((r.y + (r.kind === 'mountain' ? r.ry * 0.6 : -r.ry * 0.3)) / E.H * 100) + '%'; wrap.appendChild(l); }
         for (const r of E.LAKES) { const l = document.createElement('span'); l.className = 'maplabel water'; l.textContent = r.name; l.style.left = (r.x / E.W * 100) + '%'; l.style.top = ((r.y + r.ry) / E.H * 100) + '%'; wrap.appendChild(l); }
         for (const r of E.RIVERS) { const m = r.pts[Math.floor(r.pts.length / 2)]; const l = document.createElement('span'); l.className = 'maplabel water'; l.textContent = r.name.replace(/^the /, ''); l.style.left = (m[0] / E.W * 100) + '%'; l.style.top = (m[1] / E.H * 100) + '%'; wrap.appendChild(l); }

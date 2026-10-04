@@ -115,11 +115,12 @@ main { height: 100vh; }
 .settings { display: grid; grid-template-columns: max-content 1fr; gap: 6px 12px; align-items: center; }
 .settings h4 { grid-column: 1 / -1; margin: 10px 0 0; font-family: var(--pix); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; opacity: .8; }
 .settings button { min-width: 200px; text-align: left; }
-.maplabel { position: absolute; transform: translate(-50%, 6px); font-family: var(--pix); font-size: 9px; letter-spacing: .5px; color: #1b1424; background: rgba(232,220,192,.85); padding: 0 3px; white-space: nowrap; pointer-events: none; }
+.maplabel { position: absolute; transform: translate(-50%, 0); font-family: var(--pix); font-size: 9px; letter-spacing: .5px; color: #1b1424; background: rgba(232,220,192,.85); padding: 0 3px; white-space: nowrap; pointer-events: none; }
 .maplabel.here { background: var(--ember-2); }
 .maplabel.small { font-size: 7px; padding: 0 2px; background: rgba(232,220,192,.7); }
 .maplabel.region { background: none; color: rgba(240,232,210,.85); font-style: italic; font-size: 8px; text-shadow: 0 1px 0 #1b1424; transform: translate(-50%, 0); }
-.maplabel.capital { font-size: 11px; background: #f4e8c8; border: 1px solid #1b1424; }
+.maplabel.capital { font-size: 11px; background: #f4e8c8; border: 1px solid #1b1424; transform: translate(-50%, 0); }
+.maplabel.city { font-size: 10px; background: #efe2c4; transform: translate(-50%, 0); }
 .maplabel.mid { font-size: 8px; }
 .maplabel.ruin { background: none; color: #e8dcc0; font-size: 7px; font-style: italic; text-shadow: 0 1px 0 #1b1424; }
 .maplabel.water { background: none; color: #cfe2f0; font-size: 7px; text-shadow: 0 1px 0 #1b2440; }

@@ -43,9 +43,9 @@
   // [id, name, kind, x, y, pop, region style, area, leader title, produces]
   const S = [
     ['aurelia', 'Aurelia', 'capital', 78, 42, 1100, 'east', 'the Heartland', 'the Lord Mayor', { cloth: 34, wine: 14, grain: 60 }],
-    ['westhaven', 'Westhaven', 'port', 12, 44, 650, 'west', 'the Western Shore', 'the Port-reeve', { fish: 60, salt: 10, wool: 10, timber: 10 }],
-    ['goldmere', 'Goldmere', 'town', 98, 36, 600, 'east', 'the Eastern Vale', 'the Master of the Guilds', { cloth: 20, wine: 12, iron: 6 }],
-    ['frostmere', 'Frostmere', 'town', 42, 27, 500, 'north', 'the Frostwood', 'the Steward', { iron: 36, timber: 26, wool: 8 }],
+    ['westhaven', 'Westhaven', 'city', 12, 44, 900, 'west', 'the Western Shore', 'the Port-reeve', { fish: 60, salt: 10, wool: 10, timber: 10 }],
+    ['goldmere', 'Goldmere', 'city', 98, 36, 950, 'east', 'the Eastern Vale', 'the Master of the Guilds', { cloth: 20, wine: 12, iron: 6 }],
+    ['frostmere', 'Frostmere', 'city', 42, 27, 720, 'north', 'the Frostwood', 'the Steward', { iron: 36, timber: 26, wool: 8 }],
     ['greenvale', 'Greenvale', 'town', 62, 64, 450, 'south', 'the Southern Farmlands', 'the Bailiff', { grain: 120, wool: 12, wine: 6 }],
     ['rivermouth', 'Rivermouth', 'town', 24, 57, 350, 'west', 'the Rivermere', 'the Bridgemaster', { fish: 30, grain: 30, timber: 8 }],
     ['eastwatch', 'Eastwatch', 'town', 112, 48, 300, 'east', 'the Eastern Shore', 'the Captain of the Watch', { fish: 40, salt: 12 }],
@@ -149,9 +149,9 @@
   function regionName(x, y) { const g = regionAt(x, y); if (g) return g.r.name; const t = terrainAt(x, y); return t === 'farm' ? 'the farmlands' : t === 'moor' ? 'the moors' : t === 'marsh' ? 'the marshes' : 'open country'; }
 
   // ---------- the settlements ----------
-  const TITLE = { capital: 'the Crown', town: 'the Mayor', port: 'the Port-reeve', village: 'the Reeve', hamlet: 'the Headman', mine: 'the Mine-master', castle: 'Lord' };
+  const TITLE = { capital: 'the Crown', city: 'the Lord Mayor', town: 'the Mayor', port: 'the Port-reeve', village: 'the Reeve', hamlet: 'the Headman', mine: 'the Mine-master', castle: 'Lord' };
   const GOV = {
-    capital: ['the Royal Council', 9, 14], town: ['the Town Council', 6, 12], port: ['the Harbour Council', 5, 9], village: ['the Parish Council', 3, 5],
+    capital: ['the Royal Council', 9, 14], city: ['the City Corporation', 10, 16], town: ['the Town Council', 6, 12], port: ['the Harbour Council', 5, 9], village: ['the Parish Council', 3, 5],
     hamlet: ["the Headman's household", 1, 3], mine: ['the Mine Court', 2, 4], castle: ["the Lord's household", 3, 6],
   };
   const PRE = ['Ash', 'Bram', 'Brook', 'Cold', 'Dun', 'Elder', 'Glen', 'Hart', 'Holly', 'Lang', 'Lin', 'Nor', 'Oak', 'Pen', 'Rook', 'Stan', 'Wal', 'Whit', 'Wych', 'Yar', 'Bar', 'Cran', 'Ded', 'Hal', 'Kel', 'Mor', 'Sax', 'Tad', 'Hay', 'Bur', 'Cal', 'Ever', 'Gold', 'Har', 'Ive', 'Lock', 'Mar', 'Nether', 'Ock', 'Pud', 'Quen', 'Rad', 'Shep', 'Thorn', 'Ul', 'Wen', 'Wood', 'Blythe', 'Sel', 'Ted', 'Wick', 'Alder', 'Brac', 'Ember', 'Fen', 'Gar', 'Hen', 'Ivy', 'Kirk', 'Lea', 'Mead'];
@@ -175,7 +175,7 @@
       const coast = t === 'beach';
       const roll = r.next();
       const kind = t === 'mountain' && roll < 0.4 ? 'mine' : roll < 0.58 ? 'hamlet' : roll < 0.9 ? 'village' : coast ? 'port' : 'town';
-      const pop = kind === 'hamlet' ? r.int(12, 70) : kind === 'village' ? r.int(80, 280) : kind === 'mine' ? r.int(40, 110) : r.int(320, 720);
+      let pop = kind === 'hamlet' ? r.int(12, 70) : kind === 'village' ? r.int(80, 280) : kind === 'mine' ? r.int(40, 110) : r.int(320, 720);
       const region = y < H * 0.34 ? 'north' : x < W * 0.3 ? 'west' : x > W * 0.68 ? 'east' : 'south';
       const produces = {};
       if (t === 'farm' || t === 'grass') produces.grain = Math.round(pop / 4);
@@ -186,7 +186,8 @@
       if (t === 'mountain' || kind === 'mine') produces.iron = Math.round(pop / 4);
       if (!Object.keys(produces).length) produces.grain = Math.round(pop / 5);
       const id = name.toLowerCase().replace(/[^a-z]/g, '');
-      PLACES.push({ id, name, kind, x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, pop, region, area: regionName(x / SC, y / SC), title: TITLE[kind], produces });
+      const kind2 = (kind === 'town' || kind === 'port') && pop > 640 ? 'city' : kind; if (kind2 === 'city') pop += 250;
+      PLACES.push({ id, name, kind: kind2, x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, pop, region, area: regionName(x / SC, y / SC), title: TITLE[kind], produces });
     }
     // every place has a government, great or small, with someone at its head
     for (const p of PLACES) {
@@ -216,8 +217,8 @@
   function places(Sx) {
     build();
     return PLACES.map(({ id, name, kind, x, y, pop, region, area, title, produces, gov }) => Sx({ id, name, kind, x, y, pop, region, area, leader: `${title} of ${name.replace(' Castle', '')}`, produces, gov: Object.assign({}, gov),
-      wealth: kind === 'capital' ? 0.85 : kind === 'castle' ? 0.8 : id === 'goldmere' ? 0.75 : kind === 'town' || kind === 'port' ? 0.55 : kind === 'hamlet' ? 0.3 : 0.42,
-      guards: kind === 'capital' ? 60 : kind === 'castle' ? 40 : kind === 'town' || kind === 'port' ? 12 : kind === 'village' ? 3 : 1,
+      wealth: kind === 'capital' ? 0.85 : kind === 'castle' ? 0.8 : id === 'goldmere' ? 0.75 : kind === 'city' ? 0.65 : kind === 'town' || kind === 'port' ? 0.55 : kind === 'hamlet' ? 0.3 : 0.42,
+      guards: kind === 'capital' ? 60 : kind === 'castle' ? 40 : kind === 'city' ? 25 : kind === 'town' || kind === 'port' ? 12 : kind === 'village' ? 3 : 1,
       priority: kind === 'castle' ? 'security' : (produces.grain || 0) > 60 ? 'food' : 'roads', detailed: id === 'ashford' }));
   }
   function roads() { build(); return [...ROADS, ...EXTRA_ROADS].map(([a, b, q, d, br, name]) => ({ a, b, quality: q, danger: d, bridge: br, name, damaged: false })); }

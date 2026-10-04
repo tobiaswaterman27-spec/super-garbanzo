@@ -35,7 +35,7 @@
     if (place.kind === 'hamlet' || place.pop <= 70) return makeHamlet(place);
     const seed = O.hash('settle', place.id);
     const rng = O.RNG(seed);
-    const town = place.kind === 'town' || place.kind === 'port' || place.pop > 600;
+    const town = place.kind === 'town' || place.kind === 'port' || place.kind === 'city' || place.pop > 600;
     const target = simTarget(place), upper = target > 140;
     // two streets hold about 0.9 people per tile of width; a third, upper street adds half again
     const W = O.clamp(Math.round(target / (upper ? 1.3 : 0.9) + 14), 76, 170), H = town || upper ? 64 : 56;
@@ -164,7 +164,7 @@
       square: [sqX + 1, roadY - 6, sqX + 14, roadY - 1], bench: [sqX + 2, roadY - 5], farm: [W - 33, fy0, W - 9, fy1], wood: [sqX - 6, 3, sqX + 12, 9], east: [W - 1, roadY],
       patrol: [[sqX + 8, roadY], [Math.max(6, sqX - 20), roadY], [Math.max(8, sqX - 20), laneY], [sqX + 8, laneY], [Math.min(W - 10, sqX + 30), laneY], [Math.min(W - 6, sqX + 34), roadY], [sqX + 8, roadY - 3]],
     };
-    return { zones, name: place.name, placeId: place.id, region: place.region, W, H, T, ter, solid, buildings, props, trees, TER, seed, roadY, exits: { west: [coast ? shoreX + 3 : 0, roadY], east: [W - 1, roadY] }, generated: true };
+    return { zones, cityWalls: place.kind === 'city', name: place.name, placeId: place.id, region: place.region, W, H, T, ter, solid, buildings, props, trees, TER, seed, roadY, exits: { west: [coast ? shoreX + 3 : 0, roadY], east: [W - 1, roadY] }, generated: true };
   }
 
   // ---------------------------------------------------------------------------------------------

@@ -115,11 +115,12 @@ main { height: 100vh; }
 .settings { display: grid; grid-template-columns: max-content 1fr; gap: 6px 12px; align-items: center; }
 .settings h4 { grid-column: 1 / -1; margin: 10px 0 0; font-family: var(--pix); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; opacity: .8; }
 .settings button { min-width: 200px; text-align: left; }
-.maplabel { position: absolute; transform: translate(-50%, 6px); font-family: var(--pix); font-size: 9px; letter-spacing: .5px; color: #1b1424; background: rgba(232,220,192,.85); padding: 0 3px; white-space: nowrap; pointer-events: none; }
+.maplabel { position: absolute; transform: translate(-50%, 0); font-family: var(--pix); font-size: 9px; letter-spacing: .5px; color: #1b1424; background: rgba(232,220,192,.85); padding: 0 3px; white-space: nowrap; pointer-events: none; }
 .maplabel.here { background: var(--ember-2); }
 .maplabel.small { font-size: 7px; padding: 0 2px; background: rgba(232,220,192,.7); }
 .maplabel.region { background: none; color: rgba(240,232,210,.85); font-style: italic; font-size: 8px; text-shadow: 0 1px 0 #1b1424; transform: translate(-50%, 0); }
-.maplabel.capital { font-size: 11px; background: #f4e8c8; border: 1px solid #1b1424; }
+.maplabel.capital { font-size: 11px; background: #f4e8c8; border: 1px solid #1b1424; transform: translate(-50%, 0); }
+.maplabel.city { font-size: 10px; background: #efe2c4; transform: translate(-50%, 0); }
 .maplabel.mid { font-size: 8px; }
 .maplabel.ruin { background: none; color: #e8dcc0; font-size: 7px; font-style: italic; text-shadow: 0 1px 0 #1b1424; }
 .maplabel.water { background: none; color: #cfe2f0; font-size: 7px; text-shadow: 0 1px 0 #1b2440; }
@@ -2973,7 +2974,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     if (place.kind === 'hamlet' || place.pop <= 70) return makeHamlet(place);
     const seed = O.hash('settle', place.id);
     const rng = O.RNG(seed);
-    const town = place.kind === 'town' || place.kind === 'port' || place.pop > 600;
+    const town = place.kind === 'town' || place.kind === 'port' || place.kind === 'city' || place.pop > 600;
     const target = simTarget(place), upper = target > 140;
     // two streets hold about 0.9 people per tile of width; a third, upper street adds half again
     const W = O.clamp(Math.round(target / (upper ? 1.3 : 0.9) + 14), 76, 170), H = town || upper ? 64 : 56;
@@ -3102,7 +3103,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       square: [sqX + 1, roadY - 6, sqX + 14, roadY - 1], bench: [sqX + 2, roadY - 5], farm: [W - 33, fy0, W - 9, fy1], wood: [sqX - 6, 3, sqX + 12, 9], east: [W - 1, roadY],
       patrol: [[sqX + 8, roadY], [Math.max(6, sqX - 20), roadY], [Math.max(8, sqX - 20), laneY], [sqX + 8, laneY], [Math.min(W - 10, sqX + 30), laneY], [Math.min(W - 6, sqX + 34), roadY], [sqX + 8, roadY - 3]],
     };
-    return { zones, name: place.name, placeId: place.id, region: place.region, W, H, T, ter, solid, buildings, props, trees, TER, seed, roadY, exits: { west: [coast ? shoreX + 3 : 0, roadY], east: [W - 1, roadY] }, generated: true };
+    return { zones, cityWalls: place.kind === 'city', name: place.name, placeId: place.id, region: place.region, W, H, T, ter, solid, buildings, props, trees, TER, seed, roadY, exits: { west: [coast ? shoreX + 3 : 0, roadY], east: [W - 1, roadY] }, generated: true };
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -5342,9 +5343,9 @@ O.snowMaskOf = function (src) {
   // [id, name, kind, x, y, pop, region style, area, leader title, produces]
   const S = [
     ['aurelia', 'Aurelia', 'capital', 78, 42, 1100, 'east', 'the Heartland', 'the Lord Mayor', { cloth: 34, wine: 14, grain: 60 }],
-    ['westhaven', 'Westhaven', 'port', 12, 44, 650, 'west', 'the Western Shore', 'the Port-reeve', { fish: 60, salt: 10, wool: 10, timber: 10 }],
-    ['goldmere', 'Goldmere', 'town', 98, 36, 600, 'east', 'the Eastern Vale', 'the Master of the Guilds', { cloth: 20, wine: 12, iron: 6 }],
-    ['frostmere', 'Frostmere', 'town', 42, 27, 500, 'north', 'the Frostwood', 'the Steward', { iron: 36, timber: 26, wool: 8 }],
+    ['westhaven', 'Westhaven', 'city', 12, 44, 900, 'west', 'the Western Shore', 'the Port-reeve', { fish: 60, salt: 10, wool: 10, timber: 10 }],
+    ['goldmere', 'Goldmere', 'city', 98, 36, 950, 'east', 'the Eastern Vale', 'the Master of the Guilds', { cloth: 20, wine: 12, iron: 6 }],
+    ['frostmere', 'Frostmere', 'city', 42, 27, 720, 'north', 'the Frostwood', 'the Steward', { iron: 36, timber: 26, wool: 8 }],
     ['greenvale', 'Greenvale', 'town', 62, 64, 450, 'south', 'the Southern Farmlands', 'the Bailiff', { grain: 120, wool: 12, wine: 6 }],
     ['rivermouth', 'Rivermouth', 'town', 24, 57, 350, 'west', 'the Rivermere', 'the Bridgemaster', { fish: 30, grain: 30, timber: 8 }],
     ['eastwatch', 'Eastwatch', 'town', 112, 48, 300, 'east', 'the Eastern Shore', 'the Captain of the Watch', { fish: 40, salt: 12 }],
@@ -5448,9 +5449,9 @@ O.snowMaskOf = function (src) {
   function regionName(x, y) { const g = regionAt(x, y); if (g) return g.r.name; const t = terrainAt(x, y); return t === 'farm' ? 'the farmlands' : t === 'moor' ? 'the moors' : t === 'marsh' ? 'the marshes' : 'open country'; }
 
   // ---------- the settlements ----------
-  const TITLE = { capital: 'the Crown', town: 'the Mayor', port: 'the Port-reeve', village: 'the Reeve', hamlet: 'the Headman', mine: 'the Mine-master', castle: 'Lord' };
+  const TITLE = { capital: 'the Crown', city: 'the Lord Mayor', town: 'the Mayor', port: 'the Port-reeve', village: 'the Reeve', hamlet: 'the Headman', mine: 'the Mine-master', castle: 'Lord' };
   const GOV = {
-    capital: ['the Royal Council', 9, 14], town: ['the Town Council', 6, 12], port: ['the Harbour Council', 5, 9], village: ['the Parish Council', 3, 5],
+    capital: ['the Royal Council', 9, 14], city: ['the City Corporation', 10, 16], town: ['the Town Council', 6, 12], port: ['the Harbour Council', 5, 9], village: ['the Parish Council', 3, 5],
     hamlet: ["the Headman's household", 1, 3], mine: ['the Mine Court', 2, 4], castle: ["the Lord's household", 3, 6],
   };
   const PRE = ['Ash', 'Bram', 'Brook', 'Cold', 'Dun', 'Elder', 'Glen', 'Hart', 'Holly', 'Lang', 'Lin', 'Nor', 'Oak', 'Pen', 'Rook', 'Stan', 'Wal', 'Whit', 'Wych', 'Yar', 'Bar', 'Cran', 'Ded', 'Hal', 'Kel', 'Mor', 'Sax', 'Tad', 'Hay', 'Bur', 'Cal', 'Ever', 'Gold', 'Har', 'Ive', 'Lock', 'Mar', 'Nether', 'Ock', 'Pud', 'Quen', 'Rad', 'Shep', 'Thorn', 'Ul', 'Wen', 'Wood', 'Blythe', 'Sel', 'Ted', 'Wick', 'Alder', 'Brac', 'Ember', 'Fen', 'Gar', 'Hen', 'Ivy', 'Kirk', 'Lea', 'Mead'];
@@ -5474,7 +5475,7 @@ O.snowMaskOf = function (src) {
       const coast = t === 'beach';
       const roll = r.next();
       const kind = t === 'mountain' && roll < 0.4 ? 'mine' : roll < 0.58 ? 'hamlet' : roll < 0.9 ? 'village' : coast ? 'port' : 'town';
-      const pop = kind === 'hamlet' ? r.int(12, 70) : kind === 'village' ? r.int(80, 280) : kind === 'mine' ? r.int(40, 110) : r.int(320, 720);
+      let pop = kind === 'hamlet' ? r.int(12, 70) : kind === 'village' ? r.int(80, 280) : kind === 'mine' ? r.int(40, 110) : r.int(320, 720);
       const region = y < H * 0.34 ? 'north' : x < W * 0.3 ? 'west' : x > W * 0.68 ? 'east' : 'south';
       const produces = {};
       if (t === 'farm' || t === 'grass') produces.grain = Math.round(pop / 4);
@@ -5485,7 +5486,8 @@ O.snowMaskOf = function (src) {
       if (t === 'mountain' || kind === 'mine') produces.iron = Math.round(pop / 4);
       if (!Object.keys(produces).length) produces.grain = Math.round(pop / 5);
       const id = name.toLowerCase().replace(/[^a-z]/g, '');
-      PLACES.push({ id, name, kind, x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, pop, region, area: regionName(x / SC, y / SC), title: TITLE[kind], produces });
+      const kind2 = (kind === 'town' || kind === 'port') && pop > 640 ? 'city' : kind; if (kind2 === 'city') pop += 250;
+      PLACES.push({ id, name, kind: kind2, x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, pop, region, area: regionName(x / SC, y / SC), title: TITLE[kind], produces });
     }
     // every place has a government, great or small, with someone at its head
     for (const p of PLACES) {
@@ -5515,8 +5517,8 @@ O.snowMaskOf = function (src) {
   function places(Sx) {
     build();
     return PLACES.map(({ id, name, kind, x, y, pop, region, area, title, produces, gov }) => Sx({ id, name, kind, x, y, pop, region, area, leader: `${title} of ${name.replace(' Castle', '')}`, produces, gov: Object.assign({}, gov),
-      wealth: kind === 'capital' ? 0.85 : kind === 'castle' ? 0.8 : id === 'goldmere' ? 0.75 : kind === 'town' || kind === 'port' ? 0.55 : kind === 'hamlet' ? 0.3 : 0.42,
-      guards: kind === 'capital' ? 60 : kind === 'castle' ? 40 : kind === 'town' || kind === 'port' ? 12 : kind === 'village' ? 3 : 1,
+      wealth: kind === 'capital' ? 0.85 : kind === 'castle' ? 0.8 : id === 'goldmere' ? 0.75 : kind === 'city' ? 0.65 : kind === 'town' || kind === 'port' ? 0.55 : kind === 'hamlet' ? 0.3 : 0.42,
+      guards: kind === 'capital' ? 60 : kind === 'castle' ? 40 : kind === 'city' ? 25 : kind === 'town' || kind === 'port' ? 12 : kind === 'village' ? 3 : 1,
       priority: kind === 'castle' ? 'security' : (produces.grain || 0) > 60 ? 'food' : 'roads', detailed: id === 'ashford' }));
   }
   function roads() { build(); return [...ROADS, ...EXTRA_ROADS].map(([a, b, q, d, br, name]) => ({ a, b, quality: q, danger: d, bridge: br, name, damaged: false })); }
@@ -11700,6 +11702,34 @@ O.snowMaskOf = function (src) {
       for (const r of E.RUINS) { const x = r.x * MS, y = r.y * MS; ctx.fillStyle = '#5a5248'; ctx.fillRect(x - 3, y - 2, 2, 4); ctx.fillRect(x + 1, y - 3, 2, 5); ctx.fillRect(x - 3, y + 2, 6, 1); }
       return c;
     }
+    // tiny pixel pictures of places: roofs, walls, towers, a spire, a keep
+    function drawPlace(ctx, s, x, y) {
+      const R = O.RNG(O.hash('icon', s.id)), dark = '#1b1424';
+      const roofs = ['#a8442e', '#8a5a34', '#b8683a', '#6a5a6a', '#c07a3a'], wall = '#e8dcc0', stone = '#a8a29a', stoneD = '#6a645c';
+      const px = (xx, yy, c) => { ctx.fillStyle = c; ctx.fillRect(xx, yy, 1, 1); };
+      const rect = (xx, yy, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(xx, yy, w, h); };
+      const house = (hx, hy, big) => {
+        const w = big ? 5 : 4, rf = R.pick(roofs);
+        rect(hx - 1, hy - 3, w + 2, 6, dark); rect(hx, hy - 4, w, 1, dark);
+        rect(hx + 1, hy - 3, w - 2, 1, rf); rect(hx, hy - 2, w, 1, rf); // a peaked roof
+        rect(hx, hy - 1, w, 2, wall); px(hx + Math.floor(w / 2), hy, '#5a3d26'); // walls and a door
+      };
+      const tower = (tx, ty, h) => { rect(tx - 2, ty - h - 1, 5, h + 2, dark); rect(tx - 1, ty - h, 3, h, stone); px(tx - 1, ty - h - 1, stone); px(tx + 1, ty - h - 1, stone); };
+      const ring = (r) => { ctx.strokeStyle = dark; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x + 0.5, y + 0.5, r, 0, Math.PI * 2); ctx.stroke(); ctx.strokeStyle = stone; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(x + 0.5, y + 0.5, r, 0, Math.PI * 2); ctx.stroke(); };
+      const spire = (sx, sy) => { rect(sx - 1, sy - 7, 3, 8, dark); rect(sx, sy - 6, 1, 6, stone); px(sx, sy - 7, '#e8c860'); };
+      const n = (k) => { for (let i = 0; i < k; i++) house(x + R.int(-7, 6), y + R.int(-4, 5), R.chance(0.3)); };
+      switch (s.kind) {
+        case 'capital': ring(13); for (let i = 0; i < 14; i++) house(x + R.int(-10, 8), y + R.int(-6, 9), R.chance(0.4)); for (const [dx, dy] of [[-12, 0], [12, 0], [0, -12], [0, 12], [-9, -9], [9, -9], [-9, 9], [9, 9]]) tower(x + dx, y + dy + 2, 4);
+          rect(x + 2, y - 12, 11, 9, dark); rect(x + 3, y - 11, 9, 7, stone); tower(x + 4, y - 4, 9); tower(x + 11, y - 4, 9); tower(x + 7, y - 6, 12); px(x + 7, y - 20, '#c03030'); px(x + 8, y - 20, '#c03030'); break;
+        case 'city': ring(9); for (let i = 0; i < 9; i++) house(x + R.int(-7, 5), y + R.int(-5, 6), R.chance(0.4)); for (const [dx, dy] of [[-9, 0], [9, 0], [0, -9], [0, 9]]) tower(x + dx, y + dy + 2, 4); spire(x + 1, y - 2); break;
+        case 'castle': rect(x - 7, y - 6, 15, 9, dark); rect(x - 6, y - 5, 13, 7, stone); for (let k = -6; k <= 6; k += 2) px(x + k, y - 6, stone); tower(x - 6, y + 2, 9); tower(x + 6, y + 2, 9); tower(x, y + 1, 12); rect(x - 1, y - 1, 3, 3, stoneD); px(x, y - 14, '#2a4aa0'); px(x + 1, y - 14, '#2a4aa0'); break;
+        case 'town': case 'port': n(s.pop > 500 ? 8 : 6); spire(x + R.int(-2, 2), y); if (s.kind === 'port') { rect(x - 9, y + 6, 6, 3, dark); rect(x - 8, y + 6, 4, 2, '#8a5a34'); px(x - 6, y + 3, wall); px(x - 6, y + 4, wall); px(x - 6, y + 5, dark); } break;
+        case 'village': for (let i = 0; i < 4; i++) house(x + R.int(-5, 3), y + R.int(-2, 3), false); if (s.pop > 140) spire(x + 3, y + 1); break;
+        case 'mine': rect(x - 5, y - 3, 11, 6, dark); rect(x - 4, y - 2, 9, 4, '#7a7064'); rect(x - 1, y - 1, 3, 3, '#1b1424'); house(x + 5, y + 3, false); break;
+        default: house(x - 2, y, false); if (s.pop > 30) house(x + 2, y + 2, false);
+      }
+      if (s.detailed) { ctx.strokeStyle = '#f0b45c'; ctx.lineWidth = 1; ctx.strokeRect(x - 7.5, y - 6.5, 15, 12); }
+    }
     const MAIN = new Set(["the King's Road", 'the Eastern Trade Road', 'the Western Road', 'the Northern Road', 'the Iron Road', 'the Southern Farm Road']);
     function drawMap(cv) {
       const S = MS, ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = false;
@@ -11714,12 +11744,10 @@ O.snowMaskOf = function (src) {
           if (ctx.fillStyle !== 'transparent') { ctx.fillRect(x, y, main ? 2 : 1, main ? 2 : 1); }
         }
       }
-      for (const s of K.places) {
-        const x = Math.round(s.x * S), y = Math.round(s.y * S), sz = s.kind === 'capital' ? 6 : s.kind === 'castle' ? 4 : s.pop >= 300 ? 3 : s.pop >= 80 ? 2 : 1;
-        ctx.fillStyle = '#1b1424'; ctx.fillRect(x - sz - 1, y - sz - 1, sz * 2 + 3, sz * 2 + 3);
-        ctx.fillStyle = s.detailed ? '#f0b45c' : s.kind === 'castle' ? '#c8ccd4' : s.kind === 'capital' ? '#f4e8c8' : s.happiness < 0.4 ? '#c87060' : '#e8dcc0';
-        ctx.fillRect(x - sz, y - sz, sz * 2 + 1, sz * 2 + 1);
-        if (s.kind === 'castle' || s.kind === 'capital') { ctx.fillStyle = '#1b1424'; for (let k = -sz; k <= sz; k += 2) ctx.fillRect(x + k, y - sz - 1, 1, 1); ctx.fillRect(x, y - 1, 1, 3); }
+      // every settlement drawn as a little picture of itself
+      for (const s of K.places.slice().sort((p, q) => p.y - q.y)) {
+        const big = ['capital', 'city', 'castle', 'town', 'port'].includes(s.kind), x = Math.round(s.x * S), y = Math.round(s.y * S);
+        if (big) { ctx.save(); ctx.translate(x, y); ctx.scale(2, 2); drawPlace(ctx, s, 0, 0); ctx.restore(); } else drawPlace(ctx, s, x, y);
       }
       // you are here
       const here = K.place(game.world.placeId);
@@ -11749,7 +11777,7 @@ O.snowMaskOf = function (src) {
         const cv = document.getElementById('kmap'); drawMap(cv);
         const wrap = cv.parentElement, view = wrap.parentElement;
         // every settlement is named; regions, lakes and rivers too
-        for (const s of K.places) { const l = document.createElement('span'); l.className = 'maplabel' + (s.id === game.world.placeId ? ' here' : '') + (s.kind === 'capital' ? ' capital' : s.kind === 'hamlet' ? ' small' : s.kind === 'village' || s.kind === 'mine' ? ' mid' : ''); l.textContent = s.name; l.style.left = (s.x / E.W * 100) + '%'; l.style.top = (s.y / E.H * 100) + '%'; wrap.appendChild(l); }
+        for (const s of K.places) { const l = document.createElement('span'); l.className = 'maplabel' + (s.id === game.world.placeId ? ' here' : '') + (s.kind === 'capital' ? ' capital' : s.kind === 'city' ? ' city' : s.kind === 'hamlet' ? ' small' : s.kind === 'village' || s.kind === 'mine' ? ' mid' : ''); l.textContent = s.name; const drop = { capital: 10, city: 7.5, castle: 3, town: 5.5, port: 5.5, village: 2.4, mine: 2.2 }[s.kind] ?? 1.6; l.style.left = (s.x / E.W * 100) + '%'; l.style.top = ((s.y + drop) / E.H * 100) + '%'; wrap.appendChild(l); }
         for (const r of E.REGIONS) { const l = document.createElement('span'); l.className = 'maplabel region'; l.textContent = r.name.replace(/^the /, ''); l.style.left = ((r.x + (r.kind === 'mountain' ? r.rx * 0.4 : 0)) / E.W * 100) + '%'; l.style.top = ((r.y + (r.kind === 'mountain' ? r.ry * 0.6 : -r.ry * 0.3)) / E.H * 100) + '%'; wrap.appendChild(l); }
         for (const r of E.LAKES) { const l = document.createElement('span'); l.className = 'maplabel water'; l.textContent = r.name; l.style.left = (r.x / E.W * 100) + '%'; l.style.top = ((r.y + r.ry) / E.H * 100) + '%'; wrap.appendChild(l); }
         for (const r of E.RIVERS) { const m = r.pts[Math.floor(r.pts.length / 2)]; const l = document.createElement('span'); l.className = 'maplabel water'; l.textContent = r.name.replace(/^the /, ''); l.style.left = (m[0] / E.W * 100) + '%'; l.style.top = (m[1] / E.H * 100) + '%'; wrap.appendChild(l); }
@@ -13324,6 +13352,36 @@ O.snowMaskOf = function (src) {
       }
       world.exits[id] = { x, y, side };
     }
+    if (world.cityWalls && !world._walled) cityWalls(world);
+  }
+
+  // A city's walls go up once its roads are laid: a curtain round the whole place, towers every so
+  // often, and a gatehouse wherever a road passes through
+  function cityWalls(world) {
+    world._walled = true;
+    const W = world.W, H = world.H, { ter, solid } = world, m = 3;
+    const inBuilding = (x, y) => world.buildings.some((b) => x >= b.x && x < b.x + b.w && y >= b.y && y <= b.bottom);
+    const isRoad = (x, y) => [TER.ROAD, TER.BRIDGE, TER.COBBLE].includes(ter[y * W + x]);
+    const clear = (x, y) => { world.trees = world.trees.filter((t) => !(Math.floor(t.x / T) === x && Math.floor((t.y - 1) / T) === y)); world.props = world.props.filter((p) => !(Math.floor(p.x / T) === x && Math.floor((p.y - 1) / T) === y)); };
+    const put = (kind, x, y, extra) => { clear(x, y); world.props.push(Object.assign({ kind, x: x * T + 8, y: y * T + (kind === 'wallV' ? 15 : 14), seed: x * 31 + y, v: 0, solid: kind !== 'gatearch', wall: true }, extra)); if (kind !== 'gatearch') solid[y * W + x] = 1; };
+    const ring = [];
+    for (let x = m; x <= W - 1 - m; x++) ring.push([x, m, 'h'], [x, H - 1 - m, 'h']);
+    for (let y = m + 1; y < H - 1 - m; y++) ring.push([m, y, 'v'], [W - 1 - m, y, 'v']);
+    for (const [x, y, o] of ring) {
+      if (ter[y * W + x] === TER.WATER || inBuilding(x, y)) continue;
+      if (isRoad(x, y)) {
+        // a gate only where a road passes through the wall; a road running along the line is walled over
+        const crosses = o === 'h' ? isRoad(x, y - 1) || isRoad(x, y + 1) : isRoad(x - 1, y) || isRoad(x + 1, y);
+        const prevGate = world.props.some((p) => p.kind === 'gatearch' && Math.abs(Math.floor(p.x / T) - x) + Math.abs(Math.floor((p.y - 1) / T) - y) === 1);
+        if (crosses && !prevGate) { put('gatearch', x, y, { y: y * T + 15 }); continue; }
+        if (crosses && prevGate) continue; // the other half of a two-wide gateway
+      }
+      const nearRoad = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => isRoad(x + dx, y + dy) && !(o === 'h' ? dy : dx));
+      const corner = (x === m || x === W - 1 - m) && (y === m || y === H - 1 - m);
+      const tower = corner || nearRoad || (o === 'h' ? (x - m) % 12 === 0 : (y - m) % 10 === 0);
+      put(tower ? 'tower' : o === 'h' ? 'wallH' : 'wallV', x, y);
+    }
+    world.dirtyStatics = true;
   }
 
   // ---------- a stretch of road ----------

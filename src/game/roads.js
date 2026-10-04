@@ -55,6 +55,36 @@
       }
       world.exits[id] = { x, y, side };
     }
+    if (world.cityWalls && !world._walled) cityWalls(world);
+  }
+
+  // A city's walls go up once its roads are laid: a curtain round the whole place, towers every so
+  // often, and a gatehouse wherever a road passes through
+  function cityWalls(world) {
+    world._walled = true;
+    const W = world.W, H = world.H, { ter, solid } = world, m = 3;
+    const inBuilding = (x, y) => world.buildings.some((b) => x >= b.x && x < b.x + b.w && y >= b.y && y <= b.bottom);
+    const isRoad = (x, y) => [TER.ROAD, TER.BRIDGE, TER.COBBLE].includes(ter[y * W + x]);
+    const clear = (x, y) => { world.trees = world.trees.filter((t) => !(Math.floor(t.x / T) === x && Math.floor((t.y - 1) / T) === y)); world.props = world.props.filter((p) => !(Math.floor(p.x / T) === x && Math.floor((p.y - 1) / T) === y)); };
+    const put = (kind, x, y, extra) => { clear(x, y); world.props.push(Object.assign({ kind, x: x * T + 8, y: y * T + (kind === 'wallV' ? 15 : 14), seed: x * 31 + y, v: 0, solid: kind !== 'gatearch', wall: true }, extra)); if (kind !== 'gatearch') solid[y * W + x] = 1; };
+    const ring = [];
+    for (let x = m; x <= W - 1 - m; x++) ring.push([x, m, 'h'], [x, H - 1 - m, 'h']);
+    for (let y = m + 1; y < H - 1 - m; y++) ring.push([m, y, 'v'], [W - 1 - m, y, 'v']);
+    for (const [x, y, o] of ring) {
+      if (ter[y * W + x] === TER.WATER || inBuilding(x, y)) continue;
+      if (isRoad(x, y)) {
+        // a gate only where a road passes through the wall; a road running along the line is walled over
+        const crosses = o === 'h' ? isRoad(x, y - 1) || isRoad(x, y + 1) : isRoad(x - 1, y) || isRoad(x + 1, y);
+        const prevGate = world.props.some((p) => p.kind === 'gatearch' && Math.abs(Math.floor(p.x / T) - x) + Math.abs(Math.floor((p.y - 1) / T) - y) === 1);
+        if (crosses && !prevGate) { put('gatearch', x, y, { y: y * T + 15 }); continue; }
+        if (crosses && prevGate) continue; // the other half of a two-wide gateway
+      }
+      const nearRoad = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => isRoad(x + dx, y + dy) && !(o === 'h' ? dy : dx));
+      const corner = (x === m || x === W - 1 - m) && (y === m || y === H - 1 - m);
+      const tower = corner || nearRoad || (o === 'h' ? (x - m) % 12 === 0 : (y - m) % 10 === 0);
+      put(tower ? 'tower' : o === 'h' ? 'wallH' : 'wallV', x, y);
+    }
+    world.dirtyStatics = true;
   }
 
   // ---------- a stretch of road ----------

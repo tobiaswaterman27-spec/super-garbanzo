@@ -21,7 +21,7 @@
   function installSim(Sim) {
     const S = Sim.prototype, _plan = S.plan, _onEnter = S.onEnter, _personMinute = S.personMinute;
     S.innCapacity = function (bid) { const b = this.building(bid); return b ? capacity(this, b) : { seats: 0, beds: 0 }; };
-    S.innGuests = function (bid) { return this.people.filter((q) => q.agent.inside === bid && ['socialise', 'eat-out', 'rest', 'feast'].includes(q.activity?.act)).length; };
+    S.innGuests = function (bid) { return this.people.filter((q) => q.agent && q.agent.inside === bid && ['socialise', 'eat-out', 'rest', 'feast'].includes(q.activity?.act)).length; };
     S.innBedsTaken = function (bid) { return this.people.filter((q) => q.lodging && q.lodging.b === bid && q.lodging.until >= this.day).length + (O.PlayerState && O.PlayerState.room && O.PlayerState.room.b === bid && O.PlayerState.room.until >= this.day ? 1 : 0); };
 
     // set the inn's people up once: the spouse joins, the children help, a poor family moves in upstairs

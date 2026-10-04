@@ -243,3 +243,14 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Your party is an undertaking too (J: call it off), with an arrow home
 - [x] Animations stopping: people indoors never advanced their animation, so they slid about frozen
 - [x] On the throne you sat on the grey step: now up on the seat
+
+## Batch O (asked after step 80) - how to get the jobs you can't just ask for (all routes, in detail)
+
+- [x] Ladders: watch: guard, sergeant, guard captain; the royal guard (a sergeant, vouched for); the castle: maid or page, butler, steward, chamberlain; the town hall: clerk, scribe, magistrate (needs learning); "Ways up" in Business
+- [x] Learning: study the books at the chapel, or pay the priest for lessons
+- [x] Patronage: lady-in-waiting or page (a royal or a lady takes to you); jester (perform at the tavern and the fair, and the herald hears); herald (carry the crown's letters to other towns); spy (sly but not known as a criminal: a secret offer by letter)
+- [x] Deeds: knighthood (win the tournament, or serve in a war); a lordship at half price for a knight; masters of their craft sent for by the castle (physician, master of horse, falconer)
+- [x] Elections and vows: a reeve's moot in every town; the priesthood (serve the chapel, learn, take vows; no gang, no marrying); a priest of long good standing becomes bishop
+- [x] Seizing it: rise against the crown with a gang and lords behind you (win the crown or hang); the council chooses a monarch when the royal line dies out, and you can campaign; blackmail an official out of their post with a secret you've found
+- [x] Finding out: positions at court posted at the castle gate; the herald and steward tell you what each post needs; Ways up in Business
+- Later, with the AI: marriage into the crown or a noble house (consort, heir, lord or lady by marriage)

@@ -86,6 +86,7 @@
       const pay = 3 * (home.day - startDay) + (won ? 10 + home.rng.int(0, 30) : 0);
       const hurt = fought.length ? (lost ? home.rng.int(20, 45) : home.rng.int(0, 20)) : 0;
       PS.money += pay; PS.hp = Math.max(10, PS.hp - hurt); PS.enlisted = null;
+      if (side !== 'rebel') { PS.warWon = (PS.warWon || 0) + won; PS.warFought = (PS.warFought || 0) + fought.length; } // (enough of it, and you're knighted)
       if (side !== 'rebel') PS.rep.guard = Math.min(1, PS.rep.guard + 0.2); PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.08); PS.rep.local = Math.min(1, PS.rep.local + 0.1);
       const where = fought.length ? K.place(fought[fought.length - 1].at).name : null;
       const host = side === 'rebel' ? 'the rebel host' : "the King's host";

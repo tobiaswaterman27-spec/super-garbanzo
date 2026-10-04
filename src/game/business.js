@@ -41,8 +41,10 @@
         parts.push(`<h3>Your home <small class="lbl">${esc(home.type === 'house' ? 'your house' : home.name)}, ${esc(s.world.name)}</small></h3>${P ? `<p>A party tonight: ${P.guests.length} invited households have said they'll come. Doors open at seven.</p>` : friends.length ? `<p>Throw a party tonight, from seven: food and ale for ₳10, and ₳2 a head. Not everyone you ask will come, and they'll come and go as they please; families come together.</p><div class="topics">${friends.map((q) => `<label style="display:inline-block;margin:2px 8px 2px 0"><input type="checkbox" data-inv="${q.id}" checked> ${esc(q.name)}</label>`).join('')}</div><div class="topics"><button data-party="1">Send out the invitations</button></div>` : '<p class="caption">Make some friends in town and you could have them round.</p>'}`);
       }
       if (!parts.length) parts.push('<p>You have no post and no business. Ask anyone "Who\'s taking on hands?", or look for For Sale signs on empty shops.</p>');
+      if (O.careersHTML) parts.push(O.careersHTML());
       parts.push('<p class="caption">Your lands, houses and offices are under Holdings (P). Your day\'s undertakings are under J.</p>');
       O.Panels.open('Business', parts.join(''), (r) => {
+        O.bindCareers && O.bindCareers(r, open);
         r.querySelectorAll('[data-crown]').forEach((b) => b.onclick = () => O.openCrown(b.dataset.crown));
         r.querySelectorAll('[data-run]').forEach((b) => b.onclick = () => { const [pl, id] = b.dataset.run.split(':'); const v = O.Travel.visited.get(pl); const bb = v && v.world.buildings.find((x) => x.id === +id); if (bb && pl === s.world.placeId) O.runBusiness(bb); else say('You can only manage it from where it is.', 'bad'); });
         r.querySelectorAll('[data-raise]').forEach((b) => b.onclick = () => { const e = posts[+b.dataset.raise]; if (b.dataset.how === 'letter') PS.remove('letter'); askRaise(e, b.dataset.how === 'letter' ? 'letter' : 'word'); });

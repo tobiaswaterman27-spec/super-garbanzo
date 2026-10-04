@@ -29,7 +29,7 @@
       if (game.scene) {
         // the room's own things, plus the work, the ballot box and what's been set down here
         const ins = game.scene.candidates();
-        for (const f of [O.jobCandidate, O.gangCandidate, O.voteCandidate, O.placedCandidate, O.furnCandidate, O.pickupCandidate]) { if (!f) continue; const c = f(); if (c) ins.push(c); }
+        for (const f of [O.jobCandidate, O.gangCandidate, O.voteCandidate, O.placedCandidate, O.furnCandidate, O.pickupCandidate, O.sceneCandidate]) { if (!f) continue; const c = f(); if (c) ins.push(c); }
         return ins;
       }
       if (O.horseCandidate) { const hc = O.horseCandidate(); if (hc) out.push(hc); }
@@ -167,6 +167,7 @@
         if (c.src !== 'stash' && c.src !== 'homestash') { stolen.push(`${got} ${G[c.k].name.toLowerCase()}`); PS.stolen[c.k] = (PS.stolen[c.k] || 0) + got; }
       }
       if (stolen.length) O.Crime.theft(game, sim, { building: b, floor: game.scene.floor, what: stolen.join(', '), owner, value: idxs.length });
+      if (stolen.length && hh && O.foundSecret) { const m = O.foundSecret(sim, hh); if (m) setTimeout(() => O.UI.say(m), 900); }
       O.Panels.close();
     }
 

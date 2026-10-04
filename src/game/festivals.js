@@ -184,7 +184,7 @@
           const foe = tn.bouts[Math.floor(Math.random() * 3)][Math.floor(Math.random() * 2)];
           const res = joust(me, foe, me), won = res.win === me;
           PS.skills.riding = Math.min(1, (PS.skills.riding || 0) + 0.06);
-          if (won) { PS.money += 60; PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.15); PS.rep.local = Math.min(1, PS.rep.local + 0.15); s.log(`The stranger unseated ${foe.name} at the spring tournament, to roars from the stands.`, 'event'); }
+          if (won) { PS.money += 60; PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.15); PS.rep.local = Math.min(1, PS.rep.local + 0.15); s.log(`The stranger unseated ${foe.name} at the spring tournament, to roars from the stands.`, 'event'); setTimeout(() => O.knightPlayer && O.knightPlayer('for victory in the lists'), 2500); }
           else { PS.hp = Math.max(10, PS.hp - 20); }
           O.Panels.open('In the lists', `<p>You ride against <b>${esc(foe.name)}</b>.</p><p>${res.lines.join('<br>')}</p><p class="speech">${won ? 'The stands roar. The herald puts the purse of ₳60 into your hand, and ladies throw ribbons.' : 'You pick yourself out of the dust, bruised. The crowd claps you off, kindly enough.'}</p>`);
         };

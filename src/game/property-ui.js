@@ -152,6 +152,8 @@
       const L = H.lordship, lord = L.holder === 'player';
       const resident = O.livesIn && O.livesIn(H.world.placeId || 'ashford');
       const TN = esc(H.world.name);
+      const price = Math.round(L.price * (PS.knight ? 0.5 : 1)); // a knight of good name pays half
+      const isReeve = (PS.reeve && H === home()) || !!(PS.reeveOf || {})[H.world.placeId];
       const canPetition = !lord && resident && PS.wantedLevel() === 0 && !PS.exiled && PS.rep.civilian > -0.2;
       O.Panels.open('Holdings', `<div class="kv">
           <div><span class="lbl">Rents received</span><b>${O.money(PS.rentIncome || 0)}</b><small>paid each Moonday</small></div>
@@ -159,10 +161,10 @@
           <div><span class="lbl">Lordship of ${esc(H.world.name)}</span><b>${lord ? 'Yours' : 'The crown\'s'}</b><small>${lord ? 'You set the tax, the watch and the works.' : `The crown asks ${O.money(L.price)} and an unstained name.`}</small></div>
         </div>
         <table style="margin-top:12px"><thead><tr><th>Property</th><th class="n">Value</th><th>Use</th></tr></thead><tbody>${rows || '<tr><td colspan="3">You own nothing yet. Look for For Sale signs by empty houses and shops.</td></tr>'}</tbody></table>
-        ${!lord ? `<p class="caption" style="margin-top:12px">${canPetition ? 'You could petition the crown for the lordship.' : !resident ? `Only someone who lives in ${TN} may hold its lordship: own a house here and sleep in it.` : 'The crown will not sell a lordship to someone the watch is looking for, or whom the common folk despise.'}</p>${canPetition ? `<button class="btn" data-pet="1">Petition for the lordship (${O.money(L.price)})</button>` : ''}` : lordControls(H)}${PS.reeve && !lord ? reeveControls(H) : ''}${PS.reeve || lord ? officeControls(H) : ''}${moot(H)}${O.landSection ? O.landSection() : ''}`, (r) => {
+        ${!lord ? `<p class="caption" style="margin-top:12px">${canPetition ? 'You could petition the crown for the lordship.' : !resident ? `Only someone who lives in ${TN} may hold its lordship: own a house here and sleep in it.` : 'The crown will not sell a lordship to someone the watch is looking for, or whom the common folk despise.'}</p>${canPetition ? `<button class="btn" data-pet="1">Petition for the lordship (${O.money(price)}${PS.knight ? ', half for a knight' : ''})</button>` : ''}` : lordControls(H)}${isReeve && !lord ? reeveControls(H) : ''}${isReeve || lord ? officeControls(H) : ''}${moot(H)}${O.landSection ? O.landSection() : ''}`, (r) => {
         if (O.bindLand) O.bindLand(r, holdings);
         const pet = r.querySelector('[data-pet]');
-        if (pet) pet.onclick = () => { if (PS.money < L.price) return O.Panels.toast(`You need ${O.money(L.price)}.`, 'bad'); PS.money -= L.price; H.kingdom.treasury += L.price; L.holder = 'player'; PS.lord = true; H.log(`By letters from the crown, the newcomer is made Lord of ${H.world.name}.`, 'politics'); H.kingdom.addNews(`A new lord has been granted ${H.world.name}.`, 'politics'); for (const p of H.people) if (p.age >= 16 && H.rng.chance(0.5)) H.remember(p, 'We have a new lord, a stranger with deep pockets.', 'politics', 1.5); holdings(); };
+        if (pet) pet.onclick = () => { if (PS.money < price) return O.Panels.toast(`You need ${O.money(price)}.`, 'bad'); PS.money -= price; H.kingdom.treasury += price; L.holder = 'player'; PS.lord = true; H.log(`By letters from the crown, the newcomer is made Lord of ${H.world.name}.`, 'politics'); H.kingdom.addNews(`A new lord has been granted ${H.world.name}.`, 'politics'); for (const p of H.people) if (p.age >= 16 && H.rng.chance(0.5)) H.remember(p, 'We have a new lord, a stranger with deep pockets.', 'politics', 1.5); holdings(); };
         bindLord(r, H);
       });
     }

@@ -85,7 +85,9 @@
     };
     function offer(q, render) {
       const s = cur(), bz = s.biz.get(q.job.biz);
-      const d = s.hireDecision(bz, q, 'player');
+      let d = s.hireDecision(bz, q, 'player');
+      if (d.yes && O.prestigeRefusal && O.prestigeRefusal(d.role)) return render(O.prestigeRefusal(d.role));
+      if (d.yes && d.role === 'clerk' && (PS.learning || 0) < 0.15) return render('"A clerk must read and write a fair hand. Come back when you have your letters: the priest gives lessons, and there are books in the chapel."');
       if (!d.yes) return render(d.why === 'bad' ? "Work? For you? I know what's said of you. No." : d.why === 'dislike' ? "I'll not take you on. Try elsewhere." : "I've all the hands I need just now.");
       const [o, c] = hoursOf({ role: d.role }, bz);
       // a post whose hours clash with this one has to go; any other you keep
@@ -402,7 +404,7 @@
       const sh = e.stats.shifts;
       if (sh > 0 && sh % 6 === 0 && e.stats.tasks / sh >= 3 && like > 0.2 && (bz.cash > 120 || bz.def.public)) {
         const roles = bz.def.jobs.map((j) => j[0]), i = roles.indexOf(e.role);
-        if (i > 0 && bz.def.wage[roles[i - 1]] !== 0) { const nr = roles[i - 1]; bz.playerRole = nr; e.role = nr; e.wage = Math.max(e.wage + 1, bz.def.wage[nr] || e.wage + 2); say(`${e.masterName || 'Your master'} puts you up to ${nr}, at ₳${e.wage} a day.`); }
+        if (i > 0 && bz.def.wage[roles[i - 1]] !== 0 && !(O.Careers && O.Careers.PRESTIGE.has(roles[i - 1]))) { /* the high posts are climbed to: see Ways up */ const nr = roles[i - 1]; bz.playerRole = nr; e.role = nr; e.wage = Math.max(e.wage + 1, bz.def.wage[nr] || e.wage + 2); say(`${e.masterName || 'Your master'} puts you up to ${nr}, at ₳${e.wage} a day.`); }
         else { e.wage += 1; say(`${e.masterName || 'Your master'} raises your pay to ₳${e.wage} a day.`); }
       }
     }

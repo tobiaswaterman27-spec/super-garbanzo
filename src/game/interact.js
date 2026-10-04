@@ -15,6 +15,7 @@
       if (b.owner && b.owner.kind === 'player') return false;
       if (b.type === 'hideout') return b.gang !== 'player';
       if (PS.room && PS.room.b === b.id && sim.day <= PS.room.until) return false;
+      if (PS.lease && PS.lease.b === b.id && PS.lease.place === sim.world.placeId) return false;
       if (bz && (bz.open || bz.def.public)) return false;
       const home = b.household && sim.households[b.household - 1];
       const someoneIn = home && home.members.some((id) => sim.byId.get(id)?.agent.inside === b.id);
@@ -82,7 +83,7 @@
         default: return '';
       }
     }
-    const mayUseBed = (it) => (game.scene && game.scene.b.owner?.kind === 'player') || (it.gangBed && game.scene && game.scene.b.gang === 'player') || (it.rent && PS.room && game.scene && PS.room.b === game.scene.b.id && sim.day <= PS.room.until);
+    const mayUseBed = (it) => (game.scene && game.scene.b.owner?.kind === 'player') || (game.scene && PS.lease && PS.lease.b === game.scene.b.id) || (it.gangBed && game.scene && game.scene.b.gang === 'player') || (it.rent && PS.room && game.scene && PS.room.b === game.scene.b.id && sim.day <= PS.room.until);
 
     game.hooks.update.push((dt) => {
       if (searching > 0) { searching -= dt; game.player.anim = 'crouch'; game.player.locked = true; if (searching <= 0) { game.player.locked = false; game.player.anim = 'idle'; pendingSearch && pendingSearch(); pendingSearch = null; } }

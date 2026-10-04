@@ -154,6 +154,8 @@
         p.agent.hidden = false; p.agent.inside = null; p.agent.x = this.Z.east[0] * this.T; p.agent.y = this.Z.east[1] * this.T; p.task = { act: 'move-in', b: p.home };
         this.log(`${p.name} has come home, mended, from the infirmary in the next town.`, 'health');
       }
+      // errands that lost their stretcher (after a reload, say) are dropped
+      if (this._m % 30 === 15) for (const q of this.people) if (q.task && /^stretcher/.test(q.task.act) && !this.carries.some((c) => c.id === q.task.carry)) q.task = null;
       // bodies nobody has yet fetched
       if (this._m % 30 === 0) for (const b of [...this.bodies]) if (!b.carried && !this.carries.some((c) => c.kind === 'body' && c.target === b.id)) {
         if (!this.sendStretcher('body', b.id, b.x, b.y) && (this.day * 1440 + this.minute) - (b.day * 1440) > 240 && !this.people.some((q) => q.job?.role === 'undertaker')) {
@@ -177,6 +179,9 @@
           const b = this.building(bid);
           if (b) this.puffs.push({ x: b.doorX * this.T + 8, y: (b.doorY + 1) * this.T, t: 0 });
           this.digGrave(body);
+          // the burial fee, from the family if they can pay it
+          const dead = (this.dead || []).find((d) => d.id === body.id), hh = dead && this.households[dead.household - 1];
+          const fee = 8; if (hh && !hh.gone && hh.money >= fee) { hh.money -= fee; this.treasury.cash += fee; this.treasury.income += fee; }
         }
       }
       for (const q of crew) { q.task = null; q.agent.anim = 'walk'; if (q !== lead) { q.agent.inside = bid; q.agent.hidden = true; } }

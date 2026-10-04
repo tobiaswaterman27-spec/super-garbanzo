@@ -3305,8 +3305,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     tavern: { label: 'Tavern', jobs: [['innkeeper', 1], ['server', 1], ['cook', 1]], hours: [11, 24], recipes: [{ out: { meal: 4 }, inp: { bread: 1, cabbage: 1, firewood: 0.3 } }, { out: { ale: 5 }, inp: { wheat: 1 } }], sells: ['meal', 'ale'], buys: { bread: 'bakery', cabbage: 'farmhouse|import', wheat: 'farmhouse|import', firewood: 'woodcutter|store|import' }, targets: { bread: 12, cabbage: 12, wheat: 10, firewood: 8, meal: 20, ale: 30 }, wage: { innkeeper: 0, server: 6, cook: 7 } },
     store: { label: 'General Store', jobs: [['shopkeeper', 1]], hours: [8, 18], recipes: [], sells: ['cabbage', 'firewood', 'flour', 'fish'], buys: { cabbage: 'farmhouse|import', firewood: 'woodcutter|import', flour: 'mill', fish: 'fishery|none' }, targets: { cabbage: 30, firewood: 30, flour: 10, fish: 12 }, wage: { shopkeeper: 0 } },
     doctor: { label: "Physician's", jobs: [['physician', 1], ['herbalist', 1], ['bearer', 2]], hours: [8, 17], recipes: [{ out: { herbs: 1.2 }, inp: {}, role: 'herbalist' }, { out: { medicine: 0.4 }, inp: { herbs: 0.5 }, role: 'physician' }], sells: ['medicine', 'herbs'], targets: { herbs: 10, medicine: 8 }, wage: { physician: 0, herbalist: 6, bearer: 4 } },
-    guard: { label: 'Watch House', jobs: [['guard captain', 1], ['guard', 3], ['sweeper', 1]], hours: [0, 24], recipes: [], sells: [], targets: {}, public: true, wage: { 'guard captain': 12, guard: 8, sweeper: 4 } },
-    morgue: { label: 'Morgue', jobs: [['undertaker', 2]], hours: [0, 24], recipes: [], sells: [], targets: {}, public: true, wage: { undertaker: 6 } },
+    guard: { label: 'Watch House', jobs: [['guard captain', 1], ['guard', 3], ['sweeper', 1], ['tax collector', 1]], hours: [0, 24], recipes: [], sells: [], targets: {}, public: true, wage: { 'guard captain': 9, guard: 6, sweeper: 3, 'tax collector': 4 } },
+    morgue: { label: 'Morgue', jobs: [['undertaker', 2]], hours: [0, 24], recipes: [], sells: [], targets: {}, public: true, wage: { undertaker: 3 } },
     stable: { label: 'Stables', jobs: [['horse trader', 1], ['stablehand', 1]], hours: [7, 19], recipes: [], sells: [], buys: { wheat: 'farmhouse' }, targets: { wheat: 12 }, wage: { 'horse trader': 0, stablehand: 5 } },
     fishery: { label: 'Fishery', jobs: [['fisher', 3]], hours: [5, 15], recipes: [{ out: { fish: 4 }, inp: {} }], sells: ['fish'], targets: { fish: 40 }, wage: { fisher: 6 } },
     mine: { label: 'Mine', jobs: [['mine foreman', 1], ['miner', 4]], hours: [6, 17], recipes: [{ out: { iron: 0.8, stone: 1 }, inp: {} }], sells: ['iron', 'stone'], targets: { iron: 40, stone: 30 }, wage: { 'mine foreman': 0, miner: 7 } },
@@ -3321,14 +3321,14 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     townhall: { label: 'Town Hall', jobs: [['magistrate', 1], ['clerk', 2]], hours: [8, 17], recipes: [], sells: [], targets: {}, public: true, wage: { magistrate: 14, clerk: 7 }, security: 0.7 },
     hospital: { label: 'Hospital', jobs: [['physician', 2], ['nurse', 2], ['bearer', 4]], hours: [0, 24], recipes: [{ out: { medicine: 0.4 }, inp: {} }], sells: ['medicine'], targets: { medicine: 20 }, public: true, wage: { physician: 12, nurse: 6, bearer: 5 } },
     school: { label: 'School', jobs: [['teacher', 1]], hours: [8, 15], recipes: [], sells: [], targets: {}, public: true, wage: { teacher: 7 } },
-    chapel: { label: 'Chapel', jobs: [['priest', 1]], hours: [6, 20], recipes: [], sells: [], targets: {}, public: true, wage: { priest: 6 } },
+    chapel: { label: 'Chapel', jobs: [['priest', 1], ['parish clerk', 1]], hours: [6, 20], recipes: [], sells: [], targets: {}, public: true, wage: { priest: 6, 'parish clerk': 3 } },
   };
 
   // Which sprite outfit a trade wears.
   const ROLE_OUTFIT = {
     farmer: 'farmer', farmhand: 'farmhand', miller: 'miller', labourer: 'villager', baker: 'baker', apprentice: 'villager', woodcutter: 'woodcutter',
     blacksmith: 'blacksmith', innkeeper: 'innkeeper', server: 'innkeeper', cook: 'baker', shopkeeper: 'merchant', physician: 'doctor', assistant: 'villager',
-    bearer: 'bearer', undertaker: 'undertaker', sweeper: 'sweeper',
+    bearer: 'bearer', undertaker: 'undertaker', sweeper: 'sweeper', 'tax collector': 'courier', 'parish clerk': 'merchant',
     'guard captain': 'guard', guard: 'guard', priest: 'priest', herbalist: 'farmhand', butcher: 'baker', jeweller: 'merchant', 'night watchman': 'guard', apothecary: 'doctor', carpenter: 'woodcutter', armourer: 'blacksmith', 'warehouse master': 'merchant', 'warehouse worker': 'villager', docker: 'villager', sawyer: 'woodcutter', 'quarry master': 'woodcutter', quarryman: 'woodcutter', magistrate: 'noble', clerk: 'merchant', nurse: 'villager', teacher: 'priest', fisher: 'fisher', miner: 'woodcutter', 'mine foreman': 'woodcutter', 'horse trader': 'merchant', stablehand: 'farmhand', porter: 'villager', trader: 'merchant',
   };
 
@@ -4012,7 +4012,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     };
 
     const houseLike = (b) => b && ['house', 'farmhouse', 'woodcutter', 'mansion', 'townhouse'].includes(b.type) && !b.ruined && !b.site && !b.fire;
-    S.emptyHouses = function () { return this.world.buildings.filter((b) => houseLike(b) && !b.household && (b.vacant || !(b.households || []).some((id) => { const h = this.households[id - 1]; return h && !h.gone && h.home === b.id; })) && b.owner?.kind !== 'player'); };
+    S.emptyHouses = function () { return this.world.buildings.filter((b) => houseLike(b) && !b.household && !b.leasedToPlayer && !b.parishLet && (b.vacant || !(b.households || []).some((id) => { const h = this.households[id - 1]; return h && !h.gone && h.home === b.id; })) && b.owner?.kind !== 'player'); };
 
     // how many sleepers a house's bedrooms can take, from the furniture that fits in it
     S.bedRoom = function (b) {
@@ -4262,6 +4262,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         p.agent.hidden = false; p.agent.inside = null; p.agent.x = this.Z.east[0] * this.T; p.agent.y = this.Z.east[1] * this.T; p.task = { act: 'move-in', b: p.home };
         this.log(`${p.name} has come home, mended, from the infirmary in the next town.`, 'health');
       }
+      // errands that lost their stretcher (after a reload, say) are dropped
+      if (this._m % 30 === 15) for (const q of this.people) if (q.task && /^stretcher/.test(q.task.act) && !this.carries.some((c) => c.id === q.task.carry)) q.task = null;
       // bodies nobody has yet fetched
       if (this._m % 30 === 0) for (const b of [...this.bodies]) if (!b.carried && !this.carries.some((c) => c.kind === 'body' && c.target === b.id)) {
         if (!this.sendStretcher('body', b.id, b.x, b.y) && (this.day * 1440 + this.minute) - (b.day * 1440) > 240 && !this.people.some((q) => q.job?.role === 'undertaker')) {
@@ -4285,6 +4287,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
           const b = this.building(bid);
           if (b) this.puffs.push({ x: b.doorX * this.T + 8, y: (b.doorY + 1) * this.T, t: 0 });
           this.digGrave(body);
+          // the burial fee, from the family if they can pay it
+          const dead = (this.dead || []).find((d) => d.id === body.id), hh = dead && this.households[dead.household - 1];
+          const fee = 8; if (hh && !hh.gone && hh.money >= fee) { hh.money -= fee; this.treasury.cash += fee; this.treasury.income += fee; }
         }
       }
       for (const q of crew) { q.task = null; q.agent.anim = 'walk'; if (q !== lead) { q.agent.inside = bid; q.agent.hidden = true; } }
@@ -4932,6 +4937,150 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   }
 
   O.Kingdom = Kingdom; O.KGOODS = GOODS;
+})();
+
+</script>
+<script>
+// Local government and the crown's purse. The town council lives on what it raises — the market tax
+// on every sale, the weekly hearth tax that the tax collector gathers door to door, tolls, fines,
+// whatever the sweepers find in the street — and pays for what the town needs: the watch, the
+// physician's bearers, the undertakers and the sweepers, relief for the hungry, new houses and
+// repairs. A bigger hospital or a bigger watch costs more. The council sets its taxes by the state of
+// the town: how many weeks the treasury could pay its wages, how much crime there is, how
+// prosperous its people are. Every week a share goes to the king's treasury, and the crown sends
+// money back where it is needed: to the capital for its works, and to towns that are struggling.
+// The parish clerk keeps the register of empty houses, to let or to sell.
+'use strict';
+(function () {
+  const CROWN_SHARE = 0.15;
+
+  function installSim(Sim) {
+    const S = Sim.prototype;
+    const T = (s) => { const t = s.treasury; t.hearth = t.hearth ?? 2; t.weeks = t.weeks || []; t._in0 = t._in0 ?? t.income; t._out0 = t._out0 ?? t.spent; return t; };
+
+    // what the council pays out in a week, job by job
+    S.publicCosts = function () {
+      let wages = 0; const by = {};
+      for (const bz of this.biz.values()) {
+        if (!bz.def.public) continue; const pays = bz.workers;
+        for (const id of pays) { const q = this.byId.get(id); if (!q) continue; const w = (bz.def.wage || {})[q.job.role] || 0; wages += w * 6; by[q.job.role] = (by[q.job.role] || 0) + w * 6; }
+      }
+      return { wages, by };
+    };
+
+    // the council's tax policy, set by the state of the town
+    S.taxPolicy = function () {
+      const t = T(this), old = t.taxRate, oldH = t.hearth;
+      const cost = Math.max(20, this.publicCosts().wages + 25);
+      const runway = t.cash / cost; // weeks of wages in the chest
+      const crime = (this.crimes || []).filter((c) => this.day - c.day < 14).length;
+      const purse = this.households.filter((h) => !h.gone).reduce((a, h) => a + h.money, 0) / Math.max(1, this.households.filter((h) => !h.gone).length);
+      if (runway < 2.5) { t.taxRate = Math.min(0.16, t.taxRate + 0.02); if (purse > 60) t.hearth = Math.min(6, t.hearth + 1); }
+      else if (runway > 8 && crime < 4) { t.taxRate = Math.max(0.03, t.taxRate - 0.01); t.hearth = Math.max(1, t.hearth - 1); }
+      if (purse < 30) t.hearth = Math.max(1, t.hearth - 1); // you can't tax what people haven't got
+      if (t.taxRate !== old || t.hearth !== oldH) {
+        const what = t.taxRate !== old ? `the market tax to ${Math.round(t.taxRate * 100)} pence in the shilling-score` : `the hearth tax to ${t.hearth}d a household`;
+        const up = t.taxRate > old || t.hearth > oldH;
+        this.log(`The council ${up ? 'raised' : 'lowered'} ${what}${up ? ` — the chest would pay the town's wages for only ${Math.max(0, runway).toFixed(1)} weeks` : ''}.`, 'politics');
+        for (const p of this.people) if (p.age >= 18 && this.rng.chance(0.25)) this.remember(p, `The council ${up ? 'raised' : 'cut'} the taxes.`, 'politics', 0.7);
+      }
+    };
+
+    // ---- the tax collector's round ----
+    S.hasCollector = function () { return this.people.some((q) => q.job?.role === 'tax collector' && q.alive !== false); };
+    S.assessHearth = function () {
+      const t = T(this);
+      for (const hh of this.households) {
+        if (hh.gone || !hh.members.length) continue;
+        hh.taxDue = (hh.taxDue || 0) + t.hearth + (hh.money > 250 ? Math.floor((hh.money - 250) * 0.05) : 0);
+      }
+    };
+    S.collectFrom = function (hh, collector) {
+      const due = hh.taxDue || 0; if (!due) return 0;
+      const paid = Math.max(0, Math.min(due, Math.floor(hh.money)));
+      hh.money -= paid; hh.taxDue = due - paid;
+      this.treasury.cash += paid; this.treasury.income += paid; this.treasury.hearthTaken = (this.treasury.hearthTaken || 0) + paid;
+      if (hh.taxDue > 0) { hh.arrears = (hh.arrears || 0) + 1; const head = this.byId.get(hh.members[0]); if (head) this.remember(head, `Couldn't pay the hearth tax in full. ${collector ? collector.first + ' wrote it in his book.' : ''}`, 'hardship', 1.2); }
+      else hh.arrears = 0;
+      return paid;
+    };
+    const collectorTick = function () {
+      const h = this.hour;
+      for (const c of this.people) {
+        if (c.job?.role !== 'tax collector' || c.alive === false || c.task) continue;
+        if (!(this.weekday <= 2 && h >= 9 && h < 16)) continue;
+        // the nearest house still owing
+        const owing = this.households.filter((hh) => !hh.gone && (hh.taxDue || 0) > 0 && hh.home != null && this.building(hh.home) && !hh._visited);
+        if (!owing.length) continue;
+        const pos = [c.agent.x, c.agent.y];
+        const hh = owing.sort((a, b) => { const A = this.building(a.home), B = this.building(b.home); return Math.hypot(A.doorX * this.T - pos[0], A.doorY * this.T - pos[1]) - Math.hypot(B.doorX * this.T - pos[0], B.doorY * this.T - pos[1]); })[0];
+        c.task = { act: 'collect', b: hh.home };
+      }
+    };
+    const _onEnter = S.onEnter;
+    S.onEnter = function (p, bid) {
+      if (p.task?.act === 'collect' && bid === p.task.b) {
+        let got = 0;
+        for (const hh of this.households) if (!hh.gone && hh.home === bid && (hh.taxDue || 0) > 0) { got += this.collectFrom(hh, p); hh._visited = true; for (const id of hh.members) { const q = this.byId.get(id); if (q && q.age >= 16 && this.rng.chance(0.4)) this.remember(q, `${p.first} the tax collector came for the hearth tax.`, 'politics', 0.6, p.id); } }
+        p.task = null; p._round = (p._round || 0) + got;
+        return;
+      }
+      return _onEnter.call(this, p, bid);
+    };
+
+    // ---- the week's accounts, and the crown's share ----
+    S.govWeekly = function () {
+      const t = T(this), K = this.kingdom;
+      // whatever the collector didn't reach is taken by the bailiff at the end of the week
+      for (const hh of this.households) { if (!hh.gone && (hh.taxDue || 0) > 0) this.collectFrom(hh, null); hh._visited = false; }
+      const income = t.income - t._in0, spent = t.spent - t._out0;
+      let levy = 0;
+      if (K && !this.foreign) { levy = Math.max(0, Math.round(income * CROWN_SHARE)); levy = Math.min(levy, Math.floor(Math.max(0, t.cash) * 0.5)); t.cash -= levy; K.treasury += levy; }
+      const costs = this.publicCosts();
+      t.weeks.push({ day: this.day, income: Math.round(income), spent: Math.round(spent), levy, grant: t._grant || 0, hearth: t.hearthTaken || 0, rate: t.taxRate, hearthRate: t.hearth, wages: costs.wages, cash: Math.round(t.cash) });
+      if (t.weeks.length > 8) t.weeks.shift();
+      if (levy > 0) this.log(`${levy}d of the week's taxes went to the king's treasury.`, 'politics');
+      t._in0 = t.income; t._out0 = t.spent; t._grant = 0; t.hearthTaken = 0;
+      this.taxPolicy();
+      this.assessHearth();
+    };
+    S.crownGrant = function (amt, why) {
+      const t = T(this); t.cash += amt; t.income += amt; t._grant = (t._grant || 0) + amt; t._in0 += amt; // a grant isn't taxed again
+      this.log(`The crown has sent ${amt}d ${why}.`, 'politics');
+    };
+
+    const _tick = S.minuteTick;
+    S.minuteTick = function () { if (!this._govInit) { this._govInit = true; T(this); } _tick.call(this); if (this._m % 20 === 0) collectorTick.call(this); };
+    const _nd = S.newDay;
+    S.newDay = function () {
+      // the old instant hearth tax is replaced by the collector's round (see sim.js); keep the weekday logic here
+      _nd.call(this);
+      if (this.weekday === 0) this.govWeekly();
+    };
+  }
+
+  function installKingdom(Kingdom) {
+    const K = Kingdom.prototype, _daily = K.daily;
+    K.daily = function () {
+      _daily.call(this);
+      try { this.crownDaily(); } catch (e) { console.error(e); }
+    };
+    // the crown pays for the capital's works and helps towns in trouble
+    K.crownDaily = function () {
+      const sim = this.sim; if (!sim || sim.weekday !== 1) return;
+      const t = sim.treasury;
+      const struggling = t.cash < 120 || (t.weeks && t.weeks.length && t.weeks[t.weeks.length - 1].cash < 150 && sim.households.some((h) => !h.gone && h.money < 10));
+      if (struggling && this.treasury > 600) { const g = Math.min(180, Math.round(this.treasury * 0.08)); this.treasury -= g; sim.crownGrant(g, `to help ${sim.world.name} through hard times`); }
+      for (const pl of this.places) {
+        if (pl.id === sim.world.placeId) continue;
+        if (pl.capital || pl.kind === 'city') { const g = Math.min(120, Math.round(this.treasury * 0.04)); if (g > 20) { this.treasury -= g; pl.wealth = Math.min(0.95, (pl.wealth || 0.5) + 0.004); } }
+        else if ((pl.wealth || 0.5) < 0.3 && this.treasury > 500) { this.treasury -= 40; pl.wealth = Math.min(0.95, (pl.wealth || 0.3) + 0.02); this.addNews && this.addNews(`The crown has sent relief to ${pl.name}.`, 'politics'); }
+      }
+    };
+  }
+
+  O.Government = { installSim, installKingdom, CROWN_SHARE };
+  installKingdom(O.Kingdom);
 })();
 
 </script>
@@ -6232,6 +6381,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
           this.biz.set(b.id, { id: b.id, b, type: b.type, def, name: b.name, owner: null, workers: [], stock, cash: def.public ? 0 : r.int(80, 160), sold: {}, bought: {}, open: false, orders: [], salesToday: 0, history: [] });
         }
         if (!homeTypes.includes(b.type)) continue;
+        // one small cottage stands empty, on the parish register to let
+        if (b.type === 'house' && !this._leftEmpty && b.w * b.d <= 9 && (b.floors || 1) === 1) { this._leftEmpty = true; b.vacant = true; b.parishLet = true; continue; }
         // household size from floor area and wealth
         const area = b.w * b.d * b.floors;
         const flats = b.type === 'tenement' ? Math.max(2, Math.floor(area / 15)) : 1;
@@ -6568,7 +6719,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     }
     // A family arrives when there are empty houses and work to be had.
     immigrateMaybe() {
-      const empty = this.world.buildings.filter((b) => b.type === 'house' && !b.site && !b.household);
+      const empty = this.world.buildings.filter((b) => b.type === 'house' && !b.site && !b.household && !b.leasedToPlayer && !b.parishLet && b.owner?.kind !== 'player');
       if (!empty.length) return;
       const openJobs = [...this.biz.values()].reduce((n, bz) => n + bz.def.jobs.reduce((m, [role, k]) => m + Math.max(0, k - bz.workers.filter((id) => this.byId.get(id)?.job?.role === role).length), 0), 0);
       const prosperity = this.households.filter((h) => !h.gone).reduce((s, h) => s + h.money, 0) / Math.max(1, this.households.filter((h) => !h.gone).length);
@@ -6992,11 +7143,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       // tools wear out with use and must be replaced from the smithy
       for (const bz of this.biz.values()) if (bz.def.targets.tools && bz.type !== 'smithy') bz.stock.tools = Math.max(0, (bz.stock.tools || 0) - 0.12 * bz.workers.length);
       // weekly hearth tax on Moonday
-      if (this.weekday === 0) this.taxPolicy();
-      if (this.weekday === 0) for (const hh of this.households) {
-        const t = Math.min(3, Math.max(0, hh.money)) + (hh.money > 250 ? Math.floor((hh.money - 250) * 0.05) : 0);
-        hh.money -= t; this.treasury.cash += t; this.treasury.income += t;
-      }
+      // the weekly hearth tax and the council's tax policy: see government.js (the collector's round)
       // households pick a shopper who is free in the day
       for (const hh of this.households) {
         const adults = hh.members.map((id) => this.byId.get(id)).filter((p) => p && p.age >= 16);
@@ -7048,7 +7195,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     if (p.task?.act === 'help') { const t = this.byId.get(p.task.target); if (t) return [Math.floor(t.agent.x / this.T), Math.floor((t.agent.y - 1) / this.T)]; }
     return _zone.call(this, p, zone);
   };
-  O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim); O.Aftermath.installSim(Sim);
+  O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim); O.Aftermath.installSim(Sim); O.Government.installSim(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
   // carry-home and delivery tasks finish on entering the destination
@@ -8620,6 +8767,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       for (const [k, l] of (api.extraButtons ? api.extraButtons(q) : [])) options.push({ key: 'x-' + k, label: l, hot: true });
       if (atWork) options.push({ key: 'trade', label: 'Show me your wares', hot: true });
       if (innkeeper) options.push({ key: 'rent', label: 'A room for the night (6d)', hot: true });
+      if (q.job?.role === 'parish clerk' && q.activity?.act === 'work') options.push({ key: 'houses', label: 'Houses to let or sell', hot: true });
       for (const [k, l] of [['self', 'How are you?'], ['work', 'What do you do?'], ['news', 'Any news?'], ['prices', 'How are prices?'], ['family', 'Your family?']]) options.push({ key: k, label: l });
       options.push({ key: 'bye', label: 'Goodbye' });
       O.UI.dialog.open({ name: q.first + (q.title ? `, ${q.title}` : ''), color: tagColour(q), text: line, options, onPick: (t) => pickTopic(q, bz, t), onClose: () => { if (talking === q) { q.agent.frozen = false; q.agent.talking = 0; talking = null; } } });
@@ -8628,6 +8776,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       if (t === 'bye') { const bye = ['Fare you well.', 'God keep you.', 'Mind how you go.', 'Until next time.'][(q.id + sim.day) % 4]; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: bye, options: [] }); talking = null; q.agent.frozen = false; setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1600); return; }
       if (t.startsWith('x-')) return api.onExtra && api.onExtra(q, t.slice(2), renderTalk);
       if (t === 'trade') { closeTalk(); return O.Panels.trade(sim, bz, q); }
+      if (t === 'houses') { closeTalk(); return O.Parish && O.Parish.open(sim, q); }
       if (t === 'rent') {
         const PS = O.PlayerState;
         if (PS.room && PS.room.b === bz.id && sim.day <= PS.room.until) return renderTalk("You've a room already. Top of the stairs.");
@@ -8679,7 +8828,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
           <div><span class="lbl">Households</span><b>${sim.households.length}</b><small>combined purse ${money(purse)}</small></div>
           <div><span class="lbl">Employment</span><b>${employed}/${adults}</b><small>working-age adults with a trade</small></div>
           <div><span class="lbl">Going hungry</span><b class="${hungry ? 'warn' : ''}">${hungry}</b><small>residents with an empty belly</small></div>
-          <div><span class="lbl">Treasury</span><b>${money(sim.treasury.cash)}</b><small>taxes in ${money(sim.treasury.income)} · wages out ${money(sim.treasury.spent)}</small></div>
+          <div><span class="lbl">Treasury</span><b>${money(sim.treasury.cash)}</b><small>market tax ${Math.round(sim.treasury.taxRate * 100)}% · hearth tax ${sim.treasury.hearth ?? 2}d · town wages ${money(sim.publicCosts ? sim.publicCosts().wages : 0)} a week</small></div>${(sim.treasury.weeks || []).length ? `<div style="grid-column:1/-1"><span class="lbl">The town's accounts, week by week</span><table><thead><tr><th>Week to day</th><th class="n">Taxes in</th><th class="n">Paid out</th><th class="n">To the crown</th><th class="n">From the crown</th><th class="n">In the chest</th></tr></thead><tbody>${sim.treasury.weeks.slice(-5).map((w) => `<tr><td>${w.day}</td><td class="n">${money(w.income)}</td><td class="n">${money(w.spent)}</td><td class="n">${money(w.levy)}</td><td class="n">${money(w.grant)}</td><td class="n">${money(w.cash)}</td></tr>`).join('')}</tbody></table></div>` : ''}
           <div><span class="lbl">Trade</span><b>${money(sim.stats.sales)}</b><small>all sales since you arrived · wages paid ${money(sim.stats.wages)} · exports ${money(sim.stats.exports || 0)}</small></div>
           <div><span class="lbl">Health</span><b class="${pop.filter((p) => p.health.illness).length > 6 ? 'warn' : ''}">${pop.filter((p) => p.health.illness).length} ill</b><small>sanitation ${Math.round(sim.settlement.sanitation * 100)}% · ${pop.filter((p) => p.activity?.act === 'treated').length} with the physician${sim.settlement.outbreak ? ' · OUTBREAK' : ''}</small></div>
           <div><span class="lbl">Births & deaths</span><b>${sim.history.filter((h) => h.kind === 'life' && /was born/.test(h.text)).length} · ${sim.dead.length}</b><small>${sim.dead.slice(-2).map((d) => `${d.name} (${d.age})`).join(', ') || 'none buried yet'}</small></div>
@@ -8732,6 +8881,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       if (b.owner && b.owner.kind === 'player') return false;
       if (b.type === 'hideout') return b.gang !== 'player';
       if (PS.room && PS.room.b === b.id && sim.day <= PS.room.until) return false;
+      if (PS.lease && PS.lease.b === b.id && PS.lease.place === sim.world.placeId) return false;
       if (bz && (bz.open || bz.def.public)) return false;
       const home = b.household && sim.households[b.household - 1];
       const someoneIn = home && home.members.some((id) => sim.byId.get(id)?.agent.inside === b.id);
@@ -8799,7 +8949,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         default: return '';
       }
     }
-    const mayUseBed = (it) => (game.scene && game.scene.b.owner?.kind === 'player') || (it.gangBed && game.scene && game.scene.b.gang === 'player') || (it.rent && PS.room && game.scene && PS.room.b === game.scene.b.id && sim.day <= PS.room.until);
+    const mayUseBed = (it) => (game.scene && game.scene.b.owner?.kind === 'player') || (game.scene && PS.lease && PS.lease.b === game.scene.b.id) || (it.gangBed && game.scene && game.scene.b.gang === 'player') || (it.rent && PS.room && game.scene && PS.room.b === game.scene.b.id && sim.day <= PS.room.until);
 
     game.hooks.update.push((dt) => {
       if (searching > 0) { searching -= dt; game.player.anim = 'crouch'; game.player.locked = true; if (searching <= 0) { game.player.locked = false; game.player.anim = 'idle'; pendingSearch && pendingSearch(); pendingSearch = null; } }
@@ -11661,6 +11811,64 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
 </script>
 <script>
+// The parish clerk keeps the register of the town's empty houses. Ask at the chapel in working hours
+// and you can take one on a weekly lease (the rent is paid each week from your purse; fall behind and
+// you're out) or buy it outright.
+'use strict';
+(function () {
+  const PS = O.PlayerState;
+  const rentOf = (b) => Math.round(6 + b.w * b.d * (b.floors || 1) * 0.6 + (b.wealth || 0.5) * 14);
+
+  function open(sim, clerk) {
+    const houses = [...new Set([...(sim.emptyHouses ? sim.emptyHouses() : []), ...sim.world.buildings.filter((b) => b.parishLet && !b.leasedToPlayer && !b.household)])].filter((b) => b.owner?.kind !== 'player');
+    const lease = PS.lease && PS.lease.place === sim.world.placeId ? sim.building(PS.lease.b) : null;
+    const where = (b) => (sim.where ? sim.where({ x: b.doorX * sim.T, y: b.doorY * sim.T }) : '');
+    const rows = houses.map((b) => `<tr><td>${b.name && b.name !== 'House' ? O.escape(b.name) : 'A house'} <small class="lbl">${b.w}×${b.d}${(b.floors || 1) > 1 ? ', two floors' : ''} · ${where(b)}</small></td><td class="n">${rentOf(b)}d a week</td><td class="n">${O.money(Math.round(sim.value(b)))}</td><td><button data-rent="${b.id}">Rent</button> <button data-buy="${b.id}">Buy</button></td></tr>`).join('') || '<tr><td colspan="4">Every house in the parish is lived in.</td></tr>';
+    O.Panels.open('The parish register', `<div class="lbl">${O.escape(clerk.name)}, parish clerk · your purse ${O.money(PS.money)}</div>
+      ${lease ? `<p class="caption">You rent a house here at ${PS.lease.rent}d a week, paid to day ${PS.lease.paidUntil}. <button data-end="1">Give up the lease</button></p>` : ''}
+      <table><thead><tr><th>Empty houses</th><th class="n">Rent</th><th class="n">To buy</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+      <p class="caption">Rent is due every seven days and taken from your purse. A house of your own has a bed to sleep in, a chest to keep things in, and a door you can bar.</p>`, (r) => {
+      r.querySelectorAll('[data-rent]').forEach((x) => x.onclick = () => {
+        const b = sim.building(+x.dataset.rent), rent = rentOf(b);
+        if (PS.money < rent) return O.Panels.toast(`The first week's rent is ${rent}d. You haven't got it.`, 'bad');
+        PS.money -= rent; sim.treasury.cash += rent; sim.treasury.income += rent;
+        PS.lease = { b: b.id, place: sim.world.placeId, rent, paidUntil: sim.day + 7 };
+        b.vacant = false; b.leasedToPlayer = true;
+        sim.remember(clerk, 'Let a house to the stranger.', 'work', 0.8, 0);
+        O.Panels.close(); O.UI.say(`${clerk.first} hands you a key. The house is yours to live in, at ${rent}d a week.`);
+      });
+      r.querySelectorAll('[data-buy]').forEach((x) => x.onclick = () => {
+        const b = sim.building(+x.dataset.buy), price = Math.round(sim.value(b));
+        if (PS.money < price) return O.Panels.toast(`It's ${O.money(price)} to buy. You haven't the money.`, 'bad');
+        PS.money -= price; sim.treasury.cash += Math.round(price * 0.1); sim.treasury.income += Math.round(price * 0.1);
+        b.owner = { kind: 'player' }; b.vacant = true; b.rent = null;
+        if (PS.lease && PS.lease.b === b.id) PS.lease = null;
+        O.Panels.close(); O.UI.say(`The deed is drawn up and sealed. The house is yours.`);
+      });
+      const e = r.querySelector('[data-end]'); if (e) e.onclick = () => { const b = sim.building(PS.lease.b); if (b) { b.vacant = true; b.leasedToPlayer = false; } PS.lease = null; O.Panels.close(); O.UI.say('You hand back the key.'); };
+    });
+  }
+
+  function setup(game) {
+    let lastDay = null;
+    game.hooks.update.push(() => {
+      const sim = O.SimRef.home; if (!sim) return;
+      if (lastDay !== sim.day) {
+        lastDay = sim.day;
+        const L = PS.lease;
+        if (L && L.place === sim.world.placeId) { const b = sim.building(L.b); if (b) b.leasedToPlayer = true; }
+        if (L && sim.day >= L.paidUntil && L.place === sim.world.placeId) {
+          if (PS.money >= L.rent) { PS.money -= L.rent; sim.treasury.cash += L.rent; sim.treasury.income += L.rent; L.paidUntil += 7; O.UI.say(`You pay the week's rent: ${L.rent}d.`); }
+          else { const b = sim.building(L.b); if (b) { b.vacant = true; b.leasedToPlayer = false; } PS.lease = null; O.UI.say('You couldn\'t pay the rent. The parish has taken back the house.', 'bad'); }
+        }
+      }
+    });
+  }
+  O.Parish = { open, setup, rentOf };
+})();
+
+</script>
+<script>
 // The guide (/ or the Guide button): controls, and the many ways to live in this world — honest
 // work, trade, property, crime, gangs, politics, war — with where each starts.
 'use strict';
@@ -12146,7 +12354,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       player: {
         x: game.world !== sim.world ? (sim.world.W - 2) * 16 : Math.round(game.scene ? game.scene.b.doorX * 16 + 8 : game.player.x), y: game.world !== sim.world ? 30 * 16 + 10 : Math.round(game.scene ? game.scene.b.doorY * 16 + 10 : game.player.y), dir: game.player.dir,
         mount: game.player.mount ? game.player.mount.id : null,
-        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false },
+        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [] },
       },
     };
   }
@@ -12342,6 +12550,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   O.UI.setup(game);
   O.Doors.setup(game);
   O.AftermathFX.setup(game);
+  O.Parish.setup(game);
   O.Guide.setup(game);
   O.AudioSetup.setup(game, sim);
   if (loaded) { O.Save.hydrateLate(game, home); setTimeout(() => O.Panels.toast(`Welcome back. It is ${O.DAYNAMES[sim.weekday]}.`), 300); }

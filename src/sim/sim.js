@@ -70,6 +70,8 @@
           this.biz.set(b.id, { id: b.id, b, type: b.type, def, name: b.name, owner: null, workers: [], stock, cash: def.public ? 0 : r.int(80, 160), sold: {}, bought: {}, open: false, orders: [], salesToday: 0, history: [] });
         }
         if (!homeTypes.includes(b.type)) continue;
+        // one small cottage stands empty, on the parish register to let
+        if (b.type === 'house' && !this._leftEmpty && b.w * b.d <= 9 && (b.floors || 1) === 1) { this._leftEmpty = true; b.vacant = true; b.parishLet = true; continue; }
         // household size from floor area and wealth
         const area = b.w * b.d * b.floors;
         const flats = b.type === 'tenement' ? Math.max(2, Math.floor(area / 15)) : 1;
@@ -406,7 +408,7 @@
     }
     // A family arrives when there are empty houses and work to be had.
     immigrateMaybe() {
-      const empty = this.world.buildings.filter((b) => b.type === 'house' && !b.site && !b.household);
+      const empty = this.world.buildings.filter((b) => b.type === 'house' && !b.site && !b.household && !b.leasedToPlayer && !b.parishLet && b.owner?.kind !== 'player');
       if (!empty.length) return;
       const openJobs = [...this.biz.values()].reduce((n, bz) => n + bz.def.jobs.reduce((m, [role, k]) => m + Math.max(0, k - bz.workers.filter((id) => this.byId.get(id)?.job?.role === role).length), 0), 0);
       const prosperity = this.households.filter((h) => !h.gone).reduce((s, h) => s + h.money, 0) / Math.max(1, this.households.filter((h) => !h.gone).length);
@@ -830,11 +832,7 @@
       // tools wear out with use and must be replaced from the smithy
       for (const bz of this.biz.values()) if (bz.def.targets.tools && bz.type !== 'smithy') bz.stock.tools = Math.max(0, (bz.stock.tools || 0) - 0.12 * bz.workers.length);
       // weekly hearth tax on Moonday
-      if (this.weekday === 0) this.taxPolicy();
-      if (this.weekday === 0) for (const hh of this.households) {
-        const t = Math.min(3, Math.max(0, hh.money)) + (hh.money > 250 ? Math.floor((hh.money - 250) * 0.05) : 0);
-        hh.money -= t; this.treasury.cash += t; this.treasury.income += t;
-      }
+      // the weekly hearth tax and the council's tax policy: see government.js (the collector's round)
       // households pick a shopper who is free in the day
       for (const hh of this.households) {
         const adults = hh.members.map((id) => this.byId.get(id)).filter((p) => p && p.age >= 16);
@@ -886,7 +884,7 @@
     if (p.task?.act === 'help') { const t = this.byId.get(p.task.target); if (t) return [Math.floor(t.agent.x / this.T), Math.floor((t.agent.y - 1) / this.T)]; }
     return _zone.call(this, p, zone);
   };
-  O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim); O.Aftermath.installSim(Sim);
+  O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim); O.Aftermath.installSim(Sim); O.Government.installSim(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
   // carry-home and delivery tasks finish on entering the destination

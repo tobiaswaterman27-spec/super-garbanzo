@@ -32,7 +32,7 @@
     };
 
     const houseLike = (b) => b && ['house', 'farmhouse', 'woodcutter', 'mansion', 'townhouse'].includes(b.type) && !b.ruined && !b.site && !b.fire;
-    S.emptyHouses = function () { return this.world.buildings.filter((b) => houseLike(b) && !b.household && (b.vacant || !(b.households || []).some((id) => { const h = this.households[id - 1]; return h && !h.gone && h.home === b.id; })) && b.owner?.kind !== 'player'); };
+    S.emptyHouses = function () { return this.world.buildings.filter((b) => houseLike(b) && !b.household && !b.leasedToPlayer && !b.parishLet && (b.vacant || !(b.households || []).some((id) => { const h = this.households[id - 1]; return h && !h.gone && h.home === b.id; })) && b.owner?.kind !== 'player'); };
 
     // how many sleepers a house's bedrooms can take, from the furniture that fits in it
     S.bedRoom = function (b) {

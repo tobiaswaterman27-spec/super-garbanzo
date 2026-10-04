@@ -1699,8 +1699,10 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   // Frames are generated lazily and kept in a bounded LRU so thousands of NPCs can exist while only
   // the nearby ones hold pixel data.
   const cache = new Map(); const MAX = 8000;
+  // every appearance has its own key: two people may share a seed (the same name and number in two towns) and must never share frames
+  let cidN = 0; const cid = (a) => a._cid || (a._cid = ++cidN);
   function frame(a, dir, anim, f) {
-    const key = a.seed + ':' + a.cacheVer + ':' + dir + anim + f;
+    const key = cid(a) + ':' + a.cacheVer + ':' + dir + anim + f;
     let c = cache.get(key);
     if (c) { cache.delete(key); cache.set(key, c); return c; }
     if (anim === 'lie') {
@@ -1714,7 +1716,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   }
   // where the hips sit in a frame (riders are placed on a saddle by their hips)
   const hipCache = new Map();
-  function hipY(a, anim) { const k = a.seed + anim + a.age; if (!hipCache.has(k)) hipCache.set(k, pose(bodyMetrics(a), anim, 0, a).hipY); return hipCache.get(k); }
+  function hipY(a, anim) { const k = cid(a) + anim + a.age; if (!hipCache.has(k)) hipCache.set(k, pose(bodyMetrics(a), anim, 0, a).hipY); return hipCache.get(k); }
   // where the head sits in a standing frame (to lay a sleeper's head on a pillow)
   function headY(a) { const m = bodyMetrics(a); return { cy: pose(m, 'sleep', 0, a).head[1], ry: m.headRy }; }
   function invalidate(a) { a.cacheVer = (a.cacheVer || 0) + 1; }
@@ -4331,7 +4333,7 @@ O.snowMaskOf = function (src) {
   // Which sprite outfit a trade wears.
   const ROLE_OUTFIT = {
     farmer: 'farmer', farmhand: 'farmhand', miller: 'miller', labourer: 'villager', baker: 'baker', apprentice: 'villager', woodcutter: 'woodcutter',
-    blacksmith: 'blacksmith', innkeeper: 'innkeeper', server: 'innkeeper', cook: 'baker', shopkeeper: 'merchant', physician: 'doctor', assistant: 'villager',
+    blacksmith: 'blacksmith', innkeeper: 'innkeeper', server: 'innkeeper', potboy: 'innkeeper', cook: 'baker', shopkeeper: 'merchant', physician: 'doctor', assistant: 'villager',
     bearer: 'bearer', undertaker: 'undertaker', sweeper: 'sweeper', 'tax collector': 'courier', 'parish clerk': 'merchant',
     steward: 'merchant', gardener: 'farmhand', butler: 'servant', maid: 'servant', groom: 'farmhand', chamberlain: 'noble', 'lady-in-waiting': 'noble', page: 'servant', 'master cook': 'baker', scullion: 'servant',
     'guard captain': 'guard', guard: 'guard', priest: 'priest', herbalist: 'farmhand', butcher: 'baker', jeweller: 'merchant', 'night watchman': 'guard', apothecary: 'doctor', carpenter: 'woodcutter', armourer: 'blacksmith', 'warehouse master': 'merchant', 'warehouse worker': 'villager', docker: 'villager', sawyer: 'woodcutter', 'quarry master': 'woodcutter', quarryman: 'woodcutter', magistrate: 'noble', clerk: 'merchant', nurse: 'villager', teacher: 'priest', fisher: 'fisher', miner: 'woodcutter', 'mine foreman': 'woodcutter', 'horse trader': 'merchant', stablehand: 'farmhand', porter: 'villager', trader: 'merchant',
@@ -7678,6 +7680,95 @@ O.snowMaskOf = function (src) {
 
 </script>
 <script>
+// The inn. The innkeeper stands at the counter; beds are hired from them there and nowhere else. A
+// jobless husband or wife keeps the inn too, the two of them taking it in turns at the counter while the
+// other is out or resting, and children old enough help in the evenings for a penny or two. Every so
+// often whoever is on goes upstairs to look over the rooms. A poor innkeeping family lives upstairs.
+// The inn holds only so many: when the benches are full, a newcomer goes up to the counter, is told
+// there's no room, and goes home again.
+'use strict';
+(function () {
+  function capacity(sim, b) {
+    if (b._cap) return b._cap;
+    let seats = 0, beds = 0;
+    try {
+      const L0 = O.Interior.interior(b, 0, sim); seats = L0.items.filter((i) => i.seat && i.kind !== 'throne').length;
+      if (b.floors >= 2) { const L1 = O.Interior.interior(b, 1, sim); beds = L1.items.filter((i) => i.rent).length; }
+    } catch (e) { seats = 12; beds = 4; }
+    b._cap = { seats: Math.max(6, seats), beds: Math.max(1, beds) };
+    return b._cap;
+  }
+  const isInn = (b) => b && b.type === 'tavern';
+
+  function installSim(Sim) {
+    const S = Sim.prototype, _plan = S.plan, _onEnter = S.onEnter, _personMinute = S.personMinute;
+    S.innCapacity = function (bid) { const b = this.building(bid); return b ? capacity(this, b) : { seats: 0, beds: 0 }; };
+    S.innGuests = function (bid) { return this.people.filter((q) => q.agent.inside === bid && ['socialise', 'eat-out', 'rest', 'feast'].includes(q.activity?.act)).length; };
+    S.innBedsTaken = function (bid) { return this.people.filter((q) => q.lodging && q.lodging.b === bid && q.lodging.until >= this.day).length + (O.PlayerState && O.PlayerState.room && O.PlayerState.room.b === bid && O.PlayerState.room.until >= this.day ? 1 : 0); };
+
+    // set the inn's people up once: the spouse joins, the children help, a poor family moves in upstairs
+    S.innInit = function () {
+      if (this._innDone) return; this._innDone = true;
+      for (const bz of this.biz.values()) {
+        if (bz.type !== 'tavern') continue;
+        const keeper = bz.workers.map((id) => this.byId.get(id)).find((q) => q && q.job?.role === 'innkeeper'); if (!keeper) continue;
+        const sp = keeper.spouse && this.byId.get(keeper.spouse);
+        if (sp && !sp.job && sp.age >= 18 && sp.alive !== false) { sp.job = { biz: bz.id, role: 'innkeeper', wage: 0, family: true }; bz.workers.push(sp.id); }
+        const hh = this.household(keeper);
+        for (const id of hh.members || []) { const c = this.byId.get(id); if (c && !c.job && c.age >= 11 && c.age < 18) { c.job = { biz: bz.id, role: 'potboy', wage: this.rng.chance(0.6) ? 1 : 0, family: true }; bz.workers.push(c.id); } }
+        // a family that can't afford a house of its own lives over the inn
+        const b = this.building(bz.id), home = this.building(keeper.home);
+        if (b && b.floors >= 2 && home && home.id !== b.id && hh.money < 80 && home.type === 'house') {
+          hh.home = b.id; for (const id of hh.members) { const q = this.byId.get(id); if (q) q.home = b.id; }
+          b.households = [...new Set([...(b.households || []), hh.id])]; home.household = null; home.vacant = true;
+        }
+      }
+    };
+
+    S.plan = function (p) {
+      if (!this._innDone && this.biz && this.biz.size) this.innInit();
+      if (p.task && p.task.act === 'turned-away') return this.minute < p.task.until ? p.task : (p.task = null, { act: 'home', b: p.home });
+      const pl = _plan.call(this, p);
+      // turned away from a full inn this evening: home instead
+      if (pl && (pl.act === 'socialise' || pl.act === 'eat-out') && p._innFull === this.day) return { act: 'home', b: p.home };
+      // the innkeepers take it in turns: one has the day, the other the evening (and the off one is out or resting)
+      const j = p.job;
+      if (j && j.role === 'innkeeper' && pl && pl.act === 'work') {
+        const bz = this.biz.get(j.biz), team = bz ? bz.workers.map((id) => this.byId.get(id)).filter((q) => q && q.job?.role === 'innkeeper') : [];
+        if (team.length >= 2) {
+          const first = team.indexOf(p) === (this.day % 2), h = this.hour, evening = h >= 17.5;
+          if (first === evening) return h >= 13 && h < 16 && this.household(p).shopper === p.id ? pl : { act: 'home', b: p.home };
+        }
+        // a look over the rooms upstairs now and then
+        if ((Math.floor(this.minute / 5) + p.id) % 18 === 0) return Object.assign({}, pl, { upstairs: true });
+      }
+      if (j && j.role === 'potboy') { const h = this.hour; return h >= 17 && h < 21 ? { act: 'work', b: j.biz } : pl; }
+      return pl;
+    };
+
+    S.onEnter = function (p, bid) {
+      const act = p.activity;
+      if (act && (act.act === 'socialise' || act.act === 'eat-out') && isInn(this.building(bid))) {
+        const cap = this.innCapacity(bid).seats;
+        if (this.innGuests(bid) > cap) {
+          p._innFull = this.day; p.task = { act: 'turned-away', b: bid, until: this.minute + 3 };
+          this.remember(p, `${this.building(bid).name} was full; I went home.`, 'social', 0.4);
+          return;
+        }
+      }
+      return _onEnter.call(this, p, bid);
+    };
+    S.personMinute = function (p) {
+      _personMinute.call(this, p);
+      if (p.job && p.job.role === 'potboy' && p.job.wage && this.hour === 21 && this._m % 60 === 0) { const bz = this.biz.get(p.job.biz); if (bz && bz.cash >= p.job.wage) { bz.cash -= p.job.wage; p.money = (p.money || 0) + p.job.wage; } }
+    };
+  }
+
+  O.Inn = { installSim, capacity };
+})();
+
+</script>
+<script>
 // The nobility in their seats. A castle's keep is home to its lord or lady and their family, the
 // same people the kingdom's rulers list names, with a steward, cooks, maids and a groom in their
 // service. In Aurelia the royal castle houses the king, the queen and the royal children,
@@ -8703,7 +8794,7 @@ O.snowMaskOf = function (src) {
     if (p.task?.act === 'help') { const t = this.byId.get(p.task.target); if (t) return [Math.floor(t.agent.x / this.T), Math.floor((t.agent.y - 1) / this.T)]; }
     return _zone.call(this, p, zone);
   };
-  O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim); O.Aftermath.installSim(Sim); O.Government.installSim(Sim); O.Nobility.installSim(Sim); O.Trades.installSim(Sim);
+  O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim); O.Aftermath.installSim(Sim); O.Government.installSim(Sim); O.Nobility.installSim(Sim); O.Trades.installSim(Sim); O.Inn.installSim(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
   // everyone keeps their own clock: a few minutes either side, so a street doesn't empty in one minute
@@ -9548,7 +9639,7 @@ O.snowMaskOf = function (src) {
       if (wv >= 2) { tryPut('bookcase', backWall(2, true), { v: wv }); tryPut('candlestand', nearWalls()); }
       // the kitchen corner by the hearth, and the clutter of a lived-in house
       const fp = items.find((i) => i.kind === 'fireplace');
-      if (fp) { tryPut('woodpile', [[fp.tx - 1, 0], [fp.tx + 3, 0], [fp.tx - 1, 1], [fp.tx + 3, 1]]); tryPut('cauldron', [[fp.tx + 3, 1], [fp.tx - 1, 1], ...nearWalls()], { work: ['cook'] }); }
+      if (fp) { tryPut('woodpile', [[fp.tx - 1, 0], [fp.tx + 3, 0], [fp.tx - 1, 1], [fp.tx + 3, 1]]); tryPut('cauldron', [[fp.tx + 3, 1], [fp.tx - 1, 1], [fp.tx + 3, 0], [fp.tx - 1, 0]], { work: ['cook'] }); } // the pot only ever by the fire
       tryPut('bench', [...leftWall(3, 1).map(([x, y]) => [x, y]), ...nearWalls(3, 1)], { seat: true, rot: 0, noAccess: true });
       for (let i = 0; i < 2; i++) tryPut(rng.pick(['barrel', 'sack', 'crate']), nearWalls(), { pantry: true });
       if (rng.chance(0.5)) tryPut('loom', nearWalls(3, 2));
@@ -9740,15 +9831,17 @@ O.snowMaskOf = function (src) {
           tryPut('dresser', backWall(2, true), { v: 1 });
           // tables through the room, four to six drinkers at each
           const tz = []; for (let y = (bar ? bar.ty + 4 : 6); y <= d - 5; y += 5) for (let x = 1; x <= w - 5; x += 6) tz.push([x + 1, y]);
-          for (const at of tz) dining(rng.chance(0.5) ? 6 : 4, { at: [at] });
-          tryPut('cauldron', nearWalls(), { work: ['cook'] });
+          for (const at of tz) dining(6, { at: [at] }); // a chair at every place round each table
+          // the cook's pot hangs by the hearth, not out on the floor
+          { const fp = items.find((i) => i.kind === 'fireplace'); if (fp) tryPut('cauldron', [[fp.tx + 3, 0], [fp.tx - 1, 0], [fp.tx + 3, 1], [fp.tx - 1, 1]], { work: ['cook'] }); }
           tryPut('woodpile', nearWalls());
         } else {
           // guest rooms: beds along the walls, a chest for the lodgers, the landlord's family
-          for (let i = 0; i < 6; i++) tryPut('bed', backWall(2, true), { bed: true, slots: 1, v: 1, rent: i < 4 }) || tryPut('bed', leftWall(3, 2), { bed: true, slots: 1, v: 1, rent: i < 4, rot: 1 }) || tryPut('bed', rightWall(3, 2), { bed: true, slots: 1, v: 1, rent: i < 4, rot: 2 });
+          // guest beds along the back wall, heads to the wall; the family's own beds after
+          for (let i = 0; i < 6; i++) tryPut('bed', backWall(2, true), { bed: true, slots: 1, v: 1, rent: true });
           tryPut('chest', nearWalls(2, 1), { valuables: true, rentChest: true });
           if (lives) beds();
-          tryPut('washtub', nearWalls()); tryPut('table', centre(3, 2), { table: true, v: 1 });
+          tryPut('candlestand', nearWalls());
           storage();
         }
         break;
@@ -9798,7 +9891,6 @@ O.snowMaskOf = function (src) {
         tryPut('bench', nearWalls(3, 1), { seat: true });
         dining(4);
         tryPut('chest', nearWalls(2, 1), { valuables: true, evidence: true });
-        tryPut('bed', backWall(2, true), { bed: true, slots: 1 }); // the night watch's cot
         break;
       }
       case 'barn':
@@ -10168,6 +10260,7 @@ O.snowMaskOf = function (src) {
           if (act === 'home') return q.royal ? (q.id % 3 ? 2 : 0) : q.home === b.id ? (q.id % 2 ? 1 : 0) : 0;
           return 0;
         }
+        if (b.type === 'tavern' && act === 'work' && q.activity?.upstairs) return 1; // looking over the rooms
         if (b.type === 'tavern') return act === 'rest' || (SLEEPY.has(act) && q.home !== b.id) || (SLEEPY.has(act) && q.home === b.id) ? 1 : 0;
         if (['house', 'mansion', 'manor', 'townhouse', 'keep', 'tenement'].includes(b.type)) return SLEEPY.has(act) && b.id !== sim.docId ? 1 : act === 'home' && q.id % 3 === 0 ? 1 : 0;
         return SLEEPY.has(act) && q.home === b.id ? 1 : 0; // a shop: the family lives upstairs
@@ -10224,7 +10317,7 @@ O.snowMaskOf = function (src) {
         } else if (['socialise', 'eat-out', 'eat', 'rest', 'gangmeet', 'feast'].includes(act) || (act === 'home' && q.stage !== 'baby')) {
           if (!(act === 'home' && q.id % 3 === 0)) { spot = seats.find((i) => !used.has(i)); if (spot) seat = spot; }
           if (spot && b.type === 'tavern' && act === 'socialise') anim = (Math.floor(this.t / 3) + q.id) % 3 ? 'drink' : 'talk';
-        } else if (act === 'shop' || act === 'deliver' || act === 'pickup' || act === 'carry-home' || act === 'import') {
+        } else if (act === 'shop' || act === 'turned-away' || act === 'deliver' || act === 'pickup' || act === 'carry-home' || act === 'import') {
           const c = counters[0];
           if (c) { const [ax] = this.anchor(c), [, , , ry1] = this.rect(c); x = ax + ((q.id % 3) - 1) * 14; y = ry1 + 12; dir = 3; anim = q.agent.carrying ? 'carry' : 'idle'; }
         }
@@ -10777,7 +10870,7 @@ O.snowMaskOf = function (src) {
         case 'claim': return 'Claim the abandoned camp';
         case 'stash': return 'Open the stash';
         case 'campbed': return 'Sleep by the fire';
-        case 'bed': return mayUseBed(c.it) ? 'Sleep until morning' : c.it.rent ? 'Take this bed for the night (6d)' : 'Bed, not yours';
+        case 'bed': return mayUseBed(c.it) ? 'Sleep until morning' : c.it.rent ? 'A guest bed (ask the innkeeper)' : 'Bed, not yours';
         case 'hay': return 'Sleep in the hay';
         case 'traveller': case 'ruin': case 'signpost': return O.roadLabel(c);
         case 'pickup': return `Pick up the ${(O.Data.GOODS[c.it.good]?.name || c.it.good).toLowerCase()}`;
@@ -10923,13 +11016,8 @@ O.snowMaskOf = function (src) {
         case 'grave': { const g = cur.prop.grave; O.Panels.toast(g ? `“Here lies ${g.name}, ${g.age} years. ${g.cause.replace('died ', '').replace(/^./, (c) => c.toUpperCase())}.”` : 'The old stone is worn smooth; you can no longer read the name.'); break; }
         case 'bed':
           if (mayUseBed(cur.it)) sleep(cur.it);
-          else if (cur.it.rent) {
-            // an inn's guest bed: pay the night's money into the tavern's till and lie down
-            if (PS.money < 6) { O.Panels.toast('A bed is sixpence a night, and you have not got it.', 'bad'); break; }
-            const bz = sim.biz.get(game.scene.b.id); PS.money -= 6; if (bz) bz.cash += 6;
-            PS.room = { b: game.scene.b.id, until: sim.day + (sim.hour >= 12 ? 1 : 0) };
-            O.UI.say('You leave sixpence on the bar and take the bed for the night.'); sleep(cur.it);
-          } else O.Panels.toast("That's someone else's bed.");
+          else if (cur.it.rent) O.Panels.toast('A guest bed. Beds are hired from the innkeeper at the counter downstairs.');
+          else O.Panels.toast("That's someone else's bed.");
           break;
         case 'sit': { const sc = game.scene, pose = sc.seatPose(cur.it), p = game.player; p.sitting = Object.assign(pose, { it: cur.it, sx: p.x, sy: p.y, b: sc.b.id, floor: sc.floor }); p.x = pose.x; p.y = pose.y; p.dir = pose.dir; p.anim = 'sit'; if (cur.it.kind === 'throne' && sim.byId) O.Panels.toast('You sit on the throne. Nobody seems pleased about it.'); break; }
         case 'stairs': { const up = cur.it ? !!cur.it.stairs : game.scene.floor === 0; game.enterBuilding(game.scene.b, game.scene.floor + (up ? 1 : -1), up ? 'up' : 'down'); break; }
@@ -14803,6 +14891,37 @@ O.snowMaskOf = function (src) {
 
 </script>
 <script>
+// Taking a room: only from the innkeeper, at the counter. They tell you if the beds are all taken.
+'use strict';
+(function () {
+  function setup(game, sim, npcUI) {
+    const PS = O.PlayerState;
+    const atCounter = (q) => q.job && q.job.role === 'innkeeper' && q.agent.inside === q.job.biz && q.activity?.act === 'work' && !q.activity.upstairs && game.scene && game.scene.b.id === q.job.biz;
+    const prevExtra = npcUI.extraButtons, prevOn = npcUI.onExtra;
+    npcUI.extraButtons = (q) => {
+      const out = prevExtra ? prevExtra(q) : [];
+      if (atCounter(q)) { const has = PS.room && PS.room.b === q.job.biz && PS.room.until >= sim.day; out.push(['room', has ? 'Ask about your room' : 'A bed for the night (6d)']); }
+      return out;
+    };
+    npcUI.onExtra = (q, key, render) => {
+      if (key !== 'room') return prevOn && prevOn(q, key, render);
+      const bid = q.job.biz, b = sim.building(bid);
+      if (PS.room && PS.room.b === bid && PS.room.until >= sim.day) { O.UI.say(`${q.first}: “Your bed's upstairs, made up and waiting. Sleep well.”`); return; }
+      const cap = sim.innCapacity(bid).beds, taken = sim.innBedsTaken(bid);
+      if (taken >= cap) { O.UI.say(`${q.first}: “I'm sorry, every bed's taken tonight. Try again tomorrow.”`, 'bad'); return; }
+      if (PS.money < 6) { O.UI.say(`${q.first}: “Sixpence a night, and I'll need it before you go up.”`, 'bad'); return; }
+      PS.money -= 6; const bz = sim.biz.get(bid); if (bz) bz.cash += 6;
+      PS.room = { b: bid, until: sim.day + (sim.hour >= 12 ? 1 : 0) };
+      game.player.anim = 'count'; game.player.ft = 0; setTimeout(() => { if (game.player.anim === 'count') game.player.anim = 'idle'; }, 900);
+      O.UI.say(`You count sixpence onto the counter. ${q.first}: “Up the stairs, any bed with the blanket turned down. It's yours till morning.”`);
+      void b;
+    };
+  }
+  O.InnUI = { setup };
+})();
+
+</script>
+<script>
 // The guide (/ or the Guide button): controls, and the many ways to live in this world, honest
 // work, trade, property, crime, gangs, politics, war, with where each starts.
 'use strict';
@@ -15498,6 +15617,7 @@ O.snowMaskOf = function (src) {
   O.GangUISetup.setup(game, sim, npcUI);
   O.CombatSetup.setup(game, sim, npcUI);
   O.HorsesSetup.setup(game, sim, npcUI);
+  O.InnUI.setup(game, sim, npcUI);
   O.KingdomUI.setup(game, sim, npcUI);
   O.TravelSetup.setup(game, home, npcUI);
   O.Roads.setup(game, home);

@@ -165,7 +165,7 @@
       if (wv >= 2) { tryPut('bookcase', backWall(2, true), { v: wv }); tryPut('candlestand', nearWalls()); }
       // the kitchen corner by the hearth, and the clutter of a lived-in house
       const fp = items.find((i) => i.kind === 'fireplace');
-      if (fp) { tryPut('woodpile', [[fp.tx - 1, 0], [fp.tx + 3, 0], [fp.tx - 1, 1], [fp.tx + 3, 1]]); tryPut('cauldron', [[fp.tx + 3, 1], [fp.tx - 1, 1], ...nearWalls()], { work: ['cook'] }); }
+      if (fp) { tryPut('woodpile', [[fp.tx - 1, 0], [fp.tx + 3, 0], [fp.tx - 1, 1], [fp.tx + 3, 1]]); tryPut('cauldron', [[fp.tx + 3, 1], [fp.tx - 1, 1], [fp.tx + 3, 0], [fp.tx - 1, 0]], { work: ['cook'] }); } // the pot only ever by the fire
       tryPut('bench', [...leftWall(3, 1).map(([x, y]) => [x, y]), ...nearWalls(3, 1)], { seat: true, rot: 0, noAccess: true });
       for (let i = 0; i < 2; i++) tryPut(rng.pick(['barrel', 'sack', 'crate']), nearWalls(), { pantry: true });
       if (rng.chance(0.5)) tryPut('loom', nearWalls(3, 2));
@@ -357,15 +357,17 @@
           tryPut('dresser', backWall(2, true), { v: 1 });
           // tables through the room, four to six drinkers at each
           const tz = []; for (let y = (bar ? bar.ty + 4 : 6); y <= d - 5; y += 5) for (let x = 1; x <= w - 5; x += 6) tz.push([x + 1, y]);
-          for (const at of tz) dining(rng.chance(0.5) ? 6 : 4, { at: [at] });
-          tryPut('cauldron', nearWalls(), { work: ['cook'] });
+          for (const at of tz) dining(6, { at: [at] }); // a chair at every place round each table
+          // the cook's pot hangs by the hearth, not out on the floor
+          { const fp = items.find((i) => i.kind === 'fireplace'); if (fp) tryPut('cauldron', [[fp.tx + 3, 0], [fp.tx - 1, 0], [fp.tx + 3, 1], [fp.tx - 1, 1]], { work: ['cook'] }); }
           tryPut('woodpile', nearWalls());
         } else {
           // guest rooms: beds along the walls, a chest for the lodgers, the landlord's family
-          for (let i = 0; i < 6; i++) tryPut('bed', backWall(2, true), { bed: true, slots: 1, v: 1, rent: i < 4 }) || tryPut('bed', leftWall(3, 2), { bed: true, slots: 1, v: 1, rent: i < 4, rot: 1 }) || tryPut('bed', rightWall(3, 2), { bed: true, slots: 1, v: 1, rent: i < 4, rot: 2 });
+          // guest beds along the back wall, heads to the wall; the family's own beds after
+          for (let i = 0; i < 6; i++) tryPut('bed', backWall(2, true), { bed: true, slots: 1, v: 1, rent: true });
           tryPut('chest', nearWalls(2, 1), { valuables: true, rentChest: true });
           if (lives) beds();
-          tryPut('washtub', nearWalls()); tryPut('table', centre(3, 2), { table: true, v: 1 });
+          tryPut('candlestand', nearWalls());
           storage();
         }
         break;
@@ -415,7 +417,6 @@
         tryPut('bench', nearWalls(3, 1), { seat: true });
         dining(4);
         tryPut('chest', nearWalls(2, 1), { valuables: true, evidence: true });
-        tryPut('bed', backWall(2, true), { bed: true, slots: 1 }); // the night watch's cot
         break;
       }
       case 'barn':

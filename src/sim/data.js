@@ -69,7 +69,7 @@
   // Which sprite outfit a trade wears.
   const ROLE_OUTFIT = {
     farmer: 'farmer', farmhand: 'farmhand', miller: 'miller', labourer: 'villager', baker: 'baker', apprentice: 'villager', woodcutter: 'woodcutter',
-    blacksmith: 'blacksmith', innkeeper: 'innkeeper', server: 'innkeeper', cook: 'baker', shopkeeper: 'merchant', physician: 'doctor', assistant: 'villager',
+    blacksmith: 'blacksmith', innkeeper: 'innkeeper', server: 'innkeeper', potboy: 'innkeeper', cook: 'baker', shopkeeper: 'merchant', physician: 'doctor', assistant: 'villager',
     bearer: 'bearer', undertaker: 'undertaker', sweeper: 'sweeper', 'tax collector': 'courier', 'parish clerk': 'merchant',
     steward: 'merchant', gardener: 'farmhand', butler: 'servant', maid: 'servant', groom: 'farmhand', chamberlain: 'noble', 'lady-in-waiting': 'noble', page: 'servant', 'master cook': 'baker', scullion: 'servant',
     'guard captain': 'guard', guard: 'guard', priest: 'priest', herbalist: 'farmhand', butcher: 'baker', jeweller: 'merchant', 'night watchman': 'guard', apothecary: 'doctor', carpenter: 'woodcutter', armourer: 'blacksmith', 'warehouse master': 'merchant', 'warehouse worker': 'villager', docker: 'villager', sawyer: 'woodcutter', 'quarry master': 'woodcutter', quarryman: 'woodcutter', magistrate: 'noble', clerk: 'merchant', nurse: 'villager', teacher: 'priest', fisher: 'fisher', miner: 'woodcutter', 'mine foreman': 'woodcutter', 'horse trader': 'merchant', stablehand: 'farmhand', porter: 'villager', trader: 'merchant',

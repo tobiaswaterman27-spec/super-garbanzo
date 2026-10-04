@@ -74,6 +74,7 @@
           if (act === 'home') return q.royal ? (q.id % 3 ? 2 : 0) : q.home === b.id ? (q.id % 2 ? 1 : 0) : 0;
           return 0;
         }
+        if (b.type === 'tavern' && act === 'work' && q.activity?.upstairs) return 1; // looking over the rooms
         if (b.type === 'tavern') return act === 'rest' || (SLEEPY.has(act) && q.home !== b.id) || (SLEEPY.has(act) && q.home === b.id) ? 1 : 0;
         if (['house', 'mansion', 'manor', 'townhouse', 'keep', 'tenement'].includes(b.type)) return SLEEPY.has(act) && b.id !== sim.docId ? 1 : act === 'home' && q.id % 3 === 0 ? 1 : 0;
         return SLEEPY.has(act) && q.home === b.id ? 1 : 0; // a shop: the family lives upstairs
@@ -130,7 +131,7 @@
         } else if (['socialise', 'eat-out', 'eat', 'rest', 'gangmeet', 'feast'].includes(act) || (act === 'home' && q.stage !== 'baby')) {
           if (!(act === 'home' && q.id % 3 === 0)) { spot = seats.find((i) => !used.has(i)); if (spot) seat = spot; }
           if (spot && b.type === 'tavern' && act === 'socialise') anim = (Math.floor(this.t / 3) + q.id) % 3 ? 'drink' : 'talk';
-        } else if (act === 'shop' || act === 'deliver' || act === 'pickup' || act === 'carry-home' || act === 'import') {
+        } else if (act === 'shop' || act === 'turned-away' || act === 'deliver' || act === 'pickup' || act === 'carry-home' || act === 'import') {
           const c = counters[0];
           if (c) { const [ax] = this.anchor(c), [, , , ry1] = this.rect(c); x = ax + ((q.id % 3) - 1) * 14; y = ry1 + 12; dir = 3; anim = q.agent.carrying ? 'carry' : 'idle'; }
         }

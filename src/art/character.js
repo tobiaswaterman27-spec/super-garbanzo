@@ -1038,8 +1038,10 @@
   // Frames are generated lazily and kept in a bounded LRU so thousands of NPCs can exist while only
   // the nearby ones hold pixel data.
   const cache = new Map(); const MAX = 8000;
+  // every appearance has its own key: two people may share a seed (the same name and number in two towns) and must never share frames
+  let cidN = 0; const cid = (a) => a._cid || (a._cid = ++cidN);
   function frame(a, dir, anim, f) {
-    const key = a.seed + ':' + a.cacheVer + ':' + dir + anim + f;
+    const key = cid(a) + ':' + a.cacheVer + ':' + dir + anim + f;
     let c = cache.get(key);
     if (c) { cache.delete(key); cache.set(key, c); return c; }
     if (anim === 'lie') {
@@ -1053,7 +1055,7 @@
   }
   // where the hips sit in a frame (riders are placed on a saddle by their hips)
   const hipCache = new Map();
-  function hipY(a, anim) { const k = a.seed + anim + a.age; if (!hipCache.has(k)) hipCache.set(k, pose(bodyMetrics(a), anim, 0, a).hipY); return hipCache.get(k); }
+  function hipY(a, anim) { const k = cid(a) + anim + a.age; if (!hipCache.has(k)) hipCache.set(k, pose(bodyMetrics(a), anim, 0, a).hipY); return hipCache.get(k); }
   // where the head sits in a standing frame (to lay a sleeper's head on a pillow)
   function headY(a) { const m = bodyMetrics(a); return { cy: pose(m, 'sleep', 0, a).head[1], ry: m.headRy }; }
   function invalidate(a) { a.cacheVer = (a.cacheVer || 0) + 1; }

@@ -94,6 +94,7 @@
   O.GangUISetup.setup(game, sim, npcUI);
   O.CombatSetup.setup(game, sim, npcUI);
   O.HorsesSetup.setup(game, sim, npcUI);
+  O.InnUI.setup(game, sim, npcUI);
   O.KingdomUI.setup(game, sim, npcUI);
   O.TravelSetup.setup(game, home, npcUI);
   O.Roads.setup(game, home);

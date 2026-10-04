@@ -16,8 +16,9 @@
   const G = { BACK: 1, LEGS: 2, TORSO: 3, ARMS: 4, HEAD: 5, HAIR: 6, HAT: 7, ITEM: 8, FARLIMB: 9, SKIRT: 10, BACKITEM: 11 };
 
   // ---------- Appearance generation ----------
-  const HAIR_STYLES_M = ['short', 'crop', 'messy', 'bald', 'long', 'tied', 'curly', 'shaggy'];
-  const HAIR_STYLES_F = ['long', 'bun', 'braid', 'tied', 'curly', 'short', 'bob', 'veil'];
+  // men's and women's styles kept apart, as they were: men cropped, short or shaggy; women long, braided, pinned up or veiled
+  const HAIR_STYLES_M = ['short', 'crop', 'messy', 'bald', 'shaggy'];
+  const HAIR_STYLES_F = ['long', 'bun', 'braid', 'tied', 'curly', 'veil'];
   const BEARDS = ['none', 'none', 'stubble', 'full', 'moustache', 'goatee', 'long'];
 
   function ageStage(age) {
@@ -152,7 +153,8 @@
     let hairKey = genes.hair;
     if (rng.next() < greyChance) hairKey = age > 68 ? 'white' : 'grey';
     let hairStyle = opts.hairStyle || rng.pick(sex === 'm' ? HAIR_STYLES_M : HAIR_STYLES_F);
-    if (genes.hairCurl > 0.78 && hairStyle !== 'bald' && hairStyle !== 'veil') hairStyle = rng.chance(0.6) ? 'curly' : hairStyle;
+    if (genes.hairCurl > 0.78 && hairStyle !== 'bald' && hairStyle !== 'veil') hairStyle = sex === 'm' ? (rng.chance(0.6) ? 'shaggy' : hairStyle) : (rng.chance(0.6) ? 'curly' : hairStyle);
+    if (!(sex === 'm' ? HAIR_STYLES_M : HAIR_STYLES_F).includes(hairStyle)) hairStyle = sex === 'm' ? 'short' : 'long'; // never the other's style
     if (sex === 'm' && age > 45 && rng.chance(0.25)) hairStyle = 'bald';
     const beard = sex === 'm' && age >= 18 ? (opts.beard || rng.pick(BEARDS)) : 'none';
     return {

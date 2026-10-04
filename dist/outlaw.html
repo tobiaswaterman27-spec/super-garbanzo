@@ -684,8 +684,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   const G = { BACK: 1, LEGS: 2, TORSO: 3, ARMS: 4, HEAD: 5, HAIR: 6, HAT: 7, ITEM: 8, FARLIMB: 9, SKIRT: 10, BACKITEM: 11 };
 
   // ---------- Appearance generation ----------
-  const HAIR_STYLES_M = ['short', 'crop', 'messy', 'bald', 'long', 'tied', 'curly', 'shaggy'];
-  const HAIR_STYLES_F = ['long', 'bun', 'braid', 'tied', 'curly', 'short', 'bob', 'veil'];
+  // men's and women's styles kept apart, as they were: men cropped, short or shaggy; women long, braided, pinned up or veiled
+  const HAIR_STYLES_M = ['short', 'crop', 'messy', 'bald', 'shaggy'];
+  const HAIR_STYLES_F = ['long', 'bun', 'braid', 'tied', 'curly', 'veil'];
   const BEARDS = ['none', 'none', 'stubble', 'full', 'moustache', 'goatee', 'long'];
 
   function ageStage(age) {
@@ -820,7 +821,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     let hairKey = genes.hair;
     if (rng.next() < greyChance) hairKey = age > 68 ? 'white' : 'grey';
     let hairStyle = opts.hairStyle || rng.pick(sex === 'm' ? HAIR_STYLES_M : HAIR_STYLES_F);
-    if (genes.hairCurl > 0.78 && hairStyle !== 'bald' && hairStyle !== 'veil') hairStyle = rng.chance(0.6) ? 'curly' : hairStyle;
+    if (genes.hairCurl > 0.78 && hairStyle !== 'bald' && hairStyle !== 'veil') hairStyle = sex === 'm' ? (rng.chance(0.6) ? 'shaggy' : hairStyle) : (rng.chance(0.6) ? 'curly' : hairStyle);
+    if (!(sex === 'm' ? HAIR_STYLES_M : HAIR_STYLES_F).includes(hairStyle)) hairStyle = sex === 'm' ? 'short' : 'long'; // never the other's style
     if (sex === 'm' && age > 45 && rng.chance(0.25)) hairStyle = 'bald';
     const beard = sex === 'm' && age >= 18 ? (opts.beard || rng.pick(BEARDS)) : 'none';
     return {
@@ -2807,9 +2809,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
     // stables and paddock east of the square, beside the King's Road
     B({ type: 'stable', name: 'Ashford Stables', x: 10, bottom: 34, w: 5, d: 3, wealth: 0.5, look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', roofType: 'side', bigDoor: true, doorTile: 2, chimney: false, noFlowers: true } });
-    // hidden clearings in the woods: an abandoned camp anyone bold enough could claim, and the Crows' den
-    B({ type: 'hideout', name: 'Abandoned camp', x: 8, bottom: 9, w: 3, d: 2, wealth: 0.2, condition: 0.6, level: 0, unclaimed: true, look: { wall: 'log', roof: 'shingle', roofType: 'gable', doorTile: 1, noFlowers: true } });
-    B({ type: 'hideout', name: "The Crows' den", x: 89, bottom: 47, w: 3, d: 2, wealth: 0.2, condition: 0.6, level: 1, gang: 'crows', look: { wall: 'log', roof: 'thatch', roofType: 'gable', doorTile: 1, noFlowers: true } });
+    // a gang's den in a hidden clearing (more stand out in the woods round the town)
+    B({ type: 'hideout', name: 'A den in the woods', x: 89, bottom: 47, w: 3, d: 2, wealth: 0.2, condition: 0.6, level: 1, look: { wall: 'log', roof: 'thatch', roofType: 'gable', doorTile: 1, noFlowers: true } });
 
     // the builder's yard on the open ground north-east of the square: a shed and a dirt yard for stock
     fill(60, 9, 78, 16, TER.YARD); fill(47, 13, 59, 13, TER.ROAD);
@@ -3824,6 +3825,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     yield;
     // 6. the trades that stand out of town, each where it belongs, and the cottages of the people who work them
     placeOutskirts(id, { W, H, R, ter, solid, trees, props, buildings, kindAt, inTown, roadSet, TR, tw, ox, oy });
+    placeDens(id, { W, H, ter, solid, trees, props, buildings, inTown, TR, tw, ox, oy });
     // 5. the camps of the gangs that hold the wild roads
     for (const r of camps) {
       const c = r.camp, x = c.x - R.x0, y = c.y - R.y0;
@@ -3935,6 +3937,33 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       lane(b.doorX, b.doorY + 1);
       // a cottage nearby for the hands
       for (const [dx, dy] of [[w + 3, 0], [-7, 0], [0, 7], [w + 3, 6], [-7, 6]]) { const cx = best[0] + dx, cy = best[1] + dy; if (fits(cx, cy, 4, 3)) { const hb = build('house', 4, 3, { wall: rng.pick(['timber', 'plank', 'stone']), roof: rng.pick(['thatch', 'shingle']), chimney: true, doorTile: 1 }, 'Cottage', cx, cy); lane(hb.doorX, hb.doorY + 1); break; } }
+    }
+  }
+
+  // the dens of the place's gangs, hidden off in the woods or out in the fields
+  function placeDens(id, C) {
+    const pl = place(id), pop = pl.pop || 100, big = pl.kind === 'capital' || pl.kind === 'city';
+    const n = pop < 60 ? 0 : pop < 150 ? 1 : pop < 400 ? 2 : big ? 4 : 3;
+    const { W, H, ter, solid, trees, props, buildings, inTown, TR, tw, ox, oy } = C, rng = O.RNG(O.hash('dens', id));
+    const have = buildings.filter((b) => b.type === 'hideout' && !b.camp && !b.roadKey).length;
+    for (let k = have; k < n; k++) {
+      let best = null, bs = -1;
+      for (let t = 0; t < 400; t++) {
+        const x = Math.round(ox - 50 + rng.next() * (tw.W + 100)), y = Math.round(oy - 50 + rng.next() * (tw.H + 100));
+        if (x < 4 || y < 4 || x > W - 6 || y > H - 4) continue;
+        const dt = Math.max(ox - x, x - ox - tw.W, oy - y, y - oy - tw.H, 0); if (dt < 12 || dt > 50) continue;
+        let okk = true; for (let yy = y - 3; yy <= y + 3 && okk; yy++) for (let xx = x - 3; xx <= x + 5 && okk; xx++) { const i = yy * W + xx; if (inTown(xx, yy) || ter[i] === TR.WATER || ter[i] === TR.ROAD || buildings.some((b) => xx >= b.x - 1 && xx < b.x + b.w + 1 && yy >= b.y - 1 && yy <= b.bottom + 2)) okk = false; }
+        if (!okk) continue;
+        let f = 0; for (let j = -3; j <= 3; j++) for (let i = -3; i <= 3; i++) if (ter[(y + j) * W + x + i] === TR.FOREST) f++;
+        if (f > bs) { bs = f; best = [x, y]; }
+      }
+      if (!best) continue;
+      const [x, y] = best, spec = { seed: O.hash('den', id, k), w: 3, d: 2, floors: 1, wealth: 0.2, condition: 0.6, wall: 'log', roof: 'thatch', roofType: 'gable', doorTile: 1, noFlowers: true };
+      const b = { id: 8800 + k, type: 'hideout', name: 'A den in the woods', x: x - 1, bottom: y, y: y - 1, w: 3, d: 2, floors: 1, wealth: 0.2, condition: 0.6, level: 1, spec, doorX: x, doorY: y + 1, den: true };
+      buildings.push(b);
+      for (let yy = b.y - 1; yy <= b.bottom + 2; yy++) for (let xx = b.x - 2; xx < b.x + b.w + 2; xx++) { const i = yy * W + xx; solid[i] = yy <= b.bottom && xx >= b.x && xx < b.x + b.w ? 1 : 0; if (ter[i] === TR.FOREST) ter[i] = TR.YARD; }
+      keep(trees, (t) => !(Math.abs(t.x / T - x) < 4 && Math.abs((t.y - 1) / T - y) < 4));
+      keep(props, (p) => !(Math.abs(p.x / T - x) < 3 && Math.abs((p.y - 1) / T - y) < 3 && !p.flat));
     }
   }
 
@@ -4752,7 +4781,7 @@ O.snowMaskOf = function (src) {
   const co = D.BUSINESS.cooper; if (co) { co.recipes.push({ out: { fx_barrel: 0.04, fx_washtub: 0.03, fx_vat: 0.01 }, inp: { planks: 0.3 } }); co.sells = [...new Set([...co.sells, 'fx_barrel', 'fx_washtub', 'fx_vat'])]; Object.assign(co.targets, { fx_barrel: 2, fx_washtub: 1, fx_vat: 1 }); }
   const bd = D.BUSINESS.builder; if (bd) { bd.recipes.push({ out: { fx_oven: 0.01, fx_forge: 0.01, fx_kiln: 0.01, fx_fireplace: 0.015, fx_millstone: 0.005 }, inp: { stone: 0.4, bricks: 0.2 }, role: 'master builder' }); bd.sells = [...new Set([...bd.sells, 'fx_oven', 'fx_forge', 'fx_kiln', 'fx_fireplace', 'fx_millstone', 'bricks'])]; bd.buys.bricks = 'brickworks|import'; Object.assign(bd.targets, { fx_oven: 1, fx_forge: 1, fx_kiln: 1, fx_fireplace: 1, fx_millstone: 1, bricks: 10 }); addJob('builder', 'thatcher', 1, 6); addJob('builder', 'plasterer', 1, 6); addJob('builder', 'roofer', 1, 6); }
   const wv = D.BUSINESS.weaver; if (wv) { wv.recipes.push({ out: { linen: 0.2, fx_rug: 0.02, fx_sack: 0.1 }, inp: { flax: 0.3 } }); wv.sells = [...new Set([...wv.sells, 'linen', 'fx_rug', 'fx_sack'])]; wv.buys.flax = 'farmhouse|import'; Object.assign(wv.targets, { linen: 4, fx_rug: 1, fx_sack: 4, flax: 6 }); }
-  const st = D.BUSINESS.store; if (st) { st.sells = [...new Set([...st.sells, 'salt', 'candles', 'soap', 'eggs', 'cheese', 'apples', 'broom', 'bucket', 'cup', 'rope'])]; Object.assign(st.buys, { salt: 'saltworks|import', candles: 'chandler|import', soap: 'laundry|barber|import', eggs: 'farmhouse|import', cheese: 'farmhouse|import', apples: 'farmhouse|import', broom: 'carpenter|import', bucket: 'carpenter|import', cup: 'potter|import', rope: 'ropewalk|import' }); Object.assign(st.targets, { salt: 6, candles: 12, soap: 6, eggs: 6, cheese: 4, apples: 6, broom: 2, bucket: 2, cup: 6, rope: 2 }); }
+  const st = D.BUSINESS.store; if (st) { st.sells = [...new Set([...st.sells, 'tent', 'salt', 'candles', 'soap', 'eggs', 'cheese', 'apples', 'broom', 'bucket', 'cup', 'rope'])]; Object.assign(st.buys, { tent: 'weaver|import', salt: 'saltworks|import', candles: 'chandler|import', soap: 'laundry|barber|import', eggs: 'farmhouse|import', cheese: 'farmhouse|import', apples: 'farmhouse|import', broom: 'carpenter|import', bucket: 'carpenter|import', cup: 'potter|import', rope: 'ropewalk|import' }); Object.assign(st.targets, { tent: 2, salt: 6, candles: 12, soap: 6, eggs: 6, cheese: 4, apples: 6, broom: 2, bucket: 2, cup: 6, rope: 2 }); }
   const fi = D.BUSINESS.fishery; if (fi) { fi.buys = Object.assign(fi.buys || {}, { nets: 'ropewalk|boatyard|import', salt: 'saltworks|import' }); Object.assign(fi.targets, { nets: 2, salt: 2 }); }
   const ml = D.BUSINESS.mine; if (ml && !ml.sells.includes('coal')) { ml.recipes.push({ out: { coal: 1, silver: 0.03, gold: 0.005 }, inp: {} }); ml.sells.push('coal', 'silver'); Object.assign(ml.targets, { coal: 20, silver: 2, gold: 1 }); }
   const qu = D.BUSINESS.quarry; if (qu && !qu.sells.includes('sand')) { qu.recipes.push({ out: { sand: 1 }, inp: {} }); qu.sells.push('sand'); qu.targets.sand = 20; }
@@ -6062,36 +6091,52 @@ O.snowMaskOf = function (src) {
 // the risks of all of it. The player can found a gang; the Crows already run one.
 'use strict';
 (function () {
-  const ROLES = ['recruit', 'member', 'lookout', 'burglar', 'fence', 'quartermaster', 'recruiter', 'lieutenant'];
+  const ROLES = ['recruit', 'member', 'lookout', 'burglar', 'pickpocket', 'thug', 'enforcer', 'fence', 'smuggler', 'poacher', 'highwayman', 'builder', 'quartermaster', 'recruiter', 'lieutenant'];
+  const GANG_ROLES = { burglary: ['burglar', 'lookout', 'fence'], pickpocketing: ['pickpocket', 'lookout', 'fence'], smuggling: ['smuggler', 'lookout', 'fence'], poaching: ['poacher', 'lookout'], protection: ['thug', 'enforcer', 'lieutenant'] };
+  // gang names are the realm's: no two alike
+  const NAME_A = ['Crows', 'Rooks', 'Weasels', 'Mire Rats', 'Grey Hoods', 'Night Foxes', 'Red Caps', 'Ash Wolves', 'Black Hands', 'Gallows Crew', 'Hollow Men', 'Jackdaws', 'Ditch Dogs', 'Lantern Cutters', 'Bone Pickers', 'Mud Larks', 'Thorn Boys', 'Cutpurse Guild', 'Bell Thieves', 'Pale Sisters', 'Iron Teeth', 'Low Lanterns', 'Saltmen', 'Stoats', 'Kestrels', 'Hangmen\'s Get', 'Ferrymen', 'Dusk Riders'];
+  const usedNames = new Set();
+  function gangName(r) { for (let i = 0; i < 60; i++) { const n = 'the ' + r.pick(NAME_A); if (!usedNames.has(n)) { usedNames.add(n); return n; } } const n = 'the ' + r.pick(NAME_A) + ' of ' + r.pick(['the Hill', 'the Ford', 'the Marsh', 'the Wood']); usedNames.add(n); return n; }
   const LEVELS = [
-    { name: 'Hidden camp', cost: 0, beds: 1 },
-    { name: 'Hideout', cost: 60, beds: 3 },
-    { name: 'Safehouse', cost: 160, beds: 5 },
-    { name: 'Headquarters', cost: 400, beds: 8 },
+    { name: 'Tent', cost: 0, beds: 1 },
+    { name: 'Palisaded camp', cost: 60, beds: 3 },
+    { name: 'Hideout', cost: 160, beds: 5 },
+    { name: 'Safehouse', cost: 400, beds: 8 },
+    { name: 'Fortified hold', cost: 900, beds: 12 },
   ];
 
   function install(Sim) {
     const S = Sim.prototype;
     S.gangsInit = function () {
       this.gangs = [];
-      const den = this.world.buildings.find((b) => b.gang === 'crows');
       const r = this.rng;
-      // The Crows: a small outfit of villagers who've turned to thieving
-      const cands = this.people.filter((p) => !p.visitor && p.age >= 18 && p.age < 50 && !p.job?.role?.startsWith('guard') && p.attitude < 0.2).sort((a, b) => a.attitude - b.attitude);
-      const crows = { id: 'crows', name: 'The Crows', leader: null, members: [], purse: 60, hideout: den?.id, level: den?.level ?? 1, influence: 0.2, rel: { player: 'neutral' }, log: [] };
-      for (const p of cands.slice(0, 3)) { crows.members.push({ id: p.id, role: crows.members.length ? 'member' : 'leader', loyalty: r.float(0.5, 0.9), wage: 3 }); p.gang = 'crows'; p.attitude = Math.min(p.attitude, -0.2); }
-      crows.leader = crows.members[0]?.id ?? null;
-      if (crows.leader) this.byId.get(crows.leader).traits = [...new Set([...this.byId.get(crows.leader).traits, 'risk-taking'])];
-      this.gangs.push(crows);
+      // each den in the woods belongs to a gang of its own, with its own name, leader and hands
+      const dens = this.world.buildings.filter((b) => b.type === 'hideout' && !b.roadKey && b.gang !== 'player');
+      const cands = this.people.filter((p) => !p.visitor && p.age >= 17 && p.age < 55 && !p.job?.role?.startsWith('guard') && !p.gentry && !p.royal).sort((a, b) => a.attitude - b.attitude);
+      dens.forEach((den, k) => {
+        const id = 'g' + k, name = gangName(r);
+        const g = { id, name, leader: null, members: [], purse: r.int(30, 120), hideout: den.id, level: den.level ?? 1, influence: 0.15 + r.next() * 0.1, rel: { player: 'neutral' }, log: [], speciality: r.pick(['burglary', 'pickpocketing', 'smuggling', 'poaching', 'protection']) };
+        den.gang = id; den.name = `${name.replace(/^the /, 'The ')}' den`;
+        const size = 2 + r.int(0, 2);
+        for (const p of cands.splice(0, size)) {
+          const role = !g.members.length ? 'leader' : r.pick(GANG_ROLES[g.speciality] || ['member']);
+          g.members.push({ id: p.id, role, loyalty: r.float(0.5, 0.9), wage: 3 }); p.gang = id; p.attitude = Math.min(p.attitude, -0.2);
+        }
+        g.leader = g.members[0]?.id ?? null;
+        if (g.leader) this.byId.get(g.leader).traits = [...new Set([...this.byId.get(g.leader).traits, 'risk-taking'])];
+        for (const o of this.gangs) { o.rel[id] = 'rival'; g.rel[o.id] = 'rival'; }
+        this.gangs.push(g);
+      });
     };
+    S.npcGangs = function () { return this.gangs.filter((g) => g.id !== 'player'); };
     S.gang = function (id) { return this.gangs.find((g) => g.id === id); };
     S.playerGang = function () { return this.gang('player'); };
 
     S.foundGang = function (name, b) {
-      const g = { id: 'player', name, leader: 'player', members: [], purse: 0, hideout: b.id, level: 0, influence: 0.05, rel: { crows: 'rival' }, orders: [], log: [] };
-      this.gangs.push(g); b.unclaimed = false; b.gang = 'player'; b.name = `${name}'s camp`;
-      this.gang('crows').rel.player = 'rival';
-      this.log(`Word in the taverns: a new band calling itself ${name} has made camp in Ashford Wood.`, 'gang');
+      const g = { id: 'player', name, leader: 'player', members: [], purse: 0, hideout: b.id, level: 0, influence: 0.05, rel: {}, orders: [], log: [] };
+      this.gangs.push(g); b.unclaimed = false; b.gang = 'player'; b.name = `${name}${/s$/.test(name) ? "'" : "'s"} camp`;
+      for (const o of this.npcGangs()) { o.rel.player = 'rival'; g.rel[o.id] = 'rival'; }
+      this.log(`Word in the taverns: a new band calling itself ${name} has made camp outside ${this.world.name}.`, 'gang');
       return g;
     };
 
@@ -6168,11 +6213,11 @@ O.snowMaskOf = function (src) {
     };
 
     S.gangNight = function () {
-      // the Crows burgle on their own account
-      const crows = this.gang('crows');
-      if (crows && crows.members.length && this.rng.chance(0.25)) {
-        const thief = this.byId.get(this.rng.pick(crows.members).id);
-        if (thief && !thief.jailUntil) this.gangJob(crows, thief, null);
+      // the town's gangs work on their own account, each in its own line
+      for (const gg of this.npcGangs()) {
+        if (!gg.members.length || !this.rng.chance(0.2)) continue;
+        const thief = this.byId.get(this.rng.pick(gg.members).id);
+        if (thief && !thief.jailUntil) this.gangJob(gg, thief, null);
       }
       const g = this.playerGang(); if (!g || !g.orders) return;
       for (const o of g.orders.splice(0)) {
@@ -6211,13 +6256,17 @@ O.snowMaskOf = function (src) {
 
     S.upgradeHideout = function (g) {
       const next = LEVELS[g.level + 1]; if (!next) return false;
-      if (g.purse < next.cost) return false;
-      g.purse -= next.cost; g.level++;
-      const b = this.building(g.hideout); b.level = g.level; b.dirty = true; b.name = `${g.name}'s ${next.name.toLowerCase()}`;
+      // builders do the work: hired from the yard, or cheaper if the band has builders of its own
+      const own = g.members.some((m) => m.role === 'builder' || ['builder', 'labourer', 'master builder', 'carpenter'].includes(this.byId.get(m.id)?.job?.role));
+      const cost = Math.round(next.cost * (own ? 0.6 : 1));
+      if (g.purse < cost) return false;
+      g.purse -= cost; g.level++;
+      const yard = [...this.biz.values()].find((x) => x.type === 'builder'); if (yard && !own) yard.cash += Math.round(cost * 0.5);
+      const b = this.building(g.hideout); b.level = g.level; b.dirty = true; b.name = `${g.name}${/s$/.test(g.name) ? "'" : "'s"} ${next.name.toLowerCase()}`;
       if (g.level >= 1) { b.floors = g.level >= 3 ? 2 : 1; b.spec.floors = b.floors; }
       O.Interior && O.Interior.invalidate && O.Interior.invalidate(b);
       g.log.push(`Day ${this.day}: the camp became a ${next.name.toLowerCase()}.`);
-      this.log(`Smoke rises over a new ${next.name.toLowerCase()} in Ashford Wood.`, 'gang');
+      this.log(`Smoke rises over a new ${next.name.toLowerCase()} in the woods outside ${this.world.name}.`, 'gang');
       return true;
     };
   }
@@ -7247,6 +7296,139 @@ O.snowMaskOf = function (src) {
 
   O.Rulers = { install, installSim, crownTitle };
   install(O.Kingdom);
+})();
+
+</script>
+<script>
+// The council of the realm, and elections.
+// Every week, on Thursday at two, the leader of every place in the realm rides to the royal castle and
+// sits at the long table in the great hall with the monarch, the guards keeping the doors. They speak
+// for their places: crime, the watch, houses, money, the roads, shortages, war. The monarch grants or
+// refuses, raises or cuts their allowance, and likes some more than others (a hard or unjust monarch
+// may favour flatterers and punish honest bad news). A leader the monarch has turned against is
+// sacked, and the next day that place holds an election in its hall: citizens (whoever lives there)
+// put a vote in the box for one of the candidates, each with a short record of what they've done.
+// Friends vote for friends, the rest for whoever's record they like. Leaders may also resign. While
+// there's no leader the place runs on as it was and wages are paid.
+// The rich and noble marry among themselves, and parents often make the match.
+'use strict';
+(function () {
+  const TOPICS = [
+    ['crime', 'more watchmen against the thieving', 'guards'], ['houses', 'new houses for the families coming in', 'build'], ['roads', 'the roads mended', 'roads'],
+    ['shortage', 'grain sent against a shortage', 'relief'], ['tax', 'the crown tax lowered', 'tax'], ['market', 'a bigger market', 'build'], ['wall', 'walls and a gatehouse', 'build'],
+    ['bridge', 'a new bridge', 'build'], ['war', 'men and money for the war', 'war'], ['poor', 'relief for the poor', 'relief'], ['school', 'a school for the children', 'build'],
+  ];
+  function installKingdom(Kingdom) {
+    const K = Kingdom.prototype, _daily = K.daily;
+    K.daily = function () { _daily.call(this); try { this.councilDaily(); } catch (e) { console.error(e); } };
+    // every place's leader as a person the crown knows
+    K.leadersInit = function () {
+      if (this.leaders) return this.leaders;
+      const r = this.rng, L = this.leaders = {};
+      for (const p of this.places) {
+        if (p.kind === 'capital') continue;
+        const sex = r.chance(0.8) ? 'm' : 'f', first = r.pick(sex === 'm' ? O.Names.M : O.Names.F), sur = O.Names.surname(r);
+        O.Names.used.add(first + ' ' + sur);
+        L[p.id] = { name: `${first} ${sur}`, first, sex, title: (p.leader || 'Reeve').split(' of ')[0], favour: r.float(-0.2, 0.5), allowance: p.kind === 'city' ? 40 : p.kind === 'town' || p.kind === 'port' ? 20 : p.kind === 'castle' ? 30 : 8, since: this.sim.day - r.int(10, 400), deeds: [], honest: r.next(), flatterer: r.next() };
+      }
+      const cr = this.rulers && this.rulers.crown; if (cr && !cr.temper) cr.temper = r.pick(['just', 'just', 'stern', 'unjust']);
+      this.councilLog = []; this.elections = [];
+      return L;
+    };
+    K.councilDaily = function () {
+      const s = this.sim; if (!s) return;
+      this.leadersInit();
+      // held elections: the result is read the day after
+      for (const e of (this.elections || []).filter((x) => !x.done && s.day >= x.day + 1)) this.countVotes(e);
+      if (s.weekday === 3) this.holdCouncil();
+    };
+    K.holdCouncil = function () {
+      const r = this.rng, cr = this.rulers && this.rulers.crown, temper = (cr && cr.temper) || 'just', s = this.sim;
+      const minutes = { day: s.day, items: [] };
+      const ids = Object.keys(this.leaders).filter(() => r.chance(0.35)).slice(0, 8);
+      for (const id of ids) {
+        const L = this.leaders[id], pl = this.place(id); if (!L || !pl) continue;
+        const t = r.pick(TOPICS), ask = t[1];
+        // whether the monarch likes the idea, and the one who brings it
+        let liking = (pl.happiness || 0.5) - 0.4 + L.favour * 0.5 + (temper === 'unjust' ? (L.flatterer - 0.5) * 0.8 : (L.honest - 0.5) * 0.4) + (r.next() - 0.5) * 0.4;
+        if (temper === 'stern') liking -= 0.1;
+        const granted = liking > 0.05 && this.treasury > 200;
+        if (granted) {
+          const cost = t[2] === 'build' ? 120 : t[2] === 'guards' ? 60 : 40;
+          this.treasury -= Math.min(this.treasury, cost);
+          if (t[2] === 'guards') pl.gov = Object.assign({}, pl.gov, { guards: (pl.gov?.guards || 1) + 1 });
+          if (t[2] === 'tax') this.taxRate = Math.max(0.04, this.taxRate - 0.005);
+          if (t[2] === 'relief' || t[2] === 'build') pl.wealth = Math.min(0.95, (pl.wealth || 0.5) + 0.02);
+          if (t[2] === 'build') (pl.works = pl.works || []).push({ what: t[0], day: s.day });
+          L.favour = Math.min(1, L.favour + 0.05); L.deeds.push(`won ${ask} for ${pl.name}`);
+          if (r.chance(0.3)) { L.allowance += 2; }
+        } else {
+          L.favour = Math.max(-1, L.favour - (temper === 'unjust' ? 0.2 : 0.08)); if (r.chance(0.3)) L.allowance = Math.max(2, L.allowance - 2);
+        }
+        minutes.items.push({ id, who: L.name, title: L.title, place: pl.name, ask, granted });
+        // sacked
+        if (L.favour < -0.6 && r.chance(temper === 'unjust' ? 0.7 : 0.4)) { minutes.items.push({ id, who: L.name, place: pl.name, sacked: true }); this.callElection(id, 'sacked by the crown'); }
+      }
+      // now and then a leader resigns
+      if (r.chance(0.08)) { const id = r.pick(Object.keys(this.leaders)); if (!this.elections.some((e) => e.place === id && !e.done)) { minutes.items.push({ id, who: this.leaders[id].name, place: this.place(id)?.name, resigned: true }); this.callElection(id, 'resigned'); } }
+      this.councilLog.push(minutes); if (this.councilLog.length > 12) this.councilLog.shift();
+      const g = minutes.items.filter((x) => x.granted).length;
+      this.addNews(`The council of the realm sat in the great hall: ${minutes.items.length} matters heard, ${g} granted.`, 'politics');
+      for (const it of minutes.items) if (it.sacked) this.addNews(`${it.who} of ${it.place} has lost the crown's favour and been put out of office. ${it.place} votes tomorrow.`, 'politics', it.id);
+    };
+    K.callElection = function (id, why) {
+      const r = this.rng, pl = this.place(id), old = this.leaders[id];
+      const cands = [0, 1, 2].map(() => { const sex = r.chance(0.7) ? 'm' : 'f', first = r.pick(sex === 'm' ? O.Names.M : O.Names.F), sur = O.Names.surname(r); O.Names.used.add(first + ' ' + sur); return { name: `${first} ${sur}`, first, sex, record: r.pick(['kept the parish books ten years', 'built the new bridge', 'fed the poor through the hard winter', 'is the richest merchant in town', 'led the watch against the thieves', 'stood up to the old leader', 'is the priest\'s brother', 'promises lower taxes', 'promises more watchmen', 'promises new houses']), votes: 0, appeal: r.next() }; });
+      // in a town you've walked in, real people stand: the ambitious and well liked
+      const v = O.Travel && O.Travel.visited.get(id);
+      if (v && v.sim) { const s = v.sim; const real = s.people.filter((q) => !q.visitor && q.age >= 25 && q.alive !== false && (q.traits.includes('ambitious') || s.household(q).money > 120)).sort((a, b) => s.household(b).money - s.household(a).money).slice(0, 2); real.forEach((q, i) => { cands[i] = { name: q.name, first: q.first, sex: q.sex, pid: q.id, record: q.job ? `the ${q.job.role} at ${s.biz.get(q.job.biz)?.name || 'work'}` : 'a householder of long standing', votes: 0, appeal: 0.5 }; }); }
+      this.elections.push({ place: id, day: this.sim.day, why, cands, oldName: old?.name, votes: {}, done: false });
+      if (old) old.out = true;
+    };
+    K.countVotes = function (e) {
+      const r = this.rng, pl = this.place(e.place);
+      // the people's votes: by liking and record, friends for friends
+      const v = O.Travel && O.Travel.visited.get(e.place);
+      const voters = v && v.sim ? v.sim.people.filter((q) => q.age >= 18 && !q.visitor && q.alive !== false) : Array.from({ length: Math.max(10, Math.round((pl.pop || 60) / 3)) }, () => null);
+      for (const q of voters) {
+        let best = 0, bv = -9;
+        e.cands.forEach((c, i) => { const friend = q && c.pid != null ? (q.rel.get(c.pid)?.affinity || 0) * 2 : 0; const val = c.appeal + friend + (r.next() - 0.5) * 0.8; if (val > bv) { bv = val; best = i; } });
+        e.cands[best].votes++;
+      }
+      for (const [i, n] of Object.entries(e.votes || {})) e.cands[+i].votes += n; // the player's vote
+      const win = e.cands.slice().sort((a, b) => b.votes - a.votes)[0];
+      this.leaders[e.place] = { name: win.name, first: win.first, sex: win.sex, title: this.leaders[e.place]?.title || 'Reeve', favour: 0.2, allowance: this.leaders[e.place]?.allowance || 10, since: this.sim.day, deeds: [`elected over ${e.cands.length - 1} others`], honest: r.next(), flatterer: r.next(), player: win.player };
+      e.done = true; e.winner = win.name;
+      this.addNews(`${pl.name} has chosen ${win.name} as its ${this.leaders[e.place].title.toLowerCase()} (${win.votes} votes).`, 'politics', e.place);
+      if (win.player) { O.PlayerState.office = { place: e.place, title: this.leaders[e.place].title }; O.UI && O.UI.say(`You've been elected ${this.leaders[e.place].title.toLowerCase()} of ${pl.name}!`); }
+      // a real winner takes up the office in their own town
+      if (v && v.sim && win.pid != null) { const q = v.sim.byId.get(win.pid); if (q) { q.office = 'leader'; q.title = this.leaders[e.place].title; v.sim.remember(q, `Elected ${q.title.toLowerCase()} of ${pl.name}.`, 'life', 3); } }
+    };
+  }
+  O.Council = { installKingdom };
+  installKingdom(O.Kingdom);
+
+  // the rich marry the rich, and parents often arrange it
+  function installSim(Sim) {
+    const S = Sim.prototype, _mm = S.matchmake;
+    S.matchmake = function () {
+      const rich = (p) => p.gentry || p.royal || this.household(p).money > 300;
+      const singles = this.people.filter((p) => !p.visitor && !p.spouse && p.age >= 18 && p.age <= 40 && rich(p));
+      for (const a of singles) {
+        if (!this.rng.chance(0.1)) continue;
+        const b = singles.find((x) => x !== a && x.sex !== a.sex && x.household !== a.household && !x.spouse);
+        if (!b) continue;
+        const parents = this.household(a).members.map((id) => this.byId.get(id)).filter((q) => q && q.age > a.age + 15);
+        if (parents.length) this.remember(a, `My parents have arranged for me to marry ${b.name}.`, 'life', 2, b.id);
+        this.relate(a, b, 0.3); this.relate(b, a, 0.3);
+        return this.wed(a, b);
+      }
+      // the rest marry as they always did, but a rich family won't let a child wed far beneath them
+      const _rel = this.relate; void _rel;
+      return _mm.call(this);
+    };
+  }
+  O.Council.installSim = installSim;
 })();
 
 </script>
@@ -9216,7 +9398,7 @@ O.snowMaskOf = function (src) {
     if (p.task?.act === 'help') { const t = this.byId.get(p.task.target); if (t) return [Math.floor(t.agent.x / this.T), Math.floor((t.agent.y - 1) / this.T)]; }
     return _zone.call(this, p, zone);
   };
-  O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim); O.Aftermath.installSim(Sim); O.Government.installSim(Sim); O.Nobility.installSim(Sim); O.Trades.installSim(Sim); O.Inn.installSim(Sim); O.Employ.installSim(Sim);
+  O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim); O.Aftermath.installSim(Sim); O.Government.installSim(Sim); O.Nobility.installSim(Sim); O.Trades.installSim(Sim); O.Inn.installSim(Sim); O.Employ.installSim(Sim); O.Council.installSim(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
   // everyone keeps their own clock: a few minutes either side, so a street doesn't empty in one minute
@@ -11452,6 +11634,7 @@ O.snowMaskOf = function (src) {
       if (O.saleCandidate) { const sc = O.saleCandidate(); if (sc) out.push(sc); }
       if (O.signCandidate) { const sg = O.signCandidate(); if (sg) out.push(sg); }
       if (O.jobCandidate) { const jc = O.jobCandidate(); if (jc) out.push(jc); }
+      if (O.voteCandidate) { const vc = O.voteCandidate(); if (vc) out.push(vc); }
       if (O.placedCandidate) { const pc2 = O.placedCandidate(); if (pc2) out.push(pc2); }
       if (O.furnCandidate) { const fc = O.furnCandidate(); if (fc) out.push(fc); }
       if (O.stallCandidate) { const st = O.stallCandidate(); if (st) out.push(st); }
@@ -11497,6 +11680,7 @@ O.snowMaskOf = function (src) {
         case 'property': return c.b.owner?.kind === 'player' ? 'Your property' : 'For sale: look it over';
         case 'namesign': return 'Read the sign';
         case 'job': return O.jobLabel(c);
+        case 'vote': return 'The ballot box: read the candidates';
         case 'placed': { const g = O.Data.GOODS[c.x0.good]; return (g.food || g.drink) && O.PlayerState.hunger < 85 ? `${g.drink ? 'Drink' : 'Eat'} the ${g.name.toLowerCase()}` : `Pick up the ${g.name.toLowerCase()}`; }
         case 'furn': return `Take up the ${(O.Data.FURN[c.it.kind] || [c.it.kind])[0].toLowerCase()}`;
         case 'exit': return `Leave ${sim.world.name} by the ${c.side} road`;
@@ -11636,6 +11820,7 @@ O.snowMaskOf = function (src) {
         case 'property': O.propertyPanel(cur.b); break;
         case 'namesign': O.readSign(cur); break;
         case 'job': O.jobAct(cur); break;
+        case 'vote': O.voteAct(cur); break;
         case 'placed': O.placedAct(cur); break;
         case 'furn': O.furnAct(cur); break;
         case 'stash': O.GangUI.stash(); break;
@@ -12137,7 +12322,7 @@ O.snowMaskOf = function (src) {
 
   function setup(game, simRef, npcUI) {
     const money = O.money;
-    const sim = new Proxy({}, { get: (t, k) => { const s = O.SimRef.home; const v = s[k]; return typeof v === 'function' ? v.bind(s) : v; } });
+    const sim = new Proxy({}, { get: (t, k) => { const s = O.SimRef.cur; const v = s[k]; return typeof v === 'function' ? v.bind(s) : v; } }); // the band belongs to whichever town you pitched in
 
     function claim(b) {
       O.Panels.open('Claim the camp', `<p class="caption">A cold fire ring, a torn tent, a chest with a broken hasp. Nobody has slept here in a year. Make it yours and you'll need a name men can whisper in taverns.</p>
@@ -12170,7 +12355,7 @@ O.snowMaskOf = function (src) {
 
     function ledger() {
       const g = sim.playerGang();
-      if (!g) return O.Panels.toast('You have no band yet. Find somewhere to make camp in Ashford Wood.');
+      if (!g) return O.Panels.toast('You have no band yet. Buy a canvas tent at a store, take it somewhere quiet outside town and pitch it.');
       const L = O.Gangs.LEVELS, next = L[g.level + 1];
       const houses = sim.households.filter((h) => !h.gone && h.members.length).map((h) => ({ h, b: sim.building(h.home) })).filter((x) => x.b);
       const mem = g.members.map((m, i) => {
@@ -12185,7 +12370,7 @@ O.snowMaskOf = function (src) {
       O.Panels.open(g.name, `<div class="kv">
           <div><span class="lbl">Purse</span><b>${money(g.purse)}</b><small><button data-dep="10">Give 10d</button> <button data-wd="10">Take 10d</button></small></div>
           <div><span class="lbl">Hideout</span><b>${L[g.level].name}</b><small>${next ? `<button data-up="1">Build a ${next.name.toLowerCase()} · ${next.cost}d</button>` : 'As grand as it gets.'}</small></div>
-          <div><span class="lbl">Influence</span><b>${Math.round(g.influence * 100)}%</b><small>rivals: the Crows (${Math.round((sim.gang('crows')?.influence || 0) * 100)}%)</small></div>
+          <div><span class="lbl">Influence</span><b>${Math.round(g.influence * 100)}%</b><small>rivals: ${sim.npcGangs().map((x) => `${esc(x.name)} (${Math.round(x.influence * 100)}%)`).join(', ') || 'none'}</small></div>
           <div><span class="lbl">Wages due</span><b>${g.members.reduce((s, m) => s + m.wage, 0)}d/day</b><small>paid from the purse each dawn</small></div>
         </div>
         <table style="margin-top:12px"><thead><tr><th>Member</th><th>Role</th><th>Loyalty</th><th class="n">Wage</th><th>Tonight</th></tr></thead><tbody>${mem || '<tr><td colspan="5">No members yet. Sound out the desperate and the reckless, in the tavern, in the square.</td></tr>'}</tbody></table>
@@ -12202,9 +12387,9 @@ O.snowMaskOf = function (src) {
     // talk-card extensions: recruit, fence, gang chatter
     npcUI.extraButtons = (q) => {
       const g = sim.playerGang(), out = [];
-      if (g && !q.gang && q.age >= 16 && !q.job?.role?.startsWith('guard') && O.SimRef.cur === O.SimRef.home) out.push(['recruit', 'Sound them out']);
+      if (g && !q.gang && q.age >= 16 && !q.job?.role?.startsWith('guard')) out.push(['recruit', 'Sound them out']);
       if (q.gang === 'player') { const m = g?.members.find((x) => x.id === q.id); if (m?.role === 'fence') out.push(['fence', 'Fence goods']); }
-      if (!g && q.gang === 'crows' && PS.rep.criminal > 0.04) out.push(['fence', 'Sell them stolen goods']);
+      if (q.gang && q.gang !== 'player' && PS.rep.criminal > 0.04) out.push(['fence', 'Sell them stolen goods']);
       return out;
     };
     npcUI.onExtra = (q, key, render) => {
@@ -12230,6 +12415,33 @@ O.snowMaskOf = function (src) {
       return false;
     });
 
+    // pitching your own tent: the first home of a new band
+    O.pitchTent = () => {
+      const w = game.world, p = game.player, s = O.SimRef.cur;
+      if (game.scene) return O.Panels.toast('Pitch it outdoors, somewhere quiet.', 'bad');
+      const tx = Math.floor(p.x / 16) - 1, ty = Math.floor((p.y - 1) / 16) - 2;
+      if (w.island && tx + 1 >= w.ox && ty >= w.oy && tx < w.ox + w.townW && ty < w.oy + w.townH) return O.Panels.toast("Not in town: you'd be found out by morning. Go out into the woods or the fields.", 'bad');
+      for (let y = ty - 1; y <= ty + 2; y++) for (let x = tx - 1; x <= tx + 3; x++) { const i = y * w.W + x; if (w.solid[i] || w.ter[i] === w.TER.WATER || w.ter[i] === w.TER.ROAD) return O.Panels.toast('No room here: find a clear patch of ground.', 'bad'); }
+      if (s.playerGang && s.playerGang()) return O.Panels.toast('Your band already has a home here.', 'bad');
+      PS.remove('tent');
+      const spec = { seed: 7701 + tx, w: 3, d: 2, floors: 1, wealth: 0.2, condition: 0.7, wall: 'log', roof: 'thatch', roofType: 'gable', doorTile: 1, noFlowers: true };
+      const b = { id: 9700 + Math.floor(Math.random() * 90), type: 'hideout', name: 'Your tent', x: tx, bottom: ty + 1, y: ty, w: 3, d: 2, floors: 1, wealth: 0.2, condition: 0.7, level: 0, spec, doorX: tx + 1, doorY: ty + 2, unclaimed: true, pitched: true };
+      w.buildings.push(b); for (let y = b.y; y <= b.bottom; y++) for (let x = b.x; x < b.x + 3; x++) w.solid[y * w.W + x] = 1;
+      b.dirty = true; w.dirtyStatics = true; game.player.anim = 'place';
+      claim(b);
+    };
+    // coming across another gang's den
+    const found = (PS.foundBases = PS.foundBases || []);
+    let ft = 0;
+    game.hooks.update.push((dt) => {
+      ft -= dt; if (ft > 0 || game.scene) return; ft = 1;
+      const s = O.SimRef.cur, p = game.player;
+      for (const b of game.world.buildings) {
+        if (b.type !== 'hideout' || !b.gang || b.gang === 'player') continue;
+        const key = (game.world.placeId || '') + ':' + b.id; if (found.includes(key)) continue;
+        if (Math.hypot(b.doorX * 16 + 8 - p.x, b.doorY * 16 - p.y) < 90) { found.push(key); const g = s.gang && s.gang(b.gang); O.UI.say(`You've stumbled on a hideout in the trees: ${g ? g.name : 'someone'}'s den.`); }
+      }
+    });
     O.GangUI = { claim, stash, ledger, fence };
   }
   O.GangUISetup = { setup };
@@ -12484,6 +12696,10 @@ O.snowMaskOf = function (src) {
       neck: [[0, -12, 6], [0, -14, 8]], neckR: [3, 2.4], head: [[0, -14.5, 8.2], [0, -11.5, 11]], headR: [2.4, 1.7], ears: [2.4, -14.6, 8, 'side'], eye: [1.6, -13.6, 9.4], tail: [[0, -11, -6.5], [0, -8, -7.4]], tailR: [1.1, 1], wool: true },
     pig: { W: 38, H: 30, G: 25, spine: [[-6, -8.5, 4.4], [0, -8.8, 5], [6, -8.6, 4.5]], hipX: 2, hipZ: -5, shZ: 5, hipY: -6.5, upper: 2.8, lower: 3.4, legR: [1.3, 1], hoof: 0.9,
       neck: [[0, -9.5, 7.5], [0, -9.5, 8.5]], neckR: [3.6, 3.2], head: [[0, -10, 8.8], [0, -8.6, 12.5]], headR: [3.2, 2.2], ears: [1.8, -13, 8.6, 'flop'], eye: [1.7, -11, 10.4], tail: [[0, -10, -10], [0, -11.5, -11]], tailR: [0.6, 0.6], snout: true },
+    deer: { W: 46, H: 48, G: 40, spine: [[-7.5, -15, 4.4], [0, -15.5, 4.8], [6.5, -16.5, 4.6]], hipX: 2.2, hipZ: -6.4, shZ: 5.8, hipY: -13.5, upper: 6.4, lower: 7.2, legR: [1.3, 0.8], hoof: 0.9,
+      neck: [[0, -18, 7], [0, -25, 9.5]], neckR: [2.4, 1.9], head: [[0, -26, 9.8], [0, -23.5, 13.6]], headR: [2.4, 1.6], ears: [2, -28.5, 9.4, 'tall'], eye: [1.6, -26, 11.4], tail: [[0, -16, -8], [0, -14, -9]], tailR: [0.9, 0.8] },
+    rabbit: { W: 22, H: 20, G: 17, spine: [[-2.6, -4.6, 2.6], [0, -5, 2.8], [2.4, -5.2, 2.6]], hipX: 1, hipZ: -2.4, shZ: 2.2, hipY: -3, upper: 1.4, lower: 1.5, legR: [0.9, 0.7], hoof: 0.6,
+      neck: [[0, -6, 3.2], [0, -7, 3.8]], neckR: [1.6, 1.4], head: [[0, -7.4, 4], [0, -6.8, 5.2]], headR: [1.7, 1.4], ears: [0.8, -10.6, 3.6, 'tall'], eye: [0.9, -7.6, 4.8], tail: [[0, -5, -3.6], [0, -5.6, -4]], tailR: [1, 0.9] },
     dog: { W: 34, H: 30, G: 25, spine: [[-5.5, -10, 3.2], [0, -10.2, 3.4], [5, -11, 3.6]], hipX: 1.6, hipZ: -5, shZ: 4.6, hipY: -9, upper: 4.6, lower: 4.6, legR: [1.1, 0.8], hoof: 0.8,
       neck: [[0, -12, 5.5], [0, -15, 7.5]], neckR: [2.4, 2], head: [[0, -16, 7.8], [0, -14.6, 11.2]], headR: [2.5, 1.5], ears: [1.5, -18, 7.2, 'drop'], eye: [1.4, -16.6, 9.2], tail: [[0, -11.5, -8.5], [0, -16, -11]], tailR: [0.9, 0.6] },
     cat: { W: 30, H: 26, G: 22, spine: [[-4.5, -7.5, 2.6], [0, -7.8, 2.8], [4, -8, 2.7]], hipX: 1.3, hipZ: -4, shZ: 3.8, hipY: -6.5, upper: 3.4, lower: 3.4, legR: [0.9, 0.7], hoof: 0.7,
@@ -12664,6 +12880,8 @@ O.snowMaskOf = function (src) {
       case 'sheep': { const w = P.mat(r.pick(['#ece6d6', '#e6e0d0', '#d8d0bc', '#5a4a40']), 'hair'), d = P.mat('#3a3030', 'cloth'); return { seed, body: w, head: d, ear: d, legs: d, upperLeg: w, hoof: P.mat('#1e1818', 'cloth'), eyeM: P.mat('#d8c890', 'cloth'), mane: w }; }
       case 'cow': { const b = P.mat(r.pick(['#8a5a34', '#2e2828', '#c8a882', '#a0582c']), 'hair'); return { seed, body: b, head: b, legs: b, hoof: P.mat('#2a2420', 'cloth'), eyeM, mane: b, horn: P.mat('#e8e0c8', 'cloth'), patches: r.chance(0.6) ? P.mat('#ece8de', 'hair') : null, white: P.mat('#ece8de', 'hair'), blaze: r.chance(0.4) }; }
       case 'pig': { const b = P.mat(r.chance(0.8) ? '#e0a49a' : '#8a6a5a', 'skin'); return { seed, body: b, head: b, legs: b, hoof: P.mat('#6a4a40', 'cloth'), eyeM, mane: b, snout: P.mat('#c8807a', 'skin'), patches: r.chance(0.25) ? P.mat('#3a2e2a', 'skin') : null }; }
+      case 'deer': { const b = P.mat(r.pick(['#9a6a3e', '#8a5a34', '#a8784a']), 'hair'); return { seed, body: b, head: b, legs: b, hoof: P.mat('#2a2420', 'cloth'), eyeM, mane: b, ear: b, patches: P.mat('#ece2cc', 'hair'), white: P.mat('#ece2cc', 'hair') }; }
+      case 'rabbit': { const b = P.mat(r.pick(['#8a7a62', '#a08a6a', '#6a5a48']), 'hair'); return { seed, body: b, head: b, legs: b, hoof: b, eyeM, mane: b, ear: b, white: P.mat('#ece8de', 'hair') }; }
       case 'dog': { const b = P.mat(r.pick(['#8a6a44', '#2e2828', '#c8a060', '#e6e0d0', '#6a4a30']), 'hair'); return { seed, body: b, head: b, legs: b, hoof: b, eyeM, mane: b, ear: P.mat(r.pick(['#5a3a24', '#2e2828']), 'hair'), patches: r.chance(0.35) ? P.mat('#ece8de', 'hair') : null }; }
       default: { const b = P.mat(r.pick(['#e08a3a', '#2e2828', '#8a8a86', '#e6e0d0', '#6a5a4a']), 'hair'); return { seed, body: b, head: b, legs: b, hoof: b, eyeM: P.mat('#3a6a30', 'cloth'), mane: b, patches: r.chance(0.3) ? P.mat('#ece8de', 'hair') : null }; }
     }
@@ -13179,7 +13397,7 @@ O.snowMaskOf = function (src) {
       O.Panels.open('The Island of Eldoria', `<div class="mapbar"><button data-z="-1">−</button><button data-z="1">+</button><span class="lbl">${K.places.length} settlements · drag to move, click a place for its government</span></div>
         <div class="mapview"><div class="mapwrap" style="width:${zoom * 100}%"><canvas id="kmap" width="${E.W * MS}" height="${E.H * MS}"></canvas></div></div>
         <p class="caption" id="mapinfo">${placeInfo(K.place(game.world.placeId) || K.places[0])}</p>
-        <p class="caption">Gold marks where you are. Orange marks are caravans on the roads; red dashes are roads closed by damage. Crown treasury ${O.money(K.treasury)}, crown tax ${Math.round(K.taxRate * 100)}%.</p>
+        <p class="caption">Gold marks where you are. Orange marks are caravans on the roads; red dashes are roads closed by damage. Crown treasury ${O.money(K.treasury)}, crown tax ${Math.round(K.taxRate * 100)}%.</p>${O.councilMinutes ? O.councilMinutes() : ''}
         <table><thead><tr><th>Settlement</th><th>Government</th><th class="n">People</th><th>Food</th><th>Content</th><th>Crime</th></tr></thead><tbody>${rows}</tbody></table>
         <div class="lbl" style="margin-top:12px">News from the realm</div><ol class="chron">${K.news.slice(-8).reverse().map((n) => `<li><span class="lbl">Day ${n.day}</span> ${esc(n.text)}</li>`).join('') || '<li>No news yet.</li>'}</ol>`, (root) => {
         const cv = document.getElementById('kmap'); drawMap(cv);
@@ -16045,6 +16263,7 @@ O.snowMaskOf = function (src) {
     O.placeItem = (k) => {
       const g = G[k]; if (!g || !PS.items.includes(k)) return;
       if (g.furniture) return placeFurniture(k);
+      if (k === 'tent') return O.pitchTent && O.pitchTent();
       const p = game.player, d = O.Char.DIRV[p.dir] || [0, 1];
       doAnim('place', 0.9, () => {
         PS.remove(k);
@@ -16147,6 +16366,206 @@ O.snowMaskOf = function (src) {
     };
   }
   O.FittingSetup = { setup };
+})();
+
+</script>
+<script>
+// The street comes to you. A tax collector who's seen you sprints over and wants the town's dues (only
+// if you keep a house or hold a post here); a landlord wants the rent you owe; a beggar asks for a
+// penny; and in a crowd someone may lift your purse. When anyone runs at you, you start back.
+// In the woods there's game: deer and rabbits. Take one where a gamekeeper can see and it's poaching.
+// At night the poaching gangs go after the lords' deer, and the gamekeepers go after them.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game, home) {
+    const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k), G = O.Data.GOODS;
+    const shock = () => { const p = game.player; if (!p.moving && !game.player.locked) { p.anim = 'shocked'; p.ft = 0; setTimeout(() => { if (p.anim === 'shocked') p.anim = 'idle'; }, 900); } };
+
+    // ---------------- someone running up to you ----------------
+    let runner = null; // { q, why, t }
+    function sendAt(q, why) {
+      if (runner || O.panelOpen || game.scene) return;
+      const a = q.agent; a.chasing = true; a.path = null; a.sprint = true;
+      runner = { q, why, t: 0 }; shock();
+      if (why === 'tax' || why === 'rent') say(`${q.first} spots you and comes running.`);
+    }
+    function release() { if (!runner) return; const a = runner.q.agent; a.chasing = false; a.sprint = false; a.frozen = false; a.path = null; a.goal = null; runner = null; }
+    game.hooks.update.push((dt) => {
+      if (!runner) return;
+      const s = cur(), q = runner.q, a = q.agent, p = game.player;
+      runner.t += dt;
+      if (game.scene || q.alive === false || a.hidden || runner.t > 25 || s.world !== game.world) { release(); return; }
+      const dx = p.x - a.x, dy = p.y - a.y, d = Math.hypot(dx, dy);
+      if (d > 20) { const sp = 95 * dt; a.x += dx / d * Math.min(sp, d - 18); a.y += dy / d * Math.min(sp, d - 18); a.dir = O.dirOf(dx, dy); a.anim = 'run'; return; }
+      a.anim = 'talk'; a.frozen = true; a.dir = O.dirOf(dx, dy);
+      const why = runner.why; release(); a.frozen = true;
+      demand(s, q, why);
+    });
+    function demand(s, q, why) {
+      const done = (t, bad) => { O.Panels.close(); q.agent.frozen = false; if (t) say(t, bad ? 'bad' : ''); };
+      if (why === 'tax') {
+        const due = 4 + Math.round(s.treasury.taxRate * 40);
+        O.Panels.open(`${q.name}, tax collector`, `<p class="speech">“The town's dues, if you please: ${due}d. Everyone with a roof here or a wage here pays.”</p><div class="topics"><button data-a="pay">Pay ${due}d</button><button data-a="refuse">Refuse</button><button data-a="run">Run</button></div>`, (r) => {
+          r.querySelector('[data-a=pay]').onclick = () => { if (PS.money < due) return done(`You turn out your purse: ${PS.money}d. ${q.first} writes you down as owing.`, true); PS.money -= due; s.treasury.cash += due; PS.taxPaidDay = s.day; done(`You pay ${due}d. ${q.first} marks it in the book.`); };
+          r.querySelector('[data-a=refuse]').onclick = () => { PS.taxPaidDay = s.day; s.relate(q, { id: 0 }, -0.15); evade(s, q, 'refusing the town its dues'); done(`${q.first}: “Then the watch will have a word.”`, true); };
+          r.querySelector('[data-a=run]').onclick = () => { PS.taxPaidDay = s.day; evade(s, q, 'running from the tax collector'); done('You run for it.', true); };
+        });
+      } else if (why === 'rent') {
+        const L = PS.lease, due = (L && L.rent) || 4;
+        O.Panels.open(`${q.name}, your landlord`, `<p class="speech">“The rent, ${due}d. It's owed.”</p><div class="topics"><button data-a="pay">Pay ${due}d</button><button data-a="refuse">I can't</button></div>`, (r) => {
+          r.querySelector('[data-a=pay]').onclick = () => { if (PS.money < due) return done('You haven\'t got it.', true); PS.money -= due; const hh = s.household(q); if (hh) hh.money += due; if (L) L.paidUntil = s.day + 7; done(`You pay ${due}d of rent.`); };
+          r.querySelector('[data-a=refuse]').onclick = () => { if (L) { L.owed = (L.owed || 0) + 1; if (L.owed >= 2) { PS.lease = null; done(`${q.first}: “Then you're out. I'll have the bailiff clear your things.”`, true); return; } } s.relate(q, { id: 0 }, -0.2); done(`${q.first}: “One more week. Then you're out.”`, true); };
+        });
+      } else if (why === 'beg') {
+        O.Panels.open(q.name, `<p class="speech">“A penny, for bread? God bless you.”</p><div class="topics"><button data-a="give">Give a penny</button><button data-a="no">Not today</button></div>`, (r) => {
+          r.querySelector('[data-a=give]').onclick = () => { if (PS.money >= 1) { PS.money -= 1; s.household(q).money += 1; s.relate(q, { id: 0 }, 0.2); PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.01); } done(`${q.first} blesses you.`); };
+          r.querySelector('[data-a=no]').onclick = () => done(`${q.first} turns away.`);
+        });
+      } else q.agent.frozen = false;
+    }
+    function evade(s, q, what) {
+      const c = s.recordCrime && s.recordCrime({ kind: 'tax evasion', perp: 'player', placeName: O.placeName ? O.placeName() : s.world.name, tile: [Math.floor(game.player.x / T), Math.floor(game.player.y / T)], seen: [q], severity: 1 });
+      if (c) { PS.crimes.push(c.id); c.reported = true; }
+      s.log(`${q.name} reports the stranger for ${what}.`, 'crime');
+    }
+    // who comes looking for you, and when
+    let st = 0;
+    game.hooks.update.push((dt) => {
+      st -= dt; if (st > 0 || runner || game.scene || O.panelOpen) return; st = 2;
+      const s = cur(), p = game.player; if (s.world !== game.world) return;
+      const near = (q) => !q.agent.hidden && q.alive !== false && !q.agent.frozen && Math.hypot(q.agent.x - p.x, q.agent.y - p.y) < 220;
+      const h = s.hour;
+      // the tax collector, once a week, if you've a house or a post in this town
+      const liable = (PS.emp && PS.emp.place === s.world.placeId) || s.world.buildings.some((b) => b.owner?.kind === 'player');
+      if (liable && h >= 9 && h < 17 && (PS.taxPaidDay == null || s.day - PS.taxPaidDay >= 7)) { const q = s.people.find((x) => x.job?.role === 'tax collector' && near(x)); if (q) return sendAt(q, 'tax'); }
+      // the landlord, if the rent's due
+      const L = PS.lease; if (L && L.place === s.world.placeId && (L.paidUntil == null || s.day > L.paidUntil) && h >= 8 && h < 20) { const b = s.building(L.b); const landlord = b && b.owner?.kind === 'household' ? s.households[b.owner.id - 1]?.members.map((id) => s.byId.get(id)).find((x) => x && x.age >= 18 && near(x)) : null; if (landlord) return sendAt(landlord, 'rent'); }
+      // the poor ask for a penny
+      if (h >= 8 && h < 19 && s.rng.chance(0.08)) { const q = s.people.find((x) => !x.job && x.age >= 16 && s.household(x).money < 8 && x.needs.hunger < 40 && near(x) && x._begDay !== s.day); if (q) { q._begDay = s.day; return sendAt(q, 'beg'); } }
+      // a cutpurse in the crowd
+      const crowd = s.people.filter((x) => !x.agent.hidden && Math.hypot(x.agent.x - p.x, x.agent.y - p.y) < 50).length;
+      if (crowd >= 4 && PS.money > 5 && s.rng.chance(0.04)) {
+        const thief = s.people.find((x) => x.gang && x.gang !== 'player' && Math.hypot(x.agent.x - p.x, x.agent.y - p.y) < 70);
+        if (thief) { const took = Math.min(PS.money, 2 + s.rng.int(0, 6)); const noticed = s.rng.chance(0.4 + (PS.skills?.stealth || 0) * 0.5); PS.money -= took; s.household(thief).money += took; if (noticed) { shock(); say(`A hand in your purse! ${thief.first} slips away with ${took}d.`, 'bad'); thief.agent.fleeing = true; } }
+      }
+    });
+
+    // ---------------- game in the woods ----------------
+    const wild = new Map(); // placeId -> spawned
+    game.hooks.update.push(() => {
+      const w = game.world; if (!w || !w.island || wild.has(w.placeId) || !O.fauna) return;
+      wild.set(w.placeId, true);
+      const r = O.RNG(O.hash('wild', w.placeId)), Wd = w.W;
+      let made = 0;
+      for (let k = 0; k < 400 && made < 10; k++) {
+        const x = r.int(4, w.W - 5), y = r.int(4, w.H - 5);
+        if (w.ter[y * Wd + x] !== w.TER.FOREST || w.solid[y * Wd + x]) continue;
+        if (x >= w.ox && y >= w.oy && x < w.ox + w.townW && y < w.oy + w.townH) continue;
+        const kind = r.chance(0.45) ? 'deer' : 'rabbit', z = { x0: x - 4, y0: y - 3, x1: x + 4, y1: y + 3 };
+        O.fauna.push({ world: w.placeId, kind, seed: r.int(1, 9999), z, x: x * T + 8, y: y * T + 12, dir: r.int(0, 7), ft: r.next() * 2, tx: null, wait: r.next() * 4, speed: kind === 'deer' ? 16 : 18, wild: true });
+        made++;
+      }
+    });
+    O.Combat && O.Combat.addTargets(() => (O.fauna || []).filter((f) => f.wild && !f.dead && f.world === game.world.placeId).map((f) => ({ x: f.x, y: f.y, hit: () => {
+      f.dead = true; O.fauna.splice(O.fauna.indexOf(f), 1);
+      const s = cur(), g = f.kind === 'deer' ? 'venison' : 'meat';
+      s.drop(g, 1, f.x, f.y);
+      // a lord's game: is a gamekeeper or forester about?
+      const keeper = s.people.find((q) => ['gamekeeper', 'forester'].includes(q.job?.role) && !q.agent.hidden && Math.hypot(q.agent.x - f.x, q.agent.y - f.y) < 260);
+      if (keeper || (f.kind === 'deer' && s.rng.chance(0.15))) {
+        const c = s.recordCrime({ kind: 'poaching', perp: 'player', placeName: O.placeName ? O.placeName() : 'the woods', tile: [Math.floor(f.x / T), Math.floor(f.y / T)], seen: keeper ? [keeper] : [], severity: f.kind === 'deer' ? 2 : 1 });
+        if (c) PS.crimes.push(c.id);
+        say(keeper ? `${keeper.first} the ${keeper.job.role} saw that! Poaching the lord's ${f.kind === 'deer' ? 'deer' : 'game'}.` : 'You take the deer. Somewhere a twig snaps.', 'bad');
+      } else say(`You bring down the ${f.kind}. Its meat lies on the ground.`);
+    } })));
+
+    // ---------------- poachers and gamekeepers, at night ----------------
+    const SP = O.Sim.prototype, _night = SP.gangNight;
+    SP.gangNight = function () {
+      _night.call(this);
+      const lodge = [...this.biz.values()].find((b) => b.type === 'lodge'); if (!lodge) return;
+      for (const g of this.npcGangs ? this.npcGangs() : []) {
+        if (g.speciality !== 'poaching' || !g.members.length || !this.rng.chance(0.3)) continue;
+        const p = this.byId.get(this.rng.pick(g.members).id); if (!p || p.jailUntil) continue;
+        const keeper = lodge.workers.map((id) => this.byId.get(id)).find((q) => q && q.job?.role === 'gamekeeper');
+        if (keeper && this.rng.chance(0.35)) {
+          const crime = this.recordCrime({ kind: 'poaching', perp: p, gang: g.id, placeName: lodge.name, tile: [lodge.b.doorX, lodge.b.doorY], seen: [keeper], severity: 1 });
+          this.arrestNPC && this.arrestNPC(p, crime, false);
+          this.log(`${keeper.name} the gamekeeper caught ${p.name} with a snared deer.`, 'crime');
+        } else { g.purse += 6; lodge.stock.venison = Math.max(0, (lodge.stock.venison || 0) - 0.5); }
+      }
+    };
+  }
+  O.StreetSetup = { setup };
+})();
+
+</script>
+<script>
+// Seeing the realm governed. On election day the hall of the place holds the ballot box: a citizen
+// (someone who lives here, in a house they own or rent) can read each candidate's record and put in
+// their vote, or stand themselves if their name is good. On council day the leaders of the realm ride
+// into the capital and take their seats at the long tables in the castle's great hall, the monarch on
+// the throne, the guards at the doors; they leave again at evening.
+'use strict';
+(function () {
+  function setup(game, home) {
+    const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k), esc = (t) => O.escape(String(t));
+    const K = () => home.kingdom;
+    const HALLS = ['townhall', 'moothall', 'chapel', 'church', 'guard', 'keep'];
+    const citizen = (s) => s.world.buildings.some((b) => (b.type === 'house' || b.type === 'townhouse' || b.type === 'mansion') && (b.owner?.kind === 'player' || (PS.lease && PS.lease.b === b.id))) || (PS.lease && PS.lease.place === s.world.placeId);
+    const openElection = (s) => (K().elections || []).find((e) => e.place === s.world.placeId && !e.done);
+
+    O.voteCandidate = () => {
+      const s = cur(), sc = game.scene; if (!sc || !HALLS.includes(sc.b.type)) return null;
+      const e = openElection(s); if (!e) return null;
+      const p = game.player, it = sc.L.items.find((i) => i.kind === 'desk' || i.kind === 'altar' || i.counter) || sc.L.items[0]; if (!it) return null;
+      const [x, y] = sc.anchor(it); if (Math.hypot(x - p.x, y + 10 - p.y) > 60) return null;
+      return { type: 'vote', e, d: 5, x, y: y - 34 };
+    };
+    O.voteAct = (c) => {
+      const s = cur(), e = c.e, pl = K().place(e.place);
+      const voted = e.voters && e.voters.includes('player'), can = citizen(s);
+      const rows = e.cands.map((k, i) => `<tr><td><b>${esc(k.name)}</b><br><small class="lbl">${esc(k.record)}</small></td><td>${can && !voted ? `<button data-v="${i}">Vote</button>` : ''}</td></tr>`).join('');
+      const stand = can && !e.cands.some((k) => k.player) && PS.rep.local > -0.1 && !(PS.wantedLevel && PS.wantedLevel() > 0);
+      O.Panels.open(`Election in ${pl.name}`, `<p class="caption">The old ${esc(K().leaders[e.place]?.title || 'leader').toLowerCase()} ${esc(e.oldName || '')} ${esc(e.why)}. The box is on the table; the count is tomorrow.${can ? '' : ' Only those who live here may vote.'}${voted ? ' You have voted.' : ''}</p><table>${rows}</table>${stand ? '<div class="topics" style="margin-top:10px"><button data-stand="1">Stand yourself</button></div>' : ''}`, (r) => {
+        r.querySelectorAll('[data-v]').forEach((b) => b.onclick = () => { e.votes[b.dataset.v] = (e.votes[b.dataset.v] || 0) + 1; (e.voters = e.voters || []).push('player'); game.player.anim = 'place'; O.Panels.close(); say(`You fold your vote and drop it in the box for ${e.cands[+b.dataset.v].name}.`); });
+        const st = r.querySelector('[data-stand]'); if (st) st.onclick = () => { const nm = (O.Forge && O.Forge.player && O.Forge.player.name) || 'The newcomer'; e.cands.push({ name: nm, record: PS.emp ? `the ${PS.emp.role} at ${PS.emp.bizName}` : 'a newcomer of good name', votes: 0, appeal: 0.3 + PS.rep.local * 0.6 + PS.rep.civilian * 0.3, player: true }); O.Panels.close(); say("Your name goes up beside the others'. The count is tomorrow."); };
+      });
+    };
+
+    // the council in the great hall: the realm's leaders come for the afternoon
+    const SP = O.Sim.prototype, _plan = SP.plan;
+    SP.plan = function (p) { if (p.councillor) return this.hour < 16.5 ? { act: 'feast', b: p.councillor } : { act: 'leave', outdoor: true, zone: 'east' }; return _plan.call(this, p); };
+    let spawned = -1;
+    game.hooks.update.push(() => {
+      const s = cur(); if (!s.world.placeId || s.world.placeId !== (K().places.find((x) => x.kind === 'capital') || {}).id) return;
+      const hall = s.world.buildings.find((b) => b.royal); if (!hall) return;
+      const h = s.hour;
+      if (s.weekday === 3 && h >= 13.5 && h < 16.5 && spawned !== s.day) {
+        spawned = s.day; K().leadersInit && K().leadersInit();
+        const L = Object.entries(K().leaders || {}).filter(([, l]) => !l.out).slice(0, 14);
+        for (const [id, l] of L) {
+          const q = s.newPerson({ sex: l.sex, age: 40 + (l.name.length % 20), first: l.first || l.name.split(' ')[0], sur: l.name.split(' ').slice(1).join(' '), household: 0, home: null, genes: O.Char.randomGenes(s.rng, 'south'), wealth: 0.85, visitor: true });
+          q.name = `${l.title} ${l.name}`; q.title = l.title; q.councillor = hall.id; q.councilFor = id;
+          q.app = O.Char.makeAppearance(O.hash('leader', id), { sex: q.sex, age: q.age, genes: q.genes, role: 'noble', wealth: 0.85 });
+          const [ex, ey] = s.entry(hall); q.agent = { x: ex * 16 + 8, y: ey * 16 + 10, dir: 3, anim: 'idle', ft: 0, a: q.app, hidden: true, inside: hall.id, path: null, goal: null, person: q };
+          s.people.push(q); s.byId.set(q.id, q);
+        }
+        say('The leaders of the realm are gathering in the great hall for the council.');
+      }
+      // gone home in the evening
+      if (h >= 17 && s.people.some((q) => q.councillor)) { for (const q of s.people.filter((x) => x.councillor)) s.byId.delete(q.id); s.people = s.people.filter((q) => !q.councillor); }
+    });
+
+    // the minutes, for whoever asks at the castle or reads the map
+    O.councilMinutes = () => {
+      const log = (K().councilLog || []).slice(-3).reverse();
+      if (!log.length) return '<p class="caption">The council of the realm meets every Thursday at two in the great hall.</p>';
+      return log.map((m) => `<div class="lbl">Council of day ${m.day}</div><ul class="chron">${m.items.map((it) => `<li>${esc(it.who)} of ${esc(it.place)}: ${it.sacked ? 'put out of office' : it.resigned ? 'resigned' : `asked for ${esc(it.ask)}, ${it.granted ? 'granted' : 'refused'}`}</li>`).join('')}</ul>`).join('');
+    };
+  }
+  O.CouncilUI = { setup };
 })();
 
 </script>
@@ -16400,7 +16819,7 @@ O.snowMaskOf = function (src) {
 
   function update(k, v) {
     spec[k] = v;
-    if (k === 'sex') { spec.style = v === 'f' ? 'hoodedDress' : 'hooded'; if (v === 'f' && O.Char.HAIR_STYLES_M.includes(spec.hairStyle) && !O.Char.HAIR_STYLES_F.includes(spec.hairStyle)) spec.hairStyle = 'long'; buildControls(); }
+    if (k === 'sex') { spec.style = v === 'f' ? 'hoodedDress' : 'hooded'; if (v === 'f' && !O.Char.HAIR_STYLES_F.includes(spec.hairStyle)) spec.hairStyle = 'long'; if (v === 'm' && !O.Char.HAIR_STYLES_M.includes(spec.hairStyle)) spec.hairStyle = 'short'; buildControls(); }
     player = O.Creator.appearanceFromSpec(spec);
     try { localStorage.setItem('outlaw.spec', JSON.stringify(spec)); } catch (e) { /* ignore */ }
     nameplate();
@@ -16425,7 +16844,7 @@ O.snowMaskOf = function (src) {
       field('Skin', swatches(P.skin.map((h, i) => [i, h, 'Skin tone ' + (i + 1)]), spec.skin, (v) => update('skin', v), 'Skin tone')),
     ));
     const hairNames = Object.keys(P.hair).filter((k) => k !== 'grey' && k !== 'white');
-    const styles = [...new Set([...Ch.HAIR_STYLES_M, ...Ch.HAIR_STYLES_F])];
+    const styles = spec.sex === 'f' ? Ch.HAIR_STYLES_F : Ch.HAIR_STYLES_M; // men's styles for men, women's for women
     root.appendChild(group('Face & hair',
       field('Hair colour', swatches(hairNames.map((k) => [k, P.hair[k], k]), spec.hair, (v) => update('hair', v), 'Hair colour')),
       row(chk('Greying', spec.hairGrey, (v) => update('hairGrey', v))),
@@ -16861,6 +17280,8 @@ O.snowMaskOf = function (src) {
   O.EmploymentSetup.setup(game, home, npcUI);
   O.LettersSetup.setup(game, home, npcUI);
   O.FittingSetup.setup(game);
+  O.StreetSetup.setup(game, home);
+  O.CouncilUI.setup(game, home);
   O.WarUI.setup(game, home, npcUI);
   O.Craft.setup(game);
   O.FireFX.setup(game, home);

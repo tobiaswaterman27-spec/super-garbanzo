@@ -109,6 +109,8 @@
   O.EmploymentSetup.setup(game, home, npcUI);
   O.LettersSetup.setup(game, home, npcUI);
   O.FittingSetup.setup(game);
+  O.StreetSetup.setup(game, home);
+  O.CouncilUI.setup(game, home);
   O.WarUI.setup(game, home, npcUI);
   O.Craft.setup(game);
   O.FireFX.setup(game, home);

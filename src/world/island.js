@@ -331,6 +331,7 @@
     yield;
     // 6. the trades that stand out of town, each where it belongs, and the cottages of the people who work them
     placeOutskirts(id, { W, H, R, ter, solid, trees, props, buildings, kindAt, inTown, roadSet, TR, tw, ox, oy });
+    placeDens(id, { W, H, ter, solid, trees, props, buildings, inTown, TR, tw, ox, oy });
     // 5. the camps of the gangs that hold the wild roads
     for (const r of camps) {
       const c = r.camp, x = c.x - R.x0, y = c.y - R.y0;
@@ -442,6 +443,33 @@
       lane(b.doorX, b.doorY + 1);
       // a cottage nearby for the hands
       for (const [dx, dy] of [[w + 3, 0], [-7, 0], [0, 7], [w + 3, 6], [-7, 6]]) { const cx = best[0] + dx, cy = best[1] + dy; if (fits(cx, cy, 4, 3)) { const hb = build('house', 4, 3, { wall: rng.pick(['timber', 'plank', 'stone']), roof: rng.pick(['thatch', 'shingle']), chimney: true, doorTile: 1 }, 'Cottage', cx, cy); lane(hb.doorX, hb.doorY + 1); break; } }
+    }
+  }
+
+  // the dens of the place's gangs, hidden off in the woods or out in the fields
+  function placeDens(id, C) {
+    const pl = place(id), pop = pl.pop || 100, big = pl.kind === 'capital' || pl.kind === 'city';
+    const n = pop < 60 ? 0 : pop < 150 ? 1 : pop < 400 ? 2 : big ? 4 : 3;
+    const { W, H, ter, solid, trees, props, buildings, inTown, TR, tw, ox, oy } = C, rng = O.RNG(O.hash('dens', id));
+    const have = buildings.filter((b) => b.type === 'hideout' && !b.camp && !b.roadKey).length;
+    for (let k = have; k < n; k++) {
+      let best = null, bs = -1;
+      for (let t = 0; t < 400; t++) {
+        const x = Math.round(ox - 50 + rng.next() * (tw.W + 100)), y = Math.round(oy - 50 + rng.next() * (tw.H + 100));
+        if (x < 4 || y < 4 || x > W - 6 || y > H - 4) continue;
+        const dt = Math.max(ox - x, x - ox - tw.W, oy - y, y - oy - tw.H, 0); if (dt < 12 || dt > 50) continue;
+        let okk = true; for (let yy = y - 3; yy <= y + 3 && okk; yy++) for (let xx = x - 3; xx <= x + 5 && okk; xx++) { const i = yy * W + xx; if (inTown(xx, yy) || ter[i] === TR.WATER || ter[i] === TR.ROAD || buildings.some((b) => xx >= b.x - 1 && xx < b.x + b.w + 1 && yy >= b.y - 1 && yy <= b.bottom + 2)) okk = false; }
+        if (!okk) continue;
+        let f = 0; for (let j = -3; j <= 3; j++) for (let i = -3; i <= 3; i++) if (ter[(y + j) * W + x + i] === TR.FOREST) f++;
+        if (f > bs) { bs = f; best = [x, y]; }
+      }
+      if (!best) continue;
+      const [x, y] = best, spec = { seed: O.hash('den', id, k), w: 3, d: 2, floors: 1, wealth: 0.2, condition: 0.6, wall: 'log', roof: 'thatch', roofType: 'gable', doorTile: 1, noFlowers: true };
+      const b = { id: 8800 + k, type: 'hideout', name: 'A den in the woods', x: x - 1, bottom: y, y: y - 1, w: 3, d: 2, floors: 1, wealth: 0.2, condition: 0.6, level: 1, spec, doorX: x, doorY: y + 1, den: true };
+      buildings.push(b);
+      for (let yy = b.y - 1; yy <= b.bottom + 2; yy++) for (let xx = b.x - 2; xx < b.x + b.w + 2; xx++) { const i = yy * W + xx; solid[i] = yy <= b.bottom && xx >= b.x && xx < b.x + b.w ? 1 : 0; if (ter[i] === TR.FOREST) ter[i] = TR.YARD; }
+      keep(trees, (t) => !(Math.abs(t.x / T - x) < 4 && Math.abs((t.y - 1) / T - y) < 4));
+      keep(props, (p) => !(Math.abs(p.x / T - x) < 3 && Math.abs((p.y - 1) / T - y) < 3 && !p.flat));
     }
   }
 

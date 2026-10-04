@@ -39,6 +39,7 @@
     O.placeItem = (k) => {
       const g = G[k]; if (!g || !PS.items.includes(k)) return;
       if (g.furniture) return placeFurniture(k);
+      if (k === 'tent') return O.pitchTent && O.pitchTent();
       const p = game.player, d = O.Char.DIRV[p.dir] || [0, 1];
       doAnim('place', 0.9, () => {
         PS.remove(k);

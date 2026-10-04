@@ -7,7 +7,7 @@
 
   function setup(game, simRef, npcUI) {
     const money = O.money;
-    const sim = new Proxy({}, { get: (t, k) => { const s = O.SimRef.home; const v = s[k]; return typeof v === 'function' ? v.bind(s) : v; } });
+    const sim = new Proxy({}, { get: (t, k) => { const s = O.SimRef.cur; const v = s[k]; return typeof v === 'function' ? v.bind(s) : v; } }); // the band belongs to whichever town you pitched in
 
     function claim(b) {
       O.Panels.open('Claim the camp', `<p class="caption">A cold fire ring, a torn tent, a chest with a broken hasp. Nobody has slept here in a year. Make it yours and you'll need a name men can whisper in taverns.</p>
@@ -40,7 +40,7 @@
 
     function ledger() {
       const g = sim.playerGang();
-      if (!g) return O.Panels.toast('You have no band yet. Find somewhere to make camp in Ashford Wood.');
+      if (!g) return O.Panels.toast('You have no band yet. Buy a canvas tent at a store, take it somewhere quiet outside town and pitch it.');
       const L = O.Gangs.LEVELS, next = L[g.level + 1];
       const houses = sim.households.filter((h) => !h.gone && h.members.length).map((h) => ({ h, b: sim.building(h.home) })).filter((x) => x.b);
       const mem = g.members.map((m, i) => {
@@ -55,7 +55,7 @@
       O.Panels.open(g.name, `<div class="kv">
           <div><span class="lbl">Purse</span><b>${money(g.purse)}</b><small><button data-dep="10">Give 10d</button> <button data-wd="10">Take 10d</button></small></div>
           <div><span class="lbl">Hideout</span><b>${L[g.level].name}</b><small>${next ? `<button data-up="1">Build a ${next.name.toLowerCase()} · ${next.cost}d</button>` : 'As grand as it gets.'}</small></div>
-          <div><span class="lbl">Influence</span><b>${Math.round(g.influence * 100)}%</b><small>rivals: the Crows (${Math.round((sim.gang('crows')?.influence || 0) * 100)}%)</small></div>
+          <div><span class="lbl">Influence</span><b>${Math.round(g.influence * 100)}%</b><small>rivals: ${sim.npcGangs().map((x) => `${esc(x.name)} (${Math.round(x.influence * 100)}%)`).join(', ') || 'none'}</small></div>
           <div><span class="lbl">Wages due</span><b>${g.members.reduce((s, m) => s + m.wage, 0)}d/day</b><small>paid from the purse each dawn</small></div>
         </div>
         <table style="margin-top:12px"><thead><tr><th>Member</th><th>Role</th><th>Loyalty</th><th class="n">Wage</th><th>Tonight</th></tr></thead><tbody>${mem || '<tr><td colspan="5">No members yet. Sound out the desperate and the reckless, in the tavern, in the square.</td></tr>'}</tbody></table>
@@ -72,9 +72,9 @@
     // talk-card extensions: recruit, fence, gang chatter
     npcUI.extraButtons = (q) => {
       const g = sim.playerGang(), out = [];
-      if (g && !q.gang && q.age >= 16 && !q.job?.role?.startsWith('guard') && O.SimRef.cur === O.SimRef.home) out.push(['recruit', 'Sound them out']);
+      if (g && !q.gang && q.age >= 16 && !q.job?.role?.startsWith('guard')) out.push(['recruit', 'Sound them out']);
       if (q.gang === 'player') { const m = g?.members.find((x) => x.id === q.id); if (m?.role === 'fence') out.push(['fence', 'Fence goods']); }
-      if (!g && q.gang === 'crows' && PS.rep.criminal > 0.04) out.push(['fence', 'Sell them stolen goods']);
+      if (q.gang && q.gang !== 'player' && PS.rep.criminal > 0.04) out.push(['fence', 'Sell them stolen goods']);
       return out;
     };
     npcUI.onExtra = (q, key, render) => {
@@ -100,6 +100,33 @@
       return false;
     });
 
+    // pitching your own tent: the first home of a new band
+    O.pitchTent = () => {
+      const w = game.world, p = game.player, s = O.SimRef.cur;
+      if (game.scene) return O.Panels.toast('Pitch it outdoors, somewhere quiet.', 'bad');
+      const tx = Math.floor(p.x / 16) - 1, ty = Math.floor((p.y - 1) / 16) - 2;
+      if (w.island && tx + 1 >= w.ox && ty >= w.oy && tx < w.ox + w.townW && ty < w.oy + w.townH) return O.Panels.toast("Not in town: you'd be found out by morning. Go out into the woods or the fields.", 'bad');
+      for (let y = ty - 1; y <= ty + 2; y++) for (let x = tx - 1; x <= tx + 3; x++) { const i = y * w.W + x; if (w.solid[i] || w.ter[i] === w.TER.WATER || w.ter[i] === w.TER.ROAD) return O.Panels.toast('No room here: find a clear patch of ground.', 'bad'); }
+      if (s.playerGang && s.playerGang()) return O.Panels.toast('Your band already has a home here.', 'bad');
+      PS.remove('tent');
+      const spec = { seed: 7701 + tx, w: 3, d: 2, floors: 1, wealth: 0.2, condition: 0.7, wall: 'log', roof: 'thatch', roofType: 'gable', doorTile: 1, noFlowers: true };
+      const b = { id: 9700 + Math.floor(Math.random() * 90), type: 'hideout', name: 'Your tent', x: tx, bottom: ty + 1, y: ty, w: 3, d: 2, floors: 1, wealth: 0.2, condition: 0.7, level: 0, spec, doorX: tx + 1, doorY: ty + 2, unclaimed: true, pitched: true };
+      w.buildings.push(b); for (let y = b.y; y <= b.bottom; y++) for (let x = b.x; x < b.x + 3; x++) w.solid[y * w.W + x] = 1;
+      b.dirty = true; w.dirtyStatics = true; game.player.anim = 'place';
+      claim(b);
+    };
+    // coming across another gang's den
+    const found = (PS.foundBases = PS.foundBases || []);
+    let ft = 0;
+    game.hooks.update.push((dt) => {
+      ft -= dt; if (ft > 0 || game.scene) return; ft = 1;
+      const s = O.SimRef.cur, p = game.player;
+      for (const b of game.world.buildings) {
+        if (b.type !== 'hideout' || !b.gang || b.gang === 'player') continue;
+        const key = (game.world.placeId || '') + ':' + b.id; if (found.includes(key)) continue;
+        if (Math.hypot(b.doorX * 16 + 8 - p.x, b.doorY * 16 - p.y) < 90) { found.push(key); const g = s.gang && s.gang(b.gang); O.UI.say(`You've stumbled on a hideout in the trees: ${g ? g.name : 'someone'}'s den.`); }
+      }
+    });
     O.GangUI = { claim, stash, ledger, fence };
   }
   O.GangUISetup = { setup };

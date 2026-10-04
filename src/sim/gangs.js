@@ -2,36 +2,52 @@
 // the risks of all of it. The player can found a gang; the Crows already run one.
 'use strict';
 (function () {
-  const ROLES = ['recruit', 'member', 'lookout', 'burglar', 'fence', 'quartermaster', 'recruiter', 'lieutenant'];
+  const ROLES = ['recruit', 'member', 'lookout', 'burglar', 'pickpocket', 'thug', 'enforcer', 'fence', 'smuggler', 'poacher', 'highwayman', 'builder', 'quartermaster', 'recruiter', 'lieutenant'];
+  const GANG_ROLES = { burglary: ['burglar', 'lookout', 'fence'], pickpocketing: ['pickpocket', 'lookout', 'fence'], smuggling: ['smuggler', 'lookout', 'fence'], poaching: ['poacher', 'lookout'], protection: ['thug', 'enforcer', 'lieutenant'] };
+  // gang names are the realm's: no two alike
+  const NAME_A = ['Crows', 'Rooks', 'Weasels', 'Mire Rats', 'Grey Hoods', 'Night Foxes', 'Red Caps', 'Ash Wolves', 'Black Hands', 'Gallows Crew', 'Hollow Men', 'Jackdaws', 'Ditch Dogs', 'Lantern Cutters', 'Bone Pickers', 'Mud Larks', 'Thorn Boys', 'Cutpurse Guild', 'Bell Thieves', 'Pale Sisters', 'Iron Teeth', 'Low Lanterns', 'Saltmen', 'Stoats', 'Kestrels', 'Hangmen\'s Get', 'Ferrymen', 'Dusk Riders'];
+  const usedNames = new Set();
+  function gangName(r) { for (let i = 0; i < 60; i++) { const n = 'the ' + r.pick(NAME_A); if (!usedNames.has(n)) { usedNames.add(n); return n; } } const n = 'the ' + r.pick(NAME_A) + ' of ' + r.pick(['the Hill', 'the Ford', 'the Marsh', 'the Wood']); usedNames.add(n); return n; }
   const LEVELS = [
-    { name: 'Hidden camp', cost: 0, beds: 1 },
-    { name: 'Hideout', cost: 60, beds: 3 },
-    { name: 'Safehouse', cost: 160, beds: 5 },
-    { name: 'Headquarters', cost: 400, beds: 8 },
+    { name: 'Tent', cost: 0, beds: 1 },
+    { name: 'Palisaded camp', cost: 60, beds: 3 },
+    { name: 'Hideout', cost: 160, beds: 5 },
+    { name: 'Safehouse', cost: 400, beds: 8 },
+    { name: 'Fortified hold', cost: 900, beds: 12 },
   ];
 
   function install(Sim) {
     const S = Sim.prototype;
     S.gangsInit = function () {
       this.gangs = [];
-      const den = this.world.buildings.find((b) => b.gang === 'crows');
       const r = this.rng;
-      // The Crows: a small outfit of villagers who've turned to thieving
-      const cands = this.people.filter((p) => !p.visitor && p.age >= 18 && p.age < 50 && !p.job?.role?.startsWith('guard') && p.attitude < 0.2).sort((a, b) => a.attitude - b.attitude);
-      const crows = { id: 'crows', name: 'The Crows', leader: null, members: [], purse: 60, hideout: den?.id, level: den?.level ?? 1, influence: 0.2, rel: { player: 'neutral' }, log: [] };
-      for (const p of cands.slice(0, 3)) { crows.members.push({ id: p.id, role: crows.members.length ? 'member' : 'leader', loyalty: r.float(0.5, 0.9), wage: 3 }); p.gang = 'crows'; p.attitude = Math.min(p.attitude, -0.2); }
-      crows.leader = crows.members[0]?.id ?? null;
-      if (crows.leader) this.byId.get(crows.leader).traits = [...new Set([...this.byId.get(crows.leader).traits, 'risk-taking'])];
-      this.gangs.push(crows);
+      // each den in the woods belongs to a gang of its own, with its own name, leader and hands
+      const dens = this.world.buildings.filter((b) => b.type === 'hideout' && !b.roadKey && b.gang !== 'player');
+      const cands = this.people.filter((p) => !p.visitor && p.age >= 17 && p.age < 55 && !p.job?.role?.startsWith('guard') && !p.gentry && !p.royal).sort((a, b) => a.attitude - b.attitude);
+      dens.forEach((den, k) => {
+        const id = 'g' + k, name = gangName(r);
+        const g = { id, name, leader: null, members: [], purse: r.int(30, 120), hideout: den.id, level: den.level ?? 1, influence: 0.15 + r.next() * 0.1, rel: { player: 'neutral' }, log: [], speciality: r.pick(['burglary', 'pickpocketing', 'smuggling', 'poaching', 'protection']) };
+        den.gang = id; den.name = `${name.replace(/^the /, 'The ')}' den`;
+        const size = 2 + r.int(0, 2);
+        for (const p of cands.splice(0, size)) {
+          const role = !g.members.length ? 'leader' : r.pick(GANG_ROLES[g.speciality] || ['member']);
+          g.members.push({ id: p.id, role, loyalty: r.float(0.5, 0.9), wage: 3 }); p.gang = id; p.attitude = Math.min(p.attitude, -0.2);
+        }
+        g.leader = g.members[0]?.id ?? null;
+        if (g.leader) this.byId.get(g.leader).traits = [...new Set([...this.byId.get(g.leader).traits, 'risk-taking'])];
+        for (const o of this.gangs) { o.rel[id] = 'rival'; g.rel[o.id] = 'rival'; }
+        this.gangs.push(g);
+      });
     };
+    S.npcGangs = function () { return this.gangs.filter((g) => g.id !== 'player'); };
     S.gang = function (id) { return this.gangs.find((g) => g.id === id); };
     S.playerGang = function () { return this.gang('player'); };
 
     S.foundGang = function (name, b) {
-      const g = { id: 'player', name, leader: 'player', members: [], purse: 0, hideout: b.id, level: 0, influence: 0.05, rel: { crows: 'rival' }, orders: [], log: [] };
-      this.gangs.push(g); b.unclaimed = false; b.gang = 'player'; b.name = `${name}'s camp`;
-      this.gang('crows').rel.player = 'rival';
-      this.log(`Word in the taverns: a new band calling itself ${name} has made camp in Ashford Wood.`, 'gang');
+      const g = { id: 'player', name, leader: 'player', members: [], purse: 0, hideout: b.id, level: 0, influence: 0.05, rel: {}, orders: [], log: [] };
+      this.gangs.push(g); b.unclaimed = false; b.gang = 'player'; b.name = `${name}${/s$/.test(name) ? "'" : "'s"} camp`;
+      for (const o of this.npcGangs()) { o.rel.player = 'rival'; g.rel[o.id] = 'rival'; }
+      this.log(`Word in the taverns: a new band calling itself ${name} has made camp outside ${this.world.name}.`, 'gang');
       return g;
     };
 
@@ -108,11 +124,11 @@
     };
 
     S.gangNight = function () {
-      // the Crows burgle on their own account
-      const crows = this.gang('crows');
-      if (crows && crows.members.length && this.rng.chance(0.25)) {
-        const thief = this.byId.get(this.rng.pick(crows.members).id);
-        if (thief && !thief.jailUntil) this.gangJob(crows, thief, null);
+      // the town's gangs work on their own account, each in its own line
+      for (const gg of this.npcGangs()) {
+        if (!gg.members.length || !this.rng.chance(0.2)) continue;
+        const thief = this.byId.get(this.rng.pick(gg.members).id);
+        if (thief && !thief.jailUntil) this.gangJob(gg, thief, null);
       }
       const g = this.playerGang(); if (!g || !g.orders) return;
       for (const o of g.orders.splice(0)) {
@@ -151,13 +167,17 @@
 
     S.upgradeHideout = function (g) {
       const next = LEVELS[g.level + 1]; if (!next) return false;
-      if (g.purse < next.cost) return false;
-      g.purse -= next.cost; g.level++;
-      const b = this.building(g.hideout); b.level = g.level; b.dirty = true; b.name = `${g.name}'s ${next.name.toLowerCase()}`;
+      // builders do the work: hired from the yard, or cheaper if the band has builders of its own
+      const own = g.members.some((m) => m.role === 'builder' || ['builder', 'labourer', 'master builder', 'carpenter'].includes(this.byId.get(m.id)?.job?.role));
+      const cost = Math.round(next.cost * (own ? 0.6 : 1));
+      if (g.purse < cost) return false;
+      g.purse -= cost; g.level++;
+      const yard = [...this.biz.values()].find((x) => x.type === 'builder'); if (yard && !own) yard.cash += Math.round(cost * 0.5);
+      const b = this.building(g.hideout); b.level = g.level; b.dirty = true; b.name = `${g.name}${/s$/.test(g.name) ? "'" : "'s"} ${next.name.toLowerCase()}`;
       if (g.level >= 1) { b.floors = g.level >= 3 ? 2 : 1; b.spec.floors = b.floors; }
       O.Interior && O.Interior.invalidate && O.Interior.invalidate(b);
       g.log.push(`Day ${this.day}: the camp became a ${next.name.toLowerCase()}.`);
-      this.log(`Smoke rises over a new ${next.name.toLowerCase()} in Ashford Wood.`, 'gang');
+      this.log(`Smoke rises over a new ${next.name.toLowerCase()} in the woods outside ${this.world.name}.`, 'gang');
       return true;
     };
   }

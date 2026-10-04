@@ -54,7 +54,7 @@
 
   function update(k, v) {
     spec[k] = v;
-    if (k === 'sex') { spec.style = v === 'f' ? 'hoodedDress' : 'hooded'; if (v === 'f' && O.Char.HAIR_STYLES_M.includes(spec.hairStyle) && !O.Char.HAIR_STYLES_F.includes(spec.hairStyle)) spec.hairStyle = 'long'; buildControls(); }
+    if (k === 'sex') { spec.style = v === 'f' ? 'hoodedDress' : 'hooded'; if (v === 'f' && !O.Char.HAIR_STYLES_F.includes(spec.hairStyle)) spec.hairStyle = 'long'; if (v === 'm' && !O.Char.HAIR_STYLES_M.includes(spec.hairStyle)) spec.hairStyle = 'short'; buildControls(); }
     player = O.Creator.appearanceFromSpec(spec);
     try { localStorage.setItem('outlaw.spec', JSON.stringify(spec)); } catch (e) { /* ignore */ }
     nameplate();
@@ -79,7 +79,7 @@
       field('Skin', swatches(P.skin.map((h, i) => [i, h, 'Skin tone ' + (i + 1)]), spec.skin, (v) => update('skin', v), 'Skin tone')),
     ));
     const hairNames = Object.keys(P.hair).filter((k) => k !== 'grey' && k !== 'white');
-    const styles = [...new Set([...Ch.HAIR_STYLES_M, ...Ch.HAIR_STYLES_F])];
+    const styles = spec.sex === 'f' ? Ch.HAIR_STYLES_F : Ch.HAIR_STYLES_M; // men's styles for men, women's for women
     root.appendChild(group('Face & hair',
       field('Hair colour', swatches(hairNames.map((k) => [k, P.hair[k], k]), spec.hair, (v) => update('hair', v), 'Hair colour')),
       row(chk('Greying', spec.hairGrey, (v) => update('hairGrey', v))),

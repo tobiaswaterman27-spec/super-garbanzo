@@ -83,9 +83,8 @@
 
     // stables and paddock east of the square, beside the King's Road
     B({ type: 'stable', name: 'Ashford Stables', x: 10, bottom: 34, w: 5, d: 3, wealth: 0.5, look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', roofType: 'side', bigDoor: true, doorTile: 2, chimney: false, noFlowers: true } });
-    // hidden clearings in the woods: an abandoned camp anyone bold enough could claim, and the Crows' den
-    B({ type: 'hideout', name: 'Abandoned camp', x: 8, bottom: 9, w: 3, d: 2, wealth: 0.2, condition: 0.6, level: 0, unclaimed: true, look: { wall: 'log', roof: 'shingle', roofType: 'gable', doorTile: 1, noFlowers: true } });
-    B({ type: 'hideout', name: "The Crows' den", x: 89, bottom: 47, w: 3, d: 2, wealth: 0.2, condition: 0.6, level: 1, gang: 'crows', look: { wall: 'log', roof: 'thatch', roofType: 'gable', doorTile: 1, noFlowers: true } });
+    // a gang's den in a hidden clearing (more stand out in the woods round the town)
+    B({ type: 'hideout', name: 'A den in the woods', x: 89, bottom: 47, w: 3, d: 2, wealth: 0.2, condition: 0.6, level: 1, look: { wall: 'log', roof: 'thatch', roofType: 'gable', doorTile: 1, noFlowers: true } });
 
     // the builder's yard on the open ground north-east of the square: a shed and a dirt yard for stock
     fill(60, 9, 78, 16, TER.YARD); fill(47, 13, 59, 13, TER.ROAD);

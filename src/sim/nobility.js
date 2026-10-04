@@ -1,5 +1,5 @@
-// The nobility in their seats. A castle's keep is home to its lord or lady and their family — the
-// same people the kingdom's rulers list names — with a steward, cooks, maids and a groom in their
+// The nobility in their seats. A castle's keep is home to its lord or lady and their family, the
+// same people the kingdom's rulers list names, with a steward, cooks, maids and a groom in their
 // service. In Aurelia the royal castle houses the king, the queen and the royal children,
 // served by a chamberlain, ladies-in-waiting, maids, pages and grooms, fed from the Royal Kitchens.
 // The great houses of the capital belong to knights and their ladies. The gentry don't take work in

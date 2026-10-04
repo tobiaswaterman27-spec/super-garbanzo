@@ -105,7 +105,7 @@
       if (site.player) { b.owner = { kind: 'player' }; b.vacant = true; sim.log(`The newcomer's house is finished. Fresh timber and new thatch: the newcomer has a home of their own in ${sim.world.name}.`, 'economy'); O.Chronicle && O.Chronicle.deed(sim, `A newcomer built a house of their own in ${sim.world.name}.`, `Your own house in ${sim.world.name} is finished.`, 'player', 3, true); sim.world.dirtyStatics = true; return; }
       // a family arrives from elsewhere to take the house (migration)
       const region = r.pick(['east', 'north', 'west', 'south']);
-      const hh = { id: sim.households.length + 1, home: b.id, members: [], pantry: { bread: 4, cabbage: 2, firewood: 4 }, money: r.int(60, 140), surname: r.pick(O.Data.NAMES.sur) };
+      const hh = { id: sim.households.length + 1, home: b.id, members: [], pantry: { bread: 4, cabbage: 2, firewood: 4 }, money: r.int(60, 140), surname: O.Names ? O.Names.surname(r) : r.pick(O.Data.NAMES.sur) };
       sim.households.push(hh); b.household = hh.id;
       const mk = (sex, age, genes) => { const p = sim.newPerson({ sex, age, first: r.pick(O.Data.NAMES[sex]), sur: hh.surname, household: hh.id, home: b.id, genes: genes || O.Char.randomGenes(r, region), wealth: 0.5 }); p.name = `${p.first} ${p.sur}`; hh.members.push(p.id); return p; };
       const a = mk('m', r.int(24, 40)), c = mk('f', r.int(22, 38)); a.spouse = c.id; c.spouse = a.id;

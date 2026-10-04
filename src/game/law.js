@@ -48,7 +48,7 @@
           PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.02);
           // the victim may feel the tug, or turn in time to see who it was
           const victimSaw = !behind && sim.rng.chance(0.3) || q.traits.includes('suspicious') && sim.rng.chance(0.3);
-          if (seen.length || victimSaw) { const cr = sim.recordCrime({ kind: 'pickpocket', perp: 'player', placeName: place, tile: tileOf(), seen, victimPerson: victimSaw ? q : null, victimLate: true, severity: 1 }); PS.crimes.push(cr.id); O.Panels.toast(seen.length ? `You lift ${got} from ${q.first}… but ${seen[0].first} saw you!` : `You lift ${got} — and ${q.first} turns, clutching an empty purse, and looks straight at you.`, 'bad'); PS.rep.local -= 0.1; }
+          if (seen.length || victimSaw) { const cr = sim.recordCrime({ kind: 'pickpocket', perp: 'player', placeName: place, tile: tileOf(), seen, victimPerson: victimSaw ? q : null, victimLate: true, severity: 1 }); PS.crimes.push(cr.id); O.Panels.toast(seen.length ? `You lift ${got} from ${q.first}… but ${seen[0].first} saw you!` : `You lift ${got}, and ${q.first} turns, clutching an empty purse, and looks straight at you.`, 'bad'); PS.rep.local -= 0.1; }
           else O.Panels.toast(`You lift ${got} from ${q.first}'s purse. Nobody noticed.`);
           sim.remember(q, 'My purse felt lighter today.', 'crime', 0.4);
         } else {
@@ -159,7 +159,7 @@
       const sought = PS.soughtFor();
       const spec = {
         name: g.first + ' of the watch', color: '#a8382f',
-        text: PS.exiled ? 'You were told never to come back. You\'re coming with me.' : `That's the one${sought ? ` — wanted for ${sought}` : ''}. You're coming with me to the Watch House.`,
+        text: PS.exiled ? 'You were told never to come back. You\'re coming with me.' : `That's the one${sought ? `, wanted for ${sought}` : ''}. You're coming with me to the Watch House.`,
         options,
         onPick: (t) => {
           if (t === 'surrender') { done(); jail(g); return; }

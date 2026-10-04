@@ -1,5 +1,5 @@
 // Rulers and succession. The crown and every lordship is held by a person who ages, may fall ill
-// and die. A death brings mourning bells, then a coronation (and a festival day) for the heir — or,
+// and die. A death brings mourning bells, then a coronation (and a festival day) for the heir, or,
 // if the heir is a child or the claim is weak, a regency, and perhaps a pretender who raises the
 // banner of rebellion: a civil war fought with the same armies as any other. Lords of the realm's
 // places die and are succeeded by their heirs. In Ashford, when the reeve dies or leaves, the folk

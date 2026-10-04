@@ -1,6 +1,6 @@
 // The Chronicle (C): the world's timeline as the parish clerks record it, what you have heard and
 // from whom (set against the record), your own story (including what only you know), and the
-// realm's notables — rulers, memorials, the founders of its trades. Also: memorial stones raised in
+// realm's notables, rulers, memorials, the founders of its trades. Also: memorial stones raised in
 // the chapel yard for notable dead, ballads sung by visiting bards, and the city broadsheet.
 'use strict';
 (function () {
@@ -92,13 +92,13 @@
   function notables(s, Ch) {
     const H = O.SimRef.home, K = H.kingdom;
     const reeve = H.reeveId ? H.byId.get(H.reeveId) : null;
-    const rulers = K.places.map((p) => `<li><b>${esc(p.name)}</b> — ${esc(p.id === 'ashford' ? (H.lordship?.holder === 'player' ? 'you, as Lord of Ashford' : H.reeveId === 'player' ? 'you, as Reeve of Ashford' : reeve && reeve.alive !== false ? `${reeve.name}, Reeve of Ashford` : 'no reeve: a moot is called') : p.leader || 'a council')}</li>`).join('');
+    const rulers = K.places.map((p) => `<li><b>${esc(p.name)}</b>, ${esc(p.id === 'ashford' ? (H.lordship?.holder === 'player' ? 'you, as Lord of Ashford' : H.reeveId === 'player' ? 'you, as Reeve of Ashford' : reeve && reeve.alive !== false ? `${reeve.name}, Reeve of Ashford` : 'no reeve: a moot is called') : p.leader || 'a council')}</li>`).join('');
     const R = K.rulers;
-    const crown = R ? `<div class="kv" style="margin-top:12px"><div><span class="lbl">The crown</span><b style="font-size:22px">${R.crown ? esc(O.Rulers.crownTitle(R.crown)) : 'Vacant — the realm mourns'}</b><small>${R.crown ? `aged ${R.crown.age}${R.crown.ailing ? ', gravely ill' : ''}; heir ${esc(R.crown.heir?.name || 'none')} (${R.crown.heir?.age ?? '?'})` : ''}${R.regent ? `. Regent: ${esc(R.regent.name)}` : ''}</small></div>
+    const crown = R ? `<div class="kv" style="margin-top:12px"><div><span class="lbl">The crown</span><b style="font-size:22px">${R.crown ? esc(O.Rulers.crownTitle(R.crown)) : 'Vacant, the realm mourns'}</b><small>${R.crown ? `aged ${R.crown.age}${R.crown.ailing ? ', gravely ill' : ''}; heir ${esc(R.crown.heir?.name || 'none')} (${R.crown.heir?.age ?? '?'})` : ''}${R.regent ? `. Regent: ${esc(R.regent.name)}` : ''}</small></div>
       <div><span class="lbl">Pretender</span><b style="font-size:22px">${esc(R.pretender?.name || 'none')}</b><small>${esc(R.pretender?.title || '')}</small></div></div>
-      <div class="lbl" style="margin-top:12px">Reigns</div><ol class="chron">${R.reigns.slice().reverse().map((g) => `<li><b>${esc(g.who)}</b> — ${g.how}, ${g.from < 1 ? 'long before you came' : esc(Ch.dateLabel(g.from))}${g.to ? ` to ${esc(Ch.dateLabel(g.to))}` : ', reigning'}</li>`).join('')}</ol>` : '';
-    const mems = (H.memorials || []).slice().reverse().map((m) => `<li><b>${esc(m.name)}</b>${m.title ? ', ' + esc(m.title) : ''} — died ${esc(Ch.dateLabel(m.died))}, aged ${m.age}</li>`).join('') || '<li class="caption">No memorials raised yet.</li>';
-    const founders = [...s.biz.values()].filter((bz) => !bz.def.public && bz.type !== 'site').map((bz) => `<li><b>${esc(bz.name)}</b> — ${bz.founded ? `founded ${esc(Ch.dateLabel(bz.founded.day))} by ${esc(bz.founded.by)}` : 'kept since time out of mind'}</li>`).join('');
+      <div class="lbl" style="margin-top:12px">Reigns</div><ol class="chron">${R.reigns.slice().reverse().map((g) => `<li><b>${esc(g.who)}</b>, ${g.how}, ${g.from < 1 ? 'long before you came' : esc(Ch.dateLabel(g.from))}${g.to ? ` to ${esc(Ch.dateLabel(g.to))}` : ', reigning'}</li>`).join('')}</ol>` : '';
+    const mems = (H.memorials || []).slice().reverse().map((m) => `<li><b>${esc(m.name)}</b>${m.title ? ', ' + esc(m.title) : ''}, died ${esc(Ch.dateLabel(m.died))}, aged ${m.age}</li>`).join('') || '<li class="caption">No memorials raised yet.</li>';
+    const founders = [...s.biz.values()].filter((bz) => !bz.def.public && bz.type !== 'site').map((bz) => `<li><b>${esc(bz.name)}</b>, ${bz.founded ? `founded ${esc(Ch.dateLabel(bz.founded.day))} by ${esc(bz.founded.by)}` : 'kept since time out of mind'}</li>`).join('');
     const graves = (H.graves || []).length;
     return `<div class="kv"><div><span class="lbl">Years recorded</span><b>${Ch.yearOf(H.day)}</b><small>${esc(Ch.dateLabel(H.day))}</small></div><div><span class="lbl">Facts in the record</span><b>${Ch.facts.length}</b><small>${Ch.facts.filter((f) => f.imp >= 3).length} of great moment</small></div><div><span class="lbl">Buried in Ashford</span><b>${graves}</b><small>${(H.memorials || []).length} with memorials</small></div></div>
       ${crown}<div class="lbl" style="margin-top:12px">Who rules where</div><ol class="chron">${rulers}</ol>

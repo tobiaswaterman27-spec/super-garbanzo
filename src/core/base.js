@@ -1,4 +1,4 @@
-// Outlaw — shared namespace, seeded RNG and small math helpers.
+// Outlaw, shared namespace, seeded RNG and small math helpers.
 'use strict';
 var O = (typeof window !== 'undefined' ? (window.O = window.O || {}) : {});
 

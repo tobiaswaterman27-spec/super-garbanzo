@@ -1,7 +1,7 @@
 // Land. Buy an empty building plot in Ashford and pay builders to raise a house of your own on it
 // (the same eleven stages the council's houses go through, worked by hired villagers). Buy strips
 // of the common field from the farm: hired hands work them, and each Moonday what they reaped is
-// sold to the mill at the going price, less the labourers' wages — so floods, seasons and the price
+// sold to the mill at the going price, less the labourers' wages, so floods, seasons and the price
 // of grain decide whether land pays. Enough land and property, and you are landed gentry.
 'use strict';
 (function () {

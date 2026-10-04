@@ -1,7 +1,7 @@
 // The roads of Eldoria, walked. Every settlement has a way out for each road that leaves it, on the
 // side that faces where the road goes. Walk out of town and you are on that road: a stretch of
-// real country, drawn from the island itself — the forest, the farms, the rocks under the peaks,
-// the marsh — with the rivers it crosses (by a bridge, or a ford where there is none), the ruins
+// real country, drawn from the island itself, the forest, the farms, the rocks under the peaks,
+// the marsh, with the rivers it crosses (by a bridge, or a ford where there is none), the ruins
 // that stand near it, other travellers and the caravans that use it, and on the wilder roads a camp
 // of one of the rival gangs that live in the wild places. Walk to the far end and you arrive.
 'use strict';
@@ -335,7 +335,7 @@
           else { const lost = Math.floor(PS.money * 0.5); PS.money -= lost; done(`They beat you bloody and take ${lost}d.`, true); }
         };
         r.querySelector('[data-b=flee]').onclick = () => { const ok = home.rng.chance(game.player.mount ? 0.85 : 0.4); if (ok) done('You break away and leave them cursing in the road.'); else { const lost = Math.floor(PS.money * 0.3); PS.money -= lost; PS.hp = Math.max(5, PS.hp - 15); done(`They catch you. You lose ${lost}d and some skin.`, true); } };
-        const tk = r.querySelector('[data-b=talk]'); if (tk) tk.onclick = () => done(`“Ah — one of us. Go on, then.” They wave you past, and tell you which caravans run soft.`);
+        const tk = r.querySelector('[data-b=talk]'); if (tk) tk.onclick = () => done(`“Ah, one of us. Go on, then.” They wave you past, and tell you which caravans run soft.`);
       });
     };
 

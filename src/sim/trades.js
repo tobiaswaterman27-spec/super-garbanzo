@@ -1,5 +1,5 @@
-// More trades and the goods they make. The builder's yard keeps the town's building stock — seasoned
-// timber, dressed stone, planks — and its builders go out to every building site the council or a
+// More trades and the goods they make. The builder's yard keeps the town's building stock, seasoned
+// timber, dressed stone, planks, and its builders go out to every building site the council or a
 // citizen pays for. Weavers turn wool into cloth, tailors cloth into clothes, cobblers leather into
 // shoes, chandlers the butcher's tallow into candles, coopers planks into casks. Households buy
 // candles through the dark months and new clothes and shoes as the old ones wear out.

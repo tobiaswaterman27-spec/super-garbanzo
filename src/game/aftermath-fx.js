@@ -1,7 +1,7 @@
 // Drawing what fights leave behind: blood on the ground (drops from a stab, a streak from a sword,
 // a splash from an axe, a dark pool where someone died), things dropped in the street, the dead
 // where they fell, stretchers carried through the village, the puff of smoke at the morgue door,
-// and wounds on people — bruises, cuts and bandages that shrink as they heal. Also: picking up
+// and wounds on people, bruises, cuts and bandages that shrink as they heal. Also: picking up
 // what's lying in the street.
 'use strict';
 (function () {

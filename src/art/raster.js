@@ -6,7 +6,7 @@
 // Everything is sampled at pixel centres, so the output is crisp with no anti-aliasing.
 'use strict';
 (function () {
-  // Light comes from the upper-left, slightly toward the viewer — shared by characters and world.
+  // Light comes from the upper-left, slightly toward the viewer, shared by characters and world.
   const L = (() => { const v = [-0.5, -0.62, 0.6]; const m = Math.hypot(...v); return v.map((c) => c / m); })();
 
   function shadeFromNormal(nx, ny, nz, kind) {

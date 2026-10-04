@@ -1,4 +1,4 @@
-# Outlaw — NPC speech plan (OpenAI, to be added later)
+# Outlaw, NPC speech plan (OpenAI, to be added later)
 
 NPC speech is designed so that the words come from what each person actually knows, and the
 generation step can be swapped without touching the simulation.
@@ -6,15 +6,15 @@ generation step can be swapped without touching the simulation.
 ## What exists now
 
 - `src/sim/dialogue.js`
-  - `buildContext(sim, npc)` — a compact, factual brief: name, age, trade, personality traits,
+  - `buildContext(sim, npc)`, a compact, factual brief: name, age, trade, personality traits,
     goal, needs (hunger/energy/company), household purse and pantry, illness, family, the NPC's
     six strongest memories (including crimes they witnessed and rumours they heard), their opinion
     of the player, whether they recognise the player from a crime, local bread price and village news.
-  - `LocalProvider` — offline template lines picked from that brief (used today).
-  - `RemoteProvider` — wired but disabled: posts `{ system, line, voice }` to a game-server
+  - `LocalProvider`, offline template lines picked from that brief (used today).
+  - `RemoteProvider`, wired but disabled: posts `{ system, line, voice }` to a game-server
     endpoint and expects `{ text, audioUrl }` back.
-  - `remotePrompt(ctx)` — the system prompt built from the brief.
-  - `voiceFor(ctx)` — a stable voice descriptor per NPC (sex, age band, temperament).
+  - `remotePrompt(ctx)`, the system prompt built from the brief.
+  - `voiceFor(ctx)`, a stable voice descriptor per NPC (sex, age band, temperament).
 
 ## Architecture when we add OpenAI
 
@@ -37,7 +37,7 @@ play audio, show subtitle
 
 - The system prompt contains only what the NPC could know (the brief). They may be wrong, repeat
   rumours, lie if `hostile`/`greedy`, or refuse to talk.
-- Replies: 1–3 sentences, period-flavoured plain English, no modern words, no narration.
+- Replies: 1-3 sentences, period-flavoured plain English, no modern words, no narration.
 - The player's typed or chosen line is passed as the user message. Choice buttons stay available so
   the game is playable without free text.
 - Output is validated: length cap, no meta-talk; fall back to `LocalProvider` on error or timeout

@@ -1,5 +1,5 @@
-// Homes and sleep. Everyone goes to bed at an hour that suits their age and their trade — babies at
-// dusk, children soon after, the old early to bed and early up, the baker long before dawn — and
+// Homes and sleep. Everyone goes to bed at an hour that suits their age and their trade, babies at
+// dusk, children soon after, the old early to bed and early up, the baker long before dawn, and
 // sleeps in a bed of their own (or one they share with their husband or wife, or a little brother).
 // Each family keeps its own house: newlyweds set up home in an empty house when there is one; a
 // family that grows buys another bed from the carpenter, and if there is no room left for it they
@@ -71,7 +71,7 @@
       const purse = Math.min(hh.money * 0.25, 40);
       hh.money -= purse;
       const nh = this.newHousehold([a, b], free, purse + 10);
-      this.log(`${a.first} and ${b.first} have set up home together in an empty house${free.name && free.name !== 'House' ? ' — ' + free.name : ''}.`, 'life');
+      this.log(`${a.first} and ${b.first} have set up home together in an empty house${free.name && free.name !== 'House' ? ', ' + free.name : ''}.`, 'life');
       this.remember(a, 'We have a house of our own now.', 'life', 2, b.id); this.remember(b, 'We have a house of our own now.', 'life', 2, a.id);
       void nh;
     };

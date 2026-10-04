@@ -1,12 +1,12 @@
 // Interior layouts. Every enterable building gets rooms in proportion to its exterior footprint
-// (three tiles inside for every tile outside — four for churches, which must seat the parish), one
+// (three tiles inside for every tile outside, four for churches, which must seat the parish), one
 // scene per floor. A chimney means a fireplace, oven or forge beneath it; two floors mean stairs in
 // the same corner of both.
 //
 // Furniture is arranged the way people arrange it: beds against the walls with their heads to the
 // wall, a table in the middle of the room with a chair for everyone in the household, the hearth on
 // the back wall where the chimney is, cupboards and chests along the walls. A house gets the beds
-// its family needs — a double bed for a couple, a bed each for the others (small children share),
+// its family needs, a double bed for a couple, a bed each for the others (small children share),
 // a cradle for a baby. Every piece is checked as it goes in: if it would cut off the door, the
 // stairs or anything else that has to be reached, it is not placed there.
 //

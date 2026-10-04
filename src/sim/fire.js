@@ -1,4 +1,4 @@
-// Fire. Hearths, ovens and forges can set a building alight — more often in dry heat, in winter
+// Fire. Hearths, ovens and forges can set a building alight, more often in dry heat, in winter
 // when every fire is banked high, under thatch, and in buildings in poor repair. A fire grows by
 // the minute; rain damps it; neighbours come running with buckets from the well and beat it down,
 // each pair of hands counting. A big fire throws sparks onto the roofs next door. A house left to

@@ -1,5 +1,5 @@
-// Animal sprites in the same material raster. Every animal is one rig — spine, neck, head, four
-// legs (two for a hen), tail — posed in body space and projected to any of eight facings, the same
+// Animal sprites in the same material raster. Every animal is one rig, spine, neck, head, four
+// legs (two for a hen), tail, posed in body space and projected to any of eight facings, the same
 // way people are. Seen from the front you get the head and chest with the hindquarters behind; from
 // the back, the rump and tail with the head beyond. Gaits are real: a four-beat walk and a gallop
 // whose legs gather and stretch, with the body pitching over them.

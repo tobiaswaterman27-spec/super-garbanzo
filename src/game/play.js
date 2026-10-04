@@ -10,7 +10,10 @@
   game.load(homeWorld, O.Forge.player);
   game.player.x = (46 + AX) * 16 + 8; game.player.y = (32 + AY) * 16 + 4;
   O.game = game;
-  const home = new O.Sim(homeWorld, 11);
+  // a new life draws a new people (the land stays the same; the folk in it don't)
+  const LIFE = O.Names ? O.Names.lifeSeed() : 0;
+  O.lifeSeed = LIFE;
+  const home = new O.Sim(homeWorld, (11 + LIFE) | 0);
   // The game holds several living settlements; modules talk to whichever the player is in through
   // this reference. Ashford (home) keeps running while you're away.
   O.SimRef = { cur: home, home };

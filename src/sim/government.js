@@ -1,6 +1,6 @@
-// Local government and the crown's purse. The town council lives on what it raises — the market tax
+// Local government and the crown's purse. The town council lives on what it raises, the market tax
 // on every sale, the weekly hearth tax that the tax collector gathers door to door, tolls, fines,
-// whatever the sweepers find in the street — and pays for what the town needs: the watch, the
+// whatever the sweepers find in the street, and pays for what the town needs: the watch, the
 // physician's bearers, the undertakers and the sweepers, relief for the hungry, new houses and
 // repairs. A bigger hospital or a bigger watch costs more. The council sets its taxes by the state of
 // the town: how many weeks the treasury could pay its wages, how much crime there is, how
@@ -38,7 +38,7 @@
       if (t.taxRate !== old || t.hearth !== oldH) {
         const what = t.taxRate !== old ? `the market tax to ${Math.round(t.taxRate * 100)} pence in the shilling-score` : `the hearth tax to ${t.hearth}d a household`;
         const up = t.taxRate > old || t.hearth > oldH;
-        this.log(`The council ${up ? 'raised' : 'lowered'} ${what}${up ? ` — the chest would pay the town's wages for only ${Math.max(0, runway).toFixed(1)} weeks` : ''}.`, 'politics');
+        this.log(`The council ${up ? 'raised' : 'lowered'} ${what}${up ? `, the chest would pay the town's wages for only ${Math.max(0, runway).toFixed(1)} weeks` : ''}.`, 'politics');
         for (const p of this.people) if (p.age >= 18 && this.rng.chance(0.25)) this.remember(p, `The council ${up ? 'raised' : 'cut'} the taxes.`, 'politics', 0.7);
       }
     };

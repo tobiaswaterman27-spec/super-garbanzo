@@ -1,5 +1,5 @@
-// What a fight leaves behind, and who deals with it. Wounds are real marks on real people — a split
-// lip from a fist, a stab from a dagger, a long cut from a sword, a gash from an axe — and they heal
+// What a fight leaves behind, and who deals with it. Wounds are real marks on real people, a split
+// lip from a fist, a stab from a dagger, a long cut from a sword, a gash from an axe, and they heal
 // slowly. Blood stays where it fell. Anyone badly hurt collapses where they stand, and two stretcher-
 // bearers come from the physician or the hospital to carry them in; when every bed is taken they
 // carry them on to the next town. The dead are fetched by the undertakers on a covered stretcher and

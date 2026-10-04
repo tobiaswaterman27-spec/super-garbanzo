@@ -256,7 +256,7 @@
       texRoof(B, roofKind, RM, 0, aY - depthH, W, eY, rng, cond, { apexX, eY, aY, depthH });
       // ridge line
       for (let y = Math.floor(aY - depthH); y <= aY; y++) { B.shadeAt(Math.floor(apexX) - 1, y, 4); B.shadeAt(Math.floor(apexX), y, 2); }
-      // gable wall (triangle) — same wall material
+      // gable wall (triangle), same wall material
       B.part(1);
       const gm = wallKind === 'timber' ? plasterM : wallMat;
       B.poly([[x0 + 1, wallTop + 1], [apexX, aY + 4], [x1, wallTop + 1]], flatN, gm);
@@ -346,9 +346,9 @@
     return Object.assign(meta, { canvas, roofMask: rm, buf: B, wallH, x0, x1 });
   }
 
-  // Construction stages 0-10: the finished building is revealed part by part — stakes and string,
+  // Construction stages 0-10: the finished building is revealed part by part, stakes and string,
   // cleared ground, foundation, timber frame, walls rising, floors, rafters, roof covering laid from
-  // the eaves up, doors and windows, fitting out — with scaffolding until the end.
+  // the eaves up, doors and windows, fitting out, with scaffolding until the end.
   function staged(spec, stage, prog) {
     const fin = spec._fin || (spec._fin = building(spec)), FB = fin.buf, W = fin.W, H = fin.H;
     if (stage >= 10) return fin;
@@ -858,7 +858,7 @@
         B = new MB(48, 76); B.part(1);
         B.rect(0, 12, 48, 64, sm, 2);
         for (let y = 12; y < 76; y++) for (let x = 0; x < 48; x++) { const r = (y - 12) % 6, off = Math.floor((y - 12) / 6) % 2 ? 4 : 0; B.shadeAt(x, y, r === 5 || (x + off) % 8 === 0 ? 0 : r === 0 ? 3 : 2); }
-        // the arch opening (cleared) — the road runs through it
+        // the arch opening (cleared), the road runs through it
         for (let y = 18; y < 76; y++) for (let x = 0; x < 48; x++) { const dx = Math.abs(x - 23.5); if (dx < 15 && (y > 32 || Math.hypot(dx, (y - 32) * 1.2) < 15)) B.clear(x, y); }
         // voussoirs: darker stones ringing the arch
         for (let y = 12; y < 40; y++) for (let x = 0; x < 48; x++) { const dx = Math.abs(x - 23.5), r = Math.hypot(dx, (y - 32) * 1.2); if (r >= 15 && r < 18 && B.matAt(x, y) >= 0 && y < 33) B.shadeAt(x, y, (Math.round(Math.atan2(y - 32, x - 23.5) * 4) & 1) ? 1 : 2); }

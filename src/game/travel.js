@@ -67,7 +67,7 @@
           else { const lost = Math.floor(PS.money * 0.5); PS.money -= lost; done(`They beat you bloody and take ${lost}d.`, true); }
         };
         r.querySelector('[data-b=flee]').onclick = () => { const ok = home.rng.chance(game.player.mount ? 0.85 : 0.4); if (ok) done('You break away and leave them cursing in the road.'); else { const lost = Math.floor(PS.money * 0.3); PS.money -= lost; PS.hp = Math.max(5, PS.hp - 15); done(`They catch you. You lose ${lost}d and some skin.`, true); } };
-        const tk = r.querySelector('[data-b=talk]'); if (tk) tk.onclick = () => done('“Ah — one of ours. Go on, then.” They let you pass, and tell you where the soft caravans run.');
+        const tk = r.querySelector('[data-b=talk]'); if (tk) tk.onclick = () => done('“Ah, one of ours. Go on, then.” They let you pass, and tell you where the soft caravans run.');
       });
     }
 
@@ -76,7 +76,7 @@
       let v = visited.get(to);
       if (v) return v;
       const world = O.Island.region(to); // the town in its own stretch of the island's countryside
-      const s = new O.Sim(world, O.hash('sim', to), { foreign: true, kingdom: K, day: home.day, minute: home.minute });
+      const s = new O.Sim(world, O.hash('sim', to, O.lifeSeed || 0), { foreign: true, kingdom: K, day: home.day, minute: home.minute });
       v = { world, sim: s, leftAt: home.day * 1440 + home.minute }; // it keeps living until you arrive
       visited.set(to, v);
       return v;

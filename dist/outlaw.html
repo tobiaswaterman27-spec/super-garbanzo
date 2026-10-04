@@ -2,7 +2,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=Silkscreen:wght@400;700&family=Jacquard+12&display=swap">
 <style>
-/* Layout: a game shell — top bar with tabs, then a control column beside a pixel stage. Single dark "lantern-lit" look. */
+/* Layout: a game shell, top bar with tabs, then a control column beside a pixel stage. Single dark "lantern-lit" look. */
 :root {
   --ink: #15111c; --ink-2: #1f1a29; --panel: #2a2334; --line: #3d3349;
   --parch: #e8dcc0; --parch-dim: #b3a68b; --ember: #d9893a; --ember-2: #f0b45c; --blood: #a8382f; --moss: #6f8f4e;
@@ -283,7 +283,7 @@ body, button, input, select { -webkit-font-smoothing: none; font-smooth: never; 
 </main>
 
 <script>
-// Outlaw — shared namespace, seeded RNG and small math helpers.
+// Outlaw, shared namespace, seeded RNG and small math helpers.
 'use strict';
 var O = (typeof window !== 'undefined' ? (window.O = window.O || {}) : {});
 
@@ -459,7 +459,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 // Everything is sampled at pixel centres, so the output is crisp with no anti-aliasing.
 'use strict';
 (function () {
-  // Light comes from the upper-left, slightly toward the viewer — shared by characters and world.
+  // Light comes from the upper-left, slightly toward the viewer, shared by characters and world.
   const L = (() => { const v = [-0.5, -0.62, 0.6]; const m = Math.hypot(...v); return v.map((c) => c / m); })();
 
   function shadeFromNormal(nx, ny, nz, kind) {
@@ -866,6 +866,12 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     point: { frames: 2, fps: 2 }, dig: { frames: 4, fps: 4 }, cook: { frames: 4, fps: 4 },
     attack: { frames: 4, fps: 12 }, open: { frames: 3, fps: 6 }, pickup: { frames: 2, fps: 3 }, hurt: { frames: 2, fps: 8 },
     stretcher: { frames: 8, fps: 9 }, ride: { frames: 1, fps: 1 }, doze: { frames: 2, fps: 0.5 },
+    // trades and everyday actions
+    hammer: { frames: 4, fps: 6 }, chop: { frames: 4, fps: 4 }, saw: { frames: 4, fps: 5 }, knead: { frames: 4, fps: 4 }, cleave: { frames: 4, fps: 5 },
+    fish: { frames: 2, fps: 0.8 }, write: { frames: 4, fps: 4 }, serve: { frames: 2, fps: 2 }, pour: { frames: 4, fps: 3 }, scrub: { frames: 4, fps: 6 },
+    spin: { frames: 4, fps: 5 }, weave: { frames: 4, fps: 4 }, shear: { frames: 4, fps: 5 }, hoe: { frames: 4, fps: 4 }, pitch: { frames: 4, fps: 4 },
+    pray: { frames: 2, fps: 0.7 }, shocked: { frames: 2, fps: 5 }, stretch: { frames: 4, fps: 2 }, look: { frames: 4, fps: 1.2 }, beg: { frames: 2, fps: 1 },
+    shake: { frames: 2, fps: 6 }, place: { frames: 3, fps: 4 }, count: { frames: 4, fps: 3 }, bucket: { frames: 8, fps: 10 }, mix: { frames: 4, fps: 4 },
   };
 
   // Two-bone reach: the elbow (or knee) bends toward `pole`.
@@ -925,6 +931,18 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       case 'attack': L = { R: leg(1, f === 1 || f === 2 ? 0.35 : 0.1, 0.25), L: leg(-1, -0.25, 0.15) }; P.lean = f === 1 || f === 2 ? 1.4 : 0.2; break;
       case 'mourn': case 'read': P.headDown = 1; break;
       case 'ride': L = { R: leg(1, 0.6, 1.0, 0.55), L: leg(-1, 0.6, 1.0, 0.55) }; P.lean = 0.3; break;
+      case 'chop': case 'hoe': case 'pitch': L = { R: leg(1, 0.3, 0.35), L: leg(-1, -0.2, 0.15) }; P.lean = [0.4, 0.2, 1.6, 1.0][f]; break;
+      case 'knead': case 'scrub': case 'cleave': case 'mix': P.lean = 1.2; P.headDown = 0.6; break;
+      case 'saw': L = { R: leg(1, 0.35, 0.3), L: leg(-1, -0.25, 0.1) }; P.lean = 1.4; P.headDown = 0.5; break;
+      case 'write': case 'count': case 'weave': case 'spin': P.headDown = 1; P.lean = 0.6; break;
+      case 'pray': L = { R: leg(1, 1.2, 2.6, 0.08), L: leg(-1, 0.05, 0.2, 0.08) }; P.headDown = 1; P.blink = f === 1; break;
+      case 'shocked': P.lean = f ? -1.4 : -0.8; P.mouth = 1; P.bob = f ? -0.5 : 0; break;
+      case 'stretch': P.bob = f === 1 || f === 2 ? -0.6 : 0; P.mouth = f === 2 ? 1 : 0; P.blink = f === 2; break;
+      case 'look': P.blink = f === 3; break;
+      case 'beg': L = { R: leg(1, 1.3, 2.4, 0.15), L: leg(-1, 1.0, 2.2, 0.15) }; P.lean = 1.2; P.headDown = 0.3; break;
+      case 'place': L = { R: leg(1, [0.4, 1.1, 0.4][f], [0.5, 2.0, 0.5][f], 0.15), L: leg(-1, [0.3, 0.9, 0.3][f], [0.4, 1.8, 0.4][f], 0.15) }; P.lean = [0.8, 2.2, 0.8][f]; break;
+      case 'bucket': { const sR = Math.sin(ph); L = { R: leg(1, 0.36 * sR, 0.1 + 0.7 * Math.max(0, Math.cos(ph)) ** 2), L: leg(-1, -0.36 * sR, 0.1 + 0.7 * Math.max(0, Math.cos(ph + Math.PI)) ** 2) }; P.lean = 0.3; break; }
+      case 'fish': L = { R: leg(1, 0.1, 0.1), L: leg(-1, -0.1, 0.1) }; P.blink = f === 1; break;
       default: break;
     }
     if (m.stoop) { P.lean += 1; P.headFwd += 0.8; }
@@ -1006,6 +1024,32 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       case 'cook': { const k = f % 4; A.R = reach(1, [1.2 + (k % 2), chest + 4 + (k > 1 ? 0.6 : 0), D + 4]); P.held = 'ladle'; P.toolDir = [0, 0.9, 0.3]; break; }
       case 'ride': A.R = reach(1, [1.8, hipY - 2.5, D + 5]); A.L = reach(-1, [-1.8, hipY - 2.5, D + 5]); break;
       case 'hurt': A.R = fwdArm(1, -0.3, 0.6, 0.25); A.L = fwdArm(-1, -0.3, 0.6, 0.25); break;
+      case 'hammer': { const k = [0, 1, 2, 1][f], sw = [2.75, 1.7, 0.75][k], bd = [0.75, 0.45, 0.15][k]; A.R = fwdArm(1, sw, bd, 0.12); P.toolDir = [0, -Math.sin(A.R.fa + 0.25), Math.cos(A.R.fa + 0.25)]; A.L = reach(-1, [-1.2, chest + 3, D + 3.2]); P.held = 'hammer'; break; }
+      case 'chop': case 'hoe': case 'pitch': { // a two-handed swing, high to low
+        const k = [0, 1, 2, 1][f], hy2 = [shY - 5, shY - 1, chest + 6][k], hz = [D + 1, D + 4, D + 6][k];
+        A.R = reach(1, [0.8, hy2, hz]); A.L = reach(-1, [-0.4, hy2 + 2.5, hz - 0.5]);
+        P.held = anim === 'chop' ? 'axe' : anim === 'hoe' ? 'hoe' : 'pitchfork'; P.toolDir = [[0, -0.9, -0.2], [0, -0.3, 0.9], [0, 0.7, 0.7], [0, -0.3, 0.9]][f]; break;
+      }
+      case 'saw': { const k = [0, 1, 2, 1][f]; A.R = reach(1, [1.4, chest + 4, D + 2 + k * 1.6]); A.L = reach(-1, [-2.4, chest + 5, D + 4.5]); P.held = 'saw'; P.toolDir = [0.1, 0.35, 0.9]; break; }
+      case 'knead': case 'mix': { const k = [0, 1, 2, 1][f]; for (const sd of [1, -1]) A[sd > 0 ? 'R' : 'L'] = reach(sd, [sd * 1.6, chest + 4 + k * 0.6, D + 3.5 + k * 0.7]); if (anim === 'mix') { P.held = 'ladle'; P.toolDir = [0, 0.9, 0.3]; } break; }
+      case 'cleave': { const k = [0, 1, 2, 1][f]; A.R = reach(1, [1.4, chest - 2 + k * 2.8, D + 3.5]); A.L = reach(-1, [-1.8, chest + 5, D + 4]); P.held = 'cleaver'; P.toolDir = [0, 0.4, 0.9]; break; }
+      case 'scrub': { const k = f % 2; A.R = reach(1, [1 + k * 1.5, chest + 6, D + 4]); A.L = reach(-1, [-1.6, chest + 5, D + 3.5]); P.held = 'brush'; P.toolDir = [0.6, 0.6, 0.4]; break; }
+      case 'fish': { A.R = reach(1, [1.6, chest + 1, D + 4.5]); A.L = reach(-1, [0.2, chest + 3, D + 3.5]); P.held = 'rod'; P.toolDir = [0, -0.55, 0.85]; break; }
+      case 'write': { const k = f % 2; A.R = reach(1, [0.6 + k * 0.8, chest + 4.5, D + 3.4]); A.L = reach(-1, [-1.8, chest + 4.5, D + 3]); P.held = 'quill'; P.toolDir = [0.2, -0.8, 0.4]; break; }
+      case 'count': { const k = f % 2; A.R = reach(1, [1 + k, chest + 4, D + 3.2]); A.L = reach(-1, [-1.2, chest + 4.5, D + 3]); P.held = 'coin'; break; }
+      case 'serve': { A.R = reach(1, [1.8, chest + 1, D + 5]); A.L = reach(-1, [-0.6, chest + 1.5, D + 5]); P.held = 'plate'; P.mouth = f; break; }
+      case 'pour': { const k = [0, 1, 2, 1][f]; A.R = reach(1, [1.5, chest + 1 - k, D + 4.2]); A.L = reach(-1, [-1.5, chest + 4, D + 3.5]); P.held = 'jug'; P.toolDir = [0, 0.2 + k * 0.25, 0.9]; break; }
+      case 'spin': { const k = f % 4; A.R = reach(1, [2 + Math.cos(k * 1.57) * 1.2, chest + 3 + Math.sin(k * 1.57) * 1.2, D + 3.5]); A.L = reach(-1, [-1.5, chest + 1, D + 4.5]); break; }
+      case 'weave': { const k = f % 2; A.R = reach(1, [1.8 - k * 3, chest + 3, D + 4]); A.L = reach(-1, [-1.8 + k * 1, chest + 3, D + 4]); break; }
+      case 'shear': { const k = f % 2; A.R = reach(1, [1.2, chest + 6 + k, D + 4.5]); A.L = reach(-1, [-1.5, chest + 6, D + 4]); P.held = 'shears'; P.toolDir = [0, 0.7, 0.7]; break; }
+      case 'pray': { A.R = reach(1, [0.4, chest - 1, D + 2.6], [1, 0.9, -0.2]); A.L = reach(-1, [-0.4, chest - 1, D + 2.6], [-1, 0.9, -0.2]); break; }
+      case 'shocked': { for (const sd of [1, -1]) A[sd > 0 ? 'R' : 'L'] = reach(sd, [sd * (f ? 3.2 : 2.6), shY - (f ? 2.5 : 1.5), D + 2.5], [sd, 0.6, -0.4]); break; }
+      case 'stretch': { const hi = f === 1 || f === 2; for (const sd of [1, -1]) A[sd > 0 ? 'R' : 'L'] = reach(sd, [sd * (hi ? 2.5 : 3.2), hi ? shY - 9 : shY - 3, 0.5], [sd, 0.3, -0.6]); break; }
+      case 'look': { if (f === 1) A.R = reach(1, [1.6, shY - 3, D + 2.8], [1, 0.6, -0.3]); break; }
+      case 'beg': { A.R = reach(1, [1.2, chest + 2, D + 6]); P.held = 'bowl'; break; }
+      case 'shake': { A.R = reach(1, [2.4, shY - (f ? 6 : 4.5), D + 2], [1, 0.4, -0.4]); P.fist = true; P.mouth = 1; break; }
+      case 'place': { A.R = reach(1, [1.2, [chest + 4, GROUND - 3, chest + 4][f], D + [3, 5, 3][f]]); A.L = reach(-1, [-1.2, [chest + 4, GROUND - 3, chest + 4][f], D + [3, 5, 3][f]]); break; }
+      case 'bucket': { A.R = fwdArm(1, 0.05, 0.05, 0.22); A.L = fwdArm(-1, -0.1, 0.3, 0.07); P.held = 'bucket'; break; }
       default: break;
     }
     P.arms = A; P.D = D;
@@ -1632,6 +1676,20 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       case 'book': B.blob(hx + ux, hy + 0.5, 1.6, 2, P.mat(C.crimson), { power: 4 }); break;
       case 'ladle': { const a1 = along(6); B.capsule(hx, hy, a1[0], a1[1], 0.5, 0.5, W); B.blob(a1[0], a1[1], 1.2, 1, I, { power: 2 }); break; }
       case 'sack': B.blob(hx, hy + 2.5, 2.5, 3, P.mat(C.linen), { power: 2 }); break;
+      case 'saw': { const a1 = along(7); B.capsule(hx, hy, ...along(1.5), 0.8, 0.8, W); for (let k = 1.5; k < 7; k += 0.5) { const q = along(k); B.plot(q[0] + px * 0.8, q[1] + py * 0.8, St, k % 1 ? 2 : 3); B.plot(q[0], q[1], St, 2); } void a1; break; }
+      case 'rod': { const a1 = along(16); B.capsule(hx, hy, a1[0], a1[1], 0.5, 0.3, Wd); const lm = P.mat('#d8d0c0', 'cloth'); for (let k = 0; k < 9; k++) B.plot(a1[0] + 0.3 * k, a1[1] + k * 1.1, lm, 1); break; }
+      case 'cleaver': { const a1 = along(3); B.capsule(hx, hy, a1[0], a1[1], 0.6, 0.6, Wd); B.blob(a1[0] + ux * 1.6 + px * 0.8, a1[1] + uy * 1.6 + py * 0.8, 1.8, 1.3, St, { power: 4 }); break; }
+      case 'quill': { const a1 = along(5); B.capsule(hx, hy, a1[0], a1[1], 0.35, 0.6, P.mat('#f0ece0', 'cloth')); break; }
+      case 'coin': B.plot(hx + ux, hy, P.mat(P.metal.brass, 'metal'), 3); B.plot(hx + ux + 1, hy + 1, P.mat(P.metal.brass, 'metal'), 2); break;
+      case 'plate': { B.blob(hx + ux * 1.5, hy - 0.5, 2.8, 1.1, P.mat('#d8d0c0', 'cloth'), { power: 3 }); B.blob(hx + ux * 1.5, hy - 1.3, 1.6, 0.9, P.mat('#a85a2a', 'wood'), { power: 2 }); break; }
+      case 'jug': { B.blob(hx + ux * 1.2, hy - 0.3, 1.6, 2.4, P.mat('#b8744a', 'wood'), { power: 2.5 }); B.plot(hx + ux * 1.2 + ux * 1.8, hy - 2, P.mat('#8a5432', 'wood'), 1); break; }
+      case 'brush': B.blob(hx + ux * 1.2, hy + 0.6, 1.8, 1, P.mat('#c8a050', 'wood'), { power: 3 }); break;
+      case 'shears': { const a1 = along(4); B.capsule(hx, hy, a1[0] + px * 0.6, a1[1] + py * 0.6, 0.4, 0.3, St); B.capsule(hx, hy, a1[0] - px * 0.6, a1[1] - py * 0.6, 0.4, 0.3, St); break; }
+      case 'bowl': B.blob(hx + ux, hy - 0.2, 2, 1.1, P.mat(P.wood.walnut, 'wood'), { power: 3 }); break;
+      case 'bucket': { const bm = P.mat(P.wood.oak, 'wood'); B.blob(hx, hy + 3, 2, 2.4, bm, { power: 4 }); B.plot(hx - 1, hy + 2, P.mat(P.metal.iron, 'metal'), 2); B.plot(hx + 1, hy + 2, P.mat(P.metal.iron, 'metal'), 2); B.plot(hx, hy + 1.6, P.mat('#5a8ab8'), 3); break; }
+      case 'pie': B.blob(hx + ux * 1.5, hy + 0.3, 2.4, 1.3, P.mat('#c8903e', 'wood'), { power: 2.5 }); break;
+      case 'fish': B.blob(hx + ux * 2, hy + 1, 2.8, 1, P.mat('#9aa8b0', 'metal'), { power: 2 }); break;
+      case 'letter': B.blob(hx + ux, hy, 1.8, 1.2, P.mat('#ece2c8', 'cloth'), { power: 5 }); B.plot(hx + ux, hy, P.mat('#a8382f'), 2); break;
       case 'net': { const nm = P.mat('#9a8a6a', 'cloth'); for (let k = 0; k < 4; k++) for (let j = 0; j < 3; j++) B.plot(hx + (k - 1), hy + 1 + j * 1.5 + (k % 2) * 0.7, nm, 2); break; }
       default: break;
     }
@@ -1936,7 +1994,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       texRoof(B, roofKind, RM, 0, aY - depthH, W, eY, rng, cond, { apexX, eY, aY, depthH });
       // ridge line
       for (let y = Math.floor(aY - depthH); y <= aY; y++) { B.shadeAt(Math.floor(apexX) - 1, y, 4); B.shadeAt(Math.floor(apexX), y, 2); }
-      // gable wall (triangle) — same wall material
+      // gable wall (triangle), same wall material
       B.part(1);
       const gm = wallKind === 'timber' ? plasterM : wallMat;
       B.poly([[x0 + 1, wallTop + 1], [apexX, aY + 4], [x1, wallTop + 1]], flatN, gm);
@@ -2026,9 +2084,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     return Object.assign(meta, { canvas, roofMask: rm, buf: B, wallH, x0, x1 });
   }
 
-  // Construction stages 0-10: the finished building is revealed part by part — stakes and string,
+  // Construction stages 0-10: the finished building is revealed part by part, stakes and string,
   // cleared ground, foundation, timber frame, walls rising, floors, rafters, roof covering laid from
-  // the eaves up, doors and windows, fitting out — with scaffolding until the end.
+  // the eaves up, doors and windows, fitting out, with scaffolding until the end.
   function staged(spec, stage, prog) {
     const fin = spec._fin || (spec._fin = building(spec)), FB = fin.buf, W = fin.W, H = fin.H;
     if (stage >= 10) return fin;
@@ -2538,7 +2596,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         B = new MB(48, 76); B.part(1);
         B.rect(0, 12, 48, 64, sm, 2);
         for (let y = 12; y < 76; y++) for (let x = 0; x < 48; x++) { const r = (y - 12) % 6, off = Math.floor((y - 12) / 6) % 2 ? 4 : 0; B.shadeAt(x, y, r === 5 || (x + off) % 8 === 0 ? 0 : r === 0 ? 3 : 2); }
-        // the arch opening (cleared) — the road runs through it
+        // the arch opening (cleared), the road runs through it
         for (let y = 18; y < 76; y++) for (let x = 0; x < 48; x++) { const dx = Math.abs(x - 23.5); if (dx < 15 && (y > 32 || Math.hypot(dx, (y - 32) * 1.2) < 15)) B.clear(x, y); }
         // voussoirs: darker stones ringing the arch
         for (let y = 12; y < 40; y++) for (let x = 0; x < 48; x++) { const dx = Math.abs(x - 23.5), r = Math.hypot(dx, (y - 32) * 1.2); if (r >= 15 && r < 18 && B.matAt(x, y) >= 0 && y < 33) B.shadeAt(x, y, (Math.round(Math.atan2(y - 32, x - 23.5) * 4) & 1) ? 1 : 2); }
@@ -3220,7 +3278,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   }
 
   // A hamlet: a handful of cottages around a green with a well, a farm and its barn, a bakehouse and an
-  // alehouse, and whatever the land gives — a woodward's hut, a fisher's shed — all along one road.
+  // alehouse, and whatever the land gives, a woodward's hut, a fisher's shed, all along one road.
   function makeHamlet(place) {
     const target = simTarget(place), W = target > 40 ? 78 : 64, H = 46, seed = O.hash('hamlet', place.id);
     const K = kit(place, W, H, seed), { rng, set, fill, B, look, P } = K;
@@ -4067,8 +4125,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     }
 
     // Which hearths are burning. There are no lamps in the streets and no glow in the windows:
-    // a fire is lit when somebody is home to tend it — to cook in the morning, at midday and in the
-    // evening, all day in the cold months — and in the trades that live by fire during working hours.
+    // a fire is lit when somebody is home to tend it, to cook in the morning, at midday and in the
+    // evening, all day in the cold months, and in the trades that live by fire during working hours.
     updateHearths() {
       const sim = this.sim, lit = this.lit || (this.lit = new Set()); lit.clear();
       if (!sim || this.world !== sim.world) { for (const b of this.world.buildings) if (b.sprite?.chimney && (b.id * 7 + Math.floor(this.clock.minute / 90)) % 3) lit.add(b.id); return; }
@@ -4294,8 +4352,50 @@ O.snowMaskOf = function (src) {
 
 </script>
 <script>
-// More trades and the goods they make. The builder's yard keeps the town's building stock — seasoned
-// timber, dressed stone, planks — and its builders go out to every building site the council or a
+// Names. No two living people in Eldoria share a full name, and every new life draws a different
+// people: the pools are wide (plain English and Norman given names, surnames from trades, places,
+// nicknames and fathers' names), and a registry turns away any name already in use.
+'use strict';
+(function () {
+  const M = ['Adam', 'Ailwin', 'Alan', 'Alard', 'Aldous', 'Alexander', 'Alfred', 'Alric', 'Ambrose', 'Anselm', 'Arnold', 'Aubrey', 'Baldwin', 'Barnabas', 'Bartholomew', 'Benedict', 'Bennet', 'Bernard', 'Bertram', 'Brian', 'Cecil', 'Clement', 'Colin', 'Conrad', 'Cuthbert', 'Daniel', 'David', 'Denis', 'Drogo', 'Durand', 'Eadric', 'Edgar', 'Edmund', 'Edric', 'Edward', 'Edwin', 'Elias', 'Emery', 'Ernald', 'Eustace', 'Everard', 'Faramond', 'Fulk', 'Gamel', 'Geoffrey', 'Gerard', 'Gervase', 'Gilbert', 'Giles', 'Godfrey', 'Godric', 'Godwin', 'Goscelin', 'Gregory', 'Guy', 'Hamon', 'Harold', 'Hamo', 'Henry', 'Herbert', 'Hereward', 'Hervey', 'Hob', 'Hubert', 'Hugh', 'Humphrey', 'Ingram', 'Ivo', 'Jack', 'James', 'Jocelin', 'John', 'Jordan', 'Josce', 'Kenelm', 'Lambert', 'Lawrence', 'Leofric', 'Leonard', 'Lucas', 'Mark', 'Martin', 'Matthew', 'Maurice', 'Michael', 'Miles', 'Nicholas', 'Nigel', 'Norman', 'Odo', 'Osbert', 'Osmund', 'Oswald', 'Paine', 'Paul', 'Percival', 'Peter', 'Philip', 'Piers', 'Rainald', 'Ralph', 'Randal', 'Raymond', 'Reginald', 'Reynold', 'Richard', 'Robert', 'Roger', 'Roland', 'Rolf', 'Saer', 'Samson', 'Serlo', 'Silvester', 'Simon', 'Stephen', 'Swein', 'Theobald', 'Thomas', 'Thurstan', 'Tobias', 'Turold', 'Umfrey', 'Urian', 'Vivian', 'Walter', 'Warin', 'Wat', 'Wido', 'William', 'Wimund', 'Wulfric', 'Wulfstan'];
+  const F = ['Ada', 'Adela', 'Agatha', 'Agnes', 'Alda', 'Aldith', 'Alice', 'Alina', 'Alys', 'Amabel', 'Amice', 'Anabel', 'Annora', 'Ascelina', 'Aubrey', 'Avelina', 'Avice', 'Basilia', 'Beatrice', 'Bertha', 'Blanche', 'Cecily', 'Christina', 'Clarice', 'Constance', 'Dionisia', 'Douce', 'Edith', 'Ela', 'Eleanor', 'Ellen', 'Elena', 'Emeline', 'Emma', 'Ermengard', 'Estrild', 'Eva', 'Felicia', 'Florence', 'Galiena', 'Gillian', 'Godiva', 'Grecia', 'Gundred', 'Gunnora', 'Hawise', 'Helewise', 'Hilda', 'Idonea', 'Isabel', 'Isolda', 'Ivetta', 'Jacoba', 'Joan', 'Joanna', 'Juliana', 'Katherine', 'Laura', 'Leticia', 'Lettice', 'Lucy', 'Mabel', 'Madeline', 'Margaret', 'Margery', 'Marion', 'Mary', 'Matilda', 'Maud', 'Millicent', 'Muriel', 'Nesta', 'Nicola', 'Orabel', 'Parnel', 'Petronella', 'Philippa', 'Primrose', 'Richenda', 'Rohesia', 'Rose', 'Sabina', 'Sarah', 'Scholastica', 'Sibyl', 'Sybil', 'Susanna', 'Theophania', 'Tiffany', 'Ursula', 'Wymarc', 'Yvette'];
+  const TRADE = ['Archer', 'Arrowsmith', 'Baker', 'Barber', 'Barker', 'Baxter', 'Bowyer', 'Brewer', 'Butcher', 'Carpenter', 'Carter', 'Chandler', 'Chapman', 'Collier', 'Cook', 'Cooper', 'Cutler', 'Draper', 'Dyer', 'Falconer', 'Farmer', 'Fisher', 'Fletcher', 'Forester', 'Fowler', 'Fuller', 'Gardner', 'Glover', 'Hayward', 'Hooper', 'Hunter', 'Joiner', 'Mason', 'Mercer', 'Miller', 'Mower', 'Packer', 'Page', 'Parker', 'Plowman', 'Potter', 'Reeve', 'Roper', 'Saddler', 'Salter', 'Sawyer', 'Shepherd', 'Skinner', 'Slater', 'Smith', 'Spicer', 'Spinner', 'Steward', 'Tanner', 'Taylor', 'Thatcher', 'Tiler', 'Turner', 'Tucker', 'Vintner', 'Wainwright', 'Walker', 'Ward', 'Weaver', 'Webb', 'Wheeler', 'Woodward', 'Wright'];
+  const NICK = ['Armstrong', 'Black', 'Blunt', 'Brown', 'Bunce', 'Doolittle', 'Fairfax', 'Fox', 'Gay', 'Golightly', 'Goodfellow', 'Gray', 'Hardy', 'Hale', 'Kemp', 'Long', 'Merriman', 'Moody', 'Noble', 'Proud', 'Read', 'Russell', 'Sharp', 'Short', 'Small', 'Sparrow', 'Speed', 'Strong', 'Swift', 'Truelove', 'Wise', 'White', 'Young', 'Lightfoot', 'Peacock', 'Crane', 'Drake', 'Hawk', 'Wolf', 'Bull', 'Lamb', 'Finch', 'Wren'];
+  const ROOT = ['Ash', 'Brad', 'Brook', 'Black', 'Bram', 'Bur', 'Cal', 'Crom', 'Dun', 'East', 'Elm', 'Fair', 'Fern', 'Gold', 'Green', 'Har', 'Hart', 'Hazel', 'High', 'Hol', 'Kings', 'Lang', 'Lin', 'Mar', 'Mil', 'Mor', 'North', 'Oak', 'Pen', 'Red', 'Rush', 'Sal', 'Sand', 'Shep', 'Stan', 'Stock', 'Stone', 'Thorn', 'Wake', 'Wal', 'West', 'Whit', 'Wick', 'Wil', 'Win', 'Wood'];
+  const SUF = ['by', 'combe', 'cott', 'dale', 'den', 'field', 'ford', 'ham', 'hurst', 'ley', 'more', 'ridge', 'shaw', 'stead', 'thorpe', 'ton', 'well', 'wick', 'worth', 'bury'];
+  const SUR = [...TRADE, ...NICK, ...ROOT.flatMap((r) => SUF.map((s) => r + s)), ...M.slice(0, 60).map((n) => n + 'son'), ...M.slice(0, 30).map((n) => 'Fitz' + n.toLowerCase())];
+
+  const used = new Set();
+  // a name not already in use: keep the surname (it's the family's), change the given name if need be
+  function claim(sex, first, sur, rng) {
+    const pool = sex === 'f' ? F : M;
+    let f = first || rng.pick(pool), tries = 0;
+    while (used.has(f + ' ' + sur) && tries++ < 60) f = rng.pick(pool);
+    if (used.has(f + ' ' + sur)) { const by = [' the Younger', ' the Elder', ' of the Hill', ' of the Brook', ' Junior']; for (const b of by) if (!used.has(f + ' ' + sur + b)) { sur = sur + b; break; } }
+    used.add(f + ' ' + sur);
+    return [f, sur];
+  }
+  function release(first, sur) { used.delete(first + ' ' + sur); }
+  // a family name nobody in the realm has yet, if one can be found
+  const usedSur = new Set();
+  function surname(rng) { for (let i = 0; i < 40; i++) { const s = rng.pick(SUR); if (!usedSur.has(s)) { usedSur.add(s); return s; } } return rng.pick(SUR); }
+
+  // each new life draws its own people
+  function lifeSeed() {
+    let s = null; try { s = localStorage.getItem('outlaw.lifeSeed'); } catch (e) { /* storage blocked */ }
+    if (!s) { s = String((Math.random() * 1e9) | 0); try { localStorage.setItem('outlaw.lifeSeed', s); } catch (e) { /* storage blocked */ } }
+    return +s;
+  }
+  function newLife() { try { localStorage.removeItem('outlaw.lifeSeed'); } catch (e) { /* storage blocked */ } }
+
+  O.Names = { M, F, SUR, claim, release, surname, used, lifeSeed, newLife };
+  if (O.Data) { O.Data.NAMES.m = M; O.Data.NAMES.f = F; O.Data.NAMES.sur = SUR; }
+})();
+
+</script>
+<script>
+// More trades and the goods they make. The builder's yard keeps the town's building stock, seasoned
+// timber, dressed stone, planks, and its builders go out to every building site the council or a
 // citizen pays for. Weavers turn wool into cloth, tailors cloth into clothes, cobblers leather into
 // shoes, chandlers the butcher's tallow into candles, coopers planks into casks. Households buy
 // candles through the dark months and new clothes and shoes as the old ones wear out.
@@ -4598,7 +4698,7 @@ O.snowMaskOf = function (src) {
       if (site.player) { b.owner = { kind: 'player' }; b.vacant = true; sim.log(`The newcomer's house is finished. Fresh timber and new thatch: the newcomer has a home of their own in ${sim.world.name}.`, 'economy'); O.Chronicle && O.Chronicle.deed(sim, `A newcomer built a house of their own in ${sim.world.name}.`, `Your own house in ${sim.world.name} is finished.`, 'player', 3, true); sim.world.dirtyStatics = true; return; }
       // a family arrives from elsewhere to take the house (migration)
       const region = r.pick(['east', 'north', 'west', 'south']);
-      const hh = { id: sim.households.length + 1, home: b.id, members: [], pantry: { bread: 4, cabbage: 2, firewood: 4 }, money: r.int(60, 140), surname: r.pick(O.Data.NAMES.sur) };
+      const hh = { id: sim.households.length + 1, home: b.id, members: [], pantry: { bread: 4, cabbage: 2, firewood: 4 }, money: r.int(60, 140), surname: O.Names ? O.Names.surname(r) : r.pick(O.Data.NAMES.sur) };
       sim.households.push(hh); b.household = hh.id;
       const mk = (sex, age, genes) => { const p = sim.newPerson({ sex, age, first: r.pick(O.Data.NAMES[sex]), sur: hh.surname, household: hh.id, home: b.id, genes: genes || O.Char.randomGenes(r, region), wealth: 0.5 }); p.name = `${p.first} ${p.sur}`; hh.members.push(p.id); return p; };
       const a = mk('m', r.int(24, 40)), c = mk('f', r.int(22, 38)); a.spouse = c.id; c.spouse = a.id;
@@ -5020,8 +5120,8 @@ O.snowMaskOf = function (src) {
 
 </script>
 <script>
-// Homes and sleep. Everyone goes to bed at an hour that suits their age and their trade — babies at
-// dusk, children soon after, the old early to bed and early up, the baker long before dawn — and
+// Homes and sleep. Everyone goes to bed at an hour that suits their age and their trade, babies at
+// dusk, children soon after, the old early to bed and early up, the baker long before dawn, and
 // sleeps in a bed of their own (or one they share with their husband or wife, or a little brother).
 // Each family keeps its own house: newlyweds set up home in an empty house when there is one; a
 // family that grows buys another bed from the carpenter, and if there is no room left for it they
@@ -5093,7 +5193,7 @@ O.snowMaskOf = function (src) {
       const purse = Math.min(hh.money * 0.25, 40);
       hh.money -= purse;
       const nh = this.newHousehold([a, b], free, purse + 10);
-      this.log(`${a.first} and ${b.first} have set up home together in an empty house${free.name && free.name !== 'House' ? ' — ' + free.name : ''}.`, 'life');
+      this.log(`${a.first} and ${b.first} have set up home together in an empty house${free.name && free.name !== 'House' ? ', ' + free.name : ''}.`, 'life');
       this.remember(a, 'We have a house of our own now.', 'life', 2, b.id); this.remember(b, 'We have a house of our own now.', 'life', 2, a.id);
       void nh;
     };
@@ -5148,8 +5248,8 @@ O.snowMaskOf = function (src) {
 
 </script>
 <script>
-// What a fight leaves behind, and who deals with it. Wounds are real marks on real people — a split
-// lip from a fist, a stab from a dagger, a long cut from a sword, a gash from an axe — and they heal
+// What a fight leaves behind, and who deals with it. Wounds are real marks on real people, a split
+// lip from a fist, a stab from a dagger, a long cut from a sword, a gash from an axe, and they heal
 // slowly. Blood stays where it fell. Anyone badly hurt collapses where they stand, and two stretcher-
 // bearers come from the physician or the hospital to carry them in; when every bed is taken they
 // carry them on to the next town. The dead are fetched by the undertakers on a covered stretcher and
@@ -5583,7 +5683,7 @@ O.snowMaskOf = function (src) {
       const hh = this.household(q); const fine = Math.min(hh.money, 6 * crime.severity); hh.money -= fine; this.treasury.cash += fine; this.treasury.income += fine;
       this.remember(q, wrong ? `Arrested for a ${crime.kind} I never did. Fined ${fine}d and locked up.` : `Caught for the ${crime.kind}. Fined ${fine}d and locked up.`, 'crime', 3);
       for (const id of hh.members) { const m = this.byId.get(id); if (m && m !== q) this.remember(m, `${q.first} was taken by the watch${wrong ? ', for something they swear they never did' : ''}.`, 'crime', 1.5, q.id); }
-      this.log(`The watch arrested ${q.name} for the ${crime.kind}${wrong ? ' — though some say the wrong one was taken' : ''}.`, 'crime');
+      this.log(`The watch arrested ${q.name} for the ${crime.kind}${wrong ? ', though some say the wrong one was taken' : ''}.`, 'crime');
       if (wrong && crime.perp === 'player') { this.log('Somewhere, the real thief walks free.', 'crime'); }
     };
 
@@ -5678,7 +5778,7 @@ O.snowMaskOf = function (src) {
     S.leaveGang = function (m, g, why) {
       g.members = g.members.filter((x) => x !== m);
       const p = this.byId.get(m.id); if (p) { p.gang = null; this.remember(p, `Left ${g.name}: ${why}.`, 'gang', 2); }
-      g.log.push(`Day ${this.day}: ${p?.name || 'A member'} left — ${why}.`);
+      g.log.push(`Day ${this.day}: ${p?.name || 'A member'} left, ${why}.`);
       if (g.id === 'player') O.Panels && O.Panels.toast(`${p?.first || 'A member'} has left ${g.name}: ${why}.`, 'bad');
       // a bitter ex-member may go to the watch with a true description of the leader
       if (g.id === 'player' && p && m.loyalty < 0.1 && this.rng.chance(0.5)) this.inform(p, g);
@@ -5768,7 +5868,7 @@ O.snowMaskOf = function (src) {
         const crime = this.recordCrime({ kind: 'burglary', perp: p, gang: g.id, placeName: `the ${hh.surname} house`, tile: [b.doorX, b.doorY], victim: hh.id, seen: hh.members.map((id) => this.byId.get(id)).filter((q) => q && q.age >= 12).slice(0, 2), severity: 2 });
         if (this.rng.chance(0.55)) this.arrestNPC(p, crime, false);
         if (m) m.loyalty -= 0.08;
-        if (g.id === 'player') { g.log.push(`Day ${this.day}: ${p.first} was disturbed at the ${hh.surname} house${p.jailUntil ? ' and taken by the watch' : ' and fled'}.`); O.Panels && O.Panels.toast(`${p.first}'s job went wrong${p.jailUntil ? ' — taken by the watch!' : '.'}`, 'bad'); }
+        if (g.id === 'player') { g.log.push(`Day ${this.day}: ${p.first} was disturbed at the ${hh.surname} house${p.jailUntil ? ' and taken by the watch' : ' and fled'}.`); O.Panels && O.Panels.toast(`${p.first}'s job went wrong${p.jailUntil ? ', taken by the watch!' : '.'}`, 'bad'); }
         // a jailed member with little loyalty may talk
         if (g.id === 'player' && p.jailUntil && m && m.loyalty < 0.35 && this.rng.chance(0.5)) this.inform(p, g);
       }
@@ -5796,8 +5896,8 @@ O.snowMaskOf = function (src) {
 // Aure, where the king and queen hold court in the royal castle, down to hamlets of a dozen souls
 // under a headman. Four castles keep the island: the royal castle at Aurelia, Highmere in the
 // northern peaks, Eastmarch on the east coast and Westcliff above the western sea. Great tracts of
-// wild country — the Eldorian Peaks, the Frostwood, the King's Forest, Blackpine, the Greenwood, the
-// Thornwood, the Barrow Downs, the Grey Hills and the Salt Fens — lie between the farms, crossed by
+// wild country, the Eldorian Peaks, the Frostwood, the King's Forest, Blackpine, the Greenwood, the
+// Thornwood, the Barrow Downs, the Grey Hills and the Salt Fens, lie between the farms, crossed by
 // named roads and a web of lanes and tracks. Ruins of older times stand in the wild places.
 // Every settlement has a government, great or small, and someone in charge of it.
 //
@@ -6037,7 +6137,7 @@ O.snowMaskOf = function (src) {
 
   class Kingdom {
     constructor(sim) {
-      this.sim = sim; this.rng = O.RNG(777);
+      this.sim = sim; this.rng = O.RNG((777 + (O.Names ? O.Names.lifeSeed() : 0)) | 0); // each life its own crown and history
       this.treasury = 2400; this.taxRate = 0.08; this.news = []; this.caravans = []; this.councils = [];
       const S = (o) => Object.assign({ wealth: 0.5, food: 1, security: 0.6, happiness: 0.6, crime: 0.2, health: 0.8, dev: 1, guards: 4, prices: {}, stock: {}, gang: 0.05, events: [] }, o);
       // the island of Eldoria: see eldoria.js
@@ -6204,9 +6304,9 @@ O.snowMaskOf = function (src) {
 
 </script>
 <script>
-// Local government and the crown's purse. The town council lives on what it raises — the market tax
+// Local government and the crown's purse. The town council lives on what it raises, the market tax
 // on every sale, the weekly hearth tax that the tax collector gathers door to door, tolls, fines,
-// whatever the sweepers find in the street — and pays for what the town needs: the watch, the
+// whatever the sweepers find in the street, and pays for what the town needs: the watch, the
 // physician's bearers, the undertakers and the sweepers, relief for the hungry, new houses and
 // repairs. A bigger hospital or a bigger watch costs more. The council sets its taxes by the state of
 // the town: how many weeks the treasury could pay its wages, how much crime there is, how
@@ -6244,7 +6344,7 @@ O.snowMaskOf = function (src) {
       if (t.taxRate !== old || t.hearth !== oldH) {
         const what = t.taxRate !== old ? `the market tax to ${Math.round(t.taxRate * 100)} pence in the shilling-score` : `the hearth tax to ${t.hearth}d a household`;
         const up = t.taxRate > old || t.hearth > oldH;
-        this.log(`The council ${up ? 'raised' : 'lowered'} ${what}${up ? ` — the chest would pay the town's wages for only ${Math.max(0, runway).toFixed(1)} weeks` : ''}.`, 'politics');
+        this.log(`The council ${up ? 'raised' : 'lowered'} ${what}${up ? `, the chest would pay the town's wages for only ${Math.max(0, runway).toFixed(1)} weeks` : ''}.`, 'politics');
         for (const p of this.people) if (p.age >= 18 && this.rng.chance(0.25)) this.remember(p, `The council ${up ? 'raised' : 'cut'} the taxes.`, 'politics', 0.7);
       }
     };
@@ -6357,7 +6457,7 @@ O.snowMaskOf = function (src) {
 // recruiting sergeant take them, and see the column march down the King's Road); war taxes rise;
 // grain is requisitioned; the smiths get crown orders; armies march by road, meet in battle (fought
 // in the abstract, reported without gore), besiege, burn and damage roads; refugees flee south. A
-// war ends in a treaty that remembers who had the better of it. Ashford's own soldiers come home —
+// war ends in a treaty that remembers who had the better of it. Ashford's own soldiers come home -
 // or don't, and their families are told.
 'use strict';
 (function () {
@@ -6617,7 +6717,7 @@ O.snowMaskOf = function (src) {
 </script>
 <script>
 // Rulers and succession. The crown and every lordship is held by a person who ages, may fall ill
-// and die. A death brings mourning bells, then a coronation (and a festival day) for the heir — or,
+// and die. A death brings mourning bells, then a coronation (and a festival day) for the heir, or,
 // if the heir is a child or the claim is weak, a regency, and perhaps a pretender who raises the
 // banner of rebellion: a civil war fought with the same armies as any other. Lords of the realm's
 // places die and are succeeded by their heirs. In Ashford, when the reeve dies or leaves, the folk
@@ -6816,7 +6916,7 @@ O.snowMaskOf = function (src) {
 
 </script>
 <script>
-// Fire. Hearths, ovens and forges can set a building alight — more often in dry heat, in winter
+// Fire. Hearths, ovens and forges can set a building alight, more often in dry heat, in winter
 // when every fire is banked high, under thatch, and in buildings in poor repair. A fire grows by
 // the minute; rain damps it; neighbours come running with buckets from the well and beat it down,
 // each pair of hands counting. A big fire throws sparks onto the roofs next door. A house left to
@@ -6967,7 +7067,7 @@ O.snowMaskOf = function (src) {
 // stump's place, and over a season and more it grows back into a tree. Cut faster than you plant
 // and the woods thin: the woodcutters walk further for less, and the price of timber rises. Logs go
 // to the sawmill for planks, planks to the carpenter for furniture, and furniture to the homes of
-// families who can afford it — which shows in their houses.
+// families who can afford it, which shows in their houses.
 'use strict';
 (function () {
   function installSim(Sim) {
@@ -7045,7 +7145,7 @@ O.snowMaskOf = function (src) {
 //
 // Flood: days of heavy rain swell the river until it breaks its banks. The water creeps tile by tile
 // over the low ground (blocking lanes and paths while it lasts), soaks into houses and shops near
-// the river — damaging them, spoiling stored food and stock — drowns the crops in flooded fields,
+// the river, damaging them, spoiling stored food and stock, drowns the crops in flooded fields,
 // and can tear at the bridge. When the rain stops it slowly drains away.
 //
 // Pestilence: from time to time a plague rises somewhere in the realm and creeps along the roads.
@@ -7501,7 +7601,7 @@ O.snowMaskOf = function (src) {
       if (o.perp === 'player') {
         const what = { pickpocket: 'A purse was cut', burglary: 'A burglary', robbery: 'A robbery', assault: 'An assault', 'horse theft': 'A horse was stolen', murder: 'A killing' }[o.kind] || `A ${o.kind}`;
         const where = o.placeName ? ` at ${o.placeName}` : ` in ${this.world.name}`;
-        const f = C.deed(this, `${what}${where}${o.seen && o.seen.length ? ', and it was seen' : ''}.`, `You committed ${o.kind}${where}${o.seen && o.seen.length ? ` — ${o.seen.length} saw you` : ' — unseen'}.`, 'crime', o.kind === 'pickpocket' ? 1 : (o.severity || 1) + 1, false);
+        const f = C.deed(this, `${what}${where}${o.seen && o.seen.length ? ', and it was seen' : ''}.`, `You committed ${o.kind}${where}${o.seen && o.seen.length ? `, ${o.seen.length} saw you` : ', unseen'}.`, 'crime', o.kind === 'pickpocket' ? 1 : (o.severity || 1) + 1, false);
         f.crimeId = cr && cr.id;
         if (o.seen) for (const w of o.seen) if (w && w.id != null && !w.visitor) this.hear(w, f, 'saw');
       }
@@ -7578,8 +7678,8 @@ O.snowMaskOf = function (src) {
 
 </script>
 <script>
-// The nobility in their seats. A castle's keep is home to its lord or lady and their family — the
-// same people the kingdom's rulers list names — with a steward, cooks, maids and a groom in their
+// The nobility in their seats. A castle's keep is home to its lord or lady and their family, the
+// same people the kingdom's rulers list names, with a steward, cooks, maids and a groom in their
 // service. In Aurelia the royal castle houses the king, the queen and the royal children,
 // served by a chamberlain, ladies-in-waiting, maids, pages and grooms, fed from the Royal Kitchens.
 // The great houses of the capital belong to knights and their ladies. The gentry don't take work in
@@ -7699,7 +7799,7 @@ O.snowMaskOf = function (src) {
 // Every resident is a Person with a family, a home, maybe a job, a purse shared with their household,
 // needs, personality, skills, memories and relationships. Each game minute a person decides what they
 // should be doing (schedule by age, job, personality, day of week, need) and physically walks there
-// on the tile grid — nobody teleports. Businesses hold real stock, produce goods from inputs while
+// on the tile grid, nobody teleports. Businesses hold real stock, produce goods from inputs while
 // staffed, sell at supply-and-demand prices, pay wages, and order supplies that a worker carries
 // across the village by hand.
 'use strict';
@@ -7747,6 +7847,8 @@ O.snowMaskOf = function (src) {
         needs: { hunger: 70 + this.rng.int(0, 25), energy: 80, social: 60 }, health: { hp: 100, state: 'healthy', illness: null },
         skills: {}, mood: 0.6, attitude: this.rng.float(-0.4, 0.8), alive: true,
       }, o);
+      // no two people in the realm share a name
+      if (O.Names && p.sur) { const [f, su] = O.Names.claim(p.sex, p.first, p.sur, this.rng); p.first = f; p.sur = su; if (p.name && !p.title) p.name = `${f} ${su}`; }
       p.stage = Ch.ageStage(p.age);
       // personality: one trait from up to three opposed pairs
       const pairs = this.rng.pick([[0, 4, 2], [1, 5, 7], [3, 6, 8], [2, 4, 7], [0, 1, 5]]);
@@ -7778,7 +7880,7 @@ O.snowMaskOf = function (src) {
         const big = !!w.city; // cities: smaller households so the streets stay walkable
         for (let flat = 0; flat < flats; flat++) {
         const size = b.type === 'house' || b.type === 'tenement' ? O.clamp(Math.round((b.type === 'tenement' ? 3 : area / (big ? 8 : 5)) + r.int(-1, 1)), 1, 7) : b.type === 'mansion' || b.type === 'keep' ? r.int(3, 5) : r.int(2, 4);
-        const hh = { id: this.households.length + 1, home: b.id, members: [], pantry: { bread: r.int(2, 6), cabbage: r.int(1, 4), firewood: r.int(2, 5) }, money: Math.round((b.type === 'keep' ? 2500 : b.type === 'mansion' ? 400 : b.type === 'tenement' ? 10 : 20) + b.wealth * 120 * r.float(0.6, 1.4)), surname: r.pick(D.NAMES.sur) };
+        const hh = { id: this.households.length + 1, home: b.id, members: [], pantry: { bread: r.int(2, 6), cabbage: r.int(1, 4), firewood: r.int(2, 5) }, money: Math.round((b.type === 'keep' ? 2500 : b.type === 'mansion' ? 400 : b.type === 'tenement' ? 10 : 20) + b.wealth * 120 * r.float(0.6, 1.4)), surname: O.Names ? O.Names.surname(r) : r.pick(D.NAMES.sur) };
         if (b.lordly && this.lordFamily) { this.lordFamily(b, hh, r); continue; }
         if (b.type === 'bakery') hh.surname = 'Hobb'; if (b.type === 'farmhouse') hh.surname = 'Marsh';
         this.households.push(hh); b.household = b.household || hh.id; (b.households = b.households || []).push(hh.id);
@@ -7880,7 +7982,7 @@ O.snowMaskOf = function (src) {
       if (owner && this.has(owner, 'greedy')) m *= 1.15; if (owner && this.has(owner, 'generous')) m *= 0.9;
       return Math.max(1, Math.round(G[good].base * m));
     }
-    // The (first) business of a type; with a good, the one holding most of it — towns with several
+    // The (first) business of a type; with a good, the one holding most of it, towns with several
     // bakeries spread their custom; with openOnly, only those trading right now.
     supplierOf(type, good, openOnly) {
       let best = null;
@@ -8021,7 +8123,7 @@ O.snowMaskOf = function (src) {
       }
     }
 
-    speedOf(p) { if (p.task?.act === 'to-doctor' || p.task?.act === 'escort') return 18; const base = p.stage === 'elder' ? WALK.elder : p.age < 13 ? WALK.child : WALK.adult; const w = this.weather; return base * (w && w.snowCover > 0.4 ? 0.78 : w && w.wet > 0.6 ? 0.9 : 1); }
+    speedOf(p) { if (p.task?.act === 'to-doctor' || p.task?.act === 'escort') return 18; if (p.agent && p.agent.sprint) return (p.stage === 'elder' ? WALK.elder : p.age < 13 ? WALK.child : WALK.adult) * 1.9; const base = p.stage === 'elder' ? WALK.elder : p.age < 13 ? WALK.child : WALK.adult; const w = this.weather; return base * (w && w.snowCover > 0.4 ? 0.78 : w && w.wet > 0.6 ? 0.9 : 1); }
 
     // dtm: elapsed game minutes this frame
     tick(dtm) {
@@ -8127,7 +8229,7 @@ O.snowMaskOf = function (src) {
     }
     immigrate(b) {
       const r = this.rng, region = r.pick(['east', 'north', 'west', 'south']);
-      const hh = { id: this.households.length + 1, home: b.id, members: [], pantry: { bread: 4, cabbage: 2, firewood: 4 }, money: r.int(50, 130), surname: r.pick(D.NAMES.sur) };
+      const hh = { id: this.households.length + 1, home: b.id, members: [], pantry: { bread: 4, cabbage: 2, firewood: 4 }, money: r.int(50, 130), surname: O.Names ? O.Names.surname(r) : r.pick(D.NAMES.sur) };
       this.households.push(hh); b.household = hh.id; b.vacant = false;
       const mk = (sex, age, genes) => { const p = this.newPerson({ sex, age, first: r.pick(D.NAMES[sex]), sur: hh.surname, household: hh.id, home: b.id, genes: genes || Ch.randomGenes(r, region), wealth: 0.5 }); p.name = `${p.first} ${p.sur}`; p.birthday = r.int(1, O.Life.YEAR()); hh.members.push(p.id); return p; };
       const a = mk('m', r.int(22, 44)), c = r.chance(0.8) ? mk('f', r.int(20, 40)) : null;
@@ -8227,7 +8329,10 @@ O.snowMaskOf = function (src) {
         else { a.x += (dx / d) * budget; a.y += (dy / d) * budget; budget = 0; }
         if (d > 0.01) a.dir = O.dirOf(dx, dy);
       }
-      if (a.path) a.anim = a.carrying ? 'carry' : p.activity?.act === 'play' && p.id % 2 ? 'run' : 'walk';
+      // hurrying: late for work, chasing someone down, or running from trouble
+      const act = p.activity?.act, late = act === 'work' && p.job && this.biz?.get(p.job.biz)?.def && this.hour > this.biz.get(p.job.biz).def.hours[0] + 0.15 && this.hour < this.biz.get(p.job.biz).def.hours[0] + 1.5;
+      a.sprint = !!(a.chase || a.fleeing || late || p.task?.act === 'collect');
+      if (a.path) a.anim = a.carrying ? 'carry' : a.sprint || (act === 'play' && p.id % 2) ? 'run' : 'walk';
     }
 
     idleAnim(p) {
@@ -8242,6 +8347,11 @@ O.snowMaskOf = function (src) {
       if (act === 'gangmeet') return p.agent.talking ? 'talk' : 'idle';
       if (act === 'wait-work' || act === 'stroll') return p.agent.talking ? 'talk' : 'idle';
       if (p.agent.talking) return 'talk';
+      if (p.agent.shockedUntil > this.minute) return 'shocked';
+      // standing about: now and then a look round, a stretch, a shuffle of the feet
+      const k = (Math.floor(this.minute / 2) + p.id * 7) % 23;
+      if (p.age >= 13 && k === 3) return 'stretch';
+      if (k === 7 || k === 15) return 'look';
       return 'idle';
     }
 
@@ -8267,7 +8377,7 @@ O.snowMaskOf = function (src) {
     }
     doIndoor(p, act) {
       const hh = this.household(p);
-      // anyone at home — sick in bed, moving in, resting — is fed from the pantry when hungry
+      // anyone at home, sick in bed, moving in, resting, is fed from the pantry when hungry
       if (p.agent.inside === p.home && act.act !== 'eat' && act.act !== 'home') this.eatAtHome(p, hh, 30);
       if (p.task?.act === 'move-in' && p.agent.inside === p.task.b) { p.task = null; p.arriving = false; p.agent.carrying = null; }
       switch (act.act) {
@@ -9272,14 +9382,14 @@ O.snowMaskOf = function (src) {
 </script>
 <script>
 // Interior layouts. Every enterable building gets rooms in proportion to its exterior footprint
-// (three tiles inside for every tile outside — four for churches, which must seat the parish), one
+// (three tiles inside for every tile outside, four for churches, which must seat the parish), one
 // scene per floor. A chimney means a fireplace, oven or forge beneath it; two floors mean stairs in
 // the same corner of both.
 //
 // Furniture is arranged the way people arrange it: beds against the walls with their heads to the
 // wall, a table in the middle of the room with a chair for everyone in the household, the hearth on
 // the back wall where the chimney is, cupboards and chests along the walls. A house gets the beds
-// its family needs — a double bed for a couple, a bed each for the others (small children share),
+// its family needs, a double bed for a couple, a bed each for the others (small children share),
 // a cradle for a baby. Every piece is checked as it goes in: if it would cut off the door, the
 // stairs or anything else that has to be reached, it is not placed there.
 //
@@ -9983,8 +10093,8 @@ O.snowMaskOf = function (src) {
 </script>
 <script>
 // Indoor scene: renders a building's floor, places the residents who are actually inside it where
-// their business puts them — asleep in their own beds under the covers, at the table facing it, in
-// the pews facing the altar, behind the counter, at the bench — shows stock levels on shelves and
+// their business puts them, asleep in their own beds under the covers, at the table facing it, in
+// the pews facing the altar, behind the counter, at the bench, shows stock levels on shelves and
 // in sacks, and handles collision, stairs and leaving by the door.
 'use strict';
 (function () {
@@ -10526,12 +10636,12 @@ O.snowMaskOf = function (src) {
         }).join('')}</tbody></table>`;
         if (lsel != null) {
           const p = sim.byId.get(lsel);
-          if (p) body = `<div class="detail"><b>${esc(p.name)}</b> — ${p.traits.join(', ')}. Goal: ${esc(p.goal || '—')}. Skill: ${p.job ? Math.round((p.skills[p.job.role] || 0) * 100) : '—'}.<br><span class="lbl">Memories</span><ul>${p.memories.slice(0, 6).map((m) => `<li>Day ${m.day}: ${esc(m.text)}</li>`).join('') || '<li>Nothing notable yet.</li>'}</ul></div>` + body;
+          if (p) body = `<div class="detail"><b>${esc(p.name)}</b>, ${p.traits.join(', ')}. Goal: ${esc(p.goal || '-')}. Skill: ${p.job ? Math.round((p.skills[p.job.role] || 0) * 100) : '-'}.<br><span class="lbl">Memories</span><ul>${p.memories.slice(0, 6).map((m) => `<li>Day ${m.day}: ${esc(m.text)}</li>`).join('') || '<li>Nothing notable yet.</li>'}</ul></div>` + body;
         }
       } else if (ltab === 'biz') {
         body = `<div class="bizgrid">${[...sim.biz.values()].map((bz) => {
           const owner = sim.byId.get(bz.owner);
-          const stock = Object.entries(bz.stock).map(([g, q]) => `<tr><td>${G[g].name}</td><td class="n">${Math.floor(q)}</td><td class="n">${bz.def.sells.includes(g) ? sim.price(bz, g) + 'd' : '—'}</td></tr>`).join('');
+          const stock = Object.entries(bz.stock).map(([g, q]) => `<tr><td>${G[g].name}</td><td class="n">${Math.floor(q)}</td><td class="n">${bz.def.sells.includes(g) ? sim.price(bz, g) + 'd' : '-'}</td></tr>`).join('');
           const orders = bz.orders.map((o) => `${o.qty} ${G[o.good].name.toLowerCase()} from ${sim.biz.get(o.from)?.name || 'trader'}`).join('; ');
           return `<section class="biz"><h3>${esc(bz.name)} <span class="pill ${bz.open ? 'ok' : ''}">${bz.open ? 'OPEN' : 'CLOSED'}</span></h3>
             <div class="lbl">${owner ? 'Owner ' + esc(owner.name) + ' · ' : ''}${bz.workers.length} staff · till ${money(bz.cash)} · sold today ${money(bz.salesToday)}</div>
@@ -10598,7 +10708,9 @@ O.snowMaskOf = function (src) {
 
     function doorLocked(b) {
       const h = sim.hour, bz = sim.biz.get(b.id);
-      if (b.type === 'barn') return false;
+      if (b.type === 'barn' || b.type === 'stable' || b.type === 'smithy' || b.type === 'mill' || (b.spec && b.spec.bigDoor)) return false; // open fronts and great doors stand open
+      if ((b._doorOpen || 0) > game.t) return false; // someone has just opened it: you can follow them in
+      if (sim.biz && sim.biz.get(b.id) && sim.biz.get(b.id).def && h >= sim.biz.get(b.id).def.hours[0] && h < sim.biz.get(b.id).def.hours[1] && sim.biz.get(b.id).workers?.some((id) => sim.byId.get(id)?.agent.inside === b.id)) return false; // someone at work inside
       if (b.owner && b.owner.kind === 'player') return false;
       if (b.type === 'hideout') return b.gang !== 'player';
       if (PS.room && PS.room.b === b.id && sim.day <= PS.room.until) return false;
@@ -10646,7 +10758,7 @@ O.snowMaskOf = function (src) {
     function label(c) {
       switch (c.type) {
         case 'npc': return c.person.health.hp <= 0 ? `${c.person.name} lies senseless` : `Talk to ${c.person.name}`;
-        case 'door': return doorLocked(c.b) ? `${c.b.name} — locked` : `Enter ${c.b.type === 'house' ? 'house' : c.b.name}`;
+        case 'door': return doorLocked(c.b) ? `${c.b.name}, locked` : `Enter ${c.b.type === 'house' ? 'house' : c.b.name}`;
         case 'container': return `Search ${c.it.kind}`;
         case 'grave': return 'Read the gravestone';
         case 'memorial': return 'Read the memorial';
@@ -10665,7 +10777,7 @@ O.snowMaskOf = function (src) {
         case 'claim': return 'Claim the abandoned camp';
         case 'stash': return 'Open the stash';
         case 'campbed': return 'Sleep by the fire';
-        case 'bed': return mayUseBed(c.it) ? 'Sleep until morning' : c.it.rent ? 'Take this bed for the night (6d)' : 'Bed — not yours';
+        case 'bed': return mayUseBed(c.it) ? 'Sleep until morning' : c.it.rent ? 'Take this bed for the night (6d)' : 'Bed, not yours';
         case 'hay': return 'Sleep in the hay';
         case 'traveller': case 'ruin': case 'signpost': return O.roadLabel(c);
         case 'pickup': return `Pick up the ${(O.Data.GOODS[c.it.good]?.name || c.it.good).toLowerCase()}`;
@@ -10736,11 +10848,11 @@ O.snowMaskOf = function (src) {
     function search(it, quick) {
       const { items, owner } = contents(it);
       const own = owner === 'you';
-      if (quick && !own) { O.Panels.toast("That isn't yours to take. Search it with E — stealing has witnesses.", 'bad'); return; }
+      if (quick && !own) { O.Panels.toast("That isn't yours to take. Search it with E, stealing has witnesses.", 'bad'); return; }
       searching = 0.7; game.player.dir = 3;
       pendingSearch = () => {
         if (quick) { take(it, items, items.map((_, i) => i), owner); O.Panels.toast(items.length ? 'You gather your things.' : 'Nothing here.'); return; }
-        O.Panels.container(`${it.kind[0].toUpperCase() + it.kind.slice(1)} — ${owner}`, items, (idxs) => take(it, items, idxs, owner), own ? null : `This belongs to ${owner}. Anyone awake in the room will see you take it.`);
+        O.Panels.container(`${it.kind[0].toUpperCase() + it.kind.slice(1)}, ${owner}`, items, (idxs) => take(it, items, idxs, owner), own ? null : `This belongs to ${owner}. Anyone awake in the room will see you take it.`);
       };
     }
 
@@ -11093,7 +11205,7 @@ O.snowMaskOf = function (src) {
           PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.02);
           // the victim may feel the tug, or turn in time to see who it was
           const victimSaw = !behind && sim.rng.chance(0.3) || q.traits.includes('suspicious') && sim.rng.chance(0.3);
-          if (seen.length || victimSaw) { const cr = sim.recordCrime({ kind: 'pickpocket', perp: 'player', placeName: place, tile: tileOf(), seen, victimPerson: victimSaw ? q : null, victimLate: true, severity: 1 }); PS.crimes.push(cr.id); O.Panels.toast(seen.length ? `You lift ${got} from ${q.first}… but ${seen[0].first} saw you!` : `You lift ${got} — and ${q.first} turns, clutching an empty purse, and looks straight at you.`, 'bad'); PS.rep.local -= 0.1; }
+          if (seen.length || victimSaw) { const cr = sim.recordCrime({ kind: 'pickpocket', perp: 'player', placeName: place, tile: tileOf(), seen, victimPerson: victimSaw ? q : null, victimLate: true, severity: 1 }); PS.crimes.push(cr.id); O.Panels.toast(seen.length ? `You lift ${got} from ${q.first}… but ${seen[0].first} saw you!` : `You lift ${got}, and ${q.first} turns, clutching an empty purse, and looks straight at you.`, 'bad'); PS.rep.local -= 0.1; }
           else O.Panels.toast(`You lift ${got} from ${q.first}'s purse. Nobody noticed.`);
           sim.remember(q, 'My purse felt lighter today.', 'crime', 0.4);
         } else {
@@ -11204,7 +11316,7 @@ O.snowMaskOf = function (src) {
       const sought = PS.soughtFor();
       const spec = {
         name: g.first + ' of the watch', color: '#a8382f',
-        text: PS.exiled ? 'You were told never to come back. You\'re coming with me.' : `That's the one${sought ? ` — wanted for ${sought}` : ''}. You're coming with me to the Watch House.`,
+        text: PS.exiled ? 'You were told never to come back. You\'re coming with me.' : `That's the one${sought ? `, wanted for ${sought}` : ''}. You're coming with me to the Watch House.`,
         options,
         onPick: (t) => {
           if (t === 'surrender') { done(); jail(g); return; }
@@ -11351,7 +11463,7 @@ O.snowMaskOf = function (src) {
           <div><span class="lbl">Influence</span><b>${Math.round(g.influence * 100)}%</b><small>rivals: the Crows (${Math.round((sim.gang('crows')?.influence || 0) * 100)}%)</small></div>
           <div><span class="lbl">Wages due</span><b>${g.members.reduce((s, m) => s + m.wage, 0)}d/day</b><small>paid from the purse each dawn</small></div>
         </div>
-        <table style="margin-top:12px"><thead><tr><th>Member</th><th>Role</th><th>Loyalty</th><th class="n">Wage</th><th>Tonight</th></tr></thead><tbody>${mem || '<tr><td colspan="5">No members yet. Sound out the desperate and the reckless — in the tavern, in the square.</td></tr>'}</tbody></table>
+        <table style="margin-top:12px"><thead><tr><th>Member</th><th>Role</th><th>Loyalty</th><th class="n">Wage</th><th>Tonight</th></tr></thead><tbody>${mem || '<tr><td colspan="5">No members yet. Sound out the desperate and the reckless, in the tavern, in the square.</td></tr>'}</tbody></table>
         <div class="lbl" style="margin-top:12px">Recent</div><ol class="chron">${g.log.slice(-6).reverse().map((t) => `<li>${esc(t)}</li>`).join('') || '<li>Nothing yet.</li>'}</ol>`, (r) => {
         r.querySelector('[data-dep]').onclick = () => { if (PS.money >= 10) { PS.money -= 10; g.purse += 10; ledger(); } };
         r.querySelector('[data-wd]').onclick = () => { if (g.purse >= 10) { g.purse -= 10; PS.money += 10; ledger(); } };
@@ -11619,8 +11731,8 @@ O.snowMaskOf = function (src) {
 
 </script>
 <script>
-// Animal sprites in the same material raster. Every animal is one rig — spine, neck, head, four
-// legs (two for a hen), tail — posed in body space and projected to any of eight facings, the same
+// Animal sprites in the same material raster. Every animal is one rig, spine, neck, head, four
+// legs (two for a hen), tail, posed in body space and projected to any of eight facings, the same
 // way people are. Seen from the front you get the head and chest with the hindquarters behind; from
 // the back, the rump and tail with the head beyond. Gaits are real: a four-beat walk and a gallop
 // whose legs gather and stretch, with the body pitching over them.
@@ -11855,7 +11967,7 @@ O.snowMaskOf = function (src) {
 // Every horse is an individual with a name, breed, age, speed, stamina, temperament, value, owner
 // and a history of every owner it has had (bought, sold, stolen, gifted). Horses graze in the
 // paddock or stand where their rider left them. The player can buy one from the stables, ride it
-// (H), gallop (Shift), board it, rename it, sell it — or steal one, which witnesses remember and
+// (H), gallop (Shift), board it, rename it, sell it, or steal one, which witnesses remember and
 // the horse trader may recognise.
 'use strict';
 (function () {
@@ -12028,7 +12140,7 @@ O.snowMaskOf = function (src) {
         <div><span class="lbl">Breed</span><b>${h.breed}</b><small>${h.coat}${h.blaze ? ', a white blaze' : ''}${h.socks ? ', white socks' : ''} · ${h.age} years</small></div>
         <div><span class="lbl">Temperament</span><b>${h.temper}</b><small>speed ${Math.round(h.speed * 100)} · stamina ${h.staminaMax}</small></div>
         <div><span class="lbl">Worth</span><b>${O.money(h.value)}</b><small>owner: ${O.escape(ownerName(h.owner))}</small></div></div>
-        <div class="lbl" style="margin-top:10px">History</div><ol class="chron">${h.history.map((e) => `<li>Day ${e.day}: ${e.event} — ${O.escape(e.owner)}</li>`).join('')}</ol>
+        <div class="lbl" style="margin-top:10px">History</div><ol class="chron">${h.history.map((e) => `<li>Day ${e.day}: ${e.event}, ${O.escape(e.owner)}</li>`).join('')}</ol>
         ${mine ? `<label class="lbl" for="horseName" style="display:block;margin-top:10px">Rename</label><input type="text" id="horseName" value="${O.escape(h.name)}" maxlength="20" style="width:100%;margin:4px 0"><button class="btn" data-ren="1">Rename</button> <button class="btn ghost" data-feed="1">Feed (1 wheat or 1d)</button>` : ''}`, (rr) => {
         const rn = rr.querySelector('[data-ren]'); if (rn) rn.onclick = () => { h.name = rr.querySelector('#horseName').value.trim() || h.name; inspect(h); };
         const fd = rr.querySelector('[data-feed]'); if (fd) fd.onclick = () => { if (PS.remove('wheat')) h.fed = 100; else if (PS.money >= 1) { PS.money -= 1; h.fed = 100; } h.stamina = h.staminaMax; O.Panels.toast(`${h.name} eats happily.`); };
@@ -12243,7 +12355,7 @@ O.snowMaskOf = function (src) {
       const wanted = sim.crimes.filter((c) => c.perp !== 'player' && c.investigated && !c.solved && Object.keys(c.profile || {}).length).slice(-3);
       const mine = PS.wantedLevel() >= 1 ? `<li><b>WANTED</b> for ${PS.crimes.length} crime${PS.crimes.length > 1 ? 's' : ''}: ${esc(PS.soughtFor() || 'a stranger')}.${PS.bountyAmount ? ` Reward ${PS.bountyAmount}d.` : ''}</li>` : '';
       const prices = K.places.filter((p) => !p.detailed).map((p) => `<tr><td>${esc(p.name)}</td><td class="n">${p.prices.grain}d</td><td class="n">${p.prices.iron}d</td><td class="n">${p.prices.cloth}d</td></tr>`).join('');
-      O.Panels.open('Notice board', `<ol class="chron">${mine}${wanted.map((c) => `<li>Sought: ${esc(O.Justice.describe(c.profile))}, for ${esc(c.kind)} at ${esc(c.placeName || 'Ashford')}.</li>`).join('')}${K.councils.slice(-1).flatMap((r) => r.items.map((i) => `<li>By order of the council (day ${r.day}): to ${esc(i.text)} — ${i.pass ? 'CARRIED' : 'defeated'} ${i.yes}–${i.of - i.yes}.</li>`)).join('')}${K.news.slice(-4).reverse().map((n) => `<li>${esc(n.text)}</li>`).join('')}</ol>
+      O.Panels.open('Notice board', `<ol class="chron">${mine}${wanted.map((c) => `<li>Sought: ${esc(O.Justice.describe(c.profile))}, for ${esc(c.kind)} at ${esc(c.placeName || 'Ashford')}.</li>`).join('')}${K.councils.slice(-1).flatMap((r) => r.items.map((i) => `<li>By order of the council (day ${r.day}): to ${esc(i.text)}, ${i.pass ? 'CARRIED' : 'defeated'} ${i.yes}-${i.of - i.yes}.</li>`)).join('')}${K.news.slice(-4).reverse().map((n) => `<li>${esc(n.text)}</li>`).join('')}</ol>
         <div class="lbl" style="margin-top:12px">Prices at market, by the last carter</div><table><thead><tr><th>Town</th><th class="n">Grain</th><th class="n">Iron</th><th class="n">Cloth</th></tr></thead><tbody>${prices}</tbody></table>`);
     };
 
@@ -12449,7 +12561,7 @@ O.snowMaskOf = function (src) {
           else { const lost = Math.floor(PS.money * 0.5); PS.money -= lost; done(`They beat you bloody and take ${lost}d.`, true); }
         };
         r.querySelector('[data-b=flee]').onclick = () => { const ok = home.rng.chance(game.player.mount ? 0.85 : 0.4); if (ok) done('You break away and leave them cursing in the road.'); else { const lost = Math.floor(PS.money * 0.3); PS.money -= lost; PS.hp = Math.max(5, PS.hp - 15); done(`They catch you. You lose ${lost}d and some skin.`, true); } };
-        const tk = r.querySelector('[data-b=talk]'); if (tk) tk.onclick = () => done('“Ah — one of ours. Go on, then.” They let you pass, and tell you where the soft caravans run.');
+        const tk = r.querySelector('[data-b=talk]'); if (tk) tk.onclick = () => done('“Ah, one of ours. Go on, then.” They let you pass, and tell you where the soft caravans run.');
       });
     }
 
@@ -12458,7 +12570,7 @@ O.snowMaskOf = function (src) {
       let v = visited.get(to);
       if (v) return v;
       const world = O.Island.region(to); // the town in its own stretch of the island's countryside
-      const s = new O.Sim(world, O.hash('sim', to), { foreign: true, kingdom: K, day: home.day, minute: home.minute });
+      const s = new O.Sim(world, O.hash('sim', to, O.lifeSeed || 0), { foreign: true, kingdom: K, day: home.day, minute: home.minute });
       v = { world, sim: s, leftAt: home.day * 1440 + home.minute }; // it keeps living until you arrive
       visited.set(to, v);
       return v;
@@ -12496,7 +12608,7 @@ O.snowMaskOf = function (src) {
 </script>
 <script>
 // Property and lordship for the player: For Sale signs on empty houses and shops, buying, letting to
-// tenants, opening a business, selling, the Holdings panel (P), and — for the rich and respectable —
+// tenants, opening a business, selling, the Holdings panel (P), and, for the rich and respectable -
 // the lordship of Ashford with its powers over tax, the watch, relief and building.
 'use strict';
 (function () {
@@ -12504,8 +12616,11 @@ O.snowMaskOf = function (src) {
 
   function setup(game, sim) {
     const home = () => O.SimRef.home;
-    const forSale = (b) => !b.site && !b.ruined && !b.fire && b.type !== 'hideout' && ((b.type === 'house' && !b.household) || b.closedShop || b.listed) && (!b.owner || b.owner.kind !== 'player');
+    const forSale = (b) => !(O.isPublicBuilding && O.isPublicBuilding(b)) && !b.site && !b.ruined && !b.fire && b.type !== 'hideout' && ((b.type === 'house' && !b.household) || b.closedShop || b.listed) && (!b.owner || b.owner.kind !== 'player');
     O.forSale = forSale;
+    // the realm's own buildings are never for sale: halls, the watch, churches, the morgue, hospitals, schools, castles
+    const PUBLIC = new Set(['townhall', 'guard', 'chapel', 'church', 'cathedral', 'morgue', 'hospital', 'school', 'keep', 'palace', 'kitchen', 'moothall', 'jail', 'harbour', 'minecourt', 'posthouse', 'gatehouse']);
+    O.isPublicBuilding = (b) => PUBLIC.has(b.type) || !!(O.Data.BUSINESS[b.type] && O.Data.BUSINESS[b.type].public);
     const owned = (b) => b.owner && b.owner.kind === 'player';
 
     // a little painted sign by the door of anything for sale
@@ -12546,7 +12661,7 @@ O.snowMaskOf = function (src) {
         for (const b of s.world.buildings) if (b.listed && H.day - b.listed.day > 12) b.listed = null; // no buyer: taken off the market
         if (!r.chance(0.35)) continue;
         const spare = s.world.buildings.filter((b) => b.type === 'house' && b.owner?.kind === 'household' && b.household && s.households[b.owner.id - 1] && s.households[b.owner.id - 1].home !== b.id && !b.listed);
-        const weak = [...s.biz.values()].filter((bz) => !bz.ownerPlayer && bz.cash < 15 && bz.workers && bz.workers.length).map((bz) => s.world.buildings.find((b) => b.id === bz.id)).filter((b) => b && !b.listed);
+        const weak = [...s.biz.values()].filter((bz) => !bz.ownerPlayer && bz.cash < 15 && bz.workers && bz.workers.length).map((bz) => s.world.buildings.find((b) => b.id === bz.id)).filter((b) => b && !b.listed && !O.isPublicBuilding(b));
         const pick = r.chance(0.5) && spare.length ? r.pick(spare) : weak.length ? r.pick(weak) : spare.length ? r.pick(spare) : null;
         if (pick) { pick.listed = { day: H.day }; s.log(`${pick.type === 'house' ? 'A let house' : pick.name} has been put up for sale.`, 'economy'); }
       }
@@ -12565,7 +12680,7 @@ O.snowMaskOf = function (src) {
         ${!mine ? `<button data-a="buy">Buy for ${O.money(v)}</button>` : ''}
         ${mine && b.type === 'house' && !b.household ? `<button data-a="let">Let it to a family (${rentEst}d a week)</button>` : ''}
         ${mine && b.closedShop ? ['bakery', 'store', 'tavern', 'smithy'].map((t) => `<button data-open="${t}">Open a ${O.Data.BUSINESS[t].label.toLowerCase()} (60d)</button>`).join('') : ''}
-        ${mine ? `<button data-a="sell">Sell for ${O.money(Math.round(v * 0.8))}</button>` : ''}
+        ${mine && !O.isPublicBuilding(b) ? `<button data-a="sell">Sell for ${O.money(Math.round(v * 0.8))}</button>` : ''}
       </div>`, (r) => {
         const on = (sel, f) => { const el = r.querySelector(sel); if (el) el.onclick = f; };
         on('[data-a=buy]', () => {
@@ -12661,7 +12776,7 @@ O.snowMaskOf = function (src) {
 <script>
 // The Chronicle (C): the world's timeline as the parish clerks record it, what you have heard and
 // from whom (set against the record), your own story (including what only you know), and the
-// realm's notables — rulers, memorials, the founders of its trades. Also: memorial stones raised in
+// realm's notables, rulers, memorials, the founders of its trades. Also: memorial stones raised in
 // the chapel yard for notable dead, ballads sung by visiting bards, and the city broadsheet.
 'use strict';
 (function () {
@@ -12753,13 +12868,13 @@ O.snowMaskOf = function (src) {
   function notables(s, Ch) {
     const H = O.SimRef.home, K = H.kingdom;
     const reeve = H.reeveId ? H.byId.get(H.reeveId) : null;
-    const rulers = K.places.map((p) => `<li><b>${esc(p.name)}</b> — ${esc(p.id === 'ashford' ? (H.lordship?.holder === 'player' ? 'you, as Lord of Ashford' : H.reeveId === 'player' ? 'you, as Reeve of Ashford' : reeve && reeve.alive !== false ? `${reeve.name}, Reeve of Ashford` : 'no reeve: a moot is called') : p.leader || 'a council')}</li>`).join('');
+    const rulers = K.places.map((p) => `<li><b>${esc(p.name)}</b>, ${esc(p.id === 'ashford' ? (H.lordship?.holder === 'player' ? 'you, as Lord of Ashford' : H.reeveId === 'player' ? 'you, as Reeve of Ashford' : reeve && reeve.alive !== false ? `${reeve.name}, Reeve of Ashford` : 'no reeve: a moot is called') : p.leader || 'a council')}</li>`).join('');
     const R = K.rulers;
-    const crown = R ? `<div class="kv" style="margin-top:12px"><div><span class="lbl">The crown</span><b style="font-size:22px">${R.crown ? esc(O.Rulers.crownTitle(R.crown)) : 'Vacant — the realm mourns'}</b><small>${R.crown ? `aged ${R.crown.age}${R.crown.ailing ? ', gravely ill' : ''}; heir ${esc(R.crown.heir?.name || 'none')} (${R.crown.heir?.age ?? '?'})` : ''}${R.regent ? `. Regent: ${esc(R.regent.name)}` : ''}</small></div>
+    const crown = R ? `<div class="kv" style="margin-top:12px"><div><span class="lbl">The crown</span><b style="font-size:22px">${R.crown ? esc(O.Rulers.crownTitle(R.crown)) : 'Vacant, the realm mourns'}</b><small>${R.crown ? `aged ${R.crown.age}${R.crown.ailing ? ', gravely ill' : ''}; heir ${esc(R.crown.heir?.name || 'none')} (${R.crown.heir?.age ?? '?'})` : ''}${R.regent ? `. Regent: ${esc(R.regent.name)}` : ''}</small></div>
       <div><span class="lbl">Pretender</span><b style="font-size:22px">${esc(R.pretender?.name || 'none')}</b><small>${esc(R.pretender?.title || '')}</small></div></div>
-      <div class="lbl" style="margin-top:12px">Reigns</div><ol class="chron">${R.reigns.slice().reverse().map((g) => `<li><b>${esc(g.who)}</b> — ${g.how}, ${g.from < 1 ? 'long before you came' : esc(Ch.dateLabel(g.from))}${g.to ? ` to ${esc(Ch.dateLabel(g.to))}` : ', reigning'}</li>`).join('')}</ol>` : '';
-    const mems = (H.memorials || []).slice().reverse().map((m) => `<li><b>${esc(m.name)}</b>${m.title ? ', ' + esc(m.title) : ''} — died ${esc(Ch.dateLabel(m.died))}, aged ${m.age}</li>`).join('') || '<li class="caption">No memorials raised yet.</li>';
-    const founders = [...s.biz.values()].filter((bz) => !bz.def.public && bz.type !== 'site').map((bz) => `<li><b>${esc(bz.name)}</b> — ${bz.founded ? `founded ${esc(Ch.dateLabel(bz.founded.day))} by ${esc(bz.founded.by)}` : 'kept since time out of mind'}</li>`).join('');
+      <div class="lbl" style="margin-top:12px">Reigns</div><ol class="chron">${R.reigns.slice().reverse().map((g) => `<li><b>${esc(g.who)}</b>, ${g.how}, ${g.from < 1 ? 'long before you came' : esc(Ch.dateLabel(g.from))}${g.to ? ` to ${esc(Ch.dateLabel(g.to))}` : ', reigning'}</li>`).join('')}</ol>` : '';
+    const mems = (H.memorials || []).slice().reverse().map((m) => `<li><b>${esc(m.name)}</b>${m.title ? ', ' + esc(m.title) : ''}, died ${esc(Ch.dateLabel(m.died))}, aged ${m.age}</li>`).join('') || '<li class="caption">No memorials raised yet.</li>';
+    const founders = [...s.biz.values()].filter((bz) => !bz.def.public && bz.type !== 'site').map((bz) => `<li><b>${esc(bz.name)}</b>, ${bz.founded ? `founded ${esc(Ch.dateLabel(bz.founded.day))} by ${esc(bz.founded.by)}` : 'kept since time out of mind'}</li>`).join('');
     const graves = (H.graves || []).length;
     return `<div class="kv"><div><span class="lbl">Years recorded</span><b>${Ch.yearOf(H.day)}</b><small>${esc(Ch.dateLabel(H.day))}</small></div><div><span class="lbl">Facts in the record</span><b>${Ch.facts.length}</b><small>${Ch.facts.filter((f) => f.imp >= 3).length} of great moment</small></div><div><span class="lbl">Buried in Ashford</span><b>${graves}</b><small>${(H.memorials || []).length} with memorials</small></div></div>
       ${crown}<div class="lbl" style="margin-top:12px">Who rules where</div><ol class="chron">${rulers}</ol>
@@ -13057,8 +13172,8 @@ O.snowMaskOf = function (src) {
 
 </script>
 <script>
-// Making things yourself, and selling them. At a workstation you may use — in a building you own,
-// or at your employer's while you're working there — turn your own materials into goods: bake,
+// Making things yourself, and selling them. At a workstation you may use, in a building you own,
+// or at your employer's while you're working there, turn your own materials into goods: bake,
 // forge, saw, brew, mill, brew remedies or cook. Skill decides what you can attempt and how much it
 // yields, and the work teaches you more. Then mind a market stall for an hour and sell what you made
 // to the townsfolk, who really pay from their purses and really eat what they buy.
@@ -13104,7 +13219,7 @@ O.snowMaskOf = function (src) {
         return `<tr><td><b>${esc(label)}</b><br><small class="caption">${Object.entries(inp).map(([g, n]) => `${n} ${G[g].name.toLowerCase()} (${PS.count(g)})`).join(', ')} → ${Object.entries(out).map(([g, n]) => `${yieldN(n)} ${G[g].name.toLowerCase()}`).join(', ')}</small></td>
           <td>${able ? '' : `<small class="warn">needs ${O.Work.SKILL_LABEL[sk].toLowerCase()} ${Math.round(min * 100)}</small>`}</td><td><button data-r="${i}" ${have && able ? '' : 'disabled'}>Make · 1 hour</button></td></tr>`;
       }).join('');
-      const workRow = c.work ? `<tr><td><b>Work an hour for ${esc(c.who.replace(/'s$/, ''))}</b><br><small class="caption">${esc(O.workLabel())} — the master's materials, the master's goods, your wages</small></td><td></td><td><button data-work="1" class="hot">Work · 1 hour</button></td></tr>` : '';
+      const workRow = c.work ? `<tr><td><b>Work an hour for ${esc(c.who.replace(/'s$/, ''))}</b><br><small class="caption">${esc(O.workLabel())}, the master's materials, the master's goods, your wages</small></td><td></td><td><button data-work="1" class="hot">Work · 1 hour</button></td></tr>` : '';
       O.Panels.open(`At the ${c.it.kind === 'fireplace' ? 'hearth' : c.it.kind}`, `<p class="caption">${c.work ? 'Work for wages with the master\'s materials, or make something' : 'Make something'} with your own at ${esc(c.who)} ${c.it.kind === 'fireplace' ? 'hearth' : 'bench'}. What you make from your own materials is yours to keep or sell.</p><table><tbody>${workRow}${rows}</tbody></table>`, (r) => {
         const w = r.querySelector('[data-work]'); if (w) w.onclick = () => { O.Panels.close(); O.workShift(); };
         r.querySelectorAll('[data-r]').forEach((b) => b.onclick = () => make(c, RECIPES[c.it.kind][+b.dataset.r]));
@@ -13317,7 +13432,7 @@ O.snowMaskOf = function (src) {
 // Land. Buy an empty building plot in Ashford and pay builders to raise a house of your own on it
 // (the same eleven stages the council's houses go through, worked by hired villagers). Buy strips
 // of the common field from the farm: hired hands work them, and each Moonday what they reaped is
-// sold to the mill at the going price, less the labourers' wages — so floods, seasons and the price
+// sold to the mill at the going price, less the labourers' wages, so floods, seasons and the price
 // of grain decide whether land pays. Enough land and property, and you are landed gentry.
 'use strict';
 (function () {
@@ -13408,8 +13523,8 @@ O.snowMaskOf = function (src) {
 // The game's on-screen furniture, kept to a minimum: a small clock in the corner, a line of text
 // along the bottom for news and happenings (one message at a time, like a village notice read
 // aloud), a soft marker over whatever you could interact with, a conversation box in the style of
-// a storybook — the speaker's name on a tab, the words written out as they're spoken, your replies
-// in a bubble at the side — and a pause menu (Esc) that holds everything else.
+// a storybook, the speaker's name on a tab, the words written out as they're spoken, your replies
+// in a bubble at the side, and a pause menu (Esc) that holds everything else.
 'use strict';
 (function () {
   const esc = (s) => O.escape(String(s));
@@ -13532,7 +13647,7 @@ O.snowMaskOf = function (src) {
     }
     // ---------------------------------------------------------------- settings
     function pardon() {
-      // for testing: wipe the slate — every crime forgiven, no bounty, the watch no longer looking
+      // for testing: wipe the slate, every crime forgiven, no bounty, the watch no longer looking
       const sims = [O.SimRef.home, O.SimRef.cur].filter(Boolean);
       for (const s of sims) for (const c of s.crimes || []) if (c.perp === 'player') c.closed = c.closed || 'pardoned';
       PS.crimes = []; PS.bounty = false; PS.bountyAmount = 0; PS.exiled = false; PS.stolen = {}; PS.wanted = 0;
@@ -13565,7 +13680,7 @@ O.snowMaskOf = function (src) {
           const k = b.dataset.s;
           if (k === 'save') { O.Save.save(game, O.SimRef.home); settings(); }
           else if (k === 'load') { if (!O.Save.peek()) return O.Panels.toast('There is no save yet.', 'bad'); window.__noAutosave = true; location.reload(); }
-          else if (k === 'restart') { O.Save.clear(); window.__noAutosave = true; location.reload(); }
+          else if (k === 'restart') { O.Save.clear(); O.Names && O.Names.newLife(); window.__noAutosave = true; location.reload(); }
           else if (k === 'new') confirmNew();
           else if (k === 'sound') { O.AudioToggle && O.AudioToggle(); settings(); }
           else if (k === 'speed') { game.clock.speed = game.clock.speed >= 2 ? 1 : 2; settings(); }
@@ -13578,7 +13693,7 @@ O.snowMaskOf = function (src) {
     function confirmNew() {
       O.Panels.open('Begin a new life?', '<p class="caption">This forgets the world as you left it: every person, every crime, your purse and your name. You will make a new character and start again.</p><div class="topics"><button data-yes="1">Yes, start over</button><button data-no="1">Keep playing</button></div>', (r) => {
         r.querySelector('[data-no]').onclick = () => O.Panels.close();
-        r.querySelector('[data-yes]').onclick = () => { O.Save.clear(); try { localStorage.removeItem('outlaw.spec'); localStorage.removeItem('outlaw.created'); } catch (e) { /* ignore */ } window.__noAutosave = true; location.reload(); };
+        r.querySelector('[data-yes]').onclick = () => { O.Save.clear(); O.Names && O.Names.newLife(); try { localStorage.removeItem('outlaw.spec'); localStorage.removeItem('outlaw.created'); } catch (e) { /* ignore */ } window.__noAutosave = true; location.reload(); };
       });
     }
     game.keyHandlers.push((e) => {
@@ -13599,14 +13714,14 @@ O.snowMaskOf = function (src) {
 // Doors that open, and people who walk through them. Nobody blinks out of the street any more:
 // when someone goes indoors the door swings open, they step up into the doorway and are swallowed
 // by the dark of the room; when they come out the door opens and they step down onto the street.
-// The player does the same — pressing E at a door walks you in.
+// The player does the same, pressing E at a door walks you in.
 'use strict';
 (function () {
   function setup(game) {
     const T = 16;
     const walkers = []; // { a, b, t, dur, mode: 'in'|'out', player, done }
     const doorRect = (b) => { const sp = b.sprite, d = sp && sp.door; if (!d) return null; return { x: b.x * T - sp.OV + d.x, y: (b.bottom + 1) * T - sp.H + d.y, w: d.w, h: d.h }; };
-    function openDoor(b, dur = 0.9) { b._doorOpen = Math.max(b._doorOpen || 0, game.t + dur); }
+    function openDoor(b, dur = 0.9) { if (!((b._doorOpen || 0) > game.t)) b._doorStart = game.t; b._doorOpen = Math.max(b._doorOpen || 0, game.t + dur); }
     function walk(a, b, mode, opts = {}) {
       const r = doorRect(b); if (!r) { opts.done && opts.done(); return false; }
       walkers.push({ a, b, t: 0, dur: opts.dur || 0.6, mode, player: !!opts.player, done: opts.done, r });
@@ -13620,8 +13735,9 @@ O.snowMaskOf = function (src) {
     game.walkInto = (b, then) => {
       const p = game.player;
       if (!doorRect(b) || game.scene) return then();
-      p.dir = 3; p.walkingDoor = true;
-      walk(p.a, b, 'in', { player: true, done: () => { p.walkingDoor = false; then(); } });
+      // reach out and push the door open, then step through
+      p.dir = 3; p.walkingDoor = true; p.anim = 'open'; p.ft = 0; openDoor(b, 1.4);
+      setTimeout(() => walk(p.a, b, 'in', { player: true, done: () => { p.walkingDoor = false; then(); } }), 280);
     };
     const _exit = game.exitBuilding.bind(game);
     game.exitBuilding = function () {
@@ -13656,7 +13772,7 @@ O.snowMaskOf = function (src) {
       if (p.walkingDoor) {
         p.walkingDoorT = (p.walkingDoorT || 0) + dt;
         if (p.walkingDoorT > 1.6) { p.walkingDoor = false; p.walkingDoorT = 0; p.locked = false; } // never left standing in a doorway
-        else { p.locked = true; p._suppressUntil = game.t + 0.05; }
+        else { p.locked = true; if (walkers.some((w) => w.player)) p._suppressUntil = game.t + 0.05; }
       } else p.walkingDoorT = 0;
     });
 
@@ -13670,10 +13786,11 @@ O.snowMaskOf = function (src) {
       const warm = game.lit && game.lit.has(b.id);
       ctx.fillStyle = warm ? '#3a2416' : '#1c1614'; ctx.fillRect(x, y, r.w, r.h);
       ctx.fillStyle = warm ? '#5a3a1e' : '#2a2220'; ctx.fillRect(x, y + r.h - 3, r.w, 3);
-      // the door leaf, swung inward against the hinge side
-      ctx.fillStyle = '#6e4a2c'; ctx.fillRect(x, y, 4, r.h);
-      ctx.fillStyle = '#8a6239'; ctx.fillRect(x, y, 1, r.h);
-      ctx.fillStyle = '#4a3020'; ctx.fillRect(x + 3, y, 1, r.h);
+      // the door leaf swinging inward on its hinge: full width when shut, a narrow edge when wide open
+      const u = O.clamp((game.t - (b._doorStart || 0)) / 0.25, 0, 1), closing = O.clamp(((b._doorOpen || 0) - game.t) / 0.25, 0, 1), lw = Math.max(4, Math.round(r.w - (r.w - 4) * Math.min(u, closing)));
+      ctx.fillStyle = '#6e4a2c'; ctx.fillRect(x, y, lw, r.h);
+      ctx.fillStyle = '#8a6239'; ctx.fillRect(x, y, 1, r.h); if (lw > 6) { ctx.fillRect(x + 2, y + 2, lw - 4, 1); ctx.fillRect(x + 2, y + r.h - 4, lw - 4, 1); }
+      ctx.fillStyle = '#4a3020'; ctx.fillRect(x + lw - 1, y, 1, r.h); if (lw > 6) { ctx.fillStyle = '#2a1a10'; ctx.fillRect(x + lw - 3, y + Math.round(r.h / 2), 1, 2); }
       // whoever is passing through
       for (const w of walkers) {
         if (w.b !== b) continue;
@@ -13700,7 +13817,7 @@ O.snowMaskOf = function (src) {
 // Drawing what fights leave behind: blood on the ground (drops from a stab, a streak from a sword,
 // a splash from an axe, a dark pool where someone died), things dropped in the street, the dead
 // where they fell, stretchers carried through the village, the puff of smoke at the morgue door,
-// and wounds on people — bruises, cuts and bandages that shrink as they heal. Also: picking up
+// and wounds on people, bruises, cuts and bandages that shrink as they heal. Also: picking up
 // what's lying in the street.
 'use strict';
 (function () {
@@ -13904,8 +14021,8 @@ O.snowMaskOf = function (src) {
 <script>
 // The roads of Eldoria, walked. Every settlement has a way out for each road that leaves it, on the
 // side that faces where the road goes. Walk out of town and you are on that road: a stretch of
-// real country, drawn from the island itself — the forest, the farms, the rocks under the peaks,
-// the marsh — with the rivers it crosses (by a bridge, or a ford where there is none), the ruins
+// real country, drawn from the island itself, the forest, the farms, the rocks under the peaks,
+// the marsh, with the rivers it crosses (by a bridge, or a ford where there is none), the ruins
 // that stand near it, other travellers and the caravans that use it, and on the wilder roads a camp
 // of one of the rival gangs that live in the wild places. Walk to the far end and you arrive.
 'use strict';
@@ -14239,7 +14356,7 @@ O.snowMaskOf = function (src) {
           else { const lost = Math.floor(PS.money * 0.5); PS.money -= lost; done(`They beat you bloody and take ${lost}d.`, true); }
         };
         r.querySelector('[data-b=flee]').onclick = () => { const ok = home.rng.chance(game.player.mount ? 0.85 : 0.4); if (ok) done('You break away and leave them cursing in the road.'); else { const lost = Math.floor(PS.money * 0.3); PS.money -= lost; PS.hp = Math.max(5, PS.hp - 15); done(`They catch you. You lose ${lost}d and some skin.`, true); } };
-        const tk = r.querySelector('[data-b=talk]'); if (tk) tk.onclick = () => done(`“Ah — one of us. Go on, then.” They wave you past, and tell you which caravans run soft.`);
+        const tk = r.querySelector('[data-b=talk]'); if (tk) tk.onclick = () => done(`“Ah, one of us. Go on, then.” They wave you past, and tell you which caravans run soft.`);
       });
     };
 
@@ -14686,8 +14803,8 @@ O.snowMaskOf = function (src) {
 
 </script>
 <script>
-// The guide (/ or the Guide button): controls, and the many ways to live in this world — honest
-// work, trade, property, crime, gangs, politics, war — with where each starts.
+// The guide (/ or the Guide button): controls, and the many ways to live in this world, honest
+// work, trade, property, crime, gangs, politics, war, with where each starts.
 'use strict';
 (function () {
   const KEYS = [['WASD / arrows', 'walk'], ['Shift', 'run'], ['E', 'interact with whatever is nearest: talk, enter, work, buy, read, fight a fire…'], ['Q', 'steal: pickpocket, pick a lock, take a horse'], ['F', 'quick-loot a container or search someone beaten'], ['Space', 'strike'], ['R', 'change weapon'], ['H', 'mount or dismount your horse'], ['I', 'satchel, reputation and skills'], ['L', 'town ledger: people, families, businesses, news'], ['M', 'map of the realm'], ['G', 'your gang'], ['P', 'holdings: property, land, office'], ['C', 'the Chronicle: history, hearsay, your story'], ['/', 'this guide'], ['Esc', 'close a panel']];
@@ -14695,11 +14812,11 @@ O.snowMaskOf = function (src) {
     ['Honest work', 'Talk to a master at their workplace during opening hours and ask for work. Work hour-long shifts at their benches for wages; skills grow; a good worker is offered an apprenticeship.'],
     ['Craft and sell', 'Once skilled, make goods from your own materials at a bench you may use (your property or your employer\'s). Mind a market stall in the square to sell to the townsfolk; market day is Freyday.'],
     ['Property and land', 'Buy houses or shops with For Sale signs, let them, open businesses. In Holdings (P), buy building plots, have a house built, buy strips of the common field. Enough land makes you gentry.'],
-    ['Office', 'Stand for reeve at the moot (spring, or when the office is empty) — friendships and good standing win votes. Or petition for the lordship. In office you set taxes, the watch, works and Ashford\'s voice at the castle council.'],
+    ['Office', 'Stand for reeve at the moot (spring, or when the office is empty), friendships and good standing win votes. Or petition for the lordship. In office you set taxes, the watch, works and Ashford\'s voice at the castle council.'],
     ['Crime', 'Pickpocket and burgle (Q), rob caravans on the King\'s Road, fence goods. Witnesses describe you imperfectly; the watch investigates; disguise helps. Get caught and you face trial.'],
     ['Gangs', 'Claim the abandoned camp in the woods, recruit the poor and the bitter, pay them, plan night jobs, grow the hideout. The Crows will not like it.'],
     ['War and politics', 'When war comes, a recruiting sergeant calls for men: take the King\'s shilling and march (or desert). In a rebellion, a rebel agent drinks in the tavern. Kings die; pretenders rise.'],
-    ['Travel', 'Eldoria is an island of thirty-three settlements: the capital Aurelia on the River Aure, the port of Westhaven, Goldmere, Frostmere under the peaks, the farms of Greenvale and Sunfield, castles at Highmere, Eastmarch and Westcliff, and hamlets in the wild places. There is no shortcut: walk off the edge of town onto a road — the King\'s Road, a farm lane, a forest track — and follow it to the next place. Signposts and milestones mark the way; travellers, carts and caravans share it, ruins stand beside it, and in the wild country rival gangs camp by the road and may stop you. Each town lives its own life while you are away.'],
+    ['Travel', 'Eldoria is an island of thirty-three settlements: the capital Aurelia on the River Aure, the port of Westhaven, Goldmere, Frostmere under the peaks, the farms of Greenvale and Sunfield, castles at Highmere, Eastmarch and Westcliff, and hamlets in the wild places. There is no shortcut: walk off the edge of town onto a road, the King\'s Road, a farm lane, a forest track, and follow it to the next place. Signposts and milestones mark the way; travellers, carts and caravans share it, ruins stand beside it, and in the wild country rival gangs camp by the road and may stop you. Each town lives its own life while you are away.'],
     ['Keep your ears open', 'Ask people for news: what they tell you is what they heard, from whom, and it may be wrong. The crier, bards in the tavern and the Aurelia broadsheet all tell it their own way. The Chronicle keeps the record.'],
     ['Disasters', 'Fires (grab a bucket), floods after heavy rain, pestilence with quarantines. Help, or profit, or flee.'],
   ];
@@ -15261,6 +15378,7 @@ O.snowMaskOf = function (src) {
     // player
     const P = d.player; const { rep, ...rest } = P.ps; Object.assign(PS, rest); if (rep) for (const k of ['civilian', 'criminal', 'guard', 'merchant']) PS.rep[k] = rep[k] ?? 0;
     game.player.x = P.x; game.player.y = P.y; game.player.dir = P.dir; game._savedPlayer = P;
+    if (O.Names) for (const q of sim.people) if (q.first && q.sur) O.Names.used.add(q.first + ' ' + q.sur);
     game._pendingMount = P.mount;
     sim.horsesSaved = S.horses;
   }
@@ -15296,7 +15414,10 @@ O.snowMaskOf = function (src) {
   game.load(homeWorld, O.Forge.player);
   game.player.x = (46 + AX) * 16 + 8; game.player.y = (32 + AY) * 16 + 4;
   O.game = game;
-  const home = new O.Sim(homeWorld, 11);
+  // a new life draws a new people (the land stays the same; the folk in it don't)
+  const LIFE = O.Names ? O.Names.lifeSeed() : 0;
+  O.lifeSeed = LIFE;
+  const home = new O.Sim(homeWorld, (11 + LIFE) | 0);
   // The game holds several living settlements; modules talk to whichever the player is in through
   // this reference. Ashford (home) keeps running while you're away.
   O.SimRef = { cur: home, home };

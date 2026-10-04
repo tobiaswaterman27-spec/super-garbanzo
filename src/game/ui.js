@@ -1,8 +1,8 @@
 // The game's on-screen furniture, kept to a minimum: a small clock in the corner, a line of text
 // along the bottom for news and happenings (one message at a time, like a village notice read
 // aloud), a soft marker over whatever you could interact with, a conversation box in the style of
-// a storybook — the speaker's name on a tab, the words written out as they're spoken, your replies
-// in a bubble at the side — and a pause menu (Esc) that holds everything else.
+// a storybook, the speaker's name on a tab, the words written out as they're spoken, your replies
+// in a bubble at the side, and a pause menu (Esc) that holds everything else.
 'use strict';
 (function () {
   const esc = (s) => O.escape(String(s));
@@ -125,7 +125,7 @@
     }
     // ---------------------------------------------------------------- settings
     function pardon() {
-      // for testing: wipe the slate — every crime forgiven, no bounty, the watch no longer looking
+      // for testing: wipe the slate, every crime forgiven, no bounty, the watch no longer looking
       const sims = [O.SimRef.home, O.SimRef.cur].filter(Boolean);
       for (const s of sims) for (const c of s.crimes || []) if (c.perp === 'player') c.closed = c.closed || 'pardoned';
       PS.crimes = []; PS.bounty = false; PS.bountyAmount = 0; PS.exiled = false; PS.stolen = {}; PS.wanted = 0;
@@ -158,7 +158,7 @@
           const k = b.dataset.s;
           if (k === 'save') { O.Save.save(game, O.SimRef.home); settings(); }
           else if (k === 'load') { if (!O.Save.peek()) return O.Panels.toast('There is no save yet.', 'bad'); window.__noAutosave = true; location.reload(); }
-          else if (k === 'restart') { O.Save.clear(); window.__noAutosave = true; location.reload(); }
+          else if (k === 'restart') { O.Save.clear(); O.Names && O.Names.newLife(); window.__noAutosave = true; location.reload(); }
           else if (k === 'new') confirmNew();
           else if (k === 'sound') { O.AudioToggle && O.AudioToggle(); settings(); }
           else if (k === 'speed') { game.clock.speed = game.clock.speed >= 2 ? 1 : 2; settings(); }
@@ -171,7 +171,7 @@
     function confirmNew() {
       O.Panels.open('Begin a new life?', '<p class="caption">This forgets the world as you left it: every person, every crime, your purse and your name. You will make a new character and start again.</p><div class="topics"><button data-yes="1">Yes, start over</button><button data-no="1">Keep playing</button></div>', (r) => {
         r.querySelector('[data-no]').onclick = () => O.Panels.close();
-        r.querySelector('[data-yes]').onclick = () => { O.Save.clear(); try { localStorage.removeItem('outlaw.spec'); localStorage.removeItem('outlaw.created'); } catch (e) { /* ignore */ } window.__noAutosave = true; location.reload(); };
+        r.querySelector('[data-yes]').onclick = () => { O.Save.clear(); O.Names && O.Names.newLife(); try { localStorage.removeItem('outlaw.spec'); localStorage.removeItem('outlaw.created'); } catch (e) { /* ignore */ } window.__noAutosave = true; location.reload(); };
       });
     }
     game.keyHandlers.push((e) => {

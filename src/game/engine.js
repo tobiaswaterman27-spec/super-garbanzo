@@ -273,8 +273,8 @@
     }
 
     // Which hearths are burning. There are no lamps in the streets and no glow in the windows:
-    // a fire is lit when somebody is home to tend it — to cook in the morning, at midday and in the
-    // evening, all day in the cold months — and in the trades that live by fire during working hours.
+    // a fire is lit when somebody is home to tend it, to cook in the morning, at midday and in the
+    // evening, all day in the cold months, and in the trades that live by fire during working hours.
     updateHearths() {
       const sim = this.sim, lit = this.lit || (this.lit = new Set()); lit.clear();
       if (!sim || this.world !== sim.world) { for (const b of this.world.buildings) if (b.sprite?.chimney && (b.id * 7 + Math.floor(this.clock.minute / 90)) % 3) lit.add(b.id); return; }

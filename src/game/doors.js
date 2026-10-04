@@ -1,14 +1,14 @@
 // Doors that open, and people who walk through them. Nobody blinks out of the street any more:
 // when someone goes indoors the door swings open, they step up into the doorway and are swallowed
 // by the dark of the room; when they come out the door opens and they step down onto the street.
-// The player does the same — pressing E at a door walks you in.
+// The player does the same, pressing E at a door walks you in.
 'use strict';
 (function () {
   function setup(game) {
     const T = 16;
     const walkers = []; // { a, b, t, dur, mode: 'in'|'out', player, done }
     const doorRect = (b) => { const sp = b.sprite, d = sp && sp.door; if (!d) return null; return { x: b.x * T - sp.OV + d.x, y: (b.bottom + 1) * T - sp.H + d.y, w: d.w, h: d.h }; };
-    function openDoor(b, dur = 0.9) { b._doorOpen = Math.max(b._doorOpen || 0, game.t + dur); }
+    function openDoor(b, dur = 0.9) { if (!((b._doorOpen || 0) > game.t)) b._doorStart = game.t; b._doorOpen = Math.max(b._doorOpen || 0, game.t + dur); }
     function walk(a, b, mode, opts = {}) {
       const r = doorRect(b); if (!r) { opts.done && opts.done(); return false; }
       walkers.push({ a, b, t: 0, dur: opts.dur || 0.6, mode, player: !!opts.player, done: opts.done, r });
@@ -22,8 +22,9 @@
     game.walkInto = (b, then) => {
       const p = game.player;
       if (!doorRect(b) || game.scene) return then();
-      p.dir = 3; p.walkingDoor = true;
-      walk(p.a, b, 'in', { player: true, done: () => { p.walkingDoor = false; then(); } });
+      // reach out and push the door open, then step through
+      p.dir = 3; p.walkingDoor = true; p.anim = 'open'; p.ft = 0; openDoor(b, 1.4);
+      setTimeout(() => walk(p.a, b, 'in', { player: true, done: () => { p.walkingDoor = false; then(); } }), 280);
     };
     const _exit = game.exitBuilding.bind(game);
     game.exitBuilding = function () {
@@ -58,7 +59,7 @@
       if (p.walkingDoor) {
         p.walkingDoorT = (p.walkingDoorT || 0) + dt;
         if (p.walkingDoorT > 1.6) { p.walkingDoor = false; p.walkingDoorT = 0; p.locked = false; } // never left standing in a doorway
-        else { p.locked = true; p._suppressUntil = game.t + 0.05; }
+        else { p.locked = true; if (walkers.some((w) => w.player)) p._suppressUntil = game.t + 0.05; }
       } else p.walkingDoorT = 0;
     });
 
@@ -72,10 +73,11 @@
       const warm = game.lit && game.lit.has(b.id);
       ctx.fillStyle = warm ? '#3a2416' : '#1c1614'; ctx.fillRect(x, y, r.w, r.h);
       ctx.fillStyle = warm ? '#5a3a1e' : '#2a2220'; ctx.fillRect(x, y + r.h - 3, r.w, 3);
-      // the door leaf, swung inward against the hinge side
-      ctx.fillStyle = '#6e4a2c'; ctx.fillRect(x, y, 4, r.h);
-      ctx.fillStyle = '#8a6239'; ctx.fillRect(x, y, 1, r.h);
-      ctx.fillStyle = '#4a3020'; ctx.fillRect(x + 3, y, 1, r.h);
+      // the door leaf swinging inward on its hinge: full width when shut, a narrow edge when wide open
+      const u = O.clamp((game.t - (b._doorStart || 0)) / 0.25, 0, 1), closing = O.clamp(((b._doorOpen || 0) - game.t) / 0.25, 0, 1), lw = Math.max(4, Math.round(r.w - (r.w - 4) * Math.min(u, closing)));
+      ctx.fillStyle = '#6e4a2c'; ctx.fillRect(x, y, lw, r.h);
+      ctx.fillStyle = '#8a6239'; ctx.fillRect(x, y, 1, r.h); if (lw > 6) { ctx.fillRect(x + 2, y + 2, lw - 4, 1); ctx.fillRect(x + 2, y + r.h - 4, lw - 4, 1); }
+      ctx.fillStyle = '#4a3020'; ctx.fillRect(x + lw - 1, y, 1, r.h); if (lw > 6) { ctx.fillStyle = '#2a1a10'; ctx.fillRect(x + lw - 3, y + Math.round(r.h / 2), 1, 2); }
       // whoever is passing through
       for (const w of walkers) {
         if (w.b !== b) continue;

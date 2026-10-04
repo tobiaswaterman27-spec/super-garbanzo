@@ -2,7 +2,7 @@
 //
 // Flood: days of heavy rain swell the river until it breaks its banks. The water creeps tile by tile
 // over the low ground (blocking lanes and paths while it lasts), soaks into houses and shops near
-// the river — damaging them, spoiling stored food and stock — drowns the crops in flooded fields,
+// the river, damaging them, spoiling stored food and stock, drowns the crops in flooded fields,
 // and can tear at the bridge. When the rain stops it slowly drains away.
 //
 // Pestilence: from time to time a plague rises somewhere in the realm and creeps along the roads.

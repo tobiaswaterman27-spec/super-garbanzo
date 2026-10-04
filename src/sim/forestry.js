@@ -3,7 +3,7 @@
 // stump's place, and over a season and more it grows back into a tree. Cut faster than you plant
 // and the woods thin: the woodcutters walk further for less, and the price of timber rises. Logs go
 // to the sawmill for planks, planks to the carpenter for furniture, and furniture to the homes of
-// families who can afford it — which shows in their houses.
+// families who can afford it, which shows in their houses.
 'use strict';
 (function () {
   function installSim(Sim) {

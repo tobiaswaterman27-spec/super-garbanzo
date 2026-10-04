@@ -5,7 +5,7 @@
 // recruiting sergeant take them, and see the column march down the King's Road); war taxes rise;
 // grain is requisitioned; the smiths get crown orders; armies march by road, meet in battle (fought
 // in the abstract, reported without gore), besiege, burn and damage roads; refugees flee south. A
-// war ends in a treaty that remembers who had the better of it. Ashford's own soldiers come home —
+// war ends in a treaty that remembers who had the better of it. Ashford's own soldiers come home -
 // or don't, and their families are told.
 'use strict';
 (function () {

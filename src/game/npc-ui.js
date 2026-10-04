@@ -85,12 +85,12 @@
         }).join('')}</tbody></table>`;
         if (lsel != null) {
           const p = sim.byId.get(lsel);
-          if (p) body = `<div class="detail"><b>${esc(p.name)}</b> — ${p.traits.join(', ')}. Goal: ${esc(p.goal || '—')}. Skill: ${p.job ? Math.round((p.skills[p.job.role] || 0) * 100) : '—'}.<br><span class="lbl">Memories</span><ul>${p.memories.slice(0, 6).map((m) => `<li>Day ${m.day}: ${esc(m.text)}</li>`).join('') || '<li>Nothing notable yet.</li>'}</ul></div>` + body;
+          if (p) body = `<div class="detail"><b>${esc(p.name)}</b>, ${p.traits.join(', ')}. Goal: ${esc(p.goal || '-')}. Skill: ${p.job ? Math.round((p.skills[p.job.role] || 0) * 100) : '-'}.<br><span class="lbl">Memories</span><ul>${p.memories.slice(0, 6).map((m) => `<li>Day ${m.day}: ${esc(m.text)}</li>`).join('') || '<li>Nothing notable yet.</li>'}</ul></div>` + body;
         }
       } else if (ltab === 'biz') {
         body = `<div class="bizgrid">${[...sim.biz.values()].map((bz) => {
           const owner = sim.byId.get(bz.owner);
-          const stock = Object.entries(bz.stock).map(([g, q]) => `<tr><td>${G[g].name}</td><td class="n">${Math.floor(q)}</td><td class="n">${bz.def.sells.includes(g) ? sim.price(bz, g) + 'd' : '—'}</td></tr>`).join('');
+          const stock = Object.entries(bz.stock).map(([g, q]) => `<tr><td>${G[g].name}</td><td class="n">${Math.floor(q)}</td><td class="n">${bz.def.sells.includes(g) ? sim.price(bz, g) + 'd' : '-'}</td></tr>`).join('');
           const orders = bz.orders.map((o) => `${o.qty} ${G[o.good].name.toLowerCase()} from ${sim.biz.get(o.from)?.name || 'trader'}`).join('; ');
           return `<section class="biz"><h3>${esc(bz.name)} <span class="pill ${bz.open ? 'ok' : ''}">${bz.open ? 'OPEN' : 'CLOSED'}</span></h3>
             <div class="lbl">${owner ? 'Owner ' + esc(owner.name) + ' · ' : ''}${bz.workers.length} staff · till ${money(bz.cash)} · sold today ${money(bz.salesToday)}</div>

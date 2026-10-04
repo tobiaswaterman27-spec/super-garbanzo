@@ -8,7 +8,7 @@
 
   class Kingdom {
     constructor(sim) {
-      this.sim = sim; this.rng = O.RNG(777);
+      this.sim = sim; this.rng = O.RNG((777 + (O.Names ? O.Names.lifeSeed() : 0)) | 0); // each life its own crown and history
       this.treasury = 2400; this.taxRate = 0.08; this.news = []; this.caravans = []; this.councils = [];
       const S = (o) => Object.assign({ wealth: 0.5, food: 1, security: 0.6, happiness: 0.6, crime: 0.2, health: 0.8, dev: 1, guards: 4, prices: {}, stock: {}, gang: 0.05, events: [] }, o);
       // the island of Eldoria: see eldoria.js

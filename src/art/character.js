@@ -205,6 +205,12 @@
     point: { frames: 2, fps: 2 }, dig: { frames: 4, fps: 4 }, cook: { frames: 4, fps: 4 },
     attack: { frames: 4, fps: 12 }, open: { frames: 3, fps: 6 }, pickup: { frames: 2, fps: 3 }, hurt: { frames: 2, fps: 8 },
     stretcher: { frames: 8, fps: 9 }, ride: { frames: 1, fps: 1 }, doze: { frames: 2, fps: 0.5 },
+    // trades and everyday actions
+    hammer: { frames: 4, fps: 6 }, chop: { frames: 4, fps: 4 }, saw: { frames: 4, fps: 5 }, knead: { frames: 4, fps: 4 }, cleave: { frames: 4, fps: 5 },
+    fish: { frames: 2, fps: 0.8 }, write: { frames: 4, fps: 4 }, serve: { frames: 2, fps: 2 }, pour: { frames: 4, fps: 3 }, scrub: { frames: 4, fps: 6 },
+    spin: { frames: 4, fps: 5 }, weave: { frames: 4, fps: 4 }, shear: { frames: 4, fps: 5 }, hoe: { frames: 4, fps: 4 }, pitch: { frames: 4, fps: 4 },
+    pray: { frames: 2, fps: 0.7 }, shocked: { frames: 2, fps: 5 }, stretch: { frames: 4, fps: 2 }, look: { frames: 4, fps: 1.2 }, beg: { frames: 2, fps: 1 },
+    shake: { frames: 2, fps: 6 }, place: { frames: 3, fps: 4 }, count: { frames: 4, fps: 3 }, bucket: { frames: 8, fps: 10 }, mix: { frames: 4, fps: 4 },
   };
 
   // Two-bone reach: the elbow (or knee) bends toward `pole`.
@@ -264,6 +270,18 @@
       case 'attack': L = { R: leg(1, f === 1 || f === 2 ? 0.35 : 0.1, 0.25), L: leg(-1, -0.25, 0.15) }; P.lean = f === 1 || f === 2 ? 1.4 : 0.2; break;
       case 'mourn': case 'read': P.headDown = 1; break;
       case 'ride': L = { R: leg(1, 0.6, 1.0, 0.55), L: leg(-1, 0.6, 1.0, 0.55) }; P.lean = 0.3; break;
+      case 'chop': case 'hoe': case 'pitch': L = { R: leg(1, 0.3, 0.35), L: leg(-1, -0.2, 0.15) }; P.lean = [0.4, 0.2, 1.6, 1.0][f]; break;
+      case 'knead': case 'scrub': case 'cleave': case 'mix': P.lean = 1.2; P.headDown = 0.6; break;
+      case 'saw': L = { R: leg(1, 0.35, 0.3), L: leg(-1, -0.25, 0.1) }; P.lean = 1.4; P.headDown = 0.5; break;
+      case 'write': case 'count': case 'weave': case 'spin': P.headDown = 1; P.lean = 0.6; break;
+      case 'pray': L = { R: leg(1, 1.2, 2.6, 0.08), L: leg(-1, 0.05, 0.2, 0.08) }; P.headDown = 1; P.blink = f === 1; break;
+      case 'shocked': P.lean = f ? -1.4 : -0.8; P.mouth = 1; P.bob = f ? -0.5 : 0; break;
+      case 'stretch': P.bob = f === 1 || f === 2 ? -0.6 : 0; P.mouth = f === 2 ? 1 : 0; P.blink = f === 2; break;
+      case 'look': P.blink = f === 3; break;
+      case 'beg': L = { R: leg(1, 1.3, 2.4, 0.15), L: leg(-1, 1.0, 2.2, 0.15) }; P.lean = 1.2; P.headDown = 0.3; break;
+      case 'place': L = { R: leg(1, [0.4, 1.1, 0.4][f], [0.5, 2.0, 0.5][f], 0.15), L: leg(-1, [0.3, 0.9, 0.3][f], [0.4, 1.8, 0.4][f], 0.15) }; P.lean = [0.8, 2.2, 0.8][f]; break;
+      case 'bucket': { const sR = Math.sin(ph); L = { R: leg(1, 0.36 * sR, 0.1 + 0.7 * Math.max(0, Math.cos(ph)) ** 2), L: leg(-1, -0.36 * sR, 0.1 + 0.7 * Math.max(0, Math.cos(ph + Math.PI)) ** 2) }; P.lean = 0.3; break; }
+      case 'fish': L = { R: leg(1, 0.1, 0.1), L: leg(-1, -0.1, 0.1) }; P.blink = f === 1; break;
       default: break;
     }
     if (m.stoop) { P.lean += 1; P.headFwd += 0.8; }
@@ -345,6 +363,32 @@
       case 'cook': { const k = f % 4; A.R = reach(1, [1.2 + (k % 2), chest + 4 + (k > 1 ? 0.6 : 0), D + 4]); P.held = 'ladle'; P.toolDir = [0, 0.9, 0.3]; break; }
       case 'ride': A.R = reach(1, [1.8, hipY - 2.5, D + 5]); A.L = reach(-1, [-1.8, hipY - 2.5, D + 5]); break;
       case 'hurt': A.R = fwdArm(1, -0.3, 0.6, 0.25); A.L = fwdArm(-1, -0.3, 0.6, 0.25); break;
+      case 'hammer': { const k = [0, 1, 2, 1][f], sw = [2.75, 1.7, 0.75][k], bd = [0.75, 0.45, 0.15][k]; A.R = fwdArm(1, sw, bd, 0.12); P.toolDir = [0, -Math.sin(A.R.fa + 0.25), Math.cos(A.R.fa + 0.25)]; A.L = reach(-1, [-1.2, chest + 3, D + 3.2]); P.held = 'hammer'; break; }
+      case 'chop': case 'hoe': case 'pitch': { // a two-handed swing, high to low
+        const k = [0, 1, 2, 1][f], hy2 = [shY - 5, shY - 1, chest + 6][k], hz = [D + 1, D + 4, D + 6][k];
+        A.R = reach(1, [0.8, hy2, hz]); A.L = reach(-1, [-0.4, hy2 + 2.5, hz - 0.5]);
+        P.held = anim === 'chop' ? 'axe' : anim === 'hoe' ? 'hoe' : 'pitchfork'; P.toolDir = [[0, -0.9, -0.2], [0, -0.3, 0.9], [0, 0.7, 0.7], [0, -0.3, 0.9]][f]; break;
+      }
+      case 'saw': { const k = [0, 1, 2, 1][f]; A.R = reach(1, [1.4, chest + 4, D + 2 + k * 1.6]); A.L = reach(-1, [-2.4, chest + 5, D + 4.5]); P.held = 'saw'; P.toolDir = [0.1, 0.35, 0.9]; break; }
+      case 'knead': case 'mix': { const k = [0, 1, 2, 1][f]; for (const sd of [1, -1]) A[sd > 0 ? 'R' : 'L'] = reach(sd, [sd * 1.6, chest + 4 + k * 0.6, D + 3.5 + k * 0.7]); if (anim === 'mix') { P.held = 'ladle'; P.toolDir = [0, 0.9, 0.3]; } break; }
+      case 'cleave': { const k = [0, 1, 2, 1][f]; A.R = reach(1, [1.4, chest - 2 + k * 2.8, D + 3.5]); A.L = reach(-1, [-1.8, chest + 5, D + 4]); P.held = 'cleaver'; P.toolDir = [0, 0.4, 0.9]; break; }
+      case 'scrub': { const k = f % 2; A.R = reach(1, [1 + k * 1.5, chest + 6, D + 4]); A.L = reach(-1, [-1.6, chest + 5, D + 3.5]); P.held = 'brush'; P.toolDir = [0.6, 0.6, 0.4]; break; }
+      case 'fish': { A.R = reach(1, [1.6, chest + 1, D + 4.5]); A.L = reach(-1, [0.2, chest + 3, D + 3.5]); P.held = 'rod'; P.toolDir = [0, -0.55, 0.85]; break; }
+      case 'write': { const k = f % 2; A.R = reach(1, [0.6 + k * 0.8, chest + 4.5, D + 3.4]); A.L = reach(-1, [-1.8, chest + 4.5, D + 3]); P.held = 'quill'; P.toolDir = [0.2, -0.8, 0.4]; break; }
+      case 'count': { const k = f % 2; A.R = reach(1, [1 + k, chest + 4, D + 3.2]); A.L = reach(-1, [-1.2, chest + 4.5, D + 3]); P.held = 'coin'; break; }
+      case 'serve': { A.R = reach(1, [1.8, chest + 1, D + 5]); A.L = reach(-1, [-0.6, chest + 1.5, D + 5]); P.held = 'plate'; P.mouth = f; break; }
+      case 'pour': { const k = [0, 1, 2, 1][f]; A.R = reach(1, [1.5, chest + 1 - k, D + 4.2]); A.L = reach(-1, [-1.5, chest + 4, D + 3.5]); P.held = 'jug'; P.toolDir = [0, 0.2 + k * 0.25, 0.9]; break; }
+      case 'spin': { const k = f % 4; A.R = reach(1, [2 + Math.cos(k * 1.57) * 1.2, chest + 3 + Math.sin(k * 1.57) * 1.2, D + 3.5]); A.L = reach(-1, [-1.5, chest + 1, D + 4.5]); break; }
+      case 'weave': { const k = f % 2; A.R = reach(1, [1.8 - k * 3, chest + 3, D + 4]); A.L = reach(-1, [-1.8 + k * 1, chest + 3, D + 4]); break; }
+      case 'shear': { const k = f % 2; A.R = reach(1, [1.2, chest + 6 + k, D + 4.5]); A.L = reach(-1, [-1.5, chest + 6, D + 4]); P.held = 'shears'; P.toolDir = [0, 0.7, 0.7]; break; }
+      case 'pray': { A.R = reach(1, [0.4, chest - 1, D + 2.6], [1, 0.9, -0.2]); A.L = reach(-1, [-0.4, chest - 1, D + 2.6], [-1, 0.9, -0.2]); break; }
+      case 'shocked': { for (const sd of [1, -1]) A[sd > 0 ? 'R' : 'L'] = reach(sd, [sd * (f ? 3.2 : 2.6), shY - (f ? 2.5 : 1.5), D + 2.5], [sd, 0.6, -0.4]); break; }
+      case 'stretch': { const hi = f === 1 || f === 2; for (const sd of [1, -1]) A[sd > 0 ? 'R' : 'L'] = reach(sd, [sd * (hi ? 2.5 : 3.2), hi ? shY - 9 : shY - 3, 0.5], [sd, 0.3, -0.6]); break; }
+      case 'look': { if (f === 1) A.R = reach(1, [1.6, shY - 3, D + 2.8], [1, 0.6, -0.3]); break; }
+      case 'beg': { A.R = reach(1, [1.2, chest + 2, D + 6]); P.held = 'bowl'; break; }
+      case 'shake': { A.R = reach(1, [2.4, shY - (f ? 6 : 4.5), D + 2], [1, 0.4, -0.4]); P.fist = true; P.mouth = 1; break; }
+      case 'place': { A.R = reach(1, [1.2, [chest + 4, GROUND - 3, chest + 4][f], D + [3, 5, 3][f]]); A.L = reach(-1, [-1.2, [chest + 4, GROUND - 3, chest + 4][f], D + [3, 5, 3][f]]); break; }
+      case 'bucket': { A.R = fwdArm(1, 0.05, 0.05, 0.22); A.L = fwdArm(-1, -0.1, 0.3, 0.07); P.held = 'bucket'; break; }
       default: break;
     }
     P.arms = A; P.D = D;
@@ -971,6 +1015,20 @@
       case 'book': B.blob(hx + ux, hy + 0.5, 1.6, 2, P.mat(C.crimson), { power: 4 }); break;
       case 'ladle': { const a1 = along(6); B.capsule(hx, hy, a1[0], a1[1], 0.5, 0.5, W); B.blob(a1[0], a1[1], 1.2, 1, I, { power: 2 }); break; }
       case 'sack': B.blob(hx, hy + 2.5, 2.5, 3, P.mat(C.linen), { power: 2 }); break;
+      case 'saw': { const a1 = along(7); B.capsule(hx, hy, ...along(1.5), 0.8, 0.8, W); for (let k = 1.5; k < 7; k += 0.5) { const q = along(k); B.plot(q[0] + px * 0.8, q[1] + py * 0.8, St, k % 1 ? 2 : 3); B.plot(q[0], q[1], St, 2); } void a1; break; }
+      case 'rod': { const a1 = along(16); B.capsule(hx, hy, a1[0], a1[1], 0.5, 0.3, Wd); const lm = P.mat('#d8d0c0', 'cloth'); for (let k = 0; k < 9; k++) B.plot(a1[0] + 0.3 * k, a1[1] + k * 1.1, lm, 1); break; }
+      case 'cleaver': { const a1 = along(3); B.capsule(hx, hy, a1[0], a1[1], 0.6, 0.6, Wd); B.blob(a1[0] + ux * 1.6 + px * 0.8, a1[1] + uy * 1.6 + py * 0.8, 1.8, 1.3, St, { power: 4 }); break; }
+      case 'quill': { const a1 = along(5); B.capsule(hx, hy, a1[0], a1[1], 0.35, 0.6, P.mat('#f0ece0', 'cloth')); break; }
+      case 'coin': B.plot(hx + ux, hy, P.mat(P.metal.brass, 'metal'), 3); B.plot(hx + ux + 1, hy + 1, P.mat(P.metal.brass, 'metal'), 2); break;
+      case 'plate': { B.blob(hx + ux * 1.5, hy - 0.5, 2.8, 1.1, P.mat('#d8d0c0', 'cloth'), { power: 3 }); B.blob(hx + ux * 1.5, hy - 1.3, 1.6, 0.9, P.mat('#a85a2a', 'wood'), { power: 2 }); break; }
+      case 'jug': { B.blob(hx + ux * 1.2, hy - 0.3, 1.6, 2.4, P.mat('#b8744a', 'wood'), { power: 2.5 }); B.plot(hx + ux * 1.2 + ux * 1.8, hy - 2, P.mat('#8a5432', 'wood'), 1); break; }
+      case 'brush': B.blob(hx + ux * 1.2, hy + 0.6, 1.8, 1, P.mat('#c8a050', 'wood'), { power: 3 }); break;
+      case 'shears': { const a1 = along(4); B.capsule(hx, hy, a1[0] + px * 0.6, a1[1] + py * 0.6, 0.4, 0.3, St); B.capsule(hx, hy, a1[0] - px * 0.6, a1[1] - py * 0.6, 0.4, 0.3, St); break; }
+      case 'bowl': B.blob(hx + ux, hy - 0.2, 2, 1.1, P.mat(P.wood.walnut, 'wood'), { power: 3 }); break;
+      case 'bucket': { const bm = P.mat(P.wood.oak, 'wood'); B.blob(hx, hy + 3, 2, 2.4, bm, { power: 4 }); B.plot(hx - 1, hy + 2, P.mat(P.metal.iron, 'metal'), 2); B.plot(hx + 1, hy + 2, P.mat(P.metal.iron, 'metal'), 2); B.plot(hx, hy + 1.6, P.mat('#5a8ab8'), 3); break; }
+      case 'pie': B.blob(hx + ux * 1.5, hy + 0.3, 2.4, 1.3, P.mat('#c8903e', 'wood'), { power: 2.5 }); break;
+      case 'fish': B.blob(hx + ux * 2, hy + 1, 2.8, 1, P.mat('#9aa8b0', 'metal'), { power: 2 }); break;
+      case 'letter': B.blob(hx + ux, hy, 1.8, 1.2, P.mat('#ece2c8', 'cloth'), { power: 5 }); B.plot(hx + ux, hy, P.mat('#a8382f'), 2); break;
       case 'net': { const nm = P.mat('#9a8a6a', 'cloth'); for (let k = 0; k < 4; k++) for (let j = 0; j < 3; j++) B.plot(hx + (k - 1), hy + 1 + j * 1.5 + (k % 2) * 0.7, nm, 2); break; }
       default: break;
     }

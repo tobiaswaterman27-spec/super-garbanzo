@@ -2,8 +2,8 @@
 // Aure, where the king and queen hold court in the royal castle, down to hamlets of a dozen souls
 // under a headman. Four castles keep the island: the royal castle at Aurelia, Highmere in the
 // northern peaks, Eastmarch on the east coast and Westcliff above the western sea. Great tracts of
-// wild country — the Eldorian Peaks, the Frostwood, the King's Forest, Blackpine, the Greenwood, the
-// Thornwood, the Barrow Downs, the Grey Hills and the Salt Fens — lie between the farms, crossed by
+// wild country, the Eldorian Peaks, the Frostwood, the King's Forest, Blackpine, the Greenwood, the
+// Thornwood, the Barrow Downs, the Grey Hills and the Salt Fens, lie between the farms, crossed by
 // named roads and a web of lanes and tracks. Ruins of older times stand in the wild places.
 // Every settlement has a government, great or small, and someone in charge of it.
 //

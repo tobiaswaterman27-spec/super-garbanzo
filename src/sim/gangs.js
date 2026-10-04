@@ -53,7 +53,7 @@
     S.leaveGang = function (m, g, why) {
       g.members = g.members.filter((x) => x !== m);
       const p = this.byId.get(m.id); if (p) { p.gang = null; this.remember(p, `Left ${g.name}: ${why}.`, 'gang', 2); }
-      g.log.push(`Day ${this.day}: ${p?.name || 'A member'} left — ${why}.`);
+      g.log.push(`Day ${this.day}: ${p?.name || 'A member'} left, ${why}.`);
       if (g.id === 'player') O.Panels && O.Panels.toast(`${p?.first || 'A member'} has left ${g.name}: ${why}.`, 'bad');
       // a bitter ex-member may go to the watch with a true description of the leader
       if (g.id === 'player' && p && m.loyalty < 0.1 && this.rng.chance(0.5)) this.inform(p, g);
@@ -143,7 +143,7 @@
         const crime = this.recordCrime({ kind: 'burglary', perp: p, gang: g.id, placeName: `the ${hh.surname} house`, tile: [b.doorX, b.doorY], victim: hh.id, seen: hh.members.map((id) => this.byId.get(id)).filter((q) => q && q.age >= 12).slice(0, 2), severity: 2 });
         if (this.rng.chance(0.55)) this.arrestNPC(p, crime, false);
         if (m) m.loyalty -= 0.08;
-        if (g.id === 'player') { g.log.push(`Day ${this.day}: ${p.first} was disturbed at the ${hh.surname} house${p.jailUntil ? ' and taken by the watch' : ' and fled'}.`); O.Panels && O.Panels.toast(`${p.first}'s job went wrong${p.jailUntil ? ' — taken by the watch!' : '.'}`, 'bad'); }
+        if (g.id === 'player') { g.log.push(`Day ${this.day}: ${p.first} was disturbed at the ${hh.surname} house${p.jailUntil ? ' and taken by the watch' : ' and fled'}.`); O.Panels && O.Panels.toast(`${p.first}'s job went wrong${p.jailUntil ? ', taken by the watch!' : '.'}`, 'bad'); }
         // a jailed member with little loyalty may talk
         if (g.id === 'player' && p.jailUntil && m && m.loyalty < 0.35 && this.rng.chance(0.5)) this.inform(p, g);
       }

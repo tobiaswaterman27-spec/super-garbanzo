@@ -139,6 +139,7 @@
     // player
     const P = d.player; const { rep, ...rest } = P.ps; Object.assign(PS, rest); if (rep) for (const k of ['civilian', 'criminal', 'guard', 'merchant']) PS.rep[k] = rep[k] ?? 0;
     game.player.x = P.x; game.player.y = P.y; game.player.dir = P.dir; game._savedPlayer = P;
+    if (O.Names) for (const q of sim.people) if (q.first && q.sur) O.Names.used.add(q.first + ' ' + q.sur);
     game._pendingMount = P.mount;
     sim.horsesSaved = S.horses;
   }

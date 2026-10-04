@@ -3,7 +3,7 @@
 // Every resident is a Person with a family, a home, maybe a job, a purse shared with their household,
 // needs, personality, skills, memories and relationships. Each game minute a person decides what they
 // should be doing (schedule by age, job, personality, day of week, need) and physically walks there
-// on the tile grid — nobody teleports. Businesses hold real stock, produce goods from inputs while
+// on the tile grid, nobody teleports. Businesses hold real stock, produce goods from inputs while
 // staffed, sell at supply-and-demand prices, pay wages, and order supplies that a worker carries
 // across the village by hand.
 'use strict';
@@ -51,6 +51,8 @@
         needs: { hunger: 70 + this.rng.int(0, 25), energy: 80, social: 60 }, health: { hp: 100, state: 'healthy', illness: null },
         skills: {}, mood: 0.6, attitude: this.rng.float(-0.4, 0.8), alive: true,
       }, o);
+      // no two people in the realm share a name
+      if (O.Names && p.sur) { const [f, su] = O.Names.claim(p.sex, p.first, p.sur, this.rng); p.first = f; p.sur = su; if (p.name && !p.title) p.name = `${f} ${su}`; }
       p.stage = Ch.ageStage(p.age);
       // personality: one trait from up to three opposed pairs
       const pairs = this.rng.pick([[0, 4, 2], [1, 5, 7], [3, 6, 8], [2, 4, 7], [0, 1, 5]]);
@@ -82,7 +84,7 @@
         const big = !!w.city; // cities: smaller households so the streets stay walkable
         for (let flat = 0; flat < flats; flat++) {
         const size = b.type === 'house' || b.type === 'tenement' ? O.clamp(Math.round((b.type === 'tenement' ? 3 : area / (big ? 8 : 5)) + r.int(-1, 1)), 1, 7) : b.type === 'mansion' || b.type === 'keep' ? r.int(3, 5) : r.int(2, 4);
-        const hh = { id: this.households.length + 1, home: b.id, members: [], pantry: { bread: r.int(2, 6), cabbage: r.int(1, 4), firewood: r.int(2, 5) }, money: Math.round((b.type === 'keep' ? 2500 : b.type === 'mansion' ? 400 : b.type === 'tenement' ? 10 : 20) + b.wealth * 120 * r.float(0.6, 1.4)), surname: r.pick(D.NAMES.sur) };
+        const hh = { id: this.households.length + 1, home: b.id, members: [], pantry: { bread: r.int(2, 6), cabbage: r.int(1, 4), firewood: r.int(2, 5) }, money: Math.round((b.type === 'keep' ? 2500 : b.type === 'mansion' ? 400 : b.type === 'tenement' ? 10 : 20) + b.wealth * 120 * r.float(0.6, 1.4)), surname: O.Names ? O.Names.surname(r) : r.pick(D.NAMES.sur) };
         if (b.lordly && this.lordFamily) { this.lordFamily(b, hh, r); continue; }
         if (b.type === 'bakery') hh.surname = 'Hobb'; if (b.type === 'farmhouse') hh.surname = 'Marsh';
         this.households.push(hh); b.household = b.household || hh.id; (b.households = b.households || []).push(hh.id);
@@ -184,7 +186,7 @@
       if (owner && this.has(owner, 'greedy')) m *= 1.15; if (owner && this.has(owner, 'generous')) m *= 0.9;
       return Math.max(1, Math.round(G[good].base * m));
     }
-    // The (first) business of a type; with a good, the one holding most of it — towns with several
+    // The (first) business of a type; with a good, the one holding most of it, towns with several
     // bakeries spread their custom; with openOnly, only those trading right now.
     supplierOf(type, good, openOnly) {
       let best = null;
@@ -325,7 +327,7 @@
       }
     }
 
-    speedOf(p) { if (p.task?.act === 'to-doctor' || p.task?.act === 'escort') return 18; const base = p.stage === 'elder' ? WALK.elder : p.age < 13 ? WALK.child : WALK.adult; const w = this.weather; return base * (w && w.snowCover > 0.4 ? 0.78 : w && w.wet > 0.6 ? 0.9 : 1); }
+    speedOf(p) { if (p.task?.act === 'to-doctor' || p.task?.act === 'escort') return 18; if (p.agent && p.agent.sprint) return (p.stage === 'elder' ? WALK.elder : p.age < 13 ? WALK.child : WALK.adult) * 1.9; const base = p.stage === 'elder' ? WALK.elder : p.age < 13 ? WALK.child : WALK.adult; const w = this.weather; return base * (w && w.snowCover > 0.4 ? 0.78 : w && w.wet > 0.6 ? 0.9 : 1); }
 
     // dtm: elapsed game minutes this frame
     tick(dtm) {
@@ -431,7 +433,7 @@
     }
     immigrate(b) {
       const r = this.rng, region = r.pick(['east', 'north', 'west', 'south']);
-      const hh = { id: this.households.length + 1, home: b.id, members: [], pantry: { bread: 4, cabbage: 2, firewood: 4 }, money: r.int(50, 130), surname: r.pick(D.NAMES.sur) };
+      const hh = { id: this.households.length + 1, home: b.id, members: [], pantry: { bread: 4, cabbage: 2, firewood: 4 }, money: r.int(50, 130), surname: O.Names ? O.Names.surname(r) : r.pick(D.NAMES.sur) };
       this.households.push(hh); b.household = hh.id; b.vacant = false;
       const mk = (sex, age, genes) => { const p = this.newPerson({ sex, age, first: r.pick(D.NAMES[sex]), sur: hh.surname, household: hh.id, home: b.id, genes: genes || Ch.randomGenes(r, region), wealth: 0.5 }); p.name = `${p.first} ${p.sur}`; p.birthday = r.int(1, O.Life.YEAR()); hh.members.push(p.id); return p; };
       const a = mk('m', r.int(22, 44)), c = r.chance(0.8) ? mk('f', r.int(20, 40)) : null;
@@ -531,7 +533,10 @@
         else { a.x += (dx / d) * budget; a.y += (dy / d) * budget; budget = 0; }
         if (d > 0.01) a.dir = O.dirOf(dx, dy);
       }
-      if (a.path) a.anim = a.carrying ? 'carry' : p.activity?.act === 'play' && p.id % 2 ? 'run' : 'walk';
+      // hurrying: late for work, chasing someone down, or running from trouble
+      const act = p.activity?.act, late = act === 'work' && p.job && this.biz?.get(p.job.biz)?.def && this.hour > this.biz.get(p.job.biz).def.hours[0] + 0.15 && this.hour < this.biz.get(p.job.biz).def.hours[0] + 1.5;
+      a.sprint = !!(a.chase || a.fleeing || late || p.task?.act === 'collect');
+      if (a.path) a.anim = a.carrying ? 'carry' : a.sprint || (act === 'play' && p.id % 2) ? 'run' : 'walk';
     }
 
     idleAnim(p) {
@@ -546,6 +551,11 @@
       if (act === 'gangmeet') return p.agent.talking ? 'talk' : 'idle';
       if (act === 'wait-work' || act === 'stroll') return p.agent.talking ? 'talk' : 'idle';
       if (p.agent.talking) return 'talk';
+      if (p.agent.shockedUntil > this.minute) return 'shocked';
+      // standing about: now and then a look round, a stretch, a shuffle of the feet
+      const k = (Math.floor(this.minute / 2) + p.id * 7) % 23;
+      if (p.age >= 13 && k === 3) return 'stretch';
+      if (k === 7 || k === 15) return 'look';
       return 'idle';
     }
 
@@ -571,7 +581,7 @@
     }
     doIndoor(p, act) {
       const hh = this.household(p);
-      // anyone at home — sick in bed, moving in, resting — is fed from the pantry when hungry
+      // anyone at home, sick in bed, moving in, resting, is fed from the pantry when hungry
       if (p.agent.inside === p.home && act.act !== 'eat' && act.act !== 'home') this.eatAtHome(p, hh, 30);
       if (p.task?.act === 'move-in' && p.agent.inside === p.task.b) { p.task = null; p.arriving = false; p.agent.carrying = null; }
       switch (act.act) {

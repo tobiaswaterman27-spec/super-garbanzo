@@ -11,7 +11,9 @@
 
     function doorLocked(b) {
       const h = sim.hour, bz = sim.biz.get(b.id);
-      if (b.type === 'barn') return false;
+      if (b.type === 'barn' || b.type === 'stable' || b.type === 'smithy' || b.type === 'mill' || (b.spec && b.spec.bigDoor)) return false; // open fronts and great doors stand open
+      if ((b._doorOpen || 0) > game.t) return false; // someone has just opened it: you can follow them in
+      if (sim.biz && sim.biz.get(b.id) && sim.biz.get(b.id).def && h >= sim.biz.get(b.id).def.hours[0] && h < sim.biz.get(b.id).def.hours[1] && sim.biz.get(b.id).workers?.some((id) => sim.byId.get(id)?.agent.inside === b.id)) return false; // someone at work inside
       if (b.owner && b.owner.kind === 'player') return false;
       if (b.type === 'hideout') return b.gang !== 'player';
       if (PS.room && PS.room.b === b.id && sim.day <= PS.room.until) return false;
@@ -59,7 +61,7 @@
     function label(c) {
       switch (c.type) {
         case 'npc': return c.person.health.hp <= 0 ? `${c.person.name} lies senseless` : `Talk to ${c.person.name}`;
-        case 'door': return doorLocked(c.b) ? `${c.b.name} — locked` : `Enter ${c.b.type === 'house' ? 'house' : c.b.name}`;
+        case 'door': return doorLocked(c.b) ? `${c.b.name}, locked` : `Enter ${c.b.type === 'house' ? 'house' : c.b.name}`;
         case 'container': return `Search ${c.it.kind}`;
         case 'grave': return 'Read the gravestone';
         case 'memorial': return 'Read the memorial';
@@ -78,7 +80,7 @@
         case 'claim': return 'Claim the abandoned camp';
         case 'stash': return 'Open the stash';
         case 'campbed': return 'Sleep by the fire';
-        case 'bed': return mayUseBed(c.it) ? 'Sleep until morning' : c.it.rent ? 'Take this bed for the night (6d)' : 'Bed — not yours';
+        case 'bed': return mayUseBed(c.it) ? 'Sleep until morning' : c.it.rent ? 'Take this bed for the night (6d)' : 'Bed, not yours';
         case 'hay': return 'Sleep in the hay';
         case 'traveller': case 'ruin': case 'signpost': return O.roadLabel(c);
         case 'pickup': return `Pick up the ${(O.Data.GOODS[c.it.good]?.name || c.it.good).toLowerCase()}`;
@@ -149,11 +151,11 @@
     function search(it, quick) {
       const { items, owner } = contents(it);
       const own = owner === 'you';
-      if (quick && !own) { O.Panels.toast("That isn't yours to take. Search it with E — stealing has witnesses.", 'bad'); return; }
+      if (quick && !own) { O.Panels.toast("That isn't yours to take. Search it with E, stealing has witnesses.", 'bad'); return; }
       searching = 0.7; game.player.dir = 3;
       pendingSearch = () => {
         if (quick) { take(it, items, items.map((_, i) => i), owner); O.Panels.toast(items.length ? 'You gather your things.' : 'Nothing here.'); return; }
-        O.Panels.container(`${it.kind[0].toUpperCase() + it.kind.slice(1)} — ${owner}`, items, (idxs) => take(it, items, idxs, owner), own ? null : `This belongs to ${owner}. Anyone awake in the room will see you take it.`);
+        O.Panels.container(`${it.kind[0].toUpperCase() + it.kind.slice(1)}, ${owner}`, items, (idxs) => take(it, items, idxs, owner), own ? null : `This belongs to ${owner}. Anyone awake in the room will see you take it.`);
       };
     }
 

@@ -1,5 +1,5 @@
 // Property and lordship for the player: For Sale signs on empty houses and shops, buying, letting to
-// tenants, opening a business, selling, the Holdings panel (P), and — for the rich and respectable —
+// tenants, opening a business, selling, the Holdings panel (P), and, for the rich and respectable -
 // the lordship of Ashford with its powers over tax, the watch, relief and building.
 'use strict';
 (function () {
@@ -7,8 +7,11 @@
 
   function setup(game, sim) {
     const home = () => O.SimRef.home;
-    const forSale = (b) => !b.site && !b.ruined && !b.fire && b.type !== 'hideout' && ((b.type === 'house' && !b.household) || b.closedShop || b.listed) && (!b.owner || b.owner.kind !== 'player');
+    const forSale = (b) => !(O.isPublicBuilding && O.isPublicBuilding(b)) && !b.site && !b.ruined && !b.fire && b.type !== 'hideout' && ((b.type === 'house' && !b.household) || b.closedShop || b.listed) && (!b.owner || b.owner.kind !== 'player');
     O.forSale = forSale;
+    // the realm's own buildings are never for sale: halls, the watch, churches, the morgue, hospitals, schools, castles
+    const PUBLIC = new Set(['townhall', 'guard', 'chapel', 'church', 'cathedral', 'morgue', 'hospital', 'school', 'keep', 'palace', 'kitchen', 'moothall', 'jail', 'harbour', 'minecourt', 'posthouse', 'gatehouse']);
+    O.isPublicBuilding = (b) => PUBLIC.has(b.type) || !!(O.Data.BUSINESS[b.type] && O.Data.BUSINESS[b.type].public);
     const owned = (b) => b.owner && b.owner.kind === 'player';
 
     // a little painted sign by the door of anything for sale
@@ -49,7 +52,7 @@
         for (const b of s.world.buildings) if (b.listed && H.day - b.listed.day > 12) b.listed = null; // no buyer: taken off the market
         if (!r.chance(0.35)) continue;
         const spare = s.world.buildings.filter((b) => b.type === 'house' && b.owner?.kind === 'household' && b.household && s.households[b.owner.id - 1] && s.households[b.owner.id - 1].home !== b.id && !b.listed);
-        const weak = [...s.biz.values()].filter((bz) => !bz.ownerPlayer && bz.cash < 15 && bz.workers && bz.workers.length).map((bz) => s.world.buildings.find((b) => b.id === bz.id)).filter((b) => b && !b.listed);
+        const weak = [...s.biz.values()].filter((bz) => !bz.ownerPlayer && bz.cash < 15 && bz.workers && bz.workers.length).map((bz) => s.world.buildings.find((b) => b.id === bz.id)).filter((b) => b && !b.listed && !O.isPublicBuilding(b));
         const pick = r.chance(0.5) && spare.length ? r.pick(spare) : weak.length ? r.pick(weak) : spare.length ? r.pick(spare) : null;
         if (pick) { pick.listed = { day: H.day }; s.log(`${pick.type === 'house' ? 'A let house' : pick.name} has been put up for sale.`, 'economy'); }
       }
@@ -68,7 +71,7 @@
         ${!mine ? `<button data-a="buy">Buy for ${O.money(v)}</button>` : ''}
         ${mine && b.type === 'house' && !b.household ? `<button data-a="let">Let it to a family (${rentEst}d a week)</button>` : ''}
         ${mine && b.closedShop ? ['bakery', 'store', 'tavern', 'smithy'].map((t) => `<button data-open="${t}">Open a ${O.Data.BUSINESS[t].label.toLowerCase()} (60d)</button>`).join('') : ''}
-        ${mine ? `<button data-a="sell">Sell for ${O.money(Math.round(v * 0.8))}</button>` : ''}
+        ${mine && !O.isPublicBuilding(b) ? `<button data-a="sell">Sell for ${O.money(Math.round(v * 0.8))}</button>` : ''}
       </div>`, (r) => {
         const on = (sel, f) => { const el = r.querySelector(sel); if (el) el.onclick = f; };
         on('[data-a=buy]', () => {

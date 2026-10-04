@@ -1,6 +1,6 @@
 // Indoor scene: renders a building's floor, places the residents who are actually inside it where
-// their business puts them — asleep in their own beds under the covers, at the table facing it, in
-// the pews facing the altar, behind the counter, at the bench — shows stock levels on shelves and
+// their business puts them, asleep in their own beds under the covers, at the table facing it, in
+// the pews facing the altar, behind the counter, at the bench, shows stock levels on shelves and
 // in sacks, and handles collision, stairs and leaving by the door.
 'use strict';
 (function () {

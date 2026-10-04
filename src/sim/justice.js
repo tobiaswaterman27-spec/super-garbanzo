@@ -146,7 +146,7 @@
       const hh = this.household(q); const fine = Math.min(hh.money, 6 * crime.severity); hh.money -= fine; this.treasury.cash += fine; this.treasury.income += fine;
       this.remember(q, wrong ? `Arrested for a ${crime.kind} I never did. Fined ${fine}d and locked up.` : `Caught for the ${crime.kind}. Fined ${fine}d and locked up.`, 'crime', 3);
       for (const id of hh.members) { const m = this.byId.get(id); if (m && m !== q) this.remember(m, `${q.first} was taken by the watch${wrong ? ', for something they swear they never did' : ''}.`, 'crime', 1.5, q.id); }
-      this.log(`The watch arrested ${q.name} for the ${crime.kind}${wrong ? ' — though some say the wrong one was taken' : ''}.`, 'crime');
+      this.log(`The watch arrested ${q.name} for the ${crime.kind}${wrong ? ', though some say the wrong one was taken' : ''}.`, 'crime');
       if (wrong && crime.perp === 'player') { this.log('Somewhere, the real thief walks free.', 'crime'); }
     };
 

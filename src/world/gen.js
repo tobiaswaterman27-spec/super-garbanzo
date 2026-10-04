@@ -233,7 +233,7 @@
   }
 
   // A hamlet: a handful of cottages around a green with a well, a farm and its barn, a bakehouse and an
-  // alehouse, and whatever the land gives — a woodward's hut, a fisher's shed — all along one road.
+  // alehouse, and whatever the land gives, a woodward's hut, a fisher's shed, all along one road.
   function makeHamlet(place) {
     const target = simTarget(place), W = target > 40 ? 78 : 64, H = 46, seed = O.hash('hamlet', place.id);
     const K = kit(place, W, H, seed), { rng, set, fill, B, look, P } = K;

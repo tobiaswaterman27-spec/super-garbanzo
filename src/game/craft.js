@@ -1,5 +1,5 @@
-// Making things yourself, and selling them. At a workstation you may use — in a building you own,
-// or at your employer's while you're working there — turn your own materials into goods: bake,
+// Making things yourself, and selling them. At a workstation you may use, in a building you own,
+// or at your employer's while you're working there, turn your own materials into goods: bake,
 // forge, saw, brew, mill, brew remedies or cook. Skill decides what you can attempt and how much it
 // yields, and the work teaches you more. Then mind a market stall for an hour and sell what you made
 // to the townsfolk, who really pay from their purses and really eat what they buy.
@@ -45,7 +45,7 @@
         return `<tr><td><b>${esc(label)}</b><br><small class="caption">${Object.entries(inp).map(([g, n]) => `${n} ${G[g].name.toLowerCase()} (${PS.count(g)})`).join(', ')} → ${Object.entries(out).map(([g, n]) => `${yieldN(n)} ${G[g].name.toLowerCase()}`).join(', ')}</small></td>
           <td>${able ? '' : `<small class="warn">needs ${O.Work.SKILL_LABEL[sk].toLowerCase()} ${Math.round(min * 100)}</small>`}</td><td><button data-r="${i}" ${have && able ? '' : 'disabled'}>Make · 1 hour</button></td></tr>`;
       }).join('');
-      const workRow = c.work ? `<tr><td><b>Work an hour for ${esc(c.who.replace(/'s$/, ''))}</b><br><small class="caption">${esc(O.workLabel())} — the master's materials, the master's goods, your wages</small></td><td></td><td><button data-work="1" class="hot">Work · 1 hour</button></td></tr>` : '';
+      const workRow = c.work ? `<tr><td><b>Work an hour for ${esc(c.who.replace(/'s$/, ''))}</b><br><small class="caption">${esc(O.workLabel())}, the master's materials, the master's goods, your wages</small></td><td></td><td><button data-work="1" class="hot">Work · 1 hour</button></td></tr>` : '';
       O.Panels.open(`At the ${c.it.kind === 'fireplace' ? 'hearth' : c.it.kind}`, `<p class="caption">${c.work ? 'Work for wages with the master\'s materials, or make something' : 'Make something'} with your own at ${esc(c.who)} ${c.it.kind === 'fireplace' ? 'hearth' : 'bench'}. What you make from your own materials is yours to keep or sell.</p><table><tbody>${workRow}${rows}</tbody></table>`, (r) => {
         const w = r.querySelector('[data-work]'); if (w) w.onclick = () => { O.Panels.close(); O.workShift(); };
         r.querySelectorAll('[data-r]').forEach((b) => b.onclick = () => make(c, RECIPES[c.it.kind][+b.dataset.r]));

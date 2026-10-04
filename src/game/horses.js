@@ -3,7 +3,7 @@
 // Every horse is an individual with a name, breed, age, speed, stamina, temperament, value, owner
 // and a history of every owner it has had (bought, sold, stolen, gifted). Horses graze in the
 // paddock or stand where their rider left them. The player can buy one from the stables, ride it
-// (H), gallop (Shift), board it, rename it, sell it — or steal one, which witnesses remember and
+// (H), gallop (Shift), board it, rename it, sell it, or steal one, which witnesses remember and
 // the horse trader may recognise.
 'use strict';
 (function () {
@@ -176,7 +176,7 @@
         <div><span class="lbl">Breed</span><b>${h.breed}</b><small>${h.coat}${h.blaze ? ', a white blaze' : ''}${h.socks ? ', white socks' : ''} · ${h.age} years</small></div>
         <div><span class="lbl">Temperament</span><b>${h.temper}</b><small>speed ${Math.round(h.speed * 100)} · stamina ${h.staminaMax}</small></div>
         <div><span class="lbl">Worth</span><b>${O.money(h.value)}</b><small>owner: ${O.escape(ownerName(h.owner))}</small></div></div>
-        <div class="lbl" style="margin-top:10px">History</div><ol class="chron">${h.history.map((e) => `<li>Day ${e.day}: ${e.event} — ${O.escape(e.owner)}</li>`).join('')}</ol>
+        <div class="lbl" style="margin-top:10px">History</div><ol class="chron">${h.history.map((e) => `<li>Day ${e.day}: ${e.event}, ${O.escape(e.owner)}</li>`).join('')}</ol>
         ${mine ? `<label class="lbl" for="horseName" style="display:block;margin-top:10px">Rename</label><input type="text" id="horseName" value="${O.escape(h.name)}" maxlength="20" style="width:100%;margin:4px 0"><button class="btn" data-ren="1">Rename</button> <button class="btn ghost" data-feed="1">Feed (1 wheat or 1d)</button>` : ''}`, (rr) => {
         const rn = rr.querySelector('[data-ren]'); if (rn) rn.onclick = () => { h.name = rr.querySelector('#horseName').value.trim() || h.name; inspect(h); };
         const fd = rr.querySelector('[data-feed]'); if (fd) fd.onclick = () => { if (PS.remove('wheat')) h.fed = 100; else if (PS.money >= 1) { PS.money -= 1; h.fed = 100; } h.stamina = h.staminaMax; O.Panels.toast(`${h.name} eats happily.`); };

@@ -2,9 +2,13 @@
 'use strict';
 (function () {
   const $ = (id) => document.getElementById(id);
-  const homeWorld = O.Village.makeVillage(7);
+  // Ashford, set in its stretch of the island: the whole of Eldoria can be walked
+  O.Island.init();
+  const homeWorld = O.Island.region('ashford');
+  const AX = homeWorld.ox, AY = homeWorld.oy; // where Ashford's own map sits in its region
   const game = new O.Game($('game'));
   game.load(homeWorld, O.Forge.player);
+  game.player.x = (46 + AX) * 16 + 8; game.player.y = (32 + AY) * 16 + 4;
   O.game = game;
   const home = new O.Sim(homeWorld, 11);
   // The game holds several living settlements; modules talk to whichever the player is in through
@@ -22,8 +26,7 @@
   const saved = O.Save.peek();
   let loaded = false;
   if (saved && saved.seed === homeWorld.seed) { try { O.Save.hydrate(game, home, saved); loaded = true; home.seasonChanged = home.season !== 'summer'; } catch (e) { console.warn('Save could not be loaded', e); } }
-  // a way out of Ashford for every road that leaves it
-  O.Roads.attachExits(homeWorld, home.kingdom); game.load(homeWorld);
+  game.load(homeWorld);
   // the simulation owns time; the engine reads it
   game.clock = { speed: 1, get minute() { return sim.minute; }, set minute(v) {}, get day() { return sim.day; }, set day(v) {} };
   game.hooks.update.push((dt) => {
@@ -65,7 +68,7 @@
     if (world.dirtyStatics) game.rebuildStatics();
     if (sim.seasonChanged) {
       sim.seasonChanged = false; game.season = sim.season;
-      game.ground = O.Terrain.renderGround(world, sim.season);
+      if (world.chunked) world._chunks = new Map(); else game.ground = O.Terrain.renderGround(world, sim.season);
       for (const t of world.trees) t.sprite = O.Env.tree(t.seed, t.kind, sim.season);
       applySeason();
       O.Panels.toast(`${sim.season[0].toUpperCase() + sim.season.slice(1)} has come.`);
@@ -73,7 +76,7 @@
     if (sim.day !== lastHarvestCheck) { lastHarvestCheck = sim.day; applySeason(); }
   });
   // the dead are buried in the chapel yard; each grave is a real prop you can read
-  const graveSpots = []; for (let y = 36; y >= 33; y--) for (let x = 68; x <= 72; x++) graveSpots.push([x, y]);
+  const graveSpots = []; for (let y = 36; y >= 33; y--) for (let x = 68; x <= 72; x++) graveSpots.push([x + AX, y + AY]);
   home.onGrave = (p) => {
     const world = homeWorld;
     const spot = graveSpots.find(([x, y]) => !world.solid[y * world.W + x] && !world.props.some((q) => q.kind === 'gravestone' && Math.floor(q.x / 16) === x && Math.floor(q.y / 16) === y));
@@ -92,6 +95,7 @@
   O.TravelSetup.setup(game, home, npcUI);
   O.Roads.setup(game, home);
   O.Prefetch.setup(game, home);
+  O.OpenWorldSetup.setup(game, home);
   O.Signs.setup(game);
   O.PropertyUI.setup(game, sim);
   O.ChronicleUI.setup(game, home);
@@ -114,8 +118,10 @@
   document.addEventListener('visibilitychange', () => { if (document.hidden && !game.world.road) O.Save.save(game, home, true); });
   function placeName() {
     if (game.scene) return game.scene.b.type === "house" ? `The ${sim.households[game.scene.b.household - 1]?.surname || ""} house` + (game.scene.floor ? ", upstairs" : "") : game.scene.b.name + (game.scene.floor ? ', upstairs' : '');
-    const p = game.player, T = 16, tx = p.x / T, ty = p.y / T;
-    if (game.world !== homeWorld) { const w = game.world; return Math.abs(ty - w.roadY) < 2 ? `${w.name}, high road` : ty < 10 ? `${w.name} woods` : w.name; }
+    const p = game.player, T = 16, tx = p.x / T - AX, ty = p.y / T - AY;
+    if (game.world === homeWorld && (tx < 0 || ty < 0 || tx > 96 || ty > 64)) { const g = O.Island.toGlobal(homeWorld, p.x, p.y); return O.Eldoria.regionName(g[0] / T / O.Island.U, g[1] / T / O.Island.U).replace(/^the /, '').replace(/^./, (c) => c.toUpperCase()); }
+    if (game.world !== homeWorld) {
+      if (game.world.island) { const w = game.world, lx = p.x / T - w.ox, ly = p.y / T - w.oy; if (lx < 0 || ly < 0 || lx > w.townW || ly > w.townH) { const g = O.Island.toGlobal(w, p.x, p.y); return O.Eldoria.regionName(g[0] / T / O.Island.U, g[1] / T / O.Island.U).replace(/^the /, '').replace(/^./, (c) => c.toUpperCase()); } return w.name; } const w = game.world; return Math.abs(ty - w.roadY) < 2 ? `${w.name}, high road` : ty < 10 ? `${w.name} woods` : w.name; }
     if (tx >= 37 && tx <= 56 && ty >= 22 && ty <= 30) return 'Ashford Square';
     if (ty >= 29.5 && ty <= 32.5) return tx > 77 && tx < 86 ? 'Ashford Bridge' : "King's Road";
     if (ty >= 40.5 && ty <= 43) return 'Mill Lane';

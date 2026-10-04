@@ -9,12 +9,12 @@
   function setup(game, home) {
     const PS = O.PlayerState, esc = (s) => O.escape(String(s)), toast = (t, k) => O.Panels.toast(t, k);
     PS.plots = PS.plots || []; PS.fields = PS.fields || [];
-    const plotName = (pl) => (pl[1] < 30 ? 'beside the north track' : 'south of Mill Lane');
+    const plotName = (pl) => (pl[1] - (O.SimRef.home.world.oy || 0) < 30 ? 'beside the north track' : 'south of Mill Lane');
 
     O.landSection = () => {
       const H = home, B = H.build, farm = H.supplierOf('farmhouse');
-      const free = O.PLOTS.map((pl, i) => ({ pl, i })).filter(({ pl, i }) => !B.used.has(i) && B.plotFree(pl));
-      const mine = PS.plots.map((i) => ({ i, pl: O.PLOTS[i], site: B.sites.find((s) => s.player && s.b.x === O.PLOTS[i][0] && s.b.bottom === O.PLOTS[i][1]) }));
+      const free = O.PLOTS.map((pl0, i) => ({ pl: B.plot(i), i })).filter(({ pl, i }) => !B.used.has(i) && B.plotFree(pl));
+      const mine = PS.plots.map((i) => ({ i, pl: B.plot(i), site: B.sites.find((s) => s.player && s.b.x === B.plot(i)[0] && s.b.bottom === B.plot(i)[1]) }));
       const owned = PS.fields.length, sold = (H.farmStripsSold || 0);
       const rows = [
         ...mine.map(({ i, pl, site }) => `<tr><td>Your plot ${plotName(pl)}<br><small class="lbl">${pl[2]}×${pl[3]} tiles</small></td><td>${site ? (site.stage >= 10 ? 'Your house stands here' : `Building: ${O.STAGES[site.stage]} (${Math.round(site.prog * 100)}%)`) : `<button data-pbuild="${i}">Build a house · ${O.money(BUILD_COST)}</button>`}</td></tr>`),

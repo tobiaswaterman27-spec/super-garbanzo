@@ -15,6 +15,8 @@
   class Construction {
     constructor(sim) { this.sim = sim; this.sites = []; this.nextCouncil = { day: 1, minute: 10 * 60 }; this.used = new Set(); }
 
+    // the building plots, where they fall in the world (Ashford's map may sit inside a larger region)
+    plot(i) { const w = this.sim.world, [x, b, bw, bd] = PLOTS[i]; return [x + (w.ox || 0), b + (w.oy || 0), bw, bd]; }
     plotFree(pl) {
       const w = this.sim.world; const [x, bottom, bw, bd] = pl;
       for (const b of w.buildings) if (!(x + bw + 1 <= b.x || x - 1 >= b.x + b.w || bottom + 2 <= b.y || bottom - bd - 1 >= b.bottom)) return false;
@@ -24,17 +26,17 @@
     council() {
       const sim = this.sim;
       if (sim.opts && sim.opts.foreign) return; // other towns' councils are simulated in the abstract
-      const free = PLOTS.filter((p, i) => !this.used.has(i) && this.plotFree(p));
+      const free = PLOTS.map((p, i) => this.plot(i)).filter((p, i) => !this.used.has(i) && this.plotFree(p));
       const active = this.sites.filter((s) => s.stage < 10).length;
       if (!free.length || active >= 1) return;
       const cost = 160;
       if (sim.treasury.cash < cost + 150) { sim.log(`The council wanted to build, but the treasury holds only ${Math.round(sim.treasury.cash)}d.`, 'politics'); return; }
-      this.start(PLOTS.indexOf(free[0]), cost);
+      this.start(PLOTS.findIndex((p, i) => this.plot(i)[0] === free[0][0] && this.plot(i)[1] === free[0][1]), cost);
     }
 
     start(pi, cost, opts = {}) {
       const sim = this.sim, w = sim.world, r = sim.rng;
-      const [x, bottom, bw, bd] = PLOTS[pi]; this.used.add(pi);
+      const [x, bottom, bw, bd] = this.plot(pi); this.used.add(pi);
       // clear trees and scatter from the plot
       const inPlot = (px, py) => px >= (x - 1) * 16 && px < (x + bw + 1) * 16 && py >= (bottom - bd) * 16 && py < (bottom + 2) * 16;
       w.trees = w.trees.filter((t) => { if (inPlot(t.x, t.y)) { w.solid[Math.floor(t.y / 16) * w.W + Math.floor(t.x / 16)] = 0; return false; } return true; });
@@ -112,7 +114,7 @@
       hh.shopper = c.id;
       for (const p of [a, c, ...kids]) {
         p.app = O.Char.makeAppearance(O.hash('person', p.id, p.first), { sex: p.sex, age: p.age, genes: p.genes, role: p.age < 13 ? 'child' : 'villager', wealth: 0.5, region });
-        p.agent = { x: (95 - (p.id % 3)) * 16, y: 31 * 16 - (p.id % 2) * 6, dir: 1, anim: 'walk', ft: 0, a: p.app, hidden: false, inside: null, path: null, goal: null, person: p, carrying: p === a ? { good: 'logs', qty: 1 } : null };
+        p.agent = { x: (sim.Z.east[0] - (p.id % 3)) * 16, y: sim.Z.east[1] * 16 - (p.id % 2) * 6, dir: 1, anim: 'walk', ft: 0, a: p.app, hidden: false, inside: null, path: null, goal: null, person: p, carrying: p === a ? { good: 'logs', qty: 1 } : null };
         p.arriving = true; p.task = { act: 'move-in', b: b.id };
         sim.remember(p, `We came from the ${region} to a new house in Ashford.`, 'life', 2);
       }

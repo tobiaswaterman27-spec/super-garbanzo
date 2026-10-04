@@ -15,34 +15,39 @@
     };
     const drops = [], flakes = [], splashes = [], hail = [], bounces = [], bolts = [], thunders = [];
 
-    function makePuddles() {
-      const c = document.createElement('canvas'); c.width = pw; c.height = ph;
-      const ctx = c.getContext('2d'), id = ctx.createImageData(pw, ph), d = id.data;
+    // r = { x, y, w, h } in world pixels: a chunk of a big region, or the whole of a small map
+    function makePuddles(r) {
+      r = r || { x: 0, y: 0, w: pw, h: ph };
+      const c = document.createElement('canvas'); c.width = r.w; c.height = r.h;
+      const ctx = c.getContext('2d'), id = ctx.createImageData(r.w, r.h), d = id.data;
       const { ter, TER } = world;
-      for (let y = 1; y < ph - 1; y++) for (let x = 1; x < pw - 1; x++) {
+      for (let yy = 1; yy < r.h - 1; yy++) for (let xx = 1; xx < r.w - 1; xx++) {
+        const x = r.x + xx, y = r.y + yy;
         const t = ter[Math.floor(y / T) * world.W + Math.floor(x / T)];
         if (t !== TER.ROAD && t !== TER.YARD && t !== TER.COBBLE && t !== TER.FIELD) continue;
         const n = O.fbm(x / 9, y / 5, 77, 2);
         if (n < 0.66) continue;
-        const i = (y * pw + x) * 4;
+        const i = (yy * r.w + xx) * 4;
         const edge = O.fbm((x - 1) / 9, (y - 1) / 5, 77, 2) < 0.66;
         const col = edge ? [150, 170, 190] : n > 0.72 ? [70, 84, 104] : [86, 100, 118];
         d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255;
       }
       ctx.putImageData(id, 0, 0); return c;
     }
-    function makeSnow(level) {
-      const c = document.createElement('canvas'); c.width = pw; c.height = ph;
-      const ctx = c.getContext('2d'), id = ctx.createImageData(pw, ph), d = id.data;
+    function makeSnow(level, r) {
+      r = r || { x: 0, y: 0, w: pw, h: ph };
+      const c = document.createElement('canvas'); c.width = r.w; c.height = r.h;
+      const ctx = c.getContext('2d'), id = ctx.createImageData(r.w, r.h), d = id.data;
       const { ter, TER } = world;
       const ramp = O.Pal.makeRamp('#e6ecf2', 0.6);
-      for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) {
+      for (let yy = 0; yy < r.h; yy++) for (let xx = 0; xx < r.w; xx++) {
+        const x = r.x + xx, y = r.y + yy;
         const t = ter[Math.floor(y / T) * world.W + Math.floor(x / T)];
         if (t === TER.WATER) continue;
         const n = O.fbm(x / 14, y / 14, 31, 3) * 0.8 + O.noise2(x * 0.9, y * 0.9, 3) * 0.2;
         const thr = (t === TER.ROAD || t === TER.COBBLE ? 0.25 : 0) + (1 - level);
         if (n < thr) continue;
-        const i = (y * pw + x) * 4, s = n > thr + 0.25 ? 4 : n > thr + 0.08 ? 3 : 2;
+        const i = (yy * r.w + xx) * 4, s = n > thr + 0.25 ? 4 : n > thr + 0.08 ? 3 : 2;
         d[i] = ramp[s][0]; d[i + 1] = ramp[s][1]; d[i + 2] = ramp[s][2]; d[i + 3] = 255;
       }
       ctx.putImageData(id, 0, 0); return c;
@@ -136,14 +141,27 @@
     });
 
     game.hooks.drawGround.push((ctx, cam) => {
+      if (world.chunked) {
+        // big regions: puddles and snow made chunk by chunk, only where you can see
+        const CS = 256, cx0 = Math.floor(cam.x / CS), cy0 = Math.floor(cam.y / CS), cx1 = Math.floor((cam.x + game.vw) / CS), cy1 = Math.floor((cam.y + game.vh) / CS);
+        const wc = world._wx || (world._wx = new Map());
+        const lv = Math.min(3, Math.floor(W.snowCover * 4));
+        for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) {
+          const key = cx + ',' + cy, e = wc.get(key) || {}; wc.set(key, e);
+          const r = { x: cx * CS, y: cy * CS, w: Math.min(CS, pw - cx * CS), h: Math.min(CS, ph - cy * CS) }; if (r.w <= 0 || r.h <= 0) continue;
+          if (W.wet > 0.05) { if (!e.p) e.p = makePuddles(r); ctx.globalAlpha = Math.min(0.85, W.wet); ctx.drawImage(e.p, r.x - cam.x, r.y - cam.y); ctx.globalAlpha = 1; }
+          if (W.snowCover > 0.05) { e.s = e.s || []; if (!e.s[lv]) e.s[lv] = makeSnow((lv + 1) / 4, r); ctx.drawImage(e.s[lv], r.x - cam.x, r.y - cam.y); }
+        }
+      } else {
       if (W.wet > 0.05) { if (!puddles) puddles = makePuddles(); ctx.globalAlpha = Math.min(0.85, W.wet); ctx.drawImage(puddles, cam.x, cam.y, game.vw, game.vh, 0, 0, game.vw, game.vh); ctx.globalAlpha = 1; }
       if (W.snowCover > 0.05) {
         const lv = Math.min(3, Math.floor(W.snowCover * 4));
         if (!snowLevels[lv]) snowLevels[lv] = makeSnow((lv + 1) / 4);
         ctx.drawImage(snowLevels[lv], cam.x, cam.y, game.vw, game.vh, 0, 0, game.vw, game.vh);
       }
+      }
       // hailstones lying in drifts until they melt
-      if ((W.hailCover || 0) > 0.04 && W.snowCover <= 0.05) { if (!snowLevels[0]) snowLevels[0] = makeSnow(0.25); ctx.globalAlpha = Math.min(0.8, W.hailCover * 1.6); ctx.drawImage(snowLevels[0], cam.x, cam.y, game.vw, game.vh, 0, 0, game.vw, game.vh); ctx.globalAlpha = 1; }
+      if ((W.hailCover || 0) > 0.04 && W.snowCover <= 0.05 && !world.chunked) { if (!snowLevels[0]) snowLevels[0] = makeSnow(0.25); ctx.globalAlpha = Math.min(0.8, W.hailCover * 1.6); ctx.drawImage(snowLevels[0], cam.x, cam.y, game.vw, game.vh, 0, 0, game.vw, game.vh); ctx.globalAlpha = 1; }
     });
 
     // drifting cloud shadows over the world

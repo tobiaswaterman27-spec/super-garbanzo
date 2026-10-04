@@ -60,7 +60,7 @@
     };
     S.inform = function (p, g) {
       const look = O.Justice.lookOf(O.game.player.a);
-      const crime = this.recordCrime({ kind: 'banditry', perp: 'player', placeName: 'Ashford Wood', tile: [9, 10], seen: [], severity: 2 });
+      const crime = this.recordCrime({ kind: 'banditry', perp: 'player', placeName: 'Ashford Wood', tile: [9 + (this.world.ox || 0), 10 + (this.world.oy || 0)], seen: [], severity: 2 });
       crime.witnesses.push({ id: p.id, desc: Object.assign({}, look), acc: 1 });
       crime.reported = true; crime.profile = Object.assign({}, look); crime.investigated = true; crime.evidence = 1.6;
       O.PlayerState.crimes.push(crime.id);

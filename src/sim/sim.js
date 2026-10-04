@@ -299,7 +299,7 @@
         case 'bench': return this.Z.bench;
         case 'farm': return pick(...this.Z.farm);
         case 'wood': return pick(...this.Z.wood);
-        case 'site': { const b = this.building(p.activity?.site ?? p.job?.biz); if (!b) return [46, 29]; return pick(b.x - 1, b.bottom + 1, b.x + b.w, b.bottom + 2); }
+        case 'site': { const b = this.building(p.activity?.site ?? p.job?.biz); if (!b) return [46 + (this.world.ox || 0), 29 + (this.world.oy || 0)]; return pick(b.x - 1, b.bottom + 1, b.x + b.w, b.bottom + 2); }
         default: return pick(...this.Z.square);
       }
     }
@@ -441,7 +441,7 @@
       hh.shopper = (c || a).id;
       for (const p of [a, c, ...kids].filter(Boolean)) {
         p.app = Ch.makeAppearance(O.hash('person', p.id, p.first), { sex: p.sex, age: p.age, genes: p.genes, role: p.age < 13 ? 'child' : 'villager', wealth: 0.5, region });
-        p.agent = { x: (95 - (p.id % 3)) * this.T, y: 31 * this.T - (p.id % 2) * 6, dir: 1, anim: 'walk', ft: 0, a: p.app, hidden: false, inside: null, path: null, goal: null, person: p, carrying: p === a ? { good: 'logs', qty: 1 } : null };
+        p.agent = { x: (this.Z.east[0] - (p.id % 3)) * this.T, y: this.Z.east[1] * this.T - (p.id % 2) * 6, dir: 1, anim: 'walk', ft: 0, a: p.app, hidden: false, inside: null, path: null, goal: null, person: p, carrying: p === a ? { good: 'logs', qty: 1 } : null };
         p.task = { act: 'move-in', b: b.id };
         this.remember(p, `We came from the ${region} to make a new life in ${this.world.name}.`, 'life', 2);
       }

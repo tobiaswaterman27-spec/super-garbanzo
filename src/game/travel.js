@@ -75,9 +75,7 @@
     function ensure(to) {
       let v = visited.get(to);
       if (v) return v;
-      const place = K.place(to);
-      const world = O.Gen.makeSettlement(place);
-      O.Roads.attachExits(world, K);
+      const world = O.Island.region(to); // the town in its own stretch of the island's countryside
       const s = new O.Sim(world, O.hash('sim', to), { foreign: true, kingdom: K, day: home.day, minute: home.minute });
       v = { world, sim: s, leftAt: home.day * 1440 + home.minute }; // it keeps living until you arrive
       visited.set(to, v);
@@ -98,12 +96,13 @@
       O.SimRef.cur = v.sim;
       game.season = v.sim.season;
       const comingFromWest = K.place(from).x < K.place(to).x;
-      if (!v.world.exits[from]) O.Roads.attachExits(v.world, K);
       game.load(v.world);
       O.applySeason && O.applySeason();
-      const ex = v.world.exits[from];
+      // you come in by the road from where you were: the town's way out towards it
+      const tex = O.Island.town(to).exits[from];
+      const ex = tex && tex.side ? { x: tex.x + v.world.ox, y: tex.y + v.world.oy, side: tex.side } : null;
       if (ex && ex.side) { const d = ex.side === 'west' ? [2, 0] : ex.side === 'east' ? [-2, 0] : ex.side === 'north' ? [0, 2] : [0, -2]; game.player.x = (ex.x + d[0]) * T + 8; game.player.y = (ex.y + d[1]) * T + 10; game.player.dir = ex.side === 'west' ? 2 : ex.side === 'east' ? 1 : ex.side === 'north' ? 0 : 3; }
-      else { const e2 = comingFromWest ? v.world.exits.west : v.world.exits.east; game.player.x = (e2[0] + (comingFromWest ? 2 : -2)) * T + 8; game.player.y = (e2[1] + 1) * T + 6; game.player.dir = comingFromWest ? 2 : 1; }
+      else { const sq = v.world.zones.square || [v.world.ox + 10, v.world.oy + 10, v.world.ox + 12, v.world.oy + 12]; game.player.x = ((sq[0] + sq[2]) >> 1) * T + 8; game.player.y = (sq[3] + 1) * T + 6; game.player.dir = 3; void comingFromWest; }
       if (game.player.mount) game.player.mount.world = to;
       O.Panels.toast(`You reach ${K.place(to).name}. It is ${O.DAYNAMES[v.sim.weekday]}, ${game.timeString()}.`);
     }

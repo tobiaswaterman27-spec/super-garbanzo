@@ -325,16 +325,17 @@ O.hash = function (...parts) {
 };
 
 // Integer-lattice value noise (deterministic, used for ground textures & variation).
+function nh(ix, iy, seed) {
+  let n = (ix * 374761393 + iy * 668265263 + seed * 1442695041) | 0;
+  n = Math.imul(n ^ (n >>> 13), 1274126177);
+  return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+}
 O.noise2 = function (x, y, seed = 0) {
-  const h = (ix, iy) => {
-    let n = (ix * 374761393 + iy * 668265263 + seed * 1442695041) | 0;
-    n = Math.imul(n ^ (n >>> 13), 1274126177);
-    return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
-  };
   const x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
   const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
-  const a = h(x0, y0), b = h(x0 + 1, y0), c = h(x0, y0 + 1), d = h(x0 + 1, y0 + 1);
-  return O.lerp(O.lerp(a, b, sx), O.lerp(c, d, sx), sy);
+  const a = nh(x0, y0, seed), b = nh(x0 + 1, y0, seed), c = nh(x0, y0 + 1, seed), d = nh(x0 + 1, y0 + 1, seed);
+  const top = a + (b - a) * sx, bot = c + (d - c) * sx;
+  return top + (bot - top) * sy;
 };
 O.fbm = function (x, y, seed = 0, oct = 3) {
   let v = 0, amp = 0.5, f = 1, tot = 0;
@@ -2212,7 +2213,13 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   }
 
   // ---------------- Trees & vegetation ----------------
+  const treeCache = new Map();
   function tree(seed, kind = 'oak', season = 'summer') {
+    const key = kind + ':' + seed + ':' + season;
+    if (treeCache.has(key)) return treeCache.get(key);
+    const out = treeRaw(seed, kind, season); treeCache.set(key, out); return out;
+  }
+  function treeRaw(seed, kind = 'oak', season = 'summer') {
     const rng = O.RNG(seed);
     const W = kind === 'pine' ? 34 : 48, H = kind === 'pine' ? 62 : 60;
     const B = new MB(W, H);
@@ -2831,12 +2838,16 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 'use strict';
 (function () {
   const P = O.Pal;
-  function renderGround(world, season = 'summer') {
+  // rect (in tiles) renders only part of the world: a chunk of a big region. The pixels are worked out
+  // with a margin round the chunk so edges blend exactly as they would in one big picture.
+  function renderGround(world, season = 'summer', rect = null) {
     const { W, H, T, ter, TER } = world;
-    const pw = W * T, ph = H * T;
-    const c = document.createElement('canvas'); c.width = pw; c.height = ph;
+    const RX = rect ? rect.x * T : 0, RY = rect ? rect.y * T : 0, M = rect ? 12 : 0;
+    const cw = rect ? rect.w * T : W * T, ch = rect ? rect.h * T : H * T;
+    const pw = cw + 2 * M, ph = ch + 2 * M, OX = RX - M, OY = RY - M; // the working area, in world pixels
+    const c = document.createElement('canvas'); c.width = cw; c.height = ch;
     const ctx = c.getContext('2d');
-    const img = ctx.createImageData(pw, ph); const d = img.data;
+    const img = ctx.createImageData(cw, ch); const d = img.data;
     const grassHex = { summer: '#5d8a3e', spring: '#679a42', autumn: '#7a8a42', winter: '#dfe6ea' }[season];
     const R = {
       grass: P.makeRamp(grassHex, 0.75), forest: P.makeRamp(season === 'winter' ? '#cfd8de' : '#466e36', 0.75), road: P.makeRamp('#9a7a52', 0.8),
@@ -2854,14 +2865,23 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       return t === TER.BRIDGE ? base : t;
     };
     const tmap = new Uint8Array(pw * ph);
-    for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) tmap[y * pw + x] = sample(x + 0.5, y + 0.5);
-    const at = (x, y) => (x < 0 || y < 0 || x >= pw || y >= ph ? -1 : tmap[y * pw + x]);
+    // a tile whose neighbours two deep are all the same kind can't be reached by the wander, so it skips the noise
+    const calm = (tx, ty) => { const k = tAt(tx, ty); for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) if (tAt(tx + i, ty + j) !== k) return -1; if (k === TER.WATER || k === TER.SAND) for (const [i, j] of [[-2, 0], [2, 0], [0, -2], [0, 2], [-2, -2], [2, 2], [-2, 2], [2, -2]]) if (tAt(tx + i, ty + j) !== k) return -1; return k; };
+    const calmCache = new Map();
+    for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) {
+      const px = OX + x + 0.5, py = OY + y + 0.5, tx = Math.floor(px / T), ty = Math.floor(py / T), key = tx * 65536 + ty;
+      let k = calmCache.get(key); if (k === undefined) { k = calm(tx, ty); calmCache.set(key, k); }
+      tmap[y * pw + x] = k >= 0 ? k : sample(px, py);
+    }
+    // at() takes world pixel coordinates
+    const at = (x, y) => { const lx = x - OX, ly = y - OY; return lx < 0 || ly < 0 || lx >= pw || ly >= ph ? -1 : tmap[ly * pw + lx]; };
     const LAND = new Set([TER.GRASS, TER.FOREST, TER.ROAD, TER.YARD, TER.FIELD, TER.SAND].filter((v) => v != null));
     const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
     const baseOf = (k) => (k === TER.GRASS ? R.grass : k === TER.FOREST ? R.forest : k === TER.ROAD ? R.road : k === TER.YARD ? R.yard : k === TER.FIELD ? R.field : R.sand)[2];
 
-    for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) {
-      const t = tmap[y * pw + x];
+    for (let yy = 0; yy < ch; yy++) for (let xx = 0; xx < cw; xx++) {
+      const x = RX + xx, y = RY + yy; // world pixel
+      const t = at(x, y);
       let col;
       const n = O.fbm(x / 10, y / 10, 7, 3), f = O.noise2(x * 1.9, y * 1.9, 3);
       switch (t) {
@@ -2878,7 +2898,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
           let s = n > 0.58 ? 3 : n > 0.4 ? 2 : 1;
           if (f > 0.93) s = 4; else if (f < 0.05) s = 0;
           // wheel ruts along the King's Road
-          if (t === TER.ROAD && y >= 30 * T && y < 32 * T) { const ly = y - 30 * T; if (ly === 9 || ly === 22) s = Math.max(0, s - 1); }
+          if (t === TER.ROAD && y >= (world.roadY || 30) * T && y < ((world.roadY || 30) + 2) * T) { const ly = y - (world.roadY || 30) * T; if (ly === 9 || ly === 22) s = Math.max(0, s - 1); }
           // darker edge where road meets grass
           const g = (k) => k === TER.GRASS || k === TER.FOREST;
           if (g(at(x, y - 1)) || g(at(x - 1, y))) s = Math.max(0, s - 1);
@@ -2931,30 +2951,34 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       // (ordered dithering keeps it crisp)
       if (LAND.has(t)) {
         let nb = -1, k = 1;
-        for (; k <= 3 && nb < 0; k++) for (const [dx, dy] of [[k, 0], [-k, 0], [0, k], [0, -k]]) { const u = at(x + dx, y + dy); if (u !== t && LAND.has(u)) { nb = u; break; } }
+        for (; k <= 3 && nb < 0; k++) { let u = at(x + k, y); if (u === t || !LAND.has(u)) { u = at(x - k, y); if (u === t || !LAND.has(u)) { u = at(x, y + k); if (u === t || !LAND.has(u)) { u = at(x, y - k); if (u === t || !LAND.has(u)) u = -1; } } } if (u >= 0) nb = u; }
         if (nb >= 0) { const wgt = (4 - (k - 1)) / 9; if (BAYER[(x & 3) + ((y & 3) << 2)] / 16 < wgt) { const nc = baseOf(nb); col = [(col[0] + nc[0]) >> 1, (col[1] + nc[1]) >> 1, (col[2] + nc[2]) >> 1]; } }
       }
-      const i = (y * pw + x) * 4; d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255;
+      const i = (yy * cw + xx) * 4; d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255;
     }
     ctx.putImageData(img, 0, 0);
-    bakeShadows(ctx, world, pw, ph);
+    bakeShadows(ctx, world, cw, ch, RX, RY);
     return c;
   }
 
   // Light comes from the upper-left, so every static object casts toward the lower-right.
-  function bakeShadows(ctx, world, pw, ph) {
+  function bakeShadows(ctx, world, pw, ph, RX = 0, RY = 0) {
     const m = document.createElement('canvas'); m.width = pw; m.height = ph;
     const mc = m.getContext('2d'); mc.fillStyle = '#000';
+    mc.translate(-RX, -RY);
     const T = world.T;
+    const near = (x, y, r) => x > RX - r && y > RY - r && x < RX + pw + r && y < RY + ph + r;
     for (const b of world.buildings) {
+      if (!near(b.x * T, b.bottom * T, 400)) continue;
       const s = 6 + b.floors * 6;
       const x0 = b.x * T, x1 = (b.x + b.w) * T, y0 = b.y * T, y1 = (b.bottom + 1) * T;
       mc.beginPath(); mc.moveTo(x1, y0 + 4); mc.lineTo(x1 + s, y0 + 4 + s * 0.5); mc.lineTo(x1 + s, y1 + 3); mc.lineTo(x0 + s, y1 + 3); mc.lineTo(x0, y1); mc.lineTo(x1, y1); mc.closePath(); mc.fill();
     }
     const ellipse = (cx, cy, rx, ry) => { for (let y = -ry; y <= ry; y++) { const w = Math.round(rx * Math.sqrt(1 - (y * y) / (ry * ry))); mc.fillRect(Math.round(cx - w), Math.round(cy + y), w * 2, 1); } };
-    for (const t of world.trees) ellipse(t.x + 7, t.y - 2, t.kind === 'pine' ? 10 : 15, t.kind === 'pine' ? 4 : 6);
-    for (const p of world.props) if (!p.flat && p.kind !== 'grass') ellipse(p.x + 3, p.y, p.kind === 'well' || p.kind === 'stall' ? 15 : 7, 3);
+    for (const t of world.trees) if (near(t.x, t.y, 24)) ellipse(t.x + 7, t.y - 2, t.kind === 'pine' ? 10 : 15, t.kind === 'pine' ? 4 : 6);
+    for (const p of world.props) if (!p.flat && p.kind !== 'grass' && near(p.x, p.y, 24)) ellipse(p.x + 3, p.y, p.kind === 'well' || p.kind === 'stall' ? 15 : 7, 3);
     // crisp mask -> single translucent layer
+    mc.setTransform(1, 0, 0, 1, 0, 0);
     const id = mc.getImageData(0, 0, pw, ph); for (let i = 3; i < id.data.length; i += 4) id.data[i] = id.data[i] > 100 ? 255 : 0; mc.putImageData(id, 0, 0);
     mc.globalCompositeOperation = 'source-in'; mc.fillStyle = 'rgb(28,20,44)'; mc.fillRect(0, 0, pw, ph);
     ctx.globalAlpha = 0.32; ctx.drawImage(m, 0, 0); ctx.globalAlpha = 1;
@@ -3387,6 +3411,272 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
 </script>
 <script>
+// The whole island, built for walking. Every settlement on the map of Eldoria stands where the map puts
+// it, twenty tiles to a map unit, in a region of real countryside: the forests, farmland, moors,
+// marshes, hills, rivers, lakes and coast that the map shows, with the roads between the towns laid
+// over it, bridges where they cross water, and the ruins of older times standing in the wild places.
+//
+// The island is too big to hold at once, so it is cut into regions: one round each settlement,
+// reaching out past the halfway point to its neighbours. Neighbouring regions overlap, and the
+// countryside in the overlap is the same in both (it is worked out from the island map, not stored),
+// so walking from one region into the next is seamless: you are simply nearer the next town now.
+'use strict';
+(function () {
+  const U = 20, T = 16, MARGIN = 44;
+  const E = () => O.Eldoria, TER = () => O.Village.TER;
+  let K = null;
+  const towns = new Map(), regions = new Map();
+  let RECTS = null;
+
+  // the island's places and roads, straight from the map (the kingdom's own copies change with the
+  // simulation; positions and roads never do)
+  function data() {
+    if (K) return K;
+    const places = E().places((o) => o), roads = E().roads();
+    K = { places, roads, place: (id) => places.find((p) => p.id === id), road: (a, b) => roads.find((r) => (r.a === a && r.b === b) || (r.a === b && r.b === a)), neighbours: (id) => roads.filter((r) => r.a === id || r.b === id).map((r) => (r.a === id ? r.b : r.a)) };
+    return K;
+  }
+  function init() { data(); }
+  const place = (id) => data().place(id);
+  const centre = (id) => { const p = place(id); return [Math.round(p.x * U), Math.round(p.y * U)]; };
+
+  // a settlement's own map, generated once (with its ways out towards every neighbour)
+  function town(id) {
+    if (towns.has(id)) return towns.get(id);
+    const p = place(id);
+    const w = id === 'ashford' ? O.Village.makeVillage(7) : O.Gen.makeSettlement(p);
+    w.exits = id === 'ashford' ? w.exits : w.exits;
+    O.Roads.attachExits(w, data());
+    const [cx, cy] = centre(id);
+    w.gx = cx - Math.floor(w.W / 2); w.gy = cy - Math.floor(w.H / 2);
+    towns.set(id, w);
+    return w;
+  }
+  // the global tile where a town's road towards a neighbour leaves its map
+  function exitOf(id, nb) { const w = town(id), ex = w.exits[nb]; if (!ex) return centre(id); return [w.gx + ex.x, w.gy + ex.y, ex.side]; }
+
+  // regions: every bit of land belongs to its nearest settlement; a region is that patch's bounding
+  // box with a margin round it, and always the whole town
+  function rects() {
+    if (RECTS) return RECTS;
+    const ps = data().places, box = new Map(ps.map((p) => [p.id, [1e9, 1e9, -1e9, -1e9]]));
+    for (let uy = 0; uy < E().H; uy += 0.5) for (let ux = 0; ux < E().W; ux += 0.5) {
+      if (!E().landAt(ux, uy)) continue;
+      let best = null, bd = 1e9; for (const p of ps) { const d = (p.x - ux) ** 2 + (p.y - uy) ** 2; if (d < bd) { bd = d; best = p; } }
+      const b = box.get(best.id); b[0] = Math.min(b[0], ux); b[1] = Math.min(b[1], uy); b[2] = Math.max(b[2], ux); b[3] = Math.max(b[3], uy);
+    }
+    RECTS = new Map();
+    for (const p of ps) {
+      const b = box.get(p.id); if (b[0] > b[2]) { b[0] = b[2] = p.x; b[1] = b[3] = p.y; }
+      let x0 = Math.floor(b[0] * U) - MARGIN, y0 = Math.floor(b[1] * U) - MARGIN, x1 = Math.ceil(b[2] * U) + MARGIN, y1 = Math.ceil(b[3] * U) + MARGIN;
+      RECTS.set(p.id, { x0, y0, x1, y1, own: b });
+    }
+    return RECTS;
+  }
+  function rectOf(id) {
+    const r = rects().get(id), w = town(id);
+    const x0 = Math.max(0, Math.min(r.x0, w.gx - 30)), y0 = Math.max(0, Math.min(r.y0, w.gy - 30));
+    const x1 = Math.min(E().W * U, Math.max(r.x1, w.gx + w.W + 30)), y1 = Math.min(E().H * U, Math.max(r.y1, w.gy + w.H + 30));
+    return { x0, y0, x1, y1 };
+  }
+  // who owns this global tile: the nearest settlement
+  function ownerAt(gx, gy) { let best = null, bd = 1e9; for (const p of data().places) { const d = (p.x * U - gx) ** 2 + (p.y * U - gy) ** 2; if (d < bd) { bd = d; best = p; } } return best; }
+
+  // ---------- the countryside ----------
+  const hash = (x, y, s = 0) => { let h = (x * 374761393 + y * 668265263 + s * 2246822519) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+  const KINDS = ['sea', 'beach', 'lake', 'river', 'peak', 'mountain', 'forest', 'farm', 'grass', 'moor', 'marsh'];
+  // terrain sampled on a coarse grid and read back through a little noise, so boundaries wander
+  function terrainGrid(x0, y0, w, h) {
+    const S = 4, gw = Math.ceil(w / S) + 3, gh = Math.ceil(h / S) + 3, g = new Uint8Array(gw * gh);
+    for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) g[j * gw + i] = KINDS.indexOf(E().terrainAt((x0 + (i - 1) * S) / U, (y0 + (j - 1) * S) / U));
+    // where the four samples round a tile agree it is that; where they don't (a shore, a wood's edge)
+    // the land is asked again for that very tile, so edges run smooth instead of in steps
+    return (gx, gy) => {
+      const fx = (gx - x0) / S + 1, fy = (gy - y0) / S + 1, i = O.clamp(Math.floor(fx), 0, gw - 2), j = O.clamp(Math.floor(fy), 0, gh - 2);
+      const a = g[j * gw + i]; if (a === g[j * gw + i + 1] && a === g[(j + 1) * gw + i] && a === g[(j + 1) * gw + i + 1]) return KINDS[a];
+      const wx = gx + (O.noise2(gx / 7, gy / 7, 71) - 0.5) * 4, wy = gy + (O.noise2(gx / 7, gy / 7, 73) - 0.5) * 4;
+      return E().terrainAt(wx / U, wy / U);
+    };
+  }
+
+  // ---------- the roads ----------
+  const roadCache = new Map();
+  // A road finds its way from one town's way out to the other's the way roads really grew: round lakes and
+  // the sea, over a river only where it must, skirting peaks and bog, through woods if it has to.
+  const COST = { sea: 400, lake: 400, river: 14, peak: 9, mountain: 3.2, marsh: 2.6, forest: 1.5, moor: 1.2, beach: 1.4, farm: 1, grass: 1 };
+  const OUT = { east: [1, 0], west: [-1, 0], north: [0, -1], south: [0, 1] };
+  function route(A, B) {
+    const S = 3, pad = 70, x0 = Math.min(A[0], B[0]) - pad, y0 = Math.min(A[1], B[1]) - pad, gw = Math.ceil((Math.abs(A[0] - B[0]) + 2 * pad) / S) + 1, gh = Math.ceil((Math.abs(A[1] - B[1]) + 2 * pad) / S) + 1;
+    const cost = new Float32Array(gw * gh).fill(-1);
+    const cAt = (i) => { if (cost[i] < 0) { const x = x0 + (i % gw) * S, y = y0 + Math.floor(i / gw) * S; cost[i] = COST[E().terrainAt(x / U, y / U)] || 1; } return cost[i]; };
+    const idx = (p) => O.clamp(Math.round((p[1] - y0) / S), 0, gh - 1) * gw + O.clamp(Math.round((p[0] - x0) / S), 0, gw - 1);
+    const s0 = idx(A), s1 = idx(B), bx = s1 % gw, by = Math.floor(s1 / gw);
+    const g = new Float32Array(gw * gh).fill(Infinity), from = new Int32Array(gw * gh).fill(-1), done = new Uint8Array(gw * gh);
+    // a small binary heap
+    const hk = [], hv = [];
+    const push = (k, v) => { hk.push(k); hv.push(v); let i = hk.length - 1; while (i > 0) { const pi = (i - 1) >> 1; if (hv[pi] <= hv[i]) break; [hk[i], hk[pi]] = [hk[pi], hk[i]]; [hv[i], hv[pi]] = [hv[pi], hv[i]]; i = pi; } };
+    const pop = () => { const k = hk[0], lk = hk.pop(), lv = hv.pop(); if (hk.length) { hk[0] = lk; hv[0] = lv; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < hk.length && hv[l] < hv[m]) m = l; if (r < hk.length && hv[r] < hv[m]) m = r; if (m === i) break; [hk[i], hk[m]] = [hk[m], hk[i]]; [hv[i], hv[m]] = [hv[m], hv[i]]; i = m; } } return k; };
+    const hEst = (i) => { const dx = Math.abs(i % gw - bx), dy = Math.abs(Math.floor(i / gw) - by); return (Math.max(dx, dy) + 0.414 * Math.min(dx, dy)); };
+    g[s0] = 0; push(s0, hEst(s0));
+    const N8 = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]];
+    let n = 0;
+    while (hk.length && n++ < 200000) {
+      const i = pop(); if (done[i]) continue; done[i] = 1; if (i === s1) break;
+      const x = i % gw, y = Math.floor(i / gw);
+      for (const [dx, dy, l] of N8) {
+        const X = x + dx, Y = y + dy; if (X < 0 || Y < 0 || X >= gw || Y >= gh) continue;
+        const j = Y * gw + X; if (done[j]) continue;
+        const ng = g[i] + l * (cAt(i) + cAt(j)) / 2;
+        if (ng < g[j]) { g[j] = ng; from[j] = i; push(j, ng + hEst(j)); }
+      }
+    }
+    const pts = []; for (let i = s1; i >= 0; i = from[i]) { pts.push([x0 + (i % gw) * S, y0 + Math.floor(i / gw) * S]); if (i === s0) break; }
+    pts.reverse();
+    if (pts.length < 2) return [A, B];
+    // smooth the corners off (Chaikin), keeping the two ends where they are
+    let line = [A, ...pts.slice(1, -1), B];
+    for (let k = 0; k < 3; k++) { const o = [line[0]]; for (let i = 0; i < line.length - 1; i++) { const p = line[i], q = line[i + 1]; if (i > 0) o.push([p[0] * 0.75 + q[0] * 0.25, p[1] * 0.75 + q[1] * 0.25]); if (i < line.length - 2) o.push([p[0] * 0.25 + q[0] * 0.75, p[1] * 0.25 + q[1] * 0.75]); } o.push(line[line.length - 1]); line = o; }
+    return line;
+  }
+  function roadTiles(rd) {
+    const key = rd.a + '|' + rd.b; if (roadCache.has(key)) return roadCache.get(key);
+    const A = exitOf(rd.a, rd.b), B = exitOf(rd.b, rd.a);
+    // each end first leaves its town straight out of the gate
+    const stub = (P) => { const d = OUT[P[2]] || [0, 0]; return [P[0] + d[0] * 8, P[1] + d[1] * 8]; };
+    const A1 = stub(A), B1 = stub(B);
+    const line = [[A[0], A[1]], ...route(A1, B1), [B[0], B[1]]];
+    const out = [], seen = new Set();
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for (let i = 0; i < line.length - 1; i++) {
+      const [ax, ay] = line[i], [bx, by] = line[i + 1], steps = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) * 2));
+      for (let k = 0; k <= steps; k++) {
+        const t = k / steps, x = Math.round(ax + (bx - ax) * t), y = Math.round(ay + (by - ay) * t);
+        for (const [ox, oy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) { const kk = (x + ox) + ',' + (y + oy); if (!seen.has(kk)) { seen.add(kk); out.push([x + ox, y + oy]); } }
+        x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+      }
+    }
+    const r = { tiles: out, x0: x0 - 2, y0: y0 - 2, x1: x1 + 2, y1: y1 + 2, rd };
+    roadCache.set(key, r);
+    return r;
+  }
+
+  // ---------- a region ----------
+  // drop the items that fail, in one pass
+  const keep = (arr, f) => { let n = 0; for (let k = 0; k < arr.length; k++) if (f(arr[k])) arr[n++] = arr[k]; arr.length = n; };
+  // A region is built a slice at a time (the loader works through it between frames); asking for it
+  // outright finishes whatever is left of that same build.
+  const building = new Map();
+  function region(id) {
+    if (regions.has(id)) return regions.get(id);
+    const it = regionSteps(id); let r; do r = it.next(); while (!r.done);
+    return regions.get(id);
+  }
+  function* regionSteps(id) {
+    if (regions.has(id)) return;
+    let it = building.get(id); if (!it) { it = build(id); building.set(id, it); }
+    for (;;) { const r = it.next(); if (r.done) break; yield; }
+    building.delete(id);
+  }
+  function* build(id) {
+    const TR = TER(), tw = town(id), R = rectOf(id), W = R.x1 - R.x0, H = R.y1 - R.y0;
+    const ter = new Uint8Array(W * H), solid = new Uint8Array(W * H), trees = [], props = [], buildings = [];
+    const kindAt = terrainGrid(R.x0, R.y0, W, H);
+    const ox = tw.gx - R.x0, oy = tw.gy - R.y0;
+    const inTown = (x, y) => x >= ox && y >= oy && x < ox + tw.W && y < oy + tw.H;
+    // 1. the land itself
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (x === 0 && y % 40 === 39) yield;
+      const gx = R.x0 + x, gy = R.y0 + y, k = kindAt(gx, gy), i = y * W + x, h = hash(gx, gy);
+      let t = TR.GRASS;
+      if (k === 'sea' || k === 'lake' || k === 'river') { t = TR.WATER; solid[i] = 1; }
+      else if (k === 'beach') t = TR.SAND;
+      else if (k === 'peak') t = TR.SAND;
+      else if (k === 'forest') t = TR.FOREST;
+      else if (k === 'farm') t = O.noise2(gx / 14, gy / 9, 5) > 0.55 ? TR.FIELD : TR.GRASS;
+      else if (k === 'marsh' && O.noise2(gx / 6, gy / 6, 13) > 0.72) { t = TR.WATER; solid[i] = 1; }
+      ter[i] = t;
+      if (inTown(x, y) || solid[i]) continue;
+      // what grows and lies about
+      const tree = (kind) => { trees.push({ kind, x: x * T + 8 + Math.round((h * 7) % 5) - 2, y: y * T + 14, seed: Math.floor(h * 24) + (kind === 'pine' ? 100 : kind === 'birch' ? 200 : 0), country: true }); solid[i] = 1; };
+      const odd = (gx + gy) % 2 === 0;
+      if (k === 'forest') { if (odd && h < 0.36) tree(E().regionAt(gx / U, gy / U)?.r?.cold || gy < 40 * U ? 'pine' : h < 0.09 ? 'birch' : h < 0.2 ? 'pine' : 'oak'); else if (h > 0.93) props.push({ kind: 'bush', x: x * T + 8, y: y * T + 13, seed: Math.floor(h * 99), solid: false }); }
+      else if (k === 'mountain' || k === 'peak') { if (h < 0.06) { props.push({ kind: 'rock', x: x * T + 8, y: y * T + 13, seed: Math.floor(h * 999), solid: true }); solid[i] = 1; } else if (odd && h > 0.95 && k === 'mountain') tree('pine'); }
+      else if (k === 'grass' || k === 'moor' || k === 'marsh') { if (odd && h < (k === 'moor' ? 0.004 : 0.018)) tree(h < 0.006 ? 'birch' : 'oak'); else if (h > (k === 'moor' ? 0.94 : 0.975)) props.push({ kind: h > 0.99 ? 'rock' : 'bush', x: x * T + 8, y: y * T + 13, seed: Math.floor(h * 99), solid: false }); }
+      else if (k === 'farm' && t === TR.GRASS && odd && h < 0.006) tree('oak');
+    }
+    yield;
+    // 2. the roads, and bridges where they cross water
+    const roadSet = new Set();
+    for (const rd of data().roads) {
+      const r = roadTiles(rd);
+      if (r.x1 < R.x0 || r.x0 > R.x1 || r.y1 < R.y0 || r.y0 > R.y1) continue;
+      for (const [gx, gy] of r.tiles) {
+        const x = gx - R.x0, y = gy - R.y0; if (x < 0 || y < 0 || x >= W || y >= H || inTown(x, y)) continue;
+        const i = y * W + x; roadSet.add(i);
+        ter[i] = ter[i] === TR.WATER ? TR.BRIDGE : TR.ROAD; solid[i] = 0;
+      }
+    }
+    if (roadSet.size) {
+      // nothing grows on the road
+      keep(trees, (t) => { const i = Math.floor((t.y - 1) / T) * W + Math.floor(t.x / T); if (roadSet.has(i) || roadSet.has(i + 1) || roadSet.has(i - 1) || roadSet.has(i + W)) { solid[i] = ter[i] === TR.WATER ? 1 : 0; return false; } return true; });
+      keep(props, (p) => !roadSet.has(Math.floor((p.y - 1) / T) * W + Math.floor(p.x / T)));
+    }
+    yield;
+    // 3. the town itself, set into the land (its forest border gives way to the real countryside)
+    for (let y = 0; y < tw.H; y++) for (let x = 0; x < tw.W; x++) {
+      const li = y * tw.W + x, edge = Math.min(x, y, tw.W - 1 - x, tw.H - 1 - y), X = ox + x, Y = oy + y;
+      if (X < 0 || Y < 0 || X >= W || Y >= H) continue;
+      const i = Y * W + X;
+      if (edge < 3 && tw.ter[li] === TR.FOREST) continue; // keep the countryside's own edge
+      if (x < 13 && (tw.ter[li] === TR.WATER || tw.ter[li] === TR.SAND) && ter[i] !== TR.WATER) continue; // a coast town's sketched shore gives way to the island's real one
+      ter[i] = tw.ter[li]; solid[i] = tw.solid[li];
+    }
+    const sx = ox * T, sy = oy * T;
+    const shiftB = (b) => { b.x += ox; b.y += oy; b.bottom += oy; if (b.doorX != null) { b.doorX += ox; b.doorY += oy; } return b; };
+    for (const b of tw.buildings) buildings.push(shiftB(b));
+    const inTownPx = (px, py) => inTown(Math.floor(px / T), Math.floor((py - 1) / T));
+    for (const p of tw.props) { p.x += sx; p.y += sy; props.push(p); }
+    for (const t of tw.trees) {
+      t.x += sx; t.y += sy;
+      const tx = Math.floor(t.x / T) - ox, ty = Math.floor((t.y - 1) / T) - oy;
+      if (Math.min(tx, ty, tw.W - 1 - tx, tw.H - 1 - ty) < 3) continue; // the town's border woods give way to the countryside's
+      trees.push(t);
+    }
+    // countryside trees and stones that fell inside the town are cleared
+    keep(trees, (t) => !(t.country && inTownPx(t.x, t.y)));
+    // the border strip of the town keeps the countryside's trees off its roads
+    const shiftZone = (z) => (Array.isArray(z) ? (Array.isArray(z[0]) ? z.map(shiftZone) : z.length === 4 ? [z[0] + ox, z[1] + oy, z[2] + ox, z[3] + oy] : [z[0] + ox, z[1] + oy]) : z);
+    const zones = {}; for (const [k, v] of Object.entries(tw.zones || {})) zones[k] = shiftZone(v);
+    if (id === 'ashford') Object.assign(zones, { square: [38 + ox, 23 + oy, 54 + ox, 29 + oy], bench: [37 + ox, 23 + oy], farm: [7 + ox, 56 + oy, 33 + ox, 61 + oy], wood: [34 + ox, 4 + oy, 44 + ox, 12 + oy], east: [95 + ox, 31 + oy], patrol: [[46, 30], [30, 31], [12, 30], [12, 41], [30, 42], [46, 41], [62, 42], [76, 30], [62, 30], [46, 24]].map(([a, c]) => [a + ox, c + oy]) });
+    // 4. ruins of older times
+    for (const ru of E().RUINS) {
+      const gx = Math.round(ru.x * U), gy = Math.round(ru.y * U), x = gx - R.x0, y = gy - R.y0;
+      if (x < 4 || y < 6 || x > W - 8 || y > H - 4 || inTown(x, y)) continue;
+      const spec = { seed: gx * 7 + gy, w: 5, d: 4, floors: 2, wealth: 0.6, condition: 0.2, wall: 'stone', stoneMat: 'stoneDark', roof: 'slate', roofType: 'gable', doorTile: 2, noFlowers: true };
+      const bld = { id: 9000 + buildings.length, type: 'ruin', name: ru.name, x: x - 2, bottom: y, y: y - 3, w: 5, d: 4, floors: 2, wealth: 0.6, condition: 0.2, ruined: true, spec, ruinNote: ru.note, doorX: x, doorY: y + 1 };
+      buildings.push(bld);
+      for (let yy = bld.y; yy <= bld.bottom; yy++) for (let xx = bld.x; xx < bld.x + bld.w; xx++) { const i = yy * W + xx; solid[i] = 1; if (ter[i] === TR.WATER) ter[i] = TR.GRASS; }
+      keep(trees, (t) => !(Math.abs(t.x / T - x) < 5 && Math.abs(t.y / T - y) < 5));
+    }
+    const world = Object.assign({}, tw, {
+      W, H, T, ter, solid, buildings, props, trees, TER: TR, zones, ox, oy, gx0: R.x0, gy0: R.y0, chunked: true, island: true,
+      roadY: (tw.roadY || 30) + oy, exits: {}, name: place(id).name, placeId: id, townW: tw.W, townH: tw.H,
+    });
+    world.pens = (tw.pens || []).map((p) => Object.assign({}, p, { z: [p.z[0] + ox, p.z[1] + oy, p.z[2] + ox, p.z[3] + oy] }));
+    world.estates = (tw.estates || []).map((e) => Object.assign({}, e, { fields: [e.fields[0] + ox, e.fields[1] + oy, e.fields[2] + ox, e.fields[3] + oy] }));
+    regions.set(id, world);
+    return world;
+  }
+
+  // where a global tile falls inside a region, and back
+  const toGlobal = (w, px, py) => [px + w.gx0 * T, py + w.gy0 * T];
+  const toLocal = (w, gx, gy) => [gx - w.gx0 * T, gy - w.gy0 * T];
+
+  O.Island = { U, init, data, town, region, regionSteps, rectOf, ownerAt, centre, toGlobal, toLocal, roadTiles, exitOf };
+})();
+
+</script>
+<script>
 // Game engine: world view, input, player movement, camera, depth-sorted rendering and lighting.
 // Renders at native pixel resolution into a small canvas that is scaled by an integer factor with
 // smoothing disabled, so every world pixel is the same size on screen.
@@ -3419,8 +3709,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     load(world, playerAppearance) {
       this.world = world;
       const T = world.T;
-      this.ground = world._ground && world._groundSeason === this.season ? world._ground : O.Terrain.renderGround(world, this.season);
-      world._ground = this.ground; world._groundSeason = this.season;
+      if (world.chunked) { this.ground = null; if (world._chunkSeason !== this.season) { world._chunks = new Map(); world._chunkSeason = this.season; } }
+      else { this.ground = world._ground && world._groundSeason === this.season ? world._ground : O.Terrain.renderGround(world, this.season); world._ground = this.ground; world._groundSeason = this.season; }
       for (const b of world.buildings) if (!b.sprite) b.sprite = b.ruined ? O.Env.ruin(b.spec) : b.type === 'hideout' ? O.Env.hideout(b.level, b.spec) : O.Env.building(b.spec);
       for (const t of world.trees) if (!t.sprite || t.sprite.season !== this.season) { t.sprite = O.Env.tree(t.seed, t.kind, this.season); t.sprite.season = this.season; }
       for (const p of world.props) if (!p.sprite) p.sprite = O.Env.prop(p.kind, p.seed, p.v);
@@ -3542,6 +3832,52 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       };
     }
 
+    // Big regions keep their ground in chunks of 16 x 16 tiles. A chunk not yet painted shows its
+    // plain ground colours at once, and is painted properly a moment later in the background.
+    chunk(w, cx, cy, urgent) {
+      const CH = 16, key = cx + ',' + cy, T = w.T;
+      w._chunks = w._chunks || new Map();
+      let e = w._chunks.get(key);
+      if (!e) {
+        const x0 = cx * CH, y0 = cy * CH, cw = Math.min(CH, w.W - x0), ch = Math.min(CH, w.H - y0);
+        const c = document.createElement('canvas'); c.width = cw * T; c.height = ch * T; const g = c.getContext('2d');
+        const Q = ['#5d8a3e', '#466e36', '#9a7a52', '#8e8a84', '#6e4e32', '#3c6c96', '#c8b07a', '#a08a62', '#8a6239'];
+        const TR = w.TER, col = (t) => (t === TR.GRASS ? Q[0] : t === TR.FOREST ? Q[1] : t === TR.ROAD ? Q[2] : t === TR.COBBLE ? Q[3] : t === TR.FIELD ? Q[4] : t === TR.WATER ? Q[5] : t === TR.SAND ? Q[6] : t === TR.YARD ? Q[7] : t === TR.BRIDGE ? Q[8] : Q[0]);
+        for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) { g.fillStyle = col(w.ter[(y0 + y) * w.W + x0 + x]); g.fillRect(x * T, y * T, T, T); }
+        e = { canvas: c, ready: false, x0, y0, cw, ch };
+        w._chunks.set(key, e);
+      }
+      if (!e.ready && !e.queued) {
+        e.queued = true;
+        const season = this.season;
+        const game = this;
+        // ground for a region you've already walked out of isn't worth painting any more
+        // painted in two halves so no single step holds up a frame for long
+        const job = (function* () {
+          const c = document.createElement('canvas'); c.width = e.cw * T; c.height = e.ch * T; const g = c.getContext('2d');
+          const h1 = Math.ceil(e.ch / 2);
+          for (const [y, h] of [[0, h1], [h1, e.ch - h1]]) {
+            if (game.world !== w) { e.queued = false; return; }
+            if (h > 0) g.drawImage(O.Terrain.renderGround(w, season, { x: e.x0, y: e.y0 + y, w: e.cw, h }), 0, y * T);
+            yield;
+          }
+          e.canvas = c; e.ready = true;
+        })();
+        if (O.Prefetch) O.Prefetch.add('chunk:' + (w.placeId || '') + key + season, job, urgent); else { job.next(); }
+      }
+      return e;
+    }
+    drawChunks(ctx, cam) {
+      const w = this.world, T = w.T, CS = 16 * T;
+      const cx0 = Math.floor(cam.x / CS), cy0 = Math.floor(cam.y / CS), cx1 = Math.floor((cam.x + this.vw) / CS), cy1 = Math.floor((cam.y + this.vh) / CS);
+      for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) {
+        if (cx < 0 || cy < 0 || cx * 16 >= w.W || cy * 16 >= w.H) continue;
+        const e = this.chunk(w, cx, cy, true); ctx.drawImage(e.canvas, cx * CS - cam.x, cy * CS - cam.y);
+      }
+      // paint ahead: the ring of chunks just beyond the view
+      for (let cy = cy0 - 2; cy <= cy1 + 2; cy++) for (let cx = cx0 - 2; cx <= cx1 + 2; cx++) if (cx >= 0 && cy >= 0 && cx * 16 < w.W && cy * 16 < w.H) this.chunk(w, cx, cy, false);
+    }
+
     // a soft oval shadow on the ground
     shadow(ctx, cx, cy, rx, ry) {
       for (let y = -ry; y <= ry; y++) { const w = Math.round(rx * Math.sqrt(1 - (y / (ry + 0.5)) ** 2)); ctx.fillRect(cx - w, cy + y - 1, w * 2, 1); }
@@ -3556,7 +3892,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     draw() {
       if (this.scene) { this.scene.draw(this.ctx); for (const h of this.hooks.drawTop) h(this.ctx, this.cam, true); return; }
       const { ctx, cam, vw, vh } = this, w = this.world, T = w.T;
-      ctx.drawImage(this.ground, cam.x, cam.y, vw, vh, 0, 0, vw, vh);
+      if (w.chunked) this.drawChunks(ctx, cam); else ctx.drawImage(this.ground, cam.x, cam.y, vw, vh, 0, 0, vw, vh);
       const inView = (x, y, wd, ht) => x + wd >= cam.x && x <= cam.x + vw && y + ht >= cam.y && y <= cam.y + vh;
       for (const s of this.flatProps) { const p = s.p, sp = p.sprite; const x = p.x - sp.ox, y = p.y - sp.oy; if (inView(x, y, sp.W, sp.H)) ctx.drawImage(sp.canvas, x - cam.x, y - cam.y); }
       for (const h of this.hooks.drawGround) h(ctx, cam);
@@ -4044,6 +4380,8 @@ O.snowMaskOf = function (src) {
   class Construction {
     constructor(sim) { this.sim = sim; this.sites = []; this.nextCouncil = { day: 1, minute: 10 * 60 }; this.used = new Set(); }
 
+    // the building plots, where they fall in the world (Ashford's map may sit inside a larger region)
+    plot(i) { const w = this.sim.world, [x, b, bw, bd] = PLOTS[i]; return [x + (w.ox || 0), b + (w.oy || 0), bw, bd]; }
     plotFree(pl) {
       const w = this.sim.world; const [x, bottom, bw, bd] = pl;
       for (const b of w.buildings) if (!(x + bw + 1 <= b.x || x - 1 >= b.x + b.w || bottom + 2 <= b.y || bottom - bd - 1 >= b.bottom)) return false;
@@ -4053,17 +4391,17 @@ O.snowMaskOf = function (src) {
     council() {
       const sim = this.sim;
       if (sim.opts && sim.opts.foreign) return; // other towns' councils are simulated in the abstract
-      const free = PLOTS.filter((p, i) => !this.used.has(i) && this.plotFree(p));
+      const free = PLOTS.map((p, i) => this.plot(i)).filter((p, i) => !this.used.has(i) && this.plotFree(p));
       const active = this.sites.filter((s) => s.stage < 10).length;
       if (!free.length || active >= 1) return;
       const cost = 160;
       if (sim.treasury.cash < cost + 150) { sim.log(`The council wanted to build, but the treasury holds only ${Math.round(sim.treasury.cash)}d.`, 'politics'); return; }
-      this.start(PLOTS.indexOf(free[0]), cost);
+      this.start(PLOTS.findIndex((p, i) => this.plot(i)[0] === free[0][0] && this.plot(i)[1] === free[0][1]), cost);
     }
 
     start(pi, cost, opts = {}) {
       const sim = this.sim, w = sim.world, r = sim.rng;
-      const [x, bottom, bw, bd] = PLOTS[pi]; this.used.add(pi);
+      const [x, bottom, bw, bd] = this.plot(pi); this.used.add(pi);
       // clear trees and scatter from the plot
       const inPlot = (px, py) => px >= (x - 1) * 16 && px < (x + bw + 1) * 16 && py >= (bottom - bd) * 16 && py < (bottom + 2) * 16;
       w.trees = w.trees.filter((t) => { if (inPlot(t.x, t.y)) { w.solid[Math.floor(t.y / 16) * w.W + Math.floor(t.x / 16)] = 0; return false; } return true; });
@@ -4141,7 +4479,7 @@ O.snowMaskOf = function (src) {
       hh.shopper = c.id;
       for (const p of [a, c, ...kids]) {
         p.app = O.Char.makeAppearance(O.hash('person', p.id, p.first), { sex: p.sex, age: p.age, genes: p.genes, role: p.age < 13 ? 'child' : 'villager', wealth: 0.5, region });
-        p.agent = { x: (95 - (p.id % 3)) * 16, y: 31 * 16 - (p.id % 2) * 6, dir: 1, anim: 'walk', ft: 0, a: p.app, hidden: false, inside: null, path: null, goal: null, person: p, carrying: p === a ? { good: 'logs', qty: 1 } : null };
+        p.agent = { x: (sim.Z.east[0] - (p.id % 3)) * 16, y: sim.Z.east[1] * 16 - (p.id % 2) * 6, dir: 1, anim: 'walk', ft: 0, a: p.app, hidden: false, inside: null, path: null, goal: null, person: p, carrying: p === a ? { good: 'logs', qty: 1 } : null };
         p.arriving = true; p.task = { act: 'move-in', b: b.id };
         sim.remember(p, `We came from the ${region} to a new house in Ashford.`, 'life', 2);
       }
@@ -5219,7 +5557,7 @@ O.snowMaskOf = function (src) {
     };
     S.inform = function (p, g) {
       const look = O.Justice.lookOf(O.game.player.a);
-      const crime = this.recordCrime({ kind: 'banditry', perp: 'player', placeName: 'Ashford Wood', tile: [9, 10], seen: [], severity: 2 });
+      const crime = this.recordCrime({ kind: 'banditry', perp: 'player', placeName: 'Ashford Wood', tile: [9 + (this.world.ox || 0), 10 + (this.world.oy || 0)], seen: [], severity: 2 });
       crime.witnesses.push({ id: p.id, desc: Object.assign({}, look), acc: 1 });
       crime.reported = true; crime.profile = Object.assign({}, look); crime.investigated = true; crime.evidence = 1.6;
       O.PlayerState.crimes.push(crime.id);
@@ -7529,7 +7867,7 @@ O.snowMaskOf = function (src) {
         case 'bench': return this.Z.bench;
         case 'farm': return pick(...this.Z.farm);
         case 'wood': return pick(...this.Z.wood);
-        case 'site': { const b = this.building(p.activity?.site ?? p.job?.biz); if (!b) return [46, 29]; return pick(b.x - 1, b.bottom + 1, b.x + b.w, b.bottom + 2); }
+        case 'site': { const b = this.building(p.activity?.site ?? p.job?.biz); if (!b) return [46 + (this.world.ox || 0), 29 + (this.world.oy || 0)]; return pick(b.x - 1, b.bottom + 1, b.x + b.w, b.bottom + 2); }
         default: return pick(...this.Z.square);
       }
     }
@@ -7671,7 +8009,7 @@ O.snowMaskOf = function (src) {
       hh.shopper = (c || a).id;
       for (const p of [a, c, ...kids].filter(Boolean)) {
         p.app = Ch.makeAppearance(O.hash('person', p.id, p.first), { sex: p.sex, age: p.age, genes: p.genes, role: p.age < 13 ? 'child' : 'villager', wealth: 0.5, region });
-        p.agent = { x: (95 - (p.id % 3)) * this.T, y: 31 * this.T - (p.id % 2) * 6, dir: 1, anim: 'walk', ft: 0, a: p.app, hidden: false, inside: null, path: null, goal: null, person: p, carrying: p === a ? { good: 'logs', qty: 1 } : null };
+        p.agent = { x: (this.Z.east[0] - (p.id % 3)) * this.T, y: this.Z.east[1] * this.T - (p.id % 2) * 6, dir: 1, anim: 'walk', ft: 0, a: p.app, hidden: false, inside: null, path: null, goal: null, person: p, carrying: p === a ? { good: 'logs', qty: 1 } : null };
         p.task = { act: 'move-in', b: b.id };
         this.remember(p, `We came from the ${region} to make a new life in ${this.world.name}.`, 'life', 2);
       }
@@ -10342,34 +10680,39 @@ O.snowMaskOf = function (src) {
     };
     const drops = [], flakes = [], splashes = [], hail = [], bounces = [], bolts = [], thunders = [];
 
-    function makePuddles() {
-      const c = document.createElement('canvas'); c.width = pw; c.height = ph;
-      const ctx = c.getContext('2d'), id = ctx.createImageData(pw, ph), d = id.data;
+    // r = { x, y, w, h } in world pixels: a chunk of a big region, or the whole of a small map
+    function makePuddles(r) {
+      r = r || { x: 0, y: 0, w: pw, h: ph };
+      const c = document.createElement('canvas'); c.width = r.w; c.height = r.h;
+      const ctx = c.getContext('2d'), id = ctx.createImageData(r.w, r.h), d = id.data;
       const { ter, TER } = world;
-      for (let y = 1; y < ph - 1; y++) for (let x = 1; x < pw - 1; x++) {
+      for (let yy = 1; yy < r.h - 1; yy++) for (let xx = 1; xx < r.w - 1; xx++) {
+        const x = r.x + xx, y = r.y + yy;
         const t = ter[Math.floor(y / T) * world.W + Math.floor(x / T)];
         if (t !== TER.ROAD && t !== TER.YARD && t !== TER.COBBLE && t !== TER.FIELD) continue;
         const n = O.fbm(x / 9, y / 5, 77, 2);
         if (n < 0.66) continue;
-        const i = (y * pw + x) * 4;
+        const i = (yy * r.w + xx) * 4;
         const edge = O.fbm((x - 1) / 9, (y - 1) / 5, 77, 2) < 0.66;
         const col = edge ? [150, 170, 190] : n > 0.72 ? [70, 84, 104] : [86, 100, 118];
         d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255;
       }
       ctx.putImageData(id, 0, 0); return c;
     }
-    function makeSnow(level) {
-      const c = document.createElement('canvas'); c.width = pw; c.height = ph;
-      const ctx = c.getContext('2d'), id = ctx.createImageData(pw, ph), d = id.data;
+    function makeSnow(level, r) {
+      r = r || { x: 0, y: 0, w: pw, h: ph };
+      const c = document.createElement('canvas'); c.width = r.w; c.height = r.h;
+      const ctx = c.getContext('2d'), id = ctx.createImageData(r.w, r.h), d = id.data;
       const { ter, TER } = world;
       const ramp = O.Pal.makeRamp('#e6ecf2', 0.6);
-      for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) {
+      for (let yy = 0; yy < r.h; yy++) for (let xx = 0; xx < r.w; xx++) {
+        const x = r.x + xx, y = r.y + yy;
         const t = ter[Math.floor(y / T) * world.W + Math.floor(x / T)];
         if (t === TER.WATER) continue;
         const n = O.fbm(x / 14, y / 14, 31, 3) * 0.8 + O.noise2(x * 0.9, y * 0.9, 3) * 0.2;
         const thr = (t === TER.ROAD || t === TER.COBBLE ? 0.25 : 0) + (1 - level);
         if (n < thr) continue;
-        const i = (y * pw + x) * 4, s = n > thr + 0.25 ? 4 : n > thr + 0.08 ? 3 : 2;
+        const i = (yy * r.w + xx) * 4, s = n > thr + 0.25 ? 4 : n > thr + 0.08 ? 3 : 2;
         d[i] = ramp[s][0]; d[i + 1] = ramp[s][1]; d[i + 2] = ramp[s][2]; d[i + 3] = 255;
       }
       ctx.putImageData(id, 0, 0); return c;
@@ -10463,14 +10806,27 @@ O.snowMaskOf = function (src) {
     });
 
     game.hooks.drawGround.push((ctx, cam) => {
+      if (world.chunked) {
+        // big regions: puddles and snow made chunk by chunk, only where you can see
+        const CS = 256, cx0 = Math.floor(cam.x / CS), cy0 = Math.floor(cam.y / CS), cx1 = Math.floor((cam.x + game.vw) / CS), cy1 = Math.floor((cam.y + game.vh) / CS);
+        const wc = world._wx || (world._wx = new Map());
+        const lv = Math.min(3, Math.floor(W.snowCover * 4));
+        for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) {
+          const key = cx + ',' + cy, e = wc.get(key) || {}; wc.set(key, e);
+          const r = { x: cx * CS, y: cy * CS, w: Math.min(CS, pw - cx * CS), h: Math.min(CS, ph - cy * CS) }; if (r.w <= 0 || r.h <= 0) continue;
+          if (W.wet > 0.05) { if (!e.p) e.p = makePuddles(r); ctx.globalAlpha = Math.min(0.85, W.wet); ctx.drawImage(e.p, r.x - cam.x, r.y - cam.y); ctx.globalAlpha = 1; }
+          if (W.snowCover > 0.05) { e.s = e.s || []; if (!e.s[lv]) e.s[lv] = makeSnow((lv + 1) / 4, r); ctx.drawImage(e.s[lv], r.x - cam.x, r.y - cam.y); }
+        }
+      } else {
       if (W.wet > 0.05) { if (!puddles) puddles = makePuddles(); ctx.globalAlpha = Math.min(0.85, W.wet); ctx.drawImage(puddles, cam.x, cam.y, game.vw, game.vh, 0, 0, game.vw, game.vh); ctx.globalAlpha = 1; }
       if (W.snowCover > 0.05) {
         const lv = Math.min(3, Math.floor(W.snowCover * 4));
         if (!snowLevels[lv]) snowLevels[lv] = makeSnow((lv + 1) / 4);
         ctx.drawImage(snowLevels[lv], cam.x, cam.y, game.vw, game.vh, 0, 0, game.vw, game.vh);
       }
+      }
       // hailstones lying in drifts until they melt
-      if ((W.hailCover || 0) > 0.04 && W.snowCover <= 0.05) { if (!snowLevels[0]) snowLevels[0] = makeSnow(0.25); ctx.globalAlpha = Math.min(0.8, W.hailCover * 1.6); ctx.drawImage(snowLevels[0], cam.x, cam.y, game.vw, game.vh, 0, 0, game.vw, game.vh); ctx.globalAlpha = 1; }
+      if ((W.hailCover || 0) > 0.04 && W.snowCover <= 0.05 && !world.chunked) { if (!snowLevels[0]) snowLevels[0] = makeSnow(0.25); ctx.globalAlpha = Math.min(0.8, W.hailCover * 1.6); ctx.drawImage(snowLevels[0], cam.x, cam.y, game.vw, game.vh, 0, 0, game.vw, game.vh); ctx.globalAlpha = 1; }
     });
 
     // drifting cloud shadows over the world
@@ -11339,7 +11695,8 @@ O.snowMaskOf = function (src) {
     const r = O.RNG(4242), T = sim.T;
     const stable = sim.world.buildings.find((b) => b.type === 'stable');
     const stableBiz = sim.biz.get(stable.id);
-    const paddock = { x0: 16, y0: 33, x1: 21, y1: 34 };
+    const AX = sim.world.ox || 0, AY = sim.world.oy || 0; // Ashford's map inside its region
+    const paddock = { x0: 16 + AX, y0: 33 + AY, x1: 21 + AX, y1: 34 + AY };
     const horses = [];
     let nextId = 1;
     function make(owner, opts = {}) {
@@ -11367,11 +11724,12 @@ O.snowMaskOf = function (src) {
     // ---- village animals: chickens and pigs in the farmyard, sheep and cows in the pasture, dogs and cats about the houses
     const fauna = [];
     const zone = (x0, y0, x1, y1) => ({ x0, y0, x1, y1 });
+    const azone = (x0, y0, x1, y1) => zone(x0 + AX, y0 + AY, x1 + AX, y1 + AY);
     const add = (kind, n, z, extra = {}) => { for (let i = 0; i < n; i++) fauna.push(Object.assign({ world: 'ashford', kind, seed: r.int(1, 9999), z, x: r.int(z.x0, z.x1) * T + 8, y: r.int(z.y0, z.y1) * T + 12, dir: r.int(0, 7), ft: r.next() * 2, tx: null, wait: r.next() * 4, speed: kind === 'chicken' ? 14 : kind === 'cow' ? 8 : 11 }, extra)); };
-    add('chicken', 7, zone(9, 52, 30, 54)); add('pig', 2, zone(27, 52, 33, 54));
-    add('sheep', 5, zone(3, 33, 6, 35)); add('cow', 2, zone(3, 33, 6, 35));
+    add('chicken', 7, azone(9, 52, 30, 54)); add('pig', 2, azone(27, 52, 33, 54));
+    add('sheep', 5, azone(3, 33, 6, 35)); add('cow', 2, azone(3, 33, 6, 35));
     for (const b of sim.world.buildings.filter((x) => x.type === 'house' && x.wealth > 0.45).slice(0, 4)) add(r.chance(0.6) ? 'dog' : 'cat', 1, zone(b.x - 1, b.bottom + 1, b.x + b.w, b.bottom + 2));
-    add('cat', 1, zone(38, 22, 43, 23)); add('dog', 1, zone(30, 29, 35, 29));
+    add('cat', 1, azone(38, 22, 43, 23)); add('dog', 1, azone(30, 29, 35, 29));
     O.fauna = fauna;
 
     // horse and animal actors are drawn like people
@@ -11588,7 +11946,7 @@ O.snowMaskOf = function (src) {
     sim.caravanArrives = (c) => {
       const prev = c.path[c.leg], fromWest = WEST.includes(prev) || (prev === 'ashford' && WEST.includes(c.from));
       const dir = fromWest ? 1 : -1;
-      const x0 = fromWest ? 2 : sim.world.W * T - 2, y = 30 * T + 22;
+      const x0 = fromWest ? ((sim.world.ox || 0) + 2) * T : ((sim.world.ox || 0) + (sim.world.townW || sim.world.W) - 2) * T, y = (sim.world.roadY || 30) * T + 22;
       const members = [];
       const mk = (role, i) => { const a = Ch.makeAppearance(O.hash('car', c.id, i), { role, age: 25 + (i * 7) % 30, wealth: role === 'merchant' ? 0.7 : 0.4, region: K.place(c.from).region }); return { a, x: x0 - dir * i * 22, y: y - (i % 2) * 6, dir: dir > 0 ? 2 : 1, anim: 'walk', ft: i * 0.3, role, caravan: c }; };
       members.push(mk('merchant', 0));
@@ -11605,7 +11963,7 @@ O.snowMaskOf = function (src) {
         const step = 34 * Math.min(dtm, 4) * L.dir;
         for (const m of L.members) { m.x += step; m.ft += dt; m.anim = 'walk'; }
         L.cart.x += step;
-        const out = L.dir > 0 ? L.cart.x > sim.world.W * T + 30 : L.cart.x < -30;
+        const out = L.dir > 0 ? L.cart.x > ((sim.world.ox || 0) + (sim.world.townW || sim.world.W)) * T + 30 : L.cart.x < (sim.world.ox || 0) * T - 30;
         if (out) { L.done = true; L.c.held = false; L.c.prog = 0; L.c.leg++; }
       }
       for (let i = live.length - 1; i >= 0; i--) if (live[i].done) live.splice(i, 1);
@@ -11683,11 +12041,11 @@ O.snowMaskOf = function (src) {
       return _plan(p);
     };
     const _zone = sim.zoneTile.bind(sim);
-    sim.zoneTile = (p, zone) => { if (zone === 'crier') return [44, 28]; if (zone === 'east') return [95, 31]; return _zone(p, zone); };
+    sim.zoneTile = (p, zone) => { if (zone === 'crier') return [44 + (sim.world.ox || 0), 28 + (sim.world.oy || 0)]; if (zone === 'east') return sim.Z.east; return _zone(p, zone); };
     // the reeve disappears up the road while away
     game.hooks.update.push(() => {
       const rv = sim.byId.get(sim.reeveId);
-      if (rv && rv.activity?.act === 'council' && !rv.agent.path && rv.agent.x > 93 * T) rv.agent.hidden = true;
+      if (rv && rv.activity?.act === 'council' && !rv.agent.path && rv.agent.x > (sim.Z.east[0] - 2) * T) rv.agent.hidden = true;
       else if (rv && rv.activity?.act !== 'council' && rv.agent.hidden && rv.agent.inside == null) { rv.agent.hidden = false; }
     });
     // the crier calls the news when the player is within earshot
@@ -11706,7 +12064,7 @@ O.snowMaskOf = function (src) {
     });
 
     // notice board in the square
-    if (!sim.world.props.some((p) => p.kind === 'noticeboard')) { sim.world.props.push({ kind: 'noticeboard', x: 42 * T + 8, y: 29 * T + 14, seed: 5, solid: true }); sim.world.solid[29 * sim.world.W + 42] = 1; sim.world.dirtyStatics = true; }
+    if (!sim.world.props.some((p) => p.kind === 'noticeboard')) { { const nx = 42 + (sim.world.ox || 0), ny = 29 + (sim.world.oy || 0); sim.world.props.push({ kind: 'noticeboard', x: nx * T + 8, y: ny * T + 14, seed: 5, solid: true }); sim.world.solid[ny * sim.world.W + nx] = 1; } sim.world.dirtyStatics = true; }
     O.noticeCandidate = () => { if (game.scene) return null; const nb = sim.world.props.find((p) => p.kind === 'noticeboard'); if (!nb) return null; const d = Math.hypot(nb.x - game.player.x, nb.y - game.player.y); return d < 22 ? { type: 'notices', d: d + 1, x: nb.x, y: nb.y - 26 } : null; };
     O.readNotices = () => {
       const wanted = sim.crimes.filter((c) => c.perp !== 'player' && c.investigated && !c.solved && Object.keys(c.profile || {}).length).slice(-3);
@@ -11782,14 +12140,17 @@ O.snowMaskOf = function (src) {
           if (ctx.fillStyle !== 'transparent') { ctx.fillRect(x, y, main ? 2 : 1, main ? 2 : 1); }
         }
       }
-      // every settlement drawn as a little picture of itself
-      for (const s of K.places.slice().sort((p, q) => p.y - q.y)) {
-        const big = ['capital', 'city', 'castle', 'town', 'port'].includes(s.kind), x = Math.round(s.x * S), y = Math.round(s.y * S);
-        if (big) { ctx.save(); ctx.translate(x, y); ctx.scale(2, 2); drawPlace(ctx, s, 0, 0); ctx.restore(); } else drawPlace(ctx, s, x, y);
+      for (const s of K.places) {
+        const x = Math.round(s.x * S), y = Math.round(s.y * S), sz = s.kind === 'capital' ? 6 : s.kind === 'city' ? 5 : s.kind === 'castle' ? 4 : s.pop >= 300 ? 3 : s.pop >= 80 ? 2 : 1;
+        ctx.fillStyle = '#1b1424'; ctx.fillRect(x - sz - 1, y - sz - 1, sz * 2 + 3, sz * 2 + 3);
+        ctx.fillStyle = s.detailed ? '#f0b45c' : s.kind === 'castle' ? '#c8ccd4' : s.kind === 'capital' || s.kind === 'city' ? '#f4e8c8' : s.happiness < 0.4 ? '#c87060' : '#e8dcc0';
+        ctx.fillRect(x - sz, y - sz, sz * 2 + 1, sz * 2 + 1);
+        if (s.kind === 'castle' || s.kind === 'capital' || s.kind === 'city') { ctx.fillStyle = '#1b1424'; for (let k = -sz; k <= sz; k += 2) ctx.fillRect(x + k, y - sz - 1, 1, 1); ctx.fillRect(x, y - 1, 1, 3); }
       }
       // you are here
-      const here = K.place(game.world.placeId);
-      if (here) { const x = Math.round(here.x * S), y = Math.round(here.y * S), b = Math.floor(game.t * 2) % 2; ctx.strokeStyle = b ? '#f0b45c' : '#fff6dc'; ctx.strokeRect(x - 9.5, y - 9.5, 19, 19); }
+      // you are here: exactly where you stand on the island
+      { let hx, hy; const w = game.world, p = game.player; if (w.island && !game.scene) { const g = O.Island.toGlobal(w, p.x, p.y); hx = g[0] / 16 / O.Island.U; hy = g[1] / 16 / O.Island.U; } else { const h = K.place(w.placeId); if (h) { hx = h.x; hy = h.y; } }
+        if (hx != null) { const x = Math.round(hx * S), y = Math.round(hy * S), b = Math.floor(game.t * 2) % 2; ctx.fillStyle = '#1b1424'; ctx.fillRect(x - 3, y - 3, 7, 7); ctx.fillStyle = b ? '#f0b45c' : '#fff6dc'; ctx.fillRect(x - 2, y - 2, 5, 5); ctx.strokeStyle = b ? '#f0b45c' : '#fff6dc'; ctx.strokeRect(x - 9.5, y - 9.5, 19, 19); } }
       for (const c of K.caravans) {
         const a = K.place(c.path[c.leg]), b = K.place(c.path[c.leg + 1] || c.path[c.leg]); if (!a || !b) continue; const t = O.clamp(c.prog, 0, 1);
         const x = Math.round((a.x + (b.x - a.x) * t) * S), y = Math.round((a.y + (b.y - a.y) * t) * S);
@@ -11815,7 +12176,7 @@ O.snowMaskOf = function (src) {
         const cv = document.getElementById('kmap'); drawMap(cv);
         const wrap = cv.parentElement, view = wrap.parentElement;
         // every settlement is named; regions, lakes and rivers too
-        for (const s of K.places) { const l = document.createElement('span'); l.className = 'maplabel' + (s.id === game.world.placeId ? ' here' : '') + (s.kind === 'capital' ? ' capital' : s.kind === 'city' ? ' city' : s.kind === 'hamlet' ? ' small' : s.kind === 'village' || s.kind === 'mine' ? ' mid' : ''); l.textContent = s.name; const drop = { capital: 10, city: 7.5, castle: 3, town: 5.5, port: 5.5, village: 2.4, mine: 2.2 }[s.kind] ?? 1.6; l.style.left = (s.x / E.W * 100) + '%'; l.style.top = ((s.y + drop) / E.H * 100) + '%'; wrap.appendChild(l); }
+        for (const s of K.places) { const l = document.createElement('span'); l.className = 'maplabel' + (s.id === game.world.placeId ? ' here' : '') + (s.kind === 'capital' ? ' capital' : s.kind === 'city' ? ' city' : s.kind === 'hamlet' ? ' small' : s.kind === 'village' || s.kind === 'mine' ? ' mid' : ''); l.textContent = s.name; const drop = { capital: 2.6, city: 2.2, castle: 1.8, town: 1.4, port: 1.4 }[s.kind] ?? 1; l.style.left = (s.x / E.W * 100) + '%'; l.style.top = ((s.y + drop) / E.H * 100) + '%'; wrap.appendChild(l); }
         for (const r of E.REGIONS) { const l = document.createElement('span'); l.className = 'maplabel region'; l.textContent = r.name.replace(/^the /, ''); l.style.left = ((r.x + (r.kind === 'mountain' ? r.rx * 0.4 : 0)) / E.W * 100) + '%'; l.style.top = ((r.y + (r.kind === 'mountain' ? r.ry * 0.6 : -r.ry * 0.3)) / E.H * 100) + '%'; wrap.appendChild(l); }
         for (const r of E.LAKES) { const l = document.createElement('span'); l.className = 'maplabel water'; l.textContent = r.name; l.style.left = (r.x / E.W * 100) + '%'; l.style.top = ((r.y + r.ry) / E.H * 100) + '%'; wrap.appendChild(l); }
         for (const r of E.RIVERS) { const m = r.pts[Math.floor(r.pts.length / 2)]; const l = document.createElement('span'); l.className = 'maplabel water'; l.textContent = r.name.replace(/^the /, ''); l.style.left = (m[0] / E.W * 100) + '%'; l.style.top = (m[1] / E.H * 100) + '%'; wrap.appendChild(l); }
@@ -11924,9 +12285,7 @@ O.snowMaskOf = function (src) {
     function ensure(to) {
       let v = visited.get(to);
       if (v) return v;
-      const place = K.place(to);
-      const world = O.Gen.makeSettlement(place);
-      O.Roads.attachExits(world, K);
+      const world = O.Island.region(to); // the town in its own stretch of the island's countryside
       const s = new O.Sim(world, O.hash('sim', to), { foreign: true, kingdom: K, day: home.day, minute: home.minute });
       v = { world, sim: s, leftAt: home.day * 1440 + home.minute }; // it keeps living until you arrive
       visited.set(to, v);
@@ -11947,12 +12306,13 @@ O.snowMaskOf = function (src) {
       O.SimRef.cur = v.sim;
       game.season = v.sim.season;
       const comingFromWest = K.place(from).x < K.place(to).x;
-      if (!v.world.exits[from]) O.Roads.attachExits(v.world, K);
       game.load(v.world);
       O.applySeason && O.applySeason();
-      const ex = v.world.exits[from];
+      // you come in by the road from where you were: the town's way out towards it
+      const tex = O.Island.town(to).exits[from];
+      const ex = tex && tex.side ? { x: tex.x + v.world.ox, y: tex.y + v.world.oy, side: tex.side } : null;
       if (ex && ex.side) { const d = ex.side === 'west' ? [2, 0] : ex.side === 'east' ? [-2, 0] : ex.side === 'north' ? [0, 2] : [0, -2]; game.player.x = (ex.x + d[0]) * T + 8; game.player.y = (ex.y + d[1]) * T + 10; game.player.dir = ex.side === 'west' ? 2 : ex.side === 'east' ? 1 : ex.side === 'north' ? 0 : 3; }
-      else { const e2 = comingFromWest ? v.world.exits.west : v.world.exits.east; game.player.x = (e2[0] + (comingFromWest ? 2 : -2)) * T + 8; game.player.y = (e2[1] + 1) * T + 6; game.player.dir = comingFromWest ? 2 : 1; }
+      else { const sq = v.world.zones.square || [v.world.ox + 10, v.world.oy + 10, v.world.ox + 12, v.world.oy + 12]; game.player.x = ((sq[0] + sq[2]) >> 1) * T + 8; game.player.y = (sq[3] + 1) * T + 6; game.player.dir = 3; void comingFromWest; }
       if (game.player.mount) game.player.mount.world = to;
       O.Panels.toast(`You reach ${K.place(to).name}. It is ${O.DAYNAMES[v.sim.weekday]}, ${game.timeString()}.`);
     }
@@ -12390,7 +12750,7 @@ O.snowMaskOf = function (src) {
     // ---------------- the column on the King's Road ----------------
     home.onArmyPasses = (a) => {
       if (live.length) return;
-      const n = O.clamp(Math.round(a.men / 10), 8, 26), y0 = (home.world.roadY || 30) * T + 22, x0 = home.world.W * T + 10;
+      const n = O.clamp(Math.round(a.men / 10), 8, 26), y0 = (home.world.roadY || 30) * T + 22, x0 = (home.Z.east[0] + 3) * T;
       const men = [];
       for (let i = 0; i < n; i++) {
         const row = Math.floor(i / 2), col = i % 2;
@@ -12468,7 +12828,7 @@ O.snowMaskOf = function (src) {
       const where = fought.length ? K.place(fought[fought.length - 1].at).name : null;
       const host = side === 'rebel' ? 'the rebel host' : "the King's host";
       O.Chronicle.deed(home, where ? `A volunteer from ${home.world.name} fought with ${host} at ${where}.` : `A volunteer from ${home.world.name} marched with ${host}.`, where ? `You fought at ${where} with ${host}${lost ? ' and saw the line break' : ' and saw the enemy run'}.` : `You marched with ${host}; you saw no battle.`, 'war', where ? 3 : 2, side !== 'rebel');
-      game.player.x = (home.world.W - 3) * T; game.player.y = (home.world.roadY || 30) * T + 10; if (game.scene) game.exitBuilding();
+      game.player.x = (home.Z.east[0] - 3) * T; game.player.y = (home.world.roadY || 30) * T + 10; if (game.scene) game.exitBuilding();
       O.Panels.open('Home from the north', `<p class="caption">${fought.length ? `You were in ${fought.length} fight${fought.length > 1 ? 's' : ''}: ${won} won, ${lost} lost. ` : 'Four days of marching, digging and waiting; the Marchers never came.'}${hurt ? ` You took a wound (−${hurt} health).` : ''}</p><p>The paymaster counts out <b>${O.money(pay)}</b>. Back in ${esc(home.world.name)}, people look at you differently.</p>`);
     }
 
@@ -12768,12 +13128,12 @@ O.snowMaskOf = function (src) {
   function setup(game, home) {
     const PS = O.PlayerState, esc = (s) => O.escape(String(s)), toast = (t, k) => O.Panels.toast(t, k);
     PS.plots = PS.plots || []; PS.fields = PS.fields || [];
-    const plotName = (pl) => (pl[1] < 30 ? 'beside the north track' : 'south of Mill Lane');
+    const plotName = (pl) => (pl[1] - (O.SimRef.home.world.oy || 0) < 30 ? 'beside the north track' : 'south of Mill Lane');
 
     O.landSection = () => {
       const H = home, B = H.build, farm = H.supplierOf('farmhouse');
-      const free = O.PLOTS.map((pl, i) => ({ pl, i })).filter(({ pl, i }) => !B.used.has(i) && B.plotFree(pl));
-      const mine = PS.plots.map((i) => ({ i, pl: O.PLOTS[i], site: B.sites.find((s) => s.player && s.b.x === O.PLOTS[i][0] && s.b.bottom === O.PLOTS[i][1]) }));
+      const free = O.PLOTS.map((pl0, i) => ({ pl: B.plot(i), i })).filter(({ pl, i }) => !B.used.has(i) && B.plotFree(pl));
+      const mine = PS.plots.map((i) => ({ i, pl: B.plot(i), site: B.sites.find((s) => s.player && s.b.x === B.plot(i)[0] && s.b.bottom === B.plot(i)[1]) }));
       const owned = PS.fields.length, sold = (H.farmStripsSold || 0);
       const rows = [
         ...mine.map(({ i, pl, site }) => `<tr><td>Your plot ${plotName(pl)}<br><small class="lbl">${pl[2]}×${pl[3]} tiles</small></td><td>${site ? (site.stage >= 10 ? 'Your house stands here' : `Building: ${O.STAGES[site.stage]} (${Math.round(site.prog * 100)}%)`) : `<button data-pbuild="${i}">Build a house · ${O.money(BUILD_COST)}</button>`}</td></tr>`),
@@ -13728,14 +14088,23 @@ O.snowMaskOf = function (src) {
 
   // the sprites of a world, one at a time
   function* paint(world, season) {
-    if (!world._ground || world._groundSeason !== season) { world._ground = O.Terrain.renderGround(world, season); world._groundSeason = season; yield; }
+    if (!world.chunked && (!world._ground || world._groundSeason !== season)) { world._ground = O.Terrain.renderGround(world, season); world._groundSeason = season; yield; }
     for (const b of world.buildings) { if (!b.sprite) { b.sprite = b.ruined ? O.Env.ruin(b.spec) : b.type === 'hideout' ? O.Env.hideout(b.level, b.spec) : O.Env.building(b.spec); yield; } }
     for (const t of world.trees) { if (!t.sprite || t.sprite.season !== season) { t.sprite = O.Env.tree(t.seed, t.kind, season); t.sprite.season = season; yield; } }
     for (const p of world.props) { if (!p.sprite) { p.sprite = O.Env.prop(p.kind, p.seed, p.v); } }
     yield;
   }
 
-  function add(key, gen) { if (jobs.some((j) => j.key === key)) return; jobs.push({ key, it: gen }); kick(); }
+  // urgent jobs (ground under your feet) go first; ground about you goes ahead of whole towns
+  function add(key, gen, urgent) {
+    const k = jobs.findIndex((j) => j.key === key);
+    if (k >= 0) { if (urgent && k > 0) jobs.unshift(jobs.splice(k, 1)[0]); return; }
+    const j = { key, it: gen, ground: key.startsWith('chunk:') };
+    if (urgent) jobs.unshift(j);
+    else if (j.ground) { const at = jobs.findIndex((q) => !q.ground); if (at < 0) jobs.push(j); else jobs.splice(Math.max(1, at), 0, j); }
+    else jobs.push(j);
+    kick();
+  }
   function kick() {
     if (busy) return; busy = true;
     const run = () => {
@@ -13746,7 +14115,7 @@ O.snowMaskOf = function (src) {
       }
       if (jobs.length) setTimeout(run, 4); else busy = false;
     };
-    setTimeout(run, 30);
+    setTimeout(run, 0);
   }
 
   function setup(game, home) {
@@ -13760,17 +14129,26 @@ O.snowMaskOf = function (src) {
       // the places the roads from here lead to
       const targets = [];
       if (w.road) targets.push(w.road.a, w.road.b);
+      else if (w.island) {
+        // on the island: the places the roads lead to, and whichever towns lie nearest where you stand
+        targets.push(...K.neighbours(w.placeId));
+        const [gx, gy] = O.Island.toGlobal(w, game.player.x, game.player.y), U = O.Island.U * 16;
+        const near = O.Island.data().places.map((q) => [q.id, (q.x * U - gx) ** 2 + (q.y * U - gy) ** 2]).sort((a, b) => a[1] - b[1]).slice(0, 5).map((q) => q[0]);
+        for (const id of near) if (!targets.includes(id)) targets.push(id);
+      }
       else for (const id of Object.keys(w.exits || {})) if (K.place(id)) targets.push(id);
       const here = w.road ? null : w.placeId;
-      if (last !== (w.road ? w.road.a + '|' + w.road.b : here)) {
-        last = w.road ? w.road.a + '|' + w.road.b : here;
+      const sig = w.road ? w.road.a + '|' + w.road.b : here + '|' + targets.join(',');
+      if (last !== sig) {
+        last = sig;
         for (const id of targets) {
           if (id === 'ashford' || id === here) continue;
           add('town:' + id, (function* () {
+            if (w.island && !O.Travel.visited.has(id)) yield* O.Island.regionSteps(id); // the land, a few rows at a time
             const v = O.Travel.ensure(id); yield;
             yield* paint(v.world, season);
           })());
-          if (here) add('road:' + [here, id].sort().join('|'), (function* () { const rw = O.Roads.roadFor(here, id); yield; yield* paint(rw, season); })());
+          if (here && !w.island) add('road:' + [here, id].sort().join('|'), (function* () { const rw = O.Roads.roadFor(here, id); yield; yield* paint(rw, season); })());
         }
       }
       // keep the places you've been to (and the ones made ready) living, a slice at a time
@@ -13781,7 +14159,7 @@ O.snowMaskOf = function (src) {
       }
     });
   }
-  O.Prefetch = { setup, paint, add };
+  O.Prefetch = { setup, paint, add, pending: () => jobs.map((j) => j.key) };
 })();
 
 </script>
@@ -13851,6 +14229,51 @@ O.snowMaskOf = function (src) {
     });
   }
   O.Signs = { setup, linesFor };
+})();
+
+</script>
+<script>
+// Walking the island. You are always in the region of the nearest settlement; when you walk far enough
+// that another town is nearer, you are in that town's region instead. The two regions overlap and share
+// the same countryside, so nothing changes on screen: the land, the road under your feet and the light
+// stay exactly where they were. Only the people who come and go are now the next town's.
+'use strict';
+(function () {
+  function setup(game, home) {
+    const I = O.Island, T = 16;
+    const now = () => home.day * 1440 + home.minute;
+    let inTownShown = null, cool = 0;
+
+    function switchTo(id) {
+      const w0 = game.world, p = game.player;
+      const [gx, gy] = I.toGlobal(w0, p.x, p.y);
+      const leaving = O.Travel.visited.get(w0.placeId); if (leaving && leaving.sim !== home) leaving.leftAt = now();
+      const v = O.Travel.ensure(id);
+      if (v.leftAt != null && v.sim !== home) { const missed = Math.min(240, now() - v.leftAt); for (let i = 0; i < missed / 2; i++) v.sim.tick(2); v.leftAt = now(); }
+      O.SimRef.cur = v.sim;
+      game.load(v.world); O.applySeason && O.applySeason();
+      const [lx, ly] = I.toLocal(v.world, gx, gy); p.x = lx; p.y = ly;
+      if (p.mount) { p.mount.world = id; p.mount.x = p.x; p.mount.y = p.y; }
+      game.update(0); // settle the camera on the same spot
+    }
+    O.OpenWorld = { switchTo };
+
+    game.hooks.update.push((dt) => {
+      cool = Math.max(0, cool - dt);
+      const w = game.world; if (!w || !w.island || game.scene || cool > 0) return;
+      const p = game.player, [gx, gy] = I.toGlobal(w, p.x, p.y), tx = gx / T, ty = gy / T;
+      const own = I.ownerAt(tx, ty);
+      if (own && own.id !== w.placeId) {
+        const [cx, cy] = I.centre(w.placeId), [ox, oy] = I.centre(own.id);
+        if (Math.hypot(tx - cx, ty - cy) > Math.hypot(tx - ox, ty - oy) + 3) { switchTo(own.id); cool = 0.5; return; }
+      }
+      // coming into a town, or leaving it for open country
+      const tlx = p.x / T - w.ox, tly = p.y / T - w.oy, inside = tlx >= 0 && tly >= 0 && tlx < (w.townW || 1e9) && tly < (w.townH || 1e9);
+      const key = inside ? w.placeId : null;
+      if (key !== inTownShown) { if (key) O.UI.say(`You come into ${w.name}.`); else if (inTownShown) { const r = O.Eldoria.regionName(gx / T / I.U, gy / T / I.U); O.UI.say(`You leave ${O.Island.data().place(inTownShown)?.name || 'the town'} behind for ${r}.`); } inTownShown = key; }
+    });
+  }
+  O.OpenWorldSetup = { setup };
 })();
 
 </script>
@@ -14384,7 +14807,7 @@ O.snowMaskOf = function (src) {
     });
     sim.byId = new Map(); for (const p of [...sim.people, ...sim.dead]) sim.byId.set(p.id, p);
     for (const p of sim.people) {
-      const ag = S.people.find((x) => x.id === p.id).ag || [46 * 16, 30 * 16, 0, null, 0, null];
+      const ag = S.people.find((x) => x.id === p.id).ag || [(46 + (sim.world.ox || 0)) * 16, (30 + (sim.world.oy || 0)) * 16, 0, null, 0, null];
       if (p.visitor) p.app = O.Char.makeAppearance(O.hash('trader', p.id), { sex: p.sex, age: p.age, genes: p.genes, role: 'merchant', wealth: 0.65, region: 'east' });
       else { p.agent = { a: null }; sim.refreshLook(p); }
       p.agent = { x: ag[0], y: ag[1], dir: ag[2], anim: 'idle', ft: Math.random() * 3, a: p.app, hidden: !!ag[4], inside: ag[3], path: null, goal: null, person: p, carrying: ag[5] };
@@ -14439,9 +14862,13 @@ O.snowMaskOf = function (src) {
 'use strict';
 (function () {
   const $ = (id) => document.getElementById(id);
-  const homeWorld = O.Village.makeVillage(7);
+  // Ashford, set in its stretch of the island: the whole of Eldoria can be walked
+  O.Island.init();
+  const homeWorld = O.Island.region('ashford');
+  const AX = homeWorld.ox, AY = homeWorld.oy; // where Ashford's own map sits in its region
   const game = new O.Game($('game'));
   game.load(homeWorld, O.Forge.player);
+  game.player.x = (46 + AX) * 16 + 8; game.player.y = (32 + AY) * 16 + 4;
   O.game = game;
   const home = new O.Sim(homeWorld, 11);
   // The game holds several living settlements; modules talk to whichever the player is in through
@@ -14459,8 +14886,7 @@ O.snowMaskOf = function (src) {
   const saved = O.Save.peek();
   let loaded = false;
   if (saved && saved.seed === homeWorld.seed) { try { O.Save.hydrate(game, home, saved); loaded = true; home.seasonChanged = home.season !== 'summer'; } catch (e) { console.warn('Save could not be loaded', e); } }
-  // a way out of Ashford for every road that leaves it
-  O.Roads.attachExits(homeWorld, home.kingdom); game.load(homeWorld);
+  game.load(homeWorld);
   // the simulation owns time; the engine reads it
   game.clock = { speed: 1, get minute() { return sim.minute; }, set minute(v) {}, get day() { return sim.day; }, set day(v) {} };
   game.hooks.update.push((dt) => {
@@ -14502,7 +14928,7 @@ O.snowMaskOf = function (src) {
     if (world.dirtyStatics) game.rebuildStatics();
     if (sim.seasonChanged) {
       sim.seasonChanged = false; game.season = sim.season;
-      game.ground = O.Terrain.renderGround(world, sim.season);
+      if (world.chunked) world._chunks = new Map(); else game.ground = O.Terrain.renderGround(world, sim.season);
       for (const t of world.trees) t.sprite = O.Env.tree(t.seed, t.kind, sim.season);
       applySeason();
       O.Panels.toast(`${sim.season[0].toUpperCase() + sim.season.slice(1)} has come.`);
@@ -14510,7 +14936,7 @@ O.snowMaskOf = function (src) {
     if (sim.day !== lastHarvestCheck) { lastHarvestCheck = sim.day; applySeason(); }
   });
   // the dead are buried in the chapel yard; each grave is a real prop you can read
-  const graveSpots = []; for (let y = 36; y >= 33; y--) for (let x = 68; x <= 72; x++) graveSpots.push([x, y]);
+  const graveSpots = []; for (let y = 36; y >= 33; y--) for (let x = 68; x <= 72; x++) graveSpots.push([x + AX, y + AY]);
   home.onGrave = (p) => {
     const world = homeWorld;
     const spot = graveSpots.find(([x, y]) => !world.solid[y * world.W + x] && !world.props.some((q) => q.kind === 'gravestone' && Math.floor(q.x / 16) === x && Math.floor(q.y / 16) === y));
@@ -14529,6 +14955,7 @@ O.snowMaskOf = function (src) {
   O.TravelSetup.setup(game, home, npcUI);
   O.Roads.setup(game, home);
   O.Prefetch.setup(game, home);
+  O.OpenWorldSetup.setup(game, home);
   O.Signs.setup(game);
   O.PropertyUI.setup(game, sim);
   O.ChronicleUI.setup(game, home);
@@ -14551,8 +14978,10 @@ O.snowMaskOf = function (src) {
   document.addEventListener('visibilitychange', () => { if (document.hidden && !game.world.road) O.Save.save(game, home, true); });
   function placeName() {
     if (game.scene) return game.scene.b.type === "house" ? `The ${sim.households[game.scene.b.household - 1]?.surname || ""} house` + (game.scene.floor ? ", upstairs" : "") : game.scene.b.name + (game.scene.floor ? ', upstairs' : '');
-    const p = game.player, T = 16, tx = p.x / T, ty = p.y / T;
-    if (game.world !== homeWorld) { const w = game.world; return Math.abs(ty - w.roadY) < 2 ? `${w.name}, high road` : ty < 10 ? `${w.name} woods` : w.name; }
+    const p = game.player, T = 16, tx = p.x / T - AX, ty = p.y / T - AY;
+    if (game.world === homeWorld && (tx < 0 || ty < 0 || tx > 96 || ty > 64)) { const g = O.Island.toGlobal(homeWorld, p.x, p.y); return O.Eldoria.regionName(g[0] / T / O.Island.U, g[1] / T / O.Island.U).replace(/^the /, '').replace(/^./, (c) => c.toUpperCase()); }
+    if (game.world !== homeWorld) {
+      if (game.world.island) { const w = game.world, lx = p.x / T - w.ox, ly = p.y / T - w.oy; if (lx < 0 || ly < 0 || lx > w.townW || ly > w.townH) { const g = O.Island.toGlobal(w, p.x, p.y); return O.Eldoria.regionName(g[0] / T / O.Island.U, g[1] / T / O.Island.U).replace(/^the /, '').replace(/^./, (c) => c.toUpperCase()); } return w.name; } const w = game.world; return Math.abs(ty - w.roadY) < 2 ? `${w.name}, high road` : ty < 10 ? `${w.name} woods` : w.name; }
     if (tx >= 37 && tx <= 56 && ty >= 22 && ty <= 30) return 'Ashford Square';
     if (ty >= 29.5 && ty <= 32.5) return tx > 77 && tx < 86 ? 'Ashford Bridge' : "King's Road";
     if (ty >= 40.5 && ty <= 43) return 'Mill Lane';

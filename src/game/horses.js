@@ -16,7 +16,8 @@
     const r = O.RNG(4242), T = sim.T;
     const stable = sim.world.buildings.find((b) => b.type === 'stable');
     const stableBiz = sim.biz.get(stable.id);
-    const paddock = { x0: 16, y0: 33, x1: 21, y1: 34 };
+    const AX = sim.world.ox || 0, AY = sim.world.oy || 0; // Ashford's map inside its region
+    const paddock = { x0: 16 + AX, y0: 33 + AY, x1: 21 + AX, y1: 34 + AY };
     const horses = [];
     let nextId = 1;
     function make(owner, opts = {}) {
@@ -44,11 +45,12 @@
     // ---- village animals: chickens and pigs in the farmyard, sheep and cows in the pasture, dogs and cats about the houses
     const fauna = [];
     const zone = (x0, y0, x1, y1) => ({ x0, y0, x1, y1 });
+    const azone = (x0, y0, x1, y1) => zone(x0 + AX, y0 + AY, x1 + AX, y1 + AY);
     const add = (kind, n, z, extra = {}) => { for (let i = 0; i < n; i++) fauna.push(Object.assign({ world: 'ashford', kind, seed: r.int(1, 9999), z, x: r.int(z.x0, z.x1) * T + 8, y: r.int(z.y0, z.y1) * T + 12, dir: r.int(0, 7), ft: r.next() * 2, tx: null, wait: r.next() * 4, speed: kind === 'chicken' ? 14 : kind === 'cow' ? 8 : 11 }, extra)); };
-    add('chicken', 7, zone(9, 52, 30, 54)); add('pig', 2, zone(27, 52, 33, 54));
-    add('sheep', 5, zone(3, 33, 6, 35)); add('cow', 2, zone(3, 33, 6, 35));
+    add('chicken', 7, azone(9, 52, 30, 54)); add('pig', 2, azone(27, 52, 33, 54));
+    add('sheep', 5, azone(3, 33, 6, 35)); add('cow', 2, azone(3, 33, 6, 35));
     for (const b of sim.world.buildings.filter((x) => x.type === 'house' && x.wealth > 0.45).slice(0, 4)) add(r.chance(0.6) ? 'dog' : 'cat', 1, zone(b.x - 1, b.bottom + 1, b.x + b.w, b.bottom + 2));
-    add('cat', 1, zone(38, 22, 43, 23)); add('dog', 1, zone(30, 29, 35, 29));
+    add('cat', 1, azone(38, 22, 43, 23)); add('dog', 1, azone(30, 29, 35, 29));
     O.fauna = fauna;
 
     // horse and animal actors are drawn like people

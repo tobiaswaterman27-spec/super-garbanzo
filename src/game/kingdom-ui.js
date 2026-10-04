@@ -13,7 +13,7 @@
     sim.caravanArrives = (c) => {
       const prev = c.path[c.leg], fromWest = WEST.includes(prev) || (prev === 'ashford' && WEST.includes(c.from));
       const dir = fromWest ? 1 : -1;
-      const x0 = fromWest ? 2 : sim.world.W * T - 2, y = 30 * T + 22;
+      const x0 = fromWest ? ((sim.world.ox || 0) + 2) * T : ((sim.world.ox || 0) + (sim.world.townW || sim.world.W) - 2) * T, y = (sim.world.roadY || 30) * T + 22;
       const members = [];
       const mk = (role, i) => { const a = Ch.makeAppearance(O.hash('car', c.id, i), { role, age: 25 + (i * 7) % 30, wealth: role === 'merchant' ? 0.7 : 0.4, region: K.place(c.from).region }); return { a, x: x0 - dir * i * 22, y: y - (i % 2) * 6, dir: dir > 0 ? 2 : 1, anim: 'walk', ft: i * 0.3, role, caravan: c }; };
       members.push(mk('merchant', 0));
@@ -30,7 +30,7 @@
         const step = 34 * Math.min(dtm, 4) * L.dir;
         for (const m of L.members) { m.x += step; m.ft += dt; m.anim = 'walk'; }
         L.cart.x += step;
-        const out = L.dir > 0 ? L.cart.x > sim.world.W * T + 30 : L.cart.x < -30;
+        const out = L.dir > 0 ? L.cart.x > ((sim.world.ox || 0) + (sim.world.townW || sim.world.W)) * T + 30 : L.cart.x < (sim.world.ox || 0) * T - 30;
         if (out) { L.done = true; L.c.held = false; L.c.prog = 0; L.c.leg++; }
       }
       for (let i = live.length - 1; i >= 0; i--) if (live[i].done) live.splice(i, 1);
@@ -108,11 +108,11 @@
       return _plan(p);
     };
     const _zone = sim.zoneTile.bind(sim);
-    sim.zoneTile = (p, zone) => { if (zone === 'crier') return [44, 28]; if (zone === 'east') return [95, 31]; return _zone(p, zone); };
+    sim.zoneTile = (p, zone) => { if (zone === 'crier') return [44 + (sim.world.ox || 0), 28 + (sim.world.oy || 0)]; if (zone === 'east') return sim.Z.east; return _zone(p, zone); };
     // the reeve disappears up the road while away
     game.hooks.update.push(() => {
       const rv = sim.byId.get(sim.reeveId);
-      if (rv && rv.activity?.act === 'council' && !rv.agent.path && rv.agent.x > 93 * T) rv.agent.hidden = true;
+      if (rv && rv.activity?.act === 'council' && !rv.agent.path && rv.agent.x > (sim.Z.east[0] - 2) * T) rv.agent.hidden = true;
       else if (rv && rv.activity?.act !== 'council' && rv.agent.hidden && rv.agent.inside == null) { rv.agent.hidden = false; }
     });
     // the crier calls the news when the player is within earshot
@@ -131,7 +131,7 @@
     });
 
     // notice board in the square
-    if (!sim.world.props.some((p) => p.kind === 'noticeboard')) { sim.world.props.push({ kind: 'noticeboard', x: 42 * T + 8, y: 29 * T + 14, seed: 5, solid: true }); sim.world.solid[29 * sim.world.W + 42] = 1; sim.world.dirtyStatics = true; }
+    if (!sim.world.props.some((p) => p.kind === 'noticeboard')) { { const nx = 42 + (sim.world.ox || 0), ny = 29 + (sim.world.oy || 0); sim.world.props.push({ kind: 'noticeboard', x: nx * T + 8, y: ny * T + 14, seed: 5, solid: true }); sim.world.solid[ny * sim.world.W + nx] = 1; } sim.world.dirtyStatics = true; }
     O.noticeCandidate = () => { if (game.scene) return null; const nb = sim.world.props.find((p) => p.kind === 'noticeboard'); if (!nb) return null; const d = Math.hypot(nb.x - game.player.x, nb.y - game.player.y); return d < 22 ? { type: 'notices', d: d + 1, x: nb.x, y: nb.y - 26 } : null; };
     O.readNotices = () => {
       const wanted = sim.crimes.filter((c) => c.perp !== 'player' && c.investigated && !c.solved && Object.keys(c.profile || {}).length).slice(-3);
@@ -207,14 +207,17 @@
           if (ctx.fillStyle !== 'transparent') { ctx.fillRect(x, y, main ? 2 : 1, main ? 2 : 1); }
         }
       }
-      // every settlement drawn as a little picture of itself
-      for (const s of K.places.slice().sort((p, q) => p.y - q.y)) {
-        const big = ['capital', 'city', 'castle', 'town', 'port'].includes(s.kind), x = Math.round(s.x * S), y = Math.round(s.y * S);
-        if (big) { ctx.save(); ctx.translate(x, y); ctx.scale(2, 2); drawPlace(ctx, s, 0, 0); ctx.restore(); } else drawPlace(ctx, s, x, y);
+      for (const s of K.places) {
+        const x = Math.round(s.x * S), y = Math.round(s.y * S), sz = s.kind === 'capital' ? 6 : s.kind === 'city' ? 5 : s.kind === 'castle' ? 4 : s.pop >= 300 ? 3 : s.pop >= 80 ? 2 : 1;
+        ctx.fillStyle = '#1b1424'; ctx.fillRect(x - sz - 1, y - sz - 1, sz * 2 + 3, sz * 2 + 3);
+        ctx.fillStyle = s.detailed ? '#f0b45c' : s.kind === 'castle' ? '#c8ccd4' : s.kind === 'capital' || s.kind === 'city' ? '#f4e8c8' : s.happiness < 0.4 ? '#c87060' : '#e8dcc0';
+        ctx.fillRect(x - sz, y - sz, sz * 2 + 1, sz * 2 + 1);
+        if (s.kind === 'castle' || s.kind === 'capital' || s.kind === 'city') { ctx.fillStyle = '#1b1424'; for (let k = -sz; k <= sz; k += 2) ctx.fillRect(x + k, y - sz - 1, 1, 1); ctx.fillRect(x, y - 1, 1, 3); }
       }
       // you are here
-      const here = K.place(game.world.placeId);
-      if (here) { const x = Math.round(here.x * S), y = Math.round(here.y * S), b = Math.floor(game.t * 2) % 2; ctx.strokeStyle = b ? '#f0b45c' : '#fff6dc'; ctx.strokeRect(x - 9.5, y - 9.5, 19, 19); }
+      // you are here: exactly where you stand on the island
+      { let hx, hy; const w = game.world, p = game.player; if (w.island && !game.scene) { const g = O.Island.toGlobal(w, p.x, p.y); hx = g[0] / 16 / O.Island.U; hy = g[1] / 16 / O.Island.U; } else { const h = K.place(w.placeId); if (h) { hx = h.x; hy = h.y; } }
+        if (hx != null) { const x = Math.round(hx * S), y = Math.round(hy * S), b = Math.floor(game.t * 2) % 2; ctx.fillStyle = '#1b1424'; ctx.fillRect(x - 3, y - 3, 7, 7); ctx.fillStyle = b ? '#f0b45c' : '#fff6dc'; ctx.fillRect(x - 2, y - 2, 5, 5); ctx.strokeStyle = b ? '#f0b45c' : '#fff6dc'; ctx.strokeRect(x - 9.5, y - 9.5, 19, 19); } }
       for (const c of K.caravans) {
         const a = K.place(c.path[c.leg]), b = K.place(c.path[c.leg + 1] || c.path[c.leg]); if (!a || !b) continue; const t = O.clamp(c.prog, 0, 1);
         const x = Math.round((a.x + (b.x - a.x) * t) * S), y = Math.round((a.y + (b.y - a.y) * t) * S);
@@ -240,7 +243,7 @@
         const cv = document.getElementById('kmap'); drawMap(cv);
         const wrap = cv.parentElement, view = wrap.parentElement;
         // every settlement is named; regions, lakes and rivers too
-        for (const s of K.places) { const l = document.createElement('span'); l.className = 'maplabel' + (s.id === game.world.placeId ? ' here' : '') + (s.kind === 'capital' ? ' capital' : s.kind === 'city' ? ' city' : s.kind === 'hamlet' ? ' small' : s.kind === 'village' || s.kind === 'mine' ? ' mid' : ''); l.textContent = s.name; const drop = { capital: 10, city: 7.5, castle: 3, town: 5.5, port: 5.5, village: 2.4, mine: 2.2 }[s.kind] ?? 1.6; l.style.left = (s.x / E.W * 100) + '%'; l.style.top = ((s.y + drop) / E.H * 100) + '%'; wrap.appendChild(l); }
+        for (const s of K.places) { const l = document.createElement('span'); l.className = 'maplabel' + (s.id === game.world.placeId ? ' here' : '') + (s.kind === 'capital' ? ' capital' : s.kind === 'city' ? ' city' : s.kind === 'hamlet' ? ' small' : s.kind === 'village' || s.kind === 'mine' ? ' mid' : ''); l.textContent = s.name; const drop = { capital: 2.6, city: 2.2, castle: 1.8, town: 1.4, port: 1.4 }[s.kind] ?? 1; l.style.left = (s.x / E.W * 100) + '%'; l.style.top = ((s.y + drop) / E.H * 100) + '%'; wrap.appendChild(l); }
         for (const r of E.REGIONS) { const l = document.createElement('span'); l.className = 'maplabel region'; l.textContent = r.name.replace(/^the /, ''); l.style.left = ((r.x + (r.kind === 'mountain' ? r.rx * 0.4 : 0)) / E.W * 100) + '%'; l.style.top = ((r.y + (r.kind === 'mountain' ? r.ry * 0.6 : -r.ry * 0.3)) / E.H * 100) + '%'; wrap.appendChild(l); }
         for (const r of E.LAKES) { const l = document.createElement('span'); l.className = 'maplabel water'; l.textContent = r.name; l.style.left = (r.x / E.W * 100) + '%'; l.style.top = ((r.y + r.ry) / E.H * 100) + '%'; wrap.appendChild(l); }
         for (const r of E.RIVERS) { const m = r.pts[Math.floor(r.pts.length / 2)]; const l = document.createElement('span'); l.className = 'maplabel water'; l.textContent = r.name.replace(/^the /, ''); l.style.left = (m[0] / E.W * 100) + '%'; l.style.top = (m[1] / E.H * 100) + '%'; wrap.appendChild(l); }

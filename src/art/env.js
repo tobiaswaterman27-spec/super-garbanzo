@@ -529,7 +529,13 @@
   }
 
   // ---------------- Trees & vegetation ----------------
+  const treeCache = new Map();
   function tree(seed, kind = 'oak', season = 'summer') {
+    const key = kind + ':' + seed + ':' + season;
+    if (treeCache.has(key)) return treeCache.get(key);
+    const out = treeRaw(seed, kind, season); treeCache.set(key, out); return out;
+  }
+  function treeRaw(seed, kind = 'oak', season = 'summer') {
     const rng = O.RNG(seed);
     const W = kind === 'pine' ? 34 : 48, H = kind === 'pine' ? 62 : 60;
     const B = new MB(W, H);

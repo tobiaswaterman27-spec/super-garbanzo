@@ -40,16 +40,17 @@ O.hash = function (...parts) {
 };
 
 // Integer-lattice value noise (deterministic, used for ground textures & variation).
+function nh(ix, iy, seed) {
+  let n = (ix * 374761393 + iy * 668265263 + seed * 1442695041) | 0;
+  n = Math.imul(n ^ (n >>> 13), 1274126177);
+  return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+}
 O.noise2 = function (x, y, seed = 0) {
-  const h = (ix, iy) => {
-    let n = (ix * 374761393 + iy * 668265263 + seed * 1442695041) | 0;
-    n = Math.imul(n ^ (n >>> 13), 1274126177);
-    return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
-  };
   const x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
   const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
-  const a = h(x0, y0), b = h(x0 + 1, y0), c = h(x0, y0 + 1), d = h(x0 + 1, y0 + 1);
-  return O.lerp(O.lerp(a, b, sx), O.lerp(c, d, sx), sy);
+  const a = nh(x0, y0, seed), b = nh(x0 + 1, y0, seed), c = nh(x0, y0 + 1, seed), d = nh(x0 + 1, y0 + 1, seed);
+  const top = a + (b - a) * sx, bot = c + (d - c) * sx;
+  return top + (bot - top) * sy;
 };
 O.fbm = function (x, y, seed = 0, oct = 3) {
   let v = 0, amp = 0.5, f = 1, tot = 0;

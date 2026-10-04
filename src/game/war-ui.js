@@ -12,7 +12,7 @@
     // ---------------- the column on the King's Road ----------------
     home.onArmyPasses = (a) => {
       if (live.length) return;
-      const n = O.clamp(Math.round(a.men / 10), 8, 26), y0 = (home.world.roadY || 30) * T + 22, x0 = home.world.W * T + 10;
+      const n = O.clamp(Math.round(a.men / 10), 8, 26), y0 = (home.world.roadY || 30) * T + 22, x0 = (home.Z.east[0] + 3) * T;
       const men = [];
       for (let i = 0; i < n; i++) {
         const row = Math.floor(i / 2), col = i % 2;
@@ -90,7 +90,7 @@
       const where = fought.length ? K.place(fought[fought.length - 1].at).name : null;
       const host = side === 'rebel' ? 'the rebel host' : "the King's host";
       O.Chronicle.deed(home, where ? `A volunteer from ${home.world.name} fought with ${host} at ${where}.` : `A volunteer from ${home.world.name} marched with ${host}.`, where ? `You fought at ${where} with ${host}${lost ? ' and saw the line break' : ' and saw the enemy run'}.` : `You marched with ${host}; you saw no battle.`, 'war', where ? 3 : 2, side !== 'rebel');
-      game.player.x = (home.world.W - 3) * T; game.player.y = (home.world.roadY || 30) * T + 10; if (game.scene) game.exitBuilding();
+      game.player.x = (home.Z.east[0] - 3) * T; game.player.y = (home.world.roadY || 30) * T + 10; if (game.scene) game.exitBuilding();
       O.Panels.open('Home from the north', `<p class="caption">${fought.length ? `You were in ${fought.length} fight${fought.length > 1 ? 's' : ''}: ${won} won, ${lost} lost. ` : 'Four days of marching, digging and waiting; the Marchers never came.'}${hurt ? ` You took a wound (−${hurt} health).` : ''}</p><p>The paymaster counts out <b>${O.money(pay)}</b>. Back in ${esc(home.world.name)}, people look at you differently.</p>`);
     }
 

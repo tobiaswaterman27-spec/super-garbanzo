@@ -10,14 +10,23 @@
 
   // the sprites of a world, one at a time
   function* paint(world, season) {
-    if (!world._ground || world._groundSeason !== season) { world._ground = O.Terrain.renderGround(world, season); world._groundSeason = season; yield; }
+    if (!world.chunked && (!world._ground || world._groundSeason !== season)) { world._ground = O.Terrain.renderGround(world, season); world._groundSeason = season; yield; }
     for (const b of world.buildings) { if (!b.sprite) { b.sprite = b.ruined ? O.Env.ruin(b.spec) : b.type === 'hideout' ? O.Env.hideout(b.level, b.spec) : O.Env.building(b.spec); yield; } }
     for (const t of world.trees) { if (!t.sprite || t.sprite.season !== season) { t.sprite = O.Env.tree(t.seed, t.kind, season); t.sprite.season = season; yield; } }
     for (const p of world.props) { if (!p.sprite) { p.sprite = O.Env.prop(p.kind, p.seed, p.v); } }
     yield;
   }
 
-  function add(key, gen) { if (jobs.some((j) => j.key === key)) return; jobs.push({ key, it: gen }); kick(); }
+  // urgent jobs (ground under your feet) go first; ground about you goes ahead of whole towns
+  function add(key, gen, urgent) {
+    const k = jobs.findIndex((j) => j.key === key);
+    if (k >= 0) { if (urgent && k > 0) jobs.unshift(jobs.splice(k, 1)[0]); return; }
+    const j = { key, it: gen, ground: key.startsWith('chunk:') };
+    if (urgent) jobs.unshift(j);
+    else if (j.ground) { const at = jobs.findIndex((q) => !q.ground); if (at < 0) jobs.push(j); else jobs.splice(Math.max(1, at), 0, j); }
+    else jobs.push(j);
+    kick();
+  }
   function kick() {
     if (busy) return; busy = true;
     const run = () => {
@@ -28,7 +37,7 @@
       }
       if (jobs.length) setTimeout(run, 4); else busy = false;
     };
-    setTimeout(run, 30);
+    setTimeout(run, 0);
   }
 
   function setup(game, home) {
@@ -42,17 +51,26 @@
       // the places the roads from here lead to
       const targets = [];
       if (w.road) targets.push(w.road.a, w.road.b);
+      else if (w.island) {
+        // on the island: the places the roads lead to, and whichever towns lie nearest where you stand
+        targets.push(...K.neighbours(w.placeId));
+        const [gx, gy] = O.Island.toGlobal(w, game.player.x, game.player.y), U = O.Island.U * 16;
+        const near = O.Island.data().places.map((q) => [q.id, (q.x * U - gx) ** 2 + (q.y * U - gy) ** 2]).sort((a, b) => a[1] - b[1]).slice(0, 5).map((q) => q[0]);
+        for (const id of near) if (!targets.includes(id)) targets.push(id);
+      }
       else for (const id of Object.keys(w.exits || {})) if (K.place(id)) targets.push(id);
       const here = w.road ? null : w.placeId;
-      if (last !== (w.road ? w.road.a + '|' + w.road.b : here)) {
-        last = w.road ? w.road.a + '|' + w.road.b : here;
+      const sig = w.road ? w.road.a + '|' + w.road.b : here + '|' + targets.join(',');
+      if (last !== sig) {
+        last = sig;
         for (const id of targets) {
           if (id === 'ashford' || id === here) continue;
           add('town:' + id, (function* () {
+            if (w.island && !O.Travel.visited.has(id)) yield* O.Island.regionSteps(id); // the land, a few rows at a time
             const v = O.Travel.ensure(id); yield;
             yield* paint(v.world, season);
           })());
-          if (here) add('road:' + [here, id].sort().join('|'), (function* () { const rw = O.Roads.roadFor(here, id); yield; yield* paint(rw, season); })());
+          if (here && !w.island) add('road:' + [here, id].sort().join('|'), (function* () { const rw = O.Roads.roadFor(here, id); yield; yield* paint(rw, season); })());
         }
       }
       // keep the places you've been to (and the ones made ready) living, a slice at a time
@@ -63,5 +81,5 @@
       }
     });
   }
-  O.Prefetch = { setup, paint, add };
+  O.Prefetch = { setup, paint, add, pending: () => jobs.map((j) => j.key) };
 })();

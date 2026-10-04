@@ -93,7 +93,7 @@
     });
     sim.byId = new Map(); for (const p of [...sim.people, ...sim.dead]) sim.byId.set(p.id, p);
     for (const p of sim.people) {
-      const ag = S.people.find((x) => x.id === p.id).ag || [46 * 16, 30 * 16, 0, null, 0, null];
+      const ag = S.people.find((x) => x.id === p.id).ag || [(46 + (sim.world.ox || 0)) * 16, (30 + (sim.world.oy || 0)) * 16, 0, null, 0, null];
       if (p.visitor) p.app = O.Char.makeAppearance(O.hash('trader', p.id), { sex: p.sex, age: p.age, genes: p.genes, role: 'merchant', wealth: 0.65, region: 'east' });
       else { p.agent = { a: null }; sim.refreshLook(p); }
       p.agent = { x: ag[0], y: ag[1], dir: ag[2], anim: 'idle', ft: Math.random() * 3, a: p.app, hidden: !!ag[4], inside: ag[3], path: null, goal: null, person: p, carrying: ag[5] };

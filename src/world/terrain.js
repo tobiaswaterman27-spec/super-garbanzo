@@ -5,12 +5,16 @@
 'use strict';
 (function () {
   const P = O.Pal;
-  function renderGround(world, season = 'summer') {
+  // rect (in tiles) renders only part of the world: a chunk of a big region. The pixels are worked out
+  // with a margin round the chunk so edges blend exactly as they would in one big picture.
+  function renderGround(world, season = 'summer', rect = null) {
     const { W, H, T, ter, TER } = world;
-    const pw = W * T, ph = H * T;
-    const c = document.createElement('canvas'); c.width = pw; c.height = ph;
+    const RX = rect ? rect.x * T : 0, RY = rect ? rect.y * T : 0, M = rect ? 12 : 0;
+    const cw = rect ? rect.w * T : W * T, ch = rect ? rect.h * T : H * T;
+    const pw = cw + 2 * M, ph = ch + 2 * M, OX = RX - M, OY = RY - M; // the working area, in world pixels
+    const c = document.createElement('canvas'); c.width = cw; c.height = ch;
     const ctx = c.getContext('2d');
-    const img = ctx.createImageData(pw, ph); const d = img.data;
+    const img = ctx.createImageData(cw, ch); const d = img.data;
     const grassHex = { summer: '#5d8a3e', spring: '#679a42', autumn: '#7a8a42', winter: '#dfe6ea' }[season];
     const R = {
       grass: P.makeRamp(grassHex, 0.75), forest: P.makeRamp(season === 'winter' ? '#cfd8de' : '#466e36', 0.75), road: P.makeRamp('#9a7a52', 0.8),
@@ -28,14 +32,23 @@
       return t === TER.BRIDGE ? base : t;
     };
     const tmap = new Uint8Array(pw * ph);
-    for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) tmap[y * pw + x] = sample(x + 0.5, y + 0.5);
-    const at = (x, y) => (x < 0 || y < 0 || x >= pw || y >= ph ? -1 : tmap[y * pw + x]);
+    // a tile whose neighbours two deep are all the same kind can't be reached by the wander, so it skips the noise
+    const calm = (tx, ty) => { const k = tAt(tx, ty); for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) if (tAt(tx + i, ty + j) !== k) return -1; if (k === TER.WATER || k === TER.SAND) for (const [i, j] of [[-2, 0], [2, 0], [0, -2], [0, 2], [-2, -2], [2, 2], [-2, 2], [2, -2]]) if (tAt(tx + i, ty + j) !== k) return -1; return k; };
+    const calmCache = new Map();
+    for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) {
+      const px = OX + x + 0.5, py = OY + y + 0.5, tx = Math.floor(px / T), ty = Math.floor(py / T), key = tx * 65536 + ty;
+      let k = calmCache.get(key); if (k === undefined) { k = calm(tx, ty); calmCache.set(key, k); }
+      tmap[y * pw + x] = k >= 0 ? k : sample(px, py);
+    }
+    // at() takes world pixel coordinates
+    const at = (x, y) => { const lx = x - OX, ly = y - OY; return lx < 0 || ly < 0 || lx >= pw || ly >= ph ? -1 : tmap[ly * pw + lx]; };
     const LAND = new Set([TER.GRASS, TER.FOREST, TER.ROAD, TER.YARD, TER.FIELD, TER.SAND].filter((v) => v != null));
     const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
     const baseOf = (k) => (k === TER.GRASS ? R.grass : k === TER.FOREST ? R.forest : k === TER.ROAD ? R.road : k === TER.YARD ? R.yard : k === TER.FIELD ? R.field : R.sand)[2];
 
-    for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) {
-      const t = tmap[y * pw + x];
+    for (let yy = 0; yy < ch; yy++) for (let xx = 0; xx < cw; xx++) {
+      const x = RX + xx, y = RY + yy; // world pixel
+      const t = at(x, y);
       let col;
       const n = O.fbm(x / 10, y / 10, 7, 3), f = O.noise2(x * 1.9, y * 1.9, 3);
       switch (t) {
@@ -52,7 +65,7 @@
           let s = n > 0.58 ? 3 : n > 0.4 ? 2 : 1;
           if (f > 0.93) s = 4; else if (f < 0.05) s = 0;
           // wheel ruts along the King's Road
-          if (t === TER.ROAD && y >= 30 * T && y < 32 * T) { const ly = y - 30 * T; if (ly === 9 || ly === 22) s = Math.max(0, s - 1); }
+          if (t === TER.ROAD && y >= (world.roadY || 30) * T && y < ((world.roadY || 30) + 2) * T) { const ly = y - (world.roadY || 30) * T; if (ly === 9 || ly === 22) s = Math.max(0, s - 1); }
           // darker edge where road meets grass
           const g = (k) => k === TER.GRASS || k === TER.FOREST;
           if (g(at(x, y - 1)) || g(at(x - 1, y))) s = Math.max(0, s - 1);
@@ -105,30 +118,34 @@
       // (ordered dithering keeps it crisp)
       if (LAND.has(t)) {
         let nb = -1, k = 1;
-        for (; k <= 3 && nb < 0; k++) for (const [dx, dy] of [[k, 0], [-k, 0], [0, k], [0, -k]]) { const u = at(x + dx, y + dy); if (u !== t && LAND.has(u)) { nb = u; break; } }
+        for (; k <= 3 && nb < 0; k++) { let u = at(x + k, y); if (u === t || !LAND.has(u)) { u = at(x - k, y); if (u === t || !LAND.has(u)) { u = at(x, y + k); if (u === t || !LAND.has(u)) { u = at(x, y - k); if (u === t || !LAND.has(u)) u = -1; } } } if (u >= 0) nb = u; }
         if (nb >= 0) { const wgt = (4 - (k - 1)) / 9; if (BAYER[(x & 3) + ((y & 3) << 2)] / 16 < wgt) { const nc = baseOf(nb); col = [(col[0] + nc[0]) >> 1, (col[1] + nc[1]) >> 1, (col[2] + nc[2]) >> 1]; } }
       }
-      const i = (y * pw + x) * 4; d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255;
+      const i = (yy * cw + xx) * 4; d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255;
     }
     ctx.putImageData(img, 0, 0);
-    bakeShadows(ctx, world, pw, ph);
+    bakeShadows(ctx, world, cw, ch, RX, RY);
     return c;
   }
 
   // Light comes from the upper-left, so every static object casts toward the lower-right.
-  function bakeShadows(ctx, world, pw, ph) {
+  function bakeShadows(ctx, world, pw, ph, RX = 0, RY = 0) {
     const m = document.createElement('canvas'); m.width = pw; m.height = ph;
     const mc = m.getContext('2d'); mc.fillStyle = '#000';
+    mc.translate(-RX, -RY);
     const T = world.T;
+    const near = (x, y, r) => x > RX - r && y > RY - r && x < RX + pw + r && y < RY + ph + r;
     for (const b of world.buildings) {
+      if (!near(b.x * T, b.bottom * T, 400)) continue;
       const s = 6 + b.floors * 6;
       const x0 = b.x * T, x1 = (b.x + b.w) * T, y0 = b.y * T, y1 = (b.bottom + 1) * T;
       mc.beginPath(); mc.moveTo(x1, y0 + 4); mc.lineTo(x1 + s, y0 + 4 + s * 0.5); mc.lineTo(x1 + s, y1 + 3); mc.lineTo(x0 + s, y1 + 3); mc.lineTo(x0, y1); mc.lineTo(x1, y1); mc.closePath(); mc.fill();
     }
     const ellipse = (cx, cy, rx, ry) => { for (let y = -ry; y <= ry; y++) { const w = Math.round(rx * Math.sqrt(1 - (y * y) / (ry * ry))); mc.fillRect(Math.round(cx - w), Math.round(cy + y), w * 2, 1); } };
-    for (const t of world.trees) ellipse(t.x + 7, t.y - 2, t.kind === 'pine' ? 10 : 15, t.kind === 'pine' ? 4 : 6);
-    for (const p of world.props) if (!p.flat && p.kind !== 'grass') ellipse(p.x + 3, p.y, p.kind === 'well' || p.kind === 'stall' ? 15 : 7, 3);
+    for (const t of world.trees) if (near(t.x, t.y, 24)) ellipse(t.x + 7, t.y - 2, t.kind === 'pine' ? 10 : 15, t.kind === 'pine' ? 4 : 6);
+    for (const p of world.props) if (!p.flat && p.kind !== 'grass' && near(p.x, p.y, 24)) ellipse(p.x + 3, p.y, p.kind === 'well' || p.kind === 'stall' ? 15 : 7, 3);
     // crisp mask -> single translucent layer
+    mc.setTransform(1, 0, 0, 1, 0, 0);
     const id = mc.getImageData(0, 0, pw, ph); for (let i = 3; i < id.data.length; i += 4) id.data[i] = id.data[i] > 100 ? 255 : 0; mc.putImageData(id, 0, 0);
     mc.globalCompositeOperation = 'source-in'; mc.fillStyle = 'rgb(28,20,44)'; mc.fillRect(0, 0, pw, ph);
     ctx.globalAlpha = 0.32; ctx.drawImage(m, 0, 0); ctx.globalAlpha = 1;

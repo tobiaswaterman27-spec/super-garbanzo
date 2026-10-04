@@ -30,8 +30,8 @@
     load(world, playerAppearance) {
       this.world = world;
       const T = world.T;
-      this.ground = world._ground && world._groundSeason === this.season ? world._ground : O.Terrain.renderGround(world, this.season);
-      world._ground = this.ground; world._groundSeason = this.season;
+      if (world.chunked) { this.ground = null; if (world._chunkSeason !== this.season) { world._chunks = new Map(); world._chunkSeason = this.season; } }
+      else { this.ground = world._ground && world._groundSeason === this.season ? world._ground : O.Terrain.renderGround(world, this.season); world._ground = this.ground; world._groundSeason = this.season; }
       for (const b of world.buildings) if (!b.sprite) b.sprite = b.ruined ? O.Env.ruin(b.spec) : b.type === 'hideout' ? O.Env.hideout(b.level, b.spec) : O.Env.building(b.spec);
       for (const t of world.trees) if (!t.sprite || t.sprite.season !== this.season) { t.sprite = O.Env.tree(t.seed, t.kind, this.season); t.sprite.season = this.season; }
       for (const p of world.props) if (!p.sprite) p.sprite = O.Env.prop(p.kind, p.seed, p.v);
@@ -153,6 +153,52 @@
       };
     }
 
+    // Big regions keep their ground in chunks of 16 x 16 tiles. A chunk not yet painted shows its
+    // plain ground colours at once, and is painted properly a moment later in the background.
+    chunk(w, cx, cy, urgent) {
+      const CH = 16, key = cx + ',' + cy, T = w.T;
+      w._chunks = w._chunks || new Map();
+      let e = w._chunks.get(key);
+      if (!e) {
+        const x0 = cx * CH, y0 = cy * CH, cw = Math.min(CH, w.W - x0), ch = Math.min(CH, w.H - y0);
+        const c = document.createElement('canvas'); c.width = cw * T; c.height = ch * T; const g = c.getContext('2d');
+        const Q = ['#5d8a3e', '#466e36', '#9a7a52', '#8e8a84', '#6e4e32', '#3c6c96', '#c8b07a', '#a08a62', '#8a6239'];
+        const TR = w.TER, col = (t) => (t === TR.GRASS ? Q[0] : t === TR.FOREST ? Q[1] : t === TR.ROAD ? Q[2] : t === TR.COBBLE ? Q[3] : t === TR.FIELD ? Q[4] : t === TR.WATER ? Q[5] : t === TR.SAND ? Q[6] : t === TR.YARD ? Q[7] : t === TR.BRIDGE ? Q[8] : Q[0]);
+        for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) { g.fillStyle = col(w.ter[(y0 + y) * w.W + x0 + x]); g.fillRect(x * T, y * T, T, T); }
+        e = { canvas: c, ready: false, x0, y0, cw, ch };
+        w._chunks.set(key, e);
+      }
+      if (!e.ready && !e.queued) {
+        e.queued = true;
+        const season = this.season;
+        const game = this;
+        // ground for a region you've already walked out of isn't worth painting any more
+        // painted in two halves so no single step holds up a frame for long
+        const job = (function* () {
+          const c = document.createElement('canvas'); c.width = e.cw * T; c.height = e.ch * T; const g = c.getContext('2d');
+          const h1 = Math.ceil(e.ch / 2);
+          for (const [y, h] of [[0, h1], [h1, e.ch - h1]]) {
+            if (game.world !== w) { e.queued = false; return; }
+            if (h > 0) g.drawImage(O.Terrain.renderGround(w, season, { x: e.x0, y: e.y0 + y, w: e.cw, h }), 0, y * T);
+            yield;
+          }
+          e.canvas = c; e.ready = true;
+        })();
+        if (O.Prefetch) O.Prefetch.add('chunk:' + (w.placeId || '') + key + season, job, urgent); else { job.next(); }
+      }
+      return e;
+    }
+    drawChunks(ctx, cam) {
+      const w = this.world, T = w.T, CS = 16 * T;
+      const cx0 = Math.floor(cam.x / CS), cy0 = Math.floor(cam.y / CS), cx1 = Math.floor((cam.x + this.vw) / CS), cy1 = Math.floor((cam.y + this.vh) / CS);
+      for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) {
+        if (cx < 0 || cy < 0 || cx * 16 >= w.W || cy * 16 >= w.H) continue;
+        const e = this.chunk(w, cx, cy, true); ctx.drawImage(e.canvas, cx * CS - cam.x, cy * CS - cam.y);
+      }
+      // paint ahead: the ring of chunks just beyond the view
+      for (let cy = cy0 - 2; cy <= cy1 + 2; cy++) for (let cx = cx0 - 2; cx <= cx1 + 2; cx++) if (cx >= 0 && cy >= 0 && cx * 16 < w.W && cy * 16 < w.H) this.chunk(w, cx, cy, false);
+    }
+
     // a soft oval shadow on the ground
     shadow(ctx, cx, cy, rx, ry) {
       for (let y = -ry; y <= ry; y++) { const w = Math.round(rx * Math.sqrt(1 - (y / (ry + 0.5)) ** 2)); ctx.fillRect(cx - w, cy + y - 1, w * 2, 1); }
@@ -167,7 +213,7 @@
     draw() {
       if (this.scene) { this.scene.draw(this.ctx); for (const h of this.hooks.drawTop) h(this.ctx, this.cam, true); return; }
       const { ctx, cam, vw, vh } = this, w = this.world, T = w.T;
-      ctx.drawImage(this.ground, cam.x, cam.y, vw, vh, 0, 0, vw, vh);
+      if (w.chunked) this.drawChunks(ctx, cam); else ctx.drawImage(this.ground, cam.x, cam.y, vw, vh, 0, 0, vw, vh);
       const inView = (x, y, wd, ht) => x + wd >= cam.x && x <= cam.x + vw && y + ht >= cam.y && y <= cam.y + vh;
       for (const s of this.flatProps) { const p = s.p, sp = p.sprite; const x = p.x - sp.ox, y = p.y - sp.oy; if (inView(x, y, sp.W, sp.H)) ctx.drawImage(sp.canvas, x - cam.x, y - cam.y); }
       for (const h of this.hooks.drawGround) h(ctx, cam);

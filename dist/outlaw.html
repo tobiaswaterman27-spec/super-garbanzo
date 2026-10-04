@@ -3765,6 +3765,14 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       keep(trees, (t) => !(Math.abs(t.x / T - x) < 4 && Math.abs(t.y / T - y) < 4));
       keep(props, (p) => !(p.country !== false && !p.field && Math.abs(p.x / T - x) < 3 && Math.abs(p.y / T - y) < 3 && (p.kind === 'bush' || p.kind === 'rock')));
     }
+    // bushes, rocks and stumps are things you walk round, not through (unless one has ended up on a path)
+    const doors = new Set(buildings.filter((b) => b.doorX != null).map((b) => b.doorY * W + b.doorX));
+    for (const p of props) {
+      if (p.flat || p.field || !(p.kind === 'bush' || p.kind === 'rock' || p.kind === 'stump')) continue;
+      const i = Math.floor((p.y - 1) / T) * W + Math.floor(p.x / T), t = ter[i];
+      if (t === TR.ROAD || t === TR.COBBLE || t === TR.BRIDGE || t === TR.YARD || doors.has(i) || doors.has(i - W)) { p.solid = false; continue; }
+      p.solid = true; solid[i] = 1;
+    }
     const world = Object.assign({}, tw, {
       W, H, T, ter, solid, buildings, props, trees, TER: TR, zones, ox, oy, gx0: R.x0, gy0: R.y0, chunked: true, island: true,
       roadY: (tw.roadY || 30) + oy, exits: {}, name: place(id).name, placeId: id, townW: tw.W, townH: tw.H,
@@ -8196,10 +8204,10 @@ O.snowMaskOf = function (src) {
         [a.x, a.y] = this.tileCenter(ex, ey, p); a.inside = null; a.hidden = false;
       }
       const sx = Math.floor(a.x / this.T), sy = Math.floor((a.y - 1) / this.T);
-      a.goal = target;
+      a.goal = target; a.offPath = false;
       if (sx === target[0] && sy === target[1]) { a.path = []; a.pi = 0; return; }
       const path = this.path.find(sx, sy, target[0], target[1]);
-      if (!path) { a.path = null; a.goal = null; if (act.b) { a.inside = act.b; a.hidden = true; this.onEnter(p, act.b); } return; }
+      if (!path) { a.path = [target]; a.pi = 0; a.offPath = true; return; } // no way found: they still walk there, rather than appearing inside
       a.path = path; a.pi = 0;
     }
 
@@ -10017,6 +10025,7 @@ O.snowMaskOf = function (src) {
       const p = this.game.player;
       if (this.floor === 0 && p.y > this.R.WH + this.L.d * T + 4) this.game.exitBuilding();
       this.placeActors();
+      this.walkActors(dt);
     }
 
     // Who is inside, and where do they belong right now?
@@ -10118,12 +10127,49 @@ O.snowMaskOf = function (src) {
         if (x == null && !inBed) { const t = idleTiles[(q.id * 7) % Math.max(1, idleTiles.length)] || [0, 1]; [x, y] = this.tileXY(t[0], t[1]); x += (q.id % 3) * 3 - 3; dir = (q.id + Math.floor(this.t / 6)) % 8; anim = q.agent.talking ? 'talk' : q.stage === 'baby' ? 'crouch' : 'idle'; }
         if (spot && spot.kind !== 'pew' && spot.kind !== 'bar') used.add(spot);
         let a = this.actors.get(q.id);
-        if (!a) { a = { ft: Math.random() * 2, person: q, a: q.app }; this.actors.set(q.id, a); }
+        if (!a) {
+          // someone coming in walks in from the door (or up the stairs); those here when you arrive are already in place
+          a = { ft: Math.random() * 2, person: q, a: q.app };
+          if (this.t > 0.4) { [a.x, a.y] = this.wayIn(); } else { a.x = x; a.y = y; }
+          this.actors.set(q.id, a);
+        }
         if (q.agent.frozen) { anim = anim === 'sit' ? 'sit' : 'talk'; dir = a.dir ?? dir; }
-        Object.assign(a, { x, y, sortY, dir: q.agent.frozen ? a.dir : dir, anim, a: q.app, hidden: inBed, inBed: inBed ? spot : null, seat: seat && !seat.pewSeat ? seat : seat?.pewSeat ? seat.it : null });
+        a.leaving = false;
+        Object.assign(a, { gx: x, gy: y, gSortY: sortY, gDir: q.agent.frozen ? a.dir : dir, gAnim: anim, a: q.app, gBed: inBed ? spot : null, seat: seat && !seat.pewSeat ? seat : seat?.pewSeat ? seat.it : null });
+        if (a.x == null) { a.x = x; a.y = y; }
         seen.add(q.id);
       }
-      for (const id of [...this.actors.keys()]) if (!seen.has(id)) this.actors.delete(id);
+      // whoever has gone walks out of the door (or off up the stairs) rather than vanishing
+      for (const [id, a] of this.actors) if (!seen.has(id)) { if (!a.leaving) { a.leaving = true; a.leftAt = this.t; [a.gx, a.gy] = this.wayIn(); a.gBed = null; a.seat = null; a.gSortY = null; } }
+    }
+    // where people come in and go out: the door on the ground floor, the stairs above
+    wayIn() {
+      const L = this.L, st = L.items.find((i) => i.kind === 'stairs');
+      if (this.floor > 0 && st) { const [x, y] = this.tileXY(st.tx, st.ty + st.fh); return [x + 8, y + 2]; }
+      return [this.R.SW + (L.dc + 1) * T, this.R.WH + (L.d - 1) * T + 14];
+    }
+    // everyone walks to where they belong, stepping round the furniture; arrived, they settle into it
+    walkActors(dt) {
+      for (const [id, a] of this.actors) {
+        const dx = a.gx - a.x, dy = a.gy - a.y, d = Math.hypot(dx, dy);
+        if (d < 1.5) {
+          a.x = a.gx; a.y = a.gy; a.stuck = 0;
+          if (a.leaving) { this.actors.delete(id); continue; }
+          a.sortY = a.gSortY; a.dir = a.gDir; a.anim = a.gAnim; a.inBed = a.gBed; a.hidden = !!a.gBed;
+          continue;
+        }
+        a.hidden = false; a.inBed = null; a.sortY = null;
+        const sp = 46 * dt, near = d < 18, ux = dx / d, uy = dy / d;
+        let nx = a.x + ux * Math.min(sp, d), ny = a.y + uy * Math.min(sp, d);
+        if (!near && !a.ghost && this.blocked(nx, ny)) {
+          // slide along whatever's in the way
+          if (!this.blocked(nx, a.y)) ny = a.y; else if (!this.blocked(a.x, ny)) nx = a.x;
+          else { nx = a.x; ny = a.y; a.stuck = (a.stuck || 0) + dt; if (a.stuck > 1.2) a.ghost = true; }
+        }
+        if (a.ghost && d < 4) a.ghost = false;
+        a.dir = O.dirOf(nx - a.x, ny - a.y); a.x = nx; a.y = ny; a.anim = 'walk';
+        if (a.leaving && this.t - a.leftAt > 8) this.actors.delete(id);
+      }
     }
 
     camera() {
@@ -14591,6 +14637,55 @@ O.snowMaskOf = function (src) {
 
 </script>
 <script>
+// Personal space. People in the street don't walk through one another, through you, or through the
+// horses and animals: anyone who comes too close is eased aside a little each frame (never into a wall,
+// a tree or a bush), so a crowd parts and flows instead of passing through itself.
+'use strict';
+(function () {
+  function setup(game) {
+    const R = 9; // how close two people may stand, in pixels
+    game.hooks.update.push(() => {
+      const w = game.world, sim = O.SimRef.cur; if (!w || game.scene || !sim || sim.world !== w) return;
+      const cam = game.cam || { x: 0, y: 0 }, x0 = cam.x - 80, y0 = cam.y - 80, x1 = cam.x + game.vw + 80, y1 = cam.y + game.vh + 80;
+      // who's about: walking or standing townsfolk (not those sitting, lying, fighting or held in talk)
+      const movers = [], fixed = [];
+      for (const q of sim.people) {
+        const a = q.agent; if (!a || a.hidden || q.alive === false) continue;
+        if (a.x < x0 || a.y < y0 || a.x > x1 || a.y > y1) continue;
+        if (a.frozen || a.chasing || a.anim === 'sit' || a.anim === 'lie' || a.anim === 'doze' || a.offPath) fixed.push(a); else movers.push(a);
+      }
+      for (const a of game.actors) if ((a.horse || a.animal || a.traveller || a.gangster || a.cart) && a.x > x0 && a.y > y0 && a.x < x1 && a.y < y1) fixed.push(a);
+      if (!game.player.hidden) fixed.push(game.player);
+      if (!movers.length) return;
+      // a coarse grid so each person only looks at their neighbours
+      const grid = new Map(), key = (x, y) => (Math.floor(x / 24) * 4096 + Math.floor(y / 24));
+      for (const a of [...movers, ...fixed]) { const k = key(a.x, a.y); let c = grid.get(k); if (!c) grid.set(k, c = []); c.push(a); }
+      const free = (x, y) => !game.solidAt(x - 3, y - 2) && !game.solidAt(x + 3, y - 2) && !game.solidAt(x, y);
+      for (const a of movers) {
+        let px = 0, py = 0;
+        const gx = Math.floor(a.x / 24), gy = Math.floor(a.y / 24);
+        for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
+          const c = grid.get((gx + i) * 4096 + gy + j); if (!c) continue;
+          for (const o of c) {
+            if (o === a) continue;
+            const r = o.horse || o.cart ? R + 9 : o.animal ? R + 2 : R;
+            const dx = a.x - o.x, dy = (a.y - o.y) * 1.6, d = Math.hypot(dx, dy);
+            if (d >= r || d === 0) { if (d === 0) px += (a.person ? a.person.id % 2 : 1) ? 1 : -1; continue; }
+            const push = (r - d) / r;
+            px += dx / d * push; py += dy / d * push;
+          }
+        }
+        if (!px && !py) continue;
+        const step = 0.9, nx = a.x + px * step, ny = a.y + py * step * 0.6;
+        if (free(nx, ny)) { a.x = nx; a.y = ny; } else if (free(nx, a.y)) a.x = nx; else if (free(a.x, ny)) a.y = ny;
+      }
+    });
+  }
+  O.Crowd = { setup };
+})();
+
+</script>
+<script>
 // The guide (/ or the Guide button): controls, and the many ways to live in this world — honest
 // work, trade, property, crime, gangs, politics, war — with where each starts.
 'use strict';
@@ -15288,6 +15383,7 @@ O.snowMaskOf = function (src) {
   O.Prefetch.setup(game, home);
   O.OpenWorldSetup.setup(game, home);
   O.Wayfarers.setup(game, home);
+  O.Crowd.setup(game);
   O.Signs.setup(game);
   O.PropertyUI.setup(game, sim);
   O.ChronicleUI.setup(game, home);

@@ -339,6 +339,14 @@
       keep(trees, (t) => !(Math.abs(t.x / T - x) < 4 && Math.abs(t.y / T - y) < 4));
       keep(props, (p) => !(p.country !== false && !p.field && Math.abs(p.x / T - x) < 3 && Math.abs(p.y / T - y) < 3 && (p.kind === 'bush' || p.kind === 'rock')));
     }
+    // bushes, rocks and stumps are things you walk round, not through (unless one has ended up on a path)
+    const doors = new Set(buildings.filter((b) => b.doorX != null).map((b) => b.doorY * W + b.doorX));
+    for (const p of props) {
+      if (p.flat || p.field || !(p.kind === 'bush' || p.kind === 'rock' || p.kind === 'stump')) continue;
+      const i = Math.floor((p.y - 1) / T) * W + Math.floor(p.x / T), t = ter[i];
+      if (t === TR.ROAD || t === TR.COBBLE || t === TR.BRIDGE || t === TR.YARD || doors.has(i) || doors.has(i - W)) { p.solid = false; continue; }
+      p.solid = true; solid[i] = 1;
+    }
     const world = Object.assign({}, tw, {
       W, H, T, ter, solid, buildings, props, trees, TER: TR, zones, ox, oy, gx0: R.x0, gy0: R.y0, chunked: true, island: true,
       roadY: (tw.roadY || 30) + oy, exits: {}, name: place(id).name, placeId: id, townW: tw.W, townH: tw.H,

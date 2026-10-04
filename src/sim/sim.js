@@ -508,10 +508,10 @@
         [a.x, a.y] = this.tileCenter(ex, ey, p); a.inside = null; a.hidden = false;
       }
       const sx = Math.floor(a.x / this.T), sy = Math.floor((a.y - 1) / this.T);
-      a.goal = target;
+      a.goal = target; a.offPath = false;
       if (sx === target[0] && sy === target[1]) { a.path = []; a.pi = 0; return; }
       const path = this.path.find(sx, sy, target[0], target[1]);
-      if (!path) { a.path = null; a.goal = null; if (act.b) { a.inside = act.b; a.hidden = true; this.onEnter(p, act.b); } return; }
+      if (!path) { a.path = [target]; a.pi = 0; a.offPath = true; return; } // no way found: they still walk there, rather than appearing inside
       a.path = path; a.pi = 0;
     }
 

@@ -41,6 +41,7 @@
       const p = this.game.player;
       if (this.floor === 0 && p.y > this.R.WH + this.L.d * T + 4) this.game.exitBuilding();
       this.placeActors();
+      this.walkActors(dt);
     }
 
     // Who is inside, and where do they belong right now?
@@ -142,12 +143,49 @@
         if (x == null && !inBed) { const t = idleTiles[(q.id * 7) % Math.max(1, idleTiles.length)] || [0, 1]; [x, y] = this.tileXY(t[0], t[1]); x += (q.id % 3) * 3 - 3; dir = (q.id + Math.floor(this.t / 6)) % 8; anim = q.agent.talking ? 'talk' : q.stage === 'baby' ? 'crouch' : 'idle'; }
         if (spot && spot.kind !== 'pew' && spot.kind !== 'bar') used.add(spot);
         let a = this.actors.get(q.id);
-        if (!a) { a = { ft: Math.random() * 2, person: q, a: q.app }; this.actors.set(q.id, a); }
+        if (!a) {
+          // someone coming in walks in from the door (or up the stairs); those here when you arrive are already in place
+          a = { ft: Math.random() * 2, person: q, a: q.app };
+          if (this.t > 0.4) { [a.x, a.y] = this.wayIn(); } else { a.x = x; a.y = y; }
+          this.actors.set(q.id, a);
+        }
         if (q.agent.frozen) { anim = anim === 'sit' ? 'sit' : 'talk'; dir = a.dir ?? dir; }
-        Object.assign(a, { x, y, sortY, dir: q.agent.frozen ? a.dir : dir, anim, a: q.app, hidden: inBed, inBed: inBed ? spot : null, seat: seat && !seat.pewSeat ? seat : seat?.pewSeat ? seat.it : null });
+        a.leaving = false;
+        Object.assign(a, { gx: x, gy: y, gSortY: sortY, gDir: q.agent.frozen ? a.dir : dir, gAnim: anim, a: q.app, gBed: inBed ? spot : null, seat: seat && !seat.pewSeat ? seat : seat?.pewSeat ? seat.it : null });
+        if (a.x == null) { a.x = x; a.y = y; }
         seen.add(q.id);
       }
-      for (const id of [...this.actors.keys()]) if (!seen.has(id)) this.actors.delete(id);
+      // whoever has gone walks out of the door (or off up the stairs) rather than vanishing
+      for (const [id, a] of this.actors) if (!seen.has(id)) { if (!a.leaving) { a.leaving = true; a.leftAt = this.t; [a.gx, a.gy] = this.wayIn(); a.gBed = null; a.seat = null; a.gSortY = null; } }
+    }
+    // where people come in and go out: the door on the ground floor, the stairs above
+    wayIn() {
+      const L = this.L, st = L.items.find((i) => i.kind === 'stairs');
+      if (this.floor > 0 && st) { const [x, y] = this.tileXY(st.tx, st.ty + st.fh); return [x + 8, y + 2]; }
+      return [this.R.SW + (L.dc + 1) * T, this.R.WH + (L.d - 1) * T + 14];
+    }
+    // everyone walks to where they belong, stepping round the furniture; arrived, they settle into it
+    walkActors(dt) {
+      for (const [id, a] of this.actors) {
+        const dx = a.gx - a.x, dy = a.gy - a.y, d = Math.hypot(dx, dy);
+        if (d < 1.5) {
+          a.x = a.gx; a.y = a.gy; a.stuck = 0;
+          if (a.leaving) { this.actors.delete(id); continue; }
+          a.sortY = a.gSortY; a.dir = a.gDir; a.anim = a.gAnim; a.inBed = a.gBed; a.hidden = !!a.gBed;
+          continue;
+        }
+        a.hidden = false; a.inBed = null; a.sortY = null;
+        const sp = 46 * dt, near = d < 18, ux = dx / d, uy = dy / d;
+        let nx = a.x + ux * Math.min(sp, d), ny = a.y + uy * Math.min(sp, d);
+        if (!near && !a.ghost && this.blocked(nx, ny)) {
+          // slide along whatever's in the way
+          if (!this.blocked(nx, a.y)) ny = a.y; else if (!this.blocked(a.x, ny)) nx = a.x;
+          else { nx = a.x; ny = a.y; a.stuck = (a.stuck || 0) + dt; if (a.stuck > 1.2) a.ghost = true; }
+        }
+        if (a.ghost && d < 4) a.ghost = false;
+        a.dir = O.dirOf(nx - a.x, ny - a.y); a.x = nx; a.y = ny; a.anim = 'walk';
+        if (a.leaving && this.t - a.leftAt > 8) this.actors.delete(id);
+      }
     }
 
     camera() {

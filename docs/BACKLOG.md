@@ -114,3 +114,22 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Gangs: join any gang, climb the ranks, tasks per rank (management, pickpocketing, burglary, higher up assassinations); the tailor sells disguises so you aren't known
 - [ ] Next: how to get the other jobs (asked to come after this)
 - [ ] Say what should be added next; how many people are in the sim and how things change over time
+
+## Batch E (asked after step 69) - build now
+
+- [x] Testing cheat (remove later): teleport to any city, town, village, hamlet etc. Publish this first
+- [ ] The castle should look like a castle; where is the royal family; parts of the castle are blocked off
+- [ ] Talking: people (including on the roads) stop and turn to face you and the dialogue options come up, not just one message
+- [ ] You can't read what NPCs say to each other (only chatting animations): make it readable
+- [ ] Gang ranks should be many different jobs (more than 7), some better than others
+- [ ] Disguises: only basic black clothing that covers the face (remove the other kinds). Witnesses can only give approximate height and build. People don't recognise you in it. Guards who catch you take it off you and keep it (it goes to the local government and is sold). Make sure you and NPCs can actually wear it
+- [ ] Currency: one made-up coin with its own symbol
+- [ ] "Welcome to Ashford" shows when you're not there
+- [ ] Animals can be in the barn, mostly at night
+- [ ] Stable hand: unclear how to clean and sweep; the arrow points into the house; interacting with the dresser opens it and it's unclear what to do
+- [ ] Horses glitch when sprinting
+- [ ] The job panel should close when a menu (map etc.) opens
+- [ ] Deliveries whenever agreed, not only Sunday (Sunday was an example)
+- [ ] Potboy/potgirl is not always open; a cook (etc.) can also do the potboy's work as part of their job
+- [ ] Remove the see-through/fading when behind buildings; make sure layering and collisions are right
+- [ ] Check for glitches, animations, everything

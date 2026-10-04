@@ -154,6 +154,7 @@
         ${row('pardon', 'Clear my wanted level', 'every crime forgiven, no bounty, no chase')}
         ${row('reset', 'Reset me', 'purse, satchel, health, wounds, standing and wanted level back to a fresh arrival')}
         ${row('post', 'Take up any post', 'try any job in the realm, even ones nobody would give you (king, lord, gaoler...)')}
+        ${row('tele', 'Teleport', 'go straight to any city, town, village, hamlet, castle or mine (for testing)')}
       </div>`, (r) => {
         r.querySelectorAll('[data-s]').forEach((b) => b.onclick = () => {
           const k = b.dataset.s;
@@ -165,6 +166,7 @@
           else if (k === 'speed') { game.clock.speed = game.clock.speed >= 2 ? 1 : 2; settings(); }
           else if (k === 'pardon') { pardon(); O.Panels.close(); O.UI.say('Your slate is wiped clean. Nobody is looking for you.'); }
           else if (k === 'post') posts();
+          else if (k === 'tele') teleports();
           else if (k === 'reset') { resetMe(); O.Panels.close(); O.UI.say('You are a stranger again: empty-handed, unhurt, unknown and wanted by no one.'); }
         });
       });
@@ -178,6 +180,26 @@
         r.querySelectorAll('[data-post]').forEach((b) => b.onclick = () => { O.Panels.close(); O.takeAnyPost(b.dataset.post); });
       });
     }
+    // testing only (to be removed): jump to the middle of any place in the realm
+    function teleports() {
+      const K = O.SimRef.home.kingdom, order = ['capital', 'city', 'port', 'town', 'castle', 'mine', 'village', 'hamlet'];
+      const html = order.map((k) => { const ps = K.places.filter((p) => p.kind === k).sort((a, c) => a.name.localeCompare(c.name)); return ps.length ? `<h4>${k === 'city' ? 'Cities' : k[0].toUpperCase() + k.slice(1) + 's'}</h4><div class="topics">${ps.map((p) => `<button data-tp="${p.id}">${O.escape(p.name)}</button>`).join('')}</div>` : ''; }).join('');
+      O.Panels.open('Teleport (testing)', html, (r) => r.querySelectorAll('[data-tp]').forEach((b) => b.onclick = () => { O.Panels.close(); O.teleport(b.dataset.tp); }));
+    }
+    O.teleport = (id) => {
+      const I = O.Island, p = game.player;
+      if (game.scene) game.exitBuilding();
+      if (p.mount && O.Horses && O.Horses.dismount) O.Horses.dismount();
+      p.sitting = null; p.inBed = null; p.locked = false;
+      const [cx, cy] = I.centre(id), [lx, ly] = I.toLocal(game.world, cx * 16, cy * 16); p.x = lx; p.y = ly;
+      O.OpenWorld.switchTo(id);
+      // land in the square (or the nearest open ground)
+      const s = O.SimRef.cur, w = game.world, sq = s.Z && s.Z.square;
+      if (sq && s.world === w) { p.x = Math.round((sq[0] + sq[2]) / 2) * 16 + 8; p.y = Math.round((sq[1] + sq[3]) / 2) * 16 + 10; }
+      for (let r = 0; r < 40 && game.blocked(p.x, p.y); r++) { p.y += 16; }
+      game.update(0);
+      O.UI.say(`You find yourself in ${w.name}.`);
+    };
     O.openSettings = settings;
     function confirmNew() {
       O.Panels.open('Begin a new life?', '<p class="caption">This forgets the world as you left it: every person, every crime, your purse and your name. You will make a new character and start again.</p><div class="topics"><button data-yes="1">Yes, start over</button><button data-no="1">Keep playing</button></div>', (r) => {

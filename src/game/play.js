@@ -96,6 +96,7 @@
   O.Roads.setup(game, home);
   O.Prefetch.setup(game, home);
   O.OpenWorldSetup.setup(game, home);
+  O.Wayfarers.setup(game, home);
   O.Signs.setup(game);
   O.PropertyUI.setup(game, sim);
   O.ChronicleUI.setup(game, home);

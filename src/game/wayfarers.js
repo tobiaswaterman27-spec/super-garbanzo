@@ -1,0 +1,99 @@
+// People on the island's roads. Travellers walk the real roads between towns, stopping to pass the time
+// of day with each other or with you; the realm's caravans creak along them; and on the wild roads a
+// gang keeps a camp and wants a toll. They live in island coordinates, so they carry on unbroken when
+// you cross from one town's stretch of land into the next.
+'use strict';
+(function () {
+  function setup(game, home) {
+    const I = O.Island, T = 16, K = home.kingdom, PS = O.PlayerState;
+    const state = new Map(); // road key -> { day, travellers, gangsters }
+    let active = [], scan = 0;
+
+    function spawn(r) {
+      const rng = O.RNG(home.day * 13 + O.hash(r.key)), st = { day: home.day, travellers: [], gangsters: [], robbed: null };
+      const n = 1 + rng.int(0, 2) + (r.total > 200 ? 1 : 0);
+      for (let i = 0; i < n; i++) {
+        const role = rng.pick(['merchant', 'villager', 'farmer', 'courier', 'priest', 'farmhand', 'woodcutter', 'shepherd']);
+        const a = O.Char.makeAppearance(O.hash('trav', r.key, home.day, i), { role, age: rng.int(17, 64) });
+        st.travellers.push({ a, s: rng.next() * r.total, dirn: rng.chance(0.5) ? 1 : -1, speed: 20 + rng.int(0, 14), ft: rng.next(), anim: 'walk', traveller: true, x: 0, y: 0, dir: 0, name: rng.pick(O.Data.NAMES[a.sex === 'm' ? 'm' : 'f']), role, road: r });
+      }
+      if (r.camp) for (let i = 0; i < 4; i++) {
+        const a = O.Char.makeAppearance(O.hash('gang', r.key, i), { role: 'outlaw', age: 20 + i * 6, sex: i === 3 ? 'f' : 'm' });
+        st.gangsters.push({ a, gx: r.camp.x + (i % 2 ? 2 : -2) + 0.5, gy: r.camp.y + (i < 2 ? 2 : 3), x: 0, y: 0, dir: i % 2 ? 1 : 2, anim: i === 0 ? 'idle' : 'talk', ft: i * 0.4, gangster: true });
+      }
+      state.set(r.key, st);
+      return st;
+    }
+    const local = (gx, gy) => I.toLocal(game.world, gx * T, gy * T);
+
+    game.hooks.update.push((dt) => {
+      const w = game.world; if (!w || !w.island || game.scene) return;
+      const pl = game.player, [pgx, pgy] = I.toGlobal(w, pl.x, pl.y), ptx = pgx / T, pty = pgy / T;
+      // the roads near enough to matter, looked over every second or so
+      scan -= dt;
+      if (scan <= 0) { scan = 1; active = I.cachedRoads().filter((r) => r.line && ptx > r.x0 - 70 && ptx < r.x1 + 70 && pty > r.y0 - 50 && pty < r.y1 + 50); }
+      const extra = [];
+      for (const r of active) {
+        let st = state.get(r.key); if (!st || st.day !== home.day) st = spawn(r);
+        for (const tr of st.travellers) {
+          tr.ft += dt; tr.chatCd = Math.max(0, (tr.chatCd || 0) - dt);
+          // two travellers meeting stop to pass the time of day; so does one you walk up to
+          if (!tr.pause && !tr.chatCd) {
+            const near = st.travellers.find((o) => o !== tr && !o.chatCd && !o.pause && Math.abs(o.s - tr.s) < 1.6 && o.dirn !== tr.dirn);
+            if (near) { tr.pause = near.pause = 4 + ((Math.floor(tr.s) * 7) % 4); tr.with = near; near.with = tr; }
+            else if (Math.hypot(pl.x - tr.x, pl.y - tr.y) < 30) { tr.pause = 2.5; tr.with = pl; }
+          }
+          if (tr.pause) {
+            tr.pause = Math.max(0, tr.pause - dt); tr.anim = 'talk';
+            if (tr.with) tr.dir = O.dirOf(tr.with.x - tr.x, tr.with.y - tr.y);
+            if (!tr.pause) { tr.chatCd = 12; tr.with = null; tr.anim = 'walk'; }
+          } else {
+            tr.anim = 'walk';
+            tr.s += tr.dirn * tr.speed * dt / T;
+            if (tr.s < 2 || tr.s > r.total - 2) { tr.dirn *= -1; tr.s = O.clamp(tr.s, 2, r.total - 2); } // into the town and back out again, near enough
+          }
+          // keep to your own side of the road, smoothly along its bends
+          const [ax, ay] = I.pointAt(r, tr.s), [bx, by] = I.pointAt(r, tr.s + 1), d = Math.hypot(bx - ax, by - ay) || 1, side = tr.dirn > 0 ? 0.45 : -0.45;
+          const gx = ax + 0.5 - (by - ay) / d * side, gy = ay + 0.6 + (bx - ax) / d * side;
+          const [nx, ny] = local(gx, gy);
+          if (!tr.pause && (tr.x || tr.y) && Math.hypot(nx - tr.x, ny - tr.y) < 40) tr.dir = O.dirOf(nx - tr.x, ny - tr.y);
+          tr.x = nx; tr.y = ny;
+          extra.push(tr);
+        }
+        for (const g of st.gangsters) { g.ft += dt; [g.x, g.y] = local(g.gx, g.gy); extra.push(g); }
+        // caravans of the realm on this road
+        for (const c of K.caravans) {
+          const a = c.path[c.leg], b = c.path[c.leg + 1]; if (!b) continue;
+          const fwd = a === r.rd.a && b === r.rd.b, back = a === r.rd.b && b === r.rd.a; if (!fwd && !back) continue;
+          const sd = (fwd ? O.clamp(c.prog, 0, 1) : 1 - O.clamp(c.prog, 0, 1)) * r.total, [cx, cy] = I.pointAt(r, sd), [x, y] = local(cx + 0.5, cy + 0.8);
+          extra.push({ x, y, caravan: c, dir: fwd ? 2 : 1, cart: true });
+        }
+        // the gang wants a toll from anyone who passes their camp
+        if (r.camp && !O.panelOpen && st.robbed !== home.day && r.camp.beaten !== home.day && Math.hypot(ptx - r.camp.rx, pty - r.camp.ry) < 4.5) {
+          st.robbed = home.day;
+          O.Roads.ambush({ camp: r.camp, rd: r.rd, name: r.rd.name || 'the road' });
+        }
+      }
+      if (extra.length) game.actors.push(...extra.filter((e) => e.x > -64 && e.y > -64 && e.x < w.W * T + 64 && e.y < w.H * T + 64));
+    });
+
+    // talk to travellers and look round the ruins out in the country
+    const cand0 = O.roadCandidate, act0 = O.roadAct;
+    O.roadCandidate = () => {
+      const w = game.world; if (!w || game.scene) return null;
+      if (!w.island) return cand0 ? cand0() : null;
+      const p = game.player; let best = null, bd = 26;
+      for (const r of active) { const st = state.get(r.key); if (st) for (const tr of st.travellers) { const d = Math.hypot(tr.x - p.x, tr.y - p.y); if (d < bd) { bd = d; best = { type: 'traveller', tr, d, x: tr.x, y: tr.y - 44 }; } } }
+      for (const b of w.buildings) if (b.ruined && b.ruinNote) { const d = Math.hypot(b.doorX * T + 8 - p.x, b.doorY * T - p.y); if (d < 40 && d < bd) { bd = d; best = { type: 'ruin', b, d, x: b.doorX * T + 8, y: b.doorY * T - 30 }; } }
+      return best;
+    };
+    O.roadAct = (c) => {
+      if (!game.world.island || c.type !== 'traveller') return act0(c);
+      const tr = c.tr, r = tr.road, to = K.place(tr.dirn > 0 ? r.rd.b : r.rd.a);
+      const news = K.news.length ? K.news[K.news.length - 1].text : null;
+      const lines = [`Bound for ${to.name}. Long way yet.`, r.camp ? `Mind ${r.camp.gang} further on. They keep a fire off the road and want paying.` : 'Quiet road, this. That suits me.', news ? `I hear ${news.charAt(0).toLowerCase() + news.slice(1)}` : 'Little news worth the telling.', 'Fine weather for walking, if it holds.', `${to.name}? Good ale there.`];
+      O.UI.dialog.open({ name: tr.name, color: '#8a6a4a', text: lines[(Math.floor(tr.s) + home.day) % lines.length], options: [] });
+    };
+  }
+  O.Wayfarers = { setup };
+})();

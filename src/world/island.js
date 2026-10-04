@@ -129,6 +129,12 @@
     return line;
   }
   const roadTiles = (rd) => drive(roadSteps(rd));
+  // where along a road (in tiles from its first town) a point lies, in global tiles
+  function pointAt(r, sd) {
+    const c = r.cum, L = r.line; sd = O.clamp(sd, 0, r.total);
+    let lo = 0, hi = c.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (c[m] <= sd) lo = m; else hi = m; }
+    const f = (sd - c[lo]) / ((c[hi] - c[lo]) || 1); return [L[lo][0] + (L[hi][0] - L[lo][0]) * f, L[lo][1] + (L[hi][1] - L[lo][1]) * f];
+  }
   function* roadSteps(rd) {
     const key = rd.a + '|' + rd.b; if (roadCache.has(key)) return roadCache.get(key);
     const A = exitOf(rd.a, rd.b); yield;
@@ -149,7 +155,17 @@
         x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
       }
     }
-    const r = { tiles: out, x0: x0 - 2, y0: y0 - 2, x1: x1 + 2, y1: y1 + 2, rd };
+    // the line itself, measured, so people and carts can walk it
+    const cum = [0]; for (let i = 1; i < line.length; i++) cum.push(cum[i - 1] + Math.hypot(line[i][0] - line[i - 1][0], line[i][1] - line[i - 1][1]));
+    const r = { tiles: out, x0: x0 - 2, y0: y0 - 2, x1: x1 + 2, y1: y1 + 2, rd, line, cum, total: cum[cum.length - 1], key };
+    // a rival gang's camp off a wild and dangerous road
+    const [mx, my] = pointAt(r, r.total / 2), midKind = E().terrainAt(mx / U, my / U);
+    if (rd.danger >= 0.25 && ['forest', 'mountain', 'peak', 'marsh', 'moor'].includes(midKind)) {
+      const g = E().regionAt(mx / U, my / U), GN = (O.Roads && O.Roads.GANGS) || {};
+      const gang = GN[g ? g.r.id : midKind === 'marsh' ? 'marsh' : 'moor'] || 'the Road Wolves';
+      const s0 = r.total * (0.4 + hash(A[0], B[1], 31) * 0.2), [px, py] = pointAt(r, s0), [qx, qy] = pointAt(r, s0 + 2), d = Math.hypot(qx - px, qy - py) || 1, side = hash(A[1], B[0], 33) < 0.5 ? 1 : -1;
+      r.camp = { gang, s: s0, x: Math.round(px - (qy - py) / d * 7 * side), y: Math.round(py + (qx - px) / d * 7 * side), rx: px, ry: py };
+    }
     roadCache.set(key, r);
     return r;
   }
@@ -204,7 +220,7 @@
     }
     yield;
     // 2. the roads, and bridges where they cross water
-    const roadSet = new Set();
+    const roadSet = new Set(), camps = [], townRoad = new Set();
     const nearLake = (gx, gy) => [[0, 0], [9, 0], [-9, 0], [0, 9], [0, -9]].some(([a, b]) => E().lakeAt((gx + a) / U, (gy + b) / U) || !E().landAt((gx + a) / U, (gy + b) / U));
     for (const rd of data().roads) {
       // a road can stray at most so far from the line between its two towns
@@ -213,8 +229,10 @@
       if (!roadCache.has(rd.a + '|' + rd.b)) { yield* roadSteps(rd); yield; } // each road is found once, a step at a time
       const r = roadTiles(rd);
       if (r.x1 < R.x0 || r.x0 > R.x1 || r.y1 < R.y0 || r.y0 > R.y1) continue;
+      if (r.camp) camps.push(r);
       for (const [gx, gy] of r.tiles) {
-        const x = gx - R.x0, y = gy - R.y0; if (x < 0 || y < 0 || x >= W || y >= H || inTown(x, y)) continue;
+        const x = gx - R.x0, y = gy - R.y0; if (x < 0 || y < 0 || x >= W || y >= H) continue;
+        if (inTown(x, y)) { townRoad.add(y * W + x); continue; } // settled with the town below
         const i = y * W + x; roadSet.add(i);
         ter[i] = ter[i] === TR.WATER && kindAt(gx, gy) === 'river' && !nearLake(gx, gy) ? TR.BRIDGE : TR.ROAD; solid[i] = 0; // a bridge over a river; a lake's edge is just filled in
       }
@@ -234,12 +252,17 @@
       keep(props, (p) => !roadSet.has(Math.floor((p.y - 1) / T) * W + Math.floor(p.x / T)));
     }
     yield;
+    // what in the town a passing road must go round: its buildings (and their doorsteps) and anything solid
+    const busy = new Set(), kept = new Set();
+    for (const b of tw.buildings) for (let y = b.y - 1; y <= b.bottom + 2; y++) for (let x = b.x - 1; x <= b.x + b.w; x++) busy.add(y * tw.W + x);
+    for (const p of tw.props) if (p.solid || p.fence) busy.add(Math.floor((p.y - 1) / T) * tw.W + Math.floor(p.x / T));
     // 3. the town itself, set into the land (its forest border gives way to the real countryside)
     for (let y = 0; y < tw.H; y++) for (let x = 0; x < tw.W; x++) {
       const li = y * tw.W + x, edge = Math.min(x, y, tw.W - 1 - x, tw.H - 1 - y), X = ox + x, Y = oy + y;
       if (X < 0 || Y < 0 || X >= W || Y >= H) continue;
       const i = Y * W + X;
       if (edge < 3 && tw.ter[li] === TR.FOREST) continue; // keep the countryside's own edge
+      if (townRoad.has(i) && !busy.has(li) && (tw.ter[li] === TR.GRASS || tw.ter[li] === TR.FOREST)) { ter[i] = TR.ROAD; solid[i] = 0; kept.add(li); continue; } // a road passing over the town's open ground
       if (x < 13 && (tw.ter[li] === TR.WATER || tw.ter[li] === TR.SAND) && ter[i] !== TR.WATER) continue; // a coast town's sketched shore gives way to the island's real one
       ter[i] = tw.ter[li]; solid[i] = tw.solid[li];
     }
@@ -252,6 +275,7 @@
       t.x += sx; t.y += sy;
       const tx = Math.floor(t.x / T) - ox, ty = Math.floor((t.y - 1) / T) - oy;
       if (Math.min(tx, ty, tw.W - 1 - tx, tw.H - 1 - ty) < 3) continue; // the town's border woods give way to the countryside's
+      if (kept.has(ty * tw.W + tx) || kept.has(ty * tw.W + tx - 1) || kept.has(ty * tw.W + tx + 1)) continue; // felled for the road
       trees.push(t);
     }
     // countryside trees and stones that fell inside the town are cleared
@@ -270,6 +294,17 @@
       for (let yy = bld.y; yy <= bld.bottom; yy++) for (let xx = bld.x; xx < bld.x + bld.w; xx++) { const i = yy * W + xx; solid[i] = 1; if (ter[i] === TR.WATER) ter[i] = TR.GRASS; }
       keep(trees, (t) => !(Math.abs(t.x / T - x) < 5 && Math.abs(t.y / T - y) < 5));
     }
+    // 5. the camps of the gangs that hold the wild roads
+    for (const r of camps) {
+      const c = r.camp, x = c.x - R.x0, y = c.y - R.y0;
+      if (x < 4 || y < 4 || x > W - 6 || y > H - 4 || inTown(x, y)) continue;
+      const spec = { seed: c.x * 7 + c.y + 9, w: 3, d: 2, floors: 1, wealth: 0.2, condition: 0.6, wall: 'log', roof: 'thatch', roofType: 'side', doorTile: 1, noFlowers: true };
+      const bld = { id: 9500 + buildings.length, type: 'hideout', name: `${c.gang.replace(/^the /, 'The ')}' camp`, x: x - 1, bottom: y, y: y - 1, w: 3, d: 2, floors: 1, wealth: 0.2, condition: 0.6, level: 0, gang: 'rival', rivalGang: c.gang, spec, doorX: x, doorY: y + 1, roadKey: r.key };
+      buildings.push(bld);
+      for (let yy = bld.y - 1; yy <= bld.bottom + 2; yy++) for (let xx = bld.x - 2; xx < bld.x + bld.w + 2; xx++) { const i = yy * W + xx; solid[i] = yy <= bld.bottom && xx >= bld.x && xx < bld.x + bld.w ? 1 : 0; if (ter[i] === TR.FOREST || ter[i] === TR.WATER) ter[i] = TR.YARD; }
+      keep(trees, (t) => !(Math.abs(t.x / T - x) < 4 && Math.abs(t.y / T - y) < 4));
+      keep(props, (p) => !(p.country !== false && !p.field && Math.abs(p.x / T - x) < 3 && Math.abs(p.y / T - y) < 3 && (p.kind === 'bush' || p.kind === 'rock')));
+    }
     const world = Object.assign({}, tw, {
       W, H, T, ter, solid, buildings, props, trees, TER: TR, zones, ox, oy, gx0: R.x0, gy0: R.y0, chunked: true, island: true,
       roadY: (tw.roadY || 30) + oy, exits: {}, name: place(id).name, placeId: id, townW: tw.W, townH: tw.H,
@@ -284,5 +319,5 @@
   const toGlobal = (w, px, py) => [px + w.gx0 * T, py + w.gy0 * T];
   const toLocal = (w, gx, gy) => [gx - w.gx0 * T, gy - w.gy0 * T];
 
-  O.Island = { U, init, data, town, region, regionSteps, rectOf, ownerAt, centre, toGlobal, toLocal, roadTiles, exitOf };
+  O.Island = { U, init, data, town, region, regionSteps, pointAt, cachedRoads: () => [...roadCache.values()], rectOf, ownerAt, centre, toGlobal, toLocal, roadTiles, exitOf };
 })();

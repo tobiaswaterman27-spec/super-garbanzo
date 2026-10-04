@@ -13,6 +13,7 @@
     const fx = [];
     let swing = 0, swingHit = false, playerCd = 0;
     PS.equipped = PS.items.includes('dagger') ? 'dagger' : 'fists';
+    game.hooks.update.push(() => { if (PS.equipped !== 'fists' && !PS.items.includes(PS.equipped)) PS.equipped = 'fists'; syncLook(); });
 
     function weapon() { const w = PS.equipped; return WEAPONS[w && PS.items.includes(w) ? w : 'fists']; }
     function syncLook() { const w = PS.equipped && PS.items.includes(PS.equipped) ? PS.equipped : null; if (game.player.a.outfit.item !== w) { game.player.a.outfit.item = w; O.Char.invalidate(game.player.a); } }

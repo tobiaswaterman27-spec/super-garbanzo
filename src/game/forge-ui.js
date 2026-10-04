@@ -100,10 +100,7 @@
       row(chk('Cloak', spec.cloak, (v) => update('cloak', v))),
       field('Cloak colour', swatches(clothCols.map((k) => [k, P.cloth[k], k]), spec.cloakCol, (v) => update('cloakCol', v), 'Cloak colour')),
     ));
-    root.appendChild(group('Gear',
-      field('In hand', select('fItem', [['none', 'Nothing'], ['dagger', 'Dagger'], ['sword', 'Sword'], ['axe', 'Axe'], ['bread', 'Stolen loaf'], ['mug', 'Tankard']], spec.item, (v) => update('item', v))),
-      row(chk('Bow on back', spec.bow, (v) => update('bow', v)), chk('Sword at hip', spec.scabbard, (v) => update('scabbard', v))),
-    ));
+    // no gear to choose: a stranger arrives empty-handed
     const rnd = document.createElement('button'); rnd.className = 'btn ghost'; rnd.textContent = 'Randomise';
     rnd.onclick = () => {
       const r = O.RNG(Date.now() & 0xffffffff); const sex = r.chance(0.5) ? 'm' : 'f';

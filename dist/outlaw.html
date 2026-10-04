@@ -1,13 +1,13 @@
 <title>Outlaw</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Alegreya+Sans:wght@400;500;700&family=Silkscreen&family=Nunito:wght@600;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=Silkscreen:wght@400;700&family=Jacquard+12&display=swap">
 <style>
 /* Layout: a game shell — top bar with tabs, then a control column beside a pixel stage. Single dark "lantern-lit" look. */
 :root {
   --ink: #15111c; --ink-2: #1f1a29; --panel: #2a2334; --line: #3d3349;
   --parch: #e8dcc0; --parch-dim: #b3a68b; --ember: #d9893a; --ember-2: #f0b45c; --blood: #a8382f; --moss: #6f8f4e;
-  --display: 'Pirata One', 'UnifrakturCook', Georgia, serif;
-  --body: 'Alegreya Sans', 'Trebuchet MS', system-ui, sans-serif;
+  --display: 'Jacquard 12', 'Pixelify Sans', monospace;
+  --body: 'Pixelify Sans', ui-monospace, monospace;
   --pix: 'Silkscreen', ui-monospace, monospace;
   color-scheme: dark;
 }
@@ -66,32 +66,32 @@ main { height: 100vh; }
 .creator-head p { margin: 0; color: var(--parch-dim); flex: 1 1 260px; }
 .btn.begin { font-size: 14px; padding: 12px 22px; }
 /* the little clock */
-.ui-clock { position: absolute; top: 14px; left: 16px; color: #fff8e6; font-family: 'Nunito', var(--body); text-shadow: 0 2px 0 rgba(20,14,30,.75), 0 0 8px rgba(20,14,30,.5); pointer-events: none; display: grid; grid-template-columns: auto auto; column-gap: 4px; align-items: baseline; }
+.ui-clock { position: absolute; top: 14px; left: 16px; color: #fff8e6; font-family: var(--body); text-shadow: 0 2px 0 rgba(20,14,30,.75), 0 0 8px rgba(20,14,30,.5); pointer-events: none; display: grid; grid-template-columns: auto auto; column-gap: 4px; align-items: baseline; }
 .ui-clock b { font-size: 30px; font-weight: 800; line-height: 1; }
 .ui-clock small { font-size: 13px; font-weight: 800; }
 .ui-clock span { grid-column: 1 / -1; font-size: 13px; font-weight: 700; text-transform: capitalize; opacity: .92; }
 .ui-clock em { grid-column: 1 / -1; font-style: normal; font-size: 12px; font-weight: 700; opacity: .8; }
 .ui-status { position: absolute; top: 16px; right: 16px; display: flex; gap: 6px; pointer-events: none; }
-.ui-status span { font-family: 'Nunito', var(--body); font-weight: 800; font-size: 12px; color: #fff8e6; background: rgba(150,52,40,.82); padding: 3px 10px; border-radius: 999px; }
+.ui-status span { font-family: var(--body); font-weight: 800; font-size: 12px; color: #fff8e6; background: rgba(150,52,40,.82); padding: 3px 10px; border-radius: 0; }
 /* the bottom line */
-.ui-ticker { position: absolute; left: 50%; bottom: 18px; transform: translate(-50%, 8px); max-width: min(720px, calc(100% - 32px)); padding: 8px 18px; border-radius: 999px; background: rgba(250,242,222,.94); color: #4a3826; font-family: 'Nunito', var(--body); font-weight: 700; font-size: 15px; box-shadow: 0 4px 0 rgba(60,40,20,.35); opacity: 0; transition: opacity .35s, transform .35s; pointer-events: none; text-align: center; z-index: 25; }
+.ui-ticker { position: absolute; left: 50%; bottom: 18px; transform: translate(-50%, 8px); max-width: min(720px, calc(100% - 32px)); padding: 8px 18px; border-radius: 0; background: rgba(250,242,222,.94); color: #4a3826; font-family: var(--body); font-weight: 700; font-size: 15px; box-shadow: 0 4px 0 rgba(60,40,20,.35); opacity: 0; transition: opacity .35s, transform .35s; pointer-events: none; text-align: center; z-index: 25; }
 .ui-ticker.on { opacity: 1; transform: translate(-50%, 0); }
 .ui-ticker.bad { color: #8a2a1e; }
 /* conversation box */
-.dlg { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); width: min(760px, calc(100% - 32px)); min-height: 118px; padding: 26px 34px 22px; border-radius: 34px; background: #fbf3dd; color: #4a3826; font-family: 'Nunito', var(--body); font-weight: 700; font-size: 19px; line-height: 1.45; box-shadow: 0 6px 0 rgba(70,48,26,.35), inset 0 0 0 3px #efe1bd; z-index: 30; cursor: pointer; }
-.dlg-name { position: absolute; top: -16px; left: 34px; transform: rotate(-3deg); padding: 4px 18px; border-radius: 999px; color: #fff; font-weight: 800; font-size: 16px; box-shadow: 0 3px 0 rgba(0,0,0,.25); text-shadow: 0 1px 0 rgba(0,0,0,.3); }
+.dlg { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); width: min(760px, calc(100% - 32px)); min-height: 118px; padding: 26px 34px 22px; border-radius: 0; background: #fbf3dd; color: #4a3826; font-family: var(--body); font-weight: 700; font-size: 19px; line-height: 1.45; box-shadow: 0 6px 0 rgba(70,48,26,.35), inset 0 0 0 3px #efe1bd; z-index: 30; cursor: pointer; }
+.dlg-name { position: absolute; top: -16px; left: 34px; transform: rotate(-3deg); padding: 4px 18px; border-radius: 0; color: #fff; font-weight: 800; font-size: 16px; box-shadow: 0 3px 0 rgba(0,0,0,.25); text-shadow: 0 1px 0 rgba(0,0,0,.3); }
 .dlg-next { position: absolute; right: 26px; bottom: 12px; color: #d38a3a; font-size: 14px; animation: dlgbob 1s infinite; }
 @keyframes dlgbob { 50% { transform: translateY(3px); } }
-.dlg-opts { position: absolute; right: max(16px, calc(50% - 380px)); bottom: 160px; display: grid; gap: 2px; padding: 12px 14px; border-radius: 26px; background: #fbf3dd; box-shadow: 0 5px 0 rgba(70,48,26,.35), inset 0 0 0 3px #efe1bd; z-index: 31; min-width: 220px; }
-.dlg-opts button { text-align: left; background: none; border: 0; padding: 5px 10px 5px 26px; border-radius: 999px; font-family: 'Nunito', var(--body); font-weight: 800; font-size: 16px; color: #5a4632; cursor: pointer; position: relative; }
+.dlg-opts { position: absolute; right: max(16px, calc(50% - 380px)); bottom: 160px; display: grid; gap: 2px; padding: 12px 14px; border-radius: 0; background: #fbf3dd; box-shadow: 0 5px 0 rgba(70,48,26,.35), inset 0 0 0 3px #efe1bd; z-index: 31; min-width: 220px; }
+.dlg-opts button { text-align: left; background: none; border: 0; padding: 5px 10px 5px 26px; border-radius: 0; font-family: var(--body); font-weight: 800; font-size: 16px; color: #5a4632; cursor: pointer; position: relative; }
 .dlg-opts button.hot { color: #9a5a1e; }
 .dlg-opts button.sel { background: #f3e2b8; color: #3a2a1a; }
 .dlg-opts button.sel::before { content: ''; position: absolute; left: 9px; top: 50%; transform: translateY(-50%); border: 6px solid transparent; border-left: 9px solid #e0882e; border-right: 0; }
 /* pause menu */
 .ui-menu { position: absolute; inset: 0; background: rgba(15,10,20,.55); display: grid; place-items: center; z-index: 40; }
-.ui-menu-in { background: #fbf3dd; color: #4a3826; border-radius: 30px; padding: 22px 26px; display: grid; gap: 4px; min-width: 260px; box-shadow: 0 8px 0 rgba(60,40,20,.4); }
+.ui-menu-in { background: #fbf3dd; color: #4a3826; border-radius: 0; padding: 22px 26px; display: grid; gap: 4px; min-width: 260px; box-shadow: 0 8px 0 rgba(60,40,20,.4); }
 .ui-menu-in h2 { font-family: var(--display); font-weight: 400; font-size: 36px; margin: 0 0 8px; color: #b0602a; text-align: center; }
-.ui-menu-in button { background: none; border: 0; border-radius: 999px; padding: 8px 16px; font-family: 'Nunito', var(--body); font-weight: 800; font-size: 16px; color: #5a4632; cursor: pointer; text-align: left; }
+.ui-menu-in button { background: none; border: 0; border-radius: 0; padding: 8px 16px; font-family: var(--body); font-weight: 800; font-size: 16px; color: #5a4632; cursor: pointer; text-align: left; }
 .ui-menu-in button:hover, .ui-menu-in button:focus-visible { background: #f3e2b8; outline: none; }
 @media (max-width: 600px) { .dlg { font-size: 16px; padding: 22px 20px 18px; } .dlg-opts { right: 16px; bottom: 150px; } .ui-clock b { font-size: 24px; } }
 .hud-prompt { bottom: 52px; left: 50%; transform: translateX(-50%); white-space: nowrap; }
@@ -209,6 +209,18 @@ main > .wrap { overflow: auto; }
 .prompt { font-family: var(--pix); font-size: 11px; color: var(--parch); }
 .prompt kbd { display: inline-block; background: var(--ember-2); color: var(--ink); border: 2px solid #000; padding: 0 5px; margin-right: 6px; font-family: var(--pix); }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+
+/* everything pixel: stepped corners on bubbles, menus and tags, no smoothing */
+.dlg, .dlg-opts, .ui-menu-in, .ui-ticker, .dlg-name, .ui-status span, .panel-modal .ledger-in, .toast {
+  border-radius: 0 !important;
+  box-shadow: 0 -4px 0 0 currentColor, 0 4px 0 0 currentColor, -4px 0 0 0 currentColor, 4px 0 0 0 currentColor, 0 8px 0 0 rgba(30,20,10,.35) !important;
+}
+.dlg, .dlg-opts, .ui-menu-in, .ui-ticker { color: #4a3826; outline: 0; }
+.dlg-name { color: #fff; }
+.dlg-name, .ui-status span { box-shadow: 0 -3px 0 0 #2a1a10, 0 3px 0 0 #2a1a10, -3px 0 0 0 #2a1a10, 3px 0 0 0 #2a1a10 !important; transform: none !important; }
+body, button, input, select { -webkit-font-smoothing: none; font-smooth: never; }
+.dlg { font-size: 20px; line-height: 1.5; }
+.dlg-opts button.sel::before { content: '>'; position: absolute; left: 8px; }
 </style>
 
 <main>
@@ -686,10 +698,10 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     let m;
     switch (st) {
       case 'baby': m = { headRx: 4.6, headRy: 4.5, torso: 5, leg: 5, armU: 2.6, armL: 2.4, shW: 7, waistW: 7.5, hipW: 7.5, limbR: 1.4, legR: 1.6 }; break;
-      case 'child': m = { headRx: 5.7, headRy: 5.6, torso: 7, leg: 8, armU: 3.6, armL: 3.4, shW: 8, waistW: 8, hipW: 8.5, limbR: 1.45, legR: 1.7 }; break;
-      case 'olderChild': m = { headRx: 5.9, headRy: 5.8, torso: 8, leg: 10, armU: 4.2, armL: 4, shW: 9, waistW: 8.5, hipW: 9, limbR: 1.5, legR: 1.8 }; break;
-      case 'teen': m = { headRx: 5.9, headRy: 6.0, torso: 10.5, leg: 13.5, armU: 5, armL: 4.8, shW: 10.5, waistW: 9, hipW: 9.5, limbR: 1.55, legR: 1.95 }; break;
-      default: m = { headRx: 6.1, headRy: 6.2, torso: 12, leg: 15, armU: 5.6, armL: 5.4, shW: 13.4, waistW: 10, hipW: 10.5, limbR: 1.65, legR: 2.05 };
+      case 'child': m = { headRx: 6.2, headRy: 6.1, torso: 7, leg: 8, armU: 3.6, armL: 3.4, shW: 8, waistW: 8, hipW: 8.5, limbR: 1.45, legR: 1.7 }; break;
+      case 'olderChild': m = { headRx: 6.4, headRy: 6.3, torso: 8, leg: 10, armU: 4.2, armL: 4, shW: 9, waistW: 8.5, hipW: 9, limbR: 1.5, legR: 1.8 }; break;
+      case 'teen': m = { headRx: 6.6, headRy: 6.7, torso: 10.5, leg: 13.5, armU: 5, armL: 4.8, shW: 10.5, waistW: 9, hipW: 9.5, limbR: 1.55, legR: 1.95 }; break;
+      default: m = { headRx: 6.9, headRy: 7.0, torso: 12, leg: 15, armU: 5.6, armL: 5.4, shW: 13.4, waistW: 10, hipW: 10.5, limbR: 1.65, legR: 2.05 };
     }
     m.stage = st;
     if (st !== 'child' && st !== 'olderChild' && st !== 'baby') {
@@ -1375,14 +1387,18 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         // one clean eye: a dark pupil over the iris on the inner side, the white beside it, a lid shadow above
         const inner = cols.length > 1 ? (outer < 0 ? cols[1] : cols[0]) : cols[0], outerCol = cols.length > 1 ? (outer < 0 ? cols[0] : cols[1]) : null;
         // two pixels tall: the dark pupil with a glint, the coloured iris under it, the white beside
-        // a clear upright eye, two pixels tall: dark above, the iris colour (deepened) below
-        plot(inner, ey - 1, a.eyeDark, 1); plot(inner, ey, a.eyes, 0);
-        void outerCol;
+        // a detailed eye, two wide and three tall: the lid line, then the white beside the dark pupil,
+        // then the coloured iris under the pupil
+        if (outerCol != null) {
+          plot(inner, ey - 1, a.eyeDark, 1); plot(outerCol, ey - 1, a.eyeDark, 1);
+          plot(outerCol, ey, a.eyeWhite, 3); plot(inner, ey, a.eyeDark, 0);
+          plot(inner, ey + 1, a.eyes, 2); plot(outerCol, ey + 1, a.eyes, 1);
+        } else { plot(inner, ey - 1, a.eyeDark, 1); plot(inner, ey, a.eyeDark, 0); plot(inner, ey + 1, a.eyes, 2); }
         if (a.sex === 'f' && a.stage !== 'child' && outerCol != null) { const lx = outerCol + (outerCol > inner ? 1 : -1); if (isSkin(lx, ey - 1)) plot(lx, ey - 1, a.eyeDark, 1); } // lashes
         if (f.eyeType === 1) plot(inner, ey + 1, a.skin, 1); // heavy lower lid
       }
       // brow
-      const by = ey - 3;
+      const by = ey - 3 - (H.ry > 6.5 ? 1 : 0);
       if (f.brow > 0 || elder || a.sex === 'm') {
         const bc = wf > 0.55 ? [ex - 1, ex] : cols;
         for (const x of bc) if (isSkin(x, by)) plot(x, by, browM, a.sex === 'f' ? 2 : f.brow > 1 ? 0 : 1);
@@ -1411,7 +1427,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     // mouth
     const mq = headPt(S, H, 0, 0.62, 0.8);
     if (-mq[2] > 0 || V.side) {
-      const my = Math.floor(eyeY) + 4 - (H.ry < 5.3 ? 1 : 0);
+      const my = Math.floor(eyeY) + 4 + (H.ry > 6.5 ? 1 : 0) - (H.ry < 5.3 ? 1 : 0);
       const mxc = V.side ? Math.round(H.cx + H.e * 0.68) : Math.round(mq[0]);
       const wide = -mq[2] > 0.55;
       const xs = wide ? [mxc - 1, mxc] : [mxc - (V.side ? 0 : 1)];
@@ -1694,7 +1710,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     const rng = O.RNG(spec.seed || 1);
     const w = spec.w, d = spec.d, floors = spec.floors || 1, OV = 4, FW = w * T, W = FW + OV * 2;
     const wallH = spec.wallH || floors * FLOOR + 9;
-    const gable = spec.roofType === 'gable', castle = spec.roofType === 'battlement', grand = castle && spec.grand, church = spec.sign === 'cross' || spec.church;
+    const gable = spec.roofType === 'gable', castle = spec.roofType === 'battlement', grand = castle && spec.grand, church = spec.church || (spec.sign === 'cross' && (spec.wallH || 0) >= 56);
     const roofH = Math.round(d * T * 0.58) + 4;
     const gableH = Math.round(FW * 0.34), depthH = Math.round(d * T * 0.52);
     const extraTop = grand ? 84 : castle ? 40 : church ? 56 : 12;
@@ -2831,7 +2847,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     const sample = (px, py) => {
       const base = tAt(Math.floor(px / T), Math.floor(py / T));
       if (base === TER.BRIDGE) return base;
-      const wx = px + (O.noise2(px / 7, py / 7, 41) - 0.5) * 7, wy = py + (O.noise2(px / 7, py / 7, 43) - 0.5) * 7;
+      const wet = base === TER.WATER || base === TER.SAND;
+      const amp = wet ? 13 : 7, per = wet ? 16 : 7;
+      const wx = px + (O.noise2(px / per, py / per, 41) - 0.5) * amp + (wet ? (O.noise2(px / 5, py / 5, 47) - 0.5) * 3 : 0), wy = py + (O.noise2(px / per, py / per, 43) - 0.5) * amp;
       const t = tAt(Math.floor(wx / T), Math.floor(wy / T));
       return t === TER.BRIDGE ? base : t;
     };
@@ -2878,13 +2896,23 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
           col = R.field[s]; break;
         }
         case TER.WATER: {
-          // shimmer bands; lighter along banks
-          const band = Math.sin(x * 0.35 + Math.sin(y * 0.2) * 2 + y * 0.08);
-          let s = band > 0.85 ? 3 : n > 0.55 ? 2 : 1;
-          const nearLand = [at(x - 2, y), at(x + 2, y), at(x, y - 2), at(x, y + 2)].some((k) => k !== TER.WATER && k !== -1 && k !== TER.BRIDGE);
-          if (nearLand) s = 3;
-          const edge = [at(x - 1, y), at(x + 1, y), at(x, y - 1), at(x, y + 1)].some((k) => k !== TER.WATER && k !== -1 && k !== TER.BRIDGE);
-          col = edge ? [228, 236, 238] : R.water[s]; break;
+          // depth: how far to the nearest bank, sampled in rings; shallows are lighter and greener
+          const land = (xx, yy) => { const k = at(xx, yy); return k !== TER.WATER && k !== -1 && k !== TER.BRIDGE; };
+          let depth = 4;
+          for (const [r, dd] of [[1, 0], [3, 1], [6, 2], [10, 3]]) { if (land(x - r, y) || land(x + r, y) || land(x, y - r) || land(x, y + r) || land(x - r, y - r) || land(x + r, y + r) || land(x - r, y + r) || land(x + r, y - r)) { depth = dd; break; } }
+          const WC = [[214, 230, 228], [110, 168, 184], [74, 136, 172], [60, 112, 156], [48, 92, 138]];
+          col = WC[depth].slice();
+          // the waterline: broken foam, not a ruled line
+          if (depth === 0) { if (BAYER[(x & 3) + ((y & 3) << 2)] < 9) col = [96, 152, 172]; }
+          else {
+            // gentle drifting ripples: short soft highlights and darker troughs scattered by noise
+            const rip = O.noise2(x / 9, y / 2.6, 61), dot = O.noise2(x * 0.7, y * 0.7, 63);
+            if (rip > 0.74) col = col.map((c, i) => Math.min(255, c + [18, 22, 22][i]));
+            else if (rip < 0.2) col = col.map((c) => c - 10);
+            if (dot > 0.94 && depth > 1) col = [196, 222, 236];
+            const tint = (n - 0.5) * 10; col = col.map((c) => Math.round(c + tint));
+          }
+          break;
         }
         case TER.SAND: {
           let s = n > 0.55 ? 3 : 2; if (f > 0.9) s = 4; if (f < 0.1) s = 1;
@@ -7490,7 +7518,11 @@ O.snowMaskOf = function (src) {
       switch (zone) {
         case 'square': {
           // in a big place most people loaf near their own street rather than all in one market
-          if (this.people.length > 220 && p.home && (p.id * 7 + this.day) % 5 < 3) { const b = this.building(p.home); if (b) return pick(b.x - 2, b.bottom + 1, b.x + b.w + 1, b.bottom + 3); }
+          // the market holds only so many: about one person to every five tiles of it. The rest pass the
+          // time on their own street or doorstep, so a square never fills up wall to wall
+          const [qx0, qy0, qx1, qy1] = this.Z.square, cap = Math.max(8, ((qx1 - qx0 + 1) * (qy1 - qy0 + 1)) / 5);
+          const frac = Math.min(1, cap / Math.max(1, this.people.length * 0.3));
+          if (p.home && ((p.id * 37 + this.day * 11) % 100) / 100 >= frac) { const b = this.building(p.home); if (b) return pick(b.x - 2, b.bottom + 1, b.x + b.w + 1, b.bottom + 3); }
           return pick(...this.Z.square);
         }
         case 'home': { const b = this.building(p.home); return pick(b.x - 1, b.bottom + 1, b.x + b.w, b.bottom + 2); }
@@ -10127,7 +10159,7 @@ O.snowMaskOf = function (src) {
         case 'claim': return 'Claim the abandoned camp';
         case 'stash': return 'Open the stash';
         case 'campbed': return 'Sleep by the fire';
-        case 'bed': return mayUseBed(c.it) ? 'Sleep until morning' : 'Bed — not yours';
+        case 'bed': return mayUseBed(c.it) ? 'Sleep until morning' : c.it.rent ? 'Take this bed for the night (6d)' : 'Bed — not yours';
         case 'hay': return 'Sleep in the hay';
         case 'traveller': case 'ruin': case 'signpost': return O.roadLabel(c);
         case 'pickup': return `Pick up the ${(O.Data.GOODS[c.it.good]?.name || c.it.good).toLowerCase()}`;
@@ -10270,7 +10302,16 @@ O.snowMaskOf = function (src) {
         case 'portrait': { const pr = cur.it.portrait; O.Panels.toast(`A likeness of ${pr.name}, painted in life. Died ${O.Chronicle.dateLabel(pr.died)}.`); break; }
         case 'broadsheet': O.ChronicleUI.broadsheet(); break;
         case 'grave': { const g = cur.prop.grave; O.Panels.toast(g ? `“Here lies ${g.name}, ${g.age} years. ${g.cause.replace('died ', '').replace(/^./, (c) => c.toUpperCase())}.”` : 'The old stone is worn smooth; you can no longer read the name.'); break; }
-        case 'bed': if (mayUseBed(cur.it)) sleep(cur.it); else O.Panels.toast("That's someone else's bed."); break;
+        case 'bed':
+          if (mayUseBed(cur.it)) sleep(cur.it);
+          else if (cur.it.rent) {
+            // an inn's guest bed: pay the night's money into the tavern's till and lie down
+            if (PS.money < 6) { O.Panels.toast('A bed is sixpence a night, and you have not got it.', 'bad'); break; }
+            const bz = sim.biz.get(game.scene.b.id); PS.money -= 6; if (bz) bz.cash += 6;
+            PS.room = { b: game.scene.b.id, until: sim.day + (sim.hour >= 12 ? 1 : 0) };
+            O.UI.say('You leave sixpence on the bar and take the bed for the night.'); sleep(cur.it);
+          } else O.Panels.toast("That's someone else's bed.");
+          break;
         case 'sit': { const sc = game.scene, pose = sc.seatPose(cur.it), p = game.player; p.sitting = Object.assign(pose, { it: cur.it, sx: p.x, sy: p.y, b: sc.b.id, floor: sc.floor }); p.x = pose.x; p.y = pose.y; p.dir = pose.dir; p.anim = 'sit'; if (cur.it.kind === 'throne' && sim.byId) O.Panels.toast('You sit on the throne. Nobody seems pleased about it.'); break; }
         case 'stairs': { const up = cur.it ? !!cur.it.stairs : game.scene.floor === 0; game.enterBuilding(game.scene.b, game.scene.floor + (up ? 1 : -1), up ? 'up' : 'down'); break; }
         case 'shop': O.Panels.trade(sim, sim.biz.get(game.scene.b.id), cur.seller); break;
@@ -10410,18 +10451,14 @@ O.snowMaskOf = function (src) {
           const px = tx * T + ((ox + t * sp * fx) % 16 + 16) % 16, py = ty * T + ((oy + t * sp * fy * 0.6) % 16 + 16) % 16;
           const sx = Math.round(px - cam.x), sy = Math.round(py - cam.y);
           const tw = (Math.sin(t * 3 + h) + 1) / 2;
-          ctx.fillStyle = frozen ? 'rgba(236,244,250,0.5)' : `rgba(206,226,240,${(0.25 + tw * 0.35).toFixed(2)})`;
-          ctx.fillRect(sx, sy, horiz && !vert ? 3 : 1, horiz && !vert ? 1 : 2);
+          // drifting ripples only away from the banks, so nothing outlines the tile edges
+          const inner = isW(tx - 1, ty) && isW(tx + 1, ty) && isW(tx, ty - 1) && isW(tx, ty + 1);
+          if (!inner && (ox < 4 || ox > 11 || oy < 4 || oy > 11)) continue;
+          ctx.fillStyle = frozen ? 'rgba(236,244,250,0.5)' : `rgba(206,226,240,${(0.18 + tw * 0.3).toFixed(2)})`;
+          ctx.fillRect(sx, sy, horiz && !vert ? 3 : 2, 1);
           if (tw > 0.92 && !frozen) { ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.fillRect(sx + 1, sy, 1, 1); }
         }
-        // foam where water meets land, lapping in and out
-        for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
-          if (isW(tx + dx, ty + dy) || ter[(ty + dy) * world.W + tx + dx] === TER.BRIDGE) continue;
-          const lap = Math.round((Math.sin(t * 1.6 + tx * 0.7 + ty) + 1) * 1.2);
-          ctx.fillStyle = 'rgba(232,240,244,0.55)';
-          if (dy) for (let x = 0; x < T; x += 3) ctx.fillRect(tx * T + x - cam.x + ((ty * 5) % 3), (dy < 0 ? ty * T + lap : ty * T + T - 1 - lap) - cam.y, 2, 1);
-          else for (let y = 0; y < T; y += 3) ctx.fillRect((dx < 0 ? tx * T + lap : tx * T + T - 1 - lap) - cam.x, ty * T + y - cam.y, 1, 2);
-        }
+        // (the foam at the banks is painted into the ground itself, following the true waterline)
       }
     });
 
@@ -10853,6 +10890,7 @@ O.snowMaskOf = function (src) {
     const fx = [];
     let swing = 0, swingHit = false, playerCd = 0;
     PS.equipped = PS.items.includes('dagger') ? 'dagger' : 'fists';
+    game.hooks.update.push(() => { if (PS.equipped !== 'fists' && !PS.items.includes(PS.equipped)) PS.equipped = 'fists'; syncLook(); });
 
     function weapon() { const w = PS.equipped; return WEAPONS[w && PS.items.includes(w) ? w : 'fists']; }
     function syncLook() { const w = PS.equipped && PS.items.includes(PS.equipped) ? PS.equipped : null; if (game.player.a.outfit.item !== w) { game.player.a.outfit.item = w; O.Char.invalidate(game.player.a); } }
@@ -12322,7 +12360,15 @@ O.snowMaskOf = function (src) {
       const k = O.clamp(1 - PS.rep.merchant * 0.12 - PS.rep.local * 0.1 - aff * 0.1 + (seller && heardBadOf(seller) ? 0.15 : 0), 0.8, 1.4);
       return Math.max(1, Math.round(s.price(bz, g) * k));
     };
-    O.refusesTrade = (seller) => (PS.rep.local < -0.55 || (seller && (seller.rel.get(0)?.affinity || 0) < -0.5)) ? `${seller.first} folds their arms. “We don't serve your kind here.”` : null;
+    // a shopkeeper only turns you away if they themselves hold something against you, or if they know
+    // who you are and what you've done: your name being mud means nothing to someone who's never seen you
+    O.refusesTrade = (seller) => {
+      if (!seller) return null;
+      const r = seller.rel.get(0) || {}, knowsYou = (r.familiar || 0) >= 0.25;
+      const grudge = (r.affinity || 0) < -0.5;
+      const knownBad = knowsYou && (PS.rep.local < -0.55 || (PS.wantedLevel && PS.wantedLevel() >= 2));
+      return grudge || knownBad ? `${seller.first} folds their arms. “I know you. We don't serve your kind here.”` : null;
+    };
   }
 
   O.WorkSetup = { setup };
@@ -12539,7 +12585,7 @@ O.snowMaskOf = function (src) {
       const s = cur(), h = s.hour;
       if (!sellable().length) return toast('You have nothing to sell. Make or buy something first.', 'bad');
       if (h < 8 || h >= 18 || s.weekday === 6) return toast('No one buys at a stall at this hour. Come back in market hours (8 to 6, not Sundays).', 'bad');
-      if (O.refusesTrade && PS.rep.local < -0.55) return toast('People cross the street rather than buy from you.', 'bad');
+      if (O.refusesTrade && PS.rep.local < -0.75 && PS.wantedLevel && PS.wantedLevel() >= 2) return toast('People cross the street rather than buy from you.', 'bad');
       const st = O.stallCandidate(); if (st) { game.player.x = st.prop.x; game.player.y = st.prop.y - 20; game.player.dir = 0; } // behind the counter
       game.player.anim = 'talk';
       for (let i = 0; i < 30; i++) { s.tick(2); PS.tick(2, false); }
@@ -13573,13 +13619,32 @@ O.snowMaskOf = function (src) {
     const caravanCart = () => O.Env.prop('cart', 5, 1);
     game.hooks.update.push((dt) => {
       const w = game.world, R = w.road; if (!R) return;
+      const pl = game.player;
       for (const tr of R.travellers) {
-        tr.ft += dt; tr.u += tr.dirn * tr.speed * dt / T;
+        tr.ft += dt; tr.chatCd = Math.max(0, (tr.chatCd || 0) - dt);
+        // two travellers meeting on the road stop to pass the time of day; so does one you walk up to
+        if (!tr.pause && !tr.chatCd) {
+          const near = R.travellers.find((o) => o !== tr && !o.chatCd && Math.abs(o.u - tr.u) < 1.6 && o.dirn !== tr.dirn);
+          if (near) { tr.pause = near.pause = 4 + ((tr.u * 7) % 4); tr.with = near; near.with = tr; }
+          else if (Math.hypot(pl.x - tr.x, pl.y - tr.y) < 30) { tr.pause = 2.5; tr.with = pl; }
+        }
+        if (tr.pause) {
+          tr.pause = Math.max(0, tr.pause - dt); tr.anim = 'talk';
+          const o = tr.with; if (o) tr.dir = O.dirOf(o.x - tr.x, o.y - tr.y);
+          if (!tr.pause) { tr.chatCd = 12; tr.with = null; tr.anim = 'walk'; }
+          continue;
+        }
+        tr.anim = 'walk';
+        tr.u += tr.dirn * tr.speed * dt / T;
         if (tr.u < 1 || tr.u > R.L - 2) { tr.dirn *= -1; tr.u = O.clamp(tr.u, 1, R.L - 2); }
-        const v = R.mid(Math.floor(tr.u)) + (tr.dirn > 0 ? 0.3 : 1.2);
-        const [x, y] = R.horiz ? [tr.u, v] : [v, tr.u];
-        tr.x = x * T + 8; tr.y = y * T + 10;
-        tr.dir = R.horiz ? (tr.dirn > 0 ? 2 : 1) : (tr.dirn > 0 ? 0 : 3);
+        // follow the road's line smoothly: blend between the bends rather than stepping a tile sideways
+        const u0 = Math.floor(tr.u), f = tr.u - u0, lane = tr.dirn > 0 ? 0.3 : 1.2;
+        const target = R.mid(u0) * (1 - f) + R.mid(u0 + 1) * f + lane;
+        tr.vs = tr.vs == null ? target : tr.vs + (target - tr.vs) * Math.min(1, dt * 3);
+        const [x, y] = R.horiz ? [tr.u, tr.vs] : [tr.vs, tr.u];
+        const nx = x * T + 8, ny = y * T + 10;
+        if (tr.x || tr.y) tr.dir = O.dirOf(nx - tr.x, ny - tr.y);
+        tr.x = nx; tr.y = ny;
       }
       for (const g of R.gangsters || []) g.ft += dt;
       // caravans of the realm on this road
@@ -13717,6 +13782,75 @@ O.snowMaskOf = function (src) {
     });
   }
   O.Prefetch = { setup, paint, add };
+})();
+
+</script>
+<script>
+// Signs over the doors. Walk near a building and a little painted board hangs by its door saying what
+// it is and who lives or works there: "HOBB'S BAKERY · ALICE HOBB, BAKER", "THE FULLER HOUSE · THOMAS,
+// JOAN, PETER". Lettered in a tiny pixel hand, three dots wide and five tall, like everything else.
+'use strict';
+(function () {
+  // 3x5 pixel glyphs, one string of 15 bits per character (rows top to bottom)
+  const G = {
+    A: '010101111101101', B: '110101110101110', C: '011100100100011', D: '110101101101110', E: '111100110100111', F: '111100110100100', G: '011100101101011',
+    H: '101101111101101', I: '111010010010111', J: '001001001101010', K: '101101110101101', L: '100100100100111', M: '101111111101101', N: '110101101101101',
+    O: '010101101101010', P: '110101110100100', Q: '010101101110011', R: '110101110101101', S: '011100010001110', T: '111010010010010', U: '101101101101111',
+    V: '101101101101010', W: '101101111111101', X: '101101010101101', Y: '101101010010010', Z: '111001010100111',
+    0: '111101101101111', 1: '010110010010111', 2: '110001010100111', 3: '110001010001110', 4: '101101111001001', 5: '111100110001110', 6: '011100111101111',
+    7: '111001010010010', 8: '111101111101111', 9: '111101111001110', "'": '010010000000000', '.': '000000000000010', ',': '000000000010100', '-': '000000111000000',
+    '&': '010101010101011', '·': '000000010000000', ' ': '000000000000000', ':': '000010000010000',
+  };
+  function width(t) { return t.length * 4 - 1; }
+  function text(ctx, t, x, y, col) {
+    ctx.fillStyle = col;
+    for (let i = 0; i < t.length; i++) { const g = G[t[i]] || G[' ']; for (let k = 0; k < 15; k++) if (g[k] === '1') ctx.fillRect(x + i * 4 + (k % 3), y + Math.floor(k / 3), 1, 1); }
+  }
+  O.PixText = { text, width };
+
+  const LABEL = { bakery: 'BAKERY', smithy: 'SMITHY', tavern: 'TAVERN', store: 'STORE', doctor: 'PHYSICIAN', guard: 'WATCH HOUSE', chapel: 'CHAPEL', mill: 'MILL', farmhouse: 'FARM', woodcutter: 'WOODCUTTER', stable: 'STABLES', butcher: 'BUTCHER', tailor: 'TAILOR', builder: "BUILDER'S YARD", chandler: 'CHANDLER' };
+
+  function linesFor(sim, b) {
+    if (!sim || b.site || b.type === 'hideout' || b.ruined) return null;
+    const up = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9 '.,&:-]/g, '');
+    const people = (sim.households || []).filter((h) => !h.gone && h.home === b.id).flatMap((h) => h.members.map((id) => sim.byId.get(id)).filter((p) => p && p.alive !== false));
+    const bz = sim.biz && sim.biz.get(b.id);
+    const title = up(b.name && b.name !== 'House' && b.name !== 'Cottage' ? b.name : people[0] ? `The ${people[0].sur} house` : 'An empty house');
+    let who = '';
+    if (bz && bz.workers && bz.workers.length) { const boss = sim.byId.get(bz.owner || bz.workers[0]); if (boss) who = `${boss.first} ${boss.sur}, ${boss.job ? boss.job.role : 'keeper'}`; }
+    else if (people.length) { const adults = people.filter((p) => p.age >= 16).slice(0, 3); who = adults.map((p) => p.first).join(', ') + (people.length > adults.length ? ` & ${people.length - adults.length} more` : ''); }
+    else if (b.vacant) who = b.parishLet ? 'To let: ask the parish clerk' : 'Standing empty';
+    const out = [title]; if (who) out.push(up(who));
+    return out.map((l) => (l.length > 34 ? l.slice(0, 33) + '.' : l));
+  }
+
+  function setup(game) {
+    const cache = new Map(); // building -> lines, refreshed every few seconds
+    let t = 0;
+    game.hooks.update.push((dt) => { t -= dt; if (t <= 0) { t = 3; cache.clear(); } });
+    game.hooks.drawTop.push((ctx, cam, indoor) => {
+      if (indoor || game.scene || !game.world) return;
+      const sim = O.SimRef.cur, p = game.player, T = game.world.T;
+      // only the one or two buildings you're nearest, so the street doesn't fill with boards
+      const near = game.world.buildings.filter((b) => b.doorX != null && Math.abs(b.doorX * T + 8 - p.x) < 110 && Math.abs(b.doorY * T - p.y) < 90)
+        .sort((a, c) => Math.hypot(a.doorX * T + 8 - p.x, a.doorY * T - p.y) - Math.hypot(c.doorX * T + 8 - p.x, c.doorY * T - p.y)).slice(0, 2);
+      for (const b of near) {
+        const dx = b.doorX * T + 8, dy = b.doorY * T;
+        let lines = cache.get(b); if (lines === undefined) { lines = linesFor(sim, b); cache.set(b, lines); }
+        if (!lines) continue;
+        const w = Math.max(...lines.map(width)) + 8, h = lines.length * 7 + 5;
+        const sx = Math.round(dx - w / 2 - cam.x), sy = Math.round(dy - 58 - h - cam.y);
+        // the board hanging from its bracket
+        ctx.fillStyle = '#3a2618'; ctx.fillRect(sx + 4, sy - 4, 1, 4); ctx.fillRect(sx + w - 5, sy - 4, 1, 4); ctx.fillRect(sx + 2, sy - 5, w - 4, 1);
+        ctx.fillStyle = '#2a1a10'; ctx.fillRect(sx - 1, sy - 1, w + 2, h + 2);
+        ctx.fillStyle = '#8a6239'; ctx.fillRect(sx, sy, w, h);
+        ctx.fillStyle = '#a07448'; ctx.fillRect(sx, sy, w, 1);
+        ctx.fillStyle = '#6a4a2c'; ctx.fillRect(sx, sy + h - 1, w, 1);
+        lines.forEach((l, i) => { const lx = sx + Math.round((w - width(l)) / 2); text(ctx, l, lx, sy + 3 + i * 7, i ? '#f0e2c0' : '#ffe9a8'); });
+      }
+    });
+  }
+  O.Signs = { setup, linesFor };
 })();
 
 </script>
@@ -13893,8 +14027,9 @@ O.snowMaskOf = function (src) {
     if (o.hat === 'straw') o.hatMat = P.mat('#d6b45e');
     o.cloak = s.cloak ? P.mat(C[s.cloakCol]) : null;
     o.trim = st.trim ? P.mat(P.metal.gold, 'metal') : null;
-    o.item = ITEMS[s.item]; o.backItem = s.bow ? 'bow' : null; o.pouch = true; o.boots = true;
-    o.apron = null; o.tabard = null; o.armour = null; o.sideItem = s.item === 'sword' ? null : (s.scabbard ? 'sword' : null);
+    // a stranger arrives with nothing: no sword, no bow; what's in your hand is whatever is in your satchel
+    o.item = null; o.backItem = null; o.pouch = true; o.boots = true;
+    o.apron = null; o.tabard = null; o.armour = null; o.sideItem = null;
     a.name = s.name; a.surname = s.surname;
     O.Char.invalidate(a);
     return a;
@@ -13904,7 +14039,7 @@ O.snowMaskOf = function (src) {
     return {
       name: 'Wat', surname: 'Tyler', sex: 'm', age: 27, skin: 2, hair: 'chestnut', hairGrey: false, hairStyle: 'messy',
       beard: 'stubble', eyes: 'hazel', height: 0.2, build: 0.1, eyeGap: 0, eyeType: 0, nose: 1, jaw: 0.15, brow: 1, freckles: false,
-      style: 'hooded', tunic: '', trousers: '', hat: 'style', cloak: true, cloakCol: 'forest', item: 'dagger', bow: true, scabbard: false,
+      style: 'hooded', tunic: '', trousers: '', hat: 'style', cloak: true, cloakCol: 'forest', item: 'none', bow: false, scabbard: false,
     };
   }
 
@@ -14015,10 +14150,7 @@ O.snowMaskOf = function (src) {
       row(chk('Cloak', spec.cloak, (v) => update('cloak', v))),
       field('Cloak colour', swatches(clothCols.map((k) => [k, P.cloth[k], k]), spec.cloakCol, (v) => update('cloakCol', v), 'Cloak colour')),
     ));
-    root.appendChild(group('Gear',
-      field('In hand', select('fItem', [['none', 'Nothing'], ['dagger', 'Dagger'], ['sword', 'Sword'], ['axe', 'Axe'], ['bread', 'Stolen loaf'], ['mug', 'Tankard']], spec.item, (v) => update('item', v))),
-      row(chk('Bow on back', spec.bow, (v) => update('bow', v)), chk('Sword at hip', spec.scabbard, (v) => update('scabbard', v))),
-    ));
+    // no gear to choose: a stranger arrives empty-handed
     const rnd = document.createElement('button'); rnd.className = 'btn ghost'; rnd.textContent = 'Randomise';
     rnd.onclick = () => {
       const r = O.RNG(Date.now() & 0xffffffff); const sex = r.chance(0.5) ? 'm' : 'f';
@@ -14397,6 +14529,7 @@ O.snowMaskOf = function (src) {
   O.TravelSetup.setup(game, home, npcUI);
   O.Roads.setup(game, home);
   O.Prefetch.setup(game, home);
+  O.Signs.setup(game);
   O.PropertyUI.setup(game, sim);
   O.ChronicleUI.setup(game, home);
   O.WorkSetup.setup(game, sim, npcUI);

@@ -83,7 +83,7 @@
       const s = cur(), h = s.hour;
       if (!sellable().length) return toast('You have nothing to sell. Make or buy something first.', 'bad');
       if (h < 8 || h >= 18 || s.weekday === 6) return toast('No one buys at a stall at this hour. Come back in market hours (8 to 6, not Sundays).', 'bad');
-      if (O.refusesTrade && PS.rep.local < -0.55) return toast('People cross the street rather than buy from you.', 'bad');
+      if (O.refusesTrade && PS.rep.local < -0.75 && PS.wantedLevel && PS.wantedLevel() >= 2) return toast('People cross the street rather than buy from you.', 'bad');
       const st = O.stallCandidate(); if (st) { game.player.x = st.prop.x; game.player.y = st.prop.y - 20; game.player.dir = 0; } // behind the counter
       game.player.anim = 'talk';
       for (let i = 0; i < 30; i++) { s.tick(2); PS.tick(2, false); }

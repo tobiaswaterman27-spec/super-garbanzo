@@ -76,7 +76,7 @@
         case 'claim': return 'Claim the abandoned camp';
         case 'stash': return 'Open the stash';
         case 'campbed': return 'Sleep by the fire';
-        case 'bed': return mayUseBed(c.it) ? 'Sleep until morning' : 'Bed — not yours';
+        case 'bed': return mayUseBed(c.it) ? 'Sleep until morning' : c.it.rent ? 'Take this bed for the night (6d)' : 'Bed — not yours';
         case 'hay': return 'Sleep in the hay';
         case 'traveller': case 'ruin': case 'signpost': return O.roadLabel(c);
         case 'pickup': return `Pick up the ${(O.Data.GOODS[c.it.good]?.name || c.it.good).toLowerCase()}`;
@@ -219,7 +219,16 @@
         case 'portrait': { const pr = cur.it.portrait; O.Panels.toast(`A likeness of ${pr.name}, painted in life. Died ${O.Chronicle.dateLabel(pr.died)}.`); break; }
         case 'broadsheet': O.ChronicleUI.broadsheet(); break;
         case 'grave': { const g = cur.prop.grave; O.Panels.toast(g ? `“Here lies ${g.name}, ${g.age} years. ${g.cause.replace('died ', '').replace(/^./, (c) => c.toUpperCase())}.”` : 'The old stone is worn smooth; you can no longer read the name.'); break; }
-        case 'bed': if (mayUseBed(cur.it)) sleep(cur.it); else O.Panels.toast("That's someone else's bed."); break;
+        case 'bed':
+          if (mayUseBed(cur.it)) sleep(cur.it);
+          else if (cur.it.rent) {
+            // an inn's guest bed: pay the night's money into the tavern's till and lie down
+            if (PS.money < 6) { O.Panels.toast('A bed is sixpence a night, and you have not got it.', 'bad'); break; }
+            const bz = sim.biz.get(game.scene.b.id); PS.money -= 6; if (bz) bz.cash += 6;
+            PS.room = { b: game.scene.b.id, until: sim.day + (sim.hour >= 12 ? 1 : 0) };
+            O.UI.say('You leave sixpence on the bar and take the bed for the night.'); sleep(cur.it);
+          } else O.Panels.toast("That's someone else's bed.");
+          break;
         case 'sit': { const sc = game.scene, pose = sc.seatPose(cur.it), p = game.player; p.sitting = Object.assign(pose, { it: cur.it, sx: p.x, sy: p.y, b: sc.b.id, floor: sc.floor }); p.x = pose.x; p.y = pose.y; p.dir = pose.dir; p.anim = 'sit'; if (cur.it.kind === 'throne' && sim.byId) O.Panels.toast('You sit on the throne. Nobody seems pleased about it.'); break; }
         case 'stairs': { const up = cur.it ? !!cur.it.stairs : game.scene.floor === 0; game.enterBuilding(game.scene.b, game.scene.floor + (up ? 1 : -1), up ? 'up' : 'down'); break; }
         case 'shop': O.Panels.trade(sim, sim.biz.get(game.scene.b.id), cur.seller); break;

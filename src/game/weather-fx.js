@@ -124,18 +124,14 @@
           const px = tx * T + ((ox + t * sp * fx) % 16 + 16) % 16, py = ty * T + ((oy + t * sp * fy * 0.6) % 16 + 16) % 16;
           const sx = Math.round(px - cam.x), sy = Math.round(py - cam.y);
           const tw = (Math.sin(t * 3 + h) + 1) / 2;
-          ctx.fillStyle = frozen ? 'rgba(236,244,250,0.5)' : `rgba(206,226,240,${(0.25 + tw * 0.35).toFixed(2)})`;
-          ctx.fillRect(sx, sy, horiz && !vert ? 3 : 1, horiz && !vert ? 1 : 2);
+          // drifting ripples only away from the banks, so nothing outlines the tile edges
+          const inner = isW(tx - 1, ty) && isW(tx + 1, ty) && isW(tx, ty - 1) && isW(tx, ty + 1);
+          if (!inner && (ox < 4 || ox > 11 || oy < 4 || oy > 11)) continue;
+          ctx.fillStyle = frozen ? 'rgba(236,244,250,0.5)' : `rgba(206,226,240,${(0.18 + tw * 0.3).toFixed(2)})`;
+          ctx.fillRect(sx, sy, horiz && !vert ? 3 : 2, 1);
           if (tw > 0.92 && !frozen) { ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.fillRect(sx + 1, sy, 1, 1); }
         }
-        // foam where water meets land, lapping in and out
-        for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
-          if (isW(tx + dx, ty + dy) || ter[(ty + dy) * world.W + tx + dx] === TER.BRIDGE) continue;
-          const lap = Math.round((Math.sin(t * 1.6 + tx * 0.7 + ty) + 1) * 1.2);
-          ctx.fillStyle = 'rgba(232,240,244,0.55)';
-          if (dy) for (let x = 0; x < T; x += 3) ctx.fillRect(tx * T + x - cam.x + ((ty * 5) % 3), (dy < 0 ? ty * T + lap : ty * T + T - 1 - lap) - cam.y, 2, 1);
-          else for (let y = 0; y < T; y += 3) ctx.fillRect((dx < 0 ? tx * T + lap : tx * T + T - 1 - lap) - cam.x, ty * T + y - cam.y, 1, 2);
-        }
+        // (the foam at the banks is painted into the ground itself, following the true waterline)
       }
     });
 

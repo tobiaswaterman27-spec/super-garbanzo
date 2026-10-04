@@ -276,13 +276,32 @@
     const caravanCart = () => O.Env.prop('cart', 5, 1);
     game.hooks.update.push((dt) => {
       const w = game.world, R = w.road; if (!R) return;
+      const pl = game.player;
       for (const tr of R.travellers) {
-        tr.ft += dt; tr.u += tr.dirn * tr.speed * dt / T;
+        tr.ft += dt; tr.chatCd = Math.max(0, (tr.chatCd || 0) - dt);
+        // two travellers meeting on the road stop to pass the time of day; so does one you walk up to
+        if (!tr.pause && !tr.chatCd) {
+          const near = R.travellers.find((o) => o !== tr && !o.chatCd && Math.abs(o.u - tr.u) < 1.6 && o.dirn !== tr.dirn);
+          if (near) { tr.pause = near.pause = 4 + ((tr.u * 7) % 4); tr.with = near; near.with = tr; }
+          else if (Math.hypot(pl.x - tr.x, pl.y - tr.y) < 30) { tr.pause = 2.5; tr.with = pl; }
+        }
+        if (tr.pause) {
+          tr.pause = Math.max(0, tr.pause - dt); tr.anim = 'talk';
+          const o = tr.with; if (o) tr.dir = O.dirOf(o.x - tr.x, o.y - tr.y);
+          if (!tr.pause) { tr.chatCd = 12; tr.with = null; tr.anim = 'walk'; }
+          continue;
+        }
+        tr.anim = 'walk';
+        tr.u += tr.dirn * tr.speed * dt / T;
         if (tr.u < 1 || tr.u > R.L - 2) { tr.dirn *= -1; tr.u = O.clamp(tr.u, 1, R.L - 2); }
-        const v = R.mid(Math.floor(tr.u)) + (tr.dirn > 0 ? 0.3 : 1.2);
-        const [x, y] = R.horiz ? [tr.u, v] : [v, tr.u];
-        tr.x = x * T + 8; tr.y = y * T + 10;
-        tr.dir = R.horiz ? (tr.dirn > 0 ? 2 : 1) : (tr.dirn > 0 ? 0 : 3);
+        // follow the road's line smoothly: blend between the bends rather than stepping a tile sideways
+        const u0 = Math.floor(tr.u), f = tr.u - u0, lane = tr.dirn > 0 ? 0.3 : 1.2;
+        const target = R.mid(u0) * (1 - f) + R.mid(u0 + 1) * f + lane;
+        tr.vs = tr.vs == null ? target : tr.vs + (target - tr.vs) * Math.min(1, dt * 3);
+        const [x, y] = R.horiz ? [tr.u, tr.vs] : [tr.vs, tr.u];
+        const nx = x * T + 8, ny = y * T + 10;
+        if (tr.x || tr.y) tr.dir = O.dirOf(nx - tr.x, ny - tr.y);
+        tr.x = nx; tr.y = ny;
       }
       for (const g of R.gangsters || []) g.ft += dt;
       // caravans of the realm on this road

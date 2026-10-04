@@ -27,7 +27,7 @@
     const rng = O.RNG(spec.seed || 1);
     const w = spec.w, d = spec.d, floors = spec.floors || 1, OV = 4, FW = w * T, W = FW + OV * 2;
     const wallH = spec.wallH || floors * FLOOR + 9;
-    const gable = spec.roofType === 'gable', castle = spec.roofType === 'battlement', grand = castle && spec.grand, church = spec.sign === 'cross' || spec.church;
+    const gable = spec.roofType === 'gable', castle = spec.roofType === 'battlement', grand = castle && spec.grand, church = spec.church || (spec.sign === 'cross' && (spec.wallH || 0) >= 56);
     const roofH = Math.round(d * T * 0.58) + 4;
     const gableH = Math.round(FW * 0.34), depthH = Math.round(d * T * 0.52);
     const extraTop = grand ? 84 : castle ? 40 : church ? 56 : 12;

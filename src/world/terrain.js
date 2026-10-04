@@ -21,7 +21,9 @@
     const sample = (px, py) => {
       const base = tAt(Math.floor(px / T), Math.floor(py / T));
       if (base === TER.BRIDGE) return base;
-      const wx = px + (O.noise2(px / 7, py / 7, 41) - 0.5) * 7, wy = py + (O.noise2(px / 7, py / 7, 43) - 0.5) * 7;
+      const wet = base === TER.WATER || base === TER.SAND;
+      const amp = wet ? 13 : 7, per = wet ? 16 : 7;
+      const wx = px + (O.noise2(px / per, py / per, 41) - 0.5) * amp + (wet ? (O.noise2(px / 5, py / 5, 47) - 0.5) * 3 : 0), wy = py + (O.noise2(px / per, py / per, 43) - 0.5) * amp;
       const t = tAt(Math.floor(wx / T), Math.floor(wy / T));
       return t === TER.BRIDGE ? base : t;
     };
@@ -68,13 +70,23 @@
           col = R.field[s]; break;
         }
         case TER.WATER: {
-          // shimmer bands; lighter along banks
-          const band = Math.sin(x * 0.35 + Math.sin(y * 0.2) * 2 + y * 0.08);
-          let s = band > 0.85 ? 3 : n > 0.55 ? 2 : 1;
-          const nearLand = [at(x - 2, y), at(x + 2, y), at(x, y - 2), at(x, y + 2)].some((k) => k !== TER.WATER && k !== -1 && k !== TER.BRIDGE);
-          if (nearLand) s = 3;
-          const edge = [at(x - 1, y), at(x + 1, y), at(x, y - 1), at(x, y + 1)].some((k) => k !== TER.WATER && k !== -1 && k !== TER.BRIDGE);
-          col = edge ? [228, 236, 238] : R.water[s]; break;
+          // depth: how far to the nearest bank, sampled in rings; shallows are lighter and greener
+          const land = (xx, yy) => { const k = at(xx, yy); return k !== TER.WATER && k !== -1 && k !== TER.BRIDGE; };
+          let depth = 4;
+          for (const [r, dd] of [[1, 0], [3, 1], [6, 2], [10, 3]]) { if (land(x - r, y) || land(x + r, y) || land(x, y - r) || land(x, y + r) || land(x - r, y - r) || land(x + r, y + r) || land(x - r, y + r) || land(x + r, y - r)) { depth = dd; break; } }
+          const WC = [[214, 230, 228], [110, 168, 184], [74, 136, 172], [60, 112, 156], [48, 92, 138]];
+          col = WC[depth].slice();
+          // the waterline: broken foam, not a ruled line
+          if (depth === 0) { if (BAYER[(x & 3) + ((y & 3) << 2)] < 9) col = [96, 152, 172]; }
+          else {
+            // gentle drifting ripples: short soft highlights and darker troughs scattered by noise
+            const rip = O.noise2(x / 9, y / 2.6, 61), dot = O.noise2(x * 0.7, y * 0.7, 63);
+            if (rip > 0.74) col = col.map((c, i) => Math.min(255, c + [18, 22, 22][i]));
+            else if (rip < 0.2) col = col.map((c) => c - 10);
+            if (dot > 0.94 && depth > 1) col = [196, 222, 236];
+            const tint = (n - 0.5) * 10; col = col.map((c) => Math.round(c + tint));
+          }
+          break;
         }
         case TER.SAND: {
           let s = n > 0.55 ? 3 : 2; if (f > 0.9) s = 4; if (f < 0.1) s = 1;

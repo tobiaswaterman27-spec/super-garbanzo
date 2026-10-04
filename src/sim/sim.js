@@ -288,7 +288,11 @@
       switch (zone) {
         case 'square': {
           // in a big place most people loaf near their own street rather than all in one market
-          if (this.people.length > 220 && p.home && (p.id * 7 + this.day) % 5 < 3) { const b = this.building(p.home); if (b) return pick(b.x - 2, b.bottom + 1, b.x + b.w + 1, b.bottom + 3); }
+          // the market holds only so many: about one person to every five tiles of it. The rest pass the
+          // time on their own street or doorstep, so a square never fills up wall to wall
+          const [qx0, qy0, qx1, qy1] = this.Z.square, cap = Math.max(8, ((qx1 - qx0 + 1) * (qy1 - qy0 + 1)) / 5);
+          const frac = Math.min(1, cap / Math.max(1, this.people.length * 0.3));
+          if (p.home && ((p.id * 37 + this.day * 11) % 100) / 100 >= frac) { const b = this.building(p.home); if (b) return pick(b.x - 2, b.bottom + 1, b.x + b.w + 1, b.bottom + 3); }
           return pick(...this.Z.square);
         }
         case 'home': { const b = this.building(p.home); return pick(b.x - 1, b.bottom + 1, b.x + b.w, b.bottom + 2); }

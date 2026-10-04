@@ -124,7 +124,15 @@
       const k = O.clamp(1 - PS.rep.merchant * 0.12 - PS.rep.local * 0.1 - aff * 0.1 + (seller && heardBadOf(seller) ? 0.15 : 0), 0.8, 1.4);
       return Math.max(1, Math.round(s.price(bz, g) * k));
     };
-    O.refusesTrade = (seller) => (PS.rep.local < -0.55 || (seller && (seller.rel.get(0)?.affinity || 0) < -0.5)) ? `${seller.first} folds their arms. “We don't serve your kind here.”` : null;
+    // a shopkeeper only turns you away if they themselves hold something against you, or if they know
+    // who you are and what you've done: your name being mud means nothing to someone who's never seen you
+    O.refusesTrade = (seller) => {
+      if (!seller) return null;
+      const r = seller.rel.get(0) || {}, knowsYou = (r.familiar || 0) >= 0.25;
+      const grudge = (r.affinity || 0) < -0.5;
+      const knownBad = knowsYou && (PS.rep.local < -0.55 || (PS.wantedLevel && PS.wantedLevel() >= 2));
+      return grudge || knownBad ? `${seller.first} folds their arms. “I know you. We don't serve your kind here.”` : null;
+    };
   }
 
   O.WorkSetup = { setup };

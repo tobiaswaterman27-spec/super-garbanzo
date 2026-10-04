@@ -92,6 +92,7 @@
   O.TravelSetup.setup(game, home, npcUI);
   O.Roads.setup(game, home);
   O.Prefetch.setup(game, home);
+  O.Signs.setup(game);
   O.PropertyUI.setup(game, sim);
   O.ChronicleUI.setup(game, home);
   O.WorkSetup.setup(game, sim, npcUI);

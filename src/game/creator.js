@@ -34,8 +34,9 @@
     if (o.hat === 'straw') o.hatMat = P.mat('#d6b45e');
     o.cloak = s.cloak ? P.mat(C[s.cloakCol]) : null;
     o.trim = st.trim ? P.mat(P.metal.gold, 'metal') : null;
-    o.item = ITEMS[s.item]; o.backItem = s.bow ? 'bow' : null; o.pouch = true; o.boots = true;
-    o.apron = null; o.tabard = null; o.armour = null; o.sideItem = s.item === 'sword' ? null : (s.scabbard ? 'sword' : null);
+    // a stranger arrives with nothing: no sword, no bow; what's in your hand is whatever is in your satchel
+    o.item = null; o.backItem = null; o.pouch = true; o.boots = true;
+    o.apron = null; o.tabard = null; o.armour = null; o.sideItem = null;
     a.name = s.name; a.surname = s.surname;
     O.Char.invalidate(a);
     return a;
@@ -45,7 +46,7 @@
     return {
       name: 'Wat', surname: 'Tyler', sex: 'm', age: 27, skin: 2, hair: 'chestnut', hairGrey: false, hairStyle: 'messy',
       beard: 'stubble', eyes: 'hazel', height: 0.2, build: 0.1, eyeGap: 0, eyeType: 0, nose: 1, jaw: 0.15, brow: 1, freckles: false,
-      style: 'hooded', tunic: '', trousers: '', hat: 'style', cloak: true, cloakCol: 'forest', item: 'dagger', bow: true, scabbard: false,
+      style: 'hooded', tunic: '', trousers: '', hat: 'style', cloak: true, cloakCol: 'forest', item: 'none', bow: false, scabbard: false,
     };
   }
 

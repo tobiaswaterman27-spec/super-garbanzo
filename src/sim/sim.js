@@ -338,6 +338,8 @@
         if (bz.open && this._m % 90 === 0) this.openBusiness(bz);
         if (bz.def.public && this._m === 18 * 60) this.payWages(bz);
         for (const o of bz.orders) if (o.waiting && this._m % 20 === 0) { o.waiting = false; this.assignDelivery(o); }
+        // an errand whose carrier was called away (a fire, a fight, a move) goes back on the list
+        if (this._m % 60 === 30 && bz.orders.length) for (const o of bz.orders) if (!o.waiting && !this.people.some((q) => q.task?.order === o)) o.waiting = true;
       }
       for (const p of this.people) this.personMinute(p);
       this.build.tickMinute();
@@ -853,6 +855,8 @@
     handleTrader() {
       const tr = this.trader; if (!tr) return;
       const a = tr.agent;
+      // a fire or a fight can pull a trader off his errand: he takes a room and goes on his way tomorrow
+      if (!tr.task) { tr.task = { act: 'rest', b: this.tavernId }; a.carrying = null; tr.leaveAt = tr.leaveAt || this.day + 1; }
       if (tr.task.act === 'import' && a.inside === tr.task.b) {
         const bz = this.biz.get(tr.task.b), qty = tr.task.qty, pr = G[tr.task.good].base;
         bz.stock[tr.task.good] = (bz.stock[tr.task.good] || 0) + qty;
@@ -882,7 +886,7 @@
     if (p.task?.act === 'help') { const t = this.byId.get(p.task.target); if (t) return [Math.floor(t.agent.x / this.T), Math.floor((t.agent.y - 1) / this.T)]; }
     return _zone.call(this, p, zone);
   };
-  O.Health.install(Sim); O.Life.install(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim);
+  O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
   // carry-home and delivery tasks finish on entering the destination

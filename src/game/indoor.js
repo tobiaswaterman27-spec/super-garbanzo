@@ -156,7 +156,10 @@
       c.cy = hy.ry + 4; return c;
     }
     drawSleepers(ctx, it, sp, ax, ay, cam) {
-      const list = this.sleeping && this.sleeping.get(it); if (!list) return;
+      let list = this.sleeping && this.sleeping.get(it);
+      const pl = this.game.player;
+      if (pl.inBed === it) { list = [...(list || []).filter((s) => s.k !== 0), { q: (pl._sleepQ && pl._sleepQ.app === pl.a ? pl._sleepQ : (pl._sleepQ = { app: pl.a, id: -1 })), k: 0 }]; }
+      if (!list) return;
       for (const { q, k } of list) {
         const pi = sp.pillows ? sp.pillows[Math.min(sp.pillows.length - 1, Math.floor(k))] : [0, -20];
         const hc = q._headCanvas && q._headVer === q.app.cacheVer ? q._headCanvas : (q._headCanvas = this.headOf(q), q._headVer = q.app.cacheVer, q._headCanvas);
@@ -164,6 +167,8 @@
         if (it.kind === 'bed' && it.rot) { // head on the pillow at the wall end, turned on its side
           ctx.save(); ctx.translate(Math.round(px - cam.x), Math.round(py - cam.y)); ctx.rotate(it.rot === 1 ? -Math.PI / 2 : Math.PI / 2); ctx.drawImage(hc, -10, -hc.cy - 1); ctx.restore();
         } else ctx.drawImage(hc, Math.round(px - 10 - cam.x), Math.round(py - hc.cy + 3 - cam.y));
+        // drifting Zs over whoever is fast asleep
+        if (q.id === -1 || (q.id + Math.floor(this.t)) % 3 === 0) { const zt = (this.t * 0.6 + (q.id & 7) * 0.13) % 1; ctx.globalAlpha = 1 - zt; ctx.fillStyle = '#e8e4f0'; const zx = Math.round(px + 6 + zt * 6 - cam.x), zy = Math.round(py - 12 - zt * 12 - cam.y); ctx.fillRect(zx, zy, 3, 1); ctx.fillRect(zx + 1, zy + 1, 1, 1); ctx.fillRect(zx, zy + 2, 3, 1); ctx.globalAlpha = 1; }
       }
     }
 
@@ -250,6 +255,7 @@
         if (it.bed && !it.cradle) out.push({ type: 'bed', it, d: d + 1, x: cx, y: cy });
         if (it.kind === 'stairs') out.push({ type: 'stairs', it, d: d - 2, x: cx, y: cy });
         if (it.portrait) out.push({ type: 'portrait', it, d: d + 2, x: cx, y: cy - 30 });
+        if (it.kind === 'hay') out.push({ type: 'hay', it, d: d + 3, x: cx, y: cy });
         // buy across the counter or from the shelves, when someone is serving
         if ((it.counter || it.shop) && bz && !bz.def.public) {
           const seller = [...this.actors.values()].find((a) => !a.hidden && a.person.job?.biz === this.b.id && a.person.activity?.act === 'work');

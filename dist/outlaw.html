@@ -3969,6 +3969,134 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
 </script>
 <script>
+// Homes and sleep. Everyone goes to bed at an hour that suits their age and their trade — babies at
+// dusk, children soon after, the old early to bed and early up, the baker long before dawn — and
+// sleeps in a bed of their own (or one they share with their husband or wife, or a little brother).
+// Each family keeps its own house: newlyweds set up home in an empty house when there is one; a
+// family that grows buys another bed from the carpenter, and if there is no room left for it they
+// move to a bigger house standing empty.
+'use strict';
+(function () {
+  function sleepTimes(p, rng) {
+    const j = ((p.id * 37) % 41) - 20; // a little difference between people, the same every night
+    const lazy = p.traits?.includes('lazy') ? 35 : 0, role = p.job?.role;
+    let bed, wake;
+    if (p.age < 3) { bed = 19 * 60; wake = 7 * 60; }
+    else if (p.age < 8) { bed = 19 * 60 + 30; wake = 7 * 60; }
+    else if (p.age < 13) { bed = 20 * 60 + 15; wake = 6 * 60 + 45; }
+    else if (p.age < 18) { bed = 22 * 60; wake = 7 * 60 + 10 + lazy; }
+    else if (p.age >= 65) { bed = 20 * 60 + 45; wake = 5 * 60 + 30; }
+    else { bed = 22 * 60; wake = 6 * 60 + lazy; }
+    if (role === 'baker') { bed = 20 * 60 + 30; wake = 3 * 60 + 30; }
+    if (['farmer', 'farmhand', 'miller'].includes(role)) { wake = Math.min(wake, 5 * 60); bed = Math.min(bed, 21 * 60 + 30); }
+    if (role === 'innkeeper' || role === 'server') { bed = 23 * 60 + 30; wake = 7 * 60; }
+    void rng;
+    return { bed: bed + (p.age >= 13 ? j : Math.round(j / 3)), wake: wake + (p.age >= 13 ? j : 0) };
+  }
+
+  function installSim(Sim) {
+    const S = Sim.prototype;
+
+    S.setSleepTimes = function (p) {
+      if (p.wake === 0 && p.bed === 1440) return; // travellers and soldiers keep their own hours
+      const t = sleepTimes(p, this.rng); p.wake = t.wake; p.bed = t.bed;
+    };
+
+    const houseLike = (b) => b && ['house', 'farmhouse', 'woodcutter', 'mansion', 'townhouse'].includes(b.type) && !b.ruined && !b.site && !b.fire;
+    S.emptyHouses = function () { return this.world.buildings.filter((b) => houseLike(b) && !b.household && (b.vacant || !(b.households || []).some((id) => { const h = this.households[id - 1]; return h && !h.gone && h.home === b.id; })) && b.owner?.kind !== 'player'); };
+
+    // how many sleepers a house's bedrooms can take, from the furniture that fits in it
+    S.bedRoom = function (b) {
+      if (!O.Interior || !O.Furn) return 99;
+      const f = (b.floors || 1) - 1;
+      try { const L = O.Interior.layoutFor(b, f, this); return L.items.filter((i) => i.bed).reduce((a, i) => a + (i.cradle ? 1 : (i.slots || 1) + (i.slots === 1 ? 0.5 : 0)), 0); } catch (e) { return 99; }
+    };
+
+    S.newHousehold = function (members, b, money) {
+      const old = this.household(members[0]);
+      const hh = { id: this.households.length + 1, home: b.id, members: members.map((p) => p.id), pantry: { bread: 2, cabbage: 1, firewood: 2 }, money: Math.max(0, Math.round(money)), surname: members[0].sur };
+      this.households.push(hh);
+      for (const p of members) { if (old) old.members = old.members.filter((id) => id !== p.id); p.household = hh.id; p.home = b.id; if (!p.task) p.task = { act: 'move-in', b: b.id }; }
+      b.household = hh.id; b.households = [hh.id]; b.vacant = false;
+      O.Interior && O.Interior.invalidate(b); if (old) { const ob = this.building(old.home); if (ob) O.Interior && O.Interior.invalidate(ob); }
+      return hh;
+    };
+
+    S.moveHousehold = function (hh, b) {
+      const from = this.building(hh.home);
+      if (from) { from.household = null; from.households = (from.households || []).filter((id) => id !== hh.id); from.vacant = true; O.Interior && O.Interior.invalidate(from); }
+      hh.home = b.id; b.household = hh.id; b.households = [hh.id]; b.vacant = false;
+      for (const id of hh.members) { const p = this.byId.get(id); if (p) { p.home = b.id; if (!p.task) p.task = { act: 'move-in', b: b.id }; } }
+      O.Interior && O.Interior.invalidate(b);
+    };
+
+    // newlyweds who would otherwise live with their parents take an empty house of their own
+    const _wed = S.wed;
+    if (_wed) S.wed = function (a, b) {
+      _wed.call(this, a, b);
+      const hh = this.household(a); if (!hh) return;
+      const others = hh.members.filter((id) => id !== a.id && id !== b.id);
+      if (!others.length) return;
+      const free = this.emptyHouses().sort((x, y) => (x.w * x.d * (x.floors || 1)) - (y.w * y.d * (y.floors || 1)))[0];
+      if (!free) return;
+      const purse = Math.min(hh.money * 0.25, 40);
+      hh.money -= purse;
+      const nh = this.newHousehold([a, b], free, purse + 10);
+      this.log(`${a.first} and ${b.first} have set up home together in an empty house${free.name && free.name !== 'House' ? ' — ' + free.name : ''}.`, 'life');
+      this.remember(a, 'We have a house of our own now.', 'life', 2, b.id); this.remember(b, 'We have a house of our own now.', 'life', 2, a.id);
+      void nh;
+    };
+
+    // daily: bedtimes follow birthdays; growing families buy beds or move somewhere bigger
+    S.homesDaily = function () {
+      for (const p of this.people) if (p.alive !== false) this.setSleepTimes(p);
+      if (this.day % 2) return;
+      const cp = this.supplierOf ? this.supplierOf('carpenter') : null;
+      for (const hh of this.households) {
+        if (hh.gone || !hh.members.length) continue;
+        const b = this.building(hh.home); if (!houseLike(b)) continue;
+        const n = hh.members.length;
+        hh.beds = hh.beds ?? n;
+        if (n > hh.beds) {
+          // a new bed (or a cradle) from the carpenter
+          const price = cp ? Math.round(this.price(cp, 'furniture') * 0.8) : 18;
+          if (hh.money >= price) {
+            hh.money -= price; if (cp) { cp.cash += price; cp.salesToday += price; if ((cp.stock.furniture || 0) > 0) cp.stock.furniture -= 1; }
+            hh.beds = n; O.Interior && O.Interior.invalidate(b);
+            const head = this.byId.get(hh.members[0]); if (head) this.remember(head, `We bought another bed${cp ? ' from ' + cp.name : ''}. The house is fuller than it was.`, 'life', 0.8);
+          }
+        } else hh.beds = Math.max(n, Math.min(hh.beds, n + 1));
+        // no room for the beds a family needs: look for a bigger house standing empty
+        if (n >= 4 && this.rng.chance(0.5)) {
+          const room = this.bedRoom(b);
+          if (room + 0.01 < n) {
+            const area = (x) => x.w * x.d * (x.floors || 1);
+            const better = this.emptyHouses().filter((x) => area(x) > area(b) && this.bedRoom(x) >= n).sort((x, y) => area(x) - area(y))[0];
+            if (better && hh.money >= 15) {
+              hh.money -= 15;
+              this.moveHousehold(hh, better);
+              this.log(`The ${hh.surname} family have outgrown their house and moved to a bigger one standing empty.`, 'life');
+            } else {
+              // grown sons and daughters with spouses leave to make room
+              const couple = hh.members.map((id) => this.byId.get(id)).find((p) => p && p.spouse && p.age >= 18 && hh.members.includes(p.spouse) && p.id !== hh.members[0] && p.spouse !== hh.members[0]);
+              const free = this.emptyHouses()[0];
+              if (couple && free) { const sp = this.byId.get(couple.spouse); this.newHousehold([couple, sp], free, 15); this.log(`${couple.first} and ${sp.first} have moved out of a crowded house into one of their own.`, 'life'); }
+            }
+          }
+        }
+      }
+    };
+    const _plan = S.plan;
+    S.plan = function (p) { if (!p._sleepSet) { p._sleepSet = true; this.setSleepTimes(p); } return _plan.call(this, p); };
+    const _nd = S.newDay;
+    S.newDay = function () { _nd.call(this); this.homesDaily(); };
+  }
+
+  O.Homes = { installSim, sleepTimes };
+})();
+
+</script>
+<script>
 // Justice: crime -> witnesses -> reports -> investigation -> suspect profile -> recognition ->
 // pursuit -> arrest -> trial -> outcome. Information is imperfect throughout: witnesses describe
 // what they think they saw, the watch builds a profile by majority, and a change of hood or cloak
@@ -6081,6 +6209,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         if (bz.open && this._m % 90 === 0) this.openBusiness(bz);
         if (bz.def.public && this._m === 18 * 60) this.payWages(bz);
         for (const o of bz.orders) if (o.waiting && this._m % 20 === 0) { o.waiting = false; this.assignDelivery(o); }
+        // an errand whose carrier was called away (a fire, a fight, a move) goes back on the list
+        if (this._m % 60 === 30 && bz.orders.length) for (const o of bz.orders) if (!o.waiting && !this.people.some((q) => q.task?.order === o)) o.waiting = true;
       }
       for (const p of this.people) this.personMinute(p);
       this.build.tickMinute();
@@ -6596,6 +6726,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     handleTrader() {
       const tr = this.trader; if (!tr) return;
       const a = tr.agent;
+      // a fire or a fight can pull a trader off his errand: he takes a room and goes on his way tomorrow
+      if (!tr.task) { tr.task = { act: 'rest', b: this.tavernId }; a.carrying = null; tr.leaveAt = tr.leaveAt || this.day + 1; }
       if (tr.task.act === 'import' && a.inside === tr.task.b) {
         const bz = this.biz.get(tr.task.b), qty = tr.task.qty, pr = G[tr.task.good].base;
         bz.stock[tr.task.good] = (bz.stock[tr.task.good] || 0) + qty;
@@ -6625,7 +6757,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     if (p.task?.act === 'help') { const t = this.byId.get(p.task.target); if (t) return [Math.floor(t.agent.x / this.T), Math.floor((t.agent.y - 1) / this.T)]; }
     return _zone.call(this, p, zone);
   };
-  O.Health.install(Sim); O.Life.install(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim);
+  O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
   // carry-home and delivery tasks finish on entering the destination
@@ -7909,7 +8041,10 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       c.cy = hy.ry + 4; return c;
     }
     drawSleepers(ctx, it, sp, ax, ay, cam) {
-      const list = this.sleeping && this.sleeping.get(it); if (!list) return;
+      let list = this.sleeping && this.sleeping.get(it);
+      const pl = this.game.player;
+      if (pl.inBed === it) { list = [...(list || []).filter((s) => s.k !== 0), { q: (pl._sleepQ && pl._sleepQ.app === pl.a ? pl._sleepQ : (pl._sleepQ = { app: pl.a, id: -1 })), k: 0 }]; }
+      if (!list) return;
       for (const { q, k } of list) {
         const pi = sp.pillows ? sp.pillows[Math.min(sp.pillows.length - 1, Math.floor(k))] : [0, -20];
         const hc = q._headCanvas && q._headVer === q.app.cacheVer ? q._headCanvas : (q._headCanvas = this.headOf(q), q._headVer = q.app.cacheVer, q._headCanvas);
@@ -7917,6 +8052,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         if (it.kind === 'bed' && it.rot) { // head on the pillow at the wall end, turned on its side
           ctx.save(); ctx.translate(Math.round(px - cam.x), Math.round(py - cam.y)); ctx.rotate(it.rot === 1 ? -Math.PI / 2 : Math.PI / 2); ctx.drawImage(hc, -10, -hc.cy - 1); ctx.restore();
         } else ctx.drawImage(hc, Math.round(px - 10 - cam.x), Math.round(py - hc.cy + 3 - cam.y));
+        // drifting Zs over whoever is fast asleep
+        if (q.id === -1 || (q.id + Math.floor(this.t)) % 3 === 0) { const zt = (this.t * 0.6 + (q.id & 7) * 0.13) % 1; ctx.globalAlpha = 1 - zt; ctx.fillStyle = '#e8e4f0'; const zx = Math.round(px + 6 + zt * 6 - cam.x), zy = Math.round(py - 12 - zt * 12 - cam.y); ctx.fillRect(zx, zy, 3, 1); ctx.fillRect(zx + 1, zy + 1, 1, 1); ctx.fillRect(zx, zy + 2, 3, 1); ctx.globalAlpha = 1; }
       }
     }
 
@@ -8003,6 +8140,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         if (it.bed && !it.cradle) out.push({ type: 'bed', it, d: d + 1, x: cx, y: cy });
         if (it.kind === 'stairs') out.push({ type: 'stairs', it, d: d - 2, x: cx, y: cy });
         if (it.portrait) out.push({ type: 'portrait', it, d: d + 2, x: cx, y: cy - 30 });
+        if (it.kind === 'hay') out.push({ type: 'hay', it, d: d + 3, x: cx, y: cy });
         // buy across the counter or from the shelves, when someone is serving
         if ((it.counter || it.shop) && bz && !bz.def.public) {
           const seller = [...this.actors.values()].find((a) => !a.hidden && a.person.job?.biz === this.b.id && a.person.activity?.act === 'work');
@@ -8357,6 +8495,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         case 'stash': return 'Open the stash';
         case 'campbed': return 'Sleep by the fire';
         case 'bed': return mayUseBed(c.it) ? 'Sleep until morning' : 'Bed — not yours';
+        case 'hay': return 'Sleep in the hay';
         case 'shop': return `Buy from ${c.seller.first}`;
         case 'stairs': return game.scene.floor === 0 ? 'Go upstairs' : 'Go downstairs';
         default: return '';
@@ -8431,14 +8570,27 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       };
     }
 
-    function sleep() {
-      O.Panels.toast('You sleep…');
-      const target = 7 * 60;
-      let guard = 0;
-      while (guard++ < 1000) { sim.tick(2); PS.tick(2, true); const m = sim.minute; if (m >= target && m < target + 4) break; }
-      game.player.anim = 'idle';
-      O.Panels.toast(`You wake on ${O.DAYNAMES[sim.weekday]}, rested.`);
+    // Sleeping: you lie down and the night passes (quickly, for you) while the village sleeps around
+    // you; you wake at seven, or when you've slept eight hours if you lay down in the day.
+    function sleep(it, rough) {
+      if (game.sleepState) return;
+      const m0 = sim.minute, target = m0 >= 19 * 60 || m0 < 6 * 60 ? 7 * 60 : (m0 + 8 * 60) % 1440;
+      game.sleepState = { it, rough, target, slept: 0 };
+      game.player.inBed = it || null; game.player.anim = rough ? 'lie' : 'idle';
+      O.UI.say(rough ? 'You bed down in the straw…' : 'You climb into bed and close your eyes…');
     }
+    game.hooks.update.push((dt) => {
+      const st = game.sleepState; if (!st) return;
+      game.player.locked = true;
+      for (let k = 0; k < 4; k++) { sim.tick(2); PS.tick(2, true); st.slept += 2; const m = sim.minute; if ((m >= st.target && m < st.target + 6) || st.slept > 16 * 60) { wake(); return; } }
+    });
+    function wake() {
+      const st = game.sleepState; game.sleepState = null;
+      const p = game.player; p.inBed = null; p.anim = 'idle'; p.locked = false;
+      if (st.rough) { PS.energy = Math.min(PS.energy, 70); PS.hp = Math.max(1, PS.hp - 2); }
+      O.UI.say(st.rough ? `You wake stiff and itching on ${O.DAYNAMES[sim.weekday]}.` : `You wake on ${O.DAYNAMES[sim.weekday]}, rested.`);
+    }
+    O.Sleep = { sleep, sleeping: () => !!game.sleepState };
 
     game.keyHandlers.push((e) => {
       if (e.code === 'KeyI') { if (O.panelOpen) O.Panels.close(); else O.Panels.inventory(); return true; }
@@ -8470,7 +8622,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         case 'exit': O.travelPanel(cur.side); break;
         case 'property': O.propertyPanel(cur.b); break;
         case 'stash': O.GangUI.stash(); break;
-        case 'campbed': sleep(); break;
+        case 'campbed': sleep(null, true); break;
+        case 'hay': sleep(null, true); break;
         case 'memorial': O.ChronicleUI.memorial(cur.prop.epitaph); break;
         case 'work': if (O.Craft.RECIPES[cur.it.kind]) { const J = O.Work.job(); O.craftPanel({ it: cur.it, who: `${J.masterName}'s`, work: true }); } else O.workShift(); break;
         case 'craft': O.craftPanel(cur); break;
@@ -8479,7 +8632,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         case 'portrait': { const pr = cur.it.portrait; O.Panels.toast(`A likeness of ${pr.name}, painted in life. Died ${O.Chronicle.dateLabel(pr.died)}.`); break; }
         case 'broadsheet': O.ChronicleUI.broadsheet(); break;
         case 'grave': { const g = cur.prop.grave; O.Panels.toast(g ? `“Here lies ${g.name}, ${g.age} years. ${g.cause.replace('died ', '').replace(/^./, (c) => c.toUpperCase())}.”` : 'The old stone is worn smooth; you can no longer read the name.'); break; }
-        case 'bed': if (mayUseBed(cur.it)) sleep(); else O.Panels.toast("That's someone else's bed."); break;
+        case 'bed': if (mayUseBed(cur.it)) sleep(cur.it); else O.Panels.toast("That's someone else's bed."); break;
         case 'stairs': game.enterBuilding(game.scene.b, game.scene.floor === 0 ? 1 : 0, true); break;
         case 'shop': O.Panels.trade(sim, sim.biz.get(game.scene.b.id), cur.seller); break;
       }

@@ -74,6 +74,7 @@
         case 'stash': return 'Open the stash';
         case 'campbed': return 'Sleep by the fire';
         case 'bed': return mayUseBed(c.it) ? 'Sleep until morning' : 'Bed — not yours';
+        case 'hay': return 'Sleep in the hay';
         case 'shop': return `Buy from ${c.seller.first}`;
         case 'stairs': return game.scene.floor === 0 ? 'Go upstairs' : 'Go downstairs';
         default: return '';
@@ -148,14 +149,27 @@
       };
     }
 
-    function sleep() {
-      O.Panels.toast('You sleep…');
-      const target = 7 * 60;
-      let guard = 0;
-      while (guard++ < 1000) { sim.tick(2); PS.tick(2, true); const m = sim.minute; if (m >= target && m < target + 4) break; }
-      game.player.anim = 'idle';
-      O.Panels.toast(`You wake on ${O.DAYNAMES[sim.weekday]}, rested.`);
+    // Sleeping: you lie down and the night passes (quickly, for you) while the village sleeps around
+    // you; you wake at seven, or when you've slept eight hours if you lay down in the day.
+    function sleep(it, rough) {
+      if (game.sleepState) return;
+      const m0 = sim.minute, target = m0 >= 19 * 60 || m0 < 6 * 60 ? 7 * 60 : (m0 + 8 * 60) % 1440;
+      game.sleepState = { it, rough, target, slept: 0 };
+      game.player.inBed = it || null; game.player.anim = rough ? 'lie' : 'idle';
+      O.UI.say(rough ? 'You bed down in the straw…' : 'You climb into bed and close your eyes…');
     }
+    game.hooks.update.push((dt) => {
+      const st = game.sleepState; if (!st) return;
+      game.player.locked = true;
+      for (let k = 0; k < 4; k++) { sim.tick(2); PS.tick(2, true); st.slept += 2; const m = sim.minute; if ((m >= st.target && m < st.target + 6) || st.slept > 16 * 60) { wake(); return; } }
+    });
+    function wake() {
+      const st = game.sleepState; game.sleepState = null;
+      const p = game.player; p.inBed = null; p.anim = 'idle'; p.locked = false;
+      if (st.rough) { PS.energy = Math.min(PS.energy, 70); PS.hp = Math.max(1, PS.hp - 2); }
+      O.UI.say(st.rough ? `You wake stiff and itching on ${O.DAYNAMES[sim.weekday]}.` : `You wake on ${O.DAYNAMES[sim.weekday]}, rested.`);
+    }
+    O.Sleep = { sleep, sleeping: () => !!game.sleepState };
 
     game.keyHandlers.push((e) => {
       if (e.code === 'KeyI') { if (O.panelOpen) O.Panels.close(); else O.Panels.inventory(); return true; }
@@ -187,7 +201,8 @@
         case 'exit': O.travelPanel(cur.side); break;
         case 'property': O.propertyPanel(cur.b); break;
         case 'stash': O.GangUI.stash(); break;
-        case 'campbed': sleep(); break;
+        case 'campbed': sleep(null, true); break;
+        case 'hay': sleep(null, true); break;
         case 'memorial': O.ChronicleUI.memorial(cur.prop.epitaph); break;
         case 'work': if (O.Craft.RECIPES[cur.it.kind]) { const J = O.Work.job(); O.craftPanel({ it: cur.it, who: `${J.masterName}'s`, work: true }); } else O.workShift(); break;
         case 'craft': O.craftPanel(cur); break;
@@ -196,7 +211,7 @@
         case 'portrait': { const pr = cur.it.portrait; O.Panels.toast(`A likeness of ${pr.name}, painted in life. Died ${O.Chronicle.dateLabel(pr.died)}.`); break; }
         case 'broadsheet': O.ChronicleUI.broadsheet(); break;
         case 'grave': { const g = cur.prop.grave; O.Panels.toast(g ? `“Here lies ${g.name}, ${g.age} years. ${g.cause.replace('died ', '').replace(/^./, (c) => c.toUpperCase())}.”` : 'The old stone is worn smooth; you can no longer read the name.'); break; }
-        case 'bed': if (mayUseBed(cur.it)) sleep(); else O.Panels.toast("That's someone else's bed."); break;
+        case 'bed': if (mayUseBed(cur.it)) sleep(cur.it); else O.Panels.toast("That's someone else's bed."); break;
         case 'stairs': game.enterBuilding(game.scene.b, game.scene.floor === 0 ? 1 : 0, true); break;
         case 'shop': O.Panels.trade(sim, sim.biz.get(game.scene.b.id), cur.seller); break;
       }

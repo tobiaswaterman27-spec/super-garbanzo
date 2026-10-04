@@ -186,7 +186,19 @@
       const p = game.player; p.inBed = null; p.anim = 'idle'; p.locked = false;
       if (st.rough) { PS.energy = Math.min(PS.energy, 70); PS.hp = Math.max(1, PS.hp - 2); }
       O.UI.say(st.rough ? `You wake stiff and itching on ${O.DAYNAMES[sim.weekday]}.` : `You wake on ${O.DAYNAMES[sim.weekday]}, rested.`);
+      // a night in a bed of your own house (or one you rent) makes it where you live
+      const b = game.scene && game.scene.b, cs = O.SimRef.cur;
+      if (b && !st.rough && cs && O.isHomeOf(b, cs)) PS.residence = { place: cs.world.placeId, b: b.id, day: cs.day };
     }
+    // a house is yours to live in if you own it or rent it
+    O.isHomeOf = (b, s) => ['house', 'townhouse', 'mansion', 'cottage', 'hovel', 'manor'].includes(b.type) && (b.owner?.kind === 'player' || (PS.lease && PS.lease.b === b.id && PS.lease.place === s.world.placeId));
+    // where you live: the house you last slept in, as long as it is still yours
+    O.livesIn = (placeId) => {
+      const r = PS.residence; if (!r || r.place !== placeId) return false;
+      const v = placeId === (O.SimRef.home && O.SimRef.home.world.placeId) ? { world: O.SimRef.home.world, sim: O.SimRef.home } : O.Travel && O.Travel.visited.get(placeId);
+      const w = v && (v.world || v.sim?.world), b = w && w.buildings.find((x) => x.id === r.b);
+      return !!(b && O.isHomeOf(b, v.sim || O.SimRef.home));
+    };
     O.Sleep = { sleep, sleeping: () => !!game.sleepState };
 
     game.keyHandlers.push((e) => {

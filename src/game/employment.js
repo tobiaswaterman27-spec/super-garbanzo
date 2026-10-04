@@ -12,10 +12,17 @@
   function setup(game, home, npcUI) {
     const PS = O.PlayerState, D = O.Data, say = (t, k) => O.UI.say(t, k), cur = () => O.SimRef.cur;
     const now = (s) => s.day * 1440 + s.minute;
-    const emp = () => PS.emp || null;
-    const here = () => { const e = emp(); return e && e.place === cur().world.placeId ? e : null; };
+    // you may hold more than one post, as long as the hours don't clash (the potboy's evenings after a day's work)
+    const posts = () => {
+      if (!PS.posts) PS.posts = PS.emp ? [PS.emp] : [];
+      if (PS.emp && !PS.posts.includes(PS.emp)) { const m = PS.posts.find((x) => x.place === PS.emp.place && x.biz === PS.emp.biz); if (m) PS.emp = m; else PS.posts.push(PS.emp); }
+      return PS.posts;
+    };
+    const emp = () => (posts(), PS.emp || null);
+    const here = () => { const pl = cur().world.placeId, ps = posts().filter((e) => e.place === pl); return ps.find((e) => e.onShift) || ps[0] || null; };
+    const postAt = (s, bz) => posts().find((e) => e.biz === bz.id && e.place === s.world.placeId) || null;
     const bizOf = (e) => { const s = cur(); return e && e.place === s.world.placeId ? s.biz.get(e.biz) : null; };
-    const hoursOf = (e, bz) => { const r = e.role; if (['night watchman', 'gaoler'].includes(r)) return [20, 30]; if (r.startsWith('guard') || r === 'sergeant') return [6, 18]; return bz ? bz.def.hours : [8, 17]; };
+    const hoursOf = (e, bz) => { const r = e.role; if (r === 'potboy' || r === 'potgirl') return [17, 21]; if (['night watchman', 'gaoler'].includes(r)) return [20, 30]; if (r.startsWith('guard') || r === 'sergeant') return [6, 18]; return bz ? bz.def.hours : [8, 17]; };
     const worksToday = (s, bz) => !(s.weekday === 6 && bz && !['tavern', 'chapel', 'guard', 'hospital', 'palace', 'keep', 'manor', 'posthouse'].includes(bz.type));
     const fmtH = (h) => { h = ((h % 24) + 24) % 24; const hh = Math.floor(h), mm = Math.round((h - hh) * 60); return `${hh % 12 || 12}${mm ? ':' + String(mm).padStart(2, '0') : ''}${hh < 12 ? 'am' : 'pm'}`; };
 
@@ -25,41 +32,43 @@
       const out = (prevExtra ? prevExtra(q) : []).filter(([k]) => k !== 'askwork' && k !== 'quit');
       const s = cur(), bz = q.job?.biz != null ? s.biz.get(q.job.biz) : null;
       if (bz && s.bossOf && s.bossOf(bz) === q) {
-        const e = emp();
-        if (e && e.biz === bz.id && e.place === s.world.placeId) out.push(['notice', 'Hand in your notice']);
+        const e = postAt(s, bz);
+        if (e) out.push(['notice', 'Hand in your notice']);
         else out.push(['askjob', `Ask for work at ${bz.name}`]);
       }
       return out;
     };
     npcUI.onExtra = (q, key, render) => {
       if (key === 'askjob') return offer(q, render);
-      if (key === 'notice') { quit('You hand in your notice.'); cur().remember(q, 'The stranger left my service.', 'work', 1); return render('Very well. I wish you luck.'); }
+      if (key === 'notice') { quit('You hand in your notice.', postAt(cur(), cur().biz.get(q.job.biz))); cur().remember(q, 'The stranger left my service.', 'work', 1); return render('Very well. I wish you luck.'); }
       return prevOn && prevOn(q, key, render);
     };
     function offer(q, render) {
       const s = cur(), bz = s.biz.get(q.job.biz);
       const d = s.hireDecision(bz, q, 'player');
       if (!d.yes) return render(d.why === 'bad' ? "Work? For you? I know what's said of you. No." : d.why === 'dislike' ? "I'll not take you on. Try elsewhere." : "I've all the hands I need just now.");
-      const e = emp();
-      if (e && !(e.biz === bz.id && e.place === s.world.placeId)) { /* they'd leave their other post */ }
       const [o, c] = hoursOf({ role: d.role }, bz);
+      // a post whose hours clash with this one has to go; any other you keep
+      const clash = posts().filter((x) => { const xb = (O.Travel?.visited.get(x.place)?.sim || s).biz.get(x.biz), [xo, xc] = hoursOf(x, xb); return (x.biz === bz.id && x.place === s.world.placeId) || (xo < c && o < xc); });
+      const e = clash[0], keep = posts().filter((x) => !clash.includes(x));
       npcUI.closeTalk && npcUI.closeTalk();
-      O.Panels.open(`Work at ${bz.name}`, `<p class="speech">“I could use a ${d.role}. ${d.wage}d a day, ${fmtH(o)} till ${fmtH(c)}${['tavern', 'chapel', 'guard', 'hospital'].includes(bz.type) ? ', every day' : ', Sundays off'}. Will you take it?”</p>${e ? `<p class="caption">You'd give up your post as ${esc(e.role)} at ${esc(e.bizName)}.</p>` : ''}<div class="topics"><button data-y="1">Take the job</button><button data-n="1">Not now</button></div>`, (r) => {
+      const shown = d.role === 'potboy' && (O.Forge.player?.sex || O.Forge.player?.a?.sex) === 'f' ? 'potgirl' : d.role;
+      O.Panels.open(`Work at ${bz.name}`, `<p class="speech">“I could use a ${shown}.${d.role === 'potboy' ? ' Somebody has to gather the pots and wipe the tables of an evening.' : ''} ${d.wage}d a day, ${fmtH(o)} till ${fmtH(c)}${['tavern', 'chapel', 'guard', 'hospital'].includes(bz.type) ? ', every day' : ', Sundays off'}. Will you take it?”</p>${clash.length ? `<p class="caption">The hours clash: you'd give up your post as ${clash.map((x) => `${esc(x.role)} at ${esc(x.bizName)}`).join(' and ')}.</p>` : keep.length ? `<p class="caption">You'd keep your post as ${keep.map((x) => `${esc(x.role)} at ${esc(x.bizName)}`).join(' and ')} as well: the hours don't clash.</p>` : ''}<div class="topics"><button data-y="1">Take the job</button><button data-n="1">Not now</button></div>`, (r) => {
         r.querySelector('[data-n]').onclick = () => O.Panels.close();
-        r.querySelector('[data-y]').onclick = () => { if (e) quit(null); hire(s, bz, q, d.role, d.wage); O.Panels.close(); say(`You're taken on as ${d.role} at ${bz.name}. Your first shift is ${worksToday(s, bz) && s.hour < c ? 'today' : 'tomorrow'} at ${fmtH(o)}.`); };
+        r.querySelector('[data-y]').onclick = () => { for (const x of clash) quit(null, x); void e; hire(s, bz, q, d.role, d.wage); O.Panels.close(); say(`You're taken on as ${d.role} at ${bz.name}. Your first shift is ${worksToday(s, bz) && s.hour < c ? 'today' : 'tomorrow'} at ${fmtH(o)}.`); };
       });
       return null;
     }
     const esc = (t) => O.escape(String(t));
     function hire(s, bz, boss, role, wage, extra) {
       bz.playerRole = role;
-      PS.emp = Object.assign({ place: s.world.placeId, placeName: s.world.name, biz: bz.id, bizName: bz.name, role, wage, master: boss ? boss.id : null, masterName: boss ? boss.name : 'the crown', since: s.day,
-        stats: { shifts: 0, late: 0, missed: 0, tasks: 0, excused: 0 }, day: null, tasks: [], level: 0 }, extra || {});
+      posts().push(PS.emp = Object.assign({ place: s.world.placeId, placeName: s.world.name, biz: bz.id, bizName: bz.name, role, wage, master: boss ? boss.id : null, masterName: boss ? boss.name : 'the crown', since: s.day,
+        stats: { shifts: 0, late: 0, missed: 0, tasks: 0, excused: 0 }, day: null, tasks: [], level: 0 }, extra || {}));
       if (boss) { s.relate(boss, { id: 0 }, 0.05); s.remember(boss, `Took the stranger on as ${role}.`, 'work', 1.2, 0); }
       O.Chronicle && O.Chronicle.deed(s, `A newcomer has been taken on as ${role} at ${bz.name}.`, `You were taken on as ${role} at ${bz.name}.`, 'player', 1, true);
     }
-    function quit(msg) { const e = emp(); if (!e) return; const s = cur(); const bz = s.world.placeId === e.place ? s.biz.get(e.biz) : null; if (bz && bz.playerRole === e.role) bz.playerRole = null; PS.emp = null; PS.carry = null; if (msg) say(msg); }
-    O.Employment = { emp, hire, quit, here };
+    function quit(msg, e = emp()) { if (!e) return; const s = cur(); const bz = s.world.placeId === e.place ? s.biz.get(e.biz) : null; if (bz && bz.playerRole === e.role) bz.playerRole = null; PS.posts = posts().filter((x) => x !== e); if (PS.emp === e) { PS.emp = PS.posts[0] || null; PS.carry = null; } if (msg) say(msg); }
+    O.Employment = { emp, hire, quit, here, posts };
 
     // ---------------------------------------------------------------- tasks
     const MAKERS = new Set(Object.keys(D.ROLE_ACTION));
@@ -139,6 +148,7 @@
     // the candidate for E: the task you can do where you stand
     O.jobCandidate = () => {
       const e = here(); if (!e || !e.onShift) return null;
+      if (PS.emp !== e) PS.emp = e; // the post on shift here is the one you're working at
       const s = cur(), bz = bizOf(e); if (!bz) return null;
       const p = game.player, open = e.tasks.filter((t) => t.have < t.need);
       // carrying something back for the workplace
@@ -225,29 +235,34 @@
       const p = game.player; if (game.world !== s.world) return false;
       return Math.hypot(p.x - (bz.b.doorX * T + 8), p.y - bz.b.doorY * T) < 140 || e.tasks.some((t) => t._spots && t._spots.some(([x, y]) => Math.hypot(x - p.x, y - p.y) < 60));
     }
-    let lastMin = -1;
     game.hooks.update.push(() => {
-      const e = emp(); if (!e) { panel(null); return; }
+      const all = posts(); if (!all.length) { panel(null); return; }
+      for (const e of all.slice()) tickPost(e);
+      // the post you're working at just now is the one in focus: on shift and here, else on shift, else the next
+      const pl = cur().world.placeId;
+      PS.emp = all.find((e) => e.onShift && e.place === pl) || all.find((e) => e.onShift) || all.slice().sort((a, b) => hoursOf(a, null)[0] - hoursOf(b, null)[0])[0] || null;
+      panel(PS.emp);
+    });
+    function tickPost(e) {
       // the post is in another town: it waits for you (time passes there too)
       const visited = O.Travel && O.Travel.visited.get(e.place), s = visited ? visited.sim : cur();
-      if (!s || s.world.placeId !== e.place) { panel(e); return; }
-      const bz = s.biz.get(e.biz); if (!bz) { quit(`${e.bizName} is gone, and your post with it.`); return; }
+      if (!s || s.world.placeId !== e.place) return;
+      const bz = s.biz.get(e.biz); if (!bz) { quit(`${e.bizName} is gone, and your post with it.`, e); return; }
       if (bz.playerRole !== e.role) bz.playerRole = e.role;
-      const m = Math.floor(now(s)); if (m === lastMin) return; lastMin = m;
+      const m = Math.floor(now(s)); if (m === e._lm) return; e._lm = m;
       const [o, c] = hoursOf(e, bz), h = s.hour + (s.hour < 6 && c > 24 ? 24 : 0), day = s.day;
       if (e.day !== day) { // a new day
         if (e.day != null && e.dayInfo) settle(s, bz, e);
         e.day = day; e.dayInfo = { works: worksToday(s, bz), arrived: null, excused: e.excuseDay === day };
         e.tasks = []; e.onShift = false;
       }
-      const D0 = e.dayInfo; if (!D0.works) { panel(e); return; }
+      const D0 = e.dayInfo; if (!D0.works) return;
       const on = h >= o && h < c;
       if (on && !e.onShift) { e.onShift = true; e.tasks = newTasks(s, bz, e); refresh(); }
       if (!on && e.onShift && h >= c) { e.onShift = false; refresh(); }
       if (on && D0.arrived == null && atWork(s, bz, e)) { D0.arrived = h; if (h > o + 0.25 && !D0.excused) { e.stats.late++; const boss = s.byId.get(e.master); if (boss) s.relate(boss, { id: 0 }, -0.04); say(`You're late. ${e.masterName || 'Your master'} gives you a look.`, 'bad'); } }
       if (on && e.onShift && e.tasks.every((t) => t.have >= t.need) && h < c - 1) { e.tasks.push(...newTasks(s, bz, e).filter((t) => t.kind !== 'rooms')); refresh(); }
-      panel(e);
-    });
+    }
     function settle(s, bz, e) {
       const D0 = e.dayInfo; if (!D0.works) return;
       const boss = s.byId.get(e.master), done = e.todayTasks || 0; e.todayTasks = 0;
@@ -270,7 +285,7 @@
         bz.firedPlayer = true;
         const told = s.rng.chance(0.5);
         if (boss) s.remember(boss, 'Let the stranger go. Unreliable.', 'work', 1.5, 0);
-        quit(told ? `${e.masterName || 'Your master'} sends word: you're not to come back to ${e.bizName}.` : null);
+        quit(told ? `${e.masterName || 'Your master'} sends word: you're not to come back to ${e.bizName}.` : null, e);
         if (!told) PS.firedSilently = { biz: bz.id, place: s.world.placeId, name: bz.name };
         return;
       }
@@ -300,7 +315,8 @@
       const shift = e.onShift ? `On shift till ${fmtH(c)}` : `Next shift: ${e.dayInfo && e.dayInfo.works && s.hour < o ? 'today' : 'tomorrow'} ${fmtH(o)}-${fmtH(c)}`;
       const tasks = e.onShift ? e.tasks.map((t) => `<li class="${t.have >= t.need ? 'done' : ''}">${t.have >= t.need ? '■' : '□'} ${esc(t.text)}${t.need > 1 ? ` (${Math.min(t.have, t.need)}/${t.need})` : ''}</li>`).join('') : '';
       const carry = PS.carry ? `<div class="carry">Carrying: ${PS.carry.qty} ${esc(D.GOODS[PS.carry.good]?.name.toLowerCase() || PS.carry.good)}</div>` : '';
-      const html = `<div class="jh">${head}</div><div class="js">${shift} · ${e.wage}d a day</div>${tasks ? `<ul>${tasks}</ul>` : ''}${carry}`;
+      const others = posts().filter((x) => x !== e).map((x) => { const xs = O.Travel?.visited.get(x.place)?.sim || cur(), xb = xs.world.placeId === x.place ? xs.biz.get(x.biz) : null, [xo, xc] = hoursOf(x, xb); return `<div class="js">Also: ${esc(x.role)} at ${esc(x.bizName)}, ${fmtH(xo)}-${fmtH(xc)}</div>`; }).join('');
+      const html = `<div class="jh">${head}</div><div class="js">${shift} · ${e.wage}d a day</div>${tasks ? `<ul>${tasks}</ul>` : ''}${carry}${others}`;
       if (html === sig) return; sig = html; el.innerHTML = html; el.hidden = false;
     }
 

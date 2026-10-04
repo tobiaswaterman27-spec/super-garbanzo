@@ -130,8 +130,8 @@
         if (!this.blocked(nx, p.y)) p.x = nx;
         if (!this.blocked(p.x, ny)) p.y = ny;
         p.dir = O.dirOf(mx, my);
-        p.anim = p.mount ? 'sit' : run ? 'run' : 'walk';
-      } else if (!p.sitting && (p.anim === 'walk' || p.anim === 'run')) p.anim = 'idle';
+        if (!p.swinging) p.anim = p.mount ? 'sit' : run ? 'run' : 'walk';
+      } else if (!p.sitting && !p.swinging && (p.anim === 'walk' || p.anim === 'run')) p.anim = 'idle';
       p.moving = len > 0;
       // never trapped: if you're standing inside something solid (a sign set down, a cart, a door shut on
       // you), you're eased out to the nearest open ground

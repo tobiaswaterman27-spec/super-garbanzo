@@ -9,7 +9,7 @@
     const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k), esc = (t) => O.escape(String(t));
     const K = () => home.kingdom;
     const HALLS = ['townhall', 'moothall', 'chapel', 'church', 'guard', 'keep'];
-    const citizen = (s) => s.world.buildings.some((b) => (b.type === 'house' || b.type === 'townhouse' || b.type === 'mansion') && (b.owner?.kind === 'player' || (PS.lease && PS.lease.b === b.id))) || (PS.lease && PS.lease.place === s.world.placeId);
+    const citizen = (s) => O.livesIn(s.world.placeId);
     const openElection = (s) => (K().elections || []).find((e) => e.place === s.world.placeId && !e.done);
 
     O.voteCandidate = () => {
@@ -24,7 +24,7 @@
       const voted = e.voters && e.voters.includes('player'), can = citizen(s);
       const rows = e.cands.map((k, i) => `<tr><td><b>${esc(k.name)}</b><br><small class="lbl">${esc(k.record)}</small></td><td>${can && !voted ? `<button data-v="${i}">Vote</button>` : ''}</td></tr>`).join('');
       const stand = can && !e.cands.some((k) => k.player) && PS.rep.local > -0.1 && !(PS.wantedLevel && PS.wantedLevel() > 0);
-      O.Panels.open(`Election in ${pl.name}`, `<p class="caption">The old ${esc(K().leaders[e.place]?.title || 'leader').toLowerCase()} ${esc(e.oldName || '')} ${esc(e.why)}. The box is on the table; the count is tomorrow.${can ? '' : ' Only those who live here may vote.'}${voted ? ' You have voted.' : ''}</p><table>${rows}</table>${stand ? '<div class="topics" style="margin-top:10px"><button data-stand="1">Stand yourself</button></div>' : ''}`, (r) => {
+      O.Panels.open(`Election in ${pl.name}`, `<p class="caption">The old ${esc(K().leaders[e.place]?.title || 'leader').toLowerCase()} ${esc(e.oldName || '')} ${esc(e.why)}. The box is on the table; the count is tomorrow.${can ? '' : ' Only those who live here (in a house of their own or rented, where they sleep) may vote.'}${voted ? ' You have voted.' : ''}</p><table>${rows}</table>${stand ? '<div class="topics" style="margin-top:10px"><button data-stand="1">Stand yourself</button></div>' : ''}`, (r) => {
         r.querySelectorAll('[data-v]').forEach((b) => b.onclick = () => { e.votes[b.dataset.v] = (e.votes[b.dataset.v] || 0) + 1; (e.voters = e.voters || []).push('player'); game.player.anim = 'place'; O.Panels.close(); say(`You fold your vote and drop it in the box for ${e.cands[+b.dataset.v].name}.`); });
         const st = r.querySelector('[data-stand]'); if (st) st.onclick = () => { const nm = (O.Forge && O.Forge.player && O.Forge.player.name) || 'The newcomer'; e.cands.push({ name: nm, record: PS.emp ? `the ${PS.emp.role} at ${PS.emp.bizName}` : 'a newcomer of good name', votes: 0, appeal: 0.3 + PS.rep.local * 0.6 + PS.rep.civilian * 0.3, player: true }); O.Panels.close(); say("Your name goes up beside the others'. The count is tomorrow."); };
       });

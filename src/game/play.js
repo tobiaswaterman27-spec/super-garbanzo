@@ -102,6 +102,7 @@
   O.OpenWorldSetup.setup(game, home);
   O.Wayfarers.setup(game, home);
   O.Crowd.setup(game);
+  O.SpeechSetup.setup(game);
   O.Signs.setup(game);
   O.PropertyUI.setup(game, sim);
   O.ChronicleUI.setup(game, home);

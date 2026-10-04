@@ -122,12 +122,30 @@
       if (!cr || game.scene || game.world !== O.SimRef.home.world) return;
       const slot = sim.day * 2 + (sim.hour > 12 ? 1 : 0);
       if (slot === lastCry) return;
-      if (Math.hypot(cr.agent.x - game.player.x, cr.agent.y - game.player.y) > 170) return;
+      if (Math.hypot(cr.agent.x - game.player.x, cr.agent.y - game.player.y) > 90) return;
       lastCry = slot; cr.agent.talking = 60;
       const Ch = O.Chronicle, crierFacts = Ch.facts.filter((f) => f.imp >= 2 && f.day >= sim.day - 4 && !f.secret).sort((a, b) => b.imp - a.imp || b.day - a.day).slice(0, 2);
       const told = crierFacts.map((f) => { const v = Ch.tell(f, 'crier', sim, sim.rng); Ch.playerHears(f, v, 'crier', cr.name); return v; });
       const items = [...(told.length ? told : K.news.slice(-2).map((n) => n.text)), ...(PS.bountyAmount && PS.wantedLevel() >= 2 ? [`A reward of ${PS.bountyAmount}d is offered for the outlaw: ${PS.soughtFor()}.`] : [])];
-      O.Panels.toast(`${cr.first} the crier: “Hear ye, hear ye! ${items.length ? items.join(' ') : 'All is well in Ashford.'}”`);
+      const words = `Hear ye, hear ye! ${items.length ? items.join(' ') : 'All is well in Ashford.'}`;
+      cr.agent.anim = 'wave';
+      O.Speech.say(cr, words.length > 160 ? words.slice(0, 157) + '…' : words, 9, 'shout', 140);
+      O.Panels.toast(`${cr.first} the crier: “${words}”`);
+    });
+    // the town criers of every place call out on their rounds, but only those near enough hear them
+    let nextCall = 0;
+    game.hooks.update.push(() => {
+      if (game.t < nextCall || game.scene) return; nextCall = game.t + 4;
+      const s = O.SimRef.cur; if (!s) return;
+      const h = s.hour; if (h < 8 || h > 18) return;
+      for (const q of s.people) {
+        if (q.job?.role !== 'town crier' || !q.agent || q.agent.hidden || q.agent.inside != null || q.health.hp <= 0) continue;
+        if (!O.Speech.inEarshot(q, 120) || (q._cried || 0) > game.t) continue;
+        q._cried = game.t + 40;
+        const n = (K.news || []).filter((x) => !x.secret).slice(-3), it = n.length ? n[(q.id + s.day + Math.floor(h)) % n.length].text : `${O.DAYNAMES[s.weekday]}, and all is well in ${s.world.name}.`;
+        O.Speech.say(q, `Oyez, oyez! ${it}`, 8, 'shout', 140); q.agent.anim = 'wave';
+        O.UI.say(`${q.first} the crier calls: “${it}”`);
+      }
     });
 
     // notice board in the square

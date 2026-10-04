@@ -1041,7 +1041,8 @@
   // the nearby ones hold pixel data.
   const cache = new Map(); const MAX = 8000;
   // every appearance has its own key: two people may share a seed (the same name and number in two towns) and must never share frames
-  let cidN = 0; const cid = (a) => a._cid || (a._cid = ++cidN);
+  // (held in a WeakMap, never on the object: a saved and reloaded appearance must not bring an old number back)
+  let cidN = 0; const cids = new WeakMap(); const cid = (a) => { let k = cids.get(a); if (!k) { k = ++cidN; cids.set(a, k); } return k; };
   function frame(a, dir, anim, f) {
     const key = cid(a) + ':' + a.cacheVer + ':' + dir + anim + f;
     let c = cache.get(key);

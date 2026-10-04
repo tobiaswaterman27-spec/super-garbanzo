@@ -217,7 +217,7 @@
       if (!list) return;
       for (const { q, k } of list) {
         const pi = sp.pillows ? sp.pillows[Math.min(sp.pillows.length - 1, Math.floor(k))] : [0, -20];
-        const hc = q._headCanvas && q._headVer === q.app.cacheVer ? q._headCanvas : (q._headCanvas = this.headOf(q), q._headVer = q.app.cacheVer, q._headCanvas);
+        const hc = q._headCanvas && q._headApp === q.app && q._headVer === q.app.cacheVer ? q._headCanvas : (q._headCanvas = this.headOf(q), q._headApp = q.app, q._headVer = q.app.cacheVer, q._headCanvas);
         let px = ax + pi[0] + (k === 0.5 ? 5 : 0), py = ay + pi[1];
         if (it.kind === 'bed' && it.rot) { // head on the pillow at the wall end, turned on its side
           ctx.save(); ctx.translate(Math.round(px - cam.x), Math.round(py - cam.y)); ctx.rotate(it.rot === 1 ? -Math.PI / 2 : Math.PI / 2); ctx.drawImage(hc, -10, -hc.cy - 1); ctx.restore();
@@ -235,6 +235,8 @@
       if (night) { ctx.fillStyle = '#141a2c'; for (const w of R.windows) ctx.fillRect(w.x - cam.x, w.y - cam.y, w.w, w.h); }
       const bz = sim.biz.get(this.b.id);
       const drawables = [];
+      // every room has at least a tallow candle at night, unless the household is too poor for one
+      const candleOn = night ? this.candleSpot(bz) : null;
       for (const it of L.items) {
         let v = it.v;
         if (it.kind === 'shelf' || it.kind === 'rack') { const gd = it.stockGood; if (bz && gd) { const tgt = bz.def.targets[gd] || 10; v = Math.round(3 * O.clamp((bz.stock[gd] || 0) / tgt, 0, 1)); if (it.kind === 'rack') v = 0; } else v = 2; }
@@ -251,6 +253,7 @@
           at(sp.canvas);
           if (sp.fire) { const dying = bz && bz.fireUntil != null && sim.day * 1440 + sim.minute > bz.fireUntil; const lit = !dying && (!this.b.sprite?.chimney || !g.lit || g.lit.has(this.b.id) || it.kind === 'cauldron'); this.drawFire(ctx, ax + sp.fire.x - cam.x, ay + sp.fire.y - cam.y, Object.assign({}, sp.fire, { coals: sp.fire.coals || !lit })); }
           if (sp.candles && (night || it.kind === 'altar' || it.kind === 'candlestand')) for (const [cx, cy] of sp.candles) this.flame(ctx, ax + cx - cam.x, ay + cy - cam.y, 1);
+          if (it === candleOn && night) { const x = Math.round(ax - cam.x) + 4, y = Math.round(ay - sp.oy - cam.y) + 5; ctx.fillStyle = '#4a3a2a'; ctx.fillRect(x - 2, y + 4, 5, 1); ctx.fillStyle = '#efe6cc'; ctx.fillRect(x, y, 2, 4); ctx.fillStyle = '#c8bca0'; ctx.fillRect(x + 1, y + 1, 1, 3); this.flame(ctx, x, y - 2, 1); }
           if (sp.cover) { this.drawSleepers(ctx, it, sp, ax, ay, cam); at(sp.cover); }
         } });
         if (sp.back) drawables.push({ y: ay + 4, draw: () => at(sp.back) }); // a chair or pew back in front of whoever sits in it
@@ -269,9 +272,25 @@
         if (it.kind === 'fireplace' || it.kind === 'oven' || it.kind === 'forge') pools.push([ax - cam.x, ay - 10 - cam.y, 56 + Math.sin(this.t * 9 + it.id) * 2, 'fire']);
         if (it.kind === 'altar' || it.kind === 'candlestand') pools.push([ax - cam.x, ay - 24 - cam.y, 32, 'fire']);
         if ((it.kind === 'table' || it.kind === 'longtable') && it.v >= 1 && night) pools.push([ax - cam.x, ay - 16 - cam.y, 26, 'fire']);
+        if (it === candleOn) pools.push([ax + 4 - cam.x, ay - 18 - cam.y, 30, 'fire']);
       }
       if (!night) { for (const w of R.windows) pools.push([w.x + w.w / 2 - cam.x, R.WH + 14 - cam.y, 34, 'day']); if (this.floor === 0) pools.push([(R.doorX0 + R.doorX1) / 2 - cam.x, R.WH + R.FH - cam.y, 30, 'day']); }
       g.drawLightingWith(amb, pools);
+    }
+
+    // where the candle goes in a room with no other light: on a table, counter, desk or chest
+    candleSpot(bz) {
+      const k = this.floor + ':' + this.L.items.length;
+      if (this._cKey === k) return this._cSpot;
+      this._cKey = k; this._cSpot = null;
+      const L = this.L, lit = L.items.some((i) => ['candlestand', 'altar'].includes(i.kind) || ((i.kind === 'table' || i.kind === 'longtable') && i.v >= 1));
+      if (lit) return null;
+      const hh = this.b.household && this.sim.households[this.b.household - 1];
+      if (!bz && hh && (hh.money || 0) < 4) return null; // too poor even for tallow: they sit in the dark
+      if (!bz && !hh && !this.b.owner) return null; // an empty house
+      const pref = ['table', 'desk', 'counter', 'bar', 'workbench', 'chest', 'bench', 'dresser', 'crate', 'barrel'];
+      for (const kd of pref) { const it = L.items.find((i) => i.kind === kd || (kd === 'counter' && i.counter)); if (it) { this._cSpot = it; break; } }
+      return this._cSpot;
     }
 
     drawActor(ctx, a, cam, shadow) {

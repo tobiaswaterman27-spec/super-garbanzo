@@ -75,7 +75,7 @@
     const extraTargets = []; // functions returning [{ x, y, hit(dmg, blade, weapon) }]
     function attack() {
       if (swing > 0 || playerCd > 0 || O.panelOpen || game.player.locked) return;
-      syncLook(); swing = 0.36; swingHit = false; playerCd = 0.45;
+      syncLook(); swing = 0.36; swingHit = false; playerCd = 0.45; game.player.swinging = true;
       game.player.anim = 'attack'; game.player.ft = 0;
     }
 
@@ -119,7 +119,7 @@
             else O.Panels.toast(`${q.first} falls and does not get up.`, 'bad');
           }
         }
-        if (swing <= 0) game.player.anim = 'idle';
+        if (swing <= 0) { game.player.swinging = false; game.player.anim = game.player.moving ? (game.keys.has('run') ? 'run' : 'walk') : 'idle'; }
       }
       // NPC fighters and fleers act in real time
       for (const [id, f] of [...fights]) {

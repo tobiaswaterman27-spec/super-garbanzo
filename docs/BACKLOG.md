@@ -85,3 +85,32 @@ Every job and every level of it, royal family and titles included, grouped under
 - [ ] When the player takes the throne (or any post held by a family): the old holders move out and the player's family takes their place (options to come, as asked)
 - [ ] Letters: more kinds and recipients (asked to be added later)
 - [ ] Talking to people through an AI key (maybe)
+
+## Batch D (asked after steps 63-64) - build now
+
+- [x] Lordship of Ashford: only offered if you live in Ashford (own a house there and live in it)
+- [ ] The "not done yet" items: business deals, relocating a business, the moneylender lending, riders on horseback, leaders visibly leaving for the council, journeys and council kept across a reload
+- [ ] Everyone visibly doing things; people leave in time for where they're going (by distance), early or late by personality
+- [x] Glitch: some people change their whole look at work but keep their name
+- [x] Beds only in buildings where someone lives, and only on the floor they sleep on
+- [ ] Paths to every city, town, village and hamlet, and paths between buildings
+- [ ] Construction: the lot is walkable, only what's built collides; stages by building size; no box, grass turns to dirt first; last stage is painting the house, the inside, and the sign
+- [ ] Prices: bigger buildings cost and rent for more; also by economy and place (near the capital, good trade spots cost more)
+- [ ] People can send the player letters (an AI key will write them later)
+- [x] Criers heard only when you're near them
+- [ ] NPCs talk and do things with each other, sometimes fight, with animations; relationships and friends that affect jobs and so on
+- [ ] A prison: gaolers and keepers; law-breakers serve time or pay bail by sentence length; animations
+- [ ] Collisions: no seeing through things, no odd overlaps
+- [ ] The for-sale sign is put up by a person, with animation
+- [x] Attack while sprinting
+- [ ] Preload the map
+- [ ] Better pathfinding: people walking head on don't jam
+- [x] NPCs turn to face you when you talk to them
+- [x] Some buildings have no light: at least a candle unless too poor
+- [x] Inn: "a bed for the night" and "a room for the night" mean the same; the upstairs only where the building has one
+- [ ] Population numbers for every place (answer in chat)
+- [x] Potboy or potgirl always takeable even when the inn's other posts are full; more than one job at once
+- [ ] Optional: minstrels and the hermit
+- [ ] Gangs: join any gang, climb the ranks, tasks per rank (management, pickpocketing, burglary, higher up assassinations); the tailor sells disguises so you aren't known
+- [ ] Next: how to get the other jobs (asked to come after this)
+- [ ] Say what should be added next; how many people are in the sim and how things change over time

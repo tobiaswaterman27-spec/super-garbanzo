@@ -19,7 +19,12 @@
     game.hooks.update.push(() => {
       if (!talking) return;
       const pos = game.scene ? game.scene.personPos(talking) : (talking.agent.hidden ? null : [talking.agent.x, talking.agent.y]);
-      if (!pos || Math.hypot(pos[0] - game.player.x, pos[1] - game.player.y) > 60) closeTalk();
+      if (!pos || Math.hypot(pos[0] - game.player.x, pos[1] - game.player.y) > 60) return closeTalk();
+      // whoever you're talking to keeps turning to face you (unless they're sat or abed)
+      const d = O.dirOf(game.player.x - pos[0], game.player.y - pos[1]);
+      if (game.scene) { const a = game.scene.actors.get(talking.id); if (a && !a.seat && !a.gBed) { a.dir = d; a.gDir = d; } }
+      else talking.agent.dir = d;
+      talking.agent.frozen = true;
     });
 
     function openTalk(q) {
@@ -46,7 +51,6 @@
       const options = [];
       for (const [k, l] of (api.extraButtons ? api.extraButtons(q) : [])) options.push({ key: 'x-' + k, label: l, hot: true });
       if (atWork) options.push({ key: 'trade', label: 'Show me your wares', hot: true });
-      if (innkeeper) options.push({ key: 'rent', label: 'A room for the night (6d)', hot: true });
       if (q.job?.role === 'parish clerk' && q.activity?.act === 'work') options.push({ key: 'houses', label: 'Houses to let or sell', hot: true });
       for (const [k, l] of [['self', 'How are you?'], ['work', 'What do you do?'], ['news', 'Any news?'], ['prices', 'How are prices?'], ['family', 'Your family?']]) options.push({ key: k, label: l });
       options.push({ key: 'bye', label: 'Goodbye' });

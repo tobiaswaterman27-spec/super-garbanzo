@@ -1709,7 +1709,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   // the nearby ones hold pixel data.
   const cache = new Map(); const MAX = 8000;
   // every appearance has its own key: two people may share a seed (the same name and number in two towns) and must never share frames
-  let cidN = 0; const cid = (a) => a._cid || (a._cid = ++cidN);
+  // (held in a WeakMap, never on the object: a saved and reloaded appearance must not bring an old number back)
+  let cidN = 0; const cids = new WeakMap(); const cid = (a) => { let k = cids.get(a); if (!k) { k = ++cidN; cids.set(a, k); } return k; };
   function frame(a, dir, anim, f) {
     const key = cid(a) + ':' + a.cacheVer + ':' + dir + anim + f;
     let c = cache.get(key);
@@ -4116,8 +4117,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         if (!this.blocked(nx, p.y)) p.x = nx;
         if (!this.blocked(p.x, ny)) p.y = ny;
         p.dir = O.dirOf(mx, my);
-        p.anim = p.mount ? 'sit' : run ? 'run' : 'walk';
-      } else if (!p.sitting && (p.anim === 'walk' || p.anim === 'run')) p.anim = 'idle';
+        if (!p.swinging) p.anim = p.mount ? 'sit' : run ? 'run' : 'walk';
+      } else if (!p.sitting && !p.swinging && (p.anim === 'walk' || p.anim === 'run')) p.anim = 'idle';
       p.moving = len > 0;
       // never trapped: if you're standing inside something solid (a sign set down, a cart, a door shut on
       // you), you're eased out to the nearest open ground
@@ -8218,7 +8219,7 @@ O.snowMaskOf = function (src) {
       const L0 = O.Interior.interior(b, 0, sim); seats = L0.items.filter((i) => i.seat && i.kind !== 'throne').length;
       if (b.floors >= 2) { const L1 = O.Interior.interior(b, 1, sim); beds = L1.items.filter((i) => i.rent).length; }
     } catch (e) { seats = 12; beds = 4; }
-    b._cap = { seats: Math.max(6, seats), beds: Math.max(1, beds) };
+    b._cap = { seats: Math.max(6, seats), beds: b.floors >= 2 ? Math.max(1, beds) : 0 };
     return b._cap;
   }
   const isInn = (b) => b && b.type === 'tavern';
@@ -8263,7 +8264,7 @@ O.snowMaskOf = function (src) {
           if (first === evening) return h >= 13 && h < 16 && this.household(p).shopper === p.id ? pl : { act: 'home', b: p.home };
         }
         // a look over the rooms upstairs now and then
-        if ((Math.floor(this.minute / 5) + p.id) % 18 === 0) return Object.assign({}, pl, { upstairs: true });
+        if (this.building(j.biz)?.floors >= 2 && (Math.floor(this.minute / 5) + p.id) % 18 === 0) return Object.assign({}, pl, { upstairs: true });
       }
       if (j && j.role === 'potboy') { const h = this.hour; return h >= 17 && h < 21 ? { act: 'work', b: j.biz } : pl; }
       return pl;
@@ -8330,8 +8331,10 @@ O.snowMaskOf = function (src) {
       const isPlayer = who === 'player', des = this.desperation(bz), vac = this.vacancies(bz);
       // a busy place with a full till will make room for one more pair of hands
       const extra = !vac.length && des > 0.35 && bz.cash > 120 ? (bz.def.jobs.find(([r]) => ['labourer', 'apprentice', 'server', 'farmhand', 'scullion', 'maid', 'potboy'].includes(r)) || bz.def.jobs[bz.def.jobs.length - 1])[0] : null;
-      if (!vac.length && !extra) return { yes: false, why: 'none' };
-      const role = vac.length ? vac[vac.length - 1] : extra;
+      // somebody has to collect the pots: at an inn the player can always be the potboy (or potgirl)
+      const pots = isPlayer && bz.type === 'tavern' && !vac.length && !extra && bz.playerRole !== 'potboy' ? 'potboy' : null;
+      if (!vac.length && !extra && !pots) return { yes: false, why: 'none' };
+      const role = vac.length ? vac[vac.length - 1] : extra || pots;
       if (bz.def.wage[role] === 0 && !bz.ownerPlayer) return { yes: false, why: 'none' };
       let like = 0, bad = 0;
       if (isPlayer) {
@@ -8345,7 +8348,7 @@ O.snowMaskOf = function (src) {
       }
       const score = 0.45 + like * 0.6 + des * 0.6 - bad;
       if (score < 0.25) return { yes: false, why: bad > 0.5 ? 'bad' : 'dislike', role };
-      const wage = Math.max(2, bz.def.wage[role] || 5);
+      const wage = role === 'potboy' && !bz.def.wage.potboy ? 3 : Math.max(2, bz.def.wage[role] || 5);
       return { yes: true, role, wage };
     };
 
@@ -10562,6 +10565,7 @@ O.snowMaskOf = function (src) {
     }
     const beds = (plan) => {
       let placed = 0;
+      if (!lives && !(plan && plan.length && plan.every((k) => k === 'bed') && b.type === 'tavern')) return 0; // nobody sleeps here: no beds
       for (const kind of plan || bedPlan()) {
         let it = null;
         if (kind === 'double') it = tryPut('double', backWall(3, true), { v: wv, bed: true, slots: 2 }) || tryPut('double', [...leftWall(3, 3), ...rightWall(3, 3)], { v: wv, bed: true, slots: 2 });
@@ -10664,7 +10668,7 @@ O.snowMaskOf = function (src) {
         const fams = hhRes.filter((h) => h.members.length > 1), singles = hhRes.filter((h) => h.members.length === 1).map((h) => sim.byId.get(h.members[0])).filter(Boolean);
         let ri = 0;
         for (const h of fams) { if (ri >= rooms.length) break; const ppl = h.members.map((m) => sim.byId.get(m)).filter(Boolean); roomBeds(rooms[ri], planFor(ppl)); tryPut('chest', edgeOf(...rooms[ri], 2, 1), { v: 1, valuables: true }); ri++; }
-        let left = singles.length || 8;
+        let left = singles.length;
         while (left > 0 && ri < rooms.length) { const k = Math.min(3, left); left -= roomBeds(rooms[ri], Array(k).fill('bed')) || k; tryPut('chest', edgeOf(...rooms[ri], 2, 1), { v: 1 }); tryPut('candlestand', edgeOf(...rooms[ri], 1, 1), {}); ri++; }
         for (; ri < rooms.length; ri++) { tryPut('crate', edgeOf(...rooms[ri], 1, 1), {}); tryPut('sack', edgeOf(...rooms[ri], 1, 1), {}); tryPut('washtub', edgeOf(...rooms[ri], 1, 1), {}); }
         return;
@@ -10989,7 +10993,7 @@ O.snowMaskOf = function (src) {
           tryPut('candlestand', nearWalls()); tryPut('candlestand', nearWalls()); tryPut('plant', nearWalls());
           if (b.type === 'keep') { tryPut('desk', [[Math.floor(w / 2) - 1, 1]], { v: 2, lord: true }); tryPut('rack', backWall(2, true)); tryPut('rack', backWall(2, true)); tryPut('barrel', nearWalls()); tryPut('barrel', nearWalls()); }
         } else {
-          beds(); tryPut('wardrobe', backWall(2, true), { v: 2 }); tryPut('chest', nearWalls(2, 1), { v: 2, valuables: true, container: { slots: 18 } });
+          if (floor === 1 || people.length > 8) beds(); tryPut('wardrobe', backWall(2, true), { v: 2 }); tryPut('chest', nearWalls(2, 1), { v: 2, valuables: true, container: { slots: 18 } });
           tryPut('rug', centre(3, 2), { flat: true, width: 3 }); tryPut('desk', nearWalls(2, 1)); tryPut('candlestand', nearWalls());
         }
         storage();
@@ -11043,9 +11047,12 @@ O.snowMaskOf = function (src) {
   // Cached interior per building/floor (furniture is fixed; stock visuals update live).
   const cache = new Map();
   // keyed by the building itself, not its number: building numbers repeat from town to town
-  let iidN = 0; const iid = (b) => b._iid || (b._iid = ++iidN);
+  // (a WeakMap, not a field on the building: saved buildings must not bring an old number back after a reload)
+  let iidN = 0; const iids = new WeakMap(); const iid = (b) => { let k = iids.get(b); if (!k) { k = ++iidN; iids.set(b, k); } return k; };
+  // whether anyone lives there now: a house that's emptied (or filled) is laid out again
+  const occupied = (b, sim) => sim ? (b.households || (b.household ? [b.household] : [])).some((id) => { const h = sim.households[id - 1]; return h && !h.gone && h.home === b.id && h.members.length; }) : 1;
   function interior(b, floor, sim) {
-    const key = iid(b) + ':' + floor;
+    const key = iid(b) + ':' + floor + ':' + (occupied(b, sim) ? 1 : 0);
     if (cache.has(key)) return cache.get(key);
     const L = layoutFor(b, floor, sim);
     const wallKind = (b.decor && b.decor.wall) || (b.spec.wall === 'stone' || b.spec.wall === 'log' || b.spec.wall === 'plank' ? b.spec.wall : 'timber');
@@ -11380,7 +11387,7 @@ O.snowMaskOf = function (src) {
       if (!list) return;
       for (const { q, k } of list) {
         const pi = sp.pillows ? sp.pillows[Math.min(sp.pillows.length - 1, Math.floor(k))] : [0, -20];
-        const hc = q._headCanvas && q._headVer === q.app.cacheVer ? q._headCanvas : (q._headCanvas = this.headOf(q), q._headVer = q.app.cacheVer, q._headCanvas);
+        const hc = q._headCanvas && q._headApp === q.app && q._headVer === q.app.cacheVer ? q._headCanvas : (q._headCanvas = this.headOf(q), q._headApp = q.app, q._headVer = q.app.cacheVer, q._headCanvas);
         let px = ax + pi[0] + (k === 0.5 ? 5 : 0), py = ay + pi[1];
         if (it.kind === 'bed' && it.rot) { // head on the pillow at the wall end, turned on its side
           ctx.save(); ctx.translate(Math.round(px - cam.x), Math.round(py - cam.y)); ctx.rotate(it.rot === 1 ? -Math.PI / 2 : Math.PI / 2); ctx.drawImage(hc, -10, -hc.cy - 1); ctx.restore();
@@ -11398,6 +11405,8 @@ O.snowMaskOf = function (src) {
       if (night) { ctx.fillStyle = '#141a2c'; for (const w of R.windows) ctx.fillRect(w.x - cam.x, w.y - cam.y, w.w, w.h); }
       const bz = sim.biz.get(this.b.id);
       const drawables = [];
+      // every room has at least a tallow candle at night, unless the household is too poor for one
+      const candleOn = night ? this.candleSpot(bz) : null;
       for (const it of L.items) {
         let v = it.v;
         if (it.kind === 'shelf' || it.kind === 'rack') { const gd = it.stockGood; if (bz && gd) { const tgt = bz.def.targets[gd] || 10; v = Math.round(3 * O.clamp((bz.stock[gd] || 0) / tgt, 0, 1)); if (it.kind === 'rack') v = 0; } else v = 2; }
@@ -11414,6 +11423,7 @@ O.snowMaskOf = function (src) {
           at(sp.canvas);
           if (sp.fire) { const dying = bz && bz.fireUntil != null && sim.day * 1440 + sim.minute > bz.fireUntil; const lit = !dying && (!this.b.sprite?.chimney || !g.lit || g.lit.has(this.b.id) || it.kind === 'cauldron'); this.drawFire(ctx, ax + sp.fire.x - cam.x, ay + sp.fire.y - cam.y, Object.assign({}, sp.fire, { coals: sp.fire.coals || !lit })); }
           if (sp.candles && (night || it.kind === 'altar' || it.kind === 'candlestand')) for (const [cx, cy] of sp.candles) this.flame(ctx, ax + cx - cam.x, ay + cy - cam.y, 1);
+          if (it === candleOn && night) { const x = Math.round(ax - cam.x) + 4, y = Math.round(ay - sp.oy - cam.y) + 5; ctx.fillStyle = '#4a3a2a'; ctx.fillRect(x - 2, y + 4, 5, 1); ctx.fillStyle = '#efe6cc'; ctx.fillRect(x, y, 2, 4); ctx.fillStyle = '#c8bca0'; ctx.fillRect(x + 1, y + 1, 1, 3); this.flame(ctx, x, y - 2, 1); }
           if (sp.cover) { this.drawSleepers(ctx, it, sp, ax, ay, cam); at(sp.cover); }
         } });
         if (sp.back) drawables.push({ y: ay + 4, draw: () => at(sp.back) }); // a chair or pew back in front of whoever sits in it
@@ -11432,9 +11442,25 @@ O.snowMaskOf = function (src) {
         if (it.kind === 'fireplace' || it.kind === 'oven' || it.kind === 'forge') pools.push([ax - cam.x, ay - 10 - cam.y, 56 + Math.sin(this.t * 9 + it.id) * 2, 'fire']);
         if (it.kind === 'altar' || it.kind === 'candlestand') pools.push([ax - cam.x, ay - 24 - cam.y, 32, 'fire']);
         if ((it.kind === 'table' || it.kind === 'longtable') && it.v >= 1 && night) pools.push([ax - cam.x, ay - 16 - cam.y, 26, 'fire']);
+        if (it === candleOn) pools.push([ax + 4 - cam.x, ay - 18 - cam.y, 30, 'fire']);
       }
       if (!night) { for (const w of R.windows) pools.push([w.x + w.w / 2 - cam.x, R.WH + 14 - cam.y, 34, 'day']); if (this.floor === 0) pools.push([(R.doorX0 + R.doorX1) / 2 - cam.x, R.WH + R.FH - cam.y, 30, 'day']); }
       g.drawLightingWith(amb, pools);
+    }
+
+    // where the candle goes in a room with no other light: on a table, counter, desk or chest
+    candleSpot(bz) {
+      const k = this.floor + ':' + this.L.items.length;
+      if (this._cKey === k) return this._cSpot;
+      this._cKey = k; this._cSpot = null;
+      const L = this.L, lit = L.items.some((i) => ['candlestand', 'altar'].includes(i.kind) || ((i.kind === 'table' || i.kind === 'longtable') && i.v >= 1));
+      if (lit) return null;
+      const hh = this.b.household && this.sim.households[this.b.household - 1];
+      if (!bz && hh && (hh.money || 0) < 4) return null; // too poor even for tallow: they sit in the dark
+      if (!bz && !hh && !this.b.owner) return null; // an empty house
+      const pref = ['table', 'desk', 'counter', 'bar', 'workbench', 'chest', 'bench', 'dresser', 'crate', 'barrel'];
+      for (const kd of pref) { const it = L.items.find((i) => i.kind === kd || (kd === 'counter' && i.counter)); if (it) { this._cSpot = it; break; } }
+      return this._cSpot;
     }
 
     drawActor(ctx, a, cam, shadow) {
@@ -11644,7 +11670,12 @@ O.snowMaskOf = function (src) {
     game.hooks.update.push(() => {
       if (!talking) return;
       const pos = game.scene ? game.scene.personPos(talking) : (talking.agent.hidden ? null : [talking.agent.x, talking.agent.y]);
-      if (!pos || Math.hypot(pos[0] - game.player.x, pos[1] - game.player.y) > 60) closeTalk();
+      if (!pos || Math.hypot(pos[0] - game.player.x, pos[1] - game.player.y) > 60) return closeTalk();
+      // whoever you're talking to keeps turning to face you (unless they're sat or abed)
+      const d = O.dirOf(game.player.x - pos[0], game.player.y - pos[1]);
+      if (game.scene) { const a = game.scene.actors.get(talking.id); if (a && !a.seat && !a.gBed) { a.dir = d; a.gDir = d; } }
+      else talking.agent.dir = d;
+      talking.agent.frozen = true;
     });
 
     function openTalk(q) {
@@ -11671,7 +11702,6 @@ O.snowMaskOf = function (src) {
       const options = [];
       for (const [k, l] of (api.extraButtons ? api.extraButtons(q) : [])) options.push({ key: 'x-' + k, label: l, hot: true });
       if (atWork) options.push({ key: 'trade', label: 'Show me your wares', hot: true });
-      if (innkeeper) options.push({ key: 'rent', label: 'A room for the night (6d)', hot: true });
       if (q.job?.role === 'parish clerk' && q.activity?.act === 'work') options.push({ key: 'houses', label: 'Houses to let or sell', hot: true });
       for (const [k, l] of [['self', 'How are you?'], ['work', 'What do you do?'], ['news', 'Any news?'], ['prices', 'How are prices?'], ['family', 'Your family?']]) options.push({ key: k, label: l });
       options.push({ key: 'bye', label: 'Goodbye' });
@@ -11957,7 +11987,19 @@ O.snowMaskOf = function (src) {
       const p = game.player; p.inBed = null; p.anim = 'idle'; p.locked = false;
       if (st.rough) { PS.energy = Math.min(PS.energy, 70); PS.hp = Math.max(1, PS.hp - 2); }
       O.UI.say(st.rough ? `You wake stiff and itching on ${O.DAYNAMES[sim.weekday]}.` : `You wake on ${O.DAYNAMES[sim.weekday]}, rested.`);
+      // a night in a bed of your own house (or one you rent) makes it where you live
+      const b = game.scene && game.scene.b, cs = O.SimRef.cur;
+      if (b && !st.rough && cs && O.isHomeOf(b, cs)) PS.residence = { place: cs.world.placeId, b: b.id, day: cs.day };
     }
+    // a house is yours to live in if you own it or rent it
+    O.isHomeOf = (b, s) => ['house', 'townhouse', 'mansion', 'cottage', 'hovel', 'manor'].includes(b.type) && (b.owner?.kind === 'player' || (PS.lease && PS.lease.b === b.id && PS.lease.place === s.world.placeId));
+    // where you live: the house you last slept in, as long as it is still yours
+    O.livesIn = (placeId) => {
+      const r = PS.residence; if (!r || r.place !== placeId) return false;
+      const v = placeId === (O.SimRef.home && O.SimRef.home.world.placeId) ? { world: O.SimRef.home.world, sim: O.SimRef.home } : O.Travel && O.Travel.visited.get(placeId);
+      const w = v && (v.world || v.sim?.world), b = w && w.buildings.find((x) => x.id === r.b);
+      return !!(b && O.isHomeOf(b, v.sim || O.SimRef.home));
+    };
     O.Sleep = { sleep, sleeping: () => !!game.sleepState };
 
     game.keyHandlers.push((e) => {
@@ -12697,7 +12739,7 @@ O.snowMaskOf = function (src) {
     const extraTargets = []; // functions returning [{ x, y, hit(dmg, blade, weapon) }]
     function attack() {
       if (swing > 0 || playerCd > 0 || O.panelOpen || game.player.locked) return;
-      syncLook(); swing = 0.36; swingHit = false; playerCd = 0.45;
+      syncLook(); swing = 0.36; swingHit = false; playerCd = 0.45; game.player.swinging = true;
       game.player.anim = 'attack'; game.player.ft = 0;
     }
 
@@ -12741,7 +12783,7 @@ O.snowMaskOf = function (src) {
             else O.Panels.toast(`${q.first} falls and does not get up.`, 'bad');
           }
         }
-        if (swing <= 0) game.player.anim = 'idle';
+        if (swing <= 0) { game.player.swinging = false; game.player.anim = game.player.moving ? (game.keys.has('run') ? 'run' : 'walk') : 'idle'; }
       }
       // NPC fighters and fleers act in real time
       for (const [id, f] of [...fights]) {
@@ -13454,12 +13496,30 @@ O.snowMaskOf = function (src) {
       if (!cr || game.scene || game.world !== O.SimRef.home.world) return;
       const slot = sim.day * 2 + (sim.hour > 12 ? 1 : 0);
       if (slot === lastCry) return;
-      if (Math.hypot(cr.agent.x - game.player.x, cr.agent.y - game.player.y) > 170) return;
+      if (Math.hypot(cr.agent.x - game.player.x, cr.agent.y - game.player.y) > 90) return;
       lastCry = slot; cr.agent.talking = 60;
       const Ch = O.Chronicle, crierFacts = Ch.facts.filter((f) => f.imp >= 2 && f.day >= sim.day - 4 && !f.secret).sort((a, b) => b.imp - a.imp || b.day - a.day).slice(0, 2);
       const told = crierFacts.map((f) => { const v = Ch.tell(f, 'crier', sim, sim.rng); Ch.playerHears(f, v, 'crier', cr.name); return v; });
       const items = [...(told.length ? told : K.news.slice(-2).map((n) => n.text)), ...(PS.bountyAmount && PS.wantedLevel() >= 2 ? [`A reward of ${PS.bountyAmount}d is offered for the outlaw: ${PS.soughtFor()}.`] : [])];
-      O.Panels.toast(`${cr.first} the crier: “Hear ye, hear ye! ${items.length ? items.join(' ') : 'All is well in Ashford.'}”`);
+      const words = `Hear ye, hear ye! ${items.length ? items.join(' ') : 'All is well in Ashford.'}`;
+      cr.agent.anim = 'wave';
+      O.Speech.say(cr, words.length > 160 ? words.slice(0, 157) + '…' : words, 9, 'shout', 140);
+      O.Panels.toast(`${cr.first} the crier: “${words}”`);
+    });
+    // the town criers of every place call out on their rounds, but only those near enough hear them
+    let nextCall = 0;
+    game.hooks.update.push(() => {
+      if (game.t < nextCall || game.scene) return; nextCall = game.t + 4;
+      const s = O.SimRef.cur; if (!s) return;
+      const h = s.hour; if (h < 8 || h > 18) return;
+      for (const q of s.people) {
+        if (q.job?.role !== 'town crier' || !q.agent || q.agent.hidden || q.agent.inside != null || q.health.hp <= 0) continue;
+        if (!O.Speech.inEarshot(q, 120) || (q._cried || 0) > game.t) continue;
+        q._cried = game.t + 40;
+        const n = (K.news || []).filter((x) => !x.secret).slice(-3), it = n.length ? n[(q.id + s.day + Math.floor(h)) % n.length].text : `${O.DAYNAMES[s.weekday]}, and all is well in ${s.world.name}.`;
+        O.Speech.say(q, `Oyez, oyez! ${it}`, 8, 'shout', 140); q.agent.anim = 'wave';
+        O.UI.say(`${q.first} the crier calls: “${it}”`);
+      }
     });
 
     // notice board in the square
@@ -13847,14 +13907,15 @@ O.snowMaskOf = function (src) {
       const all = [...O.Travel.visited.values()].flatMap((v) => v.world.buildings.filter(owned).map((b) => ({ b, s: v.sim })));
       const rows = all.map(({ b, s }) => `<tr><td>${esc(b.type === 'house' ? 'House' : b.name)}<br><small class="lbl">${esc(s.world.name)}</small></td><td class="n">${O.money(s.value(b))}</td><td>${b.household ? `${esc(s.households[b.household - 1]?.surname || '')} family, ${b.rent}d/wk` : s.biz.get(b.id)?.ownerPlayer ? `${esc(s.biz.get(b.id).name)}, till ${O.money(s.biz.get(b.id).cash)}` : 'empty'}</td></tr>`).join('');
       const L = H.lordship, lord = L.holder === 'player';
-      const canPetition = !lord && PS.wantedLevel() === 0 && !PS.exiled && PS.rep.civilian > -0.2;
+      const resident = O.livesIn && O.livesIn(H.world.placeId || 'ashford');
+      const canPetition = !lord && resident && PS.wantedLevel() === 0 && !PS.exiled && PS.rep.civilian > -0.2;
       O.Panels.open('Holdings', `<div class="kv">
           <div><span class="lbl">Rents received</span><b>${O.money(PS.rentIncome || 0)}</b><small>paid each Moonday</small></div>
           <div><span class="lbl">Business profits</span><b>${O.money(PS.bizIncome || 0)}</b><small>your share as owner</small></div>
           <div><span class="lbl">Lordship of Ashford</span><b>${lord ? 'Yours' : 'The crown\'s'}</b><small>${lord ? 'You set the tax, the watch and the works.' : `The crown asks ${O.money(L.price)} and an unstained name.`}</small></div>
         </div>
         <table style="margin-top:12px"><thead><tr><th>Property</th><th class="n">Value</th><th>Use</th></tr></thead><tbody>${rows || '<tr><td colspan="3">You own nothing yet. Look for For Sale signs by empty houses and shops.</td></tr>'}</tbody></table>
-        ${!lord ? `<p class="caption" style="margin-top:12px">${canPetition ? 'You could petition the Lord of Highmere for the lordship.' : 'The crown will not sell a lordship to someone the watch is looking for, or whom the common folk despise.'}</p>${canPetition ? `<button class="btn" data-pet="1">Petition for the lordship (${O.money(L.price)})</button>` : ''}` : lordControls(H)}${PS.reeve && !lord ? reeveControls(H) : ''}${PS.reeve || lord ? officeControls(H) : ''}${moot(H)}${O.landSection ? O.landSection() : ''}`, (r) => {
+        ${!lord ? `<p class="caption" style="margin-top:12px">${canPetition ? 'You could petition the Lord of Highmere for the lordship.' : !resident ? 'Only someone who lives in Ashford may hold its lordship: own a house here and sleep in it.' : 'The crown will not sell a lordship to someone the watch is looking for, or whom the common folk despise.'}</p>${canPetition ? `<button class="btn" data-pet="1">Petition for the lordship (${O.money(L.price)})</button>` : ''}` : lordControls(H)}${PS.reeve && !lord ? reeveControls(H) : ''}${PS.reeve || lord ? officeControls(H) : ''}${moot(H)}${O.landSection ? O.landSection() : ''}`, (r) => {
         if (O.bindLand) O.bindLand(r, holdings);
         const pet = r.querySelector('[data-pet]');
         if (pet) pet.onclick = () => { if (PS.money < L.price) return O.Panels.toast(`You need ${O.money(L.price)}.`, 'bad'); PS.money -= L.price; H.kingdom.treasury += L.price; L.holder = 'player'; PS.lord = true; H.log('By letters from Highmere, the newcomer is made Lord of Ashford.', 'politics'); H.kingdom.addNews(`A new lord has been granted Ashford.`, 'politics'); for (const p of H.people) if (p.age >= 16 && H.rng.chance(0.5)) H.remember(p, 'We have a new lord, a stranger with deep pockets.', 'politics', 1.5); holdings(); };
@@ -15983,6 +16044,60 @@ O.snowMaskOf = function (src) {
 
 </script>
 <script>
+// Words spoken aloud in the street or a room, shown as a little parchment bubble over the speaker's
+// head. You only hear what is said near you: past earshot nothing shows. Used by the criers, by
+// people chatting, arguing and fighting with each other, and by anyone calling out to you.
+'use strict';
+(function () {
+  function setup(game) {
+    const st = document.createElement('style');
+    st.textContent = `.speech-layer{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:3}
+.speech{position:absolute;transform:translate(-50%,-100%);max-width:220px;background:#f4e8c8;color:#2a1d14;border:2px solid #2a1d14;box-shadow:2px 2px 0 rgba(20,12,8,.45);padding:3px 7px;font:12px/1.25 Georgia,serif;text-align:center;white-space:normal;transition:opacity .25s}
+.speech:after{content:'';position:absolute;left:50%;bottom:-7px;margin-left:-4px;border:4px solid transparent;border-top:5px solid #2a1d14}
+.speech.shout{background:#fff1c2;font-weight:bold}.speech.angry{background:#f2cdbd}.speech.far{opacity:.55}`;
+    document.head.appendChild(st);
+    const layer = document.createElement('div'); layer.className = 'speech-layer';
+    const host = game.canvas.parentElement || document.body; if (getComputedStyle(host).position === 'static') host.style.position = 'relative'; host.appendChild(layer);
+    const live = new Map();
+    const EAR = 110;
+    // where a speaker is in the view right now (null if not here)
+    const posOf = (w) => {
+      if (!w) return null;
+      if (w.agent && w.id != null) { if (game.scene) return game.scene.personPos(w); return w.agent.hidden || w.agent.inside != null ? null : [w.agent.x, w.agent.y]; }
+      return w.x != null ? [w.x, w.y] : null;
+    };
+    const inEarshot = (w, r = EAR) => { const p = posOf(w); return !!p && Math.hypot(p[0] - game.player.x, p[1] - game.player.y) <= r; };
+    function say(who, text, secs = 3.5, kind = '', range = EAR) {
+      if (!who || !text) return false;
+      const key = who.id != null ? 'p' + who.id : who;
+      let b = live.get(key);
+      if (!b) { b = { el: document.createElement('div') }; b.el.className = 'speech'; layer.appendChild(b.el); live.set(key, b); }
+      b.who = who; b.until = game.t + secs; b.range = range; b.el.textContent = text; b.el.className = 'speech' + (kind ? ' ' + kind : '');
+      if (who.agent) { who.agent.talking = Math.max(who.agent.talking || 0, secs); }
+      return inEarshot(who, range);
+    }
+    game.hooks.drawTop.push((ctx, cam) => {
+      const r = game.canvas.getBoundingClientRect(), hr = layer.getBoundingClientRect(), sc = r.width / game.canvas.width;
+      for (const [k, b] of live) {
+        const p = posOf(b.who);
+        if (game.t > b.until || (b.who.alive === false)) { b.el.remove(); live.delete(k); continue; }
+        const d = p ? Math.hypot(p[0] - game.player.x, p[1] - game.player.y) : 1e9;
+        if (!p || d > b.range || O.panelOpen) { b.el.style.display = 'none'; continue; }
+        b.el.style.display = '';
+        b.el.classList.toggle('far', d > b.range * 0.75);
+        b.el.style.left = (r.left - hr.left + (p[0] - cam.x) * sc) + 'px';
+        b.el.style.top = (r.top - hr.top + (p[1] - 38 - cam.y) * sc) + 'px';
+      }
+    });
+    // leaving a building or a town clears what was being said there
+    const clear = () => { for (const b of live.values()) b.el.remove(); live.clear(); };
+    O.Speech = { say, clear, inEarshot, posOf, EAR };
+  }
+  O.SpeechSetup = { setup };
+})();
+
+</script>
+<script>
 // Taking a room: only from the innkeeper, at the counter. They tell you if the beds are all taken.
 'use strict';
 (function () {
@@ -15992,12 +16107,14 @@ O.snowMaskOf = function (src) {
     const prevExtra = npcUI.extraButtons, prevOn = npcUI.onExtra;
     npcUI.extraButtons = (q) => {
       const out = prevExtra ? prevExtra(q) : [];
-      if (atCounter(q)) { const has = PS.room && PS.room.b === q.job.biz && PS.room.until >= sim.day; out.push(['room', has ? 'Ask about your room' : 'A bed for the night (6d)']); }
+      if (atCounter(q) && !sim.innCapacity(q.job.biz).beds) out.push(['room', 'A bed for the night?']);
+      else if (atCounter(q)) { const has = PS.room && PS.room.b === q.job.biz && PS.room.until >= sim.day; out.push(['room', has ? 'Ask about your room' : 'A bed for the night (6d)']); }
       return out;
     };
     npcUI.onExtra = (q, key, render) => {
       if (key !== 'room') return prevOn && prevOn(q, key, render);
       const bid = q.job.biz, b = sim.building(bid);
+      if (!sim.innCapacity(bid).beds) { const other = sim.world.buildings.find((x) => x.type === 'tavern' && x.id !== bid && x.floors >= 2); O.UI.say(`${q.first}: “We've no rooms here, only the taproom. ${other ? `${other.name} lets beds upstairs.` : 'You could ask about a house to let.'}”`); return; }
       if (PS.room && PS.room.b === bid && PS.room.until >= sim.day) { O.UI.say(`${q.first}: “Your bed's upstairs, made up and waiting. Sleep well.”`); return; }
       const cap = sim.innCapacity(bid).beds, taken = sim.innBedsTaken(bid);
       if (taken >= cap) { O.UI.say(`${q.first}: “I'm sorry, every bed's taken tonight. Try again tomorrow.”`, 'bad'); return; }
@@ -16005,7 +16122,7 @@ O.snowMaskOf = function (src) {
       PS.money -= 6; const bz = sim.biz.get(bid); if (bz) bz.cash += 6;
       PS.room = { b: bid, until: sim.day + (sim.hour >= 12 ? 1 : 0) };
       game.player.anim = 'count'; game.player.ft = 0; setTimeout(() => { if (game.player.anim === 'count') game.player.anim = 'idle'; }, 900);
-      O.UI.say(`You count sixpence onto the counter. ${q.first}: “Up the stairs, any bed with the blanket turned down. It's yours till morning.”`);
+      O.UI.say(`You count sixpence onto the counter. ${q.first}: “Up the stairs, any bed with the blanket turned down. It's yours till morning.”`); PS.add && !PS.items.includes('key') && PS.add('key');
       void b;
     };
   }
@@ -16028,10 +16145,17 @@ O.snowMaskOf = function (src) {
   function setup(game, home, npcUI) {
     const PS = O.PlayerState, D = O.Data, say = (t, k) => O.UI.say(t, k), cur = () => O.SimRef.cur;
     const now = (s) => s.day * 1440 + s.minute;
-    const emp = () => PS.emp || null;
-    const here = () => { const e = emp(); return e && e.place === cur().world.placeId ? e : null; };
+    // you may hold more than one post, as long as the hours don't clash (the potboy's evenings after a day's work)
+    const posts = () => {
+      if (!PS.posts) PS.posts = PS.emp ? [PS.emp] : [];
+      if (PS.emp && !PS.posts.includes(PS.emp)) { const m = PS.posts.find((x) => x.place === PS.emp.place && x.biz === PS.emp.biz); if (m) PS.emp = m; else PS.posts.push(PS.emp); }
+      return PS.posts;
+    };
+    const emp = () => (posts(), PS.emp || null);
+    const here = () => { const pl = cur().world.placeId, ps = posts().filter((e) => e.place === pl); return ps.find((e) => e.onShift) || ps[0] || null; };
+    const postAt = (s, bz) => posts().find((e) => e.biz === bz.id && e.place === s.world.placeId) || null;
     const bizOf = (e) => { const s = cur(); return e && e.place === s.world.placeId ? s.biz.get(e.biz) : null; };
-    const hoursOf = (e, bz) => { const r = e.role; if (['night watchman', 'gaoler'].includes(r)) return [20, 30]; if (r.startsWith('guard') || r === 'sergeant') return [6, 18]; return bz ? bz.def.hours : [8, 17]; };
+    const hoursOf = (e, bz) => { const r = e.role; if (r === 'potboy' || r === 'potgirl') return [17, 21]; if (['night watchman', 'gaoler'].includes(r)) return [20, 30]; if (r.startsWith('guard') || r === 'sergeant') return [6, 18]; return bz ? bz.def.hours : [8, 17]; };
     const worksToday = (s, bz) => !(s.weekday === 6 && bz && !['tavern', 'chapel', 'guard', 'hospital', 'palace', 'keep', 'manor', 'posthouse'].includes(bz.type));
     const fmtH = (h) => { h = ((h % 24) + 24) % 24; const hh = Math.floor(h), mm = Math.round((h - hh) * 60); return `${hh % 12 || 12}${mm ? ':' + String(mm).padStart(2, '0') : ''}${hh < 12 ? 'am' : 'pm'}`; };
 
@@ -16041,41 +16165,43 @@ O.snowMaskOf = function (src) {
       const out = (prevExtra ? prevExtra(q) : []).filter(([k]) => k !== 'askwork' && k !== 'quit');
       const s = cur(), bz = q.job?.biz != null ? s.biz.get(q.job.biz) : null;
       if (bz && s.bossOf && s.bossOf(bz) === q) {
-        const e = emp();
-        if (e && e.biz === bz.id && e.place === s.world.placeId) out.push(['notice', 'Hand in your notice']);
+        const e = postAt(s, bz);
+        if (e) out.push(['notice', 'Hand in your notice']);
         else out.push(['askjob', `Ask for work at ${bz.name}`]);
       }
       return out;
     };
     npcUI.onExtra = (q, key, render) => {
       if (key === 'askjob') return offer(q, render);
-      if (key === 'notice') { quit('You hand in your notice.'); cur().remember(q, 'The stranger left my service.', 'work', 1); return render('Very well. I wish you luck.'); }
+      if (key === 'notice') { quit('You hand in your notice.', postAt(cur(), cur().biz.get(q.job.biz))); cur().remember(q, 'The stranger left my service.', 'work', 1); return render('Very well. I wish you luck.'); }
       return prevOn && prevOn(q, key, render);
     };
     function offer(q, render) {
       const s = cur(), bz = s.biz.get(q.job.biz);
       const d = s.hireDecision(bz, q, 'player');
       if (!d.yes) return render(d.why === 'bad' ? "Work? For you? I know what's said of you. No." : d.why === 'dislike' ? "I'll not take you on. Try elsewhere." : "I've all the hands I need just now.");
-      const e = emp();
-      if (e && !(e.biz === bz.id && e.place === s.world.placeId)) { /* they'd leave their other post */ }
       const [o, c] = hoursOf({ role: d.role }, bz);
+      // a post whose hours clash with this one has to go; any other you keep
+      const clash = posts().filter((x) => { const xb = (O.Travel?.visited.get(x.place)?.sim || s).biz.get(x.biz), [xo, xc] = hoursOf(x, xb); return (x.biz === bz.id && x.place === s.world.placeId) || (xo < c && o < xc); });
+      const e = clash[0], keep = posts().filter((x) => !clash.includes(x));
       npcUI.closeTalk && npcUI.closeTalk();
-      O.Panels.open(`Work at ${bz.name}`, `<p class="speech">“I could use a ${d.role}. ${d.wage}d a day, ${fmtH(o)} till ${fmtH(c)}${['tavern', 'chapel', 'guard', 'hospital'].includes(bz.type) ? ', every day' : ', Sundays off'}. Will you take it?”</p>${e ? `<p class="caption">You'd give up your post as ${esc(e.role)} at ${esc(e.bizName)}.</p>` : ''}<div class="topics"><button data-y="1">Take the job</button><button data-n="1">Not now</button></div>`, (r) => {
+      const shown = d.role === 'potboy' && (O.Forge.player?.sex || O.Forge.player?.a?.sex) === 'f' ? 'potgirl' : d.role;
+      O.Panels.open(`Work at ${bz.name}`, `<p class="speech">“I could use a ${shown}.${d.role === 'potboy' ? ' Somebody has to gather the pots and wipe the tables of an evening.' : ''} ${d.wage}d a day, ${fmtH(o)} till ${fmtH(c)}${['tavern', 'chapel', 'guard', 'hospital'].includes(bz.type) ? ', every day' : ', Sundays off'}. Will you take it?”</p>${clash.length ? `<p class="caption">The hours clash: you'd give up your post as ${clash.map((x) => `${esc(x.role)} at ${esc(x.bizName)}`).join(' and ')}.</p>` : keep.length ? `<p class="caption">You'd keep your post as ${keep.map((x) => `${esc(x.role)} at ${esc(x.bizName)}`).join(' and ')} as well: the hours don't clash.</p>` : ''}<div class="topics"><button data-y="1">Take the job</button><button data-n="1">Not now</button></div>`, (r) => {
         r.querySelector('[data-n]').onclick = () => O.Panels.close();
-        r.querySelector('[data-y]').onclick = () => { if (e) quit(null); hire(s, bz, q, d.role, d.wage); O.Panels.close(); say(`You're taken on as ${d.role} at ${bz.name}. Your first shift is ${worksToday(s, bz) && s.hour < c ? 'today' : 'tomorrow'} at ${fmtH(o)}.`); };
+        r.querySelector('[data-y]').onclick = () => { for (const x of clash) quit(null, x); void e; hire(s, bz, q, d.role, d.wage); O.Panels.close(); say(`You're taken on as ${d.role} at ${bz.name}. Your first shift is ${worksToday(s, bz) && s.hour < c ? 'today' : 'tomorrow'} at ${fmtH(o)}.`); };
       });
       return null;
     }
     const esc = (t) => O.escape(String(t));
     function hire(s, bz, boss, role, wage, extra) {
       bz.playerRole = role;
-      PS.emp = Object.assign({ place: s.world.placeId, placeName: s.world.name, biz: bz.id, bizName: bz.name, role, wage, master: boss ? boss.id : null, masterName: boss ? boss.name : 'the crown', since: s.day,
-        stats: { shifts: 0, late: 0, missed: 0, tasks: 0, excused: 0 }, day: null, tasks: [], level: 0 }, extra || {});
+      posts().push(PS.emp = Object.assign({ place: s.world.placeId, placeName: s.world.name, biz: bz.id, bizName: bz.name, role, wage, master: boss ? boss.id : null, masterName: boss ? boss.name : 'the crown', since: s.day,
+        stats: { shifts: 0, late: 0, missed: 0, tasks: 0, excused: 0 }, day: null, tasks: [], level: 0 }, extra || {}));
       if (boss) { s.relate(boss, { id: 0 }, 0.05); s.remember(boss, `Took the stranger on as ${role}.`, 'work', 1.2, 0); }
       O.Chronicle && O.Chronicle.deed(s, `A newcomer has been taken on as ${role} at ${bz.name}.`, `You were taken on as ${role} at ${bz.name}.`, 'player', 1, true);
     }
-    function quit(msg) { const e = emp(); if (!e) return; const s = cur(); const bz = s.world.placeId === e.place ? s.biz.get(e.biz) : null; if (bz && bz.playerRole === e.role) bz.playerRole = null; PS.emp = null; PS.carry = null; if (msg) say(msg); }
-    O.Employment = { emp, hire, quit, here };
+    function quit(msg, e = emp()) { if (!e) return; const s = cur(); const bz = s.world.placeId === e.place ? s.biz.get(e.biz) : null; if (bz && bz.playerRole === e.role) bz.playerRole = null; PS.posts = posts().filter((x) => x !== e); if (PS.emp === e) { PS.emp = PS.posts[0] || null; PS.carry = null; } if (msg) say(msg); }
+    O.Employment = { emp, hire, quit, here, posts };
 
     // ---------------------------------------------------------------- tasks
     const MAKERS = new Set(Object.keys(D.ROLE_ACTION));
@@ -16155,6 +16281,7 @@ O.snowMaskOf = function (src) {
     // the candidate for E: the task you can do where you stand
     O.jobCandidate = () => {
       const e = here(); if (!e || !e.onShift) return null;
+      if (PS.emp !== e) PS.emp = e; // the post on shift here is the one you're working at
       const s = cur(), bz = bizOf(e); if (!bz) return null;
       const p = game.player, open = e.tasks.filter((t) => t.have < t.need);
       // carrying something back for the workplace
@@ -16241,29 +16368,34 @@ O.snowMaskOf = function (src) {
       const p = game.player; if (game.world !== s.world) return false;
       return Math.hypot(p.x - (bz.b.doorX * T + 8), p.y - bz.b.doorY * T) < 140 || e.tasks.some((t) => t._spots && t._spots.some(([x, y]) => Math.hypot(x - p.x, y - p.y) < 60));
     }
-    let lastMin = -1;
     game.hooks.update.push(() => {
-      const e = emp(); if (!e) { panel(null); return; }
+      const all = posts(); if (!all.length) { panel(null); return; }
+      for (const e of all.slice()) tickPost(e);
+      // the post you're working at just now is the one in focus: on shift and here, else on shift, else the next
+      const pl = cur().world.placeId;
+      PS.emp = all.find((e) => e.onShift && e.place === pl) || all.find((e) => e.onShift) || all.slice().sort((a, b) => hoursOf(a, null)[0] - hoursOf(b, null)[0])[0] || null;
+      panel(PS.emp);
+    });
+    function tickPost(e) {
       // the post is in another town: it waits for you (time passes there too)
       const visited = O.Travel && O.Travel.visited.get(e.place), s = visited ? visited.sim : cur();
-      if (!s || s.world.placeId !== e.place) { panel(e); return; }
-      const bz = s.biz.get(e.biz); if (!bz) { quit(`${e.bizName} is gone, and your post with it.`); return; }
+      if (!s || s.world.placeId !== e.place) return;
+      const bz = s.biz.get(e.biz); if (!bz) { quit(`${e.bizName} is gone, and your post with it.`, e); return; }
       if (bz.playerRole !== e.role) bz.playerRole = e.role;
-      const m = Math.floor(now(s)); if (m === lastMin) return; lastMin = m;
+      const m = Math.floor(now(s)); if (m === e._lm) return; e._lm = m;
       const [o, c] = hoursOf(e, bz), h = s.hour + (s.hour < 6 && c > 24 ? 24 : 0), day = s.day;
       if (e.day !== day) { // a new day
         if (e.day != null && e.dayInfo) settle(s, bz, e);
         e.day = day; e.dayInfo = { works: worksToday(s, bz), arrived: null, excused: e.excuseDay === day };
         e.tasks = []; e.onShift = false;
       }
-      const D0 = e.dayInfo; if (!D0.works) { panel(e); return; }
+      const D0 = e.dayInfo; if (!D0.works) return;
       const on = h >= o && h < c;
       if (on && !e.onShift) { e.onShift = true; e.tasks = newTasks(s, bz, e); refresh(); }
       if (!on && e.onShift && h >= c) { e.onShift = false; refresh(); }
       if (on && D0.arrived == null && atWork(s, bz, e)) { D0.arrived = h; if (h > o + 0.25 && !D0.excused) { e.stats.late++; const boss = s.byId.get(e.master); if (boss) s.relate(boss, { id: 0 }, -0.04); say(`You're late. ${e.masterName || 'Your master'} gives you a look.`, 'bad'); } }
       if (on && e.onShift && e.tasks.every((t) => t.have >= t.need) && h < c - 1) { e.tasks.push(...newTasks(s, bz, e).filter((t) => t.kind !== 'rooms')); refresh(); }
-      panel(e);
-    });
+    }
     function settle(s, bz, e) {
       const D0 = e.dayInfo; if (!D0.works) return;
       const boss = s.byId.get(e.master), done = e.todayTasks || 0; e.todayTasks = 0;
@@ -16286,7 +16418,7 @@ O.snowMaskOf = function (src) {
         bz.firedPlayer = true;
         const told = s.rng.chance(0.5);
         if (boss) s.remember(boss, 'Let the stranger go. Unreliable.', 'work', 1.5, 0);
-        quit(told ? `${e.masterName || 'Your master'} sends word: you're not to come back to ${e.bizName}.` : null);
+        quit(told ? `${e.masterName || 'Your master'} sends word: you're not to come back to ${e.bizName}.` : null, e);
         if (!told) PS.firedSilently = { biz: bz.id, place: s.world.placeId, name: bz.name };
         return;
       }
@@ -16316,7 +16448,8 @@ O.snowMaskOf = function (src) {
       const shift = e.onShift ? `On shift till ${fmtH(c)}` : `Next shift: ${e.dayInfo && e.dayInfo.works && s.hour < o ? 'today' : 'tomorrow'} ${fmtH(o)}-${fmtH(c)}`;
       const tasks = e.onShift ? e.tasks.map((t) => `<li class="${t.have >= t.need ? 'done' : ''}">${t.have >= t.need ? '■' : '□'} ${esc(t.text)}${t.need > 1 ? ` (${Math.min(t.have, t.need)}/${t.need})` : ''}</li>`).join('') : '';
       const carry = PS.carry ? `<div class="carry">Carrying: ${PS.carry.qty} ${esc(D.GOODS[PS.carry.good]?.name.toLowerCase() || PS.carry.good)}</div>` : '';
-      const html = `<div class="jh">${head}</div><div class="js">${shift} · ${e.wage}d a day</div>${tasks ? `<ul>${tasks}</ul>` : ''}${carry}`;
+      const others = posts().filter((x) => x !== e).map((x) => { const xs = O.Travel?.visited.get(x.place)?.sim || cur(), xb = xs.world.placeId === x.place ? xs.biz.get(x.biz) : null, [xo, xc] = hoursOf(x, xb); return `<div class="js">Also: ${esc(x.role)} at ${esc(x.bizName)}, ${fmtH(xo)}-${fmtH(xc)}</div>`; }).join('');
+      const html = `<div class="jh">${head}</div><div class="js">${shift} · ${e.wage}d a day</div>${tasks ? `<ul>${tasks}</ul>` : ''}${carry}${others}`;
       if (html === sig) return; sig = html; el.innerHTML = html; el.hidden = false;
     }
 
@@ -16733,7 +16866,7 @@ O.snowMaskOf = function (src) {
     const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k), esc = (t) => O.escape(String(t));
     const K = () => home.kingdom;
     const HALLS = ['townhall', 'moothall', 'chapel', 'church', 'guard', 'keep'];
-    const citizen = (s) => s.world.buildings.some((b) => (b.type === 'house' || b.type === 'townhouse' || b.type === 'mansion') && (b.owner?.kind === 'player' || (PS.lease && PS.lease.b === b.id))) || (PS.lease && PS.lease.place === s.world.placeId);
+    const citizen = (s) => O.livesIn(s.world.placeId);
     const openElection = (s) => (K().elections || []).find((e) => e.place === s.world.placeId && !e.done);
 
     O.voteCandidate = () => {
@@ -16748,7 +16881,7 @@ O.snowMaskOf = function (src) {
       const voted = e.voters && e.voters.includes('player'), can = citizen(s);
       const rows = e.cands.map((k, i) => `<tr><td><b>${esc(k.name)}</b><br><small class="lbl">${esc(k.record)}</small></td><td>${can && !voted ? `<button data-v="${i}">Vote</button>` : ''}</td></tr>`).join('');
       const stand = can && !e.cands.some((k) => k.player) && PS.rep.local > -0.1 && !(PS.wantedLevel && PS.wantedLevel() > 0);
-      O.Panels.open(`Election in ${pl.name}`, `<p class="caption">The old ${esc(K().leaders[e.place]?.title || 'leader').toLowerCase()} ${esc(e.oldName || '')} ${esc(e.why)}. The box is on the table; the count is tomorrow.${can ? '' : ' Only those who live here may vote.'}${voted ? ' You have voted.' : ''}</p><table>${rows}</table>${stand ? '<div class="topics" style="margin-top:10px"><button data-stand="1">Stand yourself</button></div>' : ''}`, (r) => {
+      O.Panels.open(`Election in ${pl.name}`, `<p class="caption">The old ${esc(K().leaders[e.place]?.title || 'leader').toLowerCase()} ${esc(e.oldName || '')} ${esc(e.why)}. The box is on the table; the count is tomorrow.${can ? '' : ' Only those who live here (in a house of their own or rented, where they sleep) may vote.'}${voted ? ' You have voted.' : ''}</p><table>${rows}</table>${stand ? '<div class="topics" style="margin-top:10px"><button data-stand="1">Stand yourself</button></div>' : ''}`, (r) => {
         r.querySelectorAll('[data-v]').forEach((b) => b.onclick = () => { e.votes[b.dataset.v] = (e.votes[b.dataset.v] || 0) + 1; (e.voters = e.voters || []).push('player'); game.player.anim = 'place'; O.Panels.close(); say(`You fold your vote and drop it in the box for ${e.cands[+b.dataset.v].name}.`); });
         const st = r.querySelector('[data-stand]'); if (st) st.onclick = () => { const nm = (O.Forge && O.Forge.player && O.Forge.player.name) || 'The newcomer'; e.cands.push({ name: nm, record: PS.emp ? `the ${PS.emp.role} at ${PS.emp.bizName}` : 'a newcomer of good name', votes: 0, appeal: 0.3 + PS.rep.local * 0.6 + PS.rep.civilian * 0.3, player: true }); O.Panels.close(); say("Your name goes up beside the others'. The count is tomorrow."); };
       });
@@ -17288,7 +17421,7 @@ O.snowMaskOf = function (src) {
         x: away ? away[0] : Math.round(game.scene ? game.scene.b.doorX * 16 + 8 : game.player.x), y: away ? away[1] : Math.round(game.scene ? game.scene.b.doorY * 16 + 10 : game.player.y), dir: game.player.dir,
         mount: game.player.mount ? game.player.mount.id : null,
         region: game.world.island && !game.scene && game.world !== sim.world ? game.world.placeId : null, g: game.world.island && !game.scene ? O.Island.toGlobal(game.world, game.player.x, game.player.y).map(Math.round) : null,
-        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [], emp: PS.emp ? Object.assign({}, PS.emp, { tasks: [], onShift: false, dayInfo: null }) : null, carry: PS.carry || null, firedSilently: PS.firedSilently || null },
+        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [], emp: PS.emp ? Object.assign({}, PS.emp, { tasks: [], onShift: false, dayInfo: null }) : null, posts: (PS.posts || []).map((x) => Object.assign({}, x, { tasks: [], onShift: false, dayInfo: null, _lm: null, _cur: x === PS.emp })), carry: PS.carry || null, firedSilently: PS.firedSilently || null, residence: PS.residence || null },
       },
     };
   }
@@ -17364,6 +17497,7 @@ O.snowMaskOf = function (src) {
     sim.path.recost(); sim.path.clear();
     // player
     const P = d.player; const { rep, ...rest } = P.ps; Object.assign(PS, rest); if (rep) for (const k of ['civilian', 'criminal', 'guard', 'merchant']) PS.rep[k] = rep[k] ?? 0;
+    if (PS.posts && PS.posts.length) { PS.emp = PS.posts.find((x) => x._cur) || PS.posts[0]; for (const x of PS.posts) delete x._cur; } else if (!rest.posts) PS.posts = null;
     game.player.x = P.x; game.player.y = P.y; game.player.dir = P.dir; game._savedPlayer = P;
     if (O.Names) for (const q of sim.people) if (q.first && q.sur) O.Names.used.add(q.first + ' ' + q.sur);
     game._pendingMount = P.mount;
@@ -17493,6 +17627,7 @@ O.snowMaskOf = function (src) {
   O.OpenWorldSetup.setup(game, home);
   O.Wayfarers.setup(game, home);
   O.Crowd.setup(game);
+  O.SpeechSetup.setup(game);
   O.Signs.setup(game);
   O.PropertyUI.setup(game, sim);
   O.ChronicleUI.setup(game, home);

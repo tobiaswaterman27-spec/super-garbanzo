@@ -133,6 +133,7 @@
     }
     const beds = (plan) => {
       let placed = 0;
+      if (!lives && !(plan && plan.length && plan.every((k) => k === 'bed') && b.type === 'tavern')) return 0; // nobody sleeps here: no beds
       for (const kind of plan || bedPlan()) {
         let it = null;
         if (kind === 'double') it = tryPut('double', backWall(3, true), { v: wv, bed: true, slots: 2 }) || tryPut('double', [...leftWall(3, 3), ...rightWall(3, 3)], { v: wv, bed: true, slots: 2 });
@@ -235,7 +236,7 @@
         const fams = hhRes.filter((h) => h.members.length > 1), singles = hhRes.filter((h) => h.members.length === 1).map((h) => sim.byId.get(h.members[0])).filter(Boolean);
         let ri = 0;
         for (const h of fams) { if (ri >= rooms.length) break; const ppl = h.members.map((m) => sim.byId.get(m)).filter(Boolean); roomBeds(rooms[ri], planFor(ppl)); tryPut('chest', edgeOf(...rooms[ri], 2, 1), { v: 1, valuables: true }); ri++; }
-        let left = singles.length || 8;
+        let left = singles.length;
         while (left > 0 && ri < rooms.length) { const k = Math.min(3, left); left -= roomBeds(rooms[ri], Array(k).fill('bed')) || k; tryPut('chest', edgeOf(...rooms[ri], 2, 1), { v: 1 }); tryPut('candlestand', edgeOf(...rooms[ri], 1, 1), {}); ri++; }
         for (; ri < rooms.length; ri++) { tryPut('crate', edgeOf(...rooms[ri], 1, 1), {}); tryPut('sack', edgeOf(...rooms[ri], 1, 1), {}); tryPut('washtub', edgeOf(...rooms[ri], 1, 1), {}); }
         return;
@@ -560,7 +561,7 @@
           tryPut('candlestand', nearWalls()); tryPut('candlestand', nearWalls()); tryPut('plant', nearWalls());
           if (b.type === 'keep') { tryPut('desk', [[Math.floor(w / 2) - 1, 1]], { v: 2, lord: true }); tryPut('rack', backWall(2, true)); tryPut('rack', backWall(2, true)); tryPut('barrel', nearWalls()); tryPut('barrel', nearWalls()); }
         } else {
-          beds(); tryPut('wardrobe', backWall(2, true), { v: 2 }); tryPut('chest', nearWalls(2, 1), { v: 2, valuables: true, container: { slots: 18 } });
+          if (floor === 1 || people.length > 8) beds(); tryPut('wardrobe', backWall(2, true), { v: 2 }); tryPut('chest', nearWalls(2, 1), { v: 2, valuables: true, container: { slots: 18 } });
           tryPut('rug', centre(3, 2), { flat: true, width: 3 }); tryPut('desk', nearWalls(2, 1)); tryPut('candlestand', nearWalls());
         }
         storage();
@@ -614,9 +615,12 @@
   // Cached interior per building/floor (furniture is fixed; stock visuals update live).
   const cache = new Map();
   // keyed by the building itself, not its number: building numbers repeat from town to town
-  let iidN = 0; const iid = (b) => b._iid || (b._iid = ++iidN);
+  // (a WeakMap, not a field on the building: saved buildings must not bring an old number back after a reload)
+  let iidN = 0; const iids = new WeakMap(); const iid = (b) => { let k = iids.get(b); if (!k) { k = ++iidN; iids.set(b, k); } return k; };
+  // whether anyone lives there now: a house that's emptied (or filled) is laid out again
+  const occupied = (b, sim) => sim ? (b.households || (b.household ? [b.household] : [])).some((id) => { const h = sim.households[id - 1]; return h && !h.gone && h.home === b.id && h.members.length; }) : 1;
   function interior(b, floor, sim) {
-    const key = iid(b) + ':' + floor;
+    const key = iid(b) + ':' + floor + ':' + (occupied(b, sim) ? 1 : 0);
     if (cache.has(key)) return cache.get(key);
     const L = layoutFor(b, floor, sim);
     const wallKind = (b.decor && b.decor.wall) || (b.spec.wall === 'stone' || b.spec.wall === 'log' || b.spec.wall === 'plank' ? b.spec.wall : 'timber');

@@ -13,7 +13,7 @@
       const L0 = O.Interior.interior(b, 0, sim); seats = L0.items.filter((i) => i.seat && i.kind !== 'throne').length;
       if (b.floors >= 2) { const L1 = O.Interior.interior(b, 1, sim); beds = L1.items.filter((i) => i.rent).length; }
     } catch (e) { seats = 12; beds = 4; }
-    b._cap = { seats: Math.max(6, seats), beds: Math.max(1, beds) };
+    b._cap = { seats: Math.max(6, seats), beds: b.floors >= 2 ? Math.max(1, beds) : 0 };
     return b._cap;
   }
   const isInn = (b) => b && b.type === 'tavern';
@@ -58,7 +58,7 @@
           if (first === evening) return h >= 13 && h < 16 && this.household(p).shopper === p.id ? pl : { act: 'home', b: p.home };
         }
         // a look over the rooms upstairs now and then
-        if ((Math.floor(this.minute / 5) + p.id) % 18 === 0) return Object.assign({}, pl, { upstairs: true });
+        if (this.building(j.biz)?.floors >= 2 && (Math.floor(this.minute / 5) + p.id) % 18 === 0) return Object.assign({}, pl, { upstairs: true });
       }
       if (j && j.role === 'potboy') { const h = this.hour; return h >= 17 && h < 21 ? { act: 'work', b: j.biz } : pl; }
       return pl;

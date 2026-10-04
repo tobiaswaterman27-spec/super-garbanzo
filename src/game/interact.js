@@ -81,7 +81,7 @@
         case 'traveller': case 'ruin': case 'signpost': return O.roadLabel(c);
         case 'pickup': return `Pick up the ${(O.Data.GOODS[c.it.good]?.name || c.it.good).toLowerCase()}`;
         case 'shop': return `Buy from ${c.seller.first}`;
-        case 'stairs': return game.scene.floor === 0 ? 'Go upstairs' : 'Go downstairs';
+        case 'stairs': return c.it && c.it.stairs ? 'Go upstairs' : 'Go downstairs';
         default: return '';
       }
     }
@@ -219,7 +219,7 @@
         case 'broadsheet': O.ChronicleUI.broadsheet(); break;
         case 'grave': { const g = cur.prop.grave; O.Panels.toast(g ? `“Here lies ${g.name}, ${g.age} years. ${g.cause.replace('died ', '').replace(/^./, (c) => c.toUpperCase())}.”` : 'The old stone is worn smooth; you can no longer read the name.'); break; }
         case 'bed': if (mayUseBed(cur.it)) sleep(cur.it); else O.Panels.toast("That's someone else's bed."); break;
-        case 'stairs': game.enterBuilding(game.scene.b, game.scene.floor === 0 ? 1 : 0, true); break;
+        case 'stairs': { const up = cur.it ? !!cur.it.stairs : game.scene.floor === 0; game.enterBuilding(game.scene.b, game.scene.floor + (up ? 1 : -1), up ? 'up' : 'down'); break; }
         case 'shop': O.Panels.trade(sim, sim.biz.get(game.scene.b.id), cur.seller); break;
       }
       return true;

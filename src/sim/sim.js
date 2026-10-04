@@ -116,7 +116,11 @@
             const isOwnerRole = bz.def.wage[role] === 0;
             if (hh && isOwnerRole) cand = hh.members.map((id) => this.byId.get(id)).find((p) => !p.job && p.age >= 20 && p.age < 66);
             if (!cand) {
-              const pool = adults().filter((p) => (role === 'apprentice' ? p.age < 22 : role.startsWith('guard') ? p.age < 50 : true));
+              let pool = adults().filter((p) => (role === 'apprentice' ? p.age < 22 : role.startsWith('guard') ? p.age < 50 : true));
+              // maids and ladies-in-waiting are women; pages, grooms and butlers are men, where there are any
+              const want = ['maid', 'lady-in-waiting'].includes(role) ? 'f' : ['page', 'groom', 'butler', 'chamberlain'].includes(role) ? 'm' : null;
+              if (want && pool.some((p) => p.sex === want)) pool = pool.filter((p) => p.sex === want);
+              if (role === 'page') { const young = pool.filter((p) => p.age < 25); if (young.length) pool = young; }
               cand = pool.length ? r.pick(pool) : null;
             }
             if (!cand) continue;

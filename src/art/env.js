@@ -27,10 +27,10 @@
     const rng = O.RNG(spec.seed || 1);
     const w = spec.w, d = spec.d, floors = spec.floors || 1, OV = 4, FW = w * T, W = FW + OV * 2;
     const wallH = spec.wallH || floors * FLOOR + 9;
-    const gable = spec.roofType === 'gable', castle = spec.roofType === 'battlement';
+    const gable = spec.roofType === 'gable', castle = spec.roofType === 'battlement', grand = castle && spec.grand;
     const roofH = Math.round(d * T * 0.58) + 4;
     const gableH = Math.round(FW * 0.34), depthH = Math.round(d * T * 0.52);
-    const extraTop = castle ? 40 : 12;
+    const extraTop = grand ? 84 : castle ? 40 : 12;
     const H = wallH + (gable ? gableH + depthH + 2 : roofH) + extraTop;
     const B = new MB(W, H);
     const wallTop = H - wallH, x0 = OV, x1 = OV + FW - 1;
@@ -93,7 +93,8 @@
         const wx = cxw - Math.floor(ww / 2);
         if (f === 0 && wx + ww + 3 > dx && wx - 3 < dx + dw) continue;
         if (wx < x0 + 3 || wx + ww > x1 - 2) continue;
-        if (castle && (wx < x0 + 16 || wx + ww > x1 - 15)) continue; // the corner towers
+        if (castle && (wx < x0 + (grand ? 24 : 16) || wx + ww > x1 - (grand ? 23 : 15))) continue; // the corner towers
+        if (grand && ([0.2, 0.8].some((fxp) => Math.abs(cxw - W * fxp) < 18) || (wx + ww > dx - 28 && wx < dx + dw + 28))) continue; // the front towers and the gatehouse
         if (castle && f === 0) { // arrow slits on the ground floor of a keep
           const sl = P.mat('#141018', 'cloth'), sx = cxw - 1;
           for (let y = wy + 2; y < wy + 16; y++) { B.plot(sx, y, sl, 1); B.plot(sx + 1, y, sl, 1); }
@@ -120,7 +121,36 @@
       merlons(ry, x0, x1, 6); // the far parapet
       for (let y = ry; y <= ey; y++) { B.plot(x0, y, wallMat, 3); B.plot(x0 + 1, y, wallMat, 3); B.plot(x1, y, wallMat, 1); B.plot(x1 - 1, y, wallMat, 1); }
       // a great keep has a tall central donjon rising out of the middle of the roof
-      if (w >= 12) {
+      // a tower block: stone shaft with slit windows, a corbelled crown of merlons, optionally a conical cap and flag
+      const towerBlock = (tx0, tw, tTop, tBot, opts = {}) => {
+        for (let y = tTop; y <= tBot; y++) for (let x = tx0; x < tx0 + tw; x++) { const u = (x - tx0) / (tw - 1); B.plot(x, y, wallMat, u < 0.2 ? 3 : u > 0.8 ? 1 : 2); }
+        texWall(B, 'stone', wallMat, tx0, tTop, tx0 + tw - 1, tBot, rng, cond);
+        for (let y = tTop; y <= tBot; y++) { B.shadeAt(tx0, y, 3); B.shadeAt(tx0 + tw - 1, y, 1); }
+        const sl = P.mat('#141018', 'cloth');
+        for (let yy = tTop + 14; yy < tBot - 16; yy += 26) for (const fx of (tw > 30 ? [0.3, 0.7] : [0.5])) { const sx = Math.round(tx0 + tw * fx); for (let y = yy; y < yy + (opts.arched ? 14 : 10); y++) { B.plot(sx, y, sl, 1); if (opts.arched) B.plot(sx + 1, y, sl, 1); } }
+        if (opts.windows) for (let i = 0; i < opts.windows; i++) drawWindow(B, Math.round(tx0 + (i + 0.5) * tw / opts.windows - 4), tTop + 16, 8, 13, shutterM, wealth, rng, false, true);
+        merlons(tTop, tx0 - 1, tx0 + tw, 6);
+        if (opts.cap) {
+          B.part(2); const capH = Math.round(tw * 1.25), cx = tx0 + (tw - 1) / 2;
+          B.poly([[tx0 - 2, tTop + 1], [cx, tTop - capH], [cx, tTop + 2]], [-0.6, -0.4, 0.7], RM);
+          B.poly([[cx, tTop + 2], [cx, tTop - capH], [tx0 + tw + 1, tTop + 1]], [0.6, -0.4, 0.7], RM);
+          texRoof(B, roofKind, RM, tx0 - 2, tTop - capH, tx0 + tw + 1, tTop + 2, rng, cond, null);
+          B.part(1);
+        }
+        if (opts.flag) {
+          B.part(4); const pole = M.iron(), fc = Math.round(tx0 + tw / 2), top = tTop - (opts.cap ? Math.round(tw * 1.25) : 6) - 18;
+          for (let y = top; y < top + 18; y++) B.plot(fc, y, pole, 2);
+          const f1 = P.mat(opts.flag, 'cloth'), f2 = P.mat('#c8a040', 'cloth');
+          for (let k = 0; k < 12; k++) for (let y = 0; y < 7 - (k > 8 ? 1 : 0); y++) B.plot(fc + 1 + k, top + y + (k > 8 ? 1 : 0), (k + y) % 5 === 2 ? f2 : f1, (k + y) % 3 ? 2 : 3);
+          B.part(1);
+        }
+      };
+      if (grand) {
+        // a royal castle: twin towers either side and a great central tower rising above everything
+        for (const fxp of [0.27, 0.73]) towerBlock(Math.round(W * fxp - 22), 44, ry - 58, ey - 4, { windows: 3, cap: false, flag: '#2a4aa0' });
+        towerBlock(Math.round(W / 2 - 38), 76, ry - 96, ey - 4, { windows: 5, flag: '#a02020' });
+        for (const fxp of [-1, 1]) towerBlock(Math.round(W / 2 + fxp * 38 - (fxp > 0 ? 14 : 0)) - (fxp < 0 ? 0 : 0), 14, ry - 120, ry - 70, { cap: true });
+      } else if (w >= 12) {
         const dw2 = 40, dx0 = Math.round(W / 2 - dw2 / 2), dTop = ry - 46, dBot = ey - 4;
         for (let y = dTop; y <= dBot; y++) for (let x = dx0; x < dx0 + dw2; x++) B.plot(x, y, wallMat, x < dx0 + 3 ? 3 : x > dx0 + dw2 - 4 ? 1 : 2);
         texWall(B, 'stone', wallMat, dx0, dTop, dx0 + dw2 - 1, dBot, rng, cond);
@@ -136,7 +166,7 @@
       for (let f = 1; f < floors; f++) { const yb = H - 3 - f * FLOOR; for (let x = x0; x <= x1; x++) { B.plot(x, yb, wallMat, 3); B.plot(x, yb + 1, wallMat, 1); } }
       for (let x = dx - 3; x <= dx + dw + 2; x++) { B.plot(x, dy - 3, wallMat, 3); B.plot(x, dy - 2, wallMat, 1); }
       // corner towers rise above the parapet
-      const tw = 18;
+      const tw = grand ? 26 : 18;
       for (const [tx0, side] of [[x0 - 3, -1], [x1 - tw + 4, 1]]) {
         const tTop = ry - 22;
         for (let y = tTop; y < H - 3; y++) for (let x = tx0; x < tx0 + tw; x++) {
@@ -161,7 +191,18 @@
         for (let k = 0; k < 6; k++) for (let y = 0; y < 4 - (k > 3 ? 1 : 0); y++) B.plot(Math.round(cx) + 1 + k, tTop - capH - 8 + y + (k > 3 ? 1 : 0), fl, (k + y) % 3 ? 2 : 3);
         B.part(1);
       }
-      meta.roofTop = ry - 56;
+      if (grand) {
+        // round towers along the front, and a gatehouse of two drum towers framing the great door
+        for (const fxp of [0.2, 0.8]) { const tx0 = Math.round(W * fxp - 10); if (tx0 + 20 < dx - 26 || tx0 > dx + dw + 26) towerBlock(tx0, 20, ey - 20, H - 4, { cap: true, flag: '#2a4aa0' }); }
+        for (const tx0 of [dx - 24, dx + dw + 2]) towerBlock(tx0, 22, dy - 34, H - 4, { cap: false });
+        // the gate arch with its portcullis half raised
+        const pm = M.iron();
+        for (let x = dx - 2; x <= dx + dw + 1; x++) for (let y = dy - 10; y < dy - 2; y++) B.plot(x, y, wallMat, y === dy - 10 ? 4 : 3);
+        for (let x = dx + 2; x < dx + dw - 1; x += 4) for (let y = dy; y < dy + 14; y++) B.plot(x, y, pm, 1);
+        for (let y = dy + 2; y < dy + 14; y += 4) for (let x = dx + 1; x < dx + dw - 1; x++) B.plot(x, y, pm, 2);
+        for (let x = dx + 1; x < dx + dw - 1; x += 4) B.plot(x, dy + 15, pm, 3);
+      }
+      meta.roofTop = ry - (grand ? 140 : 56);
     } else if (!gable) {
       const ey = wallTop + 3, ry = wallTop - roofH;
       B.poly([[0, ey], [W, ey], [W - 2, ry], [2, ry]], [0, -0.45, 0.89], RM);

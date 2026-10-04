@@ -287,6 +287,43 @@
         else { B.capsule(fx + 8, fy - 9, fx + 16, fy - 11, 0.7, 0.7, wood()); B.rect(fx + 15, fy - 12, 3, 2, iron(), 3); B.capsule(fx + 24, fy - 8, fx + 32, fy - 8, 0.6, 0.6, iron()); B.blob(fx1 - 5, fy - 9, 2.4, 1.6, P.mat(C.linen), { power: 2 }); B.rect(fx + 2, fy - 5, 4, 5, iron(), 2); }
         out = finish(S); break;
       }
+      case 'partH': case 'partV': { // an inner wall, one tile of it: v 0 plaster, 1 stone, 2 panelled
+        const WH = kind === 'partH' ? 40 : 60, wm = v === 1 ? P.mat('#8e8880', 'cloth') : v === 2 ? P.mat('#6e4a2c', 'wood') : P.mat('#e0d4b8', 'cloth'), cap = P.mat(v === 1 ? '#6a645c' : '#4a3a2c', 'wood');
+        S = canvasFor(1, 1, WH); const { B, fx, fx1, fy, fy1 } = S;
+        if (kind === 'partH') {
+          // the face of the wall, seen from the room in front, and its top
+          B.part(1);
+          for (let y = fy1 - WH; y <= fy1; y++) for (let x = fx; x <= fx1; x++) {
+            let sh = 2; const ly = y - (fy1 - WH);
+            if (v === 1) { const r = ly % 7, off = Math.floor(ly / 7) % 2 ? 5 : 0; sh = r === 6 || (x + off) % 11 === 0 ? 1 : r === 0 ? 3 : 2; }
+            else if (v === 2) { sh = (x - fx) % 8 === 0 ? 1 : ly % 20 === 0 ? 3 : 2; }
+            if (ly > WH - 4) sh = 1;
+            B.plot(x, y, wm, sh);
+          }
+          for (let x = fx; x <= fx1; x++) for (let y = fy1 - WH - 10; y < fy1 - WH; y++) B.plot(x, y, cap, y === fy1 - WH - 10 ? 4 : 3);
+        } else {
+          // a wall running away from us: we see its top, and its edge face on the way down
+          B.part(1);
+          const cx0 = fx + 5, cx1 = fx1 - 5;
+          for (let y = fy - WH - 10; y <= fy1; y++) for (let x = cx0; x <= cx1; x++) {
+            const top = y < fy1 - WH; B.plot(x, y, top ? cap : wm, top ? (x === cx0 ? 4 : 3) : x === cx0 ? 3 : x === cx1 ? 1 : 2);
+          }
+        }
+        out = finish(S, { outline: false }); break;
+      }
+      case 'throne': { // a great carved chair on a dais, gilded, with a cushion
+        S = canvasFor(2, 2, 34); const { B, fx, fx1, fy, fy1 } = S; const g = P.mat(P.metal.gold, 'metal'), red = P.mat('#9a2a2a', 'cloth'), st = P.mat('#8a847c', 'cloth');
+        B.part(1); box(B, fx, fx1, fy + 10, 12, fy1, st, { grain: seed });
+        B.part(2);
+        const cx = (fx + fx1) / 2;
+        B.rect(Math.round(cx - 9), fy - 26, 18, 30, walnut(), 2); for (let y = fy - 26; y < fy + 4; y++) { B.shadeAt(Math.round(cx - 9), y, 3); B.shadeAt(Math.round(cx + 8), y, 1); }
+        B.rect(Math.round(cx - 7), fy - 22, 14, 22, red, 2);
+        for (let x = Math.round(cx - 9); x <= Math.round(cx + 8); x++) B.plot(x, fy - 27, g, 3);
+        for (const k of [-9, -3, 3, 8]) B.plot(Math.round(cx + k), fy - 29, g, 4);
+        B.rect(Math.round(cx - 11), fy + 2, 22, 8, walnut(), 2); B.rect(Math.round(cx - 8), fy + 1, 16, 4, red, 3);
+        for (const k of [-11, 9]) B.rect(Math.round(cx + k), fy - 6, 3, 14, walnut(), 3);
+        out = finish(S); break;
+      }
       case 'rack': { // tools or arms on the wall
         S = canvasFor(2, 1, 40); const { B, fx, fx1, fy, fy1 } = S; const m = dark();
         B.part(1); for (let x = fx; x <= fx1; x++) { B.plot(x, fy - 30, m, 3); B.plot(x, fy - 29, m, 1); B.plot(x, fy - 4, m, 2); B.plot(x, fy - 3, m, 1); }

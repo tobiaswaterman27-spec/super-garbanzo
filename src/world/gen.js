@@ -270,9 +270,9 @@
   // Aurelia: a walled city on a river, with a grand market, a wealthy quarter, workshops,
   // warehouses by the water, and a crowded poor quarter.
   function makeCity(place) {
-    const CW = 128, W = 174, H = 88, seed = O.hash('city', place.id);
+    const CW = 128, W = 186, H = 88, seed = O.hash('city', place.id);
     const K = kit(place, W, H, seed), { rng, set, fill, B, look, P, free } = K;
-    const roadY = 44, x0 = 6, y0 = 6, x1 = CW - 7, y1 = H - 7, riverX = 70;
+    const roadY = 44, x0 = 6, y0 = 6, x1 = W - 7, y1 = H - 7, riverX = 70;
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const edge = Math.min(x, y, W - 1 - x, H - 1 - y); set(x, y, edge < 3 ? TER.FOREST : TER.GRASS); }
     for (let y = 0; y < H; y++) { const wob = Math.round(Math.sin(y / 9) * 1.5); for (let x = riverX - 2 + wob; x <= riverX + 2 + wob; x++) set(x, y, x === riverX - 2 + wob || x === riverX + 2 + wob ? TER.SAND : TER.WATER); }
     fill(0, roadY, W - 1, roadY + 1, TER.ROAD);
@@ -308,26 +308,34 @@
     for (const [type, name, w, d] of need) { for (let tries = 0; tries < 60; tries++) { const x = rng.int(8, CW - 14), bottom = rng.pick([13, 22, 33, 52, 62, 72]); if (free(x, bottom, w, d)) { B({ type, name, x, bottom, w, d, floors: type === 'mill' ? 2 : 1, wealth: 0.4, look: look(0.4) }); break; } } }
     if (!K.buildings.some((b) => b.type === 'guard')) B({ type: 'guard', name: 'City Watch', x: 42, bottom: 79, w: 6, d: 4, look: { wall: 'stone', roof: 'slate', sign: 'shield', noFlowers: true, doorTile: 2 } });
     if (!K.buildings.some((b) => b.type === 'doctor')) B({ type: 'doctor', name: 'Physician', x: 30, bottom: 79, w: 4, d: 4, floors: 2, look: look(0.6, { sign: 'herb' }) });
-    // Aurelia Royal Castle, on the rise east of the city: the palace of the king and queen,
-    // with the royal kitchens, the Royal Guard's barracks, the royal chapel and stables, a
-    // servants' hall and a walled garden, behind its own curtain wall and gatehouse.
-    const rx0 = 128, ry0 = 6, rx1 = 168, ry1 = 38, rgX = 148;
+    // Aurelia Royal Castle, inside the city walls at their eastern end behind an inner curtain wall of
+    // its own: the great castle of the king and queen, four storeys of halls, kitchens, servants'
+    // quarters and royal apartments, with the Royal Guard, the royal chapel and stables, a servants'
+    // hall for the married staff and the queen's garden. In front of its gatehouse is the royal market.
+    const rx0 = 128, ry0 = y0, rx1 = x1, ry1 = 40, rgX = 153;
     fill(rx0 + 1, ry0 + 1, rx1 - 1, ry1 - 1, TER.YARD);
-    fill(rgX - 1, ry1, rgX, roadY - 1, TER.ROAD);
-    fill(rgX - 1, 24, rgX, ry1 - 1, TER.COBBLE); fill(rx0 + 2, 31, rx1 - 2, 31, TER.COBBLE);
-    K.walls(rx0, ry0, rx1, ry1, [[rgX, ry1]], 1);
-    B({ type: 'keep', biz: 'palace', royal: true, lordly: true, name: 'Aurelia Royal Castle', x: rgX - 7, bottom: 22, w: 14, d: 9, floors: 3, wealth: 1, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'battlement', chimney: true, sign: 'shield', doorTile: 7, bigDoor: true, noFlowers: true } });
-    P('banner', rgX - 3, 23, { solid: false }); P('banner', rgX + 2, 23, { solid: false });
-    B({ type: 'kitchen', biz: 'kitchen', name: 'Royal Kitchens', x: rx1 - 10, bottom: 29, w: 8, d: 5, wealth: 0.7, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'tile', roofType: 'side', chimney: true, chimneyX: 0.3, sign: 'bread', doorTile: 3, noFlowers: true } });
-    B({ type: 'guard', name: 'Royal Guard', x: rx0 + 3, bottom: 29, w: 8, d: 5, wealth: 0.7, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'side', sign: 'shield', doorTile: 4, noFlowers: true } });
-    B({ type: 'chapel', name: 'Royal Chapel', x: rx0 + 3, bottom: 19, w: 6, d: 6, wealth: 0.95, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 3, wallH: 70, noFlowers: true } });
-    B({ type: 'stable', name: 'Royal Stables', x: rx0 + 3, bottom: 36, w: 8, d: 3, wealth: 0.7, look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', bigDoor: true, chimney: false, doorTile: 3, noFlowers: true } });
-    B({ type: 'tenement', name: "Servants' Hall", x: rx1 - 10, bottom: 36, w: 7, d: 4, floors: 2, wealth: 0.35, look: { wall: 'timber', roof: 'tile', roofType: 'side', doorTile: 3 } });
+    fill(rgX - 1, ry1, rgX, roadY - 1, TER.COBBLE);
+    fill(rgX - 1, 27, rgX, ry1 - 1, TER.COBBLE); fill(rx0 + 2, 33, rx1 - 2, 33, TER.COBBLE);
+    for (let y = ry0 + 1; y < ry1; y++) P((y - ry0) % 8 === 0 ? 'tower' : 'wallV', rx0, y, { v: 1, wall: true, y: y * T + 15 });
+    for (let x = rx0; x < rx1; x++) { if (Math.abs(x - rgX) <= 1) continue; P(x === rx0 || (x - rx0) % 10 === 0 ? 'tower' : 'wallH', x, ry1, { v: 1, wall: true }); }
+    P('gatearch', rgX, ry1, { v: 1, solid: false, y: ry1 * T + 15, x: rgX * T + 8 }); P('tower', rgX - 2, ry1, { v: 2 }); P('tower', rgX + 2, ry1, { v: 2 });
+    B({ type: 'keep', biz: 'palace', royal: true, lordly: true, name: 'Aurelia Royal Castle', x: rgX - 12, bottom: 26, w: 24, d: 10, floors: 4, wealth: 1, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'battlement', chimney: true, sign: 'shield', doorTile: 12, bigDoor: true, noFlowers: true, grand: true } });
+    P('banner', rgX - 4, 27, { solid: false }); P('banner', rgX + 3, 27, { solid: false });
+    B({ type: 'chapel', name: 'Royal Chapel', x: rx0 + 3, bottom: 18, w: 6, d: 6, wealth: 0.95, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 3, wallH: 70, noFlowers: true } });
+    B({ type: 'guard', name: 'Royal Guard', x: rx0 + 3, bottom: 30, w: 8, d: 5, wealth: 0.7, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'battlement', sign: 'shield', doorTile: 4, noFlowers: true } });
+    B({ type: 'stable', name: 'Royal Stables', x: rx0 + 3, bottom: 38, w: 8, d: 3, wealth: 0.7, look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', bigDoor: true, chimney: false, doorTile: 3, noFlowers: true } });
+    B({ type: 'tenement', name: "Servants' Hall", x: rx1 - 12, bottom: 38, w: 7, d: 4, floors: 2, wealth: 0.35, look: { wall: 'timber', roof: 'tile', roofType: 'side', doorTile: 3 } });
     // the queen's garden
-    for (let x = rx1 - 11; x <= rx1 - 3; x++) for (const y of [12, 18]) P('bush', x, y, { solid: true });
-    for (let x = rx1 - 10; x <= rx1 - 4; x++) for (let y = 13; y <= 17; y++) if ((x + y) % 2 === 0) P('flowers', x, y, { solid: false, flat: true });
-    P('well', rx1 - 7, 15, { y: 15 * T + 15 }); K.solid[15 * W + rx1 - 8] = 1;
-    P('bench', rx1 - 9, 16, { solid: false });
+    for (let x = rx1 - 11; x <= rx1 - 2; x++) for (const y of [9, 21]) P('bush', x, y, { solid: true });
+    for (let x = rx1 - 10; x <= rx1 - 3; x++) for (let y = 10; y <= 20; y++) if ((x + y) % 2 === 0 && Math.abs(x - (rx1 - 6)) > 1) P('flowers', x, y, { solid: false, flat: true });
+    P('well', rx1 - 6, 15, { y: 15 * T + 15 }); K.solid[15 * W + rx1 - 7] = 1;
+    P('bench', rx1 - 9, 17, { solid: false }); P('bench', rx1 - 3, 13, { solid: false });
+    // the royal market before the castle gate
+    fill(rx0 + 2, ry1 + 2, rx1 - 2, 54, TER.COBBLE);
+    for (let i = 0; i < 12; i++) { const sx = rx0 + 6 + (i % 6) * 8, sy = i < 6 ? ry1 + 3 : 50; if (Math.abs(sx - rgX) < 3) continue; P('stall', sx, sy, { v: i % 4 }); K.solid[sy * W + sx - 1] = 1; K.solid[sy * W + sx + 1] = 1; }
+    P('well', rgX + 6, 52, { y: 52 * T + 15 }); K.solid[52 * W + rgX + 5] = 1;
+    // the eastern quarter behind the royal market: knights' houses and townsfolk
+    for (const bottom of [62, 71, 79]) lots(130, x1 - 2, bottom, bottom === 79 ? [...resi, ...noble] : work, 4);
     P('signpost', 42, 46, { solid: false });
     K.scatter((x, y) => (x > x0 && x < x1 && y > y0 && y < y1) || (x > rx0 && x < rx1 && y > ry0 && y < ry1));
     return K.finish({ roadY, exits: { west: [0, roadY], east: [W - 1, roadY] }, river: true, zones: { square: [45, 31, 63, 42], bench: [46, 31], farm: [8, 82, 30, 84], wood: [2, 82, 20, 86], east: [W - 1, roadY], patrol: [[55, 44], [20, 44], [40, 24], [80, 24], [110, 44], [96, 64], [60, 64], [40, 44]] }, city: true });

@@ -21,7 +21,7 @@
     rect(it) { const x = this.R.SW + it.tx * T, y = this.R.WH + it.ty * T; return [x, y, x + it.fw * T, y + it.fh * T]; }
     enterAt(fromStairs) {
       const p = this.game.player, L = this.L;
-      const st = L.items.find((i) => i.kind === 'stairs');
+      const st = (fromStairs === 'up' && L.items.find((i) => i.kind === 'stairs' && !i.stairs)) || (fromStairs === 'down' && L.items.find((i) => i.kind === 'stairs' && i.stairs)) || L.items.find((i) => i.kind === 'stairs');
       if ((fromStairs || L.dc < 0) && st) { [p.x, p.y] = this.tileXY(st.tx, st.ty + st.fh); p.x += 8; p.y += 2; p.dir = 0; }
       else { p.x = this.R.SW + (L.dc + 1) * T; p.y = this.R.WH + (L.d - 1) * T + 12; p.dir = 3; }
     }
@@ -57,6 +57,15 @@
       const floorOf = (q) => {
         const act = q.activity?.act;
         if (!twoF) return 0;
+        if (b.royal) {
+          // the royal castle: kitchens and hall below, servants' floor, royal apartments, chapel at the top
+          const role = q.job?.role;
+          if (act === 'work') return ['maid', 'lady-in-waiting'].includes(role) ? 2 : 0;
+          if (act === 'worship') return 3;
+          if (SLEEPY.has(act)) return q.royal ? 2 : q.home === b.id ? 1 : 0;
+          if (act === 'home') return q.royal ? (q.id % 3 ? 2 : 0) : q.home === b.id ? (q.id % 2 ? 1 : 0) : 0;
+          return 0;
+        }
         if (b.type === 'tavern') return act === 'rest' || (SLEEPY.has(act) && q.home !== b.id) || (SLEEPY.has(act) && q.home === b.id) ? 1 : 0;
         if (['house', 'mansion', 'townhouse', 'keep', 'tenement'].includes(b.type)) return SLEEPY.has(act) && b.id !== sim.docId ? 1 : act === 'home' && q.id % 3 === 0 ? 1 : 0;
         return SLEEPY.has(act) && q.home === b.id ? 1 : 0; // a shop: the family lives upstairs

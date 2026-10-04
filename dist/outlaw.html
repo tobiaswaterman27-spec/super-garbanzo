@@ -1677,10 +1677,10 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     const rng = O.RNG(spec.seed || 1);
     const w = spec.w, d = spec.d, floors = spec.floors || 1, OV = 4, FW = w * T, W = FW + OV * 2;
     const wallH = spec.wallH || floors * FLOOR + 9;
-    const gable = spec.roofType === 'gable', castle = spec.roofType === 'battlement';
+    const gable = spec.roofType === 'gable', castle = spec.roofType === 'battlement', grand = castle && spec.grand;
     const roofH = Math.round(d * T * 0.58) + 4;
     const gableH = Math.round(FW * 0.34), depthH = Math.round(d * T * 0.52);
-    const extraTop = castle ? 40 : 12;
+    const extraTop = grand ? 84 : castle ? 40 : 12;
     const H = wallH + (gable ? gableH + depthH + 2 : roofH) + extraTop;
     const B = new MB(W, H);
     const wallTop = H - wallH, x0 = OV, x1 = OV + FW - 1;
@@ -1743,7 +1743,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         const wx = cxw - Math.floor(ww / 2);
         if (f === 0 && wx + ww + 3 > dx && wx - 3 < dx + dw) continue;
         if (wx < x0 + 3 || wx + ww > x1 - 2) continue;
-        if (castle && (wx < x0 + 16 || wx + ww > x1 - 15)) continue; // the corner towers
+        if (castle && (wx < x0 + (grand ? 24 : 16) || wx + ww > x1 - (grand ? 23 : 15))) continue; // the corner towers
+        if (grand && ([0.2, 0.8].some((fxp) => Math.abs(cxw - W * fxp) < 18) || (wx + ww > dx - 28 && wx < dx + dw + 28))) continue; // the front towers and the gatehouse
         if (castle && f === 0) { // arrow slits on the ground floor of a keep
           const sl = P.mat('#141018', 'cloth'), sx = cxw - 1;
           for (let y = wy + 2; y < wy + 16; y++) { B.plot(sx, y, sl, 1); B.plot(sx + 1, y, sl, 1); }
@@ -1770,7 +1771,36 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       merlons(ry, x0, x1, 6); // the far parapet
       for (let y = ry; y <= ey; y++) { B.plot(x0, y, wallMat, 3); B.plot(x0 + 1, y, wallMat, 3); B.plot(x1, y, wallMat, 1); B.plot(x1 - 1, y, wallMat, 1); }
       // a great keep has a tall central donjon rising out of the middle of the roof
-      if (w >= 12) {
+      // a tower block: stone shaft with slit windows, a corbelled crown of merlons, optionally a conical cap and flag
+      const towerBlock = (tx0, tw, tTop, tBot, opts = {}) => {
+        for (let y = tTop; y <= tBot; y++) for (let x = tx0; x < tx0 + tw; x++) { const u = (x - tx0) / (tw - 1); B.plot(x, y, wallMat, u < 0.2 ? 3 : u > 0.8 ? 1 : 2); }
+        texWall(B, 'stone', wallMat, tx0, tTop, tx0 + tw - 1, tBot, rng, cond);
+        for (let y = tTop; y <= tBot; y++) { B.shadeAt(tx0, y, 3); B.shadeAt(tx0 + tw - 1, y, 1); }
+        const sl = P.mat('#141018', 'cloth');
+        for (let yy = tTop + 14; yy < tBot - 16; yy += 26) for (const fx of (tw > 30 ? [0.3, 0.7] : [0.5])) { const sx = Math.round(tx0 + tw * fx); for (let y = yy; y < yy + (opts.arched ? 14 : 10); y++) { B.plot(sx, y, sl, 1); if (opts.arched) B.plot(sx + 1, y, sl, 1); } }
+        if (opts.windows) for (let i = 0; i < opts.windows; i++) drawWindow(B, Math.round(tx0 + (i + 0.5) * tw / opts.windows - 4), tTop + 16, 8, 13, shutterM, wealth, rng, false, true);
+        merlons(tTop, tx0 - 1, tx0 + tw, 6);
+        if (opts.cap) {
+          B.part(2); const capH = Math.round(tw * 1.25), cx = tx0 + (tw - 1) / 2;
+          B.poly([[tx0 - 2, tTop + 1], [cx, tTop - capH], [cx, tTop + 2]], [-0.6, -0.4, 0.7], RM);
+          B.poly([[cx, tTop + 2], [cx, tTop - capH], [tx0 + tw + 1, tTop + 1]], [0.6, -0.4, 0.7], RM);
+          texRoof(B, roofKind, RM, tx0 - 2, tTop - capH, tx0 + tw + 1, tTop + 2, rng, cond, null);
+          B.part(1);
+        }
+        if (opts.flag) {
+          B.part(4); const pole = M.iron(), fc = Math.round(tx0 + tw / 2), top = tTop - (opts.cap ? Math.round(tw * 1.25) : 6) - 18;
+          for (let y = top; y < top + 18; y++) B.plot(fc, y, pole, 2);
+          const f1 = P.mat(opts.flag, 'cloth'), f2 = P.mat('#c8a040', 'cloth');
+          for (let k = 0; k < 12; k++) for (let y = 0; y < 7 - (k > 8 ? 1 : 0); y++) B.plot(fc + 1 + k, top + y + (k > 8 ? 1 : 0), (k + y) % 5 === 2 ? f2 : f1, (k + y) % 3 ? 2 : 3);
+          B.part(1);
+        }
+      };
+      if (grand) {
+        // a royal castle: twin towers either side and a great central tower rising above everything
+        for (const fxp of [0.27, 0.73]) towerBlock(Math.round(W * fxp - 22), 44, ry - 58, ey - 4, { windows: 3, cap: false, flag: '#2a4aa0' });
+        towerBlock(Math.round(W / 2 - 38), 76, ry - 96, ey - 4, { windows: 5, flag: '#a02020' });
+        for (const fxp of [-1, 1]) towerBlock(Math.round(W / 2 + fxp * 38 - (fxp > 0 ? 14 : 0)) - (fxp < 0 ? 0 : 0), 14, ry - 120, ry - 70, { cap: true });
+      } else if (w >= 12) {
         const dw2 = 40, dx0 = Math.round(W / 2 - dw2 / 2), dTop = ry - 46, dBot = ey - 4;
         for (let y = dTop; y <= dBot; y++) for (let x = dx0; x < dx0 + dw2; x++) B.plot(x, y, wallMat, x < dx0 + 3 ? 3 : x > dx0 + dw2 - 4 ? 1 : 2);
         texWall(B, 'stone', wallMat, dx0, dTop, dx0 + dw2 - 1, dBot, rng, cond);
@@ -1786,7 +1816,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       for (let f = 1; f < floors; f++) { const yb = H - 3 - f * FLOOR; for (let x = x0; x <= x1; x++) { B.plot(x, yb, wallMat, 3); B.plot(x, yb + 1, wallMat, 1); } }
       for (let x = dx - 3; x <= dx + dw + 2; x++) { B.plot(x, dy - 3, wallMat, 3); B.plot(x, dy - 2, wallMat, 1); }
       // corner towers rise above the parapet
-      const tw = 18;
+      const tw = grand ? 26 : 18;
       for (const [tx0, side] of [[x0 - 3, -1], [x1 - tw + 4, 1]]) {
         const tTop = ry - 22;
         for (let y = tTop; y < H - 3; y++) for (let x = tx0; x < tx0 + tw; x++) {
@@ -1811,7 +1841,18 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         for (let k = 0; k < 6; k++) for (let y = 0; y < 4 - (k > 3 ? 1 : 0); y++) B.plot(Math.round(cx) + 1 + k, tTop - capH - 8 + y + (k > 3 ? 1 : 0), fl, (k + y) % 3 ? 2 : 3);
         B.part(1);
       }
-      meta.roofTop = ry - 56;
+      if (grand) {
+        // round towers along the front, and a gatehouse of two drum towers framing the great door
+        for (const fxp of [0.2, 0.8]) { const tx0 = Math.round(W * fxp - 10); if (tx0 + 20 < dx - 26 || tx0 > dx + dw + 26) towerBlock(tx0, 20, ey - 20, H - 4, { cap: true, flag: '#2a4aa0' }); }
+        for (const tx0 of [dx - 24, dx + dw + 2]) towerBlock(tx0, 22, dy - 34, H - 4, { cap: false });
+        // the gate arch with its portcullis half raised
+        const pm = M.iron();
+        for (let x = dx - 2; x <= dx + dw + 1; x++) for (let y = dy - 10; y < dy - 2; y++) B.plot(x, y, wallMat, y === dy - 10 ? 4 : 3);
+        for (let x = dx + 2; x < dx + dw - 1; x += 4) for (let y = dy; y < dy + 14; y++) B.plot(x, y, pm, 1);
+        for (let y = dy + 2; y < dy + 14; y += 4) for (let x = dx + 1; x < dx + dw - 1; x++) B.plot(x, y, pm, 2);
+        for (let x = dx + 1; x < dx + dw - 1; x += 4) B.plot(x, dy + 15, pm, 3);
+      }
+      meta.roofTop = ry - (grand ? 140 : 56);
     } else if (!gable) {
       const ey = wallTop + 3, ry = wallTop - roofH;
       B.poly([[0, ey], [W, ey], [W - 2, ry], [2, ry]], [0, -0.45, 0.89], RM);
@@ -3086,9 +3127,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   // Aurelia: a walled city on a river, with a grand market, a wealthy quarter, workshops,
   // warehouses by the water, and a crowded poor quarter.
   function makeCity(place) {
-    const CW = 128, W = 174, H = 88, seed = O.hash('city', place.id);
+    const CW = 128, W = 186, H = 88, seed = O.hash('city', place.id);
     const K = kit(place, W, H, seed), { rng, set, fill, B, look, P, free } = K;
-    const roadY = 44, x0 = 6, y0 = 6, x1 = CW - 7, y1 = H - 7, riverX = 70;
+    const roadY = 44, x0 = 6, y0 = 6, x1 = W - 7, y1 = H - 7, riverX = 70;
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const edge = Math.min(x, y, W - 1 - x, H - 1 - y); set(x, y, edge < 3 ? TER.FOREST : TER.GRASS); }
     for (let y = 0; y < H; y++) { const wob = Math.round(Math.sin(y / 9) * 1.5); for (let x = riverX - 2 + wob; x <= riverX + 2 + wob; x++) set(x, y, x === riverX - 2 + wob || x === riverX + 2 + wob ? TER.SAND : TER.WATER); }
     fill(0, roadY, W - 1, roadY + 1, TER.ROAD);
@@ -3124,26 +3165,34 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     for (const [type, name, w, d] of need) { for (let tries = 0; tries < 60; tries++) { const x = rng.int(8, CW - 14), bottom = rng.pick([13, 22, 33, 52, 62, 72]); if (free(x, bottom, w, d)) { B({ type, name, x, bottom, w, d, floors: type === 'mill' ? 2 : 1, wealth: 0.4, look: look(0.4) }); break; } } }
     if (!K.buildings.some((b) => b.type === 'guard')) B({ type: 'guard', name: 'City Watch', x: 42, bottom: 79, w: 6, d: 4, look: { wall: 'stone', roof: 'slate', sign: 'shield', noFlowers: true, doorTile: 2 } });
     if (!K.buildings.some((b) => b.type === 'doctor')) B({ type: 'doctor', name: 'Physician', x: 30, bottom: 79, w: 4, d: 4, floors: 2, look: look(0.6, { sign: 'herb' }) });
-    // Aurelia Royal Castle, on the rise east of the city: the palace of the king and queen,
-    // with the royal kitchens, the Royal Guard's barracks, the royal chapel and stables, a
-    // servants' hall and a walled garden, behind its own curtain wall and gatehouse.
-    const rx0 = 128, ry0 = 6, rx1 = 168, ry1 = 38, rgX = 148;
+    // Aurelia Royal Castle, inside the city walls at their eastern end behind an inner curtain wall of
+    // its own: the great castle of the king and queen, four storeys of halls, kitchens, servants'
+    // quarters and royal apartments, with the Royal Guard, the royal chapel and stables, a servants'
+    // hall for the married staff and the queen's garden. In front of its gatehouse is the royal market.
+    const rx0 = 128, ry0 = y0, rx1 = x1, ry1 = 40, rgX = 153;
     fill(rx0 + 1, ry0 + 1, rx1 - 1, ry1 - 1, TER.YARD);
-    fill(rgX - 1, ry1, rgX, roadY - 1, TER.ROAD);
-    fill(rgX - 1, 24, rgX, ry1 - 1, TER.COBBLE); fill(rx0 + 2, 31, rx1 - 2, 31, TER.COBBLE);
-    K.walls(rx0, ry0, rx1, ry1, [[rgX, ry1]], 1);
-    B({ type: 'keep', biz: 'palace', royal: true, lordly: true, name: 'Aurelia Royal Castle', x: rgX - 7, bottom: 22, w: 14, d: 9, floors: 3, wealth: 1, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'battlement', chimney: true, sign: 'shield', doorTile: 7, bigDoor: true, noFlowers: true } });
-    P('banner', rgX - 3, 23, { solid: false }); P('banner', rgX + 2, 23, { solid: false });
-    B({ type: 'kitchen', biz: 'kitchen', name: 'Royal Kitchens', x: rx1 - 10, bottom: 29, w: 8, d: 5, wealth: 0.7, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'tile', roofType: 'side', chimney: true, chimneyX: 0.3, sign: 'bread', doorTile: 3, noFlowers: true } });
-    B({ type: 'guard', name: 'Royal Guard', x: rx0 + 3, bottom: 29, w: 8, d: 5, wealth: 0.7, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'side', sign: 'shield', doorTile: 4, noFlowers: true } });
-    B({ type: 'chapel', name: 'Royal Chapel', x: rx0 + 3, bottom: 19, w: 6, d: 6, wealth: 0.95, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 3, wallH: 70, noFlowers: true } });
-    B({ type: 'stable', name: 'Royal Stables', x: rx0 + 3, bottom: 36, w: 8, d: 3, wealth: 0.7, look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', bigDoor: true, chimney: false, doorTile: 3, noFlowers: true } });
-    B({ type: 'tenement', name: "Servants' Hall", x: rx1 - 10, bottom: 36, w: 7, d: 4, floors: 2, wealth: 0.35, look: { wall: 'timber', roof: 'tile', roofType: 'side', doorTile: 3 } });
+    fill(rgX - 1, ry1, rgX, roadY - 1, TER.COBBLE);
+    fill(rgX - 1, 27, rgX, ry1 - 1, TER.COBBLE); fill(rx0 + 2, 33, rx1 - 2, 33, TER.COBBLE);
+    for (let y = ry0 + 1; y < ry1; y++) P((y - ry0) % 8 === 0 ? 'tower' : 'wallV', rx0, y, { v: 1, wall: true, y: y * T + 15 });
+    for (let x = rx0; x < rx1; x++) { if (Math.abs(x - rgX) <= 1) continue; P(x === rx0 || (x - rx0) % 10 === 0 ? 'tower' : 'wallH', x, ry1, { v: 1, wall: true }); }
+    P('gatearch', rgX, ry1, { v: 1, solid: false, y: ry1 * T + 15, x: rgX * T + 8 }); P('tower', rgX - 2, ry1, { v: 2 }); P('tower', rgX + 2, ry1, { v: 2 });
+    B({ type: 'keep', biz: 'palace', royal: true, lordly: true, name: 'Aurelia Royal Castle', x: rgX - 12, bottom: 26, w: 24, d: 10, floors: 4, wealth: 1, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'battlement', chimney: true, sign: 'shield', doorTile: 12, bigDoor: true, noFlowers: true, grand: true } });
+    P('banner', rgX - 4, 27, { solid: false }); P('banner', rgX + 3, 27, { solid: false });
+    B({ type: 'chapel', name: 'Royal Chapel', x: rx0 + 3, bottom: 18, w: 6, d: 6, wealth: 0.95, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 3, wallH: 70, noFlowers: true } });
+    B({ type: 'guard', name: 'Royal Guard', x: rx0 + 3, bottom: 30, w: 8, d: 5, wealth: 0.7, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'battlement', sign: 'shield', doorTile: 4, noFlowers: true } });
+    B({ type: 'stable', name: 'Royal Stables', x: rx0 + 3, bottom: 38, w: 8, d: 3, wealth: 0.7, look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', bigDoor: true, chimney: false, doorTile: 3, noFlowers: true } });
+    B({ type: 'tenement', name: "Servants' Hall", x: rx1 - 12, bottom: 38, w: 7, d: 4, floors: 2, wealth: 0.35, look: { wall: 'timber', roof: 'tile', roofType: 'side', doorTile: 3 } });
     // the queen's garden
-    for (let x = rx1 - 11; x <= rx1 - 3; x++) for (const y of [12, 18]) P('bush', x, y, { solid: true });
-    for (let x = rx1 - 10; x <= rx1 - 4; x++) for (let y = 13; y <= 17; y++) if ((x + y) % 2 === 0) P('flowers', x, y, { solid: false, flat: true });
-    P('well', rx1 - 7, 15, { y: 15 * T + 15 }); K.solid[15 * W + rx1 - 8] = 1;
-    P('bench', rx1 - 9, 16, { solid: false });
+    for (let x = rx1 - 11; x <= rx1 - 2; x++) for (const y of [9, 21]) P('bush', x, y, { solid: true });
+    for (let x = rx1 - 10; x <= rx1 - 3; x++) for (let y = 10; y <= 20; y++) if ((x + y) % 2 === 0 && Math.abs(x - (rx1 - 6)) > 1) P('flowers', x, y, { solid: false, flat: true });
+    P('well', rx1 - 6, 15, { y: 15 * T + 15 }); K.solid[15 * W + rx1 - 7] = 1;
+    P('bench', rx1 - 9, 17, { solid: false }); P('bench', rx1 - 3, 13, { solid: false });
+    // the royal market before the castle gate
+    fill(rx0 + 2, ry1 + 2, rx1 - 2, 54, TER.COBBLE);
+    for (let i = 0; i < 12; i++) { const sx = rx0 + 6 + (i % 6) * 8, sy = i < 6 ? ry1 + 3 : 50; if (Math.abs(sx - rgX) < 3) continue; P('stall', sx, sy, { v: i % 4 }); K.solid[sy * W + sx - 1] = 1; K.solid[sy * W + sx + 1] = 1; }
+    P('well', rgX + 6, 52, { y: 52 * T + 15 }); K.solid[52 * W + rgX + 5] = 1;
+    // the eastern quarter behind the royal market: knights' houses and townsfolk
+    for (const bottom of [62, 71, 79]) lots(130, x1 - 2, bottom, bottom === 79 ? [...resi, ...noble] : work, 4);
     P('signpost', 42, 46, { solid: false });
     K.scatter((x, y) => (x > x0 && x < x1 && y > y0 && y < y1) || (x > rx0 && x < rx1 && y > ry0 && y < ry1));
     return K.finish({ roadY, exits: { west: [0, roadY], east: [W - 1, roadY] }, river: true, zones: { square: [45, 31, 63, 42], bench: [46, 31], farm: [8, 82, 30, 84], wood: [2, 82, 20, 86], east: [W - 1, roadY], patrol: [[55, 44], [20, 44], [40, 24], [80, 24], [110, 44], [96, 64], [60, 64], [40, 44]] }, city: true });
@@ -3597,7 +3646,7 @@ O.snowMaskOf = function (src) {
     hospital: { label: 'Hospital', jobs: [['physician', 2], ['nurse', 2], ['bearer', 4]], hours: [0, 24], recipes: [{ out: { medicine: 0.4 }, inp: {} }], sells: ['medicine'], targets: { medicine: 20 }, public: true, wage: { physician: 12, nurse: 6, bearer: 5 } },
     school: { label: 'School', jobs: [['teacher', 1]], hours: [8, 15], recipes: [], sells: [], targets: {}, public: true, wage: { teacher: 7 } },
     keep: { label: 'Castle household', jobs: [['steward', 1], ['cook', 1], ['maid', 2], ['groom', 1]], hours: [6, 21], recipes: [{ out: { meal: 3 }, inp: { bread: 1, cabbage: 1, firewood: 0.3 }, role: 'cook' }], sells: [], buys: { bread: 'bakery|import', cabbage: 'farmhouse|import', firewood: 'woodcutter|store|import' }, targets: { bread: 10, cabbage: 10, firewood: 8, meal: 12 }, wage: { steward: 9, cook: 7, maid: 5, groom: 5 }, security: 0.8 },
-    palace: { label: 'Royal household', jobs: [['chamberlain', 1], ['lady-in-waiting', 2], ['maid', 4], ['page', 2], ['groom', 2]], hours: [6, 22], recipes: [], sells: [], targets: {}, wage: { chamberlain: 12, 'lady-in-waiting': 8, maid: 5, page: 3, groom: 5 }, security: 0.95 },
+    palace: { label: 'Royal household', jobs: [['chamberlain', 1], ['steward', 1], ['lady-in-waiting', 2], ['maid', 6], ['page', 2], ['groom', 2], ['master cook', 1], ['cook', 3], ['scullion', 2], ['butler', 1]], hours: [5, 22], recipes: [{ out: { meal: 6 }, inp: { bread: 1, cabbage: 1, meat: 0.5, firewood: 0.4 }, role: 'cook' }], sells: [], buys: { bread: 'bakery|import', cabbage: 'farmhouse|store|import', meat: 'butcher|import', firewood: 'woodcutter|store|import' }, targets: { bread: 20, cabbage: 20, meat: 10, firewood: 14, meal: 30 }, wage: { chamberlain: 12, steward: 10, 'lady-in-waiting': 8, maid: 5, page: 3, groom: 5, 'master cook': 9, cook: 7, scullion: 4, butler: 8 }, security: 0.95 },
     kitchen: { label: 'Royal Kitchens', jobs: [['master cook', 1], ['cook', 2], ['scullion', 2]], hours: [5, 21], recipes: [{ out: { meal: 6 }, inp: { bread: 1, cabbage: 1, meat: 0.5, firewood: 0.4 } }], sells: ['meal'], buys: { bread: 'bakery|import', cabbage: 'farmhouse|import', meat: 'butcher|import', firewood: 'woodcutter|store|import' }, targets: { bread: 20, cabbage: 20, meat: 10, firewood: 12, meal: 30 }, wage: { 'master cook': 9, cook: 7, scullion: 4 } },
     chapel: { label: 'Chapel', jobs: [['priest', 1], ['parish clerk', 1]], hours: [6, 20], recipes: [], sells: [], targets: {}, public: true, wage: { priest: 6, 'parish clerk': 3 } },
   };
@@ -3607,7 +3656,7 @@ O.snowMaskOf = function (src) {
     farmer: 'farmer', farmhand: 'farmhand', miller: 'miller', labourer: 'villager', baker: 'baker', apprentice: 'villager', woodcutter: 'woodcutter',
     blacksmith: 'blacksmith', innkeeper: 'innkeeper', server: 'innkeeper', cook: 'baker', shopkeeper: 'merchant', physician: 'doctor', assistant: 'villager',
     bearer: 'bearer', undertaker: 'undertaker', sweeper: 'sweeper', 'tax collector': 'courier', 'parish clerk': 'merchant',
-    steward: 'merchant', maid: 'servant', groom: 'farmhand', chamberlain: 'noble', 'lady-in-waiting': 'noble', page: 'servant', 'master cook': 'baker', scullion: 'servant',
+    steward: 'merchant', butler: 'servant', maid: 'servant', groom: 'farmhand', chamberlain: 'noble', 'lady-in-waiting': 'noble', page: 'servant', 'master cook': 'baker', scullion: 'servant',
     'guard captain': 'guard', guard: 'guard', priest: 'priest', herbalist: 'farmhand', butcher: 'baker', jeweller: 'merchant', 'night watchman': 'guard', apothecary: 'doctor', carpenter: 'woodcutter', armourer: 'blacksmith', 'warehouse master': 'merchant', 'warehouse worker': 'villager', docker: 'villager', sawyer: 'woodcutter', 'quarry master': 'woodcutter', quarryman: 'woodcutter', magistrate: 'noble', clerk: 'merchant', nurse: 'villager', teacher: 'priest', fisher: 'fisher', miner: 'woodcutter', 'mine foreman': 'woodcutter', 'horse trader': 'merchant', stablehand: 'farmhand', porter: 'villager', trader: 'merchant',
   };
 
@@ -6958,7 +7007,28 @@ O.snowMaskOf = function (src) {
         if (b.type !== 'mansion' || !b.household) continue;
         const hh = this.households.find((h) => h.id === b.household); if (!hh) continue;
         b.name = `${hh.surname} House`;
-        for (const id of hh.members) { const p = this.byId.get(id); if (!p || p.age < 18 || (id !== hh.members[0] && p.spouse !== hh.members[0])) continue; p.title = p.sex === 'm' ? 'Sir' : 'Dame'; p.name = `${p.title} ${p.first} ${p.sur}`; if (!p.job) { p.gentry = true; p.app = Ch.makeAppearance(O.hash('person', p.id, p.first), { sex: p.sex, age: p.age, genes: p.genes, role: 'noble', wealth: 0.9, region: this.world.region }); } }
+        for (const id of hh.members) { const p = this.byId.get(id); if (!p || p.age < 18 || (id !== hh.members[0] && p.spouse !== hh.members[0])) continue; if (p.job) continue; p.title = p.sex === 'm' ? 'Sir' : 'Dame'; p.name = `${p.title} ${p.first} ${p.sur}`; { p.gentry = true; p.app = Ch.makeAppearance(O.hash('person', p.id, p.first), { sex: p.sex, age: p.age, genes: p.genes, role: 'noble', wealth: 0.9, region: this.world.region }); } }
+      }
+      // the castle's servants live in it: the unmarried in rooms of their own on the servants' floor,
+      // some of the married with their families in a family room; the rest keep their own houses
+      for (const bz of this.biz.values()) {
+        if (!bz.b.royal && !bz.b.livesIn) continue;
+        const castle = bz.b;
+        for (const id of bz.workers.slice()) {
+          const p = this.byId.get(id); if (!p || p.gentry) continue;
+          const old = this.households.find((h) => h.id === p.household); if (!old || old.home === castle.id) continue;
+          const family = old.members.length > 1 && (p.spouse || (p.children || []).length);
+          if (!family) {
+            old.members = old.members.filter((m) => m !== p.id); if (old.shopper === p.id) old.shopper = old.members.find((m) => (this.byId.get(m)?.age || 0) >= 16) || old.members[0];
+            if (!old.members.length) { old.gone = true; const ob = this.building(old.home); if (ob) { ob.households = (ob.households || []).filter((x) => x !== old.id); if (!ob.households.length) ob.vacant = true; } }
+            const hh = { id: this.households.length + 1, home: castle.id, members: [p.id], pantry: { bread: 2 }, money: r.int(5, 30), surname: p.sur, servants: true, shopper: p.id };
+            this.households.push(hh); (castle.households = castle.households || []).push(hh.id); p.household = hh.id; p.home = castle.id;
+          } else if (old.members.length <= 5 && r.chance(0.5)) {
+            const ob = this.building(old.home); if (ob) { ob.households = (ob.households || []).filter((x) => x !== old.id); if (!ob.households.length) { ob.vacant = true; if (ob.household === old.id) ob.household = null; } }
+            old.home = castle.id; old.servants = true; (castle.households = castle.households || []).push(old.id);
+            for (const m of old.members) { const q = this.byId.get(m); if (q) q.home = castle.id; }
+          }
+        }
       }
       // the estates fund their households
       for (const bz of this.biz.values()) { const k = bz.b.biz || bz.type; if (k === 'palace') bz.cash = 6000; else if (k === 'kitchen') bz.cash = 2000; else if (k === 'keep') bz.cash = 2500; }
@@ -7101,7 +7171,11 @@ O.snowMaskOf = function (src) {
             const isOwnerRole = bz.def.wage[role] === 0;
             if (hh && isOwnerRole) cand = hh.members.map((id) => this.byId.get(id)).find((p) => !p.job && p.age >= 20 && p.age < 66);
             if (!cand) {
-              const pool = adults().filter((p) => (role === 'apprentice' ? p.age < 22 : role.startsWith('guard') ? p.age < 50 : true));
+              let pool = adults().filter((p) => (role === 'apprentice' ? p.age < 22 : role.startsWith('guard') ? p.age < 50 : true));
+              // maids and ladies-in-waiting are women; pages, grooms and butlers are men, where there are any
+              const want = ['maid', 'lady-in-waiting'].includes(role) ? 'f' : ['page', 'groom', 'butler', 'chamberlain'].includes(role) ? 'm' : null;
+              if (want && pool.some((p) => p.sex === want)) pool = pool.filter((p) => p.sex === want);
+              if (role === 'page') { const young = pool.filter((p) => p.age < 25); if (young.length) pool = young; }
               cand = pool.length ? r.pick(pool) : null;
             }
             if (!cand) continue;
@@ -8315,6 +8389,43 @@ O.snowMaskOf = function (src) {
         else { B.capsule(fx + 8, fy - 9, fx + 16, fy - 11, 0.7, 0.7, wood()); B.rect(fx + 15, fy - 12, 3, 2, iron(), 3); B.capsule(fx + 24, fy - 8, fx + 32, fy - 8, 0.6, 0.6, iron()); B.blob(fx1 - 5, fy - 9, 2.4, 1.6, P.mat(C.linen), { power: 2 }); B.rect(fx + 2, fy - 5, 4, 5, iron(), 2); }
         out = finish(S); break;
       }
+      case 'partH': case 'partV': { // an inner wall, one tile of it: v 0 plaster, 1 stone, 2 panelled
+        const WH = kind === 'partH' ? 40 : 60, wm = v === 1 ? P.mat('#8e8880', 'cloth') : v === 2 ? P.mat('#6e4a2c', 'wood') : P.mat('#e0d4b8', 'cloth'), cap = P.mat(v === 1 ? '#6a645c' : '#4a3a2c', 'wood');
+        S = canvasFor(1, 1, WH); const { B, fx, fx1, fy, fy1 } = S;
+        if (kind === 'partH') {
+          // the face of the wall, seen from the room in front, and its top
+          B.part(1);
+          for (let y = fy1 - WH; y <= fy1; y++) for (let x = fx; x <= fx1; x++) {
+            let sh = 2; const ly = y - (fy1 - WH);
+            if (v === 1) { const r = ly % 7, off = Math.floor(ly / 7) % 2 ? 5 : 0; sh = r === 6 || (x + off) % 11 === 0 ? 1 : r === 0 ? 3 : 2; }
+            else if (v === 2) { sh = (x - fx) % 8 === 0 ? 1 : ly % 20 === 0 ? 3 : 2; }
+            if (ly > WH - 4) sh = 1;
+            B.plot(x, y, wm, sh);
+          }
+          for (let x = fx; x <= fx1; x++) for (let y = fy1 - WH - 10; y < fy1 - WH; y++) B.plot(x, y, cap, y === fy1 - WH - 10 ? 4 : 3);
+        } else {
+          // a wall running away from us: we see its top, and its edge face on the way down
+          B.part(1);
+          const cx0 = fx + 5, cx1 = fx1 - 5;
+          for (let y = fy - WH - 10; y <= fy1; y++) for (let x = cx0; x <= cx1; x++) {
+            const top = y < fy1 - WH; B.plot(x, y, top ? cap : wm, top ? (x === cx0 ? 4 : 3) : x === cx0 ? 3 : x === cx1 ? 1 : 2);
+          }
+        }
+        out = finish(S, { outline: false }); break;
+      }
+      case 'throne': { // a great carved chair on a dais, gilded, with a cushion
+        S = canvasFor(2, 2, 34); const { B, fx, fx1, fy, fy1 } = S; const g = P.mat(P.metal.gold, 'metal'), red = P.mat('#9a2a2a', 'cloth'), st = P.mat('#8a847c', 'cloth');
+        B.part(1); box(B, fx, fx1, fy + 10, 12, fy1, st, { grain: seed });
+        B.part(2);
+        const cx = (fx + fx1) / 2;
+        B.rect(Math.round(cx - 9), fy - 26, 18, 30, walnut(), 2); for (let y = fy - 26; y < fy + 4; y++) { B.shadeAt(Math.round(cx - 9), y, 3); B.shadeAt(Math.round(cx + 8), y, 1); }
+        B.rect(Math.round(cx - 7), fy - 22, 14, 22, red, 2);
+        for (let x = Math.round(cx - 9); x <= Math.round(cx + 8); x++) B.plot(x, fy - 27, g, 3);
+        for (const k of [-9, -3, 3, 8]) B.plot(Math.round(cx + k), fy - 29, g, 4);
+        B.rect(Math.round(cx - 11), fy + 2, 22, 8, walnut(), 2); B.rect(Math.round(cx - 8), fy + 1, 16, 4, red, 3);
+        for (const k of [-11, 9]) B.rect(Math.round(cx + k), fy - 6, 3, 14, walnut(), 3);
+        out = finish(S); break;
+      }
       case 'rack': { // tools or arms on the wall
         S = canvasFor(2, 1, 40); const { B, fx, fx1, fy, fy1 } = S; const m = dark();
         B.part(1); for (let x = fx; x <= fx1; x++) { B.plot(x, fy - 30, m, 3); B.plot(x, fy - 29, m, 1); B.plot(x, fy - 4, m, 2); B.plot(x, fy - 3, m, 1); }
@@ -8508,7 +8619,7 @@ O.snowMaskOf = function (src) {
 'use strict';
 (function () {
   const T = 16;
-  const SIZE = { bed: [2, 3], double: [3, 3], medbed: [2, 3], cradle: [2, 2], table: [3, 2], longtable: [5, 2], chair: [1, 1], stool: [1, 1], bench: [3, 1], fireplace: [3, 1], oven: [3, 2], forge: [3, 2], anvil: [1, 1],
+  const SIZE = { partH: [1, 1], partV: [1, 1], throne: [2, 2], bed: [2, 3], double: [3, 3], medbed: [2, 3], cradle: [2, 2], table: [3, 2], longtable: [5, 2], chair: [1, 1], stool: [1, 1], bench: [3, 1], fireplace: [3, 1], oven: [3, 2], forge: [3, 2], anvil: [1, 1],
     cupboard: [2, 1], dresser: [2, 1], wardrobe: [2, 1], bookcase: [2, 1], chest: [2, 1], shelf: [3, 1], counter: [4, 1], workbench: [3, 1], doughtable: [3, 1], butcherblock: [3, 1], rack: [2, 1], desk: [2, 1],
     altar: [3, 1], millstone: [3, 2], loom: [3, 2], spinning: [2, 1], stairs: [2, 3], cauldron: [1, 1], washtub: [1, 1], plant: [1, 1], candlestand: [1, 1], barrel: [1, 1], crate: [1, 1], sack: [1, 1], hay: [1, 1], woodpile: [1, 1], cell: [4, 4] };
   const foot = (kind, rot, width) => { if (kind === 'bed' && rot) return [3, 2]; if (kind === 'pew' || kind === 'bar') return [width || 5, 1]; if (kind === 'rug') return [width || 3, 2]; if (kind === 'bench' && width) return [width, 1]; return SIZE[kind] || [1, 1]; };
@@ -8577,13 +8688,23 @@ O.snowMaskOf = function (src) {
     const twoFloors = b.floors >= 2;
     const stairsX = b.spec.doorTile * S >= w / 2 ? 0 : w - 2; // the corner away from the door, same on every floor
     // the stairs go in first, so everything else keeps clear of them
-    if (twoFloors) {
-      const st = { kind: 'stairs', tx: stairsX, ty: 0, fw: 2, fh: 3, v: floor === 0 ? 0 : 1, rot: 0, seed: 1, id: 0, stairs: floor === 0 ? 1 : 0, access: true };
-      for (let yy = 0; yy < 3; yy++) for (let xx = stairsX; xx < stairsX + 2; xx++) grid[yy * w + xx] = 1;
+    // stairwells: the flight up from floor k stands in corner k (alternating sides), and arrives at
+    // the same spot on the floor above, where the flight down stands
+    const otherX = stairsX === 0 ? w - 2 : 0;
+    const cornerOf = (k) => (k % 2 ? otherX : stairsX);
+    const nFloors = b.floors || 1;
+    const stairPiece = (x, up) => {
+      const st = { kind: 'stairs', tx: x, ty: 0, fw: 2, fh: 3, v: up ? 0 : 1, rot: 0, seed: 1, id: items.length, stairs: up ? 1 : 0, access: true };
+      for (let yy = 0; yy < 3; yy++) for (let xx = x; xx < x + 2; xx++) grid[yy * w + xx] = 1;
       items.push(st);
-      for (let x = stairsX; x < stairsX + 2; x++) keepClear.add(3 * w + x);
+      for (let xx = x; xx < x + 2; xx++) keepClear.add(3 * w + xx);
+    };
+    if (twoFloors) {
+      if (floor > 0) stairPiece(cornerOf(floor - 1), false);
+      if (floor < nFloors - 1 && (nFloors > 2)) stairPiece(cornerOf(floor), true);
+      else if (floor === 0) stairPiece(stairsX, true);
     }
-    startTiles = floor === 0 ? [[dc, d - 1], [dc + 1, d - 1]] : [[stairsX, 3], [stairsX + 1, 3]];
+    startTiles = floor === 0 ? [[dc, d - 1], [dc + 1, d - 1]] : [[cornerOf(floor - 1), 3], [cornerOf(floor - 1) + 1, 3]];
 
     const homeFloor = !twoFloors || floor === 1;
     const living = floor === 0;
@@ -8645,7 +8766,110 @@ O.snowMaskOf = function (src) {
     // business buildings: the family's rooms go upstairs (or into a back corner when there is no upstairs)
     const familyQuarters = () => { if (!lives) return; if (twoFloors && floor === 1) { beds(); dining(members, {}); storage(); } else if (!twoFloors) { beds(); storage(); } };
 
-    switch (b.type) {
+    // ---- the royal castle: four storeys of real rooms divided by inner walls ----
+    const inRect = (x0, y0, x1, y1, fw, fh) => { const c = []; for (let y = y0; y <= y1 - fh + 1; y++) for (let x = x0; x <= x1 - fw + 1; x++) c.push([x, y]); return shuffle(c); };
+    const rowOf = (x0, x1, y, fw) => { const c = []; for (let x = x0; x <= x1 - fw + 1; x++) c.push([x, y]); return shuffle(c); };
+    const edgeOf = (x0, y0, x1, y1, fw, fh) => inRect(x0, y0, x1, y1, fw, fh).sort((a, c) => Math.min(a[0] - x0, x1 - a[0] - fw + 1, a[1] - y0, y1 - a[1] - fh + 1) - Math.min(c[0] - x0, x1 - c[0] - fw + 1, c[1] - y0, y1 - c[1] - fh + 1));
+    const wallRow = (y, x0, x1, gaps, v) => { for (let x = x0; x <= x1; x++) if (!gaps.some((g) => x >= g && x < g + 2)) put('partH', x, y, { v, partition: true, noAccess: true }); };
+    const wallCol = (x, y0, y1, gaps, v) => { for (let y = y0; y <= y1; y++) if (!gaps.some((g) => y >= g && y < g + 2)) put('partV', x, y, { v, partition: true, noAccess: true }); };
+    const roomBeds = (room, plan) => { let n = 0; for (const kind of plan) { const rr = room; let it = null;
+      if (kind === 'double') it = tryPut('double', rowOf(rr[0], rr[2], rr[1], 3), { v: 1, bed: true, slots: 2 }) || tryPut('double', edgeOf(rr[0], rr[1], rr[2], rr[3], 3, 3), { v: 1, bed: true, slots: 2 });
+      else if (kind === 'cradle') it = tryPut('cradle', edgeOf(rr[0], rr[1], rr[2], rr[3], 2, 2), { v: 1, bed: true, slots: 1, cradle: true });
+      else it = tryPut('bed', rowOf(rr[0], rr[2], rr[1], 2), { v: 1, bed: true, slots: 1 }) || tryPut('bed', edgeOf(rr[0], rr[1], rr[2], rr[3], 2, 3), { v: 1, bed: true, slots: 1 });
+      if (it) n++; } return n; };
+    const planFor = (ppl) => { const out = [], done = new Set(); let kids = 0; for (const q of ppl) { if (done.has(q.id)) continue; done.add(q.id); const sp = q.spouse && ppl.find((x) => x.id === q.spouse); if (sp) { done.add(sp.id); out.push('double'); } else if (q.age < 3) out.push('cradle'); else if (q.age < 14) kids++; else out.push('bed'); } for (let i = 0; i < kids; i += 2) out.push('bed'); return out; };
+    function royal() {
+      const W1 = Math.floor(w * 0.3), W2 = w - 1 - Math.floor(w * 0.3), MID = Math.floor(d / 2) - 1;
+      const royals = people.filter((q) => q.royal), staff = people.filter((q) => !q.royal);
+      if (floor === 0) {
+        // the great hall in the middle, the kitchens to one side, the steward's hall and armoury to the other
+        wallCol(W1, 0, d - 1, [MID], 1); wallCol(W2, 0, d - 1, [MID], 1);
+        const hx0 = W1 + 1, hx1 = W2 - 1, hc = Math.floor((hx0 + hx1) / 2);
+        put('throne', hc - 1, 1, { v: 2, lord: true, seat: true, rot: 3 });
+        tryPut('fireplace', [[hx0 + 2, 0], [hx0 + 4, 0]], { v: 2 }); tryPut('fireplace', [[hx1 - 4, 0], [hx1 - 6, 0]], { v: 2 });
+        put('rug', hc - 1, 4, { flat: true, width: 3 }); put('rug', hc - 1, 8, { flat: true, width: 3 }); put('rug', hc - 1, 12, { flat: true, width: 3 });
+        for (const [tx, ty] of [[hx0 + 2, 6], [hx1 - 6, 6], [hx0 + 2, 13], [hx1 - 6, 13]]) {
+          const t = put('longtable', tx, ty, { v: 2, table: true }); if (!t) continue;
+          for (let x = t.tx; x < t.tx + 5; x++) { put('chair', x, t.ty - 1, { seat: true, rot: 0, v: 2, noAccess: true }); put('chair', x, t.ty + 2, { seat: true, rot: 3, v: 2, noAccess: true }); }
+        }
+        for (let i = 0; i < 6; i++) tryPut('candlestand', edgeOf(hx0, 1, hx1, d - 4, 1, 1), {});
+        for (let i = 0; i < 2; i++) tryPut('plant', edgeOf(hx0, 1, hx1, d - 4, 1, 1), {});
+        // kitchens
+        const kx1 = W1 - 1, kroom = [0, 3, kx1, d - 1];
+        tryPut('fireplace', rowOf(2, kx1, 0, 3), { v: 1, work: ['cook'] });
+        tryPut('oven', rowOf(2, kx1, 0, 3), { work: ['master cook', 'cook'], fire: true }); tryPut('oven', rowOf(2, kx1, 0, 3), { work: ['cook'], fire: true });
+        for (let i = 0; i < 3; i++) tryPut('cauldron', edgeOf(...kroom, 1, 1), { work: i ? ['scullion'] : ['cook'] });
+        tryPut('doughtable', inRect(2, 5, kx1 - 2, d - 6, 3, 1), { work: ['master cook'] }); tryPut('doughtable', inRect(2, 5, kx1 - 2, d - 6, 3, 1), { work: ['cook'] });
+        tryPut('butcherblock', edgeOf(...kroom, 3, 1), { work: ['cook'] }); tryPut('washtub', edgeOf(...kroom, 1, 1), { work: ['scullion'] }); tryPut('washtub', edgeOf(...kroom, 1, 1), { work: ['scullion'] });
+        for (let i = 0; i < 8; i++) tryPut(['barrel', 'sack', 'crate'][i % 3], edgeOf(...kroom, 1, 1), { pantry: true });
+        tryPut('woodpile', edgeOf(...kroom, 1, 1), {}); tryPut('dresser', rowOf(2, kx1, 0, 2), { v: 1, pantry: true });
+        // the servants eat at a long table in the kitchen
+        const st = tryPut('longtable', inRect(2, d - 9, kx1 - 2, d - 4, 5, 2), { v: 1, table: true });
+        if (st) for (let x = st.tx; x < st.tx + 5; x++) { put('bench', x, st.ty - 1, { seat: true, rot: 0, v: 1, noAccess: true, width: 1 }); }
+        // steward's hall and armoury
+        const ex0 = W2 + 1, eroom = [ex0, 0, w - 1, d - 1];
+        tryPut('desk', rowOf(ex0, w - 3, 0, 2), { v: 2, work: ['steward', 'chamberlain'] });
+        tryPut('chest', edgeOf(...eroom, 2, 1), { v: 2, valuables: true, container: { slots: 24 } }); tryPut('chest', edgeOf(...eroom, 2, 1), { v: 2, valuables: true });
+        for (let i = 0; i < 4; i++) tryPut('rack', rowOf(ex0, w - 1, 0, 2), {});
+        tryPut('bookcase', edgeOf(...eroom, 2, 1), { v: 2 }); tryPut('bench', edgeOf(...eroom, 3, 1), { seat: true, rot: 0 });
+        for (let i = 0; i < 3; i++) tryPut('barrel', edgeOf(...eroom, 1, 1), {});
+        return;
+      }
+      if (floor === 1) {
+        // the servants' floor: a long corridor with rooms either side
+        const cy0 = MID - 2, cy1 = MID + 2, rw = Math.floor(w / 6);
+        const doors = []; for (let i = 0; i < 6; i++) doors.push(i * rw + Math.floor(rw / 2) - 1);
+        wallRow(cy0, 0, w - 1, doors, 0); wallRow(cy1, 0, w - 1, doors, 0);
+        for (let i = 1; i < 6; i++) { wallCol(i * rw, 0, cy0 - 1, [], 0); wallCol(i * rw, cy1 + 1, d - 1, [], 0); }
+        const rooms = []; for (let i = 0; i < 6; i++) { rooms.push([i * rw + (i ? 1 : 0), 0, (i + 1) * rw - 1, cy0 - 1]); rooms.push([i * rw + (i ? 1 : 0), cy1 + 1, i === 5 ? w - 1 : (i + 1) * rw - 1, d - 1]); }
+        // the households living here: each family gets a room; the unmarried share by twos and threes
+        const hhRes = hhs.filter((h) => h.servants);
+        const fams = hhRes.filter((h) => h.members.length > 1), singles = hhRes.filter((h) => h.members.length === 1).map((h) => sim.byId.get(h.members[0])).filter(Boolean);
+        let ri = 0;
+        for (const h of fams) { if (ri >= rooms.length) break; const ppl = h.members.map((m) => sim.byId.get(m)).filter(Boolean); roomBeds(rooms[ri], planFor(ppl)); tryPut('chest', edgeOf(...rooms[ri], 2, 1), { v: 1, valuables: true }); ri++; }
+        let left = singles.length || 8;
+        while (left > 0 && ri < rooms.length) { const k = Math.min(3, left); left -= roomBeds(rooms[ri], Array(k).fill('bed')) || k; tryPut('chest', edgeOf(...rooms[ri], 2, 1), { v: 1 }); tryPut('candlestand', edgeOf(...rooms[ri], 1, 1), {}); ri++; }
+        for (; ri < rooms.length; ri++) { tryPut('crate', edgeOf(...rooms[ri], 1, 1), {}); tryPut('sack', edgeOf(...rooms[ri], 1, 1), {}); tryPut('washtub', edgeOf(...rooms[ri], 1, 1), {}); }
+        return;
+      }
+      if (floor === 2) {
+        // the royal apartments: the king and queen's bedchamber, the royal children's rooms, the solar
+        wallCol(W1, 0, d - 1, [MID], 2); wallCol(W2, 0, d - 1, [MID], 2);
+        wallRow(MID - 2, 0, W1 - 1, [Math.floor(W1 / 2)], 2); wallRow(MID - 2, W2 + 1, w - 1, [W2 + Math.floor((w - W2) / 2)], 2);
+        const cx0 = W1 + 1, cx1 = W2 - 1;
+        const pair = royals.filter((q) => q.title === 'King' || q.title === 'Queen' || (q.spouse && royals.some((x) => x.id === q.spouse) && q.age > 25));
+        roomBeds([cx0, 0, cx1, d - 1], pair.length ? planFor(pair) : ['double']);
+        tryPut('fireplace', rowOf(cx0, cx1, 0, 3), { v: 2 }); tryPut('wardrobe', rowOf(cx0, cx1, 0, 2), { v: 2 }); tryPut('wardrobe', rowOf(cx0, cx1, 0, 2), { v: 2 });
+        put('rug', Math.floor((cx0 + cx1) / 2) - 1, MID, { flat: true, width: 3 });
+        tryPut('chest', edgeOf(cx0, 0, cx1, d - 1, 2, 1), { v: 2, valuables: true, container: { slots: 24 } });
+        for (let i = 0; i < 4; i++) tryPut('candlestand', edgeOf(cx0, 0, cx1, d - 1, 1, 1), {});
+        tryPut('desk', edgeOf(cx0, 0, cx1, d - 1, 2, 1), { v: 2 }); tryPut('plant', edgeOf(cx0, 0, cx1, d - 1, 1, 1), {});
+        // the children's rooms to the west
+        const kids = royals.filter((q) => !pair.includes(q));
+        roomBeds([0, 0, W1 - 1, MID - 3], planFor(kids.slice(0, Math.ceil(kids.length / 2))).concat(kids.length ? [] : ['bed']));
+        roomBeds([0, MID - 1, W1 - 1, d - 1], planFor(kids.slice(Math.ceil(kids.length / 2))).concat(['bed']));
+        for (const rr of [[0, 0, W1 - 1, MID - 3], [0, MID - 1, W1 - 1, d - 1]]) { tryPut('wardrobe', edgeOf(...rr, 2, 1), { v: 2 }); tryPut('chest', edgeOf(...rr, 2, 1), { v: 2 }); tryPut('candlestand', edgeOf(...rr, 1, 1), {}); }
+        // the solar and the ladies' chamber to the east
+        const so = [W2 + 1, 0, w - 1, MID - 3], la = [W2 + 1, MID - 1, w - 1, d - 1];
+        tryPut('bookcase', edgeOf(...so, 2, 1), { v: 2 }); tryPut('bookcase', edgeOf(...so, 2, 1), { v: 2 }); tryPut('desk', edgeOf(...so, 2, 1), { v: 2 });
+        tryPut('table', inRect(so[0] + 2, so[1] + 2, so[2] - 2, so[3] - 1, 3, 2), { v: 2, table: true }); tryPut('loom', edgeOf(...la, 3, 2), { work: ['lady-in-waiting'] }); tryPut('spinning', edgeOf(...la, 2, 1), { work: ['lady-in-waiting'] });
+        for (let i = 0; i < 3; i++) tryPut('chair', edgeOf(...la, 1, 1), { seat: true, rot: 3, v: 2, noAccess: true });
+        tryPut('dresser', edgeOf(...la, 2, 1), { v: 2, work: ['maid'] }); tryPut('washtub', edgeOf(...la, 1, 1), { work: ['maid'] });
+        return;
+      }
+      // the top floor: guest chambers, the private chapel, the armoury and treasury
+      wallCol(W1, 0, d - 1, [MID], 1); wallCol(W2, 0, d - 1, [MID], 1);
+      const cx0 = W1 + 1, cx1 = W2 - 1, cc = Math.floor((cx0 + cx1) / 2);
+      put('altar', cc - 1, 0, { v: 2 });
+      for (let y = 4; y < d - 4; y += 3) { put('pew', cx0 + 2, y, { width: Math.max(3, cc - cx0 - 4), seat: true, rot: 0, v: 2 }); put('pew', cc + 2, y, { width: Math.max(3, cx1 - cc - 3), seat: true, rot: 0, v: 2 }); }
+      for (let i = 0; i < 4; i++) tryPut('candlestand', edgeOf(cx0, 0, cx1, d - 1, 1, 1), {});
+      roomBeds([0, 0, W1 - 1, d - 1], ['double', 'bed', 'bed']); tryPut('wardrobe', edgeOf(0, 0, W1 - 1, d - 1, 2, 1), { v: 2 });
+      const ar = [W2 + 1, 0, w - 1, d - 1];
+      for (let i = 0; i < 6; i++) tryPut('rack', rowOf(ar[0], ar[2], 0, 2), {});
+      for (let i = 0; i < 3; i++) tryPut('chest', edgeOf(...ar, 2, 1), { v: 2, valuables: true, container: { slots: 18 } });
+    }
+
+    if (b.royal) royal(); else switch (b.type) {
       case 'house': case 'farmhouse': case 'woodcutter':
         if (living) { hearth(); dining(members); }
         if (homeFloor) beds();
@@ -9059,7 +9283,7 @@ O.snowMaskOf = function (src) {
     rect(it) { const x = this.R.SW + it.tx * T, y = this.R.WH + it.ty * T; return [x, y, x + it.fw * T, y + it.fh * T]; }
     enterAt(fromStairs) {
       const p = this.game.player, L = this.L;
-      const st = L.items.find((i) => i.kind === 'stairs');
+      const st = (fromStairs === 'up' && L.items.find((i) => i.kind === 'stairs' && !i.stairs)) || (fromStairs === 'down' && L.items.find((i) => i.kind === 'stairs' && i.stairs)) || L.items.find((i) => i.kind === 'stairs');
       if ((fromStairs || L.dc < 0) && st) { [p.x, p.y] = this.tileXY(st.tx, st.ty + st.fh); p.x += 8; p.y += 2; p.dir = 0; }
       else { p.x = this.R.SW + (L.dc + 1) * T; p.y = this.R.WH + (L.d - 1) * T + 12; p.dir = 3; }
     }
@@ -9095,6 +9319,15 @@ O.snowMaskOf = function (src) {
       const floorOf = (q) => {
         const act = q.activity?.act;
         if (!twoF) return 0;
+        if (b.royal) {
+          // the royal castle: kitchens and hall below, servants' floor, royal apartments, chapel at the top
+          const role = q.job?.role;
+          if (act === 'work') return ['maid', 'lady-in-waiting'].includes(role) ? 2 : 0;
+          if (act === 'worship') return 3;
+          if (SLEEPY.has(act)) return q.royal ? 2 : q.home === b.id ? 1 : 0;
+          if (act === 'home') return q.royal ? (q.id % 3 ? 2 : 0) : q.home === b.id ? (q.id % 2 ? 1 : 0) : 0;
+          return 0;
+        }
         if (b.type === 'tavern') return act === 'rest' || (SLEEPY.has(act) && q.home !== b.id) || (SLEEPY.has(act) && q.home === b.id) ? 1 : 0;
         if (['house', 'mansion', 'townhouse', 'keep', 'tenement'].includes(b.type)) return SLEEPY.has(act) && b.id !== sim.docId ? 1 : act === 'home' && q.id % 3 === 0 ? 1 : 0;
         return SLEEPY.has(act) && q.home === b.id ? 1 : 0; // a shop: the family lives upstairs
@@ -9658,7 +9891,7 @@ O.snowMaskOf = function (src) {
         case 'traveller': case 'ruin': case 'signpost': return O.roadLabel(c);
         case 'pickup': return `Pick up the ${(O.Data.GOODS[c.it.good]?.name || c.it.good).toLowerCase()}`;
         case 'shop': return `Buy from ${c.seller.first}`;
-        case 'stairs': return game.scene.floor === 0 ? 'Go upstairs' : 'Go downstairs';
+        case 'stairs': return c.it && c.it.stairs ? 'Go upstairs' : 'Go downstairs';
         default: return '';
       }
     }
@@ -9796,7 +10029,7 @@ O.snowMaskOf = function (src) {
         case 'broadsheet': O.ChronicleUI.broadsheet(); break;
         case 'grave': { const g = cur.prop.grave; O.Panels.toast(g ? `“Here lies ${g.name}, ${g.age} years. ${g.cause.replace('died ', '').replace(/^./, (c) => c.toUpperCase())}.”` : 'The old stone is worn smooth; you can no longer read the name.'); break; }
         case 'bed': if (mayUseBed(cur.it)) sleep(cur.it); else O.Panels.toast("That's someone else's bed."); break;
-        case 'stairs': game.enterBuilding(game.scene.b, game.scene.floor === 0 ? 1 : 0, true); break;
+        case 'stairs': { const up = cur.it ? !!cur.it.stairs : game.scene.floor === 0; game.enterBuilding(game.scene.b, game.scene.floor + (up ? 1 : -1), up ? 'up' : 'down'); break; }
         case 'shop': O.Panels.trade(sim, sim.biz.get(game.scene.b.id), cur.seller); break;
       }
       return true;
@@ -13732,8 +13965,6 @@ O.snowMaskOf = function (src) {
   O.KingdomUI.setup(game, sim, npcUI);
   O.TravelSetup.setup(game, home, npcUI);
   O.Roads.setup(game, home);
-  // TESTING KIT (temporary, for one build only): a sword and a heavy purse, once per life
-  game.hooks.update.push(() => { const PS = O.PlayerState; if (PS._testKit || O.panelOpen) return; PS._testKit = true; PS.money += 5000; PS.add('sword'); });
   O.PropertyUI.setup(game, sim);
   O.ChronicleUI.setup(game, home);
   O.WorkSetup.setup(game, sim, npcUI);

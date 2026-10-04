@@ -55,7 +55,7 @@
     const top = roadY - (town ? 9 : 7);
     B({ type: 'tavern', name: `The ${rng.pick(['Golden', 'Drowned', 'Black', 'Merry', 'Old', 'Red'])} ${rng.pick(['Stag', 'Anchor', 'Goose', 'Plough', 'Boar', 'Bell'])}`, x: sqX, bottom: top, w: 6, d: 5, floors: 2, wealth: 0.65, look: look(0.65, { roofType: 'gable', sign: 'mug', doorTile: 2 }) });
     B({ type: 'bakery', name: 'Bakery', x: sqX + 10, bottom: top, w: 4, d: 4, wealth: 0.55, look: look(0.55, { sign: 'bread', shopWindow: true }) });
-    B({ type: 'chapel', name: `Chapel of St. ${rng.pick(['Wilfrid', 'Brannoc', 'Petroc', 'Edith', 'Cuthbert', 'Agatha'])}`, x: sqX - 7, bottom: top, w: 5, d: 5, wealth: 0.6, look: { wall: 'stone', stoneMat: st.stoneMat, roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 2, wallH: 38, noFlowers: true } });
+    B({ type: 'chapel', name: `Chapel of St. ${rng.pick(['Wilfrid', 'Brannoc', 'Petroc', 'Edith', 'Cuthbert', 'Agatha'])}`, x: sqX - 7, bottom: top, w: 5, d: 5, wealth: 0.6, look: { wall: 'stone', stoneMat: st.stoneMat, roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 2, wallH: 64, noFlowers: true } });
     // the main road's north side
     const rowBottom = roadY - 2;
     let x = coast ? shoreX + 4 : 4;
@@ -191,7 +191,7 @@
     K.walls(x0, y0, x1, y1, [[x0, roadY + 1], [x1, roadY + 1]], 0);
     // market and civic buildings around the square
     B({ type: 'townhall', name: 'Guildhall of Kingsbridge', x: 48, bottom: 28, w: 8, d: 5, floors: 2, wealth: 0.85, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'tile', roofType: 'gable', chimney: true, sign: 'scales', doorTile: 4, bigDoor: true, noFlowers: true } });
-    B({ type: 'chapel', name: 'Cathedral of St. Brannoc', x: 58, bottom: 21, w: 8, d: 7, wealth: 0.9, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 4, wallH: 46, bigDoor: true, noFlowers: true } });
+    B({ type: 'chapel', name: 'Cathedral of St. Brannoc', x: 58, bottom: 21, w: 8, d: 7, wealth: 0.9, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 4, wallH: 86, bigDoor: true, noFlowers: true } });
     for (let i = 0; i < 8; i++) { const sx = 46 + (i % 4) * 5, sy = 33 + Math.floor(i / 4) * 5; P('stall', sx, sy, { v: i % 4 }); K.solid[sy * W + sx - 1] = 1; K.solid[sy * W + sx + 1] = 1; }
     P('noticeboard', 54, 42, { broadsheet: true }); // the broadsheet seller's board
     P('well', 55, 41, { y: 41 * T + 15 }); K.solid[41 * W + 54] = 1;
@@ -229,10 +229,10 @@
     fill(cx0 + 1, cy0 + 1, cx1 - 1, cy1 - 1, TER.YARD); // the bailey
     fill(gateX - 1, 22, gateX, cy1, TER.COBBLE);
     K.walls(cx0, cy0, cx1, cy1, [[gateX, cy1]], 1);
-    B({ type: 'keep', name: 'The Keep of Thornbury', x: 42, bottom: 18, w: 9, d: 7, floors: 3, wealth: 0.95, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', roofType: 'gable', chimney: true, sign: 'shield', doorTile: 4, bigDoor: true, noFlowers: true, wallH: 56 } });
+    B({ type: 'keep', name: 'The Keep of Thornbury', x: 42, bottom: 18, w: 9, d: 7, floors: 3, wealth: 0.95, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', roofType: 'gable', chimney: true, sign: 'shield', doorTile: 4, bigDoor: true, noFlowers: true } });
     P('tower', 41, 18, { v: 2 }); P('tower', 51, 18, { v: 2 });
     B({ type: 'guard', name: 'Barracks', x: 31, bottom: 15, w: 7, d: 4, wealth: 0.6, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', roofType: 'side', sign: 'shield', doorTile: 3, noFlowers: true } });
-    B({ type: 'chapel', name: 'Castle Chapel', x: 56, bottom: 15, w: 5, d: 5, wealth: 0.8, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 2, wallH: 38, noFlowers: true } });
+    B({ type: 'chapel', name: 'Castle Chapel', x: 56, bottom: 15, w: 5, d: 5, wealth: 0.8, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 2, wallH: 64, noFlowers: true } });
     B({ type: 'stable', name: 'Castle Stables', x: 31, bottom: 30, w: 6, d: 3, wealth: 0.6, look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', bigDoor: true, chimney: false, doorTile: 2, noFlowers: true } });
     B({ type: 'armourer', name: 'Castle Armoury', x: 56, bottom: 30, w: 6, d: 4, wealth: 0.6, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', chimney: true, sign: 'sword', doorTile: 2, noFlowers: true } });
     B({ type: 'tavern', name: 'The Great Hall', x: 40, bottom: 28, w: 6, d: 4, floors: 2, wealth: 0.8, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', roofType: 'gable', chimney: true, sign: 'mug', doorTile: 2 } });

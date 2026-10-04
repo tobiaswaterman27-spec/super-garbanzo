@@ -833,7 +833,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     drink: { frames: 4, fps: 2.5 }, read: { frames: 2, fps: 1 }, celebrate: { frames: 4, fps: 5 }, mourn: { frames: 2, fps: 1 },
     point: { frames: 2, fps: 2 }, dig: { frames: 4, fps: 4 }, cook: { frames: 4, fps: 4 },
     attack: { frames: 4, fps: 12 }, open: { frames: 3, fps: 6 }, pickup: { frames: 2, fps: 3 }, hurt: { frames: 2, fps: 8 },
-    stretcher: { frames: 8, fps: 9 }, ride: { frames: 1, fps: 1 },
+    stretcher: { frames: 8, fps: 9 }, ride: { frames: 1, fps: 1 }, doze: { frames: 2, fps: 0.5 },
   };
 
   // Two-bone reach: the elbow (or knee) bends toward `pole`.
@@ -880,10 +880,11 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         arms = { R: relaxed(1, -0.95 * sR, 1.45, 0.12), L: relaxed(-1, -0.95 * sL, 1.45, 0.12) };
         lift = Math.abs(Math.cos(ph)) > 0.75 ? 1 : 0; P.lean = 1.8; P.headFwd = 0.6; break;
       }
-      case 'sit': {
+      case 'sit': case 'doze': {
         L = { R: leg(1, 1.45, 1.45, 0.06), L: leg(-1, 1.45, 1.45, 0.06) };
-        P.bob = f === 1 ? 0.5 : 0; P.sitting = true; break;
+        P.bob = f === 1 ? 0.5 : 0; P.sitting = true; if (anim === 'doze') { P.blink = true; P.headDown = 1; } break;
       }
+      case 'sleep': P.blink = true; break;
       case 'crouch': case 'pickup': {
         L = { R: leg(1, 1.25, 2.3, 0.18), L: leg(-1, 0.9, 2.0, 0.18) }; P.lean = 2.2; P.headDown = 1; break;
       }
@@ -946,7 +947,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       case 'open': { const r = [4.5, 7.2, 7.6][f]; A.R = reach(1, [1.4, chest + 1.5, D + r]); break; }
       case 'pickup': { A.R = reach(1, [1.5, GROUND - 2 - (f ? 0 : 1.5), D + 4]); A.L = reach(-1, [-2.5, P.legs.L.knee[1] - 1, P.legs.L.knee[2] + 1]); break; }
       case 'crouch': { A.R = reach(1, [2.2, P.legs.R.knee[1] + 1, P.legs.R.knee[2] + 0.5]); A.L = reach(-1, [-2.2, P.legs.L.knee[1] + 1, P.legs.L.knee[2] + 0.5]); break; }
-      case 'sit': { for (const s of [1, -1]) A[s > 0 ? 'R' : 'L'] = reach(s, [s * 2.2, hipY - 1.2, 5.5]); break; }
+      case 'sit': case 'doze': { for (const s of [1, -1]) A[s > 0 ? 'R' : 'L'] = reach(s, [s * 2.2, hipY - 1.2, 5.5]); break; }
       case 'eat': case 'drink': {
         const up = f === 1 || f === 2;
         A.R = reach(1, up ? mouth : [1.6, chest + 3, D + 3], [1, 0.8, -0.2]);
@@ -1004,7 +1005,6 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   // The frame is assembled back to front: hair and cloak behind, the far leg and arm, the body,
   // the head, then the near arm and whatever it holds.
   function render(a, dir, anim, f) {
-    if (anim === 'sleep') return renderSleeping(a, bodyMetrics(a), new O.MatBuffer(FW, FH));
     const m = bodyMetrics(a), V = viewOf(dir), p = pose(m, anim, f, a);
     const B = new O.MatBuffer(FW, FH); B.mirror = V.mirror;
     const cov = coverage(a), o = a.outfit;
@@ -1592,20 +1592,6 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     }
   }
 
-  function renderSleeping(a, m, B) {
-    // lying under the covers: head on the pillow, the blanket over the rest
-    B.mirror = false;
-    const blanket = P.mat(P.cloth.woad);
-    B.part(G.TORSO);
-    B.blob(16, 34, 9, 6, blanket, { power: 3 });
-    B.part(G.HEAD);
-    B.blob(16, 25, m.headRx, m.headRy * 0.9, a.skin, { power: 2.3, jaw: 0.2 });
-    for (const x of [13, 14, 17, 18]) B.plot(x, 26, a.skin, 0, 1);
-    B.part(G.HAIR);
-    if (a.hairStyle !== 'bald') B.shape(8, 17, 24, 24, (px, py) => { const dx = (px - 16) / (m.headRx + 0.6), dy = (py - 24) / (m.headRy * 0.9 + 0.5); return dx * dx + dy * dy <= 1 && py < 23; }, (px, py) => [(px - 16) / 7, -0.5, 0.7], a.hair, { maxShade: 3 });
-    return B.toCanvas();
-  }
-
   // ---------- Sprite sheet cache ----------
   // Frames are generated lazily and kept in a bounded LRU so thousands of NPCs can exist while only
   // the nearby ones hold pixel data.
@@ -1626,6 +1612,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   // where the hips sit in a frame (riders are placed on a saddle by their hips)
   const hipCache = new Map();
   function hipY(a, anim) { const k = a.seed + anim + a.age; if (!hipCache.has(k)) hipCache.set(k, pose(bodyMetrics(a), anim, 0, a).hipY); return hipCache.get(k); }
+  // where the head sits in a standing frame (to lay a sleeper's head on a pillow)
+  function headY(a) { const m = bodyMetrics(a); return { cy: pose(m, 'sleep', 0, a).head[1], ry: m.headRy }; }
   function invalidate(a) { a.cacheVer = (a.cacheVer || 0) + 1; }
 
   // Build a full sprite sheet canvas: rows = anim x dir, cols = frames.
@@ -1639,7 +1627,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     return { canvas: c, rows, fw: FW, fh: FH };
   }
 
-  O.Char = { makeAppearance, randomGenes, inheritGenes, bodyMetrics, ageStage, outfitFor, render, frame, sheet, invalidate, ANIMS, FW, FH, GROUND, HAIR_STYLES_M, HAIR_STYLES_F, BEARDS, dirOf, dir4, DIRV, hipY };
+  O.Char = { makeAppearance, randomGenes, inheritGenes, bodyMetrics, ageStage, outfitFor, render, frame, sheet, invalidate, ANIMS, FW, FH, GROUND, HAIR_STYLES_M, HAIR_STYLES_F, BEARDS, dirOf, dir4, DIRV, hipY, headY };
   O.dirOf = dirOf; O.dir4 = dir4;
 })();
 
@@ -2485,7 +2473,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     house(8, 40, 4, 4); house(13, 40, 4, 3); house(18, 40, 4, 4); house(23, 40, 3, 3);
     B({ type: 'store', name: 'General Store', x: 28, bottom: 40, w: 5, d: 4, wealth: 0.55, look: { wall: 'timber', plaster: 'plasterPink', roof: 'shingle', roofType: 'gable', chimney: true, sign: 'scales', doorTile: 2, shopWindow: true } });
     house(34, 40, 4, 4); house(39, 40, 5, 4, { floors: 2 }); house(48, 40, 4, 4); house(53, 40, 4, 3); house(58, 40, 4, 4);
-    B({ type: 'chapel', name: 'Chapel of St. Aldric', x: 63, bottom: 40, w: 5, d: 5, wealth: 0.6, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 2, wallH: 38, noFlowers: true } });
+    B({ type: 'chapel', name: 'Chapel of St. Aldric', x: 63, bottom: 40, w: 5, d: 5, wealth: 0.6, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 2, wallH: 64, noFlowers: true } });
     house(69, 40, 4, 3);
     B({ type: 'mill', name: 'Ashford Mill', x: 74, bottom: 40, w: 4, d: 4, floors: 2, wealth: 0.5, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'thatch', roofType: 'gable', doorTile: 1, noFlowers: true } });
     // Farm
@@ -2747,7 +2735,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     const top = roadY - (town ? 9 : 7);
     B({ type: 'tavern', name: `The ${rng.pick(['Golden', 'Drowned', 'Black', 'Merry', 'Old', 'Red'])} ${rng.pick(['Stag', 'Anchor', 'Goose', 'Plough', 'Boar', 'Bell'])}`, x: sqX, bottom: top, w: 6, d: 5, floors: 2, wealth: 0.65, look: look(0.65, { roofType: 'gable', sign: 'mug', doorTile: 2 }) });
     B({ type: 'bakery', name: 'Bakery', x: sqX + 10, bottom: top, w: 4, d: 4, wealth: 0.55, look: look(0.55, { sign: 'bread', shopWindow: true }) });
-    B({ type: 'chapel', name: `Chapel of St. ${rng.pick(['Wilfrid', 'Brannoc', 'Petroc', 'Edith', 'Cuthbert', 'Agatha'])}`, x: sqX - 7, bottom: top, w: 5, d: 5, wealth: 0.6, look: { wall: 'stone', stoneMat: st.stoneMat, roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 2, wallH: 38, noFlowers: true } });
+    B({ type: 'chapel', name: `Chapel of St. ${rng.pick(['Wilfrid', 'Brannoc', 'Petroc', 'Edith', 'Cuthbert', 'Agatha'])}`, x: sqX - 7, bottom: top, w: 5, d: 5, wealth: 0.6, look: { wall: 'stone', stoneMat: st.stoneMat, roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 2, wallH: 64, noFlowers: true } });
     // the main road's north side
     const rowBottom = roadY - 2;
     let x = coast ? shoreX + 4 : 4;
@@ -2883,7 +2871,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     K.walls(x0, y0, x1, y1, [[x0, roadY + 1], [x1, roadY + 1]], 0);
     // market and civic buildings around the square
     B({ type: 'townhall', name: 'Guildhall of Kingsbridge', x: 48, bottom: 28, w: 8, d: 5, floors: 2, wealth: 0.85, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'tile', roofType: 'gable', chimney: true, sign: 'scales', doorTile: 4, bigDoor: true, noFlowers: true } });
-    B({ type: 'chapel', name: 'Cathedral of St. Brannoc', x: 58, bottom: 21, w: 8, d: 7, wealth: 0.9, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 4, wallH: 46, bigDoor: true, noFlowers: true } });
+    B({ type: 'chapel', name: 'Cathedral of St. Brannoc', x: 58, bottom: 21, w: 8, d: 7, wealth: 0.9, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 4, wallH: 86, bigDoor: true, noFlowers: true } });
     for (let i = 0; i < 8; i++) { const sx = 46 + (i % 4) * 5, sy = 33 + Math.floor(i / 4) * 5; P('stall', sx, sy, { v: i % 4 }); K.solid[sy * W + sx - 1] = 1; K.solid[sy * W + sx + 1] = 1; }
     P('noticeboard', 54, 42, { broadsheet: true }); // the broadsheet seller's board
     P('well', 55, 41, { y: 41 * T + 15 }); K.solid[41 * W + 54] = 1;
@@ -2921,10 +2909,10 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     fill(cx0 + 1, cy0 + 1, cx1 - 1, cy1 - 1, TER.YARD); // the bailey
     fill(gateX - 1, 22, gateX, cy1, TER.COBBLE);
     K.walls(cx0, cy0, cx1, cy1, [[gateX, cy1]], 1);
-    B({ type: 'keep', name: 'The Keep of Thornbury', x: 42, bottom: 18, w: 9, d: 7, floors: 3, wealth: 0.95, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', roofType: 'gable', chimney: true, sign: 'shield', doorTile: 4, bigDoor: true, noFlowers: true, wallH: 56 } });
+    B({ type: 'keep', name: 'The Keep of Thornbury', x: 42, bottom: 18, w: 9, d: 7, floors: 3, wealth: 0.95, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', roofType: 'gable', chimney: true, sign: 'shield', doorTile: 4, bigDoor: true, noFlowers: true } });
     P('tower', 41, 18, { v: 2 }); P('tower', 51, 18, { v: 2 });
     B({ type: 'guard', name: 'Barracks', x: 31, bottom: 15, w: 7, d: 4, wealth: 0.6, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', roofType: 'side', sign: 'shield', doorTile: 3, noFlowers: true } });
-    B({ type: 'chapel', name: 'Castle Chapel', x: 56, bottom: 15, w: 5, d: 5, wealth: 0.8, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 2, wallH: 38, noFlowers: true } });
+    B({ type: 'chapel', name: 'Castle Chapel', x: 56, bottom: 15, w: 5, d: 5, wealth: 0.8, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 2, wallH: 64, noFlowers: true } });
     B({ type: 'stable', name: 'Castle Stables', x: 31, bottom: 30, w: 6, d: 3, wealth: 0.6, look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', bigDoor: true, chimney: false, doorTile: 2, noFlowers: true } });
     B({ type: 'armourer', name: 'Castle Armoury', x: 56, bottom: 30, w: 6, d: 4, wealth: 0.6, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', chimney: true, sign: 'sword', doorTile: 2, noFlowers: true } });
     B({ type: 'tavern', name: 'The Great Hall', x: 40, bottom: 28, w: 6, d: 4, floors: 2, wealth: 0.8, look: { wall: 'stone', stoneMat: 'stoneNorth', roof: 'slate', roofType: 'gable', chimney: true, sign: 'mug', doorTile: 2 } });
@@ -4059,15 +4047,22 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     S.recordCrime = function (o) {
       const crime = Object.assign({ id: this.crimes.length + 1, day: this.day, minute: Math.floor(this.minute), witnesses: [], reported: false, investigated: false, profile: null, solved: false, severity: 1 }, o);
       const look = o.perp === 'player' ? lookOf(O.game.player.a) : o.perp ? lookOf(o.perp.app) : null;
-      for (const w of o.seen || []) {
-        const acc = O.clamp(0.45 + (w.traits.includes('curious') ? 0.2 : 0) + (w.traits.includes('suspicious') ? 0.15 : 0) - (w.age > 70 ? 0.2 : 0) - (w.age < 12 ? 0.15 : 0) + this.rng.float(-0.2, 0.2) - (this.hour < 6 || this.hour > 20.5 ? 0.2 : 0), 0.1, 1);
+      // the victim is a witness too, whenever they realise what happened
+      const seenList = [...(o.seen || [])];
+      if (o.victimPerson && !seenList.includes(o.victimPerson) && o.victimPerson.alive !== false) seenList.push(o.victimPerson);
+      for (const w of seenList) {
+        const isVictim = w === o.victimPerson;
+        const acc = O.clamp((isVictim && o.victimLate ? -0.25 : 0) + 0.45 + (w.traits.includes('curious') ? 0.2 : 0) + (w.traits.includes('suspicious') ? 0.15 : 0) - (w.age > 70 ? 0.2 : 0) - (w.age < 12 ? 0.15 : 0) + this.rng.float(-0.2, 0.2) - (this.hour < 6 || this.hour > 20.5 ? 0.2 : 0), 0.1, 1);
         const desc = look ? remembered(look, acc, this.rng) : {};
         crime.witnesses.push({ id: w.id, desc, acc });
         this.remember(w, `Saw ${crime.kind === 'pickpocket' ? 'a cutpurse at work' : crime.kind === 'burglary' ? 'someone break into a house' : 'a thief'} ${crime.placeName ? 'at ' + crime.placeName : ''}: ${describe(desc)}.`, 'crime', 1.6, o.perp === 'player' ? 0 : o.perp?.id);
         if (o.perp === 'player') this.relate(w, { id: 0 }, -0.4);
         // most honest folk go to the watch; the timid, the hostile and the player's friends may not
         const friend = (w.rel.get(0)?.affinity || 0) > 0.4 && o.perp === 'player';
-        if (!w.traits.includes('cowardly') && !friend && w.age >= 12 && w.health.hp > 0 && w.health.state !== 'incapacitated' && (w.attitude > -0.2 || this.rng.chance(0.3)) && !w.task) w.task = { act: 'report', b: this.guardId, crime: crime.id };
+        // the victim nearly always goes; the timid sometimes find their courage
+        const will = isVictim ? (w.traits.includes('cowardly') ? 0.6 : 0.92) : w.traits.includes('cowardly') ? 0.3 : w.attitude > -0.2 ? 0.95 : 0.3;
+        if (!friend && w.age >= 12 && w.health.hp > 0 && w.health.state !== 'incapacitated' && this.rng.chance(will) && !w.task) w.task = { act: 'report', b: this.guardId, crime: crime.id };
+        if (isVictim) crime.victimId = w.id;
       }
       delete crime.seen;
       this.crimes.push(crime);
@@ -6786,541 +6781,855 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
 </script>
 <script>
-// Interior art: rooms (back wall, side walls, floors) and furniture, in the same material raster.
-// Furniture is anchored at the bottom-centre of its footprint like world props.
+// Interior art: rooms (back wall, side walls, floor, the front wall with its doorway) and furniture,
+// in the same material raster as everything else. Furniture is drawn to the scale of the people who
+// use it: a bed is long enough to lie in, a table high enough to sit at, a door wide enough to walk
+// through. Each piece stands on a floor footprint of whole tiles (16px) and rises above it in the
+// 3/4 view; it is anchored at the bottom-centre of that footprint.
+//
+// Some pieces come in layers so people can be inside them: a bed has a `cover` (the blanket and the
+// foot of the bed) drawn over the sleeper, a chair or pew facing away from us has a `back` drawn over
+// whoever sits in it.
 'use strict';
 (function () {
   const P = O.Pal, C = P.cloth, MB = O.MatBuffer, E = O.Env;
+  const T = 16;
   const cache = new Map();
-  const wood = () => P.mat(P.wood.oak, 'wood'), dark = () => P.mat(P.wood.dark, 'wood'), pine = () => P.mat(P.wood.pine, 'wood');
-  const stone = () => P.mat('#8e8880', 'cloth'), iron = () => P.mat(P.metal.darkIron, 'metal');
-  const GOOD_COL = { bread: '#c88a45', cabbage: '#6a9a44', flour: '#e6dcc4', wheat: '#d8b048', ale: '#8a5a30', meal: '#a0603a', logs: '#7c5a38', planks: '#b08a5a', firewood: '#8a6239', iron: '#7a7e88', tools: '#9aa0aa', medicine: '#6a9ad0', herbs: '#5a9a40', stone: '#9a948a' };
+  const wood = () => P.mat(P.wood.oak, 'wood'), dark = () => P.mat(P.wood.dark, 'wood'), pine = () => P.mat(P.wood.pine, 'wood'), walnut = () => P.mat(P.wood.walnut, 'wood');
+  const stone = () => P.mat('#8e8880', 'cloth'), iron = () => P.mat(P.metal.darkIron, 'metal'), brass = () => P.mat(P.metal.brass, 'metal'), white = () => P.mat('#ece6d8', 'cloth');
+  const GOOD_COL = { bread: '#c88a45', cabbage: '#6a9a44', flour: '#e6dcc4', wheat: '#d8b048', ale: '#8a5a30', meal: '#a0603a', logs: '#7c5a38', planks: '#b08a5a', firewood: '#8a6239', iron: '#7a7e88', tools: '#9aa0aa', medicine: '#6a9ad0', herbs: '#5a9a40', stone: '#9a948a', meat: '#a8443a', ring: '#e0c050', brooch: '#c8a040', helm: '#9aa0aa', sword: '#b8bcc4', furniture: '#8a6239' };
+  const woodFor = (v) => (v >= 2 ? walnut() : v === 1 ? wood() : pine());
 
-  function finish(B, ox, oy, opts) { return { canvas: B.toCanvas(opts), ox, oy, W: B.w, H: B.h }; }
+  // A sprite with room for a footprint of fw x fh tiles and `up` pixels of height above it.
+  function canvasFor(fw, fh, up, extraW = 0) {
+    const W = fw * T + 4 + extraW * 2, H = fh * T + up + 4;
+    const B = new MB(W, H);
+    const fx = 2 + extraW, fy = up + 2; // top-left of the footprint on the floor
+    return { B, W, H, fx, fy, fx1: fx + fw * T - 1, fy1: fy + fh * T - 1 };
+  }
+  function finish(S, opts) { return { canvas: S.B.toCanvas(opts), ox: S.fx + (S.fx1 - S.fx + 1) / 2, oy: S.fy1, W: S.W, H: S.H }; }
+  function layer(S, draw) { const L = new MB(S.W, S.H); draw(L); return L.toCanvas(); }
 
-  function furniture(kind, v = 0, seed = 1) {
-    const key = kind + ':' + v + ':' + seed;
+  // a box in 3/4 view: top face (seen from above) and front face, x0..x1 across, the top face from
+  // yTop to yTop+depth, the front face below it down to yBottom
+  function box(B, x0, x1, yTop, depth, yBottom, mat, opts = {}) {
+    const top = opts.topMat || mat;
+    for (let y = yTop; y < yTop + depth; y++) for (let x = x0; x <= x1; x++) B.plot(x, y, top, y === yTop ? 4 : x === x0 ? 3 : 3);
+    for (let y = yTop + depth; y <= yBottom; y++) for (let x = x0; x <= x1; x++) B.plot(x, y, mat, y === yTop + depth ? 2 : x === x0 ? 2 : x === x1 ? 1 : 2);
+    if (opts.grain) for (let y = yTop + 1; y < yTop + depth; y++) for (let x = x0 + 1; x < x1; x++) if ((x * 7 + y * 3 + (opts.grain | 0)) % 11 === 0) B.tweak(x, y, -1);
+  }
+  const leg = (B, x, y0, y1, m, w = 2) => { for (let y = y0; y <= y1; y++) for (let k = 0; k < w; k++) B.plot(x + k, y, m, k === 0 ? 3 : 1); };
+
+  // ---- beds ----
+  function quiltMat(v, rng) { return P.mat(v >= 2 ? rng.pick([C.crimson, C.navy, C.forest, C.plum, C.teal]) : v === 1 ? rng.pick([C.woad, C.russet, C.ochre, C.sage, C.madder]) : rng.pick([C.undyed, C.wool, C.greyWool])); }
+  function quiltPattern(L, x0, x1, y0, y1, qm, v, rng) {
+    const alt = P.mat(v >= 2 ? C.mustard : v === 1 ? C.linen : C.brown);
+    const cell = v >= 1 ? 6 : 0;
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      let m = qm, s = 2;
+      if (cell && (Math.floor((x - x0) / cell) + Math.floor((y - y0) / cell)) % 2 === 0 && v === 1) m = qm, s = 3;
+      if (v >= 2 && ((x - x0) === 2 || (x1 - x) === 2)) m = alt, s = 3; // a border band
+      if (y === y0) s = 4; else if (y === y0 + 1) s = 3; else if (y >= y1 - 1) s = 1;
+      if (x === x0 || x === x1) s = Math.max(0, s - 1);
+      L.plot(x, y, m, s);
+    }
+    if (v === 0) for (let i = 0; i < 6; i++) L.tweak(rng.int(x0 + 1, x1 - 1), rng.int(y0 + 3, y1 - 2), -1);
+    // the fold of the turned-down sheet
+    const sh = white(); for (let x = x0; x <= x1; x++) { L.plot(x, y0, sh, 4); L.plot(x, y0 + 1, sh, 3); L.plot(x, y0 + 2, sh, 2); }
+  }
+  function bed(kind, v, seed, rot) {
+    const rng = O.RNG(seed), fr = woodFor(v), qm = quiltMat(v, rng);
+    if (rot === 0) { // head against the back wall
+      const fw = kind === 'double' ? 3 : 2, S = canvasFor(fw, 3, 16), { B, fx, fx1, fy, fy1 } = S;
+      // headboard and posts
+      B.part(1); box(B, fx, fx1, fy - 14, 2, fy + 4, fr); for (let x = fx + 3; x < fx1 - 2; x += 4) for (let y = fy - 10; y < fy + 2; y++) B.tweak(x, y, -1);
+      if (v >= 2) { for (let x = fx; x <= fx1; x++) B.plot(x, fy - 15 - Math.round(Math.sin(((x - fx) / (fx1 - fx)) * Math.PI) * 3), fr, 4); }
+      leg(B, fx, fy - 16, fy + 6, fr, 2); leg(B, fx1 - 1, fy - 16, fy + 6, fr, 2);
+      // frame and mattress
+      B.part(2); box(B, fx + 1, fx1 - 1, fy + 3, 2, fy1 - 2, fr);
+      B.part(3); for (let y = fy + 5; y < fy1 - 6; y++) for (let x = fx + 2; x <= fx1 - 2; x++) B.plot(x, y, white(), y === fy + 5 ? 4 : 3);
+      // pillows
+      const pillows = kind === 'double' ? [fx + (fx1 - fx) * 0.28, fx + (fx1 - fx) * 0.72] : [(fx + fx1) / 2];
+      B.part(4); for (const px of pillows) { B.blob(px, fy + 9, kind === 'double' ? 8 : 9, 3.6, white(), { power: 3 }); B.tweak(px, fy + 11, -1); }
+      const out = finish(S);
+      const coverTop = fy + 18;
+      out.cover = layer(S, (L) => {
+        L.part(5); quiltPattern(L, fx + 1, fx1 - 1, coverTop, fy1 - 3, qm, v, rng);
+        // footboard
+        L.part(6); box(L, fx, fx1, fy1 - 6, 2, fy1 + 1, fr); leg(L, fx, fy1 - 8, fy1 + 1, fr, 2); leg(L, fx1 - 1, fy1 - 8, fy1 + 1, fr, 2);
+      });
+      out.pillows = pillows.map((px) => [px - (S.fx + (S.fx1 - S.fx + 1) / 2), fy + 9 - S.fy1]); // relative to the anchor
+      out.rot = 0; out.coverTop = coverTop - S.fy1;
+      return out;
+    }
+    // head against a side wall (rot 1 = left wall; rot 2 is the same piece mirrored by the caller)
+    const S = canvasFor(3, 2, 14), { B, fx, fx1, fy, fy1 } = S;
+    B.part(1); for (let y = fy - 12; y <= fy1; y++) for (let x = fx; x < fx + 3; x++) B.plot(x, y, fr, x === fx ? 3 : x === fx + 1 ? 2 : 1);
+    for (let y = fy - 13; y <= fy - 11; y++) for (let x = fx - 1; x < fx + 4; x++) B.plot(x, y, fr, 4);
+    B.part(2); box(B, fx + 3, fx1 - 1, fy + 2, 22, fy1, fr, { topMat: white() });
+    B.part(4); B.blob(fx + 9, fy + 12, 4, 7, white(), { power: 3 }); B.tweak(fx + 10, fy + 13, -1);
+    const out = finish(S);
+    out.cover = layer(S, (L) => {
+      L.part(5); for (let y = fy + 2; y <= fy + 25; y++) for (let x = fx + 16; x <= fx1 - 1; x++) L.plot(x, y, qm, x === fx + 16 ? 4 : y === fy + 2 ? 3 : y > fy + 22 ? 1 : 2);
+      const sh = white(); for (let y = fy + 2; y <= fy + 25; y++) { L.plot(fx + 16, y, sh, 4); L.plot(fx + 17, y, sh, 3); }
+      if (v >= 1) for (let y = fy + 4; y < fy + 24; y += 5) for (let x = fx + 19; x < fx1 - 1; x++) L.tweak(x, y, -1);
+      L.part(6); for (let y = fy - 2; y <= fy1; y++) for (let x = fx1 - 1; x <= fx1; x++) L.plot(x, y, fr, x === fx1 ? 1 : 2);
+    });
+    out.pillows = [[fx + 9 - (S.fx + (S.fx1 - S.fx + 1) / 2), fy + 12 - S.fy1]];
+    out.rot = 1; out.coverTop = 0;
+    return out;
+  }
+
+  function furniture(kind, v = 0, seed = 1, rot = 0) {
+    const key = kind + ':' + v + ':' + seed + ':' + rot;
     if (cache.has(key)) return cache.get(key);
     const rng = O.RNG(seed);
-    let out;
+    let out, S;
     switch (kind) {
-      case 'bed': { // 16 x 28 footprint, head against the wall (top)
-        const B = new MB(18, 30); const fr = v >= 2 ? dark() : wood();
-        const blanket = P.mat(v >= 2 ? rng.pick([C.crimson, C.navy, C.forest, C.plum]) : v === 1 ? rng.pick([C.woad, C.russet, C.ochre, C.sage]) : C.undyed);
-        B.part(1); B.rect(1, 1, 16, 7, fr, 2); for (let x = 1; x < 17; x++) { B.shadeAt(x, 1, 3); B.shadeAt(x, 7, 1); } // headboard
-        B.part(2); B.rect(2, 8, 14, 20, fr, 1);
-        B.part(3); B.blob(9, 10, 5.5, 2.2, P.mat(C.white), { power: 2.5 }); // pillow
-        B.part(4); B.poly([[2, 13], [16, 13], [16, 27], [2, 27]], (px, py) => [(px - 9) / 9, 0.1, 0.9], blanket);
-        for (let x = 2; x < 16; x++) B.shadeAt(x, 13, 3);
-        for (let y = 15; y < 27; y += 4) for (let x = 3; x < 16; x++) if ((x + y) % 7 === 0) B.tweak(x, y, -1);
-        if (v === 0) for (let i = 0; i < 4; i++) B.tweak(rng.int(3, 15), rng.int(15, 26), -1); // worn patches
-        B.part(5); B.rect(1, 27, 16, 2, fr, 1);
-        out = finish(B, 9, 29); break;
+      case 'bed': out = bed('single', v, seed, rot); break;
+      case 'double': out = bed('double', v, seed, rot ? 0 : 0); break;
+      case 'medbed': {
+        out = bed('single', 0, seed, 0); // linen-white, iron frame
+        S = canvasFor(2, 3, 16); const { B, fx, fx1, fy, fy1 } = S; const fr = iron();
+        B.part(1); for (let x = fx; x <= fx1; x++) { B.plot(x, fy - 12, fr, 3); B.plot(x, fy - 6, fr, 2); } leg(B, fx, fy - 13, fy + 6, fr, 1); leg(B, fx1, fy - 13, fy + 6, fr, 1);
+        B.part(2); box(B, fx + 1, fx1 - 1, fy + 3, 2, fy1 - 2, fr);
+        B.part(3); for (let y = fy + 5; y < fy1 - 6; y++) for (let x = fx + 2; x <= fx1 - 2; x++) B.plot(x, y, white(), 3);
+        B.part(4); B.blob((fx + fx1) / 2, fy + 9, 9, 3.6, white(), { power: 3 });
+        const o2 = finish(S); o2.pillows = out.pillows; o2.coverTop = out.coverTop; o2.rot = 0;
+        o2.cover = layer(S, (L) => { L.part(5); for (let y = fy + 18; y <= fy1 - 3; y++) for (let x = fx + 1; x <= fx1 - 1; x++) L.plot(x, y, white(), y === fy + 18 ? 4 : y > fy1 - 5 ? 1 : 2); for (let x = fx + 1; x <= fx1 - 1; x++) L.plot(x, fy + 20, P.mat(C.sky), 3); L.part(6); for (let x = fx; x <= fx1; x++) L.plot(x, fy1 - 2, fr, 2); });
+        out = o2; break;
       }
-      case 'table': {
-        const B = new MB(30, 20); const m = v >= 2 ? dark() : wood();
-        B.part(1); B.capsule(4, 19, 4, 10, 1, 1, m); B.capsule(26, 19, 26, 10, 1, 1, m);
-        B.part(2); B.rect(1, 3, 28, 8, m, 3); for (let x = 1; x < 29; x++) { B.shadeAt(x, 3, 4); B.shadeAt(x, 10, 1); } for (let x = 1; x < 29; x += 7) for (let y = 4; y < 10; y++) B.shadeAt(x, y, 2);
-        B.part(3); // things on the table
-        if (v !== 9) { B.blob(9, 6, 2.4, 1.5, P.mat('#c8b89a', 'cloth'), { power: 2 }); B.blob(20, 6, 1.4, 1.8, P.mat(P.wood.walnut, 'wood'), { power: 3 }); if (rng.chance(0.6)) B.blob(15, 5, 2.4, 1.4, P.mat(GOOD_COL.bread, 'wood'), { power: 2 }); }
-        out = finish(B, 15, 19); break;
+      case 'cradle': {
+        S = canvasFor(2, 2, 6); const { B, fx, fx1, fy, fy1 } = S; const m = woodFor(v);
+        B.part(1); box(B, fx + 3, fx1 - 3, fy + 2, 18, fy1 - 3, m, { topMat: white() });
+        for (let y = fy + 4; y < fy + 19; y++) for (let x = fx + 5; x <= fx1 - 5; x++) B.plot(x, y, white(), 3);
+        B.part(2); for (let x = fx + 1; x <= fx1 - 1; x++) { B.plot(x, fy1 - 1 - Math.round(Math.sin(((x - fx) / (fx1 - fx)) * Math.PI) * 2), m, 2); }
+        out = finish(S); out.pillows = [[0, fy + 8 - S.fy1]]; out.coverTop = fy + 12 - S.fy1;
+        out.cover = layer(S, (L) => { L.part(5); const q = quiltMat(v, rng); for (let y = fy + 12; y < fy + 19; y++) for (let x = fx + 5; x <= fx1 - 5; x++) L.plot(x, y, q, y === fy + 12 ? 4 : 2); L.part(6); for (let x = fx + 3; x <= fx1 - 3; x++) for (let y = fy + 19; y <= fy1 - 3; y++) L.plot(x, y, m, y === fy + 19 ? 3 : 1); });
+        break;
+      }
+      case 'table': case 'longtable': {
+        const fw = kind === 'longtable' ? 5 : 3; S = canvasFor(fw, 2, 14); const { B, fx, fx1, fy, fy1 } = S; const m = woodFor(v);
+        const top = fy - 12, bot = fy1 - 14;
+        B.part(1); leg(B, fx + 2, bot, fy1, m); leg(B, fx1 - 3, bot, fy1, m);
+        B.part(2); box(B, fx, fx1, top, bot - top, bot + 3, m, { grain: seed });
+        for (let x = fx; x <= fx1; x += 9) for (let y = top + 1; y < bot; y++) B.shadeAt(x, y, 2); // planks
+        // the table is laid: trenchers, mugs, bread, a candle
+        B.part(3);
+        const n = Math.max(2, Math.floor((fx1 - fx) / 14));
+        for (let i = 0; i < n; i++) { const px = fx + 7 + (i * (fx1 - fx - 14)) / Math.max(1, n - 1); B.blob(px, top + 6, 3, 1.8, P.mat(v >= 2 ? '#d8d4cc' : '#b8a888', v >= 2 ? 'metal' : 'wood'), { power: 2 }); B.blob(px + 4, top + 4, 1.2, 1.8, walnut(), { power: 3 }); }
+        if (rng.chance(0.7)) B.blob((fx + fx1) / 2, top + 11, 3.4, 2, P.mat(GOOD_COL.bread, 'wood'), { power: 2 });
+        if (v >= 1) { const cx = Math.round((fx + fx1) / 2) + 6; B.rect(cx, top + 6, 2, 5, P.mat('#efe6cc', 'cloth'), 3); B.plot(cx, top + 11, brass(), 3); B.plot(cx + 1, top + 11, brass(), 2); }
+        out = finish(S); if (v >= 1) out.candles = [[Math.round((fx + fx1) / 2) + 6 - out.ox, top + 5 - out.oy]];
+        break;
       }
       case 'chair': case 'stool': {
-        const B = new MB(10, 16); const m = wood();
-        B.part(1); B.capsule(2, 15, 2, 9, 0.8, 0.8, m); B.capsule(8, 15, 8, 9, 0.8, 0.8, m);
-        B.part(2); B.rect(1, 7, 8, 3, m, 3); for (let x = 1; x < 9; x++) B.shadeAt(x, 9, 1);
-        if (kind === 'chair') { B.part(0); B.rect(1, 1, 8, 6, m, 2); for (let x = 1; x < 9; x++) B.shadeAt(x, 1, 3); for (let y = 2; y < 6; y++) B.shadeAt(4, y, 1); }
-        out = finish(B, 5, 15); break;
+        // rot = which way the sitter faces: 0 toward us, 1 left, 2 right, 3 away
+        S = canvasFor(1, 1, 22); const { B, fx, fx1, fy, fy1 } = S; const m = woodFor(v);
+        const seatY = fy1 - 10;
+        B.part(1); leg(B, fx + 2, seatY, fy1, m, 1); leg(B, fx1 - 2, seatY, fy1, m, 1);
+        B.part(2); box(B, fx + 1, fx1 - 1, seatY - 8, 8, seatY + 1, m);
+        if (v >= 2 && kind === 'chair') for (let y = seatY - 7; y < seatY; y++) for (let x = fx + 2; x < fx1 - 1; x++) B.plot(x, y, P.mat(C.crimson), 3);
+        const back = (L) => { L.part(3); for (let y = seatY - 22; y <= seatY - 1; y++) for (let x = fx + 1; x <= fx1 - 1; x++) { const edge = x === fx + 1 || x === fx1 - 1 || y === seatY - 22 || y === seatY - 16; if (edge || (x - fx) % 4 === 0) L.plot(x, y, m, edge ? (y === seatY - 22 ? 4 : 2) : 1); } };
+        const sideBack = (L, right) => { L.part(3); const x = right ? fx1 - 1 : fx + 1; for (let y = seatY - 22; y <= seatY + 1; y++) for (let k = 0; k < 2; k++) L.plot(x + (right ? k - 1 : k), y, m, k ? 1 : 3); for (let y = seatY - 22; y <= seatY - 4; y += 6) for (let xx = fx + 2; xx < fx1 - 1; xx++) if (false) L.plot(xx, y, m, 2); };
+        if (kind === 'chair') { if (rot === 0) { const L = B; back(L); } else if (rot === 1) sideBack(B, true); else if (rot === 2) sideBack(B, false); }
+        out = finish(S);
+        if (kind === 'chair' && rot === 3) out.back = layer(S, (L) => back(L));
+        out.seatY = seatY - 4 - S.fy1;
+        break;
       }
-      case 'fireplace': { // against the back wall: 24 wide
-        const B = new MB(28, 34); const s = stone();
-        B.part(1); B.rect(1, 1, 26, 32, s, 2);
-        for (let y = 1; y < 33; y++) for (let x = 1; x < 27; x++) { const r = (y - 1) % 5, off = Math.floor((y - 1) / 5) % 2 ? 3 : 0; if (r === 4 || (x + off) % 7 === 0) B.shadeAt(x, y, 0); else if (r === 0) B.shadeAt(x, y, 3); }
-        B.part(2); B.rect(5, 14, 18, 19, P.mat('#1c1418', 'cloth'), 0); // firebox
-        B.rect(0, 10, 28, 3, dark(), 3); for (let x = 0; x < 28; x++) B.shadeAt(x, 12, 1); // mantel
-        B.part(3); for (let i = 0; i < 4; i++) B.blob(9 + i * 3.5, 30, 1.8, 1.2, P.mat('#5a3d26', 'wood'), { power: 2 }); // logs
-        if (v) { B.part(4); B.blob(8, 8, 1.4, 1.8, P.mat('#c8b8a0', 'cloth'), { power: 3 }); B.blob(20, 8, 1.6, 1.6, P.mat(P.metal.copper, 'metal'), { power: 2 }); }
-        out = finish(B, 14, 33); out.fire = { x: 14, y: 26, w: 14 }; break;
+      case 'bench': {
+        S = canvasFor(3, 1, 12); const { B, fx, fx1, fy1 } = S; const m = woodFor(v);
+        const seatY = fy1 - 9;
+        B.part(1); leg(B, fx + 2, seatY, fy1, m); leg(B, fx1 - 3, seatY, fy1, m);
+        B.part(2); box(B, fx, fx1, seatY - 7, 7, seatY + 2, m, { grain: seed });
+        out = finish(S); out.seatY = seatY - 4 - S.fy1; break;
       }
-      case 'oven': { // baker's dome oven
-        const B = new MB(30, 32); const s = P.mat('#b8826a', 'cloth');
-        B.part(1); B.blob(15, 16, 13, 14, s, { power: 2.1 }); B.rect(2, 16, 26, 15, s, 2);
-        for (let y = 2; y < 31; y++) for (let x = 2; x < 29; x++) if (B.matAt(x, y) === s && ((y % 4 === 0) || ((x + (Math.floor(y / 4) % 2) * 2) % 5 === 0))) B.tweak(x, y, -1);
-        B.part(2); B.blob(15, 22, 6, 5, P.mat('#1c1418', 'cloth'), { power: 2.2 }, ); B.rect(9, 22, 12, 6, P.mat('#1c1418', 'cloth'), 0);
-        out = finish(B, 15, 31); out.fire = { x: 15, y: 25, w: 9 }; break;
+      case 'pew': { // worshippers face the altar (away from us): the backrest is on our side
+        S = canvasFor(rot || 5, 1, 24); const { B, fx, fx1, fy1 } = S; const m = dark();
+        const seatY = fy1 - 9;
+        B.part(1); leg(B, fx + 1, seatY, fy1, m); leg(B, fx1 - 2, seatY, fy1, m);
+        B.part(2); box(B, fx, fx1, seatY - 8, 8, seatY + 2, m, { grain: seed });
+        out = finish(S); out.seatY = seatY - 4 - S.fy1;
+        out.back = layer(S, (L) => { L.part(3); box(L, fx, fx1, seatY - 20, 2, seatY + 4, m); for (let x = fx + 4; x < fx1 - 2; x += 8) for (let y = seatY - 16; y < seatY + 3; y++) L.tweak(x, y, -1); L.part(4); for (const x of [fx, fx1 - 2]) for (let y = seatY - 23; y <= fy1; y++) { L.plot(x, y, m, 3); L.plot(x + 1, y, m, 1); } });
+        break;
+      }
+      case 'fireplace': { // stone hearth against the back wall
+        S = canvasFor(3, 1, 52); const { B, fx, fx1, fy, fy1 } = S; const s = stone();
+        B.part(1);
+        for (let y = fy - 50; y <= fy1; y++) for (let x = fx; x <= fx1; x++) { const r = (y - fy) % 6, off = Math.floor((y - fy + 60) / 6) % 2 ? 4 : 0; B.plot(x, y, s, r === 5 || (x + off) % 9 === 0 ? 0 : r === 0 ? 3 : 2); }
+        B.part(2); for (let y = fy - 24; y <= fy1 - 3; y++) for (let x = fx + 7; x <= fx1 - 7; x++) { const top = y < fy - 21 && Math.abs(x - (fx + fx1) / 2) > (fx1 - fx) / 2 - 7 - (fy - 21 - y) * 2; if (!top) B.plot(x, y, P.mat('#1c1418', 'cloth'), y > fy1 - 6 ? 1 : 0); }
+        B.part(3); box(B, fx - 1, fx1 + 1, fy - 30, 3, fy - 27, dark()); // mantel
+        for (let i = 0; i < 4; i++) B.blob(fx + 14 + i * 5, fy1 - 4, 2.4, 1.6, P.mat('#5a3d26', 'wood'), { power: 2 });
+        // a pot on its hook, and things on the mantel
+        B.part(4); B.capsule((fx + fx1) / 2, fy - 22, (fx + fx1) / 2, fy - 14, 0.4, 0.4, iron()); B.blob((fx + fx1) / 2, fy - 10, 4, 3.5, iron(), { power: 2 });
+        if (v) { B.blob(fx + 6, fy - 34, 1.6, 2.4, P.mat('#c8b8a0', 'cloth'), { power: 3 }); B.blob(fx1 - 7, fy - 34, 2, 2, P.mat(P.metal.copper, 'metal'), { power: 2 }); }
+        if (v >= 2) { B.rect(fx + 18, fy - 38, 2, 6, P.mat('#efe6cc', 'cloth'), 3); B.rect(fx1 - 20, fy - 38, 2, 6, P.mat('#efe6cc', 'cloth'), 3); }
+        B.part(5); for (let x = fx - 2; x <= fx1 + 2; x++) { B.plot(x, fy1 - 1, s, 3); B.plot(x, fy1, s, 1); } // hearthstone
+        out = finish(S); out.fire = { x: (fx + fx1) / 2 - out.ox, y: fy1 - 5 - out.oy, w: 18 };
+        if (v >= 2) out.candles = [[fx + 18 - out.ox, fy - 39 - out.oy], [fx1 - 20 - out.ox, fy - 39 - out.oy]];
+        break;
+      }
+      case 'oven': { // the baker's domed oven
+        S = canvasFor(3, 2, 26); const { B, fx, fx1, fy1 } = S; const s = P.mat('#b8826a', 'cloth');
+        B.part(1); B.blob((fx + fx1) / 2, fy1 - 22, 23, 22, s, { power: 2.1 }); B.rect(fx + 1, fy1 - 22, fx1 - fx - 1, 22, s, 2);
+        for (let y = 0; y < S.H; y++) for (let x = 0; x < S.W; x++) if (B.matAt(x, y) === s && ((y % 5 === 0) || ((x + (Math.floor(y / 5) % 2) * 3) % 7 === 0))) B.tweak(x, y, -1);
+        B.part(2); B.blob((fx + fx1) / 2, fy1 - 12, 9, 8, P.mat('#1c1418', 'cloth'), { power: 2.2 }); B.rect(Math.round((fx + fx1) / 2) - 9, fy1 - 12, 18, 9, P.mat('#1c1418', 'cloth'), 0);
+        B.part(3); B.capsule(fx1 - 2, fy1, fx1 + 1, fy1 - 30, 0.8, 0.8, pine()); B.blob(fx1 + 1, fy1 - 32, 2.6, 3, pine(), { power: 3 }); // the peel
+        out = finish(S); out.fire = { x: (fx + fx1) / 2 - out.ox, y: fy1 - 5 - out.oy, w: 14 }; break;
       }
       case 'forge': {
-        const B = new MB(30, 26); const s = stone();
-        B.part(1); B.rect(1, 8, 28, 17, s, 2); for (let x = 1; x < 29; x++) { B.shadeAt(x, 8, 3); B.shadeAt(x, 24, 1); }
-        for (let y = 9; y < 24; y++) for (let x = 1; x < 29; x++) if ((y - 9) % 5 === 4 || (x + ((Math.floor((y - 9) / 5) % 2) * 3)) % 7 === 0) B.shadeAt(x, y, 0);
-        B.part(2); B.rect(4, 5, 22, 5, P.mat('#2a2024', 'cloth'), 1); // coal bed
-        B.part(3); B.rect(25, 0, 4, 9, P.mat(C.leather), 2); // bellows
-        out = finish(B, 15, 25); out.fire = { x: 15, y: 7, w: 20, coals: true }; break;
+        S = canvasFor(3, 2, 44); const { B, fx, fx1, fy, fy1 } = S; const s = stone();
+        B.part(1); // hood up to the ceiling
+        B.poly([[fx + 8, fy - 42], [fx1 - 8, fy - 42], [fx1 - 2, fy - 18], [fx + 2, fy - 18]], [0, -0.2, 0.9], s);
+        for (let y = fy - 42; y < fy - 18; y++) for (let x = fx; x <= fx1; x++) if (B.matAt(x, y) === s && ((y % 5 === 0) || (x + Math.floor(y / 5) * 3) % 8 === 0)) B.tweak(x, y, -1);
+        B.part(2); box(B, fx, fx1, fy - 6, 16, fy1, s, { topMat: P.mat('#2a2024', 'cloth') });
+        for (let y = fy + 10; y <= fy1; y++) for (let x = fx; x <= fx1; x++) if ((y - fy) % 5 === 4 || (x + (Math.floor((y - fy) / 5) % 2) * 4) % 8 === 0) B.tweak(x, y, -1);
+        B.part(3); B.blob(fx1 + 1, fy + 4, 5, 3.5, P.mat(C.leather), { power: 2 }); B.capsule(fx1 - 2, fy + 4, fx1 - 7, fy + 2, 0.7, 0.5, dark()); // bellows
+        B.capsule(fx + 6, fy - 4, fx + 14, fy - 8, 0.5, 0.5, iron()); // tongs
+        out = finish(S); out.fire = { x: (fx + fx1) / 2 - out.ox, y: fy + 5 - out.oy, w: 26, coals: true }; break;
       }
-      case 'anvil': out = E.prop('anvil', 1); break;
-      case 'barrel': out = E.prop('barrel', seed); break;
-      case 'crate': out = E.prop('crate', seed); break;
-      case 'sack': out = E.prop('sack', seed); break;
-      case 'hay': out = E.prop('hay', seed); break;
-      case 'woodpile': out = E.prop('woodpile', seed); break;
-      case 'cupboard': case 'wardrobe': {
-        const B = new MB(18, 30); const m = v >= 2 ? dark() : wood();
-        B.part(1); B.rect(1, 1, 16, 28, m, 2); for (let y = 1; y < 29; y++) { B.shadeAt(1, y, 3); B.shadeAt(16, y, 1); B.shadeAt(8, y, 1); } for (let x = 1; x < 17; x++) { B.shadeAt(x, 1, 4); B.shadeAt(x, 28, 0); }
-        B.plot(7, 15, P.mat(P.metal.brass, 'metal'), 4); B.plot(10, 15, P.mat(P.metal.brass, 'metal'), 4);
-        out = finish(B, 9, 29); break;
+      case 'anvil': {
+        S = canvasFor(1, 1, 14); const { B, fx, fx1, fy1 } = S; const m = iron();
+        B.part(1); box(B, fx + 3, fx1 - 3, fy1 - 10, 4, fy1, P.mat('#7c5a38', 'wood')); // stump
+        B.part(2); box(B, fx, fx1 - 1, fy1 - 18, 3, fy1 - 11, m); B.capsule(fx - 1, fy1 - 16, fx + 2, fy1 - 16, 1.2, 0.5, m);
+        out = finish(S); break;
+      }
+      case 'cupboard': case 'dresser': case 'wardrobe': case 'bookcase': {
+        const tall = kind === 'wardrobe' ? 46 : kind === 'bookcase' ? 44 : 40;
+        S = canvasFor(2, 1, tall); const { B, fx, fx1, fy, fy1 } = S; const m = kind === 'wardrobe' && v >= 2 ? walnut() : woodFor(v);
+        B.part(1); box(B, fx, fx1, fy - tall + 10, 4, fy1, m);
+        const midX = Math.round((fx + fx1) / 2);
+        if (kind === 'dresser' || kind === 'bookcase') {
+          const rows = kind === 'bookcase' ? [fy - 26, fy - 16, fy - 6, fy + 4] : [fy - 22, fy - 13];
+          for (const ry of rows) { for (let x = fx + 2; x <= fx1 - 2; x++) B.plot(x, ry, m, 1); for (let y = ry - 8; y < ry; y++) for (let x = fx + 2; x <= fx1 - 2; x++) B.plot(x, y, P.mat('#3a2818', 'wood'), 0); }
+          B.part(2);
+          for (const ry of rows) {
+            if (kind === 'dresser') for (let i = 0; i < 4; i++) { const cx = fx + 5 + i * 6.5; B.blob(cx, ry - 4, 2.6, 3.4, P.mat(i % 2 ? '#d8d0bc' : '#b8a888', 'cloth'), { power: 2 }); B.plot(cx, ry - 4, P.mat('#8a7a5a', 'cloth'), 1); }
+            else for (let x = fx + 2; x <= fx1 - 2; x += 2) { const bm = P.mat(rng.pick([C.crimson, C.navy, C.forest, C.mustard, C.brown, C.plum]), 'cloth'); const h = rng.int(5, 8); for (let y = ry - h; y < ry; y++) { B.plot(x, y, bm, 3); B.plot(x + 1, y, bm, 1); } }
+          }
+          if (kind === 'dresser') { B.part(3); for (let y = fy - 4; y <= fy1 - 1; y++) for (let x = fx + 1; x <= fx1 - 1; x++) B.plot(x, y, m, x === midX ? 1 : 2); B.plot(midX - 2, fy + 5, brass(), 4); B.plot(midX + 2, fy + 5, brass(), 4); }
+        } else {
+          B.part(2); for (let y = fy - tall + 15; y <= fy1 - 2; y++) { B.plot(midX, y, m, 0); B.plot(fx + 2, y, m, 3); }
+          for (const yy of [fy - tall + 18, fy1 - 8]) for (let x = fx + 3; x < fx1 - 2; x++) if (x !== midX) B.tweak(x, yy, -1);
+          B.plot(midX - 2, fy - 4, brass(), 4); B.plot(midX + 2, fy - 4, brass(), 4);
+          if (v >= 2 && kind === 'wardrobe') for (let x = fx; x <= fx1; x++) B.plot(x, fy - tall + 9, P.mat(P.metal.gold, 'metal'), 3);
+        }
+        out = finish(S); break;
       }
       case 'chest': {
-        const B = new MB(18, 14); const m = v >= 2 ? dark() : wood();
-        B.part(1); B.rect(1, 5, 16, 8, m, 2); for (let x = 1; x < 17; x++) B.shadeAt(x, 12, 1);
-        B.part(2); B.blob(9, 4, 8, 3.5, m, { power: 3 }); for (let x = 1; x < 17; x++) B.plot(x, 6, iron(), 2);
-        B.plot(8, 8, P.mat(P.metal.brass, 'metal'), 4); B.plot(9, 8, P.mat(P.metal.brass, 'metal'), 3); B.plot(3, 3, iron(), 2); B.plot(14, 3, iron(), 2);
-        out = finish(B, 9, 13); break;
+        S = canvasFor(2, 1, 8); const { B, fx, fx1, fy, fy1 } = S; const m = woodFor(v);
+        B.part(1); box(B, fx + 1, fx1 - 1, fy - 2, 6, fy1, m);
+        B.part(2); for (let x = fx + 1; x <= fx1 - 1; x++) { B.plot(x, fy - 4, m, 4); B.plot(x, fy - 3, m, 3); }
+        for (const xx of [fx + 4, fx1 - 4]) for (let y = fy - 4; y <= fy1; y++) B.plot(xx, y, iron(), 2);
+        for (let x = fx + 1; x <= fx1 - 1; x++) B.plot(x, fy + 4, iron(), 1);
+        B.plot((fx + fx1) / 2, fy + 6, brass(), 4); B.plot((fx + fx1) / 2 + 1, fy + 6, brass(), 2); B.plot((fx + fx1) / 2, fy + 7, brass(), 2);
+        out = finish(S); break;
       }
-      case 'shelf': { // wall shelf showing goods: v = fill level 0..3, seed picks good colour
-        const B = new MB(30, 30); const m = wood();
-        B.part(1); B.rect(1, 1, 28, 28, P.mat('#4a3424', 'wood'), 1); for (let y = 1; y < 29; y++) { B.shadeAt(1, y, 2); B.shadeAt(28, y, 0); }
-        for (const sy of [9, 18, 27]) { B.part(2); B.rect(1, sy, 28, 2, m, 3); B.shadeAt(1, sy + 1, 1); }
+      case 'shelf': { // open shelving showing the goods for sale; v = fill 0..3
+        S = canvasFor(3, 1, 44); const { B, fx, fx1, fy, fy1 } = S; const m = wood();
+        B.part(1); for (let y = fy - 42; y <= fy1; y++) for (let x = fx; x <= fx1; x++) B.plot(x, y, P.mat('#4a3424', 'wood'), x === fx || x === fx1 ? 2 : 1);
+        const rows = [fy - 28, fy - 14, fy];
+        for (const sy of rows) { B.part(2); for (let x = fx; x <= fx1; x++) { B.plot(x, sy, m, 3); B.plot(x, sy + 1, m, 1); } }
         const goods = (cache.goodsFor && cache.goodsFor[seed]) || ['bread'];
         let n = 0;
-        for (const sy of [9, 18, 27]) for (let i = 0; i < 6; i++) {
-          if (n++ >= v * 6) break;
-          const g = goods[(i + sy) % goods.length]; const gm = P.mat(GOOD_COL[g] || '#a0a0a0', g === 'tools' || g === 'iron' ? 'metal' : 'cloth');
-          B.part(3); const gx = 4 + i * 4.3;
-          if (g === 'bread') B.blob(gx, sy - 2, 1.9, 1.5, gm, { power: 2 });
-          else if (g === 'medicine' || g === 'ale') { B.rect(Math.round(gx) - 1, sy - 5, 3, 5, gm, 2); B.plot(Math.round(gx), sy - 6, P.mat('#c8b8a0', 'cloth'), 3); }
-          else if (g === 'tools') { B.capsule(gx, sy - 1, gx, sy - 6, 0.5, 0.5, P.mat(P.wood.oak, 'wood')); B.rect(Math.round(gx) - 1, sy - 7, 3, 2, gm, 3); }
-          else B.blob(gx, sy - 2, 1.8, 1.8, gm, { power: 2.2 });
+        for (const sy of rows) for (let i = 0; i < 7; i++) {
+          if (n++ >= v * 7) break;
+          const g = goods[(i + sy) % goods.length]; const gm = P.mat(GOOD_COL[g] || '#a0a0a0', ['tools', 'iron', 'helm', 'sword', 'ring', 'brooch'].includes(g) ? 'metal' : 'cloth');
+          B.part(3); const gx = fx + 4 + i * 6.3;
+          if (g === 'bread') B.blob(gx, sy - 3, 2.6, 2, gm, { power: 2 });
+          else if (g === 'medicine' || g === 'ale') { B.rect(Math.round(gx) - 1, sy - 7, 3, 7, gm, 2); B.plot(Math.round(gx), sy - 8, P.mat('#c8b8a0', 'cloth'), 3); }
+          else if (g === 'tools' || g === 'sword') { B.capsule(gx, sy - 1, gx, sy - 10, 0.5, 0.5, P.mat(P.wood.oak, 'wood')); B.rect(Math.round(gx) - 1, sy - 11, 3, 2, gm, 3); }
+          else if (g === 'ring' || g === 'brooch') { B.plot(gx, sy - 2, gm, 4); B.plot(gx + 1, sy - 2, gm, 2); }
+          else B.blob(gx, sy - 3, 2.4, 2.4, gm, { power: 2.2 });
         }
-        out = finish(B, 15, 29); break;
+        out = finish(S); break;
       }
       case 'counter': {
-        const B = new MB(42, 20); const m = v >= 2 ? dark() : wood();
-        B.part(1); B.rect(1, 6, 40, 13, m, 2); for (let x = 1; x < 41; x += 6) for (let y = 7; y < 18; y++) B.shadeAt(x, y, 1);
-        B.part(2); B.rect(0, 3, 42, 4, m, 4); for (let x = 0; x < 42; x++) B.shadeAt(x, 6, 1);
-        if (seed === 7) { B.part(3); B.blob(8, 2, 2, 1.6, P.mat(P.metal.brass, 'metal'), { power: 2 }); } // scales/coin dish
-        out = finish(B, 21, 19); break;
+        S = canvasFor(4, 1, 14); const { B, fx, fx1, fy, fy1 } = S; const m = woodFor(v);
+        B.part(1); box(B, fx, fx1, fy - 12, 8, fy1, m, { grain: seed });
+        for (let x = fx + 6; x < fx1; x += 10) for (let y = fy - 3; y < fy1; y++) B.shadeAt(x, y, 1);
+        B.part(2); B.blob(fx + 10, fy - 9, 3, 1.8, brass(), { power: 2 }); B.capsule(fx + 10, fy - 12, fx + 10, fy - 16, 0.4, 0.4, brass()); // scales
+        B.blob(fx1 - 12, fy - 8, 2, 1.4, P.mat('#c8b070', 'metal'), { power: 2 }); // coin dish
+        out = finish(S); break;
       }
-      case 'bar': { // tavern bar with taps
-        const B = new MB(58, 24); const m = dark();
-        B.part(1); B.rect(1, 9, 56, 14, m, 2); for (let x = 1; x < 57; x += 8) for (let y = 10; y < 22; y++) B.shadeAt(x, y, 1);
-        B.part(2); B.rect(0, 6, 58, 4, m, 4); for (let x = 0; x < 58; x++) B.shadeAt(x, 9, 1);
-        B.part(3); for (let i = 0; i < 4; i++) { B.blob(10 + i * 12, 3, 1.4, 1.9, P.mat(P.wood.walnut, 'wood'), { power: 3 }); }
-        out = finish(B, 29, 23); break;
+      case 'bar': { // the tavern bar, with taps and mugs
+        S = canvasFor(rot || 6, 1, 18); const { B, fx, fx1, fy, fy1 } = S; const m = dark();
+        B.part(1); box(B, fx, fx1, fy - 16, 9, fy1, m, { grain: seed });
+        for (let x = fx + 8; x < fx1; x += 12) for (let y = fy - 6; y < fy1; y++) B.shadeAt(x, y, 1);
+        B.part(2); for (let i = 0; i * 14 + 10 < fx1 - fx; i++) { const x = fx + 10 + i * 14; B.capsule(x, fy - 13, x, fy - 19, 0.6, 0.6, brass()); B.blob(x + 5, fy - 12, 1.6, 2.2, walnut(), { power: 3 }); B.plot(x + 5, fy - 14, white(), 4); }
+        out = finish(S); break;
       }
-      case 'workbench': {
-        const B = new MB(30, 22); const m = wood();
-        B.part(1); B.capsule(3, 21, 3, 11, 1, 1, m); B.capsule(27, 21, 27, 11, 1, 1, m);
-        B.part(2); B.rect(1, 6, 28, 6, m, 3); for (let x = 1; x < 29; x++) { B.shadeAt(x, 6, 4); B.shadeAt(x, 11, 1); }
-        B.part(3); B.capsule(8, 4, 13, 2, 0.7, 0.7, m); B.rect(12, 1, 3, 2, iron(), 3); B.capsule(18, 5, 22, 5, 0.6, 0.6, iron()); B.blob(25, 4, 1.8, 1.2, P.mat(C.linen), { power: 2 });
-        out = finish(B, 15, 21); break;
+      case 'workbench': case 'doughtable': case 'butcherblock': {
+        S = canvasFor(3, 1, 14); const { B, fx, fx1, fy, fy1 } = S; const m = kind === 'doughtable' ? pine() : wood();
+        B.part(1); leg(B, fx + 2, fy - 2, fy1, m); leg(B, fx1 - 3, fy - 2, fy1, m); for (let x = fx + 2; x < fx1 - 2; x++) B.plot(x, fy1 - 4, m, 1);
+        B.part(2); box(B, fx, fx1, fy - 12, 9, fy - 1, kind === 'butcherblock' ? P.mat('#c8a070', 'wood') : m, { grain: seed });
+        B.part(3);
+        if (kind === 'doughtable') { B.rect(fx + 4, fy - 11, 18, 6, P.mat('#f0e8d8', 'cloth'), 3); for (let i = 0; i < 3; i++) B.blob(fx + 8 + i * 6, fy - 9, 2.4, 1.8, P.mat('#e8d0a0', 'cloth'), { power: 2 }); B.capsule(fx1 - 12, fy - 8, fx1 - 3, fy - 8, 1, 1, pine()); }
+        else if (kind === 'butcherblock') { B.blob(fx + 14, fy - 8, 5, 2.5, P.mat(GOOD_COL.meat, 'skin'), { power: 2 }); B.capsule(fx + 26, fy - 10, fx + 34, fy - 7, 0.6, 0.4, P.mat(P.metal.steel, 'metal')); }
+        else { B.capsule(fx + 8, fy - 9, fx + 16, fy - 11, 0.7, 0.7, wood()); B.rect(fx + 15, fy - 12, 3, 2, iron(), 3); B.capsule(fx + 24, fy - 8, fx + 32, fy - 8, 0.6, 0.6, iron()); B.blob(fx1 - 5, fy - 9, 2.4, 1.6, P.mat(C.linen), { power: 2 }); B.rect(fx + 2, fy - 5, 4, 5, iron(), 2); }
+        out = finish(S); break;
       }
-      case 'portrait': { // a framed likeness hung on the back wall; the seed picks the sitter's colouring
-        const r2 = O.RNG(seed * 7 + 3);
-        const B = new MB(14, 18); const fr = P.mat(v ? '#b8902a' : P.wood.dark, v ? 'metal' : 'wood');
-        B.part(1); B.rect(0, 0, 14, 18, fr, 3); for (let x = 0; x < 14; x++) { B.shadeAt(x, 0, 4); B.shadeAt(x, 17, 1); } for (let y = 0; y < 18; y++) { B.shadeAt(0, y, 3); B.shadeAt(13, y, 1); }
-        B.part(2); B.rect(2, 2, 10, 14, P.mat(r2.pick(['#3a4a3a', '#4a3a2a', '#2e3a4a', '#4a2e2e']), 'cloth'), 1);
-        const skin = P.mat(r2.pick(['#e8b896', '#d29a72', '#a8704a', '#7a4a32']), 'skin'), hair = P.mat(r2.pick(['#2a1e16', '#5a3a1e', '#b88a4a', '#8a8a8a', '#9a4a22']), 'hair'), coat = P.mat(r2.pick([C.crimson, C.navy, C.forest, '#5a4a6a', C.black].filter(Boolean)), 'cloth');
-        B.part(3); B.blob(7, 15, 4.5, 3, coat, { power: 2 }); B.blob(7, 8, 2.6, 3.2, skin, { power: 2.5 }); B.blob(7, 5.5, 3, 1.8, hair, { power: 2 });
-        B.plot(6, 8, P.mat('#2a1e16', 'cloth'), 1); B.plot(8, 8, P.mat('#2a1e16', 'cloth'), 1);
-        // hangs on the wall: drawn well above its floor anchor
-        out = finish(B, 7, 44); out.flat = true; break;
-      }
-      case 'rack': { // weapon/tool rack against the wall
-        const B = new MB(26, 30); const m = dark();
-        B.part(1); B.rect(1, 4, 24, 3, m, 3); B.rect(1, 22, 24, 3, m, 2);
-        B.part(2); for (let i = 0; i < 4; i++) { const x = 4 + i * 6; B.capsule(x, 28, x, 2, 0.6, 0.6, P.mat(P.wood.oak, 'wood')); if (i % 2) B.capsule(x, 2, x, -2, 1.2, 0.3, P.mat(P.metal.steel, 'metal')); else B.rect(x - 2, 1, 5, 2, P.mat(P.metal.steel, 'metal'), 3); }
-        out = finish(B, 13, 29); break;
+      case 'rack': { // tools or arms on the wall
+        S = canvasFor(2, 1, 40); const { B, fx, fx1, fy, fy1 } = S; const m = dark();
+        B.part(1); for (let x = fx; x <= fx1; x++) { B.plot(x, fy - 30, m, 3); B.plot(x, fy - 29, m, 1); B.plot(x, fy - 4, m, 2); B.plot(x, fy - 3, m, 1); }
+        B.part(2); for (let i = 0; i < 4; i++) { const x = fx + 4 + i * 7; B.capsule(x, fy1 - 2, x, fy - 34, 0.6, 0.6, wood()); if (i % 2) B.capsule(x, fy - 34, x, fy - 40, 1.4, 0.3, P.mat(P.metal.steel, 'metal')); else B.rect(x - 2, fy - 37, 5, 3, P.mat(P.metal.steel, 'metal'), 3); }
+        out = finish(S); break;
       }
       case 'desk': {
-        const B = new MB(30, 22); const m = dark();
-        B.part(1); B.rect(1, 7, 28, 14, m, 2); B.rect(4, 11, 9, 8, m, 1);
-        B.part(2); B.rect(0, 5, 30, 3, m, 4);
-        B.part(3); B.rect(15, 2, 7, 4, P.mat(C.white), 3); B.capsule(24, 4, 26, 0, 0.4, 0.3, P.mat(C.white)); B.blob(7, 3, 1.4, 2, P.mat('#e8d8a0', 'cloth'), { power: 3 });
-        out = finish(B, 15, 21); break;
-      }
-      case 'medbed': {
-        const B = new MB(18, 28); B.part(1); B.rect(1, 2, 16, 25, wood(), 1);
-        B.part(2); B.rect(2, 3, 14, 22, P.mat(C.white), 3); B.blob(9, 5, 5, 2, P.mat(C.linen), { power: 2.5 }); for (let y = 6; y < 25; y += 3) B.tweak(4, y, -1);
-        out = finish(B, 9, 27); break;
-      }
-      case 'pew': {
-        const B = new MB(46, 16); const m = dark();
-        B.part(1); B.rect(1, 1, 44, 8, m, 2); for (let x = 1; x < 45; x++) B.shadeAt(x, 1, 3);
-        B.part(2); B.rect(1, 9, 44, 3, m, 3); B.capsule(3, 15, 3, 11, 0.8, 0.8, m); B.capsule(43, 15, 43, 11, 0.8, 0.8, m);
-        out = finish(B, 23, 15); break;
+        S = canvasFor(2, 1, 14); const { B, fx, fx1, fy, fy1 } = S; const m = dark();
+        B.part(1); box(B, fx, fx1, fy - 12, 7, fy1, m); for (let y = fy - 3; y < fy1; y++) B.plot(fx + 10, y, m, 0);
+        B.part(2); B.rect(fx + 12, fy - 11, 9, 5, white(), 3); B.capsule(fx1 - 4, fy - 9, fx1 - 1, fy - 15, 0.4, 0.3, white()); B.blob(fx + 6, fy - 9, 1.5, 1.8, P.mat('#1a1418', 'cloth'), { power: 3 }); B.blob(fx + 4, fy - 9, 2.6, 1.6, P.mat(C.crimson), { power: 4 });
+        out = finish(S); break;
       }
       case 'altar': {
-        const B = new MB(34, 30); const s = P.mat('#c8bca8', 'cloth');
-        B.part(1); B.rect(2, 12, 30, 17, s, 2); for (let x = 2; x < 32; x++) B.shadeAt(x, 12, 4);
-        B.part(2); B.rect(5, 13, 24, 10, P.mat(C.crimson), 2); for (let x = 5; x < 29; x++) B.plot(x, 22, P.mat(P.metal.gold, 'metal'), 3);
-        B.part(3); for (const cx of [7, 27]) { B.rect(cx - 1, 4, 2, 8, P.mat(C.white), 3); B.plot(cx - 1, 2, P.mat('#ffd060', 'metal'), 4); B.plot(cx - 1, 3, P.mat('#ff9a30', 'metal'), 3); }
-        const g = P.mat(P.metal.gold, 'metal'); for (let y = 2; y < 11; y++) B.plot(17, y, g, 3); for (let x = 14; x < 21; x++) B.plot(x, 5, g, 4);
-        out = finish(B, 17, 29); out.candles = [[6, 3], [26, 3]]; break;
+        S = canvasFor(3, 1, 34); const { B, fx, fx1, fy, fy1 } = S; const s = P.mat('#c8bca8', 'cloth');
+        B.part(1); box(B, fx + 1, fx1 - 1, fy - 12, 6, fy1, s);
+        B.part(2); for (let y = fy - 6; y < fy1 - 2; y++) for (let x = fx + 5; x <= fx1 - 5; x++) B.plot(x, y, P.mat(C.crimson), y === fy - 6 ? 3 : 2); for (let x = fx + 5; x <= fx1 - 5; x++) B.plot(x, fy1 - 3, P.mat(P.metal.gold, 'metal'), 3);
+        B.part(3); const g = P.mat(P.metal.gold, 'metal'), cx = Math.round((fx + fx1) / 2);
+        for (let y = fy - 34; y < fy - 12; y++) B.plot(cx, y, g, 3); for (let x = cx - 5; x <= cx + 5; x++) B.plot(x, fy - 28, g, 4);
+        for (const x of [fx + 6, fx1 - 6]) { B.rect(x - 1, fy - 20, 2, 8, white(), 3); }
+        out = finish(S); out.candles = [[fx + 5 - out.ox, fy - 21 - out.oy], [fx1 - 7 - out.ox, fy - 21 - out.oy]]; break;
       }
       case 'millstone': {
-        const B = new MB(30, 22); const s = stone();
-        B.part(1); B.rect(2, 10, 26, 11, wood(), 2);
-        B.part(2); B.blob(15, 9, 12, 5.5, s, { power: 2 }); B.blob(15, 7, 10, 4.5, s, { power: 2 }); B.blob(15, 6, 2, 1.2, P.mat('#2a2024', 'cloth'), { power: 2 });
-        for (let a = 0; a < 6; a++) B.tweak(15 + Math.cos(a) * 7, 7 + Math.sin(a) * 3, -1);
-        out = finish(B, 15, 21); break;
+        S = canvasFor(3, 2, 14); const { B, fx, fx1, fy1 } = S; const s = stone();
+        B.part(1); box(B, fx + 2, fx1 - 2, fy1 - 22, 14, fy1, wood());
+        B.part(2); B.blob((fx + fx1) / 2, fy1 - 22, 18, 9, s, { power: 2 }); B.blob((fx + fx1) / 2, fy1 - 25, 15, 7, s, { power: 2 }); B.blob((fx + fx1) / 2, fy1 - 26, 3, 1.6, P.mat('#2a2024', 'cloth'), { power: 2 });
+        for (let a = 0; a < 8; a++) B.tweak((fx + fx1) / 2 + Math.cos(a) * 11, fy1 - 25 + Math.sin(a) * 5, -1);
+        B.capsule((fx + fx1) / 2, fy1 - 26, fx1 + 1, fy1 - 32, 0.8, 0.8, wood());
+        out = finish(S); break;
       }
-      case 'stairs': {
-        const B = new MB(18, 34); const m = wood();
-        B.part(1); for (let k = 0; k < 8; k++) { const y = 2 + k * 4; B.rect(1, y, 16, 4, m, k % 2 ? 2 : 3); for (let x = 1; x < 17; x++) B.shadeAt(x, y + 3, 1); }
-        B.part(2); B.capsule(1, 33, 1, 1, 0.8, 0.8, dark()); B.capsule(17, 33, 17, 1, 0.8, 0.8, dark());
-        out = finish(B, 9, 33); break;
+      case 'loom': {
+        S = canvasFor(3, 2, 30); const { B, fx, fx1, fy, fy1 } = S; const m = wood();
+        B.part(1); for (const x of [fx + 2, fx1 - 3]) { leg(B, x, fy - 26, fy1, m); }
+        for (let x = fx + 2; x <= fx1 - 2; x++) { B.plot(x, fy - 26, m, 3); B.plot(x, fy - 8, m, 2); B.plot(x, fy1 - 8, m, 2); }
+        B.part(2); const cl = P.mat(rng.pick([C.woad, C.madder, C.ochre, C.forest])); for (let y = fy - 24; y < fy - 9; y++) for (let x = fx + 5; x <= fx1 - 5; x++) B.plot(x, y, cl, (x + y) % 3 ? 2 : 3);
+        for (let y = fy - 8; y < fy1 - 8; y++) for (let x = fx + 5; x <= fx1 - 5; x += 2) B.plot(x, y, white(), 3);
+        out = finish(S); break;
+      }
+      case 'spinning': {
+        S = canvasFor(2, 1, 24); const { B, fx, fx1, fy, fy1 } = S; const m = wood();
+        B.part(1); box(B, fx + 2, fx1 - 4, fy - 2, 4, fy1 - 4, m); leg(B, fx + 3, fy + 2, fy1, m, 1); leg(B, fx1 - 5, fy + 2, fy1, m, 1);
+        B.part(2); for (let a = 0; a < 40; a++) B.plot(fx + 18 + Math.cos(a / 40 * Math.PI * 2) * 8, fy - 12 + Math.sin(a / 40 * Math.PI * 2) * 8, m, 2);
+        for (let k = 0; k < 6; k++) B.capsule(fx + 18, fy - 12, fx + 18 + Math.cos(k) * 7, fy - 12 + Math.sin(k) * 7, 0.3, 0.3, m);
+        B.blob(fx + 5, fy - 8, 2, 3, P.mat('#e8e0cc', 'hair'), { power: 2 });
+        out = finish(S); break;
+      }
+      case 'stairs': { // v 0: going up toward the back wall; v 1: the stairwell down from the upper floor
+        S = canvasFor(2, 3, 30); const { B, fx, fx1, fy, fy1 } = S; const m = wood();
+        if (!v) {
+          B.part(1); for (let k = 0; k < 9; k++) { const y = fy1 - 4 - k * 8, rise = k * 3.5; box(B, fx + 2, fx1 - 2, Math.round(y - rise - 3), 4, Math.round(y - rise + 3), m); }
+          B.part(2); for (let k = 0; k <= 9; k++) { const y = fy1 - k * 8 - k * 3.5; B.plot(fx1, y, dark(), 3); B.plot(fx1, y - 1, dark(), 2); } B.capsule(fx1, fy1, fx1, fy - 30, 0.6, 0.6, dark());
+          B.capsule(fx + 1, fy1, fx + 1, fy - 30, 0.6, 0.6, dark());
+        } else {
+          B.part(1); for (let y = fy; y <= fy1; y++) for (let x = fx; x <= fx1; x++) B.plot(x, y, P.mat('#1a1410', 'cloth'), 0);
+          for (let k = 0; k < 5; k++) { const y = fy + 4 + k * 9; box(B, fx + 3, fx1 - 3, y, 3, y + 2, m); for (let yy = y; yy < y + 6; yy++) for (let x = fx + 3; x <= fx1 - 3; x++) B.tweak(x, yy, -Math.floor(k / 2)); }
+          B.part(2); for (let x = fx; x <= fx1; x++) { B.plot(x, fy - 1, dark(), 3); } for (let y = fy - 18; y <= fy1; y++) { B.plot(fx, y, dark(), 3); B.plot(fx1, y, dark(), 1); } for (let x = fx; x <= fx1; x++) B.plot(x, fy - 18, dark(), 4);
+        }
+        out = finish(S); break;
       }
       case 'rug': {
-        const B = new MB(34, 22); const m = P.mat(rng.pick([C.crimson, C.navy, C.madder, C.teal])); const t = P.mat(C.mustard);
-        B.part(1); B.rect(1, 1, 32, 20, m, 2); for (let x = 1; x < 33; x++) { B.plot(x, 2, t, 3); B.plot(x, 19, t, 2); } for (let y = 2; y < 20; y++) { B.plot(2, y, t, 3); B.plot(31, y, t, 2); }
-        for (let y = 6; y < 16; y += 3) for (let x = 8; x < 26; x += 4) B.plot(x + (y % 2), y, t, 3);
-        out = finish(B, 17, 21, { outline: false }); out.flat = true; break;
+        const fw = rot || 3, fh = 2; S = canvasFor(fw, fh, 0); const { B, fx, fx1, fy, fy1 } = S;
+        const m = P.mat(rng.pick([C.crimson, C.navy, C.madder, C.teal, C.plum])), t = P.mat(C.mustard);
+        B.part(1); B.rect(fx + 1, fy + 2, fx1 - fx - 1, fy1 - fy - 3, m, 2);
+        for (let x = fx + 1; x < fx1; x++) { B.plot(x, fy + 3, t, 3); B.plot(x, fy1 - 3, t, 2); } for (let y = fy + 3; y < fy1 - 2; y++) { B.plot(fx + 2, y, t, 3); B.plot(fx1 - 2, y, t, 2); }
+        for (let y = fy + 7; y < fy1 - 6; y += 4) for (let x = fx + 8; x < fx1 - 7; x += 6) { B.plot(x + (y % 2), y, t, 3); B.plot(x + 1 + (y % 2), y + 1, t, 2); }
+        for (let x = fx + 1; x < fx1; x += 2) { B.plot(x, fy + 1, t, 2); B.plot(x, fy1 - 1, t, 2); }
+        out = finish(S, { outline: false }); out.flat = true; break;
       }
       case 'cauldron': {
-        const B = new MB(16, 16); B.part(1); B.blob(8, 10, 6, 5, iron(), { power: 2 }); B.blob(8, 6, 5.5, 1.6, P.mat('#7a5a3a', 'cloth'), { power: 2 });
-        out = finish(B, 8, 15); break;
+        S = canvasFor(1, 1, 16); const { B, fx, fx1, fy1 } = S; const m = iron();
+        B.part(1); for (const x of [fx + 1, fx1 - 1]) B.capsule(x, fy1, (fx + fx1) / 2, fy1 - 22, 0.5, 0.5, m);
+        B.part(2); B.blob((fx + fx1) / 2, fy1 - 8, 7, 6, m, { power: 2 }); B.blob((fx + fx1) / 2, fy1 - 13, 6.5, 2, P.mat('#7a5a3a', 'cloth'), { power: 2 });
+        out = finish(S); out.fire = { x: 0, y: -1, w: 8 }; break;
       }
-      case 'doughtable': {
-        const B = new MB(30, 20); const m = pine();
-        B.part(1); B.capsule(4, 19, 4, 10, 1, 1, m); B.capsule(26, 19, 26, 10, 1, 1, m);
-        B.part(2); B.rect(1, 4, 28, 7, m, 3); for (let x = 1; x < 29; x++) B.shadeAt(x, 10, 1);
-        B.part(3); B.rect(4, 4, 14, 4, P.mat('#f0e8d8', 'cloth'), 3); for (let i = 0; i < 3; i++) B.blob(8 + i * 4, 4, 1.7, 1.3, P.mat('#e8d0a0', 'cloth'), { power: 2 }); B.capsule(21, 5, 27, 5, 0.8, 0.8, P.mat(P.wood.pine, 'wood'));
-        out = finish(B, 15, 19); break;
+      case 'washtub': { S = canvasFor(1, 1, 8); const { B, fx, fx1, fy1 } = S; B.part(1); B.blob((fx + fx1) / 2, fy1 - 6, 7, 5, wood(), { power: 2.5 }); B.blob((fx + fx1) / 2, fy1 - 8, 5.5, 2.2, P.mat('#7a98b0', 'metal'), { power: 2 }); out = finish(S); break; }
+      case 'plant': { S = canvasFor(1, 1, 16); const { B, fx, fx1, fy1 } = S; B.part(1); box(B, fx + 3, fx1 - 3, fy1 - 8, 3, fy1, P.mat('#b8704a', 'cloth')); B.part(2); for (let i = 0; i < 7; i++) B.blob((fx + fx1) / 2 + rng.int(-4, 4), fy1 - 12 - rng.int(0, 8), 2.4, 2, P.mat(rng.pick(['#4a7a32', '#5a8a3a', '#3f6a30']), 'cloth'), { power: 2 }); out = finish(S); break; }
+      case 'candlestand': { S = canvasFor(1, 1, 30); const { B, fx, fx1, fy1 } = S; const cx = (fx + fx1) / 2; B.part(1); B.capsule(cx, fy1, cx, fy1 - 26, 0.7, 0.6, iron()); B.blob(cx, fy1 - 1, 4, 1.6, iron(), { power: 2 }); B.rect(Math.round(cx) - 1, fy1 - 32, 3, 6, P.mat('#efe6cc', 'cloth'), 3); out = finish(S); out.candles = [[0, fy1 - 33 - out.oy]]; break; }
+      case 'cell': { // iron bars round a straw floor
+        S = canvasFor(4, 4, 30); const { B, fx, fx1, fy, fy1 } = S; const m = iron();
+        B.part(0); for (let y = fy; y <= fy1; y++) for (let x = fx; x <= fx1; x++) if (O.noise2(x * 0.8, y * 0.8, 3) > 0.45) B.plot(x, y, P.mat('#c8a050', 'hair'), O.noise2(x, y, 7) > 0.7 ? 3 : 2);
+        B.part(1); for (let x = fx; x <= fx1; x += 4) for (let y = fy1 - 30; y <= fy1; y++) B.plot(x, y, m, x < (fx + fx1) / 2 ? 3 : 2);
+        for (let x = fx; x <= fx1; x++) { B.plot(x, fy1 - 30, m, 3); B.plot(x, fy1 - 14, m, 2); }
+        for (let y = fy - 30; y <= fy1 - 30; y++) { B.plot(fx, y, m, 2); B.plot(fx1, y, m, 2); }
+        out = finish(S); break;
       }
-      case 'bunk': out = furniture('bed', 0, seed); break;
-      case 'cell': { // iron bars
-        const B = new MB(34, 34); const m = iron();
-        B.part(1); for (let x = 1; x < 34; x += 4) for (let y = 1; y < 33; y++) B.plot(x, y, m, x < 17 ? 3 : 2);
-        for (let x = 1; x < 34; x++) { B.plot(x, 1, m, 3); B.plot(x, 16, m, 2); B.plot(x, 32, m, 1); }
-        out = finish(B, 17, 33); break;
+      case 'barrel': case 'crate': case 'sack': case 'hay': case 'woodpile': {
+        const pr = E.prop(kind, seed);
+        out = pr; break;
       }
-      default: { const B = new MB(4, 4); out = finish(B, 2, 3); }
+      default: { S = canvasFor(1, 1, 2); out = finish(S); }
     }
     cache.set(key, out);
     return out;
   }
 
-  // Room shell: back wall (with windows), side wall tops, floor. Size matches the building footprint.
+  // A horizontally mirrored copy of a furniture sprite (beds against the right-hand wall).
+  function mirrored(sp) {
+    if (sp._mir) return sp._mir;
+    const flip = (c) => { if (!c) return c; const m = document.createElement('canvas'); m.width = c.width; m.height = c.height; const x = m.getContext('2d'); x.translate(c.width, 0); x.scale(-1, 1); x.drawImage(c, 0, 0); return m; };
+    sp._mir = Object.assign({}, sp, { canvas: flip(sp.canvas), cover: flip(sp.cover), back: flip(sp.back), ox: sp.W - sp.ox, pillows: sp.pillows && sp.pillows.map(([x, y]) => [-x, y]), mirrored: true });
+    return sp._mir;
+  }
+
+  // Room shell: back wall (with windows), side walls, floor and the front wall with its doorway.
   function room(spec) {
     const { w, d, wall, floor, wealth, seed, windows = 1, dark: isDark } = spec;
-    const T = 16, SW = 4, WH = 40, FW = w * T, FH = d * T;
-    const B = new MB(FW + SW * 2, WH + FH + SW);
+    const SW = 6, WH = 60, FW = w * T, FH = d * T, FWALL = 8;
+    const B = new MB(FW + SW * 2, WH + FH + FWALL);
     const rng = O.RNG(seed);
     const wm = wall === 'stone' ? P.mat('#8e8880', 'cloth') : wall === 'log' ? P.mat('#7c5a38', 'wood') : wall === 'plank' ? P.mat('#8a6239', 'wood') : P.mat(wealth > 0.6 ? '#e4d8bc' : '#d6c8a8', 'cloth');
     B.part(1); B.rect(SW, 0, FW, WH, wm, 2);
     for (let y = 0; y < WH; y++) for (let x = SW; x < SW + FW; x++) {
       let s = 2;
-      if (wall === 'stone') { const r = y % 6, off = Math.floor(y / 6) % 2 ? 4 : 0; s = r === 5 || (x + off) % 9 === 0 ? 0 : r === 0 ? 3 : 2; }
-      else if (wall === 'log') { const r = y % 6; s = r === 0 ? 3 : r === 5 ? 0 : r === 4 ? 1 : 2; }
-      else if (wall === 'plank') { const c = (x - SW) % 6; s = c === 0 ? 0 : c === 1 ? 3 : 2; }
+      if (wall === 'stone') { const r = y % 7, off = Math.floor(y / 7) % 2 ? 5 : 0; s = r === 6 || (x + off) % 11 === 0 ? 0 : r === 0 ? 3 : 2; }
+      else if (wall === 'log') { const r = y % 8; s = r === 0 ? 3 : r === 7 ? 0 : r === 6 ? 1 : 2; }
+      else if (wall === 'plank') { const c = (x - SW) % 7; s = c === 0 ? 0 : c === 1 ? 3 : 2; }
       else { const n = O.fbm(x / 6, y / 6, 3, 2); s = n > 0.62 ? 3 : n < 0.32 ? 1 : 2; }
-      // lower wall darker (ambient occlusion near the floor), top darker under the ceiling
-      if (y > WH - 4) s = Math.max(0, s - 1); if (y < 3) s = Math.max(0, s - 1);
+      if (y > WH - 5) s = Math.max(0, s - 1); if (y < 4) s = Math.max(0, s - 1);
       B.shadeAt(x, y, s);
     }
-    if (wall === 'timber' || !wall) { const bm = P.mat(P.wood.dark, 'wood'); for (let x = SW; x < SW + FW; x += 32) for (let y = 0; y < WH; y++) { B.plot(x, y, bm, 2); B.plot(x + 1, y, bm, 1); } for (let x = SW; x < SW + FW; x++) { B.plot(x, 0, bm, 1); B.plot(x, 1, bm, 2); } }
-    // skirting
-    const sk = P.mat(P.wood.dark, 'wood'); for (let x = SW; x < SW + FW; x++) { B.plot(x, WH - 2, sk, 2); B.plot(x, WH - 1, sk, 1); }
-    // windows in the back wall
+    if (wall === 'timber' || !wall) { const bm = P.mat(P.wood.dark, 'wood'); for (let x = SW; x < SW + FW; x += 48) for (let y = 0; y < WH; y++) { B.plot(x, y, bm, 2); B.plot(x + 1, y, bm, 1); B.plot(x + 2, y, bm, 1); } for (let x = SW; x < SW + FW; x++) { B.plot(x, 0, bm, 1); B.plot(x, 1, bm, 2); B.plot(x, 2, bm, 1); } }
+    // ceiling beams' shadow line and skirting
+    const sk = P.mat(P.wood.dark, 'wood'); for (let x = SW; x < SW + FW; x++) { B.plot(x, WH - 3, sk, 3); B.plot(x, WH - 2, sk, 2); B.plot(x, WH - 1, sk, 1); }
+    // windows in the back wall, kept clear of tall furniture by the layout
     const winSpots = [];
-    const nW = Math.min(windows, Math.max(1, Math.floor(w / 2)));
+    const nW = Math.min(windows, Math.max(1, Math.floor(w / 4)));
     for (let i = 0; i < nW; i++) {
-      const cx = Math.round(SW + ((i + 0.5) * FW) / nW), wx = cx - 5, wy = 9;
+      const cx = Math.round(SW + ((i + 0.5) * FW) / nW), ww = 16, wh = 22, wx = cx - ww / 2, wy = 12;
       B.part(2);
       const fm = P.mat(P.wood.dark, 'wood'), gm = P.mat(isDark ? '#1c2438' : '#a8c8e0', 'metal');
-      for (let y = wy; y < wy + 14; y++) for (let x = wx; x < wx + 10; x++) {
-        const edge = x === wx || y === wy || x === wx + 9 || y === wy + 13 || x === wx + 5 || y === wy + 6;
-        B.plot(x, y, edge ? fm : gm, edge ? 2 : (x - wx + y - wy) % 7 === 3 ? 4 : 3);
+      for (let y = wy; y < wy + wh; y++) for (let x = wx; x < wx + ww; x++) {
+        const edge = x === wx || y === wy || x === wx + ww - 1 || y === wy + wh - 1 || x === wx + ww / 2 || y === wy + Math.floor(wh / 2);
+        const lead = !edge && ((x - wx) + (y - wy)) % 4 === 0;
+        B.plot(x, y, edge ? fm : gm, edge ? 2 : lead ? 2 : (x - wx + y - wy) % 9 === 4 ? 4 : 3);
       }
-      for (let x = wx - 1; x <= wx + 10; x++) B.plot(x, wy + 14, P.mat('#b8a888', 'cloth'), 3);
-      winSpots.push({ x: wx + 1, y: wy + 1, w: 8, h: 12 });
+      for (let x = wx - 2; x <= wx + ww + 1; x++) { B.plot(x, wy + wh, P.mat('#b8a888', 'cloth'), 3); B.plot(x, wy + wh + 1, P.mat('#b8a888', 'cloth'), 1); }
+      winSpots.push({ x: wx + 1, y: wy + 1, w: ww - 2, h: wh - 2, tx0: Math.floor((wx - SW) / T), tx1: Math.floor((wx + ww - SW) / T) });
     }
     // floor
     const fmat = floor === 'stone' ? P.mat('#8a847c', 'cloth') : floor === 'dirt' ? P.mat('#8a6e4c', 'cloth') : P.mat(wealth > 0.6 ? '#7a5434' : '#9a7448', 'wood');
     B.part(3); B.rect(SW, WH, FW, FH, fmat, 2);
     for (let y = WH; y < WH + FH; y++) for (let x = SW; x < SW + FW; x++) {
       let s = 2; const ly = y - WH, lx = x - SW;
-      if (floor === 'stone') { const r = ly % 8, off = Math.floor(ly / 8) % 2 ? 6 : 0; s = r === 7 || (lx + off) % 12 === 0 ? 0 : r === 0 || (lx + off) % 12 === 1 ? 3 : 2; if (O.noise2(x / 3, y / 3, 5) > 0.8) s = Math.max(1, s - 1); }
+      if (floor === 'stone') { const r = ly % 10, off = Math.floor(ly / 10) % 2 ? 8 : 0; s = r === 9 || (lx + off) % 16 === 0 ? 0 : r === 0 || (lx + off) % 16 === 1 ? 3 : 2; if (O.noise2(x / 3, y / 3, 5) > 0.8) s = Math.max(1, s - 1); }
       else if (floor === 'dirt') { const n = O.fbm(x / 5, y / 5, 9, 2); s = n > 0.6 ? 3 : n < 0.35 ? 1 : 2; if (O.noise2(x * 2, y * 2, 4) > 0.9) B.plot(x, y, P.mat('#d0aa50', 'hair'), 3); }
-      else { const r = ly % 5, row = Math.floor(ly / 5), seam = (lx + row * 11) % 23 === 0; s = r === 4 || seam ? 0 : r === 0 ? 3 : 2; if (O.noise2(x * 0.4, row, 7) > 0.75 && s === 2) s = 1; }
-      if (ly < 3) s = Math.max(0, s - 1); // contact shadow under the back wall
+      else { const r = ly % 6, row = Math.floor(ly / 6), seam = (lx + row * 13) % 29 === 0; s = r === 5 || seam ? 0 : r === 0 ? 3 : 2; if (O.noise2(x * 0.4, row, 7) > 0.75 && s === 2) s = 1; if (seam && r === 2) B.plot(x + 3, y, P.mat('#3a2818', 'wood'), 1); }
+      if (ly < 4) s = Math.max(0, s - 1);
       B.shadeAt(x, y, s);
     }
-    // side walls (tops) and front wall top with door gap
+    // side walls seen edge-on
     const wt = P.mat('#3a2e28', 'wood');
     B.part(4);
-    for (let y = 0; y < WH + FH + SW; y++) for (let x = 0; x < SW; x++) { B.plot(x, y, wt, x === SW - 1 ? 3 : 1); B.plot(FW + SW * 2 - 1 - x, y, wt, x === SW - 1 ? 1 : 0); }
-    const doorX0 = SW + spec.doorTile * T, doorX1 = doorX0 + T;
-    for (let x = 0; x < FW + SW * 2; x++) { if (x >= doorX0 && x < doorX1) continue; for (let y = WH + FH; y < WH + FH + SW; y++) B.plot(x, y, wt, y === WH + FH ? 3 : 1); }
+    for (let y = 0; y < WH + FH + FWALL; y++) for (let x = 0; x < SW; x++) { B.plot(x, y, wt, x === SW - 1 ? 3 : 1); B.plot(FW + SW * 2 - 1 - x, y, wt, x === SW - 1 ? 1 : 0); }
+    // the front wall, cut away low, with the doorway: a threshold of daylight and the door swung open
+    const doorX0 = SW + spec.doorTile * T, doorX1 = doorX0 + 2 * T;
+    const hasDoor = spec.doorTile >= 0;
+    for (let x = 0; x < FW + SW * 2; x++) { if (hasDoor && x >= doorX0 && x < doorX1) continue; for (let y = WH + FH; y < WH + FH + FWALL; y++) B.plot(x, y, wt, y === WH + FH ? 4 : y === WH + FH + 1 ? 3 : 1); }
+    if (hasDoor) {
+      B.part(5);
+      const lit = P.mat('#e8d8a8', 'cloth');
+      for (let y = WH + FH; y < WH + FH + FWALL; y++) for (let x = doorX0; x < doorX1; x++) B.plot(x, y, lit, y === WH + FH ? 3 : 4);
+      // door posts and the open leaf against the inside wall
+      const dm = P.mat('#6e4a2c', 'wood');
+      for (let y = WH + FH - 6; y < WH + FH + FWALL; y++) { B.plot(doorX0 - 1, y, P.mat(P.wood.dark, 'wood'), 3); B.plot(doorX1, y, P.mat(P.wood.dark, 'wood'), 1); }
+      for (let y = WH + FH - 12; y < WH + FH; y++) for (let x = doorX0 - 5; x < doorX0 - 1; x++) B.plot(x, y, dm, x === doorX0 - 5 ? 3 : 2);
+      // a rush mat inside the door
+      const mm = P.mat('#b89a5a', 'hair');
+      for (let y = WH + FH - 12; y < WH + FH - 1; y++) for (let x = doorX0 + 3; x < doorX1 - 3; x++) B.plot(x, y, mm, (x + y) % 3 === 0 ? 1 : y === WH + FH - 12 ? 3 : 2);
+    }
     void rng;
     return { canvas: B.toCanvas({ outline: false }), W: B.w, H: B.h, SW, WH, FW, FH, windows: winSpots, doorX0, doorX1 };
   }
 
-  O.Furn = { furniture, room, GOOD_COL, setGoods: (seed, goods) => { cache.goodsFor = cache.goodsFor || {}; cache.goodsFor[seed] = goods; } };
+  O.Furn = { furniture, mirrored, room, GOOD_COL, setGoods: (seed, goods) => { cache.goodsFor = cache.goodsFor || {}; cache.goodsFor[seed] = goods; } };
 })();
 
 </script>
 <script>
-// Interior layouts. Every enterable building gets rooms whose floor area equals its exterior
-// footprint (w x d tiles), one scene per floor. A chimney means a fireplace or oven inside; two
-// floors mean stairs. Furniture is placed by building type, and each piece knows what it is for:
-// beds for sleeping, workstations for each trade, counters for trading, containers that hold the
-// household's real pantry and purse or the business's real stock.
+// Interior layouts. Every enterable building gets rooms in proportion to its exterior footprint
+// (three tiles inside for every tile outside — four for churches, which must seat the parish), one
+// scene per floor. A chimney means a fireplace, oven or forge beneath it; two floors mean stairs in
+// the same corner of both.
+//
+// Furniture is arranged the way people arrange it: beds against the walls with their heads to the
+// wall, a table in the middle of the room with a chair for everyone in the household, the hearth on
+// the back wall where the chimney is, cupboards and chests along the walls. A house gets the beds
+// its family needs — a double bed for a couple, a bed each for the others (small children share),
+// a cradle for a baby. Every piece is checked as it goes in: if it would cut off the door, the
+// stairs or anything else that has to be reached, it is not placed there.
+//
+// Workplaces where nobody lives get no beds at all, and more to do instead.
 'use strict';
 (function () {
   const T = 16;
-  const F = () => O.Furn;
-  const FOOT = { bed: [1, 2], medbed: [1, 2], table: [2, 1], chair: [1, 1], stool: [1, 1], fireplace: [2, 1], oven: [2, 1], forge: [2, 1], anvil: [1, 1], cupboard: [1, 1], wardrobe: [1, 1], chest: [1, 1], shelf: [2, 1], counter: [3, 1], bar: [4, 1], workbench: [2, 1], rack: [2, 1], desk: [2, 1], pew: [3, 1], altar: [2, 1], millstone: [2, 1], stairs: [1, 2], rug: [2, 1], cauldron: [1, 1], doughtable: [2, 1], barrel: [1, 1], crate: [1, 1], sack: [1, 1], hay: [1, 1], woodpile: [1, 1], cell: [2, 2] };
-  const CONTAINER = { cupboard: 15, wardrobe: 15, chest: 12, barrel: 5, crate: 5, sack: 2 };
+  const SIZE = { bed: [2, 3], double: [3, 3], medbed: [2, 3], cradle: [2, 2], table: [3, 2], longtable: [5, 2], chair: [1, 1], stool: [1, 1], bench: [3, 1], fireplace: [3, 1], oven: [3, 2], forge: [3, 2], anvil: [1, 1],
+    cupboard: [2, 1], dresser: [2, 1], wardrobe: [2, 1], bookcase: [2, 1], chest: [2, 1], shelf: [3, 1], counter: [4, 1], workbench: [3, 1], doughtable: [3, 1], butcherblock: [3, 1], rack: [2, 1], desk: [2, 1],
+    altar: [3, 1], millstone: [3, 2], loom: [3, 2], spinning: [2, 1], stairs: [2, 3], cauldron: [1, 1], washtub: [1, 1], plant: [1, 1], candlestand: [1, 1], barrel: [1, 1], crate: [1, 1], sack: [1, 1], hay: [1, 1], woodpile: [1, 1], cell: [4, 4] };
+  const foot = (kind, rot, width) => { if (kind === 'bed' && rot) return [3, 2]; if (kind === 'pew' || kind === 'bar') return [width || 5, 1]; if (kind === 'rug') return [width || 3, 2]; if (kind === 'bench' && width) return [width, 1]; return SIZE[kind] || [1, 1]; };
+  const FOOT = SIZE;
+  const CONTAINER = { cupboard: 15, dresser: 12, wardrobe: 15, chest: 12, barrel: 5, crate: 5, sack: 2 };
+  // pieces that must stay reachable (you have to get to a bed, a chest, a workstation)
+  const NEEDS_ACCESS = new Set(['bed', 'double', 'medbed', 'cradle', 'fireplace', 'oven', 'forge', 'anvil', 'cupboard', 'dresser', 'wardrobe', 'bookcase', 'chest', 'shelf', 'counter', 'workbench', 'doughtable', 'butcherblock', 'rack', 'desk', 'altar', 'millstone', 'loom', 'spinning', 'stairs', 'cauldron', 'barrel', 'crate', 'sack', 'bar', 'cell', 'pew', 'bench']);
+
+  function scaleFor(b) { return b.type === 'chapel' ? 4 : 3; }
 
   function layoutFor(b, floor, sim) {
-    // Interiors use a constant 2x scale of the exterior footprint: big buildings stay big and small
-    // ones small, but people fit through the rooms.
-    const w = b.w * 2, d = b.d * 2, rng = O.RNG(O.hash('int', b.id, floor));
+    const S = scaleFor(b), w = b.w * S, d = b.d * S, rng = O.RNG(O.hash('int', b.id, floor));
     const grid = new Uint8Array(w * d);
     const items = [];
-    const dc = floor === 0 ? b.spec.doorTile * 2 : -1;
-    const reserved = (x, y) => (Math.abs(x - dc) <= 1 && y >= d - 3);
-    const free = (x, y, fw, fh) => { if (x < 0 || y < 0 || x + fw > w || y + fh > d) return false; for (let yy = y; yy < y + fh; yy++) for (let xx = x; xx < x + fw; xx++) if (grid[yy * w + xx] || reserved(xx, yy)) return false; return true; };
+    const dc = floor === 0 ? Math.min(w - 2, b.spec.doorTile * S + Math.floor((S - 2) / 2)) : -1; // the doorway is two tiles wide
+    const keepClear = new Set(); // tiles nothing may stand on: the way in, the foot of the stairs
+    if (floor === 0) for (let y = d - 2; y < d; y++) for (let x = dc - 1; x <= dc + 2; x++) keepClear.add(y * w + x);
+    const inb = (x, y) => x >= 0 && y >= 0 && x < w && y < d;
+    const free = (x, y, fw, fh) => { if (x < 0 || y < 0 || x + fw > w || y + fh > d) return false; for (let yy = y; yy < y + fh; yy++) for (let xx = x; xx < x + fw; xx++) if (grid[yy * w + xx] || keepClear.has(yy * w + xx)) return false; return true; };
+    // flood from the door (or the stairs up here) over open floor
+    let startTiles = [];
+    const reach = () => {
+      const seen = new Uint8Array(w * d), q = [];
+      for (const [x, y] of startTiles) if (inb(x, y) && !grid[y * w + x]) { seen[y * w + x] = 1; q.push(x, y); }
+      for (let i = 0; i < q.length; i += 2) { const x = q[i], y = q[i + 1]; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, ny = y + dy; if (!inb(nx, ny) || seen[ny * w + nx] || grid[ny * w + nx]) continue; seen[ny * w + nx] = 1; q.push(nx, ny); } }
+      return seen;
+    };
+    const touches = (it, seen) => { for (let y = it.ty - 1; y <= it.ty + it.fh; y++) for (let x = it.tx - 1; x <= it.tx + it.fw; x++) { const edge = (y === it.ty - 1 || y === it.ty + it.fh) !== (x === it.tx - 1 || x === it.tx + it.fw); if (edge && inb(x, y) && seen[y * w + x]) return true; } return false; };
+    const ok = () => {
+      if (!startTiles.length) return true;
+      const seen = reach();
+      for (const it of items) if (it.access && !touches(it, seen)) return false;
+      let open = 0, got = 0; for (let i = 0; i < w * d; i++) if (!grid[i]) { open++; if (seen[i]) got++; }
+      return got >= open * 0.85;
+    };
     const put = (kind, x, y, o = {}) => {
-      const [fw, fh] = FOOT[kind] || [1, 1];
+      const [fw, fh] = foot(kind, o.rot, o.width);
       if (!free(x, y, fw, fh)) return null;
+      const it = Object.assign({ kind, tx: x, ty: y, fw, fh, v: 0, rot: 0, seed: rng.int(1, 9999), id: items.length }, o);
       if (!o.flat) for (let yy = y; yy < y + fh; yy++) for (let xx = x; xx < x + fw; xx++) grid[yy * w + xx] = 1;
-      const it = Object.assign({ kind, tx: x, ty: y, fw, fh, v: 0, seed: rng.int(1, 9999), id: items.length }, o);
-      if (CONTAINER[kind] && !o.noContainer) it.container = { slots: CONTAINER[kind] };
-      items.push(it); return it;
+      it.access = NEEDS_ACCESS.has(kind) && !o.noAccess;
+      items.push(it);
+      if (!o.flat && !ok()) { items.pop(); for (let yy = y; yy < y + fh; yy++) for (let xx = x; xx < x + fw; xx++) grid[yy * w + xx] = 0; return null; }
+      if (CONTAINER[kind] && !o.noContainer && !it.container) it.container = { slots: CONTAINER[kind] };
+      return it;
     };
     const tryPut = (kind, cands, o) => { for (const [x, y] of cands) { const r = put(kind, x, y, o); if (r) return r; } return null; };
-    const along = (y, fw = 1) => { const c = []; for (let x = 0; x <= w - fw; x++) c.push([x, y]); return c; };
-    const anywhere = (fw = 1, fh = 1) => { const c = []; for (let y = 0; y <= d - fh; y++) for (let x = 0; x <= w - fw; x++) c.push([x, y]); return c.sort(() => rng.next() - 0.5); };
+    const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = rng.int(0, i); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+    // places along the back wall, avoiding the windows for tall pieces
+    const winCols = new Set(); { const nW = Math.min(Math.max(1, Math.floor(b.w / 2) + 1), Math.max(1, Math.floor(w / 4))); for (let i = 0; i < nW; i++) { const c = Math.floor(((i + 0.5) * w) / nW); winCols.add(c - 1); winCols.add(c); } }
+    const backWall = (fw, tall) => { const c = []; for (let x = 0; x <= w - fw; x++) c.push([x, 0]); const clear = (x) => { for (let k = x; k < x + fw; k++) if (winCols.has(k)) return false; return true; }; shuffle(c); return tall ? c.sort((a, b2) => (clear(b2[0]) ? 1 : 0) - (clear(a[0]) ? 1 : 0)) : c; };
+    const leftWall = (fw, fh) => { const c = []; for (let y = 1; y <= d - fh - 1; y++) c.push([0, y]); return c; };
+    const rightWall = (fw, fh) => { const c = []; for (let y = 1; y <= d - fh - 1; y++) c.push([w - fw, y]); return c; };
+    const corners = (fw, fh) => [[0, 0], [w - fw, 0], [0, d - fh - 2], [w - fw, d - fh - 2]];
+    const anywhere = (fw = 1, fh = 1) => { const c = []; for (let y = 1; y <= d - fh; y++) for (let x = 0; x <= w - fw; x++) c.push([x, y]); return shuffle(c); };
+    const wallDist = ([x, y], fw, fh) => Math.min(x, w - fw - x, y, d - fh - y + 3);
+    const nearWalls = (fw = 1, fh = 1) => anywhere(fw, fh).sort((a, c) => wallDist(a, fw, fh) - wallDist(c, fw, fh));
+    const centre = (fw, fh) => { const c = []; for (let y = 2; y <= d - fh - 2; y++) for (let x = 1; x <= w - fw - 1; x++) c.push([x, y]); return c.sort((a, c2) => Math.hypot(a[0] + fw / 2 - w / 2, a[1] + fh / 2 - d / 2 + 0.5) - Math.hypot(c2[0] + fw / 2 - w / 2, c2[1] + fh / 2 - d / 2 + 0.5)); };
+
     const wealth = b.wealth, wv = wealth > 0.66 ? 2 : wealth > 0.36 ? 1 : 0;
-    const chimneyX = b.sprite?.chimney ? O.clamp(Math.round(((b.sprite.chimney.x - b.sprite.OV) / (b.w * T)) * w) - 1, 0, w - 2) : null;
-    const hh = sim && b.household ? sim.households[b.household - 1] : null;
-    const members = hh ? hh.members.length : 2;
+    const chimneyX = b.sprite?.chimney ? O.clamp(Math.round(((b.sprite.chimney.x - b.sprite.OV) / (b.w * T)) * w) - 1, 0, w - 3) : null;
+    const hhs = sim ? (b.households || (b.household ? [b.household] : [])).map((id) => sim.households[id - 1]).filter((h) => h && !h.gone && h.home === b.id) : [];
+    const people = sim ? hhs.flatMap((h) => h.members.map((id) => sim.byId.get(id)).filter((p) => p && p.alive !== false)) : [];
+    const lives = people.length > 0 || (!sim && ['house', 'farmhouse', 'mansion', 'townhouse', 'keep', 'tenement', 'woodcutter'].includes(b.type));
+    const members = people.length || 2;
     const twoFloors = b.floors >= 2;
-    const hasStairs = twoFloors;
-    const stairsX = b.spec.doorTile * 2 >= w - 2 ? 0 : w - 1; // same corner on every floor
-    if (hasStairs) put('stairs', stairsX, 0, { stairs: floor === 0 ? 1 : 0 });
+    const stairsX = b.spec.doorTile * S >= w / 2 ? 0 : w - 2; // the corner away from the door, same on every floor
+    // the stairs go in first, so everything else keeps clear of them
+    if (twoFloors) {
+      const st = { kind: 'stairs', tx: stairsX, ty: 0, fw: 2, fh: 3, v: floor === 0 ? 0 : 1, rot: 0, seed: 1, id: 0, stairs: floor === 0 ? 1 : 0, access: true };
+      for (let yy = 0; yy < 3; yy++) for (let xx = stairsX; xx < stairsX + 2; xx++) grid[yy * w + xx] = 1;
+      items.push(st);
+      for (let x = stairsX; x < stairsX + 2; x++) keepClear.add(3 * w + x);
+    }
+    startTiles = floor === 0 ? [[dc, d - 1], [dc + 1, d - 1]] : [[stairsX, 3], [stairsX + 1, 3]];
 
     const homeFloor = !twoFloors || floor === 1;
     const living = floor === 0;
-    const beds = () => { const n = Math.min(Math.ceil(members / 2) + (members > 3 ? 1 : 0), 4); for (let i = 0; i < n; i++) tryPut('bed', [[0, 0], [w - 1, 0], [1, 0], [w - 2, 0], [0, d - 2], [w - 1, d - 2], ...anywhere(1, 2)], { v: wv, bed: true }); };
-    const hearth = () => { if (chimneyX != null) put('fireplace', chimneyX, 0, { v: wv }); };
-    const dining = () => { const t = tryPut('table', [[Math.floor(w / 2) - 1, Math.floor(d / 2)], ...anywhere(2, 1)], { v: wv, table: true }); if (t) { tryPut('chair', [[t.tx - 1, t.ty]], { seat: true }); tryPut('chair', [[t.tx + 2, t.ty]], { seat: true }); if (members > 2) tryPut('stool', [[t.tx, t.ty + 1], [t.tx + 1, t.ty + 1]], { seat: true }); } };
-    const storage = () => { tryPut('cupboard', along(0), { v: wv, pantry: true }); tryPut('chest', [...along(0), ...anywhere()], { v: wv, valuables: true }); if (rng.chance(0.6)) tryPut('barrel', anywhere(), { pantry: true }); };
-    const shelf = (goods, o = {}) => { const s = tryPut('shelf', along(0, 2), Object.assign({ shop: true, goods }, o)); if (s) O.Furn.setGoods(s.seed, goods); return s; };
+    // beds for the people who actually sleep here
+    function bedPlan() {
+      if (!people.length) return ['double', 'bed'];
+      const plan = []; const done = new Set();
+      const kids = [];
+      for (const p of people) {
+        if (done.has(p.id)) continue;
+        const sp = p.spouse && people.find((q) => q.id === p.spouse);
+        if (sp) { plan.push('double'); done.add(p.id); done.add(sp.id); continue; }
+        done.add(p.id);
+        if (p.age < 3) plan.push('cradle'); else if (p.age < 14) kids.push(p); else plan.push('bed');
+      }
+      for (let i = 0; i < kids.length; i += kids.length > 2 ? 2 : 1) plan.push('bed'); // young brothers and sisters share
+      return plan;
+    }
+    const beds = (plan) => {
+      let placed = 0;
+      for (const kind of plan || bedPlan()) {
+        let it = null;
+        if (kind === 'double') it = tryPut('double', backWall(3, true), { v: wv, bed: true, slots: 2 }) || tryPut('double', [...leftWall(3, 3), ...rightWall(3, 3)], { v: wv, bed: true, slots: 2 });
+        else if (kind === 'cradle') it = tryPut('cradle', nearWalls(2, 2), { v: wv, bed: true, slots: 1, cradle: true });
+        else it = tryPut('bed', backWall(2, true), { v: wv, bed: true, slots: 1 }) || tryPut('bed', leftWall(3, 2), { v: wv, bed: true, slots: 1, rot: 1 }) || tryPut('bed', rightWall(3, 2), { v: wv, bed: true, slots: 1, rot: 2 });
+        if (it) placed++;
+      }
+      return placed;
+    };
+    const hearth = () => { if (chimneyX != null) return put('fireplace', chimneyX, 0, { v: wv }) || tryPut('fireplace', backWall(3), { v: wv }); return null; };
+    // a table with a seat for everyone: chairs face the table from all four sides
+    const dining = (n, opts = {}) => {
+      const kind = n > 6 ? 'longtable' : 'table', [fw, fh] = SIZE[kind];
+      const t = tryPut(kind, opts.at || centre(fw, fh), { v: wv, table: true }); if (!t) return null;
+      const seat = wv >= 1 ? 'chair' : 'stool';
+      const spots = [];
+      for (let x = t.tx; x < t.tx + fw; x++) { spots.push([x, t.ty - 1, 0]); spots.push([x, t.ty + fh, 3]); }
+      for (let y = t.ty; y < t.ty + fh; y++) { spots.push([t.tx - 1, y, 2]); spots.push([t.tx + fw, y, 1]); }
+      let k = 0;
+      for (const [x, y, r] of spots.sort((a, c) => (a[2] === 0 || a[2] === 3 ? 0 : 1) - (c[2] === 0 || c[2] === 3 ? 0 : 1))) { if (k >= n) break; if (put(seat, x, y, { seat: true, rot: r, v: wv, noAccess: true })) k++; }
+      return t;
+    };
+    const storage = () => { tryPut(wv >= 1 ? 'dresser' : 'cupboard', backWall(2, true), { v: wv, pantry: true }); tryPut('chest', [...backWall(2), ...nearWalls(2, 1)], { v: wv, valuables: true }); if (rng.chance(0.6)) tryPut('barrel', nearWalls(), { pantry: true }); };
+    const shelf = (goods, o = {}) => { const s = tryPut('shelf', backWall(3, true), Object.assign({ shop: true, goods }, o)); if (s) O.Furn.setGoods(s.seed, goods); return s; };
+    const counterAtFront = (o = {}) => tryPut('counter', [[Math.max(0, Math.floor(w / 2) - 2), Math.floor(d / 2)], [1, Math.floor(d / 2)], [w - 5, Math.floor(d / 2)], ...anywhere(4, 1)], Object.assign({ counter: true }, o));
+    const homeExtras = () => {
+      if (wv >= 1) tryPut('rug', centre(3, 2).slice(3), { flat: true, width: 3 });
+      if (rng.chance(0.5)) tryPut('spinning', nearWalls(2, 1));
+      if (rng.chance(0.5)) tryPut('washtub', nearWalls());
+      if (wv >= 1 && rng.chance(0.6)) tryPut('plant', nearWalls());
+      if (wv >= 2) { tryPut('bookcase', backWall(2, true), { v: wv }); tryPut('candlestand', nearWalls()); }
+      // the kitchen corner by the hearth, and the clutter of a lived-in house
+      const fp = items.find((i) => i.kind === 'fireplace');
+      if (fp) { tryPut('woodpile', [[fp.tx - 1, 0], [fp.tx + 3, 0], [fp.tx - 1, 1], [fp.tx + 3, 1]]); tryPut('cauldron', [[fp.tx + 3, 1], [fp.tx - 1, 1], ...nearWalls()], { work: ['cook'] }); }
+      tryPut('bench', [...leftWall(3, 1).map(([x, y]) => [x, y]), ...nearWalls(3, 1)], { seat: true, rot: 0, noAccess: true });
+      for (let i = 0; i < 2; i++) tryPut(rng.pick(['barrel', 'sack', 'crate']), nearWalls(), { pantry: true });
+      if (rng.chance(0.5)) tryPut('loom', nearWalls(3, 2));
+    };
+    // business buildings: the family's rooms go upstairs (or into a back corner when there is no upstairs)
+    const familyQuarters = () => { if (!lives) return; if (twoFloors && floor === 1) { beds(); dining(members, {}); storage(); } else if (!twoFloors) { beds(); storage(); } };
 
     switch (b.type) {
-      case 'house': case 'farmhouse':
-        if (living) { hearth(); if (wv >= 2) put('rug', Math.max(0, Math.floor(w / 2) - 1), Math.max(1, d - 2), { flat: true }); dining(); }
+      case 'house': case 'farmhouse': case 'woodcutter':
+        if (living) { hearth(); dining(members); }
         if (homeFloor) beds();
         storage();
-        if (b.type === 'farmhouse') { tryPut('sack', anywhere(), { stockOf: 'farm' }); tryPut('barrel', anywhere()); }
+        if (living) homeExtras();
+        if (b.type === 'farmhouse') { tryPut('sack', nearWalls(), { stockOf: 'farm' }); tryPut('sack', nearWalls(), { stockOf: 'farm' }); tryPut('barrel', nearWalls()); }
+        if (b.type === 'woodcutter') { tryPut('woodpile', nearWalls()); tryPut('woodpile', nearWalls()); tryPut('rack', backWall(2, true)); }
         break;
       case 'bakery':
-        put('oven', chimneyX ?? 0, 0, { work: ['baker', 'apprentice'], fire: true });
-        shelf(['bread'], { stockGood: 'bread' });
-        tryPut('doughtable', [[0, 1], [w - 2, 1], ...anywhere(2, 1)], { work: ['apprentice', 'baker'] });
-        tryPut('counter', [[Math.max(0, w - 3), d - 2], [0, d - 2]], { counter: true });
-        for (let i = 0; i < 3; i++) tryPut('sack', anywhere(), { stockOf: 'flour', container: { slots: 2 } });
-        tryPut('woodpile', anywhere());
-        beds(); storage();
+        if (floor === 0) {
+          (chimneyX != null && put('oven', chimneyX, 0, { work: ['baker', 'apprentice'], fire: true })) || tryPut('oven', backWall(3), { work: ['baker', 'apprentice'], fire: true });
+          shelf(['bread'], { stockGood: 'bread' });
+          tryPut('doughtable', [...backWall(3), ...nearWalls(3, 1)], { work: ['apprentice', 'baker'] });
+          tryPut('doughtable', nearWalls(3, 1), { work: ['baker'] });
+          counterAtFront({ work: ['shopkeeper'] });
+          for (let i = 0; i < 3; i++) tryPut('sack', nearWalls(), { stockOf: 'flour', container: { slots: 2 } });
+          tryPut('woodpile', nearWalls()); tryPut('woodpile', nearWalls());
+        }
+        familyQuarters();
         break;
-      case 'smithy':
-        put('forge', 0, 0, { work: ['blacksmith'], fire: true });
-        tryPut('anvil', [[2, 1], [1, 1], ...anywhere()], { work: ['blacksmith', 'apprentice'] });
-        tryPut('rack', along(0, 2), { stockGood: 'tools', shop: true });
-        tryPut('workbench', [[w - 2, 1], ...anywhere(2, 1)], { work: ['apprentice'] });
-        tryPut('counter', [[Math.max(0, w - 3), d - 2]], { counter: true });
-        tryPut('barrel', anywhere()); tryPut('woodpile', anywhere());
-        tryPut('bed', [[w - 1, 0], ...anywhere(1, 2)], { bed: true, v: wv }); tryPut('chest', anywhere(), { valuables: true });
+      case 'smithy': case 'armourer':
+        if (floor === 0) {
+          (chimneyX != null && put('forge', chimneyX, 0, { work: [b.type === 'smithy' ? 'blacksmith' : 'armourer'], fire: true })) || tryPut('forge', backWall(3), { work: ['blacksmith', 'armourer'], fire: true });
+          tryPut('anvil', centre(1, 1), { work: ['blacksmith', 'apprentice', 'armourer'] });
+          tryPut('rack', backWall(2, true), { stockGood: b.type === 'smithy' ? 'tools' : 'helm', shop: true });
+          if (b.type === 'armourer') tryPut('rack', backWall(2, true), { stockGood: 'sword', shop: true });
+          tryPut('workbench', nearWalls(3, 1), { work: ['apprentice'] });
+          tryPut('washtub', nearWalls()); // the quench
+          counterAtFront({});
+          tryPut('barrel', nearWalls()); tryPut('woodpile', nearWalls()); tryPut('crate', nearWalls(), { stockOf: 'iron' });
+        }
+        familyQuarters();
         break;
       case 'tavern':
         if (floor === 0) {
           hearth();
-          put('bar', w - 6, 2, { counter: true, work: ['innkeeper', 'server'] });
-          for (let i = 0; i < 4; i++) tryPut('barrel', [[w - 2 - i, 0]], { stockOf: 'ale', container: { slots: 5 } });
-          for (const ty of [5, 8]) for (const tx of [1, 5, 9]) { const t = put('table', tx, ty, { table: true, v: 1 }); if (t) { tryPut('stool', [[tx, ty - 1]], { seat: true }); tryPut('stool', [[tx + 1, ty - 1]], { seat: true }); tryPut('chair', [[tx + 2, ty]], { seat: true }); tryPut('chair', [[tx - 1, ty]], { seat: true }); } }
-          tryPut('cauldron', [[2, 1], [3, 1], ...anywhere()], { work: ['cook'] });
-          tryPut('woodpile', [[0, 1], ...anywhere()]);
+          const bar = tryPut('bar', [[Math.max(0, Math.floor(w / 2) - 3), 3], [1, 3], ...anywhere(6, 1)], { width: 6, counter: true, work: ['innkeeper', 'server'] });
+          for (let i = 0; i < 5; i++) tryPut('barrel', backWall(1), { stockOf: 'ale', container: { slots: 5 } });
+          tryPut('dresser', backWall(2, true), { v: 1 });
+          // tables through the room, four to six drinkers at each
+          const tz = []; for (let y = (bar ? bar.ty + 4 : 6); y <= d - 5; y += 5) for (let x = 1; x <= w - 5; x += 6) tz.push([x + 1, y]);
+          for (const at of tz) dining(rng.chance(0.5) ? 6 : 4, { at: [at] });
+          tryPut('cauldron', nearWalls(), { work: ['cook'] });
+          tryPut('woodpile', nearWalls());
         } else {
-          for (let i = 0; i < 5; i++) tryPut('bed', [[1 + i * 2, 0], [1 + i * 2, 4], ...anywhere(1, 2)], { bed: true, v: 1, rent: i < 3 });
-          tryPut('table', [[2, 7], ...anywhere(2, 1)], { table: true });
-          tryPut('chest', anywhere(), { valuables: true, rentChest: true });
+          // guest rooms: beds along the walls, a chest for the lodgers, the landlord's family
+          for (let i = 0; i < 6; i++) tryPut('bed', backWall(2, true), { bed: true, slots: 1, v: 1, rent: i < 4 }) || tryPut('bed', leftWall(3, 2), { bed: true, slots: 1, v: 1, rent: i < 4, rot: 1 }) || tryPut('bed', rightWall(3, 2), { bed: true, slots: 1, v: 1, rent: i < 4, rot: 2 });
+          tryPut('chest', nearWalls(2, 1), { valuables: true, rentChest: true });
+          if (lives) beds();
+          tryPut('washtub', nearWalls()); tryPut('table', centre(3, 2), { table: true, v: 1 });
           storage();
         }
         break;
       case 'store':
-        shelf(['cabbage', 'firewood', 'flour'], { stockGood: 'cabbage' });
-        shelf(['flour', 'cabbage'], { stockGood: 'flour' });
-        tryPut('counter', [[1, d - 2], [0, d - 2]], { counter: true, work: ['shopkeeper'] });
-        for (let i = 0; i < 4; i++) tryPut(rng.pick(['crate', 'barrel', 'sack']), anywhere(), { stockOf: 'store' });
-        beds(); storage();
+        if (floor === 0) {
+          shelf(['cabbage', 'firewood', 'flour'], { stockGood: 'cabbage' });
+          shelf(['flour', 'cabbage'], { stockGood: 'flour' });
+          counterAtFront({ work: ['shopkeeper'] });
+          for (let i = 0; i < 5; i++) tryPut(rng.pick(['crate', 'barrel', 'sack']), nearWalls(), { stockOf: 'store' });
+        }
+        familyQuarters();
         break;
       case 'doctor':
         if (floor === 0) {
           shelf(['medicine', 'herbs'], { stockGood: 'medicine' });
-          tryPut('desk', [[0, 1], ...anywhere(2, 1)], { work: ['physician'] });
-          tryPut('medbed', [[w - 2, 1], [0, 2], ...anywhere(1, 2)], { medbed: true, work: ['herbalist'] });
-          for (let i = 0; i < 2; i++) tryPut('chair', anywhere(), { seat: true, waiting: true });
-          tryPut('chest', anywhere(), { valuables: true });
-        } else { beds(); storage(); }
+          tryPut('desk', [...backWall(2), ...nearWalls(2, 1)], { work: ['physician'] });
+          for (let i = 0; i < 2; i++) tryPut('medbed', [...backWall(2, true), ...nearWalls(2, 3)], { medbed: true, bed: true, slots: 1, work: ['herbalist'] });
+          tryPut('bench', nearWalls(3, 1), { seat: true, waiting: true });
+          tryPut('cauldron', nearWalls(), {}); tryPut('chest', nearWalls(2, 1), { valuables: true });
+        }
+        familyQuarters();
         break;
-      case 'chapel':
-        put('altar', Math.floor(w / 2) - 1, 0, { work: ['priest'], candles: true });
-        for (let y = 3; y < d - 2; y += 2) { put('pew', 1, y, { pew: true }); put('pew', w - 4, y, { pew: true }); }
-        tryPut('chest', [[w - 1, 0], [0, 0]], { valuables: true, alms: true });
+      case 'chapel': {
+        put('altar', Math.floor(w / 2) - 1, 1, { work: ['priest'], candles: true });
+        for (const x of [Math.floor(w / 2) - 4, Math.floor(w / 2) + 3]) tryPut('candlestand', [[x, 1]]);
+        // pews in two blocks either side of the aisle, enough for the parish
+        const pw = Math.floor((w - 4) / 2);
+        for (let y = 5; y <= d - 4; y += 2) { put('pew', 1, y, { pew: true, width: pw, seats: pw }); put('pew', w - 1 - pw, y, { pew: true, width: pw, seats: pw }); }
+        tryPut('chest', [[0, 0], [w - 2, 0]], { valuables: true, alms: true });
         break;
+      }
       case 'mill':
         if (floor === 0) {
-          put('millstone', 1, 1, { work: ['miller', 'labourer'] });
-          for (let i = 0; i < 5; i++) tryPut('sack', anywhere(), { stockOf: i % 2 ? 'flour' : 'wheat', container: { slots: 2 } });
-          tryPut('crate', anywhere());
-        } else { beds(); storage(); }
+          put('millstone', Math.floor(w / 2) - 1, 2, { work: ['miller', 'labourer'] });
+          for (let i = 0; i < 6; i++) tryPut('sack', nearWalls(), { stockOf: i % 2 ? 'flour' : 'wheat', container: { slots: 2 } });
+          tryPut('crate', nearWalls()); tryPut('workbench', nearWalls(3, 1), { work: ['labourer'] });
+        }
+        familyQuarters();
         break;
-      case 'guard':
-        tryPut('desk', [[1, 1], ...anywhere(2, 1)], { work: ['guard captain', 'guard'] });
-        tryPut('rack', along(0, 2));
-        put('cell', w - 2, d - 2, { cell: true });
-        tryPut('bed', [[0, 0], ...anywhere(1, 2)], { bed: true });
-        tryPut('chest', anywhere(), { valuables: true, evidence: true });
+      case 'guard': {
+        tryPut('desk', [...backWall(2), ...centre(2, 1)], { work: ['guard captain', 'guard'] });
+        tryPut('rack', backWall(2, true)); tryPut('rack', backWall(2, true));
+        put('cell', w - 4, d - 6, { cell: true }) || tryPut('cell', corners(4, 4), { cell: true });
+        tryPut('bench', nearWalls(3, 1), { seat: true });
+        dining(4);
+        tryPut('chest', nearWalls(2, 1), { valuables: true, evidence: true });
+        tryPut('bed', backWall(2, true), { bed: true, slots: 1 }); // the night watch's cot
         break;
+      }
       case 'barn':
-        for (let i = 0; i < 6; i++) tryPut('hay', anywhere(), {});
-        for (let i = 0; i < 4; i++) tryPut('sack', anywhere(), { stockOf: 'wheat', container: { slots: 2 } });
-        tryPut('crate', anywhere()); tryPut('barrel', anywhere());
+        for (let i = 0; i < 10; i++) tryPut('hay', nearWalls(), {});
+        for (let i = 0; i < 4; i++) tryPut('sack', nearWalls(), { stockOf: 'wheat', container: { slots: 2 } });
+        tryPut('crate', nearWalls()); tryPut('barrel', nearWalls()); tryPut('rack', backWall(2, true));
         break;
       case 'hideout': {
         const lvl = b.level || 1;
         hearth();
-        for (let i = 0; i < Math.min(O.Gangs.LEVELS[lvl].beds, 6); i++) tryPut('bed', [[i * 2, 0], [i * 2, d - 2], ...anywhere(1, 2)], { bed: true, v: 0, gangBed: true });
-        const t = tryPut('table', [[Math.floor(w / 2) - 1, Math.floor(d / 2)], ...anywhere(2, 1)], { table: true, v: 0 });
-        if (t) { tryPut('stool', [[t.tx - 1, t.ty]], { seat: true }); tryPut('stool', [[t.tx + 2, t.ty]], { seat: true }); tryPut('stool', [[t.tx, t.ty + 1]], { seat: true }); }
-        tryPut('chest', [...along(0), ...anywhere()], { gangStash: true, noContainer: true });
-        if (lvl >= 2) { tryPut('rack', along(0, 2)); tryPut('workbench', anywhere(2, 1)); }
-        if (lvl >= 3) { tryPut('desk', anywhere(2, 1)); tryPut('rug', anywhere(2, 1), { flat: true }); }
-        tryPut('barrel', anywhere()); tryPut('woodpile', anywhere());
+        for (let i = 0; i < Math.min(O.Gangs.LEVELS[lvl].beds, 8); i++) tryPut('bed', backWall(2, true), { bed: true, slots: 1, v: 0, gangBed: true }) || tryPut('bed', leftWall(3, 2), { bed: true, slots: 1, v: 0, gangBed: true, rot: 1 }) || tryPut('bed', rightWall(3, 2), { bed: true, slots: 1, v: 0, gangBed: true, rot: 2 });
+        dining(5);
+        tryPut('chest', [...backWall(2), ...nearWalls(2, 1)], { gangStash: true, noContainer: true });
+        if (lvl >= 2) { tryPut('rack', backWall(2, true)); tryPut('workbench', nearWalls(3, 1)); }
+        if (lvl >= 3) { tryPut('desk', nearWalls(2, 1)); tryPut('rug', centre(3, 2), { flat: true, width: 3 }); }
+        tryPut('barrel', nearWalls()); tryPut('woodpile', nearWalls());
         break;
       }
-      case 'woodcutter':
-        hearth(); tryPut('bed', [[0, 0], [w - 1, 0], ...anywhere(1, 2)], { bed: true }); tryPut('woodpile', anywhere()); tryPut('rack', along(0, 2)); tryPut('stool', anywhere(), { seat: true }); storage();
-        break;
       case 'butcher':
-        tryPut('workbench', [[0, 1], ...anywhere(2, 1)], { work: ['butcher', 'apprentice'] });
-        tryPut('rack', along(0, 2), { stockGood: 'meat', shop: true });
-        tryPut('counter', [[Math.max(0, w - 3), d - 2], [0, d - 2]], { counter: true });
-        for (let i = 0; i < 2; i++) tryPut('barrel', anywhere(), { stockOf: 'meat', container: { slots: 4 } });
-        beds(); storage();
+        if (floor === 0) {
+          tryPut('butcherblock', [...backWall(3), ...nearWalls(3, 1)], { work: ['butcher', 'apprentice'] });
+          tryPut('rack', backWall(2, true), { stockGood: 'meat', shop: true });
+          counterAtFront({});
+          for (let i = 0; i < 2; i++) tryPut('barrel', nearWalls(), { stockOf: 'meat', container: { slots: 4 } });
+          tryPut('washtub', nearWalls());
+        }
+        familyQuarters();
         break;
       case 'jeweller':
         if (floor === 0) {
-          tryPut('desk', [[0, 1], ...anywhere(2, 1)], { work: ['jeweller'] });
+          tryPut('desk', [...backWall(2), ...nearWalls(2, 1)], { work: ['jeweller'] });
           shelf(['ring', 'brooch'], { stockGood: 'ring' });
-          tryPut('counter', [[Math.max(0, w - 3), d - 2], [0, d - 2]], { counter: true });
-          tryPut('chest', [[w - 1, 1], ...anywhere()], { valuables: true, strongbox: true, container: { slots: 20 } });
-          tryPut('stool', anywhere(), { seat: true, work: ['night watchman'] });
-        } else { beds(); storage(); }
+          counterAtFront({});
+          tryPut('chest', [...backWall(2), ...nearWalls(2, 1)], { valuables: true, strongbox: true, container: { slots: 20 } });
+          tryPut('stool', nearWalls(), { seat: true, work: ['night watchman'] });
+          tryPut('candlestand', nearWalls());
+        }
+        familyQuarters();
         break;
       case 'apothecary':
-        shelf(['medicine', 'herbs'], { stockGood: 'medicine' });
-        shelf(['herbs'], { stockGood: 'herbs' });
-        tryPut('cauldron', [[1, 1], ...anywhere()], { work: ['apothecary'] });
-        tryPut('counter', [[Math.max(0, w - 3), d - 2], [0, d - 2]], { counter: true });
-        beds(); storage();
+        if (floor === 0) {
+          shelf(['medicine', 'herbs'], { stockGood: 'medicine' });
+          shelf(['herbs'], { stockGood: 'herbs' });
+          tryPut('cauldron', nearWalls(), { work: ['apothecary'] });
+          tryPut('workbench', nearWalls(3, 1), { work: ['apothecary'] });
+          counterAtFront({});
+          tryPut('plant', nearWalls()); tryPut('plant', nearWalls());
+        }
+        familyQuarters();
         break;
       case 'carpenter':
-        tryPut('workbench', [[0, 1], ...anywhere(2, 1)], { work: ['carpenter'] });
-        tryPut('workbench', [[w - 2, 1], ...anywhere(2, 1)], { work: ['apprentice'] });
-        for (let i = 0; i < 3; i++) tryPut('woodpile', anywhere(), { stockOf: 'logs' });
-        tryPut('table', anywhere(2, 1), { stockGood: 'furniture', shop: true }); tryPut('chair', anywhere(), { shop: true });
-        beds(); storage();
-        break;
-      case 'armourer':
-        put('forge', 0, 0, { work: ['armourer'], fire: true });
-        tryPut('anvil', [[2, 1], ...anywhere()], { work: ['armourer'] });
-        tryPut('rack', along(0, 2), { stockGood: 'helm', shop: true }); tryPut('rack', along(0, 2), { stockGood: 'sword', shop: true });
-        tryPut('counter', [[Math.max(0, w - 3), d - 2]], { counter: true });
-        beds(); storage();
+        if (floor === 0) {
+          tryPut('workbench', [...backWall(3), ...nearWalls(3, 1)], { work: ['carpenter'] });
+          tryPut('workbench', nearWalls(3, 1), { work: ['apprentice'] });
+          for (let i = 0; i < 3; i++) tryPut('woodpile', nearWalls(), { stockOf: 'logs' });
+          tryPut('table', centre(3, 2), { stockGood: 'furniture', shop: true, table: true }); tryPut('chair', nearWalls(), { shop: true, rot: 0 });
+          tryPut('rack', backWall(2, true));
+        }
+        familyQuarters();
         break;
       case 'sawmill':
-        tryPut('workbench', [[1, 1], ...anywhere(2, 1)], { work: ['sawyer', 'labourer'] });
-        tryPut('workbench', [[w - 3, 1], ...anywhere(2, 1)], { work: ['labourer'] });
-        for (let i = 0; i < 4; i++) tryPut('woodpile', anywhere(), { stockOf: i % 2 ? 'logs' : 'planks' });
-        tryPut('rack', along(0, 2)); beds(); storage();
+        tryPut('workbench', [...backWall(3), ...nearWalls(3, 1)], { work: ['sawyer', 'labourer'] });
+        tryPut('workbench', nearWalls(3, 1), { work: ['labourer'] });
+        for (let i = 0; i < 5; i++) tryPut('woodpile', nearWalls(), { stockOf: i % 2 ? 'logs' : 'planks' });
+        tryPut('rack', backWall(2, true)); familyQuarters();
         break;
-      case 'quarry':
-        tryPut('desk', [[1, 1], ...anywhere(2, 1)], { work: ['quarry master'] });
-        tryPut('rack', along(0, 2), { work: ['quarryman'] }); tryPut('anvil', anywhere(), { work: ['quarryman'] });
-        for (let i = 0; i < 5; i++) tryPut('crate', anywhere(), { stockOf: 'stone' });
-        tryPut('barrel', anywhere()); storage();
+      case 'quarry': case 'mine':
+        tryPut('desk', [...backWall(2), ...nearWalls(2, 1)], { work: ['quarry master'] });
+        tryPut('rack', backWall(2, true), { work: ['quarryman'] }); tryPut('anvil', nearWalls(), { work: ['quarryman'] });
+        for (let i = 0; i < 6; i++) tryPut('crate', nearWalls(), { stockOf: 'stone' });
+        tryPut('barrel', nearWalls()); tryPut('bench', nearWalls(3, 1), { seat: true });
         break;
       case 'warehouse':
-        for (let i = 0; i < Math.floor(w * d / 7); i++) tryPut(rng.pick(['crate', 'crate', 'barrel', 'sack']), anywhere(), { stockOf: 'warehouse' });
-        tryPut('desk', [[1, d - 3], ...anywhere(2, 1)], { work: ['warehouse master'] });
-        tryPut('chest', anywhere(), { valuables: true });
+        for (let i = 0; i < Math.floor((w * d) / 10); i++) tryPut(rng.pick(['crate', 'crate', 'barrel', 'sack']), nearWalls(), { stockOf: 'warehouse' });
+        tryPut('desk', nearWalls(2, 1), { work: ['warehouse master'] });
+        tryPut('chest', nearWalls(2, 1), { valuables: true });
         break;
       case 'townhall':
         if (floor === 0) {
-          tryPut('desk', [[Math.floor(w / 2) - 1, 1], ...anywhere(2, 1)], { work: ['magistrate'] });
-          for (let i = 0; i < 2; i++) tryPut('desk', [[1 + i * (w - 4), 3], ...anywhere(2, 1)], { work: ['clerk'] });
-          for (let y = 5; y < d - 2; y += 2) { put('pew', 1, y, { pew: true }); put('pew', w - 4, y, { pew: true }); }
-          tryPut('shelf', along(0, 2)); tryPut('chest', anywhere(), { valuables: true, treasury: true });
-          if (wv >= 1) put('rug', Math.floor(w / 2) - 1, 3, { flat: true });
-        } else { tryPut('table', [[Math.floor(w / 2) - 1, Math.floor(d / 2)]], { table: true, v: 2 }); for (let i = 0; i < 4; i++) tryPut('chair', anywhere(), { seat: true }); tryPut('shelf', along(0, 2)); tryPut('shelf', along(0, 2)); }
+          tryPut('desk', [[Math.floor(w / 2) - 1, 1], ...backWall(2)], { work: ['magistrate'] });
+          for (let i = 0; i < 2; i++) tryPut('desk', [[2 + i * (w - 6), 3], ...nearWalls(2, 1)], { work: ['clerk'] });
+          { const pw = Math.floor((w - 4) / 2); for (let y = 6; y <= d - 4; y += 2) { put('pew', 1, y, { pew: true, width: pw, seats: pw }); put('pew', w - 1 - pw, y, { pew: true, width: pw, seats: pw }); } }
+          tryPut('bookcase', backWall(2, true)); tryPut('chest', nearWalls(2, 1), { valuables: true, treasury: true });
+          if (wv >= 1) tryPut('rug', [[Math.floor(w / 2) - 1, 3]], { flat: true, width: 3 });
+        } else { dining(8); tryPut('bookcase', backWall(2, true)); tryPut('bookcase', backWall(2, true)); tryPut('shelf', backWall(3, true)); }
         break;
       case 'hospital':
-        for (let x = 0; x + 1 < w; x += 2) { tryPut('medbed', [[x, 0]], { medbed: true, work: ['nurse'] }); tryPut('medbed', [[x, d - 4]], { medbed: true }); }
-        tryPut('desk', anywhere(2, 1), { work: ['physician'] }); tryPut('shelf', along(0, 2), { stockGood: 'medicine', shop: true });
-        tryPut('cauldron', anywhere(), {}); for (let i = 0; i < 2; i++) tryPut('chair', anywhere(), { seat: true, waiting: true });
+        for (let x = 0; x + 2 <= w; x += 3) { tryPut('medbed', [[x, 0]], { medbed: true, bed: true, slots: 1, work: ['nurse'] }); tryPut('medbed', [[x, d - 6]], { medbed: true, bed: true, slots: 1 }); }
+        tryPut('desk', nearWalls(2, 1), { work: ['physician'] }); tryPut('shelf', backWall(3, true), { stockGood: 'medicine', shop: true });
+        tryPut('cauldron', nearWalls(), {}); tryPut('bench', nearWalls(3, 1), { seat: true, waiting: true }); tryPut('washtub', nearWalls());
         break;
       case 'school':
-        tryPut('desk', [[Math.floor(w / 2) - 1, 0], ...anywhere(2, 1)], { work: ['teacher'] });
-        for (let y = 3; y < d - 2; y += 2) { put('pew', 1, y, { pew: true }); put('pew', w - 4, y, { pew: true }); }
-        tryPut('shelf', along(0, 2));
+        tryPut('desk', [[Math.floor(w / 2) - 1, 1], ...backWall(2)], { work: ['teacher'] });
+        for (let y = 4; y <= d - 4; y += 2) for (const x of [1, w - 4]) put('pew', x, y, { pew: true, width: 3, seats: 3 });
+        tryPut('bookcase', backWall(2, true));
         break;
       case 'tenement':
-        // each floor is crowded flats: beds wall to wall, a shared hearth, little else
         if (floor === 0) hearth();
-        for (let i = 0; i < 6; i++) tryPut('bed', [[i * 2, 0], [i * 2, d - 2], ...anywhere(1, 2)], { bed: true, v: 0 });
-        tryPut('table', anywhere(2, 1), { table: true, v: 0 }); for (let i = 0; i < 3; i++) tryPut('stool', anywhere(), { seat: true });
-        for (let i = 0; i < 2; i++) tryPut('sack', anywhere(), { pantry: true });
-        tryPut('chest', anywhere(), { valuables: true });
+        beds();
+        dining(Math.min(8, members));
+        for (let i = 0; i < 2; i++) tryPut('sack', nearWalls(), { pantry: true });
+        tryPut('chest', nearWalls(2, 1), { valuables: true });
         break;
       case 'mansion': case 'townhouse': case 'keep':
         if (floor === 0) {
-          hearth(); put('rug', Math.max(0, Math.floor(w / 2) - 1), Math.max(1, Math.floor(d / 2) + 1), { flat: true });
-          const t = tryPut('table', [[Math.floor(w / 2) - 1, Math.floor(d / 2)], ...anywhere(2, 1)], { table: true, v: 2 });
-          if (t) { tryPut('chair', [[t.tx - 1, t.ty]], { seat: true }); tryPut('chair', [[t.tx + 2, t.ty]], { seat: true }); }
-          tryPut('cupboard', along(0), { v: 2, pantry: true }); tryPut('shelf', along(0, 2));
-          if (b.type === 'keep') {
-            // the great hall: a lord's high table, long tables with benches, arms on the walls
-            tryPut('desk', [[Math.floor(w / 2) - 1, 1]], { v: 2, lord: true });
-            for (let y = 4; y < d - 4; y += 3) for (const x of [2, w - 5]) { if (put('pew', x, y, { pew: true })) tryPut('table', [[x, y + 1]], { table: true, v: 1 }); }
-            tryPut('rack', along(0, 2)); tryPut('rack', along(0, 2)); tryPut('barrel', anywhere()); tryPut('barrel', anywhere());
-          }
+          hearth(); tryPut('rug', centre(3, 2), { flat: true, width: 3 });
+          dining(Math.max(members, b.type === 'keep' ? 12 : 6));
+          tryPut('dresser', backWall(2, true), { v: 2, pantry: true }); tryPut('bookcase', backWall(2, true), { v: 2 });
+          tryPut('candlestand', nearWalls()); tryPut('candlestand', nearWalls()); tryPut('plant', nearWalls());
+          if (b.type === 'keep') { tryPut('desk', [[Math.floor(w / 2) - 1, 1]], { v: 2, lord: true }); tryPut('rack', backWall(2, true)); tryPut('rack', backWall(2, true)); tryPut('barrel', nearWalls()); tryPut('barrel', nearWalls()); }
         } else {
-          beds(); tryPut('wardrobe', along(0), { v: 2 }); tryPut('chest', along(0), { v: 2, valuables: true, container: { slots: 18 } });
-          tryPut('rug', anywhere(2, 1), { flat: true }); tryPut('desk', anywhere(2, 1));
+          beds(); tryPut('wardrobe', backWall(2, true), { v: 2 }); tryPut('chest', nearWalls(2, 1), { v: 2, valuables: true, container: { slots: 18 } });
+          tryPut('rug', centre(3, 2), { flat: true, width: 3 }); tryPut('desk', nearWalls(2, 1)); tryPut('candlestand', nearWalls());
         }
         storage();
         break;
-      default: storage();
+      default: storage(); familyQuarters();
     }
     // a chimney always has a fire beneath it
-    if (chimneyX != null && floor === 0 && !items.some((i) => i.kind === 'fireplace' || i.kind === 'oven' || i.kind === 'forge' || i.kind === 'cauldron')) hearth();
-    // portraits of the family's notable dead hang on the back wall, clear of the windows
+    if (chimneyX != null && floor === 0 && !items.some((i) => i.kind === 'fireplace' || i.kind === 'oven' || i.kind === 'forge')) hearth();
+    // portraits of the family's notable dead hang on the back wall, clear of the windows and tall pieces
     if (b.portraits && b.portraits.length && floor === 0) {
-      const nW = Math.min(Math.max(1, Math.floor(b.w / 2) + 1), Math.max(1, Math.floor(w / 2)));
-      const wins = []; for (let i = 0; i < nW; i++) wins.push(((i + 0.5) * w) / nW);
-      const taken = new Set();
+      const taken = new Set(); for (const it of items) if (it.ty === 0) for (let x = it.tx; x < it.tx + it.fw; x++) taken.add(x);
       for (const pr of b.portraits.slice(-3)) {
         let best = null;
-        for (let x = 0; x < w; x++) { if (taken.has(x) || wins.some((c) => Math.abs(x + 0.5 - c) < 0.9)) continue; if (best == null || Math.abs(x - w / 2) < Math.abs(best - w / 2)) best = x; }
+        for (let x = 1; x < w - 1; x++) { if (taken.has(x) || winCols.has(x)) continue; if (best == null || Math.abs(x - w / 2) < Math.abs(best - w / 2)) best = x; }
         if (best == null) break; taken.add(best); taken.add(best - 1); taken.add(best + 1);
         items.push({ kind: 'portrait', tx: best, ty: 0, fw: 1, fh: 1, v: wealth > 0.5 ? 1 : 0, seed: pr.seed, id: items.length, portrait: pr, flat: true });
       }
     }
-    return { b, floor, w, d, items, grid, floors: b.floors, dc };
+    items.forEach((it, i) => (it.id = i));
+    return { b, floor, w, d, items, grid, floors: b.floors, dc, scale: S, reachable: reach(), stairsX };
   }
 
   // Cached interior per building/floor (furniture is fixed; stock visuals update live).
@@ -7330,13 +7639,13 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     if (cache.has(key)) return cache.get(key);
     const L = layoutFor(b, floor, sim);
     const wallKind = b.spec.wall === 'stone' || b.spec.wall === 'log' || b.spec.wall === 'plank' ? b.spec.wall : 'timber';
-    const floorKind = ['smithy', 'chapel', 'guard', 'mill', 'quarry', 'armourer', 'warehouse', 'townhall', 'keep', 'hospital'].includes(b.type) ? 'stone' : b.type === 'barn' || (b.type === 'house' && b.wealth < 0.3) ? 'dirt' : 'wood';
+    const floorKind = ['smithy', 'chapel', 'guard', 'mill', 'quarry', 'mine', 'armourer', 'warehouse', 'townhall', 'keep', 'hospital'].includes(b.type) ? 'stone' : b.type === 'barn' || (b.type === 'house' && b.wealth < 0.3) ? 'dirt' : 'wood';
     L.room = O.Furn.room({ w: L.w, d: L.d, wall: wallKind, floor: floorKind, wealth: b.wealth, seed: b.id * 3 + floor, windows: Math.max(1, Math.floor(b.w / 2) + 1), doorTile: floor === 0 ? L.dc : -5 });
     cache.set(key, L);
     return L;
   }
 
-  O.Interior = { interior, layoutFor, FOOT, invalidate: (b) => { for (const k of [...cache.keys()]) if (k.startsWith(b.id + ':')) cache.delete(k); } };
+  O.Interior = { interior, layoutFor, FOOT, foot, invalidate: (b) => { for (const k of [...cache.keys()]) if (k.startsWith(b.id + ':')) cache.delete(k); } };
 })();
 
 </script>
@@ -7442,12 +7751,14 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
 </script>
 <script>
-// Indoor scene: renders a building's floor, places the residents who are actually inside it at the
-// furniture that matches what they're doing, shows stock levels on shelves and in sacks, and handles
-// collision, stairs and leaving by the door.
+// Indoor scene: renders a building's floor, places the residents who are actually inside it where
+// their business puts them — asleep in their own beds under the covers, at the table facing it, in
+// the pews facing the altar, behind the counter, at the bench — shows stock levels on shelves and
+// in sacks, and handles collision, stairs and leaving by the door.
 'use strict';
 (function () {
   const T = 16, Ch = O.Char;
+  const SLEEPY = new Set(['sleep', 'sick']);
 
   class Indoor {
     constructor(game, sim, b, floor = 0) {
@@ -7457,13 +7768,15 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       this.actors = new Map(); // person id -> scene actor
       this.t = 0;
     }
-    // floor tile -> scene pixel (feet position)
+    // floor tile -> scene pixel (feet position, middle of the tile)
     tileXY(tx, ty) { return [this.R.SW + tx * T + 8, this.R.WH + ty * T + 12]; }
     anchor(it) { return [this.R.SW + (it.tx + it.fw / 2) * T, this.R.WH + (it.ty + it.fh) * T - 1]; }
+    rect(it) { const x = this.R.SW + it.tx * T, y = this.R.WH + it.ty * T; return [x, y, x + it.fw * T, y + it.fh * T]; }
     enterAt(fromStairs) {
-      const p = this.game.player;
-      if (fromStairs || this.L.dc < 0) { const st = this.L.items.find((i) => i.kind === 'stairs'); const [x, y] = this.anchor(st); p.x = x + (st.tx === 0 ? 14 : -14); p.y = y - 4; p.dir = 0; }
-      else { [p.x, p.y] = this.tileXY(this.L.dc, this.L.d - 1); p.y += 2; p.dir = 3; }
+      const p = this.game.player, L = this.L;
+      const st = L.items.find((i) => i.kind === 'stairs');
+      if ((fromStairs || L.dc < 0) && st) { [p.x, p.y] = this.tileXY(st.tx, st.ty + st.fh); p.x += 8; p.y += 2; p.dir = 0; }
+      else { p.x = this.R.SW + (L.dc + 1) * T; p.y = this.R.WH + (L.d - 1) * T + 12; p.dir = 3; }
     }
     blocked(x, y) {
       const R = this.R, L = this.L;
@@ -7471,7 +7784,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         const tx = Math.floor((px - R.SW) / T), ty = Math.floor((py - R.WH) / T);
         if (py < R.WH + 5) return true;
         if (tx < 0 || tx >= L.w) return true;
-        if (ty >= L.d) return !(this.floor === 0 && tx === L.dc);
+        if (ty >= L.d) return !(this.floor === 0 && (tx === L.dc || tx === L.dc + 1));
         return L.grid[ty * L.w + tx] === 1;
       };
       return test(x - 4, y - 3) || test(x + 3, y - 3) || test(x - 4, y) || test(x + 3, y);
@@ -7479,69 +7792,96 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     update(dt) {
       this.t += dt;
       const p = this.game.player;
-      if (this.floor === 0 && p.y > this.R.WH + this.L.d * T + 2) this.game.exitBuilding();
+      if (this.floor === 0 && p.y > this.R.WH + this.L.d * T + 4) this.game.exitBuilding();
       this.placeActors();
     }
 
     // Who is inside, and where do they belong right now?
     placeActors() {
       const sim = this.sim, L = this.L, b = this.b;
-      const inside = sim.people.filter((q) => q.agent.inside === b.id).sort((a, c) => a.id - c.id);
-      const bedsHere = L.items.filter((i) => i.bed);
+      const inside = sim.people.filter((q) => q.agent.inside === b.id && q.alive !== false).sort((a, c) => a.id - c.id);
       const twoF = b.floors >= 2;
-      const used = new Set(); const seen = new Set();
-      const free = (list) => list.find((i) => !used.has(i)) || null;
-      const seats = L.items.filter((i) => i.seat || i.pew);
-      const idleTiles = []; for (let y = 0; y < L.d; y++) for (let x = 0; x < L.w; x++) if (!L.grid[y * L.w + x] && !(Math.abs(x - L.dc) <= 1 && y >= L.d - 2) && y > 0) idleTiles.push([x, y]);
-      for (const q of inside) {
+      const used = new Set(), seen = new Set();
+      const seats = L.items.filter((i) => i.seat && i.kind !== 'pew');
+      const pews = L.items.filter((i) => i.kind === 'pew');
+      const counters = L.items.filter((i) => i.counter);
+      const idleTiles = []; for (let y = 1; y < L.d; y++) for (let x = 0; x < L.w; x++) if (!L.grid[y * L.w + x] && L.reachable[y * L.w + x] && !(this.floor === 0 && Math.abs(x - L.dc - 0.5) <= 1.5 && y >= L.d - 2)) idleTiles.push([x, y]);
+      // which floor is each person on?
+      const floorOf = (q) => {
         const act = q.activity?.act;
-        const sleeping = act === 'sleep' || act === 'sick';
-        const fl = twoF ? ((sleeping && b.id !== sim.docId) || (act === 'home' && q.id % 2) ? 1 : 0) : 0;
-        if (b.type === 'tavern' && (act === 'rest') ) { /* travellers rest upstairs */ }
-        const wantFloor = b.type === 'tavern' && act === 'rest' ? 1 : fl;
-        if (wantFloor !== this.floor) continue;
-        let x, y, dir = 0, anim = 'idle', over = null;
-        let spot = null;
-        if (act === 'jailed') { const c = L.items.find((i) => i.cell); if (c) { const [ax, ay] = this.anchor(c); x = ax + ((q.id % 3) - 1) * 6; y = ay - 6; anim = 'sit'; dir = 0; } }
-        else if (act === 'treated' || (act === 'sick' && b.id === sim.docId)) { spot = L.items.find((i) => i.medbed && !used.has(i)) || free(bedsHere); if (spot) { const [ax, ay] = this.anchor(spot); x = ax; y = ay - 44 + Ch.GROUND; anim = 'sleep'; } }
-        else if (sleeping) {
-          spot = free(bedsHere);
-          if (spot) { const [ax, ay] = this.anchor(spot); x = ax; y = ay - 44 + Ch.GROUND; anim = 'sleep'; over = spot; }
-          else { const t = idleTiles[(q.id * 5) % Math.max(1, idleTiles.length)] || [0, 1]; [x, y] = this.tileXY(t[0], t[1]); y += 14; anim = 'sleep'; } // a straw pallet on the floor
+        if (!twoF) return 0;
+        if (b.type === 'tavern') return act === 'rest' || (SLEEPY.has(act) && q.home !== b.id) || (SLEEPY.has(act) && q.home === b.id) ? 1 : 0;
+        if (['house', 'mansion', 'townhouse', 'keep', 'tenement'].includes(b.type)) return SLEEPY.has(act) && b.id !== sim.docId ? 1 : act === 'home' && q.id % 3 === 0 ? 1 : 0;
+        return SLEEPY.has(act) && q.home === b.id ? 1 : 0; // a shop: the family lives upstairs
+      };
+      const here = inside.filter((q) => floorOf(q) === this.floor);
+      // ---- beds: couples together, babies in cradles, then everyone else
+      const slots = [];
+      for (const it of L.items) if (it.bed) for (let k = 0; k < (it.slots || 1); k++) slots.push({ it, k });
+      const sleepers = here.filter((q) => SLEEPY.has(q.activity?.act) || q.activity?.act === 'treated');
+      const bedOf = new Map();
+      const take = (q, pred) => { const s = slots.find((x) => !x.taken && pred(x)); if (s) { s.taken = q; bedOf.set(q.id, s); return true; } return false; };
+      for (const q of sleepers) if (q.activity?.act === 'treated' || (q.activity?.act === 'sick' && b.id === sim.docId)) take(q, (s) => s.it.kind === 'medbed');
+      for (const q of sleepers) {
+        if (bedOf.has(q.id)) continue;
+        const sp = q.spouse && sleepers.find((z) => z.id === q.spouse);
+        if (sp && !bedOf.has(sp.id)) { const s = slots.find((x) => !x.taken && x.it.slots === 2 && x.k === 0); if (s) { s.taken = q; bedOf.set(q.id, s); const s2 = slots.find((x) => x.it === s.it && x.k === 1); s2.taken = sp; bedOf.set(sp.id, s2); continue; } }
+      }
+      for (const q of sleepers) if (!bedOf.has(q.id) && q.age < 3) take(q, (s) => s.it.cradle);
+      for (const q of sleepers) if (!bedOf.has(q.id)) take(q, (s) => !s.it.cradle && s.it.slots === 1 && !s.it.medbed);
+      for (const q of sleepers) if (!bedOf.has(q.id)) take(q, (s) => !s.it.cradle && !s.it.medbed);
+      // children squeeze in together rather than sleep on the floor
+      for (const q of sleepers) if (!bedOf.has(q.id) && q.age < 14) { const s = slots.find((x) => x.taken && x.taken.age < 14 && !x.extra && !x.it.cradle); if (s) { s.extra = q; bedOf.set(q.id, { it: s.it, k: 1, share: true }); } }
+      this.sleeping = new Map(); // bed item -> [{ q, k }]
+      for (const [id, s] of bedOf) { const q = sim.byId.get(id); const arr = this.sleeping.get(s.it) || []; arr.push({ q, k: s.share ? (s.it.slots === 2 ? 1 : 0.5) : s.k }); this.sleeping.set(s.it, arr); }
+      const pewCount = new Map();
+      for (const q of here) {
+        const act = q.activity?.act;
+        let x, y, dir = 0, anim = 'idle', spot = null, inBed = false, seat = null, sortY = null;
+        if (bedOf.has(q.id)) { inBed = true; spot = bedOf.get(q.id).it; [x, y] = this.anchor(spot); }
+        else if (act === 'jailed') { const c = L.items.find((i) => i.cell); if (c) { const [ax, ay] = this.anchor(c); x = ax + ((q.id % 3) - 1) * 12; y = ay - 10; anim = 'sit'; dir = 0; } }
+        else if (SLEEPY.has(act)) { // no bed free: dozing in a chair, never on the floor
+          spot = seats.find((i) => !used.has(i)); if (spot) { seat = spot; anim = 'doze'; }
         }
-        else if (act === 'work' || act === 'pickup' && q.job?.biz === b.id) {
+        else if (act === 'work' || (act === 'pickup' && q.job?.biz === b.id)) {
           const role = q.job?.role;
-          spot = L.items.find((i) => !used.has(i) && i.work && i.work.includes(role)) || L.items.find((i) => !used.has(i) && i.counter);
+          spot = L.items.find((i) => !used.has(i) && i.work && i.work.includes(role)) || counters.find((i) => !used.has(i));
           if (spot) {
-            const [ax, ay] = this.anchor(spot);
+            const [ax, ay] = this.anchor(spot), [rx0, ry0] = this.rect(spot);
             const behind = spot.counter || spot.kind === 'desk' || spot.kind === 'altar' || spot.kind === 'bar';
-            if (behind) { x = ax + (spot.kind === 'bar' ? ((q.id % 3) - 1) * 14 : 0); y = ay - spot.fh * T - (spot.kind === 'altar' ? -2 : 0) + (spot.kind === 'altar' ? 18 : 0); dir = 0; anim = q.agent.talking ? 'talk' : 'idle'; if (spot.kind === 'altar') { y = ay + 12; dir = 3; } }
-            else { x = ax + (spot.kind === 'oven' || spot.kind === 'forge' ? 0 : 0); y = ay + 13; dir = 3; anim = spot.kind === 'medbed' ? 'idle' : 'work'; }
-            if (spot.kind === 'desk') anim = 'read';
-            if (spot.kind === 'altar') anim = (Math.floor(this.t / 8) + q.id) % 2 ? 'read' : 'talk';
+            if (behind) { x = ax + (spot.kind === 'bar' ? ((q.id % 3) - 1) * 18 : 0); y = ry0 - 2; dir = 0; anim = q.agent.talking ? 'talk' : 'idle'; if (spot.kind === 'desk') { anim = 'read'; } }
+            else { x = ax; y = ay + 12; dir = 3; anim = spot.kind === 'medbed' ? 'idle' : 'work'; }
+            if (spot.kind === 'altar') { anim = (Math.floor(this.t / 8) + q.id) % 2 ? 'read' : 'talk'; }
             if (spot.kind === 'cauldron') anim = 'cook';
             if (spot.kind === 'bar' && q.agent.talking) anim = 'talk';
+            void rx0;
           }
         } else if (act === 'perform') { // a bard plays by the hearth
           const c = L.items.find((i) => i.kind === 'fireplace') || L.items.find((i) => i.kind === 'bar'); const [ax, ay] = c ? this.anchor(c) : this.tileXY(Math.floor(L.w / 2), 2);
-          x = ax + (c && c.kind === 'bar' ? -40 : 0); y = ay + 22; dir = 0; anim = (Math.floor(this.t / 4) % 3) ? 'talk' : 'idle';
-        } else if (act === 'mourn' || act === 'wedding') {
-          const c = L.items.find((i) => i.kind === 'altar') || L.items[0]; const [ax, ay] = this.anchor(c); const k = inside.filter((z) => z.activity?.act === act).indexOf(q);
-          x = ax + ((k % 6) - 2.5) * 12; y = ay + 26 + Math.floor(k / 6) * 14; dir = 3; anim = act === 'mourn' ? 'mourn' : (k % 3 === 0 ? 'celebrate' : 'idle');
-        } else if (['socialise', 'eat-out', 'eat', 'worship', 'rest', 'gangmeet', 'lessons', 'feast'].includes(act) || (act === 'home' && q.stage !== 'baby')) {
-          spot = act === 'home' && q.id % 3 === 0 ? null : free(seats);
-          if (spot) { const [ax, ay] = this.anchor(spot); x = ax; y = ay + 2; dir = spot.pew ? 3 : 0; anim = 'sit'; if (spot.pew) { const k = inside.filter((z) => ['worship', 'lessons'].includes(z.activity?.act)).indexOf(q) % 3; x = ax + (k - 1) * 14; } }
+          x = ax + (c && c.kind === 'bar' ? -40 : 0); y = ay + 26; dir = 0; anim = (Math.floor(this.t / 4) % 3) ? 'talk' : 'idle';
+        } else if (act === 'mourn' || act === 'wedding' || act === 'worship' || act === 'lessons') {
+          const p = pews.find((i) => (pewCount.get(i) || 0) < (i.seats || i.fw));
+          if (p) { const k = pewCount.get(p) || 0; pewCount.set(p, k + 1); const [rx0] = this.rect(p); x = rx0 + 8 + k * T; y = this.anchor(p)[1] - 2; sortY = this.anchor(p)[1] + 0.6; dir = 3; anim = act === 'mourn' ? 'mourn' : act === 'wedding' && k % 3 === 0 ? 'celebrate' : 'sit'; if (anim === 'mourn') anim = 'sit'; spot = p; seat = { pewSeat: true, it: p }; }
+          else { const t = idleTiles[(q.id * 7) % Math.max(1, idleTiles.length)] || [1, L.d - 3]; [x, y] = this.tileXY(t[0], t[1]); dir = 3; anim = act === 'mourn' ? 'mourn' : 'idle'; } // standing at the back
+        } else if (['socialise', 'eat-out', 'eat', 'rest', 'gangmeet', 'feast'].includes(act) || (act === 'home' && q.stage !== 'baby')) {
+          if (!(act === 'home' && q.id % 3 === 0)) { spot = seats.find((i) => !used.has(i)); if (spot) seat = spot; }
+          if (spot && b.type === 'tavern' && act === 'socialise') anim = (Math.floor(this.t / 3) + q.id) % 3 ? 'drink' : 'talk';
         } else if (act === 'shop' || act === 'deliver' || act === 'pickup' || act === 'carry-home' || act === 'import') {
-          const c = L.items.find((i) => i.counter);
-          if (c) { const [ax, ay] = this.anchor(c); x = ax + ((q.id % 3) - 1) * 12; y = ay + 14; dir = 3; anim = q.agent.carrying ? 'carry' : 'idle'; }
+          const c = counters[0];
+          if (c) { const [ax] = this.anchor(c), [, , , ry1] = this.rect(c); x = ax + ((q.id % 3) - 1) * 14; y = ry1 + 12; dir = 3; anim = q.agent.carrying ? 'carry' : 'idle'; }
         }
-        if (x == null && act === 'socialise' && b.type === 'tavern') { const bar = L.items.find((i) => i.kind === 'bar'); if (bar) { const [ax, ay] = this.anchor(bar); const k = q.id % 5; x = ax - 24 + k * 12; y = ay + 14; dir = 3; anim = (Math.floor(this.t / 3) + q.id) % 3 ? 'drink' : 'talk'; } }
-        if (x == null) { const t = idleTiles[(q.id * 7) % Math.max(1, idleTiles.length)] || [0, 0]; [x, y] = this.tileXY(t[0], t[1]); x += (q.id % 3) * 3 - 3; dir = (q.id + Math.floor(this.t / 6)) % 4 === 3 ? 0 : (q.id + Math.floor(this.t / 6)) % 4; anim = q.agent.talking ? 'talk' : q.stage === 'baby' ? 'crouch' : 'idle'; }
+        if (seat && !seat.pewSeat) { // sat in a chair, facing the way it faces
+          const [ax, ay] = this.anchor(seat), r = seat.rot || 0;
+          dir = [0, 1, 2, 3][r]; x = ax + (r === 1 ? 2 : r === 2 ? -2 : 0); y = ay + (r === 0 ? -3 : r === 3 ? -3 : 1); sortY = ay + 0.6;
+          if (anim === 'idle') anim = 'sit';
+          if (anim !== 'doze' && anim !== 'sit') anim = anim === 'drink' ? 'drink' : 'talk';
+        }
+        if (x == null && !inBed) { const t = idleTiles[(q.id * 7) % Math.max(1, idleTiles.length)] || [0, 1]; [x, y] = this.tileXY(t[0], t[1]); x += (q.id % 3) * 3 - 3; dir = (q.id + Math.floor(this.t / 6)) % 8; anim = q.agent.talking ? 'talk' : q.stage === 'baby' ? 'crouch' : 'idle'; }
         if (spot && spot.kind !== 'pew' && spot.kind !== 'bar') used.add(spot);
         let a = this.actors.get(q.id);
         if (!a) { a = { ft: Math.random() * 2, person: q, a: q.app }; this.actors.set(q.id, a); }
-        if (q.agent.frozen) { anim = 'talk'; dir = a.dir ?? dir; }
-        Object.assign(a, { x, y, dir: q.agent.frozen ? a.dir : dir, anim, a: q.app, hidden: false });
+        if (q.agent.frozen) { anim = anim === 'sit' ? 'sit' : 'talk'; dir = a.dir ?? dir; }
+        Object.assign(a, { x, y, sortY, dir: q.agent.frozen ? a.dir : dir, anim, a: q.app, hidden: inBed, inBed: inBed ? spot : null, seat: seat && !seat.pewSeat ? seat : seat?.pewSeat ? seat.it : null });
         seen.add(q.id);
       }
       for (const id of [...this.actors.keys()]) if (!seen.has(id)) this.actors.delete(id);
@@ -7552,6 +7892,32 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const cx = R.W <= g.vw ? Math.round((R.W - g.vw) / 2) : Math.round(O.clamp(p.x - g.vw / 2, 0, R.W - g.vw));
       const cy = R.H <= g.vh ? Math.round((R.H - g.vh) / 2) : Math.round(O.clamp(p.y - 20 - g.vh / 2, 0, R.H - g.vh));
       return { x: cx, y: cy };
+    }
+
+    sprite(it, v) {
+      const rot = it.kind === 'pew' || it.kind === 'bar' || it.kind === 'rug' ? it.width || it.fw : it.rot || 0;
+      let sp = O.Furn.furniture(it.kind, v, it.seed, it.kind === 'bed' && rot === 2 ? 1 : rot);
+      if (it.kind === 'bed' && it.rot === 2) sp = O.Furn.mirrored(sp);
+      return sp;
+    }
+
+    // a sleeper's head on the pillow: the top of their own frame, eyes shut
+    headOf(q) {
+      const fr = Ch.frame(q.app, 0, 'sleep', 0), hy = Ch.headY(q.app);
+      const c = document.createElement('canvas'), top = Math.max(0, Math.round(hy.cy - hy.ry - 4)), h = Math.round(hy.ry * 2 + 6);
+      c.width = 20; c.height = h; c.getContext('2d').drawImage(fr, 6, top, 20, h, 0, 0, 20, h);
+      c.cy = hy.ry + 4; return c;
+    }
+    drawSleepers(ctx, it, sp, ax, ay, cam) {
+      const list = this.sleeping && this.sleeping.get(it); if (!list) return;
+      for (const { q, k } of list) {
+        const pi = sp.pillows ? sp.pillows[Math.min(sp.pillows.length - 1, Math.floor(k))] : [0, -20];
+        const hc = q._headCanvas && q._headVer === q.app.cacheVer ? q._headCanvas : (q._headCanvas = this.headOf(q), q._headVer = q.app.cacheVer, q._headCanvas);
+        let px = ax + pi[0] + (k === 0.5 ? 5 : 0), py = ay + pi[1];
+        if (it.kind === 'bed' && it.rot) { // head on the pillow at the wall end, turned on its side
+          ctx.save(); ctx.translate(Math.round(px - cam.x), Math.round(py - cam.y)); ctx.rotate(it.rot === 1 ? -Math.PI / 2 : Math.PI / 2); ctx.drawImage(hc, -10, -hc.cy - 1); ctx.restore();
+        } else ctx.drawImage(hc, Math.round(px - 10 - cam.x), Math.round(py - hc.cy + 3 - cam.y));
+      }
     }
 
     draw(ctx) {
@@ -7565,31 +7931,38 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       for (const it of L.items) {
         let v = it.v;
         if (it.kind === 'shelf' || it.kind === 'rack') { const gd = it.stockGood; if (bz && gd) { const tgt = bz.def.targets[gd] || 10; v = Math.round(3 * O.clamp((bz.stock[gd] || 0) / tgt, 0, 1)); if (it.kind === 'rack') v = 0; } else v = 2; }
-        // sacks/barrels holding stock disappear as the stock runs down
+        // sacks and barrels holding stock disappear as the stock runs down
         if (it.stockOf && bz && O.Data.GOODS[it.stockOf]) {
           const same = L.items.filter((i) => i.stockOf === it.stockOf); const k = same.indexOf(it);
           const ratio = O.clamp((bz.stock[it.stockOf] || 0) / (bz.def.targets[it.stockOf] || 10), 0, 1);
           if (k >= Math.ceil(ratio * same.length)) continue;
         }
-        const sp = O.Furn.furniture(it.kind, v, it.seed);
+        const sp = this.sprite(it, v);
         const [ax, ay] = this.anchor(it);
-        drawables.push({ y: sp.flat ? -1 : ay, draw: () => { ctx.drawImage(sp.canvas, Math.round(ax - sp.ox - cam.x), Math.round(ay - sp.oy - cam.y)); if (sp.fire) this.drawFire(ctx, ax - sp.ox + sp.fire.x - cam.x, ay - sp.oy + sp.fire.y - cam.y, sp.fire); if (sp.candles) for (const [cx, cy] of sp.candles) this.flame(ctx, ax - sp.ox + cx - cam.x, ay - sp.oy + cy - cam.y, 1); } });
+        const at = (c) => ctx.drawImage(c, Math.round(ax - sp.ox - cam.x), Math.round(ay - sp.oy - cam.y));
+        drawables.push({ y: sp.flat ? -1 : ay - (it.kind === 'pew' ? 1 : 0), draw: () => {
+          at(sp.canvas);
+          if (sp.fire) { const lit = !this.b.sprite?.chimney || !g.lit || g.lit.has(this.b.id) || it.kind === 'cauldron'; this.drawFire(ctx, ax + sp.fire.x - cam.x, ay + sp.fire.y - cam.y, Object.assign({}, sp.fire, { coals: sp.fire.coals || !lit })); }
+          if (sp.candles && (night || it.kind === 'altar' || it.kind === 'candlestand')) for (const [cx, cy] of sp.candles) this.flame(ctx, ax + cx - cam.x, ay + cy - cam.y, 1);
+          if (sp.cover) { this.drawSleepers(ctx, it, sp, ax, ay, cam); at(sp.cover); }
+        } });
+        if (sp.back) drawables.push({ y: ay + 4, draw: () => at(sp.back) }); // a chair or pew back in front of whoever sits in it
       }
-      for (const a of this.actors.values()) drawables.push({ y: a.anim === 'sleep' ? a.y + 1 : a.y + (a.anim === 'sit' ? 0.5 : 0), draw: () => this.drawActor(ctx, a, cam, a.anim !== 'sleep') });
-      const p = g.player; drawables.push({ y: p.y, draw: () => this.drawActor(ctx, p, cam, true) });
+      for (const a of this.actors.values()) if (!a.hidden) drawables.push({ y: a.sortY ?? a.y, draw: () => this.drawActor(ctx, a, cam, a.anim !== 'sit' && a.anim !== 'doze') });
+      const p = g.player; if (!p.inBed) drawables.push({ y: p.y, draw: () => this.drawActor(ctx, p, cam, true) });
       drawables.sort((a, c) => a.y - c.y);
       for (const d of drawables) d.draw();
       for (const h of g.hooks.drawWorld) h(ctx, cam);
-      // lighting: dim interior, warm pools around fires and candles, daylight under windows
+      // lighting: dim interior, warm pools around fires and candles, daylight under windows and at the door
       const amb = night ? [58, 52, 88] : g.ambient().map((c, k) => Math.round(c * [0.86, 0.82, 0.78][k]));
       const pools = [];
       for (const it of L.items) {
         const [ax, ay] = this.anchor(it);
-        if (it.kind === 'fireplace' || it.kind === 'oven' || it.kind === 'forge') pools.push([ax - cam.x, ay - 10 - cam.y, 44 + Math.sin(this.t * 9 + it.id) * 2, 'fire']);
-        if (it.kind === 'altar') pools.push([ax - cam.x, ay - 20 - cam.y, 30, 'fire']);
-        if (it.kind === 'table' && night) pools.push([ax - cam.x, ay - 8 - cam.y, 22, 'fire']);
+        if (it.kind === 'fireplace' || it.kind === 'oven' || it.kind === 'forge') pools.push([ax - cam.x, ay - 10 - cam.y, 56 + Math.sin(this.t * 9 + it.id) * 2, 'fire']);
+        if (it.kind === 'altar' || it.kind === 'candlestand') pools.push([ax - cam.x, ay - 24 - cam.y, 32, 'fire']);
+        if ((it.kind === 'table' || it.kind === 'longtable') && it.v >= 1 && night) pools.push([ax - cam.x, ay - 16 - cam.y, 26, 'fire']);
       }
-      if (!night) for (const w of R.windows) pools.push([w.x + w.w / 2 - cam.x, R.WH + 10 - cam.y, 26, 'day']);
+      if (!night) { for (const w of R.windows) pools.push([w.x + w.w / 2 - cam.x, R.WH + 14 - cam.y, 34, 'day']); if (this.floor === 0) pools.push([(R.doorX0 + R.doorX1) / 2 - cam.x, R.WH + R.FH - cam.y, 30, 'day']); }
       g.drawLightingWith(amb, pools);
     }
 
@@ -7608,8 +7981,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const n = Math.max(3, Math.floor(f.w / 3)), t = this.t;
       for (let i = 0; i < n; i++) {
         const fx = Math.round(x - f.w / 2 + (i + 0.5) * (f.w / n));
-        const h = f.coals ? 1 + ((Math.floor(t * 8) + i) % 2) : 3 + Math.round((Math.sin(t * 11 + i * 2.3) + 1) * 2.2);
-        ctx.fillStyle = f.coals ? '#c83a20' : '#c84a20'; ctx.fillRect(fx - 1, Math.round(y) - h + 2, 3, h);
+        const h = f.coals ? 1 + ((Math.floor(t * 8) + i) % 2) : 3 + Math.round((Math.sin(t * 11 + i * 2.3) + 1) * 2.6);
+        ctx.fillStyle = f.coals ? '#a83a20' : '#c84a20'; ctx.fillRect(fx - 1, Math.round(y) - h + 2, 3, h);
         ctx.fillStyle = '#ff9a30'; ctx.fillRect(fx - 1, Math.round(y) - h + 3, 2, Math.max(1, h - 2));
         ctx.fillStyle = '#ffe080'; ctx.fillRect(fx, Math.round(y) - h + 4, 1, Math.max(1, h - 4));
       }
@@ -7618,17 +7991,23 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     // ---- interaction candidates for the interact module ----
     candidates() {
       const p = this.game.player, out = [];
-      for (const a of this.actors.values()) { const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < 30 && a.anim !== 'sleep') out.push({ type: 'npc', person: a.person, d, x: a.x, y: a.y }); }
+      for (const a of this.actors.values()) { if (a.hidden) continue; const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < 30 && a.anim !== 'doze') out.push({ type: 'npc', person: a.person, d, x: a.x, y: a.y }); }
+      const bz = this.sim.biz.get(this.b.id);
       for (const it of this.L.items) {
-        const [ax, ay] = this.anchor(it);
-        const cx = ax, cy = ay - it.fh * 8 + 4;
-        const d = Math.hypot(cx - p.x, Math.max(0, cy - p.y - 8, p.y - ay - 6) + (Math.abs(cx - p.x) > it.fw * 8 + 6 ? 20 : 0));
-        if (d > 22) continue;
+        const [x0, y0, x1, y1] = this.rect(it);
+        const d = Math.hypot(Math.max(x0 - p.x, 0, p.x - x1), Math.max(y0 - p.y, 0, p.y - y1 - 6)) + 4;
+        if (d > 18) continue;
+        const cx = (x0 + x1) / 2, cy = y0 - 6;
         if (it.gangStash && this.b.gang === 'player') out.push({ type: 'stash', it, d, x: cx, y: cy });
         if (it.container) out.push({ type: 'container', it, d, x: cx, y: cy });
-        if (it.bed) out.push({ type: 'bed', it, d: d + 1, x: cx, y: cy });
+        if (it.bed && !it.cradle) out.push({ type: 'bed', it, d: d + 1, x: cx, y: cy });
         if (it.kind === 'stairs') out.push({ type: 'stairs', it, d: d - 2, x: cx, y: cy });
         if (it.portrait) out.push({ type: 'portrait', it, d: d + 2, x: cx, y: cy - 30 });
+        // buy across the counter or from the shelves, when someone is serving
+        if ((it.counter || it.shop) && bz && !bz.def.public) {
+          const seller = [...this.actors.values()].find((a) => !a.hidden && a.person.job?.biz === this.b.id && a.person.activity?.act === 'work');
+          if (seller) out.push({ type: 'shop', it, seller: seller.person, d: d - 1, x: cx, y: cy });
+        }
         if (O.workCandidate) { const wc = O.workCandidate(this, it, d, cx, cy); if (wc) out.push(wc); }
         if (O.craftCandidate) { const cc = O.craftCandidate(this, it, d, cx, cy); if (cc) out.push(cc); }
       }
@@ -7978,6 +8357,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         case 'stash': return 'Open the stash';
         case 'campbed': return 'Sleep by the fire';
         case 'bed': return mayUseBed(c.it) ? 'Sleep until morning' : 'Bed — not yours';
+        case 'shop': return `Buy from ${c.seller.first}`;
         case 'stairs': return game.scene.floor === 0 ? 'Go upstairs' : 'Go downstairs';
         default: return '';
       }
@@ -8101,6 +8481,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         case 'grave': { const g = cur.prop.grave; O.Panels.toast(g ? `“Here lies ${g.name}, ${g.age} years. ${g.cause.replace('died ', '').replace(/^./, (c) => c.toUpperCase())}.”` : 'The old stone is worn smooth; you can no longer read the name.'); break; }
         case 'bed': if (mayUseBed(cur.it)) sleep(); else O.Panels.toast("That's someone else's bed."); break;
         case 'stairs': game.enterBuilding(game.scene.b, game.scene.floor === 0 ? 1 : 0, true); break;
+        case 'shop': O.Panels.trade(sim, sim.biz.get(game.scene.b.id), cur.seller); break;
       }
       return true;
     });
@@ -8292,12 +8673,14 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
           // others nearby may still have noticed
           const seen = (game.scene ? game.scene.actors ? [...game.scene.actors.values()].map((a) => a.person).filter((z) => z !== q && z.activity?.act !== 'sleep') : [] : sim.seers(game.player.x, game.player.y, q)).filter(() => sim.rng.chance(0.22));
           PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.02);
-          if (seen.length) { const cr = sim.recordCrime({ kind: 'pickpocket', perp: 'player', placeName: place, tile: tileOf(), seen, severity: 1 }); PS.crimes.push(cr.id); O.Panels.toast(`You lift ${got} from ${q.first}… but ${seen[0].first} saw you!`, 'bad'); PS.rep.local -= 0.1; }
+          // the victim may feel the tug, or turn in time to see who it was
+          const victimSaw = !behind && sim.rng.chance(0.3) || q.traits.includes('suspicious') && sim.rng.chance(0.3);
+          if (seen.length || victimSaw) { const cr = sim.recordCrime({ kind: 'pickpocket', perp: 'player', placeName: place, tile: tileOf(), seen, victimPerson: victimSaw ? q : null, victimLate: true, severity: 1 }); PS.crimes.push(cr.id); O.Panels.toast(seen.length ? `You lift ${got} from ${q.first}… but ${seen[0].first} saw you!` : `You lift ${got} — and ${q.first} turns, clutching an empty purse, and looks straight at you.`, 'bad'); PS.rep.local -= 0.1; }
           else O.Panels.toast(`You lift ${got} from ${q.first}'s purse. Nobody noticed.`);
           sim.remember(q, 'My purse felt lighter today.', 'crime', 0.4);
         } else {
           const seen = [q, ...(game.scene ? [] : sim.seers(game.player.x, game.player.y, q).filter(() => sim.rng.chance(0.5)))];
-          const cr = sim.recordCrime({ kind: 'pickpocket', perp: 'player', placeName: place, tile: tileOf(), seen, severity: 1 }); PS.crimes.push(cr.id);
+          const cr = sim.recordCrime({ kind: 'pickpocket', perp: 'player', placeName: place, tile: tileOf(), seen, victimPerson: q, severity: 1 }); PS.crimes.push(cr.id);
           PS.rep.local = Math.max(-1, PS.rep.local - 0.15); PS.rep.civilian = Math.max(-1, PS.rep.civilian - 0.08);
           q.agent.talking = 40;
           O.Panels.toast(`${q.first} catches your hand! “Cutpurse! Watch! WATCH!”`, 'bad');
@@ -8655,7 +9038,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     function crimeFor(q, kind, severity) {
       const pos = posOf(q) || [game.player.x, game.player.y];
       const seen = (game.scene ? [...game.scene.actors.values()].map((a) => a.person).filter((z) => z !== q && z.activity?.act !== 'sleep') : sim.seers(pos[0], pos[1], q));
-      const cr = sim.recordCrime({ kind, perp: 'player', placeName: game.scene ? game.scene.b.name : sim.where(q.agent), tile: [Math.floor(pos[0] / 16), Math.floor(pos[1] / 16)], seen: [q, ...seen].filter((z) => z.health.hp > 0), severity });
+      const cr = sim.recordCrime({ kind, perp: 'player', placeName: game.scene ? game.scene.b.name : sim.where(q.agent), tile: [Math.floor(pos[0] / 16), Math.floor(pos[1] / 16)], seen: seen.filter((z) => z.health.hp > 0), victimPerson: q.health.hp > 0 ? q : null, severity });
       PS.crimes.push(cr.id);
       PS.rep.local = Math.max(-1, PS.rep.local - 0.12 * severity); PS.rep.civilian = Math.max(-1, PS.rep.civilian - 0.08 * severity); PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.03 * severity);
       return cr;

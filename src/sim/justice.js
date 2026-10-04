@@ -76,15 +76,22 @@
     S.recordCrime = function (o) {
       const crime = Object.assign({ id: this.crimes.length + 1, day: this.day, minute: Math.floor(this.minute), witnesses: [], reported: false, investigated: false, profile: null, solved: false, severity: 1 }, o);
       const look = o.perp === 'player' ? lookOf(O.game.player.a) : o.perp ? lookOf(o.perp.app) : null;
-      for (const w of o.seen || []) {
-        const acc = O.clamp(0.45 + (w.traits.includes('curious') ? 0.2 : 0) + (w.traits.includes('suspicious') ? 0.15 : 0) - (w.age > 70 ? 0.2 : 0) - (w.age < 12 ? 0.15 : 0) + this.rng.float(-0.2, 0.2) - (this.hour < 6 || this.hour > 20.5 ? 0.2 : 0), 0.1, 1);
+      // the victim is a witness too, whenever they realise what happened
+      const seenList = [...(o.seen || [])];
+      if (o.victimPerson && !seenList.includes(o.victimPerson) && o.victimPerson.alive !== false) seenList.push(o.victimPerson);
+      for (const w of seenList) {
+        const isVictim = w === o.victimPerson;
+        const acc = O.clamp((isVictim && o.victimLate ? -0.25 : 0) + 0.45 + (w.traits.includes('curious') ? 0.2 : 0) + (w.traits.includes('suspicious') ? 0.15 : 0) - (w.age > 70 ? 0.2 : 0) - (w.age < 12 ? 0.15 : 0) + this.rng.float(-0.2, 0.2) - (this.hour < 6 || this.hour > 20.5 ? 0.2 : 0), 0.1, 1);
         const desc = look ? remembered(look, acc, this.rng) : {};
         crime.witnesses.push({ id: w.id, desc, acc });
         this.remember(w, `Saw ${crime.kind === 'pickpocket' ? 'a cutpurse at work' : crime.kind === 'burglary' ? 'someone break into a house' : 'a thief'} ${crime.placeName ? 'at ' + crime.placeName : ''}: ${describe(desc)}.`, 'crime', 1.6, o.perp === 'player' ? 0 : o.perp?.id);
         if (o.perp === 'player') this.relate(w, { id: 0 }, -0.4);
         // most honest folk go to the watch; the timid, the hostile and the player's friends may not
         const friend = (w.rel.get(0)?.affinity || 0) > 0.4 && o.perp === 'player';
-        if (!w.traits.includes('cowardly') && !friend && w.age >= 12 && w.health.hp > 0 && w.health.state !== 'incapacitated' && (w.attitude > -0.2 || this.rng.chance(0.3)) && !w.task) w.task = { act: 'report', b: this.guardId, crime: crime.id };
+        // the victim nearly always goes; the timid sometimes find their courage
+        const will = isVictim ? (w.traits.includes('cowardly') ? 0.6 : 0.92) : w.traits.includes('cowardly') ? 0.3 : w.attitude > -0.2 ? 0.95 : 0.3;
+        if (!friend && w.age >= 12 && w.health.hp > 0 && w.health.state !== 'incapacitated' && this.rng.chance(will) && !w.task) w.task = { act: 'report', b: this.guardId, crime: crime.id };
+        if (isVictim) crime.victimId = w.id;
       }
       delete crime.seen;
       this.crimes.push(crime);

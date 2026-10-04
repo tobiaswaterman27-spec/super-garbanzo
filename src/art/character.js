@@ -198,7 +198,7 @@
     drink: { frames: 4, fps: 2.5 }, read: { frames: 2, fps: 1 }, celebrate: { frames: 4, fps: 5 }, mourn: { frames: 2, fps: 1 },
     point: { frames: 2, fps: 2 }, dig: { frames: 4, fps: 4 }, cook: { frames: 4, fps: 4 },
     attack: { frames: 4, fps: 12 }, open: { frames: 3, fps: 6 }, pickup: { frames: 2, fps: 3 }, hurt: { frames: 2, fps: 8 },
-    stretcher: { frames: 8, fps: 9 }, ride: { frames: 1, fps: 1 },
+    stretcher: { frames: 8, fps: 9 }, ride: { frames: 1, fps: 1 }, doze: { frames: 2, fps: 0.5 },
   };
 
   // Two-bone reach: the elbow (or knee) bends toward `pole`.
@@ -245,10 +245,11 @@
         arms = { R: relaxed(1, -0.95 * sR, 1.45, 0.12), L: relaxed(-1, -0.95 * sL, 1.45, 0.12) };
         lift = Math.abs(Math.cos(ph)) > 0.75 ? 1 : 0; P.lean = 1.8; P.headFwd = 0.6; break;
       }
-      case 'sit': {
+      case 'sit': case 'doze': {
         L = { R: leg(1, 1.45, 1.45, 0.06), L: leg(-1, 1.45, 1.45, 0.06) };
-        P.bob = f === 1 ? 0.5 : 0; P.sitting = true; break;
+        P.bob = f === 1 ? 0.5 : 0; P.sitting = true; if (anim === 'doze') { P.blink = true; P.headDown = 1; } break;
       }
+      case 'sleep': P.blink = true; break;
       case 'crouch': case 'pickup': {
         L = { R: leg(1, 1.25, 2.3, 0.18), L: leg(-1, 0.9, 2.0, 0.18) }; P.lean = 2.2; P.headDown = 1; break;
       }
@@ -311,7 +312,7 @@
       case 'open': { const r = [4.5, 7.2, 7.6][f]; A.R = reach(1, [1.4, chest + 1.5, D + r]); break; }
       case 'pickup': { A.R = reach(1, [1.5, GROUND - 2 - (f ? 0 : 1.5), D + 4]); A.L = reach(-1, [-2.5, P.legs.L.knee[1] - 1, P.legs.L.knee[2] + 1]); break; }
       case 'crouch': { A.R = reach(1, [2.2, P.legs.R.knee[1] + 1, P.legs.R.knee[2] + 0.5]); A.L = reach(-1, [-2.2, P.legs.L.knee[1] + 1, P.legs.L.knee[2] + 0.5]); break; }
-      case 'sit': { for (const s of [1, -1]) A[s > 0 ? 'R' : 'L'] = reach(s, [s * 2.2, hipY - 1.2, 5.5]); break; }
+      case 'sit': case 'doze': { for (const s of [1, -1]) A[s > 0 ? 'R' : 'L'] = reach(s, [s * 2.2, hipY - 1.2, 5.5]); break; }
       case 'eat': case 'drink': {
         const up = f === 1 || f === 2;
         A.R = reach(1, up ? mouth : [1.6, chest + 3, D + 3], [1, 0.8, -0.2]);
@@ -369,7 +370,6 @@
   // The frame is assembled back to front: hair and cloak behind, the far leg and arm, the body,
   // the head, then the near arm and whatever it holds.
   function render(a, dir, anim, f) {
-    if (anim === 'sleep') return renderSleeping(a, bodyMetrics(a), new O.MatBuffer(FW, FH));
     const m = bodyMetrics(a), V = viewOf(dir), p = pose(m, anim, f, a);
     const B = new O.MatBuffer(FW, FH); B.mirror = V.mirror;
     const cov = coverage(a), o = a.outfit;
@@ -957,20 +957,6 @@
     }
   }
 
-  function renderSleeping(a, m, B) {
-    // lying under the covers: head on the pillow, the blanket over the rest
-    B.mirror = false;
-    const blanket = P.mat(P.cloth.woad);
-    B.part(G.TORSO);
-    B.blob(16, 34, 9, 6, blanket, { power: 3 });
-    B.part(G.HEAD);
-    B.blob(16, 25, m.headRx, m.headRy * 0.9, a.skin, { power: 2.3, jaw: 0.2 });
-    for (const x of [13, 14, 17, 18]) B.plot(x, 26, a.skin, 0, 1);
-    B.part(G.HAIR);
-    if (a.hairStyle !== 'bald') B.shape(8, 17, 24, 24, (px, py) => { const dx = (px - 16) / (m.headRx + 0.6), dy = (py - 24) / (m.headRy * 0.9 + 0.5); return dx * dx + dy * dy <= 1 && py < 23; }, (px, py) => [(px - 16) / 7, -0.5, 0.7], a.hair, { maxShade: 3 });
-    return B.toCanvas();
-  }
-
   // ---------- Sprite sheet cache ----------
   // Frames are generated lazily and kept in a bounded LRU so thousands of NPCs can exist while only
   // the nearby ones hold pixel data.
@@ -991,6 +977,8 @@
   // where the hips sit in a frame (riders are placed on a saddle by their hips)
   const hipCache = new Map();
   function hipY(a, anim) { const k = a.seed + anim + a.age; if (!hipCache.has(k)) hipCache.set(k, pose(bodyMetrics(a), anim, 0, a).hipY); return hipCache.get(k); }
+  // where the head sits in a standing frame (to lay a sleeper's head on a pillow)
+  function headY(a) { const m = bodyMetrics(a); return { cy: pose(m, 'sleep', 0, a).head[1], ry: m.headRy }; }
   function invalidate(a) { a.cacheVer = (a.cacheVer || 0) + 1; }
 
   // Build a full sprite sheet canvas: rows = anim x dir, cols = frames.
@@ -1004,6 +992,6 @@
     return { canvas: c, rows, fw: FW, fh: FH };
   }
 
-  O.Char = { makeAppearance, randomGenes, inheritGenes, bodyMetrics, ageStage, outfitFor, render, frame, sheet, invalidate, ANIMS, FW, FH, GROUND, HAIR_STYLES_M, HAIR_STYLES_F, BEARDS, dirOf, dir4, DIRV, hipY };
+  O.Char = { makeAppearance, randomGenes, inheritGenes, bodyMetrics, ageStage, outfitFor, render, frame, sheet, invalidate, ANIMS, FW, FH, GROUND, HAIR_STYLES_M, HAIR_STYLES_F, BEARDS, dirOf, dir4, DIRV, hipY, headY };
   O.dirOf = dirOf; O.dir4 = dir4;
 })();

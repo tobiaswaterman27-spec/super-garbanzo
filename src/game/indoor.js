@@ -1,9 +1,11 @@
-// Indoor scene: renders a building's floor, places the residents who are actually inside it at the
-// furniture that matches what they're doing, shows stock levels on shelves and in sacks, and handles
-// collision, stairs and leaving by the door.
+// Indoor scene: renders a building's floor, places the residents who are actually inside it where
+// their business puts them — asleep in their own beds under the covers, at the table facing it, in
+// the pews facing the altar, behind the counter, at the bench — shows stock levels on shelves and
+// in sacks, and handles collision, stairs and leaving by the door.
 'use strict';
 (function () {
   const T = 16, Ch = O.Char;
+  const SLEEPY = new Set(['sleep', 'sick']);
 
   class Indoor {
     constructor(game, sim, b, floor = 0) {
@@ -13,13 +15,15 @@
       this.actors = new Map(); // person id -> scene actor
       this.t = 0;
     }
-    // floor tile -> scene pixel (feet position)
+    // floor tile -> scene pixel (feet position, middle of the tile)
     tileXY(tx, ty) { return [this.R.SW + tx * T + 8, this.R.WH + ty * T + 12]; }
     anchor(it) { return [this.R.SW + (it.tx + it.fw / 2) * T, this.R.WH + (it.ty + it.fh) * T - 1]; }
+    rect(it) { const x = this.R.SW + it.tx * T, y = this.R.WH + it.ty * T; return [x, y, x + it.fw * T, y + it.fh * T]; }
     enterAt(fromStairs) {
-      const p = this.game.player;
-      if (fromStairs || this.L.dc < 0) { const st = this.L.items.find((i) => i.kind === 'stairs'); const [x, y] = this.anchor(st); p.x = x + (st.tx === 0 ? 14 : -14); p.y = y - 4; p.dir = 0; }
-      else { [p.x, p.y] = this.tileXY(this.L.dc, this.L.d - 1); p.y += 2; p.dir = 3; }
+      const p = this.game.player, L = this.L;
+      const st = L.items.find((i) => i.kind === 'stairs');
+      if ((fromStairs || L.dc < 0) && st) { [p.x, p.y] = this.tileXY(st.tx, st.ty + st.fh); p.x += 8; p.y += 2; p.dir = 0; }
+      else { p.x = this.R.SW + (L.dc + 1) * T; p.y = this.R.WH + (L.d - 1) * T + 12; p.dir = 3; }
     }
     blocked(x, y) {
       const R = this.R, L = this.L;
@@ -27,7 +31,7 @@
         const tx = Math.floor((px - R.SW) / T), ty = Math.floor((py - R.WH) / T);
         if (py < R.WH + 5) return true;
         if (tx < 0 || tx >= L.w) return true;
-        if (ty >= L.d) return !(this.floor === 0 && tx === L.dc);
+        if (ty >= L.d) return !(this.floor === 0 && (tx === L.dc || tx === L.dc + 1));
         return L.grid[ty * L.w + tx] === 1;
       };
       return test(x - 4, y - 3) || test(x + 3, y - 3) || test(x - 4, y) || test(x + 3, y);
@@ -35,69 +39,96 @@
     update(dt) {
       this.t += dt;
       const p = this.game.player;
-      if (this.floor === 0 && p.y > this.R.WH + this.L.d * T + 2) this.game.exitBuilding();
+      if (this.floor === 0 && p.y > this.R.WH + this.L.d * T + 4) this.game.exitBuilding();
       this.placeActors();
     }
 
     // Who is inside, and where do they belong right now?
     placeActors() {
       const sim = this.sim, L = this.L, b = this.b;
-      const inside = sim.people.filter((q) => q.agent.inside === b.id).sort((a, c) => a.id - c.id);
-      const bedsHere = L.items.filter((i) => i.bed);
+      const inside = sim.people.filter((q) => q.agent.inside === b.id && q.alive !== false).sort((a, c) => a.id - c.id);
       const twoF = b.floors >= 2;
-      const used = new Set(); const seen = new Set();
-      const free = (list) => list.find((i) => !used.has(i)) || null;
-      const seats = L.items.filter((i) => i.seat || i.pew);
-      const idleTiles = []; for (let y = 0; y < L.d; y++) for (let x = 0; x < L.w; x++) if (!L.grid[y * L.w + x] && !(Math.abs(x - L.dc) <= 1 && y >= L.d - 2) && y > 0) idleTiles.push([x, y]);
-      for (const q of inside) {
+      const used = new Set(), seen = new Set();
+      const seats = L.items.filter((i) => i.seat && i.kind !== 'pew');
+      const pews = L.items.filter((i) => i.kind === 'pew');
+      const counters = L.items.filter((i) => i.counter);
+      const idleTiles = []; for (let y = 1; y < L.d; y++) for (let x = 0; x < L.w; x++) if (!L.grid[y * L.w + x] && L.reachable[y * L.w + x] && !(this.floor === 0 && Math.abs(x - L.dc - 0.5) <= 1.5 && y >= L.d - 2)) idleTiles.push([x, y]);
+      // which floor is each person on?
+      const floorOf = (q) => {
         const act = q.activity?.act;
-        const sleeping = act === 'sleep' || act === 'sick';
-        const fl = twoF ? ((sleeping && b.id !== sim.docId) || (act === 'home' && q.id % 2) ? 1 : 0) : 0;
-        if (b.type === 'tavern' && (act === 'rest') ) { /* travellers rest upstairs */ }
-        const wantFloor = b.type === 'tavern' && act === 'rest' ? 1 : fl;
-        if (wantFloor !== this.floor) continue;
-        let x, y, dir = 0, anim = 'idle', over = null;
-        let spot = null;
-        if (act === 'jailed') { const c = L.items.find((i) => i.cell); if (c) { const [ax, ay] = this.anchor(c); x = ax + ((q.id % 3) - 1) * 6; y = ay - 6; anim = 'sit'; dir = 0; } }
-        else if (act === 'treated' || (act === 'sick' && b.id === sim.docId)) { spot = L.items.find((i) => i.medbed && !used.has(i)) || free(bedsHere); if (spot) { const [ax, ay] = this.anchor(spot); x = ax; y = ay - 44 + Ch.GROUND; anim = 'sleep'; } }
-        else if (sleeping) {
-          spot = free(bedsHere);
-          if (spot) { const [ax, ay] = this.anchor(spot); x = ax; y = ay - 44 + Ch.GROUND; anim = 'sleep'; over = spot; }
-          else { const t = idleTiles[(q.id * 5) % Math.max(1, idleTiles.length)] || [0, 1]; [x, y] = this.tileXY(t[0], t[1]); y += 14; anim = 'sleep'; } // a straw pallet on the floor
+        if (!twoF) return 0;
+        if (b.type === 'tavern') return act === 'rest' || (SLEEPY.has(act) && q.home !== b.id) || (SLEEPY.has(act) && q.home === b.id) ? 1 : 0;
+        if (['house', 'mansion', 'townhouse', 'keep', 'tenement'].includes(b.type)) return SLEEPY.has(act) && b.id !== sim.docId ? 1 : act === 'home' && q.id % 3 === 0 ? 1 : 0;
+        return SLEEPY.has(act) && q.home === b.id ? 1 : 0; // a shop: the family lives upstairs
+      };
+      const here = inside.filter((q) => floorOf(q) === this.floor);
+      // ---- beds: couples together, babies in cradles, then everyone else
+      const slots = [];
+      for (const it of L.items) if (it.bed) for (let k = 0; k < (it.slots || 1); k++) slots.push({ it, k });
+      const sleepers = here.filter((q) => SLEEPY.has(q.activity?.act) || q.activity?.act === 'treated');
+      const bedOf = new Map();
+      const take = (q, pred) => { const s = slots.find((x) => !x.taken && pred(x)); if (s) { s.taken = q; bedOf.set(q.id, s); return true; } return false; };
+      for (const q of sleepers) if (q.activity?.act === 'treated' || (q.activity?.act === 'sick' && b.id === sim.docId)) take(q, (s) => s.it.kind === 'medbed');
+      for (const q of sleepers) {
+        if (bedOf.has(q.id)) continue;
+        const sp = q.spouse && sleepers.find((z) => z.id === q.spouse);
+        if (sp && !bedOf.has(sp.id)) { const s = slots.find((x) => !x.taken && x.it.slots === 2 && x.k === 0); if (s) { s.taken = q; bedOf.set(q.id, s); const s2 = slots.find((x) => x.it === s.it && x.k === 1); s2.taken = sp; bedOf.set(sp.id, s2); continue; } }
+      }
+      for (const q of sleepers) if (!bedOf.has(q.id) && q.age < 3) take(q, (s) => s.it.cradle);
+      for (const q of sleepers) if (!bedOf.has(q.id)) take(q, (s) => !s.it.cradle && s.it.slots === 1 && !s.it.medbed);
+      for (const q of sleepers) if (!bedOf.has(q.id)) take(q, (s) => !s.it.cradle && !s.it.medbed);
+      // children squeeze in together rather than sleep on the floor
+      for (const q of sleepers) if (!bedOf.has(q.id) && q.age < 14) { const s = slots.find((x) => x.taken && x.taken.age < 14 && !x.extra && !x.it.cradle); if (s) { s.extra = q; bedOf.set(q.id, { it: s.it, k: 1, share: true }); } }
+      this.sleeping = new Map(); // bed item -> [{ q, k }]
+      for (const [id, s] of bedOf) { const q = sim.byId.get(id); const arr = this.sleeping.get(s.it) || []; arr.push({ q, k: s.share ? (s.it.slots === 2 ? 1 : 0.5) : s.k }); this.sleeping.set(s.it, arr); }
+      const pewCount = new Map();
+      for (const q of here) {
+        const act = q.activity?.act;
+        let x, y, dir = 0, anim = 'idle', spot = null, inBed = false, seat = null, sortY = null;
+        if (bedOf.has(q.id)) { inBed = true; spot = bedOf.get(q.id).it; [x, y] = this.anchor(spot); }
+        else if (act === 'jailed') { const c = L.items.find((i) => i.cell); if (c) { const [ax, ay] = this.anchor(c); x = ax + ((q.id % 3) - 1) * 12; y = ay - 10; anim = 'sit'; dir = 0; } }
+        else if (SLEEPY.has(act)) { // no bed free: dozing in a chair, never on the floor
+          spot = seats.find((i) => !used.has(i)); if (spot) { seat = spot; anim = 'doze'; }
         }
-        else if (act === 'work' || act === 'pickup' && q.job?.biz === b.id) {
+        else if (act === 'work' || (act === 'pickup' && q.job?.biz === b.id)) {
           const role = q.job?.role;
-          spot = L.items.find((i) => !used.has(i) && i.work && i.work.includes(role)) || L.items.find((i) => !used.has(i) && i.counter);
+          spot = L.items.find((i) => !used.has(i) && i.work && i.work.includes(role)) || counters.find((i) => !used.has(i));
           if (spot) {
-            const [ax, ay] = this.anchor(spot);
+            const [ax, ay] = this.anchor(spot), [rx0, ry0] = this.rect(spot);
             const behind = spot.counter || spot.kind === 'desk' || spot.kind === 'altar' || spot.kind === 'bar';
-            if (behind) { x = ax + (spot.kind === 'bar' ? ((q.id % 3) - 1) * 14 : 0); y = ay - spot.fh * T - (spot.kind === 'altar' ? -2 : 0) + (spot.kind === 'altar' ? 18 : 0); dir = 0; anim = q.agent.talking ? 'talk' : 'idle'; if (spot.kind === 'altar') { y = ay + 12; dir = 3; } }
-            else { x = ax + (spot.kind === 'oven' || spot.kind === 'forge' ? 0 : 0); y = ay + 13; dir = 3; anim = spot.kind === 'medbed' ? 'idle' : 'work'; }
-            if (spot.kind === 'desk') anim = 'read';
-            if (spot.kind === 'altar') anim = (Math.floor(this.t / 8) + q.id) % 2 ? 'read' : 'talk';
+            if (behind) { x = ax + (spot.kind === 'bar' ? ((q.id % 3) - 1) * 18 : 0); y = ry0 - 2; dir = 0; anim = q.agent.talking ? 'talk' : 'idle'; if (spot.kind === 'desk') { anim = 'read'; } }
+            else { x = ax; y = ay + 12; dir = 3; anim = spot.kind === 'medbed' ? 'idle' : 'work'; }
+            if (spot.kind === 'altar') { anim = (Math.floor(this.t / 8) + q.id) % 2 ? 'read' : 'talk'; }
             if (spot.kind === 'cauldron') anim = 'cook';
             if (spot.kind === 'bar' && q.agent.talking) anim = 'talk';
+            void rx0;
           }
         } else if (act === 'perform') { // a bard plays by the hearth
           const c = L.items.find((i) => i.kind === 'fireplace') || L.items.find((i) => i.kind === 'bar'); const [ax, ay] = c ? this.anchor(c) : this.tileXY(Math.floor(L.w / 2), 2);
-          x = ax + (c && c.kind === 'bar' ? -40 : 0); y = ay + 22; dir = 0; anim = (Math.floor(this.t / 4) % 3) ? 'talk' : 'idle';
-        } else if (act === 'mourn' || act === 'wedding') {
-          const c = L.items.find((i) => i.kind === 'altar') || L.items[0]; const [ax, ay] = this.anchor(c); const k = inside.filter((z) => z.activity?.act === act).indexOf(q);
-          x = ax + ((k % 6) - 2.5) * 12; y = ay + 26 + Math.floor(k / 6) * 14; dir = 3; anim = act === 'mourn' ? 'mourn' : (k % 3 === 0 ? 'celebrate' : 'idle');
-        } else if (['socialise', 'eat-out', 'eat', 'worship', 'rest', 'gangmeet', 'lessons', 'feast'].includes(act) || (act === 'home' && q.stage !== 'baby')) {
-          spot = act === 'home' && q.id % 3 === 0 ? null : free(seats);
-          if (spot) { const [ax, ay] = this.anchor(spot); x = ax; y = ay + 2; dir = spot.pew ? 3 : 0; anim = 'sit'; if (spot.pew) { const k = inside.filter((z) => ['worship', 'lessons'].includes(z.activity?.act)).indexOf(q) % 3; x = ax + (k - 1) * 14; } }
+          x = ax + (c && c.kind === 'bar' ? -40 : 0); y = ay + 26; dir = 0; anim = (Math.floor(this.t / 4) % 3) ? 'talk' : 'idle';
+        } else if (act === 'mourn' || act === 'wedding' || act === 'worship' || act === 'lessons') {
+          const p = pews.find((i) => (pewCount.get(i) || 0) < (i.seats || i.fw));
+          if (p) { const k = pewCount.get(p) || 0; pewCount.set(p, k + 1); const [rx0] = this.rect(p); x = rx0 + 8 + k * T; y = this.anchor(p)[1] - 2; sortY = this.anchor(p)[1] + 0.6; dir = 3; anim = act === 'mourn' ? 'mourn' : act === 'wedding' && k % 3 === 0 ? 'celebrate' : 'sit'; if (anim === 'mourn') anim = 'sit'; spot = p; seat = { pewSeat: true, it: p }; }
+          else { const t = idleTiles[(q.id * 7) % Math.max(1, idleTiles.length)] || [1, L.d - 3]; [x, y] = this.tileXY(t[0], t[1]); dir = 3; anim = act === 'mourn' ? 'mourn' : 'idle'; } // standing at the back
+        } else if (['socialise', 'eat-out', 'eat', 'rest', 'gangmeet', 'feast'].includes(act) || (act === 'home' && q.stage !== 'baby')) {
+          if (!(act === 'home' && q.id % 3 === 0)) { spot = seats.find((i) => !used.has(i)); if (spot) seat = spot; }
+          if (spot && b.type === 'tavern' && act === 'socialise') anim = (Math.floor(this.t / 3) + q.id) % 3 ? 'drink' : 'talk';
         } else if (act === 'shop' || act === 'deliver' || act === 'pickup' || act === 'carry-home' || act === 'import') {
-          const c = L.items.find((i) => i.counter);
-          if (c) { const [ax, ay] = this.anchor(c); x = ax + ((q.id % 3) - 1) * 12; y = ay + 14; dir = 3; anim = q.agent.carrying ? 'carry' : 'idle'; }
+          const c = counters[0];
+          if (c) { const [ax] = this.anchor(c), [, , , ry1] = this.rect(c); x = ax + ((q.id % 3) - 1) * 14; y = ry1 + 12; dir = 3; anim = q.agent.carrying ? 'carry' : 'idle'; }
         }
-        if (x == null && act === 'socialise' && b.type === 'tavern') { const bar = L.items.find((i) => i.kind === 'bar'); if (bar) { const [ax, ay] = this.anchor(bar); const k = q.id % 5; x = ax - 24 + k * 12; y = ay + 14; dir = 3; anim = (Math.floor(this.t / 3) + q.id) % 3 ? 'drink' : 'talk'; } }
-        if (x == null) { const t = idleTiles[(q.id * 7) % Math.max(1, idleTiles.length)] || [0, 0]; [x, y] = this.tileXY(t[0], t[1]); x += (q.id % 3) * 3 - 3; dir = (q.id + Math.floor(this.t / 6)) % 4 === 3 ? 0 : (q.id + Math.floor(this.t / 6)) % 4; anim = q.agent.talking ? 'talk' : q.stage === 'baby' ? 'crouch' : 'idle'; }
+        if (seat && !seat.pewSeat) { // sat in a chair, facing the way it faces
+          const [ax, ay] = this.anchor(seat), r = seat.rot || 0;
+          dir = [0, 1, 2, 3][r]; x = ax + (r === 1 ? 2 : r === 2 ? -2 : 0); y = ay + (r === 0 ? -3 : r === 3 ? -3 : 1); sortY = ay + 0.6;
+          if (anim === 'idle') anim = 'sit';
+          if (anim !== 'doze' && anim !== 'sit') anim = anim === 'drink' ? 'drink' : 'talk';
+        }
+        if (x == null && !inBed) { const t = idleTiles[(q.id * 7) % Math.max(1, idleTiles.length)] || [0, 1]; [x, y] = this.tileXY(t[0], t[1]); x += (q.id % 3) * 3 - 3; dir = (q.id + Math.floor(this.t / 6)) % 8; anim = q.agent.talking ? 'talk' : q.stage === 'baby' ? 'crouch' : 'idle'; }
         if (spot && spot.kind !== 'pew' && spot.kind !== 'bar') used.add(spot);
         let a = this.actors.get(q.id);
         if (!a) { a = { ft: Math.random() * 2, person: q, a: q.app }; this.actors.set(q.id, a); }
-        if (q.agent.frozen) { anim = 'talk'; dir = a.dir ?? dir; }
-        Object.assign(a, { x, y, dir: q.agent.frozen ? a.dir : dir, anim, a: q.app, hidden: false });
+        if (q.agent.frozen) { anim = anim === 'sit' ? 'sit' : 'talk'; dir = a.dir ?? dir; }
+        Object.assign(a, { x, y, sortY, dir: q.agent.frozen ? a.dir : dir, anim, a: q.app, hidden: inBed, inBed: inBed ? spot : null, seat: seat && !seat.pewSeat ? seat : seat?.pewSeat ? seat.it : null });
         seen.add(q.id);
       }
       for (const id of [...this.actors.keys()]) if (!seen.has(id)) this.actors.delete(id);
@@ -108,6 +139,32 @@
       const cx = R.W <= g.vw ? Math.round((R.W - g.vw) / 2) : Math.round(O.clamp(p.x - g.vw / 2, 0, R.W - g.vw));
       const cy = R.H <= g.vh ? Math.round((R.H - g.vh) / 2) : Math.round(O.clamp(p.y - 20 - g.vh / 2, 0, R.H - g.vh));
       return { x: cx, y: cy };
+    }
+
+    sprite(it, v) {
+      const rot = it.kind === 'pew' || it.kind === 'bar' || it.kind === 'rug' ? it.width || it.fw : it.rot || 0;
+      let sp = O.Furn.furniture(it.kind, v, it.seed, it.kind === 'bed' && rot === 2 ? 1 : rot);
+      if (it.kind === 'bed' && it.rot === 2) sp = O.Furn.mirrored(sp);
+      return sp;
+    }
+
+    // a sleeper's head on the pillow: the top of their own frame, eyes shut
+    headOf(q) {
+      const fr = Ch.frame(q.app, 0, 'sleep', 0), hy = Ch.headY(q.app);
+      const c = document.createElement('canvas'), top = Math.max(0, Math.round(hy.cy - hy.ry - 4)), h = Math.round(hy.ry * 2 + 6);
+      c.width = 20; c.height = h; c.getContext('2d').drawImage(fr, 6, top, 20, h, 0, 0, 20, h);
+      c.cy = hy.ry + 4; return c;
+    }
+    drawSleepers(ctx, it, sp, ax, ay, cam) {
+      const list = this.sleeping && this.sleeping.get(it); if (!list) return;
+      for (const { q, k } of list) {
+        const pi = sp.pillows ? sp.pillows[Math.min(sp.pillows.length - 1, Math.floor(k))] : [0, -20];
+        const hc = q._headCanvas && q._headVer === q.app.cacheVer ? q._headCanvas : (q._headCanvas = this.headOf(q), q._headVer = q.app.cacheVer, q._headCanvas);
+        let px = ax + pi[0] + (k === 0.5 ? 5 : 0), py = ay + pi[1];
+        if (it.kind === 'bed' && it.rot) { // head on the pillow at the wall end, turned on its side
+          ctx.save(); ctx.translate(Math.round(px - cam.x), Math.round(py - cam.y)); ctx.rotate(it.rot === 1 ? -Math.PI / 2 : Math.PI / 2); ctx.drawImage(hc, -10, -hc.cy - 1); ctx.restore();
+        } else ctx.drawImage(hc, Math.round(px - 10 - cam.x), Math.round(py - hc.cy + 3 - cam.y));
+      }
     }
 
     draw(ctx) {
@@ -121,31 +178,38 @@
       for (const it of L.items) {
         let v = it.v;
         if (it.kind === 'shelf' || it.kind === 'rack') { const gd = it.stockGood; if (bz && gd) { const tgt = bz.def.targets[gd] || 10; v = Math.round(3 * O.clamp((bz.stock[gd] || 0) / tgt, 0, 1)); if (it.kind === 'rack') v = 0; } else v = 2; }
-        // sacks/barrels holding stock disappear as the stock runs down
+        // sacks and barrels holding stock disappear as the stock runs down
         if (it.stockOf && bz && O.Data.GOODS[it.stockOf]) {
           const same = L.items.filter((i) => i.stockOf === it.stockOf); const k = same.indexOf(it);
           const ratio = O.clamp((bz.stock[it.stockOf] || 0) / (bz.def.targets[it.stockOf] || 10), 0, 1);
           if (k >= Math.ceil(ratio * same.length)) continue;
         }
-        const sp = O.Furn.furniture(it.kind, v, it.seed);
+        const sp = this.sprite(it, v);
         const [ax, ay] = this.anchor(it);
-        drawables.push({ y: sp.flat ? -1 : ay, draw: () => { ctx.drawImage(sp.canvas, Math.round(ax - sp.ox - cam.x), Math.round(ay - sp.oy - cam.y)); if (sp.fire) this.drawFire(ctx, ax - sp.ox + sp.fire.x - cam.x, ay - sp.oy + sp.fire.y - cam.y, sp.fire); if (sp.candles) for (const [cx, cy] of sp.candles) this.flame(ctx, ax - sp.ox + cx - cam.x, ay - sp.oy + cy - cam.y, 1); } });
+        const at = (c) => ctx.drawImage(c, Math.round(ax - sp.ox - cam.x), Math.round(ay - sp.oy - cam.y));
+        drawables.push({ y: sp.flat ? -1 : ay - (it.kind === 'pew' ? 1 : 0), draw: () => {
+          at(sp.canvas);
+          if (sp.fire) { const lit = !this.b.sprite?.chimney || !g.lit || g.lit.has(this.b.id) || it.kind === 'cauldron'; this.drawFire(ctx, ax + sp.fire.x - cam.x, ay + sp.fire.y - cam.y, Object.assign({}, sp.fire, { coals: sp.fire.coals || !lit })); }
+          if (sp.candles && (night || it.kind === 'altar' || it.kind === 'candlestand')) for (const [cx, cy] of sp.candles) this.flame(ctx, ax + cx - cam.x, ay + cy - cam.y, 1);
+          if (sp.cover) { this.drawSleepers(ctx, it, sp, ax, ay, cam); at(sp.cover); }
+        } });
+        if (sp.back) drawables.push({ y: ay + 4, draw: () => at(sp.back) }); // a chair or pew back in front of whoever sits in it
       }
-      for (const a of this.actors.values()) drawables.push({ y: a.anim === 'sleep' ? a.y + 1 : a.y + (a.anim === 'sit' ? 0.5 : 0), draw: () => this.drawActor(ctx, a, cam, a.anim !== 'sleep') });
-      const p = g.player; drawables.push({ y: p.y, draw: () => this.drawActor(ctx, p, cam, true) });
+      for (const a of this.actors.values()) if (!a.hidden) drawables.push({ y: a.sortY ?? a.y, draw: () => this.drawActor(ctx, a, cam, a.anim !== 'sit' && a.anim !== 'doze') });
+      const p = g.player; if (!p.inBed) drawables.push({ y: p.y, draw: () => this.drawActor(ctx, p, cam, true) });
       drawables.sort((a, c) => a.y - c.y);
       for (const d of drawables) d.draw();
       for (const h of g.hooks.drawWorld) h(ctx, cam);
-      // lighting: dim interior, warm pools around fires and candles, daylight under windows
+      // lighting: dim interior, warm pools around fires and candles, daylight under windows and at the door
       const amb = night ? [58, 52, 88] : g.ambient().map((c, k) => Math.round(c * [0.86, 0.82, 0.78][k]));
       const pools = [];
       for (const it of L.items) {
         const [ax, ay] = this.anchor(it);
-        if (it.kind === 'fireplace' || it.kind === 'oven' || it.kind === 'forge') pools.push([ax - cam.x, ay - 10 - cam.y, 44 + Math.sin(this.t * 9 + it.id) * 2, 'fire']);
-        if (it.kind === 'altar') pools.push([ax - cam.x, ay - 20 - cam.y, 30, 'fire']);
-        if (it.kind === 'table' && night) pools.push([ax - cam.x, ay - 8 - cam.y, 22, 'fire']);
+        if (it.kind === 'fireplace' || it.kind === 'oven' || it.kind === 'forge') pools.push([ax - cam.x, ay - 10 - cam.y, 56 + Math.sin(this.t * 9 + it.id) * 2, 'fire']);
+        if (it.kind === 'altar' || it.kind === 'candlestand') pools.push([ax - cam.x, ay - 24 - cam.y, 32, 'fire']);
+        if ((it.kind === 'table' || it.kind === 'longtable') && it.v >= 1 && night) pools.push([ax - cam.x, ay - 16 - cam.y, 26, 'fire']);
       }
-      if (!night) for (const w of R.windows) pools.push([w.x + w.w / 2 - cam.x, R.WH + 10 - cam.y, 26, 'day']);
+      if (!night) { for (const w of R.windows) pools.push([w.x + w.w / 2 - cam.x, R.WH + 14 - cam.y, 34, 'day']); if (this.floor === 0) pools.push([(R.doorX0 + R.doorX1) / 2 - cam.x, R.WH + R.FH - cam.y, 30, 'day']); }
       g.drawLightingWith(amb, pools);
     }
 
@@ -164,8 +228,8 @@
       const n = Math.max(3, Math.floor(f.w / 3)), t = this.t;
       for (let i = 0; i < n; i++) {
         const fx = Math.round(x - f.w / 2 + (i + 0.5) * (f.w / n));
-        const h = f.coals ? 1 + ((Math.floor(t * 8) + i) % 2) : 3 + Math.round((Math.sin(t * 11 + i * 2.3) + 1) * 2.2);
-        ctx.fillStyle = f.coals ? '#c83a20' : '#c84a20'; ctx.fillRect(fx - 1, Math.round(y) - h + 2, 3, h);
+        const h = f.coals ? 1 + ((Math.floor(t * 8) + i) % 2) : 3 + Math.round((Math.sin(t * 11 + i * 2.3) + 1) * 2.6);
+        ctx.fillStyle = f.coals ? '#a83a20' : '#c84a20'; ctx.fillRect(fx - 1, Math.round(y) - h + 2, 3, h);
         ctx.fillStyle = '#ff9a30'; ctx.fillRect(fx - 1, Math.round(y) - h + 3, 2, Math.max(1, h - 2));
         ctx.fillStyle = '#ffe080'; ctx.fillRect(fx, Math.round(y) - h + 4, 1, Math.max(1, h - 4));
       }
@@ -174,17 +238,23 @@
     // ---- interaction candidates for the interact module ----
     candidates() {
       const p = this.game.player, out = [];
-      for (const a of this.actors.values()) { const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < 30 && a.anim !== 'sleep') out.push({ type: 'npc', person: a.person, d, x: a.x, y: a.y }); }
+      for (const a of this.actors.values()) { if (a.hidden) continue; const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < 30 && a.anim !== 'doze') out.push({ type: 'npc', person: a.person, d, x: a.x, y: a.y }); }
+      const bz = this.sim.biz.get(this.b.id);
       for (const it of this.L.items) {
-        const [ax, ay] = this.anchor(it);
-        const cx = ax, cy = ay - it.fh * 8 + 4;
-        const d = Math.hypot(cx - p.x, Math.max(0, cy - p.y - 8, p.y - ay - 6) + (Math.abs(cx - p.x) > it.fw * 8 + 6 ? 20 : 0));
-        if (d > 22) continue;
+        const [x0, y0, x1, y1] = this.rect(it);
+        const d = Math.hypot(Math.max(x0 - p.x, 0, p.x - x1), Math.max(y0 - p.y, 0, p.y - y1 - 6)) + 4;
+        if (d > 18) continue;
+        const cx = (x0 + x1) / 2, cy = y0 - 6;
         if (it.gangStash && this.b.gang === 'player') out.push({ type: 'stash', it, d, x: cx, y: cy });
         if (it.container) out.push({ type: 'container', it, d, x: cx, y: cy });
-        if (it.bed) out.push({ type: 'bed', it, d: d + 1, x: cx, y: cy });
+        if (it.bed && !it.cradle) out.push({ type: 'bed', it, d: d + 1, x: cx, y: cy });
         if (it.kind === 'stairs') out.push({ type: 'stairs', it, d: d - 2, x: cx, y: cy });
         if (it.portrait) out.push({ type: 'portrait', it, d: d + 2, x: cx, y: cy - 30 });
+        // buy across the counter or from the shelves, when someone is serving
+        if ((it.counter || it.shop) && bz && !bz.def.public) {
+          const seller = [...this.actors.values()].find((a) => !a.hidden && a.person.job?.biz === this.b.id && a.person.activity?.act === 'work');
+          if (seller) out.push({ type: 'shop', it, seller: seller.person, d: d - 1, x: cx, y: cy });
+        }
         if (O.workCandidate) { const wc = O.workCandidate(this, it, d, cx, cy); if (wc) out.push(wc); }
         if (O.craftCandidate) { const cc = O.craftCandidate(this, it, d, cx, cy); if (cc) out.push(cc); }
       }

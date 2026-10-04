@@ -46,12 +46,14 @@
           // others nearby may still have noticed
           const seen = (game.scene ? game.scene.actors ? [...game.scene.actors.values()].map((a) => a.person).filter((z) => z !== q && z.activity?.act !== 'sleep') : [] : sim.seers(game.player.x, game.player.y, q)).filter(() => sim.rng.chance(0.22));
           PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.02);
-          if (seen.length) { const cr = sim.recordCrime({ kind: 'pickpocket', perp: 'player', placeName: place, tile: tileOf(), seen, severity: 1 }); PS.crimes.push(cr.id); O.Panels.toast(`You lift ${got} from ${q.first}… but ${seen[0].first} saw you!`, 'bad'); PS.rep.local -= 0.1; }
+          // the victim may feel the tug, or turn in time to see who it was
+          const victimSaw = !behind && sim.rng.chance(0.3) || q.traits.includes('suspicious') && sim.rng.chance(0.3);
+          if (seen.length || victimSaw) { const cr = sim.recordCrime({ kind: 'pickpocket', perp: 'player', placeName: place, tile: tileOf(), seen, victimPerson: victimSaw ? q : null, victimLate: true, severity: 1 }); PS.crimes.push(cr.id); O.Panels.toast(seen.length ? `You lift ${got} from ${q.first}… but ${seen[0].first} saw you!` : `You lift ${got} — and ${q.first} turns, clutching an empty purse, and looks straight at you.`, 'bad'); PS.rep.local -= 0.1; }
           else O.Panels.toast(`You lift ${got} from ${q.first}'s purse. Nobody noticed.`);
           sim.remember(q, 'My purse felt lighter today.', 'crime', 0.4);
         } else {
           const seen = [q, ...(game.scene ? [] : sim.seers(game.player.x, game.player.y, q).filter(() => sim.rng.chance(0.5)))];
-          const cr = sim.recordCrime({ kind: 'pickpocket', perp: 'player', placeName: place, tile: tileOf(), seen, severity: 1 }); PS.crimes.push(cr.id);
+          const cr = sim.recordCrime({ kind: 'pickpocket', perp: 'player', placeName: place, tile: tileOf(), seen, victimPerson: q, severity: 1 }); PS.crimes.push(cr.id);
           PS.rep.local = Math.max(-1, PS.rep.local - 0.15); PS.rep.civilian = Math.max(-1, PS.rep.civilian - 0.08);
           q.agent.talking = 40;
           O.Panels.toast(`${q.first} catches your hand! “Cutpurse! Watch! WATCH!”`, 'bad');

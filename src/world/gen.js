@@ -160,6 +160,15 @@
       else if (r < 0.18) props.push({ kind: r < 0.06 ? 'flowers' : 'grass', x: xx * T + rng.int(2, 14), y: yy * T + rng.int(4, 14), seed: rng.int(1, 30), solid: false, flat: true });
     }
     for (let i = 0; i < W * H; i++) if (ter[i] === TER.WATER) solid[i] = 1;
+    // no house may stand on another building's doorstep: such a house is cleared away
+    for (const b of buildings.slice()) {
+      const dx = b.doorX != null ? b.doorX : b.x + b.spec.doorTile, dy = b.doorY != null ? b.doorY : b.bottom + 1;
+      const o = buildings.find((q) => q !== b && dx >= q.x && dx < q.x + q.w && dy >= q.y && dy <= q.bottom);
+      const drop = o && (o.type === 'house' ? o : b.type === 'house' ? b : null);
+      if (!drop) continue;
+      buildings.splice(buildings.indexOf(drop), 1);
+      for (let yy = drop.y; yy <= drop.bottom; yy++) for (let xx = drop.x; xx < drop.x + drop.w; xx++) if (!buildings.some((q) => xx >= q.x && xx < q.x + q.w && yy >= q.y && yy <= q.bottom)) solid[yy * W + xx] = 0;
+    }
     const zones = {
       square: [sqX + 1, roadY - 6, sqX + 14, roadY - 1], bench: [sqX + 2, roadY - 5], farm: [W - 33, fy0, W - 9, fy1], wood: [sqX - 6, 3, sqX + 12, 9], east: [W - 1, roadY],
       patrol: [[sqX + 8, roadY], [Math.max(6, sqX - 20), roadY], [Math.max(8, sqX - 20), laneY], [sqX + 8, laneY], [Math.min(W - 10, sqX + 30), laneY], [Math.min(W - 6, sqX + 34), roadY], [sqX + 8, roadY - 3]],
@@ -203,6 +212,14 @@
       }
     }
     function finish(extra) {
+      // no house may stand on another building's doorstep
+      for (let pass = 0; pass < 2; pass++) for (const b of buildings.slice()) {
+        const dx = b.x + b.spec.doorTile, dy = b.bottom + 1;
+        const o = buildings.find((q) => q !== b && dx >= q.x && dx < q.x + q.w && dy >= q.y && dy <= q.bottom);
+        if (!o) continue;
+        const drop = o.type === 'house' ? o : b.type === 'house' ? b : null;
+        if (drop) buildings.splice(buildings.indexOf(drop), 1);
+      }
       for (const b of buildings) {
         for (let yy = b.y; yy <= b.bottom; yy++) for (let xx = b.x; xx < b.x + b.w; xx++) { if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue; solid[yy * W + xx] = 1; if (ter[yy * W + xx] === TER.FOREST || ter[yy * W + xx] === TER.FIELD) set(xx, yy, TER.GRASS); }
         b.doorX = b.x + b.spec.doorTile; b.doorY = b.bottom + 1;

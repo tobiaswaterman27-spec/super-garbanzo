@@ -261,8 +261,8 @@
       const li = y * tw.W + x, edge = Math.min(x, y, tw.W - 1 - x, tw.H - 1 - y), X = ox + x, Y = oy + y;
       if (X < 0 || Y < 0 || X >= W || Y >= H) continue;
       const i = Y * W + X;
-      if (edge < 3 && tw.ter[li] === TR.FOREST) continue; // keep the countryside's own edge
       if (townRoad.has(i) && !busy.has(li) && (tw.ter[li] === TR.GRASS || tw.ter[li] === TR.FOREST)) { ter[i] = TR.ROAD; solid[i] = 0; kept.add(li); continue; } // a road passing over the town's open ground
+      if (edge < 3 && tw.ter[li] === TR.FOREST && !busy.has(li)) continue; // keep the countryside's own edge (but never under a building)
       if (x < 13 && (tw.ter[li] === TR.WATER || tw.ter[li] === TR.SAND) && ter[i] !== TR.WATER) continue; // a coast town's sketched shore gives way to the island's real one
       ter[i] = tw.ter[li]; solid[i] = tw.solid[li];
     }
@@ -284,10 +284,44 @@
     const shiftZone = (z) => (Array.isArray(z) ? (Array.isArray(z[0]) ? z.map(shiftZone) : z.length === 4 ? [z[0] + ox, z[1] + oy, z[2] + ox, z[3] + oy] : [z[0] + ox, z[1] + oy]) : z);
     const zones = {}; for (const [k, v] of Object.entries(tw.zones || {})) zones[k] = shiftZone(v);
     if (id === 'ashford') Object.assign(zones, { square: [38 + ox, 23 + oy, 54 + ox, 29 + oy], bench: [37 + ox, 23 + oy], farm: [7 + ox, 56 + oy, 33 + ox, 61 + oy], wood: [34 + ox, 4 + oy, 44 + ox, 12 + oy], east: [95 + ox, 31 + oy], patrol: [[46, 30], [30, 31], [12, 30], [12, 41], [30, 42], [46, 41], [62, 42], [76, 30], [62, 30], [46, 24]].map(([a, c]) => [a + ox, c + oy]) });
+    // the town's own streets that run out at its edge carry on as a lane to the nearest road, not into the grass
+    if (roadSet.size) {
+      const rlist = [...roadSet], ends = [];
+      for (let y = 0; y < tw.H; y++) for (let x = 0; x < tw.W; x++) {
+        if (Math.min(x, y, tw.W - 1 - x, tw.H - 1 - y) > 4) continue;
+        const t = tw.ter[y * tw.W + x]; if (t !== TR.ROAD && t !== TR.COBBLE) continue;
+        // only where the street stops: the next tile outward isn't street
+        const out = [[x, y - 1], [x, y + 1], [x - 1, y], [x + 1, y]].filter(([a2, b2]) => Math.min(a2, b2, tw.W - 1 - a2, tw.H - 1 - b2) < Math.min(x, y, tw.W - 1 - x, tw.H - 1 - y));
+        if (!out.length || out.some(([a2, b2]) => a2 >= 0 && b2 >= 0 && a2 < tw.W && b2 < tw.H && [TR.ROAD, TR.COBBLE].includes(tw.ter[b2 * tw.W + a2]))) continue;
+        const X = ox + x, Y = oy + y; if (ends.some(([a, b]) => Math.abs(a - X) + Math.abs(b - Y) < 6)) continue;
+        ends.push([X, Y]);
+      }
+      for (const [X, Y] of ends) {
+        let best = null, bd = 90 * 90;
+        for (const i of rlist) { const rx = i % W, ry = (i / W) | 0, d = (rx - X) ** 2 + (ry - Y) ** 2; if (d < bd) { bd = d; best = [rx, ry]; } }
+        if (!best || bd < 16) continue;
+        const n = Math.ceil(Math.sqrt(bd) * 2), lane = [];
+        let ok = true;
+        for (let k = 0; k <= n && ok; k++) {
+          const t = k / n, bend = Math.sin(t * Math.PI) * 3 * (hash(X, Y, 5) - 0.5), x = Math.round(X + (best[0] - X) * t + bend * (best[1] - Y) / Math.sqrt(bd)), y = Math.round(Y + (best[1] - Y) * t - bend * (best[0] - X) / Math.sqrt(bd));
+          for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) { const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue; const i = yy * W + xx; if (ter[i] === TR.WATER) { ok = false; break; } if (!inTown(xx, yy)) lane.push(i); }
+        }
+        if (!ok) continue;
+        for (const i of lane) { ter[i] = TR.ROAD; solid[i] = 0; roadSet.add(i); }
+      }
+      keep(trees, (t) => !roadSet.has(Math.floor((t.y - 1) / T) * W + Math.floor(t.x / T)));
+      keep(props, (p) => p.field || p.flat || !roadSet.has(Math.floor((p.y - 1) / T) * W + Math.floor(p.x / T)));
+    }
     // 4. ruins of older times
     for (const ru of E().RUINS) {
       const gx = Math.round(ru.x * U), gy = Math.round(ru.y * U), x = gx - R.x0, y = gy - R.y0;
       if (x < 4 || y < 6 || x > W - 8 || y > H - 4 || inTown(x, y)) continue;
+      if (ter[y * W + x] === TR.WATER) {
+        // standing in the water: one broken tower in the shallows with its fallen stones about it
+        props.push({ kind: 'tower', x: x * T + 8, y: y * T + 14, seed: gx * 7 + gy, v: 0, solid: true, ruinNote: ru.note, ruinName: ru.name });
+        for (const [dx, dy] of [[-1, 1], [2, 0], [1, 2], [-2, -1]]) if (ter[(y + dy) * W + x + dx] === TR.WATER) props.push({ kind: 'rock', x: (x + dx) * T + 8, y: (y + dy) * T + 13, seed: gx + dx * 5 + dy, solid: true });
+        continue;
+      }
       const spec = { seed: gx * 7 + gy, w: 5, d: 4, floors: 2, wealth: 0.6, condition: 0.2, wall: 'stone', stoneMat: 'stoneDark', roof: 'slate', roofType: 'gable', doorTile: 2, noFlowers: true };
       const bld = { id: 9000 + buildings.length, type: 'ruin', name: ru.name, x: x - 2, bottom: y, y: y - 3, w: 5, d: 4, floors: 2, wealth: 0.6, condition: 0.2, ruined: true, spec, ruinNote: ru.note, doorX: x, doorY: y + 1 };
       buildings.push(bld);

@@ -2730,7 +2730,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     house(34, 40, 4, 4); house(39, 40, 5, 4, { floors: 2 }); house(48, 40, 4, 4); house(53, 40, 4, 3); house(58, 40, 4, 4);
     B({ type: 'chapel', name: 'Chapel of St. Aldric', x: 63, bottom: 40, w: 5, d: 5, wealth: 0.6, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 2, wallH: 64, noFlowers: true } });
     house(69, 40, 4, 3);
-    B({ type: 'morgue', name: 'Ashford Morgue', x: 79, bottom: 40, w: 3, d: 3, wealth: 0.4, look: { wall: 'stone', stoneMat: 'stoneDark', roof: 'slate', roofType: 'gable', doorTile: 1, noFlowers: true, sign: 'cross' } });
+    B({ type: 'morgue', name: 'Ashford Morgue', x: 88, bottom: 40, w: 3, d: 3, wealth: 0.4, look: { wall: 'stone', stoneMat: 'stoneDark', roof: 'slate', roofType: 'gable', doorTile: 1, noFlowers: true, sign: 'cross' } });
     B({ type: 'mill', name: 'Ashford Mill', x: 74, bottom: 40, w: 4, d: 4, floors: 2, wealth: 0.5, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'thatch', roofType: 'gable', doorTile: 1, noFlowers: true } });
     // Farm
     B({ type: 'farmhouse', name: 'Marsh Farm', x: 10, bottom: 51, w: 4, d: 3, wealth: 0.4, look: { wall: 'timber', roof: 'thatch', chimney: true, doorTile: 1 } });
@@ -3147,6 +3147,15 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       else if (r < 0.18) props.push({ kind: r < 0.06 ? 'flowers' : 'grass', x: xx * T + rng.int(2, 14), y: yy * T + rng.int(4, 14), seed: rng.int(1, 30), solid: false, flat: true });
     }
     for (let i = 0; i < W * H; i++) if (ter[i] === TER.WATER) solid[i] = 1;
+    // no house may stand on another building's doorstep: such a house is cleared away
+    for (const b of buildings.slice()) {
+      const dx = b.doorX != null ? b.doorX : b.x + b.spec.doorTile, dy = b.doorY != null ? b.doorY : b.bottom + 1;
+      const o = buildings.find((q) => q !== b && dx >= q.x && dx < q.x + q.w && dy >= q.y && dy <= q.bottom);
+      const drop = o && (o.type === 'house' ? o : b.type === 'house' ? b : null);
+      if (!drop) continue;
+      buildings.splice(buildings.indexOf(drop), 1);
+      for (let yy = drop.y; yy <= drop.bottom; yy++) for (let xx = drop.x; xx < drop.x + drop.w; xx++) if (!buildings.some((q) => xx >= q.x && xx < q.x + q.w && yy >= q.y && yy <= q.bottom)) solid[yy * W + xx] = 0;
+    }
     const zones = {
       square: [sqX + 1, roadY - 6, sqX + 14, roadY - 1], bench: [sqX + 2, roadY - 5], farm: [W - 33, fy0, W - 9, fy1], wood: [sqX - 6, 3, sqX + 12, 9], east: [W - 1, roadY],
       patrol: [[sqX + 8, roadY], [Math.max(6, sqX - 20), roadY], [Math.max(8, sqX - 20), laneY], [sqX + 8, laneY], [Math.min(W - 10, sqX + 30), laneY], [Math.min(W - 6, sqX + 34), roadY], [sqX + 8, roadY - 3]],
@@ -3190,6 +3199,14 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       }
     }
     function finish(extra) {
+      // no house may stand on another building's doorstep
+      for (let pass = 0; pass < 2; pass++) for (const b of buildings.slice()) {
+        const dx = b.x + b.spec.doorTile, dy = b.bottom + 1;
+        const o = buildings.find((q) => q !== b && dx >= q.x && dx < q.x + q.w && dy >= q.y && dy <= q.bottom);
+        if (!o) continue;
+        const drop = o.type === 'house' ? o : b.type === 'house' ? b : null;
+        if (drop) buildings.splice(buildings.indexOf(drop), 1);
+      }
       for (const b of buildings) {
         for (let yy = b.y; yy <= b.bottom; yy++) for (let xx = b.x; xx < b.x + b.w; xx++) { if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue; solid[yy * W + xx] = 1; if (ter[yy * W + xx] === TER.FOREST || ter[yy * W + xx] === TER.FIELD) set(xx, yy, TER.GRASS); }
         b.doorX = b.x + b.spec.doorTile; b.doorY = b.bottom + 1;
@@ -3670,8 +3687,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const li = y * tw.W + x, edge = Math.min(x, y, tw.W - 1 - x, tw.H - 1 - y), X = ox + x, Y = oy + y;
       if (X < 0 || Y < 0 || X >= W || Y >= H) continue;
       const i = Y * W + X;
-      if (edge < 3 && tw.ter[li] === TR.FOREST) continue; // keep the countryside's own edge
       if (townRoad.has(i) && !busy.has(li) && (tw.ter[li] === TR.GRASS || tw.ter[li] === TR.FOREST)) { ter[i] = TR.ROAD; solid[i] = 0; kept.add(li); continue; } // a road passing over the town's open ground
+      if (edge < 3 && tw.ter[li] === TR.FOREST && !busy.has(li)) continue; // keep the countryside's own edge (but never under a building)
       if (x < 13 && (tw.ter[li] === TR.WATER || tw.ter[li] === TR.SAND) && ter[i] !== TR.WATER) continue; // a coast town's sketched shore gives way to the island's real one
       ter[i] = tw.ter[li]; solid[i] = tw.solid[li];
     }
@@ -3693,10 +3710,44 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     const shiftZone = (z) => (Array.isArray(z) ? (Array.isArray(z[0]) ? z.map(shiftZone) : z.length === 4 ? [z[0] + ox, z[1] + oy, z[2] + ox, z[3] + oy] : [z[0] + ox, z[1] + oy]) : z);
     const zones = {}; for (const [k, v] of Object.entries(tw.zones || {})) zones[k] = shiftZone(v);
     if (id === 'ashford') Object.assign(zones, { square: [38 + ox, 23 + oy, 54 + ox, 29 + oy], bench: [37 + ox, 23 + oy], farm: [7 + ox, 56 + oy, 33 + ox, 61 + oy], wood: [34 + ox, 4 + oy, 44 + ox, 12 + oy], east: [95 + ox, 31 + oy], patrol: [[46, 30], [30, 31], [12, 30], [12, 41], [30, 42], [46, 41], [62, 42], [76, 30], [62, 30], [46, 24]].map(([a, c]) => [a + ox, c + oy]) });
+    // the town's own streets that run out at its edge carry on as a lane to the nearest road, not into the grass
+    if (roadSet.size) {
+      const rlist = [...roadSet], ends = [];
+      for (let y = 0; y < tw.H; y++) for (let x = 0; x < tw.W; x++) {
+        if (Math.min(x, y, tw.W - 1 - x, tw.H - 1 - y) > 4) continue;
+        const t = tw.ter[y * tw.W + x]; if (t !== TR.ROAD && t !== TR.COBBLE) continue;
+        // only where the street stops: the next tile outward isn't street
+        const out = [[x, y - 1], [x, y + 1], [x - 1, y], [x + 1, y]].filter(([a2, b2]) => Math.min(a2, b2, tw.W - 1 - a2, tw.H - 1 - b2) < Math.min(x, y, tw.W - 1 - x, tw.H - 1 - y));
+        if (!out.length || out.some(([a2, b2]) => a2 >= 0 && b2 >= 0 && a2 < tw.W && b2 < tw.H && [TR.ROAD, TR.COBBLE].includes(tw.ter[b2 * tw.W + a2]))) continue;
+        const X = ox + x, Y = oy + y; if (ends.some(([a, b]) => Math.abs(a - X) + Math.abs(b - Y) < 6)) continue;
+        ends.push([X, Y]);
+      }
+      for (const [X, Y] of ends) {
+        let best = null, bd = 90 * 90;
+        for (const i of rlist) { const rx = i % W, ry = (i / W) | 0, d = (rx - X) ** 2 + (ry - Y) ** 2; if (d < bd) { bd = d; best = [rx, ry]; } }
+        if (!best || bd < 16) continue;
+        const n = Math.ceil(Math.sqrt(bd) * 2), lane = [];
+        let ok = true;
+        for (let k = 0; k <= n && ok; k++) {
+          const t = k / n, bend = Math.sin(t * Math.PI) * 3 * (hash(X, Y, 5) - 0.5), x = Math.round(X + (best[0] - X) * t + bend * (best[1] - Y) / Math.sqrt(bd)), y = Math.round(Y + (best[1] - Y) * t - bend * (best[0] - X) / Math.sqrt(bd));
+          for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) { const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue; const i = yy * W + xx; if (ter[i] === TR.WATER) { ok = false; break; } if (!inTown(xx, yy)) lane.push(i); }
+        }
+        if (!ok) continue;
+        for (const i of lane) { ter[i] = TR.ROAD; solid[i] = 0; roadSet.add(i); }
+      }
+      keep(trees, (t) => !roadSet.has(Math.floor((t.y - 1) / T) * W + Math.floor(t.x / T)));
+      keep(props, (p) => p.field || p.flat || !roadSet.has(Math.floor((p.y - 1) / T) * W + Math.floor(p.x / T)));
+    }
     // 4. ruins of older times
     for (const ru of E().RUINS) {
       const gx = Math.round(ru.x * U), gy = Math.round(ru.y * U), x = gx - R.x0, y = gy - R.y0;
       if (x < 4 || y < 6 || x > W - 8 || y > H - 4 || inTown(x, y)) continue;
+      if (ter[y * W + x] === TR.WATER) {
+        // standing in the water: one broken tower in the shallows with its fallen stones about it
+        props.push({ kind: 'tower', x: x * T + 8, y: y * T + 14, seed: gx * 7 + gy, v: 0, solid: true, ruinNote: ru.note, ruinName: ru.name });
+        for (const [dx, dy] of [[-1, 1], [2, 0], [1, 2], [-2, -1]]) if (ter[(y + dy) * W + x + dx] === TR.WATER) props.push({ kind: 'rock', x: (x + dx) * T + 8, y: (y + dy) * T + 13, seed: gx + dx * 5 + dy, solid: true });
+        continue;
+      }
       const spec = { seed: gx * 7 + gy, w: 5, d: 4, floors: 2, wealth: 0.6, condition: 0.2, wall: 'stone', stoneMat: 'stoneDark', roof: 'slate', roofType: 'gable', doorTile: 2, noFlowers: true };
       const bld = { id: 9000 + buildings.length, type: 'ruin', name: ru.name, x: x - 2, bottom: y, y: y - 3, w: 5, d: 4, floors: 2, wealth: 0.6, condition: 0.2, ruined: true, spec, ruinNote: ru.note, doorX: x, doorY: y + 1 };
       buildings.push(bld);
@@ -3908,6 +3959,11 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         const Q = ['#5d8a3e', '#466e36', '#9a7a52', '#8e8a84', '#6e4e32', '#3c6c96', '#c8b07a', '#a08a62', '#8a6239'];
         const TR = w.TER, col = (t) => (t === TR.GRASS ? Q[0] : t === TR.FOREST ? Q[1] : t === TR.ROAD ? Q[2] : t === TR.COBBLE ? Q[3] : t === TR.FIELD ? Q[4] : t === TR.WATER ? Q[5] : t === TR.SAND ? Q[6] : t === TR.YARD ? Q[7] : t === TR.BRIDGE ? Q[8] : Q[0]);
         for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) { g.fillStyle = col(w.ter[(y0 + y) * w.W + x0 + x]); g.fillRect(x * T, y * T, T, T); }
+        // a little texture straight away (light and dark flecks), so ground waiting to be painted doesn't read as flat colour
+        for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) for (let k = 0; k < 5; k++) {
+          const h = ((x0 + x) * 73856093 ^ (y0 + y) * 19349663 ^ k * 83492791) >>> 0;
+          g.fillStyle = h & 1 ? 'rgba(255,255,230,0.10)' : 'rgba(20,30,10,0.16)'; g.fillRect(x * T + (h >>> 3) % 14, y * T + (h >>> 9) % 14, 2 + (h >>> 15) % 3, 2);
+        }
         e = { canvas: c, ready: false, x0, y0, cw, ch };
         w._chunks.set(key, e);
       }
@@ -13873,7 +13929,7 @@ O.snowMaskOf = function (src) {
     for (let x = m; x <= W - 1 - m; x++) ring.push([x, m, 'h'], [x, H - 1 - m, 'h']);
     for (let y = m + 1; y < H - 1 - m; y++) ring.push([m, y, 'v'], [W - 1 - m, y, 'v']);
     for (const [x, y, o] of ring) {
-      if (ter[y * W + x] === TER.WATER || inBuilding(x, y)) continue;
+      if (ter[y * W + x] === TER.WATER || inBuilding(x, y) || world.buildings.some((b) => b.doorX === x && b.doorY === y)) continue; // a postern gap where a house door meets the wall
       if (isRoad(x, y)) {
         // a gate only where a road passes through the wall; a road running along the line is walled over
         const crosses = o === 'h' ? isRoad(x, y - 1) || isRoad(x, y + 1) : isRoad(x - 1, y) || isRoad(x + 1, y);
@@ -14981,6 +15037,8 @@ O.snowMaskOf = function (src) {
   function encodeGrid(a) { let s = ''; for (let i = 0; i < a.length; i++) s += a[i] ? '1' : '0'; return s; }
   function decodeGrid(s, a) { for (let i = 0; i < a.length; i++) a[i] = s.charCodeAt(i) === 49 ? 1 : 0; }
 
+  // the walk-through grid without the little signs (they're stood up afresh each time)
+  function signless(w) { const g = w.solid.slice(); for (const p of w.props) if (p.kind === 'namesign' || p.kind === 'salesign') g[Math.floor((p.y - 1) / 16) * w.W + Math.floor(p.x / 16)] = 0; return g; }
   function snapshot(game, sim) {
     const w = sim.world;
     // saved while out on the island: the same spot if it lies in Ashford's stretch of land, else Ashford's east way in
@@ -15024,12 +15082,13 @@ O.snowMaskOf = function (src) {
       world: {
         buildings: w.buildings.map((b) => { const o = {}; for (const [k, v] of Object.entries(b)) if (k !== 'sprite' && k !== 'dirty') o[k] = k === 'spec' ? Object.assign({}, v, { _fin: undefined }) : v; return o; }),
         trees: w.trees.map((t) => [t.kind, t.x, t.y, t.seed]),
-        props: w.props.map((p) => ({ kind: p.kind, x: p.x, y: p.y, seed: p.seed, v: p.v, solid: p.solid, flat: p.flat, field: p.field, grave: p.grave, epitaph: p.epitaph, broadsheet: p.broadsheet, felled: p.felled, planted: p.planted, treeKind: p.treeKind })),
-        solid: encodeGrid(w.solid),
+        props: w.props.filter((p) => p.kind !== 'namesign' && p.kind !== 'salesign').map((p) => ({ kind: p.kind, x: p.x, y: p.y, seed: p.seed, v: p.v, solid: p.solid, flat: p.flat, field: p.field, grave: p.grave, epitaph: p.epitaph, broadsheet: p.broadsheet, felled: p.felled, planted: p.planted, treeKind: p.treeKind })),
+        solid: encodeGrid(signless(w)),
       },
       player: {
         x: away ? away[0] : Math.round(game.scene ? game.scene.b.doorX * 16 + 8 : game.player.x), y: away ? away[1] : Math.round(game.scene ? game.scene.b.doorY * 16 + 10 : game.player.y), dir: game.player.dir,
         mount: game.player.mount ? game.player.mount.id : null,
+        region: game.world.island && !game.scene && game.world !== sim.world ? game.world.placeId : null, g: game.world.island && !game.scene ? O.Island.toGlobal(game.world, game.player.x, game.player.y).map(Math.round) : null,
         ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [] },
       },
     };
@@ -15106,7 +15165,7 @@ O.snowMaskOf = function (src) {
     sim.path.recost(); sim.path.clear();
     // player
     const P = d.player; const { rep, ...rest } = P.ps; Object.assign(PS, rest); if (rep) for (const k of ['civilian', 'criminal', 'guard', 'merchant']) PS.rep[k] = rep[k] ?? 0;
-    game.player.x = P.x; game.player.y = P.y; game.player.dir = P.dir;
+    game.player.x = P.x; game.player.y = P.y; game.player.dir = P.dir; game._savedPlayer = P;
     game._pendingMount = P.mount;
     sim.horsesSaved = S.horses;
   }
@@ -15118,6 +15177,11 @@ O.snowMaskOf = function (src) {
     }
     const nb = sim.world.props.filter((p) => p.kind === 'noticeboard'); if (nb.length > 1) sim.world.props.splice(sim.world.props.indexOf(nb[1]), 1);
     sim.world.dirtyStatics = true;
+    // saved out on the island in another town's land: walk straight back into it
+    const P = game._savedPlayer; game._savedPlayer = null;
+    if (P && P.region && P.g && O.OpenWorld && O.Island.data().place(P.region)) {
+      try { O.OpenWorld.switchTo(P.region); const [lx, ly] = O.Island.toLocal(game.world, P.g[0], P.g[1]); game.player.x = lx; game.player.y = ly; } catch (e) { console.warn('could not return to', P.region, e); }
+    }
   }
 
   O.Save = { save, peek, clear, hydrate, hydrateLate, snapshot, KEY };

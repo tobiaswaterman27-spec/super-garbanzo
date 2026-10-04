@@ -10,6 +10,8 @@
   function encodeGrid(a) { let s = ''; for (let i = 0; i < a.length; i++) s += a[i] ? '1' : '0'; return s; }
   function decodeGrid(s, a) { for (let i = 0; i < a.length; i++) a[i] = s.charCodeAt(i) === 49 ? 1 : 0; }
 
+  // the walk-through grid without the little signs (they're stood up afresh each time)
+  function signless(w) { const g = w.solid.slice(); for (const p of w.props) if (p.kind === 'namesign' || p.kind === 'salesign') g[Math.floor((p.y - 1) / 16) * w.W + Math.floor(p.x / 16)] = 0; return g; }
   function snapshot(game, sim) {
     const w = sim.world;
     // saved while out on the island: the same spot if it lies in Ashford's stretch of land, else Ashford's east way in
@@ -53,12 +55,13 @@
       world: {
         buildings: w.buildings.map((b) => { const o = {}; for (const [k, v] of Object.entries(b)) if (k !== 'sprite' && k !== 'dirty') o[k] = k === 'spec' ? Object.assign({}, v, { _fin: undefined }) : v; return o; }),
         trees: w.trees.map((t) => [t.kind, t.x, t.y, t.seed]),
-        props: w.props.map((p) => ({ kind: p.kind, x: p.x, y: p.y, seed: p.seed, v: p.v, solid: p.solid, flat: p.flat, field: p.field, grave: p.grave, epitaph: p.epitaph, broadsheet: p.broadsheet, felled: p.felled, planted: p.planted, treeKind: p.treeKind })),
-        solid: encodeGrid(w.solid),
+        props: w.props.filter((p) => p.kind !== 'namesign' && p.kind !== 'salesign').map((p) => ({ kind: p.kind, x: p.x, y: p.y, seed: p.seed, v: p.v, solid: p.solid, flat: p.flat, field: p.field, grave: p.grave, epitaph: p.epitaph, broadsheet: p.broadsheet, felled: p.felled, planted: p.planted, treeKind: p.treeKind })),
+        solid: encodeGrid(signless(w)),
       },
       player: {
         x: away ? away[0] : Math.round(game.scene ? game.scene.b.doorX * 16 + 8 : game.player.x), y: away ? away[1] : Math.round(game.scene ? game.scene.b.doorY * 16 + 10 : game.player.y), dir: game.player.dir,
         mount: game.player.mount ? game.player.mount.id : null,
+        region: game.world.island && !game.scene && game.world !== sim.world ? game.world.placeId : null, g: game.world.island && !game.scene ? O.Island.toGlobal(game.world, game.player.x, game.player.y).map(Math.round) : null,
         ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [] },
       },
     };
@@ -135,7 +138,7 @@
     sim.path.recost(); sim.path.clear();
     // player
     const P = d.player; const { rep, ...rest } = P.ps; Object.assign(PS, rest); if (rep) for (const k of ['civilian', 'criminal', 'guard', 'merchant']) PS.rep[k] = rep[k] ?? 0;
-    game.player.x = P.x; game.player.y = P.y; game.player.dir = P.dir;
+    game.player.x = P.x; game.player.y = P.y; game.player.dir = P.dir; game._savedPlayer = P;
     game._pendingMount = P.mount;
     sim.horsesSaved = S.horses;
   }
@@ -147,6 +150,11 @@
     }
     const nb = sim.world.props.filter((p) => p.kind === 'noticeboard'); if (nb.length > 1) sim.world.props.splice(sim.world.props.indexOf(nb[1]), 1);
     sim.world.dirtyStatics = true;
+    // saved out on the island in another town's land: walk straight back into it
+    const P = game._savedPlayer; game._savedPlayer = null;
+    if (P && P.region && P.g && O.OpenWorld && O.Island.data().place(P.region)) {
+      try { O.OpenWorld.switchTo(P.region); const [lx, ly] = O.Island.toLocal(game.world, P.g[0], P.g[1]); game.player.x = lx; game.player.y = ly; } catch (e) { console.warn('could not return to', P.region, e); }
+    }
   }
 
   O.Save = { save, peek, clear, hydrate, hydrateLate, snapshot, KEY };

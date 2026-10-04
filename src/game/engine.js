@@ -173,6 +173,11 @@
         const Q = ['#5d8a3e', '#466e36', '#9a7a52', '#8e8a84', '#6e4e32', '#3c6c96', '#c8b07a', '#a08a62', '#8a6239'];
         const TR = w.TER, col = (t) => (t === TR.GRASS ? Q[0] : t === TR.FOREST ? Q[1] : t === TR.ROAD ? Q[2] : t === TR.COBBLE ? Q[3] : t === TR.FIELD ? Q[4] : t === TR.WATER ? Q[5] : t === TR.SAND ? Q[6] : t === TR.YARD ? Q[7] : t === TR.BRIDGE ? Q[8] : Q[0]);
         for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) { g.fillStyle = col(w.ter[(y0 + y) * w.W + x0 + x]); g.fillRect(x * T, y * T, T, T); }
+        // a little texture straight away (light and dark flecks), so ground waiting to be painted doesn't read as flat colour
+        for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) for (let k = 0; k < 5; k++) {
+          const h = ((x0 + x) * 73856093 ^ (y0 + y) * 19349663 ^ k * 83492791) >>> 0;
+          g.fillStyle = h & 1 ? 'rgba(255,255,230,0.10)' : 'rgba(20,30,10,0.16)'; g.fillRect(x * T + (h >>> 3) % 14, y * T + (h >>> 9) % 14, 2 + (h >>> 15) % 3, 2);
+        }
         e = { canvas: c, ready: false, x0, y0, cw, ch };
         w._chunks.set(key, e);
       }

@@ -71,7 +71,7 @@
     for (let x = m; x <= W - 1 - m; x++) ring.push([x, m, 'h'], [x, H - 1 - m, 'h']);
     for (let y = m + 1; y < H - 1 - m; y++) ring.push([m, y, 'v'], [W - 1 - m, y, 'v']);
     for (const [x, y, o] of ring) {
-      if (ter[y * W + x] === TER.WATER || inBuilding(x, y)) continue;
+      if (ter[y * W + x] === TER.WATER || inBuilding(x, y) || world.buildings.some((b) => b.doorX === x && b.doorY === y)) continue; // a postern gap where a house door meets the wall
       if (isRoad(x, y)) {
         // a gate only where a road passes through the wall; a road running along the line is walled over
         const crosses = o === 'h' ? isRoad(x, y - 1) || isRoad(x, y + 1) : isRoad(x - 1, y) || isRoad(x + 1, y);

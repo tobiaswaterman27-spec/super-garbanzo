@@ -3,7 +3,8 @@
 (function () {
   function setup(game, sim, npcUI) {
     const PS = O.PlayerState;
-    const atCounter = (q) => q.job && q.job.role === 'innkeeper' && q.agent.inside === q.job.biz && q.activity?.act === 'work' && !q.activity.upstairs && game.scene && game.scene.b.id === q.job.biz;
+    // the innkeeper (or whoever keeps the inn) lets a bed wherever you find them, at the counter or not
+    const atCounter = (q) => q.job && q.job.biz != null && sim.biz.get(q.job.biz)?.type === 'tavern' && (q.job.role === 'innkeeper' || sim.bossOf(sim.biz.get(q.job.biz)) === q) && q.activity?.act !== 'sleep' && q.age >= 16;
     const prevExtra = npcUI.extraButtons, prevOn = npcUI.onExtra;
     npcUI.extraButtons = (q) => {
       const out = prevExtra ? prevExtra(q) : [];

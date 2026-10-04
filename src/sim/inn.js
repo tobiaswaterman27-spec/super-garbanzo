@@ -49,6 +49,8 @@
       const pl = _plan.call(this, p);
       // turned away from a full inn this evening: home instead
       if (pl && (pl.act === 'socialise' || pl.act === 'eat-out') && p._innFull === this.day) return { act: 'home', b: p.home };
+      // full already: they see the crowd from the street and don't go in
+      if (pl && (pl.act === 'socialise' || pl.act === 'eat-out') && pl.b != null && p.agent.inside !== pl.b && isInn(this.building(pl.b)) && this.innGuests(pl.b) >= this.innCapacity(pl.b).seats) { p._innFull = this.day; return { act: 'home', b: p.home }; }
       // the innkeepers take it in turns: one has the day, the other the evening (and the off one is out or resting)
       const j = p.job;
       if (j && j.role === 'innkeeper' && pl && pl.act === 'work') {

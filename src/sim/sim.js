@@ -349,7 +349,7 @@
       const a = p.agent, b = bz.b || this.building(bz.id); if (!a || !b || b.doorX == null) return 0;
       let x = a.x / this.T, y = a.y / this.T;
       if (a.inside != null) { const ib = this.building(a.inside); if (ib && ib.doorX != null) { x = ib.doorX; y = ib.doorY; } }
-      if (a.inside === b.id) return 0;
+      if (a.inside === b.id) return 2; // already there, early: they wait for the shift rather than walk home and back
       const walk = (Math.abs(x - b.doorX) + Math.abs(y - b.doorY)) * this.T * 1.15 / (WALK[p.stage === 'elder' ? 'elder' : p.age < 13 ? 'child' : 'adult']); // minutes on foot
       const nature = (this.has(p, 'cautious') || this.has(p, 'ambitious') ? 12 : 0) + (this.has(p, 'patient') ? 5 : 0) - (this.has(p, 'impatient') ? 6 : 0) + ((p.id * 37) % 13) - 5;
       return O.clamp((walk + nature) / 60, 0, 1.5);

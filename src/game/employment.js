@@ -26,6 +26,16 @@
     O.crownPost = (r) => COURT.has(r);
     const hoursOf = (e, bz) => { const r = e.role || ''; if (COURT.has(r)) return [8, 20]; if (r === 'potboy' || r === 'potgirl') return [17, 21]; if (['night watchman', 'gaoler'].includes(r)) return [20, 30]; if (r.startsWith('guard') || r === 'sergeant') return [6, 18]; return bz ? bz.def.hours : [8, 17]; };
     const worksToday = (s, bz) => !(s.weekday === 6 && bz && !['tavern', 'chapel', 'guard', 'hospital', 'palace', 'keep', 'manor', 'posthouse'].includes(bz.type));
+    // when the next shift is, worked out fresh from today's date (never left saying "tomorrow" once tomorrow has come)
+    const nextShift = (e, s, bz, o, c) => {
+      for (let k = 0; k < 8; k++) {
+        if (s.day + k < (e.firstDay || 0)) continue;
+        const wd = (s.weekday + k) % 7; if (wd === 6 && !(bz && ['tavern', 'chapel', 'guard', 'hospital', 'palace', 'keep', 'manor', 'posthouse'].includes(bz.type))) continue;
+        if (k === 0 && s.hour >= c) continue;
+        return k === 0 ? (s.hour >= o ? 'now' : 'today') : k === 1 ? 'tomorrow' : O.DAYNAMES[wd];
+      }
+      return 'tomorrow';
+    };
     const fmtH = (h) => { h = ((h % 24) + 24) % 24; const hh = Math.floor(h), mm = Math.round((h - hh) * 60); return `${hh % 12 || 12}${mm ? ':' + String(mm).padStart(2, '0') : ''}${hh < 12 ? 'am' : 'pm'}`; };
 
     // ---------------------------------------------------------------- asking for work
@@ -35,7 +45,7 @@
       const s = cur(), bz = q.job?.biz != null ? s.biz.get(q.job.biz) : null;
       if (bz && s.bossOf && s.bossOf(bz) === q) {
         const e = postAt(s, bz);
-        if (e) out.push(['notice', 'Hand in your notice']);
+        if (e) { out.push(['otherjob', 'Ask about other work here']); out.push(['notice', 'Hand in your notice']); }
         else out.push(['askjob', `Ask for work at ${bz.name}`]);
       } else if (q.age >= 14) out.push(['whohires', "Who's taking on hands?"]);
       return out;
@@ -44,7 +54,7 @@
     function whoHires(q) {
       const s = cur(), list = [];
       for (const bz of s.biz.values()) {
-        const boss = s.bossOf && s.bossOf(bz); if (!boss || boss === q || boss.alive === false || bz.def.public && !boss) continue;
+        const boss = s.bossOf && s.bossOf(bz); if (!boss || boss === q || boss.alive === false || postAt(s, bz)) continue;
         const v = s.vacancies(bz).filter((r) => (bz.def.wage[r] || 0) > 0); if (v.length) list.push({ bz, boss, role: v[v.length - 1] });
       }
       if (!list.length) return '"Nobody\'s short of hands that I know of. Try again in a few days."';
@@ -57,6 +67,16 @@
     npcUI.onExtra = (q, key, render) => {
       if (key === 'whohires') return render(whoHires(q));
       if (key === 'askjob') return offer(q, render);
+      if (key === 'otherjob') { // one post to a place: you can move to a different one there, not hold two
+        const s = cur(), bz = s.biz.get(q.job.biz), e = postAt(s, bz), d = s.hireDecision(bz, q, 'player');
+        if (!d.yes || d.role === e.role) return render(`"You've your place here already, as ${e.role}. Do it well and we'll see about more."`);
+        npcUI.closeTalk && npcUI.closeTalk();
+        O.Panels.open(`Other work at ${bz.name}`, `<p class="speech">“I could put you on as ${d.role} instead, at ₳${d.wage} a day. You'd give up being ${esc(e.role)}.”</p><div class="topics"><button data-y="1">Change to ${esc(d.role)}</button><button data-n="1">Stay as I am</button></div>`, (r) => {
+          r.querySelector('[data-n]').onclick = () => O.Panels.close();
+          r.querySelector('[data-y]').onclick = () => { quit(null, e); hire(s, bz, q, d.role, d.wage); PS.emp.firstDay = 0; O.Panels.close(); say(`You're ${d.role} at ${bz.name} now, at ₳${d.wage} a day.`); };
+        });
+        return null;
+      }
       if (key === 'notice') { quit('You hand in your notice.', postAt(cur(), cur().biz.get(q.job.biz))); cur().remember(q, 'The stranger left my service.', 'work', 1); return render('Very well. I wish you luck.'); }
       return prevOn && prevOn(q, key, render);
     };
@@ -304,7 +324,8 @@
         e.day = day; e.dayInfo = { works: worksToday(s, bz) && day >= (e.firstDay || 0), arrived: null, excused: e.excuseDay === day };
         e.tasks = []; e.onShift = false;
       }
-      const D0 = e.dayInfo; if (!D0.works) return;
+      const D0 = e.dayInfo; if (!D0.works && day >= (e.firstDay || 0) && worksToday(s, bz)) D0.works = true; // start day reached
+      if (!D0.works) return;
       const on = h >= o && h < c;
       if (on && !e.onShift) { e.onShift = true; e.tasks = newTasks(s, bz, e); refresh(); }
       if (!on && e.onShift && h >= c) { e.onShift = false; refresh(); }
@@ -312,7 +333,8 @@
       if (on && e.onShift && e.tasks.every((t) => t.have >= t.need) && h < c - 1) { e.tasks.push(...newTasks(s, bz, e).filter((t) => t.kind !== 'rooms')); refresh(); }
     }
     function settle(s, bz, e) {
-      const D0 = e.dayInfo; if (!D0.works) return;
+      const D0 = e.dayInfo; if (!D0.works && day >= (e.firstDay || 0) && worksToday(s, bz)) D0.works = true; // start day reached
+      if (!D0.works) return;
       const boss = s.byId.get(e.master), done = e.todayTasks || 0; e.todayTasks = 0;
       if (D0.arrived == null) {
         if (D0.excused) { e.stats.excused++; if (boss) s.relate(boss, { id: 0 }, -0.02); }
@@ -361,7 +383,7 @@
       const bz = s.world.placeId === e.place ? s.biz.get(e.biz) : null, [o, c] = hoursOf(e, bz);
       const head = `<b>${esc(e.role)}</b> · ${esc(e.bizName)}${e.place !== cur().world.placeId ? `, ${esc(e.placeName)}` : ''}`;
       const crown = COURT.has(e.role);
-      const shift = crown ? (e.onShift ? `${e.role === 'monarch' ? 'Your reign' : 'At court'}: the business of the day, till ${fmtH(c)}` : `At court from ${fmtH(o)}`) : e.onShift ? `On shift till ${fmtH(c)}` : `Next shift: ${e.dayInfo && e.dayInfo.works && s.hour < o ? 'today' : 'tomorrow'} ${fmtH(o)}-${fmtH(c)}`;
+      const shift = crown ? (e.onShift ? `${e.role === 'monarch' ? 'Your reign' : 'At court'}: the business of the day, till ${fmtH(c)}` : `At court from ${fmtH(o)}`) : e.onShift ? `On shift till ${fmtH(c)}` : `Next shift: ${nextShift(e, s, bz, o, c)} ${fmtH(o)}-${fmtH(c)}`;
       const tasks = e.onShift ? e.tasks.map((t) => `<li class="${t.have >= t.need ? 'done' : ''}">${t.have >= t.need ? '■' : '□'} ${esc(t.text)}${t.need > 1 ? ` (${Math.min(t.have, t.need)}/${t.need})` : ''}</li>`).join('') : '';
       const carry = PS.carry ? `<div class="carry">Carrying: ${PS.carry.qty} ${esc(D.GOODS[PS.carry.good]?.name.toLowerCase() || PS.carry.good)}</div>` : '';
       const others = posts().filter((x) => x !== e).map((x) => { const xs = O.Travel?.visited.get(x.place)?.sim || cur(), xb = xs.world.placeId === x.place ? xs.biz.get(x.biz) : null, [xo, xc] = hoursOf(x, xb); return `<div class="js">Also: ${esc(x.role)} at ${esc(x.bizName)}, ${fmtH(xo)}-${fmtH(xc)}</div>`; }).join('');

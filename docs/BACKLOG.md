@@ -172,3 +172,10 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Follow someone out of a room and they're gone when you get outside: fix
 - [x] You can't ask for a job or to join a gang if you have no idea who does that: let people tell you
 - [x] Polish
+
+## Batch I (asked after step 74) - small fixes
+
+- [x] You can't ask for a job at a place where you already have one
+- [x] At the inn, ask the innkeeper directly for a bed (no one at the counter shouldn't stop you)
+- [x] The job card says "next shift tomorrow" even when tomorrow has come: keep it current
+- [x] People randomly entering and leaving the empty tavern: fix

@@ -48,6 +48,8 @@
       rooster(vol) { const t = now(); const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(520, t); o.frequency.linearRampToValueAtTime(760, t + 0.25); o.frequency.linearRampToValueAtTime(700, t + 0.7); o.frequency.linearRampToValueAtTime(480, t + 1.1); const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1400; f.Q.value = 2; const g = ctx.createGain(); o.connect(f); f.connect(g); g.connect(outBus); env(g, t, 0.05, 0.08 * vol, 1.1); o.start(t); o.stop(t + 1.3); },
       hoof(vol) { burst(outBus, 'lowpass', 500, 0.16 * vol, 0.07); },
       step(vol, bus = outBus) { burst(bus, 'bandpass', 900, 0.03 * vol, 0.05); },
+      thunder(vol) { const t = now(); burst(outBus, 'lowpass', 160, 0.5 * vol, 2.8, t); burst(outBus, 'lowpass', 90, 0.4 * vol, 3.4, t + 0.25); tone(outBus, 46, 'sine', 0.25 * vol, 2.2, t); },
+      hail(vol) { for (let i = 0; i < 4; i++) burst(outBus, 'highpass', 4000, 0.03 * vol, 0.02, now() + Math.random() * 0.2); },
       thud(vol) { tone(outBus, 90, 'sine', 0.3 * vol, 0.18); burst(outBus, 'lowpass', 1200, 0.15 * vol, 0.08); },
       pluck(freq, vol, bus = outBus) { tone(bus, freq, 'triangle', 0.08 * vol, 0.9); tone(bus, freq * 2, 'sine', 0.02 * vol, 0.4); },
     };

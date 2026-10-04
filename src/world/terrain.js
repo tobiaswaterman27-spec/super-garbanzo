@@ -28,6 +28,9 @@
     const tmap = new Uint8Array(pw * ph);
     for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) tmap[y * pw + x] = sample(x + 0.5, y + 0.5);
     const at = (x, y) => (x < 0 || y < 0 || x >= pw || y >= ph ? -1 : tmap[y * pw + x]);
+    const LAND = new Set([TER.GRASS, TER.FOREST, TER.ROAD, TER.YARD, TER.FIELD, TER.SAND].filter((v) => v != null));
+    const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+    const baseOf = (k) => (k === TER.GRASS ? R.grass : k === TER.FOREST ? R.forest : k === TER.ROAD ? R.road : k === TER.YARD ? R.yard : k === TER.FIELD ? R.field : R.sand)[2];
 
     for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) {
       const t = tmap[y * pw + x];
@@ -85,6 +88,13 @@
           col = R.plank[s]; break;
         }
         default: col = [255, 0, 255];
+      }
+      // soft edges: where one kind of ground meets another, the two mingle over a few pixels
+      // (ordered dithering keeps it crisp)
+      if (LAND.has(t)) {
+        let nb = -1, k = 1;
+        for (; k <= 3 && nb < 0; k++) for (const [dx, dy] of [[k, 0], [-k, 0], [0, k], [0, -k]]) { const u = at(x + dx, y + dy); if (u !== t && LAND.has(u)) { nb = u; break; } }
+        if (nb >= 0) { const wgt = (4 - (k - 1)) / 9; if (BAYER[(x & 3) + ((y & 3) << 2)] / 16 < wgt) { const nc = baseOf(nb); col = [(col[0] + nc[0]) >> 1, (col[1] + nc[1]) >> 1, (col[2] + nc[2]) >> 1]; } }
       }
       const i = (y * pw + x) * 4; d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255;
     }

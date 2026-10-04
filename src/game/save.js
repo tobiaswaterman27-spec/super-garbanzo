@@ -30,7 +30,7 @@
         day: sim.day, minute: sim.minute, nextId: sim.nextId, treasury: sim.treasury, stats: sim.stats, history: sim.history.slice(-250), crimes: sim.crimes.slice(-150).map((c) => Object.assign({}, c, { seen: undefined, perp: c.perp === 'player' || c.perp == null ? c.perp : { id: c.perp.id } })),
         settlement: sim.settlement, events: sim.events || [], graves: sim.graves, dead: sim.dead.map((d) => ({ id: d.id, name: d.name, first: d.first, sur: d.sur, age: d.age, household: d.household, died: d.died })),
         rng: sim.rng.seed(), wrng: sim.weather.rng.seed(), krng: sim.kingdom.rng.seed(), season: sim._season, reeveId: sim.reeveId, guardRaised: sim._guardRaised || null,
-        weather: { kind: sim.weather.kind, wet: sim.weather.wet, snowCover: sim.weather.snowCover, lastHour: sim.weather.lastHour },
+        weather: { kind: sim.weather.kind, level: sim.weather.level, hailCover: sim.weather.hailCover, wet: sim.weather.wet, snowCover: sim.weather.snowCover, lastHour: sim.weather.lastHour },
         people: sim.people.map(strip), traderId: sim.trader ? sim.trader.id : null,
         households: sim.households,
         biz: [...sim.biz.values()].map((b) => ({ id: b.id, type: b.type, stock: b.stock, cash: b.cash, owner: b.owner, workers: b.workers, salesToday: b.salesToday, history: b.history, jobs: b.def.jobs, name: b.name, cost: b.def.site ? true : undefined, ownerPlayer: b.ownerPlayer, badDays: b.badDays, founded: b.founded })),

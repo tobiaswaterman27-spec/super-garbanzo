@@ -188,7 +188,7 @@
           if (inView(x, y, sp.W, sp.H)) { ctx.drawImage(sp.canvas, x - cam.x, y - cam.y); if (this.snowAlpha > 0.04 && sp.roofMask) { ctx.globalAlpha = this.snowAlpha; ctx.drawImage(sp.roofMask, x - cam.x, y - cam.y); ctx.globalAlpha = 1; } if (this.drawDoor) this.drawDoor(ctx, b, cam); }
         } else {
           const o = s.t || s.p, sp = o.sprite, x = o.x - sp.ox, y = o.y - sp.oy;
-          if (inView(x, y, sp.W, sp.H)) ctx.drawImage(sp.canvas, x - cam.x, y - cam.y);
+          if (inView(x, y, sp.W, sp.H)) { ctx.drawImage(sp.canvas, x - cam.x, y - cam.y); if (this.snowAlpha > 0.04) { const m = sp.snowMask || (sp.snowMask = O.snowMaskOf(sp.canvas)); if (m) { ctx.globalAlpha = this.snowAlpha; ctx.drawImage(m, x - cam.x, y - cam.y); ctx.globalAlpha = 1; } } }
         }
       }
       while (ai < actors.length) drawActor(actors[ai++]);
@@ -318,3 +318,22 @@
 
   O.Game = Game;
 })();
+
+// Snow settles on the tops of things: for any sprite, the pixels with open sky above them (and a few
+// on the sunlit upper faces) turn white. Built once per sprite and kept.
+O.snowMaskOf = function (src) {
+  try {
+    const w = src.width, h = src.height, sc = src.getContext('2d'), d = sc.getImageData(0, 0, w, h).data;
+    const c = document.createElement('canvas'); c.width = w; c.height = h; const cx = c.getContext('2d'), out = cx.createImageData(w, h), o = out.data;
+    const A = (x, y) => (x < 0 || y < 0 || x >= w || y >= h ? 0 : d[(y * w + x) * 4 + 3]);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4; if (!d[i + 3]) continue;
+      const open1 = !A(x, y - 1), open2 = !A(x, y - 2), open3 = !A(x, y - 3), lum = d[i] + d[i + 1] + d[i + 2];
+      // drifts on every upward edge, and clumps on the sunlit upper faces of leaves and stone
+      let s = open1 ? 2 : open2 ? 2 : open3 ? 1 : lum > 330 && y < h * 0.65 && ((x * 7 + y * 3) % 3 === 0) ? 1 : lum > 280 && y < h * 0.5 && ((x * 5 + y) % 4 === 0) ? 1 : 0;
+      if (!s) continue;
+      const v = s === 2 ? 248 : 228; o[i] = v - 6; o[i + 1] = v - 2; o[i + 2] = Math.min(255, v + 6); o[i + 3] = 255;
+    }
+    cx.putImageData(out, 0, 0); return c;
+  } catch (e) { return null; }
+};

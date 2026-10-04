@@ -2593,6 +2593,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     const tmap = new Uint8Array(pw * ph);
     for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) tmap[y * pw + x] = sample(x + 0.5, y + 0.5);
     const at = (x, y) => (x < 0 || y < 0 || x >= pw || y >= ph ? -1 : tmap[y * pw + x]);
+    const LAND = new Set([TER.GRASS, TER.FOREST, TER.ROAD, TER.YARD, TER.FIELD, TER.SAND].filter((v) => v != null));
+    const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+    const baseOf = (k) => (k === TER.GRASS ? R.grass : k === TER.FOREST ? R.forest : k === TER.ROAD ? R.road : k === TER.YARD ? R.yard : k === TER.FIELD ? R.field : R.sand)[2];
 
     for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) {
       const t = tmap[y * pw + x];
@@ -2650,6 +2653,13 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
           col = R.plank[s]; break;
         }
         default: col = [255, 0, 255];
+      }
+      // soft edges: where one kind of ground meets another, the two mingle over a few pixels
+      // (ordered dithering keeps it crisp)
+      if (LAND.has(t)) {
+        let nb = -1, k = 1;
+        for (; k <= 3 && nb < 0; k++) for (const [dx, dy] of [[k, 0], [-k, 0], [0, k], [0, -k]]) { const u = at(x + dx, y + dy); if (u !== t && LAND.has(u)) { nb = u; break; } }
+        if (nb >= 0) { const wgt = (4 - (k - 1)) / 9; if (BAYER[(x & 3) + ((y & 3) << 2)] / 16 < wgt) { const nc = baseOf(nb); col = [(col[0] + nc[0]) >> 1, (col[1] + nc[1]) >> 1, (col[2] + nc[2]) >> 1]; } }
       }
       const i = (y * pw + x) * 4; d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255;
     }
@@ -3127,7 +3137,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
           if (inView(x, y, sp.W, sp.H)) { ctx.drawImage(sp.canvas, x - cam.x, y - cam.y); if (this.snowAlpha > 0.04 && sp.roofMask) { ctx.globalAlpha = this.snowAlpha; ctx.drawImage(sp.roofMask, x - cam.x, y - cam.y); ctx.globalAlpha = 1; } if (this.drawDoor) this.drawDoor(ctx, b, cam); }
         } else {
           const o = s.t || s.p, sp = o.sprite, x = o.x - sp.ox, y = o.y - sp.oy;
-          if (inView(x, y, sp.W, sp.H)) ctx.drawImage(sp.canvas, x - cam.x, y - cam.y);
+          if (inView(x, y, sp.W, sp.H)) { ctx.drawImage(sp.canvas, x - cam.x, y - cam.y); if (this.snowAlpha > 0.04) { const m = sp.snowMask || (sp.snowMask = O.snowMaskOf(sp.canvas)); if (m) { ctx.globalAlpha = this.snowAlpha; ctx.drawImage(m, x - cam.x, y - cam.y); ctx.globalAlpha = 1; } } }
         }
       }
       while (ai < actors.length) drawActor(actors[ai++]);
@@ -3257,6 +3267,25 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
   O.Game = Game;
 })();
+
+// Snow settles on the tops of things: for any sprite, the pixels with open sky above them (and a few
+// on the sunlit upper faces) turn white. Built once per sprite and kept.
+O.snowMaskOf = function (src) {
+  try {
+    const w = src.width, h = src.height, sc = src.getContext('2d'), d = sc.getImageData(0, 0, w, h).data;
+    const c = document.createElement('canvas'); c.width = w; c.height = h; const cx = c.getContext('2d'), out = cx.createImageData(w, h), o = out.data;
+    const A = (x, y) => (x < 0 || y < 0 || x >= w || y >= h ? 0 : d[(y * w + x) * 4 + 3]);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4; if (!d[i + 3]) continue;
+      const open1 = !A(x, y - 1), open2 = !A(x, y - 2), open3 = !A(x, y - 3), lum = d[i] + d[i + 1] + d[i + 2];
+      // drifts on every upward edge, and clumps on the sunlit upper faces of leaves and stone
+      let s = open1 ? 2 : open2 ? 2 : open3 ? 1 : lum > 330 && y < h * 0.65 && ((x * 7 + y * 3) % 3 === 0) ? 1 : lum > 280 && y < h * 0.5 && ((x * 5 + y) % 4 === 0) ? 1 : 0;
+      if (!s) continue;
+      const v = s === 2 ? 248 : 228; o[i] = v - 6; o[i + 1] = v - 2; o[i + 2] = Math.min(255, v + 6); o[i + 3] = 255;
+    }
+    cx.putImageData(out, 0, 0); return c;
+  } catch (e) { return null; }
+};
 
 </script>
 <script>
@@ -3412,25 +3441,29 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   const SEASON_DAYS = 14;
   // transition weights per season: from any state toward these
   const BIAS = {
-    spring: { clear: 4, cloudy: 4, rain: 3, heavy: 1, storm: 0.4, fog: 1.5, snow: 0, heat: 0 },
-    summer: { clear: 7, cloudy: 3, rain: 1.5, heavy: 0.6, storm: 0.6, fog: 0.4, snow: 0, heat: 2 },
-    autumn: { clear: 3, cloudy: 5, rain: 4, heavy: 1.5, storm: 0.8, fog: 2.5, snow: 0.2, heat: 0 },
-    winter: { clear: 3, cloudy: 5, rain: 1, heavy: 0.3, storm: 0.3, fog: 2, snow: 4, heat: 0 },
+    spring: { clear: 4, cloudy: 4, rain: 3, heavy: 1, storm: 0.4, fog: 1.5, snow: 0, heat: 0, hail: 0.3 },
+    summer: { clear: 7, cloudy: 3, rain: 1.5, heavy: 0.6, storm: 0.7, fog: 0.4, snow: 0, heat: 2, hail: 0.25 },
+    autumn: { clear: 3, cloudy: 5, rain: 4, heavy: 1.5, storm: 0.8, fog: 2.5, snow: 0.2, heat: 0, hail: 0.35 },
+    winter: { clear: 3, cloudy: 5, rain: 1, heavy: 0.3, storm: 0.3, fog: 2, snow: 4, heat: 0, hail: 0.2 },
   };
-  const LABEL = { clear: 'Clear', cloudy: 'Overcast', rain: 'Rain', heavy: 'Heavy rain', storm: 'Storm', fog: 'Fog', snow: 'Snow', heat: 'Heatwave' };
+  // each kind comes light, moderate or hard
+  const LABELS = {
+    clear: ['Clear', 'Clear', 'Clear'], cloudy: ['A few clouds', 'Overcast', 'Dark skies'], rain: ['Drizzle', 'Rain', 'Heavy rain'], heavy: ['Heavy rain', 'Heavy rain', 'Downpour'],
+    storm: ['Thunder about', 'Thunderstorm', 'Violent storm'], fog: ['Mist', 'Fog', 'Thick fog'], snow: ['Light snow', 'Snow', 'Blizzard'], heat: ['Warm', 'Hot', 'Heatwave'], hail: ['Sleet and hail', 'Hail', 'Hailstorm'],
+  };
 
   class Weather {
     constructor(sim) {
       this.sim = sim; this.kind = 'clear'; this.next = 'clear'; this.blend = 1; this.wet = 0; this.snowCover = 0; this.wind = 0.3;
       this.lastHour = -1; this.flash = 0; this.rng = O.RNG(9091);
-      this.forced = null;
+      this.forced = null; this.level = 1;
     }
     get season() { return SEASONS[Math.floor((this.sim.day - 1) / SEASON_DAYS + 1) % 4]; } // day 1 = summer
     get dayOfSeason() { return ((this.sim.day - 1) % SEASON_DAYS) + 1; }
-    get raining() { return this.kind === 'rain' || this.kind === 'heavy' || this.kind === 'storm'; }
-    get severe() { return this.kind === 'heavy' || this.kind === 'storm' || (this.kind === 'snow' && this.snowCover > 0.5); }
-    get label() { return LABEL[this.kind]; }
-    intensity() { return { clear: 0, cloudy: 0, rain: 0.5, heavy: 0.85, storm: 1, fog: 0, snow: 0.6, heat: 0 }[this.kind]; }
+    get raining() { return this.kind === 'rain' || this.kind === 'heavy' || this.kind === 'storm' || this.kind === 'hail'; }
+    get severe() { return this.kind === 'heavy' || this.kind === 'storm' || this.kind === 'hail' && this.level >= 2 || (this.kind === 'snow' && (this.snowCover > 0.5 || this.level === 3)); }
+    get label() { return (LABELS[this.kind] || LABELS.clear)[O.clamp(this.level - 1, 0, 2)]; }
+    intensity() { const base = { clear: 0, cloudy: 0, rain: 0.45, heavy: 0.85, storm: 0.9, fog: 0, snow: 0.5, heat: 0, hail: 0.7 }[this.kind] || 0; return Math.min(1, base * (0.65 + this.level * 0.25)); }
 
     hourly() {
       const r = this.rng, season = this.season;
@@ -3438,9 +3471,12 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       else if (r.chance(0.22)) {
         const w = Object.entries(BIAS[season]).map(([k, v]) => [k, v * (k === this.kind ? 3 : 1)]);
         const nk = r.weighted(w);
+        if (nk !== this.kind || r.chance(0.3)) this.level = nk === 'heavy' ? 3 : r.weighted([[1, 4], [2, 4], [3, nk === 'storm' || nk === 'snow' && season === 'winter' ? 2.5 : 1.2]]);
+        if (nk === 'hail' && nk !== this.kind) this.sim.log(this.level >= 3 ? 'Hailstones the size of peas are hammering down.' : 'A shower of hail rattles on the roofs.', 'weather');
+        if (nk === 'snow' && this.level === 3 && nk !== this.kind) this.sim.log('A blizzard is blowing in.', 'weather');
         if (nk !== this.kind) { this.kind = nk; if (nk === 'storm') this.sim.log(`A storm rolls in over ${this.sim.world.name}.`, 'weather'); if (nk === 'snow' && this.snowCover < 0.1) this.sim.log('The first snow is falling.', 'weather'); }
       }
-      this.wind = this.kind === 'storm' ? 1 : this.kind === 'heavy' ? 0.7 : 0.25 + r.next() * 0.2;
+      this.wind = this.kind === 'storm' ? 0.8 + this.level * 0.07 : this.kind === 'heavy' ? 0.7 : this.kind === 'snow' && this.level === 3 ? 1 : this.kind === 'hail' ? 0.4 + this.level * 0.15 : 0.2 + r.next() * 0.15 + (this.kind === 'cloudy' ? this.level * 0.08 : 0);
       // storms damage roofs: buildings lose condition; the damage becomes repair work
       if (this.kind === 'storm' && r.chance(0.35)) {
         const b = r.pick(this.sim.world.buildings.filter((x) => !x.site));
@@ -3455,8 +3491,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const rainK = this.intensity();
       if (this.raining) this.wet = Math.min(1, this.wet + 0.004 * dtm * rainK);
       else this.wet = Math.max(0, this.wet - 0.0012 * dtm * (this.kind === 'heat' ? 3 : this.kind === 'clear' ? 1.5 : 0.6));
-      if (this.kind === 'snow') this.snowCover = Math.min(1, this.snowCover + 0.002 * dtm);
+      if (this.kind === 'snow') this.snowCover = Math.min(1, this.snowCover + 0.0012 * dtm * this.level);
       else if (this.season !== 'winter' || this.kind === 'rain' || this.kind === 'heat') this.snowCover = Math.max(0, this.snowCover - 0.0015 * dtm * (this.season === 'winter' ? 0.3 : 2));
+      if (this.kind === 'hail') this.hailCover = Math.min(0.5, (this.hailCover || 0) + 0.004 * dtm * this.level); else this.hailCover = Math.max(0, (this.hailCover || 0) - 0.003 * dtm);
     }
   }
 
@@ -9109,7 +9146,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       world = game.world; W = sim.weather; pw = world.W * T; ph = world.H * T;
       const c = caches.get(world) || { puddles: null, snowLevels: [] }; puddles = c.puddles; snowLevels = c.snowLevels;
     };
-    const drops = [], flakes = [], splashes = [];
+    const drops = [], flakes = [], splashes = [], hail = [], bounces = [], bolts = [], thunders = [];
 
     function makePuddles() {
       const c = document.createElement('canvas'); c.width = pw; c.height = ph;
@@ -9157,14 +9194,28 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     // tint the day by the weather (clouds darken, snow brightens to blue-white)
     game.hooks.update.push((dt) => {
       syncWorld();
-      const k = W.kind;
-      game.weatherTint = k === 'storm' ? [0.62, 0.64, 0.74] : k === 'heavy' ? [0.72, 0.75, 0.84] : k === 'rain' ? [0.8, 0.83, 0.9] : k === 'cloudy' ? [0.88, 0.9, 0.94] : k === 'fog' ? [0.9, 0.92, 0.95] : k === 'snow' ? [0.9, 0.93, 1] : k === 'heat' ? [1, 0.97, 0.9] : [1, 1, 1];
-      game.snowAlpha = O.clamp(W.snowCover * 1.3 - 0.1, 0, 0.95);
-      if (k === 'storm' && Math.random() < dt * 0.25) W.flash = 1;
+      const k = W.kind, lv = W.level || 1;
+      const dim = (a, b, c) => [a, b, c].map((v) => 1 - (1 - v) * (0.7 + lv * 0.15));
+      game.weatherTint = k === 'storm' ? dim(0.62, 0.64, 0.74) : k === 'heavy' ? [0.72, 0.75, 0.84] : k === 'rain' ? dim(0.8, 0.83, 0.9) : k === 'hail' ? dim(0.76, 0.8, 0.88) : k === 'cloudy' ? dim(0.88, 0.9, 0.94) : k === 'fog' ? dim(0.9, 0.92, 0.95) : k === 'snow' ? dim(0.9, 0.93, 1) : k === 'heat' ? [1, 0.97, 0.9] : [1, 1, 1];
+      game.snowAlpha = O.clamp(W.snowCover * 1.3 - 0.1 + (W.hailCover || 0) * 0.6, 0, 0.95);
+      // lightning: a bolt somewhere in view, its thunder arriving after the light
+      if (k === 'storm' && Math.random() < dt * (0.1 + lv * 0.08)) {
+        W.flash = 0.6 + Math.random() * 0.4;
+        const far = Math.random(), x0 = Math.random() * game.vw, pts = [[x0, -4]];
+        let x = x0, y = -4; const yEnd = game.vh * (0.35 + Math.random() * 0.5);
+        while (y < yEnd) { y += 4 + Math.random() * 7; x += (Math.random() - 0.5) * 12; pts.push([x, y]); }
+        const branch = pts.length > 4 ? (() => { const s = pts[Math.floor(pts.length / 2)]; const b = [[s[0], s[1]]]; let bx = s[0], by = s[1]; for (let i = 0; i < 5; i++) { by += 5; bx += (Math.random() > 0.5 ? 1 : -1) * (3 + Math.random() * 5); b.push([bx, by]); } return b; })() : null;
+        bolts.push({ pts, branch, t: 0, far });
+        thunders.push({ t: 0.3 + far * 2.6, vol: 1 - far * 0.6 });
+      }
+      for (const b of bolts) b.t += dt;
+      while (bolts.length && bolts[0].t > 0.35) bolts.shift();
+      for (const th of thunders) { th.t -= dt; if (th.t <= 0 && !th.done) { th.done = true; if (!game.scene) O.Sound && O.Sound.play('thunder', th.vol); } }
+      while (thunders.length && thunders[0].done) thunders.shift();
       W.flash = Math.max(0, W.flash - dt * 2.5);
       // particles in screen space
       const vw = game.vw, vh = game.vh;
-      const rainN = W.raining ? Math.round((W.kind === 'rain' ? 70 : W.kind === 'heavy' ? 150 : 200) * (vw * vh) / (480 * 300)) : 0;
+      const rainN = W.raining && k !== 'hail' ? Math.round((k === 'rain' ? [30, 70, 120][lv - 1] : k === 'heavy' ? 160 : [120, 190, 260][lv - 1]) * (vw * vh) / (480 * 300)) : k === 'hail' && lv === 1 ? Math.round(40 * (vw * vh) / (480 * 300)) : 0;
       while (drops.length < rainN) drops.push({ x: Math.random() * (vw + 40) - 20, y: Math.random() * vh - vh, l: 3 + Math.random() * 3, v: 220 + Math.random() * 80, end: Math.random() * vh });
       if (drops.length > rainN) drops.length = rainN;
       const wind = W.wind * 60;
@@ -9174,10 +9225,51 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       }
       for (const s of splashes) s.t += dt;
       while (splashes.length && splashes[0].t > 0.18) splashes.shift();
-      const snowN = W.kind === 'snow' ? Math.round(110 * (vw * vh) / (480 * 300)) : 0;
-      while (flakes.length < snowN) flakes.push({ x: Math.random() * vw, y: Math.random() * vh, v: 14 + Math.random() * 14, ph: Math.random() * 6, s: Math.random() < 0.3 ? 2 : 1 });
+      const snowN = k === 'snow' ? Math.round([50, 110, 240][lv - 1] * (vw * vh) / (480 * 300)) : 0;
+      while (flakes.length < snowN) flakes.push({ x: Math.random() * vw, y: Math.random() * vh, v: 14 + Math.random() * 14 + (lv === 3 ? 20 : 0), ph: Math.random() * 6, s: Math.random() < 0.3 ? 2 : 1 });
       if (flakes.length > snowN) flakes.length = snowN;
-      for (const f of flakes) { f.y += f.v * dt; f.x += Math.sin(game.t * 1.5 + f.ph) * 8 * dt + wind * 0.2 * dt; if (f.y > vh) { f.y = -2; f.x = Math.random() * vw; } }
+      const blow = lv === 3 && k === 'snow' ? 4 : 0.2;
+      for (const f of flakes) { f.y += f.v * dt; f.x += Math.sin(game.t * 1.5 + f.ph) * 8 * dt + wind * blow * dt; if (f.y > vh) { f.y = -2; f.x = Math.random() * vw; } if (f.x > vw + 4) f.x = -4; }
+      // hail: hard white pellets that bounce where they land
+      const hailN = k === 'hail' ? Math.round([40, 90, 150][lv - 1] * (vw * vh) / (480 * 300)) : 0;
+      while (hail.length < hailN) hail.push({ x: Math.random() * vw, y: -Math.random() * vh, v: 300 + Math.random() * 90, end: Math.random() * vh, s: lv === 3 && Math.random() < 0.4 ? 2 : 1 });
+      if (hail.length > hailN) hail.length = hailN;
+      for (const h of hail) { h.y += h.v * dt; h.x += wind * 0.5 * dt; if (h.y > h.end) { if (bounces.length < 120) bounces.push({ x: h.x, y: h.end, vx: (Math.random() - 0.5) * 30, vy: -20 - Math.random() * 25, t: 0, s: h.s }); h.y = -Math.random() * 30; h.x = Math.random() * vw; h.end = Math.random() * vh + 6; } }
+      for (const b of bounces) { b.t += dt; b.x += b.vx * dt; b.y += b.vy * dt; b.vy += 220 * dt; }
+      while (bounces.length && bounces[0].t > 0.35) bounces.shift();
+      if (k === 'hail' && Math.random() < dt * 6 * lv && !game.scene) O.Sound && O.Sound.play('hail', 0.6);
+    });
+
+    // moving water: ripples drift down the river, sparkles catch the light, foam laps at the banks
+    game.hooks.drawGround.push((ctx, cam) => {
+      const { ter, TER } = world; if (!ter || game.world !== world) return;
+      const tx0 = Math.max(0, Math.floor(cam.x / T)), ty0 = Math.max(0, Math.floor(cam.y / T)), tx1 = Math.min(world.W - 1, Math.ceil((cam.x + game.vw) / T)), ty1 = Math.min(world.H - 1, Math.ceil((cam.y + game.vh) / T));
+      const isW = (x, y) => x >= 0 && y >= 0 && x < world.W && y < world.H && ter[y * world.W + x] === TER.WATER;
+      const t = game.t, frozen = W.snowCover > 0.75 && W.season === 'winter';
+      for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
+        if (!isW(tx, ty)) continue;
+        const horiz = isW(tx - 1, ty) || isW(tx + 1, ty), vert = isW(tx, ty - 1) || isW(tx, ty + 1);
+        const fx = horiz && !vert ? 1 : !horiz && vert ? 0 : 0.7, fy = horiz && !vert ? 0 : !horiz && vert ? 1 : 0.7;
+        const sp = frozen ? 0 : 9 + W.wind * 8;
+        for (let k = 0; k < 3; k++) {
+          const h = ((tx * 73856093) ^ (ty * 19349663) ^ (k * 83492791)) >>> 0;
+          const ox = (h % 16), oy = ((h >> 4) % 16);
+          const px = tx * T + ((ox + t * sp * fx) % 16 + 16) % 16, py = ty * T + ((oy + t * sp * fy * 0.6) % 16 + 16) % 16;
+          const sx = Math.round(px - cam.x), sy = Math.round(py - cam.y);
+          const tw = (Math.sin(t * 3 + h) + 1) / 2;
+          ctx.fillStyle = frozen ? 'rgba(236,244,250,0.5)' : `rgba(206,226,240,${(0.25 + tw * 0.35).toFixed(2)})`;
+          ctx.fillRect(sx, sy, horiz && !vert ? 3 : 1, horiz && !vert ? 1 : 2);
+          if (tw > 0.92 && !frozen) { ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.fillRect(sx + 1, sy, 1, 1); }
+        }
+        // foam where water meets land, lapping in and out
+        for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
+          if (isW(tx + dx, ty + dy) || ter[(ty + dy) * world.W + tx + dx] === TER.BRIDGE) continue;
+          const lap = Math.round((Math.sin(t * 1.6 + tx * 0.7 + ty) + 1) * 1.2);
+          ctx.fillStyle = 'rgba(232,240,244,0.55)';
+          if (dy) for (let x = 0; x < T; x += 3) ctx.fillRect(tx * T + x - cam.x + ((ty * 5) % 3), (dy < 0 ? ty * T + lap : ty * T + T - 1 - lap) - cam.y, 2, 1);
+          else for (let y = 0; y < T; y += 3) ctx.fillRect((dx < 0 ? tx * T + lap : tx * T + T - 1 - lap) - cam.x, ty * T + y - cam.y, 1, 2);
+        }
+      }
     });
 
     game.hooks.drawGround.push((ctx, cam) => {
@@ -9187,14 +9279,16 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         if (!snowLevels[lv]) snowLevels[lv] = makeSnow((lv + 1) / 4);
         ctx.drawImage(snowLevels[lv], cam.x, cam.y, game.vw, game.vh, 0, 0, game.vw, game.vh);
       }
+      // hailstones lying in drifts until they melt
+      if ((W.hailCover || 0) > 0.04 && W.snowCover <= 0.05) { if (!snowLevels[0]) snowLevels[0] = makeSnow(0.25); ctx.globalAlpha = Math.min(0.8, W.hailCover * 1.6); ctx.drawImage(snowLevels[0], cam.x, cam.y, game.vw, game.vh, 0, 0, game.vw, game.vh); ctx.globalAlpha = 1; }
     });
 
     // drifting cloud shadows over the world
     game.hooks.drawWorld.push((ctx, cam) => {
-      const k = W.kind; if (!(k === 'cloudy' || k === 'rain' || k === 'heavy' || k === 'storm')) return;
-      ctx.fillStyle = 'rgba(24,22,44,0.13)';
+      const k = W.kind; if (!(k === 'cloudy' || k === 'rain' || k === 'heavy' || k === 'storm' || k === 'hail')) return;
+      const lv = W.level || 1; ctx.fillStyle = `rgba(24,22,44,${(0.07 + lv * 0.04).toFixed(2)})`;
       const drift = game.t * (6 + W.wind * 20);
-      for (let i = 0; i < 7; i++) {
+      for (let i = 0; i < 4 + lv * 2; i++) {
         const cx = ((i * 431 + drift) % (pw + 400)) - 200 - cam.x, cy = ((i * 277) % ph) - cam.y;
         const rx = 70 + (i % 3) * 30, ry = 40 + (i % 2) * 18;
         if (cx < -rx * 1.5 || cx > game.vw + rx * 1.5 || cy < -ry * 1.5 || cy > game.vh + ry * 1.5) continue;
@@ -9212,6 +9306,13 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         for (const s of splashes) { const r = s.t < 0.09 ? 1 : 2; ctx.fillRect(Math.round(s.x - r), Math.round(s.y), 1, 1); ctx.fillRect(Math.round(s.x + r), Math.round(s.y), 1, 1); if (r === 1) ctx.fillRect(Math.round(s.x), Math.round(s.y - 1), 1, 1); }
       }
       if (flakes.length) { ctx.fillStyle = '#f4f8ff'; for (const f of flakes) ctx.fillRect(Math.round(f.x), Math.round(f.y), f.s, f.s); }
+      if (hail.length || bounces.length) { ctx.fillStyle = '#eef4fa'; for (const h of hail) { ctx.fillRect(Math.round(h.x), Math.round(h.y), h.s, h.s + 1); } ctx.fillStyle = '#dce6f0'; for (const b of bounces) ctx.fillRect(Math.round(b.x), Math.round(b.y), b.s, b.s); }
+      // a blizzard swallows the distance
+      if (W.kind === 'snow' && (W.level || 1) === 3) { ctx.fillStyle = 'rgba(232,238,246,0.28)'; ctx.fillRect(0, 0, game.vw, game.vh); }
+      for (const b of bolts) {
+        const a = b.t < 0.08 ? 1 : 0.6 * (1 - b.t / 0.35);
+        for (const [pts, w] of [[b.pts, 2], [b.branch, 1]]) { if (!pts) continue; for (let i = 1; i < pts.length; i++) { const [x0, y0] = pts[i - 1], [x1, y1] = pts[i]; const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0))); for (let j = 0; j <= n; j++) { const x = Math.round(x0 + (x1 - x0) * j / n), y = Math.round(y0 + (y1 - y0) * j / n); ctx.fillStyle = `rgba(200,210,255,${(a * 0.5).toFixed(2)})`; ctx.fillRect(x - 1, y, w + 2, 1); ctx.fillStyle = `rgba(255,255,255,${a.toFixed(2)})`; ctx.fillRect(x, y, w, 1); } } }
+      }
       if (W.kind === 'fog') {
         if (!fogTex) fogTex = makeFog();
         ctx.globalAlpha = 0.8;
@@ -11952,6 +12053,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       rooster(vol) { const t = now(); const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(520, t); o.frequency.linearRampToValueAtTime(760, t + 0.25); o.frequency.linearRampToValueAtTime(700, t + 0.7); o.frequency.linearRampToValueAtTime(480, t + 1.1); const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1400; f.Q.value = 2; const g = ctx.createGain(); o.connect(f); f.connect(g); g.connect(outBus); env(g, t, 0.05, 0.08 * vol, 1.1); o.start(t); o.stop(t + 1.3); },
       hoof(vol) { burst(outBus, 'lowpass', 500, 0.16 * vol, 0.07); },
       step(vol, bus = outBus) { burst(bus, 'bandpass', 900, 0.03 * vol, 0.05); },
+      thunder(vol) { const t = now(); burst(outBus, 'lowpass', 160, 0.5 * vol, 2.8, t); burst(outBus, 'lowpass', 90, 0.4 * vol, 3.4, t + 0.25); tone(outBus, 46, 'sine', 0.25 * vol, 2.2, t); },
+      hail(vol) { for (let i = 0; i < 4; i++) burst(outBus, 'highpass', 4000, 0.03 * vol, 0.02, now() + Math.random() * 0.2); },
       thud(vol) { tone(outBus, 90, 'sine', 0.3 * vol, 0.18); burst(outBus, 'lowpass', 1200, 0.15 * vol, 0.08); },
       pluck(freq, vol, bus = outBus) { tone(bus, freq, 'triangle', 0.08 * vol, 0.9); tone(bus, freq * 2, 'sine', 0.02 * vol, 0.4); },
     };
@@ -12335,7 +12438,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         day: sim.day, minute: sim.minute, nextId: sim.nextId, treasury: sim.treasury, stats: sim.stats, history: sim.history.slice(-250), crimes: sim.crimes.slice(-150).map((c) => Object.assign({}, c, { seen: undefined, perp: c.perp === 'player' || c.perp == null ? c.perp : { id: c.perp.id } })),
         settlement: sim.settlement, events: sim.events || [], graves: sim.graves, dead: sim.dead.map((d) => ({ id: d.id, name: d.name, first: d.first, sur: d.sur, age: d.age, household: d.household, died: d.died })),
         rng: sim.rng.seed(), wrng: sim.weather.rng.seed(), krng: sim.kingdom.rng.seed(), season: sim._season, reeveId: sim.reeveId, guardRaised: sim._guardRaised || null,
-        weather: { kind: sim.weather.kind, wet: sim.weather.wet, snowCover: sim.weather.snowCover, lastHour: sim.weather.lastHour },
+        weather: { kind: sim.weather.kind, level: sim.weather.level, hailCover: sim.weather.hailCover, wet: sim.weather.wet, snowCover: sim.weather.snowCover, lastHour: sim.weather.lastHour },
         people: sim.people.map(strip), traderId: sim.trader ? sim.trader.id : null,
         households: sim.households,
         biz: [...sim.biz.values()].map((b) => ({ id: b.id, type: b.type, stock: b.stock, cash: b.cash, owner: b.owner, workers: b.workers, salesToday: b.salesToday, history: b.history, jobs: b.def.jobs, name: b.name, cost: b.def.site ? true : undefined, ownerPlayer: b.ownerPlayer, badDays: b.badDays, founded: b.founded })),

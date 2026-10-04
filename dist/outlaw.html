@@ -1549,7 +1549,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   }
 
   function drawHat(S) {
-    const { B, a, V, p } = S, o = a.outfit; if (!o.hat) return;
+    const { B, a, V, p } = S, o = a.outfit; if (!o.hat && a.hairStyle !== 'veil') return;
     const H = headFrame(S), M = o.hatMat;
     B.part(G.HAT);
     const dome = (grow, below, matFn) => B.shape(H.cx - H.e - grow - 1, H.cy - H.ry - grow - 1, H.cx + H.e + grow + 1, H.cy + H.ry, (px, py) => {
@@ -1558,6 +1558,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     }, (px, py) => { const dx = (px - H.cx) / (H.e + grow), dy = (py - H.cy) / (H.ry + grow); return [dx, dy, Math.sqrt(Math.max(0.1, 1 - dx * dx - dy * dy))]; }, matFn || M);
     const brim = (y, r, mt) => { const ry = Math.max(1.1, r * K * 0.42); B.shape(H.cx - r - 1, y - ry - 1, H.cx + r + 1, y + ry + 1, (px, py) => ((px - H.cx) / r) ** 2 + ((py - y) / ry) ** 2 <= 1, (px, py) => [((px - H.cx) / r) * 0.5, -0.7, 0.5], mt || M); };
     const top = H.cy - H.ry;
+    // a veil: white linen over the whole crown, framing the face and falling behind
+    if (!o.hat) { const vm = P.mat(C.white); dome(0.9, (l) => l.ly < -0.08 || (Math.abs(l.lx) > 0.66 && l.ly < 0.85) || l.lz < -0.15, vm); const q = headPt(S, H, 0, -0.1, 1); if (V.front) for (let x = -2; x <= 2; x++) B.tweak(q[0] + x, q[1], -1); return; }
     switch (o.hat) {
       case 'cap': dome(0.7, (l) => l.ly < -0.3 + (l.lz < 0 ? 0.1 : 0)); if (V.front || V.side) { const q = headPt(S, H, 0, -0.32, 1); B.plot(q[0], q[1], M, 1); if (V.side) B.plot(q[0] + 1, q[1], M, 1); } break;
       case 'coif': dome(0.6, (l) => l.ly < -0.15 || (Math.abs(l.lx) > 0.72 && l.ly < 0.45 && l.lz < 0.4)); break;
@@ -3891,6 +3893,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     });
     world.pens = (tw.pens || []).map((p) => Object.assign({}, p, { z: [p.z[0] + ox, p.z[1] + oy, p.z[2] + ox, p.z[3] + oy] }));
     world.estates = (tw.estates || []).map((e) => Object.assign({}, e, { fields: [e.fields[0] + ox, e.fields[1] + oy, e.fields[2] + ox, e.fields[3] + oy] }));
+    if (O.Game && O.Game.prototype.clearStray) O.Game.prototype.clearStray.call(null, world); // nothing solid where nothing stands
     regions.set(id, world);
     return world;
   }
@@ -4096,7 +4099,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       for (const b of world.buildings) if (!b.sprite) b.sprite = b.ruined ? O.Env.ruin(b.spec) : b.type === 'hideout' ? O.Env.hideout(b.level, b.spec) : O.Env.building(b.spec);
       for (const t of world.trees) if (!t.sprite || t.sprite.season !== this.season) { t.sprite = O.Env.tree(t.seed, t.kind, this.season); t.sprite.season = this.season; }
       for (const p of world.props) if (!p.sprite) p.sprite = O.Env.prop(p.kind, p.seed, p.v);
-      if (!world._behind) this.blockBehind(world);
+      // no invisible walls: ground is solid only where something stands on it (a roof that hides you shows your outline instead)
+      if (!world._clean) this.clearStray(world);
       this.rebuildStatics();
       if (!this.player) this.player = { x: (46 * T) + 8, y: 32 * T + 4, dir: 0, anim: 'idle', ft: 0, a: playerAppearance, speed: 0 };
       this.actors = [this.player];
@@ -4105,6 +4109,20 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
     // Nobody walks where a roof would hide them: the ground just behind a building, as far back as its
     // roof rises over a person's head, is closed off (roads, bridges and doorsteps stay open).
+    clearStray(world) {
+      world._clean = true;
+      const T = world.T, W = world.W, H = world.H, R = world.TER || {}, ok = new Uint8Array(W * H);
+      const mark = (x, y) => { if (x >= 0 && y >= 0 && x < W && y < H) ok[y * W + x] = 1; };
+      for (let i = 0; i < W * H; i++) if (world.ter[i] === R.WATER) ok[i] = 1;
+      for (const b of world.buildings) for (let y = b.y; y <= b.bottom; y++) for (let x = b.x; x < b.x + b.w; x++) mark(x, y);
+      for (const t of world.trees) mark(Math.floor(t.x / T), Math.floor((t.y - 1) / T));
+      for (const q of world.props) {
+        const sp = q.sprite || (q.sprite = O.Env.prop(q.kind, q.seed, q.v)), x0 = Math.floor((q.x - (sp.ox || 8)) / T), x1 = Math.floor((q.x - (sp.ox || 8) + (sp.W || 16) - 1) / T), y = Math.floor((q.y - 1) / T);
+        for (let x = x0; x <= x1; x++) { mark(x, y); mark(x, y - 1); }
+      }
+      let n = 0; for (let i = 0; i < W * H; i++) if (world.solid[i] && !ok[i]) { world.solid[i] = 0; n++; }
+      if (n) { const s = O.SimRef && O.SimRef.cur; if (s && s.world === world && s.path) { s.path.recost && s.path.recost(); s.path.clear && s.path.clear(); } }
+    }
     blockBehind(world) {
       const T = world.T, W = world.W, R = world.TER || {}, doors = new Set(world.buildings.filter((b) => b.doorX != null).map((b) => b.doorY * W + b.doorX));
       world._behind = [];
@@ -4332,23 +4350,32 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       // whatever stands in front of you (a roof, a tree) fades so you can see yourself behind it
       const P0 = this.player, px0 = P0.x - 9, px1 = P0.x + 9, py0 = P0.y - 36, py1 = P0.y - 2, dtF = Math.min(0.1, this.t - (this._fadeT || this.t)); this._fadeT = this.t;
       const fadeOf = () => 1; const fadeOld = (o, x, y, wd, ht) => { const cover = !P0.hidden && o.y > P0.y + 1 && x < px1 && x + wd > px0 && y < py1 && y + ht > py0; const tgt = cover ? 0.42 : 1; o._fade = o._fade == null ? 1 : o._fade + (tgt - o._fade) * Math.min(1, dtF * 8); return o._fade; };
+      let covered = false; P0._drawn = false;
       for (const s of this.statics) {
-        while (ai < actors.length && actors[ai].y < s.y) drawActor(actors[ai++]);
+        while (ai < actors.length && actors[ai].y < s.y) { if (actors[ai] === P0) P0._drawn = true; drawActor(actors[ai++]); }
         if (s.b) {
           const b = s.b, sp = b.sprite; if (!sp) continue;
           const x = b.x * T - sp.OV, y = (b.bottom + 1) * T - sp.H;
           const fa = fadeOf(s, x, y, sp.W, sp.H - 6); if (fa < 0.99) ctx.globalAlpha = fa;
+          if (!covered && P0._drawn && x < px1 && x + sp.W > px0 && y < py1 && y + sp.H - 8 > py0) covered = true;
           if (inView(x, y, sp.W, sp.H)) { ctx.drawImage(sp.canvas, x - cam.x, y - cam.y); if (this.snowAlpha > 0.04 && sp.roofMask) { ctx.globalAlpha = this.snowAlpha; ctx.drawImage(sp.roofMask, x - cam.x, y - cam.y); ctx.globalAlpha = 1; } if (this.drawDoor) this.drawDoor(ctx, b, cam); }
           ctx.globalAlpha = 1;
         } else {
           const o = s.t || s.p, sp = o.sprite, x = o.x - sp.ox, y = o.y - sp.oy;
           const fa = s.t ? fadeOf(s, x, y, sp.W, sp.H) : 1; if (fa < 0.99) ctx.globalAlpha = fa;
+          if (!covered && P0._drawn && x < px1 && x + sp.W > px0 && y < py1 && y + sp.H - 8 > py0) covered = true;
           if (inView(x, y, sp.W, sp.H)) { ctx.drawImage(sp.canvas, x - cam.x, y - cam.y); if (this.snowAlpha > 0.04) { const m = sp.snowMask || (sp.snowMask = O.snowMaskOf(sp.canvas)); if (m) { ctx.globalAlpha = this.snowAlpha; ctx.drawImage(m, x - cam.x, y - cam.y); ctx.globalAlpha = 1; } } }
           ctx.globalAlpha = 1;
         }
       }
       while (ai < actors.length) drawActor(actors[ai++]);
       ctx.globalAlpha = 1;
+      // behind a roof: your outline shows through it, so you never lose yourself
+      if (covered && !P0.hidden && P0._sx != null && !P0.mount) {
+        const fr = this.actorFrame(P0), c = this._ghost || (this._ghost = document.createElement('canvas')); c.width = fr.width; c.height = fr.height;
+        const g = c.getContext('2d'); g.clearRect(0, 0, c.width, c.height); g.drawImage(fr, 0, 0); g.globalCompositeOperation = 'source-in'; g.fillStyle = 'rgba(244,232,200,0.55)'; g.fillRect(0, 0, c.width, c.height); g.globalCompositeOperation = 'source-over';
+        ctx.drawImage(c, P0._sx, P0._sy);
+      }
       for (const h of this.hooks.drawWorld) h(ctx, cam);
       // smoke
       for (const q of this.particles) {
@@ -6134,6 +6161,10 @@ O.snowMaskOf = function (src) {
     // Record a crime with its witnesses. perp: 'player' or a Person.
     S.recordCrime = function (o) {
       const crime = Object.assign({ id: this.crimes.length + 1, day: this.day, minute: Math.floor(this.minute), witnesses: [], reported: false, investigated: false, profile: null, solved: false, severity: 1 }, o);
+      // a crime against the crown is a crime of another order: the royal family, their household, their castle
+      { const sc = O.game && O.game.scene, vp = o.victimPerson, vh = o.victim != null && this.households[o.victim - 1];
+        const royal = o.royal || (vp && vp.royal) || (vh && vh.members.some((id) => this.byId.get(id)?.royal)) || (o.perp === 'player' && sc && (sc.b.royal || (sc.b.parent && sc.b.parent.royal)));
+        if (royal) { crime.royal = true; crime.severity = Math.max(4, (crime.severity || 1) * 3); crime.kind = /against the crown/.test(crime.kind) ? crime.kind : `${crime.kind} against the crown`; } }
       const look = o.perp === 'player' ? lookOf(O.game.player.a) : o.perp ? lookOf(o.perp.gang ? maskedLook(o.perp.app) : o.perp.app) : null; // gang hands go masked to their work
       // the victim is a witness too, whenever they realise what happened
       const seenList = [...(o.seen || [])];
@@ -6177,6 +6208,7 @@ O.snowMaskOf = function (src) {
       crime.profile = vote(descs); crime.investigated = true;
       const skill = g.skills[g.job.role] || 0.5;
       crime.evidence = Math.min(3, crime.witnesses.reduce((s, w) => s + w.acc, 0) * (0.6 + skill * 0.6));
+      if (crime.royal) crime.evidence = Math.max(crime.evidence, 1.8); // the crown's word is taken
       const desc = describe(crime.profile);
       this.log(Object.keys(crime.profile).length ? `The watch is looking for ${desc} over the ${crime.kind} at ${crime.placeName || this.world.name}.` : `The watch has no description to go on over the ${crime.kind} at ${crime.placeName || this.world.name}.`, 'crime');
       this.remember(g, `Investigating a ${crime.kind}: we want ${describe(crime.profile)}.`, 'work', 1.5);
@@ -6895,10 +6927,14 @@ O.snowMaskOf = function (src) {
     // in a hamlet the headman does every job himself, the tax-gathering included
     const collects = (sim, q) => q.job?.role === 'tax collector' || (sim.world.hamlet && q.job?.role === 'guard captain');
     S.hasCollector = function () { return this.people.some((q) => collects(this, q) && q.alive !== false); };
+    // the crown and those who serve the government are not taxed: the royal family, the court, and anyone paid from the common chest
+    S.serves = function (q) { const bz = q && q.job && this.biz.get(q.job.biz); return !!(q && (q.royal || (bz && (bz.def.public || bz.type === 'palace' || bz.b?.royal)))); };
+    S.taxFree = function (hh) { return hh.members.some((id) => this.serves(this.byId.get(id))); };
     S.assessHearth = function () {
       const t = T(this);
       for (const hh of this.households) {
         if (hh.gone || !hh.members.length) continue;
+        if (this.taxFree(hh)) { hh.taxDue = 0; continue; }
         hh.taxDue = (hh.taxDue || 0) + t.hearth + (hh.money > 250 ? Math.floor((hh.money - 250) * 0.05) : 0);
       }
     };
@@ -10522,6 +10558,20 @@ O.snowMaskOf = function (src) {
       if (ly < 4) s = Math.max(0, s - 1);
       B.shadeAt(x, y, s);
     }
+    // fitted carpets laid over the floor (the castle's red): crimson, a gold border, a small woven diamond
+    if (spec.carpets) {
+      const cm = P.mat(C.crimson, 'cloth'), gm = P.mat(C.mustard, 'cloth');
+      for (const c of spec.carpets) {
+        const x0 = SW + c.x * T + 2, y0 = WH + c.y * T + 2, x1 = SW + (c.x + c.w) * T - 2, y1 = WH + (c.y + c.h) * T - 2;
+        for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+          const ex = Math.min(x - x0, x1 - 1 - x), ey = Math.min(y - y0, y1 - 1 - y), e = Math.min(ex, ey);
+          if (e === 0) { B.plot(x, y, cm, 1); continue; }
+          if (e === 2 || e === 3) { B.plot(x, y, gm, e === 2 ? 3 : 2); continue; }
+          const dx = (x - x0) % 12 - 6, dy = (y - y0) % 12 - 6, dia = Math.abs(dx) + Math.abs(dy);
+          B.plot(x, y, dia === 3 && e > 5 ? gm : cm, dia === 3 && e > 5 ? 3 : (x + y) % 2 ? 2 : 3);
+        }
+      }
+    }
     // side walls seen edge-on
     const wt = P.mat('#3a2e28', 'wood');
     B.part(4);
@@ -10790,6 +10840,7 @@ O.snowMaskOf = function (src) {
     if (b.royal) { const pl = castlePlan(b, sim), n = floor === 0 ? pl.ground.length : pl.up.length; w = Math.max(40, n * 6 + 12); d = 10; } // a long hallway
     const grid = new Uint8Array(w * d);
     const items = [];
+    const L = { carpets: null }; // carpets fitted to the floor, if any
     const dc = floor === 0 ? (b.royal ? Math.floor(w / 2) - 1 : Math.min(w - 2, b.spec.doorTile * S + Math.floor((S - 2) / 2))) : -1; // the doorway is two tiles wide
     const keepClear = new Set(); // tiles nothing may stand on: the way in, the foot of the stairs
     if (floor === 0) for (let y = d - 2; y < d; y++) for (let x = dc - 1; x <= dc + 2; x++) keepClear.add(y * w + x);
@@ -10952,9 +11003,11 @@ O.snowMaskOf = function (src) {
     function royal() {
       const plan = castlePlan(b, sim), list = floor === 0 ? plan.ground : plan.up;
       // a door in the back wall for every room, with a candle between each
-      list.forEach((r, i) => { put('roomdoor', 3 + i * 6, 0, { room: r.roomKey, locked: r.locked || null, noAccess: true, v: r.locked ? 1 : 0, label: r.name }); put('candlestand', 6 + i * 6, 0, {}); });
-      // the red carpet the length of the hall
-      for (let x = 1; x + 6 <= w - 5; x += 6) put('rug', x, d - 4, { flat: true, width: 6, rot: 6, v: 3 });
+      list.forEach((r, i) => { put('roomdoor', 3 + i * 6, 0, { room: r.roomKey, locked: r.locked || null, noAccess: true, v: 0, label: r.name }); put('candlestand', 6 + i * 6, 0, {}); });
+      // red carpet: a broad runner the length of the hall, and a carpet from every door down to it
+      L.carpets = [{ x: 0, y: d - 5, w: w, h: 5 }];
+      list.forEach((r, i) => L.carpets.push({ x: 3 + i * 6, y: 1, w: 2, h: d - 6 }));
+      if (floor === 1) L.carpets.push({ x: Math.floor(w / 2) - 10, y: 1, w: 20, h: 6 });
       if (floor === 1) {
         // the long table where the council of the realm sits, chairs all round
         const n = 3, tx = Math.floor(w / 2) - Math.floor(n * 5 / 2);
@@ -10968,7 +11021,7 @@ O.snowMaskOf = function (src) {
       switch (b.type) {
         case 'throneroom': {
           const hc = Math.floor(w / 2) - 1; put('throne', hc, 1, { v: 2, lord: true, seat: true, rot: 3 });
-          for (let y = 4; y < d - 1; y += 4) put('rug', hc - 1, y, { flat: true, width: 4, rot: 4, v: 3 });
+          L.carpets = [{ x: hc - 1, y: 3, w: 4, h: d - 3 }, { x: hc - 3, y: 0, w: 8, h: 4 }]; // the aisle up to the throne, and the dais
           for (const x of [2, w - 3]) for (let y = 2; y < d - 2; y += 4) tryPut('candlestand', [[x, y]], {});
           tryPut('bench', [[1, d - 3], [1, d - 5]], { seat: true, width: 3, rot: 0 }); tryPut('bench', [[w - 4, d - 3], [w - 4, d - 5]], { seat: true, width: 3, rot: 0 });
           tryPut('fireplace', [[2, 0], [w - 5, 0]], { v: 2 });
@@ -11345,7 +11398,7 @@ O.snowMaskOf = function (src) {
       }
     }
     items.forEach((it, i) => (it.id = i));
-    return { b, floor, w, d, items, grid, floors: b.floors, dc, scale: S, reachable: reach(), stairsX };
+    return { b, floor, w, d, items, grid, floors: b.floors, dc, scale: S, reachable: reach(), stairsX, carpets: L.carpets };
   }
 
   // Cached interior per building/floor (furniture is fixed; stock visuals update live).
@@ -11361,7 +11414,7 @@ O.snowMaskOf = function (src) {
     const L = layoutFor(b, floor, sim);
     const wallKind = (b.decor && b.decor.wall) || (b.spec.wall === 'stone' || b.spec.wall === 'log' || b.spec.wall === 'plank' ? b.spec.wall : 'timber');
     const floorKind = (b.decor && b.decor.floor) || ['smithy', 'chapel', 'guard', 'mill', 'quarry', 'mine', 'armourer', 'warehouse', 'townhall', 'keep', 'hospital', 'manor', 'throneroom', 'castlekitchen', 'guardroom', 'castlechapel', 'stewardroom', 'servhall'].includes(b.type) ? 'stone' : b.type === 'barn' || (b.type === 'house' && b.wealth < 0.3) ? 'dirt' : 'wood';
-    L.room = O.Furn.room({ w: L.w, d: L.d, wall: wallKind, floor: floorKind, wealth: b.wealth, seed: b.id * 3 + floor, windows: Math.max(1, Math.floor(b.w / 2) + 1), doorTile: floor === 0 ? L.dc : -5 });
+    L.room = O.Furn.room({ w: L.w, d: L.d, wall: wallKind, floor: floorKind, wealth: b.wealth, seed: b.id * 3 + floor, windows: Math.max(1, Math.floor(b.w / 2) + 1), doorTile: floor === 0 ? L.dc : -5, carpets: L.carpets });
     cache.set(key, L);
     return L;
   }
@@ -12262,7 +12315,7 @@ O.snowMaskOf = function (src) {
         case 'pickup': return `Pick up the ${(O.Data.GOODS[c.it.good]?.name || c.it.good).toLowerCase()}`;
         case 'shop': return `Buy from ${c.seller.first}`;
         case 'stairs': return c.it && c.it.stairs ? 'Go upstairs' : 'Go downstairs';
-        case 'roomdoor': return O.Castle && O.castleMayEnter && !O.castleMayEnter(c.it) ? `${c.it.label}: locked` : `Go into ${c.it.label.replace(/^The /, 'the ')}`;
+        case 'roomdoor': return O.Castle && O.castleMayEnter && !O.castleMayEnter(c.it) ? `${c.it.label}: locked (Q to pick the lock)` : `Go into ${c.it.label.replace(/^The /, 'the ')}`;
         case 'sit': return c.it.kind === 'pew' ? 'Sit in the pew' : c.it.kind === 'bench' ? 'Sit on the bench' : c.it.kind === 'throne' ? 'Sit on the throne' : 'Sit down';
         default: return '';
       }
@@ -12378,6 +12431,7 @@ O.snowMaskOf = function (src) {
       if (e.code === 'KeyQ') {
         if (cur && cur.type === 'npc' && cur.person.age >= 8) O.Law.pickpocket(cur);
         else if (cur && cur.type === 'door' && doorLocked(cur.b) && cur.b.type !== 'guard') O.Law.pickLock(cur.b);
+        else if (cur && cur.type === 'roomdoor' && O.castleMayEnter && !O.castleMayEnter(cur.it)) O.Law.pickRoomLock(cur.it, cur.b);
         return true;
       }
       if (e.code === 'KeyF' && cur && cur.type === 'npc' && O.Combat && O.Combat.lootable(cur.person)) { searching = 0.6; pendingSearch = () => O.Panels.toast(O.Combat.loot(cur.person)); return true; }
@@ -12424,9 +12478,9 @@ O.snowMaskOf = function (src) {
           else if (cur.it.rent) O.Panels.toast('A guest bed. Beds are hired from the innkeeper at the counter downstairs.');
           else O.Panels.toast("That's someone else's bed.");
           break;
-        case 'sit': { const sc = game.scene, pose = sc.seatPose(cur.it), p = game.player; p.sitting = Object.assign(pose, { it: cur.it, sx: p.x, sy: p.y, b: sc.b.id, floor: sc.floor }); p.x = pose.x; p.y = pose.y; p.dir = pose.dir; p.anim = 'sit'; if (cur.it.kind === 'throne' && sim.byId) O.Panels.toast('You sit on the throne. Nobody seems pleased about it.'); break; }
+        case 'sit': { const sc = game.scene, pose = sc.seatPose(cur.it), p = game.player; p.sitting = Object.assign(pose, { it: cur.it, sx: p.x, sy: p.y, b: sc.b.id, floor: sc.floor }); p.x = pose.x; p.y = pose.y; p.dir = pose.dir; p.anim = 'sit'; if (cur.it.kind === 'throne' && sim.byId) { const crown = (O.PlayerState.posts || []).some((e) => ['monarch', 'consort'].includes(e.role)); if (crown) { O.Panels.toast('You take your seat on the throne. The hall falls quiet; the court is yours.'); O.Bus && O.Bus.emit('throne', {}); } else O.Panels.toast('You sit on the throne. Nobody seems pleased about it.'); } break; }
         case 'roomdoor': {
-          if (!O.castleMayEnter(cur.it)) { O.UI.say(cur.it.locked === 'monarch' ? "The door is locked. A guard steps across it: “The king's own chamber. Nobody goes in.”" : 'The door is locked. “The royal family\'s rooms. Move along.”', 'bad'); break; }
+          if (!O.castleMayEnter(cur.it)) { O.UI.say(`The door is locked: ${cur.it.locked === 'monarch' ? "the monarch's own bedchamber" : "the royal family's rooms"}. Only a pick would open it, and a crime against the crown is no small thing.`, 'bad'); break; }
           const keep = cur.b.parent || cur.b, room = O.Castle.plan(keep, O.SimRef.cur).all.find((r) => r.roomKey === cur.it.room);
           if (room) { game.player.anim = 'open'; game.enterRoom(room); }
           break;
@@ -12740,7 +12794,22 @@ O.snowMaskOf = function (src) {
         } else { PS.skills.lockpick = Math.min(1, PS.skills.lockpick + 0.015); O.Panels.toast('The pick slips. The lock holds.'); }
       };
     }
-    O.Law = { pickpocket, pickLock, facingAway, wanted };
+    // a locked chamber in the castle: the royal family's own rooms. Anyone in the hallway may see you at it,
+    // and the guards are watching for exactly this
+    function pickRoomLock(it, hall) {
+      busy = 2.6; game.player.anim = 'crouch';
+      busyDone = () => {
+        const sc = game.scene; if (!sc) return;
+        const seen = [...sc.actors.values()].map((a) => a.person).filter((q) => q && q.alive !== false && q.activity?.act !== 'sleep' && sim.rng.chance(/guard|captain/.test(q.job?.role || '') ? 0.7 : 0.35));
+        if (seen.length) { const cr = sim.recordCrime({ kind: 'lock-picking', perp: 'player', placeName: it.label, tile: [hall.doorX, hall.doorY], seen, severity: 2, royal: true }); PS.crimes.push(cr.id); O.Panels.toast(`${seen[0].first} sees you working at the lock of ${it.label.replace(/^The /, 'the ')}!`, 'bad'); }
+        if (sim.rng.chance(O.clamp(0.3 + PS.skills.lockpick * 0.5, 0.06, 0.85))) {
+          PS.skills.lockpick = Math.min(1, PS.skills.lockpick + 0.05);
+          const keep = hall.parent || hall, room = O.Castle.plan(keep, sim).all.find((r) => r.roomKey === it.room);
+          if (room) { game.enterRoom(room); O.Panels.toast('The lock gives. You slip into the royal chamber.'); PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.05); }
+        } else { PS.skills.lockpick = Math.min(1, PS.skills.lockpick + 0.015); O.Panels.toast('The pick slips. The lock holds: a good lock, made for a king.'); }
+      };
+    }
+    O.Law = { pickpocket, pickLock, pickRoomLock, facingAway, wanted };
 
     // ---------------- guards: recognition and pursuit ----------------
     function guards() { return sim.people.filter((q) => q.job?.role?.startsWith('guard') && !q.agent.hidden && q.activity?.act !== 'sleep' && !q.health.illness); }
@@ -12852,6 +12921,12 @@ O.snowMaskOf = function (src) {
       void lvl;
     }
 
+    // someone has told the watch about you: the crime is known, your face with it, and the guard comes
+    O.lawReport = (c, g) => {
+      c.reported = true; c.investigated = true; c.pendingInvestigation = false;
+      if (!c.profile) c.profile = Object.assign({}, J.lookOf(game.player.a));
+      if (g && !g.agent.hidden && !chase && g.alive !== false) startChase(g);
+    };
     O.lawJail = (g) => jail(g); O.lawArrest = (g) => arrest(g); O.lawEndChase = () => { try { endChase(false); } catch (e) { /* no chase */ } };
     function jail(g) {
       endChase(false);
@@ -12897,19 +12972,26 @@ O.snowMaskOf = function (src) {
       const captain = sim.people.find((q) => q.job?.role === 'guard captain');
       const fine = Math.round(8 + crimes.reduce((s, c) => s + c.severity * 8, 0));
       let verdict, body;
-      if (PS.rep.local > 0.5 && crimes.length <= 1) { verdict = 'pardon'; body = 'The magistrate notes the good you have done in Ashford. You are pardoned, this once.'; }
+      const royal = crimes.some((c) => c.royal), rFine = royal ? Math.round(60 + crimes.reduce((s, c) => s + (c.royal ? c.severity * 25 : c.severity * 8), 0)) : 0, rDays = 10 + crimes.filter((c) => c.royal).length * 4;
+      if (royal && evidence >= 0.7) {
+        // a crime against the crown: no pardon, no bail; a heavy fine if you can pay it, otherwise a long stretch in the cell
+        if (PS.exiled || PS.crimes.length >= 6) { verdict = 'exile'; body = 'For crimes against the crown and the people you are banished from the realm\'s towns. If the watch sees you again, they will take you on sight.'; }
+        else if (PS.money >= rFine) { verdict = 'fine'; body = `Guilty of an offence against the crown. The magistrate will not hear of a small fine: you pay ₳${rFine} to the royal treasury.`; }
+        else { verdict = 'prison'; body = `Guilty of an offence against the crown. ${PS.money < rFine ? `You cannot pay the ₳${rFine} the crown demands. ` : ''}You will serve ${rDays} days in the cell, and there is no bail for it.`; }
+      }
+      else if (PS.rep.local > 0.5 && crimes.length <= 1) { verdict = 'pardon'; body = 'The magistrate notes the good you have done in Ashford. You are pardoned, this once.'; }
       else if (evidence < 0.7) { verdict = 'acquitted'; body = 'The witnesses cannot agree on what they saw. There is not enough to hold you. You are free to go.'; }
       else if (PS.crimes.length >= 6 || (PS.bounty && crimes.length >= 3)) { verdict = 'exile'; body = 'For repeated crimes against the people of Ashford you are banished. If the watch sees you here again, they will take you on sight.'; }
       else if (evidence < 1.8 && PS.money >= fine) { verdict = 'fine'; body = `Guilty. You are fined ₳${fine}, paid to those you wronged and the parish.`; }
       else { const dd = 2 + Math.min(3, crimes.length), bl = dd <= 3 ? 12 * dd : null; verdict = 'prison'; body = `Guilty. ${PS.money < fine ? 'You cannot pay the fine. ' : ''}You will serve ${dd} days in the cell${bl ? `, unless you can find ₳${bl} bail` : ''}.`; }
-      O.Panels.open('The magistrate rules', `<p class="caption">Heard at the Watch House before ${O.escape(captain ? captain.name : 'the magistrate')}. Charges: ${crimes.map((c) => c.kind).join(', ') || 'evading the watch'}. Witnesses: ${crimes.reduce((s, c) => s + c.witnesses.length, 0)}.${found ? ` Stolen goods found on you: ${found}.` : ''}</p><p class="speech">${body}</p>${verdict === 'prison' && 2 + Math.min(3, crimes.length) <= 3 && PS.money >= 12 * (2 + Math.min(3, crimes.length)) ? `<button class="btn" data-bail="1">Pay ₳${12 * (2 + Math.min(3, crimes.length))} bail</button> ` : ''}<button class="btn" data-ok="1">${verdict === 'prison' ? 'Serve the sentence' : 'Accept the verdict'}</button>`, (r) => {
+      O.Panels.open('The magistrate rules', `<p class="caption">Heard at the Watch House before ${O.escape(captain ? captain.name : 'the magistrate')}. Charges: ${crimes.map((c) => c.kind).join(', ') || 'evading the watch'}. Witnesses: ${crimes.reduce((s, c) => s + c.witnesses.length, 0)}.${found ? ` Stolen goods found on you: ${found}.` : ''}</p><p class="speech">${body}</p>${verdict === 'prison' && !royal && 2 + Math.min(3, crimes.length) <= 3 && PS.money >= 12 * (2 + Math.min(3, crimes.length)) ? `<button class="btn" data-bail="1">Pay ₳${12 * (2 + Math.min(3, crimes.length))} bail</button> ` : ''}<button class="btn" data-ok="1">${verdict === 'prison' ? 'Serve the sentence' : 'Accept the verdict'}</button>`, (r) => {
         r.querySelector('.x').hidden = true;
         const bb = r.querySelector('[data-bail]');
         if (bb) bb.onclick = () => { const bl = 12 * (2 + Math.min(3, crimes.length)); PS.money -= bl; sim.treasury.cash += bl; sim.treasury.income += bl; for (const c of crimes) c.closed = 'bail'; PS.bounty = false; PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.05); O.Panels.close(); sim.log(`The stranger was found guilty and paid ₳${bl} bail.`, 'crime'); O.Panels.toast(`You count out ₳${bl} bail. The gaoler unlocks the door.`); game.exitBuilding(); };
         r.querySelector('[data-ok]').onclick = () => {
           O.Panels.close();
-          if (verdict === 'fine') { PS.money -= fine; sim.treasury.cash += fine; sim.treasury.income += fine; }
-          if (verdict === 'prison') { serve(2 + Math.min(3, crimes.length)); for (const c of crimes) c.closed = verdict; PS.bounty = false; PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.15); sim.log('The stranger was tried at the Watch House: prison.', 'crime'); return; }
+          if (verdict === 'fine') { const f = royal ? rFine : fine; PS.money -= f; if (royal && O.SimRef.home.kingdom) O.SimRef.home.kingdom.treasury += f; else { sim.treasury.cash += f; sim.treasury.income += f; } }
+          if (verdict === 'prison') { serve(royal ? rDays : 2 + Math.min(3, crimes.length)); for (const c of crimes) c.closed = verdict; PS.bounty = false; PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.15); sim.log('The stranger was tried at the Watch House: prison.', 'crime'); return; }
           if (verdict === 'exile') { PS.exiled = true; sim.log('The stranger has been banished from Ashford.', 'crime'); }
           for (const c of crimes) c.closed = verdict;
           if (verdict !== 'exile') PS.bounty = false;
@@ -13130,7 +13212,7 @@ O.snowMaskOf = function (src) {
     function crimeFor(q, kind, severity) {
       const pos = posOf(q) || [game.player.x, game.player.y];
       const seen = (game.scene ? [...game.scene.actors.values()].map((a) => a.person).filter((z) => z !== q && z.activity?.act !== 'sleep') : sim.seers(pos[0], pos[1], q));
-      const cr = sim.recordCrime({ kind, perp: 'player', placeName: game.scene ? game.scene.b.name : sim.where(q.agent), tile: [Math.floor(pos[0] / 16), Math.floor(pos[1] / 16)], seen: seen.filter((z) => z.health.hp > 0), victimPerson: q.health.hp > 0 ? q : null, severity });
+      const cr = sim.recordCrime({ kind, perp: 'player', placeName: game.scene ? game.scene.b.name : sim.where(q.agent), tile: [Math.floor(pos[0] / 16), Math.floor(pos[1] / 16)], seen: seen.filter((z) => z.health.hp > 0), victimPerson: q.health.hp > 0 ? q : null, severity, royal: !!q.royal });
       PS.crimes.push(cr.id);
       PS.rep.local = Math.max(-1, PS.rep.local - 0.12 * severity); PS.rep.civilian = Math.max(-1, PS.rep.civilian - 0.08 * severity); PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.03 * severity);
       return cr;
@@ -16555,7 +16637,7 @@ O.snowMaskOf = function (src) {
 .speech:after{content:'';position:absolute;left:50%;bottom:-7px;margin-left:-4px;border:4px solid transparent;border-top:5px solid #2a1d14}
 .speech.shout{background:#fff1c2;font-weight:bold}.speech.angry{background:#f2cdbd}.speech.far{opacity:.55}`;
     document.head.appendChild(st);
-    const layer = document.createElement('div'); layer.className = 'speech-layer';
+    const layer = document.createElement('div'); layer.className = 'speech-layer'; layer.style.display = 'none'; // words aren't shown over people's heads: they talk, and you hear it in what they tell you
     const host = game.canvas.parentElement || document.body; if (getComputedStyle(host).position === 'static') host.style.position = 'relative'; host.appendChild(layer);
     const live = new Map();
     const EAR = 230;
@@ -16884,6 +16966,7 @@ O.snowMaskOf = function (src) {
     const postAt = (s, bz) => posts().find((e) => e.biz === bz.id && e.place === s.world.placeId) || null;
     const bizOf = (e) => { const s = cur(); return e && e.place === s.world.placeId ? s.biz.get(e.biz) : null; };
     const COURT = new Set(['monarch', 'consort', 'heir', 'prince', 'princess', 'lord', 'lady', 'lady-in-waiting', 'jester', 'steward', 'chamberlain', 'captain of the royal guard']);
+    O.crownPost = (r) => COURT.has(r);
     const hoursOf = (e, bz) => { const r = e.role || ''; if (COURT.has(r)) return [8, 20]; if (r === 'potboy' || r === 'potgirl') return [17, 21]; if (['night watchman', 'gaoler'].includes(r)) return [20, 30]; if (r.startsWith('guard') || r === 'sergeant') return [6, 18]; return bz ? bz.def.hours : [8, 17]; };
     const worksToday = (s, bz) => !(s.weekday === 6 && bz && !['tavern', 'chapel', 'guard', 'hospital', 'palace', 'keep', 'manor', 'posthouse'].includes(bz.type));
     const fmtH = (h) => { h = ((h % 24) + 24) % 24; const hh = Math.floor(h), mm = Math.round((h - hh) * 60); return `${hh % 12 || 12}${mm ? ':' + String(mm).padStart(2, '0') : ''}${hh < 12 ? 'am' : 'pm'}`; };
@@ -17537,11 +17620,13 @@ O.snowMaskOf = function (src) {
     function demand(s, q, why) {
       const done = (t, bad) => { O.Panels.close(); q.agent.frozen = false; if (t) say(t, bad ? 'bad' : ''); };
       if (why === 'tax') {
-        const due = 4 + Math.round(s.treasury.taxRate * 40);
+        const due = 4 + Math.round(s.treasury.taxRate * 40) + (PS.taxOwed || 0);
+        if (PS.money >= due) PS.taxOwed = 0;
+        taxPending = { s, q };
         O.Panels.open(`${q.name}, tax collector`, `<p class="speech">“The town's dues, if you please: ₳${due}. Everyone with a roof here or a wage here pays.”</p><div class="topics"><button data-a="pay">Pay ₳${due}</button><button data-a="refuse">Refuse</button><button data-a="run">Run</button></div>`, (r) => {
-          r.querySelector('[data-a=pay]').onclick = () => { if (PS.money < due) return done(`You turn out your purse: ₳${PS.money}. ${q.first} writes you down as owing.`, true); PS.money -= due; s.treasury.cash += due; PS.taxPaidDay = s.day; done(`You pay ₳${due}. ${q.first} marks it in the book.`); };
-          r.querySelector('[data-a=refuse]').onclick = () => { PS.taxPaidDay = s.day; s.relate(q, { id: 0 }, -0.15); evade(s, q, 'refusing the town its dues'); done(`${q.first}: “Then the watch will have a word.”`, true); };
-          r.querySelector('[data-a=run]').onclick = () => { PS.taxPaidDay = s.day; evade(s, q, 'running from the tax collector'); done('You run for it.', true); };
+          r.querySelector('[data-a=pay]').onclick = () => { taxPending = null; PS.taxPaidDay = s.day; if (PS.money < due) { PS.taxOwed = (PS.taxOwed || 0) + due; return done(`You turn out your purse: ₳${PS.money}. ${q.first} writes you down as owing ₳${PS.taxOwed}, to be paid next week.`, true); } PS.money -= due; s.treasury.cash += due; done(`You pay ₳${due}. ${q.first} marks it in the book.`); };
+          r.querySelector('[data-a=refuse]').onclick = () => { taxPending = null; s.relate(q, { id: 0 }, -0.15); evade(s, q, 'refusing the town its dues'); done(`${q.first}: “Then the watch will have a word.”`, true); };
+          r.querySelector('[data-a=run]').onclick = () => { taxPending = null; evade(s, q, 'running from the tax collector'); done('You run for it.', true); };
         });
       } else if (why === 'rent') {
         const L = PS.lease, due = (L && L.rent) || 4;
@@ -17559,10 +17644,22 @@ O.snowMaskOf = function (src) {
     }
     const extra = {};
     O.Street = { sendAt, busy: () => !!runner, on: (why, fn) => { extra[why] = fn; } };
+    // refuse the collector, run, or just walk off, and they go straight to the watch, and the watch comes for you
+    let taxPending = null;
+    game.hooks.update.push(() => { if (taxPending && !O.panelOpen) { const { s, q } = taxPending; taxPending = null; q.agent.frozen = false; evade(s, q, 'walking off from the tax collector'); say(`${q.first}: "Walk away from the crown's dues, would you? Watch!"`, 'bad'); } });
     function evade(s, q, what) {
+      PS.taxPaidDay = s.day;
       const c = s.recordCrime && s.recordCrime({ kind: 'tax evasion', perp: 'player', placeName: O.placeName ? O.placeName() : s.world.name, tile: [Math.floor(game.player.x / T), Math.floor(game.player.y / T)], seen: [q], severity: 1 });
-      if (c) { PS.crimes.push(c.id); c.reported = true; }
+      if (!c) return;
+      PS.crimes.push(c.id); c.reported = true;
       s.log(`${q.name} reports the stranger for ${what}.`, 'crime');
+      const p = game.player, awake = (g) => g.job?.role?.startsWith('guard') && !g.agent.hidden && g.alive !== false && g.activity?.act !== 'sleep' && !g.health?.illness;
+      const g = s.people.filter(awake).sort((a, b) => Math.hypot(a.agent.x - p.x, a.agent.y - p.y) - Math.hypot(b.agent.x - p.x, b.agent.y - p.y))[0];
+      let told = false;
+      const tell = () => { if (told) return; told = true; if (g && !g.agent.hidden) say(`${q.first} points you out to ${g.first} of the watch.`, 'bad'); O.lawReport && O.lawReport(c, g); };
+      if (!g) return tell();
+      const sent = O.Errands && O.Errands.send(s, q, [Math.floor(g.agent.x / T), Math.floor((g.agent.y - 1) / T)], { anim: 'talk', secs: 2, face: 0, at: tell, after: tell, giveUp: game.t + 25 });
+      if (!sent) tell();
     }
     // who comes looking for you, and when
     let st = 0;
@@ -17572,7 +17669,9 @@ O.snowMaskOf = function (src) {
       const near = (q) => !q.agent.hidden && q.alive !== false && !q.agent.frozen && Math.hypot(q.agent.x - p.x, q.agent.y - p.y) < 220;
       const h = s.hour;
       // the tax collector, once a week, if you've a house or a post in this town
-      const liable = (PS.emp && PS.emp.place === s.world.placeId) || s.world.buildings.some((b) => b.owner?.kind === 'player');
+      const mine = (PS.posts || []).filter((e) => e.place === s.world.placeId);
+      const exempt = PS.royal || (PS.posts || []).some((e) => O.crownPost && O.crownPost(e.role)) || mine.some((e) => (O.crownPost && O.crownPost(e.role)) || (() => { const bz = s.biz.get(e.biz); return bz && (bz.def.public || bz.type === 'palace' || bz.b?.royal); })()); // the crown and its servants pay no tax
+      const liable = !exempt && (mine.length || s.world.buildings.some((b) => b.owner?.kind === 'player'));
       if (liable && h >= 9 && h < 17 && (PS.taxPaidDay == null || s.day - PS.taxPaidDay >= 7)) { const q = s.people.find((x) => x.job?.role === 'tax collector' && near(x)); if (q) return sendAt(q, 'tax'); }
       // the landlord, if the rent's due
       const L = PS.lease; if (L && L.place === s.world.placeId && (L.paidUntil == null || s.day > L.paidUntil) && h >= 8 && h < 20) { const b = s.building(L.b); const landlord = b && b.owner?.kind === 'household' ? s.households[b.owner.id - 1]?.members.map((id) => s.byId.get(id)).find((x) => x && x.age >= 18 && near(x)) : null; if (landlord) return sendAt(landlord, 'rent'); }

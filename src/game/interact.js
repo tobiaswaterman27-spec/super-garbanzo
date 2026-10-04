@@ -103,7 +103,7 @@
         case 'pickup': return `Pick up the ${(O.Data.GOODS[c.it.good]?.name || c.it.good).toLowerCase()}`;
         case 'shop': return `Buy from ${c.seller.first}`;
         case 'stairs': return c.it && c.it.stairs ? 'Go upstairs' : 'Go downstairs';
-        case 'roomdoor': return O.Castle && O.castleMayEnter && !O.castleMayEnter(c.it) ? `${c.it.label}: locked` : `Go into ${c.it.label.replace(/^The /, 'the ')}`;
+        case 'roomdoor': return O.Castle && O.castleMayEnter && !O.castleMayEnter(c.it) ? `${c.it.label}: locked (Q to pick the lock)` : `Go into ${c.it.label.replace(/^The /, 'the ')}`;
         case 'sit': return c.it.kind === 'pew' ? 'Sit in the pew' : c.it.kind === 'bench' ? 'Sit on the bench' : c.it.kind === 'throne' ? 'Sit on the throne' : 'Sit down';
         default: return '';
       }
@@ -219,6 +219,7 @@
       if (e.code === 'KeyQ') {
         if (cur && cur.type === 'npc' && cur.person.age >= 8) O.Law.pickpocket(cur);
         else if (cur && cur.type === 'door' && doorLocked(cur.b) && cur.b.type !== 'guard') O.Law.pickLock(cur.b);
+        else if (cur && cur.type === 'roomdoor' && O.castleMayEnter && !O.castleMayEnter(cur.it)) O.Law.pickRoomLock(cur.it, cur.b);
         return true;
       }
       if (e.code === 'KeyF' && cur && cur.type === 'npc' && O.Combat && O.Combat.lootable(cur.person)) { searching = 0.6; pendingSearch = () => O.Panels.toast(O.Combat.loot(cur.person)); return true; }
@@ -265,9 +266,9 @@
           else if (cur.it.rent) O.Panels.toast('A guest bed. Beds are hired from the innkeeper at the counter downstairs.');
           else O.Panels.toast("That's someone else's bed.");
           break;
-        case 'sit': { const sc = game.scene, pose = sc.seatPose(cur.it), p = game.player; p.sitting = Object.assign(pose, { it: cur.it, sx: p.x, sy: p.y, b: sc.b.id, floor: sc.floor }); p.x = pose.x; p.y = pose.y; p.dir = pose.dir; p.anim = 'sit'; if (cur.it.kind === 'throne' && sim.byId) O.Panels.toast('You sit on the throne. Nobody seems pleased about it.'); break; }
+        case 'sit': { const sc = game.scene, pose = sc.seatPose(cur.it), p = game.player; p.sitting = Object.assign(pose, { it: cur.it, sx: p.x, sy: p.y, b: sc.b.id, floor: sc.floor }); p.x = pose.x; p.y = pose.y; p.dir = pose.dir; p.anim = 'sit'; if (cur.it.kind === 'throne' && sim.byId) { const crown = (O.PlayerState.posts || []).some((e) => ['monarch', 'consort'].includes(e.role)); if (crown) { O.Panels.toast('You take your seat on the throne. The hall falls quiet; the court is yours.'); O.Bus && O.Bus.emit('throne', {}); } else O.Panels.toast('You sit on the throne. Nobody seems pleased about it.'); } break; }
         case 'roomdoor': {
-          if (!O.castleMayEnter(cur.it)) { O.UI.say(cur.it.locked === 'monarch' ? "The door is locked. A guard steps across it: “The king's own chamber. Nobody goes in.”" : 'The door is locked. “The royal family\'s rooms. Move along.”', 'bad'); break; }
+          if (!O.castleMayEnter(cur.it)) { O.UI.say(`The door is locked: ${cur.it.locked === 'monarch' ? "the monarch's own bedchamber" : "the royal family's rooms"}. Only a pick would open it, and a crime against the crown is no small thing.`, 'bad'); break; }
           const keep = cur.b.parent || cur.b, room = O.Castle.plan(keep, O.SimRef.cur).all.find((r) => r.roomKey === cur.it.room);
           if (room) { game.player.anim = 'open'; game.enterRoom(room); }
           break;

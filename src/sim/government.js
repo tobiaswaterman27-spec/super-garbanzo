@@ -47,10 +47,14 @@
     // in a hamlet the headman does every job himself, the tax-gathering included
     const collects = (sim, q) => q.job?.role === 'tax collector' || (sim.world.hamlet && q.job?.role === 'guard captain');
     S.hasCollector = function () { return this.people.some((q) => collects(this, q) && q.alive !== false); };
+    // the crown and those who serve the government are not taxed: the royal family, the court, and anyone paid from the common chest
+    S.serves = function (q) { const bz = q && q.job && this.biz.get(q.job.biz); return !!(q && (q.royal || (bz && (bz.def.public || bz.type === 'palace' || bz.b?.royal)))); };
+    S.taxFree = function (hh) { return hh.members.some((id) => this.serves(this.byId.get(id))); };
     S.assessHearth = function () {
       const t = T(this);
       for (const hh of this.households) {
         if (hh.gone || !hh.members.length) continue;
+        if (this.taxFree(hh)) { hh.taxDue = 0; continue; }
         hh.taxDue = (hh.taxDue || 0) + t.hearth + (hh.money > 250 ? Math.floor((hh.money - 250) * 0.05) : 0);
       }
     };

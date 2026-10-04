@@ -33,11 +33,13 @@
     function demand(s, q, why) {
       const done = (t, bad) => { O.Panels.close(); q.agent.frozen = false; if (t) say(t, bad ? 'bad' : ''); };
       if (why === 'tax') {
-        const due = 4 + Math.round(s.treasury.taxRate * 40);
+        const due = 4 + Math.round(s.treasury.taxRate * 40) + (PS.taxOwed || 0);
+        if (PS.money >= due) PS.taxOwed = 0;
+        taxPending = { s, q };
         O.Panels.open(`${q.name}, tax collector`, `<p class="speech">“The town's dues, if you please: ₳${due}. Everyone with a roof here or a wage here pays.”</p><div class="topics"><button data-a="pay">Pay ₳${due}</button><button data-a="refuse">Refuse</button><button data-a="run">Run</button></div>`, (r) => {
-          r.querySelector('[data-a=pay]').onclick = () => { if (PS.money < due) return done(`You turn out your purse: ₳${PS.money}. ${q.first} writes you down as owing.`, true); PS.money -= due; s.treasury.cash += due; PS.taxPaidDay = s.day; done(`You pay ₳${due}. ${q.first} marks it in the book.`); };
-          r.querySelector('[data-a=refuse]').onclick = () => { PS.taxPaidDay = s.day; s.relate(q, { id: 0 }, -0.15); evade(s, q, 'refusing the town its dues'); done(`${q.first}: “Then the watch will have a word.”`, true); };
-          r.querySelector('[data-a=run]').onclick = () => { PS.taxPaidDay = s.day; evade(s, q, 'running from the tax collector'); done('You run for it.', true); };
+          r.querySelector('[data-a=pay]').onclick = () => { taxPending = null; PS.taxPaidDay = s.day; if (PS.money < due) { PS.taxOwed = (PS.taxOwed || 0) + due; return done(`You turn out your purse: ₳${PS.money}. ${q.first} writes you down as owing ₳${PS.taxOwed}, to be paid next week.`, true); } PS.money -= due; s.treasury.cash += due; done(`You pay ₳${due}. ${q.first} marks it in the book.`); };
+          r.querySelector('[data-a=refuse]').onclick = () => { taxPending = null; s.relate(q, { id: 0 }, -0.15); evade(s, q, 'refusing the town its dues'); done(`${q.first}: “Then the watch will have a word.”`, true); };
+          r.querySelector('[data-a=run]').onclick = () => { taxPending = null; evade(s, q, 'running from the tax collector'); done('You run for it.', true); };
         });
       } else if (why === 'rent') {
         const L = PS.lease, due = (L && L.rent) || 4;
@@ -55,10 +57,22 @@
     }
     const extra = {};
     O.Street = { sendAt, busy: () => !!runner, on: (why, fn) => { extra[why] = fn; } };
+    // refuse the collector, run, or just walk off, and they go straight to the watch, and the watch comes for you
+    let taxPending = null;
+    game.hooks.update.push(() => { if (taxPending && !O.panelOpen) { const { s, q } = taxPending; taxPending = null; q.agent.frozen = false; evade(s, q, 'walking off from the tax collector'); say(`${q.first}: "Walk away from the crown's dues, would you? Watch!"`, 'bad'); } });
     function evade(s, q, what) {
+      PS.taxPaidDay = s.day;
       const c = s.recordCrime && s.recordCrime({ kind: 'tax evasion', perp: 'player', placeName: O.placeName ? O.placeName() : s.world.name, tile: [Math.floor(game.player.x / T), Math.floor(game.player.y / T)], seen: [q], severity: 1 });
-      if (c) { PS.crimes.push(c.id); c.reported = true; }
+      if (!c) return;
+      PS.crimes.push(c.id); c.reported = true;
       s.log(`${q.name} reports the stranger for ${what}.`, 'crime');
+      const p = game.player, awake = (g) => g.job?.role?.startsWith('guard') && !g.agent.hidden && g.alive !== false && g.activity?.act !== 'sleep' && !g.health?.illness;
+      const g = s.people.filter(awake).sort((a, b) => Math.hypot(a.agent.x - p.x, a.agent.y - p.y) - Math.hypot(b.agent.x - p.x, b.agent.y - p.y))[0];
+      let told = false;
+      const tell = () => { if (told) return; told = true; if (g && !g.agent.hidden) say(`${q.first} points you out to ${g.first} of the watch.`, 'bad'); O.lawReport && O.lawReport(c, g); };
+      if (!g) return tell();
+      const sent = O.Errands && O.Errands.send(s, q, [Math.floor(g.agent.x / T), Math.floor((g.agent.y - 1) / T)], { anim: 'talk', secs: 2, face: 0, at: tell, after: tell, giveUp: game.t + 25 });
+      if (!sent) tell();
     }
     // who comes looking for you, and when
     let st = 0;
@@ -68,7 +82,9 @@
       const near = (q) => !q.agent.hidden && q.alive !== false && !q.agent.frozen && Math.hypot(q.agent.x - p.x, q.agent.y - p.y) < 220;
       const h = s.hour;
       // the tax collector, once a week, if you've a house or a post in this town
-      const liable = (PS.emp && PS.emp.place === s.world.placeId) || s.world.buildings.some((b) => b.owner?.kind === 'player');
+      const mine = (PS.posts || []).filter((e) => e.place === s.world.placeId);
+      const exempt = PS.royal || (PS.posts || []).some((e) => O.crownPost && O.crownPost(e.role)) || mine.some((e) => (O.crownPost && O.crownPost(e.role)) || (() => { const bz = s.biz.get(e.biz); return bz && (bz.def.public || bz.type === 'palace' || bz.b?.royal); })()); // the crown and its servants pay no tax
+      const liable = !exempt && (mine.length || s.world.buildings.some((b) => b.owner?.kind === 'player'));
       if (liable && h >= 9 && h < 17 && (PS.taxPaidDay == null || s.day - PS.taxPaidDay >= 7)) { const q = s.people.find((x) => x.job?.role === 'tax collector' && near(x)); if (q) return sendAt(q, 'tax'); }
       // the landlord, if the rent's due
       const L = PS.lease; if (L && L.place === s.world.placeId && (L.paidUntil == null || s.day > L.paidUntil) && h >= 8 && h < 20) { const b = s.building(L.b); const landlord = b && b.owner?.kind === 'household' ? s.households[b.owner.id - 1]?.members.map((id) => s.byId.get(id)).find((x) => x && x.age >= 18 && near(x)) : null; if (landlord) return sendAt(landlord, 'rent'); }

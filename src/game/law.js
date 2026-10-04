@@ -84,7 +84,22 @@
         } else { PS.skills.lockpick = Math.min(1, PS.skills.lockpick + 0.015); O.Panels.toast('The pick slips. The lock holds.'); }
       };
     }
-    O.Law = { pickpocket, pickLock, facingAway, wanted };
+    // a locked chamber in the castle: the royal family's own rooms. Anyone in the hallway may see you at it,
+    // and the guards are watching for exactly this
+    function pickRoomLock(it, hall) {
+      busy = 2.6; game.player.anim = 'crouch';
+      busyDone = () => {
+        const sc = game.scene; if (!sc) return;
+        const seen = [...sc.actors.values()].map((a) => a.person).filter((q) => q && q.alive !== false && q.activity?.act !== 'sleep' && sim.rng.chance(/guard|captain/.test(q.job?.role || '') ? 0.7 : 0.35));
+        if (seen.length) { const cr = sim.recordCrime({ kind: 'lock-picking', perp: 'player', placeName: it.label, tile: [hall.doorX, hall.doorY], seen, severity: 2, royal: true }); PS.crimes.push(cr.id); O.Panels.toast(`${seen[0].first} sees you working at the lock of ${it.label.replace(/^The /, 'the ')}!`, 'bad'); }
+        if (sim.rng.chance(O.clamp(0.3 + PS.skills.lockpick * 0.5, 0.06, 0.85))) {
+          PS.skills.lockpick = Math.min(1, PS.skills.lockpick + 0.05);
+          const keep = hall.parent || hall, room = O.Castle.plan(keep, sim).all.find((r) => r.roomKey === it.room);
+          if (room) { game.enterRoom(room); O.Panels.toast('The lock gives. You slip into the royal chamber.'); PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.05); }
+        } else { PS.skills.lockpick = Math.min(1, PS.skills.lockpick + 0.015); O.Panels.toast('The pick slips. The lock holds: a good lock, made for a king.'); }
+      };
+    }
+    O.Law = { pickpocket, pickLock, pickRoomLock, facingAway, wanted };
 
     // ---------------- guards: recognition and pursuit ----------------
     function guards() { return sim.people.filter((q) => q.job?.role?.startsWith('guard') && !q.agent.hidden && q.activity?.act !== 'sleep' && !q.health.illness); }
@@ -196,6 +211,12 @@
       void lvl;
     }
 
+    // someone has told the watch about you: the crime is known, your face with it, and the guard comes
+    O.lawReport = (c, g) => {
+      c.reported = true; c.investigated = true; c.pendingInvestigation = false;
+      if (!c.profile) c.profile = Object.assign({}, J.lookOf(game.player.a));
+      if (g && !g.agent.hidden && !chase && g.alive !== false) startChase(g);
+    };
     O.lawJail = (g) => jail(g); O.lawArrest = (g) => arrest(g); O.lawEndChase = () => { try { endChase(false); } catch (e) { /* no chase */ } };
     function jail(g) {
       endChase(false);
@@ -241,19 +262,26 @@
       const captain = sim.people.find((q) => q.job?.role === 'guard captain');
       const fine = Math.round(8 + crimes.reduce((s, c) => s + c.severity * 8, 0));
       let verdict, body;
-      if (PS.rep.local > 0.5 && crimes.length <= 1) { verdict = 'pardon'; body = 'The magistrate notes the good you have done in Ashford. You are pardoned, this once.'; }
+      const royal = crimes.some((c) => c.royal), rFine = royal ? Math.round(60 + crimes.reduce((s, c) => s + (c.royal ? c.severity * 25 : c.severity * 8), 0)) : 0, rDays = 10 + crimes.filter((c) => c.royal).length * 4;
+      if (royal && evidence >= 0.7) {
+        // a crime against the crown: no pardon, no bail; a heavy fine if you can pay it, otherwise a long stretch in the cell
+        if (PS.exiled || PS.crimes.length >= 6) { verdict = 'exile'; body = 'For crimes against the crown and the people you are banished from the realm\'s towns. If the watch sees you again, they will take you on sight.'; }
+        else if (PS.money >= rFine) { verdict = 'fine'; body = `Guilty of an offence against the crown. The magistrate will not hear of a small fine: you pay ₳${rFine} to the royal treasury.`; }
+        else { verdict = 'prison'; body = `Guilty of an offence against the crown. ${PS.money < rFine ? `You cannot pay the ₳${rFine} the crown demands. ` : ''}You will serve ${rDays} days in the cell, and there is no bail for it.`; }
+      }
+      else if (PS.rep.local > 0.5 && crimes.length <= 1) { verdict = 'pardon'; body = 'The magistrate notes the good you have done in Ashford. You are pardoned, this once.'; }
       else if (evidence < 0.7) { verdict = 'acquitted'; body = 'The witnesses cannot agree on what they saw. There is not enough to hold you. You are free to go.'; }
       else if (PS.crimes.length >= 6 || (PS.bounty && crimes.length >= 3)) { verdict = 'exile'; body = 'For repeated crimes against the people of Ashford you are banished. If the watch sees you here again, they will take you on sight.'; }
       else if (evidence < 1.8 && PS.money >= fine) { verdict = 'fine'; body = `Guilty. You are fined ₳${fine}, paid to those you wronged and the parish.`; }
       else { const dd = 2 + Math.min(3, crimes.length), bl = dd <= 3 ? 12 * dd : null; verdict = 'prison'; body = `Guilty. ${PS.money < fine ? 'You cannot pay the fine. ' : ''}You will serve ${dd} days in the cell${bl ? `, unless you can find ₳${bl} bail` : ''}.`; }
-      O.Panels.open('The magistrate rules', `<p class="caption">Heard at the Watch House before ${O.escape(captain ? captain.name : 'the magistrate')}. Charges: ${crimes.map((c) => c.kind).join(', ') || 'evading the watch'}. Witnesses: ${crimes.reduce((s, c) => s + c.witnesses.length, 0)}.${found ? ` Stolen goods found on you: ${found}.` : ''}</p><p class="speech">${body}</p>${verdict === 'prison' && 2 + Math.min(3, crimes.length) <= 3 && PS.money >= 12 * (2 + Math.min(3, crimes.length)) ? `<button class="btn" data-bail="1">Pay ₳${12 * (2 + Math.min(3, crimes.length))} bail</button> ` : ''}<button class="btn" data-ok="1">${verdict === 'prison' ? 'Serve the sentence' : 'Accept the verdict'}</button>`, (r) => {
+      O.Panels.open('The magistrate rules', `<p class="caption">Heard at the Watch House before ${O.escape(captain ? captain.name : 'the magistrate')}. Charges: ${crimes.map((c) => c.kind).join(', ') || 'evading the watch'}. Witnesses: ${crimes.reduce((s, c) => s + c.witnesses.length, 0)}.${found ? ` Stolen goods found on you: ${found}.` : ''}</p><p class="speech">${body}</p>${verdict === 'prison' && !royal && 2 + Math.min(3, crimes.length) <= 3 && PS.money >= 12 * (2 + Math.min(3, crimes.length)) ? `<button class="btn" data-bail="1">Pay ₳${12 * (2 + Math.min(3, crimes.length))} bail</button> ` : ''}<button class="btn" data-ok="1">${verdict === 'prison' ? 'Serve the sentence' : 'Accept the verdict'}</button>`, (r) => {
         r.querySelector('.x').hidden = true;
         const bb = r.querySelector('[data-bail]');
         if (bb) bb.onclick = () => { const bl = 12 * (2 + Math.min(3, crimes.length)); PS.money -= bl; sim.treasury.cash += bl; sim.treasury.income += bl; for (const c of crimes) c.closed = 'bail'; PS.bounty = false; PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.05); O.Panels.close(); sim.log(`The stranger was found guilty and paid ₳${bl} bail.`, 'crime'); O.Panels.toast(`You count out ₳${bl} bail. The gaoler unlocks the door.`); game.exitBuilding(); };
         r.querySelector('[data-ok]').onclick = () => {
           O.Panels.close();
-          if (verdict === 'fine') { PS.money -= fine; sim.treasury.cash += fine; sim.treasury.income += fine; }
-          if (verdict === 'prison') { serve(2 + Math.min(3, crimes.length)); for (const c of crimes) c.closed = verdict; PS.bounty = false; PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.15); sim.log('The stranger was tried at the Watch House: prison.', 'crime'); return; }
+          if (verdict === 'fine') { const f = royal ? rFine : fine; PS.money -= f; if (royal && O.SimRef.home.kingdom) O.SimRef.home.kingdom.treasury += f; else { sim.treasury.cash += f; sim.treasury.income += f; } }
+          if (verdict === 'prison') { serve(royal ? rDays : 2 + Math.min(3, crimes.length)); for (const c of crimes) c.closed = verdict; PS.bounty = false; PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.15); sim.log('The stranger was tried at the Watch House: prison.', 'crime'); return; }
           if (verdict === 'exile') { PS.exiled = true; sim.log('The stranger has been banished from Ashford.', 'crime'); }
           for (const c of crimes) c.closed = verdict;
           if (verdict !== 'exile') PS.bounty = false;

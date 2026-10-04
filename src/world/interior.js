@@ -79,6 +79,7 @@
     if (b.royal) { const pl = castlePlan(b, sim), n = floor === 0 ? pl.ground.length : pl.up.length; w = Math.max(40, n * 6 + 12); d = 10; } // a long hallway
     const grid = new Uint8Array(w * d);
     const items = [];
+    const L = { carpets: null }; // carpets fitted to the floor, if any
     const dc = floor === 0 ? (b.royal ? Math.floor(w / 2) - 1 : Math.min(w - 2, b.spec.doorTile * S + Math.floor((S - 2) / 2))) : -1; // the doorway is two tiles wide
     const keepClear = new Set(); // tiles nothing may stand on: the way in, the foot of the stairs
     if (floor === 0) for (let y = d - 2; y < d; y++) for (let x = dc - 1; x <= dc + 2; x++) keepClear.add(y * w + x);
@@ -241,9 +242,11 @@
     function royal() {
       const plan = castlePlan(b, sim), list = floor === 0 ? plan.ground : plan.up;
       // a door in the back wall for every room, with a candle between each
-      list.forEach((r, i) => { put('roomdoor', 3 + i * 6, 0, { room: r.roomKey, locked: r.locked || null, noAccess: true, v: r.locked ? 1 : 0, label: r.name }); put('candlestand', 6 + i * 6, 0, {}); });
-      // the red carpet the length of the hall
-      for (let x = 1; x + 6 <= w - 5; x += 6) put('rug', x, d - 4, { flat: true, width: 6, rot: 6, v: 3 });
+      list.forEach((r, i) => { put('roomdoor', 3 + i * 6, 0, { room: r.roomKey, locked: r.locked || null, noAccess: true, v: 0, label: r.name }); put('candlestand', 6 + i * 6, 0, {}); });
+      // red carpet: a broad runner the length of the hall, and a carpet from every door down to it
+      L.carpets = [{ x: 0, y: d - 5, w: w, h: 5 }];
+      list.forEach((r, i) => L.carpets.push({ x: 3 + i * 6, y: 1, w: 2, h: d - 6 }));
+      if (floor === 1) L.carpets.push({ x: Math.floor(w / 2) - 10, y: 1, w: 20, h: 6 });
       if (floor === 1) {
         // the long table where the council of the realm sits, chairs all round
         const n = 3, tx = Math.floor(w / 2) - Math.floor(n * 5 / 2);
@@ -257,7 +260,7 @@
       switch (b.type) {
         case 'throneroom': {
           const hc = Math.floor(w / 2) - 1; put('throne', hc, 1, { v: 2, lord: true, seat: true, rot: 3 });
-          for (let y = 4; y < d - 1; y += 4) put('rug', hc - 1, y, { flat: true, width: 4, rot: 4, v: 3 });
+          L.carpets = [{ x: hc - 1, y: 3, w: 4, h: d - 3 }, { x: hc - 3, y: 0, w: 8, h: 4 }]; // the aisle up to the throne, and the dais
           for (const x of [2, w - 3]) for (let y = 2; y < d - 2; y += 4) tryPut('candlestand', [[x, y]], {});
           tryPut('bench', [[1, d - 3], [1, d - 5]], { seat: true, width: 3, rot: 0 }); tryPut('bench', [[w - 4, d - 3], [w - 4, d - 5]], { seat: true, width: 3, rot: 0 });
           tryPut('fireplace', [[2, 0], [w - 5, 0]], { v: 2 });
@@ -634,7 +637,7 @@
       }
     }
     items.forEach((it, i) => (it.id = i));
-    return { b, floor, w, d, items, grid, floors: b.floors, dc, scale: S, reachable: reach(), stairsX };
+    return { b, floor, w, d, items, grid, floors: b.floors, dc, scale: S, reachable: reach(), stairsX, carpets: L.carpets };
   }
 
   // Cached interior per building/floor (furniture is fixed; stock visuals update live).
@@ -650,7 +653,7 @@
     const L = layoutFor(b, floor, sim);
     const wallKind = (b.decor && b.decor.wall) || (b.spec.wall === 'stone' || b.spec.wall === 'log' || b.spec.wall === 'plank' ? b.spec.wall : 'timber');
     const floorKind = (b.decor && b.decor.floor) || ['smithy', 'chapel', 'guard', 'mill', 'quarry', 'mine', 'armourer', 'warehouse', 'townhall', 'keep', 'hospital', 'manor', 'throneroom', 'castlekitchen', 'guardroom', 'castlechapel', 'stewardroom', 'servhall'].includes(b.type) ? 'stone' : b.type === 'barn' || (b.type === 'house' && b.wealth < 0.3) ? 'dirt' : 'wood';
-    L.room = O.Furn.room({ w: L.w, d: L.d, wall: wallKind, floor: floorKind, wealth: b.wealth, seed: b.id * 3 + floor, windows: Math.max(1, Math.floor(b.w / 2) + 1), doorTile: floor === 0 ? L.dc : -5 });
+    L.room = O.Furn.room({ w: L.w, d: L.d, wall: wallKind, floor: floorKind, wealth: b.wealth, seed: b.id * 3 + floor, windows: Math.max(1, Math.floor(b.w / 2) + 1), doorTile: floor === 0 ? L.dc : -5, carpets: L.carpets });
     cache.set(key, L);
     return L;
   }

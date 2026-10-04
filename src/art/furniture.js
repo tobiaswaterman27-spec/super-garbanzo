@@ -521,6 +521,20 @@
       if (ly < 4) s = Math.max(0, s - 1);
       B.shadeAt(x, y, s);
     }
+    // fitted carpets laid over the floor (the castle's red): crimson, a gold border, a small woven diamond
+    if (spec.carpets) {
+      const cm = P.mat(C.crimson, 'cloth'), gm = P.mat(C.mustard, 'cloth');
+      for (const c of spec.carpets) {
+        const x0 = SW + c.x * T + 2, y0 = WH + c.y * T + 2, x1 = SW + (c.x + c.w) * T - 2, y1 = WH + (c.y + c.h) * T - 2;
+        for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+          const ex = Math.min(x - x0, x1 - 1 - x), ey = Math.min(y - y0, y1 - 1 - y), e = Math.min(ex, ey);
+          if (e === 0) { B.plot(x, y, cm, 1); continue; }
+          if (e === 2 || e === 3) { B.plot(x, y, gm, e === 2 ? 3 : 2); continue; }
+          const dx = (x - x0) % 12 - 6, dy = (y - y0) % 12 - 6, dia = Math.abs(dx) + Math.abs(dy);
+          B.plot(x, y, dia === 3 && e > 5 ? gm : cm, dia === 3 && e > 5 ? 3 : (x + y) % 2 ? 2 : 3);
+        }
+      }
+    }
     // side walls seen edge-on
     const wt = P.mat('#3a2e28', 'wood');
     B.part(4);

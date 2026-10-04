@@ -144,3 +144,16 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] At the end of the corridor a grand staircase; upstairs a massive hallway with guards, the locked rooms of the monarch (unless you are the monarch) and the royal family, other people's rooms; the big table for the council meetings you must attend is in that hallway; lots of red carpet
 - [x] If you're the king (or any role that fits) the job starts at once, and the job card text is different
 - [x] NPC animation: people stand idle and don't walk properly (fix)
+
+## Batch G (asked after step 72) - clean-up and the crown
+
+- [x] Government (officials, the treasury's own houses) and the royals pay no tax
+- [x] Tax glitch: the collector asks, you refuse, they ask again; instead, if you run or refuse they go to the guards and the guards come for you
+- [x] Fix glitches and clean things up so far; make sure everything works and jobs function
+- [x] Remove any invisible walls
+- [x] Remove NPC speech appearing above them
+- [x] Locked royal doors look like any other door; you pick the lock to get in
+- [x] The red carpet barely covers anywhere: cover much more
+- [x] Any crime against the royal family is at once worse: pushing, stealing, lock picking get a heavy sentence or fine
+- [x] The king (you, as monarch) may sit on the throne
+- [x] Weird hairstyle with hair only at the back and none on top: fix

@@ -91,6 +91,10 @@
     // Record a crime with its witnesses. perp: 'player' or a Person.
     S.recordCrime = function (o) {
       const crime = Object.assign({ id: this.crimes.length + 1, day: this.day, minute: Math.floor(this.minute), witnesses: [], reported: false, investigated: false, profile: null, solved: false, severity: 1 }, o);
+      // a crime against the crown is a crime of another order: the royal family, their household, their castle
+      { const sc = O.game && O.game.scene, vp = o.victimPerson, vh = o.victim != null && this.households[o.victim - 1];
+        const royal = o.royal || (vp && vp.royal) || (vh && vh.members.some((id) => this.byId.get(id)?.royal)) || (o.perp === 'player' && sc && (sc.b.royal || (sc.b.parent && sc.b.parent.royal)));
+        if (royal) { crime.royal = true; crime.severity = Math.max(4, (crime.severity || 1) * 3); crime.kind = /against the crown/.test(crime.kind) ? crime.kind : `${crime.kind} against the crown`; } }
       const look = o.perp === 'player' ? lookOf(O.game.player.a) : o.perp ? lookOf(o.perp.gang ? maskedLook(o.perp.app) : o.perp.app) : null; // gang hands go masked to their work
       // the victim is a witness too, whenever they realise what happened
       const seenList = [...(o.seen || [])];
@@ -134,6 +138,7 @@
       crime.profile = vote(descs); crime.investigated = true;
       const skill = g.skills[g.job.role] || 0.5;
       crime.evidence = Math.min(3, crime.witnesses.reduce((s, w) => s + w.acc, 0) * (0.6 + skill * 0.6));
+      if (crime.royal) crime.evidence = Math.max(crime.evidence, 1.8); // the crown's word is taken
       const desc = describe(crime.profile);
       this.log(Object.keys(crime.profile).length ? `The watch is looking for ${desc} over the ${crime.kind} at ${crime.placeName || this.world.name}.` : `The watch has no description to go on over the ${crime.kind} at ${crime.placeName || this.world.name}.`, 'crime');
       this.remember(g, `Investigating a ${crime.kind}: we want ${describe(crime.profile)}.`, 'work', 1.5);

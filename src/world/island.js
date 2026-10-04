@@ -360,6 +360,7 @@
     });
     world.pens = (tw.pens || []).map((p) => Object.assign({}, p, { z: [p.z[0] + ox, p.z[1] + oy, p.z[2] + ox, p.z[3] + oy] }));
     world.estates = (tw.estates || []).map((e) => Object.assign({}, e, { fields: [e.fields[0] + ox, e.fields[1] + oy, e.fields[2] + ox, e.fields[3] + oy] }));
+    if (O.Game && O.Game.prototype.clearStray) O.Game.prototype.clearStray.call(null, world); // nothing solid where nothing stands
     regions.set(id, world);
     return world;
   }

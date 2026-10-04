@@ -878,7 +878,7 @@
   }
 
   function drawHat(S) {
-    const { B, a, V, p } = S, o = a.outfit; if (!o.hat) return;
+    const { B, a, V, p } = S, o = a.outfit; if (!o.hat && a.hairStyle !== 'veil') return;
     const H = headFrame(S), M = o.hatMat;
     B.part(G.HAT);
     const dome = (grow, below, matFn) => B.shape(H.cx - H.e - grow - 1, H.cy - H.ry - grow - 1, H.cx + H.e + grow + 1, H.cy + H.ry, (px, py) => {
@@ -887,6 +887,8 @@
     }, (px, py) => { const dx = (px - H.cx) / (H.e + grow), dy = (py - H.cy) / (H.ry + grow); return [dx, dy, Math.sqrt(Math.max(0.1, 1 - dx * dx - dy * dy))]; }, matFn || M);
     const brim = (y, r, mt) => { const ry = Math.max(1.1, r * K * 0.42); B.shape(H.cx - r - 1, y - ry - 1, H.cx + r + 1, y + ry + 1, (px, py) => ((px - H.cx) / r) ** 2 + ((py - y) / ry) ** 2 <= 1, (px, py) => [((px - H.cx) / r) * 0.5, -0.7, 0.5], mt || M); };
     const top = H.cy - H.ry;
+    // a veil: white linen over the whole crown, framing the face and falling behind
+    if (!o.hat) { const vm = P.mat(C.white); dome(0.9, (l) => l.ly < -0.08 || (Math.abs(l.lx) > 0.66 && l.ly < 0.85) || l.lz < -0.15, vm); const q = headPt(S, H, 0, -0.1, 1); if (V.front) for (let x = -2; x <= 2; x++) B.tweak(q[0] + x, q[1], -1); return; }
     switch (o.hat) {
       case 'cap': dome(0.7, (l) => l.ly < -0.3 + (l.lz < 0 ? 0.1 : 0)); if (V.front || V.side) { const q = headPt(S, H, 0, -0.32, 1); B.plot(q[0], q[1], M, 1); if (V.side) B.plot(q[0] + 1, q[1], M, 1); } break;
       case 'coif': dome(0.6, (l) => l.ly < -0.15 || (Math.abs(l.lx) > 0.72 && l.ly < 0.45 && l.lz < 0.4)); break;

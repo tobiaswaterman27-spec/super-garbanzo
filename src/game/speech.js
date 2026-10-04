@@ -10,7 +10,7 @@
 .speech:after{content:'';position:absolute;left:50%;bottom:-7px;margin-left:-4px;border:4px solid transparent;border-top:5px solid #2a1d14}
 .speech.shout{background:#fff1c2;font-weight:bold}.speech.angry{background:#f2cdbd}.speech.far{opacity:.55}`;
     document.head.appendChild(st);
-    const layer = document.createElement('div'); layer.className = 'speech-layer';
+    const layer = document.createElement('div'); layer.className = 'speech-layer'; layer.style.display = 'none'; // words aren't shown over people's heads: they talk, and you hear it in what they tell you
     const host = game.canvas.parentElement || document.body; if (getComputedStyle(host).position === 'static') host.style.position = 'relative'; host.appendChild(layer);
     const live = new Map();
     const EAR = 230;

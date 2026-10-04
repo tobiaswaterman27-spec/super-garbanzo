@@ -35,7 +35,8 @@
       for (const b of world.buildings) if (!b.sprite) b.sprite = b.ruined ? O.Env.ruin(b.spec) : b.type === 'hideout' ? O.Env.hideout(b.level, b.spec) : O.Env.building(b.spec);
       for (const t of world.trees) if (!t.sprite || t.sprite.season !== this.season) { t.sprite = O.Env.tree(t.seed, t.kind, this.season); t.sprite.season = this.season; }
       for (const p of world.props) if (!p.sprite) p.sprite = O.Env.prop(p.kind, p.seed, p.v);
-      if (!world._behind) this.blockBehind(world);
+      // no invisible walls: ground is solid only where something stands on it (a roof that hides you shows your outline instead)
+      if (!world._clean) this.clearStray(world);
       this.rebuildStatics();
       if (!this.player) this.player = { x: (46 * T) + 8, y: 32 * T + 4, dir: 0, anim: 'idle', ft: 0, a: playerAppearance, speed: 0 };
       this.actors = [this.player];
@@ -44,6 +45,20 @@
 
     // Nobody walks where a roof would hide them: the ground just behind a building, as far back as its
     // roof rises over a person's head, is closed off (roads, bridges and doorsteps stay open).
+    clearStray(world) {
+      world._clean = true;
+      const T = world.T, W = world.W, H = world.H, R = world.TER || {}, ok = new Uint8Array(W * H);
+      const mark = (x, y) => { if (x >= 0 && y >= 0 && x < W && y < H) ok[y * W + x] = 1; };
+      for (let i = 0; i < W * H; i++) if (world.ter[i] === R.WATER) ok[i] = 1;
+      for (const b of world.buildings) for (let y = b.y; y <= b.bottom; y++) for (let x = b.x; x < b.x + b.w; x++) mark(x, y);
+      for (const t of world.trees) mark(Math.floor(t.x / T), Math.floor((t.y - 1) / T));
+      for (const q of world.props) {
+        const sp = q.sprite || (q.sprite = O.Env.prop(q.kind, q.seed, q.v)), x0 = Math.floor((q.x - (sp.ox || 8)) / T), x1 = Math.floor((q.x - (sp.ox || 8) + (sp.W || 16) - 1) / T), y = Math.floor((q.y - 1) / T);
+        for (let x = x0; x <= x1; x++) { mark(x, y); mark(x, y - 1); }
+      }
+      let n = 0; for (let i = 0; i < W * H; i++) if (world.solid[i] && !ok[i]) { world.solid[i] = 0; n++; }
+      if (n) { const s = O.SimRef && O.SimRef.cur; if (s && s.world === world && s.path) { s.path.recost && s.path.recost(); s.path.clear && s.path.clear(); } }
+    }
     blockBehind(world) {
       const T = world.T, W = world.W, R = world.TER || {}, doors = new Set(world.buildings.filter((b) => b.doorX != null).map((b) => b.doorY * W + b.doorX));
       world._behind = [];
@@ -271,23 +286,32 @@
       // whatever stands in front of you (a roof, a tree) fades so you can see yourself behind it
       const P0 = this.player, px0 = P0.x - 9, px1 = P0.x + 9, py0 = P0.y - 36, py1 = P0.y - 2, dtF = Math.min(0.1, this.t - (this._fadeT || this.t)); this._fadeT = this.t;
       const fadeOf = () => 1; const fadeOld = (o, x, y, wd, ht) => { const cover = !P0.hidden && o.y > P0.y + 1 && x < px1 && x + wd > px0 && y < py1 && y + ht > py0; const tgt = cover ? 0.42 : 1; o._fade = o._fade == null ? 1 : o._fade + (tgt - o._fade) * Math.min(1, dtF * 8); return o._fade; };
+      let covered = false; P0._drawn = false;
       for (const s of this.statics) {
-        while (ai < actors.length && actors[ai].y < s.y) drawActor(actors[ai++]);
+        while (ai < actors.length && actors[ai].y < s.y) { if (actors[ai] === P0) P0._drawn = true; drawActor(actors[ai++]); }
         if (s.b) {
           const b = s.b, sp = b.sprite; if (!sp) continue;
           const x = b.x * T - sp.OV, y = (b.bottom + 1) * T - sp.H;
           const fa = fadeOf(s, x, y, sp.W, sp.H - 6); if (fa < 0.99) ctx.globalAlpha = fa;
+          if (!covered && P0._drawn && x < px1 && x + sp.W > px0 && y < py1 && y + sp.H - 8 > py0) covered = true;
           if (inView(x, y, sp.W, sp.H)) { ctx.drawImage(sp.canvas, x - cam.x, y - cam.y); if (this.snowAlpha > 0.04 && sp.roofMask) { ctx.globalAlpha = this.snowAlpha; ctx.drawImage(sp.roofMask, x - cam.x, y - cam.y); ctx.globalAlpha = 1; } if (this.drawDoor) this.drawDoor(ctx, b, cam); }
           ctx.globalAlpha = 1;
         } else {
           const o = s.t || s.p, sp = o.sprite, x = o.x - sp.ox, y = o.y - sp.oy;
           const fa = s.t ? fadeOf(s, x, y, sp.W, sp.H) : 1; if (fa < 0.99) ctx.globalAlpha = fa;
+          if (!covered && P0._drawn && x < px1 && x + sp.W > px0 && y < py1 && y + sp.H - 8 > py0) covered = true;
           if (inView(x, y, sp.W, sp.H)) { ctx.drawImage(sp.canvas, x - cam.x, y - cam.y); if (this.snowAlpha > 0.04) { const m = sp.snowMask || (sp.snowMask = O.snowMaskOf(sp.canvas)); if (m) { ctx.globalAlpha = this.snowAlpha; ctx.drawImage(m, x - cam.x, y - cam.y); ctx.globalAlpha = 1; } } }
           ctx.globalAlpha = 1;
         }
       }
       while (ai < actors.length) drawActor(actors[ai++]);
       ctx.globalAlpha = 1;
+      // behind a roof: your outline shows through it, so you never lose yourself
+      if (covered && !P0.hidden && P0._sx != null && !P0.mount) {
+        const fr = this.actorFrame(P0), c = this._ghost || (this._ghost = document.createElement('canvas')); c.width = fr.width; c.height = fr.height;
+        const g = c.getContext('2d'); g.clearRect(0, 0, c.width, c.height); g.drawImage(fr, 0, 0); g.globalCompositeOperation = 'source-in'; g.fillStyle = 'rgba(244,232,200,0.55)'; g.fillRect(0, 0, c.width, c.height); g.globalCompositeOperation = 'source-over';
+        ctx.drawImage(c, P0._sx, P0._sy);
+      }
       for (const h of this.hooks.drawWorld) h(ctx, cam);
       // smoke
       for (const q of this.particles) {

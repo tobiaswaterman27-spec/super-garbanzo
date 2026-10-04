@@ -23,6 +23,7 @@
     }
     function drawDropped(ctx, d, cam) {
       const x = Math.round(d.x - cam.x), y = Math.round(d.y - cam.y), c = ICON[d.good] || '#a08a6a';
+      if (O.ItemArt && d.good !== 'coin') { const sp = O.ItemArt.small(d.good); ctx.fillStyle = 'rgba(28,20,44,0.3)'; ctx.fillRect(x - 5, y + 1, 10, 2); ctx.drawImage(sp, x - 6, y - 10); if (Math.floor(game.t * 2 + d.id) % 5 === 0 && !d.placed) { ctx.fillStyle = '#fff6dc'; ctx.fillRect(x + 4, y - 9, 1, 1); } return; }
       ctx.fillStyle = 'rgba(28,20,44,0.3)'; ctx.fillRect(x - 3, y + 1, 7, 1);
       if (['dagger', 'sword', 'axe', 'spear', 'tools'].includes(d.good)) { ctx.fillStyle = '#5a3d26'; ctx.fillRect(x - 3, y, 3, 1); ctx.fillStyle = c; ctx.fillRect(x, y - 1, d.good === 'sword' ? 6 : 4, 1); ctx.fillRect(x, y, d.good === 'sword' ? 5 : 3, 1); }
       else { ctx.fillStyle = c; ctx.fillRect(x - 2, y - 2, 4, 3); ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fillRect(x - 1, y - 2, 1, 1); }

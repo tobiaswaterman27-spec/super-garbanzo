@@ -543,8 +543,9 @@
       const act = p.activity?.act;
       if (act === 'sit') return 'sit';
       if (act === 'collapsed') return 'lie';
-      if (act === 'fieldwork') return this.season === 'spring' ? 'dig' : 'work';
-      if (act === 'chop' || act === 'build') return 'work';
+      if (act === 'fieldwork') { const a = O.Data.actionFor ? O.Data.actionFor(p.job?.role) : 'work'; return this.season === 'spring' ? 'dig' : a === 'idle' || a === 'carry' ? 'hoe' : a; }
+      if (act === 'chop') return 'chop';
+      if (act === 'build') return 'hammer';
       if (act === 'festival') { const k = (p.id + Math.floor(this.minute / 7)) % 5; return p.age < 13 ? (k % 2 ? 'run' : 'celebrate') : k === 0 ? 'celebrate' : k === 1 ? 'drink' : k === 2 ? 'talk' : 'idle'; }
       if (act === 'cry') return 'point';
       if (act === 'forage') return 'crouch';
@@ -907,7 +908,7 @@
     if (p.task?.act === 'help') { const t = this.byId.get(p.task.target); if (t) return [Math.floor(t.agent.x / this.T), Math.floor((t.agent.y - 1) / this.T)]; }
     return _zone.call(this, p, zone);
   };
-  O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim); O.Aftermath.installSim(Sim); O.Government.installSim(Sim); O.Nobility.installSim(Sim); O.Trades.installSim(Sim); O.Inn.installSim(Sim);
+  O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim); O.Aftermath.installSim(Sim); O.Government.installSim(Sim); O.Nobility.installSim(Sim); O.Trades.installSim(Sim); O.Inn.installSim(Sim); O.Employ.installSim(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
   // everyone keeps their own clock: a few minutes either side, so a street doesn't empty in one minute

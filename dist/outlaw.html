@@ -77,6 +77,13 @@ main { height: 100vh; }
 .ui-ticker { position: absolute; left: 50%; bottom: 18px; transform: translate(-50%, 8px); max-width: min(720px, calc(100% - 32px)); padding: 8px 18px; border-radius: 0; background: rgba(250,242,222,.94); color: #4a3826; font-family: var(--body); font-weight: 700; font-size: 15px; box-shadow: 0 4px 0 rgba(60,40,20,.35); opacity: 0; transition: opacity .35s, transform .35s; pointer-events: none; text-align: center; z-index: 25; }
 .ui-ticker.on { opacity: 1; transform: translate(-50%, 0); }
 .ui-ticker.bad { color: #8a2a1e; }
+.joblist { position: absolute; right: 12px; top: 12px; width: 250px; padding: 8px 10px; background: rgba(250,242,222,.94); color: #4a3826; font-family: var(--body); font-size: 13px; line-height: 1.35; z-index: 24; box-shadow: 0 -2px 0 #3a2a1a, 0 2px 0 #3a2a1a, -2px 0 0 #3a2a1a, 2px 0 0 #3a2a1a, 4px 4px 0 rgba(40,24,12,.35); pointer-events: none; }
+.joblist .jh { font-weight: 700; text-transform: capitalize; }
+.joblist .js { color: #7a5a3a; font-size: 12px; margin-bottom: 4px; }
+.joblist ul { list-style: none; margin: 4px 0 0; padding: 0; }
+.joblist li { margin: 2px 0; }
+.joblist li.done { color: #8a9a6a; text-decoration: line-through; }
+.joblist .carry { margin-top: 4px; color: #8a4a1a; font-weight: 700; }
 /* conversation box */
 .dlg { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); width: min(760px, calc(100% - 32px)); min-height: 118px; padding: 26px 34px 22px; border-radius: 0; background: #fbf3dd; color: #4a3826; font-family: var(--body); font-weight: 700; font-size: 19px; line-height: 1.45; box-shadow: 0 6px 0 rgba(70,48,26,.35), inset 0 0 0 3px #efe1bd; z-index: 30; cursor: pointer; }
 .dlg-name { position: absolute; top: -16px; left: 34px; transform: rotate(-3deg); padding: 4px 18px; border-radius: 0; color: #fff; font-weight: 800; font-size: 16px; box-shadow: 0 3px 0 rgba(0,0,0,.25); text-shadow: 0 1px 0 rgba(0,0,0,.3); }
@@ -3814,6 +3821,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       for (let yy = bld.y; yy <= bld.bottom; yy++) for (let xx = bld.x; xx < bld.x + bld.w; xx++) { const i = yy * W + xx; solid[i] = 1; if (ter[i] === TR.WATER) ter[i] = TR.GRASS; }
       keep(trees, (t) => !(Math.abs(t.x / T - x) < 5 && Math.abs(t.y / T - y) < 5));
     }
+    yield;
+    // 6. the trades that stand out of town, each where it belongs, and the cottages of the people who work them
+    placeOutskirts(id, { W, H, R, ter, solid, trees, props, buildings, kindAt, inTown, roadSet, TR, tw, ox, oy });
     // 5. the camps of the gangs that hold the wild roads
     for (const r of camps) {
       const c = r.camp, x = c.x - R.x0, y = c.y - R.y0;
@@ -3841,6 +3851,91 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     world.estates = (tw.estates || []).map((e) => Object.assign({}, e, { fields: [e.fields[0] + ox, e.fields[1] + oy, e.fields[2] + ox, e.fields[3] + oy] }));
     regions.set(id, world);
     return world;
+  }
+
+  // ---------- the outskirts ----------
+  // Which of the realm's trades a place has round it, by its size and the land about it
+  const TOWN_TRADES = ['posthouse', 'brewery', 'saddler', 'fletcher', 'scriptorium', 'barber', 'laundry', 'carrier', 'wainwright', 'ropewalk', 'glazier', 'agency', 'brickworks', 'dyer', 'moneylender', 'tollhouse'];
+  function outskirtsFor(pl) {
+    const pop = pl.pop || 100, kind = pl.kind;
+    const big = kind === 'capital' || kind === 'city', town = big || kind === 'town' || kind === 'port' || pop >= 300, village = !town && (kind === 'village' || pop >= 60);
+    const list = [];
+    if (town) list.push(...TOWN_TRADES.slice(0, big ? 16 : 11));
+    else if (village) list.push('posthouse', 'brewery', 'carrier');
+    list.push('apiary', 'lodge', 'charcoal', 'claypit', 'saltworks', 'peatcut', 'vineyard', 'boatyard', 'fishery', 'ferry');
+    return list.filter((t) => O.Data.BUSINESS[t]).slice(0, big ? 26 : town ? 21 : village ? 9 : 4);
+  }
+  function placeOutskirts(id, C) {
+    const { W, H, R, ter, solid, trees, props, buildings, kindAt, inTown, TR, tw, ox, oy } = C;
+    const pl = place(id), rng = O.RNG(O.hash('outskirts', id)), D = O.Data;
+    const tx0 = ox, ty0 = oy, tx1 = ox + tw.W, ty1 = oy + tw.H;
+    const distTown = (x, y) => Math.max(tx0 - x, x - tx1, ty0 - y, y - ty1, 0);
+    const isWater = (x, y) => x >= 0 && y >= 0 && x < W && y < H && ter[y * W + x] === TR.WATER;
+    const waterKind = (x, y, r) => { for (let k = 1; k <= r; k++) for (const [dx, dy] of [[k, 0], [-k, 0], [0, k], [0, -k], [k, k], [-k, -k], [k, -k], [-k, k]]) if (isWater(x + dx, y + dy)) return kindAt(R.x0 + x + dx, R.y0 + y + dy); return null; };
+    const forestAround = (x, y) => { let n = 0; for (let j = -3; j <= 3; j++) for (let i = -3; i <= 3; i++) { const xx = x + i, yy = y + j; if (xx >= 0 && yy >= 0 && xx < W && yy < H && ter[yy * W + xx] === TR.FOREST) n++; } return n / 49; };
+    const fits = (x, bottom, w, d) => {
+      for (let yy = bottom - d - 1; yy <= bottom + 2; yy++) for (let xx = x - 2; xx < x + w + 2; xx++) {
+        if (xx < 2 || yy < 2 || xx >= W - 2 || yy >= H - 2 || inTown(xx, yy)) return false;
+        const i = yy * W + xx, t = ter[i]; if (t === TR.WATER || t === TR.ROAD || t === TR.BRIDGE || t === TR.COBBLE) return false;
+        if (buildings.some((b) => xx >= b.x - 1 && xx < b.x + b.w + 1 && yy >= b.y - 1 && yy <= b.bottom + 2)) return false;
+      }
+      return true;
+    };
+    const score = (site, x, y) => {
+      const dt = distTown(x, y); if (dt < 3) return -1;
+      switch (site) {
+        case 'town': return dt <= 16 ? 30 - dt : -1;
+        case 'shore': { const wk = waterKind(x, y, 4); return wk && dt < 45 ? 40 - dt * 0.5 : -1; }
+        case 'coast': { const wk = waterKind(x, y, 4); return wk === 'sea' && dt < 70 ? 50 - dt * 0.4 : -1; }
+        case 'river': { const wk = waterKind(x, y, 5); return (wk === 'river' || wk === 'lake' || wk === 'marsh') && dt < 50 ? 40 - dt * 0.5 : -1; }
+        case 'woods': { const f = forestAround(x, y); return f > 0.35 && dt < 60 ? f * 40 - dt * 0.2 : -1; }
+        case 'hills': { const k = kindAt(R.x0 + x, R.y0 + y); return (k === 'mountain') && dt < 60 ? 30 - dt * 0.3 : -1; }
+        case 'moor': { const k = kindAt(R.x0 + x, R.y0 + y); return (k === 'moor' || k === 'marsh') && dt < 60 ? 30 - dt * 0.3 : -1; }
+        case 'fields': { const k = kindAt(R.x0 + x, R.y0 + y); return (k === 'farm' || k === 'grass') && forestAround(x, y) < 0.2 && dt >= 6 && dt < 35 ? 30 - Math.abs(dt - 14) : -1; }
+        default: return -1;
+      }
+    };
+    const SITE = { fishery: 'shore' };
+    let nid = 8000 + buildings.filter((b) => b.id >= 8000 && b.id < 9000).length;
+    const roadIdx = [...C.roadSet];
+    const lane = (x0, y0) => {
+      // a footpath from the door to the nearest road, unless it would cross water
+      let best = null, bd = 60 * 60; for (const i of roadIdx) { const rx = i % W, ry = (i / W) | 0, d = (rx - x0) ** 2 + (ry - y0) ** 2; if (d < bd) { bd = d; best = [rx, ry]; } }
+      for (let y = Math.max(0, y0 - 40); y < Math.min(H, y0 + 40) && !best; y++) for (let x = Math.max(0, x0 - 40); x < Math.min(W, x0 + 40); x++) if (inTown(x, y) && ter[y * W + x] === TR.ROAD) { const d = (x - x0) ** 2 + (y - y0) ** 2; if (d < bd) { bd = d; best = [x, y]; } }
+      if (!best) return;
+      const n = Math.ceil(Math.sqrt(bd) * 2), path = [];
+      for (let k = 0; k <= n; k++) { const x = Math.round(x0 + (best[0] - x0) * k / n), y = Math.round(y0 + (best[1] - y0) * k / n), i = y * W + x; if (ter[i] === TR.WATER) return; if (!inTown(x, y)) path.push(i); }
+      for (const i of path) { if (ter[i] !== TR.ROAD) ter[i] = TR.YARD; solid[i] = 0; }
+      const ps = new Set(path); keep(trees, (t) => !ps.has(Math.floor((t.y - 1) / T) * W + Math.floor(t.x / T)));
+    };
+    const build = (type, w, d, look, name, x, bottom, extra) => {
+      const spec = Object.assign({ seed: O.hash('ob', id, nid), w, d, floors: (extra && extra.floors) || 1, wealth: 0.45, condition: 0.85, doorTile: Math.floor(w / 2) }, look);
+      const b = Object.assign({ id: nid++, type, name, x, bottom, y: bottom - d + 1, w, d, floors: spec.floors, wealth: 0.45, condition: 0.85, spec, doorX: x + spec.doorTile, doorY: bottom + 1, outskirts: true }, extra || {});
+      buildings.push(b);
+      for (let yy = b.y - 2; yy <= b.bottom + 2; yy++) for (let xx = b.x - 2; xx < b.x + b.w + 2; xx++) { const i = yy * W + xx; const inside = yy >= b.y && yy <= b.bottom && xx >= b.x && xx < b.x + b.w; solid[i] = inside ? 1 : 0; if (ter[i] === TR.FOREST || ter[i] === TR.FIELD) ter[i] = TR.GRASS; }
+      ter[b.doorY * W + b.doorX] = TR.YARD;
+      keep(trees, (t) => !(t.x / T >= b.x - 2 && t.x / T < b.x + b.w + 2 && (t.y - 1) / T >= b.y - 2 && (t.y - 1) / T <= b.bottom + 3));
+      keep(props, (p) => !(p.x / T >= b.x - 2 && p.x / T < b.x + b.w + 2 && (p.y - 1) / T >= b.y - 2 && (p.y - 1) / T <= b.bottom + 3));
+      return b;
+    };
+    const step = 3;
+    for (const type of outskirtsFor(pl)) {
+      const def = D.BUSINESS[type]; if (!def) continue;
+      if (def.south && pl.region !== 'south') continue;
+      if (type === 'fishery' && tw.buildings.some((b) => b.type === 'fishery')) continue;
+      const site = SITE[type] || def.site || 'town', w = def.w || 4, d = def.d || 3;
+      let best = null, bs = 0;
+      for (let y = Math.max(4, ty0 - 70); y < Math.min(H - 4, ty1 + 70); y += step) for (let x = Math.max(4, tx0 - 70); x < Math.min(W - 4, tx1 + 70); x += step) {
+        const sc = score(site, x, y) + rng.next() * 3; if (sc <= bs) continue;
+        if (!fits(x, y, w, d)) continue; bs = sc; best = [x, y];
+      }
+      if (!best) continue;
+      const surname = O.Names ? rng.pick(O.Names.SUR) : 'Ward';
+      const b = build(type, w, d, Object.assign({ wall: 'timber', roof: 'thatch' }, def.look || {}), type === 'posthouse' || type === 'tollhouse' ? `${pl.name} ${def.label}` : `${surname}'s ${def.label}`, best[0], best[1], { floors: def.floors || 1 });
+      lane(b.doorX, b.doorY + 1);
+      // a cottage nearby for the hands
+      for (const [dx, dy] of [[w + 3, 0], [-7, 0], [0, 7], [w + 3, 6], [-7, 6]]) { const cx = best[0] + dx, cy = best[1] + dy; if (fits(cx, cy, 4, 3)) { const hb = build('house', 4, 3, { wall: rng.pick(['timber', 'plank', 'stone']), roof: rng.pick(['thatch', 'shingle']), chimney: true, doorTile: 1 }, 'Cottage', cx, cy); lane(hb.doorX, hb.doorY + 1); break; } }
+    }
   }
 
   // where a global tile falls inside a region, and back
@@ -4269,11 +4364,11 @@ O.snowMaskOf = function (src) {
   const GOODS = {
     wheat: { name: 'Wheat', base: 2, unit: 'bushel', slots: 1 },
     flour: { name: 'Flour', base: 4, unit: 'sack', slots: 1 },
-    bread: { name: 'Bread', base: 2, unit: 'loaf', slots: 1, food: 1 },
+    bread: { name: 'Bread', base: 2, unit: 'loaf', slots: 1, food: 1, place: true },
     cabbage: { name: 'Cabbage', base: 1, unit: 'head', slots: 1, food: 0.6 },
     fish: { name: 'Fish', base: 2, unit: 'fish', slots: 1, food: 0.8 },
-    ale: { name: 'Ale', base: 1, unit: 'jug', slots: 1 },
-    meal: { name: 'Hot meal', base: 4, unit: 'bowl', slots: 1, food: 1.4 },
+    ale: { name: 'Ale', base: 1, unit: 'jug', slots: 1, drink: 0.3, place: true },
+    meal: { name: 'Hot meal', base: 4, unit: 'bowl', slots: 1, food: 1.4, place: true },
     logs: { name: 'Logs', base: 3, unit: 'bundle', slots: 2 },
     firewood: { name: 'Firewood', base: 1, unit: 'bundle', slots: 1 },
     iron: { name: 'Iron bar', base: 8, unit: 'bar', slots: 1 },
@@ -4463,6 +4558,244 @@ O.snowMaskOf = function (src) {
     S.newDay = function () { _nd.call(this); if (this.season === 'winter' || this.season === 'autumn') for (const hh of this.households) if (hh.pantry.candles) hh.pantry.candles = Math.max(0, hh.pantry.candles - 1); };
   }
   O.Trades = { installSim };
+})();
+
+</script>
+<script>
+// Every trade in the realm. Everything in the jobs list exists here: the goods, the places that make
+// them and the people who work there. Each business says what it needs (inputs it buys, and from whom),
+// what it makes, its hours, its wages, the equipment a building must have inside to be that business,
+// and where such a place tends to stand (fishers by the water, charcoal burners in the woods...).
+// Nothing here is beyond the middle ages: wood, stone, iron, wool, leather, clay, wax and muscle.
+'use strict';
+(function () {
+  const D = O.Data, G = D.GOODS;
+
+  // ---------------- goods ----------------
+  // food: how filling (1 = a meal's worth); drink: refreshes; place: can be set down in the world
+  Object.assign(G, {
+    // the larder
+    barley: { name: 'Barley', base: 2, unit: 'bushel', slots: 1 },
+    oats: { name: 'Oats', base: 2, unit: 'bushel', slots: 1 },
+    hay: { name: 'Hay', base: 1, unit: 'bale', slots: 2 },
+    malt: { name: 'Malt', base: 3, unit: 'sack', slots: 1 },
+    milk: { name: 'Milk', base: 1, unit: 'jug', slots: 1, drink: 0.4, food: 0.3, place: true },
+    butter: { name: 'Butter', base: 3, unit: 'pat', slots: 1, food: 0.4, place: true },
+    cheese: { name: 'Cheese', base: 4, unit: 'wheel', slots: 1, food: 0.8, place: true },
+    eggs: { name: 'Eggs', base: 1, unit: 'half-dozen', slots: 1, food: 0.5, place: true },
+    honey: { name: 'Honey', base: 5, unit: 'pot', slots: 1, food: 0.3, place: true },
+    apples: { name: 'Apples', base: 1, unit: 'basket', slots: 1, food: 0.4, place: true },
+    pie: { name: 'Meat pie', base: 3, unit: 'pie', slots: 1, food: 1.2, place: true },
+    cake: { name: 'Honey cake', base: 3, unit: 'cake', slots: 1, food: 0.7, place: true },
+    sausage: { name: 'Sausages', base: 3, unit: 'string', slots: 1, food: 1, place: true },
+    stew: { name: 'Pottage', base: 2, unit: 'bowl', slots: 1, food: 1.1, place: true },
+    wine: { name: 'Wine', base: 6, unit: 'flask', slots: 1, drink: 0.5, place: true },
+    venison: { name: 'Venison', base: 7, unit: 'haunch', slots: 2, food: 1.5 },
+    salt: { name: 'Salt', base: 2, unit: 'bag', slots: 1 },
+    grapes: { name: 'Grapes', base: 2, unit: 'basket', slots: 1, food: 0.3 },
+    // raw stuff
+    beeswax: { name: 'Beeswax', base: 4, unit: 'cake', slots: 1 },
+    charcoal: { name: 'Charcoal', base: 2, unit: 'sack', slots: 1 },
+    coal: { name: 'Sea coal', base: 2, unit: 'sack', slots: 1 },
+    silver: { name: 'Silver', base: 30, unit: 'ingot', slots: 1, valuable: true },
+    gold: { name: 'Gold', base: 80, unit: 'nugget', slots: 1, valuable: true },
+    clay: { name: 'Clay', base: 1, unit: 'lump', slots: 1 },
+    bricks: { name: 'Bricks', base: 3, unit: 'hod', slots: 2 },
+    peat: { name: 'Peat', base: 1, unit: 'turf', slots: 1 },
+    flax: { name: 'Flax', base: 2, unit: 'sheaf', slots: 1 },
+    linen: { name: 'Linen', base: 9, unit: 'bolt', slots: 2 },
+    hemp: { name: 'Hemp', base: 2, unit: 'sheaf', slots: 1 },
+    rope: { name: 'Rope', base: 4, unit: 'coil', slots: 1 },
+    nets: { name: 'Fishing net', base: 8, unit: 'net', slots: 2 },
+    woad: { name: 'Woad', base: 2, unit: 'bundle', slots: 1 },
+    madder: { name: 'Madder root', base: 2, unit: 'bundle', slots: 1 },
+    dyedcloth: { name: 'Dyed cloth', base: 16, unit: 'bolt', slots: 2 },
+    sand: { name: 'Sand', base: 1, unit: 'sack', slots: 1 },
+    potash: { name: 'Potash', base: 2, unit: 'pot', slots: 1 },
+    glass: { name: 'Glass pane', base: 14, unit: 'pane', slots: 1 },
+    pitch: { name: 'Pitch', base: 3, unit: 'pot', slots: 1 },
+    bark: { name: 'Oak bark', base: 1, unit: 'bundle', slots: 1 },
+    feathers: { name: 'Goose feathers', base: 1, unit: 'bundle', slots: 1 },
+    parchment: { name: 'Parchment', base: 4, unit: 'sheet', slots: 1 },
+    ink: { name: 'Ink', base: 3, unit: 'pot', slots: 1 },
+    letter: { name: 'Letter', base: 2, unit: 'letter', slots: 1 },
+    soap: { name: 'Soap', base: 2, unit: 'cake', slots: 1 },
+    // made things
+    nails: { name: 'Nails', base: 2, unit: 'bag', slots: 1 },
+    horseshoes: { name: 'Horseshoes', base: 4, unit: 'set', slots: 1 },
+    mail: { name: 'Mail shirt', base: 90, unit: 'shirt', slots: 3 },
+    arrows: { name: 'Arrows', base: 4, unit: 'sheaf', slots: 1 },
+    bow: { name: 'Longbow', base: 20, unit: 'bow', slots: 2, weapon: true },
+    saddle: { name: 'Saddle', base: 30, unit: 'saddle', slots: 3 },
+    harness: { name: 'Harness', base: 14, unit: 'set', slots: 2 },
+    wheel: { name: 'Cart wheel', base: 10, unit: 'wheel', slots: 3 },
+    cart: { name: 'Handcart', base: 40, unit: 'cart', slots: 4 },
+    boat: { name: 'Rowing boat', base: 120, unit: 'boat', slots: 4 },
+    cup: { name: 'Clay cup', base: 1, unit: 'cup', slots: 1, place: true },
+    jug: { name: 'Jug', base: 2, unit: 'jug', slots: 1, place: true },
+    broom: { name: 'Broom', base: 2, unit: 'broom', slots: 1 },
+    bucket: { name: 'Bucket', base: 3, unit: 'bucket', slots: 1, place: true },
+    shears: { name: 'Shears', base: 6, unit: 'pair', slots: 1 },
+    sickle: { name: 'Sickle', base: 5, unit: 'sickle', slots: 1 },
+    spade: { name: 'Spade', base: 6, unit: 'spade', slots: 1 },
+    hammer: { name: 'Hammer', base: 5, unit: 'hammer', slots: 1 },
+    rod: { name: 'Fishing rod', base: 3, unit: 'rod', slots: 1 },
+    tent: { name: 'Canvas tent', base: 30, unit: 'tent', slots: 4 },
+    lantern: { name: 'Horn lantern', base: 6, unit: 'lantern', slots: 1, place: true },
+  });
+  // furniture and fittings: bought from the trades that make them, set down inside a building
+  const FURN = {
+    counter: ['Shop counter', 18, 'carpenter'], shelf: ['Shelves', 12, 'carpenter'], table: ['Table', 12, 'carpenter'], chair: ['Chair', 5, 'carpenter'],
+    bench: ['Bench', 6, 'carpenter'], bed: ['Bed', 20, 'carpenter'], double: ['Double bed', 34, 'carpenter'], chest: ['Chest', 10, 'carpenter'],
+    wardrobe: ['Wardrobe', 24, 'carpenter'], cupboard: ['Cupboard', 14, 'carpenter'], dresser: ['Dresser', 22, 'carpenter'], bookcase: ['Bookcase', 20, 'carpenter'],
+    desk: ['Writing desk', 18, 'carpenter'], workbench: ['Workbench', 14, 'carpenter'], doughtable: ['Kneading trough', 12, 'carpenter'], butcherblock: ['Butcher\'s block', 10, 'carpenter'],
+    loom: ['Loom', 30, 'carpenter'], spinning: ['Spinning wheel', 14, 'carpenter'], rack: ['Tool rack', 8, 'carpenter'], bar: ['Bar counter', 30, 'carpenter'],
+    longtable: ['Long table', 22, 'carpenter'], stool: ['Stool', 3, 'carpenter'], cradle: ['Cradle', 8, 'carpenter'],
+    barrel: ['Barrel', 6, 'cooper'], washtub: ['Washtub', 5, 'cooper'], vat: ['Brewing vat', 26, 'cooper'],
+    anvil: ['Anvil', 40, 'smithy'], cauldron: ['Cauldron', 16, 'smithy'], candlestand: ['Candlestand', 6, 'smithy'],
+    oven: ['Bread oven', 45, 'builder'], forge: ['Forge', 50, 'builder'], kiln: ['Kiln', 40, 'builder'], fireplace: ['Hearth', 30, 'builder'], millstone: ['Millstones', 60, 'builder'],
+    rug: ['Rug', 9, 'weaver'], crate: ['Crate', 3, 'carpenter'], sack: ['Sack', 1, 'weaver'], woodpile: ['Woodpile', 2, 'woodcutter'], plant: ['Potted plant', 3, 'potter'],
+    ballotbox: ['Ballot box', 8, 'carpenter'],
+  };
+  for (const [k, [name, base, maker]] of Object.entries(FURN)) G['fx_' + k] = { name, base, unit: 'piece', slots: 3, furniture: k, maker };
+  D.FURN = FURN;
+
+  // ---------------- where things stand ----------------
+  // site: 'town' (in or by the town), 'shore' (water's edge), 'coast' (the sea), 'river', 'woods', 'hills', 'moor', 'fields'
+  const B = (o) => Object.assign({ hours: [7, 17], recipes: [], sells: [], buys: {}, targets: {}, wage: {} }, o);
+  Object.assign(D.BUSINESS, {
+    brewery: B({ label: 'Brewhouse', jobs: [['brewer', 1], ['maltster', 1]], hours: [6, 18], site: 'town', w: 5, d: 4, look: { wall: 'timber', roof: 'thatch', chimney: true, sign: 'mug' },
+      recipes: [{ out: { malt: 1.2 }, inp: { barley: 1.2 }, role: 'maltster' }, { out: { ale: 6 }, inp: { malt: 1, firewood: 0.3 }, role: 'brewer' }],
+      sells: ['ale', 'malt'], buys: { barley: 'farmhouse|import', firewood: 'woodcutter|store|import', cask: 'cooper|import' }, targets: { barley: 20, malt: 12, ale: 60, firewood: 8, cask: 3 }, wage: { brewer: 0, maltster: 5 }, equip: ['vat', 'barrel', 'counter'] }),
+    vineyard: B({ label: 'Vineyard', jobs: [['vintner', 1], ['vine-dresser', 2]], hours: [6, 18], site: 'fields', south: true, w: 5, d: 4, look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'tile' },
+      recipes: [{ out: { grapes: 2 }, inp: {}, role: 'vine-dresser' }, { out: { wine: 1.2 }, inp: { grapes: 2 }, role: 'vintner' }],
+      sells: ['wine', 'grapes'], buys: { cask: 'cooper|import' }, targets: { grapes: 20, wine: 30, cask: 3 }, wage: { vintner: 0, 'vine-dresser': 5 }, equip: ['vat', 'barrel'] }),
+    apiary: B({ label: 'Bee garden', jobs: [['beekeeper', 1]], hours: [8, 16], site: 'fields', w: 3, d: 3, look: { wall: 'timber', roof: 'thatch' },
+      recipes: [{ out: { honey: 0.6, beeswax: 0.3 }, inp: {} }], sells: ['honey', 'beeswax'], targets: { honey: 20, beeswax: 10 }, wage: { beekeeper: 0 }, equip: ['shelf', 'barrel'] }),
+    lodge: B({ label: "Forester's lodge", jobs: [['forester', 1], ['gamekeeper', 1]], hours: [6, 19], site: 'woods', w: 4, d: 3, look: { wall: 'log', roof: 'thatch', chimney: true },
+      recipes: [{ out: { venison: 0.15, feathers: 0.3, bark: 0.6 }, inp: {}, role: 'gamekeeper' }, { out: { logs: 0.4 }, inp: {}, role: 'forester' }],
+      sells: ['venison', 'feathers', 'bark'], targets: { venison: 6, feathers: 10, bark: 12 }, wage: { forester: 5, gamekeeper: 6 }, equip: ['rack', 'workbench'] }),
+    charcoal: B({ label: "Charcoal burners' camp", jobs: [['charcoal burner', 2]], hours: [5, 20], site: 'woods', w: 3, d: 3, look: { wall: 'log', roof: 'thatch' },
+      recipes: [{ out: { charcoal: 2, potash: 0.3, pitch: 0.2 }, inp: { logs: 1 } }], sells: ['charcoal', 'potash', 'pitch'], buys: { logs: 'woodcutter|lodge|import' }, targets: { logs: 12, charcoal: 30, potash: 8, pitch: 6 }, wage: { 'charcoal burner': 5 }, equip: ['woodpile', 'kiln'] }),
+    claypit: B({ label: 'Clay pit', jobs: [['clay digger', 2]], hours: [7, 17], site: 'river', w: 3, d: 3, look: { wall: 'plank', roof: 'shingle' },
+      recipes: [{ out: { clay: 3 }, inp: {} }], sells: ['clay'], targets: { clay: 40 }, wage: { 'clay digger': 5 }, equip: ['rack'] }),
+    brickworks: B({ label: 'Brickworks', jobs: [['brickmaker', 2]], hours: [7, 17], site: 'town', w: 5, d: 3, look: { wall: 'stone', roof: 'tile', chimney: true },
+      recipes: [{ out: { bricks: 1.4 }, inp: { clay: 2, firewood: 0.4 } }], sells: ['bricks'], buys: { clay: 'claypit|import', firewood: 'woodcutter|import' }, targets: { clay: 20, firewood: 10, bricks: 30 }, wage: { brickmaker: 5 }, equip: ['kiln', 'workbench'] }),
+    saltworks: B({ label: 'Salt pans', jobs: [['salt boiler', 2]], hours: [6, 18], site: 'coast', w: 4, d: 3, look: { wall: 'plank', roof: 'shingle' },
+      recipes: [{ out: { salt: 1.5, sand: 1 }, inp: { firewood: 0.3 } }], sells: ['salt', 'sand'], buys: { firewood: 'woodcutter|import' }, targets: { firewood: 10, salt: 30, sand: 20 }, wage: { 'salt boiler': 5 }, equip: ['cauldron', 'barrel'] }),
+    peatcut: B({ label: 'Peat cutting', jobs: [['peat cutter', 2]], hours: [7, 17], site: 'moor', w: 3, d: 2, look: { wall: 'log', roof: 'thatch' },
+      recipes: [{ out: { peat: 3 }, inp: {} }], sells: ['peat'], targets: { peat: 40 }, wage: { 'peat cutter': 4 }, equip: ['rack'] }),
+    dyer: B({ label: 'Dyehouse', jobs: [['dyer', 1], ['apprentice', 1]], site: 'river', w: 4, d: 3, look: { wall: 'timber', roof: 'shingle' },
+      recipes: [{ out: { dyedcloth: 0.3 }, inp: { cloth: 0.3, woad: 0.3 } }], sells: ['dyedcloth'], buys: { cloth: 'weaver|import', woad: 'farmhouse|import' }, targets: { cloth: 8, woad: 8, dyedcloth: 8 }, wage: { dyer: 0, apprentice: 4 }, equip: ['vat', 'rack'] }),
+    saddler: B({ label: 'Saddler', jobs: [['saddler', 1]], site: 'town', w: 4, d: 3, look: { wall: 'timber', roof: 'thatch', shopWindow: true },
+      recipes: [{ out: { saddle: 0.04, harness: 0.1 }, inp: { leather: 0.4 } }], sells: ['saddle', 'harness'], buys: { leather: 'tanner|import' }, targets: { leather: 8, saddle: 2, harness: 4 }, wage: { saddler: 0 }, equip: ['workbench', 'rack', 'counter'] }),
+    glazier: B({ label: 'Glazier', jobs: [['glazier', 1]], site: 'town', w: 4, d: 3, look: { wall: 'stone', roof: 'slate', chimney: true, shopWindow: true },
+      recipes: [{ out: { glass: 0.1 }, inp: { sand: 0.4, potash: 0.2, firewood: 0.3 } }], sells: ['glass'], buys: { sand: 'saltworks|quarry|import', potash: 'charcoal|import', firewood: 'woodcutter|import' }, targets: { sand: 8, potash: 4, firewood: 6, glass: 4 }, wage: { glazier: 0 }, equip: ['kiln', 'workbench', 'counter'] }),
+    ropewalk: B({ label: 'Ropewalk', jobs: [['rope-maker', 2]], site: 'town', w: 6, d: 2, look: { wall: 'plank', roof: 'shingle', roofType: 'side' },
+      recipes: [{ out: { rope: 0.6, nets: 0.1 }, inp: { hemp: 0.6 } }], sells: ['rope', 'nets'], buys: { hemp: 'farmhouse|import' }, targets: { hemp: 10, rope: 12, nets: 4 }, wage: { 'rope-maker': 5 }, equip: ['spinning', 'rack'] }),
+    wainwright: B({ label: 'Wainwright', jobs: [['wainwright', 1], ['apprentice', 1]], site: 'town', w: 5, d: 4, look: { wall: 'plank', roof: 'shingle', bigDoor: true },
+      recipes: [{ out: { wheel: 0.12, cart: 0.03 }, inp: { planks: 0.4, iron: 0.05 } }], sells: ['wheel', 'cart'], buys: { planks: 'sawmill|builder|import', iron: 'mine|import' }, targets: { planks: 10, iron: 3, wheel: 4, cart: 2 }, wage: { wainwright: 0, apprentice: 4 }, equip: ['workbench', 'anvil'] }),
+    boatyard: B({ label: 'Boatyard', jobs: [['boatwright', 1], ['labourer', 1]], site: 'shore', w: 6, d: 3, look: { wall: 'plank', roof: 'shingle', bigDoor: true },
+      recipes: [{ out: { boat: 0.01, nets: 0.05 }, inp: { planks: 0.6, rope: 0.1, pitch: 0.1 }, role: 'boatwright' }], sells: ['boat'], buys: { planks: 'sawmill|import', rope: 'ropewalk|import', pitch: 'charcoal|import' }, targets: { planks: 12, rope: 4, pitch: 3, boat: 1 }, wage: { boatwright: 0, labourer: 6 }, equip: ['workbench', 'rack'] }),
+    fletcher: B({ label: 'Fletcher & bowyer', jobs: [['fletcher', 1], ['bowyer', 1]], site: 'town', w: 4, d: 3, look: { wall: 'timber', roof: 'thatch', shopWindow: true, sign: 'sword' },
+      recipes: [{ out: { arrows: 0.5 }, inp: { feathers: 0.2, logs: 0.05 }, role: 'fletcher' }, { out: { bow: 0.05 }, inp: { logs: 0.1 }, role: 'bowyer' }], sells: ['arrows', 'bow'], buys: { feathers: 'lodge|farmhouse|import', logs: 'woodcutter|import' }, targets: { feathers: 8, logs: 4, arrows: 12, bow: 3 }, wage: { fletcher: 0, bowyer: 6 }, equip: ['workbench', 'rack', 'counter'] }),
+    scriptorium: B({ label: 'Scrivener', jobs: [['scribe', 1]], site: 'town', w: 4, d: 3, look: { wall: 'stone', roof: 'slate', shopWindow: true },
+      recipes: [{ out: { letter: 1.5, ink: 0.2 }, inp: { parchment: 0.5 } }], sells: ['letter', 'ink', 'parchment'], buys: { parchment: 'tanner|import' }, targets: { parchment: 10, letter: 12, ink: 4 }, wage: { scribe: 0 }, equip: ['desk', 'bookcase', 'counter'] }),
+    posthouse: B({ label: 'Post house', jobs: [['postmaster', 1], ['messenger', 2], ['mounted courier', 1]], hours: [7, 19], site: 'town', w: 5, d: 4, look: { wall: 'stone', roof: 'slate', sign: 'scales' },
+      recipes: [], sells: ['letter', 'parchment'], buys: { letter: 'scriptorium|import' }, targets: { letter: 20, parchment: 6 }, wage: { postmaster: 0, messenger: 4, 'mounted courier': 8 }, equip: ['counter', 'desk', 'shelf'] }),
+    barber: B({ label: 'Barber-surgeon', jobs: [['barber-surgeon', 1]], site: 'town', w: 4, d: 3, look: { wall: 'timber', roof: 'thatch', shopWindow: true, sign: 'herb' },
+      recipes: [{ out: { medicine: 0.1, soap: 0.3 }, inp: { herbs: 0.1 } }], sells: ['medicine', 'soap'], buys: { herbs: 'doctor|apothecary|import' }, targets: { herbs: 4, medicine: 4, soap: 8 }, wage: { 'barber-surgeon': 0 }, equip: ['chair', 'washtub', 'shelf'] }),
+    moneylender: B({ label: 'Moneylender', jobs: [['moneylender', 1], ['clerk', 1]], hours: [9, 17], site: 'town', w: 4, d: 4, floors: 2, look: { wall: 'stone', roof: 'slate', shopWindow: true, sign: 'scales' },
+      recipes: [], sells: [], targets: {}, wage: { moneylender: 0, clerk: 7 }, equip: ['desk', 'chest', 'counter'], security: 0.8 }),
+    laundry: B({ label: 'Laundry', jobs: [['laundress', 2]], hours: [6, 16], site: 'river', w: 4, d: 3, look: { wall: 'timber', roof: 'thatch' },
+      recipes: [{ out: { soap: 0.2 }, inp: { tallow: 0.05, potash: 0.05 } }], sells: ['soap'], buys: { tallow: 'butcher|import', potash: 'charcoal|import' }, targets: { soap: 6, tallow: 2, potash: 2 }, wage: { laundress: 4 }, equip: ['washtub', 'washtub', 'rack'] }),
+    carrier: B({ label: "Carrier's yard", jobs: [['carter', 2]], hours: [6, 19], site: 'town', w: 5, d: 3, look: { wall: 'plank', roof: 'shingle', bigDoor: true },
+      recipes: [], sells: [], buys: { hay: 'farmhouse|import' }, targets: { hay: 10 }, wage: { carter: 5 }, equip: ['rack', 'barrel'] }),
+    agency: B({ label: 'House agent', jobs: [['house agent', 1]], hours: [9, 17], site: 'town', w: 3, d: 3, look: { wall: 'timber', roof: 'tile', shopWindow: true, sign: 'scales' },
+      recipes: [], sells: [], targets: {}, wage: { 'house agent': 0 }, equip: ['desk', 'counter'] }),
+    ferry: B({ label: 'Ferry', jobs: [['ferryman', 1]], hours: [6, 20], site: 'river', w: 3, d: 2, look: { wall: 'plank', roof: 'thatch' },
+      recipes: [], sells: [], targets: {}, wage: { ferryman: 4 }, equip: ['rack'] }),
+    tollhouse: B({ label: 'Toll house', jobs: [['toll keeper', 1]], hours: [6, 21], site: 'town', w: 3, d: 3, look: { wall: 'stone', roof: 'slate' },
+      recipes: [], sells: [], targets: {}, wage: { 'toll keeper': 4 }, public: true, equip: ['desk'] }),
+    posting: null,
+  });
+  delete D.BUSINESS.posting;
+
+  // ---------------- what each old trade must have inside to be that trade ----------------
+  const EQ = { bakery: ['oven', 'shelf', 'counter'], smithy: ['forge', 'anvil'], armourer: ['forge', 'anvil', 'rack'], tavern: ['bar', 'table', 'barrel'], store: ['shelf', 'counter'], butcher: ['butcherblock', 'counter'],
+    carpenter: ['workbench'], tailor: ['workbench', 'counter'], weaver: ['loom'], cobbler: ['workbench', 'counter'], chandler: ['cauldron'], cooper: ['workbench'], tanner: ['workbench'], potter: ['workbench', 'counter'],
+    mill: ['millstone'], apothecary: ['shelf', 'cauldron'], doctor: ['desk', 'medbed'], jeweller: ['workbench'], sawmill: ['workbench'], builder: ['workbench', 'rack'] };
+  for (const [t, eq] of Object.entries(EQ)) if (D.BUSINESS[t] && !D.BUSINESS[t].equip) D.BUSINESS[t].equip = eq;
+
+  // ---------------- new hands in the old trades ----------------
+  const addJob = (type, role, n, wage) => { const d = D.BUSINESS[type]; if (!d || d.jobs.some(([r]) => r === role)) return; d.jobs.push([role, n]); d.wage[role] = wage; };
+  // farms: barley and oats for the brewers and horses, flax, hemp and woad, a dairy and hens
+  const fm = D.BUSINESS.farmhouse;
+  if (fm && !fm.jobs.some(([r]) => r === 'dairymaid')) {
+    addJob('farmhouse', 'dairymaid', 1, 4);
+    fm.recipes.push({ out: { milk: 2, butter: 0.4, cheese: 0.25, eggs: 1 }, inp: {}, role: 'dairymaid' }, { out: { barley: 1.5, oats: 1, hay: 1.5, flax: 0.3, hemp: 0.3, woad: 0.2, apples: 0.4 }, inp: {}, role: 'farmhand' });
+    fm.sells = [...new Set([...fm.sells, 'milk', 'butter', 'cheese', 'eggs', 'barley', 'oats', 'hay', 'flax', 'hemp', 'woad', 'apples'])];
+    Object.assign(fm.targets, { milk: 10, butter: 6, cheese: 6, eggs: 10, barley: 30, oats: 20, hay: 20, flax: 8, hemp: 8, woad: 6, apples: 10 });
+  }
+  // the inn: a chambermaid, pies, pottage and wine besides ale; the bakery bakes pies and cakes
+  addJob('tavern', 'chambermaid', 1, 3);
+  const tv = D.BUSINESS.tavern; if (tv && !tv.sells.includes('stew')) { tv.recipes.push({ out: { stew: 3, pie: 1 }, inp: { cabbage: 0.5, meat: 0.3, salt: 0.05, firewood: 0.2 }, role: 'cook' }); tv.sells.push('stew', 'pie', 'wine'); tv.buys.wine = 'vineyard|import'; tv.buys.meat = 'butcher|import'; tv.buys.salt = 'saltworks|import'; tv.buys.ale = 'brewery|import'; Object.assign(tv.targets, { stew: 10, pie: 6, wine: 6, meat: 4, salt: 3 }); }
+  const bk = D.BUSINESS.bakery; if (bk && !bk.sells.includes('pie')) { bk.recipes.push({ out: { pie: 1, cake: 1 }, inp: { flour: 0.5, meat: 0.2, honey: 0.1, firewood: 0.2 } }); bk.sells.push('pie', 'cake'); bk.buys.meat = 'butcher|import'; bk.buys.honey = 'apiary|import'; Object.assign(bk.targets, { pie: 12, cake: 8, meat: 3, honey: 2 }); }
+  const bu = D.BUSINESS.butcher; if (bu && !bu.sells.includes('sausage')) { bu.recipes.push({ out: { sausage: 1 }, inp: { salt: 0.05 } }); bu.sells.push('sausage'); bu.buys = Object.assign(bu.buys || {}, { salt: 'saltworks|import' }); bu.targets.sausage = 10; bu.targets.salt = 2; }
+  // the smith shoes horses and makes nails; the armourer makes mail; the tanner sells parchment
+  const sm = D.BUSINESS.smithy; if (sm && !sm.sells.includes('nails')) { sm.recipes.push({ out: { nails: 0.8, horseshoes: 0.2, hammer: 0.05, sickle: 0.04, shears: 0.03, spade: 0.04 }, inp: { iron: 0.3, charcoal: 0.2 } }); sm.sells.push('nails', 'horseshoes', 'hammer', 'sickle', 'shears', 'spade', 'fx_anvil', 'fx_cauldron', 'fx_candlestand'); sm.buys.charcoal = 'charcoal|import'; Object.assign(sm.targets, { nails: 10, horseshoes: 4, hammer: 2, sickle: 2, shears: 2, spade: 2, charcoal: 6, fx_anvil: 1, fx_cauldron: 2, fx_candlestand: 2 }); }
+  const ar = D.BUSINESS.armourer; if (ar && !ar.sells.includes('mail')) { ar.recipes.push({ out: { mail: 0.015 }, inp: { iron: 0.3 } }); ar.sells.push('mail'); ar.targets.mail = 1; }
+  const tn = D.BUSINESS.tanner; if (tn && !tn.sells.includes('parchment')) { tn.recipes.push({ out: { parchment: 0.4 }, inp: { hide: 0.15, bark: 0.1 } }); tn.sells.push('parchment'); tn.buys.bark = 'lodge|import'; tn.targets.parchment = 10; tn.targets.bark = 6; }
+  const ch = D.BUSINESS.chandler; if (ch && !ch.sells.includes('lantern')) { ch.recipes.push({ out: { candles: 2, lantern: 0.05 }, inp: { beeswax: 0.3 } }); ch.sells.push('lantern'); ch.buys.beeswax = 'apiary|import'; ch.targets.beeswax = 4; ch.targets.lantern = 2; }
+  const pt = D.BUSINESS.potter; if (pt && !pt.sells.includes('cup')) { pt.recipes.push({ out: { cup: 1, jug: 0.4, fx_plant: 0.05 }, inp: { clay: 0.6 } }); pt.sells.push('cup', 'jug', 'fx_plant'); pt.buys.clay = 'claypit|import'; Object.assign(pt.targets, { clay: 10, cup: 12, jug: 6, fx_plant: 2 }); }
+  const cp = D.BUSINESS.carpenter; if (cp) { const kinds = Object.entries(FURN).filter(([, v]) => v[2] === 'carpenter').map(([k]) => 'fx_' + k); cp.recipes.push({ out: Object.fromEntries(kinds.map((k) => [k, 0.02])), inp: { planks: 0.4, nails: 0.05 }, role: 'carpenter' }); cp.sells = [...new Set([...cp.sells, ...kinds, 'broom', 'bucket'])]; cp.buys.nails = 'smithy|import'; for (const k of kinds) cp.targets[k] = 1; cp.targets.broom = 2; cp.targets.bucket = 2; cp.recipes.push({ out: { broom: 0.2, bucket: 0.1 }, inp: { planks: 0.1 } }); }
+  const co = D.BUSINESS.cooper; if (co) { co.recipes.push({ out: { fx_barrel: 0.04, fx_washtub: 0.03, fx_vat: 0.01 }, inp: { planks: 0.3 } }); co.sells = [...new Set([...co.sells, 'fx_barrel', 'fx_washtub', 'fx_vat'])]; Object.assign(co.targets, { fx_barrel: 2, fx_washtub: 1, fx_vat: 1 }); }
+  const bd = D.BUSINESS.builder; if (bd) { bd.recipes.push({ out: { fx_oven: 0.01, fx_forge: 0.01, fx_kiln: 0.01, fx_fireplace: 0.015, fx_millstone: 0.005 }, inp: { stone: 0.4, bricks: 0.2 }, role: 'master builder' }); bd.sells = [...new Set([...bd.sells, 'fx_oven', 'fx_forge', 'fx_kiln', 'fx_fireplace', 'fx_millstone', 'bricks'])]; bd.buys.bricks = 'brickworks|import'; Object.assign(bd.targets, { fx_oven: 1, fx_forge: 1, fx_kiln: 1, fx_fireplace: 1, fx_millstone: 1, bricks: 10 }); addJob('builder', 'thatcher', 1, 6); addJob('builder', 'plasterer', 1, 6); addJob('builder', 'roofer', 1, 6); }
+  const wv = D.BUSINESS.weaver; if (wv) { wv.recipes.push({ out: { linen: 0.2, fx_rug: 0.02, fx_sack: 0.1 }, inp: { flax: 0.3 } }); wv.sells = [...new Set([...wv.sells, 'linen', 'fx_rug', 'fx_sack'])]; wv.buys.flax = 'farmhouse|import'; Object.assign(wv.targets, { linen: 4, fx_rug: 1, fx_sack: 4, flax: 6 }); }
+  const st = D.BUSINESS.store; if (st) { st.sells = [...new Set([...st.sells, 'salt', 'candles', 'soap', 'eggs', 'cheese', 'apples', 'broom', 'bucket', 'cup', 'rope'])]; Object.assign(st.buys, { salt: 'saltworks|import', candles: 'chandler|import', soap: 'laundry|barber|import', eggs: 'farmhouse|import', cheese: 'farmhouse|import', apples: 'farmhouse|import', broom: 'carpenter|import', bucket: 'carpenter|import', cup: 'potter|import', rope: 'ropewalk|import' }); Object.assign(st.targets, { salt: 6, candles: 12, soap: 6, eggs: 6, cheese: 4, apples: 6, broom: 2, bucket: 2, cup: 6, rope: 2 }); }
+  const fi = D.BUSINESS.fishery; if (fi) { fi.buys = Object.assign(fi.buys || {}, { nets: 'ropewalk|boatyard|import', salt: 'saltworks|import' }); Object.assign(fi.targets, { nets: 2, salt: 2 }); }
+  const ml = D.BUSINESS.mine; if (ml && !ml.sells.includes('coal')) { ml.recipes.push({ out: { coal: 1, silver: 0.03, gold: 0.005 }, inp: {} }); ml.sells.push('coal', 'silver'); Object.assign(ml.targets, { coal: 20, silver: 2, gold: 1 }); }
+  const qu = D.BUSINESS.quarry; if (qu && !qu.sells.includes('sand')) { qu.recipes.push({ out: { sand: 1 }, inp: {} }); qu.sells.push('sand'); qu.targets.sand = 20; }
+  const jw = D.BUSINESS.jeweller; if (jw) { jw.buys = Object.assign(jw.buys || {}, { silver: 'mine|import', gold: 'mine|import' }); Object.assign(jw.targets, { silver: 2, gold: 1 }); }
+  const sb = D.BUSINESS.stable; if (sb) { sb.buys = Object.assign(sb.buys || {}, { hay: 'farmhouse|import', oats: 'farmhouse|import', horseshoes: 'smithy|import', saddle: 'saddler|import', harness: 'saddler|import' }); Object.assign(sb.targets, { hay: 10, oats: 8, horseshoes: 2, saddle: 1, harness: 1 }); sb.sells = [...new Set([...sb.sells, 'saddle', 'harness'])]; }
+  // public servants and household offices
+  addJob('guard', 'gaoler', 1, 5); addJob('guard', 'sergeant', 1, 8); addJob('guard', 'bounty hunter', 1, 2);
+  addJob('chapel', 'gravedigger', 1, 3); addJob('chapel', 'bell-ringer', 1, 2); addJob('chapel', 'pilgrim guide', 1, 3);
+  addJob('townhall', 'bailiff', 1, 6); addJob('townhall', 'market warden', 1, 5); addJob('townhall', 'town crier', 1, 3); addJob('townhall', 'rat-catcher', 1, 3); addJob('townhall', 'lamplighter', 1, 3); addJob('townhall', 'chimney sweep', 1, 3); addJob('townhall', 'water carrier', 1, 3); addJob('townhall', 'ballot clerk', 1, 3);
+  addJob('doctor', 'midwife', 1, 6); addJob('hospital', 'midwife', 1, 6); addJob('hospital', 'barber-surgeon', 1, 8);
+  addJob('palace', 'herald', 1, 8); addJob('palace', 'master of horse', 1, 10); addJob('palace', 'royal guard', 4, 8); addJob('palace', 'captain of the royal guard', 1, 12); addJob('palace', 'jester', 1, 6); addJob('palace', 'falconer', 1, 7); addJob('palace', 'executioner', 1, 6); addJob('palace', 'spy', 1, 10); addJob('palace', 'stablehand', 2, 5);
+  addJob('keep', 'squire', 1, 3); addJob('keep', 'gamekeeper', 1, 6); addJob('keep', 'falconer', 1, 7); addJob('keep', 'stablehand', 1, 5); addJob('keep', 'knight', 1, 15);
+  addJob('manor', 'stablehand', 1, 5); addJob('manor', 'gamekeeper', 1, 6); addJob('manor', 'farmer', 1, 6);
+
+  // ---------------- what each trade wears and does ----------------
+  Object.assign(D.ROLE_OUTFIT, {
+    brewer: 'innkeeper', maltster: 'farmhand', vintner: 'merchant', 'vine-dresser': 'farmhand', beekeeper: 'farmhand', forester: 'woodcutter', gamekeeper: 'woodcutter',
+    'charcoal burner': 'woodcutter', 'clay digger': 'farmhand', brickmaker: 'builder', 'salt boiler': 'fisher', 'peat cutter': 'farmhand', dyer: 'villager', saddler: 'villager',
+    glazier: 'blacksmith', 'rope-maker': 'villager', wainwright: 'woodcutter', boatwright: 'fisher', fletcher: 'villager', bowyer: 'woodcutter', scribe: 'merchant', postmaster: 'merchant',
+    messenger: 'courier', 'mounted courier': 'courier', 'barber-surgeon': 'doctor', moneylender: 'merchant', laundress: 'servant', carter: 'farmhand', 'house agent': 'merchant', ferryman: 'fisher',
+    'toll keeper': 'guard', dairymaid: 'farmhand', chambermaid: 'servant', gaoler: 'guard', sergeant: 'guard', 'bounty hunter': 'outlaw', gravedigger: 'undertaker', 'bell-ringer': 'priest',
+    'pilgrim guide': 'priest', bailiff: 'guard', 'market warden': 'merchant', 'town crier': 'courier', 'rat-catcher': 'villager', lamplighter: 'villager', 'chimney sweep': 'sweeper',
+    'water carrier': 'villager', 'ballot clerk': 'merchant', midwife: 'doctor', herald: 'courier', 'master of horse': 'noble', 'royal guard': 'guard', 'captain of the royal guard': 'guard',
+    jester: 'bard', falconer: 'woodcutter', executioner: 'outlaw', spy: 'villager', stablehand: 'farmhand', squire: 'servant', knight: 'guard', thatcher: 'builder', plasterer: 'builder', roofer: 'builder', potboy: 'innkeeper',
+  });
+
+  // the action and tool each role works with: [animation, outdoors?]
+  D.ROLE_ACTION = {
+    baker: 'knead', apprentice: 'work', blacksmith: 'hammer', armourer: 'hammer', farmer: 'hoe', farmhand: 'pitch', dairymaid: 'pour', shepherd: 'shear', miller: 'carry', labourer: 'carry',
+    woodcutter: 'chop', forester: 'chop', 'charcoal burner': 'pitch', sawyer: 'saw', carpenter: 'saw', cooper: 'hammer', wainwright: 'saw', boatwright: 'hammer', bowyer: 'saw', fletcher: 'work',
+    innkeeper: 'pour', server: 'serve', cook: 'cook', chambermaid: 'scrub', potboy: 'scrub', brewer: 'mix', maltster: 'pitch', vintner: 'pour', 'vine-dresser': 'work', beekeeper: 'work',
+    butcher: 'cleave', fisher: 'fish', 'salt boiler': 'mix', 'clay digger': 'dig', brickmaker: 'knead', 'peat cutter': 'dig', miner: 'chop', quarryman: 'chop', 'mine foreman': 'write', 'quarry master': 'write',
+    weaver: 'weave', spinner: 'spin', tailor: 'work', dyer: 'mix', tanner: 'scrub', cobbler: 'hammer', saddler: 'work', chandler: 'mix', potter: 'knead', glazier: 'work', 'rope-maker': 'spin',
+    jeweller: 'work', physician: 'write', herbalist: 'work', apothecary: 'mix', nurse: 'serve', bearer: 'carry', midwife: 'serve', 'barber-surgeon': 'work',
+    scribe: 'write', clerk: 'write', postmaster: 'write', magistrate: 'write', moneylender: 'count', 'house agent': 'write', 'ballot clerk': 'count', teacher: 'read', priest: 'pray', 'parish clerk': 'write',
+    'bell-ringer': 'pray', gravedigger: 'dig', undertaker: 'scrub', sweeper: 'sweep', 'chimney sweep': 'sweep', laundress: 'scrub', 'water carrier': 'bucket', lamplighter: 'point', 'rat-catcher': 'crouch',
+    'guard captain': 'write', guard: 'idle', gaoler: 'idle', sergeant: 'point', 'royal guard': 'idle', 'captain of the royal guard': 'point', 'tax collector': 'count', bailiff: 'point', 'market warden': 'count',
+    'town crier': 'wave', herald: 'read', shopkeeper: 'count', 'horse trader': 'talk', stablehand: 'pitch', groom: 'scrub', 'master of horse': 'talk', gamekeeper: 'look', falconer: 'look',
+    steward: 'write', chamberlain: 'write', butler: 'pour', maid: 'scrub', page: 'carry', 'lady-in-waiting': 'talk', 'master cook': 'cook', scullion: 'scrub', gardener: 'dig', jester: 'celebrate',
+    executioner: 'idle', spy: 'look', squire: 'scrub', knight: 'idle', thatcher: 'work', plasterer: 'scrub', roofer: 'hammer', 'master builder': 'write', builder: 'hammer', carter: 'carry', ferryman: 'pitch',
+    'toll keeper': 'count', messenger: 'carry', 'mounted courier': 'carry', 'warehouse master': 'write', 'warehouse worker': 'carry', docker: 'carry', 'night watchman': 'look', 'pilgrim guide': 'talk', 'bounty hunter': 'look',
+  };
+  D.actionFor = (role) => D.ROLE_ACTION[role] || 'work';
 })();
 
 </script>
@@ -7769,6 +8102,94 @@ O.snowMaskOf = function (src) {
 
 </script>
 <script>
+// Hiring. Whoever runs a place decides who works there, and they decide the same way for everyone,
+// you included: do they need anyone (an empty place, or so much trade they'd take on another pair of
+// hands), how desperate are they (a place empty for days, the till full, the shelves bare), do they
+// like you, and what is said of you. They can be asked any time, at work or not.
+'use strict';
+(function () {
+  const D = () => O.Data;
+  function installSim(Sim) {
+    const S = Sim.prototype;
+
+    // who hires for a business: its owner, else whoever holds its first (master's) post
+    S.bossOf = function (bz) {
+      if (!bz) return null;
+      if (bz.owner != null) { const o = this.byId.get(bz.owner); if (o && o.alive !== false) return o; }
+      const first = bz.def.jobs[0][0];
+      return bz.workers.map((id) => this.byId.get(id)).find((q) => q && q.alive !== false && q.job?.role === first) || null;
+    };
+    // the places and roles still to fill
+    S.vacancies = function (bz) {
+      const out = [];
+      for (const [role, n] of bz.def.jobs) {
+        let have = bz.workers.filter((id) => { const q = this.byId.get(id); return q && q.alive !== false && q.job?.role === role; }).length;
+        if (bz.playerRole === role) have++;
+        if (have < n && !(bz.def.wage[role] === 0 && (bz.owner != null || bz.ownerPlayer))) out.push(role);
+      }
+      return out;
+    };
+    // how badly the place needs hands, 0..1
+    S.desperation = function (bz) {
+      const vac = this.vacancies(bz).length, open = bz.vacantSince != null ? this.day - bz.vacantSince : 0;
+      const bare = Object.entries(bz.def.targets || {}).filter(([g, t]) => (bz.stock[g] || 0) < t * 0.2).length / Math.max(1, Object.keys(bz.def.targets || {}).length);
+      return O.clamp(vac * 0.15 + open * 0.08 + bare * 0.4 + (bz.cash > 200 ? 0.15 : 0), 0, 1);
+    };
+    // would the boss take this person on? returns { yes, role, wage, why }
+    S.hireDecision = function (bz, boss, who) {
+      const isPlayer = who === 'player', des = this.desperation(bz), vac = this.vacancies(bz);
+      // a busy place with a full till will make room for one more pair of hands
+      const extra = !vac.length && des > 0.35 && bz.cash > 120 ? (bz.def.jobs.find(([r]) => ['labourer', 'apprentice', 'server', 'farmhand', 'scullion', 'maid', 'potboy'].includes(r)) || bz.def.jobs[bz.def.jobs.length - 1])[0] : null;
+      if (!vac.length && !extra) return { yes: false, why: 'none' };
+      const role = vac.length ? vac[vac.length - 1] : extra;
+      if (bz.def.wage[role] === 0 && !bz.ownerPlayer) return { yes: false, why: 'none' };
+      let like = 0, bad = 0;
+      if (isPlayer) {
+        const PS = O.PlayerState, r = boss ? boss.rel.get(0) || {} : {};
+        like = r.affinity || 0;
+        bad = Math.max(0, -PS.rep.local) * 1.2 + (PS.wantedLevel && PS.wantedLevel() >= 1 && boss && boss.memories.some((m) => m.kind === 'crime' && m.about === 0) ? 1 : 0) + (bz.firedPlayer ? 0.6 : 0);
+      } else {
+        const r = boss ? boss.rel.get(who.id) || {} : {};
+        like = r.affinity || 0;
+        bad = (who.jailUntil ? 1 : 0) + (who.gang ? 0.3 : 0) + (who.memories.some((m) => m.kind === 'crime') ? 0.2 : 0) + Math.max(0, -who.attitude) * 0.3;
+      }
+      const score = 0.45 + like * 0.6 + des * 0.6 - bad;
+      if (score < 0.25) return { yes: false, why: bad > 0.5 ? 'bad' : 'dislike', role };
+      const wage = Math.max(2, bz.def.wage[role] || 5);
+      return { yes: true, role, wage };
+    };
+
+    // NPC employers choose among the jobless the same way, not just the first in the queue
+    const _fill = S.fillVacancies;
+    S.fillVacancies = function () {
+      for (const bz of this.biz.values()) {
+        if (bz.type === 'site') continue;
+        const vac = this.vacancies(bz);
+        if (vac.length && bz.vacantSince == null) bz.vacantSince = this.day;
+        if (!vac.length) bz.vacantSince = null;
+      }
+      // the old filler places people; then each boss may send away one they'd never have chosen
+      _fill.call(this);
+      for (const bz of this.biz.values()) {
+        if (bz.type === 'site' || bz.def.public) continue;
+        const boss = this.bossOf(bz); if (!boss) continue;
+        for (const id of bz.workers.slice()) {
+          const q = this.byId.get(id); if (!q || q === boss || q.job?.family || !q.job || q.job.hiredBy === boss.id) continue;
+          q.job.hiredBy = boss.id;
+          const d = this.hireDecision(Object.assign({}, bz, { workers: bz.workers.filter((x) => x !== id) }), boss, q);
+          if (!d.yes && this.rng.chance(0.5)) {
+            bz.workers = bz.workers.filter((x) => x !== id); q.job = null;
+            this.remember(q, `${boss.name} wouldn't have me at ${bz.name}.`, 'work', 1.2, boss.id);
+          }
+        }
+      }
+    };
+  }
+  O.Employ = { installSim };
+})();
+
+</script>
+<script>
 // The nobility in their seats. A castle's keep is home to its lord or lady and their family, the
 // same people the kingdom's rulers list names, with a steward, cooks, maids and a groom in their
 // service. In Aurelia the royal castle houses the king, the queen and the royal children,
@@ -8430,8 +8851,9 @@ O.snowMaskOf = function (src) {
       const act = p.activity?.act;
       if (act === 'sit') return 'sit';
       if (act === 'collapsed') return 'lie';
-      if (act === 'fieldwork') return this.season === 'spring' ? 'dig' : 'work';
-      if (act === 'chop' || act === 'build') return 'work';
+      if (act === 'fieldwork') { const a = O.Data.actionFor ? O.Data.actionFor(p.job?.role) : 'work'; return this.season === 'spring' ? 'dig' : a === 'idle' || a === 'carry' ? 'hoe' : a; }
+      if (act === 'chop') return 'chop';
+      if (act === 'build') return 'hammer';
       if (act === 'festival') { const k = (p.id + Math.floor(this.minute / 7)) % 5; return p.age < 13 ? (k % 2 ? 'run' : 'celebrate') : k === 0 ? 'celebrate' : k === 1 ? 'drink' : k === 2 ? 'talk' : 'idle'; }
       if (act === 'cry') return 'point';
       if (act === 'forage') return 'crouch';
@@ -8794,7 +9216,7 @@ O.snowMaskOf = function (src) {
     if (p.task?.act === 'help') { const t = this.byId.get(p.task.target); if (t) return [Math.floor(t.agent.x / this.T), Math.floor((t.agent.y - 1) / this.T)]; }
     return _zone.call(this, p, zone);
   };
-  O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim); O.Aftermath.installSim(Sim); O.Government.installSim(Sim); O.Nobility.installSim(Sim); O.Trades.installSim(Sim); O.Inn.installSim(Sim);
+  O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim); O.Aftermath.installSim(Sim); O.Government.installSim(Sim); O.Nobility.installSim(Sim); O.Trades.installSim(Sim); O.Inn.installSim(Sim); O.Employ.installSim(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
   // everyone keeps their own clock: a few minutes either side, so a street doesn't empty in one minute
@@ -9379,6 +9801,28 @@ O.snowMaskOf = function (src) {
         for (let y = fy - 30; y <= fy1 - 30; y++) { B.plot(fx, y, m, 2); B.plot(fx1, y, m, 2); }
         out = finish(S); break;
       }
+      case 'vat': { // a great oak brewing vat, iron-hooped, steaming
+        S = canvasFor(2, 2, 18); const { B, fx, fx1, fy1 } = S; const wd = P.mat('#8a6239', 'wood'), hoop = P.mat('#4a4a52', 'metal'), cx = (fx + fx1) / 2;
+        B.part(1); B.rect(fx + 2, fy1 - 24, fx1 - fx - 4, 24, wd, 2); B.blob(cx, fy1 - 24, (fx1 - fx) / 2 - 2, 4, P.mat('#a07848', 'wood'), { power: 2 });
+        for (let x = fx + 2; x < fx1 - 2; x += 4) for (let y = fy1 - 24; y < fy1; y++) B.tweak(x, y, -1);
+        for (const yy of [fy1 - 20, fy1 - 8]) for (let x = fx + 2; x < fx1 - 2; x++) B.plot(x, yy, hoop, 1);
+        B.part(2); B.blob(cx, fy1 - 24, (fx1 - fx) / 2 - 5, 2.4, P.mat('#c89a50', 'cloth'), { power: 2 });
+        out = finish(S); break;
+      }
+      case 'kiln': { // a brick kiln: a beehive dome with a stoke-hole
+        S = canvasFor(3, 2, 30); const { B, fx, fx1, fy1 } = S; const br = P.mat('#a85a3a', 'cloth'), cx = (fx + fx1) / 2;
+        B.part(1); B.blob(cx, fy1 - 18, 22, 22, br, { power: 2 }); B.rect(fx + 2, fy1 - 18, fx1 - fx - 4, 18, br, 2);
+        for (let y = 0; y < S.H; y++) for (let x = 0; x < S.W; x++) if (B.matAt(x, y) === br && (y % 4 === 0 || (x + (Math.floor(y / 4) % 2) * 3) % 6 === 0)) B.tweak(x, y, -1);
+        B.part(2); B.blob(cx, fy1 - 7, 6, 5, P.mat('#1c1418', 'cloth'), { power: 2 }); B.rect(Math.round(cx) - 6, fy1 - 7, 12, 6, P.mat('#1c1418', 'cloth'), 0);
+        B.blob(cx, fy1 - 36, 3, 2, P.mat('#6a3a2a', 'cloth'), { power: 2 });
+        out = finish(S); out.fire = { x: cx - out.ox, y: fy1 - 4 - out.oy, w: 10 }; break;
+      }
+      case 'ballotbox': { // a locked oak box on a stand, with a slot in the lid
+        S = canvasFor(1, 1, 10); const { B, fx, fx1, fy1 } = S; const wd = P.mat('#6a4a2c', 'wood'), cx = (fx + fx1) / 2;
+        B.part(1); B.rect(cx - 2, fy1 - 8, 1, 8, wd, 1); B.rect(cx + 2, fy1 - 8, 1, 8, wd, 1);
+        B.part(2); B.rect(fx + 2, fy1 - 18, fx1 - fx - 4, 10, P.mat('#8a6239', 'wood'), 2); B.rect(cx - 3, fy1 - 18, 6, 1, P.mat('#1c1418', 'cloth'), 0); B.plot(cx, fy1 - 13, P.mat('#c8a040', 'metal'), 3);
+        out = finish(S); break;
+      }
       case 'barrel': case 'crate': case 'sack': case 'hay': case 'woodpile': {
         const pr = E.prop(kind, seed);
         out = pr; break;
@@ -9472,6 +9916,164 @@ O.snowMaskOf = function (src) {
 
 </script>
 <script>
+// Every item in the realm, drawn: a 16-pixel icon for the satchel and the shop, and a smaller version
+// for when it's set down on a table, a counter or the ground. Each good is drawn from a shape (a loaf,
+// a sack, a jug, a bar of iron, a coil of rope, a blade...) in its own colours, shaded with the same
+// material raster as everything else, then outlined so it reads at a glance.
+'use strict';
+(function () {
+  const P = () => O.Pal;
+  // good -> [shape, main colour, second colour]
+  const LOOK = {
+    wheat: ['sheaf', '#d8b048', '#a88a30'], barley: ['sheaf', '#c8a848', '#9a7a30'], oats: ['sheaf', '#d8c888', '#a89a58'], flax: ['sheaf', '#8aa860', '#c8c0a0'], hemp: ['sheaf', '#7a9050', '#a8a070'], woad: ['sheaf', '#5a7a5a', '#3a5a8a'], madder: ['sheaf', '#9a5a3a', '#c83a2a'], hay: ['bale', '#d8c070', '#b0984a'],
+    flour: ['sack', '#e6dcc4', '#b8a888'], malt: ['sack', '#c8a070', '#9a7a50'], salt: ['sack', '#f0f0ec', '#c8c8c0'], charcoal: ['sack', '#3a3a3e', '#6a5a4a'], coal: ['sack', '#2a2a30', '#5a5048'], sand: ['sack', '#e0c890', '#b0985a'], fx_sack: ['sack', '#c8b088', '#9a8060'],
+    bread: ['loaf', '#c88a45', '#8a5a2a'], pie: ['pie', '#c8903e', '#8a5a2a'], cake: ['pie', '#d8a860', '#f0e0b0'], cheese: ['wheel', '#e8c860', '#c8a040'], butter: ['pat', '#f0e080', '#c8b860'],
+    cabbage: ['round', '#6a9a44', '#4a7a30'], apples: ['basket', '#c83a2a', '#8a6a3a'], grapes: ['basket', '#6a3a7a', '#8a6a3a'], eggs: ['basket', '#f0e8d8', '#8a6a3a'], fish: ['fish', '#9aa8b0', '#6a7880'], meat: ['meat', '#a83a3a', '#e8d8c8'], venison: ['meat', '#8a2a2a', '#d8c8b8'], sausage: ['sausage', '#9a4a3a', '#c86a4a'],
+    meal: ['bowl', '#a0603a', '#8a6239'], stew: ['bowl', '#8a7a3a', '#8a6239'], honey: ['pot', '#e8a830', '#a8743a'], milk: ['jug', '#f4f0e8', '#b8744a'], ale: ['mug', '#c8902e', '#7a5634'], wine: ['flask', '#7a1a2a', '#3a5a3a'],
+    logs: ['logs', '#7c5a38', '#c8a070'], firewood: ['logs', '#8a6239', '#d0a878'], planks: ['planks', '#b08850', '#8a6239'], bark: ['logs', '#5a4030', '#8a6a4a'], peat: ['brick', '#4a3a2a', '#6a5038'], clay: ['brick', '#a8704a', '#c8906a'], bricks: ['brick', '#a85a3a', '#c87a5a'], stone: ['brick', '#9a968e', '#c8c4bc'],
+    iron: ['bar', '#7a7e88', '#a8acb4'], silver: ['bar', '#c8ccd4', '#f0f2f6'], gold: ['nugget', '#e8c040', '#fff0a0'], glass: ['pane', '#a8d0d8', '#e8f8ff'], pitch: ['pot', '#1c1418', '#3a2a20'], potash: ['pot', '#c8c0b0', '#8a7a6a'], ink: ['pot', '#1a1a3a', '#4a3a6a'],
+    wool: ['fleece', '#ece6d8', '#c8c0b0'], cloth: ['bolt', '#8a7a6a', '#6a5a4a'], linen: ['bolt', '#ece4cc', '#c8c0a8'], dyedcloth: ['bolt', '#3a5a9a', '#a83a3a'], clothes: ['tunic', '#6a7a4a', '#4a5a3a'], shoes: ['shoes', '#5a3a28', '#3a2418'], leather: ['hide', '#8a5a34', '#6a4024'], hide: ['hide', '#b08a6a', '#8a6a4a'],
+    rope: ['coil', '#b89a68', '#8a7048'], nets: ['net', '#9a8a6a', '#6a5a4a'], feathers: ['feather', '#f0ece4', '#a8a090'], parchment: ['scroll', '#ece2c8', '#c8b898'], letter: ['letter', '#ece2c8', '#a8382f'], beeswax: ['brick', '#e8c050', '#c8a030'], tallow: ['brick', '#f0e8d0', '#c8c0a0'], soap: ['brick', '#e0e0c8', '#b8b8a0'],
+    candles: ['candle', '#f0e8d0', '#e8a030'], lantern: ['lantern', '#c8a040', '#f0d070'], cup: ['cup', '#b8744a', '#8a5432'], jug: ['jug', '#b8744a', '#8a5432'], pot: ['pot', '#a8643a', '#7a4a2a'], bucket: ['bucket', '#8a6239', '#4a4a52'], broom: ['broom', '#8a6239', '#c8a050'],
+    tools: ['tool', '#8a6239', '#9aa0aa'], hammer: ['hammer', '#8a6239', '#7a7e88'], spade: ['spade', '#8a6239', '#9aa0aa'], sickle: ['sickle', '#8a6239', '#c8ccd4'], shears: ['shears', '#9aa0aa', '#5a5a62'], nails: ['nails', '#7a7e88', '#a8acb4'], horseshoes: ['horseshoe', '#7a7e88', '#a8acb4'], rod: ['rod', '#6a4a2c', '#d8d0c0'],
+    dagger: ['blade', '#c8ccd4', '#b8902a'], sword: ['sword', '#c8ccd4', '#b8902a'], axe: ['axe', '#8a6239', '#c8ccd4'], bow: ['bow', '#8a5a2a', '#e8e0d0'], arrows: ['arrows', '#8a6a3a', '#f0ece4'], helm: ['helm', '#8a8e98', '#5a5e68'], mail: ['mail', '#8a8e98', '#5a5e68'],
+    saddle: ['saddle', '#7a4a2a', '#c8a040'], harness: ['coil', '#6a4024', '#c8a040'], wheel: ['wheel', '#8a6239', '#4a4a52'], cart: ['cart', '#8a6239', '#4a4a52'], boat: ['boat', '#8a6239', '#5a3a28'], tent: ['tent', '#d8c8a0', '#8a6239'], cask: ['barrel', '#8a6239', '#4a4a52'],
+    ring: ['ring', '#e8c040', '#c83a3a'], brooch: ['brooch', '#e8c040', '#c83a3a'], spoon: ['spoon', '#c8ccd4', '#f0f2f6'], candlestick: ['candlestick', '#9a9a96', '#f0e8d0'], key: ['key', '#c8a040', '#8a6a20'], coins: ['coins', '#c8ccd4', '#e8c040'], coin: ['coins', '#c8ccd4', '#e8c040'],
+    medicine: ['flask', '#6a9ad0', '#c8b8a0'], herbs: ['herbs', '#5a9a40', '#3a6a2a'], furniture: ['chair', '#8a6239', '#6a4a2c'],
+  };
+  const lookOf = (k) => {
+    if (LOOK[k]) return LOOK[k];
+    const g = O.Data && O.Data.GOODS[k];
+    if (g && g.furniture) return ['furn:' + g.furniture, '#8a6239', '#6a4a2c'];
+    return ['round', '#a0a0a0', '#808080'];
+  };
+
+  // draw shape s into buffer B (size n) with colours a, b
+  function paint(B, n, shape, a, b) {
+    const p = P(), m = (h, k = 'cloth') => p.mat(h, k), W = (h) => m(h, 'wood'), M = (h) => m(h, 'metal');
+    const c = n / 2, u = n / 16; // scale everything from a 16-pixel design
+    const X = (v) => v * u, blob = (x, y, rx, ry, mt, pw = 2) => B.blob(X(x), X(y), X(rx), X(ry), mt, { power: pw }), rect = (x, y, w, h, mt, sh = 2) => B.rect(Math.round(X(x)), Math.round(X(y)), Math.max(1, Math.round(X(w))), Math.max(1, Math.round(X(h))), mt, sh), cap = (x1, y1, x2, y2, r1, r2, mt) => B.capsule(X(x1), X(y1), X(x2), X(y2), Math.max(0.5, X(r1)), Math.max(0.5, X(r2)), mt), dot = (x, y, mt, sh = 2) => B.plot(Math.round(X(x)), Math.round(X(y)), mt, sh);
+    void c;
+    if (shape.startsWith('furn:')) return furnIcon(shape.slice(5), { blob, rect, cap, dot, W, M, m, a, b });
+    switch (shape) {
+      case 'sheaf': for (let i = -2; i <= 2; i++) cap(8 + i * 0.8, 14, 8 + i * 2, 4, 0.6, 0.5, m(a, 'hair')); for (let i = -2; i <= 2; i++) blob(8 + i * 2, 3.5, 1.1, 1.8, m(b, 'hair')); rect(5.5, 9, 5, 1.4, m('#8a6239'), 1); break;
+      case 'bale': rect(2, 5, 12, 8, m(a, 'hair'), 2); for (let x = 3; x < 14; x += 2) rect(x, 5, 0.6, 8, m(b, 'hair'), 1); rect(2, 7.5, 12, 0.8, m('#8a6239'), 1); rect(2, 10.5, 12, 0.8, m('#8a6239'), 1); break;
+      case 'sack': blob(8, 10, 5.5, 5, m(a), 2); blob(8, 4.5, 2.2, 1.6, m(a), 2); rect(6, 5.5, 4, 1.2, m('#7a5634'), 1); dot(6.5, 9, m(b), 1); dot(9.5, 12, m(b), 1); break;
+      case 'loaf': blob(8, 9.5, 6.5, 4, m(a, 'wood'), 2); for (const x of [5, 8, 11]) cap(x - 1, 7.5, x + 1, 9.5, 0.4, 0.4, m(b, 'wood')); break;
+      case 'pie': blob(8, 10, 6.5, 3.6, m(b, 'wood'), 2.5); blob(8, 8.6, 6, 2.6, m(a, 'wood'), 2); for (const x of [5, 8, 11]) dot(x, 8.5, m('#f0d8a0'), 3); break;
+      case 'wheel': blob(8, 9, 6.5, 4.5, m(a), 2); rect(1.5, 9, 13, 3, m(b), 1); blob(8, 7.5, 6.3, 2.2, m('#f0e090'), 3); break;
+      case 'pat': rect(3, 7, 10, 5, m(a), 2); rect(3, 6, 10, 1.5, m('#fff4b0'), 3); break;
+      case 'round': blob(8, 9, 5.5, 5, m(a), 2); dot(7, 7, m('#a8d070'), 3); dot(10, 10, m(b), 1); dot(5, 10, m(b), 1); break;
+      case 'basket': blob(8, 11, 6.2, 3.6, m('#b08850', 'wood'), 3); for (const [x, y] of [[5.5, 7.5], [8, 6.8], [10.5, 7.6], [6.8, 9], [9.4, 9]]) blob(x, y, 1.7, 1.6, m(a), 2); for (let x = 3; x < 14; x += 2) dot(x, 12, m('#8a6239'), 1); break;
+      case 'fish': blob(7.5, 9, 6, 2.4, M(a), 2); B.poly([[X(13), X(9)], [X(15.5), X(6.5)], [X(15.5), X(11.5)]], [0.2, 0, 0.9], M(b)); dot(4, 8.5, m('#1c1418'), 0); break;
+      case 'meat': blob(7, 9, 5.5, 4, m(a), 2); blob(7, 9, 3, 2, m('#c85a5a'), 2); cap(11, 9, 14.5, 7, 0.9, 0.9, m(b)); blob(14.5, 6.8, 1.2, 1.2, m(b)); break;
+      case 'sausage': for (let i = 0; i < 3; i++) cap(3 + i * 4, 9 - (i % 2), 6 + i * 4, 9 - ((i + 1) % 2), 1.6, 1.6, m(a)); break;
+      case 'bowl': blob(8, 10.5, 6.5, 3.6, W(b), 2); blob(8, 8, 5.6, 1.6, m(a), 2); dot(6, 8, m('#f0c080'), 3); break;
+      case 'pot': blob(8, 9.5, 5, 5, m(b, 'wood'), 2); rect(5, 3.5, 6, 2, m(b, 'wood'), 2); rect(6, 3, 4, 1, m(a), 3); break;
+      case 'jug': blob(8, 10, 4.5, 4.5, m(b, 'wood'), 2); rect(6, 3, 4, 4, m(b, 'wood'), 2); cap(12, 7, 13, 11, 0.6, 0.6, m(b, 'wood')); rect(6.5, 3, 3, 1, m(a), 3); break;
+      case 'mug': rect(4, 4, 7, 10, W(b), 2); rect(11, 6, 2.4, 5, W(b), 1); rect(4, 3.5, 7, 2.2, m('#f0e8d0'), 3); rect(4.5, 6, 6, 0.6, m('#4a3a2a'), 1); rect(4.5, 11, 6, 0.6, m('#4a3a2a'), 1); break;
+      case 'flask': blob(8, 10.5, 4.6, 4.2, M(a), 2); rect(6.8, 2.5, 2.4, 4, M(b), 2); rect(6.5, 2, 3, 1, m('#8a6239'), 2); break;
+      case 'cup': rect(5, 6, 6, 7, m(a, 'wood'), 2); rect(5, 6, 6, 1, m(b, 'wood'), 3); break;
+      case 'bucket': B.poly([[X(3.5), X(5)], [X(12.5), X(5)], [X(11.5), X(14)], [X(4.5), X(14)]], [0, -0.2, 0.9], W(a)); rect(3.5, 7, 9, 0.8, M(b), 1); rect(4, 12, 8, 0.8, M(b), 1); cap(4, 5, 8, 1.5, 0.4, 0.4, M(b)); cap(12, 5, 8, 1.5, 0.4, 0.4, M(b)); rect(4.5, 5, 7, 1, m('#5a8ab8'), 3); break;
+      case 'logs': for (const [x, y] of [[4.5, 10.5], [11.5, 10.5], [8, 5.5]]) { blob(x, y, 3.2, 3.2, W(a), 2); blob(x, y, 1.8, 1.8, W(b), 3); dot(x, y, W(a), 1); } break;
+      case 'planks': for (let i = 0; i < 4; i++) { rect(1.5, 4 + i * 2.6, 13, 2.2, W(i % 2 ? a : b), 2); dot(3, 5 + i * 2.6, m('#4a3020'), 0); } break;
+      case 'brick': rect(2, 6, 12, 7, m(a), 2); rect(2, 6, 12, 1.4, m(b), 3); rect(7.8, 7.4, 0.6, 5.6, m('#3a2a20'), 0); break;
+      case 'bar': B.poly([[X(1.5), X(12)], [X(14.5), X(12)], [X(12), X(5.5)], [X(4), X(5.5)]], [0, -0.6, 0.8], M(a)); cap(4.5, 6, 11.5, 6, 0.5, 0.5, M(b)); break;
+      case 'nugget': blob(8, 9, 4.5, 3.6, M(a), 1.6); dot(6.5, 8, M(b), 3); dot(9, 10, M(b), 3); break;
+      case 'pane': rect(3, 3, 10, 10, M('#6a5a4a'), 1); rect(4, 4, 8, 8, M(a), 3); cap(5, 10, 9, 5, 0.4, 0.4, M(b)); break;
+      case 'fleece': for (const [x, y] of [[5, 9], [8, 7], [11, 9], [6.5, 11.5], [9.5, 11.5]]) blob(x, y, 3, 2.6, m(a, 'hair'), 2); break;
+      case 'bolt': cap(3, 6, 13, 6, 3.4, 3.4, m(a)); blob(3, 6, 1.6, 3.4, m(b), 2); for (let x = 5; x < 13; x += 3) rect(x, 3, 0.5, 6, m(b), 1); rect(4, 11, 9, 3, m(a), 2); break;
+      case 'tunic': B.poly([[X(4), X(3)], [X(12), X(3)], [X(15), X(7)], [X(12.5), X(8)], [X(12), X(14)], [X(4), X(14)], [X(3.5), X(8)], [X(1), X(7)]], [0, -0.1, 0.9], m(a)); rect(6.5, 3, 3, 1.5, m(b), 1); rect(4, 9, 8, 0.8, m('#6a4a2c'), 1); break;
+      case 'shoes': for (const x of [3, 9]) { blob(x + 2.5, 11, 3, 2.2, m(a, 'wood'), 2); rect(x, 7, 3, 4, m(a, 'wood'), 2); rect(x, 12.5, 5.5, 0.8, m(b), 0); } break;
+      case 'hide': B.poly([[X(3), X(4)], [X(13), X(3)], [X(14.5), X(9)], [X(12), X(14)], [X(4), X(13.5)], [X(1.5), X(8)]], [0, -0.1, 0.9], m(a)); dot(8, 8, m(b), 1); break;
+      case 'coil': for (let r = 5.5; r > 1.5; r -= 1.6) B.shape(0, 0, n, n, (x, y) => { const d = Math.hypot(x - X(8), (y - X(9)) * 1.3); return d <= X(r) && d > X(r - 1); }, () => [0, -0.3, 0.9], m(a)); dot(8, 9, m(b), 1); break;
+      case 'net': for (let i = 2; i < 14; i += 3) { cap(i, 2, i + 1, 14, 0.3, 0.3, m(a)); cap(2, i, 14, i + 1, 0.3, 0.3, m(a)); } for (const [x, y] of [[4, 4], [12, 12]]) blob(x, y, 1, 1, m('#d8c8a0'), 2); break;
+      case 'feather': cap(4, 13, 12, 3, 0.3, 0.3, m(b)); for (let k = 0; k < 6; k++) { cap(5 + k * 1.3, 12 - k * 1.6, 3 + k * 1.3, 10 - k * 1.6, 0.6, 0.5, m(a)); cap(6 + k * 1.3, 12 - k * 1.6, 8.5 + k * 1.3, 11 - k * 1.6, 0.6, 0.5, m(a)); } break;
+      case 'scroll': rect(3, 4, 10, 9, m(a), 3); cap(2.5, 4, 13.5, 4, 1.2, 1.2, m(b)); cap(2.5, 13, 13.5, 13, 1.2, 1.2, m(b)); for (let y = 6; y < 12; y += 1.6) rect(4.5, y, 7, 0.5, m('#4a3a2a'), 1); break;
+      case 'letter': rect(2, 4, 12, 9, m(a), 3); B.poly([[X(2), X(4)], [X(14), X(4)], [X(8), X(9)]], [0, -0.3, 0.9], m('#d8ccb0')); blob(8, 8.8, 1.6, 1.6, m(b), 2); break;
+      case 'candle': for (const x of [5, 8, 11]) { rect(x - 1, 6, 2, 8, m(a), 3); dot(x, 4.5, m(b), 3); dot(x, 5.3, m('#fff0a0'), 3); } break;
+      case 'lantern': rect(5, 5, 6, 8, M(a), 2); rect(6, 6, 4, 6, m(b), 3); cap(6, 5, 8, 2, 0.4, 0.4, M(a)); cap(10, 5, 8, 2, 0.4, 0.4, M(a)); rect(4.5, 13, 7, 1, M(a), 1); break;
+      case 'broom': cap(4, 13, 12, 2, 0.5, 0.5, W(a)); B.poly([[X(1), X(14)], [X(6), X(10)], [X(8), X(12)], [X(4), X(16)]], [0, -0.2, 0.9], m(b, 'hair')); break;
+      case 'tool': cap(3, 13, 11, 4, 0.8, 0.8, W(a)); rect(9, 2, 6, 3, M(b), 3); break;
+      case 'hammer': cap(4, 14, 9, 5, 0.8, 0.8, W(a)); rect(6, 2, 7, 4, M(b), 2); break;
+      case 'spade': cap(8, 1, 8, 9, 0.7, 0.7, W(a)); rect(6, 1, 4, 1, W(a), 2); B.poly([[X(5), X(9)], [X(11), X(9)], [X(10.5), X(14.5)], [X(5.5), X(14.5)]], [0, -0.2, 0.9], M(b)); break;
+      case 'sickle': cap(3, 14, 6, 10, 0.8, 0.8, W(a)); for (let k = 0; k < 10; k++) { const t = k / 9 * Math.PI * 1.05; dot(6 + Math.sin(t) * 5, 10 - Math.cos(t) * 5.5 + 1, M(b), 3 - (k > 7 ? 1 : 0)); } break;
+      case 'shears': cap(3, 13, 11, 3, 0.6, 0.4, M(a)); cap(5, 13, 13, 3.5, 0.6, 0.4, M(a)); blob(4, 13, 1.6, 1.6, M(b), 2); break;
+      case 'nails': for (let i = 0; i < 5; i++) cap(3 + i * 2.2, 13 - (i % 2), 4 + i * 2.2, 5, 0.4, 0.4, M(i % 2 ? a : b)); for (let i = 0; i < 5; i++) rect(2.2 + i * 2.2, 4.5, 2, 0.8, M(b), 3); break;
+      case 'horseshoe': for (let k = 0; k <= 12; k++) { const t = (k / 12) * Math.PI * 1.25 - Math.PI * 0.125; blob(8 - Math.cos(t) * 4.5, 10 - Math.sin(t) * 5, 1.1, 1.1, M(a), 2); } dot(5, 9, m('#1c1418'), 0); dot(11, 9, m('#1c1418'), 0); break;
+      case 'rod': cap(2, 14, 14, 2, 0.5, 0.3, W(a)); for (let k = 0; k < 8; k++) dot(14 - k * 0.2, 2 + k * 1.4, m(b), 2); break;
+      case 'blade': cap(3, 13, 12, 3, 1.1, 0.5, M(a)); cap(2, 10, 6, 14, 0.7, 0.7, M(b)); break;
+      case 'sword': cap(2, 14, 13, 2, 1.0, 0.6, M(a)); cap(2, 10.5, 5.5, 14, 0.7, 0.7, M(b)); cap(1.5, 14.5, 2.5, 13.5, 0.9, 0.9, M(b)); break;
+      case 'axe': cap(4, 14, 10, 3, 0.8, 0.8, W(a)); blob(11.5, 4.5, 3, 2.4, M(b), 2); break;
+      case 'bow': for (let k = 0; k <= 14; k++) { const t = k / 14; dot(5 + Math.sin(t * Math.PI) * 4, 1.5 + t * 13, W(a), 2); } cap(5, 1.5, 5, 14.5, 0.3, 0.3, m(b)); break;
+      case 'arrows': for (let i = 0; i < 4; i++) { cap(3 + i * 2.5, 14, 6 + i * 2.5, 2, 0.4, 0.4, W(a)); blob(6 + i * 2.5, 2.4, 0.9, 1.2, M('#9aa0aa'), 2); blob(3.2 + i * 2.5, 12.8, 1, 1.4, m(b), 2); } break;
+      case 'helm': blob(8, 9, 6, 6, M(a), 2); rect(2, 9, 12, 5, M(a), 2); rect(4, 10, 8, 1.2, m('#1c1418'), 0); rect(7.4, 10, 1.2, 4, M(b), 1); break;
+      case 'mail': B.poly([[X(3), X(3)], [X(13), X(3)], [X(15), X(8)], [X(12.5), X(8)], [X(12.5), X(14)], [X(3.5), X(14)], [X(3.5), X(8)], [X(1), X(8)]], [0, -0.1, 0.9], M(a)); for (let y = 4; y < 14; y += 1.5) for (let x = 4; x < 12; x += 1.5) dot(x + ((y * 2) % 2), y, M(b), 1); break;
+      case 'saddle': blob(8, 8, 6.5, 3.5, m(a, 'wood'), 2); blob(4, 6, 2.5, 2, m(a, 'wood'), 2); rect(7, 10, 2, 4, m(b), 2); blob(8, 14, 1.4, 1.2, M(b), 2); break;
+      case 'wheel': for (let k = 0; k < 16; k++) { const t = k / 16 * 6.283; blob(8 + Math.cos(t) * 5.5, 8 + Math.sin(t) * 5.5, 1.1, 1.1, W(a), 2); } for (let k = 0; k < 4; k++) { const t = k / 4 * 3.1416; cap(8 - Math.cos(t) * 5, 8 - Math.sin(t) * 5, 8 + Math.cos(t) * 5, 8 + Math.sin(t) * 5, 0.4, 0.4, W(a)); } blob(8, 8, 1.4, 1.4, M(b), 2); break;
+      case 'cart': rect(2, 5, 12, 5, W(a), 2); blob(5, 12, 2.6, 2.6, W('#5a3a28'), 2); blob(5, 12, 0.8, 0.8, M(b), 2); cap(13, 8, 15.5, 6, 0.4, 0.4, W(a)); break;
+      case 'boat': B.poly([[X(1), X(8)], [X(15), X(8)], [X(12), X(13)], [X(4), X(13)]], [0, 0.3, 0.9], W(a)); rect(1, 8, 14, 1, W(b), 3); cap(8, 2, 8, 8, 0.3, 0.3, W(b)); break;
+      case 'tent': B.poly([[X(8), X(2)], [X(15), X(14)], [X(1), X(14)]], [0.3, -0.3, 0.9], m(a)); B.poly([[X(8), X(6)], [X(10), X(14)], [X(6), X(14)]], [0, 0, 1], m('#3a2a20')); break;
+      case 'barrel': blob(8, 8.5, 5, 6, W(a), 1.8); rect(3, 4.5, 10, 0.8, M(b), 1); rect(3, 12.5, 10, 0.8, M(b), 1); break;
+      case 'ring': for (let k = 0; k < 14; k++) { const t = k / 14 * 6.283; dot(8 + Math.cos(t) * 4, 10 + Math.sin(t) * 2.4, M(a), 3); } blob(8, 6, 1.8, 1.8, m(b), 2); break;
+      case 'brooch': blob(8, 8, 5, 5, M(a), 2); blob(8, 8, 2.2, 2.2, m(b), 2); break;
+      case 'spoon': cap(3, 13, 9, 6, 0.6, 0.6, M(a)); blob(10.5, 4.5, 2.2, 1.7, M(a), 2); break;
+      case 'candlestick': rect(7, 5, 2, 8, M(a), 3); rect(5, 13, 6, 1.5, M(a), 2); rect(7, 2, 2, 3, m(b), 3); break;
+      case 'key': blob(4.5, 8, 2.8, 2.8, M(a), 2); blob(4.5, 8, 1, 1, m('#1c1418'), 2); rect(7, 7.2, 7, 1.6, M(a), 3); rect(11.5, 8.8, 2, 2, M(a), 2); break;
+      case 'coins': for (const [x, y] of [[5, 11], [10, 11], [7.5, 8]]) { blob(x, y, 2.8, 1.8, M(a), 2); dot(x, y - 0.5, M(b), 3); } break;
+      case 'herbs': for (let i = 0; i < 5; i++) cap(5 + i * 1.5, 14, 2.5 + i * 2.5, 3, 0.5, 0.9, m(i % 2 ? a : b)); rect(6, 11, 4, 1.2, m('#8a6239'), 1); break;
+      case 'chair': return furnIcon('chair', { blob, rect, cap, dot, W, M, m, a, b });
+      default: blob(8, 8, 5, 5, m(a), 2);
+    }
+  }
+  // small drawings of furniture for the furniture goods
+  function furnIcon(k, f) {
+    const { blob, rect, cap, W, M, m, a, b } = f;
+    switch (k) {
+      case 'chair': case 'stool': rect(4, 8, 8, 1.6, W(a), 3); for (const x of [4, 11]) rect(x, 9, 1.2, 5, W(b), 1); if (k === 'chair') { rect(4, 2, 1.2, 7, W(b), 2); rect(10.8, 2, 1.2, 7, W(b), 2); rect(4, 3, 8, 1.2, W(a), 2); } break;
+      case 'table': case 'longtable': case 'counter': case 'bar': case 'desk': case 'workbench': case 'doughtable': case 'butcherblock': rect(1.5, 6, 13, 2.5, W(a), 3); rect(2, 8.5, 1.4, 6, W(b), 1); rect(12.6, 8.5, 1.4, 6, W(b), 1); if (k === 'counter' || k === 'bar') rect(1.5, 8.5, 13, 5.5, W(b), 2); if (k === 'butcherblock') rect(2, 4, 12, 2, W('#c89a6a'), 3); break;
+      case 'bed': case 'double': case 'cradle': rect(1.5, 7, 13, 5, m('#c8b898'), 3); rect(1.5, 5, 2, 9, W(a), 2); rect(12.5, 8, 2, 6, W(a), 2); rect(3.5, 9, 9, 3, m('#7a5a9a'), 2); rect(3.5, 7, 3, 2, m('#f0ece4'), 3); break;
+      case 'chest': rect(2, 6, 12, 8, W(a), 2); rect(2, 6, 12, 2, W(b), 3); rect(7, 8, 2, 2, M('#c8a040'), 3); break;
+      case 'wardrobe': case 'cupboard': case 'dresser': case 'bookcase': case 'shelf': case 'rack': rect(3, 1.5, 10, 13, W(a), 2); rect(7.6, 2, 0.8, 12, W(b), 1); if (k === 'bookcase' || k === 'shelf') for (const y of [5, 9, 13]) { rect(3, y, 10, 0.8, W(b), 1); for (let x = 4; x < 12; x += 1.6) rect(x, y - 2.5, 1, 2.5, m(['#a8382f', '#3a5a9a', '#6a8a3a'][Math.floor(x) % 3]), 2); } break;
+      case 'barrel': case 'vat': case 'washtub': blob(8, 9, 5, k === 'washtub' ? 3.5 : 5.5, W(a), 1.8); rect(3, 6, 10, 0.8, M('#4a4a52'), 1); rect(3, 12, 10, 0.8, M('#4a4a52'), 1); break;
+      case 'anvil': rect(2, 5, 12, 3, M('#4a4a52'), 3); rect(5, 8, 6, 3, M('#3a3a42'), 2); rect(3, 11, 10, 3, M('#4a4a52'), 2); break;
+      case 'cauldron': blob(8, 10, 5.5, 4.5, M('#3a3a42'), 2); rect(2.5, 6, 11, 1.2, M('#5a5a62'), 3); break;
+      case 'candlestand': rect(7.3, 4, 1.4, 10, M('#8a8a86'), 3); rect(5, 13.5, 6, 1, M('#8a8a86'), 2); rect(7.2, 2, 1.6, 2, m('#f0e8d0'), 3); break;
+      case 'oven': case 'kiln': case 'forge': case 'fireplace': blob(8, 9, 6.5, 6, m(k === 'forge' ? '#7a7e88' : '#b8826a'), 2); rect(1.5, 9, 13, 5, m(k === 'forge' ? '#7a7e88' : '#b8826a'), 2); blob(8, 11, 3, 2.5, m('#1c1418'), 2); blob(8, 12, 1.6, 1, m('#f08a30'), 3); break;
+      case 'millstone': blob(8, 9, 6.5, 4, m('#9a968e'), 2); blob(8, 7.5, 6.5, 3, m('#c8c4bc'), 2); blob(8, 7.5, 1, 0.8, m('#4a4a4a'), 2); break;
+      case 'loom': case 'spinning': rect(2, 3, 1.4, 11, W(a), 2); rect(12.6, 3, 1.4, 11, W(a), 2); rect(2, 3, 12, 1.4, W(a), 2); for (let x = 4; x < 12; x += 1.4) rect(x, 4.4, 0.4, 7, m('#c8b898'), 3); break;
+      case 'rug': rect(1, 5, 14, 7, m('#a8382f'), 2); rect(3, 7, 10, 3, m('#d8a050'), 2); break;
+      case 'crate': rect(2.5, 4, 11, 10, W(a), 2); cap(3, 4.5, 13, 13.5, 0.4, 0.4, W(b)); rect(2.5, 4, 11, 1.2, W(b), 3); break;
+      case 'sack': blob(8, 10, 5, 4.5, m('#c8b088'), 2); blob(8, 5, 2, 1.4, m('#c8b088'), 2); break;
+      case 'woodpile': for (const [x, y] of [[4.5, 11], [11.5, 11], [8, 6]]) { blob(x, y, 3, 3, W('#7c5a38'), 2); blob(x, y, 1.6, 1.6, W('#c8a070'), 3); } break;
+      case 'plant': rect(5, 10, 6, 4, m('#a8643a'), 2); for (let i = 0; i < 5; i++) blob(5 + i * 1.5, 6 + (i % 2), 1.8, 2.4, m('#4a8a3a'), 2); break;
+      case 'ballotbox': rect(3, 4, 10, 7, W(a), 2); rect(5.5, 4, 5, 0.8, m('#1c1418'), 0); rect(4, 11, 1.2, 4, W(b), 1); rect(10.8, 11, 1.2, 4, W(b), 1); break;
+      default: rect(3, 4, 10, 10, W(a), 2);
+    }
+  }
+  // a dark outline round the drawing so it reads on any ground
+  function outline(c) {
+    const x = c.getContext('2d'), d = x.getImageData(0, 0, c.width, c.height), a = d.data, w = c.width, h = c.height, out = new Uint8ClampedArray(a);
+    for (let y = 0; y < h; y++) for (let i = 0; i < w; i++) {
+      const k = (y * w + i) * 4; if (a[k + 3] > 40) continue;
+      const nb = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => { const xx = i + dx, yy = y + dy; return xx >= 0 && yy >= 0 && xx < w && yy < h && a[(yy * w + xx) * 4 + 3] > 40; });
+      if (nb) { out[k] = 34; out[k + 1] = 24; out[k + 2] = 30; out[k + 3] = 230; }
+    }
+    d.data.set(out); x.putImageData(d, 0, 0); return c;
+  }
+  const cache = new Map();
+  function draw(k, n) {
+    const key = k + ':' + n; if (cache.has(key)) return cache.get(key);
+    const [shape, a, b] = lookOf(k), B = new O.MatBuffer(n, n); B.part(1);
+    try { paint(B, n, shape, a, b); } catch (e) { B.blob(n / 2, n / 2, n / 3, n / 3, P().mat(a), { power: 2 }); }
+    const c = outline(B.toCanvas()); cache.set(key, c); return c;
+  }
+  // icon for lists (16 px) and the smaller one for the ground or a table top (12 px)
+  O.ItemArt = { icon: (k) => draw(k, 16), small: (k) => draw(k, 12), LOOK };
+})();
+
+</script>
+<script>
 // Interior layouts. Every enterable building gets rooms in proportion to its exterior footprint
 // (three tiles inside for every tile outside, four for churches, which must seat the parish), one
 // scene per floor. A chimney means a fireplace, oven or forge beneath it; two floors mean stairs in
@@ -9490,12 +10092,12 @@ O.snowMaskOf = function (src) {
   const T = 16;
   const SIZE = { partH: [1, 1], partV: [1, 1], throne: [2, 2], bed: [2, 3], double: [3, 3], medbed: [2, 3], cradle: [2, 2], table: [3, 2], longtable: [5, 2], chair: [1, 1], stool: [1, 1], bench: [3, 1], fireplace: [3, 1], oven: [3, 2], forge: [3, 2], anvil: [1, 1],
     cupboard: [2, 1], dresser: [2, 1], wardrobe: [2, 1], bookcase: [2, 1], chest: [2, 1], shelf: [3, 1], counter: [4, 1], workbench: [3, 1], doughtable: [3, 1], butcherblock: [3, 1], rack: [2, 1], desk: [2, 1],
-    altar: [4, 1], millstone: [3, 2], loom: [3, 2], spinning: [2, 1], stairs: [2, 3], cauldron: [1, 1], washtub: [1, 1], plant: [1, 1], candlestand: [1, 1], barrel: [1, 1], crate: [1, 1], sack: [1, 1], hay: [1, 1], woodpile: [1, 1], cell: [4, 4] };
+    altar: [4, 1], millstone: [3, 2], loom: [3, 2], spinning: [2, 1], stairs: [2, 3], cauldron: [1, 1], washtub: [1, 1], plant: [1, 1], candlestand: [1, 1], barrel: [1, 1], crate: [1, 1], sack: [1, 1], hay: [1, 1], woodpile: [1, 1], cell: [4, 4], vat: [2, 2], kiln: [3, 2], ballotbox: [1, 1] };
   const foot = (kind, rot, width) => { if (kind === 'bed' && rot) return [3, 2]; if (kind === 'pew' || kind === 'bar') return [width || 5, 1]; if (kind === 'rug') return [width || 3, 2]; if (kind === 'bench' && width) return [width, 1]; return SIZE[kind] || [1, 1]; };
   const FOOT = SIZE;
   const CONTAINER = { cupboard: 15, dresser: 12, wardrobe: 15, chest: 12, barrel: 5, crate: 5, sack: 2 };
   // pieces that must stay reachable (you have to get to a bed, a chest, a workstation)
-  const NEEDS_ACCESS = new Set(['bed', 'double', 'medbed', 'cradle', 'fireplace', 'oven', 'forge', 'anvil', 'cupboard', 'dresser', 'wardrobe', 'bookcase', 'chest', 'shelf', 'counter', 'workbench', 'doughtable', 'butcherblock', 'rack', 'desk', 'altar', 'millstone', 'loom', 'spinning', 'stairs', 'cauldron', 'barrel', 'crate', 'sack', 'bar', 'cell', 'pew', 'bench']);
+  const NEEDS_ACCESS = new Set(['bed', 'double', 'medbed', 'cradle', 'fireplace', 'oven', 'forge', 'anvil', 'cupboard', 'dresser', 'wardrobe', 'bookcase', 'chest', 'shelf', 'counter', 'workbench', 'doughtable', 'butcherblock', 'rack', 'desk', 'altar', 'millstone', 'loom', 'spinning', 'stairs', 'cauldron', 'barrel', 'crate', 'sack', 'bar', 'cell', 'pew', 'bench', 'vat', 'kiln', 'ballotbox']);
 
   function scaleFor(b) { return b.type === 'chapel' ? 4 : 3; }
 
@@ -9535,6 +10137,7 @@ O.snowMaskOf = function (src) {
       return got >= open * 0.85;
     };
     const put = (kind, x, y, o = {}) => {
+      if (b.removedFurn && floor === (o._floor ?? floor) && b.removedFurn.includes(floor + ':' + kind + '@' + x + ',' + y)) return null; // taken up by the owner
       const [fw, fh] = foot(kind, o.rot, o.width);
       if (!free(x, y, fw, fh, o)) return null;
       const it = Object.assign({ kind, tx: x, ty: y, fw, fh, v: 0, rot: 0, seed: rng.int(1, 9999), id: items.length }, o);
@@ -9789,6 +10392,8 @@ O.snowMaskOf = function (src) {
       void staff;
     }
 
+    // pieces the owner has set down themselves come first, where they put them
+    for (const f of (b.extraFurn || [])) if (f.floor === floor) put(f.kind, f.tx, f.ty, Object.assign({ owned: true, rot: f.rot || 0 }, f.kind === 'chair' || f.kind === 'stool' || f.kind === 'bench' ? { seat: true } : {}, ['bed', 'double', 'cradle'].includes(f.kind) ? { bed: true, slots: f.kind === 'double' ? 2 : 1 } : {}, ['table', 'longtable'].includes(f.kind) ? { table: true } : {}, f.kind === 'counter' || f.kind === 'bar' ? { counter: true } : {}));
     if (b.royal) royal(); else if (b.manor) manor(); else switch (b.type) {
       case 'house': case 'farmhouse': case 'woodcutter':
         if (living) { hearth(); dining(members); }
@@ -10047,7 +10652,24 @@ O.snowMaskOf = function (src) {
           tryPut('longtable', centre(4, 1), { work: ['scullion'] });
         }
         break;
-      default: storage(); familyQuarters();
+      default: {
+        // any other trade: its equipment set out round the walls (the counter at the front), its goods on shelves
+        const def = O.Data.BUSINESS[b.type];
+        if (def && def.equip && floor === 0) {
+          const roles = def.jobs.map((j) => j[0]);
+          def.equip.forEach((k, i) => {
+            const [fw, fh] = SIZE[k] || [1, 1], who = { work: i === 0 ? roles : roles.slice(Math.min(i, roles.length - 1)) };
+            if (k === 'counter') counterAtFront({ work: [roles[0]] });
+            else if (k === 'chair') tryPut('chair', nearWalls(), { seat: true, rot: 0, work: roles });
+            else tryPut(k, [...backWall(fw), ...nearWalls(fw, fh)], Object.assign(who, ['kiln', 'oven', 'forge'].includes(k) ? { fire: true } : {}));
+          });
+          const goods = def.sells.filter((g) => !g.startsWith('fx_')).slice(0, 3);
+          if (goods.length) shelf(goods, { stockGood: goods[0] });
+          const ins = Object.keys(def.buys || {});
+          for (let i = 0; i < 2; i++) tryPut(rng.pick(['crate', 'sack', 'barrel']), nearWalls(), { stockOf: ins[i % Math.max(1, ins.length)] });
+        }
+        storage(); familyQuarters();
+      }
     }
     // a chimney always has a fire beneath it
     if (chimneyX != null && floor === 0 && !items.some((i) => i.kind === 'fireplace' || i.kind === 'oven' || i.kind === 'forge')) hearth();
@@ -10067,18 +10689,20 @@ O.snowMaskOf = function (src) {
 
   // Cached interior per building/floor (furniture is fixed; stock visuals update live).
   const cache = new Map();
+  // keyed by the building itself, not its number: building numbers repeat from town to town
+  let iidN = 0; const iid = (b) => b._iid || (b._iid = ++iidN);
   function interior(b, floor, sim) {
-    const key = b.id + ':' + floor;
+    const key = iid(b) + ':' + floor;
     if (cache.has(key)) return cache.get(key);
     const L = layoutFor(b, floor, sim);
-    const wallKind = b.spec.wall === 'stone' || b.spec.wall === 'log' || b.spec.wall === 'plank' ? b.spec.wall : 'timber';
-    const floorKind = ['smithy', 'chapel', 'guard', 'mill', 'quarry', 'mine', 'armourer', 'warehouse', 'townhall', 'keep', 'hospital', 'manor'].includes(b.type) ? 'stone' : b.type === 'barn' || (b.type === 'house' && b.wealth < 0.3) ? 'dirt' : 'wood';
+    const wallKind = (b.decor && b.decor.wall) || (b.spec.wall === 'stone' || b.spec.wall === 'log' || b.spec.wall === 'plank' ? b.spec.wall : 'timber');
+    const floorKind = (b.decor && b.decor.floor) || ['smithy', 'chapel', 'guard', 'mill', 'quarry', 'mine', 'armourer', 'warehouse', 'townhall', 'keep', 'hospital', 'manor'].includes(b.type) ? 'stone' : b.type === 'barn' || (b.type === 'house' && b.wealth < 0.3) ? 'dirt' : 'wood';
     L.room = O.Furn.room({ w: L.w, d: L.d, wall: wallKind, floor: floorKind, wealth: b.wealth, seed: b.id * 3 + floor, windows: Math.max(1, Math.floor(b.w / 2) + 1), doorTile: floor === 0 ? L.dc : -5 });
     cache.set(key, L);
     return L;
   }
 
-  O.Interior = { interior, layoutFor, FOOT, foot, invalidate: (b) => { for (const k of [...cache.keys()]) if (k.startsWith(b.id + ':')) cache.delete(k); } };
+  O.Interior = { interior, layoutFor, FOOT, foot, invalidate: (b) => { for (const k of [...cache.keys()]) if (k.startsWith(iid(b) + ':')) cache.delete(k); } };
 })();
 
 </script>
@@ -10300,8 +10924,8 @@ O.snowMaskOf = function (src) {
           if (spot) {
             const [ax, ay] = this.anchor(spot), [rx0, ry0] = this.rect(spot);
             const behind = spot.counter || spot.kind === 'desk' || spot.kind === 'altar' || spot.kind === 'bar';
-            if (behind) { x = ax + (spot.kind === 'bar' ? ((q.id % 3) - 1) * 18 : 0); y = ry0 - 2; dir = 0; anim = q.agent.talking ? 'talk' : 'idle'; if (spot.kind === 'desk') { anim = 'read'; } }
-            else { x = ax; y = ay + 12; dir = 3; anim = spot.kind === 'medbed' ? 'idle' : 'work'; }
+            if (behind) { x = ax + (spot.kind === 'bar' ? ((q.id % 3) - 1) * 18 : 0); y = ry0 - 2; dir = 0; anim = q.agent.talking ? 'talk' : ['count', 'idle', 'pour', 'idle', 'look'][(Math.floor(this.t / 5) + q.id) % 5]; if (spot.kind === 'desk') { anim = (Math.floor(this.t / 6) + q.id) % 3 ? 'write' : 'read'; } }
+            else { x = ax; y = ay + 12; dir = 3; anim = spot.kind === 'medbed' ? 'serve' : O.Data.actionFor ? O.Data.actionFor(role) : 'work'; if (anim === 'idle' || anim === 'carry') anim = 'work'; }
             if (spot.kind === 'altar') { anim = (Math.floor(this.t / 8) + q.id) % 2 ? 'read' : 'talk'; }
             if (spot.kind === 'cauldron') anim = 'cook';
             if (spot.kind === 'bar' && q.agent.talking) anim = 'talk';
@@ -10435,7 +11059,7 @@ O.snowMaskOf = function (src) {
         const at = (c) => ctx.drawImage(c, Math.round(ax - sp.ox - cam.x), Math.round(ay - sp.oy - cam.y));
         drawables.push({ y: sp.flat ? -1 : ay - (it.kind === 'pew' ? 1 : 0), draw: () => {
           at(sp.canvas);
-          if (sp.fire) { const lit = !this.b.sprite?.chimney || !g.lit || g.lit.has(this.b.id) || it.kind === 'cauldron'; this.drawFire(ctx, ax + sp.fire.x - cam.x, ay + sp.fire.y - cam.y, Object.assign({}, sp.fire, { coals: sp.fire.coals || !lit })); }
+          if (sp.fire) { const dying = bz && bz.fireUntil != null && sim.day * 1440 + sim.minute > bz.fireUntil; const lit = !dying && (!this.b.sprite?.chimney || !g.lit || g.lit.has(this.b.id) || it.kind === 'cauldron'); this.drawFire(ctx, ax + sp.fire.x - cam.x, ay + sp.fire.y - cam.y, Object.assign({}, sp.fire, { coals: sp.fire.coals || !lit })); }
           if (sp.candles && (night || it.kind === 'altar' || it.kind === 'candlestand')) for (const [cx, cy] of sp.candles) this.flame(ctx, ax + cx - cam.x, ay + cy - cam.y, 1);
           if (sp.cover) { this.drawSleepers(ctx, it, sp, ax, ay, cam); at(sp.cover); }
         } });
@@ -10443,6 +11067,7 @@ O.snowMaskOf = function (src) {
       }
       for (const a of this.actors.values()) if (!a.hidden) drawables.push({ y: a.sortY ?? a.y, draw: () => this.drawActor(ctx, a, cam, a.anim !== 'sit' && a.anim !== 'doze') });
       const p = g.player; if (!p.inBed) drawables.push({ y: p.sitting ? p.sitting.sortY : p.y, draw: () => this.drawActor(ctx, p, cam, !p.sitting) });
+      if (O.sceneExtras) for (const d of O.sceneExtras(this, ctx, cam)) drawables.push(d);
       drawables.sort((a, c) => a.y - c.y);
       for (const d of drawables) d.draw();
       for (const h of g.hooks.drawWorld) h(ctx, cam);
@@ -10537,6 +11162,7 @@ O.snowMaskOf = function (src) {
   const iconCache = new Map();
   function icon(k) {
     if (iconCache.has(k)) return iconCache.get(k);
+    if (O.ItemArt) { const url = O.ItemArt.icon(k).toDataURL(); iconCache.set(k, url); return url; } // every item drawn properly
     const P = O.Pal, B = new O.MatBuffer(14, 14), col = O.Furn.GOOD_COL[k];
     B.part(1);
     const m = (hex, kind = 'cloth') => P.mat(hex, kind);
@@ -10586,15 +11212,17 @@ O.snowMaskOf = function (src) {
 
   function inventory() {
     const used = PS.slotsUsed();
-    const cells = PS.items.map((k, i) => `<div class="slot"><img src="${icon(k)}" alt=""><span>${esc(G[k].name)}</span>${G[k].food ? `<button data-eat="${i}">Eat</button>` : ''}${G[k].weapon ? `<button data-eq="${k}">${PS.equipped === k ? 'In hand' : 'Hold'}</button>` : ''}<button data-drop="${i}" class="ghost">Drop</button></div>`).join('');
+    const cells = PS.items.map((k, i) => `<div class="slot"><img src="${icon(k)}" alt=""><span>${esc(G[k].name)}</span>${G[k].drink ? `<button data-eat="${i}">Drink</button>` : G[k].food ? `<button data-eat="${i}">Eat</button>` : ''}${k === 'letter' ? `<button data-write="${i}">Write</button>` : ''}${G[k].place || G[k].furniture ? `<button data-place="${i}">Set down</button>` : ''}${G[k].weapon ? `<button data-eq="${k}">${PS.equipped === k ? 'In hand' : 'Hold'}</button>` : ''}<button data-drop="${i}" class="ghost">Drop</button></div>`).join('');
     const empty = Math.max(0, PS.SLOTS - used);
     open('Satchel', `<div class="lbl">${used}/${PS.SLOTS} slots · health ${Math.round(PS.hp)} · fed ${Math.round(PS.hunger)} · rested ${Math.round(PS.energy)}</div>
       <div class="slots">${cells}${'<div class="slot empty"></div>'.repeat(empty)}</div>
       <div class="lbl" style="margin-top:12px">Reputation</div>
       <div class="reps">${Object.entries(PS.rep).map(([k, v]) => `<div><span>${k === 'local' ? 'here' : k}</span><b class="${v < -0.2 ? 'warn' : ''}">${v > 0.6 ? 'admired' : v > 0.2 ? 'liked' : v > -0.2 ? 'unknown' : v > -0.6 ? 'distrusted' : 'hated'}</b></div>`).join('')}</div>
       ${O.Work ? `<div class="lbl" style="margin-top:12px">Skills</div><div class="reps">${Object.entries(PS.skills || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div><span>${esc(O.Work.SKILL_LABEL[k] || k)}</span><b>${O.Work.rank(v)} · ${Math.round(v * 100)}</b></div>`).join('')}</div>
-      <p class="caption">${(() => { const J = PS.job; if (!J) return 'No employer. Ask a master at their workplace for a day\'s work.'; return `${J.apprentice ? 'Apprentice' : 'Hired for the day'} at ${esc(J.bizName)}, ${esc(J.placeName)}, under ${esc(J.masterName)}.`; })()}${PS.earned ? ` Earned honestly so far: ${money(PS.earned)}.` : ''}</p>` : ''}`, (r) => {
-      r.querySelectorAll('[data-eat]').forEach((b) => b.onclick = () => { const k = PS.items[+b.dataset.eat]; PS.eat(k); toast(`You eat the ${G[k].name.toLowerCase()}.`); inventory(); });
+      <p class="caption">${(() => { const E = PS.emp; if (!E) return 'No employer. Ask whoever runs a place for work.'; return `${esc(E.role)} at ${esc(E.bizName)}, ${esc(E.placeName)}, under ${esc(E.masterName)}, ${E.wage}d a day. ${E.stats.shifts} shifts worked, ${E.stats.late} late, ${E.stats.missed} missed.`; })()}${PS.earned ? ` Earned honestly so far: ${money(PS.earned)}.` : ''}</p>` : ''}`, (r) => {
+      r.querySelectorAll('[data-eat]').forEach((b) => b.onclick = () => { const k = PS.items[+b.dataset.eat]; close(); O.consume ? O.consume(k) : (PS.eat(k), toast(`You eat the ${G[k].name.toLowerCase()}.`)); });
+      r.querySelectorAll('[data-write]').forEach((b) => b.onclick = () => { close(); O.writeLetter && O.writeLetter(+b.dataset.write); });
+      r.querySelectorAll('[data-place]').forEach((b) => b.onclick = () => { const k = PS.items[+b.dataset.place]; close(); O.placeItem && O.placeItem(k); });
       r.querySelectorAll('[data-eq]').forEach((b) => b.onclick = () => { PS.equipped = PS.equipped === b.dataset.eq ? 'fists' : b.dataset.eq; const a = O.game.player.a; a.outfit.item = PS.equipped === 'fists' ? null : PS.equipped; O.Char.invalidate(a); inventory(); });
       r.querySelectorAll('[data-drop]').forEach((b) => b.onclick = () => { const k = PS.items[+b.dataset.drop]; if (O.dropItem) O.dropItem(k); else { PS.remove(k); toast(`Dropped ${G[k].name.toLowerCase()}.`); } inventory(); });
     });
@@ -10823,6 +11451,9 @@ O.snowMaskOf = function (src) {
       if (O.exitCandidate) { const ec = O.exitCandidate(); if (ec) out.push(ec); }
       if (O.saleCandidate) { const sc = O.saleCandidate(); if (sc) out.push(sc); }
       if (O.signCandidate) { const sg = O.signCandidate(); if (sg) out.push(sg); }
+      if (O.jobCandidate) { const jc = O.jobCandidate(); if (jc) out.push(jc); }
+      if (O.placedCandidate) { const pc2 = O.placedCandidate(); if (pc2) out.push(pc2); }
+      if (O.furnCandidate) { const fc = O.furnCandidate(); if (fc) out.push(fc); }
       if (O.stallCandidate) { const st = O.stallCandidate(); if (st) out.push(st); }
       if (O.pickupCandidate) { const pc = O.pickupCandidate(); if (pc) out.push(pc); }
       if (O.roadCandidate) { const rc = O.roadCandidate(); if (rc) out.push(rc); }
@@ -10865,6 +11496,9 @@ O.snowMaskOf = function (src) {
         case 'notices': return 'Read the notice board';
         case 'property': return c.b.owner?.kind === 'player' ? 'Your property' : 'For sale: look it over';
         case 'namesign': return 'Read the sign';
+        case 'job': return O.jobLabel(c);
+        case 'placed': { const g = O.Data.GOODS[c.x0.good]; return (g.food || g.drink) && O.PlayerState.hunger < 85 ? `${g.drink ? 'Drink' : 'Eat'} the ${g.name.toLowerCase()}` : `Pick up the ${g.name.toLowerCase()}`; }
+        case 'furn': return `Take up the ${(O.Data.FURN[c.it.kind] || [c.it.kind])[0].toLowerCase()}`;
         case 'exit': return `Leave ${sim.world.name} by the ${c.side} road`;
         case 'horse': return `Look over ${c.h.owner === 'player' ? c.h.name : 'the horse'}`;
         case 'claim': return 'Claim the abandoned camp';
@@ -11001,6 +11635,9 @@ O.snowMaskOf = function (src) {
         case 'exit': O.travelPanel(cur.side); break;
         case 'property': O.propertyPanel(cur.b); break;
         case 'namesign': O.readSign(cur); break;
+        case 'job': O.jobAct(cur); break;
+        case 'placed': O.placedAct(cur); break;
+        case 'furn': O.furnAct(cur); break;
         case 'stash': O.GangUI.stash(); break;
         case 'campbed': sleep(null, true); break;
         case 'hay': sleep(null, true); break;
@@ -12768,6 +13405,8 @@ O.snowMaskOf = function (src) {
         ${!mine ? `<button data-a="buy">Buy for ${O.money(v)}</button>` : ''}
         ${mine && b.type === 'house' && !b.household ? `<button data-a="let">Let it to a family (${rentEst}d a week)</button>` : ''}
         ${mine && b.closedShop ? ['bakery', 'store', 'tavern', 'smithy'].map((t) => `<button data-open="${t}">Open a ${O.Data.BUSINESS[t].label.toLowerCase()} (60d)</button>`).join('') : ''}
+        ${mine && O.fitsAs ? O.fitsAs(b).filter((t) => t !== b.type && !s.biz.get(b.id)).slice(0, 6).map((t) => `<button data-open2="${t}">Open as a ${O.Data.BUSINESS[t].label.toLowerCase()} (40d stock)</button>`).join('') : ''}
+        ${mine ? ['stone', 'wood', 'dirt'].map((f) => `<button data-floor="${f}">Lay a ${f} floor</button>`).join('') + ['plank', 'timber', 'stone'].map((w2) => `<button data-wall="${w2}">${w2} walls</button>`).join('') : ''}
         ${mine && !O.isPublicBuilding(b) ? `<button data-a="sell">Sell for ${O.money(Math.round(v * 0.8))}</button>` : ''}
       </div>`, (r) => {
         const on = (sel, f) => { const el = r.querySelector(sel); if (el) el.onclick = f; };
@@ -12783,6 +13422,9 @@ O.snowMaskOf = function (src) {
         });
         on('[data-a=let]', () => { if (!s.immigrate) return; const hh = s.immigrate(b); if (hh) { b.rent = rentEst; O.Panels.toast(`The ${hh.surname} family will take it at ${rentEst}d a week. They're on the road now.`); } O.Panels.close(); });
         on('[data-a=sell]', () => { const pr = Math.round(v * 0.8); PS.money += pr; s.treasury.cash -= Math.min(s.treasury.cash, pr); b.owner = { kind: 'parish' }; const bz = s.biz.get(b.id); if (bz) bz.ownerPlayer = false; O.Panels.close(); O.Panels.toast(`Sold for ${O.money(pr)}.`); });
+        r.querySelectorAll('[data-open2]').forEach((x) => x.onclick = () => { if (PS.money < 40) return O.Panels.toast('You need 40d for the first stock.', 'bad'); PS.money -= 40; const bz = s.startBusiness(b, x.dataset.open2, 'player'); s.fillVacancies(); O.Panels.close(); O.Panels.toast(`${bz.name} opens. Its fittings make it what it is: take them out and it stops.`); });
+        r.querySelectorAll('[data-floor]').forEach((x) => x.onclick = () => { O.redecorate(b, 'floor', x.dataset.floor); panel(b); });
+        r.querySelectorAll('[data-wall]').forEach((x) => x.onclick = () => { O.redecorate(b, 'wall', x.dataset.wall); panel(b); });
         r.querySelectorAll('[data-open]').forEach((x) => x.onclick = () => { if (PS.money < 60) return O.Panels.toast('You need 60d to stock and staff it.', 'bad'); PS.money -= 60; const bz = s.startBusiness(b, x.dataset.open, 'player'); s.fillVacancies(); O.Panels.close(); O.Panels.toast(`${bz.name} opens under your ownership. A manager will run it; the profit is yours.`); });
       });
     }
@@ -13763,6 +14405,7 @@ O.snowMaskOf = function (src) {
         <h4>Testing</h4>
         ${row('pardon', 'Clear my wanted level', 'every crime forgiven, no bounty, no chase')}
         ${row('reset', 'Reset me', 'purse, satchel, health, wounds, standing and wanted level back to a fresh arrival')}
+        ${row('post', 'Take up any post', 'try any job in the realm, even ones nobody would give you (king, lord, gaoler...)')}
       </div>`, (r) => {
         r.querySelectorAll('[data-s]').forEach((b) => b.onclick = () => {
           const k = b.dataset.s;
@@ -13773,8 +14416,18 @@ O.snowMaskOf = function (src) {
           else if (k === 'sound') { O.AudioToggle && O.AudioToggle(); settings(); }
           else if (k === 'speed') { game.clock.speed = game.clock.speed >= 2 ? 1 : 2; settings(); }
           else if (k === 'pardon') { pardon(); O.Panels.close(); O.UI.say('Your slate is wiped clean. Nobody is looking for you.'); }
+          else if (k === 'post') posts();
           else if (k === 'reset') { resetMe(); O.Panels.close(); O.UI.say('You are a stranger again: empty-handed, unhurt, unknown and wanted by no one.'); }
         });
+      });
+    }
+    // every post there is, grouped by where it's held; choosing one puts you in it here (or says where to go)
+    function posts() {
+      const all = O.allRoles ? O.allRoles() : new Map(), by = new Map();
+      for (const [role, type] of all) { const lbl = type === 'crown' ? 'The Crown and nobility' : O.Data.BUSINESS[type]?.label || type; if (!by.has(lbl)) by.set(lbl, []); by.get(lbl).push(role); }
+      const html = [...by.entries()].sort((a, c) => a[0].localeCompare(c[0])).map(([lbl, roles]) => `<h4>${O.escape(lbl)}</h4><div class="topics">${roles.map((r) => `<button data-post="${O.escape(r)}">${O.escape(r)}</button>`).join('')}</div>`).join('');
+      O.Panels.open('Take up any post', `<p class="caption">For trying the work out: you're put straight into the post in ${O.escape(O.SimRef.cur.world.name)} if there's such a place here, and whoever held it makes way.</p>${html}`, (r) => {
+        r.querySelectorAll('[data-post]').forEach((b) => b.onclick = () => { O.Panels.close(); O.takeAnyPost(b.dataset.post); });
       });
     }
     O.openSettings = settings;
@@ -13927,6 +14580,7 @@ O.snowMaskOf = function (src) {
     }
     function drawDropped(ctx, d, cam) {
       const x = Math.round(d.x - cam.x), y = Math.round(d.y - cam.y), c = ICON[d.good] || '#a08a6a';
+      if (O.ItemArt && d.good !== 'coin') { const sp = O.ItemArt.small(d.good); ctx.fillStyle = 'rgba(28,20,44,0.3)'; ctx.fillRect(x - 5, y + 1, 10, 2); ctx.drawImage(sp, x - 6, y - 10); if (Math.floor(game.t * 2 + d.id) % 5 === 0 && !d.placed) { ctx.fillStyle = '#fff6dc'; ctx.fillRect(x + 4, y - 9, 1, 1); } return; }
       ctx.fillStyle = 'rgba(28,20,44,0.3)'; ctx.fillRect(x - 3, y + 1, 7, 1);
       if (['dagger', 'sword', 'axe', 'spear', 'tools'].includes(d.good)) { ctx.fillStyle = '#5a3d26'; ctx.fillRect(x - 3, y, 3, 1); ctx.fillStyle = c; ctx.fillRect(x, y - 1, d.good === 'sword' ? 6 : 4, 1); ctx.fillRect(x, y, d.good === 'sword' ? 5 : 3, 1); }
       else { ctx.fillStyle = c; ctx.fillRect(x - 2, y - 2, 4, 3); ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fillRect(x - 1, y - 2, 1, 1); }
@@ -14922,6 +15576,581 @@ O.snowMaskOf = function (src) {
 
 </script>
 <script>
+// Holding down a job. Ask whoever runs a place for work (at work or not; they may say no). Once taken
+// on you have a post, a wage, hours and a master. Your shift shows in the corner, and while you're on
+// it so do your tasks: the real work of the trade, which takes time and keeps the place going. Bake
+// the bread at the oven, keep its fire fed, fetch flour from the mill with the business's own money,
+// serve whoever comes to the counter, sweep, patrol, hoe, fell, fish, carry, collect the tax...
+// Come late and your master notices; miss a day and they mind more; send a letter if you can't come.
+// Turn up and work well and you'll be put up a rank and paid more. Slack, and one day you'll find
+// you don't work there any more, sometimes without anyone telling you.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game, home, npcUI) {
+    const PS = O.PlayerState, D = O.Data, say = (t, k) => O.UI.say(t, k), cur = () => O.SimRef.cur;
+    const now = (s) => s.day * 1440 + s.minute;
+    const emp = () => PS.emp || null;
+    const here = () => { const e = emp(); return e && e.place === cur().world.placeId ? e : null; };
+    const bizOf = (e) => { const s = cur(); return e && e.place === s.world.placeId ? s.biz.get(e.biz) : null; };
+    const hoursOf = (e, bz) => { const r = e.role; if (['night watchman', 'gaoler'].includes(r)) return [20, 30]; if (r.startsWith('guard') || r === 'sergeant') return [6, 18]; return bz ? bz.def.hours : [8, 17]; };
+    const worksToday = (s, bz) => !(s.weekday === 6 && bz && !['tavern', 'chapel', 'guard', 'hospital', 'palace', 'keep', 'manor', 'posthouse'].includes(bz.type));
+    const fmtH = (h) => { h = ((h % 24) + 24) % 24; const hh = Math.floor(h), mm = Math.round((h - hh) * 60); return `${hh % 12 || 12}${mm ? ':' + String(mm).padStart(2, '0') : ''}${hh < 12 ? 'am' : 'pm'}`; };
+
+    // ---------------------------------------------------------------- asking for work
+    const prevExtra = npcUI.extraButtons, prevOn = npcUI.onExtra;
+    npcUI.extraButtons = (q) => {
+      const out = (prevExtra ? prevExtra(q) : []).filter(([k]) => k !== 'askwork' && k !== 'quit');
+      const s = cur(), bz = q.job?.biz != null ? s.biz.get(q.job.biz) : null;
+      if (bz && s.bossOf && s.bossOf(bz) === q) {
+        const e = emp();
+        if (e && e.biz === bz.id && e.place === s.world.placeId) out.push(['notice', 'Hand in your notice']);
+        else out.push(['askjob', `Ask for work at ${bz.name}`]);
+      }
+      return out;
+    };
+    npcUI.onExtra = (q, key, render) => {
+      if (key === 'askjob') return offer(q, render);
+      if (key === 'notice') { quit('You hand in your notice.'); cur().remember(q, 'The stranger left my service.', 'work', 1); return render('Very well. I wish you luck.'); }
+      return prevOn && prevOn(q, key, render);
+    };
+    function offer(q, render) {
+      const s = cur(), bz = s.biz.get(q.job.biz);
+      const d = s.hireDecision(bz, q, 'player');
+      if (!d.yes) return render(d.why === 'bad' ? "Work? For you? I know what's said of you. No." : d.why === 'dislike' ? "I'll not take you on. Try elsewhere." : "I've all the hands I need just now.");
+      const e = emp();
+      if (e && !(e.biz === bz.id && e.place === s.world.placeId)) { /* they'd leave their other post */ }
+      const [o, c] = hoursOf({ role: d.role }, bz);
+      npcUI.closeTalk && npcUI.closeTalk();
+      O.Panels.open(`Work at ${bz.name}`, `<p class="speech">“I could use a ${d.role}. ${d.wage}d a day, ${fmtH(o)} till ${fmtH(c)}${['tavern', 'chapel', 'guard', 'hospital'].includes(bz.type) ? ', every day' : ', Sundays off'}. Will you take it?”</p>${e ? `<p class="caption">You'd give up your post as ${esc(e.role)} at ${esc(e.bizName)}.</p>` : ''}<div class="topics"><button data-y="1">Take the job</button><button data-n="1">Not now</button></div>`, (r) => {
+        r.querySelector('[data-n]').onclick = () => O.Panels.close();
+        r.querySelector('[data-y]').onclick = () => { if (e) quit(null); hire(s, bz, q, d.role, d.wage); O.Panels.close(); say(`You're taken on as ${d.role} at ${bz.name}. Your first shift is ${worksToday(s, bz) && s.hour < c ? 'today' : 'tomorrow'} at ${fmtH(o)}.`); };
+      });
+      return null;
+    }
+    const esc = (t) => O.escape(String(t));
+    function hire(s, bz, boss, role, wage, extra) {
+      bz.playerRole = role;
+      PS.emp = Object.assign({ place: s.world.placeId, placeName: s.world.name, biz: bz.id, bizName: bz.name, role, wage, master: boss ? boss.id : null, masterName: boss ? boss.name : 'the crown', since: s.day,
+        stats: { shifts: 0, late: 0, missed: 0, tasks: 0, excused: 0 }, day: null, tasks: [], level: 0 }, extra || {});
+      if (boss) { s.relate(boss, { id: 0 }, 0.05); s.remember(boss, `Took the stranger on as ${role}.`, 'work', 1.2, 0); }
+      O.Chronicle && O.Chronicle.deed(s, `A newcomer has been taken on as ${role} at ${bz.name}.`, `You were taken on as ${role} at ${bz.name}.`, 'player', 1, true);
+    }
+    function quit(msg) { const e = emp(); if (!e) return; const s = cur(); const bz = s.world.placeId === e.place ? s.biz.get(e.biz) : null; if (bz && bz.playerRole === e.role) bz.playerRole = null; PS.emp = null; PS.carry = null; if (msg) say(msg); }
+    O.Employment = { emp, hire, quit, here };
+
+    // ---------------------------------------------------------------- tasks
+    const MAKERS = new Set(Object.keys(D.ROLE_ACTION));
+    const ROLE_KIND = (role) => {
+      if (['guard', 'sergeant', 'royal guard', 'captain of the royal guard', 'night watchman', 'gamekeeper', 'bounty hunter', 'knight', 'toll keeper', 'squire', 'spy', 'falconer'].includes(role)) return 'patrol';
+      if (['farmhand', 'farmer', 'shepherd', 'vine-dresser', 'beekeeper', 'gardener', 'peat cutter', 'clay digger', 'dairymaid', 'maltster'].includes(role)) return 'field';
+      if (['woodcutter', 'forester', 'charcoal burner'].includes(role)) return 'chop';
+      if (['fisher', 'ferryman', 'salt boiler'].includes(role)) return 'fish';
+      if (['tax collector', 'bailiff', 'market warden'].includes(role)) return 'collect';
+      if (['messenger', 'mounted courier', 'carter', 'porter', 'docker', 'warehouse worker', 'page', 'herald', 'town crier', 'labourer', 'bearer', 'water carrier'].includes(role)) return 'deliver';
+      if (['maid', 'scullion', 'chambermaid', 'potboy', 'laundress', 'sweeper', 'undertaker', 'chimney sweep', 'rat-catcher', 'lamplighter', 'groom', 'stablehand', 'gravedigger'].includes(role)) return 'sweep';
+      if (['shopkeeper', 'server', 'innkeeper', 'postmaster', 'horse trader', 'butler'].includes(role)) return 'serve';
+      if (['priest', 'bell-ringer', 'pilgrim guide'].includes(role)) return 'service';
+      if (['teacher'].includes(role)) return 'teach';
+      if (['physician', 'nurse', 'midwife', 'barber-surgeon'].includes(role)) return 'tend';
+      if (['clerk', 'scribe', 'magistrate', 'steward', 'chamberlain', 'moneylender', 'house agent', 'parish clerk', 'ballot clerk', 'guard captain', 'warehouse master', 'mine foreman', 'quarry master', 'master builder', 'master of horse'].includes(role)) return 'write';
+      if (['monarch', 'consort', 'lord', 'lady', 'heir', 'prince', 'princess', 'lady-in-waiting', 'jester', 'executioner'].includes(role)) return 'court';
+      return 'make';
+    };
+    const recipeFor = (bz, role) => bz.def.recipes.find((rc) => rc.role === role) || bz.def.recipes.find((rc) => !rc.role) || bz.def.recipes[0] || null;
+    const supplierFor = (s, bz, g) => { const opts = String(bz.def.buys?.[g] || '').split('|').filter((t) => t && t !== 'import' && t !== 'none'); for (const t of opts) { const sp = s.supplierOf(t, g); if (sp && sp.id !== bz.id && (sp.stock[g] || 0) >= 1) return sp; } return null; };
+    function newTasks(s, bz, e) {
+      const kind = ROLE_KIND(e.role), out = [], id = () => Math.random().toString(36).slice(2, 8);
+      const n = 3;
+      if (kind === 'make') { const rc = recipeFor(bz, e.role); if (rc) { const g = Object.keys(rc.out)[0]; out.push({ id: id(), kind: 'make', good: g, need: n, have: 0, text: `Make ${D.GOODS[g]?.name.toLowerCase() || g}` }); } else out.push({ id: id(), kind: 'sweep', need: n, have: 0, text: 'Tidy and sweep the place' }); }
+      else if (kind === 'serve') out.push({ id: id(), kind: 'serve', need: n, have: 0, text: bz.type === 'tavern' ? 'Take orders and serve at the counter' : 'Serve at the counter' });
+      else out.push({ id: id(), kind, need: n, have: 0, text: { patrol: 'Walk your beat', field: 'Work the ground', chop: 'Fell and cut timber', fish: 'Fish the water', collect: 'Collect what is owed', deliver: 'Carry goods where they are wanted', sweep: 'Clean and sweep', service: 'Lead the prayers', teach: 'Teach the children', tend: 'Tend the sick', write: 'Keep the books', court: 'Hold court' }[kind] || 'Work' });
+      // a fire to keep in
+      if (bz.def.recipes.some((rc) => rc.inp.firewood) || ['bakery', 'smithy', 'tavern', 'kitchen'].includes(bz.type)) out.push({ id: id(), kind: 'fire', need: 1, have: 0, text: 'Keep the fire fed' });
+      // the innkeeper looks over the rooms
+      if (e.role === 'innkeeper') out.push({ id: id(), kind: 'rooms', need: 1, have: 0, text: 'Look over the rooms upstairs' });
+      // fetch what's running short, with the business's money
+      for (const [g, t] of Object.entries(bz.def.targets || {})) {
+        if (out.filter((x) => x.kind === 'fetch').length >= 1 || !bz.def.buys?.[g]) continue;
+        if ((bz.stock[g] || 0) < t * 0.35) { const sp = supplierFor(s, bz, g); if (sp) { const qty = Math.min(6, Math.ceil(t * 0.5 - (bz.stock[g] || 0))); out.push({ id: id(), kind: 'fetch', good: g, qty, from: sp.id, fromName: sp.name, need: 1, have: 0, text: `Buy ${qty} ${D.GOODS[g]?.name.toLowerCase() || g} at ${sp.name} (from the business purse)` }); } }
+      }
+      return out;
+    }
+
+    // where a task is done (in the current world or the workplace scene); returns candidates for the player
+    function spotsFor(t, s, bz, e) {
+      const w = s.world, b = bz.b, inScene = game.scene && game.scene.b.id === bz.id;
+      const near = (n, r0, r1, ok) => { const out = []; const rr = O.RNG(O.hash(t.id, s.day)); for (let k = 0; k < 120 && out.length < n; k++) { const a = rr.next() * 6.28, d = rr.float(r0, r1), x = Math.round(b.doorX + Math.cos(a) * d), y = Math.round(b.doorY + 1 + Math.sin(a) * d); if (x < 1 || y < 1 || x >= w.W - 1 || y >= w.H - 1 || w.solid[y * w.W + x]) continue; if (ok && !ok(x, y)) continue; out.push([x * T + 8, y * T + 10]); } return out; };
+      if (t._spots && t._day === s.day) return t._spots;
+      let spots = null;
+      switch (t.kind) {
+        case 'patrol': { const Z = w.zones || {}, k0 = s.day % 3; spots = bz.type === 'guard' && Z.patrol && Z.patrol.length >= k0 + 3 ? Z.patrol.slice(k0, k0 + 3).map(([x, y]) => [x * T + 8, y * T + 10]) : near(3, 8, 26); break; }
+        case 'field': spots = near(3, 3, 10, (x, y) => w.ter[y * w.W + x] !== w.TER.ROAD); break;
+        case 'chop': spots = near(3, 3, 14, (x, y) => w.trees.some((tr) => Math.abs(tr.x / T - x) < 2 && Math.abs((tr.y - 1) / T - y) < 2)); if (spots.length < 3) spots = near(3, 3, 10); break;
+        case 'fish': spots = near(3, 2, 20, (x, y) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => w.ter[(y + dy) * w.W + x + dx] === w.TER.WATER)); if (spots.length < 1) spots = near(3, 3, 8); break;
+        case 'collect': spots = w.buildings.filter((x) => x.type === 'house' && x.household && x.doorX != null).sort((a, c) => (a.id * 7 + s.day) % 13 - (c.id * 7 + s.day) % 13).slice(0, 3).map((x) => [x.doorX * T + 8, (x.doorY) * T + 10, x.id]); break;
+        case 'deliver': { const tg = [...s.biz.values()].filter((x) => x.id !== bz.id && x.b.doorX != null).sort((a, c) => (a.id * 3 + s.day) % 11 - (c.id * 3 + s.day) % 11).slice(0, 3); spots = tg.map((x) => [x.b.doorX * T + 8, x.b.doorY * T + 10, x.id]); break; }
+        case 'fetch': { const sp = s.biz.get(t.from); spots = sp ? [[sp.b.doorX * T + 8, sp.b.doorY * T + 10, sp.id]] : []; break; }
+        default: spots = null; // done indoors at a station
+      }
+      if (spots) { t._spots = spots; t._day = s.day; }
+      return spots;
+    }
+    // indoor stations by task
+    function stationOk(t, it, e) {
+      switch (t.kind) {
+        case 'make': return !!(it.work && (it.work.includes(e.role) || it.work.length)) || ['anvil', 'workbench', 'millstone', 'oven', 'forge', 'kiln', 'vat', 'loom', 'spinning', 'doughtable', 'butcherblock', 'cauldron'].includes(it.kind);
+        case 'fire': return ['oven', 'forge', 'kiln', 'fireplace'].includes(it.kind);
+        case 'serve': return !!(it.counter || it.kind === 'bar');
+        case 'sweep': return it.kind !== 'stairs' && !it.partition;
+        case 'service': return it.kind === 'altar';
+        case 'teach': case 'write': return it.kind === 'desk' || it.kind === 'altar';
+        case 'tend': return it.kind === 'medbed' || it.kind === 'desk' || it.kind === 'bed';
+        case 'court': return it.kind === 'throne' || it.kind === 'desk';
+        case 'rooms': return game.scene && game.scene.floor === 1 && (it.kind === 'bed' || it.rent);
+        case 'unload': return !!(it.counter || ['crate', 'sack', 'barrel', 'shelf', 'chest'].includes(it.kind));
+        default: return false;
+      }
+    }
+    const ANIM_OF = (t, e) => ({ make: D.actionFor(e.role), fire: 'place', serve: e.role === 'innkeeper' ? 'pour' : 'serve', sweep: 'sweep', patrol: 'look', field: D.actionFor(e.role) === 'idle' ? 'hoe' : D.actionFor(e.role), chop: 'chop', fish: 'fish', collect: 'count', deliver: 'place', service: 'pray', teach: 'read', write: 'write', tend: 'serve', court: 'talk', rooms: 'look', fetch: 'count', unload: 'place' }[t.kind] || 'work');
+
+    // the candidate for E: the task you can do where you stand
+    O.jobCandidate = () => {
+      const e = here(); if (!e || !e.onShift) return null;
+      const s = cur(), bz = bizOf(e); if (!bz) return null;
+      const p = game.player, open = e.tasks.filter((t) => t.have < t.need);
+      // carrying something back for the workplace
+      if (PS.carry && game.scene && game.scene.b.id === bz.id) { const it = game.scene.L.items.find((i) => stationOk({ kind: 'unload' }, i, e)); if (it) { const [x, y] = game.scene.anchor(it); if (Math.hypot(x - p.x, y - 6 - p.y) < 40) return { type: 'job', t: { kind: 'unload', id: 'u' }, it, d: 4, x, y: y - 30 }; } }
+      for (const t of open) {
+        if (t.kind === 'unload') continue;
+        const spots = spotsFor(t, s, bz, e);
+        if (spots) {
+          if (game.scene) { if (t.kind === 'fetch' && game.scene.b.id === t.from) { const c = game.scene.L.items.find((i) => i.counter || i.kind === 'bar'); if (c) { const [x, y] = game.scene.anchor(c); if (Math.hypot(x - p.x, y - p.y) < 50) return { type: 'job', t, d: 3, x, y: y - 30 }; } } continue; }
+          for (let k = 0; k < spots.length; k++) { if ((t.done || []).includes(k)) continue; const [x, y] = spots[k]; if (Math.hypot(x - p.x, y - p.y) < 22) return { type: 'job', t, k, d: 2, x, y: y - 34 }; }
+          continue;
+        }
+        if (!game.scene || game.scene.b.id !== bz.id) continue;
+        for (const it of game.scene.L.items) {
+          if (!stationOk(t, it, e)) continue;
+          const [x, y] = game.scene.anchor(it); const d = Math.hypot(x - p.x, y + 8 - p.y);
+          if (d < (t.kind === 'sweep' ? 26 : 36) && !(t.kind === 'sweep' && (t.swept || []).includes(it.id))) return { type: 'job', t, it, d: d - 16, x, y: y - 30 };
+        }
+      }
+      return null;
+    };
+    const LABEL = { make: (t) => `Make ${D.GOODS[t.good]?.name.toLowerCase() || 'goods'} (${t.have + 1}/${t.need})`, fire: () => 'Feed the fire with firewood', serve: (t) => `Serve (${t.have + 1}/${t.need})`, sweep: (t) => `Sweep here (${t.have + 1}/${t.need})`, patrol: (t) => `Look about your beat (${t.have + 1}/${t.need})`,
+      field: (t) => `Work the ground (${t.have + 1}/${t.need})`, chop: (t) => `Fell and cut (${t.have + 1}/${t.need})`, fish: (t) => `Cast a line (${t.have + 1}/${t.need})`, collect: (t) => `Collect the dues (${t.have + 1}/${t.need})`, deliver: (t) => `Deliver here (${t.have + 1}/${t.need})`,
+      fetch: (t) => `Buy ${t.qty} ${D.GOODS[t.good]?.name.toLowerCase()} for ${emp().bizName}`, unload: () => `Put away the ${D.GOODS[PS.carry?.good]?.name.toLowerCase() || 'goods'}`, service: (t) => `Lead the prayers (${t.have + 1}/${t.need})`, teach: (t) => `Teach a lesson (${t.have + 1}/${t.need})`,
+      write: (t) => `Write up the books (${t.have + 1}/${t.need})`, tend: (t) => `Tend the sick (${t.have + 1}/${t.need})`, court: (t) => `Hear petitions (${t.have + 1}/${t.need})`, rooms: () => 'Look over the rooms' };
+    O.jobLabel = (c) => (LABEL[c.t.kind] || (() => 'Work'))(c.t);
+
+    // doing it: the action plays, time passes, and the work is real
+    let busy = 0, busyDone = null;
+    game.hooks.update.push((dt) => {
+      if (busy > 0) { busy -= dt; game.player.locked = true; if (busy <= 0) { game.player.locked = false; const f = busyDone; busyDone = null; game.player.anim = 'idle'; f && f(); } }
+    });
+    function act(anim, secs, minutes, done) { const p = game.player; p.anim = anim; p.ft = 0; busy = secs; busyDone = () => { const s = cur(); for (let i = 0; i < minutes / 2; i++) { s.tick(2); PS.tick(2, false); } PS.energy = Math.max(0, PS.energy - minutes / 20); done(); }; }
+    O.jobAct = (c) => {
+      const e = emp(), s = cur(), bz = bizOf(e), t = c.t; if (!bz) return;
+      const tick = (msg) => { t.have++; e.stats.tasks++; e.todayTasks = (e.todayTasks || 0) + 1; if (c.k != null) (t.done = t.done || []).push(c.k); if (msg) say(msg); refresh(); };
+      switch (t.kind) {
+        case 'make': {
+          const rc = recipeFor(bz, e.role); if (!rc) return;
+          const lack = Object.entries(rc.inp).find(([g, q]) => (bz.stock[g] || 0) < q * 2);
+          if (lack) { const g = lack[0]; say(`There's no ${D.GOODS[g]?.name.toLowerCase() || g} to work with.`, 'bad'); if (!e.tasks.some((x) => x.kind === 'fetch' && x.good === g && x.have < x.need)) { const sp = supplierFor(s, bz, g); if (sp) { e.tasks.push({ id: Math.random().toString(36).slice(2, 8), kind: 'fetch', good: g, qty: 4, from: sp.id, fromName: sp.name, need: 1, have: 0, text: `Buy 4 ${D.GOODS[g]?.name.toLowerCase()} at ${sp.name} (from the business purse)` }); refresh(); } } return; }
+          act(ANIM_OF(t, e), 2.2, 30, () => { const made = []; for (const [g, q] of Object.entries(rc.inp)) bz.stock[g] -= q * 2; for (const [g, q] of Object.entries(rc.out)) { bz.stock[g] = (bz.stock[g] || 0) + q * 2; made.push(`${+(q * 2).toFixed(1)} ${D.GOODS[g]?.name.toLowerCase() || g}`); } tick(`Half an hour's work: ${made.join(', ')}.`); });
+          break;
+        }
+        case 'fire': {
+          if ((bz.stock.firewood || 0) < 1) { say('No firewood left. Someone must fetch some.', 'bad'); if (!e.tasks.some((x) => x.kind === 'fetch' && x.good === 'firewood' && x.have < x.need)) { const sp = supplierFor(s, bz, 'firewood') || s.supplierOf('woodcutter', 'firewood') || s.supplierOf('store', 'firewood'); if (sp) e.tasks.push({ id: 'fw' + s.day, kind: 'fetch', good: 'firewood', qty: 4, from: sp.id, fromName: sp.name, need: 1, have: 0, text: `Buy 4 firewood at ${sp.name} (from the business purse)` }); refresh(); } return; }
+          act('place', 1.2, 5, () => { bz.stock.firewood -= 1; bz.fireUntil = now(s) + 180; tick('You build up the fire. It roars.'); });
+          break;
+        }
+        case 'serve': {
+          const customers = s.people.filter((q) => q.agent.inside === bz.id && ['shop', 'eat-out', 'socialise', 'deliver', 'import'].includes(q.activity?.act)).length;
+          act(ANIM_OF(t, e), 1.6, 15, () => { const sold = bz.def.sells[0]; if (customers && sold && (bz.stock[sold] || 0) >= 1) { const pr = s.price(bz, sold); bz.stock[sold] -= 1; bz.cash += pr; bz.salesToday += pr; tick(`You serve a customer: ${D.GOODS[sold]?.name.toLowerCase()} for ${pr}d into the till.`); } else tick(customers ? 'You see to a customer.' : 'Nobody waiting; you set the counter straight and wait for trade.'); });
+          break;
+        }
+        case 'sweep': act('sweep', 1.6, 15, () => { (t.swept = t.swept || []).push(c.it ? c.it.id : c.k); tick(t.have + 1 >= t.need ? 'Swept clean.' : null); }); break;
+        case 'patrol': act('look', 1.4, 15, () => tick(t.have + 1 >= t.need ? 'Your round is walked. All quiet.' : null)); break;
+        case 'field': act(ANIM_OF(t, e), 2.4, 40, () => { const rc = recipeFor(bz, e.role); if (rc && !Object.keys(rc.inp).length) for (const [g, q] of Object.entries(rc.out)) bz.stock[g] = (bz.stock[g] || 0) + q * 2; tick(null); }); break;
+        case 'chop': act('chop', 2.4, 40, () => { const rc = recipeFor(bz, e.role); if (rc) for (const [g, q] of Object.entries(rc.out)) if (!Object.keys(rc.inp).length) bz.stock[g] = (bz.stock[g] || 0) + q * 2; else bz.stock.logs = (bz.stock.logs || 0) + 1; tick(null); }); break;
+        case 'fish': act('fish', 3, 45, () => { const got = s.rng.chance(0.7); if (got) { const g = bz.type === 'saltworks' ? 'salt' : 'fish'; bz.stock[g] = (bz.stock[g] || 0) + (g === 'fish' ? 3 : 2); } tick(got ? (bz.type === 'saltworks' ? 'The pan boils down to salt.' : 'Three fish in the basket.') : 'Nothing biting.'); }); break;
+        case 'collect': {
+          const b = s.building(t._spots[c.k][2]), hh = b && s.households[b.household - 1];
+          act('count', 1.6, 10, () => { if (!hh) return tick(null); const due = Math.max(1, Math.round(hh.members.length * 1.5)); if (hh.money >= due && s.rng.chance(0.8)) { hh.money -= due; if (bz.def.public) s.treasury.cash += due; else bz.cash += due; tick(`The ${hh.surname} household pays ${due}d.`); } else { const q = s.byId.get(hh.members[0]); if (q) { q.agent.shockedUntil = s.minute + 2; s.relate(q, { id: 0 }, -0.05); } tick(`The ${hh.surname} household can't pay. You note it down for the bailiff.`); } });
+          break;
+        }
+        case 'deliver': act('place', 1.4, 15, () => { const to = s.biz.get(t._spots[c.k][2]); const g = bz.def.sells[0]; if (to && g && (bz.stock[g] || 0) >= 1) { bz.stock[g] -= 1; to.stock[g] = (to.stock[g] || 0) + 1; const pr = s.price(bz, g); if (to.cash >= pr) { to.cash -= pr; bz.cash += pr; } } tick(to ? `Delivered to ${to.name}.` : null); }); break;
+        case 'fetch': {
+          const sp = s.biz.get(t.from), g = t.good; if (!sp) return;
+          const qty = Math.min(t.qty, Math.floor(sp.stock[g] || 0)), cost = Math.round(s.price(sp, g) * qty);
+          if (qty < 1) { say(`${sp.name} has no ${D.GOODS[g]?.name.toLowerCase()} to sell.`, 'bad'); return; }
+          if (bz.cash < cost) { say(`The business purse holds ${Math.floor(bz.cash)}d; that's ${cost}d of ${D.GOODS[g]?.name.toLowerCase()}. Ask the master to put more in.`, 'bad'); return; }
+          act('count', 1.4, 10, () => { sp.stock[g] -= qty; sp.cash += cost; bz.cash -= cost; PS.carry = { good: g, qty, for: bz.id }; e.tasks.push({ id: 'un' + t.id, kind: 'unload', need: 1, have: 0, text: `Bring the ${D.GOODS[g]?.name.toLowerCase()} back to ${bz.name}` }); tick(`You pay ${cost}d of ${bz.name}'s money and take ${qty} ${D.GOODS[g]?.name.toLowerCase()}. Carry it back.`); });
+          break;
+        }
+        case 'unload': act('place', 1.2, 5, () => { const cy = PS.carry; if (cy) { bz.stock[cy.good] = (bz.stock[cy.good] || 0) + cy.qty; PS.carry = null; } const u = e.tasks.find((x) => x.kind === 'unload' && x.have < x.need); if (u) { u.have = 1; } e.stats.tasks++; refresh(); say('Put away.'); }); break;
+        case 'rooms': act('look', 1.6, 10, () => tick('The rooms are in order.')); break;
+        case 'service': case 'teach': case 'write': case 'tend': case 'court': act(ANIM_OF(t, e), 2, 30, () => tick(null)); break;
+        default: break;
+      }
+    };
+
+    // ---------------------------------------------------------------- shifts, lateness, pay, promotion and the sack
+    function atWork(s, bz, e) {
+      if (game.scene && game.scene.b.id === bz.id) return true;
+      const p = game.player; if (game.world !== s.world) return false;
+      return Math.hypot(p.x - (bz.b.doorX * T + 8), p.y - bz.b.doorY * T) < 140 || e.tasks.some((t) => t._spots && t._spots.some(([x, y]) => Math.hypot(x - p.x, y - p.y) < 60));
+    }
+    let lastMin = -1;
+    game.hooks.update.push(() => {
+      const e = emp(); if (!e) { panel(null); return; }
+      // the post is in another town: it waits for you (time passes there too)
+      const visited = O.Travel && O.Travel.visited.get(e.place), s = visited ? visited.sim : cur();
+      if (!s || s.world.placeId !== e.place) { panel(e); return; }
+      const bz = s.biz.get(e.biz); if (!bz) { quit(`${e.bizName} is gone, and your post with it.`); return; }
+      if (bz.playerRole !== e.role) bz.playerRole = e.role;
+      const m = Math.floor(now(s)); if (m === lastMin) return; lastMin = m;
+      const [o, c] = hoursOf(e, bz), h = s.hour + (s.hour < 6 && c > 24 ? 24 : 0), day = s.day;
+      if (e.day !== day) { // a new day
+        if (e.day != null && e.dayInfo) settle(s, bz, e);
+        e.day = day; e.dayInfo = { works: worksToday(s, bz), arrived: null, excused: e.excuseDay === day };
+        e.tasks = []; e.onShift = false;
+      }
+      const D0 = e.dayInfo; if (!D0.works) { panel(e); return; }
+      const on = h >= o && h < c;
+      if (on && !e.onShift) { e.onShift = true; e.tasks = newTasks(s, bz, e); refresh(); }
+      if (!on && e.onShift && h >= c) { e.onShift = false; refresh(); }
+      if (on && D0.arrived == null && atWork(s, bz, e)) { D0.arrived = h; if (h > o + 0.25 && !D0.excused) { e.stats.late++; const boss = s.byId.get(e.master); if (boss) s.relate(boss, { id: 0 }, -0.04); say(`You're late. ${e.masterName || 'Your master'} gives you a look.`, 'bad'); } }
+      if (on && e.onShift && e.tasks.every((t) => t.have >= t.need) && h < c - 1) { e.tasks.push(...newTasks(s, bz, e).filter((t) => t.kind !== 'rooms')); refresh(); }
+      panel(e);
+    });
+    function settle(s, bz, e) {
+      const D0 = e.dayInfo; if (!D0.works) return;
+      const boss = s.byId.get(e.master), done = e.todayTasks || 0; e.todayTasks = 0;
+      if (D0.arrived == null) {
+        if (D0.excused) { e.stats.excused++; if (boss) s.relate(boss, { id: 0 }, -0.02); }
+        else { e.stats.missed++; if (boss) { s.relate(boss, { id: 0 }, -0.12); s.remember(boss, 'The stranger never came to work.', 'work', 1.2, 0); } }
+      } else {
+        e.stats.shifts++;
+        // the day's wage, less for a half-hearted day
+        const pay = Math.round(e.wage * O.clamp(0.5 + done * 0.12, 0.5, 1.15));
+        const purse = bz.def.public ? s.treasury : bz; const paid = Math.min(pay, Math.floor(purse.cash));
+        purse.cash -= paid; PS.money += paid; PS.earned = (PS.earned || 0) + paid;
+        if (boss) s.relate(boss, { id: 0 }, done >= 3 ? 0.04 : 0.01);
+        say(`Your day's pay from ${bz.name}: ${paid}d${paid < pay ? ` (${pay - paid}d owing: the purse is empty)` : ''}.`);
+      }
+      // the sack: lateness and absence against how much they like you and how badly they need you
+      const like = boss ? (boss.rel.get(0)?.affinity || 0) : 0, des = s.desperation ? s.desperation(bz) : 0;
+      const bad = e.stats.late * 0.08 + e.stats.missed * 0.3 + Math.max(0, e.stats.excused - 2) * 0.1;
+      if (bad - like * 0.8 - des * 0.4 > 0.55) {
+        bz.firedPlayer = true;
+        const told = s.rng.chance(0.5);
+        if (boss) s.remember(boss, 'Let the stranger go. Unreliable.', 'work', 1.5, 0);
+        quit(told ? `${e.masterName || 'Your master'} sends word: you're not to come back to ${e.bizName}.` : null);
+        if (!told) PS.firedSilently = { biz: bz.id, place: s.world.placeId, name: bz.name };
+        return;
+      }
+      // a step up: good attendance, plenty done, a master who likes you and a business that can pay
+      const sh = e.stats.shifts;
+      if (sh > 0 && sh % 6 === 0 && e.stats.tasks / sh >= 3 && like > 0.2 && (bz.cash > 120 || bz.def.public)) {
+        const roles = bz.def.jobs.map((j) => j[0]), i = roles.indexOf(e.role);
+        if (i > 0 && bz.def.wage[roles[i - 1]] !== 0) { const nr = roles[i - 1]; bz.playerRole = nr; e.role = nr; e.wage = Math.max(e.wage + 1, bz.def.wage[nr] || e.wage + 2); say(`${e.masterName || 'Your master'} puts you up to ${nr}, at ${e.wage}d a day.`); }
+        else { e.wage += 1; say(`${e.masterName || 'Your master'} raises your pay to ${e.wage}d a day.`); }
+      }
+    }
+    // turning up after being quietly let go
+    game.hooks.update.push(() => {
+      const f = PS.firedSilently; if (!f || !game.scene || game.scene.b.id !== f.biz || cur().world.placeId !== f.place) return;
+      PS.firedSilently = null; say(`Someone at ${f.name} tells you: “You don't work here any more. Didn't they say?”`, 'bad');
+    });
+
+    // ---------------------------------------------------------------- the checklist in the corner
+    let el = null, sig = '';
+    function refresh() { sig = ''; }
+    function panel(e) {
+      if (!el) { el = document.createElement('div'); el.className = 'joblist'; el.setAttribute('aria-live', 'polite'); (document.getElementById('tab-play') || document.body).appendChild(el); }
+      if (!e) { if (!el.hidden) el.hidden = true; return; }
+      const s = O.Travel?.visited.get(e.place)?.sim || cur();
+      const bz = s.world.placeId === e.place ? s.biz.get(e.biz) : null, [o, c] = hoursOf(e, bz);
+      const head = `<b>${esc(e.role)}</b> · ${esc(e.bizName)}${e.place !== cur().world.placeId ? `, ${esc(e.placeName)}` : ''}`;
+      const shift = e.onShift ? `On shift till ${fmtH(c)}` : `Next shift: ${e.dayInfo && e.dayInfo.works && s.hour < o ? 'today' : 'tomorrow'} ${fmtH(o)}-${fmtH(c)}`;
+      const tasks = e.onShift ? e.tasks.map((t) => `<li class="${t.have >= t.need ? 'done' : ''}">${t.have >= t.need ? '■' : '□'} ${esc(t.text)}${t.need > 1 ? ` (${Math.min(t.have, t.need)}/${t.need})` : ''}</li>`).join('') : '';
+      const carry = PS.carry ? `<div class="carry">Carrying: ${PS.carry.qty} ${esc(D.GOODS[PS.carry.good]?.name.toLowerCase() || PS.carry.good)}</div>` : '';
+      const html = `<div class="jh">${head}</div><div class="js">${shift} · ${e.wage}d a day</div>${tasks ? `<ul>${tasks}</ul>` : ''}${carry}`;
+      if (html === sig) return; sig = html; el.innerHTML = html; el.hidden = false;
+    }
+
+    // ---------------------------------------------------------------- markers over where the work is
+    game.hooks.drawTop.push((ctx, cam, indoor) => {
+      const e = here(); if (!e || !e.onShift) return;
+      const s = cur(), bz = bizOf(e); if (!bz) return;
+      const bob = Math.round(Math.sin(game.t * 4) * 2), mark = (x, y) => { x = Math.round(x - cam.x); y = Math.round(y - cam.y) + bob; ctx.fillStyle = '#1b1424'; ctx.fillRect(x - 3, y - 1, 7, 5); ctx.fillRect(x - 1, y + 4, 3, 2); ctx.fillStyle = '#f0b45c'; ctx.fillRect(x - 2, y, 5, 3); ctx.fillRect(x, y + 3, 1, 2); };
+      for (const t of e.tasks) {
+        if (t.have >= t.need) continue;
+        if (indoor) {
+          if (!game.scene) continue;
+          if (t.kind === 'fetch' && game.scene.b.id === t.from) { const c = game.scene.L.items.find((i) => i.counter || i.kind === 'bar'); if (c) { const [x, y] = game.scene.anchor(c); mark(x, y - 40); } continue; }
+          if (game.scene.b.id !== bz.id) continue;
+          if (t.kind === 'unload') { const it = game.scene.L.items.find((i) => stationOk(t, i, e)); if (it) { const [x, y] = game.scene.anchor(it); mark(x, y - 40); } continue; }
+          const it = game.scene.L.items.find((i) => stationOk(t, i, e) && !(t.swept || []).includes(i.id)); if (it) { const [x, y] = game.scene.anchor(it); mark(x, y - 40); }
+        } else {
+          const spots = spotsFor(t, s, bz, e);
+          if (spots) spots.forEach(([x, y], k) => { if (!(t.done || []).includes(k)) mark(x, y - 40); });
+          else if (t.kind !== 'unload') mark(bz.b.doorX * T + 8, bz.b.doorY * T - 50);
+          else mark(bz.b.doorX * T + 8, bz.b.doorY * T - 50);
+        }
+      }
+    });
+
+    // ---------------------------------------------------------------- any post at all (for trying the jobs out)
+    O.allRoles = () => {
+      const seen = new Map();
+      for (const [type, def] of Object.entries(D.BUSINESS)) for (const [role] of def.jobs) if (!seen.has(role)) seen.set(role, type);
+      for (const r of ['monarch', 'consort', 'heir', 'lord', 'lady']) seen.set(r, 'crown');
+      return seen;
+    };
+    O.takeAnyPost = (role) => {
+      const s = cur(), type = O.allRoles().get(role);
+      let bz = [...s.biz.values()].find((x) => x.type === type) || null;
+      if (type === 'crown') bz = [...s.biz.values()].find((x) => x.type === 'palace' || x.type === 'keep' || x.type === 'manor' || x.type === 'townhall') || [...s.biz.values()][0];
+      if (!bz) return say(`There's no ${D.BUSINESS[type]?.label.toLowerCase() || type} in ${s.world.name}. Try a bigger place.`, 'bad');
+      // whoever held the post makes way (they find work elsewhere)
+      const holder = bz.workers.map((id) => s.byId.get(id)).find((q) => q && q.job?.role === role);
+      if (holder) { bz.workers = bz.workers.filter((id) => id !== holder.id); holder.job = null; }
+      if (emp()) quit(null);
+      hire(s, bz, s.bossOf(bz), role, Math.max(3, bz.def.wage?.[role] || (type === 'crown' ? 40 : 6)), { trial: true });
+      say(`You take up the post of ${role} at ${bz.name}.`);
+    };
+
+    // ---------------------------------------------------------------- the sim keeps its count of who works where
+    const SP = O.Sim.prototype, _vac = SP.vacancies;
+    void _vac; void home;
+  }
+  O.EmploymentSetup = { setup };
+})();
+
+</script>
+<script>
+// Letters. Buy a sheet at the scrivener's, the post house or the store, write it from your satchel and
+// pay a messenger to carry it: they walk it through the streets to the person and go in to hand it over.
+// A letter to your master that you're unwell, or can't come, excuses you that day (but too many and
+// they'll tire of it); one saying you'll be late covers your lateness; a notice ends your service.
+// Where there's no post house you can give the letter to its reader yourself.
+'use strict';
+(function () {
+  const KINDS = [
+    ['unwell', "I'm unwell and can't come in today", 'work'],
+    ['cannot', "I can't come in today", 'work'],
+    ['late', "I'll be late today", 'work'],
+    ['notice', 'I give notice: I am leaving your service', 'work'],
+    ['greet', 'Greetings and good wishes', 'any'],
+    ['thanks', 'Thank you for your kindness', 'any'],
+    ['meet', 'Meet me at the square at noon', 'any'],
+  ];
+  function setup(game, home, npcUI) {
+    const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k), esc = (t) => O.escape(String(t));
+    // what a letter does when it's read
+    function deliver(s, L) {
+      const q = s.byId.get(L.to); if (!q) return;
+      const e = PS.emp;
+      s.remember(q, `A letter from the stranger: “${L.text}”`, 'social', 1, 0); s.relate(q, { id: 0 }, L.kind === 'thanks' || L.kind === 'greet' ? 0.04 : 0);
+      if (e && e.place === s.world.placeId && e.master === q.id) {
+        if (L.kind === 'unwell' || L.kind === 'cannot') { e.excuseDay = s.day + (s.hour >= 20 ? 1 : 0); if (e.dayInfo && e.day === e.excuseDay) e.dayInfo.excused = true; e.stats.excused = (e.stats.excused || 0); if (e.stats.excused >= 3) s.relate(q, { id: 0 }, -0.05); }
+        if (L.kind === 'late' && e.dayInfo) e.dayInfo.excused = true;
+        if (L.kind === 'notice') { O.Employment.quit(`${q.first} has your letter of notice. You no longer work at ${e.bizName}.`); return; }
+      }
+      say(`Your letter has been put into ${q.first}'s hands.`);
+    }
+    O.Letters = { KINDS, deliver };
+
+    // the messenger carries it: a real walk to the reader's door
+    const SP = O.Sim.prototype, _plan = SP.plan, _onEnter = SP.onEnter;
+    SP.plan = function (p) { if (p.task && p.task.act === 'letter') { const q = this.byId.get(p.task.to); const b = q && (q.agent.inside != null ? q.agent.inside : q.home); return { act: 'letter', b: b != null ? b : p.home, to: p.task.to }; } return _plan.call(this, p); };
+    SP.onEnter = function (p, bid) {
+      if (p.task && p.task.act === 'letter') { const q = this.byId.get(p.task.to); if (q && (q.agent.inside === bid || q.home === bid)) { const L = p.task.letter; p.task = null; deliver(this, L); this.remember(p, `Carried a letter to ${q.name}.`, 'work', 0.4); return; } }
+      return _onEnter.call(this, p, bid);
+    };
+
+    function write(idx) {
+      const s = cur(), e = PS.emp;
+      const known = [...(s.people.filter((q) => q.alive !== false && ((q.rel.get(0)?.familiar || 0) > 0.05 || (e && e.master === q.id && e.place === s.world.placeId))))].slice(0, 16);
+      if (!known.length) return say('You know nobody here well enough to write to.', 'bad');
+      const opts = known.map((q) => `<option value="${q.id}">${esc(q.name)}${e && e.master === q.id ? ' (your master)' : ''}</option>`).join('');
+      O.Panels.open('Write a letter', `<p class="caption">To whom, and what shall it say?</p><p><select data-to>${opts}</select></p><div class="topics">${KINDS.map(([k, t]) => `<button data-k="${k}">${esc(t)}</button>`).join('')}</div>`, (r) => {
+        r.querySelectorAll('[data-k]').forEach((b) => b.onclick = () => {
+          const to = +r.querySelector('[data-to]').value, kind = b.dataset.k, text = KINDS.find((x) => x[0] === kind)[1];
+          PS.items.splice(idx, 1);
+          const L = { to, kind, text, day: s.day };
+          // a messenger, if the town keeps a post house
+          const post = [...s.biz.values()].find((bz) => bz.type === 'posthouse');
+          const runner = post && post.workers.map((id) => s.byId.get(id)).find((q) => q && (q.job?.role === 'messenger' || q.job?.role === 'mounted courier') && !q.task && q.alive !== false);
+          O.Panels.close();
+          if (runner) { if (PS.money >= 1) { PS.money -= 1; post.cash += 1; } runner.task = { act: 'letter', to, letter: L }; runner.agent.goal = null; runner.agent.path = null; say(`You seal the letter and pay a penny. ${runner.first}, the messenger, sets off with it.`); }
+          else { (PS.sealed = PS.sealed || []).push(L); say('There is no messenger to be had here. You carry the sealed letter yourself: give it to them when you see them.'); }
+          game.player.anim = 'write'; game.player.ft = 0; setTimeout(() => { if (game.player.anim === 'write') game.player.anim = 'idle'; }, 1200);
+        });
+      });
+    }
+    O.writeLetter = write;
+    // handing over a letter you carried yourself
+    const prevExtra = npcUI.extraButtons, prevOn = npcUI.onExtra;
+    npcUI.extraButtons = (q) => { const out = prevExtra ? prevExtra(q) : []; if ((PS.sealed || []).some((L) => L.to === q.id)) out.push(['letter', 'Give them your letter']); return out; };
+    npcUI.onExtra = (q, key, render) => { if (key !== 'letter') return prevOn && prevOn(q, key, render); const i = PS.sealed.findIndex((L) => L.to === q.id); const L = PS.sealed.splice(i, 1)[0]; deliver(cur(), L); return render(`${q.first} breaks the seal and reads it.`); };
+  }
+  O.LettersSetup = { setup };
+})();
+
+</script>
+<script>
+// Eating, drinking, setting things down, and fitting out a building.
+// - Eat or drink from the satchel and you're seen doing it: the bite, the swig, then the good of it.
+// - Set food (or a jug, a cup, a lantern) down: you bend and place it within reach. Outdoors it sits on
+//   the ground; indoors on the table you're by, or the floor. Anyone hungry nearby may eat it, you too.
+// - Furniture you've bought can be set down inside a building you own or rent, and taken up again;
+//   it must never block a door, the stairs, or anything that has to be reached.
+// - Owners and tenants can have the floor and walls redone.
+// - A business is only that business while its equipment is inside: take up the bakery's oven and it
+//   stops baking; fit out an empty house with an oven, shelves and a counter and it can open as one.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const PS = O.PlayerState, G = O.Data.GOODS, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k);
+    const nm = (k) => (G[k]?.name || k).toLowerCase();
+
+    // ---------------- eating and drinking ----------------
+    let busy = 0, then = null;
+    game.hooks.update.push((dt) => { if (busy > 0) { busy -= dt; game.player.locked = true; if (busy <= 0) { game.player.locked = false; game.player.anim = 'idle'; const f = then; then = null; f && f(); } } });
+    const doAnim = (anim, secs, f) => { game.player.anim = anim; game.player.ft = 0; busy = secs; then = f; };
+    O.consume = (k) => {
+      const g = G[k]; if (!g || !PS.items.includes(k)) return;
+      const drink = !!g.drink;
+      doAnim(drink ? 'drink' : 'eat', 1.8, () => {
+        PS.remove(k);
+        if (g.food) PS.hunger = Math.min(100, PS.hunger + 35 * g.food);
+        if (drink) PS.energy = Math.min(100, PS.energy + 6 * (g.drink || 0.3));
+        PS.hp = Math.min(100, PS.hp + 3);
+        if (k === 'ale' || k === 'wine') { PS.tipsy = Math.min(3, (PS.tipsy || 0) + 1); }
+        say(drink ? `You drink the ${nm(k)}.${PS.tipsy >= 3 ? ' The street sways a little.' : ''}` : `You eat the ${nm(k)}.`);
+      });
+    };
+    // drink wears off
+    game.hooks.update.push((dt) => { if (PS.tipsy) PS.tipsy = Math.max(0, PS.tipsy - dt / 90); });
+
+    // ---------------- setting things down ----------------
+    // indoors: kept per building and floor, in scene pixels
+    const placedIn = (b, floor) => (b.placedItems || []).filter((x) => x.floor === floor);
+    O.placeItem = (k) => {
+      const g = G[k]; if (!g || !PS.items.includes(k)) return;
+      if (g.furniture) return placeFurniture(k);
+      const p = game.player, d = O.Char.DIRV[p.dir] || [0, 1];
+      doAnim('place', 0.9, () => {
+        PS.remove(k);
+        if (game.scene) {
+          const sc = game.scene, b = sc.b;
+          // on the nearest table or counter within reach, else on the floor in front of you
+          let at = null;
+          for (const it of sc.L.items) if (it.table || it.counter || it.kind === 'bar' || it.kind === 'desk') { const [ax, ay] = sc.anchor(it), [x0, y0, x1] = sc.rect(it); if (Math.hypot(ax - p.x, ay - p.y) < 40) { at = { x: O.clamp(p.x, x0 + 6, x1 - 6), y: y0 + 6, top: true }; break; } }
+          if (!at) at = { x: p.x + d[0] * 14, y: p.y + d[1] * 10 };
+          (b.placedItems = b.placedItems || []).push({ good: k, x: at.x, y: at.y, floor: sc.floor, top: !!at.top, id: Math.random() });
+        } else {
+          const s = cur(); s.drop(k, 1, p.x + d[0] * 14, p.y + d[1] * 10 + 2); const it = s.dropped[s.dropped.length - 1]; if (it) it.placed = true;
+        }
+        say(`You set down the ${nm(k)}.`);
+      });
+    };
+    // drawn inside, in their proper place among the furniture and people
+    O.sceneExtras = (sc, ctx, cam) => (sc.b.placedItems || []).filter((x) => x.floor === sc.floor).map((x) => ({ y: x.top ? x.y + 10 : x.y, draw: () => { const sp = O.ItemArt.small(x.good); ctx.drawImage(sp, Math.round(x.x - 6 - cam.x), Math.round(x.y - 10 - cam.y)); } }));
+    // pick it up again, or eat it where it lies
+    O.placedCandidate = () => {
+      const p = game.player;
+      if (game.scene) { let best = null, bd = 26; for (const x of placedIn(game.scene.b, game.scene.floor)) { const d = Math.hypot(x.x - p.x, x.y - p.y); if (d < bd) { bd = d; best = { type: 'placed', x, d, xx: x.x, y: x.y - 22 }; } } if (best) { best.x0 = best.x; best.x = best.xx; } return best; }
+      return null;
+    };
+    O.placedAct = (c) => {
+      const it = c.x0, b = game.scene.b, g = G[it.good];
+      const take = () => { b.placedItems = b.placedItems.filter((x) => x !== it); };
+      if ((g.food || g.drink) && PS.hunger < 85) { doAnim(g.drink ? 'drink' : 'eat', 1.8, () => { take(); if (g.food) PS.hunger = Math.min(100, PS.hunger + 35 * g.food); say(`You ${g.drink ? 'drink' : 'eat'} the ${nm(it.good)}.`); }); return; }
+      doAnim('pickup', 0.6, () => { if (PS.add(it.good)) { take(); say(`You pick up the ${nm(it.good)}.`); } else say('Your satchel is full.'); });
+    };
+    // hungry people help themselves to food left out, sitting down to it (outdoors and in)
+    let nt = 0;
+    game.hooks.update.push((dt) => {
+      nt -= dt; if (nt > 0) return; nt = 3;
+      const s = cur();
+      if (!game.scene) {
+        for (const d of s.dropped || []) { if (!G[d.good]?.food) continue; const q = s.people.find((x) => !x.agent.hidden && x.needs.hunger < 45 && Math.hypot(x.agent.x - d.x, x.agent.y - d.y) < 40 && !x.agent.frozen); if (q) { q.agent.anim = 'eat'; q.agent.frozen = true; setTimeout(() => { q.agent.frozen = false; }, 2500); q.needs.hunger = Math.min(100, q.needs.hunger + 35 * G[d.good].food); s.pickUpDropped(d); s.remember(q, `Found ${nm(d.good)} left out and ate it.`, 'life', 0.3); break; } }
+      } else {
+        const sc = game.scene; for (const x of placedIn(sc.b, sc.floor)) { if (!G[x.good]?.food) continue; const q = [...sc.actors.values()].find((a) => a.person && a.person.needs.hunger < 45 && Math.hypot(a.x - x.x, a.y - x.y) < 50); if (q) { q.person.needs.hunger = Math.min(100, q.person.needs.hunger + 35 * G[x.good].food); sc.b.placedItems = sc.b.placedItems.filter((z) => z !== x); s.remember(q.person, `Ate the ${nm(x.good)} that was left out.`, 'life', 0.3); q.gAnim = 'eat'; break; } }
+      }
+    });
+
+    // ---------------- furniture ----------------
+    const mayFit = (b) => b && ((b.owner && b.owner.kind === 'player') || (PS.lease && PS.lease.b === b.id));
+    function rebuild(sc) { O.Interior.invalidate(sc.b); game.enterBuilding(sc.b, sc.floor, null); }
+    function placeFurniture(k) {
+      const sc = game.scene, kind = G[k].furniture;
+      if (!sc || !mayFit(sc.b)) return say('Furniture can only be set down inside a building you own or rent.', 'bad');
+      const p = game.player, L = sc.L, d = O.Char.DIRV[p.dir] || [0, 1];
+      const tx = Math.floor((p.x + d[0] * 18 - sc.R.SW) / T), ty = Math.floor((p.y + d[1] * 14 - sc.R.WH) / T) - (d[1] < 0 ? 1 : 0);
+      const b = sc.b, prev = (b.extraFurn || []).slice();
+      b.extraFurn = [...prev, { kind, tx: O.clamp(tx, 0, L.w - 1), ty: O.clamp(ty, 0, L.d - 1), floor: sc.floor }];
+      O.Interior.invalidate(b);
+      const L2 = O.Interior.interior(b, sc.floor, cur());
+      const ok = L2.items.some((i) => i.owned && i.kind === kind && i.tx === O.clamp(tx, 0, L.w - 1) && i.ty === O.clamp(ty, 0, L.d - 1));
+      // never in the way: the door, the stairs and everything that must be reached stay reachable
+      const blocked = !ok || L2.items.some((i) => i.access && !reachable(L2, i));
+      if (blocked) { b.extraFurn = prev; O.Interior.invalidate(b); return say(ok ? "That would block the way. Try somewhere else." : "There isn't room there.", 'bad'); }
+      doAnim('place', 1, () => { PS.remove(k); rebuild(sc); say(`You set down the ${nm(k)}.`); checkFitting(b); });
+    }
+    function reachable(L, it) { const R = L.reachable; if (!R) return true; for (let y = it.ty - 1; y <= it.ty + it.fh; y++) for (let x = it.tx - 1; x <= it.tx + it.fw; x++) if (x >= 0 && y >= 0 && x < L.w && y < L.d && R[y * L.w + x]) return true; return false; }
+    O.furnCandidate = () => {
+      const sc = game.scene; if (!sc || !mayFit(sc.b)) return null;
+      const p = game.player; let best = null, bd = 26;
+      for (const it of sc.L.items) { if (it.kind === 'stairs' || it.partition || it.portrait || !O.Data.FURN[it.kind]) continue; const [x, y] = sc.anchor(it); const d = Math.hypot(x - p.x, y + 6 - p.y); if (d < bd) { bd = d; best = { type: 'furn', it, d: d + 6, x, y: y - 30 }; } }
+      return best;
+    };
+    O.furnAct = (c) => {
+      const sc = game.scene, b = sc.b, it = c.it, k = 'fx_' + it.kind;
+      if (!PS.canCarry(k)) return say('Your satchel is too full to carry that.', 'bad');
+      doAnim('pickup', 0.9, () => {
+        if (it.owned) b.extraFurn = (b.extraFurn || []).filter((f) => !(f.kind === it.kind && f.tx === it.tx && f.ty === it.ty && f.floor === sc.floor));
+        else (b.removedFurn = b.removedFurn || []).push(sc.floor + ':' + it.kind + '@' + it.tx + ',' + it.ty);
+        PS.add(k); rebuild(sc); say(`You take up the ${nm(k)}.`); checkFitting(b);
+      });
+    };
+
+    // ---------------- is it still the business it claims to be? ----------------
+    function equipOf(b) { const have = []; for (let f = 0; f < (b.floors || 1); f++) { try { have.push(...O.Interior.interior(b, f, cur()).items.map((i) => i.kind)); } catch (e) { /* */ } } return have; }
+    function satisfies(have, eq) { const pool = have.slice(); for (const k of eq) { const i = pool.indexOf(k); if (i < 0) return false; pool.splice(i, 1); } return true; }
+    function checkFitting(b) {
+      const s = cur(), bz = s.biz.get(b.id); if (!bz || !bz.def.equip) return;
+      const ok = satisfies(equipOf(b), bz.def.equip);
+      if (!ok && !bz.unfitted) { bz.unfitted = true; say(`Without its ${bz.def.equip.join(', ')}, ${bz.name} can't work as a ${bz.def.label.toLowerCase()}.`, 'bad'); }
+      if (ok && bz.unfitted) { bz.unfitted = false; say(`${bz.name} has what it needs again.`); }
+    }
+    O.fitsAs = (b) => { const have = equipOf(b); return Object.entries(O.Data.BUSINESS).filter(([, d]) => d.equip && !d.public && satisfies(have, d.equip)).map(([t]) => t); };
+    O.missingFor = (b, type) => { const have = equipOf(b), need = (O.Data.BUSINESS[type]?.equip || []).slice(); for (const k of have) { const i = need.indexOf(k); if (i >= 0) need.splice(i, 1); } return need; };
+    // an unfitted business does no work
+    const SP = O.Sim.prototype, _work = SP.work;
+    SP.work = function (p) { const bz = p.job && this.biz.get(p.job.biz); if (bz && bz.unfitted) return; return _work.call(this, p); };
+
+    // ---------------- floors and walls ----------------
+    O.redecorate = (b, what, kind) => {
+      const cost = what === 'floor' ? { stone: 30, wood: 18, dirt: 4 }[kind] : { stone: 34, plank: 16, timber: 20, log: 12 }[kind];
+      if (PS.money < cost) return say(`That work costs ${cost}d.`, 'bad');
+      PS.money -= cost; b.decor = Object.assign({}, b.decor, { [what]: kind }); O.Interior.invalidate(b);
+      if (game.scene && game.scene.b === b) rebuild(game.scene);
+      say(`The ${what === 'floor' ? 'floor is relaid' : 'walls are redone'} in ${kind}. ${cost}d.`);
+    };
+  }
+  O.FittingSetup = { setup };
+})();
+
+</script>
+<script>
 // The guide (/ or the Guide button): controls, and the many ways to live in this world, honest
 // work, trade, property, crime, gangs, politics, war, with where each starts.
 'use strict';
@@ -15420,7 +16649,7 @@ O.snowMaskOf = function (src) {
         x: away ? away[0] : Math.round(game.scene ? game.scene.b.doorX * 16 + 8 : game.player.x), y: away ? away[1] : Math.round(game.scene ? game.scene.b.doorY * 16 + 10 : game.player.y), dir: game.player.dir,
         mount: game.player.mount ? game.player.mount.id : null,
         region: game.world.island && !game.scene && game.world !== sim.world ? game.world.placeId : null, g: game.world.island && !game.scene ? O.Island.toGlobal(game.world, game.player.x, game.player.y).map(Math.round) : null,
-        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [] },
+        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [], emp: PS.emp ? Object.assign({}, PS.emp, { tasks: [], onShift: false, dayInfo: null }) : null, carry: PS.carry || null, firedSilently: PS.firedSilently || null },
       },
     };
   }
@@ -15629,6 +16858,9 @@ O.snowMaskOf = function (src) {
   O.PropertyUI.setup(game, sim);
   O.ChronicleUI.setup(game, home);
   O.WorkSetup.setup(game, sim, npcUI);
+  O.EmploymentSetup.setup(game, home, npcUI);
+  O.LettersSetup.setup(game, home, npcUI);
+  O.FittingSetup.setup(game);
   O.WarUI.setup(game, home, npcUI);
   O.Craft.setup(game);
   O.FireFX.setup(game, home);

@@ -328,6 +328,9 @@
       for (let yy = bld.y; yy <= bld.bottom; yy++) for (let xx = bld.x; xx < bld.x + bld.w; xx++) { const i = yy * W + xx; solid[i] = 1; if (ter[i] === TR.WATER) ter[i] = TR.GRASS; }
       keep(trees, (t) => !(Math.abs(t.x / T - x) < 5 && Math.abs(t.y / T - y) < 5));
     }
+    yield;
+    // 6. the trades that stand out of town, each where it belongs, and the cottages of the people who work them
+    placeOutskirts(id, { W, H, R, ter, solid, trees, props, buildings, kindAt, inTown, roadSet, TR, tw, ox, oy });
     // 5. the camps of the gangs that hold the wild roads
     for (const r of camps) {
       const c = r.camp, x = c.x - R.x0, y = c.y - R.y0;
@@ -355,6 +358,91 @@
     world.estates = (tw.estates || []).map((e) => Object.assign({}, e, { fields: [e.fields[0] + ox, e.fields[1] + oy, e.fields[2] + ox, e.fields[3] + oy] }));
     regions.set(id, world);
     return world;
+  }
+
+  // ---------- the outskirts ----------
+  // Which of the realm's trades a place has round it, by its size and the land about it
+  const TOWN_TRADES = ['posthouse', 'brewery', 'saddler', 'fletcher', 'scriptorium', 'barber', 'laundry', 'carrier', 'wainwright', 'ropewalk', 'glazier', 'agency', 'brickworks', 'dyer', 'moneylender', 'tollhouse'];
+  function outskirtsFor(pl) {
+    const pop = pl.pop || 100, kind = pl.kind;
+    const big = kind === 'capital' || kind === 'city', town = big || kind === 'town' || kind === 'port' || pop >= 300, village = !town && (kind === 'village' || pop >= 60);
+    const list = [];
+    if (town) list.push(...TOWN_TRADES.slice(0, big ? 16 : 11));
+    else if (village) list.push('posthouse', 'brewery', 'carrier');
+    list.push('apiary', 'lodge', 'charcoal', 'claypit', 'saltworks', 'peatcut', 'vineyard', 'boatyard', 'fishery', 'ferry');
+    return list.filter((t) => O.Data.BUSINESS[t]).slice(0, big ? 26 : town ? 21 : village ? 9 : 4);
+  }
+  function placeOutskirts(id, C) {
+    const { W, H, R, ter, solid, trees, props, buildings, kindAt, inTown, TR, tw, ox, oy } = C;
+    const pl = place(id), rng = O.RNG(O.hash('outskirts', id)), D = O.Data;
+    const tx0 = ox, ty0 = oy, tx1 = ox + tw.W, ty1 = oy + tw.H;
+    const distTown = (x, y) => Math.max(tx0 - x, x - tx1, ty0 - y, y - ty1, 0);
+    const isWater = (x, y) => x >= 0 && y >= 0 && x < W && y < H && ter[y * W + x] === TR.WATER;
+    const waterKind = (x, y, r) => { for (let k = 1; k <= r; k++) for (const [dx, dy] of [[k, 0], [-k, 0], [0, k], [0, -k], [k, k], [-k, -k], [k, -k], [-k, k]]) if (isWater(x + dx, y + dy)) return kindAt(R.x0 + x + dx, R.y0 + y + dy); return null; };
+    const forestAround = (x, y) => { let n = 0; for (let j = -3; j <= 3; j++) for (let i = -3; i <= 3; i++) { const xx = x + i, yy = y + j; if (xx >= 0 && yy >= 0 && xx < W && yy < H && ter[yy * W + xx] === TR.FOREST) n++; } return n / 49; };
+    const fits = (x, bottom, w, d) => {
+      for (let yy = bottom - d - 1; yy <= bottom + 2; yy++) for (let xx = x - 2; xx < x + w + 2; xx++) {
+        if (xx < 2 || yy < 2 || xx >= W - 2 || yy >= H - 2 || inTown(xx, yy)) return false;
+        const i = yy * W + xx, t = ter[i]; if (t === TR.WATER || t === TR.ROAD || t === TR.BRIDGE || t === TR.COBBLE) return false;
+        if (buildings.some((b) => xx >= b.x - 1 && xx < b.x + b.w + 1 && yy >= b.y - 1 && yy <= b.bottom + 2)) return false;
+      }
+      return true;
+    };
+    const score = (site, x, y) => {
+      const dt = distTown(x, y); if (dt < 3) return -1;
+      switch (site) {
+        case 'town': return dt <= 16 ? 30 - dt : -1;
+        case 'shore': { const wk = waterKind(x, y, 4); return wk && dt < 45 ? 40 - dt * 0.5 : -1; }
+        case 'coast': { const wk = waterKind(x, y, 4); return wk === 'sea' && dt < 70 ? 50 - dt * 0.4 : -1; }
+        case 'river': { const wk = waterKind(x, y, 5); return (wk === 'river' || wk === 'lake' || wk === 'marsh') && dt < 50 ? 40 - dt * 0.5 : -1; }
+        case 'woods': { const f = forestAround(x, y); return f > 0.35 && dt < 60 ? f * 40 - dt * 0.2 : -1; }
+        case 'hills': { const k = kindAt(R.x0 + x, R.y0 + y); return (k === 'mountain') && dt < 60 ? 30 - dt * 0.3 : -1; }
+        case 'moor': { const k = kindAt(R.x0 + x, R.y0 + y); return (k === 'moor' || k === 'marsh') && dt < 60 ? 30 - dt * 0.3 : -1; }
+        case 'fields': { const k = kindAt(R.x0 + x, R.y0 + y); return (k === 'farm' || k === 'grass') && forestAround(x, y) < 0.2 && dt >= 6 && dt < 35 ? 30 - Math.abs(dt - 14) : -1; }
+        default: return -1;
+      }
+    };
+    const SITE = { fishery: 'shore' };
+    let nid = 8000 + buildings.filter((b) => b.id >= 8000 && b.id < 9000).length;
+    const roadIdx = [...C.roadSet];
+    const lane = (x0, y0) => {
+      // a footpath from the door to the nearest road, unless it would cross water
+      let best = null, bd = 60 * 60; for (const i of roadIdx) { const rx = i % W, ry = (i / W) | 0, d = (rx - x0) ** 2 + (ry - y0) ** 2; if (d < bd) { bd = d; best = [rx, ry]; } }
+      for (let y = Math.max(0, y0 - 40); y < Math.min(H, y0 + 40) && !best; y++) for (let x = Math.max(0, x0 - 40); x < Math.min(W, x0 + 40); x++) if (inTown(x, y) && ter[y * W + x] === TR.ROAD) { const d = (x - x0) ** 2 + (y - y0) ** 2; if (d < bd) { bd = d; best = [x, y]; } }
+      if (!best) return;
+      const n = Math.ceil(Math.sqrt(bd) * 2), path = [];
+      for (let k = 0; k <= n; k++) { const x = Math.round(x0 + (best[0] - x0) * k / n), y = Math.round(y0 + (best[1] - y0) * k / n), i = y * W + x; if (ter[i] === TR.WATER) return; if (!inTown(x, y)) path.push(i); }
+      for (const i of path) { if (ter[i] !== TR.ROAD) ter[i] = TR.YARD; solid[i] = 0; }
+      const ps = new Set(path); keep(trees, (t) => !ps.has(Math.floor((t.y - 1) / T) * W + Math.floor(t.x / T)));
+    };
+    const build = (type, w, d, look, name, x, bottom, extra) => {
+      const spec = Object.assign({ seed: O.hash('ob', id, nid), w, d, floors: (extra && extra.floors) || 1, wealth: 0.45, condition: 0.85, doorTile: Math.floor(w / 2) }, look);
+      const b = Object.assign({ id: nid++, type, name, x, bottom, y: bottom - d + 1, w, d, floors: spec.floors, wealth: 0.45, condition: 0.85, spec, doorX: x + spec.doorTile, doorY: bottom + 1, outskirts: true }, extra || {});
+      buildings.push(b);
+      for (let yy = b.y - 2; yy <= b.bottom + 2; yy++) for (let xx = b.x - 2; xx < b.x + b.w + 2; xx++) { const i = yy * W + xx; const inside = yy >= b.y && yy <= b.bottom && xx >= b.x && xx < b.x + b.w; solid[i] = inside ? 1 : 0; if (ter[i] === TR.FOREST || ter[i] === TR.FIELD) ter[i] = TR.GRASS; }
+      ter[b.doorY * W + b.doorX] = TR.YARD;
+      keep(trees, (t) => !(t.x / T >= b.x - 2 && t.x / T < b.x + b.w + 2 && (t.y - 1) / T >= b.y - 2 && (t.y - 1) / T <= b.bottom + 3));
+      keep(props, (p) => !(p.x / T >= b.x - 2 && p.x / T < b.x + b.w + 2 && (p.y - 1) / T >= b.y - 2 && (p.y - 1) / T <= b.bottom + 3));
+      return b;
+    };
+    const step = 3;
+    for (const type of outskirtsFor(pl)) {
+      const def = D.BUSINESS[type]; if (!def) continue;
+      if (def.south && pl.region !== 'south') continue;
+      if (type === 'fishery' && tw.buildings.some((b) => b.type === 'fishery')) continue;
+      const site = SITE[type] || def.site || 'town', w = def.w || 4, d = def.d || 3;
+      let best = null, bs = 0;
+      for (let y = Math.max(4, ty0 - 70); y < Math.min(H - 4, ty1 + 70); y += step) for (let x = Math.max(4, tx0 - 70); x < Math.min(W - 4, tx1 + 70); x += step) {
+        const sc = score(site, x, y) + rng.next() * 3; if (sc <= bs) continue;
+        if (!fits(x, y, w, d)) continue; bs = sc; best = [x, y];
+      }
+      if (!best) continue;
+      const surname = O.Names ? rng.pick(O.Names.SUR) : 'Ward';
+      const b = build(type, w, d, Object.assign({ wall: 'timber', roof: 'thatch' }, def.look || {}), type === 'posthouse' || type === 'tollhouse' ? `${pl.name} ${def.label}` : `${surname}'s ${def.label}`, best[0], best[1], { floors: def.floors || 1 });
+      lane(b.doorX, b.doorY + 1);
+      // a cottage nearby for the hands
+      for (const [dx, dy] of [[w + 3, 0], [-7, 0], [0, 7], [w + 3, 6], [-7, 6]]) { const cx = best[0] + dx, cy = best[1] + dy; if (fits(cx, cy, 4, 3)) { const hb = build('house', 4, 3, { wall: rng.pick(['timber', 'plank', 'stone']), roof: rng.pick(['thatch', 'shingle']), chimney: true, doorTile: 1 }, 'Cottage', cx, cy); lane(hb.doorX, hb.doorY + 1); break; } }
+    }
   }
 
   // where a global tile falls inside a region, and back

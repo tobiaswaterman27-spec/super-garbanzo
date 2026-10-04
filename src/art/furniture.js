@@ -420,6 +420,28 @@
         for (let y = fy - 30; y <= fy1 - 30; y++) { B.plot(fx, y, m, 2); B.plot(fx1, y, m, 2); }
         out = finish(S); break;
       }
+      case 'vat': { // a great oak brewing vat, iron-hooped, steaming
+        S = canvasFor(2, 2, 18); const { B, fx, fx1, fy1 } = S; const wd = P.mat('#8a6239', 'wood'), hoop = P.mat('#4a4a52', 'metal'), cx = (fx + fx1) / 2;
+        B.part(1); B.rect(fx + 2, fy1 - 24, fx1 - fx - 4, 24, wd, 2); B.blob(cx, fy1 - 24, (fx1 - fx) / 2 - 2, 4, P.mat('#a07848', 'wood'), { power: 2 });
+        for (let x = fx + 2; x < fx1 - 2; x += 4) for (let y = fy1 - 24; y < fy1; y++) B.tweak(x, y, -1);
+        for (const yy of [fy1 - 20, fy1 - 8]) for (let x = fx + 2; x < fx1 - 2; x++) B.plot(x, yy, hoop, 1);
+        B.part(2); B.blob(cx, fy1 - 24, (fx1 - fx) / 2 - 5, 2.4, P.mat('#c89a50', 'cloth'), { power: 2 });
+        out = finish(S); break;
+      }
+      case 'kiln': { // a brick kiln: a beehive dome with a stoke-hole
+        S = canvasFor(3, 2, 30); const { B, fx, fx1, fy1 } = S; const br = P.mat('#a85a3a', 'cloth'), cx = (fx + fx1) / 2;
+        B.part(1); B.blob(cx, fy1 - 18, 22, 22, br, { power: 2 }); B.rect(fx + 2, fy1 - 18, fx1 - fx - 4, 18, br, 2);
+        for (let y = 0; y < S.H; y++) for (let x = 0; x < S.W; x++) if (B.matAt(x, y) === br && (y % 4 === 0 || (x + (Math.floor(y / 4) % 2) * 3) % 6 === 0)) B.tweak(x, y, -1);
+        B.part(2); B.blob(cx, fy1 - 7, 6, 5, P.mat('#1c1418', 'cloth'), { power: 2 }); B.rect(Math.round(cx) - 6, fy1 - 7, 12, 6, P.mat('#1c1418', 'cloth'), 0);
+        B.blob(cx, fy1 - 36, 3, 2, P.mat('#6a3a2a', 'cloth'), { power: 2 });
+        out = finish(S); out.fire = { x: cx - out.ox, y: fy1 - 4 - out.oy, w: 10 }; break;
+      }
+      case 'ballotbox': { // a locked oak box on a stand, with a slot in the lid
+        S = canvasFor(1, 1, 10); const { B, fx, fx1, fy1 } = S; const wd = P.mat('#6a4a2c', 'wood'), cx = (fx + fx1) / 2;
+        B.part(1); B.rect(cx - 2, fy1 - 8, 1, 8, wd, 1); B.rect(cx + 2, fy1 - 8, 1, 8, wd, 1);
+        B.part(2); B.rect(fx + 2, fy1 - 18, fx1 - fx - 4, 10, P.mat('#8a6239', 'wood'), 2); B.rect(cx - 3, fy1 - 18, 6, 1, P.mat('#1c1418', 'cloth'), 0); B.plot(cx, fy1 - 13, P.mat('#c8a040', 'metal'), 3);
+        out = finish(S); break;
+      }
       case 'barrel': case 'crate': case 'sack': case 'hay': case 'woodpile': {
         const pr = E.prop(kind, seed);
         out = pr; break;

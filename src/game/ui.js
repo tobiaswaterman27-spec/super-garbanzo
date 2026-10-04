@@ -153,6 +153,7 @@
         <h4>Testing</h4>
         ${row('pardon', 'Clear my wanted level', 'every crime forgiven, no bounty, no chase')}
         ${row('reset', 'Reset me', 'purse, satchel, health, wounds, standing and wanted level back to a fresh arrival')}
+        ${row('post', 'Take up any post', 'try any job in the realm, even ones nobody would give you (king, lord, gaoler...)')}
       </div>`, (r) => {
         r.querySelectorAll('[data-s]').forEach((b) => b.onclick = () => {
           const k = b.dataset.s;
@@ -163,8 +164,18 @@
           else if (k === 'sound') { O.AudioToggle && O.AudioToggle(); settings(); }
           else if (k === 'speed') { game.clock.speed = game.clock.speed >= 2 ? 1 : 2; settings(); }
           else if (k === 'pardon') { pardon(); O.Panels.close(); O.UI.say('Your slate is wiped clean. Nobody is looking for you.'); }
+          else if (k === 'post') posts();
           else if (k === 'reset') { resetMe(); O.Panels.close(); O.UI.say('You are a stranger again: empty-handed, unhurt, unknown and wanted by no one.'); }
         });
+      });
+    }
+    // every post there is, grouped by where it's held; choosing one puts you in it here (or says where to go)
+    function posts() {
+      const all = O.allRoles ? O.allRoles() : new Map(), by = new Map();
+      for (const [role, type] of all) { const lbl = type === 'crown' ? 'The Crown and nobility' : O.Data.BUSINESS[type]?.label || type; if (!by.has(lbl)) by.set(lbl, []); by.get(lbl).push(role); }
+      const html = [...by.entries()].sort((a, c) => a[0].localeCompare(c[0])).map(([lbl, roles]) => `<h4>${O.escape(lbl)}</h4><div class="topics">${roles.map((r) => `<button data-post="${O.escape(r)}">${O.escape(r)}</button>`).join('')}</div>`).join('');
+      O.Panels.open('Take up any post', `<p class="caption">For trying the work out: you're put straight into the post in ${O.escape(O.SimRef.cur.world.name)} if there's such a place here, and whoever held it makes way.</p>${html}`, (r) => {
+        r.querySelectorAll('[data-post]').forEach((b) => b.onclick = () => { O.Panels.close(); O.takeAnyPost(b.dataset.post); });
       });
     }
     O.openSettings = settings;

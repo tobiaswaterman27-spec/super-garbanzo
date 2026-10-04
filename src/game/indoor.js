@@ -114,8 +114,8 @@
           if (spot) {
             const [ax, ay] = this.anchor(spot), [rx0, ry0] = this.rect(spot);
             const behind = spot.counter || spot.kind === 'desk' || spot.kind === 'altar' || spot.kind === 'bar';
-            if (behind) { x = ax + (spot.kind === 'bar' ? ((q.id % 3) - 1) * 18 : 0); y = ry0 - 2; dir = 0; anim = q.agent.talking ? 'talk' : 'idle'; if (spot.kind === 'desk') { anim = 'read'; } }
-            else { x = ax; y = ay + 12; dir = 3; anim = spot.kind === 'medbed' ? 'idle' : 'work'; }
+            if (behind) { x = ax + (spot.kind === 'bar' ? ((q.id % 3) - 1) * 18 : 0); y = ry0 - 2; dir = 0; anim = q.agent.talking ? 'talk' : ['count', 'idle', 'pour', 'idle', 'look'][(Math.floor(this.t / 5) + q.id) % 5]; if (spot.kind === 'desk') { anim = (Math.floor(this.t / 6) + q.id) % 3 ? 'write' : 'read'; } }
+            else { x = ax; y = ay + 12; dir = 3; anim = spot.kind === 'medbed' ? 'serve' : O.Data.actionFor ? O.Data.actionFor(role) : 'work'; if (anim === 'idle' || anim === 'carry') anim = 'work'; }
             if (spot.kind === 'altar') { anim = (Math.floor(this.t / 8) + q.id) % 2 ? 'read' : 'talk'; }
             if (spot.kind === 'cauldron') anim = 'cook';
             if (spot.kind === 'bar' && q.agent.talking) anim = 'talk';
@@ -249,7 +249,7 @@
         const at = (c) => ctx.drawImage(c, Math.round(ax - sp.ox - cam.x), Math.round(ay - sp.oy - cam.y));
         drawables.push({ y: sp.flat ? -1 : ay - (it.kind === 'pew' ? 1 : 0), draw: () => {
           at(sp.canvas);
-          if (sp.fire) { const lit = !this.b.sprite?.chimney || !g.lit || g.lit.has(this.b.id) || it.kind === 'cauldron'; this.drawFire(ctx, ax + sp.fire.x - cam.x, ay + sp.fire.y - cam.y, Object.assign({}, sp.fire, { coals: sp.fire.coals || !lit })); }
+          if (sp.fire) { const dying = bz && bz.fireUntil != null && sim.day * 1440 + sim.minute > bz.fireUntil; const lit = !dying && (!this.b.sprite?.chimney || !g.lit || g.lit.has(this.b.id) || it.kind === 'cauldron'); this.drawFire(ctx, ax + sp.fire.x - cam.x, ay + sp.fire.y - cam.y, Object.assign({}, sp.fire, { coals: sp.fire.coals || !lit })); }
           if (sp.candles && (night || it.kind === 'altar' || it.kind === 'candlestand')) for (const [cx, cy] of sp.candles) this.flame(ctx, ax + cx - cam.x, ay + cy - cam.y, 1);
           if (sp.cover) { this.drawSleepers(ctx, it, sp, ax, ay, cam); at(sp.cover); }
         } });
@@ -257,6 +257,7 @@
       }
       for (const a of this.actors.values()) if (!a.hidden) drawables.push({ y: a.sortY ?? a.y, draw: () => this.drawActor(ctx, a, cam, a.anim !== 'sit' && a.anim !== 'doze') });
       const p = g.player; if (!p.inBed) drawables.push({ y: p.sitting ? p.sitting.sortY : p.y, draw: () => this.drawActor(ctx, p, cam, !p.sitting) });
+      if (O.sceneExtras) for (const d of O.sceneExtras(this, ctx, cam)) drawables.push(d);
       drawables.sort((a, c) => a.y - c.y);
       for (const d of drawables) d.draw();
       for (const h of g.hooks.drawWorld) h(ctx, cam);

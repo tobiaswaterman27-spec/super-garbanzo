@@ -10,6 +10,7 @@
   const iconCache = new Map();
   function icon(k) {
     if (iconCache.has(k)) return iconCache.get(k);
+    if (O.ItemArt) { const url = O.ItemArt.icon(k).toDataURL(); iconCache.set(k, url); return url; } // every item drawn properly
     const P = O.Pal, B = new O.MatBuffer(14, 14), col = O.Furn.GOOD_COL[k];
     B.part(1);
     const m = (hex, kind = 'cloth') => P.mat(hex, kind);
@@ -59,15 +60,17 @@
 
   function inventory() {
     const used = PS.slotsUsed();
-    const cells = PS.items.map((k, i) => `<div class="slot"><img src="${icon(k)}" alt=""><span>${esc(G[k].name)}</span>${G[k].food ? `<button data-eat="${i}">Eat</button>` : ''}${G[k].weapon ? `<button data-eq="${k}">${PS.equipped === k ? 'In hand' : 'Hold'}</button>` : ''}<button data-drop="${i}" class="ghost">Drop</button></div>`).join('');
+    const cells = PS.items.map((k, i) => `<div class="slot"><img src="${icon(k)}" alt=""><span>${esc(G[k].name)}</span>${G[k].drink ? `<button data-eat="${i}">Drink</button>` : G[k].food ? `<button data-eat="${i}">Eat</button>` : ''}${k === 'letter' ? `<button data-write="${i}">Write</button>` : ''}${G[k].place || G[k].furniture ? `<button data-place="${i}">Set down</button>` : ''}${G[k].weapon ? `<button data-eq="${k}">${PS.equipped === k ? 'In hand' : 'Hold'}</button>` : ''}<button data-drop="${i}" class="ghost">Drop</button></div>`).join('');
     const empty = Math.max(0, PS.SLOTS - used);
     open('Satchel', `<div class="lbl">${used}/${PS.SLOTS} slots · health ${Math.round(PS.hp)} · fed ${Math.round(PS.hunger)} · rested ${Math.round(PS.energy)}</div>
       <div class="slots">${cells}${'<div class="slot empty"></div>'.repeat(empty)}</div>
       <div class="lbl" style="margin-top:12px">Reputation</div>
       <div class="reps">${Object.entries(PS.rep).map(([k, v]) => `<div><span>${k === 'local' ? 'here' : k}</span><b class="${v < -0.2 ? 'warn' : ''}">${v > 0.6 ? 'admired' : v > 0.2 ? 'liked' : v > -0.2 ? 'unknown' : v > -0.6 ? 'distrusted' : 'hated'}</b></div>`).join('')}</div>
       ${O.Work ? `<div class="lbl" style="margin-top:12px">Skills</div><div class="reps">${Object.entries(PS.skills || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div><span>${esc(O.Work.SKILL_LABEL[k] || k)}</span><b>${O.Work.rank(v)} · ${Math.round(v * 100)}</b></div>`).join('')}</div>
-      <p class="caption">${(() => { const J = PS.job; if (!J) return 'No employer. Ask a master at their workplace for a day\'s work.'; return `${J.apprentice ? 'Apprentice' : 'Hired for the day'} at ${esc(J.bizName)}, ${esc(J.placeName)}, under ${esc(J.masterName)}.`; })()}${PS.earned ? ` Earned honestly so far: ${money(PS.earned)}.` : ''}</p>` : ''}`, (r) => {
-      r.querySelectorAll('[data-eat]').forEach((b) => b.onclick = () => { const k = PS.items[+b.dataset.eat]; PS.eat(k); toast(`You eat the ${G[k].name.toLowerCase()}.`); inventory(); });
+      <p class="caption">${(() => { const E = PS.emp; if (!E) return 'No employer. Ask whoever runs a place for work.'; return `${esc(E.role)} at ${esc(E.bizName)}, ${esc(E.placeName)}, under ${esc(E.masterName)}, ${E.wage}d a day. ${E.stats.shifts} shifts worked, ${E.stats.late} late, ${E.stats.missed} missed.`; })()}${PS.earned ? ` Earned honestly so far: ${money(PS.earned)}.` : ''}</p>` : ''}`, (r) => {
+      r.querySelectorAll('[data-eat]').forEach((b) => b.onclick = () => { const k = PS.items[+b.dataset.eat]; close(); O.consume ? O.consume(k) : (PS.eat(k), toast(`You eat the ${G[k].name.toLowerCase()}.`)); });
+      r.querySelectorAll('[data-write]').forEach((b) => b.onclick = () => { close(); O.writeLetter && O.writeLetter(+b.dataset.write); });
+      r.querySelectorAll('[data-place]').forEach((b) => b.onclick = () => { const k = PS.items[+b.dataset.place]; close(); O.placeItem && O.placeItem(k); });
       r.querySelectorAll('[data-eq]').forEach((b) => b.onclick = () => { PS.equipped = PS.equipped === b.dataset.eq ? 'fists' : b.dataset.eq; const a = O.game.player.a; a.outfit.item = PS.equipped === 'fists' ? null : PS.equipped; O.Char.invalidate(a); inventory(); });
       r.querySelectorAll('[data-drop]').forEach((b) => b.onclick = () => { const k = PS.items[+b.dataset.drop]; if (O.dropItem) O.dropItem(k); else { PS.remove(k); toast(`Dropped ${G[k].name.toLowerCase()}.`); } inventory(); });
     });

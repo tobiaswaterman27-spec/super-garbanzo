@@ -16,12 +16,12 @@
   const T = 16;
   const SIZE = { partH: [1, 1], partV: [1, 1], throne: [2, 2], bed: [2, 3], double: [3, 3], medbed: [2, 3], cradle: [2, 2], table: [3, 2], longtable: [5, 2], chair: [1, 1], stool: [1, 1], bench: [3, 1], fireplace: [3, 1], oven: [3, 2], forge: [3, 2], anvil: [1, 1],
     cupboard: [2, 1], dresser: [2, 1], wardrobe: [2, 1], bookcase: [2, 1], chest: [2, 1], shelf: [3, 1], counter: [4, 1], workbench: [3, 1], doughtable: [3, 1], butcherblock: [3, 1], rack: [2, 1], desk: [2, 1],
-    altar: [4, 1], millstone: [3, 2], loom: [3, 2], spinning: [2, 1], stairs: [2, 3], cauldron: [1, 1], washtub: [1, 1], plant: [1, 1], candlestand: [1, 1], barrel: [1, 1], crate: [1, 1], sack: [1, 1], hay: [1, 1], woodpile: [1, 1], cell: [4, 4] };
+    altar: [4, 1], millstone: [3, 2], loom: [3, 2], spinning: [2, 1], stairs: [2, 3], cauldron: [1, 1], washtub: [1, 1], plant: [1, 1], candlestand: [1, 1], barrel: [1, 1], crate: [1, 1], sack: [1, 1], hay: [1, 1], woodpile: [1, 1], cell: [4, 4], vat: [2, 2], kiln: [3, 2], ballotbox: [1, 1] };
   const foot = (kind, rot, width) => { if (kind === 'bed' && rot) return [3, 2]; if (kind === 'pew' || kind === 'bar') return [width || 5, 1]; if (kind === 'rug') return [width || 3, 2]; if (kind === 'bench' && width) return [width, 1]; return SIZE[kind] || [1, 1]; };
   const FOOT = SIZE;
   const CONTAINER = { cupboard: 15, dresser: 12, wardrobe: 15, chest: 12, barrel: 5, crate: 5, sack: 2 };
   // pieces that must stay reachable (you have to get to a bed, a chest, a workstation)
-  const NEEDS_ACCESS = new Set(['bed', 'double', 'medbed', 'cradle', 'fireplace', 'oven', 'forge', 'anvil', 'cupboard', 'dresser', 'wardrobe', 'bookcase', 'chest', 'shelf', 'counter', 'workbench', 'doughtable', 'butcherblock', 'rack', 'desk', 'altar', 'millstone', 'loom', 'spinning', 'stairs', 'cauldron', 'barrel', 'crate', 'sack', 'bar', 'cell', 'pew', 'bench']);
+  const NEEDS_ACCESS = new Set(['bed', 'double', 'medbed', 'cradle', 'fireplace', 'oven', 'forge', 'anvil', 'cupboard', 'dresser', 'wardrobe', 'bookcase', 'chest', 'shelf', 'counter', 'workbench', 'doughtable', 'butcherblock', 'rack', 'desk', 'altar', 'millstone', 'loom', 'spinning', 'stairs', 'cauldron', 'barrel', 'crate', 'sack', 'bar', 'cell', 'pew', 'bench', 'vat', 'kiln', 'ballotbox']);
 
   function scaleFor(b) { return b.type === 'chapel' ? 4 : 3; }
 
@@ -61,6 +61,7 @@
       return got >= open * 0.85;
     };
     const put = (kind, x, y, o = {}) => {
+      if (b.removedFurn && floor === (o._floor ?? floor) && b.removedFurn.includes(floor + ':' + kind + '@' + x + ',' + y)) return null; // taken up by the owner
       const [fw, fh] = foot(kind, o.rot, o.width);
       if (!free(x, y, fw, fh, o)) return null;
       const it = Object.assign({ kind, tx: x, ty: y, fw, fh, v: 0, rot: 0, seed: rng.int(1, 9999), id: items.length }, o);
@@ -315,6 +316,8 @@
       void staff;
     }
 
+    // pieces the owner has set down themselves come first, where they put them
+    for (const f of (b.extraFurn || [])) if (f.floor === floor) put(f.kind, f.tx, f.ty, Object.assign({ owned: true, rot: f.rot || 0 }, f.kind === 'chair' || f.kind === 'stool' || f.kind === 'bench' ? { seat: true } : {}, ['bed', 'double', 'cradle'].includes(f.kind) ? { bed: true, slots: f.kind === 'double' ? 2 : 1 } : {}, ['table', 'longtable'].includes(f.kind) ? { table: true } : {}, f.kind === 'counter' || f.kind === 'bar' ? { counter: true } : {}));
     if (b.royal) royal(); else if (b.manor) manor(); else switch (b.type) {
       case 'house': case 'farmhouse': case 'woodcutter':
         if (living) { hearth(); dining(members); }
@@ -573,7 +576,24 @@
           tryPut('longtable', centre(4, 1), { work: ['scullion'] });
         }
         break;
-      default: storage(); familyQuarters();
+      default: {
+        // any other trade: its equipment set out round the walls (the counter at the front), its goods on shelves
+        const def = O.Data.BUSINESS[b.type];
+        if (def && def.equip && floor === 0) {
+          const roles = def.jobs.map((j) => j[0]);
+          def.equip.forEach((k, i) => {
+            const [fw, fh] = SIZE[k] || [1, 1], who = { work: i === 0 ? roles : roles.slice(Math.min(i, roles.length - 1)) };
+            if (k === 'counter') counterAtFront({ work: [roles[0]] });
+            else if (k === 'chair') tryPut('chair', nearWalls(), { seat: true, rot: 0, work: roles });
+            else tryPut(k, [...backWall(fw), ...nearWalls(fw, fh)], Object.assign(who, ['kiln', 'oven', 'forge'].includes(k) ? { fire: true } : {}));
+          });
+          const goods = def.sells.filter((g) => !g.startsWith('fx_')).slice(0, 3);
+          if (goods.length) shelf(goods, { stockGood: goods[0] });
+          const ins = Object.keys(def.buys || {});
+          for (let i = 0; i < 2; i++) tryPut(rng.pick(['crate', 'sack', 'barrel']), nearWalls(), { stockOf: ins[i % Math.max(1, ins.length)] });
+        }
+        storage(); familyQuarters();
+      }
     }
     // a chimney always has a fire beneath it
     if (chimneyX != null && floor === 0 && !items.some((i) => i.kind === 'fireplace' || i.kind === 'oven' || i.kind === 'forge')) hearth();
@@ -593,16 +613,18 @@
 
   // Cached interior per building/floor (furniture is fixed; stock visuals update live).
   const cache = new Map();
+  // keyed by the building itself, not its number: building numbers repeat from town to town
+  let iidN = 0; const iid = (b) => b._iid || (b._iid = ++iidN);
   function interior(b, floor, sim) {
-    const key = b.id + ':' + floor;
+    const key = iid(b) + ':' + floor;
     if (cache.has(key)) return cache.get(key);
     const L = layoutFor(b, floor, sim);
-    const wallKind = b.spec.wall === 'stone' || b.spec.wall === 'log' || b.spec.wall === 'plank' ? b.spec.wall : 'timber';
-    const floorKind = ['smithy', 'chapel', 'guard', 'mill', 'quarry', 'mine', 'armourer', 'warehouse', 'townhall', 'keep', 'hospital', 'manor'].includes(b.type) ? 'stone' : b.type === 'barn' || (b.type === 'house' && b.wealth < 0.3) ? 'dirt' : 'wood';
+    const wallKind = (b.decor && b.decor.wall) || (b.spec.wall === 'stone' || b.spec.wall === 'log' || b.spec.wall === 'plank' ? b.spec.wall : 'timber');
+    const floorKind = (b.decor && b.decor.floor) || ['smithy', 'chapel', 'guard', 'mill', 'quarry', 'mine', 'armourer', 'warehouse', 'townhall', 'keep', 'hospital', 'manor'].includes(b.type) ? 'stone' : b.type === 'barn' || (b.type === 'house' && b.wealth < 0.3) ? 'dirt' : 'wood';
     L.room = O.Furn.room({ w: L.w, d: L.d, wall: wallKind, floor: floorKind, wealth: b.wealth, seed: b.id * 3 + floor, windows: Math.max(1, Math.floor(b.w / 2) + 1), doorTile: floor === 0 ? L.dc : -5 });
     cache.set(key, L);
     return L;
   }
 
-  O.Interior = { interior, layoutFor, FOOT, foot, invalidate: (b) => { for (const k of [...cache.keys()]) if (k.startsWith(b.id + ':')) cache.delete(k); } };
+  O.Interior = { interior, layoutFor, FOOT, foot, invalidate: (b) => { for (const k of [...cache.keys()]) if (k.startsWith(iid(b) + ':')) cache.delete(k); } };
 })();

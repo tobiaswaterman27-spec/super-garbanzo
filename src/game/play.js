@@ -106,6 +106,9 @@
   O.PropertyUI.setup(game, sim);
   O.ChronicleUI.setup(game, home);
   O.WorkSetup.setup(game, sim, npcUI);
+  O.EmploymentSetup.setup(game, home, npcUI);
+  O.LettersSetup.setup(game, home, npcUI);
+  O.FittingSetup.setup(game);
   O.WarUI.setup(game, home, npcUI);
   O.Craft.setup(game);
   O.FireFX.setup(game, home);

@@ -77,6 +77,13 @@ main { height: 100vh; }
 .ui-ticker { position: absolute; left: 50%; bottom: 18px; transform: translate(-50%, 8px); max-width: min(720px, calc(100% - 32px)); padding: 8px 18px; border-radius: 0; background: rgba(250,242,222,.94); color: #4a3826; font-family: var(--body); font-weight: 700; font-size: 15px; box-shadow: 0 4px 0 rgba(60,40,20,.35); opacity: 0; transition: opacity .35s, transform .35s; pointer-events: none; text-align: center; z-index: 25; }
 .ui-ticker.on { opacity: 1; transform: translate(-50%, 0); }
 .ui-ticker.bad { color: #8a2a1e; }
+.joblist { position: absolute; right: 12px; top: 12px; width: 250px; padding: 8px 10px; background: rgba(250,242,222,.94); color: #4a3826; font-family: var(--body); font-size: 13px; line-height: 1.35; z-index: 24; box-shadow: 0 -2px 0 #3a2a1a, 0 2px 0 #3a2a1a, -2px 0 0 #3a2a1a, 2px 0 0 #3a2a1a, 4px 4px 0 rgba(40,24,12,.35); pointer-events: none; }
+.joblist .jh { font-weight: 700; text-transform: capitalize; }
+.joblist .js { color: #7a5a3a; font-size: 12px; margin-bottom: 4px; }
+.joblist ul { list-style: none; margin: 4px 0 0; padding: 0; }
+.joblist li { margin: 2px 0; }
+.joblist li.done { color: #8a9a6a; text-decoration: line-through; }
+.joblist .carry { margin-top: 4px; color: #8a4a1a; font-weight: 700; }
 /* conversation box */
 .dlg { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); width: min(760px, calc(100% - 32px)); min-height: 118px; padding: 26px 34px 22px; border-radius: 0; background: #fbf3dd; color: #4a3826; font-family: var(--body); font-weight: 700; font-size: 19px; line-height: 1.45; box-shadow: 0 6px 0 rgba(70,48,26,.35), inset 0 0 0 3px #efe1bd; z-index: 30; cursor: pointer; }
 .dlg-name { position: absolute; top: -16px; left: 34px; transform: rotate(-3deg); padding: 4px 18px; border-radius: 0; color: #fff; font-weight: 800; font-size: 16px; box-shadow: 0 3px 0 rgba(0,0,0,.25); text-shadow: 0 1px 0 rgba(0,0,0,.3); }
@@ -295,6 +302,7 @@ body, button, input, select { -webkit-font-smoothing: none; font-smooth: never; 
 <script src="../src/sim/data.js"></script>
 <script src="../src/sim/names.js"></script>
 <script src="../src/sim/trades.js"></script>
+<script src="../src/sim/trades2.js"></script>
 <script src="../src/sim/path.js"></script>
 <script src="../src/sim/weather.js"></script>
 <script src="../src/sim/construction.js"></script>
@@ -315,10 +323,12 @@ body, button, input, select { -webkit-font-smoothing: none; font-smooth: never; 
 <script src="../src/sim/property.js"></script>
 <script src="../src/sim/chronicle.js"></script>
 <script src="../src/sim/inn.js"></script>
+<script src="../src/sim/employ.js"></script>
 <script src="../src/sim/nobility.js"></script>
 <script src="../src/sim/sim.js"></script>
 <script src="../src/sim/dialogue.js"></script>
 <script src="../src/art/furniture.js"></script>
+<script src="../src/art/items.js"></script>
 <script src="../src/world/interior.js"></script>
 <script src="../src/game/player.js"></script>
 <script src="../src/sim/crime.js"></script>
@@ -353,6 +363,9 @@ body, button, input, select { -webkit-font-smoothing: none; font-smooth: never; 
 <script src="../src/game/wayfarers.js"></script>
 <script src="../src/game/crowd.js"></script>
 <script src="../src/game/inn-ui.js"></script>
+<script src="../src/game/employment.js"></script>
+<script src="../src/game/letters.js"></script>
+<script src="../src/game/fitting.js"></script>
 <script src="../src/game/guide.js"></script>
 <script src="../src/game/audio.js"></script>
 <script src="../src/game/creator.js"></script>

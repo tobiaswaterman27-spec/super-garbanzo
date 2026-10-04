@@ -397,8 +397,22 @@
       this.player.inside = b.id;
       this.onSceneChange && this.onSceneChange();
     }
+    // into a room off a castle hallway, and back out to the hallway by its door
+    enterRoom(room) {
+      this.scene = new O.Indoor(this, this.sim, room, 0);
+      this.scene.enterAt(false); this.scene.placeActors(); this.player.inside = room.id;
+      this.onSceneChange && this.onSceneChange();
+    }
     exitBuilding() {
-      const b = this.scene.b; this.scene = null; this.player.inside = null;
+      const b = this.scene.b;
+      if (b.parent) {
+        this.scene = new O.Indoor(this, this.sim, b.parent, b.roomFloor || 0);
+        const door = this.scene.L.items.find((i) => i.kind === 'roomdoor' && i.room === b.roomKey);
+        if (door) { const [x, y] = this.scene.anchor(door); this.player.x = x; this.player.y = y + 16; } else this.scene.enterAt(false);
+        this.player.dir = 0; this.scene.placeActors(); this.onSceneChange && this.onSceneChange();
+        return;
+      }
+      this.scene = null; this.player.inside = null;
       const T = this.world.T;
       this.player.x = b.doorX * T + 8; this.player.y = b.doorY * T + 10; this.player.dir = 0;
       this.onSceneChange && this.onSceneChange();

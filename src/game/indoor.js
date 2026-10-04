@@ -79,7 +79,10 @@
         if (['house', 'mansion', 'manor', 'townhouse', 'keep', 'tenement'].includes(b.type)) return SLEEPY.has(act) && b.id !== sim.docId ? 1 : act === 'home' && q.id % 3 === 0 ? 1 : 0;
         return SLEEPY.has(act) && q.home === b.id ? 1 : 0; // a shop: the family lives upstairs
       };
-      const here = inside.filter((q) => floorOf(q) === this.floor);
+      const keep = b.parent || b, sceneKey = b.roomKey || 'f' + this.floor;
+      const here = keep.royal ? inside.filter((q) => O.Castle.where(q, keep, sim) === sceneKey) : inside.filter((q) => floorOf(q) === this.floor);
+      // the castle guard stand their posts along the hallways, facing down it
+      const posts = keep.royal && !b.parent ? here.filter((q) => q.activity?.act === 'work' && /guard|sergeant|knight|captain/.test(q.job?.role || '')) : [];
       // ---- beds: couples together, babies in cradles, then everyone else
       const slots = [];
       for (const it of L.items) if (it.bed) for (let k = 0; k < (it.slots || 1); k++) slots.push({ it, k });
@@ -104,6 +107,7 @@
         const act = q.activity?.act;
         let x, y, dir = 0, anim = 'idle', spot = null, inBed = false, seat = null, sortY = null;
         if (bedOf.has(q.id)) { inBed = true; spot = bedOf.get(q.id).it; [x, y] = this.anchor(spot); }
+        else if (posts.includes(q)) { const k = posts.indexOf(q), n = posts.length, gap = Math.max(4, Math.floor((L.w - 6) / Math.max(1, n))); [x, y] = this.tileXY(Math.min(L.w - 6, 2 + k * gap + (k % 2 ? 1 : 0)), 2); dir = 0; anim = (Math.floor(this.t / 9) + q.id) % 4 ? 'idle' : 'look'; }
         else if (act === 'jailed') { const cells = L.items.filter((i) => i.cell), jl = here.filter((z) => z.activity?.act === 'jailed'), ix = jl.indexOf(q), c = cells[ix % Math.max(1, cells.length)]; if (c) { const [ax, ay] = this.anchor(c); x = ax + ((Math.floor(ix / Math.max(1, cells.length)) % 3) - 1) * 14; y = ay - 18; sortY = ay - 1; anim = (Math.floor(this.t / 7) + q.id) % 4 ? 'sit' : 'idle'; dir = 0; } }
         else if (SLEEPY.has(act)) { // no bed free: dozing in a chair, never on the floor
           spot = seats.find((i) => !used.has(i)); if (spot) { seat = spot; anim = 'doze'; }
@@ -177,6 +181,29 @@
       if (this.floor > 0 && st) { const [x, y] = this.tileXY(st.tx, st.ty + st.fh); return [x + 8, y + 2]; }
       return [this.R.SW + (L.dc + 1) * T, this.R.WH + (L.d - 1) * T + 14];
     }
+    // a walking route over open floor tiles (breadth first); the last step goes to the exact spot
+    route(x0, y0, x1, y1) {
+      const L = this.L, R = this.R, W = L.w, D = L.d;
+      const tile = (x, y) => [Math.floor((x - R.SW) / T), Math.floor((y - R.WH - 4) / T)];
+      let [sx, sy] = tile(x0, y0), [tx, ty] = tile(x1, y1);
+      sx = O.clamp(sx, 0, W - 1); sy = O.clamp(sy, 0, D); tx = O.clamp(tx, 0, W - 1); ty = O.clamp(ty, 0, D - 1);
+      const open = (x, y) => x >= 0 && x < W && y >= 0 && y < D && !L.grid[y * W + x];
+      if (sy >= D) sy = D - 1;
+      // the goal may be a chair or a bed: aim for the nearest open tile beside it
+      if (!open(tx, ty)) { let best = null, bd = 1e9; for (let yy = ty - 2; yy <= ty + 2; yy++) for (let xx = tx - 2; xx <= tx + 2; xx++) if (open(xx, yy)) { const dd = Math.abs(xx - tx) + Math.abs(yy - ty); if (dd < bd) { bd = dd; best = [xx, yy]; } } if (!best) return null; [tx, ty] = best; }
+      if (sx === tx && sy === ty) return [[x1, y1]];
+      const prev = new Int32Array(W * D).fill(-2), q = [sy * W + sx]; prev[sy * W + sx] = -1;
+      for (let h = 0; h < q.length; h++) {
+        const i = q[h], x = i % W, y = (i / W) | 0; if (x === tx && y === ty) break;
+        for (const [ddx, ddy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + ddx, ny = y + ddy, j = ny * W + nx; if (!open(nx, ny) || prev[j] !== -2) continue; prev[j] = i; q.push(j); }
+      }
+      if (prev[ty * W + tx] === -2) return null;
+      const path = []; for (let i = ty * W + tx; i !== -1 && i !== sy * W + sx; i = prev[i]) path.push(i);
+      path.reverse();
+      const pts = path.map((i) => [R.SW + (i % W) * T + 8, R.WH + ((i / W) | 0) * T + 12]);
+      pts.push([x1, y1]);
+      return pts;
+    }
     // everyone walks to where they belong, stepping round the furniture; arrived, they settle into it
     walkActors(dt) {
       for (const [id, a] of this.actors) {
@@ -188,6 +215,17 @@
           continue;
         }
         a.hidden = false; a.inBed = null; a.sortY = null;
+        // a route round the furniture, tile by tile, to just short of where they're going
+        const gk = Math.round(a.gx) + ',' + Math.round(a.gy);
+        if (a.routeKey !== gk) { a.routeKey = gk; a.route = this.route(a.x, a.y, a.gx, a.gy); }
+        if (a.route && a.route.length) {
+          const [wx, wy] = a.route[0], ex = wx - a.x, ey = wy - a.y, ed = Math.hypot(ex, ey), sp0 = 46 * dt;
+          if (ed <= sp0 + 0.5) { a.x = wx; a.y = wy; a.route.shift(); } else { a.x += ex / ed * sp0; a.y += ey / ed * sp0; }
+          if (ed > 0.2) a.dir = O.dirOf(ex, ey);
+          a.anim = 'walk'; a.stuck = 0;
+          if (a.leaving && this.t - a.leftAt > 8) this.actors.delete(id);
+          continue;
+        }
         const sp = 46 * dt, near = d < 18, ux = dx / d, uy = dy / d;
         let nx = a.x + ux * Math.min(sp, d), ny = a.y + uy * Math.min(sp, d);
         if (!near && !a.ghost && this.blocked(nx, ny)) {
@@ -351,6 +389,7 @@
         if (it.container) out.push({ type: 'container', it, d, x: cx, y: cy });
         if (it.bed && !it.cradle) out.push({ type: 'bed', it, d: d + 1, x: cx, y: cy });
         if (it.kind === 'stairs') out.push({ type: 'stairs', it, d: d - 2, x: cx, y: cy });
+        if (it.kind === 'roomdoor') out.push({ type: 'roomdoor', it, b: this.b, d: d - 3, x: cx, y: cy - 34 });
         if (it.portrait) out.push({ type: 'portrait', it, d: d + 2, x: cx, y: cy - 30 });
         if (it.kind === 'hay') out.push({ type: 'hay', it, d: d + 3, x: cx, y: cy });
         if (it.seat && !p.sitting && !(this.usedSeats && this.usedSeats.has(it) && it.kind !== 'pew' && it.kind !== 'bench')) out.push({ type: 'sit', it, d: d + 1.5, x: cx, y: cy });

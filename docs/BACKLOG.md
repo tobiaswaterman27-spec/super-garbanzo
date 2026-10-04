@@ -136,3 +136,11 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] The cross on the church roof is off-centre
 - [x] Jobs are hard to follow: explain how they work in the game; arrows that lead you there; at the marked thing pressing E must do the job (it opened the dresser instead). For every job
 - [x] If you're hired while the shift is already running, your first shift is the next one (tomorrow)
+
+## Batch F (asked after step 71) - the castle rebuilt, and more
+
+- [x] Castle interior is not open plan: you walk in to a long hallway with guards and red carpet; off it, doors to separate rooms you go into (you can't see beyond the room you're in): kitchen, places to sit and rest, etc.
+- [x] Upstairs: separate rooms for the servants, the jester, the stable people, anyone who lives in the castle; everyone gets their own room, like a house inside
+- [x] At the end of the corridor a grand staircase; upstairs a massive hallway with guards, the locked rooms of the monarch (unless you are the monarch) and the royal family, other people's rooms; the big table for the council meetings you must attend is in that hallway; lots of red carpet
+- [x] If you're the king (or any role that fits) the job starts at once, and the job card text is different
+- [x] NPC animation: people stand idle and don't walk properly (fix)

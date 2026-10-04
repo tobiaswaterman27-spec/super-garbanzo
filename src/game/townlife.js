@@ -55,6 +55,14 @@
       for (const q of s.people) { if (!q.gang || q.gang === 'player' || !q.agent) continue; const want = night && q.agent.inside == null && !q.agent.hidden ? O.Justice.maskedLook(q.app) : q.app; if (q.agent.a !== want) q.agent.a = want; }
     });
 
+    // the royal rooms: the monarch's chamber only for the monarch and consort, the family's for the family
+    O.castleMayEnter = (it) => {
+      if (!it.locked) return true;
+      const roles = (O.Employment ? O.Employment.posts() : []).map((e) => e.role);
+      if (it.locked === 'monarch') return roles.includes('monarch') || roles.includes('consort');
+      return roles.some((r) => ['monarch', 'consort', 'heir', 'prince', 'princess'].includes(r));
+    };
+
     // ---------------------------------------------------------------- the moneylender
     const loans = () => (PS.loans = PS.loans || []);
     const prevExtra = npcUI.extraButtons, prevOn = npcUI.onExtra;

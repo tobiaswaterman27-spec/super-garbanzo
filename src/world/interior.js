@@ -16,7 +16,7 @@
   const T = 16;
   const SIZE = { partH: [1, 1], partV: [1, 1], throne: [2, 2], bed: [2, 3], double: [3, 3], medbed: [2, 3], cradle: [2, 2], table: [3, 2], longtable: [5, 2], chair: [1, 1], stool: [1, 1], bench: [3, 1], fireplace: [3, 1], oven: [3, 2], forge: [3, 2], anvil: [1, 1],
     cupboard: [2, 1], dresser: [2, 1], wardrobe: [2, 1], bookcase: [2, 1], chest: [2, 1], shelf: [3, 1], counter: [4, 1], workbench: [3, 1], doughtable: [3, 1], butcherblock: [3, 1], rack: [2, 1], desk: [2, 1],
-    altar: [4, 1], millstone: [3, 2], loom: [3, 2], spinning: [2, 1], stairs: [2, 3], cauldron: [1, 1], washtub: [1, 1], plant: [1, 1], candlestand: [1, 1], barrel: [1, 1], crate: [1, 1], sack: [1, 1], hay: [1, 1], woodpile: [1, 1], cell: [4, 4], vat: [2, 2], kiln: [3, 2], ballotbox: [1, 1] };
+    altar: [4, 1], millstone: [3, 2], loom: [3, 2], spinning: [2, 1], stairs: [2, 3], cauldron: [1, 1], washtub: [1, 1], plant: [1, 1], candlestand: [1, 1], barrel: [1, 1], crate: [1, 1], sack: [1, 1], hay: [1, 1], woodpile: [1, 1], cell: [4, 4], vat: [2, 2], kiln: [3, 2], ballotbox: [1, 1], roomdoor: [2, 1] };
   const foot = (kind, rot, width) => { if (kind === 'bed' && rot) return [3, 2]; if (kind === 'pew' || kind === 'bar') return [width || 5, 1]; if (kind === 'rug') return [width || 3, 2]; if (kind === 'bench' && width) return [width, 1]; return SIZE[kind] || [1, 1]; };
   const FOOT = SIZE;
   const CONTAINER = { cupboard: 15, dresser: 12, wardrobe: 15, chest: 12, barrel: 5, crate: 5, sack: 2 };
@@ -25,11 +25,61 @@
 
   function scaleFor(b) { return b.type === 'chapel' ? 4 : 3; }
 
+  // ---- the royal castle, laid out as a building of rooms ----
+  // A long hallway below with doors to the throne room, the kitchens, the servants' hall, the steward's
+  // hall, the guardroom and the chapel, and the grand stairs at the far end; above, the great hallway with
+  // the council's long table and a door for everyone who lives in the castle (the monarch's bedchamber
+  // and the royal children's rooms locked). Each room is its own place: you see only the one you're in.
+  const castles = new WeakMap();
+  function castlePlan(b, sim) {
+    let c = castles.get(b); if (!c) { c = { map: new Map() }; castles.set(b, c); }
+    const mk = (key, name, type, fl, w, d, extra) => { let r = c.map.get(key); if (!r) { r = { id: b.id, parent: b, roomKey: key, name, type, roomFloor: fl, w, d, floors: 1, wealth: b.wealth, condition: 1, spec: Object.assign({}, b.spec, { doorTile: Math.floor(w / 2) - 1, floors: 1 }), roomOwners: [] }; c.map.set(key, r); } Object.assign(r, extra || {}); return r; };
+    const ground = [mk('throne', 'The throne room', 'throneroom', 0, 10, 6), mk('kitchen', 'The kitchens', 'castlekitchen', 0, 8, 5), mk('hall', "The servants' hall", 'servhall', 0, 8, 5),
+      mk('steward', "The steward's hall", 'stewardroom', 0, 6, 4), mk('guardroom', 'The guardroom and armoury', 'guardroom', 0, 6, 4), mk('chapel', 'The castle chapel', 'castlechapel', 0, 7, 5)];
+    const up = [];
+    const hhs = sim ? sim.households.filter((h) => !h.gone && h.home === b.id) : [];
+    for (const h of hhs) {
+      const ppl = h.members.map((id) => sim.byId.get(id)).filter((p) => p && p.alive !== false); if (!ppl.length) continue;
+      if (ppl.some((p) => p.royal)) {
+        const pa = ppl.filter((p) => p.title === 'King' || p.title === 'Queen'), kids = ppl.filter((p) => !pa.includes(p));
+        if (pa.length) up.push(mk('chamber:monarch', "The monarch's bedchamber", 'chamber', 1, 7, 5, { roomOwners: pa.map((p) => p.id), locked: 'monarch', wealth: 1, royalRoom: true }));
+        for (const k of kids) up.push(mk('chamber:' + k.id, `${k.first}'s chamber`, 'chamber', 1, 5, 4, { roomOwners: [k.id], locked: 'royal', wealth: 0.95, royalRoom: true }));
+      } else up.push(mk('chamber:hh' + h.id, `The ${h.surname} room`, 'chamber', 1, ppl.length > 2 ? 6 : 4, 4, { roomOwners: ppl.map((p) => p.id), wealth: 0.55 }));
+    }
+    up.push(mk('chamber:guest', 'The guest chamber', 'chamber', 1, 5, 4, { roomOwners: [], wealth: 0.85 }));
+    return { ground, up, all: [...ground, ...up] };
+  }
+  const SLEEPY2 = new Set(['sleep', 'sick']);
+  // where in the castle someone is right now: a hallway ('f0', 'f1') or a room's key
+  function castleWhere(q, b, sim) {
+    const act = q.activity?.act, role = q.job?.role || '', plan = castlePlan(b, sim);
+    const mine = plan.up.find((r) => r.roomOwners.includes(q.id));
+    if (act === 'court') return 'throne';
+    if (act === 'feast') return 'f1';
+    if (act === 'worship' || (act === 'work' && ['priest', 'chaplain'].includes(role))) return 'chapel';
+    if (act === 'jailed') return 'guardroom';
+    if (SLEEPY2.has(act)) return mine ? mine.roomKey : 'hall';
+    if (act === 'work') {
+      if (['cook', 'scullion', 'kitchen maid', 'baker', 'butler'].includes(role)) return 'kitchen';
+      if (['steward', 'chamberlain', 'clerk', 'scribe', 'treasurer', 'magistrate'].includes(role)) return 'steward';
+      if (/guard|sergeant|knight|captain/.test(role)) return q.id % 2 ? 'f0' : 'f1';
+      if (['jester', 'page', 'herald', 'lady-in-waiting', 'minstrel', 'bard'].includes(role)) return 'throne';
+      if (['maid', 'chambermaid'].includes(role)) return q.id % 2 ? 'f1' : 'hall';
+      return 'hall';
+    }
+    if (act === 'eat') return q.royal && mine ? mine.roomKey : 'hall';
+    if (act === 'home') return mine && (q.royal || (q.id + Math.floor((sim.minute || 0) / 90)) % 3) ? mine.roomKey : q.royal ? 'f1' : 'hall';
+    return 'f0';
+  }
+  O.Castle = { plan: castlePlan, where: castleWhere };
+
   function layoutFor(b, floor, sim) {
-    const S = scaleFor(b), w = b.w * S, d = b.d * S, rng = O.RNG(O.hash('int', b.id, floor));
+    const S = scaleFor(b), rng = O.RNG(O.hash('int', b.id, floor, b.roomKey || ''));
+    let w = b.w * S, d = b.d * S;
+    if (b.royal) { const pl = castlePlan(b, sim), n = floor === 0 ? pl.ground.length : pl.up.length; w = Math.max(40, n * 6 + 12); d = 10; } // a long hallway
     const grid = new Uint8Array(w * d);
     const items = [];
-    const dc = floor === 0 ? Math.min(w - 2, b.spec.doorTile * S + Math.floor((S - 2) / 2)) : -1; // the doorway is two tiles wide
+    const dc = floor === 0 ? (b.royal ? Math.floor(w / 2) - 1 : Math.min(w - 2, b.spec.doorTile * S + Math.floor((S - 2) / 2))) : -1; // the doorway is two tiles wide
     const keepClear = new Set(); // tiles nothing may stand on: the way in, the foot of the stairs
     if (floor === 0) for (let y = d - 2; y < d; y++) for (let x = dc - 1; x <= dc + 2; x++) keepClear.add(y * w + x);
     const inb = (x, y) => x >= 0 && y >= 0 && x < w && y < d;
@@ -90,7 +140,7 @@
     const wealth = b.wealth, wv = wealth > 0.66 ? 2 : wealth > 0.36 ? 1 : 0;
     const chimneyX = b.sprite?.chimney ? O.clamp(Math.round(((b.sprite.chimney.x - b.sprite.OV) / (b.w * T)) * w) - 1, 0, w - 3) : null;
     const hhs = sim ? (b.households || (b.household ? [b.household] : [])).map((id) => sim.households[id - 1]).filter((h) => h && !h.gone && h.home === b.id) : [];
-    const people = sim ? hhs.flatMap((h) => h.members.map((id) => sim.byId.get(id)).filter((p) => p && p.alive !== false)) : [];
+    const people = b.parent ? (b.roomOwners || []).map((id) => sim && sim.byId.get(id)).filter((p) => p && p.alive !== false) : sim ? hhs.flatMap((h) => h.members.map((id) => sim.byId.get(id)).filter((p) => p && p.alive !== false)) : [];
     const lives = people.length > 0 || (!sim && ['house', 'farmhouse', 'manor', 'mansion', 'townhouse', 'keep', 'tenement', 'woodcutter', 'builder', 'weaver', 'tailor', 'cobbler', 'chandler', 'cooper'].includes(b.type));
     const members = people.length || 2;
     const twoFloors = b.floors >= 2;
@@ -107,12 +157,13 @@
       items.push(st);
       for (let xx = x; xx < x + 2; xx++) keepClear.add(3 * w + xx);
     };
-    if (twoFloors) {
+    if (b.royal) stairPiece(w - 4, floor === 0); // the grand stairs at the far end of the hallway
+    else if (twoFloors) {
       if (floor > 0) stairPiece(cornerOf(floor - 1), false);
       if (floor < nFloors - 1 && (nFloors > 2)) stairPiece(cornerOf(floor), true);
       else if (floor === 0) stairPiece(stairsX, true);
     }
-    startTiles = floor === 0 ? [[dc, d - 1], [dc + 1, d - 1]] : [[cornerOf(floor - 1), 3], [cornerOf(floor - 1) + 1, 3]];
+    startTiles = floor === 0 ? [[dc, d - 1], [dc + 1, d - 1]] : b.royal ? [[w - 4, 3], [w - 3, 3]] : [[cornerOf(floor - 1), 3], [cornerOf(floor - 1) + 1, 3]];
 
     const homeFloor = !twoFloors || floor === 1;
     const living = floor === 0;
@@ -188,98 +239,63 @@
       if (it) n++; } return n; };
     const planFor = (ppl) => { const out = [], done = new Set(); let kids = 0; for (const q of ppl) { if (done.has(q.id)) continue; done.add(q.id); const sp = q.spouse && ppl.find((x) => x.id === q.spouse); if (sp) { done.add(sp.id); out.push('double'); } else if (q.age < 3) out.push('cradle'); else if (q.age < 14) kids++; else out.push('bed'); } for (let i = 0; i < kids; i += 2) out.push('bed'); return out; };
     function royal() {
-      const W1 = Math.floor(w * 0.3), W2 = w - 1 - Math.floor(w * 0.3), MID = Math.floor(d / 2) - 1;
-      const royals = people.filter((q) => q.royal), staff = people.filter((q) => !q.royal);
-      if (floor === 0) {
-        // the great hall in the middle, the kitchens to one side, the steward's hall and armoury to the other
-        wallCol(W1, 0, d - 1, [MID], 1); wallCol(W2, 0, d - 1, [MID], 1);
-        const hx0 = W1 + 1, hx1 = W2 - 1, hc = Math.floor((hx0 + hx1) / 2);
-        put('throne', hc - 1, 1, { v: 2, lord: true, seat: true, rot: 3 });
-        tryPut('fireplace', [[hx0 + 2, 0], [hx0 + 4, 0]], { v: 2 }); tryPut('fireplace', [[hx1 - 4, 0], [hx1 - 6, 0]], { v: 2 });
-        put('rug', hc - 1, 4, { flat: true, width: 3 }); put('rug', hc - 1, 8, { flat: true, width: 3 }); put('rug', hc - 1, 12, { flat: true, width: 3 });
-        for (const [tx, ty] of [[hx0 + 2, 6], [hx1 - 6, 6], [hx0 + 2, 13], [hx1 - 6, 13]]) {
-          const t = put('longtable', tx, ty, { v: 2, table: true }); if (!t) continue;
-          for (let x = t.tx; x < t.tx + 5; x++) { put('chair', x, t.ty - 1, { seat: true, rot: 0, v: 2, noAccess: true }); put('chair', x, t.ty + 2, { seat: true, rot: 3, v: 2, noAccess: true }); }
-        }
-        for (let i = 0; i < 6; i++) tryPut('candlestand', edgeOf(hx0, 1, hx1, d - 4, 1, 1), {});
-        for (let i = 0; i < 2; i++) tryPut('plant', edgeOf(hx0, 1, hx1, d - 4, 1, 1), {});
-        // kitchens
-        const kx1 = W1 - 1, kroom = [0, 3, kx1, d - 1];
-        tryPut('fireplace', rowOf(2, kx1, 0, 3), { v: 1, work: ['cook'] });
-        tryPut('oven', rowOf(2, kx1, 0, 3), { work: ['master cook', 'cook'], fire: true }); tryPut('oven', rowOf(2, kx1, 0, 3), { work: ['cook'], fire: true });
-        for (let i = 0; i < 3; i++) tryPut('cauldron', edgeOf(...kroom, 1, 1), { work: i ? ['scullion'] : ['cook'] });
-        tryPut('doughtable', inRect(2, 5, kx1 - 2, d - 6, 3, 1), { work: ['master cook'] }); tryPut('doughtable', inRect(2, 5, kx1 - 2, d - 6, 3, 1), { work: ['cook'] });
-        tryPut('butcherblock', edgeOf(...kroom, 3, 1), { work: ['cook'] }); tryPut('washtub', edgeOf(...kroom, 1, 1), { work: ['scullion'] }); tryPut('washtub', edgeOf(...kroom, 1, 1), { work: ['scullion'] });
-        for (let i = 0; i < 8; i++) tryPut(['barrel', 'sack', 'crate'][i % 3], edgeOf(...kroom, 1, 1), { pantry: true });
-        tryPut('woodpile', edgeOf(...kroom, 1, 1), {}); tryPut('dresser', rowOf(2, kx1, 0, 2), { v: 1, pantry: true });
-        // the servants eat at a long table in the kitchen
-        const st = tryPut('longtable', inRect(2, d - 9, kx1 - 2, d - 4, 5, 2), { v: 1, table: true });
-        if (st) for (let x = st.tx; x < st.tx + 5; x++) { put('bench', x, st.ty - 1, { seat: true, rot: 0, v: 1, noAccess: true, width: 1 }); }
-        // steward's hall and armoury
-        const ex0 = W2 + 1, eroom = [ex0, 0, w - 1, d - 1];
-        tryPut('desk', rowOf(ex0, w - 3, 0, 2), { v: 2, work: ['steward', 'chamberlain'] });
-        tryPut('chest', edgeOf(...eroom, 2, 1), { v: 2, valuables: true, container: { slots: 24 } }); tryPut('chest', edgeOf(...eroom, 2, 1), { v: 2, valuables: true });
-        for (let i = 0; i < 4; i++) tryPut('rack', rowOf(ex0, w - 1, 0, 2), {});
-        tryPut('bookcase', edgeOf(...eroom, 2, 1), { v: 2 }); tryPut('bench', edgeOf(...eroom, 3, 1), { seat: true, rot: 0 });
-        for (let i = 0; i < 3; i++) tryPut('barrel', edgeOf(...eroom, 1, 1), {});
-        return;
-      }
+      const plan = castlePlan(b, sim), list = floor === 0 ? plan.ground : plan.up;
+      // a door in the back wall for every room, with a candle between each
+      list.forEach((r, i) => { put('roomdoor', 3 + i * 6, 0, { room: r.roomKey, locked: r.locked || null, noAccess: true, v: r.locked ? 1 : 0, label: r.name }); put('candlestand', 6 + i * 6, 0, {}); });
+      // the red carpet the length of the hall
+      for (let x = 1; x + 6 <= w - 5; x += 6) put('rug', x, d - 4, { flat: true, width: 6, rot: 6, v: 3 });
       if (floor === 1) {
-        // the servants' floor: a long corridor with rooms either side
-        const cy0 = MID - 2, cy1 = MID + 2, rw = Math.floor(w / 6);
-        const doors = []; for (let i = 0; i < 6; i++) doors.push(i * rw + Math.floor(rw / 2) - 1);
-        wallRow(cy0, 0, w - 1, doors, 1); wallRow(cy1, 0, w - 1, doors, 1); // castle walls are stone
-        for (let i = 1; i < 6; i++) { wallCol(i * rw, 0, cy0 - 1, [], 1); wallCol(i * rw, cy1 + 1, d - 1, [], 1); }
-        const rooms = []; for (let i = 0; i < 6; i++) { rooms.push([i * rw + (i ? 1 : 0), 0, (i + 1) * rw - 1, cy0 - 1]); rooms.push([i * rw + (i ? 1 : 0), cy1 + 1, i === 5 ? w - 1 : (i + 1) * rw - 1, d - 1]); }
-        // the households living here: each family gets a room; the unmarried share by twos and threes
-        const hhRes = hhs.filter((h) => h.servants);
-        const fams = hhRes.filter((h) => h.members.length > 1), singles = hhRes.filter((h) => h.members.length === 1).map((h) => sim.byId.get(h.members[0])).filter(Boolean);
-        let ri = 0;
-        for (const h of fams) { if (ri >= rooms.length) break; const ppl = h.members.map((m) => sim.byId.get(m)).filter(Boolean); roomBeds(rooms[ri], planFor(ppl)); tryPut('chest', edgeOf(...rooms[ri], 2, 1), { v: 1, valuables: true }); ri++; }
-        let left = singles.length;
-        while (left > 0 && ri < rooms.length) { const k = Math.min(3, left); left -= roomBeds(rooms[ri], Array(k).fill('bed')) || k; tryPut('chest', edgeOf(...rooms[ri], 2, 1), { v: 1 }); tryPut('candlestand', edgeOf(...rooms[ri], 1, 1), {}); ri++; }
-        for (; ri < rooms.length; ri++) { tryPut('crate', edgeOf(...rooms[ri], 1, 1), {}); tryPut('sack', edgeOf(...rooms[ri], 1, 1), {}); tryPut('washtub', edgeOf(...rooms[ri], 1, 1), {}); }
-        return;
+        // the long table where the council of the realm sits, chairs all round
+        const n = 3, tx = Math.floor(w / 2) - Math.floor(n * 5 / 2);
+        for (let k = 0; k < n; k++) put('longtable', tx + k * 5, 3, { v: 2, table: true, council: true });
+        for (let x = tx; x < tx + n * 5; x++) { put('chair', x, 2, { seat: true, rot: 0, v: 2, noAccess: true }); put('chair', x, 5, { seat: true, rot: 3, v: 2, noAccess: true }); }
+        put('chair', tx - 1, 3, { seat: true, rot: 2, v: 2, noAccess: true, head: true });
       }
-      if (floor === 2) {
-        // the royal apartments: the king and queen's bedchamber, the royal children's rooms, the solar
-        wallCol(W1, 0, d - 1, [MID], 2); wallCol(W2, 0, d - 1, [MID], 2);
-        wallRow(MID - 2, 0, W1 - 1, [Math.floor(W1 / 2)], 2); wallRow(MID - 2, W2 + 1, w - 1, [W2 + Math.floor((w - W2) / 2)], 2);
-        const cx0 = W1 + 1, cx1 = W2 - 1;
-        const pair = royals.filter((q) => q.title === 'King' || q.title === 'Queen' || (q.spouse && royals.some((x) => x.id === q.spouse) && q.age > 25));
-        roomBeds([cx0, 0, cx1, d - 1], pair.length ? planFor(pair) : ['double']);
-        tryPut('fireplace', rowOf(cx0, cx1, 0, 3), { v: 2 }); tryPut('wardrobe', rowOf(cx0, cx1, 0, 2), { v: 2 }); tryPut('wardrobe', rowOf(cx0, cx1, 0, 2), { v: 2 });
-        put('rug', Math.floor((cx0 + cx1) / 2) - 1, MID, { flat: true, width: 3 });
-        tryPut('chest', edgeOf(cx0, 0, cx1, d - 1, 2, 1), { v: 2, valuables: true, container: { slots: 24 } });
-        for (let i = 0; i < 4; i++) tryPut('candlestand', edgeOf(cx0, 0, cx1, d - 1, 1, 1), {});
-        tryPut('desk', edgeOf(cx0, 0, cx1, d - 1, 2, 1), { v: 2 }); tryPut('plant', edgeOf(cx0, 0, cx1, d - 1, 1, 1), {});
-        // the children's rooms to the west
-        const kids = royals.filter((q) => !pair.includes(q));
-        roomBeds([0, 0, W1 - 1, MID - 3], planFor(kids.slice(0, Math.ceil(kids.length / 2))).concat(kids.length ? [] : ['bed']));
-        roomBeds([0, MID - 1, W1 - 1, d - 1], planFor(kids.slice(Math.ceil(kids.length / 2))).concat(['bed']));
-        for (const rr of [[0, 0, W1 - 1, MID - 3], [0, MID - 1, W1 - 1, d - 1]]) { tryPut('wardrobe', edgeOf(...rr, 2, 1), { v: 2 }); tryPut('chest', edgeOf(...rr, 2, 1), { v: 2 }); tryPut('candlestand', edgeOf(...rr, 1, 1), {}); }
-        // the solar and the ladies' chamber to the east
-        const so = [W2 + 1, 0, w - 1, MID - 3], la = [W2 + 1, MID - 1, w - 1, d - 1];
-        tryPut('bookcase', edgeOf(...so, 2, 1), { v: 2 }); tryPut('bookcase', edgeOf(...so, 2, 1), { v: 2 }); tryPut('desk', edgeOf(...so, 2, 1), { v: 2 });
-        tryPut('table', inRect(so[0] + 2, so[1] + 2, so[2] - 2, so[3] - 1, 3, 2), { v: 2, table: true }); tryPut('loom', edgeOf(...la, 3, 2), { work: ['lady-in-waiting'] }); tryPut('spinning', edgeOf(...la, 2, 1), { work: ['lady-in-waiting'] });
-        for (let i = 0; i < 3; i++) tryPut('chair', edgeOf(...la, 1, 1), { seat: true, rot: 3, v: 2, noAccess: true });
-        tryPut('dresser', edgeOf(...la, 2, 1), { v: 2, work: ['maid'] }); tryPut('washtub', edgeOf(...la, 1, 1), { work: ['maid'] });
-        return;
-      }
-      // the top floor: guest chambers, the private chapel, the armoury and treasury
-      wallCol(W1, 0, d - 1, [MID], 1); wallCol(W2, 0, d - 1, [MID], 1);
-      const cx0 = W1 + 1, cx1 = W2 - 1, cc = Math.floor((cx0 + cx1) / 2);
-      put('altar', cc - 2, 0, { v: 2 });
-      for (let y = 4; y < d - 4; y += 3) { put('pew', cx0 + 2, y, { width: Math.max(3, cc - cx0 - 4), seat: true, rot: 0, v: 2 }); put('pew', cc + 2, y, { width: Math.max(3, cx1 - cc - 3), seat: true, rot: 0, v: 2 }); }
-      for (let i = 0; i < 4; i++) tryPut('candlestand', edgeOf(cx0, 0, cx1, d - 1, 1, 1), {});
-      roomBeds([0, 0, W1 - 1, d - 1], ['double', 'bed', 'bed']); tryPut('wardrobe', edgeOf(0, 0, W1 - 1, d - 1, 2, 1), { v: 2 });
-      const ar = [W2 + 1, 0, w - 1, d - 1];
-      for (let i = 0; i < 6; i++) tryPut('rack', rowOf(ar[0], ar[2], 0, 2), {});
-      for (let i = 0; i < 3; i++) tryPut('chest', edgeOf(...ar, 2, 1), { v: 2, valuables: true, container: { slots: 18 } });
     }
-
-    // ---- a manor: the hall, the kitchen and the parlour below; the family's chambers and the
-    // servants' rooms above ----
+    // the castle's rooms, each laid out as a place of its own
+    function castleRoom() {
+      switch (b.type) {
+        case 'throneroom': {
+          const hc = Math.floor(w / 2) - 1; put('throne', hc, 1, { v: 2, lord: true, seat: true, rot: 3 });
+          for (let y = 4; y < d - 1; y += 4) put('rug', hc - 1, y, { flat: true, width: 4, rot: 4, v: 3 });
+          for (const x of [2, w - 3]) for (let y = 2; y < d - 2; y += 4) tryPut('candlestand', [[x, y]], {});
+          tryPut('bench', [[1, d - 3], [1, d - 5]], { seat: true, width: 3, rot: 0 }); tryPut('bench', [[w - 4, d - 3], [w - 4, d - 5]], { seat: true, width: 3, rot: 0 });
+          tryPut('fireplace', [[2, 0], [w - 5, 0]], { v: 2 });
+          break;
+        }
+        case 'castlekitchen':
+          tryPut('fireplace', [[1, 0]], { v: 1 }); tryPut('oven', backWall(3), { work: ['cook', 'baker'] }); tryPut('cauldron', [[4, 1], [5, 1]], { work: ['cook'] });
+          tryPut('doughtable', nearWalls(3, 1), { work: ['cook', 'baker'] }); tryPut('butcherblock', nearWalls(3, 1), { work: ['cook', 'scullion'] }); tryPut('washtub', nearWalls(), { work: ['scullion'] });
+          tryPut('longtable', centre(5, 2), { v: 1, table: true }); for (let i = 0; i < 4; i++) tryPut(rng.pick(['barrel', 'sack', 'crate']), nearWalls(), { pantry: true });
+          tryPut('dresser', backWall(2, true), { v: 1, pantry: true });
+          break;
+        case 'servhall':
+          tryPut('fireplace', backWall(3), { v: 1 }); dining(10, {}); dining(6, {}); tryPut('bench', nearWalls(3, 1), { seat: true, width: 3 }); tryPut('barrel', nearWalls(), { stockOf: 'ale' }); tryPut('candlestand', nearWalls());
+          break;
+        case 'stewardroom':
+          tryPut('desk', backWall(2), { v: 2, work: ['steward', 'chamberlain'] }); tryPut('desk', nearWalls(2, 1), { v: 1, work: ['clerk', 'scribe', 'treasurer'] });
+          tryPut('bookcase', backWall(2, true), { v: 2 }); tryPut('bookcase', backWall(2, true), { v: 2 }); tryPut('chest', nearWalls(2, 1), { v: 2, valuables: true, container: { slots: 18 } }); tryPut('candlestand', nearWalls());
+          break;
+        case 'guardroom':
+          tryPut('rack', backWall(2, true)); tryPut('rack', backWall(2, true)); tryPut('rack', backWall(2, true)); dining(4, {}); tryPut('barrel', nearWalls()); tryPut('chest', nearWalls(2, 1), { evidence: true });
+          tryPut('cell', [[w - 5, d - 5], ...nearWalls(4, 4)], { cell: true });
+          break;
+        case 'castlechapel': {
+          const mid = Math.floor(w / 2); put('altar', mid - 2, 0, { v: 2, work: ['priest'], candles: true });
+          for (let y = 3; y < d - 2; y += 2) { put('pew', 1, y, { pew: true, width: Math.max(3, mid - 3), seats: 3 }); put('pew', mid + 2, y, { pew: true, width: Math.max(3, w - mid - 3), seats: 3 }); }
+          tryPut('candlestand', [[mid - 4, 0]]); tryPut('candlestand', [[mid + 3, 0]]);
+          break;
+        }
+        case 'chamber': default: {
+          // like a house of their own: their beds, a chest and a wardrobe, a table, a candle, and for the royal rooms a fire and a rug
+          if (people.length) beds(); else tryPut('double', backWall(3, true), { v: 2, bed: true, slots: 2 }); // the guest chamber's great bed
+          tryPut('wardrobe', backWall(2, true), { v: wv }); tryPut('chest', nearWalls(2, 1), { v: wv, valuables: !!b.royalRoom, container: { slots: b.royalRoom ? 18 : 10 } });
+          if (b.royalRoom) { tryPut('fireplace', backWall(3), { v: 2 }); put('rug', Math.floor(w / 2) - 2, Math.floor(d / 2), { flat: true, width: 4, rot: 4, v: 3 }); tryPut('desk', nearWalls(2, 1), { v: 2 }); }
+          dining(Math.max(2, people.length), {}); tryPut('candlestand', nearWalls());
+          break;
+        }
+      }
+    }
     function manor() {
       const W1 = Math.floor(w / 3), W2 = w - 1 - Math.floor(w / 3), MID = Math.floor(d / 2) - 1;
       const fam = people.filter((q) => q.gentry), staff = people.filter((q) => !q.gentry);
@@ -319,7 +335,7 @@
 
     // pieces the owner has set down themselves come first, where they put them
     for (const f of (b.extraFurn || [])) if (f.floor === floor) put(f.kind, f.tx, f.ty, Object.assign({ owned: true, rot: f.rot || 0 }, f.kind === 'chair' || f.kind === 'stool' || f.kind === 'bench' ? { seat: true } : {}, ['bed', 'double', 'cradle'].includes(f.kind) ? { bed: true, slots: f.kind === 'double' ? 2 : 1 } : {}, ['table', 'longtable'].includes(f.kind) ? { table: true } : {}, f.kind === 'counter' || f.kind === 'bar' ? { counter: true } : {}));
-    if (b.royal) royal(); else if (b.manor) manor(); else switch (b.type) {
+    if (b.parent) castleRoom(); else if (b.royal) royal(); else if (b.manor) manor(); else switch (b.type) {
       case 'house': case 'farmhouse': case 'woodcutter':
         if (living) { hearth(); dining(members); }
         if (homeFloor) beds();
@@ -633,7 +649,7 @@
     if (cache.has(key)) return cache.get(key);
     const L = layoutFor(b, floor, sim);
     const wallKind = (b.decor && b.decor.wall) || (b.spec.wall === 'stone' || b.spec.wall === 'log' || b.spec.wall === 'plank' ? b.spec.wall : 'timber');
-    const floorKind = (b.decor && b.decor.floor) || ['smithy', 'chapel', 'guard', 'mill', 'quarry', 'mine', 'armourer', 'warehouse', 'townhall', 'keep', 'hospital', 'manor'].includes(b.type) ? 'stone' : b.type === 'barn' || (b.type === 'house' && b.wealth < 0.3) ? 'dirt' : 'wood';
+    const floorKind = (b.decor && b.decor.floor) || ['smithy', 'chapel', 'guard', 'mill', 'quarry', 'mine', 'armourer', 'warehouse', 'townhall', 'keep', 'hospital', 'manor', 'throneroom', 'castlekitchen', 'guardroom', 'castlechapel', 'stewardroom', 'servhall'].includes(b.type) ? 'stone' : b.type === 'barn' || (b.type === 'house' && b.wealth < 0.3) ? 'dirt' : 'wood';
     L.room = O.Furn.room({ w: L.w, d: L.d, wall: wallKind, floor: floorKind, wealth: b.wealth, seed: b.id * 3 + floor, windows: Math.max(1, Math.floor(b.w / 2) + 1), doorTile: floor === 0 ? L.dc : -5 });
     cache.set(key, L);
     return L;

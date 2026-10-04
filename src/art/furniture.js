@@ -394,9 +394,21 @@
         }
         out = finish(S); break;
       }
+      case 'roomdoor': { // a door set in the wall to a room beyond: oak in a stone arch; locked ones banded with iron and padlocked
+        S = canvasFor(2, 1, 44); const { B, fx, fx1, fy1 } = S; const oak = P.mat('#6a4428', 'wood'), stone = P.mat('#8e8880', 'cloth'), ir = P.mat('#3a3a42', 'metal');
+        const x0 = fx + 3, x1 = fx1 - 3, top = fy1 - 46, bot = fy1 - 14;
+        B.part(1);
+        for (let y = top - 3; y <= bot; y++) for (let x = x0 - 3; x <= x1 + 3; x++) { const ty = y - (top - 3), cx = (x0 + x1) / 2, r = (x1 - x0) / 2 + 3; if (ty < r && Math.hypot(x - cx, (top - 3 + r) - y) > r) continue; B.plot(x, y, stone, (x + y) % 4 === 0 ? 1 : 2); }
+        for (let y = top; y <= bot; y++) for (let x = x0; x <= x1; x++) { const ty = y - top, cx = (x0 + x1) / 2, r = (x1 - x0) / 2; if (ty < r && Math.hypot(x - cx, top + r - y) > r) continue; B.plot(x, y, oak, (x - x0) % 4 === 0 ? 1 : x === x1 ? 1 : 2); }
+        for (const yy of [top + 8, bot - 6]) for (let x = x0; x <= x1; x++) if (v === 1 || x < x0 + 6) B.plot(x, yy, ir, 2);
+        B.plot(x1 - 4, Math.round((top + bot) / 2), P.mat('#c8a040', 'metal'), 3); // the ring
+        if (v === 1) { for (let y = Math.round((top + bot) / 2) - 2; y <= Math.round((top + bot) / 2) + 3; y++) for (let x = x1 - 7; x <= x1 - 3; x++) B.plot(x, y, ir, y === Math.round((top + bot) / 2) - 2 ? 3 : 1); }
+        for (let x = x0 - 3; x <= x1 + 3; x++) B.plot(x, bot + 1, stone, 0);
+        out = finish(S); break;
+      }
       case 'rug': {
         const fw = rot || 3, fh = 2; S = canvasFor(fw, fh, 0); const { B, fx, fx1, fy, fy1 } = S;
-        const m = P.mat(rng.pick([C.crimson, C.navy, C.madder, C.teal, C.plum])), t = P.mat(C.mustard);
+        const m = P.mat(v === 3 ? C.crimson : rng.pick([C.crimson, C.navy, C.madder, C.teal, C.plum])), t = P.mat(C.mustard); // v 3: the castle's red carpet
         B.part(1); B.rect(fx + 1, fy + 2, fx1 - fx - 1, fy1 - fy - 3, m, 2);
         for (let x = fx + 1; x < fx1; x++) { B.plot(x, fy + 3, t, 3); B.plot(x, fy1 - 3, t, 2); } for (let y = fy + 3; y < fy1 - 2; y++) { B.plot(fx + 2, y, t, 3); B.plot(fx1 - 2, y, t, 2); }
         for (let y = fy + 7; y < fy1 - 6; y += 4) for (let x = fx + 8; x < fx1 - 7; x += 6) { B.plot(x + (y % 2), y, t, 3); B.plot(x + 1 + (y % 2), y + 1, t, 2); }

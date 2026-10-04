@@ -22,7 +22,8 @@
     const here = () => { const pl = cur().world.placeId, ps = posts().filter((e) => e.place === pl); return ps.find((e) => e.onShift) || ps[0] || null; };
     const postAt = (s, bz) => posts().find((e) => e.biz === bz.id && e.place === s.world.placeId) || null;
     const bizOf = (e) => { const s = cur(); return e && e.place === s.world.placeId ? s.biz.get(e.biz) : null; };
-    const hoursOf = (e, bz) => { const r = e.role || ''; if (r === 'potboy' || r === 'potgirl') return [17, 21]; if (['night watchman', 'gaoler'].includes(r)) return [20, 30]; if (r.startsWith('guard') || r === 'sergeant') return [6, 18]; return bz ? bz.def.hours : [8, 17]; };
+    const COURT = new Set(['monarch', 'consort', 'heir', 'prince', 'princess', 'lord', 'lady', 'lady-in-waiting', 'jester', 'steward', 'chamberlain', 'captain of the royal guard']);
+    const hoursOf = (e, bz) => { const r = e.role || ''; if (COURT.has(r)) return [8, 20]; if (r === 'potboy' || r === 'potgirl') return [17, 21]; if (['night watchman', 'gaoler'].includes(r)) return [20, 30]; if (r.startsWith('guard') || r === 'sergeant') return [6, 18]; return bz ? bz.def.hours : [8, 17]; };
     const worksToday = (s, bz) => !(s.weekday === 6 && bz && !['tavern', 'chapel', 'guard', 'hospital', 'palace', 'keep', 'manor', 'posthouse'].includes(bz.type));
     const fmtH = (h) => { h = ((h % 24) + 24) % 24; const hh = Math.floor(h), mm = Math.round((h - hh) * 60); return `${hh % 12 || 12}${mm ? ':' + String(mm).padStart(2, '0') : ''}${hh < 12 ? 'am' : 'pm'}`; };
 
@@ -64,7 +65,7 @@
       bz.playerRole = role;
       posts().push(PS.emp = Object.assign({ place: s.world.placeId, placeName: s.world.name, biz: bz.id, bizName: bz.name, role, wage, master: boss ? boss.id : null, masterName: boss ? boss.name : 'the crown', since: s.day,
         stats: { shifts: 0, late: 0, missed: 0, tasks: 0, excused: 0 }, day: null, tasks: [], level: 0 }, extra || {}));
-      { const [o0, c0] = hoursOf(PS.emp, bz), h0 = s.hour; if (h0 >= o0 && h0 < c0) PS.emp.firstDay = s.day + 1; } // taken on mid-shift: you start at the next one
+      { const [o0, c0] = hoursOf(PS.emp, bz), h0 = s.hour; if (h0 >= o0 && h0 < c0 && !COURT.has(role)) PS.emp.firstDay = s.day + 1; } // taken on mid-shift you start at the next one; a crown post starts at once
       if (boss) { s.relate(boss, { id: 0 }, 0.05); s.remember(boss, `Took the stranger on as ${role}.`, 'work', 1.2, 0); }
       O.Chronicle && O.Chronicle.deed(s, `A newcomer has been taken on as ${role} at ${bz.name}.`, `You were taken on as ${role} at ${bz.name}.`, 'player', 1, true);
     }
@@ -97,8 +98,11 @@
       if (kind === 'make') { const rc = recipeFor(bz, e.role); if (rc) { const g = Object.keys(rc.out)[0]; out.push({ id: id(), kind: 'make', good: g, need: n, have: 0, text: `Make ${D.GOODS[g]?.name.toLowerCase() || g}` }); } else out.push({ id: id(), kind: 'sweep', need: n, have: 0, text: 'Tidy and sweep the place' }); }
       else if (kind === 'serve') out.push({ id: id(), kind: 'serve', need: n, have: 0, text: bz.type === 'tavern' ? 'Take orders and serve at the counter' : 'Serve at the counter' });
       else out.push({ id: id(), kind, need: n, have: 0, text: { patrol: 'Walk your beat', field: 'Work the ground', chop: 'Fell and cut timber', fish: 'Fish the water', collect: 'Collect what is owed', deliver: 'Carry goods where they are wanted', sweep: bz.type === 'stable' ? 'Muck out the stalls' : 'Clean and sweep', service: 'Lead the prayers', teach: 'Teach the children', tend: 'Tend the sick', write: 'Keep the books', court: 'Hold court' }[kind] || 'Work' });
+      // the monarch presides over the council of the realm at the long table upstairs, Thursday afternoons
+      if (kind === 'court' && ['monarch', 'consort', 'heir'].includes(e.role) && s.weekday === 3 && s.hour < 17) out.push({ id: id(), kind: 'attend', need: 1, have: 0, text: 'Preside at the council table upstairs (2pm)' });
+      if (kind === 'court') { const t0 = out.find((x) => x.kind === 'court'); if (t0) t0.text = { monarch: 'Hold court on the throne', consort: 'Sit at court beside the throne', jester: 'Amuse the court', 'lady-in-waiting': 'Attend the court', steward: 'Keep the castle accounts', chamberlain: 'Order the household' }[e.role] || 'Attend the court'; }
       // a fire to keep in
-      if (bz.def.recipes.some((rc) => rc.inp.firewood) || ['bakery', 'smithy', 'tavern', 'kitchen'].includes(bz.type)) out.push({ id: id(), kind: 'fire', need: 1, have: 0, text: 'Keep the fire fed' });
+      if (!COURT.has(e.role) && (bz.def.recipes.some((rc) => rc.inp.firewood) || ['bakery', 'smithy', 'tavern', 'kitchen'].includes(bz.type))) out.push({ id: id(), kind: 'fire', need: 1, have: 0, text: 'Keep the fire fed' });
       // at an inn the cook, the server and the chambermaid gather the pots and wipe the tables too
       if (bz.type === 'tavern' && ['cook', 'server', 'chambermaid', 'scullion'].includes(e.role)) out.push({ id: id(), kind: 'pots', need: 2, have: 0, text: 'Gather the pots and wipe the tables' });
       // the innkeeper looks over the rooms
@@ -154,6 +158,7 @@
         case 'teach': case 'write': return it.kind === 'desk' || it.kind === 'altar';
         case 'tend': return it.kind === 'medbed' || it.kind === 'desk' || it.kind === 'bed';
         case 'court': return it.kind === 'throne' || it.kind === 'desk';
+        case 'attend': return !!it.council || (it.kind === 'chair' && it.head);
         case 'pots': return it.kind === 'table' || it.kind === 'longtable';
         case 'rooms': return game.scene && game.scene.floor === 1 && (it.kind === 'bed' || it.rent);
         case 'unload': return !!(it.counter || ['crate', 'sack', 'barrel', 'shelf', 'chest'].includes(it.kind));
@@ -191,7 +196,7 @@
     const LABEL = { make: (t) => `Make ${D.GOODS[t.good]?.name.toLowerCase() || 'goods'} (${t.have + 1}/${t.need})`, fire: () => 'Feed the fire with firewood', serve: (t) => `Serve (${t.have + 1}/${t.need})`, sweep: (t) => `Sweep here (${t.have + 1}/${t.need})`, patrol: (t) => `Look about your beat (${t.have + 1}/${t.need})`,
       field: (t) => `Work the ground (${t.have + 1}/${t.need})`, chop: (t) => `Fell and cut (${t.have + 1}/${t.need})`, fish: (t) => `Cast a line (${t.have + 1}/${t.need})`, collect: (t) => `Collect the dues (${t.have + 1}/${t.need})`, deliver: (t) => `Deliver here (${t.have + 1}/${t.need})`,
       fetch: (t) => `Buy ${t.qty} ${D.GOODS[t.good]?.name.toLowerCase()} for ${emp().bizName}`, unload: () => `Put away the ${D.GOODS[PS.carry?.good]?.name.toLowerCase() || 'goods'}`, service: (t) => `Lead the prayers (${t.have + 1}/${t.need})`, teach: (t) => `Teach a lesson (${t.have + 1}/${t.need})`,
-      write: (t) => `Write up the books (${t.have + 1}/${t.need})`, tend: (t) => `Tend the sick (${t.have + 1}/${t.need})`, court: (t) => `Hear petitions (${t.have + 1}/${t.need})`, rooms: () => 'Look over the rooms', pots: (t) => `Gather the pots here (${t.have + 1}/${t.need})` };
+      write: (t) => `Write up the books (${t.have + 1}/${t.need})`, tend: (t) => `Tend the sick (${t.have + 1}/${t.need})`, court: (t) => `Hear petitions (${t.have + 1}/${t.need})`, rooms: () => 'Look over the rooms', attend: () => 'Take your seat at the head of the table', pots: (t) => `Gather the pots here (${t.have + 1}/${t.need})` };
     O.jobLabel = (c) => (LABEL[c.t.kind] || (() => 'Work'))(c.t);
 
     // doing it: the action plays, time passes, and the work is real
@@ -249,6 +254,7 @@
         }
         case 'unload': act('place', 1.2, 5, () => { const cy = PS.carry; if (cy) { bz.stock[cy.good] = (bz.stock[cy.good] || 0) + cy.qty; PS.carry = null; } const u = e.tasks.find((x) => x.kind === 'unload' && x.have < x.need); if (u) { u.have = 1; } e.stats.tasks++; refresh(); say('Put away.'); }); break;
         case 'rooms': act('look', 1.6, 10, () => tick('The rooms are in order.')); break;
+        case 'attend': { if (s.hour < 13.9) { say('The council sits at two. Come back then.'); return; } const n = s.people.filter((q) => q.councillor && q.agent.inside === bz.id).length; act('talk', 3, 120, () => tick(n ? `You preside over the council: ${n} of the realm's leaders have their say, and you give your answers.` : 'You wait at the head of the table, but the leaders are late.')); break; }
         case 'pots': act('scrub', 1.4, 10, () => { (t.swept = t.swept || []).push(c.it ? c.it.id : c.k); tick('You gather the pots and wipe the table down.'); }); break;
         case 'service': case 'teach': case 'write': case 'tend': case 'court': act(ANIM_OF(t, e), 2, 30, () => tick(null)); break;
         default: break;
@@ -338,7 +344,8 @@
       const s = O.Travel?.visited.get(e.place)?.sim || cur();
       const bz = s.world.placeId === e.place ? s.biz.get(e.biz) : null, [o, c] = hoursOf(e, bz);
       const head = `<b>${esc(e.role)}</b> · ${esc(e.bizName)}${e.place !== cur().world.placeId ? `, ${esc(e.placeName)}` : ''}`;
-      const shift = e.onShift ? `On shift till ${fmtH(c)}` : `Next shift: ${e.dayInfo && e.dayInfo.works && s.hour < o ? 'today' : 'tomorrow'} ${fmtH(o)}-${fmtH(c)}`;
+      const crown = COURT.has(e.role);
+      const shift = crown ? (e.onShift ? `${e.role === 'monarch' ? 'Your reign' : 'At court'}: the business of the day, till ${fmtH(c)}` : `At court from ${fmtH(o)}`) : e.onShift ? `On shift till ${fmtH(c)}` : `Next shift: ${e.dayInfo && e.dayInfo.works && s.hour < o ? 'today' : 'tomorrow'} ${fmtH(o)}-${fmtH(c)}`;
       const tasks = e.onShift ? e.tasks.map((t) => `<li class="${t.have >= t.need ? 'done' : ''}">${t.have >= t.need ? '■' : '□'} ${esc(t.text)}${t.need > 1 ? ` (${Math.min(t.have, t.need)}/${t.need})` : ''}</li>`).join('') : '';
       const carry = PS.carry ? `<div class="carry">Carrying: ${PS.carry.qty} ${esc(D.GOODS[PS.carry.good]?.name.toLowerCase() || PS.carry.good)}</div>` : '';
       const others = posts().filter((x) => x !== e).map((x) => { const xs = O.Travel?.visited.get(x.place)?.sim || cur(), xb = xs.world.placeId === x.place ? xs.biz.get(x.biz) : null, [xo, xc] = hoursOf(x, xb); return `<div class="js">Also: ${esc(x.role)} at ${esc(x.bizName)}, ${fmtH(xo)}-${fmtH(xc)}</div>`; }).join('');
@@ -352,10 +359,13 @@
           if (t.kind === 'fetch') hint = `Go to ${t.fromName} (follow the arrow), stand at the counter and press E to buy.`;
           else if (outside) hint = 'Go to the arrows outside and press E at each one.';
           else if (!inHere) hint = `Go inside ${bz.name}: the arrow is over the door.`;
+          else if (t.kind === 'court') hint = 'Go into the throne room off the hallway and press E at the throne.';
+          else if (t.kind === 'attend') hint = 'Climb the grand stairs at the end of the hallway; the council table is in the great hall upstairs.';
           else hint = t.kind === 'sweep' ? 'Stand on each arrow on the floor and press E to sweep there.' : 'Stand by the thing with the arrow over it and press E. Each press is a stretch of work.';
         } else hint = 'All done for now. More work may come in before the shift ends.';
       } else if (!e.onShift) hint = 'Come back when your shift starts. Being late or missing it counts against you.';
-      const html = `<div class="jh">${head}</div><div class="js">${shift} · ₳${e.wage} a day</div>${tasks ? `<ul>${tasks}</ul>` : ''}${carry}${hint ? `<div class="js" style="font-style:italic">${esc(hint)}</div>` : ''}${others}`;
+      const pay = crown ? `₳${e.wage} a day from the treasury` : `₳${e.wage} a day`;
+      const html = `${crown && e.role === 'monarch' ? '<div class="jh" style="text-transform:none">Monarch of Eldoria</div>' : `<div class="jh">${head}</div>`}<div class="js">${shift} · ${pay}</div>${tasks ? `<ul>${tasks}</ul>` : ''}${carry}${hint ? `<div class="js" style="font-style:italic">${esc(hint)}</div>` : ''}${others}`;
       if (html === sig) return; sig = html; el.innerHTML = html; el.hidden = false;
     }
 
@@ -392,7 +402,7 @@
     O.takeAnyPost = (role) => {
       const s = cur(), type = O.allRoles().get(role);
       let bz = [...s.biz.values()].find((x) => x.type === type) || null;
-      if (type === 'crown') bz = [...s.biz.values()].find((x) => x.type === 'palace' || x.type === 'keep' || x.type === 'manor' || x.type === 'townhall') || [...s.biz.values()][0];
+      if (type === 'crown') { const all = [...s.biz.values()]; bz = all.find((x) => x.b && x.b.royal) || all.find((x) => x.type === 'palace' || x.type === 'keep') || all.find((x) => x.type === 'manor') || all.find((x) => x.type === 'townhall') || all[0]; }
       if (!bz) return say(`There's no ${D.BUSINESS[type]?.label.toLowerCase() || type} in ${s.world.name}. Try a bigger place.`, 'bad');
       // whoever held the post makes way (they find work elsewhere)
       const holder = bz.workers.map((id) => s.byId.get(id)).find((q) => q && q.job?.role === role);

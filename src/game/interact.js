@@ -103,6 +103,7 @@
         case 'pickup': return `Pick up the ${(O.Data.GOODS[c.it.good]?.name || c.it.good).toLowerCase()}`;
         case 'shop': return `Buy from ${c.seller.first}`;
         case 'stairs': return c.it && c.it.stairs ? 'Go upstairs' : 'Go downstairs';
+        case 'roomdoor': return O.Castle && O.castleMayEnter && !O.castleMayEnter(c.it) ? `${c.it.label}: locked` : `Go into ${c.it.label.replace(/^The /, 'the ')}`;
         case 'sit': return c.it.kind === 'pew' ? 'Sit in the pew' : c.it.kind === 'bench' ? 'Sit on the bench' : c.it.kind === 'throne' ? 'Sit on the throne' : 'Sit down';
         default: return '';
       }
@@ -265,6 +266,12 @@
           else O.Panels.toast("That's someone else's bed.");
           break;
         case 'sit': { const sc = game.scene, pose = sc.seatPose(cur.it), p = game.player; p.sitting = Object.assign(pose, { it: cur.it, sx: p.x, sy: p.y, b: sc.b.id, floor: sc.floor }); p.x = pose.x; p.y = pose.y; p.dir = pose.dir; p.anim = 'sit'; if (cur.it.kind === 'throne' && sim.byId) O.Panels.toast('You sit on the throne. Nobody seems pleased about it.'); break; }
+        case 'roomdoor': {
+          if (!O.castleMayEnter(cur.it)) { O.UI.say(cur.it.locked === 'monarch' ? "The door is locked. A guard steps across it: “The king's own chamber. Nobody goes in.”" : 'The door is locked. “The royal family\'s rooms. Move along.”', 'bad'); break; }
+          const keep = cur.b.parent || cur.b, room = O.Castle.plan(keep, O.SimRef.cur).all.find((r) => r.roomKey === cur.it.room);
+          if (room) { game.player.anim = 'open'; game.enterRoom(room); }
+          break;
+        }
         case 'stairs': { const up = cur.it ? !!cur.it.stairs : game.scene.floor === 0; game.enterBuilding(game.scene.b, game.scene.floor + (up ? 1 : -1), up ? 'up' : 'down'); break; }
         case 'shop': O.Panels.trade(sim, sim.biz.get(game.scene.b.id), cur.seller); break;
       }

@@ -103,7 +103,7 @@
     function openMenu() {
       const snd = O.Sound && O.Sound.on;
       menu.innerHTML = `<div class="ui-menu-in"><h2>Outlaw</h2>
-        ${[['resume', 'Continue'], ['satchel', 'Satchel'], ['map', 'Map of Eldoria'], ['chron', 'Chronicle'], ['hold', 'Holdings'], ['gang', 'Gang'], ['ledger', 'Town ledger'], ['guide', 'Guide'], ['settings', 'Settings & saves'], ['save', 'Save now']].map(([k, l]) => `<button data-m="${k}">${l}</button>`).join('')}</div>`;
+        ${[['resume', 'Continue'], ['satchel', 'Satchel'], ['map', 'Map of Eldoria'], ['chron', 'Chronicle'], ['biz', 'Business'], ['tasks', 'Undertakings'], ['hold', 'Holdings'], ['gang', 'Gang'], ['ledger', 'Town ledger'], ['guide', 'Guide'], ['settings', 'Settings & saves'], ['save', 'Save now']].map(([k, l]) => `<button data-m="${k}">${l}</button>`).join('')}</div>`;
       menu.hidden = false; O.menuOpen = true; game.player.locked = true;
       menu.querySelectorAll('[data-m]').forEach((b) => b.onclick = () => act(b.dataset.m));
       menu.querySelector('button').focus();
@@ -114,6 +114,8 @@
       if (k === 'satchel') O.Panels.inventory();
       else if (k === 'map') O.openMap && O.openMap();
       else if (k === 'chron') O.ChronicleUI && O.ChronicleUI.open();
+      else if (k === 'biz') O.openBusiness && O.openBusiness();
+      else if (k === 'tasks') O.openTasks && O.openTasks();
       else if (k === 'hold') O.holdings && O.holdings();
       else if (k === 'gang') O.GangUI && O.GangUI.ledger();
       else if (k === 'ledger') O.npcUI && O.npcUI.toggleLedger(true);

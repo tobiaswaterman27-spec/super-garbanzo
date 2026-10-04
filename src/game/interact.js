@@ -129,6 +129,9 @@
       const b = game.scene.b, hh = b.household ? sim.households[b.household - 1] : null, bz = sim.biz.get(b.id);
       const out = [];
       if (b.owner?.kind === 'player' && !hh) { const st = (PS.homes = PS.homes || {}); const key = sim.world.placeId + ':' + b.id; (st[key] = st[key] || []).forEach((k) => out.push({ k, n: 1, src: 'homestash', key })); return { items: out, owner: 'you' }; }
+      // your own room in your own place: the monarch's bedchamber when you wear the crown, a house you rent
+      const mine = (b.roomKey === 'chamber:monarch' && O.crowned && O.crowned()) || (PS.lease && PS.lease.b === b.id && !b.parent);
+      if (mine) { const st = (PS.homes = PS.homes || {}); const key = sim.world.placeId + ':' + (b.roomKey || b.id); if (!st[key] && b.roomKey === 'chamber:monarch') st[key] = ['ring', 'brooch', 'candlestick', 'wine']; (st[key] = st[key] || []).forEach((k) => out.push({ k, n: 1, src: 'homestash', key })); return { items: out, owner: 'you' }; }
       if (it.rentChest && PS.room && PS.room.b === b.id) { (PS.stash || (PS.stash = [])).forEach((k) => out.push({ k, n: 1, src: 'stash' })); return { items: out, owner: 'you' }; }
       if (it.stockOf && bz) {
         const goods = it.stockOf === 'farm' ? ['wheat', 'cabbage'] : it.stockOf === 'store' ? ['cabbage', 'firewood', 'flour'] : it.stockOf === 'warehouse' ? ['cloth', 'wheat', 'iron'] : [it.stockOf];

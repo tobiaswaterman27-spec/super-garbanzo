@@ -77,7 +77,12 @@ main { height: 100vh; }
 .ui-ticker { position: absolute; left: 50%; bottom: 18px; transform: translate(-50%, 8px); max-width: min(720px, calc(100% - 32px)); padding: 8px 18px; border-radius: 0; background: rgba(250,242,222,.94); color: #4a3826; font-family: var(--body); font-weight: 700; font-size: 15px; box-shadow: 0 4px 0 rgba(60,40,20,.35); opacity: 0; transition: opacity .35s, transform .35s; pointer-events: none; text-align: center; z-index: 25; }
 .ui-ticker.on { opacity: 1; transform: translate(-50%, 0); }
 .ui-ticker.bad { color: #8a2a1e; }
-.joblist { position: absolute; right: 12px; top: 12px; width: 250px; padding: 8px 10px; background: rgba(250,242,222,.94); color: #4a3826; font-family: var(--body); font-size: 13px; line-height: 1.35; z-index: 24; box-shadow: 0 -2px 0 #3a2a1a, 0 2px 0 #3a2a1a, -2px 0 0 #3a2a1a, 2px 0 0 #3a2a1a, 4px 4px 0 rgba(40,24,12,.35); pointer-events: none; }
+.joblist { position: absolute; right: 12px; top: 12px; width: 250px; padding: 8px 10px; background: rgba(250,242,222,.94); color: #4a3826; font-family: var(--body); font-size: 13px; line-height: 1.35; z-index: 24; box-shadow: 0 -2px 0 #3a2a1a, 0 2px 0 #3a2a1a, -2px 0 0 #3a2a1a, 2px 0 0 #3a2a1a, 4px 4px 0 rgba(40,24,12,.35); pointer-events: auto; cursor: pointer; }
+.joblist.min { width: auto; padding: 4px; }
+.joblist .jicon { display: flex; align-items: center; gap: 4px; font-weight: 700; }
+.joblist .jicon img { width: 28px; height: 28px; image-rendering: pixelated; }
+.joblist .jicon .badge { background: #a8382f; color: #fff4dc; font-size: 11px; padding: 0 4px; }
+.joblist .fold { float: right; font-size: 11px; color: #7a5a3a; }
 .joblist .jh { font-weight: 700; text-transform: capitalize; }
 .joblist .js { color: #7a5a3a; font-size: 12px; margin-bottom: 4px; }
 .joblist ul { list-style: none; margin: 4px 0 0; padding: 0; }
@@ -383,6 +388,9 @@ body, button, input, select { -webkit-font-smoothing: none; font-smooth: never; 
 <script src="../src/game/renown.js"></script>
 <script src="../src/game/bounties.js"></script>
 <script src="../src/game/tasks.js"></script>
+<script src="../src/game/waypoints.js"></script>
+<script src="../src/game/business.js"></script>
+<script src="../src/game/hardtimes.js"></script>
 <script src="../src/game/wanderers.js"></script>
 <script src="../src/game/council-ui.js"></script>
 <script src="../src/game/guide.js"></script>

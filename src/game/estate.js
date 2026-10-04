@@ -21,7 +21,7 @@
         ...free.map(({ pl, i }) => `<tr><td>Empty plot ${plotName(pl)}<br><small class="lbl">${pl[2]}×${pl[3]} tiles, sold by the parish</small></td><td><button data-plot="${i}">Buy · ${O.money(PLOT_PRICE)}</button></td></tr>`),
       ].join('');
       const last = PS.lastHarvest;
-      return `<div class="lbl" style="margin-top:12px">Land in Ashford</div>
+      return `<div class="lbl" style="margin-top:12px">Land in ${O.escape(O.SimRef.cur.world.name)}</div>
         <table><tbody>${rows || '<tr><td colspan="2">No building plots are free.</td></tr>'}</tbody></table>
         <div class="kv" style="margin-top:10px"><div><span class="lbl">Strips of the common field</span><b>${owned}</b><small>${farm ? `${STRIPS - sold} left to buy from the farm at ${O.money(STRIP_PRICE)} each. ${STRIPS - sold > 0 ? '<button data-strip="1">Buy a strip</button>' : ''}` : 'No farm to sell land.'}</small></div>
         <div><span class="lbl">Land income</span><b>${O.money(PS.landIncome || 0)}</b><small>${last ? `Last Moonday: ${last.wheat} bushels sold for ${O.money(last.gross)}, ${O.money(last.wages)} to the hands` : 'Reaped and sold each Moonday'}</small></div>

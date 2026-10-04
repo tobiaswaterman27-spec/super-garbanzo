@@ -97,7 +97,7 @@
 
     // ---------------- reeve to council, crier, notices ----------------
     const reeve = sim.reeveId ? sim.byId.get(sim.reeveId) : sim.people.filter((p) => p.age >= 35 && !p.visitor && !p.job?.role?.startsWith('guard') && !p.gang).sort((a, b) => sim.household(b).money - sim.household(a).money)[0];
-    if (reeve) { reeve.title = 'Reeve of Ashford'; sim.reeveId = reeve.id; }
+    if (reeve) { reeve.title = `Reeve of ${sim.world.name}`; sim.reeveId = reeve.id; }
     const H0 = O.SimRef.cur, _plan = (p) => Object.getPrototypeOf(H0).plan.call(H0, p); // always the shared plan as it stands now (others add to it later)
     sim.plan = (p) => {
       const dos = sim.weather.dayOfSeason, h = sim.hour;
@@ -127,7 +127,7 @@
       const Ch = O.Chronicle, crierFacts = Ch.facts.filter((f) => f.imp >= 2 && f.day >= sim.day - 4 && !f.secret).sort((a, b) => b.imp - a.imp || b.day - a.day).slice(0, 2);
       const told = crierFacts.map((f) => { const v = Ch.tell(f, 'crier', sim, sim.rng); Ch.playerHears(f, v, 'crier', cr.name); return v; });
       const items = [...(told.length ? told : K.news.slice(-2).map((n) => n.text)), ...(PS.bountyAmount && PS.wantedLevel() >= 2 ? [`A reward of ₳${PS.bountyAmount} is offered for the outlaw: ${PS.soughtFor()}.`] : [])];
-      const words = `Hear ye, hear ye! ${items.length ? items.join(' ') : 'All is well in Ashford.'}`;
+      const words = `Hear ye, hear ye! ${items.length ? items.join(' ') : `All is well in ${sim.world.name}.`}`;
       cr.agent.anim = 'wave';
       O.Speech.say(cr, words.length > 160 ? words.slice(0, 157) + '…' : words, 9, 'shout', 140);
       O.Panels.toast(`${cr.first} the crier: “${words}”`);

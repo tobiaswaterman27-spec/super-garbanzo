@@ -1,6 +1,6 @@
 // Property and lordship for the player: For Sale signs on empty houses and shops, buying, letting to
 // tenants, opening a business, selling, the Holdings panel (P), and, for the rich and respectable -
-// the lordship of Ashford with its powers over tax, the watch, relief and building.
+// the lordship of the town you're in, with its powers over tax, the watch, relief and building.
 'use strict';
 (function () {
   const PS = O.PlayerState, esc = (s) => O.escape(s);
@@ -141,41 +141,44 @@
       });
     }
     O.runBusiness = runBusiness;
+    O.ownsBusiness = () => [...O.Travel.visited.values()].some((v) => v.world.buildings.some((b) => b.owner?.kind === 'player' && v.sim.biz.get(b.id)));
+    O.myBusinesses = () => [...O.Travel.visited.values()].flatMap((v) => v.world.buildings.filter((b) => b.owner?.kind === 'player' && v.sim.biz.get(b.id)).map((b) => ({ b, s: v.sim, bz: v.sim.biz.get(b.id) })));
 
     // ---- holdings and lordship ----
     function holdings() {
-      const H = home();
+      const H = O.SimRef.cur && O.SimRef.cur.lordship ? O.SimRef.cur : home(); // the town you're in
       const all = [...O.Travel.visited.values()].flatMap((v) => v.world.buildings.filter(owned).map((b) => ({ b, s: v.sim })));
       const rows = all.map(({ b, s }) => `<tr><td>${esc(b.type === 'house' ? 'House' : b.name)}<br><small class="lbl">${esc(s.world.name)}</small></td><td class="n">${O.money(s.value(b))}</td><td>${b.household ? `${esc(s.households[b.household - 1]?.surname || '')} family, ₳${b.rent}/wk` : s.biz.get(b.id)?.ownerPlayer ? `${esc(s.biz.get(b.id).name)}, till ${O.money(s.biz.get(b.id).cash)}` : 'empty'}</td></tr>`).join('');
       const L = H.lordship, lord = L.holder === 'player';
       const resident = O.livesIn && O.livesIn(H.world.placeId || 'ashford');
+      const TN = esc(H.world.name);
       const canPetition = !lord && resident && PS.wantedLevel() === 0 && !PS.exiled && PS.rep.civilian > -0.2;
       O.Panels.open('Holdings', `<div class="kv">
           <div><span class="lbl">Rents received</span><b>${O.money(PS.rentIncome || 0)}</b><small>paid each Moonday</small></div>
           <div><span class="lbl">Business profits</span><b>${O.money(PS.bizIncome || 0)}</b><small>your share as owner</small></div>
-          <div><span class="lbl">Lordship of Ashford</span><b>${lord ? 'Yours' : 'The crown\'s'}</b><small>${lord ? 'You set the tax, the watch and the works.' : `The crown asks ${O.money(L.price)} and an unstained name.`}</small></div>
+          <div><span class="lbl">Lordship of ${esc(H.world.name)}</span><b>${lord ? 'Yours' : 'The crown\'s'}</b><small>${lord ? 'You set the tax, the watch and the works.' : `The crown asks ${O.money(L.price)} and an unstained name.`}</small></div>
         </div>
         <table style="margin-top:12px"><thead><tr><th>Property</th><th class="n">Value</th><th>Use</th></tr></thead><tbody>${rows || '<tr><td colspan="3">You own nothing yet. Look for For Sale signs by empty houses and shops.</td></tr>'}</tbody></table>
-        ${!lord ? `<p class="caption" style="margin-top:12px">${canPetition ? 'You could petition the Lord of Highmere for the lordship.' : !resident ? 'Only someone who lives in Ashford may hold its lordship: own a house here and sleep in it.' : 'The crown will not sell a lordship to someone the watch is looking for, or whom the common folk despise.'}</p>${canPetition ? `<button class="btn" data-pet="1">Petition for the lordship (${O.money(L.price)})</button>` : ''}` : lordControls(H)}${PS.reeve && !lord ? reeveControls(H) : ''}${PS.reeve || lord ? officeControls(H) : ''}${moot(H)}${O.landSection ? O.landSection() : ''}`, (r) => {
+        ${!lord ? `<p class="caption" style="margin-top:12px">${canPetition ? 'You could petition the crown for the lordship.' : !resident ? `Only someone who lives in ${TN} may hold its lordship: own a house here and sleep in it.` : 'The crown will not sell a lordship to someone the watch is looking for, or whom the common folk despise.'}</p>${canPetition ? `<button class="btn" data-pet="1">Petition for the lordship (${O.money(L.price)})</button>` : ''}` : lordControls(H)}${PS.reeve && !lord ? reeveControls(H) : ''}${PS.reeve || lord ? officeControls(H) : ''}${moot(H)}${O.landSection ? O.landSection() : ''}`, (r) => {
         if (O.bindLand) O.bindLand(r, holdings);
         const pet = r.querySelector('[data-pet]');
-        if (pet) pet.onclick = () => { if (PS.money < L.price) return O.Panels.toast(`You need ${O.money(L.price)}.`, 'bad'); PS.money -= L.price; H.kingdom.treasury += L.price; L.holder = 'player'; PS.lord = true; H.log('By letters from Highmere, the newcomer is made Lord of Ashford.', 'politics'); H.kingdom.addNews(`A new lord has been granted Ashford.`, 'politics'); for (const p of H.people) if (p.age >= 16 && H.rng.chance(0.5)) H.remember(p, 'We have a new lord, a stranger with deep pockets.', 'politics', 1.5); holdings(); };
+        if (pet) pet.onclick = () => { if (PS.money < L.price) return O.Panels.toast(`You need ${O.money(L.price)}.`, 'bad'); PS.money -= L.price; H.kingdom.treasury += L.price; L.holder = 'player'; PS.lord = true; H.log(`By letters from the crown, the newcomer is made Lord of ${H.world.name}.`, 'politics'); H.kingdom.addNews(`A new lord has been granted ${H.world.name}.`, 'politics'); for (const p of H.people) if (p.age >= 16 && H.rng.chance(0.5)) H.remember(p, 'We have a new lord, a stranger with deep pockets.', 'politics', 1.5); holdings(); };
         bindLord(r, H);
       });
     }
-    // Ashford's voice at the castle council, for its lord or its reeve
+    // the town's voice at the council of the realm, for its lord or its reeve
     function officeControls(H) {
       const pr = PS.councilPriority || 'security', st = PS.warStance || 'dove';
       const m = H.lastMoot;
-      return `<div class="lbl" style="margin-top:12px">Ashford's voice at the castle council</div><div class="kv">
-        <div><span class="lbl">Ashford asks for</span><b style="font-size:20px">${pr}</b><small>${['security', 'food', 'health', 'roads'].map((k) => `<button data-pri="${k}">${k}</button>`).join(' ')}</small></div>
+      return `<div class="lbl" style="margin-top:12px">${esc(H.world.name)}'s voice at the council of the realm</div><div class="kv">
+        <div><span class="lbl">${esc(H.world.name)} asks for</span><b style="font-size:20px">${pr}</b><small>${['security', 'food', 'health', 'roads'].map((k) => `<button data-pri="${k}">${k}</button>`).join(' ')}</small></div>
         <div><span class="lbl">On other motions</span><b style="font-size:20px">${PS.councilDefault === 'aye' ? 'Aye' : 'Nay'}</b><small><button data-def="aye">Aye</button> <button data-def="nay">Nay</button></small></div>
         <div><span class="lbl">On war</span><b style="font-size:20px">${st === 'hawk' ? 'Fight' : 'Pay for peace'}</b><small><button data-war="hawk">Fight</button> <button data-war="dove">Pay for peace</button></small></div>
       </div>${m ? `<p class="caption">Last moot, ${O.Chronicle.dateLabel(m.day)}: ${m.results.map((x) => `${esc(x.who)} ${x.v}`).join(' · ')}.</p>` : ''}`;
     }
     function reeveControls(H) {
       const gh = H.biz.get(H.guardId), guards = gh ? gh.def.jobs[1][1] : 0;
-      return `<div class="lbl" style="margin-top:12px">As Reeve of Ashford</div><div class="kv">
+      return `<div class="lbl" style="margin-top:12px">As Reeve of ${esc(H.world.name)}</div><div class="kv">
         <div><span class="lbl">Market tax</span><b>${Math.round(H.treasury.taxRate * 100)}%</b><small><button data-tax="-1">Lower</button> <button data-tax="1">Raise</button></small></div>
         <div><span class="lbl">Watchmen</span><b>${guards + 1}</b><small><button data-g="-1">Dismiss one</button> <button data-g="1">Hire one</button></small></div>
         <div><span class="lbl">Common chest</span><b>${O.money(H.treasury.cash)}</b><small>the reeve keeps it, but may not take from it</small></div>
@@ -184,12 +187,12 @@
     }
     function moot(H) {
       if (PS.reeve) return '';
-      if (H.reeveMoot) return PS.standForReeve ? `<p class="caption" style="margin-top:12px">You are standing for reeve at the moot on ${O.DAYNAMES[(H.weekday + H.reeveMoot - H.day) % 7]} at five. Be in the square, and be liked.</p>` : `<p class="caption" style="margin-top:12px">A moot is called for ${O.DAYNAMES[(H.weekday + H.reeveMoot - H.day) % 7]} to choose Ashford's reeve.</p>${PS.wantedLevel() === 0 && !PS.exiled ? '<button class="btn" data-stand="1">Stand for reeve</button>' : ''}`;
-      return `<p class="caption" style="margin-top:12px">Ashford chooses its reeve at a moot each spring, or when the office falls empty. Anyone of standing may stand.</p>`;
+      if (H.reeveMoot) return PS.standForReeve ? `<p class="caption" style="margin-top:12px">You are standing for reeve at the moot on ${O.DAYNAMES[(H.weekday + H.reeveMoot - H.day) % 7]} at five. Be in the square, and be liked.</p>` : `<p class="caption" style="margin-top:12px">A moot is called for ${O.DAYNAMES[(H.weekday + H.reeveMoot - H.day) % 7]} to choose ${esc(H.world.name)}'s reeve.</p>${PS.wantedLevel() === 0 && !PS.exiled ? '<button class="btn" data-stand="1">Stand for reeve</button>' : ''}`;
+      return `<p class="caption" style="margin-top:12px">${esc(H.world.name)} chooses its reeve at a moot each spring, or when the office falls empty. Anyone of standing may stand.</p>`;
     }
     function lordControls(H) {
       const gh = H.biz.get(H.guardId), guards = gh ? gh.def.jobs[1][1] : 0;
-      return `<div class="lbl" style="margin-top:12px">As Lord of Ashford</div><div class="kv">
+      return `<div class="lbl" style="margin-top:12px">As Lord of ${esc(H.world.name)}</div><div class="kv">
         <div><span class="lbl">Market tax</span><b>${Math.round(H.treasury.taxRate * 100)}%</b><small><button data-tax="-1">Lower</button> <button data-tax="1">Raise</button></small></div>
         <div><span class="lbl">Watchmen</span><b>${guards + 1}</b><small><button data-g="-1">Dismiss one</button> <button data-g="1">Hire one</button></small></div>
         <div><span class="lbl">Treasury</span><b>${O.money(H.treasury.cash)}</b><small><button data-take="1">Take ₳50 for yourself</button></small></div>

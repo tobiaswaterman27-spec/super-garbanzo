@@ -41,15 +41,15 @@
       }
       O.Panels.open('The Crown', `<nav class="tabs" style="margin-bottom:8px">${tabs.map(([t, l]) => `<button data-tab="${t}" aria-pressed="${t === tab}">${l}</button>`).join(' ')}</nav>${body}`, (r) => {
         r.querySelectorAll('[data-tab]').forEach((b) => b.onclick = () => open(b.dataset.tab));
-        r.querySelectorAll('[data-tax]').forEach((b) => b.onclick = () => { k.taxRate = O.clamp(k.taxRate + +b.dataset.tax * 0.01, 0.02, 0.2); k.addNews && k.addNews(`By royal decree the crown tax is ${+b.dataset.tax > 0 ? 'raised' : 'lowered'} to ${Math.round(k.taxRate * 100)}%.`, 'politics'); for (const q of s.people) if (q.age >= 18 && s.rng.chance(0.2)) s.relate(q, { id: 0 }, +b.dataset.tax > 0 ? -0.05 : 0.04); open('realm'); });
+        r.querySelectorAll('[data-tax]').forEach((b) => b.onclick = () => { O.jobEvent && O.jobEvent('decree'); k.taxRate = O.clamp(k.taxRate + +b.dataset.tax * 0.01, 0.02, 0.2); k.addNews && k.addNews(`By royal decree the crown tax is ${+b.dataset.tax > 0 ? 'raised' : 'lowered'} to ${Math.round(k.taxRate * 100)}%.`, 'politics'); for (const q of s.people) if (q.age >= 18 && s.rng.chance(0.2)) s.relate(q, { id: 0 }, +b.dataset.tax > 0 ? -0.05 : 0.04); open('realm'); });
         const who = (id) => s.byId.get(+id);
-        r.querySelectorAll('[data-pardon]').forEach((b) => b.onclick = () => { const q = who(b.dataset.pardon); q.jailUntil = s.day; q.task = null; q.sentence = null; s.relate(q, { id: 0 }, 0.6); s.log(`By royal pardon ${q.name} walks free.`, 'crime'); s.remember(q, 'Pardoned by the monarch.', 'crime', 3, 0); open('justice'); });
-        r.querySelectorAll('[data-longer]').forEach((b) => b.onclick = () => { const q = who(b.dataset.longer); q.jailUntil = (q.jailUntil || s.day) + 7; if (q.sentence) q.sentence.days += 7; s.relate(q, { id: 0 }, -0.4); s.log(`By the monarch's order ${q.name} will serve seven days more.`, 'crime'); open('justice'); });
-        r.querySelectorAll('[data-banish]').forEach((b) => b.onclick = () => { const q = who(b.dataset.banish); q.task = { act: 'leave', outdoor: true, zone: 'east', emigrating: true }; q.jailUntil = s.day; q.sentence = null; s.log(`${q.name} is banished from ${s.world.name} by royal order.`, 'crime'); open('justice'); });
-        r.querySelectorAll('[data-knight]').forEach((b) => b.onclick = () => { const q = who(b.dataset.knight); q.title = q.sex === 'f' ? 'Dame' : 'Sir'; q.name = `${q.title} ${q.first} ${q.sur}`; q.gentry = true; s.relate(q, { id: 0 }, 0.8); s.log(`${q.name} has been ${q.sex === 'f' ? 'made a dame' : 'knighted'} by the monarch.`, 'politics'); PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.03); open('honours'); });
+        r.querySelectorAll('[data-pardon]').forEach((b) => b.onclick = () => { O.jobEvent && O.jobEvent('decree'); const q = who(b.dataset.pardon); q.jailUntil = s.day; q.task = null; q.sentence = null; s.relate(q, { id: 0 }, 0.6); s.log(`By royal pardon ${q.name} walks free.`, 'crime'); s.remember(q, 'Pardoned by the monarch.', 'crime', 3, 0); open('justice'); });
+        r.querySelectorAll('[data-longer]').forEach((b) => b.onclick = () => { O.jobEvent && O.jobEvent('decree'); const q = who(b.dataset.longer); q.jailUntil = (q.jailUntil || s.day) + 7; if (q.sentence) q.sentence.days += 7; s.relate(q, { id: 0 }, -0.4); s.log(`By the monarch's order ${q.name} will serve seven days more.`, 'crime'); open('justice'); });
+        r.querySelectorAll('[data-banish]').forEach((b) => b.onclick = () => { O.jobEvent && O.jobEvent('decree'); const q = who(b.dataset.banish); q.task = { act: 'leave', outdoor: true, zone: 'east', emigrating: true }; q.jailUntil = s.day; q.sentence = null; s.log(`${q.name} is banished from ${s.world.name} by royal order.`, 'crime'); open('justice'); });
+        r.querySelectorAll('[data-knight]').forEach((b) => b.onclick = () => { O.jobEvent && O.jobEvent('decree'); const q = who(b.dataset.knight); q.title = q.sex === 'f' ? 'Dame' : 'Sir'; q.name = `${q.title} ${q.first} ${q.sur}`; q.gentry = true; s.relate(q, { id: 0 }, 0.8); s.log(`${q.name} has been ${q.sex === 'f' ? 'made a dame' : 'knighted'} by the monarch.`, 'politics'); PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.03); open('honours'); });
         r.querySelectorAll('[data-work]').forEach((b) => b.onclick = () => {
           const c = +b.dataset.cost; if (k.treasury < c) return say('The treasury cannot bear it.', 'bad'); k.treasury -= c;
-          const kk = b.dataset.work;
+          const kk = b.dataset.work; O.jobEvent && O.jobEvent('decree');
           if (kk === 'alms') { for (const hh of s.households) if (!hh.gone && hh.money < 30) hh.money += 8; if (pl) pl.happiness = Math.min(1, (pl.happiness || 0.5) + 0.08); s.log('Royal alms were given out to the poor households of the town.', 'politics'); }
           if (kk === 'granary') { for (const p2 of k.places) if (p2.stock) p2.stock.grain = (p2.stock.grain || 0) + p2.pop / 20; s.log('By the monarch\'s order, granaries are filled against the winter.', 'politics'); }
           if (kk === 'walls') { if (pl) { pl.crime = Math.max(0.02, (pl.crime || 0.2) - 0.08); pl.walls = true; } s.log(`Masons are at work on the walls of ${s.world.name}, by royal order.`, 'politics'); }
@@ -58,7 +58,7 @@
           for (const q of s.people) if (q.age >= 16 && s.rng.chance(0.3)) s.relate(q, { id: 0 }, 0.06);
           say('Your order goes out. It will be done.'); open('works');
         });
-        r.querySelectorAll('[data-host]').forEach((b) => b.onclick = () => { const kk = b.dataset.host, c = { tournament: 150, fair: 80, midwinter: 120, market: 40 }[kk]; if (k.treasury < c) return say('The treasury cannot bear it.', 'bad'); k.treasury -= c; s.hosted = { kind: kk, day: s.day + 1 }; s.log(`By royal command there will be ${kk === 'midwinter' ? 'a great feast' : kk === 'market' ? 'a market of travelling merchants' : 'a ' + kk} tomorrow.`, 'politics'); say('The heralds cry it through the streets: tomorrow, by your command.'); open('fest'); });
+        r.querySelectorAll('[data-host]').forEach((b) => b.onclick = () => { O.jobEvent && O.jobEvent('decree'); const kk = b.dataset.host, c = { tournament: 150, fair: 80, midwinter: 120, market: 40 }[kk]; if (k.treasury < c) return say('The treasury cannot bear it.', 'bad'); k.treasury -= c; s.hosted = { kind: kk, day: s.day + 1 }; s.log(`By royal command there will be ${kk === 'midwinter' ? 'a great feast' : kk === 'market' ? 'a market of travelling merchants' : 'a ' + kk} tomorrow.`, 'politics'); say('The heralds cry it through the streets: tomorrow, by your command.'); open('fest'); });
         r.querySelectorAll('[data-mode]').forEach((b) => b.onclick = () => { guests().mode = b.dataset.mode; open('fest'); });
         r.querySelectorAll('[data-unlist]').forEach((b) => b.onclick = () => { delete guests().list[b.dataset.unlist]; open('fest'); });
         const wb = r.querySelector('[data-war]'); if (wb) wb.onclick = () => { k.declareWar && k.declareWar(); say('You declare war. The heralds ride out.', 'bad'); open('war'); };
@@ -73,7 +73,7 @@
     const prevExtra = npcUI.extraButtons, prevOn = npcUI.onExtra;
     npcUI.extraButtons = (q) => { const out = prevExtra ? prevExtra(q) : []; if (crowned() && q.age >= 12) { const G = guests(), on = !!G.list[O.knowKey(q)]; if (G.mode === 'white') out.push(['guest', on ? 'Strike them from the guest list' : 'Invite them to the castle']); else if (G.mode === 'black') out.push(['guest', on ? 'Lift their bar from the castle' : 'Bar them from the castle']); } return out; };
     npcUI.onExtra = (q, key, render) => { if (key !== 'guest') return prevOn && prevOn(q, key, render); const G = guests(), kk = O.knowKey(q); if (G.list[kk]) delete G.list[kk]; else G.list[kk] = 1; const on = !!G.list[kk]; return render(G.mode === 'white' ? (on ? '"Majesty! I am honoured."' : '"As Your Majesty wishes."') : (on ? '"Majesty? What have I done?"' : '"Thank you, Majesty."')); };
-    game.keyHandlers.push((e) => { if (e.code === 'KeyK' && !O.panelOpen && !e.repeat) { if (crowned()) { open(); return true; } } return false; });
+    // (the Crown is opened from the Business tab, B)
 
     // ---------------------------------------------------------------- audiences: petitioners at the throne
     const PETITIONS = [
@@ -104,7 +104,7 @@
       if (!pending || game.t < pending.at || O.panelOpen || (O.UI.dialogOpen && O.UI.dialogOpen())) return;
       const { q, pt } = pending; pending = null; const s = cur();
       if (!game.player.sitting) { if (q.task?.act === 'petition') q.task = null; return; }
-      O.UI.dialog.open({ name: `${q.first}, a petitioner`, color: '#8a6239', text: pt.text(q), options: pt.opts.map(([l], i) => ({ key: 'p' + i, label: l })), onPick: (key) => { const o = pt.opts[+key.slice(1)]; o[1](s, q, K()); s.remember(q, 'Brought my petition before the monarch.', 'politics', 2, 0); O.UI.dialog.close(); if (q.task?.act === 'petition') q.task = null; say(`${q.first} bows and withdraws. The next petitioner waits.`); } });
+      O.UI.dialog.open({ name: `${q.first}, a petitioner`, color: '#8a6239', text: pt.text(q), options: pt.opts.map(([l], i) => ({ key: 'p' + i, label: l })), onPick: (key) => { const o = pt.opts[+key.slice(1)]; o[1](s, q, K()); O.jobEvent && O.jobEvent('hear'); s.remember(q, 'Brought my petition before the monarch.', 'politics', 2, 0); O.UI.dialog.close(); if (q.task?.act === 'petition') q.task = null; say(`${q.first} bows and withdraws. The next petitioner waits.`); } });
     });
   }
   O.CrownSetup = { setup };

@@ -123,6 +123,9 @@
   O.RenownSetup.setup(game);
   O.BountiesSetup.setup(game, npcUI);
   O.TasksSetup.setup(game);
+  O.WaypointsSetup.setup(game);
+  O.BusinessSetup.setup(game, npcUI);
+  O.HardTimesSetup.setup(game);
   O.WanderersSetup.setup(game, home);
   O.CouncilUI.setup(game, home);
   O.WarUI.setup(game, home, npcUI);

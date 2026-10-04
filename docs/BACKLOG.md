@@ -190,8 +190,8 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Ruling as monarch: set the crown tax, pardon or condemn prisoners, grant titles, order works, declare war, hold audiences for petitions
 - [x] Reputation you can see: guards nod or glare, merchants' prices, children following the famous
 - [x] Bounty boards and hired work at the watch house and the tavern: catch a thief, escort a merchant, clear a bandit camp
-- [ ] Disasters with choices: plague year, failed harvest, flood; help or profit
-- [ ] Clean-up pass of the old Ashford-only systems (reeve, moot, lordship) against the whole island
+- [x] Disasters with choices: plague year, failed harvest, flood; help or profit
+- [x] Clean-up pass of the old Ashford-only systems (reeve, moot, lordship) against the whole island
 - Later, with the AI chat: marriage and family (court, marry, children, heirs)
 - Next after this batch: the AI chat (NPC speech by AI)
 
@@ -218,3 +218,20 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] A menu where you can cancel tasks; cancelling work means no pay and an angry boss
 - [x] When someone says go to a person, talking to that person makes the arrow go
 - [x] As monarch, host the festivities whenever you want, and keep a blacklist or a whitelist of anyone
+
+## Batch M (asked after step 78) - roles that fit, the business tab, arrows that guide
+
+- [x] Disasters with choices (help or profit); the old Ashford-only systems made to work for every town (Ashford was the first and only town once; some menus still assume it)
+- [x] You may take things from your own room in your own place (castle chamber, rented room, your house)
+- [x] The job list in the corner folds into an icon; press it to open
+- [x] Jobs for the king (and every job) need better tasks than "press E at a thing"; some jobs may have none
+- [x] Rank fits: a king (or anyone high) doesn't ask people below them for work; find ALL such cases and fix
+- [x] A king asking about gangs isn't reported or jailed; the monarch isn't arrested by their own guards
+- [x] The throne task is done at the throne only (not a desk), by sitting on it
+- [x] How to open the business and monarch menus: make them reachable; outdated menus brought up to date
+- [x] The throne room door isn't central
+- [x] The arrow gets smaller as you get closer until it merges into the one over the place; arrows guide you to places inside buildings too (stairs, rooms, doors)
+- [x] Manage business and monarch things: remove the separate monarch tab, make a Business tab that changes with your work: owners see income, employees, stats; workers see stats, wages, coworkers; manage what you can (leave, ask for a raise by letter if you have one)
+- [x] Parties at your house: invite a few; not all will come; some early, some late; families come together
+- [x] Cancelling a task cancels its arrow; several arrows at once
+- Next after this: how to get the jobs you can't simply ask for

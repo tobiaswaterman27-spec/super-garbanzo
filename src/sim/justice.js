@@ -114,6 +114,7 @@
         if (isVictim) crime.victimId = w.id;
       }
       delete crime.seen;
+      if (o.perp === 'player' && O.crowned && O.crowned()) { crime.closed = 'the crown is above the law'; crime.reported = true; for (const w of this.people) if (w.task?.act === 'report' && w.task.crime === crime.id) w.task = null; } // your own watch won't take you in
       this.crimes.push(crime);
       return crime;
     };

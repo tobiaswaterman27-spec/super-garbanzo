@@ -46,7 +46,7 @@
       const g = s.gang(q.gang); if (!g) return out;
       const m = memberOf(s, g.id);
       if (!m && !((PS.knowsGang || {})[O.knowKey(q)] || PS.rep.criminal > 0.35)) return out; // you'd have to know they're one of them
-      if (!m) out.push(['gjoin', `Ask to run with ${g.name}`]);
+      if (!m && !(O.crowned && O.crowned())) out.push(['gjoin', `Ask to run with ${g.name}`]); // (a monarch doesn't join a gang)
       else {
         if (!m.task || m.task.done) out.push(['gtask', 'Any work for me?']);
         else if (m.task.kind === 'fence' && Object.keys(PS.stolen || {}).length) out.push(['gfence', 'Hand over what I lifted']);
@@ -63,6 +63,14 @@
     // everyone in the lanes knows.
     function gangLead(s, q) {
       const PSx = PS, aff = q.rel?.get(0)?.affinity || 0;
+      // the monarch asks, and a subject answers: what they know, and no talk of the watch
+      if (O.crowned && O.crowned()) {
+        const ms0 = s.people.filter((m) => m.gang && m.gang !== 'player' && m.alive !== false && m !== q);
+        const known = ms0.filter((m) => m.household === q.household || (q.rel?.get(m.id)?.affinity || 0) > 0.15 || (m.id + q.id) % 4 === 0);
+        if (!known.length) return '"I swear I know nothing of such people, Majesty."';
+        const m = known[0], g = s.gang(m.gang); PSx.gangLead = m.id; O.addLead && O.addLead({ place: s.world.placeId, id: m.id, until: s.day * 1440 + s.minute + 240, why: 'gang' }); (PSx.knowsGang = PSx.knowsGang || {})[O.knowKey(m)] = 1;
+        return `"Majesty, ${m.first} ${m.sur || ''} runs with ${g ? g.name : 'a crew'}. Everyone knows it. I'll say no more, for my own sake."`;
+      }
       const role = q.job?.role || '', LAW = /guard|sergeant|captain|watch|constable|bailiff|magistrate|bounty hunter|knight|gaoler|turnkey|spy/;
       // ask the law who runs with the gangs, and the law takes an interest in you
       if (LAW.test(role)) {
@@ -91,7 +99,7 @@
       if (!knowsOf.length) return `"${['I wouldn\'t know. I keep my head down.', 'Not that I know of, and I\'d not want to.', 'Couldn\'t tell you. Nobody I know.'][q.id % 3]}"`;
       const m = knowsOf.sort((a, b) => ((a.id * 5 + q.id) % 11) - ((b.id * 5 + q.id) % 11))[0], g = s.gang(m.gang);
       const where = m.job?.biz != null && s.biz.get(m.job.biz) ? `you'll find ${m.sex === 'f' ? 'her' : 'him'} at ${s.biz.get(m.job.biz).name} in the day` : s.biz && [...s.biz.values()].find((z) => z.type === 'tavern') ? `${m.sex === 'f' ? 'she' : 'he'} drinks at ${[...s.biz.values()].find((z) => z.type === 'tavern').name} of an evening` : `${m.sex === 'f' ? 'she' : 'he'} lives about the town`;
-      PSx.gangLead = m.id; PSx.lead = { place: s.world.placeId, id: m.id, until: s.day * 1440 + s.minute + 240 }; (PSx.knowsGang = PSx.knowsGang || {})[O.knowKey(m)] = 1;
+      PSx.gangLead = m.id; O.addLead && O.addLead({ place: s.world.placeId, id: m.id, until: s.day * 1440 + s.minute + 240, why: 'gang', label: `Find ${m.first}, who runs with a gang` }); (PSx.knowsGang = PSx.knowsGang || {})[O.knowKey(m)] = 1;
       return `"Keep your voice down. ${m.first} ${m.sur || ''} runs with ${g ? g.name : 'a crew'}: ${where}. Talk to ${m.sex === 'f' ? 'her' : 'him'}, and you never heard it from me."`;
     }
     npcUI.onExtra = (q, key, render) => {

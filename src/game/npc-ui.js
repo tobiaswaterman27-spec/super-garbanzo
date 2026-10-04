@@ -35,7 +35,8 @@
     O.learnTrade = (q) => { if (q) (PSk.knows = PSk.knows || {})[kk(q)] = 1; };
     function openTalk(q) {
       talking = q; q.agent.frozen = true;
-      { const L = PSk.lead, C = PSk.contract; if (L && L.id === q.id && !(C && C.target === q.id)) PSk.lead = null; } // found them: the arrow's done its work
+      O.jobEvent && O.jobEvent('talk', { q });
+      O.dropLead && O.dropLead((l) => l.id === q.id && l.place === O.SimRef.cur.world.placeId && l.why !== 'contract'); // found them: the arrow's done its work
       const pos = game.scene ? game.scene.personPos(q) || [q.agent.x, q.agent.y] : [q.agent.x, q.agent.y];
       const dx = game.player.x - pos[0], dy = game.player.y - pos[1];
       q.agent.dir = O.dirOf(dx, dy);

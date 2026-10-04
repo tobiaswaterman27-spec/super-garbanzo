@@ -12,6 +12,7 @@
     // ---------------- wanted status ----------------
     function openCrimes() { return sim.crimes.filter((c) => c.perp === 'player' && c.investigated && !c.closed && !c.accused); }
     function wanted() {
+      if (O.crowned && O.crowned()) return 0; // the crown answers to no watch
       if (PS.exiled || PS.bounty) return 3;
       const look = J.lookOf(game.player.a);
       const open = openCrimes().filter((c) => !(c.profile && c.profile.masked && !look.masked)); if (!open.length) return 0; // what you did in the mask can't be pinned on your face
@@ -269,9 +270,9 @@
         else if (PS.money >= rFine) { verdict = 'fine'; body = `Guilty of an offence against the crown. The magistrate will not hear of a small fine: you pay ₳${rFine} to the royal treasury.`; }
         else { verdict = 'prison'; body = `Guilty of an offence against the crown. ${PS.money < rFine ? `You cannot pay the ₳${rFine} the crown demands. ` : ''}You will serve ${rDays} days in the cell, and there is no bail for it.`; }
       }
-      else if (PS.rep.local > 0.5 && crimes.length <= 1) { verdict = 'pardon'; body = 'The magistrate notes the good you have done in Ashford. You are pardoned, this once.'; }
+      else if (PS.rep.local > 0.5 && crimes.length <= 1) { verdict = 'pardon'; body = `The magistrate notes the good you have done in ${sim.world.name}. You are pardoned, this once.`; }
       else if (evidence < 0.7) { verdict = 'acquitted'; body = 'The witnesses cannot agree on what they saw. There is not enough to hold you. You are free to go.'; }
-      else if (PS.crimes.length >= 6 || (PS.bounty && crimes.length >= 3)) { verdict = 'exile'; body = 'For repeated crimes against the people of Ashford you are banished. If the watch sees you here again, they will take you on sight.'; }
+      else if (PS.crimes.length >= 6 || (PS.bounty && crimes.length >= 3)) { verdict = 'exile'; body = `For repeated crimes against the people of ${sim.world.name} you are banished. If the watch sees you here again, they will take you on sight.`; }
       else if (evidence < 1.8 && PS.money >= fine) { verdict = 'fine'; body = `Guilty. You are fined ₳${fine}, paid to those you wronged and the parish.`; }
       else { const dd = 2 + Math.min(3, crimes.length), bl = dd <= 3 ? 12 * dd : null; verdict = 'prison'; body = `Guilty. ${PS.money < fine ? 'You cannot pay the fine. ' : ''}You will serve ${dd} days in the cell${bl ? `, unless you can find ₳${bl} bail` : ''}.`; }
       O.Panels.open('The magistrate rules', `<p class="caption">Heard at the Watch House before ${O.escape(captain ? captain.name : 'the magistrate')}. Charges: ${crimes.map((c) => c.kind).join(', ') || 'evading the watch'}. Witnesses: ${crimes.reduce((s, c) => s + c.witnesses.length, 0)}.${found ? ` Stolen goods found on you: ${found}.` : ''}</p><p class="speech">${body}</p>${verdict === 'prison' && !royal && 2 + Math.min(3, crimes.length) <= 3 && PS.money >= 12 * (2 + Math.min(3, crimes.length)) ? `<button class="btn" data-bail="1">Pay ₳${12 * (2 + Math.min(3, crimes.length))} bail</button> ` : ''}<button class="btn" data-ok="1">${verdict === 'prison' ? 'Serve the sentence' : 'Accept the verdict'}</button>`, (r) => {
@@ -282,7 +283,7 @@
           O.Panels.close();
           if (verdict === 'fine') { const f = royal ? rFine : fine; PS.money -= f; if (royal && O.SimRef.home.kingdom) O.SimRef.home.kingdom.treasury += f; else { sim.treasury.cash += f; sim.treasury.income += f; } }
           if (verdict === 'prison') { serve(royal ? rDays : 2 + Math.min(3, crimes.length)); for (const c of crimes) c.closed = verdict; PS.bounty = false; PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.15); sim.log('The stranger was tried at the Watch House: prison.', 'crime'); return; }
-          if (verdict === 'exile') { PS.exiled = true; sim.log('The stranger has been banished from Ashford.', 'crime'); }
+          if (verdict === 'exile') { PS.exiled = true; sim.log(`The stranger has been banished from ${sim.world.name}.`, 'crime'); }
           for (const c of crimes) c.closed = verdict;
           if (verdict !== 'exile') PS.bounty = false;
           PS.rep.guard = Math.max(-1, PS.rep.guard - (verdict === 'acquitted' || verdict === 'pardon' ? 0 : 0.1));

@@ -211,7 +211,7 @@
     function trade(trader) {
       const forSale = horses.filter((h) => h.owner === 'biz:' + stable.id);
       const mine = horses.filter((h) => h.owner === 'player');
-      O.Panels.open('Ashford Stables', `<p class="caption">${O.escape(trader.name)} runs a hand down a horse's neck. “Good animals, every one. Fair prices.”</p>
+      O.Panels.open(stable.name || 'The stables', `<p class="caption">${O.escape(trader.name)} runs a hand down a horse's neck. “Good animals, every one. Fair prices.”</p>
         <table><thead><tr><th>Horse</th><th>Breed</th><th class="n">Speed</th><th class="n">Price</th><th></th></tr></thead><tbody>${forSale.map((h) => `<tr><td>${O.escape(h.name)}<br><small class="lbl">${h.coat}, ${h.age}y, ${h.temper}</small></td><td>${h.breed}</td><td class="n">${Math.round(h.speed * 100)}</td><td class="n">${O.money(h.value)}</td><td><button data-buy="${h.id}">Buy</button></td></tr>`).join('') || '<tr><td colspan="5">No horses for sale.</td></tr>'}</tbody></table>
         ${mine.length ? `<table style="margin-top:12px"><thead><tr><th>Your horses</th><th class="n">Offer</th><th></th></tr></thead><tbody>${mine.map((h) => `<tr><td>${O.escape(h.name)}</td><td class="n">${O.money(Math.round(h.value * 0.6))}</td><td><button data-sell="${h.id}">Sell</button></td></tr>`).join('')}</tbody></table>` : ''}`, (rr) => {
         rr.querySelectorAll('[data-buy]').forEach((x) => x.onclick = () => {
@@ -228,7 +228,7 @@
           if (stolen && sim.rng.chance(0.85)) {
             const prev = h.history.filter((e) => e.event !== 'stolen').slice(-1)[0];
             O.Panels.close(); O.Panels.toast(`${trader.first}: “That's ${prev?.owner || 'someone'}'s horse! Watch! Horse thief!”`, 'bad');
-            const cr = sim.recordCrime({ kind: 'horse theft', perp: 'player', placeName: 'Ashford Stables', tile: [stable.doorX, stable.doorY], seen: [trader], severity: 3 }); PS.crimes.push(cr.id); return;
+            const cr = sim.recordCrime({ kind: 'horse theft', perp: 'player', placeName: stable.name || 'the stables', tile: [stable.doorX, stable.doorY], seen: [trader], severity: 3 }); PS.crimes.push(cr.id); return;
           }
           if (game.player.mount === h) dismount();
           const offer = Math.round(h.value * 0.6); PS.money += offer; stableBiz.cash -= offer; h.owner = 'biz:' + stable.id; h.history.push({ day: sim.day, event: 'sold', owner: stable.name }); h.inPaddock = true; h.tied = false; place(h, paddock);

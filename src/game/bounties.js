@@ -38,20 +38,20 @@
     }
     function take(s, o) {
       PS.contract = Object.assign({ place: s.world.placeId, until: now(s) + 1440 * 2 }, o);
-      if (o.kind === 'thief') { PS.lead = { place: s.world.placeId, id: o.target, until: PS.contract.until }; say('You take the bounty. The arrow will lead you to them; talk to them to take them in.'); }
-      if (o.kind === 'camp') say(`You take the contract. ${s.building(o.target).name} lies outside town: go there and press E at its door.`);
+      if (o.kind === 'thief') { O.addLead({ place: s.world.placeId, id: o.target, until: PS.contract.until, why: 'contract', label: 'The bounty' }); say('You take the bounty. The arrow will lead you to them; talk to them to take them in.'); }
+      if (o.kind === 'camp') { O.addLead({ place: s.world.placeId, b: o.target, until: PS.contract.until, why: 'contract', label: 'The bandit camp' }); } if (o.kind === 'camp') say(`You take the contract. ${s.building(o.target).name} lies outside town: go there and press E at its door.`);
       if (o.kind === 'escort') {
         const r = O.RNG(O.hash('esc', s.day)), sex = r.chance(0.7) ? 'm' : 'f', D = O.Data, Ch = O.Char;
         const q = s.newPerson({ sex, age: r.int(28, 55), first: r.pick(D.NAMES[sex]), sur: r.pick(['Chapman', 'of Goldmere', 'Woolman', 'Packer']), household: 0, home: null, genes: Ch.randomGenes(r, 'south'), wealth: 0.65, visitor: true });
         q.name = `${q.first} ${q.sur}`; q.job = { biz: null, role: 'merchant' }; q.wake = 0; q.bed = 1440; q.app = Ch.makeAppearance(O.hash('escort', q.id), { sex, age: q.age, genes: q.genes, role: 'merchant', wealth: 0.65 });
         const tv = s.building(s.tavernId), [ex, ey] = s.entry(tv);
         q.agent = { x: ex * T + 8, y: ey * T + 12, dir: 0, anim: 'idle', ft: 0, a: q.app, hidden: false, inside: null, path: null, goal: null, person: q, frozen: true, carrying: { good: 'cloth', qty: 1 } };
-        q.escortee = true; PS.contract.target = q.id; PS.lead = { place: s.world.placeId, id: q.id, until: PS.contract.until };
+        q.escortee = true; PS.contract.target = q.id; O.addLead({ place: s.world.placeId, id: q.id, until: PS.contract.until, why: 'contract', label: 'The merchant to escort' });
         say(`The merchant, ${q.name}, waits outside ${tv.name}. Go to them and they'll walk with you to the edge of town.`);
       }
     }
-    function drop(s, msg) { const C = PS.contract; if (C && C.kind === 'escort') { const q = s.byId.get(C.target); if (q) { q.escortee = false; q.agent.frozen = false; q.task = { act: 'leave', outdoor: true, zone: 'east', emigrating: true }; } } PS.contract = null; PS.lead = null; if (msg) say(msg); }
-    function pay(s, extra) { const C = PS.contract; PS.money += C.reward; PS.rep.guard = Math.min(1, PS.rep.guard + 0.12); PS.rep.local = Math.min(1, PS.rep.local + 0.06); s.log(`The stranger was paid ₳${C.reward}: ${C.text.replace(/\.$/, '')}.`, 'crime'); PS.contract = null; PS.lead = null; say(`Done. ₳${C.reward} is counted into your hand${extra ? '. ' + extra : '.'}`); }
+    function drop(s, msg) { const C = PS.contract; if (C && C.kind === 'escort') { const q = s.byId.get(C.target); if (q) { q.escortee = false; q.agent.frozen = false; q.task = { act: 'leave', outdoor: true, zone: 'east', emigrating: true }; } } PS.contract = null; O.dropLead((l) => l.why === 'contract'); if (msg) say(msg); }
+    function pay(s, extra) { const C = PS.contract; PS.money += C.reward; PS.rep.guard = Math.min(1, PS.rep.guard + 0.12); PS.rep.local = Math.min(1, PS.rep.local + 0.06); s.log(`The stranger was paid ₳${C.reward}: ${C.text.replace(/\.$/, '')}.`, 'crime'); PS.contract = null; O.dropLead((l) => l.why === 'contract'); say(`Done. ₳${C.reward} is counted into your hand${extra ? '. ' + extra : '.'}`); }
 
     // ---------------------------------------------------------------- the boards
     let hooked = false, prev = null;

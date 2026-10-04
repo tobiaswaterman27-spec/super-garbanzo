@@ -412,6 +412,7 @@
       this.scene.enterAt(fromStairs);
       this.scene.placeActors();
       this.player.inside = b.id;
+      if (b.royal) O.jobEvent && O.jobEvent('floor', { floor });
       this.onSceneChange && this.onSceneChange();
     }
     // into a room off a castle hallway, and back out to the hallway by its door

@@ -10070,40 +10070,51 @@ O.snowMaskOf = function (src) {
       const lvl = wanted();
       const bribe = 12 + openCrimes().length * 8 + (PS.bounty ? 15 : 0);
       const greedy = g.traits.includes('greedy') || g.attitude < 0;
-      O.Panels.open('Arrest', `<p class="speech">“${PS.exiled ? 'You were told never to come back.' : 'That\'s the one. You\'re coming with me to the Watch House.'}”</p>
-        <p class="caption">${O.escape(g.name)} has you by the arm. The watch wants ${O.escape(PS.soughtFor() || 'you')}.</p>
-        <div class="topics"><button data-a="surrender">Surrender</button>${greedy ? `<button data-a="bribe">Offer ${bribe}d to look the other way</button>` : ''}<button data-a="run">Break free and run</button><button data-a="fight">Fight</button></div>`, (r) => {
-        r.querySelector('.x').hidden = true;
-        r.querySelector('[data-a=surrender]').onclick = () => { O.Panels.close(); jail(g); };
-        const bb = r.querySelector('[data-a=bribe]');
-        if (bb) bb.onclick = () => {
-          if (PS.money < bribe) { O.Panels.toast("You don't have that much."); return; }
-          PS.money -= bribe; sim.household(g).money += bribe; PS.rep.guard -= 0.05; PS.rep.criminal += 0.05;
-          for (const c of openCrimes()) c.closed = 'bribed';
-          PS.bounty = false;
-          sim.remember(g, 'Took coin from the stranger and let them go. Nobody needs to know.', 'crime', 2, 0);
-          O.Panels.close(); endChase(false); O.Panels.toast(`${g.first} pockets the coin. “Never saw you.”`);
-        };
-        r.querySelector('[data-a=fight]').onclick = () => {
-          O.Panels.close(); endChase(false);
-          PS.bounty = true; PS.rep.guard = Math.max(-1, PS.rep.guard - 0.3);
-          if (O.Combat) O.Combat.fights.set(g.id, { mode: 'fight', t: 0, cd: 0.5 });
-          O.Panels.toast(`You draw on ${g.first} of the watch!`, 'bad');
-        };
-        r.querySelector('[data-a=run]').onclick = () => {
-          O.Panels.close();
-          if (!chase) startChase(g);
-          if (chase) chase.stun = sim.rng.chance(0.55 + PS.skills.stealth * 0.3) ? 1.6 : 0.3;
-          if (chase.stun < 1) { O.Panels.toast(`${g.first} keeps hold of you.`, 'bad'); setTimeout(() => arrest(g), 300); return; }
-          PS.rep.guard = Math.max(-1, PS.rep.guard - 0.15);
-          O.Panels.toast('You twist free and run!', 'bad');
-          const T = sim.T; game.player.x += Math.sign(game.player.x - g.agent.x || 1) * 6;
-        };
-      });
+      let settled = false;
+      const done = () => { settled = true; O.UI.dialog.close(); };
+      const options = [];
+      if (greedy) options.push({ key: 'bribe', label: `Slip ${g.first} ${bribe}d to look the other way` });
+      options.push({ key: 'run', label: 'Twist free and run' }, { key: 'fight', label: 'Fight' }, { key: 'surrender', label: 'Go quietly', hot: true });
+      const sought = PS.soughtFor();
+      const spec = {
+        name: g.first + ' of the watch', color: '#a8382f',
+        text: PS.exiled ? 'You were told never to come back. You\'re coming with me.' : `That's the one${sought ? ` — wanted for ${sought}` : ''}. You're coming with me to the Watch House.`,
+        options,
+        onPick: (t) => {
+          if (t === 'surrender') { done(); jail(g); return; }
+          if (t === 'bribe') {
+            if (PS.money < bribe) { O.UI.dialog.open(Object.assign({}, spec, { text: "That's not enough to buy a blind eye. Come on.", options: options.filter((o) => o.key !== 'bribe') })); return; }
+            done();
+            PS.money -= bribe; sim.household(g).money += bribe; PS.rep.guard -= 0.05; PS.rep.criminal += 0.05;
+            for (const c of openCrimes()) c.closed = 'bribed';
+            PS.bounty = false;
+            sim.remember(g, 'Took coin from the stranger and let them go. Nobody needs to know.', 'crime', 2, 0);
+            endChase(false); O.UI.say(`${g.first} pockets the coin. “Never saw you.”`); return;
+          }
+          if (t === 'fight') {
+            done(); endChase(false);
+            PS.bounty = true; PS.rep.guard = Math.max(-1, PS.rep.guard - 0.3);
+            if (O.Combat) O.Combat.fights.set(g.id, { mode: 'fight', t: 0, cd: 0.5 });
+            O.Panels.toast(`You draw on ${g.first} of the watch!`, 'bad'); return;
+          }
+          if (t === 'run') {
+            done();
+            if (!chase) startChase(g);
+            if (chase) chase.stun = sim.rng.chance(0.55 + PS.skills.stealth * 0.3) ? 1.6 : 0.3;
+            if (chase.stun < 1) { O.Panels.toast(`${g.first} keeps hold of you.`, 'bad'); setTimeout(() => arrest(g), 300); return; }
+            PS.rep.guard = Math.max(-1, PS.rep.guard - 0.15);
+            O.Panels.toast('You twist free and run!', 'bad');
+            game.player.x += Math.sign(game.player.x - g.agent.x || 1) * 6;
+          }
+        },
+        // there is no walking away from a hand on your collar
+        onClose: () => { if (!settled) setTimeout(() => { if (!settled) arrest(g); }, 50); },
+      };
+      O.UI.dialog.open(spec);
       void lvl;
     }
 
-    O.lawJail = (g) => jail(g);
+    O.lawJail = (g) => jail(g); O.lawArrest = (g) => arrest(g);
     function jail(g) {
       endChase(false);
       const gh = sim.building(sim.guardId);

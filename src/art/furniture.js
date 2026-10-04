@@ -347,13 +347,15 @@
         out = finish(S); break;
       }
       case 'altar': {
-        S = canvasFor(3, 1, 34); const { B, fx, fx1, fy, fy1 } = S; const s = P.mat('#c8bca8', 'cloth');
+        S = canvasFor(4, 1, 34); const { B, fx, fx1, fy, fy1 } = S; const s = P.mat('#c8bca8', 'cloth');
         B.part(1); box(B, fx + 1, fx1 - 1, fy - 12, 6, fy1, s);
         B.part(2); for (let y = fy - 6; y < fy1 - 2; y++) for (let x = fx + 5; x <= fx1 - 5; x++) B.plot(x, y, P.mat(C.crimson), y === fy - 6 ? 3 : 2); for (let x = fx + 5; x <= fx1 - 5; x++) B.plot(x, fy1 - 3, P.mat(P.metal.gold, 'metal'), 3);
-        B.part(3); const g = P.mat(P.metal.gold, 'metal'), cx = Math.round((fx + fx1) / 2);
-        for (let y = fy - 34; y < fy - 12; y++) B.plot(cx, y, g, 3); for (let x = cx - 5; x <= cx + 5; x++) B.plot(x, fy - 28, g, 4);
-        for (const x of [fx + 6, fx1 - 6]) { B.rect(x - 1, fy - 20, 2, 8, white(), 3); }
-        out = finish(S); out.candles = [[fx + 5 - out.ox, fy - 21 - out.oy], [fx1 - 7 - out.ox, fy - 21 - out.oy]]; break;
+        // the cross stands exactly on the middle line of the altar, two pixels wide, with the candles mirrored either side
+        B.part(3); const g = P.mat(P.metal.gold, 'metal'), cl = Math.floor((fx + fx1) / 2);
+        for (let y = fy - 34; y < fy - 12; y++) { B.plot(cl, y, g, 4); B.plot(cl + 1, y, g, 2); }
+        for (let x = cl - 5; x <= cl + 6; x++) { B.plot(x, fy - 28, g, 4); B.plot(x, fy - 27, g, 2); }
+        for (const x of [fx + 8, fx1 - 7]) { B.rect(x - 1, fy - 20, 2, 8, white(), 3); }
+        out = finish(S); out.candles = [[fx + 7 - out.ox, fy - 21 - out.oy], [fx1 - 8 - out.ox, fy - 21 - out.oy]]; break;
       }
       case 'millstone': {
         S = canvasFor(3, 2, 14); const { B, fx, fx1, fy1 } = S; const s = stone();

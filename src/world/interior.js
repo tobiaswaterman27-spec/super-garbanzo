@@ -16,7 +16,7 @@
   const T = 16;
   const SIZE = { partH: [1, 1], partV: [1, 1], throne: [2, 2], bed: [2, 3], double: [3, 3], medbed: [2, 3], cradle: [2, 2], table: [3, 2], longtable: [5, 2], chair: [1, 1], stool: [1, 1], bench: [3, 1], fireplace: [3, 1], oven: [3, 2], forge: [3, 2], anvil: [1, 1],
     cupboard: [2, 1], dresser: [2, 1], wardrobe: [2, 1], bookcase: [2, 1], chest: [2, 1], shelf: [3, 1], counter: [4, 1], workbench: [3, 1], doughtable: [3, 1], butcherblock: [3, 1], rack: [2, 1], desk: [2, 1],
-    altar: [3, 1], millstone: [3, 2], loom: [3, 2], spinning: [2, 1], stairs: [2, 3], cauldron: [1, 1], washtub: [1, 1], plant: [1, 1], candlestand: [1, 1], barrel: [1, 1], crate: [1, 1], sack: [1, 1], hay: [1, 1], woodpile: [1, 1], cell: [4, 4] };
+    altar: [4, 1], millstone: [3, 2], loom: [3, 2], spinning: [2, 1], stairs: [2, 3], cauldron: [1, 1], washtub: [1, 1], plant: [1, 1], candlestand: [1, 1], barrel: [1, 1], crate: [1, 1], sack: [1, 1], hay: [1, 1], woodpile: [1, 1], cell: [4, 4] };
   const foot = (kind, rot, width) => { if (kind === 'bed' && rot) return [3, 2]; if (kind === 'pew' || kind === 'bar') return [width || 5, 1]; if (kind === 'rug') return [width || 3, 2]; if (kind === 'bench' && width) return [width, 1]; return SIZE[kind] || [1, 1]; };
   const FOOT = SIZE;
   const CONTAINER = { cupboard: 15, dresser: 12, wardrobe: 15, chest: 12, barrel: 5, crate: 5, sack: 2 };
@@ -267,7 +267,7 @@
       // the top floor: guest chambers, the private chapel, the armoury and treasury
       wallCol(W1, 0, d - 1, [MID], 1); wallCol(W2, 0, d - 1, [MID], 1);
       const cx0 = W1 + 1, cx1 = W2 - 1, cc = Math.floor((cx0 + cx1) / 2);
-      put('altar', cc - 1, 0, { v: 2 });
+      put('altar', cc - 2, 0, { v: 2 });
       for (let y = 4; y < d - 4; y += 3) { put('pew', cx0 + 2, y, { width: Math.max(3, cc - cx0 - 4), seat: true, rot: 0, v: 2 }); put('pew', cc + 2, y, { width: Math.max(3, cx1 - cc - 3), seat: true, rot: 0, v: 2 }); }
       for (let i = 0; i < 4; i++) tryPut('candlestand', edgeOf(cx0, 0, cx1, d - 1, 1, 1), {});
       roomBeds([0, 0, W1 - 1, d - 1], ['double', 'bed', 'bed']); tryPut('wardrobe', edgeOf(0, 0, W1 - 1, d - 1, 2, 1), { v: 2 });
@@ -389,12 +389,15 @@
         familyQuarters();
         break;
       case 'chapel': {
-        put('altar', Math.floor(w / 2) - 1, 1, { work: ['priest'], candles: true });
-        for (const x of [Math.floor(w / 2) - 4, Math.floor(w / 2) + 3]) tryPut('candlestand', [[x, 1]]);
+        // everything mirrors about the aisle: the altar and its cross on the centre line, the candlesticks
+        // and the two blocks of pews either side
+        const even = w % 2 === 0, mid = Math.floor(w / 2);
+        put('altar', even ? mid - 2 : mid - 2, 1, { work: ['priest'], candles: true });
+        for (const x of even ? [mid - 4, mid + 3] : [mid - 4, mid + 4]) tryPut('candlestand', [[x, 1]]);
         // pews in two blocks either side of the aisle, enough for the parish
         const pw = Math.floor((w - 4) / 2);
         for (let y = 5; y <= d - 4; y += 2) { put('pew', 1, y, { pew: true, width: pw, seats: pw }); put('pew', w - 1 - pw, y, { pew: true, width: pw, seats: pw }); }
-        tryPut('chest', [[0, 0], [w - 2, 0]], { valuables: true, alms: true });
+        put('chest', 0, 0, { valuables: true, alms: true }); put('chest', w - 2, 0, { valuables: true });
         break;
       }
       case 'mill':

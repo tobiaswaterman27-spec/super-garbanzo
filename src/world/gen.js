@@ -142,7 +142,7 @@
     P('well', sqX + 8, roadY - 4, { y: (roadY - 4) * T + 15 }); solid[(roadY - 4) * W + sqX + 7] = 1;
     if (town) { P('stall', sqX + 3, roadY - 2, { v: 1 }); solid[(roadY - 2) * W + sqX + 2] = 1; solid[(roadY - 2) * W + sqX + 4] = 1; P('stall', sqX + 12, roadY - 2, { v: 2 }); solid[(roadY - 2) * W + sqX + 11] = 1; solid[(roadY - 2) * W + sqX + 13] = 1; }
     P('signpost', sqX + 9, roadY + 2, { solid: false }); P('bench', sqX + 2, roadY - 5, { solid: false });
-    for (let xx = W - 34; xx <= W - 8; xx++) P('fenceH', xx, fy0 - 1, { solid: xx !== W - 20 });
+    for (let xx = W - 34; xx <= W - 8; xx++) P(xx === W - 20 ? 'fenceGate' : 'fenceH', xx, fy0 - 1, { solid: xx !== W - 20 });
     for (let yy = fy0; yy <= fy1; yy++) for (let xx = W - 34; xx <= W - 8; xx++) props.push({ kind: place.region === 'south' && xx > W - 20 ? 'cabbage' : 'wheat', x: xx * T + 8, y: yy * T + 15, seed: 1, v: 2, solid: false, flat: true, field: place.region === 'south' && xx > W - 20 ? 'cabbage' : 'wheat' });
     if (coast) for (let i = 0; i < 4; i++) P('boat', shoreX - 1, roadY - 12 + i * 5, { solid: true, seed: i });
     if (place.region === 'north') { P('cart', W - 15, 11, { v: 1 }); for (let i = 0; i < 6; i++) P('rock', W - 26 + i * 2, 12 + (i % 2), { solid: true }); }
@@ -260,7 +260,7 @@
     P('well', cx, roadY - 5, { y: (roadY - 5) * T + 15 }); K.solid[(roadY - 5) * W + cx - 1] = 1;
     P('bench', cx - 4, roadY - 6, { solid: false }); P('signpost', cx + 3, roadY + 2, { solid: false });
     P('hay', 26, ly + 2); P('woodpile', 10, ly + 2);
-    for (let xx = W - 30; xx <= W - 9; xx++) P('fenceH', xx, ly + 3, { solid: xx !== W - 20 });
+    for (let xx = W - 30; xx <= W - 9; xx++) P(xx === W - 20 ? 'fenceGate' : 'fenceH', xx, ly + 3, { solid: xx !== W - 20 });
     for (let yy = ly + 4; yy <= H - 5; yy++) for (let xx = W - 30; xx <= W - 9; xx++) K.props.push({ kind: 'wheat', x: xx * T + 8, y: yy * T + 15, seed: 1, v: 2, solid: false, flat: true, field: 'wheat' });
     if (coast) for (let i = 0; i < 2; i++) P('boat', 3, roadY - 8 + i * 6, { solid: true, seed: i });
     K.scatter(() => false);
@@ -360,8 +360,8 @@
       B({ type: 'farmhouse', name: `${fam} Home Farm`, x: ex + 4, bottom: ey + 6, w: 4, d: 3, wealth: 0.45, look: look(0.45, { doorTile: 1 }) });
       B({ type: 'barn', name: `${fam} Barn`, x: ex + 10, bottom: ey + 7, w: 6, d: 4, wealth: 0.4, look: { wall: 'plank', plankMat: 'plankRed', roof: 'shingle', roofType: 'gable', bigDoor: true, doorTile: 2, noFlowers: true } });
       const px0 = ex + 4, px1 = ex + 18, py0 = ey + 10, py1 = ey + 16;
-      for (let x = px0; x <= px1; x++) { P('fenceH', x, py0 - 1, { solid: x !== px0 + 3 }); P('fenceH', x, py1 + 1, { solid: true }); }
-      for (let y = py0; y <= py1; y++) { P('fenceV', px0 - 1, y, { solid: true, y: y * T + 15 }); P('fenceV', px1 + 1, y, { solid: true, y: y * T + 15 }); }
+      for (let x = px0 - 1; x <= px1 + 1; x++) { const cv = x === px0 - 1 ? 2 : x === px1 + 1 ? 3 : x % 2; P(x === px0 + 3 ? 'fenceGate' : 'fenceH', x, py0 - 1, { solid: x !== px0 + 3, v: cv }); P('fenceH', x, py1 + 1, { solid: true, v: cv }); }
+      for (let y = py0; y <= py1; y++) { P('fenceV', px0 - 1, y, { solid: true, y: y * T + 15, v: y % 2 }); P('fenceV', px1 + 1, y, { solid: true, y: y * T + 15, v: y % 2 }); }
       P('trough', px1 - 1, py0 + 1); P('hay', px0 + 1, py1 - 1);
       pens.push({ kinds: rng.pick([['sheep', 'cow'], ['cow', 'pig'], ['sheep', 'horse'], ['cow', 'sheep', 'pig']]), z: [px0, py0, px1, py1] });
       pens.push({ kinds: ['chicken'], z: [ex + 4, ey + 2, ex + 16, ey + 3] });

@@ -122,14 +122,14 @@
     P('banner', 56, 29, { solid: false }); P('banner', 62, 29, { solid: false });
     // farm
     P('hay', 30, 52); P('hay', 31, 54); P('cart', 17, 53, { v: 1 }); P('trough', 15, 54); P('woodpile', 9, 52);
-    for (let x = 6; x <= 34; x++) { P('fenceH', x, 55, { solid: x !== 20 && x !== 21 }); }
-    for (let x = 49; x <= 72; x++) if (x !== 60) P('fenceH', x, 44, { solid: true });
+    for (let x = 6; x <= 34; x++) { P(x === 20 || x === 21 ? 'fenceGate' : 'fenceH', x, 55, { solid: x !== 20 && x !== 21 }); }
+    for (let x = 49; x <= 72; x++) P(x === 60 ? 'fenceGate' : 'fenceH', x, 44, { solid: x !== 60 });
     // paddock fence by the stables, and a small pasture west of the King's Road houses
     for (let x = 16; x <= 22; x++) { P('fenceH', x, 32, { solid: true }); P('fenceH', x, 36, { solid: true }); }
-    for (let y = 33; y <= 35; y++) { P('fenceV', 22, y, { solid: true }); }
+    for (let y = 33; y <= 35; y++) { P('fenceV', 22, y, { solid: true, y: y * T + 15 }); }
     P('trough', 21, 35, { solid: true }); P('hay', 21, 33);
     for (let x = 2; x <= 7; x++) { P('fenceH', x, 32, { solid: true }); P('fenceH', x, 36, { solid: true }); }
-    for (let y = 33; y <= 35; y++) { P('fenceV', 2, y, { solid: true }); P('fenceV', 7, y, { solid: true }); }
+    for (let y = 33; y <= 35; y++) { P('fenceV', 2, y, { solid: true, y: y * T + 15 }); P('fenceV', 7, y, { solid: true, y: y * T + 15 }); }
     // the builder's stock: seasoned timber, dressed stone, sand for mortar, and the great treadwheel crane
     for (const [kind, tx, ty, sd] of [['timberstack', 70, 11, 1], ['timberstack', 70, 14, 2], ['stonepile', 74, 11, 1], ['stonepile', 74, 14, 2], ['sandpile', 66, 15, 1], ['crane', 77, 13, 1], ['woodpile', 61, 15, 3], ['cart', 74, 16, 1], ['barrel', 69, 16, 2]]) {
       props.push({ kind, x: tx * T + 8, y: ty * T + 14, seed: sd, v: 0, solid: true });

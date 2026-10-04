@@ -685,10 +685,10 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     let m;
     switch (st) {
       case 'baby': m = { headRx: 4.6, headRy: 4.5, torso: 5, leg: 5, armU: 2.6, armL: 2.4, shW: 7, waistW: 7.5, hipW: 7.5, limbR: 1.4, legR: 1.6 }; break;
-      case 'child': m = { headRx: 5.2, headRy: 5.1, torso: 7, leg: 8, armU: 3.6, armL: 3.4, shW: 8, waistW: 8, hipW: 8.5, limbR: 1.45, legR: 1.7 }; break;
-      case 'olderChild': m = { headRx: 5.4, headRy: 5.3, torso: 8, leg: 10, armU: 4.2, armL: 4, shW: 9, waistW: 8.5, hipW: 9, limbR: 1.5, legR: 1.8 }; break;
-      case 'teen': m = { headRx: 5.3, headRy: 5.4, torso: 10.5, leg: 13.5, armU: 5, armL: 4.8, shW: 10.5, waistW: 9, hipW: 9.5, limbR: 1.55, legR: 1.95 }; break;
-      default: m = { headRx: 5.5, headRy: 5.6, torso: 12, leg: 15, armU: 5.6, armL: 5.4, shW: 13.4, waistW: 10, hipW: 10.5, limbR: 1.65, legR: 2.05 };
+      case 'child': m = { headRx: 5.7, headRy: 5.6, torso: 7, leg: 8, armU: 3.6, armL: 3.4, shW: 8, waistW: 8, hipW: 8.5, limbR: 1.45, legR: 1.7 }; break;
+      case 'olderChild': m = { headRx: 5.9, headRy: 5.8, torso: 8, leg: 10, armU: 4.2, armL: 4, shW: 9, waistW: 8.5, hipW: 9, limbR: 1.5, legR: 1.8 }; break;
+      case 'teen': m = { headRx: 5.9, headRy: 6.0, torso: 10.5, leg: 13.5, armU: 5, armL: 4.8, shW: 10.5, waistW: 9, hipW: 9.5, limbR: 1.55, legR: 1.95 }; break;
+      default: m = { headRx: 6.1, headRy: 6.2, torso: 12, leg: 15, armU: 5.6, armL: 5.4, shW: 13.4, waistW: 10, hipW: 10.5, limbR: 1.65, legR: 2.05 };
     }
     m.stage = st;
     if (st !== 'child' && st !== 'olderChild' && st !== 'baby') {
@@ -1373,8 +1373,11 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       else {
         // one clean eye: a dark pupil over the iris on the inner side, the white beside it, a lid shadow above
         const inner = cols.length > 1 ? (outer < 0 ? cols[1] : cols[0]) : cols[0], outerCol = cols.length > 1 ? (outer < 0 ? cols[0] : cols[1]) : null;
-        plot(inner, ey - 1, a.eyeDark, 1); plot(inner, ey, a.eyes, f.eyeType === 2 ? 1 : 2);
-        if (outerCol != null) { plot(outerCol, ey, a.eyeWhite, 3); plot(outerCol, ey - 1, a.skin, 1); }
+        // two pixels tall: the dark pupil with a glint, the coloured iris under it, the white beside
+        // a clear upright eye, two pixels tall: dark above, the iris colour (deepened) below
+        plot(inner, ey - 1, a.eyeDark, 1); plot(inner, ey, a.eyes, 0);
+        void outerCol;
+        if (a.sex === 'f' && a.stage !== 'child' && outerCol != null) { const lx = outerCol + (outerCol > inner ? 1 : -1); if (isSkin(lx, ey - 1)) plot(lx, ey - 1, a.eyeDark, 1); } // lashes
         if (f.eyeType === 1) plot(inner, ey + 1, a.skin, 1); // heavy lower lid
       }
       // brow
@@ -2318,18 +2321,27 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         for (let x = 0; x < 40; x++) { const m = Math.floor(x / 5) % 2 ? awn : aw2; B.plot(x, 12, m, 1); if (x % 5 !== 0) B.plot(x, 13, m, 1); if (x % 5 === 2) B.plot(x, 14, m, 1); }
         ox = 20; oy = 34; break;
       }
-      case 'fenceH': case 'fenceV': {
-        if (kind === 'fenceH') {
+      case 'fenceH': case 'fenceV': case 'fencePost': case 'fenceGate': {
+        // split-rail fencing that joins up: rails run the full width (or depth) of the tile so the
+        // pieces meet seamlessly, a post stands at each tile, corners get a post of their own
+        const rail = P.mat(P.wood.oak, 'wood'), postM = P.mat('#5a3d26', 'wood');
+        const post = (x, yb, h) => { for (let y = yb - h; y <= yb; y++) { B.plot(x, y, postM, 3); B.plot(x + 1, y, postM, 1); } B.plot(x, yb - h - 1, postM, 4); B.plot(x + 1, yb - h - 1, postM, 2); };
+        if (kind === 'fenceH' || kind === 'fenceGate') {
           B = new MB(16, 16); B.part(1);
-          B.capsule(2, 15, 2, 5, 1, 1, wood); B.capsule(14, 15, 14, 5, 1, 1, wood);
-          B.part(2); for (let x = 0; x < 16; x++) { B.plot(x, 7, wood, 3); B.plot(x, 8, wood, 1); B.plot(x, 11, wood, 3); B.plot(x, 12, wood, 1); }
+          // v: 0 post at the left, 1 no post, 2 a left corner (rails run east from a corner post), 3 a right corner
+          const xa = v === 2 ? 7 : 0, xb = v === 3 ? 8 : 15;
+          if (kind === 'fenceH') for (let x = xa; x <= xb; x++) for (const ry of [5, 9]) { B.plot(x, ry, rail, 3); B.plot(x, ry + 1, rail, 1); }
+          if (kind === 'fenceGate') post(7, 15, 11); else if (v === 2 || v === 3) post(7, 15, 12); else if (v !== 1) post(0, 15, 11);
+          if (kind === 'fenceGate') { post(0, 15, 11); post(14, 15, 11); for (let y = 4; y < 13; y += 4) for (let k = 0; k < 6; k++) B.plot(2 + k * 0.4, y + k, rail, 2); }
           ox = 8; oy = 15;
-        } else {
-          B = new MB(6, 24); B.part(1); B.capsule(3, 23, 3, 9, 1, 1, wood);
-          for (let y = 2; y < 23; y++) { B.plot(2, y, wood, 3); B.plot(3, y, wood, 2); }
-          ox = 3; oy = 23;
-        }
-        break;
+        } else if (kind === 'fenceV') {
+          // seen running away from us: the rails are a line up the tile, the post at its near end
+          B = new MB(6, 28); B.part(1);
+          for (let y = 2; y <= 23; y++) { B.plot(2, y, rail, 3); B.plot(3, y, rail, 1); }
+          if (v !== 1) post(2, 27, 11);
+          ox = 3; oy = 27;
+        } else { B = new MB(6, 16); B.part(1); post(2, 15, 11); ox = 3; oy = 15; }
+        propCache.set(key, { canvas: B.toCanvas({ outline: false }), ox, oy, W: B.w, H: B.h }); return propCache.get(key);
       }
       case 'hay': {
         B = new MB(22, 18); B.part(1); const hm = P.mat('#d0aa50', 'hair');
@@ -2747,14 +2759,14 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     P('banner', 56, 29, { solid: false }); P('banner', 62, 29, { solid: false });
     // farm
     P('hay', 30, 52); P('hay', 31, 54); P('cart', 17, 53, { v: 1 }); P('trough', 15, 54); P('woodpile', 9, 52);
-    for (let x = 6; x <= 34; x++) { P('fenceH', x, 55, { solid: x !== 20 && x !== 21 }); }
-    for (let x = 49; x <= 72; x++) if (x !== 60) P('fenceH', x, 44, { solid: true });
+    for (let x = 6; x <= 34; x++) { P(x === 20 || x === 21 ? 'fenceGate' : 'fenceH', x, 55, { solid: x !== 20 && x !== 21 }); }
+    for (let x = 49; x <= 72; x++) P(x === 60 ? 'fenceGate' : 'fenceH', x, 44, { solid: x !== 60 });
     // paddock fence by the stables, and a small pasture west of the King's Road houses
     for (let x = 16; x <= 22; x++) { P('fenceH', x, 32, { solid: true }); P('fenceH', x, 36, { solid: true }); }
-    for (let y = 33; y <= 35; y++) { P('fenceV', 22, y, { solid: true }); }
+    for (let y = 33; y <= 35; y++) { P('fenceV', 22, y, { solid: true, y: y * T + 15 }); }
     P('trough', 21, 35, { solid: true }); P('hay', 21, 33);
     for (let x = 2; x <= 7; x++) { P('fenceH', x, 32, { solid: true }); P('fenceH', x, 36, { solid: true }); }
-    for (let y = 33; y <= 35; y++) { P('fenceV', 2, y, { solid: true }); P('fenceV', 7, y, { solid: true }); }
+    for (let y = 33; y <= 35; y++) { P('fenceV', 2, y, { solid: true, y: y * T + 15 }); P('fenceV', 7, y, { solid: true, y: y * T + 15 }); }
     // the builder's stock: seasoned timber, dressed stone, sand for mortar, and the great treadwheel crane
     for (const [kind, tx, ty, sd] of [['timberstack', 70, 11, 1], ['timberstack', 70, 14, 2], ['stonepile', 74, 11, 1], ['stonepile', 74, 14, 2], ['sandpile', 66, 15, 1], ['crane', 77, 13, 1], ['woodpile', 61, 15, 3], ['cart', 74, 16, 1], ['barrel', 69, 16, 2]]) {
       props.push({ kind, x: tx * T + 8, y: ty * T + 14, seed: sd, v: 0, solid: true });
@@ -3068,7 +3080,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     P('well', sqX + 8, roadY - 4, { y: (roadY - 4) * T + 15 }); solid[(roadY - 4) * W + sqX + 7] = 1;
     if (town) { P('stall', sqX + 3, roadY - 2, { v: 1 }); solid[(roadY - 2) * W + sqX + 2] = 1; solid[(roadY - 2) * W + sqX + 4] = 1; P('stall', sqX + 12, roadY - 2, { v: 2 }); solid[(roadY - 2) * W + sqX + 11] = 1; solid[(roadY - 2) * W + sqX + 13] = 1; }
     P('signpost', sqX + 9, roadY + 2, { solid: false }); P('bench', sqX + 2, roadY - 5, { solid: false });
-    for (let xx = W - 34; xx <= W - 8; xx++) P('fenceH', xx, fy0 - 1, { solid: xx !== W - 20 });
+    for (let xx = W - 34; xx <= W - 8; xx++) P(xx === W - 20 ? 'fenceGate' : 'fenceH', xx, fy0 - 1, { solid: xx !== W - 20 });
     for (let yy = fy0; yy <= fy1; yy++) for (let xx = W - 34; xx <= W - 8; xx++) props.push({ kind: place.region === 'south' && xx > W - 20 ? 'cabbage' : 'wheat', x: xx * T + 8, y: yy * T + 15, seed: 1, v: 2, solid: false, flat: true, field: place.region === 'south' && xx > W - 20 ? 'cabbage' : 'wheat' });
     if (coast) for (let i = 0; i < 4; i++) P('boat', shoreX - 1, roadY - 12 + i * 5, { solid: true, seed: i });
     if (place.region === 'north') { P('cart', W - 15, 11, { v: 1 }); for (let i = 0; i < 6; i++) P('rock', W - 26 + i * 2, 12 + (i % 2), { solid: true }); }
@@ -3186,7 +3198,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     P('well', cx, roadY - 5, { y: (roadY - 5) * T + 15 }); K.solid[(roadY - 5) * W + cx - 1] = 1;
     P('bench', cx - 4, roadY - 6, { solid: false }); P('signpost', cx + 3, roadY + 2, { solid: false });
     P('hay', 26, ly + 2); P('woodpile', 10, ly + 2);
-    for (let xx = W - 30; xx <= W - 9; xx++) P('fenceH', xx, ly + 3, { solid: xx !== W - 20 });
+    for (let xx = W - 30; xx <= W - 9; xx++) P(xx === W - 20 ? 'fenceGate' : 'fenceH', xx, ly + 3, { solid: xx !== W - 20 });
     for (let yy = ly + 4; yy <= H - 5; yy++) for (let xx = W - 30; xx <= W - 9; xx++) K.props.push({ kind: 'wheat', x: xx * T + 8, y: yy * T + 15, seed: 1, v: 2, solid: false, flat: true, field: 'wheat' });
     if (coast) for (let i = 0; i < 2; i++) P('boat', 3, roadY - 8 + i * 6, { solid: true, seed: i });
     K.scatter(() => false);
@@ -3286,8 +3298,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       B({ type: 'farmhouse', name: `${fam} Home Farm`, x: ex + 4, bottom: ey + 6, w: 4, d: 3, wealth: 0.45, look: look(0.45, { doorTile: 1 }) });
       B({ type: 'barn', name: `${fam} Barn`, x: ex + 10, bottom: ey + 7, w: 6, d: 4, wealth: 0.4, look: { wall: 'plank', plankMat: 'plankRed', roof: 'shingle', roofType: 'gable', bigDoor: true, doorTile: 2, noFlowers: true } });
       const px0 = ex + 4, px1 = ex + 18, py0 = ey + 10, py1 = ey + 16;
-      for (let x = px0; x <= px1; x++) { P('fenceH', x, py0 - 1, { solid: x !== px0 + 3 }); P('fenceH', x, py1 + 1, { solid: true }); }
-      for (let y = py0; y <= py1; y++) { P('fenceV', px0 - 1, y, { solid: true, y: y * T + 15 }); P('fenceV', px1 + 1, y, { solid: true, y: y * T + 15 }); }
+      for (let x = px0 - 1; x <= px1 + 1; x++) { const cv = x === px0 - 1 ? 2 : x === px1 + 1 ? 3 : x % 2; P(x === px0 + 3 ? 'fenceGate' : 'fenceH', x, py0 - 1, { solid: x !== px0 + 3, v: cv }); P('fenceH', x, py1 + 1, { solid: true, v: cv }); }
+      for (let y = py0; y <= py1; y++) { P('fenceV', px0 - 1, y, { solid: true, y: y * T + 15, v: y % 2 }); P('fenceV', px1 + 1, y, { solid: true, y: y * T + 15, v: y % 2 }); }
       P('trough', px1 - 1, py0 + 1); P('hay', px0 + 1, py1 - 1);
       pens.push({ kinds: rng.pick([['sheep', 'cow'], ['cow', 'pig'], ['sheep', 'horse'], ['cow', 'sheep', 'pig']]), z: [px0, py0, px1, py1] });
       pens.push({ kinds: ['chicken'], z: [ex + 4, ey + 2, ex + 16, ey + 3] });
@@ -8593,13 +8605,15 @@ O.snowMaskOf = function (src) {
         out = finish(S); break;
       }
       case 'altar': {
-        S = canvasFor(3, 1, 34); const { B, fx, fx1, fy, fy1 } = S; const s = P.mat('#c8bca8', 'cloth');
+        S = canvasFor(4, 1, 34); const { B, fx, fx1, fy, fy1 } = S; const s = P.mat('#c8bca8', 'cloth');
         B.part(1); box(B, fx + 1, fx1 - 1, fy - 12, 6, fy1, s);
         B.part(2); for (let y = fy - 6; y < fy1 - 2; y++) for (let x = fx + 5; x <= fx1 - 5; x++) B.plot(x, y, P.mat(C.crimson), y === fy - 6 ? 3 : 2); for (let x = fx + 5; x <= fx1 - 5; x++) B.plot(x, fy1 - 3, P.mat(P.metal.gold, 'metal'), 3);
-        B.part(3); const g = P.mat(P.metal.gold, 'metal'), cx = Math.round((fx + fx1) / 2);
-        for (let y = fy - 34; y < fy - 12; y++) B.plot(cx, y, g, 3); for (let x = cx - 5; x <= cx + 5; x++) B.plot(x, fy - 28, g, 4);
-        for (const x of [fx + 6, fx1 - 6]) { B.rect(x - 1, fy - 20, 2, 8, white(), 3); }
-        out = finish(S); out.candles = [[fx + 5 - out.ox, fy - 21 - out.oy], [fx1 - 7 - out.ox, fy - 21 - out.oy]]; break;
+        // the cross stands exactly on the middle line of the altar, two pixels wide, with the candles mirrored either side
+        B.part(3); const g = P.mat(P.metal.gold, 'metal'), cl = Math.floor((fx + fx1) / 2);
+        for (let y = fy - 34; y < fy - 12; y++) { B.plot(cl, y, g, 4); B.plot(cl + 1, y, g, 2); }
+        for (let x = cl - 5; x <= cl + 6; x++) { B.plot(x, fy - 28, g, 4); B.plot(x, fy - 27, g, 2); }
+        for (const x of [fx + 8, fx1 - 7]) { B.rect(x - 1, fy - 20, 2, 8, white(), 3); }
+        out = finish(S); out.candles = [[fx + 7 - out.ox, fy - 21 - out.oy], [fx1 - 8 - out.ox, fy - 21 - out.oy]]; break;
       }
       case 'millstone': {
         S = canvasFor(3, 2, 14); const { B, fx, fx1, fy1 } = S; const s = stone();
@@ -8775,7 +8789,7 @@ O.snowMaskOf = function (src) {
   const T = 16;
   const SIZE = { partH: [1, 1], partV: [1, 1], throne: [2, 2], bed: [2, 3], double: [3, 3], medbed: [2, 3], cradle: [2, 2], table: [3, 2], longtable: [5, 2], chair: [1, 1], stool: [1, 1], bench: [3, 1], fireplace: [3, 1], oven: [3, 2], forge: [3, 2], anvil: [1, 1],
     cupboard: [2, 1], dresser: [2, 1], wardrobe: [2, 1], bookcase: [2, 1], chest: [2, 1], shelf: [3, 1], counter: [4, 1], workbench: [3, 1], doughtable: [3, 1], butcherblock: [3, 1], rack: [2, 1], desk: [2, 1],
-    altar: [3, 1], millstone: [3, 2], loom: [3, 2], spinning: [2, 1], stairs: [2, 3], cauldron: [1, 1], washtub: [1, 1], plant: [1, 1], candlestand: [1, 1], barrel: [1, 1], crate: [1, 1], sack: [1, 1], hay: [1, 1], woodpile: [1, 1], cell: [4, 4] };
+    altar: [4, 1], millstone: [3, 2], loom: [3, 2], spinning: [2, 1], stairs: [2, 3], cauldron: [1, 1], washtub: [1, 1], plant: [1, 1], candlestand: [1, 1], barrel: [1, 1], crate: [1, 1], sack: [1, 1], hay: [1, 1], woodpile: [1, 1], cell: [4, 4] };
   const foot = (kind, rot, width) => { if (kind === 'bed' && rot) return [3, 2]; if (kind === 'pew' || kind === 'bar') return [width || 5, 1]; if (kind === 'rug') return [width || 3, 2]; if (kind === 'bench' && width) return [width, 1]; return SIZE[kind] || [1, 1]; };
   const FOOT = SIZE;
   const CONTAINER = { cupboard: 15, dresser: 12, wardrobe: 15, chest: 12, barrel: 5, crate: 5, sack: 2 };
@@ -9026,7 +9040,7 @@ O.snowMaskOf = function (src) {
       // the top floor: guest chambers, the private chapel, the armoury and treasury
       wallCol(W1, 0, d - 1, [MID], 1); wallCol(W2, 0, d - 1, [MID], 1);
       const cx0 = W1 + 1, cx1 = W2 - 1, cc = Math.floor((cx0 + cx1) / 2);
-      put('altar', cc - 1, 0, { v: 2 });
+      put('altar', cc - 2, 0, { v: 2 });
       for (let y = 4; y < d - 4; y += 3) { put('pew', cx0 + 2, y, { width: Math.max(3, cc - cx0 - 4), seat: true, rot: 0, v: 2 }); put('pew', cc + 2, y, { width: Math.max(3, cx1 - cc - 3), seat: true, rot: 0, v: 2 }); }
       for (let i = 0; i < 4; i++) tryPut('candlestand', edgeOf(cx0, 0, cx1, d - 1, 1, 1), {});
       roomBeds([0, 0, W1 - 1, d - 1], ['double', 'bed', 'bed']); tryPut('wardrobe', edgeOf(0, 0, W1 - 1, d - 1, 2, 1), { v: 2 });
@@ -9148,12 +9162,15 @@ O.snowMaskOf = function (src) {
         familyQuarters();
         break;
       case 'chapel': {
-        put('altar', Math.floor(w / 2) - 1, 1, { work: ['priest'], candles: true });
-        for (const x of [Math.floor(w / 2) - 4, Math.floor(w / 2) + 3]) tryPut('candlestand', [[x, 1]]);
+        // everything mirrors about the aisle: the altar and its cross on the centre line, the candlesticks
+        // and the two blocks of pews either side
+        const even = w % 2 === 0, mid = Math.floor(w / 2);
+        put('altar', even ? mid - 2 : mid - 2, 1, { work: ['priest'], candles: true });
+        for (const x of even ? [mid - 4, mid + 3] : [mid - 4, mid + 4]) tryPut('candlestand', [[x, 1]]);
         // pews in two blocks either side of the aisle, enough for the parish
         const pw = Math.floor((w - 4) / 2);
         for (let y = 5; y <= d - 4; y += 2) { put('pew', 1, y, { pew: true, width: pw, seats: pw }); put('pew', w - 1 - pw, y, { pew: true, width: pw, seats: pw }); }
-        tryPut('chest', [[0, 0], [w - 2, 0]], { valuables: true, alms: true });
+        put('chest', 0, 0, { valuables: true, alms: true }); put('chest', w - 2, 0, { valuables: true });
         break;
       }
       case 'mill':

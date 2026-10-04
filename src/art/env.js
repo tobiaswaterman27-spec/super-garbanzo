@@ -655,18 +655,27 @@
         for (let x = 0; x < 40; x++) { const m = Math.floor(x / 5) % 2 ? awn : aw2; B.plot(x, 12, m, 1); if (x % 5 !== 0) B.plot(x, 13, m, 1); if (x % 5 === 2) B.plot(x, 14, m, 1); }
         ox = 20; oy = 34; break;
       }
-      case 'fenceH': case 'fenceV': {
-        if (kind === 'fenceH') {
+      case 'fenceH': case 'fenceV': case 'fencePost': case 'fenceGate': {
+        // split-rail fencing that joins up: rails run the full width (or depth) of the tile so the
+        // pieces meet seamlessly, a post stands at each tile, corners get a post of their own
+        const rail = P.mat(P.wood.oak, 'wood'), postM = P.mat('#5a3d26', 'wood');
+        const post = (x, yb, h) => { for (let y = yb - h; y <= yb; y++) { B.plot(x, y, postM, 3); B.plot(x + 1, y, postM, 1); } B.plot(x, yb - h - 1, postM, 4); B.plot(x + 1, yb - h - 1, postM, 2); };
+        if (kind === 'fenceH' || kind === 'fenceGate') {
           B = new MB(16, 16); B.part(1);
-          B.capsule(2, 15, 2, 5, 1, 1, wood); B.capsule(14, 15, 14, 5, 1, 1, wood);
-          B.part(2); for (let x = 0; x < 16; x++) { B.plot(x, 7, wood, 3); B.plot(x, 8, wood, 1); B.plot(x, 11, wood, 3); B.plot(x, 12, wood, 1); }
+          // v: 0 post at the left, 1 no post, 2 a left corner (rails run east from a corner post), 3 a right corner
+          const xa = v === 2 ? 7 : 0, xb = v === 3 ? 8 : 15;
+          if (kind === 'fenceH') for (let x = xa; x <= xb; x++) for (const ry of [5, 9]) { B.plot(x, ry, rail, 3); B.plot(x, ry + 1, rail, 1); }
+          if (kind === 'fenceGate') post(7, 15, 11); else if (v === 2 || v === 3) post(7, 15, 12); else if (v !== 1) post(0, 15, 11);
+          if (kind === 'fenceGate') { post(0, 15, 11); post(14, 15, 11); for (let y = 4; y < 13; y += 4) for (let k = 0; k < 6; k++) B.plot(2 + k * 0.4, y + k, rail, 2); }
           ox = 8; oy = 15;
-        } else {
-          B = new MB(6, 24); B.part(1); B.capsule(3, 23, 3, 9, 1, 1, wood);
-          for (let y = 2; y < 23; y++) { B.plot(2, y, wood, 3); B.plot(3, y, wood, 2); }
-          ox = 3; oy = 23;
-        }
-        break;
+        } else if (kind === 'fenceV') {
+          // seen running away from us: the rails are a line up the tile, the post at its near end
+          B = new MB(6, 28); B.part(1);
+          for (let y = 2; y <= 23; y++) { B.plot(2, y, rail, 3); B.plot(3, y, rail, 1); }
+          if (v !== 1) post(2, 27, 11);
+          ox = 3; oy = 27;
+        } else { B = new MB(6, 16); B.part(1); post(2, 15, 11); ox = 3; oy = 15; }
+        propCache.set(key, { canvas: B.toCanvas({ outline: false }), ox, oy, W: B.w, H: B.h }); return propCache.get(key);
       }
       case 'hay': {
         B = new MB(22, 18); B.part(1); const hm = P.mat('#d0aa50', 'hair');

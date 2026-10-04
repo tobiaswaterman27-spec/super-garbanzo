@@ -49,20 +49,23 @@
   }
   // a spot beside a door that's free to stand a sign on, or null
   function spotBy(w, b, side) {
-    for (const dx of side < 0 ? [-1, -2] : [1, 2]) {
+    // beside the door, never in the road or the street (a sign mustn't block the way)
+    for (const dx of side < 0 ? [-1, -2, 1, 2] : [1, 2, -1, -2]) {
       const x = b.doorX + dx, y = b.doorY, i = y * w.W + x;
       if (x < 0 || y < 0 || x >= w.W || y >= w.H || w.solid[i]) continue;
-      const t = w.ter[i]; if (t === w.TER.WATER || t === w.TER.BRIDGE) continue;
+      const t = w.ter[i]; if (t === w.TER.WATER || t === w.TER.BRIDGE || t === w.TER.ROAD || t === w.TER.COBBLE) continue;
       if (w.props.some((p) => Math.floor(p.x / 16) === x && Math.floor((p.y - 1) / 16) === y && !p.flat)) continue;
       return [x, y];
     }
+    // a town street of cobbles all round: the sign stands at the wall's foot and you can step past it
+    for (const dx of side < 0 ? [-1, 1] : [1, -1]) { const x = b.doorX + dx, y = b.doorY, i = y * w.W + x; if (x >= 0 && y >= 0 && x < w.W && y < w.H && !w.solid[i] && w.ter[i] === w.TER.COBBLE) return [x, y, true]; }
     return null;
   }
   // stand a sign prop beside a building's door (kept solid so you walk round it like anything else)
   function plant(w, b, kind, sprite, side) {
     const at = spotBy(w, b, side); if (!at) return null;
-    const p = { kind, x: at[0] * 16 + 8, y: at[1] * 16 + 13, seed: b.id, solid: true, sprite, signFor: b.id };
-    w.props.push(p); w.solid[at[1] * w.W + at[0]] = 1; w.dirtyStatics = true;
+    const p = { kind, x: at[0] * 16 + 8, y: at[1] * 16 + 13, seed: b.id, solid: !at[2], sprite, signFor: b.id };
+    w.props.push(p); if (!at[2]) w.solid[at[1] * w.W + at[0]] = 1; w.dirtyStatics = true;
     return p;
   }
   function pull(w, p) { const i = w.props.indexOf(p); if (i >= 0) w.props.splice(i, 1); w.solid[Math.floor((p.y - 1) / 16) * w.W + Math.floor(p.x / 16)] = 0; w.dirtyStatics = true; }
@@ -84,7 +87,7 @@
     O.readSign = (c) => {
       const w = game.world, b = w.buildings.find((x) => x.id === c.prop.signFor); if (!b) return;
       const lines = linesFor(O.SimRef.cur, b) || [b.name || 'A house'];
-      if (b.royal) { const K = O.SimRef.cur.kingdom, cr = K && K.rulers && K.rulers.crown; O.UI.dialog.open({ name: b.name, color: '#8a6239', text: `${cr && cr.name ? cr.name + ' holds court here. ' : ''}A long red-carpeted hallway, guarded, with doors off it: the throne room, the kitchens, the servants' hall, the steward's hall, the guardroom and the chapel. The grand staircase at the far end climbs to the upper hall, where the council of the realm sits at the long table every Thursday at two. Off the upper hall, every soul who lives here has a chamber of their own; the monarch's and the royal family's are kept locked.`, options: [] }); return; }
+      if (b.royal) { const K = O.SimRef.cur.kingdom, cr = K && K.rulers && K.rulers.crown; O.UI.dialog.open({ name: b.name, color: '#8a6239', text: `${cr && cr.name ? cr.name + ' holds court here. ' : ''}Five floors, each a guarded hallway with doors along both walls. Ground floor: the throne room, the kitchens, the servants' hall, the steward's hall, the guardroom and the chapel. First floor: the council hall, where the council of the realm sits at the long table every Thursday at two. Second floor: the rooms of the household's servants and their families. Third floor: the rooms of those who stand higher at court, and the guest chamber. Fourth floor: the monarch's bedchamber and the royal family's chambers, kept locked.`, options: [] }); return; }
       const nice = (t) => t.toLowerCase().replace(/(^|[\s'-])([a-z])/g, (m, a, ch) => a + ch.toUpperCase());
       O.UI.dialog.open({ name: nice(lines[0]), color: '#8a6239', text: lines.slice(1).map(nice).join('. ') || 'Nothing more is written.', options: [] });
     };

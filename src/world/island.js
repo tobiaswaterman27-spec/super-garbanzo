@@ -176,6 +176,38 @@
   // A region is built a slice at a time (the loader works through it between frames); asking for it
   // outright finishes whatever is left of that same build.
   const building = new Map();
+  // A road or lane must lead somewhere you can walk. Small things left standing in it (a sign, a barrel,
+  // a sack) are moved to the roadside; a tower in a road is taken down; and where a lane runs under a
+  // building, the lane goes round it instead.
+  function fixRoads(w) {
+    const TR = TER(), W = w.W, H = w.H, T = 16, ter = w.ter, solid = w.solid;
+    const road = (i) => ter[i] === TR.ROAD || ter[i] === TR.BRIDGE;
+    const SMALL = new Set(['namesign', 'salesign', 'barrel', 'crate', 'sack', 'noticeboard', 'bush', 'grass', 'stump', 'rock', 'woodpile', 'signpost']);
+    const taken = (x, y) => solid[y * W + x] || w.props.some((q) => q.solid && Math.floor(q.x / T) === x && Math.floor((q.y - 1) / T) === y);
+    w.props = w.props.filter((q) => {
+      if (!q.solid) return true;
+      const x = Math.floor(q.x / T), y = Math.floor((q.y - 1) / T), i = y * W + x; if (x < 0 || y < 0 || x >= W || y >= H || !road(i)) return true;
+      if (q.kind === 'tower' && !q.ruinName) { solid[i] = 0; return false; }
+      if (!SMALL.has(q.kind)) return true;
+      solid[i] = 0;
+      for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]]) { const nx = x + dx, ny = y + dy, j = ny * W + nx; if (nx < 1 || ny < 1 || nx >= W - 1 || ny >= H - 1 || road(j) || ter[j] === TR.COBBLE || ter[j] === TR.WATER || taken(nx, ny)) continue; q.x += dx * T; q.y += dy * T; q.sprite = null; solid[j] = 1; return true; }
+      q.solid = false; return true; // nowhere to put it: it's small enough to step round
+    });
+    for (const b of w.buildings) {
+      if (b.ruined || b.site) continue;
+      const inB = (x, y) => x >= b.x && x < b.x + b.w && y >= b.y && y <= b.bottom;
+      let under = false; for (let y = b.y; y <= b.bottom; y++) for (let x = b.x; x < b.x + b.w; x++) if (road(y * W + x)) { under = true; ter[y * W + x] = TR.GRASS; }
+      if (!under) continue;
+      // where the lane meets the building on each side, and a way round between them
+      const ends = []; for (let y = b.y - 1; y <= b.bottom + 1; y++) for (let x = b.x - 1; x <= b.x + b.w; x++) if (!inB(x, y) && x >= 0 && y >= 0 && x < W && y < H && road(y * W + x) && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => inB(x + dx, y + dy))) ends.push([x, y]);
+      for (let k = 1; k < ends.length; k++) {
+        const [sx, sy] = ends[0], [tx, ty] = ends[k], prev = new Map([[sy * W + sx, -1]]), q = [[sx, sy]];
+        for (let h = 0; h < q.length && q.length < 4000; h++) { const [x, y] = q[h]; if (x === tx && y === ty) break; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, ny = y + dy, j = ny * W + nx; if (nx < 0 || ny < 0 || nx >= W || ny >= H || prev.has(j) || Math.abs(nx - b.x - b.w / 2) > b.w + 4 || Math.abs(ny - b.y - b.d / 2) > b.d + 4) continue; if (solid[j] || ter[j] === TR.WATER || inB(nx, ny)) continue; prev.set(j, y * W + x); q.push([nx, ny]); } }
+        let c = ty * W + tx; if (!prev.has(c)) continue;
+        while (c !== -1) { if (ter[c] !== TR.BRIDGE && ter[c] !== TR.COBBLE) ter[c] = TR.ROAD; c = prev.get(c); }
+      }
+    }
+  }
   function region(id) {
     if (regions.has(id)) return regions.get(id);
     const it = regionSteps(id); let r; do r = it.next(); while (!r.done);
@@ -360,6 +392,7 @@
     });
     world.pens = (tw.pens || []).map((p) => Object.assign({}, p, { z: [p.z[0] + ox, p.z[1] + oy, p.z[2] + ox, p.z[3] + oy] }));
     world.estates = (tw.estates || []).map((e) => Object.assign({}, e, { fields: [e.fields[0] + ox, e.fields[1] + oy, e.fields[2] + ox, e.fields[3] + oy] }));
+    fixRoads(world); // nothing standing in the road, and no lane running into a wall
     if (O.Game && O.Game.prototype.clearStray) O.Game.prototype.clearStray.call(null, world); // nothing solid where nothing stands
     regions.set(id, world);
     return world;

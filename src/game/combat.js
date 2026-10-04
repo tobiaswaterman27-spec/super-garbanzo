@@ -68,6 +68,7 @@
       const seen = (game.scene ? [...game.scene.actors.values()].map((a) => a.person).filter((z) => z !== q && z.activity?.act !== 'sleep') : sim.seers(pos[0], pos[1], q));
       const cr = sim.recordCrime({ kind, perp: 'player', placeName: game.scene ? game.scene.b.name : sim.where(q.agent), tile: [Math.floor(pos[0] / 16), Math.floor(pos[1] / 16)], seen: seen.filter((z) => z.health.hp > 0), victimPerson: q.health.hp > 0 ? q : null, severity, royal: !!q.royal });
       PS.crimes.push(cr.id);
+      if (O.scare) O.scare(pos[0], pos[1], 120, q); // bystanders run
       PS.rep.local = Math.max(-1, PS.rep.local - 0.12 * severity); PS.rep.civilian = Math.max(-1, PS.rep.civilian - 0.08 * severity); PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.03 * severity);
       return cr;
     }

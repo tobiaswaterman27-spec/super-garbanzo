@@ -37,10 +37,25 @@
         const e = postAt(s, bz);
         if (e) out.push(['notice', 'Hand in your notice']);
         else out.push(['askjob', `Ask for work at ${bz.name}`]);
-      }
+      } else if (q.age >= 14) out.push(['whohires', "Who's taking on hands?"]);
       return out;
     };
+    // anyone can tell you who is hiring: the place, who runs it, and what they want
+    function whoHires(q) {
+      const s = cur(), list = [];
+      for (const bz of s.biz.values()) {
+        const boss = s.bossOf && s.bossOf(bz); if (!boss || boss === q || boss.alive === false || bz.def.public && !boss) continue;
+        const v = s.vacancies(bz).filter((r) => (bz.def.wage[r] || 0) > 0); if (v.length) list.push({ bz, boss, role: v[v.length - 1] });
+      }
+      if (!list.length) return '"Nobody\'s short of hands that I know of. Try again in a few days."';
+      // they know best the places near them and their own trade
+      list.sort((a, b) => (a.bz.id === q.job?.biz ? -1 : 0) - (b.bz.id === q.job?.biz ? -1 : 0) || ((a.bz.id * 7 + q.id) % 13) - ((b.bz.id * 7 + q.id) % 13));
+      const pick = list.slice(0, 3); PS.hiringLeads = pick.map((x) => x.boss.id);
+      return `"${pick.map((x, i) => `${i ? (i === pick.length - 1 ? 'and ' : '') : ''}${x.boss.first} at ${x.bz.name} wants ${/^[aeiou]/.test(x.role) ? 'an' : 'a'} ${x.role}`).join(', ')}. Go and ask ${pick.length > 1 ? 'them' : x0(pick)} yourself: talk to whoever runs the place."`;
+    }
+    const x0 = (p) => (p[0].boss.sex === 'f' ? 'her' : 'him');
     npcUI.onExtra = (q, key, render) => {
+      if (key === 'whohires') return render(whoHires(q));
       if (key === 'askjob') return offer(q, render);
       if (key === 'notice') { quit('You hand in your notice.', postAt(cur(), cur().biz.get(q.job.biz))); cur().remember(q, 'The stranger left my service.', 'work', 1); return render('Very well. I wish you luck.'); }
       return prevOn && prevOn(q, key, render);
@@ -374,7 +389,8 @@
     game.hooks.drawTop.push((ctx, cam, indoor) => {
       const e = here(); if (!e || !e.onShift) return;
       const s = cur(), bz = bizOf(e); if (!bz) return;
-      const bob = Math.round(Math.sin(game.t * 4) * 2), mark = (x, y) => { x = Math.round(x - cam.x); y = Math.round(y - cam.y) + bob; ctx.fillStyle = '#1b1424'; ctx.fillRect(x - 3, y - 1, 7, 5); ctx.fillRect(x - 1, y + 4, 3, 2); ctx.fillStyle = '#f0b45c'; ctx.fillRect(x - 2, y, 5, 3); ctx.fillRect(x, y + 3, 1, 2); };
+      const targets = [];
+      const bob = Math.round(Math.sin(game.t * 4) * 2), mark = (x, y) => { targets.push([x, y + 40]); x = Math.round(x - cam.x); y = Math.round(y - cam.y) + bob; ctx.fillStyle = '#1b1424'; ctx.fillRect(x - 3, y - 1, 7, 5); ctx.fillRect(x - 1, y + 4, 3, 2); ctx.fillStyle = '#f0b45c'; ctx.fillRect(x - 2, y, 5, 3); ctx.fillRect(x, y + 3, 1, 2); };
       for (const t of e.tasks) {
         if (t.have >= t.need) continue;
         if (indoor) {
@@ -391,6 +407,19 @@
           else mark(bz.b.doorX * T + 8, bz.b.doorY * T - 50);
         }
       }
+      // nothing to aim at on screen: an arrow at the edge of the view points the way to the nearest
+      const P = game.player, vw = game.vw, vh = game.vh;
+      if (indoor && game.scene && game.scene.b.id !== bz.id && !targets.length) { const w = game.scene.wayIn ? game.scene.wayIn() : null; if (w) targets.push([w[0], w[1] + 10]); } // the way out
+      if (!targets.length || targets.some(([x, y]) => x - cam.x > 0 && x - cam.x < vw && y - 40 - cam.y > 0 && y - cam.y < vh)) return;
+      const [tx, ty] = targets.sort((a, b) => Math.hypot(a[0] - P.x, a[1] - P.y) - Math.hypot(b[0] - P.x, b[1] - P.y))[0];
+      // kept clear of the clock (top left) and the job card (top right)
+      const px = P.x - cam.x, py = P.y - 16 - cam.y, ang = Math.atan2(ty - P.y, tx - P.x), mx = 22, top = 70, bot = 26;
+      const k = Math.min(Math.abs((Math.cos(ang) > 0 ? vw - mx - px : px - mx) / (Math.cos(ang) || 1e-6)), Math.abs((Math.sin(ang) > 0 ? vh - bot - py : py - top) / (Math.sin(ang) || 1e-6)));
+      const ax = Math.round(px + Math.cos(ang) * k), ay = Math.round(py + Math.sin(ang) * k), pulse = 1 + Math.sin(game.t * 5) * 0.12;
+      ctx.save(); ctx.translate(ax, ay); ctx.rotate(ang); ctx.scale(pulse * 1.6, pulse * 1.6);
+      ctx.fillStyle = '#1b1424'; ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(-8, -10); ctx.lineTo(-4, 0); ctx.lineTo(-8, 10); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#f0b45c'; ctx.beginPath(); ctx.moveTo(9, 0); ctx.lineTo(-6, -7); ctx.lineTo(-2, 0); ctx.lineTo(-6, 7); ctx.closePath(); ctx.fill();
+      ctx.restore();
     });
 
     // ---------------------------------------------------------------- any post at all (for trying the jobs out)
@@ -411,7 +440,32 @@
       if (emp()) quit(null);
       hire(s, bz, s.bossOf(bz), role, Math.max(3, bz.def.wage?.[role] || (type === 'crown' ? 40 : 6)), { trial: true });
       say(`You take up the post of ${role} at ${bz.name}.`);
+      if (['monarch', 'consort', 'heir'].includes(role) && bz.b && bz.b.royal) depose(s, bz.b, role);
+      else if (['lord', 'lady'].includes(role)) unlord(s);
     };
+    // a new monarch: the old royal family are royal no more. They lose their titles and leave the castle for
+    // the best empty house in the town (or, with none to be had, for the road and a quieter life elsewhere)
+    function depose(s, keep, role) {
+      const fam = s.people.filter((q) => q.royal && q.alive !== false);
+      if (role === 'monarch' || role === 'consort') {
+        const hhs = [...new Set(fam.map((q) => q.household))].map((id) => s.households[id - 1]).filter(Boolean);
+        for (const q of fam) { q.formerTitle = q.title; q.royal = false; if (q.name && q.title && q.name.startsWith(q.title + ' ')) q.name = q.name.slice(q.title.length + 1); q.title = null; s.remember(q, `Lost the crown. ${O.Forge.player?.name || 'The stranger'} sits on the throne now.`, 'politics', 3, 0); s.relate(q, { id: 0 }, -0.8); }
+        for (const hh of hhs) {
+          const house = s.emptyHouses().sort((a, b) => (b.wealth || 0) - (a.wealth || 0) || b.w * b.d - a.w * a.d)[0];
+          if (house) s.moveHousehold(hh, house); else { hh.gone = true; for (const id of hh.members) { const q = s.byId.get(id); if (q) { q.agent.hidden = true; q.visitor = true; q.task = { act: 'leave', outdoor: true, zone: 'east' }; } } }
+          if (O.Interior) O.Interior.invalidate(keep);
+        }
+        if (fam.length) { const old = fam.find((q) => q.formerTitle === 'King' || q.formerTitle === 'Queen'); s.log(`${old ? old.first + ', once ' + (old.formerTitle === 'King' ? 'king' : 'queen') + ',' : 'The old royal family'} has left the castle. ${O.Forge.player?.name || 'The stranger'} holds the crown.`, 'politics'); say('The old royal family pack their things and leave the castle. Their titles go with the crown: to you.'); }
+        const K = O.SimRef.home.kingdom, R = K && K.rulers;
+        if (R) { const me = O.Forge.player || {}; R.crown = { name: me.name || 'the stranger', sex: me.sex || me.a?.sex || 'm', age: 30, regnal: 'I', since: s.day, player: true, heir: R.crown && R.crown.heir }; R.reigns.push({ who: `${me.sex === 'f' ? 'Queen' : 'King'} ${me.name || ''}`, from: s.day, to: null, how: 'took the crown' }); }
+      } else if (role === 'heir') { const h = fam.find((q) => q.title === 'Prince' || q.title === 'Princess'); if (h) { h.formerTitle = h.title; h.heirNoMore = true; } }
+      PS.royal = role === 'monarch' || role === 'consort';
+    }
+    function unlord(s) {
+      const l = s.people.find((q) => q.lordOf && q.alive !== false); if (!l) return;
+      l.formerTitle = l.title; if (l.name && l.title && l.name.startsWith(l.title + ' ')) l.name = l.name.slice(l.title.length + 1); l.title = null; l.lordOf = null;
+      s.log(`${l.first} is lord here no longer.`, 'politics');
+    }
 
     // ---------------------------------------------------------------- the sim keeps its count of who works where
     const SP = O.Sim.prototype, _vac = SP.vacancies;

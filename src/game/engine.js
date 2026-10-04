@@ -432,8 +432,8 @@
       if (b.parent) {
         this.scene = new O.Indoor(this, this.sim, b.parent, b.roomFloor || 0);
         const door = this.scene.L.items.find((i) => i.kind === 'roomdoor' && i.room === b.roomKey);
-        if (door) { const [x, y] = this.scene.anchor(door); this.player.x = x; this.player.y = y + 16; } else this.scene.enterAt(false);
-        this.player.dir = 0; this.scene.placeActors(); this.onSceneChange && this.onSceneChange();
+        if (door) { const [x, y] = this.scene.anchor(door); this.player.x = x; this.player.y = door.front ? y - 18 : y + 16; } else this.scene.enterAt(false);
+        this.player.dir = door && door.front ? 3 : 0; this.scene.placeActors(); this.onSceneChange && this.onSceneChange();
         return;
       }
       this.scene = null; this.player.inside = null;

@@ -97,7 +97,7 @@
         case 'claim': return 'Claim the abandoned camp';
         case 'stash': return 'Open the stash';
         case 'campbed': return 'Sleep by the fire';
-        case 'bed': return mayUseBed(c.it) ? 'Sleep until morning' : c.it.rent ? 'A guest bed (ask the innkeeper)' : 'Bed, not yours';
+        case 'bed': { const zz = O.bedSleepers ? O.bedSleepers(c.it) : []; if (zz.length) return `Wake ${zz[0].first}${zz.length > 1 ? ` and ${zz.length - 1 === 1 ? zz[1].first : 'the others'}` : ''}`; } return mayUseBed(c.it) ? 'Sleep until morning' : c.it.rent ? 'A guest bed (ask the innkeeper)' : 'Bed, not yours';
         case 'hay': return 'Sleep in the hay';
         case 'traveller': case 'ruin': case 'signpost': return O.roadLabel(c);
         case 'pickup': return `Pick up the ${(O.Data.GOODS[c.it.good]?.name || c.it.good).toLowerCase()}`;
@@ -108,7 +108,7 @@
         default: return '';
       }
     }
-    const mayUseBed = (it) => (game.scene && game.scene.b.owner?.kind === 'player') || (game.scene && PS.lease && PS.lease.b === game.scene.b.id) || (it.gangBed && game.scene && game.scene.b.gang === 'player') || (it.rent && PS.room && game.scene && PS.room.b === game.scene.b.id && sim.day <= PS.room.until);
+    const mayUseBed = (it) => (game.scene && game.scene.b.roomKey === 'chamber:monarch' && O.castleMayEnter && O.castleMayEnter({ locked: 'monarch' })) || (game.scene && game.scene.b.owner?.kind === 'player') || (game.scene && PS.lease && PS.lease.b === game.scene.b.id) || (it.gangBed && game.scene && game.scene.b.gang === 'player') || (it.rent && PS.room && game.scene && PS.room.b === game.scene.b.id && sim.day <= PS.room.until);
 
     game.hooks.update.push((dt) => {
       if (searching > 0) { searching -= dt; game.player.anim = 'crouch'; game.player.locked = true; if (searching <= 0) { game.player.locked = false; game.player.anim = 'idle'; pendingSearch && pendingSearch(); pendingSearch = null; } }
@@ -262,7 +262,8 @@
         case 'broadsheet': O.ChronicleUI.broadsheet(); break;
         case 'grave': { const g = cur.prop.grave; O.Panels.toast(g ? `“Here lies ${g.name}, ${g.age} years. ${g.cause.replace('died ', '').replace(/^./, (c) => c.toUpperCase())}.”` : 'The old stone is worn smooth; you can no longer read the name.'); break; }
         case 'bed':
-          if (mayUseBed(cur.it)) sleep(cur.it);
+          if (O.wakeBed && O.bedSleepers(cur.it).length) O.wakeBed(cur.it);
+          else if (mayUseBed(cur.it)) sleep(cur.it);
           else if (cur.it.rent) O.Panels.toast('A guest bed. Beds are hired from the innkeeper at the counter downstairs.');
           else O.Panels.toast("That's someone else's bed.");
           break;

@@ -157,3 +157,18 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Any crime against the royal family is at once worse: pushing, stealing, lock picking get a heavy sentence or fine
 - [x] The king (you, as monarch) may sit on the throne
 - [x] Weird hairstyle with hair only at the back and none on top: fix
+
+## Batch H (asked after step 73) - the castle floors, waking sleepers, knowing who to ask
+
+- [x] An arrow showing the direction to go (not only over the target)
+- [x] Paths blocked by things: you can't get through; clear them
+- [x] When you're monarch, the old royals don't still live in the castle; the old monarch and people with titles lose the title
+- [x] Castle floors: the royal rooms off the council floor and up; 2nd floor the less important people and their families, 3rd the more important, 4th the monarch's
+- [x] Guards patrol each floor
+- [x] Floors too long, takes forever to cross: shorter
+- [x] Click on a bed to wake whoever's in it: they go back to bed eventually if it's nothing serious; a stranger in their room and they run out to call the watch or the guards
+- [x] If no one is in the room, or they're asleep, no one sees you; and more than one person can see you
+- [x] People run away (from danger, from you)
+- [x] Follow someone out of a room and they're gone when you get outside: fix
+- [x] You can't ask for a job or to join a gang if you have no idea who does that: let people tell you
+- [x] Polish

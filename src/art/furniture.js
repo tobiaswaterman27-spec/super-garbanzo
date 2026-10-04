@@ -394,7 +394,14 @@
         }
         out = finish(S); break;
       }
-      case 'roomdoor': { // a door set in the wall to a room beyond: oak in a stone arch; locked ones banded with iron and padlocked
+      case 'roomdoor': if (v === 2) { // a door in the near wall, seen from above: its oak top and the stone sill
+        S = canvasFor(2, 1, 4); const { B, fx, fx1, fy1 } = S; const oak = P.mat('#6a4428', 'wood'), stone = P.mat('#8e8880', 'cloth');
+        for (let y = fy1 - 12; y <= fy1; y++) for (let x = fx; x <= fx1; x++) { const edge = x <= fx + 2 || x >= fx1 - 2; B.plot(x, y, edge ? stone : oak, edge ? ((x + y) % 3 ? 2 : 1) : y === fy1 - 12 ? 3 : (x - fx) % 4 === 0 ? 1 : 2); }
+        for (let x = fx + 3; x <= fx1 - 3; x++) B.plot(x, fy1 - 13, stone, 3);
+        B.plot(fx1 - 6, fy1 - 6, P.mat('#c8a040', 'metal'), 3);
+        out = finish(S); break;
+      } // fall through: a door set in the back wall
+      { // a door set in the wall to a room beyond: oak in a stone arch
         S = canvasFor(2, 1, 44); const { B, fx, fx1, fy1 } = S; const oak = P.mat('#6a4428', 'wood'), stone = P.mat('#8e8880', 'cloth'), ir = P.mat('#3a3a42', 'metal');
         const x0 = fx + 3, x1 = fx1 - 3, top = fy1 - 46, bot = fy1 - 14;
         B.part(1);

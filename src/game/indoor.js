@@ -107,7 +107,9 @@
         const act = q.activity?.act;
         let x, y, dir = 0, anim = 'idle', spot = null, inBed = false, seat = null, sortY = null;
         if (bedOf.has(q.id)) { inBed = true; spot = bedOf.get(q.id).it; [x, y] = this.anchor(spot); }
-        else if (posts.includes(q)) { const k = posts.indexOf(q), n = posts.length, gap = Math.max(4, Math.floor((L.w - 6) / Math.max(1, n))); [x, y] = this.tileXY(Math.min(L.w - 6, 2 + k * gap + (k % 2 ? 1 : 0)), 2); dir = 0; anim = (Math.floor(this.t / 9) + q.id) % 4 ? 'idle' : 'look'; }
+        else if (posts.includes(q)) { // the guard walks the length of the hall and back, pausing at each end
+          const k = posts.indexOf(q), leg = Math.floor((this.t + k * 7 + q.id) / 14) % 2, row = this.floor === 1 ? 8 : (k % 2 ? 4 : 5);
+          [x, y] = this.tileXY(leg ? L.w - 7 - (k % 3) : 4 + (k % 3), row); dir = leg ? 2 : 1; anim = (Math.floor(this.t / 9) + q.id) % 4 ? 'idle' : 'look'; }
         else if (act === 'jailed') { const cells = L.items.filter((i) => i.cell), jl = here.filter((z) => z.activity?.act === 'jailed'), ix = jl.indexOf(q), c = cells[ix % Math.max(1, cells.length)]; if (c) { const [ax, ay] = this.anchor(c); x = ax + ((Math.floor(ix / Math.max(1, cells.length)) % 3) - 1) * 14; y = ay - 18; sortY = ay - 1; anim = (Math.floor(this.t / 7) + q.id) % 4 ? 'sit' : 'idle'; dir = 0; } }
         else if (SLEEPY.has(act)) { // no bed free: dozing in a chair, never on the floor
           spot = seats.find((i) => !used.has(i)); if (spot) { seat = spot; anim = 'doze'; }
@@ -387,9 +389,9 @@
         const cx = (x0 + x1) / 2, cy = y0 - 6;
         if (it.gangStash && this.b.gang === 'player') out.push({ type: 'stash', it, d, x: cx, y: cy });
         if (it.container) out.push({ type: 'container', it, d, x: cx, y: cy });
-        if (it.bed && !it.cradle) out.push({ type: 'bed', it, d: d + 1, x: cx, y: cy });
+        if (it.bed && !it.cradle) out.push({ type: 'bed', it, d: this.sleeping && this.sleeping.get(it)?.length ? d - 2 : d + 1, x: cx, y: cy });
         if (it.kind === 'stairs') out.push({ type: 'stairs', it, d: d - 2, x: cx, y: cy });
-        if (it.kind === 'roomdoor') out.push({ type: 'roomdoor', it, b: this.b, d: d - 3, x: cx, y: cy - 34 });
+        if (it.kind === 'roomdoor') out.push({ type: 'roomdoor', it, b: this.b, d: d - 3, x: cx, y: it.front ? cy - 4 : cy - 34 });
         if (it.portrait) out.push({ type: 'portrait', it, d: d + 2, x: cx, y: cy - 30 });
         if (it.kind === 'hay') out.push({ type: 'hay', it, d: d + 3, x: cx, y: cy });
         if (it.seat && !p.sitting && !(this.usedSeats && this.usedSeats.has(it) && it.kind !== 'pew' && it.kind !== 'bench')) out.push({ type: 'sit', it, d: d + 1.5, x: cx, y: cy });

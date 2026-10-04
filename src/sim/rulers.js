@@ -54,7 +54,7 @@
       if (R.mourning && day >= R.mourning.until) { const m = R.mourning; R.mourning = null; this.succeed(m); }
       // the monarch's health
       const c = R.crown;
-      if (!R.mourning && c) {
+      if (!R.mourning && c && !c.player) {
         const risk = c.age < 50 ? 0.0002 : 0.0005 * (c.age - 48);
         if (!c.ailing && r.chance(risk * 2.5)) { c.ailing = true; this.addNews(`${crownTitle(c)} is said to be gravely ill. Prayers are asked for in every church.`, 'rulers'); }
         else if (c.ailing && r.chance(0.07)) this.crownDies(`died after a long illness`);

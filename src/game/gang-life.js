@@ -41,6 +41,7 @@
       const out = prevExtra ? prevExtra(q) : [], s = cur();
       const rec = here(s).find((m) => m.task && !m.task.done && m.task.kind === 'recruit' && m.task.target === q.id);
       if (rec) out.push(['grecruit', `Put in a word for ${rec.name.replace(/^the /, 'the ')}`]);
+      if (!q.gang && q.age >= 16 && s.gangs && s.gangs.length && !/guard|captain|sergeant/.test(q.job?.role || '') && !memberOfAny(s)) out.push(['gwho', 'Know anyone who works outside the law?']);
       if (!q.gang || q.gang === 'player' || !s.gangs) return out;
       const g = s.gang(q.gang); if (!g) return out;
       const m = memberOf(s, g.id);
@@ -53,7 +54,21 @@
       }
       return out;
     };
+    const memberOfAny = (s) => (s.gangs || []).some((g) => memberOf(s, g.id));
+    // who'd know: the shady, the poor, the tavern crowd, and anyone who likes you; the honest won't say
+    function gangLead(s, q) {
+      const shady = q.traits.includes('greedy') || q.traits.includes('cunning') || q.attitude < 0 || s.household(q).money < 15 || q.activity?.act === 'socialise';
+      const fond = (q.rel?.get(0)?.affinity || 0) > 0.3;
+      if (!shady && !fond && PS.rep.criminal < 0.1) return `"${['Me? I keep to honest work.', 'I wouldn\'t know about that sort of thing.', 'Ask the watch, if you\'re so curious.'][q.id % 3]}"`;
+      const ms = s.people.filter((m) => m.gang && m.gang !== 'player' && m.alive !== false);
+      if (!ms.length) return '"There\'s no gang in this town that I know of."';
+      const m = ms.sort((a, b) => ((a.id * 5 + q.id) % 11) - ((b.id * 5 + q.id) % 11))[0], g = s.gang(m.gang);
+      const where = m.job?.biz != null && s.biz.get(m.job.biz) ? `you'll find ${m.sex === 'f' ? 'her' : 'him'} at ${s.biz.get(m.job.biz).name} in the day` : s.biz && [...s.biz.values()].find((z) => z.type === 'tavern') ? `${m.sex === 'f' ? 'she' : 'he'} drinks at ${[...s.biz.values()].find((z) => z.type === 'tavern').name} of an evening` : `${m.sex === 'f' ? 'she' : 'he'} lives about the town`;
+      PS.gangLead = m.id;
+      return `"Keep your voice down. ${m.first} ${m.sur || ''} runs with ${g ? g.name : 'a crew'}: ${where}. Talk to ${m.sex === 'f' ? 'her' : 'him'}, and you never heard it from me."`;
+    }
     npcUI.onExtra = (q, key, render) => {
+      if (key === 'gwho') { const s = cur(); if (q._gwho === s.day) return render('"I\'ve said what I\'ve said."'); q._gwho = s.day; return render(gangLead(s, q)); }
       if (key === 'grecruit') {
         const s = cur(), m = here(s).find((x) => x.task && !x.task.done && x.task.kind === 'recruit' && x.task.target === q.id), g = m && s.gang(m.gid);
         if (!g) return render('Eh?');

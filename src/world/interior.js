@@ -36,19 +36,31 @@
     const mk = (key, name, type, fl, w, d, extra) => { let r = c.map.get(key); if (!r) { r = { id: b.id, parent: b, roomKey: key, name, type, roomFloor: fl, w, d, floors: 1, wealth: b.wealth, condition: 1, spec: Object.assign({}, b.spec, { doorTile: Math.floor(w / 2) - 1, floors: 1 }), roomOwners: [] }; c.map.set(key, r); } Object.assign(r, extra || {}); return r; };
     const ground = [mk('throne', 'The throne room', 'throneroom', 0, 10, 6), mk('kitchen', 'The kitchens', 'castlekitchen', 0, 8, 5), mk('hall', "The servants' hall", 'servhall', 0, 8, 5),
       mk('steward', "The steward's hall", 'stewardroom', 0, 6, 4), mk('guardroom', 'The guardroom and armoury', 'guardroom', 0, 6, 4), mk('chapel', 'The castle chapel', 'castlechapel', 0, 7, 5)];
+    // upstairs: the second floor for the household's lesser folk and their families, the third for those
+    // who stand higher at court, the fourth for the monarch and the royal family
     const up = [];
     const hhs = sim ? sim.households.filter((h) => !h.gone && h.home === b.id) : [];
     for (const h of hhs) {
       const ppl = h.members.map((id) => sim.byId.get(id)).filter((p) => p && p.alive !== false); if (!ppl.length) continue;
       if (ppl.some((p) => p.royal)) {
         const pa = ppl.filter((p) => p.title === 'King' || p.title === 'Queen'), kids = ppl.filter((p) => !pa.includes(p));
-        if (pa.length) up.push(mk('chamber:monarch', "The monarch's bedchamber", 'chamber', 1, 7, 5, { roomOwners: pa.map((p) => p.id), locked: 'monarch', wealth: 1, royalRoom: true }));
-        for (const k of kids) up.push(mk('chamber:' + k.id, `${k.first}'s chamber`, 'chamber', 1, 5, 4, { roomOwners: [k.id], locked: 'royal', wealth: 0.95, royalRoom: true }));
-      } else up.push(mk('chamber:hh' + h.id, `The ${h.surname} room`, 'chamber', 1, ppl.length > 2 ? 6 : 4, 4, { roomOwners: ppl.map((p) => p.id), wealth: 0.55 }));
+        if (pa.length) up.push(mk('chamber:monarch', "The monarch's bedchamber", 'chamber', 4, 7, 5, { roomOwners: pa.map((p) => p.id), locked: 'monarch', wealth: 1, royalRoom: true }));
+        for (const k of kids) up.push(mk('chamber:' + k.id, `${k.first}'s chamber`, 'chamber', 4, 5, 4, { roomOwners: [k.id], locked: 'royal', wealth: 0.95, royalRoom: true }));
+      } else {
+        const high = ppl.some((p) => HIGH.has(p.job?.role) || /^(Lord|Lady|Sir)\b/.test(p.title || ''));
+        up.push(mk('chamber:hh' + h.id, `The ${h.surname} room`, 'chamber', high ? 3 : 2, ppl.length > 2 ? 6 : 4, 4, { roomOwners: ppl.map((p) => p.id), wealth: high ? 0.75 : 0.55 }));
+      }
     }
-    up.push(mk('chamber:guest', 'The guest chamber', 'chamber', 1, 5, 4, { roomOwners: [], wealth: 0.85 }));
-    return { ground, up, all: [...ground, ...up] };
+    up.push(mk('chamber:guest', 'The guest chamber', 'chamber', 3, 5, 4, { roomOwners: [], wealth: 0.85 }));
+    // the monarch's bedchamber is always kept, whoever holds the crown (you, if it's you)
+    if (!up.some((r) => r.roomKey === 'chamber:monarch')) up.push(mk('chamber:monarch', "The monarch's bedchamber", 'chamber', 4, 7, 5, { roomOwners: [], locked: 'monarch', wealth: 1, royalRoom: true, playerRoom: true }));
+    // nobody keeps a room in a castle they no longer live in
+    for (const r of up) if (r.roomOwners.length && sim) r.roomOwners = r.roomOwners.filter((id) => { const q = sim.byId.get(id); return q && q.alive !== false && sim.households[q.household - 1]?.home === b.id; });
+    const floors = [ground, [], up.filter((r) => r.roomFloor === 2), up.filter((r) => r.roomFloor === 3), up.filter((r) => r.roomFloor === 4)];
+    return { ground, up, floors, all: [...ground, ...up] };
   }
+  const HIGH = new Set(['steward', 'chamberlain', 'lady-in-waiting', 'captain of the royal guard', 'master of horse', 'herald', 'jester', 'master cook', 'butler', 'spy', 'treasurer', 'falconer']);
+  const CASTLE_FLOORS = 5;
   const SLEEPY2 = new Set(['sleep', 'sick']);
   // where in the castle someone is right now: a hallway ('f0', 'f1') or a room's key
   function castleWhere(q, b, sim) {
@@ -56,27 +68,40 @@
     const mine = plan.up.find((r) => r.roomOwners.includes(q.id));
     if (act === 'court') return 'throne';
     if (act === 'feast') return 'f1';
+    if (act === 'court' || act === 'work') { /* below */ }
     if (act === 'worship' || (act === 'work' && ['priest', 'chaplain'].includes(role))) return 'chapel';
     if (act === 'jailed') return 'guardroom';
     if (SLEEPY2.has(act)) return mine ? mine.roomKey : 'hall';
     if (act === 'work') {
       if (['cook', 'scullion', 'kitchen maid', 'baker', 'butler'].includes(role)) return 'kitchen';
       if (['steward', 'chamberlain', 'clerk', 'scribe', 'treasurer', 'magistrate'].includes(role)) return 'steward';
-      if (/guard|sergeant|knight|captain/.test(role)) return q.id % 2 ? 'f0' : 'f1';
+      if (/guard|sergeant|knight|captain/.test(role)) return 'f' + (q.id % CASTLE_FLOORS); // a guard on every floor
       if (['jester', 'page', 'herald', 'lady-in-waiting', 'minstrel', 'bard'].includes(role)) return 'throne';
-      if (['maid', 'chambermaid'].includes(role)) return q.id % 2 ? 'f1' : 'hall';
+      if (['maid', 'chambermaid'].includes(role)) return ['f2', 'f3', 'f4', 'hall'][q.id % 4];
       return 'hall';
     }
     if (act === 'eat') return q.royal && mine ? mine.roomKey : 'hall';
-    if (act === 'home') return mine && (q.royal || (q.id + Math.floor((sim.minute || 0) / 90)) % 3) ? mine.roomKey : q.royal ? 'f1' : 'hall';
+    if (act === 'home') return mine && (q.royal || (q.id + Math.floor((sim.minute || 0) / 90)) % 3) ? mine.roomKey : q.royal ? 'f4' : 'hall';
     return 'f0';
   }
-  O.Castle = { plan: castlePlan, where: castleWhere };
+  // going from one room to another, people cross the hallway: for a little while after they leave a room
+  // they're out in the hall of that floor (so you can follow them out and see them go)
+  const lastWhere = new Map();
+  function castleWhereTransit(q, b, sim) {
+    const key = castleWhere(q, b, sim), t = O.game ? O.game.t : 0, prev = lastWhere.get(q.id);
+    if (!prev || prev.key === key) { if (!prev || !prev.transit || t > prev.transit.until) lastWhere.set(q.id, { key }); else return prev.transit.hall; return key; }
+    if (prev.transit && t <= prev.transit.until) { prev.key = key; return prev.transit.hall; }
+    const from = /^f\d$/.test(prev.key) ? null : castlePlan(b, sim).all.find((r) => r.roomKey === prev.key);
+    if (from && key !== 'f' + (from.roomFloor || 0)) { lastWhere.set(q.id, { key, transit: { hall: 'f' + (from.roomFloor || 0), until: t + 10 } }); return 'f' + (from.roomFloor || 0); }
+    lastWhere.set(q.id, { key }); return key;
+  }
+  O.Castle = { plan: castlePlan, where: castleWhereTransit };
 
   function layoutFor(b, floor, sim) {
     const S = scaleFor(b), rng = O.RNG(O.hash('int', b.id, floor, b.roomKey || ''));
     let w = b.w * S, d = b.d * S;
-    if (b.royal) { const pl = castlePlan(b, sim), n = floor === 0 ? pl.ground.length : pl.up.length; w = Math.max(40, n * 6 + 12); d = 10; } // a long hallway
+    let castleDoors = null;
+    if (b.royal) { const pl = castlePlan(b, sim), n = (pl.floors[floor] || []).length, m = floor === 1 ? 0 : Math.ceil(n / 2); w = floor === 1 ? 30 : Math.max(24, m * 4 + 12); d = 10; castleDoors = pl.floors[floor] || []; } // a hallway, doors along both walls
     const grid = new Uint8Array(w * d);
     const items = [];
     const L = { carpets: null }; // carpets fitted to the floor, if any
@@ -158,13 +183,15 @@
       items.push(st);
       for (let xx = x; xx < x + 2; xx++) keepClear.add(3 * w + xx);
     };
-    if (b.royal) stairPiece(w - 4, floor === 0); // the grand stairs at the far end of the hallway
+    // the grand stairs: up at one end, down at the other, turning back on each floor
+    const castleUp = (k) => (k % 2 ? 1 : w - 4);
+    if (b.royal) { if (floor > 0) stairPiece(castleUp(floor - 1), false); if (floor < CASTLE_FLOORS - 1) stairPiece(castleUp(floor), true); }
     else if (twoFloors) {
       if (floor > 0) stairPiece(cornerOf(floor - 1), false);
       if (floor < nFloors - 1 && (nFloors > 2)) stairPiece(cornerOf(floor), true);
       else if (floor === 0) stairPiece(stairsX, true);
     }
-    startTiles = floor === 0 ? [[dc, d - 1], [dc + 1, d - 1]] : b.royal ? [[w - 4, 3], [w - 3, 3]] : [[cornerOf(floor - 1), 3], [cornerOf(floor - 1) + 1, 3]];
+    startTiles = floor === 0 ? [[dc, d - 1], [dc + 1, d - 1]] : b.royal ? [[castleUp(floor - 1), 3], [castleUp(floor - 1) + 1, 3]] : [[cornerOf(floor - 1), 3], [cornerOf(floor - 1) + 1, 3]];
 
     const homeFloor = !twoFloors || floor === 1;
     const living = floor === 0;
@@ -240,19 +267,26 @@
       if (it) n++; } return n; };
     const planFor = (ppl) => { const out = [], done = new Set(); let kids = 0; for (const q of ppl) { if (done.has(q.id)) continue; done.add(q.id); const sp = q.spouse && ppl.find((x) => x.id === q.spouse); if (sp) { done.add(sp.id); out.push('double'); } else if (q.age < 3) out.push('cradle'); else if (q.age < 14) kids++; else out.push('bed'); } for (let i = 0; i < kids; i += 2) out.push('bed'); return out; };
     function royal() {
-      const plan = castlePlan(b, sim), list = floor === 0 ? plan.ground : plan.up;
-      // a door in the back wall for every room, with a candle between each
-      list.forEach((r, i) => { put('roomdoor', 3 + i * 6, 0, { room: r.roomKey, locked: r.locked || null, noAccess: true, v: 0, label: r.name }); put('candlestand', 6 + i * 6, 0, {}); });
-      // red carpet: a broad runner the length of the hall, and a carpet from every door down to it
-      L.carpets = [{ x: 0, y: d - 5, w: w, h: 5 }];
-      list.forEach((r, i) => L.carpets.push({ x: 3 + i * 6, y: 1, w: 2, h: d - 6 }));
-      if (floor === 1) L.carpets.push({ x: Math.floor(w / 2) - 10, y: 1, w: 20, h: 6 });
+      const list = castleDoors || [];
+      // doors along the back wall and the near wall, a candle beside each, kept clear of the stairs and the way in
+      const slots = []; for (let x = 5; x + 2 <= w - 5; x += 4) slots.push(x);
+      const back = slots.slice(), front = slots.filter((x) => floor !== 0 || Math.abs(x + 1 - (dc + 1)) > 3);
+      const nb = Math.min(back.length, Math.max(Math.ceil(list.length / 2), list.length - front.length));
+      L.carpets = [{ x: 0, y: 3, w: w, h: floor === 1 ? 2 : 4 }];
+      list.forEach((r, i) => {
+        const o = { room: r.roomKey, locked: r.locked || null, noAccess: true, label: r.name };
+        if (i < nb) { const x = back[i]; put('roomdoor', x, 0, Object.assign(o, { v: 0 })); put('candlestand', x + 2, 0, {}); L.carpets.push({ x, y: 1, w: 2, h: 2 }); }
+        else { const x = front[i - nb]; if (x == null) return; put('roomdoor', x, d - 1, Object.assign(o, { v: 2, front: true })); L.carpets.push({ x, y: 7, w: 2, h: d - 8 }); }
+      });
+      if (floor === 0) L.carpets.push({ x: dc, y: 7, w: 2, h: d - 7 });
       if (floor === 1) {
-        // the long table where the council of the realm sits, chairs all round
+        // the long table where the council of the realm sits, chairs all round, on a great carpet
         const n = 3, tx = Math.floor(w / 2) - Math.floor(n * 5 / 2);
+        L.carpets = [{ x: tx - 3, y: 1, w: n * 5 + 5, h: 7 }, { x: 0, y: 8, w: w, h: 2 }];
         for (let k = 0; k < n; k++) put('longtable', tx + k * 5, 3, { v: 2, table: true, council: true });
         for (let x = tx; x < tx + n * 5; x++) { put('chair', x, 2, { seat: true, rot: 0, v: 2, noAccess: true }); put('chair', x, 5, { seat: true, rot: 3, v: 2, noAccess: true }); }
         put('chair', tx - 1, 3, { seat: true, rot: 2, v: 2, noAccess: true, head: true });
+        for (const x of [4, w - 6]) put('candlestand', x, 0, {});
       }
     }
     // the castle's rooms, each laid out as a place of its own

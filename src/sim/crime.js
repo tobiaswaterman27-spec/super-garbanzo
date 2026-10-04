@@ -17,8 +17,10 @@
 
   function witnessesIndoors(game, sim, b, floor) {
     const sc = game.scene;
-    return sim.people.filter((q) => q.agent.inside === b.id && q.activity?.act !== 'sleep' && (!sc || sc.actors.has(q.id)))
-      .concat(sim.people.filter((q) => q.agent.inside === b.id && q.activity?.act === 'sleep' && sim.rng.chance(0.15)));
+    // only those in the same room as you, awake, and not on their way out; a sleeper in the room may stir
+    const inRoom = (q) => q.agent.inside === b.id && (!sc || (sc.actors.has(q.id) && !sc.actors.get(q.id).leaving));
+    return sim.people.filter((q) => inRoom(q) && q.activity?.act !== 'sleep')
+      .concat(sim.people.filter((q) => inRoom(q) && q.activity?.act === 'sleep' && sim.rng.chance(0.08)));
   }
 
   function theft(game, sim, ev) {
@@ -41,7 +43,7 @@
     if (ev.building.type !== 'house') PS.rep.merchant = Math.max(-1, PS.rep.merchant - 0.15);
     sim.log(`Theft at ${placeName}: ${ev.what} taken. Witnesses describe ${O.Justice.describe(crime.witnesses[0].desc)}.`, 'crime');
     const shout = ws[0];
-    O.Panels.toast(`${shout.first} saw you! “Thief! Stop, thief!”`, 'bad');
+    O.Panels.toast(`${shout.first}${ws.length > 1 ? ` and ${ws.length - 1} other${ws.length > 2 ? 's' : ''}` : ''} saw you! “Thief! Stop, thief!”`, 'bad');
     return crime;
   }
 

@@ -117,6 +117,7 @@
   O.GangLifeSetup.setup(game, npcUI);
   O.TownLifeSetup.setup(game, npcUI);
   O.DealsSetup.setup(game);
+  O.WakeSetup.setup(game);
   O.WanderersSetup.setup(game, home);
   O.CouncilUI.setup(game, home);
   O.WarUI.setup(game, home, npcUI);

@@ -19,7 +19,7 @@
     place(id) { return this.places.find((p) => p.id === id); }
     road(a, b) { return this.roads.find((r) => (r.a === a && r.b === b) || (r.a === b && r.b === a)); }
     neighbours(id) { return this.roads.filter((r) => r.a === id || r.b === id).map((r) => (r.a === id ? r.b : r.a)); }
-    dist(a, b) { const A = this.place(a), B = this.place(b); return Math.hypot(A.x - B.x, A.y - B.y) * 0.5; } // the island map is drawn at twice the old scale
+    dist(a, b) { const A = this.place(a), B = this.place(b); return Math.hypot(A.x - B.x, A.y - B.y) * 0.25; } // map units are a quarter-league
     route(a, b) { // BFS by road (few nodes)
       const prev = { [a]: null }, q = [a];
       while (q.length) { const c = q.shift(); if (c === b) break; for (const n of this.neighbours(c)) if (!(n in prev) && !this.road(c, n).damaged) { prev[n] = c; q.push(n); } }

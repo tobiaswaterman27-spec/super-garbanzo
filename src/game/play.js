@@ -91,6 +91,8 @@
   O.KingdomUI.setup(game, sim, npcUI);
   O.TravelSetup.setup(game, home, npcUI);
   O.Roads.setup(game, home);
+  // TESTING KIT (temporary, for one build only): a sword and a heavy purse, once per life
+  game.hooks.update.push(() => { const PS = O.PlayerState; if (PS._testKit || O.panelOpen) return; PS._testKit = true; PS.money += 5000; PS.add('sword'); });
   O.PropertyUI.setup(game, sim);
   O.ChronicleUI.setup(game, home);
   O.WorkSetup.setup(game, sim, npcUI);

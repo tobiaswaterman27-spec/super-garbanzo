@@ -127,7 +127,7 @@
     const ruins = [];
     for (const ru of E().RUINS) {
       const t = ((ru.x - P0.x) * dx + (ru.y - P0.y) * dy) / (dl * dl); if (t < 0.15 || t > 0.85) continue;
-      const off = (ru.x - P0.x) * nx + (ru.y - P0.y) * ny; if (Math.abs(off) > 9) continue;
+      const off = (ru.x - P0.x) * nx + (ru.y - P0.y) * ny; if (Math.abs(off) > 16) continue;
       const u = Math.round(t * (L - 1)), side = off > 0 ? 1 : -1, v = O.clamp(mid(u) + side * 8, 4, Wd - 8);
       const [bx, by] = xy(u, v);
       const spec = { seed: seed + 5, w: 5, d: 4, floors: 2, wealth: 0.6, condition: 0.2, wall: 'stone', stoneMat: 'stoneDark', roof: 'slate', roofType: 'gable', doorTile: 2, noFlowers: true };

@@ -143,7 +143,7 @@
 
     // ---------------- the kingdom map ----------------
     let mapCanvas = null;
-    const E = O.Eldoria, MS = 4; // four pixels to a map unit
+    const E = O.Eldoria, MS = 3; // three pixels to a map unit
     function renderMap() {
       const c = document.createElement('canvas'); c.width = E.W * MS; c.height = E.H * MS;
       const ctx = c.getContext('2d'); const img = ctx.createImageData(c.width, c.height);
@@ -180,7 +180,7 @@
         }
       }
       for (const s of K.places) {
-        const x = Math.round(s.x * S), y = Math.round(s.y * S), sz = s.kind === 'capital' ? 6 : s.kind === 'castle' ? 4 : s.pop >= 300 ? 4 : s.pop >= 100 ? 3 : 2;
+        const x = Math.round(s.x * S), y = Math.round(s.y * S), sz = s.kind === 'capital' ? 6 : s.kind === 'castle' ? 4 : s.pop >= 300 ? 3 : s.pop >= 80 ? 2 : 1;
         ctx.fillStyle = '#1b1424'; ctx.fillRect(x - sz - 1, y - sz - 1, sz * 2 + 3, sz * 2 + 3);
         ctx.fillStyle = s.detailed ? '#f0b45c' : s.kind === 'castle' ? '#c8ccd4' : s.kind === 'capital' ? '#f4e8c8' : s.happiness < 0.4 ? '#c87060' : '#e8dcc0';
         ctx.fillRect(x - sz, y - sz, sz * 2 + 1, sz * 2 + 1);
@@ -195,19 +195,47 @@
         ctx.fillStyle = '#1b1424'; ctx.fillRect(x - 2, y - 2, 5, 5); ctx.fillStyle = '#d9893a'; ctx.fillRect(x - 1, y - 1, 3, 3);
       }
     }
+    let zoom = 2;
+    const govLine = (s) => { const g = s.gov || {}; return `${esc(g.body || 'the council')}${g.size ? ` (${g.size})` : ''}`; };
+    function placeInfo(s) {
+      const g = s.gov || {}, lead = K.lordName ? K.lordName(s.id) : s.leader;
+      return `<b>${esc(s.name)}</b> <span class="lbl">${esc(s.kind)} · ${esc(s.area || s.region)} · ${s.pop} souls</span><br>
+        Governed by ${govLine(s)}, led by <b>${esc(lead || s.leader)}</b>.${g.note ? ' ' + esc(g.note) : ''}<br>
+        <span class="lbl">Produces ${Object.entries(s.produces || {}).map(([k, v]) => `${k} ${v}`).join(', ') || 'little'} · roads to ${K.neighbours(s.id).map((n) => esc(K.place(n).name)).join(', ')}</span>`;
+    }
     O.openMap = () => {
-      const rows = K.places.map((s) => `<tr><td><b>${esc(s.name)}</b><br><small class="lbl">${s.kind} · ${s.region}</small></td><td class="n">${s.pop}</td><td><span class="bar ${s.food < 0.85 ? 'warn' : ''}"><i style="width:${Math.round(Math.min(1, s.food) * 100)}%"></i></span></td><td><span class="bar ${s.happiness < 0.4 ? 'warn' : ''}"><i style="width:${Math.round(s.happiness * 100)}%"></i></span></td><td><span class="bar ${s.crime > 0.35 ? 'warn' : ''}"><i style="width:${Math.round(s.crime * 100)}%"></i></span></td><td class="n">${s.prices.grain}d</td></tr>`).join('');
-      O.Panels.open('The Island of Eldoria', `<div class="mapwrap"><canvas id="kmap" width="512" height="384"></canvas></div>
-        <p class="caption">Ashford is gold. Orange marks are caravans on the roads; red dashes are roads closed by damage. Crown treasury ${O.money(K.treasury)}, crown tax ${Math.round(K.taxRate * 100)}%.</p>
-        <table><thead><tr><th>Settlement</th><th class="n">People</th><th>Food</th><th>Content</th><th>Crime</th><th class="n">Grain</th></tr></thead><tbody>${rows}</tbody></table>
-        <div class="lbl" style="margin-top:12px">News from the realm</div><ol class="chron">${K.news.slice(-8).reverse().map((n) => `<li><span class="lbl">Day ${n.day}</span> ${esc(n.text)}</li>`).join('') || '<li>No news yet.</li>'}</ol>`, () => {
+      const rows = K.places.slice().sort((a, b) => b.pop - a.pop).map((s) => `<tr><td><b>${esc(s.name)}</b><br><small class="lbl">${s.kind} · ${esc(s.area || s.region)}</small></td><td><small>${govLine(s)}<br><span class="lbl">${esc(K.lordName ? K.lordName(s.id) : s.leader)}</span></small></td><td class="n">${s.pop}</td><td><span class="bar ${s.food < 0.85 ? 'warn' : ''}"><i style="width:${Math.round(Math.min(1, s.food) * 100)}%"></i></span></td><td><span class="bar ${s.happiness < 0.4 ? 'warn' : ''}"><i style="width:${Math.round(s.happiness * 100)}%"></i></span></td><td><span class="bar ${s.crime > 0.35 ? 'warn' : ''}"><i style="width:${Math.round(s.crime * 100)}%"></i></span></td></tr>`).join('');
+      O.Panels.open('The Island of Eldoria', `<div class="mapbar"><button data-z="-1">−</button><button data-z="1">+</button><span class="lbl">${K.places.length} settlements · drag to move, click a place for its government</span></div>
+        <div class="mapview"><div class="mapwrap" style="width:${zoom * 100}%"><canvas id="kmap" width="${E.W * MS}" height="${E.H * MS}"></canvas></div></div>
+        <p class="caption" id="mapinfo">${placeInfo(K.place(game.world.placeId) || K.places[0])}</p>
+        <p class="caption">Gold marks where you are. Orange marks are caravans on the roads; red dashes are roads closed by damage. Crown treasury ${O.money(K.treasury)}, crown tax ${Math.round(K.taxRate * 100)}%.</p>
+        <table><thead><tr><th>Settlement</th><th>Government</th><th class="n">People</th><th>Food</th><th>Content</th><th>Crime</th></tr></thead><tbody>${rows}</tbody></table>
+        <div class="lbl" style="margin-top:12px">News from the realm</div><ol class="chron">${K.news.slice(-8).reverse().map((n) => `<li><span class="lbl">Day ${n.day}</span> ${esc(n.text)}</li>`).join('') || '<li>No news yet.</li>'}</ol>`, (root) => {
         const cv = document.getElementById('kmap'); drawMap(cv);
-        // place labels as DOM so the type stays sharp
-        const wrap = cv.parentElement;
-        // the bigger places and the castles are named; hamlets only where you are
-        for (const s of K.places) { if (s.pop < 100 && s.kind !== 'castle' && s.id !== game.world.placeId) continue; const l = document.createElement('span'); l.className = 'maplabel' + (s.id === game.world.placeId ? ' here' : '') + (s.pop < 200 && s.kind !== 'capital' ? ' small' : ''); l.textContent = s.name; l.style.left = (s.x / E.W * 100) + '%'; l.style.top = (s.y / E.H * 100) + '%'; wrap.appendChild(l); }
-        for (const r of E.REGIONS) { const l = document.createElement('span'); l.className = 'maplabel region'; l.textContent = r.name.replace(/^the /, ''); l.style.left = ((r.x + (r.kind === 'mountain' ? 8 : 0)) / E.W * 100) + '%'; l.style.top = ((r.y + (r.kind === 'mountain' ? 6 : -3)) / E.H * 100) + '%'; wrap.appendChild(l); }
+        const wrap = cv.parentElement, view = wrap.parentElement;
+        // every settlement is named; regions, lakes and rivers too
+        for (const s of K.places) { const l = document.createElement('span'); l.className = 'maplabel' + (s.id === game.world.placeId ? ' here' : '') + (s.kind === 'capital' ? ' capital' : s.kind === 'hamlet' ? ' small' : s.kind === 'village' || s.kind === 'mine' ? ' mid' : ''); l.textContent = s.name; l.style.left = (s.x / E.W * 100) + '%'; l.style.top = (s.y / E.H * 100) + '%'; wrap.appendChild(l); }
+        for (const r of E.REGIONS) { const l = document.createElement('span'); l.className = 'maplabel region'; l.textContent = r.name.replace(/^the /, ''); l.style.left = ((r.x + (r.kind === 'mountain' ? r.rx * 0.4 : 0)) / E.W * 100) + '%'; l.style.top = ((r.y + (r.kind === 'mountain' ? r.ry * 0.6 : -r.ry * 0.3)) / E.H * 100) + '%'; wrap.appendChild(l); }
         for (const r of E.LAKES) { const l = document.createElement('span'); l.className = 'maplabel water'; l.textContent = r.name; l.style.left = (r.x / E.W * 100) + '%'; l.style.top = ((r.y + r.ry) / E.H * 100) + '%'; wrap.appendChild(l); }
+        for (const r of E.RIVERS) { const m = r.pts[Math.floor(r.pts.length / 2)]; const l = document.createElement('span'); l.className = 'maplabel water'; l.textContent = r.name.replace(/^the /, ''); l.style.left = (m[0] / E.W * 100) + '%'; l.style.top = (m[1] / E.H * 100) + '%'; wrap.appendChild(l); }
+        for (const r of E.RUINS) { const l = document.createElement('span'); l.className = 'maplabel ruin'; l.textContent = r.name.replace(/^the /, ''); l.style.left = (r.x / E.W * 100) + '%'; l.style.top = (r.y / E.H * 100) + '%'; wrap.appendChild(l); }
+        const centre = () => { const h = K.place(game.world.placeId); if (!h) return; view.scrollLeft = h.x / E.W * wrap.clientWidth - view.clientWidth / 2; view.scrollTop = h.y / E.H * wrap.clientHeight - view.clientHeight / 2; };
+        requestAnimationFrame(centre);
+        root.querySelectorAll('[data-z]').forEach((b) => b.onclick = () => {
+          const cx = (view.scrollLeft + view.clientWidth / 2) / wrap.clientWidth, cy = (view.scrollTop + view.clientHeight / 2) / wrap.clientHeight;
+          zoom = O.clamp(zoom + +b.dataset.z, 1, 5); wrap.style.width = zoom * 100 + '%';
+          requestAnimationFrame(() => { view.scrollLeft = cx * wrap.clientWidth - view.clientWidth / 2; view.scrollTop = cy * wrap.clientHeight - view.clientHeight / 2; });
+        });
+        // drag to pan; a click without a drag picks the nearest place
+        let drag = null;
+        view.onpointerdown = (e) => { drag = { x: e.clientX, y: e.clientY, sl: view.scrollLeft, st: view.scrollTop, moved: false }; view.setPointerCapture(e.pointerId); };
+        view.onpointermove = (e) => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true; view.scrollLeft = drag.sl - dx; view.scrollTop = drag.st - dy; };
+        view.onpointerup = (e) => {
+          const d = drag; drag = null; if (!d || d.moved) return;
+          const rc = wrap.getBoundingClientRect(), mx = (e.clientX - rc.left) / rc.width * E.W, my = (e.clientY - rc.top) / rc.height * E.H;
+          let best = null, bd = 1e9; for (const s of K.places) { const dd = Math.hypot(s.x - mx, s.y - my); if (dd < bd) { bd = dd; best = s; } }
+          if (best && bd < 12) root.querySelector('#mapinfo').innerHTML = placeInfo(best);
+        };
       });
       const inner = document.querySelector('.panel-modal .ledger-in'); if (inner) inner.classList.remove('narrow');
     };

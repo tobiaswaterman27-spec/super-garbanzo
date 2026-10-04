@@ -308,8 +308,8 @@
     for (const [type, name, w, d] of need) { for (let tries = 0; tries < 60; tries++) { const x = rng.int(8, CW - 14), bottom = rng.pick([13, 22, 33, 52, 62, 72]); if (free(x, bottom, w, d)) { B({ type, name, x, bottom, w, d, floors: type === 'mill' ? 2 : 1, wealth: 0.4, look: look(0.4) }); break; } } }
     if (!K.buildings.some((b) => b.type === 'guard')) B({ type: 'guard', name: 'City Watch', x: 42, bottom: 79, w: 6, d: 4, look: { wall: 'stone', roof: 'slate', sign: 'shield', noFlowers: true, doorTile: 2 } });
     if (!K.buildings.some((b) => b.type === 'doctor')) B({ type: 'doctor', name: 'Physician', x: 30, bottom: 79, w: 4, d: 4, floors: 2, look: look(0.6, { sign: 'herb' }) });
-    // Aurelia Royal Castle, on the rise east of the city: the palace of King Aldric IV and Queen
-    // Elinora, with the royal kitchens, the Royal Guard's barracks, the royal chapel and stables, a
+    // Aurelia Royal Castle, on the rise east of the city: the palace of the king and queen,
+    // with the royal kitchens, the Royal Guard's barracks, the royal chapel and stables, a
     // servants' hall and a walled garden, behind its own curtain wall and gatehouse.
     const rx0 = 128, ry0 = 6, rx1 = 168, ry1 = 38, rgX = 148;
     fill(rx0 + 1, ry0 + 1, rx1 - 1, ry1 - 1, TER.YARD);

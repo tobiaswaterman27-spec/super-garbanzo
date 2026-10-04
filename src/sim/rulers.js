@@ -22,8 +22,9 @@
     K.rulersInit = function () {
       if (this.rulers) return this.rulers;
       const r = this.rng, day = this.sim.day;
-      const crown = Object.assign(person(r, 62, 70, 'm'), { name: 'Aldric', regnal: 'IV', since: day - 9 * yearDays() });
-      crown.queen = { name: 'Elinora', sex: 'f', age: crown.age - 4 };
+      // the reigning king and queen are whoever this realm's history made them
+      const crown = Object.assign(person(r, 54, 70, 'm'), { regnal: ROMAN[r.int(1, 5)], since: day - r.int(4, 18) * yearDays() });
+      crown.queen = { name: r.pick(FN), sex: 'f', age: crown.age - r.int(1, 8) };
       crown.heir = person(r, 13, 22);
       const R = this.rulers = { crown, pretender: { name: 'Robert', sex: 'm', age: 41, title: 'Duke of Frostmere', seat: 'frostmere', ambition: 0.5 + r.next() * 0.4 }, reigns: [{ who: crownTitle(crown), from: crown.since, to: null, how: 'inherited' }], lords: {}, mourning: null, regent: null };
       // the lords of the realm's places become people too
@@ -31,14 +32,16 @@
       for (const p of this.places) {
         if (p.detailed) continue;
         const t = titles[p.id] || [(p.leader || 'the Reeve of x').split(' of ')[0], p.kind === 'castle' ? (p.leader || '').startsWith('Lady') ? 'f' : 'm' : null];
-        const L = p.id === 'highmere' ? Object.assign(person(r, 52, 60, 'm'), { name: 'Edmund' }) : person(r, 35, 64, t[1]);
+        const L = p.id === 'highmere' ? person(r, 48, 62, 'm') : person(r, 35, 64, t[1]);
         L.heir = person(r, 8, 30); L.title = t[0];
         R.lords[p.id] = L; p.leader = this.lordName(p.id);
       }
       return R;
     };
     K.lordName = function (id) {
-      const L = this.rulers.lords[id], p = this.place(id); if (!L) return p.leader;
+      const L = this.rulers.lords[id], p = this.place(id);
+      if (p && p.kind === 'capital' && this.rulers.crown) return `${crownTitle(this.rulers.crown)}${L ? `, with ${L.name} as Lord Mayor` : ''}`;
+      if (!L) return p.leader;
       return L.title === 'Lord' ? `${L.sex === 'f' ? 'Lady' : 'Lord'} ${L.name} of ${p.name}` : `${L.name}, ${L.title.replace(/^the /, '')} of ${p.name}`;
     };
     K.crownTitle = function () { return crownTitle(this.rulersInit().crown); };

@@ -1,16 +1,18 @@
-// The island of Eldoria. About five thousand souls in thirty-three settlements, from the walled
-// capital of Aurelia on the River Aure, where King Aldric IV and Queen Elinora hold court in the
-// royal castle, down to Oldbridge, fifteen people and a broken bridge. Four castles keep the island:
-// the royal castle at Aurelia, Highmere in the northern peaks, Eastmarch on the east coast and
-// Westcliff above the western sea. Five great tracts of wild country — the Eldorian Peaks, the
-// Frostwood, the King's Forest, Blackpine and the Greenwood — lie between the farms, crossed by six
-// named roads and a web of lesser paths. Ruins of older times stand in the wild places.
+// The island of Eldoria. Over a hundred settlements, from the walled capital of Aurelia on the River
+// Aure, where the king and queen hold court in the royal castle, down to hamlets of a dozen souls
+// under a headman. Four castles keep the island: the royal castle at Aurelia, Highmere in the
+// northern peaks, Eastmarch on the east coast and Westcliff above the western sea. Great tracts of
+// wild country — the Eldorian Peaks, the Frostwood, the King's Forest, Blackpine, the Greenwood, the
+// Thornwood, the Barrow Downs, the Grey Hills and the Salt Fens — lie between the farms, crossed by
+// named roads and a web of lanes and tracks. Ruins of older times stand in the wild places.
+// Every settlement has a government, great or small, and someone in charge of it.
 //
-// Map units: the island fits a 128 x 96 grid. `terrainAt(x, y)` says what the land is anywhere on
-// it, so the realm map and the countryside you walk through between towns agree.
+// Map units: the island fits a 256 x 192 grid (the geography below is laid out on a 128 x 96 sketch
+// and scaled up). `terrainAt(x, y)` says what the land is anywhere on it, so the realm map and the
+// countryside you walk through between towns agree.
 'use strict';
 (function () {
-  const W = 128, H = 96;
+  const SC = 2, W = 128 * SC, H = 96 * SC;
 
   // regions: wild country with a centre and a size
   const REGIONS = [
@@ -19,6 +21,10 @@
     { id: 'blackpine', name: 'Blackpine', kind: 'forest', x: 22, y: 38, rx: 10, ry: 13, dark: true },
     { id: 'kingsforest', name: "the King's Forest", kind: 'forest', x: 90, y: 30, rx: 12, ry: 8 },
     { id: 'greenwood', name: 'the Greenwood', kind: 'forest', x: 58, y: 80, rx: 15, ry: 7 },
+    { id: 'thornwood', name: 'the Thornwood', kind: 'forest', x: 110, y: 18, rx: 7, ry: 6 },
+    { id: 'barrowdowns', name: 'the Barrow Downs', kind: 'moor', x: 96, y: 78, rx: 9, ry: 6 },
+    { id: 'greyhills', name: 'the Grey Hills', kind: 'mountain', x: 34, y: 78, rx: 6, ry: 4 },
+    { id: 'saltfens', name: 'the Salt Fens', kind: 'marsh', x: 20, y: 64, rx: 8, ry: 5 },
   ];
   const LAKES = [
     { id: 'eldor', name: 'Lake Eldor', x: 57, y: 46, rx: 5.5, ry: 3.6 },
@@ -129,8 +135,10 @@
     if (riverAt(x, y)) return 'river';
     const g = regionAt(x, y);
     if (g) {
-      if (g.r.kind === 'mountain') return g.depth > 0.55 ? 'peak' : 'mountain';
+      if (g.r.kind === 'mountain') return g.depth > 0.55 && g.r.rx > 10 ? 'peak' : 'mountain';
       if (g.r.kind === 'forest') return 'forest';
+      if (g.r.kind === 'moor') return 'moor';
+      if (g.r.kind === 'marsh') return 'marsh';
     }
     if (y < 22 && x > 74) return 'moor';
     const blob = (cx, cy, rx, ry, seed) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 < 1 + (nz(x / 5, y / 5, seed) - 0.5) * 1.2;
@@ -140,13 +148,84 @@
   }
   function regionName(x, y) { const g = regionAt(x, y); if (g) return g.r.name; const t = terrainAt(x, y); return t === 'farm' ? 'the farmlands' : t === 'moor' ? 'the moors' : t === 'marsh' ? 'the marshes' : 'open country'; }
 
+  // ---------- the settlements ----------
+  const TITLE = { capital: 'the Crown', town: 'the Mayor', port: 'the Port-reeve', village: 'the Reeve', hamlet: 'the Headman', mine: 'the Mine-master', castle: 'Lord' };
+  const GOV = {
+    capital: ['the Royal Council', 9, 14], town: ['the Town Council', 6, 12], port: ['the Harbour Council', 5, 9], village: ['the Parish Council', 3, 5],
+    hamlet: ["the Headman's household", 1, 3], mine: ['the Mine Court', 2, 4], castle: ["the Lord's household", 3, 6],
+  };
+  const PRE = ['Ash', 'Bram', 'Brook', 'Cold', 'Dun', 'Elder', 'Glen', 'Hart', 'Holly', 'Lang', 'Lin', 'Nor', 'Oak', 'Pen', 'Rook', 'Stan', 'Wal', 'Whit', 'Wych', 'Yar', 'Bar', 'Cran', 'Ded', 'Hal', 'Kel', 'Mor', 'Sax', 'Tad', 'Hay', 'Bur', 'Cal', 'Ever', 'Gold', 'Har', 'Ive', 'Lock', 'Mar', 'Nether', 'Ock', 'Pud', 'Quen', 'Rad', 'Shep', 'Thorn', 'Ul', 'Wen', 'Wood', 'Blythe', 'Sel', 'Ted', 'Wick', 'Alder', 'Brac', 'Ember', 'Fen', 'Gar', 'Hen', 'Ivy', 'Kirk', 'Lea', 'Mead'];
+  const SUF = ['ton', 'by', 'ford', 'wick', 'ham', 'stead', 'field', 'ley', 'combe', 'thorpe', 'bury', 'dale', 'well', 'holme', 'gate', 'hurst', 'worth', 'cott', 'mere', 'den', 'brook', 'stow', 'ing', 'wold', 'bridge', 'cross', 'hithe'];
+  const scaled = (x, y) => [x * SC, y * SC];
+  let PLACES = null, EXTRA_ROADS = null;
+  function build() {
+    if (PLACES) return;
+    const r = O.RNG(91357);
+    const used = new Set(S.map((s) => s[1].replace(' Castle', '')));
+    PLACES = S.map(([id, name, kind, x, y, pop, region, area, title, produces]) => { const [X, Y] = scaled(x, y); return { id, name, kind, x: X, y: Y, pop, region, area, title, produces }; });
+    // the countryside fills up with hamlets, villages and the odd market town
+    const free = (x, y, d) => PLACES.every((p) => Math.hypot(p.x - x, p.y - y) >= d);
+    let tries = 0;
+    while (PLACES.length < 116 && tries++ < 20000) {
+      const x = r.float(14, W - 14), y = r.float(12, H - 12), t = terrainAt(x / SC, y / SC);
+      if (['sea', 'lake', 'river', 'peak'].includes(t)) continue;
+      if (!free(x, y, t === 'mountain' || t === 'marsh' ? 11 : 8.5)) continue;
+      let name; for (let k = 0; k < 40; k++) { name = r.pick(PRE) + r.pick(SUF); name = name.replace(/(.)\1\1/, '$1$1'); if (!used.has(name)) break; }
+      used.add(name);
+      const coast = t === 'beach';
+      const roll = r.next();
+      const kind = t === 'mountain' && roll < 0.4 ? 'mine' : roll < 0.58 ? 'hamlet' : roll < 0.9 ? 'village' : coast ? 'port' : 'town';
+      const pop = kind === 'hamlet' ? r.int(12, 70) : kind === 'village' ? r.int(80, 280) : kind === 'mine' ? r.int(40, 110) : r.int(320, 720);
+      const region = y < H * 0.34 ? 'north' : x < W * 0.3 ? 'west' : x > W * 0.68 ? 'east' : 'south';
+      const produces = {};
+      if (t === 'farm' || t === 'grass') produces.grain = Math.round(pop / 4);
+      if (t === 'forest') produces.timber = Math.round(pop / 4);
+      if (t === 'moor') produces.wool = Math.round(pop / 4);
+      if (coast || t === 'marsh') produces.fish = Math.round(pop / 5);
+      if (coast) produces.salt = Math.round(pop / 12);
+      if (t === 'mountain' || kind === 'mine') produces.iron = Math.round(pop / 4);
+      if (!Object.keys(produces).length) produces.grain = Math.round(pop / 5);
+      const id = name.toLowerCase().replace(/[^a-z]/g, '');
+      PLACES.push({ id, name, kind, x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, pop, region, area: regionName(x / SC, y / SC), title: TITLE[kind], produces });
+    }
+    // every place has a government, great or small, with someone at its head
+    for (const p of PLACES) {
+      const g = GOV[p.kind] || GOV.village, rr = O.RNG(O.hash('gov', p.id));
+      p.gov = { body: g[0], size: rr.int(g[1], g[2]), title: (p.title || TITLE[p.kind] || 'the Reeve').replace(/^the /, '') };
+      if (p.kind === 'hamlet') p.gov.note = p.gov.size === 1 ? 'The headman does every job himself: constable, tax-gatherer and judge.' : `The headman and ${p.gov.size - 1} helper${p.gov.size > 2 ? 's' : ''} share every job between them.`;
+    }
+    // lanes and tracks join each new place to its nearest neighbours
+    EXTRA_ROADS = [];
+    const linked = new Set(); for (const [a, b] of ROADS) { linked.add(a); linked.add(b); }
+    const has = (a, b) => ROADS.some(([x, y]) => (x === a && y === b) || (x === b && y === a)) || EXTRA_ROADS.some(([x, y]) => (x === a && y === b) || (x === b && y === a));
+    for (const p of PLACES) {
+      if (linked.has(p.id) && S.some((s) => s[0] === p.id)) continue;
+      const near = PLACES.filter((q) => q !== p && (linked.has(q.id))).sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y));
+      const n = near.length > 1 && r.chance(0.35) ? 2 : 1;
+      for (const q of near.slice(0, n)) {
+        if (has(p.id, q.id)) continue;
+        const mx = (p.x + q.x) / 2, my = (p.y + q.y) / 2, t = terrainAt(mx / SC, my / SC);
+        const kind = t === 'forest' ? 'track' : t === 'moor' ? 'moor road' : t === 'marsh' ? 'causeway' : t === 'mountain' ? 'pass' : 'lane';
+        const bridge = [0.25, 0.5, 0.75].some((f) => riverAt((p.x + (q.x - p.x) * f) / SC, (p.y + (q.y - p.y) * f) / SC));
+        const big = (p.kind === 'town' || p.kind === 'port') && (q.kind === 'town' || q.kind === 'port' || q.kind === 'capital');
+        EXTRA_ROADS.push([p.id, q.id, big ? 0.7 : r.float(0.38, 0.6), ['forest', 'moor', 'mountain', 'marsh'].includes(t) ? r.float(0.25, 0.42) : r.float(0.08, 0.2), bridge, big ? `the ${p.name} road` : `the ${p.name} ${kind}`]);
+      }
+      linked.add(p.id);
+    }
+  }
   function places(Sx) {
-    return S.map(([id, name, kind, x, y, pop, region, area, title, produces]) => Sx({ id, name, kind, x, y, pop, region, area, leader: `${title} of ${name.replace(' Castle', '')}`, produces,
+    build();
+    return PLACES.map(({ id, name, kind, x, y, pop, region, area, title, produces, gov }) => Sx({ id, name, kind, x, y, pop, region, area, leader: `${title} of ${name.replace(' Castle', '')}`, produces, gov: Object.assign({}, gov),
       wealth: kind === 'capital' ? 0.85 : kind === 'castle' ? 0.8 : id === 'goldmere' ? 0.75 : kind === 'town' || kind === 'port' ? 0.55 : kind === 'hamlet' ? 0.3 : 0.42,
       guards: kind === 'capital' ? 60 : kind === 'castle' ? 40 : kind === 'town' || kind === 'port' ? 12 : kind === 'village' ? 3 : 1,
-      priority: kind === 'castle' ? 'security' : produces.grain > 60 ? 'food' : 'roads', detailed: id === 'ashford' }));
+      priority: kind === 'castle' ? 'security' : (produces.grain || 0) > 60 ? 'food' : 'roads', detailed: id === 'ashford' }));
   }
-  function roads() { return ROADS.map(([a, b, q, d, br, name]) => ({ a, b, quality: q, danger: d, bridge: br, name, damaged: false })); }
+  function roads() { build(); return [...ROADS, ...EXTRA_ROADS].map(([a, b, q, d, br, name]) => ({ a, b, quality: q, danger: d, bridge: br, name, damaged: false })); }
 
-  O.Eldoria = { W, H, REGIONS, LAKES, RIVERS, RUINS, SETTLEMENTS: S, ROADS, places, roads, terrainAt, landAt, regionAt, regionName, riverAt, lakeAt };
+  // the geography is sketched on a 128 x 96 grid; everything outside works in full map units
+  const sc = (f) => (x, y) => f(x / SC, y / SC);
+  const T0 = terrainAt, R0 = regionAt, RV0 = riverAt, L0 = lakeAt, LA0 = landAt, RN0 = regionName;
+  const big = (o) => Object.assign({}, o, { x: o.x * SC, y: o.y * SC, rx: o.rx && o.rx * SC, ry: o.ry && o.ry * SC });
+  O.Eldoria = { W, H, SC, REGIONS: REGIONS.map(big), LAKES: LAKES.map(big), RIVERS: RIVERS.map((r) => Object.assign({}, r, { pts: r.pts.map(([x, y]) => [x * SC, y * SC]) })), RUINS: RUINS.map(big), SETTLEMENTS: S, ROADS, places, roads,
+    terrainAt: sc(T0), landAt: sc(LA0), regionAt: sc(R0), regionName: sc(RN0), riverAt: sc(RV0), lakeAt: sc(L0) };
 })();

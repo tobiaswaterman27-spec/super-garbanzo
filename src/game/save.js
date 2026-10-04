@@ -12,6 +12,16 @@
 
   function snapshot(game, sim) {
     const w = sim.world;
+    // saved while out on the island: the same spot if it lies in Ashford's stretch of land, else Ashford's east way in
+    let away = null;
+    if (game.world !== sim.world) {
+      const Z = sim.world.zones || {}, east = Z.east ? [Z.east[0] * 16 + 8, Z.east[1] * 16 + 10] : [(sim.world.W - 2) * 16, 30 * 16 + 10];
+      away = east;
+      if (game.world.island && sim.world.island && !game.scene) {
+        const [gx, gy] = O.Island.toGlobal(game.world, game.player.x, game.player.y), [lx, ly] = O.Island.toLocal(sim.world, gx, gy), tx = Math.floor(lx / 16), ty = Math.floor(ly / 16);
+        if (tx > 1 && ty > 1 && tx < sim.world.W - 2 && ty < sim.world.H - 2 && !sim.world.solid[ty * sim.world.W + tx]) away = [Math.round(lx), Math.round(ly)];
+      }
+    }
     const strip = (p) => {
       const o = {};
       for (const [k, v] of Object.entries(p)) {
@@ -47,7 +57,7 @@
         solid: encodeGrid(w.solid),
       },
       player: {
-        x: game.world !== sim.world ? (sim.world.W - 2) * 16 : Math.round(game.scene ? game.scene.b.doorX * 16 + 8 : game.player.x), y: game.world !== sim.world ? 30 * 16 + 10 : Math.round(game.scene ? game.scene.b.doorY * 16 + 10 : game.player.y), dir: game.player.dir,
+        x: away ? away[0] : Math.round(game.scene ? game.scene.b.doorX * 16 + 8 : game.player.x), y: away ? away[1] : Math.round(game.scene ? game.scene.b.doorY * 16 + 10 : game.player.y), dir: game.player.dir,
         mount: game.player.mount ? game.player.mount.id : null,
         ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [] },
       },

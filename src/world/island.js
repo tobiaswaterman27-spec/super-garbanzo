@@ -92,10 +92,12 @@
   // the sea, over a river only where it must, skirting peaks and bog, through woods if it has to.
   const COST = { sea: 400, lake: 400, river: 14, peak: 9, mountain: 3.2, marsh: 2.6, forest: 1.5, moor: 1.2, beach: 1.4, farm: 1, grass: 1 };
   const OUT = { east: [1, 0], west: [-1, 0], north: [0, -1], south: [0, 1] };
-  function route(A, B) {
-    const S = 3, pad = 70, x0 = Math.min(A[0], B[0]) - pad, y0 = Math.min(A[1], B[1]) - pad, gw = Math.ceil((Math.abs(A[0] - B[0]) + 2 * pad) / S) + 1, gh = Math.ceil((Math.abs(A[1] - B[1]) + 2 * pad) / S) + 1;
+  const costCache = new Map(); // what the land costs to cross, shared by every road
+  const drive = (it) => { let r; do r = it.next(); while (!r.done); return r.value; };
+  function* routeGen(A, B) {
+    const S = 4, pad = 56, x0 = Math.floor((Math.min(A[0], B[0]) - pad) / S) * S, y0 = Math.floor((Math.min(A[1], B[1]) - pad) / S) * S, gw = Math.ceil((Math.abs(A[0] - B[0]) + 2 * pad) / S) + 1, gh = Math.ceil((Math.abs(A[1] - B[1]) + 2 * pad) / S) + 1;
     const cost = new Float32Array(gw * gh).fill(-1);
-    const cAt = (i) => { if (cost[i] < 0) { const x = x0 + (i % gw) * S, y = y0 + Math.floor(i / gw) * S; cost[i] = COST[E().terrainAt(x / U, y / U)] || 1; } return cost[i]; };
+    const cAt = (i) => { if (cost[i] < 0) { const x = x0 + (i % gw) * S, y = y0 + Math.floor(i / gw) * S, key = x * 65536 + y; let c = costCache.get(key); if (c === undefined) { c = COST[E().terrainAt(x / U, y / U)] || 1; costCache.set(key, c); } cost[i] = c; } return cost[i]; };
     const idx = (p) => O.clamp(Math.round((p[1] - y0) / S), 0, gh - 1) * gw + O.clamp(Math.round((p[0] - x0) / S), 0, gw - 1);
     const s0 = idx(A), s1 = idx(B), bx = s1 % gw, by = Math.floor(s1 / gw);
     const g = new Float32Array(gw * gh).fill(Infinity), from = new Int32Array(gw * gh).fill(-1), done = new Uint8Array(gw * gh);
@@ -108,6 +110,7 @@
     const N8 = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]];
     let n = 0;
     while (hk.length && n++ < 200000) {
+      if (n % 3000 === 0) yield;
       const i = pop(); if (done[i]) continue; done[i] = 1; if (i === s1) break;
       const x = i % gw, y = Math.floor(i / gw);
       for (const [dx, dy, l] of N8) {
@@ -125,13 +128,17 @@
     for (let k = 0; k < 3; k++) { const o = [line[0]]; for (let i = 0; i < line.length - 1; i++) { const p = line[i], q = line[i + 1]; if (i > 0) o.push([p[0] * 0.75 + q[0] * 0.25, p[1] * 0.75 + q[1] * 0.25]); if (i < line.length - 2) o.push([p[0] * 0.25 + q[0] * 0.75, p[1] * 0.25 + q[1] * 0.75]); } o.push(line[line.length - 1]); line = o; }
     return line;
   }
-  function roadTiles(rd) {
+  const roadTiles = (rd) => drive(roadSteps(rd));
+  function* roadSteps(rd) {
     const key = rd.a + '|' + rd.b; if (roadCache.has(key)) return roadCache.get(key);
-    const A = exitOf(rd.a, rd.b), B = exitOf(rd.b, rd.a);
+    const A = exitOf(rd.a, rd.b); yield;
+    const B = exitOf(rd.b, rd.a); yield;
     // each end first leaves its town straight out of the gate
     const stub = (P) => { const d = OUT[P[2]] || [0, 0]; return [P[0] + d[0] * 8, P[1] + d[1] * 8]; };
     const A1 = stub(A), B1 = stub(B);
-    const line = [[A[0], A[1]], ...route(A1, B1), [B[0], B[1]]];
+    const mid = yield* routeGen(A1, B1);
+    if (roadCache.has(key)) return roadCache.get(key); // found meanwhile by someone in a hurry
+    const line = [[A[0], A[1]], ...mid, [B[0], B[1]]];
     const out = [], seen = new Set();
     let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
     for (let i = 0; i < line.length - 1; i++) {
@@ -179,7 +186,11 @@
       else if (k === 'beach') t = TR.SAND;
       else if (k === 'peak') t = TR.SAND;
       else if (k === 'forest') t = TR.FOREST;
-      else if (k === 'farm') t = O.noise2(gx / 14, gy / 9, 5) > 0.55 ? TR.FIELD : TR.GRASS;
+      else if (k === 'farm') {
+        // farmland is laid out in strips and plots with grass headlands between them
+        const pw = 15, ph = 10, qx = Math.floor(gx / pw), qy = Math.floor(gy / ph), lx = gx - qx * pw, ly = gy - qy * ph, ph2 = hash(qx, qy, 9);
+        if (lx > 0 && ly > 0 && ph2 < 0.62) { t = TR.FIELD; if (ph2 < 0.34 && ly % 2 === 1 && lx < pw - 1 && !inTown(x, y)) { const cab = ph2 < 0.12; props.push({ kind: cab ? 'cabbage' : 'wheat', x: x * T + 8, y: y * T + 15, seed: 1, v: cab ? 1 : 2, solid: false, flat: true, field: cab ? 'cabbage' : 'wheat', country: true }); } }
+      }
       else if (k === 'marsh' && O.noise2(gx / 6, gy / 6, 13) > 0.72) { t = TR.WATER; solid[i] = 1; }
       ter[i] = t;
       if (inTown(x, y) || solid[i]) continue;
@@ -194,14 +205,28 @@
     yield;
     // 2. the roads, and bridges where they cross water
     const roadSet = new Set();
+    const nearLake = (gx, gy) => [[0, 0], [9, 0], [-9, 0], [0, 9], [0, -9]].some(([a, b]) => E().lakeAt((gx + a) / U, (gy + b) / U) || !E().landAt((gx + a) / U, (gy + b) / U));
     for (const rd of data().roads) {
+      // a road can stray at most so far from the line between its two towns
+      const pa = place(rd.a), pb = place(rd.b), SL = 180;
+      if (Math.max(pa.x, pb.x) * U + SL < R.x0 || Math.min(pa.x, pb.x) * U - SL > R.x1 || Math.max(pa.y, pb.y) * U + SL < R.y0 || Math.min(pa.y, pb.y) * U - SL > R.y1) continue;
+      if (!roadCache.has(rd.a + '|' + rd.b)) { yield* roadSteps(rd); yield; } // each road is found once, a step at a time
       const r = roadTiles(rd);
       if (r.x1 < R.x0 || r.x0 > R.x1 || r.y1 < R.y0 || r.y0 > R.y1) continue;
       for (const [gx, gy] of r.tiles) {
         const x = gx - R.x0, y = gy - R.y0; if (x < 0 || y < 0 || x >= W || y >= H || inTown(x, y)) continue;
         const i = y * W + x; roadSet.add(i);
-        ter[i] = ter[i] === TR.WATER ? TR.BRIDGE : TR.ROAD; solid[i] = 0;
+        ter[i] = ter[i] === TR.WATER && kindAt(gx, gy) === 'river' && !nearLake(gx, gy) ? TR.BRIDGE : TR.ROAD; solid[i] = 0; // a bridge over a river; a lake's edge is just filled in
       }
+    }
+    // where the road only clips a bank it runs on made ground; it takes a bridge only out over the water
+    // (a run of bridge with land along one side is only clipping the bank; a crossing has water both sides)
+    const seenB = new Set();
+    for (const i0 of roadSet) if (ter[i0] === TR.BRIDGE && !seenB.has(i0)) {
+      const run = [i0], nbs = new Set(); seenB.add(i0);
+      for (let k = 0; k < run.length; k++) for (const j of [run[k] - 1, run[k] + 1, run[k] - W, run[k] + W]) { if (ter[j] === TR.BRIDGE && roadSet.has(j)) { if (!seenB.has(j)) { seenB.add(j); run.push(j); } } else if (!roadSet.has(j)) nbs.add(j); }
+      let wet = 0, dry = 0; for (const j of nbs) if (ter[j] === TR.WATER) wet++; else dry++;
+      if (dry * 3 >= wet || run.length <= 6) for (const i of run) ter[i] = TR.ROAD;
     }
     if (roadSet.size) {
       // nothing grows on the road

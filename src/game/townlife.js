@@ -1,7 +1,8 @@
 // Three things of the town's life that come to you.
-// Disguises: the tailor sells a dark hooded cloak, a friar's habit, beggar's rags and a merchant's
-// finery. Put one on and you look like someone else: witnesses describe the disguise, not you, and
-// once it's off the watch is looking for a stranger in a hood, not for you.
+// Disguise: the tailor sells a black hood and mask (black clothes and a cloth over the face). In it,
+// nobody knows you: witnesses can only say a masked figure of such a height and build, and once it's
+// off nobody can tie that to you. The watch, if they take you in it, strip it off and keep it (it's
+// sold for the town). Gang members wear the same on their night work.
 // The moneylender lends against your name: borrow at a fifth on top, to be paid within the week;
 // run late and the debt grows a tenth a day, and after three days someone comes to collect.
 // Letters: the people who know you write to you (a master who missed you at work, a landlord owed
@@ -16,7 +17,7 @@
     // ---------------------------------------------------------------- disguises
     function disguised(base, d) {
       const o = Object.assign({}, base.outfit), m = (hex) => (hex ? P.mat(hex, 'cloth') : null);
-      if ('hat' in d) o.hat = d.hat; if (d.hatMat) o.hatMat = m(d.hatMat); if ('cloak' in d) o.cloak = m(d.cloak); if (d.over) o.over = m(d.over); if (d.overLen != null) o.overLen = d.overLen;
+      if ('hat' in d) o.hat = d.hat; if (d.hatMat) o.hatMat = m(d.hatMat); if ('cloak' in d) o.cloak = m(d.cloak); if (d.over) o.over = m(d.over); if (d.overLen != null) o.overLen = d.overLen; if (d.mask) { o.mask = true; o.trim = null; o.apron = null; o.belt = m('#121016'); }
       return Object.assign({}, base, { outfit: o, cacheVer: 0 });
     }
     O.wearDisguise = (k) => {
@@ -25,7 +26,7 @@
       else {
         if (!PS.items.includes(k)) return;
         const base = p._baseA || p.a; p._baseA = base; p.a = disguised(base, G[k].disguise); PS.disguise = k;
-        say(`You put on the ${G[k].name.toLowerCase()}. Nobody would know you.`);
+        say('You pull on the black hood and tie the cloth over your face. Nobody would know you now.');
       }
       p.anim = 'place'; p.ft = 0; setTimeout(() => { if (p.anim === 'place') p.anim = 'idle'; }, 700);
       const s = cur(); for (let i = 0; i < 3; i++) s.tick(1);
@@ -35,6 +36,23 @@
       const p = game.player;
       if (PS.disguise && !PS.items.includes(PS.disguise)) { if (p._baseA) p.a = p._baseA; PS.disguise = null; }
       if (PS.disguise && !p._baseA) { const k = PS.disguise; PS.disguise = null; O.wearDisguise(k); }
+    });
+
+    // masked, you're nobody: what you do isn't laid at your door, and people won't talk to a mask
+    const SP = O.Sim.prototype, _rel = SP.relate, _rem = SP.remember;
+    SP.relate = function (a, b, d) { if (b && b.id === 0 && PS.disguise) return; return _rel.call(this, a, b, d); };
+    SP.remember = function (p, text, kind, str, about) { if (about === 0 && PS.disguise) { text = String(text).replace(/the stranger|the newcomer|a stranger/gi, 'a masked figure'); about = null; } return _rem.call(this, p, text, kind, str, about); };
+    const _open = npcUI.openTalk;
+    npcUI.openTalk = (q) => {
+      if (!PS.disguise || (q.gang && q.gang !== 'player')) return _open(q);
+      const pos = game.scene ? game.scene.personPos(q) : [q.agent.x, q.agent.y]; if (pos) q.agent.dir = O.dirOf(game.player.x - pos[0], game.player.y - pos[1]);
+      q.agent.shockedUntil = (cur().minute || 0) + 1;
+      O.UI.dialog.open({ name: q.first, color: '#6a5a4a', text: ['Who are you? Show your face!', "I don't talk to masked folk. Be off.", 'Keep back! I know what a mask means.', 'Take that off, or go away.'][(q.id + cur().day) % 4], options: [] });
+    };
+    // gang hands go masked and hooded on their night work
+    game.hooks.update.push(() => {
+      const s = cur(); if (!s || game.scene) return; const night = s.hour >= 21 || s.hour < 5;
+      for (const q of s.people) { if (!q.gang || q.gang === 'player' || !q.agent) continue; const want = night && q.agent.inside == null && !q.agent.hidden ? O.Justice.maskedLook(q.app) : q.app; if (q.agent.a !== want) q.agent.a = want; }
     });
 
     // ---------------------------------------------------------------- the moneylender

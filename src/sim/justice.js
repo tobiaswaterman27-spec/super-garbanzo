@@ -16,13 +16,17 @@
   // What can be seen of someone right now.
   function lookOf(a) {
     const o = a.outfit;
-    const mount = O.game && O.game.player && O.game.player.a === a ? O.game.player.mount : null;
-    return { horse: mount ? mount.coat : null, hood: o.hat === 'hood' ? colorOf(o.hatMat) : null, hat: o.hat && o.hat !== 'hood' ? o.hat : null, cloak: o.cloak ? colorOf(o.cloak) : null, tunic: colorOf(o.over), hair: o.hat === 'hood' ? null : hairOf(a.hair), height: a.height > 0.4 ? 'tall' : a.height < -0.4 ? 'short' : 'middling' };
+    const mount = O.game && O.game.player && (O.game.player.a === a || O.game.player._baseA === a) ? O.game.player.mount : null;
+    const height = a.height > 0.4 ? 'tall' : a.height < -0.4 ? 'short' : 'middling', build = a.build > 0.35 ? 'heavy' : a.build < -0.35 ? 'slight' : 'medium';
+    // masked and hooded in black: only the shape of them can be told
+    if (o.mask) return { masked: true, horse: mount ? mount.coat : null, height, build };
+    return { horse: mount ? mount.coat : null, hood: o.hat === 'hood' ? colorOf(o.hatMat) : null, hat: o.hat && o.hat !== 'hood' ? o.hat : null, cloak: o.cloak ? colorOf(o.cloak) : null, tunic: colorOf(o.over), hair: o.hat === 'hood' ? null : hairOf(a.hair), height, build };
   }
   // A witness's memory of that look, degraded by accuracy.
   function remembered(look, acc, rng) {
     const d = {};
     const blur = (c) => (rng.chance(acc) ? c : rng.pick(SIMILAR[c] || COLOR_NAMES));
+    if (look.masked) d.masked = true;
     if (look.horse) d.horse = rng.chance(0.5 + acc * 0.5) ? look.horse : rng.pick(['bay', 'black', 'grey', 'chestnut']);
     if (look.hood) d.hood = blur(look.hood);
     if (look.cloak && rng.chance(0.4 + acc * 0.5)) d.cloak = blur(look.cloak);
@@ -30,10 +34,12 @@
     if (look.hair && rng.chance(0.5 + acc * 0.4)) d.hair = rng.chance(acc) ? look.hair : rng.pick(Object.keys(P.hair));
     if (look.hat) d.hat = look.hat;
     if (rng.chance(acc * 0.8)) d.height = rng.chance(acc + 0.1) ? look.height : rng.pick(['tall', 'short', 'middling']);
+    if (look.build && rng.chance(acc * 0.7)) d.build = rng.chance(acc + 0.1) ? look.build : rng.pick(['heavy', 'slight', 'medium']);
     return d;
   }
   function describe(d) {
     const bits = [];
+    if (d.masked) bits.push('someone masked and hooded in black');
     if (d.horse) bits.push(`riding a ${d.horse} horse`);
     if (d.hood) bits.push(`a ${pretty(d.hood)} hood`);
     if (d.hat) bits.push(`a ${d.hat === 'feather' ? 'feathered cap' : d.hat}`);
@@ -41,21 +47,30 @@
     if (d.tunic) bits.push(`a ${pretty(d.tunic)} tunic`);
     if (d.hair) bits.push(`${pretty(d.hair)} hair`);
     if (d.height) bits.push(d.height === 'middling' ? 'middling height' : d.height);
+    if (d.build) bits.push(`${d.build} build`);
     return bits.join(', ') || 'nobody could say much';
   }
+  // the same person in the black hood and mask
+  const maskCache = new WeakMap();
+  function maskedLook(app) { let m = maskCache.get(app); if (!m) { m = Object.assign({}, app, { outfit: Object.assign({}, app.outfit, { mask: true, hat: 'hood', hatMat: P.mat('#1c1a22', 'cloth'), cloak: P.mat('#1c1a22', 'cloth'), over: P.mat('#24222a', 'cloth'), trim: null, apron: null, item: null }), cacheVer: 0 }); maskCache.set(app, m); } return m; }
   function matchScore(profile, look) {
     if (!profile || !look) return 0;
+    // a masked figure can't be told from an unmasked face, nor a face from a mask
+    if (profile.masked && !look.masked) return 0;
+    if (look.masked && !profile.masked) return 0.15;
     let n = 0, hit = 0;
-    for (const k of ['hood', 'cloak', 'tunic', 'hair', 'hat', 'height', 'horse']) {
+    for (const k of ['hood', 'cloak', 'tunic', 'hair', 'hat', 'height', 'build', 'horse']) {
       if (profile[k] == null) continue;
-      if (k === 'horse' && look.horse == null) continue; // a rider on foot can't be matched by the horse n += k === 'height' ? 0.5 : 1;
-      if (profile[k] === look[k]) hit += k === 'height' ? 0.5 : 1;
+      if (k === 'horse' && look.horse == null) continue; // a rider on foot can't be matched by the horse
+      const w = k === 'height' || k === 'build' ? 0.5 : 1;
+      n += w;
+      if (profile[k] === look[k]) hit += w;
     }
     return n ? hit / n : 0;
   }
   function vote(descs) {
     const prof = {};
-    for (const k of ['hood', 'cloak', 'tunic', 'hair', 'hat', 'height', 'horse']) {
+    for (const k of ['masked', 'hood', 'cloak', 'tunic', 'hair', 'hat', 'height', 'build', 'horse']) {
       const c = {}; for (const d of descs) if (d[k]) c[d[k]] = (c[d[k]] || 0) + 1;
       const best = Object.entries(c).sort((a, b) => b[1] - a[1])[0]; if (best) prof[k] = best[0];
     }
@@ -76,7 +91,7 @@
     // Record a crime with its witnesses. perp: 'player' or a Person.
     S.recordCrime = function (o) {
       const crime = Object.assign({ id: this.crimes.length + 1, day: this.day, minute: Math.floor(this.minute), witnesses: [], reported: false, investigated: false, profile: null, solved: false, severity: 1 }, o);
-      const look = o.perp === 'player' ? lookOf(O.game.player.a) : o.perp ? lookOf(o.perp.app) : null;
+      const look = o.perp === 'player' ? lookOf(O.game.player.a) : o.perp ? lookOf(o.perp.gang ? maskedLook(o.perp.app) : o.perp.app) : null; // gang hands go masked to their work
       // the victim is a witness too, whenever they realise what happened
       const seenList = [...(o.seen || [])];
       if (o.victimPerson && !seenList.includes(o.victimPerson) && o.victimPerson.alive !== false) seenList.push(o.victimPerson);
@@ -182,5 +197,5 @@
     };
   }
 
-  O.Justice = { install, lookOf, describe, matchScore, remembered, vote };
+  O.Justice = { install, lookOf, describe, matchScore, remembered, vote, maskedLook };
 })();

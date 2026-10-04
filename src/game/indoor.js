@@ -115,6 +115,11 @@
           if (meal || k < cells.length) { const c = cells[meal ? (Math.floor(this.t / 6) + q.id) % cells.length : k]; const [ax, ay] = this.anchor(c); x = ax + ((q.id % 2) ? 10 : -10); y = ay + 14; dir = 3; anim = meal ? 'place' : (Math.floor(this.t / 3) % 2 ? 'look' : 'idle'); if (meal) q.agent.carrying = { good: 'bread', qty: 1 }; else q.agent.carrying = null; }
           else { const d = L.items.find((i) => i.kind === 'desk'); if (d) { const [ax, ay] = this.anchor(d), [, ry0] = this.rect(d); x = ax; y = ry0 - 2; dir = 0; anim = 'write'; void ay; } }
         }
+        else if (act === 'court' && this.floor === 0) {
+          // holding court: the monarch on the throne, the consort standing at their side
+          const th = L.items.find((i) => i.kind === 'throne');
+          if (th) { const [ax, ay] = this.anchor(th); if (q.title === 'King' || !here.some((z) => z.title === 'King' && z.activity?.act === 'court')) { seat = th; spot = th; } else { x = ax + 26; y = ay + 6; dir = 0; anim = (Math.floor(this.t / 6) + q.id) % 3 ? 'idle' : 'talk'; } }
+        }
         else if (act === 'work' || (act === 'pickup' && q.job?.biz === b.id)) {
           const role = q.job?.role;
           spot = L.items.find((i) => !used.has(i) && i.work && i.work.includes(role)) || counters.find((i) => !used.has(i));

@@ -8,8 +8,24 @@
 // You may run with more than one gang, but never two in the same town: they'd know.
 'use strict';
 (function () {
-  const RANKS = ['Hanger-on', 'Runner', 'Lifter', 'Housebreaker', 'Enforcer', 'Lieutenant', 'Right hand'];
-  const PAY = [2, 3, 5, 8, 10, 14, 30];
+  // the gang's jobs, from the meanest to the best: each its own work and its own cut
+  const JOBS = [
+    { name: 'Lookout', pay: 2, kinds: ['watch'] },
+    { name: 'Runner', pay: 3, kinds: ['message'] },
+    { name: 'Cutpurse', pay: 4, kinds: ['lift'] },
+    { name: "Fence's boy", pay: 5, kinds: ['fence'] },
+    { name: 'Smuggler', pay: 6, kinds: ['smuggle'] },
+    { name: 'Poacher', pay: 6, kinds: ['poach'] },
+    { name: 'Footpad', pay: 7, kinds: ['rough'] },
+    { name: 'Housebreaker', pay: 9, kinds: ['burgle'] },
+    { name: 'Enforcer', pay: 10, kinds: ['protect', 'rough'] },
+    { name: 'Spy', pay: 11, kinds: ['spy'] },
+    { name: 'Recruiter', pay: 12, kinds: ['recruit'] },
+    { name: 'Lieutenant', pay: 15, kinds: ['manage'] },
+    { name: 'Assassin', pay: 30, kinds: ['kill'] },
+    { name: 'Right hand', pay: 35, kinds: ['kill', 'manage'] },
+  ];
+  const RANKS = JOBS.map((j) => j.name), PAY = JOBS.map((j) => j.pay);
   function setup(game, npcUI) {
     const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k), esc = (t) => O.escape(String(t)), T = 16;
     const mine = () => (PS.gangRanks = PS.gangRanks || []);
@@ -23,6 +39,8 @@
     const prevExtra = npcUI.extraButtons, prevOn = npcUI.onExtra;
     npcUI.extraButtons = (q) => {
       const out = prevExtra ? prevExtra(q) : [], s = cur();
+      const rec = here(s).find((m) => m.task && !m.task.done && m.task.kind === 'recruit' && m.task.target === q.id);
+      if (rec) out.push(['grecruit', `Put in a word for ${rec.name.replace(/^the /, 'the ')}`]);
       if (!q.gang || q.gang === 'player' || !s.gangs) return out;
       const g = s.gang(q.gang); if (!g) return out;
       const m = memberOf(s, g.id);
@@ -31,11 +49,19 @@
         if (!m.task || m.task.done) out.push(['gtask', 'Any work for me?']);
         else if (m.task.kind === 'fence' && Object.keys(PS.stolen || {}).length) out.push(['gfence', 'Hand over what I lifted']);
         out.push(['grank', 'Where do I stand?']);
-        if (m.rank >= 5) out.push(['gmanage', "The night's work"]);
+        if (m.rank >= 11) out.push(['gmanage', "The night's work"]);
       }
       return out;
     };
     npcUI.onExtra = (q, key, render) => {
+      if (key === 'grecruit') {
+        const s = cur(), m = here(s).find((x) => x.task && !x.task.done && x.task.kind === 'recruit' && x.task.target === q.id), g = m && s.gang(m.gid);
+        if (!g) return render('Eh?');
+        const ch = 0.35 + Math.max(0, -(q.attitude || 0)) * 0.5 + ((q.rel.get(0) || {}).affinity || 0) * 0.5 + (s.household(q).money < 30 ? 0.2 : 0);
+        if (s.rng.chance(ch)) { g.members.push({ id: q.id, role: 'recruit', loyalty: 0.5, wage: 3, joined: s.day }); q.gang = g.id; m.task.have = 1; complete(s, g, m); return render(`...All right. Tell them I'm in.`); }
+        m.task.tries = (m.task.tries || 0) + 1; s.relate(q, { id: 0 }, -0.05);
+        return render(m.task.tries >= 2 ? "I said no. Leave me be, or I'll tell the watch." : "Run with a gang? No. I've trouble enough.");
+      }
       if (!['gjoin', 'gtask', 'grank', 'gfence', 'gmanage'].includes(key)) return prevOn && prevOn(q, key, render);
       const s = cur(), g = s.gang(q.gang);
       if (key === 'gjoin') return join(s, g, q, render);
@@ -61,7 +87,7 @@
         say(`${og ? og.name.replace(/^the /, 'The ') : 'Your old gang'} will hear of this. They'll not forget it.`, 'bad');
       }
       mine().push({ place: s.world.placeId, placeName: s.world.name, gid: g.id, name: g.name, rank: 0, done: 0, trust: 0.2, since: s.day, task: null });
-      g.log.push(`Day ${s.day}: the newcomer was taken on as a hanger-on.`);
+      g.log.push(`Day ${s.day}: the newcomer was taken on as a lookout.`);
       s.relate(q, { id: 0 }, 0.1); refresh();
       return render(`All right. You're one of ours now, ${g.name.replace(/^the /, '')}. Start at the bottom: ask me for work.`);
     }
@@ -70,7 +96,8 @@
       for (const [k, t] of Object.entries(trials())) if (k.startsWith(sim.world.placeId + ':') && !t.done) { t.have++; if (t.have >= t.need) { t.done = true; say('Word will get back to the gang that you can lift a purse. Go and ask them again.'); } }
       for (const m of here(sim)) if (m.task && !m.task.done && m.task.kind === 'lift') { m.task.have++; if (m.task.have >= m.task.need) complete(sim, sim.gang(m.gid), m); refresh(); }
     });
-    const need = (m) => 2 + m.rank * 2;
+    O.Bus.on('poach', ({ kind, sim }) => { if (kind !== 'deer') return; for (const m of here(sim)) if (m.task && !m.task.done && m.task.kind === 'poach') { m.task.have = 1; complete(sim, sim.gang(m.gid), m); } });
+    const need = (m) => 2 + Math.floor(m.rank * 1.2);
 
     // ---------------------------------------------------------------- the work
     function give(s, g, m, giver) {
@@ -78,25 +105,29 @@
       const r = s.rng, k = m.rank, houses = s.world.buildings.filter((b) => b.type === 'house' && b.household && b.doorX != null && b.owner?.kind !== 'player');
       const shops = [...s.biz.values()].filter((z) => !z.def.public && z.b && z.b.doorX != null && !z.ownerPlayer);
       const people = s.people.filter((q) => !q.visitor && q.age >= 18 && q.alive !== false && q.gang !== g.id && !q.royal);
-      const pool = [];
-      if (k <= 1) {
-        const h = r.pick(houses); if (h) pool.push({ kind: 'message', b: h.id, at: door(h), text: `Carry word to the ${s.households[h.household - 1]?.surname || ''} house`, ask: `Take this word to the ${s.households[h.household - 1]?.surname} house by the ${s.where ? s.where({ x: h.doorX * T, y: h.doorY * T }) : 'lane'}. Say it at the door, nowhere else.`, label: 'Pass the word at the door' });
-        const sp = r.pick(shops); if (sp) pool.push({ kind: 'watch', b: sp.id, at: [sp.b.doorX * T + 8 + 24, sp.b.doorY * T + 26], text: `Keep watch by ${sp.name} after dark`, ask: `Stand by ${sp.name} tonight and keep your eyes open. An hour after dark. Tell me who comes and goes.`, label: 'Keep watch for an hour', night: true });
+      const pool = [], want = JOBS[k].kinds, den = s.world.buildings.find((b) => b.id === g.hideout);
+      for (const kind of want) {
+        if (kind === 'message') { const h = r.pick(houses); if (h) pool.push({ kind, b: h.id, at: door(h), text: `Carry word to the ${s.households[h.household - 1]?.surname || ''} house`, ask: `Take this word to the ${s.households[h.household - 1]?.surname} house. Say it at the door, nowhere else.`, label: 'Pass the word at the door' }); }
+        if (kind === 'watch') { const sp = r.pick(shops); if (sp) pool.push({ kind, b: sp.id, at: [sp.b.doorX * T + 8 + 24, sp.b.doorY * T + 26], text: `Keep watch by ${sp.name} after dark`, ask: `Stand by ${sp.name} tonight and keep your eyes open. An hour after dark. Tell me who comes and goes.`, label: 'Keep watch for an hour', night: true }); }
+        if (kind === 'fence') pool.push({ kind, text: 'Bring the gang something lifted', ask: "Bring me something you've lifted, anything, and I'll fence it. You keep half." });
+        if (kind === 'lift') pool.push({ kind, need: 2, text: 'Lift two purses in the crowd', ask: "Two purses. Market, tavern, wherever the crowd is thick. Don't get caught." });
+        if (kind === 'smuggle') { const h = r.pick(houses); if (h) pool.push({ kind, b: h.id, at: door(h), text: `Carry a crate to the ${s.households[h.household - 1]?.surname} house after dark`, ask: `There's a crate wants moving, quiet like, to the ${s.households[h.household - 1]?.surname} house. After dark. Don't open it.`, label: 'Leave the crate at the door', night: true, carry: true }); }
+        if (kind === 'poach') pool.push({ kind, text: "Bring down one of the lord's deer", ask: "The lord's deer, in the woods. One will do. Mind the gamekeeper." });
+        if (kind === 'rough') { const d = r.pick(people.filter((q) => q.job)); if (d) pool.push({ kind, target: d.id, text: `Rough up ${d.name}`, ask: `${d.name} owes and won't pay. Put them on the ground. Don't kill them: dead men pay nothing.` }); }
+        if (kind === 'burgle') { const h = r.pick(houses.filter((b) => (b.wealth || 0.4) > 0.35)) || r.pick(houses); if (h) pool.push({ kind, b: h.id, text: `Take something from the ${s.households[h.household - 1]?.surname} house`, ask: `The ${s.households[h.household - 1]?.surname} house. They keep more than they show. Get in at night, take what you can carry, get out.` }); }
+        if (kind === 'protect') { const sp = r.pick(shops); if (sp) pool.push({ kind, b: sp.id, at: [sp.b.doorX * T + 8, sp.b.doorY * T + 10], text: `Collect our due from ${sp.name}`, ask: `${sp.name} owes us for keeping it safe. ₳${PAY[8] * 2}. Make sure they understand.`, label: `Lean on ${sp.name} for the gang's due` }); }
+        if (kind === 'spy') { const rv = s.gangs.find((x) => x.id !== g.id && x.id !== 'player'), rb = rv && s.world.buildings.find((b) => b.id === rv.hideout); if (rb) pool.push({ kind, b: rb.id, at: [rb.doorX * T + 8 + 40, (rb.doorY + 2) * T], text: `Watch ${rv.name}' den after dark`, ask: `${rv.name.replace(/^the /, 'The ')} are up to something. Lie up near their den tonight and count who comes and goes.`, label: 'Lie up and watch the den', night: true });
+          else { const wh = s.world.buildings.find((b) => b.type === 'guard' && b.doorX != null); if (wh) pool.push({ kind, b: wh.id, at: [wh.doorX * T + 8 + 30, (wh.doorY + 2) * T], text: 'Watch the watch house after dark', ask: 'I want to know when the watch change over, and how many go out at night. Watch the watch house tonight.', label: 'Watch the watch house', night: true }); } }
+        if (kind === 'recruit') { const free = s.people.filter((q) => !q.visitor && !q.gang && q.age >= 17 && q.age < 45 && q.alive !== false && !q.job?.role?.startsWith('guard') && !q.gentry), t = r.pick(free.filter((q) => !q.job)) || r.pick(free); if (t) pool.push({ kind, target: t.id, text: `Bring ${t.name} into the gang`, ask: t.job ? `${t.name} is sick of their master. Talk them round: we pay better.` : `${t.name} has no work and an empty belly. Talk them round. We could use the hands.` }); }
+        if (kind === 'manage') pool.push({ kind, text: "Send the lads out on tonight's job", ask: "You run the night's work now. Pick a house, pick the hands, and keep the purse straight." });
+        if (kind === 'kill') {
+          const rivals = s.gangs.filter((x) => x.id !== g.id && x.id !== 'player').map((x) => s.byId.get(x.leader)).filter((q) => q && q.alive !== false);
+          const witness = people.find((q) => q.memories && q.memories.some((mm) => mm.kind === 'crime' && /gang|den/.test(mm.text)));
+          const t = r.pick(rivals) || witness || r.pick(people);
+          if (t) pool.push({ kind, target: t.id, text: `Settle ${t.name} for good`, ask: `${t.name}. ${t.gang ? 'Their lot have had this coming.' : 'They saw too much and talk too much.'} I don't want to hear their name again. Nobody sees you do it.` });
+        }
       }
-      if (k === 1) pool.push({ kind: 'fence', text: 'Bring the gang something lifted', ask: "Bring me something you've lifted, anything, and I'll fence it. You keep half.", need: 1 });
-      if (k === 2) pool.push({ kind: 'lift', need: 2, text: 'Lift two purses in the crowd', ask: 'Two purses. Market, tavern, wherever the crowd is thick. Don\'t get caught.' });
-      if (k === 3) { const h = r.pick(houses.filter((b) => (b.wealth || 0.4) > 0.35)) || r.pick(houses); if (h) pool.push({ kind: 'burgle', b: h.id, text: `Take something from the ${s.households[h.household - 1]?.surname} house`, ask: `The ${s.households[h.household - 1]?.surname} house. They keep more than they show. Get in at night, take what you can carry, get out.` }); }
-      if (k === 4) {
-        const sp = r.pick(shops); if (sp) pool.push({ kind: 'protect', b: sp.id, at: [sp.b.doorX * T + 8, sp.b.doorY * T + 10], text: `Collect our due from ${sp.name}`, ask: `${sp.name} owes us for keeping it safe. ₳${PAY[k] * 2}. Make sure they understand.`, label: `Lean on ${sp.name} for the gang's due` });
-        const d = r.pick(people.filter((q) => q.job)); if (d) pool.push({ kind: 'rough', target: d.id, text: `Rough up ${d.name}`, ask: `${d.name} owes and won't pay. Put them on the ground. Don't kill them: dead men pay nothing.` });
-      }
-      if (k === 5) pool.push({ kind: 'manage', text: "Send the lads out on tonight's job", ask: "You run the night's work now. Pick a house, pick the hands, and keep the purse straight.", need: 1 });
-      if (k >= 6) {
-        const rivals = s.gangs.filter((x) => x.id !== g.id && x.id !== 'player').map((x) => s.byId.get(x.leader)).filter((q) => q && q.alive !== false);
-        const witness = people.find((q) => q.memories && q.memories.some((mm) => mm.kind === 'crime' && /gang|den/.test(mm.text)));
-        const t = r.pick(rivals) || witness || r.pick(people);
-        if (t) pool.push({ kind: 'kill', target: t.id, text: `Settle ${t.name} for good`, ask: `${t.name}. ${t.gang ? 'Their lot have had this coming.' : 'They saw too much and talk too much.'} I don't want to hear their name again. Nobody sees you do it.` });
-      }
+      void den;
       const t = pool.length ? r.pick(pool) : null; if (!t) return null;
       m.task = Object.assign({ id: Math.random().toString(36).slice(2, 7), need: 1, have: 0, done: false, day: s.day, giver: giver && giver.id }, t);
       return m.task;
@@ -134,11 +165,13 @@
       const s = cur(), m = c.m, t = m.task, g = gangOf(s, m), p = game.player;
       if (t.night && !(s.hour >= 20 || s.hour < 4)) return say('Not in daylight. After dark.');
       if (t.kind === 'message') { p.anim = 'talk'; p.locked = true; setTimeout(() => { p.locked = false; p.anim = 'idle'; t.have = 1; complete(s, g, m); }, 1500); say('You knock, and say what you were told to say. The door shuts.'); return; }
+      if (t.kind === 'smuggle') { p.anim = 'place'; p.locked = true; setTimeout(() => { p.locked = false; p.anim = 'idle'; t.have = 1; complete(s, g, m); say('You set the crate down by the door and walk away without looking back.'); }, 1300); return; }
+      if (t.kind === 'spy') { p.anim = 'crouch'; p.locked = true; let k2 = 0; const step2 = () => { for (let i = 0; i < 6; i++) s.tick(2); if (++k2 < 5) setTimeout(step2, 250); else { p.locked = false; p.anim = 'idle'; t.have = 1; complete(s, g, m); say(`An hour in the bracken. You count them in and out.`); } }; step2(); return; }
       if (t.kind === 'watch') { p.anim = 'look'; p.locked = true; let k = 0; const step = () => { for (let i = 0; i < 6; i++) s.tick(2); if (++k < 5) setTimeout(step, 250); else { p.locked = false; p.anim = 'idle'; t.have = 1; complete(s, g, m); say('An hour goes by. You saw who came and went.'); } }; step(); return; }
       if (t.kind === 'protect') {
         const bz = s.biz.get(t.b), keeper = bz && bz.workers.map((id) => s.byId.get(id)).find((q) => q && q.alive !== false) || null;
         p.anim = 'point'; setTimeout(() => { if (p.anim === 'point') p.anim = 'idle'; }, 900);
-        const due = PAY[4] * 2, scared = s.rng.chance(0.65 + (PS.rep.criminal || 0) * 0.3);
+        const due = PAY[8] * 2, scared = s.rng.chance(0.65 + (PS.rep.criminal || 0) * 0.3);
         if (bz && scared && bz.cash >= due) { bz.cash -= due; if (g) g.purse += due; t.have = 1; if (keeper) { keeper.agent.shockedUntil = s.minute + 2; s.relate(keeper, { id: 0 }, -0.3); O.Speech.say(keeper, 'All right, all right. Take it.', 2.5); } complete(s, g, m); say(`${keeper ? keeper.first : 'The keeper'} counts out ₳${due} with shaking hands. It goes in the gang's purse.`); }
         else { if (keeper) { O.Speech.say(keeper, "I'll not pay. Get out, or I'll call the watch!", 3, 'angry'); s.relate(keeper, { id: 0 }, -0.4); } say("They won't pay. Make them, another way, or come back.", 'bad'); const c2 = s.recordCrime && s.recordCrime({ kind: 'extortion', perp: 'player', placeName: bz ? bz.name : s.world.name, tile: [Math.floor(p.x / T), Math.floor(p.y / T)], seen: keeper ? [keeper] : [], severity: 1 }); if (c2) PS.crimes.push(c2.id); }
       }
@@ -207,7 +240,7 @@
       if (indoor) return; const s = cur(), bob = Math.round(Math.sin(game.t * 4) * 2);
       for (const m of here(s)) { const t = m.task; if (!t || t.done || !t.at) continue; const x = Math.round(t.at[0] - cam.x), y = Math.round(t.at[1] - 40 - cam.y) + bob; ctx.fillStyle = '#1b1424'; ctx.fillRect(x - 3, y - 1, 7, 5); ctx.fillRect(x - 1, y + 4, 3, 2); ctx.fillStyle = '#c04a3a'; ctx.fillRect(x - 2, y, 5, 3); ctx.fillRect(x, y + 3, 1, 2); }
     });
-    O.GangLife = { RANKS, mine, give, complete };
+    O.GangLife = { RANKS, JOBS, mine, give, complete };
   }
   O.GangLifeSetup = { setup };
 })();

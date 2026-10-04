@@ -742,6 +742,16 @@
       else if ((x + (a.variant % 3)) % 3 === 0 && (y + a.variant) % 2 === 0) B.tweak(x, y, x < H.cx ? 1 : -1);
     }
     drawFace(S, H);
+    // a black cloth tied over the face below the eyes (the outlaw's mask)
+    if (a.outfit.mask && !S.V.back) {
+      const mk = P.mat('#1c1a22', 'cloth'), eyeLine = H.cy + H.ry * 0.12;
+      for (let y = Math.ceil(eyeLine); y <= H.cy + H.ry + 2; y++) for (let x = Math.floor(H.cx - H.e - 2); x <= H.cx + H.e + 2; x++) {
+        const c = B.get(x, y); if (c == null || c < 0) continue;
+        const dx = (x - H.cx) / (H.e + 1.5), dy = (y - H.cy) / (H.ry + 1.5); if (dx * dx + dy * dy > 1.05) continue;
+        B.plot(x, y, mk, x < H.cx - H.e * 0.4 ? 1 : x > H.cx + H.e * 0.4 ? 3 : 2);
+      }
+      for (let x = Math.floor(H.cx - H.e); x <= H.cx + H.e; x++) { const y = Math.ceil(eyeLine); const c = B.get(x, y); if (c != null && c >= 0) B.plot(x, y, mk, 4); } // the knot's edge catches the light
+    }
     // bun on top / back
     if (st === 'bun' && !hatCovers) { const q = headPt(S, H, 0, -0.75, -0.55); B.part(G.HAIR); B.blob(q[0], q[1], 2.3, 2.1, a.hair, { power: 2 }); B.tweak(q[0], q[1], -1); }
     // ponytail / braid hanging behind

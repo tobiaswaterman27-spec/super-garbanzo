@@ -55,11 +55,8 @@
     parchment: { name: 'Parchment', base: 4, unit: 'sheet', slots: 1 },
     ink: { name: 'Ink', base: 3, unit: 'pot', slots: 1 },
     letter: { name: 'Letter', base: 2, unit: 'letter', slots: 1 },
-    // disguises, from the tailor: worn, they change how witnesses describe you
-    disguise_cloak: { name: 'Dark hooded cloak', base: 30, unit: 'garment', slots: 2, disguise: { hat: 'hood', hatMat: '#2e2e36', cloak: '#2e2e36', over: '#3e3830' } },
-    disguise_habit: { name: "Friar's habit", base: 26, unit: 'garment', slots: 2, disguise: { hat: 'hood', hatMat: '#6a5a44', cloak: null, over: '#6a5a44', overLen: 3 } },
-    disguise_rags: { name: "Beggar's rags", base: 8, unit: 'garment', slots: 2, disguise: { hat: 'hood', hatMat: '#7a7060', cloak: null, over: '#8a8070' } },
-    disguise_finery: { name: "Merchant's finery", base: 60, unit: 'garment', slots: 2, disguise: { hat: 'feather', hatMat: '#2a3a6a', cloak: '#5a2a5a', over: '#2a3a6a' } },
+    // the one disguise, from the tailor: black hood, black clothes and a black cloth over the face
+    disguise: { name: 'Black hood and mask', base: 30, unit: 'garment', slots: 2, disguise: { hat: 'hood', hatMat: '#1c1a22', cloak: '#1c1a22', over: '#24222a', mask: true } },
     letter_in: { name: 'Letter (to you)', base: 0, unit: 'letter', slots: 1 },
     soap: { name: 'Soap', base: 2, unit: 'cake', slots: 1 },
     // made things

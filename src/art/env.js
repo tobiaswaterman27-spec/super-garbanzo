@@ -124,11 +124,25 @@
           for (let y = wy + 1; y < wy + 17; y++) { B.shadeAt(sx - 1, y, 1); B.shadeAt(sx + 2, y, 3); }
           continue;
         }
+        if (castle) { // a castle has narrow arched lights in deep stone reveals, not cottage windows with shutters
+          const dk = P.mat('#1a1620', 'cloth'), gl = P.mat('#3a4a62', 'glass'), lw = 6, lx = cxw - 3, ly = wy + 1, lh = 15;
+          for (let y = ly - 1; y <= ly + lh; y++) for (let x = lx - 1; x <= lx + lw; x++) { const ty = y - ly, arch = ty < 3 && Math.abs(x + 0.5 - (lx + lw / 2)) > ty + 1.5; if (!arch) B.shadeAt(x, y, 4); }
+          for (let y = ly; y < ly + lh; y++) for (let x = lx; x < lx + lw; x++) { const ty = y - ly; if (ty < 3 && Math.abs(x + 0.5 - (lx + lw / 2)) > ty + 0.5) continue; B.plot(x, y, x === lx || ty < 2 ? dk : gl, x === lx + 1 ? 3 : 1); }
+          for (let x = lx - 1; x <= lx + lw; x++) B.plot(x, ly + lh, wallMat, 4); // the sill
+          meta.windows.push({ x: lx, y: ly + 2, w: lw, h: lh - 3 });
+          continue;
+        }
         drawWindow(B, wx, wy, ww, wh, shutterM, wealth, rng, spec.shopWindow && f === 0);
         meta.windows.push({ x: wx + 1, y: wy + 1, w: ww - 2, h: wh - 2 });
       }
     }
 
+    // a castle's walls: a sloping battered base and machicolations under the parapet
+    if (castle) {
+      for (let y = H - 9; y < H - 2; y++) for (let x = x0; x <= x1; x++) if (B.matAt(x, y) === wallMat) B.shadeAt(x, y, y === H - 9 ? 4 : (x + y) % 5 === 0 ? 0 : 1);
+      for (let x = x0; x <= x1; x++) if (B.matAt(x, H - 10) === wallMat) B.shadeAt(x, H - 10, 3);
+      for (let x = x0 + 2; x < x1 - 2; x += 6) for (let y = wallTop + 1; y < wallTop + 5; y++) for (let k = 0; k < 3; k++) if (B.matAt(x + k, y) === wallMat) B.shadeAt(x + k, y, y === wallTop + 4 ? 0 : k === 0 ? 3 : 1);
+    }
     // ---- roof ----
     const roofKind = spec.roof || 'thatch';
     const RM = M[roofKind]();

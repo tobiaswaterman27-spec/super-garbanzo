@@ -102,6 +102,7 @@
       f.dead = true; O.fauna.splice(O.fauna.indexOf(f), 1);
       const s = cur(), g = f.kind === 'deer' ? 'venison' : 'meat';
       s.drop(g, 1, f.x, f.y);
+      O.Bus && O.Bus.emit('poach', { kind: f.kind, sim: s });
       // a lord's game: is a gamekeeper or forester about?
       const keeper = s.people.find((q) => ['gamekeeper', 'forester'].includes(q.job?.role) && !q.agent.hidden && Math.hypot(q.agent.x - f.x, q.agent.y - f.y) < 260);
       if (keeper || (f.kind === 'deer' && s.rng.chance(0.15))) {

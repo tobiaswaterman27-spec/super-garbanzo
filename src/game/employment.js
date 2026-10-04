@@ -22,7 +22,7 @@
     const here = () => { const pl = cur().world.placeId, ps = posts().filter((e) => e.place === pl); return ps.find((e) => e.onShift) || ps[0] || null; };
     const postAt = (s, bz) => posts().find((e) => e.biz === bz.id && e.place === s.world.placeId) || null;
     const bizOf = (e) => { const s = cur(); return e && e.place === s.world.placeId ? s.biz.get(e.biz) : null; };
-    const hoursOf = (e, bz) => { const r = e.role; if (r === 'potboy' || r === 'potgirl') return [17, 21]; if (['night watchman', 'gaoler'].includes(r)) return [20, 30]; if (r.startsWith('guard') || r === 'sergeant') return [6, 18]; return bz ? bz.def.hours : [8, 17]; };
+    const hoursOf = (e, bz) => { const r = e.role || ''; if (r === 'potboy' || r === 'potgirl') return [17, 21]; if (['night watchman', 'gaoler'].includes(r)) return [20, 30]; if (r.startsWith('guard') || r === 'sergeant') return [6, 18]; return bz ? bz.def.hours : [8, 17]; };
     const worksToday = (s, bz) => !(s.weekday === 6 && bz && !['tavern', 'chapel', 'guard', 'hospital', 'palace', 'keep', 'manor', 'posthouse'].includes(bz.type));
     const fmtH = (h) => { h = ((h % 24) + 24) % 24; const hh = Math.floor(h), mm = Math.round((h - hh) * 60); return `${hh % 12 || 12}${mm ? ':' + String(mm).padStart(2, '0') : ''}${hh < 12 ? 'am' : 'pm'}`; };
 

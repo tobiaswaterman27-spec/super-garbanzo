@@ -56,6 +56,17 @@
       if (L.activity?.act === 'council' && !a.path && east && Math.hypot(a.x - (east[0] * T + 8), a.y - (east[1] * T + 10)) < 40) { if (!a.hidden) { a.hidden = true; s.log(`${L.name} has ridden out for the council of the realm.`, 'politics'); } }
       else if (L.activity?.act !== 'council' && a.hidden && a.inside == null && L.ridingOut === false) { a.hidden = false; }
     });
+    // the royal family: the king and queen hold court in the great hall morning and afternoon; royals
+    // don't go to market (the servants do)
+    const _plan2 = SP.plan;
+    SP.plan = function (p) {
+      if (!p.royal) return _plan2.call(this, p);
+      const h = this.hour, home = this.building(p.home);
+      if ((p.title === 'King' || p.title === 'Queen') && home && this.weekday !== 6 && ((h >= 9 && h < 12) || (h >= 14 && h < 16.5))) return { act: 'court', b: home.id };
+      const pl = _plan2.call(this, p);
+      if (pl && ['shop', 'carry-home', 'pickup'].includes(pl.act)) return { act: 'home', b: p.home };
+      return pl;
+    };
     O.Riders = { leaderOf, horseFor };
   }
   O.RidersSetup = { setup };

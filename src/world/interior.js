@@ -58,7 +58,7 @@
       const seen = reach();
       for (const it of items) if (it.access && !touches(it, seen)) return false;
       let open = 0, got = 0; for (let i = 0; i < w * d; i++) if (!grid[i]) { open++; if (seen[i]) got++; }
-      return got >= open * 0.85;
+      return got >= open - 4; // a stray corner tile or two, never a room
     };
     const put = (kind, x, y, o = {}) => {
       if (b.removedFurn && floor === (o._floor ?? floor) && b.removedFurn.includes(floor + ':' + kind + '@' + x + ',' + y)) return null; // taken up by the owner
@@ -228,8 +228,8 @@
         // the servants' floor: a long corridor with rooms either side
         const cy0 = MID - 2, cy1 = MID + 2, rw = Math.floor(w / 6);
         const doors = []; for (let i = 0; i < 6; i++) doors.push(i * rw + Math.floor(rw / 2) - 1);
-        wallRow(cy0, 0, w - 1, doors, 0); wallRow(cy1, 0, w - 1, doors, 0);
-        for (let i = 1; i < 6; i++) { wallCol(i * rw, 0, cy0 - 1, [], 0); wallCol(i * rw, cy1 + 1, d - 1, [], 0); }
+        wallRow(cy0, 0, w - 1, doors, 1); wallRow(cy1, 0, w - 1, doors, 1); // castle walls are stone
+        for (let i = 1; i < 6; i++) { wallCol(i * rw, 0, cy0 - 1, [], 1); wallCol(i * rw, cy1 + 1, d - 1, [], 1); }
         const rooms = []; for (let i = 0; i < 6; i++) { rooms.push([i * rw + (i ? 1 : 0), 0, (i + 1) * rw - 1, cy0 - 1]); rooms.push([i * rw + (i ? 1 : 0), cy1 + 1, i === 5 ? w - 1 : (i + 1) * rw - 1, d - 1]); }
         // the households living here: each family gets a room; the unmarried share by twos and threes
         const hhRes = hhs.filter((h) => h.servants);

@@ -1413,6 +1413,16 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       else if ((x + (a.variant % 3)) % 3 === 0 && (y + a.variant) % 2 === 0) B.tweak(x, y, x < H.cx ? 1 : -1);
     }
     drawFace(S, H);
+    // a black cloth tied over the face below the eyes (the outlaw's mask)
+    if (a.outfit.mask && !S.V.back) {
+      const mk = P.mat('#1c1a22', 'cloth'), eyeLine = H.cy + H.ry * 0.12;
+      for (let y = Math.ceil(eyeLine); y <= H.cy + H.ry + 2; y++) for (let x = Math.floor(H.cx - H.e - 2); x <= H.cx + H.e + 2; x++) {
+        const c = B.get(x, y); if (c == null || c < 0) continue;
+        const dx = (x - H.cx) / (H.e + 1.5), dy = (y - H.cy) / (H.ry + 1.5); if (dx * dx + dy * dy > 1.05) continue;
+        B.plot(x, y, mk, x < H.cx - H.e * 0.4 ? 1 : x > H.cx + H.e * 0.4 ? 3 : 2);
+      }
+      for (let x = Math.floor(H.cx - H.e); x <= H.cx + H.e; x++) { const y = Math.ceil(eyeLine); const c = B.get(x, y); if (c != null && c >= 0) B.plot(x, y, mk, 4); } // the knot's edge catches the light
+    }
     // bun on top / back
     if (st === 'bun' && !hatCovers) { const q = headPt(S, H, 0, -0.75, -0.55); B.part(G.HAIR); B.blob(q[0], q[1], 2.3, 2.1, a.hair, { power: 2 }); B.tweak(q[0], q[1], -1); }
     // ponytail / braid hanging behind
@@ -1877,11 +1887,25 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
           for (let y = wy + 1; y < wy + 17; y++) { B.shadeAt(sx - 1, y, 1); B.shadeAt(sx + 2, y, 3); }
           continue;
         }
+        if (castle) { // a castle has narrow arched lights in deep stone reveals, not cottage windows with shutters
+          const dk = P.mat('#1a1620', 'cloth'), gl = P.mat('#3a4a62', 'glass'), lw = 6, lx = cxw - 3, ly = wy + 1, lh = 15;
+          for (let y = ly - 1; y <= ly + lh; y++) for (let x = lx - 1; x <= lx + lw; x++) { const ty = y - ly, arch = ty < 3 && Math.abs(x + 0.5 - (lx + lw / 2)) > ty + 1.5; if (!arch) B.shadeAt(x, y, 4); }
+          for (let y = ly; y < ly + lh; y++) for (let x = lx; x < lx + lw; x++) { const ty = y - ly; if (ty < 3 && Math.abs(x + 0.5 - (lx + lw / 2)) > ty + 0.5) continue; B.plot(x, y, x === lx || ty < 2 ? dk : gl, x === lx + 1 ? 3 : 1); }
+          for (let x = lx - 1; x <= lx + lw; x++) B.plot(x, ly + lh, wallMat, 4); // the sill
+          meta.windows.push({ x: lx, y: ly + 2, w: lw, h: lh - 3 });
+          continue;
+        }
         drawWindow(B, wx, wy, ww, wh, shutterM, wealth, rng, spec.shopWindow && f === 0);
         meta.windows.push({ x: wx + 1, y: wy + 1, w: ww - 2, h: wh - 2 });
       }
     }
 
+    // a castle's walls: a sloping battered base and machicolations under the parapet
+    if (castle) {
+      for (let y = H - 9; y < H - 2; y++) for (let x = x0; x <= x1; x++) if (B.matAt(x, y) === wallMat) B.shadeAt(x, y, y === H - 9 ? 4 : (x + y) % 5 === 0 ? 0 : 1);
+      for (let x = x0; x <= x1; x++) if (B.matAt(x, H - 10) === wallMat) B.shadeAt(x, H - 10, 3);
+      for (let x = x0 + 2; x < x1 - 2; x += 6) for (let y = wallTop + 1; y < wallTop + 5; y++) for (let k = 0; k < 3; k++) if (B.matAt(x + k, y) === wallMat) B.shadeAt(x + k, y, y === wallTop + 4 ? 0 : k === 0 ? 3 : 1);
+    }
     // ---- roof ----
     const roofKind = spec.roof || 'thatch';
     const RM = M[roofKind]();
@@ -4627,7 +4651,7 @@ O.snowMaskOf = function (src) {
   Object.assign(D.BUSINESS, {
     builder: { label: "Builder's Yard", jobs: [['master builder', 1], ['builder', 2], ['labourer', 1]], hours: [7, 17], recipes: [{ out: { planks: 0.3 }, inp: { logs: 0.25 }, role: 'labourer' }], sells: ['logs', 'stone', 'planks'], buys: { logs: 'woodcutter|import', stone: 'quarry|mine|import', planks: 'sawmill|import' }, targets: { logs: 30, stone: 30, planks: 16 }, wage: { 'master builder': 0, builder: 7, labourer: 6 } },
     weaver: { label: 'Weaver', jobs: [['weaver', 1], ['spinner', 1]], hours: [7, 18], recipes: [{ out: { cloth: 0.3 }, inp: { wool: 0.5 } }], sells: ['cloth'], buys: { wool: 'farmhouse|import' }, targets: { wool: 16, cloth: 12 }, wage: { weaver: 0, spinner: 5 } },
-    tailor: { label: 'Tailor', jobs: [['tailor', 1], ['apprentice', 1]], hours: [8, 18], recipes: [{ out: { clothes: 0.14 }, inp: { cloth: 0.25 } }], sells: ['clothes', 'cloth', 'disguise_cloak', 'disguise_habit', 'disguise_rags', 'disguise_finery'], buys: { cloth: 'weaver|warehouse|import', disguise_cloak: 'import', disguise_habit: 'import', disguise_rags: 'import', disguise_finery: 'import' }, targets: { cloth: 8, clothes: 8, disguise_cloak: 2, disguise_habit: 2, disguise_rags: 2, disguise_finery: 1 }, wage: { tailor: 0, apprentice: 4 } },
+    tailor: { label: 'Tailor', jobs: [['tailor', 1], ['apprentice', 1]], hours: [8, 18], recipes: [{ out: { clothes: 0.14 }, inp: { cloth: 0.25 } }], sells: ['clothes', 'cloth', 'disguise'], buys: { cloth: 'weaver|warehouse|import', disguise: 'import' }, targets: { cloth: 8, clothes: 8, disguise: 2 }, wage: { tailor: 0, apprentice: 4 } },
     cobbler: { label: 'Cobbler', jobs: [['cobbler', 1]], hours: [8, 18], recipes: [{ out: { shoes: 0.25 }, inp: { leather: 0.3 } }], sells: ['shoes'], buys: { leather: 'tanner|import' }, targets: { leather: 8, shoes: 8 }, wage: { cobbler: 0 } },
     chandler: { label: 'Chandler', jobs: [['chandler', 1]], hours: [8, 18], recipes: [{ out: { candles: 3 }, inp: { tallow: 0.5 } }], sells: ['candles'], buys: { tallow: 'butcher|import' }, targets: { tallow: 10, candles: 60 }, wage: { chandler: 0 } },
     tanner: { label: 'Tannery', jobs: [['tanner', 1], ['apprentice', 1]], hours: [6, 16], recipes: [{ out: { leather: 0.35 }, inp: { hide: 0.4 } }], sells: ['leather'], buys: { hide: 'butcher|import' }, targets: { hide: 10, leather: 10 }, wage: { tanner: 0, apprentice: 4 } },
@@ -4733,11 +4757,8 @@ O.snowMaskOf = function (src) {
     parchment: { name: 'Parchment', base: 4, unit: 'sheet', slots: 1 },
     ink: { name: 'Ink', base: 3, unit: 'pot', slots: 1 },
     letter: { name: 'Letter', base: 2, unit: 'letter', slots: 1 },
-    // disguises, from the tailor: worn, they change how witnesses describe you
-    disguise_cloak: { name: 'Dark hooded cloak', base: 30, unit: 'garment', slots: 2, disguise: { hat: 'hood', hatMat: '#2e2e36', cloak: '#2e2e36', over: '#3e3830' } },
-    disguise_habit: { name: "Friar's habit", base: 26, unit: 'garment', slots: 2, disguise: { hat: 'hood', hatMat: '#6a5a44', cloak: null, over: '#6a5a44', overLen: 3 } },
-    disguise_rags: { name: "Beggar's rags", base: 8, unit: 'garment', slots: 2, disguise: { hat: 'hood', hatMat: '#7a7060', cloak: null, over: '#8a8070' } },
-    disguise_finery: { name: "Merchant's finery", base: 60, unit: 'garment', slots: 2, disguise: { hat: 'feather', hatMat: '#2a3a6a', cloak: '#5a2a5a', over: '#2a3a6a' } },
+    // the one disguise, from the tailor: black hood, black clothes and a black cloth over the face
+    disguise: { name: 'Black hood and mask', base: 30, unit: 'garment', slots: 2, disguise: { hat: 'hood', hatMat: '#1c1a22', cloak: '#1c1a22', over: '#24222a', mask: true } },
     letter_in: { name: 'Letter (to you)', base: 0, unit: 'letter', slots: 1 },
     soap: { name: 'Soap', base: 2, unit: 'cake', slots: 1 },
     // made things
@@ -6024,13 +6045,17 @@ O.snowMaskOf = function (src) {
   // What can be seen of someone right now.
   function lookOf(a) {
     const o = a.outfit;
-    const mount = O.game && O.game.player && O.game.player.a === a ? O.game.player.mount : null;
-    return { horse: mount ? mount.coat : null, hood: o.hat === 'hood' ? colorOf(o.hatMat) : null, hat: o.hat && o.hat !== 'hood' ? o.hat : null, cloak: o.cloak ? colorOf(o.cloak) : null, tunic: colorOf(o.over), hair: o.hat === 'hood' ? null : hairOf(a.hair), height: a.height > 0.4 ? 'tall' : a.height < -0.4 ? 'short' : 'middling' };
+    const mount = O.game && O.game.player && (O.game.player.a === a || O.game.player._baseA === a) ? O.game.player.mount : null;
+    const height = a.height > 0.4 ? 'tall' : a.height < -0.4 ? 'short' : 'middling', build = a.build > 0.35 ? 'heavy' : a.build < -0.35 ? 'slight' : 'medium';
+    // masked and hooded in black: only the shape of them can be told
+    if (o.mask) return { masked: true, horse: mount ? mount.coat : null, height, build };
+    return { horse: mount ? mount.coat : null, hood: o.hat === 'hood' ? colorOf(o.hatMat) : null, hat: o.hat && o.hat !== 'hood' ? o.hat : null, cloak: o.cloak ? colorOf(o.cloak) : null, tunic: colorOf(o.over), hair: o.hat === 'hood' ? null : hairOf(a.hair), height, build };
   }
   // A witness's memory of that look, degraded by accuracy.
   function remembered(look, acc, rng) {
     const d = {};
     const blur = (c) => (rng.chance(acc) ? c : rng.pick(SIMILAR[c] || COLOR_NAMES));
+    if (look.masked) d.masked = true;
     if (look.horse) d.horse = rng.chance(0.5 + acc * 0.5) ? look.horse : rng.pick(['bay', 'black', 'grey', 'chestnut']);
     if (look.hood) d.hood = blur(look.hood);
     if (look.cloak && rng.chance(0.4 + acc * 0.5)) d.cloak = blur(look.cloak);
@@ -6038,10 +6063,12 @@ O.snowMaskOf = function (src) {
     if (look.hair && rng.chance(0.5 + acc * 0.4)) d.hair = rng.chance(acc) ? look.hair : rng.pick(Object.keys(P.hair));
     if (look.hat) d.hat = look.hat;
     if (rng.chance(acc * 0.8)) d.height = rng.chance(acc + 0.1) ? look.height : rng.pick(['tall', 'short', 'middling']);
+    if (look.build && rng.chance(acc * 0.7)) d.build = rng.chance(acc + 0.1) ? look.build : rng.pick(['heavy', 'slight', 'medium']);
     return d;
   }
   function describe(d) {
     const bits = [];
+    if (d.masked) bits.push('someone masked and hooded in black');
     if (d.horse) bits.push(`riding a ${d.horse} horse`);
     if (d.hood) bits.push(`a ${pretty(d.hood)} hood`);
     if (d.hat) bits.push(`a ${d.hat === 'feather' ? 'feathered cap' : d.hat}`);
@@ -6049,21 +6076,30 @@ O.snowMaskOf = function (src) {
     if (d.tunic) bits.push(`a ${pretty(d.tunic)} tunic`);
     if (d.hair) bits.push(`${pretty(d.hair)} hair`);
     if (d.height) bits.push(d.height === 'middling' ? 'middling height' : d.height);
+    if (d.build) bits.push(`${d.build} build`);
     return bits.join(', ') || 'nobody could say much';
   }
+  // the same person in the black hood and mask
+  const maskCache = new WeakMap();
+  function maskedLook(app) { let m = maskCache.get(app); if (!m) { m = Object.assign({}, app, { outfit: Object.assign({}, app.outfit, { mask: true, hat: 'hood', hatMat: P.mat('#1c1a22', 'cloth'), cloak: P.mat('#1c1a22', 'cloth'), over: P.mat('#24222a', 'cloth'), trim: null, apron: null, item: null }), cacheVer: 0 }); maskCache.set(app, m); } return m; }
   function matchScore(profile, look) {
     if (!profile || !look) return 0;
+    // a masked figure can't be told from an unmasked face, nor a face from a mask
+    if (profile.masked && !look.masked) return 0;
+    if (look.masked && !profile.masked) return 0.15;
     let n = 0, hit = 0;
-    for (const k of ['hood', 'cloak', 'tunic', 'hair', 'hat', 'height', 'horse']) {
+    for (const k of ['hood', 'cloak', 'tunic', 'hair', 'hat', 'height', 'build', 'horse']) {
       if (profile[k] == null) continue;
-      if (k === 'horse' && look.horse == null) continue; // a rider on foot can't be matched by the horse n += k === 'height' ? 0.5 : 1;
-      if (profile[k] === look[k]) hit += k === 'height' ? 0.5 : 1;
+      if (k === 'horse' && look.horse == null) continue; // a rider on foot can't be matched by the horse
+      const w = k === 'height' || k === 'build' ? 0.5 : 1;
+      n += w;
+      if (profile[k] === look[k]) hit += w;
     }
     return n ? hit / n : 0;
   }
   function vote(descs) {
     const prof = {};
-    for (const k of ['hood', 'cloak', 'tunic', 'hair', 'hat', 'height', 'horse']) {
+    for (const k of ['masked', 'hood', 'cloak', 'tunic', 'hair', 'hat', 'height', 'build', 'horse']) {
       const c = {}; for (const d of descs) if (d[k]) c[d[k]] = (c[d[k]] || 0) + 1;
       const best = Object.entries(c).sort((a, b) => b[1] - a[1])[0]; if (best) prof[k] = best[0];
     }
@@ -6084,7 +6120,7 @@ O.snowMaskOf = function (src) {
     // Record a crime with its witnesses. perp: 'player' or a Person.
     S.recordCrime = function (o) {
       const crime = Object.assign({ id: this.crimes.length + 1, day: this.day, minute: Math.floor(this.minute), witnesses: [], reported: false, investigated: false, profile: null, solved: false, severity: 1 }, o);
-      const look = o.perp === 'player' ? lookOf(O.game.player.a) : o.perp ? lookOf(o.perp.app) : null;
+      const look = o.perp === 'player' ? lookOf(O.game.player.a) : o.perp ? lookOf(o.perp.gang ? maskedLook(o.perp.app) : o.perp.app) : null; // gang hands go masked to their work
       // the victim is a witness too, whenever they realise what happened
       const seenList = [...(o.seen || [])];
       if (o.victimPerson && !seenList.includes(o.victimPerson) && o.victimPerson.alive !== false) seenList.push(o.victimPerson);
@@ -6190,7 +6226,7 @@ O.snowMaskOf = function (src) {
     };
   }
 
-  O.Justice = { install, lookOf, describe, matchScore, remembered, vote };
+  O.Justice = { install, lookOf, describe, matchScore, remembered, vote, maskedLook };
 })();
 
 </script>
@@ -10505,7 +10541,7 @@ O.snowMaskOf = function (src) {
     meal: ['bowl', '#a0603a', '#8a6239'], stew: ['bowl', '#8a7a3a', '#8a6239'], honey: ['pot', '#e8a830', '#a8743a'], milk: ['jug', '#f4f0e8', '#b8744a'], ale: ['mug', '#c8902e', '#7a5634'], wine: ['flask', '#7a1a2a', '#3a5a3a'],
     logs: ['logs', '#7c5a38', '#c8a070'], firewood: ['logs', '#8a6239', '#d0a878'], planks: ['planks', '#b08850', '#8a6239'], bark: ['logs', '#5a4030', '#8a6a4a'], peat: ['brick', '#4a3a2a', '#6a5038'], clay: ['brick', '#a8704a', '#c8906a'], bricks: ['brick', '#a85a3a', '#c87a5a'], stone: ['brick', '#9a968e', '#c8c4bc'],
     iron: ['bar', '#7a7e88', '#a8acb4'], silver: ['bar', '#c8ccd4', '#f0f2f6'], gold: ['nugget', '#e8c040', '#fff0a0'], glass: ['pane', '#a8d0d8', '#e8f8ff'], pitch: ['pot', '#1c1418', '#3a2a20'], potash: ['pot', '#c8c0b0', '#8a7a6a'], ink: ['pot', '#1a1a3a', '#4a3a6a'],
-    wool: ['fleece', '#ece6d8', '#c8c0b0'], cloth: ['bolt', '#8a7a6a', '#6a5a4a'], linen: ['bolt', '#ece4cc', '#c8c0a8'], dyedcloth: ['bolt', '#3a5a9a', '#a83a3a'], clothes: ['tunic', '#6a7a4a', '#4a5a3a'], disguise_cloak: ['tunic', '#2e2e36', '#1a1a20'], disguise_habit: ['tunic', '#6a5a44', '#4a3e2e'], disguise_rags: ['tunic', '#8a8070', '#6a6050'], disguise_finery: ['tunic', '#5a2a5a', '#2a3a6a'], letter_in: ['letter', '#efe6cc', '#a8382f'], shoes: ['shoes', '#5a3a28', '#3a2418'], leather: ['hide', '#8a5a34', '#6a4024'], hide: ['hide', '#b08a6a', '#8a6a4a'],
+    wool: ['fleece', '#ece6d8', '#c8c0b0'], cloth: ['bolt', '#8a7a6a', '#6a5a4a'], linen: ['bolt', '#ece4cc', '#c8c0a8'], dyedcloth: ['bolt', '#3a5a9a', '#a83a3a'], clothes: ['tunic', '#6a7a4a', '#4a5a3a'], disguise: ['tunic', '#24222a', '#121016'], letter_in: ['letter', '#efe6cc', '#a8382f'], shoes: ['shoes', '#5a3a28', '#3a2418'], leather: ['hide', '#8a5a34', '#6a4024'], hide: ['hide', '#b08a6a', '#8a6a4a'],
     rope: ['coil', '#b89a68', '#8a7048'], nets: ['net', '#9a8a6a', '#6a5a4a'], feathers: ['feather', '#f0ece4', '#a8a090'], parchment: ['scroll', '#ece2c8', '#c8b898'], letter: ['letter', '#ece2c8', '#a8382f'], beeswax: ['brick', '#e8c050', '#c8a030'], tallow: ['brick', '#f0e8d0', '#c8c0a0'], soap: ['brick', '#e0e0c8', '#b8b8a0'],
     candles: ['candle', '#f0e8d0', '#e8a030'], lantern: ['lantern', '#c8a040', '#f0d070'], cup: ['cup', '#b8744a', '#8a5432'], jug: ['jug', '#b8744a', '#8a5432'], pot: ['pot', '#a8643a', '#7a4a2a'], bucket: ['bucket', '#8a6239', '#4a4a52'], broom: ['broom', '#8a6239', '#c8a050'],
     tools: ['tool', '#8a6239', '#9aa0aa'], hammer: ['hammer', '#8a6239', '#7a7e88'], spade: ['spade', '#8a6239', '#9aa0aa'], sickle: ['sickle', '#8a6239', '#c8ccd4'], shears: ['shears', '#9aa0aa', '#5a5a62'], nails: ['nails', '#7a7e88', '#a8acb4'], horseshoes: ['horseshoe', '#7a7e88', '#a8acb4'], rod: ['rod', '#6a4a2c', '#d8d0c0'],
@@ -10707,7 +10743,7 @@ O.snowMaskOf = function (src) {
       const seen = reach();
       for (const it of items) if (it.access && !touches(it, seen)) return false;
       let open = 0, got = 0; for (let i = 0; i < w * d; i++) if (!grid[i]) { open++; if (seen[i]) got++; }
-      return got >= open * 0.85;
+      return got >= open - 4; // a stray corner tile or two, never a room
     };
     const put = (kind, x, y, o = {}) => {
       if (b.removedFurn && floor === (o._floor ?? floor) && b.removedFurn.includes(floor + ':' + kind + '@' + x + ',' + y)) return null; // taken up by the owner
@@ -10877,8 +10913,8 @@ O.snowMaskOf = function (src) {
         // the servants' floor: a long corridor with rooms either side
         const cy0 = MID - 2, cy1 = MID + 2, rw = Math.floor(w / 6);
         const doors = []; for (let i = 0; i < 6; i++) doors.push(i * rw + Math.floor(rw / 2) - 1);
-        wallRow(cy0, 0, w - 1, doors, 0); wallRow(cy1, 0, w - 1, doors, 0);
-        for (let i = 1; i < 6; i++) { wallCol(i * rw, 0, cy0 - 1, [], 0); wallCol(i * rw, cy1 + 1, d - 1, [], 0); }
+        wallRow(cy0, 0, w - 1, doors, 1); wallRow(cy1, 0, w - 1, doors, 1); // castle walls are stone
+        for (let i = 1; i < 6; i++) { wallCol(i * rw, 0, cy0 - 1, [], 1); wallCol(i * rw, cy1 + 1, d - 1, [], 1); }
         const rooms = []; for (let i = 0; i < 6; i++) { rooms.push([i * rw + (i ? 1 : 0), 0, (i + 1) * rw - 1, cy0 - 1]); rooms.push([i * rw + (i ? 1 : 0), cy1 + 1, i === 5 ? w - 1 : (i + 1) * rw - 1, d - 1]); }
         // the households living here: each family gets a room; the unmarried share by twos and threes
         const hhRes = hhs.filter((h) => h.servants);
@@ -11510,6 +11546,11 @@ O.snowMaskOf = function (src) {
           const k = (Math.floor(this.t / 9) + q.id) % (cells.length + 1);
           if (meal || k < cells.length) { const c = cells[meal ? (Math.floor(this.t / 6) + q.id) % cells.length : k]; const [ax, ay] = this.anchor(c); x = ax + ((q.id % 2) ? 10 : -10); y = ay + 14; dir = 3; anim = meal ? 'place' : (Math.floor(this.t / 3) % 2 ? 'look' : 'idle'); if (meal) q.agent.carrying = { good: 'bread', qty: 1 }; else q.agent.carrying = null; }
           else { const d = L.items.find((i) => i.kind === 'desk'); if (d) { const [ax, ay] = this.anchor(d), [, ry0] = this.rect(d); x = ax; y = ry0 - 2; dir = 0; anim = 'write'; void ay; } }
+        }
+        else if (act === 'court' && this.floor === 0) {
+          // holding court: the monarch on the throne, the consort standing at their side
+          const th = L.items.find((i) => i.kind === 'throne');
+          if (th) { const [ax, ay] = this.anchor(th); if (q.title === 'King' || !here.some((z) => z.title === 'King' && z.activity?.act === 'court')) { seat = th; spot = th; } else { x = ax + 26; y = ay + 6; dir = 0; anim = (Math.floor(this.t / 6) + q.id) % 3 ? 'idle' : 'talk'; } }
         }
         else if (act === 'work' || (act === 'pickup' && q.job?.biz === b.id)) {
           const role = q.job?.role;
@@ -12541,7 +12582,7 @@ O.snowMaskOf = function (src) {
     function wanted() {
       if (PS.exiled || PS.bounty) return 3;
       const look = J.lookOf(game.player.a);
-      const open = openCrimes(); if (!open.length) return 0;
+      const open = openCrimes().filter((c) => !(c.profile && c.profile.masked && !look.masked)); if (!open.length) return 0; // what you did in the mask can't be pinned on your face
       return open.some((c) => J.matchScore(c.profile, look) >= 0.6) ? 2 : 1;
     }
     PS.wantedLevel = wanted;
@@ -12731,6 +12772,8 @@ O.snowMaskOf = function (src) {
       let found = 0;
       for (const [k, n] of Object.entries(PS.stolen)) { const r = PS.remove(k, n); found += r; }
       PS.stolen = {};
+      // a disguise is stripped off and kept; the town sells it
+      if (PS.items.includes('disguise')) { while (PS.items.includes('disguise')) PS.remove('disguise', 1); PS.disguise = null; if (game.player._baseA) game.player.a = game.player._baseA; sim.treasury.cash += 20; const tl = [...sim.biz.values()].find((z) => z.type === 'tailor' || z.type === 'store'); if (tl) tl.stock.disguise = (tl.stock.disguise || 0) + 1; O.UI.say('The watch drag off your hood and mask. It goes to the town, to be sold.', 'bad'); }
       if (game.scene) game.exitBuilding();
       game.enterBuilding(gh, 0);
       const cell = game.scene.L.items.find((i) => i.cell); if (cell) { const [ax, ay] = game.scene.anchor(cell); game.player.x = ax; game.player.y = ay - 6; }
@@ -16129,6 +16172,7 @@ O.snowMaskOf = function (src) {
     O.readSign = (c) => {
       const w = game.world, b = w.buildings.find((x) => x.id === c.prop.signFor); if (!b) return;
       const lines = linesFor(O.SimRef.cur, b) || [b.name || 'A house'];
+      if (b.royal) { const K = O.SimRef.cur.kingdom, cr = K && K.rulers && K.rulers.crown; O.UI.dialog.open({ name: b.name, color: '#8a6239', text: `${cr && cr.name ? cr.name + ' holds court here. ' : ''}Ground floor: the great hall with the throne, where the monarch sits in the day, the kitchens and the steward's hall. First floor: the servants' quarters. Second floor: the royal apartments, where the royal family live and sleep. Top floor: the chapel, the guest chambers and the treasury.`, options: [] }); return; }
       const nice = (t) => t.toLowerCase().replace(/(^|[\s'-])([a-z])/g, (m, a, ch) => a + ch.toUpperCase());
       O.UI.dialog.open({ name: nice(lines[0]), color: '#8a6239', text: lines.slice(1).map(nice).join('. ') || 'Nothing more is written.', options: [] });
     };
@@ -16676,6 +16720,17 @@ O.snowMaskOf = function (src) {
       if (L.activity?.act === 'council' && !a.path && east && Math.hypot(a.x - (east[0] * T + 8), a.y - (east[1] * T + 10)) < 40) { if (!a.hidden) { a.hidden = true; s.log(`${L.name} has ridden out for the council of the realm.`, 'politics'); } }
       else if (L.activity?.act !== 'council' && a.hidden && a.inside == null && L.ridingOut === false) { a.hidden = false; }
     });
+    // the royal family: the king and queen hold court in the great hall morning and afternoon; royals
+    // don't go to market (the servants do)
+    const _plan2 = SP.plan;
+    SP.plan = function (p) {
+      if (!p.royal) return _plan2.call(this, p);
+      const h = this.hour, home = this.building(p.home);
+      if ((p.title === 'King' || p.title === 'Queen') && home && this.weekday !== 6 && ((h >= 9 && h < 12) || (h >= 14 && h < 16.5))) return { act: 'court', b: home.id };
+      const pl = _plan2.call(this, p);
+      if (pl && ['shop', 'carry-home', 'pickup'].includes(pl.act)) return { act: 'home', b: p.home };
+      return pl;
+    };
     O.Riders = { leaderOf, horseFor };
   }
   O.RidersSetup = { setup };
@@ -16740,7 +16795,7 @@ O.snowMaskOf = function (src) {
     const here = () => { const pl = cur().world.placeId, ps = posts().filter((e) => e.place === pl); return ps.find((e) => e.onShift) || ps[0] || null; };
     const postAt = (s, bz) => posts().find((e) => e.biz === bz.id && e.place === s.world.placeId) || null;
     const bizOf = (e) => { const s = cur(); return e && e.place === s.world.placeId ? s.biz.get(e.biz) : null; };
-    const hoursOf = (e, bz) => { const r = e.role; if (r === 'potboy' || r === 'potgirl') return [17, 21]; if (['night watchman', 'gaoler'].includes(r)) return [20, 30]; if (r.startsWith('guard') || r === 'sergeant') return [6, 18]; return bz ? bz.def.hours : [8, 17]; };
+    const hoursOf = (e, bz) => { const r = e.role || ''; if (r === 'potboy' || r === 'potgirl') return [17, 21]; if (['night watchman', 'gaoler'].includes(r)) return [20, 30]; if (r.startsWith('guard') || r === 'sergeant') return [6, 18]; return bz ? bz.def.hours : [8, 17]; };
     const worksToday = (s, bz) => !(s.weekday === 6 && bz && !['tavern', 'chapel', 'guard', 'hospital', 'palace', 'keep', 'manor', 'posthouse'].includes(bz.type));
     const fmtH = (h) => { h = ((h % 24) + 24) % 24; const hh = Math.floor(h), mm = Math.round((h - hh) * 60); return `${hh % 12 || 12}${mm ? ':' + String(mm).padStart(2, '0') : ''}${hh < 12 ? 'am' : 'pm'}`; };
 
@@ -17453,6 +17508,7 @@ O.snowMaskOf = function (src) {
       f.dead = true; O.fauna.splice(O.fauna.indexOf(f), 1);
       const s = cur(), g = f.kind === 'deer' ? 'venison' : 'meat';
       s.drop(g, 1, f.x, f.y);
+      O.Bus && O.Bus.emit('poach', { kind: f.kind, sim: s });
       // a lord's game: is a gamekeeper or forester about?
       const keeper = s.people.find((q) => ['gamekeeper', 'forester'].includes(q.job?.role) && !q.agent.hidden && Math.hypot(q.agent.x - f.x, q.agent.y - f.y) < 260);
       if (keeper || (f.kind === 'deer' && s.rng.chance(0.15))) {
@@ -17494,8 +17550,24 @@ O.snowMaskOf = function (src) {
 // You may run with more than one gang, but never two in the same town: they'd know.
 'use strict';
 (function () {
-  const RANKS = ['Hanger-on', 'Runner', 'Lifter', 'Housebreaker', 'Enforcer', 'Lieutenant', 'Right hand'];
-  const PAY = [2, 3, 5, 8, 10, 14, 30];
+  // the gang's jobs, from the meanest to the best: each its own work and its own cut
+  const JOBS = [
+    { name: 'Lookout', pay: 2, kinds: ['watch'] },
+    { name: 'Runner', pay: 3, kinds: ['message'] },
+    { name: 'Cutpurse', pay: 4, kinds: ['lift'] },
+    { name: "Fence's boy", pay: 5, kinds: ['fence'] },
+    { name: 'Smuggler', pay: 6, kinds: ['smuggle'] },
+    { name: 'Poacher', pay: 6, kinds: ['poach'] },
+    { name: 'Footpad', pay: 7, kinds: ['rough'] },
+    { name: 'Housebreaker', pay: 9, kinds: ['burgle'] },
+    { name: 'Enforcer', pay: 10, kinds: ['protect', 'rough'] },
+    { name: 'Spy', pay: 11, kinds: ['spy'] },
+    { name: 'Recruiter', pay: 12, kinds: ['recruit'] },
+    { name: 'Lieutenant', pay: 15, kinds: ['manage'] },
+    { name: 'Assassin', pay: 30, kinds: ['kill'] },
+    { name: 'Right hand', pay: 35, kinds: ['kill', 'manage'] },
+  ];
+  const RANKS = JOBS.map((j) => j.name), PAY = JOBS.map((j) => j.pay);
   function setup(game, npcUI) {
     const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k), esc = (t) => O.escape(String(t)), T = 16;
     const mine = () => (PS.gangRanks = PS.gangRanks || []);
@@ -17509,6 +17581,8 @@ O.snowMaskOf = function (src) {
     const prevExtra = npcUI.extraButtons, prevOn = npcUI.onExtra;
     npcUI.extraButtons = (q) => {
       const out = prevExtra ? prevExtra(q) : [], s = cur();
+      const rec = here(s).find((m) => m.task && !m.task.done && m.task.kind === 'recruit' && m.task.target === q.id);
+      if (rec) out.push(['grecruit', `Put in a word for ${rec.name.replace(/^the /, 'the ')}`]);
       if (!q.gang || q.gang === 'player' || !s.gangs) return out;
       const g = s.gang(q.gang); if (!g) return out;
       const m = memberOf(s, g.id);
@@ -17517,11 +17591,19 @@ O.snowMaskOf = function (src) {
         if (!m.task || m.task.done) out.push(['gtask', 'Any work for me?']);
         else if (m.task.kind === 'fence' && Object.keys(PS.stolen || {}).length) out.push(['gfence', 'Hand over what I lifted']);
         out.push(['grank', 'Where do I stand?']);
-        if (m.rank >= 5) out.push(['gmanage', "The night's work"]);
+        if (m.rank >= 11) out.push(['gmanage', "The night's work"]);
       }
       return out;
     };
     npcUI.onExtra = (q, key, render) => {
+      if (key === 'grecruit') {
+        const s = cur(), m = here(s).find((x) => x.task && !x.task.done && x.task.kind === 'recruit' && x.task.target === q.id), g = m && s.gang(m.gid);
+        if (!g) return render('Eh?');
+        const ch = 0.35 + Math.max(0, -(q.attitude || 0)) * 0.5 + ((q.rel.get(0) || {}).affinity || 0) * 0.5 + (s.household(q).money < 30 ? 0.2 : 0);
+        if (s.rng.chance(ch)) { g.members.push({ id: q.id, role: 'recruit', loyalty: 0.5, wage: 3, joined: s.day }); q.gang = g.id; m.task.have = 1; complete(s, g, m); return render(`...All right. Tell them I'm in.`); }
+        m.task.tries = (m.task.tries || 0) + 1; s.relate(q, { id: 0 }, -0.05);
+        return render(m.task.tries >= 2 ? "I said no. Leave me be, or I'll tell the watch." : "Run with a gang? No. I've trouble enough.");
+      }
       if (!['gjoin', 'gtask', 'grank', 'gfence', 'gmanage'].includes(key)) return prevOn && prevOn(q, key, render);
       const s = cur(), g = s.gang(q.gang);
       if (key === 'gjoin') return join(s, g, q, render);
@@ -17547,7 +17629,7 @@ O.snowMaskOf = function (src) {
         say(`${og ? og.name.replace(/^the /, 'The ') : 'Your old gang'} will hear of this. They'll not forget it.`, 'bad');
       }
       mine().push({ place: s.world.placeId, placeName: s.world.name, gid: g.id, name: g.name, rank: 0, done: 0, trust: 0.2, since: s.day, task: null });
-      g.log.push(`Day ${s.day}: the newcomer was taken on as a hanger-on.`);
+      g.log.push(`Day ${s.day}: the newcomer was taken on as a lookout.`);
       s.relate(q, { id: 0 }, 0.1); refresh();
       return render(`All right. You're one of ours now, ${g.name.replace(/^the /, '')}. Start at the bottom: ask me for work.`);
     }
@@ -17556,7 +17638,8 @@ O.snowMaskOf = function (src) {
       for (const [k, t] of Object.entries(trials())) if (k.startsWith(sim.world.placeId + ':') && !t.done) { t.have++; if (t.have >= t.need) { t.done = true; say('Word will get back to the gang that you can lift a purse. Go and ask them again.'); } }
       for (const m of here(sim)) if (m.task && !m.task.done && m.task.kind === 'lift') { m.task.have++; if (m.task.have >= m.task.need) complete(sim, sim.gang(m.gid), m); refresh(); }
     });
-    const need = (m) => 2 + m.rank * 2;
+    O.Bus.on('poach', ({ kind, sim }) => { if (kind !== 'deer') return; for (const m of here(sim)) if (m.task && !m.task.done && m.task.kind === 'poach') { m.task.have = 1; complete(sim, sim.gang(m.gid), m); } });
+    const need = (m) => 2 + Math.floor(m.rank * 1.2);
 
     // ---------------------------------------------------------------- the work
     function give(s, g, m, giver) {
@@ -17564,25 +17647,29 @@ O.snowMaskOf = function (src) {
       const r = s.rng, k = m.rank, houses = s.world.buildings.filter((b) => b.type === 'house' && b.household && b.doorX != null && b.owner?.kind !== 'player');
       const shops = [...s.biz.values()].filter((z) => !z.def.public && z.b && z.b.doorX != null && !z.ownerPlayer);
       const people = s.people.filter((q) => !q.visitor && q.age >= 18 && q.alive !== false && q.gang !== g.id && !q.royal);
-      const pool = [];
-      if (k <= 1) {
-        const h = r.pick(houses); if (h) pool.push({ kind: 'message', b: h.id, at: door(h), text: `Carry word to the ${s.households[h.household - 1]?.surname || ''} house`, ask: `Take this word to the ${s.households[h.household - 1]?.surname} house by the ${s.where ? s.where({ x: h.doorX * T, y: h.doorY * T }) : 'lane'}. Say it at the door, nowhere else.`, label: 'Pass the word at the door' });
-        const sp = r.pick(shops); if (sp) pool.push({ kind: 'watch', b: sp.id, at: [sp.b.doorX * T + 8 + 24, sp.b.doorY * T + 26], text: `Keep watch by ${sp.name} after dark`, ask: `Stand by ${sp.name} tonight and keep your eyes open. An hour after dark. Tell me who comes and goes.`, label: 'Keep watch for an hour', night: true });
+      const pool = [], want = JOBS[k].kinds, den = s.world.buildings.find((b) => b.id === g.hideout);
+      for (const kind of want) {
+        if (kind === 'message') { const h = r.pick(houses); if (h) pool.push({ kind, b: h.id, at: door(h), text: `Carry word to the ${s.households[h.household - 1]?.surname || ''} house`, ask: `Take this word to the ${s.households[h.household - 1]?.surname} house. Say it at the door, nowhere else.`, label: 'Pass the word at the door' }); }
+        if (kind === 'watch') { const sp = r.pick(shops); if (sp) pool.push({ kind, b: sp.id, at: [sp.b.doorX * T + 8 + 24, sp.b.doorY * T + 26], text: `Keep watch by ${sp.name} after dark`, ask: `Stand by ${sp.name} tonight and keep your eyes open. An hour after dark. Tell me who comes and goes.`, label: 'Keep watch for an hour', night: true }); }
+        if (kind === 'fence') pool.push({ kind, text: 'Bring the gang something lifted', ask: "Bring me something you've lifted, anything, and I'll fence it. You keep half." });
+        if (kind === 'lift') pool.push({ kind, need: 2, text: 'Lift two purses in the crowd', ask: "Two purses. Market, tavern, wherever the crowd is thick. Don't get caught." });
+        if (kind === 'smuggle') { const h = r.pick(houses); if (h) pool.push({ kind, b: h.id, at: door(h), text: `Carry a crate to the ${s.households[h.household - 1]?.surname} house after dark`, ask: `There's a crate wants moving, quiet like, to the ${s.households[h.household - 1]?.surname} house. After dark. Don't open it.`, label: 'Leave the crate at the door', night: true, carry: true }); }
+        if (kind === 'poach') pool.push({ kind, text: "Bring down one of the lord's deer", ask: "The lord's deer, in the woods. One will do. Mind the gamekeeper." });
+        if (kind === 'rough') { const d = r.pick(people.filter((q) => q.job)); if (d) pool.push({ kind, target: d.id, text: `Rough up ${d.name}`, ask: `${d.name} owes and won't pay. Put them on the ground. Don't kill them: dead men pay nothing.` }); }
+        if (kind === 'burgle') { const h = r.pick(houses.filter((b) => (b.wealth || 0.4) > 0.35)) || r.pick(houses); if (h) pool.push({ kind, b: h.id, text: `Take something from the ${s.households[h.household - 1]?.surname} house`, ask: `The ${s.households[h.household - 1]?.surname} house. They keep more than they show. Get in at night, take what you can carry, get out.` }); }
+        if (kind === 'protect') { const sp = r.pick(shops); if (sp) pool.push({ kind, b: sp.id, at: [sp.b.doorX * T + 8, sp.b.doorY * T + 10], text: `Collect our due from ${sp.name}`, ask: `${sp.name} owes us for keeping it safe. ₳${PAY[8] * 2}. Make sure they understand.`, label: `Lean on ${sp.name} for the gang's due` }); }
+        if (kind === 'spy') { const rv = s.gangs.find((x) => x.id !== g.id && x.id !== 'player'), rb = rv && s.world.buildings.find((b) => b.id === rv.hideout); if (rb) pool.push({ kind, b: rb.id, at: [rb.doorX * T + 8 + 40, (rb.doorY + 2) * T], text: `Watch ${rv.name}' den after dark`, ask: `${rv.name.replace(/^the /, 'The ')} are up to something. Lie up near their den tonight and count who comes and goes.`, label: 'Lie up and watch the den', night: true });
+          else { const wh = s.world.buildings.find((b) => b.type === 'guard' && b.doorX != null); if (wh) pool.push({ kind, b: wh.id, at: [wh.doorX * T + 8 + 30, (wh.doorY + 2) * T], text: 'Watch the watch house after dark', ask: 'I want to know when the watch change over, and how many go out at night. Watch the watch house tonight.', label: 'Watch the watch house', night: true }); } }
+        if (kind === 'recruit') { const free = s.people.filter((q) => !q.visitor && !q.gang && q.age >= 17 && q.age < 45 && q.alive !== false && !q.job?.role?.startsWith('guard') && !q.gentry), t = r.pick(free.filter((q) => !q.job)) || r.pick(free); if (t) pool.push({ kind, target: t.id, text: `Bring ${t.name} into the gang`, ask: t.job ? `${t.name} is sick of their master. Talk them round: we pay better.` : `${t.name} has no work and an empty belly. Talk them round. We could use the hands.` }); }
+        if (kind === 'manage') pool.push({ kind, text: "Send the lads out on tonight's job", ask: "You run the night's work now. Pick a house, pick the hands, and keep the purse straight." });
+        if (kind === 'kill') {
+          const rivals = s.gangs.filter((x) => x.id !== g.id && x.id !== 'player').map((x) => s.byId.get(x.leader)).filter((q) => q && q.alive !== false);
+          const witness = people.find((q) => q.memories && q.memories.some((mm) => mm.kind === 'crime' && /gang|den/.test(mm.text)));
+          const t = r.pick(rivals) || witness || r.pick(people);
+          if (t) pool.push({ kind, target: t.id, text: `Settle ${t.name} for good`, ask: `${t.name}. ${t.gang ? 'Their lot have had this coming.' : 'They saw too much and talk too much.'} I don't want to hear their name again. Nobody sees you do it.` });
+        }
       }
-      if (k === 1) pool.push({ kind: 'fence', text: 'Bring the gang something lifted', ask: "Bring me something you've lifted, anything, and I'll fence it. You keep half.", need: 1 });
-      if (k === 2) pool.push({ kind: 'lift', need: 2, text: 'Lift two purses in the crowd', ask: 'Two purses. Market, tavern, wherever the crowd is thick. Don\'t get caught.' });
-      if (k === 3) { const h = r.pick(houses.filter((b) => (b.wealth || 0.4) > 0.35)) || r.pick(houses); if (h) pool.push({ kind: 'burgle', b: h.id, text: `Take something from the ${s.households[h.household - 1]?.surname} house`, ask: `The ${s.households[h.household - 1]?.surname} house. They keep more than they show. Get in at night, take what you can carry, get out.` }); }
-      if (k === 4) {
-        const sp = r.pick(shops); if (sp) pool.push({ kind: 'protect', b: sp.id, at: [sp.b.doorX * T + 8, sp.b.doorY * T + 10], text: `Collect our due from ${sp.name}`, ask: `${sp.name} owes us for keeping it safe. ₳${PAY[k] * 2}. Make sure they understand.`, label: `Lean on ${sp.name} for the gang's due` });
-        const d = r.pick(people.filter((q) => q.job)); if (d) pool.push({ kind: 'rough', target: d.id, text: `Rough up ${d.name}`, ask: `${d.name} owes and won't pay. Put them on the ground. Don't kill them: dead men pay nothing.` });
-      }
-      if (k === 5) pool.push({ kind: 'manage', text: "Send the lads out on tonight's job", ask: "You run the night's work now. Pick a house, pick the hands, and keep the purse straight.", need: 1 });
-      if (k >= 6) {
-        const rivals = s.gangs.filter((x) => x.id !== g.id && x.id !== 'player').map((x) => s.byId.get(x.leader)).filter((q) => q && q.alive !== false);
-        const witness = people.find((q) => q.memories && q.memories.some((mm) => mm.kind === 'crime' && /gang|den/.test(mm.text)));
-        const t = r.pick(rivals) || witness || r.pick(people);
-        if (t) pool.push({ kind: 'kill', target: t.id, text: `Settle ${t.name} for good`, ask: `${t.name}. ${t.gang ? 'Their lot have had this coming.' : 'They saw too much and talk too much.'} I don't want to hear their name again. Nobody sees you do it.` });
-      }
+      void den;
       const t = pool.length ? r.pick(pool) : null; if (!t) return null;
       m.task = Object.assign({ id: Math.random().toString(36).slice(2, 7), need: 1, have: 0, done: false, day: s.day, giver: giver && giver.id }, t);
       return m.task;
@@ -17620,11 +17707,13 @@ O.snowMaskOf = function (src) {
       const s = cur(), m = c.m, t = m.task, g = gangOf(s, m), p = game.player;
       if (t.night && !(s.hour >= 20 || s.hour < 4)) return say('Not in daylight. After dark.');
       if (t.kind === 'message') { p.anim = 'talk'; p.locked = true; setTimeout(() => { p.locked = false; p.anim = 'idle'; t.have = 1; complete(s, g, m); }, 1500); say('You knock, and say what you were told to say. The door shuts.'); return; }
+      if (t.kind === 'smuggle') { p.anim = 'place'; p.locked = true; setTimeout(() => { p.locked = false; p.anim = 'idle'; t.have = 1; complete(s, g, m); say('You set the crate down by the door and walk away without looking back.'); }, 1300); return; }
+      if (t.kind === 'spy') { p.anim = 'crouch'; p.locked = true; let k2 = 0; const step2 = () => { for (let i = 0; i < 6; i++) s.tick(2); if (++k2 < 5) setTimeout(step2, 250); else { p.locked = false; p.anim = 'idle'; t.have = 1; complete(s, g, m); say(`An hour in the bracken. You count them in and out.`); } }; step2(); return; }
       if (t.kind === 'watch') { p.anim = 'look'; p.locked = true; let k = 0; const step = () => { for (let i = 0; i < 6; i++) s.tick(2); if (++k < 5) setTimeout(step, 250); else { p.locked = false; p.anim = 'idle'; t.have = 1; complete(s, g, m); say('An hour goes by. You saw who came and went.'); } }; step(); return; }
       if (t.kind === 'protect') {
         const bz = s.biz.get(t.b), keeper = bz && bz.workers.map((id) => s.byId.get(id)).find((q) => q && q.alive !== false) || null;
         p.anim = 'point'; setTimeout(() => { if (p.anim === 'point') p.anim = 'idle'; }, 900);
-        const due = PAY[4] * 2, scared = s.rng.chance(0.65 + (PS.rep.criminal || 0) * 0.3);
+        const due = PAY[8] * 2, scared = s.rng.chance(0.65 + (PS.rep.criminal || 0) * 0.3);
         if (bz && scared && bz.cash >= due) { bz.cash -= due; if (g) g.purse += due; t.have = 1; if (keeper) { keeper.agent.shockedUntil = s.minute + 2; s.relate(keeper, { id: 0 }, -0.3); O.Speech.say(keeper, 'All right, all right. Take it.', 2.5); } complete(s, g, m); say(`${keeper ? keeper.first : 'The keeper'} counts out ₳${due} with shaking hands. It goes in the gang's purse.`); }
         else { if (keeper) { O.Speech.say(keeper, "I'll not pay. Get out, or I'll call the watch!", 3, 'angry'); s.relate(keeper, { id: 0 }, -0.4); } say("They won't pay. Make them, another way, or come back.", 'bad'); const c2 = s.recordCrime && s.recordCrime({ kind: 'extortion', perp: 'player', placeName: bz ? bz.name : s.world.name, tile: [Math.floor(p.x / T), Math.floor(p.y / T)], seen: keeper ? [keeper] : [], severity: 1 }); if (c2) PS.crimes.push(c2.id); }
       }
@@ -17693,7 +17782,7 @@ O.snowMaskOf = function (src) {
       if (indoor) return; const s = cur(), bob = Math.round(Math.sin(game.t * 4) * 2);
       for (const m of here(s)) { const t = m.task; if (!t || t.done || !t.at) continue; const x = Math.round(t.at[0] - cam.x), y = Math.round(t.at[1] - 40 - cam.y) + bob; ctx.fillStyle = '#1b1424'; ctx.fillRect(x - 3, y - 1, 7, 5); ctx.fillRect(x - 1, y + 4, 3, 2); ctx.fillStyle = '#c04a3a'; ctx.fillRect(x - 2, y, 5, 3); ctx.fillRect(x, y + 3, 1, 2); }
     });
-    O.GangLife = { RANKS, mine, give, complete };
+    O.GangLife = { RANKS, JOBS, mine, give, complete };
   }
   O.GangLifeSetup = { setup };
 })();
@@ -17701,9 +17790,10 @@ O.snowMaskOf = function (src) {
 </script>
 <script>
 // Three things of the town's life that come to you.
-// Disguises: the tailor sells a dark hooded cloak, a friar's habit, beggar's rags and a merchant's
-// finery. Put one on and you look like someone else: witnesses describe the disguise, not you, and
-// once it's off the watch is looking for a stranger in a hood, not for you.
+// Disguise: the tailor sells a black hood and mask (black clothes and a cloth over the face). In it,
+// nobody knows you: witnesses can only say a masked figure of such a height and build, and once it's
+// off nobody can tie that to you. The watch, if they take you in it, strip it off and keep it (it's
+// sold for the town). Gang members wear the same on their night work.
 // The moneylender lends against your name: borrow at a fifth on top, to be paid within the week;
 // run late and the debt grows a tenth a day, and after three days someone comes to collect.
 // Letters: the people who know you write to you (a master who missed you at work, a landlord owed
@@ -17718,7 +17808,7 @@ O.snowMaskOf = function (src) {
     // ---------------------------------------------------------------- disguises
     function disguised(base, d) {
       const o = Object.assign({}, base.outfit), m = (hex) => (hex ? P.mat(hex, 'cloth') : null);
-      if ('hat' in d) o.hat = d.hat; if (d.hatMat) o.hatMat = m(d.hatMat); if ('cloak' in d) o.cloak = m(d.cloak); if (d.over) o.over = m(d.over); if (d.overLen != null) o.overLen = d.overLen;
+      if ('hat' in d) o.hat = d.hat; if (d.hatMat) o.hatMat = m(d.hatMat); if ('cloak' in d) o.cloak = m(d.cloak); if (d.over) o.over = m(d.over); if (d.overLen != null) o.overLen = d.overLen; if (d.mask) { o.mask = true; o.trim = null; o.apron = null; o.belt = m('#121016'); }
       return Object.assign({}, base, { outfit: o, cacheVer: 0 });
     }
     O.wearDisguise = (k) => {
@@ -17727,7 +17817,7 @@ O.snowMaskOf = function (src) {
       else {
         if (!PS.items.includes(k)) return;
         const base = p._baseA || p.a; p._baseA = base; p.a = disguised(base, G[k].disguise); PS.disguise = k;
-        say(`You put on the ${G[k].name.toLowerCase()}. Nobody would know you.`);
+        say('You pull on the black hood and tie the cloth over your face. Nobody would know you now.');
       }
       p.anim = 'place'; p.ft = 0; setTimeout(() => { if (p.anim === 'place') p.anim = 'idle'; }, 700);
       const s = cur(); for (let i = 0; i < 3; i++) s.tick(1);
@@ -17737,6 +17827,23 @@ O.snowMaskOf = function (src) {
       const p = game.player;
       if (PS.disguise && !PS.items.includes(PS.disguise)) { if (p._baseA) p.a = p._baseA; PS.disguise = null; }
       if (PS.disguise && !p._baseA) { const k = PS.disguise; PS.disguise = null; O.wearDisguise(k); }
+    });
+
+    // masked, you're nobody: what you do isn't laid at your door, and people won't talk to a mask
+    const SP = O.Sim.prototype, _rel = SP.relate, _rem = SP.remember;
+    SP.relate = function (a, b, d) { if (b && b.id === 0 && PS.disguise) return; return _rel.call(this, a, b, d); };
+    SP.remember = function (p, text, kind, str, about) { if (about === 0 && PS.disguise) { text = String(text).replace(/the stranger|the newcomer|a stranger/gi, 'a masked figure'); about = null; } return _rem.call(this, p, text, kind, str, about); };
+    const _open = npcUI.openTalk;
+    npcUI.openTalk = (q) => {
+      if (!PS.disguise || (q.gang && q.gang !== 'player')) return _open(q);
+      const pos = game.scene ? game.scene.personPos(q) : [q.agent.x, q.agent.y]; if (pos) q.agent.dir = O.dirOf(game.player.x - pos[0], game.player.y - pos[1]);
+      q.agent.shockedUntil = (cur().minute || 0) + 1;
+      O.UI.dialog.open({ name: q.first, color: '#6a5a4a', text: ['Who are you? Show your face!', "I don't talk to masked folk. Be off.", 'Keep back! I know what a mask means.', 'Take that off, or go away.'][(q.id + cur().day) % 4], options: [] });
+    };
+    // gang hands go masked and hooded on their night work
+    game.hooks.update.push(() => {
+      const s = cur(); if (!s || game.scene) return; const night = s.hour >= 21 || s.hour < 5;
+      for (const q of s.people) { if (!q.gang || q.gang === 'player' || !q.agent) continue; const want = night && q.agent.inside == null && !q.agent.hidden ? O.Justice.maskedLook(q.app) : q.app; if (q.agent.a !== want) q.agent.a = want; }
     });
 
     // ---------------------------------------------------------------- the moneylender

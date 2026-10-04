@@ -84,6 +84,7 @@
     O.readSign = (c) => {
       const w = game.world, b = w.buildings.find((x) => x.id === c.prop.signFor); if (!b) return;
       const lines = linesFor(O.SimRef.cur, b) || [b.name || 'A house'];
+      if (b.royal) { const K = O.SimRef.cur.kingdom, cr = K && K.rulers && K.rulers.crown; O.UI.dialog.open({ name: b.name, color: '#8a6239', text: `${cr && cr.name ? cr.name + ' holds court here. ' : ''}Ground floor: the great hall with the throne, where the monarch sits in the day, the kitchens and the steward's hall. First floor: the servants' quarters. Second floor: the royal apartments, where the royal family live and sleep. Top floor: the chapel, the guest chambers and the treasury.`, options: [] }); return; }
       const nice = (t) => t.toLowerCase().replace(/(^|[\s'-])([a-z])/g, (m, a, ch) => a + ch.toUpperCase());
       O.UI.dialog.open({ name: nice(lines[0]), color: '#8a6239', text: lines.slice(1).map(nice).join('. ') || 'Nothing more is written.', options: [] });
     };

@@ -14,7 +14,7 @@
     function wanted() {
       if (PS.exiled || PS.bounty) return 3;
       const look = J.lookOf(game.player.a);
-      const open = openCrimes(); if (!open.length) return 0;
+      const open = openCrimes().filter((c) => !(c.profile && c.profile.masked && !look.masked)); if (!open.length) return 0; // what you did in the mask can't be pinned on your face
       return open.some((c) => J.matchScore(c.profile, look) >= 0.6) ? 2 : 1;
     }
     PS.wantedLevel = wanted;
@@ -204,6 +204,8 @@
       let found = 0;
       for (const [k, n] of Object.entries(PS.stolen)) { const r = PS.remove(k, n); found += r; }
       PS.stolen = {};
+      // a disguise is stripped off and kept; the town sells it
+      if (PS.items.includes('disguise')) { while (PS.items.includes('disguise')) PS.remove('disguise', 1); PS.disguise = null; if (game.player._baseA) game.player.a = game.player._baseA; sim.treasury.cash += 20; const tl = [...sim.biz.values()].find((z) => z.type === 'tailor' || z.type === 'store'); if (tl) tl.stock.disguise = (tl.stock.disguise || 0) + 1; O.UI.say('The watch drag off your hood and mask. It goes to the town, to be sold.', 'bad'); }
       if (game.scene) game.exitBuilding();
       game.enterBuilding(gh, 0);
       const cell = game.scene.L.items.find((i) => i.cell); if (cell) { const [ax, ay] = game.scene.anchor(cell); game.player.x = ax; game.player.y = ay - 6; }

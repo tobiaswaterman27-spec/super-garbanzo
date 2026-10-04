@@ -89,5 +89,5 @@
     };
     void T;
   }
-  O.Signs = { setup, linesFor, plant, pull, spotBy };
+  O.Signs = { setup, linesFor, plant, pull, spotBy, nameSign: () => nameSign() };
 })();

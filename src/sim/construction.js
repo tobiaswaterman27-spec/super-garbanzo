@@ -6,7 +6,7 @@
 // it. When finished, scaffolding comes down, and a family arrives up the King's Road to move in.
 'use strict';
 (function () {
-  const STAGES = ['Planned', 'Site preparation', 'Foundation', 'Timber frame', 'Walls', 'Floors', 'Roof frame', 'Roof', 'Exterior', 'Interior', 'Finished'];
+  const STAGES = ['Clearing the ground', 'Levelling the earth', 'Foundation', 'Timber frame', 'Walls', 'Upper floor', 'Roof frame', 'Roof', 'Painting the outside', 'Painting and fitting inside', 'Finished'];
   // worker-minutes for each stage, and the materials it consumes
   const WORK = [60, 120, 260, 300, 420, 300, 240, 320, 240, 240];
   const MATS = [{}, {}, { stone: 6 }, { logs: 6 }, { logs: 3, stone: 3 }, { logs: 3 }, { logs: 4 }, { logs: 2, stone: 2 }, { logs: 2 }, {}];
@@ -45,9 +45,11 @@
       const b = { id, type: 'house', name: 'Building site', x, bottom, w: bw, d: bd, y: bottom - bd + 1, floors: 1, wealth: 0.5, condition: 1, site: true };
       b.spec = { seed: O.hash('site', id), w: bw, d: bd, floors: 1, wealth: 0.5, condition: 1, wall: r.pick(['timber', 'timber', 'stone']), roof: r.pick(['shingle', 'thatch', 'tile']), roofType: r.chance(0.5) ? 'gable' : 'side', chimney: true, doorTile: Math.floor(bw / 2), plaster: r.pick(['plaster', 'plasterOchre', 'plasterWhite']) };
       b.doorX = x + b.spec.doorTile; b.doorY = bottom + 1;
-      for (let yy = b.y; yy <= bottom; yy++) for (let xx = x; xx < x + bw; xx++) w.solid[yy * w.W + xx] = 1;
+      // the lot stays open ground you can walk over until the frame goes up
+      for (let yy = b.y; yy <= bottom; yy++) for (let xx = x; xx < x + bw; xx++) w.solid[yy * w.W + xx] = 0;
       w.buildings.push(b);
       const site = { id, b, stage: 0, prog: 0, work: 0, stalled: null, started: sim.day, player: !!opts.player };
+      site.skip = this.skipFor(b);
       this.sites.push(site);
       // the site is run like a small business: builders, wages, material orders
       const def = { label: 'Building site', jobs: [['builder', 3]], hours: [7, 17], recipes: [], sells: [], buys: { logs: 'builder|woodcutter|import', stone: 'builder|quarry|import' }, targets: { logs: 12, stone: 10 }, wage: { builder: 7 }, site: true };
@@ -67,6 +69,14 @@
       return site;
     }
 
+    // a small one-floor cottage has no upper floor to lay; bigger buildings take longer at every stage
+    skipFor(b) { const out = []; if ((b.floors || 1) < 2) out.push(5); if (b.w * b.d <= 9) out.push(6); return out; }
+    // only what has been built is solid: nothing on bare earth or a footing, the footprint once the frame stands
+    applySolid(site) {
+      const w = this.sim.world, b = site.b, on = site.stage >= 3;
+      for (let yy = b.y; yy <= b.bottom; yy++) for (let xx = b.x; xx < b.x + b.w; xx++) w.solid[yy * w.W + xx] = on ? 1 : 0;
+      this.sim.path.recost(); this.sim.path.clear();
+    }
     // called from Sim.work() when a builder is at the site
     work(p, bz) {
       const site = this.sites.find((s) => s.id === bz.id); if (!site || site.stage >= 10) return;
@@ -80,12 +90,16 @@
       }
       const sk = p.skills.builder || 0.4;
       site.work += factor * (0.6 + sk * 0.6);
-      const req = WORK[site.stage] * ((site.b.w * site.b.d) / 12);
+      const req = WORK[site.stage] * Math.pow((site.b.w * site.b.d * (site.b.floors || 1)) / 12, 1.1);
       site.prog = Math.min(1, site.work / req);
       const bucket = Math.floor(site.prog * 8);
       if (bucket !== site.bucket) { site.bucket = bucket; site.b.dirty = true; }
       if (site.prog >= 1) {
-        site.stage++; site.prog = 0; site.work = 0; site.b.dirty = true;
+        site.stage++; while ((site.skip || []).includes(site.stage)) site.stage++;
+        site.prog = 0; site.work = 0; site.b.dirty = true;
+        if (site.stage === 3) this.applySolid(site);
+        // the last of the inside work: the name board goes up by the door
+        if (site.stage === 10 && O.Signs && O.Signs.plant && !this.sim.world.props.some((q) => q.kind === 'namesign' && q.signFor === site.b.id)) { site.b.site = false; O.Signs.plant(this.sim.world, site.b, 'namesign', O.Signs.nameSign(), -1); site.b.site = true; }
         if (site.stage >= 4 && site.stage < 10) this.sim.log(`The new house: ${STAGES[site.stage - 1].toLowerCase()} done, ${STAGES[site.stage].toLowerCase()} begun.`, 'construction');
         if (site.stage >= 10) this.finish(site);
       }
@@ -93,7 +107,7 @@
 
     finish(site) {
       const sim = this.sim, b = site.b, r = sim.rng;
-      b.site = false; b.name = 'House'; b.dirty = true;
+      b.site = false; b.name = 'House'; b.dirty = true; site.stage = 10; this.applySolid(site);
       const bz = sim.biz.get(site.id);
       for (const id of bz.workers) {
         const p = sim.byId.get(id); if (!p) continue;

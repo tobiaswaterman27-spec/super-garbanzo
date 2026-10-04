@@ -343,6 +343,9 @@
       keep(trees, (t) => !(Math.abs(t.x / T - x) < 4 && Math.abs(t.y / T - y) < 4));
       keep(props, (p) => !(p.country !== false && !p.field && Math.abs(p.x / T - x) < 3 && Math.abs(p.y / T - y) < 3 && (p.kind === 'bush' || p.kind === 'rock')));
     }
+    // 7. a trodden footpath from every door to the nearest road, lane or square
+    doorPaths({ W, H, ter, solid, trees, buildings, TR });
+    yield;
     // bushes, rocks and stumps are things you walk round, not through (unless one has ended up on a path)
     const doors = new Set(buildings.filter((b) => b.doorX != null).map((b) => b.doorY * W + b.doorX));
     for (const p of props) {
@@ -359,6 +362,41 @@
     world.estates = (tw.estates || []).map((e) => Object.assign({}, e, { fields: [e.fields[0] + ox, e.fields[1] + oy, e.fields[2] + ox, e.fields[3] + oy] }));
     regions.set(id, world);
     return world;
+  }
+
+  // ---------- footpaths ----------
+  // From each door the shortest way over open ground (round buildings, trees, water and, if it can, the
+  // fields) to a road, lane, square or another path; the ground it crosses is worn to bare earth.
+  function doorPaths(C) {
+    const { W, H, ter, solid, trees, buildings, TR } = C;
+    const worn = new Set(), treeAt = new Set(trees.map((t) => Math.floor((t.y - 1) / T) * W + Math.floor(t.x / T)));
+    const goal = (t) => t === TR.ROAD || t === TR.COBBLE || t === TR.BRIDGE;
+    const prev = new Int32Array(W * H), seen = new Uint32Array(W * H); let stamp = 0;
+    const order = buildings.filter((b) => b.doorX != null && !b.site).sort((a, c) => (a.outskirts ? 1 : 0) - (c.outskirts ? 1 : 0));
+    for (const b of order) {
+      const sx = b.doorX, sy = b.doorY; if (sx < 1 || sy < 1 || sx >= W - 1 || sy >= H - 1) continue;
+      const s0 = sy * W + sx; if (goal(ter[s0])) continue;
+      const lim = b.outskirts || b.type === 'hideout' || b.type === 'ruin' ? 70 : 34;
+      for (const fields of [false, true]) {
+        stamp++; const q = [s0]; seen[s0] = stamp; prev[s0] = -1; let found = -1;
+        for (let h = 0; h < q.length && found < 0; h++) {
+          const i = q[h], x = i % W, y = (i / W) | 0;
+          if (Math.abs(x - sx) + Math.abs(y - sy) > lim) continue;
+          for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+            const nx = x + dx, ny = y + dy; if (nx < 1 || ny < 1 || nx >= W - 1 || ny >= H - 1) continue;
+            const j = ny * W + nx; if (seen[j] === stamp) continue; seen[j] = stamp;
+            const t = ter[j];
+            if (goal(t) || worn.has(j)) { prev[j] = i; found = j; break; }
+            if (solid[j] || t === TR.WATER || treeAt.has(j) || (!fields && t === TR.FIELD)) continue;
+            prev[j] = i; q.push(j);
+          }
+        }
+        if (found < 0) continue;
+        for (let i = prev[found]; i >= 0 && i !== s0; i = prev[i]) { worn.add(i); if (ter[i] !== TR.YARD) ter[i] = TR.ROAD; }
+        break;
+      }
+    }
+    return worn.size;
   }
 
   // ---------- the outskirts ----------

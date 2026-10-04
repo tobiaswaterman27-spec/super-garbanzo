@@ -131,6 +131,7 @@
     }
     for (const id of [...sim.biz.keys()]) if (!S.biz.find((b) => b.id === id)) sim.biz.delete(id);
     sim.build.sites = S.sites.map((s) => Object.assign({}, s, { b: w.buildings.find((x) => x.id === s.id) }));
+    for (const st of sim.build.sites) if (st.b) { st.skip = sim.build.skipFor(st.b); sim.build.applySolid(st); }
     sim.build.nextCouncil = S.nextCouncil; sim.build.used = new Set(S.plotsUsed);
     sim.gangs = S.gangs;
     if (S.lordship) sim.lordship = S.lordship;

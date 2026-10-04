@@ -93,15 +93,15 @@ Every job and every level of it, royal family and titles included, grouped under
 - [ ] Everyone visibly doing things; people leave in time for where they're going (by distance), early or late by personality
 - [x] Glitch: some people change their whole look at work but keep their name
 - [x] Beds only in buildings where someone lives, and only on the floor they sleep on
-- [ ] Paths to every city, town, village and hamlet, and paths between buildings
-- [ ] Construction: the lot is walkable, only what's built collides; stages by building size; no box, grass turns to dirt first; last stage is painting the house, the inside, and the sign
-- [ ] Prices: bigger buildings cost and rent for more; also by economy and place (near the capital, good trade spots cost more)
+- [x] Paths to every city, town, village and hamlet, and paths between buildings
+- [x] Construction: the lot is walkable, only what's built collides; stages by building size; no box, grass turns to dirt first; last stage is painting the house, the inside, and the sign
+- [x] Prices: bigger buildings cost and rent for more; also by economy and place (near the capital, good trade spots cost more)
 - [ ] People can send the player letters (an AI key will write them later)
 - [x] Criers heard only when you're near them
 - [ ] NPCs talk and do things with each other, sometimes fight, with animations; relationships and friends that affect jobs and so on
 - [ ] A prison: gaolers and keepers; law-breakers serve time or pay bail by sentence length; animations
 - [ ] Collisions: no seeing through things, no odd overlaps
-- [ ] The for-sale sign is put up by a person, with animation
+- [x] The for-sale sign is put up by a person, with animation
 - [x] Attack while sprinting
 - [ ] Preload the map
 - [ ] Better pathfinding: people walking head on don't jam

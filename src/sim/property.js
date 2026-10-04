@@ -25,13 +25,37 @@
       const size = b.w * b.d * (b.floors || 1);
       const sq = this.Z.square; const cx = (sq[0] + sq[2]) / 2, cy = (sq[1] + sq[3]) / 2;
       const dist = Math.hypot(b.x + b.w / 2 - cx, b.bottom - cy);
-      const vacancy = this.world.buildings.filter((x) => x.type === 'house' && !x.household).length;
-      const demand = O.clamp(1.2 - vacancy * 0.06, 0.6, 1.3);
-      const loc = O.clamp(1.25 - dist / 60, 0.7, 1.25);
+      const houses = this.world.buildings.filter((x) => x.type === 'house'), vacancy = houses.filter((x) => !x.household).length;
+      const demand = O.clamp(1.25 - (vacancy / Math.max(1, houses.length)) * 2.2, 0.6, 1.3); // the share standing empty, not the count
+      const loc = O.clamp(1.25 - dist / Math.max(60, (this.world.townW || 96) * 0.7), 0.7, 1.25); // judged against the size of the place
       const avgPurse = this.households.filter((h) => !h.gone).reduce((s, h) => s + h.money, 0) / Math.max(1, this.households.filter((h) => !h.gone).length);
       const local = O.clamp(0.7 + avgPurse / 300, 0.7, 1.4);
-      return Math.round(size * 14 * (0.5 + (b.condition ?? 0.8) * 0.6) * (0.7 + (b.wealth ?? 0.5) * 0.6) * loc * demand * local);
+      return Math.round(Math.pow(size, 1.08) * 13 * (0.5 + (b.condition ?? 0.8) * 0.6) * (0.7 + (b.wealth ?? 0.5) * 0.6) * loc * demand * local * this.placeFactor() * this.tradeFactor(b, dist));
     };
+    // what the place itself is worth living in: the capital and the cities dearest, a hamlet cheapest;
+    // nearer the capital costs more, and a thriving place more than a poor one
+    S.placeFactor = function () {
+      if (this._pf && this._pf.day === this.day) return this._pf.v;
+      const K = this.kingdom, pl = K && K.place && K.place(this.world.placeId);
+      let v = 1;
+      if (pl) {
+        v = { capital: 1.8, city: 1.45, port: 1.3, town: 1.2, castle: 1.1, village: 1, mine: 0.9, hamlet: 0.8 }[pl.kind] || 1;
+        const cap = K.places.find((x) => x.kind === 'capital');
+        if (cap && cap !== pl) { const far = Math.max(...K.places.map((x) => Math.hypot(x.x - cap.x, x.y - cap.y))) || 1; v *= 0.85 + 0.3 * (1 - Math.hypot(pl.x - cap.x, pl.y - cap.y) / far); }
+        else if (cap === pl) v *= 1.15;
+        v *= 0.8 + 0.45 * O.clamp(pl.wealth ?? 0.5, 0, 1); // the economy: good times push prices up
+      }
+      if (pl) this._pf = { day: this.day, v }; // (not before the realm is known)
+      return v;
+    };
+    // a shop is worth more where the trade is: on the square, on a busy road, with a full purse in town
+    S.tradeFactor = function (b, dist) {
+      const D = O.Data.BUSINESS[b.type]; if (!D || D.public || b.type === 'house') return 1;
+      const busy = O.clamp(this.people.length / 300, 0.3, 1.6);
+      return 1.1 + O.clamp(1 - dist / 40, 0, 1) * 0.35 + busy * 0.15;
+    };
+    // a fair week's rent for it
+    S.rentValue = function (b) { return Math.max(2, Math.round(this.value(b) / 140)); };
     S.ownerName = function (o) {
       if (!o || o.kind === 'parish') return 'the parish';
       if (o.kind === 'player') return 'you';

@@ -355,14 +355,22 @@
     const B = new MB(W, H);
     const x0 = fin.x0, x1 = fin.x1, wallTop = fin.wallTop, foot = spec.d * T;
     const dirt = P.mat('#8a6a44', 'cloth'), beam = M.beam(), stake = P.mat('#c8a070', 'wood'), stringM = P.mat('#e8e0d0', 'cloth');
-    const copy = (fn) => { for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = y * W + x; if (FB.mat[i] < 0) continue; if (fn(x, y, FB.group[i])) { B.part(FB.group[i]); B.plot(x, y, FB.mat[i], FB.shade[i]); } } };
-    // cleared, trodden ground over the footprint
-    if (stage >= 1) { B.part(0); for (let y = H - foot; y < H; y++) for (let x = x0 - 1; x <= x1 + 1; x++) B.plot(x, y, dirt, O.noise2(x * 0.7, y * 0.7, 5) > 0.6 ? 3 : O.noise2(x, y, 9) > 0.85 ? 1 : 2); }
-    else { // stakes and string
-      B.part(9);
-      for (const [sx, sy] of [[x0, H - foot], [x1, H - foot], [x0, H - 1], [x1, H - 1]]) { B.plot(sx, sy, stake, 3); B.plot(sx, sy - 1, stake, 3); B.plot(sx, sy - 2, stake, 2); }
-      for (let x = x0; x <= x1; x += 2) { B.plot(x, H - foot - 1, stringM, 3); B.plot(x, H - 2, stringM, 3); }
-      for (let y = H - foot; y < H; y += 2) { B.plot(x0, y - 1, stringM, 3); B.plot(x1, y - 1, stringM, 3); }
+    // plaster goes on raw (bare daub) and is only colour-washed at the painting stage, from the top down
+    const PL = new Set([M.plaster(), M.plasterOchre(), M.plasterPink(), M.plasterWhite()]), daub = P.mat('#9c8a6a', 'cloth');
+    const top0 = Math.max(0, wallTop - 20);
+    const painted = (y) => stage > 8 || (stage === 8 && y < top0 + prog * (H - top0));
+    const copy = (fn) => { for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = y * W + x; if (FB.mat[i] < 0) continue; if (fn(x, y, FB.group[i])) { B.part(FB.group[i]); B.plot(x, y, PL.has(FB.mat[i]) && !painted(y) ? daub : FB.mat[i], FB.shade[i]); } } };
+    // the grass is dug off and the earth shows through, patch by patch, then the whole lot is levelled
+    {
+      B.part(0); const k = stage >= 1 ? 1.01 : prog;
+      for (let y = H - foot - 2; y < H + 2 && y < H; y++) for (let x = x0 - 2; x <= x1 + 2; x++) {
+        const inside = x >= x0 && x <= x1 && y >= H - foot, n = O.fbm(x / 7, y / 7, 41, 2);
+        // a ragged edge where the turf was cut back, never a neat box
+        if (inside ? n < k * 1.05 : O.noise2(x * 0.45, y * 0.45, 7) < 0.5 * k && n < k) B.plot(x, y, dirt, O.noise2(x * 0.7, y * 0.7, 5) > 0.6 ? 3 : O.noise2(x, y, 9) > 0.85 ? 1 : 2);
+      }
+      // a few turfs and stones piled at the side while the ground is cleared
+      if (stage <= 1) { const turf = P.mat('#5e7a3a', 'cloth'); for (let j = 0; j < 4; j++) for (let i = 0; i < 3 - (j >> 1); i++) B.plot(x1 + 3 + i, H - 2 - j, j % 2 ? dirt : turf, 2); }
+      void stake; void stringM;
     }
     if (stage >= 2) copy((x, y, g) => g === 1 && y >= H - 3); // foundation plinth
     const wallRise = stage === 4 ? Math.round(H - 3 - prog * (fin.wallH - 3)) : stage > 4 ? -1 : H;

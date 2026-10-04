@@ -28,19 +28,34 @@
     // the boards stand in the street as real things (you walk round them, and they sit behind what's in front)
     let saleT = 0;
     const saleSprite = () => { const c = sign(); return { canvas: c, ox: 11, oy: 17, W: c.width, H: c.height }; };
+    // somebody brings the board and knocks it in: the house agent, the owner, or the parish clerk
+    const putter = (s, b) => {
+      const ok = (q) => q && q.alive !== false && q.age >= 16 && !q.errand && q.agent && !q.agent.hidden && q.agent.inside == null && q.health?.hp > 30 && !q.visitor && Math.hypot(q.agent.x - b.doorX * 16, q.agent.y - b.doorY * 16) < 260;
+      const agent = [...s.biz.values()].filter((z) => z.type === 'agency').flatMap((z) => z.workers.map((id) => s.byId.get(id))).find(ok);
+      if (agent) return agent;
+      const hh = b.owner?.kind === 'household' && s.households[b.owner.id - 1]; const own = hh && hh.members.map((id) => s.byId.get(id)).find(ok); if (own) return own;
+      const pl = game.player; return s.people.filter(ok).sort((a, c) => Math.hypot(a.agent.x - b.doorX * 16, a.agent.y - b.doorY * 16) - Math.hypot(c.agent.x - b.doorX * 16, c.agent.y - b.doorY * 16))[0] || null; void pl;
+    };
+    const coming = new WeakSet();
     game.hooks.update.push((dt) => {
-      saleT -= dt; const w = game.world; if (saleT > 0 || !w || game.scene || w !== sim.world) return; saleT = 1;
+      saleT -= dt; const w = game.world, s = O.SimRef.cur; if (saleT > 0 || !w || game.scene || !s || w !== s.world) return; saleT = 1;
       for (const b of w.buildings) {
         if (b.doorX == null) continue;
         const want = forSale(b), has = w.props.find((p) => p.kind === 'salesign' && p.signFor === b.id);
-        if (want && !has) O.Signs.plant(w, b, 'salesign', saleSprite(), 1); else if (!want && has) O.Signs.pull(w, has);
+        if (want && !has && !coming.has(b)) {
+          const near = w._saleSeen && O.Errands.live.size < 2 && Math.hypot(b.doorX * 16 - game.player.x, b.doorY * 16 - game.player.y) < 420, at = O.Signs.spotBy(w, b, 1), q = near && at && putter(s, b);
+          // out of sight it's simply there; in sight you watch it go up
+          if (q && O.Errands.send(s, q, [at[0], at[1] + 1], { anim: 'hammer', secs: 3, face: 3, carry: { good: 'planks', qty: 1 }, at: () => { O.Speech && O.Speech.say(q, b.type === 'house' ? 'For sale, this one.' : 'Up for sale.', 2.5); }, after: (ok) => { coming.delete(b); if (ok && forSale(b) && !w.props.some((p) => p.kind === 'salesign' && p.signFor === b.id)) O.Signs.plant(w, b, 'salesign', saleSprite(), 1); } })) coming.add(b);
+          else O.Signs.plant(w, b, 'salesign', saleSprite(), 1);
+        } else if (!want && has) O.Signs.pull(w, has);
       }
+      w._saleSeen = true; // boards already up when you arrive; new ones are carried out in front of you
     });
     O.saleCandidate = () => {
       if (game.scene) return null;
       const w = game.world, pl = game.player;
       for (const q of w.props) if (q.kind === 'salesign' && Math.abs(q.x - pl.x) < 26 && Math.abs(q.y - pl.y) < 26) { const b = w.buildings.find((x) => x.id === q.signFor); if (b) { const d = Math.hypot(q.x - pl.x, q.y - pl.y); return { type: 'property', b, d, x: q.x, y: q.y - 28 }; } }
-      for (const b of sim.world.buildings) { if (!(forSale(b) || owned(b))) continue; const d = Math.hypot(b.doorX * 16 + 8 - pl.x, b.doorY * 16 + 6 - pl.y); if (d < 16) return { type: 'property', b, d: d + 2, x: b.doorX * 16 + 8, y: b.doorY * 16 - 20 }; }
+      for (const b of (O.SimRef.cur || sim).world.buildings) { if (!(forSale(b) || owned(b))) continue; const d = Math.hypot(b.doorX * 16 + 8 - pl.x, b.doorY * 16 + 6 - pl.y); if (d < 16) return { type: 'property', b, d: d + 2, x: b.doorX * 16 + 8, y: b.doorY * 16 - 20 }; }
       return null;
     };
     // owners put things up for sale now and then: a landlord's spare house, a struggling shop
@@ -59,9 +74,9 @@
     });
 
     function panel(b) {
-      const s = sim, v = s.value(b), mine = owned(b), shop = !!b.closedShop || (s.biz.get(b.id) && mine), leased = PS.lease && PS.lease.b === b.id && PS.lease.place === s.world.placeId;
+      const s = O.SimRef.cur || sim, v = s.value(b), mine = owned(b), shop = !!b.closedShop || (s.biz.get(b.id) && mine), leased = PS.lease && PS.lease.b === b.id && PS.lease.place === s.world.placeId;
       const tenants = b.household ? s.households[b.household - 1] : null;
-      const rentEst = Math.max(2, Math.round(v / 140));
+      const rentEst = s.rentValue(b);
       O.Panels.open(mine ? `Your ${b.type === 'house' ? 'house' : 'property'}` : `${b.listed ? (s.biz.get(b.id) ? `${b.name}, a going concern,` : 'A let house') : b.closedShop ? 'Empty shop' : 'Empty house'} for sale`, `<div class="kv">
         <div><span class="lbl">Value</span><b>${O.money(v)}</b><small>${b.w * 2}×${b.d * 2} paces inside, ${b.floors || 1} floor${(b.floors || 1) > 1 ? 's' : ''}, condition ${Math.round((b.condition ?? 0.8) * 100)}%</small></div>
         <div><span class="lbl">Owner</span><b>${esc(s.ownerName(b.owner))}</b><small>${tenants ? `let to the ${esc(tenants.surname)} family at ${b.rent || rentEst}d a week` : 'standing empty'}</small></div>
@@ -69,7 +84,7 @@
       </div>
       <div class="topics" style="margin-top:10px">
         ${!mine ? `<button data-a="buy">Buy for ${O.money(v)}</button>` : ''}
-        ${!mine && !leased ? `<button data-a="rent">Rent it for ${Math.max(2, Math.round(v / 150))}d a week</button>` : ''}
+        ${!mine && !leased ? `<button data-a="rent">Rent it for ${s.rentValue(b)}d a week</button>` : ''}
         ${mine && s.biz.get(b.id)?.ownerPlayer ? '<button data-a="run">Run the business</button>' : ''}
         ${mine && b.type === 'house' && !b.household ? `<button data-a="let">Let it to a family (${rentEst}d a week)</button>` : ''}
         ${mine && b.closedShop ? ['bakery', 'store', 'tavern', 'smithy'].map((t) => `<button data-open="${t}">Open a ${O.Data.BUSINESS[t].label.toLowerCase()} (60d)</button>`).join('') : ''}
@@ -90,7 +105,7 @@
         });
         on('[data-a=let]', () => { if (!s.immigrate) return; const hh = s.immigrate(b); if (hh) { b.rent = rentEst; O.Panels.toast(`The ${hh.surname} family will take it at ${rentEst}d a week. They're on the road now.`); } O.Panels.close(); });
         on('[data-a=sell]', () => { const pr = Math.round(v * 0.8); PS.money += pr; s.treasury.cash -= Math.min(s.treasury.cash, pr); b.owner = { kind: 'parish' }; const bz = s.biz.get(b.id); if (bz) bz.ownerPlayer = false; O.Panels.close(); O.Panels.toast(`Sold for ${O.money(pr)}.`); });
-        on('[data-a=rent]', () => { const rent = Math.max(2, Math.round(v / 150)); if (PS.money < rent) return O.Panels.toast(`The first week's rent is ${rent}d.`, 'bad'); PS.money -= rent; if (b.owner?.kind === 'household') { const hh = s.households[b.owner.id - 1]; if (hh) hh.money += rent; } else s.treasury.cash += rent; PS.lease = { b: b.id, place: s.world.placeId, rent, paidUntil: s.day + 7 }; b.leasedToPlayer = true; b.listed = null; O.Panels.close(); O.Panels.toast(`It's yours to use at ${rent}d a week. The landlord will come for the rent.`); });
+        on('[data-a=rent]', () => { const rent = s.rentValue(b); if (PS.money < rent) return O.Panels.toast(`The first week's rent is ${rent}d.`, 'bad'); PS.money -= rent; if (b.owner?.kind === 'household') { const hh = s.households[b.owner.id - 1]; if (hh) hh.money += rent; } else s.treasury.cash += rent; PS.lease = { b: b.id, place: s.world.placeId, rent, paidUntil: s.day + 7 }; b.leasedToPlayer = true; b.listed = null; O.Panels.close(); O.Panels.toast(`It's yours to use at ${rent}d a week. The landlord will come for the rent.`); });
         on('[data-a=run]', () => runBusiness(b));
         r.querySelectorAll('[data-open2]').forEach((x) => x.onclick = () => { if (PS.money < 40) return O.Panels.toast('You need 40d for the first stock.', 'bad'); PS.money -= 40; const bz = s.startBusiness(b, x.dataset.open2, 'player'); s.fillVacancies(); O.Panels.close(); O.Panels.toast(`${bz.name} opens. Its fittings make it what it is: take them out and it stops.`); });
         r.querySelectorAll('[data-floor]').forEach((x) => x.onclick = () => { O.redecorate(b, 'floor', x.dataset.floor); panel(b); });

@@ -247,21 +247,26 @@
         if (this.drawWounds && !fr.ox && a.a && !a.horse && !a.animal) this.drawWounds(ctx, a, fx, fy);
         a._sx = fx; a._sy = fy;
       };
+      // whatever stands in front of you (a roof, a tree) fades so you can see yourself behind it
+      const P0 = this.player, px0 = P0.x - 9, px1 = P0.x + 9, py0 = P0.y - 36, py1 = P0.y - 2, dtF = Math.min(0.1, this.t - (this._fadeT || this.t)); this._fadeT = this.t;
+      const fadeOf = (o, x, y, wd, ht) => { const cover = !P0.hidden && o.y > P0.y + 1 && x < px1 && x + wd > px0 && y < py1 && y + ht > py0; const tgt = cover ? 0.42 : 1; o._fade = o._fade == null ? 1 : o._fade + (tgt - o._fade) * Math.min(1, dtF * 8); return o._fade; };
       for (const s of this.statics) {
         while (ai < actors.length && actors[ai].y < s.y) drawActor(actors[ai++]);
         if (s.b) {
           const b = s.b, sp = b.sprite; if (!sp) continue;
           const x = b.x * T - sp.OV, y = (b.bottom + 1) * T - sp.H;
+          const fa = fadeOf(s, x, y, sp.W, sp.H - 6); if (fa < 0.99) ctx.globalAlpha = fa;
           if (inView(x, y, sp.W, sp.H)) { ctx.drawImage(sp.canvas, x - cam.x, y - cam.y); if (this.snowAlpha > 0.04 && sp.roofMask) { ctx.globalAlpha = this.snowAlpha; ctx.drawImage(sp.roofMask, x - cam.x, y - cam.y); ctx.globalAlpha = 1; } if (this.drawDoor) this.drawDoor(ctx, b, cam); }
+          ctx.globalAlpha = 1;
         } else {
           const o = s.t || s.p, sp = o.sprite, x = o.x - sp.ox, y = o.y - sp.oy;
+          const fa = s.t ? fadeOf(s, x, y, sp.W, sp.H) : 1; if (fa < 0.99) ctx.globalAlpha = fa;
           if (inView(x, y, sp.W, sp.H)) { ctx.drawImage(sp.canvas, x - cam.x, y - cam.y); if (this.snowAlpha > 0.04) { const m = sp.snowMask || (sp.snowMask = O.snowMaskOf(sp.canvas)); if (m) { ctx.globalAlpha = this.snowAlpha; ctx.drawImage(m, x - cam.x, y - cam.y); ctx.globalAlpha = 1; } } }
+          ctx.globalAlpha = 1;
         }
       }
       while (ai < actors.length) drawActor(actors[ai++]);
-      // ghost of the player when hidden behind roofs/trees
-      const p = this.player;
-      if (p._sx != null) { ctx.globalAlpha = 0.28; ctx.drawImage(this.actorFrame(p), p._sx, p._sy); ctx.globalAlpha = 1; }
+      ctx.globalAlpha = 1;
       for (const h of this.hooks.drawWorld) h(ctx, cam);
       // smoke
       for (const q of this.particles) {

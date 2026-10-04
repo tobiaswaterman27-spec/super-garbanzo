@@ -162,13 +162,16 @@
     // ---------------- the kingdom map ----------------
     let mapCanvas = null;
     const E = O.Eldoria, MS = 3; // three pixels to a map unit
-    function renderMap() {
-      const c = document.createElement('canvas'); c.width = E.W * MS; c.height = E.H * MS;
-      const ctx = c.getContext('2d'); const img = ctx.createImageData(c.width, c.height);
+    // the map is painted a few rows at a time from the moment the game starts, so it's ready when you open it
+    let job = null;
+    function renderMap(rows = 1e9) {
+      if (!job) { const c = document.createElement('canvas'); c.width = E.W * MS; c.height = E.H * MS; const ctx = c.getContext('2d'); job = { c, ctx, img: ctx.createImageData(c.width, c.height), y: 0 }; }
+      const { c, ctx, img } = job;
       const P = O.Pal;
       const R = { sea: P.makeRamp('#2e5a7e', 0.6), beach: P.makeRamp('#c8b07a', 0.5), lake: P.makeRamp('#3f6f9a', 0.6), river: P.makeRamp('#4a80b0', 0.5), peak: P.makeRamp('#dfe6ea', 0.4), mountain: P.makeRamp('#8a8478', 0.8),
         forest: P.makeRamp('#3f6a34', 0.7), frost: P.makeRamp('#4f6e5e', 0.6), black: P.makeRamp('#2e4630', 0.7), farm: P.makeRamp('#b0a050', 0.6), grass: P.makeRamp('#6a9a48', 0.6), moor: P.makeRamp('#8a8a5a', 0.6), marsh: P.makeRamp('#5a7a5a', 0.6) };
-      for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) {
+      const yEnd = Math.min(c.height, job.y + rows);
+      for (let y = job.y; y < yEnd; y++) for (let x = 0; x < c.width; x++) {
         const mx = x / MS, my = y / MS, t = E.terrainAt(mx, my), n = O.fbm(mx / 3, my / 3, 5, 3), f = O.noise2(x * 0.6, y * 0.6, 2);
         let ramp = R[t] || R.grass, s = n > 0.58 ? 3 : n > 0.42 ? 2 : 1;
         if (t === 'forest') { const g = E.regionAt(mx, my); ramp = g && g.r.cold ? R.frost : g && g.r.dark ? R.black : R.forest; if (f > 0.6) s = (x + y) % 3 ? 1 : 3; }
@@ -178,7 +181,8 @@
         if (f > 0.95) s = Math.min(4, s + 1);
         const col = ramp[s], i = (y * c.width + x) * 4; img.data[i] = col[0]; img.data[i + 1] = col[1]; img.data[i + 2] = col[2]; img.data[i + 3] = 255;
       }
-      ctx.putImageData(img, 0, 0);
+      job.y = yEnd; if (job.y < c.height) return null;
+      ctx.putImageData(img, 0, 0); job = null;
       // ruins of older times
       for (const r of E.RUINS) { const x = Math.round(r.x * MS), y = Math.round(r.y * MS); ctx.fillStyle = '#1b1424'; ctx.fillRect(x - 2, y - 2, 5, 5); ctx.fillStyle = '#8a8278'; ctx.fillRect(x - 1, y - 1, 3, 3); }
       return c;
@@ -286,6 +290,7 @@
       const inner = document.querySelector('.panel-modal .ledger-in'); if (inner) inner.classList.remove('narrow');
     };
     game.keyHandlers.push((e) => { if (e.code === 'KeyM' && !O.panelOpen) { O.openMap(); return true; } return false; });
+    game.hooks.update.push(() => { if (!mapCanvas && !O.panelOpen && game.t > 2) mapCanvas = renderMap(6); });
   }
   O.KingdomUI = { setup };
 })();

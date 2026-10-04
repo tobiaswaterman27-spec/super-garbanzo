@@ -38,20 +38,25 @@
       const s = cur(); if (!s.world.placeId || s.world.placeId !== (K().places.find((x) => x.kind === 'capital') || {}).id) return;
       const hall = s.world.buildings.find((b) => b.royal); if (!hall) return;
       const h = s.hour;
-      if (s.weekday === 3 && h >= 13.5 && h < 16.5 && spawned !== s.day) {
+      if (s.weekday === 3 && h >= 12.25 && h < 16.5 && spawned !== s.day) {
         spawned = s.day; K().leadersInit && K().leadersInit();
         const L = Object.entries(K().leaders || {}).filter(([, l]) => !l.out).slice(0, 14);
         for (const [id, l] of L) {
           const q = s.newPerson({ sex: l.sex, age: 40 + (l.name.length % 20), first: l.first || l.name.split(' ')[0], sur: l.name.split(' ').slice(1).join(' '), household: 0, home: null, genes: O.Char.randomGenes(s.rng, 'south'), wealth: 0.85, visitor: true });
           q.name = `${l.title} ${l.name}`; q.title = l.title; q.councillor = hall.id; q.councilFor = id;
           q.app = O.Char.makeAppearance(O.hash('leader', id), { sex: q.sex, age: q.age, genes: q.genes, role: 'noble', wealth: 0.85 });
-          const [ex, ey] = s.entry(hall); q.agent = { x: ex * 16 + 8, y: ey * 16 + 10, dir: 3, anim: 'idle', ft: 0, a: q.app, hidden: true, inside: hall.id, path: null, goal: null, person: q };
+          // they ride in by the east gate, one behind another, and up to the hall
+          const E = s.Z && s.Z.east, n = L.findIndex(([x]) => x === id), late = h >= 13.75;
+          const [ex, ey] = late || !E ? s.entry(hall) : E;
+          q.agent = { x: ex * 16 + 8 - (late ? 0 : n * 22), y: ey * 16 + 10 + (n % 2) * 8, dir: 1, anim: 'idle', ft: 0, a: q.app, hidden: late, inside: late ? hall.id : null, path: null, goal: null, person: q };
+          q.ridingOut = !late;
           s.people.push(q); s.byId.set(q.id, q);
         }
-        say('The leaders of the realm are gathering in the great hall for the council.');
+        say(h < 13.75 ? 'The leaders of the realm are riding in for the council.' : 'The leaders of the realm are gathering in the great hall for the council.');
       }
       // gone home in the evening
-      if (h >= 17 && s.people.some((q) => q.councillor)) { for (const q of s.people.filter((x) => x.councillor)) s.byId.delete(q.id); s.people = s.people.filter((q) => !q.councillor); }
+      for (const q of s.people) if (q.councillor) q.ridingOut = q.agent.inside == null; // mounted on the road, on foot in the hall
+      if (h >= 18 && s.people.some((q) => q.councillor)) { for (const q of s.people.filter((x) => x.councillor)) s.byId.delete(q.id); s.people = s.people.filter((q) => !q.councillor); }
     });
 
     // the minutes, for whoever asks at the castle or reads the map

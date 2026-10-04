@@ -116,13 +116,22 @@
     O.propertyPanel = panel;
     // running a business you own: its purse, its people, their pay and their posts
     function runBusiness(b) {
-      const s = sim, bz = s.biz.get(b.id); if (!bz) return;
+      const s = O.SimRef.cur || sim, bz = s.biz.get(b.id); if (!bz) return;
       const roles = bz.def.jobs.map((j) => j[0]);
+      const goods = Object.keys(bz.def.buys || {}).filter((g) => O.Data.GOODS[g]);
+      const moveTo = s.world.buildings.filter((x) => x !== b && !s.biz.get(x.id) && !x.household && !x.site && !x.ruined && !O.isPublicBuilding(x) && (x.owner?.kind === 'player' || (PS.lease && PS.lease.b === x.id && PS.lease.place === s.world.placeId)));
       const rows = bz.workers.map((id) => s.byId.get(id)).filter(Boolean).map((q) => `<tr><td>${esc(q.name)}<br><small class="lbl">${esc(q.job.role)}${q.job.wage != null ? `, ${q.job.wage}d a day` : ''}</small></td><td><button data-raise="${q.id}">Raise</button>${roles.indexOf(q.job.role) > 0 ? `<button data-promote="${q.id}">Promote</button>` : ''}<button data-fire="${q.id}">Dismiss</button></td></tr>`).join('');
       O.Panels.open(`Running ${bz.name}`, `<div class="kv"><div><span class="lbl">Business purse</span><b>${O.money(Math.floor(bz.cash))}</b><small>your hands spend it on what the business needs</small></div><div><span class="lbl">Today's takings</span><b>${O.money(Math.round(bz.salesToday || 0))}</b></div></div>
         <div class="topics" style="margin:8px 0"><button data-fund="20">Put in 20d</button><button data-take="20">Take out 20d</button><button data-hire="1">Take on hands</button></div>
-        <table><thead><tr><th>Hand</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="2">Nobody works here yet.</td></tr>'}</tbody></table>`, (r) => {
+        <table><thead><tr><th>Hand</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="2">Nobody works here yet.</td></tr>'}</tbody></table>
+        <div class="lbl" style="margin-top:10px">Standing deals (delivered every Sunday morning)</div>
+        <ul class="chron">${(bz.deals || []).map((d, i) => `<li>${d.qty} ${esc(O.Data.GOODS[d.good]?.name.toLowerCase() || d.good)} from ${esc(d.fromName)} at ${d.price}d each <button data-undeal="${i}">End it</button></li>`).join('') || '<li>None.</li>'}</ul>
+        ${goods.length ? `<div class="topics"><select data-dg>${goods.map((g) => `<option value="${g}">${esc(O.Data.GOODS[g]?.name || g)}</option>`).join('')}</select><select data-dq><option>5</option><option selected>10</option><option>20</option></select><button data-deal="1">Offer a supplier a weekly deal</button></div>` : ''}
+        <div class="topics" style="margin-top:8px">${moveTo.length ? moveTo.map((x) => `<button data-move="${x.id}">Move the business to ${esc(x.type === 'house' ? 'your house' : x.closedShop ? 'the old ' + x.closedShop.name : x.name)}</button>`).join('') : '<small class="lbl">To move the business, first buy or rent empty premises.</small>'}</div>`, (r) => {
         const on = (sel, f) => r.querySelectorAll(sel).forEach((x) => x.onclick = () => f(x));
+        on('[data-undeal]', (x) => { bz.deals.splice(+x.dataset.undeal, 1); runBusiness(b); });
+        on('[data-deal]', () => { const g = r.querySelector('[data-dg]').value, qty = +r.querySelector('[data-dq]').value; const res = O.Deals.offer(s, bz, g, qty); O.Panels.toast(res.msg, res.ok ? '' : 'bad'); if (res.ok) runBusiness(b); });
+        on('[data-move]', (x) => { const nb = s.building(+x.dataset.move), res = O.Deals.relocate(s, bz, nb); O.Panels.close(); O.Panels.toast(res); });
         on('[data-fund]', () => { if (PS.money < 20) return O.Panels.toast('You have not got 20d.', 'bad'); PS.money -= 20; bz.cash += 20; runBusiness(b); });
         on('[data-take]', () => { if (bz.cash < 20) return O.Panels.toast('The purse is too light.', 'bad'); bz.cash -= 20; PS.money += 20; runBusiness(b); });
         on('[data-hire]', () => { s.fillVacancies(); runBusiness(b); });

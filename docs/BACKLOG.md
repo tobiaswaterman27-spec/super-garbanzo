@@ -77,11 +77,11 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Afterwards: list in chat every job that can't yet be reached by asking for work or buying a business
 
 ## Still to do (after steps 57-64)
-- [ ] Business deals between owners and suppliers (e.g. "every Sunday bring me X for Y a month")
-- [ ] Relocating a business; the moneylender actually lending; a touring minstrel troupe; a hermit at the ruins
-- [ ] Riders shown on horseback on the roads (merchants with horses already travel faster)
-- [ ] Leaders visibly leaving their own towns on council day (they already appear in the great hall)
-- [ ] Journeys, council minutes and elections kept across a reload (today travellers come home and the council starts afresh)
+- [x] Business deals between owners and suppliers (e.g. "every Sunday bring me X for Y a month")
+- [x] Relocating a business; the moneylender actually lending; a touring minstrel troupe; a hermit at the ruins
+- [x] Riders shown on horseback on the roads (merchants with horses already travel faster)
+- [x] Leaders visibly leaving their own towns on council day (they already appear in the great hall)
+- [x] Journeys, council minutes and elections kept across a reload (today travellers come home and the council starts afresh)
 - [ ] When the player takes the throne (or any post held by a family): the old holders move out and the player's family takes their place (options to come, as asked)
 - [ ] Letters: more kinds and recipients (asked to be added later)
 - [ ] Talking to people through an AI key (maybe)
@@ -89,7 +89,7 @@ Every job and every level of it, royal family and titles included, grouped under
 ## Batch D (asked after steps 63-64) - build now
 
 - [x] Lordship of Ashford: only offered if you live in Ashford (own a house there and live in it)
-- [ ] The "not done yet" items: business deals, relocating a business, the moneylender lending, riders on horseback, leaders visibly leaving for the council, journeys and council kept across a reload
+- [x] The "not done yet" items: business deals, relocating a business, the moneylender lending, riders on horseback, leaders visibly leaving for the council, journeys and council kept across a reload
 - [x] Everyone visibly doing things; people leave in time for where they're going (by distance), early or late by personality
 - [x] Glitch: some people change their whole look at work but keep their name
 - [x] Beds only in buildings where someone lives, and only on the floor they sleep on
@@ -103,14 +103,14 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Collisions: no seeing through things, no odd overlaps
 - [x] The for-sale sign is put up by a person, with animation
 - [x] Attack while sprinting
-- [ ] Preload the map
+- [x] Preload the map
 - [x] Better pathfinding: people walking head on don't jam
 - [x] NPCs turn to face you when you talk to them
 - [x] Some buildings have no light: at least a candle unless too poor
 - [x] Inn: "a bed for the night" and "a room for the night" mean the same; the upstairs only where the building has one
 - [ ] Population numbers for every place (answer in chat)
 - [x] Potboy or potgirl always takeable even when the inn's other posts are full; more than one job at once
-- [ ] Optional: minstrels and the hermit
+- [x] Optional: minstrels and the hermit
 - [x] Gangs: join any gang, climb the ranks, tasks per rank (management, pickpocketing, burglary, higher up assassinations); the tailor sells disguises so you aren't known
 - [ ] Next: how to get the other jobs (asked to come after this)
 - [ ] Say what should be added next; how many people are in the sim and how things change over time

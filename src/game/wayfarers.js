@@ -83,7 +83,7 @@
         for (const j of K.journeys || []) {
           if (j.started == null || j.done || (j.arrived && !j.homeward) || nowMin < j.started) continue;
           const at = O.Journeys.whereOn(K, j); if (!at || !active.includes(at.r)) continue;
-          j._actors = j._actors || (j.travellers || []).map((t, k) => ({ a: O.Char.makeAppearance(t.seed, { sex: t.sex, age: t.age, genes: t.genes, role: t.role === 'merchant' ? 'merchant' : 'villager', wealth: 0.55 }), name: t.name, role: t.role, traveller: true, journey: j, k, x: 0, y: 0, dir: 0, ft: k * 0.3, anim: 'walk' }));
+          j._actors = j._actors || (j.travellers || []).map((t, k) => ({ a: O.Char.makeAppearance(t.seed, { sex: t.sex, age: t.age, genes: t.genes, role: t.role === 'merchant' ? 'merchant' : t.role === 'minstrel' ? 'bard' : 'villager', wealth: 0.55 }), name: t.name, role: t.role, traveller: true, journey: j, k, x: 0, y: 0, dir: 0, ft: k * 0.3, anim: 'walk' }));
           const dirn = at.dir * (j.homeward ? 1 : 1);
           for (const tr of j._actors) {
             const sd = at.s - tr.k * 1.2 * dirn, [ax, ay] = I.pointAt(at.r, sd), [bx, by] = I.pointAt(at.r, sd + dirn), dd = Math.hypot(bx - ax, by - ay) || 1, side = 0.45 * dirn;

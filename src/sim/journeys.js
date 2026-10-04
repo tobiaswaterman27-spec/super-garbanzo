@@ -49,7 +49,7 @@
     S.depart = function (ppl, to, purpose, goods, hh) {
       const K = this.kingdom, path = K.route(this.world.placeId, to); if (!path || path.length < 2) return;
       const id = Math.random().toString(36).slice(2, 9);
-      const j = { id, from: this.world.placeId, to, path, purpose, goods, people: [], started: null, back: purpose !== 'move', horse: false, hh: hh ? hh.id : null };
+      const j = { id, from: this.world.placeId, to, path, purpose, goods, people: [], started: null, back: purpose !== 'move', horse: purpose === 'trade' && ppl[0] && this.household(ppl[0]).money > 120 && this.rng.chance(0.6), hh: hh ? hh.id : null }; // a merchant doing well rides
       const Z = this.Z || this.world.zones || {}, east = Z.east || [this.world.W - 2, 30];
       for (const p of ppl) {
         j.people.push(p.id);
@@ -81,10 +81,11 @@
       const r = this.rng, Z = this.Z || this.world.zones || {}, east = Z.east || [this.world.W - 2, 30], made = [];
       for (const t of j.travellers || []) {
         const q = this.newPerson({ sex: t.sex, age: t.age, first: t.first, sur: t.name.split(' ').slice(1).join(' ') || 'Traveller', household: 0, home: null, genes: t.genes || O.Char.randomGenes(r, 'south'), wealth: 0.55, visitor: true });
-        q.name = t.name; q.app = O.Char.makeAppearance(t.seed, { sex: t.sex, age: t.age, genes: q.genes, role: t.role === 'merchant' ? 'merchant' : 'villager', wealth: 0.55 });
+        q.name = t.name; q.app = O.Char.makeAppearance(t.seed, { sex: t.sex, age: t.age, genes: q.genes, role: t.role === 'merchant' ? 'merchant' : t.role === 'minstrel' ? 'bard' : 'villager', wealth: 0.55 });
         q.agent = { x: east[0] * this.T + 8, y: east[1] * this.T + 10, dir: 1, anim: 'walk', ft: 0, a: q.app, hidden: false, inside: null, path: null, goal: null, person: q };
         q.journey = j.id; q.leaveAt = this.day * 1440 + this.minute + (j.purpose === 'visit' ? r.int(240, 600) : r.int(120, 300));
         if (j.purpose === 'trade' && j.goods) { const g = Object.keys(j.goods)[0]; const buyer = [...this.biz.values()].filter((bz) => !bz.def.public && (bz.def.buys?.[g] || bz.def.targets?.[g] != null)).sort((a, b) => (a.stock[g] || 0) - (b.stock[g] || 0))[0]; q.task = buyer ? { act: 'sell-in', b: buyer.id, good: g, qty: j.goods[g] } : null; }
+        if (j.purpose === 'perform' && this.tavernId != null) { q.task = { act: 'perform', b: this.tavernId }; q.leaveAt = this.day * 1440 + this.minute + r.int(360, 600); }
         if (!q.task) q.task = { act: 'rest', b: this.tavernId };
         this.people.push(q); this.byId.set(q.id, q); made.push(q);
       }
@@ -118,7 +119,7 @@
       }
       return _pm2.call(this, p);
     };
-    S.plan = (function (prev) { return function (p) { if (p.task && (p.task.act === 'sell-in' || p.task.act === 'rest')) return { act: p.task.act === 'rest' ? 'rest' : 'shop', b: p.task.b }; return prev.call(this, p); }; })(S.plan);
+    S.plan = (function (prev) { return function (p) { if (p.task && (p.task.act === 'sell-in' || p.task.act === 'rest')) return { act: p.task.act === 'rest' ? 'rest' : 'shop', b: p.task.b }; if (p.task && p.task.act === 'perform') { const h = this.hour; return h >= 11 && h < 23 ? { act: 'perform', b: p.task.b } : { act: 'rest', b: p.task.b }; } return prev.call(this, p); }; })(S.plan);
   }
 
   // the realm moves them along the roads; when they reach the end, the town takes them in (or home)

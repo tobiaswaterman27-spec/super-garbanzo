@@ -27,7 +27,7 @@
     const strip = (p) => {
       const o = {};
       for (const [k, v] of Object.entries(p)) {
-        if (k === 'app' || k === 'agent' || k === 'activity') continue;
+        if (k === 'app' || k === 'agent' || k === 'activity' || k === 'errand' || k === '_social' || k === '_headCanvas' || k === '_headApp' || k === '_purse' || k[0] === '_' && typeof v === 'object') continue; // nothing live or drawn
         if (k === 'rel') { o.rel = [...v.entries()].map(([id, r]) => [id, +r.affinity.toFixed(3), +r.familiar.toFixed(3)]); continue; }
         if (k === 'task') { if (v && (v.act === 'pickup' || v.act === 'deliver')) continue; o.task = v; continue; }
         o[k] = v;
@@ -45,11 +45,11 @@
         weather: { kind: sim.weather.kind, level: sim.weather.level, hailCover: sim.weather.hailCover, wet: sim.weather.wet, snowCover: sim.weather.snowCover, lastHour: sim.weather.lastHour },
         people: sim.people.map(strip), traderId: sim.trader ? sim.trader.id : null,
         households: sim.households,
-        biz: [...sim.biz.values()].map((b) => ({ id: b.id, type: b.type, stock: b.stock, cash: b.cash, owner: b.owner, workers: b.workers, salesToday: b.salesToday, history: b.history, jobs: b.def.jobs, name: b.name, cost: b.def.site ? true : undefined, ownerPlayer: b.ownerPlayer, badDays: b.badDays, founded: b.founded })),
+        biz: [...sim.biz.values()].map((b) => ({ id: b.id, type: b.type, stock: b.stock, cash: b.cash, owner: b.owner, workers: b.workers, salesToday: b.salesToday, history: b.history, jobs: b.def.jobs, name: b.name, cost: b.def.site ? true : undefined, ownerPlayer: b.ownerPlayer, badDays: b.badDays, founded: b.founded, deals: b.deals || null })),
         lordship: sim.lordship, forest: sim.forest || null, flood: sim.floodState ? { level: sim.floodState.level, set: sim.floodState.set, peak: sim.floodState.peak } : null, quarantine: sim.quarantine || null, memorials: sim.memorials || [], levyDay: sim.levyDay || null, returnDay: sim.returnDay || null, festivalDay: sim.festivalDay || null, festivalWhy: sim.festivalWhy || null, mourningUntil: sim.mourningUntil || null, reeveMoot: sim.reeveMoot || null, lastMoot: sim.lastMoot || null, farmStripsSold: sim.farmStripsSold || 0,
         sites: sim.build.sites.map((s) => ({ id: s.id, stage: s.stage, prog: s.prog, work: s.work, started: s.started, player: s.player || false })), nextCouncil: sim.build.nextCouncil, plotsUsed: [...sim.build.used],
         gangs: sim.gangs,
-        kingdom: { places: sim.kingdom.places, roads: sim.kingdom.roads, caravans: sim.kingdom.caravans.map((c) => Object.assign({}, c, { held: false })), news: sim.kingdom.news, war: sim.kingdom.war ? Object.assign({}, sim.kingdom.war, { soldiers: sim.kingdom.war.soldiers.map((x) => Object.assign({}, x, { snap: x.snap && !x.back ? strip(x.snap) : null })) }) : null, rulers: sim.kingdom.rulers, heirStore: sim.kingdom.heirStore || null, treasury: sim.kingdom.treasury, taxRate: sim.kingdom.taxRate, councils: sim.kingdom.councils.slice(-6) },
+        kingdom: { places: sim.kingdom.places, roads: sim.kingdom.roads, caravans: sim.kingdom.caravans.map((c) => Object.assign({}, c, { held: false })), news: sim.kingdom.news, war: sim.kingdom.war ? Object.assign({}, sim.kingdom.war, { soldiers: sim.kingdom.war.soldiers.map((x) => Object.assign({}, x, { snap: x.snap && !x.back ? strip(x.snap) : null })) }) : null, rulers: sim.kingdom.rulers, heirStore: sim.kingdom.heirStore || null, treasury: sim.kingdom.treasury, taxRate: sim.kingdom.taxRate, councils: sim.kingdom.councils.slice(-6), leaders: sim.kingdom.leaders || null, councilLog: sim.kingdom.councilLog || [], elections: (sim.kingdom.elections || []).slice(-10), journeys: (sim.kingdom.journeys || []).filter((j) => !j.done).map((j) => { const o = Object.assign({}, j); delete o._actors; delete o._len; return o; }) },
         horses: (sim.horses || []).map((h) => { const o = Object.assign({}, h); delete o._actor; return o; }),
       },
       world: {
@@ -125,7 +125,7 @@
       if (!bz && O.Data.BUSINESS[sb.type]) { const b = w.buildings.find((x) => x.id === sb.id); bz = { id: sb.id, b, type: sb.type, def: O.Data.BUSINESS[sb.type], name: sb.name, sold: {}, bought: {}, orders: [] }; sim.biz.set(sb.id, bz); }
       if (!bz) continue;
       bz.ownerPlayer = sb.ownerPlayer; bz.badDays = sb.badDays; bz.name = sb.name; bz.type = sb.type; if (O.Data.BUSINESS[sb.type] && bz.def !== O.Data.BUSINESS[sb.type] && !bz.def.site) bz.def = O.Data.BUSINESS[sb.type];
-      Object.assign(bz, { stock: sb.stock, cash: sb.cash, owner: sb.owner, workers: sb.workers, salesToday: sb.salesToday, history: sb.history, orders: [], open: false, founded: sb.founded });
+      Object.assign(bz, { stock: sb.stock, cash: sb.cash, owner: sb.owner, workers: sb.workers, salesToday: sb.salesToday, history: sb.history, orders: [], open: false, founded: sb.founded, deals: sb.deals || null });
       bz.def = Object.assign({}, bz.def, { jobs: sb.jobs });
       bz.b = w.buildings.find((x) => x.id === sb.id) || bz.b;
     }

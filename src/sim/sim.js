@@ -299,6 +299,7 @@
       const free = (x, y) => !w.solid[y * w.W + x];
       const pick = (x0, y0, x1, y1) => { for (let k = 0; k < 20; k++) { const x = r.int(x0, x1), y = r.int(y0, y1); if (free(x, y)) return [x, y]; } return [46, 29]; };
       switch (zone) {
+        case 'east': return this.Z.east; // the road out of town
         case 'friend': { // the doorstep of the one they like best
           let best = null, bf = 0.15; for (const [id, r0] of p.rel) { if (typeof id !== 'number' || id === 0 || (r0.affinity || 0) <= bf) continue; const f = this.byId.get(id); if (f && f.home && f.home !== p.home && f.alive !== false) { best = f; bf = r0.affinity; } }
           const b = best && this.building(best.home); if (b && b.doorX != null) return pick(b.doorX - 1, b.doorY, b.doorX + 1, b.doorY + 1);

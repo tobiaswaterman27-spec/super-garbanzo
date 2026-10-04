@@ -8547,7 +8547,7 @@ O.snowMaskOf = function (src) {
     S.depart = function (ppl, to, purpose, goods, hh) {
       const K = this.kingdom, path = K.route(this.world.placeId, to); if (!path || path.length < 2) return;
       const id = Math.random().toString(36).slice(2, 9);
-      const j = { id, from: this.world.placeId, to, path, purpose, goods, people: [], started: null, back: purpose !== 'move', horse: false, hh: hh ? hh.id : null };
+      const j = { id, from: this.world.placeId, to, path, purpose, goods, people: [], started: null, back: purpose !== 'move', horse: purpose === 'trade' && ppl[0] && this.household(ppl[0]).money > 120 && this.rng.chance(0.6), hh: hh ? hh.id : null }; // a merchant doing well rides
       const Z = this.Z || this.world.zones || {}, east = Z.east || [this.world.W - 2, 30];
       for (const p of ppl) {
         j.people.push(p.id);
@@ -8579,10 +8579,11 @@ O.snowMaskOf = function (src) {
       const r = this.rng, Z = this.Z || this.world.zones || {}, east = Z.east || [this.world.W - 2, 30], made = [];
       for (const t of j.travellers || []) {
         const q = this.newPerson({ sex: t.sex, age: t.age, first: t.first, sur: t.name.split(' ').slice(1).join(' ') || 'Traveller', household: 0, home: null, genes: t.genes || O.Char.randomGenes(r, 'south'), wealth: 0.55, visitor: true });
-        q.name = t.name; q.app = O.Char.makeAppearance(t.seed, { sex: t.sex, age: t.age, genes: q.genes, role: t.role === 'merchant' ? 'merchant' : 'villager', wealth: 0.55 });
+        q.name = t.name; q.app = O.Char.makeAppearance(t.seed, { sex: t.sex, age: t.age, genes: q.genes, role: t.role === 'merchant' ? 'merchant' : t.role === 'minstrel' ? 'bard' : 'villager', wealth: 0.55 });
         q.agent = { x: east[0] * this.T + 8, y: east[1] * this.T + 10, dir: 1, anim: 'walk', ft: 0, a: q.app, hidden: false, inside: null, path: null, goal: null, person: q };
         q.journey = j.id; q.leaveAt = this.day * 1440 + this.minute + (j.purpose === 'visit' ? r.int(240, 600) : r.int(120, 300));
         if (j.purpose === 'trade' && j.goods) { const g = Object.keys(j.goods)[0]; const buyer = [...this.biz.values()].filter((bz) => !bz.def.public && (bz.def.buys?.[g] || bz.def.targets?.[g] != null)).sort((a, b) => (a.stock[g] || 0) - (b.stock[g] || 0))[0]; q.task = buyer ? { act: 'sell-in', b: buyer.id, good: g, qty: j.goods[g] } : null; }
+        if (j.purpose === 'perform' && this.tavernId != null) { q.task = { act: 'perform', b: this.tavernId }; q.leaveAt = this.day * 1440 + this.minute + r.int(360, 600); }
         if (!q.task) q.task = { act: 'rest', b: this.tavernId };
         this.people.push(q); this.byId.set(q.id, q); made.push(q);
       }
@@ -8616,7 +8617,7 @@ O.snowMaskOf = function (src) {
       }
       return _pm2.call(this, p);
     };
-    S.plan = (function (prev) { return function (p) { if (p.task && (p.task.act === 'sell-in' || p.task.act === 'rest')) return { act: p.task.act === 'rest' ? 'rest' : 'shop', b: p.task.b }; return prev.call(this, p); }; })(S.plan);
+    S.plan = (function (prev) { return function (p) { if (p.task && (p.task.act === 'sell-in' || p.task.act === 'rest')) return { act: p.task.act === 'rest' ? 'rest' : 'shop', b: p.task.b }; if (p.task && p.task.act === 'perform') { const h = this.hour; return h >= 11 && h < 23 ? { act: 'perform', b: p.task.b } : { act: 'rest', b: p.task.b }; } return prev.call(this, p); }; })(S.plan);
   }
 
   // the realm moves them along the roads; when they reach the end, the town takes them in (or home)
@@ -9126,6 +9127,7 @@ O.snowMaskOf = function (src) {
       const free = (x, y) => !w.solid[y * w.W + x];
       const pick = (x0, y0, x1, y1) => { for (let k = 0; k < 20; k++) { const x = r.int(x0, x1), y = r.int(y0, y1); if (free(x, y)) return [x, y]; } return [46, 29]; };
       switch (zone) {
+        case 'east': return this.Z.east; // the road out of town
         case 'friend': { // the doorstep of the one they like best
           let best = null, bf = 0.15; for (const [id, r0] of p.rel) { if (typeof id !== 'number' || id === 0 || (r0.affinity || 0) <= bf) continue; const f = this.byId.get(id); if (f && f.home && f.home !== p.home && f.alive !== false) { best = f; bf = r0.affinity; } }
           const b = best && this.building(best.home); if (b && b.doorX != null) return pick(b.doorX - 1, b.doorY, b.doorX + 1, b.doorY + 1);
@@ -12048,6 +12050,7 @@ O.snowMaskOf = function (src) {
       if (O.signCandidate) { const sg = O.signCandidate(); if (sg) out.push(sg); }
       if (O.jobCandidate) { const jc = O.jobCandidate(); if (jc) out.push(jc); }
       if (O.gangCandidate) { const gc = O.gangCandidate(); if (gc) out.push(gc); }
+      if (O.hermitCandidate) { const hc = O.hermitCandidate(); if (hc) out.push(hc); }
       if (O.voteCandidate) { const vc = O.voteCandidate(); if (vc) out.push(vc); }
       if (O.placedCandidate) { const pc2 = O.placedCandidate(); if (pc2) out.push(pc2); }
       if (O.furnCandidate) { const fc = O.furnCandidate(); if (fc) out.push(fc); }
@@ -12095,6 +12098,7 @@ O.snowMaskOf = function (src) {
         case 'namesign': return 'Read the sign';
         case 'job': return O.jobLabel(c);
         case 'gangtask': return c.label;
+        case 'hermit': return 'Sit with the hermit';
         case 'vote': return 'The ballot box: read the candidates';
         case 'placed': { const g = O.Data.GOODS[c.x0.good]; return (g.food || g.drink) && O.PlayerState.hunger < 85 ? `${g.drink ? 'Drink' : 'Eat'} the ${g.name.toLowerCase()}` : `Pick up the ${g.name.toLowerCase()}`; }
         case 'furn': return `Take up the ${(O.Data.FURN[c.it.kind] || [c.it.kind])[0].toLowerCase()}`;
@@ -12248,6 +12252,7 @@ O.snowMaskOf = function (src) {
         case 'namesign': O.readSign(cur); break;
         case 'job': O.jobAct(cur); break;
         case 'gangtask': O.gangAct(cur); break;
+        case 'hermit': O.hermitAct(cur); break;
         case 'vote': O.voteAct(cur); break;
         case 'placed': O.placedAct(cur); break;
         case 'furn': O.furnAct(cur); break;
@@ -13773,13 +13778,16 @@ O.snowMaskOf = function (src) {
     // ---------------- the kingdom map ----------------
     let mapCanvas = null;
     const E = O.Eldoria, MS = 3; // three pixels to a map unit
-    function renderMap() {
-      const c = document.createElement('canvas'); c.width = E.W * MS; c.height = E.H * MS;
-      const ctx = c.getContext('2d'); const img = ctx.createImageData(c.width, c.height);
+    // the map is painted a few rows at a time from the moment the game starts, so it's ready when you open it
+    let job = null;
+    function renderMap(rows = 1e9) {
+      if (!job) { const c = document.createElement('canvas'); c.width = E.W * MS; c.height = E.H * MS; const ctx = c.getContext('2d'); job = { c, ctx, img: ctx.createImageData(c.width, c.height), y: 0 }; }
+      const { c, ctx, img } = job;
       const P = O.Pal;
       const R = { sea: P.makeRamp('#2e5a7e', 0.6), beach: P.makeRamp('#c8b07a', 0.5), lake: P.makeRamp('#3f6f9a', 0.6), river: P.makeRamp('#4a80b0', 0.5), peak: P.makeRamp('#dfe6ea', 0.4), mountain: P.makeRamp('#8a8478', 0.8),
         forest: P.makeRamp('#3f6a34', 0.7), frost: P.makeRamp('#4f6e5e', 0.6), black: P.makeRamp('#2e4630', 0.7), farm: P.makeRamp('#b0a050', 0.6), grass: P.makeRamp('#6a9a48', 0.6), moor: P.makeRamp('#8a8a5a', 0.6), marsh: P.makeRamp('#5a7a5a', 0.6) };
-      for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) {
+      const yEnd = Math.min(c.height, job.y + rows);
+      for (let y = job.y; y < yEnd; y++) for (let x = 0; x < c.width; x++) {
         const mx = x / MS, my = y / MS, t = E.terrainAt(mx, my), n = O.fbm(mx / 3, my / 3, 5, 3), f = O.noise2(x * 0.6, y * 0.6, 2);
         let ramp = R[t] || R.grass, s = n > 0.58 ? 3 : n > 0.42 ? 2 : 1;
         if (t === 'forest') { const g = E.regionAt(mx, my); ramp = g && g.r.cold ? R.frost : g && g.r.dark ? R.black : R.forest; if (f > 0.6) s = (x + y) % 3 ? 1 : 3; }
@@ -13789,7 +13797,8 @@ O.snowMaskOf = function (src) {
         if (f > 0.95) s = Math.min(4, s + 1);
         const col = ramp[s], i = (y * c.width + x) * 4; img.data[i] = col[0]; img.data[i + 1] = col[1]; img.data[i + 2] = col[2]; img.data[i + 3] = 255;
       }
-      ctx.putImageData(img, 0, 0);
+      job.y = yEnd; if (job.y < c.height) return null;
+      ctx.putImageData(img, 0, 0); job = null;
       // ruins of older times
       for (const r of E.RUINS) { const x = Math.round(r.x * MS), y = Math.round(r.y * MS); ctx.fillStyle = '#1b1424'; ctx.fillRect(x - 2, y - 2, 5, 5); ctx.fillStyle = '#8a8278'; ctx.fillRect(x - 1, y - 1, 3, 3); }
       return c;
@@ -13897,6 +13906,7 @@ O.snowMaskOf = function (src) {
       const inner = document.querySelector('.panel-modal .ledger-in'); if (inner) inner.classList.remove('narrow');
     };
     game.keyHandlers.push((e) => { if (e.code === 'KeyM' && !O.panelOpen) { O.openMap(); return true; } return false; });
+    game.hooks.update.push(() => { if (!mapCanvas && !O.panelOpen && game.t > 2) mapCanvas = renderMap(6); });
   }
   O.KingdomUI = { setup };
 })();
@@ -14136,13 +14146,22 @@ O.snowMaskOf = function (src) {
     O.propertyPanel = panel;
     // running a business you own: its purse, its people, their pay and their posts
     function runBusiness(b) {
-      const s = sim, bz = s.biz.get(b.id); if (!bz) return;
+      const s = O.SimRef.cur || sim, bz = s.biz.get(b.id); if (!bz) return;
       const roles = bz.def.jobs.map((j) => j[0]);
+      const goods = Object.keys(bz.def.buys || {}).filter((g) => O.Data.GOODS[g]);
+      const moveTo = s.world.buildings.filter((x) => x !== b && !s.biz.get(x.id) && !x.household && !x.site && !x.ruined && !O.isPublicBuilding(x) && (x.owner?.kind === 'player' || (PS.lease && PS.lease.b === x.id && PS.lease.place === s.world.placeId)));
       const rows = bz.workers.map((id) => s.byId.get(id)).filter(Boolean).map((q) => `<tr><td>${esc(q.name)}<br><small class="lbl">${esc(q.job.role)}${q.job.wage != null ? `, ${q.job.wage}d a day` : ''}</small></td><td><button data-raise="${q.id}">Raise</button>${roles.indexOf(q.job.role) > 0 ? `<button data-promote="${q.id}">Promote</button>` : ''}<button data-fire="${q.id}">Dismiss</button></td></tr>`).join('');
       O.Panels.open(`Running ${bz.name}`, `<div class="kv"><div><span class="lbl">Business purse</span><b>${O.money(Math.floor(bz.cash))}</b><small>your hands spend it on what the business needs</small></div><div><span class="lbl">Today's takings</span><b>${O.money(Math.round(bz.salesToday || 0))}</b></div></div>
         <div class="topics" style="margin:8px 0"><button data-fund="20">Put in 20d</button><button data-take="20">Take out 20d</button><button data-hire="1">Take on hands</button></div>
-        <table><thead><tr><th>Hand</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="2">Nobody works here yet.</td></tr>'}</tbody></table>`, (r) => {
+        <table><thead><tr><th>Hand</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="2">Nobody works here yet.</td></tr>'}</tbody></table>
+        <div class="lbl" style="margin-top:10px">Standing deals (delivered every Sunday morning)</div>
+        <ul class="chron">${(bz.deals || []).map((d, i) => `<li>${d.qty} ${esc(O.Data.GOODS[d.good]?.name.toLowerCase() || d.good)} from ${esc(d.fromName)} at ${d.price}d each <button data-undeal="${i}">End it</button></li>`).join('') || '<li>None.</li>'}</ul>
+        ${goods.length ? `<div class="topics"><select data-dg>${goods.map((g) => `<option value="${g}">${esc(O.Data.GOODS[g]?.name || g)}</option>`).join('')}</select><select data-dq><option>5</option><option selected>10</option><option>20</option></select><button data-deal="1">Offer a supplier a weekly deal</button></div>` : ''}
+        <div class="topics" style="margin-top:8px">${moveTo.length ? moveTo.map((x) => `<button data-move="${x.id}">Move the business to ${esc(x.type === 'house' ? 'your house' : x.closedShop ? 'the old ' + x.closedShop.name : x.name)}</button>`).join('') : '<small class="lbl">To move the business, first buy or rent empty premises.</small>'}</div>`, (r) => {
         const on = (sel, f) => r.querySelectorAll(sel).forEach((x) => x.onclick = () => f(x));
+        on('[data-undeal]', (x) => { bz.deals.splice(+x.dataset.undeal, 1); runBusiness(b); });
+        on('[data-deal]', () => { const g = r.querySelector('[data-dg]').value, qty = +r.querySelector('[data-dq]').value; const res = O.Deals.offer(s, bz, g, qty); O.Panels.toast(res.msg, res.ok ? '' : 'bad'); if (res.ok) runBusiness(b); });
+        on('[data-move]', (x) => { const nb = s.building(+x.dataset.move), res = O.Deals.relocate(s, bz, nb); O.Panels.close(); O.Panels.toast(res); });
         on('[data-fund]', () => { if (PS.money < 20) return O.Panels.toast('You have not got 20d.', 'bad'); PS.money -= 20; bz.cash += 20; runBusiness(b); });
         on('[data-take]', () => { if (bz.cash < 20) return O.Panels.toast('The purse is too light.', 'bad'); bz.cash -= 20; PS.money += 20; runBusiness(b); });
         on('[data-hire]', () => { s.fillVacancies(); runBusiness(b); });
@@ -16176,7 +16195,7 @@ O.snowMaskOf = function (src) {
         for (const j of K.journeys || []) {
           if (j.started == null || j.done || (j.arrived && !j.homeward) || nowMin < j.started) continue;
           const at = O.Journeys.whereOn(K, j); if (!at || !active.includes(at.r)) continue;
-          j._actors = j._actors || (j.travellers || []).map((t, k) => ({ a: O.Char.makeAppearance(t.seed, { sex: t.sex, age: t.age, genes: t.genes, role: t.role === 'merchant' ? 'merchant' : 'villager', wealth: 0.55 }), name: t.name, role: t.role, traveller: true, journey: j, k, x: 0, y: 0, dir: 0, ft: k * 0.3, anim: 'walk' }));
+          j._actors = j._actors || (j.travellers || []).map((t, k) => ({ a: O.Char.makeAppearance(t.seed, { sex: t.sex, age: t.age, genes: t.genes, role: t.role === 'merchant' ? 'merchant' : t.role === 'minstrel' ? 'bard' : 'villager', wealth: 0.55 }), name: t.name, role: t.role, traveller: true, journey: j, k, x: 0, y: 0, dir: 0, ft: k * 0.3, anim: 'walk' }));
           const dirn = at.dir * (j.homeward ? 1 : 1);
           for (const tr of j._actors) {
             const sd = at.s - tr.k * 1.2 * dirn, [ax, ay] = I.pointAt(at.r, sd), [bx, by] = I.pointAt(at.r, sd + dirn), dd = Math.hypot(bx - ax, by - ay) || 1, side = 0.45 * dirn;
@@ -16506,6 +16525,71 @@ O.snowMaskOf = function (src) {
     O.Social = { live, begin, stats: () => { const s = O.SimRef.cur, P = game.player; return s.people.filter((q) => !busy(q) && FREE.has(q.activity?.act) && Math.abs(q.agent.x - P.x) < 240 && Math.abs(q.agent.y - P.y) < 170).length; } };
   }
   O.SocialSetup = { setup };
+})();
+
+</script>
+<script>
+// Riders. Merchants with a horse ride their journeys between towns; in town the mounted couriers,
+// knights and the gentry go about on horseback. On council day each place's leader rides out of
+// town in the morning and back at evening, and in the capital the leaders ride in through the gate
+// and up to the great hall.
+'use strict';
+(function () {
+  const COATS = ['bay', 'chestnut', 'black', 'grey', 'dun', 'piebald'];
+  function setup(game) {
+    const T = 16, cur = () => O.SimRef.cur;
+    const horseFor = (key, n) => ({ id: 'r' + key, coat: COATS[Math.abs(n) % COATS.length], saddled: true, anim: 'idle', ft: 0, seed: Math.abs(n) + 3 });
+    // who rides in town
+    const rides = (q) => q.agent && !q.agent.hidden && q.agent.inside == null && q.age >= 16 && (q.ridingOut || ['mounted courier', 'knight', 'captain of the royal guard', 'master of horse'].includes(q.job?.role) || (q.gentry && q.agent.path && q.agent.path.length - (q.agent.pi || 0) > 12));
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || game.scene) return;
+      for (const q of s.people) {
+        const a = q.agent; if (!a) continue;
+        if (rides(q)) { const h = a.mount || (a.mount = horseFor(q.id + '_' + s.world.placeId, q.id)); h.anim = a.path ? (a.sprint ? 'gallop' : 'walk') : 'idle'; h.ft += dt; }
+        else if (a.mount) a.mount = null;
+      }
+    });
+    // merchants on the road with a horse of their own ride it
+    game.hooks.update.push((dt) => {
+      for (const a of game.actors) {
+        if (!a.traveller || !a.journey || !a.journey.horse) continue;
+        const h = a.mount || (a.mount = horseFor('j' + a.journey.id + '_' + a.k, (a.journey.id + '').length * 7 + a.k * 3));
+        h.anim = 'walk'; h.ft += dt;
+      }
+    });
+    // riders go at a horse's pace
+    const SP = O.Sim.prototype, _speed = SP.speedOf;
+    SP.speedOf = function (p) { const v = _speed.call(this, p); return p.agent && p.agent.mount ? v * 1.7 : v; };
+
+    // council day: each place's leader rides out to the capital in the morning, and home at evening
+    const leaderOf = (s) => {
+      if (s._leaderDay === s.day) return s._leader;
+      s._leaderDay = s.day; s._leader = null;
+      const K = s.kingdom, pl = K && K.place && K.place(s.world.placeId); if (!pl || pl.kind === 'capital' || s.reeveId) return null;
+      const L = K.leaders && K.leaders[pl.id];
+      let q = L && L.pid != null ? s.byId.get(L.pid) : null;
+      if (!q) q = s.people.find((x) => x.office === 'leader' && x.alive !== false) || s.people.find((x) => x.job?.role === 'magistrate' && x.alive !== false) || null;
+      return (s._leader = q);
+    };
+    const _plan = SP.plan;
+    SP.plan = function (p) {
+      if (this.weekday === 3) {
+        const L = leaderOf(this);
+        if (L === p && p.alive !== false && !p.health?.illness) { const h = this.hour; if (h >= 8.5 && h < 18) { p.ridingOut = true; return { act: 'council', outdoor: true, zone: 'east' }; } }
+      }
+      if (p.ridingOut && !(this.weekday === 3 && this.hour >= 8.5 && this.hour < 18)) p.ridingOut = false;
+      return _plan.call(this, p);
+    };
+    // out of sight once they're through the gate; back in view when they come home
+    game.hooks.update.push(() => {
+      const s = cur(); if (!s || !s.Z) return; const L = leaderOf(s); if (!L || !L.agent) return;
+      const a = L.agent, east = s.Z.east;
+      if (L.activity?.act === 'council' && !a.path && east && Math.hypot(a.x - (east[0] * T + 8), a.y - (east[1] * T + 10)) < 40) { if (!a.hidden) { a.hidden = true; s.log(`${L.name} has ridden out for the council of the realm.`, 'politics'); } }
+      else if (L.activity?.act !== 'council' && a.hidden && a.inside == null && L.ridingOut === false) { a.hidden = false; }
+    });
+    O.Riders = { leaderOf, horseFor };
+  }
+  O.RidersSetup = { setup };
 })();
 
 </script>
@@ -17621,6 +17705,147 @@ O.snowMaskOf = function (src) {
 
 </script>
 <script>
+// Standing deals and moving house. A business can strike a weekly deal with a supplier: "every Sunday
+// bring me ten sacks of flour at three pence each". The supplier's master weighs the price against
+// what the goods are worth and how they feel about you; once agreed, every Sunday morning a hand from
+// the supplier carries the load over (you can watch them do it) and the money changes hands. Masters
+// in town strike deals of their own when they keep running short. An owner can also move a business
+// to other premises they own or rent: its stock, purse, hands and deals go with it, and the old place
+// stands empty. (Equipment stays behind: the new place must be fitted out before the work can go on.)
+'use strict';
+(function () {
+  function setup(game) {
+    const T = 16, G = () => O.Data.GOODS;
+    const sellersOf = (s, g, not) => [...s.biz.values()].filter((z) => z !== not && !z.def.public && z.type !== 'site' && ((z.def.sells || []).includes(g) || (z.def.recipes || []).some((rc) => rc.out && rc.out[g])));
+    function offer(s, bz, g, qty, price) {
+      const base = G()[g]?.base || 2; price = price || Math.max(1, Math.round(base));
+      const sup = sellersOf(s, g, bz).sort((a, c) => (c.stock[g] || 0) - (a.stock[g] || 0))[0];
+      if (!sup) return { ok: false, msg: `Nobody in ${s.world.name} makes or sells ${G()[g]?.name.toLowerCase() || g}.` };
+      const boss = s.bossOf ? s.bossOf(sup) : null, like = boss ? ((boss.rel.get(bz.ownerPlayer ? 0 : bz.owner) || {}).affinity || 0) : 0;
+      if (price < base * (0.95 - like * 0.2)) return { ok: false, msg: `${boss ? boss.first : sup.name} won't do it at that price.` };
+      bz.deals = bz.deals || [];
+      if (bz.deals.some((d) => d.good === g)) return { ok: false, msg: 'You already have a deal for that.' };
+      bz.deals.push({ good: g, qty, price, from: sup.id, fromName: sup.name, since: s.day });
+      if (boss) s.remember(boss, `Agreed to send ${qty} ${G()[g]?.name.toLowerCase()} to ${bz.name} every Sunday.`, 'work', 1);
+      return { ok: true, msg: `${boss ? boss.first + ' of ' : ''}${sup.name} agrees: ${qty} ${G()[g]?.name.toLowerCase()} every Sunday at ${price}d each.` };
+    }
+    // Sunday morning: the loads go over
+    function deliver(s, bz, d, live) {
+      const sup = s.biz.get(d.from); if (!sup) { bz.deals = bz.deals.filter((x) => x !== d); return; }
+      const have = Math.floor(sup.stock[d.good] || 0), n = Math.min(d.qty, have), cost = n * d.price;
+      if (n < 1 || bz.cash < cost) { d.missed = (d.missed || 0) + 1; s.log(`${sup.name} could not make its Sunday delivery to ${bz.name}${bz.cash < cost ? ' (the purse was short)' : ''}.`, 'trade'); if (d.missed >= 3) bz.deals = bz.deals.filter((x) => x !== d); return; }
+      const settle = () => { sup.stock[d.good] -= n; bz.stock[d.good] = (bz.stock[d.good] || 0) + n; bz.cash -= cost; sup.cash += cost; s.log(`${sup.name} delivered ${n} ${G()[d.good]?.name.toLowerCase()} to ${bz.name} as agreed (${cost}d).`, 'trade'); };
+      // in sight, a hand carries it over
+      const hand = live && sup.workers.map((id) => s.byId.get(id)).find((q) => q && q.alive !== false && q.agent && !q.errand && q.age >= 14);
+      if (hand && O.Errands) {
+        if (hand.agent.inside != null) { const sb = s.building(hand.agent.inside); if (sb && sb.doorX != null) { hand.agent.x = sb.doorX * T + 8; hand.agent.y = (sb.doorY) * T + 10; hand.agent.inside = null; hand.agent.hidden = false; } }
+        if (O.Errands.send(s, hand, [bz.b.doorX, bz.b.doorY], { anim: 'place', secs: 1.5, face: 3, carry: { good: d.good, qty: n }, after: (ok) => { settle(); void ok; } })) return;
+      }
+      settle();
+    }
+    let lastDay = new Map();
+    game.hooks.update.push(() => {
+      const sims = [O.SimRef.home, ...[...(O.Travel?.visited.values() || [])].map((v) => v.sim)].filter(Boolean);
+      for (const s of new Set(sims)) {
+        if (s.weekday !== 0 || s.hour < 9 || lastDay.get(s) === s.day) continue;
+        lastDay.set(s, s.day);
+        const live = s === O.SimRef.cur && !game.scene;
+        for (const bz of s.biz.values()) for (const d of (bz.deals || []).slice()) {
+          const near = live && Math.hypot(bz.b.doorX * T - game.player.x, bz.b.doorY * T - game.player.y) < 500;
+          deliver(s, bz, d, near);
+        }
+        // masters who keep running short strike deals of their own
+        for (const bz of s.biz.values()) {
+          if (bz.ownerPlayer || bz.def.public || bz.type === 'site' || (bz.deals || []).length >= 2 || !s.rng.chance(0.25)) continue;
+          const short = Object.entries(bz.def.targets || {}).find(([g, t]) => bz.def.buys?.[g] && (bz.stock[g] || 0) < t * 0.25 && !(bz.deals || []).some((x) => x.good === g));
+          if (short) { const r = offer(s, bz, short[0], Math.max(3, Math.round(short[1] * 0.5))); if (r.ok) s.log(`${bz.name} has a new standing order: ${r.msg}`, 'trade'); }
+        }
+      }
+    });
+    // moving a business to other premises
+    function relocate(s, bz, nb) {
+      if (!nb) return 'Nowhere to move to.';
+      const old = bz.b, nz = s.startBusiness(nb, bz.type, 'player');
+      Object.assign(nz, { stock: bz.stock, cash: bz.cash, deals: bz.deals || null, name: bz.name, ownerPlayer: true, salesToday: 0, history: bz.history || [] });
+      for (const id of bz.workers) { const q = s.byId.get(id); if (q && q.job) q.job.biz = nb.id; }
+      nz.workers = bz.workers.slice();
+      s.biz.delete(old.id); old.closedShop = { name: bz.name, day: s.day, type: bz.type };
+      for (const x of s.biz.values()) for (const d of x.deals || []) if (d.from === old.id) d.from = nb.id;
+      const P = O.PlayerState; for (const e of P.posts || []) if (e.biz === old.id && e.place === s.world.placeId) e.biz = nb.id;
+      s.log(`${bz.name} has moved to new premises.`, 'economy');
+      const miss = O.missingFor ? O.missingFor(nb, bz.type) : [];
+      return `${bz.name} moves, stock, purse and hands with it.${miss && miss.length ? ` Fit out the new place (${miss.join(', ')}) before the work can go on.` : ''}`;
+    }
+    O.Deals = { offer, relocate, deliver };
+  }
+  O.DealsSetup = { setup };
+})();
+
+</script>
+<script>
+// The ones who belong to no town. A troupe of minstrels goes the round of the realm: they walk the
+// roads from one town to the next, play and sing in the tavern by the hearth through the afternoon
+// and evening, and move on. And at one of the old ruins out in the country a hermit lives alone by a
+// small fire, who'll talk to anyone who comes, in riddles and old sayings, and sometimes with news.
+'use strict';
+(function () {
+  const FIRST = { m: ['Wat', 'Piers', 'Jory', 'Hob', 'Lambert', 'Colin', 'Martin'], f: ['Joan', 'Mabel', 'Sibley', 'Annot', 'Gilly', 'Rose'] };
+  function setup(game, home) {
+    const T = 16, K = () => home.kingdom;
+    // ---------------------------------------------------------------- the troupe
+    let checked = -1;
+    game.hooks.update.push(() => {
+      const k = K(); if (!k || !k.route || home.day === checked) return; checked = home.day;
+      const live = (k.journeys || []).find((j) => j.purpose === 'perform' && !j.done);
+      if (live) { if (live.arrived && live.arrivedDay == null) live.arrivedDay = home.day; if (live.arrived && home.day - live.arrivedDay >= 1) live.done = true; return; }
+      const r = O.RNG(O.hash('troupe', home.day, O.lifeSeed || 0)), from = k.troupeAt || r.pick(k.places.filter((p) => p.kind !== 'hamlet')).id;
+      const nb = (O.Island.data().neighbours ? O.Island.data().neighbours(from) : []).map((x) => (typeof x === 'string' ? x : x.id)).filter((x) => k.place(x));
+      const to = nb.length ? r.pick(nb) : r.pick(k.places).id, path = k.route(from, to); if (!path || path.length < 2) return;
+      const travellers = [0, 1, 2].map((i) => { const sex = i === 1 ? 'f' : 'm', first = r.pick(FIRST[sex]); return { name: `${first} the ${['Piper', 'Singer', 'Fiddler', 'Juggler'][(i + home.day) % 4]}`, first, sex, age: r.int(18, 50), role: 'minstrel', seed: O.hash('min', home.day, i), genes: O.Char.randomGenes(r, 'south') }; });
+      k.journeys = k.journeys || [];
+      k.journeys.push({ id: 'troupe' + home.day, from, to, path, purpose: 'perform', goods: null, people: [], travellers, started: home.day * 1440 + home.minute, back: false, horse: false });
+      k.troupeAt = to;
+      home.log(`A troupe of minstrels is on the road from ${k.place(from).name} to ${k.place(to).name}.`, 'day');
+    });
+
+    // ---------------------------------------------------------------- the hermit
+    let hermit = null;
+    const SAYINGS = ['The river does not ask the stone for leave.', 'A full purse is a heavy pillow.', 'Who digs a pit for another falls in it himself.', 'Every lord was once a babe that wept.', 'The crow knows more of this kingdom than the crown does.', 'Be kind to the miller: he has seen your bread before you have.', 'The road is long only to the one who counts the stones.', 'Sit. The fire is free, if nothing else is.'];
+    game.hooks.update.push(() => {
+      const w = game.world; if (!w || game.scene) return;
+      if (!hermit || hermit.world !== w.placeId) {
+        hermit = null;
+        const ruins = (w.buildings || []).filter((b) => b.type === 'ruin' && b.doorX != null);
+        const rr = ruins.find((b) => O.hash('hermit', b.id, w.placeId) % 3 === 0);
+        if (rr) {
+          const a = O.Char.makeAppearance(O.hash('hermit', w.placeId), { sex: 'm', age: 71, role: 'priest', wealth: 0.1 });
+          a.outfit.over = O.Pal.mat('#6a5a44', 'cloth'); a.outfit.hat = 'hood'; a.outfit.hatMat = a.outfit.over; O.Char.invalidate(a);
+          hermit = { a, x: rr.doorX * T + 8 + 22, y: (rr.doorY + 1) * T + 4, dir: 1, anim: 'sit', ft: 0, hermit: true, world: w.placeId, name: 'the hermit' };
+        }
+      }
+      if (hermit) { game.actors = game.actors.filter((x) => !x.hermit); hermit.anim = (Math.floor(game.t / 6) % 4) ? 'sit' : 'pray'; game.actors.push(hermit); }
+    });
+    // his little fire
+    game.hooks.drawWorld.push((ctx, cam) => {
+      if (!hermit || game.scene || hermit.world !== game.world.placeId) return;
+      const x = Math.round(hermit.x - 18 - cam.x), y = Math.round(hermit.y - 2 - cam.y), f = Math.floor(game.t * 8) % 3;
+      ctx.fillStyle = '#4a3828'; ctx.fillRect(x - 4, y, 9, 2); ctx.fillStyle = '#ff9a30'; ctx.fillRect(x - 2, y - 3 - (f % 2), 5, 3); ctx.fillStyle = '#ffe080'; ctx.fillRect(x - 1, y - 4 - f % 2, 2, 2);
+    });
+    O.hermitCandidate = () => {
+      if (!hermit || game.scene || hermit.world !== game.world.placeId) return null;
+      const p = game.player, d = Math.hypot(hermit.x - p.x, hermit.y - p.y); return d < 30 ? { type: 'hermit', d, x: hermit.x, y: hermit.y - 40 } : null;
+    };
+    O.hermitAct = () => {
+      const k = K(), n = k.news && k.news.length ? k.news[k.news.length - 1].text : null, i = Math.floor(game.t / 7 + home.day) % SAYINGS.length;
+      hermit.dir = O.dirOf(game.player.x - hermit.x, game.player.y - hermit.y);
+      O.UI.dialog.open({ name: 'The hermit', color: '#6a5a44', text: `${SAYINGS[i]}${n && i % 2 ? ` They say, down in the towns: ${n}` : ''}`, options: [] });
+    };
+  }
+  O.WanderersSetup = { setup };
+})();
+
+</script>
+<script>
 // Seeing the realm governed. On election day the hall of the place holds the ballot box: a citizen
 // (someone who lives here, in a house they own or rent) can read each candidate's record and put in
 // their vote, or stand themselves if their name is good. On council day the leaders of the realm ride
@@ -17661,20 +17886,25 @@ O.snowMaskOf = function (src) {
       const s = cur(); if (!s.world.placeId || s.world.placeId !== (K().places.find((x) => x.kind === 'capital') || {}).id) return;
       const hall = s.world.buildings.find((b) => b.royal); if (!hall) return;
       const h = s.hour;
-      if (s.weekday === 3 && h >= 13.5 && h < 16.5 && spawned !== s.day) {
+      if (s.weekday === 3 && h >= 12.25 && h < 16.5 && spawned !== s.day) {
         spawned = s.day; K().leadersInit && K().leadersInit();
         const L = Object.entries(K().leaders || {}).filter(([, l]) => !l.out).slice(0, 14);
         for (const [id, l] of L) {
           const q = s.newPerson({ sex: l.sex, age: 40 + (l.name.length % 20), first: l.first || l.name.split(' ')[0], sur: l.name.split(' ').slice(1).join(' '), household: 0, home: null, genes: O.Char.randomGenes(s.rng, 'south'), wealth: 0.85, visitor: true });
           q.name = `${l.title} ${l.name}`; q.title = l.title; q.councillor = hall.id; q.councilFor = id;
           q.app = O.Char.makeAppearance(O.hash('leader', id), { sex: q.sex, age: q.age, genes: q.genes, role: 'noble', wealth: 0.85 });
-          const [ex, ey] = s.entry(hall); q.agent = { x: ex * 16 + 8, y: ey * 16 + 10, dir: 3, anim: 'idle', ft: 0, a: q.app, hidden: true, inside: hall.id, path: null, goal: null, person: q };
+          // they ride in by the east gate, one behind another, and up to the hall
+          const E = s.Z && s.Z.east, n = L.findIndex(([x]) => x === id), late = h >= 13.75;
+          const [ex, ey] = late || !E ? s.entry(hall) : E;
+          q.agent = { x: ex * 16 + 8 - (late ? 0 : n * 22), y: ey * 16 + 10 + (n % 2) * 8, dir: 1, anim: 'idle', ft: 0, a: q.app, hidden: late, inside: late ? hall.id : null, path: null, goal: null, person: q };
+          q.ridingOut = !late;
           s.people.push(q); s.byId.set(q.id, q);
         }
-        say('The leaders of the realm are gathering in the great hall for the council.');
+        say(h < 13.75 ? 'The leaders of the realm are riding in for the council.' : 'The leaders of the realm are gathering in the great hall for the council.');
       }
       // gone home in the evening
-      if (h >= 17 && s.people.some((q) => q.councillor)) { for (const q of s.people.filter((x) => x.councillor)) s.byId.delete(q.id); s.people = s.people.filter((q) => !q.councillor); }
+      for (const q of s.people) if (q.councillor) q.ridingOut = q.agent.inside == null; // mounted on the road, on foot in the hall
+      if (h >= 18 && s.people.some((q) => q.councillor)) { for (const q of s.people.filter((x) => x.councillor)) s.byId.delete(q.id); s.people = s.people.filter((q) => !q.councillor); }
     });
 
     // the minutes, for whoever asks at the castle or reads the map
@@ -18152,7 +18382,7 @@ O.snowMaskOf = function (src) {
     const strip = (p) => {
       const o = {};
       for (const [k, v] of Object.entries(p)) {
-        if (k === 'app' || k === 'agent' || k === 'activity') continue;
+        if (k === 'app' || k === 'agent' || k === 'activity' || k === 'errand' || k === '_social' || k === '_headCanvas' || k === '_headApp' || k === '_purse' || k[0] === '_' && typeof v === 'object') continue; // nothing live or drawn
         if (k === 'rel') { o.rel = [...v.entries()].map(([id, r]) => [id, +r.affinity.toFixed(3), +r.familiar.toFixed(3)]); continue; }
         if (k === 'task') { if (v && (v.act === 'pickup' || v.act === 'deliver')) continue; o.task = v; continue; }
         o[k] = v;
@@ -18170,11 +18400,11 @@ O.snowMaskOf = function (src) {
         weather: { kind: sim.weather.kind, level: sim.weather.level, hailCover: sim.weather.hailCover, wet: sim.weather.wet, snowCover: sim.weather.snowCover, lastHour: sim.weather.lastHour },
         people: sim.people.map(strip), traderId: sim.trader ? sim.trader.id : null,
         households: sim.households,
-        biz: [...sim.biz.values()].map((b) => ({ id: b.id, type: b.type, stock: b.stock, cash: b.cash, owner: b.owner, workers: b.workers, salesToday: b.salesToday, history: b.history, jobs: b.def.jobs, name: b.name, cost: b.def.site ? true : undefined, ownerPlayer: b.ownerPlayer, badDays: b.badDays, founded: b.founded })),
+        biz: [...sim.biz.values()].map((b) => ({ id: b.id, type: b.type, stock: b.stock, cash: b.cash, owner: b.owner, workers: b.workers, salesToday: b.salesToday, history: b.history, jobs: b.def.jobs, name: b.name, cost: b.def.site ? true : undefined, ownerPlayer: b.ownerPlayer, badDays: b.badDays, founded: b.founded, deals: b.deals || null })),
         lordship: sim.lordship, forest: sim.forest || null, flood: sim.floodState ? { level: sim.floodState.level, set: sim.floodState.set, peak: sim.floodState.peak } : null, quarantine: sim.quarantine || null, memorials: sim.memorials || [], levyDay: sim.levyDay || null, returnDay: sim.returnDay || null, festivalDay: sim.festivalDay || null, festivalWhy: sim.festivalWhy || null, mourningUntil: sim.mourningUntil || null, reeveMoot: sim.reeveMoot || null, lastMoot: sim.lastMoot || null, farmStripsSold: sim.farmStripsSold || 0,
         sites: sim.build.sites.map((s) => ({ id: s.id, stage: s.stage, prog: s.prog, work: s.work, started: s.started, player: s.player || false })), nextCouncil: sim.build.nextCouncil, plotsUsed: [...sim.build.used],
         gangs: sim.gangs,
-        kingdom: { places: sim.kingdom.places, roads: sim.kingdom.roads, caravans: sim.kingdom.caravans.map((c) => Object.assign({}, c, { held: false })), news: sim.kingdom.news, war: sim.kingdom.war ? Object.assign({}, sim.kingdom.war, { soldiers: sim.kingdom.war.soldiers.map((x) => Object.assign({}, x, { snap: x.snap && !x.back ? strip(x.snap) : null })) }) : null, rulers: sim.kingdom.rulers, heirStore: sim.kingdom.heirStore || null, treasury: sim.kingdom.treasury, taxRate: sim.kingdom.taxRate, councils: sim.kingdom.councils.slice(-6) },
+        kingdom: { places: sim.kingdom.places, roads: sim.kingdom.roads, caravans: sim.kingdom.caravans.map((c) => Object.assign({}, c, { held: false })), news: sim.kingdom.news, war: sim.kingdom.war ? Object.assign({}, sim.kingdom.war, { soldiers: sim.kingdom.war.soldiers.map((x) => Object.assign({}, x, { snap: x.snap && !x.back ? strip(x.snap) : null })) }) : null, rulers: sim.kingdom.rulers, heirStore: sim.kingdom.heirStore || null, treasury: sim.kingdom.treasury, taxRate: sim.kingdom.taxRate, councils: sim.kingdom.councils.slice(-6), leaders: sim.kingdom.leaders || null, councilLog: sim.kingdom.councilLog || [], elections: (sim.kingdom.elections || []).slice(-10), journeys: (sim.kingdom.journeys || []).filter((j) => !j.done).map((j) => { const o = Object.assign({}, j); delete o._actors; delete o._len; return o; }) },
         horses: (sim.horses || []).map((h) => { const o = Object.assign({}, h); delete o._actor; return o; }),
       },
       world: {
@@ -18250,7 +18480,7 @@ O.snowMaskOf = function (src) {
       if (!bz && O.Data.BUSINESS[sb.type]) { const b = w.buildings.find((x) => x.id === sb.id); bz = { id: sb.id, b, type: sb.type, def: O.Data.BUSINESS[sb.type], name: sb.name, sold: {}, bought: {}, orders: [] }; sim.biz.set(sb.id, bz); }
       if (!bz) continue;
       bz.ownerPlayer = sb.ownerPlayer; bz.badDays = sb.badDays; bz.name = sb.name; bz.type = sb.type; if (O.Data.BUSINESS[sb.type] && bz.def !== O.Data.BUSINESS[sb.type] && !bz.def.site) bz.def = O.Data.BUSINESS[sb.type];
-      Object.assign(bz, { stock: sb.stock, cash: sb.cash, owner: sb.owner, workers: sb.workers, salesToday: sb.salesToday, history: sb.history, orders: [], open: false, founded: sb.founded });
+      Object.assign(bz, { stock: sb.stock, cash: sb.cash, owner: sb.owner, workers: sb.workers, salesToday: sb.salesToday, history: sb.history, orders: [], open: false, founded: sb.founded, deals: sb.deals || null });
       bz.def = Object.assign({}, bz.def, { jobs: sb.jobs });
       bz.b = w.buildings.find((x) => x.id === sb.id) || bz.b;
     }
@@ -18397,6 +18627,7 @@ O.snowMaskOf = function (src) {
   O.Crowd.setup(game);
   O.SpeechSetup.setup(game);
   O.ErrandsSetup.setup(game);
+  O.RidersSetup.setup(game);
   O.Signs.setup(game);
   O.PropertyUI.setup(game, sim);
   O.ChronicleUI.setup(game, home);
@@ -18407,6 +18638,8 @@ O.snowMaskOf = function (src) {
   O.StreetSetup.setup(game, home);
   O.GangLifeSetup.setup(game, npcUI);
   O.TownLifeSetup.setup(game, npcUI);
+  O.DealsSetup.setup(game);
+  O.WanderersSetup.setup(game, home);
   O.CouncilUI.setup(game, home);
   O.WarUI.setup(game, home, npcUI);
   O.Craft.setup(game);

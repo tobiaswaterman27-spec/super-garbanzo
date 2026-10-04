@@ -105,6 +105,7 @@
   O.Crowd.setup(game);
   O.SpeechSetup.setup(game);
   O.ErrandsSetup.setup(game);
+  O.RidersSetup.setup(game);
   O.Signs.setup(game);
   O.PropertyUI.setup(game, sim);
   O.ChronicleUI.setup(game, home);
@@ -115,6 +116,8 @@
   O.StreetSetup.setup(game, home);
   O.GangLifeSetup.setup(game, npcUI);
   O.TownLifeSetup.setup(game, npcUI);
+  O.DealsSetup.setup(game);
+  O.WanderersSetup.setup(game, home);
   O.CouncilUI.setup(game, home);
   O.WarUI.setup(game, home, npcUI);
   O.Craft.setup(game);

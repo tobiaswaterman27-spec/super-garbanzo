@@ -32,6 +32,7 @@
       if (O.saleCandidate) { const sc = O.saleCandidate(); if (sc) out.push(sc); }
       if (O.stallCandidate) { const st = O.stallCandidate(); if (st) out.push(st); }
       if (O.pickupCandidate) { const pc = O.pickupCandidate(); if (pc) out.push(pc); }
+      if (O.roadCandidate) { const rc = O.roadCandidate(); if (rc) out.push(rc); }
       for (const q of sim.people) { const a = q.agent; if (a.hidden) continue; const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < 26) out.push({ type: 'npc', person: q, d, x: a.x, y: a.y }); }
       const T = sim.T;
       for (const pr of sim.world.props) if (pr.kind === 'memorial' || (pr.kind === 'noticeboard' && pr.broadsheet)) { const d = Math.hypot(pr.x - p.x, pr.y - p.y); if (d < 22) out.push({ type: pr.kind === 'memorial' ? 'memorial' : 'broadsheet', prop: pr, d: d + 1, x: pr.x, y: pr.y - 30 }); }
@@ -77,6 +78,7 @@
         case 'campbed': return 'Sleep by the fire';
         case 'bed': return mayUseBed(c.it) ? 'Sleep until morning' : 'Bed — not yours';
         case 'hay': return 'Sleep in the hay';
+        case 'traveller': case 'ruin': case 'signpost': return O.roadLabel(c);
         case 'pickup': return `Pick up the ${(O.Data.GOODS[c.it.good]?.name || c.it.good).toLowerCase()}`;
         case 'shop': return `Buy from ${c.seller.first}`;
         case 'stairs': return game.scene.floor === 0 ? 'Go upstairs' : 'Go downstairs';
@@ -207,6 +209,7 @@
         case 'campbed': sleep(null, true); break;
         case 'hay': sleep(null, true); break;
         case 'pickup': O.pickUp(cur.it); break;
+        case 'traveller': case 'ruin': case 'signpost': O.roadAct(cur); break;
         case 'memorial': O.ChronicleUI.memorial(cur.prop.epitaph); break;
         case 'work': if (O.Craft.RECIPES[cur.it.kind]) { const J = O.Work.job(); O.craftPanel({ it: cur.it, who: `${J.masterName}'s`, work: true }); } else O.workShift(); break;
         case 'craft': O.craftPanel(cur); break;

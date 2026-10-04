@@ -21,7 +21,8 @@
       if (p.x > w.W * T - 26) return 'east';
       return null;
     }
-    O.exitCandidate = () => { const side = atExit(); return side ? { type: 'exit', side, d: 1, x: game.player.x, y: game.player.y - 30 } : null; };
+    // no exit button: you walk out of town onto the road (roads.js)
+    O.exitCandidate = () => null; void atExit;
 
     function hoursFor(a, b) { const road = K.road(a, b); const d = K.dist(a, b); return Math.max(2, Math.round(d * (game.player.mount ? 0.35 : 0.8) * (1.4 - road.quality * 0.5))); }
 
@@ -70,13 +71,14 @@
       });
     }
 
-    function arrive(from, to) {
+    function arrive(from, to, viaRoad) {
       // leave the current settlement
       const leaving = visited.get(game.world.placeId); if (leaving) leaving.leftAt = now();
       let v = visited.get(to);
       if (!v) {
         const place = K.place(to);
         const world = O.Gen.makeSettlement(place);
+        O.Roads.attachExits(world, K);
         const s = new O.Sim(world, O.hash('sim', to), { foreign: true, kingdom: K, day: home.day, minute: home.minute });
         v = { world, sim: s, leftAt: null };
         visited.set(to, v);
@@ -89,10 +91,12 @@
       O.SimRef.cur = v.sim;
       game.season = v.sim.season;
       const comingFromWest = K.place(from).x < K.place(to).x;
-      const ex = comingFromWest ? v.world.exits.west : v.world.exits.east;
+      if (!v.world.exits[from]) O.Roads.attachExits(v.world, K);
       game.load(v.world);
       O.applySeason && O.applySeason();
-      game.player.x = (ex[0] + (comingFromWest ? 2 : -2)) * T + 8; game.player.y = (ex[1] + 1) * T + 6; game.player.dir = comingFromWest ? 2 : 1;
+      const ex = v.world.exits[from];
+      if (ex && ex.side) { const d = ex.side === 'west' ? [2, 0] : ex.side === 'east' ? [-2, 0] : ex.side === 'north' ? [0, 2] : [0, -2]; game.player.x = (ex.x + d[0]) * T + 8; game.player.y = (ex.y + d[1]) * T + 10; game.player.dir = ex.side === 'west' ? 2 : ex.side === 'east' ? 1 : ex.side === 'north' ? 0 : 3; }
+      else { const e2 = comingFromWest ? v.world.exits.west : v.world.exits.east; game.player.x = (e2[0] + (comingFromWest ? 2 : -2)) * T + 8; game.player.y = (e2[1] + 1) * T + 6; game.player.dir = comingFromWest ? 2 : 1; }
       if (game.player.mount) game.player.mount.world = to;
       O.Panels.toast(`You reach ${K.place(to).name}. It is ${O.DAYNAMES[v.sim.weekday]}, ${game.timeString()}.`);
     }

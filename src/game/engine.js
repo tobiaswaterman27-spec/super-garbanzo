@@ -222,6 +222,7 @@
         if (b.type === 'bakery') on = h >= 3 && h < 16;
         else if (b.type === 'smithy' || b.type === 'armourer') on = n > 0 && h >= 6.5 && h < 18.5;
         else if (b.type === 'tavern') on = h >= 8 && h < 24 && n > 0;
+        else if (b.rivalGang) on = true;
         else on = n > 0 && (cold ? h >= 5 && h < 23 : (h >= 5.5 && h < 8.5) || (h >= 11.5 && h < 13) || (h >= 17 && h < 21.5));
         if (on) lit.add(b.id);
       }

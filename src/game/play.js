@@ -22,6 +22,8 @@
   const saved = O.Save.peek();
   let loaded = false;
   if (saved && saved.seed === homeWorld.seed) { try { O.Save.hydrate(game, home, saved); loaded = true; home.seasonChanged = home.season !== 'summer'; } catch (e) { console.warn('Save could not be loaded', e); } }
+  // a way out of Ashford for every road that leaves it
+  O.Roads.attachExits(homeWorld, home.kingdom); game.load(homeWorld);
   // the simulation owns time; the engine reads it
   game.clock = { speed: 1, get minute() { return sim.minute; }, set minute(v) {}, get day() { return sim.day; }, set day(v) {} };
   game.hooks.update.push((dt) => {
@@ -88,6 +90,7 @@
   O.HorsesSetup.setup(game, sim, npcUI);
   O.KingdomUI.setup(game, sim, npcUI);
   O.TravelSetup.setup(game, home, npcUI);
+  O.Roads.setup(game, home);
   O.PropertyUI.setup(game, sim);
   O.ChronicleUI.setup(game, home);
   O.WorkSetup.setup(game, sim, npcUI);
@@ -105,8 +108,8 @@
   if (loaded) { O.Save.hydrateLate(game, home); setTimeout(() => O.Panels.toast(`Welcome back. It is ${O.DAYNAMES[sim.weekday]}.`), 300); }
   // autosave each dawn and whenever the page is hidden
   let lastAuto = sim.day;
-  game.hooks.update.push(() => { if (home.day !== lastAuto && home.hour >= 6) { lastAuto = home.day; O.Save.save(game, home, true); } });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) O.Save.save(game, home, true); });
+  game.hooks.update.push(() => { if (home.day !== lastAuto && home.hour >= 6 && !game.world.road) { lastAuto = home.day; O.Save.save(game, home, true); } });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && !game.world.road) O.Save.save(game, home, true); });
   function placeName() {
     if (game.scene) return game.scene.b.type === "house" ? `The ${sim.households[game.scene.b.household - 1]?.surname || ""} house` + (game.scene.floor ? ", upstairs" : "") : game.scene.b.name + (game.scene.floor ? ', upstairs' : '');
     const p = game.player, T = 16, tx = p.x / T, ty = p.y / T;

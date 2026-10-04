@@ -28,7 +28,7 @@
       h.stamina = h.staminaMax;
       h.value = Math.round(B.value * (age < 5 ? 0.85 : age > 12 ? 0.6 : 1) * h.speed);
       h.history.push({ day: sim.day, event: opts.event || 'bred', owner: ownerName(owner) }); h.world = opts.world || 'ashford';
-      if (opts.stable) { h.stable = opts.stable; h.pad = opts.pad; } else if (owner === 'biz:' + stable.id || opts.event === 'bought') { h.stable = stable.id; h.pad = paddock; }
+      if (opts.stable || opts.pad) { h.stable = opts.stable; h.pad = opts.pad; } else if (owner === 'biz:' + stable.id || opts.event === 'bought') { h.stable = stable.id; h.pad = paddock; }
       horses.push(h); return h;
     }
     function ownerName(o) { if (o === 'player') return 'you'; if (typeof o === 'string' && o.startsWith('biz:')) return sim.biz.get(+o.slice(4))?.name || 'a stable'; const p = sim.byId.get(o); return p ? p.name : 'unknown'; }
@@ -44,7 +44,7 @@
     // ---- village animals: chickens and pigs in the farmyard, sheep and cows in the pasture, dogs and cats about the houses
     const fauna = [];
     const zone = (x0, y0, x1, y1) => ({ x0, y0, x1, y1 });
-    const add = (kind, n, z, extra = {}) => { for (let i = 0; i < n; i++) fauna.push(Object.assign({ kind, seed: r.int(1, 9999), z, x: r.int(z.x0, z.x1) * T + 8, y: r.int(z.y0, z.y1) * T + 12, dir: r.int(0, 7), ft: r.next() * 2, tx: null, wait: r.next() * 4, speed: kind === 'chicken' ? 14 : kind === 'cow' ? 8 : 11 }, extra)); };
+    const add = (kind, n, z, extra = {}) => { for (let i = 0; i < n; i++) fauna.push(Object.assign({ world: 'ashford', kind, seed: r.int(1, 9999), z, x: r.int(z.x0, z.x1) * T + 8, y: r.int(z.y0, z.y1) * T + 12, dir: r.int(0, 7), ft: r.next() * 2, tx: null, wait: r.next() * 4, speed: kind === 'chicken' ? 14 : kind === 'cow' ? 8 : 11 }, extra)); };
     add('chicken', 7, zone(9, 52, 30, 54)); add('pig', 2, zone(27, 52, 33, 54));
     add('sheep', 5, zone(3, 33, 6, 35)); add('cow', 2, zone(3, 33, 6, 35));
     for (const b of sim.world.buildings.filter((x) => x.type === 'house' && x.wealth > 0.45).slice(0, 4)) add(r.chance(0.6) ? 'dog' : 'cat', 1, zone(b.x - 1, b.bottom + 1, b.x + b.w, b.bottom + 2));
@@ -71,6 +71,15 @@
       for (const b of game.world.buildings.filter((x) => x.type === 'stable')) {
         const royal = /Royal|Castle/.test(b.name), n = royal ? 5 : 3, pad = padFor(b);
         for (let i = 0; i < n; i++) { const h = make('biz:' + b.id, { world: wid, stable: b.id, pad, breed: royal ? r.pick(['Destrier', 'Courser', 'Palfrey']) : null, event: 'bred' }); h.history[0].owner = b.name; h.x = (b.doorX + r.int(-1, 1)) * T + 8; h.y = (b.doorY + 1) * T + 10; }
+      }
+      // the beasts in the estates' paddocks and farmyards
+      for (const pen of game.world.pens || []) {
+        const [x0, y0, x1, y1] = pen.z, z = zone(x0, y0, x1, y1), area = (x1 - x0 + 1) * (y1 - y0 + 1);
+        for (const kind of pen.kinds) {
+          const n = kind === 'chicken' ? 6 : Math.max(2, Math.min(5, Math.round(area / 24)));
+          if (kind === 'horse') { for (let i = 0; i < 2; i++) { const h = make('estate', { world: wid, pad: { x0, y0, x1, y1 }, stable: null, breed: r.pick(['Palfrey', 'Courser', 'Destrier']), event: 'bred' }); h.history[0].owner = 'the estate'; h.x = r.int(x0, x1) * T + 8; h.y = r.int(y0, y1) * T + 12; } }
+          else add(kind, n, z, { world: wid });
+        }
       }
     }
     function horseActor(h) { return h._actor || (h._actor = { horse: h, x: h.x, y: h.y, dir: h.dir, anim: 'idle', ft: h.ft }); }
@@ -113,7 +122,7 @@
       }
       const wid = game.world.placeId;
       if (wid && !seeded.has(wid)) seedStables(wid);
-      if (!game.scene) game.actors = [...game.actors.filter((a) => !a.horse && !a.animal), ...horses.filter((h) => h !== mount && !h.stabled && (h.world || 'ashford') === wid).map(horseActor), ...(wid === 'ashford' ? fauna.map(animalActor) : [])];
+      if (!game.scene) game.actors = [...game.actors.filter((a) => !a.horse && !a.animal), ...horses.filter((h) => h !== mount && !h.stabled && (h.world || 'ashford') === wid).map(horseActor), ...fauna.filter((f) => f.world === wid).map(animalActor)];
     });
 
     // riding speed: replace the walking pace while mounted

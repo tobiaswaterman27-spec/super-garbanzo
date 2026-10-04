@@ -213,6 +213,17 @@
       // ends: darken left/right 2px to suggest the roof thickness
       for (let y = ry; y < ey; y++) { B.shadeAt(W - 2 - Math.round((ey - y) / (ey - ry) * 2), y, 1); }
       meta.roofTop = ry;
+      // dormer windows set into the roof of a long house
+      if (spec.dormers) for (let i = 0; i < spec.dormers; i++) {
+        const cxd = Math.round(x0 + ((i + 0.5) * FW) / spec.dormers), dw0 = 16, dy0 = ey - 22;
+        const gm = wallKind === 'timber' ? plasterM : wallMat;
+        B.part(2);
+        for (let y = dy0; y < dy0 + 16; y++) for (let x = cxd - dw0 / 2; x < cxd + dw0 / 2; x++) B.plot(x, y, gm, x === cxd - dw0 / 2 ? 3 : x === cxd + dw0 / 2 - 1 ? 1 : 2);
+        drawWindow(B, cxd - 4, dy0 + 3, 8, 10, shutterM, wealth, rng, false, true);
+        B.poly([[cxd - dw0 / 2 - 2, dy0 + 1], [cxd, dy0 - 9], [cxd, dy0 + 1]], [-0.55, -0.35, 0.76], RM);
+        B.poly([[cxd, dy0 - 9], [cxd + dw0 / 2 + 2, dy0 + 1], [cxd, dy0 + 1]], [0.62, -0.35, 0.7], RM);
+        for (let x = cxd - dw0 / 2 - 2; x <= cxd + dw0 / 2 + 2; x++) B.shadeAt(x, dy0 + 1, 1);
+      }
       // eave shadow on the wall
       B.part(1);
       for (let x = x0; x <= x1; x++) for (let y = ey; y < ey + 3; y++) if (B.matAt(x, y) >= 0 && B.matAt(x, y) !== RM) B.tweak(x, y, y === ey ? -2 : -1);

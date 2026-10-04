@@ -62,7 +62,7 @@
 
     populate() {
       const r = this.rng, w = this.world;
-      const homeTypes = ['house', 'farmhouse', 'tavern', 'bakery', 'smithy', 'doctor', 'woodcutter', 'mill', 'store', 'sawmill', 'butcher', 'jeweller', 'apothecary', 'carpenter', 'armourer', 'tenement', 'mansion', 'townhouse', 'keep', 'builder', 'weaver', 'tailor', 'cobbler', 'chandler', 'cooper'];
+      const homeTypes = ['house', 'farmhouse', 'tavern', 'bakery', 'smithy', 'doctor', 'woodcutter', 'mill', 'store', 'sawmill', 'butcher', 'jeweller', 'apothecary', 'carpenter', 'armourer', 'tenement', 'mansion', 'townhouse', 'keep', 'manor', 'builder', 'weaver', 'tailor', 'cobbler', 'chandler', 'cooper'];
       for (const b of w.buildings) {
         if (D.BUSINESS[b.biz || b.type]) {
           const def = b.jobs ? Object.assign({}, D.BUSINESS[b.biz || b.type], { jobs: b.jobs }) : D.BUSINESS[b.biz || b.type];
@@ -70,6 +70,7 @@
           this.biz.set(b.id, { id: b.id, b, type: b.type, def, name: b.name, owner: null, workers: [], stock, cash: def.public ? 0 : r.int(80, 160), sold: {}, bought: {}, open: false, orders: [], salesToday: 0, history: [] });
         }
         if (!homeTypes.includes(b.type)) continue;
+        if (b.staffHouse) { b.vacant = true; continue; } // estate cottages wait for the estate's servants
         // one small cottage stands empty, on the parish register to let
         if (b.type === 'house' && !this._leftEmpty && b.w * b.d <= 9 && (b.floors || 1) === 1) { this._leftEmpty = true; b.vacant = true; b.parishLet = true; continue; }
         // household size from floor area and wealth

@@ -57,6 +57,13 @@
       const floorOf = (q) => {
         const act = q.activity?.act;
         if (!twoF) return 0;
+        if (b.manor) {
+          const role = q.job?.role;
+          if (act === 'work') return role === 'maid' && q.id % 2 ? 1 : 0;
+          if (SLEEPY.has(act)) return 1;
+          if (act === 'home') return q.id % 3 ? 0 : 1;
+          return 0;
+        }
         if (b.royal) {
           // the royal castle: kitchens and hall below, servants' floor, royal apartments, chapel at the top
           const role = q.job?.role;
@@ -67,7 +74,7 @@
           return 0;
         }
         if (b.type === 'tavern') return act === 'rest' || (SLEEPY.has(act) && q.home !== b.id) || (SLEEPY.has(act) && q.home === b.id) ? 1 : 0;
-        if (['house', 'mansion', 'townhouse', 'keep', 'tenement'].includes(b.type)) return SLEEPY.has(act) && b.id !== sim.docId ? 1 : act === 'home' && q.id % 3 === 0 ? 1 : 0;
+        if (['house', 'mansion', 'manor', 'townhouse', 'keep', 'tenement'].includes(b.type)) return SLEEPY.has(act) && b.id !== sim.docId ? 1 : act === 'home' && q.id % 3 === 0 ? 1 : 0;
         return SLEEPY.has(act) && q.home === b.id ? 1 : 0; // a shop: the family lives upstairs
       };
       const here = inside.filter((q) => floorOf(q) === this.floor);

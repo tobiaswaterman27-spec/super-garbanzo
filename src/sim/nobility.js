@@ -13,10 +13,10 @@
 
     S.lordFamily = function (b, hh, r) {
       const K = this.opts.kingdom || this.kingdom, R = K && K.rulers, place = this.world.placeId;
-      const royal = !!b.royal, src = royal ? R && R.crown : R && R.lords && R.lords[place];
+      const royal = !!b.royal, estate = !!b.estate, src = royal ? R && R.crown : estate ? null : R && R.lords && R.lords[place];
       const short = (this.world.name || '').replace(/ Castle$/, '');
-      hh.surname = royal ? 'Aurel' : `of ${short}`;
-      hh.money = royal ? 20000 : 3000;
+      hh.surname = royal ? 'Aurel' : estate ? b.house : `of ${short}`;
+      hh.money = royal ? 20000 : estate ? 1800 : 3000;
       this.households.push(hh); b.household = hh.id; (b.households = b.households || []).push(hh.id);
       const mk = (sex, age, first, extra) => {
         const p = this.newPerson({ sex, age: O.clamp(Math.round(age), 0, 90), first, sur: hh.surname, household: hh.id, home: b.id, genes: Ch.randomGenes(r, this.world.region), wealth: 0.97 });
@@ -24,11 +24,11 @@
       };
       const headSex = (src && src.sex) || (royal ? 'm' : 'm');
       const head = mk(headSex, src ? src.age : r.int(40, 60), src ? src.name : r.pick(D.NAMES[headSex]),
-        royal ? { title: headSex === 'm' ? 'King' : 'Queen', regnal: src && src.regnal, royal: true } : { title: headSex === 'f' ? 'Lady' : 'Lord', lordOf: place });
+        royal ? { title: headSex === 'm' ? 'King' : 'Queen', regnal: src && src.regnal, royal: true } : { title: headSex === 'f' ? 'Lady' : 'Lord', lordOf: estate ? null : place, fullName: estate });
       const spouseSex = headSex === 'm' ? 'f' : 'm';
       const q = royal && src && src.queen ? src.queen : null;
       const spouse = mk(spouseSex, q ? q.age : head.age + r.int(-6, 4), q ? q.name : r.pick(D.NAMES[spouseSex]),
-        royal ? { title: spouseSex === 'f' ? 'Queen' : 'Prince', royal: true } : { title: spouseSex === 'f' ? 'Lady' : 'Lord' });
+        royal ? { title: spouseSex === 'f' ? 'Queen' : 'Prince', royal: true } : { title: spouseSex === 'f' ? 'Lady' : 'Lord', fullName: estate });
       head.spouse = spouse.id; spouse.spouse = head.id;
       const kids = [];
       const heir = src && src.heir;
@@ -47,7 +47,7 @@
       const r = this.rng, city = this.world.city;
       for (const p of this.people) {
         if (!p.gentry) continue;
-        if (p.title) p.name = `${p.title} ${p.first}${p.regnal ? ' ' + p.regnal : ''}`;
+        if (p.title) p.name = `${p.title} ${p.first}${p.regnal ? ' ' + p.regnal : ''}${p.fullName ? ' ' + p.sur : ''}`;
         const role = p.royal && (p.title === 'King' || p.title === 'Queen') ? 'royal' : p.age < 13 ? 'child' : 'noble';
         p.app = Ch.makeAppearance(O.hash('person', p.id, p.first), { sex: p.sex, age: p.age, genes: p.genes, role, wealth: 0.97, region: this.world.region });
         p.attitude = Math.max(p.attitude, 0.3);
@@ -62,7 +62,7 @@
       // the castle's servants live in it: the unmarried in rooms of their own on the servants' floor,
       // some of the married with their families in a family room; the rest keep their own houses
       for (const bz of this.biz.values()) {
-        if (!bz.b.royal && !bz.b.livesIn) continue;
+        if (!bz.b.royal && !bz.b.livesIn) continue; // the castle, and the manors of the great estates
         const castle = bz.b;
         for (const id of bz.workers.slice()) {
           const p = this.byId.get(id); if (!p || p.gentry) continue;
@@ -73,6 +73,12 @@
             if (!old.members.length) { old.gone = true; const ob = this.building(old.home); if (ob) { ob.households = (ob.households || []).filter((x) => x !== old.id); if (!ob.households.length) ob.vacant = true; } }
             const hh = { id: this.households.length + 1, home: castle.id, members: [p.id], pantry: { bread: 2 }, money: r.int(5, 30), surname: p.sur, servants: true, shopper: p.id };
             this.households.push(hh); (castle.households = castle.households || []).push(hh.id); p.household = hh.id; p.home = castle.id;
+          } else if (castle.estate && r.chance(0.5) && this.world.buildings.some((x) => x.staffHouse && x.estateOf === castle.name && x.vacant && !(x.households || []).length)) {
+            // a cottage on the estate's land
+            const cot = this.world.buildings.find((x) => x.staffHouse && x.estateOf === castle.name && x.vacant && !(x.households || []).length);
+            const ob = this.building(old.home); if (ob) { ob.households = (ob.households || []).filter((x) => x !== old.id); if (!ob.households.length) { ob.vacant = true; if (ob.household === old.id) ob.household = null; } }
+            old.home = cot.id; cot.households = [old.id]; cot.household = old.id; cot.vacant = false;
+            for (const m of old.members) { const q = this.byId.get(m); if (q) q.home = cot.id; }
           } else if (old.members.length <= 5 && r.chance(0.5)) {
             const ob = this.building(old.home); if (ob) { ob.households = (ob.households || []).filter((x) => x !== old.id); if (!ob.households.length) { ob.vacant = true; if (ob.household === old.id) ob.household = null; } }
             old.home = castle.id; old.servants = true; (castle.households = castle.households || []).push(old.id);
@@ -81,7 +87,7 @@
         }
       }
       // the estates fund their households
-      for (const bz of this.biz.values()) { const k = bz.b.biz || bz.type; if (k === 'palace') bz.cash = 6000; else if (k === 'kitchen') bz.cash = 2000; else if (k === 'keep') bz.cash = 2500; }
+      for (const bz of this.biz.values()) { const k = bz.b.biz || bz.type; if (k === 'palace') bz.cash = 6000; else if (k === 'kitchen') bz.cash = 2000; else if (k === 'keep') bz.cash = 2500; else if (k === 'manor') bz.cash = 1500; }
       void r;
     };
 
@@ -90,7 +96,7 @@
       _nd.call(this);
       if (this.weekday !== 0) return;
       for (const bz of this.biz.values()) {
-        const k = bz.b.biz || bz.type, rent = k === 'palace' ? 450 : k === 'kitchen' ? 220 : k === 'keep' ? 220 : 0;
+        const k = bz.b.biz || bz.type, rent = k === 'palace' ? 450 : k === 'kitchen' ? 220 : k === 'keep' ? 220 : k === 'manor' ? 140 : 0;
         if (!rent) continue;
         bz.cash += rent;
         if (k === 'palace') { const K = this.kingdom; if (K && K.treasury > rent) K.treasury -= rent; }

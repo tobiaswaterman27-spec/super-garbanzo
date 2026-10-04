@@ -86,6 +86,11 @@
           }
         }
       }
+      // a hamlet's government: the headman in command, and his helpers
+      if (this.world.hamlet) for (const p of this.people) {
+        if (p.job?.role === 'guard captain') { p.title = p.sex === 'f' ? 'Headwoman' : 'Headman'; p.office = 'headman'; }
+        else if (p.job?.role === 'guard') p.office = "headman's helper";
+      }
       // the estates fund their households
       for (const bz of this.biz.values()) { const k = bz.b.biz || bz.type; if (k === 'palace') bz.cash = 6000; else if (k === 'kitchen') bz.cash = 2000; else if (k === 'keep') bz.cash = 2500; else if (k === 'manor') bz.cash = 1500; }
       void r;

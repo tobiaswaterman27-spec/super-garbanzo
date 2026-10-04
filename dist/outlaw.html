@@ -2940,7 +2940,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   // How many people the living simulation keeps for a place: every soul in a small place, a
   // representative share of a big one (the rest are counted, and traded for, in the kingdom).
   const simTarget = (place) => (place.pop <= 120 ? place.pop : Math.round(120 + (place.pop - 120) * 0.27));
-  const HOMES = new Set(['farmhouse', 'tavern', 'bakery', 'smithy', 'doctor', 'woodcutter', 'mill', 'store', 'sawmill', 'butcher', 'jeweller', 'apothecary', 'carpenter', 'armourer', 'mansion', 'townhouse', 'builder', 'weaver', 'tailor', 'cobbler', 'chandler', 'cooper']);
+  const HOMES = new Set(['farmhouse', 'tavern', 'bakery', 'smithy', 'doctor', 'woodcutter', 'mill', 'store', 'sawmill', 'butcher', 'jeweller', 'apothecary', 'carpenter', 'armourer', 'mansion', 'townhouse', 'builder', 'weaver', 'tailor', 'cobbler', 'chandler', 'cooper', 'tanner', 'potter']);
   const estPeople = (b) => (b.type === 'house' ? O.clamp(Math.round(b.w * b.d * (b.floors || 1) / 5), 1, 7) : b.type === 'tenement' ? Math.max(2, Math.floor(b.w * b.d * b.floors / 15)) * 3 : b.type === 'keep' ? 5 : HOMES.has(b.type) ? 3 : 0);
   // Pull down the houses furthest from the heart of the place until it holds about as many people
   // as it should: a place grows outward from its square, so its edges are where it thins.
@@ -3011,6 +3011,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     if (target >= 90) extra.push({ type: 'butcher', name: 'Butcher', w: 4, d: 4, look: look(0.5, { doorTile: 1, shopWindow: true }) }, { type: 'carpenter', name: 'Carpenter', w: 5, d: 4, look: look(0.5, { doorTile: 2, sign: 'scales' }) }, { type: 'tailor', name: 'Tailor', w: 4, d: 4, look: look(0.55, { doorTile: 1, shopWindow: true, sign: 'scales' }) });
     if (target >= 110) extra.push({ type: 'builder', name: "Builder's Yard", w: 5, d: 3, look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', roofType: 'side', bigDoor: true, doorTile: 2, chimney: true, chimneyX: 0.12, sign: 'hammer', noFlowers: true } });
     if (target >= 130) extra.push({ type: 'weaver', name: 'Weaver', w: 4, d: 4, look: look(0.5, { doorTile: 1 }) }, { type: 'cobbler', name: 'Cobbler', w: 4, d: 3, look: look(0.5, { doorTile: 1, shopWindow: true }) }, { type: 'chandler', name: 'Chandler', w: 4, d: 3, look: look(0.5, { doorTile: 1, shopWindow: true }) });
+    if (target >= 130) extra.push({ type: 'tanner', name: 'Tannery', w: 5, d: 3, look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', roofType: 'side', chimney: false, doorTile: 2, noFlowers: true } }, { type: 'potter', name: 'Potter', w: 4, d: 3, look: look(0.45, { doorTile: 1, chimney: true }) });
     if (target >= 170) extra.push({ type: 'cooper', name: 'Cooper', w: 5, d: 4, look: look(0.5, { doorTile: 2, bigDoor: true }) });
     if (target >= 130) extra.push({ type: 'apothecary', name: 'Apothecary', w: 4, d: 4, look: look(0.6, { doorTile: 1, sign: 'herb', shopWindow: true }) }, { type: 'tavern', name: `The ${rng.pick(['Crown', 'White Hart', 'Swan', 'Black Bull', 'Three Tuns'])} Inn`, w: 6, d: 5, floors: 2, look: look(0.6, { roofType: 'gable', sign: 'mug', doorTile: 2 }) }, { type: 'farmhouse', name: 'Home Farm', w: 4, d: 3, look: look(0.4, { doorTile: 1 }) });
     if (target >= 170) extra.push({ type: 'school', name: 'Grammar School', w: 5, d: 4, look: { wall: 'stone', stoneMat: st.stoneMat, roof: 'slate', roofType: 'gable', doorTile: 2, noFlowers: true } }, { type: 'bakery', name: 'Bakery', w: 4, d: 4, look: look(0.55, { sign: 'bread', shopWindow: true, doorTile: 1 }) }, { type: 'store', name: 'Chandler', w: 5, d: 4, look: look(0.55, { sign: 'scales', shopWindow: true, doorTile: 2 }) });
@@ -3166,7 +3167,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     B({ type: 'bakery', name: 'Bakehouse', x: gx1 - 4, bottom: gy0 - 1, w: 4, d: 3, wealth: 0.4, jobs: [['baker', 1], ['apprentice', 0]], look: lk(0.4, { sign: 'bread', doorTile: 1 }) });
     // a chapel of ease, the headman's house where wrongs are brought, and the herb-wife's cottage
     B({ type: 'chapel', name: `Chapel of St. ${rng.pick(['Brannoc', 'Petroc', 'Edith', 'Swithun', 'Agatha'])}`, x: cx - 2, bottom: gy0 - 1, w: 4, d: 4, wealth: 0.45, jobs: [['priest', 1], ['parish clerk', 0]], look: { wall: 'stone', stoneMat: st.stoneMat, roof: rng.chance(0.5) ? 'thatch' : 'slate', roofType: 'gable', sign: 'cross', doorTile: 2, wallH: 56, noFlowers: true } });
-    B({ type: 'guard', name: "Headman's House", x: gx1 + 3, bottom: roadY - 2, w: 4, d: 3, wealth: 0.45, jobs: [['guard captain', 1], ['guard', 0]], look: lk(0.45, { sign: 'shield', doorTile: 1 }) });
+    B({ type: 'guard', name: "Headman's House", headman: true, x: gx1 + 3, bottom: roadY - 2, w: 4, d: 3, wealth: 0.45, jobs: [['guard captain', 1], ['guard', Math.max(0, ((place.gov && place.gov.size) || 1) - 1)]], look: lk(0.45, { sign: 'shield', doorTile: 1 }) });
     B({ type: 'doctor', name: "Herb-wife's Cottage", x: gx0 - 6, bottom: roadY - 2, w: 4, d: 3, wealth: 0.35, jobs: [['physician', 1], ['herbalist', 0], ['bearer', 0]], look: lk(0.35, { sign: 'herb', doorTile: 1 }) });
     if ((res.timber || 0) >= 8 || place.region === 'north') B({ type: 'woodcutter', name: "Woodward's Hut", x: W - 12, bottom: 9, w: 3, d: 3, wealth: 0.25, condition: 0.6, look: { wall: 'log', roof: 'shingle', roofType: 'gable', chimney: true, doorTile: 1 } });
     if ((res.fish || 0) >= 6) B({ type: 'fishery', name: "Fisher's Shed", x: coast ? 8 : 4, bottom: roadY - 3, w: 4, d: 3, wealth: 0.3, look: { wall: 'plank', plankMat: 'plank', roof: 'thatch', roofType: 'side', chimney: true, doorTile: 1, noFlowers: true } });
@@ -3216,7 +3217,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     // districts: [x range, y range, building mix]
     const lots = (xa, xb, bottom, mix, d = 4) => { let x = xa; while (x < xb) { const pick = rng.weighted(mix); const w = pick.w || rng.int(4, 5); if (x + w > xb) break; if (free(x, bottom, w, pick.d || d)) { const wl = pick.wealth ?? rng.float(0.3, 0.8); B(Object.assign({ x, bottom, w, d: pick.d || d, wealth: wl, floors: pick.floors || (wl > 0.6 ? 2 : 1), look: look(wl, Object.assign({ doorTile: Math.floor(w / 2) }, pick.look || {})), name: pick.name || 'House' }, { type: pick.type })); } x += w + 1; } };
     const noble = [[{ type: 'mansion', w: 6, d: 5, floors: 2, wealth: 0.92, name: 'Mansion', look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'tile', roofType: 'gable' } }, 3], [{ type: 'townhouse', w: 4, d: 4, floors: 3, wealth: 0.8, name: 'Townhouse' }, 4], [{ type: 'jeweller', w: 4, d: 4, floors: 2, wealth: 0.85, name: 'Aurifex the Jeweller', look: { sign: 'scales', shopWindow: true } }, 0.6], [{ type: 'apothecary', w: 4, d: 4, wealth: 0.7, name: 'Apothecary', look: { sign: 'herb' } }, 0.6], [{ type: 'school', w: 5, d: 4, wealth: 0.7, name: 'Cathedral School', look: { wall: 'stone', roof: 'slate' } }, 0.4]];
-    const work = [[{ type: 'smithy', w: 5, name: 'Smithy', look: { wall: 'stone', roof: 'slate', sign: 'anvil' } }, 1], [{ type: 'armourer', w: 5, name: 'Armourer', look: { wall: 'stone', roof: 'slate', sign: 'sword' } }, 1], [{ type: 'carpenter', w: 5, name: 'Carpenter', look: { sign: 'scales' } }, 1], [{ type: 'butcher', w: 4, name: 'Butcher' }, 1], [{ type: 'bakery', w: 4, name: 'Bakery', look: { sign: 'bread' } }, 1.2], [{ type: 'store', w: 5, name: 'Chandlery', look: { sign: 'scales' } }, 1], [{ type: 'tavern', w: 6, d: 5, floors: 2, name: 'The King\'s Head', look: { sign: 'mug', roofType: 'gable', doorTile: 2 } }, 0.7], [{ type: 'tailor', w: 4, name: 'Tailor', look: { sign: 'scales', shopWindow: true } }, 0.6], [{ type: 'weaver', w: 4, name: 'Weaver' }, 0.5], [{ type: 'cobbler', w: 4, name: 'Cobbler', look: { shopWindow: true } }, 0.5], [{ type: 'chandler', w: 4, name: 'Chandler', look: { shopWindow: true } }, 0.5], [{ type: 'cooper', w: 5, name: 'Cooper', look: { bigDoor: true } }, 0.4], [{ type: 'builder', w: 5, name: "Builder's Yard", look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', bigDoor: true, sign: 'hammer' } }, 0.3], [{ type: 'house', w: 4 }, 3]];
+    const work = [[{ type: 'smithy', w: 5, name: 'Smithy', look: { wall: 'stone', roof: 'slate', sign: 'anvil' } }, 1], [{ type: 'armourer', w: 5, name: 'Armourer', look: { wall: 'stone', roof: 'slate', sign: 'sword' } }, 1], [{ type: 'carpenter', w: 5, name: 'Carpenter', look: { sign: 'scales' } }, 1], [{ type: 'butcher', w: 4, name: 'Butcher' }, 1], [{ type: 'bakery', w: 4, name: 'Bakery', look: { sign: 'bread' } }, 1.2], [{ type: 'store', w: 5, name: 'Chandlery', look: { sign: 'scales' } }, 1], [{ type: 'tavern', w: 6, d: 5, floors: 2, name: 'The King\'s Head', look: { sign: 'mug', roofType: 'gable', doorTile: 2 } }, 0.7], [{ type: 'tailor', w: 4, name: 'Tailor', look: { sign: 'scales', shopWindow: true } }, 0.6], [{ type: 'weaver', w: 4, name: 'Weaver' }, 0.5], [{ type: 'cobbler', w: 4, name: 'Cobbler', look: { shopWindow: true } }, 0.5], [{ type: 'chandler', w: 4, name: 'Chandler', look: { shopWindow: true } }, 0.5], [{ type: 'cooper', w: 5, name: 'Cooper', look: { bigDoor: true } }, 0.4], [{ type: 'tanner', w: 5, name: 'Tannery', look: { wall: 'plank', roof: 'shingle', chimney: false } }, 0.3], [{ type: 'potter', w: 4, name: 'Potter' }, 0.4], [{ type: 'builder', w: 5, name: "Builder's Yard", look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', bigDoor: true, sign: 'hammer' } }, 0.3], [{ type: 'house', w: 4 }, 3]];
     const ware = [[{ type: 'warehouse', w: 6, d: 5, name: 'River Warehouse', look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', bigDoor: true, chimney: false, noFlowers: true } }, 1]];
     const poor = [[{ type: 'tenement', w: 5, d: 4, floors: 3, wealth: 0.15, name: 'Tenement', look: { wall: 'timber', roof: 'thatch', roofType: 'side' } }, 3], [{ type: 'house', w: 3, d: 3, wealth: 0.12 }, 2], [{ type: 'tavern', w: 5, d: 4, floors: 2, wealth: 0.3, name: 'The Drowned Rat', look: { sign: 'mug', doorTile: 2 } }, 0.3]];
     const resi = [[{ type: 'house', w: 4 }, 5], [{ type: 'doctor', w: 5, d: 5, floors: 2, name: 'Physician', look: { sign: 'herb' } }, 0.3], [{ type: 'hospital', w: 7, d: 5, floors: 2, wealth: 0.6, name: "St. Agatha's Hospital", look: { wall: 'stone', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 3 } }, 0.3], [{ type: 'guard', w: 6, d: 4, name: 'City Watch', look: { wall: 'stone', roof: 'slate', sign: 'shield', noFlowers: true } }, 0.4], [{ type: 'stable', w: 5, d: 3, name: 'City Stables', look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', bigDoor: true, chimney: false } }, 0.3]];
@@ -3800,18 +3801,24 @@ O.snowMaskOf = function (src) {
     tallow: { name: 'Tallow', base: 2, unit: 'pound', slots: 1 },
     leather: { name: 'Tanned leather', base: 7, unit: 'hide', slots: 1 },
     cask: { name: 'Oak cask', base: 11, unit: 'cask', slots: 3 },
+    hide: { name: 'Raw hide', base: 3, unit: 'hide', slots: 2 },
+    pot: { name: 'Clay pot', base: 3, unit: 'pot', slots: 1 },
   });
   Object.assign(D.BUSINESS, {
     builder: { label: "Builder's Yard", jobs: [['master builder', 1], ['builder', 2], ['labourer', 1]], hours: [7, 17], recipes: [{ out: { planks: 0.3 }, inp: { logs: 0.25 }, role: 'labourer' }], sells: ['logs', 'stone', 'planks'], buys: { logs: 'woodcutter|import', stone: 'quarry|mine|import', planks: 'sawmill|import' }, targets: { logs: 30, stone: 30, planks: 16 }, wage: { 'master builder': 0, builder: 7, labourer: 6 } },
-    weaver: { label: 'Weaver', jobs: [['weaver', 1], ['spinner', 1]], hours: [7, 18], recipes: [{ out: { cloth: 0.3 }, inp: { wool: 0.5 } }], sells: ['cloth'], buys: { wool: 'import' }, targets: { wool: 16, cloth: 12 }, wage: { weaver: 0, spinner: 5 } },
+    weaver: { label: 'Weaver', jobs: [['weaver', 1], ['spinner', 1]], hours: [7, 18], recipes: [{ out: { cloth: 0.3 }, inp: { wool: 0.5 } }], sells: ['cloth'], buys: { wool: 'farmhouse|import' }, targets: { wool: 16, cloth: 12 }, wage: { weaver: 0, spinner: 5 } },
     tailor: { label: 'Tailor', jobs: [['tailor', 1], ['apprentice', 1]], hours: [8, 18], recipes: [{ out: { clothes: 0.14 }, inp: { cloth: 0.25 } }], sells: ['clothes', 'cloth'], buys: { cloth: 'weaver|warehouse|import' }, targets: { cloth: 8, clothes: 8 }, wage: { tailor: 0, apprentice: 4 } },
-    cobbler: { label: 'Cobbler', jobs: [['cobbler', 1]], hours: [8, 18], recipes: [{ out: { shoes: 0.25 }, inp: { leather: 0.3 } }], sells: ['shoes'], buys: { leather: 'import' }, targets: { leather: 8, shoes: 8 }, wage: { cobbler: 0 } },
+    cobbler: { label: 'Cobbler', jobs: [['cobbler', 1]], hours: [8, 18], recipes: [{ out: { shoes: 0.25 }, inp: { leather: 0.3 } }], sells: ['shoes'], buys: { leather: 'tanner|import' }, targets: { leather: 8, shoes: 8 }, wage: { cobbler: 0 } },
     chandler: { label: 'Chandler', jobs: [['chandler', 1]], hours: [8, 18], recipes: [{ out: { candles: 3 }, inp: { tallow: 0.5 } }], sells: ['candles'], buys: { tallow: 'butcher|import' }, targets: { tallow: 10, candles: 60 }, wage: { chandler: 0 } },
+    tanner: { label: 'Tannery', jobs: [['tanner', 1], ['apprentice', 1]], hours: [6, 16], recipes: [{ out: { leather: 0.35 }, inp: { hide: 0.4 } }], sells: ['leather'], buys: { hide: 'butcher|import' }, targets: { hide: 10, leather: 10 }, wage: { tanner: 0, apprentice: 4 } },
+    potter: { label: 'Potter', jobs: [['potter', 1]], hours: [7, 17], recipes: [{ out: { pot: 0.6 }, inp: { firewood: 0.1 } }], sells: ['pot'], buys: { firewood: 'woodcutter|store|import' }, targets: { firewood: 6, pot: 16 }, wage: { potter: 0 } },
     cooper: { label: 'Cooper', jobs: [['cooper', 1], ['apprentice', 1]], hours: [7, 17], recipes: [{ out: { cask: 0.15 }, inp: { planks: 0.4 } }], sells: ['cask'], buys: { planks: 'sawmill|builder|import' }, targets: { planks: 8, cask: 6 }, wage: { cooper: 0, apprentice: 4 } },
   });
   // the butcher renders tallow from the fat as well
-  const bu = D.BUSINESS.butcher; if (bu && !bu.recipes.some((r) => r.out.tallow)) { bu.recipes.push({ out: { tallow: 0.4 }, inp: {} }); bu.targets.tallow = 10; bu.sells = [...bu.sells, 'tallow']; }
-  Object.assign(D.ROLE_OUTFIT, { 'master builder': 'builder', builder: 'builder', weaver: 'villager', spinner: 'villager', tailor: 'merchant', cobbler: 'villager', chandler: 'villager', cooper: 'woodcutter' });
+  const bu = D.BUSINESS.butcher; if (bu && !bu.recipes.some((r) => r.out.tallow)) { bu.recipes.push({ out: { tallow: 0.4, hide: 0.25 }, inp: {} }); bu.targets.tallow = 10; bu.targets.hide = 8; bu.sells = [...bu.sells, 'tallow', 'hide']; }
+  // every farm keeps a shepherd and a flock: fleece for the weavers
+  const fm = D.BUSINESS.farmhouse; if (fm && !fm.jobs.some(([r]) => r === 'shepherd')) { fm.jobs.push(['shepherd', 1]); fm.recipes.push({ out: { wool: 0.5 }, inp: {}, role: 'shepherd' }); fm.targets.wool = 20; fm.sells = [...fm.sells, 'wool']; fm.wage.shepherd = 5; }
+  Object.assign(D.ROLE_OUTFIT, { 'master builder': 'builder', builder: 'builder', weaver: 'villager', spinner: 'villager', tailor: 'merchant', cobbler: 'villager', chandler: 'villager', cooper: 'woodcutter', tanner: 'blacksmith', potter: 'villager', shepherd: 'farmhand' });
 
   function installSim(Sim) {
     const S = Sim.prototype, _need = S.shoppingNeed;
@@ -3828,8 +3835,8 @@ O.snowMaskOf = function (src) {
       // clothes and shoes wear out: a new garment for someone every couple of months, if the purse allows
       hh.wearDay = hh.wearDay ?? this.day + (hh.id * 3) % 18;
       if (this.day >= hh.wearDay && hh.money > 45) {
-        const want = (hh.id + this.day) % 2 ? 'clothes' : 'shoes';
-        const bz = open(want === 'clothes' ? 'tailor' : 'cobbler', want);
+        const want = ['clothes', 'shoes', 'pot'][(hh.id + this.day) % 3];
+        const bz = open(want === 'clothes' ? 'tailor' : want === 'shoes' ? 'cobbler' : 'potter', want);
         if (bz && ok(want)) return { biz: bz.id, good: want, qty: 1 };
       }
       return base;
@@ -3838,7 +3845,7 @@ O.snowMaskOf = function (src) {
     const _buy = S.buy;
     S.buy = function (p, act) {
       _buy.call(this, p, act);
-      if ((act.good === 'clothes' || act.good === 'shoes') && p.task?.act === 'carry-home') { const hh = this.household(p); hh.wearDay = this.day + Math.max(12, 60 - hh.members.length * 6); }
+      if ((act.good === 'clothes' || act.good === 'shoes' || act.good === 'pot') && p.task?.act === 'carry-home') { const hh = this.household(p); hh.wearDay = this.day + Math.max(12, 60 - hh.members.length * 6); }
     };
     // candles burn down through the dark evenings
     const _nd = S.newDay;
@@ -5731,7 +5738,9 @@ O.snowMaskOf = function (src) {
     };
 
     // ---- the tax collector's round ----
-    S.hasCollector = function () { return this.people.some((q) => q.job?.role === 'tax collector' && q.alive !== false); };
+    // in a hamlet the headman does every job himself, the tax-gathering included
+    const collects = (sim, q) => q.job?.role === 'tax collector' || (sim.world.hamlet && q.job?.role === 'guard captain');
+    S.hasCollector = function () { return this.people.some((q) => collects(this, q) && q.alive !== false); };
     S.assessHearth = function () {
       const t = T(this);
       for (const hh of this.households) {
@@ -5751,7 +5760,7 @@ O.snowMaskOf = function (src) {
     const collectorTick = function () {
       const h = this.hour;
       for (const c of this.people) {
-        if (c.job?.role !== 'tax collector' || c.alive === false || c.task) continue;
+        if (!collects(this, c) || c.alive === false || c.task) continue;
         if (!(this.weekday <= 2 && h >= 9 && h < 16)) continue;
         // the nearest house still owing
         const owing = this.households.filter((hh) => !hh.gone && (hh.taxDue || 0) > 0 && hh.home != null && this.building(hh.home) && !hh._visited);
@@ -7145,6 +7154,11 @@ O.snowMaskOf = function (src) {
           }
         }
       }
+      // a hamlet's government: the headman in command, and his helpers
+      if (this.world.hamlet) for (const p of this.people) {
+        if (p.job?.role === 'guard captain') { p.title = p.sex === 'f' ? 'Headwoman' : 'Headman'; p.office = 'headman'; }
+        else if (p.job?.role === 'guard') p.office = "headman's helper";
+      }
       // the estates fund their households
       for (const bz of this.biz.values()) { const k = bz.b.biz || bz.type; if (k === 'palace') bz.cash = 6000; else if (k === 'kitchen') bz.cash = 2000; else if (k === 'keep') bz.cash = 2500; else if (k === 'manor') bz.cash = 1500; }
       void r;
@@ -7232,7 +7246,7 @@ O.snowMaskOf = function (src) {
 
     populate() {
       const r = this.rng, w = this.world;
-      const homeTypes = ['house', 'farmhouse', 'tavern', 'bakery', 'smithy', 'doctor', 'woodcutter', 'mill', 'store', 'sawmill', 'butcher', 'jeweller', 'apothecary', 'carpenter', 'armourer', 'tenement', 'mansion', 'townhouse', 'keep', 'manor', 'builder', 'weaver', 'tailor', 'cobbler', 'chandler', 'cooper'];
+      const homeTypes = ['house', 'farmhouse', 'tavern', 'bakery', 'smithy', 'doctor', 'woodcutter', 'mill', 'store', 'sawmill', 'butcher', 'jeweller', 'apothecary', 'carpenter', 'armourer', 'tenement', 'mansion', 'townhouse', 'keep', 'manor', 'builder', 'weaver', 'tailor', 'cobbler', 'chandler', 'cooper', 'tanner', 'potter'];
       for (const b of w.buildings) {
         if (D.BUSINESS[b.biz || b.type]) {
           const def = b.jobs ? Object.assign({}, D.BUSINESS[b.biz || b.type], { jobs: b.jobs }) : D.BUSINESS[b.biz || b.type];
@@ -8764,7 +8778,17 @@ O.snowMaskOf = function (src) {
     const keepClear = new Set(); // tiles nothing may stand on: the way in, the foot of the stairs
     if (floor === 0) for (let y = d - 2; y < d; y++) for (let x = dc - 1; x <= dc + 2; x++) keepClear.add(y * w + x);
     const inb = (x, y) => x >= 0 && y >= 0 && x < w && y < d;
-    const free = (x, y, fw, fh) => { if (x < 0 || y < 0 || x + fw > w || y + fh > d) return false; for (let yy = y; yy < y + fh; yy++) for (let xx = x; xx < x + fw; xx++) if (grid[yy * w + xx] || keepClear.has(yy * w + xx)) return false; return true; };
+    // the strip of floor in front of every piece is kept clear, so nothing ever stands in front of
+    // anything else: you can get to every bed, chest, shelf and hearth, and see it
+    const front = new Uint8Array(w * d);
+    const free = (x, y, fw, fh, o) => {
+      if (x < 0 || y < 0 || x + fw > w || y + fh > d) return false;
+      const loose = o && (o.seat || o.partition || o.flat);
+      for (let yy = y; yy < y + fh; yy++) for (let xx = x; xx < x + fw; xx++) { if (grid[yy * w + xx] || keepClear.has(yy * w + xx)) return false; if (!loose && front[yy * w + xx]) return false; }
+      // and the new piece's own front must be open floor
+      if (!loose && y + fh < d) for (let xx = x; xx < x + fw; xx++) if (grid[(y + fh) * w + xx] && !items.some((it) => it.partition && it.tx === xx && it.ty === y + fh)) return false;
+      return true;
+    };
     // flood from the door (or the stairs up here) over open floor
     let startTiles = [];
     const reach = () => {
@@ -8783,12 +8807,14 @@ O.snowMaskOf = function (src) {
     };
     const put = (kind, x, y, o = {}) => {
       const [fw, fh] = foot(kind, o.rot, o.width);
-      if (!free(x, y, fw, fh)) return null;
+      if (!free(x, y, fw, fh, o)) return null;
       const it = Object.assign({ kind, tx: x, ty: y, fw, fh, v: 0, rot: 0, seed: rng.int(1, 9999), id: items.length }, o);
       if (!o.flat) for (let yy = y; yy < y + fh; yy++) for (let xx = x; xx < x + fw; xx++) grid[yy * w + xx] = 1;
       it.access = NEEDS_ACCESS.has(kind) && !o.noAccess;
       items.push(it);
       if (!o.flat && !ok()) { items.pop(); for (let yy = y; yy < y + fh; yy++) for (let xx = x; xx < x + fw; xx++) grid[yy * w + xx] = 0; return null; }
+      // reserve the floor in front of it (tables keep theirs for the chairs that go round them)
+      if (!o.flat && !o.seat && !o.partition && !o.table && y + fh < d) for (let xx = x; xx < x + fw; xx++) front[(y + fh) * w + xx] = 1;
       if (CONTAINER[kind] && !o.noContainer && !it.container) it.container = { slots: CONTAINER[kind] };
       return it;
     };
@@ -9203,7 +9229,7 @@ O.snowMaskOf = function (src) {
         }
         familyQuarters();
         break;
-      case 'weaver': case 'tailor': case 'cobbler': case 'chandler': case 'cooper': {
+      case 'weaver': case 'tailor': case 'cobbler': case 'chandler': case 'cooper': case 'tanner': case 'potter': {
         const T2 = b.type, master = O.Data.BUSINESS[T2].jobs[0][0], second = (O.Data.BUSINESS[T2].jobs[1] || [])[0];
         if (floor === 0) {
           if (T2 === 'weaver') { tryPut('loom', [...backWall(3), ...nearWalls(3, 2)], { work: ['weaver'] }); tryPut('spinning', nearWalls(2, 1), { work: ['spinner'] }); tryPut('loom', nearWalls(3, 2)); }
@@ -9896,7 +9922,7 @@ O.snowMaskOf = function (src) {
       if (q.job?.role === 'parish clerk' && q.activity?.act === 'work') options.push({ key: 'houses', label: 'Houses to let or sell', hot: true });
       for (const [k, l] of [['self', 'How are you?'], ['work', 'What do you do?'], ['news', 'Any news?'], ['prices', 'How are prices?'], ['family', 'Your family?']]) options.push({ key: k, label: l });
       options.push({ key: 'bye', label: 'Goodbye' });
-      O.UI.dialog.open({ name: q.first + (q.title ? `, ${q.title}` : ''), color: tagColour(q), text: line, options, onPick: (t) => pickTopic(q, bz, t), onClose: () => { if (talking === q) { q.agent.frozen = false; q.agent.talking = 0; talking = null; } } });
+      O.UI.dialog.open({ name: q.gentry ? q.name : q.first + (q.title ? `, ${q.title}` : q.office ? `, ${q.office}` : ''), color: tagColour(q), text: line, options, onPick: (t) => pickTopic(q, bz, t), onClose: () => { if (talking === q) { q.agent.frozen = false; q.agent.talking = 0; talking = null; } } });
     }
     function pickTopic(q, bz, t) {
       if (t === 'bye') { const bye = ['Fare you well.', 'God keep you.', 'Mind how you go.', 'Until next time.'][(q.id + sim.day) % 4]; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: bye, options: [] }); talking = null; q.agent.frozen = false; setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1600); return; }

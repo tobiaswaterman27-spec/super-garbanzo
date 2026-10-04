@@ -50,7 +50,7 @@
       if (q.job?.role === 'parish clerk' && q.activity?.act === 'work') options.push({ key: 'houses', label: 'Houses to let or sell', hot: true });
       for (const [k, l] of [['self', 'How are you?'], ['work', 'What do you do?'], ['news', 'Any news?'], ['prices', 'How are prices?'], ['family', 'Your family?']]) options.push({ key: k, label: l });
       options.push({ key: 'bye', label: 'Goodbye' });
-      O.UI.dialog.open({ name: q.first + (q.title ? `, ${q.title}` : ''), color: tagColour(q), text: line, options, onPick: (t) => pickTopic(q, bz, t), onClose: () => { if (talking === q) { q.agent.frozen = false; q.agent.talking = 0; talking = null; } } });
+      O.UI.dialog.open({ name: q.gentry ? q.name : q.first + (q.title ? `, ${q.title}` : q.office ? `, ${q.office}` : ''), color: tagColour(q), text: line, options, onPick: (t) => pickTopic(q, bz, t), onClose: () => { if (talking === q) { q.agent.frozen = false; q.agent.talking = 0; talking = null; } } });
     }
     function pickTopic(q, bz, t) {
       if (t === 'bye') { const bye = ['Fare you well.', 'God keep you.', 'Mind how you go.', 'Until next time.'][(q.id + sim.day) % 4]; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: bye, options: [] }); talking = null; q.agent.frozen = false; setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1600); return; }

@@ -62,7 +62,7 @@
 
     populate() {
       const r = this.rng, w = this.world;
-      const homeTypes = ['house', 'farmhouse', 'tavern', 'bakery', 'smithy', 'doctor', 'woodcutter', 'mill', 'store', 'sawmill', 'butcher', 'jeweller', 'apothecary', 'carpenter', 'armourer', 'tenement', 'mansion', 'townhouse', 'keep', 'manor', 'builder', 'weaver', 'tailor', 'cobbler', 'chandler', 'cooper'];
+      const homeTypes = ['house', 'farmhouse', 'tavern', 'bakery', 'smithy', 'doctor', 'woodcutter', 'mill', 'store', 'sawmill', 'butcher', 'jeweller', 'apothecary', 'carpenter', 'armourer', 'tenement', 'mansion', 'townhouse', 'keep', 'manor', 'builder', 'weaver', 'tailor', 'cobbler', 'chandler', 'cooper', 'tanner', 'potter'];
       for (const b of w.buildings) {
         if (D.BUSINESS[b.biz || b.type]) {
           const def = b.jobs ? Object.assign({}, D.BUSINESS[b.biz || b.type], { jobs: b.jobs }) : D.BUSINESS[b.biz || b.type];

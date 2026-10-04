@@ -33,7 +33,17 @@
     const keepClear = new Set(); // tiles nothing may stand on: the way in, the foot of the stairs
     if (floor === 0) for (let y = d - 2; y < d; y++) for (let x = dc - 1; x <= dc + 2; x++) keepClear.add(y * w + x);
     const inb = (x, y) => x >= 0 && y >= 0 && x < w && y < d;
-    const free = (x, y, fw, fh) => { if (x < 0 || y < 0 || x + fw > w || y + fh > d) return false; for (let yy = y; yy < y + fh; yy++) for (let xx = x; xx < x + fw; xx++) if (grid[yy * w + xx] || keepClear.has(yy * w + xx)) return false; return true; };
+    // the strip of floor in front of every piece is kept clear, so nothing ever stands in front of
+    // anything else: you can get to every bed, chest, shelf and hearth, and see it
+    const front = new Uint8Array(w * d);
+    const free = (x, y, fw, fh, o) => {
+      if (x < 0 || y < 0 || x + fw > w || y + fh > d) return false;
+      const loose = o && (o.seat || o.partition || o.flat);
+      for (let yy = y; yy < y + fh; yy++) for (let xx = x; xx < x + fw; xx++) { if (grid[yy * w + xx] || keepClear.has(yy * w + xx)) return false; if (!loose && front[yy * w + xx]) return false; }
+      // and the new piece's own front must be open floor
+      if (!loose && y + fh < d) for (let xx = x; xx < x + fw; xx++) if (grid[(y + fh) * w + xx] && !items.some((it) => it.partition && it.tx === xx && it.ty === y + fh)) return false;
+      return true;
+    };
     // flood from the door (or the stairs up here) over open floor
     let startTiles = [];
     const reach = () => {
@@ -52,12 +62,14 @@
     };
     const put = (kind, x, y, o = {}) => {
       const [fw, fh] = foot(kind, o.rot, o.width);
-      if (!free(x, y, fw, fh)) return null;
+      if (!free(x, y, fw, fh, o)) return null;
       const it = Object.assign({ kind, tx: x, ty: y, fw, fh, v: 0, rot: 0, seed: rng.int(1, 9999), id: items.length }, o);
       if (!o.flat) for (let yy = y; yy < y + fh; yy++) for (let xx = x; xx < x + fw; xx++) grid[yy * w + xx] = 1;
       it.access = NEEDS_ACCESS.has(kind) && !o.noAccess;
       items.push(it);
       if (!o.flat && !ok()) { items.pop(); for (let yy = y; yy < y + fh; yy++) for (let xx = x; xx < x + fw; xx++) grid[yy * w + xx] = 0; return null; }
+      // reserve the floor in front of it (tables keep theirs for the chairs that go round them)
+      if (!o.flat && !o.seat && !o.partition && !o.table && y + fh < d) for (let xx = x; xx < x + fw; xx++) front[(y + fh) * w + xx] = 1;
       if (CONTAINER[kind] && !o.noContainer && !it.container) it.container = { slots: CONTAINER[kind] };
       return it;
     };
@@ -472,7 +484,7 @@
         }
         familyQuarters();
         break;
-      case 'weaver': case 'tailor': case 'cobbler': case 'chandler': case 'cooper': {
+      case 'weaver': case 'tailor': case 'cobbler': case 'chandler': case 'cooper': case 'tanner': case 'potter': {
         const T2 = b.type, master = O.Data.BUSINESS[T2].jobs[0][0], second = (O.Data.BUSINESS[T2].jobs[1] || [])[0];
         if (floor === 0) {
           if (T2 === 'weaver') { tryPut('loom', [...backWall(3), ...nearWalls(3, 2)], { work: ['weaver'] }); tryPut('spinning', nearWalls(2, 1), { work: ['spinner'] }); tryPut('loom', nearWalls(3, 2)); }

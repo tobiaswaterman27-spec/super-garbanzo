@@ -44,7 +44,9 @@
     };
 
     // ---- the tax collector's round ----
-    S.hasCollector = function () { return this.people.some((q) => q.job?.role === 'tax collector' && q.alive !== false); };
+    // in a hamlet the headman does every job himself, the tax-gathering included
+    const collects = (sim, q) => q.job?.role === 'tax collector' || (sim.world.hamlet && q.job?.role === 'guard captain');
+    S.hasCollector = function () { return this.people.some((q) => collects(this, q) && q.alive !== false); };
     S.assessHearth = function () {
       const t = T(this);
       for (const hh of this.households) {
@@ -64,7 +66,7 @@
     const collectorTick = function () {
       const h = this.hour;
       for (const c of this.people) {
-        if (c.job?.role !== 'tax collector' || c.alive === false || c.task) continue;
+        if (!collects(this, c) || c.alive === false || c.task) continue;
         if (!(this.weekday <= 2 && h >= 9 && h < 16)) continue;
         // the nearest house still owing
         const owing = this.households.filter((hh) => !hh.gone && (hh.taxDue || 0) > 0 && hh.home != null && this.building(hh.home) && !hh._visited);

@@ -87,6 +87,13 @@
     B({ type: 'hideout', name: 'Abandoned camp', x: 8, bottom: 9, w: 3, d: 2, wealth: 0.2, condition: 0.6, level: 0, unclaimed: true, look: { wall: 'log', roof: 'shingle', roofType: 'gable', doorTile: 1, noFlowers: true } });
     B({ type: 'hideout', name: "The Crows' den", x: 89, bottom: 47, w: 3, d: 2, wealth: 0.2, condition: 0.6, level: 1, gang: 'crows', look: { wall: 'log', roof: 'thatch', roofType: 'gable', doorTile: 1, noFlowers: true } });
 
+    // the builder's yard on the open ground north-east of the square: a shed and a dirt yard for stock
+    fill(60, 9, 78, 16, TER.YARD); fill(47, 13, 59, 13, TER.ROAD);
+    B({ type: 'builder', name: "Ashford Builder's Yard", x: 62, bottom: 12, w: 6, d: 4, wealth: 0.45, look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', roofType: 'side', bigDoor: true, doorTile: 3, chimney: true, chimneyX: 0.12, sign: 'hammer', noFlowers: true } });
+    // the tailor and the chandler beyond the green, on the edge of the wood
+    B({ type: 'tailor', name: 'Wat the Tailor', x: 52, bottom: 7, w: 4, d: 3, wealth: 0.5, look: { wall: 'timber', plaster: 'plasterOchre', roof: 'thatch', roofType: 'gable', chimney: true, sign: 'scales', shopWindow: true, doorTile: 1 } });
+    B({ type: 'chandler', name: 'The Chandlery', x: 57, bottom: 7, w: 4, d: 3, wealth: 0.45, look: { wall: 'timber', plaster: 'plaster', roof: 'shingle', roofType: 'side', chimney: true, shopWindow: true, doorTile: 2 } });
+
     // footprints, doorsteps
     for (const b of buildings) {
       for (let y = b.y; y <= b.bottom; y++) for (let x = b.x; x < b.x + b.w; x++) { solid[y * W + x] = 1; if (ter[y * W + x] === TER.FOREST) set(x, y, TER.GRASS); }
@@ -123,6 +130,11 @@
     P('trough', 21, 35, { solid: true }); P('hay', 21, 33);
     for (let x = 2; x <= 7; x++) { P('fenceH', x, 32, { solid: true }); P('fenceH', x, 36, { solid: true }); }
     for (let y = 33; y <= 35; y++) { P('fenceV', 2, y, { solid: true }); P('fenceV', 7, y, { solid: true }); }
+    // the builder's stock: seasoned timber, dressed stone, sand for mortar, and the great treadwheel crane
+    for (const [kind, tx, ty, sd] of [['timberstack', 70, 11, 1], ['timberstack', 70, 14, 2], ['stonepile', 74, 11, 1], ['stonepile', 74, 14, 2], ['sandpile', 66, 15, 1], ['crane', 77, 13, 1], ['woodpile', 61, 15, 3], ['cart', 74, 16, 1], ['barrel', 69, 16, 2]]) {
+      props.push({ kind, x: tx * T + 8, y: ty * T + 14, seed: sd, v: 0, solid: true });
+      for (let dx = kind === 'crane' ? -1 : -1; dx <= (kind === 'crane' ? 1 : 1); dx++) solid[ty * W + tx + dx] = 1;
+    }
     // chapel graves
     for (let i = 0; i < 5; i++) P('gravestone', 68 + (i % 3), 37 - Math.floor(i / 3), { solid: true });
     // woodcutter

@@ -424,8 +424,9 @@
       sword: ['......#', '.....#.', '#..##..', '.##....', '#.#....'],
       herb: ['.#.#.', '##.##', '.###.', '..#..', '..#..'],
       shield: ['######', '#.##.#', '######', '.####.', '..##..'],
+      hammer: ['######', '######', '..##..', '..##..', '..##..'],
     }[kind] || [];
-    const col = { bread: '#d8a050', anvil: '#3a3a44', mug: '#e8d8a0', cross: '#c83a3a', scales: '#d8b040', sword: '#c8ccd4', herb: '#5aa040', shield: '#a8382f' }[kind] || '#fff';
+    const col = { bread: '#d8a050', anvil: '#3a3a44', mug: '#e8d8a0', cross: '#c83a3a', scales: '#d8b040', sword: '#c8ccd4', herb: '#5aa040', shield: '#a8382f', hammer: '#6e6a70' }[kind] || '#fff';
     const im = P.mat(col, 'metal');
     icon.forEach((row, r) => [...row].forEach((ch, c) => { if (ch === '#') B.plot(x + 1 + c, y + 1 + r + (icon.length < 5 ? 1 : 0), im, 2 + ((r + c) % 3 === 0 ? 1 : 0)); }));
   }
@@ -580,6 +581,43 @@
         B = new MB(24, 16); B.part(1); const lm = M.log();
         for (let r = 0; r < 3; r++) for (let i = 0; i < 4 - r; i++) { const x = 4 + i * 5 + r * 2.5, y = 13 - r * 4; B.blob(x, y, 2.4, 2.2, lm, { power: 2 }); B.plot(x - 0.5, y - 0.5, P.mat('#c8a070', 'wood'), 3); B.plot(x + 0.5, y, P.mat('#c8a070', 'wood'), 2); }
         ox = 12; oy = 15; break;
+      }
+      case 'timberstack': { // squared beams and planks on bearers, the builder's seasoned stock
+        B = new MB(34, 30); B.part(1); const bm = M.beam(), pl = M.plank ? M.plank() : pine, end = P.mat('#c8a070', 'wood');
+        B.rect(3, 26, 2, 3, bm, 1); B.rect(15, 26, 2, 3, bm, 1); B.rect(28, 26, 2, 3, bm, 1);
+        const layers = 6 + (seed % 2);
+        for (let l = 0; l < layers; l++) { const y = 25 - l * 3.2; B.rect(1 + (l % 2), Math.round(y - 2), 31 - (l % 2) * 2, 3, l % 2 ? pl : bm, 2); for (let x = 1; x < 33; x++) { B.shadeAt(x, Math.round(y - 2), 3); B.shadeAt(x, Math.round(y), 1); } B.plot(1 + (l % 2), Math.round(y - 1), end, 3); B.plot(31 - (l % 2), Math.round(y - 1), end, 1); }
+        // stakes either end hold the stack square
+        B.part(2); for (const sx of [0, 32]) B.capsule(sx + 1, 29, sx + 1, 29 - layers * 3.2 - 2, 0.7, 0.7, bm);
+        ox = 17; oy = 29; break;
+      }
+      case 'stonepile': { // dressed blocks from the quarry, stacked to be set
+        B = new MB(26, 18); B.part(1);
+        const blk = (x, y, w, h) => { B.rect(x, y, w, h, stone, 2); for (let i = 0; i < w; i++) { B.shadeAt(x + i, y, 4); B.shadeAt(x + i, y + h - 1, 1); } for (let j = 0; j < h; j++) { B.shadeAt(x, y + j, 3); B.shadeAt(x + w - 1, y + j, 1); } };
+        blk(1, 11, 8, 6); blk(9, 11, 8, 6); blk(17, 11, 8, 6); blk(5, 5, 8, 6); blk(13, 5, 8, 6); if (seed % 3) blk(9, 0, 8, 5);
+        ox = 13; oy = 17; break;
+      }
+      case 'sandpile': {
+        B = new MB(20, 10); B.part(1); const sm = P.mat('#d8c08a', 'cloth');
+        B.shape(0, 0, 20, 10, (px, py) => ((px - 10) / 9.5) ** 2 + ((py - 9.5) / 8) ** 2 <= 1, (px, py) => { const nx = (px - 10) / 10, ny = (py - 9.5) / 9; return [nx, ny, Math.sqrt(Math.max(0.05, 1 - nx * nx - ny * ny))]; }, sm);
+        for (let i = 0; i < 9; i++) B.tweak(3 + (i * 7) % 14, 4 + (i * 3) % 5, i % 2 ? -1 : 1);
+        ox = 10; oy = 9; break;
+      }
+      case 'crane': { // a treadwheel crane: a great wheel walked by a labourer, a jib with rope and hook
+        B = new MB(44, 64); B.part(1); const bm = M.beam(), rope = P.mat('#c8b080', 'cloth');
+        // frame
+        B.capsule(10, 63, 10, 24, 1.3, 1.3, bm); B.capsule(26, 63, 26, 24, 1.3, 1.3, bm); B.capsule(10, 26, 26, 26, 1.2, 1.2, bm);
+        B.capsule(4, 63, 10, 40, 1, 1, bm); B.capsule(32, 63, 26, 40, 1, 1, bm);
+        // the treadwheel
+        B.part(2);
+        B.shape(4, 34, 32, 63, (px, py) => { const r = Math.hypot(px - 18, py - 49); return (r <= 13.5 && r >= 11.5) || ((Math.abs(px - 18) < 0.8 || Math.abs(py - 49) < 0.8 || Math.abs(px - 18 - (py - 49)) < 0.9 || Math.abs(px - 18 + (py - 49)) < 0.9) && r < 12); }, (px, py) => [(px - 18) / 14, (py - 49) / 14, 0.75], bm);
+        // jib up and out to the right, with rope and hook
+        B.part(3);
+        B.capsule(18, 26, 40, 4, 1.4, 1, bm); B.capsule(22, 26, 34, 14, 0.7, 0.7, bm);
+        for (let y = 5; y < 30; y++) B.plot(40, y, rope, 2);
+        B.capsule(39, 30, 41, 33, 0.6, 0.6, iron); B.plot(41, 33, iron, 1);
+        if (seed % 2) { B.rect(36, 34, 9, 6, stone, 2); for (let x = 36; x < 45; x++) B.shadeAt(x, 34, 4); }
+        ox = 18; oy = 63; break;
       }
       case 'bush': {
         B = new MB(22, 16); B.part(1); const bm = P.mat(rng.pick(['#4a7a32', '#3f6a30', '#5a8a3a']), 'cloth');

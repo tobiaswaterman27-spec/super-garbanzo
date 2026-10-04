@@ -78,7 +78,7 @@
     const chimneyX = b.sprite?.chimney ? O.clamp(Math.round(((b.sprite.chimney.x - b.sprite.OV) / (b.w * T)) * w) - 1, 0, w - 3) : null;
     const hhs = sim ? (b.households || (b.household ? [b.household] : [])).map((id) => sim.households[id - 1]).filter((h) => h && !h.gone && h.home === b.id) : [];
     const people = sim ? hhs.flatMap((h) => h.members.map((id) => sim.byId.get(id)).filter((p) => p && p.alive !== false)) : [];
-    const lives = people.length > 0 || (!sim && ['house', 'farmhouse', 'mansion', 'townhouse', 'keep', 'tenement', 'woodcutter'].includes(b.type));
+    const lives = people.length > 0 || (!sim && ['house', 'farmhouse', 'mansion', 'townhouse', 'keep', 'tenement', 'woodcutter', 'builder', 'weaver', 'tailor', 'cobbler', 'chandler', 'cooper'].includes(b.type));
     const members = people.length || 2;
     const twoFloors = b.floors >= 2;
     const stairsX = b.spec.doorTile * S >= w / 2 ? 0 : w - 2; // the corner away from the door, same on every floor
@@ -309,6 +309,31 @@
         }
         familyQuarters();
         break;
+      case 'builder':
+        if (floor === 0) {
+          tryPut('workbench', [...backWall(3), ...nearWalls(3, 1)], { work: ['master builder'] });
+          tryPut('workbench', nearWalls(3, 1), { work: ['labourer', 'builder'] });
+          for (let i = 0; i < 3; i++) tryPut('woodpile', nearWalls(), { stockOf: 'logs' });
+          for (let i = 0; i < 2; i++) tryPut('crate', nearWalls(), { stockOf: 'stone' });
+          tryPut('rack', backWall(2, true)); tryPut('rack', backWall(2, true));
+          tryPut('table', centre(3, 2), { stockGood: 'planks', shop: true, table: true });
+        }
+        familyQuarters();
+        break;
+      case 'weaver': case 'tailor': case 'cobbler': case 'chandler': case 'cooper': {
+        const T2 = b.type, master = O.Data.BUSINESS[T2].jobs[0][0], second = (O.Data.BUSINESS[T2].jobs[1] || [])[0];
+        if (floor === 0) {
+          if (T2 === 'weaver') { tryPut('loom', [...backWall(3), ...nearWalls(3, 2)], { work: ['weaver'] }); tryPut('spinning', nearWalls(2, 1), { work: ['spinner'] }); tryPut('loom', nearWalls(3, 2)); }
+          else if (T2 === 'chandler') { tryPut('cauldron', nearWalls(), { work: ['chandler'], fire: true }); tryPut('rack', backWall(2, true)); }
+          else { tryPut('workbench', [...backWall(3), ...nearWalls(3, 1)], { work: [master] }); if (second) tryPut('workbench', nearWalls(3, 1), { work: [second] }); }
+          if (T2 === 'cooper') { tryPut('barrel', nearWalls()); tryPut('barrel', nearWalls()); tryPut('woodpile', nearWalls(), { stockOf: 'planks' }); }
+          for (let i = 0; i < 2; i++) tryPut(T2 === 'weaver' || T2 === 'tailor' ? 'sack' : 'crate', nearWalls(), { stockOf: O.Data.BUSINESS[T2].recipes[0] && Object.keys(O.Data.BUSINESS[T2].recipes[0].inp)[0] });
+          counterAtFront({ work: [master] });
+          tryPut('table', centre(3, 2), { stockGood: O.Data.BUSINESS[T2].sells[0], shop: true, table: true });
+        }
+        familyQuarters();
+        break;
+      }
       case 'sawmill':
         tryPut('workbench', [...backWall(3), ...nearWalls(3, 1)], { work: ['sawyer', 'labourer'] });
         tryPut('workbench', nearWalls(3, 1), { work: ['labourer'] });

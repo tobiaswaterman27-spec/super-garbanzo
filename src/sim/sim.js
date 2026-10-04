@@ -62,7 +62,7 @@
 
     populate() {
       const r = this.rng, w = this.world;
-      const homeTypes = ['house', 'farmhouse', 'tavern', 'bakery', 'smithy', 'doctor', 'woodcutter', 'mill', 'store', 'sawmill', 'butcher', 'jeweller', 'apothecary', 'carpenter', 'armourer', 'tenement', 'mansion', 'townhouse', 'keep'];
+      const homeTypes = ['house', 'farmhouse', 'tavern', 'bakery', 'smithy', 'doctor', 'woodcutter', 'mill', 'store', 'sawmill', 'butcher', 'jeweller', 'apothecary', 'carpenter', 'armourer', 'tenement', 'mansion', 'townhouse', 'keep', 'builder', 'weaver', 'tailor', 'cobbler', 'chandler', 'cooper'];
       for (const b of w.buildings) {
         if (D.BUSINESS[b.biz || b.type]) {
           const def = b.jobs ? Object.assign({}, D.BUSINESS[b.biz || b.type], { jobs: b.jobs }) : D.BUSINESS[b.biz || b.type];
@@ -885,7 +885,7 @@
     if (p.task?.act === 'help') { const t = this.byId.get(p.task.target); if (t) return [Math.floor(t.agent.x / this.T), Math.floor((t.agent.y - 1) / this.T)]; }
     return _zone.call(this, p, zone);
   };
-  O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim); O.Aftermath.installSim(Sim); O.Government.installSim(Sim); O.Nobility.installSim(Sim);
+  O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim); O.Aftermath.installSim(Sim); O.Government.installSim(Sim); O.Nobility.installSim(Sim); O.Trades.installSim(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
   // carry-home and delivery tasks finish on entering the destination

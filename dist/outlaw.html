@@ -764,6 +764,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       case 'miller': o.apron = P.mat(C.linen); o.hat = 'cap'; o.hatMat = P.mat(C.linen); o.item = 'sack'; break;
       case 'noble': o.over = P.mat(rng.pick(richCols)); o.overLen = sex === 'f' ? 0 : 1; o.cloak = P.mat(rng.pick(richCols)); o.trim = P.mat(P.metal.gold, 'metal'); o.hat = rng.chance(0.5) ? 'feather' : null; o.hatMat = P.mat(rng.pick(richCols)); o.boots = true; break;
       case 'royal': o.over = P.mat(rng.pick([C.crimson, C.purple, C.plum])); o.overLen = sex === 'f' ? 0 : 2; if (sex === 'f') o.skirt = P.mat(rng.pick([C.crimson, C.purple, C.woad])); o.cloak = P.mat(C.white); o.trim = P.mat(P.metal.gold, 'metal'); o.hat = 'crown'; o.boots = true; o.pouch = false; break;
+      case 'builder': o.apron = P.mat(C.darkLeather); o.sleeves = 'short'; o.hat = rng.chance(0.6) ? 'cap' : 'hood'; o.hatMat = P.mat(rng.pick([C.brown, C.linen, C.greyWool])); o.item = rng.chance(0.5) ? 'hammer' : null; o.boots = true; break;
       case 'servant': o.over = P.mat(rng.pick([C.greyWool, C.navy, C.brown])); o.overLen = sex === 'f' ? 0 : 1; o.apron = P.mat(C.white); o.hat = sex === 'f' ? 'coif' : null; o.hatMat = P.mat(C.white); o.item = null; o.pouch = false; break;
       case 'outlaw': o.over = P.mat(rng.pick([C.darkBrown, C.forest, C.black, C.greyWool])); o.overLen = 1; o.hat = 'hood'; o.hatMat = P.mat(rng.pick([C.forest, C.darkBrown, C.black, C.russet])); o.item = rng.pick(['dagger', 'sword', null]); o.boots = true; o.cloak = rng.chance(0.5) ? o.hatMat : null; o.backItem = rng.chance(0.4) ? 'bow' : null; break;
       case 'fisher': o.hat = 'cap'; o.hatMat = P.mat(C.woad); o.item = 'net'; break;
@@ -2067,8 +2068,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       sword: ['......#', '.....#.', '#..##..', '.##....', '#.#....'],
       herb: ['.#.#.', '##.##', '.###.', '..#..', '..#..'],
       shield: ['######', '#.##.#', '######', '.####.', '..##..'],
+      hammer: ['######', '######', '..##..', '..##..', '..##..'],
     }[kind] || [];
-    const col = { bread: '#d8a050', anvil: '#3a3a44', mug: '#e8d8a0', cross: '#c83a3a', scales: '#d8b040', sword: '#c8ccd4', herb: '#5aa040', shield: '#a8382f' }[kind] || '#fff';
+    const col = { bread: '#d8a050', anvil: '#3a3a44', mug: '#e8d8a0', cross: '#c83a3a', scales: '#d8b040', sword: '#c8ccd4', herb: '#5aa040', shield: '#a8382f', hammer: '#6e6a70' }[kind] || '#fff';
     const im = P.mat(col, 'metal');
     icon.forEach((row, r) => [...row].forEach((ch, c) => { if (ch === '#') B.plot(x + 1 + c, y + 1 + r + (icon.length < 5 ? 1 : 0), im, 2 + ((r + c) % 3 === 0 ? 1 : 0)); }));
   }
@@ -2223,6 +2225,43 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         B = new MB(24, 16); B.part(1); const lm = M.log();
         for (let r = 0; r < 3; r++) for (let i = 0; i < 4 - r; i++) { const x = 4 + i * 5 + r * 2.5, y = 13 - r * 4; B.blob(x, y, 2.4, 2.2, lm, { power: 2 }); B.plot(x - 0.5, y - 0.5, P.mat('#c8a070', 'wood'), 3); B.plot(x + 0.5, y, P.mat('#c8a070', 'wood'), 2); }
         ox = 12; oy = 15; break;
+      }
+      case 'timberstack': { // squared beams and planks on bearers, the builder's seasoned stock
+        B = new MB(34, 30); B.part(1); const bm = M.beam(), pl = M.plank ? M.plank() : pine, end = P.mat('#c8a070', 'wood');
+        B.rect(3, 26, 2, 3, bm, 1); B.rect(15, 26, 2, 3, bm, 1); B.rect(28, 26, 2, 3, bm, 1);
+        const layers = 6 + (seed % 2);
+        for (let l = 0; l < layers; l++) { const y = 25 - l * 3.2; B.rect(1 + (l % 2), Math.round(y - 2), 31 - (l % 2) * 2, 3, l % 2 ? pl : bm, 2); for (let x = 1; x < 33; x++) { B.shadeAt(x, Math.round(y - 2), 3); B.shadeAt(x, Math.round(y), 1); } B.plot(1 + (l % 2), Math.round(y - 1), end, 3); B.plot(31 - (l % 2), Math.round(y - 1), end, 1); }
+        // stakes either end hold the stack square
+        B.part(2); for (const sx of [0, 32]) B.capsule(sx + 1, 29, sx + 1, 29 - layers * 3.2 - 2, 0.7, 0.7, bm);
+        ox = 17; oy = 29; break;
+      }
+      case 'stonepile': { // dressed blocks from the quarry, stacked to be set
+        B = new MB(26, 18); B.part(1);
+        const blk = (x, y, w, h) => { B.rect(x, y, w, h, stone, 2); for (let i = 0; i < w; i++) { B.shadeAt(x + i, y, 4); B.shadeAt(x + i, y + h - 1, 1); } for (let j = 0; j < h; j++) { B.shadeAt(x, y + j, 3); B.shadeAt(x + w - 1, y + j, 1); } };
+        blk(1, 11, 8, 6); blk(9, 11, 8, 6); blk(17, 11, 8, 6); blk(5, 5, 8, 6); blk(13, 5, 8, 6); if (seed % 3) blk(9, 0, 8, 5);
+        ox = 13; oy = 17; break;
+      }
+      case 'sandpile': {
+        B = new MB(20, 10); B.part(1); const sm = P.mat('#d8c08a', 'cloth');
+        B.shape(0, 0, 20, 10, (px, py) => ((px - 10) / 9.5) ** 2 + ((py - 9.5) / 8) ** 2 <= 1, (px, py) => { const nx = (px - 10) / 10, ny = (py - 9.5) / 9; return [nx, ny, Math.sqrt(Math.max(0.05, 1 - nx * nx - ny * ny))]; }, sm);
+        for (let i = 0; i < 9; i++) B.tweak(3 + (i * 7) % 14, 4 + (i * 3) % 5, i % 2 ? -1 : 1);
+        ox = 10; oy = 9; break;
+      }
+      case 'crane': { // a treadwheel crane: a great wheel walked by a labourer, a jib with rope and hook
+        B = new MB(44, 64); B.part(1); const bm = M.beam(), rope = P.mat('#c8b080', 'cloth');
+        // frame
+        B.capsule(10, 63, 10, 24, 1.3, 1.3, bm); B.capsule(26, 63, 26, 24, 1.3, 1.3, bm); B.capsule(10, 26, 26, 26, 1.2, 1.2, bm);
+        B.capsule(4, 63, 10, 40, 1, 1, bm); B.capsule(32, 63, 26, 40, 1, 1, bm);
+        // the treadwheel
+        B.part(2);
+        B.shape(4, 34, 32, 63, (px, py) => { const r = Math.hypot(px - 18, py - 49); return (r <= 13.5 && r >= 11.5) || ((Math.abs(px - 18) < 0.8 || Math.abs(py - 49) < 0.8 || Math.abs(px - 18 - (py - 49)) < 0.9 || Math.abs(px - 18 + (py - 49)) < 0.9) && r < 12); }, (px, py) => [(px - 18) / 14, (py - 49) / 14, 0.75], bm);
+        // jib up and out to the right, with rope and hook
+        B.part(3);
+        B.capsule(18, 26, 40, 4, 1.4, 1, bm); B.capsule(22, 26, 34, 14, 0.7, 0.7, bm);
+        for (let y = 5; y < 30; y++) B.plot(40, y, rope, 2);
+        B.capsule(39, 30, 41, 33, 0.6, 0.6, iron); B.plot(41, 33, iron, 1);
+        if (seed % 2) { B.rect(36, 34, 9, 6, stone, 2); for (let x = 36; x < 45; x++) B.shadeAt(x, 34, 4); }
+        ox = 18; oy = 63; break;
       }
       case 'bush': {
         B = new MB(22, 16); B.part(1); const bm = P.mat(rng.pick(['#4a7a32', '#3f6a30', '#5a8a3a']), 'cloth');
@@ -2557,6 +2596,13 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     B({ type: 'hideout', name: 'Abandoned camp', x: 8, bottom: 9, w: 3, d: 2, wealth: 0.2, condition: 0.6, level: 0, unclaimed: true, look: { wall: 'log', roof: 'shingle', roofType: 'gable', doorTile: 1, noFlowers: true } });
     B({ type: 'hideout', name: "The Crows' den", x: 89, bottom: 47, w: 3, d: 2, wealth: 0.2, condition: 0.6, level: 1, gang: 'crows', look: { wall: 'log', roof: 'thatch', roofType: 'gable', doorTile: 1, noFlowers: true } });
 
+    // the builder's yard on the open ground north-east of the square: a shed and a dirt yard for stock
+    fill(60, 9, 78, 16, TER.YARD); fill(47, 13, 59, 13, TER.ROAD);
+    B({ type: 'builder', name: "Ashford Builder's Yard", x: 62, bottom: 12, w: 6, d: 4, wealth: 0.45, look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', roofType: 'side', bigDoor: true, doorTile: 3, chimney: true, chimneyX: 0.12, sign: 'hammer', noFlowers: true } });
+    // the tailor and the chandler beyond the green, on the edge of the wood
+    B({ type: 'tailor', name: 'Wat the Tailor', x: 52, bottom: 7, w: 4, d: 3, wealth: 0.5, look: { wall: 'timber', plaster: 'plasterOchre', roof: 'thatch', roofType: 'gable', chimney: true, sign: 'scales', shopWindow: true, doorTile: 1 } });
+    B({ type: 'chandler', name: 'The Chandlery', x: 57, bottom: 7, w: 4, d: 3, wealth: 0.45, look: { wall: 'timber', plaster: 'plaster', roof: 'shingle', roofType: 'side', chimney: true, shopWindow: true, doorTile: 2 } });
+
     // footprints, doorsteps
     for (const b of buildings) {
       for (let y = b.y; y <= b.bottom; y++) for (let x = b.x; x < b.x + b.w; x++) { solid[y * W + x] = 1; if (ter[y * W + x] === TER.FOREST) set(x, y, TER.GRASS); }
@@ -2593,6 +2639,11 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     P('trough', 21, 35, { solid: true }); P('hay', 21, 33);
     for (let x = 2; x <= 7; x++) { P('fenceH', x, 32, { solid: true }); P('fenceH', x, 36, { solid: true }); }
     for (let y = 33; y <= 35; y++) { P('fenceV', 2, y, { solid: true }); P('fenceV', 7, y, { solid: true }); }
+    // the builder's stock: seasoned timber, dressed stone, sand for mortar, and the great treadwheel crane
+    for (const [kind, tx, ty, sd] of [['timberstack', 70, 11, 1], ['timberstack', 70, 14, 2], ['stonepile', 74, 11, 1], ['stonepile', 74, 14, 2], ['sandpile', 66, 15, 1], ['crane', 77, 13, 1], ['woodpile', 61, 15, 3], ['cart', 74, 16, 1], ['barrel', 69, 16, 2]]) {
+      props.push({ kind, x: tx * T + 8, y: ty * T + 14, seed: sd, v: 0, solid: true });
+      for (let dx = kind === 'crane' ? -1 : -1; dx <= (kind === 'crane' ? 1 : 1); dx++) solid[ty * W + tx + dx] = 1;
+    }
     // chapel graves
     for (let i = 0; i < 5; i++) P('gravestone', 68 + (i % 3), 37 - Math.floor(i / 3), { solid: true });
     // woodcutter
@@ -2776,7 +2827,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   // How many people the living simulation keeps for a place: every soul in a small place, a
   // representative share of a big one (the rest are counted, and traded for, in the kingdom).
   const simTarget = (place) => (place.pop <= 120 ? place.pop : Math.round(120 + (place.pop - 120) * 0.27));
-  const HOMES = new Set(['farmhouse', 'tavern', 'bakery', 'smithy', 'doctor', 'woodcutter', 'mill', 'store', 'sawmill', 'butcher', 'jeweller', 'apothecary', 'carpenter', 'armourer', 'mansion', 'townhouse']);
+  const HOMES = new Set(['farmhouse', 'tavern', 'bakery', 'smithy', 'doctor', 'woodcutter', 'mill', 'store', 'sawmill', 'butcher', 'jeweller', 'apothecary', 'carpenter', 'armourer', 'mansion', 'townhouse', 'builder', 'weaver', 'tailor', 'cobbler', 'chandler', 'cooper']);
   const estPeople = (b) => (b.type === 'house' ? O.clamp(Math.round(b.w * b.d * (b.floors || 1) / 5), 1, 7) : b.type === 'tenement' ? Math.max(2, Math.floor(b.w * b.d * b.floors / 15)) * 3 : b.type === 'keep' ? 5 : HOMES.has(b.type) ? 3 : 0);
   // Pull down the houses furthest from the heart of the place until it holds about as many people
   // as it should: a place grows outward from its square, so its edges are where it thins.
@@ -2844,7 +2895,10 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     ];
     // bigger places have more trades: a butcher and a carpenter, an apothecary, an inn, a school, a second farm
     const extra = [];
-    if (target >= 90) extra.push({ type: 'butcher', name: 'Butcher', w: 4, d: 4, look: look(0.5, { doorTile: 1, shopWindow: true }) }, { type: 'carpenter', name: 'Carpenter', w: 5, d: 4, look: look(0.5, { doorTile: 2, sign: 'scales' }) });
+    if (target >= 90) extra.push({ type: 'butcher', name: 'Butcher', w: 4, d: 4, look: look(0.5, { doorTile: 1, shopWindow: true }) }, { type: 'carpenter', name: 'Carpenter', w: 5, d: 4, look: look(0.5, { doorTile: 2, sign: 'scales' }) }, { type: 'tailor', name: 'Tailor', w: 4, d: 4, look: look(0.55, { doorTile: 1, shopWindow: true, sign: 'scales' }) });
+    if (target >= 110) extra.push({ type: 'builder', name: "Builder's Yard", w: 5, d: 3, look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', roofType: 'side', bigDoor: true, doorTile: 2, chimney: true, chimneyX: 0.12, sign: 'hammer', noFlowers: true } });
+    if (target >= 130) extra.push({ type: 'weaver', name: 'Weaver', w: 4, d: 4, look: look(0.5, { doorTile: 1 }) }, { type: 'cobbler', name: 'Cobbler', w: 4, d: 3, look: look(0.5, { doorTile: 1, shopWindow: true }) }, { type: 'chandler', name: 'Chandler', w: 4, d: 3, look: look(0.5, { doorTile: 1, shopWindow: true }) });
+    if (target >= 170) extra.push({ type: 'cooper', name: 'Cooper', w: 5, d: 4, look: look(0.5, { doorTile: 2, bigDoor: true }) });
     if (target >= 130) extra.push({ type: 'apothecary', name: 'Apothecary', w: 4, d: 4, look: look(0.6, { doorTile: 1, sign: 'herb', shopWindow: true }) }, { type: 'tavern', name: `The ${rng.pick(['Crown', 'White Hart', 'Swan', 'Black Bull', 'Three Tuns'])} Inn`, w: 6, d: 5, floors: 2, look: look(0.6, { roofType: 'gable', sign: 'mug', doorTile: 2 }) }, { type: 'farmhouse', name: 'Home Farm', w: 4, d: 3, look: look(0.4, { doorTile: 1 }) });
     if (target >= 170) extra.push({ type: 'school', name: 'Grammar School', w: 5, d: 4, look: { wall: 'stone', stoneMat: st.stoneMat, roof: 'slate', roofType: 'gable', doorTile: 2, noFlowers: true } }, { type: 'bakery', name: 'Bakery', w: 4, d: 4, look: look(0.55, { sign: 'bread', shopWindow: true, doorTile: 1 }) }, { type: 'store', name: 'Chandler', w: 5, d: 4, look: look(0.55, { sign: 'scales', shopWindow: true, doorTile: 2 }) });
     roadTrades.push(...extra);
@@ -2892,6 +2946,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     }
 
     const P = (kind, tx, ty, opts = {}) => { const p = Object.assign({ kind, x: tx * T + 8, y: ty * T + 14, seed: rng.int(1, 1e6), v: 0, solid: true }, opts); props.push(p); if (p.solid) solid[ty * W + tx] = 1; return p; };
+    // a builder's yard stacks its stock beside the shed
+    for (const b of buildings.filter((x) => x.type === 'builder')) for (const [kind, tx, ty] of [['timberstack', b.x - 1, b.y - 1], ['stonepile', b.x + b.w, b.y - 1]]) { if (tx < 1 || ty < 1 || tx >= W - 1 || solid[ty * W + tx] || solid[ty * W + tx - 1] || solid[ty * W + tx + 1] || ter[ty * W + tx] === TER.ROAD) continue; P(kind, tx, ty); solid[ty * W + tx - 1] = 1; solid[ty * W + tx + 1] = 1; }
     P('well', sqX + 8, roadY - 4, { y: (roadY - 4) * T + 15 }); solid[(roadY - 4) * W + sqX + 7] = 1;
     if (town) { P('stall', sqX + 3, roadY - 2, { v: 1 }); solid[(roadY - 2) * W + sqX + 2] = 1; solid[(roadY - 2) * W + sqX + 4] = 1; P('stall', sqX + 12, roadY - 2, { v: 2 }); solid[(roadY - 2) * W + sqX + 11] = 1; solid[(roadY - 2) * W + sqX + 13] = 1; }
     P('signpost', sqX + 9, roadY + 2, { solid: false }); P('bench', sqX + 2, roadY - 5, { solid: false });
@@ -3047,7 +3103,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     // districts: [x range, y range, building mix]
     const lots = (xa, xb, bottom, mix, d = 4) => { let x = xa; while (x < xb) { const pick = rng.weighted(mix); const w = pick.w || rng.int(4, 5); if (x + w > xb) break; if (free(x, bottom, w, pick.d || d)) { const wl = pick.wealth ?? rng.float(0.3, 0.8); B(Object.assign({ x, bottom, w, d: pick.d || d, wealth: wl, floors: pick.floors || (wl > 0.6 ? 2 : 1), look: look(wl, Object.assign({ doorTile: Math.floor(w / 2) }, pick.look || {})), name: pick.name || 'House' }, { type: pick.type })); } x += w + 1; } };
     const noble = [[{ type: 'mansion', w: 6, d: 5, floors: 2, wealth: 0.92, name: 'Mansion', look: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'tile', roofType: 'gable' } }, 3], [{ type: 'townhouse', w: 4, d: 4, floors: 3, wealth: 0.8, name: 'Townhouse' }, 4], [{ type: 'jeweller', w: 4, d: 4, floors: 2, wealth: 0.85, name: 'Aurifex the Jeweller', look: { sign: 'scales', shopWindow: true } }, 0.6], [{ type: 'apothecary', w: 4, d: 4, wealth: 0.7, name: 'Apothecary', look: { sign: 'herb' } }, 0.6], [{ type: 'school', w: 5, d: 4, wealth: 0.7, name: 'Cathedral School', look: { wall: 'stone', roof: 'slate' } }, 0.4]];
-    const work = [[{ type: 'smithy', w: 5, name: 'Smithy', look: { wall: 'stone', roof: 'slate', sign: 'anvil' } }, 1], [{ type: 'armourer', w: 5, name: 'Armourer', look: { wall: 'stone', roof: 'slate', sign: 'sword' } }, 1], [{ type: 'carpenter', w: 5, name: 'Carpenter', look: { sign: 'scales' } }, 1], [{ type: 'butcher', w: 4, name: 'Butcher' }, 1], [{ type: 'bakery', w: 4, name: 'Bakery', look: { sign: 'bread' } }, 1.2], [{ type: 'store', w: 5, name: 'Chandlery', look: { sign: 'scales' } }, 1], [{ type: 'tavern', w: 6, d: 5, floors: 2, name: 'The King\'s Head', look: { sign: 'mug', roofType: 'gable', doorTile: 2 } }, 0.7], [{ type: 'house', w: 4 }, 3]];
+    const work = [[{ type: 'smithy', w: 5, name: 'Smithy', look: { wall: 'stone', roof: 'slate', sign: 'anvil' } }, 1], [{ type: 'armourer', w: 5, name: 'Armourer', look: { wall: 'stone', roof: 'slate', sign: 'sword' } }, 1], [{ type: 'carpenter', w: 5, name: 'Carpenter', look: { sign: 'scales' } }, 1], [{ type: 'butcher', w: 4, name: 'Butcher' }, 1], [{ type: 'bakery', w: 4, name: 'Bakery', look: { sign: 'bread' } }, 1.2], [{ type: 'store', w: 5, name: 'Chandlery', look: { sign: 'scales' } }, 1], [{ type: 'tavern', w: 6, d: 5, floors: 2, name: 'The King\'s Head', look: { sign: 'mug', roofType: 'gable', doorTile: 2 } }, 0.7], [{ type: 'tailor', w: 4, name: 'Tailor', look: { sign: 'scales', shopWindow: true } }, 0.6], [{ type: 'weaver', w: 4, name: 'Weaver' }, 0.5], [{ type: 'cobbler', w: 4, name: 'Cobbler', look: { shopWindow: true } }, 0.5], [{ type: 'chandler', w: 4, name: 'Chandler', look: { shopWindow: true } }, 0.5], [{ type: 'cooper', w: 5, name: 'Cooper', look: { bigDoor: true } }, 0.4], [{ type: 'builder', w: 5, name: "Builder's Yard", look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', bigDoor: true, sign: 'hammer' } }, 0.3], [{ type: 'house', w: 4 }, 3]];
     const ware = [[{ type: 'warehouse', w: 6, d: 5, name: 'River Warehouse', look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', bigDoor: true, chimney: false, noFlowers: true } }, 1]];
     const poor = [[{ type: 'tenement', w: 5, d: 4, floors: 3, wealth: 0.15, name: 'Tenement', look: { wall: 'timber', roof: 'thatch', roofType: 'side' } }, 3], [{ type: 'house', w: 3, d: 3, wealth: 0.12 }, 2], [{ type: 'tavern', w: 5, d: 4, floors: 2, wealth: 0.3, name: 'The Drowned Rat', look: { sign: 'mug', doorTile: 2 } }, 0.3]];
     const resi = [[{ type: 'house', w: 4 }, 5], [{ type: 'doctor', w: 5, d: 5, floors: 2, name: 'Physician', look: { sign: 'herb' } }, 0.3], [{ type: 'hospital', w: 7, d: 5, floors: 2, wealth: 0.6, name: "St. Agatha's Hospital", look: { wall: 'stone', roof: 'slate', roofType: 'gable', sign: 'cross', doorTile: 3 } }, 0.3], [{ type: 'guard', w: 6, d: 4, name: 'City Watch', look: { wall: 'stone', roof: 'slate', sign: 'shield', noFlowers: true } }, 0.4], [{ type: 'stable', w: 5, d: 3, name: 'City Stables', look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', bigDoor: true, chimney: false } }, 0.3]];
@@ -3528,7 +3584,7 @@ O.snowMaskOf = function (src) {
     butcher: { label: 'Butcher', jobs: [['butcher', 1], ['apprentice', 1]], hours: [6, 16], recipes: [{ out: { meat: 3 }, inp: {} }], sells: ['meat'], targets: { meat: 30 }, wage: { butcher: 0, apprentice: 4 } },
     jeweller: { label: 'Jeweller', jobs: [['jeweller', 1], ['night watchman', 1]], hours: [9, 17], recipes: [{ out: { ring: 0.05, brooch: 0.06 }, inp: {}, role: 'jeweller' }], sells: ['ring', 'brooch'], targets: { ring: 6, brooch: 5 }, wage: { jeweller: 0, 'night watchman': 7 }, security: 0.9 },
     apothecary: { label: 'Apothecary', jobs: [['apothecary', 1]], hours: [8, 18], recipes: [{ out: { medicine: 0.5, herbs: 0.6 }, inp: {} }], sells: ['medicine', 'herbs'], targets: { medicine: 12, herbs: 12 }, wage: { apothecary: 0 } },
-    carpenter: { label: 'Carpenter', jobs: [['carpenter', 1], ['apprentice', 1]], hours: [7, 17], recipes: [{ out: { furniture: 0.25 }, inp: { planks: 0.5 } }], sells: ['furniture'], buys: { planks: 'sawmill|import' }, targets: { planks: 10, furniture: 6 }, wage: { carpenter: 0, apprentice: 4 } },
+    carpenter: { label: 'Carpenter', jobs: [['carpenter', 1], ['apprentice', 1]], hours: [7, 17], recipes: [{ out: { furniture: 0.25 }, inp: { planks: 0.5 } }], sells: ['furniture'], buys: { planks: 'sawmill|builder|import' }, targets: { planks: 10, furniture: 6 }, wage: { carpenter: 0, apprentice: 4 } },
     armourer: { label: 'Armourer', jobs: [['armourer', 1]], hours: [7, 17], recipes: [{ out: { helm: 0.08, sword: 0.04 }, inp: { iron: 0.3 } }], sells: ['helm', 'sword'], buys: { iron: 'mine|import' }, targets: { iron: 10, helm: 4, sword: 2 }, wage: { armourer: 0 } },
     warehouse: { label: 'Warehouse', jobs: [['warehouse master', 1], ['warehouse worker', 2]], hours: [6, 18], recipes: [], sells: ['cloth', 'wheat', 'iron'], targets: { cloth: 30, wheat: 80, iron: 20 }, wage: { 'warehouse master': 0, 'warehouse worker': 6, docker: 8 }, security: 0.6 },
     townhall: { label: 'Town Hall', jobs: [['magistrate', 1], ['clerk', 2]], hours: [8, 17], recipes: [], sells: [], targets: {}, public: true, wage: { magistrate: 14, clerk: 7 }, security: 0.7 },
@@ -3560,6 +3616,71 @@ O.snowMaskOf = function (src) {
   const GOALS = ['buy a bigger house', 'become a master', 'open a shop', 'save a tidy sum', 'move to the capital', 'marry', 'see the children settled', 'retire in comfort', 'pay off debts', 'escape poverty', 'become guard captain'];
 
   O.Data = { GOODS, BUSINESS, ROLE_OUTFIT, NAMES, TRAITS, GOALS };
+})();
+
+</script>
+<script>
+// More trades and the goods they make. The builder's yard keeps the town's building stock — seasoned
+// timber, dressed stone, planks — and its builders go out to every building site the council or a
+// citizen pays for. Weavers turn wool into cloth, tailors cloth into clothes, cobblers leather into
+// shoes, chandlers the butcher's tallow into candles, coopers planks into casks. Households buy
+// candles through the dark months and new clothes and shoes as the old ones wear out.
+'use strict';
+(function () {
+  const D = O.Data;
+  Object.assign(D.GOODS, {
+    wool: { name: 'Fleece', base: 3, unit: 'fleece', slots: 1 },
+    clothes: { name: 'Wool tunic', base: 22, unit: 'garment', slots: 2 },
+    shoes: { name: 'Pair of shoes', base: 12, unit: 'pair', slots: 1 },
+    candles: { name: 'Tallow candles', base: 1, unit: 'candle', slots: 1 },
+    tallow: { name: 'Tallow', base: 2, unit: 'pound', slots: 1 },
+    leather: { name: 'Tanned leather', base: 7, unit: 'hide', slots: 1 },
+    cask: { name: 'Oak cask', base: 11, unit: 'cask', slots: 3 },
+  });
+  Object.assign(D.BUSINESS, {
+    builder: { label: "Builder's Yard", jobs: [['master builder', 1], ['builder', 2], ['labourer', 1]], hours: [7, 17], recipes: [{ out: { planks: 0.3 }, inp: { logs: 0.25 }, role: 'labourer' }], sells: ['logs', 'stone', 'planks'], buys: { logs: 'woodcutter|import', stone: 'quarry|mine|import', planks: 'sawmill|import' }, targets: { logs: 30, stone: 30, planks: 16 }, wage: { 'master builder': 0, builder: 7, labourer: 6 } },
+    weaver: { label: 'Weaver', jobs: [['weaver', 1], ['spinner', 1]], hours: [7, 18], recipes: [{ out: { cloth: 0.3 }, inp: { wool: 0.5 } }], sells: ['cloth'], buys: { wool: 'import' }, targets: { wool: 16, cloth: 12 }, wage: { weaver: 0, spinner: 5 } },
+    tailor: { label: 'Tailor', jobs: [['tailor', 1], ['apprentice', 1]], hours: [8, 18], recipes: [{ out: { clothes: 0.14 }, inp: { cloth: 0.25 } }], sells: ['clothes', 'cloth'], buys: { cloth: 'weaver|warehouse|import' }, targets: { cloth: 8, clothes: 8 }, wage: { tailor: 0, apprentice: 4 } },
+    cobbler: { label: 'Cobbler', jobs: [['cobbler', 1]], hours: [8, 18], recipes: [{ out: { shoes: 0.25 }, inp: { leather: 0.3 } }], sells: ['shoes'], buys: { leather: 'import' }, targets: { leather: 8, shoes: 8 }, wage: { cobbler: 0 } },
+    chandler: { label: 'Chandler', jobs: [['chandler', 1]], hours: [8, 18], recipes: [{ out: { candles: 3 }, inp: { tallow: 0.5 } }], sells: ['candles'], buys: { tallow: 'butcher|import' }, targets: { tallow: 10, candles: 60 }, wage: { chandler: 0 } },
+    cooper: { label: 'Cooper', jobs: [['cooper', 1], ['apprentice', 1]], hours: [7, 17], recipes: [{ out: { cask: 0.15 }, inp: { planks: 0.4 } }], sells: ['cask'], buys: { planks: 'sawmill|builder|import' }, targets: { planks: 8, cask: 6 }, wage: { cooper: 0, apprentice: 4 } },
+  });
+  // the butcher renders tallow from the fat as well
+  const bu = D.BUSINESS.butcher; if (bu && !bu.recipes.some((r) => r.out.tallow)) { bu.recipes.push({ out: { tallow: 0.4 }, inp: {} }); bu.targets.tallow = 10; bu.sells = [...bu.sells, 'tallow']; }
+  Object.assign(D.ROLE_OUTFIT, { 'master builder': 'builder', builder: 'builder', weaver: 'villager', spinner: 'villager', tailor: 'merchant', cobbler: 'villager', chandler: 'villager', cooper: 'woodcutter' });
+
+  function installSim(Sim) {
+    const S = Sim.prototype, _need = S.shoppingNeed;
+    S.shoppingNeed = function (hh) {
+      const base = _need.call(this, hh);
+      // food comes first, unless the larder already holds a day's bread
+      if (base && (hh.pantry.bread || 0) < hh.members.length * 0.8) return base;
+      const ok = (g) => !(hh.failed && hh.failed[g] > this.day * 1440 + this.minute);
+      const open = (t, g, min = 0) => { const bz = this.supplierOf ? this.supplierOf(t, g, true) : null; return bz && bz.open && (bz.stock[g] || 0) > min ? bz : null; };
+      const dark = this.season === 'winter' || this.season === 'autumn';
+      // candles for the long evenings
+      if (dark && (hh.pantry.candles || 0) < 2 && hh.money > 12 && ok('candles')) { const bz = open('chandler', 'candles', 2); if (bz) return { biz: bz.id, good: 'candles', qty: 6 }; }
+      void base;
+      // clothes and shoes wear out: a new garment for someone every couple of months, if the purse allows
+      hh.wearDay = hh.wearDay ?? this.day + (hh.id * 3) % 18;
+      if (this.day >= hh.wearDay && hh.money > 45) {
+        const want = (hh.id + this.day) % 2 ? 'clothes' : 'shoes';
+        const bz = open(want === 'clothes' ? 'tailor' : 'cobbler', want);
+        if (bz && ok(want)) return { biz: bz.id, good: want, qty: 1 };
+      }
+      return base;
+    };
+    // the next garment is due a while after one is actually bought
+    const _buy = S.buy;
+    S.buy = function (p, act) {
+      _buy.call(this, p, act);
+      if ((act.good === 'clothes' || act.good === 'shoes') && p.task?.act === 'carry-home') { const hh = this.household(p); hh.wearDay = this.day + Math.max(12, 60 - hh.members.length * 6); }
+    };
+    // candles burn down through the dark evenings
+    const _nd = S.newDay;
+    S.newDay = function () { _nd.call(this); if (this.season === 'winter' || this.season === 'autumn') for (const hh of this.households) if (hh.pantry.candles) hh.pantry.candles = Math.max(0, hh.pantry.candles - 1); };
+  }
+  O.Trades = { installSim };
 })();
 
 </script>
@@ -3740,11 +3861,17 @@ O.snowMaskOf = function (src) {
       const site = { id, b, stage: 0, prog: 0, work: 0, stalled: null, started: sim.day, player: !!opts.player };
       this.sites.push(site);
       // the site is run like a small business: builders, wages, material orders
-      const def = { label: 'Building site', jobs: [['builder', 3]], hours: [7, 17], recipes: [], sells: [], buys: { logs: 'woodcutter|import', stone: 'quarry|import' }, targets: { logs: 12, stone: 10 }, wage: { builder: 7 }, site: true };
+      const def = { label: 'Building site', jobs: [['builder', 3]], hours: [7, 17], recipes: [], sells: [], buys: { logs: 'builder|woodcutter|import', stone: 'builder|quarry|import' }, targets: { logs: 12, stone: 10 }, wage: { builder: 7 }, site: true };
       const bz = { id, b, type: 'site', def, name: 'the new house site', owner: null, workers: [], stock: { logs: 0, stone: 0 }, cash: cost, sold: {}, bought: {}, open: false, orders: [], salesToday: 0, history: [] };
       sim.biz.set(id, bz);
       if (!opts.player) { sim.treasury.cash -= cost; sim.treasury.spent += cost; }
-      const idle = sim.people.filter((p) => !p.visitor && p.age >= 17 && p.age < 60 && (!p.job || p.job.role === 'porter')).slice(0, 3);
+      // the builder's yard sends its own builders first; the rest are hired from those without work
+      const yard = [...sim.biz.values()].find((x) => x.type === 'builder');
+      const crew = yard ? yard.workers.map((wid) => sim.byId.get(wid)).filter((p) => p && p.alive !== false && ['builder', 'labourer'].includes(p.job?.role)).filter((p) => !p.job.yard) : [];
+      for (const p of crew) { p.job = { biz: id, role: 'builder', yard: yard.id, yardRole: p.job.role }; p.skills.builder = Math.max(p.skills.builder || 0, 0.6); yard.workers = yard.workers.filter((x) => x !== p.id); bz.workers.push(p.id); sim.remember(p, `The yard sent me to build the new house.`, 'work', 0.8); }
+      // a yard with stock sends the first loads straight to the site
+      if (yard) for (const g of ['logs', 'stone']) { const q = Math.min(Math.floor((yard.stock[g] || 0) * 0.6), def.targets[g]); if (q > 0) { yard.stock[g] -= q; bz.stock[g] = (bz.stock[g] || 0) + q; const pay = Math.round(q * O.Data.GOODS[g].base); yard.cash += pay; bz.cash -= pay; } }
+      const idle = sim.people.filter((p) => !p.visitor && !p.gentry && p.age >= 17 && p.age < 60 && (!p.job || p.job.role === 'porter')).slice(0, Math.max(0, 3 - crew.length));
       for (const p of idle) { p.job = { biz: id, role: 'builder' }; p.skills.builder = r.float(0.3, 0.7); bz.workers.push(p.id); sim.remember(p, 'Took work as a builder on the new house.', 'work', 1); }
       sim.log(opts.player ? `Builders have started on the newcomer's own house ${bottom < 30 ? 'beside the north track' : 'south of Mill Lane'}. ${idle.length} villagers hired, paid from the newcomer's purse.` : `The council has paid ${cost}d to build a new house ${bottom < 30 ? 'beside the north track' : 'south of Mill Lane'}. ${idle.length} villagers hired as builders.`, opts.player ? 'economy' : 'politics');
       b.dirty = true; w.dirtyStatics = true; sim.path.recost(); sim.path.clear();
@@ -3779,7 +3906,12 @@ O.snowMaskOf = function (src) {
       const sim = this.sim, b = site.b, r = sim.rng;
       b.site = false; b.name = 'House'; b.dirty = true;
       const bz = sim.biz.get(site.id);
-      for (const id of bz.workers) { const p = sim.byId.get(id); if (p) { p.job = null; sim.remember(p, 'We finished the new house. Back to looking for work.', 'work', 1); } }
+      for (const id of bz.workers) {
+        const p = sim.byId.get(id); if (!p) continue;
+        const yard = p.job?.yard && sim.biz.get(p.job.yard);
+        if (yard) { p.job = { biz: yard.id, role: p.job.yardRole || 'builder' }; yard.workers.push(p.id); sim.remember(p, 'We finished the new house. Back to the yard.', 'work', 1); }
+        else { p.job = null; sim.remember(p, 'We finished the new house. Back to looking for work.', 'work', 1); }
+      }
       sim.biz.delete(site.id);
       if (site.player) { b.owner = { kind: 'player' }; b.vacant = true; sim.log(`The newcomer's house is finished. Fresh timber and new thatch: the newcomer has a home of their own in ${sim.world.name}.`, 'economy'); O.Chronicle && O.Chronicle.deed(sim, `A newcomer built a house of their own in ${sim.world.name}.`, `Your own house in ${sim.world.name} is finished.`, 'player', 3, true); sim.world.dirtyStatics = true; return; }
       // a family arrives from elsewhere to take the house (migration)
@@ -3813,7 +3945,10 @@ O.snowMaskOf = function (src) {
         if ((b.needsRepair || b.condition < 0.5) && money > 40) {
           if (hh) hh.money -= 20; else purse.cash -= 20;
           b.condition = Math.min(1, b.condition + 0.25); b.needsRepair = false; b.dirty = true;
-          sim.log(`${b.type === 'house' ? `The ${hh?.surname || ''} family` : b.name} paid 20d to repair their roof.`, 'construction');
+          // the builder's yard does the work, from its own stock
+          const yard = [...sim.biz.values()].find((x) => x.type === 'builder' && x.id !== b.id);
+          if (yard) { yard.cash += 20; yard.stock.logs = Math.max(0, (yard.stock.logs || 0) - 1); yard.stock.planks = Math.max(0, (yard.stock.planks || 0) - 1); }
+          sim.log(`${b.type === 'house' ? `The ${hh?.surname || ''} family` : b.name} paid 20d to ${yard ? yard.name : 'a carpenter'} to repair their roof.`, 'construction');
         }
       }
     }
@@ -6824,7 +6959,7 @@ O.snowMaskOf = function (src) {
 
     populate() {
       const r = this.rng, w = this.world;
-      const homeTypes = ['house', 'farmhouse', 'tavern', 'bakery', 'smithy', 'doctor', 'woodcutter', 'mill', 'store', 'sawmill', 'butcher', 'jeweller', 'apothecary', 'carpenter', 'armourer', 'tenement', 'mansion', 'townhouse', 'keep'];
+      const homeTypes = ['house', 'farmhouse', 'tavern', 'bakery', 'smithy', 'doctor', 'woodcutter', 'mill', 'store', 'sawmill', 'butcher', 'jeweller', 'apothecary', 'carpenter', 'armourer', 'tenement', 'mansion', 'townhouse', 'keep', 'builder', 'weaver', 'tailor', 'cobbler', 'chandler', 'cooper'];
       for (const b of w.buildings) {
         if (D.BUSINESS[b.biz || b.type]) {
           const def = b.jobs ? Object.assign({}, D.BUSINESS[b.biz || b.type], { jobs: b.jobs }) : D.BUSINESS[b.biz || b.type];
@@ -7647,7 +7782,7 @@ O.snowMaskOf = function (src) {
     if (p.task?.act === 'help') { const t = this.byId.get(p.task.target); if (t) return [Math.floor(t.agent.x / this.T), Math.floor((t.agent.y - 1) / this.T)]; }
     return _zone.call(this, p, zone);
   };
-  O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim); O.Aftermath.installSim(Sim); O.Government.installSim(Sim); O.Nobility.installSim(Sim);
+  O.Health.install(Sim); O.Life.install(Sim); O.Homes.installSim(Sim); O.Justice.install(Sim); O.Gangs.install(Sim); O.Property.install(Sim); O.Chronicle.install(Sim); O.War.installSim(Sim); O.Rulers.installSim(Sim); O.Fire.installSim(Sim); O.Forestry.installSim(Sim); O.Disasters.installSim(Sim); O.Aftermath.installSim(Sim); O.Government.installSim(Sim); O.Nobility.installSim(Sim); O.Trades.installSim(Sim);
   const _tick = Sim.prototype.minuteTick;
   Sim.prototype.minuteTick = function () { _tick.call(this); this.handleTrader(); };
   // carry-home and delivery tasks finish on entering the destination
@@ -8349,7 +8484,7 @@ O.snowMaskOf = function (src) {
     const chimneyX = b.sprite?.chimney ? O.clamp(Math.round(((b.sprite.chimney.x - b.sprite.OV) / (b.w * T)) * w) - 1, 0, w - 3) : null;
     const hhs = sim ? (b.households || (b.household ? [b.household] : [])).map((id) => sim.households[id - 1]).filter((h) => h && !h.gone && h.home === b.id) : [];
     const people = sim ? hhs.flatMap((h) => h.members.map((id) => sim.byId.get(id)).filter((p) => p && p.alive !== false)) : [];
-    const lives = people.length > 0 || (!sim && ['house', 'farmhouse', 'mansion', 'townhouse', 'keep', 'tenement', 'woodcutter'].includes(b.type));
+    const lives = people.length > 0 || (!sim && ['house', 'farmhouse', 'mansion', 'townhouse', 'keep', 'tenement', 'woodcutter', 'builder', 'weaver', 'tailor', 'cobbler', 'chandler', 'cooper'].includes(b.type));
     const members = people.length || 2;
     const twoFloors = b.floors >= 2;
     const stairsX = b.spec.doorTile * S >= w / 2 ? 0 : w - 2; // the corner away from the door, same on every floor
@@ -8580,6 +8715,31 @@ O.snowMaskOf = function (src) {
         }
         familyQuarters();
         break;
+      case 'builder':
+        if (floor === 0) {
+          tryPut('workbench', [...backWall(3), ...nearWalls(3, 1)], { work: ['master builder'] });
+          tryPut('workbench', nearWalls(3, 1), { work: ['labourer', 'builder'] });
+          for (let i = 0; i < 3; i++) tryPut('woodpile', nearWalls(), { stockOf: 'logs' });
+          for (let i = 0; i < 2; i++) tryPut('crate', nearWalls(), { stockOf: 'stone' });
+          tryPut('rack', backWall(2, true)); tryPut('rack', backWall(2, true));
+          tryPut('table', centre(3, 2), { stockGood: 'planks', shop: true, table: true });
+        }
+        familyQuarters();
+        break;
+      case 'weaver': case 'tailor': case 'cobbler': case 'chandler': case 'cooper': {
+        const T2 = b.type, master = O.Data.BUSINESS[T2].jobs[0][0], second = (O.Data.BUSINESS[T2].jobs[1] || [])[0];
+        if (floor === 0) {
+          if (T2 === 'weaver') { tryPut('loom', [...backWall(3), ...nearWalls(3, 2)], { work: ['weaver'] }); tryPut('spinning', nearWalls(2, 1), { work: ['spinner'] }); tryPut('loom', nearWalls(3, 2)); }
+          else if (T2 === 'chandler') { tryPut('cauldron', nearWalls(), { work: ['chandler'], fire: true }); tryPut('rack', backWall(2, true)); }
+          else { tryPut('workbench', [...backWall(3), ...nearWalls(3, 1)], { work: [master] }); if (second) tryPut('workbench', nearWalls(3, 1), { work: [second] }); }
+          if (T2 === 'cooper') { tryPut('barrel', nearWalls()); tryPut('barrel', nearWalls()); tryPut('woodpile', nearWalls(), { stockOf: 'planks' }); }
+          for (let i = 0; i < 2; i++) tryPut(T2 === 'weaver' || T2 === 'tailor' ? 'sack' : 'crate', nearWalls(), { stockOf: O.Data.BUSINESS[T2].recipes[0] && Object.keys(O.Data.BUSINESS[T2].recipes[0].inp)[0] });
+          counterAtFront({ work: [master] });
+          tryPut('table', centre(3, 2), { stockGood: O.Data.BUSINESS[T2].sells[0], shop: true, table: true });
+        }
+        familyQuarters();
+        break;
+      }
       case 'sawmill':
         tryPut('workbench', [...backWall(3), ...nearWalls(3, 1)], { work: ['sawyer', 'labourer'] });
         tryPut('workbench', nearWalls(3, 1), { work: ['labourer'] });

@@ -48,11 +48,17 @@
       const site = { id, b, stage: 0, prog: 0, work: 0, stalled: null, started: sim.day, player: !!opts.player };
       this.sites.push(site);
       // the site is run like a small business: builders, wages, material orders
-      const def = { label: 'Building site', jobs: [['builder', 3]], hours: [7, 17], recipes: [], sells: [], buys: { logs: 'woodcutter|import', stone: 'quarry|import' }, targets: { logs: 12, stone: 10 }, wage: { builder: 7 }, site: true };
+      const def = { label: 'Building site', jobs: [['builder', 3]], hours: [7, 17], recipes: [], sells: [], buys: { logs: 'builder|woodcutter|import', stone: 'builder|quarry|import' }, targets: { logs: 12, stone: 10 }, wage: { builder: 7 }, site: true };
       const bz = { id, b, type: 'site', def, name: 'the new house site', owner: null, workers: [], stock: { logs: 0, stone: 0 }, cash: cost, sold: {}, bought: {}, open: false, orders: [], salesToday: 0, history: [] };
       sim.biz.set(id, bz);
       if (!opts.player) { sim.treasury.cash -= cost; sim.treasury.spent += cost; }
-      const idle = sim.people.filter((p) => !p.visitor && p.age >= 17 && p.age < 60 && (!p.job || p.job.role === 'porter')).slice(0, 3);
+      // the builder's yard sends its own builders first; the rest are hired from those without work
+      const yard = [...sim.biz.values()].find((x) => x.type === 'builder');
+      const crew = yard ? yard.workers.map((wid) => sim.byId.get(wid)).filter((p) => p && p.alive !== false && ['builder', 'labourer'].includes(p.job?.role)).filter((p) => !p.job.yard) : [];
+      for (const p of crew) { p.job = { biz: id, role: 'builder', yard: yard.id, yardRole: p.job.role }; p.skills.builder = Math.max(p.skills.builder || 0, 0.6); yard.workers = yard.workers.filter((x) => x !== p.id); bz.workers.push(p.id); sim.remember(p, `The yard sent me to build the new house.`, 'work', 0.8); }
+      // a yard with stock sends the first loads straight to the site
+      if (yard) for (const g of ['logs', 'stone']) { const q = Math.min(Math.floor((yard.stock[g] || 0) * 0.6), def.targets[g]); if (q > 0) { yard.stock[g] -= q; bz.stock[g] = (bz.stock[g] || 0) + q; const pay = Math.round(q * O.Data.GOODS[g].base); yard.cash += pay; bz.cash -= pay; } }
+      const idle = sim.people.filter((p) => !p.visitor && !p.gentry && p.age >= 17 && p.age < 60 && (!p.job || p.job.role === 'porter')).slice(0, Math.max(0, 3 - crew.length));
       for (const p of idle) { p.job = { biz: id, role: 'builder' }; p.skills.builder = r.float(0.3, 0.7); bz.workers.push(p.id); sim.remember(p, 'Took work as a builder on the new house.', 'work', 1); }
       sim.log(opts.player ? `Builders have started on the newcomer's own house ${bottom < 30 ? 'beside the north track' : 'south of Mill Lane'}. ${idle.length} villagers hired, paid from the newcomer's purse.` : `The council has paid ${cost}d to build a new house ${bottom < 30 ? 'beside the north track' : 'south of Mill Lane'}. ${idle.length} villagers hired as builders.`, opts.player ? 'economy' : 'politics');
       b.dirty = true; w.dirtyStatics = true; sim.path.recost(); sim.path.clear();
@@ -87,7 +93,12 @@
       const sim = this.sim, b = site.b, r = sim.rng;
       b.site = false; b.name = 'House'; b.dirty = true;
       const bz = sim.biz.get(site.id);
-      for (const id of bz.workers) { const p = sim.byId.get(id); if (p) { p.job = null; sim.remember(p, 'We finished the new house. Back to looking for work.', 'work', 1); } }
+      for (const id of bz.workers) {
+        const p = sim.byId.get(id); if (!p) continue;
+        const yard = p.job?.yard && sim.biz.get(p.job.yard);
+        if (yard) { p.job = { biz: yard.id, role: p.job.yardRole || 'builder' }; yard.workers.push(p.id); sim.remember(p, 'We finished the new house. Back to the yard.', 'work', 1); }
+        else { p.job = null; sim.remember(p, 'We finished the new house. Back to looking for work.', 'work', 1); }
+      }
       sim.biz.delete(site.id);
       if (site.player) { b.owner = { kind: 'player' }; b.vacant = true; sim.log(`The newcomer's house is finished. Fresh timber and new thatch: the newcomer has a home of their own in ${sim.world.name}.`, 'economy'); O.Chronicle && O.Chronicle.deed(sim, `A newcomer built a house of their own in ${sim.world.name}.`, `Your own house in ${sim.world.name} is finished.`, 'player', 3, true); sim.world.dirtyStatics = true; return; }
       // a family arrives from elsewhere to take the house (migration)
@@ -121,7 +132,10 @@
         if ((b.needsRepair || b.condition < 0.5) && money > 40) {
           if (hh) hh.money -= 20; else purse.cash -= 20;
           b.condition = Math.min(1, b.condition + 0.25); b.needsRepair = false; b.dirty = true;
-          sim.log(`${b.type === 'house' ? `The ${hh?.surname || ''} family` : b.name} paid 20d to repair their roof.`, 'construction');
+          // the builder's yard does the work, from its own stock
+          const yard = [...sim.biz.values()].find((x) => x.type === 'builder' && x.id !== b.id);
+          if (yard) { yard.cash += 20; yard.stock.logs = Math.max(0, (yard.stock.logs || 0) - 1); yard.stock.planks = Math.max(0, (yard.stock.planks || 0) - 1); }
+          sim.log(`${b.type === 'house' ? `The ${hh?.surname || ''} family` : b.name} paid 20d to ${yard ? yard.name : 'a carpenter'} to repair their roof.`, 'construction');
         }
       }
     }

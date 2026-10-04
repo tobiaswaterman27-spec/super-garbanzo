@@ -6,7 +6,13 @@
 (function () {
   // someone walking out while you watch from inside: kept just inside the door till they reach it, then they step out
   O.heldLeavers = new Set();
-  function release(q) { if (!q || !q.agent || !q.agent.held) return; const a = q.agent; a.held = false; a.frozen = false; a.hidden = false; O.heldLeavers.delete(q); }
+  function release(q) {
+    if (!q || !q.agent || !q.agent.held) return; const a = q.agent; a.held = false; a.frozen = false; O.heldLeavers.delete(q);
+    // only stepping out to come straight back in (or never really leaving): they stay inside, no walk out and back
+    const back = a.heldB != null && (a.goalB === a.heldB || q.activity?.b === a.heldB || q.task?.b === a.heldB);
+    if (back) { a.inside = a.heldB; a.hidden = true; a.path = null; a.goal = null; } else a.hidden = false;
+    a.heldB = null;
+  }
   O.releaseLeavers = () => { for (const q of [...O.heldLeavers]) release(q); };
   const T = 16, Ch = O.Char;
   const SLEEPY = new Set(['sleep', 'sick']);
@@ -125,6 +131,7 @@
           if (meal || k < cells.length) { const c = cells[meal ? (Math.floor(this.t / 6) + q.id) % cells.length : k]; const [ax, ay] = this.anchor(c); x = ax + ((q.id % 2) ? 10 : -10); y = ay + 14; dir = 3; anim = meal ? 'place' : (Math.floor(this.t / 3) % 2 ? 'look' : 'idle'); if (meal) q.agent.carrying = { good: 'bread', qty: 1 }; else q.agent.carrying = null; }
           else { const d = L.items.find((i) => i.kind === 'desk'); if (d) { const [ax, ay] = this.anchor(d), [, ry0] = this.rect(d); x = ax; y = ry0 - 2; dir = 0; anim = 'write'; void ay; } }
         }
+        else if (act === 'petition') { const th = L.items.find((i) => i.kind === 'throne'); if (th) { const [ax, ay] = this.anchor(th); x = ax; y = ay + 44; dir = 3; anim = 'talk'; } }
         else if (act === 'court' && this.floor === 0) {
           // holding court: the monarch on the throne, the consort standing at their side
           const th = L.items.find((i) => i.kind === 'throne');
@@ -180,7 +187,7 @@
         seen.add(q.id);
       }
       // whoever has gone walks out of the door (or off up the stairs) rather than vanishing
-      for (const [id, a] of this.actors) if (!seen.has(id)) { if (!a.leaving) { a.leaving = true; a.leftAt = this.t; [a.gx, a.gy] = this.wayIn(); a.gBed = null; a.seat = null; a.gSortY = null; const ag = a.person.agent; if (ag && ag.inside == null && !ag.hidden && this.floor === 0 && !this.b.parent) { ag.held = true; ag.frozen = true; ag.hidden = true; O.heldLeavers.add(a.person); } } }
+      for (const [id, a] of this.actors) if (!seen.has(id)) { if (!a.leaving) { a.leaving = true; a.leftAt = this.t; [a.gx, a.gy] = this.wayIn(); a.gBed = null; a.seat = null; a.gSortY = null; const ag = a.person.agent; if (ag && ag.inside == null && !ag.hidden && this.floor === 0 && !this.b.parent) { ag.held = true; ag.heldB = this.b.id; ag.frozen = true; ag.hidden = true; O.heldLeavers.add(a.person); } } }
     }
     // where people come in and go out: the door on the ground floor, the stairs above
     wayIn() {

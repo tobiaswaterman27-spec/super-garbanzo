@@ -85,7 +85,7 @@
       if (e.code === 'KeyR' && !O.panelOpen) { // cycle the weapon in hand
         const opts = ['fists', ...['dagger', 'sword', 'axe'].filter((w) => PS.items.includes(w))];
         PS.equipped = opts[(opts.indexOf(PS.equipped) + 1) % opts.length]; syncLook();
-        O.Panels.toast(PS.equipped === 'fists' ? 'You put your weapon away.' : `You draw your ${PS.equipped}.`);
+        // (no message: you can see what's in your hand)
         return true;
       }
       return false;

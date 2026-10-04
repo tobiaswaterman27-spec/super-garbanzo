@@ -11,8 +11,9 @@
   const T = 16;
   function setup(game, npcUI) {
     const PS = O.PlayerState, cur = () => O.SimRef.cur, G = O.Data.GOODS, D = O.Data, Ch = O.Char, say = (t, k) => O.UI.say(t, k);
-    const fest = (s) => { const d = s.weather.dayOfSeason; return s.season === 'autumn' && d === 10 ? 'fair' : s.season === 'winter' && d === 7 ? 'midwinter' : s.season === 'spring' && d === 12 ? 'tournament' : null; };
-    const marketOn = (s) => s.weekday === 6 && s.hour >= 7 && s.hour < 14 && !s.quarantine;
+    // the monarch can call a festivity on any day; otherwise the calendar's own
+    const fest = (s) => { if (s.hosted && s.hosted.day === s.day && s.hosted.kind !== 'market') return s.hosted.kind; const d = s.weather.dayOfSeason; return s.season === 'autumn' && d === 10 ? 'fair' : s.season === 'winter' && d === 7 ? 'midwinter' : s.season === 'spring' && d === 12 ? 'tournament' : null; };
+    const marketOn = (s) => (s.weekday === 6 || (s.hosted && s.hosted.day === s.day && s.hosted.kind === 'market')) && s.hour >= 7 && s.hour < 14 && !s.quarantine;
     const keepOf = (s) => s.world.buildings.find((b) => b.royal) || s.world.buildings.find((b) => b.type === 'keep' && !b.ruined);
     const esc = (t) => O.escape(String(t));
     O.Festivals = { today: fest, market: marketOn };
@@ -30,7 +31,9 @@
       if (f === 'midwinter' && h >= 18 && h < 22.5 && p.age >= 12) {
         const k = keepOf(this);
         const high = p.royal || p.gentry || p.title || /steward|chamberlain|lady-in-waiting|captain of the royal guard|master of horse|herald|jester/.test(p.job?.role || '');
-        if (k && high && (p.home === k.id || p.gentry || p.job?.biz === k.id)) return { act: 'feast', b: k.id }; // the high table: the royal family, the gentry and the court
+        const lives = p.home === k?.id || p.job?.biz === k?.id;
+        if (k && O.castleGuest && !lives && O.castleGuest(this, p)) return { act: 'feast', b: k.id }; // invited by the monarch
+        if (k && high && (lives || p.gentry) && (!O.castleGuest || O.castleGuest(this, p) !== false)) return { act: 'feast', b: k.id }; // the high table: the royal family, the gentry and the court
         if (this.tavernId != null && pl.act !== 'work' && (p.id % 3) && p.age >= 16) return { act: 'socialise', b: this.tavernId };
       }
       if (marketOn(this) && ['stroll', 'home', 'play'].includes(pl.act) && (p.id + Math.floor(h * 2)) % 4 === 0) return { act: 'stroll', outdoor: true, zone: 'square' };
@@ -80,7 +83,7 @@
     // they arrive at dawn on Sunday and are gone by mid-afternoon
     game.hooks.update.push(() => {
       const s = cur(); if (!s || !s.world) return;
-      if (s.weekday === 6 && s.hour >= 6.3 && s.hour < 12 && s._mktDay !== s.day && !s.quarantine) spawnMerchants(s);
+      if ((s.weekday === 6 || (s.hosted && s.hosted.day === s.day && s.hosted.kind === 'market')) && s.hour >= 6.3 && s.hour < 12 && s._mktDay !== s.day && !s.quarantine) spawnMerchants(s);
       for (const q of s.people) if (q.fairStall && (q.fairStall.day !== s.day || s.hour >= 14)) {
         const E = s.Z.east || [s.world.W - 2, 30];
         if (Math.hypot(q.agent.x / T - E[0], q.agent.y / T - E[1]) < 3 || q.fairStall.day < s.day - 1) { s.people = s.people.filter((z) => z !== q); s.byId.delete(q.id); if (q.fairStall.stall) q.fairStall.stall.merchant = null; }

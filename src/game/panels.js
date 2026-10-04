@@ -87,7 +87,9 @@
     const rows = sells.map((g) => `<tr><td><img class="ic" src="${icon(g)}" alt=""> ${G[g].name}</td><td class="n">${Math.floor(bz.stock[g])}</td><td class="n">₳${price(g)}</td><td><button data-buy="${g}">Buy</button></td></tr>`).join('') || '<tr><td colspan="4">Nothing for sale right now.</td></tr>';
     const srows = buyable.map((g) => `<tr><td><img class="ic" src="${icon(g)}" alt=""> ${G[g].name} ×${PS.count(g)}</td><td class="n">₳${Math.max(1, Math.floor(sim.price(bz, g) * 0.6 * (2 - price(g) / Math.max(1, sim.price(bz, g)))))}</td><td><button data-sell="${g}">Sell</button></td></tr>`).join('');
     const vals = PS.items.filter((k) => G[k].valuable);
-    open(`${bz.name}`, `<div class="lbl">${esc(seller.name)} minds the counter · till ${money(bz.cash)}</div>
+    const g0 = sells[0], ratio = g0 ? price(g0) / Math.max(1, sim.price(bz, g0)) : 1;
+    const nameNote = ratio < 0.95 ? `<p class="caption">${esc(seller.first)} knows your good name, and it shows in the prices.</p>` : ratio > 1.05 ? `<p class="caption">${esc(seller.first)} has heard things about you, and charges you dear for it.</p>` : '';
+    open(`${bz.name}`, `<div class="lbl">${esc(seller.name)} minds the counter · till ${money(bz.cash)}</div>${nameNote}
       <table><thead><tr><th>For sale</th><th class="n">Stock</th><th class="n">Price</th><th></th></tr></thead><tbody>${rows}</tbody></table>
       ${srows ? `<table style="margin-top:12px"><thead><tr><th>You could sell</th><th class="n">Offer</th><th></th></tr></thead><tbody>${srows}</tbody></table>` : ''}
       ${vals.length ? `<p class="caption">${esc(seller.first)} eyes your ${G[vals[0]].name.toLowerCase()} but won't touch it. Honest traders don't buy goods like that. You'd need a fence.</p>` : ''}`, (r) => {

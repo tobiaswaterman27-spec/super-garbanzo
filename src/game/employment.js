@@ -412,11 +412,14 @@
       const P = game.player, vw = game.vw, vh = game.vh;
       const px = P.x - cam.x, py = P.y - 16 - cam.y, ang = Math.atan2(ty - P.y, tx - P.x), mx = 22, top = 70, bot = 26;
       const k = Math.min(Math.abs((Math.cos(ang) > 0 ? vw - mx - px : px - mx) / (Math.cos(ang) || 1e-6)), Math.abs((Math.sin(ang) > 0 ? vh - bot - py : py - top) / (Math.sin(ang) || 1e-6)));
-      const ax = Math.round(px + Math.cos(ang) * k), ay = Math.round(py + Math.sin(ang) * k), pulse = 1 + Math.sin(game.t * 5) * 0.12;
-      ctx.save(); ctx.translate(ax, ay); ctx.rotate(ang); ctx.scale(pulse * 1.6, pulse * 1.6);
-      ctx.fillStyle = '#1b1424'; ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(-8, -10); ctx.lineTo(-4, 0); ctx.lineTo(-8, 10); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#f0b45c'; ctx.beginPath(); ctx.moveTo(9, 0); ctx.lineTo(-6, -7); ctx.lineTo(-2, 0); ctx.lineTo(-6, 7); ctx.closePath(); ctx.fill();
-      ctx.restore();
+      const ax = Math.round(px + Math.cos(ang) * k), ay = Math.round(py + Math.sin(ang) * k), pulse = Math.floor(game.t * 4) % 2;
+      // drawn in 2-pixel blocks, like everything else: a head and a shaft, outlined
+      const blk = 2, ca = Math.cos(ang), sa = Math.sin(ang), grow = pulse ? 1.12 : 1;
+      const inside = (u, v) => { u /= grow; v /= grow; return (u >= 0 && u <= 7 && Math.abs(v) <= 7 - u) || (u >= -7 && u < 0 && Math.abs(v) <= 1.6); };
+      const cells = []; for (let gy = -10; gy <= 10; gy++) for (let gx = -10; gx <= 10; gx++) { const u = gx * ca + gy * sa, v = -gx * sa + gy * ca; if (inside(u, v)) cells.push([gx, gy, u]); }
+      ctx.fillStyle = '#1b1424'; for (const [x, y] of cells) ctx.fillRect(ax + x * blk - 2, ay + y * blk - 2, blk + 4, blk + 4);
+      ctx.fillStyle = '#f0b45c'; for (const [x, y] of cells) ctx.fillRect(ax + x * blk, ay + y * blk, blk, blk);
+      ctx.fillStyle = '#ffe2a0'; for (const [x, y, u] of cells) if (u > 3) ctx.fillRect(ax + x * blk, ay + y * blk, blk, 1);
     }
     O.edgeArrow = edgeArrow;
     // before a shift, the way to work; and the way to whoever you've just been told to find

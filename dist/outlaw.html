@@ -10882,7 +10882,7 @@ O.snowMaskOf = function (src) {
   function castleWhere(q, b, sim) {
     const act = q.activity?.act, role = q.job?.role || '', plan = castlePlan(b, sim);
     const mine = plan.up.find((r) => r.roomOwners.includes(q.id));
-    if (act === 'court') return 'throne';
+    if (act === 'court' || act === 'petition') return 'throne';
     if (act === 'feast') return 'f1';
     if (act === 'court' || act === 'work') { /* below */ }
     if (act === 'worship' || (act === 'work' && ['priest', 'chaplain'].includes(role))) return 'chapel';
@@ -11109,7 +11109,7 @@ O.snowMaskOf = function (src) {
     function castleRoom() {
       switch (b.type) {
         case 'throneroom': {
-          const hc = Math.floor(w / 2) - 1; put('throne', hc, 1, { v: 2, lord: true, seat: true, rot: 3 });
+          const hc = Math.floor(w / 2) - 1; put('throne', hc, 1, { v: 2, lord: true, seat: true, rot: 0 }); // facing down the hall
           L.carpets = [{ x: hc - 1, y: 3, w: 4, h: d - 3 }, { x: hc - 3, y: 0, w: 8, h: 4 }]; // the aisle up to the throne, and the dais
           for (const x of [2, w - 3]) for (let y = 2; y < d - 2; y += 4) tryPut('candlestand', [[x, y]], {});
           tryPut('bench', [[1, d - 3], [1, d - 5]], { seat: true, width: 3, rot: 0 }); tryPut('bench', [[w - 4, d - 3], [w - 4, d - 5]], { seat: true, width: 3, rot: 0 });
@@ -11624,7 +11624,13 @@ O.snowMaskOf = function (src) {
 (function () {
   // someone walking out while you watch from inside: kept just inside the door till they reach it, then they step out
   O.heldLeavers = new Set();
-  function release(q) { if (!q || !q.agent || !q.agent.held) return; const a = q.agent; a.held = false; a.frozen = false; a.hidden = false; O.heldLeavers.delete(q); }
+  function release(q) {
+    if (!q || !q.agent || !q.agent.held) return; const a = q.agent; a.held = false; a.frozen = false; O.heldLeavers.delete(q);
+    // only stepping out to come straight back in (or never really leaving): they stay inside, no walk out and back
+    const back = a.heldB != null && (a.goalB === a.heldB || q.activity?.b === a.heldB || q.task?.b === a.heldB);
+    if (back) { a.inside = a.heldB; a.hidden = true; a.path = null; a.goal = null; } else a.hidden = false;
+    a.heldB = null;
+  }
   O.releaseLeavers = () => { for (const q of [...O.heldLeavers]) release(q); };
   const T = 16, Ch = O.Char;
   const SLEEPY = new Set(['sleep', 'sick']);
@@ -11743,6 +11749,7 @@ O.snowMaskOf = function (src) {
           if (meal || k < cells.length) { const c = cells[meal ? (Math.floor(this.t / 6) + q.id) % cells.length : k]; const [ax, ay] = this.anchor(c); x = ax + ((q.id % 2) ? 10 : -10); y = ay + 14; dir = 3; anim = meal ? 'place' : (Math.floor(this.t / 3) % 2 ? 'look' : 'idle'); if (meal) q.agent.carrying = { good: 'bread', qty: 1 }; else q.agent.carrying = null; }
           else { const d = L.items.find((i) => i.kind === 'desk'); if (d) { const [ax, ay] = this.anchor(d), [, ry0] = this.rect(d); x = ax; y = ry0 - 2; dir = 0; anim = 'write'; void ay; } }
         }
+        else if (act === 'petition') { const th = L.items.find((i) => i.kind === 'throne'); if (th) { const [ax, ay] = this.anchor(th); x = ax; y = ay + 44; dir = 3; anim = 'talk'; } }
         else if (act === 'court' && this.floor === 0) {
           // holding court: the monarch on the throne, the consort standing at their side
           const th = L.items.find((i) => i.kind === 'throne');
@@ -11798,7 +11805,7 @@ O.snowMaskOf = function (src) {
         seen.add(q.id);
       }
       // whoever has gone walks out of the door (or off up the stairs) rather than vanishing
-      for (const [id, a] of this.actors) if (!seen.has(id)) { if (!a.leaving) { a.leaving = true; a.leftAt = this.t; [a.gx, a.gy] = this.wayIn(); a.gBed = null; a.seat = null; a.gSortY = null; const ag = a.person.agent; if (ag && ag.inside == null && !ag.hidden && this.floor === 0 && !this.b.parent) { ag.held = true; ag.frozen = true; ag.hidden = true; O.heldLeavers.add(a.person); } } }
+      for (const [id, a] of this.actors) if (!seen.has(id)) { if (!a.leaving) { a.leaving = true; a.leftAt = this.t; [a.gx, a.gy] = this.wayIn(); a.gBed = null; a.seat = null; a.gSortY = null; const ag = a.person.agent; if (ag && ag.inside == null && !ag.hidden && this.floor === 0 && !this.b.parent) { ag.held = true; ag.heldB = this.b.id; ag.frozen = true; ag.hidden = true; O.heldLeavers.add(a.person); } } }
     }
     // where people come in and go out: the door on the ground floor, the stairs above
     wayIn() {
@@ -12124,7 +12131,9 @@ O.snowMaskOf = function (src) {
     const rows = sells.map((g) => `<tr><td><img class="ic" src="${icon(g)}" alt=""> ${G[g].name}</td><td class="n">${Math.floor(bz.stock[g])}</td><td class="n">₳${price(g)}</td><td><button data-buy="${g}">Buy</button></td></tr>`).join('') || '<tr><td colspan="4">Nothing for sale right now.</td></tr>';
     const srows = buyable.map((g) => `<tr><td><img class="ic" src="${icon(g)}" alt=""> ${G[g].name} ×${PS.count(g)}</td><td class="n">₳${Math.max(1, Math.floor(sim.price(bz, g) * 0.6 * (2 - price(g) / Math.max(1, sim.price(bz, g)))))}</td><td><button data-sell="${g}">Sell</button></td></tr>`).join('');
     const vals = PS.items.filter((k) => G[k].valuable);
-    open(`${bz.name}`, `<div class="lbl">${esc(seller.name)} minds the counter · till ${money(bz.cash)}</div>
+    const g0 = sells[0], ratio = g0 ? price(g0) / Math.max(1, sim.price(bz, g0)) : 1;
+    const nameNote = ratio < 0.95 ? `<p class="caption">${esc(seller.first)} knows your good name, and it shows in the prices.</p>` : ratio > 1.05 ? `<p class="caption">${esc(seller.first)} has heard things about you, and charges you dear for it.</p>` : '';
+    open(`${bz.name}`, `<div class="lbl">${esc(seller.name)} minds the counter · till ${money(bz.cash)}</div>${nameNote}
       <table><thead><tr><th>For sale</th><th class="n">Stock</th><th class="n">Price</th><th></th></tr></thead><tbody>${rows}</tbody></table>
       ${srows ? `<table style="margin-top:12px"><thead><tr><th>You could sell</th><th class="n">Offer</th><th></th></tr></thead><tbody>${srows}</tbody></table>` : ''}
       ${vals.length ? `<p class="caption">${esc(seller.first)} eyes your ${G[vals[0]].name.toLowerCase()} but won't touch it. Honest traders don't buy goods like that. You'd need a fence.</p>` : ''}`, (r) => {
@@ -12195,6 +12204,7 @@ O.snowMaskOf = function (src) {
     O.learnTrade = (q) => { if (q) (PSk.knows = PSk.knows || {})[kk(q)] = 1; };
     function openTalk(q) {
       talking = q; q.agent.frozen = true;
+      { const L = PSk.lead, C = PSk.contract; if (L && L.id === q.id && !(C && C.target === q.id)) PSk.lead = null; } // found them: the arrow's done its work
       const pos = game.scene ? game.scene.personPos(q) || [q.agent.x, q.agent.y] : [q.agent.x, q.agent.y];
       const dx = game.player.x - pos[0], dy = game.player.y - pos[1];
       q.agent.dir = O.dirOf(dx, dy);
@@ -13339,7 +13349,7 @@ O.snowMaskOf = function (src) {
       if (e.code === 'KeyR' && !O.panelOpen) { // cycle the weapon in hand
         const opts = ['fists', ...['dagger', 'sword', 'axe'].filter((w) => PS.items.includes(w))];
         PS.equipped = opts[(opts.indexOf(PS.equipped) + 1) % opts.length]; syncLook();
-        O.Panels.toast(PS.equipped === 'fists' ? 'You put your weapon away.' : `You draw your ${PS.equipped}.`);
+        // (no message: you can see what's in your hand)
         return true;
       }
       return false;
@@ -17469,11 +17479,14 @@ O.snowMaskOf = function (src) {
       const P = game.player, vw = game.vw, vh = game.vh;
       const px = P.x - cam.x, py = P.y - 16 - cam.y, ang = Math.atan2(ty - P.y, tx - P.x), mx = 22, top = 70, bot = 26;
       const k = Math.min(Math.abs((Math.cos(ang) > 0 ? vw - mx - px : px - mx) / (Math.cos(ang) || 1e-6)), Math.abs((Math.sin(ang) > 0 ? vh - bot - py : py - top) / (Math.sin(ang) || 1e-6)));
-      const ax = Math.round(px + Math.cos(ang) * k), ay = Math.round(py + Math.sin(ang) * k), pulse = 1 + Math.sin(game.t * 5) * 0.12;
-      ctx.save(); ctx.translate(ax, ay); ctx.rotate(ang); ctx.scale(pulse * 1.6, pulse * 1.6);
-      ctx.fillStyle = '#1b1424'; ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(-8, -10); ctx.lineTo(-4, 0); ctx.lineTo(-8, 10); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#f0b45c'; ctx.beginPath(); ctx.moveTo(9, 0); ctx.lineTo(-6, -7); ctx.lineTo(-2, 0); ctx.lineTo(-6, 7); ctx.closePath(); ctx.fill();
-      ctx.restore();
+      const ax = Math.round(px + Math.cos(ang) * k), ay = Math.round(py + Math.sin(ang) * k), pulse = Math.floor(game.t * 4) % 2;
+      // drawn in 2-pixel blocks, like everything else: a head and a shaft, outlined
+      const blk = 2, ca = Math.cos(ang), sa = Math.sin(ang), grow = pulse ? 1.12 : 1;
+      const inside = (u, v) => { u /= grow; v /= grow; return (u >= 0 && u <= 7 && Math.abs(v) <= 7 - u) || (u >= -7 && u < 0 && Math.abs(v) <= 1.6); };
+      const cells = []; for (let gy = -10; gy <= 10; gy++) for (let gx = -10; gx <= 10; gx++) { const u = gx * ca + gy * sa, v = -gx * sa + gy * ca; if (inside(u, v)) cells.push([gx, gy, u]); }
+      ctx.fillStyle = '#1b1424'; for (const [x, y] of cells) ctx.fillRect(ax + x * blk - 2, ay + y * blk - 2, blk + 4, blk + 4);
+      ctx.fillStyle = '#f0b45c'; for (const [x, y] of cells) ctx.fillRect(ax + x * blk, ay + y * blk, blk, blk);
+      ctx.fillStyle = '#ffe2a0'; for (const [x, y, u] of cells) if (u > 3) ctx.fillRect(ax + x * blk, ay + y * blk, blk, 1);
     }
     O.edgeArrow = edgeArrow;
     // before a shift, the way to work; and the way to whoever you've just been told to find
@@ -18586,8 +18599,9 @@ O.snowMaskOf = function (src) {
   const T = 16;
   function setup(game, npcUI) {
     const PS = O.PlayerState, cur = () => O.SimRef.cur, G = O.Data.GOODS, D = O.Data, Ch = O.Char, say = (t, k) => O.UI.say(t, k);
-    const fest = (s) => { const d = s.weather.dayOfSeason; return s.season === 'autumn' && d === 10 ? 'fair' : s.season === 'winter' && d === 7 ? 'midwinter' : s.season === 'spring' && d === 12 ? 'tournament' : null; };
-    const marketOn = (s) => s.weekday === 6 && s.hour >= 7 && s.hour < 14 && !s.quarantine;
+    // the monarch can call a festivity on any day; otherwise the calendar's own
+    const fest = (s) => { if (s.hosted && s.hosted.day === s.day && s.hosted.kind !== 'market') return s.hosted.kind; const d = s.weather.dayOfSeason; return s.season === 'autumn' && d === 10 ? 'fair' : s.season === 'winter' && d === 7 ? 'midwinter' : s.season === 'spring' && d === 12 ? 'tournament' : null; };
+    const marketOn = (s) => (s.weekday === 6 || (s.hosted && s.hosted.day === s.day && s.hosted.kind === 'market')) && s.hour >= 7 && s.hour < 14 && !s.quarantine;
     const keepOf = (s) => s.world.buildings.find((b) => b.royal) || s.world.buildings.find((b) => b.type === 'keep' && !b.ruined);
     const esc = (t) => O.escape(String(t));
     O.Festivals = { today: fest, market: marketOn };
@@ -18605,7 +18619,9 @@ O.snowMaskOf = function (src) {
       if (f === 'midwinter' && h >= 18 && h < 22.5 && p.age >= 12) {
         const k = keepOf(this);
         const high = p.royal || p.gentry || p.title || /steward|chamberlain|lady-in-waiting|captain of the royal guard|master of horse|herald|jester/.test(p.job?.role || '');
-        if (k && high && (p.home === k.id || p.gentry || p.job?.biz === k.id)) return { act: 'feast', b: k.id }; // the high table: the royal family, the gentry and the court
+        const lives = p.home === k?.id || p.job?.biz === k?.id;
+        if (k && O.castleGuest && !lives && O.castleGuest(this, p)) return { act: 'feast', b: k.id }; // invited by the monarch
+        if (k && high && (lives || p.gentry) && (!O.castleGuest || O.castleGuest(this, p) !== false)) return { act: 'feast', b: k.id }; // the high table: the royal family, the gentry and the court
         if (this.tavernId != null && pl.act !== 'work' && (p.id % 3) && p.age >= 16) return { act: 'socialise', b: this.tavernId };
       }
       if (marketOn(this) && ['stroll', 'home', 'play'].includes(pl.act) && (p.id + Math.floor(h * 2)) % 4 === 0) return { act: 'stroll', outdoor: true, zone: 'square' };
@@ -18655,7 +18671,7 @@ O.snowMaskOf = function (src) {
     // they arrive at dawn on Sunday and are gone by mid-afternoon
     game.hooks.update.push(() => {
       const s = cur(); if (!s || !s.world) return;
-      if (s.weekday === 6 && s.hour >= 6.3 && s.hour < 12 && s._mktDay !== s.day && !s.quarantine) spawnMerchants(s);
+      if ((s.weekday === 6 || (s.hosted && s.hosted.day === s.day && s.hosted.kind === 'market')) && s.hour >= 6.3 && s.hour < 12 && s._mktDay !== s.day && !s.quarantine) spawnMerchants(s);
       for (const q of s.people) if (q.fairStall && (q.fairStall.day !== s.day || s.hour >= 14)) {
         const E = s.Z.east || [s.world.W - 2, 30];
         if (Math.hypot(q.agent.x / T - E[0], q.agent.y / T - E[1]) < 3 || q.fairStall.day < s.day - 1) { s.people = s.people.filter((z) => z !== q); s.byId.delete(q.id); if (q.fairStall.stall) q.fairStall.stall.merchant = null; }
@@ -18787,6 +18803,354 @@ O.snowMaskOf = function (src) {
     });
   }
   O.FestivalsSetup = { setup };
+})();
+
+</script>
+<script>
+// Ruling as monarch. With the crown (or as consort) the K key opens the Crown: the crown tax, the
+// prisoners in this town's cells (pardon them, or lengthen their term, or banish them), titles to
+// grant (a knighthood for someone who has earned it), works to order from the treasury (alms for the
+// poor, a granary, the walls, the roads), and war and peace. And when you sit on the throne in the
+// hours of court, petitioners come before you one by one and you decide.
+'use strict';
+(function () {
+  function setup(game, npcUI) {
+    const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k), esc = (t) => O.escape(String(t)), money = (n) => O.money(Math.round(n));
+    const K = () => O.SimRef.home.kingdom;
+    const crowned = () => (PS.posts || []).some((e) => e.role === 'monarch' || e.role === 'consort');
+    O.crowned = crowned;
+    const placeOf = (s) => K().places.find((x) => x.id === s.world.placeId) || null;
+
+    // ---------------------------------------------------------------- the Crown panel
+    function open(tab = 'realm') {
+      if (!crowned()) return say('Only the monarch rules the realm.', 'bad');
+      const k = K(), s = cur(), pl = placeOf(s), W = k.war || { phase: 'peace' };
+      const prisoners = s.people.filter((q) => q.task?.act === 'jailed' || q.sentence && q.jailUntil > s.day);
+      const worthy = s.people.filter((q) => q.age >= 21 && !q.title && !q.royal && !q.gang && !q.visitor && ((q.rel.get(0)?.affinity || 0) > 0.3 || (q.job && /captain|steward|chamberlain|master|knight|sergeant/.test(q.job.role)))).slice(0, 8);
+      const tabs = [['realm', 'The realm'], ['justice', 'Justice'], ['honours', 'Honours'], ['works', 'Works'], ['fest', 'Festivities'], ['war', 'War and peace']];
+      let body = '';
+      if (tab === 'realm') {
+        const avg = (f) => Math.round(k.places.reduce((a, p) => a + (p[f] || 0), 0) / Math.max(1, k.places.length) * 100);
+        body = `<div class="kv"><div><span class="lbl">Royal treasury</span><b>${money(k.treasury)}</b></div><div><span class="lbl">Crown tax</span><b>${Math.round(k.taxRate * 100)}%</b><small><button data-tax="-1">Lower</button> <button data-tax="1">Raise</button></small></div><div><span class="lbl">The realm's contentment</span><b>${avg('happiness')}%</b><small>fed ${avg('food')}% · crime ${avg('crime')}%</small></div><div><span class="lbl">${esc(s.world.name)}</span><b>${pl ? Math.round((pl.happiness || 0) * 100) + '% content' : ''}</b></div></div><p class="caption">A higher crown tax fills the treasury and empties the people's patience. The tax is gathered weekly from every town.</p>`;
+      } else if (tab === 'justice') {
+        body = prisoners.length ? `<table><thead><tr><th>Prisoner</th><th>Crime</th><th class="n">Days left</th><th></th></tr></thead><tbody>${prisoners.map((q) => `<tr><td>${esc(q.name)}</td><td>${esc(q.sentence?.crime || 'held')}</td><td class="n">${Math.max(0, (q.jailUntil || s.day) - s.day)}</td><td><button data-pardon="${q.id}">Pardon</button> <button data-longer="${q.id}">Seven days more</button> <button data-banish="${q.id}">Banish</button></td></tr>`).join('')}</tbody></table>` : `<p>The cells of ${esc(s.world.name)} are empty.</p>`;
+        body += '<p class="caption">A pardon is popular with the prisoner\'s kin; harshness is popular with the victims and the watch.</p>';
+      } else if (tab === 'honours') {
+        body = worthy.length ? `<table><tbody>${worthy.map((q) => `<tr><td>${esc(q.name)}</td><td>${esc(q.job?.role || '')}</td><td><button data-knight="${q.id}">${q.sex === 'f' ? 'Make a dame' : 'Knight'}</button></td></tr>`).join('')}</tbody></table>` : '<p>Nobody here has yet earned an honour from you. Those who like you, and those who serve well (captains, stewards, masters), can be honoured.</p>';
+      } else if (tab === 'works') {
+        const W2 = [['alms', 'Alms for the poor of this town', 150], ['granary', 'A granary, against a hungry winter', 300], ['walls', 'Mend and raise the town walls', 450], ['roads', 'Mend the roads of the realm', 250], ['feast', 'A feast day for the town, at the crown\'s cost', 120]];
+        body = `<table><tbody>${W2.map(([kk, l, c]) => `<tr><td>${esc(l)}</td><td class="n">${money(c)}</td><td><button data-work="${kk}" data-cost="${c}">Order it</button></td></tr>`).join('')}</tbody></table><p class="caption">Paid from the royal treasury (${money(k.treasury)}).</p>`;
+      } else if (tab === 'fest') {
+        const G = guests(), named = Object.keys(G.list).map((key) => { const id = +key.split(':')[1]; const q = key.startsWith((s.world.placeId || '') + ':') && s.byId.get(id); return q ? `<tr><td>${esc(q.name)}</td><td><button data-unlist="${key}">Remove</button></td></tr>` : ''; }).join('');
+        body = `<p>Call a festivity for tomorrow in ${esc(s.world.name)}, at the crown's cost.</p><div class="topics"><button data-host="tournament">A tournament (₳150)</button><button data-host="fair">A fair (₳80)</button><button data-host="midwinter">A great feast (₳120)</button><button data-host="market">A market of travelling merchants (₳40)</button></div>${s.hosted && s.hosted.day >= s.day ? `<p class="caption">Called: ${esc(s.hosted.kind)} on day ${s.hosted.day}.</p>` : ''}
+          <div class="lbl" style="margin-top:10px">The castle's guest list</div><div class="topics"><button data-mode="all" aria-pressed="${G.mode === 'all'}">Open to all</button><button data-mode="black" aria-pressed="${G.mode === 'black'}">All but the barred (blacklist)</button><button data-mode="white" aria-pressed="${G.mode === 'white'}">Only the invited (whitelist)</button></div>
+          ${named ? `<table><tbody>${named}</tbody></table>` : '<p class="caption">Nobody on the list. Talk to anyone to invite them or bar them.</p>'}<p class="caption">${G.mode === 'white' ? 'Only those you invite (and the household) come to the castle and its feasts.' : G.mode === 'black' ? 'Those you bar are turned away from the castle and its feasts.' : 'Anyone may come.'}</p>`;
+      } else if (tab === 'war') {
+        body = W.phase === 'war' ? `<p>The realm is at war with ${esc(W.enemy?.name || W.enemy || 'the enemy')}. Battles fought: ${(W.battles || []).length}.</p><div class="topics"><button data-peace="1">Sue for peace (₳300 to the enemy)</button></div>` : `<p>The realm is at peace.</p><div class="topics"><button data-war="1">Declare war</button></div><p class="caption">War raises the crown tax, calls men to arms and empties the treasury; victory brings glory and plunder.</p>`;
+      }
+      O.Panels.open('The Crown', `<nav class="tabs" style="margin-bottom:8px">${tabs.map(([t, l]) => `<button data-tab="${t}" aria-pressed="${t === tab}">${l}</button>`).join(' ')}</nav>${body}`, (r) => {
+        r.querySelectorAll('[data-tab]').forEach((b) => b.onclick = () => open(b.dataset.tab));
+        r.querySelectorAll('[data-tax]').forEach((b) => b.onclick = () => { k.taxRate = O.clamp(k.taxRate + +b.dataset.tax * 0.01, 0.02, 0.2); k.addNews && k.addNews(`By royal decree the crown tax is ${+b.dataset.tax > 0 ? 'raised' : 'lowered'} to ${Math.round(k.taxRate * 100)}%.`, 'politics'); for (const q of s.people) if (q.age >= 18 && s.rng.chance(0.2)) s.relate(q, { id: 0 }, +b.dataset.tax > 0 ? -0.05 : 0.04); open('realm'); });
+        const who = (id) => s.byId.get(+id);
+        r.querySelectorAll('[data-pardon]').forEach((b) => b.onclick = () => { const q = who(b.dataset.pardon); q.jailUntil = s.day; q.task = null; q.sentence = null; s.relate(q, { id: 0 }, 0.6); s.log(`By royal pardon ${q.name} walks free.`, 'crime'); s.remember(q, 'Pardoned by the monarch.', 'crime', 3, 0); open('justice'); });
+        r.querySelectorAll('[data-longer]').forEach((b) => b.onclick = () => { const q = who(b.dataset.longer); q.jailUntil = (q.jailUntil || s.day) + 7; if (q.sentence) q.sentence.days += 7; s.relate(q, { id: 0 }, -0.4); s.log(`By the monarch's order ${q.name} will serve seven days more.`, 'crime'); open('justice'); });
+        r.querySelectorAll('[data-banish]').forEach((b) => b.onclick = () => { const q = who(b.dataset.banish); q.task = { act: 'leave', outdoor: true, zone: 'east', emigrating: true }; q.jailUntil = s.day; q.sentence = null; s.log(`${q.name} is banished from ${s.world.name} by royal order.`, 'crime'); open('justice'); });
+        r.querySelectorAll('[data-knight]').forEach((b) => b.onclick = () => { const q = who(b.dataset.knight); q.title = q.sex === 'f' ? 'Dame' : 'Sir'; q.name = `${q.title} ${q.first} ${q.sur}`; q.gentry = true; s.relate(q, { id: 0 }, 0.8); s.log(`${q.name} has been ${q.sex === 'f' ? 'made a dame' : 'knighted'} by the monarch.`, 'politics'); PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.03); open('honours'); });
+        r.querySelectorAll('[data-work]').forEach((b) => b.onclick = () => {
+          const c = +b.dataset.cost; if (k.treasury < c) return say('The treasury cannot bear it.', 'bad'); k.treasury -= c;
+          const kk = b.dataset.work;
+          if (kk === 'alms') { for (const hh of s.households) if (!hh.gone && hh.money < 30) hh.money += 8; if (pl) pl.happiness = Math.min(1, (pl.happiness || 0.5) + 0.08); s.log('Royal alms were given out to the poor households of the town.', 'politics'); }
+          if (kk === 'granary') { for (const p2 of k.places) if (p2.stock) p2.stock.grain = (p2.stock.grain || 0) + p2.pop / 20; s.log('By the monarch\'s order, granaries are filled against the winter.', 'politics'); }
+          if (kk === 'walls') { if (pl) { pl.crime = Math.max(0.02, (pl.crime || 0.2) - 0.08); pl.walls = true; } s.log(`Masons are at work on the walls of ${s.world.name}, by royal order.`, 'politics'); }
+          if (kk === 'roads') { for (const p2 of k.places) p2.wealth = Math.min(1, (p2.wealth || 0.4) + 0.02); s.log('The crown pays for the mending of the realm\'s roads; trade moves easier.', 'politics'); }
+          if (kk === 'feast') { s.festivalDay = s.day + 1; s.festivalWhy = 'the monarch\'s feast'; s.log('Tomorrow is a holiday, at the crown\'s cost: music and dancing in the square.', 'politics'); }
+          for (const q of s.people) if (q.age >= 16 && s.rng.chance(0.3)) s.relate(q, { id: 0 }, 0.06);
+          say('Your order goes out. It will be done.'); open('works');
+        });
+        r.querySelectorAll('[data-host]').forEach((b) => b.onclick = () => { const kk = b.dataset.host, c = { tournament: 150, fair: 80, midwinter: 120, market: 40 }[kk]; if (k.treasury < c) return say('The treasury cannot bear it.', 'bad'); k.treasury -= c; s.hosted = { kind: kk, day: s.day + 1 }; s.log(`By royal command there will be ${kk === 'midwinter' ? 'a great feast' : kk === 'market' ? 'a market of travelling merchants' : 'a ' + kk} tomorrow.`, 'politics'); say('The heralds cry it through the streets: tomorrow, by your command.'); open('fest'); });
+        r.querySelectorAll('[data-mode]').forEach((b) => b.onclick = () => { guests().mode = b.dataset.mode; open('fest'); });
+        r.querySelectorAll('[data-unlist]').forEach((b) => b.onclick = () => { delete guests().list[b.dataset.unlist]; open('fest'); });
+        const wb = r.querySelector('[data-war]'); if (wb) wb.onclick = () => { k.declareWar && k.declareWar(); say('You declare war. The heralds ride out.', 'bad'); open('war'); };
+        const pb = r.querySelector('[data-peace]'); if (pb) pb.onclick = () => { if (k.treasury < 300) return say('The treasury cannot pay the price of peace.', 'bad'); k.treasury -= 300; k.makePeace && k.makePeace('none'); say('Envoys carry your terms. The war is over.'); open('war'); };
+      });
+    }
+    O.openCrown = open;
+    // the guest list: open to all, a blacklist of the barred, or a whitelist of the invited
+    const guests = () => (PS.guests = PS.guests || { mode: 'all', list: {} });
+    // true: invited; false: kept out; null: no say (the household, or nobody's ruling)
+    O.castleGuest = (s, q) => { if (!crowned()) return null; const G = guests(), on = !!G.list[O.knowKey(q)]; if (G.mode === 'white') return on; if (G.mode === 'black') return on ? false : null; return null; };
+    const prevExtra = npcUI.extraButtons, prevOn = npcUI.onExtra;
+    npcUI.extraButtons = (q) => { const out = prevExtra ? prevExtra(q) : []; if (crowned() && q.age >= 12) { const G = guests(), on = !!G.list[O.knowKey(q)]; if (G.mode === 'white') out.push(['guest', on ? 'Strike them from the guest list' : 'Invite them to the castle']); else if (G.mode === 'black') out.push(['guest', on ? 'Lift their bar from the castle' : 'Bar them from the castle']); } return out; };
+    npcUI.onExtra = (q, key, render) => { if (key !== 'guest') return prevOn && prevOn(q, key, render); const G = guests(), kk = O.knowKey(q); if (G.list[kk]) delete G.list[kk]; else G.list[kk] = 1; const on = !!G.list[kk]; return render(G.mode === 'white' ? (on ? '"Majesty! I am honoured."' : '"As Your Majesty wishes."') : (on ? '"Majesty? What have I done?"' : '"Thank you, Majesty."')); };
+    game.keyHandlers.push((e) => { if (e.code === 'KeyK' && !O.panelOpen && !e.repeat) { if (crowned()) { open(); return true; } } return false; });
+
+    // ---------------------------------------------------------------- audiences: petitioners at the throne
+    const PETITIONS = [
+      { text: (q) => `${q.first} kneels. "Majesty, my neighbour's pigs have ruined my garden twice this month, and he laughs at me."`, opts: [['Order the neighbour to pay ₳5', (s, q) => { s.household(q).money += 5; s.relate(q, { id: 0 }, 0.3); }], ['Tell them to settle it between themselves', (s, q) => { s.relate(q, { id: 0 }, -0.1); }]] },
+      { text: (q) => `${q.first} bows low. "Majesty, the harvest failed on our strip. My children are hungry."`, opts: [['Give ₳10 from the treasury', (s, q, k) => { k.treasury -= 10; s.household(q).money += 10; s.relate(q, { id: 0 }, 0.5); PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.03); }], ['The crown cannot feed every mouth', (s, q) => { s.relate(q, { id: 0 }, -0.3); }]] },
+      { text: (q) => `${q.first} stands stiffly. "Majesty, the tax collector takes more than his due, and pockets the difference."`, opts: [['Have the collector looked into', (s, q) => { s.relate(q, { id: 0 }, 0.3); const c = s.people.find((x) => x.job?.role === 'tax collector'); if (c) s.remember(c, 'The monarch had my books looked into.', 'politics', 2); }], ['Dismiss the complaint', (s, q) => { s.relate(q, { id: 0 }, -0.2); }]] },
+      { text: (q) => `${q.first} clutches a cap. "Majesty, I ask leave to marry above my station. Her father forbids it."`, opts: [['Grant your blessing', (s, q) => { s.relate(q, { id: 0 }, 0.5); s.remember(q, 'The monarch blessed my match.', 'social', 3, 0); }], ['Refuse: let the father decide', (s, q) => { s.relate(q, { id: 0 }, -0.3); }]] },
+      { text: (q) => `${q.first} is angry. "Majesty, a band of thieves robs the road to the mill and the watch does nothing."`, opts: [['Send more watchmen (₳40)', (s, q, k) => { k.treasury -= 40; const pl = placeOf(s); if (pl) pl.crime = Math.max(0.02, (pl.crime || 0.2) - 0.05); s.relate(q, { id: 0 }, 0.4); }], ['The watch is stretched thin enough', (s, q) => { s.relate(q, { id: 0 }, -0.25); }]] },
+      { text: (q) => `${q.first} is a merchant. "Majesty, a charter to trade in wool without the guild's fee, and I will pay the crown ₳30."`, opts: [['Grant the charter (+₳30)', (s, q, k) => { k.treasury += 30; s.relate(q, { id: 0 }, 0.4); PS.rep.merchant = Math.min(1, PS.rep.merchant + 0.05); }], ['The guild\'s fee stands', (s, q) => { s.relate(q, { id: 0 }, -0.2); }]] },
+    ];
+    let nextAudience = 0;
+    game.hooks.update.push(() => {
+      const s = cur(), p = game.player;
+      if (!crowned() || !p.sitting || !p.sitting.it || p.sitting.it.kind !== 'throne' || O.panelOpen || O.UI.dialogOpen && O.UI.dialogOpen()) return;
+      const now = s.day * 1440 + s.minute; if (s.hour < 9 || s.hour >= 17 || now < nextAudience) return;
+      nextAudience = now + 25;
+      const welcome = (x) => { const g0 = O.castleGuest(s, x); return guests().mode === 'white' ? g0 === true : g0 !== false; };
+      const q = s.people.filter((x) => x.age >= 18 && !x.royal && !x.visitor && x.alive !== false && !x.task && welcome(x))[Math.floor(Math.random() * 40)] || s.people.find((x) => x.age >= 18 && !x.royal && welcome(x));
+      if (!q) return;
+      const pt = PETITIONS[Math.floor(Math.random() * PETITIONS.length)];
+      // they come up the hall to stand before the throne, then speak
+      const keep = game.scene && (game.scene.b.parent || game.scene.b);
+      if (keep && keep.royal) { q.task = { act: 'petition', b: keep.id, woken: now + 20 }; q.activity = q.task; q.agent.path = null; q.agent.inside = keep.id; q.agent.hidden = true; q.agent.enteredAt = s.minute; } // they've been waiting in the hall
+      pending = { q, pt, at: game.t + 4 };
+    });
+    let pending = null;
+    game.hooks.update.push(() => {
+      if (!pending || game.t < pending.at || O.panelOpen || (O.UI.dialogOpen && O.UI.dialogOpen())) return;
+      const { q, pt } = pending; pending = null; const s = cur();
+      if (!game.player.sitting) { if (q.task?.act === 'petition') q.task = null; return; }
+      O.UI.dialog.open({ name: `${q.first}, a petitioner`, color: '#8a6239', text: pt.text(q), options: pt.opts.map(([l], i) => ({ key: 'p' + i, label: l })), onPick: (key) => { const o = pt.opts[+key.slice(1)]; o[1](s, q, K()); s.remember(q, 'Brought my petition before the monarch.', 'politics', 2, 0); O.UI.dialog.close(); if (q.task?.act === 'petition') q.task = null; say(`${q.first} bows and withdraws. The next petitioner waits.`); } });
+    });
+  }
+  O.CrownSetup = { setup };
+})();
+
+</script>
+<script>
+// Your name, seen in the street. The watch nod to someone in good standing as they pass and keep a hard
+// eye on a known troublemaker; and when you're famous (well loved, a champion of the lists, the monarch)
+// the town's children trail after you for a while, at a respectful distance.
+'use strict';
+(function () {
+  function setup(game) {
+    const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k);
+    const famous = () => (O.crowned && O.crowned()) || PS.rep.civilian > 0.55 || PS.rep.local > 0.6;
+    const notorious = () => PS.rep.criminal > 0.4 || PS.rep.guard < -0.35 || (PS.wantedLevel && PS.wantedLevel() >= 1);
+    const seen = new Map(); // guard id -> last minute they reacted
+    const followers = new Map(); // child id -> until (game.t)
+    let tk = 0;
+    game.hooks.update.push((dt) => {
+      const s = cur(), p = game.player; if (!s || game.scene || O.panelOpen) return;
+      tk -= dt;
+      if (tk <= 0) {
+        tk = 0.5; const now = s.day * 1440 + s.minute;
+        // the watch, as you pass
+        for (const g of s.people) {
+          if (!/guard|sergeant|watch/.test(g.job?.role || '') || g.agent.hidden || g.agent.chasing || g.activity?.act === 'sleep') continue;
+          const d = Math.hypot(g.agent.x - p.x, g.agent.y - p.y); if (d > 40 || (seen.get(g.id) || -1e9) > now - 120) continue;
+          seen.set(g.id, now); g.agent.dir = O.dirOf(p.x - g.agent.x, p.y - g.agent.y);
+          if (O.crowned && O.crowned()) { g.agent.forceAnim = 'wave'; say(`${g.first} of the watch stands to attention as you pass. "Majesty."`); }
+          else if (notorious()) { g.agent.forceAnim = 'point'; say(`${g.first} of the watch watches you go by with a hard eye.`, 'bad'); }
+          else if (PS.rep.guard > 0.3 || PS.rep.local > 0.45) { g.agent.forceAnim = 'wave'; say(`${g.first} of the watch gives you a nod.`); }
+          else continue;
+          g.agent.frozen = true; setTimeout(() => { g.agent.frozen = false; g.agent.forceAnim = null; }, 1300);
+        }
+        // children who'll follow someone famous
+        if (famous() && followers.size < 3) {
+          const kid = s.people.find((q) => q.age >= 5 && q.age < 13 && !q.agent.hidden && q.agent.inside == null && !followers.has(q.id) && ['play', 'stroll', 'festival'].includes(q.activity?.act) && Math.hypot(q.agent.x - p.x, q.agent.y - p.y) < 90);
+          if (kid) { followers.set(kid.id, game.t + 20 + Math.random() * 15); kid.agent.frozen = true; kid.agent.path = null; if (followers.size === 1) say(O.crowned && O.crowned() ? 'Children run after you, wide-eyed: the monarch, in the street!' : 'A gaggle of children trails after you. Your name has got about.'); }
+        }
+      }
+      for (const [id, until] of followers) {
+        const q = s.byId.get(id); if (!q || game.t > until || q.agent.hidden || q.agent.inside != null) { if (q) { q.agent.frozen = false; q.agent.forceAnim = null; q.activity = null; } followers.delete(id); continue; }
+        const a = q.agent, k = [...followers.keys()].indexOf(id), tx = p.x - 22 + k * 14, ty = p.y + 18, dx = tx - a.x, dy = ty - a.y, d = Math.hypot(dx, dy);
+        if (d > 3) { const sp = (d > 60 ? 80 : 48) * dt, nx = a.x + dx / d * Math.min(sp, d), ny = a.y + dy / d * Math.min(sp, d); if (!game.solidAt(nx, ny)) { a.x = nx; a.y = ny; } a.dir = O.dirOf(dx, dy); a.forceAnim = d > 60 ? 'run' : 'walk'; }
+        else { a.forceAnim = (Math.floor(game.t * 2) + id) % 5 ? 'idle' : 'wave'; a.dir = O.dirOf(p.x - a.x, p.y - a.y); }
+      }
+    });
+  }
+  O.RenownSetup = { setup };
+})();
+
+</script>
+<script>
+// Hired work and bounties. The watch house keeps a bounty board and the tavern a board of hired work.
+// One contract at a time:
+//   a bounty on a known thief (a gang hand of the town): find them (the arrow shows the way) and take
+//     them in; they may come quietly, run, or fight;
+//   escort a merchant: meet them at the tavern and walk them to the edge of town; on the way there may
+//     be trouble on the road, to fight off or pay off;
+//   clear a bandit camp: the gang's den in the woods outside town; go there and drive them out.
+// Paid in coin, and the watch think better of you.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game, npcUI) {
+    const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k), esc = (t) => O.escape(String(t));
+    const now = (s) => s.day * 1440 + s.minute;
+    const fightSkill = () => O.clamp(0.3 + (PS.skills.fighting || PS.skills.combat || 0) * 0.5 + (PS.items.includes('sword') ? 0.15 : PS.items.includes('axe') || PS.items.includes('dagger') ? 0.08 : 0) + (PS.items.includes('helm') ? 0.05 : 0) + PS.hp / 100 * 0.1, 0.1, 0.92);
+    const learn = (k) => { PS.skills.fighting = Math.min(1, (PS.skills.fighting || 0) + k); };
+
+    // ---------------------------------------------------------------- what's on offer in a town today
+    function offers(s, where) {
+      const r = O.RNG(O.hash('bounty', s.world.placeId || 'x', s.day, where)), out = [];
+      if (where === 'watch') {
+        const rogues = s.people.filter((q) => q.gang && q.gang !== 'player' && q.alive !== false && !q.visitor && q.task?.act !== 'jailed');
+        for (const q of rogues.slice(0, 6).sort(() => r.next() - 0.5).slice(0, 2)) { const g = s.gang(q.gang); out.push({ kind: 'thief', target: q.id, reward: 20 + r.int(0, 4) * 5, text: `Wanted: ${q.name}, who runs with ${g ? g.name : 'a gang'}. Bring them to the watch.` }); }
+        const den = s.world.buildings.find((b) => b.type === 'hideout' && b.gang && b.gang !== 'player' && !b.roadKey);
+        if (den) out.push({ kind: 'camp', target: den.id, reward: 60 + r.int(0, 4) * 10, text: `The watch will pay to see ${den.name} cleared out.` });
+      } else {
+        out.push({ kind: 'escort', reward: 15 + r.int(0, 3) * 5, text: `A merchant wants a strong arm to see them and their goods safe to the edge of town.` });
+      }
+      return out.filter((o) => !(PS.contract && PS.contract.kind === o.kind && PS.contract.target === o.target));
+    }
+    function board(where) {
+      const s = cur(), list = offers(s, where), C = PS.contract;
+      const mine = C ? `<p class="caption">Your contract: ${esc(C.text)} (₳${C.reward}).</p><div class="topics"><button data-drop="1">Give it up</button></div>` : '';
+      O.Panels.open(where === 'watch' ? 'The bounty board' : 'Hired work', `<p class="speech">${where === 'watch' ? 'Nailed to the watch-house door, under the town\'s seal.' : 'Notes pinned by the tavern door, some in a good hand, some in a poor one.'}</p>${list.length ? `<table><tbody>${list.map((o, i) => `<tr><td>${esc(o.text)}</td><td class="n">₳${o.reward}</td><td><button data-take="${i}" ${C ? 'disabled' : ''}>Take it</button></td></tr>`).join('')}</tbody></table>` : '<p>Nothing posted today.</p>'}${mine}`, (r) => {
+        r.querySelectorAll('[data-take]').forEach((b) => b.onclick = () => { take(s, list[+b.dataset.take]); O.Panels.close(); });
+        const d = r.querySelector('[data-drop]'); if (d) d.onclick = () => { drop(s, 'You give up the contract.'); O.Panels.close(); };
+      });
+    }
+    function take(s, o) {
+      PS.contract = Object.assign({ place: s.world.placeId, until: now(s) + 1440 * 2 }, o);
+      if (o.kind === 'thief') { PS.lead = { place: s.world.placeId, id: o.target, until: PS.contract.until }; say('You take the bounty. The arrow will lead you to them; talk to them to take them in.'); }
+      if (o.kind === 'camp') say(`You take the contract. ${s.building(o.target).name} lies outside town: go there and press E at its door.`);
+      if (o.kind === 'escort') {
+        const r = O.RNG(O.hash('esc', s.day)), sex = r.chance(0.7) ? 'm' : 'f', D = O.Data, Ch = O.Char;
+        const q = s.newPerson({ sex, age: r.int(28, 55), first: r.pick(D.NAMES[sex]), sur: r.pick(['Chapman', 'of Goldmere', 'Woolman', 'Packer']), household: 0, home: null, genes: Ch.randomGenes(r, 'south'), wealth: 0.65, visitor: true });
+        q.name = `${q.first} ${q.sur}`; q.job = { biz: null, role: 'merchant' }; q.wake = 0; q.bed = 1440; q.app = Ch.makeAppearance(O.hash('escort', q.id), { sex, age: q.age, genes: q.genes, role: 'merchant', wealth: 0.65 });
+        const tv = s.building(s.tavernId), [ex, ey] = s.entry(tv);
+        q.agent = { x: ex * T + 8, y: ey * T + 12, dir: 0, anim: 'idle', ft: 0, a: q.app, hidden: false, inside: null, path: null, goal: null, person: q, frozen: true, carrying: { good: 'cloth', qty: 1 } };
+        q.escortee = true; PS.contract.target = q.id; PS.lead = { place: s.world.placeId, id: q.id, until: PS.contract.until };
+        say(`The merchant, ${q.name}, waits outside ${tv.name}. Go to them and they'll walk with you to the edge of town.`);
+      }
+    }
+    function drop(s, msg) { const C = PS.contract; if (C && C.kind === 'escort') { const q = s.byId.get(C.target); if (q) { q.escortee = false; q.agent.frozen = false; q.task = { act: 'leave', outdoor: true, zone: 'east', emigrating: true }; } } PS.contract = null; PS.lead = null; if (msg) say(msg); }
+    function pay(s, extra) { const C = PS.contract; PS.money += C.reward; PS.rep.guard = Math.min(1, PS.rep.guard + 0.12); PS.rep.local = Math.min(1, PS.rep.local + 0.06); s.log(`The stranger was paid ₳${C.reward}: ${C.text.replace(/\.$/, '')}.`, 'crime'); PS.contract = null; PS.lead = null; say(`Done. ₳${C.reward} is counted into your hand${extra ? '. ' + extra : '.'}`); }
+
+    // ---------------------------------------------------------------- the boards
+    let hooked = false, prev = null;
+    game.hooks.update.push(() => { if (hooked) return; hooked = true; prev = O.stallCandidate; O.stallCandidate = cand; });
+    function cand() {
+      const s = cur(), p = game.player;
+      if (!game.scene) {
+        for (const b of s.world.buildings) {
+          if (b.doorX == null || (b.type !== 'guard' && b.id !== s.tavernId)) continue;
+          const x = b.doorX * T + 8 + (b.type === 'guard' ? 22 : -22), y = b.doorY * T + 6, d = Math.hypot(x - p.x, y - p.y);
+          if (d < 20) return { type: 'custom', label: b.type === 'guard' ? 'Read the bounty board' : 'Read the notes of hired work', act: () => board(b.type === 'guard' ? 'watch' : 'tavern'), d: d + 4, x, y: y - 30 };
+        }
+        // the bandits' den on a camp contract
+        const C = PS.contract;
+        if (C && C.kind === 'camp' && C.place === s.world.placeId) { const den = s.building(C.target); if (den) { const x = den.doorX * T + 8, y = den.doorY * T + 8, d = Math.hypot(x - p.x, y - p.y); if (d < 26) return { type: 'custom', label: `Drive out ${den.name}`, act: () => raid(s, den), d: d - 6, x, y: y - 40 }; } }
+      }
+      return prev ? prev() : null;
+    }
+    // a board drawn by the doors
+    game.hooks.drawWorld.push((ctx, cam) => {
+      if (game.scene) return; const s = cur();
+      for (const b of s.world.buildings) {
+        if (b.doorX == null || (b.type !== 'guard' && b.id !== s.tavernId)) continue;
+        const x = Math.round(b.doorX * T + 8 + (b.type === 'guard' ? 22 : -22) - cam.x), y = Math.round(b.doorY * T - 2 - cam.y);
+        if (x < -20 || y < -40 || x > game.vw + 20 || y > game.vh + 20) continue;
+        ctx.fillStyle = '#4a3220'; ctx.fillRect(x - 1, y - 8, 2, 10); ctx.fillStyle = '#6a4a2c'; ctx.fillRect(x - 8, y - 22, 16, 14); ctx.fillStyle = '#3a2618'; ctx.fillRect(x - 8, y - 22, 16, 1); ctx.fillRect(x - 8, y - 9, 16, 1);
+        ctx.fillStyle = '#efe6cc'; ctx.fillRect(x - 6, y - 20, 5, 6); ctx.fillRect(x + 1, y - 19, 5, 7); ctx.fillStyle = '#a8382f'; ctx.fillRect(x - 4, y - 15, 1, 1); ctx.fillRect(x + 3, y - 13, 1, 1);
+      }
+    });
+
+    // ---------------------------------------------------------------- taking a thief in
+    const prevExtra = npcUI.extraButtons, prevOn = npcUI.onExtra;
+    npcUI.extraButtons = (q) => {
+      const out = prevExtra ? prevExtra(q) : [], C = PS.contract;
+      if (C && C.kind === 'thief' && C.target === q.id && C.place === cur().world.placeId) out.unshift(['seize', "There's a bounty on you. You're coming with me"]);
+      if (C && C.kind === 'escort' && C.target === q.id && !C.started) out.unshift(['escort', "I'm your escort. Let's go"]);
+      return out;
+    };
+    npcUI.onExtra = (q, key, render) => {
+      const s = cur();
+      if (key === 'seize') {
+        const brave = q.traits.includes('brave') || q.traits.includes('hostile'), k = fightSkill();
+        if (!brave && s.rng.chance(0.35)) { npcUI.closeTalk(); arrest(s, q); return pay(s, `${q.first} came quietly`); }
+        if (!brave && s.rng.chance(0.5)) { npcUI.closeTalk(); O.flee && O.flee(q, 8); say(`${q.first} bolts! Catch them and talk to them again.`, 'bad'); return; }
+        npcUI.closeTalk();
+        if (s.rng.chance(k)) { learn(0.05); q.health.hp = Math.max(15, q.health.hp - 40); arrest(s, q); return pay(s, `You wrestle ${q.first} down and march them to the watch house`); }
+        learn(0.03); PS.hp = Math.max(8, PS.hp - 25); say(`${q.first} fights you off and gets away. You'll have to try again.`, 'bad'); O.flee && O.flee(q, 10); return;
+      }
+      if (key === 'escort') { PS.contract.started = true; q.agent.frozen = true; npcUI.closeTalk(); say(`${q.first}: "Lead on. To the edge of town, and keep your eyes open."`); return; }
+      return prevOn && prevOn(q, key, render);
+    };
+    function arrest(s, q) { const cr = s.recordCrime({ kind: 'thieving', perp: q, placeName: s.world.name, tile: [Math.floor(q.agent.x / T), Math.floor(q.agent.y / T)], seen: [], severity: 2 }); s.arrestNPC(q, cr, false); }
+
+    // ---------------------------------------------------------------- the escort: they follow you to the town's edge
+    let ambushed = false;
+    game.hooks.update.push((dt) => {
+      const s = cur(), C = PS.contract; if (!C) return;
+      if (now(s) > C.until && C.place === s.world.placeId) { drop(s, 'Your contract ran out of time.'); return; }
+      if (C.kind !== 'escort' || !C.started || C.place !== s.world.placeId || game.scene) return;
+      const q = s.byId.get(C.target); if (!q) { drop(s); return; }
+      const a = q.agent, p = game.player, dx = p.x - 16 - a.x, dy = p.y + 10 - a.y, d = Math.hypot(dx, dy);
+      if (d > 6) { const sp = (d > 80 ? 90 : 50) * dt, nx = a.x + dx / d * Math.min(sp, d), ny = a.y + dy / d * Math.min(sp, d); if (!game.solidAt(nx, ny)) { a.x = nx; a.y = ny; } a.dir = O.dirOf(dx, dy); a.forceAnim = 'carry'; } else a.forceAnim = 'idle';
+      // trouble on the way
+      const E = s.Z.east || [s.world.W - 2, 30], ex = E[0] * T, dist = Math.abs(p.x - ex) + Math.abs(p.y - E[1] * T);
+      if (!ambushed && dist < 900 && s.rng.chance(0.004)) { ambushed = true; ambush(s, q); }
+      if (dist < 120) { q.escortee = false; a.frozen = false; a.forceAnim = null; q.task = { act: 'leave', outdoor: true, zone: 'east', emigrating: true }; ambushed = false; pay(s, `${q.first} shakes your hand at the edge of town and goes on alone`); }
+    });
+    function ambush(s, q) {
+      O.UI.dialog.open({ name: 'Trouble on the road', color: '#a8382f', text: `Two rough men step out from behind a cart. "That's a fine pack your friend's carrying. Leave it, and walk on."`, options: [{ key: 'fight', label: 'Fight them off' }, { key: 'pay', label: 'Pay them ₳10 to go away' }, { key: 'run', label: 'Run for it, with the merchant' }], onPick: (k) => {
+        O.UI.dialog.close();
+        if (k === 'pay') { if (PS.money >= 10) { PS.money -= 10; say('You pay them off. They melt away, laughing.'); } else { say("You haven't the coin. They take the merchant's pack and run.", 'bad'); PS.contract.reward = Math.floor(PS.contract.reward / 2); } return; }
+        if (k === 'run') { if (s.rng.chance(0.5)) say('You hustle the merchant away; they don\'t follow.'); else { PS.hp = Math.max(8, PS.hp - 15); say('They catch you up and knock you about before you get clear.', 'bad'); } return; }
+        if (s.rng.chance(fightSkill())) { learn(0.06); say('You lay into them and they run, nursing their heads. The merchant looks at you with new respect.'); PS.contract.reward += 5; }
+        else { learn(0.03); PS.hp = Math.max(8, PS.hp - 30); PS.contract.reward = Math.floor(PS.contract.reward / 2); say('They beat you and take half the goods before they run.', 'bad'); }
+        void q;
+      } });
+    }
+
+    // ---------------------------------------------------------------- clearing a bandit camp
+    function raid(s, den) {
+      const g = s.gang(den.gang), size = g ? g.members.length : 3, k = fightSkill() - size * 0.06;
+      O.UI.dialog.open({ name: den.name, color: '#a8382f', text: `Smoke from a fire, ${size} rough voices. They haven't seen you yet.`, options: [{ key: 'go', label: 'Go in hard' }, { key: 'back', label: 'Think better of it' }], onPick: (key) => {
+        O.UI.dialog.close(); if (key === 'back') return;
+        if (s.rng.chance(O.clamp(k, 0.08, 0.85))) {
+          learn(0.08); PS.hp = Math.max(10, PS.hp - 15);
+          if (g) { for (const m of [...g.members]) { const q = s.byId.get(m.id); if (q && s.rng.chance(0.5)) { s.leaveGang(m, g, 'scattered when their den was cleared'); } } g.influence = Math.max(0, (g.influence || 0.2) - 0.15); g.purse = Math.floor((g.purse || 0) / 2); }
+          s.log(`${den.name} was cleared out by the stranger, for the watch's bounty.`, 'crime');
+          pay(s, 'The camp is broken up and they scatter into the woods');
+        } else { learn(0.04); PS.hp = Math.max(5, PS.hp - 40); say('There are too many of them. You get out with your life, barely.', 'bad'); }
+      } });
+    }
+  }
+  O.BountiesSetup = { setup };
+})();
+
+</script>
+<script>
+// Your undertakings, in one place (J): the posts you hold, a bounty or hired work, what your gang has
+// asked of you, and the arrow you're following. Any of them can be given up. Walk out of a shift and
+// you're not paid for the day and your master won't thank you; drop a bounty and the watch notes it;
+// let your gang down and they remember.
+'use strict';
+(function () {
+  function setup(game) {
+    const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k), esc = (t) => O.escape(String(t));
+    function open() {
+      const s = cur(), posts = (O.Employment && O.Employment.posts()) || [], C = PS.contract, gang = (O.GangLife ? O.GangLife.mine() : []).filter((m) => m.task && !m.task.done), L = PS.lead;
+      const rows = [];
+      posts.forEach((e, i) => rows.push(`<tr><td><b>${esc(e.role)}</b> at ${esc(e.bizName)}${e.place !== s.world.placeId ? `, ${esc(e.placeName)}` : ''}${e.onShift ? ' <span class="warn">(on shift now)</span>' : ''}</td><td><button data-quit="${i}">${e.onShift ? 'Walk out' : 'Hand in notice'}</button></td></tr>`));
+      if (C) rows.push(`<tr><td>${esc(C.text)} <span class="caption">(₳${C.reward})</span></td><td><button data-contract="1">Give it up</button></td></tr>`);
+      gang.forEach((m, i) => rows.push(`<tr><td>For your gang: ${esc(m.task.text || m.task.kind)}</td><td><button data-gang="${i}">Let it go</button></td></tr>`));
+      if (L && L.until > s.day * 1440 + s.minute) { const q = L.place === s.world.placeId && s.byId.get(L.id); rows.push(`<tr><td>Following the arrow${q ? ` to ${esc(q.name)}` : ''}</td><td><button data-lead="1">Stop</button></td></tr>`); }
+      O.Panels.open('Your undertakings', rows.length ? `<table><tbody>${rows.join('')}</tbody></table><p class="caption">Walking out mid-shift loses the day's pay and angers your master. Giving up a bounty, the watch will remember.</p>` : '<p>Nothing on your hands just now.</p>', (r) => {
+        r.querySelectorAll('[data-quit]').forEach((b) => b.onclick = () => {
+          const e = posts[+b.dataset.quit], es = (O.Travel?.visited.get(e.place)?.sim) || s, boss = e.master != null && es.byId.get(e.master);
+          if (boss) { es.relate(boss, { id: 0 }, e.onShift ? -0.35 : -0.08); es.remember(boss, e.onShift ? 'The stranger walked out in the middle of a shift. No pay for that.' : 'The stranger left my service.', 'work', e.onShift ? 2 : 1); }
+          O.Employment.quit(e.onShift ? `You walk out. ${boss ? boss.first + ' shouts after you that you\'ll not see a penny for today.' : 'No pay for today.'}` : `You hand in your notice at ${e.bizName}.`, e);
+          if (e.onShift) PS.rep.local = Math.max(-1, PS.rep.local - 0.05);
+          open();
+        });
+        const c = r.querySelector('[data-contract]'); if (c) c.onclick = () => { if (PS.contract?.kind === 'escort') { const q = s.byId.get(PS.contract.target); if (q) { q.agent.frozen = false; q.agent.forceAnim = null; q.task = { act: 'leave', outdoor: true, zone: 'east', emigrating: true }; } } PS.contract = null; PS.lead = null; PS.rep.guard = Math.max(-1, PS.rep.guard - 0.05); say('You give up the contract. No pay.'); open(); };
+        r.querySelectorAll('[data-gang]').forEach((b) => b.onclick = () => { const m = gang[+b.dataset.gang]; m.task = null; m.loyaltyHits = (m.loyaltyHits || 0) + 1; PS.rep.criminal = Math.max(0, PS.rep.criminal - 0.02); say('You let the job go. Your gang will remember it.', 'bad'); open(); });
+        const l = r.querySelector('[data-lead]'); if (l) l.onclick = () => { PS.lead = null; open(); };
+      });
+    }
+    O.openTasks = open;
+    game.keyHandlers.push((e) => { if (e.code === 'KeyJ' && !O.panelOpen) { open(); return true; } return false; });
+  }
+  O.TasksSetup = { setup };
 })();
 
 </script>
@@ -18931,7 +19295,7 @@ O.snowMaskOf = function (src) {
 // work, trade, property, crime, gangs, politics, war, with where each starts.
 'use strict';
 (function () {
-  const KEYS = [['WASD / arrows', 'walk'], ['Shift', 'run'], ['E', 'interact with whatever is nearest: talk, enter, work, buy, read, fight a fire, wake someone asleep in a bed…'], ['Q', 'steal: pickpocket, pick a lock, take a horse'], ['F', 'quick-loot a container or search someone beaten'], ['Space', 'strike'], ['R', 'change weapon'], ['H', 'mount or dismount your horse'], ['I', 'satchel, reputation and skills'], ['L', 'town ledger: people, families, businesses, news'], ['M', 'map of the realm'], ['G', 'your gang'], ['P', 'holdings: property, land, office'], ['C', 'the Chronicle: history, hearsay, your story'], ['/', 'this guide'], ['Esc', 'close a panel']];
+  const KEYS = [['WASD / arrows', 'walk'], ['Shift', 'run'], ['E', 'interact with whatever is nearest: talk, enter, work, buy, read, fight a fire, wake someone asleep in a bed…'], ['Q', 'steal: pickpocket, pick a lock, take a horse'], ['F', 'quick-loot a container or search someone beaten'], ['Space', 'strike'], ['R', 'change weapon'], ['H', 'mount or dismount your horse'], ['I', 'satchel, reputation and skills'], ['L', 'town ledger: people, families, businesses, news'], ['M', 'map of the realm'], ['G', 'your gang'], ['P', 'holdings: property, land, office'], ['C', 'the Chronicle: history, hearsay, your story'], ['J', 'your undertakings: jobs, bounties, gang tasks (give them up here)'], ['K', 'the Crown (when you are monarch): tax, justice, honours, works, war'], ['/', 'this guide'], ['Esc', 'close a panel']];
   const WAYS = [
     ['Honest work', 'Ask anyone "Who\'s taking on hands?" and they\'ll name the places that want workers and who runs them. Talk to that master at their workplace and ask for work. On shift, arrows mark the work, and an arrow at the edge of the view points the way when it\'s off screen. Work hour-long shifts at their benches for wages; skills grow; a good worker is offered an apprenticeship.'],
     ['Craft and sell', 'Once skilled, make goods from your own materials at a bench you may use (your property or your employer\'s). Mind a market stall in the square to sell to the townsfolk; market day is Freyday.'],
@@ -19425,7 +19789,7 @@ O.snowMaskOf = function (src) {
         x: away ? away[0] : Math.round(game.scene ? game.scene.b.doorX * 16 + 8 : game.player.x), y: away ? away[1] : Math.round(game.scene ? game.scene.b.doorY * 16 + 10 : game.player.y), dir: game.player.dir,
         mount: game.player.mount ? game.player.mount.id : null,
         region: game.world.island && !game.scene && game.world !== sim.world ? game.world.placeId : null, g: game.world.island && !game.scene ? O.Island.toGlobal(game.world, game.player.x, game.player.y).map(Math.round) : null,
-        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [], emp: PS.emp ? Object.assign({}, PS.emp, { tasks: [], onShift: false, dayInfo: null }) : null, posts: (PS.posts || []).map((x) => Object.assign({}, x, { tasks: [], onShift: false, dayInfo: null, _lm: null, _cur: x === PS.emp })), carry: PS.carry || null, firedSilently: PS.firedSilently || null, residence: PS.residence || null, gaol: PS.gaol || null, gangRanks: PS.gangRanks || [], gangTrials: PS.gangTrials || {}, disguise: PS.disguise || null, loans: PS.loans || [], letters: PS.letters || [], knows: PS.knows || {}, knowsGang: PS.knowsGang || {}, royal: PS.royal || false, taxOwed: PS.taxOwed || 0, taxPaidDay: PS.taxPaidDay ?? null },
+        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [], emp: PS.emp ? Object.assign({}, PS.emp, { tasks: [], onShift: false, dayInfo: null }) : null, posts: (PS.posts || []).map((x) => Object.assign({}, x, { tasks: [], onShift: false, dayInfo: null, _lm: null, _cur: x === PS.emp })), carry: PS.carry || null, firedSilently: PS.firedSilently || null, residence: PS.residence || null, gaol: PS.gaol || null, gangRanks: PS.gangRanks || [], gangTrials: PS.gangTrials || {}, disguise: PS.disguise || null, loans: PS.loans || [], letters: PS.letters || [], knows: PS.knows || {}, knowsGang: PS.knowsGang || {}, royal: PS.royal || false, taxOwed: PS.taxOwed || 0, taxPaidDay: PS.taxPaidDay ?? null, contract: PS.contract && PS.contract.kind !== 'escort' ? PS.contract : null, lead: PS.lead || null, askedLaw: PS.askedLaw || 0, guests: PS.guests || null },
       },
     };
   }
@@ -19649,6 +20013,10 @@ O.snowMaskOf = function (src) {
   O.DealsSetup.setup(game);
   O.WakeSetup.setup(game);
   O.FestivalsSetup.setup(game, npcUI);
+  O.CrownSetup.setup(game, npcUI);
+  O.RenownSetup.setup(game);
+  O.BountiesSetup.setup(game, npcUI);
+  O.TasksSetup.setup(game);
   O.WanderersSetup.setup(game, home);
   O.CouncilUI.setup(game, home);
   O.WarUI.setup(game, home, npcUI);

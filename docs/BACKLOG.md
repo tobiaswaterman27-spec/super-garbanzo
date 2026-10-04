@@ -187,9 +187,9 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] You can't ask anyone about houses to let or for sale unless you know they deal in them
 - [x] Getting a room: the words appear in the speech text, not the line at the bottom
 - [x] Seasons and festivals that matter: harvest fair, midwinter feast at the castle, spring tournament (joust or bet), Sunday market with travelling merchants
-- [ ] Ruling as monarch: set the crown tax, pardon or condemn prisoners, grant titles, order works, declare war, hold audiences for petitions
-- [ ] Reputation you can see: guards nod or glare, merchants' prices, children following the famous
-- [ ] Bounty boards and hired work at the watch house and the tavern: catch a thief, escort a merchant, clear a bandit camp
+- [x] Ruling as monarch: set the crown tax, pardon or condemn prisoners, grant titles, order works, declare war, hold audiences for petitions
+- [x] Reputation you can see: guards nod or glare, merchants' prices, children following the famous
+- [x] Bounty boards and hired work at the watch house and the tavern: catch a thief, escort a merchant, clear a bandit camp
 - [ ] Disasters with choices: plague year, failed harvest, flood; help or profit
 - [ ] Clean-up pass of the old Ashford-only systems (reeve, moot, lordship) against the whole island
 - Later, with the AI chat: marriage and family (court, marry, children, heirs)
@@ -209,3 +209,12 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Some children have no walking animation
 - [ ] Hard to get the option to ask to join a gang (to be looked at again with the AI chat)
 - (Festivals in progress: Sunday market, harvest fair archery, spring tournament, midwinter feast)
+
+## Batch L (asked during step 78) - quick
+
+- [x] A more pixelated arrow
+- [x] Pressing R says you put your weapon away when you never had one: remove that popup entirely
+- [x] Someone inside goes back in when you go out (they'd only just come in): fix
+- [x] A menu where you can cancel tasks; cancelling work means no pay and an angry boss
+- [x] When someone says go to a person, talking to that person makes the arrow go
+- [x] As monarch, host the festivities whenever you want, and keep a blacklist or a whitelist of anyone

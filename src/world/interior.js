@@ -66,7 +66,7 @@
   function castleWhere(q, b, sim) {
     const act = q.activity?.act, role = q.job?.role || '', plan = castlePlan(b, sim);
     const mine = plan.up.find((r) => r.roomOwners.includes(q.id));
-    if (act === 'court') return 'throne';
+    if (act === 'court' || act === 'petition') return 'throne';
     if (act === 'feast') return 'f1';
     if (act === 'court' || act === 'work') { /* below */ }
     if (act === 'worship' || (act === 'work' && ['priest', 'chaplain'].includes(role))) return 'chapel';
@@ -293,7 +293,7 @@
     function castleRoom() {
       switch (b.type) {
         case 'throneroom': {
-          const hc = Math.floor(w / 2) - 1; put('throne', hc, 1, { v: 2, lord: true, seat: true, rot: 3 });
+          const hc = Math.floor(w / 2) - 1; put('throne', hc, 1, { v: 2, lord: true, seat: true, rot: 0 }); // facing down the hall
           L.carpets = [{ x: hc - 1, y: 3, w: 4, h: d - 3 }, { x: hc - 3, y: 0, w: 8, h: 4 }]; // the aisle up to the throne, and the dais
           for (const x of [2, w - 3]) for (let y = 2; y < d - 2; y += 4) tryPut('candlestand', [[x, y]], {});
           tryPut('bench', [[1, d - 3], [1, d - 5]], { seat: true, width: 3, rot: 0 }); tryPut('bench', [[w - 4, d - 3], [w - 4, d - 5]], { seat: true, width: 3, rot: 0 });

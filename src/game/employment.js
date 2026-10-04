@@ -505,6 +505,8 @@
       return seen;
     };
     O.takeAnyPost = (role) => {
+      // a crown post is held at the capital's castle: you're taken there first
+      if (['monarch', 'consort', 'heir'].includes(role) && !cur().world.buildings.some((b) => b.royal) && O.teleport) { const K = O.SimRef.home.kingdom, cap = K.places.find((x) => x.kind === 'capital'); if (cap) O.teleport(cap.id); }
       const s = cur(), type = O.allRoles().get(role);
       let bz = [...s.biz.values()].find((x) => x.type === type) || null;
       if (type === 'crown') { const all = [...s.biz.values()]; bz = all.find((x) => x.b && x.b.royal) || all.find((x) => x.type === 'palace' || x.type === 'keep') || all.find((x) => x.type === 'manor') || all.find((x) => x.type === 'townhall') || all[0]; }
@@ -536,6 +538,13 @@
       } else if (role === 'heir') { const h = fam.find((q) => q.title === 'Prince' || q.title === 'Princess'); if (h) { h.formerTitle = h.title; h.heirNoMore = true; } }
       PS.royal = role === 'monarch' || role === 'consort';
     }
+    // the crown is yours wherever you took it: the old royal family steps down as soon as you're among them
+    game.hooks.update.push(() => {
+      const s = cur(); if (!s || !O.crowned || !O.crowned() || s._deposedFor === 'player') return;
+      const keep = s.world.buildings.find((b) => b.royal); if (!keep) return;
+      s._deposedFor = 'player';
+      if (s.people.some((q) => q.royal && q.alive !== false)) depose(s, keep, posts().some((x) => x.role === 'monarch') ? 'monarch' : 'consort');
+    });
     function unlord(s) {
       const l = s.people.find((q) => q.lordOf && q.alive !== false); if (!l) return;
       l.formerTitle = l.title; if (l.name && l.title && l.name.startsWith(l.title + ' ')) l.name = l.name.slice(l.title.length + 1); l.title = null; l.lordOf = null;

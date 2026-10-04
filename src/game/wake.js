@@ -46,10 +46,10 @@
     O.wakeBed = (it) => {
       const s = cur(), sc = game.scene, b = sc.b, keep = b.parent || b, list = sleepersIn(it); if (!list.length) return false;
       const q = list[0];
-      q.task = { act: 'home', b: keep.id, woken: abs(s) + 25 };
+      q.task = { act: 'home', b: keep.id, woken: abs(s) + 90 + Math.floor(Math.random() * 60) }; // once woken they lie awake a good while
       if (belongs(q, b)) {
         s.relate(q, { id: 0 }, -0.05);
-        say(`${q.first} stirs and sits up. “What? What is it?… Let me sleep.” They'll be back asleep before long.`);
+        say(`${q.first} stirs and sits up. “What? What is it?… Let me sleep.” It'll be a while before they get back to sleep.`);
         return true;
       }
       // a stranger at the bedside: up, and out of the door for help
@@ -58,8 +58,8 @@
       PS.crimes.push(cr.id); s.relate(q, { id: 0 }, -0.6);
       const guards = s.people.filter((g) => /guard/.test(g.job?.role || '') && g.alive !== false && g.activity?.act !== 'sleep');
       const near = keep.royal && guards.find((g) => g.agent.inside === keep.id);
-      q.task = { act: 'report', b: near ? keep.id : s.guardId, crime: cr.id, woken: abs(s) + 60 };
-      for (const z of list.slice(1)) z.task = { act: 'home', b: keep.id, woken: abs(s) + 40 };
+      q.task = { act: 'report', b: near ? keep.id : s.guardId, crime: cr.id, woken: abs(s) + 150 };
+      for (const z of list.slice(1)) z.task = { act: 'home', b: keep.id, woken: abs(s) + 120 };
       say(`${q.first} wakes with a start and sees you. “Who are you? Get out! ${keep.royal ? 'Guards! GUARDS!' : 'Help! Watch!'}” They scramble out of bed and run for help.`, 'bad');
       if (near && O.lawReport) O.lawReport(cr, near);
       return true;

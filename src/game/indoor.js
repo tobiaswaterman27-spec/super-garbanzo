@@ -167,6 +167,7 @@
         if (seat && !seat.pewSeat) { // sat in a chair, facing the way it faces
           const [ax, ay] = this.anchor(seat), r = seat.rot || 0;
           dir = [0, 1, 2, 3][r]; x = ax + (r === 1 ? 2 : r === 2 ? -2 : 0); y = ay + (r === 0 ? -3 : r === 3 ? -3 : 1); sortY = ay + 0.6;
+          if (seat.kind === 'throne') { dir = 0; x = ax; y = ay - 9; }
           if (anim === 'idle') anim = 'sit';
           if (anim !== 'doze' && anim !== 'sit') anim = anim === 'drink' ? 'drink' : 'talk';
         }
@@ -221,6 +222,7 @@
     // everyone walks to where they belong, stepping round the furniture; arrived, they settle into it
     walkActors(dt) {
       for (const [id, a] of this.actors) {
+        a.ft = (a.ft || 0) + dt; // the animation runs on
         const dx = a.gx - a.x, dy = a.gy - a.y, d = Math.hypot(dx, dy);
         if (d < 1.5) {
           a.x = a.gx; a.y = a.gy; a.stuck = 0;
@@ -383,6 +385,7 @@
     // where you sit on a seat: a chair's own spot, or the nearest free place along a bench or pew
     seatPose(it) {
       const p = this.game.player, [ax, ay] = this.anchor(it), r = it.rot || 0;
+      if (it.kind === 'throne') return { x: ax, y: ay - 9, dir: 0, sortY: ay + 0.6 }; // up on the seat, not the step
       if (it.kind === 'pew' || it.kind === 'bench' || it.fw > 1) {
         const [rx0] = this.rect(it), k = O.clamp(Math.floor((p.x - rx0) / T), 0, it.fw - 1);
         return { x: rx0 + 8 + k * T, y: ay - 2, dir: it.kind === 'pew' ? 3 : [0, 1, 2, 3][r], sortY: ay + 0.6 };

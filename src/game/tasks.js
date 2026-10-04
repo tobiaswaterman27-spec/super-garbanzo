@@ -12,7 +12,8 @@
       posts.forEach((e, i) => rows.push(`<tr><td><b>${esc(e.role)}</b> at ${esc(e.bizName)}${e.place !== s.world.placeId ? `, ${esc(e.placeName)}` : ''}${e.onShift ? ' <span class="warn">(on shift now)</span>' : ''}</td><td><button data-quit="${i}">${e.onShift ? 'Walk out' : 'Hand in notice'}</button></td></tr>`));
       if (C) rows.push(`<tr><td>${esc(C.text)} <span class="caption">(₳${C.reward})</span></td><td><button data-contract="1">Give it up</button></td></tr>`);
       gang.forEach((m, i) => rows.push(`<tr><td>For your gang: ${esc(m.task.text || m.task.kind)}</td><td><button data-gang="${i}">Let it go</button></td></tr>`));
-      const leads = (PS.leads || []).filter((l) => l.why !== 'contract' && l.until > s.day * 1440 + s.minute);
+      if (s.party && s.party.day === s.day && !s.party.done) rows.push(`<tr><td>Your party tonight, from seven (${s.party.guests.length} household${s.party.guests.length === 1 ? '' : 's'} coming)</td><td><button data-party="1">Call it off</button></td></tr>`);
+      const leads = (PS.leads || []).filter((l) => l.why !== 'contract' && l.why !== 'party' && l.until > s.day * 1440 + s.minute);
       leads.forEach((l, i) => rows.push(`<tr><td>Arrow: ${esc(l.label || 'somewhere to go')}</td><td><button data-lead="${i}">Stop</button></td></tr>`));
       O.Panels.open('Your undertakings', rows.length ? `<table><tbody>${rows.join('')}</tbody></table><p class="caption">Walking out mid-shift loses the day's pay and angers your master. Giving up a bounty, the watch will remember.</p>` : '<p>Nothing on your hands just now.</p>', (r) => {
         r.querySelectorAll('[data-quit]').forEach((b) => b.onclick = () => {
@@ -24,6 +25,7 @@
         });
         const c = r.querySelector('[data-contract]'); if (c) c.onclick = () => { if (PS.contract?.kind === 'escort') { const q = s.byId.get(PS.contract.target); if (q) { q.agent.frozen = false; q.agent.forceAnim = null; q.task = { act: 'leave', outdoor: true, zone: 'east', emigrating: true }; } } PS.contract = null; O.dropLead((l) => l.why === 'contract'); PS.rep.guard = Math.max(-1, PS.rep.guard - 0.05); say('You give up the contract. No pay.'); open(); };
         r.querySelectorAll('[data-gang]').forEach((b) => b.onclick = () => { const m = gang[+b.dataset.gang]; m.task = null; O.dropLead((l) => l.why === 'gangtask'); m.loyaltyHits = (m.loyaltyHits || 0) + 1; PS.rep.criminal = Math.max(0, PS.rep.criminal - 0.02); say('You let the job go. Your gang will remember it.', 'bad'); open(); });
+        const pt = r.querySelector('[data-party]'); if (pt) pt.onclick = () => { for (const g of s.party.who || []) { const q = s.byId.get(g.id); if (q) { s.relate(q, { id: 0 }, -0.05); s.remember(q, 'The stranger called off their party.', 'social', 0.6, 0); } } s.party = null; O.dropLead((l) => l.why === 'party'); say('You send word round: the party is off. The food will keep.', 'bad'); open(); };
         r.querySelectorAll('[data-lead]').forEach((b) => b.onclick = () => { const l = leads[+b.dataset.lead]; O.dropLead((x) => x === l); open(); });
       });
     }

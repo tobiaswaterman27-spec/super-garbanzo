@@ -53,6 +53,7 @@
           for (const id of ids) { const q = s.byId.get(id); const aff = q.rel.get(0)?.affinity || 0; if (Math.random() > 0.35 + aff * 0.6) { s.remember(q, 'Was asked to the stranger\'s party, but had other plans.', 'social', 0.6, 0); continue; } hh.set(q.household, q); }
           for (const [h0, q] of hh) { const H = s.households[h0 - 1], from = 19 + (Math.random() * 2 - 0.5), to = 22 + Math.random() * 1.5; const members = H ? H.members.map((x) => s.byId.get(x)).filter((m) => m && m.alive !== false && (m.age >= 4)) : [q]; for (const m of members) guests.push({ id: m.id, from, to }); s.remember(q, 'Asked to the stranger\'s house for a party.', 'social', 1.2, 0); }
           s.party = { b: home.id, day: s.day, guests: [...hh.keys()], who: guests };
+          if (hh.size) O.addLead && O.addLead({ place: s.world.placeId, b: home.id, until: s.day * 1440 + 23 * 60, why: 'party', label: 'Your party at home tonight' });
           say(hh.size ? `${hh.size} household${hh.size > 1 ? 's' : ''} will come tonight, from about seven. Some will be early and some late.` : 'Nobody can come tonight. Maybe another time.', hh.size ? '' : 'bad'); open();
         };
         r.querySelectorAll('[data-notice]').forEach((b) => b.onclick = () => { const e = posts[+b.dataset.notice]; O.Employment.quit(`You hand in your notice at ${e.bizName}.`, e); open(); });

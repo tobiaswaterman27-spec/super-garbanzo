@@ -235,3 +235,11 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Parties at your house: invite a few; not all will come; some early, some late; families come together
 - [x] Cancelling a task cancels its arrow; several arrows at once
 - Next after this: how to get the jobs you can't simply ask for
+
+## Batch N (asked after step 79) - quick
+
+- [x] A king, queen and princess still about when you're monarch with no family: the old royal family steps down wherever you took the crown, and crown posts are always held at the capital
+- [x] Woken people stay awake a good while before sleeping again
+- [x] Your party is an undertaking too (J: call it off), with an arrow home
+- [x] Animations stopping: people indoors never advanced their animation, so they slid about frozen
+- [x] On the throne you sat on the grey step: now up on the seat

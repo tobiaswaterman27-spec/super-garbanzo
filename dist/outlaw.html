@@ -11792,6 +11792,7 @@ O.snowMaskOf = function (src) {
         if (seat && !seat.pewSeat) { // sat in a chair, facing the way it faces
           const [ax, ay] = this.anchor(seat), r = seat.rot || 0;
           dir = [0, 1, 2, 3][r]; x = ax + (r === 1 ? 2 : r === 2 ? -2 : 0); y = ay + (r === 0 ? -3 : r === 3 ? -3 : 1); sortY = ay + 0.6;
+          if (seat.kind === 'throne') { dir = 0; x = ax; y = ay - 9; }
           if (anim === 'idle') anim = 'sit';
           if (anim !== 'doze' && anim !== 'sit') anim = anim === 'drink' ? 'drink' : 'talk';
         }
@@ -11846,6 +11847,7 @@ O.snowMaskOf = function (src) {
     // everyone walks to where they belong, stepping round the furniture; arrived, they settle into it
     walkActors(dt) {
       for (const [id, a] of this.actors) {
+        a.ft = (a.ft || 0) + dt; // the animation runs on
         const dx = a.gx - a.x, dy = a.gy - a.y, d = Math.hypot(dx, dy);
         if (d < 1.5) {
           a.x = a.gx; a.y = a.gy; a.stuck = 0;
@@ -12008,6 +12010,7 @@ O.snowMaskOf = function (src) {
     // where you sit on a seat: a chair's own spot, or the nearest free place along a bench or pew
     seatPose(it) {
       const p = this.game.player, [ax, ay] = this.anchor(it), r = it.rot || 0;
+      if (it.kind === 'throne') return { x: ax, y: ay - 9, dir: 0, sortY: ay + 0.6 }; // up on the seat, not the step
       if (it.kind === 'pew' || it.kind === 'bench' || it.fw > 1) {
         const [rx0] = this.rect(it), k = O.clamp(Math.floor((p.x - rx0) / T), 0, it.fw - 1);
         return { x: rx0 + 8 + k * T, y: ay - 2, dir: it.kind === 'pew' ? 3 : [0, 1, 2, 3][r], sortY: ay + 0.6 };
@@ -17589,6 +17592,8 @@ O.snowMaskOf = function (src) {
       return seen;
     };
     O.takeAnyPost = (role) => {
+      // a crown post is held at the capital's castle: you're taken there first
+      if (['monarch', 'consort', 'heir'].includes(role) && !cur().world.buildings.some((b) => b.royal) && O.teleport) { const K = O.SimRef.home.kingdom, cap = K.places.find((x) => x.kind === 'capital'); if (cap) O.teleport(cap.id); }
       const s = cur(), type = O.allRoles().get(role);
       let bz = [...s.biz.values()].find((x) => x.type === type) || null;
       if (type === 'crown') { const all = [...s.biz.values()]; bz = all.find((x) => x.b && x.b.royal) || all.find((x) => x.type === 'palace' || x.type === 'keep') || all.find((x) => x.type === 'manor') || all.find((x) => x.type === 'townhall') || all[0]; }
@@ -17620,6 +17625,13 @@ O.snowMaskOf = function (src) {
       } else if (role === 'heir') { const h = fam.find((q) => q.title === 'Prince' || q.title === 'Princess'); if (h) { h.formerTitle = h.title; h.heirNoMore = true; } }
       PS.royal = role === 'monarch' || role === 'consort';
     }
+    // the crown is yours wherever you took it: the old royal family steps down as soon as you're among them
+    game.hooks.update.push(() => {
+      const s = cur(); if (!s || !O.crowned || !O.crowned() || s._deposedFor === 'player') return;
+      const keep = s.world.buildings.find((b) => b.royal); if (!keep) return;
+      s._deposedFor = 'player';
+      if (s.people.some((q) => q.royal && q.alive !== false)) depose(s, keep, posts().some((x) => x.role === 'monarch') ? 'monarch' : 'consort');
+    });
     function unlord(s) {
       const l = s.people.find((q) => q.lordOf && q.alive !== false); if (!l) return;
       l.formerTitle = l.title; if (l.name && l.title && l.name.startsWith(l.title + ' ')) l.name = l.name.slice(l.title.length + 1); l.title = null; l.lordOf = null;
@@ -18609,10 +18621,10 @@ O.snowMaskOf = function (src) {
     O.wakeBed = (it) => {
       const s = cur(), sc = game.scene, b = sc.b, keep = b.parent || b, list = sleepersIn(it); if (!list.length) return false;
       const q = list[0];
-      q.task = { act: 'home', b: keep.id, woken: abs(s) + 25 };
+      q.task = { act: 'home', b: keep.id, woken: abs(s) + 90 + Math.floor(Math.random() * 60) }; // once woken they lie awake a good while
       if (belongs(q, b)) {
         s.relate(q, { id: 0 }, -0.05);
-        say(`${q.first} stirs and sits up. “What? What is it?… Let me sleep.” They'll be back asleep before long.`);
+        say(`${q.first} stirs and sits up. “What? What is it?… Let me sleep.” It'll be a while before they get back to sleep.`);
         return true;
       }
       // a stranger at the bedside: up, and out of the door for help
@@ -18621,8 +18633,8 @@ O.snowMaskOf = function (src) {
       PS.crimes.push(cr.id); s.relate(q, { id: 0 }, -0.6);
       const guards = s.people.filter((g) => /guard/.test(g.job?.role || '') && g.alive !== false && g.activity?.act !== 'sleep');
       const near = keep.royal && guards.find((g) => g.agent.inside === keep.id);
-      q.task = { act: 'report', b: near ? keep.id : s.guardId, crime: cr.id, woken: abs(s) + 60 };
-      for (const z of list.slice(1)) z.task = { act: 'home', b: keep.id, woken: abs(s) + 40 };
+      q.task = { act: 'report', b: near ? keep.id : s.guardId, crime: cr.id, woken: abs(s) + 150 };
+      for (const z of list.slice(1)) z.task = { act: 'home', b: keep.id, woken: abs(s) + 120 };
       say(`${q.first} wakes with a start and sees you. “Who are you? Get out! ${keep.royal ? 'Guards! GUARDS!' : 'Help! Watch!'}” They scramble out of bed and run for help.`, 'bad');
       if (near && O.lawReport) O.lawReport(cr, near);
       return true;
@@ -19187,7 +19199,8 @@ O.snowMaskOf = function (src) {
       posts.forEach((e, i) => rows.push(`<tr><td><b>${esc(e.role)}</b> at ${esc(e.bizName)}${e.place !== s.world.placeId ? `, ${esc(e.placeName)}` : ''}${e.onShift ? ' <span class="warn">(on shift now)</span>' : ''}</td><td><button data-quit="${i}">${e.onShift ? 'Walk out' : 'Hand in notice'}</button></td></tr>`));
       if (C) rows.push(`<tr><td>${esc(C.text)} <span class="caption">(₳${C.reward})</span></td><td><button data-contract="1">Give it up</button></td></tr>`);
       gang.forEach((m, i) => rows.push(`<tr><td>For your gang: ${esc(m.task.text || m.task.kind)}</td><td><button data-gang="${i}">Let it go</button></td></tr>`));
-      const leads = (PS.leads || []).filter((l) => l.why !== 'contract' && l.until > s.day * 1440 + s.minute);
+      if (s.party && s.party.day === s.day && !s.party.done) rows.push(`<tr><td>Your party tonight, from seven (${s.party.guests.length} household${s.party.guests.length === 1 ? '' : 's'} coming)</td><td><button data-party="1">Call it off</button></td></tr>`);
+      const leads = (PS.leads || []).filter((l) => l.why !== 'contract' && l.why !== 'party' && l.until > s.day * 1440 + s.minute);
       leads.forEach((l, i) => rows.push(`<tr><td>Arrow: ${esc(l.label || 'somewhere to go')}</td><td><button data-lead="${i}">Stop</button></td></tr>`));
       O.Panels.open('Your undertakings', rows.length ? `<table><tbody>${rows.join('')}</tbody></table><p class="caption">Walking out mid-shift loses the day's pay and angers your master. Giving up a bounty, the watch will remember.</p>` : '<p>Nothing on your hands just now.</p>', (r) => {
         r.querySelectorAll('[data-quit]').forEach((b) => b.onclick = () => {
@@ -19199,6 +19212,7 @@ O.snowMaskOf = function (src) {
         });
         const c = r.querySelector('[data-contract]'); if (c) c.onclick = () => { if (PS.contract?.kind === 'escort') { const q = s.byId.get(PS.contract.target); if (q) { q.agent.frozen = false; q.agent.forceAnim = null; q.task = { act: 'leave', outdoor: true, zone: 'east', emigrating: true }; } } PS.contract = null; O.dropLead((l) => l.why === 'contract'); PS.rep.guard = Math.max(-1, PS.rep.guard - 0.05); say('You give up the contract. No pay.'); open(); };
         r.querySelectorAll('[data-gang]').forEach((b) => b.onclick = () => { const m = gang[+b.dataset.gang]; m.task = null; O.dropLead((l) => l.why === 'gangtask'); m.loyaltyHits = (m.loyaltyHits || 0) + 1; PS.rep.criminal = Math.max(0, PS.rep.criminal - 0.02); say('You let the job go. Your gang will remember it.', 'bad'); open(); });
+        const pt = r.querySelector('[data-party]'); if (pt) pt.onclick = () => { for (const g of s.party.who || []) { const q = s.byId.get(g.id); if (q) { s.relate(q, { id: 0 }, -0.05); s.remember(q, 'The stranger called off their party.', 'social', 0.6, 0); } } s.party = null; O.dropLead((l) => l.why === 'party'); say('You send word round: the party is off. The food will keep.', 'bad'); open(); };
         r.querySelectorAll('[data-lead]').forEach((b) => b.onclick = () => { const l = leads[+b.dataset.lead]; O.dropLead((x) => x === l); open(); });
       });
     }
@@ -19344,6 +19358,7 @@ O.snowMaskOf = function (src) {
           for (const id of ids) { const q = s.byId.get(id); const aff = q.rel.get(0)?.affinity || 0; if (Math.random() > 0.35 + aff * 0.6) { s.remember(q, 'Was asked to the stranger\'s party, but had other plans.', 'social', 0.6, 0); continue; } hh.set(q.household, q); }
           for (const [h0, q] of hh) { const H = s.households[h0 - 1], from = 19 + (Math.random() * 2 - 0.5), to = 22 + Math.random() * 1.5; const members = H ? H.members.map((x) => s.byId.get(x)).filter((m) => m && m.alive !== false && (m.age >= 4)) : [q]; for (const m of members) guests.push({ id: m.id, from, to }); s.remember(q, 'Asked to the stranger\'s house for a party.', 'social', 1.2, 0); }
           s.party = { b: home.id, day: s.day, guests: [...hh.keys()], who: guests };
+          if (hh.size) O.addLead && O.addLead({ place: s.world.placeId, b: home.id, until: s.day * 1440 + 23 * 60, why: 'party', label: 'Your party at home tonight' });
           say(hh.size ? `${hh.size} household${hh.size > 1 ? 's' : ''} will come tonight, from about seven. Some will be early and some late.` : 'Nobody can come tonight. Maybe another time.', hh.size ? '' : 'bad'); open();
         };
         r.querySelectorAll('[data-notice]').forEach((b) => b.onclick = () => { const e = posts[+b.dataset.notice]; O.Employment.quit(`You hand in your notice at ${e.bizName}.`, e); open(); });

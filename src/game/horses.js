@@ -76,7 +76,7 @@
       const p = game.player, mount = p.mount;
       for (const h of horses) {
         h.ft += dt;
-        if (h === mount) { h.x = p.x; h.y = p.y; h.dir = p.dir; h.anim = p.moving ? (p.galloping ? 'gallop' : 'walk') : 'idle'; }
+        if (h === mount) { h.x = p.x; h.y = p.y; h.dir = O.dir4(p.dir); h.anim = p.moving ? (p.galloping ? 'gallop' : 'walk') : 'idle'; }
         else if (h.inPaddock !== false && !h.tied && (h.world || 'ashford') === 'ashford') {
           if (h.tx == null) { if (r.next() < dt * 0.15) { h.tx = r.int(paddock.x0, paddock.x1) * T + 8; h.ty = r.int(paddock.y0, paddock.y1) * T + 12; } h.anim = 'idle'; }
           else { const dx = h.tx - h.x, dy = h.ty - h.y, d = Math.hypot(dx, dy); if (d < 1) h.tx = null; else { const st = Math.min(d, 10 * dt); h.x += (dx / d) * st; h.y += (dy / d) * st; h.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 1 : 2) : (dy < 0 ? 3 : 0); h.anim = 'walk'; } }

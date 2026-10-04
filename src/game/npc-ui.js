@@ -26,9 +26,9 @@
       talking = q; q.agent.frozen = true;
       const pos = game.scene ? game.scene.personPos(q) || [q.agent.x, q.agent.y] : [q.agent.x, q.agent.y];
       const dx = game.player.x - pos[0], dy = game.player.y - pos[1];
-      q.agent.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 1 : 2) : (dy < 0 ? 3 : 0);
+      q.agent.dir = O.dirOf(dx, dy);
       if (game.scene) { const a = game.scene.actors.get(q.id); if (a) a.dir = q.agent.dir; }
-      game.player.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 2 : 1) : (dy < 0 ? 0 : 3);
+      game.player.dir = O.dirOf(-dx, -dy);
       const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; r.familiar = Math.min(1, r.familiar + 0.1); q.rel.set(0, r);
       if (r.familiar <= 0.11) sim.remember(q, 'A stranger stopped me in the street to talk.', 'player', 0.8, 0);
       renderTalk(O.Dialogue.provider.greet(O.Dialogue.buildContext(sim, q), q.id + sim.day));

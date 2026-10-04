@@ -18,7 +18,7 @@
     function syncLook() { const w = PS.equipped && PS.items.includes(PS.equipped) ? PS.equipped : null; if (game.player.a.outfit.item !== w) { game.player.a.outfit.item = w; O.Char.invalidate(game.player.a); } }
 
     function personAt(px, py, reach, dir) {
-      const d = [[0, 1], [-1, 0], [1, 0], [0, -1]][dir];
+      const d = O.Char.DIRV[dir] || [0, 1];
       const hx = px + d[0] * reach * 0.7, hy = py + d[1] * reach * 0.6;
       let best = null, bd = reach;
       const list = game.scene ? [...game.scene.actors.values()].map((a) => [a.person, a.x, a.y]) : sim.people.filter((q) => !q.agent.hidden).map((q) => [q, q.agent.x, q.agent.y]);
@@ -74,7 +74,7 @@
     function attack() {
       if (swing > 0 || playerCd > 0 || O.panelOpen || game.player.locked) return;
       syncLook(); swing = 0.36; swingHit = false; playerCd = 0.45;
-      game.player.anim = 'work'; game.player.ft = 0;
+      game.player.anim = 'attack'; game.player.ft = 0;
     }
 
     game.keyHandlers.push((e) => {
@@ -91,7 +91,7 @@
     game.hooks.update.push((dt) => {
       playerCd = Math.max(0, playerCd - dt);
       if (swing > 0) {
-        swing -= dt; game.player.anim = 'work';
+        swing -= dt; game.player.anim = 'attack';
         if (!swingHit && swing < 0.2) {
           swingHit = true;
           const w = weapon();
@@ -119,21 +119,21 @@
         if (f.mode === 'fight') {
           if (d > 14) { const sp = 70 * dt; const nx = a.x + (dx / d) * sp, ny = a.y + (dy / d) * sp; if (!game.solidAt(nx, ny)) { a.x = nx; a.y = ny; } a.anim = 'run'; }
           else if (f.cd <= 0) {
-            f.cd = 0.9; a.anim = 'work';
+            f.cd = 0.9; a.anim = 'attack'; a.ft = 0;
             const armed = q.app.outfit.item && ['spear', 'sword', 'axe', 'hammer', 'pitchfork', 'dagger'].includes(q.app.outfit.item);
             const dmg = (armed ? 12 : 6) * (q.job?.role?.startsWith('guard') ? 1.2 : 1) * sim.rng.float(0.7, 1.2);
             PS.hp -= dmg; fx.push({ x: game.player.x, y: game.player.y - 16, flash: true, t: 0, max: 0.12 });
             for (let i = 0; i < 4; i++) fx.push({ x: game.player.x, y: game.player.y - 8, vx: (Math.random() - 0.5) * 40, vy: -Math.random() * 30, t: 0, max: 0.3, c: 'rgba(170,140,100,0.8)' });
             if (PS.hp <= 0) return knockedOut(q);
-          }
-          a.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 1 : 2) : (dy < 0 ? 3 : 0);
+          } else if (f.cd < 0.55) a.anim = 'idle';
+          a.dir = O.dirOf(dx, dy);
           if (d > 200 || f.t > 40) { fights.delete(id); a.chasing = false; }
         } else if (f.mode === 'flee') {
           const sp = 80 * dt; const nx = a.x - (dx / d) * sp, ny = a.y - (dy / d) * sp;
           if (!game.solidAt(nx, ny)) { a.x = nx; a.y = ny; } else if (!game.solidAt(a.x - (dx / d) * sp, a.y)) a.x -= (dx / d) * sp; else a.y -= (dy / d) * sp;
-          a.anim = 'run'; a.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 2 : 1) : (dy < 0 ? 0 : 3);
+          a.anim = 'run'; a.dir = O.dirOf(-dx, -dy);
           if (f.t > 5) { fights.delete(id); a.chasing = false; const g = sim.people.find((z) => z.job?.role?.startsWith('guard') && !z.agent.hidden && !z.task); if (g) { const cr = sim.crimes.filter((c) => c.perp === 'player').pop(); if (cr && !cr.reported) { cr.reported = true; g.task = { act: 'investigate', outdoor: true, crime: cr.id, tile: cr.tile }; } } }
-        } else if (f.mode === 'surrender') { a.anim = 'idle'; a.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 1 : 2) : (dy < 0 ? 3 : 0); if (f.t > 12) { fights.delete(id); a.chasing = false; } }
+        } else if (f.mode === 'surrender') { a.anim = 'idle'; a.dir = O.dirOf(dx, dy); if (f.t > 12) { fights.delete(id); a.chasing = false; } }
       }
       for (const p of fx) { p.t += dt; if (!p.flash) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 80 * dt; } }
       for (let i = fx.length - 1; i >= 0; i--) if (fx[i].t > fx[i].max) fx.splice(i, 1);

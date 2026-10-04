@@ -121,7 +121,7 @@
         const nx = p.x + mx * sp * dt, ny = p.y + my * sp * dt;
         if (!this.blocked(nx, p.y)) p.x = nx;
         if (!this.blocked(p.x, ny)) p.y = ny;
-        p.dir = Math.abs(mx) > Math.abs(my) + 0.01 ? (mx < 0 ? 1 : 2) : (my < 0 ? 3 : 0);
+        p.dir = O.dirOf(mx, my);
         p.anim = p.mount ? 'sit' : run ? 'run' : 'walk';
       } else if (p.anim === 'walk' || p.anim === 'run') p.anim = 'idle';
       p.moving = len > 0;

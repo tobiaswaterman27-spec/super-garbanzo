@@ -512,7 +512,7 @@
         const dx = gx - a.x, dy = gy - a.y, d = Math.hypot(dx, dy);
         if (d <= budget) { a.x = gx; a.y = gy; budget -= d; a.pi++; }
         else { a.x += (dx / d) * budget; a.y += (dy / d) * budget; budget = 0; }
-        if (d > 0.01) a.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 1 : 2) : (dy < 0 ? 3 : 0);
+        if (d > 0.01) a.dir = O.dirOf(dx, dy);
       }
       if (a.path) a.anim = a.carrying ? 'carry' : p.activity?.act === 'play' && p.id % 2 ? 'run' : 'walk';
     }

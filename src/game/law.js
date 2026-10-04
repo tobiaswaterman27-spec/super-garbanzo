@@ -23,7 +23,7 @@
 
     // ---------------- pickpocket ----------------
     function facingAway(q, ax, ay) {
-      const d = [[0, 1], [-1, 0], [1, 0], [0, -1]][q.agent.dir] || [0, 1];
+      const d = O.Char.DIRV[q.agent.dir] || [0, 1];
       const vx = game.player.x - ax, vy = game.player.y - ay, m = Math.hypot(vx, vy) || 1;
       return (d[0] * vx + d[1] * vy) / m < 0.2;
     }
@@ -139,7 +139,7 @@
         const ddx = tx - a.x, ddy = ty - a.y, dd = Math.hypot(ddx, ddy);
         if (dd <= budget) { a.x = tx; a.y = ty; budget -= dd; if (chase.pi < chase.path.length) chase.pi++; else break; }
         else { a.x += (ddx / dd) * budget; a.y += (ddy / dd) * budget; budget = 0; }
-        if (dd > 0.01) a.dir = Math.abs(ddx) > Math.abs(ddy) ? (ddx < 0 ? 1 : 2) : (ddy < 0 ? 3 : 0);
+        if (dd > 0.01) a.dir = O.dirOf(ddx, ddy);
       }
       a.anim = 'run'; a.ft += 0;
     });

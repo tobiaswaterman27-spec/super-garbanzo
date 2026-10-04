@@ -10,7 +10,8 @@
   const L = (() => { const v = [-0.5, -0.62, 0.6]; const m = Math.hypot(...v); return v.map((c) => c / m); })();
 
   function shadeFromNormal(nx, ny, nz, kind) {
-    const lam = nx * L[0] + ny * L[1] + nz * L[2];
+    let lam = nx * L[0] + ny * L[1] + nz * L[2];
+    if (kind === 'skin') lam = (lam + 0.45) / 1.45; // skin scatters light: faces turned from the sun stay readable
     let s;
     if (kind === 'metal') s = lam > 0.9 ? 4 : lam > 0.66 ? 3 : lam > 0.35 ? 2 : 1;
     else if (kind === 'skin') s = lam > 0.97 ? 4 : lam > 0.6 ? 3 : lam > 0.22 ? 2 : 1;
@@ -64,7 +65,7 @@
         if (d > r) continue;
         const m = typeof matFn === 'function' ? matFn(u) : matFn;
         if (m == null || m < 0) continue;
-        const dn = d / (r || 1), nx = d ? (ox / d) * dn : 0, ny = d ? (oy / d) * dn : 0, nz = Math.sqrt(Math.max(0, 1 - dn * dn));
+        const dn = d / (r || 1), nx = (d ? (ox / d) * dn : 0) * (this.mirror ? -1 : 1), ny = d ? (oy / d) * dn : 0, nz = Math.sqrt(Math.max(0, 1 - dn * dn));
         const kind = O.Pal.mats[m].kind;
         this.plot(x, y, m, O.clamp(shadeFromNormal(nx, ny, nz, kind) + bias, 0, 4));
       }
@@ -78,7 +79,8 @@
         if (!inside(px, py)) continue;
         const m = typeof matFn === 'function' ? matFn(px, py) : matFn;
         if (m == null || m < 0) continue;
-        const [nx, ny, nz] = normal(px, py);
+        let [nx, ny, nz] = normal(px, py);
+        if (this.mirror) nx = -nx; // mirrored sprites still take their light from the upper left
         const kind = O.Pal.mats[m].kind;
         let s = shadeFromNormal(nx, ny, nz, kind) + bias;
         if (opts.maxShade != null) s = Math.min(s, opts.maxShade);

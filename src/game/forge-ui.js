@@ -160,7 +160,7 @@
       const age = r.weighted([[r.int(3, 7), 1], [r.int(8, 12), 1], [r.int(13, 17), 1], [r.int(18, 44), 4], [r.int(45, 64), 2], [r.int(65, 85), 1.2]]);
       const role = age < 13 ? 'child' : r.pick(roles);
       const a = Ch.makeAppearance(r.int(1, 1e9), { age, role, region, wealth: O.clamp(wealth + r.float(-0.25, 0.25), 0, 1) });
-      crowd.push({ a, dir: r.int(0, 3), anim: r.pick(['idle', 'idle', 'walk', 'talk', 'work', 'eat']), off: r.int(0, 5) });
+      crowd.push({ a, dir: r.int(0, 7), anim: r.pick(['idle', 'idle', 'walk', 'talk', 'work', 'eat']), off: r.int(0, 5) });
     }
     const leg = $('crowdLegend'); leg.innerHTML = '';
     const counts = {}; crowd.forEach((c) => { counts[c.a.stage] = (counts[c.a.stage] || 0) + 1; });

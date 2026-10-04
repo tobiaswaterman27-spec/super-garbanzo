@@ -36,31 +36,58 @@
     return out.map((l) => (l.length > 34 ? l.slice(0, 33) + '.' : l));
   }
 
-  function setup(game) {
-    const cache = new Map(); // building -> lines, refreshed every few seconds
-    let t = 0;
-    game.hooks.update.push((dt) => { t -= dt; if (t <= 0) { t = 3; cache.clear(); } });
-    game.hooks.drawTop.push((ctx, cam, indoor) => {
-      if (indoor || game.scene || !game.world) return;
-      const sim = O.SimRef.cur, p = game.player, T = game.world.T;
-      // only the one or two buildings you're nearest, so the street doesn't fill with boards
-      const near = game.world.buildings.filter((b) => b.doorX != null && Math.abs(b.doorX * T + 8 - p.x) < 110 && Math.abs(b.doorY * T - p.y) < 90)
-        .sort((a, c) => Math.hypot(a.doorX * T + 8 - p.x, a.doorY * T - p.y) - Math.hypot(c.doorX * T + 8 - p.x, c.doorY * T - p.y)).slice(0, 2);
-      for (const b of near) {
-        const dx = b.doorX * T + 8, dy = b.doorY * T;
-        let lines = cache.get(b); if (lines === undefined) { lines = linesFor(sim, b); cache.set(b, lines); }
-        if (!lines) continue;
-        const w = Math.max(...lines.map(width)) + 8, h = lines.length * 7 + 5;
-        const sx = Math.round(dx - w / 2 - cam.x), sy = Math.round(dy - 58 - h - cam.y);
-        // the board hanging from its bracket
-        ctx.fillStyle = '#3a2618'; ctx.fillRect(sx + 4, sy - 4, 1, 4); ctx.fillRect(sx + w - 5, sy - 4, 1, 4); ctx.fillRect(sx + 2, sy - 5, w - 4, 1);
-        ctx.fillStyle = '#2a1a10'; ctx.fillRect(sx - 1, sy - 1, w + 2, h + 2);
-        ctx.fillStyle = '#8a6239'; ctx.fillRect(sx, sy, w, h);
-        ctx.fillStyle = '#a07448'; ctx.fillRect(sx, sy, w, 1);
-        ctx.fillStyle = '#6a4a2c'; ctx.fillRect(sx, sy + h - 1, w, 1);
-        lines.forEach((l, i) => { const lx = sx + Math.round((w - width(l)) / 2); text(ctx, l, lx, sy + 3 + i * 7, i ? '#f0e2c0' : '#ffe9a8'); });
-      }
-    });
+  // Little wooden signs on a post, like a village noticeboard in miniature: one stands by every door,
+  // just to the left of it, and you read it by walking up to it (E). A For Sale board stands to the right.
+  let nameSprite = null;
+  function nameSign() {
+    if (nameSprite) return nameSprite;
+    const P = O.Pal, B = new O.MatBuffer(16, 17), wood = P.mat(P.wood.oak, 'wood'), pale = P.mat('#c89a5e', 'wood'), ink = P.mat('#4a3020', 'wood');
+    B.part(1); B.capsule(8, 16, 8, 8, 0.9, 0.9, wood);
+    B.part(2); B.rect(1, 1, 14, 9, pale, 2); for (let x = 1; x < 15; x++) { B.shadeAt(x, 9, 1); B.shadeAt(x, 1, 3); } B.shadeAt(1, 1, 1); B.shadeAt(14, 1, 1);
+    for (const [x0, x1, y] of [[3, 12, 4], [4, 10, 6]]) for (let x = x0; x <= x1; x++) B.plot(x, y, ink, 1);
+    const c = B.toCanvas(); nameSprite = { canvas: c, ox: 8, oy: 16, W: c.width, H: c.height }; return nameSprite;
   }
-  O.Signs = { setup, linesFor };
+  // a spot beside a door that's free to stand a sign on, or null
+  function spotBy(w, b, side) {
+    for (const dx of side < 0 ? [-1, -2] : [1, 2]) {
+      const x = b.doorX + dx, y = b.doorY, i = y * w.W + x;
+      if (x < 0 || y < 0 || x >= w.W || y >= w.H || w.solid[i]) continue;
+      const t = w.ter[i]; if (t === w.TER.WATER || t === w.TER.BRIDGE) continue;
+      if (w.props.some((p) => Math.floor(p.x / 16) === x && Math.floor((p.y - 1) / 16) === y && !p.flat)) continue;
+      return [x, y];
+    }
+    return null;
+  }
+  // stand a sign prop beside a building's door (kept solid so you walk round it like anything else)
+  function plant(w, b, kind, sprite, side) {
+    const at = spotBy(w, b, side); if (!at) return null;
+    const p = { kind, x: at[0] * 16 + 8, y: at[1] * 16 + 13, seed: b.id, solid: true, sprite, signFor: b.id };
+    w.props.push(p); w.solid[at[1] * w.W + at[0]] = 1; w.dirtyStatics = true;
+    return p;
+  }
+  function pull(w, p) { const i = w.props.indexOf(p); if (i >= 0) w.props.splice(i, 1); w.solid[Math.floor((p.y - 1) / 16) * w.W + Math.floor(p.x / 16)] = 0; w.dirtyStatics = true; }
+
+  function setup(game) {
+    // every building with a door gets its little sign, once per world
+    game.hooks.update.push(() => {
+      const w = game.world; if (!w || game.scene || w._signed) return;
+      w._signed = true;
+      for (const b of w.buildings) if (b.doorX != null && !b.site && !b.ruined && b.type !== 'hideout' && !w.props.some((p) => p.kind === 'namesign' && p.signFor === b.id)) plant(w, b, 'namesign', nameSign(), -1);
+    });
+    const T = 16;
+    O.signCandidate = () => {
+      const w = game.world; if (!w || game.scene) return null;
+      const p = game.player; let best = null, bd = 22;
+      for (const q of w.props) if (q.kind === 'namesign' && Math.abs(q.x - p.x) < 30 && Math.abs(q.y - p.y) < 30) { const d = Math.hypot(q.x - p.x, q.y - p.y); if (d < bd) { bd = d; best = { type: 'namesign', prop: q, d, x: q.x, y: q.y - 26 }; } }
+      return best;
+    };
+    O.readSign = (c) => {
+      const w = game.world, b = w.buildings.find((x) => x.id === c.prop.signFor); if (!b) return;
+      const lines = linesFor(O.SimRef.cur, b) || [b.name || 'A house'];
+      const nice = (t) => t.toLowerCase().replace(/(^|[\s'-])([a-z])/g, (m, a, ch) => a + ch.toUpperCase());
+      O.UI.dialog.open({ name: nice(lines[0]), color: '#8a6239', text: lines.slice(1).map(nice).join('. ') || 'Nothing more is written.', options: [] });
+    };
+    void T;
+  }
+  O.Signs = { setup, linesFor, plant, pull, spotBy };
 })();

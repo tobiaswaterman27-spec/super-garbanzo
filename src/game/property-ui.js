@@ -7,7 +7,8 @@
 
   function setup(game, sim) {
     const home = () => O.SimRef.home;
-    const forSale = (b) => !b.site && !b.ruined && !b.fire && b.type !== 'hideout' && ((b.type === 'house' && !b.household) || b.closedShop) && (!b.owner || b.owner.kind !== 'player');
+    const forSale = (b) => !b.site && !b.ruined && !b.fire && b.type !== 'hideout' && ((b.type === 'house' && !b.household) || b.closedShop || b.listed) && (!b.owner || b.owner.kind !== 'player');
+    O.forSale = forSale;
     const owned = (b) => b.owner && b.owner.kind === 'player';
 
     // a little painted sign by the door of anything for sale
@@ -21,21 +22,44 @@
       [...'SALE'].forEach((ch, i) => FONT[ch].forEach((row, y) => [...row].forEach((v, x) => { if (v === '1') B.plot(3 + i * 4 + x, 4 + y, red, 2); })));
       signCanvas = B.toCanvas(); return signCanvas;
     }
-    game.hooks.drawWorld.push((ctx, cam) => {
-      if (game.scene) return;
-      for (const b of sim.world.buildings) if (forSale(b)) { const x = b.doorX * 16 + 14 - cam.x, y = b.doorY * 16 - 14 - cam.y; if (x > -20 && y > -20 && x < game.vw + 20 && y < game.vh + 20) ctx.drawImage(sign(), Math.round(x), Math.round(y)); }
+    // the boards stand in the street as real things (you walk round them, and they sit behind what's in front)
+    let saleT = 0;
+    const saleSprite = () => { const c = sign(); return { canvas: c, ox: 11, oy: 17, W: c.width, H: c.height }; };
+    game.hooks.update.push((dt) => {
+      saleT -= dt; const w = game.world; if (saleT > 0 || !w || game.scene || w !== sim.world) return; saleT = 1;
+      for (const b of w.buildings) {
+        if (b.doorX == null) continue;
+        const want = forSale(b), has = w.props.find((p) => p.kind === 'salesign' && p.signFor === b.id);
+        if (want && !has) O.Signs.plant(w, b, 'salesign', saleSprite(), 1); else if (!want && has) O.Signs.pull(w, has);
+      }
     });
     O.saleCandidate = () => {
       if (game.scene) return null;
-      for (const b of sim.world.buildings) { if (!(forSale(b) || owned(b))) continue; const d = Math.hypot(b.doorX * 16 + 8 - game.player.x, b.doorY * 16 + 6 - game.player.y); if (d < 16) return { type: 'property', b, d: d + 2, x: b.doorX * 16 + 8, y: b.doorY * 16 - 20 }; }
+      const w = game.world, pl = game.player;
+      for (const q of w.props) if (q.kind === 'salesign' && Math.abs(q.x - pl.x) < 26 && Math.abs(q.y - pl.y) < 26) { const b = w.buildings.find((x) => x.id === q.signFor); if (b) { const d = Math.hypot(q.x - pl.x, q.y - pl.y); return { type: 'property', b, d, x: q.x, y: q.y - 28 }; } }
+      for (const b of sim.world.buildings) { if (!(forSale(b) || owned(b))) continue; const d = Math.hypot(b.doorX * 16 + 8 - pl.x, b.doorY * 16 + 6 - pl.y); if (d < 16) return { type: 'property', b, d: d + 2, x: b.doorX * 16 + 8, y: b.doorY * 16 - 20 }; }
       return null;
     };
+    // owners put things up for sale now and then: a landlord's spare house, a struggling shop
+    let lastList = -1;
+    game.hooks.update.push(() => {
+      const H = home(); if (H.day === lastList) return; lastList = H.day;
+      for (const v of O.Travel.visited.values()) {
+        const s = v.sim, r = s.rng;
+        for (const b of s.world.buildings) if (b.listed && H.day - b.listed.day > 12) b.listed = null; // no buyer: taken off the market
+        if (!r.chance(0.35)) continue;
+        const spare = s.world.buildings.filter((b) => b.type === 'house' && b.owner?.kind === 'household' && b.household && s.households[b.owner.id - 1] && s.households[b.owner.id - 1].home !== b.id && !b.listed);
+        const weak = [...s.biz.values()].filter((bz) => !bz.ownerPlayer && bz.cash < 15 && bz.workers && bz.workers.length).map((bz) => s.world.buildings.find((b) => b.id === bz.id)).filter((b) => b && !b.listed);
+        const pick = r.chance(0.5) && spare.length ? r.pick(spare) : weak.length ? r.pick(weak) : spare.length ? r.pick(spare) : null;
+        if (pick) { pick.listed = { day: H.day }; s.log(`${pick.type === 'house' ? 'A let house' : pick.name} has been put up for sale.`, 'economy'); }
+      }
+    });
 
     function panel(b) {
       const s = sim, v = s.value(b), mine = owned(b), shop = !!b.closedShop || (s.biz.get(b.id) && mine);
       const tenants = b.household ? s.households[b.household - 1] : null;
       const rentEst = Math.max(2, Math.round(v / 140));
-      O.Panels.open(mine ? `Your ${b.type === 'house' ? 'house' : 'property'}` : `${b.closedShop ? 'Empty shop' : 'Empty house'} for sale`, `<div class="kv">
+      O.Panels.open(mine ? `Your ${b.type === 'house' ? 'house' : 'property'}` : `${b.listed ? (s.biz.get(b.id) ? `${b.name}, a going concern,` : 'A let house') : b.closedShop ? 'Empty shop' : 'Empty house'} for sale`, `<div class="kv">
         <div><span class="lbl">Value</span><b>${O.money(v)}</b><small>${b.w * 2}×${b.d * 2} paces inside, ${b.floors || 1} floor${(b.floors || 1) > 1 ? 's' : ''}, condition ${Math.round((b.condition ?? 0.8) * 100)}%</small></div>
         <div><span class="lbl">Owner</span><b>${esc(s.ownerName(b.owner))}</b><small>${tenants ? `let to the ${esc(tenants.surname)} family at ${b.rent || rentEst}d a week` : 'standing empty'}</small></div>
         ${b.closedShop ? `<div><span class="lbl">Was</span><b>${esc(b.closedShop.name)}</b><small>closed on day ${b.closedShop.day}</small></div>` : ''}
@@ -52,6 +76,7 @@
           PS.money -= v;
           if (b.owner && b.owner.kind === 'household') { const hh = s.households[b.owner.id - 1]; if (hh) hh.money += v; } else s.treasury.cash += v;
           b.owner = { kind: 'player' }; b.rent = b.household ? (b.rent || rentEst) : null;
+          if (b.listed) { b.listed = null; const bz = s.biz.get(b.id); if (bz) { const seller = bz.owner != null && s.byId.get(bz.owner); if (seller) { const hh = s.household(seller); if (hh) hh.money += Math.round(v * 0.2); } bz.ownerPlayer = true; } }
           s.log(`A newcomer has bought ${b.closedShop ? 'the old ' + b.closedShop.name : 'a house'} for ${v}d.`, 'economy');
           PS.rep.merchant = Math.min(1, PS.rep.merchant + 0.05);
           panel(b);

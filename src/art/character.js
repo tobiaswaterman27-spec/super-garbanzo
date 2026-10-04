@@ -38,10 +38,10 @@
     let m;
     switch (st) {
       case 'baby': m = { headRx: 4.6, headRy: 4.5, torso: 5, leg: 5, armU: 2.6, armL: 2.4, shW: 7, waistW: 7.5, hipW: 7.5, limbR: 1.4, legR: 1.6 }; break;
-      case 'child': m = { headRx: 6.2, headRy: 6.1, torso: 7, leg: 8, armU: 3.6, armL: 3.4, shW: 8, waistW: 8, hipW: 8.5, limbR: 1.45, legR: 1.7 }; break;
-      case 'olderChild': m = { headRx: 6.4, headRy: 6.3, torso: 8, leg: 10, armU: 4.2, armL: 4, shW: 9, waistW: 8.5, hipW: 9, limbR: 1.5, legR: 1.8 }; break;
-      case 'teen': m = { headRx: 6.6, headRy: 6.7, torso: 10.5, leg: 13.5, armU: 5, armL: 4.8, shW: 10.5, waistW: 9, hipW: 9.5, limbR: 1.55, legR: 1.95 }; break;
-      default: m = { headRx: 6.9, headRy: 7.0, torso: 12, leg: 15, armU: 5.6, armL: 5.4, shW: 13.4, waistW: 10, hipW: 10.5, limbR: 1.65, legR: 2.05 };
+      case 'child': m = { headRx: 5.7, headRy: 5.6, torso: 7, leg: 8, armU: 3.6, armL: 3.4, shW: 8, waistW: 8, hipW: 8.5, limbR: 1.45, legR: 1.7 }; break;
+      case 'olderChild': m = { headRx: 5.9, headRy: 5.8, torso: 8, leg: 10, armU: 4.2, armL: 4, shW: 9, waistW: 8.5, hipW: 9, limbR: 1.5, legR: 1.8 }; break;
+      case 'teen': m = { headRx: 5.9, headRy: 6.0, torso: 10.5, leg: 13.5, armU: 5, armL: 4.8, shW: 10.5, waistW: 9, hipW: 9.5, limbR: 1.55, legR: 1.95 }; break;
+      default: m = { headRx: 6.1, headRy: 6.2, torso: 12, leg: 15, armU: 5.6, armL: 5.4, shW: 13.4, waistW: 10, hipW: 10.5, limbR: 1.65, legR: 2.05 };
     }
     m.stage = st;
     if (st !== 'child' && st !== 'olderChild' && st !== 'baby') {
@@ -727,18 +727,14 @@
         // one clean eye: a dark pupil over the iris on the inner side, the white beside it, a lid shadow above
         const inner = cols.length > 1 ? (outer < 0 ? cols[1] : cols[0]) : cols[0], outerCol = cols.length > 1 ? (outer < 0 ? cols[0] : cols[1]) : null;
         // two pixels tall: the dark pupil with a glint, the coloured iris under it, the white beside
-        // a detailed eye, two wide and three tall: the lid line, then the white beside the dark pupil,
-        // then the coloured iris under the pupil
-        if (outerCol != null) {
-          plot(inner, ey - 1, a.eyeDark, 1); plot(outerCol, ey - 1, a.eyeDark, 1);
-          plot(outerCol, ey, a.eyeWhite, 3); plot(inner, ey, a.eyeDark, 0);
-          plot(inner, ey + 1, a.eyes, 2); plot(outerCol, ey + 1, a.eyes, 1);
-        } else { plot(inner, ey - 1, a.eyeDark, 1); plot(inner, ey, a.eyeDark, 0); plot(inner, ey + 1, a.eyes, 2); }
+        // a clear upright eye, two pixels tall: dark above, the iris colour (deepened) below
+        plot(inner, ey - 1, a.eyeDark, 1); plot(inner, ey, a.eyes, 0);
+        void outerCol;
         if (a.sex === 'f' && a.stage !== 'child' && outerCol != null) { const lx = outerCol + (outerCol > inner ? 1 : -1); if (isSkin(lx, ey - 1)) plot(lx, ey - 1, a.eyeDark, 1); } // lashes
         if (f.eyeType === 1) plot(inner, ey + 1, a.skin, 1); // heavy lower lid
       }
       // brow
-      const by = ey - 3 - (H.ry > 6.5 ? 1 : 0);
+      const by = ey - 3;
       if (f.brow > 0 || elder || a.sex === 'm') {
         const bc = wf > 0.55 ? [ex - 1, ex] : cols;
         for (const x of bc) if (isSkin(x, by)) plot(x, by, browM, a.sex === 'f' ? 2 : f.brow > 1 ? 0 : 1);
@@ -767,7 +763,7 @@
     // mouth
     const mq = headPt(S, H, 0, 0.62, 0.8);
     if (-mq[2] > 0 || V.side) {
-      const my = Math.floor(eyeY) + 4 + (H.ry > 6.5 ? 1 : 0) - (H.ry < 5.3 ? 1 : 0);
+      const my = Math.floor(eyeY) + 4 - (H.ry < 5.3 ? 1 : 0);
       const mxc = V.side ? Math.round(H.cx + H.e * 0.68) : Math.round(mq[0]);
       const wide = -mq[2] > 0.55;
       const xs = wide ? [mxc - 1, mxc] : [mxc - (V.side ? 0 : 1)];

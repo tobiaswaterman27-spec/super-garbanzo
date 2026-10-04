@@ -55,7 +55,11 @@
       for (const w of walkers) { w.t += dt; }
       for (let i = walkers.length - 1; i >= 0; i--) if (walkers[i].t >= walkers[i].dur) { const w = walkers[i]; walkers.splice(i, 1); w.done && w.done(); }
       const p = game.player;
-      if (p.walkingDoor) { p.locked = true; p._suppressUntil = game.t + 0.05; }
+      if (p.walkingDoor) {
+        p.walkingDoorT = (p.walkingDoorT || 0) + dt;
+        if (p.walkingDoorT > 1.6) { p.walkingDoor = false; p.walkingDoorT = 0; p.locked = false; } // never left standing in a doorway
+        else { p.locked = true; p._suppressUntil = game.t + 0.05; }
+      } else p.walkingDoorT = 0;
     });
 
     // drawn straight after the building, so the doorway sits in its wall

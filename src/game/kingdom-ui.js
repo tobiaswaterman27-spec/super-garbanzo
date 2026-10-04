@@ -162,7 +162,7 @@
       }
       ctx.putImageData(img, 0, 0);
       // ruins of older times
-      for (const r of E.RUINS) { const x = r.x * MS, y = r.y * MS; ctx.fillStyle = '#5a5248'; ctx.fillRect(x - 3, y - 2, 2, 4); ctx.fillRect(x + 1, y - 3, 2, 5); ctx.fillRect(x - 3, y + 2, 6, 1); }
+      for (const r of E.RUINS) { const x = Math.round(r.x * MS), y = Math.round(r.y * MS); ctx.fillStyle = '#1b1424'; ctx.fillRect(x - 2, y - 2, 5, 5); ctx.fillStyle = '#8a8278'; ctx.fillRect(x - 1, y - 1, 3, 3); }
       return c;
     }
     // tiny pixel pictures of places: roofs, walls, towers, a spire, a keep
@@ -212,7 +212,6 @@
         ctx.fillStyle = '#1b1424'; ctx.fillRect(x - sz - 1, y - sz - 1, sz * 2 + 3, sz * 2 + 3);
         ctx.fillStyle = s.detailed ? '#f0b45c' : s.kind === 'castle' ? '#c8ccd4' : s.kind === 'capital' || s.kind === 'city' ? '#f4e8c8' : s.happiness < 0.4 ? '#c87060' : '#e8dcc0';
         ctx.fillRect(x - sz, y - sz, sz * 2 + 1, sz * 2 + 1);
-        if (s.kind === 'castle' || s.kind === 'capital' || s.kind === 'city') { ctx.fillStyle = '#1b1424'; for (let k = -sz; k <= sz; k += 2) ctx.fillRect(x + k, y - sz - 1, 1, 1); ctx.fillRect(x, y - 1, 1, 3); }
       }
       // you are here
       // you are here: exactly where you stand on the island

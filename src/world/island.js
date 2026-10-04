@@ -9,7 +9,7 @@
 // so walking from one region into the next is seamless: you are simply nearer the next town now.
 'use strict';
 (function () {
-  const U = 20, T = 16, MARGIN = 44;
+  const U = 20, T = 16, MARGIN = 64;
   const E = () => O.Eldoria, TER = () => O.Village.TER;
   let K = null;
   const towns = new Map(), regions = new Map();

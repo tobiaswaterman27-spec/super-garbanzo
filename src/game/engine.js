@@ -133,6 +133,12 @@
         p.anim = p.mount ? 'sit' : run ? 'run' : 'walk';
       } else if (!p.sitting && (p.anim === 'walk' || p.anim === 'run')) p.anim = 'idle';
       p.moving = len > 0;
+      // never trapped: if you're standing inside something solid (a sign set down, a cart, a door shut on
+      // you), you're eased out to the nearest open ground
+      if (!this.scene && !p.mount && !p.sitting && !p.inBed && this.blocked(p.x, p.y)) {
+        p._stuckT = (p._stuckT || 0) + dt;
+        if (p._stuckT > 0.4) { p._stuckT = 0; outer: for (let r = 4; r <= 64; r += 4) for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2, x = p.x + Math.cos(a) * r, y = p.y + Math.sin(a) * r; if (!this.blocked(x, y)) { p.x = x; p.y = y; break outer; } } }
+      } else p._stuckT = 0;
       for (const a of this.actors) a.ft += dt;
       // chimney smoke
       this.hearthT = (this.hearthT || 0) - dt; if (this.hearthT <= 0) { this.hearthT = 1; this.updateHearths(); }
@@ -147,7 +153,9 @@
       const T = this.world.T;
       if (this.scene) { this.scene.update(dt); }
       if (this.scene) { this.cam = this.scene.camera(); return; }
-      this.cam = {
+      // on the island the camera simply follows you: there is no edge but the sea
+      if (this.world.island) this.cam = { x: Math.round(p.x - this.vw / 2), y: Math.round(p.y - 20 - this.vh / 2) };
+      else this.cam = {
         x: Math.round(O.clamp(p.x - this.vw / 2, 0, this.world.W * T - this.vw)),
         y: Math.round(O.clamp(p.y - 20 - this.vh / 2, 0, this.world.H * T - this.vh)),
       };
@@ -213,7 +221,7 @@
     draw() {
       if (this.scene) { this.scene.draw(this.ctx); for (const h of this.hooks.drawTop) h(this.ctx, this.cam, true); return; }
       const { ctx, cam, vw, vh } = this, w = this.world, T = w.T;
-      if (w.chunked) this.drawChunks(ctx, cam); else ctx.drawImage(this.ground, cam.x, cam.y, vw, vh, 0, 0, vw, vh);
+      if (w.chunked) { if (w.island) { ctx.fillStyle = '#30587e'; ctx.fillRect(0, 0, vw, vh); } this.drawChunks(ctx, cam); } else ctx.drawImage(this.ground, cam.x, cam.y, vw, vh, 0, 0, vw, vh);
       const inView = (x, y, wd, ht) => x + wd >= cam.x && x <= cam.x + vw && y + ht >= cam.y && y <= cam.y + vh;
       for (const s of this.flatProps) { const p = s.p, sp = p.sprite; const x = p.x - sp.ox, y = p.y - sp.oy; if (inView(x, y, sp.W, sp.H)) ctx.drawImage(sp.canvas, x - cam.x, y - cam.y); }
       for (const h of this.hooks.drawGround) h(ctx, cam);
@@ -266,7 +274,7 @@
       const sim = this.sim, lit = this.lit || (this.lit = new Set()); lit.clear();
       if (!sim || this.world !== sim.world) { for (const b of this.world.buildings) if (b.sprite?.chimney && (b.id * 7 + Math.floor(this.clock.minute / 90)) % 3) lit.add(b.id); return; }
       const inside = new Map(), dark = this.isNight();
-      for (const q of sim.people) if (q.agent) q.agent.torch = dark && !q.agent.hidden && q.alive !== false && !!q.job?.role?.startsWith('guard');
+      for (const q of sim.people) if (q.agent) q.agent.torch = false; // the watch go without lights; only lamps and hearths glow
       for (const q of sim.people) if (q.alive !== false && q.agent && q.agent.inside != null) inside.set(q.agent.inside, (inside.get(q.agent.inside) || 0) + 1);
       const h = this.clock.minute / 60, cold = sim.season === 'Winter' || sim.season === 'Autumn' && (h < 8 || h > 18);
       for (const b of this.world.buildings) {

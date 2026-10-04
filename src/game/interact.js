@@ -30,6 +30,7 @@
       if (O.noticeCandidate) { const nc = O.noticeCandidate(); if (nc) out.push(nc); }
       if (O.exitCandidate) { const ec = O.exitCandidate(); if (ec) out.push(ec); }
       if (O.saleCandidate) { const sc = O.saleCandidate(); if (sc) out.push(sc); }
+      if (O.signCandidate) { const sg = O.signCandidate(); if (sg) out.push(sg); }
       if (O.stallCandidate) { const st = O.stallCandidate(); if (st) out.push(st); }
       if (O.pickupCandidate) { const pc = O.pickupCandidate(); if (pc) out.push(pc); }
       if (O.roadCandidate) { const rc = O.roadCandidate(); if (rc) out.push(rc); }
@@ -71,6 +72,7 @@
         case 'caravan': return `Hail ${c.L.c.merchant}'s caravan`;
         case 'notices': return 'Read the notice board';
         case 'property': return c.b.owner?.kind === 'player' ? 'Your property' : 'For sale: look it over';
+        case 'namesign': return 'Read the sign';
         case 'exit': return `Leave ${sim.world.name} by the ${c.side} road`;
         case 'horse': return `Look over ${c.h.owner === 'player' ? c.h.name : 'the horse'}`;
         case 'claim': return 'Claim the abandoned camp';
@@ -206,6 +208,7 @@
         case 'notices': O.readNotices(); break;
         case 'exit': O.travelPanel(cur.side); break;
         case 'property': O.propertyPanel(cur.b); break;
+        case 'namesign': O.readSign(cur); break;
         case 'stash': O.GangUI.stash(); break;
         case 'campbed': sleep(null, true); break;
         case 'hay': sleep(null, true); break;

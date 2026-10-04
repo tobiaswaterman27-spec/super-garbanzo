@@ -72,6 +72,7 @@
       return cr;
     }
 
+    const extraTargets = []; // functions returning [{ x, y, hit(dmg, blade, weapon) }]
     function attack() {
       if (swing > 0 || playerCd > 0 || O.panelOpen || game.player.locked) return;
       syncLook(); swing = 0.36; swingHit = false; playerCd = 0.45;
@@ -97,6 +98,8 @@
           swingHit = true;
           const w = weapon();
           const q = personAt(game.player.x, game.player.y - 2, w.reach, game.player.dir);
+          // no townsperson in reach: anyone else out there (travellers, a gang at its fire, a carter and cart)
+          if (!q && !game.scene) { const d = O.Char.DIRV[game.player.dir] || [0, 1], hx = game.player.x + d[0] * w.reach * 0.7, hy = game.player.y - 2 + d[1] * w.reach * 0.6; let best = null, bd = w.reach + 6; for (const f of extraTargets) for (const t of f()) { const dd = Math.hypot(t.x - hx, t.y - hy); if (dd < bd) { bd = dd; best = t; } } if (best) { puff(best.x, best.y, w.blade); best.hit(w.dmg, w.blade, w.key); } }
           if (q) {
             const first = !fights.has(q.id);
             const res = hurt(q, w.dmg, true, w.blade, w.key);
@@ -182,6 +185,7 @@
 
     // robbery and looting hooks for the talk card and F
     O.Combat = {
+      addTargets: (f) => extraTargets.push(f),
       armed: () => PS.equipped && PS.equipped !== 'fists' && PS.items.includes(PS.equipped),
       rob(q) {
         const brave = q.traits.includes('brave') || q.traits.includes('hostile');

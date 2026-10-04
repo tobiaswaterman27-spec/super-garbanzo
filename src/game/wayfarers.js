@@ -43,13 +43,15 @@
             if (near) { tr.pause = near.pause = 4 + ((Math.floor(tr.s) * 7) % 4); tr.with = near; near.with = tr; }
             else if (Math.hypot(pl.x - tr.x, pl.y - tr.y) < 30) { tr.pause = 2.5; tr.with = pl; }
           }
-          if (tr.pause) {
+          if (tr.down) { tr.anim = 'lie'; [tr.x, tr.y] = I.toLocal(game.world, tr.down[0], tr.down[1]); extra.push(tr); continue; }
+          if (tr.flee > 0) tr.flee = Math.max(0, tr.flee - dt);
+          if (tr.pause && !tr.flee) {
             tr.pause = Math.max(0, tr.pause - dt); tr.anim = 'talk';
             if (tr.with) tr.dir = O.dirOf(tr.with.x - tr.x, tr.with.y - tr.y);
             if (!tr.pause) { tr.chatCd = 12; tr.with = null; tr.anim = 'walk'; }
           } else {
-            tr.anim = 'walk';
-            tr.s += tr.dirn * tr.speed * dt / T;
+            tr.anim = tr.flee ? 'run' : 'walk'; tr.pause = 0;
+            tr.s += tr.dirn * (tr.flee ? 95 : tr.speed) * dt / T;
             if (tr.s < 2 || tr.s > r.total - 2) { tr.dirn *= -1; tr.s = O.clamp(tr.s, 2, r.total - 2); } // into the town and back out again, near enough
           }
           // keep to your own side of the road, smoothly along its bends
@@ -77,13 +79,40 @@
       if (extra.length) game.actors.push(...extra.filter((e) => e.x > -64 && e.y > -64 && e.x < w.W * T + 64 && e.y < w.H * T + 64));
     });
 
+    // anyone out on the road can be struck: a traveller runs or falls, a gang fights, a carter gives up the cart
+    const crime = (kind, sev, tile) => { const s = O.SimRef.cur; if (s.recordCrime) s.recordCrime({ kind, perp: 'player', placeName: O.placeName ? O.placeName() : 'the road', tile, seen: [], severity: sev }); };
+    const here = () => { const p = game.player; return [Math.floor(p.x / T), Math.floor(p.y / T)]; };
+    O.Combat && O.Combat.addTargets(() => {
+      const out = [];
+      for (const r of active) {
+        const st = state.get(r.key); if (!st) continue;
+        for (const tr of st.travellers) if (!tr.down) out.push({ x: tr.x, y: tr.y, hit: (dmg) => {
+          tr.hp = (tr.hp ?? 60) - dmg; tr.pause = 0; tr.with = null;
+          if (tr.hp <= 0) { tr.down = I.toGlobal(game.world, tr.x, tr.y); crime('murder on the road', 4, here()); O.Panels.toast(`${tr.name} falls in the road and does not get up.`, 'bad'); PS.bounty = true; return; }
+          const [pg0, pg1] = I.toGlobal(game.world, game.player.x, game.player.y), f = I.pointAt(r, tr.s + 4), b = I.pointAt(r, tr.s - 4);
+          tr.dirn = Math.hypot(f[0] * T - pg0, f[1] * T - pg1) > Math.hypot(b[0] * T - pg0, b[1] * T - pg1) ? 1 : -1; tr.flee = 8;
+          if (!tr.hurt) { tr.hurt = true; crime('assault on the road', 2, here()); O.Panels.toast(`${tr.name} cries out and runs for ${K.place(tr.dirn > 0 ? r.rd.b : r.rd.a).name}!`, 'bad'); }
+        } });
+        for (const g of st.gangsters) out.push({ x: g.x, y: g.y, hit: () => { if (!O.panelOpen && r.camp.beaten !== home.day) { st.robbed = home.day; O.Roads.ambush({ camp: r.camp, rd: r.rd, name: r.rd.name || 'the road' }); } } });
+      }
+      for (const a of game.actors) if (a.cart && a.caravan && !a.caravan.done) { const c = a.caravan; out.push({ x: a.x, y: a.y, hit: (dmg) => {
+        c.struck = (c.struck || 0) + dmg;
+        if (c.struck < 25 + c.guards * 15) { O.UI.say(`${c.merchant}'s ${c.guards > 1 ? 'guards close round' : 'carter shouts at'} you. Strike again and they'll fight or flee.`, 'bad'); return; }
+        const take = Math.max(4, Math.round(c.value * 0.25)); PS.money += take; c.qty = Math.floor(c.qty * 0.6); c.value -= take; c.done = true;
+        crime('highway robbery', 3, here()); PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.06);
+        K.addNews && K.addNews(`${c.merchant}'s caravan of ${c.good} was robbed on the road.`, 'crime');
+        O.Panels.toast(`The carter cuts the horse loose and runs. You take ${take}d of ${c.good} from the cart.`, 'bad');
+      } }); }
+      return out;
+    });
+
     // talk to travellers and look round the ruins out in the country
     const cand0 = O.roadCandidate, act0 = O.roadAct;
     O.roadCandidate = () => {
       const w = game.world; if (!w || game.scene) return null;
       if (!w.island) return cand0 ? cand0() : null;
       const p = game.player; let best = null, bd = 26;
-      for (const r of active) { const st = state.get(r.key); if (st) for (const tr of st.travellers) { const d = Math.hypot(tr.x - p.x, tr.y - p.y); if (d < bd) { bd = d; best = { type: 'traveller', tr, d, x: tr.x, y: tr.y - 44 }; } } }
+      for (const r of active) { const st = state.get(r.key); if (st) for (const tr of st.travellers) { if (tr.down) continue; const d = Math.hypot(tr.x - p.x, tr.y - p.y); if (d < bd) { bd = d; best = { type: 'traveller', tr, d, x: tr.x, y: tr.y - 44 }; } } }
       for (const b of w.buildings) if (b.ruined && b.ruinNote) { const d = Math.hypot(b.doorX * T + 8 - p.x, b.doorY * T - p.y); if (d < 40 && d < bd) { bd = d; best = { type: 'ruin', b, d, x: b.doorX * T + 8, y: b.doorY * T - 30 }; } }
       return best;
     };

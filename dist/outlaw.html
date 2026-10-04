@@ -699,10 +699,10 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     let m;
     switch (st) {
       case 'baby': m = { headRx: 4.6, headRy: 4.5, torso: 5, leg: 5, armU: 2.6, armL: 2.4, shW: 7, waistW: 7.5, hipW: 7.5, limbR: 1.4, legR: 1.6 }; break;
-      case 'child': m = { headRx: 6.2, headRy: 6.1, torso: 7, leg: 8, armU: 3.6, armL: 3.4, shW: 8, waistW: 8, hipW: 8.5, limbR: 1.45, legR: 1.7 }; break;
-      case 'olderChild': m = { headRx: 6.4, headRy: 6.3, torso: 8, leg: 10, armU: 4.2, armL: 4, shW: 9, waistW: 8.5, hipW: 9, limbR: 1.5, legR: 1.8 }; break;
-      case 'teen': m = { headRx: 6.6, headRy: 6.7, torso: 10.5, leg: 13.5, armU: 5, armL: 4.8, shW: 10.5, waistW: 9, hipW: 9.5, limbR: 1.55, legR: 1.95 }; break;
-      default: m = { headRx: 6.9, headRy: 7.0, torso: 12, leg: 15, armU: 5.6, armL: 5.4, shW: 13.4, waistW: 10, hipW: 10.5, limbR: 1.65, legR: 2.05 };
+      case 'child': m = { headRx: 5.7, headRy: 5.6, torso: 7, leg: 8, armU: 3.6, armL: 3.4, shW: 8, waistW: 8, hipW: 8.5, limbR: 1.45, legR: 1.7 }; break;
+      case 'olderChild': m = { headRx: 5.9, headRy: 5.8, torso: 8, leg: 10, armU: 4.2, armL: 4, shW: 9, waistW: 8.5, hipW: 9, limbR: 1.5, legR: 1.8 }; break;
+      case 'teen': m = { headRx: 5.9, headRy: 6.0, torso: 10.5, leg: 13.5, armU: 5, armL: 4.8, shW: 10.5, waistW: 9, hipW: 9.5, limbR: 1.55, legR: 1.95 }; break;
+      default: m = { headRx: 6.1, headRy: 6.2, torso: 12, leg: 15, armU: 5.6, armL: 5.4, shW: 13.4, waistW: 10, hipW: 10.5, limbR: 1.65, legR: 2.05 };
     }
     m.stage = st;
     if (st !== 'child' && st !== 'olderChild' && st !== 'baby') {
@@ -1388,18 +1388,14 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         // one clean eye: a dark pupil over the iris on the inner side, the white beside it, a lid shadow above
         const inner = cols.length > 1 ? (outer < 0 ? cols[1] : cols[0]) : cols[0], outerCol = cols.length > 1 ? (outer < 0 ? cols[0] : cols[1]) : null;
         // two pixels tall: the dark pupil with a glint, the coloured iris under it, the white beside
-        // a detailed eye, two wide and three tall: the lid line, then the white beside the dark pupil,
-        // then the coloured iris under the pupil
-        if (outerCol != null) {
-          plot(inner, ey - 1, a.eyeDark, 1); plot(outerCol, ey - 1, a.eyeDark, 1);
-          plot(outerCol, ey, a.eyeWhite, 3); plot(inner, ey, a.eyeDark, 0);
-          plot(inner, ey + 1, a.eyes, 2); plot(outerCol, ey + 1, a.eyes, 1);
-        } else { plot(inner, ey - 1, a.eyeDark, 1); plot(inner, ey, a.eyeDark, 0); plot(inner, ey + 1, a.eyes, 2); }
+        // a clear upright eye, two pixels tall: dark above, the iris colour (deepened) below
+        plot(inner, ey - 1, a.eyeDark, 1); plot(inner, ey, a.eyes, 0);
+        void outerCol;
         if (a.sex === 'f' && a.stage !== 'child' && outerCol != null) { const lx = outerCol + (outerCol > inner ? 1 : -1); if (isSkin(lx, ey - 1)) plot(lx, ey - 1, a.eyeDark, 1); } // lashes
         if (f.eyeType === 1) plot(inner, ey + 1, a.skin, 1); // heavy lower lid
       }
       // brow
-      const by = ey - 3 - (H.ry > 6.5 ? 1 : 0);
+      const by = ey - 3;
       if (f.brow > 0 || elder || a.sex === 'm') {
         const bc = wf > 0.55 ? [ex - 1, ex] : cols;
         for (const x of bc) if (isSkin(x, by)) plot(x, by, browM, a.sex === 'f' ? 2 : f.brow > 1 ? 0 : 1);
@@ -1428,7 +1424,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     // mouth
     const mq = headPt(S, H, 0, 0.62, 0.8);
     if (-mq[2] > 0 || V.side) {
-      const my = Math.floor(eyeY) + 4 + (H.ry > 6.5 ? 1 : 0) - (H.ry < 5.3 ? 1 : 0);
+      const my = Math.floor(eyeY) + 4 - (H.ry < 5.3 ? 1 : 0);
       const mxc = V.side ? Math.round(H.cx + H.e * 0.68) : Math.round(mq[0]);
       const wide = -mq[2] > 0.55;
       const xs = wide ? [mxc - 1, mxc] : [mxc - (V.side ? 0 : 1)];
@@ -3422,7 +3418,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 // so walking from one region into the next is seamless: you are simply nearer the next town now.
 'use strict';
 (function () {
-  const U = 20, T = 16, MARGIN = 44;
+  const U = 20, T = 16, MARGIN = 64;
   const E = () => O.Eldoria, TER = () => O.Village.TER;
   let K = null;
   const towns = new Map(), regions = new Map();
@@ -3872,6 +3868,12 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         p.anim = p.mount ? 'sit' : run ? 'run' : 'walk';
       } else if (!p.sitting && (p.anim === 'walk' || p.anim === 'run')) p.anim = 'idle';
       p.moving = len > 0;
+      // never trapped: if you're standing inside something solid (a sign set down, a cart, a door shut on
+      // you), you're eased out to the nearest open ground
+      if (!this.scene && !p.mount && !p.sitting && !p.inBed && this.blocked(p.x, p.y)) {
+        p._stuckT = (p._stuckT || 0) + dt;
+        if (p._stuckT > 0.4) { p._stuckT = 0; outer: for (let r = 4; r <= 64; r += 4) for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2, x = p.x + Math.cos(a) * r, y = p.y + Math.sin(a) * r; if (!this.blocked(x, y)) { p.x = x; p.y = y; break outer; } } }
+      } else p._stuckT = 0;
       for (const a of this.actors) a.ft += dt;
       // chimney smoke
       this.hearthT = (this.hearthT || 0) - dt; if (this.hearthT <= 0) { this.hearthT = 1; this.updateHearths(); }
@@ -3886,7 +3888,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const T = this.world.T;
       if (this.scene) { this.scene.update(dt); }
       if (this.scene) { this.cam = this.scene.camera(); return; }
-      this.cam = {
+      // on the island the camera simply follows you: there is no edge but the sea
+      if (this.world.island) this.cam = { x: Math.round(p.x - this.vw / 2), y: Math.round(p.y - 20 - this.vh / 2) };
+      else this.cam = {
         x: Math.round(O.clamp(p.x - this.vw / 2, 0, this.world.W * T - this.vw)),
         y: Math.round(O.clamp(p.y - 20 - this.vh / 2, 0, this.world.H * T - this.vh)),
       };
@@ -3952,7 +3956,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     draw() {
       if (this.scene) { this.scene.draw(this.ctx); for (const h of this.hooks.drawTop) h(this.ctx, this.cam, true); return; }
       const { ctx, cam, vw, vh } = this, w = this.world, T = w.T;
-      if (w.chunked) this.drawChunks(ctx, cam); else ctx.drawImage(this.ground, cam.x, cam.y, vw, vh, 0, 0, vw, vh);
+      if (w.chunked) { if (w.island) { ctx.fillStyle = '#30587e'; ctx.fillRect(0, 0, vw, vh); } this.drawChunks(ctx, cam); } else ctx.drawImage(this.ground, cam.x, cam.y, vw, vh, 0, 0, vw, vh);
       const inView = (x, y, wd, ht) => x + wd >= cam.x && x <= cam.x + vw && y + ht >= cam.y && y <= cam.y + vh;
       for (const s of this.flatProps) { const p = s.p, sp = p.sprite; const x = p.x - sp.ox, y = p.y - sp.oy; if (inView(x, y, sp.W, sp.H)) ctx.drawImage(sp.canvas, x - cam.x, y - cam.y); }
       for (const h of this.hooks.drawGround) h(ctx, cam);
@@ -4005,7 +4009,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const sim = this.sim, lit = this.lit || (this.lit = new Set()); lit.clear();
       if (!sim || this.world !== sim.world) { for (const b of this.world.buildings) if (b.sprite?.chimney && (b.id * 7 + Math.floor(this.clock.minute / 90)) % 3) lit.add(b.id); return; }
       const inside = new Map(), dark = this.isNight();
-      for (const q of sim.people) if (q.agent) q.agent.torch = dark && !q.agent.hidden && q.alive !== false && !!q.job?.role?.startsWith('guard');
+      for (const q of sim.people) if (q.agent) q.agent.torch = false; // the watch go without lights; only lamps and hearths glow
       for (const q of sim.people) if (q.alive !== false && q.agent && q.agent.inside != null) inside.set(q.agent.inside, (inside.get(q.agent.inside) || 0) + 1);
       const h = this.clock.minute / 60, cold = sim.season === 'Winter' || sim.season === 'Autumn' && (h < 8 || h > 18);
       for (const b of this.world.buildings) {
@@ -10511,6 +10515,7 @@ O.snowMaskOf = function (src) {
       if (O.noticeCandidate) { const nc = O.noticeCandidate(); if (nc) out.push(nc); }
       if (O.exitCandidate) { const ec = O.exitCandidate(); if (ec) out.push(ec); }
       if (O.saleCandidate) { const sc = O.saleCandidate(); if (sc) out.push(sc); }
+      if (O.signCandidate) { const sg = O.signCandidate(); if (sg) out.push(sg); }
       if (O.stallCandidate) { const st = O.stallCandidate(); if (st) out.push(st); }
       if (O.pickupCandidate) { const pc = O.pickupCandidate(); if (pc) out.push(pc); }
       if (O.roadCandidate) { const rc = O.roadCandidate(); if (rc) out.push(rc); }
@@ -10552,6 +10557,7 @@ O.snowMaskOf = function (src) {
         case 'caravan': return `Hail ${c.L.c.merchant}'s caravan`;
         case 'notices': return 'Read the notice board';
         case 'property': return c.b.owner?.kind === 'player' ? 'Your property' : 'For sale: look it over';
+        case 'namesign': return 'Read the sign';
         case 'exit': return `Leave ${sim.world.name} by the ${c.side} road`;
         case 'horse': return `Look over ${c.h.owner === 'player' ? c.h.name : 'the horse'}`;
         case 'claim': return 'Claim the abandoned camp';
@@ -10687,6 +10693,7 @@ O.snowMaskOf = function (src) {
         case 'notices': O.readNotices(); break;
         case 'exit': O.travelPanel(cur.side); break;
         case 'property': O.propertyPanel(cur.b); break;
+        case 'namesign': O.readSign(cur); break;
         case 'stash': O.GangUI.stash(); break;
         case 'campbed': sleep(null, true); break;
         case 'hay': sleep(null, true); break;
@@ -11365,6 +11372,7 @@ O.snowMaskOf = function (src) {
       return cr;
     }
 
+    const extraTargets = []; // functions returning [{ x, y, hit(dmg, blade, weapon) }]
     function attack() {
       if (swing > 0 || playerCd > 0 || O.panelOpen || game.player.locked) return;
       syncLook(); swing = 0.36; swingHit = false; playerCd = 0.45;
@@ -11390,6 +11398,8 @@ O.snowMaskOf = function (src) {
           swingHit = true;
           const w = weapon();
           const q = personAt(game.player.x, game.player.y - 2, w.reach, game.player.dir);
+          // no townsperson in reach: anyone else out there (travellers, a gang at its fire, a carter and cart)
+          if (!q && !game.scene) { const d = O.Char.DIRV[game.player.dir] || [0, 1], hx = game.player.x + d[0] * w.reach * 0.7, hy = game.player.y - 2 + d[1] * w.reach * 0.6; let best = null, bd = w.reach + 6; for (const f of extraTargets) for (const t of f()) { const dd = Math.hypot(t.x - hx, t.y - hy); if (dd < bd) { bd = dd; best = t; } } if (best) { puff(best.x, best.y, w.blade); best.hit(w.dmg, w.blade, w.key); } }
           if (q) {
             const first = !fights.has(q.id);
             const res = hurt(q, w.dmg, true, w.blade, w.key);
@@ -11475,6 +11485,7 @@ O.snowMaskOf = function (src) {
 
     // robbery and looting hooks for the talk card and F
     O.Combat = {
+      addTargets: (f) => extraTargets.push(f),
       armed: () => PS.equipped && PS.equipped !== 'fists' && PS.items.includes(PS.equipped),
       rob(q) {
         const brave = q.traits.includes('brave') || q.traits.includes('hostile');
@@ -12155,7 +12166,7 @@ O.snowMaskOf = function (src) {
       }
       ctx.putImageData(img, 0, 0);
       // ruins of older times
-      for (const r of E.RUINS) { const x = r.x * MS, y = r.y * MS; ctx.fillStyle = '#5a5248'; ctx.fillRect(x - 3, y - 2, 2, 4); ctx.fillRect(x + 1, y - 3, 2, 5); ctx.fillRect(x - 3, y + 2, 6, 1); }
+      for (const r of E.RUINS) { const x = Math.round(r.x * MS), y = Math.round(r.y * MS); ctx.fillStyle = '#1b1424'; ctx.fillRect(x - 2, y - 2, 5, 5); ctx.fillStyle = '#8a8278'; ctx.fillRect(x - 1, y - 1, 3, 3); }
       return c;
     }
     // tiny pixel pictures of places: roofs, walls, towers, a spire, a keep
@@ -12205,7 +12216,6 @@ O.snowMaskOf = function (src) {
         ctx.fillStyle = '#1b1424'; ctx.fillRect(x - sz - 1, y - sz - 1, sz * 2 + 3, sz * 2 + 3);
         ctx.fillStyle = s.detailed ? '#f0b45c' : s.kind === 'castle' ? '#c8ccd4' : s.kind === 'capital' || s.kind === 'city' ? '#f4e8c8' : s.happiness < 0.4 ? '#c87060' : '#e8dcc0';
         ctx.fillRect(x - sz, y - sz, sz * 2 + 1, sz * 2 + 1);
-        if (s.kind === 'castle' || s.kind === 'capital' || s.kind === 'city') { ctx.fillStyle = '#1b1424'; for (let k = -sz; k <= sz; k += 2) ctx.fillRect(x + k, y - sz - 1, 1, 1); ctx.fillRect(x, y - 1, 1, 3); }
       }
       // you are here
       // you are here: exactly where you stand on the island
@@ -12392,7 +12402,8 @@ O.snowMaskOf = function (src) {
 
   function setup(game, sim) {
     const home = () => O.SimRef.home;
-    const forSale = (b) => !b.site && !b.ruined && !b.fire && b.type !== 'hideout' && ((b.type === 'house' && !b.household) || b.closedShop) && (!b.owner || b.owner.kind !== 'player');
+    const forSale = (b) => !b.site && !b.ruined && !b.fire && b.type !== 'hideout' && ((b.type === 'house' && !b.household) || b.closedShop || b.listed) && (!b.owner || b.owner.kind !== 'player');
+    O.forSale = forSale;
     const owned = (b) => b.owner && b.owner.kind === 'player';
 
     // a little painted sign by the door of anything for sale
@@ -12406,21 +12417,44 @@ O.snowMaskOf = function (src) {
       [...'SALE'].forEach((ch, i) => FONT[ch].forEach((row, y) => [...row].forEach((v, x) => { if (v === '1') B.plot(3 + i * 4 + x, 4 + y, red, 2); })));
       signCanvas = B.toCanvas(); return signCanvas;
     }
-    game.hooks.drawWorld.push((ctx, cam) => {
-      if (game.scene) return;
-      for (const b of sim.world.buildings) if (forSale(b)) { const x = b.doorX * 16 + 14 - cam.x, y = b.doorY * 16 - 14 - cam.y; if (x > -20 && y > -20 && x < game.vw + 20 && y < game.vh + 20) ctx.drawImage(sign(), Math.round(x), Math.round(y)); }
+    // the boards stand in the street as real things (you walk round them, and they sit behind what's in front)
+    let saleT = 0;
+    const saleSprite = () => { const c = sign(); return { canvas: c, ox: 11, oy: 17, W: c.width, H: c.height }; };
+    game.hooks.update.push((dt) => {
+      saleT -= dt; const w = game.world; if (saleT > 0 || !w || game.scene || w !== sim.world) return; saleT = 1;
+      for (const b of w.buildings) {
+        if (b.doorX == null) continue;
+        const want = forSale(b), has = w.props.find((p) => p.kind === 'salesign' && p.signFor === b.id);
+        if (want && !has) O.Signs.plant(w, b, 'salesign', saleSprite(), 1); else if (!want && has) O.Signs.pull(w, has);
+      }
     });
     O.saleCandidate = () => {
       if (game.scene) return null;
-      for (const b of sim.world.buildings) { if (!(forSale(b) || owned(b))) continue; const d = Math.hypot(b.doorX * 16 + 8 - game.player.x, b.doorY * 16 + 6 - game.player.y); if (d < 16) return { type: 'property', b, d: d + 2, x: b.doorX * 16 + 8, y: b.doorY * 16 - 20 }; }
+      const w = game.world, pl = game.player;
+      for (const q of w.props) if (q.kind === 'salesign' && Math.abs(q.x - pl.x) < 26 && Math.abs(q.y - pl.y) < 26) { const b = w.buildings.find((x) => x.id === q.signFor); if (b) { const d = Math.hypot(q.x - pl.x, q.y - pl.y); return { type: 'property', b, d, x: q.x, y: q.y - 28 }; } }
+      for (const b of sim.world.buildings) { if (!(forSale(b) || owned(b))) continue; const d = Math.hypot(b.doorX * 16 + 8 - pl.x, b.doorY * 16 + 6 - pl.y); if (d < 16) return { type: 'property', b, d: d + 2, x: b.doorX * 16 + 8, y: b.doorY * 16 - 20 }; }
       return null;
     };
+    // owners put things up for sale now and then: a landlord's spare house, a struggling shop
+    let lastList = -1;
+    game.hooks.update.push(() => {
+      const H = home(); if (H.day === lastList) return; lastList = H.day;
+      for (const v of O.Travel.visited.values()) {
+        const s = v.sim, r = s.rng;
+        for (const b of s.world.buildings) if (b.listed && H.day - b.listed.day > 12) b.listed = null; // no buyer: taken off the market
+        if (!r.chance(0.35)) continue;
+        const spare = s.world.buildings.filter((b) => b.type === 'house' && b.owner?.kind === 'household' && b.household && s.households[b.owner.id - 1] && s.households[b.owner.id - 1].home !== b.id && !b.listed);
+        const weak = [...s.biz.values()].filter((bz) => !bz.ownerPlayer && bz.cash < 15 && bz.workers && bz.workers.length).map((bz) => s.world.buildings.find((b) => b.id === bz.id)).filter((b) => b && !b.listed);
+        const pick = r.chance(0.5) && spare.length ? r.pick(spare) : weak.length ? r.pick(weak) : spare.length ? r.pick(spare) : null;
+        if (pick) { pick.listed = { day: H.day }; s.log(`${pick.type === 'house' ? 'A let house' : pick.name} has been put up for sale.`, 'economy'); }
+      }
+    });
 
     function panel(b) {
       const s = sim, v = s.value(b), mine = owned(b), shop = !!b.closedShop || (s.biz.get(b.id) && mine);
       const tenants = b.household ? s.households[b.household - 1] : null;
       const rentEst = Math.max(2, Math.round(v / 140));
-      O.Panels.open(mine ? `Your ${b.type === 'house' ? 'house' : 'property'}` : `${b.closedShop ? 'Empty shop' : 'Empty house'} for sale`, `<div class="kv">
+      O.Panels.open(mine ? `Your ${b.type === 'house' ? 'house' : 'property'}` : `${b.listed ? (s.biz.get(b.id) ? `${b.name}, a going concern,` : 'A let house') : b.closedShop ? 'Empty shop' : 'Empty house'} for sale`, `<div class="kv">
         <div><span class="lbl">Value</span><b>${O.money(v)}</b><small>${b.w * 2}×${b.d * 2} paces inside, ${b.floors || 1} floor${(b.floors || 1) > 1 ? 's' : ''}, condition ${Math.round((b.condition ?? 0.8) * 100)}%</small></div>
         <div><span class="lbl">Owner</span><b>${esc(s.ownerName(b.owner))}</b><small>${tenants ? `let to the ${esc(tenants.surname)} family at ${b.rent || rentEst}d a week` : 'standing empty'}</small></div>
         ${b.closedShop ? `<div><span class="lbl">Was</span><b>${esc(b.closedShop.name)}</b><small>closed on day ${b.closedShop.day}</small></div>` : ''}
@@ -12437,6 +12471,7 @@ O.snowMaskOf = function (src) {
           PS.money -= v;
           if (b.owner && b.owner.kind === 'household') { const hh = s.households[b.owner.id - 1]; if (hh) hh.money += v; } else s.treasury.cash += v;
           b.owner = { kind: 'player' }; b.rent = b.household ? (b.rent || rentEst) : null;
+          if (b.listed) { b.listed = null; const bz = s.biz.get(b.id); if (bz) { const seller = bz.owner != null && s.byId.get(bz.owner); if (seller) { const hh = s.household(seller); if (hh) hh.money += Math.round(v * 0.2); } bz.ownerPlayer = true; } }
           s.log(`A newcomer has bought ${b.closedShop ? 'the old ' + b.closedShop.name : 'a house'} for ${v}d.`, 'economy');
           PS.rep.merchant = Math.min(1, PS.rep.merchant + 0.05);
           panel(b);
@@ -13516,7 +13551,11 @@ O.snowMaskOf = function (src) {
       for (const w of walkers) { w.t += dt; }
       for (let i = walkers.length - 1; i >= 0; i--) if (walkers[i].t >= walkers[i].dur) { const w = walkers[i]; walkers.splice(i, 1); w.done && w.done(); }
       const p = game.player;
-      if (p.walkingDoor) { p.locked = true; p._suppressUntil = game.t + 0.05; }
+      if (p.walkingDoor) {
+        p.walkingDoorT = (p.walkingDoorT || 0) + dt;
+        if (p.walkingDoorT > 1.6) { p.walkingDoor = false; p.walkingDoorT = 0; p.locked = false; } // never left standing in a doorway
+        else { p.locked = true; p._suppressUntil = game.t + 0.05; }
+      } else p.walkingDoorT = 0;
     });
 
     // drawn straight after the building, so the doorway sits in its wall
@@ -14262,33 +14301,60 @@ O.snowMaskOf = function (src) {
     return out.map((l) => (l.length > 34 ? l.slice(0, 33) + '.' : l));
   }
 
-  function setup(game) {
-    const cache = new Map(); // building -> lines, refreshed every few seconds
-    let t = 0;
-    game.hooks.update.push((dt) => { t -= dt; if (t <= 0) { t = 3; cache.clear(); } });
-    game.hooks.drawTop.push((ctx, cam, indoor) => {
-      if (indoor || game.scene || !game.world) return;
-      const sim = O.SimRef.cur, p = game.player, T = game.world.T;
-      // only the one or two buildings you're nearest, so the street doesn't fill with boards
-      const near = game.world.buildings.filter((b) => b.doorX != null && Math.abs(b.doorX * T + 8 - p.x) < 110 && Math.abs(b.doorY * T - p.y) < 90)
-        .sort((a, c) => Math.hypot(a.doorX * T + 8 - p.x, a.doorY * T - p.y) - Math.hypot(c.doorX * T + 8 - p.x, c.doorY * T - p.y)).slice(0, 2);
-      for (const b of near) {
-        const dx = b.doorX * T + 8, dy = b.doorY * T;
-        let lines = cache.get(b); if (lines === undefined) { lines = linesFor(sim, b); cache.set(b, lines); }
-        if (!lines) continue;
-        const w = Math.max(...lines.map(width)) + 8, h = lines.length * 7 + 5;
-        const sx = Math.round(dx - w / 2 - cam.x), sy = Math.round(dy - 58 - h - cam.y);
-        // the board hanging from its bracket
-        ctx.fillStyle = '#3a2618'; ctx.fillRect(sx + 4, sy - 4, 1, 4); ctx.fillRect(sx + w - 5, sy - 4, 1, 4); ctx.fillRect(sx + 2, sy - 5, w - 4, 1);
-        ctx.fillStyle = '#2a1a10'; ctx.fillRect(sx - 1, sy - 1, w + 2, h + 2);
-        ctx.fillStyle = '#8a6239'; ctx.fillRect(sx, sy, w, h);
-        ctx.fillStyle = '#a07448'; ctx.fillRect(sx, sy, w, 1);
-        ctx.fillStyle = '#6a4a2c'; ctx.fillRect(sx, sy + h - 1, w, 1);
-        lines.forEach((l, i) => { const lx = sx + Math.round((w - width(l)) / 2); text(ctx, l, lx, sy + 3 + i * 7, i ? '#f0e2c0' : '#ffe9a8'); });
-      }
-    });
+  // Little wooden signs on a post, like a village noticeboard in miniature: one stands by every door,
+  // just to the left of it, and you read it by walking up to it (E). A For Sale board stands to the right.
+  let nameSprite = null;
+  function nameSign() {
+    if (nameSprite) return nameSprite;
+    const P = O.Pal, B = new O.MatBuffer(16, 17), wood = P.mat(P.wood.oak, 'wood'), pale = P.mat('#c89a5e', 'wood'), ink = P.mat('#4a3020', 'wood');
+    B.part(1); B.capsule(8, 16, 8, 8, 0.9, 0.9, wood);
+    B.part(2); B.rect(1, 1, 14, 9, pale, 2); for (let x = 1; x < 15; x++) { B.shadeAt(x, 9, 1); B.shadeAt(x, 1, 3); } B.shadeAt(1, 1, 1); B.shadeAt(14, 1, 1);
+    for (const [x0, x1, y] of [[3, 12, 4], [4, 10, 6]]) for (let x = x0; x <= x1; x++) B.plot(x, y, ink, 1);
+    const c = B.toCanvas(); nameSprite = { canvas: c, ox: 8, oy: 16, W: c.width, H: c.height }; return nameSprite;
   }
-  O.Signs = { setup, linesFor };
+  // a spot beside a door that's free to stand a sign on, or null
+  function spotBy(w, b, side) {
+    for (const dx of side < 0 ? [-1, -2] : [1, 2]) {
+      const x = b.doorX + dx, y = b.doorY, i = y * w.W + x;
+      if (x < 0 || y < 0 || x >= w.W || y >= w.H || w.solid[i]) continue;
+      const t = w.ter[i]; if (t === w.TER.WATER || t === w.TER.BRIDGE) continue;
+      if (w.props.some((p) => Math.floor(p.x / 16) === x && Math.floor((p.y - 1) / 16) === y && !p.flat)) continue;
+      return [x, y];
+    }
+    return null;
+  }
+  // stand a sign prop beside a building's door (kept solid so you walk round it like anything else)
+  function plant(w, b, kind, sprite, side) {
+    const at = spotBy(w, b, side); if (!at) return null;
+    const p = { kind, x: at[0] * 16 + 8, y: at[1] * 16 + 13, seed: b.id, solid: true, sprite, signFor: b.id };
+    w.props.push(p); w.solid[at[1] * w.W + at[0]] = 1; w.dirtyStatics = true;
+    return p;
+  }
+  function pull(w, p) { const i = w.props.indexOf(p); if (i >= 0) w.props.splice(i, 1); w.solid[Math.floor((p.y - 1) / 16) * w.W + Math.floor(p.x / 16)] = 0; w.dirtyStatics = true; }
+
+  function setup(game) {
+    // every building with a door gets its little sign, once per world
+    game.hooks.update.push(() => {
+      const w = game.world; if (!w || game.scene || w._signed) return;
+      w._signed = true;
+      for (const b of w.buildings) if (b.doorX != null && !b.site && !b.ruined && b.type !== 'hideout' && !w.props.some((p) => p.kind === 'namesign' && p.signFor === b.id)) plant(w, b, 'namesign', nameSign(), -1);
+    });
+    const T = 16;
+    O.signCandidate = () => {
+      const w = game.world; if (!w || game.scene) return null;
+      const p = game.player; let best = null, bd = 22;
+      for (const q of w.props) if (q.kind === 'namesign' && Math.abs(q.x - p.x) < 30 && Math.abs(q.y - p.y) < 30) { const d = Math.hypot(q.x - p.x, q.y - p.y); if (d < bd) { bd = d; best = { type: 'namesign', prop: q, d, x: q.x, y: q.y - 26 }; } }
+      return best;
+    };
+    O.readSign = (c) => {
+      const w = game.world, b = w.buildings.find((x) => x.id === c.prop.signFor); if (!b) return;
+      const lines = linesFor(O.SimRef.cur, b) || [b.name || 'A house'];
+      const nice = (t) => t.toLowerCase().replace(/(^|[\s'-])([a-z])/g, (m, a, ch) => a + ch.toUpperCase());
+      O.UI.dialog.open({ name: nice(lines[0]), color: '#8a6239', text: lines.slice(1).map(nice).join('. ') || 'Nothing more is written.', options: [] });
+    };
+    void T;
+  }
+  O.Signs = { setup, linesFor, plant, pull, spotBy };
 })();
 
 </script>
@@ -14383,13 +14449,15 @@ O.snowMaskOf = function (src) {
             if (near) { tr.pause = near.pause = 4 + ((Math.floor(tr.s) * 7) % 4); tr.with = near; near.with = tr; }
             else if (Math.hypot(pl.x - tr.x, pl.y - tr.y) < 30) { tr.pause = 2.5; tr.with = pl; }
           }
-          if (tr.pause) {
+          if (tr.down) { tr.anim = 'lie'; [tr.x, tr.y] = I.toLocal(game.world, tr.down[0], tr.down[1]); extra.push(tr); continue; }
+          if (tr.flee > 0) tr.flee = Math.max(0, tr.flee - dt);
+          if (tr.pause && !tr.flee) {
             tr.pause = Math.max(0, tr.pause - dt); tr.anim = 'talk';
             if (tr.with) tr.dir = O.dirOf(tr.with.x - tr.x, tr.with.y - tr.y);
             if (!tr.pause) { tr.chatCd = 12; tr.with = null; tr.anim = 'walk'; }
           } else {
-            tr.anim = 'walk';
-            tr.s += tr.dirn * tr.speed * dt / T;
+            tr.anim = tr.flee ? 'run' : 'walk'; tr.pause = 0;
+            tr.s += tr.dirn * (tr.flee ? 95 : tr.speed) * dt / T;
             if (tr.s < 2 || tr.s > r.total - 2) { tr.dirn *= -1; tr.s = O.clamp(tr.s, 2, r.total - 2); } // into the town and back out again, near enough
           }
           // keep to your own side of the road, smoothly along its bends
@@ -14417,13 +14485,40 @@ O.snowMaskOf = function (src) {
       if (extra.length) game.actors.push(...extra.filter((e) => e.x > -64 && e.y > -64 && e.x < w.W * T + 64 && e.y < w.H * T + 64));
     });
 
+    // anyone out on the road can be struck: a traveller runs or falls, a gang fights, a carter gives up the cart
+    const crime = (kind, sev, tile) => { const s = O.SimRef.cur; if (s.recordCrime) s.recordCrime({ kind, perp: 'player', placeName: O.placeName ? O.placeName() : 'the road', tile, seen: [], severity: sev }); };
+    const here = () => { const p = game.player; return [Math.floor(p.x / T), Math.floor(p.y / T)]; };
+    O.Combat && O.Combat.addTargets(() => {
+      const out = [];
+      for (const r of active) {
+        const st = state.get(r.key); if (!st) continue;
+        for (const tr of st.travellers) if (!tr.down) out.push({ x: tr.x, y: tr.y, hit: (dmg) => {
+          tr.hp = (tr.hp ?? 60) - dmg; tr.pause = 0; tr.with = null;
+          if (tr.hp <= 0) { tr.down = I.toGlobal(game.world, tr.x, tr.y); crime('murder on the road', 4, here()); O.Panels.toast(`${tr.name} falls in the road and does not get up.`, 'bad'); PS.bounty = true; return; }
+          const [pg0, pg1] = I.toGlobal(game.world, game.player.x, game.player.y), f = I.pointAt(r, tr.s + 4), b = I.pointAt(r, tr.s - 4);
+          tr.dirn = Math.hypot(f[0] * T - pg0, f[1] * T - pg1) > Math.hypot(b[0] * T - pg0, b[1] * T - pg1) ? 1 : -1; tr.flee = 8;
+          if (!tr.hurt) { tr.hurt = true; crime('assault on the road', 2, here()); O.Panels.toast(`${tr.name} cries out and runs for ${K.place(tr.dirn > 0 ? r.rd.b : r.rd.a).name}!`, 'bad'); }
+        } });
+        for (const g of st.gangsters) out.push({ x: g.x, y: g.y, hit: () => { if (!O.panelOpen && r.camp.beaten !== home.day) { st.robbed = home.day; O.Roads.ambush({ camp: r.camp, rd: r.rd, name: r.rd.name || 'the road' }); } } });
+      }
+      for (const a of game.actors) if (a.cart && a.caravan && !a.caravan.done) { const c = a.caravan; out.push({ x: a.x, y: a.y, hit: (dmg) => {
+        c.struck = (c.struck || 0) + dmg;
+        if (c.struck < 25 + c.guards * 15) { O.UI.say(`${c.merchant}'s ${c.guards > 1 ? 'guards close round' : 'carter shouts at'} you. Strike again and they'll fight or flee.`, 'bad'); return; }
+        const take = Math.max(4, Math.round(c.value * 0.25)); PS.money += take; c.qty = Math.floor(c.qty * 0.6); c.value -= take; c.done = true;
+        crime('highway robbery', 3, here()); PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.06);
+        K.addNews && K.addNews(`${c.merchant}'s caravan of ${c.good} was robbed on the road.`, 'crime');
+        O.Panels.toast(`The carter cuts the horse loose and runs. You take ${take}d of ${c.good} from the cart.`, 'bad');
+      } }); }
+      return out;
+    });
+
     // talk to travellers and look round the ruins out in the country
     const cand0 = O.roadCandidate, act0 = O.roadAct;
     O.roadCandidate = () => {
       const w = game.world; if (!w || game.scene) return null;
       if (!w.island) return cand0 ? cand0() : null;
       const p = game.player; let best = null, bd = 26;
-      for (const r of active) { const st = state.get(r.key); if (st) for (const tr of st.travellers) { const d = Math.hypot(tr.x - p.x, tr.y - p.y); if (d < bd) { bd = d; best = { type: 'traveller', tr, d, x: tr.x, y: tr.y - 44 }; } } }
+      for (const r of active) { const st = state.get(r.key); if (st) for (const tr of st.travellers) { if (tr.down) continue; const d = Math.hypot(tr.x - p.x, tr.y - p.y); if (d < bd) { bd = d; best = { type: 'traveller', tr, d, x: tr.x, y: tr.y - 44 }; } } }
       for (const b of w.buildings) if (b.ruined && b.ruinNote) { const d = Math.hypot(b.doorX * T + 8 - p.x, b.doorY * T - p.y); if (d < 40 && d < bd) { bd = d; best = { type: 'ruin', b, d, x: b.doorX * T + 8, y: b.doorY * T - 30 }; } }
       return best;
     };

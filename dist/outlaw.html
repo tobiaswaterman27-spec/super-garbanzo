@@ -1667,11 +1667,13 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   };
 
   const flatN = [0, 0, 1];
+  // a storey is tall enough for a grown person to walk through its door without stooping
+  const FLOOR = 44;
 
   function building(spec) {
     const rng = O.RNG(spec.seed || 1);
     const w = spec.w, d = spec.d, floors = spec.floors || 1, OV = 4, FW = w * T, W = FW + OV * 2;
-    const wallH = spec.wallH || floors * 22 + 9;
+    const wallH = spec.wallH || floors * FLOOR + 9;
     const gable = spec.roofType === 'gable';
     const roofH = Math.round(d * T * 0.58) + 4;
     const gableH = Math.round(FW * 0.34), depthH = Math.round(d * T * 0.52);
@@ -1702,7 +1704,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     if (wallKind === 'timber') { // timber framing
       const bm = M.beam();
       const hb = (y) => { for (let x = x0; x <= x1; x++) { B.plot(x, y, bm, 2); B.plot(x, y + 1, bm, 1); } };
-      hb(wallTop); for (let f = 1; f < floors; f++) hb(H - 3 - f * 22);
+      hb(wallTop); for (let f = 1; f < floors; f++) hb(H - 3 - f * FLOOR);
       hb(H - 5);
       const posts = Math.max(2, Math.round(FW / 18) + 1);
       for (let i = 0; i < posts; i++) {
@@ -1713,7 +1715,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       // diagonal braces in end panels
       const pw = (FW - 2) / (posts - 1);
       for (let f = 0; f < floors; f++) {
-        const yb = H - 5 - f * 22, yt = Math.max(wallTop + 1, yb - 20);
+        const yb = H - 5 - f * FLOOR, yt = Math.max(wallTop + 1, yb - FLOOR + 2);
         for (const [pa, dirn] of [[x0 + 2, 1], [x1 - 2, -1]]) {
           if (rng.chance(0.7)) {
             const lw = Math.min(pw - 3, 12), lh = yb - yt - 1, n = Math.max(lw, lh);
@@ -1724,17 +1726,17 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     }
     // ---- door & windows ----
     const doorTile = spec.doorTile ?? Math.floor(w / 2);
-    const dw = spec.bigDoor ? 22 : wealth > 0.7 ? 12 : 11, dh = spec.bigDoor ? 24 : 17;
+    const dw = spec.bigDoor ? 28 : wealth > 0.7 ? 17 : 15, dh = spec.bigDoor ? 44 : 40;
     const dx = Math.round(x0 + doorTile * T + T / 2 - dw / 2 + (spec.bigDoor ? 0 : 0)), dy = H - 2 - dh;
     drawDoor(B, dx, dy, dw, dh, wealth, rng, spec.bigDoor);
     meta.door = { x: dx, y: dy, w: dw, h: dh, tile: doorTile };
     const shutterM = M.shutter(rng);
     for (let f = 0; f < floors; f++) {
-      const wy = H - 3 - f * 22 - 17 + (f ? 1 : 0);
-      const slots = Math.max(1, Math.floor(FW / 22));
+      const wy = H - 3 - f * FLOOR - 36 + (f ? 2 : 0);
+      const slots = Math.max(1, Math.floor(FW / 24));
       for (let i = 0; i < slots; i++) {
         const cxw = Math.round(x0 + ((i + 0.5) * FW) / slots);
-        const ww = wealth > 0.7 ? 9 : 8, wh = wealth > 0.7 ? 11 : 9;
+        const ww = wealth > 0.7 ? 12 : 11, wh = wealth > 0.7 ? 18 : 16;
         const wx = cxw - Math.floor(ww / 2);
         if (f === 0 && wx + ww + 3 > dx && wx - 3 < dx + dw) continue;
         if (wx < x0 + 3 || wx + ww > x1 - 2) continue;
@@ -1818,7 +1820,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       for (let i = 0; i < Math.round((1 - cond) * 14); i++) { const cx = rng.int(x0 + 2, x1 - 2), cy = rng.int(wallTop + 4, H - 6); B.tweak(cx, cy, -1); B.tweak(cx + 1, cy + 1, -1); }
     }
     if (wealth > 0.55 && !spec.noFlowers) { // window boxes with flowers
-      for (const wdw of meta.windows) if (wdw.y > H - 30) {
+      for (const wdw of meta.windows) if (wdw.y > H - FLOOR - 4) {
         const by = wdw.y + wdw.h + 2; const bx = wdw.x - 1;
         const bxm = M.plank(), fl = P.mat(rng.pick(['#c84a4a', '#d8b040', '#b060b0', '#e6e0d0'])), lf = P.mat('#4f7a34', 'cloth');
         for (let x = bx; x < bx + wdw.w + 2; x++) { B.plot(x, by, bxm, 2); B.plot(x, by + 1, bxm, 1); B.plot(x, by - 1, lf, (x % 2) + 2); if (x % 2 === 0) B.plot(x, by - 2, fl, 3); }
@@ -1964,7 +1966,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     }
     // iron bands & handle
     const im = M.iron();
-    for (const by of [y + 3, y + h - 4]) for (let xx = x; xx < x + w - (big ? 0 : 3); xx++) B.plot(xx, by, im, 2);
+    for (const by of [y + 4, y + Math.round(h / 2), y + h - 5]) for (let xx = x; xx < x + w - (big ? 0 : 3); xx++) B.plot(xx, by, im, 2);
     if (big) { for (let k = 0; k < Math.min(w / 2, h); k++) { B.plot(x + k, y + 4 + k, dm, 1); B.plot(x + w - 1 - k, y + 4 + k, dm, 1); } for (let yy = y; yy < y + h; yy++) B.plot(x + w / 2, yy, dm, 0); }
     else { B.plot(x + w - 3, y + h / 2, M.iron(), 4); B.plot(x + w - 3, y + h / 2 + 1, M.iron(), 1); }
     // shadow at the top inside the frame (recessed door)
@@ -2338,7 +2340,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   // Gang hideouts grow in place: a hidden camp, a lean-to hideout, a log safehouse, a timber hall.
   function hideout(level, spec) {
     if (level >= 1) {
-      const sp = Object.assign({}, spec, level === 1 ? { wall: 'plank', plankMat: 'plank', roof: 'thatch', roofType: 'side', chimney: false, wallH: 22, condition: 0.5 } : level === 2 ? { wall: 'log', roof: 'shingle', roofType: 'gable', chimney: true, condition: 0.75 } : { wall: 'log', roof: 'shingle', roofType: 'gable', chimney: true, floors: 2, condition: 0.9, sign: 'sword' });
+      const sp = Object.assign({}, spec, level === 1 ? { wall: 'plank', plankMat: 'plank', roof: 'thatch', roofType: 'side', chimney: false, wallH: FLOOR + 6, condition: 0.5 } : level === 2 ? { wall: 'log', roof: 'shingle', roofType: 'gable', chimney: true, condition: 0.75 } : { wall: 'log', roof: 'shingle', roofType: 'gable', chimney: true, floors: 2, condition: 0.9, sign: 'sword' });
       return building(sp);
     }
     // level 0: a canvas tent, a campfire ring, a bedroll and a stash chest
@@ -3109,7 +3111,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       for (const s of this.flatProps) { const p = s.p, sp = p.sprite; const x = p.x - sp.ox, y = p.y - sp.oy; if (inView(x, y, sp.W, sp.H)) ctx.drawImage(sp.canvas, x - cam.x, y - cam.y); }
       for (const h of this.hooks.drawGround) h(ctx, cam);
       // depth-sort statics + actors (actors inserted by feet y)
-      const actors = this.actors.filter((a) => !a.hidden).slice().sort((a, b) => a.y - b.y);
+      const actors = this.actors.filter((a) => !a.hidden && !(a._suppressUntil > this.t)).slice().sort((a, b) => a.y - b.y);
       let ai = 0;
       const drawActor = (a) => {
         if (a.mount && this.riderDraw) { this.riderDraw(ctx, a); a._sx = null; return; }
@@ -3129,7 +3131,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         if (s.b) {
           const b = s.b, sp = b.sprite; if (!sp) continue;
           const x = b.x * T - sp.OV, y = (b.bottom + 1) * T - sp.H;
-          if (inView(x, y, sp.W, sp.H)) { ctx.drawImage(sp.canvas, x - cam.x, y - cam.y); if (this.snowAlpha > 0.04 && sp.roofMask) { ctx.globalAlpha = this.snowAlpha; ctx.drawImage(sp.roofMask, x - cam.x, y - cam.y); ctx.globalAlpha = 1; } }
+          if (inView(x, y, sp.W, sp.H)) { ctx.drawImage(sp.canvas, x - cam.x, y - cam.y); if (this.snowAlpha > 0.04 && sp.roofMask) { ctx.globalAlpha = this.snowAlpha; ctx.drawImage(sp.roofMask, x - cam.x, y - cam.y); ctx.globalAlpha = 1; } if (this.drawDoor) this.drawDoor(ctx, b, cam); }
         } else {
           const o = s.t || s.p, sp = o.sprite, x = o.x - sp.ox, y = o.y - sp.oy;
           if (inView(x, y, sp.W, sp.H)) ctx.drawImage(sp.canvas, x - cam.x, y - cam.y);
@@ -8078,8 +8080,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         case 'door':
           if (doorLocked(cur.b)) { O.Panels.toast(`The door of ${cur.b.type === 'house' ? 'the house' : cur.b.name} is barred.`); break; }
           if (game.player.mount) O.Horses.dismount();
-          game.enterBuilding(cur.b, 0);
-          O.Crime.onEnter(game, sim, cur.b);
+          { const bb = cur.b; game.walkInto ? game.walkInto(bb, () => { game.enterBuilding(bb, 0); O.Crime.onEnter(game, sim, bb); }) : (game.enterBuilding(bb, 0), O.Crime.onEnter(game, sim, bb)); }
           break;
         case 'container': search(cur.it, false); break;
         case 'claim': O.GangUI.claim(cur.b); break;
@@ -10475,7 +10476,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
     // ---------------------------------------------------------------- the target marker
     game.hooks.drawTop.push((ctx, cam) => {
-      const c = O.interactTarget; if (!c || O.panelOpen || O.UI.dialogOpen()) return;
+      const c = O.interactTarget; if (!c || O.panelOpen || O.UI.dialogOpen() || game.player.walkingDoor) return;
       const bob = Math.round(Math.sin(game.t * 4) * 1.5);
       const x = Math.round(c.x - cam.x), y = Math.round((c.type === 'npc' ? c.y - O.Char.GROUND - 4 : c.y - 6) - cam.y + bob);
       ctx.fillStyle = 'rgba(20,14,30,0.65)'; ctx.fillRect(x - 3, y - 2, 7, 7);
@@ -10566,6 +10567,103 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     game.hooks.update.unshift(() => { game.player.locked = !!(O.panelOpen || O.menuOpen || D); });
   }
   O.UI = { setup, say: () => {}, dialogOpen: () => false };
+})();
+
+</script>
+<script>
+// Doors that open, and people who walk through them. Nobody blinks out of the street any more:
+// when someone goes indoors the door swings open, they step up into the doorway and are swallowed
+// by the dark of the room; when they come out the door opens and they step down onto the street.
+// The player does the same — pressing E at a door walks you in.
+'use strict';
+(function () {
+  function setup(game) {
+    const T = 16;
+    const walkers = []; // { a, b, t, dur, mode: 'in'|'out', player, done }
+    const doorRect = (b) => { const sp = b.sprite, d = sp && sp.door; if (!d) return null; return { x: b.x * T - sp.OV + d.x, y: (b.bottom + 1) * T - sp.H + d.y, w: d.w, h: d.h }; };
+    function openDoor(b, dur = 0.9) { b._doorOpen = Math.max(b._doorOpen || 0, game.t + dur); }
+    function walk(a, b, mode, opts = {}) {
+      const r = doorRect(b); if (!r) { opts.done && opts.done(); return false; }
+      walkers.push({ a, b, t: 0, dur: opts.dur || 0.6, mode, player: !!opts.player, done: opts.done, r });
+      openDoor(b, (opts.dur || 0.6) + 0.5);
+      return true;
+    }
+    game.openDoor = openDoor;
+    game.walkThroughDoor = walk;
+
+    // the player walks in, then the room loads
+    game.walkInto = (b, then) => {
+      const p = game.player;
+      if (!doorRect(b) || game.scene) return then();
+      p.dir = 3; p.walkingDoor = true;
+      walk(p.a, b, 'in', { player: true, done: () => { p.walkingDoor = false; then(); } });
+    };
+    const _exit = game.exitBuilding.bind(game);
+    game.exitBuilding = function () {
+      const b = this.scene && this.scene.b;
+      _exit();
+      if (b && b.sprite && b.sprite.door && b.world !== 'elsewhere') {
+        const p = this.player; p.walkingDoor = true; p.dir = 0;
+        walk(p.a, b, 'out', { player: true, done: () => { p.walkingDoor = false; } });
+      }
+    };
+
+    // watch villagers go in and out
+    game.hooks.update.push((dt) => {
+      const sim = O.SimRef.cur;
+      if (sim && sim.world === game.world && !game.scene) {
+        for (const q of sim.people) {
+          const ag = q.agent; if (!ag || q.alive === false) continue;
+          const vis = !ag.hidden;
+          if (ag._vis === true && !vis && ag.inside != null) {
+            const b = sim.building ? sim.building(ag.inside) : null; const r = b && doorRect(b);
+            if (r && Math.hypot(ag.x - (r.x + r.w / 2), ag.y - (r.y + r.h)) < 48) walk(q.app, b, 'in');
+          } else if (ag._vis === false && vis && ag._lastIn != null) {
+            const b = sim.building ? sim.building(ag._lastIn) : null; const r = b && doorRect(b);
+            if (r && Math.hypot(ag.x - (r.x + r.w / 2), ag.y - (r.y + r.h)) < 48) { walk(q.app, b, 'out'); ag._suppressUntil = game.t + 0.6; }
+          }
+          ag._vis = vis; if (ag.inside != null) ag._lastIn = ag.inside;
+        }
+      }
+      for (const w of walkers) { w.t += dt; }
+      for (let i = walkers.length - 1; i >= 0; i--) if (walkers[i].t >= walkers[i].dur) { const w = walkers[i]; walkers.splice(i, 1); w.done && w.done(); }
+      const p = game.player;
+      if (p.walkingDoor) { p.locked = true; p._suppressUntil = game.t + 0.05; }
+    });
+
+    // drawn straight after the building, so the doorway sits in its wall
+    game.drawDoor = (ctx, b, cam) => {
+      const r = doorRect(b); if (!r) return;
+      const open = (b._doorOpen || 0) > game.t;
+      if (!open) return;
+      const x = r.x - cam.x, y = r.y - cam.y;
+      // the dark room beyond, warm if a fire is burning
+      const warm = game.lit && game.lit.has(b.id);
+      ctx.fillStyle = warm ? '#3a2416' : '#1c1614'; ctx.fillRect(x, y, r.w, r.h);
+      ctx.fillStyle = warm ? '#5a3a1e' : '#2a2220'; ctx.fillRect(x, y + r.h - 3, r.w, 3);
+      // the door leaf, swung inward against the hinge side
+      ctx.fillStyle = '#6e4a2c'; ctx.fillRect(x, y, 4, r.h);
+      ctx.fillStyle = '#8a6239'; ctx.fillRect(x, y, 1, r.h);
+      ctx.fillStyle = '#4a3020'; ctx.fillRect(x + 3, y, 1, r.h);
+      // whoever is passing through
+      for (const w of walkers) {
+        if (w.b !== b) continue;
+        const u = Math.min(1, w.t / w.dur), base = r.y + r.h;
+        const fy = w.mode === 'in' ? base + 6 - u * 13 : base - 7 + u * 15;
+        const dir = w.mode === 'in' ? 3 : 0;
+        const fr = O.Char.frame(w.a, dir, 'walk', Math.floor(w.t * 11) % 8);
+        const fx = Math.round(r.x + r.w / 2 - 16 - cam.x), fyy = Math.round(fy - O.Char.GROUND - cam.y);
+        ctx.save();
+        if (fy < base) { ctx.beginPath(); ctx.rect(x, y, r.w, 400); ctx.clip(); }
+        ctx.drawImage(fr, fx, fyy);
+        // the gloom of the room falls over them as they go in
+        const dark = O.clamp((base - fy) / 10, 0, 0.6);
+        if (dark > 0) { ctx.globalAlpha = dark; ctx.fillStyle = '#140e0c'; ctx.fillRect(x, y, r.w, r.h); ctx.globalAlpha = 1; }
+        ctx.restore();
+      }
+    };
+  }
+  O.Doors = { setup };
 })();
 
 </script>
@@ -11249,6 +11347,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   O.DisasterFX.setup(game, home);
   O.Estate.setup(game, home);
   O.UI.setup(game);
+  O.Doors.setup(game);
   O.Guide.setup(game);
   O.AudioSetup.setup(game, sim);
   if (loaded) { O.Save.hydrateLate(game, home); setTimeout(() => O.Panels.toast(`Welcome back. It is ${O.DAYNAMES[sim.weekday]}.`), 300); }

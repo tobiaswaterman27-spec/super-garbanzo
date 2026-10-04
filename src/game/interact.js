@@ -176,8 +176,7 @@
         case 'door':
           if (doorLocked(cur.b)) { O.Panels.toast(`The door of ${cur.b.type === 'house' ? 'the house' : cur.b.name} is barred.`); break; }
           if (game.player.mount) O.Horses.dismount();
-          game.enterBuilding(cur.b, 0);
-          O.Crime.onEnter(game, sim, cur.b);
+          { const bb = cur.b; game.walkInto ? game.walkInto(bb, () => { game.enterBuilding(bb, 0); O.Crime.onEnter(game, sim, bb); }) : (game.enterBuilding(bb, 0), O.Crime.onEnter(game, sim, bb)); }
           break;
         case 'container': search(cur.it, false); break;
         case 'claim': O.GangUI.claim(cur.b); break;

@@ -164,7 +164,7 @@
       for (const s of this.flatProps) { const p = s.p, sp = p.sprite; const x = p.x - sp.ox, y = p.y - sp.oy; if (inView(x, y, sp.W, sp.H)) ctx.drawImage(sp.canvas, x - cam.x, y - cam.y); }
       for (const h of this.hooks.drawGround) h(ctx, cam);
       // depth-sort statics + actors (actors inserted by feet y)
-      const actors = this.actors.filter((a) => !a.hidden).slice().sort((a, b) => a.y - b.y);
+      const actors = this.actors.filter((a) => !a.hidden && !(a._suppressUntil > this.t)).slice().sort((a, b) => a.y - b.y);
       let ai = 0;
       const drawActor = (a) => {
         if (a.mount && this.riderDraw) { this.riderDraw(ctx, a); a._sx = null; return; }
@@ -184,7 +184,7 @@
         if (s.b) {
           const b = s.b, sp = b.sprite; if (!sp) continue;
           const x = b.x * T - sp.OV, y = (b.bottom + 1) * T - sp.H;
-          if (inView(x, y, sp.W, sp.H)) { ctx.drawImage(sp.canvas, x - cam.x, y - cam.y); if (this.snowAlpha > 0.04 && sp.roofMask) { ctx.globalAlpha = this.snowAlpha; ctx.drawImage(sp.roofMask, x - cam.x, y - cam.y); ctx.globalAlpha = 1; } }
+          if (inView(x, y, sp.W, sp.H)) { ctx.drawImage(sp.canvas, x - cam.x, y - cam.y); if (this.snowAlpha > 0.04 && sp.roofMask) { ctx.globalAlpha = this.snowAlpha; ctx.drawImage(sp.roofMask, x - cam.x, y - cam.y); ctx.globalAlpha = 1; } if (this.drawDoor) this.drawDoor(ctx, b, cam); }
         } else {
           const o = s.t || s.p, sp = o.sprite, x = o.x - sp.ox, y = o.y - sp.oy;
           if (inView(x, y, sp.W, sp.H)) ctx.drawImage(sp.canvas, x - cam.x, y - cam.y);

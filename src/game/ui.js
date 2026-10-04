@@ -48,7 +48,7 @@
 
     // ---------------------------------------------------------------- the target marker
     game.hooks.drawTop.push((ctx, cam) => {
-      const c = O.interactTarget; if (!c || O.panelOpen || O.UI.dialogOpen()) return;
+      const c = O.interactTarget; if (!c || O.panelOpen || O.UI.dialogOpen() || game.player.walkingDoor) return;
       const bob = Math.round(Math.sin(game.t * 4) * 1.5);
       const x = Math.round(c.x - cam.x), y = Math.round((c.type === 'npc' ? c.y - O.Char.GROUND - 4 : c.y - 6) - cam.y + bob);
       ctx.fillStyle = 'rgba(20,14,30,0.65)'; ctx.fillRect(x - 3, y - 2, 7, 7);

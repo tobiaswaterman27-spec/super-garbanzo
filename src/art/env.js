@@ -20,11 +20,13 @@
   };
 
   const flatN = [0, 0, 1];
+  // a storey is tall enough for a grown person to walk through its door without stooping
+  const FLOOR = 44;
 
   function building(spec) {
     const rng = O.RNG(spec.seed || 1);
     const w = spec.w, d = spec.d, floors = spec.floors || 1, OV = 4, FW = w * T, W = FW + OV * 2;
-    const wallH = spec.wallH || floors * 22 + 9;
+    const wallH = spec.wallH || floors * FLOOR + 9;
     const gable = spec.roofType === 'gable';
     const roofH = Math.round(d * T * 0.58) + 4;
     const gableH = Math.round(FW * 0.34), depthH = Math.round(d * T * 0.52);
@@ -55,7 +57,7 @@
     if (wallKind === 'timber') { // timber framing
       const bm = M.beam();
       const hb = (y) => { for (let x = x0; x <= x1; x++) { B.plot(x, y, bm, 2); B.plot(x, y + 1, bm, 1); } };
-      hb(wallTop); for (let f = 1; f < floors; f++) hb(H - 3 - f * 22);
+      hb(wallTop); for (let f = 1; f < floors; f++) hb(H - 3 - f * FLOOR);
       hb(H - 5);
       const posts = Math.max(2, Math.round(FW / 18) + 1);
       for (let i = 0; i < posts; i++) {
@@ -66,7 +68,7 @@
       // diagonal braces in end panels
       const pw = (FW - 2) / (posts - 1);
       for (let f = 0; f < floors; f++) {
-        const yb = H - 5 - f * 22, yt = Math.max(wallTop + 1, yb - 20);
+        const yb = H - 5 - f * FLOOR, yt = Math.max(wallTop + 1, yb - FLOOR + 2);
         for (const [pa, dirn] of [[x0 + 2, 1], [x1 - 2, -1]]) {
           if (rng.chance(0.7)) {
             const lw = Math.min(pw - 3, 12), lh = yb - yt - 1, n = Math.max(lw, lh);
@@ -77,17 +79,17 @@
     }
     // ---- door & windows ----
     const doorTile = spec.doorTile ?? Math.floor(w / 2);
-    const dw = spec.bigDoor ? 22 : wealth > 0.7 ? 12 : 11, dh = spec.bigDoor ? 24 : 17;
+    const dw = spec.bigDoor ? 28 : wealth > 0.7 ? 17 : 15, dh = spec.bigDoor ? 44 : 40;
     const dx = Math.round(x0 + doorTile * T + T / 2 - dw / 2 + (spec.bigDoor ? 0 : 0)), dy = H - 2 - dh;
     drawDoor(B, dx, dy, dw, dh, wealth, rng, spec.bigDoor);
     meta.door = { x: dx, y: dy, w: dw, h: dh, tile: doorTile };
     const shutterM = M.shutter(rng);
     for (let f = 0; f < floors; f++) {
-      const wy = H - 3 - f * 22 - 17 + (f ? 1 : 0);
-      const slots = Math.max(1, Math.floor(FW / 22));
+      const wy = H - 3 - f * FLOOR - 36 + (f ? 2 : 0);
+      const slots = Math.max(1, Math.floor(FW / 24));
       for (let i = 0; i < slots; i++) {
         const cxw = Math.round(x0 + ((i + 0.5) * FW) / slots);
-        const ww = wealth > 0.7 ? 9 : 8, wh = wealth > 0.7 ? 11 : 9;
+        const ww = wealth > 0.7 ? 12 : 11, wh = wealth > 0.7 ? 18 : 16;
         const wx = cxw - Math.floor(ww / 2);
         if (f === 0 && wx + ww + 3 > dx && wx - 3 < dx + dw) continue;
         if (wx < x0 + 3 || wx + ww > x1 - 2) continue;
@@ -171,7 +173,7 @@
       for (let i = 0; i < Math.round((1 - cond) * 14); i++) { const cx = rng.int(x0 + 2, x1 - 2), cy = rng.int(wallTop + 4, H - 6); B.tweak(cx, cy, -1); B.tweak(cx + 1, cy + 1, -1); }
     }
     if (wealth > 0.55 && !spec.noFlowers) { // window boxes with flowers
-      for (const wdw of meta.windows) if (wdw.y > H - 30) {
+      for (const wdw of meta.windows) if (wdw.y > H - FLOOR - 4) {
         const by = wdw.y + wdw.h + 2; const bx = wdw.x - 1;
         const bxm = M.plank(), fl = P.mat(rng.pick(['#c84a4a', '#d8b040', '#b060b0', '#e6e0d0'])), lf = P.mat('#4f7a34', 'cloth');
         for (let x = bx; x < bx + wdw.w + 2; x++) { B.plot(x, by, bxm, 2); B.plot(x, by + 1, bxm, 1); B.plot(x, by - 1, lf, (x % 2) + 2); if (x % 2 === 0) B.plot(x, by - 2, fl, 3); }
@@ -317,7 +319,7 @@
     }
     // iron bands & handle
     const im = M.iron();
-    for (const by of [y + 3, y + h - 4]) for (let xx = x; xx < x + w - (big ? 0 : 3); xx++) B.plot(xx, by, im, 2);
+    for (const by of [y + 4, y + Math.round(h / 2), y + h - 5]) for (let xx = x; xx < x + w - (big ? 0 : 3); xx++) B.plot(xx, by, im, 2);
     if (big) { for (let k = 0; k < Math.min(w / 2, h); k++) { B.plot(x + k, y + 4 + k, dm, 1); B.plot(x + w - 1 - k, y + 4 + k, dm, 1); } for (let yy = y; yy < y + h; yy++) B.plot(x + w / 2, yy, dm, 0); }
     else { B.plot(x + w - 3, y + h / 2, M.iron(), 4); B.plot(x + w - 3, y + h / 2 + 1, M.iron(), 1); }
     // shadow at the top inside the frame (recessed door)
@@ -691,7 +693,7 @@
   // Gang hideouts grow in place: a hidden camp, a lean-to hideout, a log safehouse, a timber hall.
   function hideout(level, spec) {
     if (level >= 1) {
-      const sp = Object.assign({}, spec, level === 1 ? { wall: 'plank', plankMat: 'plank', roof: 'thatch', roofType: 'side', chimney: false, wallH: 22, condition: 0.5 } : level === 2 ? { wall: 'log', roof: 'shingle', roofType: 'gable', chimney: true, condition: 0.75 } : { wall: 'log', roof: 'shingle', roofType: 'gable', chimney: true, floors: 2, condition: 0.9, sign: 'sword' });
+      const sp = Object.assign({}, spec, level === 1 ? { wall: 'plank', plankMat: 'plank', roof: 'thatch', roofType: 'side', chimney: false, wallH: FLOOR + 6, condition: 0.5 } : level === 2 ? { wall: 'log', roof: 'shingle', roofType: 'gable', chimney: true, condition: 0.75 } : { wall: 'log', roof: 'shingle', roofType: 'gable', chimney: true, floors: 2, condition: 0.9, sign: 'sword' });
       return building(sp);
     }
     // level 0: a canvas tent, a campfire ring, a bedroll and a stash chest

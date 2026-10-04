@@ -41,7 +41,7 @@
       case 'child': m = { headRx: 5.2, headRy: 5.1, torso: 7, leg: 8, armU: 3.6, armL: 3.4, shW: 8, waistW: 8, hipW: 8.5, limbR: 1.45, legR: 1.7 }; break;
       case 'olderChild': m = { headRx: 5.4, headRy: 5.3, torso: 8, leg: 10, armU: 4.2, armL: 4, shW: 9, waistW: 8.5, hipW: 9, limbR: 1.5, legR: 1.8 }; break;
       case 'teen': m = { headRx: 5.3, headRy: 5.4, torso: 10.5, leg: 13.5, armU: 5, armL: 4.8, shW: 10.5, waistW: 9, hipW: 9.5, limbR: 1.55, legR: 1.95 }; break;
-      default: m = { headRx: 5.5, headRy: 5.6, torso: 12, leg: 15, armU: 5.6, armL: 5.4, shW: 12.5, waistW: 10, hipW: 10.5, limbR: 1.65, legR: 2.05 };
+      default: m = { headRx: 5.5, headRy: 5.6, torso: 12, leg: 15, armU: 5.6, armL: 5.4, shW: 13.4, waistW: 10, hipW: 10.5, limbR: 1.65, legR: 2.05 };
     }
     m.stage = st;
     if (st !== 'child' && st !== 'olderChild' && st !== 'baby') {
@@ -274,7 +274,8 @@
     const shY = hipY - m.torso;
     P.hipY = hipY; P.shY = shY; P.waistY = shY + Math.round(m.torso * 0.6); P.legs = L;
     const leanZ = P.lean;
-    const head = [0, shY - 1.2 - m.headRy + 0.6 + P.headDown * 0.8, leanZ * 1.1 + P.headFwd + P.headDown * 0.8];
+    const stg = a && a.stage, neckLen = stg === 'adult' || stg === 'elder' ? 1.5 : stg === 'teen' ? 1.2 : 0.4; // a grown neck between head and shoulders
+    const head = [0, shY - 1.2 - neckLen - m.headRy + 0.6 + P.headDown * 0.8, leanZ * 1.1 + P.headFwd + P.headDown * 0.8];
     P.head = head;
     const shoulder = (s) => [s * shHalf, shY + 1.3, leanZ * 0.95];
     const fwdArm = (s, swing, bend, abd) => {
@@ -444,7 +445,12 @@
     const r = m.limbR;
     B.capsule(sh[0], sh[1], el[0], el[1], r * 1.08, r * 0.98, cov.upperArm, { shadeBias: bias });
     B.capsule(el[0], el[1], hd[0], hd[1], r * 0.98, r * 0.85, cov.lowerArm, { shadeBias: bias });
-    if (a.outfit.sleeves === 'long') B.tweak(el[0], el[1], -1);
+    if (a.outfit.sleeves === 'long') {
+      B.tweak(el[0], el[1], -1);
+      // the cuff: a turned-back band of the sleeve just above the hand
+      const u = 0.8, cx = el[0] + (hd[0] - el[0]) * u, cy = el[1] + (hd[1] - el[1]) * u;
+      for (let dx = -2; dx <= 2; dx++) if (B.get(Math.floor(cx + dx), Math.floor(cy)) === cov.lowerArm) B.tweak(cx + dx, cy, -1);
+    }
     if (held && p.anim !== 'sleep' && held !== 'lute' && held !== 'book') { B.part(G.ITEM); drawItem(S, held, A, hd); B.part(group); }
     B.capsule(hd[0], hd[1], hd[0], hd[1] + 0.3, r * (p.fist ? 1.1 : 0.98), r * 0.95, a.skin, { shadeBias: bias });
   }
@@ -718,18 +724,17 @@
       if (!isSkin(cols[0], ey)) continue;
       if (blink) { for (const x of cols) plot(x, ey, a.skin, 0); }
       else {
-        for (const x of cols) { plot(x, ey - 1, a.eyeDark, 1); plot(x, ey, a.eyes, f.eyeType === 2 ? 1 : 2); }
-        // a catchlight on the side the light comes from, the same on both eyes
-        if (f.eyeType !== 2 && cols.length > 1) plot(V.mirror ? cols[1] : cols[0], ey - 1, a.eyeWhite, 4);
-        // the white of the eye on the outer side
-        if (wf > 0.55) { const wx = outer < 0 ? cols[0] - 1 : cols[cols.length - 1] + 1; if (isSkin(wx, ey)) plot(wx, ey, a.eyeWhite, f.eyeType === 1 ? 3 : 2); }
-        if (f.eyeType === 1) for (const x of cols) plot(x, ey + 1, a.skin, 1); // heavy lower lid
+        // one clean eye: a dark pupil over the iris on the inner side, the white beside it, a lid shadow above
+        const inner = cols.length > 1 ? (outer < 0 ? cols[1] : cols[0]) : cols[0], outerCol = cols.length > 1 ? (outer < 0 ? cols[0] : cols[1]) : null;
+        plot(inner, ey - 1, a.eyeDark, 1); plot(inner, ey, a.eyes, f.eyeType === 2 ? 1 : 2);
+        if (outerCol != null) { plot(outerCol, ey, a.eyeWhite, 3); plot(outerCol, ey - 1, a.skin, 1); }
+        if (f.eyeType === 1) plot(inner, ey + 1, a.skin, 1); // heavy lower lid
       }
       // brow
-      const by = ey - 2 - (f.brow === 2 ? 0 : 0);
+      const by = ey - 3;
       if (f.brow > 0 || elder || a.sex === 'm') {
         const bc = wf > 0.55 ? [ex - 1, ex] : cols;
-        for (const x of bc) if (isSkin(x, by)) plot(x, by, browM, f.brow > 1 ? 0 : 1);
+        for (const x of bc) if (isSkin(x, by)) plot(x, by, browM, a.sex === 'f' ? 2 : f.brow > 1 ? 0 : 1);
         if (f.brow > 1 && wf > 0.55) { const ox = outer < 0 ? bc[0] - 1 : bc[bc.length - 1] + 1; if (isSkin(ox, by + 1)) plot(ox, by + 1, browM, 1); }
       }
       // cheeks and lines
@@ -742,7 +747,12 @@
     const nw = -nose[2];
     const ny = Math.floor(eyeY) + 2;
     if (V.side || Math.abs(V.Fx) > 0.6 && !V.back) {
-      if (nw > -0.2) { const tipX = Math.round(H.cx + H.e * (V.side ? 0.98 : 0.72)); B.part(G.HEAD); B.plot(tipX, ny - 1, a.skin, 3); B.plot(tipX, ny, a.skin, 2); if (f.nose === 2) B.plot(tipX + 1, ny, a.skin, 2); }
+      // a small nose: one pixel just past the cheek in profile, a shaded bridge in three-quarter view
+      if (nw > -0.2) {
+        const dir = V.mirror ? -1 : 1;
+        if (V.side) { const edge = Math.round(H.cx + dir * (H.e - 0.2)); B.part(G.HEAD); if (B.get(edge, ny) !== a.skin) B.plot(edge, ny, a.skin, 2); if (f.nose === 2) B.plot(edge, ny - 1, a.skin, 3); }
+        else { const nx = Math.round(nose[0]); plot(nx, ny, a.skin, 1); plot(nx, ny - 1, a.skin, 3); }
+      }
     } else if (nw > 0.4) {
       const nx = Math.round(nose[0]);
       plot(nx, ny, a.skin, 1); if (f.nose >= 1) plot(nx, ny - 1, a.skin, 2); plot(nx - 1, ny, a.skin, 3);
@@ -755,7 +765,7 @@
       const wide = -mq[2] > 0.55;
       const xs = wide ? [mxc - 1, mxc] : [mxc - (V.side ? 0 : 1)];
       if (p.mouth) { for (const x of xs) plot(x, my, a.eyeDark, 1); for (const x of xs) plot(x, my + 1, a.lip, 1); }
-      else { for (const x of xs) plot(x, my, a.lip, 1); if (wide && a.sex === 'f') { plot(xs[0], my, a.lip, 2); } }
+      else { for (const x of xs) plot(x, my, a.lip, a.sex === 'f' ? 2 : 1); if (wide) for (const x of xs) if (B.get(x, my + 1) === a.skin) B.tweak(x, my + 1, 1); }
       if (a.beard === 'stubble') for (let x = mxc - 3; x <= mxc + 2; x++) for (const yy of [my + 1, my + 2]) if (B.get(x, yy) === a.skin && (x + yy) % 2 === 0) B.tweak(x, yy, -1);
     }
     // ears, unless covered
@@ -771,7 +781,7 @@
         const side = q[0] < H.cx ? -1 : 1, ex = side < 0 ? Math.floor(H.cx - H.e) - 1 + 0 : Math.ceil(H.cx + H.e);
         if (Math.abs(q[0] - H.cx) < H.e * 0.82) continue;
         const ey = Math.floor(eyeY);
-        B.plot(ex - (side < 0 ? 0 : 1) + (side < 0 ? 0 : 1), ey, a.skin, side < 0 ? 3 : 1); B.plot(ex, ey + 1, a.skin, side < 0 ? 2 : 1);
+        B.plot(side < 0 ? ex + 1 : ex - 1, ey + 1, a.skin, 1); // a small ear tucked against the head, not a handle
       }
     }
     // a long beard falls below the chin

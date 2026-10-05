@@ -276,3 +276,22 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] More wars than the Duke of Frostmere's: foreign wars with the Sea-Lords of Varn, the Marcher clans or the Kingdom of Aldmark; civil wars raised by the Duke or by a great lord of Eastmarch or Westcliff; feuds between lords; sea raiders and bandits; risings of the hungry commons
 - [x] Who the Duke is: Robert, Duke of Frostmere, the old king's cousin, who holds the north and says his claim is the better one (shown in the War section)
 - [x] Battles you can see: two lines meet on the road where you stand, banners up, men pair off and fight, fall, and one side breaks and runs; press E near one of theirs to strike; raids, feuds and risings at your town are fought in front of you; marching with the levy shows you a battle before you come home
+
+## Batch R (asked after step 83) - clearer work, real time, the council, finery, and a sweep for inconsistencies
+
+- [x] Business is in tabs (The Crown, Your work, Your businesses, Your home, War, Ways up); B opens it from anywhere and closes it again (J too)
+- [x] Your work: what the job is, whether it's a day's quota or a shift and the hours, today's task checklist with plain instructions for each (no talk of arrows), fellow workers
+- [x] The right way out of each post: hand in your notice, buy out an indenture, be released from vows or service, ask the crown's leave, renounce a royal place, or abdicate the throne; walking out of a shift ends the day unpaid instead of quitting
+- [x] The monarch has no master and no raise to ask for
+- [x] The coronation: a royal herald comes on the morning to fetch you, wherever you are
+- [x] Petitioners come as soon as you sit on the throne and wait until you've answered them; the crown treasury is shown as you hear them
+- [x] Pointers travel into the gold mark over the door and vanish into it; every marker has a label saying what it's for; two in one place become one with both names; your markers show on the map of the realm; Settings can turn pointers off (markers only) or turn all of it off
+- [x] People stay put while you talk to them, indoors and out
+- [x] Jewellery: rings, brooches, gold chains and circlets, worn from the satchel and shown on you; the gentry and royals wear theirs; the well-off buy them at the jeweller's
+- [x] What's on (in J): every event with its date and hours (fairs, feasts, the tournament, Sunday market, the council, a coronation, executions, your party, weddings, funerals, elections, and the gatherings townsfolk hold); Show the way to any of them
+- [x] Townsfolk host their own gatherings: christenings after a birth, guild feasts, church ales, harvest-home suppers, mummers' plays, hunts; going makes friends
+- [x] No two big gatherings at once in a town: the crown can't call a festivity on a day already taken, and you can't throw a party on a night something else is on
+- [x] Letters take time: sounding out a lord, writing to the Duke, demanding tribute and asking for a raise by letter all wait for the answer to come back (listed in J while you wait); a palisade takes three days and drilling counts from the next day
+- [x] The council of the realm: every leader of a city, town, port and castle rides in; it waits for whoever has a seat until five, then goes home; the monarch presides (grant or refuse, with the treasury shown); a leader brings their own petition and speaks for or against others; you're told on the morning and shown the way
+- [x] Castle doors carry plaques (the room, or the family who lives there); chests in a family's room belong to them, not the castle
+- [x] Wording: the King's host becomes the Queen's under a queen; the currency is the aurin everywhere (no crowns, shillings or pennies); the recruiting sergeant calls a woman a lass; leaders' titles read properly; the moot names your rival; women's titles for women (potgirl, mistress cook); the guide is brought up to date

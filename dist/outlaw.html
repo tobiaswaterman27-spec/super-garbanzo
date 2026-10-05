@@ -17297,6 +17297,9 @@ O.snowMaskOf = function (src) {
     };
     O.Employment = { emp, hire, quit, here, posts };
     O.COURT = COURT;
+    // what the post is called for you: some titles are a woman's or a man's
+    const FEM = { potboy: 'potgirl', 'master cook': 'mistress cook', 'master of horse': 'mistress of horse', lord: 'lady', prince: 'princess', heir: 'heir', fisher: 'fishwife', 'night watchman': 'night watchwoman', 'master builder': 'master builder' };
+    O.roleName = (role) => ((O.Forge.player?.sex || O.Forge.player?.a?.sex) === 'f' && FEM[role]) || role;
     O.jobHours = (e) => { const s = O.Travel?.visited.get(e.place)?.sim || cur(), bz = s.world.placeId === e.place ? s.biz.get(e.biz) : null; return hoursOf(e, bz); };
 
     // ---------------------------------------------------------------- tasks
@@ -17624,7 +17627,7 @@ O.snowMaskOf = function (src) {
       if (!e || O.panelOpen) { if (!el.hidden) el.hidden = true; if (O.panelOpen) sig = ''; return; }
       const s = O.Travel?.visited.get(e.place)?.sim || cur();
       const bz = s.world.placeId === e.place ? s.biz.get(e.biz) : null, [o, c] = hoursOf(e, bz);
-      const head = `<b>${esc(e.role)}</b> · ${esc(e.bizName)}${e.place !== cur().world.placeId ? `, ${esc(e.placeName)}` : ''}`;
+      const head = `<b>${esc(O.roleName(e.role))}</b> · ${esc(e.bizName)}${e.place !== cur().world.placeId ? `, ${esc(e.placeName)}` : ''}`;
       const crown = COURT.has(e.role);
       const shift = crown ? (e.onShift ? `${e.role === 'monarch' ? 'Your reign' : 'At court'}: the business of the day, till ${fmtH(c)}` : `At court from ${fmtH(o)}`) : e.onShift ? (modeOf(e.role) === 'quota' ? `The day's work: ${e.tasks.filter((t) => t.have >= t.need).length} of ${e.tasks.length} done (go when it's all done)` : `On shift till ${fmtH(c)} (stay the hours; the work changes)`) : e.dayInfo?.dayDone ? `Your day's work is done` : `Next shift: ${nextShift(e, s, bz, o, c)} ${fmtH(o)}-${fmtH(c)}`;
       const tasks = e.onShift ? e.tasks.map((t) => `<li class="${t.have >= t.need ? 'done' : ''}">${t.have >= t.need ? '■' : '□'} ${esc(t.text)}${t.need > 1 ? ` (${Math.min(t.have, t.need)}/${t.need})` : ''}</li>`).join('') : '';
@@ -17733,7 +17736,8 @@ O.snowMaskOf = function (src) {
       if (indoor && game.scene && game.scene.b.id !== bz.id && !targets.length && PS.guides !== 'off') { const w = O.wayOut ? O.wayOut() : game.scene.wayIn(); if (w) targets.push([w[0], w[1] - 20]); } // the way out
       if (!targets.length) return;
       const [tx, ty] = targets.sort((a, b) => Math.hypot(a[0] - P.x, a[1] - P.y) - Math.hypot(b[0] - P.x, b[1] - P.y))[0];
-      O.guideArrow && O.guideArrow(ctx, cam, tx, ty);
+      const nextT = e.tasks.find((x) => x.have < x.need);
+      O.guideArrow && O.guideArrow(ctx, cam, tx, ty, nextT ? nextT.text : 'Your work');
     });
 
     // ---------------------------------------------------------------- any post at all (for trying the jobs out)
@@ -19434,6 +19438,7 @@ O.snowMaskOf = function (src) {
     const tag = (ctx, x, y, text) => {
       ctx.font = '8px Silkscreen, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
       const t2 = text.length > 34 ? text.slice(0, 33) + '…' : text, w = ctx.measureText(t2).width;
+      x = Math.max(w / 2 + 6, Math.min(game.vw - w / 2 - 6, x)); y = Math.max(4, Math.min(game.vh - 16, y)); // kept on the screen
       ctx.fillStyle = 'rgba(27,20,36,.82)'; ctx.fillRect(Math.round(x - w / 2 - 3), Math.round(y - 2), Math.round(w + 6), 12);
       ctx.fillStyle = '#ffe2a0'; ctx.fillText(t2, Math.round(x), Math.round(y)); ctx.textAlign = 'start';
     };
@@ -19574,7 +19579,7 @@ O.snowMaskOf = function (src) {
         const mode = royal ? `Your days at court run from ${hh(o)} to ${hh(c)}.` : how.mode === 'quota' ? `A day's work: do each task below and your day is done, whenever that is. Hours ${hh(o)} to ${hh(c)}.` : `A shift from ${hh(o)} to ${hh(c)}: stay the hours, and new work comes along through the day.`;
         const list = e.onShift && how.tasks.length ? `<h4>Today's tasks</h4><ul class="chron">${how.tasks.map((t) => `<li>${t.done ? '☑' : '☐'} <b>${esc(t.text)}</b>${t.need > 1 ? ` (${t.have}/${t.need})` : ''}${t.done ? '' : `<br><small class="lbl">${esc(t.how)}</small>`}</li>`).join('')}</ul>` : `<p class="caption">${e.dayInfo?.dayDone ? 'Your work is done for today.' : 'Your tasks are set when your shift begins.'}</p>`;
         const [lk, ll] = leaveOf(e);
-        secs.work.push(`<h3>${esc(e.role)} <small class="lbl">${royal ? esc(e.placeName) : `at ${esc(e.bizName)}, ${esc(e.placeName)}`}</small></h3>${how.summary ? `<p>${esc(how.summary)}</p>` : ''}<p class="caption">${mode}</p><div class="kv"><div><span class="lbl">${royal ? 'From the treasury' : 'Wage'}</span><b>₳${e.wage}</b><small>a day</small></div><div><span class="lbl">Days worked</span><b>${st.shifts || 0}</b><small>${st.late || 0} late, ${st.missed || 0} missed, ${st.tasks || 0} tasks done</small></div>${royal ? '' : `<div><span class="lbl">Your master</span><b>${esc(boss ? boss.name : e.masterName || 'the crown')}</b><small>${boss ? (like > 0.3 ? 'thinks well of you' : like < -0.2 ? 'is not pleased with you' : 'has no strong view of you') : ''}</small></div><div><span class="lbl">Fellow workers</span><b>${mates.length}</b><small>${mates.map((q) => esc(q.first + ' (' + q.job.role + ')')).join(', ') || 'none'}</small></div>`}</div>${list}
+        secs.work.push(`<h3>${esc(O.roleName ? O.roleName(e.role) : e.role)} <small class="lbl">${royal ? esc(e.placeName) : `at ${esc(e.bizName)}, ${esc(e.placeName)}`}</small></h3>${how.summary ? `<p>${esc(how.summary)}</p>` : ''}<p class="caption">${mode}</p><div class="kv"><div><span class="lbl">${royal ? 'From the treasury' : 'Wage'}</span><b>₳${e.wage}</b><small>a day</small></div><div><span class="lbl">Days worked</span><b>${st.shifts || 0}</b><small>${st.late || 0} late, ${st.missed || 0} missed, ${st.tasks || 0} tasks done</small></div>${royal ? '' : `<div><span class="lbl">Your master</span><b>${esc(boss ? boss.name : e.masterName || 'the crown')}</b><small>${boss ? (like > 0.3 ? 'thinks well of you' : like < -0.2 ? 'is not pleased with you' : 'has no strong view of you') : ''}</small></div><div><span class="lbl">Fellow workers</span><b>${mates.length}</b><small>${mates.map((q) => esc(q.first + ' (' + q.job.role + ')')).join(', ') || 'none'}</small></div>`}</div>${list}
           <div class="topics">${boss && !(O.COURT && O.COURT.has(e.role)) ? `<button data-raise="${i}" data-how="${PS.items.includes('letter') ? 'letter' : 'word'}">${PS.items.includes('letter') ? 'Ask for a raise by letter' : 'Ask for a raise (send word)'}</button>` : ''}<button data-leave="${i}:${lk}">${ll}</button></div>`);
       });
       // your home, and a party in it
@@ -19953,9 +19958,10 @@ O.snowMaskOf = function (src) {
       s.playerMoot = null; const sq = s.Z.square, p = game.player, there = !game.scene && sq && p.x / T >= sq[0] - 2 && p.x / T <= sq[2] + 2 && p.y / T >= sq[1] - 2 && p.y / T <= sq[3] + 2;
       if (!there) { say('The moot met without you, and chose another. You have to be there.', 'bad'); return; }
       const voters = s.people.filter((q) => q.age >= 18 && !q.visitor); let yes = 0;
+      const rival = s.people.filter((q) => !q.visitor && q.age >= 25 && q.alive !== false && (q.traits || []).includes('ambitious')).sort((a, b) => (s.household(b)?.money || 0) - (s.household(a)?.money || 0))[0] || s.people.find((q) => q.job && /reeve|bailiff|clerk/.test(q.job.role)) || null;
       for (const q of voters) if ((q.rel.get(0)?.affinity || 0) * 0.8 + PS.rep.local * 0.4 + PS.rep.civilian * 0.2 + (Math.random() - 0.55) * 0.5 > 0) yes++;
       const won = yes > voters.length / 2;
-      O.UI.dialog.open({ name: 'The moot', color: '#5a3a1a', text: `Hands are raised in the square. ${yes} for you, ${voters.length - yes} for the other. ${won ? `You are Reeve of ${s.world.name}!` : 'You lose. Make more friends, and stand again.'}`, options: [{ key: 'ok', label: 'Go on' }], onPick: () => O.UI.dialog.close() });
+      O.UI.dialog.open({ name: 'The moot', color: '#5a3a1a', text: `Hands are raised in the square. ${yes} for you, ${voters.length - yes} for ${rival ? rival.first + (rival.sur ? ' ' + rival.sur : '') : 'the other'}. ${won ? `You are Reeve of ${s.world.name}!` : 'You lose. Make more friends, and stand again.'}`, options: [{ key: 'ok', label: 'Go on' }], onPick: () => O.UI.dialog.close() });
       if (won) { (PS.reeveOf = PS.reeveOf || {})[s.world.placeId] = true; if (s === O.SimRef.home) { PS.reeve = true; s.reeveId = 'player'; } s.log(`The moot has chosen the stranger as Reeve of ${s.world.name}.`, 'politics'); }
     });
 
@@ -20959,8 +20965,8 @@ O.snowMaskOf = function (src) {
       const kinds = Object.entries(KINDS).filter(([k, d]) => k !== 'christening' && (!d.seasons || d.seasons.includes(se)));
       const [kind, D0] = kinds[r.int(0, kinds.length - 1)];
       let host = null, b = null, tile = null;
-      if (D0.gentry) host = s.people.find((q) => (q.gentry || q.lordOf) && q.alive !== false && r.chance(0.5)) || null;
-      else host = s.people.filter((q) => q.age >= 30 && !q.visitor && q.alive !== false && (kind !== 'guildfeast' || (q.job && s.biz.get(q.job.biz)?.owner === q.id)) && (kind !== 'harvesthome' || /farm/.test(s.building(q.home)?.type || '')))[r.int(0, 30)] || null;
+      if (D0.gentry) { const pool = s.people.filter((q) => (q.gentry || q.lordOf) && q.alive !== false); host = pool.length ? pool[r.int(0, pool.length - 1)] : null; if (!host) return; }
+      else { const pool = s.people.filter((q) => q.age >= 30 && !q.visitor && q.alive !== false && (kind !== 'guildfeast' || (q.job && s.biz.get(q.job.biz)?.owner === q.id)) && (kind !== 'harvesthome' || /farm/.test(s.building(q.home)?.type || ''))); host = pool.length ? pool[r.int(0, pool.length - 1)] : null; }
       if (!host && !D0.open) return;
       if (D0.where === 'tavern') b = s.tavernId; else if (D0.where === 'chapel') b = s.chapelId; else if (D0.where === 'farm') b = host?.home;
       else if (D0.where === 'square') { const [x0, y0, x1, y1] = s.Z.square; tile = [Math.floor((x0 + x1) / 2), Math.floor((y0 + y1) / 2)]; }
@@ -20972,6 +20978,7 @@ O.snowMaskOf = function (src) {
       s.npcEvents.push(ev);
       s.log(`${ev.title}: ${O.dateOf(day)}, from ${hh(ev.from)}.`, 'social');
     }
+    O.scheduleEvents = schedule;
     let lastDay = new Map();
     game.hooks.update.push(() => {
       const s = cur(); if (!s || !s.world) return;

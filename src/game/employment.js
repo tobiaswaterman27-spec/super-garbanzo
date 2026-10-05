@@ -134,6 +134,9 @@
     };
     O.Employment = { emp, hire, quit, here, posts };
     O.COURT = COURT;
+    // what the post is called for you: some titles are a woman's or a man's
+    const FEM = { potboy: 'potgirl', 'master cook': 'mistress cook', 'master of horse': 'mistress of horse', lord: 'lady', prince: 'princess', heir: 'heir', fisher: 'fishwife', 'night watchman': 'night watchwoman', 'master builder': 'master builder' };
+    O.roleName = (role) => ((O.Forge.player?.sex || O.Forge.player?.a?.sex) === 'f' && FEM[role]) || role;
     O.jobHours = (e) => { const s = O.Travel?.visited.get(e.place)?.sim || cur(), bz = s.world.placeId === e.place ? s.biz.get(e.biz) : null; return hoursOf(e, bz); };
 
     // ---------------------------------------------------------------- tasks
@@ -461,7 +464,7 @@
       if (!e || O.panelOpen) { if (!el.hidden) el.hidden = true; if (O.panelOpen) sig = ''; return; }
       const s = O.Travel?.visited.get(e.place)?.sim || cur();
       const bz = s.world.placeId === e.place ? s.biz.get(e.biz) : null, [o, c] = hoursOf(e, bz);
-      const head = `<b>${esc(e.role)}</b> · ${esc(e.bizName)}${e.place !== cur().world.placeId ? `, ${esc(e.placeName)}` : ''}`;
+      const head = `<b>${esc(O.roleName(e.role))}</b> · ${esc(e.bizName)}${e.place !== cur().world.placeId ? `, ${esc(e.placeName)}` : ''}`;
       const crown = COURT.has(e.role);
       const shift = crown ? (e.onShift ? `${e.role === 'monarch' ? 'Your reign' : 'At court'}: the business of the day, till ${fmtH(c)}` : `At court from ${fmtH(o)}`) : e.onShift ? (modeOf(e.role) === 'quota' ? `The day's work: ${e.tasks.filter((t) => t.have >= t.need).length} of ${e.tasks.length} done (go when it's all done)` : `On shift till ${fmtH(c)} (stay the hours; the work changes)`) : e.dayInfo?.dayDone ? `Your day's work is done` : `Next shift: ${nextShift(e, s, bz, o, c)} ${fmtH(o)}-${fmtH(c)}`;
       const tasks = e.onShift ? e.tasks.map((t) => `<li class="${t.have >= t.need ? 'done' : ''}">${t.have >= t.need ? '■' : '□'} ${esc(t.text)}${t.need > 1 ? ` (${Math.min(t.have, t.need)}/${t.need})` : ''}</li>`).join('') : '';
@@ -570,7 +573,8 @@
       if (indoor && game.scene && game.scene.b.id !== bz.id && !targets.length && PS.guides !== 'off') { const w = O.wayOut ? O.wayOut() : game.scene.wayIn(); if (w) targets.push([w[0], w[1] - 20]); } // the way out
       if (!targets.length) return;
       const [tx, ty] = targets.sort((a, b) => Math.hypot(a[0] - P.x, a[1] - P.y) - Math.hypot(b[0] - P.x, b[1] - P.y))[0];
-      O.guideArrow && O.guideArrow(ctx, cam, tx, ty);
+      const nextT = e.tasks.find((x) => x.have < x.need);
+      O.guideArrow && O.guideArrow(ctx, cam, tx, ty, nextT ? nextT.text : 'Your work');
     });
 
     // ---------------------------------------------------------------- any post at all (for trying the jobs out)

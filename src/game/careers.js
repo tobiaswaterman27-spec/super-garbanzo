@@ -237,9 +237,10 @@
       s.playerMoot = null; const sq = s.Z.square, p = game.player, there = !game.scene && sq && p.x / T >= sq[0] - 2 && p.x / T <= sq[2] + 2 && p.y / T >= sq[1] - 2 && p.y / T <= sq[3] + 2;
       if (!there) { say('The moot met without you, and chose another. You have to be there.', 'bad'); return; }
       const voters = s.people.filter((q) => q.age >= 18 && !q.visitor); let yes = 0;
+      const rival = s.people.filter((q) => !q.visitor && q.age >= 25 && q.alive !== false && (q.traits || []).includes('ambitious')).sort((a, b) => (s.household(b)?.money || 0) - (s.household(a)?.money || 0))[0] || s.people.find((q) => q.job && /reeve|bailiff|clerk/.test(q.job.role)) || null;
       for (const q of voters) if ((q.rel.get(0)?.affinity || 0) * 0.8 + PS.rep.local * 0.4 + PS.rep.civilian * 0.2 + (Math.random() - 0.55) * 0.5 > 0) yes++;
       const won = yes > voters.length / 2;
-      O.UI.dialog.open({ name: 'The moot', color: '#5a3a1a', text: `Hands are raised in the square. ${yes} for you, ${voters.length - yes} for the other. ${won ? `You are Reeve of ${s.world.name}!` : 'You lose. Make more friends, and stand again.'}`, options: [{ key: 'ok', label: 'Go on' }], onPick: () => O.UI.dialog.close() });
+      O.UI.dialog.open({ name: 'The moot', color: '#5a3a1a', text: `Hands are raised in the square. ${yes} for you, ${voters.length - yes} for ${rival ? rival.first + (rival.sur ? ' ' + rival.sur : '') : 'the other'}. ${won ? `You are Reeve of ${s.world.name}!` : 'You lose. Make more friends, and stand again.'}`, options: [{ key: 'ok', label: 'Go on' }], onPick: () => O.UI.dialog.close() });
       if (won) { (PS.reeveOf = PS.reeveOf || {})[s.world.placeId] = true; if (s === O.SimRef.home) { PS.reeve = true; s.reeveId = 'player'; } s.log(`The moot has chosen the stranger as Reeve of ${s.world.name}.`, 'politics'); }
     });
 

@@ -34,6 +34,7 @@
     const tag = (ctx, x, y, text) => {
       ctx.font = '8px Silkscreen, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
       const t2 = text.length > 34 ? text.slice(0, 33) + '…' : text, w = ctx.measureText(t2).width;
+      x = Math.max(w / 2 + 6, Math.min(game.vw - w / 2 - 6, x)); y = Math.max(4, Math.min(game.vh - 16, y)); // kept on the screen
       ctx.fillStyle = 'rgba(27,20,36,.82)'; ctx.fillRect(Math.round(x - w / 2 - 3), Math.round(y - 2), Math.round(w + 6), 12);
       ctx.fillStyle = '#ffe2a0'; ctx.fillText(t2, Math.round(x), Math.round(y)); ctx.textAlign = 'start';
     };

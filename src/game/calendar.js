@@ -44,8 +44,8 @@
       const kinds = Object.entries(KINDS).filter(([k, d]) => k !== 'christening' && (!d.seasons || d.seasons.includes(se)));
       const [kind, D0] = kinds[r.int(0, kinds.length - 1)];
       let host = null, b = null, tile = null;
-      if (D0.gentry) host = s.people.find((q) => (q.gentry || q.lordOf) && q.alive !== false && r.chance(0.5)) || null;
-      else host = s.people.filter((q) => q.age >= 30 && !q.visitor && q.alive !== false && (kind !== 'guildfeast' || (q.job && s.biz.get(q.job.biz)?.owner === q.id)) && (kind !== 'harvesthome' || /farm/.test(s.building(q.home)?.type || '')))[r.int(0, 30)] || null;
+      if (D0.gentry) { const pool = s.people.filter((q) => (q.gentry || q.lordOf) && q.alive !== false); host = pool.length ? pool[r.int(0, pool.length - 1)] : null; if (!host) return; }
+      else { const pool = s.people.filter((q) => q.age >= 30 && !q.visitor && q.alive !== false && (kind !== 'guildfeast' || (q.job && s.biz.get(q.job.biz)?.owner === q.id)) && (kind !== 'harvesthome' || /farm/.test(s.building(q.home)?.type || ''))); host = pool.length ? pool[r.int(0, pool.length - 1)] : null; }
       if (!host && !D0.open) return;
       if (D0.where === 'tavern') b = s.tavernId; else if (D0.where === 'chapel') b = s.chapelId; else if (D0.where === 'farm') b = host?.home;
       else if (D0.where === 'square') { const [x0, y0, x1, y1] = s.Z.square; tile = [Math.floor((x0 + x1) / 2), Math.floor((y0 + y1) / 2)]; }
@@ -57,6 +57,7 @@
       s.npcEvents.push(ev);
       s.log(`${ev.title}: ${O.dateOf(day)}, from ${hh(ev.from)}.`, 'social');
     }
+    O.scheduleEvents = schedule;
     let lastDay = new Map();
     game.hooks.update.push(() => {
       const s = cur(); if (!s || !s.world) return;

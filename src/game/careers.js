@@ -135,10 +135,16 @@
       return game.scene ? null : prev ? prev() : null;
     }
     function study() {
-      const s = cur(); if ((PS.studiedAt || -1) === s.day * 24 + Math.floor(s.hour)) return say('Your eyes need a rest. Another hour, later.');
-      PS.studiedAt = s.day * 24 + Math.floor(s.hour);
+      const s = cur(), abs = s.day * 1440 + s.minute;
+      // an hour at the books tires the eyes: rest a while between, and no more than three hours a day
+      if (PS.studyDay !== s.day) { PS.studyDay = s.day; PS.studyHours = 0; }
+      if (PS.studyHours >= 3) return say("You've read all you can take in today. Your head is full.", 'bad');
+      if (abs - (PS.studiedAt ?? -1e9) < 120) return say('Your eyes need a rest. Come back to it in an hour or two.', 'bad');
+      if (PS.energy < 15) return say('You are too tired to read: the letters swim.', 'bad');
+      PS.studyHours++;
       const gain = 0.035 * (1 - PS.learning * 0.6); PS.learning = Math.min(1, PS.learning + gain);
-      for (let k = 0; k < 30; k++) { s.tick(2); PS.tick(2, true); }
+      for (let k = 0; k < 30; k++) { s.tick(2); PS.tick(2, false); }
+      PS.energy = Math.max(0, PS.energy - 5); PS.studiedAt = s.day * 1440 + s.minute;
       say(`An hour over the books: Latin, letters and the reckoning of accounts. Learning ${Math.round(PS.learning * 100)}.`);
     }
     function perform() {
@@ -162,7 +168,7 @@
     };
     npcUI.onExtra = (q, key, render) => {
       const s = cur();
-      if (key === 'lessons') { if (PS.lessonDay === s.day) return render('"Enough for today. Come back tomorrow."'); if (PS.money < 4) return render('"Four aurins, child. The Church must eat."'); PS.money -= 4; PS.lessonDay = s.day; PS.learning = Math.min(1, PS.learning + 0.06 * (1 - PS.learning * 0.5)); s.relate(q, { id: 0 }, 0.05); return render(`"Again: the letters, then the psalter." An hour of letters. Learning ${Math.round(PS.learning * 100)}.`); }
+      if (key === 'lessons') { if (PS.lessonDay === s.day) return render('"Enough for today. Come back tomorrow."'); if (PS.money < 4) return render('"Four aurins, child. The Church must eat."'); PS.money -= 4; PS.lessonDay = s.day; for (let k = 0; k < 30; k++) { s.tick(2); PS.tick(2, false); } PS.studiedAt = s.day * 1440 + s.minute; PS.learning = Math.min(1, PS.learning + 0.06 * (1 - PS.learning * 0.5)); s.relate(q, { id: 0 }, 0.05); return render(`"Again: the letters, then the psalter." An hour of letters. Learning ${Math.round(PS.learning * 100)}.`); }
       if (key === 'vouch') { const aff = q.rel.get(0)?.affinity || 0; if (aff < 0.35) return render('"I hardly know you. Earn it first."'); (PS.vouched = PS.vouched || {})['royal guard'] = true; return render('"Aye. I\'ll put your name to the captain. Don\'t make a fool of me."'); }
       if (key === 'court') return render(`"The court takes no one off the street. A maid, a page or a groom may rise to butler and steward, and a steward with learning to chamberlain. The royal guard takes sergeants of the watch, if one of us vouches. The family choose their own pages and ladies. We have a jester when one is good enough to be talked of, and a herald who has carried the crown's letters faithfully. Read the notices at the gate."`);
       if (key === 'blackmail') return blackmail(s, q);

@@ -92,28 +92,30 @@
       if (PS.anointed) return;
       if (!PS.coronation) {
         PS.coronation = { place: cap.id, day: O.SimRef.home.day + 1 };
-        say('The bishop sends word: you will be crowned tomorrow in the castle chapel, between ten and one. Kneel at the altar.');
+        say('The bishop sends word: you will be crowned tomorrow in the castle chapel; the court gathers at ten. Kneel at the altar (if you are there sooner, the bishop will crown you at once).');
       }
       const c = PS.coronation;
       // on the morning, the herald comes to fetch you
       if (!c.summoned && O.SimRef.home.day === c.day && s.hour >= 9.25 && s.hour < CORONATION_H[1] && !O.UI.dialogOpen() && !O.panelOpen) {
         c.summoned = true;
         const there = s.world.placeId === c.place, f = (O.Forge.player?.sex || O.Forge.player?.a?.sex) === 'f';
-        O.UI.dialog.open({ name: 'The royal herald', color: '#7a1a2a', text: there ? `The herald finds you and bows low. "${f ? 'Madam' : 'Sire'}, all is ready. The bishop waits at the altar of the castle chapel, and the court is in its pews. Come and be crowned: between ten and one."` : `A rider in the royal livery reins in beside you. "${f ? 'Madam' : 'Sire'}, you are to be crowned today in the castle chapel at ${capital().name}, between ten and one. The court waits."`, options: [{ key: 'go', label: there ? 'Lead me there' : 'I will ride there' }, { key: 'later', label: 'Presently' }], onPick: () => { O.UI.dialog.close(); } });
+        O.UI.dialog.open({ name: 'The royal herald', color: '#7a1a2a', text: there ? `The herald finds you and bows low. "${f ? 'Madam' : 'Sire'}, all is ready. The bishop waits at the altar of the castle chapel, and the court is in its pews. Come and be crowned: the court gathers from ten, and the bishop will wait for you until evening."` : `A rider in the royal livery reins in beside you. "${f ? 'Madam' : 'Sire'}, you are to be crowned today in the castle chapel at ${capital().name}, between ten and one. The court waits."`, options: [{ key: 'go', label: there ? 'Lead me there' : 'I will ride there' }, { key: 'later', label: 'Presently' }], onPick: (k) => { O.UI.dialog.close(); if (k === 'go' && !there) PS.roadLead = { place: c.place, until: c.day * 1440 + 20 * 60, ev: { title: 'Your coronation', coronation: true } }; } });
       }
       if (s.world.placeId === c.place) {
         const k = keepOf(s);
-        if (k && !(PS.leads || []).some((l) => l.why === 'coronation')) O.addLead && O.addLead({ place: c.place, b: k.id, until: c.day * 1440 + CORONATION_H[1] * 60, why: 'coronation', label: 'Your coronation in the castle chapel' });
-        if (s.day > c.day || (s.day === c.day && s.hour >= CORONATION_H[1])) { c.day = s.day + 1; c.summoned = false; s.log('The coronation was put off: the crown never came to the chapel.', 'politics'); say('You missed your own coronation. It is put off until tomorrow.', 'bad'); }
+        if (k && !(PS.leads || []).some((l) => l.why === 'coronation')) O.addLead && O.addLead({ place: c.place, b: k.id, until: c.day * 1440 + 20 * 60, why: 'coronation', label: 'Your coronation in the castle chapel' });
+        if (s.day > c.day || (s.day === c.day && s.hour >= 20)) { c.day = s.day + 1; c.summoned = false; s.log('The coronation was put off: the crown never came to the chapel.', 'politics'); say('You missed your own coronation. It is put off until tomorrow.', 'bad'); }
       }
     });
     let cer = null;
     const prevScene = O.sceneCandidate;
     O.sceneCandidate = () => {
       const sc = game.scene, s = cur();
-      if (sc && !cer && sc.b.roomKey === 'chapel' && sc.b.parent?.royal && coronationOn(s)) {
+      // the crown waits for you: any time from the morning to the evening, from the day set (or at once, if you're here already)
+      const c = PS.coronation;
+      if (sc && !cer && sc.b.roomKey === 'chapel' && sc.b.parent?.royal && c && !c.done && !PS.anointed && O.crowned && O.crowned() && s.hour >= 8 && s.hour < 20) {
         const alt = sc.L.items.find((i) => i.kind === 'altar');
-        if (alt) { const [x, y] = sc.anchor(alt), p = game.player, d = Math.hypot(x - p.x, y + 18 - p.y); if (d < 50) return { type: 'custom', d, label: 'Kneel before the altar to be crowned', act: () => crown(sc, alt) }; }
+        if (alt) { const [x, y] = sc.anchor(alt), p = game.player, d = Math.hypot(x - p.x, y + 18 - p.y); if (d < 80) return { type: 'custom', d: -20, label: 'Kneel before the altar to be crowned', act: () => { c.day = Math.min(c.day, s.day); c.place = s.world.placeId; crown(sc, alt); }, x, y: y - 30 }; }
       }
       return prevScene ? prevScene() : null;
     };
@@ -137,7 +139,7 @@
         for (const q of s.people) if (q.agent.inside === keepOf(s)?.id) s.relate(q, { id: 0 }, 0.08);
         s.log(`The new ${f ? 'queen' : 'king'} was crowned in the castle chapel. A feast is called for tonight.`, 'politics');
         O.Chronicle && O.Chronicle.deed && O.Chronicle.deed(s, `The stranger was crowned in the castle chapel.`, 'You were crowned.');
-        O.UI.dialog.open({ name: 'The coronation', color: '#7a1a2a', text: `The crown is set upon your head. The chapel rings: "God save the ${f ? 'Queen' : 'King'}! God save the ${f ? 'Queen' : 'King'}!" Outside, the bells begin. There is a feast tonight in the great hall.`, options: [{ key: 'ok', label: 'Rise, crowned' }], onPick: () => { O.UI.dialog.close(); p.locked = false; p.anim = 'idle'; cer = null; } });
+        O.UI.dialog.open({ name: 'The coronation', color: '#7a1a2a', text: `The crown is set upon your head. The chapel rings: "God save the ${f ? 'Queen' : 'King'}! God save the ${f ? 'Queen' : 'King'}!" Outside, the bells begin. There is a feast tonight in the great hall. Your bedchamber is on the top floor of the castle: the door marked Yours.`, options: [{ key: 'ok', label: 'Rise, crowned' }], onPick: () => { O.UI.dialog.close(); p.locked = false; p.anim = 'idle'; cer = null; } });
       }
     });
     // the crown coming down, and a little light

@@ -109,7 +109,7 @@
         default: return '';
       }
     }
-    const mayUseBed = (it) => (game.scene && game.scene.b.roomKey === 'chamber:monarch' && O.castleMayEnter && O.castleMayEnter({ locked: 'monarch' })) || (game.scene && game.scene.b.owner?.kind === 'player') || (game.scene && PS.lease && PS.lease.b === game.scene.b.id) || (it.gangBed && game.scene && game.scene.b.gang === 'player') || (it.rent && PS.room && game.scene && PS.room.b === game.scene.b.id && sim.day <= PS.room.until);
+    const mayUseBed = (it) => (game.scene && game.scene.b.roomKey === 'chamber:monarch' && O.castleMayEnter && O.castleMayEnter({ locked: 'monarch' })) || (game.scene && game.scene.b.roomKey === 'chamber:player') || (game.scene && game.scene.b.owner?.kind === 'player') || (game.scene && PS.lease && PS.lease.b === game.scene.b.id) || (it.gangBed && game.scene && game.scene.b.gang === 'player') || (it.rent && PS.room && game.scene && PS.room.b === game.scene.b.id && sim.day <= PS.room.until);
 
     game.hooks.update.push((dt) => {
       if (searching > 0) { searching -= dt; game.player.anim = 'crouch'; game.player.locked = true; if (searching <= 0) { game.player.locked = false; game.player.anim = 'idle'; pendingSearch && pendingSearch(); pendingSearch = null; } }
@@ -136,7 +136,7 @@
       const out = [];
       if (b.owner?.kind === 'player' && !hh) { const st = (PS.homes = PS.homes || {}); const key = sim.world.placeId + ':' + b.id; (st[key] = st[key] || []).forEach((k) => out.push({ k, n: 1, src: 'homestash', key })); return { items: out, owner: 'you' }; }
       // your own room in your own place: the monarch's bedchamber when you wear the crown, a house you rent
-      const mine = (b.roomKey === 'chamber:monarch' && O.crowned && O.crowned()) || (PS.lease && PS.lease.b === b.id && !b.parent);
+      const mine = (b.roomKey === 'chamber:monarch' && O.crowned && O.crowned()) || b.roomKey === 'chamber:player' || (PS.lease && PS.lease.b === b.id && !b.parent);
       if (mine) { const st = (PS.homes = PS.homes || {}); const key = sim.world.placeId + ':' + (b.roomKey || b.id); if (!st[key] && b.roomKey === 'chamber:monarch') st[key] = ['ring', 'brooch', 'candlestick', 'wine']; (st[key] = st[key] || []).forEach((k) => out.push({ k, n: 1, src: 'homestash', key })); return { items: out, owner: 'you' }; }
       if (it.rentChest && PS.room && PS.room.b === b.id) { (PS.stash || (PS.stash = [])).forEach((k) => out.push({ k, n: 1, src: 'stash' })); return { items: out, owner: 'you' }; }
       if (it.stockOf && bz) {
@@ -192,6 +192,10 @@
     // you; you wake at seven, or when you've slept eight hours if you lay down in the day.
     function sleep(it, rough) {
       if (game.sleepState) return;
+      // you can't sleep the days away: only when tired, or at night, and not straight after waking
+      { const h = sim.hour, night = h >= 20 || h < 5, abs = sim.day * 1440 + sim.minute, since = abs - (PS.wokeAt ?? -1e9);
+        if (!night && PS.energy > 45) return O.UI.say("You lie down, but you're not tired. Sleep won't come in broad day.", 'bad');
+        if (since < 240 && PS.energy > 25) return O.UI.say("You've only just got up. You're wide awake.", 'bad'); }
       const m0 = sim.minute, target = m0 >= 19 * 60 || m0 < 6 * 60 ? 7 * 60 : (m0 + 8 * 60) % 1440;
       game.sleepState = { it, rough, target, slept: 0 };
       game.player.inBed = it || null; game.player.anim = rough ? 'lie' : 'idle';
@@ -203,6 +207,7 @@
       for (let k = 0; k < 4; k++) { sim.tick(2); PS.tick(2, true); st.slept += 2; const m = sim.minute; if ((m >= st.target && m < st.target + 6) || st.slept > 16 * 60) { wake(); return; } }
     });
     function wake() {
+      PS.wokeAt = sim.day * 1440 + sim.minute;
       const st = game.sleepState; game.sleepState = null;
       const p = game.player; p.inBed = null; p.anim = 'idle'; p.locked = false;
       if (st.rough) { PS.energy = Math.min(PS.energy, 70); PS.hp = Math.max(1, PS.hp - 2); }

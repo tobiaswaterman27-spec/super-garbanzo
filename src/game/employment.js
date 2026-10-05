@@ -123,7 +123,7 @@
     }
     const esc = (t) => O.escape(String(t));
     function hire(s, bz, boss, role, wage, extra) {
-      bz.playerRole = role;
+      bz.playerRole = role; if (bz.b && (bz.b.royal || bz.type === 'keep' || bz.type === 'palace') && O.Interior) O.Interior.invalidate(bz.b); // (your own chamber at court)
       if (['monarch', 'consort', 'heir', 'prince', 'princess'].includes(role)) boss = null; // nobody is the crown's master
       posts().push(PS.emp = Object.assign({ place: s.world.placeId, placeName: s.world.name, biz: bz.id, bizName: bz.name, role, wage, master: boss ? boss.id : null, masterName: boss ? boss.name : ['monarch', 'consort', 'heir', 'prince', 'princess'].includes(role) ? null : 'the crown', since: s.day,
         stats: { shifts: 0, late: 0, missed: 0, tasks: 0, excused: 0 }, day: null, tasks: [], level: 0 }, extra || {}));
@@ -131,7 +131,7 @@
       if (boss) { s.relate(boss, { id: 0 }, 0.05); s.remember(boss, `Took the stranger on as ${role}.`, 'work', 1.2, 0); }
       O.Chronicle && O.Chronicle.deed(s, `A newcomer has been taken on as ${role} at ${bz.name}.`, `You were taken on as ${role} at ${bz.name}.`, 'player', 1, true);
     }
-    function quit(msg, e = emp()) { if (!e) return; const s = cur(); const bz = s.world.placeId === e.place ? s.biz.get(e.biz) : null; if (bz && bz.playerRole === e.role) bz.playerRole = null; PS.posts = posts().filter((x) => x !== e); if (PS.emp === e) { PS.emp = PS.posts[0] || null; PS.carry = null; } if (msg) say(msg); }
+    function quit(msg, e = emp()) { if (!e) return; const s = cur(); const bz = s.world.placeId === e.place ? s.biz.get(e.biz) : null; if (bz && bz.b && (bz.b.royal || bz.type === 'keep' || bz.type === 'palace') && O.Interior) setTimeout(() => O.Interior.invalidate(bz.b), 0); if (bz && bz.playerRole === e.role) bz.playerRole = null; PS.posts = posts().filter((x) => x !== e); if (PS.emp === e) { PS.emp = PS.posts[0] || null; PS.carry = null; } if (msg) say(msg); }
     // things you do that count toward a task: hearing a petition, issuing a decree, speaking with someone, going to a floor
     O.jobEvent = (type, data = {}) => {
       const e = here(); if (!e || !e.onShift) return;

@@ -314,3 +314,15 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] A town's saint's day never falls on another high day; the harvest fair runs into the evening in What's on
 - [x] Fixed: no talk of arrows when you're taken on or take a bounty; a post that ended could come back
 - [x] Fixed: public buildings named with the town; a/an in descriptions; "at" before place names in reports; the crier repeating the same news
+
+## Batch S (asked during round 2) - the castle, children, the coronation, pews, time, the way
+
+- [x] Going up into the castle you're told who has each room on that floor; a place at court gives you a chamber of your own (second floor, third for the higher posts, fourth for the royal family) with a bed and a chest, its door marked Yours; the crowned monarch's is the bedchamber on the top floor, and you're told so when crowned
+- [x] Children no longer trail you about: now and then one or two run up to stare and wave, then run off; walk away and they don't follow; a child does it once a day at most
+- [x] The coronation: kneel at the castle chapel's altar any time from eight till eight, from the day set (or at once if you're there), and nothing nearby gets in the way; the herald's "I will ride there" shows you the road
+- [x] You can sit in the pews
+- [x] No skipping time: you sleep only at night or when tired, and not straight after waking; the books need a rest of two hours between readings and three hours a day at most, and they tire you; the priest's lessons take their hour
+- [x] What's on drops events that are over; old gang errands and lapsed contracts leave your undertakings
+- [x] Show the way closes the list so you can see the marker; for an event in another town it shows the road out toward it, then the way once you arrive
+- [x] The tournament lists: a barrier, pavilions and two knights tilting at each other in the square, one now and then unhorsed
+- [x] Midnight is 12am, not 12pm

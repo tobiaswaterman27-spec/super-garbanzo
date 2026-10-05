@@ -7,7 +7,9 @@
   function setup(game) {
     const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k), esc = (t) => O.escape(String(t));
     function open() {
-      const s = cur(), posts = (O.Employment && O.Employment.posts()) || [], C = PS.contract, gang = (O.GangLife ? O.GangLife.mine() : []).filter((m) => m.task && !m.task.done);
+      const s = cur(), posts = (O.Employment && O.Employment.posts()) || [], C = PS.contract && !(PS.contract.until && PS.contract.until < s.day * 1440 + s.minute) ? PS.contract : null;
+      if (O.GangLife) for (const m of O.GangLife.mine()) if (m.task && !m.task.done && m.task.day != null && m.task.day < s.day - 3) m.task = null; // (old errands lapse)
+      const gang = (O.GangLife ? O.GangLife.mine() : []).filter((m) => m.task && !m.task.done);
       const rows = [];
       posts.forEach((e, i) => rows.push(`<tr><td><b>${esc(e.role)}</b> at ${esc(e.bizName)}${e.place !== s.world.placeId ? `, ${esc(e.placeName)}` : ''}${e.onShift ? ' <span class="warn">(on shift now)</span>' : ''}</td><td>${e.onShift ? `<button data-quit="${i}">Walk out of today's work</button>` : `<button data-post="1">See it in Business</button>`}</td></tr>`));
       if (C) rows.push(`<tr><td>${esc(C.text)} <span class="caption">(₳${C.reward})</span></td><td><button data-contract="1">Give it up</button></td></tr>`);

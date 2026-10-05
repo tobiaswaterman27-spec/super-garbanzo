@@ -54,6 +54,10 @@
     up.push(mk('chamber:guest', 'The guest chamber', 'chamber', 3, 5, 4, { roomOwners: [], wealth: 0.85 }));
     // the monarch's bedchamber is always kept, whoever holds the crown (you, if it's you)
     if (!up.some((r) => r.roomKey === 'chamber:monarch')) up.push(mk('chamber:monarch', "The monarch's bedchamber", 'chamber', 4, 7, 5, { roomOwners: [], locked: 'monarch', wealth: 1, royalRoom: true, playerRoom: true }));
+    // you, if you hold a place at court here (not the crown: that has the monarch's bedchamber): a chamber of your own
+    { const PS = O.PlayerState, pl = sim && sim.world && sim.world.placeId, posts = (PS && (PS.posts || (PS.emp ? [PS.emp] : []))) || [];
+      const mine = posts.find((e) => e.place === pl && e.biz === b.id && !['monarch', 'consort'].includes(e.role));
+      if (mine) { const fam = ['heir', 'prince', 'princess'].includes(mine.role), high = fam || HIGH.has(mine.role) || /^(Sir|Dame|Lord|Lady)/.test(PS.title || ''); up.push(mk('chamber:player', 'Your chamber', 'chamber', fam ? 4 : high ? 3 : 2, 5, 4, { roomOwners: [], locked: 'player', wealth: fam ? 0.95 : high ? 0.75 : 0.55, playerRoom: true, royalRoom: fam })); } }
     // nobody keeps a room in a castle they no longer live in
     for (const r of up) if (r.roomOwners.length && sim) r.roomOwners = r.roomOwners.filter((id) => { const q = sim.byId.get(id); return q && q.alive !== false && sim.households[q.household - 1]?.home === b.id; });
     const floors = [ground, [], up.filter((r) => r.roomFloor === 2), up.filter((r) => r.roomFloor === 3), up.filter((r) => r.roomFloor === 4)];

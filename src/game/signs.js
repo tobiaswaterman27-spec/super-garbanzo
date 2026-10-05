@@ -92,6 +92,22 @@
       O.UI.dialog.open({ name: nice(lines[0]), color: '#8a6239', text: lines.slice(1).map(nice).join('. ') || 'Nothing more is written.', options: [] });
     };
     // in the castle every door off the hallway has its plaque: what the room is, and (close up) who lives there
+    // going up into a castle's upper hallways, you're told who has the rooms on that floor
+    let toldFloor = '';
+    game.hooks.update.push(() => {
+      const sc = game.scene; if (!sc || !sc.b.royal || sc.b.parent || !O.Castle || !(sc.floor >= 2)) { if (!sc) toldFloor = ''; return; }
+      const s = O.SimRef.cur, key = sc.b.id + ':' + sc.floor + ':' + s.day; if (key === toldFloor) return; toldFloor = key;
+      const plan = O.Castle.plan(sc.b, s), rooms = plan.floors[sc.floor] || [];
+      const desc = rooms.map((r) => {
+        if (r.playerRoom || (r.roomKey === 'chamber:monarch' && O.crowned && O.crowned())) return `${r.name === 'Your chamber' ? 'your chamber' : r.name.replace(/^The /, 'the ')} (yours)`;
+        const os = (r.roomOwners || []).map((id) => s.byId.get(id)).filter((q) => q && q.alive !== false);
+        if (!os.length) return r.name.replace(/^The /, 'the ') + (r.roomKey === 'chamber:guest' ? ' (empty unless there are guests)' : ' (empty)');
+        const head = os[0], role = head.title ? `${head.title} ${head.first}` : `${head.first} ${head.sur || ''}`.trim() + (head.job?.role ? `, ${O.roleName ? head.job.role : head.job.role}` : '');
+        return `${r.name.replace(/^The /, 'the ')}: ${role}${os.length > 1 ? ` and ${os.length - 1} more` : ''}`;
+      });
+      const nth = ['', '', 'second', 'third', 'fourth'][sc.floor] || 'upper';
+      if (desc.length) O.UI.say(`The ${nth} floor. ${desc.join('; ').replace(/^./, (c) => c.toUpperCase())}.`);
+    });
     game.hooks.drawTop.push((ctx, cam, indoor) => {
       const sc = game.scene; if (!indoor || !sc || !sc.b.royal || sc.b.parent || !O.Castle) return;
       const s = O.SimRef.cur, plan = O.Castle.plan(sc.b, s);
@@ -101,7 +117,7 @@
         const room = plan.all.find((r) => r.roomKey === it.room); if (!room) continue;
         const os = (room.roomOwners || []).map((id) => s.byId.get(id)).filter((q) => q && q.alive !== false);
         // one short line: who lives there (a family chamber), or what the room is
-        const who = os.length === 1 ? os[0].first : os.length > 1 ? (os[0].sur || os[0].first) : room.locked === 'monarch' ? (O.crowned && O.crowned() ? 'Yours' : 'Monarch') : '';
+        const who = os.length === 1 ? os[0].first : os.length > 1 ? (os[0].sur || os[0].first) : room.locked === 'monarch' ? (O.crowned && O.crowned() ? 'Yours' : 'Monarch') : room.playerRoom ? 'Yours' : '';
         let l1 = up(who && /room$|chamber/i.test(room.name || '') ? who : String(room.name || '').replace(/^the /i, ''));
         l1 = l1.replace(/ ROOM$| HALL$/, (m) => (l1.length > 12 ? '' : m)); if (l1.length > 11) l1 = l1.slice(0, 10) + '.';
         const [ax, ay] = sc.anchor(it);

@@ -60,6 +60,7 @@
       if (!it.locked) return true;
       const roles = (O.Employment ? O.Employment.posts() : []).map((e) => e.role);
       if (it.locked === 'monarch') return roles.includes('monarch') || roles.includes('consort');
+      if (it.locked === 'player') return true; // (it's only there while you hold a post here)
       return roles.some((r) => ['monarch', 'consort', 'heir', 'prince', 'princess'].includes(r));
     };
 

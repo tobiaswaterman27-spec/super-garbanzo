@@ -120,7 +120,7 @@
           const d = Math.hypot(st.x - p.x, st.y - p.y); if (d < 30) return { type: 'custom', label: `Browse ${q.first}'s wares`, act: () => openMerchant(q), d: d - 30, x: st.x, y: st.y - 30 };
         }
         const f = fest(s), h = s.hour, lists = s.world.props.find((x) => x.kind === 'noticeboard') || s.world.props.find((x) => x.kind === 'well');
-        if (f === 'tournament' && listsOn(s) && h >= 10 && h < 15) { const [cx, cy] = O.revelCentre(s), d = Math.hypot((p.x - cx) / 2.2, p.y - cy); if (d < 46) return { type: 'custom', label: 'The tournament lists: bet, or ride', act: () => tournament(s), d: 2, x: cx, y: cy - 50 }; }
+        if (f === 'tournament' && listsOn(s) && h >= 10 && h < 15) { const [cx, cy] = listsCentre(s), d = Math.hypot((p.x - cx) / 2.2, p.y - cy); if (d < 46) return { type: 'custom', label: 'The tournament lists: bet, or ride', act: () => tournament(s), d: 2, x: cx, y: cy - 50 }; }
         if (lists && Math.hypot(lists.x - p.x, lists.y - p.y) < 34) {
           if (f === 'tournament' && keepOf(s) && h >= 10 && h < 15) return { type: 'custom', label: 'The tournament lists: bet, or ride', act: () => tournament(s), d: 2, x: lists.x, y: lists.y - 34 };
           if (f === 'fair' && h >= 10 && h < 18) return { type: 'custom', label: 'The fair games: archery, wrestling, the judging', act: () => fairGames(s), d: 2, x: lists.x, y: lists.y - 34 };
@@ -239,17 +239,28 @@
     // break on each other's shields (or one goes over his horse's tail), ride on, turn and go again
     const listsOn = (s) => fest(s) === 'tournament' && keepOf(s) && s.hour >= 9.5 && s.hour < 15.5 && !game.scene && game.world === s.world && O.revelCentre;
     const HALF = 72;
+    // a clear strip of the square long enough for the lists, with room for the pavilions at the ends
+    function listsCentre(s) {
+      if (s._lists) return s._lists;
+      const [x0, y0, x1, y1] = s.Z.square, w = s.world, half = Math.ceil((HALF + 40) / T), free = (x, y) => x >= 0 && y >= 0 && x < w.W && y < w.H && w.solid[y * w.W + x] !== 1;
+      let best = null, bs = -1e9;
+      for (let y = y0 - 2; y <= y1 + 2; y++) for (let x = x0; x <= x1; x++) {
+        let ok = true; for (let yy = y - 2; yy <= y + 1 && ok; yy++) for (let xx = x - half; xx <= x + half; xx++) if (!free(xx, yy)) { ok = false; break; }
+        if (!ok) continue; const sc = -Math.abs(x - (x0 + x1) / 2) - Math.abs(y - (y0 + y1) / 2) * 0.5; if (sc > bs) { bs = sc; best = [x * T + 8, y * T + 8]; }
+      }
+      return (s._lists = best || O.revelCentre(s));
+    }
     const rider = (k) => ({ x: 0, y: 0, dir: 3, anim: 'idle', ft: 0, tourney: true, a: Ch.makeAppearance(O.hash('tilt', k), { role: 'guard', sex: 'm', age: 30 + k * 5, wealth: 0.9 }), mount: { id: 'tilt' + k, coat: k ? 'black' : 'grey', saddled: true, anim: 'idle', ft: 0, seed: 7 + k * 5 } });
     const KN = [rider(0), rider(1)];
     let fallen = null, flash = 0, lastCycle = -1;
     const BARRIER = { tourney: true, x: 0, y: 0, ft: 0, paint: (ctx, cam) => {
-      const s = cur(), [cx, cy] = O.revelCentre(s), x0 = Math.round(cx - HALF - cam.x), y = Math.round(cy - cam.y);
+      const s = cur(), [cx, cy] = listsCentre(s), x0 = Math.round(cx - HALF - cam.x), y = Math.round(cy - cam.y);
       for (let x = 0; x <= HALF * 2; x++) { ctx.fillStyle = ((x >> 3) & 1) ? '#e8e0d0' : '#a8382f'; ctx.fillRect(x0 + x, y - 9, 1, 3); ctx.fillStyle = '#3a2614'; ctx.fillRect(x0 + x, y - 6, 1, 1); }
       ctx.fillStyle = '#4a3020'; for (let x = 0; x <= HALF * 2; x += 18) ctx.fillRect(x0 + x, y - 9, 2, 10);
       if (flash > 0) { ctx.fillStyle = `rgba(255,240,200,${Math.min(1, flash * 3).toFixed(2)})`; const fx = Math.round(cx - cam.x); for (let i = 0; i < 8; i++) ctx.fillRect(fx + Math.round(Math.cos(i) * (6 + i)), y - 26 + Math.round(Math.sin(i * 1.7) * 6), 2, 2); }
     } };
     const PAV = (side) => ({ tourney: true, x: 0, y: 0, ft: 0, paint: (ctx, cam) => {
-      const s = cur(), [cx, cy] = O.revelCentre(s), x = Math.round(cx + side * (HALF + 26) - cam.x), y = Math.round(cy - 4 - cam.y), col = side < 0 ? '#3f5f8e' : '#a8382f';
+      const s = cur(), [cx, cy] = listsCentre(s), x = Math.round(cx + side * (HALF + 26) - cam.x), y = Math.round(cy - 4 - cam.y), col = side < 0 ? '#3f5f8e' : '#a8382f';
       ctx.fillStyle = 'rgba(28,20,44,0.3)'; ctx.fillRect(x - 13, y, 27, 3);
       for (let i = 0; i < 26; i++) { const h = 20 - Math.abs(i - 13) * 0.5; ctx.fillStyle = ((i >> 2) & 1) ? '#ece4d0' : col; ctx.fillRect(x - 13 + i, Math.round(y - h), 1, Math.round(h)); }
       ctx.fillStyle = col; for (let i = 0; i < 14; i++) ctx.fillRect(x - 7 + i, y - 20 - Math.round(Math.max(0, 7 - Math.abs(i - 7))), 1, Math.round(Math.max(0, 7 - Math.abs(i - 7))) + 1);
@@ -259,7 +270,7 @@
     const PAVS = [PAV(-1), PAV(1)];
     game.hooks.update.push((dt) => {
       const s = cur(); if (!s || !s.world || !listsOn(s)) return;
-      const [cx, cy] = O.revelCentre(s), T0 = 12, t = game.t % T0, cyc = Math.floor(game.t / T0);
+      const [cx, cy] = listsCentre(s), T0 = 12, t = game.t % T0, cyc = Math.floor(game.t / T0);
       if (cyc !== lastCycle) { lastCycle = cyc; fallen = null; }
       flash = Math.max(0, flash - dt);
       // 0-2.5 waiting at the ends; 2.5-6.5 the charge; then walk back round
@@ -303,9 +314,9 @@
       const s = cur(); if (!s || !s.world) return;
       const f = fest(s), key = s.day + ':' + (f || '') + ':' + (s.weekday === 6);
       if (key === told || s.hour < 7) return; told = key;
-      if (f === 'tournament' && keepOf(s)) say(`It's ${NAMES[f]} in ${s.world.name}! Knights ride at the lists in the square from ten. Bet at the lists, or ride if you have a horse.`);
-      else if (f === 'fair') say(`It's ${NAMES[f]}! The square is full of stalls and music. By the noticeboard: archery at the butts, wrestling in the ring, and the judging of the best bread, ale and wares, each with a purse.`);
-      else if (f === 'midwinter') say(`It's ${NAMES[f]}. Tonight the castle and the gentry feast, and the town drinks at the tavern on the lord's coin.`);
+      if (f === 'tournament' && keepOf(s)) say(`It's ${s.hosted && s.hosted.day === s.day ? 'a tournament, called by the crown,' : NAMES[f]} in ${s.world.name}! Knights ride at the lists in the square from ten. Bet at the lists, or ride if you have a horse.`);
+      else if (f === 'fair') say(`It's ${s.hosted && s.hosted.day === s.day ? 'a fair, called by the crown' : NAMES[f]}! The square is full of stalls and music. By the noticeboard: archery at the butts, wrestling in the ring, and the judging of the best bread, ale and wares, each with a purse.`);
+      else if (f === 'midwinter') say(`It's ${s.hosted && s.hosted.day === s.day ? (s.hosted.coronation ? 'the coronation feast' : 'a great feast, called by the crown') : NAMES[f]}. Tonight the castle and the gentry feast, and the town drinks at the tavern on the lord's coin.`);
       else if (s.weekday === 6 && !s.quarantine) say('Sunday market: travelling merchants set up in the square until two.');
     });
   }

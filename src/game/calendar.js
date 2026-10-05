@@ -140,7 +140,7 @@
         if ((d - 1) % 7 === 3 && capital()) add({ day: d, from: 14, to: 18, title: 'The council of the realm', where: `the great hall at ${capital().name}`, place: capital().id, small: here !== capital().id, council: true });
       }
       if (s.hosted && s.hosted.day >= d0) add({ day: s.hosted.day, from: 10, to: 22, title: s.hosted.coronation ? 'The coronation feast' : `A ${s.hosted.kind === 'midwinter' ? 'feast' : s.hosted.kind} called by the crown`, where: s.world.name, square: s.hosted.kind !== 'midwinter' });
-      if (PS.coronation && !PS.coronation.done) add({ day: PS.coronation.day, from: 10, to: 13, title: 'Your coronation', where: 'the castle chapel', place: PS.coronation.place, coronation: true });
+      if (PS.coronation && !PS.coronation.done) add({ day: PS.coronation.day, from: 10, to: 20, title: 'Your coronation', where: 'the castle chapel', place: PS.coronation.place, coronation: true });
       for (const e of s.executions || []) if (!e.done) add({ day: e.day, from: 10.5, to: 11.5, title: `An execution at the block (${s.byId.get(e.id)?.name || 'the condemned'})`, where: 'the square', square: true, small: true });
       if (s.party && !s.party.done) add({ day: s.party.day, from: 19, to: 23, title: 'Your party', where: 'your home', b: s.party.b, ref: s.party });
       for (const ev of s.events || []) if (ev.kind === 'wedding' || ev.kind === 'funeral') { const a = s.byId.get(ev.a ?? ev.who); add({ day: ev.day, from: ev.kind === 'wedding' ? 11 : 10, to: ev.kind === 'wedding' ? 12 : 11, title: ev.kind === 'wedding' ? `A wedding: ${a?.first || ''} and ${s.byId.get(ev.b)?.first || ''}` : `The funeral of ${ev.name || a?.name || 'a neighbour'}`, where: 'the chapel', b: s.chapelId, small: true }); }
@@ -151,19 +151,38 @@
     // show me the way
     function lead(s, e) {
       const until = e.day * 1440 + Math.round(e.to * 60);
-      if (e.place && e.place !== s.world.placeId) return say(`That's at ${K().place(e.place)?.name}. Take the road there; the way will be shown when you arrive.`);
+      O.Panels.close && O.Panels.close(); // (close the list so you can see where to go)
+      if (e.place && e.place !== s.world.placeId) { PS.roadLead = { place: e.place, until, ev: { title: e.title, b: e.b, tile: e.tile, coronation: e.coronation, council: e.council, day: e.day, to: e.to } }; return say(`That's at ${K().place(e.place)?.name}. You'll be shown the road there, and the way once you arrive.`); }
       if (e.b != null) O.addLead({ place: s.world.placeId, b: e.b, until, why: 'event', label: e.title });
       else if (e.coronation || e.council) { const k = s.world.buildings.find((b) => b.royal); if (k) O.addLead({ place: s.world.placeId, b: k.id, until, why: 'event', label: e.title }); }
       else { const t = e.tile || (() => { const [x0, y0, x1, y1] = s.Z.square; return [Math.floor((x0 + x1) / 2), Math.floor((y0 + y1) / 2)]; })(); O.addLead({ place: s.world.placeId, tile: t, until, why: 'event', label: e.title }); }
       say(`You'll be shown the way to ${e.title.charAt(0).toLowerCase() + e.title.slice(1)}.`);
     }
+    // the road to another town: which way out of here, then the way to the place itself when you get there
+    function bestExit(here, dest) {
+      const tw = O.Island && O.Island.town(here), w = O.SimRef.cur.world; if (!tw || !tw.exits) return null;
+      const D = K().place(dest); if (!D) return null; let best = null, bd = 1e9;
+      for (const [nb, ex] of Object.entries(tw.exits)) { if (!ex || ex.x == null) continue; if (nb === dest) return [ex.x + (w.ox || 0), ex.y + (w.oy || 0)]; const N = K().place(nb); if (!N) continue; const d = Math.hypot(N.x - D.x, N.y - D.y); if (d < bd) { bd = d; best = [ex.x + (w.ox || 0), ex.y + (w.oy || 0)]; } }
+      return best;
+    }
+    O.O_bestExit = bestExit;
+    let rlAt = '';
+    game.hooks.update.push(() => {
+      const R = PS.roadLead; if (!R) return; const s = cur(), here = s.world.placeId, t = absHome();
+      if (R.until < t) { PS.roadLead = null; return; }
+      const key = here + ':' + R.place; if (key === rlAt) return; rlAt = key;
+      O.dropLead && O.dropLead((l) => l.why === 'road');
+      if (here === R.place) { PS.roadLead = null; lead(s, Object.assign({}, R.ev, { place: null })); return; }
+      const ex = bestExit(here, R.place); if (ex) O.addLead({ place: here, tile: ex, until: R.until, why: 'road', label: `The road to ${K().place(R.place)?.name}` });
+    });
+    const upcoming = (s) => O.eventsFor(s, s.day, s.day + 6).filter((e) => !(e.day < s.day || (e.day === s.day && e.to <= s.hour)));
     O.calendarHTML = () => {
-      const s = cur(), list = O.eventsFor(s, s.day, s.day + 6), wait = O.mailWaiting();
+      const s = cur(), list = upcoming(s), wait = O.mailWaiting();
       const letters = wait.length ? `<h3>Waiting for answers</h3><ul class="chron">${wait.map((m) => `<li>${esc(m.what)}</li>`).join('')}</ul>` : '';
       if (!list.length) return letters;
       return letters + `<h3>What's on</h3><table><tbody>${list.map((e, i) => `<tr><td><b>${esc(e.title)}</b><br><small class="lbl">${e.day === s.day ? 'Today' : e.day === s.day + 1 ? 'Tomorrow' : esc(O.dateOf(e.day))}, ${hh(e.from)} to ${hh(e.to)}, ${esc(e.where || '')}</small></td><td><button data-ev="${i}">Show the way</button></td></tr>`).join('')}</tbody></table>`;
     };
-    O.bindCalendar = (r) => { const s = cur(), list = O.eventsFor(s, s.day, s.day + 6); r.querySelectorAll('[data-ev]').forEach((b) => b.onclick = () => lead(s, list[+b.dataset.ev])); };
+    O.bindCalendar = (r) => { const s = cur(), list = upcoming(s); r.querySelectorAll('[data-ev]').forEach((b) => b.onclick = () => lead(s, list[+b.dataset.ev])); };
   }
   O.CalendarSetup = { setup };
 })();

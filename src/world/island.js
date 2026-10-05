@@ -8,6 +8,12 @@
 // countryside in the overlap is the same in both (it is worked out from the island map, not stored),
 // so walking from one region into the next is seamless: you are simply nearer the next town now.
 'use strict';
+// a business is named for its family: Webb's Carpentry, Elmby's Charcoal Camp, Peacock's Carrying Yard
+O.bizName = (surname, label) => {
+  const MAP = { Carpenter: 'Carpentry', Butcher: 'Butchery', Jeweller: "Jeweller's Shop", Armourer: 'Armoury', Saddler: "Saddler's Shop", Glazier: "Glazier's Shop", Wainwright: "Wainwright's Yard", Scrivener: "Scrivener's Shop", 'Barber-surgeon': "Barber's Shop", Moneylender: "Counting House", 'Fletcher & bowyer': "Bowyer's Shop", "Forester's lodge": 'Forest Lodge', "Charcoal burners' camp": 'Charcoal Camp', "Carrier's yard": 'Carrying Yard', "Woodcutter's": "Woodcutter's Hut", "Physician's": 'Physic House', 'House agent': "Letting Office", 'Bee garden': 'Bee Garden', 'Clay pit': 'Clay Pit', 'Salt pans': 'Salt Pans', 'Peat cutting': 'Peat Cuttings', 'Castle household': 'Castle', 'Manor household': 'Manor' };
+  const nice = (MAP[label] || label).replace(/(^|\s)([a-z])/g, (m, a, c) => a + c.toUpperCase());
+  return `${surname}'s ${nice}`;
+};
 (function () {
   const U = 20, T = 16, MARGIN = 64;
   const E = () => O.Eldoria, TER = () => O.Village.TER;
@@ -519,7 +525,7 @@
       const LOOK2 = { townhall: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'gable', chimney: true, sign: 'shield', floors: 2 }, stable: { wall: 'plank', plankMat: 'plank', roof: 'shingle', roofType: 'side', bigDoor: true }, butcher: { wall: 'timber', roof: 'tile', sign: 'scales' }, carpenter: { wall: 'plank', roof: 'shingle', sign: 'hammer' }, tailor: { wall: 'timber', roof: 'thatch', shopWindow: true }, smithy: { wall: 'stone', roof: 'slate', chimney: true, sign: 'anvil' } };
       const surname = O.Names ? rng.pick(O.Names.SUR) : 'Ward';
       const lk = Object.assign({ wall: 'timber', roof: 'thatch' }, def.look || LOOK2[type] || {});
-      const b = build(type, w, d, lk, ['posthouse', 'tollhouse', 'townhall'].includes(type) ? `${pl.name} ${def.label}` : `${surname}'s ${def.label}`, best[0], best[1], { floors: def.floors || lk.floors || 1 });
+      const b = build(type, w, d, lk, ['posthouse', 'tollhouse', 'townhall'].includes(type) ? `${pl.name} ${def.label}` : O.bizName(surname, def.label), best[0], best[1], { floors: def.floors || lk.floors || 1 });
       lane(b.doorX, b.doorY + 1);
       // a cottage nearby for the hands
       for (const [dx, dy] of [[w + 3, 0], [-7, 0], [0, 7], [w + 3, 6], [-7, 6]]) { const cx = best[0] + dx, cy = best[1] + dy; if (fits(cx, cy, 4, 3)) { const hb = build('house', 4, 3, { wall: rng.pick(['timber', 'plank', 'stone']), roof: rng.pick(['thatch', 'shingle']), chimney: true, doorTile: 1 }, 'Cottage', cx, cy); lane(hb.doorX, hb.doorY + 1); break; } }

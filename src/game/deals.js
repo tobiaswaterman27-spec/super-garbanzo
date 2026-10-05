@@ -29,7 +29,7 @@
       const sup = s.biz.get(d.from); if (!sup) { bz.deals = bz.deals.filter((x) => x !== d); return; }
       const have = Math.floor(sup.stock[d.good] || 0), n = Math.min(d.qty, have), cost = n * d.price;
       if (n < 1 || bz.cash < cost) { d.missed = (d.missed || 0) + 1; s.log(`${sup.name} could not make its Sunday delivery to ${bz.name}${bz.cash < cost ? ' (the purse was short)' : ''}.`, 'trade'); if (d.missed >= 3) bz.deals = bz.deals.filter((x) => x !== d); return; }
-      const settle = () => { sup.stock[d.good] -= n; bz.stock[d.good] = (bz.stock[d.good] || 0) + n; bz.cash -= cost; sup.cash += cost; s.log(`${sup.name} delivered ${n} ${G()[d.good]?.name.toLowerCase()} to ${bz.name} as agreed (₳${cost}).`, 'trade'); };
+      const settle = () => { sup.stock[d.good] -= n; bz.stock[d.good] = (bz.stock[d.good] || 0) + n; bz.cash -= cost; sup.cash += cost; s.log(`${sup.name} delivered ${O.countOf ? O.countOf(d.good, n) : n + ' ' + G()[d.good]?.name.toLowerCase()} to ${bz.name} as agreed (₳${cost}).`, 'trade'); };
       // in sight, a hand carries it over
       const hand = live && sup.workers.map((id) => s.byId.get(id)).find((q) => q && q.alive !== false && q.agent && !q.errand && q.age >= 14);
       if (hand && O.Errands) {

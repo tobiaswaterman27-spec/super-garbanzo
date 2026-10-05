@@ -98,6 +98,19 @@
     O.UI.dialog = { open, close, set: (o) => open(Object.assign({ name: nameEl.textContent, color: nameEl.style.background }, o)) };
     O.UI.dialogOpen = () => !!D;
 
+    // ---------------------------------------------------------------- touch buttons (phones and tablets)
+    // E, steal, strike and the menus as buttons, since there's no keyboard: each presses the same key
+    {
+      const bar = document.createElement('div'); bar.className = 'touchbar'; root.appendChild(bar);
+      const press = (code, key) => { const ev = new KeyboardEvent('keydown', { code, key, bubbles: true }); window.dispatchEvent(ev); setTimeout(() => window.dispatchEvent(new KeyboardEvent('keyup', { code, key, bubbles: true })), 60); };
+      const B = [['KeyE', 'e', 'E', 'act', 'big'], ['KeyQ', 'q', 'Q', 'steal'], ['Space', ' ', '⚔', 'strike'], ['ShiftLeft', 'Shift', '»', 'run'], ['KeyJ', 'j', 'J', 'undertakings'], ['KeyB', 'b', 'B', 'business'], ['KeyI', 'i', 'I', 'satchel'], ['KeyM', 'm', 'M', 'map'], ['Escape', 'Escape', '☰', 'menu']];
+      bar.innerHTML = B.map(([c, k, l, n, big]) => `<button data-code="${c}" data-key="${k}" class="${big || ''}" aria-label="${n}">${l}</button>`).join('');
+      bar.querySelectorAll('button').forEach((b) => {
+        if (b.dataset.code === 'ShiftLeft') { b.ontouchstart = (e) => { e.preventDefault(); game.keys.add('run'); b.classList.add('on'); }; b.ontouchend = () => { game.keys.delete('run'); b.classList.remove('on'); }; return; }
+        b.addEventListener('touchstart', (e) => { e.preventDefault(); press(b.dataset.code, b.dataset.key); }, { passive: false });
+        b.onclick = () => press(b.dataset.code, b.dataset.key);
+      });
+    }
     // ---------------------------------------------------------------- pause menu
     const menu = document.createElement('div'); menu.className = 'ui-menu'; menu.hidden = true; root.appendChild(menu);
     function openMenu() {

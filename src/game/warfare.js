@@ -31,6 +31,17 @@
       if (!opts.civil && !opts.enemy) { const f = FOES[this.rng.int(0, FOES.length - 1)]; if (this.place(f.home)) opts = Object.assign({}, opts, { enemy: f.name, home: f.home, hostName: f.host, announce: f.announce(f.name) }); }
       return _declare(opts);
     };
+    // the monarch's choice of enemy: a foreign foe, or a great lord who has defied the crown
+    O.warFoes = () => {
+      const out = FOES.filter((f) => K.place(f.home)).map((f) => ({ key: 'foe:' + f.name, name: f.name }));
+      for (const [id, L] of Object.entries(R()?.lords || {})) if (K.place(id)?.kind === 'castle' && id !== 'highmere') out.push({ key: 'lord:' + id, name: `${L.name}, ${L.sex === 'f' ? 'Lady' : 'Lord'} of ${K.place(id).name}` });
+      return out;
+    };
+    O.declareOn = (key) => {
+      if (!key || key.startsWith('foe:')) { const f = FOES.find((x) => 'foe:' + x.name === key) || FOES[0]; return K.declareWar({ enemy: f.name, home: f.home, hostName: f.host, announce: `WAR. By the crown's command the realm makes war on ${f.name}. The host musters at Highmere and every town must send men.` }); }
+      const id = key.slice(5), L = R().lords[id], pl = K.place(id);
+      return K.declareWar({ enemy: `${L.name} of ${pl.name}`, home: id, men: 140, hostName: `the host of ${L.name}`, announce: `WAR. The crown has declared ${L.name} of ${pl.name} a traitor and sends the host against ${L.sex === 'f' ? 'her' : 'him'}.` });
+    };
     const foeLook = () => { const W = K.war; if (!W) return 'outlaw'; if (W.civil) return 'guard'; return (FOES.find((f) => f.name === W.enemy) || {}).look || 'outlaw'; };
 
     // ================================================================ rebels: the Duke, or a great lord

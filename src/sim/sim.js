@@ -784,7 +784,7 @@
       if (pay < cost) this.log(`${dst.name} could not pay ${src.name} in full for ${G[o.good].name.toLowerCase()} (₳${pay} of ₳${cost}).`, 'economy');
       dst.orders = dst.orders.filter((x) => x !== o);
       p.task = null; p.agent.carrying = null;
-      this.log(`${p.name} delivered ${o.qty} ${G[o.good].name.toLowerCase()} from ${src.name} to ${dst.name}.`, 'trade');
+      this.log(`${p.name} delivered ${O.countOf ? O.countOf(o.good, o.qty) : o.qty + ' ' + G[o.good].name.toLowerCase()} from ${src.name} to ${dst.name}.`, 'trade');
     }
 
     // Surplus is sold to the travelling trader and leaves for other towns; money comes into Ashford.

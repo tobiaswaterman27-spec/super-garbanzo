@@ -71,7 +71,7 @@
       const purse = Math.min(hh.money * 0.25, 40);
       hh.money -= purse;
       const nh = this.newHousehold([a, b], free, purse + 10);
-      this.log(`${a.first} and ${b.first} have set up home together in an empty house${free.name && free.name !== 'House' ? ', ' + free.name : ''}.`, 'life');
+      this.log(`${a.first} and ${b.first} have set up home together in ${free.name && !/^(House|Cottage|Townhouse|Tenement|Farmhouse)$/.test(free.name) ? free.name.replace(/^The /, 'the ') : `an empty ${String(free.type || 'house').replace('townhouse', 'town house')}`}.`, 'life');
       this.remember(a, 'We have a house of our own now.', 'life', 2, b.id); this.remember(b, 'We have a house of our own now.', 'life', 2, a.id);
       void nh;
     };

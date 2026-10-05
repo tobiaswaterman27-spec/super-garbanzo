@@ -1,3 +1,4 @@
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Outlaw</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=Silkscreen:wght@400;700&family=Jacquard+12&display=swap">
@@ -105,6 +106,11 @@ main { height: 100vh; }
 .ui-menu-in h2 { font-family: var(--display); font-weight: 400; font-size: 36px; margin: 0 0 8px; color: #b0602a; text-align: center; }
 .ui-menu-in button { background: none; border: 0; border-radius: 0; padding: 8px 16px; font-family: var(--body); font-weight: 800; font-size: 16px; color: #5a4632; cursor: pointer; text-align: left; }
 .ui-menu-in button:hover, .ui-menu-in button:focus-visible { background: #f3e2b8; outline: none; }
+.touchbar { position: absolute; right: 10px; bottom: 96px; display: none; grid-template-columns: repeat(3, 46px); gap: 6px; z-index: 30; }
+.touchbar button { width: 46px; height: 46px; background: rgba(27,20,36,.78); color: var(--parch); border: 2px solid var(--line); font-family: var(--pix); font-size: 14px; touch-action: none; }
+.touchbar button.big { grid-column: span 3; width: 100%; background: rgba(217,137,58,.9); color: var(--ink); font-size: 18px; }
+.touchbar button.on { background: var(--ember-2); color: var(--ink); }
+@media (pointer: coarse) { .touchbar { display: grid; } }
 .ui-menu-in h4 { margin: 10px 0 2px; font-family: var(--pix); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #9a7a52; }
 .ui-menu-in button { display: flex; justify-content: space-between; gap: 18px; padding: 6px 16px; }
 .ui-menu-in button .lbl { font-family: var(--pix); font-size: 11px; color: #9a7a52; }
@@ -3577,6 +3583,12 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 // countryside in the overlap is the same in both (it is worked out from the island map, not stored),
 // so walking from one region into the next is seamless: you are simply nearer the next town now.
 'use strict';
+// a business is named for its family: Webb's Carpentry, Elmby's Charcoal Camp, Peacock's Carrying Yard
+O.bizName = (surname, label) => {
+  const MAP = { Carpenter: 'Carpentry', Butcher: 'Butchery', Jeweller: "Jeweller's Shop", Armourer: 'Armoury', Saddler: "Saddler's Shop", Glazier: "Glazier's Shop", Wainwright: "Wainwright's Yard", Scrivener: "Scrivener's Shop", 'Barber-surgeon': "Barber's Shop", Moneylender: "Counting House", 'Fletcher & bowyer': "Bowyer's Shop", "Forester's lodge": 'Forest Lodge', "Charcoal burners' camp": 'Charcoal Camp', "Carrier's yard": 'Carrying Yard', "Woodcutter's": "Woodcutter's Hut", "Physician's": 'Physic House', 'House agent': "Letting Office", 'Bee garden': 'Bee Garden', 'Clay pit': 'Clay Pit', 'Salt pans': 'Salt Pans', 'Peat cutting': 'Peat Cuttings', 'Castle household': 'Castle', 'Manor household': 'Manor' };
+  const nice = (MAP[label] || label).replace(/(^|\s)([a-z])/g, (m, a, c) => a + c.toUpperCase());
+  return `${surname}'s ${nice}`;
+};
 (function () {
   const U = 20, T = 16, MARGIN = 64;
   const E = () => O.Eldoria, TER = () => O.Village.TER;
@@ -4088,7 +4100,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       const LOOK2 = { townhall: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'gable', chimney: true, sign: 'shield', floors: 2 }, stable: { wall: 'plank', plankMat: 'plank', roof: 'shingle', roofType: 'side', bigDoor: true }, butcher: { wall: 'timber', roof: 'tile', sign: 'scales' }, carpenter: { wall: 'plank', roof: 'shingle', sign: 'hammer' }, tailor: { wall: 'timber', roof: 'thatch', shopWindow: true }, smithy: { wall: 'stone', roof: 'slate', chimney: true, sign: 'anvil' } };
       const surname = O.Names ? rng.pick(O.Names.SUR) : 'Ward';
       const lk = Object.assign({ wall: 'timber', roof: 'thatch' }, def.look || LOOK2[type] || {});
-      const b = build(type, w, d, lk, ['posthouse', 'tollhouse', 'townhall'].includes(type) ? `${pl.name} ${def.label}` : `${surname}'s ${def.label}`, best[0], best[1], { floors: def.floors || lk.floors || 1 });
+      const b = build(type, w, d, lk, ['posthouse', 'tollhouse', 'townhall'].includes(type) ? `${pl.name} ${def.label}` : O.bizName(surname, def.label), best[0], best[1], { floors: def.floors || lk.floors || 1 });
       lane(b.doorX, b.doorY + 1);
       // a cottage nearby for the hands
       for (const [dx, dy] of [[w + 3, 0], [-7, 0], [0, 7], [w + 3, 6], [-7, 6]]) { const cx = best[0] + dx, cy = best[1] + dy; if (fits(cx, cy, 4, 3)) { const hb = build('house', 4, 3, { wall: rng.pick(['timber', 'plank', 'stone']), roof: rng.pick(['thatch', 'shingle']), chimney: true, doorTile: 1 }, 'Cottage', cx, cy); lane(hb.doorX, hb.doorY + 1); break; } }
@@ -5006,7 +5018,7 @@ O.snowMaskOf = function (src) {
   const co = D.BUSINESS.cooper; if (co) { co.recipes.push({ out: { fx_barrel: 0.04, fx_washtub: 0.03, fx_vat: 0.01 }, inp: { planks: 0.3 } }); co.sells = [...new Set([...co.sells, 'fx_barrel', 'fx_washtub', 'fx_vat'])]; Object.assign(co.targets, { fx_barrel: 2, fx_washtub: 1, fx_vat: 1 }); }
   const bd = D.BUSINESS.builder; if (bd) { bd.recipes.push({ out: { fx_oven: 0.01, fx_forge: 0.01, fx_kiln: 0.01, fx_fireplace: 0.015, fx_millstone: 0.005 }, inp: { stone: 0.4, bricks: 0.2 }, role: 'master builder' }); bd.sells = [...new Set([...bd.sells, 'fx_oven', 'fx_forge', 'fx_kiln', 'fx_fireplace', 'fx_millstone', 'bricks'])]; bd.buys.bricks = 'brickworks|import'; Object.assign(bd.targets, { fx_oven: 1, fx_forge: 1, fx_kiln: 1, fx_fireplace: 1, fx_millstone: 1, bricks: 10 }); addJob('builder', 'thatcher', 1, 6); addJob('builder', 'plasterer', 1, 6); addJob('builder', 'roofer', 1, 6); }
   const wv = D.BUSINESS.weaver; if (wv) { wv.recipes.push({ out: { linen: 0.2, fx_rug: 0.02, fx_sack: 0.1 }, inp: { flax: 0.3 } }); wv.sells = [...new Set([...wv.sells, 'linen', 'fx_rug', 'fx_sack'])]; wv.buys.flax = 'farmhouse|import'; Object.assign(wv.targets, { linen: 4, fx_rug: 1, fx_sack: 4, flax: 6 }); }
-  const st = D.BUSINESS.store; if (st) { st.sells = [...new Set([...st.sells, 'tent', 'salt', 'candles', 'soap', 'eggs', 'cheese', 'apples', 'broom', 'bucket', 'cup', 'rope'])]; Object.assign(st.buys, { tent: 'weaver|import', salt: 'saltworks|import', candles: 'chandler|import', soap: 'laundry|barber|import', eggs: 'farmhouse|import', cheese: 'farmhouse|import', apples: 'farmhouse|import', broom: 'carpenter|import', bucket: 'carpenter|import', cup: 'potter|import', rope: 'ropewalk|import' }); Object.assign(st.targets, { tent: 2, salt: 6, candles: 12, soap: 6, eggs: 6, cheese: 4, apples: 6, broom: 2, bucket: 2, cup: 6, rope: 2 }); }
+  const st = D.BUSINESS.store; if (st) { st.sells = [...new Set([...st.sells, 'tent', 'salt', 'candles', 'soap', 'eggs', 'cheese', 'apples', 'broom', 'bucket', 'cup', 'rope', 'rod'])]; Object.assign(st.buys, { tent: 'weaver|import', salt: 'saltworks|import', candles: 'chandler|import', soap: 'laundry|barber|import', eggs: 'farmhouse|import', cheese: 'farmhouse|import', apples: 'farmhouse|import', broom: 'carpenter|import', bucket: 'carpenter|import', cup: 'potter|import', rope: 'ropewalk|import', rod: 'carpenter|import' }); Object.assign(st.targets, { rod: 2, tent: 2, salt: 6, candles: 12, soap: 6, eggs: 6, cheese: 4, apples: 6, broom: 2, bucket: 2, cup: 6, rope: 2 }); }
   const fi = D.BUSINESS.fishery; if (fi) { fi.buys = Object.assign(fi.buys || {}, { nets: 'ropewalk|boatyard|import', salt: 'saltworks|import' }); Object.assign(fi.targets, { nets: 2, salt: 2 }); }
   const ml = D.BUSINESS.mine; if (ml && !ml.sells.includes('coal')) { ml.recipes.push({ out: { coal: 1, silver: 0.03, gold: 0.005 }, inp: {} }); ml.sells.push('coal', 'silver'); Object.assign(ml.targets, { coal: 20, silver: 2, gold: 1 }); }
   const qu = D.BUSINESS.quarry; if (qu && !qu.sells.includes('sand')) { qu.recipes.push({ out: { sand: 1 }, inp: {} }); qu.sells.push('sand'); qu.targets.sand = 20; }
@@ -5797,7 +5809,7 @@ O.snowMaskOf = function (src) {
       const purse = Math.min(hh.money * 0.25, 40);
       hh.money -= purse;
       const nh = this.newHousehold([a, b], free, purse + 10);
-      this.log(`${a.first} and ${b.first} have set up home together in an empty house${free.name && free.name !== 'House' ? ', ' + free.name : ''}.`, 'life');
+      this.log(`${a.first} and ${b.first} have set up home together in ${free.name && !/^(House|Cottage|Townhouse|Tenement|Farmhouse)$/.test(free.name) ? free.name.replace(/^The /, 'the ') : `an empty ${String(free.type || 'house').replace('townhouse', 'town house')}`}.`, 'life');
       this.remember(a, 'We have a house of our own now.', 'life', 2, b.id); this.remember(b, 'We have a house of our own now.', 'life', 2, a.id);
       void nh;
     };
@@ -8353,7 +8365,7 @@ O.snowMaskOf = function (src) {
     if (f.byPlayer && f.secret) t = t.replace(/\byou\b/gi, 'a stranger');
     switch (src) {
       case 'saw': return t;
-      case 'crier': return f.cat === 'crime' ? `${strip(t)}. The watch is vigilant and order is kept.` : f.cat === 'politics' || f.cat === 'rulers' ? `By order of the council: ${lower(t)}` : t;
+      case 'crier': return f.cat === 'crime' ? `${strip(t)}. The watch is vigilant and order is kept.` : f.cat === 'politics' || f.cat === 'rulers' ? (/^the council\b/i.test(t) ? `Be it known: ${lower(t)}` : `By order of the council: ${lower(t)}`) : t;
       case 'watch': return `Report, ${C.dateLabel(f.day)}: ${lower(t)}`;
       case 'bard': return `♪ ${rng.pick(BARD_OPEN)} ${lower(strip(exaggerate(t, rng, [1.6, 3])))}, ${rng.pick(BARD_CLOSE)} ♪`;
       case 'broadsheet': return `${rng.pick(SHEET)} ${strip(exaggerate(t, rng, [1.3, 2]))}, or so it is reliably said!`;
@@ -8745,7 +8757,7 @@ O.snowMaskOf = function (src) {
         if (O.Horses && O.Horses.horses && O.Horses.horses.some((h) => h.owner === 'npc:' + p.id)) j.horse = true;
       }
       (K.journeys = K.journeys || []).push(j);
-      const lead = ppl[0]; this.log(`${lead.name}${ppl.length > 1 ? ` and ${ppl.length - 1} other${ppl.length > 2 ? 's' : ''}` : ''} set off for ${K.place(to).name}${purpose === 'trade' ? ` with ${Object.entries(goods).map(([g, n]) => `${n} ${O.Data.GOODS[g]?.name.toLowerCase()}`).join(', ')}` : purpose === 'move' ? ', moving away for good' : ' to visit'}.`, 'trade');
+      const lead = ppl[0]; this.log(`${lead.name}${ppl.length > 1 ? ` and ${['', 'one', 'two', 'three', 'four', 'five', 'six'][ppl.length - 1] || ppl.length - 1} other${ppl.length > 2 ? 's' : ''}` : ''} set off for ${K.place(to).name}${purpose === 'trade' ? ` with ${Object.entries(goods).map(([g, n]) => O.countOf ? O.countOf(g, n) : `${n} ${O.Data.GOODS[g]?.name.toLowerCase()}`).join(', ')}` : purpose === 'move' ? ', moving away for good' : ' to visit'}.`, 'trade');
     };
     // gone from the town: on the road now
     S.setOff = function (p) {
@@ -9802,7 +9814,7 @@ O.snowMaskOf = function (src) {
       if (pay < cost) this.log(`${dst.name} could not pay ${src.name} in full for ${G[o.good].name.toLowerCase()} (₳${pay} of ₳${cost}).`, 'economy');
       dst.orders = dst.orders.filter((x) => x !== o);
       p.task = null; p.agent.carrying = null;
-      this.log(`${p.name} delivered ${o.qty} ${G[o.good].name.toLowerCase()} from ${src.name} to ${dst.name}.`, 'trade');
+      this.log(`${p.name} delivered ${O.countOf ? O.countOf(o.good, o.qty) : o.qty + ' ' + G[o.good].name.toLowerCase()} from ${src.name} to ${dst.name}.`, 'trade');
     }
 
     // Surplus is sold to the travelling trader and leaves for other towns; money comes into Ashford.
@@ -9998,26 +10010,53 @@ O.snowMaskOf = function (src) {
 (function () {
   const G = O.Data.GOODS;
 
+  // "8 casks of ale", "3 loaves of bread", "a sack of flour"
+  const plural = (u) => (/f$/.test(u) ? u.replace(/f$/, 'ves') : /(s|x|ch|sh)$/.test(u) ? u + 'es' : u + 's');
+  O.countOf = (g, n) => { const G0 = G[g]; if (!G0) return `${n} ${g}`; const nm = G0.name.toLowerCase(), u = G0.unit; if (!u || u === nm || nm.endsWith(u)) return `${n} ${n === 1 ? nm : plural(nm)}`; return `${n === 1 ? 'a' : n} ${n === 1 ? u : plural(u)} of ${nm}`; };
+  const an = (w) => (/^[aeiou]/i.test(w) ? 'an' : 'a');
+  // "the innkeeper at the Crooked Lantern", "a farmhand at Marsh Farm", "the guard captain at the watch house"
+  function bizPhrase(sim, bz) {
+    const n = bz.name || bz.def.label;
+    if (/^the /i.test(n)) return 'the ' + n.slice(4);
+    if (/^St\.? /.test(n)) return n;
+    if (n.startsWith(sim.world.name + ' ') || (/^[A-Z][a-z]+'s /.test(n) && !/^(Physician|Woodcutter|Forester|Carrier|Builder|Miller|Fisher|Shepherd|Brewer|Weaver|Potter|Tanner|Cooper|Mason|Baker|Butcher|Smith|Saddler|Glazier|Scrivener|Barber|Jeweller|Wainwright)'s/.test(n)) || /Farm$|Vineyard$|Castle$/.test(n)) return n;
+    return 'the ' + n.replace(/^(Watch House|General Store|Town Hall|Post House|Toll House|Gaol|Hospital|School|Morgue|Mill|Chapel)\b/, (m) => m.toLowerCase());
+  }
+  function jobPhrase(sim, p) {
+    if (!p.job) return null;
+    const bz = p.job.biz != null && sim.biz.get(p.job.biz); if (!bz) return an(p.job.role) + ' ' + p.job.role;
+    const same = bz.workers.filter((id) => sim.byId.get(id)?.job?.role === p.job.role).length, head = bz.owner === p.id;
+    return `${same <= 1 || head ? 'the' : an(p.job.role)} ${p.job.role} at ${bizPhrase(sim, bz)}`;
+  }
   function buildContext(sim, p, playerState) {
     const hh = sim.household(p);
-    const job = p.job ? (p.job.biz ? `${p.job.role} at ${sim.biz.get(p.job.biz).name}` : p.job.role) : p.age < 16 ? 'a child' : 'out of work';
+    const job = p.job ? jobPhrase(sim, p) : p.age < 16 ? 'a child' : 'out of work';
+    // the household as the person sees it: spouse, children, parents, brothers and sisters under the same roof
+    const mates = (hh ? hh.members : []).map((id) => sim.byId.get(id)).filter((q) => q && q !== p && q.alive !== false);
+    const kids = (p.children || []).map((id) => sim.byId.get(id)).filter((q) => q && q.alive !== false);
+    const parents = (p.parents || []).map((id) => sim.byId.get(id)).filter((q) => q && q.alive !== false);
+    const fam2 = { spouse: p.spouse ? sim.byId.get(p.spouse) : null, kids, parents: parents.length ? parents : mates.filter((q) => q.age >= p.age + 16 && !(p.children || []).includes(q.id) && q.id !== p.spouse).slice(0, 2), sibs: mates.filter((q) => Math.abs(q.age - p.age) < 16 && q.id !== p.spouse && !(p.children || []).includes(q.id) && (parents.length ? (q.parents || []).some((x) => (p.parents || []).includes(x)) : q.sur === p.sur)), widowed: !!p.widowed && !p.spouse };
+    // what they'd talk about, price-wise: what they sell themselves, or the market
+    const ownBz = p.job?.biz != null ? sim.biz.get(p.job.biz) : null, sells = ownBz ? (ownBz.def.sells || []).filter((g) => G[g]) : [];
+    const market = []; for (const [type, g] of [['bakery', 'bread'], ['tavern', 'ale'], ['woodcutter', 'firewood'], ['store', 'cheese'], ['butcher', 'meat'], ['store', 'eggs']]) { const sp = sim.supplierOf(type, g); if (sp && G[g]) market.push({ g, price: sim.price(sp, g), at: bizPhrase(sim, sp), base: G[g].base }); }
     const bake = sim.supplierOf('bakery');
     const opinion = p.rel.get(0) || { affinity: 0, familiar: 0 };
     return {
-      name: p.name, gang: p.gang || null, age: p.age, sex: p.sex, stage: p.stage, job, traits: p.traits, goal: p.goal,
+      name: p.name, first: p.first, gang: p.gang || null, age: p.age, sex: p.sex, stage: p.stage, job, traits: p.traits, goal: p.goal,
       mood: p.mood, hunger: Math.round(p.needs.hunger), energy: Math.round(p.needs.energy), social: Math.round(p.needs.social),
       householdMoney: Math.round(hh.money), illness: p.health.illness ? { kind: p.health.illness.kind, sev: +p.health.illness.sev.toFixed(2) } : null, pantry: { ...hh.pantry },
       skill: p.job ? Math.round((p.skills[p.job.role] || 0) * 100) : null,
       activity: p.activity?.act, place: sim.world.name,
       memories: p.memories.slice(0, 6).map((m) => m.text),
-      family: { spouse: p.spouse ? sim.byId.get(p.spouse)?.name : null, children: (p.children || []).map((id) => sim.byId.get(id)?.first).filter(Boolean) },
+      family: { spouse: p.spouse ? sim.byId.get(p.spouse)?.name : null, children: (p.children || []).map((id) => sim.byId.get(id)?.first).filter(Boolean) }, fam2, married: !!p.spouse,
+      sells: sells.slice(0, 3).map((g) => ({ g, price: sim.price(ownBz, g), base: G[g].base })), market, rich: (hh?.money || 0) > 150,
       opinionOfPlayer: opinion, sawPlayerCrime: p.memories.some((m) => m.kind === 'crime' && m.about === 0 && m.strength > 0.3) && (() => { const c = sim.crimes.filter((x) => x.perp === 'player' && x.witnesses.some((w) => w.id === p.id)).pop(); return c ? O.Justice.matchScore(c.witnesses.find((w) => w.id === p.id).desc, O.Justice.lookOf(O.game.player.a)) >= 0.5 : false; })(), playerReputation: playerState?.reputation || { local: 0 },
       prices: bake ? { bread: sim.price(bake, 'bread') } : {},
       news: sim.history.filter((h) => h.kind !== 'day').slice(-4).map((h) => h.text),
       heard: (p.heard || []).map((h) => ({ f: h.f, v: h.v, src: h.src })),
       fame: (p.heard || []).filter((h) => { const f = O.Chronicle && O.Chronicle.byId(h.f); return f && f.byPlayer && !f.secret; }).map((h) => h.v),
       ancestors: [...(p.parents || []), p.widowed].filter(Boolean).map((id) => sim.byId.get(id)).filter((q) => q && q.alive === false).map((q) => ({ name: q.name, first: q.first, rel: (p.parents || []).includes(q.id) ? (q.sex === 'm' ? 'father' : 'mother') : (q.sex === 'm' ? 'husband' : 'wife'), mem: (sim.memorials || []).find((m) => m.name === q.name) })),
-      time: { day: sim.day, minute: Math.floor(sim.minute) },
+      time: { day: sim.day, minute: Math.floor(sim.minute) }, weather: sim.weather ? sim.weather.kind : 'clear', season: sim.season,
     };
   }
 
@@ -10044,43 +10083,63 @@ O.snowMaskOf = function (src) {
       if (ctx.stage === 'child' || ctx.stage === 'olderChild') return pick(['Are you a soldier? You look like a soldier.', "Mam says I'm not to talk to strangers.", 'Have you seen a dog with one ear? He\'s mine.'], seed);
       if (ctx.traits.includes('hostile') || a < -0.3) return pick(['What do you want?', "Keep walking, stranger.", "I've nothing for you."], seed);
       if (ctx.fame && ctx.fame.length && seed % 3 !== 0) return pick(['I know you! ', 'Ah, you\'re the one folk talk of. ', 'So it\'s you. '], seed) + pick(['Heard it said: ', 'They say ', 'Word is, '], seed + 1) + O.Chronicle.lower(pick(ctx.fame, seed + 2));
-      if (f > 0.3) return pick([`Back again? Good day to you.`, `Ah, it's you. Fair day.`], seed);
+      if (f > 0.3) return pick([`Back again? Good to see you.`, `Ah, it's you.`, 'You again! Well met.'], seed);
       if (ctx.traits.includes('suspicious')) return pick([`You're not from ${ctx.place}. What's your business?`, 'Hm. Haven\'t seen you before.'], seed);
-      return pick(['Good day to you.', "God keep you. Passing through?", 'Morning. Fine weather for it.', 'Well met, traveller.'], seed);
+      const h = ctx.time.minute / 60, part = h < 5 || h >= 21 ? 'night' : h < 12 ? 'morning' : h < 17 ? 'day' : 'evening';
+      const wx = /rain|heavy|storm|hail/.test(ctx.weather) ? pick(['Wet enough for you?', "Filthy weather. Come in out of it if you've sense."], seed + 1) : /snow/.test(ctx.weather) ? pick(['Cold enough for you?', 'Mind the ice on the step.'], seed + 1) : /fog|mist/.test(ctx.weather) ? "Can't see your hand in front of you today." : ctx.season === 'summer' && part === 'day' ? 'Hot one today.' : null;
+      const hi = { night: pick(["You're abroad late.", 'God keep you this night.'], seed), morning: pick(['Morning.', 'God give you good morning.'], seed), day: pick(['Good day to you.', 'Well met.'], seed), evening: pick(['Good evening.', 'Evening, stranger.'], seed) }[part];
+      return wx && seed % 2 ? `${hi} ${wx}` : pick([hi, `${hi} Passing through?`, `${hi} You're not from these parts.`, 'God keep you.'], seed + 2);
     },
     topic(ctx, topic, seed) {
       switch (topic) {
         case 'self': {
+          if (ctx.age < 13 && !ctx.illness) return pick(["I'm well! Mam says I grow like a weed.", "Good. I found a bird's nest by the mill.", "I'm hungry. I'm always hungry.", "I've a loose tooth. Look."], seed);
           if (ctx.illness) return ctx.illness.kind === 'injury' ? pick(["Hurt my arm at work. It'll mend, God willing.", 'Took a knock at work. Still aches.'], seed) : ctx.illness.sev > 0.5 ? pick(["I'm burning up. Leave me be.", "I can barely stand."], seed) : pick(['A touch of something. Nothing that will keep me abed.', "Sniffling, that's all."], seed);
+          const baby = ctx.memories.find((m) => /^Gave birth to|was born\.$/.test(m));
+          if (baby) { const nm = (baby.match(/to (\w+)|^(\w+) was born/) || [])[1] || (baby.match(/^(\w+) was born/) || [])[1]; return pick([`Tired! We've a new baby${nm ? `, little ${nm}` : ''}. Up half the night.`, `Happy, God be thanked. ${nm || 'The baby'} came safe and sound.`], seed); }
+          const wed = ctx.memories.find((m) => /^Married /.test(m));
+          if (wed) return pick([`Never better. I'm newly wed, did you not hear? ${wed}`, `Happy. ${wed} The whole street came to the feast.`], seed);
+          const block = ctx.memories.find((m) => /die on the block/.test(m));
+          if (block) return pick(["I can't get it out of my head. I watched a man die on the block.", 'Shaken, if I tell the truth. The execution in the square.'], seed);
+          const fest = ctx.memories.find((m) => /came to|christening|feast|fair/.test(m) && !/stranger/.test(m));
+          if (fest && seed % 3 === 0) return pick(['Well! Still full from the feast.', "Merry enough. There's been some fine gatherings of late."], seed);
           const grief = ctx.memories.find((m) => /has died|buried/.test(m));
           if (grief) return `Hard days. ${grief}`;
           if (ctx.hunger < 25) return pick(["Truth be told I've not eaten since yesterday.", 'Hungry. The pot was empty this morning.'], seed);
           if (ctx.energy < 25) return "Dead on my feet. I'll sleep well tonight.";
           const hard = ctx.memories.find((m) => /afford|couldn't|could only pay|nothing to eat|shut/.test(m));
           if (hard) return `Could be better. ${hard}`;
-          if (ctx.householdMoney > 150) return pick(["Can't complain. Business has been kind.", 'Well enough, thank you. The purse is heavy for once.'], seed);
+          if (ctx.householdMoney > 150) return ctx.job === 'out of work' || ctx.job === 'a child' ? pick(['Well, God be thanked. We want for nothing.', 'Comfortable, thank you. The family purse is full.'], seed) : pick(["Can't complain. Business has been kind.", 'Well enough, thank you. The purse is heavy for once.'], seed);
           return pick(['Well enough. Work, bread, sleep, same as anyone.', "I get by. Can't ask for more."], seed);
         }
         case 'work': {
-          if (!ctx.skill && ctx.job === 'out of work') return pick(["I've no work. If you hear of any, tell me.", 'Nothing steady. I take what comes.'], seed);
-          if (ctx.stage === 'child') return 'I help Mam. And I chase the geese.';
+          if (ctx.age < 12) return pick(['I help Mam about the house. And I chase the geese.', 'I fetch the water and mind the little ones.', "I'm too young for work, Da says. I gather kindling though."], seed);
+          if (ctx.age < 16 && ctx.job === 'a child') return pick(["I'm learning my father's trade, near enough. Fetch this, carry that.", "I help at home. Next year I'm to be bound apprentice, God willing."], seed);
+          if (ctx.job === 'out of work') return ctx.age >= 65 ? (ctx.fam2 && (ctx.fam2.kids.length || ctx.fam2.parents.length) ? pick(["My working days are done. I mind the hearth now.", "I've done my share of work. My children keep me now."], seed) : pick(["My working days are done. I live on what I put by.", 'Too old for work now. The parish looks in on me.'], seed)) : pick(["I've no work. If you hear of any, tell me.", 'Nothing steady. I take what comes.'], seed);
           const lvl = ctx.skill > 85 ? 'master' : ctx.skill > 65 ? 'expert' : ctx.skill > 45 ? 'skilled' : ctx.skill > 25 ? 'trained' : 'beginner';
-          return `I'm ${ctx.job}. ${lvl === 'master' ? "Been at it long enough there's little left to teach me." : lvl === 'beginner' ? "Still learning. I spoil more than I'd like." : 'Steady work, honest hands.'}${ctx.goal ? ` One day I mean to ${ctx.goal}.` : ''}`;
+          // no ambitions that contradict a life: the married don't long to marry, the rich don't mean to escape poverty
+          const goal = ctx.goal && !(/children/.test(ctx.goal) && !(ctx.fam2 && ctx.fam2.kids.length)) && !(ctx.married && /marry/.test(ctx.goal)) && !(ctx.rich && /poverty|debts/.test(ctx.goal)) && !(ctx.age > 60 && /settle|marry|master/.test(ctx.goal)) && !(/guard captain/.test(ctx.goal) && !/guard|watch|sergeant/.test(ctx.job || '')) && !(/become a master/.test(ctx.goal) && /master|innkeeper|physician|priest|captain/.test(ctx.job || '')) ? ctx.goal : null;
+          const how = lvl === 'master' ? pick(["Been at it long enough there's little left to teach me.", "I've done it so long I could do it asleep."], seed) : lvl === 'beginner' ? pick(["Still learning. I spoil more than I'd like.", "I'm new to it. Every day I learn something."], seed) : pick(['Steady work, honest hands.', 'It keeps bread on the table.', "Hard work, but it's mine."], seed);
+          return `I'm ${ctx.job}. ${how}${goal ? ` One day I mean to ${goal}.` : ''}`;
         }
         case 'prices': {
-          const b = ctx.prices.bread;
-          if (b == null) return "Couldn't tell you.";
-          if (b >= 4) return `Bread's ₳${b} a loaf now. Robbery. Something's wrong at the mill, or the farm.`;
-          if (b <= 1) return `Bread's cheap, ₳${b}. Good harvest, they say.`;
-          return `Bread's ₳${b} a loaf at Hobb's. Same as ever, near enough.`;
+          const say1 = (m) => { const G0 = G[m.g] || {}, nm = (G0.name || m.g).toLowerCase(), u = G0.unit && G0.unit !== nm && !nm.endsWith(G0.unit) ? G0.unit : null, many = /s$/.test(nm) && !/ss$/.test(nm); const per = u ? (/^half/.test(u) ? `the ${u}` : `${an(u)} ${u}`) : 'each'; const head = `${nm.charAt(0).toUpperCase() + nm.slice(1)} ${many ? 'are' : 'is'} ₳${m.price} ${per}`; const r = m.price / Math.max(0.5, m.base); return r > 1.4 ? `${head} now. Robbery.` : r < 0.75 ? `${head}, cheap as it's ever been.` : `${head}${m.at ? ` at ${m.at}` : ''}, same as ever.`; };
+          if (ctx.sells && ctx.sells.length && seed % 2 === 0) { const m = pick(ctx.sells, seed); return `Ours? ${say1(m).replace(/ at [^,.]*/, '')} ${m.price > m.base * 1.3 ? 'Costs us more to make, these days.' : 'Fair, for good work.'}`; }
+          if (!ctx.market || !ctx.market.length) return "Couldn't tell you. I grow what I eat.";
+          const a = pick(ctx.market, seed), b = pick(ctx.market, seed + 3);
+          return a === b ? say1(a) : `${say1(a)} ${say1(b)}`;
         }
         case 'news': {
           if (ctx.heard && ctx.heard.length && (seed % 4 !== 0)) {
-            const h = pick(ctx.heard, seed); ctx._picked = h;
+            const famNames = ctx.fam2 ? [ctx.fam2.spouse, ...ctx.fam2.kids, ...ctx.fam2.parents, ...ctx.fam2.sibs].filter(Boolean).map((q) => q.name) : [];
+            const pool = ctx.heard.filter((x) => !famNames.some((n) => String(x.v).includes(n)) && !String(x.v).includes(ctx.name) && !String(x.v).includes((ctx.first || '') + ' ' + (ctx.name || '').split(' ').slice(-1)[0]));
+            if (!pool.length) return pick([`Nothing worth the telling. Quiet in ${ctx.place}.`, "Not that I've heard. You'd do better at the tavern."], seed);
+            const h = pick(pool, seed); ctx._picked = h;
             const lead = { saw: 'I saw it myself: ', crier: 'The crier was calling it: ', watch: 'The watch put it about that ', bard: 'There was a bard at the tavern singing it: ', broadsheet: 'It was in the broadsheet: ', merchant: 'A merchant passing through told it: ', rumour: pick(['Heard tell that ', "They're saying ", 'Word is, '], seed + 1) }[h.src] || 'Word is, ';
-            return lead + (h.src === 'bard' || h.src === 'broadsheet' ? h.v : O.Chronicle.lower(h.v));
+            const v = String(h.src === 'bard' || h.src === 'broadsheet' ? h.v : O.Chronicle.lower(h.v)).replace(/^(hear ye,? hear ye!?\s*)?by order of the council:\s*/i, '');
+            return lead + v;
           }
-          const rumours = ctx.memories.filter((m) => !/^Sent to fetch|Shared a jug/.test(m)).concat(ctx.news);
+          const rumours = ctx.memories.filter((m) => !/^Sent to fetch|Shared a jug/.test(m)).concat(ctx.news).filter((m) => !String(m).includes(ctx.name));
           if (!rumours.length) return `Nothing happens in ${ctx.place}. That's why we like it.`;
           const r = pick(rumours, seed);
           return pick(['Heard tell that ', 'They\'re saying ', 'Word is, '], seed + 1) + O.Chronicle.lower(r);
@@ -10089,8 +10148,18 @@ O.snowMaskOf = function (src) {
           const f = ctx.family;
           const anc = ctx.ancestors && ctx.ancestors.length && seed % 2 === 0 ? ctx.ancestors[seed % ctx.ancestors.length] : null;
           if (anc) return anc.mem ? `My ${anc.rel}, ${anc.first}, was ${anc.mem.title || 'well known here'}. There's a stone for ${anc.rel === 'mother' || anc.rel === 'wife' ? 'her' : 'him'} by the chapel. ${anc.mem.deeds && anc.mem.deeds.length ? 'People still talk of it.' : 'We were proud.'}` : pick([`I think of my ${anc.rel} often. ${anc.first} is buried in the chapel yard.`, `My ${anc.rel}, God rest ${anc.rel === 'mother' || anc.rel === 'wife' ? 'her' : 'him'}, used to say this place would be the death of us. ${anc.first} was right in the end.`], seed);
-          if (!f.spouse && !f.children.length) return pick(['Just me. Quieter that way.', 'No family to speak of.'], seed);
-          return `${f.spouse ? `My ${ctx.sex === 'm' ? 'wife' : 'husband'}, ${f.spouse}` : 'Just me'}${f.children.length ? `, and the little ones: ${f.children.join(', ')}` : ''}.`;
+          const F = ctx.fam2 || { kids: [], parents: [], sibs: [] }, list = (a) => (a.length <= 1 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]);
+          const small = F.kids.filter((k) => k.age < 16), grown = F.kids.filter((k) => k.age >= 16);
+          const bits = [];
+          if (F.spouse) bits.push(`My ${ctx.sex === 'm' ? 'wife' : 'husband'}, ${F.spouse.first}`);
+          else if (F.widowed) bits.push(`I'm ${ctx.sex === 'm' ? 'a widower' : 'a widow'}, God rest ${ctx.sex === 'm' ? 'her' : 'him'}`);
+          const our = F.spouse ? 'our' : 'my'; if (small.length) bits.push(`${small.every((k) => k.age < 11) ? (small.length === 1 ? `${our} little one` : `${our} little ones`) : small.length === 1 ? `${our} ${small[0].sex === 'm' ? 'boy' : 'girl'}` : `${our} children`}, ${list(small.map((k) => k.first))}`);
+          if (grown.length) bits.push(grown.length === 1 ? `${F.spouse ? 'our' : 'my'} ${grown[0].sex === 'm' ? 'son' : 'daughter'} ${grown[0].first}, grown now` : `${grown.length} grown children, ${list(grown.map((k) => k.first))}`);
+          if (!F.spouse && !F.kids.length && F.parents.length) bits.push(`I live with my ${F.parents.length === 2 ? 'mother and father' : F.parents[0].sex === 'm' ? 'father' : 'mother'}, ${list(F.parents.map((q) => q.first))}`);
+          else if (F.kids.length && F.parents.length) bits.push(`and my old ${F.parents[0].sex === 'm' ? 'father' : 'mother'} ${F.parents[0].first} lives with us`);
+          if (F.sibs.length && ctx.age < 30 && !F.spouse) bits.push(`${F.sibs.length === 1 ? (F.sibs[0].sex === 'm' ? 'my brother' : 'my sister') : 'my brothers and sisters'}, ${list(F.sibs.map((q) => q.first))}`);
+          if (!bits.length) return pick(['Just me. Quieter that way.', 'No family to speak of. Not here.'], seed);
+          const s0 = bits.join('; '); return s0.charAt(0).toUpperCase() + s0.slice(1) + '.';
         }
         default: return '…';
       }
@@ -15554,6 +15623,19 @@ O.snowMaskOf = function (src) {
     O.UI.dialog = { open, close, set: (o) => open(Object.assign({ name: nameEl.textContent, color: nameEl.style.background }, o)) };
     O.UI.dialogOpen = () => !!D;
 
+    // ---------------------------------------------------------------- touch buttons (phones and tablets)
+    // E, steal, strike and the menus as buttons, since there's no keyboard: each presses the same key
+    {
+      const bar = document.createElement('div'); bar.className = 'touchbar'; root.appendChild(bar);
+      const press = (code, key) => { const ev = new KeyboardEvent('keydown', { code, key, bubbles: true }); window.dispatchEvent(ev); setTimeout(() => window.dispatchEvent(new KeyboardEvent('keyup', { code, key, bubbles: true })), 60); };
+      const B = [['KeyE', 'e', 'E', 'act', 'big'], ['KeyQ', 'q', 'Q', 'steal'], ['Space', ' ', '⚔', 'strike'], ['ShiftLeft', 'Shift', '»', 'run'], ['KeyJ', 'j', 'J', 'undertakings'], ['KeyB', 'b', 'B', 'business'], ['KeyI', 'i', 'I', 'satchel'], ['KeyM', 'm', 'M', 'map'], ['Escape', 'Escape', '☰', 'menu']];
+      bar.innerHTML = B.map(([c, k, l, n, big]) => `<button data-code="${c}" data-key="${k}" class="${big || ''}" aria-label="${n}">${l}</button>`).join('');
+      bar.querySelectorAll('button').forEach((b) => {
+        if (b.dataset.code === 'ShiftLeft') { b.ontouchstart = (e) => { e.preventDefault(); game.keys.add('run'); b.classList.add('on'); }; b.ontouchend = () => { game.keys.delete('run'); b.classList.remove('on'); }; return; }
+        b.addEventListener('touchstart', (e) => { e.preventDefault(); press(b.dataset.code, b.dataset.key); }, { passive: false });
+        b.onclick = () => press(b.dataset.code, b.dataset.key);
+      });
+    }
     // ---------------------------------------------------------------- pause menu
     const menu = document.createElement('div'); menu.className = 'ui-menu'; menu.hidden = true; root.appendChild(menu);
     function openMenu() {
@@ -18278,7 +18360,7 @@ O.snowMaskOf = function (src) {
         if (PSx.askedLaw >= 2 || PSx.money < 5) {
           const cr = s.recordCrime({ kind: 'consorting with outlaws', perp: 'player', placeName: O.placeName ? O.placeName() : s.world.name, tile: [Math.floor(game.player.x / 16), Math.floor(game.player.y / 16)], seen: [q], severity: 1 });
           PSx.crimes.push(cr.id); O.lawReport && O.lawReport(cr, q);
-          return '"Asking after the gangs again? You\'ll come along with me and explain yourself."';
+          return PSx.askedLaw >= 2 ? '"Asking after the gangs again? You\'ll come along with me and explain yourself."' : '"Asking after outlaws, and not a coin to your name? You\'ll come along with me and explain yourself."';
         }
         PSx.money -= 5; PSx.rep.guard = Math.max(-1, PSx.rep.guard - 0.1);
         return '"Outlaws, is it? That\'s five aurins for loitering with intent, and I\'ll be watching you. Ask me again and you\'ll see the inside of a cell."';
@@ -18292,8 +18374,8 @@ O.snowMaskOf = function (src) {
       const tells = priestly ? 0.04 : official ? 0.1 : good ? 0.18 : 1;
       if (tells < 1 && !(aff > 0.5 && s.rng.chance(tells * 2)) && !s.rng.chance(tells)) return `"${priestly ? ['God keep you from such people.', 'I\'ll pray for you, child. That\'s all the help I\'ll give in that.', 'The Church has nothing to do with such folk.'][q.id % 3] : official ? 'That\'s no question for me to answer.' : 'Me? I keep to honest work, and honest folk.'}"`;
       const rough = q.traits.includes('greedy') || q.traits.includes('hostile') || q.attitude < -0.1 || s.household(q).money < 15;
-      const need = rough ? 0.1 : 0.35;
-      if (aff < need && PSx.rep.criminal < 0.3) return `"${['Why would I tell you anything? I hardly know you.', 'I don\'t talk about such things with strangers.', 'Buy me a drink some time, and maybe we\'ll talk.'][q.id % 3]}"`;
+      const need = rough ? 0.2 : 0.4, fam = q.rel?.get(0)?.familiar || 0;
+      if ((aff < need || fam < 0.15) && PSx.rep.criminal < 0.3) return `"${['Why would I tell you anything? I hardly know you.', 'I don\'t talk about such things with strangers.', 'Buy me a drink some time, and maybe we\'ll talk.'][q.id % 3]}"`;
       const ms = s.people.filter((m) => m.gang && m.gang !== 'player' && m.alive !== false && m !== q);
       const knowsOf = ms.filter((m) => m.household === q.household || (q.rel?.get(m.id)?.affinity || 0) > 0.15 || (m.rel?.get(q.id)?.affinity || 0) > 0.15 || (rough && (m.id + q.id) % 3 === 0));
       if (!knowsOf.length) return `"${['I wouldn\'t know. I keep my head down.', 'Not that I know of, and I\'d not want to.', 'Couldn\'t tell you. Nobody I know.'][q.id % 3]}"`;
@@ -18690,7 +18772,7 @@ O.snowMaskOf = function (src) {
       const sup = s.biz.get(d.from); if (!sup) { bz.deals = bz.deals.filter((x) => x !== d); return; }
       const have = Math.floor(sup.stock[d.good] || 0), n = Math.min(d.qty, have), cost = n * d.price;
       if (n < 1 || bz.cash < cost) { d.missed = (d.missed || 0) + 1; s.log(`${sup.name} could not make its Sunday delivery to ${bz.name}${bz.cash < cost ? ' (the purse was short)' : ''}.`, 'trade'); if (d.missed >= 3) bz.deals = bz.deals.filter((x) => x !== d); return; }
-      const settle = () => { sup.stock[d.good] -= n; bz.stock[d.good] = (bz.stock[d.good] || 0) + n; bz.cash -= cost; sup.cash += cost; s.log(`${sup.name} delivered ${n} ${G()[d.good]?.name.toLowerCase()} to ${bz.name} as agreed (₳${cost}).`, 'trade'); };
+      const settle = () => { sup.stock[d.good] -= n; bz.stock[d.good] = (bz.stock[d.good] || 0) + n; bz.cash -= cost; sup.cash += cost; s.log(`${sup.name} delivered ${O.countOf ? O.countOf(d.good, n) : n + ' ' + G()[d.good]?.name.toLowerCase()} to ${bz.name} as agreed (₳${cost}).`, 'trade'); };
       // in sight, a hand carries it over
       const hand = live && sup.workers.map((id) => s.byId.get(id)).find((q) => q && q.alive !== false && q.agent && !q.errand && q.age >= 14);
       if (hand && O.Errands) {
@@ -19079,7 +19161,7 @@ O.snowMaskOf = function (src) {
           <div class="lbl" style="margin-top:10px">The castle's guest list</div><div class="topics"><button data-mode="all" aria-pressed="${G.mode === 'all'}">Open to all</button><button data-mode="black" aria-pressed="${G.mode === 'black'}">All but the barred (blacklist)</button><button data-mode="white" aria-pressed="${G.mode === 'white'}">Only the invited (whitelist)</button></div>
           ${named ? `<table><tbody>${named}</tbody></table>` : '<p class="caption">Nobody on the list. Talk to anyone to invite them or bar them.</p>'}<p class="caption">${G.mode === 'white' ? 'Only those you invite (and the household) come to the castle and its feasts.' : G.mode === 'black' ? 'Those you bar are turned away from the castle and its feasts.' : 'Anyone may come.'}</p>`;
       } else if (tab === 'war') {
-        body = W.phase === 'war' ? `<p>The realm is at war with ${esc(W.enemy?.name || W.enemy || 'the enemy')}. Battles fought: ${(W.battles || []).length}.</p><div class="topics"><button data-peace="1">Sue for peace (₳300 to the enemy)</button></div>` : `<p>The realm is at peace.</p><div class="topics"><button data-war="1">Declare war</button></div><p class="caption">War raises the crown tax, calls men to arms and empties the treasury; victory brings glory and plunder.</p>`;
+        body = W.phase === 'war' ? `<p>The realm is at war with ${esc(W.enemy?.name || W.enemy || 'the enemy')}. Battles fought: ${(W.battles || []).length}.</p><div class="topics"><button data-peace="1">Sue for peace (₳300 to the enemy)</button></div>` : `<p>The realm is at peace.</p><div class="topics">${(O.warFoes ? O.warFoes() : [{ key: '', name: 'the enemy' }]).map((f) => `<button data-war="${f.key}">Declare war on ${esc(f.name)}</button>`).join('')}</div><p class="caption">War raises the crown tax, calls men to arms and empties the treasury; victory brings glory and plunder.</p>`;
       }
       O.Panels.open('The Crown', `<nav class="tabs" style="margin-bottom:8px">${tabs.map(([t, l]) => `<button data-tab="${t}" aria-pressed="${t === tab}">${l}</button>`).join(' ')}</nav>${body}`, (r) => {
         r.querySelectorAll('[data-tab]').forEach((b) => b.onclick = () => open(b.dataset.tab));
@@ -19104,7 +19186,7 @@ O.snowMaskOf = function (src) {
         r.querySelectorAll('[data-host]').forEach((b) => b.onclick = () => { O.jobEvent && O.jobEvent('decree'); const kk = b.dataset.host, c = { tournament: 150, fair: 80, midwinter: 120, market: 40 }[kk]; if (k.treasury < c) return say('The treasury cannot bear it.', 'bad'); { const [f0, t0] = kk === 'midwinter' ? [18, 23] : kk === 'market' ? [7, 14] : [10, 15], cl = O.eventClash && O.eventClash(s, s.day + 1, f0, t0); if (cl || (s.hosted && s.hosted.day === s.day + 1)) return say(`Tomorrow is taken already: ${cl ? cl.title.charAt(0).toLowerCase() + cl.title.slice(1) : 'another festivity'}. Choose another day.`, 'bad'); } k.treasury -= c; s.hosted = { kind: kk, day: s.day + 1 }; s.log(`By royal command there will be ${kk === 'midwinter' ? 'a great feast' : kk === 'market' ? 'a market of travelling merchants' : 'a ' + kk} tomorrow.`, 'politics'); say('The heralds cry it through the streets: tomorrow, by your command.'); open('fest'); });
         r.querySelectorAll('[data-mode]').forEach((b) => b.onclick = () => { guests().mode = b.dataset.mode; open('fest'); });
         r.querySelectorAll('[data-unlist]').forEach((b) => b.onclick = () => { delete guests().list[b.dataset.unlist]; open('fest'); });
-        const wb = r.querySelector('[data-war]'); if (wb) wb.onclick = () => { k.declareWar && k.declareWar(); say('You declare war. The heralds ride out.', 'bad'); open('war'); };
+        r.querySelectorAll('[data-war]').forEach((wb) => wb.onclick = () => { O.declareOn ? O.declareOn(wb.dataset.war) : k.declareWar && k.declareWar(); O.jobEvent && O.jobEvent('decree'); say('You declare war. The heralds ride out.', 'bad'); open('war'); });
         const pb = r.querySelector('[data-peace]'); if (pb) pb.onclick = () => { if (k.treasury < 300) return say('The treasury cannot pay the price of peace.', 'bad'); k.treasury -= 300; k.makePeace && k.makePeace('none'); say('Envoys carry your terms. The war is over.'); open('war'); };
       });
     }
@@ -20637,6 +20719,17 @@ O.snowMaskOf = function (src) {
       if (!opts.civil && !opts.enemy) { const f = FOES[this.rng.int(0, FOES.length - 1)]; if (this.place(f.home)) opts = Object.assign({}, opts, { enemy: f.name, home: f.home, hostName: f.host, announce: f.announce(f.name) }); }
       return _declare(opts);
     };
+    // the monarch's choice of enemy: a foreign foe, or a great lord who has defied the crown
+    O.warFoes = () => {
+      const out = FOES.filter((f) => K.place(f.home)).map((f) => ({ key: 'foe:' + f.name, name: f.name }));
+      for (const [id, L] of Object.entries(R()?.lords || {})) if (K.place(id)?.kind === 'castle' && id !== 'highmere') out.push({ key: 'lord:' + id, name: `${L.name}, ${L.sex === 'f' ? 'Lady' : 'Lord'} of ${K.place(id).name}` });
+      return out;
+    };
+    O.declareOn = (key) => {
+      if (!key || key.startsWith('foe:')) { const f = FOES.find((x) => 'foe:' + x.name === key) || FOES[0]; return K.declareWar({ enemy: f.name, home: f.home, hostName: f.host, announce: `WAR. By the crown's command the realm makes war on ${f.name}. The host musters at Highmere and every town must send men.` }); }
+      const id = key.slice(5), L = R().lords[id], pl = K.place(id);
+      return K.declareWar({ enemy: `${L.name} of ${pl.name}`, home: id, men: 140, hostName: `the host of ${L.name}`, announce: `WAR. The crown has declared ${L.name} of ${pl.name} a traitor and sends the host against ${L.sex === 'f' ? 'her' : 'him'}.` });
+    };
     const foeLook = () => { const W = K.war; if (!W) return 'outlaw'; if (W.civil) return 'guard'; return (FOES.find((f) => f.name === W.enemy) || {}).look || 'outlaw'; };
 
     // ================================================================ rebels: the Duke, or a great lord
@@ -20950,7 +21043,13 @@ O.snowMaskOf = function (src) {
       mummers: { title: () => "The mummers' play in the square", where: 'square', from: 16, to: 18, open: true, seasons: ['winter'] },
       hunt: { title: (h) => `${h.title ? h.title + ' ' : ''}${h.first}'s hunt`, where: 'wood', from: 9, to: 13, open: false, gentry: true },
     };
-    const festOn = (s, day) => { const d = dos(day), se = seasonOf(day); return (se === 'autumn' && d === 10) || (se === 'winter' && d === 7) || (se === 'spring' && d === 12) || (s.hosted && s.hosted.day === day); };
+    // every town keeps the feast of its chapel's saint, once a year
+    const saintOf = (s) => { const ch = s.chapelId != null && s.building(s.chapelId); const m = ch && /St\.? ([A-Z][a-z]+)/.exec(ch.name || ''); return m ? m[1] : null; };
+    const yearLen = () => SD() * 4;
+    const saintDay = (s) => { const nm = saintOf(s); if (!nm) return null; return (O.hash('saint', s.world.placeId || s.world.name) % yearLen()) + 1; };
+    const isSaintDay = (s, day) => { const d = saintDay(s); return d != null && ((day - 1) % yearLen()) + 1 === d; };
+    O.saintDay = (s) => ({ saint: saintOf(s), day: saintDay(s) });
+    const festOn = (s, day) => { if (isSaintDay(s, day)) return true; const d = dos(day), se = seasonOf(day); return (se === 'autumn' && d === 10) || (se === 'winter' && d === 7) || (se === 'spring' && d === 12) || (s.hosted && s.hosted.day === day); };
     // does a big gathering already fill this time in this town?
     O.eventClash = (s, day, from, to, except) => {
       for (const e of O.eventsFor(s, day, day)) { if (e === except || e.small || e.ref === except) continue; if (e.from < to && from < e.to) return e; }
@@ -20992,6 +21091,12 @@ O.snowMaskOf = function (src) {
     // who goes: the host's household, friends of the host, and for an open one anyone with the time
     const SP = O.Sim.prototype, _plan = SP.plan;
     SP.plan = function (p) {
+      if (!p.task && !p.visitor && p.age >= 4 && !p.health?.illness && isSaintDay(this, this.day)) {
+        const h = this.hour, pl0 = () => _plan.call(this, p);
+        if (h >= 9 && h < 10.5 && this.chapelId != null && (p.id % 3 !== 0) && (pl0() || {}).act !== 'work') return { act: 'worship', b: this.chapelId };
+        if (h >= 12 && h < 16.5 && (p.id % 2 === 0)) return { act: 'festival', outdoor: true, zone: 'square' };
+        if (h >= 18 && h < 22 && this.tavernId != null && p.age >= 16 && p.id % 3 === 1) return { act: 'socialise', b: this.tavernId };
+      }
       const evs = this.npcEvents; if (!evs || !evs.length || p.task || p.visitor || p.age < 4 || p.health?.illness) return _plan.call(this, p);
       const h = this.hour;
       for (const e of evs) {
@@ -21048,6 +21153,7 @@ O.snowMaskOf = function (src) {
         if (se === 'winter' && dd === 7) add({ day: d, from: 18, to: 23, title: 'The midwinter feast', where: s.world.buildings.some((b) => b.royal) ? 'the great hall' : 'the tavern', b: s.world.buildings.find((b) => b.royal)?.id ?? s.tavernId });
         if (se === 'spring' && dd === 12 && s.world.buildings.some((b) => b.royal || b.type === 'keep')) add({ day: d, from: 10, to: 15, title: 'The spring tournament', where: 'the lists by the castle', square: true });
         if ((d - 1) % 7 === 6) add({ day: d, from: 7, to: 14, title: 'Sunday market', where: 'the square', square: true, small: true });
+        if (isSaintDay(s, d)) { add({ day: d, from: 9, to: 10.5, title: `St. ${saintOf(s)}'s day: the procession and mass`, where: 'the chapel', b: s.chapelId }); add({ day: d, from: 12, to: 16.5, title: `St. ${saintOf(s)}'s day: merriment in the square`, where: 'the square', square: true }); }
         if ((d - 1) % 7 === 3 && capital()) add({ day: d, from: 14, to: 18, title: 'The council of the realm', where: `the great hall at ${capital().name}`, place: capital().id, small: here !== capital().id, council: true });
       }
       if (s.hosted && s.hosted.day >= d0) add({ day: s.hosted.day, from: 10, to: 22, title: s.hosted.coronation ? 'The coronation feast' : `A ${s.hosted.kind === 'midwinter' ? 'feast' : s.hosted.kind} called by the crown`, where: s.world.name, square: s.hosted.kind !== 'midwinter' });
@@ -21136,6 +21242,127 @@ O.snowMaskOf = function (src) {
 
 </script>
 <script>
+// Tavern pastimes. Sit down with someone at a table and play at hazard: you call the main, throw two dice,
+// and a nick wins, a crab loses, anything else becomes your chance and you throw till it comes again (you
+// win) or the main does (you lose). Stakes come out of real purses. Use loaded dice if you're sly enough,
+// but be caught at it and there'll be trouble. Or stand the whole house a round: everyone drinking there
+// thinks better of you.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k), esc = (t) => O.escape(String(t));
+    const FACE = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+    const d6 = (loaded) => { const r = 1 + Math.floor(Math.random() * 6); return loaded && Math.random() < 0.35 ? 6 : r; };
+    const seatedAt = (sc, it) => { const [x, y] = sc.anchor(it); return [...sc.actors.values()].filter((a) => !a.hidden && a.person && a.person.age >= 16 && (a.seat || ['sit', 'eat', 'drink', 'talk'].includes(a.gAnim || a.anim)) && Math.hypot((a.gx ?? a.x) - a.x, (a.gy ?? a.y) - a.y) < 6 && Math.hypot(a.x - x, a.y - y) < 44 && a.person.activity?.act !== 'work').map((a) => a.person); };
+    let playing = null;
+    const prevScene = O.sceneCandidate;
+    O.sceneCandidate = () => {
+      const sc = game.scene, base = prevScene ? prevScene() : null;
+      if (!sc || playing || !['tavern', 'inn', 'alehouse'].includes(sc.b.type)) return base;
+      const p = game.player; let best = null;
+      for (const it of sc.L.items) {
+        if (it.kind !== 'table') continue;
+        const [x, y] = sc.anchor(it), d = Math.hypot(x - p.x, y - p.y); if (d > (p.sitting ? 52 : 40)) continue;
+        const who = seatedAt(sc, it); if (!who.length) continue;
+        const c = { type: 'custom', d: p.sitting ? -5 : d + 2, label: `Play at dice with ${who[0].first}`, act: () => dice(who[0]) }; // (sit down at the table and it's the first thing offered)
+        if (!best || c.d < best.d) best = c;
+      }
+      // a round for the house, at the bar
+      const bar = sc.L.items.find((i) => i.kind === 'bar' || i.counter);
+      if (bar) { const [x, y] = sc.anchor(bar), d = Math.hypot(x - p.x, y + 10 - p.y); if (d < 44) { const n = [...sc.actors.values()].filter((a) => !a.hidden && a.person && a.person.age >= 16 && a.person.activity?.act !== 'work').length; if (n >= 2) { const c = { type: 'custom', d: d + 6, label: `Stand the house a round (₳${2 + n})`, act: () => round(n) }; if (!best || c.d < best.d) best = c; } } }
+      if (best && (!base || best.d < base.d)) return best;
+      return base;
+    };
+    function round(n) {
+      const s = cur(), sc = game.scene, cost = 2 + n; if (PS.money < cost) return say(`That's ₳${cost} for the whole house.`, 'bad');
+      PS.money -= cost; const bz = s.biz.get(sc.b.id); if (bz) { bz.cash += cost; bz.salesToday = (bz.salesToday || 0) + cost; if (bz.stock.ale != null) bz.stock.ale = Math.max(0, bz.stock.ale - n * 0.3); }
+      for (const a of sc.actors.values()) if (a.person && a.person.activity?.act !== 'work') { s.relate(a.person, { id: 0 }, 0.08); a.anim = 'celebrate'; }
+      PS.rep.local = Math.min(1, (PS.rep.local || 0) + 0.03);
+      say(`"A round for the house!" Cups are filled and raised to you. ${n} people drink your health.`);
+    }
+    function dice(q) {
+      const s = cur(), hh = s.household(q), purse = Math.floor(hh ? hh.money : 10), aff = q.rel.get(0)?.affinity || 0;
+      if (purse < 2) return say(`${q.first} turns out empty pockets. "Nothing to stake, friend."`);
+      if (aff < -0.3) return say(`${q.first} won't throw dice with you.`, 'bad');
+      const stakes = [1, 2, 5, 10].filter((n) => n <= Math.min(purse, 20));
+      const sly = (PS.skills.stealth || 0) + (PS.skills.sleight || 0);
+      O.UI.dialog.open({ name: `Hazard with ${q.first}`, color: '#5a3a1a', text: `${q.first} rattles two bone dice in a cup. "What's the stake?"`, options: [...stakes.map((n) => ({ key: 's' + n, label: `₳${n} a throw` })), ...(sly > 0.2 ? [{ key: 'l5', label: 'Swap in loaded dice (₳5)' }] : []), { key: 'no', label: 'Not now' }], onPick: (k) => {
+        O.UI.dialog.close(); if (k === 'no') return;
+        const stake = +k.slice(1), loaded = k[0] === 'l';
+        if (PS.money < stake) return say(`You haven't ₳${stake}.`, 'bad');
+        playing = { q, stake, loaded }; game.player.locked = true; throwOnce(s, [], null);
+      } });
+    }
+    // one throw at a time, so you see each fall of the dice
+    function throwOnce(s, history, chance) {
+      const { q, stake, loaded } = playing;
+      const a = d6(loaded), b = d6(loaded), t = a + b; history.push(`${FACE[a]} ${FACE[b]} (${t})`);
+      let res = null;
+      if (chance == null) { if (t === 7 || t === 11) res = 'win'; else if (t === 2 || t === 3 || t === 12) res = 'lose'; else chance = t; }
+      else if (t === chance) res = 'win'; else if (t === 7) res = 'lose';
+      const lines = history.map((h, i) => `${i ? 'Again' : 'You throw'}: ${h}`).join('. ');
+      if (!res) return O.UI.dialog.open({ name: `Hazard with ${q.first}`, color: '#5a3a1a', text: `${lines}. Your chance is ${chance}: throw until it comes again, but a 7 loses.`, options: [{ key: 'go', label: 'Throw again' }], onPick: () => { O.UI.dialog.close(); throwOnce(s, history, chance); } });
+      settle(s, res, lines);
+    }
+    function settle(s, res, lines) {
+      const { q, stake, loaded } = playing; playing = null; game.player.locked = false;
+      const hh = s.household(q);
+      // loaded dice can be noticed
+      if (loaded && Math.random() < 0.3 - (PS.skills.stealth || 0) * 0.2) {
+        s.relate(q, { id: 0 }, -0.7); s.remember(q, 'Caught the stranger cheating at dice.', 'crime', 2, 0);
+        const cr = s.recordCrime({ kind: 'cheating at dice', perp: 'player', placeName: game.scene?.b.name || 'the tavern', tile: [Math.floor(game.player.x / T), Math.floor(game.player.y / T)], seen: [q], victimPerson: q, severity: 1 });
+        PS.crimes.push(cr.id); PS.rep.local = Math.max(-1, (PS.rep.local || 0) - 0.1);
+        return O.UI.dialog.open({ name: q.first, color: '#7a1a1a', text: `${lines}. ${q.first} snatches up the dice and weighs them in a palm. "Loaded! You cheating cur!" The room goes quiet.`, options: [{ key: 'ok', label: 'Back away' }], onPick: () => O.UI.dialog.close() });
+      }
+      if (res === 'win') { const n = Math.min(stake, Math.floor(hh ? hh.money : stake)); if (hh) hh.money -= n; PS.money += n; s.relate(q, { id: 0 }, n > 4 ? -0.05 : 0.02); PS.skills.gambling = Math.min(1, (PS.skills.gambling || 0) + 0.01); }
+      else { PS.money -= stake; if (hh) hh.money += stake; s.relate(q, { id: 0 }, 0.04); }
+      O.UI.dialog.open({ name: `Hazard with ${q.first}`, color: res === 'win' ? '#2a5a2a' : '#5a1a1a', text: `${lines}. ${res === 'win' ? `You win ₳${stake}. ${q.first} pushes the coins across with a scowl.` : `You lose ₳${stake}. ${q.first} sweeps the coins up, grinning.`}`, options: [{ key: 'again', label: 'Another throw' }, { key: 'stop', label: 'Enough' }], onPick: (k) => { O.UI.dialog.close(); if (k === 'again') dice(q); } });
+    }
+  }
+  O.PastimesSetup = { setup };
+})();
+// Fishing for yourself: with a rod, at the edge of a river, lake or the sea. Half an hour a cast; what bites
+// depends on the season, the hour and how practised you are.
+(function () {
+  const T = 16;
+  function setup(game) {
+    const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k);
+    const waterBeside = () => { const w = game.world, p = game.player; if (!w || game.scene) return null; for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0], [0, 2], [1, 1], [-1, 1]]) { const tx = Math.floor(p.x / T) + dx, ty = Math.floor((p.y - 2) / T) + dy, i = ty * w.W + tx; if (tx >= 0 && ty >= 0 && tx < w.W && ty < w.H && w.ter[i] === w.TER.WATER) return [tx, ty]; } return null; };
+    let busy = 0, after = null;
+    game.hooks.update.push((dt) => { if (busy > 0) { busy -= dt; game.player.locked = true; game.player.anim = 'fish'; if (busy <= 0) { game.player.locked = false; game.player.anim = 'idle'; const f = after; after = null; f && f(); } } });
+    const hook = () => {
+      const prev = O.stallCandidate;
+      O.stallCandidate = () => {
+        const base = prev ? prev() : null;
+        if (busy > 0 || game.scene || !PS.items.includes('rod') || game.player.mount) return base;
+        const wt = waterBeside(); if (!wt) return base;
+        const c = { type: 'custom', d: 14, label: 'Cast a line (half an hour)', act: cast, x: wt[0] * T + 8, y: wt[1] * T - 20 };
+        return base && base.d < c.d ? base : c;
+      };
+    };
+    let hooked = false; game.hooks.update.push(() => { if (!hooked) { hooked = true; hook(); } });
+    function cast() {
+      const s = cur(), wt = waterBeside(); if (!wt) return;
+      game.player.dir = O.dirOf(wt[0] * T + 8 - game.player.x, wt[1] * T + 8 - game.player.y);
+      busy = 3.2; after = () => {
+        for (let i = 0; i < 15; i++) { s.tick(2); PS.tick(2, false); }
+        const sk = PS.skills.fishing || 0, h = s.hour, good = (h < 9 || h > 17) ? 0.15 : 0, cold = s.season === 'winter' ? -0.15 : 0;
+        PS.skills.fishing = Math.min(1, sk + 0.01);
+        if (Math.random() < 0.38 + sk * 0.4 + good + cold) {
+          if (!PS.canCarry('fish')) return say('A fish! But your satchel is full, and it slips back into the water.', 'bad');
+          PS.add('fish'); const big = Math.random() < 0.15 + sk * 0.2;
+          if (big && PS.canCarry('fish')) PS.add('fish');
+          say(big ? 'The line goes taut: two good fish before the light changes.' : 'A tug, a fight, and a fish flapping on the bank.');
+        } else say(['Nothing bites. The water keeps its own counsel.', 'A nibble, then nothing. The bait is gone.', 'You watch the float a long while. Nothing.'][Math.floor(Math.random() * 3)]);
+      };
+    }
+  }
+  O.FishingSetup = { setup };
+})();
+
+</script>
+<script>
 // Words that must follow the facts: when a queen holds the crown it is the Queen's host and the Queen's
 // coin, not the King's. Applied wherever text reaches the player (news, messages, panels and dialogs).
 'use strict';
@@ -21145,6 +21372,7 @@ O.snowMaskOf = function (src) {
     const fix = (t) => (typeof t === 'string' && queen() ? t.replace(/\bKing(\\?)'s (host|coin|men|peace|purveyors|justice|name|law|levy|army|service)\b/g, "Queen$1's $2").replace(/\bthe King's\b(?! Road)/g, "the Queen's") : t);
     O.crownly = fix;
     let done = false;
+    game.hooks.update.push(() => { const s = O.SimRef.cur; if (s && s.world) O.fixBizNames(s.world, s); });
     game.hooks.update.push(() => {
       if (done) return; done = true;
       const K = O.SimRef.home.kingdom, _n = K.addNews.bind(K); K.addNews = (t, k, p) => _n(fix(t), k, p);
@@ -21154,6 +21382,21 @@ O.snowMaskOf = function (src) {
       const SP = O.Sim.prototype, _log = SP.log; SP.log = function (t, k) { return _log.call(this, fix(t), k); };
     });
   }
+  // names made before the naming rule: put right whenever a world is shown
+  const fixed = new WeakSet();
+  O.fixBizNames = (world, sim) => {
+    if (!world || fixed.has(world) || !O.bizName) return; fixed.add(world);
+    const LABELS = Object.values(O.Data.BUSINESS).map((d) => d.label).filter(Boolean);
+    for (const b of world.buildings) {
+      const bz0 = sim && sim.biz.get(b.id), m = /^(.+?)'s (.+)$/.exec(b.name || '');
+      let nn = null;
+      if (m && LABELS.includes(m[2])) nn = O.bizName(m[1], m[2]);
+      else if (bz0 && (LABELS.includes(b.name) || b.name === bz0.def.label || /^(Butcher|Carpenter|Physician|Armourer|Smithy|Jeweller|Saddler|Glazier|Chandlery|Builder's Yard)$/.test(b.name || ''))) { const own = sim.byId.get(bz0.owner) || sim.byId.get(bz0.workers[0]); nn = own && own.sur ? O.bizName(own.sur, bz0.def.label) : `The ${O.bizName('x', bz0.def.label).slice(4)}`; }
+      if (!nn || nn === b.name) continue;
+      const old = b.name; b.name = nn; const bz = sim && sim.biz.get(b.id); if (bz && bz.name === old) bz.name = nn;
+      for (const e of O.PlayerState.posts || []) if (e.bizName === old) e.bizName = nn;
+    }
+  };
   O.TextsSetup = { setup };
 })();
 
@@ -21401,7 +21644,7 @@ O.snowMaskOf = function (src) {
 // work, trade, property, crime, gangs, politics, war, with where each starts.
 'use strict';
 (function () {
-  const KEYS = [['WASD / arrows', 'walk'], ['Shift', 'run'], ['E', 'interact with whatever is nearest: talk, enter, work, buy, read, fight a fire, wake someone asleep in a bed…'], ['Q', 'steal: pickpocket, pick a lock, take a horse'], ['F', 'quick-loot a container or search someone beaten'], ['Space', 'strike'], ['R', 'change weapon'], ['H', 'mount or dismount your horse'], ['I', 'satchel, reputation and skills'], ['L', 'town ledger: people, families, businesses, news'], ['M', 'map of the realm'], ['G', 'your gang'], ['P', 'holdings: property, land, office'], ['C', 'the Chronicle: history, hearsay, your story'], ['B', 'Business: your work, your businesses, and the Crown if you wear it'], ['J', "your undertakings and what's on: jobs, bounties, gang tasks, events with their dates, and the places you're being shown the way to"], ['/', 'this guide'], ['Esc', 'close a panel']];
+  const KEYS = [['WASD / arrows', 'walk'], ['Shift', 'run'], ['E', 'interact with whatever is nearest: talk, enter, work, buy, read, fight a fire, wake someone asleep in a bed…'], ['Q', 'steal: pickpocket, pick a lock, take a horse'], ['F', 'quick-loot a container or search someone beaten'], ['Space', 'strike'], ['R', 'change weapon'], ['H', 'mount or dismount your horse'], ['I', 'satchel, reputation and skills'], ['L', 'town ledger: people, families, businesses, news'], ['M', 'map of the realm'], ['G', 'your gang'], ['P', 'holdings: property, land, office'], ['C', 'the Chronicle: history, hearsay, your story'], ['B', 'Business: your work, your businesses, and the Crown if you wear it'], ['J', "your undertakings and what's on: jobs, bounties, gang tasks, events with their dates, and the places you're being shown the way to"], ['/', 'this guide'], ['Esc', 'close a panel'], ['On a phone', 'drag anywhere on the view to walk; the buttons at the bottom right are E, steal (Q), strike, run, and Undertakings, Business, satchel, map and the menu']];
   const WAYS = [
     ['Honest work', 'Ask anyone "Who\'s taking on hands?" and they\'ll name the places that want workers and who runs them. Talk to that master at their workplace and ask for work. Some work is a day\'s quota (do the set tasks and you are done); some is a shift (stay the hours; new work comes along). Your tasks and how to do each are in Business (B, Your work) and in the corner icon; gold markers show where. Leave a post from Business: hand in your notice, buy out an indenture, ask leave of the crown, or abdicate.'],
     ['Craft and sell', 'Once skilled, make goods from your own materials at a bench you may use (your property or your employer\'s). Mind a market stall in the square to sell to the townsfolk. On Sunday mornings travelling merchants set up at the stalls.'],
@@ -22137,6 +22380,8 @@ O.snowMaskOf = function (src) {
   O.WarfareSetup.setup(game, npcUI);
   O.CalendarSetup.setup(game);
   O.FinerySetup.setup(game);
+  O.PastimesSetup.setup(game);
+  O.FishingSetup.setup(game);
   O.TextsSetup.setup(game);
   O.WanderersSetup.setup(game, home);
   O.CouncilUI.setup(game, home);

@@ -78,7 +78,7 @@
         if (PSx.askedLaw >= 2 || PSx.money < 5) {
           const cr = s.recordCrime({ kind: 'consorting with outlaws', perp: 'player', placeName: O.placeName ? O.placeName() : s.world.name, tile: [Math.floor(game.player.x / 16), Math.floor(game.player.y / 16)], seen: [q], severity: 1 });
           PSx.crimes.push(cr.id); O.lawReport && O.lawReport(cr, q);
-          return '"Asking after the gangs again? You\'ll come along with me and explain yourself."';
+          return PSx.askedLaw >= 2 ? '"Asking after the gangs again? You\'ll come along with me and explain yourself."' : '"Asking after outlaws, and not a coin to your name? You\'ll come along with me and explain yourself."';
         }
         PSx.money -= 5; PSx.rep.guard = Math.max(-1, PSx.rep.guard - 0.1);
         return '"Outlaws, is it? That\'s five aurins for loitering with intent, and I\'ll be watching you. Ask me again and you\'ll see the inside of a cell."';
@@ -92,8 +92,8 @@
       const tells = priestly ? 0.04 : official ? 0.1 : good ? 0.18 : 1;
       if (tells < 1 && !(aff > 0.5 && s.rng.chance(tells * 2)) && !s.rng.chance(tells)) return `"${priestly ? ['God keep you from such people.', 'I\'ll pray for you, child. That\'s all the help I\'ll give in that.', 'The Church has nothing to do with such folk.'][q.id % 3] : official ? 'That\'s no question for me to answer.' : 'Me? I keep to honest work, and honest folk.'}"`;
       const rough = q.traits.includes('greedy') || q.traits.includes('hostile') || q.attitude < -0.1 || s.household(q).money < 15;
-      const need = rough ? 0.1 : 0.35;
-      if (aff < need && PSx.rep.criminal < 0.3) return `"${['Why would I tell you anything? I hardly know you.', 'I don\'t talk about such things with strangers.', 'Buy me a drink some time, and maybe we\'ll talk.'][q.id % 3]}"`;
+      const need = rough ? 0.2 : 0.4, fam = q.rel?.get(0)?.familiar || 0;
+      if ((aff < need || fam < 0.15) && PSx.rep.criminal < 0.3) return `"${['Why would I tell you anything? I hardly know you.', 'I don\'t talk about such things with strangers.', 'Buy me a drink some time, and maybe we\'ll talk.'][q.id % 3]}"`;
       const ms = s.people.filter((m) => m.gang && m.gang !== 'player' && m.alive !== false && m !== q);
       const knowsOf = ms.filter((m) => m.household === q.household || (q.rel?.get(m.id)?.affinity || 0) > 0.15 || (m.rel?.get(q.id)?.affinity || 0) > 0.15 || (rough && (m.id + q.id) % 3 === 0));
       if (!knowsOf.length) return `"${['I wouldn\'t know. I keep my head down.', 'Not that I know of, and I\'d not want to.', 'Couldn\'t tell you. Nobody I know.'][q.id % 3]}"`;

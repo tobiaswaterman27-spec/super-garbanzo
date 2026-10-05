@@ -106,7 +106,7 @@
     if (f.byPlayer && f.secret) t = t.replace(/\byou\b/gi, 'a stranger');
     switch (src) {
       case 'saw': return t;
-      case 'crier': return f.cat === 'crime' ? `${strip(t)}. The watch is vigilant and order is kept.` : f.cat === 'politics' || f.cat === 'rulers' ? `By order of the council: ${lower(t)}` : t;
+      case 'crier': return f.cat === 'crime' ? `${strip(t)}. The watch is vigilant and order is kept.` : f.cat === 'politics' || f.cat === 'rulers' ? (/^the council\b/i.test(t) ? `Be it known: ${lower(t)}` : `By order of the council: ${lower(t)}`) : t;
       case 'watch': return `Report, ${C.dateLabel(f.day)}: ${lower(t)}`;
       case 'bard': return `♪ ${rng.pick(BARD_OPEN)} ${lower(strip(exaggerate(t, rng, [1.6, 3])))}, ${rng.pick(BARD_CLOSE)} ♪`;
       case 'broadsheet': return `${rng.pick(SHEET)} ${strip(exaggerate(t, rng, [1.3, 2]))}, or so it is reliably said!`;

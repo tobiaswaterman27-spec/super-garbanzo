@@ -1,3 +1,4 @@
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Outlaw</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=Silkscreen:wght@400;700&family=Jacquard+12&display=swap">
@@ -105,6 +106,11 @@ main { height: 100vh; }
 .ui-menu-in h2 { font-family: var(--display); font-weight: 400; font-size: 36px; margin: 0 0 8px; color: #b0602a; text-align: center; }
 .ui-menu-in button { background: none; border: 0; border-radius: 0; padding: 8px 16px; font-family: var(--body); font-weight: 800; font-size: 16px; color: #5a4632; cursor: pointer; text-align: left; }
 .ui-menu-in button:hover, .ui-menu-in button:focus-visible { background: #f3e2b8; outline: none; }
+.touchbar { position: absolute; right: 10px; bottom: 96px; display: none; grid-template-columns: repeat(3, 46px); gap: 6px; z-index: 30; }
+.touchbar button { width: 46px; height: 46px; background: rgba(27,20,36,.78); color: var(--parch); border: 2px solid var(--line); font-family: var(--pix); font-size: 14px; touch-action: none; }
+.touchbar button.big { grid-column: span 3; width: 100%; background: rgba(217,137,58,.9); color: var(--ink); font-size: 18px; }
+.touchbar button.on { background: var(--ember-2); color: var(--ink); }
+@media (pointer: coarse) { .touchbar { display: grid; } }
 .ui-menu-in h4 { margin: 10px 0 2px; font-family: var(--pix); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #9a7a52; }
 .ui-menu-in button { display: flex; justify-content: space-between; gap: 18px; padding: 6px 16px; }
 .ui-menu-in button .lbl { font-family: var(--pix); font-size: 11px; color: #9a7a52; }
@@ -403,6 +409,7 @@ body, button, input, select { -webkit-font-smoothing: none; font-smooth: never; 
 <script src="../src/game/warfare.js"></script>
 <script src="../src/game/calendar.js"></script>
 <script src="../src/game/finery.js"></script>
+<script src="../src/game/pastimes.js"></script>
 <script src="../src/game/texts.js"></script>
 <script src="../src/game/wanderers.js"></script>
 <script src="../src/game/council-ui.js"></script>

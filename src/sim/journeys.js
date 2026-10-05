@@ -57,7 +57,7 @@
         if (O.Horses && O.Horses.horses && O.Horses.horses.some((h) => h.owner === 'npc:' + p.id)) j.horse = true;
       }
       (K.journeys = K.journeys || []).push(j);
-      const lead = ppl[0]; this.log(`${lead.name}${ppl.length > 1 ? ` and ${ppl.length - 1} other${ppl.length > 2 ? 's' : ''}` : ''} set off for ${K.place(to).name}${purpose === 'trade' ? ` with ${Object.entries(goods).map(([g, n]) => `${n} ${O.Data.GOODS[g]?.name.toLowerCase()}`).join(', ')}` : purpose === 'move' ? ', moving away for good' : ' to visit'}.`, 'trade');
+      const lead = ppl[0]; this.log(`${lead.name}${ppl.length > 1 ? ` and ${['', 'one', 'two', 'three', 'four', 'five', 'six'][ppl.length - 1] || ppl.length - 1} other${ppl.length > 2 ? 's' : ''}` : ''} set off for ${K.place(to).name}${purpose === 'trade' ? ` with ${Object.entries(goods).map(([g, n]) => O.countOf ? O.countOf(g, n) : `${n} ${O.Data.GOODS[g]?.name.toLowerCase()}`).join(', ')}` : purpose === 'move' ? ', moving away for good' : ' to visit'}.`, 'trade');
     };
     // gone from the town: on the road now
     S.setOff = function (p) {

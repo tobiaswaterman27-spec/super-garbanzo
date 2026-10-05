@@ -92,41 +92,69 @@
       O.UI.dialog.open({ name: nice(lines[0]), color: '#8a6239', text: lines.slice(1).map(nice).join('. ') || 'Nothing more is written.', options: [] });
     };
     // in the castle every door off the hallway has its plaque: what the room is, and (close up) who lives there
-    // going up into a castle's upper hallways, you're told who has the rooms on that floor
-    let toldFloor = '';
-    game.hooks.update.push(() => {
-      const sc = game.scene; if (!sc || !sc.b.royal || sc.b.parent || !O.Castle || !(sc.floor >= 2)) { if (!sc) toldFloor = ''; return; }
-      const s = O.SimRef.cur, key = sc.b.id + ':' + sc.floor + ':' + s.day; if (key === toldFloor) return; toldFloor = key;
-      const plan = O.Castle.plan(sc.b, s), rooms = plan.floors[sc.floor] || [];
-      const desc = rooms.map((r) => {
-        if (r.playerRoom || (r.roomKey === 'chamber:monarch' && O.crowned && O.crowned())) return `${r.name === 'Your chamber' ? 'your chamber' : r.name.replace(/^The /, 'the ')} (yours)`;
-        const os = (r.roomOwners || []).map((id) => s.byId.get(id)).filter((q) => q && q.alive !== false);
-        if (!os.length) return r.name.replace(/^The /, 'the ') + (r.roomKey === 'chamber:guest' ? ' (empty unless there are guests)' : ' (empty)');
-        const head = os[0], role = head.title ? `${head.title} ${head.first}` : `${head.first} ${head.sur || ''}`.trim() + (head.job?.role ? `, ${O.roleName ? head.job.role : head.job.role}` : '');
-        return `${r.name.replace(/^The /, 'the ')}: ${role}${os.length > 1 ? ` and ${os.length - 1} more` : ''}`;
-      });
-      const nth = ['', '', 'second', 'third', 'fourth'][sc.floor] || 'upper';
-      if (desc.length) O.UI.say(`The ${nth} floor. ${desc.join('; ').replace(/^./, (c) => c.toUpperCase())}.`);
-    });
+    // in the castle every door off the hallway has a little painted board beside it with an icon, like
+    // the trade signs outside: a crown, a pot, a cup, a shield, a cross, a bed. Walk up to it and read it (E)
+    // to learn what the room is and who has it.
+    const ICON = {
+      crown: ['#.#.#.#', '#######', '#.#.#.#', '#######'], pot: ['#.....#', '#######', '#######', '.#####.', '..###..'], mug: ['.####.', '.####.#', '.####.#', '.####.', '.####.'],
+      shield: ['######', '#.##.#', '######', '.####.', '..##..'], cross: ['..##..', '######', '######', '..##..', '..##..'], scales: ['...#...', '#######', '#..#..#', '##.#.##', '..###..'],
+      bed: ['#......', '#.###..', '#######', '#######', '#.....#'], star: ['...#...', '.#####.', '..###..', '.#...#.'],
+    };
+    const COL = { crown: '#e8b830', pot: '#5a5a62', mug: '#e8d8a0', shield: '#a8382f', cross: '#c83a3a', scales: '#d8b040', bed: '#3f5f8e', star: '#e8b830' };
+    const yours = (room) => room.playerRoom && room.roomKey === 'chamber:player' || (room.roomKey === 'chamber:monarch' && O.crowned && O.crowned());
+    function iconOf(room) {
+      const k = room.roomKey || '';
+      if (k === 'throne') return 'crown'; if (k === 'kitchen') return 'pot'; if (k === 'hall') return 'mug'; if (k === 'steward') return 'scales'; if (k === 'guardroom') return 'shield'; if (k === 'chapel') return 'cross';
+      if (k === 'chamber:monarch') return 'crown';
+      return 'bed';
+    }
+    const signAt = (sc, it) => { const [ax, ay] = sc.anchor(it); return it.front ? [ax - 16, ay + 6] : [ax - 17, ay - 26]; }; // (to the left of the door)
+    function drawBoard(ctx, x, y, icon, mine, royal) {
+      const W = 12, H = 9, rim = mine ? '#e8b830' : royal ? '#6a3a7a' : '#3a2618';
+      ctx.fillStyle = rim; ctx.fillRect(x - 1, y - 1, W + 2, H + 2); ctx.fillStyle = '#8a6a44'; ctx.fillRect(x, y, W, H); ctx.fillStyle = '#a07e54'; ctx.fillRect(x, y, W, 1);
+      const rows = ICON[icon] || []; ctx.fillStyle = COL[icon] || '#fff';
+      rows.forEach((row, r) => [...row].forEach((ch, c) => { if (ch === '#') ctx.fillRect(x + 2 + c, y + 1 + r + (rows.length < 5 ? 1 : 0), 1, 1); }));
+      if (mine) { ctx.fillStyle = '#e8b830'; ctx.fillRect(x + W - 2, y + 1, 1, 1); }
+    }
     game.hooks.drawTop.push((ctx, cam, indoor) => {
       const sc = game.scene; if (!indoor || !sc || !sc.b.royal || sc.b.parent || !O.Castle) return;
       const s = O.SimRef.cur, plan = O.Castle.plan(sc.b, s);
-      const up = (v) => String(v || '').toUpperCase().replace(/[^A-Z0-9 '.,&:-]/g, '');
       for (const it of sc.L.items) {
         if (it.kind !== 'roomdoor') continue;
         const room = plan.all.find((r) => r.roomKey === it.room); if (!room) continue;
-        const os = (room.roomOwners || []).map((id) => s.byId.get(id)).filter((q) => q && q.alive !== false);
-        // one short line: who lives there (a family chamber), or what the room is
-        const who = os.length === 1 ? os[0].first : os.length > 1 ? (os[0].sur || os[0].first) : room.locked === 'monarch' ? (O.crowned && O.crowned() ? 'Yours' : 'Monarch') : room.playerRoom ? 'Yours' : '';
-        let l1 = up(who && /room$|chamber/i.test(room.name || '') ? who : String(room.name || '').replace(/^the /i, ''));
-        l1 = l1.replace(/ ROOM$| HALL$/, (m) => (l1.length > 12 ? '' : m)); if (l1.length > 11) l1 = l1.slice(0, 10) + '.';
-        const [ax, ay] = sc.anchor(it);
-        const lines = [l1], w = width(l1) + 6, h = 9;
-        const x = Math.round(ax - cam.x - w / 2), y = Math.round((it.front ? ay + 4 : ay - 40) - cam.y);
-        ctx.fillStyle = '#3a2618'; ctx.fillRect(x - 1, y - 1, w + 2, h + 2); ctx.fillStyle = '#c89a5e'; ctx.fillRect(x, y, w, h);
-        lines.forEach((l, i) => text(ctx, l, x + Math.round((w - width(l)) / 2), y + 2 + i * 7, i ? '#6a3a1a' : '#3a2416'));
+        const [sx, sy] = signAt(sc, it);
+        drawBoard(ctx, Math.round(sx - 6 - cam.x), Math.round(sy - 5 - cam.y), iconOf(room), yours(room), !!room.royalRoom);
       }
     });
+    // reading a door's board
+    function describe(room, s) {
+      const os = (room.roomOwners || []).map((id) => s.byId.get(id)).filter((q) => q && q.alive !== false);
+      const nm = (q) => (q.title ? `${q.title} ${q.first}` : `${q.first} ${q.sur || ''}`.trim()) + (q.job?.role && !q.title ? `, ${q.job.role}` : '');
+      const lock = room.locked === 'monarch' ? ' Kept locked: only the monarch and consort go in.' : room.locked === 'royal' ? ' Kept locked: for the royal family.' : '';
+      const k = room.roomKey || '';
+      const GROUND = { throne: 'Where the crown sits in state and hears petitions.', kitchen: 'The master cook and the kitchen hands feed the whole castle from here.', hall: 'Where the servants eat and rest between duties.', steward: "The steward keeps the castle's accounts and stores here, and answers for the household.", guardroom: 'The royal guard muster here; the armoury racks are along the walls.', chapel: 'The castle chapel, where the court hears mass. Coronations are held at its altar.' };
+      if (GROUND[k]) return GROUND[k];
+      if (yours(room)) return (k === 'chamber:monarch' ? "The monarch's bedchamber: yours. Your bed, and a chest for your things." : `Your chamber, while you hold your place at court. Your bed, and a chest for your things.`) + lock;
+      if (k === 'chamber:guest') return 'Kept ready for guests of the crown.' + (os.length ? ` Now: ${os.map(nm).join(', ')}.` : ' Empty just now.');
+      if (!os.length) return (k === 'chamber:monarch' ? 'The monarch\'s bedchamber. Nobody sleeps here now.' : 'Standing empty.') + lock;
+      return `${os.slice(0, 4).map(nm).join('; ')}${os.length > 4 ? `, and ${os.length - 4} more` : ''}.${lock}`;
+    }
+    let prevSc = null, wrapped = false;
+    game.hooks.update.push(() => { if (wrapped) return; wrapped = true; prevSc = O.sceneCandidate; O.sceneCandidate = boardCandidate; }); // (once everything else has made its own)
+    const boardCandidate = () => {
+      const base = prevSc ? prevSc() : null, sc = game.scene;
+      if (!sc || !sc.b.royal || sc.b.parent || !O.Castle) return base;
+      const p = game.player, s = O.SimRef.cur, plan = O.Castle.plan(sc.b, s); let best = null;
+      for (const it of sc.L.items) {
+        if (it.kind !== 'roomdoor') continue;
+        const [sx, sy] = signAt(sc, it), gy = it.front ? sy - 10 : sy + 34; // where you stand to read it
+        if (Math.abs(p.x - sx) > 9 || Math.abs(p.y - gy) > 20) continue;
+        const room = plan.all.find((r) => r.roomKey === it.room); if (!room) continue;
+        const d = Math.hypot(p.x - sx, p.y - gy) - 12;
+        if (!best || d < best.d) best = { type: 'custom', d, label: 'Read the sign', x: sx, y: sy - 12, act: () => O.UI.dialog.open({ name: room.name, color: '#8a6239', text: describe(room, s), options: [] }) };
+      }
+      return best && (!base || best.d < base.d) ? best : base;
+    };
     void T;
   }
   O.Signs = { setup, linesFor, plant, pull, spotBy, nameSign: () => nameSign() };

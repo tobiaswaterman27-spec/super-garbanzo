@@ -326,3 +326,10 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Show the way closes the list so you can see the marker; for an event in another town it shows the road out toward it, then the way once you arrive
 - [x] The tournament lists: a barrier, pavilions and two knights tilting at each other in the square, one now and then unhorsed
 - [x] Midnight is 12am, not 12pm
+
+## Batch T (asked after step 86) - castle signs, the castle as yours
+
+- [x] Castle doors carry little painted boards with icons, like the trade signs outside (a crown for the throne room and the monarch's chamber, a pot for the kitchens, a cup for the servants' hall, scales for the steward, a shield for the guardroom, a cross for the chapel, a bed for the chambers); yours has a gold rim, the royal family's a purple one
+- [x] Read a board (E) to learn what the room is and who has it, like the signs by every other building's door; no more text when you go upstairs
+- [x] The castle is yours while you reign: shown in Holdings as your seat (it goes with the crown and can't be sold), it counts as where you live once you've slept there, and the capital's lordship is yours with the crown (no being offered your own lordship for ₳1500)
+- [x] Fixed: men were hired as dairymaids, chambermaids and midwives (and could be the other way about); now nobody is hired to work meant for the other sex, and a town made before puts it right

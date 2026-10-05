@@ -73,10 +73,12 @@
         const friend = this.people.filter((q) => !q.job && !q.visitor && q.alive !== false && q.age >= 16 && q.age < 60 && !q.jailUntil && !q.gentry && q.household !== boss.household)
           .map((q) => [q, (boss.rel.get(q.id) || {}).affinity || 0]).filter(([, f]) => f > 0.35).sort((x, y) => y[1] - x[1])[0];
         if (!friend) continue;
-        const q = friend[0], role = vac[vac.length - 1];
+        const q = friend[0], role = vac[vac.length - 1]; if (O.ROLE_WANTS(role) && O.ROLE_WANTS(role) !== q.sex) continue;
         q.job = { biz: bz.id, role, hiredBy: boss.id }; bz.workers.push(q.id); this.refreshLook && this.refreshLook(q);
         this.remember(q, `${boss.first} gave me work at ${bz.name}. It pays to have friends.`, 'work', 1.5, boss.id);
       }
+      // (once, for a town made before: nobody keeps a post meant for the other sex; it's filled again properly)
+      if (!this._sexFixed) { this._sexFixed = true; for (const q of this.people) { const want = q.job && O.ROLE_WANTS(q.job.role); if (want && want !== q.sex && q.job.biz != null && !q.royal) { const z = this.biz.get(q.job.biz); if (z) z.workers = z.workers.filter((x) => x !== q.id); q.job = null; } } }
       // the old filler places people; then each boss may send away one they'd never have chosen
       _fill.call(this);
       for (const bz of this.biz.values()) {

@@ -90,4 +90,6 @@
   O.Data = { GOODS, BUSINESS, ROLE_OUTFIT, NAMES, TRAITS, GOALS };
 })();
 // "at the Crooked Lantern", but "out in the village" stays as it is
+// work that was a woman's or a man's: nobody of the other sex is hired to it
+O.ROLE_WANTS = (role) => (['maid', 'lady-in-waiting', 'dairymaid', 'chambermaid', 'laundress', 'midwife', 'wet nurse', 'alewife', 'washerwoman', 'lady', 'princess', 'queen'].includes(role) ? 'f' : ['page', 'groom', 'butler', 'chamberlain', 'prince', 'king', 'knight'].includes(role) ? 'm' : null);
 O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; return /^(out|in|on|by|near|at|along|outside|behind|upstairs)\b/.test(n) ? n : 'at ' + n.replace(/^The (?=[a-z])/, 'the '); };

@@ -88,7 +88,8 @@
           const have = bz.workers.filter((id) => { const q = this.byId.get(id); return q && q.job?.role === role && !q.job.casual; }).length;
           if (have >= n) continue;
           if (bz.def.wage[role] === 0 && (bz.owner || bz.ownerPlayer) && !(bz.ownerPlayer && have === 0)) continue; // owner role filled by the owner
-          const pool = this.people.filter((q) => !q.visitor && (!q.job || q.job.casual) && q.age >= (role === 'apprentice' ? 13 : 16) && q.age < (role === 'apprentice' ? 22 : 62) && !q.health.illness);
+          const sexOk = (q) => !O.ROLE_WANTS(role) || O.ROLE_WANTS(role) === q.sex;
+          const pool = this.people.filter((q) => sexOk(q) && !q.visitor && (!q.job || q.job.casual) && q.age >= (role === 'apprentice' ? 13 : 16) && q.age < (role === 'apprentice' ? 22 : 62) && !q.health.illness);
           if (!pool.length) continue;
           const pick = pool.sort((a, b) => (b.skills[role] || 0) - (a.skills[role] || 0) || (a.age - b.age))[0];
           if (pick.job?.casual) { const old = this.biz.get(pick.job.biz); if (old) old.workers = old.workers.filter((id) => id !== pick.id); }

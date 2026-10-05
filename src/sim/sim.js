@@ -124,7 +124,7 @@
             if (!cand) {
               let pool = adults().filter((p) => (role === 'apprentice' ? p.age < 22 : role.startsWith('guard') ? p.age < 50 : true));
               // maids and ladies-in-waiting are women; pages, grooms and butlers are men, where there are any
-              const want = ['maid', 'lady-in-waiting'].includes(role) ? 'f' : ['page', 'groom', 'butler', 'chamberlain'].includes(role) ? 'm' : null;
+              const want = O.ROLE_WANTS(role);
               if (want && pool.some((p) => p.sex === want)) pool = pool.filter((p) => p.sex === want);
               if (role === 'page') { const young = pool.filter((p) => p.age < 25); if (young.length) pool = young; }
               cand = pool.length ? r.pick(pool) : null;

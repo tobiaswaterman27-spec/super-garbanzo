@@ -149,7 +149,9 @@
       const H = O.SimRef.cur && O.SimRef.cur.lordship ? O.SimRef.cur : home(); // the town you're in
       const all = [...O.Travel.visited.values()].flatMap((v) => v.world.buildings.filter(owned).map((b) => ({ b, s: v.sim })));
       const rows = all.map(({ b, s }) => `<tr><td>${esc(b.type === 'house' ? 'House' : b.name)}<br><small class="lbl">${esc(s.world.name)}</small></td><td class="n">${O.money(s.value(b))}</td><td>${b.household ? `${esc(s.households[b.household - 1]?.surname || '')} family, ₳${b.rent}/wk` : s.biz.get(b.id)?.ownerPlayer ? `${esc(s.biz.get(b.id).name)}, till ${O.money(s.biz.get(b.id).cash)}` : 'empty'}</td></tr>`).join('');
-      const L = H.lordship, lord = L.holder === 'player';
+      // the crown's castle: yours to live in while you reign, but the realm's, never to be sold
+      const seat = O.crowned && O.crowned() ? (() => { const cap = H.kingdom.places.find((x) => x.kind === 'capital'), v = cap && O.Travel.visited.get(cap.id), k = v && v.world.buildings.find((b) => b.royal); return k ? `<tr><td>${esc(k.name)}<br><small class="lbl">${esc(v.world.name)}</small></td><td class="n">The realm's</td><td>Your seat while you reign: the throne room and the monarch's bedchamber. It goes with the crown and can't be sold.</td></tr>` : ''; })() : '';
+      const L = H.lordship, crownLand = !!(O.crowned && O.crowned()) && L.holder !== 'player' && H.world.placeId === (H.kingdom.places.find((x) => x.kind === 'capital') || {}).id, lord = L.holder === 'player' || crownLand; // (the capital is the crown's own: yours, as monarch)
       const resident = O.livesIn && O.livesIn(H.world.placeId || 'ashford');
       const TN = esc(H.world.name);
       const price = Math.round(L.price * (PS.knight ? 0.5 : 1)); // a knight of good name pays half
@@ -158,9 +160,9 @@
       O.Panels.open('Holdings', `<div class="kv">
           <div><span class="lbl">Rents received</span><b>${O.money(PS.rentIncome || 0)}</b><small>paid each Moonday</small></div>
           <div><span class="lbl">Business profits</span><b>${O.money(PS.bizIncome || 0)}</b><small>your share as owner</small></div>
-          <div><span class="lbl">Lordship of ${esc(H.world.name)}</span><b>${lord ? 'Yours' : 'The crown\'s'}</b><small>${lord ? 'You set the tax, the watch and the works.' : `The crown asks ${O.money(L.price)} and an unstained name.`}</small></div>
+          <div><span class="lbl">Lordship of ${esc(H.world.name)}</span><b>${crownLand ? 'Yours, with the crown' : lord ? 'Yours' : 'The crown\'s'}</b><small>${lord ? 'You set the tax, the watch and the works.' : `The crown asks ${O.money(L.price)} and an unstained name.`}</small></div>
         </div>
-        <table style="margin-top:12px"><thead><tr><th>Property</th><th class="n">Value</th><th>Use</th></tr></thead><tbody>${rows || '<tr><td colspan="3">You own nothing yet. Look for For Sale signs by empty houses and shops.</td></tr>'}</tbody></table>
+        <table style="margin-top:12px"><thead><tr><th>Property</th><th class="n">Value</th><th>Use</th></tr></thead><tbody>${seat}${rows || (seat ? '' : '<tr><td colspan="3">You own nothing yet. Look for For Sale signs by empty houses and shops.</td></tr>')}</tbody></table>
         ${!lord ? `<p class="caption" style="margin-top:12px">${canPetition ? 'You could petition the crown for the lordship.' : !resident ? `Only someone who lives in ${TN} may hold its lordship: own a house here and sleep in it.` : 'The crown will not sell a lordship to someone the watch is looking for, or whom the common folk despise.'}</p>${canPetition ? `<button class="btn" data-pet="1">Petition for the lordship (${O.money(price)}${PS.knight ? ', half for a knight' : ''})</button>` : ''}` : lordControls(H)}${isReeve && !lord ? reeveControls(H) : ''}${isReeve || lord ? officeControls(H) : ''}${moot(H)}${O.landSection ? O.landSection() : ''}`, (r) => {
         if (O.bindLand) O.bindLand(r, holdings);
         const pet = r.querySelector('[data-pet]');

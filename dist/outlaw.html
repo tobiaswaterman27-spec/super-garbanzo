@@ -4713,6 +4713,8 @@ O.snowMaskOf = function (src) {
   O.Data = { GOODS, BUSINESS, ROLE_OUTFIT, NAMES, TRAITS, GOALS };
 })();
 // "at the Crooked Lantern", but "out in the village" stays as it is
+// work that was a woman's or a man's: nobody of the other sex is hired to it
+O.ROLE_WANTS = (role) => (['maid', 'lady-in-waiting', 'dairymaid', 'chambermaid', 'laundress', 'midwife', 'wet nurse', 'alewife', 'washerwoman', 'lady', 'princess', 'queen'].includes(role) ? 'f' : ['page', 'groom', 'butler', 'chamberlain', 'prince', 'king', 'knight'].includes(role) ? 'm' : null);
 O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; return /^(out|in|on|by|near|at|along|outside|behind|upstairs)\b/.test(n) ? n : 'at ' + n.replace(/^The (?=[a-z])/, 'the '); };
 
 </script>
@@ -5628,7 +5630,8 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
           const have = bz.workers.filter((id) => { const q = this.byId.get(id); return q && q.job?.role === role && !q.job.casual; }).length;
           if (have >= n) continue;
           if (bz.def.wage[role] === 0 && (bz.owner || bz.ownerPlayer) && !(bz.ownerPlayer && have === 0)) continue; // owner role filled by the owner
-          const pool = this.people.filter((q) => !q.visitor && (!q.job || q.job.casual) && q.age >= (role === 'apprentice' ? 13 : 16) && q.age < (role === 'apprentice' ? 22 : 62) && !q.health.illness);
+          const sexOk = (q) => !O.ROLE_WANTS(role) || O.ROLE_WANTS(role) === q.sex;
+          const pool = this.people.filter((q) => sexOk(q) && !q.visitor && (!q.job || q.job.casual) && q.age >= (role === 'apprentice' ? 13 : 16) && q.age < (role === 'apprentice' ? 22 : 62) && !q.health.illness);
           if (!pool.length) continue;
           const pick = pool.sort((a, b) => (b.skills[role] || 0) - (a.skills[role] || 0) || (a.age - b.age))[0];
           if (pick.job?.casual) { const old = this.biz.get(pick.job.biz); if (old) old.workers = old.workers.filter((id) => id !== pick.id); }
@@ -8682,10 +8685,12 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
         const friend = this.people.filter((q) => !q.job && !q.visitor && q.alive !== false && q.age >= 16 && q.age < 60 && !q.jailUntil && !q.gentry && q.household !== boss.household)
           .map((q) => [q, (boss.rel.get(q.id) || {}).affinity || 0]).filter(([, f]) => f > 0.35).sort((x, y) => y[1] - x[1])[0];
         if (!friend) continue;
-        const q = friend[0], role = vac[vac.length - 1];
+        const q = friend[0], role = vac[vac.length - 1]; if (O.ROLE_WANTS(role) && O.ROLE_WANTS(role) !== q.sex) continue;
         q.job = { biz: bz.id, role, hiredBy: boss.id }; bz.workers.push(q.id); this.refreshLook && this.refreshLook(q);
         this.remember(q, `${boss.first} gave me work at ${bz.name}. It pays to have friends.`, 'work', 1.5, boss.id);
       }
+      // (once, for a town made before: nobody keeps a post meant for the other sex; it's filled again properly)
+      if (!this._sexFixed) { this._sexFixed = true; for (const q of this.people) { const want = q.job && O.ROLE_WANTS(q.job.role); if (want && want !== q.sex && q.job.biz != null && !q.royal) { const z = this.biz.get(q.job.biz); if (z) z.workers = z.workers.filter((x) => x !== q.id); q.job = null; } } }
       // the old filler places people; then each boss may send away one they'd never have chosen
       _fill.call(this);
       for (const bz of this.biz.values()) {
@@ -9164,7 +9169,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
             if (!cand) {
               let pool = adults().filter((p) => (role === 'apprentice' ? p.age < 22 : role.startsWith('guard') ? p.age < 50 : true));
               // maids and ladies-in-waiting are women; pages, grooms and butlers are men, where there are any
-              const want = ['maid', 'lady-in-waiting'].includes(role) ? 'f' : ['page', 'groom', 'butler', 'chamberlain'].includes(role) ? 'm' : null;
+              const want = O.ROLE_WANTS(role);
               if (want && pool.some((p) => p.sex === want)) pool = pool.filter((p) => p.sex === want);
               if (role === 'page') { const young = pool.filter((p) => p.age < 25); if (young.length) pool = young; }
               cand = pool.length ? r.pick(pool) : null;
@@ -12680,13 +12685,15 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       O.UI.say(st.rough ? `You wake stiff and itching on ${O.DAYNAMES[sim.weekday]}.` : `You wake on ${O.DAYNAMES[sim.weekday]}, rested.`);
       // a night in a bed of your own house (or one you rent) makes it where you live
       const b = game.scene && game.scene.b, cs = O.SimRef.cur;
-      if (b && !st.rough && cs && O.isHomeOf(b, cs)) PS.residence = { place: cs.world.placeId, b: b.id, day: cs.day };
+      if (b && !st.rough && cs && O.isHomeOf(b, cs)) PS.residence = { place: cs.world.placeId, b: b.id, day: cs.day, castle: b.parent ? b.roomKey : null };
     }
     // a house is yours to live in if you own it or rent it
-    O.isHomeOf = (b, s) => ['house', 'townhouse', 'mansion', 'cottage', 'hovel', 'manor'].includes(b.type) && (b.owner?.kind === 'player' || (PS.lease && PS.lease.b === b.id && PS.lease.place === s.world.placeId));
+    const castleMine = (b) => !!b && !!b.parent && (b.roomKey === 'chamber:player' || (b.roomKey === 'chamber:monarch' && O.crowned && O.crowned()));
+    O.isHomeOf = (b, s) => castleMine(b) || ['house', 'townhouse', 'mansion', 'cottage', 'hovel', 'manor'].includes(b.type) && (b.owner?.kind === 'player' || (PS.lease && PS.lease.b === b.id && PS.lease.place === s.world.placeId));
     // where you live: the house you last slept in, as long as it is still yours
     O.livesIn = (placeId) => {
       const r = PS.residence; if (!r || r.place !== placeId) return false;
+      if (r.castle) return (r.castle === 'chamber:monarch' && O.crowned && O.crowned()) || (r.castle === 'chamber:player' && (O.Employment ? O.Employment.posts() : []).some((e) => e.place === placeId && e.biz === r.b)); // (your room at court)
       const v = placeId === (O.SimRef.home && O.SimRef.home.world.placeId) ? { world: O.SimRef.home.world, sim: O.SimRef.home } : O.Travel && O.Travel.visited.get(placeId);
       const w = v && (v.world || v.sim?.world), b = w && w.buildings.find((x) => x.id === r.b);
       return !!(b && O.isHomeOf(b, v.sim || O.SimRef.home));
@@ -14721,7 +14728,9 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       const H = O.SimRef.cur && O.SimRef.cur.lordship ? O.SimRef.cur : home(); // the town you're in
       const all = [...O.Travel.visited.values()].flatMap((v) => v.world.buildings.filter(owned).map((b) => ({ b, s: v.sim })));
       const rows = all.map(({ b, s }) => `<tr><td>${esc(b.type === 'house' ? 'House' : b.name)}<br><small class="lbl">${esc(s.world.name)}</small></td><td class="n">${O.money(s.value(b))}</td><td>${b.household ? `${esc(s.households[b.household - 1]?.surname || '')} family, ₳${b.rent}/wk` : s.biz.get(b.id)?.ownerPlayer ? `${esc(s.biz.get(b.id).name)}, till ${O.money(s.biz.get(b.id).cash)}` : 'empty'}</td></tr>`).join('');
-      const L = H.lordship, lord = L.holder === 'player';
+      // the crown's castle: yours to live in while you reign, but the realm's, never to be sold
+      const seat = O.crowned && O.crowned() ? (() => { const cap = H.kingdom.places.find((x) => x.kind === 'capital'), v = cap && O.Travel.visited.get(cap.id), k = v && v.world.buildings.find((b) => b.royal); return k ? `<tr><td>${esc(k.name)}<br><small class="lbl">${esc(v.world.name)}</small></td><td class="n">The realm's</td><td>Your seat while you reign: the throne room and the monarch's bedchamber. It goes with the crown and can't be sold.</td></tr>` : ''; })() : '';
+      const L = H.lordship, crownLand = !!(O.crowned && O.crowned()) && L.holder !== 'player' && H.world.placeId === (H.kingdom.places.find((x) => x.kind === 'capital') || {}).id, lord = L.holder === 'player' || crownLand; // (the capital is the crown's own: yours, as monarch)
       const resident = O.livesIn && O.livesIn(H.world.placeId || 'ashford');
       const TN = esc(H.world.name);
       const price = Math.round(L.price * (PS.knight ? 0.5 : 1)); // a knight of good name pays half
@@ -14730,9 +14739,9 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       O.Panels.open('Holdings', `<div class="kv">
           <div><span class="lbl">Rents received</span><b>${O.money(PS.rentIncome || 0)}</b><small>paid each Moonday</small></div>
           <div><span class="lbl">Business profits</span><b>${O.money(PS.bizIncome || 0)}</b><small>your share as owner</small></div>
-          <div><span class="lbl">Lordship of ${esc(H.world.name)}</span><b>${lord ? 'Yours' : 'The crown\'s'}</b><small>${lord ? 'You set the tax, the watch and the works.' : `The crown asks ${O.money(L.price)} and an unstained name.`}</small></div>
+          <div><span class="lbl">Lordship of ${esc(H.world.name)}</span><b>${crownLand ? 'Yours, with the crown' : lord ? 'Yours' : 'The crown\'s'}</b><small>${lord ? 'You set the tax, the watch and the works.' : `The crown asks ${O.money(L.price)} and an unstained name.`}</small></div>
         </div>
-        <table style="margin-top:12px"><thead><tr><th>Property</th><th class="n">Value</th><th>Use</th></tr></thead><tbody>${rows || '<tr><td colspan="3">You own nothing yet. Look for For Sale signs by empty houses and shops.</td></tr>'}</tbody></table>
+        <table style="margin-top:12px"><thead><tr><th>Property</th><th class="n">Value</th><th>Use</th></tr></thead><tbody>${seat}${rows || (seat ? '' : '<tr><td colspan="3">You own nothing yet. Look for For Sale signs by empty houses and shops.</td></tr>')}</tbody></table>
         ${!lord ? `<p class="caption" style="margin-top:12px">${canPetition ? 'You could petition the crown for the lordship.' : !resident ? `Only someone who lives in ${TN} may hold its lordship: own a house here and sleep in it.` : 'The crown will not sell a lordship to someone the watch is looking for, or whom the common folk despise.'}</p>${canPetition ? `<button class="btn" data-pet="1">Petition for the lordship (${O.money(price)}${PS.knight ? ', half for a knight' : ''})</button>` : ''}` : lordControls(H)}${isReeve && !lord ? reeveControls(H) : ''}${isReeve || lord ? officeControls(H) : ''}${moot(H)}${O.landSection ? O.landSection() : ''}`, (r) => {
         if (O.bindLand) O.bindLand(r, holdings);
         const pet = r.querySelector('[data-pet]');
@@ -16654,41 +16663,69 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       O.UI.dialog.open({ name: nice(lines[0]), color: '#8a6239', text: lines.slice(1).map(nice).join('. ') || 'Nothing more is written.', options: [] });
     };
     // in the castle every door off the hallway has its plaque: what the room is, and (close up) who lives there
-    // going up into a castle's upper hallways, you're told who has the rooms on that floor
-    let toldFloor = '';
-    game.hooks.update.push(() => {
-      const sc = game.scene; if (!sc || !sc.b.royal || sc.b.parent || !O.Castle || !(sc.floor >= 2)) { if (!sc) toldFloor = ''; return; }
-      const s = O.SimRef.cur, key = sc.b.id + ':' + sc.floor + ':' + s.day; if (key === toldFloor) return; toldFloor = key;
-      const plan = O.Castle.plan(sc.b, s), rooms = plan.floors[sc.floor] || [];
-      const desc = rooms.map((r) => {
-        if (r.playerRoom || (r.roomKey === 'chamber:monarch' && O.crowned && O.crowned())) return `${r.name === 'Your chamber' ? 'your chamber' : r.name.replace(/^The /, 'the ')} (yours)`;
-        const os = (r.roomOwners || []).map((id) => s.byId.get(id)).filter((q) => q && q.alive !== false);
-        if (!os.length) return r.name.replace(/^The /, 'the ') + (r.roomKey === 'chamber:guest' ? ' (empty unless there are guests)' : ' (empty)');
-        const head = os[0], role = head.title ? `${head.title} ${head.first}` : `${head.first} ${head.sur || ''}`.trim() + (head.job?.role ? `, ${O.roleName ? head.job.role : head.job.role}` : '');
-        return `${r.name.replace(/^The /, 'the ')}: ${role}${os.length > 1 ? ` and ${os.length - 1} more` : ''}`;
-      });
-      const nth = ['', '', 'second', 'third', 'fourth'][sc.floor] || 'upper';
-      if (desc.length) O.UI.say(`The ${nth} floor. ${desc.join('; ').replace(/^./, (c) => c.toUpperCase())}.`);
-    });
+    // in the castle every door off the hallway has a little painted board beside it with an icon, like
+    // the trade signs outside: a crown, a pot, a cup, a shield, a cross, a bed. Walk up to it and read it (E)
+    // to learn what the room is and who has it.
+    const ICON = {
+      crown: ['#.#.#.#', '#######', '#.#.#.#', '#######'], pot: ['#.....#', '#######', '#######', '.#####.', '..###..'], mug: ['.####.', '.####.#', '.####.#', '.####.', '.####.'],
+      shield: ['######', '#.##.#', '######', '.####.', '..##..'], cross: ['..##..', '######', '######', '..##..', '..##..'], scales: ['...#...', '#######', '#..#..#', '##.#.##', '..###..'],
+      bed: ['#......', '#.###..', '#######', '#######', '#.....#'], star: ['...#...', '.#####.', '..###..', '.#...#.'],
+    };
+    const COL = { crown: '#e8b830', pot: '#5a5a62', mug: '#e8d8a0', shield: '#a8382f', cross: '#c83a3a', scales: '#d8b040', bed: '#3f5f8e', star: '#e8b830' };
+    const yours = (room) => room.playerRoom && room.roomKey === 'chamber:player' || (room.roomKey === 'chamber:monarch' && O.crowned && O.crowned());
+    function iconOf(room) {
+      const k = room.roomKey || '';
+      if (k === 'throne') return 'crown'; if (k === 'kitchen') return 'pot'; if (k === 'hall') return 'mug'; if (k === 'steward') return 'scales'; if (k === 'guardroom') return 'shield'; if (k === 'chapel') return 'cross';
+      if (k === 'chamber:monarch') return 'crown';
+      return 'bed';
+    }
+    const signAt = (sc, it) => { const [ax, ay] = sc.anchor(it); return it.front ? [ax - 16, ay + 6] : [ax - 17, ay - 26]; }; // (to the left of the door)
+    function drawBoard(ctx, x, y, icon, mine, royal) {
+      const W = 12, H = 9, rim = mine ? '#e8b830' : royal ? '#6a3a7a' : '#3a2618';
+      ctx.fillStyle = rim; ctx.fillRect(x - 1, y - 1, W + 2, H + 2); ctx.fillStyle = '#8a6a44'; ctx.fillRect(x, y, W, H); ctx.fillStyle = '#a07e54'; ctx.fillRect(x, y, W, 1);
+      const rows = ICON[icon] || []; ctx.fillStyle = COL[icon] || '#fff';
+      rows.forEach((row, r) => [...row].forEach((ch, c) => { if (ch === '#') ctx.fillRect(x + 2 + c, y + 1 + r + (rows.length < 5 ? 1 : 0), 1, 1); }));
+      if (mine) { ctx.fillStyle = '#e8b830'; ctx.fillRect(x + W - 2, y + 1, 1, 1); }
+    }
     game.hooks.drawTop.push((ctx, cam, indoor) => {
       const sc = game.scene; if (!indoor || !sc || !sc.b.royal || sc.b.parent || !O.Castle) return;
       const s = O.SimRef.cur, plan = O.Castle.plan(sc.b, s);
-      const up = (v) => String(v || '').toUpperCase().replace(/[^A-Z0-9 '.,&:-]/g, '');
       for (const it of sc.L.items) {
         if (it.kind !== 'roomdoor') continue;
         const room = plan.all.find((r) => r.roomKey === it.room); if (!room) continue;
-        const os = (room.roomOwners || []).map((id) => s.byId.get(id)).filter((q) => q && q.alive !== false);
-        // one short line: who lives there (a family chamber), or what the room is
-        const who = os.length === 1 ? os[0].first : os.length > 1 ? (os[0].sur || os[0].first) : room.locked === 'monarch' ? (O.crowned && O.crowned() ? 'Yours' : 'Monarch') : room.playerRoom ? 'Yours' : '';
-        let l1 = up(who && /room$|chamber/i.test(room.name || '') ? who : String(room.name || '').replace(/^the /i, ''));
-        l1 = l1.replace(/ ROOM$| HALL$/, (m) => (l1.length > 12 ? '' : m)); if (l1.length > 11) l1 = l1.slice(0, 10) + '.';
-        const [ax, ay] = sc.anchor(it);
-        const lines = [l1], w = width(l1) + 6, h = 9;
-        const x = Math.round(ax - cam.x - w / 2), y = Math.round((it.front ? ay + 4 : ay - 40) - cam.y);
-        ctx.fillStyle = '#3a2618'; ctx.fillRect(x - 1, y - 1, w + 2, h + 2); ctx.fillStyle = '#c89a5e'; ctx.fillRect(x, y, w, h);
-        lines.forEach((l, i) => text(ctx, l, x + Math.round((w - width(l)) / 2), y + 2 + i * 7, i ? '#6a3a1a' : '#3a2416'));
+        const [sx, sy] = signAt(sc, it);
+        drawBoard(ctx, Math.round(sx - 6 - cam.x), Math.round(sy - 5 - cam.y), iconOf(room), yours(room), !!room.royalRoom);
       }
     });
+    // reading a door's board
+    function describe(room, s) {
+      const os = (room.roomOwners || []).map((id) => s.byId.get(id)).filter((q) => q && q.alive !== false);
+      const nm = (q) => (q.title ? `${q.title} ${q.first}` : `${q.first} ${q.sur || ''}`.trim()) + (q.job?.role && !q.title ? `, ${q.job.role}` : '');
+      const lock = room.locked === 'monarch' ? ' Kept locked: only the monarch and consort go in.' : room.locked === 'royal' ? ' Kept locked: for the royal family.' : '';
+      const k = room.roomKey || '';
+      const GROUND = { throne: 'Where the crown sits in state and hears petitions.', kitchen: 'The master cook and the kitchen hands feed the whole castle from here.', hall: 'Where the servants eat and rest between duties.', steward: "The steward keeps the castle's accounts and stores here, and answers for the household.", guardroom: 'The royal guard muster here; the armoury racks are along the walls.', chapel: 'The castle chapel, where the court hears mass. Coronations are held at its altar.' };
+      if (GROUND[k]) return GROUND[k];
+      if (yours(room)) return (k === 'chamber:monarch' ? "The monarch's bedchamber: yours. Your bed, and a chest for your things." : `Your chamber, while you hold your place at court. Your bed, and a chest for your things.`) + lock;
+      if (k === 'chamber:guest') return 'Kept ready for guests of the crown.' + (os.length ? ` Now: ${os.map(nm).join(', ')}.` : ' Empty just now.');
+      if (!os.length) return (k === 'chamber:monarch' ? 'The monarch\'s bedchamber. Nobody sleeps here now.' : 'Standing empty.') + lock;
+      return `${os.slice(0, 4).map(nm).join('; ')}${os.length > 4 ? `, and ${os.length - 4} more` : ''}.${lock}`;
+    }
+    let prevSc = null, wrapped = false;
+    game.hooks.update.push(() => { if (wrapped) return; wrapped = true; prevSc = O.sceneCandidate; O.sceneCandidate = boardCandidate; }); // (once everything else has made its own)
+    const boardCandidate = () => {
+      const base = prevSc ? prevSc() : null, sc = game.scene;
+      if (!sc || !sc.b.royal || sc.b.parent || !O.Castle) return base;
+      const p = game.player, s = O.SimRef.cur, plan = O.Castle.plan(sc.b, s); let best = null;
+      for (const it of sc.L.items) {
+        if (it.kind !== 'roomdoor') continue;
+        const [sx, sy] = signAt(sc, it), gy = it.front ? sy - 10 : sy + 34; // where you stand to read it
+        if (Math.abs(p.x - sx) > 9 || Math.abs(p.y - gy) > 20) continue;
+        const room = plan.all.find((r) => r.roomKey === it.room); if (!room) continue;
+        const d = Math.hypot(p.x - sx, p.y - gy) - 12;
+        if (!best || d < best.d) best = { type: 'custom', d, label: 'Read the sign', x: sx, y: sy - 12, act: () => O.UI.dialog.open({ name: room.name, color: '#8a6239', text: describe(room, s), options: [] }) };
+      }
+      return best && (!base || best.d < base.d) ? best : base;
+    };
     void T;
   }
   O.Signs = { setup, linesFor, plant, pull, spotBy, nameSign: () => nameSign() };

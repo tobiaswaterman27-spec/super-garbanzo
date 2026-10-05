@@ -48,6 +48,7 @@
     PS.learning = PS.learning || 0;
     // ---------------------------------------------------------------- taking up a post you've earned
     function takePost(s, bz, role, why) {
+      if (!O.roleFits(role)) return say(`Only a ${O.ROLE_SEX[role] === 'f' ? 'woman' : 'man'} can be ${role}.`, 'bad');
       const holder = bz.workers.map((id) => s.byId.get(id)).find((q) => q && q.job?.role === role && !s.vacancies(bz).includes(role));
       if (holder) { bz.workers = bz.workers.filter((id) => id !== holder.id); holder.job = null; s.remember(holder, `Gave up my post as ${role}; ${why || 'the stranger has it now'}.`, 'work', 2); s.relate(holder, { id: 0 }, -0.3); }
       for (const e of posts().filter((x) => x.place === s.world.placeId && x.biz === bz.id)) O.Employment.quit(null, e);
@@ -85,7 +86,7 @@
       const other = [
         ['Knighthood', PS.knight ? `You are ${sex() === 'f' ? 'Dame' : 'Sir'} ${O.Forge.player?.name || ''}.` : 'Win the spring tournament, or fight for the crown in a war (take the King\'s shilling).'],
         ['A lordship', PS.knight ? 'As a knight of good name you may petition for a lordship at half the price (Holdings, P).' : 'Buy one from the crown (Holdings, P), or be knighted first and pay half.'],
-        ['Lady-in-waiting or page', 'Win the liking of one of the royal family; they may ask you to attend them.'],
+        [sex() === 'f' ? 'Lady-in-waiting' : 'Page', 'Win the liking of one of the royal family; they may ask you to attend them.'],
         ['Jester', `Perform at the tavern or the fair (E by the hearth when you're not working). Performances so far: ${PS.performances || 0}.`],
         ['Herald', `Carry the crown's letters to other towns (the board at the castle gate). Letters carried: ${PS.lettersCarried || 0} of 4.`],
         ['Spy', 'Be sly (stealth), and not known for crime. Someone will be in touch.'],
@@ -108,7 +109,7 @@
       });
       const st = r.querySelector('[data-stand]'); if (st) st.onclick = () => { const s = cur(); s.playerMoot = { day: s.day + 1 }; s.log(`The stranger will stand for reeve at a moot in the square tomorrow at five.`, 'politics'); for (const q of s.people) if (q.age >= 16 && Math.random() < 0.3) s.remember(q, 'The stranger is standing for reeve.', 'politics', 1, 0); say('You put your name forward. Be in the square tomorrow at five, and be liked.'); reopen(); };
       const cp = r.querySelector('[data-campaign]'); if (cp) cp.onclick = () => { if (PS.money < 50) return say('Gifts for the lords cost ₳50.', 'bad'); PS.money -= 50; PS.claim = (PS.claim || 0) + 1; say('Gifts and letters go out to the lords of the realm. They will remember your name if the line fails.'); reopen(); };
-      const rb = r.querySelector('[data-rise]'); if (rb) rb.onclick = () => rise();
+      if (O.bindRising) O.bindRising(r, reopen);
     };
 
     // ---------------------------------------------------------------- learning
@@ -243,29 +244,11 @@
     });
 
     // ---------------------------------------------------------------- seizing it: rebellion and succession
-    const noblesFor = () => { let n = 0; for (const v of O.Travel ? O.Travel.visited.values() : []) for (const q of v.sim.people) if ((q.gentry || /^(Lord|Lady|Sir|Dame)/.test(q.title || '')) && !q.royal && (q.rel.get(0)?.affinity || 0) >= 0.4) n++; return n; };
     function seizeHTML() {
-      const s = cur(), g = s.playerGang && s.playerGang(), size = g ? g.members.length : 0, lords = noblesFor();
-      const crowned = O.crowned && O.crowned();
-      if (crowned) return '';
-      let h = '';
-      if (g) h += `<h3>Rise against the crown</h3><p class="caption">Your gang: ${size} (8 needed). Lords and knights who'd stand with you: ${lords} (2 needed). Win and the crown is yours; lose, and it's treason.</p><div class="topics"><button data-rise="1" ${size >= 8 && lords >= 2 ? '' : 'disabled'}>Raise your banner</button></div>`;
+      if (O.crowned && O.crowned()) return '';
+      let h = O.risingHTML ? O.risingHTML() : '';
       if (PS.knight || PS.lord) h += `<h3>A claim to the crown</h3><p class="caption">If the royal line fails, the council of the realm chooses. Gifts to the lords keep your name before them (favour: ${PS.claim || 0}).</p><div class="topics"><button data-campaign="1">Send gifts to the lords (₳50)</button></div>`;
       return h;
-    }
-    function rise() {
-      const s = cur(), g = s.playerGang(), size = g.members.length, lords = noblesFor();
-      const strength = size + lords * 4 + PS.rep.criminal * 5 + (PS.knight ? 3 : 0), odds = strength / (strength + 22);
-      O.Panels.close();
-      if (Math.random() < odds) {
-        s.log('Rebels led by the stranger stormed the capital. The old crown has fallen.', 'politics');
-        O.UI.dialog.open({ name: 'The crown is yours', color: '#7a1a2a', text: 'Your banner goes up at dawn. Lords ride in with their men; the gates are opened from within. By nightfall the old crown has fled, and you are proclaimed in the great hall.', options: [{ key: 'ok', label: 'Take the throne' }], onPick: () => { O.UI.dialog.close(); O.takeAnyPost('monarch'); } });
-      } else {
-        for (const m of [...g.members]) { if (Math.random() < 0.6) s.leaveGang(m, g, 'taken or scattered after the failed rising'); }
-        PS.money = Math.floor(PS.money / 3); PS.exiled = true; PS.bounty = true; PS.rep.guard = -1; PS.knight = false;
-        s.log('The stranger\'s rising was crushed. They were tried for treason and spared the rope only to be branded and banished.', 'politics');
-        O.UI.dialog.open({ name: 'Treason', color: '#3a1010', text: 'The rising is crushed. You are taken, tried for treason, and only the crown\'s mercy spares you the rope. Branded, stripped of your goods, banished from every town: the watch will take you on sight.', options: [{ key: 'ok', label: 'Live, at least' }], onPick: () => O.UI.dialog.close() });
-      }
     }
     // the council chooses when the line fails
     const K = O.SimRef.home.kingdom, _succeed = K.succeed.bind(K);
@@ -290,7 +273,7 @@
     function blackmail(s, q) {
       const sec = PS.secrets.find((x) => x.place === s.world.placeId && x.id === q.id);
       npcUI.closeTalk();
-      O.UI.dialog.open({ name: q.first, color: '#4a2a2a', text: `You show ${q.first} the letter. ${q.sex === 'f' ? 'She' : 'He'} goes white. "What do you want?"`, options: [{ key: 'post', label: `Your post as ${sec.role}. Step aside for me.` }, { key: 'coin', label: '₳30, and it burns' }, { key: 'none', label: 'Nothing. Yet.' }], onPick: (k) => {
+      O.UI.dialog.open({ name: q.first, color: '#4a2a2a', text: `You show ${q.first} the letter. ${q.sex === 'f' ? 'She' : 'He'} goes white. "What do you want?"`, options: [...(O.roleFits(sec.role) ? [{ key: 'post', label: `Your post as ${sec.role}. Step aside for me.` }] : []), { key: 'coin', label: '₳30, and it burns' }, { key: 'none', label: 'Nothing. Yet.' }], onPick: (k) => {
         O.UI.dialog.close(); if (k === 'none') return;
         const calls = Math.random() < (k === 'post' ? 0.3 : 0.2);
         PS.secrets = PS.secrets.filter((x) => x !== sec); PS.remove && PS.remove('secret');

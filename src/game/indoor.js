@@ -35,6 +35,13 @@
       if ((fromStairs || L.dc < 0) && st) { [p.x, p.y] = this.tileXY(st.tx, st.ty + st.fh); p.x += 8; p.y += 2; p.dir = 0; }
       else { p.x = this.R.SW + (L.dc + 1) * T; p.y = this.R.WH + (L.d - 1) * T + 12; p.dir = 3; }
     }
+    // sacks and barrels holding stock disappear as the stock runs down (and you can walk where they stood)
+    goneStock(it, bz = this.sim.biz.get(this.b.id)) {
+      if (!it.stockOf || !bz || !O.Data.GOODS[it.stockOf]) return false;
+      const same = this.L.items.filter((i) => i.stockOf === it.stockOf), k = same.indexOf(it);
+      const ratio = O.clamp((bz.stock[it.stockOf] || 0) / (bz.def.targets[it.stockOf] || 10), 0, 1);
+      return k >= Math.ceil(ratio * same.length);
+    }
     blocked(x, y) {
       const R = this.R, L = this.L;
       const test = (px, py) => {
@@ -42,7 +49,9 @@
         if (py < R.WH + 5) return true;
         if (tx < 0 || tx >= L.w) return true;
         if (ty >= L.d) return !(this.floor === 0 && (tx === L.dc || tx === L.dc + 1));
-        return L.grid[ty * L.w + tx] === 1;
+        if (L.grid[ty * L.w + tx] !== 1) return false;
+        const it = L.items.find((i) => i.stockOf && tx >= i.tx && tx < i.tx + i.fw && ty >= i.ty && ty < i.ty + i.fh);
+        return !(it && this.goneStock(it));
       };
       return test(x - 4, y - 3) || test(x + 3, y - 3) || test(x - 4, y) || test(x + 3, y);
     }
@@ -96,10 +105,10 @@
       // ---- beds: couples together, babies in cradles, then everyone else
       const slots = [];
       for (const it of L.items) if (it.bed) for (let k = 0; k < (it.slots || 1); k++) slots.push({ it, k });
-      const sleepers = here.filter((q) => SLEEPY.has(q.activity?.act) || q.activity?.act === 'treated');
+      const sleepers = here.filter((q) => SLEEPY.has(q.activity?.act) || q.activity?.act === 'treated' || q.activity?.act === 'labour');
       const bedOf = new Map();
       const take = (q, pred) => { const s = slots.find((x) => !x.taken && pred(x)); if (s) { s.taken = q; bedOf.set(q.id, s); return true; } return false; };
-      for (const q of sleepers) if (q.activity?.act === 'treated' || (q.activity?.act === 'sick' && b.id === sim.docId)) take(q, (s) => s.it.kind === 'medbed');
+      for (const q of sleepers) if (q.activity?.act === 'treated' || ((q.activity?.act === 'sick' || q.activity?.act === 'labour') && b.id === sim.docId)) take(q, (s) => s.it.kind === 'medbed');
       for (const q of sleepers) {
         if (bedOf.has(q.id)) continue;
         const sp = q.spouse && sleepers.find((z) => z.id === q.spouse);
@@ -289,7 +298,7 @@
           ctx.save(); ctx.translate(Math.round(px - cam.x), Math.round(py - cam.y)); ctx.rotate(it.rot === 1 ? -Math.PI / 2 : Math.PI / 2); ctx.drawImage(hc, -10, -hc.cy - 1); ctx.restore();
         } else ctx.drawImage(hc, Math.round(px - 10 - cam.x), Math.round(py - hc.cy + 3 - cam.y));
         // drifting Zs over whoever is fast asleep
-        if (q.id === -1 || (q.id + Math.floor(this.t)) % 3 === 0) { const zt = (this.t * 0.6 + (q.id & 7) * 0.13) % 1; ctx.globalAlpha = 1 - zt; ctx.fillStyle = '#e8e4f0'; const zx = Math.round(px + 6 + zt * 6 - cam.x), zy = Math.round(py - 12 - zt * 12 - cam.y); ctx.fillRect(zx, zy, 3, 1); ctx.fillRect(zx + 1, zy + 1, 1, 1); ctx.fillRect(zx, zy + 2, 3, 1); ctx.globalAlpha = 1; }
+        if (q.activity?.act !== 'labour' && (q.id === -1 || (q.id + Math.floor(this.t)) % 3 === 0)) { const zt = (this.t * 0.6 + (q.id & 7) * 0.13) % 1; ctx.globalAlpha = 1 - zt; ctx.fillStyle = '#e8e4f0'; const zx = Math.round(px + 6 + zt * 6 - cam.x), zy = Math.round(py - 12 - zt * 12 - cam.y); ctx.fillRect(zx, zy, 3, 1); ctx.fillRect(zx + 1, zy + 1, 1, 1); ctx.fillRect(zx, zy + 2, 3, 1); ctx.globalAlpha = 1; }
       }
     }
 
@@ -307,11 +316,7 @@
         let v = it.v;
         if (it.kind === 'shelf' || it.kind === 'rack') { const gd = it.stockGood; if (bz && gd) { const tgt = bz.def.targets[gd] || 10; v = Math.round(3 * O.clamp((bz.stock[gd] || 0) / tgt, 0, 1)); if (it.kind === 'rack') v = 0; } else v = 2; }
         // sacks and barrels holding stock disappear as the stock runs down
-        if (it.stockOf && bz && O.Data.GOODS[it.stockOf]) {
-          const same = L.items.filter((i) => i.stockOf === it.stockOf); const k = same.indexOf(it);
-          const ratio = O.clamp((bz.stock[it.stockOf] || 0) / (bz.def.targets[it.stockOf] || 10), 0, 1);
-          if (k >= Math.ceil(ratio * same.length)) continue;
-        }
+        if (this.goneStock(it, bz)) continue;
         const sp = this.sprite(it, v);
         const [ax, ay] = this.anchor(it);
         const at = (c) => ctx.drawImage(c, Math.round(ax - sp.ox - cam.x), Math.round(ay - sp.oy - cam.y));

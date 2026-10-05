@@ -541,6 +541,7 @@
       let hw, hd;
       if (y < waist) { const t = (y - top) / (waist - top); hw = (m.shW + (m.waistW - m.shW) * Math.pow(t, 1.3)) / 2; hd = D * (1 - t * 0.12) + (a.sex === 'f' && t > 0.2 && t < 0.6 && a.stage !== 'child' ? 0.4 : 0); const r = 2.2, k = y - top; if (k < r) hw -= r - Math.sqrt(Math.max(0, r * r - (r - k) * (r - k))); }
       else { const t = (y - waist) / (bot - waist); hw = (m.waistW + (m.hipW - m.waistW) * Math.min(1, t * 1.6)) / 2; hd = D * 0.92; }
+      if (a.pregnant && Math.abs(y - waist - 0.5) < 3) hd += 1.6 * Math.cos(((y - waist - 0.5) / 3) * Math.PI / 2); // with child: the belly rounds out
       return { hw: Math.max(1, hw), hd, z: lean * (p.hipY - y) / (p.hipY - top) };
     };
     const tunicDown = o.over && o.overLen >= 1;
@@ -961,6 +962,12 @@
   function drawCarried(S) {
     const { B, p, V } = S;
     B.part(G.ITEM);
+    if (S.a.babe) { // a newborn, swaddled in linen, held to the chest
+      const c = S.pj([0, p.shY + 4, p.D + 2.6 + p.lean]), w = Math.hypot(3.4 * V.Rx, 2.4 * V.Fx);
+      B.blob(c[0], c[1], w, 2.4, P.mat('#ece4d0'), { power: 3 }); B.tweak(c[0] - 1, c[1] + 1, -1);
+      if (!V.back) B.blob(c[0] + (V.mirror ? -1.6 : 1.6) * V.Rx, c[1] - 0.6, 1.2, 1.1, P.mat('#e8b8a0'), { power: 2 });
+      return;
+    }
     const crate = P.mat(P.wood.pine, 'wood');
     const c = S.pj([0, p.shY + 5, p.D + 3.8 + p.lean]);
     const w = Math.hypot(4.6 * V.Rx, 3.2 * V.Fx), h = 3.4;

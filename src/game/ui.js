@@ -177,7 +177,7 @@
     function posts() {
       const all = O.allRoles ? O.allRoles() : new Map(), by = new Map();
       for (const [role, type] of all) { const lbl = type === 'crown' ? 'The Crown and nobility' : O.Data.BUSINESS[type]?.label || type; if (!by.has(lbl)) by.set(lbl, []); by.get(lbl).push(role); }
-      const html = [...by.entries()].sort((a, c) => a[0].localeCompare(c[0])).map(([lbl, roles]) => `<h4>${O.escape(lbl)}</h4><div class="topics">${roles.map((r) => `<button data-post="${O.escape(r)}">${O.escape(r)}</button>`).join('')}</div>`).join('');
+      const html = [...by.entries()].sort((a, c) => a[0].localeCompare(c[0])).map(([lbl, roles]) => `<h4>${O.escape(lbl)}</h4><div class="topics">${roles.filter((r) => !O.roleFits || O.roleFits(r)).map((r) => `<button data-post="${O.escape(r)}">${O.escape(r)}</button>`).join('')}</div>`).join('');
       O.Panels.open('Take up any post', `<p class="caption">For trying the work out: you're put straight into the post in ${O.escape(O.SimRef.cur.world.name)} if there's such a place here, and whoever held it makes way.</p>${html}`, (r) => {
         r.querySelectorAll('[data-post]').forEach((b) => b.onclick = () => { O.Panels.close(); O.takeAnyPost(b.dataset.post); });
       });

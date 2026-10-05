@@ -254,3 +254,16 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Seizing it: rise against the crown with a gang and lords behind you (win the crown or hang); the council chooses a monarch when the royal line dies out, and you can campaign; blackmail an official out of their post with a secret you've found
 - [x] Finding out: positions at court posted at the castle gate; the herald and steward tell you what each post needs; Ways up in Business
 - Later, with the AI: marriage into the crown or a noble house (consort, heir, lord or lady by marriage)
+
+## Batch P (asked after step 81) - lords for a rising, rites, and the block
+
+- [x] Lady-in-waiting is a woman's post only (patron offers, asking for work, Ways up, blackmail, the settings job list); a man is offered page
+- [x] War: already in (wars with the Marchers, civil wars with the Duke of Frostmere, the King's shilling, the rebel agent, the crown's war tab)
+- [x] Winning lords to a rising: write to the lords of the realm (sound them out, gifts, promise land, pay their price), speak to the gentry face to face, make common cause with the Duke of Frostmere, hire sellswords, buy arms, find a man inside to open the postern; whispers at court (the crown issues a warrant if it hears too much); choose how to rise (storm, postern, siege); keep or break your promises; crown the Duke or betray him
+- [x] Tested the routes not tested before: the rising (win and lose), the council's choice, blackmail for a post, face-to-face plotting
+- [x] Invisible solid tiles inside buildings: sacks and barrels of stock vanished as stock ran down but stayed solid; now you can walk where they stood
+- [x] A coronation in the castle chapel the day after taking the crown: the court, the gentry and townsfolk fill the pews, kneel at the altar and the crown comes down onto your head; a feast that night; a crowned monarch wears the crown
+- [x] Childbirth: the belly shows late in pregnancy; in labour she goes to the infirmary (or to bed at home with the midwife sent for), lies in, the baby is born, and she carries it home in her arms
+- [x] Executions (strictly medieval: the headsman's block on a scaffold in the square, not a guillotine): murder, treason, sedition, arson, highway robbery or a third conviction; the crowd gathers, the condemned is walked up and kneels, the headsman swings; a player executioner swings the axe themselves (E at the block); the monarch can pardon or send a prisoner to the block
+- [x] The crier no longer announces "0 villagers hired"
+- Later, with the AI: marriage ceremonies (the wedding in the chapel, the vows, the feast), alongside courting and marriage into the crown or a noble house

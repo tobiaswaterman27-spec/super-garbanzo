@@ -86,6 +86,7 @@
     function offer(q, render) {
       const s = cur(), bz = s.biz.get(q.job.biz);
       let d = s.hireDecision(bz, q, 'player');
+      if (d.yes && !O.roleFits(d.role)) return render(`"I need a ${O.ROLE_SEX[d.role] === 'f' ? 'woman' : 'man'} for that post, and it's the only one going."`);
       if (d.yes && O.prestigeRefusal && O.prestigeRefusal(d.role)) return render(O.prestigeRefusal(d.role));
       if (d.yes && d.role === 'clerk' && (PS.learning || 0) < 0.15) return render('"A clerk must read and write a fair hand. Come back when you have your letters: the priest gives lessons, and there are books in the chapel."');
       if (!d.yes) return render(d.why === 'bad' ? "Work? For you? I know what's said of you. No." : d.why === 'dislike' ? "I'll not take you on. Try elsewhere." : "I've all the hands I need just now.");
@@ -506,7 +507,11 @@
       for (const r of ['monarch', 'consort', 'heir', 'lord', 'lady']) seen.set(r, 'crown');
       return seen;
     };
+    // posts only a woman (or only a man) holds
+    O.ROLE_SEX = { 'lady-in-waiting': 'f', lady: 'f', princess: 'f', prince: 'm' };
+    O.roleFits = (role) => { const want = O.ROLE_SEX[role]; return !want || want === (O.Forge.player?.sex || O.Forge.player?.a?.sex || 'm'); };
     O.takeAnyPost = (role) => {
+      if (!O.roleFits(role)) return say(`Only a ${O.ROLE_SEX[role] === 'f' ? 'woman' : 'man'} can be ${role}.`, 'bad');
       // a crown post is held at the capital's castle: you're taken there first
       if (['monarch', 'consort', 'heir'].includes(role) && !cur().world.buildings.some((b) => b.royal) && O.teleport) { const K = O.SimRef.home.kingdom, cap = K.places.find((x) => x.kind === 'capital'); if (cap) O.teleport(cap.id); }
       const s = cur(), type = O.allRoles().get(role);

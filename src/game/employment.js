@@ -151,6 +151,11 @@
       if (['monarch', 'consort', 'lord', 'lady', 'heir', 'prince', 'princess', 'lady-in-waiting', 'jester', 'executioner'].includes(role)) return 'court';
       return 'make';
     };
+    // two kinds of work: a day's quota (do the set tasks, each different, and your day is done whenever you
+    // finish) and a shift (stay the hours; the work changes as the day goes on)
+    const QUOTA_ROLES = new Set(['chimney sweep', 'rat-catcher', 'lamplighter', 'gravedigger', 'laundress', 'undertaker', 'peat cutter', 'clay digger']);
+    const modeOf = (role) => (['make', 'chop', 'field', 'fish', 'deliver', 'collect'].includes(ROLE_KIND(role)) || QUOTA_ROLES.has(role)) && !['monarch', 'consort'].includes(role) ? 'quota' : 'shift';
+    O.jobMode = modeOf;
     const recipeFor = (bz, role) => bz.def.recipes.find((rc) => rc.role === role) || bz.def.recipes.find((rc) => !rc.role) || bz.def.recipes[0] || null;
     const supplierFor = (s, bz, g) => { const opts = String(bz.def.buys?.[g] || '').split('|').filter((t) => t && t !== 'import' && t !== 'none'); for (const t of opts) { const sp = s.supplierOf(t, g); if (sp && sp.id !== bz.id && (sp.stock[g] || 0) >= 1) return sp; } return null; };
     function newTasks(s, bz, e) {
@@ -189,6 +194,13 @@
       for (const [g, t] of Object.entries(bz.def.targets || {})) {
         if (out.filter((x) => x.kind === 'fetch').length >= 1 || !bz.def.buys?.[g]) continue;
         if ((bz.stock[g] || 0) < t * 0.35) { const sp = supplierFor(s, bz, g); if (sp) { const qty = Math.min(6, Math.ceil(t * 0.5 - (bz.stock[g] || 0))); out.push({ id: id(), kind: 'fetch', good: g, qty, from: sp.id, fromName: sp.name, need: 1, have: 0, text: `Buy ${qty} ${D.GOODS[g]?.name.toLowerCase() || g} at ${sp.name} (from the business purse)` }); } }
+      }
+      // a day's quota is several different tasks, not one thing over and over
+      if (modeOf(e.role) === 'quota' && !COURT.has(e.role)) {
+        const kinds = () => new Set(out.map((x) => x.kind));
+        if (!kinds().has('sweep')) out.push({ id: id(), kind: 'sweep', need: 2, have: 0, text: 'Tidy the workplace' });
+        if (e.master != null && e.master !== 0 && !out.some((x) => x.kind === 'talkto')) out.push({ id: id(), kind: 'talkto', who: e.master, need: 1, have: 0, text: `Tell ${e.masterName || 'your master'} how the work goes` });
+        if (kinds().size < 3) out.push({ id: id(), kind: 'talkmany', need: 2, have: 0, text: 'Ask around for orders' });
       }
       return out;
     }
@@ -369,10 +381,29 @@
       const D0 = e.dayInfo; if (!D0.works && day >= (e.firstDay || 0) && worksToday(s, bz)) D0.works = true; // start day reached
       if (!D0.works) return;
       const on = h >= o && h < c;
-      if (on && !e.onShift) { e.onShift = true; e.tasks = newTasks(s, bz, e); refresh(); }
+      if (on && !e.onShift && !D0.dayDone) { e.onShift = true; e.tasks = newTasks(s, bz, e); e._rot = now(s); D0.mode = modeOf(e.role); D0.present = 0; refresh(); }
+      if (on && e.onShift && atWork(s, bz, e)) D0.present = (D0.present || 0) + 1;
       if (!on && e.onShift && h >= c) { e.onShift = false; refresh(); }
       if (on && D0.arrived == null && atWork(s, bz, e)) { D0.arrived = h; if (h > o + 0.25 && !D0.excused) { e.stats.late++; const boss = s.byId.get(e.master); if (boss) s.relate(boss, { id: 0 }, -0.04); say(`You're late. ${e.masterName || 'Your master'} gives you a look.`, 'bad'); } }
-      if (on && e.onShift && e.tasks.every((t) => t.have >= t.need) && h < c - 1) { e.tasks.push(...newTasks(s, bz, e).filter((t) => t.kind !== 'rooms')); refresh(); }
+      if (on && e.onShift && D0.mode === 'quota' && e.tasks.length && e.tasks.every((t) => t.have >= t.need) && !D0.dayDone) {
+        D0.dayDone = true; e.onShift = false; refresh();
+        say(`That's your day's work done at ${bz.name}. You can go: you'll be paid in full.`);
+      }
+      if (on && e.onShift && D0.mode === 'shift') {
+        // the work changes as the day goes on: every hour and a half, something new needs doing
+        if (now(s) - (e._rot || 0) >= 90 && h < c - 0.75) {
+          e._rot = now(s);
+          const open = e.tasks.filter((t) => t.have < t.need), done = e.tasks.filter((t) => t.have >= t.need);
+          const pool = [...newTasks(s, bz, e), { id: 'sw' + now(s), kind: 'sweep', need: 2, have: 0, text: 'Sweep and tidy the place' }, { id: 'tm' + now(s), kind: 'talkmany', need: 2, have: 0, text: 'See to the folk who come in', inBiz: true }];
+          if (e.master != null && e.master !== 0) pool.push({ id: 'tt' + now(s), kind: 'talkto', who: e.master, need: 1, have: 0, text: `Ask ${e.masterName || 'your master'} what wants doing` });
+          const recent = new Set(done.slice(-4).map((x) => x.kind));
+          const fresh = pool.filter((t) => t.kind !== 'rooms' && !open.some((x) => x.kind === t.kind) && !recent.has(t.kind));
+          for (let i = fresh.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [fresh[i], fresh[j]] = [fresh[j], fresh[i]]; }
+          const add = fresh.slice(0, Math.max(1, 3 - open.length));
+          if (add.length) { e.tasks = [...done.slice(-3), ...open, ...add]; refresh(); if (atWork(s, bz, e)) say(`New work: ${add.map((x) => x.text.charAt(0).toLowerCase() + x.text.slice(1)).join('; ')}.`); }
+        }
+        if (e.tasks.every((t) => t.have >= t.need) && h < c - 1) e._rot = Math.min(e._rot || 0, now(s) - 70); // all done: something new comes along soon
+      }
     }
     function settle(s, bz, e) {
       const D0 = e.dayInfo; if (!D0.works && day >= (e.firstDay || 0) && worksToday(s, bz)) D0.works = true; // start day reached
@@ -384,7 +415,9 @@
       } else {
         e.stats.shifts++;
         // the day's wage, less for a half-hearted day
-        const pay = Math.round(e.wage * O.clamp(0.5 + done * 0.12, 0.5, 1.15));
+        let pay;
+        if (D0.mode === 'quota') { const tot = e.tasks.length || 1, fin = e.tasks.filter((t) => t.have >= t.need).length; pay = Math.round(e.wage * (D0.dayDone ? 1 : O.clamp(0.3 + 0.7 * fin / tot, 0.3, 1))); }
+        else { const [o0, c0] = hoursOf(e, bz), len = Math.max(60, (c0 - o0) * 60); pay = Math.round(e.wage * O.clamp(0.25 + 0.75 * (D0.present || 0) / len + Math.min(0.15, done * 0.02), 0.25, 1.15)); }
         const purse = bz.def.public ? s.treasury : bz; const paid = Math.min(pay, Math.floor(purse.cash));
         purse.cash -= paid; PS.money += paid; PS.earned = (PS.earned || 0) + paid;
         if (boss) s.relate(boss, { id: 0 }, done >= 3 ? 0.04 : 0.01);
@@ -425,7 +458,7 @@
       const bz = s.world.placeId === e.place ? s.biz.get(e.biz) : null, [o, c] = hoursOf(e, bz);
       const head = `<b>${esc(e.role)}</b> · ${esc(e.bizName)}${e.place !== cur().world.placeId ? `, ${esc(e.placeName)}` : ''}`;
       const crown = COURT.has(e.role);
-      const shift = crown ? (e.onShift ? `${e.role === 'monarch' ? 'Your reign' : 'At court'}: the business of the day, till ${fmtH(c)}` : `At court from ${fmtH(o)}`) : e.onShift ? `On shift till ${fmtH(c)}` : `Next shift: ${nextShift(e, s, bz, o, c)} ${fmtH(o)}-${fmtH(c)}`;
+      const shift = crown ? (e.onShift ? `${e.role === 'monarch' ? 'Your reign' : 'At court'}: the business of the day, till ${fmtH(c)}` : `At court from ${fmtH(o)}`) : e.onShift ? (modeOf(e.role) === 'quota' ? `The day's work: ${e.tasks.filter((t) => t.have >= t.need).length} of ${e.tasks.length} done (go when it's all done)` : `On shift till ${fmtH(c)} (stay the hours; the work changes)`) : e.dayInfo?.dayDone ? `Your day's work is done` : `Next shift: ${nextShift(e, s, bz, o, c)} ${fmtH(o)}-${fmtH(c)}`;
       const tasks = e.onShift ? e.tasks.map((t) => `<li class="${t.have >= t.need ? 'done' : ''}">${t.have >= t.need ? '■' : '□'} ${esc(t.text)}${t.need > 1 ? ` (${Math.min(t.have, t.need)}/${t.need})` : ''}</li>`).join('') : '';
       const carry = PS.carry ? `<div class="carry">Carrying: ${PS.carry.qty} ${esc(D.GOODS[PS.carry.good]?.name.toLowerCase() || PS.carry.good)}</div>` : '';
       const others = posts().filter((x) => x !== e).map((x) => { const xs = O.Travel?.visited.get(x.place)?.sim || cur(), xb = xs.world.placeId === x.place ? xs.biz.get(x.biz) : null, [xo, xc] = hoursOf(x, xb); return `<div class="js">Also: ${esc(x.role)} at ${esc(x.bizName)}, ${fmtH(xo)}-${fmtH(xc)}</div>`; }).join('');
@@ -533,12 +566,15 @@
       const fam = s.people.filter((q) => q.royal && q.alive !== false);
       if (role === 'monarch' || role === 'consort') {
         const hhs = [...new Set(fam.map((q) => q.household))].map((id) => s.households[id - 1]).filter(Boolean);
+        // their royal posts go with the crown, and their crowns and robes with them
+        for (const q of fam) if (q.job && ['monarch', 'consort', 'heir', 'prince', 'princess'].includes(q.job.role)) { const bz0 = s.biz.get(q.job.biz); if (bz0) bz0.workers = bz0.workers.filter((id) => id !== q.id); q.job = null; }
         for (const q of fam) { q.formerTitle = q.title; q.royal = false; if (q.name && q.title && q.name.startsWith(q.title + ' ')) q.name = q.name.slice(q.title.length + 1); q.title = null; s.remember(q, `Lost the crown. ${O.Forge.player?.name || 'The stranger'} sits on the throne now.`, 'politics', 3, 0); s.relate(q, { id: 0 }, -0.8); }
         for (const hh of hhs) {
           const house = s.emptyHouses().sort((a, b) => (b.wealth || 0) - (a.wealth || 0) || b.w * b.d - a.w * a.d)[0];
           if (house) s.moveHousehold(hh, house); else { hh.gone = true; for (const id of hh.members) { const q = s.byId.get(id); if (q) { q.agent.hidden = true; q.visitor = true; q.task = { act: 'leave', outdoor: true, zone: 'east' }; } } }
           if (O.Interior) O.Interior.invalidate(keep);
         }
+        for (const q of fam) { try { s.refreshLook(q); } catch (e) { /* */ } }
         if (fam.length) { const old = fam.find((q) => q.formerTitle === 'King' || q.formerTitle === 'Queen'); s.log(`${old ? old.first + ', once ' + (old.formerTitle === 'King' ? 'king' : 'queen') + ',' : 'The old royal family'} has left the castle. ${O.Forge.player?.name || 'The stranger'} holds the crown.`, 'politics'); say('The old royal family pack their things and leave the castle. Their titles go with the crown: to you.'); }
         const K = O.SimRef.home.kingdom, R = K && K.rulers;
         if (R) { const me = O.Forge.player || {}; R.crown = { name: me.name || 'the stranger', sex: me.sex || me.a?.sex || 'm', age: 30, regnal: 'I', since: s.day, player: true, heir: R.crown && R.crown.heir }; R.reigns.push({ who: `${me.sex === 'f' ? 'Queen' : 'King'} ${me.name || ''}`, from: s.day, to: null, how: 'took the crown' }); }

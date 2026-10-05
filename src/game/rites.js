@@ -86,6 +86,7 @@
     }
     // set the day once you hold the crown
     game.hooks.update.push(() => {
+      if (PS.anointed && O.crowned && !O.crowned()) { PS.anointed = false; PS.coronation = null; O.dropLead && O.dropLead((l) => l.why === 'coronation'); say('You are monarch no longer. The crown stays in the castle.'); return; } // left the throne: the crown stays behind
       if (!O.crowned || !O.crowned()) return;
       const s = cur(), cap = capital(); if (!cap) return;
       if (PS.anointed) return;

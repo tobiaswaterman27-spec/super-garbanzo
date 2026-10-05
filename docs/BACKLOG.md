@@ -267,3 +267,12 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Executions (strictly medieval: the headsman's block on a scaffold in the square, not a guillotine): murder, treason, sedition, arson, highway robbery or a third conviction; the crowd gathers, the condemned is walked up and kneels, the headsman swings; a player executioner swings the axe themselves (E at the block); the monarch can pardon or send a prisoner to the block
 - [x] The crier no longer announces "0 villagers hired"
 - Later, with the AI: marriage ceremonies (the wedding in the chapel, the vows, the feast), alongside courting and marriage into the crown or a noble house
+
+## Batch Q (asked after step 82) - war for leaders, crowns, job modes, more wars
+
+- [x] A War section in Business for the leaders of places (a lord, a reeve, the monarch): men who could bear arms, raise a palisade, arm and drill the levy, send men to the King's host, your quarrels (make peace), your neighbours (demand tribute, raise a feud and lead your men out), who's who in the realm, trouble in the realm
+- [x] Monarchs lose the crown when they leave: deposed royals give up their royal posts and their crowns and robes; a player who leaves the throne loses the crown too
+- [x] Jobs come in two kinds: a day's quota (several different tasks; when they're done your day is done and you're paid in full) for makers, woodcutters, farmhands, fishers, carriers, collectors, sweeps and the like; and shifts (stay the hours, paid for the time you're there, and new work comes along every hour and a half) for guards, servers, servants, the court and the like
+- [x] More wars than the Duke of Frostmere's: foreign wars with the Sea-Lords of Varn, the Marcher clans or the Kingdom of Aldmark; civil wars raised by the Duke or by a great lord of Eastmarch or Westcliff; feuds between lords; sea raiders and bandits; risings of the hungry commons
+- [x] Who the Duke is: Robert, Duke of Frostmere, the old king's cousin, who holds the north and says his claim is the better one (shown in the War section)
+- [x] Battles you can see: two lines meet on the road where you stand, banners up, men pair off and fight, fall, and one side breaks and runs; press E near one of theirs to strike; raids, feuds and risings at your town are fought in front of you; marching with the levy shows you a battle before you come home

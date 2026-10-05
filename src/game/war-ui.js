@@ -65,7 +65,7 @@
     function enlist(q) {
       if (PS.wantedLevel && PS.wantedLevel() >= 2) return O.Panels.toast(`${q.first} looks at you hard. “I know a wanted face. The army's no hiding place for your sort.”`, 'bad');
       PS.money += 12; PS.enlisted = { day: home.day };
-      O.Panels.open("The King's shilling", `<p class="speech">“Good lad. Twelve aurins now, three a day on the march, and a share of whatever we take off the Marchers. We go north with the levy at four o'clock.”</p>
+      O.Panels.open("The King's shilling", `<p class="speech">“Good lad. Twelve aurins now, three a day on the march, and a share of whatever we take off ${esc(K.war?.enemy || 'the enemy')}. We go north with the levy at four o'clock.”</p>
         <p class="caption">Marching with the levy means about four days away from ${esc(home.world.name)}. Taking the shilling and slipping away is desertion: a crime, and the sergeant has seen your face.</p>
         <div class="topics"><button data-a="march" class="hot">March north with the levy</button><button data-a="run">Pocket the shilling and slip away</button></div>`, (r) => {
         r.querySelector('[data-a=march]').onclick = () => { O.Panels.close(); if (K.war?.civil) PS.side = { war: K.war.wars, side: 'crown' }; campaign('crown'); };
@@ -92,7 +92,10 @@
       const host = side === 'rebel' ? 'the rebel host' : "the King's host";
       O.Chronicle.deed(home, where ? `A volunteer from ${home.world.name} fought with ${host} at ${where}.` : `A volunteer from ${home.world.name} marched with ${host}.`, where ? `You fought at ${where} with ${host}${lost ? ' and saw the line break' : ' and saw the enemy run'}.` : `You marched with ${host}; you saw no battle.`, 'war', where ? 3 : 2, side !== 'rebel');
       game.player.x = (home.Z.east[0] - 3) * T; game.player.y = (home.world.roadY || 30) * T + 10; if (game.scene) game.exitBuilding();
-      O.Panels.open('Home from the north', `<p class="caption">${fought.length ? `You were in ${fought.length} fight${fought.length > 1 ? 's' : ''}: ${won} won, ${lost} lost. ` : 'Four days of marching, digging and waiting; the Marchers never came.'}${hurt ? ` You took a wound (−${hurt} health).` : ''}</p><p>The paymaster counts out <b>${O.money(pay)}</b>. Back in ${esc(home.world.name)}, people look at you differently.</p>`);
+      const homePanel = () => O.Panels.open('Home from the north', `<p class="caption">${fought.length ? `You were in ${fought.length} fight${fought.length > 1 ? 's' : ''}: ${won} won, ${lost} lost. ` : 'Four days of marching, digging and waiting; the enemy never came.'}${hurt ? ` You took a wound (−${hurt} health).` : ''}</p><p>The paymaster counts out <b>${O.money(pay)}</b>. Back in ${esc(home.world.name)}, people look at you differently.</p>`);
+      // the fighting itself, seen: one of the battles you were in, fought out on the road
+      if (fought.length && O.Battle && O.Battle.start({ ours: 14, theirs: lost > won ? 17 : 12, ourLook: 'guard', theirLook: side === 'rebel' ? 'guard' : 'outlaw', ourBanner: side === 'rebel' ? '#2a2a2a' : '#b8352a', theirBanner: side === 'rebel' ? '#b8352a' : '#2a2a2a', title: `The battle at ${where}, as you remember it: press E near one of theirs to strike.`, onEnd: (w, info) => { if (info.kills) { PS.money += 2 * info.kills; } homePanel(); } })) return;
+      homePanel();
     }
 
     // ---------------- the war on the map ----------------
@@ -114,7 +117,7 @@
       }
       for (const b of (W.battles || []).slice(-4)) { const p = K.place(b.at); ctx.fillStyle = '#f0e0c0'; const x = Math.round(p.x * sx), y = Math.round(p.y * sy) + 8; ctx.fillRect(x - 3, y, 7, 1); ctx.fillRect(x, y - 3, 1, 7); }
       const cap = document.querySelector('.mapwrap + .caption');
-      if (cap) cap.insertAdjacentHTML('beforeend', W.phase === 'war' ? ` <b class="warn">At war with ${esc(W.enemy)}</b> since day ${W.since}: red flags are the King's hosts, black the Marchers'; crosses mark battles. Battles won ${W.battles.filter((b) => b.crownWins).length}, lost ${W.battles.filter((b) => !b.crownWins).length}.` : W.phase === 'tension' ? ` <b class="warn">Raiders are troubling the north.</b>` : W.phase === 'truce' ? ` A truce holds with ${esc(W.enemy)}.` : '');
+      if (cap) cap.insertAdjacentHTML('beforeend', W.phase === 'war' ? ` <b class="warn">At war with ${esc(W.enemy)}</b> since day ${W.since}: red flags are the King's hosts, black ${esc(W.enemy)}'s; crosses mark battles. Battles won ${W.battles.filter((b) => b.crownWins).length}, lost ${W.battles.filter((b) => !b.crownWins).length}.` : W.phase === 'tension' ? ` <b class="warn">Raiders are troubling the north.</b>` : W.phase === 'truce' ? ` A truce holds with ${esc(W.enemy)}.` : '');
     };
   }
 

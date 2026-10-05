@@ -103,7 +103,8 @@
     function openMenu() {
       const snd = O.Sound && O.Sound.on;
       menu.innerHTML = `<div class="ui-menu-in"><h2>Outlaw</h2>
-        ${[['resume', 'Continue'], ['satchel', 'Satchel'], ['map', 'Map of Eldoria'], ['chron', 'Chronicle'], ['biz', 'Business'], ['tasks', 'Undertakings'], ['hold', 'Holdings'], ['gang', 'Gang'], ['ledger', 'Town ledger'], ['guide', 'Guide'], ['settings', 'Settings & saves'], ['save', 'Save now']].map(([k, l]) => `<button data-m="${k}">${l}</button>`).join('')}</div>`;
+        <button data-m="resume" class="hot">Continue</button>
+        ${[['Yourself', [['satchel', 'Satchel and skills', 'I'], ['tasks', "Undertakings and what's on", 'J'], ['biz', 'Business: work, the Crown, war', 'B'], ['hold', 'Holdings: houses and land', 'P'], ['gang', 'Your gang', 'G']]], ['The world', [['map', 'Map of Eldoria', 'M'], ['ledger', 'Town ledger', 'L'], ['chron', 'Chronicle', 'C']]], ['The game', [['guide', 'Guide', '/'], ['settings', 'Settings and saves', ''], ['save', 'Save now', '']]]].map(([h, items]) => `<h4>${h}</h4>${items.map(([k, l, key]) => `<button data-m="${k}">${l}${key ? ` <span class="lbl">${key}</span>` : ''}</button>`).join('')}`).join('')}</div>`;
       menu.hidden = false; O.menuOpen = true; game.player.locked = true;
       menu.querySelectorAll('[data-m]').forEach((b) => b.onclick = () => act(b.dataset.m));
       menu.querySelector('button').focus();
@@ -152,6 +153,7 @@
         <h4>Game</h4>
         ${row('sound', `Sound: ${snd ? 'on' : 'off'}`)}
         ${row('speed', `Time: ${game.clock.speed >= 2 ? 'fast' : 'normal'}`, 'how fast the days go by')}
+        ${row('guides', `Showing the way: ${PS.guides === 'off' ? 'off' : PS.guides === 'marks' ? 'markers only' : 'pointers and markers'}`, 'the gold pointers that lead you, and the markers over where to go')}
         <h4>Testing</h4>
         ${row('pardon', 'Clear my wanted level', 'every crime forgiven, no bounty, no chase')}
         ${row('reset', 'Reset me', 'purse, satchel, health, wounds, standing and wanted level back to a fresh arrival')}
@@ -166,6 +168,7 @@
           else if (k === 'new') confirmNew();
           else if (k === 'sound') { O.AudioToggle && O.AudioToggle(); settings(); }
           else if (k === 'speed') { game.clock.speed = game.clock.speed >= 2 ? 1 : 2; settings(); }
+          else if (k === 'guides') { PS.guides = !PS.guides || PS.guides === 'all' ? 'marks' : PS.guides === 'marks' ? 'off' : 'all'; settings(); }
           else if (k === 'pardon') { pardon(); O.Panels.close(); O.UI.say('Your slate is wiped clean. Nobody is looking for you.'); }
           else if (k === 'post') posts();
           else if (k === 'tele') teleports();

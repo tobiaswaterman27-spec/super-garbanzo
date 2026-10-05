@@ -33,6 +33,8 @@
     const kk = (q) => (O.SimRef.cur.world.placeId || '') + ':' + q.id; O.knowKey = kk;
     O.knowsTrade = (q) => !!(q && ((PSk.knows || {})[kk(q)] || (game.scene && q.job && game.scene.b.id === q.job.biz && q.activity?.act === 'work') || (PSk.posts || []).some((e) => e.master === q.id)));
     O.learnTrade = (q) => { if (q) (PSk.knows = PSk.knows || {})[kk(q)] = 1; };
+    // while you talk with someone they don't wander off: their day waits till you're done
+    { const SP = O.Sim.prototype, _plan = SP.plan; SP.plan = function (p) { if (talking && p === talking && p.activity && !p.agent.hidden) return p.activity; return _plan.call(this, p); }; }
     function openTalk(q) {
       talking = q; q.agent.frozen = true;
       O.jobEvent && O.jobEvent('talk', { q });

@@ -105,7 +105,8 @@
     const esc = (t) => O.escape(String(t));
     function hire(s, bz, boss, role, wage, extra) {
       bz.playerRole = role;
-      posts().push(PS.emp = Object.assign({ place: s.world.placeId, placeName: s.world.name, biz: bz.id, bizName: bz.name, role, wage, master: boss ? boss.id : null, masterName: boss ? boss.name : 'the crown', since: s.day,
+      if (['monarch', 'consort', 'heir', 'prince', 'princess'].includes(role)) boss = null; // nobody is the crown's master
+      posts().push(PS.emp = Object.assign({ place: s.world.placeId, placeName: s.world.name, biz: bz.id, bizName: bz.name, role, wage, master: boss ? boss.id : null, masterName: boss ? boss.name : ['monarch', 'consort', 'heir', 'prince', 'princess'].includes(role) ? null : 'the crown', since: s.day,
         stats: { shifts: 0, late: 0, missed: 0, tasks: 0, excused: 0 }, day: null, tasks: [], level: 0 }, extra || {}));
       { const [o0, c0] = hoursOf(PS.emp, bz), h0 = s.hour; if (h0 >= o0 && h0 < c0 && !COURT.has(role)) PS.emp.firstDay = s.day + 1; } // taken on mid-shift you start at the next one; a crown post starts at once
       if (boss) { s.relate(boss, { id: 0 }, 0.05); s.remember(boss, `Took the stranger on as ${role}.`, 'work', 1.2, 0); }
@@ -132,6 +133,8 @@
       void s;
     };
     O.Employment = { emp, hire, quit, here, posts };
+    O.COURT = COURT;
+    O.jobHours = (e) => { const s = O.Travel?.visited.get(e.place)?.sim || cur(), bz = s.world.placeId === e.place ? s.biz.get(e.biz) : null; return hoursOf(e, bz); };
 
     // ---------------------------------------------------------------- tasks
     const MAKERS = new Set(Object.keys(D.ROLE_ACTION));
@@ -370,6 +373,7 @@
       const visited = O.Travel && O.Travel.visited.get(e.place), s = visited ? visited.sim : cur();
       if (!s || s.world.placeId !== e.place) return;
       const bz = s.biz.get(e.biz); if (!bz) { quit(`${e.bizName} is gone, and your post with it.`, e); return; }
+      if (['monarch', 'consort', 'heir', 'prince', 'princess'].includes(e.role) && e.master != null) { e.master = null; e.masterName = null; }
       if (bz.playerRole !== e.role) bz.playerRole = e.role;
       const m = Math.floor(now(s)); if (m === e._lm) return; e._lm = m;
       const [o, c] = hoursOf(e, bz), h = s.hour + (s.hour < 6 && c > 24 ? 24 : 0), day = s.day;
@@ -416,12 +420,13 @@
         e.stats.shifts++;
         // the day's wage, less for a half-hearted day
         let pay;
-        if (D0.mode === 'quota') { const tot = e.tasks.length || 1, fin = e.tasks.filter((t) => t.have >= t.need).length; pay = Math.round(e.wage * (D0.dayDone ? 1 : O.clamp(0.3 + 0.7 * fin / tot, 0.3, 1))); }
+        if (D0.walkedOut) pay = 0;
+        else if (D0.mode === 'quota') { const tot = e.tasks.length || 1, fin = e.tasks.filter((t) => t.have >= t.need).length; pay = Math.round(e.wage * (D0.dayDone ? 1 : O.clamp(0.3 + 0.7 * fin / tot, 0.3, 1))); }
         else { const [o0, c0] = hoursOf(e, bz), len = Math.max(60, (c0 - o0) * 60); pay = Math.round(e.wage * O.clamp(0.25 + 0.75 * (D0.present || 0) / len + Math.min(0.15, done * 0.02), 0.25, 1.15)); }
         const purse = bz.def.public ? s.treasury : bz; const paid = Math.min(pay, Math.floor(purse.cash));
         purse.cash -= paid; PS.money += paid; PS.earned = (PS.earned || 0) + paid;
         if (boss) s.relate(boss, { id: 0 }, done >= 3 ? 0.04 : 0.01);
-        say(`Your day's pay from ${bz.name}: ₳${paid}${paid < pay ? ` (₳${pay - paid} owing: the purse is empty)` : ''}.`);
+        if (pay) say(`Your day's pay from ${bz.name}: ₳${paid}${paid < pay ? ` (₳${pay - paid} owing: the purse is empty)` : ''}.`);
       }
       // the sack: lateness and absence against how much they like you and how badly they need you
       const like = boss ? (boss.rel.get(0)?.affinity || 0) : 0, des = s.desperation ? s.desperation(bz) : 0;
@@ -465,20 +470,11 @@
       // what to do next, in plain words
       let hint = '';
       if (e.onShift && bz) {
-        const t = e.tasks.find((x) => x.have < x.need), inHere = game.scene && game.scene.b.id === bz.id;
-        if (PS.carry) hint = inHere ? 'Take it to the arrow and press E to put it away.' : `Carry it back to ${bz.name}.`;
-        else if (t) {
-          const outside = ['patrol', 'field', 'chop', 'fish', 'collect', 'deliver', 'fetch'].includes(t.kind);
-          const people = { hear: 'Go to the throne room on the ground floor and sit on the throne (E). Petitioners come up the hall one at a time.', decree: 'Press B (Business) and open the Crown: decide the tax, a pardon, an honour, works.', talkto: 'Find them and talk to them (E). The castle\'s people keep to their rooms and halls.', talkmany: 'Talk to people (E); each one you speak with counts once.', visit: 'Take the grand stairs to each of those floors.' }[t.kind];
-          if (people) hint = people;
-          else if (t.kind === 'fetch') hint = `Go to ${t.fromName} (follow the arrow), stand at the counter and press E to buy.`;
-          else if (outside) hint = 'Go to the arrows outside and press E at each one.';
-          else if (!inHere && !['hear', 'decree', 'talkto', 'talkmany', 'visit'].includes(t.kind)) hint = `Go inside ${bz.name}: the arrow is over the door.`;
-          else if (t.kind === 'court') hint = "Go to the steward's hall off the ground-floor hallway and work at the desk (E).";
-          else if (t.kind === 'attend') hint = 'Climb the grand stairs at the end of the hallway; the council table is in the great hall upstairs.';
-          else hint = t.kind === 'sweep' ? 'Stand on each arrow on the floor and press E to sweep there.' : 'Stand by the thing with the arrow over it and press E. Each press is a stretch of work.';
-        } else hint = 'All done for now. More work may come in before the shift ends.';
-      } else if (!e.onShift) hint = 'Come back when your shift starts. Being late or missing it counts against you.';
+        const t = e.tasks.find((x) => x.have < x.need);
+        if (PS.carry) hint = game.scene && game.scene.b.id === bz.id ? 'Press E at the shelf or store marked in gold to put the goods away.' : `Carry the goods back to ${bz.name}.`;
+        else if (t) hint = taskHow(t, e, bz, s);
+        else hint = modeOf(e.role) === 'quota' ? "That's the day's work done." : 'All done for now. More work will come along before the shift ends.';
+      } else if (!e.onShift) hint = e.dayInfo?.dayDone ? 'Your work is done for today.' : 'Come back when your shift starts. Being late or missing it counts against you.';
       const pay = crown ? `₳${e.wage} a day from the treasury` : `₳${e.wage} a day`;
       const html = `${crown && e.role === 'monarch' ? '<div class="jh" style="text-transform:none">Monarch of Eldoria</div>' : `<div class="jh">${head}</div>`}<div class="js">${shift} · ${pay}</div>${tasks ? `<ul>${tasks}</ul>` : ''}${carry}${hint ? `<div class="js" style="font-style:italic">${esc(hint)}</div>` : ''}${others}`;
       // folded into an icon in the corner until you press it
@@ -489,6 +485,50 @@
       if (shown === sig) return; sig = shown; el.innerHTML = shown; el.hidden = false;
     }
 
+    // ---------------------------------------------------------------- what the job is, and how to do each task, in plain words
+    const NICE = { doughtable: 'dough table', butcherblock: "butcher's block", workbench: 'workbench', medbed: 'sick bed', candlestand: 'candle stand' };
+    const stationsFor = (t, e, bz, s) => { try { const L = O.Interior.interior(bz.b, 0, s); return [...new Set(L.items.filter((it) => stationOk(t, it, e)).map((it) => NICE[it.kind] || it.kind))].slice(0, 2); } catch (er) { return []; } };
+    function taskHow(t, e, bz, s) {
+      const st = (t.kind === 'make' || t.kind === 'service' || t.kind === 'write' || t.kind === 'teach' || t.kind === 'tend' || t.kind === 'fire') ? stationsFor(t, e, bz, s) : [];
+      const at = st.length ? `the ${st.join(' or the ')}` : 'your place of work';
+      const G = D.GOODS[t.good]?.name.toLowerCase();
+      switch (t.kind) {
+        case 'make': return `Inside ${bz.name}, stand at ${at} and press E. Each press makes ${G ? 'some ' + G : 'a batch'}.`;
+        case 'sweep': return `Inside ${bz.name}, the dusty patches are marked in gold: stand on each and press E to sweep it.`;
+        case 'fire': return `Inside ${bz.name}, press E at ${at === 'your place of work' ? 'the hearth' : at} to put firewood on.`;
+        case 'serve': return `Stand behind the counter inside ${bz.name} and press E to serve whoever is waiting.`;
+        case 'pots': return `Go round the tables inside ${bz.name} and press E at each marked one to gather the pots.`;
+        case 'rooms': return 'Go upstairs and press E at each guest bed to look the room over.';
+        case 'fetch': return `Go to ${t.fromName}, stand at the counter and press E to buy ${t.qty || ''} ${G || 'the goods'}. Then carry them back.`;
+        case 'unload': return `Back inside ${bz.name}, press E at the shelf or store marked in gold to put the goods away.`;
+        case 'patrol': return 'Walk your beat: the posts are marked in gold around the town. Press E at each one.';
+        case 'field': return 'Out in the fields: press E at each marked strip to work it.';
+        case 'chop': return 'In the wood: press E at each marked tree to fell it and cut it up.';
+        case 'fish': return "At the water's edge: press E at each marked spot to cast a line.";
+        case 'collect': return 'Call at each marked door and press E to collect what is owed.';
+        case 'deliver': return 'Carry the goods to each marked door and press E to hand them over.';
+        case 'service': return `In the chapel, press E at ${at === 'your place of work' ? 'the altar' : at} to lead the prayers.`;
+        case 'teach': return `Press E at ${at === 'your place of work' ? 'the desk' : at} to teach the children.`;
+        case 'tend': return 'Press E at each sick bed to tend whoever lies in it.';
+        case 'write': return `Press E at ${at === 'your place of work' ? 'the desk' : at} to write up the books.`;
+        case 'talkto': return t.who != null ? `Find ${s.byId.get(t.who)?.first || 'them'} and talk to them (E).` : 'Find them and talk to them (E). In the castle, people keep to their own rooms and halls.';
+        case 'talkmany': return t.inKeep ? 'Talk to people in the castle (E), one after another.' : t.inBiz ? `Talk to the people who come into ${bz.name} (E).` : 'Talk to people about the town (E).';
+        case 'hear': return 'Sit on the throne in the throne room (E on it). Petitioners come up the hall one at a time; hear each one.';
+        case 'decree': return 'Open Business (B) and the Crown section: set the tax, pardon, honour someone, order works or call a festivity.';
+        case 'court': return "Work at the desk in the steward's hall, off the ground-floor hallway (E).";
+        case 'attend': return 'The council sits in the great hall upstairs on Thursdays from two. Take your seat at the table (E).';
+        case 'visit': return 'Climb the grand stairs and walk each of those floors.';
+        default: return 'Press E at the marked places.';
+      }
+    }
+    const SUMMARY = { make: (e, bz, s) => { const rc = recipeFor(bz, e.role); const g = rc && Object.keys(rc.out)[0]; return `You make ${D.GOODS[g]?.name.toLowerCase() || 'goods'} for ${bz.name}.`; }, patrol: () => 'You keep the peace: walk your beat and keep an eye on folk.', field: () => 'You work the land.', chop: () => 'You fell and cut timber.', fish: () => 'You fish for the market.', collect: () => 'You collect what is owed.', deliver: () => 'You carry goods and messages.', sweep: (e, bz) => `You keep ${bz.name} clean and in order.`, serve: (e, bz) => `You serve the customers at ${bz.name}.`, service: () => 'You lead the prayers and keep the chapel.', teach: () => 'You teach the children their letters.', tend: () => 'You care for the sick.', write: () => 'You keep the books and the records.', court: () => 'You serve at court.' };
+    const ROLE_SUMMARY = { monarch: 'You rule the realm: hear petitions from the throne, issue decrees, and preside at the council on Thursdays.', consort: 'You share the throne: hear petitions and see to the household.', steward: "You run the castle: its accounts, its kitchens and its stores.", chamberlain: 'You keep the royal household: its floors, its rooms and its servants.', jester: 'You amuse the court.', 'lady-in-waiting': 'You attend the royal family.', executioner: 'You carry out the sentences of death, at the block in the square.', 'captain of the royal guard': 'You command the royal guard and see every post is kept.' };
+    O.jobHow = (e) => {
+      const s = O.Travel?.visited.get(e.place)?.sim || cur(), bz = s.world.placeId === e.place ? s.biz.get(e.biz) : null;
+      if (!bz) return { mode: modeOf(e.role), summary: '', tasks: [] };
+      const summary = ROLE_SUMMARY[e.role] || (SUMMARY[ROLE_KIND(e.role)] || (() => ''))(e, bz, s);
+      return { mode: modeOf(e.role), summary, tasks: (e.tasks || []).map((t) => ({ text: t.text, have: Math.min(t.have, t.need), need: t.need, done: t.have >= t.need, how: taskHow(t, e, bz, s) })) };
+    };
     // the way to work in the hour before a shift (the arrows themselves are drawn by the waypoints)
     O.preShiftTarget = () => {
       const s = cur(), e = here(); if (!e || e.onShift || e.place !== s.world.placeId) return null;
@@ -500,7 +540,7 @@
       const e = here(); if (!e || !e.onShift) return;
       const s = cur(), bz = bizOf(e); if (!bz) return;
       const targets = [];
-      const bob = Math.round(Math.sin(game.t * 4) * 2), mark = (x, y) => { targets.push([x, y + 40]); x = Math.round(x - cam.x); y = Math.round(y - cam.y) + bob; ctx.fillStyle = '#1b1424'; ctx.fillRect(x - 3, y - 1, 7, 5); ctx.fillRect(x - 1, y + 4, 3, 2); ctx.fillStyle = '#f0b45c'; ctx.fillRect(x - 2, y, 5, 3); ctx.fillRect(x, y + 3, 1, 2); };
+      const bob = Math.round(Math.sin(game.t * 4) * 2), mark = (x, y) => { if (PS.guides === 'off') return; targets.push([x, y + 2]); x = Math.round(x - cam.x); y = Math.round(y - cam.y) + bob; ctx.fillStyle = '#1b1424'; ctx.fillRect(x - 3, y - 1, 7, 5); ctx.fillRect(x - 1, y + 4, 3, 2); ctx.fillStyle = '#f0b45c'; ctx.fillRect(x - 2, y, 5, 3); ctx.fillRect(x, y + 3, 1, 2); };
       for (const t of e.tasks) {
         if (t.have >= t.need) continue;
         if (indoor) {
@@ -527,7 +567,7 @@
       }
       // the arrow points the way to the nearest, shrinking as you near it until it's only the mark over it
       const P = game.player;
-      if (indoor && game.scene && game.scene.b.id !== bz.id && !targets.length) { const w = O.wayOut ? O.wayOut() : game.scene.wayIn(); if (w) targets.push([w[0], w[1] + 10]); } // the way out
+      if (indoor && game.scene && game.scene.b.id !== bz.id && !targets.length && PS.guides !== 'off') { const w = O.wayOut ? O.wayOut() : game.scene.wayIn(); if (w) targets.push([w[0], w[1] - 20]); } // the way out
       if (!targets.length) return;
       const [tx, ty] = targets.sort((a, b) => Math.hypot(a[0] - P.x, a[1] - P.y) - Math.hypot(b[0] - P.x, b[1] - P.y))[0];
       O.guideArrow && O.guideArrow(ctx, cam, tx, ty);

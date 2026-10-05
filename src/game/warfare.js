@@ -225,7 +225,7 @@
       c.seenDay = s.day;
       if (Math.random() > (leads(s) ? 0.9 : 0.5)) return;
       const mine = leads(s);
-      const ourN = Math.min(18, Math.round(men(here) * (s.drill ? 1.25 : 1) * (s.palisade ? 1.2 : 1))), theirN = Math.min(18, c.kind === 'feud' ? men(c.a) : c.kind === 'raid' ? 9 + (c.id % 6) : 12);
+      const ourN = Math.min(18, Math.round(men(here) * (drillOf(s) ? 1.25 : 1) * (palisadeOf(s) ? 1.2 : 1))), theirN = Math.min(18, c.kind === 'feud' ? men(c.a) : c.kind === 'raid' ? 9 + (c.id % 6) : 12);
       const who = c.kind === 'feud' ? `${lordOf(c.a)}'s men` : c.kind === 'raid' ? cap(c.foe) : `The commons, led by ${c.leader},`;
       const text = c.kind === 'revolt' ? `${who} are coming up the road with scythes and cudgels, shouting for ${lordOf(here)}.` : `${who} ${c.kind === 'raid' && c.sea ? 'have come up from the boats' : 'are coming up the road'}. The watch is turning out${mine ? ', and looks to you' : ''}.`;
       const opts = [{ key: 'fight', label: mine ? 'Lead the levy out against them' : 'Stand with the watch' }, { key: 'hide', label: mine ? 'Leave it to the watch' : 'Keep out of it' }];
@@ -235,9 +235,9 @@
         O.UI.dialog.close();
         if (k === 'pay') { const n = c.kind === 'raid' ? 40 : 80; if (PS.money < n) return say(`You haven't ₳${n}.`, 'bad'); PS.money -= n; endConflict(c, false, `${lordOf(here)} paid ${c.kind === 'raid' ? c.foe : lordOf(c.a) + "'s men"} to go away.`); return say('Silver changes hands. They go.'); }
         if (k === 'grant') { endConflict(c, true, `${lordOf(here)} met the commons at the cross and cut the dues. They went home.`); PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.1); return say('You meet them at the cross and promise lower dues. They cheer you, and go home.'); }
-        if (k === 'hide') { c.visibleDay = s.day; const ok = Math.random() < 0.55 + (s.palisade ? 0.15 : 0); endConflict(c, c.kind === 'feud' ? !ok : !ok); return say(ok ? 'From behind shutters you hear the fight. The watch drives them off.' : 'From behind shutters you hear the fight go badly. They take what they came for.', ok ? '' : 'bad'); }
+        if (k === 'hide') { c.visibleDay = s.day; const ok = Math.random() < 0.55 + (palisadeOf(s) ? 0.15 : 0); endConflict(c, c.kind === 'feud' ? !ok : !ok); return say(ok ? 'From behind shutters you hear the fight. The watch drives them off.' : 'From behind shutters you hear the fight go badly. They take what they came for.', ok ? '' : 'bad'); }
         c.visibleDay = s.day;
-        O.Battle.start({ ours: ourN, theirs: theirN, ourLook: 'guard', theirLook: c.kind === 'revolt' ? 'commons' : c.kind === 'feud' ? 'guard' : 'outlaw', theirBanner: c.kind === 'feud' ? '#2a4a8a' : '#2a2a2a', ourStr: (s.drill ? 1.2 : 1) * (s.palisade ? 1.15 : 1), title: `${c.kind === 'raid' ? 'Raiders' : c.kind === 'feud' ? 'The feud' : 'The rising'} at ${s.world.name}: walk up to them and press E to strike.`, onEnd: (won, info) => {
+        O.Battle.start({ ours: ourN, theirs: theirN, ourLook: 'guard', theirLook: c.kind === 'revolt' ? 'commons' : c.kind === 'feud' ? 'guard' : 'outlaw', theirBanner: c.kind === 'feud' ? '#2a4a8a' : '#2a2a2a', ourStr: (drillOf(s) ? 1.2 : 1) * (palisadeOf(s) ? 1.15 : 1), title: `${c.kind === 'raid' ? 'Raiders' : c.kind === 'feud' ? 'The feud' : 'The rising'} at ${s.world.name}: walk up to them and press E to strike.`, onEnd: (won, info) => {
           endConflict(c, c.kind === 'feud' ? !won : !won);
           if (won) { PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.08 + info.kills * 0.02); PS.rep.guard = Math.min(1, PS.rep.guard + 0.05); if (mine) PS.money += c.kind === 'raid' ? 15 : 0; }
           O.UI.dialog.open({ name: won ? 'Victory' : 'Defeat', color: won ? '#2a5a2a' : '#5a1a1a', text: won ? `They're beaten. ${info.theirLost} of theirs lie on the road; ${info.ourLost} of ours are hurt or worse.${info.kills ? ` You struck down ${info.kills} yourself.` : ''}` : `It goes badly. ${info.ourLost} of ours are down, and ${c.kind === 'raid' ? 'the raiders loot the edge of town before they go' : 'they have their way'}.`, options: [{ key: 'ok', label: 'Go on' }], onPick: () => O.UI.dialog.close() });
@@ -246,14 +246,25 @@
     });
 
     // ================================================================ the leaders' War tab
+    // defences take time: a palisade is three days' work; drilling the levy counts from the day after
+    const absNow = () => K.sim.day * 1440 + K.sim.minute;
+    const palisadeOf = (s) => !!s.palisade || (s.palisadeAt != null && absNow() >= s.palisadeAt);
+    const drillOf = (s) => (s.drillQ || []).filter((d) => d <= absNow()).length;
     const leads = (s) => s.lordship?.holder === 'player' || !!(PS.reeveOf || {})[s.world.placeId] || (s === home && PS.reeve) || (O.crowned && O.crowned() && s.world.buildings.some((b) => b.royal));
     O.leadsPlace = leads;
+    O.mailHandlers = O.mailHandlers || {};
+    O.mailHandlers.tribute = ({ id, here }) => {
+      const v = O.Travel?.visited.get(here)?.sim || cur(), ours = men(here) * (drillOf(v) ? 1.25 : 1), theirs = men(id);
+      if (Math.random() < ours / (ours + theirs * 1.6)) { const n = 20 + Math.round(Math.random() * 30); PS.money += n; O.UI.dialog.open({ name: 'Your messenger is back', color: '#4a3a2a', text: `${lordOf(id)} sends ₳${n} back with him rather than quarrel.`, options: [{ key: 'ok', label: 'Good' }], onPick: () => O.UI.dialog.close() }); }
+      else { const feud = Math.random() < 0.5 && !busy(id); if (feud) startConflict({ kind: 'feud', a: id, b: here, days: 6, aMen: theirs }); O.UI.dialog.open({ name: 'Your messenger is back', color: '#5a2a1a', text: `${lordOf(id)} sent your messenger back with his ears boxed. They'll not pay.${feud ? ' Worse: their men are out on the roads toward you.' : ''}`, options: [{ key: 'ok', label: 'Go on' }], onPick: () => O.UI.dialog.close() }); }
+    };
     O.warTabHTML = () => {
       const s = cur(); if (!leads(s)) return '';
       const here = s.world.placeId, W = K.war, levy = s.people.filter((q) => q.sex === 'm' && q.age >= 16 && q.age < 50 && !q.visitor).length;
       let h = `<h3>War: ${esc(s.world.name)}</h3><table class="ledger">`;
-      h += `<tr><td>Men who could bear arms</td><td>${levy}</td></tr><tr><td>Defences</td><td>${s.palisade ? 'a palisade' : 'none'}${s.drill ? `, the levy drilled (${s.drill})` : ''}</td></tr></table>`;
-      h += `<div class="topics">${s.palisade ? '' : '<button data-w="palisade">Raise a palisade (₳120)</button>'}<button data-w="drill">Arm and drill the levy (₳40)</button></div>`;
+      const pal = palisadeOf(s) ? 'a palisade' : s.palisadeAt ? `a palisade going up (done ${O.dateOf ? O.dateOf(Math.floor(s.palisadeAt / 1440)) : 'soon'})` : 'none', dr = drillOf(s), drp = (s.drillQ || []).length - dr;
+      h += `<tr><td>Men who could bear arms</td><td>${levy}</td></tr><tr><td>Defences</td><td>${pal}${dr ? `, the levy drilled ${dr} time${dr > 1 ? 's' : ''}` : ''}${drp ? ` (drilling now: ready tomorrow)` : ''}</td></tr></table>`;
+      h += `<div class="topics">${palisadeOf(s) || s.palisadeAt ? '' : '<button data-w="palisade">Raise a palisade (₳120, three days)</button>'}<button data-w="drill" ${drp ? 'disabled' : ''}>Arm and drill the levy (₳40)</button></div>`;
       // the realm's war
       if (W && W.phase === 'war') h += `<h4>The realm at war with ${esc(W.enemy)}</h4><p class="caption">The crown wants men. Each you send strengthens the King's host, and the crown remembers who answered.</p><div class="topics"><button data-w="send">Send 6 men to the King's host</button></div>`;
       else h += `<p class="caption">The realm is at ${W && W.phase === 'tension' ? 'the edge of war' : 'peace'}.</p>`;
@@ -273,16 +284,16 @@
       const s = cur(), here = s.world.placeId, purse = () => (s.lordship?.holder === 'player' || O.crowned?.()) ? PS : PS; // (paid from your own purse)
       r.querySelectorAll('[data-w]').forEach((b) => b.onclick = () => {
         const k = b.dataset.w;
-        if (k === 'palisade') { if (purse().money < 120) return say('A palisade costs ₳120.', 'bad'); purse().money -= 120; s.palisade = true; s.log('A palisade of sharpened stakes is going up around the town.', 'politics'); say('Carpenters and labourers set to: a palisade of sharpened stakes rings the town.'); }
-        if (k === 'drill') { if (purse().money < 40) return say('Arms and drilling cost ₳40.', 'bad'); purse().money -= 40; s.drill = (s.drill || 0) + 1; s.log('The men of the town drilled with spear and bill on the green.', 'politics'); say('Spears and bills are bought, and the men drill on the green of an evening.'); }
+        if (k === 'palisade') { if (purse().money < 120) return say('A palisade costs ₳120.', 'bad'); purse().money -= 120; s.palisadeAt = absNow() + 3 * 1440; s.log('Carpenters have begun a palisade of sharpened stakes around the town.', 'politics'); say('Carpenters and labourers set to work on a palisade of sharpened stakes. It will take three days.'); }
+        if (k === 'drill') { if (purse().money < 40) return say('Arms and drilling cost ₳40.', 'bad'); purse().money -= 40; (s.drillQ = s.drillQ || []).push(absNow() + 20 * 60); s.log('The men of the town are drilling with spear and bill on the green.', 'politics'); say('Spears and bills are bought, and the men drill on the green this evening. They will be the better for it by tomorrow.'); }
         if (k === 'send') { const host = K.war.armies.find((a) => a.side === 'crown' && a.men > 0); if (host) host.men += 6; PS.rep.guard = Math.min(1, PS.rep.guard + 0.06); PS.warSent = (PS.warSent || 0) + 6; s.log(`Six men of ${s.world.name} marched off to join the King's host.`, 'war'); say('Six men take up their spears and march off to join the King\'s host. Their families watch them go.'); }
         reopen();
       });
       r.querySelectorAll('[data-trib]').forEach((b) => b.onclick = () => {
-        const id = b.dataset.trib, ours = men(here) * (s.drill ? 1.25 : 1), theirs = men(id);
-        if (Math.random() < ours / (ours + theirs * 1.6)) { const n = 20 + Math.round(Math.random() * 30); PS.money += n; say(`${lordOf(id)} sends ₳${n} rather than quarrel.`); }
-        else { say(`${lordOf(id)} sends your messenger back with his ears boxed. They'll not pay.`, 'bad'); if (Math.random() < 0.5 && !busy(id)) startConflict({ kind: 'feud', a: id, b: here, days: 6, aMen: theirs }); }
-        reopen();
+        const id = b.dataset.trib;
+        if ((PS.mail || []).some((m) => m.kind === 'tribute' && m.data.id === id)) return say(`Your messenger is still on the road to ${lordOf(id)}.`, 'bad');
+        O.sendMail('tribute', { id, here }, 6 + Math.random() * 18, `${lordOf(id)}'s answer to your demand for tribute`);
+        say(`A messenger rides off to ${lordOf(id)} with your demand. The answer will come back with him.`); reopen();
       });
       r.querySelectorAll('[data-feud]').forEach((b) => b.onclick = () => {
         const id = b.dataset.feud; O.Panels.close();
@@ -290,7 +301,7 @@
         O.UI.dialog.open({ name: 'A feud', color: '#5a2a1a', text: `You send ${lordOf(id)} your defiance. Will you lead your men out to meet theirs on the road, or let the feud take its course?`, options: [{ key: 'lead', label: 'Lead them out now' }, { key: 'wait', label: 'Let it take its course' }], onPick: (k) => {
           O.UI.dialog.close(); if (k !== 'lead') return;
           c.visibleDay = s.day;
-          O.Battle.start({ ours: Math.min(18, men(here)), theirs: Math.min(18, men(id)), ourLook: 'guard', theirLook: 'guard', theirBanner: '#2a4a8a', ourStr: s.drill ? 1.2 : 1, title: `Your men against ${lordOf(id)}'s: press E near one of theirs to strike.`, onEnd: (won) => { endConflict(c, won); say(won ? `${lordOf(id)}'s men are beaten. The feud is yours.` : `You are beaten off. ${lordOf(id)} has the better of the feud.`, won ? '' : 'bad'); if (won) PS.money += 30; } });
+          O.Battle.start({ ours: Math.min(18, men(here)), theirs: Math.min(18, men(id)), ourLook: 'guard', theirLook: 'guard', theirBanner: '#2a4a8a', ourStr: drillOf(s) ? 1.2 : 1, title: `Your men against ${lordOf(id)}'s: press E near one of theirs to strike.`, onEnd: (won) => { endConflict(c, won); say(won ? `${lordOf(id)}'s men are beaten. The feud is yours.` : `You are beaten off. ${lordOf(id)} has the better of the feud.`, won ? '' : 'bad'); if (won) PS.money += 30; } });
         } });
       });
       r.querySelectorAll('[data-peace]').forEach((b) => b.onclick = () => {

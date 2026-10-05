@@ -190,7 +190,7 @@
           if (this.t > 0.4 || justCame) { [a.x, a.y] = this.wayIn(); } else { a.x = x; a.y = y; }
           this.actors.set(q.id, a);
         }
-        if (q.agent.frozen) { anim = anim === 'sit' ? 'sit' : 'talk'; dir = a.dir ?? dir; }
+        if (q.agent.frozen) { anim = anim === 'sit' ? 'sit' : 'talk'; dir = a.dir ?? dir; if (a.x != null && !inBed) { x = a.x; y = a.y; } } // talking to you: they stay where they are
         a.leaving = false;
         Object.assign(a, { gx: x, gy: y, gSortY: sortY, gDir: q.agent.frozen ? a.dir : dir, gAnim: anim, a: q.app, gBed: inBed ? spot : null, seat: seat && !seat.pewSeat ? seat : seat?.pewSeat ? seat.it : null });
         if (a.x == null) { a.x = x; a.y = y; }

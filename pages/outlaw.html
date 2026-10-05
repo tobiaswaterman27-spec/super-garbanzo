@@ -105,6 +105,11 @@ main { height: 100vh; }
 .ui-menu-in h2 { font-family: var(--display); font-weight: 400; font-size: 36px; margin: 0 0 8px; color: #b0602a; text-align: center; }
 .ui-menu-in button { background: none; border: 0; border-radius: 0; padding: 8px 16px; font-family: var(--body); font-weight: 800; font-size: 16px; color: #5a4632; cursor: pointer; text-align: left; }
 .ui-menu-in button:hover, .ui-menu-in button:focus-visible { background: #f3e2b8; outline: none; }
+.ui-menu-in h4 { margin: 10px 0 2px; font-family: var(--pix); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #9a7a52; }
+.ui-menu-in button { display: flex; justify-content: space-between; gap: 18px; padding: 6px 16px; }
+.ui-menu-in button .lbl { font-family: var(--pix); font-size: 11px; color: #9a7a52; }
+.ui-menu-in { max-height: 92vh; overflow: auto; }
+.topics.tabs button.hot { background: #b0602a; color: #fff6e0; }
 @media (max-width: 600px) { .dlg { font-size: 16px; padding: 22px 20px 18px; } .dlg-opts { right: 16px; bottom: 150px; } .ui-clock b { font-size: 24px; } }
 .hud-prompt { bottom: 52px; left: 50%; transform: translateX(-50%); white-space: nowrap; }
 .ledger-btn { position: absolute; right: 12px; bottom: 12px; }
@@ -129,6 +134,7 @@ main { height: 100vh; }
 .settings button { min-width: 200px; text-align: left; }
 .maplabel { position: absolute; transform: translate(-50%, 0); font-family: var(--pix); font-size: 9px; letter-spacing: .5px; color: #1b1424; background: rgba(232,220,192,.85); padding: 0 3px; white-space: nowrap; pointer-events: none; }
 .maplabel.here { background: var(--ember-2); }
+.maplabel.lead { background: #f0b45c; color: #1b1424; font-weight: 700; z-index: 2; box-shadow: 0 0 0 1px #1b1424; }
 .maplabel.small { font-size: 7px; padding: 0 2px; background: rgba(232,220,192,.7); }
 .maplabel.region { background: none; color: rgba(240,232,210,.85); font-style: italic; font-size: 8px; text-shadow: 0 1px 0 #1b1424; transform: translate(-50%, 0); }
 .maplabel.capital { font-size: 11px; background: #f4e8c8; border: 1px solid #1b1424; transform: translate(-50%, 0); }
@@ -395,6 +401,7 @@ body, button, input, select { -webkit-font-smoothing: none; font-smooth: never; 
 <script src="../src/game/rising.js"></script>
 <script src="../src/game/rites.js"></script>
 <script src="../src/game/warfare.js"></script>
+<script src="../src/game/calendar.js"></script>
 <script src="../src/game/wanderers.js"></script>
 <script src="../src/game/council-ui.js"></script>
 <script src="../src/game/guide.js"></script>

@@ -89,23 +89,29 @@
     game.hooks.update.push(() => {
       const s = cur(), p = game.player;
       if (!crowned() || !p.sitting || !p.sitting.it || p.sitting.it.kind !== 'throne' || O.panelOpen || O.UI.dialogOpen && O.UI.dialogOpen()) return;
-      const now = s.day * 1440 + s.minute; if (s.hour < 9 || s.hour >= 17 || now < nextAudience) return;
-      nextAudience = now + 25;
+      const now = s.day * 1440 + s.minute; if (s.hour < 9 || s.hour >= 17 || pending || waiting) return;
+      // the first comes up as soon as you sit; then one after another, with a little while between
+      if (!p._throneSince || p._throneSince.it !== p.sitting.it) { p._throneSince = { it: p.sitting.it }; nextAudience = 0; }
+      if (now < nextAudience) return;
+      nextAudience = now + 12;
       const welcome = (x) => { const g0 = O.castleGuest(s, x); return guests().mode === 'white' ? g0 === true : g0 !== false; };
       const q = s.people.filter((x) => x.age >= 18 && !x.royal && !x.visitor && x.alive !== false && !x.task && welcome(x))[Math.floor(Math.random() * 40)] || s.people.find((x) => x.age >= 18 && !x.royal && welcome(x));
       if (!q) return;
       const pt = PETITIONS[Math.floor(Math.random() * PETITIONS.length)];
       // they come up the hall to stand before the throne, then speak
       const keep = game.scene && (game.scene.b.parent || game.scene.b);
-      if (keep && keep.royal) { q.task = { act: 'petition', b: keep.id, woken: now + 20 }; q.activity = q.task; q.agent.path = null; q.agent.inside = keep.id; q.agent.hidden = true; q.agent.enteredAt = s.minute; } // they've been waiting in the hall
-      pending = { q, pt, at: game.t + 4 };
+      if (keep && keep.royal) { q.task = { act: 'petition', b: keep.id }; q.activity = q.task; q.agent.path = null; q.agent.inside = keep.id; q.agent.hidden = true; q.agent.enteredAt = s.minute; } // they've been waiting in the hall
+      pending = { q, pt, at: game.t + 1.5 };
     });
-    let pending = null;
+    // stand up from the throne and whoever was waiting goes away unheard
+    game.hooks.update.push(() => { if (waiting && !game.player.sitting && !(O.UI.dialogOpen && O.UI.dialogOpen())) { if (waiting.task?.act === 'petition') waiting.task = null; waiting = null; } });
+    let pending = null, waiting = null; // (waiting: a petitioner before the throne, not yet answered)
     game.hooks.update.push(() => {
       if (!pending || game.t < pending.at || O.panelOpen || (O.UI.dialogOpen && O.UI.dialogOpen())) return;
       const { q, pt } = pending; pending = null; const s = cur();
       if (!game.player.sitting) { if (q.task?.act === 'petition') q.task = null; return; }
-      O.UI.dialog.open({ name: `${q.first}, a petitioner`, color: '#8a6239', text: pt.text(q), options: pt.opts.map(([l], i) => ({ key: 'p' + i, label: l })), onPick: (key) => { const o = pt.opts[+key.slice(1)]; o[1](s, q, K()); O.jobEvent && O.jobEvent('hear'); s.remember(q, 'Brought my petition before the monarch.', 'politics', 2, 0); O.UI.dialog.close(); if (q.task?.act === 'petition') q.task = null; say(`${q.first} bows and withdraws. The next petitioner waits.`); } });
+      waiting = q;
+      O.UI.dialog.open({ name: `${q.first}, a petitioner · Treasury ${O.money(Math.round(K().treasury))}`, color: '#8a6239', text: pt.text(q), options: pt.opts.map(([l], i) => ({ key: 'p' + i, label: l })), onPick: (key) => { const o = pt.opts[+key.slice(1)]; o[1](s, q, K()); O.jobEvent && O.jobEvent('hear'); s.remember(q, 'Brought my petition before the monarch.', 'politics', 2, 0); O.UI.dialog.close(); waiting = null; if (q.task?.act === 'petition') q.task = null; say(`${q.first} bows and withdraws. The next petitioner waits.`); }, onClose: () => { if (waiting === q) { waiting = null; if (q.task?.act === 'petition') q.task = null; } } });
     });
   }
   O.CrownSetup = { setup };

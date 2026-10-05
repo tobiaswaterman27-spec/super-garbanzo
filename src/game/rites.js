@@ -95,10 +95,16 @@
         say('The bishop sends word: you will be crowned tomorrow in the castle chapel, between ten and one. Kneel at the altar.');
       }
       const c = PS.coronation;
+      // on the morning, the herald comes to fetch you
+      if (!c.summoned && O.SimRef.home.day === c.day && s.hour >= 9.25 && s.hour < CORONATION_H[1] && !O.UI.dialogOpen() && !O.panelOpen) {
+        c.summoned = true;
+        const there = s.world.placeId === c.place, f = (O.Forge.player?.sex || O.Forge.player?.a?.sex) === 'f';
+        O.UI.dialog.open({ name: 'The royal herald', color: '#7a1a2a', text: there ? `The herald finds you and bows low. "${f ? 'Madam' : 'Sire'}, all is ready. The bishop waits at the altar of the castle chapel, and the court is in its pews. Come and be crowned: between ten and one."` : `A rider in the royal livery reins in beside you. "${f ? 'Madam' : 'Sire'}, you are to be crowned today in the castle chapel at ${capital().name}, between ten and one. The court waits."`, options: [{ key: 'go', label: there ? 'Lead me there' : 'I will ride there' }, { key: 'later', label: 'Presently' }], onPick: () => { O.UI.dialog.close(); } });
+      }
       if (s.world.placeId === c.place) {
         const k = keepOf(s);
         if (k && !(PS.leads || []).some((l) => l.why === 'coronation')) O.addLead && O.addLead({ place: c.place, b: k.id, until: c.day * 1440 + CORONATION_H[1] * 60, why: 'coronation', label: 'Your coronation in the castle chapel' });
-        if (s.day > c.day || (s.day === c.day && s.hour >= CORONATION_H[1])) { c.day = s.day + 1; s.log('The coronation was put off: the crown never came to the chapel.', 'politics'); say('You missed your own coronation. It is put off until tomorrow.', 'bad'); }
+        if (s.day > c.day || (s.day === c.day && s.hour >= CORONATION_H[1])) { c.day = s.day + 1; c.summoned = false; s.log('The coronation was put off: the crown never came to the chapel.', 'politics'); say('You missed your own coronation. It is put off until tomorrow.', 'bad'); }
       }
     });
     let cer = null;

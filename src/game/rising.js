@@ -44,14 +44,21 @@
       if (pl.asked[l.key] && day() - pl.asked[l.key] < 2) return say(`You wrote to ${l.name} lately. Give them time.`, 'bad');
       if (!post()) return;
       pl.asked[l.key] = day(); warm(0.25);
-      const v = lean(l) + (Math.random() - 0.5) * 0.15;
+      const ride = 8 + Math.random() * 20; // hours there and back by rider
+      O.sendMail('sound', { key: l.key }, ride, `A reply from ${l.name} (sent ${O.dateOf ? O.dateOf(day()) : 'lately'})`);
+      say(`Your letter goes off by rider to ${l.name}. An answer may take a day or so.`); reopen && reopen();
+    }
+    O.mailHandlers = O.mailHandlers || {};
+    O.mailHandlers.sound = ({ key }) => {
+      const pl = P(), l = realmLords().find((x) => x.key === key); if (!l || crowned()) return;
+      const v = lean(l) + (Math.random() - 0.5) * 0.15, reopen = null;
       let text;
       if (v >= 0.6) { swear(l.key, { name: l.name, men: l.men, how: 'by letter' }); text = `A reply under ${l.name}'s seal: "I have no love for this crown. When you raise your banner, my ${l.men} men will be under it."`; }
       else if (v >= 0.38) { const price = 20 + Math.round((0.6 - v) * 200); pl.price[l.key] = price; text = `A careful reply from ${l.name}: "These are dangerous words. A lord must think of his people... ₳${price} would help me think of them less." (They might also take a promise of land.)`; }
       else if (v < 0.18 && Math.random() < 0.55) { warm(1.2); text = `No reply from ${l.name}. Then word comes that your letter was carried to the capital, unopened, under the crown's seal.`; }
       else text = `${l.name} writes back: "I will forget I read this. Do not write to me again."`;
       O.UI.dialog.open({ name: 'A letter comes back', color: '#4a3a2a', text, options: [{ key: 'ok', label: 'Go on' }], onPick: () => { O.UI.dialog.close(); reopen && reopen(); } });
-    }
+    };
     function gift(l, reopen) { const pl = P(); if (PS.money < 40) return say('A gift fit for a lord costs ₳40.', 'bad'); PS.money -= 40; pl.gifts[l.key] = (pl.gifts[l.key] || 0) + 1; warm(0.1); say(`A gift goes to ${l.name}: a fine horse and a cask of wine, and no word of why.`); reopen(); }
     function promise(l, reopen) { const pl = P(); pl.promised[l.key] = true; warm(0.15); say(`You promise ${l.name} the lands of a loyalist when you rule. They'll hold you to it.`); reopen(); }
     function pay(l, reopen) { const pl = P(), n = pl.price[l.key]; if (PS.money < n) return say(`They want ₳${n}.`, 'bad'); PS.money -= n; delete pl.price[l.key]; swear(l.key, { name: l.name, men: l.men, how: 'bought' }); say(`${l.name} takes your coin, and gives you their word and their ${l.men} men.`); reopen(); }
@@ -59,13 +66,20 @@
     // ---------------------------------------------------------------- the Duke
     function duke(reopen) {
       const pl = P(), R = K().rulers, D = R?.pretender; if (!D) return;
+      if (pl.dukeAsked) return say('You have written to the Duke already. Wait for his answer.', 'bad');
       if (!post()) return; warm(0.3);
+      pl.dukeAsked = true;
+      O.sendMail('duke', {}, 20 + Math.random() * 24, `An answer from ${D.name}, ${D.title}`);
+      say(`Your letter rides north to ${D.name} at ${K().place(D.seat)?.name || 'his seat'}. It will be a day or two before he answers.`); reopen && reopen();
+    }
+    O.mailHandlers.duke = () => {
+      const pl = P(), R = K().rulers, D = R?.pretender, reopen = () => {}; if (!D || crowned()) return; pl.dukeAsked = false;
       const others = Object.keys(pl.sworn).length, g = cur().playerGang && cur().playerGang();
       if (others >= 1 || (g && g.members.length >= 6)) {
         pl.duke = true; swear('duke', { name: `${D.name}, ${D.title}`, men: 60, how: 'common cause' });
         O.UI.dialog.open({ name: D.title, color: '#3a2a4a', text: `"So. Someone else has had enough of them. My men are yours, sixty of them, when you rise. Only remember who has the better claim to the crown, when it is won."`, options: [{ key: 'ok', label: 'Agreed' }], onPick: () => { O.UI.dialog.close(); reopen(); } });
       } else O.UI.dialog.open({ name: D.title, color: '#3a2a4a', text: `"Who are you to write to me of crowns? Come back with men behind you, and a lord or two."`, options: [{ key: 'ok', label: 'Go on' }], onPick: () => { O.UI.dialog.close(); reopen(); } });
-    }
+    };
 
     // ---------------------------------------------------------------- face to face: the gentry, and a man inside
     const isGentry = (q) => (q.gentry || /^(Lord|Lady|Sir|Dame)/.test(q.title || '')) && !q.royal;
@@ -144,7 +158,7 @@
         if (pl.sworn[l.key]) continue;
         const v = lean(l), seen = pl.asked[l.key] != null;
         h += `<tr><td><b>${esc(l.name)}</b><br><small class="lbl">${l.men} men · ${seen ? leanWord(v) : 'unknown mind'}${pl.promised[l.key] ? ' · promised land' : ''}</small></td><td><div class="topics" style="margin:0">`
-          + `<button data-sound="${l.key}">Sound them out by letter</button>`
+          + ((PS.mail || []).some((m) => m.kind === 'sound' && m.data.key === l.key) ? '<button disabled>Waiting for a reply</button>' : `<button data-sound="${l.key}">Sound them out by letter</button>`)
           + `<button data-gift="${l.key}">Send a gift (₳40)</button>`
           + (pl.promised[l.key] ? '' : `<button data-promise="${l.key}">Promise land</button>`)
           + (pl.price[l.key] ? `<button data-pay="${l.key}" class="hot">Pay their price (₳${pl.price[l.key]})</button>` : '')
@@ -152,7 +166,7 @@
       }
       h += `</table>`;
       const D = K().rulers?.pretender;
-      if (D && !pl.duke) h += `<p class="caption">${esc(D.name)}, ${esc(D.title)}, has long thought the crown should be his.</p><div class="topics"><button data-duke="1">Write to the Duke</button></div>`;
+      if (D && !pl.duke) h += `<p class="caption">${esc(D.name)}, ${esc(D.title)}, has long thought the crown should be his.</p><div class="topics"><button data-duke="1" ${pl.dukeAsked ? 'disabled' : ''}>${pl.dukeAsked ? 'Waiting for his answer' : 'Write to him'}</button></div>`;
       const ok = F.fighters >= 8 && F.lords >= 2;
       h += `<p class="caption">Your strength against the crown's: ${oddsWord(odds(F.ours, F.theirs))} odds. Win and the crown is yours; lose, and it's treason.</p><div class="topics"><button data-rise="1" class="hot" ${ok ? '' : 'disabled'}>Raise your banner</button></div>${ok ? '' : `<p class="caption">You need 8 fighters (${F.fighters}) and 2 lords sworn (${F.lords}).</p>`}`;
       return h;

@@ -423,6 +423,7 @@
       this.onSceneChange && this.onSceneChange();
     }
     exitBuilding() {
+      if (!this.scene) return; // already outside
       O.releaseLeavers && O.releaseLeavers();
       const b = this.scene.b;
       if (b.parent) {

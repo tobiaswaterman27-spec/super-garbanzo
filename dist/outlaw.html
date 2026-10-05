@@ -4556,6 +4556,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       this.onSceneChange && this.onSceneChange();
     }
     exitBuilding() {
+      if (!this.scene) return; // already outside
       O.releaseLeavers && O.releaseLeavers();
       const b = this.scene.b;
       if (b.parent) {
@@ -12495,7 +12496,10 @@ O.snowMaskOf = function (src) {
     game.hooks.update.push((dt) => {
       if (searching > 0) { searching -= dt; game.player.anim = 'crouch'; game.player.locked = true; if (searching <= 0) { game.player.locked = false; game.player.anim = 'idle'; pendingSearch && pendingSearch(); pendingSearch = null; } }
       if (O.panelOpen || npcUI.talking()) { prompt.hidden = true; cur = null; O.interactTarget = null; return; }
-      const cs = candidates().sort((a, b) => a.d - b.d);
+      // what you're facing comes before what's merely near (the chest in front of you, not the chair beside it)
+      const P0 = game.player, fv = O.Char.DIRV[P0.dir] || [0, 1];
+      const facing = (c) => { if (c.x == null || c.type === 'npc' || c.type === 'job') return 0; const dx = c.x - P0.x, dy = (c.y + 26) - P0.y, l = Math.hypot(dx, dy) || 1, dot = (dx * fv[0] + dy * fv[1]) / l; return dot > 0.55 ? -4 : dot < -0.3 ? 4 : 0; };
+      const cs = candidates().map((c) => [c, c.d + (game.scene ? facing(c) : 0)]).sort((a, b) => a[1] - b[1]).map((x) => x[0]);
       cur = cs[0] || null;
       O.interactTarget = cur;
       if (cur) {
@@ -21106,6 +21110,7 @@ O.snowMaskOf = function (src) {
       if (!done.has(s)) {
         done.add(s);
         for (const p of s.people) {
+          if (p.jewels && p.jewels.length && p.app && (p.app.jewels || []).join() !== p.jewels.join()) { p.app.jewels = p.jewels.slice(); Ch.invalidate(p.app); } // (after a reload)
           if (p.alive === false || p.age < 14 || p.jewels) continue;
           if (p.royal && !/^(King|Queen)$/.test(p.title || '')) wear(s, p, 'circlet');
           else if (p.gentry || p.lordOf) wear(s, p, p.sex === 'f' ? 'necklace' : 'brooch');
@@ -21880,7 +21885,8 @@ O.snowMaskOf = function (src) {
         lordship: sim.lordship, forest: sim.forest || null, flood: sim.floodState ? { level: sim.floodState.level, set: sim.floodState.set, peak: sim.floodState.peak } : null, quarantine: sim.quarantine || null, memorials: sim.memorials || [], levyDay: sim.levyDay || null, returnDay: sim.returnDay || null, festivalDay: sim.festivalDay || null, festivalWhy: sim.festivalWhy || null, mourningUntil: sim.mourningUntil || null, reeveMoot: sim.reeveMoot || null, lastMoot: sim.lastMoot || null, farmStripsSold: sim.farmStripsSold || 0,
         sites: sim.build.sites.map((s) => ({ id: s.id, stage: s.stage, prog: s.prog, work: s.work, started: s.started, player: s.player || false })), nextCouncil: sim.build.nextCouncil, plotsUsed: [...sim.build.used],
         gangs: sim.gangs,
-        kingdom: { places: sim.kingdom.places, roads: sim.kingdom.roads, caravans: sim.kingdom.caravans.map((c) => Object.assign({}, c, { held: false })), news: sim.kingdom.news, war: sim.kingdom.war ? Object.assign({}, sim.kingdom.war, { soldiers: sim.kingdom.war.soldiers.map((x) => Object.assign({}, x, { snap: x.snap && !x.back ? strip(x.snap) : null })) }) : null, rulers: sim.kingdom.rulers, heirStore: sim.kingdom.heirStore || null, treasury: sim.kingdom.treasury, taxRate: sim.kingdom.taxRate, councils: sim.kingdom.councils.slice(-6), leaders: sim.kingdom.leaders || null, councilLog: sim.kingdom.councilLog, conflicts: (sim.kingdom.conflicts || []).slice(-20) || [], elections: (sim.kingdom.elections || []).slice(-10), journeys: (sim.kingdom.journeys || []).filter((j) => !j.done).map((j) => { const o = Object.assign({}, j); delete o._actors; delete o._len; return o; }) },
+        extra: { hosted: sim.hosted || null, npcEvents: sim.npcEvents || [], executions: sim.executions || [], party: sim.party || null, palisade: sim.palisade || false, palisadeAt: sim.palisadeAt ?? null, drill: sim.drill || 0, drillQ: sim.drillQ || [], playerMoot: sim.playerMoot || null },
+        kingdom: { places: sim.kingdom.places, roads: sim.kingdom.roads, caravans: sim.kingdom.caravans.map((c) => Object.assign({}, c, { held: false })), news: sim.kingdom.news, war: sim.kingdom.war ? Object.assign({}, sim.kingdom.war, { soldiers: sim.kingdom.war.soldiers.map((x) => Object.assign({}, x, { snap: x.snap && !x.back ? strip(x.snap) : null })) }) : null, rulers: sim.kingdom.rulers, heirStore: sim.kingdom.heirStore || null, treasury: sim.kingdom.treasury, taxRate: sim.kingdom.taxRate, councils: sim.kingdom.councils.slice(-6), leaders: sim.kingdom.leaders || null, councilLog: sim.kingdom.councilLog, conflicts: (sim.kingdom.conflicts || []).slice(-20), councilPending: sim.kingdom.councilPending || null || [], elections: (sim.kingdom.elections || []).slice(-10), journeys: (sim.kingdom.journeys || []).filter((j) => !j.done).map((j) => { const o = Object.assign({}, j); delete o._actors; delete o._len; return o; }) },
         horses: (sim.horses || []).map((h) => { const o = Object.assign({}, h); delete o._actor; return o; }),
       },
       world: {
@@ -21967,6 +21973,7 @@ O.snowMaskOf = function (src) {
     sim.gangs = S.gangs;
     if (S.lordship) sim.lordship = S.lordship;
     Object.assign(sim.kingdom, S.kingdom);
+    if (S.extra) for (const [k, v] of Object.entries(S.extra)) if (v != null) sim[k] = v;
     sim.path.recost(); sim.path.clear();
     // player
     const P = d.player; const { rep, ...rest } = P.ps; Object.assign(PS, rest); if (rep) for (const k of ['civilian', 'criminal', 'guard', 'merchant']) PS.rep[k] = rep[k] ?? 0;

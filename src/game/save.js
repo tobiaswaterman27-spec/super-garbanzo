@@ -49,7 +49,8 @@
         lordship: sim.lordship, forest: sim.forest || null, flood: sim.floodState ? { level: sim.floodState.level, set: sim.floodState.set, peak: sim.floodState.peak } : null, quarantine: sim.quarantine || null, memorials: sim.memorials || [], levyDay: sim.levyDay || null, returnDay: sim.returnDay || null, festivalDay: sim.festivalDay || null, festivalWhy: sim.festivalWhy || null, mourningUntil: sim.mourningUntil || null, reeveMoot: sim.reeveMoot || null, lastMoot: sim.lastMoot || null, farmStripsSold: sim.farmStripsSold || 0,
         sites: sim.build.sites.map((s) => ({ id: s.id, stage: s.stage, prog: s.prog, work: s.work, started: s.started, player: s.player || false })), nextCouncil: sim.build.nextCouncil, plotsUsed: [...sim.build.used],
         gangs: sim.gangs,
-        kingdom: { places: sim.kingdom.places, roads: sim.kingdom.roads, caravans: sim.kingdom.caravans.map((c) => Object.assign({}, c, { held: false })), news: sim.kingdom.news, war: sim.kingdom.war ? Object.assign({}, sim.kingdom.war, { soldiers: sim.kingdom.war.soldiers.map((x) => Object.assign({}, x, { snap: x.snap && !x.back ? strip(x.snap) : null })) }) : null, rulers: sim.kingdom.rulers, heirStore: sim.kingdom.heirStore || null, treasury: sim.kingdom.treasury, taxRate: sim.kingdom.taxRate, councils: sim.kingdom.councils.slice(-6), leaders: sim.kingdom.leaders || null, councilLog: sim.kingdom.councilLog, conflicts: (sim.kingdom.conflicts || []).slice(-20) || [], elections: (sim.kingdom.elections || []).slice(-10), journeys: (sim.kingdom.journeys || []).filter((j) => !j.done).map((j) => { const o = Object.assign({}, j); delete o._actors; delete o._len; return o; }) },
+        extra: { hosted: sim.hosted || null, npcEvents: sim.npcEvents || [], executions: sim.executions || [], party: sim.party || null, palisade: sim.palisade || false, palisadeAt: sim.palisadeAt ?? null, drill: sim.drill || 0, drillQ: sim.drillQ || [], playerMoot: sim.playerMoot || null },
+        kingdom: { places: sim.kingdom.places, roads: sim.kingdom.roads, caravans: sim.kingdom.caravans.map((c) => Object.assign({}, c, { held: false })), news: sim.kingdom.news, war: sim.kingdom.war ? Object.assign({}, sim.kingdom.war, { soldiers: sim.kingdom.war.soldiers.map((x) => Object.assign({}, x, { snap: x.snap && !x.back ? strip(x.snap) : null })) }) : null, rulers: sim.kingdom.rulers, heirStore: sim.kingdom.heirStore || null, treasury: sim.kingdom.treasury, taxRate: sim.kingdom.taxRate, councils: sim.kingdom.councils.slice(-6), leaders: sim.kingdom.leaders || null, councilLog: sim.kingdom.councilLog, conflicts: (sim.kingdom.conflicts || []).slice(-20), councilPending: sim.kingdom.councilPending || null || [], elections: (sim.kingdom.elections || []).slice(-10), journeys: (sim.kingdom.journeys || []).filter((j) => !j.done).map((j) => { const o = Object.assign({}, j); delete o._actors; delete o._len; return o; }) },
         horses: (sim.horses || []).map((h) => { const o = Object.assign({}, h); delete o._actor; return o; }),
       },
       world: {
@@ -136,6 +137,7 @@
     sim.gangs = S.gangs;
     if (S.lordship) sim.lordship = S.lordship;
     Object.assign(sim.kingdom, S.kingdom);
+    if (S.extra) for (const [k, v] of Object.entries(S.extra)) if (v != null) sim[k] = v;
     sim.path.recost(); sim.path.clear();
     // player
     const P = d.player; const { rep, ...rest } = P.ps; Object.assign(PS, rest); if (rep) for (const k of ['civilian', 'criminal', 'guard', 'merchant']) PS.rep[k] = rep[k] ?? 0;

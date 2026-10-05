@@ -131,6 +131,8 @@
   O.RitesSetup.setup(game);
   O.WarfareSetup.setup(game, npcUI);
   O.CalendarSetup.setup(game);
+  O.FinerySetup.setup(game);
+  O.TextsSetup.setup(game);
   O.WanderersSetup.setup(game, home);
   O.CouncilUI.setup(game, home);
   O.WarUI.setup(game, home, npcUI);

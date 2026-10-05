@@ -84,7 +84,7 @@
         rows.push(`<tr><td><b>${esc(L.role)}</b> <small class="lbl">from ${esc(e.role)}</small><ul style="margin:2px 0 0 14px;padding:0">${need.map(([t, k]) => `<li style="list-style:none">${k ? '☑' : '☐'} ${esc(t)}</li>`).join('')}</ul></td><td>${ok ? (here ? `<button data-up="${i}:${L.role}">Ask for the post</button>` : '<small class="lbl">ask where you serve</small>') : ''}</td></tr>`);
       }
       const other = [
-        ['Knighthood', PS.knight ? `You are ${sex() === 'f' ? 'Dame' : 'Sir'} ${O.Forge.player?.name || ''}.` : 'Win the spring tournament, or fight for the crown in a war (take the King\'s shilling).'],
+        ['Knighthood', PS.knight ? `You are ${sex() === 'f' ? 'Dame' : 'Sir'} ${O.Forge.player?.name || ''}.` : 'Win the spring tournament, or fight for the crown in a war (take the King\'s coin).'],
         ['A lordship', PS.knight ? 'As a knight of good name you may petition for a lordship at half the price (Holdings, P).' : 'Buy one from the crown (Holdings, P), or be knighted first and pay half.'],
         [sex() === 'f' ? 'Lady-in-waiting' : 'Page', 'Win the liking of one of the royal family; they may ask you to attend them.'],
         ['Jester', `Perform at the tavern or the fair (E by the hearth when you're not working). Performances so far: ${PS.performances || 0}.`],

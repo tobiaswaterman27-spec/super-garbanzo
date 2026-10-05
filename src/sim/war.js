@@ -41,7 +41,7 @@
           const PSx = O.PlayerState, mine = PSx && (PSx.reeve || PSx.lord) && PSx.warStance; const hawks = this.places.filter((p) => p.leader && (p.detailed && mine ? PSx.warStance === 'hawk' : (p.priority === 'security' || p.region === 'north' || r.chance(0.4)))).length;
           const leaders = this.places.filter((p) => p.leader).length;
           if (hawks > leaders / 2 && this.treasury > 300) this.declareWar();
-          else { W.phase = 'peace'; W.since = day; this.treasury -= Math.min(this.treasury, 200); this.addNews(`The council at Highmere Castle paid ${ENEMY} 200 crowns to keep to their side of the mountains.`, 'politics'); }
+          else { W.phase = 'peace'; W.since = day; this.treasury -= Math.min(this.treasury, 200); this.addNews(`The council at Highmere Castle paid ${ENEMY} ₳200 to keep to their side of the mountains.`, 'politics'); }
         }
       } else if (W.phase === 'war') {
         this.warCampaign();
@@ -151,10 +151,10 @@
       for (const p of taken) {
         if (p.job?.biz) { const bz = this.biz.get(p.job.biz); if (bz) bz.workers = bz.workers.filter((id) => id !== p.id); }
         p.job = null; p.task = { act: 'leave', outdoor: true, emigrating: true, toWar: true };
-        this.remember(p, `I've taken the King's shilling. We march north.`, 'life', 3);
+        this.remember(p, `I've taken the King's coin. We march north.`, 'life', 3);
         for (const id of this.household(p).members) { const q = this.byId.get(id); if (q && q !== p) this.remember(q, `${p.first} has gone to the war.`, 'grief', 2.5, p.id); }
         W.soldiers.push({ id: p.id, name: p.name, household: p.household, home: p.home, left: this.day, snap: p }); // kept aside, not forgotten
-        this.household(p).money += 12; // the shilling goes to the family
+        this.household(p).money += 12; // the coin goes to the family
       }
       if (taken.length) this.log(`The recruiting sergeant took ${taken.length} of ${this.world.name}'s men for the King's host: ${taken.map((p) => p.first).join(', ')}.`, 'war');
       return taken;

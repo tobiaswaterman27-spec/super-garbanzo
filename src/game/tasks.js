@@ -22,7 +22,7 @@
         r.querySelectorAll('[data-quit]').forEach((b) => b.onclick = () => {
           const e = posts[+b.dataset.quit], es = (O.Travel?.visited.get(e.place)?.sim) || s, boss = e.master != null && es.byId.get(e.master);
           if (boss) { es.relate(boss, { id: 0 }, e.onShift ? -0.35 : -0.08); es.remember(boss, e.onShift ? 'The stranger walked out in the middle of a shift. No pay for that.' : 'The stranger left my service.', 'work', e.onShift ? 2 : 1); }
-          if (e.dayInfo) { e.onShift = false; e.dayInfo.walkedOut = true; e.dayInfo.dayDone = true; e.tasks = []; } say(`You walk out. ${boss ? boss.first + ' shouts after you that you\'ll not see a penny for today.' : 'No pay for today.'}`, 'bad');
+          if (e.dayInfo) { e.onShift = false; e.dayInfo.walkedOut = true; e.dayInfo.dayDone = true; e.tasks = []; } say(`You walk out. ${boss ? boss.first + ' shouts after you that you\'ll not see an aurin for today.' : 'No pay for today.'}`, 'bad');
           if (e.onShift) PS.rep.local = Math.max(-1, PS.rep.local - 0.05);
           open();
         });

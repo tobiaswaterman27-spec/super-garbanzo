@@ -1,5 +1,5 @@
 // War made visible: the King's host marching down the King's Road in column behind its banner, the
-// recruiting sergeant in the square (take the shilling and march, or take it and run), and the
+// recruiting sergeant in the square (take the coin and march, or take it and run), and the
 // armies and battles on the kingdom map.
 'use strict';
 (function () {
@@ -37,7 +37,7 @@
 
     // ---------------- the recruiting sergeant ----------------
     const prevExtra = npcUI.extraButtons, prevOn = npcUI.onExtra;
-    npcUI.extraButtons = (q) => { const out = prevExtra ? prevExtra(q) : []; if (q.job?.role === 'recruiting sergeant' && !PS.enlisted) out.push(['shilling', "Take the King's shilling"]); if (q.job?.role === 'rebel agent' && !PS.enlisted) out.push(['rebel', 'Join the rebellion']); return out; };
+    npcUI.extraButtons = (q) => { const out = prevExtra ? prevExtra(q) : []; if (q.job?.role === 'recruiting sergeant' && !PS.enlisted) out.push(['shilling', "Take the King's coin"]); if (q.job?.role === 'rebel agent' && !PS.enlisted) out.push(['rebel', 'Join the rebellion']); return out; };
     npcUI.onExtra = (q, key, render) => { if (key === 'shilling') { npcUI.closeTalk(); return enlist(q); } if (key === 'rebel') { npcUI.closeTalk(); return joinRebels(q); } return prevOn && prevOn(q, key, render); };
     function joinRebels(q) {
       const P = K.rulers?.pretender;
@@ -65,9 +65,9 @@
     function enlist(q) {
       if (PS.wantedLevel && PS.wantedLevel() >= 2) return O.Panels.toast(`${q.first} looks at you hard. “I know a wanted face. The army's no hiding place for your sort.”`, 'bad');
       PS.money += 12; PS.enlisted = { day: home.day };
-      O.Panels.open("The King's shilling", `<p class="speech">“Good lad. Twelve aurins now, three a day on the march, and a share of whatever we take off ${esc(K.war?.enemy || 'the enemy')}. We go north with the levy at four o'clock.”</p>
-        <p class="caption">Marching with the levy means about four days away from ${esc(home.world.name)}. Taking the shilling and slipping away is desertion: a crime, and the sergeant has seen your face.</p>
-        <div class="topics"><button data-a="march" class="hot">March north with the levy</button><button data-a="run">Pocket the shilling and slip away</button></div>`, (r) => {
+      O.Panels.open("The King's coin", `<p class="speech">“${(O.Forge.player?.sex || O.Forge.player?.a?.sex) === 'f' ? 'Good lass' : 'Good lad'}. Twelve aurins now, three a day on the march, and a share of whatever we take off ${esc(K.war?.enemy || 'the enemy')}. We go north with the levy at four o'clock.”</p>
+        <p class="caption">Marching with the levy means about four days away from ${esc(home.world.name)}. Taking the coin and slipping away is desertion: a crime, and the sergeant has seen your face.</p>
+        <div class="topics"><button data-a="march" class="hot">March north with the levy</button><button data-a="run">Pocket the coin and slip away</button></div>`, (r) => {
         r.querySelector('[data-a=march]').onclick = () => { O.Panels.close(); if (K.war?.civil) PS.side = { war: K.war.wars, side: 'crown' }; campaign('crown'); };
         r.querySelector('[data-a=run]').onclick = () => {
           O.Panels.close(); PS.enlisted = null;

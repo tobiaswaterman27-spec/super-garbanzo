@@ -81,6 +81,7 @@
         r.querySelectorAll('[data-raise]').forEach((b) => b.onclick = () => { const e = posts[+b.dataset.raise]; if (b.dataset.how === 'letter') PS.remove('letter'); askRaise(e, b.dataset.how === 'letter' ? 'letter' : 'word'); });
         const pb = r.querySelector('[data-party]'); if (pb) pb.onclick = () => {
           const ids = [...r.querySelectorAll('[data-inv]')].filter((x) => x.checked).map((x) => +x.dataset.inv); if (!ids.length) return say('Invite someone first.', 'bad');
+          { const cl = O.eventClash && O.eventClash(s, s.day, 19, 23); if (cl) return say(`Tonight everyone will be at ${cl.title.charAt(0).toLowerCase() + cl.title.slice(1)}. Have your party another night.`, 'bad'); }
           const cost = 10 + ids.length * 2; if (PS.money < cost) return say(`The food and ale would cost ₳${cost}.`, 'bad'); PS.money -= cost;
           const hh = new Map(), guests = [];
           for (const id of ids) { const q = s.byId.get(id); const aff = q.rel.get(0)?.affinity || 0; if (Math.random() > 0.35 + aff * 0.6) { s.remember(q, 'Was asked to the stranger\'s party, but had other plans.', 'social', 0.6, 0); continue; } hh.set(q.household, q); }

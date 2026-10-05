@@ -347,7 +347,7 @@
         }
         case 'unload': act('place', 1.2, 5, () => { const cy = PS.carry; if (cy) { bz.stock[cy.good] = (bz.stock[cy.good] || 0) + cy.qty; PS.carry = null; } const u = e.tasks.find((x) => x.kind === 'unload' && x.have < x.need); if (u) { u.have = 1; } e.stats.tasks++; refresh(); say('Put away.'); }); break;
         case 'rooms': act('look', 1.6, 10, () => tick('The rooms are in order.')); break;
-        case 'attend': { if (s.hour < 13.9) { say('The council sits at two. Come back then.'); return; } const n = s.people.filter((q) => q.councillor && q.agent.inside === bz.id).length; act('talk', 3, 120, () => tick(n ? `You preside over the council: ${n} of the realm's leaders have their say, and you give your answers.` : 'You wait at the head of the table, but the leaders are late.')); break; }
+        case 'attend': { if (s.hour < 13.9) { say('The council sits at two. Come back then.'); return; } if (O.openCouncilSession) O.openCouncilSession(() => tick()); break; }
         case 'pots': act('scrub', 1.4, 10, () => { (t.swept = t.swept || []).push(c.it ? c.it.id : c.k); tick('You gather the pots and wipe the table down.'); }); break;
         case 'service': case 'teach': case 'write': case 'tend': case 'court': act(ANIM_OF(t, e), 2, 30, () => tick(null)); break;
         default: break;
@@ -533,7 +533,7 @@
     O.preShiftTarget = () => {
       const s = cur(), e = here(); if (!e || e.onShift || e.place !== s.world.placeId) return null;
       const bz = s.biz.get(e.biz); if (!bz) return null; const [o] = hoursOf(e, bz);
-      return s.hour >= o - 1 && s.hour < o && s.day >= (e.firstDay || 0) ? { b: bz.id, label: `Your shift at ${bz.name}` } : null;
+      return s.hour >= o - 1 && s.hour < o && s.day >= (e.firstDay || 0) ? { b: bz.id, label: `${modeOf(e.role) === 'quota' ? 'Your work' : 'Your shift'} at ${bz.name}, from ${fmtH(o)}` } : null;
     };
     // ---------------------------------------------------------------- markers over where the work is
     game.hooks.drawTop.push((ctx, cam, indoor) => {

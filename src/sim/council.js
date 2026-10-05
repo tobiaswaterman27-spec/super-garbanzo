@@ -27,7 +27,7 @@
         if (p.kind === 'capital') continue;
         const sex = r.chance(0.8) ? 'm' : 'f', first = r.pick(sex === 'm' ? O.Names.M : O.Names.F), sur = O.Names.surname(r);
         O.Names.used.add(first + ' ' + sur);
-        L[p.id] = { name: `${first} ${sur}`, first, sex, title: (p.leader || 'Reeve').split(' of ')[0], favour: r.float(-0.2, 0.5), allowance: p.kind === 'city' ? 40 : p.kind === 'town' || p.kind === 'port' ? 20 : p.kind === 'castle' ? 30 : 8, since: this.sim.day - r.int(10, 400), deeds: [], honest: r.next(), flatterer: r.next() };
+        L[p.id] = { name: `${first} ${sur}`, first, sex, title: (p.leader || 'Reeve').split(' of ')[0].replace(/^[^,]*,\s*/, '').replace(/^(Lord|Lady) .*/, '$1'), favour: r.float(-0.2, 0.5), allowance: p.kind === 'city' ? 40 : p.kind === 'town' || p.kind === 'port' ? 20 : p.kind === 'castle' ? 30 : 8, since: this.sim.day - r.int(10, 400), deeds: [], honest: r.next(), flatterer: r.next() };
       }
       const cr = this.rulers && this.rulers.crown; if (cr && !cr.temper) cr.temper = r.pick(['just', 'just', 'stern', 'unjust']);
       this.councilLog = []; this.elections = [];

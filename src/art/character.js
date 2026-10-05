@@ -456,9 +456,26 @@
     drawHat(S);
     if (!V.back && p.carrying) drawCarried(S);
     if (o.cloak && V.front) drawCloak(S, 'clasp');
+    if (a.jewels && a.jewels.length) drawJewels(S);
     for (const ar of arms) if (ar.d <= 0.9) drawArm(S, ar, ar.k === toolSide ? held : null, G.ARMS);
     if (p.book) drawBook(S);
     return B.toCanvas();
+  }
+
+  // jewellery: a gold chain with a pendant at the throat, a brooch on the breast, a circlet on the brow
+  function drawJewels(S) {
+    const { B, a, p, V } = S, gold = P.mat('#e8c040', 'metal'), gem = P.mat('#c83a3a'), J = a.jewels;
+    B.part(G.ITEM);
+    if (J.includes('necklace') && !V.back) {
+      for (let i = -2; i <= 2; i++) { const q = S.pj([i * 0.9, p.shY + 1.2 + Math.abs(i) * -0.3 + (2 - Math.abs(i)) * 0.6, p.D + 0.9 + p.lean]); B.blob(q[0], q[1], 0.6, 0.6, gold, { power: 2 }); }
+      const pd = S.pj([0, p.shY + 3, p.D + 1 + p.lean]); B.blob(pd[0], pd[1], 0.9, 1, gem, { power: 2 });
+    }
+    if (J.includes('brooch') && !V.back) { const q = S.pj([-1.6, p.shY + 2.2, p.D + 1 + p.lean]); B.blob(q[0], q[1], 1.1, 1.1, gold, { power: 2 }); B.blob(q[0], q[1], 0.5, 0.5, gem, { power: 2 }); }
+    if (J.includes('circlet') && a.outfit.hat !== 'hood' && a.outfit.hat !== 'kettle') {
+      const H = headFrame(S);
+      for (let i = -4; i <= 4; i++) { const lx = i / 4.4, lz = Math.sqrt(Math.max(0, 1 - lx * lx)); if (lz * V.Fz + lx * V.Rz < -0.15 && !V.back) continue; const q = headPt(S, H, lx, -0.45, lz); B.blob(q[0], q[1], 0.6, 0.55, gold, { power: 2 }); }
+      if (!V.back) { const q = headPt(S, H, 0, -0.5, 1); B.blob(q[0], q[1], 0.6, 0.6, gem, { power: 2 }); }
+    }
   }
 
   function longHair(s) { return s === 'long' || s === 'braid' || s === 'tied' || s === 'veil' || s === 'curly'; }

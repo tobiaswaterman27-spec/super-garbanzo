@@ -126,7 +126,10 @@
 
     // ----- container contents come from the real owners -----
     function contents(it) {
-      const b = game.scene.b, hh = b.household ? sim.households[b.household - 1] : null, bz = sim.biz.get(b.id);
+      const b = game.scene.b; let hh = b.household ? sim.households[b.household - 1] : null; const bz = sim.biz.get(b.id);
+      // a room in the castle: the chests are its people's own, not the castle's
+      let roomOwner = null;
+      if (b.parent && (b.roomOwners || []).length) { const os = b.roomOwners.map((id) => sim.byId.get(id)).filter(Boolean); if (os.length) { hh = sim.household(os[0]) || hh; roomOwner = os.length === 1 ? os[0].name : `the ${os[0].sur || os[0].name.split(' ').slice(-1)[0]} family`; } }
       const out = [];
       if (b.owner?.kind === 'player' && !hh) { const st = (PS.homes = PS.homes || {}); const key = sim.world.placeId + ':' + b.id; (st[key] = st[key] || []).forEach((k) => out.push({ k, n: 1, src: 'homestash', key })); return { items: out, owner: 'you' }; }
       // your own room in your own place: the monarch's bedchamber when you wear the crown, a house you rent
@@ -147,7 +150,7 @@
           hh.valuables.forEach((k) => out.push({ k, n: 1, src: 'val' }));
         } else if (bz) { const coin = Math.floor(Math.max(0, bz.cash) * 0.3); if (coin > 0) out.push({ k: 'coins', n: coin, src: 'till' }); }
       }
-      return { items: out, owner: hh ? `the ${hh.surname} household` : bz ? bz.name : 'someone' };
+      return { items: out, owner: roomOwner || (hh ? `the ${hh.surname} household` : bz ? bz.name : 'someone') };
     }
 
     function take(it, items, idxs, owner) {

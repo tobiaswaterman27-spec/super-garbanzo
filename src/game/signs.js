@@ -91,6 +91,26 @@
       const nice = (t) => t.toLowerCase().replace(/(^|[\s'-])([a-z])/g, (m, a, ch) => a + ch.toUpperCase());
       O.UI.dialog.open({ name: nice(lines[0]), color: '#8a6239', text: lines.slice(1).map(nice).join('. ') || 'Nothing more is written.', options: [] });
     };
+    // in the castle every door off the hallway has its plaque: what the room is, and (close up) who lives there
+    game.hooks.drawTop.push((ctx, cam, indoor) => {
+      const sc = game.scene; if (!indoor || !sc || !sc.b.royal || sc.b.parent || !O.Castle) return;
+      const s = O.SimRef.cur, plan = O.Castle.plan(sc.b, s);
+      const up = (v) => String(v || '').toUpperCase().replace(/[^A-Z0-9 '.,&:-]/g, '');
+      for (const it of sc.L.items) {
+        if (it.kind !== 'roomdoor') continue;
+        const room = plan.all.find((r) => r.roomKey === it.room); if (!room) continue;
+        const os = (room.roomOwners || []).map((id) => s.byId.get(id)).filter((q) => q && q.alive !== false);
+        // one short line: who lives there (a family chamber), or what the room is
+        const who = os.length === 1 ? os[0].first : os.length > 1 ? (os[0].sur || os[0].first) : room.locked === 'monarch' ? (O.crowned && O.crowned() ? 'Yours' : 'Monarch') : '';
+        let l1 = up(who && /room$|chamber/i.test(room.name || '') ? who : String(room.name || '').replace(/^the /i, ''));
+        l1 = l1.replace(/ ROOM$| HALL$/, (m) => (l1.length > 12 ? '' : m)); if (l1.length > 11) l1 = l1.slice(0, 10) + '.';
+        const [ax, ay] = sc.anchor(it);
+        const lines = [l1], w = width(l1) + 6, h = 9;
+        const x = Math.round(ax - cam.x - w / 2), y = Math.round((it.front ? ay + 4 : ay - 40) - cam.y);
+        ctx.fillStyle = '#3a2618'; ctx.fillRect(x - 1, y - 1, w + 2, h + 2); ctx.fillStyle = '#c89a5e'; ctx.fillRect(x, y, w, h);
+        lines.forEach((l, i) => text(ctx, l, x + Math.round((w - width(l)) / 2), y + 2 + i * 7, i ? '#6a3a1a' : '#3a2416'));
+      }
+    });
     void T;
   }
   O.Signs = { setup, linesFor, plant, pull, spotBy, nameSign: () => nameSign() };

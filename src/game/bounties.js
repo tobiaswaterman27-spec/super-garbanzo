@@ -38,7 +38,7 @@
     }
     function take(s, o) {
       PS.contract = Object.assign({ place: s.world.placeId, until: now(s) + 1440 * 2 }, o);
-      if (o.kind === 'thief') { O.addLead({ place: s.world.placeId, id: o.target, until: PS.contract.until, why: 'contract', label: 'The bounty' }); say('You take the bounty. The arrow will lead you to them; talk to them to take them in.'); }
+      if (o.kind === 'thief') { O.addLead({ place: s.world.placeId, id: o.target, until: PS.contract.until, why: 'contract', label: 'The bounty' }); say('You take the bounty. The marker will show you where they are; talk to them to take them in.'); }
       if (o.kind === 'camp') { O.addLead({ place: s.world.placeId, b: o.target, until: PS.contract.until, why: 'contract', label: 'The bandit camp' }); } if (o.kind === 'camp') say(`You take the contract. ${s.building(o.target).name} lies outside town: go there and press E at its door.`);
       if (o.kind === 'escort') {
         const r = O.RNG(O.hash('esc', s.day)), sex = r.chance(0.7) ? 'm' : 'f', D = O.Data, Ch = O.Char;

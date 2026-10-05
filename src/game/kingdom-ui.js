@@ -82,7 +82,7 @@
     const FLAG = ['#a8382f', '#e0c040', '#3f5f8e', '#ece4d0', '#3d5e34'];
     game.hooks.drawWorld.push((ctx, cam) => {
       const mourning = sim.mourningUntil != null && sim.day <= sim.mourningUntil;
-      if (game.scene || game.world !== O.SimRef.home.world || (!mourning && !(sim.festival && sim.festival()))) return;
+      if (game.scene || game.world !== O.SimRef.home.world || (!mourning && !(sim.festival && sim.festival()) && !(O.Revels && O.Revels.today(sim) && sim.hour >= 7))) return;
       const COLS = mourning ? ['#1e1a22', '#3a2e48', '#1e1a22', '#4a4450'] : FLAG;
       const sq = sim.Z.square, y0 = sq[1] * 16 - 4, x0 = sq[0] * 16, x1 = sq[2] * 16 + 16;
       for (let row = 0; row < 3; row++) {
@@ -127,7 +127,10 @@
       const Ch = O.Chronicle, crierFacts = Ch.facts.filter((f) => f.imp >= 2 && f.day >= sim.day - 4 && !f.secret).sort((a, b) => b.imp - a.imp || b.day - a.day).slice(0, 2);
       const told = crierFacts.map((f) => { const v = Ch.tell(f, 'crier', sim, sim.rng); Ch.playerHears(f, v, 'crier', cr.name); return v; });
       const items = [...(told.length ? told : K.news.slice(-2).map((n) => n.text)), ...(PS.bountyAmount && PS.wantedLevel() >= 2 ? [`A reward of ₳${PS.bountyAmount} is offered for the outlaw: ${PS.soughtFor()}.`] : [])];
-      const words = `Hear ye, hear ye! ${items.length ? items.join(' ') : `All is well in ${sim.world.name}.`}`;
+      // nothing new since the last cry: the crier says so, rather than the same again
+      const fresh = items.filter((t) => !(sim._cried || []).includes(t));
+      sim._cried = [...(sim._cried || []), ...fresh].slice(-12);
+      const words = `Hear ye, hear ye! ${fresh.length ? fresh.join(' ') : `All is well in ${sim.world.name}.`}`;
       cr.agent.anim = 'wave';
       O.Speech.say(cr, words.length > 160 ? words.slice(0, 157) + '…' : words, 9, 'shout', 140);
       O.Panels.toast(`${cr.first} the crier: “${words}”`);

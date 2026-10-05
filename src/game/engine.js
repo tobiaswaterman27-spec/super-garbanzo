@@ -270,6 +270,7 @@
       const actors = this.actors.filter((a) => !a.hidden && !(a._suppressUntil > this.t)).slice().sort((a, b) => a.y - b.y);
       let ai = 0;
       const drawActor = (a) => {
+        if (a.paint) { a.paint(ctx, cam); return; }
         if (a.mount && this.riderDraw) { this.riderDraw(ctx, a); a._sx = null; return; }
         const fr = this.actorFrame(a), ox = fr.ox ?? 16;
         const fx = Math.round(a.x - ox - cam.x), fy = Math.round(a.y - (fr.gy ?? Ch.GROUND) - cam.y);
@@ -386,6 +387,7 @@
         }
         // the watch carry torches at night
         if (night) for (const a of this.actors) if (!a.hidden && a.torch) pools.push([a.x - cam.x, a.y - 30 - cam.y, 30]);
+        if (night && O.extraLights && !this.scene) for (const f of O.extraLights) f(pools, cam);
         if (night && this.player.torch && !this.scene) pools.push([this.player.x - cam.x, this.player.y - 30 - cam.y, 34]);
       }
       lc.globalCompositeOperation = 'lighter';

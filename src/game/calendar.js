@@ -12,8 +12,8 @@
     const SD = () => O.SEASON_DAYS || 14, SEAS = () => O.SEASONS || ['spring', 'summer', 'autumn', 'winter'];
     const seasonOf = (day) => SEAS()[Math.floor((day - 1) / SD() + 1) % 4], dos = (day) => ((day - 1) % SD()) + 1;
     O.dateOf = (day) => `${(O.DAYNAMES || [])[(day - 1) % 7] || 'Day'}, ${seasonOf(day).charAt(0).toUpperCase() + seasonOf(day).slice(1)} ${dos(day)}`;
-    const hh = (h) => { const H = Math.floor(h), M = Math.round((h - H) * 60); return `${((H + 11) % 12) + 1}${M ? ':' + String(M).padStart(2, '0') : ''}${H < 12 ? 'am' : 'pm'}`; };
-    O.hourStr = hh;
+    const hh = (h) => { const H = Math.floor(h) % 24, M = Math.round((h - Math.floor(h)) * 60); return `${((H + 11) % 12) + 1}${M ? ':' + String(M).padStart(2, '0') : ''}${H < 12 ? 'am' : 'pm'}`; };
+    O.hourStr = hh; O.seasonOfDay = seasonOf; O.dosOfDay = dos;
     const capital = () => K().places.find((x) => x.kind === 'capital');
 
     // ---------------------------------------------------------------- gatherings the townsfolk hold
@@ -28,10 +28,11 @@
     // every town keeps the feast of its chapel's saint, once a year
     const saintOf = (s) => { const ch = s.chapelId != null && s.building(s.chapelId); const m = ch && /St\.? ([A-Z][a-z]+)/.exec(ch.name || ''); return m ? m[1] : null; };
     const yearLen = () => SD() * 4;
-    const saintDay = (s) => { const nm = saintOf(s); if (!nm) return null; return (O.hash('saint', s.world.placeId || s.world.name) % yearLen()) + 1; };
+    const bigFixed = (day) => { const d = dos(day), se = seasonOf(day); return (se === 'autumn' && d === 10) || (se === 'winter' && d === 7) || (se === 'spring' && d === 12) || !!(O.Revels && O.Revels.on(null, day)); };
+    const saintDay = (s) => { const nm = saintOf(s); if (!nm) return null; let d = (O.hash('saint', s.world.placeId || s.world.name) % yearLen()) + 1; for (let k = 0; k < 4 && bigFixed(d); k++) d = (d % yearLen()) + 1; return d; }; // (never on another high day)
     const isSaintDay = (s, day) => { const d = saintDay(s); return d != null && ((day - 1) % yearLen()) + 1 === d; };
     O.saintDay = (s) => ({ saint: saintOf(s), day: saintDay(s) });
-    const festOn = (s, day) => { if (isSaintDay(s, day)) return true; const d = dos(day), se = seasonOf(day); return (se === 'autumn' && d === 10) || (se === 'winter' && d === 7) || (se === 'spring' && d === 12) || (s.hosted && s.hosted.day === day); };
+    const festOn = (s, day) => { if (isSaintDay(s, day) || (O.Revels && O.Revels.on(s, day))) return true; const d = dos(day), se = seasonOf(day); return (se === 'autumn' && d === 10) || (se === 'winter' && d === 7) || (se === 'spring' && d === 12) || (s.hosted && s.hosted.day === day); };
     // does a big gathering already fill this time in this town?
     O.eventClash = (s, day, from, to, except) => {
       for (const e of O.eventsFor(s, day, day)) { if (e === except || e.small || e.ref === except) continue; if (e.from < to && from < e.to) return e; }
@@ -131,7 +132,7 @@
       const here = s.world.placeId;
       for (let d = d0; d <= d1; d++) {
         const se = seasonOf(d), dd = dos(d);
-        if (se === 'autumn' && dd === 10) add({ day: d, from: 10, to: 15, title: 'The harvest fair in the square', where: 'the square', square: true });
+        if (se === 'autumn' && dd === 10) add({ day: d, from: 10, to: 21.5, title: 'The harvest fair in the square', where: 'the square', square: true });
         if (se === 'winter' && dd === 7) add({ day: d, from: 18, to: 23, title: 'The midwinter feast', where: s.world.buildings.some((b) => b.royal) ? 'the great hall' : 'the tavern', b: s.world.buildings.find((b) => b.royal)?.id ?? s.tavernId });
         if (se === 'spring' && dd === 12 && s.world.buildings.some((b) => b.royal || b.type === 'keep')) add({ day: d, from: 10, to: 15, title: 'The spring tournament', where: 'the lists by the castle', square: true });
         if ((d - 1) % 7 === 6) add({ day: d, from: 7, to: 14, title: 'Sunday market', where: 'the square', square: true, small: true });

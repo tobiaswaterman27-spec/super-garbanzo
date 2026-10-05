@@ -1164,6 +1164,11 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       for (let i = -4; i <= 4; i++) { const lx = i / 4.4, lz = Math.sqrt(Math.max(0, 1 - lx * lx)); if (lz * V.Fz + lx * V.Rz < -0.15 && !V.back) continue; const q = headPt(S, H, lx, -0.45, lz); B.blob(q[0], q[1], 0.6, 0.55, gold, { power: 2 }); }
       if (!V.back) { const q = headPt(S, H, 0, -0.5, 1); B.blob(q[0], q[1], 0.6, 0.6, gem, { power: 2 }); }
     }
+    // a May garland: green leaves and flowers round the head
+    if (J.includes('garland') && a.outfit.hat !== 'hood' && a.outfit.hat !== 'kettle') {
+      const H = headFrame(S), leaf = P.mat('#4a7a34'), FL = [P.mat('#f0e8f0'), P.mat('#e8a0b8'), P.mat('#f0d040')];
+      for (let i = -5; i <= 5; i++) { const lx = i / 5.4, lz = Math.sqrt(Math.max(0, 1 - lx * lx)); if (lz * V.Fz + lx * V.Rz < -0.15 && !V.back) continue; const q = headPt(S, H, lx, -0.5, lz); B.blob(q[0], q[1], 0.7, 0.6, i % 2 ? leaf : FL[(i + 6) % 3], { power: 2 }); }
+    }
   }
 
   function longHair(s) { return s === 'long' || s === 'braid' || s === 'tied' || s === 'veil' || s === 'curly'; }
@@ -4100,7 +4105,7 @@ O.bizName = (surname, label) => {
       const LOOK2 = { townhall: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'gable', chimney: true, sign: 'shield', floors: 2 }, stable: { wall: 'plank', plankMat: 'plank', roof: 'shingle', roofType: 'side', bigDoor: true }, butcher: { wall: 'timber', roof: 'tile', sign: 'scales' }, carpenter: { wall: 'plank', roof: 'shingle', sign: 'hammer' }, tailor: { wall: 'timber', roof: 'thatch', shopWindow: true }, smithy: { wall: 'stone', roof: 'slate', chimney: true, sign: 'anvil' } };
       const surname = O.Names ? rng.pick(O.Names.SUR) : 'Ward';
       const lk = Object.assign({ wall: 'timber', roof: 'thatch' }, def.look || LOOK2[type] || {});
-      const b = build(type, w, d, lk, ['posthouse', 'tollhouse', 'townhall'].includes(type) ? `${pl.name} ${def.label}` : O.bizName(surname, def.label), best[0], best[1], { floors: def.floors || lk.floors || 1 });
+      const b = build(type, w, d, lk, (['posthouse', 'tollhouse', 'townhall', 'guard', 'morgue', 'hospital', 'school', 'gaol'].includes(type) || def.public) ? `${pl.name} ${def.label}` : O.bizName(surname, def.label), best[0], best[1], { floors: def.floors || lk.floors || 1 });
       lane(b.doorX, b.doorY + 1);
       // a cottage nearby for the hands
       for (const [dx, dy] of [[w + 3, 0], [-7, 0], [0, 7], [w + 3, 6], [-7, 6]]) { const cx = best[0] + dx, cy = best[1] + dy; if (fits(cx, cy, 4, 3)) { const hb = build('house', 4, 3, { wall: rng.pick(['timber', 'plank', 'stone']), roof: rng.pick(['thatch', 'shingle']), chimney: true, doorTile: 1 }, 'Cottage', cx, cy); lane(hb.doorX, hb.doorY + 1); break; } }
@@ -4415,6 +4420,7 @@ O.bizName = (surname, label) => {
       const actors = this.actors.filter((a) => !a.hidden && !(a._suppressUntil > this.t)).slice().sort((a, b) => a.y - b.y);
       let ai = 0;
       const drawActor = (a) => {
+        if (a.paint) { a.paint(ctx, cam); return; }
         if (a.mount && this.riderDraw) { this.riderDraw(ctx, a); a._sx = null; return; }
         const fr = this.actorFrame(a), ox = fr.ox ?? 16;
         const fx = Math.round(a.x - ox - cam.x), fy = Math.round(a.y - (fr.gy ?? Ch.GROUND) - cam.y);
@@ -4531,6 +4537,7 @@ O.bizName = (surname, label) => {
         }
         // the watch carry torches at night
         if (night) for (const a of this.actors) if (!a.hidden && a.torch) pools.push([a.x - cam.x, a.y - 30 - cam.y, 30]);
+        if (night && O.extraLights && !this.scene) for (const f of O.extraLights) f(pools, cam);
         if (night && this.player.torch && !this.scene) pools.push([this.player.x - cam.x, this.player.y - 30 - cam.y, 34]);
       }
       lc.globalCompositeOperation = 'lighter';
@@ -4705,6 +4712,8 @@ O.snowMaskOf = function (src) {
 
   O.Data = { GOODS, BUSINESS, ROLE_OUTFIT, NAMES, TRAITS, GOALS };
 })();
+// "at the Crooked Lantern", but "out in the village" stays as it is
+O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; return /^(out|in|on|by|near|at|along|outside|behind|upstairs)\b/.test(n) ? n : 'at ' + n.replace(/^The (?=[a-z])/, 'the '); };
 
 </script>
 <script>
@@ -6193,15 +6202,16 @@ O.snowMaskOf = function (src) {
   function describe(d) {
     const bits = [];
     if (d.masked) bits.push('someone masked and hooded in black');
-    if (d.horse) bits.push(`riding a ${d.horse} horse`);
-    if (d.hood) bits.push(`a ${pretty(d.hood)} hood`);
-    if (d.hat) bits.push(`a ${d.hat === 'feather' ? 'feathered cap' : d.hat}`);
-    if (d.cloak) bits.push(`a ${pretty(d.cloak)} cloak`);
-    if (d.tunic) bits.push(`a ${pretty(d.tunic)} tunic`);
+    const a = (w) => `${/^[aeiou]/i.test(w) ? 'an' : 'a'} ${w}`;
+    if (d.horse) bits.push(`riding ${a(d.horse + ' horse')}`);
+    if (d.hood) bits.push(a(`${pretty(d.hood)} hood`));
+    if (d.hat) bits.push(a(d.hat === 'feather' ? 'feathered cap' : d.hat));
+    if (d.cloak) bits.push(a(`${pretty(d.cloak)} cloak`));
+    if (d.tunic) bits.push(a(`${pretty(d.tunic)} tunic`));
     if (d.hair) bits.push(`${pretty(d.hair)} hair`);
     if (d.height) bits.push(d.height === 'middling' ? 'middling height' : d.height);
     if (d.build) bits.push(`${d.build} build`);
-    return bits.join(', ') || 'nobody could say much';
+    return bits.length > 1 ? bits.slice(0, -1).join(', ') + ' and ' + bits[bits.length - 1] : bits[0] || 'nobody could say much';
   }
   // the same person in the black hood and mask
   const maskCache = new WeakMap();
@@ -6277,7 +6287,7 @@ O.snowMaskOf = function (src) {
       p.task = null;
       if (!crime || crime.reported) return;
       crime.reported = true;
-      this.log(`${p.name} reported ${crime.kind === 'pickpocket' ? 'a cutpurse' : crime.kind} ${crime.placeName ? 'at ' + crime.placeName : ''} to the watch.`, 'crime');
+      this.log(`${p.name} reported ${crime.kind === 'pickpocket' ? 'a cutpurse' : /^[aeiou]/.test(crime.kind) ? 'an ' + crime.kind : 'a ' + crime.kind} ${crime.placeName ? O.atPlace(crime.placeName) + ' ' : ''}to the watch.`, 'crime');
       const guards = this.people.filter((q) => q.job?.role?.startsWith('guard') && !q.task && q.activity?.act !== 'sleep');
       const g = guards.find((q) => q.job.role === 'guard captain') || guards[0];
       if (g) g.task = { act: 'investigate', outdoor: true, crime: crime.id, tile: crime.tile };
@@ -6294,7 +6304,7 @@ O.snowMaskOf = function (src) {
       crime.evidence = Math.min(3, crime.witnesses.reduce((s, w) => s + w.acc, 0) * (0.6 + skill * 0.6));
       if (crime.royal) crime.evidence = Math.max(crime.evidence, 1.8); // the crown's word is taken
       const desc = describe(crime.profile);
-      this.log(Object.keys(crime.profile).length ? `The watch is looking for ${desc} over the ${crime.kind} at ${crime.placeName || this.world.name}.` : `The watch has no description to go on over the ${crime.kind} at ${crime.placeName || this.world.name}.`, 'crime');
+      this.log(Object.keys(crime.profile).length ? `The watch is looking for ${desc} over the ${crime.kind} ${O.atPlace(crime.placeName, this.world.name)}.` : `The watch has no description to go on over the ${crime.kind} at ${crime.placeName || this.world.name}.`, 'crime');
       this.remember(g, `Investigating a ${crime.kind}: we want ${describe(crime.profile)}.`, 'work', 1.5);
       // an NPC culprit can be found by matching the description against the village
       if (crime.perp !== 'player') this.searchSuspects(crime, g);
@@ -8428,7 +8438,7 @@ O.snowMaskOf = function (src) {
       const cr = _rec.call(this, o);
       if (o.perp === 'player') {
         const what = { pickpocket: 'A purse was cut', burglary: 'A burglary', robbery: 'A robbery', assault: 'An assault', 'horse theft': 'A horse was stolen', murder: 'A killing' }[o.kind] || `A ${o.kind}`;
-        const where = o.placeName ? ` at ${o.placeName}` : ` in ${this.world.name}`;
+        const where = o.placeName ? ` ${O.atPlace(o.placeName)}` : ` in ${this.world.name}`;
         const f = C.deed(this, `${what}${where}${o.seen && o.seen.length ? ', and it was seen' : ''}.`, `You committed ${o.kind}${where}${o.seen && o.seen.length ? `, ${o.seen.length} saw you` : ', unseen'}.`, 'crime', o.kind === 'pickpocket' ? 1 : (o.severity || 1) + 1, false);
         f.crimeId = cr && cr.id;
         if (o.seen) for (const w of o.seen) if (w && w.id != null && !w.visitor) this.hear(w, f, 'saw');
@@ -11669,11 +11679,12 @@ O.snowMaskOf = function (src) {
     const a = game.player.a, o = a.outfit, P = O.Pal;
     const nameOf = (m) => { const hex = P.mats[m]?.hex; const e = Object.entries(P.cloth).find(([, h]) => h === hex); return e ? e[0].replace(/([A-Z])/g, ' $1').toLowerCase() : 'dark'; };
     const bits = [];
-    if (o.hat === 'hood') bits.push(`a ${nameOf(o.hatMat)} hood`);
-    if (o.cloak && accuracy > 0.3) bits.push(`a ${nameOf(o.cloak)} cloak`);
+    const an = (w) => `${/^[aeiou]/i.test(w) ? 'an' : 'a'} ${w}`;
+    if (o.hat === 'hood') bits.push(an(`${nameOf(o.hatMat)} hood`));
+    if (o.cloak && accuracy > 0.3) bits.push(an(`${nameOf(o.cloak)} cloak`));
     if (accuracy > 0.5 && o.hat !== 'hood') bits.push(`${Object.entries(P.hair).find(([, h]) => h === P.mats[a.hair]?.hex)?.[0]?.replace(/([A-Z])/g, ' $1').toLowerCase() || 'dark'} hair`);
     if (accuracy > 0.7) bits.push(a.height > 0.4 ? 'tall' : a.height < -0.4 ? 'short' : 'middling height');
-    return bits.length ? bits.join(', ') : 'a stranger, hard to say';
+    return bits.length > 1 ? bits.slice(0, -1).join(', ') + ' and ' + bits[bits.length - 1] : bits[0] || 'a stranger, hard to say';
   }
 
   function witnessesIndoors(game, sim, b, floor) {
@@ -11702,7 +11713,7 @@ O.snowMaskOf = function (src) {
     PS.rep.local = Math.max(-1, PS.rep.local - 0.15 * ws.length);
     PS.rep.civilian = Math.max(-1, PS.rep.civilian - 0.1);
     if (ev.building.type !== 'house') PS.rep.merchant = Math.max(-1, PS.rep.merchant - 0.15);
-    sim.log(`Theft at ${placeName}: ${ev.what} taken. Witnesses describe ${O.Justice.describe(crime.witnesses[0].desc)}.`, 'crime');
+    sim.log(`Theft ${O.atPlace(placeName)}: ${ev.what} taken. Witnesses describe ${O.Justice.describe(crime.witnesses[0].desc)}.`, 'crime');
     const shout = ws[0];
     O.Panels.toast(`${shout.first}${ws.length > 1 ? ` and ${ws.length - 1} other${ws.length > 2 ? 's' : ''}` : ''} saw you! “Thief! Stop, thief!”`, 'bad');
     return crime;
@@ -14217,7 +14228,7 @@ O.snowMaskOf = function (src) {
     const FLAG = ['#a8382f', '#e0c040', '#3f5f8e', '#ece4d0', '#3d5e34'];
     game.hooks.drawWorld.push((ctx, cam) => {
       const mourning = sim.mourningUntil != null && sim.day <= sim.mourningUntil;
-      if (game.scene || game.world !== O.SimRef.home.world || (!mourning && !(sim.festival && sim.festival()))) return;
+      if (game.scene || game.world !== O.SimRef.home.world || (!mourning && !(sim.festival && sim.festival()) && !(O.Revels && O.Revels.today(sim) && sim.hour >= 7))) return;
       const COLS = mourning ? ['#1e1a22', '#3a2e48', '#1e1a22', '#4a4450'] : FLAG;
       const sq = sim.Z.square, y0 = sq[1] * 16 - 4, x0 = sq[0] * 16, x1 = sq[2] * 16 + 16;
       for (let row = 0; row < 3; row++) {
@@ -14262,7 +14273,10 @@ O.snowMaskOf = function (src) {
       const Ch = O.Chronicle, crierFacts = Ch.facts.filter((f) => f.imp >= 2 && f.day >= sim.day - 4 && !f.secret).sort((a, b) => b.imp - a.imp || b.day - a.day).slice(0, 2);
       const told = crierFacts.map((f) => { const v = Ch.tell(f, 'crier', sim, sim.rng); Ch.playerHears(f, v, 'crier', cr.name); return v; });
       const items = [...(told.length ? told : K.news.slice(-2).map((n) => n.text)), ...(PS.bountyAmount && PS.wantedLevel() >= 2 ? [`A reward of ₳${PS.bountyAmount} is offered for the outlaw: ${PS.soughtFor()}.`] : [])];
-      const words = `Hear ye, hear ye! ${items.length ? items.join(' ') : `All is well in ${sim.world.name}.`}`;
+      // nothing new since the last cry: the crier says so, rather than the same again
+      const fresh = items.filter((t) => !(sim._cried || []).includes(t));
+      sim._cried = [...(sim._cried || []), ...fresh].slice(-12);
+      const words = `Hear ye, hear ye! ${fresh.length ? fresh.join(' ') : `All is well in ${sim.world.name}.`}`;
       cr.agent.anim = 'wave';
       O.Speech.say(cr, words.length > 160 ? words.slice(0, 157) + '…' : words, 9, 'shout', 140);
       O.Panels.toast(`${cr.first} the crier: “${words}”`);
@@ -17273,7 +17287,7 @@ O.snowMaskOf = function (src) {
     const bizOf = (e) => { const s = cur(); return e && e.place === s.world.placeId ? s.biz.get(e.biz) : null; };
     const COURT = new Set(['monarch', 'consort', 'heir', 'prince', 'princess', 'lord', 'lady', 'lady-in-waiting', 'jester', 'steward', 'chamberlain', 'captain of the royal guard']);
     O.crownPost = (r) => COURT.has(r);
-    const hoursOf = (e, bz) => { const r = e.role || ''; if (COURT.has(r)) return [8, 20]; if (r === 'potboy' || r === 'potgirl') return [17, 21]; if (['night watchman', 'gaoler'].includes(r)) return [20, 30]; if (r.startsWith('guard') || r === 'sergeant') return [6, 18]; return bz ? bz.def.hours : [8, 17]; };
+    const hoursOf = (e, bz) => { if (e.hours) return e.hours; const r = e.role || ''; if (COURT.has(r)) return [8, 20]; if (r === 'potboy' || r === 'potgirl') return [17, 21]; if (['night watchman', 'gaoler'].includes(r)) return [20, 30]; if (r.startsWith('guard') || r === 'sergeant') return [6, 18]; return bz ? bz.def.hours : [8, 17]; };
     const worksToday = (s, bz) => !(s.weekday === 6 && bz && !['tavern', 'chapel', 'guard', 'hospital', 'palace', 'keep', 'manor', 'posthouse'].includes(bz.type));
     // when the next shift is, worked out fresh from today's date (never left saying "tomorrow" once tomorrow has come)
     const nextShift = (e, s, bz, o, c) => {
@@ -17299,6 +17313,7 @@ O.snowMaskOf = function (src) {
         if (high && !e) return out;
         if (e) { out.push(['otherjob', 'Ask about other work here']); out.push(['notice', 'Hand in your notice']); }
         else if (O.knowsTrade && O.knowsTrade(q)) out.push(['askjob', `Ask for work at ${bz.name}`]);
+        if (!e && holidayWork(s, bz)) out.push(['dayhand', 'Need an extra pair of hands today?']);
       } else if (q.age >= 14 && !high) out.push(['whohires', "Who's taking on hands?"]);
       return out;
     };
@@ -17316,7 +17331,25 @@ O.snowMaskOf = function (src) {
       return `"${pick.map((x, i) => `${i ? (i === pick.length - 1 ? 'and ' : '') : ''}${x.boss.first} at ${x.bz.name} wants ${/^[aeiou]/.test(x.role) ? 'an' : 'a'} ${x.role}`).join(', ')}. Go and ask ${pick.length > 1 ? 'them' : x0(pick)} yourself: talk to whoever runs the place."`;
     }
     const x0 = (p) => (p[0].boss.sex === 'f' ? 'her' : 'him');
+    // a holiday: the tavern, the bakery and the butcher's are run off their feet and take on hands for the day
+    function holidayWork(s, bz) {
+      if (!['tavern', 'inn', 'bakery', 'butcher', 'kitchen'].includes(bz.type) || !O.eventsFor) return null;
+      const ev = O.eventsFor(s, s.day, s.day).find((x) => x.square && !x.small && !x.council && s.hour < x.to - 2);
+      if (!ev) return null;
+      const roles = bz.def.jobs.map((j) => j[0]).filter((r) => (bz.def.wage[r] || 0) > 0), role = roles.find((r) => /server|serving|potboy|baker|butcher|cook|scullion/.test(r)) || roles.slice(-1)[0]; if (!role) return null;
+      return { ev, role, from: Math.max(Math.ceil(s.hour * 2) / 2, ev.from - 1), to: Math.min(24, ev.to + 0.5) };
+    }
+    function dayHand(q, render) {
+      const s = cur(), bz = s.biz.get(q.job.biz), hw = holidayWork(s, bz); if (!hw) return render('"We\'ll manage, thank you."');
+      if ((PS.rep.local || 0) < -0.2 || PS.wantedLevel?.() >= 2) return render('"Not from you, thank you."');
+      const clash = posts().filter((x) => { const xb = (O.Travel?.visited.get(x.place)?.sim || s).biz.get(x.biz), [xo, xc] = hoursOf(x, xb); return xo < hw.to && hw.from < xc && !(x.dayInfo && x.dayInfo.dayDone) && !(x.dayInfo && x.dayInfo.off); });
+      if (clash.length) return render(`"You've work of your own today, at ${clash[0].bizName}."`);
+      const wage = 4 + Math.round((hw.to - hw.from) / 2);
+      hire(s, bz, q, hw.role, wage, { temp: s.day, hours: [hw.from, hw.to] }); PS.emp.firstDay = s.day;
+      render(`"Bless you, yes! With ${hw.ev.title.split(':')[0].replace(/^The /, 'the ').replace(/ in the square$/, '')} on, we're run off our feet. ₳${wage} for the day, from ${fmtH(hw.from)} till ${fmtH(hw.to)}. Your tasks will be in the corner."`);
+    }
     npcUI.onExtra = (q, key, render) => {
+      if (key === 'dayhand') return dayHand(q, render);
       if (key === 'whohires') return render(whoHires(q));
       if (key === 'askjob') return offer(q, render);
       if (key === 'otherjob') { // one post to a place: you can move to a different one there, not hold two
@@ -17347,7 +17380,7 @@ O.snowMaskOf = function (src) {
       const shown = d.role === 'potboy' && (O.Forge.player?.sex || O.Forge.player?.a?.sex) === 'f' ? 'potgirl' : d.role;
       O.Panels.open(`Work at ${bz.name}`, `<p class="speech">“I could use a ${shown}.${d.role === 'potboy' ? ' Somebody has to gather the pots and wipe the tables of an evening.' : ''} ₳${d.wage} a day, ${fmtH(o)} till ${fmtH(c)}${['tavern', 'chapel', 'guard', 'hospital'].includes(bz.type) ? ', every day' : ', Sundays off'}. Will you take it?”</p>${clash.length ? `<p class="caption">The hours clash: you'd give up your post as ${clash.map((x) => `${esc(x.role)} at ${esc(x.bizName)}`).join(' and ')}.</p>` : keep.length ? `<p class="caption">You'd keep your post as ${keep.map((x) => `${esc(x.role)} at ${esc(x.bizName)}`).join(' and ')} as well: the hours don't clash.</p>` : ''}<div class="topics"><button data-y="1">Take the job</button><button data-n="1">Not now</button></div>`, (r) => {
         r.querySelector('[data-n]').onclick = () => O.Panels.close();
-        r.querySelector('[data-y]').onclick = () => { for (const x of clash) quit(null, x); void e; hire(s, bz, q, d.role, d.wage); O.Panels.close(); say(`You're taken on as ${shown} at ${bz.name}. Your first shift is ${worksToday(s, bz) && s.hour < o ? 'today' : 'tomorrow'} at ${fmtH(o)}. When it starts, your tasks show in the corner and arrows show where to go.`); };
+        r.querySelector('[data-y]').onclick = () => { for (const x of clash) quit(null, x); void e; hire(s, bz, q, d.role, d.wage); O.Panels.close(); say(`You're taken on as ${shown} at ${bz.name}. Your first shift is ${worksToday(s, bz) && s.hour < o ? 'today' : 'tomorrow'} at ${fmtH(o)}. When it starts, your tasks show in the corner and gold markers show where to go.`); };
       });
       return null;
     }
@@ -17550,9 +17583,20 @@ O.snowMaskOf = function (src) {
       if (busy > 0) { busy -= dt; game.player.locked = true; if (busy <= 0) { game.player.locked = false; const f = busyDone; busyDone = null; game.player.anim = 'idle'; f && f(); } }
     });
     function act(anim, secs, minutes, done) { const p = game.player; p.anim = anim; p.ft = 0; busy = secs; busyDone = () => { const s = cur(); for (let i = 0; i < minutes / 2; i++) { s.tick(2); PS.tick(2, false); } PS.energy = Math.max(0, PS.energy - minutes / 20); done(); }; }
+    // the work teaches you the trade: each task done makes you a little better at it
+    const TRADE = { bakery: 'baking', smithy: 'smithing', armourer: 'smithing', carpenter: 'woodcraft', sawmill: 'woodcraft', cooper: 'woodcraft', tavern: 'serving', inn: 'serving', hospital: 'physic', apothecary: 'physic', mill: 'milling', farmhouse: 'farming', woodcutter: 'woodcraft', builder: 'building', quarry: 'building', mine: 'mining', butcher: 'butchery', kitchen: 'serving', doctor: 'physic', cobbler: 'crafting', tanner: 'crafting', warehouse: 'trading', townhall: 'letters', guard: 'fighting', barracks: 'fighting', weaver: 'weaving', tailor: 'weaving', dyer: 'weaving', chandler: 'crafting', potter: 'crafting', jeweller: 'crafting', school: 'letters', scriptorium: 'letters', market: 'trading', store: 'trading', posthouse: 'riding', stable: 'riding', fishery: 'fishing', chapel: 'letters' };
+    const BY_KIND = { serve: 'serving', patrol: 'fighting', field: 'farming', chop: 'woodcraft', fish: 'fishing', tend: 'physic', write: 'letters', teach: 'letters', collect: 'trading', deliver: 'trading' };
+    const tradeOf = (bz, kind) => (['make', 'fire'].includes(kind) || !BY_KIND[kind] ? TRADE[bz.type] : BY_KIND[kind]) || TRADE[bz.type] || null;
+    O.tradeOf = (e, bz) => tradeOf(bz, ROLE_KIND(e.role));
+    function learn(e, bz, kind) {
+      const sk = ['sweep', 'talkto', 'talkmany', 'unload', 'rooms', 'pots'].includes(kind) ? null : tradeOf(bz, kind); if (!sk) return;
+      const before = PS.skills[sk] || 0; PS.skills[sk] = Math.min(1, before + 0.006 * (1 - before * 0.8));
+      const step = [0.25, 0.5, 0.75].find((x) => before < x && PS.skills[sk] >= x);
+      if (step) setTimeout(() => say(`You're getting good at ${sk}: ${step === 0.25 ? 'no longer a beginner' : step === 0.5 ? 'as handy as most in the trade' : 'better than most'}.`), 900);
+    }
     O.jobAct = (c) => {
       const e = emp(), s = cur(), bz = bizOf(e), t = c.t; if (!bz) return;
-      const tick = (msg) => { t.have++; e.stats.tasks++; e.todayTasks = (e.todayTasks || 0) + 1; if (c.k != null) (t.done = t.done || []).push(c.k); if (msg) say(msg); refresh(); };
+      const tick = (msg) => { learn(e, bz, t.kind); t.have++; e.stats.tasks++; e.todayTasks = (e.todayTasks || 0) + 1; if (c.k != null) (t.done = t.done || []).push(c.k); if (msg) say(msg); refresh(); };
       switch (t.kind) {
         case 'make': {
           const rc = recipeFor(bz, e.role); if (!rc) return;
@@ -17575,7 +17619,7 @@ O.snowMaskOf = function (src) {
         }
         case 'serve': {
           const customers = s.people.filter((q) => q.agent.inside === bz.id && ['shop', 'eat-out', 'socialise', 'deliver', 'import'].includes(q.activity?.act)).length;
-          act(ANIM_OF(t, e), 1.6, 15, () => { const sold = bz.def.sells[0]; if (customers && sold && (bz.stock[sold] || 0) >= 1) { const pr = s.price(bz, sold); bz.stock[sold] -= 1; bz.cash += pr; bz.salesToday += pr; tick(`You serve a customer: ${D.GOODS[sold]?.name.toLowerCase()} for ₳${pr} into the till.`); } else tick(customers ? 'You see to a customer.' : 'Nobody waiting; you set the counter straight and wait for trade.'); });
+          act(ANIM_OF(t, e), 1.6, 15, () => { const sold = bz.def.sells[0]; if (customers && sold && (bz.stock[sold] || 0) >= 1) { const pr = s.price(bz, sold); bz.stock[sold] -= 1; bz.cash += pr; bz.salesToday += pr; const tip = (bz.type === 'tavern' || bz.type === 'inn') && Math.random() < 0.18 + (PS.rep.local || 0) * 0.2; if (tip) { PS.money += 1; PS.earned = (PS.earned || 0) + 1; } tick(`You serve a customer: ${D.GOODS[sold]?.name.toLowerCase()} for ₳${pr} into the till.${tip ? ' They press ₳1 into your hand for yourself.' : ''}`); } else tick(customers ? 'You see to a customer.' : 'Nobody waiting; you set the counter straight and wait for trade.'); });
           break;
         }
         case 'sweep': act('sweep', 1.6, 15, () => { (t.swept = t.swept || []).push(c.it ? c.it.id : c.k); tick(t.have + 1 >= t.need ? (bz.type === 'stable' ? 'The stalls are mucked out and fresh straw down.' : 'Swept clean.') : null); }); break;
@@ -17613,8 +17657,9 @@ O.snowMaskOf = function (src) {
       return Math.hypot(p.x - (bz.b.doorX * T + 8), p.y - bz.b.doorY * T) < 140 || e.tasks.some((t) => t._spots && t._spots.some(([x, y]) => Math.hypot(x - p.x, y - p.y) < 60));
     }
     game.hooks.update.push(() => {
-      const all = posts(); if (!all.length) { panel(null); return; }
+      let all = posts(); if (!all.length) { panel(null); return; }
       for (const e of all.slice()) tickPost(e);
+      all = posts(); if (!all.length) { panel(null); return; } // (a post may have ended just now)
       // the post you're working at just now is the one in focus: on shift and here, else on shift, else the next
       const pl = cur().world.placeId;
       PS.emp = all.find((e) => e.onShift && e.place === pl) || all.find((e) => e.onShift) || all.slice().sort((a, b) => hoursOf(a, null)[0] - hoursOf(b, null)[0])[0] || null;
@@ -17631,40 +17676,87 @@ O.snowMaskOf = function (src) {
       const [o, c] = hoursOf(e, bz), h = s.hour + (s.hour < 6 && c > 24 ? 24 : 0), day = s.day;
       if (e.day !== day) { // a new day
         if (e.day != null && e.dayInfo) settle(s, bz, e);
-        e.day = day; e.dayInfo = { works: worksToday(s, bz) && day >= (e.firstDay || 0), arrived: null, excused: e.excuseDay === day };
+        if (e.temp != null && day > e.temp) { quit(`Your day's work at ${e.bizName} for the holiday is over.`, e); return; }
+        e.day = day; e.dayInfo = { works: worksToday(s, bz) && day >= (e.firstDay || 0), arrived: null, excused: e.excuseDay === day || e.dayOff === day, off: e.dayOff === day };
         e.tasks = []; e.onShift = false;
       }
       const D0 = e.dayInfo; if (!D0.works && day >= (e.firstDay || 0) && worksToday(s, bz)) D0.works = true; // start day reached
       if (!D0.works) return;
       const on = h >= o && h < c;
-      if (on && !e.onShift && !D0.dayDone) { e.onShift = true; e.tasks = newTasks(s, bz, e); e._rot = now(s); D0.mode = modeOf(e.role); D0.present = 0; refresh(); }
+      if (on && !e.onShift && !D0.dayDone && !D0.off) { e.onShift = true; e.tasks = newTasks(s, bz, e); e._rot = now(s); D0.mode = modeOf(e.role); D0.present = 0; refresh(); }
       if (on && e.onShift && atWork(s, bz, e)) D0.present = (D0.present || 0) + 1;
       if (!on && e.onShift && h >= c) { e.onShift = false; refresh(); }
-      if (on && D0.arrived == null && atWork(s, bz, e)) { D0.arrived = h; if (h > o + 0.25 && !D0.excused) { e.stats.late++; const boss = s.byId.get(e.master); if (boss) s.relate(boss, { id: 0 }, -0.04); say(`You're late. ${e.masterName || 'Your master'} gives you a look.`, 'bad'); } }
-      if (on && e.onShift && D0.mode === 'quota' && e.tasks.length && e.tasks.every((t) => t.have >= t.need) && !D0.dayDone) {
+      if (on && D0.arrived == null && !D0.off && atWork(s, bz, e)) { D0.arrived = h; if (h > o + 0.25 && !D0.excused) { e.stats.late++; const boss = s.byId.get(e.master); if (boss) s.relate(boss, { id: 0 }, -0.04); say(`You're late. ${e.masterName || 'Your master'} gives you a look.`, 'bad'); } }
+      if (on && e.onShift && D0.mode === 'quota' && e.tasks.length && e.tasks.every((t) => t.optional || t.have >= t.need) && !D0.dayDone) {
         D0.dayDone = true; e.onShift = false; refresh();
         say(`That's your day's work done at ${bz.name}. You can go: you'll be paid in full.`);
+      }
+      if (on && e.onShift && !COURT.has(e.role) && game.scene && game.scene.b.id === bz.id) { if (e._chatAt == null) e._chatAt = now(s) + 40 + Math.random() * 60; else if (now(s) >= e._chatAt) { e._chatAt = now(s) + 100 + Math.random() * 120; chatter(s, bz, e); } }
+      if (on && e.onShift && atWork(s, bz, e) && !COURT.has(e.role)) {
+        if (e._incAt == null || e._incDay !== day) { e._incDay = day; e._incAt = now(s) + 90 + Math.random() * 120; }
+        else if (now(s) >= e._incAt && h < c - 1.5) { e._incAt = now(s) + 150 + Math.random() * 150; const busy = O.eventsFor && O.eventsFor(s, day, day).some((x) => x.square && !x.small && h >= x.from - 1 && h < x.to + 1); if (busy) e._incAt -= 60; if (Math.random() < (busy ? 0.75 : 0.45) && !e.tasks.some((x) => x.optional && x.have < x.need)) incident(s, bz, e); }
       }
       if (on && e.onShift && D0.mode === 'shift') {
         // the work changes as the day goes on: every hour and a half, something new needs doing
         if (now(s) - (e._rot || 0) >= 90 && h < c - 0.75) {
           e._rot = now(s);
-          const open = e.tasks.filter((t) => t.have < t.need), done = e.tasks.filter((t) => t.have >= t.need);
+          const open = e.tasks.filter((t) => t.have < t.need && !t.optional), done = e.tasks.filter((t) => t.have >= t.need && !t.optional), extras = e.tasks.filter((t) => t.optional);
           const pool = [...newTasks(s, bz, e), { id: 'sw' + now(s), kind: 'sweep', need: 2, have: 0, text: 'Sweep and tidy the place' }, { id: 'tm' + now(s), kind: 'talkmany', need: 2, have: 0, text: 'See to the folk who come in', inBiz: true }];
           if (e.master != null && e.master !== 0) pool.push({ id: 'tt' + now(s), kind: 'talkto', who: e.master, need: 1, have: 0, text: `Ask ${e.masterName || 'your master'} what wants doing` });
           const recent = new Set(done.slice(-4).map((x) => x.kind));
           const fresh = pool.filter((t) => t.kind !== 'rooms' && !open.some((x) => x.kind === t.kind) && !recent.has(t.kind));
           for (let i = fresh.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [fresh[i], fresh[j]] = [fresh[j], fresh[i]]; }
           const add = fresh.slice(0, Math.max(1, 3 - open.length));
-          if (add.length) { e.tasks = [...done.slice(-3), ...open, ...add]; refresh(); if (atWork(s, bz, e)) say(`New work: ${add.map((x) => x.text.charAt(0).toLowerCase() + x.text.slice(1)).join('; ')}.`); }
+          if (add.length) { e.tasks = [...extras, ...done.slice(-3), ...open, ...add]; refresh(); if (atWork(s, bz, e)) say(`New work: ${add.map((x) => x.text.charAt(0).toLowerCase() + x.text.slice(1)).join('; ')}.`); }
         }
         if (e.tasks.every((t) => t.have >= t.need) && h < c - 1) e._rot = Math.min(e._rot || 0, now(s) - 70); // all done: something new comes along soon
       }
     }
+    // ---------------------------------------------------------------- the people you work with: now and then a word about the work
+    const CHAT = {
+      bakery: ["Flour's running low again.", 'Knead it harder: it wants air in it.', "The oven's fierce today. Mind your hands.", "First batch is out. Smell that."],
+      smithy: ['Keep the bellows going.', "That iron's nearly ready.", 'Quench it, quick!', 'Hammer on the flat, not the edge.'],
+      armourer: ['Rivet it close, or it\'ll gape.', "That helm wants another hour's work.", 'Keep the bellows going.'],
+      tavern: ['The table by the fire wants more ale.', "Mind that one: he's had plenty.", "Busy tonight. Busier than yesterday.", 'Wipe that down before the next lot sit.'],
+      inn: ['Room three wants fresh straw.', 'Another traveller at the door.', 'The table by the fire wants more ale.'],
+      guard: ['Quiet round so far.', 'Keep your eyes open by the gate.', "The sergeant's in a mood.", 'Heard there was a fight by the well last night.'],
+      farmhouse: ["Rain's coming. I can smell it.", 'Keep the furrow straight.', 'Those beasts want watering.'],
+      woodcutter: ['Mind where that one falls!', 'Stack it with the bark up.', 'Good oak, this.'],
+      mill: ['Mind the stones.', 'Sacks by the door, not the wheel.', 'The race is running fast today.'],
+      chapel: ['Candles want trimming.', 'Quietly now: someone is praying.', 'The roof leaks again by the font.'],
+      hospital: ['Fresh water for the sick, if you will.', 'He took his broth. A good sign.', 'Wash your hands before you touch the wound.'],
+      stable: ['Mind his back hooves.', 'The grey wants shoeing.', 'Fresh straw in the end stall.'],
+      _: ['Not long now till we\'re done.', "The master's watching. Look sharp.", 'Pass me that, would you?', 'Another day, another aurin.'],
+    };
+    function chatter(s, bz, e) {
+      if (!game.scene || game.scene.b.id !== bz.id) return;
+      const mates = bz.workers.map((id) => s.byId.get(id)).filter((q) => q && q.alive !== false && q.activity?.act === 'work' && q.agent && q.agent.inside === bz.id);
+      if (!mates.length) return;
+      const q = mates[Math.floor(Math.random() * mates.length)], lines = CHAT[bz.type] || CHAT._;
+      say(`${q.first}: "${lines[Math.floor(Math.random() * lines.length)]}"`);
+    }
+    // ---------------------------------------------------------------- the unexpected: something comes up at work
+    // an optional extra task suited to the trade, with something extra in the pay if it's done
+    function incident(s, bz, e) {
+      const kind = ROLE_KIND(e.role), id = () => Math.random().toString(36).slice(2, 8), pick = (a) => a[Math.floor(Math.random() * a.length)];
+      const folk = s.people.filter((q) => q.alive !== false && q.age >= 16 && !q.visitor && q.agent && !q.agent.hidden && q.id !== e.master);
+      const someone = folk.length ? pick(folk) : null;
+      let t = null, msg = '';
+      if (kind === 'make') { const rc = recipeFor(bz, e.role), g = rc && Object.keys(rc.out)[0]; if (!g) return; const who = pick(['the castle kitchens', 'a wedding party', 'the inn', 'a carter heading for the capital', 'the priest']); t = { kind: 'make', good: g, need: 2, have: 0, text: `Rush order for ${who}: make 2 more ${D.GOODS[g]?.name.toLowerCase()}`, bonus: 4 }; msg = `A rush order comes in for ${who}. Make two more ${D.GOODS[g]?.name.toLowerCase()} and there's ₳4 extra in it.`; }
+      else if (kind === 'serve') { t = { kind: 'serve', need: 3, have: 0, text: 'A crowd has come in: serve them', bonus: 3 }; msg = 'A crowd comes in all at once. Serve three more and there\'s ₳3 extra.'; }
+      else if (kind === 'patrol' && someone) { t = { kind: 'talkto', who: someone.id, need: 1, have: 0, text: `Trouble reported: question ${someone.first} ${someone.sur || ''}`.trim(), bonus: 3 }; msg = `Word of trouble: ${someone.first} saw something. Find them and ask (₳3 extra).`; }
+      else if ((kind === 'deliver' || kind === 'collect') && someone) { t = { kind: 'talkto', who: someone.id, need: 1, have: 0, text: `Urgent: carry word to ${someone.first} ${someone.sur || ''}`.trim(), bonus: 3 }; msg = `An urgent message for ${someone.first}. Find them (₳3 extra).`; }
+      else if (kind === 'sweep') { t = { kind: 'sweep', need: 2, have: 0, text: 'Something spilled: clean it up', bonus: 2 }; msg = 'Something has been spilled all over. Clean it up (₳2 extra).'; }
+      else if (kind === 'tend') { t = { kind: 'tend', need: 1, have: 0, text: 'A patient brought in: tend them', bonus: 3 }; msg = 'Someone is carried in, hurt. Tend them (₳3 extra).'; }
+      else if (kind === 'service' && someone) { t = { kind: 'talkto', who: someone.id, need: 1, have: 0, text: `${someone.first} asks for your blessing`, bonus: 2 }; msg = `${someone.first} has asked for the priest. Find them (₳2 extra).`; }
+      else if (['field', 'chop', 'fish'].includes(kind)) { t = { kind, need: 2, have: 0, text: 'Weather coming: get more in before it turns', bonus: 3 }; msg = 'The sky looks wrong. Get two more done before the weather turns (₳3 extra).'; }
+      if (!t) return;
+      t.id = id(); t.optional = true; e.tasks.push(t); refresh(); say(msg);
+    }
     function settle(s, bz, e) {
-      const D0 = e.dayInfo; if (!D0.works && day >= (e.firstDay || 0) && worksToday(s, bz)) D0.works = true; // start day reached
-      if (!D0.works) return;
+      const D0 = e.dayInfo; if (!D0.works) return;
       const boss = s.byId.get(e.master), done = e.todayTasks || 0; e.todayTasks = 0;
+      if (D0.off && D0.arrived == null) return; // a day off, given
       if (D0.arrived == null) {
         if (D0.excused) { e.stats.excused++; if (boss) s.relate(boss, { id: 0 }, -0.02); }
         else { e.stats.missed++; if (boss) { s.relate(boss, { id: 0 }, -0.12); s.remember(boss, 'The stranger never came to work.', 'work', 1.2, 0); } }
@@ -17673,12 +17765,16 @@ O.snowMaskOf = function (src) {
         // the day's wage, less for a half-hearted day
         let pay;
         if (D0.walkedOut) pay = 0;
-        else if (D0.mode === 'quota') { const tot = e.tasks.length || 1, fin = e.tasks.filter((t) => t.have >= t.need).length; pay = Math.round(e.wage * (D0.dayDone ? 1 : O.clamp(0.3 + 0.7 * fin / tot, 0.3, 1))); }
+        else if (D0.mode === 'quota') { const req = e.tasks.filter((t) => !t.optional), tot = req.length || 1, fin = req.filter((t) => t.have >= t.need).length; pay = Math.round(e.wage * (D0.dayDone ? 1 : O.clamp(0.3 + 0.7 * fin / tot, 0.3, 1))); }
         else { const [o0, c0] = hoursOf(e, bz), len = Math.max(60, (c0 - o0) * 60); pay = Math.round(e.wage * O.clamp(0.25 + 0.75 * (D0.present || 0) / len + Math.min(0.15, done * 0.02), 0.25, 1.15)); }
         const purse = bz.def.public ? s.treasury : bz; const paid = Math.min(pay, Math.floor(purse.cash));
         purse.cash -= paid; PS.money += paid; PS.earned = (PS.earned || 0) + paid;
         if (boss) s.relate(boss, { id: 0 }, done >= 3 ? 0.04 : 0.01);
-        if (pay) say(`Your day's pay from ${bz.name}: ₳${paid}${paid < pay ? ` (₳${pay - paid} owing: the purse is empty)` : ''}.`);
+        const bonus = D0.walkedOut ? 0 : e.tasks.filter((x) => x.optional && x.have >= x.need).reduce((n, x) => n + (x.bonus || 0), 0);
+        const b2 = Math.max(0, Math.min(bonus, Math.floor(purse.cash))); if (bonus) e.stats.extras = (e.stats.extras || 0) + e.tasks.filter((x) => x.optional && x.have >= x.need).length; if (b2) { purse.cash -= b2; PS.money += b2; PS.earned = (PS.earned || 0) + b2; }
+        if (pay) say(`Your day's pay from ${bz.name}: ₳${paid}${b2 ? ` and ₳${b2} for the extra` : ''}${paid < pay ? ` (₳${pay - paid} owing: the purse is empty)` : ''}.`);
+        // a word from the master about the day
+        if (boss && !D0.walkedOut) { const late = D0.arrived != null && D0.arrived > hoursOf(e, bz)[0] + 0.25, all = e.tasks.length && e.tasks.every((x) => x.optional || x.have >= x.need); const line = late ? 'Be on time tomorrow.' : all && bonus ? 'Good work today. I saw you take on the extra.' : all ? 'Good work today.' : done < 2 ? "Was that all you did? I pay for work, not company." : null; if (line) setTimeout(() => say(`${boss.first}: "${line}"`, /Was that|on time/.test(line) ? 'bad' : ''), 1200); if (all && bonus) s.relate(boss, { id: 0 }, 0.03); }
       }
       // the sack: lateness and absence against how much they like you and how badly they need you
       const like = boss ? (boss.rel.get(0)?.affinity || 0) : 0, des = s.desperation ? s.desperation(bz) : 0;
@@ -17715,7 +17811,7 @@ O.snowMaskOf = function (src) {
       const bz = s.world.placeId === e.place ? s.biz.get(e.biz) : null, [o, c] = hoursOf(e, bz);
       const head = `<b>${esc(O.roleName(e.role))}</b> · ${esc(e.bizName)}${e.place !== cur().world.placeId ? `, ${esc(e.placeName)}` : ''}`;
       const crown = COURT.has(e.role);
-      const shift = crown ? (e.onShift ? `${e.role === 'monarch' ? 'Your reign' : 'At court'}: the business of the day, till ${fmtH(c)}` : `At court from ${fmtH(o)}`) : e.onShift ? (modeOf(e.role) === 'quota' ? `The day's work: ${e.tasks.filter((t) => t.have >= t.need).length} of ${e.tasks.length} done (go when it's all done)` : `On shift till ${fmtH(c)} (stay the hours; the work changes)`) : e.dayInfo?.dayDone ? `Your day's work is done` : `Next shift: ${nextShift(e, s, bz, o, c)} ${fmtH(o)}-${fmtH(c)}`;
+      const shift = crown ? (e.onShift ? `${e.role === 'monarch' ? 'Your reign' : 'At court'}: the business of the day, till ${fmtH(c)}` : `At court from ${fmtH(o)}`) : e.onShift ? (modeOf(e.role) === 'quota' ? `The day's work: ${e.tasks.filter((t) => !t.optional && t.have >= t.need).length} of ${e.tasks.filter((t) => !t.optional).length} done (go when it's all done)` : `On shift till ${fmtH(c)} (stay the hours; the work changes)`) : e.dayInfo?.dayDone ? `Your day's work is done` : e.dayInfo?.off && e.day === s.day ? 'A day off today, given by your master' : `Next shift: ${nextShift(e, s, bz, o, c)} ${fmtH(o)}-${fmtH(c)}`;
       const tasks = e.onShift ? e.tasks.map((t) => `<li class="${t.have >= t.need ? 'done' : ''}">${t.have >= t.need ? '■' : '□'} ${esc(t.text)}${t.need > 1 ? ` (${Math.min(t.have, t.need)}/${t.need})` : ''}</li>`).join('') : '';
       const carry = PS.carry ? `<div class="carry">Carrying: ${PS.carry.qty} ${esc(D.GOODS[PS.carry.good]?.name.toLowerCase() || PS.carry.good)}</div>` : '';
       const others = posts().filter((x) => x !== e).map((x) => { const xs = O.Travel?.visited.get(x.place)?.sim || cur(), xb = xs.world.placeId === x.place ? xs.biz.get(x.biz) : null, [xo, xc] = hoursOf(x, xb); return `<div class="js">Also: ${esc(x.role)} at ${esc(x.bizName)}, ${fmtH(xo)}-${fmtH(xc)}</div>`; }).join('');
@@ -19023,13 +19119,56 @@ O.snowMaskOf = function (src) {
           const d = Math.hypot(st.x - p.x, st.y - p.y); if (d < 30) return { type: 'custom', label: `Browse ${q.first}'s wares`, act: () => openMerchant(q), d: d - 30, x: st.x, y: st.y - 30 };
         }
         const f = fest(s), h = s.hour, lists = s.world.props.find((x) => x.kind === 'noticeboard') || s.world.props.find((x) => x.kind === 'well');
+        if (f === 'tournament' && listsOn(s) && h >= 10 && h < 15) { const [cx, cy] = O.revelCentre(s), d = Math.hypot((p.x - cx) / 2.2, p.y - cy); if (d < 46) return { type: 'custom', label: 'The tournament lists: bet, or ride', act: () => tournament(s), d: 2, x: cx, y: cy - 50 }; }
         if (lists && Math.hypot(lists.x - p.x, lists.y - p.y) < 34) {
           if (f === 'tournament' && keepOf(s) && h >= 10 && h < 15) return { type: 'custom', label: 'The tournament lists: bet, or ride', act: () => tournament(s), d: 2, x: lists.x, y: lists.y - 34 };
-          if (f === 'fair' && h >= 10 && h < 18) return { type: 'custom', label: 'The archery at the butts (₳2)', act: () => archery(s), d: 2, x: lists.x, y: lists.y - 34 };
+          if (f === 'fair' && h >= 10 && h < 18) return { type: 'custom', label: 'The fair games: archery, wrestling, the judging', act: () => fairGames(s), d: 2, x: lists.x, y: lists.y - 34 };
         }
       }
       return prevStall ? prevStall() : null;
     };
+
+    // ---------------------------------------------------------------- the fair games
+    // the best of the fair: bring something good from your satchel for the judges
+    const SHOW = { bread: 'baking', cake: 'baking', pie: 'baking', meal: 'serving', ale: 'serving', cheese: 'serving', honey: 'farming', wine: 'serving', furniture: 'woodcraft', tools: 'smithing', dagger: 'smithing', sword: 'smithing', cloth: 'weaving', dyedcloth: 'weaving', candles: 'crafting', pottery: 'crafting', medicine: 'physic', fish: 'fishing', wheat: 'farming', cabbage: 'farming', apples: 'farming' };
+    const RIVALS = ['the miller\'s big son', 'a drover from the hills', 'the blacksmith\'s striker', 'a sailor off the coast road', 'the reeve\'s nephew', 'a carter with arms like hams'];
+    function fairGames(s) {
+      const shows = [...new Set(PS.items)].filter((k) => SHOW[k] && G[k]);
+      const did = s._fairDid && s._fairDid.day === s.day ? s._fairDid : (s._fairDid = { day: s.day });
+      O.Panels.open('The fair games', `<p class="speech">Pipes and drums, and a crowd round the roped ring. The reeve has purses for the best of the day.</p><div class="topics">
+        <button data-g="arch" ${s._archeryDay === s.day ? 'disabled' : ''}>The archery at the butts (₳2 to enter, ₳25 purse)</button>
+        <button data-g="wrest" ${did.wrest ? 'disabled' : ''}>Wrestle in the ring (₳1 to enter, ₳12 purse)</button>
+        ${shows.length && !did.show ? `<div class="lbl" style="margin-top:8px">Enter something for the judging (₳15 purse):</div>${shows.map((k) => `<button data-show="${k}"><img src="${O.icon(k)}" alt="" style="width:14px;vertical-align:middle"> ${esc(G[k].name)}</button>`).join('')}` : `<p class="caption">${did.show ? 'You have had your go at the judging.' : 'Bring bread, ale, a good tool or cloth, anything you made or grew, and the judges will try it against the town\'s best.'}</p>`}
+        </div>`, (r) => {
+        r.querySelectorAll('[data-g]').forEach((b) => b.onclick = () => { if (b.dataset.g === 'arch') archery(s); else wrestle(s, did); });
+        r.querySelectorAll('[data-show]').forEach((b) => b.onclick = () => judging(s, did, b.dataset.show));
+      });
+    }
+    function wrestle(s, did) {
+      if (PS.money < 1) return say('The fee is ₳1.', 'bad');
+      if (PS.hp < 30) return say("You're in no state to wrestle.", 'bad');
+      PS.money -= 1; did.wrest = true;
+      const foe = RIVALS[Math.floor(Math.random() * RIVALS.length)], sk = Math.max(PS.skills.fighting || 0, PS.skills.combat || 0);
+      const lines = []; let me = 0, him = 0;
+      for (let rd = 1; rd <= 3 && me < 2 && him < 2; rd++) {
+        const a = Math.random() * 0.8 + sk * 0.5 + (PS.hp / 100) * 0.2, b = Math.random() * 0.8 + 0.25;
+        if (a > b) { me++; lines.push(`Fall ${rd}: ${['you get under his guard and throw him on his back', 'you hook his leg and down he goes', 'you twist out of his grip and pin him'][rd - 1]}.`); }
+        else { him++; lines.push(`Fall ${rd}: ${['he lifts you clean off your feet and drops you', 'he bears you down by sheer weight', 'he catches your arm and over you go'][rd - 1]}.`); }
+      }
+      const won = me > him; PS.hp = Math.max(5, PS.hp - (won ? 4 : 10)); PS.skills.fighting = Math.min(1, (PS.skills.fighting || 0) + 0.03);
+      if (won) { PS.money += 12; PS.rep.local = Math.min(1, (PS.rep.local || 0) + 0.06); s.log(`The stranger won the wrestling at the harvest fair, throwing ${foe}.`, 'event'); }
+      O.Panels.open('The wrestling ring', `<p>You roll up your sleeves and step into the ring with ${esc(foe)}. Best of three falls.</p><p>${lines.join('<br>')}</p><p class="speech">${won ? 'The ring roars. The reeve slaps the purse of ₳12 into your hand.' : 'You pick yourself up out of the sawdust. He offers you a hand, and the crowd claps you out.'}</p>`);
+    }
+    function judging(s, did, k) {
+      if (!PS.items.includes(k)) return;
+      did.show = true; const sk = PS.skills[SHOW[k]] || 0.1;
+      const mine = Math.round((3 + Math.random() * 5 + sk * 6) * 10) / 10, best = Math.round((5 + Math.random() * 4) * 10) / 10;
+      const won = mine > best, place = won ? 'first' : mine > best - 1.5 ? 'second' : null;
+      if (won) { PS.money += 15; PS.rep.local = Math.min(1, (PS.rep.local || 0) + 0.05); PS.rep.merchant = Math.min(1, (PS.rep.merchant || 0) + 0.04); s.log(`The stranger's ${G[k].name.toLowerCase()} took first prize at the harvest fair.`, 'event'); }
+      else if (place) { PS.money += 4; PS.rep.local = Math.min(1, (PS.rep.local || 0) + 0.02); }
+      const say1 = { bread: 'break the loaf and chew', cake: 'cut the cake and taste', pie: 'cut the pie and taste', ale: 'sip the ale and swill it round', wine: 'sip the wine', cheese: 'pare a slice of the cheese', meal: 'taste the dish' }[k] || `turn the ${G[k].name.toLowerCase()} over in their hands`;
+      O.Panels.open('The judging', `<p class="speech">Three judges, the reeve among them, ${say1}, and confer.</p><p>Your ${esc(G[k].name.toLowerCase())}: <b>${mine}</b> of ten. The best of the others: <b>${best}</b>.</p><p class="speech">${won ? 'First prize! A purse of ₳15, and the reeve pins a ribbon on you.' : place ? 'Second prize, and ₳4 for it. "Very creditable," says the reeve.' : 'No prize this year. "Try us again next harvest."'}</p>`);
+    }
 
     // ---------------------------------------------------------------- the archery at the harvest fair
     function archery(s) {
@@ -19094,6 +19233,58 @@ O.snowMaskOf = function (src) {
       });
     }
 
+    // ---------------------------------------------------------------- the lists, with knights tilting at each other
+    // a barrier down the square, a striped pavilion at each end, and two knights who charge, lances down,
+    // break on each other's shields (or one goes over his horse's tail), ride on, turn and go again
+    const listsOn = (s) => fest(s) === 'tournament' && keepOf(s) && s.hour >= 9.5 && s.hour < 15.5 && !game.scene && game.world === s.world && O.revelCentre;
+    const HALF = 72;
+    const rider = (k) => ({ x: 0, y: 0, dir: 3, anim: 'idle', ft: 0, tourney: true, a: Ch.makeAppearance(O.hash('tilt', k), { role: 'guard', sex: 'm', age: 30 + k * 5, wealth: 0.9 }), mount: { id: 'tilt' + k, coat: k ? 'black' : 'grey', saddled: true, anim: 'idle', ft: 0, seed: 7 + k * 5 } });
+    const KN = [rider(0), rider(1)];
+    let fallen = null, flash = 0, lastCycle = -1;
+    const BARRIER = { tourney: true, x: 0, y: 0, ft: 0, paint: (ctx, cam) => {
+      const s = cur(), [cx, cy] = O.revelCentre(s), x0 = Math.round(cx - HALF - cam.x), y = Math.round(cy - cam.y);
+      for (let x = 0; x <= HALF * 2; x++) { ctx.fillStyle = ((x >> 3) & 1) ? '#e8e0d0' : '#a8382f'; ctx.fillRect(x0 + x, y - 9, 1, 3); ctx.fillStyle = '#3a2614'; ctx.fillRect(x0 + x, y - 6, 1, 1); }
+      ctx.fillStyle = '#4a3020'; for (let x = 0; x <= HALF * 2; x += 18) ctx.fillRect(x0 + x, y - 9, 2, 10);
+      if (flash > 0) { ctx.fillStyle = `rgba(255,240,200,${Math.min(1, flash * 3).toFixed(2)})`; const fx = Math.round(cx - cam.x); for (let i = 0; i < 8; i++) ctx.fillRect(fx + Math.round(Math.cos(i) * (6 + i)), y - 26 + Math.round(Math.sin(i * 1.7) * 6), 2, 2); }
+    } };
+    const PAV = (side) => ({ tourney: true, x: 0, y: 0, ft: 0, paint: (ctx, cam) => {
+      const s = cur(), [cx, cy] = O.revelCentre(s), x = Math.round(cx + side * (HALF + 26) - cam.x), y = Math.round(cy - 4 - cam.y), col = side < 0 ? '#3f5f8e' : '#a8382f';
+      ctx.fillStyle = 'rgba(28,20,44,0.3)'; ctx.fillRect(x - 13, y, 27, 3);
+      for (let i = 0; i < 26; i++) { const h = 20 - Math.abs(i - 13) * 0.5; ctx.fillStyle = ((i >> 2) & 1) ? '#ece4d0' : col; ctx.fillRect(x - 13 + i, Math.round(y - h), 1, Math.round(h)); }
+      ctx.fillStyle = col; for (let i = 0; i < 14; i++) ctx.fillRect(x - 7 + i, y - 20 - Math.round(Math.max(0, 7 - Math.abs(i - 7))), 1, Math.round(Math.max(0, 7 - Math.abs(i - 7))) + 1);
+      ctx.fillStyle = '#3a2614'; ctx.fillRect(x, y - 34, 1, 8); ctx.fillStyle = col; ctx.fillRect(x + 1, y - 34, 6, 3);
+      ctx.fillStyle = '#2a1d14'; ctx.fillRect(x - 3, y - 10, 6, 10);
+    } });
+    const PAVS = [PAV(-1), PAV(1)];
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || !s.world || !listsOn(s)) return;
+      const [cx, cy] = O.revelCentre(s), T0 = 12, t = game.t % T0, cyc = Math.floor(game.t / T0);
+      if (cyc !== lastCycle) { lastCycle = cyc; fallen = null; }
+      flash = Math.max(0, flash - dt);
+      // 0-2.5 waiting at the ends; 2.5-6.5 the charge; then walk back round
+      const run = O.clamp((t - 2.5) / 4, 0, 1), dirOut = cyc % 2 ? -1 : 1;
+      KN.forEach((k, i) => {
+        const side = i ? 1 : -1, from = cx + side * dirOut * (HALF + 4), to = cx - side * dirOut * (HALF + 4);
+        k.y = cy + (i ? 12 : -14);
+        if (t < 2.5) { k.x = from; k.dir = from < to ? 1 : 2; k.mount.anim = 'idle'; }
+        else if (t < 6.5) { k.x = from + (to - from) * run; k.dir = from < to ? 1 : 2; k.mount.anim = 'gallop'; }
+        else { k.x = to; k.dir = from < to ? 2 : 1; k.mount.anim = 'idle'; }
+        k.mount.ft += dt; k.ft += dt;
+      });
+      if (t >= 4.5 && !fallen && lastCycle === cyc) {
+        const r = O.hash('clash', s.day, cyc) % 10; fallen = r < 3 ? KN[r % 2] : 'none'; flash = 0.4;
+        if (Math.hypot(game.player.x - cx, game.player.y - cy) < 220) { O.Audio && O.Audio.play && O.Audio.play('hit'); }
+      }
+      const out = [BARRIER, ...PAVS, ...KN.filter((k) => k !== fallen || t < 4.6)];
+      if (fallen && fallen !== 'none' && t >= 4.6) { const f = fallen; out.push({ tourney: true, x: f.x, y: f.y + 1, ft: 0, paint: (ctx, cam) => { const fr = O.Char.frame(f.a, 0, 'lie', 0); ctx.drawImage(fr, Math.round(f.x - 16 - cam.x), Math.round(f.y - O.Char.GROUND - cam.y)); } }, { tourney: true, x: f.x + (f.dir === 1 ? 30 : -30), y: f.y, dir: f.dir, ft: 0, anim: 'idle', horse: true, paint: (ctx, cam) => { const H = f.mount, hf = O.Animals.horse(H, f.dir, 'walk', Math.floor(game.t * 6) % 4); ctx.drawImage(hf, Math.round(f.x + (f.dir === 1 ? 40 : -40) - hf.ox - cam.x), Math.round(f.y - hf.gy - cam.y)); } }); }
+      BARRIER.x = cx; BARRIER.y = cy - 2; PAVS[0].x = cx - HALF - 26; PAVS[0].y = cy - 4; PAVS[1].x = cx + HALF + 26; PAVS[1].y = cy - 4;
+      game.actors.push(...out);
+      // the crowd stands back from the lists
+      const L = cx - HALF - 40, R = cx + HALF + 40, Tp = cy - 26, B = cy + 22;
+      for (const q of s.people) { const a = q.agent; if (!a || a.hidden || a.inside != null) continue; if (a.x > L && a.x < R && a.y > Tp && a.y < B) { a.y = a.y < cy ? Tp - 1 : B + 1; } }
+      const p = game.player; if (p.x > L && p.x < R && p.y > Tp && p.y < B && !p.mount) p.y = p.y < cy ? Tp - 1 : B + 1;
+    });
+
     // ---------------------------------------------------------------- the midwinter feast: a seat at the table
     let fedAt = -1;
     game.hooks.update.push(() => {
@@ -19112,7 +19303,7 @@ O.snowMaskOf = function (src) {
       const f = fest(s), key = s.day + ':' + (f || '') + ':' + (s.weekday === 6);
       if (key === told || s.hour < 7) return; told = key;
       if (f === 'tournament' && keepOf(s)) say(`It's ${NAMES[f]} in ${s.world.name}! Knights ride at the lists in the square from ten. Bet at the lists, or ride if you have a horse.`);
-      else if (f === 'fair') say(`It's ${NAMES[f]}! The square is full of stalls and music, and there's archery at the butts with a purse for the best shot.`);
+      else if (f === 'fair') say(`It's ${NAMES[f]}! The square is full of stalls and music. By the noticeboard: archery at the butts, wrestling in the ring, and the judging of the best bread, ale and wares, each with a purse.`);
       else if (f === 'midwinter') say(`It's ${NAMES[f]}. Tonight the castle and the gentry feast, and the town drinks at the tavern on the lord's coin.`);
       else if (s.weekday === 6 && !s.quarantine) say('Sunday market: travelling merchants set up in the square until two.');
     });
@@ -19330,7 +19521,7 @@ O.snowMaskOf = function (src) {
     }
     function take(s, o) {
       PS.contract = Object.assign({ place: s.world.placeId, until: now(s) + 1440 * 2 }, o);
-      if (o.kind === 'thief') { O.addLead({ place: s.world.placeId, id: o.target, until: PS.contract.until, why: 'contract', label: 'The bounty' }); say('You take the bounty. The arrow will lead you to them; talk to them to take them in.'); }
+      if (o.kind === 'thief') { O.addLead({ place: s.world.placeId, id: o.target, until: PS.contract.until, why: 'contract', label: 'The bounty' }); say('You take the bounty. The marker will show you where they are; talk to them to take them in.'); }
       if (o.kind === 'camp') { O.addLead({ place: s.world.placeId, b: o.target, until: PS.contract.until, why: 'contract', label: 'The bandit camp' }); } if (o.kind === 'camp') say(`You take the contract. ${s.building(o.target).name} lies outside town: go there and press E at its door.`);
       if (o.kind === 'escort') {
         const r = O.RNG(O.hash('esc', s.day)), sex = r.chance(0.7) ? 'm' : 'f', D = O.Data, Ch = O.Char;
@@ -19636,6 +19827,18 @@ O.snowMaskOf = function (src) {
       open();
     }
     O.askRaise = askRaise;
+    // a day off: asked for the next day, so they can find someone to cover. Easier on a holiday.
+    function askOff(e) {
+      const s = simOf(e), boss = e.master != null && s.byId.get(e.master), aff = boss ? (boss.rel.get(0)?.affinity || 0) : 0, st = e.stats || {}, nm = boss ? boss.first : 'Your master';
+      if (e.dayOff === s.day + 1) return say('You have tomorrow off already.');
+      if ((e.offAsked || -9) > s.day - 5) return say(`${nm} sends back: "You had a day off only lately."`, 'bad');
+      const fest = O.eventsFor ? O.eventsFor(s, s.day + 1, s.day + 1).some((x) => !x.small && !x.council) : false;
+      const p = 0.45 + aff * 0.6 + (fest ? 0.25 : 0) - ((st.shifts || 0) < 3 ? 0.3 : 0) - (st.missed || 0) * 0.08;
+      e.offAsked = s.day;
+      if (Math.random() < p) { e.dayOff = s.day + 1; say(`${nm} agrees: "Take tomorrow, then.${fest ? ' Enjoy the holiday.' : ''} Be back the day after."`); }
+      else { if (boss) s.relate(boss, { id: 0 }, -0.02); say(`${nm} shakes ${boss && boss.sex === 'f' ? 'her' : 'his'} head. "${(st.shifts || 0) < 3 ? 'You\'ve hardly started.' : 'I need you tomorrow.'}"`, 'bad'); }
+      open();
+    }
     const TABS = [['crown', 'The Crown'], ['work', 'Your work'], ['own', 'Your businesses'], ['home', 'Your home'], ['war', 'War'], ['ways', 'Ways up']];
     const ROYAL = ['monarch', 'consort', 'heir', 'prince', 'princess'];
     // how you leave a post depends on what it is
@@ -19665,8 +19868,9 @@ O.snowMaskOf = function (src) {
         const mode = royal ? `Your days at court run from ${hh(o)} to ${hh(c)}.` : how.mode === 'quota' ? `A day's work: do each task below and your day is done, whenever that is. Hours ${hh(o)} to ${hh(c)}.` : `A shift from ${hh(o)} to ${hh(c)}: stay the hours, and new work comes along through the day.`;
         const list = e.onShift && how.tasks.length ? `<h4>Today's tasks</h4><ul class="chron">${how.tasks.map((t) => `<li>${t.done ? '☑' : '☐'} <b>${esc(t.text)}</b>${t.need > 1 ? ` (${t.have}/${t.need})` : ''}${t.done ? '' : `<br><small class="lbl">${esc(t.how)}</small>`}</li>`).join('')}</ul>` : `<p class="caption">${e.dayInfo?.dayDone ? 'Your work is done for today.' : 'Your tasks are set when your shift begins.'}</p>`;
         const [lk, ll] = leaveOf(e);
-        secs.work.push(`<h3>${esc(O.roleName ? O.roleName(e.role) : e.role)} <small class="lbl">${royal ? esc(e.placeName) : `at ${esc(e.bizName)}, ${esc(e.placeName)}`}</small></h3>${how.summary ? `<p>${esc(how.summary)}</p>` : ''}<p class="caption">${mode}</p><div class="kv"><div><span class="lbl">${royal ? 'From the treasury' : 'Wage'}</span><b>₳${e.wage}</b><small>a day</small></div><div><span class="lbl">Days worked</span><b>${st.shifts || 0}</b><small>${st.late || 0} late, ${st.missed || 0} missed, ${st.tasks || 0} tasks done</small></div>${royal ? '' : `<div><span class="lbl">Your master</span><b>${esc(boss ? boss.name : e.masterName || 'the crown')}</b><small>${boss ? (like > 0.3 ? 'thinks well of you' : like < -0.2 ? 'is not pleased with you' : 'has no strong view of you') : ''}</small></div><div><span class="lbl">Fellow workers</span><b>${mates.length}</b><small>${mates.map((q) => esc(q.first + ' (' + q.job.role + ')')).join(', ') || 'none'}</small></div>`}</div>${list}
-          <div class="topics">${boss && !(O.COURT && O.COURT.has(e.role)) ? `<button data-raise="${i}" data-how="${PS.items.includes('letter') ? 'letter' : 'word'}">${PS.items.includes('letter') ? 'Ask for a raise by letter' : 'Ask for a raise (send word)'}</button>` : ''}<button data-leave="${i}:${lk}">${ll}</button></div>`);
+        secs.work.push(`<h3>${esc(O.roleName ? O.roleName(e.role) : e.role)} <small class="lbl">${royal ? esc(e.placeName) : `at ${esc(e.bizName)}, ${esc(e.placeName)}`}</small></h3>${how.summary ? `<p>${esc(how.summary)}</p>` : ''}<p class="caption">${mode}</p><div class="kv"><div><span class="lbl">${royal ? 'From the treasury' : 'Wage'}</span><b>₳${e.wage}</b><small>a day</small></div>${(() => { const sk = !royal && bz && O.tradeOf ? O.tradeOf(e, bz) : null; if (!sk) return ''; const v = PS.skills[sk] || 0; return `<div><span class="lbl">Your skill (${esc(sk)})</span><b>${Math.round(v * 100)}%</b><small>${v < 0.25 ? 'a beginner' : v < 0.5 ? 'getting the hang of it' : v < 0.75 ? 'as handy as most' : 'better than most'}; every task done teaches you</small></div>`; })()}<div><span class="lbl">Days worked</span><b>${st.shifts || 0}</b><small>${st.late || 0} late, ${st.missed || 0} missed, ${st.tasks || 0} tasks done</small></div>${royal ? '' : `<div><span class="lbl">Your master</span><b>${esc(boss ? boss.name : e.masterName || 'the crown')}</b><small>${boss ? (like > 0.3 ? 'thinks well of you' : like < -0.2 ? 'is not pleased with you' : 'has no strong view of you') : ''}</small></div><div><span class="lbl">Fellow workers</span><b>${mates.length}</b><small>${mates.map((q) => esc(q.first + ' (' + q.job.role + ')')).join(', ') || 'none'}</small></div>`}</div>${list}
+${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles.indexOf(e.role), up = ix > 0 && bz.def.wage[roles[ix - 1]] !== 0 && !(O.Careers && O.Careers.PRESTIGE.has(roles[ix - 1])) ? roles[ix - 1] : null, sh = st.shifts || 0, avg = sh ? (st.tasks || 0) / sh : 0, left = 6 - (sh % 6); const need = []; if (avg < 3) need.push(`more done each day (you average ${avg.toFixed(1)} tasks; 3 is wanted)`); if (like <= 0.2) need.push(`your master's good opinion`); if (!bz.def.public && bz.cash <= 120) need.push('a business with money to spare'); return `<h4>Getting on</h4><p class="caption">Every sixth day worked, ${esc(boss ? boss.first : 'your master')} weighs you up for ${up ? `a step up to <b>${esc(up)}</b>` : 'a rise in pay'}. Next in ${left} day${left === 1 ? '' : 's'} worked. ${need.length ? 'You need ' + need.join(', and ') + '.' : 'As things stand, you should get it.'}${st.extras ? ` Extra work taken on: ${st.extras}.` : ''}</p>`; })() : ''}
+          <div class="topics">${boss && !(O.COURT && O.COURT.has(e.role)) ? `<button data-off="${i}">${e.dayOff === es.day + 1 ? 'Tomorrow off: granted' : 'Ask for tomorrow off'}</button>` : ''}${boss && !(O.COURT && O.COURT.has(e.role)) ? `<button data-raise="${i}" data-how="${PS.items.includes('letter') ? 'letter' : 'word'}">${PS.items.includes('letter') ? 'Ask for a raise by letter' : 'Ask for a raise (send word)'}</button>` : ''}<button data-leave="${i}:${lk}">${ll}</button></div>`);
       });
       // your home, and a party in it
       const home = myHome(s);
@@ -19688,6 +19892,7 @@ O.snowMaskOf = function (src) {
         O.bindWarTab && O.bindWarTab(r, open);
         r.querySelectorAll('[data-crown]').forEach((b) => b.onclick = () => O.openCrown(b.dataset.crown));
         r.querySelectorAll('[data-run]').forEach((b) => b.onclick = () => { const [pl, id] = b.dataset.run.split(':'); const v = O.Travel.visited.get(pl); const bb = v && v.world.buildings.find((x) => x.id === +id); if (bb && pl === s.world.placeId) O.runBusiness(bb); else say('You can only manage it from where it is.', 'bad'); });
+        r.querySelectorAll('[data-off]').forEach((b) => b.onclick = () => askOff(posts[+b.dataset.off]));
         r.querySelectorAll('[data-raise]').forEach((b) => b.onclick = () => { const e = posts[+b.dataset.raise]; if (b.dataset.how === 'letter') PS.remove('letter'); askRaise(e, b.dataset.how === 'letter' ? 'letter' : 'word'); });
         const pb = r.querySelector('[data-party]'); if (pb) pb.onclick = () => {
           const ids = [...r.querySelectorAll('[data-inv]')].filter((x) => x.checked).map((x) => +x.dataset.inv); if (!ids.length) return say('Invite someone first.', 'bad');
@@ -21030,8 +21235,8 @@ O.snowMaskOf = function (src) {
     const SD = () => O.SEASON_DAYS || 14, SEAS = () => O.SEASONS || ['spring', 'summer', 'autumn', 'winter'];
     const seasonOf = (day) => SEAS()[Math.floor((day - 1) / SD() + 1) % 4], dos = (day) => ((day - 1) % SD()) + 1;
     O.dateOf = (day) => `${(O.DAYNAMES || [])[(day - 1) % 7] || 'Day'}, ${seasonOf(day).charAt(0).toUpperCase() + seasonOf(day).slice(1)} ${dos(day)}`;
-    const hh = (h) => { const H = Math.floor(h), M = Math.round((h - H) * 60); return `${((H + 11) % 12) + 1}${M ? ':' + String(M).padStart(2, '0') : ''}${H < 12 ? 'am' : 'pm'}`; };
-    O.hourStr = hh;
+    const hh = (h) => { const H = Math.floor(h) % 24, M = Math.round((h - Math.floor(h)) * 60); return `${((H + 11) % 12) + 1}${M ? ':' + String(M).padStart(2, '0') : ''}${H < 12 ? 'am' : 'pm'}`; };
+    O.hourStr = hh; O.seasonOfDay = seasonOf; O.dosOfDay = dos;
     const capital = () => K().places.find((x) => x.kind === 'capital');
 
     // ---------------------------------------------------------------- gatherings the townsfolk hold
@@ -21046,10 +21251,11 @@ O.snowMaskOf = function (src) {
     // every town keeps the feast of its chapel's saint, once a year
     const saintOf = (s) => { const ch = s.chapelId != null && s.building(s.chapelId); const m = ch && /St\.? ([A-Z][a-z]+)/.exec(ch.name || ''); return m ? m[1] : null; };
     const yearLen = () => SD() * 4;
-    const saintDay = (s) => { const nm = saintOf(s); if (!nm) return null; return (O.hash('saint', s.world.placeId || s.world.name) % yearLen()) + 1; };
+    const bigFixed = (day) => { const d = dos(day), se = seasonOf(day); return (se === 'autumn' && d === 10) || (se === 'winter' && d === 7) || (se === 'spring' && d === 12) || !!(O.Revels && O.Revels.on(null, day)); };
+    const saintDay = (s) => { const nm = saintOf(s); if (!nm) return null; let d = (O.hash('saint', s.world.placeId || s.world.name) % yearLen()) + 1; for (let k = 0; k < 4 && bigFixed(d); k++) d = (d % yearLen()) + 1; return d; }; // (never on another high day)
     const isSaintDay = (s, day) => { const d = saintDay(s); return d != null && ((day - 1) % yearLen()) + 1 === d; };
     O.saintDay = (s) => ({ saint: saintOf(s), day: saintDay(s) });
-    const festOn = (s, day) => { if (isSaintDay(s, day)) return true; const d = dos(day), se = seasonOf(day); return (se === 'autumn' && d === 10) || (se === 'winter' && d === 7) || (se === 'spring' && d === 12) || (s.hosted && s.hosted.day === day); };
+    const festOn = (s, day) => { if (isSaintDay(s, day) || (O.Revels && O.Revels.on(s, day))) return true; const d = dos(day), se = seasonOf(day); return (se === 'autumn' && d === 10) || (se === 'winter' && d === 7) || (se === 'spring' && d === 12) || (s.hosted && s.hosted.day === day); };
     // does a big gathering already fill this time in this town?
     O.eventClash = (s, day, from, to, except) => {
       for (const e of O.eventsFor(s, day, day)) { if (e === except || e.small || e.ref === except) continue; if (e.from < to && from < e.to) return e; }
@@ -21149,7 +21355,7 @@ O.snowMaskOf = function (src) {
       const here = s.world.placeId;
       for (let d = d0; d <= d1; d++) {
         const se = seasonOf(d), dd = dos(d);
-        if (se === 'autumn' && dd === 10) add({ day: d, from: 10, to: 15, title: 'The harvest fair in the square', where: 'the square', square: true });
+        if (se === 'autumn' && dd === 10) add({ day: d, from: 10, to: 21.5, title: 'The harvest fair in the square', where: 'the square', square: true });
         if (se === 'winter' && dd === 7) add({ day: d, from: 18, to: 23, title: 'The midwinter feast', where: s.world.buildings.some((b) => b.royal) ? 'the great hall' : 'the tavern', b: s.world.buildings.find((b) => b.royal)?.id ?? s.tavernId });
         if (se === 'spring' && dd === 12 && s.world.buildings.some((b) => b.royal || b.type === 'keep')) add({ day: d, from: 10, to: 15, title: 'The spring tournament', where: 'the lists by the castle', square: true });
         if ((d - 1) % 7 === 6) add({ day: d, from: 7, to: 14, title: 'Sunday market', where: 'the square', square: true, small: true });
@@ -21187,6 +21393,271 @@ O.snowMaskOf = function (src) {
 
 </script>
 <script>
+// Two more high days for the year, so every season has one:
+//   May Day (spring, day 1): a maypole goes up in the square, ribbons and all. From ten the young folk dance
+//     round it, winding the ribbons, while the town watches; at noon a Queen of the May is crowned with a
+//     garland. You can join the dance, and if you're a young woman well liked in the town, the garland may
+//     be yours.
+//   Midsummer Eve (summer, day 8): a great bonfire in the square from dusk till midnight. The town gathers
+//     round it to drink and sing, and the bold leap the flames for luck in the year to come.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k), SP = O.Sim.prototype;
+    const kindOn = (se, d) => (se === 'spring' && d === 1 ? 'mayday' : se === 'summer' && d === 8 ? 'midsummer' : null);
+    const today = (s) => (s && s.weather && !s.quarantine ? kindOn(s.season, s.weather.dayOfSeason) : null);
+    const HOURS = { mayday: [10, 17], midsummer: [20, 24] };
+    const live = (s) => { const k = today(s); if (!k) return null; const [a, b] = HOURS[k]; return s.hour >= a && s.hour < b ? k : null; };
+    O.Revels = { today, live, on: (s, day) => !!kindOn(O.seasonOfDay ? O.seasonOfDay(day) : '', O.dosOfDay ? O.dosOfDay(day) : 0) };
+    const meSex = () => O.Forge.player?.sex || O.Forge.player?.a?.sex || 'm';
+
+    // ---------------------------------------------------------------- where: a clear patch of the square
+    function spot(s) {
+      if (s._revelSpot) return s._revelSpot;
+      const [x0, y0, x1, y1] = s.Z.square, w = s.world, free = (x, y) => x >= 0 && y >= 0 && x < w.W && y < w.H && w.solid[y * w.W + x] !== 1 && w.ter[y * w.W + x] !== w.TER.WATER;
+      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2; let best = [Math.round(cx), Math.round(cy)], bs = -1e9;
+      for (let y = y0 + 1; y <= y1; y++) for (let x = x0 + 1; x <= x1 - 1; x++) {
+        let room = 0; for (let yy = y - 2; yy <= y + 2; yy++) for (let xx = x - 3; xx <= x + 3; xx++) if (free(xx, yy)) room++;
+        if (!free(x, y)) continue;
+        const sc = room * 2 - Math.hypot(x - cx, y - cy); if (sc > bs) { bs = sc; best = [x, y]; }
+      }
+      // keep clear of the scaffold if there's one up
+      return (s._revelSpot = best);
+    }
+    const centre = (s) => { const [x, y] = spot(s); return [x * T + 8, y * T + 8]; };
+    O.revelCentre = centre;
+    const freeTile = (s, x, y) => { const w = s.world; return x >= 0 && y >= 0 && x < w.W && y < w.H && w.solid[y * w.W + x] !== 1; };
+
+    // ---------------------------------------------------------------- who goes, and where they stand
+    const dancer = (s, p) => p.age >= 8 && p.age <= 34 && (p.id % 3 === 0 || (p.age < 14 && p.id % 2 === 0));
+    const _plan = SP.plan;
+    SP.plan = function (p) {
+      const pl = _plan.call(this, p);
+      if (!pl || p.task || p.visitor || p.age < 5 || ['sleep', 'sick', 'jailed', 'collapsed', 'court', 'condemned', 'headsman', 'labour'].includes(pl.act) || p.health?.illness) return pl;
+      const k = live(this); if (!k) return pl;
+      if (pl.act === 'work' && !(k === 'midsummer' && this.hour >= 21)) return pl;
+      if (k === 'mayday') {
+        if (dancer(this, p) && (this.hour < 12 || this.hour >= 12.6)) return { act: 'maydance', outdoor: true, zone: 'revel' };
+        if ((p.id + Math.floor(this.hour)) % 3 < 2) return { act: 'festival', outdoor: true, zone: 'revel' };
+      } else if (k === 'midsummer' && p.age >= 10 && (p.id + Math.floor(this.hour)) % 3 === 0) return { act: 'bonfire', outdoor: true, zone: 'revel' };
+      return pl;
+    };
+    const _zone = SP.zoneTile;
+    SP.zoneTile = function (p, zone) {
+      if (zone !== 'revel') return _zone.call(this, p, zone);
+      const [cx, cy] = spot(this), act = p.activity?.act || '';
+      const ring = act === 'maydance' ? 2 : act === 'bonfire' ? 3 + (p.id % 3) : 4 + (p.id % 2);
+      for (let k = 0; k < 8; k++) {
+        const ang = ((p.id * 2.39996) + k * 0.8) % (Math.PI * 2), x = Math.round(cx + Math.cos(ang) * ring), y = Math.round(cy + Math.sin(ang) * ring * 0.7);
+        if (freeTile(this, x, y) && !(x === cx && y === cy)) return [x, y];
+      }
+      return _zone.call(this, p, 'square');
+    };
+    const _idle = SP.idleAnim;
+    SP.idleAnim = function (p) {
+      const act = p.activity?.act;
+      if (act === 'bonfire') { const k = (p.id + Math.floor(this.minute / 5)) % 5; return k === 0 ? 'celebrate' : k === 1 ? 'drink' : k === 2 ? 'talk' : 'idle'; }
+      if (act === 'festival' && live(this) === 'mayday') { const k = (p.id + Math.floor(this.minute / 4)) % 4; return k === 0 ? 'celebrate' : k === 1 ? 'talk' : 'idle'; }
+      return _idle.call(this, p);
+    };
+
+    // ---------------------------------------------------------------- the dance: round and round the pole
+    const RX = 30, RY = 19;
+    let danceT = 0, me = null; // you, dancing
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || !s.people || game.scene) return;
+      const k = live(s), [cx, cy] = centre(s), turn = game.t * 0.55;
+      const ring = [];
+      for (const q of s.people) {
+        const a = q.agent; if (!a) continue;
+        const dancing = k === 'mayday' && q.activity?.act === 'maydance' && a.inside == null && !a.hidden && (a._dance || Math.hypot(a.x - cx, a.y - cy) < 48);
+        if (dancing) ring.push(q);
+        else if (a._dance) { a._dance = false; a.frozen = false; a.forceAnim = null; }
+      }
+      const n = ring.length + (me ? 1 : 0); let i = 0;
+      ring.sort((a, b) => a.id - b.id);
+      for (const q of ring) {
+        const a = q.agent, ang = turn + (i++ / n) * Math.PI * 2, tx = cx + Math.cos(ang) * RX, ty = cy + Math.sin(ang) * RY;
+        if (!a._dance) { a._dance = true; a.path = null; }
+        const dx = tx - a.x, dy = ty - a.y, d = Math.hypot(dx, dy); a.frozen = true; a.forceAnim = 'walk';
+        if (d > 1.5) { const sp = Math.min(d, 60 * dt); a.x += dx / d * sp; a.y += dy / d * sp; } else { a.x = tx; a.y = ty; }
+        a.dir = O.dirOf(-Math.sin(ang) * RX, Math.cos(ang) * RY); a.anim = 'walk'; a.ft += dt;
+      }
+      if (me) {
+        const p = game.player, ang = turn + (i / n) * Math.PI * 2;
+        p.x = cx + Math.cos(ang) * RX; p.y = cy + Math.sin(ang) * RY; p.dir = O.dirOf(-Math.sin(ang) * RX, Math.cos(ang) * RY); p.anim = 'walk'; p.locked = true;
+        danceT -= dt; if (danceT <= 0 || k !== 'mayday') endDance(s, ring);
+      }
+    });
+    function endDance(s, ring) {
+      me = null; game.player.locked = false; game.player.anim = 'idle';
+      game.player.y = centre(s)[1] + RY + 10;
+      if (s._dancedDay === s.day) return say('Round and round once more, till you\'re dizzy and laughing.');
+      s._dancedDay = s.day; PS.rep.local = Math.min(1, (PS.rep.local || 0) + 0.04);
+      for (const q of ring) s.relate(q, { id: 0 }, 0.05);
+      say(`You dance the ribbons round the maypole with ${ring.length ? ring.length + ' others' : 'the young folk'}, under and over, till the pole is wound in colours. The town cheers.`);
+    }
+    function dance() {
+      const s = cur(); me = { s }; danceT = 9;
+      say('You take a ribbon and join the ring.');
+    }
+
+    // ---------------------------------------------------------------- the Queen of the May
+    const crowned = (s) => s.mayQueen && s.mayQueen.day === s.day ? s.mayQueen : null;
+    const _look = SP.refreshLook;
+    SP.refreshLook = function (p) { _look.call(this, p); const mq = crowned(this); if (mq && mq.id === p.id && p.app) p.app.jewels = [...(p.app.jewels || []).filter((j) => j !== 'circlet'), 'garland']; };
+    game.hooks.update.push(() => {
+      const s = cur(); if (!s || !s.people || today(s) !== 'mayday' || s.hour < 12 || s.hour >= 17 || (s.mayQueen && s.mayQueen.day === s.day)) return;
+      const [cx, cy] = centre(s), p = game.player;
+      const near = !game.scene && game.world === s.world && Math.hypot(p.x - cx, p.y - cy) < 200;
+      const age = O.Forge.player?.age || 25;
+      if (near && meSex() === 'f' && age <= 26 && (PS.rep.local || 0) >= 0.08 && !PS.wantedLevel?.()) {
+        s.mayQueen = { day: s.day, id: 0 }; PS.garland = s.day; PS.rep.local = Math.min(1, PS.rep.local + 0.1);
+        s.log(`The stranger was crowned Queen of the May in ${s.world.name}.`, 'festival');
+        return O.UI.dialog.open({ name: 'Queen of the May', color: '#4a7a34', text: 'The girls come for you with a garland of hawthorn and cowslips. "The Queen of the May!" They set it on your head and lead you round the pole, and the whole square cheers.', options: [{ key: 'ok', label: 'Wave to the crowd' }], onPick: () => O.UI.dialog.close() });
+      }
+      const girls = s.people.filter((q) => q.alive !== false && q.sex === 'f' && q.age >= 14 && q.age <= 21 && !q.spouse && !q.visitor && q.agent && !q.health?.illness);
+      if (!girls.length) { s.mayQueen = { day: s.day, id: null }; return; }
+      const q = girls.sort((a, b) => ((a.id * 7919 + s.day) % 97) - ((b.id * 7919 + s.day) % 97))[0];
+      s.mayQueen = { day: s.day, id: q.id };
+      if (q.app) { q.app.jewels = [...(q.app.jewels || []).filter((j) => j !== 'circlet'), 'garland']; O.Char.invalidate(q.app); }
+      s.remember(q, 'Was crowned Queen of the May.', 'life', 2);
+      s.log(`${q.first} ${q.sur || ''} was crowned Queen of the May.`.replace('  ', ' '), 'festival');
+      if (near) say(`A cheer goes up: ${q.first} ${q.sur || ''} is crowned Queen of the May, with a garland of hawthorn and cowslips.`.replace('  ', ' '));
+    });
+    // the garland comes off the day after
+    game.hooks.update.push(() => {
+      const s = cur(); if (!s || !s.mayQueen || s.mayQueen.day === s.day || s.mayQueen.off) return;
+      s.mayQueen.off = true; const q = s.byId.get(s.mayQueen.id);
+      if (q && q.app) { q.app.jewels = (q.jewels || []).slice(); O.Char.invalidate(q.app); }
+    });
+
+    // ---------------------------------------------------------------- the pole and the fire, drawn
+    const RIB = ['#c83a3a', '#f0d040', '#3f6fae', '#f0f0f0', '#4a9a4a', '#d870a0'];
+    function paintPole(ctx, cam, s) {
+      const [cx, cy] = centre(s), x = Math.round(cx - cam.x), y = Math.round(cy - cam.y), top = y - 78;
+      ctx.fillStyle = 'rgba(28,20,44,0.32)'; ctx.fillRect(x - 4, y - 1, 9, 3);
+      ctx.fillStyle = '#3a2614'; ctx.fillRect(x - 2, top, 5, 79);
+      ctx.fillStyle = '#e8e0d0'; ctx.fillRect(x - 1, top, 3, 78);
+      ctx.fillStyle = '#c83a3a'; for (let yy = top + 6; yy < y - 2; yy += 7) { ctx.fillRect(x - 1, yy, 3, 2); ctx.fillRect(x - 1, yy + 2, 1, 1); } // painted stripes
+      // the crown of greenery at the top
+      ctx.fillStyle = '#2e5a24'; ctx.fillRect(x - 8, top - 2, 17, 5); ctx.fillStyle = '#4a7a34'; ctx.fillRect(x - 7, top - 3, 15, 3);
+      for (let i = 0; i < 6; i++) { ctx.fillStyle = ['#f0e8f0', '#e8a0b8', '#f0d040'][i % 3]; ctx.fillRect(x - 7 + i * 3, top - 3 + (i % 2), 2, 2); }
+      // ribbons to every dancer's hand (or hanging loose)
+      const hands = [];
+      for (const q of s.people) if (q.agent && q.agent._dance) hands.push([q.agent.x, q.agent.y - 22]);
+      if (me) hands.push([game.player.x, game.player.y - 22]);
+      const n = Math.max(hands.length, 6);
+      for (let i = 0; i < n; i++) {
+        const h = hands[i], c = RIB[i % RIB.length]; ctx.fillStyle = c;
+        const ex = h ? h[0] - cam.x : x + Math.cos(i) * 5, ey = h ? h[1] - cam.y : y - 20 - (i % 3) * 4;
+        const steps = 40; for (let k = 0; k <= steps; k++) { const t = k / steps, sag = Math.sin(t * Math.PI) * 5; ctx.fillRect(Math.round(x + (ex - x) * t), Math.round(top + 2 + (ey - top - 2) * t + sag), 1, 1); }
+      }
+    }
+    const sparks = [];
+    function paintFire(ctx, cam, s, dt) {
+      const [cx, cy] = centre(s), x = Math.round(cx - cam.x), y = Math.round(cy - cam.y);
+      // a ring of stones, and the stacked logs
+      ctx.fillStyle = '#5a5650'; for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2; ctx.fillRect(Math.round(x + Math.cos(a) * 18) - 2, Math.round(y + Math.sin(a) * 8) - 1, 4, 3); }
+      ctx.fillStyle = '#2a1a0e'; ctx.fillRect(x - 12, y - 4, 24, 6);
+      ctx.fillStyle = '#4a3020'; for (let i = -3; i <= 3; i++) ctx.fillRect(x + i * 4 - 1, y - 20 + Math.abs(i) * 4, 3, 20 - Math.abs(i) * 4);
+      // the flames
+      const t = game.t;
+      for (let i = 0; i < 16; i++) {
+        const fx = x - 13 + i * 1.7 + Math.sin(t * 7 + i) * 1.2, hgt = 18 + Math.sin(t * 9 + i * 1.7) * 6 + (8 - Math.abs(i - 8)) * 3.2;
+        ctx.fillStyle = '#c83a10'; ctx.fillRect(Math.round(fx), Math.round(y - hgt), 2, Math.round(hgt));
+        ctx.fillStyle = '#f08020'; ctx.fillRect(Math.round(fx), Math.round(y - hgt * 0.7), 2, Math.round(hgt * 0.7));
+        ctx.fillStyle = '#f8d040'; ctx.fillRect(Math.round(fx), Math.round(y - hgt * 0.35), 2, Math.round(hgt * 0.35));
+      }
+      if (Math.random() < 0.5) sparks.push({ x: cx + (Math.random() - 0.5) * 16, y: cy - 36, vy: -20 - Math.random() * 30, vx: (Math.random() - 0.5) * 10, life: 1.2 });
+      for (const sp of sparks) { sp.life -= dt; sp.x += sp.vx * dt; sp.y += sp.vy * dt; ctx.fillStyle = sp.life > 0.6 ? '#f8d040' : '#c86020'; ctx.fillRect(Math.round(sp.x - cam.x), Math.round(sp.y - cam.y), 1, 1); }
+      while (sparks.length && sparks[0].life <= 0) sparks.shift();
+      if (Math.random() < 0.2) game.particles && game.particles.push({ x: cx + (Math.random() - 0.5) * 8, y: cy - 34, vx: 2, vy: -8, life: 0, max: 4 });
+    }
+    let lastT = 0;
+    const POLE = { paint: (ctx, cam) => paintPole(ctx, cam, cur()), revel: true, x: 0, y: 0, ft: 0 };
+    const FIRE = { paint: (ctx, cam) => { const dt = Math.min(0.1, game.t - lastT); lastT = game.t; paintFire(ctx, cam, cur(), dt); }, revel: true, x: 0, y: 0, ft: 0 };
+    const pole = (s) => today(s) === 'mayday' && s.hour >= 7 && s.hour < 20;
+    const fire = (s) => today(s) === 'midsummer' && s.hour >= 19.5;
+    game.hooks.update.push(() => {
+      const s = cur(); if (!s || !s.world || game.scene || game.world !== s.world) return;
+      const want = pole(s) ? POLE : fire(s) ? FIRE : null;
+      if (!want) return;
+      const [cx, cy] = centre(s); want.x = cx; want.y = cy + 2;
+      game.actors.push(want);
+    });
+    O.extraLights = O.extraLights || [];
+    O.extraLights.push((pools, cam) => { const s = cur(); if (!s || !fire(s) || game.world !== s.world) return; const [cx, cy] = centre(s); pools.push([cx - cam.x, cy - 12 - cam.y, 90 + Math.sin(game.t * 6) * 6]); });
+    // nobody walks through the fire or the pole
+    game.hooks.update.push(() => {
+      const s = cur(); if (!s || game.scene || !(pole(s) || fire(s))) return;
+      const [cx, cy] = centre(s), r = fire(s) ? 18 : 6, p = game.player;
+      if (fire(s)) for (const q of s.people) { const a = q.agent; if (!a || a.hidden || a.inside != null) continue; const d = Math.hypot((a.x - cx) / 1.4, a.y - cy); if (d < 34) { const k = 34.5 / Math.max(0.01, d); a.x = cx + (a.x - cx) * k; a.y = cy + (a.y - cy) * k; if (a.path && a.goal && Math.hypot(a.goal[0] * T + 8 - cx, a.goal[1] * T + 8 - cy) < 40) { a.path = null; a.goal = null; } } }
+      if (!leap && !me) { const d = Math.hypot((p.x - cx) / 1.6, p.y - cy); if (d < r) { const k = (r + 0.5) / Math.max(0.01, d); p.x = cx + (p.x - cx) * k; p.y = cy + (p.y - cy) * k; } }
+    });
+
+    // ---------------------------------------------------------------- leaping the fire
+    let leap = null;
+    game.hooks.update.push((dt) => {
+      if (!leap) return;
+      const p = game.player; leap.t += dt; const u = Math.min(1, leap.t / 0.9);
+      p.x = leap.x0 + (leap.x1 - leap.x0) * u; p.y = leap.y0 + (leap.y1 - leap.y0) * u - Math.sin(u * Math.PI) * 18; p.anim = 'walk'; p.locked = true;
+      if (u >= 1) { const f = leap.after; leap = null; p.locked = false; p.anim = 'idle'; f(); }
+    });
+    function leapFire() {
+      const s = cur(), p = game.player, [cx, cy] = centre(s), side = p.x < cx ? 1 : -1;
+      if (s._leaptDay === s.day) return say('Once is luck. Twice is tempting it.');
+      s._leaptDay = s.day;
+      leap = { t: 0, x0: cx - side * 26, y0: cy + 4, x1: cx + side * 26, y1: cy + 4, after: () => {
+        const ok = Math.random() < 0.82 + (PS.skills.athletics || 0) * 0.15;
+        if (ok) { PS.rep.local = Math.min(1, (PS.rep.local || 0) + 0.04); PS.luck = s.day; say('You run and leap the flames clean, to a roar from the crowd. Luck for the year, they say.'); for (const q of s.people) if (q.activity?.act === 'bonfire' && Math.random() < 0.3) { s.relate(q, { id: 0 }, 0.03); if (q.agent) q.agent.anim = 'celebrate'; } }
+        else { PS.hp = Math.max(5, PS.hp - 8); say('Your heel catches the embers: you land singed and smoking, and the crowd laughs. (−8 health)', 'bad'); }
+      } };
+      p.x = leap.x0; p.y = leap.y0;
+    }
+
+    // ---------------------------------------------------------------- what you can do there
+    const hook = () => {
+      const prev = O.stallCandidate;
+      O.stallCandidate = () => {
+        const base = prev ? prev() : null, s = cur(), p = game.player;
+        if (game.scene || me || leap || !s || game.world !== s.world) return base;
+        const k = live(s); if (!k) return base;
+        const [cx, cy] = centre(s), d = Math.hypot(p.x - cx, p.y - cy);
+        let c = null;
+        if (k === 'mayday' && d < 60) c = { type: 'custom', d: d - 20, label: 'Join the dance round the maypole', act: dance, x: cx, y: cy - 86 };
+        if (k === 'midsummer' && d < 52) c = { type: 'custom', d: d - 20, label: 'Leap the bonfire for luck', act: leapFire, x: cx, y: cy - 40 };
+        return c && (!base || c.d < base.d) ? c : base;
+      };
+    };
+    let hooked = false; game.hooks.update.push(() => { if (!hooked) { hooked = true; hook(); } });
+
+    // ---------------------------------------------------------------- the day announced, and in the calendar
+    let told = '';
+    game.hooks.update.push(() => {
+      const s = cur(); if (!s || !s.world) return;
+      const k = today(s), key = s.day + ':' + k; if (!k || key === told || s.hour < 7) return; told = key;
+      if (k === 'mayday') say(`It's May Day in ${s.world.name}! The maypole is up in the square: dancing from ten, and the Queen of the May crowned at noon.`);
+      else say(`It's Midsummer Eve. Tonight there's a great bonfire in the square from eight till midnight.`);
+      s.log(k === 'mayday' ? `May Day: the maypole goes up in the square at ${s.world.name}.` : `Midsummer Eve: wood is piled high in the square for the bonfire.`, 'festival');
+    });
+    const _ev = O.eventsFor;
+    if (_ev) O.eventsFor = (s, d0, d1) => {
+      const out = _ev(s, d0, d1);
+      for (let d = d0; d <= d1; d++) {
+        const k = kindOn(O.seasonOfDay(d), O.dosOfDay(d));
+        if (k === 'mayday') out.push({ day: d, from: 10, to: 17, title: 'May Day: the maypole dance in the square', where: 'the square', square: true });
+        if (k === 'midsummer') out.push({ day: d, from: 20, to: 24, title: 'Midsummer Eve: the bonfire in the square', where: 'the square', square: true });
+      }
+      return out.sort((a, b) => a.day - b.day || a.from - b.from);
+    };
+  }
+  O.RevelsSetup = { setup };
+})();
+
+</script>
+<script>
 // Jewellery. A gold chain, a brooch, a ring, a circlet: wear them (from your satchel) and they show. The
 // well-off buy them at the jeweller's when they have money to spare, and wear them; the gentry and the
 // royal family have theirs already.
@@ -21199,7 +21670,7 @@ O.snowMaskOf = function (src) {
     O.wearJewels = () => {
       PS.worn = (PS.worn || []).filter((k) => PS.items.includes(k));
       const a = game.player.a; if (!a) return;
-      if (!same(a.jewels, PS.worn)) { a.jewels = PS.worn.slice(); Ch.invalidate(a); }
+      const want = [...PS.worn, ...(PS.garland != null && PS.garland === cur()?.day ? ['garland'] : [])]; if (!same(a.jewels, want)) { a.jewels = want; Ch.invalidate(a); }
     };
     let tk = 0;
     game.hooks.update.push((dt) => { tk -= dt; if (tk > 0) return; tk = 0.5; O.wearJewels(); });
@@ -21390,7 +21861,7 @@ O.snowMaskOf = function (src) {
     for (const b of world.buildings) {
       const bz0 = sim && sim.biz.get(b.id), m = /^(.+?)'s (.+)$/.exec(b.name || '');
       let nn = null;
-      if (m && LABELS.includes(m[2])) nn = O.bizName(m[1], m[2]);
+      if (m && LABELS.includes(m[2])) nn = bz0 && (bz0.def.public || ['guard', 'morgue', 'hospital', 'school', 'gaol'].includes(bz0.type)) ? `${(world.name || '').replace(/ .*/, '')} ${m[2]}` : O.bizName(m[1], m[2]);
       else if (bz0 && (LABELS.includes(b.name) || b.name === bz0.def.label || /^(Butcher|Carpenter|Physician|Armourer|Smithy|Jeweller|Saddler|Glazier|Chandlery|Builder's Yard)$/.test(b.name || ''))) { const own = sim.byId.get(bz0.owner) || sim.byId.get(bz0.workers[0]); nn = own && own.sur ? O.bizName(own.sur, bz0.def.label) : `The ${O.bizName('x', bz0.def.label).slice(4)}`; }
       if (!nn || nn === b.name) continue;
       const old = b.name; b.name = nn; const bz = sim && sim.biz.get(b.id); if (bz && bz.name === old) bz.name = nn;
@@ -21646,7 +22117,7 @@ O.snowMaskOf = function (src) {
 (function () {
   const KEYS = [['WASD / arrows', 'walk'], ['Shift', 'run'], ['E', 'interact with whatever is nearest: talk, enter, work, buy, read, fight a fire, wake someone asleep in a bed…'], ['Q', 'steal: pickpocket, pick a lock, take a horse'], ['F', 'quick-loot a container or search someone beaten'], ['Space', 'strike'], ['R', 'change weapon'], ['H', 'mount or dismount your horse'], ['I', 'satchel, reputation and skills'], ['L', 'town ledger: people, families, businesses, news'], ['M', 'map of the realm'], ['G', 'your gang'], ['P', 'holdings: property, land, office'], ['C', 'the Chronicle: history, hearsay, your story'], ['B', 'Business: your work, your businesses, and the Crown if you wear it'], ['J', "your undertakings and what's on: jobs, bounties, gang tasks, events with their dates, and the places you're being shown the way to"], ['/', 'this guide'], ['Esc', 'close a panel'], ['On a phone', 'drag anywhere on the view to walk; the buttons at the bottom right are E, steal (Q), strike, run, and Undertakings, Business, satchel, map and the menu']];
   const WAYS = [
-    ['Honest work', 'Ask anyone "Who\'s taking on hands?" and they\'ll name the places that want workers and who runs them. Talk to that master at their workplace and ask for work. Some work is a day\'s quota (do the set tasks and you are done); some is a shift (stay the hours; new work comes along). Your tasks and how to do each are in Business (B, Your work) and in the corner icon; gold markers show where. Leave a post from Business: hand in your notice, buy out an indenture, ask leave of the crown, or abdicate.'],
+    ['Honest work', 'Ask anyone "Who\'s taking on hands?" and they\'ll name the places that want workers and who runs them. Talk to that master at their workplace and ask for work. Some work is a day\'s quota (do the set tasks and you are done); some is a shift (stay the hours; new work comes along). Your tasks and how to do each are in Business (B, Your work) and in the corner icon; gold markers show where. Now and then something comes up at work (a rush order, a crowd, a spill): do it for extra pay. Business also shows how near you are to a step up, and lets you ask for tomorrow off (easier before a holiday). Leave a post from Business: hand in your notice, buy out an indenture, ask leave of the crown, or abdicate.'],
     ['Craft and sell', 'Once skilled, make goods from your own materials at a bench you may use (your property or your employer\'s). Mind a market stall in the square to sell to the townsfolk. On Sunday mornings travelling merchants set up at the stalls.'],
     ['Property and land', 'Buy houses or shops with For Sale signs, let them, open businesses. In Holdings (P), buy building plots, have a house built, buy strips of the common field. Enough land makes you gentry.'],
     ['Office and the crown', 'A town chooses its reeve at a moot, or you may petition for its lordship (Holdings, P). In office you set the town\'s taxes, the watch and its works, and speak for it at the council of the realm. The monarch rules from the Business tab (B): the crown tax, pardons, honours, works, festivities, the castle\'s guest list, war and peace; and hears petitions on the throne.'],
@@ -21657,7 +22128,7 @@ O.snowMaskOf = function (src) {
     ['Finery', 'Rings, brooches, gold chains and circlets are sold at the jeweller\'s. Wear them from your satchel (I). The well-off buy and wear them too.'],
     ['Travel', 'Eldoria is an island of thirty-three settlements: the capital Aurelia on the River Aure, the port of Westhaven, Goldmere, Frostmere under the peaks, the farms of Greenvale and Sunfield, castles at Highmere, Eastmarch and Westcliff, and hamlets in the wild places. There is no shortcut: walk off the edge of town onto a road, the King\'s Road, a farm lane, a forest track, and follow it to the next place. Signposts and milestones mark the way; travellers, carts and caravans share it, ruins stand beside it, and in the wild country rival gangs camp by the road and may stop you. Each town lives its own life while you are away.'],
     ['Keep your ears open', 'Ask people for news: what they tell you is what they heard, from whom, and it may be wrong. The crier, bards in the tavern and the Aurelia broadsheet all tell it their own way. The Chronicle keeps the record.'],
-    ['Festivals and gatherings', 'The spring tournament (bet, or ride in the lists), the harvest fair (archery for a purse), the midwinter feast. Townsfolk hold christenings, guild feasts, church ales, harvest suppers, mummers\' plays and hunts: go along and they will think the better of you. Throw a party at your own house, but not on a night something else is on.'],
+    ['Festivals and gatherings', 'Every season has its day: May Day (dance round the maypole; a Queen of the May is crowned at noon), the spring tournament (bet, or ride in the lists), Midsummer Eve (a bonfire in the square: leap it for luck), the harvest fair (archery, wrestling, and the judging of bread, ale and wares, each with a purse), the midwinter feast. Each town keeps its saint\'s day too. Townsfolk hold christenings, guild feasts, church ales, harvest suppers, mummers\' plays and hunts: go along and they will think the better of you. Throw a party at your own house, but not on a night something else is on.'],
     ['Disasters', 'Fires (grab a bucket), floods after heavy rain, pestilence with quarantines, failed harvests. When one strikes you choose: help, or profit, or flee.'],
   ];
   function open() {
@@ -22378,7 +22849,7 @@ O.snowMaskOf = function (src) {
   O.RisingSetup.setup(game, npcUI);
   O.RitesSetup.setup(game);
   O.WarfareSetup.setup(game, npcUI);
-  O.CalendarSetup.setup(game);
+  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game);
   O.FinerySetup.setup(game);
   O.PastimesSetup.setup(game);
   O.FishingSetup.setup(game);

@@ -26,6 +26,18 @@
       open();
     }
     O.askRaise = askRaise;
+    // a day off: asked for the next day, so they can find someone to cover. Easier on a holiday.
+    function askOff(e) {
+      const s = simOf(e), boss = e.master != null && s.byId.get(e.master), aff = boss ? (boss.rel.get(0)?.affinity || 0) : 0, st = e.stats || {}, nm = boss ? boss.first : 'Your master';
+      if (e.dayOff === s.day + 1) return say('You have tomorrow off already.');
+      if ((e.offAsked || -9) > s.day - 5) return say(`${nm} sends back: "You had a day off only lately."`, 'bad');
+      const fest = O.eventsFor ? O.eventsFor(s, s.day + 1, s.day + 1).some((x) => !x.small && !x.council) : false;
+      const p = 0.45 + aff * 0.6 + (fest ? 0.25 : 0) - ((st.shifts || 0) < 3 ? 0.3 : 0) - (st.missed || 0) * 0.08;
+      e.offAsked = s.day;
+      if (Math.random() < p) { e.dayOff = s.day + 1; say(`${nm} agrees: "Take tomorrow, then.${fest ? ' Enjoy the holiday.' : ''} Be back the day after."`); }
+      else { if (boss) s.relate(boss, { id: 0 }, -0.02); say(`${nm} shakes ${boss && boss.sex === 'f' ? 'her' : 'his'} head. "${(st.shifts || 0) < 3 ? 'You\'ve hardly started.' : 'I need you tomorrow.'}"`, 'bad'); }
+      open();
+    }
     const TABS = [['crown', 'The Crown'], ['work', 'Your work'], ['own', 'Your businesses'], ['home', 'Your home'], ['war', 'War'], ['ways', 'Ways up']];
     const ROYAL = ['monarch', 'consort', 'heir', 'prince', 'princess'];
     // how you leave a post depends on what it is
@@ -55,8 +67,9 @@
         const mode = royal ? `Your days at court run from ${hh(o)} to ${hh(c)}.` : how.mode === 'quota' ? `A day's work: do each task below and your day is done, whenever that is. Hours ${hh(o)} to ${hh(c)}.` : `A shift from ${hh(o)} to ${hh(c)}: stay the hours, and new work comes along through the day.`;
         const list = e.onShift && how.tasks.length ? `<h4>Today's tasks</h4><ul class="chron">${how.tasks.map((t) => `<li>${t.done ? '☑' : '☐'} <b>${esc(t.text)}</b>${t.need > 1 ? ` (${t.have}/${t.need})` : ''}${t.done ? '' : `<br><small class="lbl">${esc(t.how)}</small>`}</li>`).join('')}</ul>` : `<p class="caption">${e.dayInfo?.dayDone ? 'Your work is done for today.' : 'Your tasks are set when your shift begins.'}</p>`;
         const [lk, ll] = leaveOf(e);
-        secs.work.push(`<h3>${esc(O.roleName ? O.roleName(e.role) : e.role)} <small class="lbl">${royal ? esc(e.placeName) : `at ${esc(e.bizName)}, ${esc(e.placeName)}`}</small></h3>${how.summary ? `<p>${esc(how.summary)}</p>` : ''}<p class="caption">${mode}</p><div class="kv"><div><span class="lbl">${royal ? 'From the treasury' : 'Wage'}</span><b>₳${e.wage}</b><small>a day</small></div><div><span class="lbl">Days worked</span><b>${st.shifts || 0}</b><small>${st.late || 0} late, ${st.missed || 0} missed, ${st.tasks || 0} tasks done</small></div>${royal ? '' : `<div><span class="lbl">Your master</span><b>${esc(boss ? boss.name : e.masterName || 'the crown')}</b><small>${boss ? (like > 0.3 ? 'thinks well of you' : like < -0.2 ? 'is not pleased with you' : 'has no strong view of you') : ''}</small></div><div><span class="lbl">Fellow workers</span><b>${mates.length}</b><small>${mates.map((q) => esc(q.first + ' (' + q.job.role + ')')).join(', ') || 'none'}</small></div>`}</div>${list}
-          <div class="topics">${boss && !(O.COURT && O.COURT.has(e.role)) ? `<button data-raise="${i}" data-how="${PS.items.includes('letter') ? 'letter' : 'word'}">${PS.items.includes('letter') ? 'Ask for a raise by letter' : 'Ask for a raise (send word)'}</button>` : ''}<button data-leave="${i}:${lk}">${ll}</button></div>`);
+        secs.work.push(`<h3>${esc(O.roleName ? O.roleName(e.role) : e.role)} <small class="lbl">${royal ? esc(e.placeName) : `at ${esc(e.bizName)}, ${esc(e.placeName)}`}</small></h3>${how.summary ? `<p>${esc(how.summary)}</p>` : ''}<p class="caption">${mode}</p><div class="kv"><div><span class="lbl">${royal ? 'From the treasury' : 'Wage'}</span><b>₳${e.wage}</b><small>a day</small></div>${(() => { const sk = !royal && bz && O.tradeOf ? O.tradeOf(e, bz) : null; if (!sk) return ''; const v = PS.skills[sk] || 0; return `<div><span class="lbl">Your skill (${esc(sk)})</span><b>${Math.round(v * 100)}%</b><small>${v < 0.25 ? 'a beginner' : v < 0.5 ? 'getting the hang of it' : v < 0.75 ? 'as handy as most' : 'better than most'}; every task done teaches you</small></div>`; })()}<div><span class="lbl">Days worked</span><b>${st.shifts || 0}</b><small>${st.late || 0} late, ${st.missed || 0} missed, ${st.tasks || 0} tasks done</small></div>${royal ? '' : `<div><span class="lbl">Your master</span><b>${esc(boss ? boss.name : e.masterName || 'the crown')}</b><small>${boss ? (like > 0.3 ? 'thinks well of you' : like < -0.2 ? 'is not pleased with you' : 'has no strong view of you') : ''}</small></div><div><span class="lbl">Fellow workers</span><b>${mates.length}</b><small>${mates.map((q) => esc(q.first + ' (' + q.job.role + ')')).join(', ') || 'none'}</small></div>`}</div>${list}
+${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles.indexOf(e.role), up = ix > 0 && bz.def.wage[roles[ix - 1]] !== 0 && !(O.Careers && O.Careers.PRESTIGE.has(roles[ix - 1])) ? roles[ix - 1] : null, sh = st.shifts || 0, avg = sh ? (st.tasks || 0) / sh : 0, left = 6 - (sh % 6); const need = []; if (avg < 3) need.push(`more done each day (you average ${avg.toFixed(1)} tasks; 3 is wanted)`); if (like <= 0.2) need.push(`your master's good opinion`); if (!bz.def.public && bz.cash <= 120) need.push('a business with money to spare'); return `<h4>Getting on</h4><p class="caption">Every sixth day worked, ${esc(boss ? boss.first : 'your master')} weighs you up for ${up ? `a step up to <b>${esc(up)}</b>` : 'a rise in pay'}. Next in ${left} day${left === 1 ? '' : 's'} worked. ${need.length ? 'You need ' + need.join(', and ') + '.' : 'As things stand, you should get it.'}${st.extras ? ` Extra work taken on: ${st.extras}.` : ''}</p>`; })() : ''}
+          <div class="topics">${boss && !(O.COURT && O.COURT.has(e.role)) ? `<button data-off="${i}">${e.dayOff === es.day + 1 ? 'Tomorrow off: granted' : 'Ask for tomorrow off'}</button>` : ''}${boss && !(O.COURT && O.COURT.has(e.role)) ? `<button data-raise="${i}" data-how="${PS.items.includes('letter') ? 'letter' : 'word'}">${PS.items.includes('letter') ? 'Ask for a raise by letter' : 'Ask for a raise (send word)'}</button>` : ''}<button data-leave="${i}:${lk}">${ll}</button></div>`);
       });
       // your home, and a party in it
       const home = myHome(s);
@@ -78,6 +91,7 @@
         O.bindWarTab && O.bindWarTab(r, open);
         r.querySelectorAll('[data-crown]').forEach((b) => b.onclick = () => O.openCrown(b.dataset.crown));
         r.querySelectorAll('[data-run]').forEach((b) => b.onclick = () => { const [pl, id] = b.dataset.run.split(':'); const v = O.Travel.visited.get(pl); const bb = v && v.world.buildings.find((x) => x.id === +id); if (bb && pl === s.world.placeId) O.runBusiness(bb); else say('You can only manage it from where it is.', 'bad'); });
+        r.querySelectorAll('[data-off]').forEach((b) => b.onclick = () => askOff(posts[+b.dataset.off]));
         r.querySelectorAll('[data-raise]').forEach((b) => b.onclick = () => { const e = posts[+b.dataset.raise]; if (b.dataset.how === 'letter') PS.remove('letter'); askRaise(e, b.dataset.how === 'letter' ? 'letter' : 'word'); });
         const pb = r.querySelector('[data-party]'); if (pb) pb.onclick = () => {
           const ids = [...r.querySelectorAll('[data-inv]')].filter((x) => x.checked).map((x) => +x.dataset.inv); if (!ids.length) return say('Invite someone first.', 'bad');

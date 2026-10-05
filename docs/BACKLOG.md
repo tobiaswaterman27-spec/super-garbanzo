@@ -295,3 +295,22 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] The council of the realm: every leader of a city, town, port and castle rides in; it waits for whoever has a seat until five, then goes home; the monarch presides (grant or refuse, with the treasury shown); a leader brings their own petition and speaks for or against others; you're told on the morning and shown the way
 - [x] Castle doors carry plaques (the room, or the family who lives there); chests in a family's room belong to them, not the castle
 - [x] Wording: the King's host becomes the Queen's under a queen; the currency is the aurin everywhere (no crowns, shillings or pennies); the recruiting sergeant calls a woman a lass; leaders' titles read properly; the moot names your rival; women's titles for women (potgirl, mistress cook); the guide is brought up to date
+
+## Round 2 (asked after step 84) - more for jobs, festivals and events, and another sweep
+
+- [x] Something comes up at work: a rush order, a crowd come in, trouble to ask about, urgent word to carry, a spill, a patient carried in, someone asking for the priest, weather coming; each is optional and pays extra
+- [x] At the end of the day your master has a word: good work, be on time tomorrow, or was that all you did
+- [x] Business shows how near your next step up or pay rise is and what you still need; extra work taken on is counted
+- [x] Ask for tomorrow off (easier before a holiday, harder when you've only just started); a day off given costs you nothing
+- [x] May Day: a maypole in the square, the young folk dance round it winding the ribbons, a Queen of the May is crowned with a garland at noon (it may be you); join the dance
+- [x] Midsummer Eve: a bonfire in the square from eight till midnight, the town gathers round it; leap it for luck
+- [x] The harvest fair's games: archery, wrestling in the ring, and the judging of your bread, ale or wares
+- [x] Bunting for the new festivals; both are in What's on
+- [x] Fixed: a day's pay could throw an error when the start day hadn't come; quota pay counted the optional extras; finished extras were dropped when the shift's work changed
+- [x] Work teaches the trade: each task done at a job makes you better at its skill (baking, smithing, serving, physic, farming and the rest), shown in Business with how you're coming on
+- [x] Tips: serve well at a tavern or inn and now and then a customer presses ₳1 into your hand
+- [x] Holidays are busy: on a festival day more comes up at work; the tavern, bakery, butcher's and kitchens take on extra hands for the day (ask whoever runs the place), paid at the end and gone the next day
+- [x] Fellow workers say a word about the work now and then while you're on shift together
+- [x] A town's saint's day never falls on another high day; the harvest fair runs into the evening in What's on
+- [x] Fixed: no talk of arrows when you're taken on or take a bounty; a post that ended could come back
+- [x] Fixed: public buildings named with the town; a/an in descriptions; "at" before place names in reports; the crier repeating the same news

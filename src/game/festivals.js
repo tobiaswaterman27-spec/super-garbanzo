@@ -120,13 +120,56 @@
           const d = Math.hypot(st.x - p.x, st.y - p.y); if (d < 30) return { type: 'custom', label: `Browse ${q.first}'s wares`, act: () => openMerchant(q), d: d - 30, x: st.x, y: st.y - 30 };
         }
         const f = fest(s), h = s.hour, lists = s.world.props.find((x) => x.kind === 'noticeboard') || s.world.props.find((x) => x.kind === 'well');
+        if (f === 'tournament' && listsOn(s) && h >= 10 && h < 15) { const [cx, cy] = O.revelCentre(s), d = Math.hypot((p.x - cx) / 2.2, p.y - cy); if (d < 46) return { type: 'custom', label: 'The tournament lists: bet, or ride', act: () => tournament(s), d: 2, x: cx, y: cy - 50 }; }
         if (lists && Math.hypot(lists.x - p.x, lists.y - p.y) < 34) {
           if (f === 'tournament' && keepOf(s) && h >= 10 && h < 15) return { type: 'custom', label: 'The tournament lists: bet, or ride', act: () => tournament(s), d: 2, x: lists.x, y: lists.y - 34 };
-          if (f === 'fair' && h >= 10 && h < 18) return { type: 'custom', label: 'The archery at the butts (₳2)', act: () => archery(s), d: 2, x: lists.x, y: lists.y - 34 };
+          if (f === 'fair' && h >= 10 && h < 18) return { type: 'custom', label: 'The fair games: archery, wrestling, the judging', act: () => fairGames(s), d: 2, x: lists.x, y: lists.y - 34 };
         }
       }
       return prevStall ? prevStall() : null;
     };
+
+    // ---------------------------------------------------------------- the fair games
+    // the best of the fair: bring something good from your satchel for the judges
+    const SHOW = { bread: 'baking', cake: 'baking', pie: 'baking', meal: 'serving', ale: 'serving', cheese: 'serving', honey: 'farming', wine: 'serving', furniture: 'woodcraft', tools: 'smithing', dagger: 'smithing', sword: 'smithing', cloth: 'weaving', dyedcloth: 'weaving', candles: 'crafting', pottery: 'crafting', medicine: 'physic', fish: 'fishing', wheat: 'farming', cabbage: 'farming', apples: 'farming' };
+    const RIVALS = ['the miller\'s big son', 'a drover from the hills', 'the blacksmith\'s striker', 'a sailor off the coast road', 'the reeve\'s nephew', 'a carter with arms like hams'];
+    function fairGames(s) {
+      const shows = [...new Set(PS.items)].filter((k) => SHOW[k] && G[k]);
+      const did = s._fairDid && s._fairDid.day === s.day ? s._fairDid : (s._fairDid = { day: s.day });
+      O.Panels.open('The fair games', `<p class="speech">Pipes and drums, and a crowd round the roped ring. The reeve has purses for the best of the day.</p><div class="topics">
+        <button data-g="arch" ${s._archeryDay === s.day ? 'disabled' : ''}>The archery at the butts (₳2 to enter, ₳25 purse)</button>
+        <button data-g="wrest" ${did.wrest ? 'disabled' : ''}>Wrestle in the ring (₳1 to enter, ₳12 purse)</button>
+        ${shows.length && !did.show ? `<div class="lbl" style="margin-top:8px">Enter something for the judging (₳15 purse):</div>${shows.map((k) => `<button data-show="${k}"><img src="${O.icon(k)}" alt="" style="width:14px;vertical-align:middle"> ${esc(G[k].name)}</button>`).join('')}` : `<p class="caption">${did.show ? 'You have had your go at the judging.' : 'Bring bread, ale, a good tool or cloth, anything you made or grew, and the judges will try it against the town\'s best.'}</p>`}
+        </div>`, (r) => {
+        r.querySelectorAll('[data-g]').forEach((b) => b.onclick = () => { if (b.dataset.g === 'arch') archery(s); else wrestle(s, did); });
+        r.querySelectorAll('[data-show]').forEach((b) => b.onclick = () => judging(s, did, b.dataset.show));
+      });
+    }
+    function wrestle(s, did) {
+      if (PS.money < 1) return say('The fee is ₳1.', 'bad');
+      if (PS.hp < 30) return say("You're in no state to wrestle.", 'bad');
+      PS.money -= 1; did.wrest = true;
+      const foe = RIVALS[Math.floor(Math.random() * RIVALS.length)], sk = Math.max(PS.skills.fighting || 0, PS.skills.combat || 0);
+      const lines = []; let me = 0, him = 0;
+      for (let rd = 1; rd <= 3 && me < 2 && him < 2; rd++) {
+        const a = Math.random() * 0.8 + sk * 0.5 + (PS.hp / 100) * 0.2, b = Math.random() * 0.8 + 0.25;
+        if (a > b) { me++; lines.push(`Fall ${rd}: ${['you get under his guard and throw him on his back', 'you hook his leg and down he goes', 'you twist out of his grip and pin him'][rd - 1]}.`); }
+        else { him++; lines.push(`Fall ${rd}: ${['he lifts you clean off your feet and drops you', 'he bears you down by sheer weight', 'he catches your arm and over you go'][rd - 1]}.`); }
+      }
+      const won = me > him; PS.hp = Math.max(5, PS.hp - (won ? 4 : 10)); PS.skills.fighting = Math.min(1, (PS.skills.fighting || 0) + 0.03);
+      if (won) { PS.money += 12; PS.rep.local = Math.min(1, (PS.rep.local || 0) + 0.06); s.log(`The stranger won the wrestling at the harvest fair, throwing ${foe}.`, 'event'); }
+      O.Panels.open('The wrestling ring', `<p>You roll up your sleeves and step into the ring with ${esc(foe)}. Best of three falls.</p><p>${lines.join('<br>')}</p><p class="speech">${won ? 'The ring roars. The reeve slaps the purse of ₳12 into your hand.' : 'You pick yourself up out of the sawdust. He offers you a hand, and the crowd claps you out.'}</p>`);
+    }
+    function judging(s, did, k) {
+      if (!PS.items.includes(k)) return;
+      did.show = true; const sk = PS.skills[SHOW[k]] || 0.1;
+      const mine = Math.round((3 + Math.random() * 5 + sk * 6) * 10) / 10, best = Math.round((5 + Math.random() * 4) * 10) / 10;
+      const won = mine > best, place = won ? 'first' : mine > best - 1.5 ? 'second' : null;
+      if (won) { PS.money += 15; PS.rep.local = Math.min(1, (PS.rep.local || 0) + 0.05); PS.rep.merchant = Math.min(1, (PS.rep.merchant || 0) + 0.04); s.log(`The stranger's ${G[k].name.toLowerCase()} took first prize at the harvest fair.`, 'event'); }
+      else if (place) { PS.money += 4; PS.rep.local = Math.min(1, (PS.rep.local || 0) + 0.02); }
+      const say1 = { bread: 'break the loaf and chew', cake: 'cut the cake and taste', pie: 'cut the pie and taste', ale: 'sip the ale and swill it round', wine: 'sip the wine', cheese: 'pare a slice of the cheese', meal: 'taste the dish' }[k] || `turn the ${G[k].name.toLowerCase()} over in their hands`;
+      O.Panels.open('The judging', `<p class="speech">Three judges, the reeve among them, ${say1}, and confer.</p><p>Your ${esc(G[k].name.toLowerCase())}: <b>${mine}</b> of ten. The best of the others: <b>${best}</b>.</p><p class="speech">${won ? 'First prize! A purse of ₳15, and the reeve pins a ribbon on you.' : place ? 'Second prize, and ₳4 for it. "Very creditable," says the reeve.' : 'No prize this year. "Try us again next harvest."'}</p>`);
+    }
 
     // ---------------------------------------------------------------- the archery at the harvest fair
     function archery(s) {
@@ -191,6 +234,58 @@
       });
     }
 
+    // ---------------------------------------------------------------- the lists, with knights tilting at each other
+    // a barrier down the square, a striped pavilion at each end, and two knights who charge, lances down,
+    // break on each other's shields (or one goes over his horse's tail), ride on, turn and go again
+    const listsOn = (s) => fest(s) === 'tournament' && keepOf(s) && s.hour >= 9.5 && s.hour < 15.5 && !game.scene && game.world === s.world && O.revelCentre;
+    const HALF = 72;
+    const rider = (k) => ({ x: 0, y: 0, dir: 3, anim: 'idle', ft: 0, tourney: true, a: Ch.makeAppearance(O.hash('tilt', k), { role: 'guard', sex: 'm', age: 30 + k * 5, wealth: 0.9 }), mount: { id: 'tilt' + k, coat: k ? 'black' : 'grey', saddled: true, anim: 'idle', ft: 0, seed: 7 + k * 5 } });
+    const KN = [rider(0), rider(1)];
+    let fallen = null, flash = 0, lastCycle = -1;
+    const BARRIER = { tourney: true, x: 0, y: 0, ft: 0, paint: (ctx, cam) => {
+      const s = cur(), [cx, cy] = O.revelCentre(s), x0 = Math.round(cx - HALF - cam.x), y = Math.round(cy - cam.y);
+      for (let x = 0; x <= HALF * 2; x++) { ctx.fillStyle = ((x >> 3) & 1) ? '#e8e0d0' : '#a8382f'; ctx.fillRect(x0 + x, y - 9, 1, 3); ctx.fillStyle = '#3a2614'; ctx.fillRect(x0 + x, y - 6, 1, 1); }
+      ctx.fillStyle = '#4a3020'; for (let x = 0; x <= HALF * 2; x += 18) ctx.fillRect(x0 + x, y - 9, 2, 10);
+      if (flash > 0) { ctx.fillStyle = `rgba(255,240,200,${Math.min(1, flash * 3).toFixed(2)})`; const fx = Math.round(cx - cam.x); for (let i = 0; i < 8; i++) ctx.fillRect(fx + Math.round(Math.cos(i) * (6 + i)), y - 26 + Math.round(Math.sin(i * 1.7) * 6), 2, 2); }
+    } };
+    const PAV = (side) => ({ tourney: true, x: 0, y: 0, ft: 0, paint: (ctx, cam) => {
+      const s = cur(), [cx, cy] = O.revelCentre(s), x = Math.round(cx + side * (HALF + 26) - cam.x), y = Math.round(cy - 4 - cam.y), col = side < 0 ? '#3f5f8e' : '#a8382f';
+      ctx.fillStyle = 'rgba(28,20,44,0.3)'; ctx.fillRect(x - 13, y, 27, 3);
+      for (let i = 0; i < 26; i++) { const h = 20 - Math.abs(i - 13) * 0.5; ctx.fillStyle = ((i >> 2) & 1) ? '#ece4d0' : col; ctx.fillRect(x - 13 + i, Math.round(y - h), 1, Math.round(h)); }
+      ctx.fillStyle = col; for (let i = 0; i < 14; i++) ctx.fillRect(x - 7 + i, y - 20 - Math.round(Math.max(0, 7 - Math.abs(i - 7))), 1, Math.round(Math.max(0, 7 - Math.abs(i - 7))) + 1);
+      ctx.fillStyle = '#3a2614'; ctx.fillRect(x, y - 34, 1, 8); ctx.fillStyle = col; ctx.fillRect(x + 1, y - 34, 6, 3);
+      ctx.fillStyle = '#2a1d14'; ctx.fillRect(x - 3, y - 10, 6, 10);
+    } });
+    const PAVS = [PAV(-1), PAV(1)];
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || !s.world || !listsOn(s)) return;
+      const [cx, cy] = O.revelCentre(s), T0 = 12, t = game.t % T0, cyc = Math.floor(game.t / T0);
+      if (cyc !== lastCycle) { lastCycle = cyc; fallen = null; }
+      flash = Math.max(0, flash - dt);
+      // 0-2.5 waiting at the ends; 2.5-6.5 the charge; then walk back round
+      const run = O.clamp((t - 2.5) / 4, 0, 1), dirOut = cyc % 2 ? -1 : 1;
+      KN.forEach((k, i) => {
+        const side = i ? 1 : -1, from = cx + side * dirOut * (HALF + 4), to = cx - side * dirOut * (HALF + 4);
+        k.y = cy + (i ? 12 : -14);
+        if (t < 2.5) { k.x = from; k.dir = from < to ? 1 : 2; k.mount.anim = 'idle'; }
+        else if (t < 6.5) { k.x = from + (to - from) * run; k.dir = from < to ? 1 : 2; k.mount.anim = 'gallop'; }
+        else { k.x = to; k.dir = from < to ? 2 : 1; k.mount.anim = 'idle'; }
+        k.mount.ft += dt; k.ft += dt;
+      });
+      if (t >= 4.5 && !fallen && lastCycle === cyc) {
+        const r = O.hash('clash', s.day, cyc) % 10; fallen = r < 3 ? KN[r % 2] : 'none'; flash = 0.4;
+        if (Math.hypot(game.player.x - cx, game.player.y - cy) < 220) { O.Audio && O.Audio.play && O.Audio.play('hit'); }
+      }
+      const out = [BARRIER, ...PAVS, ...KN.filter((k) => k !== fallen || t < 4.6)];
+      if (fallen && fallen !== 'none' && t >= 4.6) { const f = fallen; out.push({ tourney: true, x: f.x, y: f.y + 1, ft: 0, paint: (ctx, cam) => { const fr = O.Char.frame(f.a, 0, 'lie', 0); ctx.drawImage(fr, Math.round(f.x - 16 - cam.x), Math.round(f.y - O.Char.GROUND - cam.y)); } }, { tourney: true, x: f.x + (f.dir === 1 ? 30 : -30), y: f.y, dir: f.dir, ft: 0, anim: 'idle', horse: true, paint: (ctx, cam) => { const H = f.mount, hf = O.Animals.horse(H, f.dir, 'walk', Math.floor(game.t * 6) % 4); ctx.drawImage(hf, Math.round(f.x + (f.dir === 1 ? 40 : -40) - hf.ox - cam.x), Math.round(f.y - hf.gy - cam.y)); } }); }
+      BARRIER.x = cx; BARRIER.y = cy - 2; PAVS[0].x = cx - HALF - 26; PAVS[0].y = cy - 4; PAVS[1].x = cx + HALF + 26; PAVS[1].y = cy - 4;
+      game.actors.push(...out);
+      // the crowd stands back from the lists
+      const L = cx - HALF - 40, R = cx + HALF + 40, Tp = cy - 26, B = cy + 22;
+      for (const q of s.people) { const a = q.agent; if (!a || a.hidden || a.inside != null) continue; if (a.x > L && a.x < R && a.y > Tp && a.y < B) { a.y = a.y < cy ? Tp - 1 : B + 1; } }
+      const p = game.player; if (p.x > L && p.x < R && p.y > Tp && p.y < B && !p.mount) p.y = p.y < cy ? Tp - 1 : B + 1;
+    });
+
     // ---------------------------------------------------------------- the midwinter feast: a seat at the table
     let fedAt = -1;
     game.hooks.update.push(() => {
@@ -209,7 +304,7 @@
       const f = fest(s), key = s.day + ':' + (f || '') + ':' + (s.weekday === 6);
       if (key === told || s.hour < 7) return; told = key;
       if (f === 'tournament' && keepOf(s)) say(`It's ${NAMES[f]} in ${s.world.name}! Knights ride at the lists in the square from ten. Bet at the lists, or ride if you have a horse.`);
-      else if (f === 'fair') say(`It's ${NAMES[f]}! The square is full of stalls and music, and there's archery at the butts with a purse for the best shot.`);
+      else if (f === 'fair') say(`It's ${NAMES[f]}! The square is full of stalls and music. By the noticeboard: archery at the butts, wrestling in the ring, and the judging of the best bread, ale and wares, each with a purse.`);
       else if (f === 'midwinter') say(`It's ${NAMES[f]}. Tonight the castle and the gentry feast, and the town drinks at the tavern on the lord's coin.`);
       else if (s.weekday === 6 && !s.quarantine) say('Sunday market: travelling merchants set up in the square until two.');
     });

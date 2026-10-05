@@ -89,3 +89,5 @@
 
   O.Data = { GOODS, BUSINESS, ROLE_OUTFIT, NAMES, TRAITS, GOALS };
 })();
+// "at the Crooked Lantern", but "out in the village" stays as it is
+O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; return /^(out|in|on|by|near|at|along|outside|behind|upstairs)\b/.test(n) ? n : 'at ' + n.replace(/^The (?=[a-z])/, 'the '); };

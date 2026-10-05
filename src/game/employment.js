@@ -24,7 +24,7 @@
     const bizOf = (e) => { const s = cur(); return e && e.place === s.world.placeId ? s.biz.get(e.biz) : null; };
     const COURT = new Set(['monarch', 'consort', 'heir', 'prince', 'princess', 'lord', 'lady', 'lady-in-waiting', 'jester', 'steward', 'chamberlain', 'captain of the royal guard']);
     O.crownPost = (r) => COURT.has(r);
-    const hoursOf = (e, bz) => { const r = e.role || ''; if (COURT.has(r)) return [8, 20]; if (r === 'potboy' || r === 'potgirl') return [17, 21]; if (['night watchman', 'gaoler'].includes(r)) return [20, 30]; if (r.startsWith('guard') || r === 'sergeant') return [6, 18]; return bz ? bz.def.hours : [8, 17]; };
+    const hoursOf = (e, bz) => { if (e.hours) return e.hours; const r = e.role || ''; if (COURT.has(r)) return [8, 20]; if (r === 'potboy' || r === 'potgirl') return [17, 21]; if (['night watchman', 'gaoler'].includes(r)) return [20, 30]; if (r.startsWith('guard') || r === 'sergeant') return [6, 18]; return bz ? bz.def.hours : [8, 17]; };
     const worksToday = (s, bz) => !(s.weekday === 6 && bz && !['tavern', 'chapel', 'guard', 'hospital', 'palace', 'keep', 'manor', 'posthouse'].includes(bz.type));
     // when the next shift is, worked out fresh from today's date (never left saying "tomorrow" once tomorrow has come)
     const nextShift = (e, s, bz, o, c) => {
@@ -50,6 +50,7 @@
         if (high && !e) return out;
         if (e) { out.push(['otherjob', 'Ask about other work here']); out.push(['notice', 'Hand in your notice']); }
         else if (O.knowsTrade && O.knowsTrade(q)) out.push(['askjob', `Ask for work at ${bz.name}`]);
+        if (!e && holidayWork(s, bz)) out.push(['dayhand', 'Need an extra pair of hands today?']);
       } else if (q.age >= 14 && !high) out.push(['whohires', "Who's taking on hands?"]);
       return out;
     };
@@ -67,7 +68,25 @@
       return `"${pick.map((x, i) => `${i ? (i === pick.length - 1 ? 'and ' : '') : ''}${x.boss.first} at ${x.bz.name} wants ${/^[aeiou]/.test(x.role) ? 'an' : 'a'} ${x.role}`).join(', ')}. Go and ask ${pick.length > 1 ? 'them' : x0(pick)} yourself: talk to whoever runs the place."`;
     }
     const x0 = (p) => (p[0].boss.sex === 'f' ? 'her' : 'him');
+    // a holiday: the tavern, the bakery and the butcher's are run off their feet and take on hands for the day
+    function holidayWork(s, bz) {
+      if (!['tavern', 'inn', 'bakery', 'butcher', 'kitchen'].includes(bz.type) || !O.eventsFor) return null;
+      const ev = O.eventsFor(s, s.day, s.day).find((x) => x.square && !x.small && !x.council && s.hour < x.to - 2);
+      if (!ev) return null;
+      const roles = bz.def.jobs.map((j) => j[0]).filter((r) => (bz.def.wage[r] || 0) > 0), role = roles.find((r) => /server|serving|potboy|baker|butcher|cook|scullion/.test(r)) || roles.slice(-1)[0]; if (!role) return null;
+      return { ev, role, from: Math.max(Math.ceil(s.hour * 2) / 2, ev.from - 1), to: Math.min(24, ev.to + 0.5) };
+    }
+    function dayHand(q, render) {
+      const s = cur(), bz = s.biz.get(q.job.biz), hw = holidayWork(s, bz); if (!hw) return render('"We\'ll manage, thank you."');
+      if ((PS.rep.local || 0) < -0.2 || PS.wantedLevel?.() >= 2) return render('"Not from you, thank you."');
+      const clash = posts().filter((x) => { const xb = (O.Travel?.visited.get(x.place)?.sim || s).biz.get(x.biz), [xo, xc] = hoursOf(x, xb); return xo < hw.to && hw.from < xc && !(x.dayInfo && x.dayInfo.dayDone) && !(x.dayInfo && x.dayInfo.off); });
+      if (clash.length) return render(`"You've work of your own today, at ${clash[0].bizName}."`);
+      const wage = 4 + Math.round((hw.to - hw.from) / 2);
+      hire(s, bz, q, hw.role, wage, { temp: s.day, hours: [hw.from, hw.to] }); PS.emp.firstDay = s.day;
+      render(`"Bless you, yes! With ${hw.ev.title.split(':')[0].replace(/^The /, 'the ').replace(/ in the square$/, '')} on, we're run off our feet. ₳${wage} for the day, from ${fmtH(hw.from)} till ${fmtH(hw.to)}. Your tasks will be in the corner."`);
+    }
     npcUI.onExtra = (q, key, render) => {
+      if (key === 'dayhand') return dayHand(q, render);
       if (key === 'whohires') return render(whoHires(q));
       if (key === 'askjob') return offer(q, render);
       if (key === 'otherjob') { // one post to a place: you can move to a different one there, not hold two
@@ -98,7 +117,7 @@
       const shown = d.role === 'potboy' && (O.Forge.player?.sex || O.Forge.player?.a?.sex) === 'f' ? 'potgirl' : d.role;
       O.Panels.open(`Work at ${bz.name}`, `<p class="speech">“I could use a ${shown}.${d.role === 'potboy' ? ' Somebody has to gather the pots and wipe the tables of an evening.' : ''} ₳${d.wage} a day, ${fmtH(o)} till ${fmtH(c)}${['tavern', 'chapel', 'guard', 'hospital'].includes(bz.type) ? ', every day' : ', Sundays off'}. Will you take it?”</p>${clash.length ? `<p class="caption">The hours clash: you'd give up your post as ${clash.map((x) => `${esc(x.role)} at ${esc(x.bizName)}`).join(' and ')}.</p>` : keep.length ? `<p class="caption">You'd keep your post as ${keep.map((x) => `${esc(x.role)} at ${esc(x.bizName)}`).join(' and ')} as well: the hours don't clash.</p>` : ''}<div class="topics"><button data-y="1">Take the job</button><button data-n="1">Not now</button></div>`, (r) => {
         r.querySelector('[data-n]').onclick = () => O.Panels.close();
-        r.querySelector('[data-y]').onclick = () => { for (const x of clash) quit(null, x); void e; hire(s, bz, q, d.role, d.wage); O.Panels.close(); say(`You're taken on as ${shown} at ${bz.name}. Your first shift is ${worksToday(s, bz) && s.hour < o ? 'today' : 'tomorrow'} at ${fmtH(o)}. When it starts, your tasks show in the corner and arrows show where to go.`); };
+        r.querySelector('[data-y]').onclick = () => { for (const x of clash) quit(null, x); void e; hire(s, bz, q, d.role, d.wage); O.Panels.close(); say(`You're taken on as ${shown} at ${bz.name}. Your first shift is ${worksToday(s, bz) && s.hour < o ? 'today' : 'tomorrow'} at ${fmtH(o)}. When it starts, your tasks show in the corner and gold markers show where to go.`); };
       });
       return null;
     }
@@ -301,9 +320,20 @@
       if (busy > 0) { busy -= dt; game.player.locked = true; if (busy <= 0) { game.player.locked = false; const f = busyDone; busyDone = null; game.player.anim = 'idle'; f && f(); } }
     });
     function act(anim, secs, minutes, done) { const p = game.player; p.anim = anim; p.ft = 0; busy = secs; busyDone = () => { const s = cur(); for (let i = 0; i < minutes / 2; i++) { s.tick(2); PS.tick(2, false); } PS.energy = Math.max(0, PS.energy - minutes / 20); done(); }; }
+    // the work teaches you the trade: each task done makes you a little better at it
+    const TRADE = { bakery: 'baking', smithy: 'smithing', armourer: 'smithing', carpenter: 'woodcraft', sawmill: 'woodcraft', cooper: 'woodcraft', tavern: 'serving', inn: 'serving', hospital: 'physic', apothecary: 'physic', mill: 'milling', farmhouse: 'farming', woodcutter: 'woodcraft', builder: 'building', quarry: 'building', mine: 'mining', butcher: 'butchery', kitchen: 'serving', doctor: 'physic', cobbler: 'crafting', tanner: 'crafting', warehouse: 'trading', townhall: 'letters', guard: 'fighting', barracks: 'fighting', weaver: 'weaving', tailor: 'weaving', dyer: 'weaving', chandler: 'crafting', potter: 'crafting', jeweller: 'crafting', school: 'letters', scriptorium: 'letters', market: 'trading', store: 'trading', posthouse: 'riding', stable: 'riding', fishery: 'fishing', chapel: 'letters' };
+    const BY_KIND = { serve: 'serving', patrol: 'fighting', field: 'farming', chop: 'woodcraft', fish: 'fishing', tend: 'physic', write: 'letters', teach: 'letters', collect: 'trading', deliver: 'trading' };
+    const tradeOf = (bz, kind) => (['make', 'fire'].includes(kind) || !BY_KIND[kind] ? TRADE[bz.type] : BY_KIND[kind]) || TRADE[bz.type] || null;
+    O.tradeOf = (e, bz) => tradeOf(bz, ROLE_KIND(e.role));
+    function learn(e, bz, kind) {
+      const sk = ['sweep', 'talkto', 'talkmany', 'unload', 'rooms', 'pots'].includes(kind) ? null : tradeOf(bz, kind); if (!sk) return;
+      const before = PS.skills[sk] || 0; PS.skills[sk] = Math.min(1, before + 0.006 * (1 - before * 0.8));
+      const step = [0.25, 0.5, 0.75].find((x) => before < x && PS.skills[sk] >= x);
+      if (step) setTimeout(() => say(`You're getting good at ${sk}: ${step === 0.25 ? 'no longer a beginner' : step === 0.5 ? 'as handy as most in the trade' : 'better than most'}.`), 900);
+    }
     O.jobAct = (c) => {
       const e = emp(), s = cur(), bz = bizOf(e), t = c.t; if (!bz) return;
-      const tick = (msg) => { t.have++; e.stats.tasks++; e.todayTasks = (e.todayTasks || 0) + 1; if (c.k != null) (t.done = t.done || []).push(c.k); if (msg) say(msg); refresh(); };
+      const tick = (msg) => { learn(e, bz, t.kind); t.have++; e.stats.tasks++; e.todayTasks = (e.todayTasks || 0) + 1; if (c.k != null) (t.done = t.done || []).push(c.k); if (msg) say(msg); refresh(); };
       switch (t.kind) {
         case 'make': {
           const rc = recipeFor(bz, e.role); if (!rc) return;
@@ -326,7 +356,7 @@
         }
         case 'serve': {
           const customers = s.people.filter((q) => q.agent.inside === bz.id && ['shop', 'eat-out', 'socialise', 'deliver', 'import'].includes(q.activity?.act)).length;
-          act(ANIM_OF(t, e), 1.6, 15, () => { const sold = bz.def.sells[0]; if (customers && sold && (bz.stock[sold] || 0) >= 1) { const pr = s.price(bz, sold); bz.stock[sold] -= 1; bz.cash += pr; bz.salesToday += pr; tick(`You serve a customer: ${D.GOODS[sold]?.name.toLowerCase()} for ₳${pr} into the till.`); } else tick(customers ? 'You see to a customer.' : 'Nobody waiting; you set the counter straight and wait for trade.'); });
+          act(ANIM_OF(t, e), 1.6, 15, () => { const sold = bz.def.sells[0]; if (customers && sold && (bz.stock[sold] || 0) >= 1) { const pr = s.price(bz, sold); bz.stock[sold] -= 1; bz.cash += pr; bz.salesToday += pr; const tip = (bz.type === 'tavern' || bz.type === 'inn') && Math.random() < 0.18 + (PS.rep.local || 0) * 0.2; if (tip) { PS.money += 1; PS.earned = (PS.earned || 0) + 1; } tick(`You serve a customer: ${D.GOODS[sold]?.name.toLowerCase()} for ₳${pr} into the till.${tip ? ' They press ₳1 into your hand for yourself.' : ''}`); } else tick(customers ? 'You see to a customer.' : 'Nobody waiting; you set the counter straight and wait for trade.'); });
           break;
         }
         case 'sweep': act('sweep', 1.6, 15, () => { (t.swept = t.swept || []).push(c.it ? c.it.id : c.k); tick(t.have + 1 >= t.need ? (bz.type === 'stable' ? 'The stalls are mucked out and fresh straw down.' : 'Swept clean.') : null); }); break;
@@ -364,8 +394,9 @@
       return Math.hypot(p.x - (bz.b.doorX * T + 8), p.y - bz.b.doorY * T) < 140 || e.tasks.some((t) => t._spots && t._spots.some(([x, y]) => Math.hypot(x - p.x, y - p.y) < 60));
     }
     game.hooks.update.push(() => {
-      const all = posts(); if (!all.length) { panel(null); return; }
+      let all = posts(); if (!all.length) { panel(null); return; }
       for (const e of all.slice()) tickPost(e);
+      all = posts(); if (!all.length) { panel(null); return; } // (a post may have ended just now)
       // the post you're working at just now is the one in focus: on shift and here, else on shift, else the next
       const pl = cur().world.placeId;
       PS.emp = all.find((e) => e.onShift && e.place === pl) || all.find((e) => e.onShift) || all.slice().sort((a, b) => hoursOf(a, null)[0] - hoursOf(b, null)[0])[0] || null;
@@ -382,40 +413,87 @@
       const [o, c] = hoursOf(e, bz), h = s.hour + (s.hour < 6 && c > 24 ? 24 : 0), day = s.day;
       if (e.day !== day) { // a new day
         if (e.day != null && e.dayInfo) settle(s, bz, e);
-        e.day = day; e.dayInfo = { works: worksToday(s, bz) && day >= (e.firstDay || 0), arrived: null, excused: e.excuseDay === day };
+        if (e.temp != null && day > e.temp) { quit(`Your day's work at ${e.bizName} for the holiday is over.`, e); return; }
+        e.day = day; e.dayInfo = { works: worksToday(s, bz) && day >= (e.firstDay || 0), arrived: null, excused: e.excuseDay === day || e.dayOff === day, off: e.dayOff === day };
         e.tasks = []; e.onShift = false;
       }
       const D0 = e.dayInfo; if (!D0.works && day >= (e.firstDay || 0) && worksToday(s, bz)) D0.works = true; // start day reached
       if (!D0.works) return;
       const on = h >= o && h < c;
-      if (on && !e.onShift && !D0.dayDone) { e.onShift = true; e.tasks = newTasks(s, bz, e); e._rot = now(s); D0.mode = modeOf(e.role); D0.present = 0; refresh(); }
+      if (on && !e.onShift && !D0.dayDone && !D0.off) { e.onShift = true; e.tasks = newTasks(s, bz, e); e._rot = now(s); D0.mode = modeOf(e.role); D0.present = 0; refresh(); }
       if (on && e.onShift && atWork(s, bz, e)) D0.present = (D0.present || 0) + 1;
       if (!on && e.onShift && h >= c) { e.onShift = false; refresh(); }
-      if (on && D0.arrived == null && atWork(s, bz, e)) { D0.arrived = h; if (h > o + 0.25 && !D0.excused) { e.stats.late++; const boss = s.byId.get(e.master); if (boss) s.relate(boss, { id: 0 }, -0.04); say(`You're late. ${e.masterName || 'Your master'} gives you a look.`, 'bad'); } }
-      if (on && e.onShift && D0.mode === 'quota' && e.tasks.length && e.tasks.every((t) => t.have >= t.need) && !D0.dayDone) {
+      if (on && D0.arrived == null && !D0.off && atWork(s, bz, e)) { D0.arrived = h; if (h > o + 0.25 && !D0.excused) { e.stats.late++; const boss = s.byId.get(e.master); if (boss) s.relate(boss, { id: 0 }, -0.04); say(`You're late. ${e.masterName || 'Your master'} gives you a look.`, 'bad'); } }
+      if (on && e.onShift && D0.mode === 'quota' && e.tasks.length && e.tasks.every((t) => t.optional || t.have >= t.need) && !D0.dayDone) {
         D0.dayDone = true; e.onShift = false; refresh();
         say(`That's your day's work done at ${bz.name}. You can go: you'll be paid in full.`);
+      }
+      if (on && e.onShift && !COURT.has(e.role) && game.scene && game.scene.b.id === bz.id) { if (e._chatAt == null) e._chatAt = now(s) + 40 + Math.random() * 60; else if (now(s) >= e._chatAt) { e._chatAt = now(s) + 100 + Math.random() * 120; chatter(s, bz, e); } }
+      if (on && e.onShift && atWork(s, bz, e) && !COURT.has(e.role)) {
+        if (e._incAt == null || e._incDay !== day) { e._incDay = day; e._incAt = now(s) + 90 + Math.random() * 120; }
+        else if (now(s) >= e._incAt && h < c - 1.5) { e._incAt = now(s) + 150 + Math.random() * 150; const busy = O.eventsFor && O.eventsFor(s, day, day).some((x) => x.square && !x.small && h >= x.from - 1 && h < x.to + 1); if (busy) e._incAt -= 60; if (Math.random() < (busy ? 0.75 : 0.45) && !e.tasks.some((x) => x.optional && x.have < x.need)) incident(s, bz, e); }
       }
       if (on && e.onShift && D0.mode === 'shift') {
         // the work changes as the day goes on: every hour and a half, something new needs doing
         if (now(s) - (e._rot || 0) >= 90 && h < c - 0.75) {
           e._rot = now(s);
-          const open = e.tasks.filter((t) => t.have < t.need), done = e.tasks.filter((t) => t.have >= t.need);
+          const open = e.tasks.filter((t) => t.have < t.need && !t.optional), done = e.tasks.filter((t) => t.have >= t.need && !t.optional), extras = e.tasks.filter((t) => t.optional);
           const pool = [...newTasks(s, bz, e), { id: 'sw' + now(s), kind: 'sweep', need: 2, have: 0, text: 'Sweep and tidy the place' }, { id: 'tm' + now(s), kind: 'talkmany', need: 2, have: 0, text: 'See to the folk who come in', inBiz: true }];
           if (e.master != null && e.master !== 0) pool.push({ id: 'tt' + now(s), kind: 'talkto', who: e.master, need: 1, have: 0, text: `Ask ${e.masterName || 'your master'} what wants doing` });
           const recent = new Set(done.slice(-4).map((x) => x.kind));
           const fresh = pool.filter((t) => t.kind !== 'rooms' && !open.some((x) => x.kind === t.kind) && !recent.has(t.kind));
           for (let i = fresh.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [fresh[i], fresh[j]] = [fresh[j], fresh[i]]; }
           const add = fresh.slice(0, Math.max(1, 3 - open.length));
-          if (add.length) { e.tasks = [...done.slice(-3), ...open, ...add]; refresh(); if (atWork(s, bz, e)) say(`New work: ${add.map((x) => x.text.charAt(0).toLowerCase() + x.text.slice(1)).join('; ')}.`); }
+          if (add.length) { e.tasks = [...extras, ...done.slice(-3), ...open, ...add]; refresh(); if (atWork(s, bz, e)) say(`New work: ${add.map((x) => x.text.charAt(0).toLowerCase() + x.text.slice(1)).join('; ')}.`); }
         }
         if (e.tasks.every((t) => t.have >= t.need) && h < c - 1) e._rot = Math.min(e._rot || 0, now(s) - 70); // all done: something new comes along soon
       }
     }
+    // ---------------------------------------------------------------- the people you work with: now and then a word about the work
+    const CHAT = {
+      bakery: ["Flour's running low again.", 'Knead it harder: it wants air in it.', "The oven's fierce today. Mind your hands.", "First batch is out. Smell that."],
+      smithy: ['Keep the bellows going.', "That iron's nearly ready.", 'Quench it, quick!', 'Hammer on the flat, not the edge.'],
+      armourer: ['Rivet it close, or it\'ll gape.', "That helm wants another hour's work.", 'Keep the bellows going.'],
+      tavern: ['The table by the fire wants more ale.', "Mind that one: he's had plenty.", "Busy tonight. Busier than yesterday.", 'Wipe that down before the next lot sit.'],
+      inn: ['Room three wants fresh straw.', 'Another traveller at the door.', 'The table by the fire wants more ale.'],
+      guard: ['Quiet round so far.', 'Keep your eyes open by the gate.', "The sergeant's in a mood.", 'Heard there was a fight by the well last night.'],
+      farmhouse: ["Rain's coming. I can smell it.", 'Keep the furrow straight.', 'Those beasts want watering.'],
+      woodcutter: ['Mind where that one falls!', 'Stack it with the bark up.', 'Good oak, this.'],
+      mill: ['Mind the stones.', 'Sacks by the door, not the wheel.', 'The race is running fast today.'],
+      chapel: ['Candles want trimming.', 'Quietly now: someone is praying.', 'The roof leaks again by the font.'],
+      hospital: ['Fresh water for the sick, if you will.', 'He took his broth. A good sign.', 'Wash your hands before you touch the wound.'],
+      stable: ['Mind his back hooves.', 'The grey wants shoeing.', 'Fresh straw in the end stall.'],
+      _: ['Not long now till we\'re done.', "The master's watching. Look sharp.", 'Pass me that, would you?', 'Another day, another aurin.'],
+    };
+    function chatter(s, bz, e) {
+      if (!game.scene || game.scene.b.id !== bz.id) return;
+      const mates = bz.workers.map((id) => s.byId.get(id)).filter((q) => q && q.alive !== false && q.activity?.act === 'work' && q.agent && q.agent.inside === bz.id);
+      if (!mates.length) return;
+      const q = mates[Math.floor(Math.random() * mates.length)], lines = CHAT[bz.type] || CHAT._;
+      say(`${q.first}: "${lines[Math.floor(Math.random() * lines.length)]}"`);
+    }
+    // ---------------------------------------------------------------- the unexpected: something comes up at work
+    // an optional extra task suited to the trade, with something extra in the pay if it's done
+    function incident(s, bz, e) {
+      const kind = ROLE_KIND(e.role), id = () => Math.random().toString(36).slice(2, 8), pick = (a) => a[Math.floor(Math.random() * a.length)];
+      const folk = s.people.filter((q) => q.alive !== false && q.age >= 16 && !q.visitor && q.agent && !q.agent.hidden && q.id !== e.master);
+      const someone = folk.length ? pick(folk) : null;
+      let t = null, msg = '';
+      if (kind === 'make') { const rc = recipeFor(bz, e.role), g = rc && Object.keys(rc.out)[0]; if (!g) return; const who = pick(['the castle kitchens', 'a wedding party', 'the inn', 'a carter heading for the capital', 'the priest']); t = { kind: 'make', good: g, need: 2, have: 0, text: `Rush order for ${who}: make 2 more ${D.GOODS[g]?.name.toLowerCase()}`, bonus: 4 }; msg = `A rush order comes in for ${who}. Make two more ${D.GOODS[g]?.name.toLowerCase()} and there's ₳4 extra in it.`; }
+      else if (kind === 'serve') { t = { kind: 'serve', need: 3, have: 0, text: 'A crowd has come in: serve them', bonus: 3 }; msg = 'A crowd comes in all at once. Serve three more and there\'s ₳3 extra.'; }
+      else if (kind === 'patrol' && someone) { t = { kind: 'talkto', who: someone.id, need: 1, have: 0, text: `Trouble reported: question ${someone.first} ${someone.sur || ''}`.trim(), bonus: 3 }; msg = `Word of trouble: ${someone.first} saw something. Find them and ask (₳3 extra).`; }
+      else if ((kind === 'deliver' || kind === 'collect') && someone) { t = { kind: 'talkto', who: someone.id, need: 1, have: 0, text: `Urgent: carry word to ${someone.first} ${someone.sur || ''}`.trim(), bonus: 3 }; msg = `An urgent message for ${someone.first}. Find them (₳3 extra).`; }
+      else if (kind === 'sweep') { t = { kind: 'sweep', need: 2, have: 0, text: 'Something spilled: clean it up', bonus: 2 }; msg = 'Something has been spilled all over. Clean it up (₳2 extra).'; }
+      else if (kind === 'tend') { t = { kind: 'tend', need: 1, have: 0, text: 'A patient brought in: tend them', bonus: 3 }; msg = 'Someone is carried in, hurt. Tend them (₳3 extra).'; }
+      else if (kind === 'service' && someone) { t = { kind: 'talkto', who: someone.id, need: 1, have: 0, text: `${someone.first} asks for your blessing`, bonus: 2 }; msg = `${someone.first} has asked for the priest. Find them (₳2 extra).`; }
+      else if (['field', 'chop', 'fish'].includes(kind)) { t = { kind, need: 2, have: 0, text: 'Weather coming: get more in before it turns', bonus: 3 }; msg = 'The sky looks wrong. Get two more done before the weather turns (₳3 extra).'; }
+      if (!t) return;
+      t.id = id(); t.optional = true; e.tasks.push(t); refresh(); say(msg);
+    }
     function settle(s, bz, e) {
-      const D0 = e.dayInfo; if (!D0.works && day >= (e.firstDay || 0) && worksToday(s, bz)) D0.works = true; // start day reached
-      if (!D0.works) return;
+      const D0 = e.dayInfo; if (!D0.works) return;
       const boss = s.byId.get(e.master), done = e.todayTasks || 0; e.todayTasks = 0;
+      if (D0.off && D0.arrived == null) return; // a day off, given
       if (D0.arrived == null) {
         if (D0.excused) { e.stats.excused++; if (boss) s.relate(boss, { id: 0 }, -0.02); }
         else { e.stats.missed++; if (boss) { s.relate(boss, { id: 0 }, -0.12); s.remember(boss, 'The stranger never came to work.', 'work', 1.2, 0); } }
@@ -424,12 +502,16 @@
         // the day's wage, less for a half-hearted day
         let pay;
         if (D0.walkedOut) pay = 0;
-        else if (D0.mode === 'quota') { const tot = e.tasks.length || 1, fin = e.tasks.filter((t) => t.have >= t.need).length; pay = Math.round(e.wage * (D0.dayDone ? 1 : O.clamp(0.3 + 0.7 * fin / tot, 0.3, 1))); }
+        else if (D0.mode === 'quota') { const req = e.tasks.filter((t) => !t.optional), tot = req.length || 1, fin = req.filter((t) => t.have >= t.need).length; pay = Math.round(e.wage * (D0.dayDone ? 1 : O.clamp(0.3 + 0.7 * fin / tot, 0.3, 1))); }
         else { const [o0, c0] = hoursOf(e, bz), len = Math.max(60, (c0 - o0) * 60); pay = Math.round(e.wage * O.clamp(0.25 + 0.75 * (D0.present || 0) / len + Math.min(0.15, done * 0.02), 0.25, 1.15)); }
         const purse = bz.def.public ? s.treasury : bz; const paid = Math.min(pay, Math.floor(purse.cash));
         purse.cash -= paid; PS.money += paid; PS.earned = (PS.earned || 0) + paid;
         if (boss) s.relate(boss, { id: 0 }, done >= 3 ? 0.04 : 0.01);
-        if (pay) say(`Your day's pay from ${bz.name}: ₳${paid}${paid < pay ? ` (₳${pay - paid} owing: the purse is empty)` : ''}.`);
+        const bonus = D0.walkedOut ? 0 : e.tasks.filter((x) => x.optional && x.have >= x.need).reduce((n, x) => n + (x.bonus || 0), 0);
+        const b2 = Math.max(0, Math.min(bonus, Math.floor(purse.cash))); if (bonus) e.stats.extras = (e.stats.extras || 0) + e.tasks.filter((x) => x.optional && x.have >= x.need).length; if (b2) { purse.cash -= b2; PS.money += b2; PS.earned = (PS.earned || 0) + b2; }
+        if (pay) say(`Your day's pay from ${bz.name}: ₳${paid}${b2 ? ` and ₳${b2} for the extra` : ''}${paid < pay ? ` (₳${pay - paid} owing: the purse is empty)` : ''}.`);
+        // a word from the master about the day
+        if (boss && !D0.walkedOut) { const late = D0.arrived != null && D0.arrived > hoursOf(e, bz)[0] + 0.25, all = e.tasks.length && e.tasks.every((x) => x.optional || x.have >= x.need); const line = late ? 'Be on time tomorrow.' : all && bonus ? 'Good work today. I saw you take on the extra.' : all ? 'Good work today.' : done < 2 ? "Was that all you did? I pay for work, not company." : null; if (line) setTimeout(() => say(`${boss.first}: "${line}"`, /Was that|on time/.test(line) ? 'bad' : ''), 1200); if (all && bonus) s.relate(boss, { id: 0 }, 0.03); }
       }
       // the sack: lateness and absence against how much they like you and how badly they need you
       const like = boss ? (boss.rel.get(0)?.affinity || 0) : 0, des = s.desperation ? s.desperation(bz) : 0;
@@ -466,7 +548,7 @@
       const bz = s.world.placeId === e.place ? s.biz.get(e.biz) : null, [o, c] = hoursOf(e, bz);
       const head = `<b>${esc(O.roleName(e.role))}</b> · ${esc(e.bizName)}${e.place !== cur().world.placeId ? `, ${esc(e.placeName)}` : ''}`;
       const crown = COURT.has(e.role);
-      const shift = crown ? (e.onShift ? `${e.role === 'monarch' ? 'Your reign' : 'At court'}: the business of the day, till ${fmtH(c)}` : `At court from ${fmtH(o)}`) : e.onShift ? (modeOf(e.role) === 'quota' ? `The day's work: ${e.tasks.filter((t) => t.have >= t.need).length} of ${e.tasks.length} done (go when it's all done)` : `On shift till ${fmtH(c)} (stay the hours; the work changes)`) : e.dayInfo?.dayDone ? `Your day's work is done` : `Next shift: ${nextShift(e, s, bz, o, c)} ${fmtH(o)}-${fmtH(c)}`;
+      const shift = crown ? (e.onShift ? `${e.role === 'monarch' ? 'Your reign' : 'At court'}: the business of the day, till ${fmtH(c)}` : `At court from ${fmtH(o)}`) : e.onShift ? (modeOf(e.role) === 'quota' ? `The day's work: ${e.tasks.filter((t) => !t.optional && t.have >= t.need).length} of ${e.tasks.filter((t) => !t.optional).length} done (go when it's all done)` : `On shift till ${fmtH(c)} (stay the hours; the work changes)`) : e.dayInfo?.dayDone ? `Your day's work is done` : e.dayInfo?.off && e.day === s.day ? 'A day off today, given by your master' : `Next shift: ${nextShift(e, s, bz, o, c)} ${fmtH(o)}-${fmtH(c)}`;
       const tasks = e.onShift ? e.tasks.map((t) => `<li class="${t.have >= t.need ? 'done' : ''}">${t.have >= t.need ? '■' : '□'} ${esc(t.text)}${t.need > 1 ? ` (${Math.min(t.have, t.need)}/${t.need})` : ''}</li>`).join('') : '';
       const carry = PS.carry ? `<div class="carry">Carrying: ${PS.carry.qty} ${esc(D.GOODS[PS.carry.good]?.name.toLowerCase() || PS.carry.good)}</div>` : '';
       const others = posts().filter((x) => x !== e).map((x) => { const xs = O.Travel?.visited.get(x.place)?.sim || cur(), xb = xs.world.placeId === x.place ? xs.biz.get(x.biz) : null, [xo, xc] = hoursOf(x, xb); return `<div class="js">Also: ${esc(x.role)} at ${esc(x.bizName)}, ${fmtH(xo)}-${fmtH(xc)}</div>`; }).join('');

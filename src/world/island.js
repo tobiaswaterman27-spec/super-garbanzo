@@ -525,7 +525,7 @@ O.bizName = (surname, label) => {
       const LOOK2 = { townhall: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'gable', chimney: true, sign: 'shield', floors: 2 }, stable: { wall: 'plank', plankMat: 'plank', roof: 'shingle', roofType: 'side', bigDoor: true }, butcher: { wall: 'timber', roof: 'tile', sign: 'scales' }, carpenter: { wall: 'plank', roof: 'shingle', sign: 'hammer' }, tailor: { wall: 'timber', roof: 'thatch', shopWindow: true }, smithy: { wall: 'stone', roof: 'slate', chimney: true, sign: 'anvil' } };
       const surname = O.Names ? rng.pick(O.Names.SUR) : 'Ward';
       const lk = Object.assign({ wall: 'timber', roof: 'thatch' }, def.look || LOOK2[type] || {});
-      const b = build(type, w, d, lk, ['posthouse', 'tollhouse', 'townhall'].includes(type) ? `${pl.name} ${def.label}` : O.bizName(surname, def.label), best[0], best[1], { floors: def.floors || lk.floors || 1 });
+      const b = build(type, w, d, lk, (['posthouse', 'tollhouse', 'townhall', 'guard', 'morgue', 'hospital', 'school', 'gaol'].includes(type) || def.public) ? `${pl.name} ${def.label}` : O.bizName(surname, def.label), best[0], best[1], { floors: def.floors || lk.floors || 1 });
       lane(b.doorX, b.doorY + 1);
       // a cottage nearby for the hands
       for (const [dx, dy] of [[w + 3, 0], [-7, 0], [0, 7], [w + 3, 6], [-7, 6]]) { const cx = best[0] + dx, cy = best[1] + dy; if (fits(cx, cy, 4, 3)) { const hb = build('house', 4, 3, { wall: rng.pick(['timber', 'plank', 'stone']), roof: rng.pick(['thatch', 'shingle']), chimney: true, doorTile: 1 }, 'Cottage', cx, cy); lane(hb.doorX, hb.doorY + 1); break; } }

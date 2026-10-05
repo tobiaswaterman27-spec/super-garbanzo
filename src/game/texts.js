@@ -25,7 +25,7 @@
     for (const b of world.buildings) {
       const bz0 = sim && sim.biz.get(b.id), m = /^(.+?)'s (.+)$/.exec(b.name || '');
       let nn = null;
-      if (m && LABELS.includes(m[2])) nn = O.bizName(m[1], m[2]);
+      if (m && LABELS.includes(m[2])) nn = bz0 && (bz0.def.public || ['guard', 'morgue', 'hospital', 'school', 'gaol'].includes(bz0.type)) ? `${(world.name || '').replace(/ .*/, '')} ${m[2]}` : O.bizName(m[1], m[2]);
       else if (bz0 && (LABELS.includes(b.name) || b.name === bz0.def.label || /^(Butcher|Carpenter|Physician|Armourer|Smithy|Jeweller|Saddler|Glazier|Chandlery|Builder's Yard)$/.test(b.name || ''))) { const own = sim.byId.get(bz0.owner) || sim.byId.get(bz0.workers[0]); nn = own && own.sur ? O.bizName(own.sur, bz0.def.label) : `The ${O.bizName('x', bz0.def.label).slice(4)}`; }
       if (!nn || nn === b.name) continue;
       const old = b.name; b.name = nn; const bz = sim && sim.biz.get(b.id); if (bz && bz.name === old) bz.name = nn;

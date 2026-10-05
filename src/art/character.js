@@ -476,6 +476,11 @@
       for (let i = -4; i <= 4; i++) { const lx = i / 4.4, lz = Math.sqrt(Math.max(0, 1 - lx * lx)); if (lz * V.Fz + lx * V.Rz < -0.15 && !V.back) continue; const q = headPt(S, H, lx, -0.45, lz); B.blob(q[0], q[1], 0.6, 0.55, gold, { power: 2 }); }
       if (!V.back) { const q = headPt(S, H, 0, -0.5, 1); B.blob(q[0], q[1], 0.6, 0.6, gem, { power: 2 }); }
     }
+    // a May garland: green leaves and flowers round the head
+    if (J.includes('garland') && a.outfit.hat !== 'hood' && a.outfit.hat !== 'kettle') {
+      const H = headFrame(S), leaf = P.mat('#4a7a34'), FL = [P.mat('#f0e8f0'), P.mat('#e8a0b8'), P.mat('#f0d040')];
+      for (let i = -5; i <= 5; i++) { const lx = i / 5.4, lz = Math.sqrt(Math.max(0, 1 - lx * lx)); if (lz * V.Fz + lx * V.Rz < -0.15 && !V.back) continue; const q = headPt(S, H, lx, -0.5, lz); B.blob(q[0], q[1], 0.7, 0.6, i % 2 ? leaf : FL[(i + 6) % 3], { power: 2 }); }
+    }
   }
 
   function longHair(s) { return s === 'long' || s === 'braid' || s === 'tied' || s === 'veil' || s === 'curly'; }

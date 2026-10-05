@@ -40,15 +40,16 @@
   function describe(d) {
     const bits = [];
     if (d.masked) bits.push('someone masked and hooded in black');
-    if (d.horse) bits.push(`riding a ${d.horse} horse`);
-    if (d.hood) bits.push(`a ${pretty(d.hood)} hood`);
-    if (d.hat) bits.push(`a ${d.hat === 'feather' ? 'feathered cap' : d.hat}`);
-    if (d.cloak) bits.push(`a ${pretty(d.cloak)} cloak`);
-    if (d.tunic) bits.push(`a ${pretty(d.tunic)} tunic`);
+    const a = (w) => `${/^[aeiou]/i.test(w) ? 'an' : 'a'} ${w}`;
+    if (d.horse) bits.push(`riding ${a(d.horse + ' horse')}`);
+    if (d.hood) bits.push(a(`${pretty(d.hood)} hood`));
+    if (d.hat) bits.push(a(d.hat === 'feather' ? 'feathered cap' : d.hat));
+    if (d.cloak) bits.push(a(`${pretty(d.cloak)} cloak`));
+    if (d.tunic) bits.push(a(`${pretty(d.tunic)} tunic`));
     if (d.hair) bits.push(`${pretty(d.hair)} hair`);
     if (d.height) bits.push(d.height === 'middling' ? 'middling height' : d.height);
     if (d.build) bits.push(`${d.build} build`);
-    return bits.join(', ') || 'nobody could say much';
+    return bits.length > 1 ? bits.slice(0, -1).join(', ') + ' and ' + bits[bits.length - 1] : bits[0] || 'nobody could say much';
   }
   // the same person in the black hood and mask
   const maskCache = new WeakMap();
@@ -124,7 +125,7 @@
       p.task = null;
       if (!crime || crime.reported) return;
       crime.reported = true;
-      this.log(`${p.name} reported ${crime.kind === 'pickpocket' ? 'a cutpurse' : crime.kind} ${crime.placeName ? 'at ' + crime.placeName : ''} to the watch.`, 'crime');
+      this.log(`${p.name} reported ${crime.kind === 'pickpocket' ? 'a cutpurse' : /^[aeiou]/.test(crime.kind) ? 'an ' + crime.kind : 'a ' + crime.kind} ${crime.placeName ? O.atPlace(crime.placeName) + ' ' : ''}to the watch.`, 'crime');
       const guards = this.people.filter((q) => q.job?.role?.startsWith('guard') && !q.task && q.activity?.act !== 'sleep');
       const g = guards.find((q) => q.job.role === 'guard captain') || guards[0];
       if (g) g.task = { act: 'investigate', outdoor: true, crime: crime.id, tile: crime.tile };
@@ -141,7 +142,7 @@
       crime.evidence = Math.min(3, crime.witnesses.reduce((s, w) => s + w.acc, 0) * (0.6 + skill * 0.6));
       if (crime.royal) crime.evidence = Math.max(crime.evidence, 1.8); // the crown's word is taken
       const desc = describe(crime.profile);
-      this.log(Object.keys(crime.profile).length ? `The watch is looking for ${desc} over the ${crime.kind} at ${crime.placeName || this.world.name}.` : `The watch has no description to go on over the ${crime.kind} at ${crime.placeName || this.world.name}.`, 'crime');
+      this.log(Object.keys(crime.profile).length ? `The watch is looking for ${desc} over the ${crime.kind} ${O.atPlace(crime.placeName, this.world.name)}.` : `The watch has no description to go on over the ${crime.kind} at ${crime.placeName || this.world.name}.`, 'crime');
       this.remember(g, `Investigating a ${crime.kind}: we want ${describe(crime.profile)}.`, 'work', 1.5);
       // an NPC culprit can be found by matching the description against the village
       if (crime.perp !== 'player') this.searchSuspects(crime, g);

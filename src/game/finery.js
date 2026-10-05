@@ -10,7 +10,7 @@
     O.wearJewels = () => {
       PS.worn = (PS.worn || []).filter((k) => PS.items.includes(k));
       const a = game.player.a; if (!a) return;
-      if (!same(a.jewels, PS.worn)) { a.jewels = PS.worn.slice(); Ch.invalidate(a); }
+      const want = [...PS.worn, ...(PS.garland != null && PS.garland === cur()?.day ? ['garland'] : [])]; if (!same(a.jewels, want)) { a.jewels = want; Ch.invalidate(a); }
     };
     let tk = 0;
     game.hooks.update.push((dt) => { tk -= dt; if (tk > 0) return; tk = 0.5; O.wearJewels(); });

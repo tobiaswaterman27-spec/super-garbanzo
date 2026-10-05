@@ -169,7 +169,7 @@
       const cr = _rec.call(this, o);
       if (o.perp === 'player') {
         const what = { pickpocket: 'A purse was cut', burglary: 'A burglary', robbery: 'A robbery', assault: 'An assault', 'horse theft': 'A horse was stolen', murder: 'A killing' }[o.kind] || `A ${o.kind}`;
-        const where = o.placeName ? ` at ${o.placeName}` : ` in ${this.world.name}`;
+        const where = o.placeName ? ` ${O.atPlace(o.placeName)}` : ` in ${this.world.name}`;
         const f = C.deed(this, `${what}${where}${o.seen && o.seen.length ? ', and it was seen' : ''}.`, `You committed ${o.kind}${where}${o.seen && o.seen.length ? `, ${o.seen.length} saw you` : ', unseen'}.`, 'crime', o.kind === 'pickpocket' ? 1 : (o.severity || 1) + 1, false);
         f.crimeId = cr && cr.id;
         if (o.seen) for (const w of o.seen) if (w && w.id != null && !w.visitor) this.hear(w, f, 'saw');

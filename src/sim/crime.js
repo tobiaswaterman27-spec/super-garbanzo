@@ -8,11 +8,12 @@
     const a = game.player.a, o = a.outfit, P = O.Pal;
     const nameOf = (m) => { const hex = P.mats[m]?.hex; const e = Object.entries(P.cloth).find(([, h]) => h === hex); return e ? e[0].replace(/([A-Z])/g, ' $1').toLowerCase() : 'dark'; };
     const bits = [];
-    if (o.hat === 'hood') bits.push(`a ${nameOf(o.hatMat)} hood`);
-    if (o.cloak && accuracy > 0.3) bits.push(`a ${nameOf(o.cloak)} cloak`);
+    const an = (w) => `${/^[aeiou]/i.test(w) ? 'an' : 'a'} ${w}`;
+    if (o.hat === 'hood') bits.push(an(`${nameOf(o.hatMat)} hood`));
+    if (o.cloak && accuracy > 0.3) bits.push(an(`${nameOf(o.cloak)} cloak`));
     if (accuracy > 0.5 && o.hat !== 'hood') bits.push(`${Object.entries(P.hair).find(([, h]) => h === P.mats[a.hair]?.hex)?.[0]?.replace(/([A-Z])/g, ' $1').toLowerCase() || 'dark'} hair`);
     if (accuracy > 0.7) bits.push(a.height > 0.4 ? 'tall' : a.height < -0.4 ? 'short' : 'middling height');
-    return bits.length ? bits.join(', ') : 'a stranger, hard to say';
+    return bits.length > 1 ? bits.slice(0, -1).join(', ') + ' and ' + bits[bits.length - 1] : bits[0] || 'a stranger, hard to say';
   }
 
   function witnessesIndoors(game, sim, b, floor) {
@@ -41,7 +42,7 @@
     PS.rep.local = Math.max(-1, PS.rep.local - 0.15 * ws.length);
     PS.rep.civilian = Math.max(-1, PS.rep.civilian - 0.1);
     if (ev.building.type !== 'house') PS.rep.merchant = Math.max(-1, PS.rep.merchant - 0.15);
-    sim.log(`Theft at ${placeName}: ${ev.what} taken. Witnesses describe ${O.Justice.describe(crime.witnesses[0].desc)}.`, 'crime');
+    sim.log(`Theft ${O.atPlace(placeName)}: ${ev.what} taken. Witnesses describe ${O.Justice.describe(crime.witnesses[0].desc)}.`, 'crime');
     const shout = ws[0];
     O.Panels.toast(`${shout.first}${ws.length > 1 ? ` and ${ws.length - 1} other${ws.length > 2 ? 's' : ''}` : ''} saw you! “Thief! Stop, thief!”`, 'bad');
     return crime;

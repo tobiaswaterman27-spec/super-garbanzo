@@ -361,3 +361,13 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Birthdays: each year in Eldoria you're a year older
 - [x] Words put right from a long run of the town's life: plurals everywhere ("14 bundles of planks", "a set of tools", "bolts of cloth", "12 fish"), no "sold for ₳0" (a trader sells what they can pay for and takes the rest on), traders stay away from a place that couldn't pay, "its roof" for a business, "half a week" not "0.5 weeks", the crown's treasury, "buried him/her", no line starting in small letters, "couldn't pay my wage at all"
 - [x] Traders buy any trade's surplus to sell elsewhere, so a smith with daggers to spare, or a cooper with casks, gets money in
+
+## Batch W (asked after step 89) - death and the heir
+
+- [x] You can die: beaten to death in a fight (likelier with more wounds, never by the watch, who take you alive), of an illness you let worsen (out in the cold, unfed), of hunger, or of old age (from sixty, each birthday a little more of a gamble)
+- [x] Illness can now get worse as well as better, with a warning when it does
+- [x] The town buries you: it's in the log and the chronicle, and your friends remember you
+- [x] An epitaph: how you died, your age, your days in Eldoria, what you earned and left, who mourns you, what you were, and those before you
+- [x] Play on as your son or daughter (a nephew or niece if you die young): a new face and name in the family, nine tenths of the purse (the crown takes its tenth), the house, lands, businesses, horses, dog and chest; the crown too, with a coronation of the heir's own; posts, gang, crimes, bounty and knighthood die with you; skills and standing in part; townsfolk know the heir as your child
+- [x] Or begin a new life
+- [x] Your family line in People (O), and the heir's face kept across a reload

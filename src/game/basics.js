@@ -125,7 +125,9 @@
         const I = PS.ill;
         PS.energy = Math.max(0, PS.energy - I.sev * 1.2);
         if (I.sev > 0.5) PS.hp = Math.max(8, PS.hp - 0.4);
-        I.sev -= 0.004 + (PS.hunger > 50 ? 0.004 : 0);
+        const worse = (out && cold && !warm()) || PS.hunger < 15 || (out && wet && I.kind === 'chill');
+        I.sev += worse ? 0.005 : -(0.004 + (PS.hunger > 50 ? 0.004 : 0)); I.sev = Math.min(1, I.sev);
+        if (worse && I.sev > 0.7 && !I.warned) { I.warned = true; say(`You're getting worse. Get indoors, eat, and see a physician.`, 'bad'); }
         if (I.sev <= 0) { PS.ill = null; say("You're over it: well again."); }
       }
     });
@@ -198,7 +200,7 @@
       rows.sort((x, y) => y.a - x.a);
       const word = (a) => (a > 0.6 ? 'a dear friend' : a > 0.35 ? 'a friend' : a > 0.12 ? 'friendly' : a > -0.12 ? 'knows you' : a > -0.35 ? 'cool towards you' : a > -0.6 ? 'dislikes you' : 'hates you');
       const life = `<div class="kv"><div><span class="lbl">Days in Eldoria</span><b>${cur().day - (PS.startDay || 1) + 1}</b></div><div><span class="lbl">Age</span><b>${O.Forge.player?.age || '?'}</b><small>${PS.ill ? 'ill: ' + KINDS[PS.ill.kind].name : 'in health'}</small></div><div><span class="lbl">Earned honestly</span><b>₳${Math.round(PS.earned || 0)}</b></div><div><span class="lbl">Goods made</span><b>${PS.made || 0}</b></div><div><span class="lbl">Crimes known</span><b>${(PS.crimes || []).length}</b></div><div><span class="lbl">People who know you</span><b>${rows.length}</b></div></div>`;
-      O.Panels.open('People', `<h3>Your life</h3>${life}<h3>The people you know</h3>${rows.length ? `<table><tbody>${rows.slice(0, 60).map(({ q, s, a }) => `<tr><td><b>${esc(q.name)}</b><br><small class="lbl">${esc(q.job?.role || (q.age < 16 ? 'a child' : 'no trade'))}, ${esc(s.world.name)}</small></td><td><span class="${a < -0.12 ? 'warn' : ''}">${word(a)}</span></td></tr>`).join('')}</tbody></table>` : '<p class="caption">Nobody knows you yet. Talk to people.</p>'}`);
+      O.Panels.open('People', `<h3>Your life</h3>${life}${(PS.forebears || []).length ? `<h3>Your family line</h3><ul class="chron">${PS.forebears.map((f) => `<li><b>${esc(f.name)}</b>${f.crowned ? ' (crowned)' : f.title ? ` (${esc(f.title)})` : ''}: ${esc(f.how)}, aged ${f.age}, after ${f.days} day${f.days === 1 ? '' : 's'} in Eldoria</li>`).join('')}</ul>` : ''}<h3>The people you know</h3>${rows.length ? `<table><tbody>${rows.slice(0, 60).map(({ q, s, a }) => `<tr><td><b>${esc(q.name)}</b><br><small class="lbl">${esc(q.job?.role || (q.age < 16 ? 'a child' : 'no trade'))}, ${esc(s.world.name)}</small></td><td><span class="${a < -0.12 ? 'warn' : ''}">${word(a)}</span></td></tr>`).join('')}</tbody></table>` : '<p class="caption">Nobody knows you yet. Talk to people.</p>'}`);
     }
     O.openPeople = people;
     game.keyHandlers.push((e) => { if (e.code === 'KeyO' && !e.ctrlKey && !e.metaKey) { if (O.panelOpen) O.Panels.close(); else people(); return true; } return false; });

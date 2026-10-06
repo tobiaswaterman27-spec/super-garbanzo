@@ -21,7 +21,7 @@
     tick(dtm, sleeping) {
       this.hunger = Math.max(0, this.hunger - 0.05 * dtm);
       this.energy = sleeping ? Math.min(100, this.energy + 0.2 * dtm) : Math.max(0, this.energy - 0.035 * dtm);
-      if (this.hunger <= 0) this.hp = Math.max(1, this.hp - 0.02 * dtm);
+      if (this.hunger <= 0) this.hp = Math.max(0, this.hp - 0.02 * dtm);
       else if (this.hunger > 50 && this.hp < 100) this.hp = Math.min(100, this.hp + 0.01 * dtm);
     },
     SLOTS,

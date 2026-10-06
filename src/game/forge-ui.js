@@ -234,5 +234,7 @@
   buildControls(); buildAnimChips(); nameplate(); resize();
   function loop(t) { if (open) drawPreview(t); requestAnimationFrame(loop); }
   requestAnimationFrame(loop);
-  O.Forge = { get player() { return player; }, spec: () => spec, showCreator, created: () => { try { return localStorage.getItem('outlaw.created') === '1'; } catch (e) { return true; } } };
+  // a new face for the same life: the heir who takes over
+  const setPlayer = (a, sp) => { player = a; if (sp) { spec = sp; try { localStorage.setItem('outlaw.spec', JSON.stringify(sp)); } catch (e) { /* ignore */ } } };
+  O.Forge = { get player() { return player; }, spec: () => spec, setPlayer, showCreator, created: () => { try { return localStorage.getItem('outlaw.created') === '1'; } catch (e) { return true; } } };
 })();

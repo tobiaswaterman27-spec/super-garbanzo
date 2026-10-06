@@ -21,6 +21,7 @@
     dagger: ['blade', '#c8ccd4', '#b8902a'], sword: ['sword', '#c8ccd4', '#b8902a'], axe: ['axe', '#8a6239', '#c8ccd4'], bow: ['bow', '#8a5a2a', '#e8e0d0'], arrows: ['arrows', '#8a6a3a', '#f0ece4'], helm: ['helm', '#8a8e98', '#5a5e68'], mail: ['mail', '#8a8e98', '#5a5e68'],
     saddle: ['saddle', '#7a4a2a', '#c8a040'], harness: ['coil', '#6a4024', '#c8a040'], wheel: ['wheel', '#8a6239', '#4a4a52'], cart: ['cart', '#8a6239', '#4a4a52'], boat: ['boat', '#8a6239', '#5a3a28'], tent: ['tent', '#d8c8a0', '#8a6239'], cask: ['barrel', '#8a6239', '#4a4a52'],
     ring: ['ring', '#e8c040', '#c83a3a'], brooch: ['brooch', '#e8c040', '#c83a3a'], necklace: ['ring', '#e8c040', '#3a60c8'], circlet: ['ring', '#f0d060', '#3a9a5a'], spoon: ['spoon', '#c8ccd4', '#f0f2f6'], candlestick: ['candlestick', '#9a9a96', '#f0e8d0'], key: ['key', '#c8a040', '#8a6a20'], coins: ['coins', '#c8ccd4', '#e8c040'], coin: ['coins', '#c8ccd4', '#e8c040'],
+    crown: ['ring', '#f0c030', '#c83a3a'],
     berries: ['round', '#8a2a5a', '#3a6a2a'], mushrooms: ['round', '#d8c0a0', '#8a5a3a'],
     medicine: ['flask', '#6a9ad0', '#c8b8a0'], herbs: ['herbs', '#5a9a40', '#3a6a2a'], furniture: ['chair', '#8a6239', '#6a4a2c'],
   };

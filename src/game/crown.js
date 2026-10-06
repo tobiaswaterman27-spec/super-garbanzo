@@ -105,13 +105,20 @@
     });
     // stand up from the throne and whoever was waiting goes away unheard
     game.hooks.update.push(() => { if (waiting && !game.player.sitting && !(O.UI.dialogOpen && O.UI.dialogOpen())) { if (waiting.task?.act === 'petition') waiting.task = null; waiting = null; } });
+    // the crown's treasury, in its own little box, while you sit in state on the throne
+    let tbox = null;
+    game.hooks.update.push(() => {
+      const sc = game.scene, on = sc && game.player.sitting && game.player.sitting.it?.kind === 'throne' && O.crowned && O.crowned();
+      if (!tbox) { tbox = document.createElement('div'); tbox.style.cssText = 'position:absolute;left:50%;top:10px;transform:translateX(-50%);background:rgba(250,242,222,.95);color:#4a3826;font:700 13px var(--body,Georgia);padding:4px 12px;box-shadow:0 -2px 0 #3a2a1a,0 2px 0 #3a2a1a,-2px 0 0 #3a2a1a,2px 0 0 #3a2a1a;z-index:25;pointer-events:none'; (document.getElementById('tab-play') || document.body).appendChild(tbox); }
+      tbox.hidden = !on; if (on) { const t = 'Crown treasury: ' + O.money(Math.round(K().treasury)); if (tbox.textContent !== t) tbox.textContent = t; }
+    });
     let pending = null, waiting = null; // (waiting: a petitioner before the throne, not yet answered)
     game.hooks.update.push(() => {
       if (!pending || game.t < pending.at || O.panelOpen || (O.UI.dialogOpen && O.UI.dialogOpen())) return;
       const { q, pt } = pending; pending = null; const s = cur();
       if (!game.player.sitting) { if (q.task?.act === 'petition') q.task = null; return; }
       waiting = q;
-      O.UI.dialog.open({ name: `${q.first}, a petitioner · Treasury ${O.money(Math.round(K().treasury))}`, color: '#8a6239', text: pt.text(q), options: pt.opts.map(([l], i) => ({ key: 'p' + i, label: l })), onPick: (key) => { const o = pt.opts[+key.slice(1)]; o[1](s, q, K()); O.jobEvent && O.jobEvent('hear'); s.remember(q, 'Brought my petition before the monarch.', 'politics', 2, 0); O.UI.dialog.close(); waiting = null; if (q.task?.act === 'petition') q.task = null; say(`${q.first} bows and withdraws. The next petitioner waits.`); }, onClose: () => { if (waiting === q) { waiting = null; if (q.task?.act === 'petition') q.task = null; } } });
+      O.UI.dialog.open({ name: `${q.first}, a petitioner`, color: '#8a6239', text: pt.text(q), options: pt.opts.map(([l], i) => ({ key: 'p' + i, label: l })), onPick: (key) => { const o = pt.opts[+key.slice(1)]; o[1](s, q, K()); O.jobEvent && O.jobEvent('hear'); s.remember(q, 'Brought my petition before the monarch.', 'politics', 2, 0); O.UI.dialog.close(); waiting = null; if (q.task?.act === 'petition') q.task = null; say(`${q.first} bows and withdraws. The next petitioner waits.`); }, onClose: () => { if (waiting === q) { waiting = null; if (q.task?.act === 'petition') q.task = null; } } });
     });
   }
   O.CrownSetup = { setup };

@@ -113,7 +113,8 @@
       const W = 12, H = 9, rim = mine ? '#e8b830' : royal ? '#6a3a7a' : '#3a2618';
       ctx.fillStyle = rim; ctx.fillRect(x - 1, y - 1, W + 2, H + 2); ctx.fillStyle = '#8a6a44'; ctx.fillRect(x, y, W, H); ctx.fillStyle = '#a07e54'; ctx.fillRect(x, y, W, 1);
       const rows = ICON[icon] || []; ctx.fillStyle = COL[icon] || '#fff';
-      rows.forEach((row, r) => [...row].forEach((ch, c) => { if (ch === '#') ctx.fillRect(x + 2 + c, y + 1 + r + (rows.length < 5 ? 1 : 0), 1, 1); }));
+      const iw = Math.max(...rows.map((rw) => rw.length), 0), ox = Math.floor((W - iw) / 2), oy = Math.floor((H - rows.length) / 2); // (centred on the board)
+      rows.forEach((row, r) => [...row].forEach((ch, c) => { if (ch === '#') ctx.fillRect(x + ox + c, y + oy + r, 1, 1); }));
       if (mine) { ctx.fillStyle = '#e8b830'; ctx.fillRect(x + W - 2, y + 1, 1, 1); }
     }
     game.hooks.drawTop.push((ctx, cam, indoor) => {

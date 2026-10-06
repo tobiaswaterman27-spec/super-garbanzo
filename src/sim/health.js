@@ -42,7 +42,7 @@
       for (const p of this.people) {
         if (p.activity?.act !== 'work' && p.activity?.act !== 'chop' && p.activity?.act !== 'build') continue;
         const risky = ['blacksmith', 'woodcutter', 'builder', 'miller'].includes(p.job?.role) ? 0.004 : 0.0008;
-        if (this.rng.chance(risky * (p.needs.energy < 25 ? 2 : 1))) { this.fallIll(p, 'injury', this.rng.float(0.25, 0.9)); this.log(`${p.name} was hurt at work.`, 'health'); }
+        if (this.rng.chance(risky * (p.needs.energy < 25 ? 2 : 1))) { const sev = this.rng.float(0.25, 0.9); if (sev > 0.86 && this.rng.chance(0.12)) { this.die(p, p.job?.role === 'woodcutter' ? 'was crushed by a falling tree' : p.job?.role === 'builder' ? 'fell from the scaffolding and was killed' : p.job?.role === 'miller' ? 'was caught in the mill-wheel and killed' : 'was killed in an accident at work'); continue; } this.fallIll(p, 'injury', sev); this.log(`${p.name} was hurt at work.`, 'health'); }
       }
     };
 

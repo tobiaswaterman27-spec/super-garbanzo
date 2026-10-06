@@ -40,6 +40,12 @@
         const risk = (p.age - 58) * 0.00035 * (p.health.illness ? 3 : 1);
         if (this.rng.chance(risk)) this.die(p, 'died peacefully in old age');
       }
+      // the hard winter: the very old and the very young in a cold, poor house
+      if (this.season === 'winter') for (const p of [...this.people]) {
+        if (p.visitor || p.alive === false || (p.age >= 3 && p.age < 70)) continue;
+        const hh = this.household(p); if (!hh || hh.money > 15 || (hh.pantry.firewood || 0) >= 1) continue;
+        if (this.rng.chance(0.015)) this.die(p, 'died of the cold, in a house with no fire');
+      }
       // courtship and weddings
       if (this.rng.chance(0.25)) this.matchmake();
       // births

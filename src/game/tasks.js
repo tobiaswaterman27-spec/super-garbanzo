@@ -11,14 +11,14 @@
       if (O.GangLife) for (const m of O.GangLife.mine()) if (m.task && !m.task.done && m.task.day != null && m.task.day < s.day - 3) m.task = null; // (old errands lapse)
       const gang = (O.GangLife ? O.GangLife.mine() : []).filter((m) => m.task && !m.task.done);
       const rows = [];
-      posts.forEach((e, i) => rows.push(`<tr><td><b>${esc(e.role)}</b> at ${esc(e.bizName)}${e.place !== s.world.placeId ? `, ${esc(e.placeName)}` : ''}${e.onShift ? ' <span class="warn">(on shift now)</span>' : ''}</td><td>${e.onShift ? `<button data-quit="${i}">Walk out of today's work</button>` : `<button data-post="1">See it in Business</button>`}</td></tr>`));
+      posts.forEach((e, i) => rows.push(`<tr><td><b>${esc(e.role)}</b> at ${esc(e.bizName)}${e.place !== s.world.placeId ? `, ${esc(e.placeName)}` : ''}${e.onShift ? ' <span class="warn">(on shift now)</span>' : ''}</td><td>${e.onShift && !(O.COURT && O.COURT.has(e.role)) ? `<button data-quit="${i}">Walk out of today's work</button>` : `<button data-post="1">See it in Business</button>`}</td></tr>`));
       if (C) rows.push(`<tr><td>${esc(C.text)} <span class="caption">(₳${C.reward})</span></td><td><button data-contract="1">Give it up</button></td></tr>`);
       gang.forEach((m, i) => rows.push(`<tr><td>For your gang: ${esc(m.task.text || m.task.kind)}</td><td><button data-gang="${i}">Let it go</button></td></tr>`));
       if (s.party && s.party.day === s.day && !s.party.done) rows.push(`<tr><td>Your party tonight, from seven (${s.party.guests.length} household${s.party.guests.length === 1 ? '' : 's'} coming)</td><td><button data-party="1">Call it off</button></td></tr>`);
       const leads = (PS.leads || []).filter((l) => l.why !== 'contract' && l.why !== 'party' && l.until > s.day * 1440 + s.minute);
       leads.forEach((l, i) => rows.push(`<tr><td>Being shown the way: ${esc(l.label || 'somewhere to go')}</td><td><button data-lead="${i}">Stop showing me</button></td></tr>`));
       const cal = O.calendarHTML ? O.calendarHTML() : '';
-      O.Panels.open('Your undertakings', (rows.length ? `<table><tbody>${rows.join('')}</tbody></table><p class="caption">Walking out mid-shift loses the day's pay and angers your master. Giving up a bounty, the watch will remember.</p>` : '<p>Nothing on your hands just now.</p>') + cal, (r) => {
+      O.Panels.open('Your undertakings', (rows.length ? `<table><tbody>${rows.join('')}</tbody></table>${(() => { const m = posts.some((e) => e.master != null && e.master !== 0 && !(O.COURT && O.COURT.has(e.role))); const parts = []; if (m) parts.push("Walking out mid-shift loses the day's pay and angers your master."); if (PS.contract) parts.push('Giving up a bounty, the watch will remember.'); return parts.length ? `<p class="caption">${parts.join(' ')}</p>` : ''; })()}` : '<p>Nothing on your hands just now.</p>') + cal, (r) => {
         O.bindCalendar && O.bindCalendar(r);
         r.querySelectorAll('[data-post]').forEach((b) => b.onclick = () => O.openBusiness('work'));
         r.querySelectorAll('[data-quit]').forEach((b) => b.onclick = () => {

@@ -184,16 +184,20 @@
       searching = 0.7; game.player.dir = 3;
       pendingSearch = () => {
         if (quick) { take(it, items, items.map((_, i) => i), owner); O.Panels.toast(items.length ? 'You gather your things.' : 'Nothing here.'); return; }
-        O.Panels.container(`${it.kind[0].toUpperCase() + it.kind.slice(1)}, ${owner}`, items, (idxs) => take(it, items, idxs, owner), own ? null : `This belongs to ${owner}. Anyone awake in the room will see you take it.`);
+        openChest(it, items, owner, own, store);
+      };
+    }
+    // the chest's panel: what's in it, and (if it's yours) room to put things away; yours stays open as you go
+    function openChest(it, items, owner, own, store) {
+        O.Panels.container(`${it.kind[0].toUpperCase() + it.kind.slice(1)}, ${owner}`, items, (idxs) => { take(it, items, idxs, owner); if (own) { const c = contents(it); openChest(it, c.items, c.owner, true, c.store); } }, own ? null : `This belongs to ${owner}. Anyone awake in the room will see you take it.`);
         // your own chest: put things away in it, too
         if (store) setTimeout(() => {
           const root = document.querySelector('.panel-modal .ledger-in') || document.querySelector('.panel-modal'); if (!root) return;
           const box = document.createElement('div'); box.style.marginTop = '10px';
           const draw = () => { const kinds = [...new Set(PS.items)].filter((k) => G[k] && k !== 'key'); box.innerHTML = `<div class="lbl">Put away from your satchel (the chest holds ${(PS.homes[store] || []).length} of 24)</div><div class="topics">${kinds.map((k) => `<button data-put="${k}">${O.escape(G[k].name)}</button>`).join('') || '<span class="caption">Your satchel is empty.</span>'}</div>`;
-            box.querySelectorAll('[data-put]').forEach((b) => b.onclick = () => { const k = b.dataset.put, st = (PS.homes[store] = PS.homes[store] || []); if (st.length >= 24) return O.Panels.toast('The chest is full.', 'bad'); if (!PS.items.includes(k)) return; PS.remove(k); st.push(k); O.Panels.toast(`You put the ${G[k].name.toLowerCase()} away.`); draw(); }); };
+            box.querySelectorAll('[data-put]').forEach((b) => b.onclick = () => { const k = b.dataset.put, st = (PS.homes[store] = PS.homes[store] || []); if (st.length >= 24) return O.Panels.toast('The chest is full.', 'bad'); if (!PS.items.includes(k)) return; PS.remove(k); st.push(k); O.Panels.toast(`You put the ${G[k].name.toLowerCase()} away.`); const c = contents(it); openChest(it, c.items, c.owner, true, c.store); }); };
           draw(); root.appendChild(box);
         }, 0);
-      };
     }
 
     // Sleeping: you lie down and the night passes (quickly, for you) while the village sleeps around
@@ -201,8 +205,8 @@
     function sleep(it, rough) {
       if (game.sleepState) return;
       // you can't sleep the days away: only when tired, or at night, and not straight after waking
-      { const h = sim.hour, night = h >= 20 || h < 5, abs = sim.day * 1440 + sim.minute, since = abs - (PS.wokeAt ?? -1e9);
-        if (!night && PS.energy > 45) return O.UI.say("You lie down, but you're not tired. Sleep won't come in broad day.", 'bad');
+      { const h = sim.hour, night = h >= 19.5 || h < 5.5, abs = sim.day * 1440 + sim.minute, since = abs - (PS.wokeAt ?? -1e9);
+        if (!night && PS.energy > 45) return O.UI.say(h >= 7 && h < 17 ? "You lie down, but you're not tired. Sleep won't come in broad day." : "You lie down, but you're not tired yet. Come back when it's properly night, or when you're weary.", 'bad');
         if (since < 240 && PS.energy > 25) return O.UI.say("You've only just got up. You're wide awake.", 'bad'); }
       const m0 = sim.minute, target = m0 >= 19 * 60 || m0 < 6 * 60 ? 7 * 60 : (m0 + 8 * 60) % 1440;
       game.sleepState = { it, rough, target, slept: 0 };

@@ -362,7 +362,7 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Words put right from a long run of the town's life: plurals everywhere ("14 bundles of planks", "a set of tools", "bolts of cloth", "12 fish"), no "sold for ₳0" (a trader sells what they can pay for and takes the rest on), traders stay away from a place that couldn't pay, "its roof" for a business, "half a week" not "0.5 weeks", the crown's treasury, "buried him/her", no line starting in small letters, "couldn't pay my wage at all"
 - [x] Traders buy any trade's surplus to sell elsewhere, so a smith with daggers to spare, or a cooper with casks, gets money in
 
-## Batch W (asked after step 89) - death and the heir
+## Batch W (asked after step 89) - death and the heir (taken out again: the player can't die)
 
 - [x] You can die: beaten to death in a fight (likelier with more wounds, never by the watch, who take you alive), of an illness you let worsen (out in the cold, unfed), of hunger, or of old age (from sixty, each birthday a little more of a gamble)
 - [x] Illness can now get worse as well as better, with a warning when it does
@@ -371,3 +371,21 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Play on as your son or daughter (a nephew or niece if you die young): a new face and name in the family, nine tenths of the purse (the crown takes its tenth), the house, lands, businesses, horses, dog and chest; the crown too, with a coronation of the heir's own; posts, gang, crimes, bounty and knighthood die with you; skills and standing in part; townsfolk know the heir as your child
 - [x] Or begin a new life
 - [x] Your family line in People (O), and the heir's face kept across a reload
+- [x] Taken out on request: the player cannot die. NPCs die instead, in more ways: killed in an accident at work (crushed by a tree, a fall from the scaffolding, the mill-wheel), of the cold in a poor house with no fire in winter (the very old and very young), and in childbirth (less often with a midwife or the physician; the baby lives)
+
+## Batch X (asked after step 90) - the crown, the church, the feast, and many small things
+
+- [x] The crown is drawn on your head as part of you: a gold band all the way round with five points and stones, seen properly from every side, behind walls like anything else, and on the pillow in bed; it's an item in your satchel you can take off and put back on (and can't sell); kings and queens wear theirs too
+- [x] Jewellery bigger and brighter; the circlet and garland drawn all the way round the head (they only showed from behind before)
+- [x] In church, everyone keeps the seat they took: nobody gets up and moves along as others come and go
+- [x] The monarch (and the court) are never given sweeping or tidying
+- [x] The icons on the castle door boards are centred
+- [x] The coronation feast (and any feast the crown calls) is in the great hall upstairs from six, not "in the town" from ten; Show the way leads there; at the table you can raise a toast, call for music, and (as monarch) rise and speak to the hall
+- [x] On the throne you sit up on the seat, not on the grey step
+- [x] The treasury is shown in its own box while you sit on the throne, not in the petitioner's name
+- [x] Markers for events only show within two hours of the start; an event you're already being shown has "Being shown: stop" in What's on instead of Show the way
+- [x] Arriving at an event's place clears its marker and tells you what to do there (the lists, the maypole, the bonfire, the fair games); the tournament's prompt reaches further from the barrier
+- [x] J no longer talks of a master or walking out of work for the crown and the court
+- [x] Your own chest stays open as you take things out or put them in
+- [x] Lying down in the evening says you're not tired yet, not that it's broad day
+- [x] Indoors, dusk and dawn come on gradually, as outside

@@ -42,7 +42,7 @@
       const L = this.rulers.lords[id], p = this.place(id);
       if (p && p.kind === 'capital' && this.rulers.crown) return `${crownTitle(this.rulers.crown)}${L ? `, with ${L.name} as Lord Mayor` : ''}`;
       if (!L) return p.leader;
-      return L.title === 'Lord' ? `${L.sex === 'f' ? 'Lady' : 'Lord'} ${L.name} of ${p.name}` : `${L.name}, ${L.title.replace(/^the /, '')} of ${p.name}`;
+      return L.title === 'Lord' ? `${L.sex === 'f' ? 'Lady' : 'Lord'} ${L.name} of ${p.name}` : `${L.name}, ${L.title.replace(/^the /, '').replace(/^Headman$/, L.sex === 'f' ? 'Headwoman' : 'Headman').replace(/^Reeve$/, 'Reeve')} of ${p.name}`;
     };
     K.crownTitle = function () { return crownTitle(this.rulersInit().crown); };
 

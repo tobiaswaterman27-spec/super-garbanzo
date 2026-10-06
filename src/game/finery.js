@@ -29,7 +29,7 @@
         for (const p of s.people) {
           if (p.jewels && p.jewels.length && p.app && (p.app.jewels || []).join() !== p.jewels.join()) { p.app.jewels = p.jewels.slice(); Ch.invalidate(p.app); } // (after a reload)
           if (p.alive === false || p.age < 14 || p.jewels) continue;
-          if (p.royal && !/^(King|Queen)$/.test(p.title || '')) wear(s, p, 'circlet');
+          if (p.royal && /^(King|Queen)$/.test(p.title || '')) wear(s, p, 'crown'); else if (p.royal) wear(s, p, 'circlet');
           else if (p.gentry || p.lordOf) wear(s, p, p.sex === 'f' ? 'necklace' : 'brooch');
           else if (s.household(p) && s.household(p).money > 260 && p.age >= 20 && (p.id % 3 === 0)) wear(s, p, p.sex === 'f' ? 'necklace' : 'ring');
         }

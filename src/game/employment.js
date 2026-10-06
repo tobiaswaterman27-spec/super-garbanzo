@@ -509,7 +509,7 @@
         if (e._incAt == null || e._incDay !== day) { e._incDay = day; e._incAt = now(s) + 90 + Math.random() * 120; }
         else if (now(s) >= e._incAt && h < c - 1.5) { e._incAt = now(s) + 150 + Math.random() * 150; const busy = O.eventsFor && O.eventsFor(s, day, day).some((x) => x.square && !x.small && h >= x.from - 1 && h < x.to + 1); if (busy) e._incAt -= 60; if (Math.random() < (busy ? 0.75 : 0.45) && !e.tasks.some((x) => x.optional && x.have < x.need)) incident(s, bz, e); }
       }
-      if (on && e.onShift && D0.mode === 'shift') {
+      if (on && e.onShift && D0.mode === 'shift' && !COURT.has(e.role)) {
         // the work changes as the day goes on: every hour and a half, something new needs doing
         if (now(s) - (e._rot || 0) >= 90 && h < c - 0.75) {
           e._rot = now(s);

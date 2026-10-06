@@ -26,6 +26,8 @@
       mum.labour = null; mum.app.pregnant = false;
       for (const par of [mum, s.byId.get(mum.spouse)]) if (par && par.children) par.children = [...new Set(par.children)]; // (a child is only listed once)
       const baby = s.byId.get((mum.children || []).slice(-1)[0]);
+      // a hard birth: now and then the mother doesn't survive it (less often with a midwife or the physician)
+      if (s.rng.chance(mum.midwife || (mum.agent.inside != null && mum.agent.inside !== mum.home) ? 0.01 : 0.03)) { mum.labour = null; mum.app.pregnant = false; mum.task = null; s.die(mum, 'died in childbirth; the baby lived'); return; }
       if (mum.agent.inside != null && mum.agent.inside !== mum.home) { // carried home from the infirmary
         mum.app.babe = true; mum.agent.carrying = 'babe'; mum.task = { act: 'home', b: mum.home, babe: baby?.id };
         s.log(`${mum.first} carries her newborn home from the infirmary.`, 'life');
@@ -86,7 +88,7 @@
     }
     // set the day once you hold the crown
     game.hooks.update.push(() => {
-      if (PS.anointed && O.crowned && !O.crowned()) { PS.anointed = false; PS.coronation = null; O.dropLead && O.dropLead((l) => l.why === 'coronation'); say('You are monarch no longer. The crown stays in the castle.'); return; } // left the throne: the crown stays behind
+      if (PS.anointed && O.crowned && !O.crowned()) { PS.anointed = false; PS.coronation = null; PS.items = PS.items.filter((k) => k !== 'crown'); PS.worn = (PS.worn || []).filter((k) => k !== 'crown'); O.dropLead && O.dropLead((l) => l.why === 'coronation'); say('You are monarch no longer. The crown stays in the castle.'); return; } // left the throne: the crown stays behind
       if (!O.crowned || !O.crowned()) return;
       const s = cur(), cap = capital(); if (!cap) return;
       if (PS.anointed) return;
@@ -133,7 +135,7 @@
       if (cer.t > 5.2 && !cer.said) {
         cer.said = true;
         const s = cur(), f = (O.Forge.player?.sex || O.Forge.player?.a?.sex) === 'f';
-        PS.anointed = true; PS.coronation.done = true; PS.coronation.doneAt = abs(s); O.dropLead && O.dropLead((l) => l.why === 'coronation');
+        PS.anointed = true; PS.coronation.done = true; PS.coronation.doneAt = abs(s); giveCrown(); O.dropLead && O.dropLead((l) => l.why === 'coronation');
         PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.25);
         s.hosted = { kind: 'midwinter', day: s.day, coronation: true }; // the coronation feast tonight
         for (const q of s.people) if (q.agent.inside === keepOf(s)?.id) s.relate(q, { id: 0 }, 0.08);
@@ -153,10 +155,10 @@
     // from the feet to the crown of the head (the head's top in the frame, less a little so the crown sits on it)
     const HEAD_Y = (p) => { const hy = Ch.headY(p.a); return Ch.GROUND - (hy.cy - hy.ry) + 3 - (p.anim === 'pray' ? -1 : p.sitting || p.anim === 'sit' ? 5 : 0); };
     // a crowned monarch wears the crown
-    game.hooks.drawTop.push((ctx, cam) => {
-      const p = game.player; if (cer || !PS.anointed || !O.crowned || !O.crowned() || p.inBed || p.mount) return;
-      crownPx(ctx, p.x - cam.x + (p.dir === 1 ? -1 : p.dir === 2 ? 1 : 0), p.y - HEAD_Y(p) - cam.y);
-    });
+    // once crowned, the crown is yours to wear (or take off) like any jewel: it's drawn on your head, in every pose
+    const giveCrown = () => { if (!PS.items.includes('crown')) PS.items.push('crown'); PS.worn = [...new Set(['crown', ...(PS.worn || [])])].slice(0, 3); };
+    O.giveCrown = giveCrown;
+    game.hooks.update.push(() => { if (PS.anointed && O.crowned && O.crowned() && !PS.items.includes('crown') && !PS._crownOff) giveCrown(); });
     game.hooks.drawTop.push((ctx, cam, indoor) => {
       if (!cer || !indoor) return;
       const p = game.player, k = O.clamp((cer.t - 1.5) / 3.5, 0, 1), e = 1 - Math.pow(1 - k, 2);

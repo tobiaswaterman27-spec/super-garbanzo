@@ -164,10 +164,8 @@
     });
 
     function knockedOut(by) {
-      if (O.playerDead && O.playerDead()) return;
       for (const [id] of fights) { const q = sim.byId.get(id); if (q) q.agent.chasing = false; }
       fights.clear();
-      if (O.deathRoll && O.deathRoll(by)) return; // (now and then a beating is the end of you)
       O.Panels.toast(`${by.first} beats you to the ground…`, 'bad');
       const lost = Math.floor(PS.money * 0.3); PS.money -= lost;
       PS.hp = 25;

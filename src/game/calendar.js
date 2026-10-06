@@ -139,7 +139,7 @@
         if (isSaintDay(s, d)) { add({ day: d, from: 9, to: 10.5, title: `St. ${saintOf(s)}'s day: the procession and mass`, where: 'the chapel', b: s.chapelId }); add({ day: d, from: 12, to: 16.5, title: `St. ${saintOf(s)}'s day: merriment in the square`, where: 'the square', square: true }); }
         if ((d - 1) % 7 === 3 && capital()) add({ day: d, from: 14, to: 18, title: 'The council of the realm', where: `the great hall at ${capital().name}`, place: capital().id, small: here !== capital().id, council: true });
       }
-      if (s.hosted && s.hosted.day >= d0) add({ day: s.hosted.day, from: 10, to: 22, title: s.hosted.coronation ? 'The coronation feast' : `A ${s.hosted.kind === 'midwinter' ? 'feast' : s.hosted.kind} called by the crown`, where: s.world.name, square: s.hosted.kind !== 'midwinter' });
+      if (s.hosted && s.hosted.day >= d0) { const feast = s.hosted.kind === 'midwinter', k = s.world.buildings.find((b) => b.royal) || s.world.buildings.find((b) => b.type === 'keep'); add({ day: s.hosted.day, from: feast ? 18 : s.hosted.kind === 'market' ? 7 : 10, to: feast ? 22.5 : s.hosted.kind === 'market' ? 14 : 15, title: s.hosted.coronation ? 'The coronation feast' : `A ${feast ? 'feast' : s.hosted.kind} called by the crown`, where: feast ? (k ? 'the great hall, upstairs in the castle' : 'the tavern') : 'the square', square: !feast, b: feast ? (k ? k.id : s.tavernId) : undefined }); }
       if (PS.coronation && !PS.coronation.done) add({ day: PS.coronation.day, from: 10, to: 20, title: 'Your coronation', where: 'the castle chapel', place: PS.coronation.place, coronation: true });
       for (const e of s.executions || []) if (!e.done) add({ day: e.day, from: 10.5, to: 11.5, title: `An execution at the block (${s.byId.get(e.id)?.name || 'the condemned'})`, where: 'the square', square: true, small: true });
       if (s.party && !s.party.done) add({ day: s.party.day, from: 19, to: 23, title: 'Your party', where: 'your home', b: s.party.b, ref: s.party });
@@ -150,12 +150,13 @@
     };
     // show me the way
     function lead(s, e) {
-      const until = e.day * 1440 + Math.round(e.to * 60);
+      const until = e.day * 1440 + Math.round(e.to * 60), from = e.day * 1440 + Math.round(e.from * 60);
+      const addLead = (l) => O.addLead(Object.assign(l, { from, key: evKey(e) }));
       O.Panels.close && O.Panels.close(); // (close the list so you can see where to go)
-      if (e.place && e.place !== s.world.placeId) { PS.roadLead = { place: e.place, until, ev: { title: e.title, b: e.b, tile: e.tile, coronation: e.coronation, council: e.council, day: e.day, to: e.to } }; return say(`That's at ${K().place(e.place)?.name}. You'll be shown the road there, and the way once you arrive.`); }
-      if (e.b != null) O.addLead({ place: s.world.placeId, b: e.b, until, why: 'event', label: e.title });
-      else if (e.coronation || e.council) { const k = s.world.buildings.find((b) => b.royal); if (k) O.addLead({ place: s.world.placeId, b: k.id, until, why: 'event', label: e.title }); }
-      else { const t = e.tile || (() => { const [x0, y0, x1, y1] = s.Z.square; return [Math.floor((x0 + x1) / 2), Math.floor((y0 + y1) / 2)]; })(); O.addLead({ place: s.world.placeId, tile: t, until, why: 'event', label: e.title }); }
+      if (e.place && e.place !== s.world.placeId) { PS.roadLead = { place: e.place, until, ev: { title: e.title, b: e.b, tile: e.tile, coronation: e.coronation, council: e.council, day: e.day, from: e.from, to: e.to, square: e.square } }; return say(`That's at ${K().place(e.place)?.name}. You'll be shown the road there, and the way once you arrive.`); }
+      if (e.b != null) addLead({ place: s.world.placeId, b: e.b, until, why: 'event', label: e.title });
+      else if (e.coronation || e.council) { const k = s.world.buildings.find((b) => b.royal); if (k) addLead({ place: s.world.placeId, b: k.id, until, why: 'event', label: e.title }); }
+      else { const lc = /tournament/i.test(e.title) && O.listsCentre && O.listsCentre(s), rv = /May Day|Midsummer/.test(e.title) && O.revelCentre && O.revelCentre(s); const t = e.tile || (lc ? [Math.floor(lc[0] / 16), Math.floor(lc[1] / 16) + 3] : rv ? [Math.floor(rv[0] / 16), Math.floor(rv[1] / 16) + 3] : null) || (() => { const [x0, y0, x1, y1] = s.Z.square; return [Math.floor((x0 + x1) / 2), Math.floor((y0 + y1) / 2)]; })(); addLead({ place: s.world.placeId, tile: t, until, why: 'event', label: e.title }); }
       say(`You'll be shown the way to ${e.title.charAt(0).toLowerCase() + e.title.slice(1)}.`);
     }
     // the road to another town: which way out of here, then the way to the place itself when you get there
@@ -175,14 +176,15 @@
       if (here === R.place) { PS.roadLead = null; lead(s, Object.assign({}, R.ev, { place: null })); return; }
       const ex = bestExit(here, R.place); if (ex) O.addLead({ place: here, tile: ex, until: R.until, why: 'road', label: `The road to ${K().place(R.place)?.name}` });
     });
+    const evKey = (e) => `${e.day}:${e.title}`;
     const upcoming = (s) => O.eventsFor(s, s.day, s.day + 6).filter((e) => !(e.day < s.day || (e.day === s.day && e.to <= s.hour)));
     O.calendarHTML = () => {
       const s = cur(), list = upcoming(s), wait = O.mailWaiting();
       const letters = wait.length ? `<h3>Waiting for answers</h3><ul class="chron">${wait.map((m) => `<li>${esc(m.what)}</li>`).join('')}</ul>` : '';
       if (!list.length) return letters;
-      return letters + `<h3>What's on</h3><table><tbody>${list.map((e, i) => `<tr><td><b>${esc(e.title)}</b><br><small class="lbl">${e.day === s.day ? 'Today' : e.day === s.day + 1 ? 'Tomorrow' : esc(O.dateOf(e.day))}, ${hh(e.from)} to ${hh(e.to)}, ${esc(e.where || '')}</small></td><td><button data-ev="${i}">Show the way</button></td></tr>`).join('')}</tbody></table>`;
+      return letters + `<h3>What's on</h3><table><tbody>${list.map((e, i) => `<tr><td><b>${esc(e.title)}</b><br><small class="lbl">${e.day === s.day ? 'Today' : e.day === s.day + 1 ? 'Tomorrow' : esc(O.dateOf(e.day))}, ${hh(e.from)} to ${hh(e.to)}, ${esc(e.where || '')}</small></td><td>${(PS.leads || []).some((l) => l.key === evKey(e)) || (PS.roadLead && PS.roadLead.ev && PS.roadLead.ev.title === e.title) ? `<button data-evstop="${i}">Being shown: stop</button>` : `<button data-ev="${i}">Show the way</button>`}</td></tr>`).join('')}</tbody></table>`;
     };
-    O.bindCalendar = (r) => { const s = cur(), list = upcoming(s); r.querySelectorAll('[data-ev]').forEach((b) => b.onclick = () => lead(s, list[+b.dataset.ev])); };
+    O.bindCalendar = (r) => { const s = cur(), list = upcoming(s); r.querySelectorAll('[data-ev]').forEach((b) => b.onclick = () => lead(s, list[+b.dataset.ev])); r.querySelectorAll('[data-evstop]').forEach((b) => b.onclick = () => { const e = list[+b.dataset.evstop]; O.dropLead((l) => l.key === evKey(e)); if (PS.roadLead && PS.roadLead.ev && PS.roadLead.ev.title === e.title) { PS.roadLead = null; O.dropLead((l) => l.why === 'road'); } say('You stop being shown the way there.'); O.Panels.close(); }); };
   }
   O.CalendarSetup = { setup };
 })();

@@ -120,7 +120,7 @@
           const d = Math.hypot(st.x - p.x, st.y - p.y); if (d < 30) return { type: 'custom', label: `Browse ${q.first}'s wares`, act: () => openMerchant(q), d: d - 30, x: st.x, y: st.y - 30 };
         }
         const f = fest(s), h = s.hour, lists = s.world.props.find((x) => x.kind === 'noticeboard') || s.world.props.find((x) => x.kind === 'well');
-        if (f === 'tournament' && listsOn(s) && h >= 10 && h < 15) { const [cx, cy] = listsCentre(s), d = Math.hypot((p.x - cx) / 2.2, p.y - cy); if (d < 46) return { type: 'custom', label: 'The tournament lists: bet, or ride', act: () => tournament(s), d: 2, x: cx, y: cy - 50 }; }
+        if (f === 'tournament' && listsOn(s) && h >= 10 && h < 15) { const [cx, cy] = listsCentre(s), d = Math.hypot((p.x - cx) / 2.2, p.y - cy); if (d < 72) return { type: 'custom', label: 'The tournament lists: bet, or ride', act: () => tournament(s), d: 2, x: cx, y: cy - 50 }; }
         if (lists && Math.hypot(lists.x - p.x, lists.y - p.y) < 34) {
           if (f === 'tournament' && keepOf(s) && h >= 10 && h < 15) return { type: 'custom', label: 'The tournament lists: bet, or ride', act: () => tournament(s), d: 2, x: lists.x, y: lists.y - 34 };
           if (f === 'fair' && h >= 10 && h < 18) return { type: 'custom', label: 'The fair games: archery, wrestling, the judging', act: () => fairGames(s), d: 2, x: lists.x, y: lists.y - 34 };
@@ -250,6 +250,7 @@
       }
       return (s._lists = best || O.revelCentre(s));
     }
+    O.listsCentre = (s) => (fest(s) === 'tournament' || (s.hosted && s.hosted.kind === 'tournament')) && O.revelCentre ? listsCentre(s) : null;
     const rider = (k) => ({ x: 0, y: 0, dir: 3, anim: 'idle', ft: 0, tourney: true, a: Ch.makeAppearance(O.hash('tilt', k), { role: 'guard', sex: 'm', age: 30 + k * 5, wealth: 0.9 }), mount: { id: 'tilt' + k, coat: k ? 'black' : 'grey', saddled: true, anim: 'idle', ft: 0, seed: 7 + k * 5 } });
     const KN = [rider(0), rider(1)];
     let fallen = null, flash = 0, lastCycle = -1;
@@ -296,6 +297,50 @@
       for (const q of s.people) { const a = q.agent; if (!a || a.hidden || a.inside != null) continue; if (a.x > L && a.x < R && a.y > Tp && a.y < B) { a.y = a.y < cy ? Tp - 1 : B + 1; } }
       const p = game.player; if (p.x > L && p.x < R && p.y > Tp && p.y < B && !p.mount) p.y = p.y < cy ? Tp - 1 : B + 1;
     });
+
+    // ---------------------------------------------------------------- at the feast table: toasts, music, a speech
+    const feastHall = () => { const s = cur(), sc = game.scene, p = game.player; return fest(s) === 'midwinter' && s.hour >= 18 && s.hour < 22.5 && sc && p.sitting && (sc.b.royal || sc.b.type === 'keep' || sc.b.type === 'tavern'); };
+    let feastDid = {};
+    game.hooks.update.push(() => { if (feastHook) return; feastHook = true; const prev = O.sceneCandidate; O.sceneCandidate = () => {
+      const base = prev ? prev() : null; if (!feastHall()) return base;
+      const s = cur(); if (feastDid.day !== s.day) feastDid = { day: s.day };
+      const king = O.crowned && O.crowned(), opts = [];
+      if (!feastDid.toast) opts.push({ label: 'Raise a toast', act: () => toast(s) });
+      if (!feastDid.music) opts.push({ label: 'Call for music', act: () => music(s) });
+      if (king && !feastDid.speech) opts.push({ label: 'Rise and speak to the hall', act: () => speech(s) });
+      if (!opts.length) return base;
+      const c = { type: 'custom', d: -2, label: opts.length > 1 ? 'At the feast: ' + opts.map((o) => o.label.toLowerCase()).join(', ') : opts[0].label, act: () => feastMenu(opts), x: game.player.x, y: game.player.y - 40 };
+      return c;
+    }; });
+    let feastHook = false;
+    function feastMenu(opts) { O.UI.dialog.open({ name: 'The feast', color: '#7a1a2a', text: 'Candles down the long table, the smell of roast meat, and every eye now and then on the high seat.', options: [...opts.map((o, i) => ({ key: 'f' + i, label: o.label })), { key: 'no', label: 'Just eat and drink' }], onPick: (k) => { O.UI.dialog.close(); if (k !== 'no') opts[+k.slice(1)].act(); } }); }
+    const hall = () => [...(game.scene ? game.scene.actors.values() : [])].filter((a) => a.person);
+    function toast(s) {
+      feastDid.toast = true; const k = O.crowned && O.crowned();
+      O.UI.dialog.open({ name: 'A toast', color: '#7a1a2a', text: 'You get to your feet and raise your cup. To what?', options: [{ key: 'realm', label: '"To the realm, and peace!"' }, { key: 'crown', label: k ? '"To all of you, my loyal friends!"' : '"To the crown!"' }, { key: 'host', label: '"To our host, and this table!"' }], onPick: (w) => {
+        O.UI.dialog.close();
+        for (const a of hall()) { a.anim = 'celebrate'; if (Math.random() < 0.5) s.relate(a.person, { id: 0 }, 0.04); }
+        PS.rep.local = Math.min(1, (PS.rep.local || 0) + 0.03); if (w === 'crown' && !k) PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.02);
+        say(w === 'realm' ? 'Cups go up all down the table: "The realm!"' : w === 'crown' ? (k ? 'The hall roars and drinks to you.' : 'Every cup goes up: "The crown!"') : 'Laughter and a clatter of cups: "Our host!"');
+      } });
+    }
+    function music(s) {
+      feastDid.music = true;
+      for (const a of hall()) { a.anim = 'celebrate'; if (Math.random() < 0.4) s.relate(a.person, { id: 0 }, 0.03); }
+      O.Audio && O.Audio.play && O.Audio.play('lute');
+      say('The minstrels strike up a carol, and half the hall is on its feet for a round dance between the tables.');
+    }
+    function speech(s) {
+      feastDid.speech = true;
+      O.UI.dialog.open({ name: 'Your speech', color: '#7a1a2a', text: 'The hall falls quiet as you rise. What do you tell them?', options: [{ key: 'gen', label: 'Promise justice and bread for all' }, { key: 'war', label: 'Speak of the realm\'s enemies, and courage' }, { key: 'thanks', label: 'Thank them simply, and sit down' }], onPick: (w) => {
+        O.UI.dialog.close();
+        const K = O.SimRef.home.kingdom;
+        if (w === 'gen') { PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.05); say('A great cheer. They will hold you to it.'); }
+        else if (w === 'war') { PS.rep.guard = Math.min(1, (PS.rep.guard || 0) + 0.05); if (K) K.morale = Math.min(1, (K.morale || 0.5) + 0.05); say('The knights bang the table. The ladies look less sure.'); }
+        else { PS.rep.local = Math.min(1, (PS.rep.local || 0) + 0.03); say('It goes down well: short, and you sit back down to your supper.'); }
+        for (const a of hall()) a.anim = 'celebrate';
+      } });
+    }
 
     // ---------------------------------------------------------------- the midwinter feast: a seat at the table
     let fedAt = -1;

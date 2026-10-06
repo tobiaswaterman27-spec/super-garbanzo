@@ -1155,19 +1155,31 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     const { B, a, p, V } = S, gold = P.mat('#e8c040', 'metal'), gem = P.mat('#c83a3a'), J = a.jewels;
     B.part(G.ITEM);
     if (J.includes('necklace') && !V.back) {
-      for (let i = -2; i <= 2; i++) { const q = S.pj([i * 0.9, p.shY + 1.2 + Math.abs(i) * -0.3 + (2 - Math.abs(i)) * 0.6, p.D + 0.9 + p.lean]); B.blob(q[0], q[1], 0.6, 0.6, gold, { power: 2 }); }
-      const pd = S.pj([0, p.shY + 3, p.D + 1 + p.lean]); B.blob(pd[0], pd[1], 0.9, 1, gem, { power: 2 });
+      for (let i = -2; i <= 2; i++) { const q = S.pj([i * 0.9, p.shY + 1.2 + Math.abs(i) * -0.3 + (2 - Math.abs(i)) * 0.6, p.D + 0.9 + p.lean]); B.blob(q[0], q[1], 0.8, 0.8, gold, { power: 2 }); }
+      const pd = S.pj([0, p.shY + 3.2, p.D + 1 + p.lean]); B.blob(pd[0], pd[1], 1.2, 1.3, gem, { power: 2 });
     }
-    if (J.includes('brooch') && !V.back) { const q = S.pj([-1.6, p.shY + 2.2, p.D + 1 + p.lean]); B.blob(q[0], q[1], 1.1, 1.1, gold, { power: 2 }); B.blob(q[0], q[1], 0.5, 0.5, gem, { power: 2 }); }
+    if (J.includes('brooch') && !V.back) { const q = S.pj([-1.6, p.shY + 2.2, p.D + 1 + p.lean]); B.blob(q[0], q[1], 1.5, 1.5, gold, { power: 2 }); B.blob(q[0], q[1], 0.8, 0.8, gem, { power: 2 }); }
     if (J.includes('circlet') && a.outfit.hat !== 'hood' && a.outfit.hat !== 'kettle') {
       const H = headFrame(S);
-      for (let i = -4; i <= 4; i++) { const lx = i / 4.4, lz = Math.sqrt(Math.max(0, 1 - lx * lx)); if (lz * V.Fz + lx * V.Rz < -0.15 && !V.back) continue; const q = headPt(S, H, lx, -0.45, lz); B.blob(q[0], q[1], 0.6, 0.55, gold, { power: 2 }); }
-      if (!V.back) { const q = headPt(S, H, 0, -0.5, 1); B.blob(q[0], q[1], 0.6, 0.6, gem, { power: 2 }); }
+      for (let k = 0; k < 16; k++) { const th = (k / 16) * Math.PI * 2, lx = Math.sin(th), lz = Math.cos(th); if (lx * V.Rz - lz * V.Fz < -0.15 && !V.back) continue; const q = headPt(S, H, lx, -0.45, lz); B.blob(q[0], q[1], 0.75, 0.7, gold, { power: 2 }); }
+      if (!V.back) { const q = headPt(S, H, 0, -0.5, 1); B.blob(q[0], q[1], 0.8, 0.8, gem, { power: 2 }); }
+    }
+    // the crown: a gold band set with stones, with five points rising from it; it sits on the head in every pose
+    if (J.includes('crown')) {
+      const H = headFrame(S), blue = P.mat('#3a60c8'), dark = P.mat('#8a5a10', 'metal'), hood = a.outfit.hat === 'hood' ? 1.25 : 1.05;
+      const vis = (lx, lz) => V.back || lx * V.Rz - lz * V.Fz >= -0.2;
+      // the band, all the way round the crown of the head (over a hood, if there is one); then five points
+      for (let k = 0; k < 20; k++) {
+        const th = (k / 20) * Math.PI * 2, lx = Math.sin(th), lz = Math.cos(th); if (!vis(lx, lz)) continue;
+        const q = headPt(S, H, lx * hood, -0.78, lz * hood); B.blob(q[0], q[1], 1.1, 1.2, gold, { power: 2 }); B.blob(q[0], q[1] + 1.2, 0.9, 0.5, dark, { power: 2 });
+        if (k % 4 === 0) { B.blob(q[0], q[1] - 2, 0.7, 1.6, gold, { power: 2 }); B.blob(q[0], q[1] - 3.6, 0.6, 0.6, k === 0 ? gem : gold, { power: 2 }); }
+      }
+      for (const [lx, lz, mat] of [[0, 1, gem], [-0.6, 0.8, blue], [0.6, 0.8, blue], [0, -1, gem]]) if (vis(lx, lz)) { const q = headPt(S, H, lx * hood, -0.78, lz * hood); B.blob(q[0], q[1], 0.7, 0.7, mat, { power: 2 }); }
     }
     // a May garland: green leaves and flowers round the head
     if (J.includes('garland') && a.outfit.hat !== 'hood' && a.outfit.hat !== 'kettle') {
       const H = headFrame(S), leaf = P.mat('#4a7a34'), FL = [P.mat('#f0e8f0'), P.mat('#e8a0b8'), P.mat('#f0d040')];
-      for (let i = -5; i <= 5; i++) { const lx = i / 5.4, lz = Math.sqrt(Math.max(0, 1 - lx * lx)); if (lz * V.Fz + lx * V.Rz < -0.15 && !V.back) continue; const q = headPt(S, H, lx, -0.5, lz); B.blob(q[0], q[1], 0.7, 0.6, i % 2 ? leaf : FL[(i + 6) % 3], { power: 2 }); }
+      for (let k = 0; k < 18; k++) { const th = (k / 18) * Math.PI * 2, lx = Math.sin(th), lz = Math.cos(th); if (lx * V.Rz - lz * V.Fz < -0.15 && !V.back) continue; const q = headPt(S, H, lx, -0.5, lz); B.blob(q[0], q[1], 0.7, 0.6, k % 2 ? leaf : FL[k % 3], { power: 2 }); }
     }
   }
 
@@ -4845,6 +4857,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
   // food: how filling (1 = a meal's worth); drink: refreshes; place: can be set down in the world
   Object.assign(G, {
     // the larder
+    crown: { name: 'The crown', base: 0, unit: 'crown', slots: 1, jewel: true, quest: true },
     berries: { name: 'Wild berries', base: 1, unit: 'handful', slots: 1, food: 0.25 },
     mushrooms: { name: 'Mushrooms', base: 2, unit: 'basket', slots: 1, food: 0.35 },
     barley: { name: 'Barley', base: 2, unit: 'bushel', slots: 1 },
@@ -5423,7 +5436,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       for (const p of this.people) {
         if (p.activity?.act !== 'work' && p.activity?.act !== 'chop' && p.activity?.act !== 'build') continue;
         const risky = ['blacksmith', 'woodcutter', 'builder', 'miller'].includes(p.job?.role) ? 0.004 : 0.0008;
-        if (this.rng.chance(risky * (p.needs.energy < 25 ? 2 : 1))) { this.fallIll(p, 'injury', this.rng.float(0.25, 0.9)); this.log(`${p.name} was hurt at work.`, 'health'); }
+        if (this.rng.chance(risky * (p.needs.energy < 25 ? 2 : 1))) { const sev = this.rng.float(0.25, 0.9); if (sev > 0.86 && this.rng.chance(0.12)) { this.die(p, p.job?.role === 'woodcutter' ? 'was crushed by a falling tree' : p.job?.role === 'builder' ? 'fell from the scaffolding and was killed' : p.job?.role === 'miller' ? 'was caught in the mill-wheel and killed' : 'was killed in an accident at work'); continue; } this.fallIll(p, 'injury', sev); this.log(`${p.name} was hurt at work.`, 'health'); }
       }
     };
 
@@ -5583,6 +5596,12 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
         if (p.visitor || p.age < 60) continue;
         const risk = (p.age - 58) * 0.00035 * (p.health.illness ? 3 : 1);
         if (this.rng.chance(risk)) this.die(p, 'died peacefully in old age');
+      }
+      // the hard winter: the very old and the very young in a cold, poor house
+      if (this.season === 'winter') for (const p of [...this.people]) {
+        if (p.visitor || p.alive === false || (p.age >= 3 && p.age < 70)) continue;
+        const hh = this.household(p); if (!hh || hh.money > 15 || (hh.pantry.firewood || 0) >= 1) continue;
+        if (this.rng.chance(0.015)) this.die(p, 'died of the cold, in a house with no fire');
       }
       // courtship and weddings
       if (this.rng.chance(0.25)) this.matchmake();
@@ -7446,7 +7465,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       const L = this.rulers.lords[id], p = this.place(id);
       if (p && p.kind === 'capital' && this.rulers.crown) return `${crownTitle(this.rulers.crown)}${L ? `, with ${L.name} as Lord Mayor` : ''}`;
       if (!L) return p.leader;
-      return L.title === 'Lord' ? `${L.sex === 'f' ? 'Lady' : 'Lord'} ${L.name} of ${p.name}` : `${L.name}, ${L.title.replace(/^the /, '')} of ${p.name}`;
+      return L.title === 'Lord' ? `${L.sex === 'f' ? 'Lady' : 'Lord'} ${L.name} of ${p.name}` : `${L.name}, ${L.title.replace(/^the /, '').replace(/^Headman$/, L.sex === 'f' ? 'Headwoman' : 'Headman').replace(/^Reeve$/, 'Reeve')} of ${p.name}`;
     };
     K.crownTitle = function () { return crownTitle(this.rulersInit().crown); };
 
@@ -8380,7 +8399,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     if (f.byPlayer && f.secret) t = t.replace(/\byou\b/gi, 'a stranger');
     switch (src) {
       case 'saw': return t;
-      case 'crier': return f.cat === 'crime' ? `${strip(t)}. The watch is vigilant and order is kept.` : f.cat === 'politics' || f.cat === 'rulers' ? (/^the council\b/i.test(t) ? `Be it known: ${lower(t)}` : `By order of the council: ${lower(t)}`) : t;
+      case 'crier': return f.cat === 'crime' ? `${strip(t)}. The watch is vigilant and order is kept.` : f.cat === 'politics' || f.cat === 'rulers' ? (/^the council\b/i.test(t) || !/\b(shall|must|is to be|are to be|ordered|decreed|voted|raised|lowered|will be)\b/i.test(t) ? `Be it known: ${lower(t)}` : `By order of the council: ${lower(t)}`) : t;
       case 'watch': return `Report, ${C.dateLabel(f.day)}: ${lower(t)}`;
       case 'bard': return `♪ ${rng.pick(BARD_OPEN)} ${lower(strip(exaggerate(t, rng, [1.6, 3])))}, ${rng.pick(BARD_CLOSE)} ♪`;
       case 'broadsheet': return `${rng.pick(SHEET)} ${strip(exaggerate(t, rng, [1.3, 2]))}, or so it is reliably said!`;
@@ -10809,6 +10828,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     dagger: ['blade', '#c8ccd4', '#b8902a'], sword: ['sword', '#c8ccd4', '#b8902a'], axe: ['axe', '#8a6239', '#c8ccd4'], bow: ['bow', '#8a5a2a', '#e8e0d0'], arrows: ['arrows', '#8a6a3a', '#f0ece4'], helm: ['helm', '#8a8e98', '#5a5e68'], mail: ['mail', '#8a8e98', '#5a5e68'],
     saddle: ['saddle', '#7a4a2a', '#c8a040'], harness: ['coil', '#6a4024', '#c8a040'], wheel: ['wheel', '#8a6239', '#4a4a52'], cart: ['cart', '#8a6239', '#4a4a52'], boat: ['boat', '#8a6239', '#5a3a28'], tent: ['tent', '#d8c8a0', '#8a6239'], cask: ['barrel', '#8a6239', '#4a4a52'],
     ring: ['ring', '#e8c040', '#c83a3a'], brooch: ['brooch', '#e8c040', '#c83a3a'], necklace: ['ring', '#e8c040', '#3a60c8'], circlet: ['ring', '#f0d060', '#3a9a5a'], spoon: ['spoon', '#c8ccd4', '#f0f2f6'], candlestick: ['candlestick', '#9a9a96', '#f0e8d0'], key: ['key', '#c8a040', '#8a6a20'], coins: ['coins', '#c8ccd4', '#e8c040'], coin: ['coins', '#c8ccd4', '#e8c040'],
+    crown: ['ring', '#f0c030', '#c83a3a'],
     berries: ['round', '#8a2a5a', '#3a6a2a'], mushrooms: ['round', '#d8c0a0', '#8a5a3a'],
     medicine: ['flask', '#6a9ad0', '#c8b8a0'], herbs: ['herbs', '#5a9a40', '#3a6a2a'], furniture: ['chair', '#8a6239', '#6a4a2c'],
   };
@@ -11671,7 +11691,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     tick(dtm, sleeping) {
       this.hunger = Math.max(0, this.hunger - 0.05 * dtm);
       this.energy = sleeping ? Math.min(100, this.energy + 0.2 * dtm) : Math.max(0, this.energy - 0.035 * dtm);
-      if (this.hunger <= 0) this.hp = Math.max(0, this.hp - 0.02 * dtm);
+      if (this.hunger <= 0) this.hp = Math.max(1, this.hp - 0.02 * dtm);
       else if (this.hunger > 50 && this.hp < 100) this.hp = Math.min(100, this.hp + 0.01 * dtm);
     },
     SLOTS,
@@ -11875,7 +11895,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       for (const q of sleepers) if (!bedOf.has(q.id) && q.age < 14) { const s = slots.find((x) => x.taken && x.taken.age < 14 && !x.extra && !x.it.cradle); if (s) { s.extra = q; bedOf.set(q.id, { it: s.it, k: 1, share: true }); } }
       this.sleeping = new Map(); // bed item -> [{ q, k }]
       for (const [id, s] of bedOf) { const q = sim.byId.get(id); const arr = this.sleeping.get(s.it) || []; arr.push({ q, k: s.share ? (s.it.slots === 2 ? 1 : 0.5) : s.k }); this.sleeping.set(s.it, arr); }
-      const pewCount = new Map();
+      const pewCount = new Map(), pewTaken = new Set();
       for (const q of here) {
         const act = q.activity?.act;
         let x, y, dir = 0, anim = 'idle', spot = null, inBed = false, seat = null, sortY = null;
@@ -11917,8 +11937,15 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
           const c = L.items.find((i) => i.kind === 'fireplace') || L.items.find((i) => i.kind === 'bar'); const [ax, ay] = c ? this.anchor(c) : this.tileXY(Math.floor(L.w / 2), 2);
           x = ax + (c && c.kind === 'bar' ? -40 : 0); y = ay + 26; dir = 0; anim = (Math.floor(this.t / 4) % 3) ? 'talk' : 'idle';
         } else if (act === 'mourn' || act === 'wedding' || act === 'worship' || act === 'lessons') {
-          const p = pews.find((i) => (pewCount.get(i) || 0) < (i.seats || i.fw));
-          if (p) { const k = pewCount.get(p) || 0; pewCount.set(p, k + 1); const [rx0] = this.rect(p); x = rx0 + 8 + k * T; y = this.anchor(p)[1] - 2; sortY = this.anchor(p)[1] + 0.6; dir = 3; anim = act === 'mourn' ? 'mourn' : act === 'wedding' && k % 3 === 0 ? 'celebrate' : 'sit'; if (anim === 'mourn') anim = 'sit'; spot = p; seat = { pewSeat: true, it: p }; }
+          // each keeps the place they took: nobody gets up and moves along as others come and go
+          const slots = this.pewSlots || (this.pewSlots = new Map());
+          let key = slots.get(q.id), p = null, k = 0;
+          if (key && !pewTaken.has(key)) { const [pi, kk] = key.split(':').map(Number); if (pews[pi] && kk < (pews[pi].seats || pews[pi].fw)) { p = pews[pi]; k = kk; } }
+          if (!p) {
+            const held = new Set(); for (const [id, kk] of slots) if (id !== q.id && this.actors.has(id)) held.add(kk);
+            for (let pi = 0; pi < pews.length && !p; pi++) for (let kk = 0; kk < (pews[pi].seats || pews[pi].fw); kk++) { const kkey = pi + ':' + kk; if (!pewTaken.has(kkey) && !held.has(kkey)) { p = pews[pi]; k = kk; key = kkey; slots.set(q.id, key); break; } }
+          }
+          if (p) { pewTaken.add(key); const [rx0] = this.rect(p); x = rx0 + 8 + k * T; y = this.anchor(p)[1] - 2; sortY = this.anchor(p)[1] + 0.6; dir = 3; anim = act === 'mourn' ? 'mourn' : act === 'wedding' && k % 3 === 0 ? 'celebrate' : 'sit'; if (anim === 'mourn') anim = 'sit'; spot = p; seat = { pewSeat: true, it: p }; }
           else { const t = idleTiles[(q.id * 7) % Math.max(1, idleTiles.length)] || [1, L.d - 3]; [x, y] = this.tileXY(t[0], t[1]); dir = 3; anim = act === 'mourn' ? 'mourn' : 'idle'; } // standing at the back
         } else if (['socialise', 'eat-out', 'eat', 'rest', 'gangmeet', 'feast'].includes(act) || (act === 'home' && q.stage !== 'baby')) {
           if (!(act === 'home' && q.id % 3 === 0)) { spot = seats.find((i) => !used.has(i)); if (spot) seat = spot; }
@@ -11930,7 +11957,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
         if (seat && !seat.pewSeat) { // sat in a chair, facing the way it faces
           const [ax, ay] = this.anchor(seat), r = seat.rot || 0;
           dir = [0, 1, 2, 3][r]; x = ax + (r === 1 ? 2 : r === 2 ? -2 : 0); y = ay + (r === 0 ? -3 : r === 3 ? -3 : 1); sortY = ay + 0.6;
-          if (seat.kind === 'throne') { dir = 0; x = ax; y = ay - 9; }
+          if (seat.kind === 'throne') { dir = 0; x = ax; y = ay - 17; }
           if (anim === 'idle') anim = 'sit';
           if (anim !== 'doze' && anim !== 'sit') anim = anim === 'drink' ? 'drink' : 'talk';
         }
@@ -12035,9 +12062,10 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     // a sleeper's head on the pillow: the top of their own frame, eyes shut
     headOf(q) {
       const fr = Ch.frame(q.app, 0, 'sleep', 0), hy = Ch.headY(q.app);
-      const c = document.createElement('canvas'), top = Math.max(0, Math.round(hy.cy - hy.ry - 4)), h = Math.round(hy.ry * 2 + 6);
+      const lift = (q.app.jewels || []).some((j) => j === 'crown' || j === 'circlet' || j === 'garland') ? 7 : 0; // (room for a crown's points)
+      const c = document.createElement('canvas'), top = Math.max(0, Math.round(hy.cy - hy.ry - 4 - lift)), h = Math.round(hy.ry * 2 + 6 + lift);
       c.width = 20; c.height = h; c.getContext('2d').drawImage(fr, 6, top, 20, h, 0, 0, 20, h);
-      c.cy = hy.ry + 4; return c;
+      c.cy = hy.ry + 4 + lift; return c;
     }
     drawSleepers(ctx, it, sp, ax, ay, cam) {
       let list = this.sleeping && this.sleeping.get(it);
@@ -12090,7 +12118,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       for (const d of drawables) d.draw();
       for (const h of g.hooks.drawWorld) h(ctx, cam);
       // lighting: dim interior, warm pools around fires and candles, daylight under windows and at the door
-      const amb = night ? [58, 52, 88] : g.ambient().map((c, k) => Math.round(c * [0.86, 0.82, 0.78][k]));
+      const amb = g.ambient().map((c, k) => Math.max([58, 52, 88][k], Math.round(c * [0.86, 0.82, 0.78][k]))); // (dusk comes on gradually indoors too)
       const pools = [];
       for (const it of L.items) {
         const [ax, ay] = this.anchor(it);
@@ -12144,7 +12172,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     // where you sit on a seat: a chair's own spot, or the nearest free place along a bench or pew
     seatPose(it) {
       const p = this.game.player, [ax, ay] = this.anchor(it), r = it.rot || 0;
-      if (it.kind === 'throne') return { x: ax, y: ay - 9, dir: 0, sortY: ay + 0.6 }; // up on the seat, not the step
+      if (it.kind === 'throne') return { x: ax, y: ay - 17, dir: 0, sortY: ay + 0.6 }; // up on the seat, not the step
       if (it.kind === 'pew' || it.kind === 'bench' || it.fw > 1) {
         const [rx0] = this.rect(it), k = O.clamp(Math.floor((p.x - rx0) / T), 0, it.fw - 1);
         return { x: rx0 + 8 + k * T, y: ay - 2, dir: it.kind === 'pew' ? 3 : [0, 1, 2, 3][r], sortY: ay + 0.6 };
@@ -12662,16 +12690,20 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       searching = 0.7; game.player.dir = 3;
       pendingSearch = () => {
         if (quick) { take(it, items, items.map((_, i) => i), owner); O.Panels.toast(items.length ? 'You gather your things.' : 'Nothing here.'); return; }
-        O.Panels.container(`${it.kind[0].toUpperCase() + it.kind.slice(1)}, ${owner}`, items, (idxs) => take(it, items, idxs, owner), own ? null : `This belongs to ${owner}. Anyone awake in the room will see you take it.`);
+        openChest(it, items, owner, own, store);
+      };
+    }
+    // the chest's panel: what's in it, and (if it's yours) room to put things away; yours stays open as you go
+    function openChest(it, items, owner, own, store) {
+        O.Panels.container(`${it.kind[0].toUpperCase() + it.kind.slice(1)}, ${owner}`, items, (idxs) => { take(it, items, idxs, owner); if (own) { const c = contents(it); openChest(it, c.items, c.owner, true, c.store); } }, own ? null : `This belongs to ${owner}. Anyone awake in the room will see you take it.`);
         // your own chest: put things away in it, too
         if (store) setTimeout(() => {
           const root = document.querySelector('.panel-modal .ledger-in') || document.querySelector('.panel-modal'); if (!root) return;
           const box = document.createElement('div'); box.style.marginTop = '10px';
           const draw = () => { const kinds = [...new Set(PS.items)].filter((k) => G[k] && k !== 'key'); box.innerHTML = `<div class="lbl">Put away from your satchel (the chest holds ${(PS.homes[store] || []).length} of 24)</div><div class="topics">${kinds.map((k) => `<button data-put="${k}">${O.escape(G[k].name)}</button>`).join('') || '<span class="caption">Your satchel is empty.</span>'}</div>`;
-            box.querySelectorAll('[data-put]').forEach((b) => b.onclick = () => { const k = b.dataset.put, st = (PS.homes[store] = PS.homes[store] || []); if (st.length >= 24) return O.Panels.toast('The chest is full.', 'bad'); if (!PS.items.includes(k)) return; PS.remove(k); st.push(k); O.Panels.toast(`You put the ${G[k].name.toLowerCase()} away.`); draw(); }); };
+            box.querySelectorAll('[data-put]').forEach((b) => b.onclick = () => { const k = b.dataset.put, st = (PS.homes[store] = PS.homes[store] || []); if (st.length >= 24) return O.Panels.toast('The chest is full.', 'bad'); if (!PS.items.includes(k)) return; PS.remove(k); st.push(k); O.Panels.toast(`You put the ${G[k].name.toLowerCase()} away.`); const c = contents(it); openChest(it, c.items, c.owner, true, c.store); }); };
           draw(); root.appendChild(box);
         }, 0);
-      };
     }
 
     // Sleeping: you lie down and the night passes (quickly, for you) while the village sleeps around
@@ -12679,8 +12711,8 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     function sleep(it, rough) {
       if (game.sleepState) return;
       // you can't sleep the days away: only when tired, or at night, and not straight after waking
-      { const h = sim.hour, night = h >= 20 || h < 5, abs = sim.day * 1440 + sim.minute, since = abs - (PS.wokeAt ?? -1e9);
-        if (!night && PS.energy > 45) return O.UI.say("You lie down, but you're not tired. Sleep won't come in broad day.", 'bad');
+      { const h = sim.hour, night = h >= 19.5 || h < 5.5, abs = sim.day * 1440 + sim.minute, since = abs - (PS.wokeAt ?? -1e9);
+        if (!night && PS.energy > 45) return O.UI.say(h >= 7 && h < 17 ? "You lie down, but you're not tired. Sleep won't come in broad day." : "You lie down, but you're not tired yet. Come back when it's properly night, or when you're weary.", 'bad');
         if (since < 240 && PS.energy > 25) return O.UI.say("You've only just got up. You're wide awake.", 'bad'); }
       const m0 = sim.minute, target = m0 >= 19 * 60 || m0 < 6 * 60 ? 7 * 60 : (m0 + 8 * 60) % 1440;
       game.sleepState = { it, rough, target, slept: 0 };
@@ -13605,10 +13637,8 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     });
 
     function knockedOut(by) {
-      if (O.playerDead && O.playerDead()) return;
       for (const [id] of fights) { const q = sim.byId.get(id); if (q) q.agent.chasing = false; }
       fights.clear();
-      if (O.deathRoll && O.deathRoll(by)) return; // (now and then a beating is the end of you)
       O.Panels.toast(`${by.first} beats you to the ground…`, 'bad');
       const lost = Math.floor(PS.money * 0.3); PS.money -= lost;
       PS.hp = 25;
@@ -16701,7 +16731,8 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       const W = 12, H = 9, rim = mine ? '#e8b830' : royal ? '#6a3a7a' : '#3a2618';
       ctx.fillStyle = rim; ctx.fillRect(x - 1, y - 1, W + 2, H + 2); ctx.fillStyle = '#8a6a44'; ctx.fillRect(x, y, W, H); ctx.fillStyle = '#a07e54'; ctx.fillRect(x, y, W, 1);
       const rows = ICON[icon] || []; ctx.fillStyle = COL[icon] || '#fff';
-      rows.forEach((row, r) => [...row].forEach((ch, c) => { if (ch === '#') ctx.fillRect(x + 2 + c, y + 1 + r + (rows.length < 5 ? 1 : 0), 1, 1); }));
+      const iw = Math.max(...rows.map((rw) => rw.length), 0), ox = Math.floor((W - iw) / 2), oy = Math.floor((H - rows.length) / 2); // (centred on the board)
+      rows.forEach((row, r) => [...row].forEach((ch, c) => { if (ch === '#') ctx.fillRect(x + ox + c, y + oy + r, 1, 1); }));
       if (mine) { ctx.fillStyle = '#e8b830'; ctx.fillRect(x + W - 2, y + 1, 1, 1); }
     }
     game.hooks.drawTop.push((ctx, cam, indoor) => {
@@ -17851,7 +17882,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
         if (e._incAt == null || e._incDay !== day) { e._incDay = day; e._incAt = now(s) + 90 + Math.random() * 120; }
         else if (now(s) >= e._incAt && h < c - 1.5) { e._incAt = now(s) + 150 + Math.random() * 150; const busy = O.eventsFor && O.eventsFor(s, day, day).some((x) => x.square && !x.small && h >= x.from - 1 && h < x.to + 1); if (busy) e._incAt -= 60; if (Math.random() < (busy ? 0.75 : 0.45) && !e.tasks.some((x) => x.optional && x.have < x.need)) incident(s, bz, e); }
       }
-      if (on && e.onShift && D0.mode === 'shift') {
+      if (on && e.onShift && D0.mode === 'shift' && !COURT.has(e.role)) {
         // the work changes as the day goes on: every hour and a half, something new needs doing
         if (now(s) - (e._rot || 0) >= 90 && h < c - 0.75) {
           e._rot = now(s);
@@ -19282,7 +19313,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
           const d = Math.hypot(st.x - p.x, st.y - p.y); if (d < 30) return { type: 'custom', label: `Browse ${q.first}'s wares`, act: () => openMerchant(q), d: d - 30, x: st.x, y: st.y - 30 };
         }
         const f = fest(s), h = s.hour, lists = s.world.props.find((x) => x.kind === 'noticeboard') || s.world.props.find((x) => x.kind === 'well');
-        if (f === 'tournament' && listsOn(s) && h >= 10 && h < 15) { const [cx, cy] = listsCentre(s), d = Math.hypot((p.x - cx) / 2.2, p.y - cy); if (d < 46) return { type: 'custom', label: 'The tournament lists: bet, or ride', act: () => tournament(s), d: 2, x: cx, y: cy - 50 }; }
+        if (f === 'tournament' && listsOn(s) && h >= 10 && h < 15) { const [cx, cy] = listsCentre(s), d = Math.hypot((p.x - cx) / 2.2, p.y - cy); if (d < 72) return { type: 'custom', label: 'The tournament lists: bet, or ride', act: () => tournament(s), d: 2, x: cx, y: cy - 50 }; }
         if (lists && Math.hypot(lists.x - p.x, lists.y - p.y) < 34) {
           if (f === 'tournament' && keepOf(s) && h >= 10 && h < 15) return { type: 'custom', label: 'The tournament lists: bet, or ride', act: () => tournament(s), d: 2, x: lists.x, y: lists.y - 34 };
           if (f === 'fair' && h >= 10 && h < 18) return { type: 'custom', label: 'The fair games: archery, wrestling, the judging', act: () => fairGames(s), d: 2, x: lists.x, y: lists.y - 34 };
@@ -19412,6 +19443,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       }
       return (s._lists = best || O.revelCentre(s));
     }
+    O.listsCentre = (s) => (fest(s) === 'tournament' || (s.hosted && s.hosted.kind === 'tournament')) && O.revelCentre ? listsCentre(s) : null;
     const rider = (k) => ({ x: 0, y: 0, dir: 3, anim: 'idle', ft: 0, tourney: true, a: Ch.makeAppearance(O.hash('tilt', k), { role: 'guard', sex: 'm', age: 30 + k * 5, wealth: 0.9 }), mount: { id: 'tilt' + k, coat: k ? 'black' : 'grey', saddled: true, anim: 'idle', ft: 0, seed: 7 + k * 5 } });
     const KN = [rider(0), rider(1)];
     let fallen = null, flash = 0, lastCycle = -1;
@@ -19458,6 +19490,50 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       for (const q of s.people) { const a = q.agent; if (!a || a.hidden || a.inside != null) continue; if (a.x > L && a.x < R && a.y > Tp && a.y < B) { a.y = a.y < cy ? Tp - 1 : B + 1; } }
       const p = game.player; if (p.x > L && p.x < R && p.y > Tp && p.y < B && !p.mount) p.y = p.y < cy ? Tp - 1 : B + 1;
     });
+
+    // ---------------------------------------------------------------- at the feast table: toasts, music, a speech
+    const feastHall = () => { const s = cur(), sc = game.scene, p = game.player; return fest(s) === 'midwinter' && s.hour >= 18 && s.hour < 22.5 && sc && p.sitting && (sc.b.royal || sc.b.type === 'keep' || sc.b.type === 'tavern'); };
+    let feastDid = {};
+    game.hooks.update.push(() => { if (feastHook) return; feastHook = true; const prev = O.sceneCandidate; O.sceneCandidate = () => {
+      const base = prev ? prev() : null; if (!feastHall()) return base;
+      const s = cur(); if (feastDid.day !== s.day) feastDid = { day: s.day };
+      const king = O.crowned && O.crowned(), opts = [];
+      if (!feastDid.toast) opts.push({ label: 'Raise a toast', act: () => toast(s) });
+      if (!feastDid.music) opts.push({ label: 'Call for music', act: () => music(s) });
+      if (king && !feastDid.speech) opts.push({ label: 'Rise and speak to the hall', act: () => speech(s) });
+      if (!opts.length) return base;
+      const c = { type: 'custom', d: -2, label: opts.length > 1 ? 'At the feast: ' + opts.map((o) => o.label.toLowerCase()).join(', ') : opts[0].label, act: () => feastMenu(opts), x: game.player.x, y: game.player.y - 40 };
+      return c;
+    }; });
+    let feastHook = false;
+    function feastMenu(opts) { O.UI.dialog.open({ name: 'The feast', color: '#7a1a2a', text: 'Candles down the long table, the smell of roast meat, and every eye now and then on the high seat.', options: [...opts.map((o, i) => ({ key: 'f' + i, label: o.label })), { key: 'no', label: 'Just eat and drink' }], onPick: (k) => { O.UI.dialog.close(); if (k !== 'no') opts[+k.slice(1)].act(); } }); }
+    const hall = () => [...(game.scene ? game.scene.actors.values() : [])].filter((a) => a.person);
+    function toast(s) {
+      feastDid.toast = true; const k = O.crowned && O.crowned();
+      O.UI.dialog.open({ name: 'A toast', color: '#7a1a2a', text: 'You get to your feet and raise your cup. To what?', options: [{ key: 'realm', label: '"To the realm, and peace!"' }, { key: 'crown', label: k ? '"To all of you, my loyal friends!"' : '"To the crown!"' }, { key: 'host', label: '"To our host, and this table!"' }], onPick: (w) => {
+        O.UI.dialog.close();
+        for (const a of hall()) { a.anim = 'celebrate'; if (Math.random() < 0.5) s.relate(a.person, { id: 0 }, 0.04); }
+        PS.rep.local = Math.min(1, (PS.rep.local || 0) + 0.03); if (w === 'crown' && !k) PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.02);
+        say(w === 'realm' ? 'Cups go up all down the table: "The realm!"' : w === 'crown' ? (k ? 'The hall roars and drinks to you.' : 'Every cup goes up: "The crown!"') : 'Laughter and a clatter of cups: "Our host!"');
+      } });
+    }
+    function music(s) {
+      feastDid.music = true;
+      for (const a of hall()) { a.anim = 'celebrate'; if (Math.random() < 0.4) s.relate(a.person, { id: 0 }, 0.03); }
+      O.Audio && O.Audio.play && O.Audio.play('lute');
+      say('The minstrels strike up a carol, and half the hall is on its feet for a round dance between the tables.');
+    }
+    function speech(s) {
+      feastDid.speech = true;
+      O.UI.dialog.open({ name: 'Your speech', color: '#7a1a2a', text: 'The hall falls quiet as you rise. What do you tell them?', options: [{ key: 'gen', label: 'Promise justice and bread for all' }, { key: 'war', label: 'Speak of the realm\'s enemies, and courage' }, { key: 'thanks', label: 'Thank them simply, and sit down' }], onPick: (w) => {
+        O.UI.dialog.close();
+        const K = O.SimRef.home.kingdom;
+        if (w === 'gen') { PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.05); say('A great cheer. They will hold you to it.'); }
+        else if (w === 'war') { PS.rep.guard = Math.min(1, (PS.rep.guard || 0) + 0.05); if (K) K.morale = Math.min(1, (K.morale || 0.5) + 0.05); say('The knights bang the table. The ladies look less sure.'); }
+        else { PS.rep.local = Math.min(1, (PS.rep.local || 0) + 0.03); say('It goes down well: short, and you sit back down to your supper.'); }
+        for (const a of hall()) a.anim = 'celebrate';
+      } });
+    }
 
     // ---------------------------------------------------------------- the midwinter feast: a seat at the table
     let fedAt = -1;
@@ -19594,13 +19670,20 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     });
     // stand up from the throne and whoever was waiting goes away unheard
     game.hooks.update.push(() => { if (waiting && !game.player.sitting && !(O.UI.dialogOpen && O.UI.dialogOpen())) { if (waiting.task?.act === 'petition') waiting.task = null; waiting = null; } });
+    // the crown's treasury, in its own little box, while you sit in state on the throne
+    let tbox = null;
+    game.hooks.update.push(() => {
+      const sc = game.scene, on = sc && game.player.sitting && game.player.sitting.it?.kind === 'throne' && O.crowned && O.crowned();
+      if (!tbox) { tbox = document.createElement('div'); tbox.style.cssText = 'position:absolute;left:50%;top:10px;transform:translateX(-50%);background:rgba(250,242,222,.95);color:#4a3826;font:700 13px var(--body,Georgia);padding:4px 12px;box-shadow:0 -2px 0 #3a2a1a,0 2px 0 #3a2a1a,-2px 0 0 #3a2a1a,2px 0 0 #3a2a1a;z-index:25;pointer-events:none'; (document.getElementById('tab-play') || document.body).appendChild(tbox); }
+      tbox.hidden = !on; if (on) { const t = 'Crown treasury: ' + O.money(Math.round(K().treasury)); if (tbox.textContent !== t) tbox.textContent = t; }
+    });
     let pending = null, waiting = null; // (waiting: a petitioner before the throne, not yet answered)
     game.hooks.update.push(() => {
       if (!pending || game.t < pending.at || O.panelOpen || (O.UI.dialogOpen && O.UI.dialogOpen())) return;
       const { q, pt } = pending; pending = null; const s = cur();
       if (!game.player.sitting) { if (q.task?.act === 'petition') q.task = null; return; }
       waiting = q;
-      O.UI.dialog.open({ name: `${q.first}, a petitioner · Treasury ${O.money(Math.round(K().treasury))}`, color: '#8a6239', text: pt.text(q), options: pt.opts.map(([l], i) => ({ key: 'p' + i, label: l })), onPick: (key) => { const o = pt.opts[+key.slice(1)]; o[1](s, q, K()); O.jobEvent && O.jobEvent('hear'); s.remember(q, 'Brought my petition before the monarch.', 'politics', 2, 0); O.UI.dialog.close(); waiting = null; if (q.task?.act === 'petition') q.task = null; say(`${q.first} bows and withdraws. The next petitioner waits.`); }, onClose: () => { if (waiting === q) { waiting = null; if (q.task?.act === 'petition') q.task = null; } } });
+      O.UI.dialog.open({ name: `${q.first}, a petitioner`, color: '#8a6239', text: pt.text(q), options: pt.opts.map(([l], i) => ({ key: 'p' + i, label: l })), onPick: (key) => { const o = pt.opts[+key.slice(1)]; o[1](s, q, K()); O.jobEvent && O.jobEvent('hear'); s.remember(q, 'Brought my petition before the monarch.', 'politics', 2, 0); O.UI.dialog.close(); waiting = null; if (q.task?.act === 'petition') q.task = null; say(`${q.first} bows and withdraws. The next petitioner waits.`); }, onClose: () => { if (waiting === q) { waiting = null; if (q.task?.act === 'petition') q.task = null; } } });
     });
   }
   O.CrownSetup = { setup };
@@ -19831,14 +19914,14 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       if (O.GangLife) for (const m of O.GangLife.mine()) if (m.task && !m.task.done && m.task.day != null && m.task.day < s.day - 3) m.task = null; // (old errands lapse)
       const gang = (O.GangLife ? O.GangLife.mine() : []).filter((m) => m.task && !m.task.done);
       const rows = [];
-      posts.forEach((e, i) => rows.push(`<tr><td><b>${esc(e.role)}</b> at ${esc(e.bizName)}${e.place !== s.world.placeId ? `, ${esc(e.placeName)}` : ''}${e.onShift ? ' <span class="warn">(on shift now)</span>' : ''}</td><td>${e.onShift ? `<button data-quit="${i}">Walk out of today's work</button>` : `<button data-post="1">See it in Business</button>`}</td></tr>`));
+      posts.forEach((e, i) => rows.push(`<tr><td><b>${esc(e.role)}</b> at ${esc(e.bizName)}${e.place !== s.world.placeId ? `, ${esc(e.placeName)}` : ''}${e.onShift ? ' <span class="warn">(on shift now)</span>' : ''}</td><td>${e.onShift && !(O.COURT && O.COURT.has(e.role)) ? `<button data-quit="${i}">Walk out of today's work</button>` : `<button data-post="1">See it in Business</button>`}</td></tr>`));
       if (C) rows.push(`<tr><td>${esc(C.text)} <span class="caption">(₳${C.reward})</span></td><td><button data-contract="1">Give it up</button></td></tr>`);
       gang.forEach((m, i) => rows.push(`<tr><td>For your gang: ${esc(m.task.text || m.task.kind)}</td><td><button data-gang="${i}">Let it go</button></td></tr>`));
       if (s.party && s.party.day === s.day && !s.party.done) rows.push(`<tr><td>Your party tonight, from seven (${s.party.guests.length} household${s.party.guests.length === 1 ? '' : 's'} coming)</td><td><button data-party="1">Call it off</button></td></tr>`);
       const leads = (PS.leads || []).filter((l) => l.why !== 'contract' && l.why !== 'party' && l.until > s.day * 1440 + s.minute);
       leads.forEach((l, i) => rows.push(`<tr><td>Being shown the way: ${esc(l.label || 'somewhere to go')}</td><td><button data-lead="${i}">Stop showing me</button></td></tr>`));
       const cal = O.calendarHTML ? O.calendarHTML() : '';
-      O.Panels.open('Your undertakings', (rows.length ? `<table><tbody>${rows.join('')}</tbody></table><p class="caption">Walking out mid-shift loses the day's pay and angers your master. Giving up a bounty, the watch will remember.</p>` : '<p>Nothing on your hands just now.</p>') + cal, (r) => {
+      O.Panels.open('Your undertakings', (rows.length ? `<table><tbody>${rows.join('')}</tbody></table>${(() => { const m = posts.some((e) => e.master != null && e.master !== 0 && !(O.COURT && O.COURT.has(e.role))); const parts = []; if (m) parts.push("Walking out mid-shift loses the day's pay and angers your master."); if (PS.contract) parts.push('Giving up a bounty, the watch will remember.'); return parts.length ? `<p class="caption">${parts.join(' ')}</p>` : ''; })()}` : '<p>Nothing on your hands just now.</p>') + cal, (r) => {
         O.bindCalendar && O.bindCalendar(r);
         r.querySelectorAll('[data-post]').forEach((b) => b.onclick = () => O.openBusiness('work'));
         r.querySelectorAll('[data-quit]').forEach((b) => b.onclick = () => {
@@ -19956,6 +20039,9 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       if (PS.guides === 'off') return;
       for (const l of list) {
         if (l.place !== s.world.placeId) continue;
+        if (l.from != null && t < l.from - 120) continue; // (only when it's coming up: within two hours)
+        // there: the marker has done its work
+        if (l.tile && l.why === 'event' && !game.scene && Math.hypot(l.tile[0] * T + 8 - game.player.x, l.tile[1] * T + 8 - game.player.y) < 56) { PS.leads = PS.leads.filter((x) => x !== l); O.UI.say(/tournament/i.test(l.label || '') ? "You're at the lists. Walk up to the barrier and press E to bet on a joust, or to ride in one yourself." : /maypole|May Day/i.test(l.label || '') ? "You're at the maypole. Press E beside it to join the dance." : /bonfire|Midsummer/i.test(l.label || '') ? "You're at the bonfire. Press E beside it to leap the flames." : /fair/i.test(l.label || '') ? "You're at the fair. The games are by the noticeboard: press E there." : `You're there: ${l.label}.`); continue; }
         let x, y, over = 46;
         if (l.id != null) {
           const q = s.byId.get(l.id); if (!q || q.alive === false) continue;
@@ -20791,6 +20877,8 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
       mum.labour = null; mum.app.pregnant = false;
       for (const par of [mum, s.byId.get(mum.spouse)]) if (par && par.children) par.children = [...new Set(par.children)]; // (a child is only listed once)
       const baby = s.byId.get((mum.children || []).slice(-1)[0]);
+      // a hard birth: now and then the mother doesn't survive it (less often with a midwife or the physician)
+      if (s.rng.chance(mum.midwife || (mum.agent.inside != null && mum.agent.inside !== mum.home) ? 0.01 : 0.03)) { mum.labour = null; mum.app.pregnant = false; mum.task = null; s.die(mum, 'died in childbirth; the baby lived'); return; }
       if (mum.agent.inside != null && mum.agent.inside !== mum.home) { // carried home from the infirmary
         mum.app.babe = true; mum.agent.carrying = 'babe'; mum.task = { act: 'home', b: mum.home, babe: baby?.id };
         s.log(`${mum.first} carries her newborn home from the infirmary.`, 'life');
@@ -20851,7 +20939,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
     }
     // set the day once you hold the crown
     game.hooks.update.push(() => {
-      if (PS.anointed && O.crowned && !O.crowned()) { PS.anointed = false; PS.coronation = null; O.dropLead && O.dropLead((l) => l.why === 'coronation'); say('You are monarch no longer. The crown stays in the castle.'); return; } // left the throne: the crown stays behind
+      if (PS.anointed && O.crowned && !O.crowned()) { PS.anointed = false; PS.coronation = null; PS.items = PS.items.filter((k) => k !== 'crown'); PS.worn = (PS.worn || []).filter((k) => k !== 'crown'); O.dropLead && O.dropLead((l) => l.why === 'coronation'); say('You are monarch no longer. The crown stays in the castle.'); return; } // left the throne: the crown stays behind
       if (!O.crowned || !O.crowned()) return;
       const s = cur(), cap = capital(); if (!cap) return;
       if (PS.anointed) return;
@@ -20898,7 +20986,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
       if (cer.t > 5.2 && !cer.said) {
         cer.said = true;
         const s = cur(), f = (O.Forge.player?.sex || O.Forge.player?.a?.sex) === 'f';
-        PS.anointed = true; PS.coronation.done = true; PS.coronation.doneAt = abs(s); O.dropLead && O.dropLead((l) => l.why === 'coronation');
+        PS.anointed = true; PS.coronation.done = true; PS.coronation.doneAt = abs(s); giveCrown(); O.dropLead && O.dropLead((l) => l.why === 'coronation');
         PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.25);
         s.hosted = { kind: 'midwinter', day: s.day, coronation: true }; // the coronation feast tonight
         for (const q of s.people) if (q.agent.inside === keepOf(s)?.id) s.relate(q, { id: 0 }, 0.08);
@@ -20918,10 +21006,10 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
     // from the feet to the crown of the head (the head's top in the frame, less a little so the crown sits on it)
     const HEAD_Y = (p) => { const hy = Ch.headY(p.a); return Ch.GROUND - (hy.cy - hy.ry) + 3 - (p.anim === 'pray' ? -1 : p.sitting || p.anim === 'sit' ? 5 : 0); };
     // a crowned monarch wears the crown
-    game.hooks.drawTop.push((ctx, cam) => {
-      const p = game.player; if (cer || !PS.anointed || !O.crowned || !O.crowned() || p.inBed || p.mount) return;
-      crownPx(ctx, p.x - cam.x + (p.dir === 1 ? -1 : p.dir === 2 ? 1 : 0), p.y - HEAD_Y(p) - cam.y);
-    });
+    // once crowned, the crown is yours to wear (or take off) like any jewel: it's drawn on your head, in every pose
+    const giveCrown = () => { if (!PS.items.includes('crown')) PS.items.push('crown'); PS.worn = [...new Set(['crown', ...(PS.worn || [])])].slice(0, 3); };
+    O.giveCrown = giveCrown;
+    game.hooks.update.push(() => { if (PS.anointed && O.crowned && O.crowned() && !PS.items.includes('crown') && !PS._crownOff) giveCrown(); });
     game.hooks.drawTop.push((ctx, cam, indoor) => {
       if (!cer || !indoor) return;
       const p = game.player, k = O.clamp((cer.t - 1.5) / 3.5, 0, 1), e = 1 - Math.pow(1 - k, 2);
@@ -21558,7 +21646,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
         if (isSaintDay(s, d)) { add({ day: d, from: 9, to: 10.5, title: `St. ${saintOf(s)}'s day: the procession and mass`, where: 'the chapel', b: s.chapelId }); add({ day: d, from: 12, to: 16.5, title: `St. ${saintOf(s)}'s day: merriment in the square`, where: 'the square', square: true }); }
         if ((d - 1) % 7 === 3 && capital()) add({ day: d, from: 14, to: 18, title: 'The council of the realm', where: `the great hall at ${capital().name}`, place: capital().id, small: here !== capital().id, council: true });
       }
-      if (s.hosted && s.hosted.day >= d0) add({ day: s.hosted.day, from: 10, to: 22, title: s.hosted.coronation ? 'The coronation feast' : `A ${s.hosted.kind === 'midwinter' ? 'feast' : s.hosted.kind} called by the crown`, where: s.world.name, square: s.hosted.kind !== 'midwinter' });
+      if (s.hosted && s.hosted.day >= d0) { const feast = s.hosted.kind === 'midwinter', k = s.world.buildings.find((b) => b.royal) || s.world.buildings.find((b) => b.type === 'keep'); add({ day: s.hosted.day, from: feast ? 18 : s.hosted.kind === 'market' ? 7 : 10, to: feast ? 22.5 : s.hosted.kind === 'market' ? 14 : 15, title: s.hosted.coronation ? 'The coronation feast' : `A ${feast ? 'feast' : s.hosted.kind} called by the crown`, where: feast ? (k ? 'the great hall, upstairs in the castle' : 'the tavern') : 'the square', square: !feast, b: feast ? (k ? k.id : s.tavernId) : undefined }); }
       if (PS.coronation && !PS.coronation.done) add({ day: PS.coronation.day, from: 10, to: 20, title: 'Your coronation', where: 'the castle chapel', place: PS.coronation.place, coronation: true });
       for (const e of s.executions || []) if (!e.done) add({ day: e.day, from: 10.5, to: 11.5, title: `An execution at the block (${s.byId.get(e.id)?.name || 'the condemned'})`, where: 'the square', square: true, small: true });
       if (s.party && !s.party.done) add({ day: s.party.day, from: 19, to: 23, title: 'Your party', where: 'your home', b: s.party.b, ref: s.party });
@@ -21569,12 +21657,13 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
     };
     // show me the way
     function lead(s, e) {
-      const until = e.day * 1440 + Math.round(e.to * 60);
+      const until = e.day * 1440 + Math.round(e.to * 60), from = e.day * 1440 + Math.round(e.from * 60);
+      const addLead = (l) => O.addLead(Object.assign(l, { from, key: evKey(e) }));
       O.Panels.close && O.Panels.close(); // (close the list so you can see where to go)
-      if (e.place && e.place !== s.world.placeId) { PS.roadLead = { place: e.place, until, ev: { title: e.title, b: e.b, tile: e.tile, coronation: e.coronation, council: e.council, day: e.day, to: e.to } }; return say(`That's at ${K().place(e.place)?.name}. You'll be shown the road there, and the way once you arrive.`); }
-      if (e.b != null) O.addLead({ place: s.world.placeId, b: e.b, until, why: 'event', label: e.title });
-      else if (e.coronation || e.council) { const k = s.world.buildings.find((b) => b.royal); if (k) O.addLead({ place: s.world.placeId, b: k.id, until, why: 'event', label: e.title }); }
-      else { const t = e.tile || (() => { const [x0, y0, x1, y1] = s.Z.square; return [Math.floor((x0 + x1) / 2), Math.floor((y0 + y1) / 2)]; })(); O.addLead({ place: s.world.placeId, tile: t, until, why: 'event', label: e.title }); }
+      if (e.place && e.place !== s.world.placeId) { PS.roadLead = { place: e.place, until, ev: { title: e.title, b: e.b, tile: e.tile, coronation: e.coronation, council: e.council, day: e.day, from: e.from, to: e.to, square: e.square } }; return say(`That's at ${K().place(e.place)?.name}. You'll be shown the road there, and the way once you arrive.`); }
+      if (e.b != null) addLead({ place: s.world.placeId, b: e.b, until, why: 'event', label: e.title });
+      else if (e.coronation || e.council) { const k = s.world.buildings.find((b) => b.royal); if (k) addLead({ place: s.world.placeId, b: k.id, until, why: 'event', label: e.title }); }
+      else { const lc = /tournament/i.test(e.title) && O.listsCentre && O.listsCentre(s), rv = /May Day|Midsummer/.test(e.title) && O.revelCentre && O.revelCentre(s); const t = e.tile || (lc ? [Math.floor(lc[0] / 16), Math.floor(lc[1] / 16) + 3] : rv ? [Math.floor(rv[0] / 16), Math.floor(rv[1] / 16) + 3] : null) || (() => { const [x0, y0, x1, y1] = s.Z.square; return [Math.floor((x0 + x1) / 2), Math.floor((y0 + y1) / 2)]; })(); addLead({ place: s.world.placeId, tile: t, until, why: 'event', label: e.title }); }
       say(`You'll be shown the way to ${e.title.charAt(0).toLowerCase() + e.title.slice(1)}.`);
     }
     // the road to another town: which way out of here, then the way to the place itself when you get there
@@ -21594,14 +21683,15 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
       if (here === R.place) { PS.roadLead = null; lead(s, Object.assign({}, R.ev, { place: null })); return; }
       const ex = bestExit(here, R.place); if (ex) O.addLead({ place: here, tile: ex, until: R.until, why: 'road', label: `The road to ${K().place(R.place)?.name}` });
     });
+    const evKey = (e) => `${e.day}:${e.title}`;
     const upcoming = (s) => O.eventsFor(s, s.day, s.day + 6).filter((e) => !(e.day < s.day || (e.day === s.day && e.to <= s.hour)));
     O.calendarHTML = () => {
       const s = cur(), list = upcoming(s), wait = O.mailWaiting();
       const letters = wait.length ? `<h3>Waiting for answers</h3><ul class="chron">${wait.map((m) => `<li>${esc(m.what)}</li>`).join('')}</ul>` : '';
       if (!list.length) return letters;
-      return letters + `<h3>What's on</h3><table><tbody>${list.map((e, i) => `<tr><td><b>${esc(e.title)}</b><br><small class="lbl">${e.day === s.day ? 'Today' : e.day === s.day + 1 ? 'Tomorrow' : esc(O.dateOf(e.day))}, ${hh(e.from)} to ${hh(e.to)}, ${esc(e.where || '')}</small></td><td><button data-ev="${i}">Show the way</button></td></tr>`).join('')}</tbody></table>`;
+      return letters + `<h3>What's on</h3><table><tbody>${list.map((e, i) => `<tr><td><b>${esc(e.title)}</b><br><small class="lbl">${e.day === s.day ? 'Today' : e.day === s.day + 1 ? 'Tomorrow' : esc(O.dateOf(e.day))}, ${hh(e.from)} to ${hh(e.to)}, ${esc(e.where || '')}</small></td><td>${(PS.leads || []).some((l) => l.key === evKey(e)) || (PS.roadLead && PS.roadLead.ev && PS.roadLead.ev.title === e.title) ? `<button data-evstop="${i}">Being shown: stop</button>` : `<button data-ev="${i}">Show the way</button>`}</td></tr>`).join('')}</tbody></table>`;
     };
-    O.bindCalendar = (r) => { const s = cur(), list = upcoming(s); r.querySelectorAll('[data-ev]').forEach((b) => b.onclick = () => lead(s, list[+b.dataset.ev])); };
+    O.bindCalendar = (r) => { const s = cur(), list = upcoming(s); r.querySelectorAll('[data-ev]').forEach((b) => b.onclick = () => lead(s, list[+b.dataset.ev])); r.querySelectorAll('[data-evstop]').forEach((b) => b.onclick = () => { const e = list[+b.dataset.evstop]; O.dropLead((l) => l.key === evKey(e)); if (PS.roadLead && PS.roadLead.ev && PS.roadLead.ev.title === e.title) { PS.roadLead = null; O.dropLead((l) => l.why === 'road'); } say('You stop being shown the way there.'); O.Panels.close(); }); };
   }
   O.CalendarSetup = { setup };
 })();
@@ -22136,113 +22226,6 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
 
 </script>
 <script>
-// The end of a life, and the next one. You can die: beaten to death in a fight (more likely the more
-// wounds you carry), of a fever left untended, of hunger, or of old age. Then the town buries you, and
-// your heir comes to take up what you left: your house and lands, your businesses, your horses and dog,
-// most of your money (the crown takes its tenth), and the crown itself if you wore it. Your crimes, your
-// posts and your gang die with you; the heir is known in the town only as your child. Or begin anew.
-'use strict';
-(function () {
-  function setup(game) {
-    const PS = O.PlayerState, cur = () => O.SimRef.cur, esc = (t) => O.escape(String(t)), D = O.Data;
-    let dead = false;
-    const me = () => O.Forge.player || {};
-    const fullName = () => `${me().name || 'The stranger'} ${me().surname || ''}`.trim();
-
-    // ---------------------------------------------------------------- how it comes
-    // a beating: called when you're knocked down; returns true if it was the end
-    O.deathRoll = (by) => {
-      if (dead || (by && /guard|sergeant|watch/.test(by.job?.role || ''))) return false; // (the watch take you alive)
-      const w = (PS.wounds || []).length, armed = by && (by.agent?.weapon || by.armed || ['sword', 'axe', 'dagger'].includes(by.equipped));
-      const p = Math.min(0.5, 0.03 + w * 0.1 + (armed ? 0.08 : 0) + (PS.ill ? 0.05 : 0));
-      if (Math.random() >= p) return false;
-      die(`was beaten to death by ${by ? by.first + ' ' + (by.sur || '') : 'an assailant'}`.replace(/ +/g, ' ').trim(), 'beaten');
-      return true;
-    };
-    let tk = 0;
-    game.hooks.update.push((dt) => {
-      if (dead) return; tk -= dt; if (tk > 0) return; tk = 1;
-      const s = cur(); if (!s) return;
-      if (PS.hp <= 0.5 && PS.hunger <= 0) return die('starved to death', 'hunger');
-      if (PS.ill && PS.ill.sev > 0.7 && PS.hp <= 9 && Math.random() < 0.01) return die(`died of ${PS.ill.kind === 'fever' ? 'a fever' : PS.ill.kind === 'flux' ? 'the flux' : 'a chill that went to the chest'}`, 'illness');
-      // old age: from sixty, each birthday is a little more of a gamble
-      const age = me().age || 30;
-      if (age >= 60 && PS._ageChecked !== age) { PS._ageChecked = age; if (Math.random() < (age - 55) * 0.04) return die('died peacefully in old age', 'age'); }
-    });
-    O.die = die; O.playerDead = () => dead;
-
-    // ---------------------------------------------------------------- the end
-    function die(how, kind) {
-      if (dead) return; dead = true;
-      const s = cur(), p = game.player, H = O.SimRef.home;
-      p.locked = true; p.anim = 'lie'; game.sleepState = null;
-      const name = fullName(), age = me().age || 30;
-      const days = (H.day - (PS.startDay || 1)) + 1;
-      const posts = ((O.Employment && O.Employment.posts()) || []).map((e) => `${e.role} at ${e.bizName}`);
-      const owned = [...(O.Travel?.visited.values() || [])].flatMap((v) => v.world.buildings.filter((b) => b.owner?.kind === 'player').map((b) => b.name || 'a house'));
-      const crowned = O.crowned && O.crowned();
-      const friends = s.people.filter((q) => (q.rel?.get(0)?.affinity || 0) > 0.3).length;
-      // the town hears of it, and buries you
-      s.log(`${name} ${how}.`, 'death');
-      O.Chronicle && O.Chronicle.deed && O.Chronicle.deed(s, `${name} ${how}.`, `You ${how.replace(/^was /, 'were ').replace(/^died/, 'died')}.`, 'player', 3, true);
-      for (const q of s.people) { const a = q.rel?.get(0)?.affinity || 0; if (a > 0.25) { s.remember(q, `${name} is dead. We buried ${me().sex === 'f' ? 'her' : 'him'} at the chapel.`, 'grief', 2, 0); q.mood -= 0.2; } }
-      (PS.forebears = PS.forebears || []).push({ name, age, days, how, crowned: !!crowned, title: PS.title || null });
-      const line = `<p class="speech">${esc(name)} ${esc(how)}, aged ${age}, after ${days} day${days === 1 ? '' : 's'} in Eldoria.</p>
-        <div class="kv"><div><span class="lbl">Earned honestly</span><b>₳${Math.round(PS.earned || 0)}</b></div><div><span class="lbl">Left behind</span><b>₳${Math.round(PS.money)}</b><small>${owned.length ? owned.slice(0, 3).map(esc).join(', ') + (owned.length > 3 ? ` and ${owned.length - 3} more` : '') : 'no property'}</small></div><div><span class="lbl">Mourned by</span><b>${friends}</b><small>friends</small></div><div><span class="lbl">Was</span><b>${crowned ? (me().sex === 'f' ? 'Queen' : 'King') : esc(PS.title || (posts[0] || 'a stranger').split(' at ')[0])}</b></div></div>
-        ${(PS.forebears || []).length > 1 ? `<p class="caption">Before you: ${PS.forebears.slice(0, -1).map((f) => `${esc(f.name)} (${f.how}, aged ${f.age})`).join('; ')}.</p>` : ''}`;
-      const young = age < 36, kinM = young ? 'nephew' : 'son', kinF = young ? 'niece' : 'daughter';
-      setTimeout(() => {
-        O.Panels.open('Here lies ' + name, `${line}<p>Who comes after?</p><div class="topics"><button data-h="m">Play on as your ${kinM}</button><button data-h="f">Play on as your ${kinF}</button><button data-h="new">Begin a new life</button></div>`, (r) => {
-          r.querySelectorAll('[data-h]').forEach((b) => b.onclick = () => { if (b.dataset.h === 'new') { O.Save.clear(); O.Names && O.Names.newLife(); try { localStorage.removeItem('outlaw.spec'); localStorage.removeItem('outlaw.created'); } catch (e) { /* ignore */ } window.__noAutosave = true; location.reload(); return; } heir(b.dataset.h, b.dataset.h === 'm' ? kinM : kinF, crowned); });
-        });
-        // the panel can't be shut without choosing
-        const x = document.querySelector('.panel-modal .x'); if (x) x.style.display = 'none';
-      }, 1600);
-    }
-
-    // ---------------------------------------------------------------- the heir
-    function heir(sex, kin, crowned) {
-      const s = cur(), H = O.SimRef.home, K = H.kingdom, old = O.Forge.spec ? O.Forge.spec() : {};
-      const r = O.RNG(O.hash('heir', fullName(), H.day));
-      const first = r.pick((D.NAMES && D.NAMES[sex]) || ['Wat']);
-      const sp = Object.assign({}, old, { name: first, sex, age: r.int(18, 24), beard: sex === 'm' ? r.pick(['none', 'stubble', 'full']) : 'none', hairStyle: sex === 'f' ? r.pick(['long', 'braid', 'bun']) : r.pick(['short', 'messy', 'crop']), hairGrey: false });
-      let a; try { a = O.Creator.appearanceFromSpec(sp); } catch (e) { a = O.Forge.player; }
-      O.Forge.setPlayer && O.Forge.setPlayer(a, sp); game.setPlayerAppearance(a); game.player._baseA = a;
-      PS.lineSpec = sp;
-      // what is inherited, and what dies with the dead
-      const duty = Math.floor(PS.money * 0.1); PS.money -= duty; if (K) K.treasury += duty;
-      for (const e of ((O.Employment && O.Employment.posts()) || []).slice()) if (!(crowned && ['monarch'].includes(e.role))) O.Employment.quit(null, e);
-      PS.crimes = []; PS.bounty = 0; PS.bountyAmount = 0; PS.gangRanks = []; PS.gangTrials = {}; PS.contract = null; PS.disguise = null; PS.gaol = null; PS.exiled = false; PS.stolen = {};
-      PS.rep.criminal = 0; PS.rep.guard = 0; PS.rep.civilian *= 0.5; PS.rep.merchant *= 0.5; for (const k in PS.localRep || {}) PS.localRep[k] *= 0.5;
-      for (const k in PS.skills || {}) PS.skills[k] = +(PS.skills[k] * 0.4).toFixed(3);
-      PS.learning = (PS.learning || 0) * 0.3; PS.knight = false; if (!crowned) PS.title = null;
-      PS.hp = 100; PS.energy = 90; PS.hunger = 80; PS.wounds = []; PS.ill = null; PS.tipsy = 0;
-      PS.startDay = H.day; PS.yearsHere = 0; PS._ageChecked = null; PS.reeve = false; PS.reeveOf = {}; PS.plot = null; PS.anointed = crowned ? PS.anointed : false;
-      if (crowned) PS.coronation = null, PS.anointed = false; // (the heir is crowned in turn)
-      PS.leads = []; PS.roadLead = null; PS.mail = [];
-      // the townsfolk know the heir only as the dead one's child; friends are warmer
-      for (const v of [...(O.Travel?.visited.values() || [])]) for (const q of v.sim.people) { const rr = q.rel?.get(0); if (rr) { rr.affinity = (rr.affinity || 0) * 0.5; rr.familiar = (rr.familiar || 0) * 0.3; } }
-      // the heir comes up the road to the family's door
-      dead = false; game.player.locked = false; game.player.anim = 'idle';
-      if (game.scene) game.exitBuilding();
-      const res = PS.residence && s.world.placeId === PS.residence.place && s.world.buildings.find((b) => b.id === PS.residence.b);
-      if (res && res.doorX != null) { game.player.x = res.doorX * 16 + 8; game.player.y = (res.doorY + 1) * 16 + 4; }
-      else { const Z = s.Z.square; if (Z) { game.player.x = ((Z[0] + Z[2]) >> 1) * 16 + 8; game.player.y = (Z[3] + 1) * 16 + 6; } }
-      O.Panels.close();
-      const word = sex === 'm' ? (kin === 'son' ? 'son' : 'nephew') : (kin === 'daughter' ? 'daughter' : 'niece');
-      s.log(`${first} ${sp.surname}, ${word} of the late ${(PS.forebears || []).slice(-1)[0]?.name || 'stranger'}, has come to take up the inheritance.`, 'life');
-      O.UI.say(`You are ${first} ${sp.surname}, ${word} of the late ${(PS.forebears || []).slice(-1)[0]?.name}. ${duty ? `The crown has taken its tenth (₳${duty}); ` : ''}what was left is yours: the purse, ${crowned ? 'the crown, ' : ''}the house and whatever else was held. Your forebear's posts, debts of honour and sins were buried with them.`);
-      O.Save && O.Save.save && setTimeout(() => { try { O.Save.save(); } catch (e) { /* ignore */ } }, 500);
-    }
-    // a reloaded heir keeps the heir's face
-    let applied = false;
-    game.hooks.update.push(() => { if (applied || !PS.lineSpec || !O.Creator) return; applied = true; try { const a = O.Creator.appearanceFromSpec(PS.lineSpec); O.Forge.setPlayer(a, PS.lineSpec); game.setPlayerAppearance(a); game.player._baseA = a; } catch (e) { /* ignore */ } });
-  }
-  O.DeathSetup = { setup };
-})();
-
-</script>
-<script>
 // Jewellery. A gold chain, a brooch, a ring, a circlet: wear them (from your satchel) and they show. The
 // well-off buy them at the jeweller's when they have money to spare, and wear them; the gentry and the
 // royal family have theirs already.
@@ -22274,7 +22257,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
         for (const p of s.people) {
           if (p.jewels && p.jewels.length && p.app && (p.app.jewels || []).join() !== p.jewels.join()) { p.app.jewels = p.jewels.slice(); Ch.invalidate(p.app); } // (after a reload)
           if (p.alive === false || p.age < 14 || p.jewels) continue;
-          if (p.royal && !/^(King|Queen)$/.test(p.title || '')) wear(s, p, 'circlet');
+          if (p.royal && /^(King|Queen)$/.test(p.title || '')) wear(s, p, 'crown'); else if (p.royal) wear(s, p, 'circlet');
           else if (p.gentry || p.lordOf) wear(s, p, p.sex === 'f' ? 'necklace' : 'brooch');
           else if (s.household(p) && s.household(p).money > 260 && p.age >= 20 && (p.id % 3 === 0)) wear(s, p, p.sex === 'f' ? 'necklace' : 'ring');
         }
@@ -22703,7 +22686,6 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   const KEYS = [['O', 'the people you know, and how your life is going'], ['WASD / arrows', 'walk'], ['Shift', 'run'], ['E', 'interact with whatever is nearest: talk, enter, work, buy, read, fight a fire, wake someone asleep in a bed…'], ['Q', 'steal: pickpocket, pick a lock, take a horse'], ['F', 'quick-loot a container or search someone beaten'], ['Space', 'strike'], ['R', 'change weapon'], ['H', 'mount or dismount your horse'], ['I', 'satchel, reputation and skills'], ['L', 'town ledger: people, families, businesses, news'], ['M', 'map of the realm'], ['G', 'your gang'], ['P', 'holdings: property, land, office'], ['C', 'the Chronicle: history, hearsay, your story'], ['B', 'Business: your work, your businesses, and the Crown if you wear it'], ['J', "your undertakings and what's on: jobs, bounties, gang tasks, events with their dates, and the places you're being shown the way to"], ['/', 'this guide'], ['Esc', 'close a panel'], ['On a phone', 'drag anywhere on the view to walk; the buttons at the bottom right are E, steal (Q), strike, run, and Undertakings, Business, satchel, map and the menu']];
   const WAYS = [
     ['Body and soul', 'Eat, and drink at a well. Out in the winter cold you need a wool tunic (the tailor sells them). Cold, wet and hunger can make you ill: rest, take a remedy, or pay a physician or barber to see you. Forage in the woods for berries, mushrooms and herbs in their seasons. At church: confess to the priest, give alms, pay your tithe, and sit in a pew on Sunday morning to hear mass. Give gifts to anyone you like (talk to them); O shows everyone you know and how they feel. A stray dog turns up now and then: feed it twice and it is yours.'],
-    ['Death and the heir', 'You can die: beaten to death in a fight (likelier the more wounds you carry), of an illness left to worsen, of hunger, or of old age. Your child (or, if you die young, a nephew or niece) takes up what you left: house, lands, businesses, horses, dog, the crown if you wore it, and nine tenths of the purse. Your posts, gang and crimes are buried with you. Or begin a new life. O shows your family line.'],
     ['Honest work', 'Ask anyone "Who\'s taking on hands?" and they\'ll name the places that want workers and who runs them. Talk to that master at their workplace and ask for work. Some work is a day\'s quota (do the set tasks and you are done); some is a shift (stay the hours; new work comes along). Your tasks and how to do each are in Business (B, Your work) and in the corner icon; gold markers show where. Now and then something comes up at work (a rush order, a crowd, a spill): do it for extra pay. Business also shows how near you are to a step up, and lets you ask for tomorrow off (easier before a holiday). Leave a post from Business: hand in your notice, buy out an indenture, ask leave of the crown, or abdicate.'],
     ['Craft and sell', 'Once skilled, make goods from your own materials at a bench you may use (your property or your employer\'s). Mind a market stall in the square to sell to the townsfolk. On Sunday mornings travelling merchants set up at the stalls.'],
     ['Property and land', 'Buy houses or shops with For Sale signs, let them, open businesses. In Holdings (P), buy building plots, have a house built, buy strips of the common field. Enough land makes you gentry.'],
@@ -23438,7 +23420,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.RisingSetup.setup(game, npcUI);
   O.RitesSetup.setup(game);
   O.WarfareSetup.setup(game, npcUI);
-  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.DeathSetup.setup(game);
+  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI);
   O.FinerySetup.setup(game);
   O.PastimesSetup.setup(game);
   O.FishingSetup.setup(game);

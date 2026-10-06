@@ -87,6 +87,9 @@
       if (PS.guides === 'off') return;
       for (const l of list) {
         if (l.place !== s.world.placeId) continue;
+        if (l.from != null && t < l.from - 120) continue; // (only when it's coming up: within two hours)
+        // there: the marker has done its work
+        if (l.tile && l.why === 'event' && !game.scene && Math.hypot(l.tile[0] * T + 8 - game.player.x, l.tile[1] * T + 8 - game.player.y) < 56) { PS.leads = PS.leads.filter((x) => x !== l); O.UI.say(/tournament/i.test(l.label || '') ? "You're at the lists. Walk up to the barrier and press E to bet on a joust, or to ride in one yourself." : /maypole|May Day/i.test(l.label || '') ? "You're at the maypole. Press E beside it to join the dance." : /bonfire|Midsummer/i.test(l.label || '') ? "You're at the bonfire. Press E beside it to leap the flames." : /fair/i.test(l.label || '') ? "You're at the fair. The games are by the noticeboard: press E there." : `You're there: ${l.label}.`); continue; }
         let x, y, over = 46;
         if (l.id != null) {
           const q = s.byId.get(l.id); if (!q || q.alive === false) continue;

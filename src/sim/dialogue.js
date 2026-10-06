@@ -12,7 +12,7 @@
   const G = O.Data.GOODS;
 
   // "8 casks of ale", "3 loaves of bread", "a sack of flour"
-  const plural = (u) => (/f$/.test(u) ? u.replace(/f$/, 'ves') : /(s|x|ch|sh)$/.test(u) ? u + 'es' : u + 's');
+  const plural = (u) => (/^(fish|sheep|deer|salt|wheat|barley|flour|bread|meat|cloth|wool|iron|honey|herbs|timber|charcoal|ale|wine|beer|cider|mead|clay|peat|tar|thatch|spices|silk|glass|ink|parchment|leather|grain|malt|butter|milk|cheese|pottage|medicine|tools|planks|logs|firewood|candles|tallow candles|stone)$/.test(u) ? u : /f$/.test(u) ? u.replace(/f$/, 'ves') : /(s|x|ch|sh)$/.test(u) ? u + 'es' : u + 's');
   O.countOf = (g, n) => { const G0 = G[g]; if (!G0) return `${n} ${g}`; const nm = G0.name.toLowerCase(), u = G0.unit; if (!u || u === nm || nm.endsWith(u)) return `${n} ${n === 1 ? nm : plural(nm)}`; return `${n === 1 ? 'a' : n} ${n === 1 ? u : plural(u)} of ${nm}`; };
   const an = (w) => (/^[aeiou]/i.test(w) ? 'an' : 'a');
   // "the innkeeper at the Crooked Lantern", "a farmhand at Marsh Farm", "the guard captain at the watch house"

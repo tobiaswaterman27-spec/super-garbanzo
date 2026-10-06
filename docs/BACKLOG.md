@@ -333,3 +333,16 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Read a board (E) to learn what the room is and who has it, like the signs by every other building's door; no more text when you go upstairs
 - [x] The castle is yours while you reign: shown in Holdings as your seat (it goes with the crown and can't be sold), it counts as where you live once you've slept there, and the capital's lordship is yours with the crown (no being offered your own lordship for ₳1500)
 - [x] Fixed: men were hired as dairymaids, chambermaids and midwives (and could be the other way about); now nobody is hired to work meant for the other sex, and a town made before puts it right
+
+## Batch U (asked after step 87) - the job cards, and more for work
+
+- [x] Every post's card checked, town and capital, castle and manor; each post now has its own work in its own words: bake bread, forge daggers, dip candles, weave bolts of cloth, spin yarn; the gravedigger digs graves, the bell-ringer rings the bell, the parish clerk keeps the register, the shepherd sees to the flock, the dairymaid milks, the salt boiler boils the pans, the gaoler cleans the cells, the bounty hunter looks for wanted faces, the town crier cries the news, the rat-catcher sets traps, the falconer flies the hawks, the spy listens, the butler serves at the high table, the groom sees to the horses, and so on, each with its own instructions
+- [x] The steward, the chamberlain and the captain of the royal guard do their court duties (they were given a town clerk's books or a watchman's beat); the royal guard walks the castle rounds, not the town's; a manor's steward runs the household and is paid by it, not "at court from the treasury"
+- [x] Nobody in the castle but the cooks, scullions and maids keeps the fire; no fires for stablehands, grooms, the headsman or the butler; no "chat with the customers" for the butler
+- [x] Errands to buy stock go only to those who'd be sent: not cleaners, not a day's hired hand, not the court
+- [x] Plurals and articles right (3 heads of cabbage, 6 fish, bundles of planks, bolts of cloth); her and him, not "them", for the person to find, and where they are if they're out
+- [x] A round-the-clock house doesn't mean round-the-clock work: sweepers, tax collectors, undertakers and bounty hunters keep day hours
+- [x] Shops named for a shop, not a person: the Weaving Shed, the Tailor's Shop, the Cooperage, the Chandlery, the Pottery, the Tannery
+- [x] The barber-surgeon works at the chair and the washtub (there are no sick beds in a barber's shop); the role and place on the card read properly (no "Chapel Of St. Aldric")
+- [x] The card shows each extra's bonus, and how your pay stands so far today
+- [x] A full week there every day and on time: your master gives you half a day's wage extra

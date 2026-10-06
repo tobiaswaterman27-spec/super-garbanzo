@@ -84,7 +84,7 @@ main { height: 100vh; }
 .joblist .jicon img { width: 28px; height: 28px; image-rendering: pixelated; }
 .joblist .jicon .badge { background: #a8382f; color: #fff4dc; font-size: 11px; padding: 0 4px; }
 .joblist .fold { float: right; font-size: 11px; color: #7a5a3a; }
-.joblist .jh { font-weight: 700; text-transform: capitalize; }
+.joblist .jh { font-weight: 700; }
 .joblist .js { color: #7a5a3a; font-size: 12px; margin-bottom: 4px; }
 .joblist ul { list-style: none; margin: 4px 0 0; padding: 0; }
 .joblist li { margin: 2px 0; }
@@ -3590,7 +3590,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 'use strict';
 // a business is named for its family: Webb's Carpentry, Elmby's Charcoal Camp, Peacock's Carrying Yard
 O.bizName = (surname, label) => {
-  const MAP = { Carpenter: 'Carpentry', Butcher: 'Butchery', Jeweller: "Jeweller's Shop", Armourer: 'Armoury', Saddler: "Saddler's Shop", Glazier: "Glazier's Shop", Wainwright: "Wainwright's Yard", Scrivener: "Scrivener's Shop", 'Barber-surgeon': "Barber's Shop", Moneylender: "Counting House", 'Fletcher & bowyer': "Bowyer's Shop", "Forester's lodge": 'Forest Lodge', "Charcoal burners' camp": 'Charcoal Camp', "Carrier's yard": 'Carrying Yard', "Woodcutter's": "Woodcutter's Hut", "Physician's": 'Physic House', 'House agent': "Letting Office", 'Bee garden': 'Bee Garden', 'Clay pit': 'Clay Pit', 'Salt pans': 'Salt Pans', 'Peat cutting': 'Peat Cuttings', 'Castle household': 'Castle', 'Manor household': 'Manor' };
+  const MAP = { Weaver: 'Weaving Shed', Tailor: "Tailor's Shop", Cooper: 'Cooperage', Chandler: 'Chandlery', Potter: 'Pottery', Tanner: 'Tannery', Cobbler: "Cobbler's Shop", Fletcher: "Fletcher's Shop", Bowyer: "Bowyer's Shop", Carpenter: 'Carpentry', Butcher: 'Butchery', Jeweller: "Jeweller's Shop", Armourer: 'Armoury', Saddler: "Saddler's Shop", Glazier: "Glazier's Shop", Wainwright: "Wainwright's Yard", Scrivener: "Scrivener's Shop", 'Barber-surgeon': "Barber's Shop", Moneylender: "Counting House", 'Fletcher & bowyer': "Bowyer's Shop", "Forester's lodge": 'Forest Lodge', "Charcoal burners' camp": 'Charcoal Camp', "Carrier's yard": 'Carrying Yard', "Woodcutter's": "Woodcutter's Hut", "Physician's": 'Physic House', 'House agent': "Letting Office", 'Bee garden': 'Bee Garden', 'Clay pit': 'Clay Pit', 'Salt pans': 'Salt Pans', 'Peat cutting': 'Peat Cuttings', 'Castle household': 'Castle', 'Manor household': 'Manor' };
   const nice = (MAP[label] || label).replace(/(^|\s)([a-z])/g, (m, a, c) => a + c.toUpperCase());
   return `${surname}'s ${nice}`;
 };
@@ -10026,7 +10026,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
   const G = O.Data.GOODS;
 
   // "8 casks of ale", "3 loaves of bread", "a sack of flour"
-  const plural = (u) => (/f$/.test(u) ? u.replace(/f$/, 'ves') : /(s|x|ch|sh)$/.test(u) ? u + 'es' : u + 's');
+  const plural = (u) => (/^(fish|sheep|deer|salt|wheat|barley|flour|bread|meat|cloth|wool|iron|honey|herbs|timber|charcoal|ale|wine|beer|cider|mead|clay|peat|tar|thatch|spices|silk|glass|ink|parchment|leather|grain|malt|butter|milk|cheese|pottage|medicine|tools|planks|logs|firewood|candles|tallow candles|stone)$/.test(u) ? u : /f$/.test(u) ? u.replace(/f$/, 'ves') : /(s|x|ch|sh)$/.test(u) ? u + 'es' : u + 's');
   O.countOf = (g, n) => { const G0 = G[g]; if (!G0) return `${n} ${g}`; const nm = G0.name.toLowerCase(), u = G0.unit; if (!u || u === nm || nm.endsWith(u)) return `${n} ${n === 1 ? nm : plural(nm)}`; return `${n === 1 ? 'a' : n} ${n === 1 ? u : plural(u)} of ${nm}`; };
   const an = (w) => (/^[aeiou]/i.test(w) ? 'an' : 'a');
   // "the innkeeper at the Crooked Lantern", "a farmhand at Marsh Farm", "the guard captain at the watch house"
@@ -17349,7 +17349,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     const bizOf = (e) => { const s = cur(); return e && e.place === s.world.placeId ? s.biz.get(e.biz) : null; };
     const COURT = new Set(['monarch', 'consort', 'heir', 'prince', 'princess', 'lord', 'lady', 'lady-in-waiting', 'jester', 'steward', 'chamberlain', 'captain of the royal guard']);
     O.crownPost = (r) => COURT.has(r);
-    const hoursOf = (e, bz) => { if (e.hours) return e.hours; const r = e.role || ''; if (COURT.has(r)) return [8, 20]; if (r === 'potboy' || r === 'potgirl') return [17, 21]; if (['night watchman', 'gaoler'].includes(r)) return [20, 30]; if (r.startsWith('guard') || r === 'sergeant') return [6, 18]; return bz ? bz.def.hours : [8, 17]; };
+    const hoursOf = (e, bz) => { if (e.hours) return e.hours; const r = e.role || ''; if (COURT.has(r)) return [8, 20]; if (r === 'potboy' || r === 'potgirl') return [17, 21]; if (['night watchman', 'gaoler'].includes(r)) return [20, 30]; if (r.startsWith('guard') || r === 'sergeant') return [6, 18]; const hh = bz ? bz.def.hours : [8, 17]; if (hh[1] - hh[0] >= 20) return r === 'sweeper' ? [6, 14] : [8, 18]; return hh; };
     const worksToday = (s, bz) => !(s.weekday === 6 && bz && !['tavern', 'chapel', 'guard', 'hospital', 'palace', 'keep', 'manor', 'posthouse'].includes(bz.type));
     // when the next shift is, worked out fresh from today's date (never left saying "tomorrow" once tomorrow has come)
     const nextShift = (e, s, bz, o, c) => {
@@ -17508,16 +17508,91 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     O.jobMode = modeOf;
     const recipeFor = (bz, role) => bz.def.recipes.find((rc) => rc.role === role) || bz.def.recipes.find((rc) => !rc.role) || bz.def.recipes[0] || null;
     const supplierFor = (s, bz, g) => { const opts = String(bz.def.buys?.[g] || '').split('|').filter((t) => t && t !== 'import' && t !== 'none'); for (const t of opts) { const sp = s.supplierOf(t, g); if (sp && sp.id !== bz.id && (sp.stock[g] || 0) >= 1) return sp; } return null; };
+    // what making a thing is called, in plain words: bake bread, brew ale, forge daggers, make chairs
+    const UNCOUNT = /^(bread|flour|meat|ale|wine|herbs|salt|pottage|cloth|honey|charcoal|timber|planks|logs|firewood|wheat|barley|malt|cheese|butter|milk|wool|leather|iron|stone|clay|peat|tar|rope|thatch|plaster|medicine|meal|fish|tallow candles|candles|tools|spices|silk|glass|ink|parchment|cabbage|apples|grain|cider|mead|beer)$/;
+    const plural = (n) => / of /.test(n) ? n.replace(/^(\w+)/, (w) => plural(w)) : UNCOUNT.test(n) || /s$/.test(n) ? n : /(ch|sh|x)$/.test(n) ? n + 'es' : /[^aeiou]y$/.test(n) ? n.slice(0, -1) + 'ies' : n + 's';
+    const VERB = { bread: 'Bake', cake: 'Bake', pie: 'Bake', pottage: 'Cook', meal: 'Cook', ale: 'Brew', beer: 'Brew', mead: 'Brew', cider: 'Press', wine: 'Make', flour: 'Grind', meat: 'Butcher and dress', herbs: 'Dry and sort', medicine: 'Mix', dagger: 'Forge', sword: 'Forge', tools: 'Forge', axe: 'Forge', helm: 'Beat out', armour: 'Beat out', mail: 'Beat out', planks: 'Saw', charcoal: 'Burn', candles: 'Dip', 'tallow candles': 'Dip', cloth: 'Weave', salt: 'Boil' };
+    const goodPhrase = (g) => { const nm = (D.GOODS[g]?.name || g).toLowerCase(); return { verb: VERB[g] || VERB[nm] || 'Make', what: plural(nm) }; };
+    O.goodPhrase = goodPhrase;
+    // a few posts whose work is its own: the words (and where to do it) for the main task, and what the post is
+    const ROLE_WORK = {
+      gaoler: { text: 'Clean out the cells', how: (bz) => `Inside ${bz.name}, the cells and floors are marked in gold: press E at each to clean it.`, summary: 'You keep the gaol: the cells clean, the prisoners fed and watched.' },
+      'bounty hunter': { text: 'Walk the town looking for wanted faces', how: 'The places to look are marked in gold around the town. Press E at each one.', summary: 'You hunt those with a price on their head: read the notice board, ask about and walk the town.' },
+      gravedigger: { text: 'Dig and tend the graves', how: 'In the churchyard by the chapel: press E at each marked spot to dig.', filler: 'Speak with the mourners', summary: 'You dig the graves and keep the churchyard.' },
+      undertaker: { text: 'Wash down the slabs and lay out the dead', how: (bz) => `Inside ${bz.name}, the slabs are marked in gold: press E at each.`, filler: 'Speak with the bereaved', summary: 'You lay out the dead and keep the morgue.' },
+      'bell-ringer': { text: 'Ring the bell for the hours', how: 'In the chapel, press E at the altar to ring the bell for prayers.', summary: 'You ring the chapel bell for the hours and for the services.' },
+      'pilgrim guide': { text: 'Lead the pilgrims in prayer', summary: 'You guide the pilgrims who come to the chapel and pray with them.' },
+      'parish clerk': { text: 'Keep the parish register', how: 'In the chapel, press E at the altar to write up the register.', summary: 'You keep the parish register: the births, marriages and deaths.' },
+      midwife: { text: 'See to the mothers and the sick', summary: 'You see mothers through their lying-in and care for the sick.' },
+      herbalist: { summary: 'You dry and sort the herbs for the physician.' },
+      shepherd: { text: 'See to the flock in the pasture', how: 'Out in the pasture: press E at each marked spot to see to the sheep.', summary: 'You keep the sheep: out to pasture, counted and cared for.' },
+      dairymaid: { text: 'Milk the cows and churn the butter', how: 'Out by the byre: press E at each marked spot to milk.', summary: 'You milk the cows and make the butter and cheese.' },
+      beekeeper: { text: 'Tend the hives', how: 'Out among the hives: press E at each marked one.', summary: 'You keep the bees and take the honey.' },
+      'clay digger': { text: 'Dig clay at the pit', how: 'At the clay pit: press E at each marked spot to dig.', summary: 'You dig clay for the potters and builders.' },
+      'peat cutter': { text: 'Cut peat for fuel', how: 'Out on the moss: press E at each marked spot to cut.', summary: 'You cut peat for the town\'s fires.' },
+      maltster: { text: 'Bring in and turn the barley', how: 'Out in the fields: press E at each marked strip.', summary: 'You bring in the barley and malt it for the brewer.' },
+      'vine-dresser': { text: 'Tend the vines', how: 'Out among the vines: press E at each marked row.', summary: 'You tend the vines for the vintner.' },
+      'charcoal burner': { text: 'Cut wood for the charcoal stacks', summary: 'You cut wood and burn it slowly into charcoal.' },
+      'salt boiler': { text: 'Rake and boil the salt pans', how: "At the water's edge: press E at each marked pan.", summary: 'You boil sea water down to salt in the pans.' },
+      'master builder': { text: 'Draw up the plans and accounts', summary: 'You run the builders\' yard: the plans, the accounts and the men.' },
+      gamekeeper: { text: 'Walk the woods for poachers', how: 'The places to look are marked in gold. Press E at each one.', summary: 'You keep the game and watch for poachers.' },
+      stablehand: { summary: 'You keep the horses: mucking out, fodder and grooming.' },
+      'horse trader': { summary: 'You buy and sell horses.' },
+      postmaster: { summary: 'You run the post house: letters in and out, and the riders.' },
+      messenger: { text: 'Carry the letters to their doors', how: 'Take each letter to its marked door and press E to hand it over.', summary: 'You carry letters and messages about the town.' },
+      'mounted courier': { text: 'Ride the letters to their doors', how: 'Take each letter to its marked door and press E to hand it over.', summary: 'You ride with the letters that cannot wait.' },
+      groom: { text: 'See to the horses in the stables', how: (bz) => `Inside ${bz.name}, the stalls are marked in gold: press E at each to see to the horse.`, summary: 'You groom, feed and saddle the horses.' },
+      page: { text: 'Run errands for the court', how: 'Take each message to its marked door and press E.', summary: 'You run errands and carry messages for the court, and learn its ways.' },
+      herald: { text: "Carry the crown's letters", how: 'Take each letter to its marked door and press E to hand it over.', summary: "You carry the crown's letters and proclaim its orders." },
+      butler: { text: 'Serve at the high table', how: (bz) => `Inside ${bz.name}, stand at the table or the sideboard and press E to serve.`, summary: 'You run the serving of the household: the high table, the wine and the plate.' },
+      'master of horse': { text: "Keep the stables' books and feed", summary: "You command the crown's stables: the horses, their feed and the men." },
+      'royal guard': { text: 'Walk the rounds', how: 'The posts are marked in gold. Press E at each one.', summary: 'You guard the castle and the royal family.' },
+      falconer: { text: 'Fly the hawks', how: 'Out by the mews: press E at each marked spot.', summary: "You keep and fly the crown's hawks." },
+      spy: { text: 'Listen about the town', how: 'The places to listen are marked in gold. Press E at each one.', summary: 'You listen for the crown: who says what, and where.' },
+      'master cook': { how: 'In the castle kitchens (the ground floor), stand at the hearth or the table and press E. Each press is another dish.', summary: 'You run the castle kitchens and cook for the court.' },
+      cook: { how: (bz) => ['keep', 'palace'].includes(bz.type) || bz.b?.royal ? 'In the castle kitchens (the ground floor), stand at the hearth or the table and press E. Each press is another dish.' : null },
+      turnkey: { text: 'Lock up and check the cells', how: (bz) => `Inside ${bz.name}, the cell doors are marked in gold: press E at each to check it.`, filler: 'Talk with the prisoners', summary: 'You keep the keys of the gaol and check the cells.' },
+      scribe: { text: 'Copy out letters and deeds', summary: 'You write letters and copy deeds for those who cannot.' },
+      'barber-surgeon': { text: 'Shave, bleed and pull teeth', how: (bz) => bz.type === 'barber' ? `Inside ${bz.name}, press E at the chair or the washtub to see to whoever is waiting.` : null, summary: 'You shave and bleed folk, pull teeth and set bones.' },
+      gardener: { text: 'Tend the gardens', how: 'Out in the gardens: press E at each marked bed.', summary: 'You keep the gardens: the herbs, the beds and the walks.' },
+      nurse: { summary: 'You nurse the sick.' }, physician: { summary: 'You care for the sick and prescribe their physic.' },
+      'guard captain': { text: 'Write up the watch book', how: "Press E at the desk in the watch house to write up the day's book.", summary: 'You command the watch: its book, its posts and its men.' },
+      spinner: { text: 'Spin yarn for the looms', summary: 'You spin the yarn for the weavers.' },
+      magistrate: { text: 'Hear the cases and sign the warrants', how: 'Press E at the desk in the hall to go through the cases.', summary: 'You judge the cases brought before the town and sign its warrants.' },
+      clerk: { text: "Copy out the town's deeds and accounts", summary: "You keep the town's deeds, rolls and accounts." },
+      'ballot clerk': { text: 'Keep the roll of voters', summary: 'You keep the roll of who may vote, and count the ballots.' },
+      'warehouse master': { text: 'Tally the goods in and out', summary: 'You run the warehouse: what comes in, what goes out, and what it is owed.' },
+      'warehouse worker': { text: 'Shift the goods where they are wanted', summary: 'You load, unload and shift goods.' },
+      'town crier': { text: 'Cry the news at the marked places', how: 'Go to each marked place and press E to cry the news.', summary: 'You cry the news and the orders of the council about the town.' },
+      'water carrier': { text: 'Carry water to the marked doors', how: 'Take water to each marked door and press E.', summary: 'You carry water from the well to the houses that pay for it.' },
+      'rat-catcher': { text: 'Catch the rats', how: (bz) => `Inside ${bz.name}, the holes are marked in gold: press E at each to set a trap.`, summary: 'You catch the rats that plague the town.' },
+      lamplighter: { text: 'Trim and light the lamps', how: (bz) => `Inside ${bz.name}, the lamps are marked in gold: press E at each.`, summary: "You trim and light the hall's lamps and candles." },
+      'chimney sweep': { text: 'Sweep the chimneys and hearths', how: (bz) => `Inside ${bz.name}, the hearths are marked in gold: press E at each to sweep it.`, summary: 'You sweep the chimneys and hearths.' },
+      'market warden': { text: 'Collect the stall fees', summary: 'You keep order in the market and collect the stall fees.' },
+      thatcher: { text: 'Bind thatch for the roofs', how: (bz) => `Inside ${bz.name}, stand at the workbench and press E. Each press is another bundle.`, summary: 'You thatch roofs for the builders.' }, plasterer: { text: 'Mix plaster and split laths', how: (bz) => `Inside ${bz.name}, stand at the workbench and press E. Each press is another batch.`, summary: 'You plaster walls for the builders.' }, roofer: { text: 'Split shingles for the roofs', how: (bz) => `Inside ${bz.name}, stand at the workbench and press E. Each press is another bundle.`, summary: 'You roof houses for the builders.' },
+      stablehand: { text: 'Muck out the stalls', how: (bz) => `Inside ${bz.name}, the stalls are marked in gold: press E at each to muck it out.`, summary: 'You keep the horses: mucking out, fodder and grooming.' },
+      'horse trader': { text: 'Deal with the buyers', summary: 'You buy and sell horses.' },
+      postmaster: { text: 'Take in letters at the counter', summary: 'You run the post house: letters in and out, and the riders.' },
+      bearer: { text: 'Carry physic to the sick at home', how: 'Take each to its marked door and press E to hand it over.', summary: 'You carry the physician\'s medicines, and the sick on a litter.' },
+      carter: { text: 'Cart goods where they are wanted', summary: 'You cart goods about the town and down the roads.' },
+    };
+    O.ROLE_WORK = ROLE_WORK;
     function newTasks(s, bz, e) {
-      const kind = ROLE_KIND(e.role), out = [], id = () => Math.random().toString(36).slice(2, 8);
+      const kind = ROLE_KIND(e.role), out = [], id = () => Math.random().toString(36).slice(2, 8), atCourt = ['keep', 'palace'].includes(bz.type) || !!bz.b?.royal;
       const n = 3;
-      if (kind === 'make') { const rc = recipeFor(bz, e.role); if (rc) { const g = Object.keys(rc.out)[0]; out.push({ id: id(), kind: 'make', good: g, need: n, have: 0, text: `Make ${D.GOODS[g]?.name.toLowerCase() || g}` }); } else out.push({ id: id(), kind: 'sweep', need: n, have: 0, text: 'Tidy and sweep the place' }); }
+      if (kind === 'make') { const rc = recipeFor(bz, e.role); if (rc) { const g = Object.keys(rc.out)[0], gp = goodPhrase(g); out.push({ id: id(), kind: 'make', good: g, need: n, have: 0, text: `${gp.verb} ${gp.what}` }); } else if (bz.type === 'site') out.push({ id: id(), kind: 'field', need: n, have: 0, text: 'Work on the building', howText: 'On the building site: press E at each marked spot to lay stone and timber.' }); else out.push({ id: id(), kind: 'sweep', need: n, have: 0, text: 'Tidy and sweep the place' }); }
       else if (kind === 'serve') out.push({ id: id(), kind: 'serve', need: n, have: 0, text: bz.type === 'tavern' ? 'Take orders and serve at the counter' : 'Serve at the counter' });
       else out.push({ id: id(), kind, need: n, have: 0, text: { patrol: 'Walk your beat', field: 'Work the ground', chop: 'Fell and cut timber', fish: 'Fish the water', collect: 'Collect what is owed', deliver: 'Carry goods where they are wanted', sweep: bz.type === 'stable' ? 'Muck out the stalls' : 'Clean and sweep', service: 'Lead the prayers', teach: 'Teach the children', tend: 'Tend the sick', write: 'Keep the books', court: 'Hold court' }[kind] || 'Work' });
+      { const W = ROLE_WORK[e.role], main = out.find((x) => !['fire', 'fetch', 'talkto', 'attend'].includes(x.kind)); if (W && main && !(kind === 'court' || (atCourt && ['steward', 'chamberlain', 'captain of the royal guard'].includes(e.role)))) { if (W.text) main.text = W.text; const hw = typeof W.how === 'function' ? W.how(bz) : W.how; if (hw) main.howText = hw; } }
+      if (e.role === 'guard captain') out.push({ id: id(), kind: 'patrol', need: 2, have: 0, text: "Inspect the watch's posts" });
+      if (e.role === 'bounty hunter') out.push({ id: id(), kind: 'talkmany', need: 2, have: 0, text: 'Ask about the wanted' });
+      if (e.role === 'gaoler') out.push({ id: id(), kind: 'fire', need: 1, have: 0, text: 'Keep the brazier lit' });
+      if (e.role === 'pilgrim guide') out.push({ id: id(), kind: 'talkmany', need: 2, have: 0, text: 'Show the pilgrims round', inBiz: true });
+      if (e.role === 'master builder') out.push({ id: id(), kind: 'talkmany', need: 2, have: 0, text: 'See the builders at their work' });
       // the monarch presides over the council of the realm at the long table upstairs, Thursday afternoons
       if (kind === 'court' && ['monarch', 'consort', 'heir'].includes(e.role) && s.weekday === 3 && s.hour < 17) out.push({ id: id(), kind: 'attend', need: 1, have: 0, text: 'Preside at the council table upstairs (2pm)' });
       // the court's work is people and decisions, not pressing a button at a piece of furniture
-      if (kind === 'court') {
+      if (kind === 'court' || (atCourt && ['steward', 'chamberlain', 'captain of the royal guard'].includes(e.role))) {
         out.length = 0; const add = (t) => out.push(Object.assign({ id: id(), have: 0 }, t));
         if (e.role === 'monarch') { add({ kind: 'hear', need: 3, text: 'Sit on the throne and hear petitions' }); add({ kind: 'decree', need: 1, text: 'Issue a decree (Business, B: the Crown)' }); add({ kind: 'talkto', role: /captain of the royal guard|royal guard/, need: 1, text: 'Inspect the guard: speak with a royal guard' }); }
         else if (e.role === 'consort') { add({ kind: 'hear', need: 2, text: 'Sit at court and hear petitions' }); add({ kind: 'talkto', role: /lady-in-waiting|steward/, need: 1, text: 'See to the household: speak with the steward or a lady-in-waiting' }); }
@@ -17531,26 +17606,27 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
         else add({ kind: 'talkmany', need: 2, text: 'Attend the court', inKeep: true });
       }
       // most trades: a word with the master, or with the customers, besides the work itself
-      if (kind === 'serve') out.push({ id: id(), kind: 'talkmany', need: 2, have: 0, text: 'Chat with the customers', inBiz: true });
-      if (kind === 'patrol' && /guard|watch|sergeant/.test(e.role)) out.push({ id: id(), kind: 'talkmany', need: 2, have: 0, text: 'Question folk about the thieving' });
+      if (kind === 'serve') out.push({ id: id(), kind: 'talkmany', need: 2, have: 0, text: e.role === 'butler' ? 'Keep the servants in order' : e.role === 'horse trader' ? 'Talk horses with the buyers' : 'Chat with the customers', inBiz: true });
+      if (kind === 'patrol' && /guard|watch|sergeant/.test(e.role) && !/royal/.test(e.role)) out.push({ id: id(), kind: 'talkmany', need: 2, have: 0, text: 'Question folk about the thieving' });
       if (kind === 'make' && e.master != null && s.day % 2 === 0) out.push({ id: id(), kind: 'talkto', who: e.master, need: 1, have: 0, text: 'Show your work to your master' });
       // a fire to keep in
-      if (!COURT.has(e.role) && (bz.def.recipes.some((rc) => rc.inp.firewood) || ['bakery', 'smithy', 'tavern', 'kitchen'].includes(bz.type))) out.push({ id: id(), kind: 'fire', need: 1, have: 0, text: 'Keep the fire fed' });
+      if (!COURT.has(e.role) && ['make', 'serve', 'sweep', 'tend'].includes(kind) && !['groom', 'stablehand', 'executioner', 'butler', 'rat-catcher', 'chimney sweep', 'lamplighter', 'undertaker'].includes(e.role) && (!atCourt || /cook|scullion|maid/.test(e.role)) && (bz.def.recipes.some((rc) => rc.inp.firewood) || ['bakery', 'smithy', 'tavern', 'kitchen'].includes(bz.type))) out.push({ id: id(), kind: 'fire', need: 1, have: 0, text: 'Keep the fire fed' });
       // at an inn the cook, the server and the chambermaid gather the pots and wipe the tables too
       if (bz.type === 'tavern' && ['cook', 'server', 'chambermaid', 'scullion'].includes(e.role)) out.push({ id: id(), kind: 'pots', need: 2, have: 0, text: 'Gather the pots and wipe the tables' });
       // the innkeeper looks over the rooms
       if (e.role === 'innkeeper') out.push({ id: id(), kind: 'rooms', need: 1, have: 0, text: 'Look over the rooms upstairs' });
+      if (e.role === 'chambermaid' && (bz.type === 'tavern' || bz.type === 'inn')) out.push({ id: id(), kind: 'rooms', need: 1, have: 0, text: 'Make up the rooms upstairs' });
       // fetch what's running short, with the business's money
       for (const [g, t] of Object.entries(bz.def.targets || {})) {
-        if (out.filter((x) => x.kind === 'fetch').length >= 1 || !bz.def.buys?.[g]) continue;
-        if ((bz.stock[g] || 0) < t * 0.35) { const sp = supplierFor(s, bz, g); if (sp) { const qty = Math.min(6, Math.ceil(t * 0.5 - (bz.stock[g] || 0))); out.push({ id: id(), kind: 'fetch', good: g, qty, from: sp.id, fromName: sp.name, need: 1, have: 0, text: `Buy ${qty} ${D.GOODS[g]?.name.toLowerCase() || g} at ${sp.name} (from the business purse)` }); } }
+        if (out.filter((x) => x.kind === 'fetch').length >= 1 || !bz.def.buys?.[g] || kind === 'sweep' || e.temp != null || COURT.has(e.role)) continue;
+        if ((bz.stock[g] || 0) < t * 0.35) { const sp = supplierFor(s, bz, g); if (sp) { const qty = Math.min(6, Math.ceil(t * 0.5 - (bz.stock[g] || 0))); out.push({ id: id(), kind: 'fetch', good: g, qty, from: sp.id, fromName: sp.name, need: 1, have: 0, text: `Buy ${O.countOf ? O.countOf(g, qty) : qty + ' ' + (D.GOODS[g]?.name.toLowerCase() || g)} at ${sp.name} (from the business purse)` }); } }
       }
       // a day's quota is several different tasks, not one thing over and over
       if (modeOf(e.role) === 'quota' && !COURT.has(e.role)) {
         const kinds = () => new Set(out.map((x) => x.kind));
         if (!kinds().has('sweep')) out.push({ id: id(), kind: 'sweep', need: 2, have: 0, text: 'Tidy the workplace' });
         if (e.master != null && e.master !== 0 && !out.some((x) => x.kind === 'talkto')) out.push({ id: id(), kind: 'talkto', who: e.master, need: 1, have: 0, text: `Tell ${e.masterName || 'your master'} how the work goes` });
-        if (kinds().size < 3) out.push({ id: id(), kind: 'talkmany', need: 2, have: 0, text: 'Ask around for orders' });
+        if (kinds().size < 3) out.push({ id: id(), kind: 'talkmany', need: 2, have: 0, text: ROLE_WORK[e.role]?.filler || (kind === 'make' ? 'Ask around for orders' : 'Talk with the townsfolk') });
       }
       return out;
     }
@@ -17596,7 +17672,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
         case 'sweep': return it.kind !== 'stairs' && !it.partition;
         case 'service': return it.kind === 'altar';
         case 'teach': case 'write': return it.kind === 'desk' || it.kind === 'altar';
-        case 'tend': return it.kind === 'medbed' || it.kind === 'desk' || it.kind === 'bed';
+        case 'tend': return it.kind === 'medbed' || it.kind === 'desk' || it.kind === 'bed' || it.kind === 'chair' || it.kind === 'washtub';
         case 'court': return e.role === 'steward' || e.role === 'chamberlain' ? it.kind === 'desk' : false; // the throne is sat on, not worked at
         case 'attend': return !!it.council || (it.kind === 'chair' && it.head);
         case 'pots': return it.kind === 'table' || it.kind === 'longtable';
@@ -17821,7 +17897,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       if (D0.off && D0.arrived == null) return; // a day off, given
       if (D0.arrived == null) {
         if (D0.excused) { e.stats.excused++; if (boss) s.relate(boss, { id: 0 }, -0.02); }
-        else { e.stats.missed++; if (boss) { s.relate(boss, { id: 0 }, -0.12); s.remember(boss, 'The stranger never came to work.', 'work', 1.2, 0); } }
+        else { e.stats.missed++; (e.week = e.week || { start: e.day, good: 0, bad: 0 }).bad++; if (boss) { s.relate(boss, { id: 0 }, -0.12); s.remember(boss, 'The stranger never came to work.', 'work', 1.2, 0); } }
       } else {
         e.stats.shifts++;
         // the day's wage, less for a half-hearted day
@@ -17836,6 +17912,10 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
         const b2 = Math.max(0, Math.min(bonus, Math.floor(purse.cash))); if (bonus) e.stats.extras = (e.stats.extras || 0) + e.tasks.filter((x) => x.optional && x.have >= x.need).length; if (b2) { purse.cash -= b2; PS.money += b2; PS.earned = (PS.earned || 0) + b2; }
         if (pay) say(`Your day's pay from ${bz.name}: ₳${paid}${b2 ? ` and ₳${b2} for the extra` : ''}${paid < pay ? ` (₳${pay - paid} owing: the purse is empty)` : ''}.`);
         // a word from the master about the day
+        // a full week, every day there and on time: a little extra from the master
+        e.week = e.week || { start: e.day, good: 0, bad: 0 };
+        if (D0.walkedOut || (D0.arrived != null && D0.arrived > hoursOf(e, bz)[0] + 0.25)) e.week.bad++; else e.week.good++;
+        if (e.day - e.week.start >= 6) { if (boss && e.week.good >= 5 && !e.week.bad) { const gift = Math.max(1, Math.round(e.wage * 0.5)), from = bz.def.public ? s.treasury : bz; if (from.cash >= gift) { from.cash -= gift; PS.money += gift; PS.earned = (PS.earned || 0) + gift; setTimeout(() => say(`${boss.first} presses ₳${gift} on you: "A good week's work. Every day, and on time."`), 2600); s.relate(boss, { id: 0 }, 0.04); } } e.week = { start: e.day + 1, good: 0, bad: 0 }; }
         if (boss && !D0.walkedOut) { const late = D0.arrived != null && D0.arrived > hoursOf(e, bz)[0] + 0.25, all = e.tasks.length && e.tasks.every((x) => x.optional || x.have >= x.need); const line = late ? 'Be on time tomorrow.' : all && bonus ? 'Good work today. I saw you take on the extra.' : all ? 'Good work today.' : done < 2 ? "Was that all you did? I pay for work, not company." : null; if (line) setTimeout(() => say(`${boss.first}: "${line}"`, /Was that|on time/.test(line) ? 'bad' : ''), 1200); if (all && bonus) s.relate(boss, { id: 0 }, 0.03); }
       }
       // the sack: lateness and absence against how much they like you and how badly they need you
@@ -17871,10 +17951,12 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       if (!e || O.panelOpen) { if (!el.hidden) el.hidden = true; if (O.panelOpen) sig = ''; return; }
       const s = O.Travel?.visited.get(e.place)?.sim || cur();
       const bz = s.world.placeId === e.place ? s.biz.get(e.biz) : null, [o, c] = hoursOf(e, bz);
-      const head = `<b>${esc(O.roleName(e.role))}</b> · ${esc(e.bizName)}${e.place !== cur().world.placeId ? `, ${esc(e.placeName)}` : ''}`;
-      const crown = COURT.has(e.role);
+      const head = `<b>${esc(O.roleName(e.role).replace(/^./, (c) => c.toUpperCase()))}</b> · ${esc(e.bizName)}${e.place !== cur().world.placeId ? `, ${esc(e.placeName)}` : ''}`;
+      const crown = COURT.has(e.role) && (!bz || ['keep', 'palace'].includes(bz.type) || bz.b?.royal || ['monarch', 'consort', 'heir', 'prince', 'princess', 'lord', 'lady'].includes(e.role));
       const shift = crown ? (e.onShift ? `${e.role === 'monarch' ? 'Your reign' : 'At court'}: the business of the day, till ${fmtH(c)}` : `At court from ${fmtH(o)}`) : e.onShift ? (modeOf(e.role) === 'quota' ? `The day's work: ${e.tasks.filter((t) => !t.optional && t.have >= t.need).length} of ${e.tasks.filter((t) => !t.optional).length} done (go when it's all done)` : `On shift till ${fmtH(c)} (stay the hours; the work changes)`) : e.dayInfo?.dayDone ? `Your day's work is done` : e.dayInfo?.off && e.day === s.day ? 'A day off today, given by your master' : `Next shift: ${nextShift(e, s, bz, o, c)} ${fmtH(o)}-${fmtH(c)}`;
-      const tasks = e.onShift ? e.tasks.map((t) => `<li class="${t.have >= t.need ? 'done' : ''}">${t.have >= t.need ? '■' : '□'} ${esc(t.text)}${t.need > 1 ? ` (${Math.min(t.have, t.need)}/${t.need})` : ''}</li>`).join('') : '';
+      const tasks = e.onShift ? e.tasks.map((t) => `<li class="${t.have >= t.need ? 'done' : ''}">${t.have >= t.need ? '■' : '□'} ${esc(t.text)}${t.need > 1 ? ` (${Math.min(t.have, t.need)}/${t.need})` : ''}${t.optional && t.bonus ? ` <b>+₳${t.bonus}</b>` : ''}</li>`).join('') : '';
+      // how the day's pay stands
+      const earn = !crown && e.onShift && bz ? (() => { if (modeOf(e.role) === 'quota') { const req = e.tasks.filter((t) => !t.optional), fin = req.filter((t) => t.have >= t.need).length; return `Pay: ₳${e.wage} when all ${req.length} are done (${fin} so far)`; } const D0 = e.dayInfo || {}, len = Math.max(60, (c - o) * 60), part = O.clamp(0.25 + 0.75 * (D0.present || 0) / len, 0.25, 1); return `Pay so far: about ₳${Math.round(e.wage * part)} of ₳${e.wage} for the hours you've been here`; })() : '';
       const carry = PS.carry ? `<div class="carry">Carrying: ${PS.carry.qty} ${esc(D.GOODS[PS.carry.good]?.name.toLowerCase() || PS.carry.good)}</div>` : '';
       const others = posts().filter((x) => x !== e).map((x) => { const xs = O.Travel?.visited.get(x.place)?.sim || cur(), xb = xs.world.placeId === x.place ? xs.biz.get(x.biz) : null, [xo, xc] = hoursOf(x, xb); return `<div class="js">Also: ${esc(x.role)} at ${esc(x.bizName)}, ${fmtH(xo)}-${fmtH(xc)}</div>`; }).join('');
       // what to do next, in plain words
@@ -17886,7 +17968,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
         else hint = modeOf(e.role) === 'quota' ? "That's the day's work done." : 'All done for now. More work will come along before the shift ends.';
       } else if (!e.onShift) hint = e.dayInfo?.dayDone ? 'Your work is done for today.' : 'Come back when your shift starts. Being late or missing it counts against you.';
       const pay = crown ? `₳${e.wage} a day from the treasury` : `₳${e.wage} a day`;
-      const html = `${crown && e.role === 'monarch' ? '<div class="jh" style="text-transform:none">Monarch of Eldoria</div>' : `<div class="jh">${head}</div>`}<div class="js">${shift} · ${pay}</div>${tasks ? `<ul>${tasks}</ul>` : ''}${carry}${hint ? `<div class="js" style="font-style:italic">${esc(hint)}</div>` : ''}${others}`;
+      const html = `${crown && e.role === 'monarch' ? '<div class="jh" style="text-transform:none">Monarch of Eldoria</div>' : `<div class="jh">${head}</div>`}<div class="js">${shift} · ${pay}</div>${tasks ? `<ul>${tasks}</ul>` : ''}${earn ? `<div class="js">${esc(earn)}</div>` : ''}${carry}${hint ? `<div class="js" style="font-style:italic">${esc(hint)}</div>` : ''}${others}`;
       // folded into an icon in the corner until you press it
       const left = e.onShift ? e.tasks.filter((t) => t.have < t.need).length : 0;
       const shown = PS.jobCardOpen ? `<span class="fold">fold ▲</span>${html}` : `<div class="jicon" title="Your work: press to open"><img src="${O.icon('tools')}" alt="Your work">${left ? `<span class="badge">${left}</span>` : ''}</div>`;
@@ -17896,20 +17978,21 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     }
 
     // ---------------------------------------------------------------- what the job is, and how to do each task, in plain words
-    const NICE = { doughtable: 'dough table', butcherblock: "butcher's block", workbench: 'workbench', medbed: 'sick bed', candlestand: 'candle stand' };
+    const NICE = { spinning: 'spinning wheel', doughtable: 'dough table', butcherblock: "butcher's block", workbench: 'workbench', medbed: 'sick bed', candlestand: 'candle stand' };
     const stationsFor = (t, e, bz, s) => { try { const L = O.Interior.interior(bz.b, 0, s); return [...new Set(L.items.filter((it) => stationOk(t, it, e)).map((it) => NICE[it.kind] || it.kind))].slice(0, 2); } catch (er) { return []; } };
     function taskHow(t, e, bz, s) {
       const st = (t.kind === 'make' || t.kind === 'service' || t.kind === 'write' || t.kind === 'teach' || t.kind === 'tend' || t.kind === 'fire') ? stationsFor(t, e, bz, s) : [];
       const at = st.length ? `the ${st.join(' or the ')}` : 'your place of work';
+      if (t.howText) return t.howText;
       const G = D.GOODS[t.good]?.name.toLowerCase();
       switch (t.kind) {
-        case 'make': return `Inside ${bz.name}, stand at ${at} and press E. Each press makes ${G ? 'some ' + G : 'a batch'}.`;
+        case 'make': return `Inside ${bz.name}, stand at ${at} and press E. ${G && UNCOUNT.test(G) ? `Each press is a batch of ${G}.` : 'Each press finishes another.'}`;
         case 'sweep': return `Inside ${bz.name}, the dusty patches are marked in gold: stand on each and press E to sweep it.`;
         case 'fire': return `Inside ${bz.name}, press E at ${at === 'your place of work' ? 'the hearth' : at} to put firewood on.`;
         case 'serve': return `Stand behind the counter inside ${bz.name} and press E to serve whoever is waiting.`;
         case 'pots': return `Go round the tables inside ${bz.name} and press E at each marked one to gather the pots.`;
         case 'rooms': return 'Go upstairs and press E at each guest bed to look the room over.';
-        case 'fetch': return `Go to ${t.fromName}, stand at the counter and press E to buy ${t.qty || ''} ${G || 'the goods'}. Then carry them back.`;
+        case 'fetch': return `Go to ${t.fromName}, stand at the counter and press E to buy ${t.qty && O.countOf ? O.countOf(t.good, t.qty) : G || 'the goods'}. Then carry them back.`;
         case 'unload': return `Back inside ${bz.name}, press E at the shelf or store marked in gold to put the goods away.`;
         case 'patrol': return 'Walk your beat: the posts are marked in gold around the town. Press E at each one.';
         case 'field': return 'Out in the fields: press E at each marked strip to work it.';
@@ -17919,9 +18002,9 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
         case 'deliver': return 'Carry the goods to each marked door and press E to hand them over.';
         case 'service': return `In the chapel, press E at ${at === 'your place of work' ? 'the altar' : at} to lead the prayers.`;
         case 'teach': return `Press E at ${at === 'your place of work' ? 'the desk' : at} to teach the children.`;
-        case 'tend': return 'Press E at each sick bed to tend whoever lies in it.';
+        case 'tend': return `Inside ${bz.name}, press E at each sick bed to tend whoever lies in it.`;
         case 'write': return `Press E at ${at === 'your place of work' ? 'the desk' : at} to write up the books.`;
-        case 'talkto': return t.who != null ? `Find ${s.byId.get(t.who)?.first || 'them'} and talk to them (E).` : 'Find them and talk to them (E). In the castle, people keep to their own rooms and halls.';
+        case 'talkto': return t.who != null ? (() => { const q = s.byId.get(t.who); return q ? `Find ${q.first} and talk to ${q.sex === 'f' ? 'her' : 'him'} (E).${q.agent && q.agent.inside != null && q.agent.inside !== bz.id ? ` ${q.sex === 'f' ? 'She' : 'He'} is in ${s.building(q.agent.inside)?.name || 'a house'} just now.` : ''}` : 'Find them and talk to them (E).'; })() : 'Find them and talk to them (E). In the castle, people keep to their own rooms and halls.';
         case 'talkmany': return t.inKeep ? 'Talk to people in the castle (E), one after another.' : t.inBiz ? `Talk to the people who come into ${bz.name} (E).` : 'Talk to people about the town (E).';
         case 'hear': return 'Sit on the throne in the throne room (E on it). Petitioners come up the hall one at a time; hear each one.';
         case 'decree': return 'Open Business (B) and the Crown section: set the tax, pardon, honour someone, order works or call a festivity.';
@@ -17931,12 +18014,12 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
         default: return 'Press E at the marked places.';
       }
     }
-    const SUMMARY = { make: (e, bz, s) => { const rc = recipeFor(bz, e.role); const g = rc && Object.keys(rc.out)[0]; return `You make ${D.GOODS[g]?.name.toLowerCase() || 'goods'} for ${bz.name}.`; }, patrol: () => 'You keep the peace: walk your beat and keep an eye on folk.', field: () => 'You work the land.', chop: () => 'You fell and cut timber.', fish: () => 'You fish for the market.', collect: () => 'You collect what is owed.', deliver: () => 'You carry goods and messages.', sweep: (e, bz) => `You keep ${bz.name} clean and in order.`, serve: (e, bz) => `You serve the customers at ${bz.name}.`, service: () => 'You lead the prayers and keep the chapel.', teach: () => 'You teach the children their letters.', tend: () => 'You care for the sick.', write: () => 'You keep the books and the records.', court: () => 'You serve at court.' };
+    const SUMMARY = { make: (e, bz, s) => { if (bz.type === 'site') return 'You build: stone, timber and thatch, on the site.'; const rc = recipeFor(bz, e.role); const g = rc && Object.keys(rc.out)[0]; if (!g) return `You keep ${bz.name} in order.`; const gp = goodPhrase(g); return `You ${gp.verb.toLowerCase()} ${gp.what} for ${bz.name}.`; }, patrol: () => 'You keep the peace: walk your beat and keep an eye on folk.', field: () => 'You work the land.', chop: () => 'You fell and cut timber.', fish: () => 'You fish for the market.', collect: () => 'You collect what is owed.', deliver: () => 'You carry goods and messages.', sweep: (e, bz) => `You keep ${bz.name} clean and in order.`, serve: (e, bz) => `You serve the customers at ${bz.name}.`, service: () => 'You lead the prayers and keep the chapel.', teach: () => 'You teach the children their letters.', tend: () => 'You care for the sick.', write: () => 'You keep the books and the records.', court: () => 'You serve at court.' };
     const ROLE_SUMMARY = { monarch: 'You rule the realm: hear petitions from the throne, issue decrees, and preside at the council on Thursdays.', consort: 'You share the throne: hear petitions and see to the household.', steward: "You run the castle: its accounts, its kitchens and its stores.", chamberlain: 'You keep the royal household: its floors, its rooms and its servants.', jester: 'You amuse the court.', 'lady-in-waiting': 'You attend the royal family.', executioner: 'You carry out the sentences of death, at the block in the square.', 'captain of the royal guard': 'You command the royal guard and see every post is kept.' };
     O.jobHow = (e) => {
       const s = O.Travel?.visited.get(e.place)?.sim || cur(), bz = s.world.placeId === e.place ? s.biz.get(e.biz) : null;
       if (!bz) return { mode: modeOf(e.role), summary: '', tasks: [] };
-      const summary = ROLE_SUMMARY[e.role] || (SUMMARY[ROLE_KIND(e.role)] || (() => ''))(e, bz, s);
+      const summary = (e.role === 'steward' && !['keep', 'palace'].includes(bz.type) && !bz.b?.royal ? 'You run the household: its accounts, its stores and its servants.' : null) || ROLE_SUMMARY[e.role] || ROLE_WORK[e.role]?.summary || (SUMMARY[ROLE_KIND(e.role)] || (() => ''))(e, bz, s);
       return { mode: modeOf(e.role), summary, tasks: (e.tasks || []).map((t) => ({ text: t.text, have: Math.min(t.have, t.need), need: t.need, done: t.have >= t.need, how: taskHow(t, e, bz, s) })) };
     };
     // the way to work in the hour before a shift (the arrows themselves are drawn by the waypoints)

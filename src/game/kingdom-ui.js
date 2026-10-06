@@ -20,7 +20,7 @@
       for (let i = 0; i < c.guards; i++) members.push(mk('guard', i + 1));
       const cart = { cart: true, x: x0 - dir * 12, y: y + 4, dir, caravan: c };
       live.push({ c, members, cart, dir, done: false, robbed: false });
-      sim.log(`A caravan of ${c.qty} ${c.good} from ${K.place(c.from).name} to ${K.place(c.to).name} is coming along the King's Road.`, 'trade');
+      sim.log(`A caravan of ${O.Data.GOODS[c.good] ? O.countOf(c.good, c.qty) : c.qty + ' ' + c.good} from ${K.place(c.from).name} to ${K.place(c.to).name} is coming along the King's Road.`, 'trade');
     };
     const cartSprite = O.Env.prop('cart', 9, 1);
     game.hooks.update.push((dt) => {

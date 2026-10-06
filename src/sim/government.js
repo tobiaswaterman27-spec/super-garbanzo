@@ -38,7 +38,7 @@
       if (t.taxRate !== old || t.hearth !== oldH) {
         const what = t.taxRate !== old ? `the market tax to ${Math.round(t.taxRate * 100)} aurins in the hundred` : `the hearth tax to ₳${t.hearth} a household`;
         const up = t.taxRate > old || t.hearth > oldH;
-        this.log(`The council ${up ? 'raised' : 'lowered'} ${what}${up ? `, the chest would pay the town's wages for only ${Math.max(0, runway).toFixed(1)} weeks` : ''}.`, 'politics');
+        this.log(`The council ${up ? 'raised' : 'lowered'} ${what}${up ? `: the chest held only ${runway < 0.75 ? 'enough for the town\'s wages for a few days' : runway < 1.5 ? 'a week of the town\'s wages' : `${Math.round(runway)} weeks of the town's wages`}` : ''}.`, 'politics');
         for (const p of this.people) if (p.age >= 18 && this.rng.chance(0.25)) this.remember(p, `The council ${up ? 'raised' : 'cut'} the taxes.`, 'politics', 0.7);
       }
     };
@@ -102,7 +102,7 @@
       const costs = this.publicCosts();
       t.weeks.push({ day: this.day, income: Math.round(income), spent: Math.round(spent), levy, grant: t._grant || 0, hearth: t.hearthTaken || 0, rate: t.taxRate, hearthRate: t.hearth, wages: costs.wages, cash: Math.round(t.cash) });
       if (t.weeks.length > 8) t.weeks.shift();
-      if (levy > 0) this.log(`₳${levy} of the week's taxes went to the king's treasury.`, 'politics');
+      if (levy > 0) this.log(`₳${levy} of the week's taxes went to the crown's treasury.`, 'politics');
       t._in0 = t.income; t._out0 = t.spent; t._grant = 0; t.hearthTaken = 0;
       this.taxPolicy();
       this.assessHearth();

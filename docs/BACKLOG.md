@@ -346,3 +346,18 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] The barber-surgeon works at the chair and the washtub (there are no sick beds in a barber's shop); the role and place on the card read properly (no "Chapel Of St. Aldric")
 - [x] The card shows each extra's bonus, and how your pay stands so far today
 - [x] A full week there every day and on time: your master gives you half a day's wage extra
+
+## Batch V (asked after step 88) - basic things a life needs, and another long search for wrong words
+
+- [x] Gifts: give anyone something from your satchel, or coin; how they take it depends on what it is and who they are (food to the hungry, coin to the poor, a ring to a sweetheart; small coin offends the rich; the third gift in a day puzzles them)
+- [x] People (O): everyone who knows you, what they do, where, and how they feel about you; and your own life (days here, age, health, earnings, goods made, crimes)
+- [x] Falling ill: a chill from the cold and wet, the flux from hunger, a fever in a sickly town; it saps you until you're over it; rest helps, a remedy from the satchel helps, and a physician, barber or nurse will see to you for a fee (wounds too)
+- [x] The cold: out in winter without a wool tunic it saps you, and you're told what would help
+- [x] Wells: draw water and drink (not in a town with the pestilence)
+- [x] Foraging in the woods outside town: herbs in spring, berries in summer, mushrooms and berries in autumn, next to nothing in winter; new goods: wild berries, mushrooms
+- [x] The church: confession to the priest (once a week; lightens a bad name), alms for the poor (to the poorest family), the tithe (a tenth of what you've earned since), and hearing mass in a pew on Sunday morning or the saint's day
+- [x] Your own chest: put things away in it, not only take them out
+- [x] A dog: a stray turns up now and then; feed it twice and it follows you about, and it's still yours after a reload
+- [x] Birthdays: each year in Eldoria you're a year older
+- [x] Words put right from a long run of the town's life: plurals everywhere ("14 bundles of planks", "a set of tools", "bolts of cloth", "12 fish"), no "sold for ₳0" (a trader sells what they can pay for and takes the rest on), traders stay away from a place that couldn't pay, "its roof" for a business, "half a week" not "0.5 weeks", the crown's treasury, "buried him/her", no line starting in small letters, "couldn't pay my wage at all"
+- [x] Traders buy any trade's surplus to sell elsewhere, so a smith with daggers to spare, or a cooper with casks, gets money in

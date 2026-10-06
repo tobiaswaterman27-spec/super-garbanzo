@@ -101,7 +101,7 @@
         const j = (this.kingdom.journeys || []).find((x) => x.id === p.journey);
         if (want >= 1 && bz.cash >= price * Math.min(qty, want) && !(boss && (boss.rel.get(p.id)?.affinity || 0) < -0.3)) {
           const n = Math.min(qty, Math.ceil(want)); bz.stock[g] = (bz.stock[g] || 0) + n; bz.cash -= price * n; if (j) j.earned = (j.earned || 0) + price * n;
-          this.log(`${p.name}, a merchant from ${this.kingdom.place(j?.from)?.name || 'away'}, sold ${n} ${O.Data.GOODS[g]?.name.toLowerCase()} to ${bz.name}.`, 'trade');
+          this.log(`${p.name}, a merchant from ${this.kingdom.place(j?.from)?.name || 'away'}, sold ${O.countOf(g, n)} to ${bz.name}.`, 'trade');
         } else this.log(`${bz.name} turned away ${p.name}'s ${O.Data.GOODS[g]?.name.toLowerCase()}.`, 'trade');
         p.task = { act: 'rest', b: this.tavernId };
         return;

@@ -155,7 +155,7 @@
     P.onDeath = function (p, cause) {
       // family and friends grieve, the job falls vacant, property passes on, a grave is dug
       const hh = this.household(p);
-      for (const id of [...(hh?.members || []), ...(p.children || [])]) { const q = this.byId.get(id); if (q) { q.mood -= 0.3; this.remember(q, `${p.first} ${cause.replace('died', 'has died')}. We buried them at the ${this.building(this.chapelId)?.name || 'chapel'}.`, 'grief', 3, p.id); } }
+      for (const id of [...(hh?.members || []), ...(p.children || [])]) { const q = this.byId.get(id); if (q) { q.mood -= 0.3; this.remember(q, `${p.first} ${cause.replace('died', 'has died')}. We buried ${p.sex === 'f' ? 'her' : 'him'} at the ${this.building(this.chapelId)?.name || 'chapel'}.`, 'grief', 3, p.id); } }
       if (p.spouse) { const sp = this.byId.get(p.spouse); if (sp) { sp.spouse = null; sp.widowed = p.id; } }
       for (const [id, r] of p.rel) { const q = this.byId.get(id); if (q && r.affinity > 0.3) this.remember(q, `My friend ${p.name} has died.`, 'grief', 1.5, p.id); }
       if (p.job?.biz) {

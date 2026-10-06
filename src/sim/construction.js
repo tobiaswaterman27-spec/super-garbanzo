@@ -151,7 +151,7 @@
           // the builder's yard does the work, from its own stock
           const yard = [...sim.biz.values()].find((x) => x.type === 'builder' && x.id !== b.id);
           if (yard) { yard.cash += 20; yard.stock.logs = Math.max(0, (yard.stock.logs || 0) - 1); yard.stock.planks = Math.max(0, (yard.stock.planks || 0) - 1); }
-          sim.log(`${b.type === 'house' ? `The ${hh?.surname || ''} family` : b.name} paid ₳20 to ${yard ? yard.name : 'a carpenter'} to repair their roof.`, 'construction');
+          sim.log(`${b.type === 'house' ? `The ${hh?.surname || ''} family` : b.name} paid ₳20 to ${yard ? yard.name : 'a carpenter'} to repair ${b.type === 'house' ? 'their' : 'its'} roof.`, 'construction');
         }
       }
     }

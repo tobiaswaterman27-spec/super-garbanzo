@@ -492,7 +492,7 @@
         hh.pantry.bread += loaves; fed++;
         for (const id of hh.members) { const q = this.byId.get(id); if (q && q.age >= 13) this.remember(q, 'The parish gave us bread when we had nothing.', 'hardship', 1); }
       }
-      if (fed) this.log(`Parish relief bought bread for ${fed} destitute ${fed === 1 ? 'family' : 'families'}.`, 'politics');
+      if (fed) this.log(`Parish relief bought bread for ${fed === 1 ? 'one' : fed} destitute ${fed === 1 ? 'family' : 'families'}.`, 'politics');
     }
 
     personMinute(p) {
@@ -672,7 +672,7 @@
         const room = Object.keys(rc.out).filter((g) => (bz.stock[g] || 0) < (bz.def.targets[g] ? this.target(bz, g) : 99) * 1.4);
         if (!room.length) continue;
         let ok = true; for (const [g, q] of Object.entries(rc.inp)) if ((bz.stock[g] || 0) < q * rate) ok = false;
-        if (!ok) { if (!bz._shortNoted) { bz._shortNoted = true; this.log(`${bz.name} ran short of ${Object.keys(rc.inp).map((g) => G[g].name.toLowerCase()).join(' and ')}.`, 'economy'); } continue; }
+        if (!ok) { if (!bz._shortNoted) { bz._shortNoted = true; this.log(`${bz.name} ran short of ${Object.keys(rc.inp).map((g) => O.goodsWord(g)).join(' and ')}.`, 'economy'); } continue; }
         for (const [g, q] of Object.entries(rc.inp)) bz.stock[g] -= q * rate;
         for (const [g, q] of Object.entries(rc.out)) { if (!room.includes(g)) continue; bz.stock[g] = (bz.stock[g] || 0) + q * rate; this.stats.produced[g] = (this.stats.produced[g] || 0) + q * rate; }
       }
@@ -719,7 +719,7 @@
           if (qty < 2) continue;
         }
         if (qty < 1 && good === 'tools' && (src.stock[good] || 0) >= 1) { /* single tool orders are fine */ }
-        else if (qty < 2 && good !== 'tools') { if (bz._wantNoted !== this.day + good) { bz._wantNoted = this.day + good; this.log(`${bz.name} wanted ${G[good].name.toLowerCase()} but ${src.name} had none to spare.`, 'economy'); } continue; }
+        else if (qty < 2 && good !== 'tools') { if (bz._wantNoted !== this.day + good) { bz._wantNoted = this.day + good; this.log(`${bz.name} wanted ${O.goodsWord(good)} but ${src.name} had none to spare.`, 'economy'); } continue; }
         const order = { good, qty, from: src.id, to: bz.id, price: this.price(src, good), id: Math.random() };
         bz.orders.push(order);
         this.assignDelivery(order);
@@ -740,7 +740,7 @@
         }
         const paid = Math.max(0, Math.min(wage, Math.floor(bz.cash)));
         bz.cash -= paid; hh.money += paid; this.stats.wages += paid;
-        if (paid < wage) { this.remember(w, `${bz.name} could only pay ₳${paid} of my ₳${wage}.`, 'hardship', 1); w.mood -= 0.1; }
+        if (paid < wage) { this.remember(w, paid > 0 ? `${bz.name} could only pay ₳${paid} of my ₳${wage}.` : `${bz.name} couldn't pay my ₳${wage} at all.`, 'hardship', 1); w.mood -= 0.1; }
       }
       // owners take a share of profit
       const owner = this.byId.get(bz.owner);
@@ -762,7 +762,7 @@
       const who = porters[0] || workers[0] || this.byId.get(src.owner);
       if (!who || who.task) { order.waiting = true; return; }
       who.task = { act: 'pickup', b: src.id, order };
-      this.remember(who, `Sent to fetch ${order.qty} ${G[order.good].unit}s of ${G[order.good].name.toLowerCase()} for ${this.biz.get(order.to).name}.`, 'work', 0.4);
+      this.remember(who, `Sent to fetch ${O.countOf(order.good, order.qty)} for ${this.biz.get(order.to).name}.`, 'work', 0.4);
     }
     pickup(p) {
       const o = p.task.order, src = this.biz.get(o.from), dst = this.biz.get(o.to);
@@ -781,7 +781,7 @@
       const pay = Math.min(cost, Math.max(0, Math.floor(dst.cash)));
       dst.cash -= pay; src.cash += pay; src.salesToday += pay;
       if (p.job?.role === 'porter') { const fee = 2; dst.cash -= fee; this.household(p).money += fee; }
-      if (pay < cost) this.log(`${dst.name} could not pay ${src.name} in full for ${G[o.good].name.toLowerCase()} (₳${pay} of ₳${cost}).`, 'economy');
+      if (pay < cost) this.log(`${dst.name} could not pay ${src.name} in full for ${O.goodsWord(o.good)} (₳${pay} of ₳${cost}).`, 'economy');
       dst.orders = dst.orders.filter((x) => x !== o);
       p.task = null; p.agent.carrying = null;
       this.log(`${p.name} delivered ${O.countOf ? O.countOf(o.good, o.qty) : o.qty + ' ' + G[o.good].name.toLowerCase()} from ${src.name} to ${dst.name}.`, 'trade');
@@ -792,13 +792,13 @@
       const deals = [];
       for (const bz of this.biz.values()) {
         if (bz.def.public || bz.type === 'site') continue;
-        for (const g of ['wheat', 'cabbage', 'logs', 'firewood', 'tools', 'flour']) {
-          const tgt = bz.def.targets[g] && this.target(bz, g); if (!tgt || !bz.def.sells.includes(g)) continue;
+        for (const g of [...new Set(['wheat', 'cabbage', 'logs', 'firewood', 'tools', 'flour', ...bz.def.sells.filter((x) => G[x] && !G[x].food && G[x].base > 0)])]) {
+          const tgt = (bz.def.targets[g] && this.target(bz, g)) || (bz.def.sells.includes(g) ? 4 : 0); if (!tgt || !bz.def.sells.includes(g)) continue;
           const surplus = Math.floor((bz.stock[g] || 0) - tgt * 0.9);
           if (surplus < 3) continue;
           const pr = Math.max(1, Math.round(G[g].base * 0.85)), pay = surplus * pr;
           bz.stock[g] -= surplus; bz.cash += pay; bz.salesToday += pay; this.stats.exports = (this.stats.exports || 0) + pay;
-          deals.push(`${surplus} ${G[g].name.toLowerCase()} from ${bz.name}`);
+          deals.push(`${O.countOf(g, surplus)} from ${bz.name}`);
         }
       }
       const toll = Math.round(deals.length * 4 + (this.stats.exportsToday = 0));
@@ -839,10 +839,12 @@
         bz.stock[o.good] = (bz.stock[o.good] || 0) + pay; bz.cash -= pay * unit; bz.bought[o.good] = (bz.bought[o.good] || 0) + pay;
         if (wh && wh !== bz) wh.cash += Math.round(pay * unit * 0.4); // the warehouse merchants take their cut
         this.imported = (this.imported || 0) + pay;
-        if (this.rng.chance(0.15)) this.log(`A barge unloaded ${pay} ${G[o.good].name.toLowerCase()} for ${bz.name}.`, 'economy');
+        if (this.rng.chance(0.15)) this.log(`A barge unloaded ${O.countOf(o.good, pay)} for ${bz.name}.`, 'economy');
       }
     }
     queueImport(bz, good, qty) {
+      // nobody brings goods to a place that couldn't pay for the last lot, until it has the money again
+      if (bz && bz._broke != null && this.day - bz._broke < 4 && bz.cash < (G[good]?.base || 5) * 3) return;
       // cities with a river warehouse have barges and carters arriving all day: imports land after a
       // few hours, paid for at a markup, instead of waiting for the one travelling trader
       if (this.barges && bz) {
@@ -910,10 +912,10 @@
       // a fire or a fight can pull a trader off his errand: he takes a room and goes on his way tomorrow
       if (!tr.task) { tr.task = { act: 'rest', b: this.tavernId }; a.carrying = null; tr.leaveAt = tr.leaveAt || this.day + 1; }
       if (tr.task.act === 'import' && a.inside === tr.task.b) {
-        const bz = this.biz.get(tr.task.b), qty = tr.task.qty, pr = G[tr.task.good].base;
-        bz.stock[tr.task.good] = (bz.stock[tr.task.good] || 0) + qty;
-        const pay = Math.min(bz.cash, qty * pr); bz.cash -= pay;
-        this.log(`${tr.name} sold ${qty} ${G[tr.task.good].name.toLowerCase()}s to ${bz.name} for ₳${Math.round(pay)}.`, 'trade');
+        // he sells what they can pay for, and takes the rest on to the next town
+        const bz = this.biz.get(tr.task.b), pr = G[tr.task.good].base, qty = Math.min(tr.task.qty, Math.floor(Math.max(0, bz.cash) / pr));
+        if (qty > 0) { bz.stock[tr.task.good] = (bz.stock[tr.task.good] || 0) + qty; const pay = qty * pr; bz.cash -= pay; this.log(`${tr.name} sold ${O.countOf(tr.task.good, qty)} to ${bz.name} for ₳${Math.round(pay)}.`, 'trade'); }
+        else { bz._broke = this.day; this.log(`${bz.name} had no money to buy ${tr.name}'s ${O.goodsWord(tr.task.good)}; he takes them on to the next town.`, 'trade'); }
         this.exports(tr);
         if (tr.extra) { tr.task = { act: 'import', ...tr.extra }; tr.extra = null; }
         else { tr.task = { act: 'rest', b: this.tavernId }; a.carrying = null; tr.leaveAt = this.day + 1; }

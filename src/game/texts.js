@@ -14,7 +14,7 @@
       const _say = O.UI.say; O.UI.say = (t, k) => _say(fix(t), k);
       const _po = O.Panels.open; O.Panels.open = (title, html, cb) => _po(fix(title), fix(html), cb);
       const _do = O.UI.dialog.open; O.UI.dialog.open = (o) => _do(Object.assign({}, o, { text: fix(o.text), name: fix(o.name), options: (o.options || []).map((x) => Object.assign({}, x, { label: fix(x.label) })) }));
-      const SP = O.Sim.prototype, _log = SP.log; SP.log = function (t, k) { return _log.call(this, fix(t), k); };
+      const SP = O.Sim.prototype, _log = SP.log; SP.log = function (t, k) { t = fix(t); if (typeof t === 'string') t = t.replace(/^[a-z]/, (c) => c.toUpperCase()); return _log.call(this, t, k); }; // (a line never starts small: "the new house site...")
     });
   }
   // names made before the naming rule: put right whenever a world is shown

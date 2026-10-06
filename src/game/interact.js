@@ -134,10 +134,10 @@
       let roomOwner = null;
       if (b.parent && (b.roomOwners || []).length) { const os = b.roomOwners.map((id) => sim.byId.get(id)).filter(Boolean); if (os.length) { hh = sim.household(os[0]) || hh; roomOwner = os.length === 1 ? os[0].name : `the ${os[0].sur || os[0].name.split(' ').slice(-1)[0]} family`; } }
       const out = [];
-      if (b.owner?.kind === 'player' && !hh) { const st = (PS.homes = PS.homes || {}); const key = sim.world.placeId + ':' + b.id; (st[key] = st[key] || []).forEach((k) => out.push({ k, n: 1, src: 'homestash', key })); return { items: out, owner: 'you' }; }
+      if (b.owner?.kind === 'player' && !hh) { const st = (PS.homes = PS.homes || {}); const key = sim.world.placeId + ':' + b.id; (st[key] = st[key] || []).forEach((k) => out.push({ k, n: 1, src: 'homestash', key })); return { items: out, owner: 'you', store: key }; }
       // your own room in your own place: the monarch's bedchamber when you wear the crown, a house you rent
       const mine = (b.roomKey === 'chamber:monarch' && O.crowned && O.crowned()) || b.roomKey === 'chamber:player' || (PS.lease && PS.lease.b === b.id && !b.parent);
-      if (mine) { const st = (PS.homes = PS.homes || {}); const key = sim.world.placeId + ':' + (b.roomKey || b.id); if (!st[key] && b.roomKey === 'chamber:monarch') st[key] = ['ring', 'brooch', 'candlestick', 'wine']; (st[key] = st[key] || []).forEach((k) => out.push({ k, n: 1, src: 'homestash', key })); return { items: out, owner: 'you' }; }
+      if (mine) { const st = (PS.homes = PS.homes || {}); const key = sim.world.placeId + ':' + (b.roomKey || b.id); if (!st[key] && b.roomKey === 'chamber:monarch') st[key] = ['ring', 'brooch', 'candlestick', 'wine']; (st[key] = st[key] || []).forEach((k) => out.push({ k, n: 1, src: 'homestash', key })); return { items: out, owner: 'you', store: key }; }
       if (it.rentChest && PS.room && PS.room.b === b.id) { (PS.stash || (PS.stash = [])).forEach((k) => out.push({ k, n: 1, src: 'stash' })); return { items: out, owner: 'you' }; }
       if (it.stockOf && bz) {
         const goods = it.stockOf === 'farm' ? ['wheat', 'cabbage'] : it.stockOf === 'store' ? ['cabbage', 'firewood', 'flour'] : it.stockOf === 'warehouse' ? ['cloth', 'wheat', 'iron'] : [it.stockOf];
@@ -178,13 +178,21 @@
     }
 
     function search(it, quick) {
-      const { items, owner } = contents(it);
+      const { items, owner, store } = contents(it);
       const own = owner === 'you';
       if (quick && !own) { O.Panels.toast("That isn't yours to take. Search it with E, stealing has witnesses.", 'bad'); return; }
       searching = 0.7; game.player.dir = 3;
       pendingSearch = () => {
         if (quick) { take(it, items, items.map((_, i) => i), owner); O.Panels.toast(items.length ? 'You gather your things.' : 'Nothing here.'); return; }
         O.Panels.container(`${it.kind[0].toUpperCase() + it.kind.slice(1)}, ${owner}`, items, (idxs) => take(it, items, idxs, owner), own ? null : `This belongs to ${owner}. Anyone awake in the room will see you take it.`);
+        // your own chest: put things away in it, too
+        if (store) setTimeout(() => {
+          const root = document.querySelector('.panel-modal .ledger-in') || document.querySelector('.panel-modal'); if (!root) return;
+          const box = document.createElement('div'); box.style.marginTop = '10px';
+          const draw = () => { const kinds = [...new Set(PS.items)].filter((k) => G[k] && k !== 'key'); box.innerHTML = `<div class="lbl">Put away from your satchel (the chest holds ${(PS.homes[store] || []).length} of 24)</div><div class="topics">${kinds.map((k) => `<button data-put="${k}">${O.escape(G[k].name)}</button>`).join('') || '<span class="caption">Your satchel is empty.</span>'}</div>`;
+            box.querySelectorAll('[data-put]').forEach((b) => b.onclick = () => { const k = b.dataset.put, st = (PS.homes[store] = PS.homes[store] || []); if (st.length >= 24) return O.Panels.toast('The chest is full.', 'bad'); if (!PS.items.includes(k)) return; PS.remove(k); st.push(k); O.Panels.toast(`You put the ${G[k].name.toLowerCase()} away.`); draw(); }); };
+          draw(); root.appendChild(box);
+        }, 0);
       };
     }
 

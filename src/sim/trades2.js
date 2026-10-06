@@ -11,6 +11,8 @@
   // food: how filling (1 = a meal's worth); drink: refreshes; place: can be set down in the world
   Object.assign(G, {
     // the larder
+    berries: { name: 'Wild berries', base: 1, unit: 'handful', slots: 1, food: 0.25 },
+    mushrooms: { name: 'Mushrooms', base: 2, unit: 'basket', slots: 1, food: 0.35 },
     barley: { name: 'Barley', base: 2, unit: 'bushel', slots: 1 },
     oats: { name: 'Oats', base: 2, unit: 'bushel', slots: 1 },
     hay: { name: 'Hay', base: 1, unit: 'bale', slots: 2 },

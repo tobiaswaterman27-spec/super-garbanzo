@@ -105,7 +105,7 @@
         const acc = O.clamp((isVictim && o.victimLate ? -0.25 : 0) + 0.45 + (w.traits.includes('curious') ? 0.2 : 0) + (w.traits.includes('suspicious') ? 0.15 : 0) - (w.age > 70 ? 0.2 : 0) - (w.age < 12 ? 0.15 : 0) + this.rng.float(-0.2, 0.2) - (this.hour < 6 || this.hour > 20.5 ? 0.2 : 0), 0.1, 1);
         const desc = look ? remembered(look, acc, this.rng) : {};
         crime.witnesses.push({ id: w.id, desc, acc });
-        this.remember(w, `Saw ${crime.kind === 'pickpocket' ? 'a cutpurse at work' : crime.kind === 'burglary' ? 'someone break into a house' : 'a thief'} ${crime.placeName ? 'at ' + crime.placeName : ''}: ${describe(desc)}.`, 'crime', 1.6, o.perp === 'player' ? 0 : o.perp?.id);
+        this.remember(w, `Saw ${crime.kind === 'pickpocket' ? 'a cutpurse at work' : crime.kind === 'burglary' ? (crime.placeName ? 'someone break into' : 'someone break into a house') : 'a thief'}${crime.kind === 'burglary' && crime.placeName ? ' ' + crime.placeName.replace(/^at /, '') : crime.placeName ? ' ' + O.atPlace(crime.placeName) : ''}: ${describe(desc)}.`, 'crime', 1.6, o.perp === 'player' ? 0 : o.perp?.id);
         if (o.perp === 'player') this.relate(w, { id: 0 }, -0.4);
         // most honest folk go to the watch; the timid, the hostile and the player's friends may not
         const friend = (w.rel.get(0)?.affinity || 0) > 0.4 && o.perp === 'player';

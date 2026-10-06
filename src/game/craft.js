@@ -99,7 +99,7 @@
         const goods = sellable(); if (!goods.length) break;
         const g = s.rng.pick(goods), pr = priceOf(g), hh = buyers[i % buyers.length];
         if (hh.money < pr * 1.5) continue;
-        PS.remove(g); hh.money -= pr; PS.money += pr; take += pr; sold.push(G[g].name.toLowerCase());
+        PS.remove(g); hh.money -= pr; PS.money += pr; take += pr; sold.push(g);
         if (G[g].food) hh.pantry[g] = (hh.pantry[g] || 0) + 1;
         const tax = Math.round(pr * s.treasury.taxRate); s.treasury.cash += tax; PS.money -= tax; take -= tax;
       }
@@ -107,7 +107,7 @@
       if (sold.length) PS.rep.merchant = Math.min(1, PS.rep.merchant + 0.01);
       PS.earned = (PS.earned || 0) + Math.max(0, Math.round(take));
       const tally = {}; for (const x of sold) tally[x] = (tally[x] || 0) + 1;
-      toast(sold.length ? `An hour at the stall: sold ${Object.entries(tally).map(([k, n]) => `${n} ${k}`).join(', ')} for ${O.money(Math.round(take))} after the market tax.` : 'An hour at the stall, and hardly a soul stopped. Better luck on market day.');
+      toast(sold.length ? `An hour at the stall: sold ${Object.entries(tally).map(([k, n]) => O.countOf(k, n)).join(', ')} for ${O.money(Math.round(take))} after the market tax.` : 'An hour at the stall, and hardly a soul stopped. Better luck on market day.');
       setTimeout(() => { if (game.player.anim === 'talk') game.player.anim = 'idle'; }, 1500);
     };
   }

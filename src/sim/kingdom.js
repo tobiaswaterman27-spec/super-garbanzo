@@ -27,7 +27,7 @@
     }
     addNews(text, kind = 'kingdom', place = null) {
       this._last = this._last || {}; const key = kind + ':' + place;
-      if (place && ['migration', 'growth', 'decline'].includes(kind) && this._last[key] > this.sim.day - 6) return;
+      if (place && ['migration', 'growth', 'decline'].includes(kind) && this._last[key] > this.sim.day - (kind === 'migration' ? 28 : 6)) return;
       this._last[key] = this.sim.day;
       this.news.push({ day: this.sim.day, text, kind, place }); if (this.news.length > 60) this.news.shift(); this.sim.log(text, kind === 'rulers' || kind === 'war' ? 'kingdom-' + kind : 'kingdom'); }
 
@@ -57,14 +57,15 @@
           s.happiness = O.clamp(0.25 + s.food * 0.3 + s.wealth * 0.2 + s.health * 0.2 - s.crime * 0.3 - this.taxRate, 0, 1);
           // migration and growth
           if (s.happiness < 0.38 && s.pop > 40) { const n = Math.ceil(s.pop * 0.01); s.pop -= n; const to = this.place(this.neighbours(s.id).sort((a, b) => this.place(b).happiness - this.place(a).happiness)[0]); if (to && !to.detailed) to.pop += n; if (to && to.detailed && this.sim.immigrateMaybe) this.sim.immigrateMaybe(); this.addNews(`Families are leaving ${s.name}; ${n} more took the road this week to ${to?.name || 'elsewhere'}.`, 'migration', s.id); }
-          else if (s.happiness > 0.62 && s.food > 1) s.pop += Math.ceil(s.pop * 0.004);
+          // births outrun burials in good years, barely keep up in middling ones, and fall behind in hunger
+          else { const gr = s.happiness > 0.62 && s.food > 1 ? 0.0007 : s.happiness > 0.42 && s.food >= 0.9 ? 0.00028 : s.food < 0.6 ? -0.0008 : 0.00005; s.carry = (s.carry || 0) + s.pop * gr; const n = Math.trunc(s.carry); if (n) { s.pop = Math.max(20, s.pop + n); s.carry -= n; } }
           s.wealth = O.clamp(s.wealth + (s.happiness - 0.5) * 0.004 + (s.tradeToday || 0) / 5000, 0.05, 1);
           const devT = Math.floor(s.wealth * 4 + s.pop / 1500);
           if (devT > s.dev && r.chance(0.2)) { s.dev++; this.addNews(`${s.name} is growing: a new market hall and houses are going up.`, 'growth', s.id); }
           if (devT < s.dev - 1 && r.chance(0.2)) { s.dev--; this.addNews(`${s.name} is in decline; shops stand empty in the high street.`, 'decline', s.id); }
           s.tradeToday = 0;
           // occasional events
-          if (season === 'autumn' && s.produces.grain && r.chance(0.04) && !s.events.includes('harvest failed')) { s.events.push('harvest failed'); this.addNews(`The harvest has failed at ${s.name}. Grain will be dear this winter.`, 'harvest', s.id); }
+          if (season === 'autumn' && s.produces.grain && r.chance(0.005) && !s.events.includes('harvest failed')) { s.events.push('harvest failed'); this.addNews(`The harvest has failed at ${s.name}. Grain will be dear this winter.`, 'harvest', s.id); }
           if (season !== 'autumn') s.events = s.events.filter((e) => e !== 'harvest failed');
         }
         // prices: base x supply x demand x region
@@ -81,6 +82,8 @@
       this.caravans = this.caravans.filter((c) => !c.done);
       // the crown collects taxes
       for (const s of this.places) if (!s.detailed) { const t = s.pop * s.wealth * this.taxRate * 0.05; this.treasury += t; }
+      // the crown's own costs: the court, the garrisons, the castles and the roads eat what the treasury holds past a reserve
+      if (this.treasury > 6000) { const c = (this.treasury - 6000) * 0.012; this.treasury -= c; this.spentUpkeep = (this.spentUpkeep || 0) + c; }
       // storms may damage roads/bridges (repair needs a council decision)
       if (sim.weather.kind === 'storm' && r.chance(0.3)) { const rd = r.pick(this.roads.filter((x) => !x.damaged)); if (rd) { rd.damaged = true; this.addNews(`Storm damage has closed the road between ${this.place(rd.a).name} and ${this.place(rd.b).name}.`, 'roads'); } }
       // council each season

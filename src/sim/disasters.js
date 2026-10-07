@@ -18,7 +18,7 @@
     K.plagueDaily = function () {
       const r = this.rng, day = this.sim.day;
       const sick = this.places.filter((p) => p.plague);
-      if (!sick.length && r.chance(0.004)) {
+      if (!sick.length && r.chance(0.0018)) {
         const p = r.pick(this.places.filter((x) => !x.detailed && x.pop > 100));
         p.plague = { since: day }; p.health = Math.max(0.3, p.health - 0.3);
         this.addNews(`Pestilence has broken out at ${p.name}. Travellers from there are turned away at the gates.`, 'health', p.id);
@@ -26,7 +26,7 @@
       for (const p of sick) {
         if (p.detailed) continue;
         p.health = Math.max(0.25, p.health - 0.03); p.pop = Math.max(30, p.pop - Math.round(p.pop * 0.004)); p.happiness = Math.max(0.1, p.happiness - 0.02);
-        for (const n of this.neighbours(p.id)) { const q = this.place(n); if (!q.plague && !q.detailed && r.chance(0.05)) { q.plague = { since: day }; this.addNews(`The pestilence has spread along the road to ${q.name}.`, 'health', q.id); } }
+        for (const n of this.neighbours(p.id)) { const q = this.place(n); if (!q.plague && !q.detailed && r.chance(0.02)) { q.plague = { since: day }; this.addNews(`The pestilence has spread along the road to ${q.name}.`, 'health', q.id); } }
         if (day - p.plague.since > 14 && r.chance(0.15)) { p.plague = null; p.health = Math.min(1, p.health + 0.1); this.addNews(`The pestilence at ${p.name} has burned itself out.`, 'health', p.id); }
       }
     };

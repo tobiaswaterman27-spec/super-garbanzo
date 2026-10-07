@@ -5597,6 +5597,12 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
         const risk = (p.age - 58) * 0.00035 * (p.health.illness ? 3 : 1);
         if (this.rng.chance(risk)) this.die(p, 'died peacefully in old age');
       }
+      // the small ones: many a cradle is emptied by a fever or the flux before the child is five
+      for (const p of [...this.people]) {
+        if (p.visitor || p.alive === false || p.age >= 5) continue;
+        const hh = this.household(p), poor = hh && hh.money < 15, risk = (p.age < 1 ? 0.0011 : 0.0004) * (poor ? 1.6 : 1) * (this.settlement?.outbreak ? 2 : 1);
+        if (this.rng.chance(risk)) this.die(p, p.age < 1 ? this.rng.pick(['died of a fever in the cradle', 'died in the cradle, a few weeks old', 'died of a cough in the cradle']) : this.rng.pick(['died of a fever while still small', 'died of the flux while still small', 'died of the spotted fever as a small child']));
+      }
       // the hard winter: the very old and the very young in a cold, poor house
       if (this.season === 'winter') for (const p of [...this.people]) {
         if (p.visitor || p.alive === false || (p.age >= 3 && p.age < 70)) continue;
@@ -6857,7 +6863,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     }
     addNews(text, kind = 'kingdom', place = null) {
       this._last = this._last || {}; const key = kind + ':' + place;
-      if (place && ['migration', 'growth', 'decline'].includes(kind) && this._last[key] > this.sim.day - 6) return;
+      if (place && ['migration', 'growth', 'decline'].includes(kind) && this._last[key] > this.sim.day - (kind === 'migration' ? 28 : 6)) return;
       this._last[key] = this.sim.day;
       this.news.push({ day: this.sim.day, text, kind, place }); if (this.news.length > 60) this.news.shift(); this.sim.log(text, kind === 'rulers' || kind === 'war' ? 'kingdom-' + kind : 'kingdom'); }
 
@@ -6887,14 +6893,15 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
           s.happiness = O.clamp(0.25 + s.food * 0.3 + s.wealth * 0.2 + s.health * 0.2 - s.crime * 0.3 - this.taxRate, 0, 1);
           // migration and growth
           if (s.happiness < 0.38 && s.pop > 40) { const n = Math.ceil(s.pop * 0.01); s.pop -= n; const to = this.place(this.neighbours(s.id).sort((a, b) => this.place(b).happiness - this.place(a).happiness)[0]); if (to && !to.detailed) to.pop += n; if (to && to.detailed && this.sim.immigrateMaybe) this.sim.immigrateMaybe(); this.addNews(`Families are leaving ${s.name}; ${n} more took the road this week to ${to?.name || 'elsewhere'}.`, 'migration', s.id); }
-          else if (s.happiness > 0.62 && s.food > 1) s.pop += Math.ceil(s.pop * 0.004);
+          // births outrun burials in good years, barely keep up in middling ones, and fall behind in hunger
+          else { const gr = s.happiness > 0.62 && s.food > 1 ? 0.0007 : s.happiness > 0.42 && s.food >= 0.9 ? 0.00028 : s.food < 0.6 ? -0.0008 : 0.00005; s.carry = (s.carry || 0) + s.pop * gr; const n = Math.trunc(s.carry); if (n) { s.pop = Math.max(20, s.pop + n); s.carry -= n; } }
           s.wealth = O.clamp(s.wealth + (s.happiness - 0.5) * 0.004 + (s.tradeToday || 0) / 5000, 0.05, 1);
           const devT = Math.floor(s.wealth * 4 + s.pop / 1500);
           if (devT > s.dev && r.chance(0.2)) { s.dev++; this.addNews(`${s.name} is growing: a new market hall and houses are going up.`, 'growth', s.id); }
           if (devT < s.dev - 1 && r.chance(0.2)) { s.dev--; this.addNews(`${s.name} is in decline; shops stand empty in the high street.`, 'decline', s.id); }
           s.tradeToday = 0;
           // occasional events
-          if (season === 'autumn' && s.produces.grain && r.chance(0.04) && !s.events.includes('harvest failed')) { s.events.push('harvest failed'); this.addNews(`The harvest has failed at ${s.name}. Grain will be dear this winter.`, 'harvest', s.id); }
+          if (season === 'autumn' && s.produces.grain && r.chance(0.005) && !s.events.includes('harvest failed')) { s.events.push('harvest failed'); this.addNews(`The harvest has failed at ${s.name}. Grain will be dear this winter.`, 'harvest', s.id); }
           if (season !== 'autumn') s.events = s.events.filter((e) => e !== 'harvest failed');
         }
         // prices: base x supply x demand x region
@@ -6911,6 +6918,8 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       this.caravans = this.caravans.filter((c) => !c.done);
       // the crown collects taxes
       for (const s of this.places) if (!s.detailed) { const t = s.pop * s.wealth * this.taxRate * 0.05; this.treasury += t; }
+      // the crown's own costs: the court, the garrisons, the castles and the roads eat what the treasury holds past a reserve
+      if (this.treasury > 6000) { const c = (this.treasury - 6000) * 0.012; this.treasury -= c; this.spentUpkeep = (this.spentUpkeep || 0) + c; }
       // storms may damage roads/bridges (repair needs a council decision)
       if (sim.weather.kind === 'storm' && r.chance(0.3)) { const rd = r.pick(this.roads.filter((x) => !x.damaged)); if (rd) { rd.damaged = true; this.addNews(`Storm damage has closed the road between ${this.place(rd.a).name} and ${this.place(rd.b).name}.`, 'roads'); } }
       // council each season
@@ -7106,6 +7115,14 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       const income = t.income - t._in0, spent = t.spent - t._out0;
       let levy = 0;
       if (K && !this.foreign) { levy = Math.max(0, Math.round(income * CROWN_SHARE)); levy = Math.min(levy, Math.floor(Math.max(0, t.cash) * 0.5)); t.cash -= levy; K.treasury += levy; }
+      // a chest that only fills helps nobody: past a fair reserve the council puts the coin to work, some in
+      // public works (paid as wages to the poorest households) and the most sent up to the crown as an aid
+      { const pop = this.people.filter((p) => !p.visitor).length, reserve = Math.max(600, pop * 25), excess = t.cash - reserve;
+        if (excess > 100) { const use = Math.round(excess * 0.5), aid = K && !this.foreign ? Math.round(use * 0.7) : 0, works = use - aid;
+          const poor = this.households.filter((h) => !h.gone && h.members.length).sort((a, b) => a.money - b.money).slice(0, 8), each = poor.length ? Math.floor(works / poor.length) : 0;
+          t.cash -= aid + each * poor.length; t.spent += aid + each * poor.length; if (aid) K.treasury += aid; for (const h of poor) h.money += each;
+          this.stats.works = (this.stats.works || 0) + each * poor.length;
+          this.log(`The council spent ₳${each * poor.length} on mending roads, drains and walls, paid as wages to the poorest households${aid ? `, and sent ₳${aid} to the crown as an aid` : ''}.`, 'politics'); } }
       const costs = this.publicCosts();
       t.weeks.push({ day: this.day, income: Math.round(income), spent: Math.round(spent), levy, grant: t._grant || 0, hearth: t.hearthTaken || 0, rate: t.taxRate, hearthRate: t.hearth, wages: costs.wages, cash: Math.round(t.cash) });
       if (t.weeks.length > 8) t.weeks.shift();
@@ -7211,7 +7228,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       const FOE = W.enemy, fh = W.foeHome;
       W.phase = 'war'; W.since = sim.day; W.wars++; W.score = 0; W.battles = []; W.taxBefore = this.taxRate;
       this.taxRate = Math.min(0.2, this.taxRate + 0.04);
-      const levy = this.places.filter((p) => !p.detailed).reduce((s, p) => { const n = Math.round(p.pop * 0.02); p.pop -= n; return s + n; }, 0);
+      W.levyFrom = {}; const levy = this.places.filter((p) => !p.detailed).reduce((s, p) => { const n = Math.round(p.pop * 0.02); p.pop -= n; W.levyFrom[p.id] = n; return s + n; }, 0); W.raised = 310 + levy;
       W.armies = [
         { id: 1, side: 'crown', name: opts.crownName || "the King's host", men: 220 + levy, at: 'highmere', path: ['highmere', 'frostmere', fh], morale: 0.7 },
         { id: 2, side: 'enemy', name: opts.hostName || `the host of ${FOE}`, men: (opts.men || 290) + this.rng.int(0, 180), at: fh, path: [fh, 'frostmere', 'highmere'], morale: 0.7, wait: 2 },
@@ -7234,7 +7251,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       if ((sim.day - W.since) % 6 === 5) {
         const foe = W.armies.find((a) => a.side === 'enemy'), host = W.armies.find((a) => a.side === 'crown');
         if (foe && W.score > -3) { foe.men += 50 + r.int(0, 60); foe.morale = Math.min(1, foe.morale + 0.05); }
-        if (host) { const add = this.places.filter((p) => !p.detailed).reduce((s, p) => { const n = Math.round(p.pop * 0.008); p.pop -= n; return s + n; }, 0); host.men += add; this.addNews(`A second levy of ${add} men has gone north to join the King's host.`, 'war'); }
+        if (host) { W.levyFrom = W.levyFrom || {}; const add = this.places.filter((p) => !p.detailed).reduce((s, p) => { const n = Math.round(p.pop * 0.008); p.pop -= n; W.levyFrom[p.id] = (W.levyFrom[p.id] || 0) + n; return s + n; }, 0); host.men += add; W.raised = (W.raised || 310) + add; this.addNews(`A second levy of ${add} men has gone north to join the King's host.`, 'war'); }
       }
       // armies march toward each other by road; a host never marches away from a foe in its own camp
       const alive = () => W.armies.filter((x) => x.men > 0);
@@ -7286,6 +7303,10 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
 
     K.makePeace = function (winner) {
       const W = this.war, sim = this.sim;
+      // the men who lived through it walk home to the towns that sent them
+      { const alive = W.armies.filter((a) => a.side === 'crown').reduce((t, a) => t + a.men, 0), frac = O.clamp(alive / Math.max(1, W.raised || 1), 0, 1);
+        let home = 0; for (const [id, n] of Object.entries(W.levyFrom || {})) { const pl = this.place(id), k = Math.round(n * frac); if (pl && !pl.detailed && k) { pl.pop += k; home += k; } } W.levyFrom = {}; W.raised = 0;
+        if (home > 20) this.addNews(`${home} levied men are walking home from the war to their own towns and villages.`, 'war'); }
       W.phase = 'truce'; W.since = sim.day; W.winner = winner; W.armies = [];
       this.taxRate = winner === 'enemy' ? Math.min(0.2, (W.taxBefore || 0.08) + 0.03) : (W.taxBefore || 0.08);
       if (W.civil) { W.enemy = ENEMY; W.foeHome = 'ravenscar'; W.civil = false; this.taxRate = W.taxBefore || 0.08; this.onCivilEnd && this.onCivilEnd(winner); sim.onWar && sim.onWar('peace', winner); return; }
@@ -7490,7 +7511,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
           const before = this.lordName(id), h = L.heir && L.heir.age >= 16 ? L.heir : person(r, 25, 45);
           R.lords[id] = Object.assign(h, { title: L.title, heir: person(r, 0, 12) });
           this.place(id).leader = this.lordName(id);
-          this.addNews(`${before} has died. ${h === L.heir ? `${pron(L) === 'his' ? 'His' : 'Her'} heir ${h.name}` : `The council has named ${h.name}`} now holds ${this.place(id).name}.`, 'rulers', id);
+          this.addNews(`${before} has died. ${h === L.heir ? `${pron(L) === 'his' ? 'His' : 'Her'} heir ${h.name} now holds ${this.place(id).name}.` : `The council has named ${h.name} to hold ${this.place(id).name}.`}`, 'rulers', id);
         }
       }
       // an ambitious pretender grows restless under a weak crown
@@ -7530,8 +7551,8 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       const R = this.rulers, P = R.pretender; if (!P || (this.war && this.war.phase === 'war')) return;
       this.warInit();
       const seat = this.place(P.seat);
-      this.addNews(`REBELLION. ${P.name}, ${P.title}, claims the crown and has raised his banner at ${seat.name}. Lords must choose a side.`, 'rulers', P.seat);
-      this.declareWar({ civil: true, enemy: `${P.name} of Frostmere and his rebels`, home: P.seat, men: 200, hostName: `the rebel host of ${P.name}`, crownName: R.crown ? `the host of ${crownTitle(R.crown)}` : "the King's host", announce: `CIVIL WAR. The crown calls every loyal town to arms against ${P.name}, ${P.title}. The King's host musters at Highmere.` });
+      this.addNews(`REBELLION. ${P.name}, ${P.title}, claims the crown and has raised ${pron(P)} banner at ${seat.name}. Lords must choose a side.`, 'rulers', P.seat);
+      this.declareWar({ civil: true, enemy: `${P.name} of ${seat.name} and ${pron(P)} rebels`, home: P.seat, men: 200, hostName: `the rebel host of ${P.name}`, crownName: R.crown ? `the host of ${crownTitle(R.crown)}` : "the King's host", announce: `CIVIL WAR. The crown calls every loyal town to arms against ${P.name}, ${P.title}. The King's host musters at Highmere.` });
     };
     K.onCivilEnd = function (winner) {
       const R = this.rulers, P = R.pretender, r = this.rng;
@@ -7544,8 +7565,8 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
         this.addNews(`The rebels have won. ${P.name} is crowned as ${crownTitle(R.crown)}; ${old} has fled across the sea. Men who fought for the old crown keep their heads down.`, 'rulers');
         this.sim.onCoronation && this.sim.onCoronation(crownTitle(R.crown));
       } else {
-        this.addNews(`The rebellion is broken. ${P.name} has been taken and sent into exile beyond the sea; his lands at Frostmere go to the crown.`, 'rulers');
-        R.pretender = { name: r.pick(MN), sex: 'm', age: r.int(25, 45), title: `the new Duke of Frostmere`, seat: 'frostmere', ambition: 0.2 + r.next() * 0.3 };
+        this.addNews(`The rebellion is broken. ${P.name} has been taken and sent into exile beyond the sea; ${pron(P)} lands at ${this.place(P.seat)?.name || 'Frostmere'} go to the crown.`, 'rulers');
+        R.pretender = { name: r.pick(MN), sex: 'm', age: r.int(25, 45), title: P.seat === 'frostmere' ? 'the new Duke of Frostmere' : `the new Lord of ${this.place(P.seat)?.name || 'Frostmere'}`, seat: P.seat || 'frostmere', ambition: 0.2 + r.next() * 0.3 };
       }
     };
   }
@@ -7999,7 +8020,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     K.plagueDaily = function () {
       const r = this.rng, day = this.sim.day;
       const sick = this.places.filter((p) => p.plague);
-      if (!sick.length && r.chance(0.004)) {
+      if (!sick.length && r.chance(0.0018)) {
         const p = r.pick(this.places.filter((x) => !x.detailed && x.pop > 100));
         p.plague = { since: day }; p.health = Math.max(0.3, p.health - 0.3);
         this.addNews(`Pestilence has broken out at ${p.name}. Travellers from there are turned away at the gates.`, 'health', p.id);
@@ -8007,7 +8028,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       for (const p of sick) {
         if (p.detailed) continue;
         p.health = Math.max(0.25, p.health - 0.03); p.pop = Math.max(30, p.pop - Math.round(p.pop * 0.004)); p.happiness = Math.max(0.1, p.happiness - 0.02);
-        for (const n of this.neighbours(p.id)) { const q = this.place(n); if (!q.plague && !q.detailed && r.chance(0.05)) { q.plague = { since: day }; this.addNews(`The pestilence has spread along the road to ${q.name}.`, 'health', q.id); } }
+        for (const n of this.neighbours(p.id)) { const q = this.place(n); if (!q.plague && !q.detailed && r.chance(0.02)) { q.plague = { since: day }; this.addNews(`The pestilence has spread along the road to ${q.name}.`, 'health', q.id); } }
         if (day - p.plague.since > 14 && r.chance(0.15)) { p.plague = null; p.health = Math.min(1, p.health + 0.1); this.addNews(`The pestilence at ${p.name} has burned itself out.`, 'health', p.id); }
       }
     };
@@ -17557,13 +17578,33 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     const recipeFor = (bz, role) => bz.def.recipes.find((rc) => rc.role === role) || bz.def.recipes.find((rc) => !rc.role) || bz.def.recipes[0] || null;
     const supplierFor = (s, bz, g) => { const opts = String(bz.def.buys?.[g] || '').split('|').filter((t) => t && t !== 'import' && t !== 'none'); for (const t of opts) { const sp = s.supplierOf(t, g); if (sp && sp.id !== bz.id && (sp.stock[g] || 0) >= 1) return sp; } return null; };
     // what making a thing is called, in plain words: bake bread, brew ale, forge daggers, make chairs
-    const UNCOUNT = /^(bread|flour|meat|ale|wine|herbs|salt|pottage|cloth|honey|charcoal|timber|planks|logs|firewood|wheat|barley|malt|cheese|butter|milk|wool|leather|iron|stone|clay|peat|tar|rope|thatch|plaster|medicine|meal|fish|tallow candles|candles|tools|spices|silk|glass|ink|parchment|cabbage|apples|grain|cider|mead|beer)$/;
+    const UNCOUNT = /^(bread|flour|meat|ale|wine|herbs|salt|pottage|cloth|honey|charcoal|timber|planks|logs|firewood|wheat|barley|malt|cheese|butter|milk|wool|leather|iron|stone|clay|peat|tar|rope|thatch|plaster|medicine|meal|fish|tallow candles|candles|tools|spices|silk|glass|ink|parchment|cabbage|apples|grain|cider|mead|beer|tanned leather|dyed cloth|building stone|linen|soap|pitch|potash|hay|oats|sand|beeswax|tallow|flax|hemp|madder root|woad|oak bark|sea coal|venison|gold|silver|butter|malt|ink)$/;
     const plural = (n) => / of /.test(n) ? n.replace(/^(\w+)/, (w) => plural(w)) : UNCOUNT.test(n) || /s$/.test(n) ? n : /(ch|sh|x)$/.test(n) ? n + 'es' : /[^aeiou]y$/.test(n) ? n.slice(0, -1) + 'ies' : n + 's';
-    const VERB = { bread: 'Bake', cake: 'Bake', pie: 'Bake', pottage: 'Cook', meal: 'Cook', ale: 'Brew', beer: 'Brew', mead: 'Brew', cider: 'Press', wine: 'Make', flour: 'Grind', meat: 'Butcher and dress', herbs: 'Dry and sort', medicine: 'Mix', dagger: 'Forge', sword: 'Forge', tools: 'Forge', axe: 'Forge', helm: 'Beat out', armour: 'Beat out', mail: 'Beat out', planks: 'Saw', charcoal: 'Burn', candles: 'Dip', 'tallow candles': 'Dip', cloth: 'Weave', salt: 'Boil' };
-    const goodPhrase = (g) => { const nm = (D.GOODS[g]?.name || g).toLowerCase(); return { verb: VERB[g] || VERB[nm] || 'Make', what: plural(nm) }; };
+    const VERB = { bread: 'Bake', cake: 'Bake', pie: 'Bake', pottage: 'Cook', meal: 'Cook', ale: 'Brew', beer: 'Brew', mead: 'Brew', cider: 'Press', wine: 'Make', flour: 'Grind', meat: 'Butcher and dress', herbs: 'Dry and sort', medicine: 'Mix', dagger: 'Forge', sword: 'Forge', tools: 'Forge', axe: 'Forge', helm: 'Beat out', armour: 'Beat out', mail: 'Beat out', planks: 'Saw', charcoal: 'Burn', candles: 'Dip', 'tallow candles': 'Dip', cloth: 'Weave', salt: 'Boil', leather: 'Tan', dyedcloth: 'Dye', stone: 'Cut', clothes: 'Sew', pot: 'Throw', cup: 'Throw', jug: 'Throw', bricks: 'Fire', linen: 'Weave', soap: 'Boil', parchment: 'Scrape and dress', ink: 'Mix', nails: 'Forge', horseshoes: 'Forge', arrows: 'Fletch', saddle: 'Stitch', harness: 'Stitch', boat: 'Build', cart: 'Build', butter: 'Churn', sausage: 'Stuff', stew: 'Cook', pitch: 'Boil', potash: 'Burn', tallow: 'Render', iron: 'Smelt', nets: 'Knot', rope: 'Twist', glass: 'Blow and cut', shoes: 'Make', cask: 'Make', wheel: 'Make', furniture: 'Make', mail: 'Link', candlestick: 'Cast', spoon: 'Beat out', ring: 'Work', brooch: 'Work', necklace: 'Work', circlet: 'Work', broom: 'Bind', bucket: 'Make', malt: 'Malt' };
+    const WHAT = { leather: 'hides', dyedcloth: 'cloth', glass: 'glass panes', furniture: 'chairs and stools', shoes: 'shoes', stew: 'pottage', meal: 'hot meals' };
+    const goodPhrase = (g) => { const nm = (D.GOODS[g]?.name || g).toLowerCase(); return { verb: VERB[g] || VERB[nm] || 'Make', what: WHAT[g] || plural(nm) }; };
     O.goodPhrase = goodPhrase;
     // a few posts whose work is its own: the words (and where to do it) for the main task, and what the post is
+    const theName = (bz) => /^(Watermill|Windmill|Mill|Guildhall|Castle|Market|City|Town|Village|Royal|Old|New|Common|Parish|Crown|Great|High|Lower|Upper)\b/.test(bz.name) || !/\s/.test(bz.name) ? 'the ' + bz.name : bz.name;
     const ROLE_WORK = {
+      labourer: { text: (bz) => bz.type === 'mill' ? 'Carry the sacks to and from the mill' : bz.type === 'sawmill' ? 'Stack the logs and planks' : bz.type === 'boatyard' ? 'Fetch and carry for the boatwrights' : bz.type === 'builder' ? 'Fetch and carry for the builders' : null, summary: (bz) => `You fetch, carry and lift for ${theName(bz)}.` },
+      bailiff: { summary: "You collect the taxes and dues for the council, and take what is owed from those who won't pay." },
+      'tax collector': { text: 'Go door to door for the hearth tax', summary: 'You go door to door for the hearth tax and the dues.' },
+      forester: { summary: 'You keep the forest: fell what is ready, cut it into logs and firewood, and watch the young trees.' },
+      woodcutter: { summary: 'You fell trees and cut them into logs and firewood.' },
+      fisher: { summary: 'You fish the water and bring the catch to market.' },
+      builder: { text: (bz) => bz.type === 'site' ? null : 'Saw and frame the timber', summary: (bz) => bz.type === 'site' ? null : 'You build: framing, walls and roofs, and you saw the timber for them.' },
+      ferryman: { text: 'Row folk across the water', how: "At the water's edge: press E at each marked landing to take a fare across.", label: 'Row a fare across', summary: 'You row folk, their beasts and their goods across the water.' },
+      'toll keeper': { text: 'Take the tolls on the road', how: 'The toll posts on the road are marked in gold. Press E at each to take the toll.', label: 'Take the toll', summary: 'You keep the toll house: every cart and rider on the road pays to pass.' },
+      knight: { text: 'Ride the bounds and drill at arms', how: 'The posts about the keep are marked in gold. Press E at each one.', label: 'Keep watch and drill', done: ['You look out over the lands. All quiet.', 'You drill at arms until the sweat runs.', 'You see the bounds are kept.'], summary: 'You hold your lands for the crown: ride the bounds, keep your arms ready and answer the muster.' },
+      squire: { text: 'Wait on your knight and drill', how: 'The posts about the keep are marked in gold. Press E at each one.', label: 'Drill at arms', done: ['You polish the mail and see to the horse.', 'You practise at the pell with a wooden sword.', 'You carry a message for your knight.'], summary: 'You serve a knight: the horse, the arms and the armour, and you learn to fight.' },
+      miner: { text: 'Hew ore and stone at the face', label: 'Hew at the face', done: 'You hew at the face.', summary: 'You dig ore and stone from the mine.' },
+      'mine foreman': { text: 'Keep the tally of ore and the shift roll', label: 'Go over the tally', done: ['You tally the ore brought up.', 'You check the props and the shift roll.', 'You note who came late to the face.'], summary: 'You run the mine: the shifts, the props and the tally of ore.' },
+      quarryman: { text: 'Cut and dress stone', label: 'Cut stone', done: 'You cut and dress the stone.', summary: 'You cut and dress building stone at the quarry.' },
+      'quarry master': { text: 'Keep the tally of stone and the orders', label: 'Go over the orders', done: ['You tally the stone cut today.', 'You write up an order for the builders.'], summary: 'You run the quarry: the men, the orders and the tally of stone.' },
+      laundress: { text: 'Wash and wring the linen', how: (bz) => `Inside ${bz.name}, the washing is marked in gold: press E at each heap to scrub it.`, label: 'Scrub the linen', done: 'Washed, wrung and hung to dry.', summary: "You wash the town's linen." },
+      'house agent': { text: 'Write up the deeds and lettings', label: 'Write up the deeds', done: ['You write up a lease.', 'You copy out a deed of sale.', 'You note the rents owed.'], summary: 'You let and sell houses: the deeds, the viewings and the rents.' },
+      moneylender: { text: 'Go over the loans and pledges', label: 'Go over the loans', done: ['You work out what is owed this week.', 'You weigh a pledge and write it in the book.', 'You note who is late with their payment.'], summary: 'You lend money at interest and keep the pledges until they are paid.' },
       gaoler: { text: 'Clean out the cells', how: (bz) => `Inside ${bz.name}, the cells and floors are marked in gold: press E at each to clean it.`, summary: 'You keep the gaol: the cells clean, the prisoners fed and watched.' },
       'bounty hunter': { text: 'Walk the town looking for wanted faces', how: 'The places to look are marked in gold around the town. Press E at each one.', summary: 'You hunt those with a price on their head: read the notice board, ask about and walk the town.' },
       gravedigger: { text: 'Dig and tend the graves', how: 'In the churchyard by the chapel: press E at each marked spot to dig.', filler: 'Speak with the mourners', summary: 'You dig the graves and keep the churchyard.' },
@@ -17584,9 +17625,6 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       'salt boiler': { text: 'Rake and boil the salt pans', how: "At the water's edge: press E at each marked pan.", summary: 'You boil sea water down to salt in the pans.' },
       'master builder': { text: 'Draw up the plans and accounts', summary: 'You run the builders\' yard: the plans, the accounts and the men.' },
       gamekeeper: { text: 'Walk the woods for poachers', how: 'The places to look are marked in gold. Press E at each one.', summary: 'You keep the game and watch for poachers.' },
-      stablehand: { summary: 'You keep the horses: mucking out, fodder and grooming.' },
-      'horse trader': { summary: 'You buy and sell horses.' },
-      postmaster: { summary: 'You run the post house: letters in and out, and the riders.' },
       messenger: { text: 'Carry the letters to their doors', how: 'Take each letter to its marked door and press E to hand it over.', summary: 'You carry letters and messages about the town.' },
       'mounted courier': { text: 'Ride the letters to their doors', how: 'Take each letter to its marked door and press E to hand it over.', summary: 'You ride with the letters that cannot wait.' },
       groom: { text: 'See to the horses in the stables', how: (bz) => `Inside ${bz.name}, the stalls are marked in gold: press E at each to see to the horse.`, summary: 'You groom, feed and saddle the horses.' },
@@ -17607,7 +17645,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       'guard captain': { text: 'Write up the watch book', how: "Press E at the desk in the watch house to write up the day's book.", summary: 'You command the watch: its book, its posts and its men.' },
       spinner: { text: 'Spin yarn for the looms', summary: 'You spin the yarn for the weavers.' },
       magistrate: { text: 'Hear the cases and sign the warrants', how: 'Press E at the desk in the hall to go through the cases.', summary: 'You judge the cases brought before the town and sign its warrants.' },
-      clerk: { text: "Copy out the town's deeds and accounts", summary: "You keep the town's deeds, rolls and accounts." },
+      clerk: { text: (bz) => bz.type === 'moneylender' ? 'Write up the loans and pledges' : bz.type === 'agency' ? 'Copy out the leases and deeds' : bz.type === 'warehouse' ? 'Write up the bills of lading' : "Copy out the town's deeds and accounts", label: 'Write it up', summary: (bz) => bz.type === 'moneylender' ? "You keep the moneylender's book: every loan, pledge and payment." : bz.type === 'agency' ? "You keep the house agent's papers: the leases, deeds and rents." : "You keep the town's deeds, rolls and accounts." },
       'ballot clerk': { text: 'Keep the roll of voters', summary: 'You keep the roll of who may vote, and count the ballots.' },
       'warehouse master': { text: 'Tally the goods in and out', summary: 'You run the warehouse: what comes in, what goes out, and what it is owed.' },
       'warehouse worker': { text: 'Shift the goods where they are wanted', summary: 'You load, unload and shift goods.' },
@@ -17631,7 +17669,9 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       if (kind === 'make') { const rc = recipeFor(bz, e.role); if (rc) { const g = Object.keys(rc.out)[0], gp = goodPhrase(g); out.push({ id: id(), kind: 'make', good: g, need: n, have: 0, text: `${gp.verb} ${gp.what}` }); } else if (bz.type === 'site') out.push({ id: id(), kind: 'field', need: n, have: 0, text: 'Work on the building', howText: 'On the building site: press E at each marked spot to lay stone and timber.' }); else out.push({ id: id(), kind: 'sweep', need: n, have: 0, text: 'Tidy and sweep the place' }); }
       else if (kind === 'serve') out.push({ id: id(), kind: 'serve', need: n, have: 0, text: bz.type === 'tavern' ? 'Take orders and serve at the counter' : 'Serve at the counter' });
       else out.push({ id: id(), kind, need: n, have: 0, text: { patrol: 'Walk your beat', field: 'Work the ground', chop: 'Fell and cut timber', fish: 'Fish the water', collect: 'Collect what is owed', deliver: 'Carry goods where they are wanted', sweep: bz.type === 'stable' ? 'Muck out the stalls' : 'Clean and sweep', service: 'Lead the prayers', teach: 'Teach the children', tend: 'Tend the sick', write: 'Keep the books', court: 'Hold court' }[kind] || 'Work' });
-      { const W = ROLE_WORK[e.role], main = out.find((x) => !['fire', 'fetch', 'talkto', 'attend'].includes(x.kind)); if (W && main && !(kind === 'court' || (atCourt && ['steward', 'chamberlain', 'captain of the royal guard'].includes(e.role)))) { if (W.text) main.text = W.text; const hw = typeof W.how === 'function' ? W.how(bz) : W.how; if (hw) main.howText = hw; } }
+      // the land's work follows the year: plough and sow, weed, harvest, then hedges and muck in the dark months
+      if (kind === 'field' && !ROLE_WORK[e.role]) { const main = out.find((x) => x.kind === 'field'), SE = { spring: ['Plough and sow the strips', 'Plough and sow', 'The furrow is turned and the seed in.'], summer: ['Weed and hoe the strips', 'Hoe the weeds', 'The rows are hoed clean.'], autumn: ['Bring in the harvest', 'Reap and stook', 'Another row reaped and stooked.'], winter: ['Mend the hedges and spread the muck', 'Mend and muck', 'A gap in the hedge laid and the muck spread.'] }[s.weather?.season]; if (main && SE) { main.text = SE[0]; main.label = SE[1]; main.doneMsg = SE[2]; } }
+      { const W = ROLE_WORK[e.role], main = out.find((x) => !['fire', 'fetch', 'talkto', 'attend'].includes(x.kind)); if (W && main && !(kind === 'court' || (atCourt && ['steward', 'chamberlain', 'captain of the royal guard'].includes(e.role)))) { const tx = typeof W.text === 'function' ? W.text(bz) : W.text; if (tx) main.text = tx; const hw = typeof W.how === 'function' ? W.how(bz) : W.how; if (hw) main.howText = hw; if (W.label) main.label = W.label; if (W.done) main.doneMsg = W.done; } }
       if (e.role === 'guard captain') out.push({ id: id(), kind: 'patrol', need: 2, have: 0, text: "Inspect the watch's posts" });
       if (e.role === 'bounty hunter') out.push({ id: id(), kind: 'talkmany', need: 2, have: 0, text: 'Ask about the wanted' });
       if (e.role === 'gaoler') out.push({ id: id(), kind: 'fire', need: 1, have: 0, text: 'Keep the brazier lit' });
@@ -17757,18 +17797,20 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       }
       return null;
     };
-    const LABEL = { make: (t) => `Make ${D.GOODS[t.good]?.name.toLowerCase() || 'goods'} (${t.have + 1}/${t.need})`, fire: () => 'Feed the fire with firewood', serve: (t) => `Serve (${t.have + 1}/${t.need})`, sweep: (t) => `Sweep here (${t.have + 1}/${t.need})`, patrol: (t) => `Look about your beat (${t.have + 1}/${t.need})`,
+    const LABEL = { make: (t) => { const gp = t.good ? goodPhrase(t.good) : { verb: 'Make', what: 'goods' }; return `${gp.verb} ${gp.what} (${t.have + 1}/${t.need})`; }, fire: () => 'Feed the fire with firewood', serve: (t) => `Serve (${t.have + 1}/${t.need})`, sweep: (t) => `Sweep here (${t.have + 1}/${t.need})`, patrol: (t) => `Look about your beat (${t.have + 1}/${t.need})`,
       field: (t) => `Work the ground (${t.have + 1}/${t.need})`, chop: (t) => `Fell and cut (${t.have + 1}/${t.need})`, fish: (t) => `Cast a line (${t.have + 1}/${t.need})`, collect: (t) => `Collect the dues (${t.have + 1}/${t.need})`, deliver: (t) => `Deliver here (${t.have + 1}/${t.need})`,
       fetch: (t) => `Buy ${t.qty} ${D.GOODS[t.good]?.name.toLowerCase()} for ${emp().bizName}`, unload: () => `Put away the ${D.GOODS[PS.carry?.good]?.name.toLowerCase() || 'goods'}`, service: (t) => `Lead the prayers (${t.have + 1}/${t.need})`, teach: (t) => `Teach a lesson (${t.have + 1}/${t.need})`,
       write: (t) => `Write up the books (${t.have + 1}/${t.need})`, tend: (t) => `Tend the sick (${t.have + 1}/${t.need})`, court: (t) => `Hear petitions (${t.have + 1}/${t.need})`, rooms: () => 'Look over the rooms', attend: () => 'Take your seat at the head of the table', pots: (t) => `Gather the pots here (${t.have + 1}/${t.need})` };
-    O.jobLabel = (c) => (LABEL[c.t.kind] || (() => 'Work'))(c.t);
+    O.jobLabel = (c) => c.t.label && c.t.need ? `${c.t.label} (${c.t.have + 1}/${c.t.need})` : (LABEL[c.t.kind] || (() => 'Work'))(c.t);
+    const said = (t, dflt) => !t.doneMsg ? dflt : Array.isArray(t.doneMsg) ? t.doneMsg[(t.have + Math.floor(Math.random() * 7)) % t.doneMsg.length] : t.doneMsg;
 
     // doing it: the action plays, time passes, and the work is real
     let busy = 0, busyDone = null;
     game.hooks.update.push((dt) => {
       if (busy > 0) { busy -= dt; game.player.locked = true; if (busy <= 0) { game.player.locked = false; const f = busyDone; busyDone = null; game.player.anim = 'idle'; f && f(); } }
     });
-    function act(anim, secs, minutes, done) { const p = game.player; p.anim = anim; p.ft = 0; busy = secs; busyDone = () => { const s = cur(); for (let i = 0; i < minutes / 2; i++) { s.tick(2); PS.tick(2, false); } PS.energy = Math.max(0, PS.energy - minutes / 20); done(); }; }
+    let wxTold = -1;
+    function act(anim, secs, minutes, done) { { const s0 = cur(), w = s0 && s0.weather; if (!game.scene && w && (w.severe || w.kind === 'snow')) { minutes = Math.round(minutes * 1.4); secs *= 1.25; if (wxTold !== s0.day) { wxTold = s0.day; say(w.kind === 'snow' ? 'Hard going in the snow: everything takes longer out here.' : 'Hard going in this weather: everything takes longer, and you are soaked.', 'bad'); } } } const p = game.player; p.anim = anim; p.ft = 0; busy = secs; busyDone = () => { const s = cur(); for (let i = 0; i < minutes / 2; i++) { s.tick(2); PS.tick(2, false); } PS.energy = Math.max(0, PS.energy - minutes / 20); done(); }; }
     // the work teaches you the trade: each task done makes you a little better at it
     const TRADE = { bakery: 'baking', smithy: 'smithing', armourer: 'smithing', carpenter: 'woodcraft', sawmill: 'woodcraft', cooper: 'woodcraft', tavern: 'serving', inn: 'serving', hospital: 'physic', apothecary: 'physic', mill: 'milling', farmhouse: 'farming', woodcutter: 'woodcraft', builder: 'building', quarry: 'building', mine: 'mining', butcher: 'butchery', kitchen: 'serving', doctor: 'physic', cobbler: 'crafting', tanner: 'crafting', warehouse: 'trading', townhall: 'letters', guard: 'fighting', barracks: 'fighting', weaver: 'weaving', tailor: 'weaving', dyer: 'weaving', chandler: 'crafting', potter: 'crafting', jeweller: 'crafting', school: 'letters', scriptorium: 'letters', market: 'trading', store: 'trading', posthouse: 'riding', stable: 'riding', fishery: 'fishing', chapel: 'letters' };
     const BY_KIND = { serve: 'serving', patrol: 'fighting', field: 'farming', chop: 'woodcraft', fish: 'fishing', tend: 'physic', write: 'letters', teach: 'letters', collect: 'trading', deliver: 'trading' };
@@ -17795,7 +17837,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
             act(ANIM_OF(t, e), 2.2, 30, () => tick(`No ${D.GOODS[g]?.name.toLowerCase() || g} to be had, so you spend the half hour mending and setting things straight.`));
             return;
           }
-          act(ANIM_OF(t, e), 2.2, 30, () => { const made = []; for (const [g, q] of Object.entries(rc.inp)) bz.stock[g] -= q * 2; for (const [g, q] of Object.entries(rc.out)) { bz.stock[g] = (bz.stock[g] || 0) + q * 2; made.push(`${+(q * 2).toFixed(1)} ${D.GOODS[g]?.name.toLowerCase() || g}`); } tick(`Half an hour's work: ${made.join(', ')}.`); });
+          act(ANIM_OF(t, e), 2.2, 30, () => { const made = []; for (const [g, q] of Object.entries(rc.inp)) bz.stock[g] -= q * 2; for (const [g, q] of Object.entries(rc.out)) { bz.stock[g] = (bz.stock[g] || 0) + q * 2; made.push(`${+(q * 2).toFixed(1)} ${D.GOODS[g]?.name.toLowerCase() || g}`); } tick(t.doneMsg ? `${said(t, '')} ${made.join(', ')} by the half hour.` : `Half an hour's work: ${made.join(', ')}.`); });
           break;
         }
         case 'fire': {
@@ -17808,11 +17850,11 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
           act(ANIM_OF(t, e), 1.6, 15, () => { const sold = bz.def.sells[0]; if (customers && sold && (bz.stock[sold] || 0) >= 1) { const pr = s.price(bz, sold); bz.stock[sold] -= 1; bz.cash += pr; bz.salesToday += pr; const tip = (bz.type === 'tavern' || bz.type === 'inn') && Math.random() < 0.18 + (PS.rep.local || 0) * 0.2; if (tip) { PS.money += 1; PS.earned = (PS.earned || 0) + 1; } tick(`You serve a customer: ${D.GOODS[sold]?.name.toLowerCase()} for ₳${pr} into the till.${tip ? ' They press ₳1 into your hand for yourself.' : ''}`); } else tick(customers ? 'You see to a customer.' : 'Nobody waiting; you set the counter straight and wait for trade.'); });
           break;
         }
-        case 'sweep': act('sweep', 1.6, 15, () => { (t.swept = t.swept || []).push(c.it ? c.it.id : c.k); tick(t.have + 1 >= t.need ? (bz.type === 'stable' ? 'The stalls are mucked out and fresh straw down.' : 'Swept clean.') : null); }); break;
-        case 'patrol': act('look', 1.4, 15, () => tick(t.have + 1 >= t.need ? 'Your round is walked. All quiet.' : null)); break;
-        case 'field': act(ANIM_OF(t, e), 2.4, 40, () => { const rc = recipeFor(bz, e.role); if (rc && !Object.keys(rc.inp).length) for (const [g, q] of Object.entries(rc.out)) bz.stock[g] = (bz.stock[g] || 0) + q * 2; tick(null); }); break;
+        case 'sweep': act('sweep', 1.6, 15, () => { (t.swept = t.swept || []).push(c.it ? c.it.id : c.k); tick(t.doneMsg ? said(t, null) : t.have + 1 >= t.need ? (bz.type === 'stable' ? 'The stalls are mucked out and fresh straw down.' : 'Swept clean.') : null); }); break;
+        case 'patrol': act('look', 1.4, 15, () => { if (e.role === 'toll keeper') { const fee = 1 + (s.rng.chance(0.3) ? 1 : 0); if (bz.def.public) s.treasury.cash += fee; else bz.cash += fee; return tick(s.rng.chance(0.5) ? `A carter pays ₳${fee} to pass.` : `A rider pays ₳${fee} and the bar goes up.`); } tick(said(t, t.have + 1 >= t.need ? 'Your round is walked. All quiet.' : null)); }); break;
+        case 'field': act(ANIM_OF(t, e), 2.4, 40, () => { const rc = recipeFor(bz, e.role), sea = s.weather?.season, f = sea === 'autumn' ? 3 : sea === 'winter' ? 0.5 : 2; if (rc && !Object.keys(rc.inp).length) for (const [g, q] of Object.entries(rc.out)) bz.stock[g] = (bz.stock[g] || 0) + q * f; tick(said(t, null)); }); break;
         case 'chop': act('chop', 2.4, 40, () => { const rc = recipeFor(bz, e.role); if (rc) for (const [g, q] of Object.entries(rc.out)) if (!Object.keys(rc.inp).length) bz.stock[g] = (bz.stock[g] || 0) + q * 2; else bz.stock.logs = (bz.stock.logs || 0) + 1; tick(null); }); break;
-        case 'fish': act('fish', 3, 45, () => { const got = s.rng.chance(0.7); if (got) { const g = bz.type === 'saltworks' ? 'salt' : 'fish'; bz.stock[g] = (bz.stock[g] || 0) + (g === 'fish' ? 3 : 2); } tick(got ? (bz.type === 'saltworks' ? 'The pan boils down to salt.' : 'Three fish in the basket.') : 'Nothing biting.'); }); break;
+        case 'fish': if (e.role === 'ferryman') { act('fish', 2.4, 30, () => { const fee = 1 + (s.rng.chance(0.4) ? 1 : 0); bz.cash += fee; tick(s.rng.pick([`Across and back: ₳${fee} in the box.`, `A pedlar and his pack, ₳${fee}.`, `A woman with two geese, ₳${fee}.`])); }); break; } act('fish', 3, 45, () => { const got = s.rng.chance(0.7); if (got) { const g = bz.type === 'saltworks' ? 'salt' : 'fish'; bz.stock[g] = (bz.stock[g] || 0) + (g === 'fish' ? 3 : 2); } tick(got ? (bz.type === 'saltworks' ? 'The pan boils down to salt.' : 'Three fish in the basket.') : 'Nothing biting.'); }); break;
         case 'collect': {
           const b = s.building(t._spots[c.k][2]), hh = b && s.households[b.household - 1];
           act('count', 1.6, 10, () => { if (!hh) return tick(null); const due = Math.max(1, Math.round(hh.members.length * 1.5)); if (hh.money >= due && s.rng.chance(0.8)) { hh.money -= due; if (bz.def.public) s.treasury.cash += due; else bz.cash += due; tick(`The ${hh.surname} household pays ₳${due}.`); } else { const q = s.byId.get(hh.members[0]); if (q) { q.agent.shockedUntil = s.minute + 2; s.relate(q, { id: 0 }, -0.05); } tick(`The ${hh.surname} household can't pay. You note it down for the bailiff.`); } });
@@ -17831,7 +17873,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
         case 'rooms': act('look', 1.6, 10, () => tick('The rooms are in order.')); break;
         case 'attend': { if (s.hour < 13.9) { say('The council sits at two. Come back then.'); return; } if (O.openCouncilSession) O.openCouncilSession(() => tick()); break; }
         case 'pots': act('scrub', 1.4, 10, () => { (t.swept = t.swept || []).push(c.it ? c.it.id : c.k); tick('You gather the pots and wipe the table down.'); }); break;
-        case 'service': case 'teach': case 'write': case 'tend': case 'court': act(ANIM_OF(t, e), 2, 30, () => tick(null)); break;
+        case 'service': case 'teach': case 'write': case 'tend': case 'court': act(ANIM_OF(t, e), 2, 30, () => tick(said(t, null))); break;
         default: break;
       }
     };
@@ -17928,7 +17970,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       const folk = s.people.filter((q) => q.alive !== false && q.age >= 16 && !q.visitor && q.agent && !q.agent.hidden && q.id !== e.master);
       const someone = folk.length ? pick(folk) : null;
       let t = null, msg = '';
-      if (kind === 'make') { const rc = recipeFor(bz, e.role), g = rc && Object.keys(rc.out)[0]; if (!g) return; const who = pick(['the castle kitchens', 'a wedding party', 'the inn', 'a carter heading for the capital', 'the priest']); t = { kind: 'make', good: g, need: 2, have: 0, text: `Rush order for ${who}: make 2 more ${D.GOODS[g]?.name.toLowerCase()}`, bonus: 4 }; msg = `A rush order comes in for ${who}. Make two more ${D.GOODS[g]?.name.toLowerCase()} and there's ₳4 extra in it.`; }
+      if (kind === 'make') { const rc = recipeFor(bz, e.role), g = rc && Object.keys(rc.out)[0]; if (!g) return; const who = pick(['the castle kitchens', 'a wedding party', 'the inn', 'a carter heading for the capital', 'the priest']); t = { kind: 'make', good: g, need: 2, have: 0, text: `Rush order for ${who}: ${goodPhrase(g).verb.toLowerCase()} 2 more ${goodPhrase(g).what}`, bonus: 4 }; msg = `A rush order comes in for ${who}. Make two more ${D.GOODS[g]?.name.toLowerCase()} and there's ₳4 extra in it.`; }
       else if (kind === 'serve') { t = { kind: 'serve', need: 3, have: 0, text: 'A crowd has come in: serve them', bonus: 3 }; msg = 'A crowd comes in all at once. Serve three more and there\'s ₳3 extra.'; }
       else if (kind === 'patrol' && someone) { t = { kind: 'talkto', who: someone.id, need: 1, have: 0, text: `Trouble reported: question ${someone.first} ${someone.sur || ''}`.trim(), bonus: 3 }; msg = `Word of trouble: ${someone.first} saw something. Find them and ask (₳3 extra).`; }
       else if ((kind === 'deliver' || kind === 'collect') && someone) { t = { kind: 'talkto', who: someone.id, need: 1, have: 0, text: `Urgent: carry word to ${someone.first} ${someone.sur || ''}`.trim(), bonus: 3 }; msg = `An urgent message for ${someone.first}. Find them (₳3 extra).`; }
@@ -18062,12 +18104,12 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
         default: return 'Press E at the marked places.';
       }
     }
-    const SUMMARY = { make: (e, bz, s) => { if (bz.type === 'site') return 'You build: stone, timber and thatch, on the site.'; const rc = recipeFor(bz, e.role); const g = rc && Object.keys(rc.out)[0]; if (!g) return `You keep ${bz.name} in order.`; const gp = goodPhrase(g); return `You ${gp.verb.toLowerCase()} ${gp.what} for ${bz.name}.`; }, patrol: () => 'You keep the peace: walk your beat and keep an eye on folk.', field: () => 'You work the land.', chop: () => 'You fell and cut timber.', fish: () => 'You fish for the market.', collect: () => 'You collect what is owed.', deliver: () => 'You carry goods and messages.', sweep: (e, bz) => `You keep ${bz.name} clean and in order.`, serve: (e, bz) => `You serve the customers at ${bz.name}.`, service: () => 'You lead the prayers and keep the chapel.', teach: () => 'You teach the children their letters.', tend: () => 'You care for the sick.', write: () => 'You keep the books and the records.', court: () => 'You serve at court.' };
+    const SUMMARY = { make: (e, bz, s) => { if (bz.type === 'site') return 'You build: stone, timber and thatch, on the site.'; const rc = recipeFor(bz, e.role); const g = rc && Object.keys(rc.out)[0]; if (!g) return `You keep ${bz.name} in order.`; const gp = goodPhrase(g); return `You ${gp.verb.toLowerCase()} ${gp.what} for ${theName(bz)}.`; }, patrol: () => 'You keep the peace: walk your beat and keep an eye on folk.', field: () => 'You work the strips: plough and sow in spring, hoe in summer, reap in autumn, and mend hedges in winter.', chop: () => 'You fell and cut timber.', fish: () => 'You fish for the market.', collect: () => 'You collect what is owed.', deliver: () => 'You carry goods and messages.', sweep: (e, bz) => `You keep ${bz.name} clean and in order.`, serve: (e, bz) => `You serve the customers at ${bz.name}.`, service: () => 'You lead the prayers and keep the chapel.', teach: () => 'You teach the children their letters.', tend: () => 'You care for the sick.', write: () => 'You keep the books and the records.', court: () => 'You serve at court.' };
     const ROLE_SUMMARY = { monarch: 'You rule the realm: hear petitions from the throne, issue decrees, and preside at the council on Thursdays.', consort: 'You share the throne: hear petitions and see to the household.', steward: "You run the castle: its accounts, its kitchens and its stores.", chamberlain: 'You keep the royal household: its floors, its rooms and its servants.', jester: 'You amuse the court.', 'lady-in-waiting': 'You attend the royal family.', executioner: 'You carry out the sentences of death, at the block in the square.', 'captain of the royal guard': 'You command the royal guard and see every post is kept.' };
     O.jobHow = (e) => {
       const s = O.Travel?.visited.get(e.place)?.sim || cur(), bz = s.world.placeId === e.place ? s.biz.get(e.biz) : null;
       if (!bz) return { mode: modeOf(e.role), summary: '', tasks: [] };
-      const summary = (e.role === 'steward' && !['keep', 'palace'].includes(bz.type) && !bz.b?.royal ? 'You run the household: its accounts, its stores and its servants.' : null) || ROLE_SUMMARY[e.role] || ROLE_WORK[e.role]?.summary || (SUMMARY[ROLE_KIND(e.role)] || (() => ''))(e, bz, s);
+      const summary = (e.role === 'steward' && !['keep', 'palace'].includes(bz.type) && !bz.b?.royal ? 'You run the household: its accounts, its stores and its servants.' : null) || ROLE_SUMMARY[e.role] || (typeof ROLE_WORK[e.role]?.summary === 'function' ? ROLE_WORK[e.role].summary(bz) : ROLE_WORK[e.role]?.summary) || (SUMMARY[ROLE_KIND(e.role)] || (() => ''))(e, bz, s);
       return { mode: modeOf(e.role), summary, tasks: (e.tasks || []).map((t) => ({ text: t.text, have: Math.min(t.have, t.need), need: t.need, done: t.have >= t.need, how: taskHow(t, e, bz, s) })) };
     };
     // the way to work in the hour before a shift (the arrows themselves are drawn by the waypoints)

@@ -40,6 +40,12 @@
         const risk = (p.age - 58) * 0.00035 * (p.health.illness ? 3 : 1);
         if (this.rng.chance(risk)) this.die(p, 'died peacefully in old age');
       }
+      // the small ones: many a cradle is emptied by a fever or the flux before the child is five
+      for (const p of [...this.people]) {
+        if (p.visitor || p.alive === false || p.age >= 5) continue;
+        const hh = this.household(p), poor = hh && hh.money < 15, risk = (p.age < 1 ? 0.0011 : 0.0004) * (poor ? 1.6 : 1) * (this.settlement?.outbreak ? 2 : 1);
+        if (this.rng.chance(risk)) this.die(p, p.age < 1 ? this.rng.pick(['died of a fever in the cradle', 'died in the cradle, a few weeks old', 'died of a cough in the cradle']) : this.rng.pick(['died of a fever while still small', 'died of the flux while still small', 'died of the spotted fever as a small child']));
+      }
       // the hard winter: the very old and the very young in a cold, poor house
       if (this.season === 'winter') for (const p of [...this.people]) {
         if (p.visitor || p.alive === false || (p.age >= 3 && p.age < 70)) continue;

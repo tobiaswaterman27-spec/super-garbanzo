@@ -67,7 +67,7 @@
           const before = this.lordName(id), h = L.heir && L.heir.age >= 16 ? L.heir : person(r, 25, 45);
           R.lords[id] = Object.assign(h, { title: L.title, heir: person(r, 0, 12) });
           this.place(id).leader = this.lordName(id);
-          this.addNews(`${before} has died. ${h === L.heir ? `${pron(L) === 'his' ? 'His' : 'Her'} heir ${h.name}` : `The council has named ${h.name}`} now holds ${this.place(id).name}.`, 'rulers', id);
+          this.addNews(`${before} has died. ${h === L.heir ? `${pron(L) === 'his' ? 'His' : 'Her'} heir ${h.name} now holds ${this.place(id).name}.` : `The council has named ${h.name} to hold ${this.place(id).name}.`}`, 'rulers', id);
         }
       }
       // an ambitious pretender grows restless under a weak crown
@@ -107,8 +107,8 @@
       const R = this.rulers, P = R.pretender; if (!P || (this.war && this.war.phase === 'war')) return;
       this.warInit();
       const seat = this.place(P.seat);
-      this.addNews(`REBELLION. ${P.name}, ${P.title}, claims the crown and has raised his banner at ${seat.name}. Lords must choose a side.`, 'rulers', P.seat);
-      this.declareWar({ civil: true, enemy: `${P.name} of Frostmere and his rebels`, home: P.seat, men: 200, hostName: `the rebel host of ${P.name}`, crownName: R.crown ? `the host of ${crownTitle(R.crown)}` : "the King's host", announce: `CIVIL WAR. The crown calls every loyal town to arms against ${P.name}, ${P.title}. The King's host musters at Highmere.` });
+      this.addNews(`REBELLION. ${P.name}, ${P.title}, claims the crown and has raised ${pron(P)} banner at ${seat.name}. Lords must choose a side.`, 'rulers', P.seat);
+      this.declareWar({ civil: true, enemy: `${P.name} of ${seat.name} and ${pron(P)} rebels`, home: P.seat, men: 200, hostName: `the rebel host of ${P.name}`, crownName: R.crown ? `the host of ${crownTitle(R.crown)}` : "the King's host", announce: `CIVIL WAR. The crown calls every loyal town to arms against ${P.name}, ${P.title}. The King's host musters at Highmere.` });
     };
     K.onCivilEnd = function (winner) {
       const R = this.rulers, P = R.pretender, r = this.rng;
@@ -121,8 +121,8 @@
         this.addNews(`The rebels have won. ${P.name} is crowned as ${crownTitle(R.crown)}; ${old} has fled across the sea. Men who fought for the old crown keep their heads down.`, 'rulers');
         this.sim.onCoronation && this.sim.onCoronation(crownTitle(R.crown));
       } else {
-        this.addNews(`The rebellion is broken. ${P.name} has been taken and sent into exile beyond the sea; his lands at Frostmere go to the crown.`, 'rulers');
-        R.pretender = { name: r.pick(MN), sex: 'm', age: r.int(25, 45), title: `the new Duke of Frostmere`, seat: 'frostmere', ambition: 0.2 + r.next() * 0.3 };
+        this.addNews(`The rebellion is broken. ${P.name} has been taken and sent into exile beyond the sea; ${pron(P)} lands at ${this.place(P.seat)?.name || 'Frostmere'} go to the crown.`, 'rulers');
+        R.pretender = { name: r.pick(MN), sex: 'm', age: r.int(25, 45), title: P.seat === 'frostmere' ? 'the new Duke of Frostmere' : `the new Lord of ${this.place(P.seat)?.name || 'Frostmere'}`, seat: P.seat || 'frostmere', ambition: 0.2 + r.next() * 0.3 };
       }
     };
   }

@@ -54,7 +54,7 @@
       const FOE = W.enemy, fh = W.foeHome;
       W.phase = 'war'; W.since = sim.day; W.wars++; W.score = 0; W.battles = []; W.taxBefore = this.taxRate;
       this.taxRate = Math.min(0.2, this.taxRate + 0.04);
-      const levy = this.places.filter((p) => !p.detailed).reduce((s, p) => { const n = Math.round(p.pop * 0.02); p.pop -= n; return s + n; }, 0);
+      W.levyFrom = {}; const levy = this.places.filter((p) => !p.detailed).reduce((s, p) => { const n = Math.round(p.pop * 0.02); p.pop -= n; W.levyFrom[p.id] = n; return s + n; }, 0); W.raised = 310 + levy;
       W.armies = [
         { id: 1, side: 'crown', name: opts.crownName || "the King's host", men: 220 + levy, at: 'highmere', path: ['highmere', 'frostmere', fh], morale: 0.7 },
         { id: 2, side: 'enemy', name: opts.hostName || `the host of ${FOE}`, men: (opts.men || 290) + this.rng.int(0, 180), at: fh, path: [fh, 'frostmere', 'highmere'], morale: 0.7, wait: 2 },
@@ -77,7 +77,7 @@
       if ((sim.day - W.since) % 6 === 5) {
         const foe = W.armies.find((a) => a.side === 'enemy'), host = W.armies.find((a) => a.side === 'crown');
         if (foe && W.score > -3) { foe.men += 50 + r.int(0, 60); foe.morale = Math.min(1, foe.morale + 0.05); }
-        if (host) { const add = this.places.filter((p) => !p.detailed).reduce((s, p) => { const n = Math.round(p.pop * 0.008); p.pop -= n; return s + n; }, 0); host.men += add; this.addNews(`A second levy of ${add} men has gone north to join the King's host.`, 'war'); }
+        if (host) { W.levyFrom = W.levyFrom || {}; const add = this.places.filter((p) => !p.detailed).reduce((s, p) => { const n = Math.round(p.pop * 0.008); p.pop -= n; W.levyFrom[p.id] = (W.levyFrom[p.id] || 0) + n; return s + n; }, 0); host.men += add; W.raised = (W.raised || 310) + add; this.addNews(`A second levy of ${add} men has gone north to join the King's host.`, 'war'); }
       }
       // armies march toward each other by road; a host never marches away from a foe in its own camp
       const alive = () => W.armies.filter((x) => x.men > 0);
@@ -129,6 +129,10 @@
 
     K.makePeace = function (winner) {
       const W = this.war, sim = this.sim;
+      // the men who lived through it walk home to the towns that sent them
+      { const alive = W.armies.filter((a) => a.side === 'crown').reduce((t, a) => t + a.men, 0), frac = O.clamp(alive / Math.max(1, W.raised || 1), 0, 1);
+        let home = 0; for (const [id, n] of Object.entries(W.levyFrom || {})) { const pl = this.place(id), k = Math.round(n * frac); if (pl && !pl.detailed && k) { pl.pop += k; home += k; } } W.levyFrom = {}; W.raised = 0;
+        if (home > 20) this.addNews(`${home} levied men are walking home from the war to their own towns and villages.`, 'war'); }
       W.phase = 'truce'; W.since = sim.day; W.winner = winner; W.armies = [];
       this.taxRate = winner === 'enemy' ? Math.min(0.2, (W.taxBefore || 0.08) + 0.03) : (W.taxBefore || 0.08);
       if (W.civil) { W.enemy = ENEMY; W.foeHome = 'ravenscar'; W.civil = false; this.taxRate = W.taxBefore || 0.08; this.onCivilEnd && this.onCivilEnd(winner); sim.onWar && sim.onWar('peace', winner); return; }

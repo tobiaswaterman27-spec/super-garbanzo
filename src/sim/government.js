@@ -99,6 +99,14 @@
       const income = t.income - t._in0, spent = t.spent - t._out0;
       let levy = 0;
       if (K && !this.foreign) { levy = Math.max(0, Math.round(income * CROWN_SHARE)); levy = Math.min(levy, Math.floor(Math.max(0, t.cash) * 0.5)); t.cash -= levy; K.treasury += levy; }
+      // a chest that only fills helps nobody: past a fair reserve the council puts the coin to work, some in
+      // public works (paid as wages to the poorest households) and the most sent up to the crown as an aid
+      { const pop = this.people.filter((p) => !p.visitor).length, reserve = Math.max(600, pop * 25), excess = t.cash - reserve;
+        if (excess > 100) { const use = Math.round(excess * 0.5), aid = K && !this.foreign ? Math.round(use * 0.7) : 0, works = use - aid;
+          const poor = this.households.filter((h) => !h.gone && h.members.length).sort((a, b) => a.money - b.money).slice(0, 8), each = poor.length ? Math.floor(works / poor.length) : 0;
+          t.cash -= aid + each * poor.length; t.spent += aid + each * poor.length; if (aid) K.treasury += aid; for (const h of poor) h.money += each;
+          this.stats.works = (this.stats.works || 0) + each * poor.length;
+          this.log(`The council spent ₳${each * poor.length} on mending roads, drains and walls, paid as wages to the poorest households${aid ? `, and sent ₳${aid} to the crown as an aid` : ''}.`, 'politics'); } }
       const costs = this.publicCosts();
       t.weeks.push({ day: this.day, income: Math.round(income), spent: Math.round(spent), levy, grant: t._grant || 0, hearth: t.hearthTaken || 0, rate: t.taxRate, hearthRate: t.hearth, wages: costs.wages, cash: Math.round(t.cash) });
       if (t.weeks.length > 8) t.weeks.shift();

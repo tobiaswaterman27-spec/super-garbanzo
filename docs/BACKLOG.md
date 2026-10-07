@@ -389,3 +389,14 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Your own chest stays open as you take things out or put them in
 - [x] Lying down in the evening says you're not tired yet, not that it's broad day
 - [x] Indoors, dusk and dawn come on gradually, as outside
+
+## Batch Y (asked after step 91) - every job again, and a hundred years
+
+- [x] Job cards dumped for every post in the capital, cities, towns, villages, castles, mines, hamlets and the port; every generic line replaced
+- [x] Own work for: ferryman (fares into the box), toll keeper (tolls into the chest), knight, squire, miner, mine foreman, quarryman, quarry master, laundress, house agent, moneylender and their clerk, labourers (by yard), bailiff, tax collector, forester, woodcutter, fisher, builder
+- [x] The right verb for each trade: tan hides, dye cloth, cut stone, throw pots, fire bricks, fletch arrows, stitch saddles, twist rope, blow glass, churn butter and more; the prompt over the bench uses it too
+- [x] Field work follows the year (plough and sow, hoe, reap, hedge and muck), and the harvest gives most
+- [x] Out-of-doors work in storms and snow takes longer, and you're told why
+- [x] Each post can say what each press did ("You drill at arms until the sweat runs")
+- [x] The hundred-year run: a harness that steps the realm a century and records births, deaths by cause, weddings, crime, rulers, wars, plague, harvests, prices and money
+- [x] Fixed from it: levied men never came home (the realm halved in 20 years); towns had no birth rate; the town chest grew without end (now spends past a reserve on works for the poorest and an aid to the crown); the crown has running costs; pestilence and failed harvests were far too common; no small children ever died; rebels from Eastmarch had "lands at Frostmere"; "The council has named X now holds Y"; migration news every week

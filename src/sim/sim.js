@@ -803,7 +803,7 @@
       }
       const toll = Math.round(deals.length * 4 + (this.stats.exportsToday = 0));
       if (deals.length) { this.treasury.cash += toll; this.treasury.income += toll; }
-      if (deals.length) this.log(`${tr.name} paid ₳${toll} in bridge tolls and bought ${deals.join(', ')} to sell in other towns.`, 'trade');
+      if (deals.length) this.log(`${tr.name} paid ₳${toll} in bridge tolls and bought ${deals.length > 5 ? `${deals.slice(0, 4).join(', ')} and ${deals.length - 4} more lots` : deals.join(', ')} to sell in other towns.`, 'trade');
     }
     marketDay() {
       if (this.trader || this.weekday !== 4) return;

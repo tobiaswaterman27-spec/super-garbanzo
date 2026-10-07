@@ -92,7 +92,7 @@
       const F = this.floodInit(); if (!F) return;
       const W = this.weather, w = this.world;
       const before = Math.floor(F.level);
-      if ((W.kind === 'heavy' || W.kind === 'storm') && W.wet > 0.7) F.level = Math.min(5, F.level + (W.kind === 'storm' ? 0.45 : 0.3));
+      if ((W.kind === 'heavy' || W.kind === 'storm') && W.wet > 0.7) F.level = Math.min(5, F.level + (W.kind === 'storm' ? 0.2 : 0.1));
       else if (W.kind === 'rain' && W.wet > 0.9 && F.level > 0.5) F.level = Math.min(5, F.level + 0.05);
       else F.level = Math.max(0, F.level - 0.12);
       F.peak = Math.max(F.peak, F.level);

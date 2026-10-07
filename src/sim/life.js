@@ -43,7 +43,7 @@
       // the small ones: many a cradle is emptied by a fever or the flux before the child is five
       for (const p of [...this.people]) {
         if (p.visitor || p.alive === false || p.age >= 5) continue;
-        const hh = this.household(p), poor = hh && hh.money < 15, risk = (p.age < 1 ? 0.0011 : 0.0004) * (poor ? 1.6 : 1) * (this.settlement?.outbreak ? 2 : 1);
+        const hh = this.household(p), poor = hh && hh.money < 15, risk = (p.age < 1 ? 0.0018 : 0.0006) * (poor ? 1.6 : 1) * (this.settlement?.outbreak ? 2 : 1);
         if (this.rng.chance(risk)) this.die(p, p.age < 1 ? this.rng.pick(['died of a fever in the cradle', 'died in the cradle, a few weeks old', 'died of a cough in the cradle']) : this.rng.pick(['died of a fever while still small', 'died of the flux while still small', 'died of the spotted fever as a small child']));
       }
       // the hard winter: the very old and the very young in a cold, poor house
@@ -60,7 +60,7 @@
         const wife = ms.find((p) => p.sex === 'f' && p.spouse && p.age >= 18 && p.age <= 42);
         if (!wife || ms.length >= 7 || hh.money < 15) continue;
         if (wife.pregnant) { if (this.day >= wife.pregnant) this.birth(wife, hh); continue; }
-        if (this.rng.chance(0.012 - (ms.length > 4 ? 0.006 : 0))) { wife.pregnant = this.day + 20; this.remember(wife, 'I am with child.', 'life', 1.5); }
+        if (this.rng.chance(0.0095 - (ms.length > 4 ? 0.005 : 0))) { wife.pregnant = this.day + 20; this.remember(wife, 'I am with child.', 'life', 1.5); }
       }
       // fill permanent vacancies
       this.fillVacancies();

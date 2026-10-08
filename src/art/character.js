@@ -476,17 +476,22 @@
       for (let k = 0; k < 16; k++) { const th = (k / 16) * Math.PI * 2, lx = Math.sin(th), lz = Math.cos(th); if (lx * V.Rz - lz * V.Fz < -0.15 && !V.back) continue; const q = headPt(S, H, lx, -0.45, lz); B.blob(q[0], q[1], 0.75, 0.7, gold, { power: 2 }); }
       if (!V.back) { const q = headPt(S, H, 0, -0.5, 1); B.blob(q[0], q[1], 0.8, 0.8, gem, { power: 2 }); }
     }
-    // the crown: a gold band set with stones, with five points rising from it; it sits on the head in every pose
+    // the crown: a crimson velvet cap inside a gold band that fits the head, five tapering points and stones in front;
+    // it sits on the head in every pose (over a hood, if there is one)
     if (J.includes('crown')) {
-      const H = headFrame(S), blue = P.mat('#3a60c8'), dark = P.mat('#8a5a10', 'metal'), hood = a.outfit.hat === 'hood' ? 1.25 : 1.05;
-      const vis = (lx, lz) => V.back || lx * V.Rz - lz * V.Fz >= -0.2;
-      // the band, all the way round the crown of the head (over a hood, if there is one); then five points
-      for (let k = 0; k < 20; k++) {
-        const th = (k / 20) * Math.PI * 2, lx = Math.sin(th), lz = Math.cos(th); if (!vis(lx, lz)) continue;
-        const q = headPt(S, H, lx * hood, -0.78, lz * hood); B.blob(q[0], q[1], 1.1, 1.2, gold, { power: 2 }); B.blob(q[0], q[1] + 1.2, 0.9, 0.5, dark, { power: 2 });
-        if (k % 4 === 0) { B.blob(q[0], q[1] - 2, 0.7, 1.6, gold, { power: 2 }); B.blob(q[0], q[1] - 3.6, 0.6, 0.6, k === 0 ? gem : gold, { power: 2 }); }
+      const H = headFrame(S), blue = P.mat('#3a60c8'), hi = P.mat('#fff0a0', 'metal'), velvet = P.mat('#9a1f2a'), hood = a.outfit.hat === 'hood' ? 1.12 : 0.92, Y = -0.74;
+      const vis = (lx, lz) => V.back || lx * V.Rz - lz * V.Fz >= -0.15;
+      { const c = headPt(S, H, 0, Y - 0.32, 0); B.blob(c[0], c[1], 2.6, 1.3, velvet, { power: 2 }); }
+      for (let k = 0; k < 28; k++) {
+        const th = (k / 28) * Math.PI * 2, lx = Math.sin(th), lz = Math.cos(th); if (!vis(lx, lz)) continue;
+        const q = headPt(S, H, lx * hood, Y, lz * hood); B.blob(q[0], q[1], 0.85, 0.95, gold, { power: 2 });
       }
-      for (const [lx, lz, mat] of [[0, 1, gem], [-0.6, 0.8, blue], [0.6, 0.8, blue], [0, -1, gem]]) if (vis(lx, lz)) { const q = headPt(S, H, lx * hood, -0.78, lz * hood); B.blob(q[0], q[1], 0.7, 0.7, mat, { power: 2 }); }
+      for (let k = 0; k < 5; k++) {
+        const th = (k / 5) * Math.PI * 2, lx = Math.sin(th), lz = Math.cos(th); if (!vis(lx, lz)) continue;
+        const q = headPt(S, H, lx * hood, Y, lz * hood); B.blob(q[0], q[1] - 1.3, 0.75, 1.1, gold, { power: 2 }); B.blob(q[0], q[1] - 2.5, 0.5, 0.5, k === 0 ? gem : gold, { power: 2 });
+      }
+      for (const [lx, lz, mat] of [[0, 1, gem], [-0.55, 0.83, blue], [0.55, 0.83, blue], [0, -1, gem]]) if (V.back ? lz < 0 : vis(lx, lz)) { const q = headPt(S, H, lx * hood, Y, lz * hood); B.blob(q[0], q[1], 0.55, 0.55, mat, { power: 2 }); }
+      if (!V.back) { const q = headPt(S, H, -0.3 * hood, Y - 0.05, 0.95 * hood); B.blob(q[0], q[1] - 0.3, 0.4, 0.3, hi, { power: 2 }); }
     }
     // a May garland: green leaves and flowers round the head
     if (J.includes('garland') && a.outfit.hat !== 'hood' && a.outfit.hat !== 'kettle') {

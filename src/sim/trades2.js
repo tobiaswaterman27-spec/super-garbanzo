@@ -239,6 +239,7 @@
     'town crier': 'wave', herald: 'read', shopkeeper: 'count', 'horse trader': 'talk', stablehand: 'pitch', groom: 'scrub', 'master of horse': 'talk', gamekeeper: 'look', falconer: 'look',
     steward: 'write', chamberlain: 'write', butler: 'pour', maid: 'scrub', page: 'carry', 'lady-in-waiting': 'talk', 'master cook': 'cook', scullion: 'scrub', gardener: 'dig', jester: 'celebrate',
     executioner: 'idle', spy: 'look', squire: 'scrub', knight: 'idle', thatcher: 'work', plasterer: 'scrub', roofer: 'hammer', 'master builder': 'write', builder: 'hammer', carter: 'carry', ferryman: 'pitch',
+    monarch: 'talk', consort: 'talk', heir: 'read', prince: 'read', princess: 'read', lord: 'talk', lady: 'talk', regent: 'talk',
     'toll keeper': 'count', messenger: 'carry', 'mounted courier': 'carry', 'warehouse master': 'write', 'warehouse worker': 'carry', docker: 'carry', 'night watchman': 'look', 'pilgrim guide': 'talk', 'bounty hunter': 'look',
   };
   D.actionFor = (role) => D.ROLE_ACTION[role] || 'work';

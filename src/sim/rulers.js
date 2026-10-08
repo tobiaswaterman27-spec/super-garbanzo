@@ -13,6 +13,7 @@
 
   function person(r, minAge, maxAge, sex) { sex = sex || (r.chance(0.6) ? 'm' : 'f'); return { name: r.pick(sex === 'm' ? MN : FN), sex, age: r.int(minAge, maxAge), ailing: false }; }
   const crownTitle = (c) => `${c.sex === 'm' ? 'King' : 'Queen'} ${c.name}${c.regnal ? ' ' + c.regnal : ''}`;
+  const ordinal = (n) => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
   const pron = (c) => (c.sex === 'm' ? 'his' : 'her');
 
   function install(Kingdom) {
@@ -76,7 +77,7 @@
 
     K.crownDies = function (how) {
       const R = this.rulers, c = R.crown;
-      this.addNews(`The bells toll: ${crownTitle(c)} has ${how}, aged ${c.age}, in the ${Math.max(1, Math.round((this.sim.day - c.since) / yearDays()))}th year of ${pron(c)} reign. The realm mourns.`, 'rulers');
+      this.addNews(`The bells toll: ${crownTitle(c)} has ${how}, aged ${c.age}, in the ${ordinal(Math.max(1, Math.round((this.sim.day - c.since) / yearDays())))} year of ${pron(c)} reign. The realm mourns.`, 'rulers');
       const reign = R.reigns[R.reigns.length - 1]; if (reign) reign.to = this.sim.day;
       R.mourning = { until: this.sim.day + 3, dead: crownTitle(c) };
       R.crown = null;

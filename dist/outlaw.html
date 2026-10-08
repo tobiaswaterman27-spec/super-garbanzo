@@ -1164,17 +1164,22 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       for (let k = 0; k < 16; k++) { const th = (k / 16) * Math.PI * 2, lx = Math.sin(th), lz = Math.cos(th); if (lx * V.Rz - lz * V.Fz < -0.15 && !V.back) continue; const q = headPt(S, H, lx, -0.45, lz); B.blob(q[0], q[1], 0.75, 0.7, gold, { power: 2 }); }
       if (!V.back) { const q = headPt(S, H, 0, -0.5, 1); B.blob(q[0], q[1], 0.8, 0.8, gem, { power: 2 }); }
     }
-    // the crown: a gold band set with stones, with five points rising from it; it sits on the head in every pose
+    // the crown: a crimson velvet cap inside a gold band that fits the head, five tapering points and stones in front;
+    // it sits on the head in every pose (over a hood, if there is one)
     if (J.includes('crown')) {
-      const H = headFrame(S), blue = P.mat('#3a60c8'), dark = P.mat('#8a5a10', 'metal'), hood = a.outfit.hat === 'hood' ? 1.25 : 1.05;
-      const vis = (lx, lz) => V.back || lx * V.Rz - lz * V.Fz >= -0.2;
-      // the band, all the way round the crown of the head (over a hood, if there is one); then five points
-      for (let k = 0; k < 20; k++) {
-        const th = (k / 20) * Math.PI * 2, lx = Math.sin(th), lz = Math.cos(th); if (!vis(lx, lz)) continue;
-        const q = headPt(S, H, lx * hood, -0.78, lz * hood); B.blob(q[0], q[1], 1.1, 1.2, gold, { power: 2 }); B.blob(q[0], q[1] + 1.2, 0.9, 0.5, dark, { power: 2 });
-        if (k % 4 === 0) { B.blob(q[0], q[1] - 2, 0.7, 1.6, gold, { power: 2 }); B.blob(q[0], q[1] - 3.6, 0.6, 0.6, k === 0 ? gem : gold, { power: 2 }); }
+      const H = headFrame(S), blue = P.mat('#3a60c8'), hi = P.mat('#fff0a0', 'metal'), velvet = P.mat('#9a1f2a'), hood = a.outfit.hat === 'hood' ? 1.12 : 0.92, Y = -0.74;
+      const vis = (lx, lz) => V.back || lx * V.Rz - lz * V.Fz >= -0.15;
+      { const c = headPt(S, H, 0, Y - 0.32, 0); B.blob(c[0], c[1], 2.6, 1.3, velvet, { power: 2 }); }
+      for (let k = 0; k < 28; k++) {
+        const th = (k / 28) * Math.PI * 2, lx = Math.sin(th), lz = Math.cos(th); if (!vis(lx, lz)) continue;
+        const q = headPt(S, H, lx * hood, Y, lz * hood); B.blob(q[0], q[1], 0.85, 0.95, gold, { power: 2 });
       }
-      for (const [lx, lz, mat] of [[0, 1, gem], [-0.6, 0.8, blue], [0.6, 0.8, blue], [0, -1, gem]]) if (vis(lx, lz)) { const q = headPt(S, H, lx * hood, -0.78, lz * hood); B.blob(q[0], q[1], 0.7, 0.7, mat, { power: 2 }); }
+      for (let k = 0; k < 5; k++) {
+        const th = (k / 5) * Math.PI * 2, lx = Math.sin(th), lz = Math.cos(th); if (!vis(lx, lz)) continue;
+        const q = headPt(S, H, lx * hood, Y, lz * hood); B.blob(q[0], q[1] - 1.3, 0.75, 1.1, gold, { power: 2 }); B.blob(q[0], q[1] - 2.5, 0.5, 0.5, k === 0 ? gem : gold, { power: 2 });
+      }
+      for (const [lx, lz, mat] of [[0, 1, gem], [-0.55, 0.83, blue], [0.55, 0.83, blue], [0, -1, gem]]) if (V.back ? lz < 0 : vis(lx, lz)) { const q = headPt(S, H, lx * hood, Y, lz * hood); B.blob(q[0], q[1], 0.55, 0.55, mat, { power: 2 }); }
+      if (!V.back) { const q = headPt(S, H, -0.3 * hood, Y - 0.05, 0.95 * hood); B.blob(q[0], q[1] - 0.3, 0.4, 0.3, hi, { power: 2 }); }
     }
     // a May garland: green leaves and flowers round the head
     if (J.includes('garland') && a.outfit.hat !== 'hood' && a.outfit.hat !== 'kettle') {
@@ -5085,6 +5090,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     'town crier': 'wave', herald: 'read', shopkeeper: 'count', 'horse trader': 'talk', stablehand: 'pitch', groom: 'scrub', 'master of horse': 'talk', gamekeeper: 'look', falconer: 'look',
     steward: 'write', chamberlain: 'write', butler: 'pour', maid: 'scrub', page: 'carry', 'lady-in-waiting': 'talk', 'master cook': 'cook', scullion: 'scrub', gardener: 'dig', jester: 'celebrate',
     executioner: 'idle', spy: 'look', squire: 'scrub', knight: 'idle', thatcher: 'work', plasterer: 'scrub', roofer: 'hammer', 'master builder': 'write', builder: 'hammer', carter: 'carry', ferryman: 'pitch',
+    monarch: 'talk', consort: 'talk', heir: 'read', prince: 'read', princess: 'read', lord: 'talk', lady: 'talk', regent: 'talk',
     'toll keeper': 'count', messenger: 'carry', 'mounted courier': 'carry', 'warehouse master': 'write', 'warehouse worker': 'carry', docker: 'carry', 'night watchman': 'look', 'pilgrim guide': 'talk', 'bounty hunter': 'look',
   };
   D.actionFor = (role) => D.ROLE_ACTION[role] || 'work';
@@ -7457,6 +7463,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
 
   function person(r, minAge, maxAge, sex) { sex = sex || (r.chance(0.6) ? 'm' : 'f'); return { name: r.pick(sex === 'm' ? MN : FN), sex, age: r.int(minAge, maxAge), ailing: false }; }
   const crownTitle = (c) => `${c.sex === 'm' ? 'King' : 'Queen'} ${c.name}${c.regnal ? ' ' + c.regnal : ''}`;
+  const ordinal = (n) => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
   const pron = (c) => (c.sex === 'm' ? 'his' : 'her');
 
   function install(Kingdom) {
@@ -7520,7 +7527,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
 
     K.crownDies = function (how) {
       const R = this.rulers, c = R.crown;
-      this.addNews(`The bells toll: ${crownTitle(c)} has ${how}, aged ${c.age}, in the ${Math.max(1, Math.round((this.sim.day - c.since) / yearDays()))}th year of ${pron(c)} reign. The realm mourns.`, 'rulers');
+      this.addNews(`The bells toll: ${crownTitle(c)} has ${how}, aged ${c.age}, in the ${ordinal(Math.max(1, Math.round((this.sim.day - c.since) / yearDays())))} year of ${pron(c)} reign. The realm mourns.`, 'rulers');
       const reign = R.reigns[R.reigns.length - 1]; if (reign) reign.to = this.sim.day;
       R.mourning = { until: this.sim.day + 3, dead: crownTitle(c) };
       R.crown = null;
@@ -11917,6 +11924,11 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       this.sleeping = new Map(); // bed item -> [{ q, k }]
       for (const [id, s] of bedOf) { const q = sim.byId.get(id); const arr = this.sleeping.get(s.it) || []; arr.push({ q, k: s.share ? (s.it.slots === 2 ? 1 : 0.5) : s.k }); this.sleeping.set(s.it, arr); }
       const pewCount = new Map(), pewTaken = new Set();
+      // a chair once taken stays that person's while they're here: nobody shuffles along when someone leaves
+      const keepSeat = this.seatOf || (this.seatOf = new Map());
+      const seatFor = (q) => { const had = keepSeat.get(q.id); if (had && seats.includes(had) && !used.has(had)) return had;
+        const held = new Set(); for (const [id, it] of keepSeat) if (id !== q.id && this.actors.has(id) && !this.actors.get(id).leaving) held.add(it);
+        const it = seats.find((i) => !used.has(i) && !held.has(i)) || seats.find((i) => !used.has(i)); if (it) keepSeat.set(q.id, it); return it; };
       for (const q of here) {
         const act = q.activity?.act;
         let x, y, dir = 0, anim = 'idle', spot = null, inBed = false, seat = null, sortY = null;
@@ -11926,7 +11938,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
           [x, y] = this.tileXY(leg ? L.w - 7 - (k % 3) : 4 + (k % 3), row); dir = leg ? 2 : 1; anim = (Math.floor(this.t / 9) + q.id) % 4 ? 'idle' : 'look'; }
         else if (act === 'jailed') { const cells = L.items.filter((i) => i.cell), jl = here.filter((z) => z.activity?.act === 'jailed'), ix = jl.indexOf(q), c = cells[ix % Math.max(1, cells.length)]; if (c) { const [ax, ay] = this.anchor(c); x = ax + ((Math.floor(ix / Math.max(1, cells.length)) % 3) - 1) * 14; y = ay - 18; sortY = ay - 1; anim = (Math.floor(this.t / 7) + q.id) % 4 ? 'sit' : 'idle'; dir = 0; } }
         else if (SLEEPY.has(act)) { // no bed free: dozing in a chair, never on the floor
-          spot = seats.find((i) => !used.has(i)); if (spot) { seat = spot; anim = 'doze'; }
+          spot = seatFor(q); if (spot) { seat = spot; anim = 'doze'; }
         }
         else if (act === 'work' && b.type === 'gaol' && q.job?.role === 'turnkey' && L.items.some((i) => i.cell)) {
           // the turnkey walks the row of cells: bread through the bars at mealtimes, a look at the locks between
@@ -11969,7 +11981,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
           if (p) { pewTaken.add(key); const [rx0] = this.rect(p); x = rx0 + 8 + k * T; y = this.anchor(p)[1] - 2; sortY = this.anchor(p)[1] + 0.6; dir = 3; anim = act === 'mourn' ? 'mourn' : act === 'wedding' && k % 3 === 0 ? 'celebrate' : 'sit'; if (anim === 'mourn') anim = 'sit'; spot = p; seat = { pewSeat: true, it: p }; }
           else { const t = idleTiles[(q.id * 7) % Math.max(1, idleTiles.length)] || [1, L.d - 3]; [x, y] = this.tileXY(t[0], t[1]); dir = 3; anim = act === 'mourn' ? 'mourn' : 'idle'; } // standing at the back
         } else if (['socialise', 'eat-out', 'eat', 'rest', 'gangmeet', 'feast'].includes(act) || (act === 'home' && q.stage !== 'baby')) {
-          if (!(act === 'home' && q.id % 3 === 0)) { spot = seats.find((i) => !used.has(i)); if (spot) seat = spot; }
+          if (!(act === 'home' && q.id % 3 === 0)) { spot = seatFor(q); if (spot) seat = spot; }
           if (spot && b.type === 'tavern' && act === 'socialise') anim = (Math.floor(this.t / 3) + q.id) % 3 ? 'drink' : 'talk';
         } else if (act === 'shop' || act === 'turned-away' || act === 'deliver' || act === 'pickup' || act === 'carry-home' || act === 'import') {
           const c = counters[0];
@@ -16749,12 +16761,14 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     }
     const signAt = (sc, it) => { const [ax, ay] = sc.anchor(it); return it.front ? [ax - 16, ay + 6] : [ax - 17, ay - 26]; }; // (to the left of the door)
     function drawBoard(ctx, x, y, icon, mine, royal) {
-      const W = 12, H = 9, rim = mine ? '#e8b830' : royal ? '#6a3a7a' : '#3a2618';
+      const rows = ICON[icon] || [], iw = Math.max(...rows.map((rw) => rw.length), 0), ih = rows.length;
+      // the board is sized to its icon so the same margin shows on every side: centred to the pixel
+      const W = iw + 6, H = ih + 5, rim = mine ? '#e8b830' : royal ? '#6a3a7a' : '#3a2618'; x -= Math.floor((W - 12) / 2); y -= Math.floor((H - 9) / 2);
       ctx.fillStyle = rim; ctx.fillRect(x - 1, y - 1, W + 2, H + 2); ctx.fillStyle = '#8a6a44'; ctx.fillRect(x, y, W, H); ctx.fillStyle = '#a07e54'; ctx.fillRect(x, y, W, 1);
-      const rows = ICON[icon] || []; ctx.fillStyle = COL[icon] || '#fff';
-      const iw = Math.max(...rows.map((rw) => rw.length), 0), ox = Math.floor((W - iw) / 2), oy = Math.floor((H - rows.length) / 2); // (centred on the board)
+      ctx.fillStyle = COL[icon] || '#fff';
+      const ox = 3, oy = 3; // (one row of the top is the lit edge, so the icon sits a row lower: 3 above, 2 below the lit edge)
       rows.forEach((row, r) => [...row].forEach((ch, c) => { if (ch === '#') ctx.fillRect(x + ox + c, y + oy + r, 1, 1); }));
-      if (mine) { ctx.fillStyle = '#e8b830'; ctx.fillRect(x + W - 2, y + 1, 1, 1); }
+      if (mine) { ctx.fillStyle = '#e8b830'; ctx.fillRect(x - 1, y - 1, 1, 1); ctx.fillRect(x + W, y - 1, 1, 1); }
     }
     game.hooks.drawTop.push((ctx, cam, indoor) => {
       const sc = game.scene; if (!indoor || !sc || !sc.b.royal || sc.b.parent || !O.Castle) return;

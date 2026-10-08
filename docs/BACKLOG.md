@@ -400,3 +400,12 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Each post can say what each press did ("You drill at arms until the sweat runs")
 - [x] The hundred-year run: a harness that steps the realm a century and records births, deaths by cause, weddings, crime, rulers, wars, plague, harvests, prices and money
 - [x] Fixed from it: levied men never came home (the realm halved in 20 years); towns had no birth rate; the town chest grew without end (now spends past a reserve on works for the poorest and an aid to the crown); the crown has running costs; pestilence, failed harvests and river floods were far too common; births ran too high and no small children ever died; rebels from Eastmarch had "lands at Frostmere"; "The council has named X now holds Y"; migration news every week
+
+## Batch Z (asked after step 92) - crown, seats, the king at work, signs
+
+- [x] The crown fits the head: a velvet cap inside a solid gold band, five tapering points, stones in front only (none showing through from behind)
+- [x] Any chair (not just the pews) stays with whoever took it while they're inside: nobody shuffles along when someone leaves
+- [x] NPC monarchs, consorts, heirs and lords hold court (talk, read) at work instead of the hammering "work" motion
+- [x] Door boards are sized to their icon, so the icon is centred to the pixel
+- [x] "in the 2nd year of her reign", not "2th"
+- [x] The century run (66 years before the machine restarted) reported in chat

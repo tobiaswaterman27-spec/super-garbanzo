@@ -122,6 +122,11 @@
       this.sleeping = new Map(); // bed item -> [{ q, k }]
       for (const [id, s] of bedOf) { const q = sim.byId.get(id); const arr = this.sleeping.get(s.it) || []; arr.push({ q, k: s.share ? (s.it.slots === 2 ? 1 : 0.5) : s.k }); this.sleeping.set(s.it, arr); }
       const pewCount = new Map(), pewTaken = new Set();
+      // a chair once taken stays that person's while they're here: nobody shuffles along when someone leaves
+      const keepSeat = this.seatOf || (this.seatOf = new Map());
+      const seatFor = (q) => { const had = keepSeat.get(q.id); if (had && seats.includes(had) && !used.has(had)) return had;
+        const held = new Set(); for (const [id, it] of keepSeat) if (id !== q.id && this.actors.has(id) && !this.actors.get(id).leaving) held.add(it);
+        const it = seats.find((i) => !used.has(i) && !held.has(i)) || seats.find((i) => !used.has(i)); if (it) keepSeat.set(q.id, it); return it; };
       for (const q of here) {
         const act = q.activity?.act;
         let x, y, dir = 0, anim = 'idle', spot = null, inBed = false, seat = null, sortY = null;
@@ -131,7 +136,7 @@
           [x, y] = this.tileXY(leg ? L.w - 7 - (k % 3) : 4 + (k % 3), row); dir = leg ? 2 : 1; anim = (Math.floor(this.t / 9) + q.id) % 4 ? 'idle' : 'look'; }
         else if (act === 'jailed') { const cells = L.items.filter((i) => i.cell), jl = here.filter((z) => z.activity?.act === 'jailed'), ix = jl.indexOf(q), c = cells[ix % Math.max(1, cells.length)]; if (c) { const [ax, ay] = this.anchor(c); x = ax + ((Math.floor(ix / Math.max(1, cells.length)) % 3) - 1) * 14; y = ay - 18; sortY = ay - 1; anim = (Math.floor(this.t / 7) + q.id) % 4 ? 'sit' : 'idle'; dir = 0; } }
         else if (SLEEPY.has(act)) { // no bed free: dozing in a chair, never on the floor
-          spot = seats.find((i) => !used.has(i)); if (spot) { seat = spot; anim = 'doze'; }
+          spot = seatFor(q); if (spot) { seat = spot; anim = 'doze'; }
         }
         else if (act === 'work' && b.type === 'gaol' && q.job?.role === 'turnkey' && L.items.some((i) => i.cell)) {
           // the turnkey walks the row of cells: bread through the bars at mealtimes, a look at the locks between
@@ -174,7 +179,7 @@
           if (p) { pewTaken.add(key); const [rx0] = this.rect(p); x = rx0 + 8 + k * T; y = this.anchor(p)[1] - 2; sortY = this.anchor(p)[1] + 0.6; dir = 3; anim = act === 'mourn' ? 'mourn' : act === 'wedding' && k % 3 === 0 ? 'celebrate' : 'sit'; if (anim === 'mourn') anim = 'sit'; spot = p; seat = { pewSeat: true, it: p }; }
           else { const t = idleTiles[(q.id * 7) % Math.max(1, idleTiles.length)] || [1, L.d - 3]; [x, y] = this.tileXY(t[0], t[1]); dir = 3; anim = act === 'mourn' ? 'mourn' : 'idle'; } // standing at the back
         } else if (['socialise', 'eat-out', 'eat', 'rest', 'gangmeet', 'feast'].includes(act) || (act === 'home' && q.stage !== 'baby')) {
-          if (!(act === 'home' && q.id % 3 === 0)) { spot = seats.find((i) => !used.has(i)); if (spot) seat = spot; }
+          if (!(act === 'home' && q.id % 3 === 0)) { spot = seatFor(q); if (spot) seat = spot; }
           if (spot && b.type === 'tavern' && act === 'socialise') anim = (Math.floor(this.t / 3) + q.id) % 3 ? 'drink' : 'talk';
         } else if (act === 'shop' || act === 'turned-away' || act === 'deliver' || act === 'pickup' || act === 'carry-home' || act === 'import') {
           const c = counters[0];

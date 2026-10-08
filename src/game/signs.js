@@ -110,12 +110,14 @@
     }
     const signAt = (sc, it) => { const [ax, ay] = sc.anchor(it); return it.front ? [ax - 16, ay + 6] : [ax - 17, ay - 26]; }; // (to the left of the door)
     function drawBoard(ctx, x, y, icon, mine, royal) {
-      const W = 12, H = 9, rim = mine ? '#e8b830' : royal ? '#6a3a7a' : '#3a2618';
+      const rows = ICON[icon] || [], iw = Math.max(...rows.map((rw) => rw.length), 0), ih = rows.length;
+      // the board is sized to its icon so the same margin shows on every side: centred to the pixel
+      const W = iw + 6, H = ih + 5, rim = mine ? '#e8b830' : royal ? '#6a3a7a' : '#3a2618'; x -= Math.floor((W - 12) / 2); y -= Math.floor((H - 9) / 2);
       ctx.fillStyle = rim; ctx.fillRect(x - 1, y - 1, W + 2, H + 2); ctx.fillStyle = '#8a6a44'; ctx.fillRect(x, y, W, H); ctx.fillStyle = '#a07e54'; ctx.fillRect(x, y, W, 1);
-      const rows = ICON[icon] || []; ctx.fillStyle = COL[icon] || '#fff';
-      const iw = Math.max(...rows.map((rw) => rw.length), 0), ox = Math.floor((W - iw) / 2), oy = Math.floor((H - rows.length) / 2); // (centred on the board)
+      ctx.fillStyle = COL[icon] || '#fff';
+      const ox = 3, oy = 3; // (one row of the top is the lit edge, so the icon sits a row lower: 3 above, 2 below the lit edge)
       rows.forEach((row, r) => [...row].forEach((ch, c) => { if (ch === '#') ctx.fillRect(x + ox + c, y + oy + r, 1, 1); }));
-      if (mine) { ctx.fillStyle = '#e8b830'; ctx.fillRect(x + W - 2, y + 1, 1, 1); }
+      if (mine) { ctx.fillStyle = '#e8b830'; ctx.fillRect(x - 1, y - 1, 1, 1); ctx.fillRect(x + W, y - 1, 1, 1); }
     }
     game.hooks.drawTop.push((ctx, cam, indoor) => {
       const sc = game.scene; if (!indoor || !sc || !sc.b.royal || sc.b.parent || !O.Castle) return;

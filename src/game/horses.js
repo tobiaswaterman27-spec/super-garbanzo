@@ -52,6 +52,7 @@
     for (const b of sim.world.buildings.filter((x) => x.type === 'house' && x.wealth > 0.45).slice(0, 4)) add(r.chance(0.6) ? 'dog' : 'cat', 1, zone(b.x - 1, b.bottom + 1, b.x + b.w, b.bottom + 2));
     add('cat', 1, azone(38, 22, 43, 23)); add('dog', 1, azone(30, 29, 35, 29));
     O.fauna = fauna;
+    O.horsesAll = () => horses;
 
     // horse and animal actors are drawn like people
     const _frame = game.actorFrame.bind(game);
@@ -111,6 +112,7 @@
       const csim0 = O.SimRef.cur, hr0 = csim0 ? csim0.hour : 12, day0 = csim0 ? csim0.day : 0;
       for (const f of fauna) {
         f.ft += dt;
+        if (f.petMove) { const a = animalActor(f); a.x = f.x; a.y = f.y; a.dir = f.dir; a.ft = f.ft; a.moving = !!f.moving; continue; } // (pets go where their people go: see pets.js)
         // the barn: they're driven in at dusk and out at dawn, and now and then kept in by day
         if (f.barn === undefined && f.world === game.world.placeId) { const cx = (f.z.x0 + f.z.x1) / 2 * T, cy = (f.z.y0 + f.z.y1) / 2 * T; const bn = game.world.buildings.filter((b) => b.type === 'barn' && b.doorX != null).sort((a, b) => Math.hypot(a.doorX * T - cx, a.doorY * T - cy) - Math.hypot(b.doorX * T - cx, b.doorY * T - cy))[0]; f.barn = bn && Math.hypot(bn.doorX * T - cx, bn.doorY * T - cy) < 30 * T ? bn.id : null; }
         if (f.barn != null && f.world === game.world.placeId) {
@@ -139,6 +141,7 @@
       for (const h of horses) {
         h.ft += dt;
         if (h === mount) { h.x = p.x; h.y = p.y; h.dir = p.dir; h.anim = p.moving ? (p.galloping ? 'gallop' : 'walk') : 'idle'; }
+        else if (h.called) { /* coming to your whistle: pets.js walks it */ }
         else if (h.inPaddock !== false && !h.tied && (h.world || 'ashford') === game.world.placeId) {
           const pad = h.pad || paddock, sb = h.stable != null && game.world.buildings.find((b) => b.id === h.stable);
           const csim = O.SimRef.cur, hr = csim ? csim.hour : 12, night = sb && (hr >= 20.5 || hr < 6 || (csim && csim.weather && (csim.weather.severe || csim.weather.kind === 'storm')) || (h.owner !== 'player' && ((h.seed || 0) + (csim ? csim.day : 0)) % 3 === 0)); // (resting in the stable some days, and every night and storm)

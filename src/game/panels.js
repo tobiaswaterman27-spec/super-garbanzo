@@ -62,24 +62,41 @@
   }
   const slotHTML = (k, btns = '') => `<div class="slot"><img src="${icon(k)}" alt=""><span>${esc(G[k]?.name || k)}</span>${btns}</div>`;
 
+  // ---- the satchel: a grid of tiles, like things laid out on a cloth; tap one for what you can do with it ----
+  const stacks = (list) => { const m = new Map(); list.forEach((k, i) => { const e = m.get(k) || { k, n: 0, i }; e.n++; m.set(k, e); }); return [...m.values()]; };
+  const tile = (k, n, attrs = '', on = false) => `<button class="tile${on ? ' on' : ''}" ${attrs} title="${esc(k === 'coins' ? 'Coin' : G[k]?.name || k)}"><img src="${icon(k)}" alt=""><span class="nm">${esc(k === 'coins' ? `₳${n}` : G[k]?.name || k)}</span>${n > 1 && k !== 'coins' ? `<b class="ct">${n}</b>` : ''}</button>`;
+  function actionsFor(k, i) {
+    const g = G[k] || {}, A = [];
+    if (g.drink) A.push(['eat', 'Drink']); else if (g.food) A.push(['eat', 'Eat']);
+    if (g.jewel) A.push(['jewel', (PS.worn || []).includes(k) ? 'Take off' : 'Wear']);
+    if (g.disguise) A.push(['wear', PS.disguise === k ? 'Take off' : 'Put on']);
+    if (k === 'letter') A.push(['write', 'Write']); if (k === 'letter_in') A.push(['read', 'Read']);
+    if (g.weapon || ['dagger', 'sword', 'axe', 'hammer', 'spear', 'bow'].includes(k)) A.push(['eq', PS.equipped === k ? 'Put away' : 'Hold']);
+    if (g.place || g.food || g.furniture) A.push(['place', 'Set down']);
+    A.push(['drop', 'Drop']);
+    return A;
+  }
+  let invSel = null;
   function inventory() {
-    const used = PS.slotsUsed();
-    const cells = PS.items.map((k, i) => `<div class="slot"><img src="${icon(k)}" alt=""><span>${esc(G[k].name)}</span>${G[k].drink ? `<button data-eat="${i}">Drink</button>` : G[k].food ? `<button data-eat="${i}">Eat</button>` : ''}${G[k].jewel ? `<button data-jewel="${k}">${(PS.worn || []).includes(k) ? 'Take off' : 'Wear'}</button>` : ''}${k === 'letter' ? `<button data-write="${i}">Write</button>` : ''}${k === 'letter_in' ? '<button data-read="1">Read</button>' : ''}${G[k].disguise ? `<button data-wear="${k}">${PS.disguise === k ? 'Take off' : 'Put on'}</button>` : ''}${G[k].place || G[k].furniture ? `<button data-place="${i}">Set down</button>` : ''}${G[k].weapon ? `<button data-eq="${k}">${PS.equipped === k ? 'In hand' : 'Hold'}</button>` : ''}<button data-drop="${i}" class="ghost">Drop</button></div>`).join('');
-    const empty = Math.max(0, PS.SLOTS - used);
-    open('Satchel', `<div class="lbl">${used}/${PS.SLOTS} slots · health ${Math.round(PS.hp)} · fed ${Math.round(PS.hunger)} · rested ${Math.round(PS.energy)}${PS.ill ? ' · <span class="warn">unwell</span>' : ''}${PS.items.includes('clothes') ? ' · warmly dressed' : ''}</div>
-      <div class="slots">${cells}${'<div class="slot empty"></div>'.repeat(empty)}</div>
-      <div class="lbl" style="margin-top:12px">Reputation</div>
-      <div class="reps">${Object.entries(PS.rep).map(([k, v]) => `<div><span>${k === 'local' ? 'here' : k}</span><b class="${v < -0.2 ? 'warn' : ''}">${v > 0.6 ? 'admired' : v > 0.2 ? 'liked' : v > -0.2 ? 'unknown' : v > -0.6 ? 'distrusted' : 'hated'}</b></div>`).join('')}</div>
-      ${O.Work ? `<div class="lbl" style="margin-top:12px">Skills</div><div class="reps">${Object.entries(PS.skills || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div><span>${esc(O.Work.SKILL_LABEL[k] || k)}</span><b>${O.Work.rank(v)} · ${Math.round(v * 100)}</b></div>`).join('')}</div>
-      <p class="caption">${(() => { const E = PS.emp; if (!E) return 'No employer. Ask whoever runs a place for work.'; return `${esc(E.role)} at ${esc(E.bizName)}, ${esc(E.placeName)}${E.masterName ? `, under ${esc(E.masterName)}` : ''}, ₳${E.wage} a day. ${E.stats.shifts} shifts worked, ${E.stats.late} late, ${E.stats.missed} missed.`; })()}${PS.earned ? ` Earned honestly so far: ${money(PS.earned)}.` : ''}</p>` : ''}`, (r) => {
-      r.querySelectorAll('[data-read]').forEach((b) => b.onclick = () => { close(); O.readLetters && O.readLetters(); });
-      r.querySelectorAll('[data-jewel]').forEach((b) => b.onclick = () => { const k = b.dataset.jewel; PS.worn = PS.worn || []; if (PS.worn.includes(k)) PS.worn = PS.worn.filter((x) => x !== k); else { if (PS.worn.length >= 3) return toast('You are wearing all the jewellery you sensibly can.', 'bad'); PS.worn.push(k); } O.wearJewels && O.wearJewels(); inventory(); });
-      r.querySelectorAll('[data-wear]').forEach((b) => b.onclick = () => { close(); O.wearDisguise && O.wearDisguise(b.dataset.wear); });
-      r.querySelectorAll('[data-eat]').forEach((b) => b.onclick = () => { const k = PS.items[+b.dataset.eat]; close(); O.consume ? O.consume(k) : (PS.eat(k), toast(`You eat the ${G[k].name.toLowerCase()}.`)); });
-      r.querySelectorAll('[data-write]').forEach((b) => b.onclick = () => { close(); O.writeLetter && O.writeLetter(+b.dataset.write); });
-      r.querySelectorAll('[data-place]').forEach((b) => b.onclick = () => { const k = PS.items[+b.dataset.place]; close(); O.placeItem && O.placeItem(k); });
-      r.querySelectorAll('[data-eq]').forEach((b) => b.onclick = () => { PS.equipped = PS.equipped === b.dataset.eq ? 'fists' : b.dataset.eq; const a = O.game.player.a; a.outfit.item = PS.equipped === 'fists' ? null : PS.equipped; O.Char.invalidate(a); inventory(); });
-      r.querySelectorAll('[data-drop]').forEach((b) => b.onclick = () => { const k = PS.items[+b.dataset.drop]; if (O.dropItem) O.dropItem(k); else { PS.remove(k); toast(`Dropped ${G[k].name.toLowerCase()}.`); } inventory(); });
+    const used = PS.slotsUsed(), st = stacks(PS.items), bar = (v, c) => `<span class="mbar ${c}"><i style="width:${Math.round(Math.max(0, Math.min(100, v)))}%"></i></span>`;
+    const sel = invSel && PS.items.includes(invSel) ? invSel : null; invSel = sel;
+    const acts = sel ? actionsFor(sel, PS.items.indexOf(sel)) : [];
+    open('Satchel', `<div class="needs"><span>Health ${bar(PS.hp, 'hp')}</span><span>Fed ${bar(PS.hunger, 'fed')}</span><span>Rested ${bar(PS.energy, 'rest')}</span><span class="slotsct">${used} / ${PS.SLOTS}</span></div>
+      <div class="tiles">${st.map((e) => tile(e.k, e.n, `data-sel="${e.k}"`, e.k === sel)).join('')}${'<span class="tile empty"></span>'.repeat(Math.max(0, PS.SLOTS - used))}</div>
+      ${sel ? `<div class="tile-acts"><b>${esc(G[sel]?.name || sel)}</b>${acts.map(([a, l]) => `<button data-a="${a}">${l}</button>`).join('')}</div>` : ''}
+      <details class="more"><summary>Standing and skills</summary><div class="reps">${Object.entries(PS.rep).map(([k, v]) => `<div><span>${k === 'local' ? 'here' : k}</span><b class="${v < -0.2 ? 'warn' : ''}">${v > 0.6 ? 'admired' : v > 0.2 ? 'liked' : v > -0.2 ? 'unknown' : v > -0.6 ? 'distrusted' : 'hated'}</b></div>`).join('')}${O.Work ? Object.entries(PS.skills || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div><span>${esc(O.Work.SKILL_LABEL[k] || k)}</span><b>${O.Work.rank(v)} ${Math.round(v * 100)}</b></div>`).join('') : ''}</div></details>`, (r) => {
+      r.querySelectorAll('[data-sel]').forEach((b) => b.onclick = () => { invSel = invSel === b.dataset.sel ? null : b.dataset.sel; inventory(); });
+      r.querySelectorAll('[data-a]').forEach((b) => b.onclick = () => {
+        const k = sel, i = PS.items.indexOf(k), a = b.dataset.a; if (i < 0) return;
+        if (a === 'read') { close(); O.readLetters && O.readLetters(); }
+        else if (a === 'jewel') { PS.worn = PS.worn || []; if (PS.worn.includes(k)) PS.worn = PS.worn.filter((x) => x !== k); else { if (PS.worn.length >= 3) return toast('You are wearing all the jewellery you sensibly can.', 'bad'); PS.worn.push(k); } O.wearJewels && O.wearJewels(); inventory(); }
+        else if (a === 'wear') { close(); O.wearDisguise && O.wearDisguise(k); }
+        else if (a === 'eat') { close(); O.consume ? O.consume(k) : (PS.eat(k), toast(`You eat the ${G[k].name.toLowerCase()}.`)); invSel = null; }
+        else if (a === 'write') { close(); O.writeLetter && O.writeLetter(i); }
+        else if (a === 'place') { close(); O.placeItem && O.placeItem(k); invSel = null; }
+        else if (a === 'eq') { PS.equipped = PS.equipped === k ? 'fists' : k; const ap = O.game.player.a; ap.outfit.item = PS.equipped === 'fists' ? null : PS.equipped; O.Char.invalidate(ap); inventory(); }
+        else if (a === 'drop') { if (O.dropItem) O.dropItem(k); else PS.remove(k); if (!PS.items.includes(k)) invSel = null; inventory(); }
+      });
     });
   }
 
@@ -114,11 +131,14 @@
     });
   }
 
-  function container(title, items, onTake, note) {
-    const rows = items.map((it, i) => `<div class="slot"><img src="${icon(it.k)}" alt=""><span>${esc(it.k === 'coins' ? `₳${it.n} in coin` : `${G[it.k].name}${it.n > 1 ? ' ×' + it.n : ''}`)}</span><button data-take="${i}">Take</button></div>`).join('');
-    open(title, `${note ? `<p class="caption warnnote">${esc(note)}</p>` : ''}<div class="slots">${rows || '<p class="caption">Empty.</p>'}</div>${items.length > 1 ? '<button class="btn" data-all="1" style="margin-top:10px">Take everything</button>' : ''}`, (r) => {
+  // ---- a chest, a dresser, a stash: what's in it on one side, your satchel on the other ----
+  function container(title, items, onTake, note, put) {
+    const left = items.map((it, i) => tile(it.k, it.n, `data-take="${i}"`)).join('') || '<span class="tile empty"></span>';
+    const mine = put ? stacks(PS.items.filter((k) => G[k] && k !== 'key')).map((e) => tile(e.k, e.n, `data-put="${e.k}"`)).join('') || '<span class="tile empty"></span>' : '';
+    open(title, `${note ? `<div class="notyours">${esc(note)}</div>` : ''}<div class="panes${put ? ' two' : ''}"><section><h3>Inside${put && put.cap ? ` <small>${put.count()} / ${put.cap}</small>` : ''}</h3><div class="tiles">${left}</div>${items.length > 1 ? '<button class="btn" data-all="1">Take all</button>' : ''}</section>${put ? `<section><h3>Satchel <small>${PS.slotsUsed()} / ${PS.SLOTS}</small></h3><div class="tiles">${mine}</div></section>` : ''}</div>`, (r) => {
       r.querySelectorAll('[data-take]').forEach((b) => b.onclick = () => onTake([+b.dataset.take]));
       const all = r.querySelector('[data-all]'); if (all) all.onclick = () => onTake(items.map((_, i) => i));
+      if (put) r.querySelectorAll('[data-put]').forEach((b) => b.onclick = () => put.fn(b.dataset.put));
     });
   }
 

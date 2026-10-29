@@ -12,7 +12,9 @@
   // no long dashes, no curly quotes, no ellipsis glyphs, no stage directions: plain words only
   const clean = (s) => String(s || '').replace(/\*[^*]{0,60}\*/g, '').replace(/\([^)]{0,60}\)/g, '').replace(/\s*[—–]\s*/g, ', ').replace(/\s+-\s+/g, ', ').replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/…/g, '...')
     .replace(/,\s*([.!?])/g, '$1').replace(/,\s*,/g, ',').replace(/\s{2,}/g, ' ').replace(/^["'\s]+|["'\s]+$/g, '').trim();
-  O.cleanSpeech = clean;
+  // tidy what's said: a capital to start, a stop to end, a lone i made I, no doubled words
+  const tidy = (t) => { t = String(t || '').trim(); if (!t) return t; t = t.replace(/\bi\b/g, 'I').replace(/\b(\w+) \1\b/gi, '$1').replace(/\s+([,.!?;:])/g, '$1').replace(/([,.!?;:])(?=[A-Za-z])/g, '$1 '); t = t[0].toUpperCase() + t.slice(1); if (!/[.!?"]$/.test(t)) t += '.'; return t; };
+  const clean0 = clean; O.cleanSpeech = (x) => tidy(clean0(x));
 
   // ---------------------------------------------------------------- who answers
   const AI = O.AI = { kind: null, ready: false, sample: null, key: null, busy: false };
@@ -204,7 +206,7 @@ They know only what their card says; asked anything else they don't know, guess 
 people: for each person present: feel and trust (-2..2) = how the player's words change their liking and belief; learned = a short new claim from the player they now believe, else ""; caught = true if they now see the player lied before.
 name: the player's name if the player just gave it. agree: true only if they now agree to the pending request.
 acts: only what a speaker truly agrees to or does, each {"who":"First name","do":...}:
-meet {"place","hour":0-23,"day":"today"|"tomorrow"|weekday,"why"} | follow (come along with the player now) | stop (stop following) | go {"place"} (go there now) | invite (let the player into their home today) | give {"item"} (hand over something they have) | want {"item"} (ask the player for something) | take_gift | refuse_gift | take_job (accept the player's own job when offered) | seek_job {"place"} | tell {"to","msg"} (pass a message to someone they know) | like {"of","by":-1 or 1} (think better or worse of someone after what was said) | leave (end the talk and walk off: rude player, busy, bored, or done). If a speaker says they are off somewhere now, add a go act for it (or leave).
+meet {"place","hour":0-23,"day":"today"|"tomorrow"|weekday,"why"} | follow (come along with the player now) | stop (stop following) | go {"place"} (go there now) | invite (let the player into their home today) | give {"item"} (hand over something they have) | want {"item"} (ask the player for something) | take_gift | refuse_gift | take_job (accept the player's own job when offered) | seek_job {"place"} | tell {"to","msg"} (pass a message to someone they know) | like {"of","by":-1 or 1} (think better or worse of someone after what was said) | call {"who"} (call someone near them over to join the talk) | leave (end the talk and walk off: rude player, busy, bored, or done). If a speaker says they are off somewhere now, add a go act for it (or leave).
 Places: names from the card, "my home", "your home" or "the square". Items: things the speaker has, or the player carries.`;
   const G = () => O.Data.GOODS;
   function goodsHad(s, q) {
@@ -214,8 +216,30 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
     for (const g of q.items || []) out.push((G()[g]?.name || g).toLowerCase());
     return [...new Set(out)].slice(0, 12);
   }
+  // who someone is to them
+  function relTo(s, q, z) {
+    if (q.spouse === z.id) return q.sex === 'm' ? 'your wife' : 'your husband';
+    if ((q.children || []).includes(z.id)) return z.sex === 'm' ? 'your son' : 'your daughter';
+    if ((q.parents || []).includes(z.id)) return z.sex === 'm' ? 'your father' : 'your mother';
+    if ((q.parents || []).length && (z.parents || []).some((x) => (q.parents || []).includes(x))) return z.sex === 'm' ? 'your brother' : 'your sister';
+    if (q.household != null && q.household === z.household) return 'of your household';
+    if (q.job && z.job && q.job.biz === z.job.biz) return `works with you (${z.job.role})`;
+    const r = q.rel.get(z.id); if (r && r.affinity > 0.3) return 'a friend'; if (r && r.affinity < -0.3) return 'someone you dislike';
+    if (r && r.familiar > 0.2) return `someone you know${z.job ? ` (${z.job.role})` : ''}`;
+    return 'a stranger to you';
+  }
+  O.relTo = relTo;
+  // who is about them right now, in the same room or close by in the street
+  function nearby(s, q, r0 = 140) {
+    const g = O.game, out = [];
+    if (g.scene) { const me = g.scene.personPos(q); if (me) for (const a of g.scene.actors.values()) { const z = a.person; if (!z || z === q || a.hidden || a.leaving) continue; out.push([z, Math.hypot(a.x - me[0], a.y - me[1])]); } }
+    else if (!q.agent.hidden) for (const z of s.people) { if (z === q || z.agent.hidden || z.agent.inside != null) continue; const d = Math.hypot(z.agent.x - q.agent.x, z.agent.y - q.agent.y); if (d < r0) out.push([z, d]); }
+    return out.sort((a, b) => a[1] - b[1]).slice(0, 6).map(([z, d]) => ({ z, d }));
+  }
+  O.nearbyOf = nearby;
   function extraCard(s, q) {
     const PS = O.PlayerState, L = [];
+    const nb = nearby(s, q); if (nb.length) L.push(`Near you now: ${nb.map(({ z, d }) => `${z.first} ${z.sur || ''}, ${z.age < 14 ? (z.sex === 'm' ? 'a boy' : 'a girl') : z.sex === 'm' ? 'a man' : 'a woman'} of ${z.age}, ${relTo(s, q, z)}${d < 34 ? ', right beside you' : ''}${z.activity?.act ? ` (${(O.ACT_LABEL || {})[z.activity.act] || z.activity.act})` : ''}`.replace(/  /g, ' ')).join('; ')}.`);
     const had = goodsHad(s, q); if (had.length) L.push(`You have: ${had.join(', ')}.`);
     const carried = [...new Set(PS.items)].map((g) => (G()[g]?.name || g).toLowerCase()); L.push(`The player carries: ${carried.join(', ') || 'nothing'}${PS.money ? `, and ₳${PS.money}` : ''}.`);
     for (const m of (PS.meets || []).filter((m) => m.who === q.id && m.place === s.world.placeId && m.state === 'set')) L.push(`You agreed to meet the player at ${m.label}.`);
@@ -243,7 +267,8 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
     if (!AI.ready) return reply(q, '...', render);
     const ask = askFor(q), group = (q._group || []).filter((z) => z.alive !== false);
     const history = conv.slice(-8, -1).map((c) => (c.who === 'p' ? 'Player: ' : (c.by || q.first) + ': ') + c.t).join('\n');
-    const prompt = `${RULES}\n\n--- ${q.first} (spoken to) ---\n${speechFor(q.age, q.stage)}\n${card(s, q)}\n${extraCard(s, q)}\n${group.length ? `--- Also in the talk ---\n${group.map((z) => shortCard(s, z)).join('\n')}\n` : ''}${ask ? `--- Pending request to ${q.first} ---\nThe player wants you to ${ask.goal}. ${ask.why || ''} Weigh it by temper, needs and trust; agree only if convinced.\n` : 'No request is pending: agree is false.\n'}--- Talk so far ---\n${history || '(none)'}\nPlayer: ${text}`;
+    const hurryNote = q._hurry ? `${q.first} is in a hurry (${q._hurry.why}): answer briefly, then say they must go now.\n` : '';
+    const prompt = `${RULES}\n\n${hurryNote}${group.length ? 'The player is speaking to the whole group: any of them may answer.\n' : ''}--- ${q.first} (spoken to) ---\n${speechFor(q.age, q.stage)}\n${card(s, q)}\n${extraCard(s, q)}\n${group.length ? `--- Also in the talk ---\n${group.map((z) => shortCard(s, z)).join('\n')}\n` : ''}${ask ? `--- Pending request to ${q.first} ---\nThe player wants you to ${ask.goal}. ${ask.why || ''} Weigh it by temper, needs and trust; agree only if convinced.\n` : 'No request is pending: agree is false.\n'}--- Talk so far ---\n${history || '(none)'}\nPlayer: ${text}`;
     render(null, true);
     AI.busy = true;
     let out = null;
@@ -283,6 +308,7 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
     render(shown[0].t, false);
     let delay = 0; for (const l of shown.slice(1)) { delay += 1400 + shown[0].t.length * 35; setTimeout(() => { if (O.npcUI && O.npcUI.talking() === q && !AI.busy) { q._lastSpeaker = l.who; render(l.t, false); } }, delay); }
     if (notes.length) O.UI.say(notes.join(' '));
+    if (q._hurry) { leave = true; q._hurry = null; }
     if (leave) setTimeout(() => { if (O.npcUI && O.npcUI.talking() === q) { O.npcUI.closeTalk(); } q._snubUntil = s.day * 1440 + s.minute + (r.affinity < -0.2 ? 240 : 30); O.NpcActs && O.NpcActs.walkOff(q); }, 2200);
   }
   // never a name in front of the words, never a word from outside their world
@@ -290,7 +316,7 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
   function inChar(q, t) {
     t = String(t || '').replace(/^\s*[A-Z][\w'-]+(?: [A-Z][\w'-]+)?\s*:\s*/, '');
     if (OUT.test(t)) return confused(q);
-    return t;
+    return tidy(t);
   }
   function reply(q, line, render) {
     line = inChar(q, clean(line)) || '...'; q._lastSpeaker = null;

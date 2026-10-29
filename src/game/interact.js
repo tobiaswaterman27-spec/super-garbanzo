@@ -194,15 +194,10 @@
     }
     // the chest's panel: what's in it, and (if it's yours) room to put things away; yours stays open as you go
     function openChest(it, items, owner, own, store) {
-        O.Panels.container(`${it.kind[0].toUpperCase() + it.kind.slice(1)}, ${owner}`, items, (idxs) => { take(it, items, idxs, owner); if (own) { const c = contents(it); openChest(it, c.items, c.owner, true, c.store); } }, own ? null : `This belongs to ${owner}. Anyone awake in the room will see you take it.`);
-        // your own chest: put things away in it, too
-        if (store) setTimeout(() => {
-          const root = document.querySelector('.panel-modal .ledger-in') || document.querySelector('.panel-modal'); if (!root) return;
-          const box = document.createElement('div'); box.style.marginTop = '10px';
-          const draw = () => { const kinds = [...new Set(PS.items)].filter((k) => G[k] && k !== 'key'); box.innerHTML = `<div class="lbl">Put away from your satchel (the chest holds ${(PS.homes[store] || []).length} of 24)</div><div class="topics">${kinds.map((k) => `<button data-put="${k}">${O.escape(G[k].name)}</button>`).join('') || '<span class="caption">Your satchel is empty.</span>'}</div>`;
-            box.querySelectorAll('[data-put]').forEach((b) => b.onclick = () => { const k = b.dataset.put, st = (PS.homes[store] = PS.homes[store] || []); if (st.length >= 24) return O.Panels.toast('The chest is full.', 'bad'); if (!PS.items.includes(k)) return; PS.remove(k); st.push(k); O.Panels.toast(`You put the ${G[k].name.toLowerCase()} away.`); const c = contents(it); openChest(it, c.items, c.owner, true, c.store); }); };
-          draw(); root.appendChild(box);
-        }, 0);
+      const reopen = () => { const c = contents(it); openChest(it, c.items, c.owner, true, c.store); };
+      const put = store ? { cap: 24, count: () => (PS.homes[store] || []).length, fn: (k) => { const st = (PS.homes[store] = PS.homes[store] || []); if (st.length >= 24) return O.Panels.toast('The chest is full.', 'bad'); if (!PS.items.includes(k)) return; PS.remove(k); st.push(k); reopen(); } } : null;
+      const name = it.kind[0].toUpperCase() + it.kind.slice(1);
+      O.Panels.container(own ? name : `${name}: ${owner.replace(/^the /, '')}`, items, (idxs) => { take(it, items, idxs, owner); if (own) reopen(); }, own ? null : 'Not yours', put);
     }
 
     // Sleeping: you lie down and the night passes (quickly, for you) while the village sleeps around

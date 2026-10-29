@@ -93,6 +93,7 @@ main { height: 100vh; }
 /* conversation box */
 .dlg { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); width: min(760px, calc(100% - 32px)); min-height: 118px; padding: 26px 34px 22px; border-radius: 0; background: #fbf3dd; color: #4a3826; font-family: var(--body); font-weight: 700; font-size: 19px; line-height: 1.45; box-shadow: 0 6px 0 rgba(70,48,26,.35), inset 0 0 0 3px #efe1bd; z-index: 30; cursor: pointer; }
 .dlg-name { position: absolute; top: -16px; left: 34px; transform: rotate(-3deg); padding: 4px 18px; border-radius: 0; color: #fff; font-weight: 800; font-size: 16px; box-shadow: 0 3px 0 rgba(0,0,0,.25); text-shadow: 0 1px 0 rgba(0,0,0,.3); }
+html, body, button, input, textarea, select { font-variant-ligatures: none; font-feature-settings: "liga" 0, "clig" 0, "dlig" 0; }
 .ai-gate { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; background: #2a1d12; color: #fbf3dd; font-family: var(--body); }
 .ai-gate-in { text-align: center; display: grid; gap: 14px; width: min(420px, calc(100% - 32px)); }
 .ai-gate h1 { font: 800 54px var(--display, var(--body)); letter-spacing: 2px; margin: 0; color: #f0c060; }
@@ -100,6 +101,30 @@ main { height: 100vh; }
 .ai-gate input { font: 700 17px var(--body); padding: 10px 12px; border: 0; background: #fbf3dd; color: #3a2a1a; }
 .ai-gate button { font: 800 18px var(--body); padding: 10px; border: 0; background: #d38a3a; color: #fff; cursor: pointer; box-shadow: 0 3px 0 #9a5a1e; }
 .ai-err { color: #f0a080; margin: 0; }
+.panel-modal header { flex-wrap: nowrap; gap: 10px; align-items: center; }
+.panel-modal header h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.panel-modal header .x { flex: none; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; }
+.tile { position: relative; display: grid; justify-items: center; gap: 4px; padding: 10px 4px 8px; background: #3a2d22; border: 0; box-shadow: inset 0 0 0 2px #4e3d2e; color: #f3e6c8; font: 700 12px var(--body); cursor: pointer; min-height: 78px; }
+.tile:hover, .tile.on { box-shadow: inset 0 0 0 2px #e0a050; background: #46362a; }
+.tile img { width: 36px; height: 36px; image-rendering: pixelated; }
+.tile .nm { line-height: 1.15; text-align: center; overflow-wrap: anywhere; }
+.tile .ct { position: absolute; top: 4px; right: 6px; font-size: 12px; color: #f0c060; }
+.tile.empty { cursor: default; box-shadow: inset 0 0 0 2px #3a2d22; background: #2b2119; }
+.tile-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; padding: 10px; background: #2b2119; }
+.tile-acts b { margin-right: 6px; color: #f0c060; }
+.tile-acts button, .panes .btn { font: 800 14px var(--body); background: #d38a3a; color: #fff; border: 0; padding: 7px 14px; cursor: pointer; box-shadow: 0 3px 0 #9a5a1e; }
+.needs { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin-bottom: 12px; font-size: 13px; }
+.needs span { display: flex; gap: 6px; align-items: center; }
+.mbar { display: inline-block; width: 64px; height: 7px; background: #2b2119; }
+.mbar i { display: block; height: 100%; background: #7ab050; } .mbar.fed i { background: #d8a040; } .mbar.rest i { background: #6a8ad0; }
+.slotsct { margin-left: auto; color: #c8b090; }
+.panes { display: grid; gap: 16px; } .panes.two { grid-template-columns: 1fr 1fr; }
+.panes h3 { margin: 0 0 8px; font-size: 15px; color: #f0c060; } .panes h3 small { color: #c8b090; font-weight: 400; }
+.panes .btn { margin-top: 10px; }
+.notyours { display: inline-block; margin-bottom: 10px; padding: 4px 10px; background: #8a2e24; color: #fff; font-weight: 800; font-size: 13px; }
+details.more { margin-top: 14px; } details.more summary { cursor: pointer; color: #c8b090; }
+@media (max-width: 600px) { .panes.two { grid-template-columns: 1fr; } }
 .dlg-say { display: flex; gap: 8px; margin-top: 14px; }
 .dlg-say .dlg-give { padding: 0 12px; font-size: 22px; background: #8a6a44; box-shadow: 0 3px 0 #5a4026; }
 .dlg-items { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
@@ -12418,24 +12443,41 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
   }
   const slotHTML = (k, btns = '') => `<div class="slot"><img src="${icon(k)}" alt=""><span>${esc(G[k]?.name || k)}</span>${btns}</div>`;
 
+  // ---- the satchel: a grid of tiles, like things laid out on a cloth; tap one for what you can do with it ----
+  const stacks = (list) => { const m = new Map(); list.forEach((k, i) => { const e = m.get(k) || { k, n: 0, i }; e.n++; m.set(k, e); }); return [...m.values()]; };
+  const tile = (k, n, attrs = '', on = false) => `<button class="tile${on ? ' on' : ''}" ${attrs} title="${esc(k === 'coins' ? 'Coin' : G[k]?.name || k)}"><img src="${icon(k)}" alt=""><span class="nm">${esc(k === 'coins' ? `₳${n}` : G[k]?.name || k)}</span>${n > 1 && k !== 'coins' ? `<b class="ct">${n}</b>` : ''}</button>`;
+  function actionsFor(k, i) {
+    const g = G[k] || {}, A = [];
+    if (g.drink) A.push(['eat', 'Drink']); else if (g.food) A.push(['eat', 'Eat']);
+    if (g.jewel) A.push(['jewel', (PS.worn || []).includes(k) ? 'Take off' : 'Wear']);
+    if (g.disguise) A.push(['wear', PS.disguise === k ? 'Take off' : 'Put on']);
+    if (k === 'letter') A.push(['write', 'Write']); if (k === 'letter_in') A.push(['read', 'Read']);
+    if (g.weapon || ['dagger', 'sword', 'axe', 'hammer', 'spear', 'bow'].includes(k)) A.push(['eq', PS.equipped === k ? 'Put away' : 'Hold']);
+    if (g.place || g.food || g.furniture) A.push(['place', 'Set down']);
+    A.push(['drop', 'Drop']);
+    return A;
+  }
+  let invSel = null;
   function inventory() {
-    const used = PS.slotsUsed();
-    const cells = PS.items.map((k, i) => `<div class="slot"><img src="${icon(k)}" alt=""><span>${esc(G[k].name)}</span>${G[k].drink ? `<button data-eat="${i}">Drink</button>` : G[k].food ? `<button data-eat="${i}">Eat</button>` : ''}${G[k].jewel ? `<button data-jewel="${k}">${(PS.worn || []).includes(k) ? 'Take off' : 'Wear'}</button>` : ''}${k === 'letter' ? `<button data-write="${i}">Write</button>` : ''}${k === 'letter_in' ? '<button data-read="1">Read</button>' : ''}${G[k].disguise ? `<button data-wear="${k}">${PS.disguise === k ? 'Take off' : 'Put on'}</button>` : ''}${G[k].place || G[k].furniture ? `<button data-place="${i}">Set down</button>` : ''}${G[k].weapon ? `<button data-eq="${k}">${PS.equipped === k ? 'In hand' : 'Hold'}</button>` : ''}<button data-drop="${i}" class="ghost">Drop</button></div>`).join('');
-    const empty = Math.max(0, PS.SLOTS - used);
-    open('Satchel', `<div class="lbl">${used}/${PS.SLOTS} slots · health ${Math.round(PS.hp)} · fed ${Math.round(PS.hunger)} · rested ${Math.round(PS.energy)}${PS.ill ? ' · <span class="warn">unwell</span>' : ''}${PS.items.includes('clothes') ? ' · warmly dressed' : ''}</div>
-      <div class="slots">${cells}${'<div class="slot empty"></div>'.repeat(empty)}</div>
-      <div class="lbl" style="margin-top:12px">Reputation</div>
-      <div class="reps">${Object.entries(PS.rep).map(([k, v]) => `<div><span>${k === 'local' ? 'here' : k}</span><b class="${v < -0.2 ? 'warn' : ''}">${v > 0.6 ? 'admired' : v > 0.2 ? 'liked' : v > -0.2 ? 'unknown' : v > -0.6 ? 'distrusted' : 'hated'}</b></div>`).join('')}</div>
-      ${O.Work ? `<div class="lbl" style="margin-top:12px">Skills</div><div class="reps">${Object.entries(PS.skills || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div><span>${esc(O.Work.SKILL_LABEL[k] || k)}</span><b>${O.Work.rank(v)} · ${Math.round(v * 100)}</b></div>`).join('')}</div>
-      <p class="caption">${(() => { const E = PS.emp; if (!E) return 'No employer. Ask whoever runs a place for work.'; return `${esc(E.role)} at ${esc(E.bizName)}, ${esc(E.placeName)}${E.masterName ? `, under ${esc(E.masterName)}` : ''}, ₳${E.wage} a day. ${E.stats.shifts} shifts worked, ${E.stats.late} late, ${E.stats.missed} missed.`; })()}${PS.earned ? ` Earned honestly so far: ${money(PS.earned)}.` : ''}</p>` : ''}`, (r) => {
-      r.querySelectorAll('[data-read]').forEach((b) => b.onclick = () => { close(); O.readLetters && O.readLetters(); });
-      r.querySelectorAll('[data-jewel]').forEach((b) => b.onclick = () => { const k = b.dataset.jewel; PS.worn = PS.worn || []; if (PS.worn.includes(k)) PS.worn = PS.worn.filter((x) => x !== k); else { if (PS.worn.length >= 3) return toast('You are wearing all the jewellery you sensibly can.', 'bad'); PS.worn.push(k); } O.wearJewels && O.wearJewels(); inventory(); });
-      r.querySelectorAll('[data-wear]').forEach((b) => b.onclick = () => { close(); O.wearDisguise && O.wearDisguise(b.dataset.wear); });
-      r.querySelectorAll('[data-eat]').forEach((b) => b.onclick = () => { const k = PS.items[+b.dataset.eat]; close(); O.consume ? O.consume(k) : (PS.eat(k), toast(`You eat the ${G[k].name.toLowerCase()}.`)); });
-      r.querySelectorAll('[data-write]').forEach((b) => b.onclick = () => { close(); O.writeLetter && O.writeLetter(+b.dataset.write); });
-      r.querySelectorAll('[data-place]').forEach((b) => b.onclick = () => { const k = PS.items[+b.dataset.place]; close(); O.placeItem && O.placeItem(k); });
-      r.querySelectorAll('[data-eq]').forEach((b) => b.onclick = () => { PS.equipped = PS.equipped === b.dataset.eq ? 'fists' : b.dataset.eq; const a = O.game.player.a; a.outfit.item = PS.equipped === 'fists' ? null : PS.equipped; O.Char.invalidate(a); inventory(); });
-      r.querySelectorAll('[data-drop]').forEach((b) => b.onclick = () => { const k = PS.items[+b.dataset.drop]; if (O.dropItem) O.dropItem(k); else { PS.remove(k); toast(`Dropped ${G[k].name.toLowerCase()}.`); } inventory(); });
+    const used = PS.slotsUsed(), st = stacks(PS.items), bar = (v, c) => `<span class="mbar ${c}"><i style="width:${Math.round(Math.max(0, Math.min(100, v)))}%"></i></span>`;
+    const sel = invSel && PS.items.includes(invSel) ? invSel : null; invSel = sel;
+    const acts = sel ? actionsFor(sel, PS.items.indexOf(sel)) : [];
+    open('Satchel', `<div class="needs"><span>Health ${bar(PS.hp, 'hp')}</span><span>Fed ${bar(PS.hunger, 'fed')}</span><span>Rested ${bar(PS.energy, 'rest')}</span><span class="slotsct">${used} / ${PS.SLOTS}</span></div>
+      <div class="tiles">${st.map((e) => tile(e.k, e.n, `data-sel="${e.k}"`, e.k === sel)).join('')}${'<span class="tile empty"></span>'.repeat(Math.max(0, PS.SLOTS - used))}</div>
+      ${sel ? `<div class="tile-acts"><b>${esc(G[sel]?.name || sel)}</b>${acts.map(([a, l]) => `<button data-a="${a}">${l}</button>`).join('')}</div>` : ''}
+      <details class="more"><summary>Standing and skills</summary><div class="reps">${Object.entries(PS.rep).map(([k, v]) => `<div><span>${k === 'local' ? 'here' : k}</span><b class="${v < -0.2 ? 'warn' : ''}">${v > 0.6 ? 'admired' : v > 0.2 ? 'liked' : v > -0.2 ? 'unknown' : v > -0.6 ? 'distrusted' : 'hated'}</b></div>`).join('')}${O.Work ? Object.entries(PS.skills || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div><span>${esc(O.Work.SKILL_LABEL[k] || k)}</span><b>${O.Work.rank(v)} ${Math.round(v * 100)}</b></div>`).join('') : ''}</div></details>`, (r) => {
+      r.querySelectorAll('[data-sel]').forEach((b) => b.onclick = () => { invSel = invSel === b.dataset.sel ? null : b.dataset.sel; inventory(); });
+      r.querySelectorAll('[data-a]').forEach((b) => b.onclick = () => {
+        const k = sel, i = PS.items.indexOf(k), a = b.dataset.a; if (i < 0) return;
+        if (a === 'read') { close(); O.readLetters && O.readLetters(); }
+        else if (a === 'jewel') { PS.worn = PS.worn || []; if (PS.worn.includes(k)) PS.worn = PS.worn.filter((x) => x !== k); else { if (PS.worn.length >= 3) return toast('You are wearing all the jewellery you sensibly can.', 'bad'); PS.worn.push(k); } O.wearJewels && O.wearJewels(); inventory(); }
+        else if (a === 'wear') { close(); O.wearDisguise && O.wearDisguise(k); }
+        else if (a === 'eat') { close(); O.consume ? O.consume(k) : (PS.eat(k), toast(`You eat the ${G[k].name.toLowerCase()}.`)); invSel = null; }
+        else if (a === 'write') { close(); O.writeLetter && O.writeLetter(i); }
+        else if (a === 'place') { close(); O.placeItem && O.placeItem(k); invSel = null; }
+        else if (a === 'eq') { PS.equipped = PS.equipped === k ? 'fists' : k; const ap = O.game.player.a; ap.outfit.item = PS.equipped === 'fists' ? null : PS.equipped; O.Char.invalidate(ap); inventory(); }
+        else if (a === 'drop') { if (O.dropItem) O.dropItem(k); else PS.remove(k); if (!PS.items.includes(k)) invSel = null; inventory(); }
+      });
     });
   }
 
@@ -12470,11 +12512,14 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     });
   }
 
-  function container(title, items, onTake, note) {
-    const rows = items.map((it, i) => `<div class="slot"><img src="${icon(it.k)}" alt=""><span>${esc(it.k === 'coins' ? `₳${it.n} in coin` : `${G[it.k].name}${it.n > 1 ? ' ×' + it.n : ''}`)}</span><button data-take="${i}">Take</button></div>`).join('');
-    open(title, `${note ? `<p class="caption warnnote">${esc(note)}</p>` : ''}<div class="slots">${rows || '<p class="caption">Empty.</p>'}</div>${items.length > 1 ? '<button class="btn" data-all="1" style="margin-top:10px">Take everything</button>' : ''}`, (r) => {
+  // ---- a chest, a dresser, a stash: what's in it on one side, your satchel on the other ----
+  function container(title, items, onTake, note, put) {
+    const left = items.map((it, i) => tile(it.k, it.n, `data-take="${i}"`)).join('') || '<span class="tile empty"></span>';
+    const mine = put ? stacks(PS.items.filter((k) => G[k] && k !== 'key')).map((e) => tile(e.k, e.n, `data-put="${e.k}"`)).join('') || '<span class="tile empty"></span>' : '';
+    open(title, `${note ? `<div class="notyours">${esc(note)}</div>` : ''}<div class="panes${put ? ' two' : ''}"><section><h3>Inside${put && put.cap ? ` <small>${put.count()} / ${put.cap}</small>` : ''}</h3><div class="tiles">${left}</div>${items.length > 1 ? '<button class="btn" data-all="1">Take all</button>' : ''}</section>${put ? `<section><h3>Satchel <small>${PS.slotsUsed()} / ${PS.SLOTS}</small></h3><div class="tiles">${mine}</div></section>` : ''}</div>`, (r) => {
       r.querySelectorAll('[data-take]').forEach((b) => b.onclick = () => onTake([+b.dataset.take]));
       const all = r.querySelector('[data-all]'); if (all) all.onclick = () => onTake(items.map((_, i) => i));
+      if (put) r.querySelectorAll('[data-put]').forEach((b) => b.onclick = () => put.fn(b.dataset.put));
     });
   }
 
@@ -12509,8 +12554,10 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
         const q = talking, t = q.traits || [], long = t.includes('social') ? 90 : t.includes('introverted') ? 25 : 50;
         if (q._mustGo || absNow() - (q._talkFrom || absNow()) > long) {
           const line = q._mustGo === 'work' ? pick(["I'll be late for work. I must go.", 'There, that\'s the hour. Work calls.']) : q._mustGo ? pick(['I must be off.', "I've somewhere to be. Fare you well."]) : pick(["Well, I'd best be getting on.", 'I must away. Good day to you.', "Enough talk. I've things to do."]);
-          q._mustGo = null; const qq = q; closeTalk(); walkAway(qq, line); return;
+          if (q._mustGo && !q._hurry) { const a0 = q._mustGo; q._mustGo = null; hurry(q, a0); return; }
+          if (!q._hurry) { q._mustGo = null; const qq = q; closeTalk(); walkAway(qq, line); return; }
         }
+        if (q._hurry && performance.now() > q._hurry.until && !O.UI.dialog.typing?.()) { const qq = q; q._hurry = null; closeTalk(); walkAway(qq, pick(['Good day to you.', 'Fare you well.', 'Another time.'])); return; }
       }
       // whoever you're talking to keeps turning to face you (unless they're sat or abed)
       const d = O.dirOf(game.player.x - pos[0], game.player.y - pos[1]);
@@ -12546,6 +12593,16 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       if (q.health?.illness?.sev > 0.6) return pick(["I'm not well. Leave me be.", "Not today. I can barely stand."]);
       return null;
     }
+    // why they must go, in their own words
+    function whyGo(q, act) {
+      const bz = q.job && sim.biz.get(q.job.biz);
+      return act === 'work' ? (bz ? `I'm due at ${bz.name}` : "I'm due at work") : act === 'worship' ? 'mass is about to start' : act === 'meet' ? "I'm meeting someone" : act === 'council' ? 'the council sits soon' : act === 'leave' ? "I've a long road ahead" : ['fire', 'firefight'].includes(act) ? "there's a fire" : ['help', 'escort', 'to-doc', 'labour'].includes(act) ? 'someone needs me' : act === 'sick' ? "I'm not well" : act === 'report' ? 'I must get to the watch' : "I've somewhere to be";
+    }
+    // in a hurry: a word of sorry and why, one more answer if you're quick, then off they go
+    function hurry(q, act) {
+      const why = whyGo(q, act); q._hurry = { why, until: performance.now() + 7000 };
+      renderTalk(pick([`Forgive me, I can't stay. ${why[0].toUpperCase() + why.slice(1)}.`, `I'm sorry, I must go. ${why[0].toUpperCase() + why.slice(1)}.`, `Sorry, ${why}. I have to be off.`]));
+    }
     function walkAway(q, line) {
       const s0 = sim; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: line, options: [] });
       setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1800);
@@ -12553,12 +12610,14 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     }
     function openTalk(q) {
       const s0 = sim; if (q._snubUntil && s0.day * 1440 + s0.minute < q._snubUntil) { O.UI.say(`${q.first} turns away from you.`, 'bad'); return; }
-      { const bl = O.AI && O.AI.ready ? busyLine(q) : null; if (bl) return walkAway(q, bl); }
+      { const bl = O.AI && O.AI.ready ? busyLine(q) : null;
+        if (bl) { const act = q.activity?.act, r0 = q.rel.get(0) || {}; if ((r0.affinity || 0) < -0.55 || ['fire', 'firefight', 'help', 'report'].includes(act)) return walkAway(q, bl); talking = q; q.agent.frozen = true; q._group = []; q._talkFrom = absNow(); q._lastSpeaker = null; hurry(q, act === 'work' || act === 'patrol' ? 'work' : act); return; } }
       talking = q; q.agent.frozen = true; q._lastSpeaker = null; q._mustGo = null; q._talkFrom = absNow();
       // others standing with them join in (as in a group in the square)
       { const pos0 = game.scene ? game.scene.personPos(q) : [q.agent.x, q.agent.y];
         const near = pos0 ? (game.scene ? [...game.scene.actors.values()].filter((a) => !a.hidden && a.person && a.person !== q).map((a) => [a.person, a.x, a.y]) : sim.people.filter((z) => z !== q && !z.agent.hidden).map((z) => [z, z.agent.x, z.agent.y])) : [];
-        q._group = near.filter(([z, x, y]) => Math.hypot(x - pos0[0], y - pos0[1]) < 34 && z.age >= 5 && z.activity?.act !== 'sleep' && z.activity?.act !== 'work' && z.health.hp > 0).slice(0, 2).map(([z]) => z);
+        const chatting = (z) => { const a1 = q.activity?.act, a2 = z.activity?.act; if (!a1 || a1 !== a2 || !['socialise', 'stroll', 'festival', 'feast', 'sit', 'rest', 'gangmeet', 'eat-out', 'home'].includes(a1)) return false; const r1 = q.rel.get(z.id); return !!(q.spouse === z.id || q.household === z.household || (r1 && (r1.affinity > 0.2 || r1.familiar > 0.4))); };
+        q._group = near.filter(([z, x, y]) => Math.hypot(x - pos0[0], y - pos0[1]) < 30 && z.age >= 5 && z.health.hp > 0 && chatting(z)).slice(0, 2).map(([z]) => z);
         for (const z of q._group) z.agent.frozen = true; }
       O.jobEvent && O.jobEvent('talk', { q });
       O.dropLead && O.dropLead((l) => l.id === q.id && l.place === O.SimRef.cur.world.placeId && l.why !== 'contract'); // found them: the arrow's done its work
@@ -12702,7 +12761,9 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
   // no long dashes, no curly quotes, no ellipsis glyphs, no stage directions: plain words only
   const clean = (s) => String(s || '').replace(/\*[^*]{0,60}\*/g, '').replace(/\([^)]{0,60}\)/g, '').replace(/\s*[—–]\s*/g, ', ').replace(/\s+-\s+/g, ', ').replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/…/g, '...')
     .replace(/,\s*([.!?])/g, '$1').replace(/,\s*,/g, ',').replace(/\s{2,}/g, ' ').replace(/^["'\s]+|["'\s]+$/g, '').trim();
-  O.cleanSpeech = clean;
+  // tidy what's said: a capital to start, a stop to end, a lone i made I, no doubled words
+  const tidy = (t) => { t = String(t || '').trim(); if (!t) return t; t = t.replace(/\bi\b/g, 'I').replace(/\b(\w+) \1\b/gi, '$1').replace(/\s+([,.!?;:])/g, '$1').replace(/([,.!?;:])(?=[A-Za-z])/g, '$1 '); t = t[0].toUpperCase() + t.slice(1); if (!/[.!?"]$/.test(t)) t += '.'; return t; };
+  const clean0 = clean; O.cleanSpeech = (x) => tidy(clean0(x));
 
   // ---------------------------------------------------------------- who answers
   const AI = O.AI = { kind: null, ready: false, sample: null, key: null, busy: false };
@@ -12894,7 +12955,7 @@ They know only what their card says; asked anything else they don't know, guess 
 people: for each person present: feel and trust (-2..2) = how the player's words change their liking and belief; learned = a short new claim from the player they now believe, else ""; caught = true if they now see the player lied before.
 name: the player's name if the player just gave it. agree: true only if they now agree to the pending request.
 acts: only what a speaker truly agrees to or does, each {"who":"First name","do":...}:
-meet {"place","hour":0-23,"day":"today"|"tomorrow"|weekday,"why"} | follow (come along with the player now) | stop (stop following) | go {"place"} (go there now) | invite (let the player into their home today) | give {"item"} (hand over something they have) | want {"item"} (ask the player for something) | take_gift | refuse_gift | take_job (accept the player's own job when offered) | seek_job {"place"} | tell {"to","msg"} (pass a message to someone they know) | like {"of","by":-1 or 1} (think better or worse of someone after what was said) | leave (end the talk and walk off: rude player, busy, bored, or done). If a speaker says they are off somewhere now, add a go act for it (or leave).
+meet {"place","hour":0-23,"day":"today"|"tomorrow"|weekday,"why"} | follow (come along with the player now) | stop (stop following) | go {"place"} (go there now) | invite (let the player into their home today) | give {"item"} (hand over something they have) | want {"item"} (ask the player for something) | take_gift | refuse_gift | take_job (accept the player's own job when offered) | seek_job {"place"} | tell {"to","msg"} (pass a message to someone they know) | like {"of","by":-1 or 1} (think better or worse of someone after what was said) | call {"who"} (call someone near them over to join the talk) | leave (end the talk and walk off: rude player, busy, bored, or done). If a speaker says they are off somewhere now, add a go act for it (or leave).
 Places: names from the card, "my home", "your home" or "the square". Items: things the speaker has, or the player carries.`;
   const G = () => O.Data.GOODS;
   function goodsHad(s, q) {
@@ -12904,8 +12965,30 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
     for (const g of q.items || []) out.push((G()[g]?.name || g).toLowerCase());
     return [...new Set(out)].slice(0, 12);
   }
+  // who someone is to them
+  function relTo(s, q, z) {
+    if (q.spouse === z.id) return q.sex === 'm' ? 'your wife' : 'your husband';
+    if ((q.children || []).includes(z.id)) return z.sex === 'm' ? 'your son' : 'your daughter';
+    if ((q.parents || []).includes(z.id)) return z.sex === 'm' ? 'your father' : 'your mother';
+    if ((q.parents || []).length && (z.parents || []).some((x) => (q.parents || []).includes(x))) return z.sex === 'm' ? 'your brother' : 'your sister';
+    if (q.household != null && q.household === z.household) return 'of your household';
+    if (q.job && z.job && q.job.biz === z.job.biz) return `works with you (${z.job.role})`;
+    const r = q.rel.get(z.id); if (r && r.affinity > 0.3) return 'a friend'; if (r && r.affinity < -0.3) return 'someone you dislike';
+    if (r && r.familiar > 0.2) return `someone you know${z.job ? ` (${z.job.role})` : ''}`;
+    return 'a stranger to you';
+  }
+  O.relTo = relTo;
+  // who is about them right now, in the same room or close by in the street
+  function nearby(s, q, r0 = 140) {
+    const g = O.game, out = [];
+    if (g.scene) { const me = g.scene.personPos(q); if (me) for (const a of g.scene.actors.values()) { const z = a.person; if (!z || z === q || a.hidden || a.leaving) continue; out.push([z, Math.hypot(a.x - me[0], a.y - me[1])]); } }
+    else if (!q.agent.hidden) for (const z of s.people) { if (z === q || z.agent.hidden || z.agent.inside != null) continue; const d = Math.hypot(z.agent.x - q.agent.x, z.agent.y - q.agent.y); if (d < r0) out.push([z, d]); }
+    return out.sort((a, b) => a[1] - b[1]).slice(0, 6).map(([z, d]) => ({ z, d }));
+  }
+  O.nearbyOf = nearby;
   function extraCard(s, q) {
     const PS = O.PlayerState, L = [];
+    const nb = nearby(s, q); if (nb.length) L.push(`Near you now: ${nb.map(({ z, d }) => `${z.first} ${z.sur || ''}, ${z.age < 14 ? (z.sex === 'm' ? 'a boy' : 'a girl') : z.sex === 'm' ? 'a man' : 'a woman'} of ${z.age}, ${relTo(s, q, z)}${d < 34 ? ', right beside you' : ''}${z.activity?.act ? ` (${(O.ACT_LABEL || {})[z.activity.act] || z.activity.act})` : ''}`.replace(/  /g, ' ')).join('; ')}.`);
     const had = goodsHad(s, q); if (had.length) L.push(`You have: ${had.join(', ')}.`);
     const carried = [...new Set(PS.items)].map((g) => (G()[g]?.name || g).toLowerCase()); L.push(`The player carries: ${carried.join(', ') || 'nothing'}${PS.money ? `, and ₳${PS.money}` : ''}.`);
     for (const m of (PS.meets || []).filter((m) => m.who === q.id && m.place === s.world.placeId && m.state === 'set')) L.push(`You agreed to meet the player at ${m.label}.`);
@@ -12933,7 +13016,8 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
     if (!AI.ready) return reply(q, '...', render);
     const ask = askFor(q), group = (q._group || []).filter((z) => z.alive !== false);
     const history = conv.slice(-8, -1).map((c) => (c.who === 'p' ? 'Player: ' : (c.by || q.first) + ': ') + c.t).join('\n');
-    const prompt = `${RULES}\n\n--- ${q.first} (spoken to) ---\n${speechFor(q.age, q.stage)}\n${card(s, q)}\n${extraCard(s, q)}\n${group.length ? `--- Also in the talk ---\n${group.map((z) => shortCard(s, z)).join('\n')}\n` : ''}${ask ? `--- Pending request to ${q.first} ---\nThe player wants you to ${ask.goal}. ${ask.why || ''} Weigh it by temper, needs and trust; agree only if convinced.\n` : 'No request is pending: agree is false.\n'}--- Talk so far ---\n${history || '(none)'}\nPlayer: ${text}`;
+    const hurryNote = q._hurry ? `${q.first} is in a hurry (${q._hurry.why}): answer briefly, then say they must go now.\n` : '';
+    const prompt = `${RULES}\n\n${hurryNote}${group.length ? 'The player is speaking to the whole group: any of them may answer.\n' : ''}--- ${q.first} (spoken to) ---\n${speechFor(q.age, q.stage)}\n${card(s, q)}\n${extraCard(s, q)}\n${group.length ? `--- Also in the talk ---\n${group.map((z) => shortCard(s, z)).join('\n')}\n` : ''}${ask ? `--- Pending request to ${q.first} ---\nThe player wants you to ${ask.goal}. ${ask.why || ''} Weigh it by temper, needs and trust; agree only if convinced.\n` : 'No request is pending: agree is false.\n'}--- Talk so far ---\n${history || '(none)'}\nPlayer: ${text}`;
     render(null, true);
     AI.busy = true;
     let out = null;
@@ -12973,6 +13057,7 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
     render(shown[0].t, false);
     let delay = 0; for (const l of shown.slice(1)) { delay += 1400 + shown[0].t.length * 35; setTimeout(() => { if (O.npcUI && O.npcUI.talking() === q && !AI.busy) { q._lastSpeaker = l.who; render(l.t, false); } }, delay); }
     if (notes.length) O.UI.say(notes.join(' '));
+    if (q._hurry) { leave = true; q._hurry = null; }
     if (leave) setTimeout(() => { if (O.npcUI && O.npcUI.talking() === q) { O.npcUI.closeTalk(); } q._snubUntil = s.day * 1440 + s.minute + (r.affinity < -0.2 ? 240 : 30); O.NpcActs && O.NpcActs.walkOff(q); }, 2200);
   }
   // never a name in front of the words, never a word from outside their world
@@ -12980,7 +13065,7 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
   function inChar(q, t) {
     t = String(t || '').replace(/^\s*[A-Z][\w'-]+(?: [A-Z][\w'-]+)?\s*:\s*/, '');
     if (OUT.test(t)) return confused(q);
-    return t;
+    return tidy(t);
   }
   function reply(q, line, render) {
     line = inChar(q, clean(line)) || '...'; q._lastSpeaker = null;
@@ -13222,6 +13307,12 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
     const g = O.game, s = O.SimRef.cur; if (!s) return;
     for (const f of flying) f.t += dt; for (let i = flying.length - 1; i >= 0; i--) if (flying[i].t > 0.7) flying.splice(i, 1);
     if (g.scene) return;
+    for (const [id, j] of joining) {
+      const z = s.byId.get(id), h = j.to; if (!z || z.agent.hidden || !O.npcUI || O.npcUI.talking() !== h) { joining.delete(id); if (z) z.agent.chasing = false; continue; }
+      const a = z.agent, tx = h.agent.x + 16, ty = h.agent.y + 6, dx = tx - a.x, dy = ty - a.y, d = Math.hypot(dx, dy) || 1; a.chasing = true; a.path = null;
+      if (d > 8) { const sp = 95 * dt, nx = a.x + (dx / d) * sp, ny = a.y + (dy / d) * sp; if (!g.solidAt(nx, ny)) { a.x = nx; a.y = ny; } else if (!g.solidAt(nx, a.y)) a.x = nx; else if (!g.solidAt(a.x, ny)) a.y = ny; a.anim = 'run'; a.dir = O.dirOf(dx, dy); }
+      else { joining.delete(id); a.chasing = false; a.frozen = true; a.anim = 'idle'; a.dir = O.dirOf(g.player.x - a.x, g.player.y - a.y); (h._group = h._group || []).push(z); O.gesture && O.gesture(z, z.age > 6 ? 'wave' : 'nod', 1.4); }
+    }
     for (const [id] of follow) {
       const q = s.byId.get(id); if (!q || q.agent.hidden || q.agent.inside != null) continue;
       if (q.agent.frozen) continue;
@@ -13312,9 +13403,20 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
       case 'seek_job': return seekJob(s, q, a.place);
       case 'tell': { const to = personFor(s, a.to); if (!to || to === q || !a.msg) return null; passing.push({ s, from: q.id, to: to.id, msg: O.cleanSpeech(String(a.msg)).slice(0, 120), who: r.name || 'the stranger' }); return null; }
       case 'like': { const of = personFor(s, a.of); if (!of || of === q) return null; s.relate(q, of, (Number(a.by) > 0 ? 1 : -1) * 0.1); return null; }
+      case 'call': { const z = O.nearbyOf ? (O.nearbyOf(s, q, 260).find(({ z }) => z.first.toLowerCase() === String(a.who || '').toLowerCase().split(' ')[0]) || {}).z : null; if (!z) return null; return callOver(s, q, z, main); }
       case 'leave': return 'leave';
       default: return null;
     }
+  }
+  // calling someone over: they come if they will (not when busy, asleep, or set against the player)
+  const joining = new Map(); // person id -> { to: talk person }
+  function callOver(s, q, z, main) {
+    const host = main || q; host._group = host._group || [];
+    if (host === z || host._group.includes(z)) return null;
+    const rz = z.rel.get(0) || {}, act = z.activity?.act;
+    if (act === 'sleep' || z.age < 4 || (rz.affinity || 0) < -0.4 || ['fire', 'firefight', 'help', 'report', 'labour', 'leave'].includes(act) || (act === 'work' && Math.random() < 0.5)) return `${z.first} shakes ${z.sex === 'f' ? 'her' : 'his'} head and stays where ${z.sex === 'f' ? 'she is' : 'he is'}.`;
+    if (O.game.scene) { setTimeout(() => { if (O.npcUI && O.npcUI.talking() === host) { host._group.push(z); z.agent.frozen = true; } }, 1500); return `${z.first} comes over.`; }
+    joining.set(z.id, { to: host }); return `${z.first} hurries over.`;
   }
   // walking off: they turn away and get on with their day
   function walkOff(q) { q.agent.frozen = false; q.agent.talking = 0; follow.delete(q.id); q.agent.chasing = false; q.agent.path = null; q.agent.goal = null; }
@@ -13521,15 +13623,10 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
     }
     // the chest's panel: what's in it, and (if it's yours) room to put things away; yours stays open as you go
     function openChest(it, items, owner, own, store) {
-        O.Panels.container(`${it.kind[0].toUpperCase() + it.kind.slice(1)}, ${owner}`, items, (idxs) => { take(it, items, idxs, owner); if (own) { const c = contents(it); openChest(it, c.items, c.owner, true, c.store); } }, own ? null : `This belongs to ${owner}. Anyone awake in the room will see you take it.`);
-        // your own chest: put things away in it, too
-        if (store) setTimeout(() => {
-          const root = document.querySelector('.panel-modal .ledger-in') || document.querySelector('.panel-modal'); if (!root) return;
-          const box = document.createElement('div'); box.style.marginTop = '10px';
-          const draw = () => { const kinds = [...new Set(PS.items)].filter((k) => G[k] && k !== 'key'); box.innerHTML = `<div class="lbl">Put away from your satchel (the chest holds ${(PS.homes[store] || []).length} of 24)</div><div class="topics">${kinds.map((k) => `<button data-put="${k}">${O.escape(G[k].name)}</button>`).join('') || '<span class="caption">Your satchel is empty.</span>'}</div>`;
-            box.querySelectorAll('[data-put]').forEach((b) => b.onclick = () => { const k = b.dataset.put, st = (PS.homes[store] = PS.homes[store] || []); if (st.length >= 24) return O.Panels.toast('The chest is full.', 'bad'); if (!PS.items.includes(k)) return; PS.remove(k); st.push(k); O.Panels.toast(`You put the ${G[k].name.toLowerCase()} away.`); const c = contents(it); openChest(it, c.items, c.owner, true, c.store); }); };
-          draw(); root.appendChild(box);
-        }, 0);
+      const reopen = () => { const c = contents(it); openChest(it, c.items, c.owner, true, c.store); };
+      const put = store ? { cap: 24, count: () => (PS.homes[store] || []).length, fn: (k) => { const st = (PS.homes[store] = PS.homes[store] || []); if (st.length >= 24) return O.Panels.toast('The chest is full.', 'bad'); if (!PS.items.includes(k)) return; PS.remove(k); st.push(k); reopen(); } } : null;
+      const name = it.kind[0].toUpperCase() + it.kind.slice(1);
+      O.Panels.container(own ? name : `${name}: ${owner.replace(/^the /, '')}`, items, (idxs) => { take(it, items, idxs, owner); if (own) reopen(); }, own ? null : 'Not yours', put);
     }
 
     // Sleeping: you lie down and the night passes (quickly, for you) while the village sleeps around

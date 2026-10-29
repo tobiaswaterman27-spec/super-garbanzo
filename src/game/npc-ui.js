@@ -24,8 +24,10 @@
         const q = talking, t = q.traits || [], long = t.includes('social') ? 90 : t.includes('introverted') ? 25 : 50;
         if (q._mustGo || absNow() - (q._talkFrom || absNow()) > long) {
           const line = q._mustGo === 'work' ? pick(["I'll be late for work. I must go.", 'There, that\'s the hour. Work calls.']) : q._mustGo ? pick(['I must be off.', "I've somewhere to be. Fare you well."]) : pick(["Well, I'd best be getting on.", 'I must away. Good day to you.', "Enough talk. I've things to do."]);
-          q._mustGo = null; const qq = q; closeTalk(); walkAway(qq, line); return;
+          if (q._mustGo && !q._hurry) { const a0 = q._mustGo; q._mustGo = null; hurry(q, a0); return; }
+          if (!q._hurry) { q._mustGo = null; const qq = q; closeTalk(); walkAway(qq, line); return; }
         }
+        if (q._hurry && performance.now() > q._hurry.until && !O.UI.dialog.typing?.()) { const qq = q; q._hurry = null; closeTalk(); walkAway(qq, pick(['Good day to you.', 'Fare you well.', 'Another time.'])); return; }
       }
       // whoever you're talking to keeps turning to face you (unless they're sat or abed)
       const d = O.dirOf(game.player.x - pos[0], game.player.y - pos[1]);
@@ -61,6 +63,16 @@
       if (q.health?.illness?.sev > 0.6) return pick(["I'm not well. Leave me be.", "Not today. I can barely stand."]);
       return null;
     }
+    // why they must go, in their own words
+    function whyGo(q, act) {
+      const bz = q.job && sim.biz.get(q.job.biz);
+      return act === 'work' ? (bz ? `I'm due at ${bz.name}` : "I'm due at work") : act === 'worship' ? 'mass is about to start' : act === 'meet' ? "I'm meeting someone" : act === 'council' ? 'the council sits soon' : act === 'leave' ? "I've a long road ahead" : ['fire', 'firefight'].includes(act) ? "there's a fire" : ['help', 'escort', 'to-doc', 'labour'].includes(act) ? 'someone needs me' : act === 'sick' ? "I'm not well" : act === 'report' ? 'I must get to the watch' : "I've somewhere to be";
+    }
+    // in a hurry: a word of sorry and why, one more answer if you're quick, then off they go
+    function hurry(q, act) {
+      const why = whyGo(q, act); q._hurry = { why, until: performance.now() + 7000 };
+      renderTalk(pick([`Forgive me, I can't stay. ${why[0].toUpperCase() + why.slice(1)}.`, `I'm sorry, I must go. ${why[0].toUpperCase() + why.slice(1)}.`, `Sorry, ${why}. I have to be off.`]));
+    }
     function walkAway(q, line) {
       const s0 = sim; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: line, options: [] });
       setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1800);
@@ -68,12 +80,14 @@
     }
     function openTalk(q) {
       const s0 = sim; if (q._snubUntil && s0.day * 1440 + s0.minute < q._snubUntil) { O.UI.say(`${q.first} turns away from you.`, 'bad'); return; }
-      { const bl = O.AI && O.AI.ready ? busyLine(q) : null; if (bl) return walkAway(q, bl); }
+      { const bl = O.AI && O.AI.ready ? busyLine(q) : null;
+        if (bl) { const act = q.activity?.act, r0 = q.rel.get(0) || {}; if ((r0.affinity || 0) < -0.55 || ['fire', 'firefight', 'help', 'report'].includes(act)) return walkAway(q, bl); talking = q; q.agent.frozen = true; q._group = []; q._talkFrom = absNow(); q._lastSpeaker = null; hurry(q, act === 'work' || act === 'patrol' ? 'work' : act); return; } }
       talking = q; q.agent.frozen = true; q._lastSpeaker = null; q._mustGo = null; q._talkFrom = absNow();
       // others standing with them join in (as in a group in the square)
       { const pos0 = game.scene ? game.scene.personPos(q) : [q.agent.x, q.agent.y];
         const near = pos0 ? (game.scene ? [...game.scene.actors.values()].filter((a) => !a.hidden && a.person && a.person !== q).map((a) => [a.person, a.x, a.y]) : sim.people.filter((z) => z !== q && !z.agent.hidden).map((z) => [z, z.agent.x, z.agent.y])) : [];
-        q._group = near.filter(([z, x, y]) => Math.hypot(x - pos0[0], y - pos0[1]) < 34 && z.age >= 5 && z.activity?.act !== 'sleep' && z.activity?.act !== 'work' && z.health.hp > 0).slice(0, 2).map(([z]) => z);
+        const chatting = (z) => { const a1 = q.activity?.act, a2 = z.activity?.act; if (!a1 || a1 !== a2 || !['socialise', 'stroll', 'festival', 'feast', 'sit', 'rest', 'gangmeet', 'eat-out', 'home'].includes(a1)) return false; const r1 = q.rel.get(z.id); return !!(q.spouse === z.id || q.household === z.household || (r1 && (r1.affinity > 0.2 || r1.familiar > 0.4))); };
+        q._group = near.filter(([z, x, y]) => Math.hypot(x - pos0[0], y - pos0[1]) < 30 && z.age >= 5 && z.health.hp > 0 && chatting(z)).slice(0, 2).map(([z]) => z);
         for (const z of q._group) z.agent.frozen = true; }
       O.jobEvent && O.jobEvent('talk', { q });
       O.dropLead && O.dropLead((l) => l.id === q.id && l.place === O.SimRef.cur.world.placeId && l.why !== 'contract'); // found them: the arrow's done its work

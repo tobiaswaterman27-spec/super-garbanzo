@@ -93,6 +93,7 @@ main { height: 100vh; }
 /* conversation box */
 .dlg { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); width: min(760px, calc(100% - 32px)); min-height: 118px; padding: 26px 34px 22px; border-radius: 0; background: #fbf3dd; color: #4a3826; font-family: var(--body); font-weight: 700; font-size: 19px; line-height: 1.45; box-shadow: 0 6px 0 rgba(70,48,26,.35), inset 0 0 0 3px #efe1bd; z-index: 30; cursor: pointer; }
 .dlg-name { position: absolute; top: -16px; left: 34px; transform: rotate(-3deg); padding: 4px 18px; border-radius: 0; color: #fff; font-weight: 800; font-size: 16px; box-shadow: 0 3px 0 rgba(0,0,0,.25); text-shadow: 0 1px 0 rgba(0,0,0,.3); }
+html, body, button, input, textarea, select { font-variant-ligatures: none; font-feature-settings: "liga" 0, "clig" 0, "dlig" 0; }
 .ai-gate { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; background: #2a1d12; color: #fbf3dd; font-family: var(--body); }
 .ai-gate-in { text-align: center; display: grid; gap: 14px; width: min(420px, calc(100% - 32px)); }
 .ai-gate h1 { font: 800 54px var(--display, var(--body)); letter-spacing: 2px; margin: 0; color: #f0c060; }
@@ -100,6 +101,30 @@ main { height: 100vh; }
 .ai-gate input { font: 700 17px var(--body); padding: 10px 12px; border: 0; background: #fbf3dd; color: #3a2a1a; }
 .ai-gate button { font: 800 18px var(--body); padding: 10px; border: 0; background: #d38a3a; color: #fff; cursor: pointer; box-shadow: 0 3px 0 #9a5a1e; }
 .ai-err { color: #f0a080; margin: 0; }
+.panel-modal header { flex-wrap: nowrap; gap: 10px; align-items: center; }
+.panel-modal header h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.panel-modal header .x { flex: none; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; }
+.tile { position: relative; display: grid; justify-items: center; gap: 4px; padding: 10px 4px 8px; background: #3a2d22; border: 0; box-shadow: inset 0 0 0 2px #4e3d2e; color: #f3e6c8; font: 700 12px var(--body); cursor: pointer; min-height: 78px; }
+.tile:hover, .tile.on { box-shadow: inset 0 0 0 2px #e0a050; background: #46362a; }
+.tile img { width: 36px; height: 36px; image-rendering: pixelated; }
+.tile .nm { line-height: 1.15; text-align: center; overflow-wrap: anywhere; }
+.tile .ct { position: absolute; top: 4px; right: 6px; font-size: 12px; color: #f0c060; }
+.tile.empty { cursor: default; box-shadow: inset 0 0 0 2px #3a2d22; background: #2b2119; }
+.tile-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; padding: 10px; background: #2b2119; }
+.tile-acts b { margin-right: 6px; color: #f0c060; }
+.tile-acts button, .panes .btn { font: 800 14px var(--body); background: #d38a3a; color: #fff; border: 0; padding: 7px 14px; cursor: pointer; box-shadow: 0 3px 0 #9a5a1e; }
+.needs { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin-bottom: 12px; font-size: 13px; }
+.needs span { display: flex; gap: 6px; align-items: center; }
+.mbar { display: inline-block; width: 64px; height: 7px; background: #2b2119; }
+.mbar i { display: block; height: 100%; background: #7ab050; } .mbar.fed i { background: #d8a040; } .mbar.rest i { background: #6a8ad0; }
+.slotsct { margin-left: auto; color: #c8b090; }
+.panes { display: grid; gap: 16px; } .panes.two { grid-template-columns: 1fr 1fr; }
+.panes h3 { margin: 0 0 8px; font-size: 15px; color: #f0c060; } .panes h3 small { color: #c8b090; font-weight: 400; }
+.panes .btn { margin-top: 10px; }
+.notyours { display: inline-block; margin-bottom: 10px; padding: 4px 10px; background: #8a2e24; color: #fff; font-weight: 800; font-size: 13px; }
+details.more { margin-top: 14px; } details.more summary { cursor: pointer; color: #c8b090; }
+@media (max-width: 600px) { .panes.two { grid-template-columns: 1fr; } }
 .dlg-say { display: flex; gap: 8px; margin-top: 14px; }
 .dlg-say .dlg-give { padding: 0 12px; font-size: 22px; background: #8a6a44; box-shadow: 0 3px 0 #5a4026; }
 .dlg-items { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }

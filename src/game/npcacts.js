@@ -119,6 +119,12 @@
     const g = O.game, s = O.SimRef.cur; if (!s) return;
     for (const f of flying) f.t += dt; for (let i = flying.length - 1; i >= 0; i--) if (flying[i].t > 0.7) flying.splice(i, 1);
     if (g.scene) return;
+    for (const [id, j] of joining) {
+      const z = s.byId.get(id), h = j.to; if (!z || z.agent.hidden || !O.npcUI || O.npcUI.talking() !== h) { joining.delete(id); if (z) z.agent.chasing = false; continue; }
+      const a = z.agent, tx = h.agent.x + 16, ty = h.agent.y + 6, dx = tx - a.x, dy = ty - a.y, d = Math.hypot(dx, dy) || 1; a.chasing = true; a.path = null;
+      if (d > 8) { const sp = 95 * dt, nx = a.x + (dx / d) * sp, ny = a.y + (dy / d) * sp; if (!g.solidAt(nx, ny)) { a.x = nx; a.y = ny; } else if (!g.solidAt(nx, a.y)) a.x = nx; else if (!g.solidAt(a.x, ny)) a.y = ny; a.anim = 'run'; a.dir = O.dirOf(dx, dy); }
+      else { joining.delete(id); a.chasing = false; a.frozen = true; a.anim = 'idle'; a.dir = O.dirOf(g.player.x - a.x, g.player.y - a.y); (h._group = h._group || []).push(z); O.gesture && O.gesture(z, z.age > 6 ? 'wave' : 'nod', 1.4); }
+    }
     for (const [id] of follow) {
       const q = s.byId.get(id); if (!q || q.agent.hidden || q.agent.inside != null) continue;
       if (q.agent.frozen) continue;
@@ -209,9 +215,20 @@
       case 'seek_job': return seekJob(s, q, a.place);
       case 'tell': { const to = personFor(s, a.to); if (!to || to === q || !a.msg) return null; passing.push({ s, from: q.id, to: to.id, msg: O.cleanSpeech(String(a.msg)).slice(0, 120), who: r.name || 'the stranger' }); return null; }
       case 'like': { const of = personFor(s, a.of); if (!of || of === q) return null; s.relate(q, of, (Number(a.by) > 0 ? 1 : -1) * 0.1); return null; }
+      case 'call': { const z = O.nearbyOf ? (O.nearbyOf(s, q, 260).find(({ z }) => z.first.toLowerCase() === String(a.who || '').toLowerCase().split(' ')[0]) || {}).z : null; if (!z) return null; return callOver(s, q, z, main); }
       case 'leave': return 'leave';
       default: return null;
     }
+  }
+  // calling someone over: they come if they will (not when busy, asleep, or set against the player)
+  const joining = new Map(); // person id -> { to: talk person }
+  function callOver(s, q, z, main) {
+    const host = main || q; host._group = host._group || [];
+    if (host === z || host._group.includes(z)) return null;
+    const rz = z.rel.get(0) || {}, act = z.activity?.act;
+    if (act === 'sleep' || z.age < 4 || (rz.affinity || 0) < -0.4 || ['fire', 'firefight', 'help', 'report', 'labour', 'leave'].includes(act) || (act === 'work' && Math.random() < 0.5)) return `${z.first} shakes ${z.sex === 'f' ? 'her' : 'his'} head and stays where ${z.sex === 'f' ? 'she is' : 'he is'}.`;
+    if (O.game.scene) { setTimeout(() => { if (O.npcUI && O.npcUI.talking() === host) { host._group.push(z); z.agent.frozen = true; } }, 1500); return `${z.first} comes over.`; }
+    joining.set(z.id, { to: host }); return `${z.first} hurries over.`;
   }
   // walking off: they turn away and get on with their day
   function walkOff(q) { q.agent.frozen = false; q.agent.talking = 0; follow.delete(q.id); q.agent.chasing = false; q.agent.path = null; q.agent.goal = null; }

@@ -327,7 +327,7 @@
           break;
         case 'guardroom':
           tryPut('rack', backWall(2, true)); tryPut('rack', backWall(2, true)); tryPut('rack', backWall(2, true)); dining(4, {}); tryPut('barrel', nearWalls()); tryPut('chest', nearWalls(2, 1), { evidence: true });
-          tryPut('cell', [[w - 5, d - 5], ...nearWalls(4, 4)], { cell: true });
+          tryPut('cell', [[w - 5, 0], ...backWall(4, true), ...nearWalls(4, 4)], { cell: true });
           break;
         case 'castlechapel': {
           const mid = Math.floor(w / 2); put('altar', mid - 2, 0, { v: 2, work: ['priest'], candles: true });
@@ -482,7 +482,7 @@
       case 'guard': {
         tryPut('desk', [...backWall(2), ...centre(2, 1)], { work: ['guard captain', 'guard'] });
         tryPut('rack', backWall(2, true)); tryPut('rack', backWall(2, true));
-        put('cell', w - 4, d - 6, { cell: true }) || tryPut('cell', corners(4, 4), { cell: true });
+        tryPut('cell', [[w - 4, 0], [w - 5, 0], ...backWall(4, true)], { cell: true }) || tryPut('cell', corners(4, 4), { cell: true }); // (against the back wall: nobody walks behind the bars)
         tryPut('bench', nearWalls(3, 1), { seat: true });
         dining(4);
         tryPut('chest', nearWalls(2, 1), { valuables: true, evidence: true });

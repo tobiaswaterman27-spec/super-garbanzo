@@ -167,6 +167,8 @@
     lines.push(`Talking to you: ${known}; met ${r.familiar < 0.15 ? 'just now' : r.familiar < 0.5 ? 'a few times' : 'often'}; ${fond}; ${tr}.`);
     if (ctx.sawPlayerCrime) lines.push('You saw them commit a crime and know their face.');
     { const ho = O.Employment && O.Employment.hireOutlook && O.Employment.hireOutlook(s, q); if (ho) lines.push(ho); }
+    { const F = PS.cellFine; if (F && F.guard === q.id) lines.push(`The player is in your cell for ${F.crimes.join(' and ') || 'running from the watch'}. Their fine is ${Math.max(0, Math.round(F.due))} aurins; they pay by handing you the coin (take_gift). If they can't or won't, the watch take what they have; there is no court. You can't let them off for less.`);
+      if (/guard|watch|sergeant|turnkey|gaoler/.test(q.job?.role || '') && O.watchedHere && O.watchedHere()) lines.push(`The watch have their eye on the player: let out of the cells lately (${PS.watched.why})${PS.fineOwed ? `, and still owing ${PS.fineOwed} aurins of their fine` : ''}.`); }
     { const rl = O.romanceLine && O.romanceLine(s, q); if (rl) lines.push(rl); }
     { const P = O.PlayerState, w = P.wantedLevel ? P.wantedLevel() : 0; if (w > 0 && /guard|watch|sergeant|constable|captain/.test(q.job?.role || '')) { const n = s.crimes.filter((c) => c.perp === 'player' && c.investigated && !c.closed).length; lines.push(`The watch are looking for someone who matches them${P.soughtFor ? ' (' + P.soughtFor() + ')' : ''}. ${q.traits.includes('honest') || q.traits.includes('loyal') ? 'You cannot be bought.' : `You might take a bribe of ${12 + n * 8} aurins or more to forget it.`}`); } }
     if (ctx.fame && ctx.fame.length) lines.push(`You've heard of them: ${ctx.fame.slice(0, 3).map(clean).join(' | ')}`);

@@ -11614,7 +11614,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
           break;
         case 'guardroom':
           tryPut('rack', backWall(2, true)); tryPut('rack', backWall(2, true)); tryPut('rack', backWall(2, true)); dining(4, {}); tryPut('barrel', nearWalls()); tryPut('chest', nearWalls(2, 1), { evidence: true });
-          tryPut('cell', [[w - 5, d - 5], ...nearWalls(4, 4)], { cell: true });
+          tryPut('cell', [[w - 5, 0], ...backWall(4, true), ...nearWalls(4, 4)], { cell: true });
           break;
         case 'castlechapel': {
           const mid = Math.floor(w / 2); put('altar', mid - 2, 0, { v: 2, work: ['priest'], candles: true });
@@ -11769,7 +11769,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       case 'guard': {
         tryPut('desk', [...backWall(2), ...centre(2, 1)], { work: ['guard captain', 'guard'] });
         tryPut('rack', backWall(2, true)); tryPut('rack', backWall(2, true));
-        put('cell', w - 4, d - 6, { cell: true }) || tryPut('cell', corners(4, 4), { cell: true });
+        tryPut('cell', [[w - 4, 0], [w - 5, 0], ...backWall(4, true)], { cell: true }) || tryPut('cell', corners(4, 4), { cell: true }); // (against the back wall: nobody walks behind the bars)
         tryPut('bench', nearWalls(3, 1), { seat: true });
         dining(4);
         tryPut('chest', nearWalls(2, 1), { valuables: true, evidence: true });
@@ -13146,6 +13146,8 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     lines.push(`Talking to you: ${known}; met ${r.familiar < 0.15 ? 'just now' : r.familiar < 0.5 ? 'a few times' : 'often'}; ${fond}; ${tr}.`);
     if (ctx.sawPlayerCrime) lines.push('You saw them commit a crime and know their face.');
     { const ho = O.Employment && O.Employment.hireOutlook && O.Employment.hireOutlook(s, q); if (ho) lines.push(ho); }
+    { const F = PS.cellFine; if (F && F.guard === q.id) lines.push(`The player is in your cell for ${F.crimes.join(' and ') || 'running from the watch'}. Their fine is ${Math.max(0, Math.round(F.due))} aurins; they pay by handing you the coin (take_gift). If they can't or won't, the watch take what they have; there is no court. You can't let them off for less.`);
+      if (/guard|watch|sergeant|turnkey|gaoler/.test(q.job?.role || '') && O.watchedHere && O.watchedHere()) lines.push(`The watch have their eye on the player: let out of the cells lately (${PS.watched.why})${PS.fineOwed ? `, and still owing ${PS.fineOwed} aurins of their fine` : ''}.`); }
     { const rl = O.romanceLine && O.romanceLine(s, q); if (rl) lines.push(rl); }
     { const P = O.PlayerState, w = P.wantedLevel ? P.wantedLevel() : 0; if (w > 0 && /guard|watch|sergeant|constable|captain/.test(q.job?.role || '')) { const n = s.crimes.filter((c) => c.perp === 'player' && c.investigated && !c.closed).length; lines.push(`The watch are looking for someone who matches them${P.soughtFor ? ' (' + P.soughtFor() + ')' : ''}. ${q.traits.includes('honest') || q.traits.includes('loyal') ? 'You cannot be bought.' : `You might take a bribe of ${12 + n * 8} aurins or more to forget it.`}`); } }
     if (ctx.fame && ctx.fame.length) lines.push(`You've heard of them: ${ctx.fame.slice(0, 3).map(clean).join(' | ')}`);
@@ -15108,11 +15110,78 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       game.enterBuilding(gh, 0);
       const cell = game.scene.L.items.find((i) => i.cell); if (cell) { const [ax, ay] = game.scene.anchor(cell); game.player.x = ax; game.player.y = ay - 6; }
       sim.log(`${g.name} brought the stranger to the Watch House in irons.`, 'crime');
-      O.Panels.toast('The cell door slams. The magistrate will hear you in the morning.');
+      O.Panels.toast('The cell door slams behind you.');
       // night in the cell
       let guard = 0; while (guard++ < 1000) { sim.tick(2); PS.tick(2, true); if (Math.floor(sim.minute) >= 9 * 60 && Math.floor(sim.minute) < 9 * 60 + 4) break; }
-      trial(found);
+      reckoning(g, gh);
+      void found;
     }
+
+    // ---------------- the morning after: no court, just the watch and what you owe ----------------
+    // The fine is set by how bad it was (and what you still owe from before). Hand the guard the coin and
+    // you walk out; can't pay, and they take your purse and then your things, at what they'd fetch here,
+    // and what's left is owed next time; nothing on you at all, and you're let off with a warning.
+    // Either way the watch here keep an eye on you for a while.
+    const worth = (k) => { const G0 = O.Data.GOODS[k]; let best = 0; for (const bz of sim.biz.values()) if ((bz.def.sells || []).includes(k)) best = Math.max(best, sim.price(bz, k)); return Math.max(1, Math.round(best || (G0 && G0.base) || 2)); };
+    function fineFor(crimes) { return Math.round(crimes.reduce((t, c) => t + (c.royal ? 30 : 8) * (c.severity || 1), 0) + (PS.bounty ? 20 : 0)) + (PS.fineOwed || 0); }
+    function reckoning(g, gh) {
+      const crimes = openCrimes(), fine = Math.max(5, fineFor(crimes));
+      const guard = (game.scene && [...game.scene.actors.values()].map((a) => a.person).find((q) => q && /turnkey|gaoler|guard|sergeant/.test(q.job?.role || ''))) || g;
+      if (guard && guard.agent) { guard.agent.inside = gh.id; guard.agent.hidden = true; O.NpcActs && O.NpcActs.apply(sim, guard, { do: 'go', place: gh.name }); }
+      PS.cellFine = { due: fine, guard: guard ? guard.id : null, crimes: crimes.map((c) => c.kind), b: gh.id, from: sim.day * 1440 + sim.minute };
+      for (const c of crimes) c.closed = 'fined';
+      game.player.locked = false;
+      const what = crimes.map((c) => c.kind).filter((x, i, a) => a.indexOf(x) === i).join(' and ') || 'running from the watch';
+      setTimeout(() => { if (!guard || !O.npcUI.startFrom(guard, `You were taken for ${what}. The fine is ${fine} aurins${PS.fineOwed ? ', with what you still owe from before' : ''}. Pay it and you walk out; if not, we take what you have.`)) settle(); }, 900);
+    }
+    // the coin handed over (through the + in the talk)
+    (O.onGift = O.onGift || []).push((s, q, o) => {
+      const F = PS.cellFine; if (!F || q.id !== F.guard || o.g !== 'coin') return;
+      F.due -= o.n; s.treasury.cash += o.n; const hh = s.household(q); if (hh) hh.money = Math.max(0, hh.money - o.n); // (it goes to the town, not his purse)
+      if (F.due <= 0) { PS.fineOwed = 0; release('paid'); }
+    });
+    // the talk over and the fine not paid: they take what you have
+    let lastTalk = false;
+    game.hooks.update.push(() => {
+      const F = PS.cellFine; if (!F) return;
+      const talkingNow = !!(O.npcUI && O.npcUI.talking());
+      if (lastTalk && !talkingNow && F.due > 0) settle();
+      lastTalk = talkingNow;
+      if (!talkingNow && sim.day * 1440 + sim.minute - F.from > 120 && F.due > 0) settle(); // they won't wait all day
+    });
+    function settle() {
+      const F = PS.cellFine; if (!F) return;
+      if (F.due <= 0) return release('paid');
+      let took = 0, items = [];
+      const coin = Math.min(PS.money, F.due); PS.money -= coin; F.due -= coin; took += coin; sim.treasury.cash += coin;
+      if (F.due > 0) for (const k of PS.items.slice()) { if (F.due <= 0) break; if (k === 'key') continue; const w = worth(k); PS.remove(k, 1); items.push(k); F.due -= w; took += w; }
+      const nothing = !took;
+      PS.fineOwed = Math.max(0, Math.round(F.due));
+      release(nothing ? 'warning' : 'taken', items);
+    }
+    function release(how, items = []) {
+      const F = PS.cellFine; PS.cellFine = null; if (!F) return;
+      const q = F.guard != null ? sim.byId.get(F.guard) : null;
+      PS.watched = { place: sim.world.placeId, until: sim.day + 7, why: F.crimes.join(', ') || 'trouble' };
+      PS.bounty = false; PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.05); PS.rep.guard = Math.max(-1, PS.rep.guard - 0.05);
+      const said = how === 'paid' ? "That's settled. Off you go, and don't let me see you back here." : how === 'warning' ? "You've nothing worth taking. This once you go with a warning, and we'll be watching you." : `That'll cover ${PS.fineOwed ? 'some of it. The rest you owe us, and it waits for you' : 'it'}. Off with you.`;
+      if (q) { if (O.AIChat && O.AIChat.line) O.AIChat.line(q, `You are letting the prisoner out of the cell: ${how === 'paid' ? 'they paid the fine' : how === 'warning' ? 'they had nothing, so they go with a warning' : 'you took their purse and belongings for the fine' + (PS.fineOwed ? ', and they still owe ' + PS.fineOwed + ' aurins' : '')}. Say so, in a few words.`).then((t) => O.Speech && O.Speech.say(q, t || said, 4)); else O.Speech && O.Speech.say(q, said, 4); s0remember(q, how); }
+      if (items.length) O.UI.say(`The watch keep your ${items.length === 1 ? (O.Data.GOODS[items[0]]?.name || items[0]).toLowerCase() : items.length + ' things'}.${PS.fineOwed ? ` You still owe ₳${PS.fineOwed}.` : ''}`, 'bad');
+      sim.log(`The stranger was let out of the Watch House (${how === 'paid' ? 'fine paid' : how === 'warning' ? 'with a warning' : 'goods taken for the fine'}).`, 'crime');
+      setTimeout(() => { if (game.scene && game.scene.b.id === F.b) game.exitBuilding(); }, 2500);
+    }
+    const s0remember = (q, how) => sim.remember(q, how === 'warning' ? 'Let the stranger off with a warning. We have our eye on them.' : 'Settled the stranger\'s fine at the Watch House.', 'crime', 1, 0);
+    O.watchedHere = () => !!(PS.watched && PS.watched.place === sim.world.placeId && sim.day <= PS.watched.until);
+    // the watch keep an eye on you: a look, a word, a few steps after you
+    const eyed = new Map();
+    game.hooks.update.push(() => {
+      if (!O.watchedHere() || game.scene) return;
+      for (const q of guards()) { const d = Math.hypot(q.agent.x - game.player.x, q.agent.y - game.player.y); if (d > 150 || q.agent.chasing || q.agent.frozen) continue;
+        const k = q.id + ':' + sim.day; if (eyed.has(k)) continue; eyed.set(k, 1);
+        q.agent.dir = O.dirOf(game.player.x - q.agent.x, game.player.y - q.agent.y); O.gesture && O.gesture(q, 'look', 2);
+        if (Math.random() < 0.6) O.Speech.say(q, ['I have my eye on you.', 'Mind yourself. We know your face.', 'Behave, you.', 'Still here, are you?'][Math.floor(Math.random() * 4)], 3);
+      }
+    });
 
     // serving time: locked in a cell while the days go by; the turnkey brings bread through the bars
     function serve(days) {

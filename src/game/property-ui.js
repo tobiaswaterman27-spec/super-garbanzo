@@ -90,7 +90,7 @@
         ${mine && b.type === 'house' && !b.household ? `<button data-a="let">Let it to a family (₳${rentEst} a week)</button>` : ''}
         ${mine && b.closedShop ? ['bakery', 'store', 'tavern', 'smithy'].map((t) => `<button data-open="${t}">Open a ${O.Data.BUSINESS[t].label.toLowerCase()} (₳60)</button>`).join('') : ''}
         ${(mine || leased) && O.fitsAs ? O.fitsAs(b).filter((t) => t !== b.type && !s.biz.get(b.id)).slice(0, 6).map((t) => `<button data-open2="${t}">Open as a ${O.Data.BUSINESS[t].label.toLowerCase()} (₳40 stock)</button>`).join('') : ''}
-        ${mine ? ['stone', 'wood', 'dirt'].map((f) => `<button data-floor="${f}">Lay a ${f} floor</button>`).join('') + ['plank', 'timber', 'stone'].map((w2) => `<button data-wall="${w2}">${w2} walls</button>`).join('') : ''}
+        ${mine ? `<div class="lbl">Floor</div><div class="topics">${[['dirt', 'Beaten earth'], ['rushes', 'Strewn rushes'], ['wood', 'Boards'], ['herring', 'Herringbone'], ['stone', 'Flagstones'], ['tiles', 'Glazed tiles']].map(([f, l]) => `<button data-floor="${f}">${l}</button>`).join('')}</div><div class="lbl">Walls</div><div class="topics">${[['timber', 'Timber frame'], ['lime', 'Limewash'], ['panel', 'Panelling'], ['stencil', 'Painted'], ['tapestry', 'Tapestries'], ['plank', 'Planks'], ['stone', 'Stone']].map(([w2, l]) => `<button data-wall="${w2}">${l}</button>`).join('')}</div><div class="lbl">Colour</div><div class="topics">${['white', 'ochre', 'rose', 'sage', 'woad'].map((t) => `<button data-tint="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div>` : ''}
         ${mine && !O.isPublicBuilding(b) ? `<button data-a="sell">Sell for ${O.money(Math.round(v * 0.8))}</button>` : ''}
       </div>`, (r) => {
         const on = (sel, f) => { const el = r.querySelector(sel); if (el) el.onclick = f; };
@@ -111,6 +111,7 @@
         r.querySelectorAll('[data-open2]').forEach((x) => x.onclick = () => { if (PS.money < 40) return O.Panels.toast('You need ₳40 for the first stock.', 'bad'); PS.money -= 40; const bz = s.startBusiness(b, x.dataset.open2, 'player'); s.fillVacancies(); O.Panels.close(); O.Panels.toast(`${bz.name} opens. Its fittings make it what it is: take them out and it stops.`); });
         r.querySelectorAll('[data-floor]').forEach((x) => x.onclick = () => { O.redecorate(b, 'floor', x.dataset.floor); panel(b); });
         r.querySelectorAll('[data-wall]').forEach((x) => x.onclick = () => { O.redecorate(b, 'wall', x.dataset.wall); panel(b); });
+        r.querySelectorAll('[data-tint]').forEach((x) => x.onclick = () => { O.redecorate(b, 'tint', x.dataset.tint); panel(b); });
         r.querySelectorAll('[data-open]').forEach((x) => x.onclick = () => { if (PS.money < 60) return O.Panels.toast('You need ₳60 to stock and staff it.', 'bad'); PS.money -= 60; const bz = s.startBusiness(b, x.dataset.open, 'player'); s.fillVacancies(); O.Panels.close(); O.Panels.toast(`${bz.name} opens under your ownership. A manager will run it; the profit is yours.`); });
       });
     }

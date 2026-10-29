@@ -693,7 +693,13 @@
     const L = layoutFor(b, floor, sim);
     const wallKind = (b.decor && b.decor.wall) || (b.spec.wall === 'stone' || b.spec.wall === 'log' || b.spec.wall === 'plank' ? b.spec.wall : 'timber');
     const floorKind = (b.decor && b.decor.floor) || ['smithy', 'chapel', 'guard', 'mill', 'quarry', 'mine', 'armourer', 'warehouse', 'townhall', 'keep', 'hospital', 'manor', 'throneroom', 'castlekitchen', 'guardroom', 'castlechapel', 'stewardroom', 'servhall'].includes(b.type) ? 'stone' : b.type === 'barn' || (b.type === 'house' && b.wealth < 0.3) ? 'dirt' : 'wood';
-    L.room = O.Furn.room({ w: L.w, d: L.d, wall: wallKind, floor: floorKind, wealth: b.wealth, seed: b.id * 3 + floor, windows: Math.max(1, Math.floor(b.w / 2) + 1), doorTile: floor === 0 ? L.dc : -5, carpets: L.carpets });
+    // homes finished as their owners could afford: earth and rushes, limewash and boards, panelling and tiles
+    let wk = wallKind, fk = floorKind; const homey = ['house', 'cottage', 'townhouse', 'farmhouse', 'mansion', 'manor'].includes(b.type) && !(b.decor && (b.decor.wall || b.decor.floor));
+    if (homey) { const r = (b.id * 7919) % 100, w0 = b.wealth || 0.3;
+      if (w0 < 0.3) { fk = r % 2 ? 'rushes' : 'dirt'; wk = r % 3 ? wallKind : 'lime'; }
+      else if (w0 < 0.6) { fk = r % 3 === 0 ? 'rushes' : 'wood'; wk = r % 2 ? 'lime' : wallKind; if (r % 7 === 0) wk = 'stencil'; }
+      else { fk = r % 3 === 0 ? 'tiles' : r % 3 === 1 ? 'herring' : 'wood'; wk = r % 3 === 0 ? 'tapestry' : r % 3 === 1 ? 'panel' : 'stencil'; } }
+    L.room = O.Furn.room({ tint: b.decor && b.decor.tint, w: L.w, d: L.d, wall: wk, floor: fk, wealth: b.wealth, seed: b.id * 3 + floor, windows: Math.max(1, Math.floor(b.w / 2) + 1), doorTile: floor === 0 ? L.dc : -5, carpets: L.carpets });
     cache.set(key, L);
     return L;
   }

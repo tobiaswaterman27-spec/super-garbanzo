@@ -492,7 +492,9 @@
     const SW = 6, WH = 60, FW = w * T, FH = d * T, FWALL = 8;
     const B = new MB(FW + SW * 2, WH + FH + FWALL);
     const rng = O.RNG(seed);
-    const wm = wall === 'stone' ? P.mat('#8e8880', 'cloth') : wall === 'log' ? P.mat('#7c5a38', 'wood') : wall === 'plank' ? P.mat('#8a6239', 'wood') : P.mat(wealth > 0.6 ? '#e4d8bc' : '#d6c8a8', 'cloth');
+    // limewash comes in the colours earth gives: ochre, rose, sage, woad blue, or plain white
+    const TINT = { ochre: '#d8b878', rose: '#d8a898', sage: '#a8b890', woad: '#98a8c0', white: '#e8e0cc' }, tint = TINT[spec.tint] || (['lime', 'stencil', 'panel', 'tapestry'].includes(wall) ? Object.values(TINT)[seed % 5] : null);
+    const wm = wall === 'stone' ? P.mat('#8e8880', 'cloth') : wall === 'log' ? P.mat('#7c5a38', 'wood') : wall === 'plank' ? P.mat('#8a6239', 'wood') : tint ? P.mat(tint, 'cloth') : P.mat(wealth > 0.6 ? '#e4d8bc' : '#d6c8a8', 'cloth');
     B.part(1); B.rect(SW, 0, FW, WH, wm, 2);
     for (let y = 0; y < WH; y++) for (let x = SW; x < SW + FW; x++) {
       let s = 2;
@@ -503,6 +505,10 @@
       if (y > WH - 5) s = Math.max(0, s - 1); if (y < 4) s = Math.max(0, s - 1);
       B.shadeAt(x, y, s);
     }
+    // panelling below a plaster wall; hangings; a painted pattern
+    if (wall === 'panel') { const pm = P.mat(P.wood.oak || '#8a6239', 'wood'); for (let y = WH - 28; y < WH - 3; y++) for (let x = SW; x < SW + FW; x++) { const c = (x - SW) % 24, r = y - (WH - 28); B.plot(x, y, pm, r === 0 || r === 1 ? 3 : c === 0 ? 0 : c === 1 || c === 23 ? 1 : (c === 3 || c === 21 || r === 4 || r === 22) ? 1 : 2); } }
+    if (wall === 'tapestry') { const cols = [C.crimson, C.woad || '#3a5a9a', C.forest || '#3a6a3a', C.mustard], n = Math.max(1, Math.floor(FW / 90)); for (let i = 0; i < n; i++) { const tw = 34, th = 36, tx = Math.round(SW + ((i + 0.5) * FW) / n - tw / 2) + 22, ty = 8, cm = P.mat(cols[(seed + i) % cols.length], 'cloth'), gm = P.mat(C.mustard, 'cloth'); for (let y = ty; y < ty + th; y++) for (let x = tx; x < tx + tw; x++) { const e = Math.min(x - tx, tx + tw - 1 - x, y - ty, ty + th - 1 - y); const dd = Math.abs((x - tx) - tw / 2) + Math.abs((y - ty) - th / 2); B.plot(x, y, e < 2 || (dd % 9 === 0 && e > 3) ? gm : cm, e === 0 ? 1 : (x + y) % 3 ? 2 : 3); } for (let x = tx - 2; x < tx + tw + 2; x++) B.plot(x, ty - 1, P.mat(P.wood.dark, 'wood'), 2); } }
+    if (wall === 'stencil') { const sm = P.mat(tint === TINT.woad ? '#e8e0cc' : '#8a4a3a', 'cloth'); for (let y = 8; y < WH - 8; y += 12) for (let x = SW + ((y / 12) % 2 ? 6 : 0); x < SW + FW - 4; x += 12) { B.plot(x + 2, y, sm, 2); B.plot(x + 1, y + 1, sm, 2); B.plot(x + 3, y + 1, sm, 2); B.plot(x + 2, y + 2, sm, 2); B.plot(x + 2, y + 1, sm, 3); } }
     if (wall === 'timber' || !wall) { const bm = P.mat(P.wood.dark, 'wood'); for (let x = SW; x < SW + FW; x += 48) for (let y = 0; y < WH; y++) { B.plot(x, y, bm, 2); B.plot(x + 1, y, bm, 1); B.plot(x + 2, y, bm, 1); } for (let x = SW; x < SW + FW; x++) { B.plot(x, 0, bm, 1); B.plot(x, 1, bm, 2); B.plot(x, 2, bm, 1); } }
     // ceiling beams' shadow line and skirting
     const sk = P.mat(P.wood.dark, 'wood'); for (let x = SW; x < SW + FW; x++) { B.plot(x, WH - 3, sk, 3); B.plot(x, WH - 2, sk, 2); B.plot(x, WH - 1, sk, 1); }
@@ -522,11 +528,14 @@
       winSpots.push({ x: wx + 1, y: wy + 1, w: ww - 2, h: wh - 2, tx0: Math.floor((wx - SW) / T), tx1: Math.floor((wx + ww - SW) / T) });
     }
     // floor
-    const fmat = floor === 'stone' ? P.mat('#8a847c', 'cloth') : floor === 'dirt' ? P.mat('#8a6e4c', 'cloth') : P.mat(wealth > 0.6 ? '#7a5434' : '#9a7448', 'wood');
+    const fmat = floor === 'stone' ? P.mat('#8a847c', 'cloth') : floor === 'dirt' || floor === 'rushes' ? P.mat('#8a6e4c', 'cloth') : floor === 'tiles' ? P.mat('#a85a3a', 'cloth') : P.mat(wealth > 0.6 ? '#7a5434' : '#9a7448', 'wood');
     B.part(3); B.rect(SW, WH, FW, FH, fmat, 2);
     for (let y = WH; y < WH + FH; y++) for (let x = SW; x < SW + FW; x++) {
       let s = 2; const ly = y - WH, lx = x - SW;
       if (floor === 'stone') { const r = ly % 10, off = Math.floor(ly / 10) % 2 ? 8 : 0; s = r === 9 || (lx + off) % 16 === 0 ? 0 : r === 0 || (lx + off) % 16 === 1 ? 3 : 2; if (O.noise2(x / 3, y / 3, 5) > 0.8) s = Math.max(1, s - 1); }
+      else if (floor === 'rushes') { const n = O.fbm(x / 5, y / 5, 9, 2); s = n > 0.6 ? 3 : n < 0.35 ? 1 : 2; const st = O.noise2(x * 0.9, y * 2.2, 13); if (st > 0.62) B.plot(x, y, P.mat('#c8a858', 'hair'), st > 0.8 ? 3 : 2); }
+      else if (floor === 'tiles') { const cx = Math.floor(lx / 10), cy = Math.floor(ly / 10), edge = lx % 10 === 0 || ly % 10 === 0; if ((cx + cy) % 2) B.plot(x, y, P.mat('#c8a050', 'cloth'), edge ? 1 : 2); s = edge ? 0 : 2; }
+      else if (floor === 'herring') { const u = (lx + ly) % 24, v = (lx - ly + 240) % 24, a = Math.floor((lx + ly) / 12) % 2; s = (a ? u : v) === 0 ? 0 : (a ? u : v) === 1 ? 3 : 2; }
       else if (floor === 'dirt') { const n = O.fbm(x / 5, y / 5, 9, 2); s = n > 0.6 ? 3 : n < 0.35 ? 1 : 2; if (O.noise2(x * 2, y * 2, 4) > 0.9) B.plot(x, y, P.mat('#d0aa50', 'hair'), 3); }
       else { const r = ly % 6, row = Math.floor(ly / 6), seam = (lx + row * 13) % 29 === 0; s = r === 5 || seam ? 0 : r === 0 ? 3 : 2; if (O.noise2(x * 0.4, row, 7) > 0.75 && s === 2) s = 1; if (seam && r === 2) B.plot(x + 3, y, P.mat('#3a2818', 'wood'), 1); }
       if (ly < 4) s = Math.max(0, s - 1);

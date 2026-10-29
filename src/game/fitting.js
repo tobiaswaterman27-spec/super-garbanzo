@@ -135,11 +135,11 @@
 
     // ---------------- floors and walls ----------------
     O.redecorate = (b, what, kind) => {
-      const cost = what === 'floor' ? { stone: 30, wood: 18, dirt: 4 }[kind] : { stone: 34, plank: 16, timber: 20, log: 12 }[kind];
+      const cost = what === 'floor' ? { stone: 30, wood: 18, dirt: 4, rushes: 3, tiles: 45, herring: 36 }[kind] : what === 'tint' ? 6 : { stone: 34, plank: 16, timber: 20, log: 12, lime: 8, panel: 40, tapestry: 60, stencil: 22 }[kind];
       if (PS.money < cost) return say(`That work costs ₳${cost}.`, 'bad');
       PS.money -= cost; b.decor = Object.assign({}, b.decor, { [what]: kind }); O.Interior.invalidate(b);
       if (game.scene && game.scene.b === b) rebuild(game.scene);
-      say(`The ${what === 'floor' ? 'floor is relaid' : 'walls are redone'} in ${kind}. ₳${cost}.`);
+      say(`${what === 'floor' ? 'The floor is relaid' : what === 'tint' ? 'The walls are washed' : 'The walls are redone'}. ₳${cost}.`);
     };
   }
   O.FittingSetup = { setup };

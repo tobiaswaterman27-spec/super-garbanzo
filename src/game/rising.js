@@ -148,11 +148,11 @@
     O.risingHTML = () => {
       if (crowned()) return '';
       const s = cur(), g = s.playerGang && s.playerGang(), pl = P(), F = forces();
-      if (!g && !F.lords && !pl.swords) return `<h3>Rise against the crown</h3><p class="caption">Lead a gang of your own first (and gather at least 8 fighters, with sellswords if need be). Then win lords to your side.</p>`;
+      if (!g && !F.lords && !pl.swords) return `<h3>Rise against the crown</h3>`;
       let h = `<h3>Rise against the crown</h3><p class="caption">Whispers at court: <b>${heatWord(pl.heat)}</b>. ${F.away ? 'The King\'s host is away at war: the capital is thinly held.' : ''}</p>`;
       h += `<table class="ledger"><tr><td>Your gang</td><td>${F.gang}</td></tr><tr><td>Sellswords</td><td>${F.swords} <button data-sword="1">Hire one (₳15)</button><button data-sword="5">Hire five (₳75)</button></td></tr><tr><td>Armed</td><td>${F.armed} of ${F.fighters} <button data-arms="1">Arm five (₳20)</button></td></tr><tr><td>Lords' men</td><td>${F.lordsMen}</td></tr><tr><td>A way in</td><td>${pl.inside ? `${esc(pl.inside.name)} will leave the postern unbarred` : 'none yet (ask a guard or servant at the castle)'}</td></tr></table>`;
       const sw = Object.values(pl.sworn);
-      h += `<h4>Sworn to you (${sw.length}; 2 needed)</h4>${sw.length ? '<ul>' + sw.map((l) => `<li>${esc(l.name)}: ${l.men} men <small class="lbl">${esc(l.how)}</small></li>`).join('') + '</ul>' : '<p class="caption">No one yet. Write to the lords of the realm below, or speak to the gentry in town (talk: Speak of a rising).</p>'}`;
+      h += `<h4>Sworn to you (${sw.length}; 2 needed)</h4>${sw.length ? '<ul>' + sw.map((l) => `<li>${esc(l.name)}: ${l.men} men <small class="lbl">${esc(l.how)}</small></li>`).join('') + '</ul>' : ''}`;
       h += `<h4>The lords of the realm</h4><table class="ledger">`;
       for (const l of realmLords()) {
         if (pl.sworn[l.key]) continue;

@@ -164,7 +164,7 @@
     // the minutes, for whoever asks at the castle or reads the map
     O.councilMinutes = () => {
       const log = (K().councilLog || []).slice(-3).reverse();
-      if (!log.length) return '<p class="caption">The council of the realm meets every Thursday at two in the great hall.</p>';
+      if (!log.length) return '';
       return log.map((m) => `<div class="lbl">Council of day ${m.day}</div><ul class="chron">${m.items.map((it) => `<li>${esc(it.who)} of ${esc(it.place)}: ${it.sacked ? 'put out of office' : it.resigned ? 'resigned' : `asked for ${esc(it.ask)}, ${it.granted ? 'granted' : 'refused'}`}</li>`).join('')}</ul>`).join('');
     };
   }

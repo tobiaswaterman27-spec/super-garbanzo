@@ -15394,7 +15394,7 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
       O.Panels.open('The Island of Eldoria', `<div class="mapbar"><button data-z="-1">−</button><button data-z="1">+</button><span class="lbl">${K.places.length} settlements · drag to move, click a place for its government</span></div>
         <div class="mapview"><div class="mapwrap" style="width:${zoom * 100}%"><canvas id="kmap" width="${E.W * MS}" height="${E.H * MS}"></canvas></div></div>
         <p class="caption" id="mapinfo">${placeInfo(K.place(game.world.placeId) || K.places[0])}</p>
-        <p class="caption">Gold marks where you are. Orange marks are caravans on the roads; red dashes are roads closed by damage. Crown treasury ${O.money(K.treasury)}, crown tax ${Math.round(K.taxRate * 100)}%.</p>${O.councilMinutes ? O.councilMinutes() : ''}
+        ${O.councilMinutes ? O.councilMinutes() : ''}
         <table><thead><tr><th>Settlement</th><th>Government</th><th class="n">People</th><th>Food</th><th>Content</th><th>Crime</th></tr></thead><tbody>${rows}</tbody></table>
         <div class="lbl" style="margin-top:12px">News from the realm</div><ol class="chron">${K.news.slice(-8).reverse().map((n) => `<li><span class="lbl">Day ${n.day}</span> ${esc(n.text)}</li>`).join('') || '<li>No news yet.</li>'}</ol>`, (root) => {
         const cv = document.getElementById('kmap'); drawMap(cv);
@@ -15843,7 +15843,7 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
     const list = Ch.facts.filter((f) => (minor || f.imp >= 2) && (cat === 'all' || f.cat === cat || (cat === 'player' && f.byPlayer)) && (!here || f.place === placeId)).slice().reverse();
     const chips = `<div class="topics" style="margin-bottom:8px">${[['all', 'All'], ...Object.entries(Ch.CATS)].map(([k, l]) => `<button data-cat="${k}" class="${cat === k ? 'hot' : ''}">${l}</button>`).join('')}</div>
       <div class="topics" style="margin-bottom:10px"><button data-minor="1" class="${minor ? 'hot' : ''}">${minor ? 'Showing small matters' : 'Show small matters'}</button><button data-here="1" class="${here ? 'hot' : ''}">${here ? `Only ${esc(s.world.name)}` : 'Everywhere'}</button></div>`;
-    if (!list.length) return chips + '<p class="caption">Nothing worth the ink yet. The clerks wait for something to happen.</p>';
+    if (!list.length) return chips + '';
     let out = '', season = '';
     for (const f of list.slice(0, 160)) {
       const lab = Ch.dateLabel(f.day), sea = lab.replace(/ \d+$/, '');
@@ -15853,18 +15853,18 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
     return chips + `<ol class="chron">${out}</ol>`;
   }
   function hearsay(Ch) {
-    if (!Ch.heard.length) return '<p class="caption">You have heard nothing yet. Ask people for news, listen to the crier, sit in the tavern when a bard is in, or buy a broadsheet in Aurelia.</p>';
+    if (!Ch.heard.length) return '';
     const rows = Ch.heard.slice().reverse().map((h) => {
       const f = Ch.byId(h.f);
       const differs = f && h.text.replace(/[^a-z0-9]/gi, '').toLowerCase() !== f.text.replace(/[^a-z0-9]/gi, '').toLowerCase();
       return `<li><span class="lbl">${esc(Ch.dateLabel(h.day))} · ${esc(Ch.SOURCES[h.src] || h.src)}${h.from ? ' · ' + esc(h.from) : ''}</span> “${esc(h.text)}”${f && differs ? `<br><small class="caption">The record: ${esc(f.text)}</small>` : ''}</li>`;
     }).join('');
-    return `<p class="caption">What you have been told, and by whom. The parish record is set beside it where the telling strays from the facts.</p><ol class="chron">${rows}</ol>`;
+    return `<ol class="chron">${rows}</ol>`;
   }
   function mine(Ch) {
     const list = Ch.facts.filter((f) => f.byPlayer).slice().reverse();
-    if (!list.length) return '<p class="caption">You have left no mark on the world yet. That can change.</p>';
-    return `<p class="caption">Your deeds as you know them. Some the world knows; some only you.</p><ol class="chron">${list.map((f) => `<li><span class="lbl">${esc(Ch.dateLabel(f.day))} · ${esc(f.placeName)} · ${f.secret ? 'known only to you' : 'known'}</span> ${esc(f.mine || f.text)}</li>`).join('')}</ol>`;
+    if (!list.length) return '';
+    return `<ol class="chron">${list.map((f) => `<li><span class="lbl">${esc(Ch.dateLabel(f.day))} · ${esc(f.placeName)} · ${f.secret ? 'known only to you' : 'known'}</span> ${esc(f.mine || f.text)}</li>`).join('')}</ol>`;
   }
   function notables(s, Ch) {
     const H = O.SimRef.home, K = H.kingdom;
@@ -17050,7 +17050,7 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
     O.Panels.open('The parish register', `<div class="lbl">${O.escape(clerk.name)}, parish clerk · your purse ${O.money(PS.money)}</div>
       ${lease ? `<p class="caption">You rent a house here at ₳${PS.lease.rent} a week, paid to day ${PS.lease.paidUntil}. <button data-end="1">Give up the lease</button></p>` : ''}
       <table><thead><tr><th>Empty houses</th><th class="n">Rent</th><th class="n">To buy</th><th></th></tr></thead><tbody>${rows}</tbody></table>
-      <p class="caption">Rent is due every seven days and taken from your purse. A house of your own has a bed to sleep in, a chest to keep things in, and a door you can bar.</p>`, (r) => {
+      `, (r) => {
       r.querySelectorAll('[data-rent]').forEach((x) => x.onclick = () => {
         const b = sim.building(+x.dataset.rent), rent = rentOf(b, sim);
         if (PS.money < rent) return O.Panels.toast(`The first week's rent is ₳${rent}. You haven't got it.`, 'bad');
@@ -18966,7 +18966,7 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
       const bz = s.world.placeId === e.place ? s.biz.get(e.biz) : null, [o, c] = hoursOf(e, bz);
       const head = `<b>${esc(O.roleName(e.role).replace(/^./, (c) => c.toUpperCase()))}</b> · ${esc(e.bizName)}${e.place !== cur().world.placeId ? `, ${esc(e.placeName)}` : ''}`;
       const crown = COURT.has(e.role) && (!bz || ['keep', 'palace'].includes(bz.type) || bz.b?.royal || ['monarch', 'consort', 'heir', 'prince', 'princess', 'lord', 'lady'].includes(e.role));
-      const shift = crown ? (e.onShift ? `${e.role === 'monarch' ? 'Your reign' : 'At court'}: the business of the day, till ${fmtH(c)}` : `At court from ${fmtH(o)}`) : e.onShift ? (modeOf(e.role) === 'quota' ? `The day's work: ${e.tasks.filter((t) => !t.optional && t.have >= t.need).length} of ${e.tasks.filter((t) => !t.optional).length} done (go when it's all done)` : `On shift till ${fmtH(c)} (stay the hours; the work changes)`) : e.dayInfo?.dayDone ? `Your day's work is done` : e.dayInfo?.off && e.day === s.day ? 'A day off today, given by your master' : `Next shift: ${nextShift(e, s, bz, o, c)} ${fmtH(o)}-${fmtH(c)}`;
+      const shift = crown ? (e.onShift ? `${e.role === 'monarch' ? 'Your reign' : 'At court'}: the business of the day, till ${fmtH(c)}` : `At court from ${fmtH(o)}`) : e.onShift ? (modeOf(e.role) === 'quota' ? `The day's work: ${e.tasks.filter((t) => !t.optional && t.have >= t.need).length} of ${e.tasks.filter((t) => !t.optional).length} done` : `On shift till ${fmtH(c)}`) : e.dayInfo?.dayDone ? `Your day's work is done` : e.dayInfo?.off && e.day === s.day ? 'A day off today, given by your master' : `Next shift: ${nextShift(e, s, bz, o, c)} ${fmtH(o)} to ${fmtH(c)}`;
       const tasks = e.onShift ? e.tasks.map((t) => `<li class="${t.have >= t.need ? 'done' : ''}">${t.have >= t.need ? '■' : '□'} ${esc(t.text)}${t.need > 1 ? ` (${Math.min(t.have, t.need)}/${t.need})` : ''}${t.optional && t.bonus ? ` <b>+₳${t.bonus}</b>` : ''}</li>`).join('') : '';
       // how the day's pay stands
       const earn = !crown && e.onShift && bz ? (() => { if (modeOf(e.role) === 'quota') { const req = e.tasks.filter((t) => !t.optional), fin = req.filter((t) => t.have >= t.need).length; return `Pay: ₳${e.wage} when all ${req.length} are done (${fin} so far)`; } const D0 = e.dayInfo || {}, len = Math.max(60, (c - o) * 60), part = O.clamp(0.25 + 0.75 * (D0.present || 0) / len, 0.25, 1); return `Pay so far: about ₳${Math.round(e.wage * part)} of ₳${e.wage} for the hours you've been here`; })() : '';
@@ -20371,7 +20371,7 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
       const myHorse = O.Horses && O.Horses.horses.some((h) => h.owner === 'player');
       const armed = PS.items.some((k) => ['sword', 'axe', 'dagger'].includes(k));
       const ride = !tn.rode && myHorse && armed;
-      O.Panels.open('The spring tournament', `<p class="speech">The herald calls the bouts. Pennants snap over the lists; the stands are full.</p>${next ? `<p>Next: <b>${esc(next[0].name)}</b> against <b>${esc(next[1].name)}</b>.</p><div class="topics"><button data-bet="0">Bet ₳10 on ${esc(next[0].name.split(' ')[1])} (pays ${odds(next[0], next[1])} to 1)</button><button data-bet="1">Bet ₳10 on ${esc(next[1].name.split(' ')[1])} (pays ${odds(next[1], next[0])} to 1)</button><button data-watch="1">Just watch</button></div>` : '<p>The day\'s bouts are done.</p>'}${ride ? '<div class="topics" style="margin-top:8px"><button data-ride="1">Ride in the lists yourself (₳10 fee, ₳60 purse)</button></div>' : !tn.rode ? '<p class="caption">To ride yourself you need a horse of your own and a weapon.</p>' : ''}`, (r) => {
+      O.Panels.open('The spring tournament', `<p class="speech">The herald calls the bouts. Pennants snap over the lists; the stands are full.</p>${next ? `<p>Next: <b>${esc(next[0].name)}</b> against <b>${esc(next[1].name)}</b>.</p><div class="topics"><button data-bet="0">Bet ₳10 on ${esc(next[0].name.split(' ')[1])} (pays ${odds(next[0], next[1])} to 1)</button><button data-bet="1">Bet ₳10 on ${esc(next[1].name.split(' ')[1])} (pays ${odds(next[1], next[0])} to 1)</button><button data-watch="1">Just watch</button></div>` : '<p>The day\'s bouts are done.</p>'}${ride ? '<div class="topics" style="margin-top:8px"><button data-ride="1">Ride in the lists yourself (₳10 fee, ₳60 purse)</button></div>' : !tn.rode ? '' : ''}`, (r) => {
         const run = (bet) => {
           tn.done.push(next); const res = joust(next[0], next[1], null), w = res.win;
           let tail = '';
@@ -20554,10 +20554,10 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
       let body = '';
       if (tab === 'realm') {
         const avg = (f) => Math.round(k.places.reduce((a, p) => a + (p[f] || 0), 0) / Math.max(1, k.places.length) * 100);
-        body = `<div class="kv"><div><span class="lbl">Royal treasury</span><b>${money(k.treasury)}</b></div><div><span class="lbl">Crown tax</span><b>${Math.round(k.taxRate * 100)}%</b><small><button data-tax="-1">Lower</button> <button data-tax="1">Raise</button></small></div><div><span class="lbl">The realm's contentment</span><b>${avg('happiness')}%</b><small>fed ${avg('food')}% · crime ${avg('crime')}%</small></div><div><span class="lbl">${esc(s.world.name)}</span><b>${pl ? Math.round((pl.happiness || 0) * 100) + '% content' : ''}</b></div></div><p class="caption">A higher crown tax fills the treasury and empties the people's patience. The tax is gathered weekly from every town.</p>`;
+        body = `<div class="kv"><div><span class="lbl">Royal treasury</span><b>${money(k.treasury)}</b></div><div><span class="lbl">Crown tax</span><b>${Math.round(k.taxRate * 100)}%</b><small><button data-tax="-1">Lower</button> <button data-tax="1">Raise</button></small></div><div><span class="lbl">The realm's contentment</span><b>${avg('happiness')}%</b><small>fed ${avg('food')}% · crime ${avg('crime')}%</small></div><div><span class="lbl">${esc(s.world.name)}</span><b>${pl ? Math.round((pl.happiness || 0) * 100) + '% content' : ''}</b></div></div>`;
       } else if (tab === 'justice') {
         body = prisoners.length ? `<table><thead><tr><th>Prisoner</th><th>Crime</th><th class="n">Days left</th><th></th></tr></thead><tbody>${prisoners.map((q) => `<tr><td>${esc(q.name)}</td><td>${esc(q.sentence?.crime || 'held')}</td><td class="n">${Math.max(0, (q.jailUntil || s.day) - s.day)}</td><td><button data-pardon="${q.id}">Pardon</button> ${q.sentence?.death ? '' : `<button data-block="${q.id}">To the block</button> `}<button data-longer="${q.id}">Seven days more</button> <button data-banish="${q.id}">Banish</button></td></tr>`).join('')}</tbody></table>` : `<p>The cells of ${esc(s.world.name)} are empty.</p>`;
-        body += '<p class="caption">A pardon is popular with the prisoner\'s kin; harshness is popular with the victims and the watch.</p>';
+        body += '';
       } else if (tab === 'honours') {
         body = worthy.length ? `<table><tbody>${worthy.map((q) => `<tr><td>${esc(q.name)}</td><td>${esc(q.job?.role || '')}</td><td><button data-knight="${q.id}">${q.sex === 'f' ? 'Make a dame' : 'Knight'}</button></td></tr>`).join('')}</tbody></table>` : '<p>Nobody here has yet earned an honour from you. Those who like you, and those who serve well (captains, stewards, masters), can be honoured.</p>';
       } else if (tab === 'works') {
@@ -20567,9 +20567,9 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
         const G = guests(), named = Object.keys(G.list).map((key) => { const id = +key.split(':')[1]; const q = key.startsWith((s.world.placeId || '') + ':') && s.byId.get(id); return q ? `<tr><td>${esc(q.name)}</td><td><button data-unlist="${key}">Remove</button></td></tr>` : ''; }).join('');
         body = `<p>Call a festivity for tomorrow in ${esc(s.world.name)}, at the crown's cost.</p><div class="topics"><button data-host="tournament">A tournament (₳150)</button><button data-host="fair">A fair (₳80)</button><button data-host="midwinter">A great feast (₳120)</button><button data-host="market">A market of travelling merchants (₳40)</button></div>${s.hosted && s.hosted.day >= s.day ? `<p class="caption">Called: ${esc(s.hosted.kind)} on day ${s.hosted.day}.</p>` : ''}
           <div class="lbl" style="margin-top:10px">The castle's guest list</div><div class="topics"><button data-mode="all" aria-pressed="${G.mode === 'all'}">Open to all</button><button data-mode="black" aria-pressed="${G.mode === 'black'}">All but the barred (blacklist)</button><button data-mode="white" aria-pressed="${G.mode === 'white'}">Only the invited (whitelist)</button></div>
-          ${named ? `<table><tbody>${named}</tbody></table>` : '<p class="caption">Nobody on the list. Talk to anyone to invite them or bar them.</p>'}<p class="caption">${G.mode === 'white' ? 'Only those you invite (and the household) come to the castle and its feasts.' : G.mode === 'black' ? 'Those you bar are turned away from the castle and its feasts.' : 'Anyone may come.'}</p>`;
+          ${named ? `<table><tbody>${named}</tbody></table>` : ''}<p class="caption">${G.mode === 'white' ? 'Only those you invite (and the household) come to the castle and its feasts.' : G.mode === 'black' ? 'Those you bar are turned away from the castle and its feasts.' : 'Anyone may come.'}</p>`;
       } else if (tab === 'war') {
-        body = W.phase === 'war' ? `<p>The realm is at war with ${esc(W.enemy?.name || W.enemy || 'the enemy')}. Battles fought: ${(W.battles || []).length}.</p><div class="topics"><button data-peace="1">Sue for peace (₳300 to the enemy)</button></div>` : `<p>The realm is at peace.</p><div class="topics">${(O.warFoes ? O.warFoes() : [{ key: '', name: 'the enemy' }]).map((f) => `<button data-war="${f.key}">Declare war on ${esc(f.name)}</button>`).join('')}</div><p class="caption">War raises the crown tax, calls men to arms and empties the treasury; victory brings glory and plunder.</p>`;
+        body = W.phase === 'war' ? `<p>The realm is at war with ${esc(W.enemy?.name || W.enemy || 'the enemy')}. Battles fought: ${(W.battles || []).length}.</p><div class="topics"><button data-peace="1">Sue for peace (₳300 to the enemy)</button></div>` : `<p>The realm is at peace.</p><div class="topics">${(O.warFoes ? O.warFoes() : [{ key: '', name: 'the enemy' }]).map((f) => `<button data-war="${f.key}">Declare war on ${esc(f.name)}</button>`).join('')}</div>`;
       }
       O.Panels.open('The Crown', `<nav class="tabs" style="margin-bottom:8px">${tabs.map(([t, l]) => `<button data-tab="${t}" aria-pressed="${t === tab}">${l}</button>`).join(' ')}</nav>${body}`, (r) => {
         r.querySelectorAll('[data-tab]').forEach((b) => b.onclick = () => open(b.dataset.tab));
@@ -21110,7 +21110,7 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
         const list = e.onShift && how.tasks.length ? `<h4>Today's tasks</h4><ul class="chron">${how.tasks.map((t) => `<li>${t.done ? '☑' : '☐'} <b>${esc(t.text)}</b>${t.need > 1 ? ` (${t.have}/${t.need})` : ''}${t.done ? '' : `<br><small class="lbl">${esc(t.how)}</small>`}</li>`).join('')}</ul>` : `<p class="caption">${e.dayInfo?.dayDone ? 'Your work is done for today.' : 'Your tasks are set when your shift begins.'}</p>`;
         const [lk, ll] = leaveOf(e);
         secs.work.push(`<h3>${esc(O.roleName ? O.roleName(e.role) : e.role)} <small class="lbl">${royal ? esc(e.placeName) : `at ${esc(e.bizName)}, ${esc(e.placeName)}`}</small></h3>${how.summary ? `<p>${esc(how.summary)}</p>` : ''}<p class="caption">${mode}</p><div class="kv"><div><span class="lbl">${royal ? 'From the treasury' : 'Wage'}</span><b>₳${e.wage}</b><small>a day</small></div>${(() => { const sk = !royal && bz && O.tradeOf ? O.tradeOf(e, bz) : null; if (!sk) return ''; const v = PS.skills[sk] || 0; return `<div><span class="lbl">Your skill (${esc(sk)})</span><b>${Math.round(v * 100)}%</b><small>${v < 0.25 ? 'a beginner' : v < 0.5 ? 'getting the hang of it' : v < 0.75 ? 'as handy as most' : 'better than most'}; every task done teaches you</small></div>`; })()}<div><span class="lbl">Days worked</span><b>${st.shifts || 0}</b><small>${st.late || 0} late, ${st.missed || 0} missed, ${st.tasks || 0} tasks done</small></div>${royal ? '' : `<div><span class="lbl">Your master</span><b>${esc(boss ? boss.name : e.masterName || 'the crown')}</b><small>${boss ? (like > 0.3 ? 'thinks well of you' : like < -0.2 ? 'is not pleased with you' : 'has no strong view of you') : ''}</small></div><div><span class="lbl">Fellow workers</span><b>${mates.length}</b><small>${mates.map((q) => esc(q.first + ' (' + q.job.role + ')')).join(', ') || 'none'}</small></div>`}</div>${list}
-${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles.indexOf(e.role), up = ix > 0 && bz.def.wage[roles[ix - 1]] !== 0 && !(O.Careers && O.Careers.PRESTIGE.has(roles[ix - 1])) ? roles[ix - 1] : null, sh = st.shifts || 0, avg = sh ? (st.tasks || 0) / sh : 0, left = 6 - (sh % 6); const need = []; if (avg < 3) need.push(`more done each day (you average ${avg.toFixed(1)} tasks; 3 is wanted)`); if (like <= 0.2) need.push(`your master's good opinion`); if (!bz.def.public && bz.cash <= 120) need.push('a business with money to spare'); return `<h4>Getting on</h4><p class="caption">Every sixth day worked, ${esc(boss ? boss.first : 'your master')} weighs you up for ${up ? `a step up to <b>${esc(up)}</b>` : 'a rise in pay'}. Next in ${left} day${left === 1 ? '' : 's'} worked. ${need.length ? 'You need ' + need.join(', and ') + '.' : 'As things stand, you should get it.'}${st.extras ? ` Extra work taken on: ${st.extras}.` : ''}</p>`; })() : ''}
+${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles.indexOf(e.role), up = ix > 0 && bz.def.wage[roles[ix - 1]] !== 0 && !(O.Careers && O.Careers.PRESTIGE.has(roles[ix - 1])) ? roles[ix - 1] : null, sh = st.shifts || 0, avg = sh ? (st.tasks || 0) / sh : 0, left = 6 - (sh % 6); const need = []; if (avg < 3) need.push(`more done each day (you average ${avg.toFixed(1)} tasks; 3 is wanted)`); if (like <= 0.2) need.push(`your master's good opinion`); if (!bz.def.public && bz.cash <= 120) need.push('a business with money to spare'); return `<h4>Getting on</h4>`; })() : ''}
           <div class="topics">${boss && !(O.COURT && O.COURT.has(e.role)) ? `<button data-off="${i}">${e.dayOff === es.day + 1 ? 'Tomorrow off: granted' : 'Ask for tomorrow off'}</button>` : ''}${boss && !(O.COURT && O.COURT.has(e.role)) ? `<button data-raise="${i}" data-how="${PS.items.includes('letter') ? 'letter' : 'word'}">${PS.items.includes('letter') ? 'Ask for a raise by letter' : 'Ask for a raise (send word)'}</button>` : ''}<button data-leave="${i}:${lk}">${ll}</button></div>`);
       });
       // your home, and a party in it
@@ -21118,12 +21118,12 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
       if (home) {
         const P = s.party && s.party.day === s.day ? s.party : null;
         const friends = s.people.filter((q) => q.age >= 16 && !q.visitor && q.alive !== false && (q.rel.get(0)?.affinity || 0) > 0.12).sort((a, b) => (b.rel.get(0)?.affinity || 0) - (a.rel.get(0)?.affinity || 0)).slice(0, 10);
-        secs.home.push(`<h3>Your home <small class="lbl">${esc(home.type === 'house' ? 'your house' : home.name)}, ${esc(s.world.name)}</small></h3>${P ? `<p>A party tonight: ${P.guests.length} invited households have said they'll come. Doors open at seven.</p>` : friends.length ? `<p>Throw a party tonight, from seven: food and ale for ₳10, and ₳2 a head. Not everyone you ask will come, and they'll come and go as they please; families come together.</p><div class="topics">${friends.map((q) => `<label style="display:inline-block;margin:2px 8px 2px 0"><input type="checkbox" data-inv="${q.id}" checked> ${esc(q.name)}</label>`).join('')}</div><div class="topics"><button data-party="1">Send out the invitations</button></div>` : '<p class="caption">Make some friends in town and you could have them round.</p>'}`);
+        secs.home.push(`<h3>Your home <small class="lbl">${esc(home.type === 'house' ? 'your house' : home.name)}, ${esc(s.world.name)}</small></h3>${P ? `<p>A party tonight: ${P.guests.length} invited households have said they'll come. Doors open at seven.</p>` : friends.length ? `<p>Throw a party tonight, from seven: food and ale for ₳10, and ₳2 a head. Not everyone you ask will come, and they'll come and go as they please; families come together.</p><div class="topics">${friends.map((q) => `<label style="display:inline-block;margin:2px 8px 2px 0"><input type="checkbox" data-inv="${q.id}" checked> ${esc(q.name)}</label>`).join('')}</div><div class="topics"><button data-party="1">Send out the invitations</button></div>` : ''}`);
       }
       if (!secs.work.length && !posts.length) secs.work.push('<p>You have no post. Ask anyone "Who\'s taking on hands?", or look for For Sale signs on empty shops.</p>');
       if (O.warTabHTML) { const w = O.warTabHTML(); if (w) secs.war.push(w); }
       if (O.careersHTML) secs.ways.push(O.careersHTML());
-      parts.push('<p class="caption">Your lands, houses and offices are under Holdings (P). Your day\'s undertakings are under J.</p>');
+      parts.push('');
       const avail = TABS.filter(([k]) => secs[k].length || k === 'work');
       let cur0 = PS.bizTab && avail.some(([k]) => k === PS.bizTab) ? PS.bizTab : (secs.crown.length ? 'crown' : 'work');
       const bar = `<div class="topics tabs" style="margin-bottom:10px">${avail.map(([k, l]) => `<button data-tab="${k}" class="${k === cur0 ? 'hot' : ''}">${l}</button>`).join('')}</div>`;
@@ -21486,7 +21486,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
     const livesHere = (s) => (PS.lease && PS.lease.place === s.world.placeId) || s.world.buildings.some((b) => b.owner?.kind === 'player' && ['house', 'townhouse', 'mansion', 'farmhouse', 'cottage'].includes(b.type));
     function electionHTML() {
       const s = cur(), reeve = (PS.reeveOf || {})[s.world.placeId];
-      if (reeve) return `<h3>Reeve of ${esc(s.world.name)}</h3><p class="caption">You hold the office. Its powers are under Holdings (P).</p>`;
+      if (reeve) return `<h3>Reeve of ${esc(s.world.name)}</h3>`;
       if (!livesHere(s)) return '';
       if (s.playerMoot) return `<h3>The moot</h3><p class="caption">You stand for reeve of ${esc(s.world.name)} at the moot on day ${s.playerMoot.day} at five, in the square. Be there, and be liked.</p>`;
       return `<h3>The moot</h3><div class="topics"><button data-stand="1" ${clean() ? '' : 'disabled'}>Stand for reeve of ${esc(s.world.name)}</button></div>`;
@@ -21507,7 +21507,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
     function seizeHTML() {
       if (O.crowned && O.crowned()) return '';
       let h = O.risingHTML ? O.risingHTML() : '';
-      if (PS.knight || PS.lord) h += `<h3>A claim to the crown</h3><p class="caption">If the royal line fails, the council of the realm chooses. Gifts to the lords keep your name before them (favour: ${PS.claim || 0}).</p><div class="topics"><button data-campaign="1">Send gifts to the lords (₳50)</button></div>`;
+      if (PS.knight || PS.lord) h += `<h3>A claim to the crown</h3><div class="topics"><button data-campaign="1">Send gifts to the lords (₳50)</button></div>`;
       return h;
     }
     // the council chooses when the line fails
@@ -21699,11 +21699,11 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
     O.risingHTML = () => {
       if (crowned()) return '';
       const s = cur(), g = s.playerGang && s.playerGang(), pl = P(), F = forces();
-      if (!g && !F.lords && !pl.swords) return `<h3>Rise against the crown</h3><p class="caption">Lead a gang of your own first (and gather at least 8 fighters, with sellswords if need be). Then win lords to your side.</p>`;
+      if (!g && !F.lords && !pl.swords) return `<h3>Rise against the crown</h3>`;
       let h = `<h3>Rise against the crown</h3><p class="caption">Whispers at court: <b>${heatWord(pl.heat)}</b>. ${F.away ? 'The King\'s host is away at war: the capital is thinly held.' : ''}</p>`;
       h += `<table class="ledger"><tr><td>Your gang</td><td>${F.gang}</td></tr><tr><td>Sellswords</td><td>${F.swords} <button data-sword="1">Hire one (₳15)</button><button data-sword="5">Hire five (₳75)</button></td></tr><tr><td>Armed</td><td>${F.armed} of ${F.fighters} <button data-arms="1">Arm five (₳20)</button></td></tr><tr><td>Lords' men</td><td>${F.lordsMen}</td></tr><tr><td>A way in</td><td>${pl.inside ? `${esc(pl.inside.name)} will leave the postern unbarred` : 'none yet (ask a guard or servant at the castle)'}</td></tr></table>`;
       const sw = Object.values(pl.sworn);
-      h += `<h4>Sworn to you (${sw.length}; 2 needed)</h4>${sw.length ? '<ul>' + sw.map((l) => `<li>${esc(l.name)}: ${l.men} men <small class="lbl">${esc(l.how)}</small></li>`).join('') + '</ul>' : '<p class="caption">No one yet. Write to the lords of the realm below, or speak to the gentry in town (talk: Speak of a rising).</p>'}`;
+      h += `<h4>Sworn to you (${sw.length}; 2 needed)</h4>${sw.length ? '<ul>' + sw.map((l) => `<li>${esc(l.name)}: ${l.men} men <small class="lbl">${esc(l.how)}</small></li>`).join('') + '</ul>' : ''}`;
       h += `<h4>The lords of the realm</h4><table class="ledger">`;
       for (const l of realmLords()) {
         if (pl.sworn[l.key]) continue;
@@ -22964,7 +22964,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
     };
     function giftPanel(q) {
       const s = cur(), kinds = [...new Set(PS.items)].filter((k) => G[k] && k !== 'key' && !G[k].quest);
-      O.Panels.open(`A gift for ${q.first}`, `<p class="caption">What will you give ${esc(q.first)}? A gift means more if it suits them, and the first of the day means most.</p>
+      O.Panels.open(`A gift for ${q.first}`, `
         <div class="topics">${kinds.map((k) => `<button data-g="${k}"><img src="${O.icon(k)}" alt="" style="width:14px;vertical-align:middle"> ${esc(G[k].name)}</button>`).join('') || '<span class="caption">Your satchel is empty.</span>'}</div>
         <div class="lbl" style="margin-top:8px">Or coin</div><div class="topics">${[1, 5, 20, 50].map((n) => `<button data-m="${n}" ${PS.money < n ? 'disabled' : ''}>₳${n}</button>`).join('')}</div>`, (r) => {
         r.querySelectorAll('[data-g]').forEach((b) => b.onclick = () => give(s, q, b.dataset.g, 0));
@@ -23134,7 +23134,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
       rows.sort((x, y) => y.a - x.a);
       const word = (a) => (a > 0.6 ? 'a dear friend' : a > 0.35 ? 'a friend' : a > 0.12 ? 'friendly' : a > -0.12 ? 'knows you' : a > -0.35 ? 'cool towards you' : a > -0.6 ? 'dislikes you' : 'hates you');
       const life = `<div class="kv"><div><span class="lbl">Days in Eldoria</span><b>${cur().day - (PS.startDay || 1) + 1}</b></div><div><span class="lbl">Age</span><b>${O.Forge.player?.age || '?'}</b><small>${PS.ill ? 'ill: ' + KINDS[PS.ill.kind].name : 'in health'}</small></div><div><span class="lbl">Earned honestly</span><b>₳${Math.round(PS.earned || 0)}</b></div><div><span class="lbl">Goods made</span><b>${PS.made || 0}</b></div><div><span class="lbl">Crimes known</span><b>${(PS.crimes || []).length}</b></div><div><span class="lbl">People who know you</span><b>${rows.length}</b></div></div>`;
-      O.Panels.open('People', `<h3>Your life</h3>${life}${(PS.forebears || []).length ? `<h3>Your family line</h3><ul class="chron">${PS.forebears.map((f) => `<li><b>${esc(f.name)}</b>${f.crowned ? ' (crowned)' : f.title ? ` (${esc(f.title)})` : ''}: ${esc(f.how)}, aged ${f.age}, after ${f.days} day${f.days === 1 ? '' : 's'} in Eldoria</li>`).join('')}</ul>` : ''}<h3>The people you know</h3>${rows.length ? `<table><tbody>${rows.slice(0, 60).map(({ q, s, a }) => `<tr><td><b>${esc(q.name)}</b><br><small class="lbl">${esc(q.job?.role || (q.age < 16 ? 'a child' : 'no trade'))}, ${esc(s.world.name)}</small></td><td><span class="${a < -0.12 ? 'warn' : ''}">${word(a)}</span></td></tr>`).join('')}</tbody></table>` : '<p class="caption">Nobody knows you yet. Talk to people.</p>'}`);
+      O.Panels.open('People', `<h3>Your life</h3>${life}${(PS.forebears || []).length ? `<h3>Your family line</h3><ul class="chron">${PS.forebears.map((f) => `<li><b>${esc(f.name)}</b>${f.crowned ? ' (crowned)' : f.title ? ` (${esc(f.title)})` : ''}: ${esc(f.how)}, aged ${f.age}, after ${f.days} day${f.days === 1 ? '' : 's'} in Eldoria</li>`).join('')}</ul>` : ''}<h3>The people you know</h3>${rows.length ? `<table><tbody>${rows.slice(0, 60).map(({ q, s, a }) => `<tr><td><b>${esc(q.name)}</b><br><small class="lbl">${esc(q.job?.role || (q.age < 16 ? 'a child' : 'no trade'))}, ${esc(s.world.name)}</small></td><td><span class="${a < -0.12 ? 'warn' : ''}">${word(a)}</span></td></tr>`).join('')}</tbody></table>` : ''}`);
     }
     O.openPeople = people;
     game.keyHandlers.push((e) => { if (e.code === 'KeyO' && !e.ctrlKey && !e.metaKey) { if (O.panelOpen) O.Panels.close(); else people(); return true; } return false; });
@@ -23639,7 +23639,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
     // the minutes, for whoever asks at the castle or reads the map
     O.councilMinutes = () => {
       const log = (K().councilLog || []).slice(-3).reverse();
-      if (!log.length) return '<p class="caption">The council of the realm meets every Thursday at two in the great hall.</p>';
+      if (!log.length) return '';
       return log.map((m) => `<div class="lbl">Council of day ${m.day}</div><ul class="chron">${m.items.map((it) => `<li>${esc(it.who)} of ${esc(it.place)}: ${it.sacked ? 'put out of office' : it.resigned ? 'resigned' : `asked for ${esc(it.ask)}, ${it.granted ? 'granted' : 'refused'}`}</li>`).join('')}</ul>`).join('');
     };
   }
@@ -24439,7 +24439,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.AI.gate().then(() => {
   if (!loaded || !O.Forge.created()) {
     PS.money = 0; PS.items = [];
-    O.Forge.showCreator((a) => { game.setPlayerAppearance(a); game.start(); setTimeout(() => game.resize(), 0); game.canvas.focus(); setTimeout(() => O.Guide && O.Guide.firstTime(), 400); });
+    O.Forge.showCreator((a) => { game.setPlayerAppearance(a); game.start(); setTimeout(() => game.resize(), 0); game.canvas.focus(); });
   } else { game.start(); game.canvas.focus(); }
   });
 })();

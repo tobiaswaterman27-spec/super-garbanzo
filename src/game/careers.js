@@ -233,7 +233,7 @@
     const livesHere = (s) => (PS.lease && PS.lease.place === s.world.placeId) || s.world.buildings.some((b) => b.owner?.kind === 'player' && ['house', 'townhouse', 'mansion', 'farmhouse', 'cottage'].includes(b.type));
     function electionHTML() {
       const s = cur(), reeve = (PS.reeveOf || {})[s.world.placeId];
-      if (reeve) return `<h3>Reeve of ${esc(s.world.name)}</h3><p class="caption">You hold the office. Its powers are under Holdings (P).</p>`;
+      if (reeve) return `<h3>Reeve of ${esc(s.world.name)}</h3>`;
       if (!livesHere(s)) return '';
       if (s.playerMoot) return `<h3>The moot</h3><p class="caption">You stand for reeve of ${esc(s.world.name)} at the moot on day ${s.playerMoot.day} at five, in the square. Be there, and be liked.</p>`;
       return `<h3>The moot</h3><div class="topics"><button data-stand="1" ${clean() ? '' : 'disabled'}>Stand for reeve of ${esc(s.world.name)}</button></div>`;
@@ -254,7 +254,7 @@
     function seizeHTML() {
       if (O.crowned && O.crowned()) return '';
       let h = O.risingHTML ? O.risingHTML() : '';
-      if (PS.knight || PS.lord) h += `<h3>A claim to the crown</h3><p class="caption">If the royal line fails, the council of the realm chooses. Gifts to the lords keep your name before them (favour: ${PS.claim || 0}).</p><div class="topics"><button data-campaign="1">Send gifts to the lords (₳50)</button></div>`;
+      if (PS.knight || PS.lord) h += `<h3>A claim to the crown</h3><div class="topics"><button data-campaign="1">Send gifts to the lords (₳50)</button></div>`;
       return h;
     }
     // the council chooses when the line fails

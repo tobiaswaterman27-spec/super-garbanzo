@@ -66,7 +66,7 @@
     const list = Ch.facts.filter((f) => (minor || f.imp >= 2) && (cat === 'all' || f.cat === cat || (cat === 'player' && f.byPlayer)) && (!here || f.place === placeId)).slice().reverse();
     const chips = `<div class="topics" style="margin-bottom:8px">${[['all', 'All'], ...Object.entries(Ch.CATS)].map(([k, l]) => `<button data-cat="${k}" class="${cat === k ? 'hot' : ''}">${l}</button>`).join('')}</div>
       <div class="topics" style="margin-bottom:10px"><button data-minor="1" class="${minor ? 'hot' : ''}">${minor ? 'Showing small matters' : 'Show small matters'}</button><button data-here="1" class="${here ? 'hot' : ''}">${here ? `Only ${esc(s.world.name)}` : 'Everywhere'}</button></div>`;
-    if (!list.length) return chips + '<p class="caption">Nothing worth the ink yet. The clerks wait for something to happen.</p>';
+    if (!list.length) return chips + '';
     let out = '', season = '';
     for (const f of list.slice(0, 160)) {
       const lab = Ch.dateLabel(f.day), sea = lab.replace(/ \d+$/, '');
@@ -76,18 +76,18 @@
     return chips + `<ol class="chron">${out}</ol>`;
   }
   function hearsay(Ch) {
-    if (!Ch.heard.length) return '<p class="caption">You have heard nothing yet. Ask people for news, listen to the crier, sit in the tavern when a bard is in, or buy a broadsheet in Aurelia.</p>';
+    if (!Ch.heard.length) return '';
     const rows = Ch.heard.slice().reverse().map((h) => {
       const f = Ch.byId(h.f);
       const differs = f && h.text.replace(/[^a-z0-9]/gi, '').toLowerCase() !== f.text.replace(/[^a-z0-9]/gi, '').toLowerCase();
       return `<li><span class="lbl">${esc(Ch.dateLabel(h.day))} · ${esc(Ch.SOURCES[h.src] || h.src)}${h.from ? ' · ' + esc(h.from) : ''}</span> “${esc(h.text)}”${f && differs ? `<br><small class="caption">The record: ${esc(f.text)}</small>` : ''}</li>`;
     }).join('');
-    return `<p class="caption">What you have been told, and by whom. The parish record is set beside it where the telling strays from the facts.</p><ol class="chron">${rows}</ol>`;
+    return `<ol class="chron">${rows}</ol>`;
   }
   function mine(Ch) {
     const list = Ch.facts.filter((f) => f.byPlayer).slice().reverse();
-    if (!list.length) return '<p class="caption">You have left no mark on the world yet. That can change.</p>';
-    return `<p class="caption">Your deeds as you know them. Some the world knows; some only you.</p><ol class="chron">${list.map((f) => `<li><span class="lbl">${esc(Ch.dateLabel(f.day))} · ${esc(f.placeName)} · ${f.secret ? 'known only to you' : 'known'}</span> ${esc(f.mine || f.text)}</li>`).join('')}</ol>`;
+    if (!list.length) return '';
+    return `<ol class="chron">${list.map((f) => `<li><span class="lbl">${esc(Ch.dateLabel(f.day))} · ${esc(f.placeName)} · ${f.secret ? 'known only to you' : 'known'}</span> ${esc(f.mine || f.text)}</li>`).join('')}</ol>`;
   }
   function notables(s, Ch) {
     const H = O.SimRef.home, K = H.kingdom;

@@ -180,7 +180,7 @@
   O.AI.gate().then(() => {
   if (!loaded || !O.Forge.created()) {
     PS.money = 0; PS.items = [];
-    O.Forge.showCreator((a) => { game.setPlayerAppearance(a); game.start(); setTimeout(() => game.resize(), 0); game.canvas.focus(); setTimeout(() => O.Guide && O.Guide.firstTime(), 400); });
+    O.Forge.showCreator((a) => { game.setPlayerAppearance(a); game.start(); setTimeout(() => game.resize(), 0); game.canvas.focus(); });
   } else { game.start(); game.canvas.focus(); }
   });
 })();

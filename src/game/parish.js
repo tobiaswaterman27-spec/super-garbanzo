@@ -14,7 +14,7 @@
     O.Panels.open('The parish register', `<div class="lbl">${O.escape(clerk.name)}, parish clerk · your purse ${O.money(PS.money)}</div>
       ${lease ? `<p class="caption">You rent a house here at ₳${PS.lease.rent} a week, paid to day ${PS.lease.paidUntil}. <button data-end="1">Give up the lease</button></p>` : ''}
       <table><thead><tr><th>Empty houses</th><th class="n">Rent</th><th class="n">To buy</th><th></th></tr></thead><tbody>${rows}</tbody></table>
-      <p class="caption">Rent is due every seven days and taken from your purse. A house of your own has a bed to sleep in, a chest to keep things in, and a door you can bar.</p>`, (r) => {
+      `, (r) => {
       r.querySelectorAll('[data-rent]').forEach((x) => x.onclick = () => {
         const b = sim.building(+x.dataset.rent), rent = rentOf(b, sim);
         if (PS.money < rent) return O.Panels.toast(`The first week's rent is ₳${rent}. You haven't got it.`, 'bad');

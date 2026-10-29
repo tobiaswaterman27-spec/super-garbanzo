@@ -13160,6 +13160,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     { const F = PS.cellFine; if (F && F.guard === q.id) lines.push(`The player is in your cell for ${F.crimes.join(' and ') || 'running from the watch'}. Their fine is ${Math.max(0, Math.round(F.due))} aurins; they pay by handing you the coin (take_gift). If they can't or won't, the watch take what they have; there is no court. You can't let them off for less.`);
       if (/guard|watch|sergeant|turnkey|gaoler/.test(q.job?.role || '') && O.watchedHere && O.watchedHere()) lines.push(`The watch have their eye on the player: let out of the cells lately (${PS.watched.why})${PS.fineOwed ? `, and still owing ${PS.fineOwed} aurins of their fine` : ''}.`); }
     { const rl = O.romanceLine && O.romanceLine(s, q); if (rl) lines.push(rl); }
+    { const wl = O.weddingLine && O.weddingLine(s, q); if (wl) lines.push(wl); }
     { const P = O.PlayerState, w = P.wantedLevel ? P.wantedLevel() : 0; if (w > 0 && /guard|watch|sergeant|constable|captain/.test(q.job?.role || '')) { const n = s.crimes.filter((c) => c.perp === 'player' && c.investigated && !c.closed).length; lines.push(`The watch are looking for someone who matches them${P.soughtFor ? ' (' + P.soughtFor() + ')' : ''}. ${q.traits.includes('honest') || q.traits.includes('loyal') ? 'You cannot be bought.' : `You might take a bribe of ${12 + n * 8} aurins or more to forget it.`}`); } }
     if (ctx.fame && ctx.fame.length) lines.push(`You've heard of them: ${ctx.fame.slice(0, 3).map(clean).join(' | ')}`);
     if (r.familiar > 0.3 || (ctx.fame || []).length) { const rp = PS.rep || {}; if ((rp.criminal || 0) > 0.4) lines.push('Folk say they are a rogue.'); else if ((rp.local || 0) > 0.4) lines.push('Folk speak well of them.'); }
@@ -13220,7 +13221,7 @@ Only what's real: never mention objects, chores or happenings that aren't in you
 Keep your word: anything a speaker says they will do now (go somewhere, come along, show the way, follow, fetch, give, take someone on) MUST be in acts, or it won't happen; and never say you'll do what you won't.
 Talks end: when the talk has run its course (goodbyes said, the matter settled, nothing more to say, or they have somewhere to be), the person says a short parting line and adds the act leave. Don't drag a talk out.
 acts: only what a speaker truly agrees to or does, each {"who":"First name","do":...}:
-meet {"place","hour":0-23,"day":"today"|"tomorrow"|weekday,"why"} | follow (they come along with the player, wherever the player goes) | lead {"place"?} (the player comes along with them: they carry on where they were going, or to the place, and wait if the player falls behind; use this when the player says they will come with them) | stop (stop following) | go {"place"} (go there now) | invite (let the player into their home today) | give {"item"} (hand over something they have) | want {"item"} (ask the player for something) | take_gift | refuse_gift | take_job (accept the player's own job when offered) | seek_job {"place"} | tell {"to","msg"} (pass a message to someone they know) | like {"of","by":-1 or 1} (think better or worse of someone after what was said) | call {"who"} (call someone near or in the same house over to join the talk, even across the room) | ask {"who","question"} (go and ask someone in the house or near, privately, then come back with the answer) | show {"place"} (walk the player there) | direct {"place"} (tell the player the way to a place, in words, when they ask where something is) | sell {"item","price"} (sell the player something they have, at an agreed price in aurins) | buy {"item","price"} (buy something the player carries) | lend {"amount"} (lend the player money, to be paid back) | gesture {"kind":"hug"|"handshake"|"bow"|"wave"|"dance"|"cry"|"laugh"} | teach (show the player a little of their trade) | introduce {"who"} (call someone over and name them) | hire_on (agree to work for the player's own business) | join_gang (join the player's gang) | gang_in (a gang member agrees to take the player into their gang) | gang_work (a gang member gives the player the gang's next job, when they ask for work) | hire_player (the master takes the player on, when the card says there's a place) | errand {"item","to","reward"} (give the player something of theirs to take to someone they know, for a few aurins) | want {"item","reward"} also may offer a reward in aurins | court (agree to court, walk out with, the player) | betroth (agree to marry the player; the wedding is then set at the chapel) | part (break off a courtship, betrothal or marriage) | fight (go for the player) | flee (run from the player) | leave (end the talk and walk off: rude player, busy, bored, or done). If a speaker says they are off somewhere now, add a go act for it (or leave).
+meet {"place","hour":0-23,"day":"today"|"tomorrow"|weekday,"why"} | follow (they come along with the player, wherever the player goes) | lead {"place"?} (the player comes along with them: they carry on where they were going, or to the place, and wait if the player falls behind; use this when the player says they will come with them) | stop (stop following) | go {"place"} (go there now) | invite (let the player into their home today) | give {"item"} (hand over something they have) | want {"item"} (ask the player for something) | take_gift | refuse_gift | take_job (accept the player's own job when offered) | seek_job {"place"} | tell {"to","msg"} (pass a message to someone they know) | like {"of","by":-1 or 1} (think better or worse of someone after what was said) | call {"who"} (call someone near or in the same house over to join the talk, even across the room) | ask {"who","question"} (go and ask someone in the house or near, privately, then come back with the answer) | show {"place"} (walk the player there) | direct {"place"} (tell the player the way to a place, in words, when they ask where something is) | sell {"item","price"} (sell the player something they have, at an agreed price in aurins) | buy {"item","price"} (buy something the player carries) | lend {"amount"} (lend the player money, to be paid back) | gesture {"kind":"hug"|"handshake"|"bow"|"wave"|"dance"|"cry"|"laugh"} | teach (show the player a little of their trade) | introduce {"who"} (call someone over and name them) | hire_on (agree to work for the player's own business) | join_gang (join the player's gang) | gang_in (a gang member agrees to take the player into their gang) | gang_work (a gang member gives the player the gang's next job, when they ask for work) | hire_player (the master takes the player on, when the card says there's a place) | errand {"item","to","reward"} (give the player something of theirs to take to someone they know, for a few aurins) | want {"item","reward"} also may offer a reward in aurins | court (agree to court, walk out with, the player) | betroth {"day"?,"hour"?} (agree to marry the player; the wedding is set at the chapel, on the day they settle on) | set_wedding {"day","hour"} (the betrothed agree to move the wedding) | wedding_guest {"who"?} (the speaker accepts the player's invitation to the wedding, or agrees to pass the invitation to someone they know, who is then bidden) | part (break off a courtship, betrothal or marriage) | fight (go for the player) | flee (run from the player) | leave (end the talk and walk off: rude player, busy, bored, or done). If a speaker says they are off somewhere now, add a go act for it (or leave).
 They know where their family and friends are just now (the card says); a stranger at the door is not invited in on a whim, and they don't promise to ask someone who is right there: they call them or ask them.\nPlaces: names from the card, "my home", "your home" or "the square". Items: things the speaker has, or the player carries.`;
   const G = () => O.Data.GOODS;
   function goodsHad(s, q) {
@@ -13388,7 +13389,7 @@ They know where their family and friends are just now (the card says); a strange
     const pz = out?.people && (out.people[q.first] || Object.values(out.people)[0]); const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r);
     if (pz) { r.affinity = clamp(r.affinity + clamp(Math.round(+pz.feel || 0), -2, 2) * 0.04, -1, 1); r.trust = clamp((r.trust || 0) + clamp(Math.round(+pz.trust || 0), -2, 2) * 0.05, -1, 1); if (pz.learned) (q.beliefs = q.beliefs || []).unshift({ t: clean(pz.learned).slice(0, 140), src: 'player', day: s.day }); }
     if (out?.name) r.name = clean(out.name).split(' ')[0];
-    const notes = []; if (Array.isArray(out?.acts) && O.NpcActs) for (const a of out.acts.slice(0, 3)) if (a && ['meet', 'give', 'want', 'seek_job', 'tell', 'like', 'invite'].includes(a.do)) { if (a.do === 'give') continue; const res = O.NpcActs.apply(s, q, a, q); if (res && res !== 'leave') notes.push(res); }
+    const notes = []; if (Array.isArray(out?.acts) && O.NpcActs) for (const a of out.acts.slice(0, 3)) if (a && ['meet', 'give', 'want', 'seek_job', 'tell', 'like', 'invite', 'wedding_guest', 'set_wedding', 'court', 'betroth'].includes(a.do)) { if (a.do === 'give') continue; const res = O.NpcActs.apply(s, q, a, q); if (res && res !== 'leave') notes.push(res); }
     if (line) O.sendMail('reply', { from: q.name, text: line, notes }, 2 + Math.random() * 6, `A letter from ${q.first}`);
   }
   O.mailHandlers = O.mailHandlers || {};
@@ -14150,7 +14151,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       const p = PS.partner;
       if (mine(s, q)) {
         if (p.stage === 'courting') return `You are courting the player (walking out together since ${s.day - p.since < 1 ? 'today' : s.day - p.since + ' days ago'}). If they ask for your hand and you love them, you may say yes (betroth).`;
-        if (p.stage === 'betrothed') return 'You are betrothed to the player; you are to be wed at the chapel in the morning.';
+        if (p.stage === 'betrothed') return `You are betrothed to the player; the wedding is set for ${p.label || 'the chapel'}${(p.guests || []).length ? `, and ${(p.guests || []).length} guests are bidden` : ''}. You may move the day if you both agree (set_wedding).`;
         if (p.stage === 'married') return `You are married to the player${q.home != null ? ' and they share your home' : ''}. You are fond of them and speak to them as a spouse does.`;
       }
       if (q.age < 18 || q.royal) return '';
@@ -14174,20 +14175,20 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       s.remember(q, `Began walking out with ${r.name || 'the stranger'}.`, 'player', 1.2, 0.6);
       return `You and ${q.first} are courting.`;
     }
-    function betroth(s, q) {
+    function betroth(s, q, a = {}) {
       const p = PS.partner, r = relOf(q);
       if (!mine(s, q) || p.stage !== 'courting' || r.affinity < 0.5) return null;
       const chapel = [...s.biz.values()].find((z) => z.type === 'chapel');
       if (!chapel) return null;
       const before = (PS.meets || []).length;
-      O.NpcActs.meet(s, q, { place: chapel.b.name || chapel.name, hour: 11, day: 'tomorrow', why: 'our wedding' });
+      O.NpcActs.meet(s, q, { place: chapel.b.name || chapel.name, hour: a.hour != null ? Math.max(8, Math.min(18, +a.hour || 11)) : 11, day: a.day || 'tomorrow', why: 'our wedding' });
       const m = (PS.meets || [])[before] || (PS.meets || []).filter((x) => x.who === q.id).pop(); if (!m) return null;
       m.flake = false; m.off = -10; // nobody is late to their own wedding
-      p.stage = 'betrothed'; p.meetId = m.id; q.withPlayer = 'betrothed';
+      p.stage = 'betrothed'; p.meetId = m.id; p.at = m.at; p.label = m.label; p.chapel = chapel.b.id; p.guests = p.guests || []; q.withPlayer = 'betrothed';
       s.remember(q, `Promised to marry ${r.name || 'the stranger'}; the wedding is tomorrow at the chapel.`, 'player', 1.5, 0.8);
       for (const id of [...(q.parents || []), ...(q.children || [])]) { const z = s.byId.get(id); if (z) (z.beliefs = z.beliefs || []).unshift({ t: `${q.first} is to marry the stranger tomorrow at the chapel.`, src: 'heard', day: s.day }); }
       s.log && s.log(`${q.name} is to be wed at the chapel tomorrow.`, 'life');
-      return `You are betrothed to ${q.first}. The wedding is at the chapel tomorrow at eleven.`;
+      return `You are betrothed to ${q.first}. The wedding: ${m.label}.`;
     }
     function part(s, q) {
       if (!mine(s, q)) return null;
@@ -14230,10 +14231,30 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     const iv = O.invitedTo;
     O.invitedTo = (b) => { const s = cur(), p = PS.partner, q = p && p.stage === 'married' && s ? partner(s) : null; if (q && b && q.home === b.id) return true; return iv ? iv(b) : false; };
     // the acts the talk can bring about
+    // the wedding's guests: bidden in talk, by letter, or by word passed on
+    O.weddingLine = (s, q) => { const p = PS.partner; if (!p || p.stage !== 'betrothed' || p.place !== s.world.placeId || mine(s, q)) return ''; const bidden = (p.guests || []).includes(q.id); return bidden ? `You are bidden to the player's wedding to ${p.full || p.name}: ${p.label}.` : `The player is to marry ${p.full || p.name} (${p.label}). If they ask you to come, you may accept (wedding_guest).`; };
+    function guest(s, q, a) {
+      const p = PS.partner; if (!p || p.stage !== 'betrothed' || p.place !== s.world.placeId) return null;
+      const z = a.who ? O.NpcActs.personFor(s, a.who) : q; if (!z || z.id === p.id) return null;
+      p.guests = p.guests || []; if (p.guests.includes(z.id)) return null; p.guests.push(z.id);
+      s.remember(z, `Bidden to the stranger's wedding: ${p.label}.`, 'player', 1, 0.3);
+      return `${z.first} will come to the wedding.`;
+    }
+    function reschedule(s, q, a) {
+      const p = PS.partner; if (!mine(s, q) || p.stage !== 'betrothed') return null;
+      PS.meets = (PS.meets || []).filter((m) => m.id !== p.meetId); p.stage = 'courting';
+      const note = betroth(s, q, a); return note ? note.replace(/^You are betrothed to [^.]+\. /, '') : null;
+    }
+    // at the hour, the bidden go to the chapel and sit in the pews
+    { const SP = O.Sim.prototype, _plan = SP.plan; SP.plan = function (pp) {
+      const P = PS.partner; if (P && P.stage === 'betrothed' && P.place === this.world.placeId && (P.guests || []).includes(pp.id) && P.chapel != null) { const now = this.day * 1440 + this.minute; if (now >= P.at - 30 && now <= P.at + 75) return { act: 'wedding', b: P.chapel }; }
+      return _plan.call(this, pp); }; }
     const base = O.NpcActs.apply;
     O.NpcActs.apply = function (s, q, a, main) {
       if (a && a.do === 'court') return court(s, q);
-      if (a && a.do === 'betroth') return betroth(s, q);
+      if (a && a.do === 'betroth') return betroth(s, q, a);
+      if (a && a.do === 'set_wedding') return reschedule(s, q, a);
+      if (a && a.do === 'wedding_guest') return guest(s, q, a);
       if (a && a.do === 'part') return part(s, q);
       return base.apply(this, arguments);
     };

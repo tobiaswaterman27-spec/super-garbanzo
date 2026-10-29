@@ -17,7 +17,7 @@
       const p = PS.partner;
       if (mine(s, q)) {
         if (p.stage === 'courting') return `You are courting the player (walking out together since ${s.day - p.since < 1 ? 'today' : s.day - p.since + ' days ago'}). If they ask for your hand and you love them, you may say yes (betroth).`;
-        if (p.stage === 'betrothed') return 'You are betrothed to the player; you are to be wed at the chapel in the morning.';
+        if (p.stage === 'betrothed') return `You are betrothed to the player; the wedding is set for ${p.label || 'the chapel'}${(p.guests || []).length ? `, and ${(p.guests || []).length} guests are bidden` : ''}. You may move the day if you both agree (set_wedding).`;
         if (p.stage === 'married') return `You are married to the player${q.home != null ? ' and they share your home' : ''}. You are fond of them and speak to them as a spouse does.`;
       }
       if (q.age < 18 || q.royal) return '';
@@ -41,20 +41,20 @@
       s.remember(q, `Began walking out with ${r.name || 'the stranger'}.`, 'player', 1.2, 0.6);
       return `You and ${q.first} are courting.`;
     }
-    function betroth(s, q) {
+    function betroth(s, q, a = {}) {
       const p = PS.partner, r = relOf(q);
       if (!mine(s, q) || p.stage !== 'courting' || r.affinity < 0.5) return null;
       const chapel = [...s.biz.values()].find((z) => z.type === 'chapel');
       if (!chapel) return null;
       const before = (PS.meets || []).length;
-      O.NpcActs.meet(s, q, { place: chapel.b.name || chapel.name, hour: 11, day: 'tomorrow', why: 'our wedding' });
+      O.NpcActs.meet(s, q, { place: chapel.b.name || chapel.name, hour: a.hour != null ? Math.max(8, Math.min(18, +a.hour || 11)) : 11, day: a.day || 'tomorrow', why: 'our wedding' });
       const m = (PS.meets || [])[before] || (PS.meets || []).filter((x) => x.who === q.id).pop(); if (!m) return null;
       m.flake = false; m.off = -10; // nobody is late to their own wedding
-      p.stage = 'betrothed'; p.meetId = m.id; q.withPlayer = 'betrothed';
+      p.stage = 'betrothed'; p.meetId = m.id; p.at = m.at; p.label = m.label; p.chapel = chapel.b.id; p.guests = p.guests || []; q.withPlayer = 'betrothed';
       s.remember(q, `Promised to marry ${r.name || 'the stranger'}; the wedding is tomorrow at the chapel.`, 'player', 1.5, 0.8);
       for (const id of [...(q.parents || []), ...(q.children || [])]) { const z = s.byId.get(id); if (z) (z.beliefs = z.beliefs || []).unshift({ t: `${q.first} is to marry the stranger tomorrow at the chapel.`, src: 'heard', day: s.day }); }
       s.log && s.log(`${q.name} is to be wed at the chapel tomorrow.`, 'life');
-      return `You are betrothed to ${q.first}. The wedding is at the chapel tomorrow at eleven.`;
+      return `You are betrothed to ${q.first}. The wedding: ${m.label}.`;
     }
     function part(s, q) {
       if (!mine(s, q)) return null;
@@ -97,10 +97,30 @@
     const iv = O.invitedTo;
     O.invitedTo = (b) => { const s = cur(), p = PS.partner, q = p && p.stage === 'married' && s ? partner(s) : null; if (q && b && q.home === b.id) return true; return iv ? iv(b) : false; };
     // the acts the talk can bring about
+    // the wedding's guests: bidden in talk, by letter, or by word passed on
+    O.weddingLine = (s, q) => { const p = PS.partner; if (!p || p.stage !== 'betrothed' || p.place !== s.world.placeId || mine(s, q)) return ''; const bidden = (p.guests || []).includes(q.id); return bidden ? `You are bidden to the player's wedding to ${p.full || p.name}: ${p.label}.` : `The player is to marry ${p.full || p.name} (${p.label}). If they ask you to come, you may accept (wedding_guest).`; };
+    function guest(s, q, a) {
+      const p = PS.partner; if (!p || p.stage !== 'betrothed' || p.place !== s.world.placeId) return null;
+      const z = a.who ? O.NpcActs.personFor(s, a.who) : q; if (!z || z.id === p.id) return null;
+      p.guests = p.guests || []; if (p.guests.includes(z.id)) return null; p.guests.push(z.id);
+      s.remember(z, `Bidden to the stranger's wedding: ${p.label}.`, 'player', 1, 0.3);
+      return `${z.first} will come to the wedding.`;
+    }
+    function reschedule(s, q, a) {
+      const p = PS.partner; if (!mine(s, q) || p.stage !== 'betrothed') return null;
+      PS.meets = (PS.meets || []).filter((m) => m.id !== p.meetId); p.stage = 'courting';
+      const note = betroth(s, q, a); return note ? note.replace(/^You are betrothed to [^.]+\. /, '') : null;
+    }
+    // at the hour, the bidden go to the chapel and sit in the pews
+    { const SP = O.Sim.prototype, _plan = SP.plan; SP.plan = function (pp) {
+      const P = PS.partner; if (P && P.stage === 'betrothed' && P.place === this.world.placeId && (P.guests || []).includes(pp.id) && P.chapel != null) { const now = this.day * 1440 + this.minute; if (now >= P.at - 30 && now <= P.at + 75) return { act: 'wedding', b: P.chapel }; }
+      return _plan.call(this, pp); }; }
     const base = O.NpcActs.apply;
     O.NpcActs.apply = function (s, q, a, main) {
       if (a && a.do === 'court') return court(s, q);
-      if (a && a.do === 'betroth') return betroth(s, q);
+      if (a && a.do === 'betroth') return betroth(s, q, a);
+      if (a && a.do === 'set_wedding') return reschedule(s, q, a);
+      if (a && a.do === 'wedding_guest') return guest(s, q, a);
       if (a && a.do === 'part') return part(s, q);
       return base.apply(this, arguments);
     };

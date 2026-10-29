@@ -421,3 +421,12 @@ Every job and every level of it, royal family and titles included, grouped under
 - [ ] Resource-based economy
 - [ ] Glitch sweep of every past complaint; NPCs "disappearing" not yet reproduced
 
+## Batch AB (after row 99)
+
+- [x] Courtship and marriage, favours, suppers, bonds, own-words openers, lead act (row 100)
+- [x] Estates on the island map, the Where to? arrow, directions offers (row 101)
+- [x] Collisions, hood clipping, beards (row 102)
+- [x] Speech by age, ending talks, gangs in the talk, bubbles for spoken words (row 103)
+- [ ] Resource-based economy
+- [ ] NPCs "disappearing" still not reproduced
+

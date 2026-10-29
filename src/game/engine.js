@@ -29,6 +29,7 @@
 
     load(world, playerAppearance) {
       this.world = world;
+      O.fixFences && O.fixFences(world);
       const T = world.T;
       if (world.chunked) { this.ground = null; if (world._chunkSeason !== this.season) { world._chunks = new Map(); world._chunkSeason = this.season; } }
       else { this.ground = world._ground && world._groundSeason === this.season ? world._ground : O.Terrain.renderGround(world, this.season); world._ground = this.ground; world._groundSeason = this.season; }

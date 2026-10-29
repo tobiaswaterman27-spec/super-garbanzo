@@ -708,6 +708,25 @@
         } else { B = new MB(6, 16); B.part(1); post(2, 15, 11); ox = 3; oy = 15; }
         propCache.set(key, { canvas: B.toCanvas({ outline: false }), ox, oy, W: B.w, H: B.h }); return propCache.get(key);
       }
+      case 'fence': { // a split-rail fence that joins its neighbours: v = N1 E2 S4 W8, gate 16, open 32
+        const rail = P.mat(P.wood.oak, 'wood'), postM = P.mat('#5a3d26', 'wood'), N = v & 1, E = v & 2, S2 = v & 4, Wd = v & 8, gate = v & 16, open = v & 32;
+        B = new MB(16, 32); B.part(1); const yb = 30, px = 7;
+        const post = (x, h) => { for (let y = yb - h; y <= yb; y++) { B.plot(x - 1, y, postM, 2); B.plot(x, y, postM, 3); B.plot(x + 1, y, postM, 1); B.plot(x + 2, y, postM, 0); } for (let k = -1; k <= 2; k++) B.plot(x + k, yb - h - 1, postM, k === 0 ? 4 : 3); };
+        const hrail = (x0, x1) => { for (let x = x0; x <= x1; x++) for (const h of [5, 9]) { B.plot(x, yb - h, rail, 3); B.plot(x, yb - h + 1, rail, 1); } };
+        if (gate) {
+          // a gate of boards and a brace, hung from this post; open, it stands back along the fence
+          post(px, 12); if (Wd) hrail(0, px - 1);
+          if (!open) { for (let x = px + 2; x <= 15; x++) for (const h of [4, 7, 10]) { B.plot(x, yb - h, rail, 3); B.plot(x, yb - h + 1, rail, 1); } for (let k = 0; k < 7; k++) B.plot(px + 2 + k, yb - 4 - k, rail, 2); B.plot(15, yb - 11, postM, 2); }
+          else for (let y = yb - 10; y <= yb - 3; y++) { B.plot(px + 2, y - 3, rail, 3); B.plot(px + 3, y - 3, rail, 1); }
+        } else {
+          if (E || !(N || S2 || Wd)) hrail(px, 15);
+          if (Wd || !(N || S2 || E)) hrail(0, px + 1);
+          // a rail running north, seen end-on above: up to the next post
+          if (N) for (let y = yb - 9 - 16; y <= yb - 5; y++) { B.plot(px, y, rail, 3); B.plot(px + 1, y, rail, 1); if ((y - yb) % 4 === 0) B.plot(px, y, rail, 4); }
+          post(px, 11);
+        }
+        ox = 8; oy = yb; propCache.set(key, { canvas: B.toCanvas({ outline: false }), ox, oy, W: B.w, H: B.h }); return propCache.get(key);
+      }
       case 'hay': {
         B = new MB(22, 18); B.part(1); const hm = P.mat('#d0aa50', 'hair');
         B.blob(11, 10, 10, 7, hm, { power: 2.1 });

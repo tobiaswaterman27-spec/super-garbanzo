@@ -80,7 +80,7 @@
         for (const kind of pen.kinds) {
           const n = kind === 'chicken' ? 6 : Math.max(2, Math.min(5, Math.round(area / 24)));
           if (kind === 'horse') { for (let i = 0; i < 2; i++) { const h = make('estate', { world: wid, pad: { x0, y0, x1, y1 }, stable: null, breed: r.pick(['Palfrey', 'Courser', 'Destrier']), event: 'bred' }); h.history[0].owner = 'the estate'; h.x = r.int(x0, x1) * T + 8; h.y = r.int(y0, y1) * T + 12; } }
-          else add(kind, n, z, { world: wid });
+          else add(kind, n, z, { world: wid, pen });
         }
       }
     }
@@ -88,6 +88,11 @@
     const _extras = O.sceneExtras;
     O.sceneExtras = (sc, ctx, cam) => {
       const out = _extras ? _extras(sc, ctx, cam) : [];
+      if (sc.b.type === 'stable' && !sc.floor) {
+        const inn = horses.filter((h) => h.stabled && h.stable === sc.b.id), R = sc.R;
+        inn.forEach((h, i) => { const x = 40 + i * 54, y = R.WH + 34; if (x > R.W - 30) return; out.push({ y, draw: () => { const an = (Math.floor(sc.t / 4) + i) % 3 ? 'idle' : 'graze', H = O.Animals.HANIMS[an] || O.Animals.HANIMS.idle, hf = O.Animals.horse(h, 1, an, Math.floor(sc.t * H.fps) % H.frames); ctx.drawImage(hf, Math.round(x - (hf.ox ?? hf.width / 2) - cam.x), Math.round(y - (hf.gy ?? hf.height) - cam.y)); } }); });
+        return out;
+      }
       if (sc.b.type !== 'barn' || sc.floor) return out;
       const inside = fauna.filter((f) => f.inBarn && f.barn === sc.b.id), R = sc.R;
       inside.forEach((f, i) => {
@@ -114,10 +119,18 @@
           if (!wantIn && f.inBarn && bn) { f.inBarn = false; f.x = bn.doorX * T + 8; f.y = (bn.doorY + 1) * T + 4; f.tx = null; f.wait = 0; }
           if (f.inBarn) continue;
         }
-        if (f.tx == null) { f.wait -= dt; if (f.wait <= 0) { f.tx = r.int(f.z.x0, f.z.x1) * T + r.int(2, 14); f.ty = r.int(f.z.y0, f.z.y1) * T + r.int(6, 14); } }
+        // a gate left open: now and then one wanders out through it, and grazes outside till it's brought back
+        const pen = f.pen, gt = pen && pen.gateOpen;
+        if (f.out && !gt && hr0 >= 6 && hr0 < 6.5) { f.out = null; f.x = (f.z.x0 + f.z.x1) / 2 * T; f.y = (f.z.y0 + f.z.y1) / 2 * T; f.tx = null; } // the farmer fetched them in at first light
+        if (f.tx == null) { f.wait -= dt; if (f.wait <= 0) {
+          if (gt && !f.out && r.next() < 0.3) { f.tx = gt[0] * T + 8; f.ty = gt[1] * T + 12; f.leaving = true; }
+          else if (f.out) { if (gt && r.next() < 0.25) { f.tx = gt[0] * T + 8; f.ty = gt[1] * T + 12; f.returning = true; } else { f.tx = (f.out[0] + r.int(-5, 5)) * T + 8; f.ty = (f.out[1] + r.int(-4, 4)) * T + 12; if (game.world.solid[Math.floor((f.ty - 1) / T) * game.world.W + Math.floor(f.tx / T)]) f.tx = null; } }
+          else { f.tx = r.int(f.z.x0, f.z.x1) * T + r.int(2, 14); f.ty = r.int(f.z.y0, f.z.y1) * T + r.int(6, 14); } } }
         else {
           const dx = f.tx - f.x, dy = f.ty - f.y, d = Math.hypot(dx, dy), step = Math.min(d, f.speed * Math.min(dtm, 3));
-          if (d < 1) { f.tx = null; f.wait = 2 + r.next() * 6; } else { f.x += (dx / d) * step; f.y += (dy / d) * step; f.dir = O.dirOf(dx, dy); }
+          if (d < 1 && f.leaving && gt) { f.leaving = false; const z = f.z, ox = gt[0] < z.x0 ? -1 : gt[0] > z.x1 ? 1 : 0, oy = gt[1] < z.y0 ? -1 : gt[1] > z.y1 ? 1 : 0; f.out = [gt[0] + ox * 5, gt[1] + oy * 5]; f.tx = f.out[0] * T + 8; f.ty = f.out[1] * T + 12; }
+          else if (d < 1 && f.returning) { f.returning = false; f.out = null; f.tx = (f.z.x0 + f.z.x1) / 2 * T; f.ty = (f.z.y0 + f.z.y1) / 2 * T; }
+          else if (d < 1) { f.tx = null; f.leaving = false; f.wait = 2 + r.next() * 6; } else { f.x += (dx / d) * step; f.y += (dy / d) * step; f.dir = O.dirOf(dx, dy); }
         }
         const a = animalActor(f); a.x = f.x; a.y = f.y; a.dir = f.dir; a.ft = f.ft; a.moving = f.tx != null;
       }
@@ -128,7 +141,7 @@
         if (h === mount) { h.x = p.x; h.y = p.y; h.dir = p.dir; h.anim = p.moving ? (p.galloping ? 'gallop' : 'walk') : 'idle'; }
         else if (h.inPaddock !== false && !h.tied && (h.world || 'ashford') === game.world.placeId) {
           const pad = h.pad || paddock, sb = h.stable != null && game.world.buildings.find((b) => b.id === h.stable);
-          const csim = O.SimRef.cur, hr = csim ? csim.hour : 12, night = sb && (hr >= 20.5 || hr < 6);
+          const csim = O.SimRef.cur, hr = csim ? csim.hour : 12, night = sb && (hr >= 20.5 || hr < 6 || (csim && csim.weather && (csim.weather.severe || csim.weather.kind === 'storm')) || (h.owner !== 'player' && ((h.seed || 0) + (csim ? csim.day : 0)) % 3 === 0)); // (resting in the stable some days, and every night and storm)
           // at dusk the horses are led into the stables; at dawn they come out to graze
           if (night && !h.stabled) { h.tx = sb.doorX * T + 8; h.ty = sb.doorY * T + 6; if (Math.hypot(h.tx - h.x, h.ty - h.y) < 3) { h.stabled = true; h.tx = null; } }
           else if (!night && h.stabled) { h.stabled = false; h.x = sb.doorX * T + 8; h.y = sb.doorY * T + 8; h.tx = null; }

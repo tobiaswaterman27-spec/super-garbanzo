@@ -2678,6 +2678,25 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
         } else { B = new MB(6, 16); B.part(1); post(2, 15, 11); ox = 3; oy = 15; }
         propCache.set(key, { canvas: B.toCanvas({ outline: false }), ox, oy, W: B.w, H: B.h }); return propCache.get(key);
       }
+      case 'fence': { // a split-rail fence that joins its neighbours: v = N1 E2 S4 W8, gate 16, open 32
+        const rail = P.mat(P.wood.oak, 'wood'), postM = P.mat('#5a3d26', 'wood'), N = v & 1, E = v & 2, S2 = v & 4, Wd = v & 8, gate = v & 16, open = v & 32;
+        B = new MB(16, 32); B.part(1); const yb = 30, px = 7;
+        const post = (x, h) => { for (let y = yb - h; y <= yb; y++) { B.plot(x - 1, y, postM, 2); B.plot(x, y, postM, 3); B.plot(x + 1, y, postM, 1); B.plot(x + 2, y, postM, 0); } for (let k = -1; k <= 2; k++) B.plot(x + k, yb - h - 1, postM, k === 0 ? 4 : 3); };
+        const hrail = (x0, x1) => { for (let x = x0; x <= x1; x++) for (const h of [5, 9]) { B.plot(x, yb - h, rail, 3); B.plot(x, yb - h + 1, rail, 1); } };
+        if (gate) {
+          // a gate of boards and a brace, hung from this post; open, it stands back along the fence
+          post(px, 12); if (Wd) hrail(0, px - 1);
+          if (!open) { for (let x = px + 2; x <= 15; x++) for (const h of [4, 7, 10]) { B.plot(x, yb - h, rail, 3); B.plot(x, yb - h + 1, rail, 1); } for (let k = 0; k < 7; k++) B.plot(px + 2 + k, yb - 4 - k, rail, 2); B.plot(15, yb - 11, postM, 2); }
+          else for (let y = yb - 10; y <= yb - 3; y++) { B.plot(px + 2, y - 3, rail, 3); B.plot(px + 3, y - 3, rail, 1); }
+        } else {
+          if (E || !(N || S2 || Wd)) hrail(px, 15);
+          if (Wd || !(N || S2 || E)) hrail(0, px + 1);
+          // a rail running north, seen end-on above: up to the next post
+          if (N) for (let y = yb - 9 - 16; y <= yb - 5; y++) { B.plot(px, y, rail, 3); B.plot(px + 1, y, rail, 1); if ((y - yb) % 4 === 0) B.plot(px, y, rail, 4); }
+          post(px, 11);
+        }
+        ox = 8; oy = yb; propCache.set(key, { canvas: B.toCanvas({ outline: false }), ox, oy, W: B.w, H: B.h }); return propCache.get(key);
+      }
       case 'hay': {
         B = new MB(22, 18); B.part(1); const hm = P.mat('#d0aa50', 'hair');
         B.blob(11, 10, 10, 7, hm, { power: 2.1 });
@@ -4420,6 +4439,7 @@ O.bizName = (surname, label) => {
 
     load(world, playerAppearance) {
       this.world = world;
+      O.fixFences && O.fixFences(world);
       const T = world.T;
       if (world.chunked) { this.ground = null; if (world._chunkSeason !== this.season) { world._chunks = new Map(); world._chunkSeason = this.season; } }
       else { this.ground = world._ground && world._groundSeason === this.season ? world._ground : O.Terrain.renderGround(world, this.season); world._ground = this.ground; world._groundSeason = this.season; }
@@ -13874,6 +13894,51 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
 
 </script>
 <script>
+// Fences that join up, and gates that open and shut. However a fence was laid down (rails along, rails
+// up), each post looks to its neighbours and runs its rails to meet them, corners included. A gate is
+// opened and closed with E; left open, the beasts in that pen will wander out through it in time.
+'use strict';
+(function () {
+  const T = 16, KINDS = new Set(['fenceH', 'fenceV', 'fenceGate', 'fencePost', 'fence']);
+  // turn every piece of fence in a world into a joined piece, once
+  O.fixFences = (world) => {
+    if (!world || world._fenced) return; world._fenced = true;
+    const at = new Map(), list = [];
+    for (const p of world.props) if (KINDS.has(p.kind)) { const tx = Math.floor(p.x / T), ty = Math.floor((p.y - 1) / T), k = ty * world.W + tx; if (at.has(k)) { p._dupe = true; continue; } at.set(k, p); list.push([p, tx, ty]); }
+    if (!list.length) return;
+    world.props = world.props.filter((p) => !p._dupe);
+    for (const [p, tx, ty] of list) {
+      const gate = p.kind === 'fenceGate' || !!(p.v & 16 && p.kind === 'fence'), open = p.kind === 'fence' && !!(p.v & 32);
+      const has = (x, y) => at.has(y * world.W + x);
+      let v = (has(tx, ty - 1) ? 1 : 0) | (has(tx + 1, ty) ? 2 : 0) | (has(tx, ty + 1) ? 4 : 0) | (has(tx - 1, ty) ? 8 : 0);
+      if (gate) v |= 16 | (open ? 32 : 0);
+      p.kind = 'fence'; p.v = v; p.x = tx * T + 8; p.y = ty * T + 15; p.sprite = null; p.flat = false;
+      p.solid = !(gate && open); world.solid[ty * world.W + tx] = p.solid ? 1 : 0;
+      if (gate) p.gate = true;
+    }
+  };
+  function setup(game) {
+    const near = () => { const w = game.world, P = game.player; if (game.scene || !w) return null; let best = null, bd = 26; for (const p of w.props) { if (!p.gate) continue; const d = Math.hypot(p.x - P.x, p.y - 2 - P.y); if (d < bd) { bd = d; best = p; } } return best; };
+    (O.moreCandidates = O.moreCandidates || []).push(() => {
+      const g = near(); if (!g) return null; const open = !!(g.v & 32);
+      return { type: 'custom', d: 1, x: g.x, y: g.y - 30, label: open ? 'Shut the gate' : 'Open the gate', act: () => toggle(g) };
+    });
+    function toggle(g) {
+      const w = game.world, open = !(g.v & 32), tx = Math.floor(g.x / T), ty = Math.floor((g.y - 1) / T);
+      g.v = open ? g.v | 32 : g.v & ~32; g.solid = !open; w.solid[ty * w.W + tx] = open ? 0 : 1; g.sprite = O.Env.prop('fence', g.seed, g.v);
+      game.player.anim = 'open'; setTimeout(() => { if (game.player.anim === 'open') game.player.anim = 'idle'; }, 400);
+      O.Audio && O.Audio.sfx && O.Audio.sfx('door');
+      w.dirtyStatics = true;
+      // which pen this gate belongs to: its beasts may stray while it stands open
+      for (const pen of w.pens || []) { const [x0, y0, x1, y1] = pen.z; if (tx >= x0 - 1 && tx <= x1 + 1 && ty >= y0 - 1 && ty <= y1 + 1) pen.gateOpen = open ? [tx, ty] : null; }
+    }
+    O.Fences = { toggle };
+  }
+  O.FencesSetup = { setup };
+})();
+
+</script>
+<script>
 // Crime in the street, as it happens around you. A cutpurse works the crowd: a brush past someone, a
 // purse gone, a shout, and the thief away at a run. Catch them and the purse goes back to its owner,
 // who won't forget it; let them go and they get away with it. After dark, rival gangs meet in the
@@ -15743,7 +15808,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         for (const kind of pen.kinds) {
           const n = kind === 'chicken' ? 6 : Math.max(2, Math.min(5, Math.round(area / 24)));
           if (kind === 'horse') { for (let i = 0; i < 2; i++) { const h = make('estate', { world: wid, pad: { x0, y0, x1, y1 }, stable: null, breed: r.pick(['Palfrey', 'Courser', 'Destrier']), event: 'bred' }); h.history[0].owner = 'the estate'; h.x = r.int(x0, x1) * T + 8; h.y = r.int(y0, y1) * T + 12; } }
-          else add(kind, n, z, { world: wid });
+          else add(kind, n, z, { world: wid, pen });
         }
       }
     }
@@ -15751,6 +15816,11 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     const _extras = O.sceneExtras;
     O.sceneExtras = (sc, ctx, cam) => {
       const out = _extras ? _extras(sc, ctx, cam) : [];
+      if (sc.b.type === 'stable' && !sc.floor) {
+        const inn = horses.filter((h) => h.stabled && h.stable === sc.b.id), R = sc.R;
+        inn.forEach((h, i) => { const x = 40 + i * 54, y = R.WH + 34; if (x > R.W - 30) return; out.push({ y, draw: () => { const an = (Math.floor(sc.t / 4) + i) % 3 ? 'idle' : 'graze', H = O.Animals.HANIMS[an] || O.Animals.HANIMS.idle, hf = O.Animals.horse(h, 1, an, Math.floor(sc.t * H.fps) % H.frames); ctx.drawImage(hf, Math.round(x - (hf.ox ?? hf.width / 2) - cam.x), Math.round(y - (hf.gy ?? hf.height) - cam.y)); } }); });
+        return out;
+      }
       if (sc.b.type !== 'barn' || sc.floor) return out;
       const inside = fauna.filter((f) => f.inBarn && f.barn === sc.b.id), R = sc.R;
       inside.forEach((f, i) => {
@@ -15777,10 +15847,18 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
           if (!wantIn && f.inBarn && bn) { f.inBarn = false; f.x = bn.doorX * T + 8; f.y = (bn.doorY + 1) * T + 4; f.tx = null; f.wait = 0; }
           if (f.inBarn) continue;
         }
-        if (f.tx == null) { f.wait -= dt; if (f.wait <= 0) { f.tx = r.int(f.z.x0, f.z.x1) * T + r.int(2, 14); f.ty = r.int(f.z.y0, f.z.y1) * T + r.int(6, 14); } }
+        // a gate left open: now and then one wanders out through it, and grazes outside till it's brought back
+        const pen = f.pen, gt = pen && pen.gateOpen;
+        if (f.out && !gt && hr0 >= 6 && hr0 < 6.5) { f.out = null; f.x = (f.z.x0 + f.z.x1) / 2 * T; f.y = (f.z.y0 + f.z.y1) / 2 * T; f.tx = null; } // the farmer fetched them in at first light
+        if (f.tx == null) { f.wait -= dt; if (f.wait <= 0) {
+          if (gt && !f.out && r.next() < 0.3) { f.tx = gt[0] * T + 8; f.ty = gt[1] * T + 12; f.leaving = true; }
+          else if (f.out) { if (gt && r.next() < 0.25) { f.tx = gt[0] * T + 8; f.ty = gt[1] * T + 12; f.returning = true; } else { f.tx = (f.out[0] + r.int(-5, 5)) * T + 8; f.ty = (f.out[1] + r.int(-4, 4)) * T + 12; if (game.world.solid[Math.floor((f.ty - 1) / T) * game.world.W + Math.floor(f.tx / T)]) f.tx = null; } }
+          else { f.tx = r.int(f.z.x0, f.z.x1) * T + r.int(2, 14); f.ty = r.int(f.z.y0, f.z.y1) * T + r.int(6, 14); } } }
         else {
           const dx = f.tx - f.x, dy = f.ty - f.y, d = Math.hypot(dx, dy), step = Math.min(d, f.speed * Math.min(dtm, 3));
-          if (d < 1) { f.tx = null; f.wait = 2 + r.next() * 6; } else { f.x += (dx / d) * step; f.y += (dy / d) * step; f.dir = O.dirOf(dx, dy); }
+          if (d < 1 && f.leaving && gt) { f.leaving = false; const z = f.z, ox = gt[0] < z.x0 ? -1 : gt[0] > z.x1 ? 1 : 0, oy = gt[1] < z.y0 ? -1 : gt[1] > z.y1 ? 1 : 0; f.out = [gt[0] + ox * 5, gt[1] + oy * 5]; f.tx = f.out[0] * T + 8; f.ty = f.out[1] * T + 12; }
+          else if (d < 1 && f.returning) { f.returning = false; f.out = null; f.tx = (f.z.x0 + f.z.x1) / 2 * T; f.ty = (f.z.y0 + f.z.y1) / 2 * T; }
+          else if (d < 1) { f.tx = null; f.leaving = false; f.wait = 2 + r.next() * 6; } else { f.x += (dx / d) * step; f.y += (dy / d) * step; f.dir = O.dirOf(dx, dy); }
         }
         const a = animalActor(f); a.x = f.x; a.y = f.y; a.dir = f.dir; a.ft = f.ft; a.moving = f.tx != null;
       }
@@ -15791,7 +15869,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         if (h === mount) { h.x = p.x; h.y = p.y; h.dir = p.dir; h.anim = p.moving ? (p.galloping ? 'gallop' : 'walk') : 'idle'; }
         else if (h.inPaddock !== false && !h.tied && (h.world || 'ashford') === game.world.placeId) {
           const pad = h.pad || paddock, sb = h.stable != null && game.world.buildings.find((b) => b.id === h.stable);
-          const csim = O.SimRef.cur, hr = csim ? csim.hour : 12, night = sb && (hr >= 20.5 || hr < 6);
+          const csim = O.SimRef.cur, hr = csim ? csim.hour : 12, night = sb && (hr >= 20.5 || hr < 6 || (csim && csim.weather && (csim.weather.severe || csim.weather.kind === 'storm')) || (h.owner !== 'player' && ((h.seed || 0) + (csim ? csim.day : 0)) % 3 === 0)); // (resting in the stable some days, and every night and storm)
           // at dusk the horses are led into the stables; at dawn they come out to graze
           if (night && !h.stabled) { h.tx = sb.doorX * T + 8; h.ty = sb.doorY * T + 6; if (Math.hypot(h.tx - h.x, h.ty - h.y) < 3) { h.stabled = true; h.tx = null; } }
           else if (!night && h.stabled) { h.stabled = false; h.x = sb.doorX * T + 8; h.y = sb.doorY * T + 8; h.tx = null; }
@@ -25448,7 +25526,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.RisingSetup.setup(game, npcUI);
   O.RitesSetup.setup(game);
   O.WarfareSetup.setup(game, npcUI);
-  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.NpcActsSetup.setup(game); O.InitiateSetup.setup(game); O.UnderworldSetup.setup(game); O.CourtshipSetup.setup(game); O.FavoursSetup.setup(game);
+  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.NpcActsSetup.setup(game); O.InitiateSetup.setup(game); O.UnderworldSetup.setup(game); O.CourtshipSetup.setup(game); O.FencesSetup.setup(game); O.FavoursSetup.setup(game);
   O.FinerySetup.setup(game);
   O.PastimesSetup.setup(game);
   O.FishingSetup.setup(game);

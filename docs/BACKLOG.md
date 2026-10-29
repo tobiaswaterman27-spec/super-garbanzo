@@ -390,7 +390,7 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Lying down in the evening says you're not tired yet, not that it's broad day
 - [x] Indoors, dusk and dawn come on gradually, as outside
 
-## Batch Y (asked after step 91) - every job again, and the realm's balance
+## Batch Y (asked after step 91) - every job again, and a hundred years
 
 - [x] Job cards dumped for every post in the capital, cities, towns, villages, castles, mines, hamlets and the port; every generic line replaced
 - [x] Own work for: ferryman (fares into the box), toll keeper (tolls into the chest), knight, squire, miner, mine foreman, quarryman, quarry master, laundress, house agent, moneylender and their clerk, labourers (by yard), bailiff, tax collector, forester, woodcutter, fisher, builder
@@ -398,7 +398,8 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Field work follows the year (plough and sow, hoe, reap, hedge and muck), and the harvest gives most
 - [x] Out-of-doors work in storms and snow takes longer, and you're told why
 - [x] Each post can say what each press did ("You drill at arms until the sweat runs")
-- [x] Balance: levied men never came home; towns had no birth rate; the town chest grew without end (now spends past a reserve on works for the poorest and an aid to the crown); the crown has running costs; pestilence, failed harvests and river floods were far too common; births ran too high and no small children ever died; rebels from Eastmarch had "lands at Frostmere"; "The council has named X now holds Y"; migration news every week
+- [x] The hundred-year run: a harness that steps the realm a century and records births, deaths by cause, weddings, crime, rulers, wars, plague, harvests, prices and money
+- [x] Fixed from it: levied men never came home (the realm halved in 20 years); towns had no birth rate; the town chest grew without end (now spends past a reserve on works for the poorest and an aid to the crown); the crown has running costs; pestilence, failed harvests and river floods were far too common; births ran too high and no small children ever died; rebels from Eastmarch had "lands at Frostmere"; "The council has named X now holds Y"; migration news every week
 
 ## Batch Z (asked after step 92) - crown, seats, the king at work, signs
 
@@ -407,3 +408,4 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] NPC monarchs, consorts, heirs and lords hold court (talk, read) at work instead of the hammering "work" motion
 - [x] Door boards are sized to their icon, so the icon is centred to the pixel
 - [x] "in the 2nd year of her reign", not "2th"
+- [x] The century run (66 years before the machine restarted) reported in chat

@@ -409,3 +409,15 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Door boards are sized to their icon, so the icon is centred to the pixel
 - [x] "in the 2nd year of her reign", not "2th"
 - [x] The century run (66 years before the machine restarted) reported in chat
+
+## Batch AA (the big request after step 93)
+
+- [x] AI talk for every NPC, talk-driven acts, group talk, walking away, sense of time, witnesses and intruders (rows 94-95)
+- [x] Wallpapers, floorings, wall colours; roomier homes (row 96)
+- [x] Great estates on the outskirts; married castle and manor staff live near, not in (row 97)
+- [x] Chores for every trade; the castle's halls dressed (row 98)
+- [x] Heists, cutpurses, bribes, gang brawls (row 99)
+- [ ] ACNH style character creator, with a name for the player
+- [ ] Resource-based economy
+- [ ] Glitch sweep of every past complaint; NPCs "disappearing" not yet reproduced
+

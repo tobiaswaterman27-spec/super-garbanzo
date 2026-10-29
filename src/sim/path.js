@@ -16,7 +16,7 @@
     let run = 0;
     function find(sx, sy, tx, ty) {
       const key = sx + ',' + sy + '>' + tx + ',' + ty;
-      if (cache.has(key)) return cache.get(key);
+      if (cache.has(key)) { const c0 = cache.get(key); if (!c0 || !c0.some(([x, y], k) => k < c0.length - 1 && solid[y * W + x])) return c0; cache.delete(key); } // (a sign or a stall put up since: find a way round it)
       run++;
       const start = sy * W + sx, goal = ty * W + tx;
       const open = [];
@@ -36,8 +36,8 @@
         for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
           const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
           const j = ny * W + nx;
-          const c = j === goal ? Math.max(1, cost[j]) : cost[j]; if (!c) continue;
-          if (dx && dy && (!cost[y * W + nx] || !cost[ny * W + x])) continue; // no corner cutting
+          const c = j === goal ? Math.max(1, cost[j]) : solid[j] ? 0 : cost[j]; if (!c) continue;
+          if (dx && dy && (!cost[y * W + nx] || !cost[ny * W + x] || solid[y * W + nx] || solid[ny * W + x])) continue; // no corner cutting
           const ng = g[i] + c * (dx && dy ? 1.414 : 1);
           if (closed[j] !== run && (stamp[j] !== run || ng < g[j])) { stamp[j] = run; g[j] = ng; from[j] = i; push(j, ng + h(j) * 1.15); }
         }

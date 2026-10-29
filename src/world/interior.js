@@ -23,7 +23,9 @@
   // pieces that must stay reachable (you have to get to a bed, a chest, a workstation)
   const NEEDS_ACCESS = new Set(['bed', 'double', 'medbed', 'cradle', 'fireplace', 'oven', 'forge', 'anvil', 'cupboard', 'dresser', 'wardrobe', 'bookcase', 'chest', 'shelf', 'counter', 'workbench', 'doughtable', 'butcherblock', 'rack', 'desk', 'altar', 'millstone', 'loom', 'spinning', 'stairs', 'cauldron', 'barrel', 'crate', 'sack', 'bar', 'cell', 'pew', 'bench', 'vat', 'kiln', 'ballotbox']);
 
-  function scaleFor(b) { return b.type === 'chapel' ? 4 : 3; }
+  // homes get room to move about in: a fire, a table, the beds, and floor between them
+  const ROOMY = new Set(['house', 'farmhouse', 'cottage', 'hovel', 'townhouse', 'tenement', 'woodcutter']);
+  function scaleFor(b) { return b.type === 'chapel' || (ROOMY.has(b.type) && !b.parent) ? 4 : 3; }
 
   // ---- the royal castle, laid out as a building of rooms ----
   // A long hallway below with doors to the throne room, the kitchens, the servants' hall, the steward's
@@ -244,16 +246,16 @@
     const counterAtFront = (o = {}) => tryPut('counter', [[Math.max(0, Math.floor(w / 2) - 2), Math.floor(d / 2)], [1, Math.floor(d / 2)], [w - 5, Math.floor(d / 2)], ...anywhere(4, 1)], Object.assign({ counter: true }, o));
     const homeExtras = () => {
       if (wv >= 1) tryPut('rug', centre(3, 2).slice(3), { flat: true, width: 3 });
-      if (rng.chance(0.5)) tryPut('spinning', nearWalls(2, 1));
-      if (rng.chance(0.5)) tryPut('washtub', nearWalls());
+      if (rng.chance(0.35)) tryPut('spinning', nearWalls(2, 1));
+      if (rng.chance(0.35)) tryPut('washtub', nearWalls());
       if (wv >= 1 && rng.chance(0.6)) tryPut('plant', nearWalls());
       if (wv >= 2) { tryPut('bookcase', backWall(2, true), { v: wv }); tryPut('candlestand', nearWalls()); }
       // the kitchen corner by the hearth, and the clutter of a lived-in house
       const fp = items.find((i) => i.kind === 'fireplace');
       if (fp) { tryPut('woodpile', [[fp.tx - 1, 0], [fp.tx + 3, 0], [fp.tx - 1, 1], [fp.tx + 3, 1]]); tryPut('cauldron', [[fp.tx + 3, 1], [fp.tx - 1, 1], [fp.tx + 3, 0], [fp.tx - 1, 0]], { work: ['cook'] }); } // the pot only ever by the fire
       tryPut('bench', [...leftWall(3, 1).map(([x, y]) => [x, y]), ...nearWalls(3, 1)], { seat: true, rot: 0, noAccess: true });
-      for (let i = 0; i < 2; i++) tryPut(rng.pick(['barrel', 'sack', 'crate']), nearWalls(), { pantry: true });
-      if (rng.chance(0.5)) tryPut('loom', nearWalls(3, 2));
+      tryPut(rng.pick(['barrel', 'sack', 'crate']), nearWalls(), { pantry: true });
+      if (rng.chance(0.25)) tryPut('loom', nearWalls(3, 2));
     };
     // business buildings: the family's rooms go upstairs (or into a back corner when there is no upstairs)
     const familyQuarters = () => { if (!lives) return; if (twoFloors && floor === 1) { beds(); dining(members, {}); storage(); } else if (!twoFloors) { beds(); storage(); } };

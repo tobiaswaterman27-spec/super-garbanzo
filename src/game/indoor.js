@@ -204,7 +204,7 @@
           if (this.t > 0.4 || justCame) { [a.x, a.y] = this.wayIn(); } else { a.x = x; a.y = y; }
           this.actors.set(q.id, a);
         }
-        if (q.agent.approach && !inBed) { const pl = this.game.player; const a0 = this.actors.get(q.id); const side = a0 && a0.x < pl.x ? -18 : 18; x = pl.x + side; y = pl.y + 2; seat = null; spot = null; sortY = null; anim = 'talk'; dir = side < 0 ? 1 : 2; }
+        if (q.agent.approach && !inBed) { const pl = this.game.player; const a0 = this.actors.get(q.id); if (q.agent.approachSide == null) q.agent.approachSide = a0 && a0.x < pl.x ? -18 : 18; const side = q.agent.approachSide; /* (chosen once: no circling round you) */ x = pl.x + side; y = pl.y + 2; seat = null; spot = null; sortY = null; anim = 'talk'; dir = side < 0 ? 1 : 2; }
         else if (q.agent.frozen) { anim = anim === 'sit' ? 'sit' : 'talk'; dir = a.dir ?? dir; if (a.x != null && !inBed) { x = a.x; y = a.y; } } // talking to you: they stay where they are
         a.leaving = false;
         Object.assign(a, { gx: x, gy: y, gSortY: sortY, gDir: q.agent.frozen ? a.dir : dir, gAnim: anim, a: q.app, gBed: inBed ? spot : null, seat: seat && !seat.pewSeat ? seat : seat?.pewSeat ? seat.it : null });

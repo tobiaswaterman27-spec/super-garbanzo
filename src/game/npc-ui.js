@@ -20,7 +20,11 @@
       if (!talking) return;
       const pos = game.scene ? game.scene.personPos(talking) : (talking.agent.hidden ? null : [talking.agent.x, talking.agent.y]);
       if (!pos || Math.hypot(pos[0] - game.player.x, pos[1] - game.player.y) > (talking.agent.approach ? 400 : 70)) return closeTalk();
-      if (!(O.AI && O.AI.busy) && !O.UI.dialog.typing?.()) {
+      // while you type they wait, as long as their patience lasts
+      { const ty = O.UI.dialog.typing?.(); if (ty && !talking._typingSince) talking._typingSince = performance.now(); if (!ty) talking._typingSince = 0; }
+      const tr0 = talking.traits || [], patience = tr0.includes('impatient') ? 6000 : tr0.includes('patient') ? 45000 : 16000;
+      const typingOk = O.UI.dialog.typing?.() && performance.now() - (talking._typingSince || 0) < patience;
+      if (!(O.AI && O.AI.busy) && !typingOk) {
         const q = talking, t = q.traits || [], long = t.includes('social') ? 90 : t.includes('introverted') ? 25 : 50;
         // they tire of a talk only after a long quiet, or a very long talk; work or anything urgent calls sooner
         if (q._mustGo || absNow() - (q._lastSaid || q._talkFrom || absNow()) > long || absNow() - (q._talkFrom || absNow()) > long * 4) {
@@ -81,7 +85,8 @@
       O.NpcActs && O.NpcActs.walkOff(q); q._snubUntil = s0.day * 1440 + s0.minute + 20;
     }
     function openTalk(q) {
-      const s0 = sim; if (q._snubUntil && s0.day * 1440 + s0.minute < q._snubUntil) { O.UI.say(`${q.first} turns away from you.`, 'bad'); return; }
+      // not wanting to talk: they say so, but keep at it (or come back later) and they'll hear you out
+      const s0 = sim; if (q._snubUntil && s0.day * 1440 + s0.minute < q._snubUntil) { q._snubTries = (q._snubTries || 0) + 1; if (q._snubTries < 3) { const l = pick(["I've no interest in talking to you.", 'Not now. Leave me be.', "I've nothing to say to you."]); O.UI.dialog.open({ name: q.first, color: tagColour(q), text: l, options: [] }); setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1600); return; } q._snubUntil = 0; q._snubTries = 0; }
       { const bl = O.AI && O.AI.ready ? busyLine(q) : null;
         if (bl) { const act = q.activity?.act, r0 = q.rel.get(0) || {}; if ((r0.affinity || 0) < -0.55 || ['fire', 'firefight', 'help', 'report'].includes(act)) return walkAway(q, bl); talking = q; q.agent.frozen = true; q._group = []; q._talkFrom = absNow(); q._lastSpeaker = null; hurry(q, act === 'work' || act === 'patrol' ? 'work' : act); return; } }
       talking = q; q.agent.frozen = true; q._lastSpeaker = null; q._mustGo = null; q._talkFrom = absNow();
@@ -108,7 +113,7 @@
       if (!(since != null && since < 120)) q._conv = []; // a fresh talk, unless it carries on from just now
       renderTalk(again || O.Dialogue.provider.greet(O.Dialogue.buildContext(sim, q), q.id + sim.day));
     }
-    function closeTalk() { if (talking) { talking.agent.approach = false; O.AIChat && O.AIChat.ended(talking); for (const z of talking._group || []) { z.agent.frozen = false; z.agent.talking = 0; } }
+    function closeTalk() { if (talking) { talking.agent.approach = false; talking.agent.approachSide = null; O.AIChat && O.AIChat.ended(talking); for (const z of talking._group || []) { z.agent.frozen = false; z.agent.talking = 0; } }
       if (talking) { const a = talking.agent; a.frozen = false; a.talking = 0; talking._lastTalkAt = absNow(); if (a.inside == null && !a.chasing) { a.path = null; a.goal = null; } } talking = null; /* (and on their way again) */ card.hidden = true; if (O.UI.dialogOpen()) O.UI.dialog.close(); }
     function bar(v, cls = '') { return `<span class="bar ${cls}"><i style="width:${Math.round(O.clamp(v, 0, 100))}%"></i></span>`; }
     // name tag in the colour of their clothes

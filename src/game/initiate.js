@@ -9,13 +9,14 @@
     const cur = () => O.SimRef.cur, PS = O.PlayerState;
     const abs = (s) => s.day * 1440 + s.minute;
     const nameOf = (q) => (q.rel.get(0) || {}).name;
+    const g0 = () => !!game.scene;
     // ---------------------------------------------------------------- your coming in at the door
     let intrusion = null; // { b, q, at, warned }
     O.Crime.onEnter = function (g, s, b) {
       if (!['house', 'farmhouse', 'cottage', 'townhouse', 'mansion', 'hovel', 'manor'].includes(b.type)) return;
       if (b.owner?.kind === 'player' || (PS.lease && PS.lease.b === b.id)) return;
       const inside = s.people.filter((q) => q.agent.inside === b.id && q.activity?.act !== 'sleep' && q.age >= 10);
-      if (!inside.length) return;
+      if (!inside.length) { if (!(O.invitedTo && O.invitedTo(b))) neighbours(g, s, b); return; }
       const invited = O.invitedTo && O.invitedTo(b);
       setTimeout(() => {
         if (!g.scene || g.scene.b.id !== b.id) return;
@@ -51,14 +52,37 @@
       const q = intrusion.q, mins = abs(s) - intrusion.at, r = q.rel.get(0) || {};
       if ((r.affinity || 0) > 0.35) { intrusion = null; return; } // talked round
       if (!intrusion.warned && mins > 20) { intrusion.warned = true; const l = "I'll not tell you again. Get out, or I fetch the watch."; if (!O.npcUI.startFrom(q, l)) O.Speech && O.Speech.say(q, l, 3); return; }
-      if (mins > 40 && !O.npcUI.talking()) {
-        const b = s.building(intrusion.b), seen = s.people.filter((z) => z.agent.inside === intrusion.b && z.activity?.act !== 'sleep');
-        const cr = s.recordCrime({ kind: 'trespass', perp: 'player', placeName: b?.name || 'a house', tile: [b.doorX, b.doorY], seen, victimPerson: q, severity: 1 });
-        PS.crimes.push(cr.id); q.task = { act: 'report', b: s.guardId, crime: cr.id, woken: abs(s) + 120 };
-        O.Speech && O.Speech.say(q, "Right. I'm fetching the watch!", 3, 'bad');
-        intrusion = null;
+      // a drawn blade changes everything: the bold stand up to you, the rest run for help
+      const armed = O.Combat && O.Combat.armed && O.Combat.armed();
+      if ((mins > 40 || (armed && mins > 6)) && !O.npcUI.talking() && !intrusion.sent) {
+        const b = s.building(intrusion.b), home = s.people.filter((z) => z.agent.inside === intrusion.b && z.activity?.act !== 'sleep' && z.age >= 10);
+        const runner = home.filter((z) => !(z.traits || []).includes('brave') || home.length === 1).sort((a2, b2) => (b2.age < 60 ? 1 : 0) - (a2.age < 60 ? 1 : 0))[0] || q;
+        const cr = s.recordCrime({ kind: 'trespass', perp: 'player', placeName: b?.name || 'a house', tile: [b.doorX, b.doorY], seen: home, victimPerson: q, severity: armed ? 2 : 1 });
+        PS.crimes.push(cr.id); runner.task = { act: 'report', b: s.guardId, crime: cr.id, woken: abs(s) + 120 }; intrusion.sent = runner.id;
+        for (const z of home) s.remember(z, `A stranger${armed ? ' with a blade' : ''} would not leave our house.`, 'crime', 1.5, 0);
+        O.Speech && O.Speech.say(runner, armed ? 'Help! I am fetching the watch!' : "Right. I'm fetching the watch!", 3, 'bad');
+        // the others know where they've gone: the bold may take matters into their own hands
+        const rest = home.filter((z) => z !== runner);
+        setTimeout(() => { const z = rest[0]; if (z && g0()) O.Speech && O.Speech.say(z, armed ? `${runner.first}'s gone for the watch. Stay back!` : `${runner.first}'s gone for the watch. You'd best go.`, 3); }, 1500);
+        if (armed) for (const z of rest) if (((z.traits || []).includes('brave') || (z.traits || []).includes('hostile')) && z.age >= 16) { O.Combat && O.Combat.provoke(z, 'fight'); O.Speech && O.Speech.say(z, 'Get out of my house!', 2.5, 'bad'); break; }
       }
+      if (mins > 180) intrusion = null;
     });
+    // nobody home, but a neighbour saw you go in: they speak up, go and tell the family, or go for the watch
+    function neighbours(g, s, b) {
+      const hh = b.household && s.households[b.household - 1]; if (!hh) return;
+      const x = b.doorX * 16 + 8, y = b.doorY * 16 + 8;
+      const seers = s.people.filter((z) => !z.agent.hidden && z.agent.inside == null && z.age >= 10 && z.activity?.act !== 'sleep' && Math.hypot(z.agent.x - x, z.agent.y - y) < 150 && !hh.members.includes(z.id));
+      const z = seers.sort((a2, b2) => Math.hypot(a2.agent.x - x, a2.agent.y - y) - Math.hypot(b2.agent.x - x, b2.agent.y - y))[0]; if (!z) return;
+      const owner = hh.members.map((id) => s.byId.get(id)).find((m) => m && m.age >= 16 && m.alive !== false), knows = owner && ((z.rel.get(owner.id) || {}).familiar || 0) > 0.1;
+      s.remember(z, `Saw ${nameOf(z) || 'a stranger'} go into the ${hh.surname} house while they were out.`, 'crime', 1, 0);
+      O.Speech && O.Speech.say(z, knows ? `Here! That's the ${hh.surname} house!` : 'Hey! Whose house is that?', 3);
+      if (!knows || !owner) return;
+      if (Math.random() < 0.6) { // go and find the family
+        (owner.beliefs = owner.beliefs || []).unshift({ t: `${z.first} saw a stranger go into our house while we were out.`, src: 'friend', from: z.first, day: s.day });
+        setTimeout(() => { const sc = game.scene; if (sc && (sc.b.parent || sc.b).id === b.id && owner.agent.inside !== b.id) { owner.task = { act: 'home', b: b.id, woken: abs(s) + 60 }; } }, 8000);
+      } else setTimeout(() => { const sc = game.scene; if (!sc || (sc.b.parent || sc.b).id !== b.id) return; const cr = s.recordCrime({ kind: 'trespass', perp: 'player', placeName: `the ${hh.surname} house`, tile: [b.doorX, b.doorY], seen: [z], victimPerson: owner, severity: 1 }); PS.crimes.push(cr.id); z.task = { act: 'report', b: s.guardId, crime: cr.id, woken: abs(s) + 120 }; }, 12000);
+    }
     // an invitation is passed round the household, so nobody takes fright
     O.toldOfVisit = (s, q) => { const hh = s.household(q); if (!hh) return; for (const id of hh.members) { const z = s.byId.get(id); if (z && z !== q) (z.beliefs = z.beliefs || []).unshift({ t: `${q.first} says the ${nameOf(q) || 'stranger'} is coming to the house.`, src: 'friend', from: q.first, day: s.day }); } };
 
@@ -74,6 +98,9 @@
       for (const q of near.sort(() => Math.random() - 0.5)) {
         if (q.agent.frozen || q.activity?.act === 'sleep' || q.age < 3) continue;
         const r = q.rel.get(0) || { affinity: 0, familiar: 0 }, k = q.id + ':' + day, gd = greeted.get(k) || 0;
+        // someone you owe
+        const debt = (PS.debts || []).find((d) => d.who === q.id && d.place === s.world.placeId && d.n > 0 && day > d.due);
+        if (debt && !(gd & 64)) { greeted.set(k, gd | 64); O.npcUI.startFrom(q, pick([`You owe me ₳${debt.n}. When will I see it?`, `The ₳${debt.n} I lent you. I'd like it back.`])); return; }
         // someone who asked you for something
         if (q.wants && q.wants.until >= day && PS.items.includes(q.wants.g) && !(gd & 4)) { greeted.set(k, gd | 4); O.npcUI.startFrom(q, pick([`Did you bring the ${q.wants.name}?`, `Have you the ${q.wants.name} for me?`])); return; }
         // the one you're due to meet

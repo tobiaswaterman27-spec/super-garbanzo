@@ -30,8 +30,12 @@
     // ---------------------------------------------------------------- the bottom line
     const line = document.createElement('div'); line.className = 'ui-ticker'; line.setAttribute('aria-live', 'polite'); root.appendChild(line);
     const queue = []; let showing = null, until = 0;
+    // only what matters reaches the bottom line: a refusal or a failure, money, work, meetings, letters,
+    // the law, danger, and people speaking; the rest of the narration is left to what you can see
+    const MATTERS = /barred|locked|full|can't|cannot|couldn't|won't|afford|no room|nothing to|not yours|₳|wage|sacked|hired|your post|promot|meeting|meet |missed|never came|arrest|wanted|bounty|the watch|guard|letter|done|late|fire!|attack|kill|dies|died|dead|crowned|war\b|rebellion|plague|ill\b|unwell|hungry|starving|exhausted|too tired|wakes|asleep|comes along|goes about|found work|takes your post|gives you|says:|calls|shout|“|"/i;
     function say(text, kind = '') {
       if (!text) return;
+      if (kind !== 'bad' && !MATTERS.test(text)) return;
       if (queue.some((q) => q.text === text) || (showing && showing.text === text)) return;
       queue.push({ text, kind }); if (queue.length > 6) queue.shift();
     }

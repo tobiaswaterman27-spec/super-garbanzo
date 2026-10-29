@@ -554,10 +554,11 @@
       while (budget > 0 && a.path) {
         if (a.pi >= a.path.length) { this.arrive(p); break; }
         const [tx, ty] = a.path[a.pi];
+        if (a.pi < a.path.length - 1 && this.world.solid[ty * this.world.W + tx] && !a.offPath) { a.path = null; a.goal = null; break; } // something stands in the way now: find another
         let [gx, gy] = this.tileCenter(tx, ty, a.pi === a.path.length - 1 ? p : null);
         // keeping to the right of the way to pass someone coming the other way
         const wt = this.world.ter, TW = this.world.TER || {}, onBridge = (x, y) => wt[y * this.world.W + x] === TW.BRIDGE || [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([ox, oy]) => wt[(y + oy) * this.world.W + x + ox] === TW.WATER);
-        if (a.lane && a.pi < a.path.length - 1 && !onBridge(tx, ty)) { /* never off the side of a bridge or a bank */ const nx = a.path[a.pi + 1], ex = nx[0] - tx, ey = nx[1] - ty, ed = Math.hypot(ex, ey) || 1; gx += (-ey / ed) * a.lane; gy += (ex / ed) * a.lane * 0.7; } // (to the right of the way the path runs)
+        if (a.lane && a.pi < a.path.length - 1 && !onBridge(tx, ty)) { const gx0 = gx, gy0 = gy; /* never off the side of a bridge or a bank */ const nx = a.path[a.pi + 1], ex = nx[0] - tx, ey = nx[1] - ty, ed = Math.hypot(ex, ey) || 1; gx += (-ey / ed) * a.lane; gy += (ex / ed) * a.lane * 0.7;  if (this.world.solid[Math.floor((gy - 1) / this.T) * this.world.W + Math.floor(gx / this.T)]) { gx = gx0; gy = gy0; } /* never sidestep into a wall */ } // (to the right of the way the path runs)
         const dx = gx - a.x, dy = gy - a.y, d = Math.hypot(dx, dy);
         if (d <= budget) { a.x = gx; a.y = gy; budget -= d; a.pi++; }
         else { a.x += (dx / d) * budget; a.y += (dy / d) * budget; budget = 0; }

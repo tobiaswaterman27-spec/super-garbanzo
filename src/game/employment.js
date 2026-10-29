@@ -152,7 +152,7 @@
       }
       void s;
     };
-    O.Employment = { emp, hire, quit, here, posts };
+    O.Employment = { emp, hire, quit, here, posts, newTasksFor: (s, bz, e) => newTasks(s, bz, e) };
     O.COURT = COURT;
     // what the post is called for you: some titles are a woman's or a man's
     const FEM = { potboy: 'potgirl', 'master cook': 'mistress cook', 'master of horse': 'mistress of horse', lord: 'lady', prince: 'princess', heir: 'heir', fisher: 'fishwife', 'night watchman': 'night watchwoman', 'master builder': 'master builder' };
@@ -323,6 +323,7 @@
         if (e.master != null && e.master !== 0 && !out.some((x) => x.kind === 'talkto')) out.push({ id: id(), kind: 'talkto', who: e.master, need: 1, have: 0, text: `Tell ${e.masterName || 'your master'} how the work goes` });
         if (kinds().size < 3) out.push({ id: id(), kind: 'talkmany', need: 2, have: 0, text: ROLE_WORK[e.role]?.filler || (kind === 'make' ? 'Ask around for orders' : 'Talk with the townsfolk') });
       }
+      if (O.choreTasks && !COURT.has(e.role)) for (const t of O.choreTasks(s, bz, e)) out.push(Object.assign({ id: id(), have: 0 }, t));
       if (O.extraTasks) for (const t of O.extraTasks(s, bz, e, out) || []) out.push(Object.assign({ id: id(), have: 0, need: 1 }, t));
       return out;
     }
@@ -340,6 +341,7 @@
         case 'fish': spots = near(3, 2, 20, (x, y) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => w.ter[(y + dy) * w.W + x + dx] === w.TER.WATER)); if (spots.length < 1) spots = near(3, 3, 8); break;
         case 'collect': spots = w.buildings.filter((x) => x.type === 'house' && x.household && x.doorX != null).sort((a, c) => (a.id * 7 + s.day) % 13 - (c.id * 7 + s.day) % 13).slice(0, 3).map((x) => [x.doorX * T + 8, (x.doorY) * T + 10, x.id]); break;
         case 'deliver': { const tg = [...s.biz.values()].filter((x) => x.id !== bz.id && x.b.doorX != null).sort((a, c) => (a.id * 3 + s.day) % 11 - (c.id * 3 + s.day) % 11).slice(0, 3); spots = tg.map((x) => [x.b.doorX * T + 8, x.b.doorY * T + 10, x.id]); break; }
+        case 'chore': if (t.at !== 'out') return null; spots = near(1, 2, 6, (x, y) => w.ter[y * w.W + x] !== w.TER.ROAD || bz.type === 'stable'); break;
         case 'fetch': { const sp = s.biz.get(t.from); spots = sp ? [[sp.b.doorX * T + 8, sp.b.doorY * T + 10, sp.id]] : []; break; }
         default: spots = null; // done indoors at a station
       }
@@ -373,6 +375,7 @@
         case 'attend': return !!it.council || (it.kind === 'chair' && it.head);
         case 'pots': return it.kind === 'table' || it.kind === 'longtable';
         case 'rooms': return game.scene && game.scene.floor === 1 && (it.kind === 'bed' || it.rent);
+        case 'chore': return t.at !== 'out' && t.at !== 'floor' && it.kind === t.at && it.kind !== 'stairs';
         case 'unload': return !!(it.counter || ['crate', 'sack', 'barrel', 'shelf', 'chest'].includes(it.kind));
         default: return false;
       }
@@ -396,7 +399,7 @@
           continue;
         }
         if (!game.scene || game.scene.b.id !== bz.id) continue;
-        if (t.kind === 'sweep') { const pts = floorSpots(t); for (let k = 0; k < pts.length; k++) { if ((t.done || []).includes('f' + k)) continue; const [x, y] = pts[k]; if (Math.hypot(x - p.x, y - p.y) < 20) return { type: 'job', t, k: 'f' + k, d: -10, x, y: y - 30 }; } continue; }
+        if (t.kind === 'sweep' || (t.kind === 'chore' && t.at === 'floor')) { const pts = floorSpots(t); for (let k = 0; k < pts.length; k++) { if ((t.done || []).includes('f' + k)) continue; const [x, y] = pts[k]; if (Math.hypot(x - p.x, y - p.y) < 20) return { type: 'job', t, k: 'f' + k, d: -10, x, y: y - 30 }; } continue; }
         for (const it of game.scene.L.items) {
           if (!stationOk(t, it, e)) continue;
           const [x, y] = game.scene.anchor(it); const d = Math.hypot(x - p.x, y + 8 - p.y);
@@ -479,6 +482,7 @@
         }
         case 'unload': act('place', 1.2, 5, () => { const cy = PS.carry; if (cy) { bz.stock[cy.good] = (bz.stock[cy.good] || 0) + cy.qty; PS.carry = null; } const u = e.tasks.find((x) => x.kind === 'unload' && x.have < x.need); if (u) { u.have = 1; } e.stats.tasks++; refresh(); say('Put away.'); }); break;
         case 'rooms': act('look', 1.6, 10, () => tick('The rooms are in order.')); break;
+        case 'chore': act(t.anim || 'work', Math.min(2.6, 1 + t.mins / 20), t.mins || 15, () => { O.choreGain && O.choreGain(t, s, bz); tick(said(t, null)); }); break;
         case 'attend': { if (s.hour < 13.9) { say('The council sits at two. Come back then.'); return; } if (O.openCouncilSession) O.openCouncilSession(() => tick()); break; }
         case 'pots': act('scrub', 1.4, 10, () => { (t.swept = t.swept || []).push(c.it ? c.it.id : c.k); tick('You gather the pots and wipe the table down.'); }); break;
         case 'service': case 'teach': case 'write': case 'tend': case 'court': act(ANIM_OF(t, e), 2, 30, () => tick(said(t, null))); break;
@@ -710,6 +714,7 @@
         case 'court': return "Work at the desk in the steward's hall, off the ground-floor hallway (E).";
         case 'attend': return 'The council sits in the great hall upstairs on Thursdays from two. Take your seat at the table (E).';
         case 'visit': return 'Climb the grand stairs and walk each of those floors.';
+        case 'chore': return t.at === 'out' ? `Outside ${bz.name}, at the place marked in gold (E).` : t.at === 'floor' ? `Inside ${bz.name}, at the place marked in gold (E).` : `Inside ${bz.name}, at the ${NICE[t.at] || t.at} (E).`;
         default: return 'Press E at the marked places.';
       }
     }
@@ -748,7 +753,7 @@
             continue;
           }
           if (t.kind === 'unload') { const it = game.scene.L.items.find((i) => stationOk(t, i, e)); if (it) { const [x, y] = game.scene.anchor(it); mark(x, y - 40); } continue; }
-          if (t.kind === 'sweep') { floorSpots(t).forEach(([x, y], k) => { if (!(t.done || []).includes('f' + k)) mark(x, y - 30); }); continue; }
+          if (t.kind === 'sweep' || (t.kind === 'chore' && t.at === 'floor')) { floorSpots(t).forEach(([x, y], k) => { if (!(t.done || []).includes('f' + k)) mark(x, y - 30); }); continue; }
           const it = game.scene.L.items.find((i) => stationOk(t, i, e) && !(t.swept || []).includes(i.id)); if (it) { const [x, y] = game.scene.anchor(it); mark(x, y - 40); }
         } else {
           const spots = spotsFor(t, s, bz, e);

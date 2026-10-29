@@ -42,6 +42,7 @@
       if (O.signCandidate) { const sg = O.signCandidate(); if (sg) out.push(sg); }
       if (O.jobCandidate) { const jc = O.jobCandidate(); if (jc) out.push(jc); }
       if (O.gangCandidate) { const gc = O.gangCandidate(); if (gc) out.push(gc); }
+      for (const f of O.moreCandidates || []) { const xc = f(); if (xc) out.push(xc); }
       if (O.hermitCandidate) { const hc = O.hermitCandidate(); if (hc) out.push(hc); }
       if (O.voteCandidate) { const vc = O.voteCandidate(); if (vc) out.push(vc); }
       if (O.placedCandidate) { const pc2 = O.placedCandidate(); if (pc2) out.push(pc2); }
@@ -91,6 +92,7 @@
         case 'namesign': return 'Read the sign';
         case 'job': return O.jobLabel(c);
         case 'gangtask': return c.label;
+        case 'custom': return c.label;
         case 'hermit': return 'Sit with the hermit';
         case 'vote': return 'The ballot box: read the candidates';
         case 'placed': { const g = O.Data.GOODS[c.x0.good]; return (g.food || g.drink) && O.PlayerState.hunger < 85 ? `${g.drink ? 'Drink' : 'Eat'} the ${g.name.toLowerCase()}` : `Pick up the ${g.name.toLowerCase()}`; }
@@ -274,6 +276,7 @@
         case 'namesign': O.readSign(cur); break;
         case 'job': O.jobAct(cur); break;
         case 'gangtask': O.gangAct(cur); break;
+        case 'custom': cur.act(); break;
         case 'hermit': O.hermitAct(cur); break;
         case 'vote': O.voteAct(cur); break;
         case 'placed': O.placedAct(cur); break;

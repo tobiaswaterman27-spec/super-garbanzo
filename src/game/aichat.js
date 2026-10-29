@@ -158,6 +158,7 @@
     const tr = (r.trust || 0) > 0.4 ? 'you trust them' : (r.trust || 0) < -0.3 ? 'you do not trust a word they say' : r.familiar < 0.2 ? 'you do not know them' : 'you half trust them';
     lines.push(`Talking to you: ${known}; met ${r.familiar < 0.15 ? 'just now' : r.familiar < 0.5 ? 'a few times' : 'often'}; ${fond}; ${tr}.`);
     if (ctx.sawPlayerCrime) lines.push('You saw them commit a crime and know their face.');
+    { const P = O.PlayerState, w = P.wantedLevel ? P.wantedLevel() : 0; if (w > 0 && /guard|watch|sergeant|constable|captain/.test(q.job?.role || '')) { const n = s.crimes.filter((c) => c.perp === 'player' && c.investigated && !c.closed).length; lines.push(`The watch are looking for someone who matches them${P.soughtFor ? ' (' + P.soughtFor() + ')' : ''}. ${q.traits.includes('honest') || q.traits.includes('loyal') ? 'You cannot be bought.' : `You might take a bribe of ${12 + n * 8} aurins or more to forget it.`}`); } }
     if (ctx.fame && ctx.fame.length) lines.push(`You've heard of them: ${ctx.fame.slice(0, 3).map(clean).join(' | ')}`);
     if (r.familiar > 0.3 || (ctx.fame || []).length) { const rp = PS.rep || {}; if ((rp.criminal || 0) > 0.4) lines.push('Folk say they are a rogue.'); else if ((rp.local || 0) > 0.4) lines.push('Folk speak well of them.'); }
     const emp = PS.emp && PS.emp.place === s.world.placeId && q.job && PS.emp.biz === q.job.biz;

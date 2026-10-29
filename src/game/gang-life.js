@@ -17,11 +17,11 @@
     { name: 'Smuggler', pay: 6, kinds: ['smuggle'] },
     { name: 'Poacher', pay: 6, kinds: ['poach'] },
     { name: 'Footpad', pay: 7, kinds: ['rough'] },
-    { name: 'Housebreaker', pay: 9, kinds: ['burgle'] },
-    { name: 'Enforcer', pay: 10, kinds: ['protect', 'rough'] },
+    { name: 'Housebreaker', pay: 9, kinds: ['burgle', 'heist'] },
+    { name: 'Enforcer', pay: 10, kinds: ['protect', 'rough', 'heist'] },
     { name: 'Spy', pay: 11, kinds: ['spy'] },
     { name: 'Recruiter', pay: 12, kinds: ['recruit'] },
-    { name: 'Lieutenant', pay: 15, kinds: ['manage'] },
+    { name: 'Lieutenant', pay: 15, kinds: ['manage', 'heist'] },
     { name: 'Assassin', pay: 30, kinds: ['kill'] },
     { name: 'Right hand', pay: 35, kinds: ['kill', 'manage'] },
   ];
@@ -34,6 +34,7 @@
     const gangOf = (s, m) => s.gangs && s.gangs.find((g) => g.id === m.gid);
     const boss = (s, g) => g && g.leader != null ? s.byId.get(g.leader) : null;
     const door = (b) => [b.doorX * T + 8, b.doorY * T + 10];
+    const g0 = (s, m) => { const g = gangOf(s, m); const den = g && s.world.buildings.find((b) => b.id === g.hideout); return den && den.doorX != null ? den : null; };
 
     // ---------------------------------------------------------------- talking to a gang's people
     const prevExtra = npcUI.extraButtons, prevOn = npcUI.onExtra;
@@ -170,6 +171,14 @@
         if (kind === 'spy') { const rv = s.gangs.find((x) => x.id !== g.id && x.id !== 'player'), rb = rv && s.world.buildings.find((b) => b.id === rv.hideout); if (rb) pool.push({ kind, b: rb.id, at: [rb.doorX * T + 8 + 40, (rb.doorY + 2) * T], text: `Watch ${rv.name}' den after dark`, ask: `${rv.name.replace(/^the /, 'The ')} are up to something. Lie up near their den tonight and count who comes and goes.`, label: 'Lie up and watch the den', night: true });
           else { const wh = s.world.buildings.find((b) => b.type === 'guard' && b.doorX != null); if (wh) pool.push({ kind, b: wh.id, at: [wh.doorX * T + 8 + 30, (wh.doorY + 2) * T], text: 'Watch the watch house after dark', ask: 'I want to know when the watch change over, and how many go out at night. Watch the watch house tonight.', label: 'Watch the watch house', night: true }); } }
         if (kind === 'recruit') { const free = s.people.filter((q) => !q.visitor && !q.gang && q.age >= 17 && q.age < 45 && q.alive !== false && !q.job?.role?.startsWith('guard') && !q.gentry), t = r.pick(free.filter((q) => !q.job)) || r.pick(free); if (t) pool.push({ kind, target: t.id, text: `Bring ${t.name} into the gang`, ask: t.job ? `${t.name} is sick of their master. Talk them round: we pay better.` : `${t.name} has no work and an empty belly. Talk them round. We could use the hands.` }); }
+        if (kind === 'heist') {
+          // the big job: a strongroom worth the risk, cased by day and broken into by night
+          const rich = [...s.biz.values()].filter((z) => ['jeweller', 'moneylender', 'warehouse'].includes(z.type) && z.b && z.b.doorX != null && !z.ownerPlayer).map((z) => z.b)
+            .concat(s.world.buildings.filter((b) => ['mansion', 'manor', 'townhouse'].includes(b.type) && b.doorX != null && b.owner?.kind !== 'player'));
+          if (!rich.length) for (const z of shops) if (z.cash > 60) rich.push(z.b); // in a village, the fattest till
+          const tb = r.pick(rich);
+          if (tb) pool.push({ kind, b: tb.id, stage: 0, need: 1, at: [tb.doorX * T + 8 + 56, (tb.doorY + 2) * T + 10], text: `The big job: case ${tb.name}`, label: `Case ${tb.name}`, ask: `Here's one worth the trouble. ${tb.name}. Watch it by daylight first: who comes, who goes, where they keep it. Then go in after dark and empty the strongbox. Bring it all to me and you'll eat well for a month.` });
+        }
         if (kind === 'manage') pool.push({ kind, text: "Send the lads out on tonight's job", ask: "You run the night's work now. Pick a house, pick the hands, and keep the purse straight." });
         if (kind === 'kill') {
           const rivals = s.gangs.filter((x) => x.id !== g.id && x.id !== 'player').map((x) => s.byId.get(x.leader)).filter((q) => q && q.alive !== false);
@@ -203,7 +212,7 @@
     O.gangCandidate = () => {
       const s = cur(), p = game.player;
       for (const m of here(s)) {
-        const t = m.task; if (!t || t.done || !t.at) continue;
+        const t = m.task; if (!t || t.done || !t.at || t.markOnly) continue;
         if (game.scene) continue;
         if (Math.hypot(t.at[0] - p.x, t.at[1] - p.y) < 24) {
           if (t.night && !(s.hour >= 20 || s.hour < 4)) return { type: 'gangtask', m, d: 3, x: t.at[0], y: t.at[1] - 34, label: 'Come back after dark' };
@@ -215,6 +224,26 @@
     O.gangAct = (c) => {
       const s = cur(), m = c.m, t = m.task, g = gangOf(s, m), p = game.player;
       if (t.night && !(s.hour >= 20 || s.hour < 4)) return say('Not in daylight. After dark.');
+      if (t.kind === 'heist') {
+        const tb = s.building(t.b);
+        if (t.stage === 0) {
+          if (s.hour >= 20 || s.hour < 6) return say("You can't see a thing. Case it by daylight.");
+          p.anim = 'look'; p.locked = true; let k = 0;
+          const step = () => { for (let i = 0; i < 6; i++) s.tick(2); if (++k < 5) return setTimeout(step, 250); p.locked = false; p.anim = 'idle';
+            const sec = tb ? tb.security || 0.3 : 0.3, watchers = s.people.filter((q) => /guard|watch/.test(q.job?.role || '') && q.alive !== false).length;
+            t.stage = 1; t.night = true; t.markOnly = true; t.at = tb ? [tb.doorX * T + 8, tb.doorY * T + 10] : null; t.text = `The big job: get into ${tb ? tb.name : 'the place'} after dark and empty the strongbox`;
+            say(`${sec > 0.5 ? 'A good lock on the door, and a bar behind it.' : 'An ordinary lock. Nothing a pick won\'t open.'} ${watchers > 3 ? 'The watch pass every hour or so.' : 'The watch hardly come this way.'} The strongbox is in the back.`);
+            refresh(); };
+          step(); return;
+        }
+        if (t.stage === 2) {
+          let paid = 0; for (const [k2, c2] of Object.entries(PS.stolen || {})) { const n = PS.remove(k2, c2); paid += Math.max(2, Math.round((O.Data.GOODS[k2]?.base || 2) * 0.75)) * n; }
+          PS.stolen = {}; const cut = Math.round(paid * 0.6) + 20; PS.money += cut; if (g) { g.purse += Math.round(paid * 0.4); g.log.push(`Day ${s.day}: the newcomer pulled off the job at ${tb ? tb.name : 'a strongroom'}.`); }
+          m.trust = Math.min(1, m.trust + 0.15); p.anim = 'place'; setTimeout(() => { if (p.anim === 'place') p.anim = 'idle'; }, 900);
+          say(`The haul goes into the gang's hands. Your share: ₳${cut}.`); t.have = 1; complete(s, g, m); return;
+        }
+        return;
+      }
       if (t.kind === 'message') { p.anim = 'talk'; p.locked = true; setTimeout(() => { p.locked = false; p.anim = 'idle'; t.have = 1; complete(s, g, m); }, 1500); say('You knock, and say what you were told to say. The door shuts.'); return; }
       if (t.kind === 'smuggle') { p.anim = 'place'; p.locked = true; setTimeout(() => { p.locked = false; p.anim = 'idle'; t.have = 1; complete(s, g, m); say('You set the crate down by the door and walk away without looking back.'); }, 1300); return; }
       if (t.kind === 'spy') { p.anim = 'crouch'; p.locked = true; let k2 = 0; const step2 = () => { for (let i = 0; i < 6; i++) s.tick(2); if (++k2 < 5) setTimeout(step2, 250); else { p.locked = false; p.anim = 'idle'; t.have = 1; complete(s, g, m); say(`An hour in the bracken. You count them in and out.`); } }; step2(); return; }
@@ -233,6 +262,7 @@
       const s = cur();
       for (const m of here(s)) {
         const t = m.task; if (!t || t.done) continue;
+        if (t.kind === 'heist' && t.stage === 1) { const n = Object.values(PS.stolen || {}).reduce((a, b) => a + b, 0); if (game.scene && game.scene.b.id === t.b && n > (t._seen ?? n)) { const den = g0(s, m); t.stage = 2; t.night = false; t.markOnly = false; t.at = den ? [den.doorX * T + 8, den.doorY * T + 10] : null; t.text = 'The big job: get the haul to the den'; t.label = 'Hand over the haul'; t.day = s.day; if (!t.at) { t.have = 1; complete(s, gangOf(s, m), m); } else say('Out, quick, and to the den with it.'); refresh(); } t._seen = n; }
         if (t.kind === 'burgle') { const n = Object.values(PS.stolen || {}).reduce((a, b) => a + b, 0); if (game.scene && game.scene.b.id === t.b && n > lastStolen) { t.have = 1; complete(s, gangOf(s, m), m); } lastStolen = n; }
         if (t.kind === 'rough') { const q = s.byId.get(t.target); if (q && (q.health.hp < 70 || (q._punched || 0) >= 3)) { t.have = 1; complete(s, gangOf(s, m), m); } else if (!q || q.alive === false) { t.done = true; say(`${q ? q.name : 'They'} died. The boss wanted them paying, not dead.`, 'bad'); m.trust -= 0.2; } }
         if (t.kind === 'kill') { const q = s.byId.get(t.target); if (!q || q.alive === false || q.health?.hp <= 0) { t.have = 1; complete(s, gangOf(s, m), m); } }

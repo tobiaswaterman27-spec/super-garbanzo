@@ -56,6 +56,12 @@
     const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; const wanted = q.wants && (q.wants.g === o.g);
     r.affinity = clamp(r.affinity + (wanted ? 0.15 : o.g === 'coin' ? 0.04 * Math.min(3, o.n / 2) : 0.06), -1, 1); q.rel.set(0, r);
     if (wanted) q.wants = null;
+    // coin pressed into a watchman's hand while you're sought: a blind eye, if they're the kind to sell one
+    const law = /guard|watch|sergeant|constable/.test(q.job?.role || ''), P = PS();
+    if (law && o.g === 'coin' && P.wantedLevel && P.wantedLevel() > 0 && !q.traits.includes('honest') && !q.traits.includes('loyal')) {
+      const price = 12 + s.crimes.filter((c) => c.perp === 'player' && c.investigated && !c.closed).length * 8;
+      if (o.n >= price) { for (const c of s.crimes) if (c.perp === 'player' && c.investigated && !c.closed && !c.accused) c.closed = 'bribed'; P.rep.guard = (P.rep.guard || 0) - 0.05; P.rep.criminal = (P.rep.criminal || 0) + 0.05; s.remember(q, 'Took coin from the stranger to forget what they did.', 'crime', 0.9, 0); q._bribed = s.day; }
+    }
     s.remember(q, `${r.name || 'A stranger'} gave me ${o.label}.`, 'player', 0.8, 0);
     O.gesture && O.gesture(q, 'nod', 1.6);
   }

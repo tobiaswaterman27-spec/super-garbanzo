@@ -125,7 +125,7 @@
       const again = since != null && since < 90 ? pick(since < 10 ? ['Back again?', 'You again? What is it?', 'Forget something?', 'Yes?'] : ['Hello again.', 'Twice in one day!', 'Back so soon?']) : null;
       if (!(since != null && since < 120)) q._conv = []; // a fresh talk, unless it carries on from just now
       const greet0 = again || O.Dialogue.provider.greet(O.Dialogue.buildContext(sim, q), q.id + sim.day);
-      if (O.AI && O.AI.ready) { renderTalk('', true); voice(q, again ? `The player comes up to talk to you again, ${since < 10 ? 'only moments' : 'a little while'} after you last spoke.` : 'The player has just come up to you to talk. Greet them, or not, as you would, given what you are doing.', greet0, (t) => { if (talking !== q) return; q._conv.push({ who: 'q', t }); renderTalk(t); }); }
+      if (O.AI && O.AI.ready) { renderTalk('', true); const n0 = (q._conv || []).length; voice(q, again ? `The player comes up to talk to you again, ${since < 10 ? 'only moments' : 'a little while'} after you last spoke.` : 'The player has just come up to you to talk. Greet them, or not, as you would, given what you are doing.', greet0, (t) => { if (talking !== q || (q._conv || []).length !== n0) return; q._conv.push({ who: 'q', t }); renderTalk(t); }); } // (you spoke first: their greeting is moot)
       else renderTalk(greet0);
     }
     function closeTalk() { if (talking) { talking.agent.approach = false; talking.agent.approachSide = null; O.AIChat && O.AIChat.ended(talking); for (const z of talking._group || []) { z.agent.frozen = false; z.agent.talking = 0; } }
@@ -238,7 +238,7 @@
       talking = q; q.agent.frozen = true; q._group = []; q._talkFrom = absNow(); q._lastSpeaker = null; q.agent.approach = true;
       const pos = game.scene ? game.scene.personPos(q) || [q.agent.x, q.agent.y] : [q.agent.x, q.agent.y];
       q.agent.dir = O.dirOf(game.player.x - pos[0], game.player.y - pos[1]); if (game.scene) { const a = game.scene.actors.get(q.id); if (a) a.dir = q.agent.dir; }
-      renderTalk('', true); voice(q, `You go up to the player to say this, in your own words: "${line}"`, line, (t) => { if (talking !== q) return; (q._conv = q._conv || []).push({ who: 'q', t }); renderTalk(t); }); return true;
+      const n0 = (q._conv || []).length; renderTalk('', true); voice(q, `You go up to the player to say this, in your own words: "${line}"`, line, (t) => { if (talking !== q || (q._conv || []).length !== n0) return; (q._conv = q._conv || []).push({ who: 'q', t }); renderTalk(t); }); return true;
     }
     const api = { openTalk, closeTalk, toggleLedger, talking: () => talking, speak, startFrom };
     O.npcUI = api;

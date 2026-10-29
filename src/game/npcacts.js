@@ -206,7 +206,7 @@
       case 'follow': follow.set(q.id, abs(s) + 180); goTo.delete(q.id); return `${q.first} comes along with you.`;
       case 'stop': if (follow.delete(q.id)) { q.agent.chasing = false; return `${q.first} goes about their day.`; } return null;
       case 'go': { const pl = placeFor(s, q, a.place); if (!pl) return null; goTo.set(q.id, { b: pl.b ?? null, until: abs(s) + 120 }); return null; }
-      case 'invite': { if (q.home == null) return null; invites.set(q.home, abs(s) + 360); const b = s.building(q.home); O.addLead && O.addLead({ place: s.world.placeId, b: q.home, until: abs(s) + 360, why: 'invite', key: 'inv' + q.id, label: `${q.first}'s house: you're welcome today` }); return `${q.first} says you may come to their house today${b ? '' : ''}.`; }
+      case 'invite': { if (q.home == null) return null; invites.set(q.home, abs(s) + 360); O.toldOfVisit && O.toldOfVisit(s, q); const b = s.building(q.home); O.addLead && O.addLead({ place: s.world.placeId, b: q.home, until: abs(s) + 360, why: 'invite', key: 'inv' + q.id, label: `${q.first}'s house: you're welcome today` }); return `${q.first} says you may come to their house today${b ? '' : ''}.`; }
       case 'give': return npcGives(s, q, a.item);
       case 'want': { const g = goodFor(a.item); if (!g || g === 'coin') return null; q.wants = { g, name: (G()[g]?.name || g).toLowerCase(), until: s.day + 5 }; return null; }
       case 'take_gift': if (q._offer) { keepGift(s, q, q._offer); q._offer = null; } return null;
@@ -216,9 +216,34 @@
       case 'tell': { const to = personFor(s, a.to); if (!to || to === q || !a.msg) return null; passing.push({ s, from: q.id, to: to.id, msg: O.cleanSpeech(String(a.msg)).slice(0, 120), who: r.name || 'the stranger' }); return null; }
       case 'like': { const of = personFor(s, a.of); if (!of || of === q) return null; s.relate(q, of, (Number(a.by) > 0 ? 1 : -1) * 0.1); return null; }
       case 'call': { const z = O.nearbyOf ? (O.nearbyOf(s, q, 260).find(({ z }) => z.first.toLowerCase() === String(a.who || '').toLowerCase().split(' ')[0]) || {}).z : null; if (!z) return null; return callOver(s, q, z, main); }
+      case 'ask': { const z = askable(s, q, a.who); if (!z) return null; consult(s, q, z, String(a.question || '').slice(0, 200), main); return `${q.first} goes to ask ${z.first}.`; }
       case 'leave': return 'leave';
       default: return null;
     }
+  }
+  // asking someone privately: they step away, ask, and come back with the answer (theirs, in their own words)
+  function askable(s, q, who) {
+    const n = String(who || '').toLowerCase().split(' ')[0]; if (!n) return null;
+    const fam = [q.spouse, ...(q.children || []), ...(q.parents || [])].map((id) => s.byId.get(id)).filter(Boolean);
+    const near = O.nearbyOf ? O.nearbyOf(s, q, 400).map(({ z }) => z) : [];
+    const sameB = q.agent.inside != null ? s.people.filter((z) => z.agent.inside === q.agent.inside) : [];
+    return [...fam, ...near, ...sameB].find((z) => z !== q && z.alive !== false && (z.first.toLowerCase() === n || (/wife|husband/.test(n) && z.id === q.spouse))) || null;
+  }
+  function consult(s, q, z, question, main) {
+    const g = O.game; q._away = true; q.agent.frozen = false; O.gesture && O.gesture(q, 'point', 1);
+    setTimeout(async () => {
+      let answer = null;
+      if (O.AI && O.AI.ready && z.activity?.act !== 'sleep') {
+        try { const out = await O.AI.json(`Reply ONLY with JSON {"say": string, "yes": boolean}. ${z.first} ${z.sur || ''} (${z.age}, temper ${(z.traits || []).join(', ')}) is asked privately by ${q.first} (${O.relTo ? O.relTo(s, z, q) : ''}): "${question}". About the player: ${((z.rel.get(0) || {}).familiar || 0) > 0.2 ? 'they know them' : 'a stranger'}${((z.rel.get(0) || {}).affinity || 0) > 0.3 ? ', and like them' : ((z.rel.get(0) || {}).affinity || 0) < -0.2 ? ', and dislike them' : ''}. Their short answer to ${q.first}, in character, plain medieval English, no dashes, never anything modern.`);
+          if (out && out.say) answer = { say: O.cleanSpeech(out.say), yes: !!out.yes }; } catch (e) { /* no answer */ }
+      }
+      if (!answer) answer = z.activity?.act === 'sleep' ? { say: "She's asleep. I'll not wake her.", yes: false, asleep: true } : { say: Math.random() < 0.5 ? 'Aye, very well.' : 'Not today.', yes: Math.random() < 0.5 };
+      q._away = false;
+      const line = answer.asleep ? answer.say : `${z.first} says: ${answer.say.replace(/[.!?]?$/, '.')}${answer.yes ? '' : ''}`;
+      (q.beliefs = q.beliefs || []).unshift({ t: `${z.first} answered "${question}" with: ${answer.say}`, src: 'friend', from: z.first, day: s.day });
+      if (O.npcUI && O.npcUI.talking() === (main || q)) O.npcUI.speak(main || q, line, q);
+      else O.UI.say(`${q.first}: ${line}`);
+    }, 3500 + Math.random() * 2500);
   }
   // calling someone over: they come if they will (not when busy, asleep, or set against the player)
   const joining = new Map(); // person id -> { to: talk person }

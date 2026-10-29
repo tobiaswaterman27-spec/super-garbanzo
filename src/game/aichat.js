@@ -123,9 +123,9 @@
     const hh = s.household(q), home = s.building(q.home);
     lines.push(`Home: ${placeOf(s, home, cx, cy)}. The household purse is ${hh && hh.money > 150 ? 'full' : hh && hh.money > 40 ? 'fair' : 'thin'}.`);
     const fam = [];
-    if (q.spouse) { const sp = by(q.spouse); if (sp) fam.push(`${q.sex === 'm' ? 'wife' : 'husband'} ${sp.first} (${sp.age}, ${sp.job ? sp.job.role : 'at home'})`); }
+    if (q.spouse) { const sp = by(q.spouse); if (sp) fam.push(`${q.sex === 'm' ? 'wife' : 'husband'} ${sp.first} (${sp.age}, ${sp.job ? sp.job.role : 'keeps the house'}; now ${whereabouts(s, q, sp)})`); }
     else if (q.widowed) { const w = by(q.widowed); fam.push(`widowed${w ? ` (${w.first} died)` : ''}`); }
-    for (const id of q.children || []) { const c = by(id); if (c) fam.push(c.alive === false ? `child ${c.first} (dead)` : `${c.sex === 'm' ? 'son' : 'daughter'} ${c.first} (${c.age})`); }
+    for (const id of q.children || []) { const c = by(id); if (c) fam.push(c.alive === false ? `child ${c.first} (dead)` : `${c.sex === 'm' ? 'son' : 'daughter'} ${c.first} (${c.age}; now ${whereabouts(s, q, c)})`); }
     for (const id of q.parents || []) { const c = by(id); if (c) fam.push(c.alive === false ? `${c.sex === 'm' ? 'father' : 'mother'} ${c.first} (dead)` : `${c.sex === 'm' ? 'father' : 'mother'} ${c.first} (${c.age})`); }
     if (ctx.fam2 && ctx.fam2.sibs) for (const sb of ctx.fam2.sibs.slice(0, 3)) fam.push(`${sb.sex === 'm' ? 'brother' : 'sister'} ${sb.first} (${sb.age})`);
     if (fam.length) lines.push(`Family: ${fam.join(', ')}.`);
@@ -206,8 +206,8 @@ They know only what their card says; asked anything else they don't know, guess 
 people: for each person present: feel and trust (-2..2) = how the player's words change their liking and belief; learned = a short new claim from the player they now believe, else ""; caught = true if they now see the player lied before.
 name: the player's name if the player just gave it. agree: true only if they now agree to the pending request.
 acts: only what a speaker truly agrees to or does, each {"who":"First name","do":...}:
-meet {"place","hour":0-23,"day":"today"|"tomorrow"|weekday,"why"} | follow (come along with the player now) | stop (stop following) | go {"place"} (go there now) | invite (let the player into their home today) | give {"item"} (hand over something they have) | want {"item"} (ask the player for something) | take_gift | refuse_gift | take_job (accept the player's own job when offered) | seek_job {"place"} | tell {"to","msg"} (pass a message to someone they know) | like {"of","by":-1 or 1} (think better or worse of someone after what was said) | call {"who"} (call someone near them over to join the talk) | leave (end the talk and walk off: rude player, busy, bored, or done). If a speaker says they are off somewhere now, add a go act for it (or leave).
-Places: names from the card, "my home", "your home" or "the square". Items: things the speaker has, or the player carries.`;
+meet {"place","hour":0-23,"day":"today"|"tomorrow"|weekday,"why"} | follow (come along with the player now) | stop (stop following) | go {"place"} (go there now) | invite (let the player into their home today) | give {"item"} (hand over something they have) | want {"item"} (ask the player for something) | take_gift | refuse_gift | take_job (accept the player's own job when offered) | seek_job {"place"} | tell {"to","msg"} (pass a message to someone they know) | like {"of","by":-1 or 1} (think better or worse of someone after what was said) | call {"who"} (call someone near or in the same house over to join the talk, even across the room) | ask {"who","question"} (go and ask someone in the house or near, privately, then come back with the answer) | leave (end the talk and walk off: rude player, busy, bored, or done). If a speaker says they are off somewhere now, add a go act for it (or leave).
+They know where their family and friends are just now (the card says); a stranger at the door is not invited in on a whim, and they don't promise to ask someone who is right there: they call them or ask them.\nPlaces: names from the card, "my home", "your home" or "the square". Items: things the speaker has, or the player carries.`;
   const G = () => O.Data.GOODS;
   function goodsHad(s, q) {
     const hh = s.household(q), out = [];
@@ -216,6 +216,18 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
     for (const g of q.items || []) out.push((G()[g]?.name || g).toLowerCase());
     return [...new Set(out)].slice(0, 12);
   }
+  // where someone is just now, as the speaker would put it
+  function whereabouts(s, q, z) {
+    if (!z || z.alive === false) return '';
+    const g = O.game, scB = g.scene && (g.scene.b.parent || g.scene.b);
+    if (z.agent.inside != null && z.agent.inside === q.agent.inside) return g.scene && g.scene.actors.has(z.id) ? 'here in the room with you' : 'here in the same building';
+    const act = z.activity?.act;
+    if (act === 'sleep') return z.agent.inside === z.home ? 'asleep at home' : 'asleep';
+    if (z.agent.inside != null) { const b = s.building(z.agent.inside), bz = s.biz.get(z.agent.inside); return z.agent.inside === z.home ? 'at home' : `in ${bz ? bz.name : b && b.name ? b.name : 'a house'}`; }
+    if (act === 'work') return 'out at work';
+    const dest = z.activity && z.activity.b != null ? s.building(z.activity.b) : null; return dest ? `out, on the way to ${s.biz.get(dest.id)?.name || dest.name || 'somewhere'}` : 'out in the town';
+  }
+  O.whereabouts = whereabouts;
   // who someone is to them
   function relTo(s, q, z) {
     if (q.spouse === z.id) return q.sex === 'm' ? 'your wife' : 'your husband';
@@ -236,10 +248,23 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
     else if (!q.agent.hidden) for (const z of s.people) { if (z === q || z.agent.hidden || z.agent.inside != null) continue; const d = Math.hypot(z.agent.x - q.agent.x, z.agent.y - q.agent.y); if (d < r0) out.push([z, d]); }
     return out.sort((a, b) => a[1] - b[1]).slice(0, 6).map(([z, d]) => ({ z, d }));
   }
+  // what someone is doing, as you'd see it: the pose they're in, who they're talking with, where they're off to
+  const POSE = { sit: 'sitting', doze: 'dozing in a chair', sweep: 'sweeping', scrub: 'scrubbing', dance: 'dancing', eat: 'eating', drink: 'drinking', cook: 'cooking', talk: 'talking', read: 'reading', write: 'writing', pray: 'praying', hammer: 'hammering', chop: 'chopping wood', saw: 'sawing', knead: 'kneading dough', pour: 'pouring', serve: 'serving', count: 'counting coins', sleep: 'asleep', lie: 'lying on the ground', mourn: 'grieving', celebrate: 'merry', laugh: 'laughing', yawn: 'yawning', cough: 'coughing', play: 'playing', carry: 'carrying something', walk: 'walking', run: 'running', look: 'looking about' };
+  function doing(s, z) {
+    const g = O.game, a = g.scene ? g.scene.actors.get(z.id) : z.agent, an = a && (a.anim || a.gAnim), bits = [];
+    if (an && POSE[an]) bits.push(POSE[an]);
+    else if (z.activity?.act) bits.push((O.ACT_LABEL || {})[z.activity.act] || z.activity.act);
+    if (O.npcUI && O.npcUI.talking() === z) bits.push('talking with the player');
+    const dest = z.activity && z.activity.b != null && z.agent.inside !== z.activity.b ? s.building(z.activity.b) : null;
+    if (dest && (an === 'walk' || an === 'run')) bits.push(`towards ${s.biz.get(dest.id)?.name || dest.name || 'a house'}`);
+    if (z.health?.illness) bits.push('looking unwell');
+    return bits.join(', ');
+  }
+  O.doingOf = doing;
   O.nearbyOf = nearby;
   function extraCard(s, q) {
     const PS = O.PlayerState, L = [];
-    const nb = nearby(s, q); if (nb.length) L.push(`Near you now: ${nb.map(({ z, d }) => `${z.first} ${z.sur || ''}, ${z.age < 14 ? (z.sex === 'm' ? 'a boy' : 'a girl') : z.sex === 'm' ? 'a man' : 'a woman'} of ${z.age}, ${relTo(s, q, z)}${d < 34 ? ', right beside you' : ''}${z.activity?.act ? ` (${(O.ACT_LABEL || {})[z.activity.act] || z.activity.act})` : ''}`.replace(/  /g, ' ')).join('; ')}.`);
+    const nb = nearby(s, q); if (nb.length) L.push(`Near you now: ${nb.map(({ z, d }) => `${z.first} ${z.sur || ''}, ${z.age < 14 ? (z.sex === 'm' ? 'a boy' : 'a girl') : z.sex === 'm' ? 'a man' : 'a woman'} of ${z.age}, ${relTo(s, q, z)}${d < 34 ? ', right beside you' : ''}${doing(s, z) ? ` (${doing(s, z)})` : ''}`.replace(/  /g, ' ')).join('; ')}.`);
     const had = goodsHad(s, q); if (had.length) L.push(`You have: ${had.join(', ')}.`);
     const carried = [...new Set(PS.items)].map((g) => (G()[g]?.name || g).toLowerCase()); L.push(`The player carries: ${carried.join(', ') || 'nothing'}${PS.money ? `, and ₳${PS.money}` : ''}.`);
     for (const m of (PS.meets || []).filter((m) => m.who === q.id && m.place === s.world.placeId && m.state === 'set')) L.push(`You agreed to meet the player at ${m.label}.`);
@@ -260,7 +285,7 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
   async function say(q, text, render, opt = {}) {
     const s = O.SimRef.cur, PS = O.PlayerState, r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r);
     const conv = q._conv || (q._conv = []);
-    text = text.slice(0, 220); conv.push({ who: 'p', t: text });
+    text = text.slice(0, 220); conv.push({ who: 'p', t: text }); q._lastSaid = s.day * 1440 + s.minute;
     if (q.activity?.act === 'sleep') return reply(q, pk(['Mmh. Wha...', 'Zzz.', 'Leave me be. I\'m sleeping.']), render);
     if (q.age < 3) { if (q._offer) { const o = q._offer; q._offer = null; if (o.g !== 'coin' && Math.random() < 0.5) { (q.items = q.items || []).push(o.g); return reply(q, pk(['Ooh!', 'Mine!', 'Ta.']), render); } O.NpcActs && O.NpcActs.returnGift(q, o); } return reply(q, babble(q), render); }
     if (!opt.gift && gibberish(text)) { r.trust = clamp((r.trust || 0) - 0.02, -1, 1); gest(q, 'shrug'); return reply(q, confused(q), render); }

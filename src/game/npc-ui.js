@@ -145,6 +145,8 @@
       if (atWork) options.push({ key: 'trade', label: 'Show me your wares', hot: true });
       if (q.job?.role === 'parish clerk' && q.activity?.act === 'work' && O.knowsTrade(q)) options.push({ key: 'houses', label: 'Houses to let or sell', hot: true });
       if (!(O.AI && O.AI.ready)) { for (const [k, l] of [['self', 'How are you?'], ['work', 'What do you do?'], ['news', 'Any news?'], ['family', 'Your family?']]) options.push({ key: k, label: l }); options.push({ key: 'bye', label: 'Goodbye' }); }
+      // with the talk in your own words there are no buttons: what they can do for you is theirs to offer when you ask
+      if (O.AI && O.AI.ready) { q._offers = options.map((x) => ({ key: x.key, label: x.label })); options.length = 0; }
       O.UI.dialog.open({ name: (q._lastSpeaker && q._lastSpeaker !== q ? q._lastSpeaker.first : q.gentry ? q.name : q.first + (q.title ? `, ${q.title}` : q.office ? `, ${q.office}` : '')), color: tagColour(q._lastSpeaker || q), text: busy ? '' : line, busy, options: busy ? [] : options, chat: O.AI && O.AI.ready ? (t) => O.AIChat.say(q, t, (ln, b) => { if (talking === q) renderTalk(ln, b); }) : null, give: O.AI && O.AI.ready ? (g) => O.AIChat.give(q, g, (ln, b) => { if (talking === q) renderTalk(ln, b); }) : null, focus: true, onPick: (t) => pickTopic(q, bz, t), onClose: () => { q.agent.approach = false; O.AIChat && O.AIChat.ended(q); q._lastTalkAt = absNow(); if (talking === q) { q.agent.frozen = false; q.agent.talking = 0; if (q.agent.inside == null && !q.agent.chasing) { q.agent.path = null; q.agent.goal = null; } talking = null; } } });
     }
     function pickTopic(q, bz, t) {
@@ -241,7 +243,8 @@
       q.agent.dir = O.dirOf(game.player.x - pos[0], game.player.y - pos[1]); if (game.scene) { const a = game.scene.actors.get(q.id); if (a) a.dir = q.agent.dir; }
       const n0 = (q._conv || []).length; renderTalk('', true); voice(q, `You go up to the player to say this, in your own words: "${line}"`, line, (t) => { if (talking !== q || (q._conv || []).length !== n0) return; (q._conv = q._conv || []).push({ who: 'q', t }); renderTalk(t); }); return true;
     }
-    const api = { openTalk, closeTalk, toggleLedger, talking: () => talking, speak, startFrom };
+    const doOffer = (q, key) => { const k = (q._offers || []).find((x) => x.key === key || x.key === 'x-' + key || x.label.toLowerCase() === String(key).toLowerCase()); if (!k) return false; const bz = q.job?.biz ? sim.biz.get(q.job.biz) : null; setTimeout(() => pickTopic(q, bz, k.key), 900); return true; };
+    const api = { openTalk, closeTalk, toggleLedger, talking: () => talking, speak, startFrom, doOffer };
     O.npcUI = api;
     return api;
   }

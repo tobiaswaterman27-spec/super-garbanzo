@@ -446,10 +446,11 @@
       for (const it of this.L.items) {
         const [x0, y0, x1, y1] = this.rect(it);
         const d = Math.hypot(Math.max(x0 - p.x, 0, p.x - x1), Math.max(y0 - p.y, 0, p.y - y1 - 6)) + 4;
-        if (d > 18) continue;
+        if (d > (it.container ? 30 : 18)) continue; // (a chest hemmed in by furniture can still be reached across the corner)
         const cx = (x0 + x1) / 2, cy = y0 - 6;
         if (it.gangStash && this.b.gang === 'player') out.push({ type: 'stash', it, d, x: cx, y: cy });
-        if (it.container) out.push({ type: 'container', it, d, x: cx, y: cy });
+        else if (it.gangStash) out.push({ type: 'container', it, d: d - 3, x: cx, y: cy }); // another gang's strongbox: there for the taking, if you dare
+        if (it.container) out.push({ type: 'container', it, d: it.kind === 'chest' || it.kind === 'wardrobe' ? d - 3 : d, x: cx, y: cy });
         if (it.bed && !it.cradle) out.push({ type: 'bed', it, d: this.sleeping && this.sleeping.get(it)?.length ? d - 2 : d + 1, x: cx, y: cy });
         if (it.kind === 'stairs') out.push({ type: 'stairs', it, d: d - 2, x: cx, y: cy });
         if (it.kind === 'roomdoor') out.push({ type: 'roomdoor', it, b: this.b, d: d - 3, x: cx, y: it.front ? cy - 4 : cy - 34 });

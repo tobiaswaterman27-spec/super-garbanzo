@@ -727,11 +727,20 @@
         }
         ox = 8; oy = yb; propCache.set(key, { canvas: B.toCanvas({ outline: false }), ox, oy, W: B.w, H: B.h }); return propCache.get(key);
       }
-      case 'hay': {
-        B = new MB(22, 18); B.part(1); const hm = P.mat('#d0aa50', 'hair');
-        B.blob(11, 10, 10, 7, hm, { power: 2.1 });
-        for (let y = 0; y < 18; y++) for (let x = 0; x < 22; x++) if (B.matAt(x, y) === hm && O.noise2(x * 1.3, y * 0.4, 4) > 0.65) B.tweak(x, y, -1);
-        ox = 11; oy = 17; break;
+      case 'hay': { // a haycock: straw raked up into a tall dome, combed down the sides, tied off at the top
+        B = new MB(26, 28); B.part(1);
+        const hm = P.mat('#d8b860', 'hair'), dk = P.mat('#a8843a', 'hair'), band = P.mat('#7a5a2a', 'hair'), cx = 13, base = 26, top = 4, hw = 11;
+        // the stack: straight-ish sides that round over into a crown
+        B.shape(0, top, 26, base + 1, (px, py) => { const t = (py - top) / (base - top), w = hw * Math.sqrt(Math.max(0, 1 - Math.pow(1 - t, 2.6))) * (0.92 + t * 0.12); return Math.abs(px - cx) <= w; },
+          (px, py) => { const nx = (px - cx) / (hw + 1), ny = (py - (top + 8)) / 14; return [nx, ny * 0.6 - 0.25, Math.sqrt(Math.max(0.1, 1 - nx * nx))]; }, hm);
+        // strands combed down the sides: darker grooves that follow the curve
+        for (let y = top; y <= base; y++) for (let x = 0; x < 26; x++) { if (B.matAt(x, y) !== hm) continue; const lane = (x - cx) * (1 + (y - top) / 30); if (Math.abs(lane % 3) < 0.7) B.tweak(x, y, -1); if (O.noise2(x * 2.1, y * 0.7, seed & 63) > 0.78) B.tweak(x, y, 1); }
+        // the crown tied off with a twist of straw, and a tuft above it
+        for (let x = cx - 3; x <= cx + 3; x++) B.plot(x, top + 3, band, 2);
+        for (let k = -2; k <= 2; k++) { B.plot(cx + k, top + 1 - (k % 2 === 0 ? 1 : 0), dk, 3); B.plot(cx + k, top + 2, hm, 3); }
+        // loose straw scattered round the foot
+        for (let k = 0; k < 14; k++) { const x = 1 + ((k * 7 + seed) % 24), y = base - (k % 3); if (B.matAt(x, y) < 0) { B.plot(x, y, k % 2 ? hm : dk, 2); B.plot(x + 1, y, dk, 1); } }
+        ox = 13; oy = 27; break;
       }
       case 'woodpile': {
         B = new MB(24, 16); B.part(1); const lm = M.log();

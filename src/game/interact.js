@@ -145,6 +145,7 @@
       // your own room in your own place: the monarch's bedchamber when you wear the crown, a house you rent
       const mine = (b.roomKey === 'chamber:monarch' && O.crowned && O.crowned()) || b.roomKey === 'chamber:player' || (PS.lease && PS.lease.b === b.id && !b.parent);
       if (mine) { const st = (PS.homes = PS.homes || {}); const key = sim.world.placeId + ':' + (b.roomKey || b.id); if (!st[key] && b.roomKey === 'chamber:monarch') st[key] = ['ring', 'brooch', 'candlestick', 'wine']; (st[key] = st[key] || []).forEach((k) => out.push({ k, n: 1, src: 'homestash', key })); return { items: out, owner: 'you', store: key }; }
+      if (it.gangStash && b.gang !== 'player' && sim.gang) { const g = sim.gang(b.gang); if (g) { if (!g.hoard) g.hoard = ['ring', 'brooch', 'candlestick'].filter(() => Math.random() < 0.6); const coin = Math.floor(Math.max(0, g.purse || 0) * 0.6); if (coin > 0) out.push({ k: 'coins', n: coin, src: 'gang', g }); g.hoard.forEach((k) => out.push({ k, n: 1, src: 'hoard', g })); return { items: out, owner: g.name }; } }
       if (it.rentChest && PS.room && PS.room.b === b.id) { (PS.stash || (PS.stash = [])).forEach((k) => out.push({ k, n: 1, src: 'stash' })); return { items: out, owner: 'you' }; }
       if (it.stockOf && bz) {
         const goods = it.stockOf === 'farm' ? ['wheat', 'cabbage'] : it.stockOf === 'store' ? ['cabbage', 'firewood', 'flour'] : it.stockOf === 'warehouse' ? ['cloth', 'wheat', 'iron'] : [it.stockOf];
@@ -168,7 +169,7 @@
       const stolen = [];
       for (const i of idxs) {
         const c = items[i]; if (!c) continue;
-        if (c.k === 'coins') { PS.money += c.n; if (c.src === 'purse') hh.money -= c.n; else if (bz) bz.cash -= c.n; stolen.push(`₳${c.n}`); continue; }
+        if (c.k === 'coins') { PS.money += c.n; if (c.src === 'gang') { c.g.purse -= c.n; c.g.rel = c.g.rel || {}; c.g.rel.player = 'enemy'; } else if (c.src === 'purse') hh.money -= c.n; else if (bz) bz.cash -= c.n; stolen.push(`₳${c.n}`); continue; }
         const n = c.src === 'stash' ? 1 : c.n; const got = PS.add(c.k, n);
         if (!got) { O.Panels.toast('Your satchel is full.', 'bad'); break; }
         if (c.src === 'stash') PS.stash.splice(PS.stash.indexOf(c.k), 1);
@@ -177,6 +178,7 @@
         else if (c.src === 'biz') bz.stock[c.good] -= got;
         else if (c.src === 'farm') sim.supplierOf('farmhouse').stock.wheat -= got;
         else if (c.src === 'val') hh.valuables.splice(hh.valuables.indexOf(c.k), 1);
+        else if (c.src === 'hoard') { c.g.hoard.splice(c.g.hoard.indexOf(c.k), 1); c.g.rel = c.g.rel || {}; c.g.rel.player = 'enemy'; }
         if (c.src !== 'stash' && c.src !== 'homestash') { stolen.push(`${got} ${G[c.k].name.toLowerCase()}`); PS.stolen[c.k] = (PS.stolen[c.k] || 0) + got; }
       }
       if (stolen.length) O.Crime.theft(game, sim, { building: b, floor: game.scene.floor, what: stolen.join(', '), owner, value: idxs.length });

@@ -262,6 +262,7 @@
       case 'join_gang': { const P = PS(); if (!P.gang || q.age < 16 || q.gang) return null; q.gang = P.gang === true ? 'player' : P.gang; (P.gangMembers = P.gangMembers || []).push(q.id); return `${q.first} is one of yours now.`; }
       case 'fight': O.Combat && O.Combat.provoke(q, 'fight'); return 'leave';
       case 'flee': O.Combat && O.Combat.provoke(q, 'flee'); return 'leave';
+      case 'offer': return O.npcUI && O.npcUI.doOffer && O.npcUI.doOffer(q, a.key) ? null : null;
       case 'leave': return 'leave';
       default: return null;
     }

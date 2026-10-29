@@ -50,7 +50,7 @@
     O.learnTrade = (q) => { if (q) (PSk.knows = PSk.knows || {})[kk(q)] = 1; };
     // while you talk with someone they don't wander off: their day waits till you're done
     // while you talk with someone their day waits, but not for ever: when something calls them away, they go
-    const URGENT = new Set(['work', 'fire', 'firefight', 'help', 'collapsed', 'report', 'investigate', 'escort', 'to-doc', 'leave', 'labour', 'council', 'worship', 'meet', 'sick']);
+    const URGENT = new Set(['sleep', 'work', 'fire', 'firefight', 'help', 'collapsed', 'report', 'investigate', 'escort', 'to-doc', 'leave', 'labour', 'council', 'worship', 'meet', 'sick']);
     { const SP = O.Sim.prototype, _plan = SP.plan; SP.plan = function (p) {
       if (talking && p === talking && p.activity && !p.agent.hidden) { const real = _plan.call(this, p); if (real && real.act !== p.activity.act && URGENT.has(real.act) && !p._mustGo) p._mustGo = real.act; return p.activity; }
       return _plan.call(this, p); }; }
@@ -72,7 +72,7 @@
     // why they must go, in their own words
     function whyGo(q, act) {
       const bz = q.job && sim.biz.get(q.job.biz);
-      return act === 'work' ? (bz ? `I'm due at ${bz.name}` : "I'm due at work") : act === 'worship' ? 'mass is about to start' : act === 'meet' ? "I'm meeting someone" : act === 'council' ? 'the council sits soon' : act === 'leave' ? "I've a long road ahead" : ['fire', 'firefight'].includes(act) ? "there's a fire" : ['help', 'escort', 'to-doc', 'labour'].includes(act) ? 'someone needs me' : act === 'sick' ? "I'm not well" : act === 'report' ? 'I must get to the watch' : "I've somewhere to be";
+      return act === 'sleep' ? "it's late and I'm for my bed" : act === 'work' ? (bz ? `I'm due at ${bz.name}` : "I'm due at work") : act === 'worship' ? 'mass is about to start' : act === 'meet' ? "I'm meeting someone" : act === 'council' ? 'the council sits soon' : act === 'leave' ? "I've a long road ahead" : ['fire', 'firefight'].includes(act) ? "there's a fire" : ['help', 'escort', 'to-doc', 'labour'].includes(act) ? 'someone needs me' : act === 'sick' ? "I'm not well" : act === 'report' ? 'I must get to the watch' : "I've somewhere to be";
     }
     // in a hurry: a word of sorry and why, one more answer if you're quick, then off they go
     function hurry(q, act) {
@@ -103,7 +103,7 @@
       const s0 = sim; if (q._snubUntil && s0.day * 1440 + s0.minute < q._snubUntil) { q._snubTries = (q._snubTries || 0) + 1; if (q._snubTries < 3) { const l = pick(["I've no interest in talking to you.", 'Not now. Leave me be.', "I've nothing to say to you."]); q.agent.frozen = true; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: '', busy: true, options: [] }); voice(q, 'The player tries again to talk to you, but you have no interest in talking to them just now; say so.', l, (t) => { q.agent.frozen = false; if (talking) return; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: t, options: [] }); setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1600 + t.length * 25); }); return; } q._snubUntil = 0; q._snubTries = 0; }
       { const bl = O.AI && O.AI.ready ? busyLine(q) : null;
         if (bl) { const act = q.activity?.act, r0 = q.rel.get(0) || {}; if ((r0.affinity || 0) < -0.55 || ['fire', 'firefight', 'help', 'report'].includes(act)) return walkAway(q, bl, (r0.affinity || 0) < -0.55 ? 'The player tries to talk to you, and you dislike them; brush them off and walk away.' : `The player tries to talk to you, but you are in the middle of something urgent (${act}); you won't stop.`); talking = q; q.agent.frozen = true; q._group = []; q._talkFrom = absNow(); q._lastSpeaker = null; hurry(q, act === 'work' || act === 'patrol' ? 'work' : act); return; } }
-      talking = q; q.agent.frozen = true; q._lastSpeaker = null; q._mustGo = null; q._talkFrom = absNow();
+      talking = q; q.agent.frozen = true; q._lastSpeaker = null; q._mustGo = null; q._talkFrom = absNow(); q._asleepTalk = q.activity?.act === 'sleep';
       // others standing with them join in (as in a group in the square)
       { const pos0 = game.scene ? game.scene.personPos(q) : [q.agent.x, q.agent.y];
         const near = pos0 ? (game.scene ? [...game.scene.actors.values()].filter((a) => !a.hidden && a.person && a.person !== q).map((a) => [a.person, a.x, a.y]) : sim.people.filter((z) => z !== q && !z.agent.hidden).map((z) => [z, z.agent.x, z.agent.y])) : [];

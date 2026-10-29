@@ -314,7 +314,7 @@ They know where their family and friends are just now (the card says); a strange
     const s = O.SimRef.cur, PS = O.PlayerState, r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r);
     const conv = q._conv || (q._conv = []);
     text = text.slice(0, 220); conv.push({ who: 'p', t: text }); q._lastSaid = s.day * 1440 + s.minute;
-    if (q.activity?.act === 'sleep') return reply(q, pk(['Mmh. Wha...', 'Zzz.', 'Leave me be. I\'m sleeping.']), render);
+    if (q.activity?.act === 'sleep' && q._asleepTalk) return reply(q, pk(['Mmh. Wha...', 'Zzz.', 'Leave me be. I\'m sleeping.']), render); // (only someone you woke; nobody nods off mid-talk)
     if (q.age < 3) { if (q._offer) { const o = q._offer; q._offer = null; if (o.g !== 'coin' && Math.random() < 0.5) { (q.items = q.items || []).push(o.g); return reply(q, pk(['Ooh!', 'Mine!', 'Ta.']), render); } O.NpcActs && O.NpcActs.returnGift(q, o); } return reply(q, babble(q), render); }
     if (!opt.gift && gibberish(text)) { r.trust = clamp((r.trust || 0) - 0.02, -1, 1); gest(q, 'shrug'); return reply(q, confused(q), render); }
     if (!AI.ready) return reply(q, '...', render);

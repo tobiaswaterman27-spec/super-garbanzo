@@ -180,7 +180,8 @@
       const dad = this.byId.get(mum.spouse);
       const genes = Ch.inheritGenes(this.rng, mum.genes, dad ? dad.genes : Ch.randomGenes(this.rng, this.world.region));
       const sex = this.rng.chance(0.5) ? 'm' : 'f';
-      const c = this.newPerson({ sex, age: 0, first: this.rng.pick(D.NAMES[sex]), sur: hh.surname, household: hh.id, home: mum.home, genes, wealth: 0.4 });
+      const same = sex === 'm' ? dad : mum, namesake = same && this.rng.chance(0.15); // (now and then a child takes a parent's name)
+      const c = this.newPerson({ sex, age: 0, first: namesake ? same.first : this.rng.pick(D.NAMES[sex]), namesake, sur: hh.surname, household: hh.id, home: mum.home, genes, wealth: 0.4 });
       c.name = `${c.first} ${c.sur}`; c.birthday = ((this.day - 1) % YEAR()) + 1; c.parents = [mum.id, dad?.id].filter(Boolean);
       c.app = Ch.makeAppearance(O.hash('person', c.id, c.first), { sex, age: 0, genes, role: 'child', wealth: 0.4 });
       c.agent = { x: mum.agent.x, y: mum.agent.y, dir: 0, anim: 'idle', ft: 0, a: c.app, hidden: true, inside: mum.home, path: null, goal: null, person: c };

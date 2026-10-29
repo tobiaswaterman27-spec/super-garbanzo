@@ -127,6 +127,7 @@
       const seatFor = (q) => { const had = keepSeat.get(q.id); if (had && seats.includes(had) && !used.has(had)) return had;
         const held = new Set(); for (const [id, it] of keepSeat) if (id !== q.id && this.actors.has(id) && !this.actors.get(id).leaving) held.add(it);
         const it = seats.find((i) => !used.has(i) && !held.has(i)) || seats.find((i) => !used.has(i)); if (it) keepSeat.set(q.id, it); return it; };
+      const standing = [];
       for (const q of here) {
         const act = q.activity?.act;
         let x, y, dir = 0, anim = 'idle', spot = null, inBed = false, seat = null, sortY = null;
@@ -195,6 +196,12 @@
           if (anim !== 'doze' && anim !== 'sit') anim = anim === 'drink' ? 'drink' : 'talk';
         }
         if (x == null && !inBed) { const t = idleTiles[(q.id * 7) % Math.max(1, idleTiles.length)] || [0, 1]; [x, y] = this.tileXY(t[0], t[1]); x += (q.id % 3) * 3 - 3; dir = (q.id + Math.floor(this.t / 6)) % 8; anim = q.agent.talking ? 'talk' : q.stage === 'baby' ? 'crouch' : 'idle'; }
+        // nobody stands inside anybody: someone who'd land on another steps to the nearest clear place beside them
+        if (!inBed && !seat && x != null) {
+          const clash = (px, py) => standing.some(([sx, sy]) => Math.abs(sx - px) < 13 && Math.abs(sy - py) < 9);
+          if (clash(x, y)) { for (const [dx, dy] of [[14, 0], [-14, 0], [0, 10], [14, 10], [-14, 10], [28, 0], [-28, 0], [0, -10], [28, 10], [-28, 10], [14, -10], [-14, -10], [42, 0], [-42, 0]]) { const nx = x + dx, ny = y + dy; if (!clash(nx, ny) && !this.blocked(nx, ny)) { x = nx; y = ny; break; } } }
+          standing.push([x, y]);
+        }
         if (spot && spot.kind !== 'pew' && spot.kind !== 'bar') used.add(spot);
         let a = this.actors.get(q.id);
         if (!a) {

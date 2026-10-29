@@ -279,12 +279,14 @@
     setTimeout(async () => {
       let answer = null;
       if (O.AI && O.AI.ready && z.activity?.act !== 'sleep') {
-        try { const out = await O.AI.json(`Reply ONLY with JSON {"say": string, "yes": boolean}. ${z.first} ${z.sur || ''} (${z.age}, temper ${(z.traits || []).join(', ')}) is asked privately by ${q.first} (${O.relTo ? O.relTo(s, z, q) : ''}): "${question}". About the player: ${((z.rel.get(0) || {}).familiar || 0) > 0.2 ? 'they know them' : 'a stranger'}${((z.rel.get(0) || {}).affinity || 0) > 0.3 ? ', and like them' : ((z.rel.get(0) || {}).affinity || 0) < -0.2 ? ', and dislike them' : ''}. Their short answer to ${q.first}, in character, plain medieval English, no dashes, never anything modern.`);
-          if (out && out.say) answer = { say: O.cleanSpeech(out.say), yes: !!out.yes }; } catch (e) { /* no answer */ }
+        const ho = O.Employment && O.Employment.hireOutlook ? O.Employment.hireOutlook(s, z) : '';
+        try { const out = await O.AI.json(`Reply ONLY with JSON {"say": string, "yes": boolean, "hire": boolean}. ${ho ? 'About taking the player on: ' + ho.replace('(hire_player)', '') + ' Set hire true only if the question is whether the player can be taken on and you agree. ' : ''}${z.first} ${z.sur || ''} (${z.age}, temper ${(z.traits || []).join(', ')}) is asked privately by ${q.first} (${O.relTo ? O.relTo(s, z, q) : ''}): "${question}". About the player: ${((z.rel.get(0) || {}).familiar || 0) > 0.2 ? 'they know them' : 'a stranger'}${((z.rel.get(0) || {}).affinity || 0) > 0.3 ? ', and like them' : ((z.rel.get(0) || {}).affinity || 0) < -0.2 ? ', and dislike them' : ''}. Their short answer to ${q.first}, in character, plain medieval English, no dashes, never anything modern.`);
+          if (out && out.say) answer = { say: O.cleanSpeech(out.say), yes: !!out.yes, hire: !!out.hire }; } catch (e) { /* no answer */ }
       }
       if (!answer) answer = z.activity?.act === 'sleep' ? { say: "She's asleep. I'll not wake her.", yes: false, asleep: true } : { say: Math.random() < 0.5 ? 'Aye, very well.' : 'Not today.', yes: Math.random() < 0.5 };
       q._away = false;
       const line = answer.asleep ? answer.say : `${z.first} says: ${answer.say.replace(/[.!?]?$/, '.')}${answer.yes ? '' : ''}`;
+      if (answer.hire && O.Employment && O.Employment.hireByTalk) { const note = O.Employment.hireByTalk(s, z); if (note) setTimeout(() => O.UI.say(note), 1600); }
       (q.beliefs = q.beliefs || []).unshift({ t: `${z.first} answered "${question}" with: ${answer.say}`, src: 'friend', from: z.first, day: s.day });
       if (O.npcUI && O.npcUI.talking() === (main || q)) O.npcUI.speak(main || q, line, q);
       else O.UI.say(`${q.first}: ${line}`);

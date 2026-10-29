@@ -53,7 +53,7 @@
         skills: {}, mood: 0.6, attitude: this.rng.float(-0.4, 0.8), alive: true,
       }, o);
       // no two people in the realm share a name
-      if (O.Names && p.sur) { const [f, su] = O.Names.claim(p.sex, p.first, p.sur, this.rng); p.first = f; p.sur = su; if (p.name && !p.title) p.name = `${f} ${su}`; }
+      if (O.Names && p.sur) { const [f, su] = O.Names.claim(p.sex, p.first, p.sur, this.rng, p.namesake); delete p.namesake; p.first = f; p.sur = su; if (p.name && !p.title) p.name = `${f} ${su}`; }
       p.stage = Ch.ageStage(p.age);
       // personality: one trait from up to three opposed pairs
       const pairs = this.rng.pick([[0, 4, 2], [1, 5, 7], [3, 6, 8], [2, 4, 7], [0, 1, 5]]);

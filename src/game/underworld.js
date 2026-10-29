@@ -1,6 +1,7 @@
 // Crime in the street, as it happens around you. A cutpurse works the crowd: a brush past someone, a
 // purse gone, a shout, and the thief away at a run. Catch them and the purse goes back to its owner,
-// who won't forget it; let them go and they get away with it.
+// who won't forget it; let them go and they get away with it. After dark, rival gangs meet in the
+// lanes and it comes to blows: break it up, or wade in for your own side.
 'use strict';
 (function () {
   function setup(game) {
@@ -97,7 +98,48 @@
       }, 900);
       ev.phase = 'caught';
     }
-    O.Underworld = { busy: () => !!ev, end };
+    // ---------------- after dark: rival gangs meet in the lanes ----------------
+    let br = null, brNext = 0;
+    const INSULT = ['This is our street.', 'You were told to stay off our patch.', 'Come here and say that.', 'Your lot owe us.', 'Get back to your ditch.'];
+    function brawlStart(s) {
+      const gangs = (s.gangs || []).filter((g) => g.id !== 'player' && g.members.length); if (gangs.length < 2) return;
+      const p = game.player, near = (q) => Math.hypot(q.agent.x - p.x, q.agent.y - p.y);
+      const of = (g) => g.members.map((m) => s.byId.get(m.id)).filter((q) => q && outdoors(q) && q.age >= 16);
+      for (const g of gangs) {
+        const a = of(g).filter((q) => near(q) < 360 && near(q) > 60)[0]; if (!a) continue;
+        const b = gangs.filter((x) => x !== g).flatMap(of).sort((x, y) => near(x) - near(y))[0]; if (!b) continue;
+        a.agent.chasing = true; b.agent.chasing = true; a.agent.path = b.agent.path = null;
+        br = { a, b, ga: g, gb: s.gang(b.gang), phase: 'meet', t: 0 }; return;
+      }
+    }
+    function brawlEnd() { if (!br) return; release(br.a); release(br.b); br = null; brNext = absMin(cur()) + 180 + Math.floor(Math.random() * 180); }
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || !s.people) return;
+      if (!br) { if (game.scene || O.panelOpen || s.world !== game.world || absMin(s) < brNext || !(s.hour >= 20 || s.hour < 1)) return; if (Math.random() < dt / 50) brawlStart(s); if (!br) return; }
+      const { a, b } = br; br.t += dt;
+      if (s.world !== game.world || a.alive === false || b.alive === false || a.agent.hidden || b.agent.hidden || br.t > 50) return brawlEnd();
+      if (br.phase === 'meet') {
+        a.agent.anim = 'idle'; b.agent.anim = 'walk'; b.agent.dir = O.dirOf(a.agent.x - b.agent.x, a.agent.y - b.agent.y);
+        if (steer(br, b, a.agent.x + 14, a.agent.y, 60, dt) || Math.hypot(a.agent.x - b.agent.x, a.agent.y - b.agent.y) < 18) { br.phase = 'fight'; br.t = 0; a.agent.dir = O.dirOf(b.agent.x - a.agent.x, 0); b.agent.dir = O.dirOf(a.agent.x - b.agent.x, 0); talk(b, INSULT[b.id % INSULT.length], 2.5, 'angry'); }
+        return;
+      }
+      if (br.phase === 'fight') {
+        const k = Math.floor(br.t * 2.5) % 2; a.agent.anim = k ? 'attack' : 'hurt'; b.agent.anim = k ? 'hurt' : 'attack';
+        if (Math.random() < dt * 0.8) { (k ? b : a).health.hp = Math.max(30, (k ? b : a).health.hp - 4); }
+        if (Math.random() < dt * 0.3) talk(Math.random() < 0.5 ? a : b, ['Ow!', 'Is that all?', 'You\'ll pay for that!', 'Stay down!'][Math.floor(Math.random() * 4)], 1.6, 'angry');
+        if (br.t > 9) { const lose = a.health.hp < b.health.hp ? a : b, win = lose === a ? b : a; talk(win, 'And stay off our patch!', 2.5, 'angry'); s.relate(lose, win, -0.4); s.log(`${win.first} of ${(lose === a ? br.gb : br.ga)?.name || 'a gang'} beat ${lose.first} in the lane.`, 'gang'); br.phase = 'flee'; br.loser = lose; br.t = 0; br.path = null; br.to = [lose.agent.x + (lose.agent.x - win.agent.x) * 20, lose.agent.y + 120]; }
+        return;
+      }
+      if (br.phase === 'flee') { br.loser.agent.anim = 'run'; if (steer(br, br.loser, br.to[0], br.to[1], 100, dt) || br.t > 6) brawlEnd(); }
+    });
+    (O.moreCandidates = O.moreCandidates || []).push(() => {
+      if (!br || br.phase !== 'fight' || game.scene) return null;
+      const p = game.player, { a, b } = br, mx = (a.agent.x + b.agent.x) / 2, my = (a.agent.y + b.agent.y) / 2; if (Math.hypot(mx - p.x, my - p.y) > 40) return null;
+      const s = cur(), mine = (O.GangLife?.mine() || []).filter((m) => m.place === s.world.placeId), side = mine.find((m) => m.gid === br.ga.id) ? 'a' : mine.find((m) => m.gid === br.gb?.id) ? 'b' : null;
+      if (side) { const foe = side === 'a' ? b : a, m = mine.find((x) => x.gid === (side === 'a' ? br.ga.id : br.gb.id)); return { type: 'custom', d: -6, x: mx, y: my - 44, label: `Wade in for ${(side === 'a' ? br.ga : br.gb).name.replace(/^the /, 'the ')}`, act: () => { m.trust = Math.min(1, m.trust + 0.06); const friend = side === 'a' ? a : b; s.relate(friend, { id: 0 }, 0.2); brawlEnd(); O.Combat && O.Combat.provoke(foe, 'fight'); } }; }
+      return { type: 'custom', d: -6, x: mx, y: my - 44, label: 'Break it up', act: () => { talk(a, 'This is none of your business.', 2.5, 'angry'); talk(b, 'Another time, then.', 2.5); s.relate(a, { id: 0 }, -0.05); s.relate(b, { id: 0 }, -0.05); PS.rep.guard = (PS.rep.guard || 0) + 0.01; brawlEnd(); } };
+    });
+    O.Underworld = { busy: () => !!ev || !!br, end: () => { end(); brawlEnd(); } };
     void say;
   }
   O.UnderworldSetup = { setup };

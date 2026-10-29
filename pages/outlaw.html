@@ -290,6 +290,41 @@ main > .wrap { overflow: auto; }
 body, button, input, select { -webkit-font-smoothing: none; font-smooth: never; }
 .dlg { font-size: 20px; line-height: 1.5; }
 .dlg-opts button.sel::before { content: '>'; position: absolute; left: 8px; }
+
+/* the character creator: one card, a turning portrait, tabs of big tiles */
+.cc.wrap, .cc { display: grid; grid-template-columns: 1fr; place-items: center; max-width: none; background: radial-gradient(ellipse at 50% 0%, #3a2e48, #15111c 75%); }
+.cc-card { width: min(1040px, 100%); display: grid; grid-template-columns: 330px 1fr; gap: 0; background: #f6eed8; color: #5a4128; border-radius: 26px; box-shadow: 0 10px 0 #b9a77e, 0 22px 50px rgba(0,0,0,.5); overflow: hidden; }
+.cc-left { background: #efe2bf; padding: 22px 20px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.cc-title { font-family: var(--display); font-weight: 400; font-size: 46px; margin: 0; color: #c0702a; text-shadow: 0 2px 0 #fff6dc; }
+.cc-stage { display: flex; align-items: center; gap: 6px; }
+.cc-stage canvas { width: 200px; height: 270px; border-radius: 50% 50% 22px 22px / 40% 40% 22px 22px; background: radial-gradient(circle at 50% 42%, #fff8e4 0, #e9d9ae 70%); image-rendering: pixelated; box-shadow: inset 0 -6px 0 rgba(150,120,70,.25); }
+.cc-turn { width: 34px; height: 34px; border-radius: 50%; border: 0; background: #e2cf9e; color: #6b4f2a; font-size: 22px; line-height: 1; cursor: pointer; box-shadow: 0 3px 0 #c3ad78; }
+.cc-turn:active { transform: translateY(2px); box-shadow: 0 1px 0 #c3ad78; }
+.cc-plate { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 100%; }
+.cc-plate input { background: #fffaf0; color: #5a4128; border: 0; border-radius: 14px; padding: 9px 12px; font-family: var(--body); font-size: 16px; text-align: center; box-shadow: inset 0 2px 0 rgba(120,90,40,.15); }
+.cc-plate .cc-sub { grid-column: 1 / -1; text-align: center; font-size: 13px; color: #8a6d45; }
+.cc-acts { display: flex; gap: 8px; margin-top: auto; }
+.cc-btn { border: 0; border-radius: 999px; padding: 11px 18px; background: #f2b33d; color: #4a3218; font-family: var(--body); font-size: 15px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 0 #c98a1f; }
+.cc-btn.ghost { background: #e2cf9e; box-shadow: 0 4px 0 #c3ad78; }
+.cc-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #c98a1f; }
+.cc-right { padding: 18px 20px 22px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.cc-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.cc-tabs button { border: 0; border-radius: 999px; padding: 8px 14px; background: #e7dab6; color: #7a5c35; font-family: var(--body); font-size: 14px; font-weight: 700; cursor: pointer; }
+.cc-tabs button[aria-selected="true"] { background: #7cc6b0; color: #fff; box-shadow: 0 3px 0 #4f9c86; }
+.cc-pane { background: #fffaf0; border-radius: 20px; padding: 14px 16px; display: flex; flex-direction: column; gap: 14px; max-height: 560px; overflow: auto; }
+.cc-h { font-size: 13px; font-weight: 700; color: #a07a45; margin: 0 0 6px; letter-spacing: .5px; }
+.cc-tiles { display: flex; flex-wrap: wrap; gap: 8px; }
+.cc-tile { border: 0; border-radius: 16px; background: #f1e7cd; padding: 4px 4px 3px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #7a5c35; font-family: var(--body); font-size: 12px; min-width: 70px; }
+.cc-tile canvas { image-rendering: pixelated; border-radius: 12px; background: #fbf4e2; }
+.cc-tile[aria-pressed="true"] { background: #fbd56b; box-shadow: 0 0 0 3px #f2b33d; color: #4a3218; }
+.cc-sw { display: flex; flex-wrap: wrap; gap: 8px; }
+.cc-sw button { width: 34px; height: 34px; border-radius: 50%; border: 3px solid #fffaf0; box-shadow: 0 0 0 2px #e2d3ab; cursor: pointer; }
+.cc-sw button[aria-pressed="true"] { box-shadow: 0 0 0 3px #f2b33d; transform: scale(1.1); }
+.cc-sw button.cc-own { background: repeating-linear-gradient(45deg, #efe2bf 0 5px, #e2cf9e 5px 10px) !important; }
+.cc-slide { display: grid; grid-template-columns: 64px 1fr 86px; align-items: center; gap: 8px; font-size: 14px; }
+.cc-slide input { accent-color: #f2b33d; width: 100%; }
+.cc-slide b { color: #a07a45; font-weight: 700; text-align: right; }
+@media (max-width: 760px) { .cc-card { grid-template-columns: 1fr; } .cc-stage canvas { width: 160px; height: 216px; } .cc-pane { max-height: none; } }
 </style>
 
 <main>
@@ -299,14 +334,18 @@ body, button, input, select { -webkit-font-smoothing: none; font-smooth: never; 
     <div class="hud hud-tr" id="hudTR" hidden><div class="seg" id="speedSeg"></div></div>
   </section>
 
-<section class="wrap creator" id="tab-forge" hidden>
-    <div class="creator-head"><h1>Outlaw</h1><p>Who are you, stranger? Nobody in Eldoria knows your name yet.</p><button class="btn begin" id="beginLife">Begin your life</button></div>
-    <div class="panel" id="controls"></div>
-    <div class="stage">
-      <div class="nameplate" id="nameplate"></div>
-      <div class="chips" id="animChips" aria-label="Animation"></div>
-      <div class="view"><canvas id="preview"></canvas></div>
-      <p class="caption">Every frame is generated from the same skeleton: skin, sleeves, trousers and boots are painted onto one set of limb shapes, so clothing can't leave gaps when arms and legs move. Lighting comes from the upper left on every sprite in the world.</p>
+<section class="wrap creator cc" id="tab-forge" hidden>
+    <div class="cc-card">
+      <div class="cc-left">
+        <h1 class="cc-title">Outlaw</h1>
+        <div class="cc-stage"><button class="cc-turn" data-turn="-1" aria-label="Turn left">&lsaquo;</button><canvas id="preview"></canvas><button class="cc-turn" data-turn="1" aria-label="Turn right">&rsaquo;</button></div>
+        <div class="cc-plate" id="nameplate"></div>
+        <div class="cc-acts"><button class="cc-btn ghost" id="ccRandom">Surprise me</button><button class="cc-btn" id="beginLife">Begin your life</button></div>
+      </div>
+      <div class="cc-right">
+        <div class="cc-tabs" id="ccTabs" role="tablist"></div>
+        <div class="cc-pane" id="controls"></div>
+      </div>
     </div>
   </section>
 

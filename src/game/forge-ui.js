@@ -30,120 +30,122 @@
     ctx.fillRect(x - hw + 2, y - 1, w - 4, 3); ctx.fillRect(x - hw, y, w, 1);
   }
 
-  // ---------- controls ----------
-  function seg(opts, val, on) {
-    const d = document.createElement('div'); d.className = 'seg';
-    for (const [v, lab] of opts) { const b = document.createElement('button'); b.textContent = lab; b.setAttribute('aria-pressed', v === val); b.onclick = () => { on(v); [...d.children].forEach((x) => x.setAttribute('aria-pressed', x === b)); }; d.appendChild(b); }
+  // ---------- controls: tabs of big tiles, each showing what it would look like ----------
+  const hairNames = Object.keys(P.hair).filter((k) => k !== 'grey' && k !== 'white');
+  const clothCols = ['russet', 'forest', 'darkBrown', 'black', 'woad', 'navy', 'crimson', 'plum', 'ochre', 'greyWool', 'undyed', 'olive', 'teal', 'madder'];
+  const cap = (t) => t[0].toUpperCase() + t.slice(1);
+  let tab = 'body';
+  const TABS = [['body', 'Body'], ['face', 'Face'], ['hair', 'Hair'], ['clothes', 'Clothes'], ['hat', 'Hat & cloak']];
+  // a small picture of you with one thing changed
+  const thumbCache = new Map();
+  function thumb(patch, crop) {
+    const sp = Object.assign({}, spec, crop === 'head' && !('hat' in patch) ? { hat: 'none' } : {}, patch), key = crop + JSON.stringify(sp);
+    let fr = thumbCache.get(key);
+    if (!fr) { fr = Ch.frame(O.Creator.appearanceFromSpec(sp), 0, 'idle', 0); if (thumbCache.size > 300) thumbCache.clear(); thumbCache.set(key, fr); }
+    const c = document.createElement('canvas'), ctx = c.getContext('2d');
+    if (crop === 'head') { c.width = 60; c.height = 60; ctx.imageSmoothingEnabled = false; ctx.drawImage(fr, 6, 0, 20, 20, 0, 0, 60, 60); }
+    else { c.width = 48; c.height = 72; ctx.imageSmoothingEnabled = false; ctx.drawImage(fr, 0, 0, 32, 48, 0, 0, 48, 72); }
+    return c;
+  }
+  function section(title, ...kids) { const d = document.createElement('div'); if (title) { const h = document.createElement('div'); h.className = 'cc-h'; h.textContent = title; d.appendChild(h); } kids.forEach((k) => k && d.appendChild(k)); return d; }
+  function tiles(key, opts, crop) {
+    const d = document.createElement('div'); d.className = 'cc-tiles';
+    for (const [v, lab, patch] of opts) {
+      const b = document.createElement('button'); b.className = 'cc-tile'; b.setAttribute('aria-pressed', spec[key] === v);
+      b.append(thumb(patch || { [key]: v }, crop), document.createTextNode(lab));
+      b.onclick = () => { update(key, v); pane(); };
+      d.appendChild(b);
+    }
     return d;
   }
-  function swatches(list, val, on, label) {
-    const d = document.createElement('div'); d.className = 'sw'; d.setAttribute('aria-label', label);
-    for (const [v, hex, name] of list) { const b = document.createElement('button'); b.style.background = hex; b.title = name; b.setAttribute('aria-label', name); b.setAttribute('aria-pressed', v === val); b.onclick = () => { on(v); [...d.children].forEach((x) => x.setAttribute('aria-pressed', x === b)); }; d.appendChild(b); }
+  function swatchRow(key, list, own) {
+    const d = document.createElement('div'); d.className = 'cc-sw';
+    if (own) { const b = document.createElement('button'); b.className = 'cc-own'; b.title = 'As the style has it'; b.setAttribute('aria-label', b.title); b.setAttribute('aria-pressed', !spec[key]); b.onclick = () => { update(key, ''); pane(); }; d.appendChild(b); }
+    for (const [v, hex, name] of list) { const b = document.createElement('button'); b.style.background = hex; b.title = cap(name.replace(/([A-Z])/g, ' $1').toLowerCase()); b.setAttribute('aria-label', b.title); b.setAttribute('aria-pressed', spec[key] === v); b.onclick = () => { update(key, v); pane(); }; d.appendChild(b); }
     return d;
   }
-  function select(id, opts, val, on) {
-    const s = document.createElement('select'); s.id = id;
-    for (const [v, lab] of opts) { const o = document.createElement('option'); o.value = v; o.textContent = lab; if (v === val) o.selected = true; s.appendChild(o); }
-    s.onchange = () => on(s.value); return s;
+  function slider(label, key, min, max, step, show) {
+    const l = document.createElement('label'); l.className = 'cc-slide';
+    const t = document.createElement('span'); t.textContent = label;
+    const r = document.createElement('input'); r.type = 'range'; r.min = min; r.max = max; r.step = step; r.value = spec[key];
+    const v = document.createElement('b'); const sh = () => { v.textContent = show ? show(spec[key]) : ''; }; sh();
+    r.oninput = () => { update(key, +r.value); sh(); };
+    l.append(t, r, v); return l;
   }
-  function range(id, min, max, step, val, on) { const r = document.createElement('input'); r.type = 'range'; r.id = id; r.min = min; r.max = max; r.step = step; r.value = val; r.oninput = () => on(+r.value); return r; }
-  function field(label, el) { const l = document.createElement('label'); const s = document.createElement('span'); s.className = 'lbl'; s.textContent = label; l.append(s, el); return l; }
-  function group(title, ...kids) { const g = document.createElement('div'); g.className = 'group'; if (title) { const s = document.createElement('span'); s.className = 'lbl'; s.textContent = title; g.appendChild(s); } kids.forEach((k) => g.appendChild(k)); return g; }
-  function row(...kids) { const r = document.createElement('div'); r.className = 'row'; kids.forEach((k) => r.appendChild(k)); return r; }
-  function chk(label, val, on) { const l = document.createElement('label'); l.className = 'chk'; const i = document.createElement('input'); i.type = 'checkbox'; i.checked = val; i.onchange = () => on(i.checked); l.append(i, document.createTextNode(label)); return l; }
-
+  const word = (v, lo, mid, hi) => (v < -0.3 ? lo : v > 0.3 ? hi : mid);
+  function pane() {
+    const root = $('controls'); root.innerHTML = '';
+    const add = (...k) => k.forEach((x) => root.appendChild(x));
+    if (tab === 'body') add(
+      section('You are', tiles('sex', [['m', 'A man', { sex: 'm', style: 'hooded', hairStyle: O.Char.HAIR_STYLES_M.includes(spec.hairStyle) ? spec.hairStyle : 'short' }], ['f', 'A woman', { sex: 'f', style: 'hoodedDress', hairStyle: O.Char.HAIR_STYLES_F.includes(spec.hairStyle) ? spec.hairStyle : 'long' }]], 'body')),
+      section('Skin', swatchRow('skin', P.skin.map((h, i) => [i, h, 'Tone ' + (i + 1)]))),
+      section(null, slider('Age', 'age', 16, 80, 1, (v) => String(v)), slider('Height', 'height', -1, 1, 0.1, (v) => word(v, 'Short', 'Middling', 'Tall')), slider('Build', 'build', -1, 1, 0.1, (v) => word(v, 'Slight', 'Middling', 'Broad'))));
+    if (tab === 'face') add(
+      section('Eyes', tiles('eyeType', [[0, 'Bright'], [1, 'Wide'], [2, 'Narrow']], 'head')),
+      section('Eye colour', swatchRow('eyes', Object.entries(P.eyes).map(([k, h]) => [k, h, k]))),
+      section('Set', tiles('eyeGap', [[0, 'Close'], [1, 'Wide set']], 'head')),
+      section('Nose', tiles('nose', [[0, 'Small'], [1, 'Straight'], [2, 'Broad']], 'head')),
+      section('Brows', tiles('brow', [[0, 'Faint'], [1, 'Fine'], [2, 'Heavy']], 'head')),
+      section('Freckles', tiles('freckles', [[false, 'None'], [true, 'Freckled']], 'head')),
+      section(null, slider('Jaw', 'jaw', 0, 0.4, 0.05, (v) => (v < 0.12 ? 'Soft' : v > 0.28 ? 'Square' : 'Firm'))));
+    if (tab === 'hair') add(
+      section('Style', tiles('hairStyle', (spec.sex === 'f' ? Ch.HAIR_STYLES_F : Ch.HAIR_STYLES_M).map((h) => [h, cap(h)]), 'head')),
+      section('Colour', swatchRow('hair', hairNames.map((k) => [k, P.hair[k], k]))),
+      section('Grey', tiles('hairGrey', [[false, 'Not yet'], [true, 'Greying']], 'head')),
+      spec.sex === 'm' ? section('Beard', tiles('beard', [...new Set(Ch.BEARDS)].map((h) => [h, cap(h)]), 'head')) : null);
+    if (tab === 'clothes') add(
+      section('Look', tiles('style', Object.entries(O.Creator.STYLES).filter(([, st]) => spec.sex === 'f' || !st.dress).map(([k, st]) => [k, st.label, { style: k, tunic: '', trousers: '' }]), 'body')),
+      section(spec.sex === 'f' ? 'Bodice' : 'Tunic', swatchRow('tunic', clothCols.map((k) => [k, P.cloth[k], k]), true)),
+      section('Hose', swatchRow('trousers', clothCols.map((k) => [k, P.cloth[k], k]), true)));
+    if (tab === 'hat') add(
+      section('On your head', tiles('hat', [['style', 'As the look'], ['none', 'Bare'], ['hood', 'Hood'], ['cap', 'Cap'], ['feather', 'Feathered'], ['straw', 'Straw hat'], ['kettle', 'Kettle helm']], 'head')),
+      section('Cloak', tiles('cloak', [[false, 'None'], [true, 'Cloak']], 'body')),
+      spec.cloak ? section('Cloak colour', swatchRow('cloakCol', clothCols.map((k) => [k, P.cloth[k], k]))) : null);
+  }
+  function tabs() {
+    const d = $('ccTabs'); d.innerHTML = '';
+    for (const [k, l] of TABS) { const b = document.createElement('button'); b.textContent = l; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', k === tab); b.onclick = () => { tab = k; tabs(); pane(); }; d.appendChild(b); }
+  }
   function update(k, v) {
     spec[k] = v;
-    if (k === 'sex') { spec.style = v === 'f' ? 'hoodedDress' : 'hooded'; if (v === 'f' && !O.Char.HAIR_STYLES_F.includes(spec.hairStyle)) spec.hairStyle = 'long'; if (v === 'm' && !O.Char.HAIR_STYLES_M.includes(spec.hairStyle)) spec.hairStyle = 'short'; buildControls(); }
+    if (k === 'sex') { spec.style = v === 'f' ? 'hoodedDress' : 'hooded'; spec.tunic = ''; spec.trousers = ''; if (v === 'f' && !O.Char.HAIR_STYLES_F.includes(spec.hairStyle)) spec.hairStyle = 'long'; if (v === 'm' && !O.Char.HAIR_STYLES_M.includes(spec.hairStyle)) spec.hairStyle = 'short'; }
+    if (k === 'style') { spec.tunic = ''; spec.trousers = ''; }
     player = O.Creator.appearanceFromSpec(spec);
     try { localStorage.setItem('outlaw.spec', JSON.stringify(spec)); } catch (e) { /* ignore */ }
-    nameplate();
+    sub();
   }
+  function sub() { const e = document.getElementById('ccSub'); if (e) e.textContent = `${spec.age} years old, ${O.Creator.STYLES[spec.style].label.toLowerCase()}`; }
   function nameplate() {
-    $('nameplate').innerHTML = '';
-    $('nameplate').append(document.createTextNode(`${spec.name} ${spec.surname}`));
-    const s = document.createElement('span'); s.textContent = `AGE ${spec.age} · ${Ch.ageStage(spec.age).replace(/([A-Z])/g, ' $1').toUpperCase()} · ${O.Creator.STYLES[spec.style].label.toUpperCase()}`;
-    $('nameplate').append(s);
+    const root = $('nameplate'); root.innerHTML = '';
+    const mk = (id, key, ph) => { const i = document.createElement('input'); i.type = 'text'; i.id = id; i.value = spec[key]; i.placeholder = ph; i.maxLength = 16; i.oninput = () => update(key, i.value.trim() || (key === 'name' ? 'Nameless' : '')); return i; };
+    const s2 = document.createElement('div'); s2.className = 'cc-sub'; s2.id = 'ccSub';
+    root.append(mk('fName', 'name', 'Name'), mk('fSurname', 'surname', 'Surname'), s2); sub();
   }
+  function buildControls() { tabs(); pane(); nameplate(); }
+  $('ccRandom').onclick = () => {
+    const r = O.RNG(Date.now() & 0xffffffff); const sex = r.chance(0.5) ? 'm' : 'f';
+    Object.assign(spec, {
+      sex, age: r.int(17, 60), skin: r.int(0, 7), hair: r.pick(hairNames), hairStyle: r.pick(sex === 'm' ? Ch.HAIR_STYLES_M : Ch.HAIR_STYLES_F), beard: r.pick(Ch.BEARDS), hairGrey: false,
+      eyes: r.pick(Object.keys(P.eyes)), height: +r.float(-1, 1).toFixed(1), build: +r.float(-1, 1).toFixed(1), eyeType: r.int(0, 2), nose: r.int(0, 2), brow: r.int(0, 2), jaw: +r.float(0, 0.35).toFixed(2), eyeGap: r.int(0, 1), freckles: r.chance(0.2),
+      style: r.pick(sex === 'm' ? ['wanderer', 'hooded', 'ragged', 'rider', 'fence', 'gentry'] : ['dress', 'hoodedDress', 'hooded', 'wanderer', 'rider']), tunic: '', trousers: '', hat: 'style', cloakCol: r.pick(clothCols), cloak: r.chance(0.5),
+      name: r.pick(sex === 'm' ? ['Wat', 'Hob', 'Will', 'Adam', 'Gil', 'Tom', 'Rafe', 'Osric', 'Jack', 'Hal'] : ['Maud', 'Alys', 'Joan', 'Agnes', 'Elena', 'Isolde', 'Meg', 'Cecily', 'Rose', 'Edith']),
+      surname: r.pick(['Tyler', 'Scarlock', 'Fletcher', 'Ward', 'Blackwood', 'Hale', 'Crowe', 'Marsh', 'Thorne', 'Reeve']),
+    });
+    update('age', spec.age); buildControls();
+  };
 
-  function buildControls() {
-    const root = $('controls'); root.innerHTML = '';
-    const h = document.createElement('h2'); h.textContent = 'Who are you?'; root.appendChild(h);
-    const name = document.createElement('input'); name.type = 'text'; name.id = 'fName'; name.value = spec.name; name.oninput = () => update('name', name.value || 'Nameless');
-    const sur = document.createElement('input'); sur.type = 'text'; sur.id = 'fSurname'; sur.value = spec.surname; sur.oninput = () => update('surname', sur.value);
-    root.appendChild(group(null, row(field('Name', name), field('Surname', sur))));
-    root.appendChild(group('Body',
-      row(seg([['m', 'Man'], ['f', 'Woman']], spec.sex, (v) => update('sex', v))),
-      field(`Age`, range('fAge', 16, 80, 1, spec.age, (v) => update('age', v))),
-      row(field('Height', range('fHeight', -1, 1, 0.1, spec.height, (v) => update('height', v))), field('Build', range('fBuild', -1, 1, 0.1, spec.build, (v) => update('build', v)))),
-      field('Skin', swatches(P.skin.map((h, i) => [i, h, 'Skin tone ' + (i + 1)]), spec.skin, (v) => update('skin', v), 'Skin tone')),
-    ));
-    const hairNames = Object.keys(P.hair).filter((k) => k !== 'grey' && k !== 'white');
-    const styles = spec.sex === 'f' ? Ch.HAIR_STYLES_F : Ch.HAIR_STYLES_M; // men's styles for men, women's for women
-    root.appendChild(group('Face & hair',
-      field('Hair colour', swatches(hairNames.map((k) => [k, P.hair[k], k]), spec.hair, (v) => update('hair', v), 'Hair colour')),
-      row(chk('Greying', spec.hairGrey, (v) => update('hairGrey', v))),
-      row(field('Hairstyle', select('fHair', styles.map((s) => [s, s[0].toUpperCase() + s.slice(1)]), spec.hairStyle, (v) => update('hairStyle', v))),
-        ...(spec.sex === 'm' ? [field('Beard', select('fBeard', [...new Set(Ch.BEARDS)].map((s) => [s, s[0].toUpperCase() + s.slice(1)]), spec.beard, (v) => update('beard', v)))] : [])),
-      field('Eyes', swatches(Object.entries(P.eyes).map(([k, h]) => [k, h, k]), spec.eyes, (v) => update('eyes', v), 'Eye colour')),
-      row(field('Eye shape', select('fEyeT', [[0, 'Bright'], [1, 'Wide'], [2, 'Narrow']], spec.eyeType, (v) => update('eyeType', +v))),
-        field('Nose', select('fNose', [[0, 'Small'], [1, 'Straight'], [2, 'Broad']], spec.nose, (v) => update('nose', +v)))),
-      row(field('Jaw', range('fJaw', 0, 0.4, 0.05, spec.jaw, (v) => update('jaw', v))), field('Eye spacing', range('fGap', 0, 1, 1, spec.eyeGap, (v) => update('eyeGap', v)))),
-      row(field('Brows', select('fBrow', [[0, 'Faint'], [1, 'Fine'], [2, 'Heavy']], spec.brow, (v) => update('brow', +v))), chk('Freckles', spec.freckles, (v) => update('freckles', v))),
-    ));
-    const clothCols = ['russet', 'forest', 'darkBrown', 'black', 'woad', 'navy', 'crimson', 'plum', 'ochre', 'greyWool', 'undyed', 'olive', 'teal', 'madder'];
-    root.appendChild(group('Clothing',
-      field('Style', select('fStyle', Object.entries(O.Creator.STYLES).map(([k, s]) => [k, s.label]), spec.style, (v) => { spec.tunic = ''; update('style', v); buildControls(); })),
-      field('Tunic / bodice', swatches(clothCols.map((k) => [k, P.cloth[k], k]), spec.tunic, (v) => update('tunic', v), 'Tunic colour')),
-      field('Trousers', swatches(clothCols.map((k) => [k, P.cloth[k], k]), spec.trousers, (v) => update('trousers', v), 'Trouser colour')),
-      row(field('Headwear', select('fHat', [['style', 'Match style'], ['none', 'Bare head'], ['hood', 'Hood'], ['cap', 'Cap'], ['feather', 'Feathered cap'], ['straw', 'Straw hat'], ['kettle', 'Kettle helm']], spec.hat, (v) => update('hat', v)))),
-      row(chk('Cloak', spec.cloak, (v) => update('cloak', v))),
-      field('Cloak colour', swatches(clothCols.map((k) => [k, P.cloth[k], k]), spec.cloakCol, (v) => update('cloakCol', v), 'Cloak colour')),
-    ));
-    // no gear to choose: a stranger arrives empty-handed
-    const rnd = document.createElement('button'); rnd.className = 'btn ghost'; rnd.textContent = 'Randomise';
-    rnd.onclick = () => {
-      const r = O.RNG(Date.now() & 0xffffffff); const sex = r.chance(0.5) ? 'm' : 'f';
-      Object.assign(spec, {
-        sex, age: r.int(17, 60), skin: r.int(0, 7), hair: r.pick(hairNames), hairStyle: r.pick(sex === 'm' ? Ch.HAIR_STYLES_M : Ch.HAIR_STYLES_F), beard: r.pick(Ch.BEARDS),
-        eyes: r.pick(Object.keys(P.eyes)), height: +r.float(-1, 1).toFixed(1), build: +r.float(-1, 1).toFixed(1), eyeType: r.int(0, 2), nose: r.int(0, 2), brow: r.int(0, 2), jaw: +r.float(0, 0.35).toFixed(2),
-        style: r.pick(sex === 'm' ? ['wanderer', 'hooded', 'ragged', 'rider', 'fence', 'gentry'] : ['dress', 'hoodedDress', 'hooded', 'wanderer', 'rider']), tunic: '', trousers: '', cloakCol: r.pick(clothCols), cloak: r.chance(0.5), item: r.pick(['none', 'dagger', 'sword', 'axe']), bow: r.chance(0.4),
-        name: r.pick(sex === 'm' ? ['Wat', 'Hob', 'Will', 'Adam', 'Gil', 'Tom', 'Rafe', 'Osric', 'Jack', 'Hal'] : ['Maud', 'Alys', 'Joan', 'Agnes', 'Elena', 'Isolde', 'Meg', 'Cecily', 'Rose', 'Edith']),
-        surname: r.pick(['Tyler', 'Scarlock', 'Fletcher', 'Ward', 'Blackwood', 'Hale', 'Crowe', 'Marsh', 'Thorne', 'Reeve']),
-      });
-      buildControls(); update('age', spec.age);
-    };
-    root.appendChild(group(null, rnd));
-  }
-
-  // ---------- preview ----------
+  // ---------- the portrait: you, turning slowly, or as you turn yourself ----------
   const prev = $('preview'), pctx = prev.getContext('2d');
-  const PS = () => (window.innerWidth < 600 ? 2 : 4);
-  let previewGround = null;
-  function sizePreview() {
-    const s = PS(); prev.width = 4 * 40 * s; prev.height = 64 * s;
-    prev.style.width = prev.width + 'px'; prev.style.height = prev.height + 'px';
-    previewGround = groundTile(160, 64, 11, 'path');
-  }
+  const TURN = [0, 1, 3, 2]; let turn = 0, turnAt = -1, manual = 0;
+  for (const b of document.querySelectorAll('.cc-turn')) b.onclick = () => { turn = (turn + +b.dataset.turn + 4) % 4; manual = performance.now(); };
+  function sizePreview() { prev.width = 200; prev.height = 270; }
   function drawPreview(t) {
-    const s = PS();
-    pctx.imageSmoothingEnabled = false;
-    pctx.drawImage(previewGround, 0, 0, 160 * s, 64 * s);
-    const A = Ch.ANIMS[anim]; const f = Math.floor((t / 1000) * A.fps) % A.frames;
-    const order = [0, 1, 2, 3];
-    order.forEach((d, i) => {
-      const x = i * 40 + 4, y = 10;
-      if (anim !== 'sleep') { pctx.save(); pctx.scale(s, s); shadow(pctx, x + 16, y + Ch.GROUND, 16); pctx.restore(); }
-      pctx.drawImage(Ch.frame(player, d, anim, f), x * s, y * s, 32 * s, 48 * s);
-    });
-  }
-  function buildAnimChips() {
-    const d = $('animChips'); d.innerHTML = '';
-    Object.keys(Ch.ANIMS).forEach((k) => {
-      const b = document.createElement('button'); b.textContent = k.toUpperCase(); b.setAttribute('aria-pressed', k === anim);
-      b.onclick = () => { anim = k; [...d.children].forEach((x) => x.setAttribute('aria-pressed', x === b)); };
-      d.appendChild(b);
-    });
+    if (turnAt < 0) turnAt = t;
+    if (!manual || t - manual > 6000) { if (t - turnAt > 2600) { turn = (turn + 1) % 4; turnAt = t; } }
+    pctx.clearRect(0, 0, prev.width, prev.height); pctx.imageSmoothingEnabled = false;
+    const A = Ch.ANIMS.idle, f = Math.floor((t / 1000) * A.fps) % A.frames, sc = 5, x = (200 - 32 * sc) / 2, y = 270 - 48 * sc - 8;
+    pctx.fillStyle = 'rgba(120,90,40,.22)'; pctx.beginPath(); pctx.ellipse(100, y + Ch.GROUND * sc, 46, 9, 0, 0, 7); pctx.fill();
+    pctx.drawImage(Ch.frame(player, TURN[turn], 'idle', f), x, y, 32 * sc, 48 * sc);
   }
 
   // ---------- crowd ----------
@@ -223,7 +225,7 @@
   // ---------- one-time character creation ----------
   // Shown only when a new life begins; afterwards the player is who they made.
   let open = false, done = null;
-  function showCreator(cb) { open = true; done = cb; $('tab-forge').hidden = false; resize(); }
+  function showCreator(cb) { open = true; done = cb; turn = 0; turnAt = -1; buildControls(); $('tab-forge').hidden = false; resize(); }
   $('beginLife').onclick = () => {
     open = false; $('tab-forge').hidden = true;
     try { localStorage.setItem('outlaw.created', '1'); } catch (e) { /* ignore */ }
@@ -231,7 +233,7 @@
   };
   function resize() { sizePreview(); }
   window.addEventListener('resize', resize);
-  buildControls(); buildAnimChips(); nameplate(); resize();
+  buildControls(); resize();
   function loop(t) { if (open) drawPreview(t); requestAnimationFrame(loop); }
   requestAnimationFrame(loop);
   // a new face for the same life: the heir who takes over

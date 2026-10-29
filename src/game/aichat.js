@@ -94,20 +94,28 @@
     return v;
   }
   O.memScore = memScore;
+  // how someone talks at their age: the first thing the writer is told, and the last word on it
   function speechFor(age, stage) {
-    if (age < 5) return 'You are a small child: only a few simple words at a time, sometimes wrong words, no long sentences.';
-    if (age < 9) return 'You are a young child: short simple sentences, simple words, a child\'s view of things.';
-    if (age < 13) return 'You are a child: plain sentences, no grand words.';
-    if (age < 18) return 'You are a youth: fluent, a little blunt or awkward.';
-    if (stage === 'elder') return 'You are old: unhurried, sometimes wander onto the old days.';
+    if (age < 3) return `SPEECH: you are a baby of ${age}. Only babble and one or two baby words ("Mama!", "Ba ba.", "No!").`;
+    if (age < 5) return `SPEECH: you are a toddler of ${age}. One to four words, baby talk, wrong grammar ("Me want bread.", "Where Mama go?"). Never a full grown-up sentence.`;
+    if (age < 9) return `SPEECH: you are a little child of ${age}. Short simple sentences of a few small words, a child's thoughts: games, animals, sweets, your mam and da, being told off ("My da says I mustn't talk to strangers."). No grown-up words or worries about wages, trade or the council.`;
+    if (age < 13) return `SPEECH: you are a child of ${age}. Plain short sentences, no grand words; a child's concerns (chores, games, friends, lessons, what your parents allow), cheeky or shy as your temper is.`;
+    if (age < 18) return `SPEECH: you are ${age}, a youth: fluent, but blunt or awkward, a young person's concerns.`;
+    if (stage === 'elder') return 'SPEECH: you are old: unhurried, sometimes wander onto the old days.';
     return '';
+  }
+  // a guard on what came back: a babe babbles, a small child keeps it short
+  function ageTrim(z, t) {
+    if (z.age < 3) return babble(z);
+    if (z.age < 9) { const first = (t.match(/[^.!?]+[.!?]/) || [t])[0].trim(); const w = first.split(/\s+/); return w.length > (z.age < 5 ? 5 : 12) ? w.slice(0, z.age < 5 ? 4 : 10).join(' ').replace(/[,;:]$/, '') + '.' : first; }
+    return t;
   }
   function card(s, q) {
     const PS = O.PlayerState, [cx, cy] = centre(s), lines = [];
     const by = (id) => s.byId.get(id), alive = (p) => p && p.alive !== false;
     const ctx = O.Dialogue ? O.Dialogue.buildContext(s, q, { reputation: PS.rep }) : {};
     const bdays = ((q.birthday || 1) - (((s.day - 1) % 56) + 1) + 56) % 56;
-    lines.push(`You are ${q.name}, ${q.sex === 'm' ? 'a man' : 'a woman'}${q.age < 18 ? ' (a ' + (q.sex === 'm' ? 'boy' : 'girl') + ')' : ''} of ${ageWord(q.age)}, living in ${s.world.name}${q.title ? `, ${q.title}` : q.office ? `, the ${q.office}` : ''}. Birthday ${dayName(q.birthday || 1)}${bdays === 0 ? ' (today!)' : bdays <= 3 ? ` (in ${bdays} days)` : ''}.`);
+    lines.push(`You are ${q.name}, ${q.age < 3 ? 'a baby' : q.age < 13 ? (q.sex === 'm' ? 'a boy' : 'a girl') : q.age < 18 ? (q.sex === 'm' ? 'a lad' : 'a lass') : q.sex === 'm' ? 'a man' : 'a woman'} of ${ageWord(q.age)}, living in ${s.world.name}${q.title ? `, ${q.title}` : q.office ? `, the ${q.office}` : ''}. Birthday ${dayName(q.birthday || 1)}${bdays === 0 ? ' (today!)' : bdays <= 3 ? ` (in ${bdays} days)` : ''}.`);
     lines.push(`Temper: ${(q.traits || []).join(', ')}. Mood ${q.mood > 0.3 ? 'good' : q.mood < -0.3 ? 'low' : 'fair'}. ${q.needs.hunger < 30 ? 'Hungry. ' : ''}${q.needs.energy < 30 ? 'Tired. ' : ''}${q.health.illness ? 'Unwell (' + q.health.illness.kind + '). ' : ''}Hopes: ${q.goal || 'to get by'}.`);
     // work
     if (q.job) {
@@ -207,6 +215,7 @@ Stay fully in character, always: these are real medieval people, never an AI, as
 They know only what their card says; asked anything else they don't know, guess vaguely or say so, and never invent people or places in their town. Nonsense confuses them. The suspicious, hostile or untrusting are curt with strangers and doubt claims. The greedy and hostile may lie. Busy people want to get on.
 people: for each person present: feel and trust (-2..2) = how the player's words change their liking and belief; learned = a short new claim from the player they now believe, else ""; caught = true if they now see the player lied before.
 name: the player's name if the player just gave it. agree: true only if they now agree to the pending request.
+Talks end: when the talk has run its course (goodbyes said, the matter settled, nothing more to say, or they have somewhere to be), the person says a short parting line and adds the act leave. Don't drag a talk out.
 acts: only what a speaker truly agrees to or does, each {"who":"First name","do":...}:
 meet {"place","hour":0-23,"day":"today"|"tomorrow"|weekday,"why"} | follow (they come along with the player, wherever the player goes) | lead {"place"?} (the player comes along with them: they carry on where they were going, or to the place, and wait if the player falls behind; use this when the player says they will come with them) | stop (stop following) | go {"place"} (go there now) | invite (let the player into their home today) | give {"item"} (hand over something they have) | want {"item"} (ask the player for something) | take_gift | refuse_gift | take_job (accept the player's own job when offered) | seek_job {"place"} | tell {"to","msg"} (pass a message to someone they know) | like {"of","by":-1 or 1} (think better or worse of someone after what was said) | call {"who"} (call someone near or in the same house over to join the talk, even across the room) | ask {"who","question"} (go and ask someone in the house or near, privately, then come back with the answer) | show {"place"} (walk the player there) | direct {"place"} (tell the player the way to a place, in words, when they ask where something is) | sell {"item","price"} (sell the player something they have, at an agreed price in aurins) | buy {"item","price"} (buy something the player carries) | lend {"amount"} (lend the player money, to be paid back) | gesture {"kind":"hug"|"handshake"|"bow"|"wave"|"dance"|"cry"|"laugh"} | teach (show the player a little of their trade) | introduce {"who"} (call someone over and name them) | hire_on (agree to work for the player's own business) | join_gang (join the player's gang) | court (agree to court, walk out with, the player) | betroth (agree to marry the player; the wedding is then set at the chapel) | part (break off a courtship, betrothal or marriage) | fight (go for the player) | flee (run from the player) | leave (end the talk and walk off: rude player, busy, bored, or done). If a speaker says they are off somewhere now, add a go act for it (or leave).
 They know where their family and friends are just now (the card says); a stranger at the door is not invited in on a whim, and they don't promise to ask someone who is right there: they call them or ask them.\nPlaces: names from the card, "my home", "your home" or "the square". Items: things the speaker has, or the player carries.`;
@@ -280,7 +289,7 @@ They know where their family and friends are just now (the card says); a strange
   }
   function shortCard(s, q) {
     const r = q.rel.get(0) || {}; const job = q.job ? q.job.role : q.age < 14 ? 'a child' : 'no work';
-    return `${q.first} ${q.sur || ''} (${q.sex === 'm' ? 'man' : 'woman'}, ${q.age}, ${job}; temper ${(q.traits || []).join(', ')}; ${r.familiar > 0.2 ? 'knows the player' : 'does not know the player'}${r.affinity > 0.3 ? ', likes them' : r.affinity < -0.2 ? ', dislikes them' : ''}). ${speechFor(q.age, q.stage)}`;
+    return `${speechFor(q.age, q.stage) ? speechFor(q.age, q.stage).replace('SPEECH: you are', q.first + ' is') + '\n' : ''}${q.first} ${q.sur || ''} (${q.age < 13 ? (q.sex === 'm' ? 'boy' : 'girl') : q.sex === 'm' ? 'man' : 'woman'}, ${q.age}, ${job}; temper ${(q.traits || []).join(', ')}; ${r.familiar > 0.2 ? 'knows the player' : 'does not know the player'}${r.affinity > 0.3 ? ', likes them' : r.affinity < -0.2 ? ', dislikes them' : ''}). ${speechFor(q.age, q.stage)}`;
   }
   const gest = (q, anim, secs = 2.2) => { const now = performance.now(); q.agent.gest = { anim, from: now, until: now + secs * 1000 }; };
   O.gesture = gest;
@@ -295,7 +304,7 @@ They know where their family and friends are just now (the card says); a strange
     const ask = askFor(q), group = (q._group || []).filter((z) => z.alive !== false);
     const history = conv.slice(-8, -1).map((c) => (c.who === 'p' ? 'Player: ' : (c.by || q.first) + ': ') + c.t).join('\n');
     const hurryNote = q._hurry ? `${q.first} is in a hurry (${q._hurry.why}): answer briefly, then say they must go now.\n` : '';
-    const prompt = `${RULES}\n\n${hurryNote}${group.length ? 'The player is speaking to the whole group: any of them may answer.\n' : ''}--- ${q.first} (spoken to) ---\n${speechFor(q.age, q.stage)}\n${card(s, q)}\n${extraCard(s, q)}\n${group.length ? `--- Also in the talk ---\n${group.map((z) => shortCard(s, z)).join('\n')}\n` : ''}${ask ? `--- Pending request to ${q.first} ---\nThe player wants you to ${ask.goal}. ${ask.why || ''} Weigh it by temper, needs and trust; agree only if convinced.\n` : 'No request is pending: agree is false.\n'}--- Talk so far ---\n${history || '(none)'}\nPlayer: ${text}`;
+    const prompt = `${RULES}\n\n${hurryNote}${group.length ? 'The player is speaking to the whole group: any of them may answer.\n' : ''}--- ${q.first} (spoken to) ---\n${speechFor(q.age, q.stage)}\n${card(s, q)}\n${extraCard(s, q)}\n${group.length ? `--- Also in the talk ---\n${group.map((z) => shortCard(s, z)).join('\n')}\n` : ''}${ask ? `--- Pending request to ${q.first} ---\nThe player wants you to ${ask.goal}. ${ask.why || ''} Weigh it by temper, needs and trust; agree only if convinced.\n` : 'No request is pending: agree is false.\n'}--- Talk so far ---\n${history || '(none)'}\nPlayer: ${text}${q.age < 18 ? '\n' + speechFor(q.age, q.stage).replace('SPEECH:', 'Remember, how ' + q.first + ' speaks:') : ''}`;
     render(null, true);
     AI.busy = true;
     let out = null;
@@ -327,7 +336,7 @@ They know where their family and friends are just now (the card says); a strange
     let leave = false; const notes = [];
     if (Array.isArray(out.acts) && O.NpcActs) for (const a of out.acts.slice(0, 4)) { if (!a || typeof a.do !== 'string') continue; const who = byName(a.who) || q; const res = O.NpcActs.apply(s, who, a, q); if (res === 'leave') leave = true; else if (res) notes.push(res); }
     if (q._offer) { const o = q._offer; q._offer = null; if (r.affinity > -0.2) O.NpcActs && O.NpcActs.keepGift(s, q, o); else O.NpcActs && O.NpcActs.returnGift(q, o); }
-    const shown = lines.slice(0, 3).map((l) => { const who = byName(l.who) || q; return { who, t: inChar(who, clean(l.say)) }; });
+    const shown = lines.slice(0, 3).map((l) => { const who = byName(l.who) || q; return { who, t: ageTrim(who, inChar(who, clean(l.say))) }; });
     q._lastSpeaker = shown[0].who;
     for (const l of shown) conv.push({ who: 'q', by: l.who.first, t: l.t });
     if (conv.length > 16) conv.splice(0, conv.length - 16);
@@ -336,6 +345,7 @@ They know where their family and friends are just now (the card says); a strange
     let delay = 0; for (const l of shown.slice(1)) { delay += 1400 + shown[0].t.length * 35; setTimeout(() => { if (O.npcUI && O.npcUI.talking() === q && !AI.busy) { q._lastSpeaker = l.who; render(l.t, false); } }, delay); }
     if (notes.length) O.UI.say(notes.join(' '));
     if (q._hurry) { leave = true; q._hurry = null; }
+    if (/\b(good ?bye|bye|farewell|fare ?(you|thee) ?well|see you|good ?night|i must (go|be off)|i'?ll be (off|going)|until (next time|tomorrow)|take care)\b/i.test(text) && !opt.gift) leave = true; // you said goodbye: they say theirs, and go
     if (leave) setTimeout(() => { if (O.npcUI && O.npcUI.talking() === q) { O.npcUI.closeTalk(); } q._snubUntil = s.day * 1440 + s.minute + (r.affinity < -0.2 ? 240 : 30); O.NpcActs && O.NpcActs.walkOff(q); }, 2200);
   }
   // never a name in front of the words, never a word from outside their world
@@ -411,7 +421,7 @@ They know where their family and friends are just now (the card says); a strange
     const prompt = `Write the next spoken words of a person in a medieval village game. Reply ONLY with JSON {"say":"..."}.
 say: 1 or 2 short sentences, at most 25 words, fully in character for age, temper, mood, what they are doing now and how well they know the player; plain medieval English, perfect spelling, no dashes, no emoji, nothing in brackets; only the spoken words, never a name in front. Never break character.
 --- ${q.first} ---\n${speechFor(q.age, q.stage)}\n${card(s, q)}\n--- Talk so far ---\n${history || '(none)'}\nWhat happens now: ${situation}`;
-    try { const out = await AI.json(prompt); const raw = out && (typeof out.say === 'string' ? out.say : Array.isArray(out.lines) && out.lines[0] && typeof out.lines[0].say === 'string' ? out.lines[0].say : ''); const t = raw ? inChar(q, clean(raw)) : ''; return t && t.trim() ? t : null; } catch (e) { return null; }
+    try { const out = await AI.json(prompt); const raw = out && (typeof out.say === 'string' ? out.say : Array.isArray(out.lines) && out.lines[0] && typeof out.lines[0].say === 'string' ? out.lines[0].say : ''); const t = raw ? ageTrim(q, inChar(q, clean(raw))) : ''; return t && t.trim() ? t : null; } catch (e) { return null; }
   }
   O.AIChat = { say, give, ended, card, gibberish, readLetter, line };
 })();

@@ -316,7 +316,21 @@
       if (html + top !== sig) { sig = html + top; el.innerHTML = html; el.style.top = top + 'px'; }
       el.hidden = false;
     });
-    O.GangLife = { RANKS, JOBS, mine, give, complete };
+    // what the talk can bring about with a gang's people: taken in, or given the gang's work
+    let wrapped = false;
+    game.hooks.update.push(() => {
+      if (wrapped || !O.NpcActs) return; wrapped = true;
+      const base = O.NpcActs.apply;
+      O.NpcActs.apply = function (s, q, a, main) {
+        if (a && (a.do === 'gang_in' || a.do === 'gang_work') && q.gang && q.gang !== 'player' && s.gang) {
+          const g = s.gang(q.gang); if (!g) return null;
+          if (a.do === 'gang_in') { if (memberOf(s, g.id) || (O.crowned && O.crowned())) return null; const said = join(s, g, q, (t) => t); return memberOf(s, g.id) ? `You run with ${g.name} now.` : /Lift two purses/.test(said || '') ? 'They want proof first: lift two purses in the town without being taken.' : null; }
+          const m = memberOf(s, g.id); if (!m) return null; const t = give(s, g, m, q); if (!t) return null; refresh(); return `The gang's work: ${t.text}.`;
+        }
+        return base.apply(this, arguments);
+      };
+    });
+    O.GangLife = { RANKS, JOBS, mine, give, complete, join };
   }
   O.GangLifeSetup = { setup };
 })();

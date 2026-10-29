@@ -116,7 +116,7 @@
               PS.rep.local = Math.max(-1, PS.rep.local - 0.02);
             } else if (first || !q._assaulted) { q._assaulted = true; const c = crimeFor(q, guardHit ? 'assault on the watch' : w.key === 'fists' ? 'brawling' : 'assault', guardHit ? 3 : w.key === 'fists' ? 1 : 2); if (guardHit) PS.bounty = true; void c; sim.remember(q, 'The stranger attacked me.', 'crime', 2.5, 0); sim.relate(q, { id: 0 }, -0.8); }
             if (res === 'dead') { crimeFor(q, 'murder', 5); O.Panels.toast(`${q.first} lies still. You have killed a man of ${sim.world.name}.`, 'bad'); PS.bounty = true; fights.delete(q.id); }
-            else if (res !== 'incapacitated') { const prev = fights.get(q.id); const mode = react(q); fights.set(q.id, { mode, t: prev?.t || 0, cd: prev ? prev.cd : 0.7, looted: prev?.looted }); if (mode === 'surrender' && prev?.mode !== 'surrender') O.Panels.toast(`${q.first}: “Enough! Take my purse, take it!”`, 'bad'); if (mode === 'flee' && prev?.mode !== 'flee') { O.Panels.toast(`${q.first} runs, shouting for the watch!`, 'bad'); } }
+            else if (res !== 'incapacitated') { const prev = fights.get(q.id); const mode = react(q); fights.set(q.id, { mode, t: prev?.t || 0, cd: prev ? prev.cd : 0.7, looted: prev?.looted }); if (mode === 'surrender' && prev?.mode !== 'surrender') O.Speech.say(q, 'Enough! Take my purse, take it!', 3, 'angry'); if (mode === 'flee' && prev?.mode !== 'flee') { O.Speech.say(q, 'Help! Watch! Watch!', 3, 'angry'); } }
             else O.Panels.toast(`${q.first} falls and does not get up.`, 'bad');
           }
         }

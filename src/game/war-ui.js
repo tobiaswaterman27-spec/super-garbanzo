@@ -63,7 +63,7 @@
       }
     };
     function enlist(q) {
-      if (PS.wantedLevel && PS.wantedLevel() >= 2) return O.Panels.toast(`${q.first} looks at you hard. “I know a wanted face. The army's no hiding place for your sort.”`, 'bad');
+      if (PS.wantedLevel && PS.wantedLevel() >= 2) return void O.Speech.say(q, "I know a wanted face. The army's no hiding place for your sort.", 4, 'angry');
       PS.money += 12; PS.enlisted = { day: home.day };
       O.Panels.open("The King's coin", `<p class="speech">“${(O.Forge.player?.sex || O.Forge.player?.a?.sex) === 'f' ? 'Good lass' : 'Good lad'}. Twelve aurins now, three a day on the march, and a share of whatever we take off ${esc(K.war?.enemy || 'the enemy')}. We go north with the levy at four o'clock.”</p>
         <p class="caption">Marching with the levy means about four days away from ${esc(home.world.name)}. Taking the coin and slipping away is desertion: a crime, and the sergeant has seen your face.</p>

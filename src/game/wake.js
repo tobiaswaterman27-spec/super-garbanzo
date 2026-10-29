@@ -49,7 +49,7 @@
       q.task = { act: 'home', b: keep.id, woken: abs(s) + 90 + Math.floor(Math.random() * 60) }; // once woken they lie awake a good while
       if (belongs(q, b)) {
         s.relate(q, { id: 0 }, -0.05);
-        say(`${q.first} stirs and sits up. “What? What is it?… Let me sleep.” It'll be a while before they get back to sleep.`);
+        O.Speech.say(q, 'What? What is it? Let me sleep.', 3);
         return true;
       }
       // a stranger at the bedside: up, and out of the door for help
@@ -60,7 +60,7 @@
       const near = keep.royal && guards.find((g) => g.agent.inside === keep.id);
       q.task = { act: 'report', b: near ? keep.id : s.guardId, crime: cr.id, woken: abs(s) + 150 };
       for (const z of list.slice(1)) z.task = { act: 'home', b: keep.id, woken: abs(s) + 120 };
-      say(`${q.first} wakes with a start and sees you. “Who are you? Get out! ${keep.royal ? 'Guards! GUARDS!' : 'Help! Watch!'}” They scramble out of bed and run for help.`, 'bad');
+      O.Speech.say(q, `Who are you? Get out! ${keep.royal ? 'Guards! GUARDS!' : 'Help! Watch!'}`, 3.5, 'angry');
       if (near && O.lawReport) O.lawReport(cr, near);
       return true;
     };

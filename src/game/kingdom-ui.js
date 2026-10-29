@@ -132,8 +132,10 @@
       sim._cried = [...(sim._cried || []), ...fresh].slice(-12);
       const words = `Hear ye, hear ye! ${fresh.length ? fresh.join(' ') : `All is well in ${sim.world.name}.`}`;
       cr.agent.anim = 'wave';
-      O.Speech.say(cr, words.length > 160 ? words.slice(0, 157) + '…' : words, 9, 'shout', 140);
-      O.Panels.toast(`${cr.first} the crier: “${words}”`);
+      // read out a sentence at a time, over the crier's head
+      const parts = words.match(/[^.!?]+[.!?]+/g) || [words]; let k = 0;
+      const next = () => { if (k >= parts.length || cr.agent.hidden) return; O.Speech.say(cr, parts[k].trim(), 4.5, 'shout', 140); k++; setTimeout(next, 4300); };
+      next();
     });
     // the town criers of every place call out on their rounds, but only those near enough hear them
     let nextCall = 0;
@@ -147,7 +149,7 @@
         q._cried = game.t + 40;
         const n = (K.news || []).filter((x) => !x.secret).slice(-3), it = n.length ? n[(q.id + s.day + Math.floor(h)) % n.length].text : `${O.DAYNAMES[s.weekday]}, and all is well in ${s.world.name}.`;
         O.Speech.say(q, `Oyez, oyez! ${it}`, 8, 'shout', 140); q.agent.anim = 'wave';
-        O.UI.say(`${q.first} the crier calls: “${it}”`);
+        O.Speech.say(q, it, 5, 'shout', 140);
       }
     });
 

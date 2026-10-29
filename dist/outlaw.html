@@ -13126,6 +13126,14 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     const emp = PS.emp && PS.emp.place === s.world.placeId && q.job && PS.emp.biz === q.job.biz;
     if (emp) lines.push(`They work at your workplace as ${PS.emp.role}.`);
     if (PS.gang && q.gang && q.gang === PS.gang) lines.push('They are in your gang.');
+    // the gangs: their own, and whether the player runs with it or with their enemies
+    if (q.gang && q.gang !== 'player' && s.gang) { const g = s.gang(q.gang); if (g) {
+      const me = g.members.find((m) => m.id === q.id), boss = g.leader != null ? s.byId.get(g.leader) : null, den = g.hideout != null ? s.building(g.hideout) : null;
+      const ranks = (O.GangLife ? O.GangLife.mine() : []).filter((m) => m.place === s.world.placeId), mine = ranks.find((m) => m.gid === g.id), rival = ranks.find((m) => m.gid !== g.id);
+      lines.push(`Secretly you run with ${g.name}${me ? ' as ' + me.role : ''}${boss && boss !== q ? `; ${boss.name} leads it` : boss === q ? '; you lead it' : ''}${den ? `; the den is ${placeOf(s, den, cx, cy)}` : ''}. You never admit it to anyone you don't trust, and never to the law.`);
+      if (mine) lines.push(`The player runs with your gang too, as ${O.GangLife.RANKS[mine.rank].toLowerCase()}${mine.task && !mine.task.done ? `, and has the gang's work in hand: ${mine.task.text[0].toLowerCase() + mine.task.text.slice(1)}` : ''}. Speak to them as one of your own.`);
+      else if (rival) lines.push(`The player runs with ${rival.name}, your gang's enemies. You don't trust them an inch.`);
+    } }
     if (O.crowned && O.crowned()) lines.push('They are the crowned monarch of the realm.');
     return lines.join('\n');
   }
@@ -13170,7 +13178,7 @@ people: for each person present: feel and trust (-2..2) = how the player's words
 name: the player's name if the player just gave it. agree: true only if they now agree to the pending request.
 Talks end: when the talk has run its course (goodbyes said, the matter settled, nothing more to say, or they have somewhere to be), the person says a short parting line and adds the act leave. Don't drag a talk out.
 acts: only what a speaker truly agrees to or does, each {"who":"First name","do":...}:
-meet {"place","hour":0-23,"day":"today"|"tomorrow"|weekday,"why"} | follow (they come along with the player, wherever the player goes) | lead {"place"?} (the player comes along with them: they carry on where they were going, or to the place, and wait if the player falls behind; use this when the player says they will come with them) | stop (stop following) | go {"place"} (go there now) | invite (let the player into their home today) | give {"item"} (hand over something they have) | want {"item"} (ask the player for something) | take_gift | refuse_gift | take_job (accept the player's own job when offered) | seek_job {"place"} | tell {"to","msg"} (pass a message to someone they know) | like {"of","by":-1 or 1} (think better or worse of someone after what was said) | call {"who"} (call someone near or in the same house over to join the talk, even across the room) | ask {"who","question"} (go and ask someone in the house or near, privately, then come back with the answer) | show {"place"} (walk the player there) | direct {"place"} (tell the player the way to a place, in words, when they ask where something is) | sell {"item","price"} (sell the player something they have, at an agreed price in aurins) | buy {"item","price"} (buy something the player carries) | lend {"amount"} (lend the player money, to be paid back) | gesture {"kind":"hug"|"handshake"|"bow"|"wave"|"dance"|"cry"|"laugh"} | teach (show the player a little of their trade) | introduce {"who"} (call someone over and name them) | hire_on (agree to work for the player's own business) | join_gang (join the player's gang) | court (agree to court, walk out with, the player) | betroth (agree to marry the player; the wedding is then set at the chapel) | part (break off a courtship, betrothal or marriage) | fight (go for the player) | flee (run from the player) | leave (end the talk and walk off: rude player, busy, bored, or done). If a speaker says they are off somewhere now, add a go act for it (or leave).
+meet {"place","hour":0-23,"day":"today"|"tomorrow"|weekday,"why"} | follow (they come along with the player, wherever the player goes) | lead {"place"?} (the player comes along with them: they carry on where they were going, or to the place, and wait if the player falls behind; use this when the player says they will come with them) | stop (stop following) | go {"place"} (go there now) | invite (let the player into their home today) | give {"item"} (hand over something they have) | want {"item"} (ask the player for something) | take_gift | refuse_gift | take_job (accept the player's own job when offered) | seek_job {"place"} | tell {"to","msg"} (pass a message to someone they know) | like {"of","by":-1 or 1} (think better or worse of someone after what was said) | call {"who"} (call someone near or in the same house over to join the talk, even across the room) | ask {"who","question"} (go and ask someone in the house or near, privately, then come back with the answer) | show {"place"} (walk the player there) | direct {"place"} (tell the player the way to a place, in words, when they ask where something is) | sell {"item","price"} (sell the player something they have, at an agreed price in aurins) | buy {"item","price"} (buy something the player carries) | lend {"amount"} (lend the player money, to be paid back) | gesture {"kind":"hug"|"handshake"|"bow"|"wave"|"dance"|"cry"|"laugh"} | teach (show the player a little of their trade) | introduce {"who"} (call someone over and name them) | hire_on (agree to work for the player's own business) | join_gang (join the player's gang) | gang_in (a gang member agrees to take the player into their gang) | gang_work (a gang member gives the player the gang's next job, when they ask for work) | court (agree to court, walk out with, the player) | betroth (agree to marry the player; the wedding is then set at the chapel) | part (break off a courtship, betrothal or marriage) | fight (go for the player) | flee (run from the player) | leave (end the talk and walk off: rude player, busy, bored, or done). If a speaker says they are off somewhere now, add a go act for it (or leave).
 They know where their family and friends are just now (the card says); a stranger at the door is not invited in on a whim, and they don't promise to ask someone who is right there: they call them or ask them.\nPlaces: names from the card, "my home", "your home" or "the square". Items: things the speaker has, or the player carries.`;
   const G = () => O.Data.GOODS;
   function goodsHad(s, q) {
@@ -14818,7 +14826,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
           const cr = sim.recordCrime({ kind: 'pickpocket', perp: 'player', placeName: place, tile: tileOf(), seen, victimPerson: q, severity: 1 }); PS.crimes.push(cr.id);
           PS.rep.local = Math.max(-1, PS.rep.local - 0.15); PS.rep.civilian = Math.max(-1, PS.rep.civilian - 0.08);
           q.agent.talking = 40;
-          O.Panels.toast(`${q.first} catches your hand! “Cutpurse! Watch! WATCH!”`, 'bad');
+          O.Speech.say(q, 'Cutpurse! Watch! WATCH!', 3, 'angry');
         }
       };
     }
@@ -14869,7 +14877,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       chase = { g, t: 0, path: null, repath: 0, stun: 0 };
       g.agent.chasing = true; game.clock.speed = 1;
       g.agent.talking = 30;
-      O.Panels.toast(`${g.first} of the watch: “You there! Stop in the name of the law!”`, 'bad');
+      O.Speech.say(g, 'You there! Stop in the name of the law!', 3.5, 'angry');
       sim.remember(g, 'Gave chase to the wanted stranger.', 'work', 1.2);
     }
     function endChase(escaped) {
@@ -14892,7 +14900,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
           const range = night ? 50 : 85;
           if (d > range) continue;
           if (lvl >= 2 && sim.rng.chance(lvl === 3 ? 0.6 : 0.3)) { startChase(g); break; }
-          if (lvl === 1 && d < 30 && sim.rng.chance(0.04)) { O.Panels.toast(`${g.first} looks you up and down. “Hm. There's been thieving. Mind yourself.”`); g.agent.talking = 30; }
+          if (lvl === 1 && d < 30 && sim.rng.chance(0.04)) { O.Speech.say(g, "Hm. There's been thieving. Mind yourself.", 3.5); g.agent.talking = 30; }
         }
       }
       if (!chase) return;
@@ -14947,7 +14955,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
             for (const c of openCrimes()) c.closed = 'bribed';
             PS.bounty = false;
             sim.remember(g, 'Took coin from the stranger and let them go. Nobody needs to know.', 'crime', 2, 0);
-            endChase(false); O.UI.say(`${g.first} pockets the coin. “Never saw you.”`); return;
+            endChase(false); O.Speech.say(g, 'Never saw you.', 3); return;
           }
           if (t === 'fight') {
             done(); endChase(false);
@@ -15313,7 +15321,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
               PS.rep.local = Math.max(-1, PS.rep.local - 0.02);
             } else if (first || !q._assaulted) { q._assaulted = true; const c = crimeFor(q, guardHit ? 'assault on the watch' : w.key === 'fists' ? 'brawling' : 'assault', guardHit ? 3 : w.key === 'fists' ? 1 : 2); if (guardHit) PS.bounty = true; void c; sim.remember(q, 'The stranger attacked me.', 'crime', 2.5, 0); sim.relate(q, { id: 0 }, -0.8); }
             if (res === 'dead') { crimeFor(q, 'murder', 5); O.Panels.toast(`${q.first} lies still. You have killed a man of ${sim.world.name}.`, 'bad'); PS.bounty = true; fights.delete(q.id); }
-            else if (res !== 'incapacitated') { const prev = fights.get(q.id); const mode = react(q); fights.set(q.id, { mode, t: prev?.t || 0, cd: prev ? prev.cd : 0.7, looted: prev?.looted }); if (mode === 'surrender' && prev?.mode !== 'surrender') O.Panels.toast(`${q.first}: “Enough! Take my purse, take it!”`, 'bad'); if (mode === 'flee' && prev?.mode !== 'flee') { O.Panels.toast(`${q.first} runs, shouting for the watch!`, 'bad'); } }
+            else if (res !== 'incapacitated') { const prev = fights.get(q.id); const mode = react(q); fights.set(q.id, { mode, t: prev?.t || 0, cd: prev ? prev.cd : 0.7, looted: prev?.looted }); if (mode === 'surrender' && prev?.mode !== 'surrender') O.Speech.say(q, 'Enough! Take my purse, take it!', 3, 'angry'); if (mode === 'flee' && prev?.mode !== 'flee') { O.Speech.say(q, 'Help! Watch! Watch!', 3, 'angry'); } }
             else O.Panels.toast(`${q.first} falls and does not get up.`, 'bad');
           }
         }
@@ -15882,7 +15890,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
           const stolen = h.history.find((e) => e.event === 'stolen');
           if (stolen && sim.rng.chance(0.85)) {
             const prev = h.history.filter((e) => e.event !== 'stolen').slice(-1)[0];
-            O.Panels.close(); O.Panels.toast(`${trader.first}: “That's ${prev?.owner || 'someone'}'s horse! Watch! Horse thief!”`, 'bad');
+            O.Panels.close(); O.Speech.say(trader, `That's ${prev?.owner || 'someone'}'s horse! Watch! Horse thief!`, 3.5, 'angry');
             const cr = sim.recordCrime({ kind: 'horse theft', perp: 'player', placeName: stable.name || 'the stables', tile: [stable.doorX, stable.doorY], seen: [trader], severity: 3 }); PS.crimes.push(cr.id); return;
           }
           if (game.player.mount === h) dismount();
@@ -15915,7 +15923,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         h.formerOwner = h.owner; h.owner = 'player';
         mountHorse(h);
         PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.06);
-        if (seen.length) { const cr = sim.recordCrime({ kind: 'horse theft', perp: 'player', placeName: sim.where({ x: h.x, y: h.y }), tile: [Math.floor(h.x / T), Math.floor(h.y / T)], seen, severity: 3 }); PS.crimes.push(cr.id); O.Panels.toast(`${seen[0].first} shouts: “Horse thief! That's ${prevOwner}'s horse!”`, 'bad'); }
+        if (seen.length) { const cr = sim.recordCrime({ kind: 'horse theft', perp: 'player', placeName: sim.where({ x: h.x, y: h.y }), tile: [Math.floor(h.x / T), Math.floor(h.y / T)], seen, severity: 3 }); PS.crimes.push(cr.id); O.Speech.say(seen[0], `Horse thief! That's ${prevOwner}'s horse!`, 3.5, 'angry'); }
         else O.Panels.toast(`Nobody sees you lead ${prevOwner}'s horse away.`);
         if (typeof h.formerOwner === 'number') { const v = sim.byId.get(h.formerOwner); if (v) sim.remember(v, `My horse ${h.name} has been stolen!`, 'crime', 2.5); }
         return true;
@@ -16066,8 +16074,10 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       sim._cried = [...(sim._cried || []), ...fresh].slice(-12);
       const words = `Hear ye, hear ye! ${fresh.length ? fresh.join(' ') : `All is well in ${sim.world.name}.`}`;
       cr.agent.anim = 'wave';
-      O.Speech.say(cr, words.length > 160 ? words.slice(0, 157) + '…' : words, 9, 'shout', 140);
-      O.Panels.toast(`${cr.first} the crier: “${words}”`);
+      // read out a sentence at a time, over the crier's head
+      const parts = words.match(/[^.!?]+[.!?]+/g) || [words]; let k = 0;
+      const next = () => { if (k >= parts.length || cr.agent.hidden) return; O.Speech.say(cr, parts[k].trim(), 4.5, 'shout', 140); k++; setTimeout(next, 4300); };
+      next();
     });
     // the town criers of every place call out on their rounds, but only those near enough hear them
     let nextCall = 0;
@@ -16081,7 +16091,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         q._cried = game.t + 40;
         const n = (K.news || []).filter((x) => !x.secret).slice(-3), it = n.length ? n[(q.id + s.day + Math.floor(h)) % n.length].text : `${O.DAYNAMES[s.weekday]}, and all is well in ${s.world.name}.`;
         O.Speech.say(q, `Oyez, oyez! ${it}`, 8, 'shout', 140); q.agent.anim = 'wave';
-        O.UI.say(`${q.first} the crier calls: “${it}”`);
+        O.Speech.say(q, it, 5, 'shout', 140);
       }
     });
 
@@ -16926,7 +16936,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       }
     };
     function enlist(q) {
-      if (PS.wantedLevel && PS.wantedLevel() >= 2) return O.Panels.toast(`${q.first} looks at you hard. “I know a wanted face. The army's no hiding place for your sort.”`, 'bad');
+      if (PS.wantedLevel && PS.wantedLevel() >= 2) return void O.Speech.say(q, "I know a wanted face. The army's no hiding place for your sort.", 4, 'angry');
       PS.money += 12; PS.enlisted = { day: home.day };
       O.Panels.open("The King's coin", `<p class="speech">“${(O.Forge.player?.sex || O.Forge.player?.a?.sex) === 'f' ? 'Good lass' : 'Good lad'}. Twelve aurins now, three a day on the march, and a share of whatever we take off ${esc(K.war?.enemy || 'the enemy')}. We go north with the levy at four o'clock.”</p>
         <p class="caption">Marching with the levy means about four days away from ${esc(home.world.name)}. Taking the coin and slipping away is desertion: a crime, and the sergeant has seen your face.</p>
@@ -20812,7 +20822,21 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       if (html + top !== sig) { sig = html + top; el.innerHTML = html; el.style.top = top + 'px'; }
       el.hidden = false;
     });
-    O.GangLife = { RANKS, JOBS, mine, give, complete };
+    // what the talk can bring about with a gang's people: taken in, or given the gang's work
+    let wrapped = false;
+    game.hooks.update.push(() => {
+      if (wrapped || !O.NpcActs) return; wrapped = true;
+      const base = O.NpcActs.apply;
+      O.NpcActs.apply = function (s, q, a, main) {
+        if (a && (a.do === 'gang_in' || a.do === 'gang_work') && q.gang && q.gang !== 'player' && s.gang) {
+          const g = s.gang(q.gang); if (!g) return null;
+          if (a.do === 'gang_in') { if (memberOf(s, g.id) || (O.crowned && O.crowned())) return null; const said = join(s, g, q, (t) => t); return memberOf(s, g.id) ? `You run with ${g.name} now.` : /Lift two purses/.test(said || '') ? 'They want proof first: lift two purses in the town without being taken.' : null; }
+          const m = memberOf(s, g.id); if (!m) return null; const t = give(s, g, m, q); if (!t) return null; refresh(); return `The gang's work: ${t.text}.`;
+        }
+        return base.apply(this, arguments);
+      };
+    });
+    O.GangLife = { RANKS, JOBS, mine, give, complete, join };
   }
   O.GangLifeSetup = { setup };
 })();
@@ -21113,7 +21137,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       q.task = { act: 'home', b: keep.id, woken: abs(s) + 90 + Math.floor(Math.random() * 60) }; // once woken they lie awake a good while
       if (belongs(q, b)) {
         s.relate(q, { id: 0 }, -0.05);
-        say(`${q.first} stirs and sits up. “What? What is it?… Let me sleep.” It'll be a while before they get back to sleep.`);
+        O.Speech.say(q, 'What? What is it? Let me sleep.', 3);
         return true;
       }
       // a stranger at the bedside: up, and out of the door for help
@@ -21124,7 +21148,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       const near = keep.royal && guards.find((g) => g.agent.inside === keep.id);
       q.task = { act: 'report', b: near ? keep.id : s.guardId, crime: cr.id, woken: abs(s) + 150 };
       for (const z of list.slice(1)) z.task = { act: 'home', b: keep.id, woken: abs(s) + 120 };
-      say(`${q.first} wakes with a start and sees you. “Who are you? Get out! ${keep.royal ? 'Guards! GUARDS!' : 'Help! Watch!'}” They scramble out of bed and run for help.`, 'bad');
+      O.Speech.say(q, `Who are you? Get out! ${keep.royal ? 'Guards! GUARDS!' : 'Help! Watch!'}`, 3.5, 'angry');
       if (near && O.lawReport) O.lawReport(cr, near);
       return true;
     };

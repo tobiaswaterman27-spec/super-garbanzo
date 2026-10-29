@@ -227,7 +227,7 @@
           const stolen = h.history.find((e) => e.event === 'stolen');
           if (stolen && sim.rng.chance(0.85)) {
             const prev = h.history.filter((e) => e.event !== 'stolen').slice(-1)[0];
-            O.Panels.close(); O.Panels.toast(`${trader.first}: “That's ${prev?.owner || 'someone'}'s horse! Watch! Horse thief!”`, 'bad');
+            O.Panels.close(); O.Speech.say(trader, `That's ${prev?.owner || 'someone'}'s horse! Watch! Horse thief!`, 3.5, 'angry');
             const cr = sim.recordCrime({ kind: 'horse theft', perp: 'player', placeName: stable.name || 'the stables', tile: [stable.doorX, stable.doorY], seen: [trader], severity: 3 }); PS.crimes.push(cr.id); return;
           }
           if (game.player.mount === h) dismount();
@@ -260,7 +260,7 @@
         h.formerOwner = h.owner; h.owner = 'player';
         mountHorse(h);
         PS.rep.criminal = Math.min(1, PS.rep.criminal + 0.06);
-        if (seen.length) { const cr = sim.recordCrime({ kind: 'horse theft', perp: 'player', placeName: sim.where({ x: h.x, y: h.y }), tile: [Math.floor(h.x / T), Math.floor(h.y / T)], seen, severity: 3 }); PS.crimes.push(cr.id); O.Panels.toast(`${seen[0].first} shouts: “Horse thief! That's ${prevOwner}'s horse!”`, 'bad'); }
+        if (seen.length) { const cr = sim.recordCrime({ kind: 'horse theft', perp: 'player', placeName: sim.where({ x: h.x, y: h.y }), tile: [Math.floor(h.x / T), Math.floor(h.y / T)], seen, severity: 3 }); PS.crimes.push(cr.id); O.Speech.say(seen[0], `Horse thief! That's ${prevOwner}'s horse!`, 3.5, 'angry'); }
         else O.Panels.toast(`Nobody sees you lead ${prevOwner}'s horse away.`);
         if (typeof h.formerOwner === 'number') { const v = sim.byId.get(h.formerOwner); if (v) sim.remember(v, `My horse ${h.name} has been stolen!`, 'crime', 2.5); }
         return true;

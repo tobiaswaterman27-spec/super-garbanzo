@@ -58,7 +58,7 @@
           const cr = sim.recordCrime({ kind: 'pickpocket', perp: 'player', placeName: place, tile: tileOf(), seen, victimPerson: q, severity: 1 }); PS.crimes.push(cr.id);
           PS.rep.local = Math.max(-1, PS.rep.local - 0.15); PS.rep.civilian = Math.max(-1, PS.rep.civilian - 0.08);
           q.agent.talking = 40;
-          O.Panels.toast(`${q.first} catches your hand! “Cutpurse! Watch! WATCH!”`, 'bad');
+          O.Speech.say(q, 'Cutpurse! Watch! WATCH!', 3, 'angry');
         }
       };
     }
@@ -109,7 +109,7 @@
       chase = { g, t: 0, path: null, repath: 0, stun: 0 };
       g.agent.chasing = true; game.clock.speed = 1;
       g.agent.talking = 30;
-      O.Panels.toast(`${g.first} of the watch: “You there! Stop in the name of the law!”`, 'bad');
+      O.Speech.say(g, 'You there! Stop in the name of the law!', 3.5, 'angry');
       sim.remember(g, 'Gave chase to the wanted stranger.', 'work', 1.2);
     }
     function endChase(escaped) {
@@ -132,7 +132,7 @@
           const range = night ? 50 : 85;
           if (d > range) continue;
           if (lvl >= 2 && sim.rng.chance(lvl === 3 ? 0.6 : 0.3)) { startChase(g); break; }
-          if (lvl === 1 && d < 30 && sim.rng.chance(0.04)) { O.Panels.toast(`${g.first} looks you up and down. “Hm. There's been thieving. Mind yourself.”`); g.agent.talking = 30; }
+          if (lvl === 1 && d < 30 && sim.rng.chance(0.04)) { O.Speech.say(g, "Hm. There's been thieving. Mind yourself.", 3.5); g.agent.talking = 30; }
         }
       }
       if (!chase) return;
@@ -187,7 +187,7 @@
             for (const c of openCrimes()) c.closed = 'bribed';
             PS.bounty = false;
             sim.remember(g, 'Took coin from the stranger and let them go. Nobody needs to know.', 'crime', 2, 0);
-            endChase(false); O.UI.say(`${g.first} pockets the coin. “Never saw you.”`); return;
+            endChase(false); O.Speech.say(g, 'Never saw you.', 3); return;
           }
           if (t === 'fight') {
             done(); endChase(false);

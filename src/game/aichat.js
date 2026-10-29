@@ -146,7 +146,9 @@
     if (ctx.prices && ctx.prices.bread) lines.push(`A loaf costs ₳${ctx.prices.bread}.`);
     // now
     const h = s.hour, t = `${Math.floor(h) % 12 || 12}${h < 12 ? 'am' : 'pm'}`, inside = q.agent.inside != null ? s.building(q.agent.inside) : null;
-    lines.push(`Now: ${t}, ${s.season}, ${s.weather ? s.weather.kind : 'clear'}. You are ${O.ACT_LABEL && O.ACT_LABEL[q.activity?.act] || 'about'}${inside ? ` in ${placeOf(s, inside, cx, cy).replace(/ \(.*\)$/, '')}` : ' outdoors'}.`);
+    const dest = q.activity && q.activity.b != null && q.agent.inside !== q.activity.b ? s.building(q.activity.b) : null;
+    lines.push(`Now: ${t}, ${s.season}, ${s.weather ? s.weather.kind : 'clear'}. You are ${O.ACT_LABEL && O.ACT_LABEL[q.activity?.act] || 'about'}${inside ? ` in ${placeOf(s, inside, cx, cy).replace(/ \(.*\)$/, '')}` : ' outdoors'}${dest ? `, on your way to ${placeOf(s, dest, cx, cy).replace(/ \(.*\)$/, '')}` : ''}.`);
+    if (q._lastTalkAt != null) { const ago = s.day * 1440 + s.minute - q._lastTalkAt; lines.push(`You last spoke with the player ${ago < 10 ? 'just a moment ago' : ago < 60 ? 'a little while ago' : ago < 600 ? 'earlier today' : ago < 1440 * 2 ? 'yesterday' : `${Math.round(ago / 1440)} days ago`}.`); }
     // the player, as far as they know them
     const r = q.rel.get(0) || { affinity: 0, familiar: 0 };
     const known = r.name ? `${r.name}` : 'a stranger whose name you do not know';
@@ -202,7 +204,7 @@ They know only what their card says; asked anything else they don't know, guess 
 people: for each person present: feel and trust (-2..2) = how the player's words change their liking and belief; learned = a short new claim from the player they now believe, else ""; caught = true if they now see the player lied before.
 name: the player's name if the player just gave it. agree: true only if they now agree to the pending request.
 acts: only what a speaker truly agrees to or does, each {"who":"First name","do":...}:
-meet {"place","hour":0-23,"day":"today"|"tomorrow"|weekday,"why"} | follow (come along with the player now) | stop (stop following) | go {"place"} (go there now) | invite (let the player into their home today) | give {"item"} (hand over something they have) | want {"item"} (ask the player for something) | take_gift | refuse_gift | take_job (accept the player's own job when offered) | seek_job {"place"} | tell {"to","msg"} (pass a message to someone they know) | like {"of","by":-1 or 1} (think better or worse of someone after what was said) | leave (end the talk and walk off: rude player, busy, bored, or done).
+meet {"place","hour":0-23,"day":"today"|"tomorrow"|weekday,"why"} | follow (come along with the player now) | stop (stop following) | go {"place"} (go there now) | invite (let the player into their home today) | give {"item"} (hand over something they have) | want {"item"} (ask the player for something) | take_gift | refuse_gift | take_job (accept the player's own job when offered) | seek_job {"place"} | tell {"to","msg"} (pass a message to someone they know) | like {"of","by":-1 or 1} (think better or worse of someone after what was said) | leave (end the talk and walk off: rude player, busy, bored, or done). If a speaker says they are off somewhere now, add a go act for it (or leave).
 Places: names from the card, "my home", "your home" or "the square". Items: things the speaker has, or the player carries.`;
   const G = () => O.Data.GOODS;
   function goodsHad(s, q) {

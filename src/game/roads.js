@@ -18,7 +18,8 @@
     const legacy = { west: world.exits.west, east: world.exits.east };
     const used = { east: 0, west: 0, north: 0, south: 0 };
     const inBuilding = (x, y) => world.buildings.some((b) => x >= b.x - 1 && x < b.x + b.w + 1 && y >= b.y - 1 && y <= b.bottom + 1);
-    const propAt = (x, y) => world.props.find((p) => p.solid && Math.floor(p.x / T) === x && Math.floor((p.y - 1) / T) === y);
+    const propIx = new Map(); for (const p of world.props) if (p.solid) { const k = Math.floor(p.x / T) + ',' + Math.floor((p.y - 1) / T); if (!propIx.has(k)) propIx.set(k, p); }
+    const propAt = (x, y) => propIx.get(x + ',' + y);
     for (const id of K.neighbours(place.id).sort()) {
       if (world.exits[id]) continue;
       const q = K.place(id), dx = q.x - place.x, dy = q.y - place.y, len = Math.hypot(dx, dy) || 1;

@@ -12571,10 +12571,14 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       // before the crown (or a lord), folk bow or curtsy
       if (O.gesture && q.age >= 6 && ((O.crowned && O.crowned()) || O.PlayerState.title)) O.gesture(q, q.sex === 'f' ? 'curtsy' : 'bow', 1.8);
       if (r.familiar <= 0.11) sim.remember(q, 'A stranger stopped me in the street to talk.', 'player', 0.8, 0);
-      renderTalk(O.Dialogue.provider.greet(O.Dialogue.buildContext(sim, q), q.id + sim.day));
+      // back again so soon: they know it
+      const since = q._lastTalkAt != null ? absNow() - q._lastTalkAt : null;
+      const again = since != null && since < 90 ? pick(since < 10 ? ['Back again?', 'You again? What is it?', 'Forget something?', 'Yes?'] : ['Hello again.', 'Twice in one day!', 'Back so soon?']) : null;
+      if (!(since != null && since < 120)) q._conv = []; // a fresh talk, unless it carries on from just now
+      renderTalk(again || O.Dialogue.provider.greet(O.Dialogue.buildContext(sim, q), q.id + sim.day));
     }
     function closeTalk() { if (talking) { O.AIChat && O.AIChat.ended(talking); for (const z of talking._group || []) { z.agent.frozen = false; z.agent.talking = 0; } }
-      if (talking) { talking.agent.frozen = false; talking.agent.talking = 0; } talking = null; card.hidden = true; if (O.UI.dialogOpen()) O.UI.dialog.close(); }
+      if (talking) { const a = talking.agent; a.frozen = false; a.talking = 0; talking._lastTalkAt = absNow(); if (a.inside == null && !a.chasing) { a.path = null; a.goal = null; } } talking = null; /* (and on their way again) */ card.hidden = true; if (O.UI.dialogOpen()) O.UI.dialog.close(); }
     function bar(v, cls = '') { return `<span class="bar ${cls}"><i style="width:${Math.round(O.clamp(v, 0, 100))}%"></i></span>`; }
     // name tag in the colour of their clothes
     function tagColour(q) { const m = q.app?.outfit?.over; const r = m != null && O.Pal.ramp ? O.Pal.ramp(m) : null; return r ? `rgb(${r[2][0]},${r[2][1]},${r[2][2]})` : '#b0683a'; }
@@ -12589,7 +12593,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       if (atWork) options.push({ key: 'trade', label: 'Show me your wares', hot: true });
       if (q.job?.role === 'parish clerk' && q.activity?.act === 'work' && O.knowsTrade(q)) options.push({ key: 'houses', label: 'Houses to let or sell', hot: true });
       if (!(O.AI && O.AI.ready)) { for (const [k, l] of [['self', 'How are you?'], ['work', 'What do you do?'], ['news', 'Any news?'], ['family', 'Your family?']]) options.push({ key: k, label: l }); options.push({ key: 'bye', label: 'Goodbye' }); }
-      O.UI.dialog.open({ name: (q._lastSpeaker && q._lastSpeaker !== q ? q._lastSpeaker.first : q.gentry ? q.name : q.first + (q.title ? `, ${q.title}` : q.office ? `, ${q.office}` : '')), color: tagColour(q._lastSpeaker || q), text: busy ? '' : line, busy, options: busy ? [] : options, chat: O.AI && O.AI.ready ? (t) => O.AIChat.say(q, t, (ln, b) => { if (talking === q) renderTalk(ln, b); }) : null, give: O.AI && O.AI.ready ? (g) => O.AIChat.give(q, g, (ln, b) => { if (talking === q) renderTalk(ln, b); }) : null, focus: true, onPick: (t) => pickTopic(q, bz, t), onClose: () => { O.AIChat && O.AIChat.ended(q); if (talking === q) { q.agent.frozen = false; q.agent.talking = 0; talking = null; } } });
+      O.UI.dialog.open({ name: (q._lastSpeaker && q._lastSpeaker !== q ? q._lastSpeaker.first : q.gentry ? q.name : q.first + (q.title ? `, ${q.title}` : q.office ? `, ${q.office}` : '')), color: tagColour(q._lastSpeaker || q), text: busy ? '' : line, busy, options: busy ? [] : options, chat: O.AI && O.AI.ready ? (t) => O.AIChat.say(q, t, (ln, b) => { if (talking === q) renderTalk(ln, b); }) : null, give: O.AI && O.AI.ready ? (g) => O.AIChat.give(q, g, (ln, b) => { if (talking === q) renderTalk(ln, b); }) : null, focus: true, onPick: (t) => pickTopic(q, bz, t), onClose: () => { O.AIChat && O.AIChat.ended(q); q._lastTalkAt = absNow(); if (talking === q) { q.agent.frozen = false; q.agent.talking = 0; if (q.agent.inside == null && !q.agent.chasing) { q.agent.path = null; q.agent.goal = null; } talking = null; } } });
     }
     function pickTopic(q, bz, t) {
       if (t === 'bye') { const bye = ['Fare you well.', 'God keep you.', 'Mind how you go.', 'Until next time.'][(q.id + sim.day) % 4]; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: bye, options: [] }); talking = null; q.agent.frozen = false; setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1600); return; }
@@ -12832,7 +12836,9 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     if (ctx.prices && ctx.prices.bread) lines.push(`A loaf costs ₳${ctx.prices.bread}.`);
     // now
     const h = s.hour, t = `${Math.floor(h) % 12 || 12}${h < 12 ? 'am' : 'pm'}`, inside = q.agent.inside != null ? s.building(q.agent.inside) : null;
-    lines.push(`Now: ${t}, ${s.season}, ${s.weather ? s.weather.kind : 'clear'}. You are ${O.ACT_LABEL && O.ACT_LABEL[q.activity?.act] || 'about'}${inside ? ` in ${placeOf(s, inside, cx, cy).replace(/ \(.*\)$/, '')}` : ' outdoors'}.`);
+    const dest = q.activity && q.activity.b != null && q.agent.inside !== q.activity.b ? s.building(q.activity.b) : null;
+    lines.push(`Now: ${t}, ${s.season}, ${s.weather ? s.weather.kind : 'clear'}. You are ${O.ACT_LABEL && O.ACT_LABEL[q.activity?.act] || 'about'}${inside ? ` in ${placeOf(s, inside, cx, cy).replace(/ \(.*\)$/, '')}` : ' outdoors'}${dest ? `, on your way to ${placeOf(s, dest, cx, cy).replace(/ \(.*\)$/, '')}` : ''}.`);
+    if (q._lastTalkAt != null) { const ago = s.day * 1440 + s.minute - q._lastTalkAt; lines.push(`You last spoke with the player ${ago < 10 ? 'just a moment ago' : ago < 60 ? 'a little while ago' : ago < 600 ? 'earlier today' : ago < 1440 * 2 ? 'yesterday' : `${Math.round(ago / 1440)} days ago`}.`); }
     // the player, as far as they know them
     const r = q.rel.get(0) || { affinity: 0, familiar: 0 };
     const known = r.name ? `${r.name}` : 'a stranger whose name you do not know';
@@ -12888,7 +12894,7 @@ They know only what their card says; asked anything else they don't know, guess 
 people: for each person present: feel and trust (-2..2) = how the player's words change their liking and belief; learned = a short new claim from the player they now believe, else ""; caught = true if they now see the player lied before.
 name: the player's name if the player just gave it. agree: true only if they now agree to the pending request.
 acts: only what a speaker truly agrees to or does, each {"who":"First name","do":...}:
-meet {"place","hour":0-23,"day":"today"|"tomorrow"|weekday,"why"} | follow (come along with the player now) | stop (stop following) | go {"place"} (go there now) | invite (let the player into their home today) | give {"item"} (hand over something they have) | want {"item"} (ask the player for something) | take_gift | refuse_gift | take_job (accept the player's own job when offered) | seek_job {"place"} | tell {"to","msg"} (pass a message to someone they know) | like {"of","by":-1 or 1} (think better or worse of someone after what was said) | leave (end the talk and walk off: rude player, busy, bored, or done).
+meet {"place","hour":0-23,"day":"today"|"tomorrow"|weekday,"why"} | follow (come along with the player now) | stop (stop following) | go {"place"} (go there now) | invite (let the player into their home today) | give {"item"} (hand over something they have) | want {"item"} (ask the player for something) | take_gift | refuse_gift | take_job (accept the player's own job when offered) | seek_job {"place"} | tell {"to","msg"} (pass a message to someone they know) | like {"of","by":-1 or 1} (think better or worse of someone after what was said) | leave (end the talk and walk off: rude player, busy, bored, or done). If a speaker says they are off somewhere now, add a go act for it (or leave).
 Places: names from the card, "my home", "your home" or "the square". Items: things the speaker has, or the player carries.`;
   const G = () => O.Data.GOODS;
   function goodsHad(s, q) {
@@ -17009,7 +17015,8 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
     const legacy = { west: world.exits.west, east: world.exits.east };
     const used = { east: 0, west: 0, north: 0, south: 0 };
     const inBuilding = (x, y) => world.buildings.some((b) => x >= b.x - 1 && x < b.x + b.w + 1 && y >= b.y - 1 && y <= b.bottom + 1);
-    const propAt = (x, y) => world.props.find((p) => p.solid && Math.floor(p.x / T) === x && Math.floor((p.y - 1) / T) === y);
+    const propIx = new Map(); for (const p of world.props) if (p.solid) { const k = Math.floor(p.x / T) + ',' + Math.floor((p.y - 1) / T); if (!propIx.has(k)) propIx.set(k, p); }
+    const propAt = (x, y) => propIx.get(x + ',' + y);
     for (const id of K.neighbours(place.id).sort()) {
       if (world.exits[id]) continue;
       const q = K.place(id), dx = q.x - place.x, dy = q.y - place.y, len = Math.hypot(dx, dy) || 1;

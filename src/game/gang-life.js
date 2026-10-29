@@ -316,11 +316,6 @@
       if (html + top !== sig) { sig = html + top; el.innerHTML = html; el.style.top = top + 'px'; }
       el.hidden = false;
     });
-    // a marker over where the gang's work is waiting
-    game.hooks.drawTop.push((ctx, cam, indoor) => {
-      if (indoor) return; const s = cur(), bob = Math.round(Math.sin(game.t * 4) * 2);
-      for (const m of here(s)) { const t = m.task; if (!t || t.done || !t.at) continue; const x = Math.round(t.at[0] - cam.x), y = Math.round(t.at[1] - 40 - cam.y) + bob; ctx.fillStyle = '#1b1424'; ctx.fillRect(x - 3, y - 1, 7, 5); ctx.fillRect(x - 1, y + 4, 3, 2); ctx.fillStyle = '#c04a3a'; ctx.fillRect(x - 2, y, 5, 3); ctx.fillRect(x, y + 3, 1, 2); }
-    });
     O.GangLife = { RANKS, JOBS, mine, give, complete };
   }
   O.GangLifeSetup = { setup };

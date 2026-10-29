@@ -122,7 +122,7 @@
     {
       const bar = document.createElement('div'); bar.className = 'touchbar'; root.appendChild(bar);
       const press = (code, key) => { const ev = new KeyboardEvent('keydown', { code, key, bubbles: true }); window.dispatchEvent(ev); setTimeout(() => window.dispatchEvent(new KeyboardEvent('keyup', { code, key, bubbles: true })), 60); };
-      const B = [['KeyE', 'e', 'E', 'act', 'big'], ['KeyQ', 'q', 'Q', 'steal'], ['Space', ' ', '⚔', 'strike'], ['ShiftLeft', 'Shift', '»', 'run'], ['KeyJ', 'j', 'J', 'undertakings'], ['KeyB', 'b', 'B', 'business'], ['KeyI', 'i', 'I', 'satchel'], ['KeyM', 'm', 'M', 'map'], ['Escape', 'Escape', '☰', 'menu']];
+      const B = [['KeyE', 'e', 'E', 'act', 'big'], ['KeyQ', 'q', 'Q', 'steal'], ['Space', ' ', '⚔', 'strike'], ['ShiftLeft', 'Shift', '»', 'run'], ['KeyJ', 'j', 'J', 'undertakings'], ['KeyN', 'n', '➤', 'where to'], ['KeyB', 'b', 'B', 'business'], ['KeyI', 'i', 'I', 'satchel'], ['KeyM', 'm', 'M', 'map'], ['Escape', 'Escape', '☰', 'menu']];
       bar.innerHTML = B.map(([c, k, l, n, big]) => `<button data-code="${c}" data-key="${k}" class="${big || ''}" aria-label="${n}">${l}</button>`).join('');
       bar.querySelectorAll('button').forEach((b) => {
         if (b.dataset.code === 'ShiftLeft') { b.ontouchstart = (e) => { e.preventDefault(); game.keys.add('run'); b.classList.add('on'); }; b.ontouchend = () => { game.keys.delete('run'); b.classList.remove('on'); }; return; }

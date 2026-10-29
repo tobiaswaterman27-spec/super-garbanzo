@@ -325,6 +325,10 @@ body, button, input, select { -webkit-font-smoothing: none; font-smooth: never; 
 .cc-slide input { accent-color: #f2b33d; width: 100%; }
 .cc-slide b { color: #a07a45; font-weight: 700; text-align: right; }
 @media (max-width: 760px) { .cc-card { grid-template-columns: 1fr; } .cc-stage canvas { width: 160px; height: 216px; } .cc-pane { max-height: none; } }
+
+.wayoffer { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 30; display: flex; gap: 8px; align-items: center; background: rgba(27,20,36,.92); border: 2px solid #f0b45c; padding: 6px 10px; color: var(--parch); font-family: var(--body); font-size: 14px; }
+.wayoffer button { font-family: var(--pix); font-size: 10px; background: var(--ember); color: var(--ink); border: 2px solid #000; padding: 4px 8px; cursor: pointer; }
+.wayoffer button[data-n] { background: var(--ink-2); color: var(--parch); }
 </style>
 
 <main>

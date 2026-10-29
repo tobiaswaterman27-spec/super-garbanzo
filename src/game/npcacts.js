@@ -226,6 +226,7 @@
       case 'meet': return meet(s, q, a);
       case 'follow': follow.set(q.id, abs(s) + 180); goTo.delete(q.id); return `${q.first} comes along with you.`;
       case 'lead': { leading.set(q.id, abs(s) + 120); if (a.place) { const pl = placeFor(s, q, a.place); if (pl) goTo.set(q.id, { b: pl.b ?? null, until: abs(s) + 120 }); } return null; }
+      case 'direct': { const pl = placeFor(s, q, a.place); if (!pl) return null; const l = { place: s.world.placeId, b: pl.b ?? undefined, tile: pl.tile || undefined, why: 'directions', key: 'dir:' + (pl.b ?? String(pl.tile)), label: pl.label, until: abs(s) + 720 }; O.addLead && O.addLead(l); O.offerWay && O.offerWay(l); return null; }
       case 'stop': if (leading.delete(q.id)) { q.agent.frozen = false; } if (follow.delete(q.id)) { q.agent.chasing = false; return `${q.first} goes about their day.`; } return null;
       case 'go': { const pl = placeFor(s, q, a.place); if (!pl) return null; goTo.set(q.id, { b: pl.b ?? null, until: abs(s) + 120 }); return null; }
       case 'invite': { if (q.home == null) return null; invites.set(q.home, abs(s) + 360); O.toldOfVisit && O.toldOfVisit(s, q); const b = s.building(q.home); O.addLead && O.addLead({ place: s.world.placeId, b: q.home, until: abs(s) + 360, why: 'invite', key: 'inv' + q.id, label: `${q.first}'s house: you're welcome today` }); return `${q.first} says you may come to their house today${b ? '' : ''}.`; }

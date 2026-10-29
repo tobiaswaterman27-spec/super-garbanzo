@@ -732,6 +732,7 @@
       const bz = s.biz.get(e.biz); if (!bz) return null; const [o] = hoursOf(e, bz);
       return s.hour >= o - 1 && s.hour < o && s.day >= (e.firstDay || 0) ? { b: bz.id, label: `${modeOf(e.role) === 'quota' ? 'Your work' : 'Your shift'} at ${bz.name}, from ${fmtH(o)}` } : null;
     };
+    O.jobWayTarget = () => { const e = here(); if (!e || !e.onShift) return null; const t = e.tasks.find((x) => x.have < x.need); return { label: t ? t.text : 'Your work' }; };
     // ---------------------------------------------------------------- markers over where the work is
     game.hooks.drawTop.push((ctx, cam, indoor) => {
       const e = here(); if (!e || !e.onShift) return;
@@ -759,13 +760,13 @@
           const spots = spotsFor(t, s, bz, e);
           if (spots) spots.forEach(([x, y], k) => { if (!(t.done || []).includes(k)) mark(x, y - 40); });
           else if (t.kind !== 'unload') mark(bz.b.doorX * T + 8, bz.b.doorY * T - 50);
-          else mark(bz.b.doorX * T + 8, bz.b.doorY * T - 50);
+          else targets.push([bz.b.doorX * T + 8, bz.b.doorY * T - 30]);
         }
       }
       // the arrow points the way to the nearest, shrinking as you near it until it's only the mark over it
       const P = game.player;
       if (indoor && game.scene && game.scene.b.id !== bz.id && !targets.length && PS.guides !== 'off') { const w = O.wayOut ? O.wayOut() : game.scene.wayIn(); if (w) targets.push([w[0], w[1] - 20]); } // the way out
-      if (!targets.length) return;
+      if (!targets.length || !(O.wayIs && O.wayIs('job'))) return;
       const [tx, ty] = targets.sort((a, b) => Math.hypot(a[0] - P.x, a[1] - P.y) - Math.hypot(b[0] - P.x, b[1] - P.y))[0];
       const nextT = e.tasks.find((x) => x.have < x.need);
       O.guideArrow && O.guideArrow(ctx, cam, tx, ty, nextT ? nextT.text : 'Your work');

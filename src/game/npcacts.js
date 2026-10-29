@@ -64,6 +64,7 @@
     }
     s.remember(q, `${r.name || 'A stranger'} gave me ${o.label}.`, 'player', 0.8, 0);
     O.gesture && O.gesture(q, 'nod', 1.6);
+    for (const f of O.onGift || []) f(s, q, o);
   }
   function returnGift(q, o) {
     const P = PS(); if (o.g === 'coin') P.money += o.n; else if (!P.add(o.g)) O.UI.say(`You've no room; you set the ${(G()[o.g]?.name || o.g).toLowerCase()} down.`);
@@ -103,16 +104,19 @@
   // ---------------------------------------------------------------- the day's plans bend to what was agreed
   const follow = new Map(); // person id -> until (abs minutes)
   const goTo = new Map(); // person id -> { b, until }
+  const leading = new Map(); // person id -> until: you go along with them while they go about their way
   const invites = new Map(); // building id -> until
   function following(q) { const u = follow.get(q.id); return !!u && u > abs(O.SimRef.cur); }
   { const SP = O.Sim.prototype, _plan = SP.plan;
     SP.plan = function (p) {
       const now = abs(this), place = this.world.placeId;
-      if (follow.has(p.id) && this === O.SimRef.cur) {
+      // an errand under way (goods to deliver, shopping to carry home) is finished first
+      const busyWith = p.task && ['deliver', 'carry-home', 'collect', 'report'].includes(p.task.act);
+      if (follow.has(p.id) && this === O.SimRef.cur && !busyWith) {
         if (follow.get(p.id) < now || p.health.illness?.sev > 0.6) { follow.delete(p.id); p.agent.chasing = false; }
         else { const sc = O.game.scene; if (sc) { p.agent.chasing = false; return { act: 'visit', b: (sc.b.parent || sc.b).id }; } return { act: 'follow', outdoor: true, zone: 'square' }; }
       }
-      const g = goTo.get(p.id); if (g) { if (g.until < now) goTo.delete(p.id); else return g.b != null ? { act: 'visit', b: g.b } : { act: 'stroll', outdoor: true, zone: 'square' }; }
+      const g = !busyWith && goTo.get(p.id); if (g) { if (g.until < now) goTo.delete(p.id); else return g.b != null ? { act: 'visit', b: g.b } : { act: 'stroll', outdoor: true, zone: 'square' }; }
       for (const m of (PS().meets || [])) {
         if (m.who !== p.id || m.place !== place || m.state !== 'set' || m.flake) continue;
         if (now >= m.at + m.off - 35 && now <= m.at + 90 + Math.max(0, m.off)) return m.b != null ? { act: 'meet', b: m.b } : { act: 'stroll', outdoor: true, zone: 'square' };
@@ -130,6 +134,16 @@
       const a = z.agent, tx = h.agent.x + 16, ty = h.agent.y + 6, dx = tx - a.x, dy = ty - a.y, d = Math.hypot(dx, dy) || 1; a.chasing = true; a.path = null;
       if (d > 8) { const sp = 95 * dt, nx = a.x + (dx / d) * sp, ny = a.y + (dy / d) * sp; if (!g.solidAt(nx, ny)) { a.x = nx; a.y = ny; } else if (!g.solidAt(nx, a.y)) a.x = nx; else if (!g.solidAt(a.x, ny)) a.y = ny; a.anim = 'run'; a.dir = O.dirOf(dx, dy); }
       else { joining.delete(id); a.chasing = false; a.frozen = true; a.anim = 'idle'; a.dir = O.dirOf(g.player.x - a.x, g.player.y - a.y); (h._group = h._group || []).push(z); O.gesture && O.gesture(z, z.age > 6 ? 'wave' : 'nod', 1.4); }
+    }
+    // going along together: they keep their own way, and wait for you if you fall behind
+    for (const [id, until] of leading) {
+      const q = s.byId.get(id); if (!q) { leading.delete(id); continue; }
+      const a = q.agent; if (O.npcUI && O.npcUI.talking() === q) continue;
+      if (a.hidden || a.inside != null) { if (abs(s) > until || !a.hidden) leading.delete(id); continue; }
+      const d = Math.hypot(g.player.x - a.x, g.player.y - a.y);
+      if (abs(s) > until || d > 700) { leading.delete(id); if (a._leadWait) { a.frozen = false; a._leadWait = false; } if (d > 700) s.remember(q, 'Lost the stranger on the way; they never kept up.', 'player', 0.6, 0); continue; }
+      if (d > 140 && !a._leadWait) { a._leadWait = true; a.frozen = true; }
+      if (a._leadWait) { a.dir = O.dirOf(g.player.x - a.x, g.player.y - a.y); a.anim = 'idle'; if (d < 70) { a._leadWait = false; a.frozen = false; } }
     }
     for (const [id] of follow) {
       const q = s.byId.get(id); if (!q || q.agent.hidden || q.agent.inside != null) continue;
@@ -170,6 +184,7 @@
   function done(s, q, m, met) {
     const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r);
     O.dropLead && O.dropLead((l) => l.key === m.id);
+    for (const f of O.onMeetDone || []) f(s, q, m, met);
     if (met) { r.affinity = clamp(r.affinity + (/date|court|walk/i.test(m.why) ? 0.14 : 0.07), -1, 1); r.familiar = Math.min(1, r.familiar + 0.1); s.remember(q, `Met ${r.name || 'the stranger'} at ${m.label.split(',')[0]} as we agreed.`, 'player', 0.9, 0); O.UI.say(`${q.first} is here, as agreed.`); }
     else if (m.state === 'missed') { r.affinity = clamp(r.affinity - 0.15, -1, 1); r.trust = clamp((r.trust || 0) - 0.12, -1, 1); s.remember(q, `Waited for ${r.name || 'the stranger'} at ${m.label.split(',')[0]}, and they never came.`, 'player', 1, 0); O.UI.say(`You missed meeting ${q.first}.`, 'bad'); }
     else { s.remember(q, `Forgot to meet ${r.name || 'the stranger'} at ${m.label.split(',')[0]}.`, 'player', 0.7, 0); O.UI.say(`${q.first} never came.`, 'bad'); }
@@ -210,7 +225,8 @@
     switch (a.do) {
       case 'meet': return meet(s, q, a);
       case 'follow': follow.set(q.id, abs(s) + 180); goTo.delete(q.id); return `${q.first} comes along with you.`;
-      case 'stop': if (follow.delete(q.id)) { q.agent.chasing = false; return `${q.first} goes about their day.`; } return null;
+      case 'lead': { leading.set(q.id, abs(s) + 120); if (a.place) { const pl = placeFor(s, q, a.place); if (pl) goTo.set(q.id, { b: pl.b ?? null, until: abs(s) + 120 }); } return null; }
+      case 'stop': if (leading.delete(q.id)) { q.agent.frozen = false; } if (follow.delete(q.id)) { q.agent.chasing = false; return `${q.first} goes about their day.`; } return null;
       case 'go': { const pl = placeFor(s, q, a.place); if (!pl) return null; goTo.set(q.id, { b: pl.b ?? null, until: abs(s) + 120 }); return null; }
       case 'invite': { if (q.home == null) return null; invites.set(q.home, abs(s) + 360); O.toldOfVisit && O.toldOfVisit(s, q); const b = s.building(q.home); O.addLead && O.addLead({ place: s.world.placeId, b: q.home, until: abs(s) + 360, why: 'invite', key: 'inv' + q.id, label: `${q.first}'s house: you're welcome today` }); return `${q.first} says you may come to their house today${b ? '' : ''}.`; }
       case 'give': return npcGives(s, q, a.item);

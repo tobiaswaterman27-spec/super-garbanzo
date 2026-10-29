@@ -114,12 +114,38 @@
       }
     };
 
+    // A town that has lived together for years: family close, a few true friends of an age, workmates,
+    // neighbours known by sight and name, gang hands thick as thieves, and the odd old grudge.
+    P.bondsInit = function () {
+      const r = this.rng, ppl = this.people.filter((p) => !p.visitor && p.alive !== false);
+      const set = (a, b, aff, fam) => { if (!a || !b || a === b) return; const o = a.rel.get(b.id); if (o && Math.abs(o.affinity) >= Math.abs(aff)) return; a.rel.set(b.id, { affinity: +aff.toFixed(2), familiar: Math.max(fam, o ? o.familiar : 0) }); };
+      const both = (a, b, aff, fam, jit = 0.1) => { set(a, b, aff + r.float(-jit, jit), fam); set(b, a, aff + r.float(-jit, jit), fam); };
+      for (const p of ppl) {
+        if (p.spouse) set(p, this.byId.get(p.spouse), r.float(0.45, 0.9), 1);
+        for (const id of [...(p.parents || []), ...(p.children || [])]) set(p, this.byId.get(id), r.float(0.4, 0.85), 1);
+        const hh = this.household(p); if (hh) for (const id of hh.members) if (id !== p.id) set(p, this.byId.get(id), r.float(0.3, 0.7), 1);
+      }
+      // workmates
+      for (const bz of this.biz.values()) { const ws = bz.workers.map((id) => this.byId.get(id)).filter(Boolean); for (let i = 0; i < ws.length; i++) for (let j = i + 1; j < ws.length; j++) both(ws[i], ws[j], r.float(0.05, 0.4), 0.6); }
+      // neighbours
+      const homeOf = (p) => (p.home != null ? this.building(p.home) : null);
+      const adults = ppl.filter((p) => p.age >= 14);
+      for (const p of adults) { const h = homeOf(p); if (!h) continue; for (const q of adults) { if (q.id <= p.id || q.home === p.home) continue; const g = homeOf(q); if (g && Math.abs(g.doorX - h.doorX) + Math.abs(g.doorY - h.doorY) < 14 && r.chance(0.5)) both(p, q, r.float(-0.05, 0.3), 0.35); } }
+      // a few true friends of an age, and the odd enemy
+      for (const p of ppl.filter((x) => x.age >= 6)) {
+        const peers = ppl.filter((q) => q !== p && Math.abs(q.age - p.age) <= (p.age < 18 ? 3 : 12) && q.household !== p.household);
+        for (let k = 0, n = r.int(1, 3); k < n && peers.length; k++) both(p, r.pick(peers), r.float(0.4, 0.8), 0.8);
+        if (p.age >= 16 && r.chance(0.12) && peers.length) both(p, r.pick(peers), r.float(-0.7, -0.3), 0.6);
+      }
+      // gangs
+      for (const g of this.gangs || []) { const ms = g.members.map((m) => this.byId.get(m.id)).filter(Boolean); for (let i = 0; i < ms.length; i++) for (let j = i + 1; j < ms.length; j++) both(ms[i], ms[j], r.float(0.3, 0.6), 0.8); }
+    };
     P.matchmake = function () {
-      const singles = this.people.filter((p) => !p.visitor && !p.spouse && p.age >= 18 && p.age <= 45);
+      const singles = this.people.filter((p) => !p.visitor && !p.spouse && !p.withPlayer && p.age >= 18 && p.age <= 45);
       for (const a of singles) {
         for (const [id, r] of a.rel) {
           const b = this.byId.get(id);
-          if (!b || b.spouse || b.sex === a.sex || b.age < 18 || b.age > 48 || b.household === a.household) continue;
+          if (!b || b.spouse || b.withPlayer || b.sex === a.sex || b.age < 18 || b.age > 48 || b.household === a.household) continue;
           if (r.affinity < 0.25 || (b.rel.get(a.id)?.affinity || 0) < 0.2) continue;
           return this.wed(a, b);
         }

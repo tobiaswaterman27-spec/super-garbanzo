@@ -37,6 +37,7 @@
       this.justiceInit();
       this.propertyInit();
       if (opts.foreign) { this.gangsInit(); this.kingdom = opts.kingdom; } else { this.gangsInit(); this.kingdom = new O.Kingdom(this); this.kingdom.rulersInit && this.kingdom.rulersInit(); }
+      this.bondsInit && this.bondsInit();
       if (opts.day) { this.day = opts.day; this.minute = opts.minute; this._lastMin = -1; this._season = this.season; for (const p of this.people) p.birthday = p.birthday || this.rng.int(1, 56); }
       this._season = this.season;
       // the town was going about its day before you got here: run it for a while so everyone is

@@ -30,10 +30,10 @@
         if (q._mustGo || absNow() - (q._lastSaid || q._talkFrom || absNow()) > long || absNow() - (q._talkFrom || absNow()) > long * 4) {
           const line = q._mustGo === 'work' ? pick(["I'll be late for work. I must go.", 'There, that\'s the hour. Work calls.']) : q._mustGo ? pick(['I must be off.', "I've somewhere to be. Fare you well."]) : pick(["Well, I'd best be getting on.", 'I must away. Good day to you.', "Enough talk. I've things to do."]);
           if (q._mustGo && !q._hurry) { const a0 = q._mustGo; q._mustGo = null; hurry(q, a0); return; }
-          if (!q._hurry) { q._mustGo = null; const qq = q; closeTalk(); walkAway(qq, line); return; }
+          if (!q._hurry) { const why = q._mustGo ? `You must go now (${q._mustGo === 'work' ? 'work' : 'somewhere to be'}); take your leave.` : 'The talk has run its course and you have things to do; take your leave.'; q._mustGo = null; const qq = q; closeTalk(); walkAway(qq, line, why); return; }
         }
         if (q._hurry && O.UI.dialog.typing?.()) q._hurry.until = Math.max(q._hurry.until, performance.now() + 4000); // (they wait for your question)
-        if (q._hurry && performance.now() > q._hurry.until && !O.UI.dialog.typing?.()) { const qq = q; q._hurry = null; closeTalk(); walkAway(qq, pick(['Good day to you.', 'Fare you well.', 'Another time.'])); return; }
+        if (q._hurry && performance.now() > q._hurry.until && !O.UI.dialog.typing?.()) { const qq = q; q._hurry = null; closeTalk(); walkAway(qq, pick(['Good day to you.', 'Fare you well.', 'Another time.']), 'You can stay no longer and go now; a quick goodbye.'); return; }
       }
       // whoever you're talking to keeps turning to face you (unless they're sat or abed)
       const d = O.dirOf(game.player.x - pos[0], game.player.y - pos[1]);
@@ -77,18 +77,25 @@
     // in a hurry: a word of sorry and why, one more answer if you're quick, then off they go
     function hurry(q, act) {
       const why = whyGo(q, act); q._hurry = { why, until: performance.now() + (act === 'work' || ['fire', 'help', 'leave'].includes(act) ? 9000 : 15000) };
-      renderTalk(pick([`Forgive me, I can't stay. ${why[0].toUpperCase() + why.slice(1)}.`, `I'm sorry, I must go. ${why[0].toUpperCase() + why.slice(1)}.`, `Sorry, ${why}. I have to be off.`]));
+      const fb = pick([`Forgive me, I can't stay. ${why[0].toUpperCase() + why.slice(1)}.`, `I'm sorry, I must go. ${why[0].toUpperCase() + why.slice(1)}.`, `Sorry, ${why}. I have to be off.`]);
+      renderTalk('', true); voice(q, `The player wants to talk, but you are in a hurry (${why}). Say sorry, briefly, and that you can only stop a moment.`, fb, (t) => { if (talking !== q) return; (q._conv = q._conv || []).push({ who: 'q', t }); renderTalk(t); });
     }
-    function walkAway(q, line) {
-      const s0 = sim; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: line, options: [] });
-      setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1800);
+    // their words, not set phrases: the moment is described and they say it as they would (the set
+    // line stands in only if the words can't be had)
+    function voice(q, situation, fallback, show) {
+      if (!(O.AI && O.AI.ready && O.AIChat && O.AIChat.line)) return show(fallback);
+      O.AIChat.line(q, situation).then((t) => show(t || fallback));
+    }
+    function walkAway(q, line, why) {
+      const s0 = sim;
+      voice(q, why || 'You end the talk and go on your way; a parting word.', line, (t) => { if (talking) return; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: t, options: [] }); setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1800 + t.length * 25); });
       O.NpcActs && O.NpcActs.walkOff(q); q._snubUntil = s0.day * 1440 + s0.minute + 20;
     }
     function openTalk(q) {
       // not wanting to talk: they say so, but keep at it (or come back later) and they'll hear you out
-      const s0 = sim; if (q._snubUntil && s0.day * 1440 + s0.minute < q._snubUntil) { q._snubTries = (q._snubTries || 0) + 1; if (q._snubTries < 3) { const l = pick(["I've no interest in talking to you.", 'Not now. Leave me be.', "I've nothing to say to you."]); O.UI.dialog.open({ name: q.first, color: tagColour(q), text: l, options: [] }); setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1600); return; } q._snubUntil = 0; q._snubTries = 0; }
+      const s0 = sim; if (q._snubUntil && s0.day * 1440 + s0.minute < q._snubUntil) { q._snubTries = (q._snubTries || 0) + 1; if (q._snubTries < 3) { const l = pick(["I've no interest in talking to you.", 'Not now. Leave me be.', "I've nothing to say to you."]); voice(q, 'The player tries again to talk to you, but you have no interest in talking to them just now; say so.', l, (t) => { if (talking) return; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: t, options: [] }); setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1600 + t.length * 25); }); return; } q._snubUntil = 0; q._snubTries = 0; }
       { const bl = O.AI && O.AI.ready ? busyLine(q) : null;
-        if (bl) { const act = q.activity?.act, r0 = q.rel.get(0) || {}; if ((r0.affinity || 0) < -0.55 || ['fire', 'firefight', 'help', 'report'].includes(act)) return walkAway(q, bl); talking = q; q.agent.frozen = true; q._group = []; q._talkFrom = absNow(); q._lastSpeaker = null; hurry(q, act === 'work' || act === 'patrol' ? 'work' : act); return; } }
+        if (bl) { const act = q.activity?.act, r0 = q.rel.get(0) || {}; if ((r0.affinity || 0) < -0.55 || ['fire', 'firefight', 'help', 'report'].includes(act)) return walkAway(q, bl, (r0.affinity || 0) < -0.55 ? 'The player tries to talk to you, and you dislike them; brush them off and walk away.' : `The player tries to talk to you, but you are in the middle of something urgent (${act}); you won't stop.`); talking = q; q.agent.frozen = true; q._group = []; q._talkFrom = absNow(); q._lastSpeaker = null; hurry(q, act === 'work' || act === 'patrol' ? 'work' : act); return; } }
       talking = q; q.agent.frozen = true; q._lastSpeaker = null; q._mustGo = null; q._talkFrom = absNow();
       // others standing with them join in (as in a group in the square)
       { const pos0 = game.scene ? game.scene.personPos(q) : [q.agent.x, q.agent.y];
@@ -111,7 +118,9 @@
       const since = q._lastTalkAt != null ? absNow() - q._lastTalkAt : null;
       const again = since != null && since < 90 ? pick(since < 10 ? ['Back again?', 'You again? What is it?', 'Forget something?', 'Yes?'] : ['Hello again.', 'Twice in one day!', 'Back so soon?']) : null;
       if (!(since != null && since < 120)) q._conv = []; // a fresh talk, unless it carries on from just now
-      renderTalk(again || O.Dialogue.provider.greet(O.Dialogue.buildContext(sim, q), q.id + sim.day));
+      const greet0 = again || O.Dialogue.provider.greet(O.Dialogue.buildContext(sim, q), q.id + sim.day);
+      if (O.AI && O.AI.ready) { renderTalk('', true); voice(q, again ? `The player comes up to talk to you again, ${since < 10 ? 'only moments' : 'a little while'} after you last spoke.` : 'The player has just come up to you to talk. Greet them, or not, as you would, given what you are doing.', greet0, (t) => { if (talking !== q) return; q._conv.push({ who: 'q', t }); renderTalk(t); }); }
+      else renderTalk(greet0);
     }
     function closeTalk() { if (talking) { talking.agent.approach = false; talking.agent.approachSide = null; O.AIChat && O.AIChat.ended(talking); for (const z of talking._group || []) { z.agent.frozen = false; z.agent.talking = 0; } }
       if (talking) { const a = talking.agent; a.frozen = false; a.talking = 0; talking._lastTalkAt = absNow(); if (a.inside == null && !a.chasing) { a.path = null; a.goal = null; } } talking = null; /* (and on their way again) */ card.hidden = true; if (O.UI.dialogOpen()) O.UI.dialog.close(); }
@@ -223,7 +232,7 @@
       talking = q; q.agent.frozen = true; q._group = []; q._talkFrom = absNow(); q._lastSpeaker = null; q.agent.approach = true;
       const pos = game.scene ? game.scene.personPos(q) || [q.agent.x, q.agent.y] : [q.agent.x, q.agent.y];
       q.agent.dir = O.dirOf(game.player.x - pos[0], game.player.y - pos[1]); if (game.scene) { const a = game.scene.actors.get(q.id); if (a) a.dir = q.agent.dir; }
-      (q._conv = q._conv || []).push({ who: 'q', t: line }); renderTalk(line); return true;
+      renderTalk('', true); voice(q, `You go up to the player to say this, in your own words: "${line}"`, line, (t) => { if (talking !== q) return; (q._conv = q._conv || []).push({ who: 'q', t }); renderTalk(t); }); return true;
     }
     const api = { openTalk, closeTalk, toggleLedger, talking: () => talking, speak, startFrom };
     O.npcUI = api;

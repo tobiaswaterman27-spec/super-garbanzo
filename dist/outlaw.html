@@ -5908,12 +5908,38 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       }
     };
 
+    // A town that has lived together for years: family close, a few true friends of an age, workmates,
+    // neighbours known by sight and name, gang hands thick as thieves, and the odd old grudge.
+    P.bondsInit = function () {
+      const r = this.rng, ppl = this.people.filter((p) => !p.visitor && p.alive !== false);
+      const set = (a, b, aff, fam) => { if (!a || !b || a === b) return; const o = a.rel.get(b.id); if (o && Math.abs(o.affinity) >= Math.abs(aff)) return; a.rel.set(b.id, { affinity: +aff.toFixed(2), familiar: Math.max(fam, o ? o.familiar : 0) }); };
+      const both = (a, b, aff, fam, jit = 0.1) => { set(a, b, aff + r.float(-jit, jit), fam); set(b, a, aff + r.float(-jit, jit), fam); };
+      for (const p of ppl) {
+        if (p.spouse) set(p, this.byId.get(p.spouse), r.float(0.45, 0.9), 1);
+        for (const id of [...(p.parents || []), ...(p.children || [])]) set(p, this.byId.get(id), r.float(0.4, 0.85), 1);
+        const hh = this.household(p); if (hh) for (const id of hh.members) if (id !== p.id) set(p, this.byId.get(id), r.float(0.3, 0.7), 1);
+      }
+      // workmates
+      for (const bz of this.biz.values()) { const ws = bz.workers.map((id) => this.byId.get(id)).filter(Boolean); for (let i = 0; i < ws.length; i++) for (let j = i + 1; j < ws.length; j++) both(ws[i], ws[j], r.float(0.05, 0.4), 0.6); }
+      // neighbours
+      const homeOf = (p) => (p.home != null ? this.building(p.home) : null);
+      const adults = ppl.filter((p) => p.age >= 14);
+      for (const p of adults) { const h = homeOf(p); if (!h) continue; for (const q of adults) { if (q.id <= p.id || q.home === p.home) continue; const g = homeOf(q); if (g && Math.abs(g.doorX - h.doorX) + Math.abs(g.doorY - h.doorY) < 14 && r.chance(0.5)) both(p, q, r.float(-0.05, 0.3), 0.35); } }
+      // a few true friends of an age, and the odd enemy
+      for (const p of ppl.filter((x) => x.age >= 6)) {
+        const peers = ppl.filter((q) => q !== p && Math.abs(q.age - p.age) <= (p.age < 18 ? 3 : 12) && q.household !== p.household);
+        for (let k = 0, n = r.int(1, 3); k < n && peers.length; k++) both(p, r.pick(peers), r.float(0.4, 0.8), 0.8);
+        if (p.age >= 16 && r.chance(0.12) && peers.length) both(p, r.pick(peers), r.float(-0.7, -0.3), 0.6);
+      }
+      // gangs
+      for (const g of this.gangs || []) { const ms = g.members.map((m) => this.byId.get(m.id)).filter(Boolean); for (let i = 0; i < ms.length; i++) for (let j = i + 1; j < ms.length; j++) both(ms[i], ms[j], r.float(0.3, 0.6), 0.8); }
+    };
     P.matchmake = function () {
-      const singles = this.people.filter((p) => !p.visitor && !p.spouse && p.age >= 18 && p.age <= 45);
+      const singles = this.people.filter((p) => !p.visitor && !p.spouse && !p.withPlayer && p.age >= 18 && p.age <= 45);
       for (const a of singles) {
         for (const [id, r] of a.rel) {
           const b = this.byId.get(id);
-          if (!b || b.spouse || b.sex === a.sex || b.age < 18 || b.age > 48 || b.household === a.household) continue;
+          if (!b || b.spouse || b.withPlayer || b.sex === a.sex || b.age < 18 || b.age > 48 || b.household === a.household) continue;
           if (r.affinity < 0.25 || (b.rel.get(a.id)?.affinity || 0) < 0.2) continue;
           return this.wed(a, b);
         }
@@ -9358,6 +9384,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       this.justiceInit();
       this.propertyInit();
       if (opts.foreign) { this.gangsInit(); this.kingdom = opts.kingdom; } else { this.gangsInit(); this.kingdom = new O.Kingdom(this); this.kingdom.rulersInit && this.kingdom.rulersInit(); }
+      this.bondsInit && this.bondsInit();
       if (opts.day) { this.day = opts.day; this.minute = opts.minute; this._lastMin = -1; this._season = this.season; for (const p of this.people) p.birthday = p.birthday || this.rng.int(1, 56); }
       this._season = this.season;
       // the town was going about its day before you got here: run it for a while so everyone is
@@ -12703,10 +12730,10 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
         if (q._mustGo || absNow() - (q._lastSaid || q._talkFrom || absNow()) > long || absNow() - (q._talkFrom || absNow()) > long * 4) {
           const line = q._mustGo === 'work' ? pick(["I'll be late for work. I must go.", 'There, that\'s the hour. Work calls.']) : q._mustGo ? pick(['I must be off.', "I've somewhere to be. Fare you well."]) : pick(["Well, I'd best be getting on.", 'I must away. Good day to you.', "Enough talk. I've things to do."]);
           if (q._mustGo && !q._hurry) { const a0 = q._mustGo; q._mustGo = null; hurry(q, a0); return; }
-          if (!q._hurry) { q._mustGo = null; const qq = q; closeTalk(); walkAway(qq, line); return; }
+          if (!q._hurry) { const why = q._mustGo ? `You must go now (${q._mustGo === 'work' ? 'work' : 'somewhere to be'}); take your leave.` : 'The talk has run its course and you have things to do; take your leave.'; q._mustGo = null; const qq = q; closeTalk(); walkAway(qq, line, why); return; }
         }
         if (q._hurry && O.UI.dialog.typing?.()) q._hurry.until = Math.max(q._hurry.until, performance.now() + 4000); // (they wait for your question)
-        if (q._hurry && performance.now() > q._hurry.until && !O.UI.dialog.typing?.()) { const qq = q; q._hurry = null; closeTalk(); walkAway(qq, pick(['Good day to you.', 'Fare you well.', 'Another time.'])); return; }
+        if (q._hurry && performance.now() > q._hurry.until && !O.UI.dialog.typing?.()) { const qq = q; q._hurry = null; closeTalk(); walkAway(qq, pick(['Good day to you.', 'Fare you well.', 'Another time.']), 'You can stay no longer and go now; a quick goodbye.'); return; }
       }
       // whoever you're talking to keeps turning to face you (unless they're sat or abed)
       const d = O.dirOf(game.player.x - pos[0], game.player.y - pos[1]);
@@ -12750,18 +12777,25 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     // in a hurry: a word of sorry and why, one more answer if you're quick, then off they go
     function hurry(q, act) {
       const why = whyGo(q, act); q._hurry = { why, until: performance.now() + (act === 'work' || ['fire', 'help', 'leave'].includes(act) ? 9000 : 15000) };
-      renderTalk(pick([`Forgive me, I can't stay. ${why[0].toUpperCase() + why.slice(1)}.`, `I'm sorry, I must go. ${why[0].toUpperCase() + why.slice(1)}.`, `Sorry, ${why}. I have to be off.`]));
+      const fb = pick([`Forgive me, I can't stay. ${why[0].toUpperCase() + why.slice(1)}.`, `I'm sorry, I must go. ${why[0].toUpperCase() + why.slice(1)}.`, `Sorry, ${why}. I have to be off.`]);
+      renderTalk('', true); voice(q, `The player wants to talk, but you are in a hurry (${why}). Say sorry, briefly, and that you can only stop a moment.`, fb, (t) => { if (talking !== q) return; (q._conv = q._conv || []).push({ who: 'q', t }); renderTalk(t); });
     }
-    function walkAway(q, line) {
-      const s0 = sim; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: line, options: [] });
-      setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1800);
+    // their words, not set phrases: the moment is described and they say it as they would (the set
+    // line stands in only if the words can't be had)
+    function voice(q, situation, fallback, show) {
+      if (!(O.AI && O.AI.ready && O.AIChat && O.AIChat.line)) return show(fallback);
+      O.AIChat.line(q, situation).then((t) => show(t || fallback));
+    }
+    function walkAway(q, line, why) {
+      const s0 = sim;
+      voice(q, why || 'You end the talk and go on your way; a parting word.', line, (t) => { if (talking) return; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: t, options: [] }); setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1800 + t.length * 25); });
       O.NpcActs && O.NpcActs.walkOff(q); q._snubUntil = s0.day * 1440 + s0.minute + 20;
     }
     function openTalk(q) {
       // not wanting to talk: they say so, but keep at it (or come back later) and they'll hear you out
-      const s0 = sim; if (q._snubUntil && s0.day * 1440 + s0.minute < q._snubUntil) { q._snubTries = (q._snubTries || 0) + 1; if (q._snubTries < 3) { const l = pick(["I've no interest in talking to you.", 'Not now. Leave me be.', "I've nothing to say to you."]); O.UI.dialog.open({ name: q.first, color: tagColour(q), text: l, options: [] }); setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1600); return; } q._snubUntil = 0; q._snubTries = 0; }
+      const s0 = sim; if (q._snubUntil && s0.day * 1440 + s0.minute < q._snubUntil) { q._snubTries = (q._snubTries || 0) + 1; if (q._snubTries < 3) { const l = pick(["I've no interest in talking to you.", 'Not now. Leave me be.', "I've nothing to say to you."]); voice(q, 'The player tries again to talk to you, but you have no interest in talking to them just now; say so.', l, (t) => { if (talking) return; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: t, options: [] }); setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1600 + t.length * 25); }); return; } q._snubUntil = 0; q._snubTries = 0; }
       { const bl = O.AI && O.AI.ready ? busyLine(q) : null;
-        if (bl) { const act = q.activity?.act, r0 = q.rel.get(0) || {}; if ((r0.affinity || 0) < -0.55 || ['fire', 'firefight', 'help', 'report'].includes(act)) return walkAway(q, bl); talking = q; q.agent.frozen = true; q._group = []; q._talkFrom = absNow(); q._lastSpeaker = null; hurry(q, act === 'work' || act === 'patrol' ? 'work' : act); return; } }
+        if (bl) { const act = q.activity?.act, r0 = q.rel.get(0) || {}; if ((r0.affinity || 0) < -0.55 || ['fire', 'firefight', 'help', 'report'].includes(act)) return walkAway(q, bl, (r0.affinity || 0) < -0.55 ? 'The player tries to talk to you, and you dislike them; brush them off and walk away.' : `The player tries to talk to you, but you are in the middle of something urgent (${act}); you won't stop.`); talking = q; q.agent.frozen = true; q._group = []; q._talkFrom = absNow(); q._lastSpeaker = null; hurry(q, act === 'work' || act === 'patrol' ? 'work' : act); return; } }
       talking = q; q.agent.frozen = true; q._lastSpeaker = null; q._mustGo = null; q._talkFrom = absNow();
       // others standing with them join in (as in a group in the square)
       { const pos0 = game.scene ? game.scene.personPos(q) : [q.agent.x, q.agent.y];
@@ -12784,7 +12818,9 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       const since = q._lastTalkAt != null ? absNow() - q._lastTalkAt : null;
       const again = since != null && since < 90 ? pick(since < 10 ? ['Back again?', 'You again? What is it?', 'Forget something?', 'Yes?'] : ['Hello again.', 'Twice in one day!', 'Back so soon?']) : null;
       if (!(since != null && since < 120)) q._conv = []; // a fresh talk, unless it carries on from just now
-      renderTalk(again || O.Dialogue.provider.greet(O.Dialogue.buildContext(sim, q), q.id + sim.day));
+      const greet0 = again || O.Dialogue.provider.greet(O.Dialogue.buildContext(sim, q), q.id + sim.day);
+      if (O.AI && O.AI.ready) { renderTalk('', true); voice(q, again ? `The player comes up to talk to you again, ${since < 10 ? 'only moments' : 'a little while'} after you last spoke.` : 'The player has just come up to you to talk. Greet them, or not, as you would, given what you are doing.', greet0, (t) => { if (talking !== q) return; q._conv.push({ who: 'q', t }); renderTalk(t); }); }
+      else renderTalk(greet0);
     }
     function closeTalk() { if (talking) { talking.agent.approach = false; talking.agent.approachSide = null; O.AIChat && O.AIChat.ended(talking); for (const z of talking._group || []) { z.agent.frozen = false; z.agent.talking = 0; } }
       if (talking) { const a = talking.agent; a.frozen = false; a.talking = 0; talking._lastTalkAt = absNow(); if (a.inside == null && !a.chasing) { a.path = null; a.goal = null; } } talking = null; /* (and on their way again) */ card.hidden = true; if (O.UI.dialogOpen()) O.UI.dialog.close(); }
@@ -12896,7 +12932,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       talking = q; q.agent.frozen = true; q._group = []; q._talkFrom = absNow(); q._lastSpeaker = null; q.agent.approach = true;
       const pos = game.scene ? game.scene.personPos(q) || [q.agent.x, q.agent.y] : [q.agent.x, q.agent.y];
       q.agent.dir = O.dirOf(game.player.x - pos[0], game.player.y - pos[1]); if (game.scene) { const a = game.scene.actors.get(q.id); if (a) a.dir = q.agent.dir; }
-      (q._conv = q._conv || []).push({ who: 'q', t: line }); renderTalk(line); return true;
+      renderTalk('', true); voice(q, `You go up to the player to say this, in your own words: "${line}"`, line, (t) => { if (talking !== q) return; (q._conv = q._conv || []).push({ who: 'q', t }); renderTalk(t); }); return true;
     }
     const api = { openTalk, closeTalk, toggleLedger, talking: () => talking, speak, startFrom };
     O.npcUI = api;
@@ -13067,6 +13103,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     const tr = (r.trust || 0) > 0.4 ? 'you trust them' : (r.trust || 0) < -0.3 ? 'you do not trust a word they say' : r.familiar < 0.2 ? 'you do not know them' : 'you half trust them';
     lines.push(`Talking to you: ${known}; met ${r.familiar < 0.15 ? 'just now' : r.familiar < 0.5 ? 'a few times' : 'often'}; ${fond}; ${tr}.`);
     if (ctx.sawPlayerCrime) lines.push('You saw them commit a crime and know their face.');
+    { const rl = O.romanceLine && O.romanceLine(s, q); if (rl) lines.push(rl); }
     { const P = O.PlayerState, w = P.wantedLevel ? P.wantedLevel() : 0; if (w > 0 && /guard|watch|sergeant|constable|captain/.test(q.job?.role || '')) { const n = s.crimes.filter((c) => c.perp === 'player' && c.investigated && !c.closed).length; lines.push(`The watch are looking for someone who matches them${P.soughtFor ? ' (' + P.soughtFor() + ')' : ''}. ${q.traits.includes('honest') || q.traits.includes('loyal') ? 'You cannot be bought.' : `You might take a bribe of ${12 + n * 8} aurins or more to forget it.`}`); } }
     if (ctx.fame && ctx.fame.length) lines.push(`You've heard of them: ${ctx.fame.slice(0, 3).map(clean).join(' | ')}`);
     if (r.familiar > 0.3 || (ctx.fame || []).length) { const rp = PS.rep || {}; if ((rp.criminal || 0) > 0.4) lines.push('Folk say they are a rogue.'); else if ((rp.local || 0) > 0.4) lines.push('Folk speak well of them.'); }
@@ -13116,7 +13153,7 @@ They know only what their card says; asked anything else they don't know, guess 
 people: for each person present: feel and trust (-2..2) = how the player's words change their liking and belief; learned = a short new claim from the player they now believe, else ""; caught = true if they now see the player lied before.
 name: the player's name if the player just gave it. agree: true only if they now agree to the pending request.
 acts: only what a speaker truly agrees to or does, each {"who":"First name","do":...}:
-meet {"place","hour":0-23,"day":"today"|"tomorrow"|weekday,"why"} | follow (come along with the player now) | stop (stop following) | go {"place"} (go there now) | invite (let the player into their home today) | give {"item"} (hand over something they have) | want {"item"} (ask the player for something) | take_gift | refuse_gift | take_job (accept the player's own job when offered) | seek_job {"place"} | tell {"to","msg"} (pass a message to someone they know) | like {"of","by":-1 or 1} (think better or worse of someone after what was said) | call {"who"} (call someone near or in the same house over to join the talk, even across the room) | ask {"who","question"} (go and ask someone in the house or near, privately, then come back with the answer) | show {"place"} (walk the player there) | sell {"item","price"} (sell the player something they have, at an agreed price in aurins) | buy {"item","price"} (buy something the player carries) | lend {"amount"} (lend the player money, to be paid back) | gesture {"kind":"hug"|"handshake"|"bow"|"wave"|"dance"|"cry"|"laugh"} | teach (show the player a little of their trade) | introduce {"who"} (call someone over and name them) | hire_on (agree to work for the player's own business) | join_gang (join the player's gang) | fight (go for the player) | flee (run from the player) | leave (end the talk and walk off: rude player, busy, bored, or done). If a speaker says they are off somewhere now, add a go act for it (or leave).
+meet {"place","hour":0-23,"day":"today"|"tomorrow"|weekday,"why"} | follow (they come along with the player, wherever the player goes) | lead {"place"?} (the player comes along with them: they carry on where they were going, or to the place, and wait if the player falls behind; use this when the player says they will come with them) | stop (stop following) | go {"place"} (go there now) | invite (let the player into their home today) | give {"item"} (hand over something they have) | want {"item"} (ask the player for something) | take_gift | refuse_gift | take_job (accept the player's own job when offered) | seek_job {"place"} | tell {"to","msg"} (pass a message to someone they know) | like {"of","by":-1 or 1} (think better or worse of someone after what was said) | call {"who"} (call someone near or in the same house over to join the talk, even across the room) | ask {"who","question"} (go and ask someone in the house or near, privately, then come back with the answer) | show {"place"} (walk the player there) | sell {"item","price"} (sell the player something they have, at an agreed price in aurins) | buy {"item","price"} (buy something the player carries) | lend {"amount"} (lend the player money, to be paid back) | gesture {"kind":"hug"|"handshake"|"bow"|"wave"|"dance"|"cry"|"laugh"} | teach (show the player a little of their trade) | introduce {"who"} (call someone over and name them) | hire_on (agree to work for the player's own business) | join_gang (join the player's gang) | court (agree to court, walk out with, the player) | betroth (agree to marry the player; the wedding is then set at the chapel) | part (break off a courtship, betrothal or marriage) | fight (go for the player) | flee (run from the player) | leave (end the talk and walk off: rude player, busy, bored, or done). If a speaker says they are off somewhere now, add a go act for it (or leave).
 They know where their family and friends are just now (the card says); a stranger at the door is not invited in on a whim, and they don't promise to ask someone who is right there: they call them or ask them.\nPlaces: names from the card, "my home", "your home" or "the square". Items: things the speaker has, or the player carries.`;
   const G = () => O.Data.GOODS;
   function goodsHad(s, q) {
@@ -13309,7 +13346,19 @@ They know where their family and friends are just now (the card says); a strange
           const q = fr[Math.floor(Math.random() * fr.length)]; if (b && q && !(q.beliefs || []).some((x) => x.t === b.t)) (q.beliefs = q.beliefs || []).unshift({ t: b.t, src: 'friend', from: p.first, day: this.day }); }
       }
       return r; }; }
-  O.AIChat = { say, give, ended, card, gibberish, readLetter };
+  // one line said in their own words: how they open a talk, or what they come up to say. No set
+  // phrases: the situation is described and they put it as they would.
+  async function line(q, situation) {
+    const s = O.SimRef.cur;
+    if (q.age < 3) return babble(q);
+    if (!AI.ready) return null;
+    const history = (q._conv || []).slice(-6).map((c) => (c.who === 'p' ? 'Player: ' : (c.by || q.first) + ': ') + c.t).join('\n');
+    const prompt = `Write the next spoken words of a person in a medieval village game. Reply ONLY with JSON {"say":"..."}.
+say: 1 or 2 short sentences, at most 25 words, fully in character for age, temper, mood, what they are doing now and how well they know the player; plain medieval English, perfect spelling, no dashes, no emoji, nothing in brackets; only the spoken words, never a name in front. Never break character.
+--- ${q.first} ---\n${speechFor(q.age, q.stage)}\n${card(s, q)}\n--- Talk so far ---\n${history || '(none)'}\nWhat happens now: ${situation}`;
+    try { const out = await AI.json(prompt); const raw = out && (typeof out.say === 'string' ? out.say : Array.isArray(out.lines) && out.lines[0] && typeof out.lines[0].say === 'string' ? out.lines[0].say : ''); const t = raw ? inChar(q, clean(raw)) : ''; return t && t.trim() ? t : null; } catch (e) { return null; }
+  }
+  O.AIChat = { say, give, ended, card, gibberish, readLetter, line };
 })();
 
 </script>
@@ -13438,6 +13487,7 @@ They know where their family and friends are just now (the card says); a strange
     }
     s.remember(q, `${r.name || 'A stranger'} gave me ${o.label}.`, 'player', 0.8, 0);
     O.gesture && O.gesture(q, 'nod', 1.6);
+    for (const f of O.onGift || []) f(s, q, o);
   }
   function returnGift(q, o) {
     const P = PS(); if (o.g === 'coin') P.money += o.n; else if (!P.add(o.g)) O.UI.say(`You've no room; you set the ${(G()[o.g]?.name || o.g).toLowerCase()} down.`);
@@ -13477,16 +13527,19 @@ They know where their family and friends are just now (the card says); a strange
   // ---------------------------------------------------------------- the day's plans bend to what was agreed
   const follow = new Map(); // person id -> until (abs minutes)
   const goTo = new Map(); // person id -> { b, until }
+  const leading = new Map(); // person id -> until: you go along with them while they go about their way
   const invites = new Map(); // building id -> until
   function following(q) { const u = follow.get(q.id); return !!u && u > abs(O.SimRef.cur); }
   { const SP = O.Sim.prototype, _plan = SP.plan;
     SP.plan = function (p) {
       const now = abs(this), place = this.world.placeId;
-      if (follow.has(p.id) && this === O.SimRef.cur) {
+      // an errand under way (goods to deliver, shopping to carry home) is finished first
+      const busyWith = p.task && ['deliver', 'carry-home', 'collect', 'report'].includes(p.task.act);
+      if (follow.has(p.id) && this === O.SimRef.cur && !busyWith) {
         if (follow.get(p.id) < now || p.health.illness?.sev > 0.6) { follow.delete(p.id); p.agent.chasing = false; }
         else { const sc = O.game.scene; if (sc) { p.agent.chasing = false; return { act: 'visit', b: (sc.b.parent || sc.b).id }; } return { act: 'follow', outdoor: true, zone: 'square' }; }
       }
-      const g = goTo.get(p.id); if (g) { if (g.until < now) goTo.delete(p.id); else return g.b != null ? { act: 'visit', b: g.b } : { act: 'stroll', outdoor: true, zone: 'square' }; }
+      const g = !busyWith && goTo.get(p.id); if (g) { if (g.until < now) goTo.delete(p.id); else return g.b != null ? { act: 'visit', b: g.b } : { act: 'stroll', outdoor: true, zone: 'square' }; }
       for (const m of (PS().meets || [])) {
         if (m.who !== p.id || m.place !== place || m.state !== 'set' || m.flake) continue;
         if (now >= m.at + m.off - 35 && now <= m.at + 90 + Math.max(0, m.off)) return m.b != null ? { act: 'meet', b: m.b } : { act: 'stroll', outdoor: true, zone: 'square' };
@@ -13504,6 +13557,16 @@ They know where their family and friends are just now (the card says); a strange
       const a = z.agent, tx = h.agent.x + 16, ty = h.agent.y + 6, dx = tx - a.x, dy = ty - a.y, d = Math.hypot(dx, dy) || 1; a.chasing = true; a.path = null;
       if (d > 8) { const sp = 95 * dt, nx = a.x + (dx / d) * sp, ny = a.y + (dy / d) * sp; if (!g.solidAt(nx, ny)) { a.x = nx; a.y = ny; } else if (!g.solidAt(nx, a.y)) a.x = nx; else if (!g.solidAt(a.x, ny)) a.y = ny; a.anim = 'run'; a.dir = O.dirOf(dx, dy); }
       else { joining.delete(id); a.chasing = false; a.frozen = true; a.anim = 'idle'; a.dir = O.dirOf(g.player.x - a.x, g.player.y - a.y); (h._group = h._group || []).push(z); O.gesture && O.gesture(z, z.age > 6 ? 'wave' : 'nod', 1.4); }
+    }
+    // going along together: they keep their own way, and wait for you if you fall behind
+    for (const [id, until] of leading) {
+      const q = s.byId.get(id); if (!q) { leading.delete(id); continue; }
+      const a = q.agent; if (O.npcUI && O.npcUI.talking() === q) continue;
+      if (a.hidden || a.inside != null) { if (abs(s) > until || !a.hidden) leading.delete(id); continue; }
+      const d = Math.hypot(g.player.x - a.x, g.player.y - a.y);
+      if (abs(s) > until || d > 700) { leading.delete(id); if (a._leadWait) { a.frozen = false; a._leadWait = false; } if (d > 700) s.remember(q, 'Lost the stranger on the way; they never kept up.', 'player', 0.6, 0); continue; }
+      if (d > 140 && !a._leadWait) { a._leadWait = true; a.frozen = true; }
+      if (a._leadWait) { a.dir = O.dirOf(g.player.x - a.x, g.player.y - a.y); a.anim = 'idle'; if (d < 70) { a._leadWait = false; a.frozen = false; } }
     }
     for (const [id] of follow) {
       const q = s.byId.get(id); if (!q || q.agent.hidden || q.agent.inside != null) continue;
@@ -13544,6 +13607,7 @@ They know where their family and friends are just now (the card says); a strange
   function done(s, q, m, met) {
     const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r);
     O.dropLead && O.dropLead((l) => l.key === m.id);
+    for (const f of O.onMeetDone || []) f(s, q, m, met);
     if (met) { r.affinity = clamp(r.affinity + (/date|court|walk/i.test(m.why) ? 0.14 : 0.07), -1, 1); r.familiar = Math.min(1, r.familiar + 0.1); s.remember(q, `Met ${r.name || 'the stranger'} at ${m.label.split(',')[0]} as we agreed.`, 'player', 0.9, 0); O.UI.say(`${q.first} is here, as agreed.`); }
     else if (m.state === 'missed') { r.affinity = clamp(r.affinity - 0.15, -1, 1); r.trust = clamp((r.trust || 0) - 0.12, -1, 1); s.remember(q, `Waited for ${r.name || 'the stranger'} at ${m.label.split(',')[0]}, and they never came.`, 'player', 1, 0); O.UI.say(`You missed meeting ${q.first}.`, 'bad'); }
     else { s.remember(q, `Forgot to meet ${r.name || 'the stranger'} at ${m.label.split(',')[0]}.`, 'player', 0.7, 0); O.UI.say(`${q.first} never came.`, 'bad'); }
@@ -13584,7 +13648,8 @@ They know where their family and friends are just now (the card says); a strange
     switch (a.do) {
       case 'meet': return meet(s, q, a);
       case 'follow': follow.set(q.id, abs(s) + 180); goTo.delete(q.id); return `${q.first} comes along with you.`;
-      case 'stop': if (follow.delete(q.id)) { q.agent.chasing = false; return `${q.first} goes about their day.`; } return null;
+      case 'lead': { leading.set(q.id, abs(s) + 120); if (a.place) { const pl = placeFor(s, q, a.place); if (pl) goTo.set(q.id, { b: pl.b ?? null, until: abs(s) + 120 }); } return null; }
+      case 'stop': if (leading.delete(q.id)) { q.agent.frozen = false; } if (follow.delete(q.id)) { q.agent.chasing = false; return `${q.first} goes about their day.`; } return null;
       case 'go': { const pl = placeFor(s, q, a.place); if (!pl) return null; goTo.set(q.id, { b: pl.b ?? null, until: abs(s) + 120 }); return null; }
       case 'invite': { if (q.home == null) return null; invites.set(q.home, abs(s) + 360); O.toldOfVisit && O.toldOfVisit(s, q); const b = s.building(q.home); O.addLead && O.addLead({ place: s.world.placeId, b: q.home, until: abs(s) + 360, why: 'invite', key: 'inv' + q.id, label: `${q.first}'s house: you're welcome today` }); return `${q.first} says you may come to their house today${b ? '' : ''}.`; }
       case 'give': return npcGives(s, q, a.item);
@@ -13927,6 +13992,212 @@ They know where their family and friends are just now (the card says); a strange
     void say;
   }
   O.UnderworldSetup = { setup };
+})();
+
+</script>
+<script>
+// Courting and marrying. Talk someone round until they're fond of you, ask them to walk out with you,
+// and if they love you, ask for their hand: the wedding is set at the chapel for the next morning, and
+// if you come, you're wed before the priest with the town looking on. Then their home is yours too.
+// Court someone else behind their back and they'll hear of it; miss your own wedding and you're jilted.
+'use strict';
+(function () {
+  function setup(game) {
+    const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k);
+    const clamp = O.clamp;
+    const mySex = () => (O.Forge && O.Forge.spec && O.Forge.spec().sex) || 'm';
+    const mine = (s, q) => { const p = PS.partner; return !!(p && p.place === s.world.placeId && p.id === q.id); };
+    const partner = (s) => { const p = PS.partner; return p && p.place === s.world.placeId ? s.byId.get(p.id) : null; };
+    const relOf = (q) => { const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r); return r; };
+
+    // what the person themself knows of it, for their card
+    O.romanceLine = (s, q) => {
+      const p = PS.partner;
+      if (mine(s, q)) {
+        if (p.stage === 'courting') return `You are courting the player (walking out together since ${s.day - p.since < 1 ? 'today' : s.day - p.since + ' days ago'}). If they ask for your hand and you love them, you may say yes (betroth).`;
+        if (p.stage === 'betrothed') return 'You are betrothed to the player; you are to be wed at the chapel in the morning.';
+        if (p.stage === 'married') return `You are married to the player${q.home != null ? ' and they share your home' : ''}. You are fond of them and speak to them as a spouse does.`;
+      }
+      if (q.age < 18 || q.royal) return '';
+      if (q.spouse) return 'You are married, and would not be wooed by anyone.';
+      if (q.sex === mySex()) return '';
+      if (p && p.stage === 'married' && p.place === s.world.placeId) return `The player is married to ${p.full || p.name}; you would not be wooed by them.`;
+      return 'You are unmarried. Only if you have come to like them a great deal might you agree to court (walk out with) them when asked; never if you hardly know them.';
+    };
+
+    function court(s, q) {
+      const r = relOf(q), p = PS.partner;
+      if (q.age < 18 || q.spouse || q.sex === mySex() || q.royal || r.affinity < 0.35) return null;
+      if (p && p.stage !== 'courting') return null;
+      if (mine(s, q)) return null;
+      if (p) { // two at once: the first will hear of it
+        const old = partner(s);
+        if (old) { old.withPlayer = null; const ro = relOf(old); ro.affinity = clamp(ro.affinity - 0.45, -1, 1); ro.trust = clamp((ro.trust || 0) - 0.4, -1, 1); (old.beliefs = old.beliefs || []).unshift({ t: `The one I was courting has taken up with ${q.name}.`, src: 'heard', day: s.day }); s.remember(old, `Thrown over for ${q.name}.`, 'player', 1.2, -0.8); }
+      }
+      PS.partner = { place: s.world.placeId, id: q.id, name: q.first, full: q.name, stage: 'courting', since: s.day };
+      q.withPlayer = 'courting'; r.affinity = clamp(r.affinity + 0.1, -1, 1);
+      s.remember(q, `Began walking out with ${r.name || 'the stranger'}.`, 'player', 1.2, 0.6);
+      return `You and ${q.first} are courting.`;
+    }
+    function betroth(s, q) {
+      const p = PS.partner, r = relOf(q);
+      if (!mine(s, q) || p.stage !== 'courting' || r.affinity < 0.5) return null;
+      const chapel = [...s.biz.values()].find((z) => z.type === 'chapel');
+      if (!chapel) return null;
+      const before = (PS.meets || []).length;
+      O.NpcActs.meet(s, q, { place: chapel.b.name || chapel.name, hour: 11, day: 'tomorrow', why: 'our wedding' });
+      const m = (PS.meets || [])[before] || (PS.meets || []).filter((x) => x.who === q.id).pop(); if (!m) return null;
+      m.flake = false; m.off = -10; // nobody is late to their own wedding
+      p.stage = 'betrothed'; p.meetId = m.id; q.withPlayer = 'betrothed';
+      s.remember(q, `Promised to marry ${r.name || 'the stranger'}; the wedding is tomorrow at the chapel.`, 'player', 1.5, 0.8);
+      for (const id of [...(q.parents || []), ...(q.children || [])]) { const z = s.byId.get(id); if (z) (z.beliefs = z.beliefs || []).unshift({ t: `${q.first} is to marry the stranger tomorrow at the chapel.`, src: 'heard', day: s.day }); }
+      s.log && s.log(`${q.name} is to be wed at the chapel tomorrow.`, 'life');
+      return `You are betrothed to ${q.first}. The wedding is at the chapel tomorrow at eleven.`;
+    }
+    function part(s, q) {
+      if (!mine(s, q)) return null;
+      const r = relOf(q); r.affinity = clamp(r.affinity - 0.3, -1, 1);
+      q.withPlayer = null; const was = PS.partner.stage; PS.partner = null;
+      s.remember(q, was === 'married' ? 'Our marriage is over.' : 'We are no longer courting.', 'player', 1.3, -0.6);
+      return `You and ${q.first} have parted.`;
+    }
+    function wed(s, q) {
+      const p = PS.partner; p.stage = 'married'; p.wed = s.day; q.withPlayer = 'married';
+      const r = relOf(q); r.affinity = clamp(r.affinity + 0.25, -1, 1); r.trust = clamp((r.trust || 0) + 0.2, -1, 1);
+      s.remember(q, `Married ${r.name || 'the stranger'} at the chapel.`, 'player', 2, 1);
+      const sc = game.scene, near = sc ? [...sc.actors.values()].map((a) => a.person) : s.people.filter((z) => z.agent && z.agent.inside == null && Math.hypot(z.agent.x - game.player.x, z.agent.y - game.player.y) < 220);
+      const priest = near.find((z) => /priest|chaplain/.test(z.job?.role || ''));
+      if (priest && O.Speech) O.Speech.say(priest, 'Before God and these witnesses, I pronounce you wed.', 4);
+      setTimeout(() => { for (const z of near) if (z !== priest && z.alive !== false) O.gesture && O.gesture(z, z === q ? 'celebrate' : 'nod', 2.4); if (O.Speech) O.Speech.say(q, 'Wed at last. I can hardly believe it.', 3.5); }, 1600);
+      for (const id of [...(q.parents || []), ...(q.children || [])]) { const z = s.byId.get(id); if (z) { const rz = relOf(z); rz.affinity = clamp(rz.affinity + 0.2, -1, 1); rz.familiar = Math.min(1, (rz.familiar || 0) + 0.3); } }
+      if (PS.rep) PS.rep.town = (PS.rep.town || 0) + 0.04;
+      s.log && s.log(`${q.name} was wed at the chapel to the newcomer.`, 'life');
+      say(`You are married to ${q.full || q.name}.`);
+    }
+    // the wedding: did you both come
+    let tick = 0;
+    game.hooks.update.push((dt) => {
+      tick -= dt; if (tick > 0) return; tick = 1;
+      const s = cur(), p = PS.partner; if (!s || !p || p.stage !== 'betrothed' || p.place !== s.world.placeId) return;
+      const q = s.byId.get(p.id), m = (PS.meets || []).find((x) => x.id === p.meetId);
+      if (!q || q.alive === false) { PS.partner = null; return; }
+      if (!m) return;
+      if (m.state === 'met') wed(s, q);
+      else if (m.state === 'missed' || m.state === 'stood-up') {
+        const r = relOf(q); r.affinity = clamp(r.affinity - 0.6, -1, 1); r.trust = clamp((r.trust || 0) - 0.5, -1, 1);
+        q.withPlayer = null; PS.partner = null;
+        s.remember(q, 'Left waiting at the chapel on my wedding day.', 'player', 2, -1);
+        for (const id of [...(q.parents || []), ...(q.children || [])]) { const z = s.byId.get(id); if (z) relOf(z).affinity = clamp(relOf(z).affinity - 0.4, -1, 1); }
+        say(`${q.first} waited at the chapel, and you never came. The wedding is off.`, 'bad');
+      }
+    });
+    // a spouse's home is yours to come and go from
+    const iv = O.invitedTo;
+    O.invitedTo = (b) => { const s = cur(), p = PS.partner, q = p && p.stage === 'married' && s ? partner(s) : null; if (q && b && q.home === b.id) return true; return iv ? iv(b) : false; };
+    // the acts the talk can bring about
+    const base = O.NpcActs.apply;
+    O.NpcActs.apply = function (s, q, a, main) {
+      if (a && a.do === 'court') return court(s, q);
+      if (a && a.do === 'betroth') return betroth(s, q);
+      if (a && a.do === 'part') return part(s, q);
+      return base.apply(this, arguments);
+    };
+    O.Courtship = { partner, wed, court, betroth, part };
+  }
+  O.CourtshipSetup = { setup };
+})();
+
+</script>
+<script>
+// People who know you ask things of you, and offer things. A neighbour presses a loaf into your hands
+// for their mother across town (and a coin for the walk); a friend asks you to supper and you eat at
+// their table; a beggar holds out a hand; and if you're married, your husband or wife is glad to see
+// you come home, and feeds you if you look hungry.
+'use strict';
+(function () {
+  const pick = (a) => a[Math.floor(Math.random() * a.length)];
+  function setup(game) {
+    const PS = O.PlayerState, cur = () => O.SimRef.cur, clamp = O.clamp, G = () => O.Data.GOODS;
+    const abs = (s) => s.day * 1440 + s.minute;
+    const relOf = (q) => { const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r); return r; };
+    const fav = () => (PS.favours = PS.favours || []);
+    const friends = (q) => [...(q.rel || new Map()).entries()].filter(([id, r]) => id !== 0 && r.affinity > 0.3).map(([id]) => id);
+    const kin = (s, q) => [...new Set([...(q.parents || []), ...(q.children || []), ...friends(q)])].map((id) => s.byId.get(id)).filter((z) => z && z.alive !== false && z.home != null && z.home !== q.home && !z.visitor);
+    const KIN = (q, z) => ((q.parents || []).includes(z.id) ? (z.sex === 'f' ? 'mother' : 'father') : (q.children || []).includes(z.id) ? (z.sex === 'f' ? 'daughter' : 'son') : 'friend');
+
+    function askFavour(s, q) {
+      const to = pick(kin(s, q)); if (!to) return false;
+      const hh = s.household(q), g = ['bread', 'eggs', 'cabbage', 'cheese', 'candles', 'herbs'].find((x) => G()[x] && ((hh && hh.pantry && hh.pantry[x] >= 1) || x === 'bread'));
+      if (!g || !PS.canCarry(g)) return false;
+      if (hh && hh.pantry && hh.pantry[g] >= 1) hh.pantry[g] -= 1;
+      PS.add(g); const tip = hh && hh.money > 10 ? 2 : 0; if (tip) { hh.money -= tip; PS.money += tip; }
+      O.NpcActs.fly && O.NpcActs.fly(q, 'player', g);
+      const home = s.building(to.home), nm = (G()[g]?.name || g).toLowerCase();
+      fav().push({ place: s.world.placeId, from: q.id, fromName: q.first, to: to.id, toName: to.first, g, until: s.day + 2 });
+      O.addLead && O.addLead({ place: s.world.placeId, id: to.id, until: abs(s) + 2880, why: 'favour', label: `Take the ${nm} to ${to.first}` });
+      O.npcUI.startFrom(q, `Would you take this ${nm} to my ${KIN(q, to)} ${to.first}${home ? ', ' + (home.name && home.name !== 'House' ? 'at ' + home.name : 'at home') : ''}? ${tip ? "Here's a little for your trouble." : "I'd be grateful."}`);
+      return true;
+    }
+    // the favour done: the one it was for has it
+    (O.onGift = O.onGift || []).push((s, q, o) => {
+      const f = fav().find((x) => x.place === s.world.placeId && x.to === q.id && x.g === o.g); if (!f) return;
+      PS.favours = fav().filter((x) => x !== f);
+      O.dropLead && O.dropLead((l) => l.why === 'favour' && l.id === q.id);
+      const from = s.byId.get(f.from); if (from) { const r = relOf(from); r.affinity = clamp(r.affinity + 0.2, -1, 1); r.trust = clamp((r.trust || 0) + 0.15, -1, 1); s.remember(from, `${r.name || 'The stranger'} took the ${o.label || o.g} to my ${KIN(from, q)} as I asked.`, 'player', 1, 0.4); }
+      const rq = relOf(q); rq.affinity = clamp(rq.affinity + 0.08, -1, 1); rq.familiar = Math.min(1, (rq.familiar || 0) + 0.1);
+      s.remember(q, `${f.fromName} sent me ${o.label || o.g} by the stranger's hand.`, 'player', 0.8, 0.2);
+    });
+    // a beggar given a coin, or anyone given alms
+    (O.onGift = O.onGift || []).push((s, q, o) => { if (o.g === 'coin' && q._begging) { q._begging = false; if (PS.rep) PS.rep.civilian = (PS.rep.civilian || 0) + 0.02; relOf(q).affinity = clamp(relOf(q).affinity + 0.25, -1, 1); } });
+    // supper at a friend's: a full belly and a warmer friendship
+    (O.onMeetDone = O.onMeetDone || []).push((s, q, m, met) => {
+      if (!met || !/supper|dinner|eat/i.test(m.why)) return;
+      PS.hunger = Math.min(100, (PS.hunger || 0) + 60); const r = relOf(q); r.affinity = clamp(r.affinity + 0.1, -1, 1);
+      setTimeout(() => O.npcUI.startFrom(q, pick(['Sit, sit. There is pottage and bread, and plenty of it.', "Eat up, there's more in the pot.", "You're welcome at our table any night."])), 600);
+    });
+
+    O.Favours = { ask: askFavour };
+    // ---------------------------------------------------------------- who comes up to you
+    let at = 0; const done = new Map();
+    game.hooks.update.push((dt) => {
+      at -= dt; if (at > 0) return; at = 3;
+      const s = cur(); if (!s || !O.npcUI || O.npcUI.talking() || O.panelOpen || O.UI.dialogOpen() || game.sleepState) return;
+      // expired favours: they hear the loaf never came
+      for (const f of fav().slice()) if (f.place === s.world.placeId && s.day > f.until) { PS.favours = fav().filter((x) => x !== f); const from = s.byId.get(f.from); if (from) { relOf(from).affinity = clamp(relOf(from).affinity - 0.12, -1, 1); s.remember(from, `Gave the stranger something to take to my ${KIN(from, s.byId.get(f.to) || from)}, and it never came.`, 'player', 1, -0.3); } }
+      const p = game.player, near = [];
+      if (game.scene) { for (const a of game.scene.actors.values()) if (a.person && !a.hidden && !a.leaving && Math.hypot(a.x - p.x, a.y - p.y) < 90) near.push(a.person); }
+      else for (const q of s.people) if (!q.agent.hidden && q.agent.inside == null && Math.hypot(q.agent.x - p.x, q.agent.y - p.y) < 80) near.push(q);
+      for (const q of near.sort(() => Math.random() - 0.5)) {
+        if (q.agent.frozen || q.activity?.act === 'sleep' || q.age < 12 || q.alive === false) continue;
+        const r = relOf(q), k = q.id + ':' + s.day, d = done.get(k) || 0;
+        // your husband or wife, at home
+        const P = PS.partner;
+        if (P && P.stage === 'married' && P.place === s.world.placeId && P.id === q.id && game.scene && game.scene.b.id === q.home && !(d & 1)) {
+          done.set(k, d | 1);
+          const hungry = (PS.hunger || 100) < 45; if (hungry) PS.hunger = Math.min(100, PS.hunger + 45);
+          O.npcUI.startFrom(q, hungry ? pick(['There you are! You look half starved. Sit, I kept you a bowl.', "You're home. Eat something, you look done in."]) : pick(['There you are! I wondered where you had got to.', "You're home. Good.", 'Ah, there you are. How was the day?']));
+          return;
+        }
+        // a friend asks you to supper
+        if (r.affinity > 0.5 && r.familiar > 0.3 && q.home != null && s.hour >= 11 && s.hour < 17 && !(d & 2) && Math.random() < 0.05 && !(PS.meets || []).some((m) => m.who === q.id && m.state === 'set')) {
+          done.set(k, d | 2);
+          O.NpcActs.meet(s, q, { place: 'my home', hour: 19, day: 'today', why: 'supper' });
+          O.npcUI.startFrom(q, pick(['Come and eat with us tonight, at seven. Nothing grand, mind.', "We've a pot on tonight. Come at seven and eat with us.", "You'll come to supper tonight? Seven o'clock, at ours."]));
+          return;
+        }
+        // a favour asked of someone they trust a little
+        if (r.affinity > 0.2 && r.familiar > 0.15 && q.age >= 18 && !(d & 4) && fav().length < 2 && Math.random() < 0.04) { done.set(k, d | 4); if (askFavour(s, q)) return; }
+        // a beggar's hand out
+        const hh = s.household(q);
+        if (!q.job && q.age >= 16 && hh && hh.money < 4 && !game.scene && !(d & 8) && Math.random() < 0.25) {
+          done.set(k, d | 8); q._begging = true;
+          O.gesture && O.gesture(q, 'gesture', 2); O.Speech && O.Speech.say(q, pick(['Spare a coin, for pity?', 'A coin for bread, kind soul?', "Alms, for the love of God. I've not eaten today."]), 3.5);
+          return;
+        }
+      }
+    });
+  }
+  O.FavoursSetup = { setup };
 })();
 
 </script>
@@ -24837,7 +25108,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
         x: away ? away[0] : Math.round(game.scene ? game.scene.b.doorX * 16 + 8 : game.player.x), y: away ? away[1] : Math.round(game.scene ? game.scene.b.doorY * 16 + 10 : game.player.y), dir: game.player.dir,
         mount: game.player.mount ? game.player.mount.id : null,
         region: game.world.island && !game.scene && game.world !== sim.world ? game.world.placeId : null, g: game.world.island && !game.scene ? O.Island.toGlobal(game.world, game.player.x, game.player.y).map(Math.round) : null,
-        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [], emp: PS.emp ? Object.assign({}, PS.emp, { tasks: [], onShift: false, dayInfo: null }) : null, posts: (PS.posts || []).map((x) => Object.assign({}, x, { tasks: [], onShift: false, dayInfo: null, _lm: null, _cur: x === PS.emp })), carry: PS.carry || null, firedSilently: PS.firedSilently || null, residence: PS.residence || null, gaol: PS.gaol || null, gangRanks: PS.gangRanks || [], gangTrials: PS.gangTrials || {}, disguise: PS.disguise || null, loans: PS.loans || [], letters: PS.letters || [], knows: PS.knows || {}, knowsGang: PS.knowsGang || {}, royal: PS.royal || false, taxOwed: PS.taxOwed || 0, taxPaidDay: PS.taxPaidDay ?? null, contract: PS.contract && PS.contract.kind !== 'escort' ? PS.contract : null, leads: (PS.leads || []).filter((l) => l.why !== 'contract' || (PS.contract && PS.contract.kind !== 'escort')), askedLaw: PS.askedLaw || 0, guests: PS.guests || null, jobCardOpen: !!PS.jobCardOpen, learning: PS.learning || 0, performances: PS.performances || 0, lettersCarried: PS.lettersCarried || 0, title: PS.title || null, vouched: PS.vouched || {}, offered: PS.offered || {}, appointment: PS.appointment || null, reeveOf: PS.reeveOf || {}, claim: PS.claim || 0, secrets: PS.secrets || [], vows: !!PS.vows, warWon: PS.warWon || 0, warFought: PS.warFought || 0, plot: PS.plot || null, coronation: PS.coronation || null, anointed: !!PS.anointed, guides: PS.guides || 'all', mail: PS.mail || [], worn: PS.worn || [], bizTab: PS.bizTab || null, meets: PS.meets || [], debts: PS.debts || [], roadLead: PS.roadLead || null, wokeAt: PS.wokeAt ?? null, studiedAt: PS.studiedAt ?? null, studyDay: PS.studyDay ?? null, studyHours: PS.studyHours || 0, lessonDay: PS.lessonDay ?? null, ill: PS.ill || null, confessed: PS.confessed ?? null, tithedWeek: PS.tithedWeek ?? null, titheBase: PS.titheBase || 0, startDay: PS.startDay ?? null, yearsHere: PS.yearsHere || 0, dog: PS.dog || null, lineSpec: PS.lineSpec || null, forebears: PS.forebears || [], _ageChecked: PS._ageChecked ?? null },
+        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [], emp: PS.emp ? Object.assign({}, PS.emp, { tasks: [], onShift: false, dayInfo: null }) : null, posts: (PS.posts || []).map((x) => Object.assign({}, x, { tasks: [], onShift: false, dayInfo: null, _lm: null, _cur: x === PS.emp })), carry: PS.carry || null, firedSilently: PS.firedSilently || null, residence: PS.residence || null, gaol: PS.gaol || null, gangRanks: PS.gangRanks || [], gangTrials: PS.gangTrials || {}, disguise: PS.disguise || null, loans: PS.loans || [], letters: PS.letters || [], knows: PS.knows || {}, knowsGang: PS.knowsGang || {}, royal: PS.royal || false, taxOwed: PS.taxOwed || 0, taxPaidDay: PS.taxPaidDay ?? null, contract: PS.contract && PS.contract.kind !== 'escort' ? PS.contract : null, leads: (PS.leads || []).filter((l) => l.why !== 'contract' || (PS.contract && PS.contract.kind !== 'escort')), askedLaw: PS.askedLaw || 0, guests: PS.guests || null, jobCardOpen: !!PS.jobCardOpen, learning: PS.learning || 0, performances: PS.performances || 0, lettersCarried: PS.lettersCarried || 0, title: PS.title || null, vouched: PS.vouched || {}, offered: PS.offered || {}, appointment: PS.appointment || null, reeveOf: PS.reeveOf || {}, claim: PS.claim || 0, secrets: PS.secrets || [], vows: !!PS.vows, warWon: PS.warWon || 0, warFought: PS.warFought || 0, plot: PS.plot || null, coronation: PS.coronation || null, anointed: !!PS.anointed, guides: PS.guides || 'all', mail: PS.mail || [], worn: PS.worn || [], bizTab: PS.bizTab || null, meets: PS.meets || [], partner: PS.partner || null, debts: PS.debts || [], roadLead: PS.roadLead || null, wokeAt: PS.wokeAt ?? null, studiedAt: PS.studiedAt ?? null, studyDay: PS.studyDay ?? null, studyHours: PS.studyHours || 0, lessonDay: PS.lessonDay ?? null, ill: PS.ill || null, confessed: PS.confessed ?? null, tithedWeek: PS.tithedWeek ?? null, titheBase: PS.titheBase || 0, startDay: PS.startDay ?? null, yearsHere: PS.yearsHere || 0, dog: PS.dog || null, lineSpec: PS.lineSpec || null, forebears: PS.forebears || [], _ageChecked: PS._ageChecked ?? null },
       },
     };
   }
@@ -25073,7 +25344,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.RisingSetup.setup(game, npcUI);
   O.RitesSetup.setup(game);
   O.WarfareSetup.setup(game, npcUI);
-  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.NpcActsSetup.setup(game); O.InitiateSetup.setup(game); O.UnderworldSetup.setup(game);
+  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.NpcActsSetup.setup(game); O.InitiateSetup.setup(game); O.UnderworldSetup.setup(game); O.CourtshipSetup.setup(game); O.FavoursSetup.setup(game);
   O.FinerySetup.setup(game);
   O.PastimesSetup.setup(game);
   O.FishingSetup.setup(game);

@@ -104,7 +104,7 @@
   }
   function tabs() {
     const d = $('ccTabs'); d.innerHTML = '';
-    for (const [k, l] of TABS) { const b = document.createElement('button'); b.textContent = l; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', k === tab); b.onclick = () => { tab = k; tabs(); pane(); }; d.appendChild(b); }
+    for (const [k, l] of TABS.filter(([k0]) => !fitting || k0 === 'clothes' || k0 === 'hat')) { const b = document.createElement('button'); b.textContent = l; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', k === tab); b.onclick = () => { tab = k; tabs(); pane(); }; d.appendChild(b); }
   }
   function update(k, v) {
     spec[k] = v;
@@ -123,6 +123,7 @@
   }
   function buildControls() { tabs(); pane(); nameplate(); }
   $('ccRandom').onclick = () => {
+    if (fitting) return endFitting(false);
     const r = O.RNG(Date.now() & 0xffffffff); const sex = r.chance(0.5) ? 'm' : 'f';
     Object.assign(spec, {
       sex, age: r.int(17, 60), skin: r.int(0, 7), hair: r.pick(hairNames), hairStyle: r.pick(sex === 'm' ? Ch.HAIR_STYLES_M : Ch.HAIR_STYLES_F), beard: r.pick(Ch.BEARDS), hairGrey: false,
@@ -225,8 +226,23 @@
   // ---------- one-time character creation ----------
   // Shown only when a new life begins; afterwards the player is who they made.
   let open = false, done = null;
+  // at the tailor's: only the clothes and the hat, paid for when they're made
+  let fitting = null; const CLOTHES = ['style', 'tunic', 'trousers', 'hat', 'cloak', 'cloakCol'];
+  function showWardrobe(opts, cb) {
+    fitting = { price: opts.price || 12, shop: opts.shop || 'the tailor', was: JSON.parse(JSON.stringify(spec)), cb };
+    open = true; tab = 'clothes'; turn = 0; turnAt = -1; buildControls(); $('tab-forge').hidden = false; resize();
+    $('beginLife').textContent = `Have them made (₳${fitting.price})`; $('ccRandom').textContent = 'Leave as I was';
+    for (const i of document.querySelectorAll('#nameplate input')) i.disabled = true;
+  }
+  function endFitting(keep) {
+    const f = fitting; if (!f) return; fitting = null; open = false; $('tab-forge').hidden = true;
+    $('beginLife').textContent = 'Begin your life'; $('ccRandom').textContent = 'Surprise me';
+    if (!keep) { Object.assign(spec, f.was); player = O.Creator.appearanceFromSpec(spec); try { localStorage.setItem('outlaw.spec', JSON.stringify(spec)); } catch (e) { /* ignore */ } }
+    f.cb && f.cb(keep ? player : null, f);
+  }
   function showCreator(cb) { open = true; done = cb; turn = 0; turnAt = -1; buildControls(); $('tab-forge').hidden = false; resize(); }
   $('beginLife').onclick = () => {
+    if (fitting) { const changed = CLOTHES.some((k) => JSON.stringify(spec[k]) !== JSON.stringify(fitting.was[k])); if (changed && O.PlayerState && O.PlayerState.money < fitting.price) { O.Panels && O.Panels.toast(`That's ₳${fitting.price}, and you haven't it.`, 'bad'); return; } return endFitting(changed); }
     open = false; $('tab-forge').hidden = true;
     try { localStorage.setItem('outlaw.created', '1'); } catch (e) { /* ignore */ }
     const f = done; done = null; f && f(player);
@@ -238,5 +254,5 @@
   requestAnimationFrame(loop);
   // a new face for the same life: the heir who takes over
   const setPlayer = (a, sp) => { player = a; if (sp) { spec = sp; try { localStorage.setItem('outlaw.spec', JSON.stringify(sp)); } catch (e) { /* ignore */ } } };
-  O.Forge = { get player() { return player; }, spec: () => spec, setPlayer, showCreator, created: () => { try { return localStorage.getItem('outlaw.created') === '1'; } catch (e) { return true; } } };
+  O.Forge = { get player() { return player; }, spec: () => spec, setPlayer, showCreator, showWardrobe, created: () => { try { return localStorage.getItem('outlaw.created') === '1'; } catch (e) { return true; } } };
 })();

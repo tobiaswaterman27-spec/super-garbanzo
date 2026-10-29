@@ -12830,6 +12830,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       // they stay till the words are said and the window shuts (by you, or by itself once read), then go
       q.agent.frozen = true; q._snubUntil = s0.day * 1440 + s0.minute + 20;
       const go = () => { q.agent.frozen = false; O.NpcActs && O.NpcActs.walkOff(q); };
+      if (!talking) { const pos = game.scene ? game.scene.personPos(q) : [q.agent.x, q.agent.y]; if (pos) q.agent.dir = O.dirOf(game.player.x - pos[0], game.player.y - pos[1]); O.UI.dialog.open({ name: q.first, color: tagColour(q), text: '', busy: true, options: [] }); } // (they stop and face you while they find the words)
       voice(q, why || 'You end the talk and go on your way; a parting word.', line, (t) => {
         if (talking) return go(); O.UI.dialog.open({ name: q.first, color: tagColour(q), text: t, options: [] });
         const until = performance.now() + 1800 + t.length * 45;
@@ -12838,7 +12839,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     }
     function openTalk(q) {
       // not wanting to talk: they say so, but keep at it (or come back later) and they'll hear you out
-      const s0 = sim; if (q._snubUntil && s0.day * 1440 + s0.minute < q._snubUntil) { q._snubTries = (q._snubTries || 0) + 1; if (q._snubTries < 3) { const l = pick(["I've no interest in talking to you.", 'Not now. Leave me be.', "I've nothing to say to you."]); voice(q, 'The player tries again to talk to you, but you have no interest in talking to them just now; say so.', l, (t) => { if (talking) return; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: t, options: [] }); setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1600 + t.length * 25); }); return; } q._snubUntil = 0; q._snubTries = 0; }
+      const s0 = sim; if (q._snubUntil && s0.day * 1440 + s0.minute < q._snubUntil) { q._snubTries = (q._snubTries || 0) + 1; if (q._snubTries < 3) { const l = pick(["I've no interest in talking to you.", 'Not now. Leave me be.', "I've nothing to say to you."]); q.agent.frozen = true; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: '', busy: true, options: [] }); voice(q, 'The player tries again to talk to you, but you have no interest in talking to them just now; say so.', l, (t) => { q.agent.frozen = false; if (talking) return; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: t, options: [] }); setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1600 + t.length * 25); }); return; } q._snubUntil = 0; q._snubTries = 0; }
       { const bl = O.AI && O.AI.ready ? busyLine(q) : null;
         if (bl) { const act = q.activity?.act, r0 = q.rel.get(0) || {}; if ((r0.affinity || 0) < -0.55 || ['fire', 'firefight', 'help', 'report'].includes(act)) return walkAway(q, bl, (r0.affinity || 0) < -0.55 ? 'The player tries to talk to you, and you dislike them; brush them off and walk away.' : `The player tries to talk to you, but you are in the middle of something urgent (${act}); you won't stop.`); talking = q; q.agent.frozen = true; q._group = []; q._talkFrom = absNow(); q._lastSpeaker = null; hurry(q, act === 'work' || act === 'patrol' ? 'work' : act); return; } }
       talking = q; q.agent.frozen = true; q._lastSpeaker = null; q._mustGo = null; q._talkFrom = absNow();
@@ -13162,6 +13163,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     { const rl = O.romanceLine && O.romanceLine(s, q); if (rl) lines.push(rl); }
     { const wl = O.weddingLine && O.weddingLine(s, q); if (wl) lines.push(wl); }
     { const fl = O.familyLine && O.familyLine(s, q); if (fl) lines.push(fl); }
+    { const tl = O.tailorLine && O.tailorLine(s, q); if (tl) lines.push(tl); }
     { const pl = O.petLine && O.petLine(s, q); if (pl) lines.push(pl + ' If your animal has young and you like someone a great deal, you might give them one (give_pet).'); }
     { const P = O.PlayerState, w = P.wantedLevel ? P.wantedLevel() : 0; if (w > 0 && /guard|watch|sergeant|constable|captain/.test(q.job?.role || '')) { const n = s.crimes.filter((c) => c.perp === 'player' && c.investigated && !c.closed).length; lines.push(`The watch are looking for someone who matches them${P.soughtFor ? ' (' + P.soughtFor() + ')' : ''}. ${q.traits.includes('honest') || q.traits.includes('loyal') ? 'You cannot be bought.' : `You might take a bribe of ${12 + n * 8} aurins or more to forget it.`}`); } }
     if (ctx.fame && ctx.fame.length) lines.push(`You've heard of them: ${ctx.fame.slice(0, 3).map(clean).join(' | ')}`);
@@ -13223,7 +13225,7 @@ Only what's real: never mention objects, chores or happenings that aren't in you
 Keep your word: anything a speaker says they will do now (go somewhere, come along, show the way, follow, fetch, give, take someone on) MUST be in acts, or it won't happen; and never say you'll do what you won't.
 Talks end: when the talk has run its course (goodbyes said, the matter settled, nothing more to say, or they have somewhere to be), the person says a short parting line and adds the act leave. Don't drag a talk out.
 acts: only what a speaker truly agrees to or does, each {"who":"First name","do":...}:
-meet {"place","hour":0-23,"day":"today"|"tomorrow"|weekday,"why"} | follow (they come along with the player, wherever the player goes) | lead {"place"?} (the player comes along with them: they carry on where they were going, or to the place, and wait if the player falls behind; use this when the player says they will come with them) | stop (stop following) | go {"place"} (go there now) | invite (let the player into their home today) | give {"item"} (hand over something they have) | want {"item"} (ask the player for something) | take_gift | refuse_gift | take_job (accept the player's own job when offered) | seek_job {"place"} | tell {"to","msg"} (pass a message to someone they know) | like {"of","by":-1 or 1} (think better or worse of someone after what was said) | call {"who"} (call someone near or in the same house over to join the talk, even across the room) | ask {"who","question"} (go and ask someone in the house or near, privately, then come back with the answer) | show {"place"} (walk the player there) | direct {"place"} (tell the player the way to a place, in words, when they ask where something is) | sell {"item","price"} (sell the player something they have, at an agreed price in aurins) | buy {"item","price"} (buy something the player carries) | lend {"amount"} (lend the player money, to be paid back) | gesture {"kind":"hug"|"handshake"|"bow"|"wave"|"dance"|"cry"|"laugh"} | teach (show the player a little of their trade) | introduce {"who"} (call someone over and name them) | hire_on (agree to work for the player's own business) | join_gang (join the player's gang) | gang_in (a gang member agrees to take the player into their gang) | gang_work (a gang member gives the player the gang's next job, when they ask for work) | hire_player (the master takes the player on, when the card says there's a place) | errand {"item","to","reward"} (give the player something of theirs to take to someone they know, for a few aurins) | want {"item","reward"} also may offer a reward in aurins | court (agree to court, walk out with, the player) | betroth {"day"?,"hour"?} (agree to marry the player; the wedding is set at the chapel, on the day they settle on) | name_child {"name"} (the player's spouse agrees to the name the player gives their new baby) | give_pet (give the player a pup or kitten of your own animal's litter) | set_wedding {"day","hour"} (the betrothed agree to move the wedding) | wedding_guest {"who"?} (the speaker accepts the player's invitation to the wedding, or agrees to pass the invitation to someone they know, who is then bidden) | part (break off a courtship, betrothal or marriage) | fight (go for the player) | flee (run from the player) | leave (end the talk and walk off: rude player, busy, bored, or done). If a speaker says they are off somewhere now, add a go act for it (or leave).
+meet {"place","hour":0-23,"day":"today"|"tomorrow"|weekday,"why"} | follow (they come along with the player, wherever the player goes) | lead {"place"?} (the player comes along with them: they carry on where they were going, or to the place, and wait if the player falls behind; use this when the player says they will come with them) | stop (stop following) | go {"place"} (go there now) | invite (let the player into their home today) | give {"item"} (hand over something they have) | want {"item"} (ask the player for something) | take_gift | refuse_gift | take_job (accept the player's own job when offered) | seek_job {"place"} | tell {"to","msg"} (pass a message to someone they know) | like {"of","by":-1 or 1} (think better or worse of someone after what was said) | call {"who"} (call someone near or in the same house over to join the talk, even across the room) | ask {"who","question"} (go and ask someone in the house or near, privately, then come back with the answer) | show {"place"} (walk the player there) | direct {"place"} (tell the player the way to a place, in words, when they ask where something is) | sell {"item","price"} (sell the player something they have, at an agreed price in aurins) | buy {"item","price"} (buy something the player carries) | lend {"amount"} (lend the player money, to be paid back) | gesture {"kind":"hug"|"handshake"|"bow"|"wave"|"dance"|"cry"|"laugh"} | teach (show the player a little of their trade) | introduce {"who"} (call someone over and name them) | hire_on (agree to work for the player's own business) | join_gang (join the player's gang) | gang_in (a gang member agrees to take the player into their gang) | gang_work (a gang member gives the player the gang's next job, when they ask for work) | hire_player (the master takes the player on, when the card says there's a place) | errand {"item","to","reward"} (give the player something of theirs to take to someone they know, for a few aurins) | want {"item","reward"} also may offer a reward in aurins | court (agree to court, walk out with, the player) | betroth {"day"?,"hour"?} (agree to marry the player; the wedding is set at the chapel, on the day they settle on) | name_child {"name"} (the player's spouse agrees to the name the player gives their new baby) | fit_clothes (a tailor at work measures the player for new clothes) | give_pet (give the player a pup or kitten of your own animal's litter) | set_wedding {"day","hour"} (the betrothed agree to move the wedding) | wedding_guest {"who"?} (the speaker accepts the player's invitation to the wedding, or agrees to pass the invitation to someone they know, who is then bidden) | part (break off a courtship, betrothal or marriage) | fight (go for the player) | flee (run from the player) | leave (end the talk and walk off: rude player, busy, bored, or done). If a speaker says they are off somewhere now, add a go act for it (or leave).
 They know where their family and friends are just now (the card says); a stranger at the door is not invited in on a whim, and they don't promise to ask someone who is right there: they call them or ask them.\nPlaces: names from the card, "my home", "your home" or "the square". Items: things the speaker has, or the player carries.`;
   const G = () => O.Data.GOODS;
   function goodsHad(s, q) {
@@ -14328,9 +14330,26 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       return null;
     }
     (O.onGift = O.onGift || []).push(() => {}); // (paid below, when it's handed over)
+    // the tailor: new clothes made to your choosing
+    const tailorAt = (s, q) => { const bz = q.job && s.biz.get(q.job.biz); return bz && bz.type === 'tailor' && q.activity?.act === 'work' && bz.open !== false ? bz : null; };
+    function fitting(s, q) {
+      const bz = tailorAt(s, q); if (!bz || !O.Forge || !O.Forge.showWardrobe) return null;
+      O.npcUI.closeTalk && O.npcUI.closeTalk();
+      O.Forge.showWardrobe({ price: 10 + Math.round((bz.b?.wealth || 0.4) * 20), shop: bz.name }, (a, f) => {
+        if (!a) return; PS.money -= f.price; bz.cash += f.price;
+        if (game.player._baseA) game.player._baseA = a; else game.setPlayerAppearance(a);
+        O.Speech && O.Speech.say(q, 'There. It fits you well.', 3); s.relate(q, { id: 0 }, 0.05);
+      });
+      return null;
+    }
+    { const prevB = O.npcUI.extraButtons, prevOn = O.npcUI.onExtra;
+      O.npcUI.extraButtons = (q) => { const out = prevB ? prevB(q) : []; if (tailorAt(O.SimRef.cur, q)) out.push(['tailor', 'Have new clothes made']); return out; };
+      O.npcUI.onExtra = (q, key, render) => { if (key === 'tailor') return fitting(O.SimRef.cur, q); return prevOn && prevOn(q, key, render); }; }
+    O.tailorLine = (s, q) => (tailorAt(s, q) ? 'You make clothes to order: if the player wants new clothes made, you can measure them (fit_clothes).' : '');
     const _base = O.NpcActs.apply;
     O.NpcActs.apply = function (s, q, a, main) {
       if (a && a.do === 'errand') return errand(s, q, a);
+      if (a && a.do === 'fit_clothes') return fitting(s, q);
       if (a && a.do === 'hire_player') return O.Employment && O.Employment.hireByTalk ? O.Employment.hireByTalk(s, q) : null;
       if (a && a.do === 'want' && Number(a.reward) > 0) { const r0 = _base.apply(this, arguments); if (q.wants) q.wants.reward = Math.min(30, Math.round(Number(a.reward))); return r0; }
       return _base.apply(this, arguments);
@@ -25450,7 +25469,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   }
   function tabs() {
     const d = $('ccTabs'); d.innerHTML = '';
-    for (const [k, l] of TABS) { const b = document.createElement('button'); b.textContent = l; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', k === tab); b.onclick = () => { tab = k; tabs(); pane(); }; d.appendChild(b); }
+    for (const [k, l] of TABS.filter(([k0]) => !fitting || k0 === 'clothes' || k0 === 'hat')) { const b = document.createElement('button'); b.textContent = l; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', k === tab); b.onclick = () => { tab = k; tabs(); pane(); }; d.appendChild(b); }
   }
   function update(k, v) {
     spec[k] = v;
@@ -25469,6 +25488,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   }
   function buildControls() { tabs(); pane(); nameplate(); }
   $('ccRandom').onclick = () => {
+    if (fitting) return endFitting(false);
     const r = O.RNG(Date.now() & 0xffffffff); const sex = r.chance(0.5) ? 'm' : 'f';
     Object.assign(spec, {
       sex, age: r.int(17, 60), skin: r.int(0, 7), hair: r.pick(hairNames), hairStyle: r.pick(sex === 'm' ? Ch.HAIR_STYLES_M : Ch.HAIR_STYLES_F), beard: r.pick(Ch.BEARDS), hairGrey: false,
@@ -25571,8 +25591,23 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   // ---------- one-time character creation ----------
   // Shown only when a new life begins; afterwards the player is who they made.
   let open = false, done = null;
+  // at the tailor's: only the clothes and the hat, paid for when they're made
+  let fitting = null; const CLOTHES = ['style', 'tunic', 'trousers', 'hat', 'cloak', 'cloakCol'];
+  function showWardrobe(opts, cb) {
+    fitting = { price: opts.price || 12, shop: opts.shop || 'the tailor', was: JSON.parse(JSON.stringify(spec)), cb };
+    open = true; tab = 'clothes'; turn = 0; turnAt = -1; buildControls(); $('tab-forge').hidden = false; resize();
+    $('beginLife').textContent = `Have them made (₳${fitting.price})`; $('ccRandom').textContent = 'Leave as I was';
+    for (const i of document.querySelectorAll('#nameplate input')) i.disabled = true;
+  }
+  function endFitting(keep) {
+    const f = fitting; if (!f) return; fitting = null; open = false; $('tab-forge').hidden = true;
+    $('beginLife').textContent = 'Begin your life'; $('ccRandom').textContent = 'Surprise me';
+    if (!keep) { Object.assign(spec, f.was); player = O.Creator.appearanceFromSpec(spec); try { localStorage.setItem('outlaw.spec', JSON.stringify(spec)); } catch (e) { /* ignore */ } }
+    f.cb && f.cb(keep ? player : null, f);
+  }
   function showCreator(cb) { open = true; done = cb; turn = 0; turnAt = -1; buildControls(); $('tab-forge').hidden = false; resize(); }
   $('beginLife').onclick = () => {
+    if (fitting) { const changed = CLOTHES.some((k) => JSON.stringify(spec[k]) !== JSON.stringify(fitting.was[k])); if (changed && O.PlayerState && O.PlayerState.money < fitting.price) { O.Panels && O.Panels.toast(`That's ₳${fitting.price}, and you haven't it.`, 'bad'); return; } return endFitting(changed); }
     open = false; $('tab-forge').hidden = true;
     try { localStorage.setItem('outlaw.created', '1'); } catch (e) { /* ignore */ }
     const f = done; done = null; f && f(player);
@@ -25584,7 +25619,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   requestAnimationFrame(loop);
   // a new face for the same life: the heir who takes over
   const setPlayer = (a, sp) => { player = a; if (sp) { spec = sp; try { localStorage.setItem('outlaw.spec', JSON.stringify(sp)); } catch (e) { /* ignore */ } } };
-  O.Forge = { get player() { return player; }, spec: () => spec, setPlayer, showCreator, created: () => { try { return localStorage.getItem('outlaw.created') === '1'; } catch (e) { return true; } } };
+  O.Forge = { get player() { return player; }, spec: () => spec, setPlayer, showCreator, showWardrobe, created: () => { try { return localStorage.getItem('outlaw.created') === '1'; } catch (e) { return true; } } };
 })();
 
 </script>

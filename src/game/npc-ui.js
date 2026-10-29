@@ -91,6 +91,7 @@
       // they stay till the words are said and the window shuts (by you, or by itself once read), then go
       q.agent.frozen = true; q._snubUntil = s0.day * 1440 + s0.minute + 20;
       const go = () => { q.agent.frozen = false; O.NpcActs && O.NpcActs.walkOff(q); };
+      if (!talking) { const pos = game.scene ? game.scene.personPos(q) : [q.agent.x, q.agent.y]; if (pos) q.agent.dir = O.dirOf(game.player.x - pos[0], game.player.y - pos[1]); O.UI.dialog.open({ name: q.first, color: tagColour(q), text: '', busy: true, options: [] }); } // (they stop and face you while they find the words)
       voice(q, why || 'You end the talk and go on your way; a parting word.', line, (t) => {
         if (talking) return go(); O.UI.dialog.open({ name: q.first, color: tagColour(q), text: t, options: [] });
         const until = performance.now() + 1800 + t.length * 45;
@@ -99,7 +100,7 @@
     }
     function openTalk(q) {
       // not wanting to talk: they say so, but keep at it (or come back later) and they'll hear you out
-      const s0 = sim; if (q._snubUntil && s0.day * 1440 + s0.minute < q._snubUntil) { q._snubTries = (q._snubTries || 0) + 1; if (q._snubTries < 3) { const l = pick(["I've no interest in talking to you.", 'Not now. Leave me be.', "I've nothing to say to you."]); voice(q, 'The player tries again to talk to you, but you have no interest in talking to them just now; say so.', l, (t) => { if (talking) return; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: t, options: [] }); setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1600 + t.length * 25); }); return; } q._snubUntil = 0; q._snubTries = 0; }
+      const s0 = sim; if (q._snubUntil && s0.day * 1440 + s0.minute < q._snubUntil) { q._snubTries = (q._snubTries || 0) + 1; if (q._snubTries < 3) { const l = pick(["I've no interest in talking to you.", 'Not now. Leave me be.', "I've nothing to say to you."]); q.agent.frozen = true; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: '', busy: true, options: [] }); voice(q, 'The player tries again to talk to you, but you have no interest in talking to them just now; say so.', l, (t) => { q.agent.frozen = false; if (talking) return; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: t, options: [] }); setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1600 + t.length * 25); }); return; } q._snubUntil = 0; q._snubTries = 0; }
       { const bl = O.AI && O.AI.ready ? busyLine(q) : null;
         if (bl) { const act = q.activity?.act, r0 = q.rel.get(0) || {}; if ((r0.affinity || 0) < -0.55 || ['fire', 'firefight', 'help', 'report'].includes(act)) return walkAway(q, bl, (r0.affinity || 0) < -0.55 ? 'The player tries to talk to you, and you dislike them; brush them off and walk away.' : `The player tries to talk to you, but you are in the middle of something urgent (${act}); you won't stop.`); talking = q; q.agent.frozen = true; q._group = []; q._talkFrom = absNow(); q._lastSpeaker = null; hurry(q, act === 'work' || act === 'patrol' ? 'work' : act); return; } }
       talking = q; q.agent.frozen = true; q._lastSpeaker = null; q._mustGo = null; q._talkFrom = absNow();

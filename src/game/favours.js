@@ -59,9 +59,26 @@
       return null;
     }
     (O.onGift = O.onGift || []).push(() => {}); // (paid below, when it's handed over)
+    // the tailor: new clothes made to your choosing
+    const tailorAt = (s, q) => { const bz = q.job && s.biz.get(q.job.biz); return bz && bz.type === 'tailor' && q.activity?.act === 'work' && bz.open !== false ? bz : null; };
+    function fitting(s, q) {
+      const bz = tailorAt(s, q); if (!bz || !O.Forge || !O.Forge.showWardrobe) return null;
+      O.npcUI.closeTalk && O.npcUI.closeTalk();
+      O.Forge.showWardrobe({ price: 10 + Math.round((bz.b?.wealth || 0.4) * 20), shop: bz.name }, (a, f) => {
+        if (!a) return; PS.money -= f.price; bz.cash += f.price;
+        if (game.player._baseA) game.player._baseA = a; else game.setPlayerAppearance(a);
+        O.Speech && O.Speech.say(q, 'There. It fits you well.', 3); s.relate(q, { id: 0 }, 0.05);
+      });
+      return null;
+    }
+    { const prevB = O.npcUI.extraButtons, prevOn = O.npcUI.onExtra;
+      O.npcUI.extraButtons = (q) => { const out = prevB ? prevB(q) : []; if (tailorAt(O.SimRef.cur, q)) out.push(['tailor', 'Have new clothes made']); return out; };
+      O.npcUI.onExtra = (q, key, render) => { if (key === 'tailor') return fitting(O.SimRef.cur, q); return prevOn && prevOn(q, key, render); }; }
+    O.tailorLine = (s, q) => (tailorAt(s, q) ? 'You make clothes to order: if the player wants new clothes made, you can measure them (fit_clothes).' : '');
     const _base = O.NpcActs.apply;
     O.NpcActs.apply = function (s, q, a, main) {
       if (a && a.do === 'errand') return errand(s, q, a);
+      if (a && a.do === 'fit_clothes') return fitting(s, q);
       if (a && a.do === 'hire_player') return O.Employment && O.Employment.hireByTalk ? O.Employment.hireByTalk(s, q) : null;
       if (a && a.do === 'want' && Number(a.reward) > 0) { const r0 = _base.apply(this, arguments); if (q.wants) q.wants.reward = Math.min(30, Math.round(Number(a.reward))); return r0; }
       return _base.apply(this, arguments);

@@ -19,7 +19,7 @@
     game.hooks.update.push(() => {
       if (!talking) return;
       const pos = game.scene ? game.scene.personPos(talking) : (talking.agent.hidden ? null : [talking.agent.x, talking.agent.y]);
-      if (!pos || Math.hypot(pos[0] - game.player.x, pos[1] - game.player.y) > 60) return closeTalk();
+      if (!pos || Math.hypot(pos[0] - game.player.x, pos[1] - game.player.y) > 70) return closeTalk();
       // whoever you're talking to keeps turning to face you (unless they're sat or abed)
       const d = O.dirOf(game.player.x - pos[0], game.player.y - pos[1]);
       if (game.scene) { const a = game.scene.actors.get(talking.id); if (a && !a.seat && !a.gBed) { a.dir = d; a.gDir = d; } }
@@ -36,7 +36,13 @@
     // while you talk with someone they don't wander off: their day waits till you're done
     { const SP = O.Sim.prototype, _plan = SP.plan; SP.plan = function (p) { if (talking && p === talking && p.activity && !p.agent.hidden) return p.activity; return _plan.call(this, p); }; }
     function openTalk(q) {
-      talking = q; q.agent.frozen = true;
+      const s0 = sim; if (q._snubUntil && s0.day * 1440 + s0.minute < q._snubUntil) { O.UI.say(`${q.first} turns away from you.`, 'bad'); return; }
+      talking = q; q.agent.frozen = true; q._lastSpeaker = null;
+      // others standing with them join in (as in a group in the square)
+      { const pos0 = game.scene ? game.scene.personPos(q) : [q.agent.x, q.agent.y];
+        const near = pos0 ? (game.scene ? [...game.scene.actors.values()].filter((a) => !a.hidden && a.person && a.person !== q).map((a) => [a.person, a.x, a.y]) : sim.people.filter((z) => z !== q && !z.agent.hidden).map((z) => [z, z.agent.x, z.agent.y])) : [];
+        q._group = near.filter(([z, x, y]) => Math.hypot(x - pos0[0], y - pos0[1]) < 34 && z.age >= 5 && z.activity?.act !== 'sleep' && z.activity?.act !== 'work' && z.health.hp > 0).slice(0, 2).map(([z]) => z);
+        for (const z of q._group) z.agent.frozen = true; }
       O.jobEvent && O.jobEvent('talk', { q });
       O.dropLead && O.dropLead((l) => l.id === q.id && l.place === O.SimRef.cur.world.placeId && l.why !== 'contract'); // found them: the arrow's done its work
       const pos = game.scene ? game.scene.personPos(q) || [q.agent.x, q.agent.y] : [q.agent.x, q.agent.y];
@@ -50,7 +56,7 @@
       if (r.familiar <= 0.11) sim.remember(q, 'A stranger stopped me in the street to talk.', 'player', 0.8, 0);
       renderTalk(O.Dialogue.provider.greet(O.Dialogue.buildContext(sim, q), q.id + sim.day));
     }
-    function closeTalk() { if (talking) { O.AIChat && O.AIChat.ended(talking); }
+    function closeTalk() { if (talking) { O.AIChat && O.AIChat.ended(talking); for (const z of talking._group || []) { z.agent.frozen = false; z.agent.talking = 0; } }
       if (talking) { talking.agent.frozen = false; talking.agent.talking = 0; } talking = null; card.hidden = true; if (O.UI.dialogOpen()) O.UI.dialog.close(); }
     function bar(v, cls = '') { return `<span class="bar ${cls}"><i style="width:${Math.round(O.clamp(v, 0, 100))}%"></i></span>`; }
     // name tag in the colour of their clothes
@@ -65,9 +71,8 @@
       for (const [k, l] of (api.extraButtons ? api.extraButtons(q) : [])) options.push({ key: 'x-' + k, label: l, hot: true });
       if (atWork) options.push({ key: 'trade', label: 'Show me your wares', hot: true });
       if (q.job?.role === 'parish clerk' && q.activity?.act === 'work' && O.knowsTrade(q)) options.push({ key: 'houses', label: 'Houses to let or sell', hot: true });
-      for (const [k, l] of [['self', 'How are you?'], ['work', 'What do you do?'], ['news', 'Any news?'], ['prices', 'How are prices?'], ['family', 'Your family?']]) options.push({ key: k, label: l });
-      options.push({ key: 'bye', label: 'Goodbye' });
-      O.UI.dialog.open({ name: q.gentry ? q.name : q.first + (q.title ? `, ${q.title}` : q.office ? `, ${q.office}` : ''), color: tagColour(q), text: busy ? '' : line, busy, options: busy ? [] : options, chat: O.AI && O.AI.ready ? (t) => O.AIChat.say(q, t, (ln, b) => { if (talking === q) renderTalk(ln, b); }) : null, onPick: (t) => pickTopic(q, bz, t), onClose: () => { O.AIChat && O.AIChat.ended(q); if (talking === q) { q.agent.frozen = false; q.agent.talking = 0; talking = null; } } });
+      if (!(O.AI && O.AI.ready)) { for (const [k, l] of [['self', 'How are you?'], ['work', 'What do you do?'], ['news', 'Any news?'], ['family', 'Your family?']]) options.push({ key: k, label: l }); options.push({ key: 'bye', label: 'Goodbye' }); }
+      O.UI.dialog.open({ name: (q._lastSpeaker && q._lastSpeaker !== q ? q._lastSpeaker.first : q.gentry ? q.name : q.first + (q.title ? `, ${q.title}` : q.office ? `, ${q.office}` : '')), color: tagColour(q._lastSpeaker || q), text: busy ? '' : line, busy, options: busy ? [] : options, chat: O.AI && O.AI.ready ? (t) => O.AIChat.say(q, t, (ln, b) => { if (talking === q) renderTalk(ln, b); }) : null, give: O.AI && O.AI.ready ? (g) => O.AIChat.give(q, g, (ln, b) => { if (talking === q) renderTalk(ln, b); }) : null, focus: true, onPick: (t) => pickTopic(q, bz, t), onClose: () => { O.AIChat && O.AIChat.ended(q); if (talking === q) { q.agent.frozen = false; q.agent.talking = 0; talking = null; } } });
     }
     function pickTopic(q, bz, t) {
       if (t === 'bye') { const bye = ['Fare you well.', 'God keep you.', 'Mind how you go.', 'Until next time.'][(q.id + sim.day) % 4]; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: bye, options: [] }); talking = null; q.agent.frozen = false; setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1600); return; }

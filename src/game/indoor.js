@@ -433,7 +433,7 @@
     // ---- interaction candidates for the interact module ----
     candidates() {
       const p = this.game.player, out = [];
-      for (const a of this.actors.values()) { if (a.hidden) continue; const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < 30 && a.anim !== 'doze') out.push({ type: 'npc', person: a.person, d, x: a.x, y: a.y }); }
+      for (const a of this.actors.values()) { if (a.hidden) continue; const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < (p.sitting || a.seat ? 40 : 30) && a.anim !== 'doze') out.push({ type: 'npc', person: a.person, d, x: a.x, y: a.y }); }
       const bz = this.sim.biz.get(this.b.id);
       for (const it of this.L.items) {
         const [x0, y0, x1, y1] = this.rect(it);

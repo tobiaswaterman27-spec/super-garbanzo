@@ -129,6 +129,7 @@
     // ---------------------------------------------------------------- everything on, in one list
     O.eventsFor = (s, d0, d1) => {
       const out = [], add = (e) => { if (e.day >= d0 && e.day <= d1) out.push(e); };
+      if (O.meetsFor) for (const m of O.meetsFor(s, d0, d1)) if (m.place === s.world.placeId) out.push(m);
       const here = s.world.placeId;
       for (let d = d0; d <= d1; d++) {
         const se = seasonOf(d), dd = dos(d);

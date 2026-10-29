@@ -33,7 +33,16 @@
       if (!r.ok) throw { code: r.status === 401 ? 'bad_key' : r.status === 429 ? 'rate_limited' : 'upstream_error', message: j.error?.message || '' };
       return JSON.parse(j.choices[0].message.content);
     }
-    if (AI.kind === 'mock') { const m = /Player: (.*)$/m.exec(prompt), said = m ? m[1] : ''; return { say: /name/i.test(said) ? 'They call me what my mother called me.' : 'Aye, well. ' + (said.length > 20 ? 'That is a lot to take in.' : 'If you say so.'), feel: 0, trust: 0, learned: '', name: (/I am (\w+)/i.exec(said) || [])[1] || '', agree: /please/i.test(said), caught: false }; }
+    if (AI.kind === 'mock') { // (tests only: a dull, predictable villager)
+      const said = prompt.slice(prompt.lastIndexOf('\nPlayer: ') + 9), who = (/--- (\w+) \(spoken to\)/.exec(prompt) || [])[1] || 'Me', acts = [];
+      if (/meet me/i.test(said)) acts.push({ who, do: 'meet', place: /tavern|lantern/i.test(said) ? 'The Crooked Lantern' : 'the square', hour: 18, day: 'tomorrow', why: /date/i.test(said) ? 'a date' : 'a meeting' });
+      if (/follow me|come with me/i.test(said)) acts.push({ who, do: 'follow' });
+      if (/give me/i.test(said)) acts.push({ who, do: 'give', item: (/give me (?:a |an |some )?(\w+)/i.exec(said) || [])[1] || 'bread' });
+      if (/holds out/i.test(said)) acts.push({ who, do: 'take_gift' });
+      if (/your house/i.test(said)) acts.push({ who, do: 'invite' });
+      if (/go away|leave/i.test(said)) acts.push({ who, do: 'leave' });
+      return { lines: [{ who, say: /name/i.test(said) ? 'They call me what my mother called me.' : 'Aye, well. ' + (said.length > 20 ? 'That is a lot to take in.' : 'If you say so.') }], people: { [who]: { feel: 0, trust: 0, learned: '', caught: false } }, name: (/I am (\w+)/i.exec(said) || [])[1] || '', agree: /please/i.test(said), acts };
+    }
     throw { code: 'no_ai' };
   };
 
@@ -185,59 +194,137 @@
   const askFor = (q) => { for (const fn of asks) { const a = fn(q); if (a) return a; } return null; };
 
   // ---------------------------------------------------------------- the talk
-  const RULES = `Write the next thing this person says in a medieval village game. Reply ONLY with JSON:
-{"say": string, "feel": -2..2, "trust": -2..2, "learned": string, "name": string, "agree": boolean, "caught": boolean}
-say: their words, 1 or 2 short sentences, at most 30 words, fully in character for their age, temper and mood. Plain medieval English, no modern words. Perfect spelling and grammar. No dashes, no emoji, no actions in brackets or stars.
-They know only what their card says. Asked about anything else, they don't know, guess vaguely or say so; they never invent facts about real people or places in their town. Nonsense makes them confused. Suspicious, hostile or untrusting people are curt with strangers and doubt what they're told. The greedy and hostile may lie.
-feel: how much what the player just said changes their liking for them. trust: how much it changes their belief in them.
-learned: a short new claim from the player's words they now believe, in their own words, else "". name: the player's name if the player just gave it, else "".
-agree: true only if they now genuinely agree to the request below. caught: true only if they now realise the player lied to them before.`;
-  let ctl = null;
-  async function say(q, text, render) {
+  const RULES = `Write what happens next in a conversation in a medieval village game. Reply ONLY with JSON:
+{"lines":[{"who":"First name","say":"..."}],"people":{"First name":{"feel":0,"trust":0,"learned":"","caught":false}},"name":"","agree":false,"acts":[]}
+lines: normally 1 line from the person spoken to; 2 or 3 only if others are in the talk and would chime in. say: 1 or 2 short sentences, at most 30 words, fully in character for age, temper, mood and what they are doing now. Plain medieval English, no modern words, perfect spelling and grammar, no dashes, no emoji, nothing in brackets or stars.
+They know only what their card says; asked anything else they don't know, guess vaguely or say so, and never invent people or places in their town. Nonsense confuses them. The suspicious, hostile or untrusting are curt with strangers and doubt claims. The greedy and hostile may lie. Busy people want to get on.
+people: for each person present: feel and trust (-2..2) = how the player's words change their liking and belief; learned = a short new claim from the player they now believe, else ""; caught = true if they now see the player lied before.
+name: the player's name if the player just gave it. agree: true only if they now agree to the pending request.
+acts: only what a speaker truly agrees to or does, each {"who":"First name","do":...}:
+meet {"place","hour":0-23,"day":"today"|"tomorrow"|weekday,"why"} | follow (come along with the player now) | stop (stop following) | go {"place"} (go there now) | invite (let the player into their home today) | give {"item"} (hand over something they have) | want {"item"} (ask the player for something) | take_gift | refuse_gift | take_job (accept the player's own job when offered) | seek_job {"place"} | tell {"to","msg"} (pass a message to someone they know) | like {"of","by":-1 or 1} (think better or worse of someone after what was said) | leave (end the talk and walk off: rude player, busy, bored, or done).
+Places: names from the card, "my home", "your home" or "the square". Items: things the speaker has, or the player carries.`;
+  const G = () => O.Data.GOODS;
+  function goodsHad(s, q) {
+    const hh = s.household(q), out = [];
+    for (const [g, n] of Object.entries((hh && hh.pantry) || {})) if (n >= 1 && G()[g]) out.push(G()[g].name.toLowerCase());
+    const bz = q.job && q.activity?.act === 'work' && s.biz.get(q.job.biz); if (bz) for (const [g, n] of Object.entries(bz.stock || {})) if (n >= 1 && G()[g] && bz.def.sells.includes(g)) out.push(G()[g].name.toLowerCase() + ' (stock, to sell)');
+    for (const g of q.items || []) out.push((G()[g]?.name || g).toLowerCase());
+    return [...new Set(out)].slice(0, 12);
+  }
+  function extraCard(s, q) {
+    const PS = O.PlayerState, L = [];
+    const had = goodsHad(s, q); if (had.length) L.push(`You have: ${had.join(', ')}.`);
+    const carried = [...new Set(PS.items)].map((g) => (G()[g]?.name || g).toLowerCase()); L.push(`The player carries: ${carried.join(', ') || 'nothing'}${PS.money ? `, and ₳${PS.money}` : ''}.`);
+    for (const m of (PS.meets || []).filter((m) => m.who === q.id && m.place === s.world.placeId && m.state === 'set')) L.push(`You agreed to meet the player at ${m.label}.`);
+    if (q.wants && q.wants.until > s.day) L.push(`You asked the player for ${q.wants.name}.`);
+    if (q._offer) L.push(`The player is holding out ${q._offer.label} to you as a gift: answer with take_gift or refuse_gift.`);
+    if (O.NpcActs && O.NpcActs.following(q)) L.push('You are walking along with the player.');
+    if (PS.emp && PS.emp.place === s.world.placeId) L.push(`The player works as ${PS.emp.role} at ${PS.emp.bizName || 'a business here'}.`);
+    const realm = (s.kingdom?.news || []).filter((n) => !['migration', 'growth', 'decline'].includes(n.kind) && n.day >= s.day - 10).slice(-3).map((n) => clean(n.text));
+    if (realm.length) L.push(`News of the realm: ${realm.join(' | ')}`);
+    return L.join('\n');
+  }
+  function shortCard(s, q) {
+    const r = q.rel.get(0) || {}; const job = q.job ? q.job.role : q.age < 14 ? 'a child' : 'no work';
+    return `${q.first} ${q.sur || ''} (${q.sex === 'm' ? 'man' : 'woman'}, ${q.age}, ${job}; temper ${(q.traits || []).join(', ')}; ${r.familiar > 0.2 ? 'knows the player' : 'does not know the player'}${r.affinity > 0.3 ? ', likes them' : r.affinity < -0.2 ? ', dislikes them' : ''}). ${speechFor(q.age, q.stage)}`;
+  }
+  const gest = (q, anim, secs = 2.2) => { const now = performance.now(); q.agent.gest = { anim, from: now, until: now + secs * 1000 }; };
+  O.gesture = gest;
+  async function say(q, text, render, opt = {}) {
     const s = O.SimRef.cur, PS = O.PlayerState, r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r);
     const conv = q._conv || (q._conv = []);
     text = text.slice(0, 220); conv.push({ who: 'p', t: text });
     if (q.activity?.act === 'sleep') return reply(q, pk(['Mmh. Wha...', 'Zzz.', 'Leave me be. I\'m sleeping.']), render);
-    if (q.age < 3) return reply(q, babble(q), render);
-    if (gibberish(text)) { r.trust = clamp((r.trust || 0) - 0.02, -1, 1); gest(q, 'shrug'); return reply(q, confused(q), render); }
+    if (q.age < 3) { if (q._offer) { const o = q._offer; q._offer = null; if (o.g !== 'coin' && Math.random() < 0.5) { (q.items = q.items || []).push(o.g); return reply(q, pk(['Ooh!', 'Mine!', 'Ta.']), render); } O.NpcActs && O.NpcActs.returnGift(q, o); } return reply(q, babble(q), render); }
+    if (!opt.gift && gibberish(text)) { r.trust = clamp((r.trust || 0) - 0.02, -1, 1); gest(q, 'shrug'); return reply(q, confused(q), render); }
     if (!AI.ready) return reply(q, '...', render);
-    const ask = askFor(q);
-    const history = conv.slice(-7, -1).map((c) => (c.who === 'p' ? 'Player: ' : 'You: ') + c.t).join('\n');
-    const prompt = `${RULES}\n\n${speechFor(q.age, q.stage)}\n--- Your card ---\n${card(s, q)}\n${ask ? `--- Request ---\nThe player wants you to ${ask.goal}. ${ask.why || ''} Weigh it by your temper, needs and trust. Set agree true only if convinced.\n` : 'No request is pending: agree is false.\n'}--- Talk so far ---\n${history || '(none)'}\nPlayer: ${text}`;
+    const ask = askFor(q), group = (q._group || []).filter((z) => z.alive !== false);
+    const history = conv.slice(-8, -1).map((c) => (c.who === 'p' ? 'Player: ' : (c.by || q.first) + ': ') + c.t).join('\n');
+    const prompt = `${RULES}\n\n--- ${q.first} (spoken to) ---\n${speechFor(q.age, q.stage)}\n${card(s, q)}\n${extraCard(s, q)}\n${group.length ? `--- Also in the talk ---\n${group.map((z) => shortCard(s, z)).join('\n')}\n` : ''}${ask ? `--- Pending request to ${q.first} ---\nThe player wants you to ${ask.goal}. ${ask.why || ''} Weigh it by temper, needs and trust; agree only if convinced.\n` : 'No request is pending: agree is false.\n'}--- Talk so far ---\n${history || '(none)'}\nPlayer: ${text}`;
     render(null, true);
-    AI.busy = true; ctl = {};
+    AI.busy = true;
     let out = null;
     try { out = await AI.json(prompt); }
-    catch (e) { AI.busy = false; return reply(q, e && e.code === 'rate_limited' ? pk(['Not now. I\'ve a lot on.', 'Give me a moment, will you?']) : pk(['Hm?', 'Sorry, I was miles away.']), render); }
+    catch (e) { AI.busy = false; if (q._offer) { O.NpcActs && O.NpcActs.returnGift(q, q._offer); q._offer = null; } return reply(q, e && e.code === 'rate_limited' ? pk(['Not now. I\'ve a lot on.', 'Give me a moment, will you?']) : pk(['Hm?', 'Sorry, I was miles away.']), render); }
     AI.busy = false;
-    if (!out || typeof out.say !== 'string' || !out.say.trim()) return reply(q, pk(['Hm.', 'Well.']), render);
-    const n = (v) => clamp(Math.round(Number(v) || 0), -2, 2);
-    r.affinity = clamp(r.affinity + n(out.feel) * 0.04, -1, 1); r.trust = clamp((r.trust || 0) + n(out.trust) * 0.06, -1, 1); r.familiar = Math.min(1, r.familiar + 0.02);
-    if (out.name && typeof out.name === 'string' && out.name.length < 30) r.name = clean(out.name).split(' ')[0];
-    if (out.learned && typeof out.learned === 'string' && out.learned.length > 3) { (q.beliefs = q.beliefs || []).unshift({ t: clean(out.learned).slice(0, 140), src: 'player', day: s.day }); q.beliefs.length = Math.min(q.beliefs.length, 10); }
-    if (out.caught) {
-      r.trust = clamp((r.trust || 0) - 0.35, -1, 1); r.affinity = clamp(r.affinity - 0.2, -1, 1);
-      s.remember(q, `Caught ${r.name || 'the stranger'} in a lie.`, 'player', 1, 0);
-      const i = (q.traits || []).indexOf('loyal'); if (i >= 0) q.traits[i] = 'suspicious';
-      if (q.beliefs) q.beliefs = q.beliefs.filter((b) => b.src !== 'player');
+    const lines = Array.isArray(out?.lines) ? out.lines.filter((l) => l && typeof l.say === 'string' && l.say.trim()) : typeof out?.say === 'string' ? [{ who: q.first, say: out.say }] : [];
+    if (!lines.length) return reply(q, pk(['Hm.', 'Well.']), render);
+    const n = (v) => clamp(Math.round(Number(v) || 0), -2, 2), everyone = [q, ...group];
+    const byName = (w) => everyone.find((z) => z.first === w || (w && String(w).startsWith(z.first))) || null;
+    if (out.name && typeof out.name === 'string' && out.name.length < 30) { const nm = clean(out.name).split(' ')[0]; for (const z of everyone) { const rz = z.rel.get(0) || { affinity: 0, familiar: 0 }; rz.name = nm; z.rel.set(0, rz); } }
+    for (const z of everyone) {
+      const pz = (out.people && (out.people[z.first] || out.people[z.name])) || (z === q ? out : null); if (!pz) continue;
+      const rz = z.rel.get(0) || { affinity: 0, familiar: 0 }; z.rel.set(0, rz);
+      rz.affinity = clamp(rz.affinity + n(pz.feel) * 0.04, -1, 1); rz.trust = clamp((rz.trust || 0) + n(pz.trust) * 0.06, -1, 1); rz.familiar = Math.min(1, rz.familiar + 0.02);
+      if (pz.learned && typeof pz.learned === 'string' && pz.learned.length > 3) { (z.beliefs = z.beliefs || []).unshift({ t: clean(pz.learned).slice(0, 140), src: 'player', day: s.day }); z.beliefs.length = Math.min(z.beliefs.length, 10); }
+      if (pz.caught) {
+        rz.trust = clamp((rz.trust || 0) - 0.35, -1, 1); rz.affinity = clamp(rz.affinity - 0.2, -1, 1);
+        s.remember(z, `Caught ${rz.name || 'the stranger'} in a lie.`, 'player', 1, 0);
+        const i = (z.traits || []).indexOf('loyal'); if (i >= 0) z.traits[i] = 'suspicious';
+        if (z.beliefs) z.beliefs = z.beliefs.filter((b) => b.src !== 'player');
+      }
+      if (rz.affinity > 0.7 && (z.traits || []).includes('hostile') && Math.random() < 0.1) z.traits[z.traits.indexOf('hostile')] = 'friendly';
+      const fv = n(pz.feel); gest(z, pz.caught ? 'shake' : fv >= 2 ? 'laugh' : fv === 1 ? 'nod' : fv <= -1 ? 'shake' : Math.random() < 0.5 ? 'gesture' : 'shrug', fv >= 2 ? 2.6 : 2);
     }
-    // a person warms over time: a sour temper can sweeten for someone they've come to like
-    if (r.affinity > 0.7 && (q.traits || []).includes('hostile') && Math.random() < 0.1) q.traits[q.traits.indexOf('hostile')] = 'friendly';
     if (ask && out.agree === true) { try { ask.onAgree(q); } catch (e) { /* a task gone */ } }
-    { const fv = n(out.feel); gest(q, out.caught ? 'shake' : fv >= 2 ? 'laugh' : fv === 1 ? 'nod' : fv <= -1 ? 'shake' : Math.random() < 0.5 ? 'gesture' : 'shrug', fv >= 2 ? 2.6 : 2); }
     q._talked = { day: s.day, first: q._talked && q._talked.day === s.day ? q._talked.first : text };
-    reply(q, out.say, render);
+    // what they do
+    let leave = false; const notes = [];
+    if (Array.isArray(out.acts) && O.NpcActs) for (const a of out.acts.slice(0, 4)) { if (!a || typeof a.do !== 'string') continue; const who = byName(a.who) || q; const res = O.NpcActs.apply(s, who, a, q); if (res === 'leave') leave = true; else if (res) notes.push(res); }
+    if (q._offer) { const o = q._offer; q._offer = null; if (r.affinity > -0.2) O.NpcActs && O.NpcActs.keepGift(s, q, o); else O.NpcActs && O.NpcActs.returnGift(q, o); }
+    const shown = lines.slice(0, 3).map((l) => { const who = byName(l.who) || q; return { who, t: clean(l.say) }; });
+    q._lastSpeaker = shown.length === 1 ? shown[0].who : null;
+    for (const l of shown) conv.push({ who: 'q', by: l.who.first, t: l.t });
+    if (conv.length > 16) conv.splice(0, conv.length - 16);
+    const text2 = shown.length === 1 ? shown[0].t : shown.map((l) => `${l.who.first}: ${l.t}`).join('\n');
+    render(text2, false);
+    if (notes.length) O.UI.say(notes.join(' '));
+    if (leave) setTimeout(() => { if (O.npcUI && O.npcUI.talking() === q) { O.npcUI.closeTalk(); } q._snubUntil = s.day * 1440 + s.minute + (r.affinity < -0.2 ? 240 : 30); O.NpcActs && O.NpcActs.walkOff(q); }, 2200);
   }
-  const gest = (q, anim, secs = 2.2) => { const now = performance.now(); q.agent.gest = { anim, from: now, until: now + secs * 1000 }; };
-  O.gesture = gest;
   function reply(q, line, render) {
-    line = clean(line) || '...';
-    (q._conv = q._conv || []).push({ who: 'q', t: line }); if (q._conv.length > 14) q._conv.splice(0, q._conv.length - 14);
+    line = clean(line) || '...'; q._lastSpeaker = null;
+    (q._conv = q._conv || []).push({ who: 'q', t: line }); if (q._conv.length > 16) q._conv.splice(0, q._conv.length - 16);
     render(line, false);
   }
+  // holding something out: it leaves your hands, and they take it or hand it back
+  function give(q, g, render) {
+    const PS = O.PlayerState; if (q._offer) return;
+    let label, offer;
+    if (g === 'coin') { const n = Math.min(PS.money, 5); if (n < 1) return; PS.money -= n; label = `₳${n}`; offer = { g, n, label }; }
+    else { if (!PS.remove(g)) return; label = (/^[aeiou]/i.test(G()[g]?.name || '') ? 'an ' : 'a ') + (G()[g]?.name || g).toLowerCase(); offer = { g, n: 1, label }; }
+    q._offer = offer; O.NpcActs && O.NpcActs.fly('player', q, g);
+    O.game.player.anim = 'place'; O.game.player.ft = 0; setTimeout(() => { if (O.game.player.anim === 'place') O.game.player.anim = 'idle'; }, 500);
+    say(q, `(holds out ${label} to you)`, render, { gift: true });
+  }
+  // a letter in your own words: they read it, may act on it, and write back
+  async function readLetter(s, q, text) {
+    if (!AI.ready || q.age < 9) return;
+    const prompt = `${RULES}\n\nInstead of talk: ${q.first} has just read a letter from the player and writes a short reply letter (the "say" of one line, 1 to 3 sentences, plain and in character; a poor or rough person writes plainly). Acts like meet still apply; follow, go and leave do not.\n--- ${q.first} ---\n${speechFor(q.age, q.stage)}\n${card(s, q)}\n${extraCard(s, q)}\nNo request is pending: agree is false.\n--- The letter ---\nPlayer: ${String(text).slice(0, 400)}`;
+    let out; try { out = await AI.json(prompt); } catch (e) { return; }
+    const line = Array.isArray(out?.lines) && out.lines[0] && out.lines[0].say ? clean(out.lines[0].say) : null;
+    const pz = out?.people && (out.people[q.first] || Object.values(out.people)[0]); const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r);
+    if (pz) { r.affinity = clamp(r.affinity + clamp(Math.round(+pz.feel || 0), -2, 2) * 0.04, -1, 1); r.trust = clamp((r.trust || 0) + clamp(Math.round(+pz.trust || 0), -2, 2) * 0.05, -1, 1); if (pz.learned) (q.beliefs = q.beliefs || []).unshift({ t: clean(pz.learned).slice(0, 140), src: 'player', day: s.day }); }
+    if (out?.name) r.name = clean(out.name).split(' ')[0];
+    const notes = []; if (Array.isArray(out?.acts) && O.NpcActs) for (const a of out.acts.slice(0, 3)) if (a && ['meet', 'give', 'want', 'seek_job', 'tell', 'like', 'invite'].includes(a.do)) { if (a.do === 'give') continue; const res = O.NpcActs.apply(s, q, a, q); if (res && res !== 'leave') notes.push(res); }
+    if (line) O.sendMail('reply', { from: q.name, text: line, notes }, 2 + Math.random() * 6, `A letter from ${q.first}`);
+  }
+  O.mailHandlers = O.mailHandlers || {};
+  O.mailHandlers.reply = (d) => { O.Panels.open(`A letter from ${d.from}`, `<p class="letter">${esc(d.text)}</p>${(d.notes || []).length ? `<p class="caption">${esc(d.notes.join(' '))}</p>` : ''}`); };
+  // friends now and then write to ask you to meet
+  { const SP = O.Sim.prototype, _nd = SP.newDay;
+    SP.newDay = function () { const r = _nd.apply(this, arguments);
+      if (this !== O.SimRef.cur || !O.NpcActs || Math.random() > 0.35) return r;
+      const fond = this.people.filter((p) => p.alive !== false && p.age >= 16 && ((p.rel.get(0) || {}).affinity || 0) > 0.45 && ((p.rel.get(0) || {}).familiar || 0) > 0.3);
+      const q = fond[Math.floor(Math.random() * fond.length)]; if (!q || (O.PlayerState.meets || []).some((m) => m.who === q.id && m.state === 'set')) return r;
+      const tav = [...this.biz.values()].find((b) => b.type === 'tavern'), place = Math.random() < 0.5 && tav ? tav.name : 'the square', hour = place === 'the square' ? 12 + Math.floor(Math.random() * 5) : 18 + Math.floor(Math.random() * 3);
+      const note = O.NpcActs.apply(this, q, { do: 'meet', place, hour, day: 'tomorrow', why: q.traits.includes('social') ? 'a drink and a talk' : 'a talk' }, q);
+      if (note) O.sendMail('reply', { from: q.name, text: `Will you meet me at ${place} tomorrow, at ${hour > 12 ? hour - 12 + ' in the evening' : hour === 12 ? 'noon' : hour + ' in the morning'}? I'd like to see you.`, notes: [note] }, 1 + Math.random() * 4, `A letter from ${q.first}`);
+      return r; }; }
   // when a talk ends, they keep one memory of it, not a line for every word
   function ended(q) {
-    const s = O.SimRef.cur; if (!q || !q._talked || q._talked.day !== s.day || q._talked.stored) return;
+    const s = O.SimRef.cur; if (!q) return;
+    if (q._offer) { O.NpcActs && O.NpcActs.returnGift(q, q._offer); q._offer = null; }
+    if (!q._talked || q._talked.day !== s.day || q._talked.stored) return;
     const r = q.rel.get(0) || {}; q._talked.stored = true;
     s.remember(q, `Talked with ${r.name || 'a stranger'}, who said: "${clean(q._talked.first).slice(0, 70)}"`, 'player', 0.6, 0);
   }
@@ -250,5 +337,5 @@ agree: true only if they now genuinely agree to the request below. caught: true 
           const q = fr[Math.floor(Math.random() * fr.length)]; if (b && q && !(q.beliefs || []).some((x) => x.t === b.t)) (q.beliefs = q.beliefs || []).unshift({ t: b.t, src: 'friend', from: p.first, day: this.day }); }
       }
       return r; }; }
-  O.AIChat = { say, ended, card, gibberish };
+  O.AIChat = { say, give, ended, card, gibberish, readLetter };
 })();

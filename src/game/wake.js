@@ -41,7 +41,7 @@
     function belongs(q, b) {
       if (b.owner?.kind === 'player' || (PS.lease && PS.lease.b === b.id) || (PS.room && PS.room.b === b.id)) return true;
       if (b.parent && O.castleMayEnter && O.castleMayEnter({ locked: b.locked || null }) && b.locked) return true; // the royal family's own rooms, if you're family
-      return (q.rel && (q.rel.get(0)?.affinity || 0) > 0.45);
+      return (q.rel && (q.rel.get(0)?.affinity || 0) > 0.45) || !!(O.invitedTo && O.invitedTo(b.parent || b));
     }
     O.wakeBed = (it) => {
       const s = cur(), sc = game.scene, b = sc.b, keep = b.parent || b, list = sleepersIn(it); if (!list.length) return false;

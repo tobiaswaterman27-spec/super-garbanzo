@@ -101,6 +101,13 @@ main { height: 100vh; }
 .ai-gate button { font: 800 18px var(--body); padding: 10px; border: 0; background: #d38a3a; color: #fff; cursor: pointer; box-shadow: 0 3px 0 #9a5a1e; }
 .ai-err { color: #f0a080; margin: 0; }
 .dlg-say { display: flex; gap: 8px; margin-top: 14px; }
+.dlg-say .dlg-give { padding: 0 12px; font-size: 22px; background: #8a6a44; box-shadow: 0 3px 0 #5a4026; }
+.dlg-items { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.dlg-items button { position: relative; width: 40px; height: 40px; display: grid; place-items: center; background: #f3e2b8; border: 0; box-shadow: inset 0 0 0 2px #e3cf9f; cursor: pointer; }
+.dlg-items button:hover { box-shadow: inset 0 0 0 2px #d38a3a; }
+.dlg-items canvas { width: 32px; height: 32px; image-rendering: pixelated; }
+.dlg-items b { position: absolute; right: 2px; bottom: 0; font-size: 11px; color: #5a4632; }
+.dlg-items span { font: 800 20px var(--body); color: #9a5a1e; }
 .dlg-say input { flex: 1; min-width: 0; font: 700 17px var(--body); color: #3a2a1a; background: #fffaf0; border: 0; box-shadow: inset 0 0 0 2px #e3cf9f; padding: 9px 12px; outline: none; }
 .dlg-say input:focus { box-shadow: inset 0 0 0 2px #d38a3a; }
 .dlg-say button { font: 800 16px var(--body); color: #fff; background: #d38a3a; border: 0; padding: 0 18px; cursor: pointer; box-shadow: 0 3px 0 #9a5a1e; }
@@ -12306,7 +12313,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     // ---- interaction candidates for the interact module ----
     candidates() {
       const p = this.game.player, out = [];
-      for (const a of this.actors.values()) { if (a.hidden) continue; const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < 30 && a.anim !== 'doze') out.push({ type: 'npc', person: a.person, d, x: a.x, y: a.y }); }
+      for (const a of this.actors.values()) { if (a.hidden) continue; const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < (p.sitting || a.seat ? 40 : 30) && a.anim !== 'doze') out.push({ type: 'npc', person: a.person, d, x: a.x, y: a.y }); }
       const bz = this.sim.biz.get(this.b.id);
       for (const it of this.L.items) {
         const [x0, y0, x1, y1] = this.rect(it);
@@ -12488,7 +12495,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     game.hooks.update.push(() => {
       if (!talking) return;
       const pos = game.scene ? game.scene.personPos(talking) : (talking.agent.hidden ? null : [talking.agent.x, talking.agent.y]);
-      if (!pos || Math.hypot(pos[0] - game.player.x, pos[1] - game.player.y) > 60) return closeTalk();
+      if (!pos || Math.hypot(pos[0] - game.player.x, pos[1] - game.player.y) > 70) return closeTalk();
       // whoever you're talking to keeps turning to face you (unless they're sat or abed)
       const d = O.dirOf(game.player.x - pos[0], game.player.y - pos[1]);
       if (game.scene) { const a = game.scene.actors.get(talking.id); if (a && !a.seat && !a.gBed) { a.dir = d; a.gDir = d; } }
@@ -12505,7 +12512,13 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     // while you talk with someone they don't wander off: their day waits till you're done
     { const SP = O.Sim.prototype, _plan = SP.plan; SP.plan = function (p) { if (talking && p === talking && p.activity && !p.agent.hidden) return p.activity; return _plan.call(this, p); }; }
     function openTalk(q) {
-      talking = q; q.agent.frozen = true;
+      const s0 = sim; if (q._snubUntil && s0.day * 1440 + s0.minute < q._snubUntil) { O.UI.say(`${q.first} turns away from you.`, 'bad'); return; }
+      talking = q; q.agent.frozen = true; q._lastSpeaker = null;
+      // others standing with them join in (as in a group in the square)
+      { const pos0 = game.scene ? game.scene.personPos(q) : [q.agent.x, q.agent.y];
+        const near = pos0 ? (game.scene ? [...game.scene.actors.values()].filter((a) => !a.hidden && a.person && a.person !== q).map((a) => [a.person, a.x, a.y]) : sim.people.filter((z) => z !== q && !z.agent.hidden).map((z) => [z, z.agent.x, z.agent.y])) : [];
+        q._group = near.filter(([z, x, y]) => Math.hypot(x - pos0[0], y - pos0[1]) < 34 && z.age >= 5 && z.activity?.act !== 'sleep' && z.activity?.act !== 'work' && z.health.hp > 0).slice(0, 2).map(([z]) => z);
+        for (const z of q._group) z.agent.frozen = true; }
       O.jobEvent && O.jobEvent('talk', { q });
       O.dropLead && O.dropLead((l) => l.id === q.id && l.place === O.SimRef.cur.world.placeId && l.why !== 'contract'); // found them: the arrow's done its work
       const pos = game.scene ? game.scene.personPos(q) || [q.agent.x, q.agent.y] : [q.agent.x, q.agent.y];
@@ -12519,7 +12532,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       if (r.familiar <= 0.11) sim.remember(q, 'A stranger stopped me in the street to talk.', 'player', 0.8, 0);
       renderTalk(O.Dialogue.provider.greet(O.Dialogue.buildContext(sim, q), q.id + sim.day));
     }
-    function closeTalk() { if (talking) { O.AIChat && O.AIChat.ended(talking); }
+    function closeTalk() { if (talking) { O.AIChat && O.AIChat.ended(talking); for (const z of talking._group || []) { z.agent.frozen = false; z.agent.talking = 0; } }
       if (talking) { talking.agent.frozen = false; talking.agent.talking = 0; } talking = null; card.hidden = true; if (O.UI.dialogOpen()) O.UI.dialog.close(); }
     function bar(v, cls = '') { return `<span class="bar ${cls}"><i style="width:${Math.round(O.clamp(v, 0, 100))}%"></i></span>`; }
     // name tag in the colour of their clothes
@@ -12534,9 +12547,8 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       for (const [k, l] of (api.extraButtons ? api.extraButtons(q) : [])) options.push({ key: 'x-' + k, label: l, hot: true });
       if (atWork) options.push({ key: 'trade', label: 'Show me your wares', hot: true });
       if (q.job?.role === 'parish clerk' && q.activity?.act === 'work' && O.knowsTrade(q)) options.push({ key: 'houses', label: 'Houses to let or sell', hot: true });
-      for (const [k, l] of [['self', 'How are you?'], ['work', 'What do you do?'], ['news', 'Any news?'], ['prices', 'How are prices?'], ['family', 'Your family?']]) options.push({ key: k, label: l });
-      options.push({ key: 'bye', label: 'Goodbye' });
-      O.UI.dialog.open({ name: q.gentry ? q.name : q.first + (q.title ? `, ${q.title}` : q.office ? `, ${q.office}` : ''), color: tagColour(q), text: busy ? '' : line, busy, options: busy ? [] : options, chat: O.AI && O.AI.ready ? (t) => O.AIChat.say(q, t, (ln, b) => { if (talking === q) renderTalk(ln, b); }) : null, onPick: (t) => pickTopic(q, bz, t), onClose: () => { O.AIChat && O.AIChat.ended(q); if (talking === q) { q.agent.frozen = false; q.agent.talking = 0; talking = null; } } });
+      if (!(O.AI && O.AI.ready)) { for (const [k, l] of [['self', 'How are you?'], ['work', 'What do you do?'], ['news', 'Any news?'], ['family', 'Your family?']]) options.push({ key: k, label: l }); options.push({ key: 'bye', label: 'Goodbye' }); }
+      O.UI.dialog.open({ name: (q._lastSpeaker && q._lastSpeaker !== q ? q._lastSpeaker.first : q.gentry ? q.name : q.first + (q.title ? `, ${q.title}` : q.office ? `, ${q.office}` : '')), color: tagColour(q._lastSpeaker || q), text: busy ? '' : line, busy, options: busy ? [] : options, chat: O.AI && O.AI.ready ? (t) => O.AIChat.say(q, t, (ln, b) => { if (talking === q) renderTalk(ln, b); }) : null, give: O.AI && O.AI.ready ? (g) => O.AIChat.give(q, g, (ln, b) => { if (talking === q) renderTalk(ln, b); }) : null, focus: true, onPick: (t) => pickTopic(q, bz, t), onClose: () => { O.AIChat && O.AIChat.ended(q); if (talking === q) { q.agent.frozen = false; q.agent.talking = 0; talking = null; } } });
     }
     function pickTopic(q, bz, t) {
       if (t === 'bye') { const bye = ['Fare you well.', 'God keep you.', 'Mind how you go.', 'Until next time.'][(q.id + sim.day) % 4]; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: bye, options: [] }); talking = null; q.agent.frozen = false; setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1600); return; }
@@ -12666,7 +12678,16 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       if (!r.ok) throw { code: r.status === 401 ? 'bad_key' : r.status === 429 ? 'rate_limited' : 'upstream_error', message: j.error?.message || '' };
       return JSON.parse(j.choices[0].message.content);
     }
-    if (AI.kind === 'mock') { const m = /Player: (.*)$/m.exec(prompt), said = m ? m[1] : ''; return { say: /name/i.test(said) ? 'They call me what my mother called me.' : 'Aye, well. ' + (said.length > 20 ? 'That is a lot to take in.' : 'If you say so.'), feel: 0, trust: 0, learned: '', name: (/I am (\w+)/i.exec(said) || [])[1] || '', agree: /please/i.test(said), caught: false }; }
+    if (AI.kind === 'mock') { // (tests only: a dull, predictable villager)
+      const said = prompt.slice(prompt.lastIndexOf('\nPlayer: ') + 9), who = (/--- (\w+) \(spoken to\)/.exec(prompt) || [])[1] || 'Me', acts = [];
+      if (/meet me/i.test(said)) acts.push({ who, do: 'meet', place: /tavern|lantern/i.test(said) ? 'The Crooked Lantern' : 'the square', hour: 18, day: 'tomorrow', why: /date/i.test(said) ? 'a date' : 'a meeting' });
+      if (/follow me|come with me/i.test(said)) acts.push({ who, do: 'follow' });
+      if (/give me/i.test(said)) acts.push({ who, do: 'give', item: (/give me (?:a |an |some )?(\w+)/i.exec(said) || [])[1] || 'bread' });
+      if (/holds out/i.test(said)) acts.push({ who, do: 'take_gift' });
+      if (/your house/i.test(said)) acts.push({ who, do: 'invite' });
+      if (/go away|leave/i.test(said)) acts.push({ who, do: 'leave' });
+      return { lines: [{ who, say: /name/i.test(said) ? 'They call me what my mother called me.' : 'Aye, well. ' + (said.length > 20 ? 'That is a lot to take in.' : 'If you say so.') }], people: { [who]: { feel: 0, trust: 0, learned: '', caught: false } }, name: (/I am (\w+)/i.exec(said) || [])[1] || '', agree: /please/i.test(said), acts };
+    }
     throw { code: 'no_ai' };
   };
 
@@ -12818,59 +12839,137 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
   const askFor = (q) => { for (const fn of asks) { const a = fn(q); if (a) return a; } return null; };
 
   // ---------------------------------------------------------------- the talk
-  const RULES = `Write the next thing this person says in a medieval village game. Reply ONLY with JSON:
-{"say": string, "feel": -2..2, "trust": -2..2, "learned": string, "name": string, "agree": boolean, "caught": boolean}
-say: their words, 1 or 2 short sentences, at most 30 words, fully in character for their age, temper and mood. Plain medieval English, no modern words. Perfect spelling and grammar. No dashes, no emoji, no actions in brackets or stars.
-They know only what their card says. Asked about anything else, they don't know, guess vaguely or say so; they never invent facts about real people or places in their town. Nonsense makes them confused. Suspicious, hostile or untrusting people are curt with strangers and doubt what they're told. The greedy and hostile may lie.
-feel: how much what the player just said changes their liking for them. trust: how much it changes their belief in them.
-learned: a short new claim from the player's words they now believe, in their own words, else "". name: the player's name if the player just gave it, else "".
-agree: true only if they now genuinely agree to the request below. caught: true only if they now realise the player lied to them before.`;
-  let ctl = null;
-  async function say(q, text, render) {
+  const RULES = `Write what happens next in a conversation in a medieval village game. Reply ONLY with JSON:
+{"lines":[{"who":"First name","say":"..."}],"people":{"First name":{"feel":0,"trust":0,"learned":"","caught":false}},"name":"","agree":false,"acts":[]}
+lines: normally 1 line from the person spoken to; 2 or 3 only if others are in the talk and would chime in. say: 1 or 2 short sentences, at most 30 words, fully in character for age, temper, mood and what they are doing now. Plain medieval English, no modern words, perfect spelling and grammar, no dashes, no emoji, nothing in brackets or stars.
+They know only what their card says; asked anything else they don't know, guess vaguely or say so, and never invent people or places in their town. Nonsense confuses them. The suspicious, hostile or untrusting are curt with strangers and doubt claims. The greedy and hostile may lie. Busy people want to get on.
+people: for each person present: feel and trust (-2..2) = how the player's words change their liking and belief; learned = a short new claim from the player they now believe, else ""; caught = true if they now see the player lied before.
+name: the player's name if the player just gave it. agree: true only if they now agree to the pending request.
+acts: only what a speaker truly agrees to or does, each {"who":"First name","do":...}:
+meet {"place","hour":0-23,"day":"today"|"tomorrow"|weekday,"why"} | follow (come along with the player now) | stop (stop following) | go {"place"} (go there now) | invite (let the player into their home today) | give {"item"} (hand over something they have) | want {"item"} (ask the player for something) | take_gift | refuse_gift | take_job (accept the player's own job when offered) | seek_job {"place"} | tell {"to","msg"} (pass a message to someone they know) | like {"of","by":-1 or 1} (think better or worse of someone after what was said) | leave (end the talk and walk off: rude player, busy, bored, or done).
+Places: names from the card, "my home", "your home" or "the square". Items: things the speaker has, or the player carries.`;
+  const G = () => O.Data.GOODS;
+  function goodsHad(s, q) {
+    const hh = s.household(q), out = [];
+    for (const [g, n] of Object.entries((hh && hh.pantry) || {})) if (n >= 1 && G()[g]) out.push(G()[g].name.toLowerCase());
+    const bz = q.job && q.activity?.act === 'work' && s.biz.get(q.job.biz); if (bz) for (const [g, n] of Object.entries(bz.stock || {})) if (n >= 1 && G()[g] && bz.def.sells.includes(g)) out.push(G()[g].name.toLowerCase() + ' (stock, to sell)');
+    for (const g of q.items || []) out.push((G()[g]?.name || g).toLowerCase());
+    return [...new Set(out)].slice(0, 12);
+  }
+  function extraCard(s, q) {
+    const PS = O.PlayerState, L = [];
+    const had = goodsHad(s, q); if (had.length) L.push(`You have: ${had.join(', ')}.`);
+    const carried = [...new Set(PS.items)].map((g) => (G()[g]?.name || g).toLowerCase()); L.push(`The player carries: ${carried.join(', ') || 'nothing'}${PS.money ? `, and ₳${PS.money}` : ''}.`);
+    for (const m of (PS.meets || []).filter((m) => m.who === q.id && m.place === s.world.placeId && m.state === 'set')) L.push(`You agreed to meet the player at ${m.label}.`);
+    if (q.wants && q.wants.until > s.day) L.push(`You asked the player for ${q.wants.name}.`);
+    if (q._offer) L.push(`The player is holding out ${q._offer.label} to you as a gift: answer with take_gift or refuse_gift.`);
+    if (O.NpcActs && O.NpcActs.following(q)) L.push('You are walking along with the player.');
+    if (PS.emp && PS.emp.place === s.world.placeId) L.push(`The player works as ${PS.emp.role} at ${PS.emp.bizName || 'a business here'}.`);
+    const realm = (s.kingdom?.news || []).filter((n) => !['migration', 'growth', 'decline'].includes(n.kind) && n.day >= s.day - 10).slice(-3).map((n) => clean(n.text));
+    if (realm.length) L.push(`News of the realm: ${realm.join(' | ')}`);
+    return L.join('\n');
+  }
+  function shortCard(s, q) {
+    const r = q.rel.get(0) || {}; const job = q.job ? q.job.role : q.age < 14 ? 'a child' : 'no work';
+    return `${q.first} ${q.sur || ''} (${q.sex === 'm' ? 'man' : 'woman'}, ${q.age}, ${job}; temper ${(q.traits || []).join(', ')}; ${r.familiar > 0.2 ? 'knows the player' : 'does not know the player'}${r.affinity > 0.3 ? ', likes them' : r.affinity < -0.2 ? ', dislikes them' : ''}). ${speechFor(q.age, q.stage)}`;
+  }
+  const gest = (q, anim, secs = 2.2) => { const now = performance.now(); q.agent.gest = { anim, from: now, until: now + secs * 1000 }; };
+  O.gesture = gest;
+  async function say(q, text, render, opt = {}) {
     const s = O.SimRef.cur, PS = O.PlayerState, r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r);
     const conv = q._conv || (q._conv = []);
     text = text.slice(0, 220); conv.push({ who: 'p', t: text });
     if (q.activity?.act === 'sleep') return reply(q, pk(['Mmh. Wha...', 'Zzz.', 'Leave me be. I\'m sleeping.']), render);
-    if (q.age < 3) return reply(q, babble(q), render);
-    if (gibberish(text)) { r.trust = clamp((r.trust || 0) - 0.02, -1, 1); gest(q, 'shrug'); return reply(q, confused(q), render); }
+    if (q.age < 3) { if (q._offer) { const o = q._offer; q._offer = null; if (o.g !== 'coin' && Math.random() < 0.5) { (q.items = q.items || []).push(o.g); return reply(q, pk(['Ooh!', 'Mine!', 'Ta.']), render); } O.NpcActs && O.NpcActs.returnGift(q, o); } return reply(q, babble(q), render); }
+    if (!opt.gift && gibberish(text)) { r.trust = clamp((r.trust || 0) - 0.02, -1, 1); gest(q, 'shrug'); return reply(q, confused(q), render); }
     if (!AI.ready) return reply(q, '...', render);
-    const ask = askFor(q);
-    const history = conv.slice(-7, -1).map((c) => (c.who === 'p' ? 'Player: ' : 'You: ') + c.t).join('\n');
-    const prompt = `${RULES}\n\n${speechFor(q.age, q.stage)}\n--- Your card ---\n${card(s, q)}\n${ask ? `--- Request ---\nThe player wants you to ${ask.goal}. ${ask.why || ''} Weigh it by your temper, needs and trust. Set agree true only if convinced.\n` : 'No request is pending: agree is false.\n'}--- Talk so far ---\n${history || '(none)'}\nPlayer: ${text}`;
+    const ask = askFor(q), group = (q._group || []).filter((z) => z.alive !== false);
+    const history = conv.slice(-8, -1).map((c) => (c.who === 'p' ? 'Player: ' : (c.by || q.first) + ': ') + c.t).join('\n');
+    const prompt = `${RULES}\n\n--- ${q.first} (spoken to) ---\n${speechFor(q.age, q.stage)}\n${card(s, q)}\n${extraCard(s, q)}\n${group.length ? `--- Also in the talk ---\n${group.map((z) => shortCard(s, z)).join('\n')}\n` : ''}${ask ? `--- Pending request to ${q.first} ---\nThe player wants you to ${ask.goal}. ${ask.why || ''} Weigh it by temper, needs and trust; agree only if convinced.\n` : 'No request is pending: agree is false.\n'}--- Talk so far ---\n${history || '(none)'}\nPlayer: ${text}`;
     render(null, true);
-    AI.busy = true; ctl = {};
+    AI.busy = true;
     let out = null;
     try { out = await AI.json(prompt); }
-    catch (e) { AI.busy = false; return reply(q, e && e.code === 'rate_limited' ? pk(['Not now. I\'ve a lot on.', 'Give me a moment, will you?']) : pk(['Hm?', 'Sorry, I was miles away.']), render); }
+    catch (e) { AI.busy = false; if (q._offer) { O.NpcActs && O.NpcActs.returnGift(q, q._offer); q._offer = null; } return reply(q, e && e.code === 'rate_limited' ? pk(['Not now. I\'ve a lot on.', 'Give me a moment, will you?']) : pk(['Hm?', 'Sorry, I was miles away.']), render); }
     AI.busy = false;
-    if (!out || typeof out.say !== 'string' || !out.say.trim()) return reply(q, pk(['Hm.', 'Well.']), render);
-    const n = (v) => clamp(Math.round(Number(v) || 0), -2, 2);
-    r.affinity = clamp(r.affinity + n(out.feel) * 0.04, -1, 1); r.trust = clamp((r.trust || 0) + n(out.trust) * 0.06, -1, 1); r.familiar = Math.min(1, r.familiar + 0.02);
-    if (out.name && typeof out.name === 'string' && out.name.length < 30) r.name = clean(out.name).split(' ')[0];
-    if (out.learned && typeof out.learned === 'string' && out.learned.length > 3) { (q.beliefs = q.beliefs || []).unshift({ t: clean(out.learned).slice(0, 140), src: 'player', day: s.day }); q.beliefs.length = Math.min(q.beliefs.length, 10); }
-    if (out.caught) {
-      r.trust = clamp((r.trust || 0) - 0.35, -1, 1); r.affinity = clamp(r.affinity - 0.2, -1, 1);
-      s.remember(q, `Caught ${r.name || 'the stranger'} in a lie.`, 'player', 1, 0);
-      const i = (q.traits || []).indexOf('loyal'); if (i >= 0) q.traits[i] = 'suspicious';
-      if (q.beliefs) q.beliefs = q.beliefs.filter((b) => b.src !== 'player');
+    const lines = Array.isArray(out?.lines) ? out.lines.filter((l) => l && typeof l.say === 'string' && l.say.trim()) : typeof out?.say === 'string' ? [{ who: q.first, say: out.say }] : [];
+    if (!lines.length) return reply(q, pk(['Hm.', 'Well.']), render);
+    const n = (v) => clamp(Math.round(Number(v) || 0), -2, 2), everyone = [q, ...group];
+    const byName = (w) => everyone.find((z) => z.first === w || (w && String(w).startsWith(z.first))) || null;
+    if (out.name && typeof out.name === 'string' && out.name.length < 30) { const nm = clean(out.name).split(' ')[0]; for (const z of everyone) { const rz = z.rel.get(0) || { affinity: 0, familiar: 0 }; rz.name = nm; z.rel.set(0, rz); } }
+    for (const z of everyone) {
+      const pz = (out.people && (out.people[z.first] || out.people[z.name])) || (z === q ? out : null); if (!pz) continue;
+      const rz = z.rel.get(0) || { affinity: 0, familiar: 0 }; z.rel.set(0, rz);
+      rz.affinity = clamp(rz.affinity + n(pz.feel) * 0.04, -1, 1); rz.trust = clamp((rz.trust || 0) + n(pz.trust) * 0.06, -1, 1); rz.familiar = Math.min(1, rz.familiar + 0.02);
+      if (pz.learned && typeof pz.learned === 'string' && pz.learned.length > 3) { (z.beliefs = z.beliefs || []).unshift({ t: clean(pz.learned).slice(0, 140), src: 'player', day: s.day }); z.beliefs.length = Math.min(z.beliefs.length, 10); }
+      if (pz.caught) {
+        rz.trust = clamp((rz.trust || 0) - 0.35, -1, 1); rz.affinity = clamp(rz.affinity - 0.2, -1, 1);
+        s.remember(z, `Caught ${rz.name || 'the stranger'} in a lie.`, 'player', 1, 0);
+        const i = (z.traits || []).indexOf('loyal'); if (i >= 0) z.traits[i] = 'suspicious';
+        if (z.beliefs) z.beliefs = z.beliefs.filter((b) => b.src !== 'player');
+      }
+      if (rz.affinity > 0.7 && (z.traits || []).includes('hostile') && Math.random() < 0.1) z.traits[z.traits.indexOf('hostile')] = 'friendly';
+      const fv = n(pz.feel); gest(z, pz.caught ? 'shake' : fv >= 2 ? 'laugh' : fv === 1 ? 'nod' : fv <= -1 ? 'shake' : Math.random() < 0.5 ? 'gesture' : 'shrug', fv >= 2 ? 2.6 : 2);
     }
-    // a person warms over time: a sour temper can sweeten for someone they've come to like
-    if (r.affinity > 0.7 && (q.traits || []).includes('hostile') && Math.random() < 0.1) q.traits[q.traits.indexOf('hostile')] = 'friendly';
     if (ask && out.agree === true) { try { ask.onAgree(q); } catch (e) { /* a task gone */ } }
-    { const fv = n(out.feel); gest(q, out.caught ? 'shake' : fv >= 2 ? 'laugh' : fv === 1 ? 'nod' : fv <= -1 ? 'shake' : Math.random() < 0.5 ? 'gesture' : 'shrug', fv >= 2 ? 2.6 : 2); }
     q._talked = { day: s.day, first: q._talked && q._talked.day === s.day ? q._talked.first : text };
-    reply(q, out.say, render);
+    // what they do
+    let leave = false; const notes = [];
+    if (Array.isArray(out.acts) && O.NpcActs) for (const a of out.acts.slice(0, 4)) { if (!a || typeof a.do !== 'string') continue; const who = byName(a.who) || q; const res = O.NpcActs.apply(s, who, a, q); if (res === 'leave') leave = true; else if (res) notes.push(res); }
+    if (q._offer) { const o = q._offer; q._offer = null; if (r.affinity > -0.2) O.NpcActs && O.NpcActs.keepGift(s, q, o); else O.NpcActs && O.NpcActs.returnGift(q, o); }
+    const shown = lines.slice(0, 3).map((l) => { const who = byName(l.who) || q; return { who, t: clean(l.say) }; });
+    q._lastSpeaker = shown.length === 1 ? shown[0].who : null;
+    for (const l of shown) conv.push({ who: 'q', by: l.who.first, t: l.t });
+    if (conv.length > 16) conv.splice(0, conv.length - 16);
+    const text2 = shown.length === 1 ? shown[0].t : shown.map((l) => `${l.who.first}: ${l.t}`).join('\n');
+    render(text2, false);
+    if (notes.length) O.UI.say(notes.join(' '));
+    if (leave) setTimeout(() => { if (O.npcUI && O.npcUI.talking() === q) { O.npcUI.closeTalk(); } q._snubUntil = s.day * 1440 + s.minute + (r.affinity < -0.2 ? 240 : 30); O.NpcActs && O.NpcActs.walkOff(q); }, 2200);
   }
-  const gest = (q, anim, secs = 2.2) => { const now = performance.now(); q.agent.gest = { anim, from: now, until: now + secs * 1000 }; };
-  O.gesture = gest;
   function reply(q, line, render) {
-    line = clean(line) || '...';
-    (q._conv = q._conv || []).push({ who: 'q', t: line }); if (q._conv.length > 14) q._conv.splice(0, q._conv.length - 14);
+    line = clean(line) || '...'; q._lastSpeaker = null;
+    (q._conv = q._conv || []).push({ who: 'q', t: line }); if (q._conv.length > 16) q._conv.splice(0, q._conv.length - 16);
     render(line, false);
   }
+  // holding something out: it leaves your hands, and they take it or hand it back
+  function give(q, g, render) {
+    const PS = O.PlayerState; if (q._offer) return;
+    let label, offer;
+    if (g === 'coin') { const n = Math.min(PS.money, 5); if (n < 1) return; PS.money -= n; label = `₳${n}`; offer = { g, n, label }; }
+    else { if (!PS.remove(g)) return; label = (/^[aeiou]/i.test(G()[g]?.name || '') ? 'an ' : 'a ') + (G()[g]?.name || g).toLowerCase(); offer = { g, n: 1, label }; }
+    q._offer = offer; O.NpcActs && O.NpcActs.fly('player', q, g);
+    O.game.player.anim = 'place'; O.game.player.ft = 0; setTimeout(() => { if (O.game.player.anim === 'place') O.game.player.anim = 'idle'; }, 500);
+    say(q, `(holds out ${label} to you)`, render, { gift: true });
+  }
+  // a letter in your own words: they read it, may act on it, and write back
+  async function readLetter(s, q, text) {
+    if (!AI.ready || q.age < 9) return;
+    const prompt = `${RULES}\n\nInstead of talk: ${q.first} has just read a letter from the player and writes a short reply letter (the "say" of one line, 1 to 3 sentences, plain and in character; a poor or rough person writes plainly). Acts like meet still apply; follow, go and leave do not.\n--- ${q.first} ---\n${speechFor(q.age, q.stage)}\n${card(s, q)}\n${extraCard(s, q)}\nNo request is pending: agree is false.\n--- The letter ---\nPlayer: ${String(text).slice(0, 400)}`;
+    let out; try { out = await AI.json(prompt); } catch (e) { return; }
+    const line = Array.isArray(out?.lines) && out.lines[0] && out.lines[0].say ? clean(out.lines[0].say) : null;
+    const pz = out?.people && (out.people[q.first] || Object.values(out.people)[0]); const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r);
+    if (pz) { r.affinity = clamp(r.affinity + clamp(Math.round(+pz.feel || 0), -2, 2) * 0.04, -1, 1); r.trust = clamp((r.trust || 0) + clamp(Math.round(+pz.trust || 0), -2, 2) * 0.05, -1, 1); if (pz.learned) (q.beliefs = q.beliefs || []).unshift({ t: clean(pz.learned).slice(0, 140), src: 'player', day: s.day }); }
+    if (out?.name) r.name = clean(out.name).split(' ')[0];
+    const notes = []; if (Array.isArray(out?.acts) && O.NpcActs) for (const a of out.acts.slice(0, 3)) if (a && ['meet', 'give', 'want', 'seek_job', 'tell', 'like', 'invite'].includes(a.do)) { if (a.do === 'give') continue; const res = O.NpcActs.apply(s, q, a, q); if (res && res !== 'leave') notes.push(res); }
+    if (line) O.sendMail('reply', { from: q.name, text: line, notes }, 2 + Math.random() * 6, `A letter from ${q.first}`);
+  }
+  O.mailHandlers = O.mailHandlers || {};
+  O.mailHandlers.reply = (d) => { O.Panels.open(`A letter from ${d.from}`, `<p class="letter">${esc(d.text)}</p>${(d.notes || []).length ? `<p class="caption">${esc(d.notes.join(' '))}</p>` : ''}`); };
+  // friends now and then write to ask you to meet
+  { const SP = O.Sim.prototype, _nd = SP.newDay;
+    SP.newDay = function () { const r = _nd.apply(this, arguments);
+      if (this !== O.SimRef.cur || !O.NpcActs || Math.random() > 0.35) return r;
+      const fond = this.people.filter((p) => p.alive !== false && p.age >= 16 && ((p.rel.get(0) || {}).affinity || 0) > 0.45 && ((p.rel.get(0) || {}).familiar || 0) > 0.3);
+      const q = fond[Math.floor(Math.random() * fond.length)]; if (!q || (O.PlayerState.meets || []).some((m) => m.who === q.id && m.state === 'set')) return r;
+      const tav = [...this.biz.values()].find((b) => b.type === 'tavern'), place = Math.random() < 0.5 && tav ? tav.name : 'the square', hour = place === 'the square' ? 12 + Math.floor(Math.random() * 5) : 18 + Math.floor(Math.random() * 3);
+      const note = O.NpcActs.apply(this, q, { do: 'meet', place, hour, day: 'tomorrow', why: q.traits.includes('social') ? 'a drink and a talk' : 'a talk' }, q);
+      if (note) O.sendMail('reply', { from: q.name, text: `Will you meet me at ${place} tomorrow, at ${hour > 12 ? hour - 12 + ' in the evening' : hour === 12 ? 'noon' : hour + ' in the morning'}? I'd like to see you.`, notes: [note] }, 1 + Math.random() * 4, `A letter from ${q.first}`);
+      return r; }; }
   // when a talk ends, they keep one memory of it, not a line for every word
   function ended(q) {
-    const s = O.SimRef.cur; if (!q || !q._talked || q._talked.day !== s.day || q._talked.stored) return;
+    const s = O.SimRef.cur; if (!q) return;
+    if (q._offer) { O.NpcActs && O.NpcActs.returnGift(q, q._offer); q._offer = null; }
+    if (!q._talked || q._talked.day !== s.day || q._talked.stored) return;
     const r = q.rel.get(0) || {}; q._talked.stored = true;
     s.remember(q, `Talked with ${r.name || 'a stranger'}, who said: "${clean(q._talked.first).slice(0, 70)}"`, 'player', 0.6, 0);
   }
@@ -12883,7 +12982,7 @@ agree: true only if they now genuinely agree to the request below. caught: true 
           const q = fr[Math.floor(Math.random() * fr.length)]; if (b && q && !(q.beliefs || []).some((x) => x.t === b.t)) (q.beliefs = q.beliefs || []).unshift({ t: b.t, src: 'friend', from: p.first, day: this.day }); }
       }
       return r; }; }
-  O.AIChat = { say, ended, card, gibberish };
+  O.AIChat = { say, give, ended, card, gibberish, readLetter };
 })();
 
 </script>
@@ -12946,6 +13045,230 @@ agree: true only if they now genuinely agree to the request below. caught: true 
 
 </script>
 <script>
+// What people agree to in talk, and then do: meet you somewhere at a time (early, late, or not at all),
+// come along with you, go somewhere, let you into their home, give you things or ask for them, take a
+// gift or hand it back, take your job or look for one, carry a message to someone, think better or
+// worse of someone, or simply walk off.
+'use strict';
+(function () {
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const G = () => O.Data.GOODS;
+  const PS = () => O.PlayerState;
+  const abs = (s) => s.day * 1440 + s.minute;
+  const hm = (h) => { h = ((Math.round(h * 2) / 2) % 24 + 24) % 24; const hh = Math.floor(h), mm = h % 1 ? ':30' : ''; return hh === 0 ? `midnight` : hh === 12 && !mm ? 'noon' : `${hh % 12 || 12}${mm}${hh < 12 ? 'am' : 'pm'}`; };
+  const WD = ['sunday', 'moonday', 'tewsday', 'wodensday', 'thunorsday', 'freyday', 'saturnday'];
+  const WD2 = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+  // ---------------------------------------------------------------- places and things by name
+  function placeFor(s, q, name) {
+    const n = String(name || '').toLowerCase().trim(); if (!n) return null;
+    if (/^(my|his|her) (home|house)/.test(n) && q.home != null) { const b = s.building(q.home); return b && { b: b.id, label: `${q.first}'s house` }; }
+    if (/^(your|the player'?s) (home|house)/.test(n)) { const r = PS().residence; const b = r && r.place === s.world.placeId ? s.building(r.b) : s.world.buildings.find((x) => x.owner?.kind === 'player'); return b ? { b: b.id, label: 'your house' } : null; }
+    if (/square|market|green/.test(n)) { const z = s.Z && (s.Z.square || s.Z.market); if (z) return { tile: [z[0], z[1]], label: 'the square' }; }
+    let best = null, bs = 0;
+    const words = n.replace(/^the /, '').split(/[^a-z']+/).filter((w) => w.length > 2);
+    for (const bz of s.biz.values()) { const bn = bz.name.toLowerCase(); let sc = bn.includes(n.replace(/^the /, '')) ? 10 : 0; for (const w of words) if (bn.includes(w)) sc += 2; if (bz.type && n.includes(bz.type)) sc += 3; if (sc > bs) { bs = sc; best = bz; } }
+    if (best && bs >= 2) return { b: best.id, label: best.name };
+    for (const b of s.world.buildings) if (b.name && b.name.toLowerCase().includes(n.replace(/^the /, ''))) return { b: b.id, label: b.name };
+    return null;
+  }
+  function goodFor(name) {
+    const n = String(name || '').toLowerCase().replace(/^(a|an|some|the|my|your) /, '').trim(); if (!n) return null;
+    if (/aurin|coin|money|silver/.test(n)) return 'coin';
+    let best = null, bs = 0;
+    for (const [k, v] of Object.entries(G())) { const vn = v.name.toLowerCase(); let sc = vn === n || k === n ? 10 : vn.includes(n) || n.includes(vn) ? 6 : 0; for (const w of n.split(/\s+/)) if (w.length > 2 && vn.includes(w.replace(/s$/, ''))) sc += 2; if (sc > bs) { bs = sc; best = k; } }
+    return bs >= 2 ? best : null;
+  }
+  function personFor(s, name) {
+    const n = String(name || '').toLowerCase().trim(); if (!n) return null;
+    return s.people.find((p) => p.name.toLowerCase() === n) || s.people.find((p) => p.first.toLowerCase() === n.split(' ')[0] && p.alive !== false) || null;
+  }
+  function whenFor(s, day, hour) {
+    let h = clamp(Number(hour) || 12, 0, 23.5), d = s.day; const dn = String(day || 'today').toLowerCase();
+    if (dn === 'tomorrow') d += 1; else if (/^in (\d+)/.test(dn)) d += +RegExp.$1; else { const i = Math.max(WD.indexOf(dn), WD2.indexOf(dn)); if (i >= 0) { const wd = (s.day - 1) % 7; d += ((i - wd) + 7) % 7 || 7; } }
+    let at = d * 1440 + h * 60; if (at < abs(s) + 20) at += 1440; return at;
+  }
+  const dayWord = (s, at) => { const d = Math.floor(at / 1440); return d === s.day ? 'today' : d === s.day + 1 ? 'tomorrow' : WD[(d - 1) % 7].replace(/^./, (c) => c.toUpperCase()); };
+
+  // ---------------------------------------------------------------- items changing hands
+  const flying = [];
+  function posOf(who) {
+    const g = O.game; if (who === 'player') return [g.player.x, g.player.y - 18];
+    const p = g.scene ? g.scene.personPos(who) : [who.agent.x, who.agent.y]; return p ? [p[0], p[1] - 18] : null;
+  }
+  function fly(from, to, g) { const a = posOf(from), b = posOf(to); if (!a || !b) return; flying.push({ a, b, g, t: 0 }); }
+  function keepGift(s, q, o) {
+    if (o.g === 'coin') { const hh = s.household(q); if (hh) hh.money += o.n; }
+    else { const hh = s.household(q); if (hh && hh.pantry && (G()[o.g]?.food || o.g in hh.pantry)) hh.pantry[o.g] = (hh.pantry[o.g] || 0) + 1; else (q.items = q.items || []).push(o.g); }
+    const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; const wanted = q.wants && (q.wants.g === o.g);
+    r.affinity = clamp(r.affinity + (wanted ? 0.15 : o.g === 'coin' ? 0.04 * Math.min(3, o.n / 2) : 0.06), -1, 1); q.rel.set(0, r);
+    if (wanted) q.wants = null;
+    s.remember(q, `${r.name || 'A stranger'} gave me ${o.label}.`, 'player', 0.8, 0);
+    O.gesture && O.gesture(q, 'nod', 1.6);
+  }
+  function returnGift(q, o) {
+    const P = PS(); if (o.g === 'coin') P.money += o.n; else if (!P.add(o.g)) O.UI.say(`You've no room; you set the ${(G()[o.g]?.name || o.g).toLowerCase()} down.`);
+    fly(q, 'player', o.g);
+  }
+  function npcGives(s, q, name) {
+    const g = goodFor(name); if (!g) return null;
+    const P = PS(), hh = s.household(q);
+    if (g === 'coin') { const n = Math.min(5, Math.floor((hh && hh.money) || 0)); if (n < 1) return null; hh.money -= n; P.money += n; fly(q, 'player', 'coin'); return `${q.first} gives you ₳${n}.`; }
+    if (!P.canCarry(g)) return `You've no room for what ${q.first} offers.`;
+    let src = null;
+    if (hh && hh.pantry && (hh.pantry[g] || 0) >= 1) { hh.pantry[g] -= 1; src = 'home'; }
+    else if ((q.items || []).includes(g)) { q.items.splice(q.items.indexOf(g), 1); src = 'own'; }
+    else { const bz = q.job && s.biz.get(q.job.biz); if (bz && (bz.stock[g] || 0) >= 1 && (bz.owner === q.id || q.activity?.act === 'work')) { bz.stock[g] -= 1; src = 'work'; } }
+    if (!src) return null;
+    P.add(g); fly(q, 'player', g); O.gesture && O.gesture(q, 'place', 1);
+    return `${q.first} gives you ${(/^[aeiou]/i.test(G()[g].name) ? 'an ' : 'a ') + G()[g].name.toLowerCase()}.`;
+  }
+
+  // ---------------------------------------------------------------- meeting up
+  // a meeting: they set off in time to arrive near the hour (the patient early, the lazy late), wait a while, and remember whether you came
+  function meet(s, q, a) {
+    const pl = placeFor(s, q, a.place); if (!pl) return null;
+    const at = whenFor(s, a.day, a.hour), t = q.traits || [], r = q.rel.get(0) || {};
+    let off = (t.includes('patient') ? -12 : 0) + (t.includes('lazy') ? 18 : 0) + (t.includes('impatient') ? 6 : 0) + Math.round((Math.random() - 0.5) * 20);
+    const flake = Math.random() < (t.includes('lazy') ? 0.2 : 0.06) * ((r.affinity || 0) > 0.4 ? 0.4 : 1);
+    const why = String(a.why || 'a meeting').slice(0, 40), P = PS();
+    P.meets = (P.meets || []).filter((m) => !(m.who === q.id && m.place === s.world.placeId && m.state === 'set'));
+    const m = { id: 'm' + Date.now().toString(36), place: s.world.placeId, who: q.id, name: q.first, b: pl.b ?? null, tile: pl.tile || null, label: `${pl.label}, ${hm((at % 1440) / 60)} ${dayWord(s, at)}`, at, why, off, flake, state: 'set', came: false, saw: false };
+    P.meets.push(m); lead(m);
+    s.remember(q, `Agreed to meet ${r.name || 'the stranger'} at ${m.label} (${why}).`, 'player', 0.9, 0);
+    return `Meeting set: ${q.first}, ${m.label}.`;
+  }
+  function lead(m) { if (!O.addLead) return; O.addLead({ place: m.place, b: m.b ?? undefined, tile: m.tile || undefined, until: m.at + 90, from: m.at, why: 'meet', key: m.id, label: `Meet ${m.name}: ${m.label}` }); }
+  O.meetsFor = (s, d0, d1) => (PS().meets || []).filter((m) => m.state === 'set' && Math.floor(m.at / 1440) >= d0 && Math.floor(m.at / 1440) <= d1).map((m) => ({ day: Math.floor(m.at / 1440), from: (m.at % 1440) / 60, to: (m.at % 1440) / 60 + 1.5, title: `Meet ${m.name} (${m.why})`, where: m.label.split(',')[0], b: m.b ?? undefined, place: m.place, meet: true }));
+
+  // ---------------------------------------------------------------- the day's plans bend to what was agreed
+  const follow = new Map(); // person id -> until (abs minutes)
+  const goTo = new Map(); // person id -> { b, until }
+  const invites = new Map(); // building id -> until
+  function following(q) { const u = follow.get(q.id); return !!u && u > abs(O.SimRef.cur); }
+  { const SP = O.Sim.prototype, _plan = SP.plan;
+    SP.plan = function (p) {
+      const now = abs(this), place = this.world.placeId;
+      if (follow.has(p.id) && this === O.SimRef.cur) {
+        if (follow.get(p.id) < now || p.health.illness?.sev > 0.6) { follow.delete(p.id); p.agent.chasing = false; }
+        else { const sc = O.game.scene; if (sc) { p.agent.chasing = false; return { act: 'visit', b: (sc.b.parent || sc.b).id }; } return { act: 'follow', outdoor: true, zone: 'square' }; }
+      }
+      const g = goTo.get(p.id); if (g) { if (g.until < now) goTo.delete(p.id); else return g.b != null ? { act: 'visit', b: g.b } : { act: 'stroll', outdoor: true, zone: 'square' }; }
+      for (const m of (PS().meets || [])) {
+        if (m.who !== p.id || m.place !== place || m.state !== 'set' || m.flake) continue;
+        if (now >= m.at + m.off - 35 && now <= m.at + 90 + Math.max(0, m.off)) return m.b != null ? { act: 'meet', b: m.b } : { act: 'stroll', outdoor: true, zone: 'square' };
+      }
+      return _plan.call(this, p);
+    }; }
+  function setup(game) {
+  // walking along with you, out of doors
+  game.hooks.update.push((dt) => {
+    const g = O.game, s = O.SimRef.cur; if (!s) return;
+    for (const f of flying) f.t += dt; for (let i = flying.length - 1; i >= 0; i--) if (flying[i].t > 0.7) flying.splice(i, 1);
+    if (g.scene) return;
+    for (const [id] of follow) {
+      const q = s.byId.get(id); if (!q || q.agent.hidden || q.agent.inside != null) continue;
+      if (q.agent.frozen) continue;
+      const a = q.agent; a.chasing = true; a.path = null;
+      const dx = g.player.x - a.x, dy = g.player.y - a.y, d = Math.hypot(dx, dy) || 1;
+      if (d > 520) { follow.delete(id); a.chasing = false; continue; }
+      if (d > 26) { const sp = (d > 90 ? 92 : 58) * dt, nx = a.x + (dx / d) * sp, ny = a.y + (dy / d) * sp; if (!g.solidAt(nx, ny)) { a.x = nx; a.y = ny; } else if (!g.solidAt(nx, a.y)) a.x = nx; else if (!g.solidAt(a.x, ny)) a.y = ny; a.anim = d > 90 ? 'run' : 'walk'; a.dir = O.dirOf(dx, dy); }
+      else { a.anim = 'idle'; a.dir = O.dirOf(dx, dy); }
+    }
+  });
+  // checking meetings: did you come, did they
+  let mt = 0;
+  game.hooks.update.push((dt) => {
+    mt -= dt; if (mt > 0) return; mt = 0.5;
+    const s = O.SimRef.cur, g = O.game, P = PS(); if (!s || !P.meets) return;
+    const now = abs(s);
+    for (const m of P.meets) {
+      if (m.state !== 'set' || m.place !== s.world.placeId) continue;
+      if (now >= m.at - 40 && now <= m.at + 90) {
+        const atPlace = m.b != null ? (g.scene && (g.scene.b.id === m.b || (g.scene.b.parent && g.scene.b.parent.id === m.b))) : (!g.scene && m.tile && Math.hypot(g.player.x - (m.tile[0] * 16 + 8), g.player.y - (m.tile[1] * 16 + 8)) < 120);
+        if (atPlace) m.came = true;
+        const q = s.byId.get(m.who); if (q && m.came && !m.flake) { const qp = g.scene ? g.scene.personPos(q) : (q.agent.hidden ? null : [q.agent.x, q.agent.y]); if (qp && Math.hypot(qp[0] - g.player.x, qp[1] - g.player.y) < 60) { m.saw = true; m.state = 'met'; done(s, q, m, true); } }
+      } else if (now > m.at + 90) { m.state = m.came ? 'stood-up' : 'missed'; const q = s.byId.get(m.who); if (q) done(s, q, m, false); }
+    }
+    P.meets = P.meets.filter((m) => m.state === 'set' || now - m.at < 1440 * 3);
+  });
+  // the flying things, drawn over everything
+  game.hooks.drawTop.push((ctx, cam) => {
+    for (const f of flying) {
+      const k = Math.min(1, f.t / 0.6), x = f.a[0] + (f.b[0] - f.a[0]) * k, y = f.a[1] + (f.b[1] - f.a[1]) * k - Math.sin(k * Math.PI) * 18;
+      if (f.g === 'coin') { ctx.fillStyle = '#f0c040'; ctx.fillRect(Math.round(x - cam.x - 2), Math.round(y - cam.y - 2), 4, 4); ctx.fillStyle = '#a07010'; ctx.fillRect(Math.round(x - cam.x - 1), Math.round(y - cam.y - 1), 2, 2); continue; }
+      try { const ic = O.ItemArt.small(f.g); ctx.drawImage(ic, Math.round(x - cam.x - 6), Math.round(y - cam.y - 6)); } catch (e) { /* no art */ }
+    }
+  });
+  for (const m of (PS().meets || [])) if (m.state === 'set') lead(m);
+  }
+  function done(s, q, m, met) {
+    const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r);
+    O.dropLead && O.dropLead((l) => l.key === m.id);
+    if (met) { r.affinity = clamp(r.affinity + (/date|court|walk/i.test(m.why) ? 0.14 : 0.07), -1, 1); r.familiar = Math.min(1, r.familiar + 0.1); s.remember(q, `Met ${r.name || 'the stranger'} at ${m.label.split(',')[0]} as we agreed.`, 'player', 0.9, 0); O.UI.say(`${q.first} is here, as agreed.`); }
+    else if (m.state === 'missed') { r.affinity = clamp(r.affinity - 0.15, -1, 1); r.trust = clamp((r.trust || 0) - 0.12, -1, 1); s.remember(q, `Waited for ${r.name || 'the stranger'} at ${m.label.split(',')[0]}, and they never came.`, 'player', 1, 0); O.UI.say(`You missed meeting ${q.first}.`, 'bad'); }
+    else { s.remember(q, `Forgot to meet ${r.name || 'the stranger'} at ${m.label.split(',')[0]}.`, 'player', 0.7, 0); O.UI.say(`${q.first} never came.`, 'bad'); }
+  }
+
+  // ---------------------------------------------------------------- doors opened to you
+  O.invitedTo = (b) => { const u = invites.get(b.id); return !!u && u > abs(O.SimRef.cur); };
+
+  // ---------------------------------------------------------------- messages carried
+  const passing = [];
+  { const SP = O.Sim.prototype, _nd = SP.newDay;
+    SP.newDay = function () { const r = _nd.apply(this, arguments);
+      for (let i = passing.length - 1; i >= 0; i--) { const m = passing[i]; if (m.s !== this) continue; const a = this.byId.get(m.from), b = this.byId.get(m.to); passing.splice(i, 1); if (!a || !b || b.alive === false) continue;
+        (b.beliefs = b.beliefs || []).unshift({ t: `${a.first} says ${m.who} told them: ${m.msg}`, src: 'friend', from: a.first, day: this.day, aboutPlayer: true });
+        this.remember(b, `${a.first} passed on a message from ${m.who}: "${m.msg}"`, 'social', 0.9, 0); this.relate(b, a, 0.02); }
+      return r; }; }
+
+  // ---------------------------------------------------------------- the jobs side
+  function takeJob(s, q) {
+    const P = PS(), e = P.emp; if (!e || e.place !== s.world.placeId || O.COURT?.has(e.role)) return null;
+    const bz = s.biz.get(e.biz); if (!bz || q.age < 14) return null;
+    if (q.job) { const old = s.biz.get(q.job.biz); if (old) old.workers = old.workers.filter((id) => id !== q.id); }
+    q.job = { biz: bz.id, role: e.role, wage: e.wage }; if (!bz.workers.includes(q.id)) bz.workers.push(q.id);
+    O.Employment && O.Employment.quit(`${q.first} takes your post as ${e.role} at ${bz.name}.`);
+    s.remember(q, `Took over the post of ${e.role} at ${bz.name}.`, 'work', 1, 0);
+    return null;
+  }
+  function seekJob(s, q, place) {
+    const pl = placeFor(s, q, place); const bz = pl && pl.b != null && s.biz.get(pl.b); if (!bz) return null;
+    const slots = (bz.def.jobs || []).filter(([role, n]) => bz.workers.filter((id) => s.byId.get(id)?.job?.role === role).length < n);
+    if (!q.job && q.age >= 14 && slots.length && Math.random() < 0.6) { const role = slots[slots.length - 1][0]; q.job = { biz: bz.id, role, wage: (bz.def.wage || {})[role] || 4 }; bz.workers.push(q.id); s.remember(q, `Found work as ${role} at ${bz.name}.`, 'work', 1, 0); return `${q.first} has found work at ${bz.name}.`; }
+    s.remember(q, `Thinking of looking for work at ${bz.name}.`, 'work', 0.6, 0); return null;
+  }
+
+  // ---------------------------------------------------------------- doing what they said
+  function apply(s, q, a, main) {
+    const r = q.rel.get(0) || {};
+    switch (a.do) {
+      case 'meet': return meet(s, q, a);
+      case 'follow': follow.set(q.id, abs(s) + 180); goTo.delete(q.id); return `${q.first} comes along with you.`;
+      case 'stop': if (follow.delete(q.id)) { q.agent.chasing = false; return `${q.first} goes about their day.`; } return null;
+      case 'go': { const pl = placeFor(s, q, a.place); if (!pl) return null; goTo.set(q.id, { b: pl.b ?? null, until: abs(s) + 120 }); return null; }
+      case 'invite': { if (q.home == null) return null; invites.set(q.home, abs(s) + 360); const b = s.building(q.home); O.addLead && O.addLead({ place: s.world.placeId, b: q.home, until: abs(s) + 360, why: 'invite', key: 'inv' + q.id, label: `${q.first}'s house: you're welcome today` }); return `${q.first} says you may come to their house today${b ? '' : ''}.`; }
+      case 'give': return npcGives(s, q, a.item);
+      case 'want': { const g = goodFor(a.item); if (!g || g === 'coin') return null; q.wants = { g, name: (G()[g]?.name || g).toLowerCase(), until: s.day + 5 }; return null; }
+      case 'take_gift': if (q._offer) { keepGift(s, q, q._offer); q._offer = null; } return null;
+      case 'refuse_gift': if (q._offer) { returnGift(q, q._offer); q._offer = null; } return null;
+      case 'take_job': return takeJob(s, q);
+      case 'seek_job': return seekJob(s, q, a.place);
+      case 'tell': { const to = personFor(s, a.to); if (!to || to === q || !a.msg) return null; passing.push({ s, from: q.id, to: to.id, msg: O.cleanSpeech(String(a.msg)).slice(0, 120), who: r.name || 'the stranger' }); return null; }
+      case 'like': { const of = personFor(s, a.of); if (!of || of === q) return null; s.relate(q, of, (Number(a.by) > 0 ? 1 : -1) * 0.1); return null; }
+      case 'leave': return 'leave';
+      default: return null;
+    }
+  }
+  // walking off: they turn away and get on with their day
+  function walkOff(q) { q.agent.frozen = false; q.agent.talking = 0; follow.delete(q.id); q.agent.chasing = false; q.agent.path = null; q.agent.goal = null; }
+
+  O.NpcActsSetup = { setup };
+  O.NpcActs = { apply, fly, keepGift, returnGift, following, walkOff, placeFor, goodFor, personFor, meet };
+})();
+
+</script>
+<script>
 // Contextual interaction: finds what's in reach (people, doors, containers, beds, stairs), shows only
 // actions that make sense, and runs them. Taking what isn't yours is theft, and anyone awake in the
 // room sees it.
@@ -12963,6 +13286,7 @@ agree: true only if they now genuinely agree to the request below. caught: true 
       if ((b._doorOpen || 0) > game.t) return false; // someone has just opened it: you can follow them in
       if (sim.biz && sim.biz.get(b.id) && sim.biz.get(b.id).def && h >= sim.biz.get(b.id).def.hours[0] && h < sim.biz.get(b.id).def.hours[1] && sim.biz.get(b.id).workers?.some((id) => sim.byId.get(id)?.agent.inside === b.id)) return false; // someone at work inside
       if (b.owner && b.owner.kind === 'player') return false;
+      if (O.invitedTo && O.invitedTo(b)) return false; // asked round
       if (b.type === 'hideout') return b.gang !== 'player';
       if (PS.room && PS.room.b === b.id && sim.day <= PS.room.until) return false;
       if (PS.lease && PS.lease.b === b.id && PS.lease.place === sim.world.placeId) return false;
@@ -16104,22 +16428,28 @@ agree: true only if they now genuinely agree to the request below. caught: true 
 
     // ---------------------------------------------------------------- conversation
     const box = document.createElement('div'); box.className = 'dlg'; box.hidden = true;
-    box.innerHTML = '<div class="dlg-name"></div><div class="dlg-text"></div><div class="dlg-next">▼</div><form class="dlg-say" hidden><input type="text" maxlength="220" autocomplete="off" spellcheck="true" placeholder="Say something..."><button type="submit">Say</button></form>';
+    box.innerHTML = '<div class="dlg-name"></div><div class="dlg-text"></div><div class="dlg-next">▼</div><form class="dlg-say" hidden><button type="button" class="dlg-give" title="Give">+</button><input type="text" maxlength="220" autocomplete="off" spellcheck="true" placeholder="Say something..."><button type="submit">Say</button></form><div class="dlg-items" hidden></div>';
     const opts = document.createElement('div'); opts.className = 'dlg-opts'; opts.hidden = true;
     root.append(box, opts);
     const nameEl = box.querySelector('.dlg-name'), textEl = box.querySelector('.dlg-text'), nextEl = box.querySelector('.dlg-next');
-    const sayEl = box.querySelector('.dlg-say'), sayIn = sayEl.querySelector('input');
+    const sayEl = box.querySelector('.dlg-say'), sayIn = sayEl.querySelector('input'), giveBt = box.querySelector('.dlg-give'), itemsEl = box.querySelector('.dlg-items');
+    itemsEl.onclick = (e) => e.stopPropagation();
+    giveBt.onclick = (e) => { e.stopPropagation(); if (!D || !D.give || D.busy) return; if (!itemsEl.hidden) { itemsEl.hidden = true; return; }
+      const PS = O.PlayerState, G = O.Data.GOODS, seen = new Map(); for (const k of PS.items) seen.set(k, (seen.get(k) || 0) + 1);
+      itemsEl.innerHTML = seen.size ? [...seen].map(([k, n]) => `<button type="button" data-g="${k}" title="${esc(G[k]?.name || k)}"><canvas width="16" height="16"></canvas>${n > 1 ? `<b>${n}</b>` : ''}</button>`).join('') + (PS.money > 0 ? `<button type="button" data-g="coin" title="Money"><span>₳</span></button>` : '') : '<i>Nothing to give</i>';
+      itemsEl.querySelectorAll('button[data-g]').forEach((b) => { const cv = b.querySelector('canvas'); if (cv && O.ItemArt) { try { cv.getContext('2d').drawImage(O.ItemArt.icon(b.dataset.g), 0, 0); } catch (x) { /* no art */ } } b.onclick = () => { itemsEl.hidden = true; D && D.give && D.give(b.dataset.g); }; });
+      itemsEl.hidden = false; };
     sayEl.onclick = (e) => e.stopPropagation();
     sayEl.onsubmit = (e) => { e.preventDefault(); const t = sayIn.value.trim(); if (!t || !D || !D.chat || D.busy) return; sayIn.value = ''; D.chat(t); };
     sayIn.addEventListener('keydown', (e) => { if (e.key === 'Escape') { sayIn.blur(); e.stopPropagation(); } });
     let D = null; // { text, shown, options, onPick, sel }
     function open(o) {
       const keepFocus = D && D.chat && o.chat && document.activeElement === sayIn;
-      D = { text: o.text, shown: 0, options: o.options || [], onPick: o.onPick, sel: 0, onClose: o.onClose, chat: o.chat, busy: !!o.busy };
+      D = { text: o.text, shown: 0, options: o.options || [], onPick: o.onPick, sel: 0, onClose: o.onClose, chat: o.chat, give: o.give, busy: !!o.busy };
       nameEl.textContent = o.name || ''; nameEl.style.background = o.color || '#c8743a'; nameEl.hidden = !o.name;
       box.hidden = false; opts.hidden = true; textEl.textContent = ''; nextEl.hidden = true; box.classList.toggle('busy', !!o.busy);
-      sayEl.hidden = !o.chat; sayIn.disabled = !!o.busy; if (o.chat && (keepFocus || o.focus)) setTimeout(() => sayIn.focus(), 0);
-      game.player.locked = true;
+      sayEl.hidden = !o.chat; sayIn.disabled = !!o.busy; giveBt.hidden = !o.give; itemsEl.hidden = true; if (o.chat && (keepFocus || o.focus)) setTimeout(() => sayIn.focus(), 0);
+      game.player.locked = !o.chat; // (in a conversation you can always just walk away)
     }
     function close() {
       if (!D) return; const cb = D.onClose; D = null; box.hidden = true; opts.hidden = true; sayEl.hidden = true; sayIn.value = ''; sayIn.blur(); game.player.locked = false; cb && cb();
@@ -16141,6 +16471,8 @@ agree: true only if they now genuinely agree to the request below. caught: true 
     game.keyHandlers.unshift((e) => {
       if (!D) return false;
       const k = e.code;
+      if (D.chat && ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight'].includes(k)) return false;
+      if (D.chat && k === 'Enter') { sayIn.focus(); return true; }
       if (k === 'KeyE' || k === 'Enter' || k === 'Space') { if (D.shown < D.text.length) finishText(); else if (D.options.length) pick(D.sel); else close(); return true; }
       if (k === 'ArrowDown' || k === 'KeyS') { D.sel = (D.sel + 1) % Math.max(1, D.options.length); mark(); return true; }
       if (k === 'ArrowUp' || k === 'KeyW') { D.sel = (D.sel - 1 + D.options.length) % Math.max(1, D.options.length); mark(); return true; }
@@ -18671,9 +19003,6 @@ agree: true only if they now genuinely agree to the request below. caught: true 
     ['cannot', "I can't come in today", 'work'],
     ['late', "I'll be late today", 'work'],
     ['notice', 'I give notice: I am leaving your service', 'work'],
-    ['greet', 'Greetings and good wishes', 'any'],
-    ['thanks', 'Thank you for your kindness', 'any'],
-    ['meet', 'Meet me at the square at noon', 'any'],
   ];
   function setup(game, home, npcUI) {
     const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k), esc = (t) => O.escape(String(t));
@@ -18681,7 +19010,9 @@ agree: true only if they now genuinely agree to the request below. caught: true 
     function deliver(s, L) {
       const q = s.byId.get(L.to); if (!q) return;
       const e = PS.emp;
-      s.remember(q, `A letter from the stranger: “${L.text}”`, 'social', 1, 0); s.relate(q, { id: 0 }, L.kind === 'thanks' || L.kind === 'greet' ? 0.04 : 0);
+      const nm = (q.rel.get(0) || {}).name || 'the stranger';
+      s.remember(q, `A letter from ${nm}: "${String(L.text).slice(0, 90)}"`, 'social', 1, 0);
+      if (L.kind === 'own' && O.AIChat && O.AIChat.readLetter) { O.AIChat.readLetter(s, q, L.text); say(`Your letter has been put into ${q.first}'s hands.`); return; }
       if (e && e.place === s.world.placeId && e.master === q.id) {
         if (L.kind === 'unwell' || L.kind === 'cannot') { e.excuseDay = s.day + (s.hour >= 20 ? 1 : 0); if (e.dayInfo && e.day === e.excuseDay) e.dayInfo.excused = true; e.stats.excused = (e.stats.excused || 0); if (e.stats.excused >= 3) s.relate(q, { id: 0 }, -0.05); }
         if (L.kind === 'late' && e.dayInfo) e.dayInfo.excused = true;
@@ -18704,9 +19035,11 @@ agree: true only if they now genuinely agree to the request below. caught: true 
       const known = [...(s.people.filter((q) => q.alive !== false && ((q.rel.get(0)?.familiar || 0) > 0.05 || (e && e.master === q.id && e.place === s.world.placeId))))].slice(0, 16);
       if (!known.length) return say('You know nobody here well enough to write to.', 'bad');
       const opts = known.map((q) => `<option value="${q.id}">${esc(q.name)}${e && e.master === q.id ? ' (your master)' : ''}</option>`).join('');
-      O.Panels.open('Write a letter', `<p class="caption">To whom, and what shall it say?</p><p><select data-to>${opts}</select></p><div class="topics">${KINDS.map(([k, t]) => `<button data-k="${k}">${esc(t)}</button>`).join('')}</div>`, (r) => {
+      O.Panels.open('Write a letter', `<p><select data-to>${opts}</select></p>${O.AI && O.AI.ready ? `<p><textarea data-own rows="4" maxlength="400" style="width:100%" placeholder="Dear ..."></textarea></p><div class="topics"><button data-k="own">Seal and send</button></div>` : ''}<div class="topics">${KINDS.map(([k, t]) => `<button data-k="${k}">${esc(t)}</button>`).join('')}</div>`, (r) => {
         r.querySelectorAll('[data-k]').forEach((b) => b.onclick = () => {
-          const to = +r.querySelector('[data-to]').value, kind = b.dataset.k, text = KINDS.find((x) => x[0] === kind)[1];
+          const to = +r.querySelector('[data-to]').value, kind = b.dataset.k, own = (r.querySelector('[data-own]')?.value || '').trim();
+          if (kind === 'own' && !own) return;
+          const text = kind === 'own' ? own.slice(0, 400) : KINDS.find((x) => x[0] === kind)[1];
           PS.items.splice(idx, 1);
           const L = { to, kind, text, day: s.day };
           // a messenger, if the town keeps a post house
@@ -19629,7 +19962,7 @@ agree: true only if they now genuinely agree to the request below. caught: true 
     function belongs(q, b) {
       if (b.owner?.kind === 'player' || (PS.lease && PS.lease.b === b.id) || (PS.room && PS.room.b === b.id)) return true;
       if (b.parent && O.castleMayEnter && O.castleMayEnter({ locked: b.locked || null }) && b.locked) return true; // the royal family's own rooms, if you're family
-      return (q.rel && (q.rel.get(0)?.affinity || 0) > 0.45);
+      return (q.rel && (q.rel.get(0)?.affinity || 0) > 0.45) || !!(O.invitedTo && O.invitedTo(b.parent || b));
     }
     O.wakeBed = (it) => {
       const s = cur(), sc = game.scene, b = sc.b, keep = b.parent || b, list = sleepersIn(it); if (!list.length) return false;
@@ -22110,6 +22443,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
     // ---------------------------------------------------------------- everything on, in one list
     O.eventsFor = (s, d0, d1) => {
       const out = [], add = (e) => { if (e.day >= d0 && e.day <= d1) out.push(e); };
+      if (O.meetsFor) for (const m of O.meetsFor(s, d0, d1)) if (m.place === s.world.placeId) out.push(m);
       const here = s.world.placeId;
       for (let d = d0; d <= d1; d++) {
         const se = seasonOf(d), dd = dos(d);
@@ -22593,7 +22927,8 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
     // ================================================================ wells, and the woods
     let drankAt = -1e9, foragedN = 0, foragedDay = -1, busy = 0, after = null;
     game.hooks.update.push((dt) => { if (busy > 0) { busy -= dt; game.player.locked = true; game.player.anim = 'crouch'; if (busy <= 0) { game.player.locked = false; game.player.anim = 'idle'; const f = after; after = null; f && f(); } } });
-    const inWoods = () => { const w = game.world, p = game.player; if (!w || game.scene) return false; const tx = Math.floor(p.x / T), ty = Math.floor((p.y - 2) / T); if (w.ter[ty * w.W + tx] === w.TER.FOREST) return true; let n = 0; for (const t of w.trees || []) if (Math.abs(t.x - p.x) < 40 && Math.abs(t.y - p.y) < 40 && ++n >= 3) return true; return false; };
+    let iwK = null, iwV = false; const inWoods = () => { const w0 = game.world, p0 = game.player; const k = w0 && !game.scene ? `${w0.placeId}:${Math.floor(p0.x / 16)}:${Math.floor(p0.y / 16)}` : null; if (k && k === iwK) return iwV; iwK = k; return (iwV = inWoods0()); };
+    const inWoods0 = () => { const w = game.world, p = game.player; if (!w || game.scene) return false; const tx = Math.floor(p.x / T), ty = Math.floor((p.y - 2) / T); if (w.ter[ty * w.W + tx] === w.TER.FOREST) return true; let n = 0; for (const t of w.trees || []) if (Math.abs(t.x - p.x) < 40 && Math.abs(t.y - p.y) < 40 && ++n >= 3) return true; return false; };
     const hook = () => {
       const prev = O.stallCandidate;
       O.stallCandidate = () => {
@@ -23658,7 +23993,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
         x: away ? away[0] : Math.round(game.scene ? game.scene.b.doorX * 16 + 8 : game.player.x), y: away ? away[1] : Math.round(game.scene ? game.scene.b.doorY * 16 + 10 : game.player.y), dir: game.player.dir,
         mount: game.player.mount ? game.player.mount.id : null,
         region: game.world.island && !game.scene && game.world !== sim.world ? game.world.placeId : null, g: game.world.island && !game.scene ? O.Island.toGlobal(game.world, game.player.x, game.player.y).map(Math.round) : null,
-        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [], emp: PS.emp ? Object.assign({}, PS.emp, { tasks: [], onShift: false, dayInfo: null }) : null, posts: (PS.posts || []).map((x) => Object.assign({}, x, { tasks: [], onShift: false, dayInfo: null, _lm: null, _cur: x === PS.emp })), carry: PS.carry || null, firedSilently: PS.firedSilently || null, residence: PS.residence || null, gaol: PS.gaol || null, gangRanks: PS.gangRanks || [], gangTrials: PS.gangTrials || {}, disguise: PS.disguise || null, loans: PS.loans || [], letters: PS.letters || [], knows: PS.knows || {}, knowsGang: PS.knowsGang || {}, royal: PS.royal || false, taxOwed: PS.taxOwed || 0, taxPaidDay: PS.taxPaidDay ?? null, contract: PS.contract && PS.contract.kind !== 'escort' ? PS.contract : null, leads: (PS.leads || []).filter((l) => l.why !== 'contract' || (PS.contract && PS.contract.kind !== 'escort')), askedLaw: PS.askedLaw || 0, guests: PS.guests || null, jobCardOpen: !!PS.jobCardOpen, learning: PS.learning || 0, performances: PS.performances || 0, lettersCarried: PS.lettersCarried || 0, title: PS.title || null, vouched: PS.vouched || {}, offered: PS.offered || {}, appointment: PS.appointment || null, reeveOf: PS.reeveOf || {}, claim: PS.claim || 0, secrets: PS.secrets || [], vows: !!PS.vows, warWon: PS.warWon || 0, warFought: PS.warFought || 0, plot: PS.plot || null, coronation: PS.coronation || null, anointed: !!PS.anointed, guides: PS.guides || 'all', mail: PS.mail || [], worn: PS.worn || [], bizTab: PS.bizTab || null, roadLead: PS.roadLead || null, wokeAt: PS.wokeAt ?? null, studiedAt: PS.studiedAt ?? null, studyDay: PS.studyDay ?? null, studyHours: PS.studyHours || 0, lessonDay: PS.lessonDay ?? null, ill: PS.ill || null, confessed: PS.confessed ?? null, tithedWeek: PS.tithedWeek ?? null, titheBase: PS.titheBase || 0, startDay: PS.startDay ?? null, yearsHere: PS.yearsHere || 0, dog: PS.dog || null, lineSpec: PS.lineSpec || null, forebears: PS.forebears || [], _ageChecked: PS._ageChecked ?? null },
+        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [], emp: PS.emp ? Object.assign({}, PS.emp, { tasks: [], onShift: false, dayInfo: null }) : null, posts: (PS.posts || []).map((x) => Object.assign({}, x, { tasks: [], onShift: false, dayInfo: null, _lm: null, _cur: x === PS.emp })), carry: PS.carry || null, firedSilently: PS.firedSilently || null, residence: PS.residence || null, gaol: PS.gaol || null, gangRanks: PS.gangRanks || [], gangTrials: PS.gangTrials || {}, disguise: PS.disguise || null, loans: PS.loans || [], letters: PS.letters || [], knows: PS.knows || {}, knowsGang: PS.knowsGang || {}, royal: PS.royal || false, taxOwed: PS.taxOwed || 0, taxPaidDay: PS.taxPaidDay ?? null, contract: PS.contract && PS.contract.kind !== 'escort' ? PS.contract : null, leads: (PS.leads || []).filter((l) => l.why !== 'contract' || (PS.contract && PS.contract.kind !== 'escort')), askedLaw: PS.askedLaw || 0, guests: PS.guests || null, jobCardOpen: !!PS.jobCardOpen, learning: PS.learning || 0, performances: PS.performances || 0, lettersCarried: PS.lettersCarried || 0, title: PS.title || null, vouched: PS.vouched || {}, offered: PS.offered || {}, appointment: PS.appointment || null, reeveOf: PS.reeveOf || {}, claim: PS.claim || 0, secrets: PS.secrets || [], vows: !!PS.vows, warWon: PS.warWon || 0, warFought: PS.warFought || 0, plot: PS.plot || null, coronation: PS.coronation || null, anointed: !!PS.anointed, guides: PS.guides || 'all', mail: PS.mail || [], worn: PS.worn || [], bizTab: PS.bizTab || null, meets: PS.meets || [], roadLead: PS.roadLead || null, wokeAt: PS.wokeAt ?? null, studiedAt: PS.studiedAt ?? null, studyDay: PS.studyDay ?? null, studyHours: PS.studyHours || 0, lessonDay: PS.lessonDay ?? null, ill: PS.ill || null, confessed: PS.confessed ?? null, tithedWeek: PS.tithedWeek ?? null, titheBase: PS.titheBase || 0, startDay: PS.startDay ?? null, yearsHere: PS.yearsHere || 0, dog: PS.dog || null, lineSpec: PS.lineSpec || null, forebears: PS.forebears || [], _ageChecked: PS._ageChecked ?? null },
       },
     };
   }
@@ -23894,7 +24229,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.RisingSetup.setup(game, npcUI);
   O.RitesSetup.setup(game);
   O.WarfareSetup.setup(game, npcUI);
-  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI);
+  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.NpcActsSetup.setup(game);
   O.FinerySetup.setup(game);
   O.PastimesSetup.setup(game);
   O.FishingSetup.setup(game);
@@ -23917,7 +24252,14 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   let lastAuto = sim.day;
   game.hooks.update.push(() => { if (home.day !== lastAuto && home.hour >= 6 && !game.world.road) { lastAuto = home.day; O.Save.save(game, home, true); } });
   document.addEventListener('visibilitychange', () => { if (document.hidden && !game.world.road) O.Save.save(game, home, true); });
+  // the name of where you stand changes only from tile to tile: remember it rather than sample the land each frame
+  let pnKey = null, pnVal = null;
   function placeName() {
+    const k = game.scene ? null : `${game.world && game.world.placeId}:${Math.floor(game.player.x / 32)}:${Math.floor(game.player.y / 32)}`;
+    if (k && k === pnKey) return pnVal;
+    const v = placeName0(); pnKey = k; pnVal = v; return v;
+  }
+  function placeName0() {
     if (game.scene) return game.scene.b.type === "house" ? `The ${sim.households[game.scene.b.household - 1]?.surname || ""} house` + (game.scene.floor ? ", upstairs" : "") : game.scene.b.name + (game.scene.floor ? ', upstairs' : '');
     const p = game.player, T = 16, tx = p.x / T - AX, ty = p.y / T - AY;
     if (game.world === homeWorld && (tx < 0 || ty < 0 || tx > 96 || ty > 64)) { const g = O.Island.toGlobal(homeWorld, p.x, p.y); return O.Eldoria.regionName(g[0] / T / O.Island.U, g[1] / T / O.Island.U).replace(/^the /, '').replace(/^./, (c) => c.toUpperCase()); }

@@ -15,6 +15,7 @@
       if ((b._doorOpen || 0) > game.t) return false; // someone has just opened it: you can follow them in
       if (sim.biz && sim.biz.get(b.id) && sim.biz.get(b.id).def && h >= sim.biz.get(b.id).def.hours[0] && h < sim.biz.get(b.id).def.hours[1] && sim.biz.get(b.id).workers?.some((id) => sim.byId.get(id)?.agent.inside === b.id)) return false; // someone at work inside
       if (b.owner && b.owner.kind === 'player') return false;
+      if (O.invitedTo && O.invitedTo(b)) return false; // asked round
       if (b.type === 'hideout') return b.gang !== 'player';
       if (PS.room && PS.room.b === b.id && sim.day <= PS.room.until) return false;
       if (PS.lease && PS.lease.b === b.id && PS.lease.place === sim.world.placeId) return false;

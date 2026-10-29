@@ -130,7 +130,7 @@
   O.RisingSetup.setup(game, npcUI);
   O.RitesSetup.setup(game);
   O.WarfareSetup.setup(game, npcUI);
-  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI);
+  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.NpcActsSetup.setup(game);
   O.FinerySetup.setup(game);
   O.PastimesSetup.setup(game);
   O.FishingSetup.setup(game);
@@ -153,7 +153,14 @@
   let lastAuto = sim.day;
   game.hooks.update.push(() => { if (home.day !== lastAuto && home.hour >= 6 && !game.world.road) { lastAuto = home.day; O.Save.save(game, home, true); } });
   document.addEventListener('visibilitychange', () => { if (document.hidden && !game.world.road) O.Save.save(game, home, true); });
+  // the name of where you stand changes only from tile to tile: remember it rather than sample the land each frame
+  let pnKey = null, pnVal = null;
   function placeName() {
+    const k = game.scene ? null : `${game.world && game.world.placeId}:${Math.floor(game.player.x / 32)}:${Math.floor(game.player.y / 32)}`;
+    if (k && k === pnKey) return pnVal;
+    const v = placeName0(); pnKey = k; pnVal = v; return v;
+  }
+  function placeName0() {
     if (game.scene) return game.scene.b.type === "house" ? `The ${sim.households[game.scene.b.household - 1]?.surname || ""} house` + (game.scene.floor ? ", upstairs" : "") : game.scene.b.name + (game.scene.floor ? ', upstairs' : '');
     const p = game.player, T = 16, tx = p.x / T - AX, ty = p.y / T - AY;
     if (game.world === homeWorld && (tx < 0 || ty < 0 || tx > 96 || ty > 64)) { const g = O.Island.toGlobal(homeWorld, p.x, p.y); return O.Eldoria.regionName(g[0] / T / O.Island.U, g[1] / T / O.Island.U).replace(/^the /, '').replace(/^./, (c) => c.toUpperCase()); }

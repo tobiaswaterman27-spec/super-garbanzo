@@ -58,22 +58,28 @@
 
     // ---------------------------------------------------------------- conversation
     const box = document.createElement('div'); box.className = 'dlg'; box.hidden = true;
-    box.innerHTML = '<div class="dlg-name"></div><div class="dlg-text"></div><div class="dlg-next">▼</div><form class="dlg-say" hidden><input type="text" maxlength="220" autocomplete="off" spellcheck="true" placeholder="Say something..."><button type="submit">Say</button></form>';
+    box.innerHTML = '<div class="dlg-name"></div><div class="dlg-text"></div><div class="dlg-next">▼</div><form class="dlg-say" hidden><button type="button" class="dlg-give" title="Give">+</button><input type="text" maxlength="220" autocomplete="off" spellcheck="true" placeholder="Say something..."><button type="submit">Say</button></form><div class="dlg-items" hidden></div>';
     const opts = document.createElement('div'); opts.className = 'dlg-opts'; opts.hidden = true;
     root.append(box, opts);
     const nameEl = box.querySelector('.dlg-name'), textEl = box.querySelector('.dlg-text'), nextEl = box.querySelector('.dlg-next');
-    const sayEl = box.querySelector('.dlg-say'), sayIn = sayEl.querySelector('input');
+    const sayEl = box.querySelector('.dlg-say'), sayIn = sayEl.querySelector('input'), giveBt = box.querySelector('.dlg-give'), itemsEl = box.querySelector('.dlg-items');
+    itemsEl.onclick = (e) => e.stopPropagation();
+    giveBt.onclick = (e) => { e.stopPropagation(); if (!D || !D.give || D.busy) return; if (!itemsEl.hidden) { itemsEl.hidden = true; return; }
+      const PS = O.PlayerState, G = O.Data.GOODS, seen = new Map(); for (const k of PS.items) seen.set(k, (seen.get(k) || 0) + 1);
+      itemsEl.innerHTML = seen.size ? [...seen].map(([k, n]) => `<button type="button" data-g="${k}" title="${esc(G[k]?.name || k)}"><canvas width="16" height="16"></canvas>${n > 1 ? `<b>${n}</b>` : ''}</button>`).join('') + (PS.money > 0 ? `<button type="button" data-g="coin" title="Money"><span>₳</span></button>` : '') : '<i>Nothing to give</i>';
+      itemsEl.querySelectorAll('button[data-g]').forEach((b) => { const cv = b.querySelector('canvas'); if (cv && O.ItemArt) { try { cv.getContext('2d').drawImage(O.ItemArt.icon(b.dataset.g), 0, 0); } catch (x) { /* no art */ } } b.onclick = () => { itemsEl.hidden = true; D && D.give && D.give(b.dataset.g); }; });
+      itemsEl.hidden = false; };
     sayEl.onclick = (e) => e.stopPropagation();
     sayEl.onsubmit = (e) => { e.preventDefault(); const t = sayIn.value.trim(); if (!t || !D || !D.chat || D.busy) return; sayIn.value = ''; D.chat(t); };
     sayIn.addEventListener('keydown', (e) => { if (e.key === 'Escape') { sayIn.blur(); e.stopPropagation(); } });
     let D = null; // { text, shown, options, onPick, sel }
     function open(o) {
       const keepFocus = D && D.chat && o.chat && document.activeElement === sayIn;
-      D = { text: o.text, shown: 0, options: o.options || [], onPick: o.onPick, sel: 0, onClose: o.onClose, chat: o.chat, busy: !!o.busy };
+      D = { text: o.text, shown: 0, options: o.options || [], onPick: o.onPick, sel: 0, onClose: o.onClose, chat: o.chat, give: o.give, busy: !!o.busy };
       nameEl.textContent = o.name || ''; nameEl.style.background = o.color || '#c8743a'; nameEl.hidden = !o.name;
       box.hidden = false; opts.hidden = true; textEl.textContent = ''; nextEl.hidden = true; box.classList.toggle('busy', !!o.busy);
-      sayEl.hidden = !o.chat; sayIn.disabled = !!o.busy; if (o.chat && (keepFocus || o.focus)) setTimeout(() => sayIn.focus(), 0);
-      game.player.locked = true;
+      sayEl.hidden = !o.chat; sayIn.disabled = !!o.busy; giveBt.hidden = !o.give; itemsEl.hidden = true; if (o.chat && (keepFocus || o.focus)) setTimeout(() => sayIn.focus(), 0);
+      game.player.locked = !o.chat; // (in a conversation you can always just walk away)
     }
     function close() {
       if (!D) return; const cb = D.onClose; D = null; box.hidden = true; opts.hidden = true; sayEl.hidden = true; sayIn.value = ''; sayIn.blur(); game.player.locked = false; cb && cb();
@@ -95,6 +101,8 @@
     game.keyHandlers.unshift((e) => {
       if (!D) return false;
       const k = e.code;
+      if (D.chat && ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight'].includes(k)) return false;
+      if (D.chat && k === 'Enter') { sayIn.focus(); return true; }
       if (k === 'KeyE' || k === 'Enter' || k === 'Space') { if (D.shown < D.text.length) finishText(); else if (D.options.length) pick(D.sel); else close(); return true; }
       if (k === 'ArrowDown' || k === 'KeyS') { D.sel = (D.sel + 1) % Math.max(1, D.options.length); mark(); return true; }
       if (k === 'ArrowUp' || k === 'KeyW') { D.sel = (D.sel - 1 + D.options.length) % Math.max(1, D.options.length); mark(); return true; }

@@ -10,9 +10,6 @@
     ['cannot', "I can't come in today", 'work'],
     ['late', "I'll be late today", 'work'],
     ['notice', 'I give notice: I am leaving your service', 'work'],
-    ['greet', 'Greetings and good wishes', 'any'],
-    ['thanks', 'Thank you for your kindness', 'any'],
-    ['meet', 'Meet me at the square at noon', 'any'],
   ];
   function setup(game, home, npcUI) {
     const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k), esc = (t) => O.escape(String(t));
@@ -20,7 +17,9 @@
     function deliver(s, L) {
       const q = s.byId.get(L.to); if (!q) return;
       const e = PS.emp;
-      s.remember(q, `A letter from the stranger: “${L.text}”`, 'social', 1, 0); s.relate(q, { id: 0 }, L.kind === 'thanks' || L.kind === 'greet' ? 0.04 : 0);
+      const nm = (q.rel.get(0) || {}).name || 'the stranger';
+      s.remember(q, `A letter from ${nm}: "${String(L.text).slice(0, 90)}"`, 'social', 1, 0);
+      if (L.kind === 'own' && O.AIChat && O.AIChat.readLetter) { O.AIChat.readLetter(s, q, L.text); say(`Your letter has been put into ${q.first}'s hands.`); return; }
       if (e && e.place === s.world.placeId && e.master === q.id) {
         if (L.kind === 'unwell' || L.kind === 'cannot') { e.excuseDay = s.day + (s.hour >= 20 ? 1 : 0); if (e.dayInfo && e.day === e.excuseDay) e.dayInfo.excused = true; e.stats.excused = (e.stats.excused || 0); if (e.stats.excused >= 3) s.relate(q, { id: 0 }, -0.05); }
         if (L.kind === 'late' && e.dayInfo) e.dayInfo.excused = true;
@@ -43,9 +42,11 @@
       const known = [...(s.people.filter((q) => q.alive !== false && ((q.rel.get(0)?.familiar || 0) > 0.05 || (e && e.master === q.id && e.place === s.world.placeId))))].slice(0, 16);
       if (!known.length) return say('You know nobody here well enough to write to.', 'bad');
       const opts = known.map((q) => `<option value="${q.id}">${esc(q.name)}${e && e.master === q.id ? ' (your master)' : ''}</option>`).join('');
-      O.Panels.open('Write a letter', `<p class="caption">To whom, and what shall it say?</p><p><select data-to>${opts}</select></p><div class="topics">${KINDS.map(([k, t]) => `<button data-k="${k}">${esc(t)}</button>`).join('')}</div>`, (r) => {
+      O.Panels.open('Write a letter', `<p><select data-to>${opts}</select></p>${O.AI && O.AI.ready ? `<p><textarea data-own rows="4" maxlength="400" style="width:100%" placeholder="Dear ..."></textarea></p><div class="topics"><button data-k="own">Seal and send</button></div>` : ''}<div class="topics">${KINDS.map(([k, t]) => `<button data-k="${k}">${esc(t)}</button>`).join('')}</div>`, (r) => {
         r.querySelectorAll('[data-k]').forEach((b) => b.onclick = () => {
-          const to = +r.querySelector('[data-to]').value, kind = b.dataset.k, text = KINDS.find((x) => x[0] === kind)[1];
+          const to = +r.querySelector('[data-to]').value, kind = b.dataset.k, own = (r.querySelector('[data-own]')?.value || '').trim();
+          if (kind === 'own' && !own) return;
+          const text = kind === 'own' ? own.slice(0, 400) : KINDS.find((x) => x[0] === kind)[1];
           PS.items.splice(idx, 1);
           const L = { to, kind, text, day: s.day };
           // a messenger, if the town keeps a post house

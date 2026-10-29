@@ -154,7 +154,8 @@
     // ================================================================ wells, and the woods
     let drankAt = -1e9, foragedN = 0, foragedDay = -1, busy = 0, after = null;
     game.hooks.update.push((dt) => { if (busy > 0) { busy -= dt; game.player.locked = true; game.player.anim = 'crouch'; if (busy <= 0) { game.player.locked = false; game.player.anim = 'idle'; const f = after; after = null; f && f(); } } });
-    const inWoods = () => { const w = game.world, p = game.player; if (!w || game.scene) return false; const tx = Math.floor(p.x / T), ty = Math.floor((p.y - 2) / T); if (w.ter[ty * w.W + tx] === w.TER.FOREST) return true; let n = 0; for (const t of w.trees || []) if (Math.abs(t.x - p.x) < 40 && Math.abs(t.y - p.y) < 40 && ++n >= 3) return true; return false; };
+    let iwK = null, iwV = false; const inWoods = () => { const w0 = game.world, p0 = game.player; const k = w0 && !game.scene ? `${w0.placeId}:${Math.floor(p0.x / 16)}:${Math.floor(p0.y / 16)}` : null; if (k && k === iwK) return iwV; iwK = k; return (iwV = inWoods0()); };
+    const inWoods0 = () => { const w = game.world, p = game.player; if (!w || game.scene) return false; const tx = Math.floor(p.x / T), ty = Math.floor((p.y - 2) / T); if (w.ter[ty * w.W + tx] === w.TER.FOREST) return true; let n = 0; for (const t of w.trees || []) if (Math.abs(t.x - p.x) < 40 && Math.abs(t.y - p.y) < 40 && ++n >= 3) return true; return false; };
     const hook = () => {
       const prev = O.stallCandidate;
       O.stallCandidate = () => {

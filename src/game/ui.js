@@ -71,7 +71,7 @@
       itemsEl.hidden = false; };
     sayEl.onclick = (e) => e.stopPropagation();
     sayEl.onsubmit = (e) => { e.preventDefault(); const t = sayIn.value.trim(); if (!t || !D || !D.chat || D.busy) return; sayIn.value = ''; D.chat(t); };
-    sayIn.addEventListener('keydown', (e) => { if (e.key === 'Escape') { sayIn.blur(); e.stopPropagation(); } });
+    sayIn.addEventListener('keydown', (e) => { if (e.key === 'Escape') { sayIn.blur(); e.stopPropagation(); } else if (!sayIn.value && /^Arrow/.test(e.key)) { sayIn.blur(); game.canvas.focus(); } }); // (arrows on an empty line: walk away)
     let D = null; // { text, shown, options, onPick, sel }
     function open(o) {
       const keepFocus = D && D.chat && o.chat && document.activeElement === sayIn;
@@ -109,7 +109,7 @@
       if (k === 'Escape') { const last = D.options.length - 1; if (last >= 0 && D.shown >= D.text.length) pick(last); else close(); return true; }
       return true; // nothing else happens mid-conversation
     });
-    O.UI.dialog = { open, close, set: (o) => open(Object.assign({ name: nameEl.textContent, color: nameEl.style.background }, o)), sayFocus: () => { if (D && D.chat) sayIn.focus(); } };
+    O.UI.dialog = { typing: () => document.activeElement === sayIn && !!sayIn.value, open, close, set: (o) => open(Object.assign({ name: nameEl.textContent, color: nameEl.style.background }, o)), sayFocus: () => { if (D && D.chat) sayIn.focus(); } };
     O.UI.dialogOpen = () => !!D;
 
     // ---------------------------------------------------------------- touch buttons (phones and tablets)

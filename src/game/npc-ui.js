@@ -20,6 +20,13 @@
       if (!talking) return;
       const pos = game.scene ? game.scene.personPos(talking) : (talking.agent.hidden ? null : [talking.agent.x, talking.agent.y]);
       if (!pos || Math.hypot(pos[0] - game.player.x, pos[1] - game.player.y) > 70) return closeTalk();
+      if (!(O.AI && O.AI.busy) && !O.UI.dialog.typing?.()) {
+        const q = talking, t = q.traits || [], long = t.includes('social') ? 90 : t.includes('introverted') ? 25 : 50;
+        if (q._mustGo || absNow() - (q._talkFrom || absNow()) > long) {
+          const line = q._mustGo === 'work' ? pick(["I'll be late for work. I must go.", 'There, that\'s the hour. Work calls.']) : q._mustGo ? pick(['I must be off.', "I've somewhere to be. Fare you well."]) : pick(["Well, I'd best be getting on.", 'I must away. Good day to you.', "Enough talk. I've things to do."]);
+          q._mustGo = null; const qq = q; closeTalk(); walkAway(qq, line); return;
+        }
+      }
       // whoever you're talking to keeps turning to face you (unless they're sat or abed)
       const d = O.dirOf(game.player.x - pos[0], game.player.y - pos[1]);
       if (game.scene) { const a = game.scene.actors.get(talking.id); if (a && !a.seat && !a.gBed) { a.dir = d; a.gDir = d; } }
@@ -34,10 +41,35 @@
     O.knowsTrade = (q) => !!(q && ((PSk.knows || {})[kk(q)] || (game.scene && q.job && game.scene.b.id === q.job.biz && q.activity?.act === 'work') || (PSk.posts || []).some((e) => e.master === q.id)));
     O.learnTrade = (q) => { if (q) (PSk.knows = PSk.knows || {})[kk(q)] = 1; };
     // while you talk with someone they don't wander off: their day waits till you're done
-    { const SP = O.Sim.prototype, _plan = SP.plan; SP.plan = function (p) { if (talking && p === talking && p.activity && !p.agent.hidden) return p.activity; return _plan.call(this, p); }; }
+    // while you talk with someone their day waits, but not for ever: when something calls them away, they go
+    const URGENT = new Set(['work', 'fire', 'firefight', 'help', 'collapsed', 'report', 'investigate', 'escort', 'to-doc', 'leave', 'labour', 'council', 'worship', 'meet', 'sick']);
+    { const SP = O.Sim.prototype, _plan = SP.plan; SP.plan = function (p) {
+      if (talking && p === talking && p.activity && !p.agent.hidden) { const real = _plan.call(this, p); if (real && real.act !== p.activity.act && URGENT.has(real.act) && !p._mustGo) p._mustGo = real.act; return p.activity; }
+      return _plan.call(this, p); }; }
+    const absNow = () => sim.day * 1440 + sim.minute;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    // can they talk at all? busy, hurrying, or not willing: a word over the shoulder and off they go
+    function busyLine(q) {
+      const act = q.activity?.act, r = q.rel.get(0) || { affinity: 0, familiar: 0 }, role = q.job?.role || '';
+      if (q.age < 3 || act === 'sleep') return null;
+      if (['fire', 'firefight', 'help', 'report', 'escort', 'to-doc', 'labour'].includes(act)) return pick(["Not now! Can't you see?", 'Out of my way!', 'No time, no time!']);
+      if (act === 'leave') return pick(["I'm on the road, friend. Another time.", "Can't stop, I've miles to go."]);
+      if (r.affinity < -0.55) return pick(["I've nothing to say to you.", 'Leave me be.', 'Go away.']);
+      const sells = q.job && sim.biz.get(q.job.biz)?.def.sells?.length;
+      if (act === 'work' && !sells && q.agent.inside == null && Math.random() < 0.5) return pick(["I'm working. Come back when I'm done.", "Can't stop to chat, there's work to do.", 'Later. The master would have my hide.']);
+      if (act === 'patrol' && Math.random() < 0.4) return pick(['Move along, citizen.', "I'm on my rounds."]);
+      if (q.health?.illness?.sev > 0.6) return pick(["I'm not well. Leave me be.", "Not today. I can barely stand."]);
+      return null;
+    }
+    function walkAway(q, line) {
+      const s0 = sim; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: line, options: [] });
+      setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1800);
+      O.NpcActs && O.NpcActs.walkOff(q); q._snubUntil = s0.day * 1440 + s0.minute + 20;
+    }
     function openTalk(q) {
       const s0 = sim; if (q._snubUntil && s0.day * 1440 + s0.minute < q._snubUntil) { O.UI.say(`${q.first} turns away from you.`, 'bad'); return; }
-      talking = q; q.agent.frozen = true; q._lastSpeaker = null;
+      { const bl = O.AI && O.AI.ready ? busyLine(q) : null; if (bl) return walkAway(q, bl); }
+      talking = q; q.agent.frozen = true; q._lastSpeaker = null; q._mustGo = null; q._talkFrom = absNow();
       // others standing with them join in (as in a group in the square)
       { const pos0 = game.scene ? game.scene.personPos(q) : [q.agent.x, q.agent.y];
         const near = pos0 ? (game.scene ? [...game.scene.actors.values()].filter((a) => !a.hidden && a.person && a.person !== q).map((a) => [a.person, a.x, a.y]) : sim.people.filter((z) => z !== q && !z.agent.hidden).map((z) => [z, z.agent.x, z.agent.y])) : [];

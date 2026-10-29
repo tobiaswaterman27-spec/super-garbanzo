@@ -201,11 +201,12 @@
       for (let y = y0 + 1; y < y1; y++) for (const x of [x0, x1]) { if (gateAt(x, y)) continue; P((y - y0) % 16 === 0 ? 'tower' : 'wallV', x, y, { v, wall: true, y: y * T + 15 }); }
       for (const [gx, gy] of gates) { P('gatearch', gx, gy, { v, solid: false, y: gy * T + 15, x: gx * T + 8 }); P('tower', gx - 2, gy, { v }); P('tower', gx + 2, gy, { v }); }
     }
-    function scatter(isIn) {
+    function scatter(isIn, lawn) {
       for (let yy = 1; yy < H; yy++) for (let xx = 0; xx < W; xx++) {
         if (solid[yy * W + xx] || (ter[yy * W + xx] !== TER.GRASS && ter[yy * W + xx] !== TER.FOREST)) continue;
         let near = false; for (const b of buildings) if (xx >= b.x - 2 && xx <= b.x + b.w + 1 && yy >= b.y - 3 && yy <= b.bottom + 2) near = true;
         const r = rng.next(), forest = ter[yy * W + xx] === TER.FOREST, inside = isIn(xx, yy);
+        if (lawn && lawn(xx, yy)) { if (r < 0.06) props.push({ kind: r < 0.02 ? 'flowers' : 'grass', x: xx * T + rng.int(2, 14), y: yy * T + rng.int(4, 14), seed: rng.int(1, 30), solid: false, flat: true }); continue; }
         if (!near && !inside && (forest ? r < 0.3 : r < 0.02) && (xx + yy) % 2 === 0) { trees.push({ kind: rng.weighted([['oak', 4], ['birch', 1], ['pine', 1]]), x: xx * T + 8, y: yy * T + 14, seed: rng.int(1, 1e6) }); solid[yy * W + xx] = 1; }
         else if (!near && r < (inside ? 0.01 : 0.05)) props.push({ kind: inside ? 'barrel' : rng.weighted([['bush', 2], ['rock', 1]]), x: xx * T + 8, y: yy * T + 13, seed: rng.int(1, 1e6), solid: inside });
         else if (!inside && r < 0.15) props.push({ kind: r < 0.05 ? 'flowers' : 'grass', x: xx * T + rng.int(2, 14), y: yy * T + rng.int(4, 14), seed: rng.int(1, 30), solid: false, flat: true });
@@ -355,41 +356,83 @@
     // the eastern quarter behind the royal market: knights' houses and townsfolk
     for (const bottom of [62, 71, 79]) lots(130, x1 - 2, bottom, bottom === 79 ? [...resi, ...noble] : work, 4);
     P('signpost', 42, 46, { solid: false });
-    // ---- the great estates beyond the south gate, near the castle: manors with their land ----
-    const ey = 104; // the estate road
+    // ---- beyond the south gate: the great estates in open country, and the castle's own row ----
+    // Each estate is a long manor set well back from the estate road behind its lawns, a gravel drive
+    // under an avenue of limes, a fountain court, a walled kitchen garden, an orchard with hives, a
+    // fishpond; across the road its home farm, barn, stables, staff cottages, paddocks and broad fields.
+    const ey = 106; // the estate road
     fill(96, y1, 97, ey, TER.ROAD); fill(4, ey, W - 5, ey + 1, TER.ROAD);
     for (let x = riverX - 4; x <= riverX + 4; x++) { set(x, ey, TER.BRIDGE); set(x, ey + 1, TER.BRIDGE); }
-    const pens = [];
+    const pens = [], parks = [];
     const NOBLE = ['Ashcombe', 'Belmont', 'Courtenay', 'Dacre', 'Everard', 'Fitzwarren', 'Harcourt', 'Lisle', 'Montague', 'Neville', 'Ravensworth', 'Stafford', 'Talbot', 'Vere', 'Mortimer', 'Beaumont'];
     const estates = [];
-    for (const [i, ex] of [[0, 8], [1, 100], [2, 140]]) {
-      if (ex + 38 > W - 4) continue;
-      const fam = NOBLE[(seed + i * 5) % NOBLE.length], hall = `${fam} ${['Hall', 'Manor', 'Court', 'House'][i % 4]}`;
-      // the manor: a long house of two storeys, rooms for the family and the servants
-      const m = B({ type: 'manor', biz: 'manor', lordly: true, estate: true, livesIn: true, manor: true, house: fam, name: hall, x: ex + 6, bottom: ey - 4, w: 15, d: 5, floors: 2, wealth: 0.9, look: { wall: rng.chance(0.5) ? 'stone' : 'timber', stoneMat: 'stoneWarm', plaster: 'plasterWhite', roof: rng.pick(['slate', 'tile']), roofType: 'side', chimney: true, chimneyX: 0.15, dormers: 4, doorTile: 7, bigDoor: false, noFlowers: false } });
-      fill(m.x - 2, m.bottom + 1, m.x + m.w + 1, ey - 1, TER.YARD);
-      // the walled garden before it
-      for (let x = m.x - 3; x <= m.x + m.w + 2; x++) for (const y of [m.y - 2]) P('bush', x, y, { solid: true });
-      for (let y = m.y - 1; y <= m.bottom; y++) { P('bush', m.x - 3, y, { solid: true }); P('bush', m.x + m.w + 2, y, { solid: true }); }
-      // staff cottages on the land
-      for (let k = 0; k < 2; k++) B({ type: 'house', name: 'Estate Cottage', staffHouse: true, estateOf: hall, x: ex + 24 + k * 6, bottom: ey + 6, w: 4, d: 3, wealth: 0.35, look: look(0.35, { roof: 'thatch', doorTile: 1 }) });
-      // the home farm, its barn, fields and a paddock of beasts
-      B({ type: 'farmhouse', name: `${fam} Home Farm`, x: ex + 4, bottom: ey + 6, w: 4, d: 3, wealth: 0.45, look: look(0.45, { doorTile: 1 }) });
-      B({ type: 'barn', name: `${fam} Barn`, x: ex + 10, bottom: ey + 7, w: 6, d: 4, wealth: 0.4, look: { wall: 'plank', plankMat: 'plankRed', roof: 'shingle', roofType: 'gable', bigDoor: true, doorTile: 2, noFlowers: true } });
-      const px0 = ex + 4, px1 = ex + 18, py0 = ey + 10, py1 = ey + 16;
-      for (let x = px0 - 1; x <= px1 + 1; x++) { const cv = x === px0 - 1 ? 2 : x === px1 + 1 ? 3 : x % 2; P(x === px0 + 3 ? 'fenceGate' : 'fenceH', x, py0 - 1, { solid: x !== px0 + 3, v: cv }); P('fenceH', x, py1 + 1, { solid: true, v: cv }); }
+    const tree = (x, y, kind = 'oak') => { if (K.solid[y * W + x]) return; K.trees.push({ kind, x: x * T + 8, y: y * T + 14, seed: rng.int(1, 1e6) }); K.solid[y * W + x] = 1; };
+    for (const [i, ex, ew] of [[0, 6, 58], [1, 104, 76]]) {
+      const fam = NOBLE[(seed + i * 5) % NOBLE.length], hall = `${fam} ${['Hall', 'Court', 'Manor', 'House'][i % 4]}`;
+      const mw = Math.min(22, ew - 24), mx = ex + Math.floor((ew - mw) / 2), mb = y1 + 13, dx = mx + Math.floor(mw / 2);
+      // the manor: a long house of two storeys and a great many windows
+      const m = B({ type: 'manor', biz: 'manor', lordly: true, estate: true, livesIn: true, manor: true, house: fam, name: hall, x: mx, bottom: mb, w: mw, d: 6, floors: 2, wealth: 0.95, look: { wall: rng.chance(0.5) ? 'stone' : 'timber', stoneMat: 'stoneWarm', plaster: 'plasterWhite', roof: rng.pick(['slate', 'tile']), roofType: 'side', chimney: true, chimneyX: 0.12, dormers: Math.floor(mw / 4), doorTile: Math.floor(mw / 2), bigDoor: true, noFlowers: false } });
+      parks.push([ex, y1 + 2, ex + ew, ey - 1]);
+      // the drive from the road to the door, opening into a turning court with its fountain
+      fill(dx - 1, mb + 1, dx, ey - 1, TER.YARD); fill(dx - 5, mb + 1, dx + 4, mb + 4, TER.YARD);
+      P('fountain', dx, mb + 3, { x: dx * T, y: (mb + 3) * T + 14 }); K.solid[(mb + 3) * W + dx - 1] = 1;
+      for (let y = mb + 6; y < ey - 1; y += 2) { tree(dx - 3, y); tree(dx + 2, y); }
+      // clipped yews and beds before the house
+      for (const k of [-7, -6, 5, 6]) P('topiary', dx + k, mb + 1, {});
+      for (let x = mx; x < mx + mw; x++) if (Math.abs(x - dx) > 7) P('flowers', x, mb + 1, { solid: false, flat: true });
+      // the walled kitchen garden on one side, orchard and hives on the other
+      const gx0 = ex + 2, gx1 = mx - 3, gy0 = y1 + 4, gy1 = mb + 1;
+      if (gx1 - gx0 >= 5) {
+        for (let x = gx0; x <= gx1; x++) { P('bush', x, gy0, { solid: true }); if (x !== Math.floor((gx0 + gx1) / 2)) P('bush', x, gy1, { solid: true }); }
+        for (let y = gy0 + 1; y < gy1; y++) { P('bush', gx0, y, { solid: true }); P('bush', gx1, y, { solid: true }); }
+        for (let y = gy0 + 2; y < gy1 - 1; y += 2) for (let x = gx0 + 2; x < gx1 - 1; x++) { set(x, y, TER.FIELD); K.props.push({ kind: (x + y) % 3 ? 'cabbage' : 'sprout', x: x * T + 8, y: y * T + 15, seed: 1, v: 2, solid: false, flat: true, field: 'cabbage' }); }
+        P('sundial', Math.floor((gx0 + gx1) / 2), gy1 - 1, {});
+      }
+      const ox0 = mx + mw + 3, ox1 = ex + ew - 2;
+      for (let y = y1 + 4; y <= mb + 2; y += 3) for (let x = ox0; x < ox1; x += 3) tree(x + (y % 2), y, 'apple');
+      for (let k = 0; k < 3; k++) P('skep', ox0 + k * 2, mb + 4, {});
+      // the fishpond in the park
+      const pdx = rng.chance(0.5) ? ex + 4 : ex + ew - 12;
+      for (let y = mb + 6; y <= mb + 10; y++) for (let x = pdx; x <= pdx + 7; x++) { const e = ((x - pdx - 3.5) / 4.2) ** 2 + ((y - mb - 8) / 2.6) ** 2; if (e <= 1) set(x, y, e > 0.6 ? TER.SAND : TER.WATER); }
+      P('bench', pdx + 3, mb + 11, { solid: false });
+      // across the road: the home farm, its barn and stables, cottages for the married staff
+      const fy = ey + 8;
+      parks.push([ex, ey + 2, ex + ew, fy + 3]);
+      B({ type: 'farmhouse', name: `${fam} Home Farm`, x: ex + 3, bottom: fy, w: 5, d: 3, wealth: 0.5, look: look(0.5, { doorTile: 2 }) });
+      B({ type: 'barn', name: `${fam} Barn`, x: ex + 11, bottom: fy, w: 7, d: 4, wealth: 0.4, look: { wall: 'plank', plankMat: 'plankRed', roof: 'shingle', roofType: 'gable', bigDoor: true, doorTile: 3, noFlowers: true } });
+      B({ type: 'stable', name: `${fam} Stables`, x: ex + 21, bottom: fy, w: 6, d: 3, wealth: 0.5, look: { wall: 'plank', plankMat: 'plank', roof: 'shingle', bigDoor: true, chimney: false, doorTile: 2, noFlowers: true } });
+      fill(ex + 3, fy + 1, ex + 26, fy + 1, TER.YARD); fill(dx - 1, ey + 2, dx, fy + 1, TER.YARD);
+      P('cart', ex + 9, fy + 2, { solid: false }); P('hay', ex + 19, fy + 2); P('woodpile', ex + 2, fy + 2);
+      const cots = Math.max(3, Math.floor((ew - 30) / 6));
+      for (let k = 0; k < cots; k++) {
+        const cx = ex + 30 + k * 6; if (cx + 4 > ex + ew - 1) break;
+        B({ type: 'house', name: 'Estate Cottage', staffHouse: true, estateOf: hall, x: cx, bottom: fy, w: 4, d: 3, wealth: 0.35, look: look(0.35, { roof: 'thatch', doorTile: 1 }) });
+        for (let x = cx; x < cx + 3; x++) { set(x, fy + 2, TER.FIELD); K.props.push({ kind: 'cabbage', x: x * T + 8, y: (fy + 2) * T + 15, seed: 1, v: 2, solid: false, flat: true, field: 'cabbage' }); }
+      }
+      // a paddock of beasts and a run for the hens
+      const px0 = ex + 3, px1 = ex + 22, py0 = fy + 5, py1 = fy + 13;
+      for (let x = px0 - 1; x <= px1 + 1; x++) { const cv = x === px0 - 1 ? 2 : x === px1 + 1 ? 3 : x % 2; P(x === px0 + 4 ? 'fenceGate' : 'fenceH', x, py0 - 1, { solid: x !== px0 + 4, v: cv }); P('fenceH', x, py1 + 1, { solid: true, v: cv }); }
       for (let y = py0; y <= py1; y++) { P('fenceV', px0 - 1, y, { solid: true, y: y * T + 15, v: y % 2 }); P('fenceV', px1 + 1, y, { solid: true, y: y * T + 15, v: y % 2 }); }
       P('trough', px1 - 1, py0 + 1); P('hay', px0 + 1, py1 - 1);
-      pens.push({ kinds: rng.pick([['sheep', 'cow'], ['cow', 'pig'], ['sheep', 'horse'], ['cow', 'sheep', 'pig']]), z: [px0, py0, px1, py1] });
-      pens.push({ kinds: ['chicken'], z: [ex + 4, ey + 2, ex + 16, ey + 3] });
-      const fx0 = ex + 22, fx1 = ex + 36, fy0 = ey + 10, fy1 = ey + 24;
+      pens.push({ kinds: rng.pick([['sheep', 'cow'], ['cow', 'pig'], ['sheep', 'horse'], ['cow', 'sheep', 'pig'], ['horse', 'cow']]), z: [px0, py0, px1, py1] });
+      pens.push({ kinds: ['chicken'], z: [ex + 3, fy + 2, ex + 8, fy + 3] });
+      // the fields run out to the woods
+      const fx0 = ex + 26, fx1 = ex + ew - 2, fy0 = fy + 5, fy1 = H - 6;
       fill(fx0, fy0, fx1, fy1, TER.FIELD);
-      for (let y = fy0; y <= fy1; y++) for (let x = fx0; x <= fx1; x++) K.props.push({ kind: (x + i) % 9 < 5 ? 'wheat' : 'cabbage', x: x * T + 8, y: y * T + 15, seed: 1, v: 2, solid: false, flat: true, field: (x + i) % 9 < 5 ? 'wheat' : 'cabbage' });
+      for (let y = fy0; y <= fy1; y++) for (let x = fx0; x <= fx1; x++) { if ((y - fy0) % 8 === 7) { set(x, y, TER.GRASS); continue; } const crop = Math.floor((x - fx0) / 10 + Math.floor((y - fy0) / 8) + i) % 3; K.props.push({ kind: crop ? 'wheat' : 'cabbage', x: x * T + 8, y: y * T + 15, seed: 1, v: 2, solid: false, flat: true, field: crop ? 'wheat' : 'cabbage' }); }
+      for (let y = py1 + 3; y < fy1; y += 3) for (let x = px0; x <= px1; x += 4) tree(x + (y % 3), y, rng.chance(0.3) ? 'birch' : 'oak');
       estates.push({ hall, fields: [fx0, fy0, fx1, fy1] });
     }
+    // Castle Row: cottages just outside the walls for the castle's married servants and their families,
+    // the ones with no need to sleep under the king's roof
+    for (const [row, bottom] of [[0, y1 + 8], [1, y1 + 16]]) {
+      fill(74, bottom + 1, 95, bottom + 1, TER.YARD);
+      for (let k = 0; k < 4; k++) B({ type: 'house', name: 'Castle Row', staffHouse: true, estateOf: 'Aurelia Royal Castle', x: 74 + k * 5 + row, bottom, w: 4, d: 3, wealth: 0.4, look: look(0.4, { roof: rng.pick(['thatch', 'tile']), doorTile: 1 }) });
+    }
+    parks.push([73, y1 + 2, 95, y1 + 18]);
     // keep the paddocks clear of trees and bushes
     const penTiles = []; for (const pen of pens) { const [a0, b0, a1, b1] = pen.z; for (let y = b0; y <= b1; y++) for (let x = a0; x <= a1; x++) if (!K.solid[y * W + x]) { K.solid[y * W + x] = 1; penTiles.push(y * W + x); } }
-    K.scatter((x, y) => (x > x0 && x < x1 && y > y0 && y < y1) || (x > rx0 && x < rx1 && y > ry0 && y < ry1));
+    K.scatter((x, y) => (x > x0 && x < x1 && y > y0 && y < y1) || (x > rx0 && x < rx1 && y > ry0 && y < ry1), (x, y) => parks.some(([a0, b0, a1, b1]) => x >= a0 && x <= a1 && y >= b0 && y <= b1));
     for (const i of penTiles) K.solid[i] = 0;
     return K.finish({ roadY, exits: { west: [0, roadY], east: [W - 1, roadY] }, river: true, pens, estates, zones: { square: [45, 31, 63, 42], bench: [46, 31], farm: estates.length ? estates[0].fields : [8, 90, 30, 96], wood: [2, H - 10, 30, H - 4], east: [W - 1, roadY], patrol: [[55, 44], [20, 44], [40, 24], [80, 24], [110, 44], [96, 64], [60, 64], [40, 44]] }, city: true });
   }

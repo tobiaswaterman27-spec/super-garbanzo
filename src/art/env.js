@@ -606,6 +606,8 @@
           if (nn > 0.8) B.tweak(x, y, 1); else if (nn < 0.18) B.tweak(x, y, -1);
         }
         // fruit/blossom accents
+        if (kind === 'apple' && (season === 'summer' || season === 'autumn')) for (let i = 0; i < (season === 'autumn' ? 18 : 9); i++) { const x = rng.int(8, W - 8), y = rng.int(12, base - 24); if (B.matAt(x, y) === lm) { const fm = P.mat(season === 'autumn' ? '#c83a2a' : '#9ab04a'); B.plot(x, y, fm, 3); B.plot(x + 1, y, fm, 2); B.plot(x, y + 1, fm, 1); } }
+        if (season === 'spring' && kind === 'apple') for (let i = 0; i < 26; i++) { const x = rng.int(5, W - 5), y = rng.int(8, base - 24); if (B.matAt(x, y) === lm) B.plot(x, y, P.mat(i % 3 ? '#f6e4ec' : '#e8b0c4'), 3); }
         if (season === 'spring' && kind === 'oak') for (let i = 0; i < 10; i++) { const x = rng.int(6, W - 6), y = rng.int(8, base - 26); if (B.matAt(x, y) === lm) B.plot(x, y, P.mat('#f0d0e0'), 3); }
       } else { // winter: bare branches
         for (let i = 0; i < 6; i++) { const a = -Math.PI / 2 + rng.float(-1.2, 1.2); B.capsule(cx, base - 18, cx + Math.cos(a) * 14, base - 18 + Math.sin(a) * 18, 1, 0.5, trunk); }
@@ -898,6 +900,41 @@
         for (const [x, y, w, h] of [[3, 6, 6, 7], [10, 7, 5, 6], [16, 6, 5, 8], [5, 14, 7, 4]]) { B.rect(x, y, w, h, paper, 3); for (let yy = y + 1; yy < y + h - 1; yy += 2) for (let xx = x + 1; xx < x + w - 1; xx++) if ((xx + yy) % 3) B.shadeAt(xx, yy, 1); }
         B.plot(12, 7, P.mat('#a8382f', 'cloth'), 3);
         ox = 12; oy = 29; break;
+      }
+      case 'fountain': { // a round stone basin with a carved column, water spilling from its cup
+        const sw = M.stoneWarm(), water = P.mat('#5a8ab8', 'metal'), foam = P.mat('#e4eef6', 'cloth');
+        B = new MB(40, 34); B.part(1);
+        B.shape(1, 16, 39, 33, (px, py) => ((px - 20) / 19) ** 2 + ((py - 25) / 8) ** 2 <= 1, (px, py) => [(px - 20) / 20, (py - 25) / 9, 0.6], sw);
+        B.part(2); B.shape(4, 18, 36, 30, (px, py) => ((px - 20) / 15.5) ** 2 + ((py - 24) / 5.6) ** 2 <= 1, () => [0, -0.6, 0.8], water);
+        for (let i = 0; i < 9; i++) B.plot(8 + i * 3, 23 + (i % 3), foam, 3);
+        B.part(3); B.rect(18, 8, 4, 16, sw, 2); for (let y = 8; y < 24; y++) { B.shadeAt(18, y, 3); B.shadeAt(21, y, 1); }
+        B.shape(12, 4, 28, 11, (px, py) => ((px - 20) / 8) ** 2 + ((py - 8) / 3) ** 2 <= 1, () => [0, -0.7, 0.7], sw);
+        B.shape(14, 5, 26, 9, (px, py) => ((px - 20) / 5.5) ** 2 + ((py - 7) / 1.6) ** 2 <= 1, () => [0, -0.6, 0.8], water);
+        B.rect(19, 1, 2, 4, sw, 3);
+        for (let k = 0; k < 2; k++) for (let y = 10; y < 22; y++) B.plot(k ? 27 - Math.floor((y - 10) / 6) : 12 + Math.floor((y - 10) / 6), y, (y + k) % 3 ? water : foam, 3);
+        ox = 20; oy = 30; break;
+      }
+      case 'skep': { // a straw beehive on a little wooden stand
+        B = new MB(14, 18); B.part(1); const straw = P.mat('#c8a050', 'cloth');
+        B.rect(2, 13, 10, 2, wood, 2); B.rect(3, 15, 1, 3, wood, 1); B.rect(10, 15, 1, 3, wood, 1);
+        B.part(2); B.shape(2, 2, 12, 13, (px, py) => ((px - 7) / 5) ** 2 + ((py - 13) / 10.5) ** 2 <= 1 && py <= 13, (px, py) => [(px - 7) / 6, (py - 8) / 10, 0.7], straw);
+        for (let y = 4; y < 13; y += 2) for (let x = 2; x < 13; x++) if (B.matAt(x, y) === straw) B.tweak(x, y, -1);
+        B.plot(7, 12, P.mat('#2a1a10'), 0); B.plot(6, 12, P.mat('#2a1a10'), 0);
+        ox = 7; oy = 17; break;
+      }
+      case 'topiary': { // a clipped yew cone in a planted bed
+        B = new MB(16, 30); B.part(1); const yew = P.mat('#2f5a34', 'cloth');
+        B.shape(1, 25, 15, 30, (px, py) => ((px - 8) / 7) ** 2 + ((py - 27.5) / 2.4) ** 2 <= 1, () => [0, -0.8, 0.6], P.mat('#5a4030', 'wood'));
+        B.part(2); B.poly([[2, 26], [14, 26], [8, 1]], (px) => [O.clamp((px - 8) / 6, -1, 1) * 0.8, -0.3, 0.6], yew);
+        for (let y = 0; y < 30; y++) for (let x = 0; x < 16; x++) if (B.matAt(x, y) === yew && O.noise2(x * 1.3, y * 1.3, seed & 63) > 0.76) B.tweak(x, y, 1);
+        ox = 8; oy = 29; break;
+      }
+      case 'sundial': { // a stone pillar carrying a bronze dial
+        const sw = M.stoneWarm(); B = new MB(12, 20); B.part(1);
+        B.rect(1, 16, 10, 4, sw, 2); B.rect(3, 6, 6, 10, sw, 2); for (let y = 6; y < 16; y++) { B.shadeAt(3, y, 3); B.shadeAt(8, y, 1); }
+        B.part(2); B.shape(0, 2, 12, 8, (px, py) => ((px - 6) / 5.6) ** 2 + ((py - 5) / 2.4) ** 2 <= 1, () => [0, -0.8, 0.6], P.mat(P.metal.brass, 'metal'));
+        B.plot(6, 3, iron, 1); B.plot(7, 4, iron, 1); B.plot(8, 5, iron, 2);
+        ox = 6; oy = 19; break;
       }
       case 'gravestone': {
         B = new MB(10, 14); B.part(1); B.shape(1, 1, 9, 13, (px, py) => py > 4 ? Math.abs(px - 5) < 3.6 : (px - 5) ** 2 + (py - 4.5) ** 2 < 13, (px) => [(px - 5) / 4, 0, 0.8], stone);

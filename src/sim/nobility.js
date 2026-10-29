@@ -59,8 +59,8 @@
         b.name = `${hh.surname} House`;
         for (const id of hh.members) { const p = this.byId.get(id); if (!p || p.age < 18 || (id !== hh.members[0] && p.spouse !== hh.members[0])) continue; if (p.job) continue; p.title = p.sex === 'm' ? 'Sir' : 'Dame'; p.name = `${p.title} ${p.first} ${p.sur}`; { p.gentry = true; p.app = Ch.makeAppearance(O.hash('person', p.id, p.first), { sex: p.sex, age: p.age, genes: p.genes, role: 'noble', wealth: 0.9, region: this.world.region }); } }
       }
-      // the castle's servants live in it: the unmarried in rooms of their own on the servants' floor,
-      // some of the married with their families in a family room; the rest keep their own houses
+      // the castle's servants live in it, the unmarried in rooms of their own on the servants' floor;
+      // the married live near it with their families, or keep their own houses in the town
       for (const bz of this.biz.values()) {
         if (!bz.b.royal && !bz.b.livesIn) continue; // the castle, and the manors of the great estates
         const castle = bz.b;
@@ -73,16 +73,12 @@
             if (!old.members.length) { old.gone = true; const ob = this.building(old.home); if (ob) { ob.households = (ob.households || []).filter((x) => x !== old.id); if (!ob.households.length) ob.vacant = true; } }
             const hh = { id: this.households.length + 1, home: castle.id, members: [p.id], pantry: { bread: 2 }, money: r.int(5, 30), surname: p.sur, servants: true, shopper: p.id };
             this.households.push(hh); (castle.households = castle.households || []).push(hh.id); p.household = hh.id; p.home = castle.id;
-          } else if (castle.estate && r.chance(0.5) && this.world.buildings.some((x) => x.staffHouse && x.estateOf === castle.name && x.vacant && !(x.households || []).length)) {
-            // a cottage on the estate's land
+          } else if (this.world.buildings.some((x) => x.staffHouse && x.estateOf === castle.name && x.vacant && !(x.households || []).length) && r.chance(0.8)) {
+            // a family has no need to sleep under the master's roof: a cottage on the land, or just outside the walls
             const cot = this.world.buildings.find((x) => x.staffHouse && x.estateOf === castle.name && x.vacant && !(x.households || []).length);
             const ob = this.building(old.home); if (ob) { ob.households = (ob.households || []).filter((x) => x !== old.id); if (!ob.households.length) { ob.vacant = true; if (ob.household === old.id) ob.household = null; } }
             old.home = cot.id; cot.households = [old.id]; cot.household = old.id; cot.vacant = false;
             for (const m of old.members) { const q = this.byId.get(m); if (q) q.home = cot.id; }
-          } else if (old.members.length <= 5 && r.chance(0.5)) {
-            const ob = this.building(old.home); if (ob) { ob.households = (ob.households || []).filter((x) => x !== old.id); if (!ob.households.length) { ob.vacant = true; if (ob.household === old.id) ob.household = null; } }
-            old.home = castle.id; old.servants = true; (castle.households = castle.households || []).push(old.id);
-            for (const m of old.members) { const q = this.byId.get(m); if (q) q.home = castle.id; }
           }
         }
       }

@@ -488,7 +488,7 @@
 
   // Room shell: back wall (with windows), side walls, floor and the front wall with its doorway.
   function room(spec) {
-    const { w, d, wall, floor, wealth, seed, windows = 1, dark: isDark } = spec;
+    const { w, d, floor, wealth, seed, windows = 1, dark: isDark } = spec, hung = spec.wall === 'stonehung', wall = hung ? 'stone' : spec.wall;
     const SW = 6, WH = 60, FW = w * T, FH = d * T, FWALL = 8;
     const B = new MB(FW + SW * 2, WH + FH + FWALL);
     const rng = O.RNG(seed);
@@ -507,7 +507,7 @@
     }
     // panelling below a plaster wall; hangings; a painted pattern
     if (wall === 'panel') { const pm = P.mat(P.wood.oak || '#8a6239', 'wood'); for (let y = WH - 28; y < WH - 3; y++) for (let x = SW; x < SW + FW; x++) { const c = (x - SW) % 24, r = y - (WH - 28); B.plot(x, y, pm, r === 0 || r === 1 ? 3 : c === 0 ? 0 : c === 1 || c === 23 ? 1 : (c === 3 || c === 21 || r === 4 || r === 22) ? 1 : 2); } }
-    if (wall === 'tapestry') { const cols = [C.crimson, C.woad || '#3a5a9a', C.forest || '#3a6a3a', C.mustard], n = Math.max(1, Math.floor(FW / 90)); for (let i = 0; i < n; i++) { const tw = 34, th = 36, tx = Math.round(SW + ((i + 0.5) * FW) / n - tw / 2) + 22, ty = 8, cm = P.mat(cols[(seed + i) % cols.length], 'cloth'), gm = P.mat(C.mustard, 'cloth'); for (let y = ty; y < ty + th; y++) for (let x = tx; x < tx + tw; x++) { const e = Math.min(x - tx, tx + tw - 1 - x, y - ty, ty + th - 1 - y); const dd = Math.abs((x - tx) - tw / 2) + Math.abs((y - ty) - th / 2); B.plot(x, y, e < 2 || (dd % 9 === 0 && e > 3) ? gm : cm, e === 0 ? 1 : (x + y) % 3 ? 2 : 3); } for (let x = tx - 2; x < tx + tw + 2; x++) B.plot(x, ty - 1, P.mat(P.wood.dark, 'wood'), 2); } }
+    if (wall === 'tapestry' || hung) { const cols = [C.crimson, C.woad || '#3a5a9a', C.forest || '#3a6a3a', C.mustard], nw = Math.min(windows, Math.max(1, Math.floor(w / 4))), gap = FW / nw, ctr = nw > 1 ? Array.from({ length: nw - 1 }, (_, k) => SW + (k + 1) * gap) : [SW + FW * 0.2, SW + FW * 0.8], n = gap >= 56 || nw === 1 ? ctr.length : 0; for (let i = 0; i < n; i++) { const tw = Math.min(34, Math.floor(gap - 22)), th = 36, tx = Math.round(ctr[i] - tw / 2), ty = 8, cm = P.mat(cols[(seed + i) % cols.length], 'cloth'), gm = P.mat(C.mustard, 'cloth'); for (let y = ty; y < ty + th; y++) for (let x = tx; x < tx + tw; x++) { const e = Math.min(x - tx, tx + tw - 1 - x, y - ty, ty + th - 1 - y); const dd = Math.abs((x - tx) - tw / 2) + Math.abs((y - ty) - th / 2); B.plot(x, y, e < 2 || (dd % 9 === 0 && e > 3) ? gm : cm, e === 0 ? 1 : (x + y) % 3 ? 2 : 3); } for (let x = tx - 2; x < tx + tw + 2; x++) B.plot(x, ty - 1, P.mat(P.wood.dark, 'wood'), 2); } }
     if (wall === 'stencil') { const sm = P.mat(tint === TINT.woad ? '#e8e0cc' : '#8a4a3a', 'cloth'); for (let y = 8; y < WH - 8; y += 12) for (let x = SW + ((y / 12) % 2 ? 6 : 0); x < SW + FW - 4; x += 12) { B.plot(x + 2, y, sm, 2); B.plot(x + 1, y + 1, sm, 2); B.plot(x + 3, y + 1, sm, 2); B.plot(x + 2, y + 2, sm, 2); B.plot(x + 2, y + 1, sm, 3); } }
     if (wall === 'timber' || !wall) { const bm = P.mat(P.wood.dark, 'wood'); for (let x = SW; x < SW + FW; x += 48) for (let y = 0; y < WH; y++) { B.plot(x, y, bm, 2); B.plot(x + 1, y, bm, 1); B.plot(x + 2, y, bm, 1); } for (let x = SW; x < SW + FW; x++) { B.plot(x, 0, bm, 1); B.plot(x, 1, bm, 2); B.plot(x, 2, bm, 1); } }
     // ceiling beams' shadow line and skirting

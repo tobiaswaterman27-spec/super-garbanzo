@@ -293,7 +293,13 @@
         for (let x = tx; x < tx + n * 5; x++) { put('chair', x, 2, { seat: true, rot: 0, v: 2, noAccess: true }); put('chair', x, 5, { seat: true, rot: 3, v: 2, noAccess: true }); }
         put('chair', tx - 1, 3, { seat: true, rot: 2, v: 2, noAccess: true, head: true });
         for (const x of [4, w - 6]) put('candlestand', x, 0, {});
+        // twin hearths, sideboards of plate, benches down the walls for those who wait on the council
+        tryPut('fireplace', [[tx - 6, 0], [tx - 7, 0], [tx - 5, 0]], { v: 2 }); tryPut('fireplace', [[tx + n * 5 + 2, 0], [tx + n * 5 + 3, 0], [tx + n * 5 + 1, 0]], { v: 2 });
+        tryPut('dresser', [[tx - 3, 0], [tx - 4, 0]], { v: 2 }); tryPut('dresser', [[tx + n * 5, 0], [tx + n * 5 + 1, 0]], { v: 2 });
+        for (const x of [3, w - 6]) tryPut('bench', [[x, 5], [x, 6]], { seat: true, width: 3, rot: 0 });
+        for (const x of [tx - 4, tx + n * 5 + 3]) tryPut('candlestand', [[x, 6], [x, 7]], {});
       }
+      if (floor === 0) { for (const x of [2, w - 4]) tryPut('bench', [[x, 5], [x, 6]], { seat: true, width: 2, rot: 0 }); }
     }
     // the castle's rooms, each laid out as a place of its own
     function castleRoom() {
@@ -699,6 +705,9 @@
       if (w0 < 0.3) { fk = r % 2 ? 'rushes' : 'dirt'; wk = r % 3 ? wallKind : 'lime'; }
       else if (w0 < 0.6) { fk = r % 3 === 0 ? 'rushes' : 'wood'; wk = r % 2 ? 'lime' : wallKind; if (r % 7 === 0) wk = 'stencil'; }
       else { fk = r % 3 === 0 ? 'tiles' : r % 3 === 1 ? 'herring' : 'wood'; wk = r % 3 === 0 ? 'tapestry' : r % 3 === 1 ? 'panel' : 'stencil'; } }
+    // the royal castle's halls are hung with tapestries over the stone
+    const roy = b.royal || (b.parent != null && ['throneroom', 'castlechapel', 'stewardroom'].includes(b.type));
+    if (roy && !(b.decor && b.decor.wall)) { wk = 'stonehung'; if (b.type === 'throneroom' || (b.royal && floor === 1)) fk = 'tiles'; }
     L.room = O.Furn.room({ tint: b.decor && b.decor.tint, w: L.w, d: L.d, wall: wk, floor: fk, wealth: b.wealth, seed: b.id * 3 + floor, windows: Math.max(1, Math.floor(b.w / 2) + 1), doorTile: floor === 0 ? L.dc : -5, carpets: L.carpets });
     cache.set(key, L);
     return L;

@@ -400,6 +400,8 @@ O.bizName = (surname, label) => {
     world.estates = (tw.estates || []).map((e) => Object.assign({}, e, { fields: [e.fields[0] + ox, e.fields[1] + oy, e.fields[2] + ox, e.fields[3] + oy] }));
     fixRoads(world); // nothing standing in the road, and no lane running into a wall
     if (O.Game && O.Game.prototype.clearStray) O.Game.prototype.clearStray.call(null, world); // nothing solid where nothing stands
+    // every building is solid through and through, whatever clearing round its neighbours, paths and roads did
+    for (const b of world.buildings) for (let yy = b.y; yy <= b.bottom; yy++) for (let xx = b.x; xx < b.x + b.w; xx++) if (xx >= 0 && yy >= 0 && xx < W && yy < H) world.solid[yy * W + xx] = 1;
     regions.set(id, world);
     return world;
   }

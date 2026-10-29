@@ -32,7 +32,9 @@
         while (budget > 0) {
           let tx, ty; if (runner.pi < runner.path.length) { const [px, py] = runner.path[runner.pi]; tx = px * T + 8; ty = py * T + 10; } else { tx = p.x; ty = p.y; }
           const ex = tx - a.x, ey = ty - a.y, ed = Math.hypot(ex, ey);
-          if (ed <= budget) { a.x = tx; a.y = ty; budget -= ed; if (runner.pi < runner.path.length) runner.pi++; else break; } else { a.x += ex / ed * budget; a.y += ey / ed * budget; budget = 0; }
+          const onPath = runner.pi < runner.path.length;
+          if (ed <= budget) { if (!onPath && game.solidAt(tx, ty)) break; a.x = tx; a.y = ty; budget -= ed; if (onPath) runner.pi++; else break; }
+          else { const nx = a.x + ex / ed * budget, ny = a.y + ey / ed * budget; budget = 0; if (onPath || !game.solidAt(nx, ny)) { a.x = nx; a.y = ny; } else if (!game.solidAt(nx, a.y)) a.x = nx; else if (!game.solidAt(a.x, ny)) a.y = ny; }
           if (ed > 0.01) a.dir = O.dirOf(ex, ey);
           if (Math.hypot(p.x - a.x, p.y - a.y) <= 20) break;
         }

@@ -20,7 +20,10 @@
         let gx, gy; if (e.pi < e.path.length) { const [px, py] = e.path[e.pi]; gx = px * T + 8; gy = py * T + 10; } else { gx = tx; gy = ty; }
         const ex = gx - a.x, ey = gy - a.y, ed = Math.hypot(ex, ey);
         if (ed > 0.01) a.dir = O.dirOf(ex, ey);
-        if (ed <= budget) { a.x = gx; a.y = gy; budget -= ed; if (e.pi < e.path.length) e.pi++; else return true; } else { a.x += ex / ed * budget; a.y += ey / ed * budget; budget = 0; }
+        const onPath = e.pi < e.path.length;
+        if (ed <= budget) { if (!onPath && game.solidAt(gx, gy)) return true; a.x = gx; a.y = gy; budget -= ed; if (onPath) e.pi++; else return true; }
+        else { const nx = a.x + ex / ed * budget, ny = a.y + ey / ed * budget; budget = 0; // off the streets, never through a wall
+          if (onPath || !game.solidAt(nx, ny)) { a.x = nx; a.y = ny; } else if (!game.solidAt(nx, a.y)) a.x = nx; else if (!game.solidAt(a.x, ny)) a.y = ny; else return true; }
       }
       return false;
     }
@@ -58,7 +61,8 @@
           ev.phase = 'flee'; ev.t = 0; ev.path = null; a.sprint = true;
           // away from you, out of the crowd
           const p = game.player, dx = a.x - p.x, dy = a.y - p.y, d = Math.hypot(dx, dy) || 1;
-          ev.to = [a.x + (dx / d) * 420, a.y + (dy / d) * 420];
+          ev.to = null; for (let rr = 420; rr >= 120 && !ev.to; rr -= 60) for (let k = 0; k < 9 && !ev.to; k++) { const an = Math.atan2(dy, dx) + (k - 4) * 0.25, cx = a.x + Math.cos(an) * rr, cy = a.y + Math.sin(an) * rr; if (!game.solidAt(cx, cy) && s.path.find(Math.floor(a.x / T), Math.floor((a.y - 1) / T), Math.floor(cx / T), Math.floor((cy - 1) / T))) ev.to = [cx, cy]; }
+          if (!ev.to) ev.to = [a.x, a.y];
           setTimeout(() => { if (ev && ev.victim === v) { v.agent.shockedUntil = s.minute + 2; talk(v, ['My purse! Thief!', 'Stop, thief!', 'He took my purse!', 'Thief! Somebody stop them!'][q.id % 4].replace('He', q.sex === 'f' ? 'She' : 'He'), 3, 'angry'); } }, 500);
           s.remember(v, 'My purse was cut in the street.', 'crime', 0.8, -0.2);
         }

@@ -146,7 +146,7 @@
           if (d > 200 || f.t > 40) { fights.delete(id); a.chasing = false; }
         } else if (f.mode === 'flee') {
           const sp = 80 * dt; const nx = a.x - (dx / d) * sp, ny = a.y - (dy / d) * sp;
-          if (!game.solidAt(nx, ny)) { a.x = nx; a.y = ny; } else if (!game.solidAt(a.x - (dx / d) * sp, a.y)) a.x -= (dx / d) * sp; else a.y -= (dy / d) * sp;
+          if (!game.solidAt(nx, ny)) { a.x = nx; a.y = ny; } else if (!game.solidAt(a.x - (dx / d) * sp, a.y)) a.x -= (dx / d) * sp; else if (!game.solidAt(a.x, a.y - (dy / d) * sp)) a.y -= (dy / d) * sp;
           a.anim = 'run'; a.dir = O.dirOf(-dx, -dy);
           if (f.t > 5) { fights.delete(id); a.chasing = false; const g = sim.people.find((z) => z.job?.role?.startsWith('guard') && !z.agent.hidden && !z.task); if (g) { const cr = sim.crimes.filter((c) => c.perp === 'player').pop(); if (cr && !cr.reported) { cr.reported = true; g.task = { act: 'investigate', outdoor: true, crime: cr.id, tile: cr.tile }; } } }
         } else if (f.mode === 'surrender') { a.anim = 'idle'; a.dir = O.dirOf(dx, dy); if (f.t > 12) { fights.delete(id); a.chasing = false; } }

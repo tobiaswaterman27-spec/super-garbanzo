@@ -323,8 +323,8 @@
     for (const bottom of [52, 62, 72, 79]) { lots(8, 39, bottom, resi, 4); lots(42, riverX - 5, bottom, resi, 4); }
     for (const bottom of [33, 42]) lots(8, 39, bottom, [...resi, ...noble.slice(1, 2)], 4);
     // essential trades a living city needs, wherever they fit
-    const need = [['mill', 'Watermill', 4, 4], ['woodcutter', "Woodward's Yard", 4, 3], ['sawmill', 'Riverside Sawmill', 5, 3], ['farmhouse', 'Market Garden', 4, 3]];
-    for (const [type, name, w, d] of need) { for (let tries = 0; tries < 60; tries++) { const x = rng.int(8, CW - 14), bottom = rng.pick([13, 22, 33, 52, 62, 72]); if (free(x, bottom, w, d)) { B({ type, name, x, bottom, w, d, floors: type === 'mill' ? 2 : 1, wealth: 0.4, look: look(0.4) }); break; } } }
+    const need = [['mill', 'Watermill', 4, 4], ['woodcutter', "Woodward's Yard", 4, 3], ['sawmill', 'Riverside Sawmill', 5, 3], ['farmhouse', 'Market Garden', 4, 3], ['jeweller', 'Aurifex the Jeweller', 4, 4]];
+    for (const [type, name, w, d] of need) { if (K.buildings.some((b) => b.type === type)) continue; for (let tries = 0; tries < 60; tries++) { const x = rng.int(8, CW - 14), bottom = rng.pick([13, 22, 33, 52, 62, 72]); if (free(x, bottom, w, d)) { B({ type, name, x, bottom, w, d, floors: type === 'mill' ? 2 : 1, wealth: 0.4, look: look(0.4) }); break; } } }
     if (!K.buildings.some((b) => b.type === 'guard')) B({ type: 'guard', name: 'City Watch', x: 42, bottom: 79, w: 6, d: 4, look: { wall: 'stone', roof: 'slate', sign: 'shield', noFlowers: true, doorTile: 2 } });
     if (!K.buildings.some((b) => b.type === 'doctor')) B({ type: 'doctor', name: 'Physician', x: 30, bottom: 79, w: 4, d: 4, floors: 2, look: look(0.6, { sign: 'herb' }) });
     // Aurelia Royal Castle, inside the city walls at their eastern end behind an inner curtain wall of
@@ -365,7 +365,7 @@
     for (let x = riverX - 4; x <= riverX + 4; x++) { set(x, ey, TER.BRIDGE); set(x, ey + 1, TER.BRIDGE); }
     const pens = [], parks = [];
     const NOBLE = ['Ashcombe', 'Belmont', 'Courtenay', 'Dacre', 'Everard', 'Fitzwarren', 'Harcourt', 'Lisle', 'Montague', 'Neville', 'Ravensworth', 'Stafford', 'Talbot', 'Vere', 'Mortimer', 'Beaumont'];
-    const estates = [];
+    const estates = [], marks = []; // marks: where the great houses stand, for the island map
     const tree = (x, y, kind = 'oak') => { if (K.solid[y * W + x]) return; K.trees.push({ kind, x: x * T + 8, y: y * T + 14, seed: rng.int(1, 1e6) }); K.solid[y * W + x] = 1; };
     for (const [i, ex, ew] of [[0, 6, 58], [1, 104, 76]]) {
       const fam = NOBLE[(seed + i * 5) % NOBLE.length], hall = `${fam} ${['Hall', 'Court', 'Manor', 'House'][i % 4]}`;
@@ -421,7 +421,7 @@
       fill(fx0, fy0, fx1, fy1, TER.FIELD);
       for (let y = fy0; y <= fy1; y++) for (let x = fx0; x <= fx1; x++) { if ((y - fy0) % 8 === 7) { set(x, y, TER.GRASS); continue; } const crop = Math.floor((x - fx0) / 10 + Math.floor((y - fy0) / 8) + i) % 3; K.props.push({ kind: crop ? 'wheat' : 'cabbage', x: x * T + 8, y: y * T + 15, seed: 1, v: 2, solid: false, flat: true, field: crop ? 'wheat' : 'cabbage' }); }
       for (let y = py1 + 3; y < fy1; y += 3) for (let x = px0; x <= px1; x += 4) tree(x + (y % 3), y, rng.chance(0.3) ? 'birch' : 'oak');
-      estates.push({ hall, fields: [fx0, fy0, fx1, fy1] });
+      estates.push({ hall, fields: [fx0, fy0, fx1, fy1] }); marks.push({ name: hall, x: mx + mw / 2, y: mb });
     }
     // Castle Row: cottages just outside the walls for the castle's married servants and their families,
     // the ones with no need to sleep under the king's roof
@@ -430,11 +430,12 @@
       for (let k = 0; k < 4; k++) B({ type: 'house', name: 'Castle Row', staffHouse: true, estateOf: 'Aurelia Royal Castle', x: 74 + k * 5 + row, bottom, w: 4, d: 3, wealth: 0.4, look: look(0.4, { roof: rng.pick(['thatch', 'tile']), doorTile: 1 }) });
     }
     parks.push([73, y1 + 2, 95, y1 + 18]);
+    marks.push({ name: 'Castle Row', row: true, x: 84, y: y1 + 12 });
     // keep the paddocks clear of trees and bushes
     const penTiles = []; for (const pen of pens) { const [a0, b0, a1, b1] = pen.z; for (let y = b0; y <= b1; y++) for (let x = a0; x <= a1; x++) if (!K.solid[y * W + x]) { K.solid[y * W + x] = 1; penTiles.push(y * W + x); } }
     K.scatter((x, y) => (x > x0 && x < x1 && y > y0 && y < y1) || (x > rx0 && x < rx1 && y > ry0 && y < ry1), (x, y) => parks.some(([a0, b0, a1, b1]) => x >= a0 && x <= a1 && y >= b0 && y <= b1));
     for (const i of penTiles) K.solid[i] = 0;
-    return K.finish({ roadY, exits: { west: [0, roadY], east: [W - 1, roadY] }, river: true, pens, estates, zones: { square: [45, 31, 63, 42], bench: [46, 31], farm: estates.length ? estates[0].fields : [8, 90, 30, 96], wood: [2, H - 10, 30, H - 4], east: [W - 1, roadY], patrol: [[55, 44], [20, 44], [40, 24], [80, 24], [110, 44], [96, 64], [60, 64], [40, 44]] }, city: true });
+    return K.finish({ roadY, exits: { west: [0, roadY], east: [W - 1, roadY] }, river: true, pens, estates, marks, zones: { square: [45, 31, 63, 42], bench: [46, 31], farm: estates.length ? estates[0].fields : [8, 90, 30, 96], wood: [2, H - 10, 30, H - 4], east: [W - 1, roadY], patrol: [[55, 44], [20, 44], [40, 24], [80, 24], [110, 44], [96, 64], [60, 64], [40, 44]] }, city: true });
   }
 
   // Highmere: a curtain-walled castle with a keep, and its village outside the gate.

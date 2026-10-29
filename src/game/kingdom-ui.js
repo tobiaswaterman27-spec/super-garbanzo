@@ -220,6 +220,13 @@
       if (s.detailed) { ctx.strokeStyle = '#f0b45c'; ctx.lineWidth = 1; ctx.strokeRect(x - 7.5, y - 6.5, 15, 12); }
     }
     const MAIN = new Set(["the King's Road", 'the Eastern Trade Road', 'the Western Road', 'the Northern Road', 'the Iron Road', 'the Southern Farm Road']);
+    // estates and the castle's row, placed where they stand in the capital's own plan
+    let estCache = null;
+    function estatesOnMap() {
+      if (estCache) return estCache; estCache = [];
+      try { for (const s of K.places.filter((p) => p.kind === 'capital')) { const tw = O.Island.town(s.id); for (const m of tw.marks || []) estCache.push({ name: m.name, row: !!m.row, x: (tw.gx + m.x) / O.Island.U, y: (tw.gy + m.y) / O.Island.U }); } } catch (e) { /* the plan can wait */ }
+      return estCache;
+    }
     function drawMap(cv) {
       const S = MS, ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = false;
       if (!mapCanvas) mapCanvas = renderMap();
@@ -239,7 +246,8 @@
         ctx.fillStyle = s.detailed ? '#f0b45c' : s.kind === 'castle' ? '#c8ccd4' : s.kind === 'capital' || s.kind === 'city' ? '#f4e8c8' : s.happiness < 0.4 ? '#c87060' : '#e8dcc0';
         ctx.fillRect(x - sz, y - sz, sz * 2 + 1, sz * 2 + 1);
       }
-      // you are here
+      // the great houses outside the capital and the castle's row: a little manor each, on its own land
+      for (const e of estatesOnMap()) { const x = Math.round(e.x * S), y = Math.round(e.y * S); ctx.fillStyle = '#1b1424'; ctx.fillRect(x - 3, y - 3, 7, 5); ctx.fillStyle = e.row ? '#c8a878' : '#e8dcc0'; ctx.fillRect(x - 2, y - 1, 5, 2); ctx.fillStyle = e.row ? '#8a5a34' : '#6a5a6a'; ctx.fillRect(x - 2, y - 2, 5, 1); if (!e.row) { ctx.fillStyle = '#6a9a48'; ctx.fillRect(x - 3, y + 2, 7, 2); } }
       // you are here: exactly where you stand on the island
       { let hx, hy; const w = game.world, p = game.player; if (w.island && !game.scene) { const g = O.Island.toGlobal(w, p.x, p.y); hx = g[0] / 16 / O.Island.U; hy = g[1] / 16 / O.Island.U; } else { const h = K.place(w.placeId); if (h) { hx = h.x; hy = h.y; } }
         if (hx != null) { const x = Math.round(hx * S), y = Math.round(hy * S), b = Math.floor(game.t * 2) % 2; ctx.fillStyle = '#1b1424'; ctx.fillRect(x - 3, y - 3, 7, 7); ctx.fillStyle = b ? '#f0b45c' : '#fff6dc'; ctx.fillRect(x - 2, y - 2, 5, 5); ctx.strokeStyle = b ? '#f0b45c' : '#fff6dc'; ctx.strokeRect(x - 9.5, y - 9.5, 19, 19); } }
@@ -269,6 +277,7 @@
         const wrap = cv.parentElement, view = wrap.parentElement;
         // every settlement is named; regions, lakes and rivers too
         for (const s of K.places) { const l = document.createElement('span'); l.className = 'maplabel' + (s.id === game.world.placeId ? ' here' : '') + (s.kind === 'capital' ? ' capital' : s.kind === 'city' ? ' city' : s.kind === 'hamlet' ? ' small' : s.kind === 'village' || s.kind === 'mine' ? ' mid' : ''); l.textContent = s.name; const drop = { capital: 2.6, city: 2.2, castle: 1.8, town: 1.4, port: 1.4 }[s.kind] ?? 1; l.style.left = (s.x / E.W * 100) + '%'; l.style.top = ((s.y + drop) / E.H * 100) + '%'; wrap.appendChild(l); }
+        { const es = estatesOnMap(); if (es.length) { const l = document.createElement('span'); l.className = 'maplabel small estate'; l.textContent = 'The great estates'; l.title = es.map((e) => e.name).join(', '); l.style.left = (es.reduce((a, e) => a + e.x, 0) / es.length / E.W * 100) + '%'; l.style.top = ((Math.max(...es.map((e) => e.y)) + 0.2) / E.H * 100) + '%'; wrap.appendChild(l); } }
         for (const r of E.REGIONS) { const l = document.createElement('span'); l.className = 'maplabel region'; l.textContent = r.name.replace(/^the /, ''); l.style.left = ((r.x + (r.kind === 'mountain' ? r.rx * 0.4 : 0)) / E.W * 100) + '%'; l.style.top = ((r.y + (r.kind === 'mountain' ? r.ry * 0.6 : -r.ry * 0.3)) / E.H * 100) + '%'; wrap.appendChild(l); }
         for (const r of E.LAKES) { const l = document.createElement('span'); l.className = 'maplabel water'; l.textContent = r.name; l.style.left = (r.x / E.W * 100) + '%'; l.style.top = ((r.y + r.ry) / E.H * 100) + '%'; wrap.appendChild(l); }
         for (const r of E.RIVERS) { const m = r.pts[Math.floor(r.pts.length / 2)]; const l = document.createElement('span'); l.className = 'maplabel water'; l.textContent = r.name.replace(/^the /, ''); l.style.left = (m[0] / E.W * 100) + '%'; l.style.top = (m[1] / E.H * 100) + '%'; wrap.appendChild(l); }

@@ -88,8 +88,14 @@
     }
     function walkAway(q, line, why) {
       const s0 = sim;
-      voice(q, why || 'You end the talk and go on your way; a parting word.', line, (t) => { if (talking) return; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: t, options: [] }); setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1800 + t.length * 25); });
-      O.NpcActs && O.NpcActs.walkOff(q); q._snubUntil = s0.day * 1440 + s0.minute + 20;
+      // they stay till the words are said and the window shuts (by you, or by itself once read), then go
+      q.agent.frozen = true; q._snubUntil = s0.day * 1440 + s0.minute + 20;
+      const go = () => { q.agent.frozen = false; O.NpcActs && O.NpcActs.walkOff(q); };
+      voice(q, why || 'You end the talk and go on your way; a parting word.', line, (t) => {
+        if (talking) return go(); O.UI.dialog.open({ name: q.first, color: tagColour(q), text: t, options: [] });
+        const until = performance.now() + 1800 + t.length * 45;
+        const wait = () => { if (!O.UI.dialogOpen() || talking) return go(); if (performance.now() > until) { O.UI.dialog.close(); return go(); } setTimeout(wait, 150); }; setTimeout(wait, 300);
+      });
     }
     function openTalk(q) {
       // not wanting to talk: they say so, but keep at it (or come back later) and they'll hear you out

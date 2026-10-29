@@ -153,6 +153,23 @@
       void s;
     };
     O.Employment = { emp, hire, quit, here, posts, newTasksFor: (s, bz, e) => newTasks(s, bz, e) };
+    // taken on in conversation: the master says yes, and you're theirs (a clashing post is given up)
+    O.Employment.hireByTalk = (s, q) => {
+      const bz = q.job && s.biz.get(q.job.biz); if (!bz || s.bossOf(bz) !== q) return null;
+      if (posts().some((x) => x.biz === bz.id && x.place === s.world.placeId)) return null;
+      const d = s.hireDecision(bz, q, 'player'); if (!d.yes || !O.roleFits(d.role)) return null;
+      const [o, c] = hoursOf({ role: d.role }, bz);
+      for (const x of posts().filter((x) => { const xb = (O.Travel?.visited.get(x.place)?.sim || s).biz.get(x.biz), [xo, xc] = hoursOf(x, xb); return xo < c && o < xc; })) quit(null, x);
+      hire(s, bz, q, d.role, d.wage);
+      return `Taken on as ${d.role} at ${bz.name}: ₳${d.wage} a day, ${fmtH(o)} till ${fmtH(c)}.`;
+    };
+    // what a master would say to taking you on, for their card
+    O.Employment.hireOutlook = (s, q) => {
+      const bz = q.job && s.biz.get(q.job.biz); if (!bz || s.bossOf(bz) !== q) return '';
+      if (posts().some((x) => x.biz === bz.id && x.place === s.world.placeId)) return 'The player already works for you.';
+      const d = s.hireDecision(bz, q, 'player');
+      return d.yes ? `You have a place for ${/^[aeiou]/.test(d.role) ? 'an' : 'a'} ${d.role} at ₳${d.wage} a day; if the player asks for work and you'd have them, you may take them on (hire_player).` : d.why === 'none' ? 'You have no place free for anyone just now.' : 'You would not take the player on.';
+    };
     O.COURT = COURT;
     // what the post is called for you: some titles are a woman's or a man's
     const FEM = { potboy: 'potgirl', 'master cook': 'mistress cook', 'master of horse': 'mistress of horse', lord: 'lady', prince: 'princess', heir: 'heir', fisher: 'fishwife', 'night watchman': 'night watchwoman', 'master builder': 'master builder' };

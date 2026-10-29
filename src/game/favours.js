@@ -32,7 +32,8 @@
       const f = fav().find((x) => x.place === s.world.placeId && x.to === q.id && x.g === o.g); if (!f) return;
       PS.favours = fav().filter((x) => x !== f);
       O.dropLead && O.dropLead((l) => l.why === 'favour' && l.id === q.id);
-      const from = s.byId.get(f.from); if (from) { const r = relOf(from); r.affinity = clamp(r.affinity + 0.2, -1, 1); r.trust = clamp((r.trust || 0) + 0.15, -1, 1); s.remember(from, `${r.name || 'The stranger'} took the ${o.label || o.g} to my ${KIN(from, q)} as I asked.`, 'player', 1, 0.4); }
+      const from = s.byId.get(f.from); if (from && f.reward) { const hf = s.household(from); const n = Math.min(f.reward, hf ? Math.floor(hf.money) : 0); if (n > 0) { hf.money -= n; PS.money += n; O.UI.say(`${f.fromName} pays you ₳${n} for the errand.`); } }
+      if (from) { const r = relOf(from); r.affinity = clamp(r.affinity + 0.2, -1, 1); r.trust = clamp((r.trust || 0) + 0.15, -1, 1); s.remember(from, `${r.name || 'The stranger'} took the ${o.label || o.g} to my ${KIN(from, q)} as I asked.`, 'player', 1, 0.4); }
       const rq = relOf(q); rq.affinity = clamp(rq.affinity + 0.08, -1, 1); rq.familiar = Math.min(1, (rq.familiar || 0) + 0.1);
       s.remember(q, `${f.fromName} sent me ${o.label || o.g} by the stranger's hand.`, 'player', 0.8, 0.2);
     });
@@ -46,6 +47,25 @@
     });
 
     O.Favours = { ask: askFavour };
+    // an errand given in talk: their own thing, to someone they name, for what they offer
+    function errand(s, q, a) {
+      const to = O.NpcActs.personFor(s, a.to); if (!to || to === q || to.alive === false) return null;
+      const g = O.NpcActs.goodFor(a.item); if (!g || g === 'coin' || !PS.canCarry(g)) return null;
+      const hh = s.household(q); if (hh && hh.pantry && hh.pantry[g] >= 1) hh.pantry[g] -= 1; else if ((q.items || []).includes(g)) q.items.splice(q.items.indexOf(g), 1);
+      PS.add(g); O.NpcActs.fly && O.NpcActs.fly(q, 'player', g);
+      const reward = Math.max(0, Math.min(20, Math.round(Number(a.reward) || 0)));
+      fav().push({ place: s.world.placeId, from: q.id, fromName: q.first, to: to.id, toName: to.first, g, until: s.day + 2, reward });
+      O.addLead && O.addLead({ place: s.world.placeId, id: to.id, until: abs(s) + 2880, why: 'favour', label: `Take the ${(G()[g]?.name || g).toLowerCase()} to ${to.first}` });
+      return null;
+    }
+    (O.onGift = O.onGift || []).push(() => {}); // (paid below, when it's handed over)
+    const _base = O.NpcActs.apply;
+    O.NpcActs.apply = function (s, q, a, main) {
+      if (a && a.do === 'errand') return errand(s, q, a);
+      if (a && a.do === 'hire_player') return O.Employment && O.Employment.hireByTalk ? O.Employment.hireByTalk(s, q) : null;
+      if (a && a.do === 'want' && Number(a.reward) > 0) { const r0 = _base.apply(this, arguments); if (q.wants) q.wants.reward = Math.min(30, Math.round(Number(a.reward))); return r0; }
+      return _base.apply(this, arguments);
+    };
     // ---------------------------------------------------------------- who comes up to you
     let at = 0; const done = new Map();
     game.hooks.update.push((dt) => {

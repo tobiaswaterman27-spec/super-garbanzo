@@ -55,7 +55,7 @@
     else { const hh = s.household(q); if (hh && hh.pantry && (G()[o.g]?.food || o.g in hh.pantry)) hh.pantry[o.g] = (hh.pantry[o.g] || 0) + 1; else (q.items = q.items || []).push(o.g); }
     const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; const wanted = q.wants && (q.wants.g === o.g);
     r.affinity = clamp(r.affinity + (wanted ? 0.15 : o.g === 'coin' ? 0.04 * Math.min(3, o.n / 2) : 0.06), -1, 1); q.rel.set(0, r);
-    if (wanted) q.wants = null;
+    if (wanted) { const rw = q.wants.reward || 0, hh0 = s.household(q), n = Math.min(rw, hh0 ? Math.floor(hh0.money) : 0); if (n > 0) { hh0.money -= n; PS().money += n; fly(q, 'player', 'coin'); O.UI.say(`${q.first} pays you ₳${n}, as promised.`); } q.wants = null; }
     // coin pressed into a watchman's hand while you're sought: a blind eye, if they're the kind to sell one
     const law = /guard|watch|sergeant|constable/.test(q.job?.role || ''), P = PS();
     if (law && o.g === 'coin' && P.wantedLevel && P.wantedLevel() > 0 && !q.traits.includes('honest') && !q.traits.includes('loyal')) {
@@ -104,6 +104,7 @@
   // ---------------------------------------------------------------- the day's plans bend to what was agreed
   const follow = new Map(); // person id -> until (abs minutes)
   const goTo = new Map(); // person id -> { b, until }
+  const followInfo = new Map(); // when they set off with you, and when you last got anywhere
   const leading = new Map(); // person id -> until: you go along with them while they go about their way
   const invites = new Map(); // building id -> until
   function following(q) { const u = follow.get(q.id); return !!u && u > abs(O.SimRef.cur); }
@@ -148,6 +149,14 @@
     for (const [id] of follow) {
       const q = s.byId.get(id); if (!q || q.agent.hidden || q.agent.inside != null) continue;
       if (q.agent.frozen) continue;
+      // going nowhere: you stand about, or wander for longer than their patience, and they've had enough
+      { const fi = followInfo.get(id); if (fi) { const now = abs(s); if (Math.hypot(g.player.x - fi.px, g.player.y - fi.py) > 48) { fi.px = g.player.x; fi.py = g.player.y; fi.lastMove = now; }
+        const t0 = q.traits || [], pat = t0.includes('patient') ? 90 : t0.includes('impatient') ? 25 : 50;
+        if (g.scene) fi.from = now; // somewhere at last
+        else if (now - fi.lastMove > 12 || now - fi.from > pat) { follow.delete(id); followInfo.delete(id); q.agent.chasing = false; q.agent.path = null; q.agent.goal = null;
+          const fb = now - fi.lastMove > 12 ? "We're going nowhere. I'll be off." : "I've followed you long enough. I've things to do.";
+          if (O.AIChat && O.AIChat.line) O.AIChat.line(q, now - fi.lastMove > 12 ? 'You came along with the player, but they are just standing about; you have had enough and say so, then go.' : 'You have been following the player about for a long while and it is going nowhere; say you are done and go your way.').then((t) => O.Speech && O.Speech.say(q, t || fb, 3.5)); else O.Speech && O.Speech.say(q, fb, 3.5);
+          continue; } } }
       const a = q.agent; a.chasing = true; a.path = null;
       const dx = g.player.x - a.x, dy = g.player.y - a.y, d = Math.hypot(dx, dy) || 1;
       if (d > 520) { follow.delete(id); a.chasing = false; continue; }
@@ -224,7 +233,7 @@
     const r = q.rel.get(0) || {};
     switch (a.do) {
       case 'meet': return meet(s, q, a);
-      case 'follow': follow.set(q.id, abs(s) + 180); goTo.delete(q.id); return `${q.first} comes along with you.`;
+      case 'follow': follow.set(q.id, abs(s) + 180); followInfo.set(q.id, { from: abs(s), lastMove: abs(s), px: O.game.player.x, py: O.game.player.y }); goTo.delete(q.id); return `${q.first} comes along with you.`;
       case 'lead': { leading.set(q.id, abs(s) + 120); if (a.place) { const pl = placeFor(s, q, a.place); if (pl) goTo.set(q.id, { b: pl.b ?? null, until: abs(s) + 120 }); } return null; }
       case 'direct': { const pl = placeFor(s, q, a.place); if (!pl) return null; const l = { place: s.world.placeId, b: pl.b ?? undefined, tile: pl.tile || undefined, why: 'directions', key: 'dir:' + (pl.b ?? String(pl.tile)), label: pl.label, until: abs(s) + 720 }; O.addLead && O.addLead(l); O.offerWay && O.offerWay(l); return null; }
       case 'stop': if (leading.delete(q.id)) { q.agent.frozen = false; } if (follow.delete(q.id)) { q.agent.chasing = false; return `${q.first} goes about their day.`; } return null;

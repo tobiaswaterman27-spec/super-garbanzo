@@ -214,6 +214,9 @@
     spin: { frames: 4, fps: 5 }, weave: { frames: 4, fps: 4 }, shear: { frames: 4, fps: 5 }, hoe: { frames: 4, fps: 4 }, pitch: { frames: 4, fps: 4 },
     pray: { frames: 2, fps: 0.7 }, shocked: { frames: 2, fps: 5 }, stretch: { frames: 4, fps: 2 }, look: { frames: 4, fps: 1.2 }, beg: { frames: 2, fps: 1 },
     shake: { frames: 2, fps: 6 }, place: { frames: 3, fps: 4 }, count: { frames: 4, fps: 3 }, bucket: { frames: 8, fps: 10 }, mix: { frames: 4, fps: 4 },
+    // everyday gestures and moods
+    nod: { frames: 4, fps: 5 }, laugh: { frames: 4, fps: 6 }, shrug: { frames: 4, fps: 3 }, bow: { frames: 4, fps: 2.5 }, curtsy: { frames: 4, fps: 2.5 },
+    dance: { frames: 8, fps: 7 }, yawn: { frames: 4, fps: 2 }, scratch: { frames: 4, fps: 6 }, wipe: { frames: 4, fps: 3 }, cough: { frames: 4, fps: 5 }, gesture: { frames: 4, fps: 3 },
   };
 
   // smoother motion: every animation keeps its key poses and gains blended steps between them, so even
@@ -305,6 +308,17 @@
       case 'place': L = { R: leg(1, [0.4, 1.1, 0.4][f], [0.5, 2.0, 0.5][f], 0.15), L: leg(-1, [0.3, 0.9, 0.3][f], [0.4, 1.8, 0.4][f], 0.15) }; P.lean = [0.8, 2.2, 0.8][f]; break;
       case 'bucket': { const sR = Math.sin(ph); L = { R: leg(1, 0.36 * sR, 0.1 + 0.7 * Math.max(0, Math.cos(ph)) ** 2), L: leg(-1, -0.36 * sR, 0.1 + 0.7 * Math.max(0, Math.cos(ph + Math.PI)) ** 2) }; P.lean = 0.3; break; }
       case 'fish': L = { R: leg(1, 0.1, 0.1), L: leg(-1, -0.1, 0.1) }; P.blink = f === 1; break;
+      case 'nod': P.headDown = [0, 0.7, 0, 0.7][f]; break;
+      case 'laugh': P.mouth = 1; P.bob = f % 2 ? -0.5 : 0; P.lean = f % 2 ? -0.7 : -0.2; P.blink = f % 2 === 1; break;
+      case 'shrug': P.bob = f === 1 || f === 2 ? -0.6 : 0; P.mouth = f === 2 ? 1 : 0; break;
+      case 'bow': P.lean = [0.2, 1.8, 2.8, 1.4][f]; P.headDown = f === 2 ? 1 : f ? 0.5 : 0; L = { R: leg(1, 0.05, 0.15), L: leg(-1, -0.35, 0.2) }; break;
+      case 'curtsy': { const k = [0, 0.7, 1, 0.4][f]; L = { R: leg(1, 0.1 + 0.35 * k, 0.15 + 0.9 * k, 0.06), L: leg(-1, -0.15 * k, 0.15 + 0.7 * k, 0.06) }; P.headDown = k > 1 ? 0.8 : 0.3; P.lean = 0.3 * k; break; }
+      case 'dance': { const sR = Math.sin(ph); L = { R: leg(1, 0.6 * Math.max(0, sR), 0.4 + 0.9 * Math.max(0, sR), 0.15), L: leg(-1, 0.6 * Math.max(0, -sR), 0.4 + 0.9 * Math.max(0, -sR), 0.15) }; P.bob = Math.abs(Math.cos(ph)) > 0.7 ? -0.7 : 0; P.mouth = f % 4 === 1 ? 1 : 0; break; }
+      case 'yawn': P.mouth = f === 1 || f === 2 ? 1 : 0; P.blink = f === 2; P.bob = f === 2 ? -0.4 : 0; P.lean = f === 2 ? -0.6 : 0; break;
+      case 'scratch': P.headDown = 0.3; P.blink = f === 3; break;
+      case 'wipe': P.blink = f === 2; P.mouth = f === 3 ? 1 : 0; break;
+      case 'cough': P.lean = f % 2 ? 1.2 : 0.4; P.headDown = f % 2 ? 0.8 : 0.2; P.blink = f % 2 === 1; break;
+      case 'gesture': P.mouth = f % 2; break;
       default: break;
     }
     if (m.stoop) { P.lean += 1; P.headFwd += 0.8; }
@@ -412,6 +426,16 @@
       case 'shake': { A.R = reach(1, [2.4, shY - (f ? 6 : 4.5), D + 2], [1, 0.4, -0.4]); P.fist = true; P.mouth = 1; break; }
       case 'place': { A.R = reach(1, [1.2, [chest + 4, GROUND - 3, chest + 4][f], D + [3, 5, 3][f]]); A.L = reach(-1, [-1.2, [chest + 4, GROUND - 3, chest + 4][f], D + [3, 5, 3][f]]); break; }
       case 'bucket': { A.R = fwdArm(1, 0.05, 0.05, 0.22); A.L = fwdArm(-1, -0.1, 0.3, 0.07); P.held = 'bucket'; break; }
+      case 'laugh': { for (const sd of [1, -1]) A[sd > 0 ? 'R' : 'L'] = reach(sd, [sd * 1.6, P.waistY + 1 + (f % 2), D + 2.6]); break; }
+      case 'shrug': { const up = f === 1 || f === 2; for (const sd of [1, -1]) A[sd > 0 ? 'R' : 'L'] = reach(sd, [sd * (up ? 4.2 : 2.4), up ? chest + 3 : chest + 7, D + (up ? 3.5 : 1.5)], [sd, 0.8, -0.2]); break; }
+      case 'bow': { A.R = reach(1, [0.6, chest + 3, D + 3.2]); A.L = fwdArm(-1, -0.4, 0.2, 0.1); break; }
+      case 'curtsy': { for (const sd of [1, -1]) A[sd > 0 ? 'R' : 'L'] = reach(sd, [sd * 3.4, P.hipY + 3, D + 1.5], [sd, 0.4, -0.3]); break; }
+      case 'dance': { const up = Math.sin(ph) > 0; A.R = reach(1, [up ? 3 : 2.4, up ? shY - 5 : chest, D + 1.5], [1, 0.4, -0.5]); A.L = reach(-1, [up ? -2.4 : -3, up ? chest : shY - 5, D + 1.5], [-1, 0.4, -0.5]); break; }
+      case 'yawn': { if (f === 1 || f === 2) for (const sd of [1, -1]) A[sd > 0 ? 'R' : 'L'] = reach(sd, [sd * 2.6, shY - (f === 2 ? 8 : 4), 0.4], [sd, 0.3, -0.6]); else A.R = reach(1, [0.8, mouth[1] + 1, mouth[2] + 1]); break; }
+      case 'scratch': { const hd = P.head; A.R = reach(1, [1.2 + (f % 2) * 0.6, hd[1] - m.headRy * 0.7, hd[2] - 0.5], [1, 0.2, -0.6]); break; }
+      case 'wipe': { const hd = P.head; A.R = reach(1, [-1.2 + f * 0.9, hd[1] - m.headRy * 0.35, hd[2] + m.headRy + 0.8], [1, 0.4, -0.4]); break; }
+      case 'cough': { A.R = reach(1, [0.5, mouth[1] + 0.5, mouth[2] + 1.2], [1, 0.6, -0.3]); break; }
+      case 'gesture': { const k = [0, 1, 2, 1][f]; A.R = reach(1, [2 + k * 0.5, chest + 2 - k, D + 3.5 + k * 0.4], [1, 0.6, -0.3]); A.L = fwdArm(-1, 0.02, 0.25, 0.07); break; }
       default: break;
     }
     P.arms = A; P.D = D;

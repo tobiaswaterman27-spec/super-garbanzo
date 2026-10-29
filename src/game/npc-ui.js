@@ -45,6 +45,8 @@
       if (game.scene) { const a = game.scene.actors.get(q.id); if (a) a.dir = q.agent.dir; }
       game.player.dir = O.dirOf(-dx, -dy);
       const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; r.familiar = Math.min(1, r.familiar + 0.1); q.rel.set(0, r);
+      // before the crown (or a lord), folk bow or curtsy
+      if (O.gesture && q.age >= 6 && ((O.crowned && O.crowned()) || O.PlayerState.title)) O.gesture(q, q.sex === 'f' ? 'curtsy' : 'bow', 1.8);
       if (r.familiar <= 0.11) sim.remember(q, 'A stranger stopped me in the street to talk.', 'player', 0.8, 0);
       renderTalk(O.Dialogue.provider.greet(O.Dialogue.buildContext(sim, q), q.id + sim.day));
     }

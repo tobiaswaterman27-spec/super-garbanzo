@@ -199,7 +199,7 @@ agree: true only if they now genuinely agree to the request below. caught: true 
     text = text.slice(0, 220); conv.push({ who: 'p', t: text });
     if (q.activity?.act === 'sleep') return reply(q, pk(['Mmh. Wha...', 'Zzz.', 'Leave me be. I\'m sleeping.']), render);
     if (q.age < 3) return reply(q, babble(q), render);
-    if (gibberish(text)) { r.trust = clamp((r.trust || 0) - 0.02, -1, 1); return reply(q, confused(q), render); }
+    if (gibberish(text)) { r.trust = clamp((r.trust || 0) - 0.02, -1, 1); gest(q, 'shrug'); return reply(q, confused(q), render); }
     if (!AI.ready) return reply(q, '...', render);
     const ask = askFor(q);
     const history = conv.slice(-7, -1).map((c) => (c.who === 'p' ? 'Player: ' : 'You: ') + c.t).join('\n');
@@ -224,9 +224,12 @@ agree: true only if they now genuinely agree to the request below. caught: true 
     // a person warms over time: a sour temper can sweeten for someone they've come to like
     if (r.affinity > 0.7 && (q.traits || []).includes('hostile') && Math.random() < 0.1) q.traits[q.traits.indexOf('hostile')] = 'friendly';
     if (ask && out.agree === true) { try { ask.onAgree(q); } catch (e) { /* a task gone */ } }
+    { const fv = n(out.feel); gest(q, out.caught ? 'shake' : fv >= 2 ? 'laugh' : fv === 1 ? 'nod' : fv <= -1 ? 'shake' : Math.random() < 0.5 ? 'gesture' : 'shrug', fv >= 2 ? 2.6 : 2); }
     q._talked = { day: s.day, first: q._talked && q._talked.day === s.day ? q._talked.first : text };
     reply(q, out.say, render);
   }
+  const gest = (q, anim, secs = 2.2) => { const now = performance.now(); q.agent.gest = { anim, from: now, until: now + secs * 1000 }; };
+  O.gesture = gest;
   function reply(q, line, render) {
     line = clean(line) || '...';
     (q._conv = q._conv || []).push({ who: 'q', t: line }); if (q._conv.length > 14) q._conv.splice(0, q._conv.length - 14);

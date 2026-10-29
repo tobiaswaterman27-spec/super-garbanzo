@@ -181,6 +181,8 @@
         } else if (['socialise', 'eat-out', 'eat', 'rest', 'gangmeet', 'feast'].includes(act) || (act === 'home' && q.stage !== 'baby')) {
           if (!(act === 'home' && q.id % 3 === 0)) { spot = seatFor(q); if (spot) seat = spot; }
           if (spot && b.type === 'tavern' && act === 'socialise') anim = (Math.floor(this.t / 3) + q.id) % 3 ? 'drink' : 'talk';
+          // when the bard plays, a few get up and dance by the hearth
+          if (b.type === 'tavern' && act === 'socialise' && q.age >= 8 && q.id % 4 === 1 && here.some((z) => z.activity?.act === 'perform')) { const c = L.items.find((i) => i.kind === 'fireplace') || L.items.find((i) => i.kind === 'bar'); if (c) { const [fx, fy] = this.anchor(c); spot = null; seat = null; x = fx + ((q.id % 5) - 2) * 14; y = fy + 44 + (q.id % 2) * 10; dir = (Math.floor(this.t / 2) + q.id) % 4; anim = 'dance'; } }
         } else if (act === 'shop' || act === 'turned-away' || act === 'deliver' || act === 'pickup' || act === 'carry-home' || act === 'import') {
           const c = counters[0];
           if (c) { const [ax] = this.anchor(c), [, , , ry1] = this.rect(c); x = ax + ((q.id % 3) - 1) * 14; y = ry1 + 12; dir = 3; anim = q.agent.carrying ? 'carry' : 'idle'; }

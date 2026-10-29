@@ -254,9 +254,23 @@
     }
 
     actorFrame(a) {
-      const A = Ch.ANIMS[a.anim] || Ch.ANIMS.idle;
-      const f = Math.floor(a.ft * A.fps) % A.frames;
-      return Ch.frame(a.a, a.dir, a.anim, f);
+      let an = a.anim, ft = a.ft;
+      // a gesture of the moment (a nod, a laugh, a bow) plays over whatever they were doing
+      const g = (a.person && a.person.agent && a.person.agent.gest) || a.gest, now = performance.now();
+      if (g && g.until > now) { an = g.anim; ft = (now - g.from) / 1000; }
+      else if (an === 'idle' && a.person && !a.person.agent?.frozen) {
+        // standing about, people fidget: scratch, yawn when tired, wipe a brow in the heat, cough when ill
+        const q = a.person, id = q.id || 0, t = now / 1000 + id * 3.7, cyc = t % 13;
+        if (cyc < 2.4) { const s = O.SimRef && O.SimRef.cur, k = Math.floor(t / 13) + id;
+          const opts = ['scratch', 'look', 'nod'];
+          if (q.health && q.health.illness) opts.push('cough', 'cough');
+          if ((q.needs && q.needs.energy < 35) || (s && (s.hour >= 21 || s.hour < 6))) opts.push('yawn', 'yawn');
+          if (s && s.season === 'summer' && s.hour > 11 && s.hour < 17 && !this.scene) opts.push('wipe');
+          an = opts[k % opts.length]; ft = cyc; }
+      }
+      const A = Ch.ANIMS[an] || Ch.ANIMS.idle;
+      const f = Math.floor(ft * A.fps) % A.frames;
+      return Ch.frame(a.a, a.dir, an in Ch.ANIMS ? an : 'idle', f);
     }
 
     draw() {

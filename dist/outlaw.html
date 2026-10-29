@@ -93,6 +93,19 @@ main { height: 100vh; }
 /* conversation box */
 .dlg { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); width: min(760px, calc(100% - 32px)); min-height: 118px; padding: 26px 34px 22px; border-radius: 0; background: #fbf3dd; color: #4a3826; font-family: var(--body); font-weight: 700; font-size: 19px; line-height: 1.45; box-shadow: 0 6px 0 rgba(70,48,26,.35), inset 0 0 0 3px #efe1bd; z-index: 30; cursor: pointer; }
 .dlg-name { position: absolute; top: -16px; left: 34px; transform: rotate(-3deg); padding: 4px 18px; border-radius: 0; color: #fff; font-weight: 800; font-size: 16px; box-shadow: 0 3px 0 rgba(0,0,0,.25); text-shadow: 0 1px 0 rgba(0,0,0,.3); }
+.ai-gate { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; background: #2a1d12; color: #fbf3dd; font-family: var(--body); }
+.ai-gate-in { text-align: center; display: grid; gap: 14px; width: min(420px, calc(100% - 32px)); }
+.ai-gate h1 { font: 800 54px var(--display, var(--body)); letter-spacing: 2px; margin: 0; color: #f0c060; }
+.ai-gate form { display: grid; gap: 10px; }
+.ai-gate input { font: 700 17px var(--body); padding: 10px 12px; border: 0; background: #fbf3dd; color: #3a2a1a; }
+.ai-gate button { font: 800 18px var(--body); padding: 10px; border: 0; background: #d38a3a; color: #fff; cursor: pointer; box-shadow: 0 3px 0 #9a5a1e; }
+.ai-err { color: #f0a080; margin: 0; }
+.dlg-say { display: flex; gap: 8px; margin-top: 14px; }
+.dlg-say input { flex: 1; min-width: 0; font: 700 17px var(--body); color: #3a2a1a; background: #fffaf0; border: 0; box-shadow: inset 0 0 0 2px #e3cf9f; padding: 9px 12px; outline: none; }
+.dlg-say input:focus { box-shadow: inset 0 0 0 2px #d38a3a; }
+.dlg-say button { font: 800 16px var(--body); color: #fff; background: #d38a3a; border: 0; padding: 0 18px; cursor: pointer; box-shadow: 0 3px 0 #9a5a1e; }
+.dlg.busy .dlg-text::after { content: ''; display: inline-block; width: 1.4em; text-align: left; animation: dlgdots 1.2s steps(4) infinite; }
+@keyframes dlgdots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
 .dlg-next { position: absolute; right: 26px; bottom: 12px; color: #d38a3a; font-size: 14px; animation: dlgbob 1s infinite; }
 @keyframes dlgbob { 50% { transform: translateY(3px); } }
 .dlg-opts { position: absolute; right: max(16px, calc(50% - 380px)); bottom: 160px; display: grid; gap: 2px; padding: 12px 14px; border-radius: 0; background: #fbf3dd; box-shadow: 0 5px 0 rgba(70,48,26,.35), inset 0 0 0 3px #efe1bd; z-index: 31; min-width: 220px; }
@@ -9845,7 +9858,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
         if (ws.length) { const pot = Math.floor((bz.cash - 150) * 0.5), each = Math.floor(pot / ws.length); if (each > 0) { for (const w of ws) this.household(w).money += each; bz.cash -= each * ws.length; } }
       }
       bz.history.push({ day: this.day, sales: bz.salesToday }); if (bz.history.length > 14) bz.history.shift();
-      bz.salesToday = 0; bz._shortNoted = false;
+      bz.salesYesterday = bz.salesToday; bz.salesToday = 0; bz._shortNoted = false;
     }
 
     assignDelivery(order) {
@@ -12426,11 +12439,12 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       if (r.familiar <= 0.11) sim.remember(q, 'A stranger stopped me in the street to talk.', 'player', 0.8, 0);
       renderTalk(O.Dialogue.provider.greet(O.Dialogue.buildContext(sim, q), q.id + sim.day));
     }
-    function closeTalk() { if (talking) { talking.agent.frozen = false; talking.agent.talking = 0; } talking = null; card.hidden = true; if (O.UI.dialogOpen()) O.UI.dialog.close(); }
+    function closeTalk() { if (talking) { O.AIChat && O.AIChat.ended(talking); }
+      if (talking) { talking.agent.frozen = false; talking.agent.talking = 0; } talking = null; card.hidden = true; if (O.UI.dialogOpen()) O.UI.dialog.close(); }
     function bar(v, cls = '') { return `<span class="bar ${cls}"><i style="width:${Math.round(O.clamp(v, 0, 100))}%"></i></span>`; }
     // name tag in the colour of their clothes
     function tagColour(q) { const m = q.app?.outfit?.over; const r = m != null && O.Pal.ramp ? O.Pal.ramp(m) : null; return r ? `rgb(${r[2][0]},${r[2][1]},${r[2][2]})` : '#b0683a'; }
-    function renderTalk(line) {
+    function renderTalk(line, busy) {
       const q = talking; if (!q) return;
       q.agent.talking = 30;
       const bz = q.job?.biz ? sim.biz.get(q.job.biz) : null;
@@ -12442,7 +12456,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       if (q.job?.role === 'parish clerk' && q.activity?.act === 'work' && O.knowsTrade(q)) options.push({ key: 'houses', label: 'Houses to let or sell', hot: true });
       for (const [k, l] of [['self', 'How are you?'], ['work', 'What do you do?'], ['news', 'Any news?'], ['prices', 'How are prices?'], ['family', 'Your family?']]) options.push({ key: k, label: l });
       options.push({ key: 'bye', label: 'Goodbye' });
-      O.UI.dialog.open({ name: q.gentry ? q.name : q.first + (q.title ? `, ${q.title}` : q.office ? `, ${q.office}` : ''), color: tagColour(q), text: line, options, onPick: (t) => pickTopic(q, bz, t), onClose: () => { if (talking === q) { q.agent.frozen = false; q.agent.talking = 0; talking = null; } } });
+      O.UI.dialog.open({ name: q.gentry ? q.name : q.first + (q.title ? `, ${q.title}` : q.office ? `, ${q.office}` : ''), color: tagColour(q), text: busy ? '' : line, busy, options: busy ? [] : options, chat: O.AI && O.AI.ready ? (t) => O.AIChat.say(q, t, (ln, b) => { if (talking === q) renderTalk(ln, b); }) : null, onPick: (t) => pickTopic(q, bz, t), onClose: () => { O.AIChat && O.AIChat.ended(q); if (talking === q) { q.agent.frozen = false; q.agent.talking = 0; talking = null; } } });
     }
     function pickTopic(q, bz, t) {
       if (t === 'bye') { const bye = ['Fare you well.', 'God keep you.', 'Mind how you go.', 'Until next time.'][(q.id + sim.day) % 4]; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: bye, options: [] }); talking = null; q.agent.frozen = false; setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1600); return; }
@@ -12533,6 +12547,318 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     return api;
   }
   O.NpcUI = { setup };
+})();
+
+</script>
+<script>
+// Talking in your own words. Whatever you type, the person answers as themselves: from what they know
+// (their work, family, friends, home, the town, what they did yesterday, what they've heard of you),
+// how they feel about you, their age and their temper. Replies come from Claude (the quick model, when
+// the game is opened on claude.ai) or from an OpenAI key the player gives. Without either the game
+// can't be played. Every call is kept small: one short card of facts, the last few lines, and a
+// one or two sentence answer back. Babies babble and nonsense gets a "Huh?" without asking anyone.
+'use strict';
+(function () {
+  const LS = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } return null; };
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  // no long dashes, no curly quotes, no ellipsis glyphs, no stage directions: plain words only
+  const clean = (s) => String(s || '').replace(/\*[^*]{0,60}\*/g, '').replace(/\([^)]{0,60}\)/g, '').replace(/\s*[—–]\s*/g, ', ').replace(/\s+-\s+/g, ', ').replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/…/g, '...')
+    .replace(/,\s*([.!?])/g, '$1').replace(/,\s*,/g, ',').replace(/\s{2,}/g, ' ').replace(/^["'\s]+|["'\s]+$/g, '').trim();
+  O.cleanSpeech = clean;
+
+  // ---------------------------------------------------------------- who answers
+  const AI = O.AI = { kind: null, ready: false, sample: null, key: null, busy: false };
+  AI.detect = async () => {
+    if (LS('outlaw.devai') === 'mock' || (navigator.webdriver && location.protocol === 'file:')) { AI.kind = 'mock'; return (AI.ready = true); } // (automated tests only)
+    if (window.claude && typeof window.claude.use === 'function') {
+      try { const s = await window.claude.use('sample'); if (s) { AI.sample = s; AI.kind = 'claude'; return (AI.ready = true); } } catch (e) { /* not on claude.ai */ }
+    }
+    const key = LS('outlaw.openai'); if (key) { AI.key = key; AI.kind = 'openai'; return (AI.ready = true); }
+    return false;
+  };
+  AI.json = async (prompt) => {
+    if (AI.kind === 'claude') return AI.sample.json(prompt, { modelTier: 'quick', cache: false });
+    if (AI.kind === 'openai') {
+      const r = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + AI.key },
+        body: JSON.stringify({ model: 'gpt-4o-mini', max_tokens: 150, temperature: 0.8, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: prompt }] }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw { code: r.status === 401 ? 'bad_key' : r.status === 429 ? 'rate_limited' : 'upstream_error', message: j.error?.message || '' };
+      return JSON.parse(j.choices[0].message.content);
+    }
+    if (AI.kind === 'mock') { const m = /Player: (.*)$/m.exec(prompt), said = m ? m[1] : ''; return { say: /name/i.test(said) ? 'They call me what my mother called me.' : 'Aye, well. ' + (said.length > 20 ? 'That is a lot to take in.' : 'If you say so.'), feel: 0, trust: 0, learned: '', name: (/I am (\w+)/i.exec(said) || [])[1] || '', agree: /please/i.test(said), caught: false }; }
+    throw { code: 'no_ai' };
+  };
+
+  // the gate: no voices, no game
+  AI.gate = () => new Promise((resolve) => {
+    const el = document.createElement('div'); el.className = 'ai-gate';
+    el.innerHTML = `<div class="ai-gate-in"><h1>Outlaw</h1><p class="ai-wait">Looking for Claude</p><form hidden><p>Open this game on claude.ai, or use your OpenAI key.</p><input type="password" placeholder="sk-..." autocomplete="off"><button type="submit">Play</button><p class="ai-err" hidden></p></form></div>`;
+    document.body.appendChild(el);
+    const form = el.querySelector('form'), inp = el.querySelector('input'), err = el.querySelector('.ai-err'), wait = el.querySelector('.ai-wait');
+    let dots = 0; const tk = setInterval(() => { wait.textContent = 'Looking for Claude' + '.'.repeat(dots++ % 4); }, 350);
+    const done = () => { clearInterval(tk); el.remove(); resolve(); };
+    AI.detect().then((ok) => {
+      if (ok) return done();
+      clearInterval(tk); wait.hidden = true; form.hidden = false; inp.focus();
+      form.onsubmit = async (e) => {
+        e.preventDefault(); const k = inp.value.trim();
+        if (!/^sk-[\w-]{20,}$/.test(k)) { err.hidden = false; err.textContent = 'That is not an OpenAI key.'; return; }
+        AI.key = k; AI.kind = 'openai'; err.hidden = false; err.textContent = 'Checking';
+        try { await AI.json('Reply with only this JSON: {"ok": true}'); } catch (x) { AI.kind = null; err.textContent = x.code === 'bad_key' ? 'OpenAI refused that key.' : 'Could not reach OpenAI from here.'; return; }
+        LS('outlaw.openai', k); AI.ready = true; done();
+      };
+    });
+  });
+
+  // ---------------------------------------------------------------- what they know: one short card
+  const SEAS = ['summer', 'autumn', 'winter', 'spring'];
+  const dayName = (d) => { d = ((d - 1) % 56 + 56) % 56; return `${SEAS[Math.floor(d / 14)]} ${(d % 14) + 1}`; };
+  const DIR = (dx, dy) => { const a = Math.atan2(dy, dx), k = Math.round(a / (Math.PI / 4)); return ['east', 'south-east', 'south', 'south-west', 'west', 'north-west', 'north', 'north-east'][(k + 8) % 8]; };
+  function placeOf(s, b, cx, cy) {
+    if (!b) return 'somewhere';
+    const bz = s.biz.get(b.id), name = bz ? bz.name : b.name && !/^House/.test(b.name) ? b.name : null;
+    const dx = b.doorX - cx, dy = b.doorY - cy, far = Math.hypot(dx, dy);
+    const where = far < 8 ? 'by the square' : `on the ${DIR(dx, dy)} side of town`;
+    return name ? `${name} (${where})` : `a house ${where}`;
+  }
+  function centre(s) {
+    if (s._ctr) return s._ctr; const bs = s.world.buildings.filter((b) => b.doorX != null);
+    let x = 0, y = 0; for (const b of bs) { x += b.doorX; y += b.doorY; } return (s._ctr = [x / Math.max(1, bs.length), y / Math.max(1, bs.length)]);
+  }
+  const hm = (h) => { h = ((h % 24) + 24) % 24; return h === 0 ? 'midnight' : h === 12 ? 'noon' : h < 12 ? `${h}am` : `${h - 12}pm`; };
+  const ageWord = (a) => a < 1 ? 'a baby' : `${a}`;
+  function memScore(s, q, m) {
+    const ageThen = q.age - (s.day - m.day) / 56, years = (s.day - m.day) / 56;
+    const keep = q.age >= 70 ? 1.2 : q.age >= 55 ? 2.5 : q.age < 10 ? 1.5 : 4; // the old and the very young forget sooner
+    let v = (m.strength || 0.5) * Math.exp(-years / keep);
+    if (ageThen < 6) v *= 0.15; else if (ageThen < 12) v *= 0.5; // early childhood is mostly gone
+    return v;
+  }
+  O.memScore = memScore;
+  function speechFor(age, stage) {
+    if (age < 5) return 'You are a small child: only a few simple words at a time, sometimes wrong words, no long sentences.';
+    if (age < 9) return 'You are a young child: short simple sentences, simple words, a child\'s view of things.';
+    if (age < 13) return 'You are a child: plain sentences, no grand words.';
+    if (age < 18) return 'You are a youth: fluent, a little blunt or awkward.';
+    if (stage === 'elder') return 'You are old: unhurried, sometimes wander onto the old days.';
+    return '';
+  }
+  function card(s, q) {
+    const PS = O.PlayerState, [cx, cy] = centre(s), lines = [];
+    const by = (id) => s.byId.get(id), alive = (p) => p && p.alive !== false;
+    const ctx = O.Dialogue ? O.Dialogue.buildContext(s, q, { reputation: PS.rep }) : {};
+    const bdays = ((q.birthday || 1) - (((s.day - 1) % 56) + 1) + 56) % 56;
+    lines.push(`You are ${q.name}, ${q.sex === 'm' ? 'a man' : 'a woman'}${q.age < 18 ? ' (a ' + (q.sex === 'm' ? 'boy' : 'girl') + ')' : ''} of ${ageWord(q.age)}, living in ${s.world.name}${q.title ? `, ${q.title}` : q.office ? `, the ${q.office}` : ''}. Birthday ${dayName(q.birthday || 1)}${bdays === 0 ? ' (today!)' : bdays <= 3 ? ` (in ${bdays} days)` : ''}.`);
+    lines.push(`Temper: ${(q.traits || []).join(', ')}. Mood ${q.mood > 0.3 ? 'good' : q.mood < -0.3 ? 'low' : 'fair'}. ${q.needs.hunger < 30 ? 'Hungry. ' : ''}${q.needs.energy < 30 ? 'Tired. ' : ''}${q.health.illness ? 'Unwell (' + q.health.illness.kind + '). ' : ''}Hopes: ${q.goal || 'to get by'}.`);
+    // work
+    if (q.job) {
+      const bz = q.job.biz != null && s.biz.get(q.job.biz), boss = bz && bz.owner != null && by(bz.owner);
+      const wage = bz && (q.job.wage || (bz.def.wage || {})[q.job.role]); const hrs = bz && bz.def.hours;
+      const mates = bz ? bz.workers.map(by).filter((p) => alive(p) && p !== q).slice(0, 3).map((p) => `${p.first} (${p.job.role})`) : [];
+      lines.push(`Work: ${q.job.role}${bz ? ` at ${placeOf(s, s.building(bz.id), cx, cy)}` : ''}${boss && boss !== q ? `, under ${boss.name}` : bz && bz.owner === q.id ? ', your own business' : ''}${wage ? `, ₳${wage} a day` : ''}${hrs ? `, ${hm(hrs[0])} to ${hm(hrs[1])}` : ''}${mates.length ? `. Work with ${mates.join(', ')}` : ''}.`);
+      const yd = s.day - 1, ywd = (yd - 1) % 7;
+      const yMem = (q.memories || []).filter((m) => m.day === yd).slice(0, 2).map((m) => clean(m.text));
+      lines.push(`Yesterday: ${ywd === 0 ? 'Sunday, mass and rest' : `you worked your hours${bz && bz.def.sells && bz.def.sells.length ? ', and trade was ' + ((bz.salesYesterday ?? bz.salesToday) > 40 ? 'brisk' : 'slow') : ''}`}${yMem.length ? '. Also: ' + yMem.join(' ') : ''}.`);
+    } else lines.push(q.age < 14 ? 'You are a child: chores, play, lessons.' : 'You have no work just now.');
+    // home and family
+    const hh = s.household(q), home = s.building(q.home);
+    lines.push(`Home: ${placeOf(s, home, cx, cy)}. The household purse is ${hh && hh.money > 150 ? 'full' : hh && hh.money > 40 ? 'fair' : 'thin'}.`);
+    const fam = [];
+    if (q.spouse) { const sp = by(q.spouse); if (sp) fam.push(`${q.sex === 'm' ? 'wife' : 'husband'} ${sp.first} (${sp.age}, ${sp.job ? sp.job.role : 'at home'})`); }
+    else if (q.widowed) { const w = by(q.widowed); fam.push(`widowed${w ? ` (${w.first} died)` : ''}`); }
+    for (const id of q.children || []) { const c = by(id); if (c) fam.push(c.alive === false ? `child ${c.first} (dead)` : `${c.sex === 'm' ? 'son' : 'daughter'} ${c.first} (${c.age})`); }
+    for (const id of q.parents || []) { const c = by(id); if (c) fam.push(c.alive === false ? `${c.sex === 'm' ? 'father' : 'mother'} ${c.first} (dead)` : `${c.sex === 'm' ? 'father' : 'mother'} ${c.first} (${c.age})`); }
+    if (ctx.fam2 && ctx.fam2.sibs) for (const sb of ctx.fam2.sibs.slice(0, 3)) fam.push(`${sb.sex === 'm' ? 'brother' : 'sister'} ${sb.first} (${sb.age})`);
+    if (fam.length) lines.push(`Family: ${fam.join(', ')}.`);
+    // friends and foes
+    const rels = [...q.rel.entries()].filter(([id]) => id !== 0).map(([id, r]) => [by(id), r]).filter(([p]) => alive(p));
+    const friends = rels.filter(([, r]) => r.affinity > 0.25).sort((a, b) => b[1].affinity - a[1].affinity).slice(0, 4);
+    const foes = rels.filter(([, r]) => r.affinity < -0.3).sort((a, b) => a[1].affinity - b[1].affinity).slice(0, 2);
+    if (friends.length) lines.push(`Friends: ${friends.map(([p]) => `${p.name} (${p.job ? p.job.role : p.age < 14 ? 'a child' : 'no trade'}, lives at ${placeOf(s, s.building(p.home), cx, cy)})`).join('; ')}.`);
+    if (foes.length) lines.push(`You dislike: ${foes.map(([p]) => p.name).join(', ')}.`);
+    // what they remember, fading with years and age
+    const mem = (q.memories || []).map((m) => [m, memScore(s, q, m)]).filter(([, v]) => v > 0.12).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    if (mem.length) lines.push(`You remember: ${mem.map(([m, v]) => (v < 0.3 ? '(dimly) ' : '') + clean(m.text)).join(' | ')}`);
+    if ((q.beliefs || []).length) lines.push(`You believe: ${q.beliefs.slice(0, 6).map((b) => clean(b.t) + (b.src === 'player' ? ' (the player told you)' : b.from ? ` (${b.from} told you)` : '')).join(' | ')}`);
+    // the town around them
+    const places = [...s.biz.values()].filter((bz) => !bz.def.public || ['chapel', 'guard', 'townhall', 'school'].includes(bz.type)).slice(0, 40);
+    const pick = []; const seen = new Set(); for (const bz of places) { if (seen.has(bz.type) || pick.length >= 14) continue; seen.add(bz.type); pick.push(`${bz.name}${bz.owner != null && by(bz.owner) ? ` (${by(bz.owner).first}'s)` : ''}: ${DIR(s.building(bz.id).doorX - cx, s.building(bz.id).doorY - cy)}`); }
+    lines.push(`Places you know in ${s.world.name}: ${pick.join('; ')}.`);
+    const news = (s.history || []).filter((h) => !['day', 'trade', 'economy'].includes(h.kind) && h.day >= s.day - 6).slice(-4).map((h) => clean(h.text));
+    if (news.length) lines.push(`Lately in town: ${news.join(' | ')}`);
+    if (ctx.prices && ctx.prices.bread) lines.push(`A loaf costs ₳${ctx.prices.bread}.`);
+    // now
+    const h = s.hour, t = `${Math.floor(h) % 12 || 12}${h < 12 ? 'am' : 'pm'}`, inside = q.agent.inside != null ? s.building(q.agent.inside) : null;
+    lines.push(`Now: ${t}, ${s.season}, ${s.weather ? s.weather.kind : 'clear'}. You are ${O.ACT_LABEL && O.ACT_LABEL[q.activity?.act] || 'about'}${inside ? ` in ${placeOf(s, inside, cx, cy).replace(/ \(.*\)$/, '')}` : ' outdoors'}.`);
+    // the player, as far as they know them
+    const r = q.rel.get(0) || { affinity: 0, familiar: 0 };
+    const known = r.name ? `${r.name}` : 'a stranger whose name you do not know';
+    const fond = r.affinity > 0.5 ? 'you like them a lot' : r.affinity > 0.15 ? 'you like them' : r.affinity < -0.4 ? 'you dislike them' : r.affinity < -0.1 ? 'you are wary of them' : 'no strong feeling';
+    const tr = (r.trust || 0) > 0.4 ? 'you trust them' : (r.trust || 0) < -0.3 ? 'you do not trust a word they say' : r.familiar < 0.2 ? 'you do not know them' : 'you half trust them';
+    lines.push(`Talking to you: ${known}; met ${r.familiar < 0.15 ? 'just now' : r.familiar < 0.5 ? 'a few times' : 'often'}; ${fond}; ${tr}.`);
+    if (ctx.sawPlayerCrime) lines.push('You saw them commit a crime and know their face.');
+    if (ctx.fame && ctx.fame.length) lines.push(`You've heard of them: ${ctx.fame.slice(0, 3).map(clean).join(' | ')}`);
+    if (r.familiar > 0.3 || (ctx.fame || []).length) { const rp = PS.rep || {}; if ((rp.criminal || 0) > 0.4) lines.push('Folk say they are a rogue.'); else if ((rp.local || 0) > 0.4) lines.push('Folk speak well of them.'); }
+    const emp = PS.emp && PS.emp.place === s.world.placeId && q.job && PS.emp.biz === q.job.biz;
+    if (emp) lines.push(`They work at your workplace as ${PS.emp.role}.`);
+    if (PS.gang && q.gang && q.gang === PS.gang) lines.push('They are in your gang.');
+    if (O.crowned && O.crowned()) lines.push('They are the crowned monarch of the realm.');
+    return lines.join('\n');
+  }
+  O.aiCard = card;
+
+  // ---------------------------------------------------------------- the cheap answers
+  const vowels = /[aeiouy]/i;
+  function gibberish(t) {
+    const w = t.toLowerCase().replace(/[^a-z\s']/g, ' ').trim().split(/\s+/).filter(Boolean);
+    if (!w.length) return true;
+    const bad = w.filter((x) => (x.length >= 5 && !vowels.test(x)) || /[bcdfghjklmnpqrstvwxz]{5,}/.test(x) || /(.)\1{3,}/.test(x) || (x.length > 14 && !/(tion|ness|ment|ship|able)/.test(x)));
+    return bad.length / w.length > 0.5;
+  }
+  const pk = (a) => a[Math.floor(Math.random() * a.length)];
+  function babble(q) {
+    const s = O.SimRef.cur, sib = (s.household(q)?.members || []).map((id) => s.byId.get(id)).find((p) => p && p !== q && p.age < 14);
+    if (q.age < 1) return pk(['Ba ba ba.', 'Goo.', 'Ah! Ah!', 'Mmm ba.', 'Dah.', 'Ehh.']);
+    if (q.age < 2) return pk(['Mama!', 'Dada.', 'No!', 'Ba ba.', 'Up!', 'Doggy.', 'Dah dah.', 'Moo.']);
+    return pk(['Want bread.', 'Look! Bird!', 'No. Mine.', sib ? `${sib.first}!` : 'Mama!', 'Up, up!', 'Doggy go.', 'Hello.', 'What dat?']);
+  }
+  function confused(q) {
+    const t = q.traits || [];
+    if (q.age < 9) return pk(['What?', 'That\'s not words.', 'You talk funny.']);
+    if (t.includes('hostile')) return pk(['What?', 'Speak sense or be off.', 'Are you drunk?']);
+    if (t.includes('friendly')) return pk(['Sorry? I didn\'t catch that.', 'Come again?', 'Are you feeling well?']);
+    return pk(['Huh?', 'What?', 'I don\'t follow you.', 'Say that again?']);
+  }
+
+  // ---------------------------------------------------------------- what someone may be asked to do
+  // a job task, a gang, a favour: anything that wants a yes from this person registers here
+  const asks = [];
+  O.addAsk = (fn) => asks.push(fn);
+  const askFor = (q) => { for (const fn of asks) { const a = fn(q); if (a) return a; } return null; };
+
+  // ---------------------------------------------------------------- the talk
+  const RULES = `Write the next thing this person says in a medieval village game. Reply ONLY with JSON:
+{"say": string, "feel": -2..2, "trust": -2..2, "learned": string, "name": string, "agree": boolean, "caught": boolean}
+say: their words, 1 or 2 short sentences, at most 30 words, fully in character for their age, temper and mood. Plain medieval English, no modern words. Perfect spelling and grammar. No dashes, no emoji, no actions in brackets or stars.
+They know only what their card says. Asked about anything else, they don't know, guess vaguely or say so; they never invent facts about real people or places in their town. Nonsense makes them confused. Suspicious, hostile or untrusting people are curt with strangers and doubt what they're told. The greedy and hostile may lie.
+feel: how much what the player just said changes their liking for them. trust: how much it changes their belief in them.
+learned: a short new claim from the player's words they now believe, in their own words, else "". name: the player's name if the player just gave it, else "".
+agree: true only if they now genuinely agree to the request below. caught: true only if they now realise the player lied to them before.`;
+  let ctl = null;
+  async function say(q, text, render) {
+    const s = O.SimRef.cur, PS = O.PlayerState, r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r);
+    const conv = q._conv || (q._conv = []);
+    text = text.slice(0, 220); conv.push({ who: 'p', t: text });
+    if (q.activity?.act === 'sleep') return reply(q, pk(['Mmh. Wha...', 'Zzz.', 'Leave me be. I\'m sleeping.']), render);
+    if (q.age < 3) return reply(q, babble(q), render);
+    if (gibberish(text)) { r.trust = clamp((r.trust || 0) - 0.02, -1, 1); return reply(q, confused(q), render); }
+    if (!AI.ready) return reply(q, '...', render);
+    const ask = askFor(q);
+    const history = conv.slice(-7, -1).map((c) => (c.who === 'p' ? 'Player: ' : 'You: ') + c.t).join('\n');
+    const prompt = `${RULES}\n\n${speechFor(q.age, q.stage)}\n--- Your card ---\n${card(s, q)}\n${ask ? `--- Request ---\nThe player wants you to ${ask.goal}. ${ask.why || ''} Weigh it by your temper, needs and trust. Set agree true only if convinced.\n` : 'No request is pending: agree is false.\n'}--- Talk so far ---\n${history || '(none)'}\nPlayer: ${text}`;
+    render(null, true);
+    AI.busy = true; ctl = {};
+    let out = null;
+    try { out = await AI.json(prompt); }
+    catch (e) { AI.busy = false; return reply(q, e && e.code === 'rate_limited' ? pk(['Not now. I\'ve a lot on.', 'Give me a moment, will you?']) : pk(['Hm?', 'Sorry, I was miles away.']), render); }
+    AI.busy = false;
+    if (!out || typeof out.say !== 'string' || !out.say.trim()) return reply(q, pk(['Hm.', 'Well.']), render);
+    const n = (v) => clamp(Math.round(Number(v) || 0), -2, 2);
+    r.affinity = clamp(r.affinity + n(out.feel) * 0.04, -1, 1); r.trust = clamp((r.trust || 0) + n(out.trust) * 0.06, -1, 1); r.familiar = Math.min(1, r.familiar + 0.02);
+    if (out.name && typeof out.name === 'string' && out.name.length < 30) r.name = clean(out.name).split(' ')[0];
+    if (out.learned && typeof out.learned === 'string' && out.learned.length > 3) { (q.beliefs = q.beliefs || []).unshift({ t: clean(out.learned).slice(0, 140), src: 'player', day: s.day }); q.beliefs.length = Math.min(q.beliefs.length, 10); }
+    if (out.caught) {
+      r.trust = clamp((r.trust || 0) - 0.35, -1, 1); r.affinity = clamp(r.affinity - 0.2, -1, 1);
+      s.remember(q, `Caught ${r.name || 'the stranger'} in a lie.`, 'player', 1, 0);
+      const i = (q.traits || []).indexOf('loyal'); if (i >= 0) q.traits[i] = 'suspicious';
+      if (q.beliefs) q.beliefs = q.beliefs.filter((b) => b.src !== 'player');
+    }
+    // a person warms over time: a sour temper can sweeten for someone they've come to like
+    if (r.affinity > 0.7 && (q.traits || []).includes('hostile') && Math.random() < 0.1) q.traits[q.traits.indexOf('hostile')] = 'friendly';
+    if (ask && out.agree === true) { try { ask.onAgree(q); } catch (e) { /* a task gone */ } }
+    q._talked = { day: s.day, first: q._talked && q._talked.day === s.day ? q._talked.first : text };
+    reply(q, out.say, render);
+  }
+  function reply(q, line, render) {
+    line = clean(line) || '...';
+    (q._conv = q._conv || []).push({ who: 'q', t: line }); if (q._conv.length > 14) q._conv.splice(0, q._conv.length - 14);
+    render(line, false);
+  }
+  // when a talk ends, they keep one memory of it, not a line for every word
+  function ended(q) {
+    const s = O.SimRef.cur; if (!q || !q._talked || q._talked.day !== s.day || q._talked.stored) return;
+    const r = q.rel.get(0) || {}; q._talked.stored = true;
+    s.remember(q, `Talked with ${r.name || 'a stranger'}, who said: "${clean(q._talked.first).slice(0, 70)}"`, 'player', 0.6, 0);
+  }
+  // what's said travels: a claim someone believes is passed on to a friend now and then, and old ones fade
+  { const SP = O.Sim.prototype, _nd = SP.newDay;
+    SP.newDay = function () { const r = _nd.apply(this, arguments);
+      for (const p of this.people) { if (!p.beliefs || !p.beliefs.length) continue;
+        p.beliefs = p.beliefs.filter((b) => this.day - b.day < 40 || Math.random() < 0.7);
+        if (Math.random() < 0.25) { const b = p.beliefs[0], fr = [...p.rel.entries()].filter(([id, x]) => id !== 0 && x.affinity > 0.3).map(([id]) => this.byId.get(id)).filter((q) => q && q.alive !== false);
+          const q = fr[Math.floor(Math.random() * fr.length)]; if (b && q && !(q.beliefs || []).some((x) => x.t === b.t)) (q.beliefs = q.beliefs || []).unshift({ t: b.t, src: 'friend', from: p.first, day: this.day }); }
+      }
+      return r; }; }
+  O.AIChat = { say, ended, card, gibberish };
+})();
+
+</script>
+<script>
+// Work that needs a yes from someone: the tax collector has to get the money out of a household, the
+// innkeeper wants another round sold, the priest wants a lapsed soul back at mass. You find the person,
+// talk in your own words, and they agree or they don't, as themselves.
+'use strict';
+(function () {
+  const pick = (a) => a[Math.floor(Math.random() * a.length)];
+  const adults = (s, f) => s.people.filter((q) => !q.visitor && q.alive !== false && q.age >= 16 && !q.royal && (!f || f(q)));
+  const nm = (q) => `${q.first} ${q.sur || ''}`.trim();
+  // each role: who to ask, what for, and what follows a yes
+  const JOBS = {
+    'tax collector': (s, bz) => { const q = pick(adults(s, (p) => (s.household(p)?.money || 0) > 20)); return q && { who: q.id, text: `Get ${nm(q)} to pay the hearth tax`, goal: 'pay the hearth tax your household owes this week', why: 'The council wants its due.', pay: 4 }; },
+    bailiff: (s) => { const q = pick(adults(s, (p) => (s.household(p)?.money || 0) > 15)); return q && { who: q.id, text: `Talk ${nm(q)} into settling a fine`, goal: 'pay a fine the court set on your household', why: 'The bailiff has come for it.', pay: 6 }; },
+    innkeeper: (s, bz) => { const q = pick(adults(s, (p) => p.traits.includes('social') || p.traits.includes('friendly'))); return q && { who: q.id, text: `Bring ${nm(q)} in for a drink tonight`, goal: `come to ${bz.name} for a drink this evening`, sell: 'ale' }; },
+    server: (s, bz) => { const q = pick(adults(s)); return q && { who: q.id, text: `Sell ${nm(q)} a meal at ${bz.name}`, goal: `come and eat at ${bz.name}`, sell: 'meal' }; },
+    shopkeeper: (s, bz) => { const q = pick(adults(s)); return q && { who: q.id, text: `Talk ${nm(q)} into a purchase`, goal: `come to ${bz.name} and buy something`, sell: bz.def.sells[0] }; },
+    baker: (s, bz) => { const q = pick(adults(s)); return q && { who: q.id, text: `Win ${nm(q)} as a regular for bread`, goal: `buy your bread from ${bz.name} from now on`, sell: 'bread' }; },
+    butcher: (s, bz) => { const q = pick(adults(s)); return q && { who: q.id, text: `Sell ${nm(q)} a cut of meat`, goal: `buy meat from ${bz.name}`, sell: 'meat' }; },
+    priest: (s) => { const q = pick(adults(s, (p) => p.traits.includes('lazy') || p.traits.includes('hostile') || p.traits.includes('suspicious'))); return q && { who: q.id, text: `Bring ${nm(q)} back to mass`, goal: 'come to mass this Sunday', why: 'The priest has missed you.', soul: true }; },
+    physician: (s) => { const q = pick(adults(s, (p) => p.health.illness)) || pick(adults(s, (p) => p.age > 55)); return q && { who: q.id, text: `Persuade ${nm(q)} to take physic`, goal: 'take the physician\'s remedy and rest', heal: true }; },
+    nurse: (s) => { const q = pick(adults(s, (p) => p.health.illness)); return q && { who: q.id, text: `Get ${nm(q)} to rest`, goal: 'rest in bed until you are well', heal: true }; },
+    midwife: (s) => { const q = pick(adults(s, (p) => p.pregnant)); return q && { who: q.id, text: `Talk ${nm(q)} into lying in when her time comes`, goal: 'send for the midwife when your time comes, and lie in', heal: true }; },
+    moneylender: (s) => { const q = pick(adults(s, (p) => (s.household(p)?.money || 0) < 30)); return q && { who: q.id, text: `Talk ${nm(q)} into a loan`, goal: 'borrow money from the moneylender, at interest', pay: 3 }; },
+    teacher: (s) => { const q = pick(adults(s, (p) => (p.children || []).some((id) => { const c = s.byId.get(id); return c && c.age >= 6 && c.age < 13; }))); return q && { who: q.id, text: `Get ${nm(q)} to send a child to lessons`, goal: 'send your child to lessons at the chapel' }; },
+    'market warden': (s) => { const q = pick(adults(s, (p) => p.job && s.biz.get(p.job.biz)?.def.sells?.length)); return q && { who: q.id, text: `Get ${nm(q)} to take a market stall`, goal: 'take a stall at the market on market day, for a fee', pay: 3 }; },
+    'horse trader': (s) => { const q = pick(adults(s, (p) => (s.household(p)?.money || 0) > 120)); return q && { who: q.id, text: `Sell ${nm(q)} a horse`, goal: 'buy a horse', pay: 20 }; },
+    'town crier': (s) => { const q = pick(adults(s, (p) => p.traits.includes('social'))); return q && { who: q.id, text: `Get ${nm(q)} to spread the council's notice`, goal: 'tell your neighbours the council\'s notice' }; },
+    guard: (s) => { const c = (s.crimes || []).filter((x) => !x.solved && x.witnesses && x.witnesses.length).pop(); const w = c && s.byId.get(c.witnesses[0].id); return w && w.alive !== false && { who: w.id, text: `Get ${nm(w)} to tell what they saw of the ${c.kind}`, goal: `tell the watch exactly what you saw of the ${c.kind}`, why: 'The watch wants a description.' }; },
+    sergeant: (s) => JOBS.guard(s),
+    'master builder': (s) => { const q = pick(adults(s, (p) => (s.household(p)?.money || 0) > 100)); return q && { who: q.id, text: `Win ${nm(q)} as a customer for the yard`, goal: 'have the builders\' yard do work on your house', pay: 8 }; },
+    steward: (s) => { const q = pick(adults(s, (p) => p.job && /farm|baker|butcher|brew/.test(s.biz.get(p.job.biz)?.type || ''))); return q && { who: q.id, text: `Haggle ${nm(q)} down on supplies`, goal: 'sell to the household at a fairer price', pay: 5 }; },
+    'house agent': (s) => { const q = pick(adults(s)); return q && { who: q.id, text: `Talk ${nm(q)} into taking a house`, goal: 'rent or buy one of the houses the agent has on the books', pay: 6 }; },
+  };
+  O.PERSUADE_JOBS = JOBS;
+  O.extraTasks = (s, bz, e, out) => {
+    if (!O.AI || !O.AI.ready || O.COURT?.has(e.role)) return [];
+    const f = JOBS[e.role]; if (!f || Math.random() < 0.35) return [];
+    const t = f(s, bz, e); if (!t || t.who == null) return [];
+    return [Object.assign({ kind: 'persuade', optional: false }, t)];
+  };
+  // while such a task is open, the person is asked; a yes finishes it and has its effect
+  O.addAsk((q) => {
+    const PS = O.PlayerState, e = PS.emp, s = O.SimRef.cur;
+    if (!e || !e.onShift || e.place !== s.world.placeId) return null;
+    const t = (e.tasks || []).find((x) => x.kind === 'persuade' && x.who === q.id && x.have < x.need); if (!t) return null;
+    return { goal: t.goal, why: t.why, onAgree: () => {
+      const hh = s.household(q), bz = s.biz.get(e.biz);
+      if (t.pay && hh && hh.money >= t.pay) { hh.money -= t.pay; if (bz && bz.def.public) s.treasury.cash += t.pay; else if (bz) bz.cash += t.pay; }
+      if (t.sell && bz && (bz.stock[t.sell] || 0) >= 1 && hh && hh.money >= 3) { const pr = s.price(bz, t.sell); if (hh.money >= pr) { hh.money -= pr; bz.stock[t.sell] -= 1; bz.cash += pr; bz.salesToday += pr; } }
+      if (t.heal && q.health.illness) q.health.illness.sev = Math.max(0, q.health.illness.sev - 0.2);
+      s.remember(q, `Was talked into it: ${t.goal}.`, 'player', 0.7, 0);
+      O.jobEvent && O.jobEvent('persuaded', { q });
+    } };
+  });
+  O.Persuade = { JOBS };
 })();
 
 </script>
@@ -15695,19 +16021,25 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
 
     // ---------------------------------------------------------------- conversation
     const box = document.createElement('div'); box.className = 'dlg'; box.hidden = true;
-    box.innerHTML = '<div class="dlg-name"></div><div class="dlg-text"></div><div class="dlg-next">▼</div>';
+    box.innerHTML = '<div class="dlg-name"></div><div class="dlg-text"></div><div class="dlg-next">▼</div><form class="dlg-say" hidden><input type="text" maxlength="220" autocomplete="off" spellcheck="true" placeholder="Say something..."><button type="submit">Say</button></form>';
     const opts = document.createElement('div'); opts.className = 'dlg-opts'; opts.hidden = true;
     root.append(box, opts);
     const nameEl = box.querySelector('.dlg-name'), textEl = box.querySelector('.dlg-text'), nextEl = box.querySelector('.dlg-next');
+    const sayEl = box.querySelector('.dlg-say'), sayIn = sayEl.querySelector('input');
+    sayEl.onclick = (e) => e.stopPropagation();
+    sayEl.onsubmit = (e) => { e.preventDefault(); const t = sayIn.value.trim(); if (!t || !D || !D.chat || D.busy) return; sayIn.value = ''; D.chat(t); };
+    sayIn.addEventListener('keydown', (e) => { if (e.key === 'Escape') { sayIn.blur(); e.stopPropagation(); } });
     let D = null; // { text, shown, options, onPick, sel }
     function open(o) {
-      D = { text: o.text, shown: 0, options: o.options || [], onPick: o.onPick, sel: 0, onClose: o.onClose };
+      const keepFocus = D && D.chat && o.chat && document.activeElement === sayIn;
+      D = { text: o.text, shown: 0, options: o.options || [], onPick: o.onPick, sel: 0, onClose: o.onClose, chat: o.chat, busy: !!o.busy };
       nameEl.textContent = o.name || ''; nameEl.style.background = o.color || '#c8743a'; nameEl.hidden = !o.name;
-      box.hidden = false; opts.hidden = true; textEl.textContent = ''; nextEl.hidden = true;
+      box.hidden = false; opts.hidden = true; textEl.textContent = ''; nextEl.hidden = true; box.classList.toggle('busy', !!o.busy);
+      sayEl.hidden = !o.chat; sayIn.disabled = !!o.busy; if (o.chat && (keepFocus || o.focus)) setTimeout(() => sayIn.focus(), 0);
       game.player.locked = true;
     }
     function close() {
-      if (!D) return; const cb = D.onClose; D = null; box.hidden = true; opts.hidden = true; game.player.locked = false; cb && cb();
+      if (!D) return; const cb = D.onClose; D = null; box.hidden = true; opts.hidden = true; sayEl.hidden = true; sayIn.value = ''; sayIn.blur(); game.player.locked = false; cb && cb();
     }
     function showOptions() {
       if (!D.options.length) { nextEl.hidden = false; return; }
@@ -15732,7 +16064,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       if (k === 'Escape') { const last = D.options.length - 1; if (last >= 0 && D.shown >= D.text.length) pick(last); else close(); return true; }
       return true; // nothing else happens mid-conversation
     });
-    O.UI.dialog = { open, close, set: (o) => open(Object.assign({ name: nameEl.textContent, color: nameEl.style.background }, o)) };
+    O.UI.dialog = { open, close, set: (o) => open(Object.assign({ name: nameEl.textContent, color: nameEl.style.background }, o)), sayFocus: () => { if (D && D.chat) sayIn.focus(); } };
     O.UI.dialogOpen = () => !!D;
 
     // ---------------------------------------------------------------- touch buttons (phones and tablets)
@@ -17554,6 +17886,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
           if (t.kind === 'talkto' && ((t.who != null && q.id === t.who) || (t.royal && q.royal) || (t.role && t.role.source !== '^$' && t.role.test(q.job?.role || '')))) hit = true;
           if (t.kind === 'talkmany' && !(t.seen || []).includes(q.id) && (!t.inKeep || inKeep) && (!t.inBiz || (game.scene && bz && game.scene.b.id === bz.id))) { (t.seen = t.seen || []).push(q.id); hit = true; }
         }
+        if (type === 'persuaded' && t.kind === 'persuade' && data.q && t.who === data.q.id) hit = true;
         if (type === 'floor' && t.kind === 'visit' && t.floors.includes(data.floor) && !(t.seenF || []).includes(data.floor)) { (t.seenF = t.seenF || []).push(data.floor); hit = true; }
         if (hit) { t.have++; e.stats.tasks++; e.todayTasks = (e.todayTasks || 0) + 1; if (t.have >= t.need) say(`Done: ${t.text.split(':')[0].toLowerCase()}.`); refresh(); if (type !== 'talk') break; }
       }
@@ -17730,6 +18063,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
         if (e.master != null && e.master !== 0 && !out.some((x) => x.kind === 'talkto')) out.push({ id: id(), kind: 'talkto', who: e.master, need: 1, have: 0, text: `Tell ${e.masterName || 'your master'} how the work goes` });
         if (kinds().size < 3) out.push({ id: id(), kind: 'talkmany', need: 2, have: 0, text: ROLE_WORK[e.role]?.filler || (kind === 'make' ? 'Ask around for orders' : 'Talk with the townsfolk') });
       }
+      if (O.extraTasks) for (const t of O.extraTasks(s, bz, e, out) || []) out.push(Object.assign({ id: id(), have: 0, need: 1 }, t));
       return out;
     }
 
@@ -18109,6 +18443,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
         case 'tend': return `Inside ${bz.name}, press E at each sick bed to tend whoever lies in it.`;
         case 'write': return `Press E at ${at === 'your place of work' ? 'the desk' : at} to write up the books.`;
         case 'talkto': return t.who != null ? (() => { const q = s.byId.get(t.who); return q ? `Find ${q.first} and talk to ${q.sex === 'f' ? 'her' : 'him'} (E).${q.agent && q.agent.inside != null && q.agent.inside !== bz.id ? ` ${q.sex === 'f' ? 'She' : 'He'} is in ${s.building(q.agent.inside)?.name || 'a house'} just now.` : ''}` : 'Find them and talk to them (E).'; })() : 'Find them and talk to them (E). In the castle, people keep to their own rooms and halls.';
+        case 'persuade': return (() => { const q = s.byId.get(t.who); if (!q) return 'They have gone.'; const w = q.agent && q.agent.inside != null ? s.building(q.agent.inside) : null; return `Find ${q.first}${w ? ` (in ${w.name || 'a house'} just now)` : ''}, talk (E) and type what you'd say. Win ${q.sex === 'f' ? 'her' : 'him'} round.`; })();
         case 'talkmany': return t.inKeep ? 'Talk to people in the castle (E), one after another.' : t.inBiz ? `Talk to the people who come into ${bz.name} (E).` : 'Talk to people about the town (E).';
         case 'hear': return 'Sit on the throne in the throne room (E on it). Petitioners come up the hall one at a time; hear each one.';
         case 'decree': return 'Open Business (B) and the Crown section: set the tax, pardon, honour someone, order works or call a festivity.';
@@ -23515,10 +23850,13 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.placeName = placeName;
 
   // a new life begins with the character maker; after that, straight into the world
+  // nobody here speaks without a voice to speak with: the game waits for Claude or a key
+  O.AI.gate().then(() => {
   if (!loaded || !O.Forge.created()) {
     PS.money = 0; PS.items = [];
     O.Forge.showCreator((a) => { game.setPlayerAppearance(a); game.start(); setTimeout(() => game.resize(), 0); game.canvas.focus(); setTimeout(() => O.Guide && O.Guide.firstTime(), 400); });
   } else { game.start(); game.canvas.focus(); }
+  });
 })();
 
 </script>

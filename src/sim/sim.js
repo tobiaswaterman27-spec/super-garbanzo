@@ -751,7 +751,7 @@
         if (ws.length) { const pot = Math.floor((bz.cash - 150) * 0.5), each = Math.floor(pot / ws.length); if (each > 0) { for (const w of ws) this.household(w).money += each; bz.cash -= each * ws.length; } }
       }
       bz.history.push({ day: this.day, sales: bz.salesToday }); if (bz.history.length > 14) bz.history.shift();
-      bz.salesToday = 0; bz._shortNoted = false;
+      bz.salesYesterday = bz.salesToday; bz.salesToday = 0; bz._shortNoted = false;
     }
 
     assignDelivery(order) {

@@ -169,8 +169,11 @@
   O.placeName = placeName;
 
   // a new life begins with the character maker; after that, straight into the world
+  // nobody here speaks without a voice to speak with: the game waits for Claude or a key
+  O.AI.gate().then(() => {
   if (!loaded || !O.Forge.created()) {
     PS.money = 0; PS.items = [];
     O.Forge.showCreator((a) => { game.setPlayerAppearance(a); game.start(); setTimeout(() => game.resize(), 0); game.canvas.focus(); setTimeout(() => O.Guide && O.Guide.firstTime(), 400); });
   } else { game.start(); game.canvas.focus(); }
+  });
 })();

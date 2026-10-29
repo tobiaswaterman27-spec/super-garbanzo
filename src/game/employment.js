@@ -146,6 +146,7 @@
           if (t.kind === 'talkto' && ((t.who != null && q.id === t.who) || (t.royal && q.royal) || (t.role && t.role.source !== '^$' && t.role.test(q.job?.role || '')))) hit = true;
           if (t.kind === 'talkmany' && !(t.seen || []).includes(q.id) && (!t.inKeep || inKeep) && (!t.inBiz || (game.scene && bz && game.scene.b.id === bz.id))) { (t.seen = t.seen || []).push(q.id); hit = true; }
         }
+        if (type === 'persuaded' && t.kind === 'persuade' && data.q && t.who === data.q.id) hit = true;
         if (type === 'floor' && t.kind === 'visit' && t.floors.includes(data.floor) && !(t.seenF || []).includes(data.floor)) { (t.seenF = t.seenF || []).push(data.floor); hit = true; }
         if (hit) { t.have++; e.stats.tasks++; e.todayTasks = (e.todayTasks || 0) + 1; if (t.have >= t.need) say(`Done: ${t.text.split(':')[0].toLowerCase()}.`); refresh(); if (type !== 'talk') break; }
       }
@@ -322,6 +323,7 @@
         if (e.master != null && e.master !== 0 && !out.some((x) => x.kind === 'talkto')) out.push({ id: id(), kind: 'talkto', who: e.master, need: 1, have: 0, text: `Tell ${e.masterName || 'your master'} how the work goes` });
         if (kinds().size < 3) out.push({ id: id(), kind: 'talkmany', need: 2, have: 0, text: ROLE_WORK[e.role]?.filler || (kind === 'make' ? 'Ask around for orders' : 'Talk with the townsfolk') });
       }
+      if (O.extraTasks) for (const t of O.extraTasks(s, bz, e, out) || []) out.push(Object.assign({ id: id(), have: 0, need: 1 }, t));
       return out;
     }
 
@@ -701,6 +703,7 @@
         case 'tend': return `Inside ${bz.name}, press E at each sick bed to tend whoever lies in it.`;
         case 'write': return `Press E at ${at === 'your place of work' ? 'the desk' : at} to write up the books.`;
         case 'talkto': return t.who != null ? (() => { const q = s.byId.get(t.who); return q ? `Find ${q.first} and talk to ${q.sex === 'f' ? 'her' : 'him'} (E).${q.agent && q.agent.inside != null && q.agent.inside !== bz.id ? ` ${q.sex === 'f' ? 'She' : 'He'} is in ${s.building(q.agent.inside)?.name || 'a house'} just now.` : ''}` : 'Find them and talk to them (E).'; })() : 'Find them and talk to them (E). In the castle, people keep to their own rooms and halls.';
+        case 'persuade': return (() => { const q = s.byId.get(t.who); if (!q) return 'They have gone.'; const w = q.agent && q.agent.inside != null ? s.building(q.agent.inside) : null; return `Find ${q.first}${w ? ` (in ${w.name || 'a house'} just now)` : ''}, talk (E) and type what you'd say. Win ${q.sex === 'f' ? 'her' : 'him'} round.`; })();
         case 'talkmany': return t.inKeep ? 'Talk to people in the castle (E), one after another.' : t.inBiz ? `Talk to the people who come into ${bz.name} (E).` : 'Talk to people about the town (E).';
         case 'hear': return 'Sit on the throne in the throne room (E on it). Petitioners come up the hall one at a time; hear each one.';
         case 'decree': return 'Open Business (B) and the Crown section: set the tax, pardon, honour someone, order works or call a festivity.';

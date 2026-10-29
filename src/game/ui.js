@@ -58,19 +58,25 @@
 
     // ---------------------------------------------------------------- conversation
     const box = document.createElement('div'); box.className = 'dlg'; box.hidden = true;
-    box.innerHTML = '<div class="dlg-name"></div><div class="dlg-text"></div><div class="dlg-next">▼</div>';
+    box.innerHTML = '<div class="dlg-name"></div><div class="dlg-text"></div><div class="dlg-next">▼</div><form class="dlg-say" hidden><input type="text" maxlength="220" autocomplete="off" spellcheck="true" placeholder="Say something..."><button type="submit">Say</button></form>';
     const opts = document.createElement('div'); opts.className = 'dlg-opts'; opts.hidden = true;
     root.append(box, opts);
     const nameEl = box.querySelector('.dlg-name'), textEl = box.querySelector('.dlg-text'), nextEl = box.querySelector('.dlg-next');
+    const sayEl = box.querySelector('.dlg-say'), sayIn = sayEl.querySelector('input');
+    sayEl.onclick = (e) => e.stopPropagation();
+    sayEl.onsubmit = (e) => { e.preventDefault(); const t = sayIn.value.trim(); if (!t || !D || !D.chat || D.busy) return; sayIn.value = ''; D.chat(t); };
+    sayIn.addEventListener('keydown', (e) => { if (e.key === 'Escape') { sayIn.blur(); e.stopPropagation(); } });
     let D = null; // { text, shown, options, onPick, sel }
     function open(o) {
-      D = { text: o.text, shown: 0, options: o.options || [], onPick: o.onPick, sel: 0, onClose: o.onClose };
+      const keepFocus = D && D.chat && o.chat && document.activeElement === sayIn;
+      D = { text: o.text, shown: 0, options: o.options || [], onPick: o.onPick, sel: 0, onClose: o.onClose, chat: o.chat, busy: !!o.busy };
       nameEl.textContent = o.name || ''; nameEl.style.background = o.color || '#c8743a'; nameEl.hidden = !o.name;
-      box.hidden = false; opts.hidden = true; textEl.textContent = ''; nextEl.hidden = true;
+      box.hidden = false; opts.hidden = true; textEl.textContent = ''; nextEl.hidden = true; box.classList.toggle('busy', !!o.busy);
+      sayEl.hidden = !o.chat; sayIn.disabled = !!o.busy; if (o.chat && (keepFocus || o.focus)) setTimeout(() => sayIn.focus(), 0);
       game.player.locked = true;
     }
     function close() {
-      if (!D) return; const cb = D.onClose; D = null; box.hidden = true; opts.hidden = true; game.player.locked = false; cb && cb();
+      if (!D) return; const cb = D.onClose; D = null; box.hidden = true; opts.hidden = true; sayEl.hidden = true; sayIn.value = ''; sayIn.blur(); game.player.locked = false; cb && cb();
     }
     function showOptions() {
       if (!D.options.length) { nextEl.hidden = false; return; }
@@ -95,7 +101,7 @@
       if (k === 'Escape') { const last = D.options.length - 1; if (last >= 0 && D.shown >= D.text.length) pick(last); else close(); return true; }
       return true; // nothing else happens mid-conversation
     });
-    O.UI.dialog = { open, close, set: (o) => open(Object.assign({ name: nameEl.textContent, color: nameEl.style.background }, o)) };
+    O.UI.dialog = { open, close, set: (o) => open(Object.assign({ name: nameEl.textContent, color: nameEl.style.background }, o)), sayFocus: () => { if (D && D.chat) sayIn.focus(); } };
     O.UI.dialogOpen = () => !!D;
 
     // ---------------------------------------------------------------- touch buttons (phones and tablets)

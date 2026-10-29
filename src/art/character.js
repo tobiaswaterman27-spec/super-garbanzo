@@ -11,7 +11,7 @@
 // Frame size is 32x48. Feet rest on y=45. Directions: 0=down(front) 1=left 2=right 3=up(back).
 'use strict';
 (function () {
-  const FW = 32, FH = 48, GROUND = 45;
+  const FW = 32, FH = 52, GROUND = 49; // (four rows of headroom over the tallest head, hood or hat)
   const P = O.Pal;
   const G = { BACK: 1, LEGS: 2, TORSO: 3, ARMS: 4, HEAD: 5, HAIR: 6, HAT: 7, ITEM: 8, FARLIMB: 9, SKIRT: 10, BACKITEM: 11 };
 
@@ -786,7 +786,7 @@
     // full / long: jaw, chin, sideburns and moustache, mouth left clear
     if (l.ly > 0.56 && l.ly < 0.68 && ax < 0.26 && l.lz > 0.6) return false;
     if (l.ly > 0.44 && l.lz > 0.2) return true;
-    return ax > 0.72 && l.ly > -0.05 && l.lz > -0.25 && l.lz < 0.5;
+    return ax > 0.6 && l.ly > 0.05 && l.lz > 0.08 && l.lz < 0.6; // sideburns: on the cheek, in front of the ear, never round the back
   }
 
   function drawHead(S) {
@@ -986,8 +986,9 @@
       }
       case 'hood': {
         // a cowl round the face that drapes onto the shoulders
+        const rTop = Math.max(H.ry + 0.2, Math.min(H.ry + 1.5, H.cy - 0.4 - 1.2)); // the cowl's crown stays inside the frame, however tall the wearer
         B.shape(H.cx - H.e - 4, H.cy - H.ry - 3, H.cx + H.e + 4, p.shY + 4, (px, py) => {
-          const dx = (px - H.cx) / (H.e + 1.4), dy = (py - (H.cy - 0.4)) / (H.ry + 1.5);
+          const dx = (px - H.cx) / (H.e + 1.4), dy = (py - (H.cy - 0.4)) / (py < H.cy - 0.4 ? rTop : H.ry + 1.5);
           let inH = dx * dx + dy * dy <= 1;
           if (!inH && py > H.cy && py < p.shY + 3.5 && Math.abs(px - H.cx) < H.e + 2.6 - (p.shY + 3.5 - py) * 0.25) inH = true;
           if (!inH) return false;
@@ -1160,8 +1161,8 @@
     budget--;
     if (anim === 'lie') {
       // lying on the ground: the standing frame turned through exactly 90 degrees (pixel-perfect)
-      const src = render(a, 0, 'sleep', 0); c = document.createElement('canvas'); c.width = 48; c.height = 48;
-      const x = c.getContext('2d'); x.translate(2, 47); x.rotate(-Math.PI / 2); x.drawImage(src, 0, 0); c.ox = 24;
+      const src = render(a, 0, 'sleep', 0), sh = FH - 48; c = document.createElement('canvas'); c.width = 48; c.height = 48;
+      const x = c.getContext('2d'); x.translate(2 - sh, 47); x.rotate(-Math.PI / 2); x.drawImage(src, 0, 0); c.ox = 24; // (the empty headroom rows fall off the left edge)
     } else c = render(a, dir, anim in ANIMS ? anim : 'idle', f % (ANIMS[anim]?.frames || 1));
     cache.set(key, c);
     if (cache.size > MAX) cache.delete(cache.keys().next().value);

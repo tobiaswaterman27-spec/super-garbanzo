@@ -787,7 +787,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 // Frame size is 32x48. Feet rest on y=45. Directions: 0=down(front) 1=left 2=right 3=up(back).
 'use strict';
 (function () {
-  const FW = 32, FH = 48, GROUND = 45;
+  const FW = 32, FH = 52, GROUND = 49; // (four rows of headroom over the tallest head, hood or hat)
   const P = O.Pal;
   const G = { BACK: 1, LEGS: 2, TORSO: 3, ARMS: 4, HEAD: 5, HAIR: 6, HAT: 7, ITEM: 8, FARLIMB: 9, SKIRT: 10, BACKITEM: 11 };
 
@@ -1562,7 +1562,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     // full / long: jaw, chin, sideburns and moustache, mouth left clear
     if (l.ly > 0.56 && l.ly < 0.68 && ax < 0.26 && l.lz > 0.6) return false;
     if (l.ly > 0.44 && l.lz > 0.2) return true;
-    return ax > 0.72 && l.ly > -0.05 && l.lz > -0.25 && l.lz < 0.5;
+    return ax > 0.6 && l.ly > 0.05 && l.lz > 0.08 && l.lz < 0.6; // sideburns: on the cheek, in front of the ear, never round the back
   }
 
   function drawHead(S) {
@@ -1762,8 +1762,9 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
       }
       case 'hood': {
         // a cowl round the face that drapes onto the shoulders
+        const rTop = Math.max(H.ry + 0.2, Math.min(H.ry + 1.5, H.cy - 0.4 - 1.2)); // the cowl's crown stays inside the frame, however tall the wearer
         B.shape(H.cx - H.e - 4, H.cy - H.ry - 3, H.cx + H.e + 4, p.shY + 4, (px, py) => {
-          const dx = (px - H.cx) / (H.e + 1.4), dy = (py - (H.cy - 0.4)) / (H.ry + 1.5);
+          const dx = (px - H.cx) / (H.e + 1.4), dy = (py - (H.cy - 0.4)) / (py < H.cy - 0.4 ? rTop : H.ry + 1.5);
           let inH = dx * dx + dy * dy <= 1;
           if (!inH && py > H.cy && py < p.shY + 3.5 && Math.abs(px - H.cx) < H.e + 2.6 - (p.shY + 3.5 - py) * 0.25) inH = true;
           if (!inH) return false;
@@ -1936,8 +1937,8 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     budget--;
     if (anim === 'lie') {
       // lying on the ground: the standing frame turned through exactly 90 degrees (pixel-perfect)
-      const src = render(a, 0, 'sleep', 0); c = document.createElement('canvas'); c.width = 48; c.height = 48;
-      const x = c.getContext('2d'); x.translate(2, 47); x.rotate(-Math.PI / 2); x.drawImage(src, 0, 0); c.ox = 24;
+      const src = render(a, 0, 'sleep', 0), sh = FH - 48; c = document.createElement('canvas'); c.width = 48; c.height = 48;
+      const x = c.getContext('2d'); x.translate(2 - sh, 47); x.rotate(-Math.PI / 2); x.drawImage(src, 0, 0); c.ox = 24; // (the empty headroom rows fall off the left edge)
     } else c = render(a, dir, anim in ANIMS ? anim : 'idle', f % (ANIMS[anim]?.frames || 1));
     cache.set(key, c);
     if (cache.size > MAX) cache.delete(cache.keys().next().value);
@@ -24912,8 +24913,8 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
     let fr = thumbCache.get(key);
     if (!fr) { fr = Ch.frame(O.Creator.appearanceFromSpec(sp), 0, 'idle', 0); if (thumbCache.size > 300) thumbCache.clear(); thumbCache.set(key, fr); }
     const c = document.createElement('canvas'), ctx = c.getContext('2d');
-    if (crop === 'head') { c.width = 60; c.height = 60; ctx.imageSmoothingEnabled = false; ctx.drawImage(fr, 6, 0, 20, 20, 0, 0, 60, 60); }
-    else { c.width = 48; c.height = 72; ctx.imageSmoothingEnabled = false; ctx.drawImage(fr, 0, 0, 32, 48, 0, 0, 48, 72); }
+    if (crop === 'head') { c.width = 60; c.height = 60; ctx.imageSmoothingEnabled = false; ctx.drawImage(fr, 6, Ch.FH - 48, 20, 20, 0, 0, 60, 60); }
+    else { c.width = 48; c.height = 72; ctx.imageSmoothingEnabled = false; ctx.drawImage(fr, 0, Ch.FH - 48, 32, 48, 0, 0, 48, 72); }
     return c;
   }
   function section(title, ...kids) { const d = document.createElement('div'); if (title) { const h = document.createElement('div'); h.className = 'cc-h'; h.textContent = title; d.appendChild(h); } kids.forEach((k) => k && d.appendChild(k)); return d; }
@@ -25012,9 +25013,9 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
     if (turnAt < 0) turnAt = t;
     if (!manual || t - manual > 6000) { if (t - turnAt > 2600) { turn = (turn + 1) % 4; turnAt = t; } }
     pctx.clearRect(0, 0, prev.width, prev.height); pctx.imageSmoothingEnabled = false;
-    const A = Ch.ANIMS.idle, f = Math.floor((t / 1000) * A.fps) % A.frames, sc = 5, x = (200 - 32 * sc) / 2, y = 270 - 48 * sc - 8;
+    const A = Ch.ANIMS.idle, f = Math.floor((t / 1000) * A.fps) % A.frames, sc = 5, x = (200 - 32 * sc) / 2, y = 270 - Ch.FH * sc - 4;
     pctx.fillStyle = 'rgba(120,90,40,.22)'; pctx.beginPath(); pctx.ellipse(100, y + Ch.GROUND * sc, 46, 9, 0, 0, 7); pctx.fill();
-    pctx.drawImage(Ch.frame(player, TURN[turn], 'idle', f), x, y, 32 * sc, 48 * sc);
+    pctx.drawImage(Ch.frame(player, TURN[turn], 'idle', f), x, y, 32 * sc, Ch.FH * sc);
   }
 
   // ---------- crowd ----------
@@ -25048,7 +25049,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
       const x = (i % cols) * 34 + 1, y = Math.floor(i / cols) * 50;
       const A = Ch.ANIMS[c.anim]; const f = (Math.floor((t / 1000) * A.fps) + c.off) % A.frames;
       cctx.save(); cctx.scale(s, s); shadow(cctx, x + 16, y + Ch.GROUND, 14); cctx.restore();
-      cctx.drawImage(Ch.frame(c.a, c.dir, c.anim, f), x * s, y * s, 32 * s, 48 * s);
+      cctx.drawImage(Ch.frame(c.a, c.dir, c.anim, f), x * s, y * s, 32 * s, Ch.FH * s);
     });
   }
 
@@ -25078,7 +25079,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
     all.forEach((a, i) => {
       const x = i * 34 + 1, y = 4;
       fctx.save(); fctx.scale(s, s); shadow(fctx, x + 16, y + Ch.GROUND, 14); fctx.restore();
-      fctx.drawImage(Ch.frame(a, 0, 'idle', f), x * s, y * s, 32 * s, 48 * s);
+      fctx.drawImage(Ch.frame(a, 0, 'idle', f), x * s, y * s, 32 * s, Ch.FH * s);
     });
   }
 

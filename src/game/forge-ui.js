@@ -43,8 +43,8 @@
     let fr = thumbCache.get(key);
     if (!fr) { fr = Ch.frame(O.Creator.appearanceFromSpec(sp), 0, 'idle', 0); if (thumbCache.size > 300) thumbCache.clear(); thumbCache.set(key, fr); }
     const c = document.createElement('canvas'), ctx = c.getContext('2d');
-    if (crop === 'head') { c.width = 60; c.height = 60; ctx.imageSmoothingEnabled = false; ctx.drawImage(fr, 6, 0, 20, 20, 0, 0, 60, 60); }
-    else { c.width = 48; c.height = 72; ctx.imageSmoothingEnabled = false; ctx.drawImage(fr, 0, 0, 32, 48, 0, 0, 48, 72); }
+    if (crop === 'head') { c.width = 60; c.height = 60; ctx.imageSmoothingEnabled = false; ctx.drawImage(fr, 6, Ch.FH - 48, 20, 20, 0, 0, 60, 60); }
+    else { c.width = 48; c.height = 72; ctx.imageSmoothingEnabled = false; ctx.drawImage(fr, 0, Ch.FH - 48, 32, 48, 0, 0, 48, 72); }
     return c;
   }
   function section(title, ...kids) { const d = document.createElement('div'); if (title) { const h = document.createElement('div'); h.className = 'cc-h'; h.textContent = title; d.appendChild(h); } kids.forEach((k) => k && d.appendChild(k)); return d; }
@@ -143,9 +143,9 @@
     if (turnAt < 0) turnAt = t;
     if (!manual || t - manual > 6000) { if (t - turnAt > 2600) { turn = (turn + 1) % 4; turnAt = t; } }
     pctx.clearRect(0, 0, prev.width, prev.height); pctx.imageSmoothingEnabled = false;
-    const A = Ch.ANIMS.idle, f = Math.floor((t / 1000) * A.fps) % A.frames, sc = 5, x = (200 - 32 * sc) / 2, y = 270 - 48 * sc - 8;
+    const A = Ch.ANIMS.idle, f = Math.floor((t / 1000) * A.fps) % A.frames, sc = 5, x = (200 - 32 * sc) / 2, y = 270 - Ch.FH * sc - 4;
     pctx.fillStyle = 'rgba(120,90,40,.22)'; pctx.beginPath(); pctx.ellipse(100, y + Ch.GROUND * sc, 46, 9, 0, 0, 7); pctx.fill();
-    pctx.drawImage(Ch.frame(player, TURN[turn], 'idle', f), x, y, 32 * sc, 48 * sc);
+    pctx.drawImage(Ch.frame(player, TURN[turn], 'idle', f), x, y, 32 * sc, Ch.FH * sc);
   }
 
   // ---------- crowd ----------
@@ -179,7 +179,7 @@
       const x = (i % cols) * 34 + 1, y = Math.floor(i / cols) * 50;
       const A = Ch.ANIMS[c.anim]; const f = (Math.floor((t / 1000) * A.fps) + c.off) % A.frames;
       cctx.save(); cctx.scale(s, s); shadow(cctx, x + 16, y + Ch.GROUND, 14); cctx.restore();
-      cctx.drawImage(Ch.frame(c.a, c.dir, c.anim, f), x * s, y * s, 32 * s, 48 * s);
+      cctx.drawImage(Ch.frame(c.a, c.dir, c.anim, f), x * s, y * s, 32 * s, Ch.FH * s);
     });
   }
 
@@ -209,7 +209,7 @@
     all.forEach((a, i) => {
       const x = i * 34 + 1, y = 4;
       fctx.save(); fctx.scale(s, s); shadow(fctx, x + 16, y + Ch.GROUND, 14); fctx.restore();
-      fctx.drawImage(Ch.frame(a, 0, 'idle', f), x * s, y * s, 32 * s, 48 * s);
+      fctx.drawImage(Ch.frame(a, 0, 'idle', f), x * s, y * s, 32 * s, Ch.FH * s);
     });
   }
 

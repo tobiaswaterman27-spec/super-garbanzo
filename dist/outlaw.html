@@ -931,7 +931,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   // slow ones (breathing, praying, dozing) move at eight frames a second or more
   const CONT = new Set(['walk', 'run', 'carry', 'stretcher', 'bucket']);
   for (const [k, v] of Object.entries(ANIMS)) {
-    v.key = v.frames; v.sub = v.frames <= 1 || k === 'sleep' ? 1 : CONT.has(k) ? 2 : Math.min(4, Math.max(2, Math.ceil(8 / v.fps)));
+    v.key = v.frames; v.sub = v.frames <= 1 || k === 'sleep' || k === 'walk' || k === 'run' ? 1 : CONT.has(k) ? 2 : Math.min(4, Math.max(2, Math.ceil(8 / v.fps)));
     v.frames = v.key * v.sub; v.fps = v.fps * v.sub;
   }
   const lerpDeep = (a, b, t) => {
@@ -1854,10 +1854,18 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   // every appearance has its own key: two people may share a seed (the same name and number in two towns) and must never share frames
   // (held in a WeakMap, never on the object: a saved and reloaded appearance must not bring an old number back)
   let cidN = 0; const cids = new WeakMap(); const cid = (a) => { let k = cids.get(a); if (!k) { k = ++cidN; cids.set(a, k); } return k; };
+  // new frames are drawn a few at a time: past this frame's budget, the nearest frame already drawn stands in
+  let budget = 6; const resetBudget = (n = 6) => { budget = n; };
   function frame(a, dir, anim, f) {
     const key = cid(a) + ':' + a.cacheVer + ':' + dir + anim + f;
     let c = cache.get(key);
     if (c) { cache.delete(key); cache.set(key, c); return c; }
+    if (budget <= 0 && anim !== 'lie') {
+      const A0 = ANIMS[anim], kf = A0 && A0.sub > 1 ? f - (f % A0.sub) : null;
+      const alt = (kf != null && cache.get(cid(a) + ':' + a.cacheVer + ':' + dir + anim + kf)) || cache.get(cid(a) + ':' + a.cacheVer + ':' + dir + anim + 0) || cache.get(cid(a) + ':' + a.cacheVer + ':' + dir + 'idle0');
+      if (alt) return alt;
+    }
+    budget--;
     if (anim === 'lie') {
       // lying on the ground: the standing frame turned through exactly 90 degrees (pixel-perfect)
       const src = render(a, 0, 'sleep', 0); c = document.createElement('canvas'); c.width = 48; c.height = 48;
@@ -1885,7 +1893,7 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
     return { canvas: c, rows, fw: FW, fh: FH };
   }
 
-  O.Char = { makeAppearance, randomGenes, inheritGenes, bodyMetrics, ageStage, outfitFor, render, frame, sheet, invalidate, ANIMS, FW, FH, GROUND, HAIR_STYLES_M, HAIR_STYLES_F, BEARDS, dirOf, dir4, DIRV, hipY, headY };
+  O.Char = { resetBudget, makeAppearance, randomGenes, inheritGenes, bodyMetrics, ageStage, outfitFor, render, frame, sheet, invalidate, ANIMS, FW, FH, GROUND, HAIR_STYLES_M, HAIR_STYLES_F, BEARDS, dirOf, dir4, DIRV, hipY, headY };
   O.dirOf = dirOf; O.dir4 = dir4;
 })();
 
@@ -4505,6 +4513,7 @@ O.bizName = (surname, label) => {
     }
 
     draw() {
+      Ch.resetBudget && Ch.resetBudget(6);
       if (this.scene) { this.scene.draw(this.ctx); for (const h of this.hooks.drawTop) h(this.ctx, this.cam, true); return; }
       const { ctx, cam, vw, vh } = this, w = this.world, T = w.T;
       if (w.chunked) { if (w.island) { ctx.fillStyle = '#30587e'; ctx.fillRect(0, 0, vw, vh); } this.drawChunks(ctx, cam); } else ctx.drawImage(this.ground, cam.x, cam.y, vw, vh, 0, 0, vw, vh);
@@ -12842,6 +12851,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
   const RULES = `Write what happens next in a conversation in a medieval village game. Reply ONLY with JSON:
 {"lines":[{"who":"First name","say":"..."}],"people":{"First name":{"feel":0,"trust":0,"learned":"","caught":false}},"name":"","agree":false,"acts":[]}
 lines: normally 1 line from the person spoken to; 2 or 3 only if others are in the talk and would chime in. say: 1 or 2 short sentences, at most 30 words, fully in character for age, temper, mood and what they are doing now. Plain medieval English, no modern words, perfect spelling and grammar, no dashes, no emoji, nothing in brackets or stars.
+Stay fully in character, always: these are real medieval people, never an AI, assistant, model, character or game; never mention prompts, rules, JSON, games or anything modern, even if the player insists, asks them to stop pretending, or talks of such things (then they are simply puzzled). Each say is only the spoken words, never starting with a name.
 They know only what their card says; asked anything else they don't know, guess vaguely or say so, and never invent people or places in their town. Nonsense confuses them. The suspicious, hostile or untrusting are curt with strangers and doubt claims. The greedy and hostile may lie. Busy people want to get on.
 people: for each person present: feel and trust (-2..2) = how the player's words change their liking and belief; learned = a short new claim from the player they now believe, else ""; caught = true if they now see the player lied before.
 name: the player's name if the player just gave it. agree: true only if they now agree to the pending request.
@@ -12917,17 +12927,25 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
     let leave = false; const notes = [];
     if (Array.isArray(out.acts) && O.NpcActs) for (const a of out.acts.slice(0, 4)) { if (!a || typeof a.do !== 'string') continue; const who = byName(a.who) || q; const res = O.NpcActs.apply(s, who, a, q); if (res === 'leave') leave = true; else if (res) notes.push(res); }
     if (q._offer) { const o = q._offer; q._offer = null; if (r.affinity > -0.2) O.NpcActs && O.NpcActs.keepGift(s, q, o); else O.NpcActs && O.NpcActs.returnGift(q, o); }
-    const shown = lines.slice(0, 3).map((l) => { const who = byName(l.who) || q; return { who, t: clean(l.say) }; });
-    q._lastSpeaker = shown.length === 1 ? shown[0].who : null;
+    const shown = lines.slice(0, 3).map((l) => { const who = byName(l.who) || q; return { who, t: inChar(who, clean(l.say)) }; });
+    q._lastSpeaker = shown[0].who;
     for (const l of shown) conv.push({ who: 'q', by: l.who.first, t: l.t });
     if (conv.length > 16) conv.splice(0, conv.length - 16);
-    const text2 = shown.length === 1 ? shown[0].t : shown.map((l) => `${l.who.first}: ${l.t}`).join('\n');
-    render(text2, false);
+    // in a group each speaks in turn, their own name on the tag
+    render(shown[0].t, false);
+    let delay = 0; for (const l of shown.slice(1)) { delay += 1400 + shown[0].t.length * 35; setTimeout(() => { if (O.npcUI && O.npcUI.talking() === q && !AI.busy) { q._lastSpeaker = l.who; render(l.t, false); } }, delay); }
     if (notes.length) O.UI.say(notes.join(' '));
     if (leave) setTimeout(() => { if (O.npcUI && O.npcUI.talking() === q) { O.npcUI.closeTalk(); } q._snubUntil = s.day * 1440 + s.minute + (r.affinity < -0.2 ? 240 : 30); O.NpcActs && O.NpcActs.walkOff(q); }, 2200);
   }
+  // never a name in front of the words, never a word from outside their world
+  const OUT = /\b(AI|A\.I\.|artificial|assistant|language model|chatbot|bot|prompt|JSON|roleplay|role-play|role play|in character|NPC|video ?game|the game|player character|Claude|OpenAI|Anthropic|ChatGPT|computer|internet)\b/i;
+  function inChar(q, t) {
+    t = String(t || '').replace(/^\s*[A-Z][\w'-]+(?: [A-Z][\w'-]+)?\s*:\s*/, '');
+    if (OUT.test(t)) return confused(q);
+    return t;
+  }
   function reply(q, line, render) {
-    line = clean(line) || '...'; q._lastSpeaker = null;
+    line = inChar(q, clean(line)) || '...'; q._lastSpeaker = null;
     (q._conv = q._conv || []).push({ who: 'q', t: line }); if (q._conv.length > 16) q._conv.splice(0, q._conv.length - 16);
     render(line, false);
   }
@@ -12946,7 +12964,7 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
     if (!AI.ready || q.age < 9) return;
     const prompt = `${RULES}\n\nInstead of talk: ${q.first} has just read a letter from the player and writes a short reply letter (the "say" of one line, 1 to 3 sentences, plain and in character; a poor or rough person writes plainly). Acts like meet still apply; follow, go and leave do not.\n--- ${q.first} ---\n${speechFor(q.age, q.stage)}\n${card(s, q)}\n${extraCard(s, q)}\nNo request is pending: agree is false.\n--- The letter ---\nPlayer: ${String(text).slice(0, 400)}`;
     let out; try { out = await AI.json(prompt); } catch (e) { return; }
-    const line = Array.isArray(out?.lines) && out.lines[0] && out.lines[0].say ? clean(out.lines[0].say) : null;
+    const line = Array.isArray(out?.lines) && out.lines[0] && out.lines[0].say ? inChar(q, clean(out.lines[0].say)) : null;
     const pz = out?.people && (out.people[q.first] || Object.values(out.people)[0]); const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r);
     if (pz) { r.affinity = clamp(r.affinity + clamp(Math.round(+pz.feel || 0), -2, 2) * 0.04, -1, 1); r.trust = clamp((r.trust || 0) + clamp(Math.round(+pz.trust || 0), -2, 2) * 0.05, -1, 1); if (pz.learned) (q.beliefs = q.beliefs || []).unshift({ t: clean(pz.learned).slice(0, 140), src: 'player', day: s.day }); }
     if (out?.name) r.name = clean(out.name).split(' ')[0];
@@ -13296,6 +13314,7 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
       return !(someoneIn && h >= 7 && h < 21);
     }
 
+    const candAt = { t: -1, list: [] };
     function candidates() {
       const p = game.player, out = [];
       if (game.scene) {
@@ -13389,7 +13408,10 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
       // what you're facing comes before what's merely near (the chest in front of you, not the chair beside it)
       const P0 = game.player, fv = O.Char.DIRV[P0.dir] || [0, 1];
       const facing = (c) => { if (c.x == null || c.type === 'npc' || c.type === 'job') return 0; const dx = c.x - P0.x, dy = (c.y + 26) - P0.y, l = Math.hypot(dx, dy) || 1, dot = (dx * fv[0] + dy * fv[1]) / l; return dot > 0.55 ? -4 : dot < -0.3 ? 4 : 0; };
-      const cs = candidates().map((c) => [c, c.d + (game.scene ? facing(c) : 0)]).sort((a, b) => a[1] - b[1]).map((x) => x[0]);
+      // (worked out a few times a second, or at once when you move: not every frame)
+      const mv = Math.hypot(P0.x - (candAt.x ?? -1e9), P0.y - (candAt.y ?? -1e9));
+      if (mv > 3 || game.t - candAt.t > 0.15 || P0.dir !== candAt.dir || game.scene !== candAt.sc) { candAt.list = candidates(); candAt.x = P0.x; candAt.y = P0.y; candAt.t = game.t; candAt.dir = P0.dir; candAt.sc = game.scene; }
+      const cs = candAt.list.map((c) => [c, c.d + (game.scene ? facing(c) : 0)]).sort((a, b) => a[1] - b[1]).map((x) => x[0]);
       cur = cs[0] || null;
       O.interactTarget = cur;
       if (cur) {
@@ -15142,14 +15164,15 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
     const E = O.Eldoria, MS = 3; // three pixels to a map unit
     // the map is painted a few rows at a time from the moment the game starts, so it's ready when you open it
     let job = null;
-    function renderMap(rows = 1e9) {
+    function renderMap(rows = 1e9, budget = 0) {
       if (!job) { const c = document.createElement('canvas'); c.width = E.W * MS; c.height = E.H * MS; const ctx = c.getContext('2d'); job = { c, ctx, img: ctx.createImageData(c.width, c.height), y: 0 }; }
       const { c, ctx, img } = job;
       const P = O.Pal;
       const R = { sea: P.makeRamp('#2e5a7e', 0.6), beach: P.makeRamp('#c8b07a', 0.5), lake: P.makeRamp('#3f6f9a', 0.6), river: P.makeRamp('#4a80b0', 0.5), peak: P.makeRamp('#dfe6ea', 0.4), mountain: P.makeRamp('#8a8478', 0.8),
         forest: P.makeRamp('#3f6a34', 0.7), frost: P.makeRamp('#4f6e5e', 0.6), black: P.makeRamp('#2e4630', 0.7), farm: P.makeRamp('#b0a050', 0.6), grass: P.makeRamp('#6a9a48', 0.6), moor: P.makeRamp('#8a8a5a', 0.6), marsh: P.makeRamp('#5a7a5a', 0.6) };
-      const yEnd = Math.min(c.height, job.y + rows);
-      for (let y = job.y; y < yEnd; y++) for (let x = 0; x < c.width; x++) {
+      const yEnd = Math.min(c.height, job.y + rows), t0 = performance.now();
+      let y = job.y;
+      for (; y < yEnd; y++) { if (budget && performance.now() - t0 > budget) break; for (let x = 0; x < c.width; x++) {
         const mx = x / MS, my = y / MS, t = E.terrainAt(mx, my), n = O.fbm(mx / 3, my / 3, 5, 3), f = O.noise2(x * 0.6, y * 0.6, 2);
         let ramp = R[t] || R.grass, s = n > 0.58 ? 3 : n > 0.42 ? 2 : 1;
         if (t === 'forest') { const g = E.regionAt(mx, my); ramp = g && g.r.cold ? R.frost : g && g.r.dark ? R.black : R.forest; if (f > 0.6) s = (x + y) % 3 ? 1 : 3; }
@@ -15158,8 +15181,8 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
         if (t === 'mountain' || t === 'peak') { s = n > 0.5 ? 3 : 1; if (O.noise2(x * 0.3, y * 0.3, 8) > 0.75) s = t === 'peak' ? 4 : 3; }
         if (f > 0.95) s = Math.min(4, s + 1);
         const col = ramp[s], i = (y * c.width + x) * 4; img.data[i] = col[0]; img.data[i + 1] = col[1]; img.data[i + 2] = col[2]; img.data[i + 3] = 255;
-      }
-      job.y = yEnd; if (job.y < c.height) return null;
+      } }
+      job.y = y; if (job.y < c.height) return null;
       ctx.putImageData(img, 0, 0); job = null;
       // ruins of older times
       for (const r of E.RUINS) { const x = Math.round(r.x * MS), y = Math.round(r.y * MS); ctx.fillStyle = '#1b1424'; ctx.fillRect(x - 2, y - 2, 5, 5); ctx.fillStyle = '#8a8278'; ctx.fillRect(x - 1, y - 1, 3, 3); }
@@ -15268,7 +15291,7 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
       const inner = document.querySelector('.panel-modal .ledger-in'); if (inner) inner.classList.remove('narrow');
     };
     game.keyHandlers.push((e) => { if (e.code === 'KeyM' && !O.panelOpen) { O.openMap(); return true; } return false; });
-    game.hooks.update.push(() => { if (!mapCanvas && !O.panelOpen && game.t > 2) mapCanvas = renderMap(6); });
+    game.hooks.update.push(() => { if (!mapCanvas && !O.panelOpen && game.t > 2) mapCanvas = renderMap(1e9, 1.5); });
   }
   O.KingdomUI = { setup };
 })();
@@ -15431,9 +15454,10 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
     const coming = new WeakSet();
     game.hooks.update.push((dt) => {
       saleT -= dt; const w = game.world, s = O.SimRef.cur; if (saleT > 0 || !w || game.scene || !s || w !== s.world) return; saleT = 1;
+      const signs = new Map(); for (const p of w.props) if (p.kind === 'salesign') signs.set(p.signFor, p);
       for (const b of w.buildings) {
         if (b.doorX == null) continue;
-        const want = forSale(b), has = w.props.find((p) => p.kind === 'salesign' && p.signFor === b.id);
+        const want = forSale(b), has = signs.get(b.id);
         if (want && !has && !coming.has(b)) {
           const near = w._saleSeen && O.Errands.live.size < 2 && Math.hypot(b.doorX * 16 - game.player.x, b.doorY * 16 - game.player.y) < 420, at = O.Signs.spotBy(w, b, 1), q = near && at && putter(s, b);
           // out of sight it's simply there; in sight you watch it go up

@@ -223,7 +223,7 @@
   // slow ones (breathing, praying, dozing) move at eight frames a second or more
   const CONT = new Set(['walk', 'run', 'carry', 'stretcher', 'bucket']);
   for (const [k, v] of Object.entries(ANIMS)) {
-    v.key = v.frames; v.sub = v.frames <= 1 || k === 'sleep' ? 1 : CONT.has(k) ? 2 : Math.min(4, Math.max(2, Math.ceil(8 / v.fps)));
+    v.key = v.frames; v.sub = v.frames <= 1 || k === 'sleep' || k === 'walk' || k === 'run' ? 1 : CONT.has(k) ? 2 : Math.min(4, Math.max(2, Math.ceil(8 / v.fps)));
     v.frames = v.key * v.sub; v.fps = v.fps * v.sub;
   }
   const lerpDeep = (a, b, t) => {
@@ -1146,10 +1146,18 @@
   // every appearance has its own key: two people may share a seed (the same name and number in two towns) and must never share frames
   // (held in a WeakMap, never on the object: a saved and reloaded appearance must not bring an old number back)
   let cidN = 0; const cids = new WeakMap(); const cid = (a) => { let k = cids.get(a); if (!k) { k = ++cidN; cids.set(a, k); } return k; };
+  // new frames are drawn a few at a time: past this frame's budget, the nearest frame already drawn stands in
+  let budget = 6; const resetBudget = (n = 6) => { budget = n; };
   function frame(a, dir, anim, f) {
     const key = cid(a) + ':' + a.cacheVer + ':' + dir + anim + f;
     let c = cache.get(key);
     if (c) { cache.delete(key); cache.set(key, c); return c; }
+    if (budget <= 0 && anim !== 'lie') {
+      const A0 = ANIMS[anim], kf = A0 && A0.sub > 1 ? f - (f % A0.sub) : null;
+      const alt = (kf != null && cache.get(cid(a) + ':' + a.cacheVer + ':' + dir + anim + kf)) || cache.get(cid(a) + ':' + a.cacheVer + ':' + dir + anim + 0) || cache.get(cid(a) + ':' + a.cacheVer + ':' + dir + 'idle0');
+      if (alt) return alt;
+    }
+    budget--;
     if (anim === 'lie') {
       // lying on the ground: the standing frame turned through exactly 90 degrees (pixel-perfect)
       const src = render(a, 0, 'sleep', 0); c = document.createElement('canvas'); c.width = 48; c.height = 48;
@@ -1177,6 +1185,6 @@
     return { canvas: c, rows, fw: FW, fh: FH };
   }
 
-  O.Char = { makeAppearance, randomGenes, inheritGenes, bodyMetrics, ageStage, outfitFor, render, frame, sheet, invalidate, ANIMS, FW, FH, GROUND, HAIR_STYLES_M, HAIR_STYLES_F, BEARDS, dirOf, dir4, DIRV, hipY, headY };
+  O.Char = { resetBudget, makeAppearance, randomGenes, inheritGenes, bodyMetrics, ageStage, outfitFor, render, frame, sheet, invalidate, ANIMS, FW, FH, GROUND, HAIR_STYLES_M, HAIR_STYLES_F, BEARDS, dirOf, dir4, DIRV, hipY, headY };
   O.dirOf = dirOf; O.dir4 = dir4;
 })();

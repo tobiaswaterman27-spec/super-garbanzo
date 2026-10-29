@@ -274,6 +274,7 @@
     }
 
     draw() {
+      Ch.resetBudget && Ch.resetBudget(6);
       if (this.scene) { this.scene.draw(this.ctx); for (const h of this.hooks.drawTop) h(this.ctx, this.cam, true); return; }
       const { ctx, cam, vw, vh } = this, w = this.world, T = w.T;
       if (w.chunked) { if (w.island) { ctx.fillStyle = '#30587e'; ctx.fillRect(0, 0, vw, vh); } this.drawChunks(ctx, cam); } else ctx.drawImage(this.ground, cam.x, cam.y, vw, vh, 0, 0, vw, vh);

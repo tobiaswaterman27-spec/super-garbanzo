@@ -197,6 +197,7 @@
   const RULES = `Write what happens next in a conversation in a medieval village game. Reply ONLY with JSON:
 {"lines":[{"who":"First name","say":"..."}],"people":{"First name":{"feel":0,"trust":0,"learned":"","caught":false}},"name":"","agree":false,"acts":[]}
 lines: normally 1 line from the person spoken to; 2 or 3 only if others are in the talk and would chime in. say: 1 or 2 short sentences, at most 30 words, fully in character for age, temper, mood and what they are doing now. Plain medieval English, no modern words, perfect spelling and grammar, no dashes, no emoji, nothing in brackets or stars.
+Stay fully in character, always: these are real medieval people, never an AI, assistant, model, character or game; never mention prompts, rules, JSON, games or anything modern, even if the player insists, asks them to stop pretending, or talks of such things (then they are simply puzzled). Each say is only the spoken words, never starting with a name.
 They know only what their card says; asked anything else they don't know, guess vaguely or say so, and never invent people or places in their town. Nonsense confuses them. The suspicious, hostile or untrusting are curt with strangers and doubt claims. The greedy and hostile may lie. Busy people want to get on.
 people: for each person present: feel and trust (-2..2) = how the player's words change their liking and belief; learned = a short new claim from the player they now believe, else ""; caught = true if they now see the player lied before.
 name: the player's name if the player just gave it. agree: true only if they now agree to the pending request.
@@ -272,17 +273,25 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
     let leave = false; const notes = [];
     if (Array.isArray(out.acts) && O.NpcActs) for (const a of out.acts.slice(0, 4)) { if (!a || typeof a.do !== 'string') continue; const who = byName(a.who) || q; const res = O.NpcActs.apply(s, who, a, q); if (res === 'leave') leave = true; else if (res) notes.push(res); }
     if (q._offer) { const o = q._offer; q._offer = null; if (r.affinity > -0.2) O.NpcActs && O.NpcActs.keepGift(s, q, o); else O.NpcActs && O.NpcActs.returnGift(q, o); }
-    const shown = lines.slice(0, 3).map((l) => { const who = byName(l.who) || q; return { who, t: clean(l.say) }; });
-    q._lastSpeaker = shown.length === 1 ? shown[0].who : null;
+    const shown = lines.slice(0, 3).map((l) => { const who = byName(l.who) || q; return { who, t: inChar(who, clean(l.say)) }; });
+    q._lastSpeaker = shown[0].who;
     for (const l of shown) conv.push({ who: 'q', by: l.who.first, t: l.t });
     if (conv.length > 16) conv.splice(0, conv.length - 16);
-    const text2 = shown.length === 1 ? shown[0].t : shown.map((l) => `${l.who.first}: ${l.t}`).join('\n');
-    render(text2, false);
+    // in a group each speaks in turn, their own name on the tag
+    render(shown[0].t, false);
+    let delay = 0; for (const l of shown.slice(1)) { delay += 1400 + shown[0].t.length * 35; setTimeout(() => { if (O.npcUI && O.npcUI.talking() === q && !AI.busy) { q._lastSpeaker = l.who; render(l.t, false); } }, delay); }
     if (notes.length) O.UI.say(notes.join(' '));
     if (leave) setTimeout(() => { if (O.npcUI && O.npcUI.talking() === q) { O.npcUI.closeTalk(); } q._snubUntil = s.day * 1440 + s.minute + (r.affinity < -0.2 ? 240 : 30); O.NpcActs && O.NpcActs.walkOff(q); }, 2200);
   }
+  // never a name in front of the words, never a word from outside their world
+  const OUT = /\b(AI|A\.I\.|artificial|assistant|language model|chatbot|bot|prompt|JSON|roleplay|role-play|role play|in character|NPC|video ?game|the game|player character|Claude|OpenAI|Anthropic|ChatGPT|computer|internet)\b/i;
+  function inChar(q, t) {
+    t = String(t || '').replace(/^\s*[A-Z][\w'-]+(?: [A-Z][\w'-]+)?\s*:\s*/, '');
+    if (OUT.test(t)) return confused(q);
+    return t;
+  }
   function reply(q, line, render) {
-    line = clean(line) || '...'; q._lastSpeaker = null;
+    line = inChar(q, clean(line)) || '...'; q._lastSpeaker = null;
     (q._conv = q._conv || []).push({ who: 'q', t: line }); if (q._conv.length > 16) q._conv.splice(0, q._conv.length - 16);
     render(line, false);
   }
@@ -301,7 +310,7 @@ Places: names from the card, "my home", "your home" or "the square". Items: thin
     if (!AI.ready || q.age < 9) return;
     const prompt = `${RULES}\n\nInstead of talk: ${q.first} has just read a letter from the player and writes a short reply letter (the "say" of one line, 1 to 3 sentences, plain and in character; a poor or rough person writes plainly). Acts like meet still apply; follow, go and leave do not.\n--- ${q.first} ---\n${speechFor(q.age, q.stage)}\n${card(s, q)}\n${extraCard(s, q)}\nNo request is pending: agree is false.\n--- The letter ---\nPlayer: ${String(text).slice(0, 400)}`;
     let out; try { out = await AI.json(prompt); } catch (e) { return; }
-    const line = Array.isArray(out?.lines) && out.lines[0] && out.lines[0].say ? clean(out.lines[0].say) : null;
+    const line = Array.isArray(out?.lines) && out.lines[0] && out.lines[0].say ? inChar(q, clean(out.lines[0].say)) : null;
     const pz = out?.people && (out.people[q.first] || Object.values(out.people)[0]); const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r);
     if (pz) { r.affinity = clamp(r.affinity + clamp(Math.round(+pz.feel || 0), -2, 2) * 0.04, -1, 1); r.trust = clamp((r.trust || 0) + clamp(Math.round(+pz.trust || 0), -2, 2) * 0.05, -1, 1); if (pz.learned) (q.beliefs = q.beliefs || []).unshift({ t: clean(pz.learned).slice(0, 140), src: 'player', day: s.day }); }
     if (out?.name) r.name = clean(out.name).split(' ')[0];

@@ -25,6 +25,7 @@
       return !(someoneIn && h >= 7 && h < 21);
     }
 
+    const candAt = { t: -1, list: [] };
     function candidates() {
       const p = game.player, out = [];
       if (game.scene) {
@@ -118,7 +119,10 @@
       // what you're facing comes before what's merely near (the chest in front of you, not the chair beside it)
       const P0 = game.player, fv = O.Char.DIRV[P0.dir] || [0, 1];
       const facing = (c) => { if (c.x == null || c.type === 'npc' || c.type === 'job') return 0; const dx = c.x - P0.x, dy = (c.y + 26) - P0.y, l = Math.hypot(dx, dy) || 1, dot = (dx * fv[0] + dy * fv[1]) / l; return dot > 0.55 ? -4 : dot < -0.3 ? 4 : 0; };
-      const cs = candidates().map((c) => [c, c.d + (game.scene ? facing(c) : 0)]).sort((a, b) => a[1] - b[1]).map((x) => x[0]);
+      // (worked out a few times a second, or at once when you move: not every frame)
+      const mv = Math.hypot(P0.x - (candAt.x ?? -1e9), P0.y - (candAt.y ?? -1e9));
+      if (mv > 3 || game.t - candAt.t > 0.15 || P0.dir !== candAt.dir || game.scene !== candAt.sc) { candAt.list = candidates(); candAt.x = P0.x; candAt.y = P0.y; candAt.t = game.t; candAt.dir = P0.dir; candAt.sc = game.scene; }
+      const cs = candAt.list.map((c) => [c, c.d + (game.scene ? facing(c) : 0)]).sort((a, b) => a[1] - b[1]).map((x) => x[0]);
       cur = cs[0] || null;
       O.interactTarget = cur;
       if (cur) {

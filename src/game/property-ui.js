@@ -39,9 +39,10 @@
     const coming = new WeakSet();
     game.hooks.update.push((dt) => {
       saleT -= dt; const w = game.world, s = O.SimRef.cur; if (saleT > 0 || !w || game.scene || !s || w !== s.world) return; saleT = 1;
+      const signs = new Map(); for (const p of w.props) if (p.kind === 'salesign') signs.set(p.signFor, p);
       for (const b of w.buildings) {
         if (b.doorX == null) continue;
-        const want = forSale(b), has = w.props.find((p) => p.kind === 'salesign' && p.signFor === b.id);
+        const want = forSale(b), has = signs.get(b.id);
         if (want && !has && !coming.has(b)) {
           const near = w._saleSeen && O.Errands.live.size < 2 && Math.hypot(b.doorX * 16 - game.player.x, b.doorY * 16 - game.player.y) < 420, at = O.Signs.spotBy(w, b, 1), q = near && at && putter(s, b);
           // out of sight it's simply there; in sight you watch it go up

@@ -174,7 +174,7 @@
         const across = Math.abs(side[0]) > 0.5, gx = sx + (across ? 0 : -12), gy = hy + hf.gy + (across ? 7 : 0);
         const e = u * u * (3 - 2 * u);
         sx = Math.round(gx + (sx - gx) * e); sy = Math.round(gy - O.Char.GROUND + hip + (sy - (gy - O.Char.GROUND + hip)) * e - Math.sin(u * Math.PI) * 6);
-        if (u < 0.35) rframe = O.Char.frame(a.a, a.dir, 'open', 1);
+        if (u < 0.35) rframe = O.Char.frame(a.a, a.dir, 'open', O.Char.ANIMS.open.sub);
       }
       ctx.drawImage(hf, hx, hy);
       ctx.drawImage(rframe, Math.round(sx - 16), Math.round(sy - hip));

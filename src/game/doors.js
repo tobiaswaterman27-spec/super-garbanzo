@@ -84,7 +84,7 @@
         const u = Math.min(1, w.t / w.dur), base = r.y + r.h;
         const fy = w.mode === 'in' ? base + 6 - u * 13 : base - 7 + u * 15;
         const dir = w.mode === 'in' ? 3 : 0;
-        const fr = O.Char.frame(w.a, dir, 'walk', Math.floor(w.t * 11) % 8);
+        const fr = O.Char.frame(w.a, dir, 'walk', Math.floor(w.t * O.Char.ANIMS.walk.fps) % O.Char.ANIMS.walk.frames);
         const fx = Math.round(r.x + r.w / 2 - 16 - cam.x), fyy = Math.round(fy - O.Char.GROUND - cam.y);
         ctx.save();
         if (fy < base) { ctx.beginPath(); ctx.rect(x, y, r.w, 400); ctx.clip(); }

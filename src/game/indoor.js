@@ -307,11 +307,29 @@
         const pi = sp.pillows ? sp.pillows[Math.min(sp.pillows.length - 1, Math.floor(k))] : [0, -20];
         const hc = q._headCanvas && q._headApp === q.app && q._headVer === q.app.cacheVer ? q._headCanvas : (q._headCanvas = this.headOf(q), q._headApp = q.app, q._headVer = q.app.cacheVer, q._headCanvas);
         let px = ax + pi[0] + (k === 0.5 ? 5 : 0), py = ay + pi[1];
-        if (it.kind === 'bed' && it.rot) { // head on the pillow at the wall end, turned on its side
-          ctx.save(); ctx.translate(Math.round(px - cam.x), Math.round(py - cam.y)); ctx.rotate(it.rot === 1 ? -Math.PI / 2 : Math.PI / 2); ctx.drawImage(hc, -10, -hc.cy - 1); ctx.restore();
-        } else ctx.drawImage(hc, Math.round(px - 10 - cam.x), Math.round(py - hc.cy + 3 - cam.y));
+        // the body under the blanket rises and falls with each breath; now and then a sleeper rolls over
+        const sid = q.id < 0 ? 3 : q.id, br = Math.sin(this.t * 2.1 + sid * 1.7) > 0.15 ? 1 : 0, roll = Math.floor((this.t + sid * 7) / 23) % 2 === 1;
+        const small = (q.app && q.app.age < 10) ? 0.6 : 1;
+        if (it.kind === 'bed' && it.rot) {
+          const dirx = it.rot === 1 ? 1 : -1, bx = Math.round(px - cam.x), by = Math.round(py - cam.y);
+          ctx.fillStyle = 'rgba(0,0,0,0.16)'; ctx.fillRect(bx + dirx * 6 - (dirx < 0 ? 18 * small : 0), by + 3, Math.round(18 * small), 2);
+          ctx.fillStyle = 'rgba(255,255,255,0.13)'; ctx.fillRect(bx + dirx * 6 - (dirx < 0 ? 16 * small : 0), by - 4 - br, Math.round(16 * small), 1);
+          ctx.save(); ctx.translate(bx, by); ctx.rotate(it.rot === 1 ? -Math.PI / 2 : Math.PI / 2); if (roll) ctx.scale(-1, 1); ctx.drawImage(hc, -10, -hc.cy - 1); ctx.restore();
+        } else {
+          const bx = Math.round(px - cam.x), by = Math.round(py - cam.y), hw = Math.round(5 * small), hl = Math.round(14 * small);
+          ctx.fillStyle = 'rgba(0,0,0,0.15)'; ctx.fillRect(bx - hw - 1, by + 7, 1, hl); ctx.fillRect(bx + hw, by + 7, 1, hl);
+          ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(bx - hw + 1, by + 7 - br, hw * 2 - 2, 1); ctx.fillRect(bx - hw, by + 8 - br, 1, 2);
+          ctx.fillStyle = 'rgba(0,0,0,0.10)'; ctx.fillRect(bx - hw + 1, by + 8 + hl - 2, hw * 2 - 2, 1);
+          if (roll) { ctx.save(); ctx.translate(bx, 0); ctx.scale(-1, 1); ctx.drawImage(hc, -10, Math.round(py - hc.cy + 3 - cam.y)); ctx.restore(); }
+          else ctx.drawImage(hc, bx - 10, Math.round(py - hc.cy + 3 - cam.y));
+        }
         // drifting Zs over whoever is fast asleep
-        if (q.activity?.act !== 'labour' && (q.id === -1 || (q.id + Math.floor(this.t)) % 3 === 0)) { const zt = (this.t * 0.6 + (q.id & 7) * 0.13) % 1; ctx.globalAlpha = 1 - zt; ctx.fillStyle = '#e8e4f0'; const zx = Math.round(px + 6 + zt * 6 - cam.x), zy = Math.round(py - 12 - zt * 12 - cam.y); ctx.fillRect(zx, zy, 3, 1); ctx.fillRect(zx + 1, zy + 1, 1, 1); ctx.fillRect(zx, zy + 2, 3, 1); ctx.globalAlpha = 1; }
+        if (q.activity?.act !== 'labour') for (let n = 0; n < 2; n++) {
+          const zt = (this.t * 0.45 + (sid & 7) * 0.13 + n * 0.5) % 1, sz = zt < 0.4 ? 3 : 5, zx = Math.round(px + 7 + zt * 8 + Math.sin(zt * 6.3) * 2 - cam.x), zy = Math.round(py - 10 - zt * 16 - cam.y);
+          ctx.globalAlpha = (q.id === -1 ? 0.95 : 0.7) * Math.min(1, (1 - zt) * 1.6, zt * 6); ctx.fillStyle = '#eceaf6';
+          ctx.fillRect(zx, zy, sz, 1); for (let d = 1; d < sz - 1; d++) ctx.fillRect(zx + sz - 1 - d, zy + d, 1, 1); ctx.fillRect(zx, zy + sz - 1, sz, 1);
+          ctx.globalAlpha = 1;
+        }
       }
     }
 

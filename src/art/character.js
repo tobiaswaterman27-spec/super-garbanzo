@@ -216,6 +216,26 @@
     shake: { frames: 2, fps: 6 }, place: { frames: 3, fps: 4 }, count: { frames: 4, fps: 3 }, bucket: { frames: 8, fps: 10 }, mix: { frames: 4, fps: 4 },
   };
 
+  // smoother motion: every animation keeps its key poses and gains blended steps between them, so even
+  // slow ones (breathing, praying, dozing) move at eight frames a second or more
+  const CONT = new Set(['walk', 'run', 'carry', 'stretcher', 'bucket']);
+  for (const [k, v] of Object.entries(ANIMS)) {
+    v.key = v.frames; v.sub = v.frames <= 1 || k === 'sleep' ? 1 : CONT.has(k) ? 2 : Math.min(4, Math.max(2, Math.ceil(8 / v.fps)));
+    v.frames = v.key * v.sub; v.fps = v.fps * v.sub;
+  }
+  const lerpDeep = (a, b, t) => {
+    if (typeof a === 'number' && typeof b === 'number') return a + (b - a) * t;
+    if (Array.isArray(a) && Array.isArray(b) && a.length === b.length) return a.map((x, i) => lerpDeep(x, b[i], t));
+    if (a && b && typeof a === 'object' && typeof b === 'object' && !Array.isArray(a)) { const o = {}; for (const k of Object.keys(a)) o[k] = k in b ? lerpDeep(a[k], b[k], t) : a[k]; return o; }
+    return t < 0.5 ? a : b;
+  };
+  function poseAt(m, anim, f, a) {
+    const A0 = ANIMS[anim]; if (!A0 || A0.sub <= 1) return pose(m, anim, f, a);
+    const kf = f / A0.sub; if (CONT.has(anim)) return pose(m, anim, kf, a);
+    const i = Math.floor(kf), t = kf - i; if (t === 0) return pose(m, anim, i, a);
+    return lerpDeep(pose(m, anim, i, a), pose(m, anim, (i + 1) % A0.key, a), t);
+  }
+
   // Two-bone reach: the elbow (or knee) bends toward `pole`.
   function ik(a, target, l1, l2, pole) {
     let d = sub(target, a); let dl = len3(d);
@@ -229,7 +249,7 @@
 
   // Joints in body space for one frame. Every animation is defined once and projected to all 8 views.
   function pose(m, anim, f, a) {
-    const nF = ANIMS[anim]?.frames || 1, ph = (f / nF) * Math.PI * 2;
+    const nF = ANIMS[anim]?.key || 1, ph = (f / nF) * Math.PI * 2;
     const P = { anim, f, mouth: 0, blink: false, lean: 0, headFwd: 0, headDown: 0, bob: 0, held: null, toolDir: null };
     const thigh = m.leg * 0.5, shin = m.leg * 0.5 - 0.4, hh = m.hipW / 2 - m.legR * 0.85, shHalf = m.shW / 2 - m.limbR * 0.55;
     // legs: swing (+ forward), knee bend, sideways spread
@@ -424,7 +444,7 @@
   // The frame is assembled back to front: hair and cloak behind, the far leg and arm, the body,
   // the head, then the near arm and whatever it holds.
   function render(a, dir, anim, f) {
-    const m = bodyMetrics(a), V = viewOf(dir), p = pose(m, anim, f, a);
+    const m = bodyMetrics(a), V = viewOf(dir), p = poseAt(m, anim, f, a);
     const B = new O.MatBuffer(FW, FH); B.mirror = V.mirror;
     const cov = coverage(a), o = a.outfit;
     const S = { a, m, V, p, cov, o, B };
@@ -1098,7 +1118,7 @@
   // ---------- Sprite sheet cache ----------
   // Frames are generated lazily and kept in a bounded LRU so thousands of NPCs can exist while only
   // the nearby ones hold pixel data.
-  const cache = new Map(); const MAX = 8000;
+  const cache = new Map(); const MAX = 16000;
   // every appearance has its own key: two people may share a seed (the same name and number in two towns) and must never share frames
   // (held in a WeakMap, never on the object: a saved and reloaded appearance must not bring an old number back)
   let cidN = 0; const cids = new WeakMap(); const cid = (a) => { let k = cids.get(a); if (!k) { k = ++cidN; cids.set(a, k); } return k; };

@@ -13235,6 +13235,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     { const wl = O.weddingLine && O.weddingLine(s, q); if (wl) lines.push(wl); }
     { const fl = O.familyLine && O.familyLine(s, q); if (fl) lines.push(fl); }
     { const tl = O.tailorLine && O.tailorLine(s, q); if (tl) lines.push(tl); }
+    for (const f of [O.marketLine, O.grudgeLine, O.renownLine, O.dayLine]) { const t = f && f(s, q); if (t) lines.push(t); }
     { const of = q._offers || []; if (of.length) lines.push(`What you can do for the player here, if they ask for it in any words (act offer with the key): ${of.map((x) => `${x.key} = ${x.label}`).join('; ')}.`); }
     { const pl = O.petLine && O.petLine(s, q); if (pl) lines.push(pl + ' If your animal has young and you like someone a great deal, you might give them one (give_pet).'); }
     { const P = O.PlayerState, w = P.wantedLevel ? P.wantedLevel() : 0; if (w > 0 && /guard|watch|sergeant|constable|captain/.test(q.job?.role || '')) { const n = s.crimes.filter((c) => c.perp === 'player' && c.investigated && !c.closed).length; lines.push(`The watch are looking for someone who matches them${P.soughtFor ? ' (' + P.soughtFor() + ')' : ''}. ${q.traits.includes('honest') || q.traits.includes('loyal') ? 'You cannot be bought.' : `You might take a bribe of ${12 + n * 8} aurins or more to forget it.`}`); } }
@@ -13297,7 +13298,7 @@ Only what's real: never mention objects, chores or happenings that aren't in you
 Keep your word: anything a speaker says they will do now (go somewhere, come along, show the way, follow, fetch, give, take someone on) MUST be in acts, or it won't happen; and never say you'll do what you won't.
 Talks end: when the talk has run its course (goodbyes said, the matter settled, nothing more to say, or they have somewhere to be), the person says a short parting line and adds the act leave. Don't drag a talk out.
 acts: only what a speaker truly agrees to or does, each {"who":"First name","do":...}:
-meet {"place","hour":0-23,"day":"today"|"tomorrow"|weekday,"why"} | follow (they come along with the player, wherever the player goes) | lead {"place"?} (the player comes along with them: they carry on where they were going, or to the place, and wait if the player falls behind; use this when the player says they will come with them) | stop (stop following) | go {"place"} (go there now) | invite (let the player into their home today) | give {"item"} (hand over something they have) | want {"item"} (ask the player for something) | take_gift | refuse_gift | take_job (accept the player's own job when offered) | seek_job {"place"} | tell {"to","msg"} (pass a message to someone they know) | like {"of","by":-1 or 1} (think better or worse of someone after what was said) | call {"who"} (call someone near or in the same house over to join the talk, even across the room) | ask {"who","question"} (go and ask someone in the house or near, privately, then come back with the answer) | show {"place"} (walk the player there) | direct {"place"} (tell the player the way to a place, in words, when they ask where something is) | sell {"item","price"} (sell the player something they have, at an agreed price in aurins) | buy {"item","price"} (buy something the player carries) | lend {"amount"} (lend the player money, to be paid back) | gesture {"kind":"hug"|"handshake"|"bow"|"wave"|"dance"|"cry"|"laugh"} | teach (show the player a little of their trade) | introduce {"who"} (call someone over and name them) | hire_on (agree to work for the player's own business) | join_gang (join the player's gang) | gang_in (a gang member agrees to take the player into their gang) | gang_work (a gang member gives the player the gang's next job, when they ask for work) | hire_player (the master takes the player on, when the card says there's a place) | errand {"item","to","reward"} (give the player something of theirs to take to someone they know, for a few aurins) | want {"item","reward"} also may offer a reward in aurins | court (agree to court, walk out with, the player) | betroth {"day"?,"hour"?} (agree to marry the player; the wedding is set at the chapel, on the day they settle on) | name_child {"name"} (the player's spouse agrees to the name the player gives their new baby) | offer {"key"} (do one of the things your card says you can do for the player, when they ask) | fit_clothes (a tailor at work measures the player for new clothes) | give_pet (give the player a pup or kitten of your own animal's litter) | set_wedding {"day","hour"} (the betrothed agree to move the wedding) | wedding_guest {"who"?} (the speaker accepts the player's invitation to the wedding, or agrees to pass the invitation to someone they know, who is then bidden) | part (break off a courtship, betrothal or marriage) | fight (go for the player) | flee (run from the player) | leave (end the talk and walk off: rude player, busy, bored, or done). If a speaker says they are off somewhere now, add a go act for it (or leave).
+meet {"place","hour":0-23,"day":"today"|"tomorrow"|weekday,"why"} | follow (they come along with the player, wherever the player goes) | lead {"place"?} (the player comes along with them: they carry on where they were going, or to the place, and wait if the player falls behind; use this when the player says they will come with them) | stop (stop following) | go {"place"} (go there now) | invite (let the player into their home today) | give {"item"} (hand over something they have) | want {"item"} (ask the player for something) | take_gift | refuse_gift | take_job (accept the player's own job when offered) | seek_job {"place"} | tell {"to","msg"} (pass a message to someone they know) | like {"of","by":-1 or 1} (think better or worse of someone after what was said) | call {"who"} (call someone near or in the same house over to join the talk, even across the room) | ask {"who","question"} (go and ask someone in the house or near, privately, then come back with the answer) | show {"place"} (walk the player there) | direct {"place"} (tell the player the way to a place, in words, when they ask where something is) | sell {"item","price"} (sell the player something they have, at an agreed price in aurins) | buy {"item","price"} (buy something the player carries) | lend {"amount"} (lend the player money, to be paid back) | gesture {"kind":"hug"|"handshake"|"bow"|"wave"|"dance"|"cry"|"laugh"} | teach (show the player a little of their trade) | introduce {"who"} (call someone over and name them) | hire_on (agree to work for the player's own business) | join_gang (join the player's gang) | gang_in (a gang member agrees to take the player into their gang) | gang_work (a gang member gives the player the gang's next job, when they ask for work) | hire_player (the master takes the player on, when the card says there's a place) | errand {"item","to","reward"} (give the player something of theirs to take to someone they know, for a few aurins) | want {"item","reward"} also may offer a reward in aurins | court (agree to court, walk out with, the player) | betroth {"day"?,"hour"?} (agree to marry the player; the wedding is set at the chapel, on the day they settle on) | name_child {"name"} (the player's spouse agrees to the name the player gives their new baby) | offer {"key"} (do one of the things your card says you can do for the player, when they ask) | fit_clothes (a tailor at work measures the player for new clothes) | give_pet (give the player a pup or kitten of your own animal's litter) | set_wedding {"day","hour"} (the betrothed agree to move the wedding) | wedding_guest {"who"?} (the speaker accepts the player's invitation to the wedding, or agrees to pass the invitation to someone they know, who is then bidden) | part (break off a courtship, betrothal or marriage) | grudge {"why"} (the player has truly wronged the speaker, and they will hold it against them) | forgive (the speaker lets go of a grudge against the player, after real amends) | set_prices {"level":"cheap"|"fair"|"dear"} (only the player's own staff, told to change the shop's prices) | fight (go for the player) | flee (run from the player) | leave (end the talk and walk off: rude player, busy, bored, or done). If a speaker says they are off somewhere now, add a go act for it (or leave).
 They know where their family and friends are just now (the card says); a stranger at the door is not invited in on a whim, and they don't promise to ask someone who is right there: they call them or ask them.\nPlaces: names from the card, "my home", "your home" or "the square". Items: things the speaker has, or the player carries.`;
   const G = () => O.Data.GOODS;
   function goodsHad(s, q) {
@@ -14542,6 +14543,304 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     O.Family = { born, nameChild };
   }
   O.FamilySetup = { setup };
+})();
+
+</script>
+<script>
+// Buying and selling, and the people behind the counter. Every shop sets its own prices: dear, fair or
+// cheap (yours you set yourself, in the Business tab or by telling your staff). Households keep to the
+// shop they know, but not at any price: if a rival is much cheaper they go there instead, and say so.
+// A shopkeeper losing custom to a rival undercuts them; if that rival is you, they bear you a grudge.
+// And the year matters: when the harvest fails there is dearth, bread dear for weeks, the poor going
+// hungry and some of them stealing; when it comes in well there is plenty, and bread is cheap.
+'use strict';
+(function () {
+  const FOOD = new Set(['bread', 'flour', 'wheat', 'cabbage', 'eggs', 'cheese', 'meat', 'fish', 'ale']);
+  const LEVELS = { cheap: 0.8, fair: 1, dear: 1.25 };
+  const levelOf = (m) => (m <= 0.88 ? 'cheap' : m >= 1.15 ? 'dear' : 'fair');
+  const mine = (bz) => !!(bz && (bz.ownerPlayer || (bz.b && bz.b.owner && bz.b.owner.kind === 'player')));
+  O.Market = { mine, LEVELS, levelOf };
+  function setup(game) {
+    const SP = O.Sim.prototype, PS = O.PlayerState, cur = () => O.SimRef.cur, G = () => O.Data.GOODS;
+    const nm = (g) => (G()[g]?.name || g).toLowerCase();
+    const times = (s) => (s.dearth && s.day <= s.dearth.until ? 'dearth' : s.plenty && s.day <= s.plenty.until ? 'plenty' : null);
+
+    // the shop's own prices, and the year's
+    const _price = SP.price;
+    SP.price = function (bz, good) {
+      let p = _price.call(this, bz, good) * (bz.markup || 1);
+      const t = FOOD.has(good) ? times(this) : null; if (t === 'dearth') p *= ['bread', 'flour', 'wheat'].includes(good) ? 1.8 : 1.3; else if (t === 'plenty') p *= 0.8;
+      return Math.max(1, Math.round(p));
+    };
+
+    // where a household goes for something: the shop they know, unless another is much cheaper
+    const _need = SP.shoppingNeed;
+    SP.shoppingNeed = function (hh) {
+      const need = _need.call(this, hh); if (!need) return need;
+      const bz0 = this.biz.get(need.biz); if (!bz0) return need;
+      const alts = [...this.biz.values()].filter((z) => z.type === bz0.type && z.open && (z.stock[need.good] || 0) >= 1 && z.b && z.b.doorX != null);
+      if (alts.length < 2) return need;
+      hh.fav = hh.fav || {}; const fav = hh.fav[bz0.type];
+      const score = (z) => this.price(z, need.good) * (z.id === fav ? 0.8 : 1) * (z.owner != null && hh.members.includes(z.owner) ? 0.5 : 1);
+      const best = alts.sort((a, b) => score(a) - score(b))[0];
+      if (fav != null && best.id !== fav) {
+        const old = this.biz.get(fav), who = hh.members.map((id) => this.byId.get(id)).find((p) => p && p.age >= 16);
+        if (old && who) this.remember(who, `Went to ${best.name} for ${nm(need.good)} instead of ${old.name}: ₳${this.price(best, need.good)} against ₳${this.price(old, need.good)}.`, 'economy', 0.7);
+      }
+      hh.fav[bz0.type] = best.id;
+      return Object.assign({}, need, { biz: best.id });
+    };
+
+    // each morning a shopkeeper looks at the takings beside the rival's, and moves their prices
+    const _nd = SP.newDay;
+    SP.newDay = function () {
+      const r = _nd.apply(this, arguments);
+      const byType = new Map();
+      for (const bz of this.biz.values()) { if (bz.def.public || !bz.def.sells || !bz.def.sells.length) continue; (byType.get(bz.type) || byType.set(bz.type, []).get(bz.type)).push(bz); }
+      for (const list of byType.values()) {
+        for (const bz of list) {
+          if (mine(bz)) continue; const owner = this.byId.get(bz.owner); if (!owner) continue;
+          const rival = list.filter((z) => z !== bz).sort((a, b) => (b.salesYesterday || 0) - (a.salesYesterday || 0))[0];
+          const m = bz.markup || 1;
+          if (rival && (rival.salesYesterday || 0) > (bz.salesYesterday || 0) * 1.4 + 4 && (rival.markup || 1) <= m) {
+            bz.markup = Math.max(0.72, m - 0.07);
+            this.remember(owner, `${rival.name} is taking my custom. I've brought my prices down to match.`, 'economy', 1);
+            if (mine(rival)) { O.grudge && O.grudge(this, owner, `your shop, ${rival.name}, undercuts mine and steals my custom`, 0.2); }
+            else { const ro = this.byId.get(rival.owner); if (ro) this.relate(owner, ro, -0.08); }
+          } else if (!rival || (bz.salesYesterday || 0) >= (rival.salesYesterday || 0)) {
+            const greedy = this.has(owner, 'greedy'); bz.markup = Math.min(greedy || !rival ? 1.2 : 1.05, m + 0.03);
+          }
+        }
+      }
+      // the year: dearth and plenty run their course, and hard times bring hunger and theft
+      if (this.harvestFailed != null && this.day - this.harvestFailed <= 1 && !(this.dearth && this.dearth.since === this.harvestFailed)) this.dearth = { since: this.harvestFailed, until: this.harvestFailed + 21 };
+      if (times(this) === 'dearth') {
+        const bake = this.supplierOf('bakery', 'bread'), price = bake ? this.price(bake, 'bread') : 0;
+        for (const hh of this.households || []) {
+          if (hh.money > 25) continue; const who = hh.members.map((id) => this.byId.get(id)).filter((p) => p && p.alive !== false);
+          for (const p of who) { p.needs && (p.needs.hunger = Math.max(0, (p.needs.hunger ?? 60) - 15)); if (p.age >= 6 && this.rng.chance(0.4)) this.remember(p, `We go hungry. Bread is ₳${price} a loaf since the harvest failed.`, 'hardship', 0.8); }
+          const thief = who.find((p) => p.age >= 16 && p.age < 60 && !this.has(p, 'honest') && !p.job);
+          if (thief && bake && (bake.stock.bread || 0) >= 3 && this.rng.chance(0.08)) {
+            bake.stock.bread -= 2; hh.pantry.bread = (hh.pantry.bread || 0) + 2;
+            this.recordCrime && this.recordCrime({ kind: 'theft', perp: thief, placeName: bake.name, tile: [bake.b.doorX, bake.b.doorY], seen: [], severity: 1 });
+            this.remember(thief, `Took two loaves from ${bake.name}. The children had to eat.`, 'crime', 1.2);
+            this.log(`Bread was taken from ${bake.name} in the night. Hard times make thieves.`, 'crime');
+          }
+        }
+        if (this.day === this.dearth.until) this.log('The worst of the dearth is past. Bread is coming down in price.', 'economy');
+      }
+      return r;
+    };
+    // a good year: the barns full and bread cheap
+    let rolled = -1;
+    game.hooks.update.push(() => {
+      const s = cur(); if (!s || !s.weather || s.season !== 'autumn' || s.weather.dayOfSeason !== 9 || s.hour < 9 || rolled === s.day) return; rolled = s.day;
+      if (s.harvestFailed === s.day) return;
+      if (O.RNG(O.hash('plenty', s.world.placeId || 'x', s.day)).chance(0.3)) { s.plenty = { since: s.day, until: s.day + 14 }; s.log('A fine harvest: the barns are full and bread is cheap this autumn.', 'economy'); }
+    });
+
+    // what they know of it, for their card
+    O.marketLine = (s, q) => {
+      const out = [], t = times(s), bake = s.supplierOf('bakery', 'bread');
+      if (t === 'dearth') out.push(`Hard times: the harvest failed ${(n => n < 2 ? 'just now' : n + ' days ago')(s.day - s.dearth.since)} and bread is dear${bake ? ` (₳${s.price(bake, 'bread')} a loaf)` : ''}; the poor go hungry.`);
+      if (t === 'plenty') out.push(`A good harvest this year: food is plentiful and cheap${bake ? ` (bread ₳${s.price(bake, 'bread')})` : ''}.`);
+      const bz = q.job && s.biz.get(q.job.biz);
+      if (bz && bz.def.sells && bz.def.sells.length && !bz.def.public) {
+        const rivals = [...s.biz.values()].filter((z) => z !== bz && z.type === bz.type);
+        out.push(`${bz.name}'s prices are ${levelOf(bz.markup || 1)}${rivals.length ? `; its rival${rivals.length > 1 ? 's' : ''} in town: ${rivals.map((z) => `${z.name} (${levelOf(z.markup || 1)}, ${z.owner === 0 || mine(z) ? "the player's shop" : 'owned by ' + (s.byId.get(z.owner)?.first || 'someone')})`).join(', ')}` : ''}.`);
+        if (mine(bz)) out.push(`You work for the player, who owns ${bz.name}. If they tell you to make the prices cheaper, fairer or dearer, do it (set_prices {"level":"cheap"|"fair"|"dear"}).`);
+      }
+      const hh = s.household(q); if (hh && hh.fav && q.age >= 14) { const f = Object.values(hh.fav).map((id) => s.biz.get(id)).filter(Boolean).map((z) => z.name); if (f.length) out.push(`Your household buys from: ${f.join(', ')}.`); }
+      return out.join(' ');
+    };
+    // telling your staff to change the prices
+    const base = O.NpcActs.apply;
+    O.NpcActs.apply = function (s, q, a, main) {
+      if (a && a.do === 'set_prices') { const bz = q.job && s.biz.get(q.job.biz), m = LEVELS[String(a.level || '').toLowerCase()]; if (!bz || !mine(bz) || !m) return null; bz.markup = m; return `${bz.name}'s prices are now ${levelOf(m)}.`; }
+      return base.apply(this, arguments);
+    };
+  }
+  O.MarketSetup = { setup };
+})();
+
+</script>
+<script>
+// Grudges, and your name on the road. Wrong someone (jilt them, rob them, beat them, take their custom)
+// and they bear you a grudge: cold to you, quick to run you down to their friends, and now and then they
+// come and have it out with you. Real amends (in your own words) and they may forgive; otherwise it
+// fades only slowly. And what you do doesn't stay where you did it: travellers carry it, and in a few
+// days the next town has heard, some of them anyway, and talks of it.
+'use strict';
+(function () {
+  function setup(game) {
+    const SP = O.Sim.prototype, PS = O.PlayerState, cur = () => O.SimRef.cur, clamp = O.clamp;
+    const relOf = (q) => { const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r); return r; };
+
+    O.grudge = (s, q, why, amt = 0.3) => {
+      if (!q || q.alive === false || q.age < 8) return;
+      const g = q.grudge && q.grudge.level > 0.05 ? q.grudge : (q.grudge = { why, day: s.day, level: 0 });
+      g.level = Math.min(1, g.level + amt); g.why = why; g.day = s.day;
+      const r = relOf(q); r.affinity = clamp(r.affinity - amt * 0.5, -1, 1);
+    };
+    // the wrongs: anything they remember of you that cut deep
+    const _rem = SP.remember;
+    SP.remember = function (p, text, kind, strength, about) {
+      _rem.apply(this, arguments);
+      if (kind === 'player' && typeof about === 'number' && about <= -0.5) O.grudge(this, p, text.replace(/\.$/, ''), Math.min(0.6, -about * 0.5));
+      if ((kind === 'crime' || kind === 'theft') && /stranger|newcomer|player/i.test(text) && (strength || 1) >= 1) O.grudge(this, p, text.replace(/\.$/, ''), 0.25);
+    };
+    // each day: a grudge spreads among friends, and slowly cools
+    const _nd = SP.newDay;
+    SP.newDay = function () {
+      const r = _nd.apply(this, arguments);
+      for (const p of this.people) {
+        const g = p.grudge; if (!g) continue;
+        g.level -= 0.015; if (g.level <= 0.05) { p.grudge = null; continue; }
+        if (g.level > 0.3 && this.rng.chance(0.3)) {
+          const fr = [...p.rel.entries()].filter(([id, x]) => id !== 0 && x.affinity > 0.3).map(([id]) => this.byId.get(id)).filter((z) => z && z.alive !== false);
+          const z = fr[Math.floor(this.rng.next() * fr.length)];
+          if (z && !(z.beliefs || []).some((b) => b.grudge === p.id)) { (z.beliefs = z.beliefs || []).unshift({ t: `${p.first} has no good word for the stranger: ${g.why}.`, src: 'friend', from: p.first, day: this.day, grudge: p.id }); relOf(z).affinity = clamp(relOf(z).affinity - 0.04, -1, 1); }
+        }
+      }
+      return r;
+    };
+    O.grudgeLine = (s, q) => {
+      const g = q.grudge; if (!g || g.level <= 0.05) return '';
+      const how = g.level > 0.6 ? 'a bitter grudge' : g.level > 0.3 ? 'a grudge' : 'a lingering grudge';
+      return `You bear the player ${how}, since ${s.day - g.day < 1 ? 'today' : s.day - g.day + ' days ago'}: ${g.why}. You are cold to them, may refuse to deal with them, and speak ill of them; only if they make real amends (a true apology, putting it right, a fitting gift) do you let it go (forgive). If they wrong you again in talk, grudge {"why"}.`;
+    };
+    // having it out with you
+    let at = 0;
+    game.hooks.update.push((dt) => {
+      at -= dt; if (at > 0) return; at = 4;
+      const s = cur(); if (!s || !O.npcUI || O.npcUI.talking() || O.panelOpen || O.UI.dialogOpen() || game.sleepState || game.scene) return;
+      const p = game.player;
+      for (const q of s.people) {
+        const g = q.grudge; if (!g || g.level < 0.5 || g.faced === s.day || q.agent.hidden || q.agent.inside != null || q.age < 14 || q.activity?.act === 'sleep') continue;
+        if (Math.hypot(q.agent.x - p.x, q.agent.y - p.y) > 70 || Math.random() > 0.12) continue;
+        g.faced = s.day; O.npcUI.startFrom(q, "I've not forgotten what you did to me.");
+        return;
+      }
+    });
+    const base = O.NpcActs.apply;
+    O.NpcActs.apply = function (s, q, a, main) {
+      if (a && a.do === 'grudge') { O.grudge(s, q, String(a.why || 'the way they spoke to me').slice(0, 120), 0.3); return null; }
+      if (a && a.do === 'forgive') { if (!q.grudge) return null; q.grudge = null; const r = relOf(q); r.affinity = clamp(r.affinity + 0.1, -1, 1); s.remember(q, 'Made it up with the stranger.', 'player', 1, 0.3); return `${q.first} lets the old grudge go.`; }
+      return base.apply(this, arguments);
+    };
+
+    // ---------------------------------------------------------------- your name on the road
+    const deeds = () => (PS.deeds = PS.deeds || []);
+    const _log = SP.log;
+    SP.log = function (text, kind) {
+      _log.apply(this, arguments);
+      if (kind === 'weather' || !this.world) return;
+      const nm = O.Forge && O.Forge.player && O.Forge.player.name;
+      if (/\b(the )?(stranger|newcomer)('s)?\b/i.test(text) || (nm && text.includes(nm))) {
+        const D = deeds(); if (D.some((d) => d.t === text)) return;
+        D.push({ t: text, day: this.day, place: this.world.placeId, from: this.world.name, i: (D.length ? D[D.length - 1].i : 0) + 1 }); if (D.length > 40) D.shift();
+      }
+    };
+    O.renownLine = (s, q) => {
+      if (q.age < 10) return '';
+      const here = s.world.placeId, heard = [];
+      for (const d of deeds().slice().reverse()) {
+        const local = d.place === here, delay = local ? 0 : 1 + (O.hash('road', d.i, here) % 4);
+        if (s.day < d.day + delay) continue;
+        const odds = local ? 65 : 30 + (q.job && /merchant|innkeeper|carter|crier|guard/.test(q.job.role) ? 30 : 0);
+        if (O.hash('heard', d.i, q.id) % 100 >= odds) continue;
+        heard.push(local ? d.t : `${d.t} (word from ${d.from})`); if (heard.length >= 3) break;
+      }
+      return heard.length ? `What you have heard of the player (who may be "the stranger" or "the newcomer" in the telling): ${heard.join(' ')}` : '';
+    };
+  }
+  O.GrudgesSetup = { setup };
+})();
+
+</script>
+<script>
+// The shape of a day, and the sky over each town. The chapel bell rings at six, noon and six, and at
+// the noon Angelus the devout stop in the street and bow their heads; at nine the curfew bell tells the
+// town to cover its fires and go in, and the watch calls it. In the morning someone from each house
+// fetches water from the well. People mind the weather without fuss: a fine evening brings them out to
+// sit at their doors, a hot noon sends them into the shade, cold and wet keep them in. And every town
+// has its own sky: the north is colder and snowier, the south warmer, each with its own weather.
+'use strict';
+(function () {
+  // the land's lie: how far north or south a place is, from 0 (north) to 1 (south)
+  O.climateOf = (placeId) => {
+    try { const p = O.Island.data().place(placeId); const H = (O.Eldoria && O.Eldoria.H) || 100; if (!p) return null; const y = O.clamp(p.y / H, 0, 1); return { south: y, cold: y < 0.33, warm: y > 0.66 }; } catch (e) { return null; }
+  };
+  // each town its own weather, from its own seed, leaning with its climate
+  { const W = O.Weather.prototype, _hourly = W.hourly;
+    W.hourly = function () {
+      if (!this._own && this.sim && this.sim.world) { this._own = true; this.rng = O.RNG(O.hash('sky', this.sim.world.placeId || this.sim.world.name || 'x')); this.climate = O.climateOf(this.sim.world.placeId); }
+      const was = this.kind; _hourly.call(this);
+      const C = this.climate; if (!C || this.forced || this.kind === was) return;
+      if (C.cold && this.kind === 'heat') this.kind = 'clear';
+      else if (C.cold && this.kind === 'rain' && (this.season === 'winter' || this.season === 'autumn') && this.rng.chance(0.4)) this.kind = 'snow';
+      else if (C.warm && this.kind === 'snow' && this.rng.chance(0.7)) this.kind = 'rain';
+      else if (C.warm && this.kind === 'clear' && this.season === 'summer' && this.rng.chance(0.3)) this.kind = 'heat';
+    }; }
+
+  function setup(game) {
+    const SP = O.Sim.prototype, cur = () => O.SimRef.cur;
+    // what people do with the weather and the hour (only nudges: work, worship and duty come first)
+    const _plan = SP.plan;
+    SP.plan = function (p) {
+      const a = _plan.call(this, p); if (!a || p.age < 14 || !this.weather) return a;
+      const h = this.hour, W = this.weather, free = ['home', 'stroll', 'sit', 'idle', 'socialise'].includes(a.act), hh = this.household(p);
+      // fetching water: one from each house, first thing
+      if (a.act === 'home' && h >= 6.2 && h < 6.9 && hh && hh.members.find((id) => { const z = this.byId.get(id); return z && z.age >= 12 && z.age < 60; }) === p.id && !this.raining) return { act: 'stroll', outdoor: true, zone: 'square', water: true };
+      // after curfew, the street empties
+      if (h >= 21 && a.outdoor && free && !p.gang) return { act: 'home', b: p.home };
+      if (!free) return a;
+      // a fine evening: out on the doorstep
+      if (a.act === 'home' && h >= 17.5 && h < 20.5 && (W.kind === 'clear' || W.kind === 'heat') && this.season !== 'winter' && (p.id + this.day) % 3 === 0) return { act: 'stroll', outdoor: true, zone: 'home' };
+      // the heat of noon: into the shade (indoors, or the benches under the trees)
+      if (a.outdoor && W.kind === 'heat' && h >= 12 && h < 15) return p.stage === 'elder' ? { act: 'sit', outdoor: true, zone: 'bench' } : { act: 'home', b: p.home };
+      // bitter cold: no loitering
+      if (a.outdoor && (W.kind === 'snow' || (this.season === 'winter' && W.kind !== 'clear')) && (p.id + this.day) % 2 === 0) return { act: 'home', b: p.home };
+      // a soft drizzle doesn't keep everyone in
+      return a;
+    };
+
+    // the bells
+    let lastH = -1;
+    game.hooks.update.push(() => {
+      const s = cur(); if (!s || !s.world) return;
+      const h = Math.floor(s.minute / 60); if (h === lastH) return; const was = lastH; lastH = h; if (was < 0) return;
+      const church = [...s.biz.values()].some((z) => z.type === 'chapel' || z.type === 'church');
+      const inside = !!game.scene, vol = inside ? 0.35 : 0.8;
+      if (church && (h === 6 || h === 12 || h === 18)) {
+        O.Sound && O.Sound.play('bell', h === 12 ? 3 : 2, vol);
+        if (h === 12) angelus(s);
+      }
+      if (h === 21) {
+        if (church) O.Sound && O.Sound.play('bell', 4, vol * 0.8);
+        const P = game.player, w = s.people.filter((q) => /guard|watch|constable/.test(q.job?.role || '') && !q.agent.hidden && q.agent.inside == null).sort((a, b) => Math.hypot(a.agent.x - P.x, a.agent.y - P.y) - Math.hypot(b.agent.x - P.x, b.agent.y - P.y))[0];
+        if (w && O.Speech && !inside) O.Speech.say(w, 'Curfew! Cover your fires and get you home!', 4, 'shout');
+      }
+    });
+    // the Angelus: the devout stop where they are and bow their heads
+    function angelus(s) {
+      const P = game.player, near = game.scene ? [...game.scene.actors.values()].map((a) => a.person).filter(Boolean) : s.people.filter((q) => !q.agent.hidden && q.agent.inside == null && Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < 260);
+      for (const q of near) {
+        if (q.age < 7 || q.alive === false || q.agent.frozen || q.activity?.act === 'sleep') continue;
+        const devout = s.has(q, 'pious') || q.stage === 'elder' || /priest|nun|monk|friar|clerk/.test(q.job?.role || '');
+        if (Math.random() < (devout ? 0.85 : 0.35)) O.gesture && O.gesture(q, 'pray', 2.6 + Math.random());
+      }
+    }
+    // what they make of the day and the sky, for their card
+    O.dayLine = (s, q) => {
+      const W = s.weather; if (!W) return '';
+      const C = O.climateOf(s.world.placeId), out = [];
+      if (C) out.push(C.cold ? 'You live in the cold north: hard winters, snow is common.' : C.warm ? 'You live in the mild south: warm summers, snow is rare.' : '');
+      const h = s.hour; if (h >= 21 || h < 5) out.push('It is after curfew: decent folk are indoors, fires covered.');
+      return out.filter(Boolean).join(' ');
+    };
+  }
+  O.RitualsSetup = { setup };
 })();
 
 </script>
@@ -22702,7 +23001,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       if (O.crowned && O.crowned()) { const k = O.SimRef.home.kingdom; secs.crown.push(`<h3>The Crown</h3><div class="kv"><div><span class="lbl">Royal treasury</span><b>${money(k.treasury)}</b></div><div><span class="lbl">Crown tax</span><b>${Math.round(k.taxRate * 100)}%</b></div><div><span class="lbl">War</span><b>${k.war?.phase === 'war' ? 'At war' : 'At peace'}</b></div></div><div class="topics">${['realm', 'justice', 'honours', 'works', 'fest', 'war'].map((t) => `<button data-crown="${t}">${{ realm: 'The realm', justice: 'Justice', honours: 'Honours', works: 'Works', fest: 'Festivities and guests', war: 'War and peace' }[t]}</button>`).join('')}</div>`); }
       for (const { b, s: bs, bz } of mine) {
         const staff = bz.workers.map((id) => bs.byId.get(id)).filter(Boolean);
-        secs.own.push(`<h3>${esc(bz.name)} <small class="lbl">${esc(bs.world.name)}, yours</small></h3><div class="kv"><div><span class="lbl">In the till</span><b>${money(bz.cash)}</b></div><div><span class="lbl">Sold today</span><b>${money(bz.salesToday || 0)}</b></div><div><span class="lbl">Staff</span><b>${staff.length}</b><small>${staff.slice(0, 5).map((q) => esc(q.first + ' (' + q.job.role + ')')).join(', ')}</small></div><div><span class="lbl">Your profits so far</span><b>${money(PS.bizIncome || 0)}</b></div></div><div class="topics"><button data-run="${bs.world.placeId}:${b.id}">Manage ${esc(bz.name)}</button></div>`);
+        secs.own.push(`<h3>${esc(bz.name)} <small class="lbl">${esc(bs.world.name)}, yours</small></h3><div class="kv"><div><span class="lbl">In the till</span><b>${money(bz.cash)}</b></div><div><span class="lbl">Sold today</span><b>${money(bz.salesToday || 0)}</b></div><div><span class="lbl">Staff</span><b>${staff.length}</b><small>${staff.slice(0, 5).map((q) => esc(q.first + ' (' + q.job.role + ')')).join(', ')}</small></div><div><span class="lbl">Your profits so far</span><b>${money(PS.bizIncome || 0)}</b></div></div><div class="topics"><button data-run="${bs.world.placeId}:${b.id}">Manage ${esc(bz.name)}</button></div>${bz.def.sells && bz.def.sells.length ? `<div class="topics"><span class="lbl">Prices</span>${['cheap', 'fair', 'dear'].map((l) => `<button data-mark="${bs.world.placeId}:${b.id}:${l}" class="${O.Market.levelOf(bz.markup || 1) === l ? 'hot' : ''}">${{ cheap: 'Cheap', fair: 'Fair', dear: 'Dear' }[l]}</button>`).join('')}</div>` : ''}`);
       }
       posts.forEach((e, i) => {
         const es = simOf(e), bz = es.world.placeId === e.place ? es.biz.get(e.biz) : null, royal = ROYAL.includes(e.role), boss = !royal && e.master != null && es.byId.get(e.master), st = e.stats || {};
@@ -22736,6 +23035,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
         O.bindWarTab && O.bindWarTab(r, open);
         r.querySelectorAll('[data-crown]').forEach((b) => b.onclick = () => O.openCrown(b.dataset.crown));
         r.querySelectorAll('[data-run]').forEach((b) => b.onclick = () => { const [pl, id] = b.dataset.run.split(':'); const v = O.Travel.visited.get(pl); const bb = v && v.world.buildings.find((x) => x.id === +id); if (bb && pl === s.world.placeId) O.runBusiness(bb); else say('You can only manage it from where it is.', 'bad'); });
+        r.querySelectorAll('[data-mark]').forEach((b) => b.onclick = () => { const [pl, id, l] = b.dataset.mark.split(':'); const e = (O.myBusinesses ? O.myBusinesses() : []).find((x) => x.s.world.placeId === pl && x.b.id === +id), bz = e && e.bz; if (bz) { bz.markup = O.Market.LEVELS[l]; say(`${bz.name}'s prices are now ${l}.`); open(); } });
         r.querySelectorAll('[data-off]').forEach((b) => b.onclick = () => askOff(posts[+b.dataset.off]));
         r.querySelectorAll('[data-raise]').forEach((b) => b.onclick = () => { const e = posts[+b.dataset.raise]; if (b.dataset.how === 'letter') PS.remove('letter'); askRaise(e, b.dataset.how === 'letter' ? 'letter' : 'word'); });
         const pb = r.querySelector('[data-party]'); if (pb) pb.onclick = () => {
@@ -26010,7 +26310,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.RisingSetup.setup(game, npcUI);
   O.RitesSetup.setup(game);
   O.WarfareSetup.setup(game, npcUI);
-  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.NpcActsSetup.setup(game); O.InitiateSetup.setup(game); O.UnderworldSetup.setup(game); O.CourtshipSetup.setup(game); O.FencesSetup.setup(game); O.FamilySetup.setup(game); O.PetsSetup.setup(game); O.FavoursSetup.setup(game);
+  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.NpcActsSetup.setup(game); O.InitiateSetup.setup(game); O.UnderworldSetup.setup(game); O.CourtshipSetup.setup(game); O.FencesSetup.setup(game); O.FamilySetup.setup(game); O.PetsSetup.setup(game); O.FavoursSetup.setup(game); O.MarketSetup.setup(game); O.GrudgesSetup.setup(game); O.RitualsSetup.setup(game);
   O.FinerySetup.setup(game);
   O.PastimesSetup.setup(game);
   O.FishingSetup.setup(game);

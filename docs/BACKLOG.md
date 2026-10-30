@@ -430,3 +430,14 @@ Every job and every level of it, royal family and titles included, grouped under
 - [ ] Resource-based economy
 - [ ] NPCs "disappearing" still not reproduced
 
+
+## Batch AC (after row 103)
+
+- [x] Free speech for everything, NPCs doing what they say, errands and jobs from talk (row 104)
+- [x] OpenAI key at any time; thinking dots always; black screen recovery (row 105)
+- [x] Merchant life: prices, favourite shops, rivals undercutting, staff told in talk (row 106)
+- [x] Seasons and harvests: dearth, hunger, theft, plenty (row 106)
+- [x] Rivals with grudges; reputation travels between towns (row 107)
+- [x] Daily rituals and subtle weather by local climate (row 107)
+- [ ] Resource-based economy
+- [ ] NPCs "disappearing" still not reproduced

@@ -459,6 +459,22 @@
         }
         familyQuarters();
         break;
+      case 'abbey': case 'priory': {
+        // below, the church with the relic on its altar; above, the dormitory and the scriptorium
+        const mid = Math.floor(w / 2);
+        if (floor === 0) {
+          put('altar', mid - 2, 1, { work: ['abbot', 'abbess', 'prioress', 'monk', 'nun'], candles: true, relic: true });
+          for (const x of [mid - 4, mid + 3]) tryPut('candlestand', [[x, 1]]);
+          const pw = Math.floor((w - 4) / 2);
+          for (let y = 5; y <= d - 4; y += 2) { put('pew', 1, y, { pew: true, width: pw, seats: pw }); put('pew', w - 1 - pw, y, { pew: true, width: pw, seats: pw }); }
+          put('chest', 0, 0, { valuables: true, alms: true });
+        } else {
+          for (let i = 0; i < 6; i++) tryPut('bed', backWall(2, true), { bed: true, slots: 1, v: 0 }) || tryPut('bed', leftWall(3, 2), { bed: true, slots: 1, v: 0, rot: 1 });
+          for (let i = 0; i < 3; i++) tryPut('desk', nearWalls(2, 1), { work: ['monk', 'nun', 'abbot', 'abbess', 'prioress'] });
+          tryPut('shelf', backWall(2, true)); tryPut('chest', nearWalls(2, 1)); tryPut('candlestand', nearWalls());
+        }
+        break;
+      }
       case 'chapel': {
         // everything mirrors about the aisle: the altar and its cross on the centre line, the candlesticks
         // and the two blocks of pews either side

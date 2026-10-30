@@ -4352,6 +4352,8 @@ O.bizName = (surname, label) => {
     if (town) list.push(...TOWN_TRADES.slice(0, big ? 16 : 11));
     else if (village) list.push('posthouse', 'brewery', 'carrier');
     list.push('apiary', 'lodge', 'charcoal', 'claypit', 'saltworks', 'peatcut', 'vineyard', 'boatyard', 'fishery', 'ferry');
+    if ((town || village) && O.hash('abbey', pl.id) % 3 === 0) list.push(O.hash('order', pl.id) % 2 ? 'abbey' : 'priory'); // (a house of monks or nuns in the quiet country)
+    if (kind === 'port' || kind === 'city' || kind === 'capital') list.push('harbour');
     // a big place needs more than one of the common employers, so its people have work
     if (big) list.push('carrier', 'laundry', 'ropewalk', 'brickworks', 'carpenter', 'tailor', 'brewery', 'butcher');
     else if (town) list.push('carrier', 'laundry', 'carpenter');
@@ -4426,6 +4428,8 @@ O.bizName = (surname, label) => {
       const surname = O.Names ? rng.pick(O.Names.SUR) : 'Ward';
       const lk = Object.assign({ wall: 'timber', roof: 'thatch' }, def.look || LOOK2[type] || {});
       const b = build(type, w, d, lk, (['posthouse', 'tollhouse', 'townhall', 'guard', 'morgue', 'hospital', 'school', 'gaol'].includes(type) || def.public) ? `${pl.name} ${def.label}` : O.bizName(surname, def.label), best[0], best[1], { floors: def.floors || lk.floors || 1 });
+      if ((type === 'abbey' || type === 'priory') && O.relicOf) b.name = `${def.label} of St. ${O.relicOf(b).saint}`;
+      if (type === 'harbour') b.name = `${pl.name} Harbour`;
       lane(b.doorX, b.doorY + 1);
       // a cottage nearby for the hands
       for (const [dx, dy] of [[w + 3, 0], [-7, 0], [0, 7], [w + 3, 6], [-7, 6]]) { const cx = best[0] + dx, cy = best[1] + dy; if (fits(cx, cy, 4, 3)) { const hb = build('house', 4, 3, { wall: rng.pick(['timber', 'plank', 'stone']), roof: rng.pick(['thatch', 'shingle']), chimney: true, doorTile: 1 }, 'Cottage', cx, cy); lane(hb.doorX, hb.doorY + 1); break; } }
@@ -11833,6 +11837,22 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
         }
         familyQuarters();
         break;
+      case 'abbey': case 'priory': {
+        // below, the church with the relic on its altar; above, the dormitory and the scriptorium
+        const mid = Math.floor(w / 2);
+        if (floor === 0) {
+          put('altar', mid - 2, 1, { work: ['abbot', 'abbess', 'prioress', 'monk', 'nun'], candles: true, relic: true });
+          for (const x of [mid - 4, mid + 3]) tryPut('candlestand', [[x, 1]]);
+          const pw = Math.floor((w - 4) / 2);
+          for (let y = 5; y <= d - 4; y += 2) { put('pew', 1, y, { pew: true, width: pw, seats: pw }); put('pew', w - 1 - pw, y, { pew: true, width: pw, seats: pw }); }
+          put('chest', 0, 0, { valuables: true, alms: true });
+        } else {
+          for (let i = 0; i < 6; i++) tryPut('bed', backWall(2, true), { bed: true, slots: 1, v: 0 }) || tryPut('bed', leftWall(3, 2), { bed: true, slots: 1, v: 0, rot: 1 });
+          for (let i = 0; i < 3; i++) tryPut('desk', nearWalls(2, 1), { work: ['monk', 'nun', 'abbot', 'abbess', 'prioress'] });
+          tryPut('shelf', backWall(2, true)); tryPut('chest', nearWalls(2, 1)); tryPut('candlestand', nearWalls());
+        }
+        break;
+      }
       case 'chapel': {
         // everything mirrors about the aisle: the altar and its cross on the centre line, the candlesticks
         // and the two blocks of pews either side
@@ -16155,6 +16175,222 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     O.Politics = { houses, startSiege, assault };
   }
   O.PoliticsSetup = { setup };
+})();
+
+</script>
+<script>
+// The Church. Out in the quiet country round many towns stands an abbey of monks or a priory of nuns:
+// a stone church below with its relic on the altar, and above, the dormitory and the scriptorium. They
+// brew, keep bees and herbs, copy books, pray the hours, and take in those who'd join them. Each holds a
+// relic of its saint, and pilgrims walk the roads to pray before it; so can you, and come away blessed,
+// the lighter of your sins. The bishop's word is law in the Church: a great enough sinner is cast out
+// (excommunicated), and then no priest will marry or bless them, and the devout keep their distance,
+// until they do penance (a pilgrimage, and a gift to the Church) and are absolved.
+'use strict';
+(function () {
+  const D = O.Data, B = (o) => Object.assign({ hours: [5, 20], recipes: [], sells: [], buys: {}, targets: {}, wage: {} }, o);
+  const look = { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'gable', chimney: true, sign: 'cross', noFlowers: false };
+  D.BUSINESS.abbey = D.BUSINESS.abbey || B({ label: 'Abbey', jobs: [['abbot', 1], ['monk', 4], ['lay brother', 2]], site: 'fields', w: 8, d: 5, floors: 2, look,
+    recipes: [{ out: { ale: 1.5 }, inp: {}, role: 'lay brother' }, { out: { herbs: 0.5, candles: 0.6 }, inp: {}, role: 'monk' }, { out: { letter: 0.5, honey: 0.2 }, inp: {}, role: 'monk' }],
+    sells: ['ale', 'herbs', 'candles', 'honey'], targets: { ale: 20, herbs: 10, candles: 16, honey: 6, letter: 6 }, wage: { abbot: 0, monk: 1, 'lay brother': 3 } });
+  D.BUSINESS.priory = D.BUSINESS.priory || B({ label: 'Priory', jobs: [['prioress', 1], ['nun', 4], ['lay sister', 2]], site: 'woods', w: 8, d: 5, floors: 2, look,
+    recipes: [{ out: { cheese: 0.8, eggs: 1 }, inp: {}, role: 'lay sister' }, { out: { herbs: 0.6, medicine: 0.2 }, inp: {}, role: 'nun' }, { out: { cloth: 0.15, candles: 0.4 }, inp: {}, role: 'nun' }],
+    sells: ['cheese', 'herbs', 'medicine', 'candles'], targets: { cheese: 12, herbs: 10, medicine: 6, candles: 12, eggs: 10, cloth: 4 }, wage: { prioress: 0, nun: 1, 'lay sister': 3 } });
+  D.GOODS.badge = D.GOODS.badge || { name: 'Pilgrim badge', base: 2, unit: 'badge', slots: 1 };
+  const SAINTS = ['Aldric', 'Wenna', 'Cuthred', 'Hild', 'Oswy', 'Frideswide', 'Brannoc', 'Edburga', 'Petroc', 'Milburga', 'Guthlac', 'Werburgh'];
+  const PARTS = ['finger', 'jawbone', 'sandal', 'girdle', 'cloak', 'tooth', 'hair', 'staff', 'cup', 'skull'];
+  O.relicOf = (b) => { if (!b) return null; const h = O.hash('relic', b.id, b.x, b.y); return { saint: SAINTS[h % SAINTS.length], part: PARTS[(h >> 4) % PARTS.length] }; };
+
+  function setup(game) {
+    const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k), clamp = O.clamp;
+    const relOf = (q) => { const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r); return r; };
+    const holy = (q) => /priest|bishop|chaplain|abbot|abbess|prioress|monk|nun|friar|hermit|lay brother|lay sister/.test(q.job?.role || '');
+    const isHouse = (b) => b && (b.type === 'abbey' || b.type === 'priory');
+    // ---------------------------------------------------------------- before the relic
+    O.sceneMore = O.sceneMore || [];
+    O.sceneMore.push(() => {
+      const sc = game.scene, s = cur(); if (!sc || !isHouse(sc.b) || sc.floor !== 0) return null;
+      const alt = sc.L.items.find((i) => i.kind === 'altar'); if (!alt) return null;
+      const [x, y] = sc.anchor(alt), P = game.player; if (Math.hypot(x - P.x, y + 18 - P.y) > 60) return null;
+      const R = O.relicOf(sc.b);
+      return { type: 'custom', d: -5, x, y: y - 30, label: `Pray before the ${R.part} of St. ${R.saint}`, act: () => pray(s, sc.b, R) };
+    });
+    function pray(s, b, R) {
+      const P = game.player; P.anim = 'pray'; P.ft = 0; P.locked = true;
+      setTimeout(() => {
+        P.locked = false; if (P.anim === 'pray') P.anim = 'idle';
+        const key = s.world.placeId + ':' + b.id, done = (PS.pilgrimages = PS.pilgrimages || {});
+        if (done[key] && s.day - done[key] < 28) return say(`You pray before the ${R.part} of St. ${R.saint}. It is quiet here.`);
+        done[key] = s.day;
+        PS.rep.civilian = Math.min(1, (PS.rep.civilian || 0) + 0.05); PS.rep.criminal = Math.max(-1, (PS.rep.criminal || 0) - 0.06);
+        PS.hp = Math.min(100, (PS.hp || 0) + 20); if (PS.wounds && PS.wounds.length) PS.wounds = PS.wounds.slice(1);
+        if (PS.canCarry('badge')) PS.add('badge');
+        if (PS.excommunicated) PS.excommunicated.penance = (PS.excommunicated.penance || 0) + 1;
+        say(`You kneel before the ${R.part} of St. ${R.saint} and pray. You come away lighter, with a pilgrim's badge for your hat.`);
+        s.log(`The stranger made pilgrimage to St. ${R.saint} at ${b.name}.`, 'event');
+      }, 3000);
+    }
+    // ---------------------------------------------------------------- pilgrims on the road
+    const _plan = O.Sim.prototype.plan;
+    O.Sim.prototype.plan = function (p) {
+      if (p.visitor && p.id % 5 === 0 && this.hour >= 9 && this.hour < 15) { const ab = this.world.buildings.find((b) => isHouse(b)); if (ab) { p.pilgrim = true; return { act: 'visit', b: ab.id }; } }
+      if (PS.excommunicated && this === O.SimRef.cur && p.activity?.act === 'worship') { /* the devout keep apart from you at mass */ }
+      return _plan.call(this, p);
+    };
+
+    // ---------------------------------------------------------------- the bishop's word
+    let ed = -1;
+    game.hooks.update.push(() => {
+      const s = cur(); if (!s || ed === s.day) return; ed = s.day;
+      if (!PS.excommunicated && (PS.rep.criminal || 0) > 0.7 && !(O.crowned && O.crowned())) {
+        PS.excommunicated = { day: s.day, penance: 0 };
+        s.log('The bishop has cast out the stranger from the Church: bell, book and candle. No priest will marry or bless them.', 'politics');
+        say('You are excommunicated: cast out of the Church. No priest will marry or bless you, and the devout will keep their distance.', 'bad');
+      }
+      if (PS.excommunicated) for (const q of s.people) if (s.has(q, 'pious') && Math.random() < 0.2) relOf(q).affinity = clamp(relOf(q).affinity - 0.02, -1, 1);
+    });
+    const A = {
+      absolve(s, q, a) {
+        if (!PS.excommunicated || !/bishop|priest|abbot|abbess|prioress/.test(q.job?.role || '')) return null;
+        const gift = clamp(Math.round(Number(a.gift) || 0), 0, 500); if (PS.money < gift) return `You haven't ₳${gift}.`;
+        if (!PS.excommunicated.penance && gift < 50) return null;
+        PS.money -= gift; const bz = q.job && s.biz.get(q.job.biz); if (bz) bz.cash += gift; PS.excommunicated = null;
+        s.log('The stranger has done penance and been taken back into the Church.', 'politics');
+        return `${q.first} absolves you${gift ? ` (₳${gift} to the Church)` : ''}. You are taken back into the Church.`;
+      },
+      take_vows(s, q) {
+        if (!/abbot|abbess|prioress/.test(q.job?.role || '')) return null;
+        const bz = q.job && s.biz.get(q.job.biz); if (!bz || !O.Employment || !O.Employment.hireByTalk) return null;
+        return O.Employment.hireByTalk(s, q);
+      },
+    };
+    const base = O.NpcActs.apply;
+    O.NpcActs.apply = function (s, q, a, main) {
+      if (a && A[a.do]) return A[a.do](s, q, a);
+      if (a && (a.do === 'betroth' || a.do === 'bless') && PS.excommunicated) return 'No priest will do that for one cast out of the Church.';
+      return base.apply(this, arguments);
+    };
+    (O.extraActs = O.extraActs || []).push('absolve {"gift"} (a bishop, priest or head of a religious house taking back one who was excommunicated, after penance: a pilgrimage, or a large gift)', 'take_vows (an abbot, abbess or prioress taking the player into their house as a monk, nun or lay brother or sister)');
+    (O.extraLines = O.extraLines || []).push((s, q) => {
+      const out = [], b = q.job && s.building(q.job.biz);
+      if (isHouse(b)) { const R = O.relicOf(b); out.push(`Your house, ${b.name}, keeps the relic of St. ${R.saint} (the saint's ${R.part}) on the altar; pilgrims come to pray before it. You keep the hours of prayer, and live by the rule.`); }
+      if (q.pilgrim) out.push('You are a pilgrim, come a long way to pray before the relic at the abbey.');
+      if (PS.excommunicated) out.push(holy(q) ? `The player is excommunicated, cast out of the Church by the bishop${PS.excommunicated.penance ? ', though they have since made pilgrimage' : ''}. You may not marry or bless them; you could absolve them, if they show true penance.` : s.has(q, 'pious') ? 'The player is excommunicated, and you would rather not be seen with them.' : 'You have heard the player was cast out of the Church.');
+      return out.join(' ');
+    });
+  }
+  O.ChurchSetup = { setup };
+})();
+
+</script>
+<script>
+// Boats and ships. A rowing boat is bought like anything else, in words, from a boatwright (or a fisher
+// or ferryman with one to spare); it's moored at the nearest water's edge, and with it you can row out on
+// the river, the lake or the sea and land wherever you like. The ports have a harbour, with a harbour
+// master, a shipwright and sailors: buy a ship there, and send it out trading over the sea to Varn, to
+// Aldmark or the south; it comes home in a week or so with its hold full and a profit, or not at all
+// (pirates and storms). Smugglers in the gangs run cheap wine and silk ashore by night.
+'use strict';
+(function () {
+  const D = O.Data, T = 16;
+  D.BUSINESS.harbour = D.BUSINESS.harbour || Object.assign({ hours: [6, 20], recipes: [], sells: [], buys: {}, targets: {}, wage: {} }, { label: 'Harbour', jobs: [['harbour master', 1], ['shipwright', 1], ['sailor', 3]], site: 'coast', w: 7, d: 4, look: { wall: 'plank', roof: 'shingle', roofType: 'side', bigDoor: true, sign: 'anchor' },
+    recipes: [{ out: { boat: 0.02, rope: 0.2 }, inp: { planks: 0.4 }, role: 'shipwright' }, { out: { fish: 1.5, salt: 0.3 }, inp: {}, role: 'sailor' }], sells: ['boat', 'fish', 'salt', 'wine', 'silk', 'spices'],
+    buys: { planks: 'sawmill|import' }, targets: { boat: 2, fish: 30, salt: 10, planks: 12, wine: 6, silk: 3, spices: 3 }, wage: { 'harbour master': 0, shipwright: 7, sailor: 5 }, equip: ['counter', 'crate', 'barrel', 'rack', 'shelf'] });
+  Object.assign(D.GOODS, { silk: D.GOODS.silk || { name: 'Silk', base: 40, unit: 'bolt', slots: 1, valuable: false }, spices: D.GOODS.spices || { name: 'Spices', base: 30, unit: 'pouch', slots: 1 }, wine: D.GOODS.wine || { name: 'Wine', base: 6, unit: 'flask', slots: 1 } });
+  const LANDS = { varn: { name: 'Varn', days: [5, 8], gain: [1.4, 2.0], risk: 0.18 }, aldmark: { name: 'Aldmark', days: [6, 10], gain: [1.5, 2.3], risk: 0.22 }, south: { name: 'the southern ports', days: [9, 14], gain: [1.8, 3.0], risk: 0.3 } };
+
+  function setup(game) {
+    const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k), clamp = O.clamp;
+    const boats = () => (PS.boats = PS.boats || []);
+    const isWater = (w, x, y) => { const tx = Math.floor(x / T), ty = Math.floor(y / T); return tx >= 0 && ty >= 0 && tx < w.W && ty < w.H && w.TER && w.ter[ty * w.W + tx] === w.TER.WATER; };
+    // a boat bought (in words, from the boatwright's stock) goes to the water, not into your satchel
+    game.hooks.update.push(() => {
+      if (!PS.items.includes('boat')) return; const s = cur(), w = game.world; if (!s || !w || !w.ter) return;
+      PS.items.splice(PS.items.indexOf('boat'), 1);
+      const P = game.player, spot = shore(w, P.x, P.y, 60);
+      const b = { id: 'boat' + Date.now().toString(36), place: s.world.placeId, x: spot ? spot[0] : P.x, y: spot ? spot[1] : P.y, wx: spot ? spot[2] : null, wy: spot ? spot[3] : null };
+      boats().push(b); moor(w, b);
+      say(spot ? 'Your boat is moored at the water\'s edge, a short way off.' : 'Your boat waits for you at the nearest water.');
+    });
+    // the nearest land tile beside water
+    function shore(w, x0, y0, r) { const tx0 = Math.floor(x0 / T), ty0 = Math.floor(y0 / T); let best = null, bd = 1e9; for (let y = ty0 - r; y <= ty0 + r; y++) for (let x = tx0 - r; x <= tx0 + r; x++) { if (x < 1 || y < 1 || x >= w.W - 1 || y >= w.H - 1) continue; const i = y * w.W + x; if (w.ter[i] !== w.TER.WATER) continue; for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) { const j = (y + dy) * w.W + x + dx; if (w.ter[j] === w.TER.WATER || w.solid[j]) continue; const d = (x - tx0) ** 2 + (y - ty0) ** 2; if (d < bd) { bd = d; best = [(x + dx) * T + 8, (y + dy) * T + 12, x * T + 8, y * T + 12]; } } } return best; }
+    const moor = (w, b) => { w.props = w.props.filter((p) => p.boatOf !== b.id); if (b.wx == null) return; w.props.push({ kind: 'boat', x: b.wx, y: b.wy + 3, seed: 7, v: 0, solid: false, boatOf: b.id, sprite: O.Env.prop('boat', 7, 0) }); w.dirtyStatics = true; };
+    // the moored boats of this place, whenever you come back to it
+    const seen = new WeakSet();
+    game.hooks.update.push(() => { const s = cur(), w = game.world; if (!s || !w || !w.props || seen.has(w)) return; seen.add(w); for (const b of boats()) if (b.place === w.placeId) moor(w, b); });
+    // rowing: out on the water, the land is what you can't cross
+    let rowing = null;
+    const _blocked = game.blocked.bind(game);
+    game.blocked = (x, y) => { if (!rowing || game.scene) return _blocked(x, y); const w = game.world; return !(isWater(w, x - 4, y - 3) && isWater(w, x + 3, y - 3) && isWater(w, x - 4, y) && isWater(w, x + 3, y)); };
+    (O.moreCandidates = O.moreCandidates || []).push(() => {
+      const s = cur(), w = game.world, P = game.player; if (!s || game.scene || !w.ter) return null;
+      if (rowing) { const land = shore(w, P.x, P.y, 2); if (!land) return null; return { type: 'custom', d: 0, x: P.x, y: P.y - 40, label: 'Row ashore and land here', act: () => { const b = rowing; rowing = null; b.wx = Math.floor(P.x / T) * T + 8; b.wy = Math.floor(P.y / T) * T + 12; P.x = land[0]; P.y = land[1]; P.anim = 'idle'; moor(w, b); say('You pull the boat up and step ashore.'); } }; }
+      const b = boats().find((z) => z.place === w.placeId && z.wx != null && Math.hypot(z.wx - P.x, z.wy - P.y) < 34); if (!b) return null;
+      return { type: 'custom', d: 0, x: b.wx, y: b.wy - 20, label: 'Row out in your boat', act: () => { rowing = b; w.props = w.props.filter((p) => p.boatOf !== b.id); w.dirtyStatics = true; P.x = b.wx; P.y = b.wy; say('You push off and take up the oars.'); } };
+    });
+    game.hooks.drawGround.push((ctx, cam) => { if (!rowing || game.scene) return; const P = game.player, sp = O.Env.prop('boat', 7, 0); ctx.drawImage(sp.canvas, Math.round(P.x - sp.ox - cam.x), Math.round(P.y + 6 - sp.oy - cam.y)); });
+    game.hooks.update.push(() => { if (rowing) { const P = game.player; P.anim = 'sit'; if (game.scene) rowing = null; } });
+    O.rowing = () => !!rowing;
+
+    // ---------------------------------------------------------------- ships, and voyages over the sea
+    const ships = () => (PS.ships = PS.ships || []);
+    const atHarbour = (s, q) => { const bz = q.job && s.biz.get(q.job.biz); return bz && bz.type === 'harbour' ? bz : null; };
+    const A = {
+      buy_ship(s, q, a) {
+        const bz = atHarbour(s, q); if (!bz || !/harbour master|shipwright/.test(q.job.role)) return null;
+        const pr = clamp(Math.round(Number(a.price) || 600), 200, 3000); if (PS.money < pr) return `You haven't ₳${pr} for a ship.`;
+        PS.money -= pr; bz.cash += pr; const name = String(a.name || ['The Gull', 'The Saint Brannoc', 'The Good Hope', 'The Swallow', 'The Fair Wind'][ships().length % 5]).slice(0, 30);
+        ships().push({ id: 'ship' + Date.now().toString(36), name, port: s.world.placeId, at: 'port' });
+        return `${name} is yours, riding at anchor in ${s.world.name}.`;
+      },
+      voyage(s, q, a) {
+        if (!atHarbour(s, q)) return null; const sh = ships().find((x) => x.at === 'port' && x.port === s.world.placeId); if (!sh) return null;
+        const key = Object.keys(LANDS).find((k) => String(a.to || '').toLowerCase().includes(LANDS[k].name.toLowerCase().replace('the ', '').split(' ')[0])) || 'varn', L = LANDS[key];
+        const stake = clamp(Math.round(Number(a.cargo) || 100), 20, Math.max(20, Math.floor(PS.money))); if (PS.money < stake) return `You haven't ₳${stake} for a cargo.`;
+        PS.money -= stake; const H = O.SimRef.home;
+        Object.assign(sh, { at: 'sea', to: key, stake, back: H.day + L.days[0] + Math.floor(Math.random() * (L.days[1] - L.days[0] + 1)) });
+        return `${sh.name} sails for ${L.name} with ₳${stake} of cargo. She should be home in a week or two.`;
+      },
+      smuggle(s, q, a) {
+        const g = q.gang && s.gang && s.gang(q.gang); if (!g || g.speciality !== 'smuggling') return null;
+        const item = ['wine', 'silk', 'spices'].find((k) => String(a.item || '').toLowerCase().includes(k)) || 'wine', pr = Math.max(1, Math.round(D.GOODS[item].base * 0.45));
+        if (PS.money < pr) return `You haven't ₳${pr}.`; if (!PS.canCarry(item)) return 'Your satchel is full.';
+        PS.money -= pr; g.purse += pr; PS.add(item); PS.rep.criminal = Math.min(1, (PS.rep.criminal || 0) + 0.02);
+        return `${q.first} slips you ${D.GOODS[item].name.toLowerCase()} off the boats, no duty paid, for ₳${pr}.`;
+      },
+    };
+    // ships come home (or don't)
+    let vd = -1;
+    game.hooks.update.push(() => {
+      const H = O.SimRef.home; if (!H || vd === H.day) return; vd = H.day;
+      for (const sh of ships()) {
+        if (sh.at !== 'sea' || H.day < sh.back) continue;
+        const L = LANDS[sh.to] || LANDS.varn;
+        if (Math.random() < L.risk) { const how = Math.random() < 0.5 ? 'taken by pirates off the coast' : 'lost in a storm with all her cargo'; PS.ships = ships().filter((x) => x !== sh); say(`Word comes from the harbour: ${sh.name} was ${how}.`, 'bad'); H.log(`The stranger's ship ${sh.name} was ${how}.`, 'event'); continue; }
+        const gain = Math.round(sh.stake * (L.gain[0] + Math.random() * (L.gain[1] - L.gain[0]))); PS.money += gain; sh.at = 'port'; sh.voyages = (sh.voyages || 0) + 1;
+        say(`${sh.name} is home from ${L.name}! Her cargo sells for ₳${gain}.`); PS.rep.merchant = Math.min(1, (PS.rep.merchant || 0) + 0.04);
+      }
+    });
+    const base = O.NpcActs.apply;
+    O.NpcActs.apply = function (s, q, a, main) {
+      if (a && A[a.do]) return A[a.do](s, q, a);
+      if (a && a.do === 'sell' && O.NpcActs.goodFor(a.item) === 'boat') {
+        const role = q.job?.role || ''; if (!/boatwright|shipwright|harbour|fisher|ferryman/.test(role)) return null;
+        if (/fisher|ferryman/.test(role) && !(q.job && (s.biz.get(q.job.biz)?.stock.boat || 0) >= 1)) { const pr = clamp(Math.round(Number(a.price) || 60), 0, 300); if (PS.money < pr) return `You haven't ₳${pr}.`; if (q._soldBoat) return null; q._soldBoat = true; PS.money -= pr; const hh = s.household(q); if (hh) hh.money += pr; PS.add('boat'); return `${q.first} lets you have their old boat for ₳${pr}.`; }
+      }
+      return base.apply(this, arguments);
+    };
+    (O.extraActs = O.extraActs || []).push('buy_ship {"price","name"?} (harbour master or shipwright selling the player a ship)', 'voyage {"to":"Varn"|"Aldmark"|"the south","cargo"} (harbour master sending the player\'s ship out trading with cargo bought for that sum)', 'smuggle {"item":"wine"|"silk"|"spices"} (a smuggler selling the player run goods cheap)');
+    (O.extraLines = O.extraLines || []).push((s, q) => {
+      const out = [], role = q.job?.role || '';
+      if (/boatwright|shipwright/.test(role) || (/fisher|ferryman/.test(role) && q.age > 30)) out.push(`You can sell the player a rowing boat (sell {"item":"boat","price"}), about ₳${/fisher|ferryman/.test(role) ? 60 : 120} for a sound one${/fisher|ferryman/.test(role) ? ', an old one of yours' : ''}.`);
+      if (atHarbour(s, q) && /harbour master|shipwright/.test(role)) { const mine = ships().filter((x) => x.port === s.world.placeId); out.push(`You can sell the player a ship (buy_ship), about ₳600 for a small trader${mine.length ? `; their ship${mine.length > 1 ? 's' : ''} here: ${mine.map((x) => `${x.name} (${x.at === 'sea' ? 'at sea, bound for ' + (LANDS[x.to]?.name || 'abroad') : 'in port'})`).join(', ')}` : ''}. ${mine.some((x) => x.at === 'port') ? 'You can send their ship out trading (voyage) to Varn, Aldmark or the south: the further, the richer and the more dangerous.' : ''}`); }
+      if (q.gang && s.gang && s.gang(q.gang)?.speciality === 'smuggling') out.push('Your gang runs smuggled wine, silk and spices ashore; you might sell some cheap to someone you trust (smuggle).');
+      return out.join(' ');
+    });
+    O.Sea = { boats, ships, rowing: () => rowing };
+  }
+  O.SeaSetup = { setup };
 })();
 
 </script>
@@ -21304,6 +21540,15 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
   // [text, where, action, minutes, done, gain]: where is furniture kinds ('a|b'), 'floor' or 'out';
   // gain is { cash }, { good, qty } or { cond } (the building's repair)
   const C = {
+    abbot: [['Lead the brothers at prayer', 'altar|pew', 'pray', 20, 'The office is sung.'], ['Hear the brothers\' faults in chapter', 'chair|bench|desk', 'read', 15, 'Penances given, and kindly.'], ['Go over the abbey\'s accounts', 'desk', 'count', 15, 'The wool money is in.']],
+    prioress: [['Lead the sisters at prayer', 'altar|pew', 'pray', 20, 'The office is sung.'], ['Hear the sisters in chapter', 'chair|bench|desk', 'read', 15, 'All is well in the house.'], ['Go over the priory\'s accounts', 'desk', 'count', 15, 'The rents are in.']],
+    monk: [['Sing the office in choir', 'pew|altar', 'pray', 20, 'Lauds, and then a little bread.'], ['Copy a page of the gospels', 'desk', 'write', 25, 'One page, and not a blot.'], ['Tend the herb garden', 'out', 'hoe', 20, 'Sage, rue and hyssop, weeded.'], ['Ring for the hours', 'out|floor', 'stretch', 10, 'The bell carries over the fields.']],
+    nun: [['Sing the office in choir', 'pew|altar', 'pray', 20, 'Vespers, and quiet.'], ['Embroider an altar cloth', 'desk|chair|bench', 'weave', 25, 'Gold thread on white linen.'], ['Physic the sick at the gate', 'out', 'crouch', 15, 'A poultice and a prayer.'], ['Copy a psalter', 'desk', 'write', 25, 'Neat, and gilt at the capitals.']],
+    'lay brother': [['Brew the abbey ale', 'barrel|cauldron', 'mix', 25, 'It will be good by Sunday.'], ['Work the abbey fields', 'out', 'hoe', 25, 'The furrows are straight.'], ['Feed the poor at the gate', 'out', 'place', 15, 'Bread and pottage for all who came.']],
+    'lay sister': [['Make the cheese', 'table|counter', 'knead', 20, 'Pressed and salted.'], ['Feed the hens', 'out', 'pickup', 10, 'A basket of eggs.'], ['Wash the house linen', 'washtub|out', 'scrub', 20, 'On the line to dry.']],
+    'harbour master': [['Take the dues of a ship in', 'counter|desk', 'count', 15, 'Paid in full, and written down.', { cash: 3 }], ['Walk the quay', 'out', 'look', 15, 'Every ship moored fast.'], ['Write up the tide table', 'desk', 'write', 10, 'High water at noon.']],
+    shipwright: [['Caulk a seam with pitch and oakum', 'out|workbench', 'hammer', 25, 'Tight as a drum.'], ['Shape a new rib', 'workbench|out', 'saw', 25, 'A fine curve of oak.'], ['Check the rigging', 'out', 'look', 15, 'One shroud to replace.']],
+    sailor: [['Coil the ropes on the quay', 'out', 'carry', 10, 'Neat as a knot.'], ['Mend a sail', 'table|out', 'weave', 20, 'Stitched with a palm and needle.'], ['Unload a hold', 'crate|barrel|out', 'carry', 25, 'The hold is empty, your back is not.', { cash: 2 }]],
     shepherd: [['Count the flock into the fold', 'out', 'count', 15, 'All there, and the gate shut.'], ['Look over a lame ewe', 'out', 'look', 15, 'A thorn in the hoof, out now.'], ['Mend a gap in the hurdles', 'out', 'hammer', 20, 'No way through for a lamb.'], ['Shear a fleece', 'out', 'scrub', 25, 'A good fleece, rolled and tied.', { good: 'wool', qty: 1 }]],
     dairymaid: [['Milk the cows', 'out', 'bucket', 20, 'Two pails, frothing.'], ['Churn the butter', 'churn|table|counter', 'mix', 25, 'It has come, yellow and firm.', { cash: 2 }], ['Scald the pails and the churn', 'washtub|table|floor', 'scrub', 10, 'Sweet and clean.'], ['Press the curd for cheese', 'table|counter', 'knead', 20, 'Into the press, and weighted.', { good: 'cheese', qty: 1 }]],
     chambermaid: [['Change the sheets in the guest beds', 'bed|double', 'scrub', 15, 'Fresh linen on every bed.'], ['Empty and scour the chamber pots', 'floor', 'bucket', 10, 'Done, and best not spoken of.'], ['Sweep and air the rooms', 'floor', 'sweep', 15, 'The windows open, the rushes fresh.']],
@@ -27449,7 +27694,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
         x: away ? away[0] : Math.round(game.scene ? game.scene.b.doorX * 16 + 8 : game.player.x), y: away ? away[1] : Math.round(game.scene ? game.scene.b.doorY * 16 + 10 : game.player.y), dir: game.player.dir,
         mount: game.player.mount ? game.player.mount.id : null,
         region: game.world.island && !game.scene && game.world !== sim.world ? game.world.placeId : null, g: game.world.island && !game.scene ? O.Island.toGlobal(game.world, game.player.x, game.player.y).map(Math.round) : null,
-        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [], emp: PS.emp ? Object.assign({}, PS.emp, { tasks: [], onShift: false, dayInfo: null }) : null, posts: (PS.posts || []).map((x) => Object.assign({}, x, { tasks: [], onShift: false, dayInfo: null, _lm: null, _cur: x === PS.emp })), carry: PS.carry || null, firedSilently: PS.firedSilently || null, residence: PS.residence || null, gaol: PS.gaol || null, gangRanks: PS.gangRanks || [], gangTrials: PS.gangTrials || {}, disguise: PS.disguise || null, loans: PS.loans || [], letters: PS.letters || [], knows: PS.knows || {}, knowsGang: PS.knowsGang || {}, royal: PS.royal || false, taxOwed: PS.taxOwed || 0, taxPaidDay: PS.taxPaidDay ?? null, contract: PS.contract && PS.contract.kind !== 'escort' ? PS.contract : null, leads: (PS.leads || []).filter((l) => l.why !== 'contract' || (PS.contract && PS.contract.kind !== 'escort')), askedLaw: PS.askedLaw || 0, guests: PS.guests || null, jobCardOpen: !!PS.jobCardOpen, learning: PS.learning || 0, performances: PS.performances || 0, lettersCarried: PS.lettersCarried || 0, title: PS.title || null, vouched: PS.vouched || {}, offered: PS.offered || {}, appointment: PS.appointment || null, reeveOf: PS.reeveOf || {}, claim: PS.claim || 0, secrets: PS.secrets || [], vows: !!PS.vows, warWon: PS.warWon || 0, warFought: PS.warFought || 0, plot: PS.plot || null, coronation: PS.coronation || null, anointed: !!PS.anointed, guides: PS.guides || 'all', mail: PS.mail || [], worn: PS.worn || [], bizTab: PS.bizTab || null, meets: PS.meets || [], partner: PS.partner || null, children: PS.children || [], expecting: PS.expecting || null, fineOwed: PS.fineOwed || 0, watched: PS.watched || null, debts: PS.debts || [], roadLead: PS.roadLead || null, wokeAt: PS.wokeAt ?? null, studiedAt: PS.studiedAt ?? null, studyDay: PS.studyDay ?? null, studyHours: PS.studyHours || 0, lessonDay: PS.lessonDay ?? null, ill: PS.ill || null, confessed: PS.confessed ?? null, tithedWeek: PS.tithedWeek ?? null, titheBase: PS.titheBase || 0, startDay: PS.startDay ?? null, yearsHere: PS.yearsHere || 0, dog: PS.dog || null, lineSpec: PS.lineSpec || null, forebears: PS.forebears || [], oddJobs: PS.oddJobs || [], givenJobs: PS.givenJobs || [], retainers: PS.retainers || [], deeds: PS.deeds || [], todoOpen: PS.todoOpen ?? true, lent: PS.lent || [], houseFavour: PS.houseFavour || {}, plots2: PS.plots2 || [], siegeSide: PS.siegeSide || null, songBook: PS.songBook || null, songs: PS.songs || [], outlaw: PS.outlaw || null, almsToPoor: PS.almsToPoor || 0, robbedRich: PS.robbedRich || 0, confided: PS.confided || [], blessed: PS.blessed ?? null, _ageChecked: PS._ageChecked ?? null },
+        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [], emp: PS.emp ? Object.assign({}, PS.emp, { tasks: [], onShift: false, dayInfo: null }) : null, posts: (PS.posts || []).map((x) => Object.assign({}, x, { tasks: [], onShift: false, dayInfo: null, _lm: null, _cur: x === PS.emp })), carry: PS.carry || null, firedSilently: PS.firedSilently || null, residence: PS.residence || null, gaol: PS.gaol || null, gangRanks: PS.gangRanks || [], gangTrials: PS.gangTrials || {}, disguise: PS.disguise || null, loans: PS.loans || [], letters: PS.letters || [], knows: PS.knows || {}, knowsGang: PS.knowsGang || {}, royal: PS.royal || false, taxOwed: PS.taxOwed || 0, taxPaidDay: PS.taxPaidDay ?? null, contract: PS.contract && PS.contract.kind !== 'escort' ? PS.contract : null, leads: (PS.leads || []).filter((l) => l.why !== 'contract' || (PS.contract && PS.contract.kind !== 'escort')), askedLaw: PS.askedLaw || 0, guests: PS.guests || null, jobCardOpen: !!PS.jobCardOpen, learning: PS.learning || 0, performances: PS.performances || 0, lettersCarried: PS.lettersCarried || 0, title: PS.title || null, vouched: PS.vouched || {}, offered: PS.offered || {}, appointment: PS.appointment || null, reeveOf: PS.reeveOf || {}, claim: PS.claim || 0, secrets: PS.secrets || [], vows: !!PS.vows, warWon: PS.warWon || 0, warFought: PS.warFought || 0, plot: PS.plot || null, coronation: PS.coronation || null, anointed: !!PS.anointed, guides: PS.guides || 'all', mail: PS.mail || [], worn: PS.worn || [], bizTab: PS.bizTab || null, meets: PS.meets || [], partner: PS.partner || null, children: PS.children || [], expecting: PS.expecting || null, fineOwed: PS.fineOwed || 0, watched: PS.watched || null, debts: PS.debts || [], roadLead: PS.roadLead || null, wokeAt: PS.wokeAt ?? null, studiedAt: PS.studiedAt ?? null, studyDay: PS.studyDay ?? null, studyHours: PS.studyHours || 0, lessonDay: PS.lessonDay ?? null, ill: PS.ill || null, confessed: PS.confessed ?? null, tithedWeek: PS.tithedWeek ?? null, titheBase: PS.titheBase || 0, startDay: PS.startDay ?? null, yearsHere: PS.yearsHere || 0, dog: PS.dog || null, lineSpec: PS.lineSpec || null, forebears: PS.forebears || [], oddJobs: PS.oddJobs || [], givenJobs: PS.givenJobs || [], retainers: PS.retainers || [], deeds: PS.deeds || [], todoOpen: PS.todoOpen ?? true, lent: PS.lent || [], boats: PS.boats || [], ships: PS.ships || [], pilgrimages: PS.pilgrimages || {}, excommunicated: PS.excommunicated || null, houseFavour: PS.houseFavour || {}, plots2: PS.plots2 || [], siegeSide: PS.siegeSide || null, songBook: PS.songBook || null, songs: PS.songs || [], outlaw: PS.outlaw || null, almsToPoor: PS.almsToPoor || 0, robbedRich: PS.robbedRich || 0, confided: PS.confided || [], blessed: PS.blessed ?? null, _ageChecked: PS._ageChecked ?? null },
       },
     };
   }
@@ -27685,7 +27930,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.RisingSetup.setup(game, npcUI);
   O.RitesSetup.setup(game);
   O.WarfareSetup.setup(game, npcUI);
-  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.NpcActsSetup.setup(game); O.InitiateSetup.setup(game); O.UnderworldSetup.setup(game); O.CourtshipSetup.setup(game); O.FencesSetup.setup(game); O.FamilySetup.setup(game); O.PetsSetup.setup(game); O.FavoursSetup.setup(game); O.MarketSetup.setup(game); O.GrudgesSetup.setup(game); O.RitualsSetup.setup(game); O.TodoSetup.setup(game); O.DealingsSetup.setup(game); O.CounterSetup.setup(game); O.ResourcesSetup.setup(game); O.GangBasesSetup.setup(game); O.GatheringsSetup.setup(game); O.WildSetup.setup(game); O.SongsSetup.setup(game); O.PoliticsSetup.setup(game);
+  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.NpcActsSetup.setup(game); O.InitiateSetup.setup(game); O.UnderworldSetup.setup(game); O.CourtshipSetup.setup(game); O.FencesSetup.setup(game); O.FamilySetup.setup(game); O.PetsSetup.setup(game); O.FavoursSetup.setup(game); O.MarketSetup.setup(game); O.GrudgesSetup.setup(game); O.RitualsSetup.setup(game); O.TodoSetup.setup(game); O.DealingsSetup.setup(game); O.CounterSetup.setup(game); O.ResourcesSetup.setup(game); O.GangBasesSetup.setup(game); O.GatheringsSetup.setup(game); O.WildSetup.setup(game); O.SongsSetup.setup(game); O.PoliticsSetup.setup(game); O.ChurchSetup.setup(game); O.SeaSetup.setup(game);
   O.FinerySetup.setup(game);
   O.PastimesSetup.setup(game);
   O.FishingSetup.setup(game);

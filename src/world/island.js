@@ -454,6 +454,8 @@ O.bizName = (surname, label) => {
     if (town) list.push(...TOWN_TRADES.slice(0, big ? 16 : 11));
     else if (village) list.push('posthouse', 'brewery', 'carrier');
     list.push('apiary', 'lodge', 'charcoal', 'claypit', 'saltworks', 'peatcut', 'vineyard', 'boatyard', 'fishery', 'ferry');
+    if ((town || village) && O.hash('abbey', pl.id) % 3 === 0) list.push(O.hash('order', pl.id) % 2 ? 'abbey' : 'priory'); // (a house of monks or nuns in the quiet country)
+    if (kind === 'port' || kind === 'city' || kind === 'capital') list.push('harbour');
     // a big place needs more than one of the common employers, so its people have work
     if (big) list.push('carrier', 'laundry', 'ropewalk', 'brickworks', 'carpenter', 'tailor', 'brewery', 'butcher');
     else if (town) list.push('carrier', 'laundry', 'carpenter');
@@ -528,6 +530,8 @@ O.bizName = (surname, label) => {
       const surname = O.Names ? rng.pick(O.Names.SUR) : 'Ward';
       const lk = Object.assign({ wall: 'timber', roof: 'thatch' }, def.look || LOOK2[type] || {});
       const b = build(type, w, d, lk, (['posthouse', 'tollhouse', 'townhall', 'guard', 'morgue', 'hospital', 'school', 'gaol'].includes(type) || def.public) ? `${pl.name} ${def.label}` : O.bizName(surname, def.label), best[0], best[1], { floors: def.floors || lk.floors || 1 });
+      if ((type === 'abbey' || type === 'priory') && O.relicOf) b.name = `${def.label} of St. ${O.relicOf(b).saint}`;
+      if (type === 'harbour') b.name = `${pl.name} Harbour`;
       lane(b.doorX, b.doorY + 1);
       // a cottage nearby for the hands
       for (const [dx, dy] of [[w + 3, 0], [-7, 0], [0, 7], [w + 3, 6], [-7, 6]]) { const cx = best[0] + dx, cy = best[1] + dy; if (fits(cx, cy, 4, 3)) { const hb = build('house', 4, 3, { wall: rng.pick(['timber', 'plank', 'stone']), roof: rng.pick(['thatch', 'shingle']), chimney: true, doorTile: 1 }, 'Cottage', cx, cy); lane(hb.doorX, hb.doorY + 1); break; } }

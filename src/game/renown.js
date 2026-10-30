@@ -24,9 +24,9 @@
           if (!/guard|sergeant|watch/.test(g.job?.role || '') || g.agent.hidden || g.agent.chasing || g.activity?.act === 'sleep') continue;
           const d = Math.hypot(g.agent.x - p.x, g.agent.y - p.y); if (d > 40 || (seen.get(g.id) || -1e9) > now - 120) continue;
           seen.set(g.id, now); g.agent.dir = O.dirOf(p.x - g.agent.x, p.y - g.agent.y);
-          if (O.crowned && O.crowned()) { g.agent.forceAnim = 'wave'; say(`${g.first} of the watch stands to attention as you pass. "Majesty."`); }
-          else if (notorious()) { g.agent.forceAnim = 'point'; say(`${g.first} of the watch watches you go by with a hard eye.`, 'bad'); }
-          else if (PS.rep.guard > 0.3 || PS.rep.local > 0.45) { g.agent.forceAnim = 'wave'; say(`${g.first} of the watch gives you a nod.`); }
+          if (O.crowned && O.crowned()) { g.agent.forceAnim = 'wave'; O.Speech && O.Speech.say(g, 'Majesty.', 2); }
+          else if (notorious()) { g.agent.forceAnim = 'point'; }
+          else if (PS.rep.guard > 0.3 || PS.rep.local > 0.45) { g.agent.forceAnim = 'wave'; }
           else continue;
           g.agent.frozen = true; setTimeout(() => { g.agent.frozen = false; g.agent.forceAnim = null; }, 1300);
         }

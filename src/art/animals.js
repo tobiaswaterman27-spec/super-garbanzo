@@ -34,6 +34,12 @@
       neck: [[0, -12, 5.5], [0, -15, 7.5]], neckR: [2.4, 2], head: [[0, -16, 7.8], [0, -14.6, 11.2]], headR: [2.5, 1.5], ears: [1.5, -18, 7.2, 'drop'], eye: [1.4, -16.6, 9.2], tail: [[0, -11.5, -8.5], [0, -16, -11]], tailR: [0.9, 0.6] },
     cat: { W: 30, H: 26, G: 22, spine: [[-4.5, -7.5, 2.6], [0, -7.8, 2.8], [4, -8, 2.7]], hipX: 1.3, hipZ: -4, shZ: 3.8, hipY: -6.5, upper: 3.4, lower: 3.4, legR: [0.9, 0.7], hoof: 0.7,
       neck: [[0, -9, 4.6], [0, -11, 5.6]], neckR: [2, 1.8], head: [[0, -11.6, 6], [0, -11, 7.6]], headR: [2.4, 1.8], ears: [1.4, -14.4, 5.8, 'point'], eye: [1.1, -12, 7.2], tail: [[0, -8.5, -6.5], [0, -15, -9]], tailR: [0.8, 0.7] },
+    wolf: { W: 40, H: 34, G: 29, spine: [[-6.5, -12, 3.6], [0, -12.4, 3.9], [6, -13.2, 4]], hipX: 1.8, hipZ: -6, shZ: 5.4, hipY: -10.8, upper: 5.4, lower: 5.6, legR: [1.3, 0.9], hoof: 0.9,
+      neck: [[0, -14, 6.4], [0, -16.5, 8.6]], neckR: [2.8, 2.3], head: [[0, -17.4, 9], [0, -15.6, 13.4]], headR: [2.6, 1.5], ears: [1.5, -20.6, 8.6, 'point'], eye: [1.5, -18, 10.8], tail: [[0, -12.6, -9.5], [0, -9, -13]], tailR: [1.4, 1] },
+    bear: { W: 56, H: 46, G: 39, spine: [[-9, -16, 6], [0, -18, 7], [8, -17, 6.4]], hipX: 3, hipZ: -8, shZ: 7, hipY: -12, upper: 5.6, lower: 5.4, legR: [2.8, 2.2], hoof: 1.8,
+      neck: [[0, -18, 9], [0, -18.5, 11.5]], neckR: [5, 4.2], head: [[0, -19, 12], [0, -16.6, 16.6]], headR: [3.8, 2.2], ears: [2.6, -22.4, 11.4, 'point'], eye: [2, -19.6, 14.4], tail: [[0, -15, -10], [0, -14, -11]], tailR: [1, 0.8] },
+    boar: { W: 40, H: 30, G: 25, spine: [[-6.4, -9.5, 4.8], [0, -10.4, 5.4], [6, -11, 5]], hipX: 2, hipZ: -5, shZ: 5, hipY: -6.8, upper: 2.8, lower: 3.4, legR: [1.3, 1], hoof: 0.9,
+      neck: [[0, -10.5, 7.5], [0, -10, 8.8]], neckR: [4, 3.4], head: [[0, -10.4, 9], [0, -8.2, 13.4]], headR: [3.2, 2], ears: [1.8, -13.6, 8.6, 'point'], eye: [1.7, -11.2, 10.6], tail: [[0, -10, -10], [0, -9, -11]], tailR: [0.5, 0.5], snout: true },
     chicken: { W: 20, H: 22, G: 18, biped: true, spine: [[-2.6, -6.6, 2.8], [0, -6.8, 3.4], [2.2, -7.4, 2.8]], hipX: 0.9, hipZ: 0, hipY: -4, upper: 2, lower: 2.2, legR: [0.5, 0.45], hoof: 0,
       neck: [[0, -8.5, 2.4], [0, -11, 3.3]], neckR: [1.7, 1.4], head: [[0, -11.6, 3.4], [0, -11.4, 4.2]], headR: [1.6, 1.3], eye: [1, -12, 4], tail: [[0, -8, -2.6], [0, -11, -4.4]], tailR: [1.4, 0.9], beak: true, comb: true },
   };
@@ -46,7 +52,7 @@
 
   // Leg swing per gait: [phase offset, amplitude, knee bend] for LH, LF, RH, RF
   function legAngles(anim, t, kind) {
-    const quick = kind === 'chicken' || kind === 'cat' || kind === 'dog';
+    const quick = kind === 'chicken' || kind === 'cat' || kind === 'dog' || kind === 'wolf';
     if (anim === 'walk') {
       const ph = { LH: 0, LF: 0.25, RH: 0.5, RF: 0.75 }, A = quick ? 0.5 : 0.34, Bk = quick ? 1 : 0.95;
       const o = {}; for (const k in ph) { const s = (t + ph[k]) * Math.PI * 2; o[k] = [A * Math.sin(s), Bk * Math.max(0, Math.cos(s)) ** 2]; } return o;
@@ -212,6 +218,9 @@
       case 'pig': { const b = P.mat(r.chance(0.8) ? '#e0a49a' : '#8a6a5a', 'skin'); return { seed, body: b, head: b, legs: b, hoof: P.mat('#6a4a40', 'cloth'), eyeM, mane: b, snout: P.mat('#c8807a', 'skin'), patches: r.chance(0.25) ? P.mat('#3a2e2a', 'skin') : null }; }
       case 'deer': { const b = P.mat(r.pick(['#9a6a3e', '#8a5a34', '#a8784a']), 'hair'); return { seed, body: b, head: b, legs: b, hoof: P.mat('#2a2420', 'cloth'), eyeM, mane: b, ear: b, patches: P.mat('#ece2cc', 'hair'), white: P.mat('#ece2cc', 'hair') }; }
       case 'rabbit': { const b = P.mat(r.pick(['#8a7a62', '#a08a6a', '#6a5a48']), 'hair'); return { seed, body: b, head: b, legs: b, hoof: b, eyeM, mane: b, ear: b, white: P.mat('#ece8de', 'hair') }; }
+      case 'wolf': { const b = P.mat(r.pick(['#7a7670', '#8a8478', '#5e5a56', '#9a9286']), 'hair'); return { seed, body: b, head: b, legs: b, hoof: P.mat('#2a2420', 'cloth'), eyeM: P.mat('#d8b040', 'cloth'), mane: b, ear: b, patches: P.mat('#c8c2b6', 'hair') }; }
+      case 'bear': { const b = P.mat(r.pick(['#4a3424', '#5a3e28', '#3a2a20']), 'hair'); return { seed, body: b, head: b, legs: b, hoof: P.mat('#1e1612', 'cloth'), eyeM, mane: b, ear: b }; }
+      case 'boar': { const b = P.mat(r.pick(['#4a3a30', '#3a2e28', '#5a4636']), 'hair'); return { seed, body: b, head: b, legs: b, hoof: P.mat('#1e1612', 'cloth'), eyeM, mane: b, snout: P.mat('#6a5048', 'skin') }; }
       case 'dog': { const b = P.mat(r.pick(['#8a6a44', '#2e2828', '#c8a060', '#e6e0d0', '#6a4a30']), 'hair'); return { seed, body: b, head: b, legs: b, hoof: b, eyeM, mane: b, ear: P.mat(r.pick(['#5a3a24', '#2e2828']), 'hair'), patches: r.chance(0.35) ? P.mat('#ece8de', 'hair') : null }; }
       default: { const b = P.mat(r.pick(['#e08a3a', '#2e2828', '#8a8a86', '#e6e0d0', '#6a5a4a']), 'hair'); return { seed, body: b, head: b, legs: b, hoof: b, eyeM: P.mat('#3a6a30', 'cloth'), mane: b, patches: r.chance(0.3) ? P.mat('#ece8de', 'hair') : null }; }
     }

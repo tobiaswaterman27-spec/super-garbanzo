@@ -307,5 +307,6 @@
   function walkOff(q) { q.agent.frozen = false; q.agent.talking = 0; follow.delete(q.id); q.agent.chasing = false; q.agent.path = null; q.agent.goal = null; }
 
   O.NpcActsSetup = { setup };
-  O.NpcActs = { apply, fly, keepGift, returnGift, following, walkOff, placeFor, goodFor, personFor, meet };
+  const unfollow = (q) => { follow.delete(q.id); goTo.delete(q.id); leading.delete(q.id); if (q.agent) q.agent.chasing = false; };
+  O.NpcActs = { apply, fly, keepGift, returnGift, following, walkOff, unfollow, placeFor, goodFor, personFor, meet };
 })();

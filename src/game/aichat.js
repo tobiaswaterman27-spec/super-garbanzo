@@ -406,7 +406,7 @@ They know where their family and friends are just now (the card says); a strange
     let delay = 0; for (const l of shown.slice(1)) { delay += 1400 + shown[0].t.length * 35; setTimeout(() => { if (O.npcUI && O.npcUI.talking() === q && !AI.busy) { q._lastSpeaker = l.who; render(l.t, false); } }, delay); }
     if (notes.length) O.UI.say(notes.join(' '));
     if (q._hurry) { leave = true; q._hurry = null; }
-    if (/\b(good ?bye|bye|farewell|fare ?(you|thee) ?well|see you|good ?night|i must (go|be off)|i'?ll be (off|going)|until (next time|tomorrow)|take care)\b/i.test(text) && !opt.gift) leave = true; // you said goodbye: they say theirs, and go
+    if (/\b(good ?bye|bye|farewell|fare ?(you|thee) ?well|see you|good ?night|i (must|have to|need to|gotta|got to|should) (go|be off|be going|leave|get going)|got to go|gotta go|stop following|leave me|go away|go home|i'?ll be (off|going)|until (next time|tomorrow)|take care)\b/i.test(text) && !opt.gift) leave = true; // you said goodbye: they say theirs, and go
     if (leave) setTimeout(() => { if (O.npcUI && O.npcUI.talking() === q) { O.npcUI.closeTalk(); } q._snubUntil = s.day * 1440 + s.minute + (r.affinity < -0.2 ? 240 : 30); O.NpcActs && O.NpcActs.walkOff(q); }, 1800 + shown.reduce((n, l) => n + l.t.length, 0) * 45);
   }
   // never a name in front of the words, never a word from outside their world

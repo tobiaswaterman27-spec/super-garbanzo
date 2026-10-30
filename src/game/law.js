@@ -100,7 +100,7 @@
         } else { PS.skills.lockpick = Math.min(1, PS.skills.lockpick + 0.015); O.Panels.toast('The pick slips. The lock holds: a good lock, made for a king.'); }
       };
     }
-    O.Law = { pickpocket, pickLock, pickRoomLock, facingAway, wanted };
+    O.Law = { pickpocket, pickLock, pickRoomLock, facingAway, wanted, startChase: (g) => startChase(g), chasing: () => !!chase };
 
     // ---------------- guards: recognition and pursuit ----------------
     function guards() { return sim.people.filter((q) => q.job?.role?.startsWith('guard') && !q.agent.hidden && q.activity?.act !== 'sleep' && !q.health.illness); }

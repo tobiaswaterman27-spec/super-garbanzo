@@ -130,7 +130,7 @@
   O.RisingSetup.setup(game, npcUI);
   O.RitesSetup.setup(game);
   O.WarfareSetup.setup(game, npcUI);
-  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.NpcActsSetup.setup(game); O.InitiateSetup.setup(game); O.UnderworldSetup.setup(game); O.CourtshipSetup.setup(game); O.FencesSetup.setup(game); O.FamilySetup.setup(game); O.PetsSetup.setup(game); O.FavoursSetup.setup(game); O.MarketSetup.setup(game); O.GrudgesSetup.setup(game); O.RitualsSetup.setup(game);
+  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.NpcActsSetup.setup(game); O.InitiateSetup.setup(game); O.UnderworldSetup.setup(game); O.CourtshipSetup.setup(game); O.FencesSetup.setup(game); O.FamilySetup.setup(game); O.PetsSetup.setup(game); O.FavoursSetup.setup(game); O.MarketSetup.setup(game); O.GrudgesSetup.setup(game); O.RitualsSetup.setup(game); O.TodoSetup.setup(game); O.DealingsSetup.setup(game); O.CounterSetup.setup(game); O.ResourcesSetup.setup(game);
   O.FinerySetup.setup(game);
   O.PastimesSetup.setup(game);
   O.FishingSetup.setup(game);

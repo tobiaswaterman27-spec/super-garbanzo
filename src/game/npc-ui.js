@@ -258,7 +258,9 @@
       const n0 = (q._conv || []).length; renderTalk('', true); voice(q, `You go up to the player to say this, in your own words: "${line}"`, line, (t) => { if (talking !== q || (q._conv || []).length !== n0) return; (q._conv = q._conv || []).push({ who: 'q', t }); renderTalk(t); }); return true;
     }
     const doOffer = (q, key) => { const k = (q._offers || []).find((x) => x.key === key || x.key === 'x-' + key || x.label.toLowerCase() === String(key).toLowerCase()); if (!k) return false; const bz = q.job?.biz ? sim.biz.get(q.job.biz) : null; setTimeout(() => pickTopic(q, bz, k.key), 900); return true; };
-    const api = { openTalk, closeTalk, toggleLedger, talking: () => talking, speak, startFrom, doOffer };
+    // words put in your mouth by a button (buying across the counter): said as if you'd typed them
+    const playerSays = (q, t) => { if (talking !== q) return; O.AIChat.say(q, t, (ln, b) => { if (talking === q) renderTalk(ln, b); }); };
+    const api = { openTalk, closeTalk, toggleLedger, talking: () => talking, speak, startFrom, doOffer, playerSays };
     O.npcUI = api;
     return api;
   }

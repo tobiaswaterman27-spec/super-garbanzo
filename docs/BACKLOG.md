@@ -439,5 +439,6 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Seasons and harvests: dearth, hunger, theft, plenty (row 106)
 - [x] Rivals with grudges; reputation travels between towns (row 107)
 - [x] Daily rituals and subtle weather by local climate (row 107)
-- [ ] Resource-based economy
+- [x] To do box, odd jobs both ways, service, NPCs hiring each other, age in friendship (row 108)
+- [x] Counter talk, rooms, any bed, stroking animals, resource-based economy (row 109)
 - [ ] NPCs "disappearing" still not reproduced

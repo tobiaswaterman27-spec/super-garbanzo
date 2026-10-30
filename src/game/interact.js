@@ -31,7 +31,7 @@
       if (game.scene) {
         // the room's own things, plus the work, the ballot box and what's been set down here
         const ins = game.scene.candidates();
-        for (const f of [O.jobCandidate, O.gangCandidate, O.voteCandidate, O.placedCandidate, O.furnCandidate, O.pickupCandidate, O.sceneCandidate]) { if (!f) continue; const c = f(); if (c) ins.push(c); }
+        for (const f of [O.jobCandidate, O.gangCandidate, O.voteCandidate, O.placedCandidate, O.furnCandidate, O.pickupCandidate, O.sceneCandidate, ...(O.sceneMore || [])]) { if (!f) continue; const c = f(); if (c) ins.push(c); }
         return ins;
       }
       if (O.horseCandidate) { const hc = O.horseCandidate(); if (hc) out.push(hc); }
@@ -102,11 +102,11 @@
         case 'claim': return 'Claim the abandoned camp';
         case 'stash': return 'Open the stash';
         case 'campbed': return 'Sleep by the fire';
-        case 'bed': { const zz = O.bedSleepers ? O.bedSleepers(c.it) : []; if (zz.length) return `Wake ${zz[0].first}${zz.length > 1 ? ` and ${zz.length - 1 === 1 ? zz[1].first : 'the others'}` : ''}`; } return mayUseBed(c.it) ? 'Sleep until morning' : c.it.rent ? 'A guest bed (ask the innkeeper)' : 'Bed, not yours';
+        case 'bed': { const zz = O.bedSleepers ? O.bedSleepers(c.it) : []; if (zz.length) return `Wake ${zz[0].first}${zz.length > 1 ? ` and ${zz.length - 1 === 1 ? zz[1].first : 'the others'}` : ''}`; } return mayUseBed(c.it) ? 'Sleep until morning' : c.it.rent ? 'Sleep in the guest bed (not paid for)' : 'Sleep in this bed (not yours)';
         case 'hay': return 'Sleep in the hay';
         case 'traveller': case 'ruin': case 'signpost': return O.roadLabel(c);
         case 'pickup': return `Pick up the ${(O.Data.GOODS[c.it.good]?.name || c.it.good).toLowerCase()}`;
-        case 'shop': return `Buy from ${c.seller.first}`;
+        case 'shop': return `Talk to ${c.seller.first} at the counter`;
         case 'stairs': return c.it && c.it.stairs ? 'Go upstairs' : 'Go downstairs';
         case 'roomdoor': return O.Castle && O.castleMayEnter && !O.castleMayEnter(c.it) ? `${c.it.label}: locked (Q to pick the lock)` : `Go into ${c.it.label.replace(/^The /, 'the ')}`;
         case 'sit': return c.it.kind === 'pew' ? 'Sit in the pew' : c.it.kind === 'bench' ? 'Sit on the bench' : c.it.kind === 'throne' ? 'Sit on the throne' : 'Sit down';
@@ -206,14 +206,14 @@
 
     // Sleeping: you lie down and the night passes (quickly, for you) while the village sleeps around
     // you; you wake at seven, or when you've slept eight hours if you lay down in the day.
-    function sleep(it, rough) {
+    function sleep(it, rough, trespass) {
       if (game.sleepState) return;
       // you can't sleep the days away: only when tired, or at night, and not straight after waking
       { const h = sim.hour, night = h >= 19.5 || h < 5.5, abs = sim.day * 1440 + sim.minute, since = abs - (PS.wokeAt ?? -1e9);
         if (!night && PS.energy > 45) return O.UI.say(h >= 7 && h < 17 ? "You lie down, but you're not tired. Sleep won't come in broad day." : "You lie down, but you're not tired yet. Come back when it's properly night, or when you're weary.", 'bad');
         if (since < 240 && PS.energy > 25) return O.UI.say("You've only just got up. You're wide awake.", 'bad'); }
       const m0 = sim.minute, target = m0 >= 19 * 60 || m0 < 6 * 60 ? 7 * 60 : (m0 + 8 * 60) % 1440;
-      game.sleepState = { it, rough, target, slept: 0 };
+      game.sleepState = { it, rough, target, slept: 0, trespass: !!trespass };
       game.player.inBed = it || null; game.player.anim = rough ? 'lie' : 'idle';
       O.UI.say(rough ? 'You bed down in the straw…' : 'You climb into bed and close your eyes…');
     }
@@ -222,6 +222,7 @@
       game.player.locked = true;
       for (let k = 0; k < 4; k++) { sim.tick(2); PS.tick(2, true); st.slept += 2; const m = sim.minute; if ((m >= st.target && m < st.target + 6) || st.slept > 16 * 60) { wake(); return; } }
     });
+    O.wakeUp = () => { if (game.sleepState) wake(); };
     function wake() {
       PS.wokeAt = sim.day * 1440 + sim.minute;
       const st = game.sleepState; game.sleepState = null;
@@ -300,8 +301,7 @@
         case 'bed':
           if (O.wakeBed && O.bedSleepers(cur.it).length) O.wakeBed(cur.it);
           else if (mayUseBed(cur.it)) sleep(cur.it);
-          else if (cur.it.rent) O.Panels.toast('A guest bed. Beds are hired from the innkeeper at the counter downstairs.');
-          else O.Panels.toast("That's someone else's bed.");
+          else sleep(cur.it, false, true); // (not yours: sleep in it if you dare, and be turfed out if you're found)
           break;
         case 'sit': { const sc = game.scene, pose = sc.seatPose(cur.it), p = game.player; p.sitting = Object.assign(pose, { it: cur.it, sx: p.x, sy: p.y, b: sc.b.id, floor: sc.floor }); p.x = pose.x; p.y = pose.y; p.dir = pose.dir; p.anim = 'sit'; if (cur.it.kind === 'throne' && sim.byId) { const crown = (O.PlayerState.posts || []).some((e) => ['monarch', 'consort'].includes(e.role)); if (crown) { O.Panels.toast('You take your seat on the throne. The hall falls quiet; the court is yours.'); O.Bus && O.Bus.emit('throne', {}); } else O.Panels.toast('You sit on the throne. Nobody seems pleased about it.'); } break; }
         case 'roomdoor': {
@@ -311,7 +311,7 @@
           break;
         }
         case 'stairs': { const up = cur.it ? !!cur.it.stairs : game.scene.floor === 0; game.enterBuilding(game.scene.b, game.scene.floor + (up ? 1 : -1), up ? 'up' : 'down'); break; }
-        case 'shop': O.Panels.trade(sim, sim.biz.get(game.scene.b.id), cur.seller); break;
+        case 'shop': if (O.AI && O.AI.ready && O.npcUI) O.npcUI.openTalk(cur.seller); else O.Panels.trade(sim, sim.biz.get(game.scene.b.id), cur.seller); break;
       }
       return true;
     });

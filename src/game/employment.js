@@ -667,7 +667,7 @@
     function refresh() { sig = ''; }
     function panel(e) {
       if (!el) { el = document.createElement('div'); el.className = 'joblist'; el.setAttribute('aria-live', 'polite'); (document.getElementById('tab-play') || document.body).appendChild(el); }
-      if (!e || O.panelOpen) { if (!el.hidden) el.hidden = true; if (O.panelOpen) sig = ''; return; }
+      el.hidden = true; if (!e) { O.jobCard = null; return; } if (O.panelOpen) return; // (shown in the To do box now)
       const s = O.Travel?.visited.get(e.place)?.sim || cur();
       const bz = s.world.placeId === e.place ? s.biz.get(e.biz) : null, [o, c] = hoursOf(e, bz);
       const head = `<b>${esc(O.roleName(e.role).replace(/^./, (c) => c.toUpperCase()))}</b> · ${esc(e.bizName)}${e.place !== cur().world.placeId ? `, ${esc(e.placeName)}` : ''}`;
@@ -689,7 +689,7 @@
       const pay = crown ? `₳${e.wage} a day from the treasury` : `₳${e.wage} a day`;
       const html = `${crown && e.role === 'monarch' ? '<div class="jh" style="text-transform:none">Monarch of Eldoria</div>' : `<div class="jh">${head}</div>`}<div class="js">${shift} · ${pay}</div>${tasks ? `<ul>${tasks}</ul>` : ''}${earn ? `<div class="js">${esc(earn)}</div>` : ''}${carry}${hint ? `<div class="js" style="font-style:italic">${esc(hint)}</div>` : ''}${others}`;
       // folded into an icon in the corner until you press it
-      const left = e.onShift ? e.tasks.filter((t) => t.have < t.need).length : 0;
+      const left = e.onShift ? e.tasks.filter((t) => t.have < t.need).length : 0; O.jobCard = { html, left };
       const shown = PS.jobCardOpen ? `<span class="fold">fold ▲</span>${html}` : `<div class="jicon" title="Your work: press to open"><img src="${O.icon('tools')}" alt="Your work">${left ? `<span class="badge">${left}</span>` : ''}</div>`;
       if (!el._bound) { el._bound = true; el.onclick = () => { PS.jobCardOpen = !PS.jobCardOpen; sig = ''; }; }
       el.classList.toggle('min', !PS.jobCardOpen);

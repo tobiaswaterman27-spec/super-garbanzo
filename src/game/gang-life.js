@@ -310,11 +310,10 @@
     function refresh() { sig = ''; }
     game.hooks.update.push(() => {
       if (!el) { el = document.createElement('div'); el.className = 'joblist ganglist'; (document.getElementById('tab-play') || document.body).appendChild(el); }
-      const list = mine(); if (!list.length || O.panelOpen) { el.hidden = true; sig = ''; return; }
+      const list = mine(); el.hidden = true; if (!list.length) { O.gangCard = null; return; }
       const jl = document.querySelector('.joblist:not(.ganglist)'), top = jl && !jl.hidden ? jl.offsetTop + jl.offsetHeight + 10 : 12;
       const html = list.map((m) => `<div class="jh">${esc(RANKS[m.rank])} · ${esc(m.name.replace(/^the /, 'The '))}${m.place !== cur().world.placeId ? `, ${esc(m.placeName)}` : ''}</div>${m.task && !m.task.done ? `<ul><li>□ ${esc(m.task.text)}${m.task.need > 1 ? ` (${m.task.have}/${m.task.need})` : ''}</li></ul>` : '<div class="js">Ask any of them for work</div>'}`).join('');
-      if (html + top !== sig) { sig = html + top; el.innerHTML = html; el.style.top = top + 'px'; }
-      el.hidden = false;
+      O.gangCard = html;
     });
     // what the talk can bring about with a gang's people: taken in, or given the gang's work
     let wrapped = false;

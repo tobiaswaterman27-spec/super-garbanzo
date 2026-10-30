@@ -327,6 +327,7 @@ They know where their family and friends are just now (the card says); a strange
     if (q.wants && q.wants.until > s.day) L.push(`You asked the player for ${q.wants.name}.`);
     if (q._offer) L.push(`The player is holding out ${q._offer.label} to you as a gift: answer with take_gift or refuse_gift.`);
     if (O.NpcActs && O.NpcActs.following(q)) L.push('You are walking along with the player.');
+    for (const f of O.extraLines || []) { const t = f(s, q); if (t) L.push(t); }
     if (PS.emp && PS.emp.place === s.world.placeId) L.push(`The player works as ${PS.emp.role} at ${PS.emp.bizName || 'a business here'}.`);
     const realm = (s.kingdom?.news || []).filter((n) => !['migration', 'growth', 'decline'].includes(n.kind) && n.day >= s.day - 10).slice(-3).map((n) => clean(n.text));
     if (realm.length) L.push(`News of the realm: ${realm.join(' | ')}`);
@@ -353,11 +354,20 @@ They know where their family and friends are just now (the card says); a strange
     render(null, true);
     AI.busy = true;
     let out = null;
-    try { out = await AI.json(prompt); }
-    catch (e) { AI.busy = false; if (q._offer) { O.NpcActs && O.NpcActs.returnGift(q, q._offer); q._offer = null; } return reply(q, LOST[Math.floor(Math.random() * LOST.length)], render); }
+    // the words are theirs or nothing: a reply that doesn't come is asked for again, and if it still
+    // won't come, nobody speaks a set line; you're told they didn't catch it
+    let lines = [];
+    for (let tries = 0; tries < 3 && !lines.length; tries++) {
+      if (tries) await new Promise((r) => setTimeout(r, 1200 * tries));
+      try { out = await AI.json(prompt); } catch (e) { out = null; if (e && e.code === 'bad_key') break; }
+      lines = linesOf(out, q);
+    }
     AI.busy = false;
-    const lines = Array.isArray(out?.lines) ? out.lines.filter((l) => l && typeof l.say === 'string' && l.say.trim()) : typeof out?.say === 'string' ? [{ who: q.first, say: out.say }] : [];
-    if (!lines.length) return reply(q, LOST[Math.floor(Math.random() * LOST.length)], render);
+    if (!lines.length) {
+      if (q._offer) { O.NpcActs && O.NpcActs.returnGift(q, q._offer); q._offer = null; }
+      conv.pop(); const last = [...conv].reverse().find((c) => c.who === 'q');
+      O.UI.say(`${q.first} didn't catch that. Say it again.`, 'bad'); render(last ? last.t : '', false); return;
+    }
     const n = (v) => clamp(Math.round(Number(v) || 0), -2, 2), everyone = [q, ...group];
     const byName = (w) => everyone.find((z) => z.first === w || (w && String(w).startsWith(z.first))) || null;
     if (out.name && typeof out.name === 'string' && out.name.length < 30) { const nm = clean(out.name).split(' ')[0]; for (const z of everyone) { const rz = z.rel.get(0) || { affinity: 0, familiar: 0 }; rz.name = nm; z.rel.set(0, rz); } }
@@ -464,6 +474,14 @@ They know where their family and friends are just now (the card says); a strange
       return r; }; }
   // one line said in their own words: how they open a talk, or what they come up to say. No set
   // phrases: the situation is described and they put it as they would.
+  // a reply in whatever shape it came: {lines:[{who,say}]}, {say}, {reply}, or lines with text
+  const linesOf = (out, q) => {
+    if (!out || typeof out !== 'object') return [];
+    const pickT = (l) => (typeof l === 'string' ? l : l && (l.say ?? l.text ?? l.line ?? l.speech ?? l.words));
+    let arr = Array.isArray(out.lines) ? out.lines : Array.isArray(out.replies) ? out.replies : null;
+    if (arr) return arr.map((l) => ({ ...(typeof l === 'object' ? l : {}), who: (l && (l.who || l.speaker || l.name)) || q.first, say: pickT(l) })).filter((l) => typeof l.say === 'string' && l.say.trim());
+    const one = pickT(out) ?? out.reply; return typeof one === 'string' && one.trim() ? [{ who: q.first, say: one }] : [];
+  };
   const LOST = ['Hm? Say that again.', 'Sorry, I was miles away. What was that?', 'Eh? My mind wandered.', 'Say again?'];
   async function line(q, situation) {
     const s = O.SimRef.cur;
@@ -473,7 +491,7 @@ They know where their family and friends are just now (the card says); a strange
     const prompt = `Write the next spoken words of a person in a medieval village game. Reply ONLY with JSON {"say":"..."}.
 say: 1 or 2 short sentences, at most 25 words, fully in character for age, temper, mood, what they are doing now and how well they know the player; plain medieval English, perfect spelling, no dashes, no emoji, nothing in brackets; only the spoken words, never a name in front. Never break character.
 --- ${q.first} ---\n${speechFor(q.age, q.stage)}\n${card(s, q)}\n--- Talk so far ---\n${history || '(none)'}\nWhat happens now: ${situation}`;
-    try { const out = await AI.json(prompt); const raw = out && (typeof out.say === 'string' ? out.say : Array.isArray(out.lines) && out.lines[0] && typeof out.lines[0].say === 'string' ? out.lines[0].say : ''); const t = raw ? ageTrim(q, inChar(q, clean(raw))) : ''; return t && t.trim() ? t : null; } catch (e) { return null; }
+    try { let out = await AI.json(prompt); if (!linesOf(out, q).length) out = await AI.json(prompt); const raw = (linesOf(out, q)[0] || {}).say || ''; const t = raw ? ageTrim(q, inChar(q, clean(raw))) : ''; return t && t.trim() ? t : null; } catch (e) { return null; }
   }
   O.AIChat = { say, give, ended, card, gibberish, readLetter, line };
 })();

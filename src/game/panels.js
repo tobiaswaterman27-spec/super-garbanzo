@@ -36,6 +36,7 @@
       case 'circlet': B.blob(7, 8, 5.5, 3, m(P.metal.gold, 'metal'), { power: 2 }); B.blob(7, 8.5, 4.2, 1.8, m('#2a2030'), { power: 2 }); B.blob(7, 5.5, 1.3, 1.3, m('#3a9a5a'), { power: 2 }); break;
       case 'candlestick': B.rect(6, 4, 2, 7, m('#9a9a96', 'metal'), 3); B.rect(4, 11, 6, 2, m('#9a9a96', 'metal'), 2); B.rect(6, 2, 2, 2, m(P.cloth.white), 3); break;
       case 'key': B.blob(4, 7, 2.5, 2.5, m(P.metal.brass, 'metal'), { power: 2 }); B.rect(6, 6, 6, 2, m(P.metal.brass, 'metal'), 3); B.rect(10, 8, 2, 2, m(P.metal.brass, 'metal'), 2); break;
+      case 'todo': B.rect(3, 2, 9, 11, m('#e8d8b0'), 3); B.rect(2, 1, 11, 2, m('#c8a870'), 2); B.rect(2, 12, 11, 2, m('#c8a870'), 2); for (const y of [5, 7, 9]) B.rect(5, y, 5, 1, m('#6a4a2a'), 1); break;
       case 'coins': for (const [x, y] of [[5, 9], [9, 9], [7, 6]]) B.blob(x, y, 2.4, 1.6, m(P.metal.silver, 'metal'), { power: 2 }); break;
       default: B.blob(7, 7, 4, 4, m(col || '#a0a0a0'), { power: 2 });
     }
@@ -116,6 +117,7 @@
       ${vals.length ? `<p class="caption">${esc(seller.first)} eyes your ${G[vals[0]].name.toLowerCase()} but won't touch it. Honest traders don't buy goods like that. You'd need a fence.</p>` : ''}`, (r) => {
       r.querySelectorAll('[data-buy]').forEach((b) => b.onclick = () => {
         const g = b.dataset.buy, pr = price(g);
+        if (O.buyByTalk && O.AI && O.AI.ready) { close(); return O.buyByTalk(sim, bz, seller, g, pr); } // (asked for across the counter, and handed over in their own words)
         if (PS.money < pr) return toast(`You can't afford ${G[g].name.toLowerCase()} at ₳${pr}.`, 'bad');
         if (!PS.canCarry(g)) return toast('Your satchel is full.', 'bad');
         PS.money -= pr; PS.add(g); bz.stock[g] -= 1; bz.cash += pr * (1 - sim.treasury.taxRate); sim.treasury.cash += pr * sim.treasury.taxRate; bz.salesToday += pr; sim.stats.sales += pr;

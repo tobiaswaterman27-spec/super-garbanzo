@@ -113,6 +113,7 @@
       for (const m of (O.GangLife ? O.GangLife.mine() : [])) if (m.place === s.world.placeId && m.task && !m.task.done && m.task.at) out.push({ id: 'gang:' + m.gid, label: m.task.text, l: { at: m.task.at } });
       return out;
     }
+    O.wayChoices = choices; O.wayIdOf = idOf; O.waySpot = spotOf;
     // places of the town anyone could name
     function townPlaces(s) {
       const out = [], seen = new Set(), add = (b, label) => { if (!b || b.doorX == null || seen.has(label)) return; seen.add(label); out.push({ label, b: b.id }); };

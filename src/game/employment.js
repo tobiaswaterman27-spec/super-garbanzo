@@ -24,7 +24,7 @@
     const bizOf = (e) => { const s = cur(); return e && e.place === s.world.placeId ? s.biz.get(e.biz) : null; };
     const COURT = new Set(['monarch', 'consort', 'heir', 'prince', 'princess', 'lord', 'lady', 'lady-in-waiting', 'jester', 'steward', 'chamberlain', 'captain of the royal guard']);
     O.crownPost = (r) => COURT.has(r);
-    const hoursOf = (e, bz) => { if (e.hours) return e.hours; const r = e.role || ''; if (COURT.has(r)) return [8, 20]; if (r === 'potboy' || r === 'potgirl') return [17, 21]; if (['night watchman', 'gaoler'].includes(r)) return [20, 30]; if (r.startsWith('guard') || r === 'sergeant') return [6, 18]; const hh = bz ? bz.def.hours : [8, 17]; if (hh[1] - hh[0] >= 20) return r === 'sweeper' ? [6, 14] : [8, 18]; return hh; };
+    const hoursOf = (e, bz) => { if (e.hours) return e.hours; const r = e.role || ''; if (r === 'monarch' || r === 'consort' || r === 'regent') return [5, 24]; /* (the crown keeps no hours: the day's business is there whenever you are) */ if (COURT.has(r)) return [8, 20]; if (r === 'potboy' || r === 'potgirl') return [17, 21]; if (['night watchman', 'gaoler'].includes(r)) return [20, 30]; if (r.startsWith('guard') || r === 'sergeant') return [6, 18]; const hh = bz ? bz.def.hours : [8, 17]; if (hh[1] - hh[0] >= 20) return r === 'sweeper' ? [6, 14] : [8, 18]; return hh; };
     const worksToday = (s, bz) => !(s.weekday === 6 && bz && !['tavern', 'chapel', 'guard', 'hospital', 'palace', 'keep', 'manor', 'posthouse'].includes(bz.type));
     // when the next shift is, worked out fresh from today's date (never left saying "tomorrow" once tomorrow has come)
     const nextShift = (e, s, bz, o, c) => {
@@ -357,7 +357,7 @@
         case 'chop': spots = near(3, 3, 14, (x, y) => w.trees.some((tr) => Math.abs(tr.x / T - x) < 2 && Math.abs((tr.y - 1) / T - y) < 2)); if (spots.length < 3) spots = near(3, 3, 10); break;
         case 'fish': spots = near(3, 2, 20, (x, y) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => w.ter[(y + dy) * w.W + x + dx] === w.TER.WATER)); if (spots.length < 1) spots = near(3, 3, 8); break;
         case 'collect': spots = w.buildings.filter((x) => x.type === 'house' && x.household && x.doorX != null).sort((a, c) => (a.id * 7 + s.day) % 13 - (c.id * 7 + s.day) % 13).slice(0, 3).map((x) => [x.doorX * T + 8, (x.doorY) * T + 10, x.id]); break;
-        case 'deliver': { const tg = [...s.biz.values()].filter((x) => x.id !== bz.id && x.b.doorX != null).sort((a, c) => (a.id * 3 + s.day) % 11 - (c.id * 3 + s.day) % 11).slice(0, 3); spots = tg.map((x) => [x.b.doorX * T + 8, x.b.doorY * T + 10, x.id]); break; }
+        case 'deliver': { if (!(PS.carry && PS.carry.deliver)) { spots = [[b.doorX * T + 8, b.doorY * T + 10, bz.id]]; t._day = -1; return spots; } /* (first the loading, at your own door) */ const tg = [...s.biz.values()].filter((x) => x.id !== bz.id && x.b.doorX != null).sort((a, c) => (a.id * 3 + s.day) % 11 - (c.id * 3 + s.day) % 11).slice(0, 3); spots = tg.map((x) => [x.b.doorX * T + 8, x.b.doorY * T + 10, x.id]); break; }
         case 'chore': if (t.at !== 'out') return null; spots = near(1, 2, 6, (x, y) => w.ter[y * w.W + x] !== w.TER.ROAD || bz.type === 'stable'); break;
         case 'fetch': { const sp = s.biz.get(t.from); spots = sp ? [[sp.b.doorX * T + 8, sp.b.doorY * T + 10, sp.id]] : []; break; }
         default: spots = null; // done indoors at a station
@@ -480,7 +480,13 @@
         }
         case 'sweep': act('sweep', 1.6, 15, () => { (t.swept = t.swept || []).push(c.it ? c.it.id : c.k); tick(t.doneMsg ? said(t, null) : t.have + 1 >= t.need ? (bz.type === 'stable' ? 'The stalls are mucked out and fresh straw down.' : 'Swept clean.') : null); }); break;
         case 'patrol': act('look', 1.4, 15, () => { if (e.role === 'toll keeper') { const fee = 1 + (s.rng.chance(0.3) ? 1 : 0); if (bz.def.public) s.treasury.cash += fee; else bz.cash += fee; return tick(s.rng.chance(0.5) ? `A carter pays ₳${fee} to pass.` : `A rider pays ₳${fee} and the bar goes up.`); } tick(said(t, t.have + 1 >= t.need ? 'Your round is walked. All quiet.' : null)); }); break;
-        case 'field': act(ANIM_OF(t, e), 2.4, 40, () => { const rc = recipeFor(bz, e.role), sea = s.weather?.season, f = sea === 'autumn' ? 3 : sea === 'winter' ? 0.5 : 2; if (rc && !Object.keys(rc.inp).length) for (const [g, q] of Object.entries(rc.out)) bz.stock[g] = (bz.stock[g] || 0) + q * f; tick(said(t, null)); }); break;
+        case 'field': if (bz.type === 'site' && s.build) { // the building only goes up when the stone and timber are there
+          const site = s.build.sites.find((x) => x.id === bz.id); if (!site) return tick(null);
+          const me = { skills: { builder: (PS.skills && PS.skills.building) || 0.4 } };
+          s.build.work(me, bz);
+          if (site.stalled === site.stage) { const want = ['stone', 'logs'].find((g) => (bz.stock[g] || 0) < 6) || 'logs'; say(`No ${D.GOODS[want]?.name.toLowerCase()} on the site: nothing can go up until it's fetched.`, 'bad'); if (!e.tasks.some((x) => x.kind === 'fetch' && x.good === want && x.have < x.need)) { const sp = supplierFor(s, bz, want) || s.supplierOf(want === 'stone' ? 'quarry' : 'woodcutter', want); if (sp) { e.tasks.push({ id: 'f' + Date.now(), kind: 'fetch', good: want, qty: 6, from: sp.id, fromName: sp.name, need: 1, have: 0, text: `Fetch ${want} from ${sp.name}` }); refresh(); } } return; }
+          act(ANIM_OF(t, e), 2.4, 40, () => { for (let k = 0; k < 39; k++) s.build.work(me, bz); tick(said(t, null) || `The ${['ground', 'ground', 'foundation', 'frame', 'walls', 'upper floor', 'roof frame', 'roof', 'outside', 'inside'][site.stage] || 'work'} goes on.`); }); break; }
+          act(ANIM_OF(t, e), 2.4, 40, () => { const rc = recipeFor(bz, e.role), sea = s.weather?.season, f = sea === 'autumn' ? 3 : sea === 'winter' ? 0.5 : 2; if (rc && !Object.keys(rc.inp).length) for (const [g, q] of Object.entries(rc.out)) bz.stock[g] = (bz.stock[g] || 0) + q * f; tick(said(t, null)); }); break;
         case 'chop': act('chop', 2.4, 40, () => { const rc = recipeFor(bz, e.role); if (rc) for (const [g, q] of Object.entries(rc.out)) if (!Object.keys(rc.inp).length) bz.stock[g] = (bz.stock[g] || 0) + q * 2; else bz.stock.logs = (bz.stock.logs || 0) + 1; tick(null); }); break;
         case 'fish': if (e.role === 'ferryman') { act('fish', 2.4, 30, () => { const fee = 1 + (s.rng.chance(0.4) ? 1 : 0); bz.cash += fee; tick(s.rng.pick([`Across and back: ₳${fee} in the box.`, `A pedlar and his pack, ₳${fee}.`, `A woman with two geese, ₳${fee}.`])); }); break; } act('fish', 3, 45, () => { const got = s.rng.chance(0.7); if (got) { const g = bz.type === 'saltworks' ? 'salt' : 'fish'; bz.stock[g] = (bz.stock[g] || 0) + (g === 'fish' ? 3 : 2); } tick(got ? (bz.type === 'saltworks' ? 'The pan boils down to salt.' : 'Three fish in the basket.') : 'Nothing biting.'); }); break;
         case 'collect': {
@@ -488,7 +494,18 @@
           act('count', 1.6, 10, () => { if (!hh) return tick(null); const due = Math.max(1, Math.round(hh.members.length * 1.5)); if (hh.money >= due && s.rng.chance(0.8)) { hh.money -= due; if (bz.def.public) s.treasury.cash += due; else bz.cash += due; tick(`The ${hh.surname} household pays ₳${due}.`); } else { const q = s.byId.get(hh.members[0]); if (q) { q.agent.shockedUntil = s.minute + 2; s.relate(q, { id: 0 }, -0.05); } tick(`The ${hh.surname} household can't pay. You note it down for the bailiff.`); } });
           break;
         }
-        case 'deliver': act('place', 1.4, 15, () => { const to = s.biz.get(t._spots[c.k][2]); const g = bz.def.sells[0]; if (to && g && (bz.stock[g] || 0) >= 1) { bz.stock[g] -= 1; to.stock[g] = (to.stock[g] || 0) + 1; const pr = s.price(bz, g); if (to.cash >= pr) { to.cash -= pr; bz.cash += pr; } } tick(to ? `Delivered to ${to.name}.` : null); }); break;
+        case 'deliver': {
+          // the goods go on your back first, from the shop's own stock, and are carried to each door
+          const g = bz.def.sells[0], cy = PS.carry;
+          if (!g) return tick(null);
+          if (!cy || !cy.deliver || cy.good !== g || cy.qty < 1) {
+            if ((game.scene && game.scene.b.id === bz.id) || (t._spots && t._spots[c.k] && t._spots[c.k][2] === bz.id)) { const n = Math.min(t.need - t.have, Math.floor(bz.stock[g] || 0)); if (n < 1) { say(`There's no ${D.GOODS[g]?.name.toLowerCase()} in stock to deliver.`, 'bad'); return; } act('carry', 1.2, 5, () => { bz.stock[g] -= n; PS.carry = { good: g, qty: n, for: bz.id, deliver: true }; t._spots = null; t._day = -1; say(`You load up ${n} ${D.GOODS[g]?.name.toLowerCase()} to carry round.`); }); }
+            else say(`You've nothing to deliver: load the ${D.GOODS[g]?.name.toLowerCase()} inside ${bz.name} first.`, 'bad');
+            return;
+          }
+          act('place', 1.4, 15, () => { const to = s.biz.get(t._spots[c.k][2]); if (to) { cy.qty -= 1; if (cy.qty <= 0) PS.carry = null; to.stock[g] = (to.stock[g] || 0) + 1; const pr = s.price(bz, g); if (to.cash >= pr) { to.cash -= pr; bz.cash += pr; } } tick(to ? `Delivered to ${to.name}.` : null); });
+          break;
+        }
         case 'fetch': {
           const sp = s.biz.get(t.from), g = t.good; if (!sp) return;
           const qty = Math.min(t.qty, Math.floor(sp.stock[g] || 0)), cost = Math.round(s.price(sp, g) * qty);
@@ -530,7 +547,8 @@
       if (['monarch', 'consort', 'heir', 'prince', 'princess'].includes(e.role) && e.master != null) { e.master = null; e.masterName = null; }
       if (bz.playerRole !== e.role) bz.playerRole = e.role;
       const m = Math.floor(now(s)); if (m === e._lm) return; e._lm = m;
-      const [o, c] = hoursOf(e, bz), h = s.hour + (s.hour < 6 && c > 24 ? 24 : 0), day = s.day;
+      let [o, c] = hoursOf(e, bz); const h = s.hour + (s.hour < 6 && c > 24 ? 24 : 0), day = s.day;
+      if (e.early && e.early.day === day && e.early.from < o) o = e.early.from; // (your master let you start sooner today)
       if (e.day !== day) { // a new day
         if (e.day != null && e.dayInfo) settle(s, bz, e);
         if (e.temp != null && day > e.temp) { quit(`Your day's work at ${e.bizName} for the holiday is over.`, e); return; }
@@ -543,7 +561,7 @@
       if (on && !e.onShift && !D0.dayDone && !D0.off) { e.onShift = true; e.tasks = newTasks(s, bz, e); e._rot = now(s); D0.mode = modeOf(e.role); D0.present = 0; refresh(); }
       if (on && e.onShift && atWork(s, bz, e)) D0.present = (D0.present || 0) + 1;
       if (!on && e.onShift && h >= c) { e.onShift = false; refresh(); }
-      if (on && D0.arrived == null && !D0.off && atWork(s, bz, e)) { D0.arrived = h; if (h > o + 0.25 && !D0.excused) { e.stats.late++; const boss = s.byId.get(e.master); if (boss) s.relate(boss, { id: 0 }, -0.04); say(`You're late. ${e.masterName || 'Your master'} gives you a look.`, 'bad'); } }
+      if (on && D0.arrived == null && !D0.off && atWork(s, bz, e)) { D0.arrived = h; if (h > o + 0.25 && !D0.excused && e.master != null && !['monarch', 'consort', 'regent'].includes(e.role)) { e.stats.late++; const boss = s.byId.get(e.master); if (boss) s.relate(boss, { id: 0 }, -0.04); say("You're late.", 'bad'); } }
       if (on && e.onShift && D0.mode === 'quota' && e.tasks.length && e.tasks.every((t) => t.optional || t.have >= t.need) && !D0.dayDone) {
         D0.dayDone = true; e.onShift = false; refresh();
         say(`That's your day's work done at ${bz.name}. You can go: you'll be paid in full.`);
@@ -616,9 +634,11 @@
       if (D0.off && D0.arrived == null) return; // a day off, given
       if (D0.arrived == null) {
         if (D0.excused) { e.stats.excused++; if (boss) s.relate(boss, { id: 0 }, -0.02); }
+        else if (['monarch', 'consort', 'regent'].includes(e.role)) { /* the crown is never missed from its own work */ }
         else { e.stats.missed++; (e.week = e.week || { start: e.day, good: 0, bad: 0 }).bad++; if (boss) { s.relate(boss, { id: 0 }, -0.12); s.remember(boss, 'The stranger never came to work.', 'work', 1.2, 0); } }
       } else {
         e.stats.shifts++;
+        { const req = (e.tasks || []).filter((t) => !t.optional && t.kind !== 'talkmany' && t.kind !== 'talkto'), undone = req.filter((t) => t.have < t.need).length; if (req.length && undone / req.length > 0.5) { bz.neglect = (bz.neglect || 0) + 1; if (boss) s.relate(boss, { id: 0 }, -0.05); } } // (the needful work left undone tells on the business)
         // the day's wage, less for a half-hearted day
         let pay;
         if (D0.walkedOut) pay = 0;
@@ -672,7 +692,7 @@
       const bz = s.world.placeId === e.place ? s.biz.get(e.biz) : null, [o, c] = hoursOf(e, bz);
       const head = `<b>${esc(O.roleName(e.role).replace(/^./, (c) => c.toUpperCase()))}</b> · ${esc(e.bizName)}${e.place !== cur().world.placeId ? `, ${esc(e.placeName)}` : ''}`;
       const crown = COURT.has(e.role) && (!bz || ['keep', 'palace'].includes(bz.type) || bz.b?.royal || ['monarch', 'consort', 'heir', 'prince', 'princess', 'lord', 'lady'].includes(e.role));
-      const shift = crown ? (e.onShift ? `${e.role === 'monarch' ? 'Your reign' : 'At court'}: the business of the day, till ${fmtH(c)}` : `At court from ${fmtH(o)}`) : e.onShift ? (modeOf(e.role) === 'quota' ? `The day's work: ${e.tasks.filter((t) => !t.optional && t.have >= t.need).length} of ${e.tasks.filter((t) => !t.optional).length} done` : `On shift till ${fmtH(c)}`) : e.dayInfo?.dayDone ? `Your day's work is done` : e.dayInfo?.off && e.day === s.day ? 'A day off today, given by your master' : `Next shift: ${nextShift(e, s, bz, o, c)} ${fmtH(o)} to ${fmtH(c)}`;
+      const shift = crown ? (e.onShift ? (e.role === 'monarch' || e.role === 'consort' ? 'Your reign: the business of the realm, whenever you will' : `At court: the business of the day, till ${fmtH(c)}`) : `At court from ${fmtH(o)}`) : e.onShift ? (modeOf(e.role) === 'quota' ? `The day's work: ${e.tasks.filter((t) => !t.optional && t.have >= t.need).length} of ${e.tasks.filter((t) => !t.optional).length} done` : `On shift till ${fmtH(c)}`) : e.dayInfo?.dayDone ? `Your day's work is done` : e.dayInfo?.off && e.day === s.day ? 'A day off today, given by your master' : `Next shift: ${nextShift(e, s, bz, o, c)} ${fmtH(o)} to ${fmtH(c)}`;
       const tasks = e.onShift ? e.tasks.map((t) => `<li class="${t.have >= t.need ? 'done' : ''}">${t.have >= t.need ? '■' : '□'} ${esc(t.text)}${t.need > 1 ? ` (${Math.min(t.have, t.need)}/${t.need})` : ''}${t.optional && t.bonus ? ` <b>+₳${t.bonus}</b>` : ''}</li>`).join('') : '';
       // how the day's pay stands
       const earn = !crown && e.onShift && bz ? (() => { if (modeOf(e.role) === 'quota') { const req = e.tasks.filter((t) => !t.optional), fin = req.filter((t) => t.have >= t.need).length; return `Pay: ₳${e.wage} when all ${req.length} are done (${fin} so far)`; } const D0 = e.dayInfo || {}, len = Math.max(60, (c - o) * 60), part = O.clamp(0.25 + 0.75 * (D0.present || 0) / len, 0.25, 1); return `Pay so far: about ₳${Math.round(e.wage * part)} of ₳${e.wage} for the hours you've been here`; })() : '';
@@ -718,7 +738,7 @@
         case 'chop': return 'In the wood: press E at each marked tree to fell it and cut it up.';
         case 'fish': return "At the water's edge: press E at each marked spot to cast a line.";
         case 'collect': return 'Call at each marked door and press E to collect what is owed.';
-        case 'deliver': return 'Carry the goods to each marked door and press E to hand them over.';
+        case 'deliver': return PS.carry && PS.carry.deliver ? 'Carry the goods to each marked door and press E to hand them over.' : `Load up the goods at the door of ${bz.name} (press E there), then carry them round.`;
         case 'service': return `In the chapel, press E at ${at === 'your place of work' ? 'the altar' : at} to lead the prayers.`;
         case 'teach': return `Press E at ${at === 'your place of work' ? 'the desk' : at} to teach the children.`;
         case 'tend': return `Inside ${bz.name}, press E at each sick bed to tend whoever lies in it.`;

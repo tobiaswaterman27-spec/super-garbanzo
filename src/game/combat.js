@@ -134,7 +134,7 @@
         if (f.mode === 'fight') {
           if (d > 14) { const sp = 70 * dt; const nx = a.x + (dx / d) * sp, ny = a.y + (dy / d) * sp; if (!game.solidAt(nx, ny)) { a.x = nx; a.y = ny; } a.anim = 'run'; }
           else if (f.cd <= 0) {
-            f.cd = 0.9; a.anim = 'attack'; a.ft = 0;
+            f.cd = 0.9; a.anim = 'attack'; a.ft = 0; f.blows = (f.blows || 0) + 1;
             const armed = q.app.outfit.item && ['spear', 'sword', 'axe', 'hammer', 'pitchfork', 'dagger'].includes(q.app.outfit.item);
             const dmg = (armed ? 12 : 6) * (q.job?.role?.startsWith('guard') ? 1.2 : 1) * sim.rng.float(0.7, 1.2);
             PS.hp -= dmg; fx.push({ x: game.player.x, y: game.player.y - 16, flash: true, t: 0, max: 0.12 });
@@ -143,6 +143,9 @@
             if (PS.hp <= 0) return knockedOut(q);
           } else if (f.cd < 0.55) a.anim = 'idle';
           a.dir = O.dirOf(dx, dy);
+          // ordinary folk give you a shove or two and leave it at that; they won't chase you down the street
+          const tough = q.job?.role?.startsWith('guard') || (q.gang && q.gang !== 'player') || f.mode0 === 'brawl';
+          if (!tough && ((f.blows || 0) >= 2 || d > 70 || f.t > 10)) { fights.delete(id); a.chasing = false; a.anim = 'idle'; if (O.Speech && Math.random() < 0.7) O.Speech.say(q, ['And stay off me!', 'Keep your hands to yourself.', 'That\'ll teach you.', 'Go on, get away.'][Math.floor(Math.random() * 4)], 2.5, 'angry'); }
           if (d > 200 || f.t > 40) { fights.delete(id); a.chasing = false; }
         } else if (f.mode === 'flee') {
           const sp = 80 * dt; const nx = a.x - (dx / d) * sp, ny = a.y - (dy / d) * sp;

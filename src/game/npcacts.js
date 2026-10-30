@@ -158,10 +158,13 @@
           if (O.AIChat && O.AIChat.line) O.AIChat.line(q, now - fi.lastMove > 12 ? 'You came along with the player, but they are just standing about; you have had enough and say so, then go.' : 'You have been following the player about for a long while and it is going nowhere; say you are done and go your way.').then((t) => O.Speech && O.Speech.say(q, t || fb, 3.5)); else O.Speech && O.Speech.say(q, fb, 3.5);
           continue; } } }
       const a = q.agent; a.chasing = true; a.path = null;
-      const dx = g.player.x - a.x, dy = g.player.y - a.y, d = Math.hypot(dx, dy) || 1;
-      if (d > 520) { follow.delete(id); a.chasing = false; continue; }
-      if (d > 26) { const sp = (d > 90 ? 92 : 58) * dt, nx = a.x + (dx / d) * sp, ny = a.y + (dy / d) * sp; if (!g.solidAt(nx, ny)) { a.x = nx; a.y = ny; } else if (!g.solidAt(nx, a.y)) a.x = nx; else if (!g.solidAt(a.x, ny)) a.y = ny; a.anim = d > 90 ? 'run' : 'walk'; a.dir = O.dirOf(dx, dy); }
-      else { a.anim = 'idle'; a.dir = O.dirOf(dx, dy); }
+      // loosely: they keep a little way off to one side, and only catch up when you've gone on a bit
+      const ang = (id % 8) / 8 * Math.PI * 2, tgx = g.player.x + Math.cos(ang) * 30, tgy = g.player.y + Math.sin(ang) * 18;
+      if (!a._lt || Math.hypot(a._lt[0] - tgx, a._lt[1] - tgy) > 44) a._lt = [tgx, tgy];
+      const dx = a._lt[0] - a.x, dy = a._lt[1] - a.y, d = Math.hypot(dx, dy) || 1, dp = Math.hypot(g.player.x - a.x, g.player.y - a.y);
+      if (dp > 520) { follow.delete(id); a.chasing = false; continue; }
+      if (d > 10) { const sp = (dp > 160 ? 88 : 50) * dt, nx = a.x + (dx / d) * sp, ny = a.y + (dy / d) * sp; if (!g.solidAt(nx, ny)) { a.x = nx; a.y = ny; } else if (!g.solidAt(nx, a.y)) a.x = nx; else if (!g.solidAt(a.x, ny)) a.y = ny; a.anim = dp > 160 ? 'run' : 'walk'; a.dir = O.dirOf(dx, dy); }
+      else { a.anim = 'idle'; a.dir = O.dirOf(g.player.x - a.x, g.player.y - a.y); }
     }
   });
   // checking meetings: did you come, did they

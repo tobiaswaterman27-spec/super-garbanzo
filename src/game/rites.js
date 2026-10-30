@@ -94,7 +94,7 @@
       if (PS.anointed) return;
       if (!PS.coronation) {
         PS.coronation = { place: cap.id, day: O.SimRef.home.day + 1 };
-        say('The bishop sends word: you will be crowned tomorrow in the castle chapel; the court gathers at ten. Kneel at the altar (if you are there sooner, the bishop will crown you at once).');
+        say('The bishop sends word: you will be crowned tomorrow in the castle chapel; the court gathers at ten. Be at the altar at ten: the bishop will crown you before them all.');
       }
       const c = PS.coronation;
       // on the morning, the herald comes to fetch you
@@ -115,7 +115,7 @@
       const sc = game.scene, s = cur();
       // the crown waits for you: any time from the morning to the evening, from the day set (or at once, if you're here already)
       const c = PS.coronation;
-      if (sc && !cer && sc.b.roomKey === 'chapel' && sc.b.parent?.royal && c && !c.done && !PS.anointed && O.crowned && O.crowned() && s.hour >= 8 && s.hour < 20) {
+      if (sc && !cer && sc.b.roomKey === 'chapel' && sc.b.parent?.royal && c && !c.done && !PS.anointed && O.crowned && O.crowned() && coronationOn(s) && ([...sc.actors.values()].some((a) => ['priest', 'chaplain', 'bishop'].includes(a.person?.job?.role)) || !s.people.some((z) => z.alive !== false && ['priest', 'chaplain', 'bishop'].includes(z.job?.role)) || s.hour >= 11)) { // (at the hour set, with the court gathered and the bishop at the altar)
         const alt = sc.L.items.find((i) => i.kind === 'altar');
         if (alt) { const [x, y] = sc.anchor(alt), p = game.player, d = Math.hypot(x - p.x, y + 18 - p.y); if (d < 80) return { type: 'custom', d: -20, label: 'Kneel before the altar to be crowned', act: () => { c.day = Math.min(c.day, s.day); c.place = s.world.placeId; crown(sc, alt); }, x, y: y - 30 }; }
       }

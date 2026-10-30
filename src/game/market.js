@@ -82,6 +82,18 @@
       }
       return r;
     };
+    // a shop with nothing to sell and nothing sold, day after day, or whose work goes undone, fails
+    const _bd = SP.businessDaily;
+    if (_bd) SP.businessDaily = function () {
+      for (const bz of [...this.biz.values()]) {
+        if (bz.def.public || bz.type === 'site' || !bz.def.sells || !bz.def.sells.length || bz.closedDown) continue;
+        const empty = bz.def.sells.every((g) => (bz.stock[g] || 0) < 1), idle = (bz.salesYesterday || 0) <= 0;
+        bz.neglect = Math.max(0, (bz.neglect || 0) + (empty && idle ? 1 : -1));
+        if (bz.neglect === 3 && mine(bz) && this === O.SimRef.cur) O.UI.say(`${bz.name} is failing: nothing to sell and nothing sold for three days.`, 'bad');
+        if (bz.neglect >= 6) { this.log(`${bz.name} has failed: its shelves stood empty and its work undone.`, 'economy'); this.closeDown(bz); if (mine(bz)) O.UI.say(`${bz.name} has failed and closed.`, 'bad'); }
+      }
+      return _bd.apply(this, arguments);
+    };
     // a good year: the barns full and bread cheap
     let rolled = -1;
     game.hooks.update.push(() => {

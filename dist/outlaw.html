@@ -13536,7 +13536,7 @@ They know where their family and friends are just now (the card says); a strange
     const pz = out?.people && (out.people[q.first] || Object.values(out.people)[0]); const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r);
     if (pz) { r.affinity = clamp(r.affinity + clamp(Math.round(+pz.feel || 0), -2, 2) * 0.04, -1, 1); r.trust = clamp((r.trust || 0) + clamp(Math.round(+pz.trust || 0), -2, 2) * 0.05, -1, 1); if (pz.learned) (q.beliefs = q.beliefs || []).unshift({ t: clean(pz.learned).slice(0, 140), src: 'player', day: s.day }); }
     if (out?.name) r.name = clean(out.name).split(' ')[0];
-    const notes = []; if (Array.isArray(out?.acts) && O.NpcActs) for (const a of out.acts.slice(0, 3)) if (a && ['meet', 'give', 'want', 'seek_job', 'tell', 'like', 'invite', 'wedding_guest', 'set_wedding', 'court', 'betroth', 'day_off', 'raise', 'release', 'gather', 'host', 'recommend', 'repay', 'spread', 'odd_job', 'forgive', 'grudge'].includes(a.do)) { if (a.do === 'give') continue; const res = O.NpcActs.apply(s, q, a, q); if (res && res !== 'leave') notes.push(res); }
+    const notes = []; if (Array.isArray(out?.acts) && O.NpcActs) for (const a of out.acts.slice(0, 3)) if (a && ['meet', 'give', 'want', 'seek_job', 'tell', 'like', 'invite', 'wedding_guest', 'set_wedding', 'court', 'betroth', 'day_off', 'raise', 'hours', 'release', 'gather', 'host', 'recommend', 'repay', 'spread', 'odd_job', 'forgive', 'grudge'].includes(a.do)) { if (a.do === 'give') continue; const res = O.NpcActs.apply(s, q, a, q); if (res && res !== 'leave') notes.push(res); }
     if (line) O.sendMail('reply', { from: q.name, text: line, notes }, 2 + Math.random() * 6, `A letter from ${q.first}`);
   }
   O.mailHandlers = O.mailHandlers || {};
@@ -13812,10 +13812,13 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
           if (O.AIChat && O.AIChat.line) O.AIChat.line(q, now - fi.lastMove > 12 ? 'You came along with the player, but they are just standing about; you have had enough and say so, then go.' : 'You have been following the player about for a long while and it is going nowhere; say you are done and go your way.').then((t) => O.Speech && O.Speech.say(q, t || fb, 3.5)); else O.Speech && O.Speech.say(q, fb, 3.5);
           continue; } } }
       const a = q.agent; a.chasing = true; a.path = null;
-      const dx = g.player.x - a.x, dy = g.player.y - a.y, d = Math.hypot(dx, dy) || 1;
-      if (d > 520) { follow.delete(id); a.chasing = false; continue; }
-      if (d > 26) { const sp = (d > 90 ? 92 : 58) * dt, nx = a.x + (dx / d) * sp, ny = a.y + (dy / d) * sp; if (!g.solidAt(nx, ny)) { a.x = nx; a.y = ny; } else if (!g.solidAt(nx, a.y)) a.x = nx; else if (!g.solidAt(a.x, ny)) a.y = ny; a.anim = d > 90 ? 'run' : 'walk'; a.dir = O.dirOf(dx, dy); }
-      else { a.anim = 'idle'; a.dir = O.dirOf(dx, dy); }
+      // loosely: they keep a little way off to one side, and only catch up when you've gone on a bit
+      const ang = (id % 8) / 8 * Math.PI * 2, tgx = g.player.x + Math.cos(ang) * 30, tgy = g.player.y + Math.sin(ang) * 18;
+      if (!a._lt || Math.hypot(a._lt[0] - tgx, a._lt[1] - tgy) > 44) a._lt = [tgx, tgy];
+      const dx = a._lt[0] - a.x, dy = a._lt[1] - a.y, d = Math.hypot(dx, dy) || 1, dp = Math.hypot(g.player.x - a.x, g.player.y - a.y);
+      if (dp > 520) { follow.delete(id); a.chasing = false; continue; }
+      if (d > 10) { const sp = (dp > 160 ? 88 : 50) * dt, nx = a.x + (dx / d) * sp, ny = a.y + (dy / d) * sp; if (!g.solidAt(nx, ny)) { a.x = nx; a.y = ny; } else if (!g.solidAt(nx, a.y)) a.x = nx; else if (!g.solidAt(a.x, ny)) a.y = ny; a.anim = dp > 160 ? 'run' : 'walk'; a.dir = O.dirOf(dx, dy); }
+      else { a.anim = 'idle'; a.dir = O.dirOf(g.player.x - a.x, g.player.y - a.y); }
     }
   });
   // checking meetings: did you come, did they
@@ -14709,6 +14712,18 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         if (this.day === this.dearth.until) this.log('The worst of the dearth is past. Bread is coming down in price.', 'economy');
       }
       return r;
+    };
+    // a shop with nothing to sell and nothing sold, day after day, or whose work goes undone, fails
+    const _bd = SP.businessDaily;
+    if (_bd) SP.businessDaily = function () {
+      for (const bz of [...this.biz.values()]) {
+        if (bz.def.public || bz.type === 'site' || !bz.def.sells || !bz.def.sells.length || bz.closedDown) continue;
+        const empty = bz.def.sells.every((g) => (bz.stock[g] || 0) < 1), idle = (bz.salesYesterday || 0) <= 0;
+        bz.neglect = Math.max(0, (bz.neglect || 0) + (empty && idle ? 1 : -1));
+        if (bz.neglect === 3 && mine(bz) && this === O.SimRef.cur) O.UI.say(`${bz.name} is failing: nothing to sell and nothing sold for three days.`, 'bad');
+        if (bz.neglect >= 6) { this.log(`${bz.name} has failed: its shelves stood empty and its work undone.`, 'economy'); this.closeDown(bz); if (mine(bz)) O.UI.say(`${bz.name} has failed and closed.`, 'bad'); }
+      }
+      return _bd.apply(this, arguments);
     };
     // a good year: the barns full and bread cheap
     let rolled = -1;
@@ -15615,6 +15630,8 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       // your master answers you
       day_off(s, q) { const e = myPost(s, q); if (!e) return null; e.dayOff = s.day + 1; e.offAsked = s.day; return `${q.first} gives you tomorrow off.`; },
       raise(s, q, a) { const e = myPost(s, q); if (!e) return null; const n = clamp(Math.round(Number(a.amount) || 1), 1, 5); e.wage += n; return `${q.first} raises your pay to ₳${e.wage} a day.`; },
+      hours(s, q, a) { const e = myPost(s, q); if (!e) return null; const f = clamp(Math.round(Number(a.from) || 0), 4, 22), t = clamp(Math.round(Number(a.to) || 0), f + 2, 24); if (!a.from || !a.to) return null; e.hours = [f, t]; if (a.wage != null) e.wage = clamp(Math.round(Number(a.wage) || e.wage), 1, 60); return `Your hours at ${e.bizName} are now ${hstr(f)} to ${hstr(t)}, for ₳${e.wage} a day.`; },
+      start_now(s, q) { const e = myPost(s, q); if (!e) return null; e.early = { day: s.day, from: Math.floor(s.hour * 4) / 4 }; return `${q.first} lets you start your shift now.`; },
       release(s, q) { const e = myPost(s, q); if (!e || !O.Employment || !O.Employment.quit) return null; O.Employment.quit(`You leave your place as ${e.role} at ${e.bizName}.`, e); return 'Your service there is over.'; },
     };
     O.extraActs = O.extraActs || [];
@@ -15626,14 +15643,14 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       'contest {"kind":"wrestle"|"race"|"arm-wrestle"|"drinking"} (a friendly match, if you accept a challenge or make one)',
       'confide {"secret"} (you tell the player a secret of yours, if you trust them)', 'spread {"about","rumour","good":true|false} (you agree to pass word round about someone)',
       'borrow {"amount"} (you borrow money from the player, if they agree)', 'repay (you pay back what you owe the player)',
-      'day_off | raise {"amount"} | release (only the player\'s own master: grant a day off, raise their pay, or accept their notice and let them go)');
+      'day_off | start_now (let them start today\'s work early) | raise {"amount"} | hours {"from","to","wage"} | release (only the player\'s own master: grant a day off, raise their pay, give them more or fewer hours for more or less pay, or accept their notice and let them go)');
     const base = O.NpcActs.apply;
     O.NpcActs.apply = function (s, q, a, main) { if (a && A[a.do]) return A[a.do](s, q, a); return base.apply(this, arguments); };
     // what they know, for their card
     (O.extraLines = O.extraLines || []).push((s, q) => {
       const out = [];
       const e = myPost(s, q);
-      if (e) { const st = e.stats || {}; out.push(`The player works for you as ${e.role} at ${e.bizName} for ₳${e.wage} a day (${st.shifts || 0} shifts worked, ${st.missed || 0} missed${e.dayOff === s.day + 1 ? '; you gave them tomorrow off' : ''}). If they ask, in their own words or by letter, for a day off, a raise or to leave your service, you decide as you would: day_off, raise {"amount"}, release.`); }
+      if (e) { const st = e.stats || {}; out.push(`The player works for you as ${e.role} at ${e.bizName} for ₳${e.wage} a day (${st.shifts || 0} shifts worked, ${st.missed || 0} missed${e.dayOff === s.day + 1 ? '; you gave them tomorrow off' : ''}). Their hours are ${(e.hours || []).map(hstr).join(' to ') || 'the usual ones'}. If they ask, in their own words or by letter, for a day off, a raise, more or less work for more or less pay, or to leave your service, or to start work now, you decide as you would: day_off, start_now, raise {"amount"}, hours {"from","to","wage"}, release.`); }
       const L = (PS.lent || []).find((x) => x.who === q.id); if (L) out.push(`You owe the player ₳${L.n}, borrowed to be paid back ${L.due <= s.day ? 'by now' : 'by day ' + L.due}. If you can, repay.`);
       if (q.sworn) out.push('You and the player are sworn friends: you would stand by them in anything.');
       const ev = (s.npcEvents || []).filter((x) => x.party && x.day >= s.day && (x.host === q.id || (x.guests || []).includes(q.id))).map((x) => `${x.title} (${O.dateOf ? O.dateOf(x.day) : 'day ' + x.day}, ${hstr(x.from)})${x.host === q.id ? ', which you are giving' : ''}`);
@@ -15816,7 +15833,33 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       return out.join(' ');
     });
   }
-  O.WildSetup = { setup };
+  // bees about the hives by day in fine weather: a little cloud of them round each skep
+  function bees(game) {
+    const cur = () => O.SimRef.cur;
+    const hived = new WeakSet();
+    game.hooks.update.push(() => {
+      const s = cur(), w = game.world; if (!s || !w || !w.buildings || hived.has(w)) return; hived.add(w);
+      for (const b of w.buildings) {
+        if (b.type !== 'apiary' && (s.biz.get(b.id) || {}).type !== 'apiary') continue; if (b.doorX == null) continue;
+        for (let k = 0; k < 4; k++) { const tx = b.x + b.w + 1 + (k % 2) * 2, ty = b.bottom - 1 + Math.floor(k / 2) * 2, i = ty * w.W + tx; if (tx >= w.W || ty >= w.H || w.solid[i]) continue; w.props.push({ kind: 'skep', x: tx * 16 + 8, y: ty * 16 + 14, seed: b.id * 7 + k, v: 0, solid: true, hive: b.id }); w.solid[i] = 1; }
+        w.dirtyStatics = true;
+      }
+    });
+    game.hooks.drawTop.push((ctx, cam) => {
+      const s = cur(), w = game.world; if (!s || !w || game.scene || !w.props) return;
+      const W = s.weather; if (s.hour < 7 || s.hour >= 19 || s.season === 'winter' || (W && (W.raining || W.kind === 'snow' || W.kind === 'fog'))) return;
+      const t = game.t;
+      for (const p of w.props) {
+        if (p.kind !== 'skep') continue; const sx = p.x - cam.x, sy = p.y - 10 - cam.y; if (sx < -30 || sy < -30 || sx > game.vw + 30 || sy > game.vh + 30) continue;
+        for (let i = 0; i < 6; i++) {
+          const a = t * (1.6 + i * 0.37) + i * 1.9 + p.x, r = 6 + ((i * 5) % 9) + Math.sin(t * 2.3 + i) * 3;
+          const x = Math.round(sx + Math.cos(a) * r), y = Math.round(sy - 4 + Math.sin(a * 1.3) * r * 0.6);
+          ctx.fillStyle = '#f0c030'; ctx.fillRect(x, y, 2, 1); ctx.fillStyle = '#2a2018'; ctx.fillRect(x + (Math.sin(t * 40 + i) > 0 ? 1 : 0), y, 1, 1);
+        }
+      }
+    });
+  }
+  O.WildSetup = { setup: (game) => { setup(game); bees(game); } };
 })();
 
 </script>
@@ -17223,7 +17266,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         if (f.mode === 'fight') {
           if (d > 14) { const sp = 70 * dt; const nx = a.x + (dx / d) * sp, ny = a.y + (dy / d) * sp; if (!game.solidAt(nx, ny)) { a.x = nx; a.y = ny; } a.anim = 'run'; }
           else if (f.cd <= 0) {
-            f.cd = 0.9; a.anim = 'attack'; a.ft = 0;
+            f.cd = 0.9; a.anim = 'attack'; a.ft = 0; f.blows = (f.blows || 0) + 1;
             const armed = q.app.outfit.item && ['spear', 'sword', 'axe', 'hammer', 'pitchfork', 'dagger'].includes(q.app.outfit.item);
             const dmg = (armed ? 12 : 6) * (q.job?.role?.startsWith('guard') ? 1.2 : 1) * sim.rng.float(0.7, 1.2);
             PS.hp -= dmg; fx.push({ x: game.player.x, y: game.player.y - 16, flash: true, t: 0, max: 0.12 });
@@ -17232,6 +17275,9 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
             if (PS.hp <= 0) return knockedOut(q);
           } else if (f.cd < 0.55) a.anim = 'idle';
           a.dir = O.dirOf(dx, dy);
+          // ordinary folk give you a shove or two and leave it at that; they won't chase you down the street
+          const tough = q.job?.role?.startsWith('guard') || (q.gang && q.gang !== 'player') || f.mode0 === 'brawl';
+          if (!tough && ((f.blows || 0) >= 2 || d > 70 || f.t > 10)) { fights.delete(id); a.chasing = false; a.anim = 'idle'; if (O.Speech && Math.random() < 0.7) O.Speech.say(q, ['And stay off me!', 'Keep your hands to yourself.', 'That\'ll teach you.', 'Go on, get away.'][Math.floor(Math.random() * 4)], 2.5, 'angry'); }
           if (d > 200 || f.t > 40) { fights.delete(id); a.chasing = false; }
         } else if (f.mode === 'flee') {
           const sp = 80 * dt; const nx = a.x - (dx / d) * sp, ny = a.y - (dy / d) * sp;
@@ -21068,6 +21114,34 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
   // [text, where, action, minutes, done, gain]: where is furniture kinds ('a|b'), 'floor' or 'out';
   // gain is { cash }, { good, qty } or { cond } (the building's repair)
   const C = {
+    shepherd: [['Count the flock into the fold', 'out', 'count', 15, 'All there, and the gate shut.'], ['Look over a lame ewe', 'out', 'look', 15, 'A thorn in the hoof, out now.'], ['Mend a gap in the hurdles', 'out', 'hammer', 20, 'No way through for a lamb.'], ['Shear a fleece', 'out', 'scrub', 25, 'A good fleece, rolled and tied.', { good: 'wool', qty: 1 }]],
+    dairymaid: [['Milk the cows', 'out', 'bucket', 20, 'Two pails, frothing.'], ['Churn the butter', 'churn|table|counter', 'mix', 25, 'It has come, yellow and firm.', { cash: 2 }], ['Scald the pails and the churn', 'washtub|table|floor', 'scrub', 10, 'Sweet and clean.'], ['Press the curd for cheese', 'table|counter', 'knead', 20, 'Into the press, and weighted.', { good: 'cheese', qty: 1 }]],
+    chambermaid: [['Change the sheets in the guest beds', 'bed|double', 'scrub', 15, 'Fresh linen on every bed.'], ['Empty and scour the chamber pots', 'floor', 'bucket', 10, 'Done, and best not spoken of.'], ['Sweep and air the rooms', 'floor', 'sweep', 15, 'The windows open, the rushes fresh.']],
+    midwife: [['Call on a woman near her time', 'out', 'look', 20, 'Not long now, by the look of her.'], ['Make up a birthing posset', 'table|cauldron|fireplace', 'mix', 15, 'Warm and sweet with honey.'], ['Wash and fold the swaddling bands', 'washtub|table', 'scrub', 10, 'Clean and ready.']],
+    sergeant: [['Drill the watch in the yard', 'out', 'attack', 20, 'They hold their staves straighter now.'], ['Write up the night\'s doings', 'desk|table', 'write', 15, 'All set down.'], ['Check the cell locks', 'cell|chest|door', 'open', 10, 'Every lock fast.']],
+    'bounty hunter': [['Study the notices on the board', 'out', 'read', 10, 'Three faces, three prices.'], ['Oil and check your manacles', 'chest|table|bench', 'scrub', 10, 'They close with a good snap.'], ['Ask at the tavern door after strangers', 'out', 'look', 15, 'A name, and a road.']],
+    'rat-catcher': [['Set traps along the walls', 'floor', 'place', 15, 'Baited and set.'], ['Empty the traps', 'floor', 'pickup', 10, 'A good haul, if you like rats.'], ['Walk your terrier round the yards', 'out', 'look', 15, 'Two caught, one got away.']],
+    lamplighter: [['Trim the wicks', 'candlestand|lamp|table', 'scrub', 10, 'Trimmed straight.'], ['Fill the oil and refill the tallow', 'barrel|shelf|table', 'pour', 10, 'Enough for the night.'], ['Mend a cracked lantern', 'workbench|table', 'hammer', 15, 'Good as new.']],
+    'chimney sweep': [['Sweep a kitchen flue', 'fireplace|oven', 'sweep', 25, 'Soot everywhere, but the flue draws.', { cash: 2 }], ['Shake out the sacks of soot', 'out', 'sweep', 10, 'A black cloud on the wind.'], ['Mend your brushes', 'bench|table', 'weave', 10, 'Bristles tight again.']],
+    'water carrier': [['Fill the buckets at the well', 'out', 'bucket', 15, 'Two brimming buckets.'], ['Carry water to a house', 'out', 'carry', 15, 'Delivered, and a coin for it.', { cash: 1 }], ['Mend the yoke strap', 'bench|table', 'hammer', 10, 'It holds.']],
+    'ballot clerk': [['Count the ballots', 'desk|table', 'count', 20, 'Counted twice, and tallies.'], ['Write up the roll of voters', 'desk', 'write', 15, 'Every name in its place.']],
+    squire: [['Polish your knight\'s armour', 'rack|chest|bench', 'scrub', 20, 'It shines like a mirror.'], ['Practise at the quintain', 'out', 'attack', 20, 'You only took one knock.'], ['Saddle the destrier', 'out|hay', 'place', 15, 'Girth tight, stirrups even.']],
+    falconer: [['Fly the hawks', 'out', 'look', 20, 'She comes back to the glove.'], ['Feed the mews', 'perch|table|out', 'pickup', 10, 'Fed and hooded.'], ['Mend a jess', 'table|bench', 'weave', 10, 'Supple and strong.']],
+    knight: [['Train at arms', 'out', 'attack', 25, 'Sweat and bruises, and better for it.'], ['Ride out to look over the lands', 'out', 'look', 20, 'All quiet on the bounds.'], ['Hear a tenant\'s complaint', 'chair|desk|table', 'read', 15, 'Settled, more or less.']],
+    herald: [['Learn the new arms by heart', 'desk|table', 'read', 15, 'Or and azure, a lion rampant.'], ['Cry the proclamation in the square', 'out', 'look', 15, 'Heard by all the market.'], ['Copy out the roll of arms', 'desk', 'write', 20, 'Neat, every blazon.']],
+    'master of horse': [['Look over the stud', 'out|hay', 'look', 20, 'A fine foal on the way.'], ['Choose horses for the hunt', 'out', 'count', 15, 'Six ready and fresh.'], ['Check the farrier\'s bill', 'desk|table', 'count', 10, 'Dear, but fair.']],
+    'royal guard': [['Stand to at the door', 'floor|door', 'look', 20, 'Nobody passes.'], ['Burnish your halberd', 'rack|bench', 'scrub', 10, 'A blade like glass.'], ['Change the watch', 'floor', 'look', 10, 'Relieved, and relieving.']],
+    'captain of the royal guard': [['Check the castle keys', 'chest|desk', 'count', 10, 'Every key on its hook.'], ['Write the night\'s orders', 'desk|table', 'write', 15, 'Orders given.']],
+    jester: [['Practise juggling', 'floor|out', 'gesture', 15, 'Three balls, then four.'], ['Learn a new song for supper', 'chair|bench', 'read', 15, 'A rude one, too.'], ['Mend your bells and motley', 'chair|table', 'weave', 10, 'Jingling again.']],
+    executioner: [['Whet the axe', 'workbench|table|out', 'scrub', 15, 'Keen enough to split a hair.'], ['Mend the scaffold steps', 'out', 'hammer', 20, 'Sound under any weight.']],
+    spy: [['Listen at the tavern', 'table|bench|out', 'look', 20, 'A name, and a meeting.'], ['Write up what you heard, in cipher', 'desk|table', 'write', 15, 'Folded small.'], ['Follow a stranger at a distance', 'out', 'look', 15, 'You know where they sleep.']],
+    gravedigger: [['Dig a grave', 'out', 'pitch', 30, 'Six feet, and square.', { cash: 2 }], ['Trim the churchyard grass', 'out', 'sweep', 15, 'Neat round every stone.'], ['Sharpen the spade', 'workbench|out', 'scrub', 10, 'It bites clean.']],
+    'bell-ringer': [['Ring the hours', 'out|floor', 'stretch', 10, 'The bell carries over the roofs.'], ['Grease the bell wheel', 'floor|out', 'scrub', 15, 'It swings sweet.'], ['Mend the bell rope', 'bench|table', 'weave', 10, 'Spliced and sound.']],
+    'pilgrim guide': [['Tell the saint\'s story at the shrine', 'altar|pew', 'read', 15, 'Every pilgrim weeps at the end.'], ['Sell pilgrim badges', 'counter|table', 'count', 10, 'Lead badges, a penny each.', { cash: 2 }]],
+    thatcher: [['Bind bundles of reed', 'out', 'weave', 20, 'A stack of yealms.'], ['Patch a leaking roof', 'out', 'hammer', 25, 'Dry again, under the eaves.', { cond: 0.03 }], ['Sharpen the shearing hook', 'workbench|out', 'scrub', 10, 'Keen.']],
+    plasterer: [['Mix the daub', 'out|floor', 'mix', 20, 'Clay, dung and straw, just right.'], ['Patch a cracked wall', 'out', 'scrub', 20, 'Smooth as cream.', { cond: 0.03 }], ['Limewash a wall', 'out', 'scrub', 15, 'Bright white.']],
+    roofer: [['Hang new slates', 'out', 'hammer', 25, 'Tight and true.', { cond: 0.03 }], ['Check the ridge tiles', 'out', 'look', 15, 'One loose, fixed now.'], ['Cut slates to size', 'workbench|out', 'hammer', 15, 'A neat pile.']],
+    bailiff: [['Serve a summons', 'out', 'look', 15, 'Delivered, with a scowl.'], ['Take an inventory of goods for a debt', 'chest|shelf|table', 'count', 20, 'Every pot written down.'], ['Write up the distraint', 'desk|table', 'write', 15, 'Signed and sealed.']],
     farmer: [['Mend the plough harness', 'workbench|chest|out', 'hammer', 20, 'The harness will hold another season.'], ['Count the beasts in the paddock', 'out', 'count', 15, 'All present, and none lame.'], ['Sharpen the scythes and sickles', 'out|workbench', 'scrub', 15, 'They take a hair off your arm now.'], ['Muck out the byre', 'out', 'pitch', 25, 'The muck is on the heap and the byre is sweet.', { good: 'cabbage', qty: 1 }]],
     farmhand: [['Fork hay into the racks', 'out|hay', 'pitch', 20, 'The racks are full.'], ['Carry water to the troughs', 'out', 'bucket', 15, 'The troughs are brimming.'], ['Gather the eggs', 'out', 'pickup', 10, 'A basket of eggs, still warm.', { good: 'eggs', qty: 2 }], ['Clear stones from the strips', 'out', 'pickup', 20, 'A cairn of stones at the headland.']],
     miller: [['Dress the millstones', 'millstone', 'hammer', 30, 'The furrows are cut sharp again.'], ['Grease the gears', 'millstone|out', 'scrub', 15, 'The wheel turns without a squeal.'], ['Weigh the sacks for the toll', 'sack|counter|millstone', 'count', 15, 'The miller\'s toll is taken fair.', { cash: 2 }]],
@@ -21173,7 +21247,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
   O.choreTasks = (s, bz, e) => {
     const list = C[e.role]; if (!list || !bz || !bz.b) return [];
     const r = O.RNG(O.hash('chore', e.role, s.day, bz.id)), have = kindsAt(bz, s), out = [];
-    const n = 1 + (r.next() < 0.45 ? 1 : 0), pool = list.slice();
+    const n = 2 + (r.next() < 0.5 ? 1 : 0), pool = list.slice(); // (two or three of the small duties each day)
     while (out.length < n && pool.length) {
       const c = pool.splice(Math.floor(r.next() * pool.length), 1)[0], at = choose(c[1], have); if (!at) continue;
       out.push({ kind: 'chore', at, text: c[0], label: c[0], anim: c[2], mins: c[3], doneMsg: c[4], gain: c[5] || null, need: 1 });
@@ -21218,7 +21292,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     const bizOf = (e) => { const s = cur(); return e && e.place === s.world.placeId ? s.biz.get(e.biz) : null; };
     const COURT = new Set(['monarch', 'consort', 'heir', 'prince', 'princess', 'lord', 'lady', 'lady-in-waiting', 'jester', 'steward', 'chamberlain', 'captain of the royal guard']);
     O.crownPost = (r) => COURT.has(r);
-    const hoursOf = (e, bz) => { if (e.hours) return e.hours; const r = e.role || ''; if (COURT.has(r)) return [8, 20]; if (r === 'potboy' || r === 'potgirl') return [17, 21]; if (['night watchman', 'gaoler'].includes(r)) return [20, 30]; if (r.startsWith('guard') || r === 'sergeant') return [6, 18]; const hh = bz ? bz.def.hours : [8, 17]; if (hh[1] - hh[0] >= 20) return r === 'sweeper' ? [6, 14] : [8, 18]; return hh; };
+    const hoursOf = (e, bz) => { if (e.hours) return e.hours; const r = e.role || ''; if (r === 'monarch' || r === 'consort' || r === 'regent') return [5, 24]; /* (the crown keeps no hours: the day's business is there whenever you are) */ if (COURT.has(r)) return [8, 20]; if (r === 'potboy' || r === 'potgirl') return [17, 21]; if (['night watchman', 'gaoler'].includes(r)) return [20, 30]; if (r.startsWith('guard') || r === 'sergeant') return [6, 18]; const hh = bz ? bz.def.hours : [8, 17]; if (hh[1] - hh[0] >= 20) return r === 'sweeper' ? [6, 14] : [8, 18]; return hh; };
     const worksToday = (s, bz) => !(s.weekday === 6 && bz && !['tavern', 'chapel', 'guard', 'hospital', 'palace', 'keep', 'manor', 'posthouse'].includes(bz.type));
     // when the next shift is, worked out fresh from today's date (never left saying "tomorrow" once tomorrow has come)
     const nextShift = (e, s, bz, o, c) => {
@@ -21551,7 +21625,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         case 'chop': spots = near(3, 3, 14, (x, y) => w.trees.some((tr) => Math.abs(tr.x / T - x) < 2 && Math.abs((tr.y - 1) / T - y) < 2)); if (spots.length < 3) spots = near(3, 3, 10); break;
         case 'fish': spots = near(3, 2, 20, (x, y) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => w.ter[(y + dy) * w.W + x + dx] === w.TER.WATER)); if (spots.length < 1) spots = near(3, 3, 8); break;
         case 'collect': spots = w.buildings.filter((x) => x.type === 'house' && x.household && x.doorX != null).sort((a, c) => (a.id * 7 + s.day) % 13 - (c.id * 7 + s.day) % 13).slice(0, 3).map((x) => [x.doorX * T + 8, (x.doorY) * T + 10, x.id]); break;
-        case 'deliver': { const tg = [...s.biz.values()].filter((x) => x.id !== bz.id && x.b.doorX != null).sort((a, c) => (a.id * 3 + s.day) % 11 - (c.id * 3 + s.day) % 11).slice(0, 3); spots = tg.map((x) => [x.b.doorX * T + 8, x.b.doorY * T + 10, x.id]); break; }
+        case 'deliver': { if (!(PS.carry && PS.carry.deliver)) { spots = [[b.doorX * T + 8, b.doorY * T + 10, bz.id]]; t._day = -1; return spots; } /* (first the loading, at your own door) */ const tg = [...s.biz.values()].filter((x) => x.id !== bz.id && x.b.doorX != null).sort((a, c) => (a.id * 3 + s.day) % 11 - (c.id * 3 + s.day) % 11).slice(0, 3); spots = tg.map((x) => [x.b.doorX * T + 8, x.b.doorY * T + 10, x.id]); break; }
         case 'chore': if (t.at !== 'out') return null; spots = near(1, 2, 6, (x, y) => w.ter[y * w.W + x] !== w.TER.ROAD || bz.type === 'stable'); break;
         case 'fetch': { const sp = s.biz.get(t.from); spots = sp ? [[sp.b.doorX * T + 8, sp.b.doorY * T + 10, sp.id]] : []; break; }
         default: spots = null; // done indoors at a station
@@ -21674,7 +21748,13 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         }
         case 'sweep': act('sweep', 1.6, 15, () => { (t.swept = t.swept || []).push(c.it ? c.it.id : c.k); tick(t.doneMsg ? said(t, null) : t.have + 1 >= t.need ? (bz.type === 'stable' ? 'The stalls are mucked out and fresh straw down.' : 'Swept clean.') : null); }); break;
         case 'patrol': act('look', 1.4, 15, () => { if (e.role === 'toll keeper') { const fee = 1 + (s.rng.chance(0.3) ? 1 : 0); if (bz.def.public) s.treasury.cash += fee; else bz.cash += fee; return tick(s.rng.chance(0.5) ? `A carter pays ₳${fee} to pass.` : `A rider pays ₳${fee} and the bar goes up.`); } tick(said(t, t.have + 1 >= t.need ? 'Your round is walked. All quiet.' : null)); }); break;
-        case 'field': act(ANIM_OF(t, e), 2.4, 40, () => { const rc = recipeFor(bz, e.role), sea = s.weather?.season, f = sea === 'autumn' ? 3 : sea === 'winter' ? 0.5 : 2; if (rc && !Object.keys(rc.inp).length) for (const [g, q] of Object.entries(rc.out)) bz.stock[g] = (bz.stock[g] || 0) + q * f; tick(said(t, null)); }); break;
+        case 'field': if (bz.type === 'site' && s.build) { // the building only goes up when the stone and timber are there
+          const site = s.build.sites.find((x) => x.id === bz.id); if (!site) return tick(null);
+          const me = { skills: { builder: (PS.skills && PS.skills.building) || 0.4 } };
+          s.build.work(me, bz);
+          if (site.stalled === site.stage) { const want = ['stone', 'logs'].find((g) => (bz.stock[g] || 0) < 6) || 'logs'; say(`No ${D.GOODS[want]?.name.toLowerCase()} on the site: nothing can go up until it's fetched.`, 'bad'); if (!e.tasks.some((x) => x.kind === 'fetch' && x.good === want && x.have < x.need)) { const sp = supplierFor(s, bz, want) || s.supplierOf(want === 'stone' ? 'quarry' : 'woodcutter', want); if (sp) { e.tasks.push({ id: 'f' + Date.now(), kind: 'fetch', good: want, qty: 6, from: sp.id, fromName: sp.name, need: 1, have: 0, text: `Fetch ${want} from ${sp.name}` }); refresh(); } } return; }
+          act(ANIM_OF(t, e), 2.4, 40, () => { for (let k = 0; k < 39; k++) s.build.work(me, bz); tick(said(t, null) || `The ${['ground', 'ground', 'foundation', 'frame', 'walls', 'upper floor', 'roof frame', 'roof', 'outside', 'inside'][site.stage] || 'work'} goes on.`); }); break; }
+          act(ANIM_OF(t, e), 2.4, 40, () => { const rc = recipeFor(bz, e.role), sea = s.weather?.season, f = sea === 'autumn' ? 3 : sea === 'winter' ? 0.5 : 2; if (rc && !Object.keys(rc.inp).length) for (const [g, q] of Object.entries(rc.out)) bz.stock[g] = (bz.stock[g] || 0) + q * f; tick(said(t, null)); }); break;
         case 'chop': act('chop', 2.4, 40, () => { const rc = recipeFor(bz, e.role); if (rc) for (const [g, q] of Object.entries(rc.out)) if (!Object.keys(rc.inp).length) bz.stock[g] = (bz.stock[g] || 0) + q * 2; else bz.stock.logs = (bz.stock.logs || 0) + 1; tick(null); }); break;
         case 'fish': if (e.role === 'ferryman') { act('fish', 2.4, 30, () => { const fee = 1 + (s.rng.chance(0.4) ? 1 : 0); bz.cash += fee; tick(s.rng.pick([`Across and back: ₳${fee} in the box.`, `A pedlar and his pack, ₳${fee}.`, `A woman with two geese, ₳${fee}.`])); }); break; } act('fish', 3, 45, () => { const got = s.rng.chance(0.7); if (got) { const g = bz.type === 'saltworks' ? 'salt' : 'fish'; bz.stock[g] = (bz.stock[g] || 0) + (g === 'fish' ? 3 : 2); } tick(got ? (bz.type === 'saltworks' ? 'The pan boils down to salt.' : 'Three fish in the basket.') : 'Nothing biting.'); }); break;
         case 'collect': {
@@ -21682,7 +21762,18 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
           act('count', 1.6, 10, () => { if (!hh) return tick(null); const due = Math.max(1, Math.round(hh.members.length * 1.5)); if (hh.money >= due && s.rng.chance(0.8)) { hh.money -= due; if (bz.def.public) s.treasury.cash += due; else bz.cash += due; tick(`The ${hh.surname} household pays ₳${due}.`); } else { const q = s.byId.get(hh.members[0]); if (q) { q.agent.shockedUntil = s.minute + 2; s.relate(q, { id: 0 }, -0.05); } tick(`The ${hh.surname} household can't pay. You note it down for the bailiff.`); } });
           break;
         }
-        case 'deliver': act('place', 1.4, 15, () => { const to = s.biz.get(t._spots[c.k][2]); const g = bz.def.sells[0]; if (to && g && (bz.stock[g] || 0) >= 1) { bz.stock[g] -= 1; to.stock[g] = (to.stock[g] || 0) + 1; const pr = s.price(bz, g); if (to.cash >= pr) { to.cash -= pr; bz.cash += pr; } } tick(to ? `Delivered to ${to.name}.` : null); }); break;
+        case 'deliver': {
+          // the goods go on your back first, from the shop's own stock, and are carried to each door
+          const g = bz.def.sells[0], cy = PS.carry;
+          if (!g) return tick(null);
+          if (!cy || !cy.deliver || cy.good !== g || cy.qty < 1) {
+            if ((game.scene && game.scene.b.id === bz.id) || (t._spots && t._spots[c.k] && t._spots[c.k][2] === bz.id)) { const n = Math.min(t.need - t.have, Math.floor(bz.stock[g] || 0)); if (n < 1) { say(`There's no ${D.GOODS[g]?.name.toLowerCase()} in stock to deliver.`, 'bad'); return; } act('carry', 1.2, 5, () => { bz.stock[g] -= n; PS.carry = { good: g, qty: n, for: bz.id, deliver: true }; t._spots = null; t._day = -1; say(`You load up ${n} ${D.GOODS[g]?.name.toLowerCase()} to carry round.`); }); }
+            else say(`You've nothing to deliver: load the ${D.GOODS[g]?.name.toLowerCase()} inside ${bz.name} first.`, 'bad');
+            return;
+          }
+          act('place', 1.4, 15, () => { const to = s.biz.get(t._spots[c.k][2]); if (to) { cy.qty -= 1; if (cy.qty <= 0) PS.carry = null; to.stock[g] = (to.stock[g] || 0) + 1; const pr = s.price(bz, g); if (to.cash >= pr) { to.cash -= pr; bz.cash += pr; } } tick(to ? `Delivered to ${to.name}.` : null); });
+          break;
+        }
         case 'fetch': {
           const sp = s.biz.get(t.from), g = t.good; if (!sp) return;
           const qty = Math.min(t.qty, Math.floor(sp.stock[g] || 0)), cost = Math.round(s.price(sp, g) * qty);
@@ -21724,7 +21815,8 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       if (['monarch', 'consort', 'heir', 'prince', 'princess'].includes(e.role) && e.master != null) { e.master = null; e.masterName = null; }
       if (bz.playerRole !== e.role) bz.playerRole = e.role;
       const m = Math.floor(now(s)); if (m === e._lm) return; e._lm = m;
-      const [o, c] = hoursOf(e, bz), h = s.hour + (s.hour < 6 && c > 24 ? 24 : 0), day = s.day;
+      let [o, c] = hoursOf(e, bz); const h = s.hour + (s.hour < 6 && c > 24 ? 24 : 0), day = s.day;
+      if (e.early && e.early.day === day && e.early.from < o) o = e.early.from; // (your master let you start sooner today)
       if (e.day !== day) { // a new day
         if (e.day != null && e.dayInfo) settle(s, bz, e);
         if (e.temp != null && day > e.temp) { quit(`Your day's work at ${e.bizName} for the holiday is over.`, e); return; }
@@ -21737,7 +21829,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       if (on && !e.onShift && !D0.dayDone && !D0.off) { e.onShift = true; e.tasks = newTasks(s, bz, e); e._rot = now(s); D0.mode = modeOf(e.role); D0.present = 0; refresh(); }
       if (on && e.onShift && atWork(s, bz, e)) D0.present = (D0.present || 0) + 1;
       if (!on && e.onShift && h >= c) { e.onShift = false; refresh(); }
-      if (on && D0.arrived == null && !D0.off && atWork(s, bz, e)) { D0.arrived = h; if (h > o + 0.25 && !D0.excused) { e.stats.late++; const boss = s.byId.get(e.master); if (boss) s.relate(boss, { id: 0 }, -0.04); say(`You're late. ${e.masterName || 'Your master'} gives you a look.`, 'bad'); } }
+      if (on && D0.arrived == null && !D0.off && atWork(s, bz, e)) { D0.arrived = h; if (h > o + 0.25 && !D0.excused && e.master != null && !['monarch', 'consort', 'regent'].includes(e.role)) { e.stats.late++; const boss = s.byId.get(e.master); if (boss) s.relate(boss, { id: 0 }, -0.04); say("You're late.", 'bad'); } }
       if (on && e.onShift && D0.mode === 'quota' && e.tasks.length && e.tasks.every((t) => t.optional || t.have >= t.need) && !D0.dayDone) {
         D0.dayDone = true; e.onShift = false; refresh();
         say(`That's your day's work done at ${bz.name}. You can go: you'll be paid in full.`);
@@ -21810,9 +21902,11 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       if (D0.off && D0.arrived == null) return; // a day off, given
       if (D0.arrived == null) {
         if (D0.excused) { e.stats.excused++; if (boss) s.relate(boss, { id: 0 }, -0.02); }
+        else if (['monarch', 'consort', 'regent'].includes(e.role)) { /* the crown is never missed from its own work */ }
         else { e.stats.missed++; (e.week = e.week || { start: e.day, good: 0, bad: 0 }).bad++; if (boss) { s.relate(boss, { id: 0 }, -0.12); s.remember(boss, 'The stranger never came to work.', 'work', 1.2, 0); } }
       } else {
         e.stats.shifts++;
+        { const req = (e.tasks || []).filter((t) => !t.optional && t.kind !== 'talkmany' && t.kind !== 'talkto'), undone = req.filter((t) => t.have < t.need).length; if (req.length && undone / req.length > 0.5) { bz.neglect = (bz.neglect || 0) + 1; if (boss) s.relate(boss, { id: 0 }, -0.05); } } // (the needful work left undone tells on the business)
         // the day's wage, less for a half-hearted day
         let pay;
         if (D0.walkedOut) pay = 0;
@@ -21866,7 +21960,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       const bz = s.world.placeId === e.place ? s.biz.get(e.biz) : null, [o, c] = hoursOf(e, bz);
       const head = `<b>${esc(O.roleName(e.role).replace(/^./, (c) => c.toUpperCase()))}</b> · ${esc(e.bizName)}${e.place !== cur().world.placeId ? `, ${esc(e.placeName)}` : ''}`;
       const crown = COURT.has(e.role) && (!bz || ['keep', 'palace'].includes(bz.type) || bz.b?.royal || ['monarch', 'consort', 'heir', 'prince', 'princess', 'lord', 'lady'].includes(e.role));
-      const shift = crown ? (e.onShift ? `${e.role === 'monarch' ? 'Your reign' : 'At court'}: the business of the day, till ${fmtH(c)}` : `At court from ${fmtH(o)}`) : e.onShift ? (modeOf(e.role) === 'quota' ? `The day's work: ${e.tasks.filter((t) => !t.optional && t.have >= t.need).length} of ${e.tasks.filter((t) => !t.optional).length} done` : `On shift till ${fmtH(c)}`) : e.dayInfo?.dayDone ? `Your day's work is done` : e.dayInfo?.off && e.day === s.day ? 'A day off today, given by your master' : `Next shift: ${nextShift(e, s, bz, o, c)} ${fmtH(o)} to ${fmtH(c)}`;
+      const shift = crown ? (e.onShift ? (e.role === 'monarch' || e.role === 'consort' ? 'Your reign: the business of the realm, whenever you will' : `At court: the business of the day, till ${fmtH(c)}`) : `At court from ${fmtH(o)}`) : e.onShift ? (modeOf(e.role) === 'quota' ? `The day's work: ${e.tasks.filter((t) => !t.optional && t.have >= t.need).length} of ${e.tasks.filter((t) => !t.optional).length} done` : `On shift till ${fmtH(c)}`) : e.dayInfo?.dayDone ? `Your day's work is done` : e.dayInfo?.off && e.day === s.day ? 'A day off today, given by your master' : `Next shift: ${nextShift(e, s, bz, o, c)} ${fmtH(o)} to ${fmtH(c)}`;
       const tasks = e.onShift ? e.tasks.map((t) => `<li class="${t.have >= t.need ? 'done' : ''}">${t.have >= t.need ? '■' : '□'} ${esc(t.text)}${t.need > 1 ? ` (${Math.min(t.have, t.need)}/${t.need})` : ''}${t.optional && t.bonus ? ` <b>+₳${t.bonus}</b>` : ''}</li>`).join('') : '';
       // how the day's pay stands
       const earn = !crown && e.onShift && bz ? (() => { if (modeOf(e.role) === 'quota') { const req = e.tasks.filter((t) => !t.optional), fin = req.filter((t) => t.have >= t.need).length; return `Pay: ₳${e.wage} when all ${req.length} are done (${fin} so far)`; } const D0 = e.dayInfo || {}, len = Math.max(60, (c - o) * 60), part = O.clamp(0.25 + 0.75 * (D0.present || 0) / len, 0.25, 1); return `Pay so far: about ₳${Math.round(e.wage * part)} of ₳${e.wage} for the hours you've been here`; })() : '';
@@ -21912,7 +22006,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         case 'chop': return 'In the wood: press E at each marked tree to fell it and cut it up.';
         case 'fish': return "At the water's edge: press E at each marked spot to cast a line.";
         case 'collect': return 'Call at each marked door and press E to collect what is owed.';
-        case 'deliver': return 'Carry the goods to each marked door and press E to hand them over.';
+        case 'deliver': return PS.carry && PS.carry.deliver ? 'Carry the goods to each marked door and press E to hand them over.' : `Load up the goods at the door of ${bz.name} (press E there), then carry them round.`;
         case 'service': return `In the chapel, press E at ${at === 'your place of work' ? 'the altar' : at} to lead the prayers.`;
         case 'teach': return `Press E at ${at === 'your place of work' ? 'the desk' : at} to teach the children.`;
         case 'tend': return `Inside ${bz.name}, press E at each sick bed to tend whoever lies in it.`;
@@ -23563,11 +23657,11 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     game.hooks.update.push(() => {
       const s = cur(), p = game.player;
       if (!crowned() || !p.sitting || !p.sitting.it || p.sitting.it.kind !== 'throne' || O.panelOpen || O.UI.dialogOpen && O.UI.dialogOpen()) return;
-      const now = s.day * 1440 + s.minute; if (s.hour < 9 || s.hour >= 17 || pending || waiting) return;
+      const now = s.day * 1440 + s.minute; if (s.hour < 7 || s.hour >= 21 || pending || waiting) return;
       // the first comes up as soon as you sit; then one after another, with a little while between
       if (!p._throneSince || p._throneSince.it !== p.sitting.it) { p._throneSince = { it: p.sitting.it }; nextAudience = 0; }
       if (now < nextAudience) return;
-      nextAudience = now + 12;
+      nextAudience = now + 3; // (they're queued in the hall: the next is called straight in)
       const welcome = (x) => { const g0 = O.castleGuest(s, x); return guests().mode === 'white' ? g0 === true : g0 !== false; };
       const q = s.people.filter((x) => x.age >= 18 && !x.royal && !x.visitor && x.alive !== false && !x.task && welcome(x))[Math.floor(Math.random() * 40)] || s.people.find((x) => x.age >= 18 && !x.royal && welcome(x));
       if (!q) return;
@@ -23575,7 +23669,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       // they come up the hall to stand before the throne, then speak
       const keep = game.scene && (game.scene.b.parent || game.scene.b);
       if (keep && keep.royal) { q.task = { act: 'petition', b: keep.id }; q.activity = q.task; q.agent.path = null; q.agent.inside = keep.id; q.agent.hidden = true; q.agent.enteredAt = s.minute; } // they've been waiting in the hall
-      pending = { q, pt, at: game.t + 1.5 };
+      pending = { q, pt, at: game.t + 0.5 };
     });
     // stand up from the throne and whoever was waiting goes away unheard
     game.hooks.update.push(() => { if (waiting && !game.player.sitting && !(O.UI.dialogOpen && O.UI.dialogOpen())) { if (waiting.task?.act === 'petition') waiting.task = null; waiting = null; } });
@@ -24762,7 +24856,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
         } });
       };
       const done = () => { O.takeAnyPost('monarch'); PS.plot = null; };
-      const takeIt = () => O.UI.dialog.open({ name: 'The crown is yours', color: '#7a1a2a', text: `${tale} By nightfall the old crown has fled, and you are proclaimed in the great hall.`, options: [{ key: 'ok', label: 'Take the throne' }], onPick: () => { O.UI.dialog.close(); after(); } });
+      const takeIt = () => { say(`${tale} By nightfall the old crown has fled, and you are proclaimed in the great hall.`); after(); };
       if (!pl.duke) return takeIt();
       const D = K().rulers.pretender;
       O.UI.dialog.open({ name: D.title, color: '#3a2a4a', text: `${tale} The old crown has fled. In the great hall ${D.name} of Frostmere sets his hand on the throne and looks at you. "Well? We agreed I had the better claim."`, options: [{ key: 'duke', label: 'Crown the Duke (be his first lord)' }, { key: 'me', label: 'The crown is mine. Seize him.' }], onPick: (k) => {
@@ -24906,7 +25000,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
       if (PS.anointed) return;
       if (!PS.coronation) {
         PS.coronation = { place: cap.id, day: O.SimRef.home.day + 1 };
-        say('The bishop sends word: you will be crowned tomorrow in the castle chapel; the court gathers at ten. Kneel at the altar (if you are there sooner, the bishop will crown you at once).');
+        say('The bishop sends word: you will be crowned tomorrow in the castle chapel; the court gathers at ten. Be at the altar at ten: the bishop will crown you before them all.');
       }
       const c = PS.coronation;
       // on the morning, the herald comes to fetch you
@@ -24927,7 +25021,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
       const sc = game.scene, s = cur();
       // the crown waits for you: any time from the morning to the evening, from the day set (or at once, if you're here already)
       const c = PS.coronation;
-      if (sc && !cer && sc.b.roomKey === 'chapel' && sc.b.parent?.royal && c && !c.done && !PS.anointed && O.crowned && O.crowned() && s.hour >= 8 && s.hour < 20) {
+      if (sc && !cer && sc.b.roomKey === 'chapel' && sc.b.parent?.royal && c && !c.done && !PS.anointed && O.crowned && O.crowned() && coronationOn(s) && ([...sc.actors.values()].some((a) => ['priest', 'chaplain', 'bishop'].includes(a.person?.job?.role)) || !s.people.some((z) => z.alive !== false && ['priest', 'chaplain', 'bishop'].includes(z.job?.role)) || s.hour >= 11)) { // (at the hour set, with the court gathered and the bishop at the altar)
         const alt = sc.L.items.find((i) => i.kind === 'altar');
         if (alt) { const [x, y] = sc.anchor(alt), p = game.player, d = Math.hypot(x - p.x, y + 18 - p.y); if (d < 80) return { type: 'custom', d: -20, label: 'Kneel before the altar to be crowned', act: () => { c.day = Math.min(c.day, s.day); c.place = s.world.placeId; crown(sc, alt); }, x, y: y - 30 }; }
       }

@@ -164,5 +164,31 @@
       return out.join(' ');
     });
   }
-  O.WildSetup = { setup };
+  // bees about the hives by day in fine weather: a little cloud of them round each skep
+  function bees(game) {
+    const cur = () => O.SimRef.cur;
+    const hived = new WeakSet();
+    game.hooks.update.push(() => {
+      const s = cur(), w = game.world; if (!s || !w || !w.buildings || hived.has(w)) return; hived.add(w);
+      for (const b of w.buildings) {
+        if (b.type !== 'apiary' && (s.biz.get(b.id) || {}).type !== 'apiary') continue; if (b.doorX == null) continue;
+        for (let k = 0; k < 4; k++) { const tx = b.x + b.w + 1 + (k % 2) * 2, ty = b.bottom - 1 + Math.floor(k / 2) * 2, i = ty * w.W + tx; if (tx >= w.W || ty >= w.H || w.solid[i]) continue; w.props.push({ kind: 'skep', x: tx * 16 + 8, y: ty * 16 + 14, seed: b.id * 7 + k, v: 0, solid: true, hive: b.id }); w.solid[i] = 1; }
+        w.dirtyStatics = true;
+      }
+    });
+    game.hooks.drawTop.push((ctx, cam) => {
+      const s = cur(), w = game.world; if (!s || !w || game.scene || !w.props) return;
+      const W = s.weather; if (s.hour < 7 || s.hour >= 19 || s.season === 'winter' || (W && (W.raining || W.kind === 'snow' || W.kind === 'fog'))) return;
+      const t = game.t;
+      for (const p of w.props) {
+        if (p.kind !== 'skep') continue; const sx = p.x - cam.x, sy = p.y - 10 - cam.y; if (sx < -30 || sy < -30 || sx > game.vw + 30 || sy > game.vh + 30) continue;
+        for (let i = 0; i < 6; i++) {
+          const a = t * (1.6 + i * 0.37) + i * 1.9 + p.x, r = 6 + ((i * 5) % 9) + Math.sin(t * 2.3 + i) * 3;
+          const x = Math.round(sx + Math.cos(a) * r), y = Math.round(sy - 4 + Math.sin(a * 1.3) * r * 0.6);
+          ctx.fillStyle = '#f0c030'; ctx.fillRect(x, y, 2, 1); ctx.fillStyle = '#2a2018'; ctx.fillRect(x + (Math.sin(t * 40 + i) > 0 ? 1 : 0), y, 1, 1);
+        }
+      }
+    });
+  }
+  O.WildSetup = { setup: (game) => { setup(game); bees(game); } };
 })();

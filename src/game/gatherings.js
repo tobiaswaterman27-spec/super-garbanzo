@@ -141,6 +141,8 @@
       // your master answers you
       day_off(s, q) { const e = myPost(s, q); if (!e) return null; e.dayOff = s.day + 1; e.offAsked = s.day; return `${q.first} gives you tomorrow off.`; },
       raise(s, q, a) { const e = myPost(s, q); if (!e) return null; const n = clamp(Math.round(Number(a.amount) || 1), 1, 5); e.wage += n; return `${q.first} raises your pay to ₳${e.wage} a day.`; },
+      hours(s, q, a) { const e = myPost(s, q); if (!e) return null; const f = clamp(Math.round(Number(a.from) || 0), 4, 22), t = clamp(Math.round(Number(a.to) || 0), f + 2, 24); if (!a.from || !a.to) return null; e.hours = [f, t]; if (a.wage != null) e.wage = clamp(Math.round(Number(a.wage) || e.wage), 1, 60); return `Your hours at ${e.bizName} are now ${hstr(f)} to ${hstr(t)}, for ₳${e.wage} a day.`; },
+      start_now(s, q) { const e = myPost(s, q); if (!e) return null; e.early = { day: s.day, from: Math.floor(s.hour * 4) / 4 }; return `${q.first} lets you start your shift now.`; },
       release(s, q) { const e = myPost(s, q); if (!e || !O.Employment || !O.Employment.quit) return null; O.Employment.quit(`You leave your place as ${e.role} at ${e.bizName}.`, e); return 'Your service there is over.'; },
     };
     O.extraActs = O.extraActs || [];
@@ -152,14 +154,14 @@
       'contest {"kind":"wrestle"|"race"|"arm-wrestle"|"drinking"} (a friendly match, if you accept a challenge or make one)',
       'confide {"secret"} (you tell the player a secret of yours, if you trust them)', 'spread {"about","rumour","good":true|false} (you agree to pass word round about someone)',
       'borrow {"amount"} (you borrow money from the player, if they agree)', 'repay (you pay back what you owe the player)',
-      'day_off | raise {"amount"} | release (only the player\'s own master: grant a day off, raise their pay, or accept their notice and let them go)');
+      'day_off | start_now (let them start today\'s work early) | raise {"amount"} | hours {"from","to","wage"} | release (only the player\'s own master: grant a day off, raise their pay, give them more or fewer hours for more or less pay, or accept their notice and let them go)');
     const base = O.NpcActs.apply;
     O.NpcActs.apply = function (s, q, a, main) { if (a && A[a.do]) return A[a.do](s, q, a); return base.apply(this, arguments); };
     // what they know, for their card
     (O.extraLines = O.extraLines || []).push((s, q) => {
       const out = [];
       const e = myPost(s, q);
-      if (e) { const st = e.stats || {}; out.push(`The player works for you as ${e.role} at ${e.bizName} for ₳${e.wage} a day (${st.shifts || 0} shifts worked, ${st.missed || 0} missed${e.dayOff === s.day + 1 ? '; you gave them tomorrow off' : ''}). If they ask, in their own words or by letter, for a day off, a raise or to leave your service, you decide as you would: day_off, raise {"amount"}, release.`); }
+      if (e) { const st = e.stats || {}; out.push(`The player works for you as ${e.role} at ${e.bizName} for ₳${e.wage} a day (${st.shifts || 0} shifts worked, ${st.missed || 0} missed${e.dayOff === s.day + 1 ? '; you gave them tomorrow off' : ''}). Their hours are ${(e.hours || []).map(hstr).join(' to ') || 'the usual ones'}. If they ask, in their own words or by letter, for a day off, a raise, more or less work for more or less pay, or to leave your service, or to start work now, you decide as you would: day_off, start_now, raise {"amount"}, hours {"from","to","wage"}, release.`); }
       const L = (PS.lent || []).find((x) => x.who === q.id); if (L) out.push(`You owe the player ₳${L.n}, borrowed to be paid back ${L.due <= s.day ? 'by now' : 'by day ' + L.due}. If you can, repay.`);
       if (q.sworn) out.push('You and the player are sworn friends: you would stand by them in anything.');
       const ev = (s.npcEvents || []).filter((x) => x.party && x.day >= s.day && (x.host === q.id || (x.guests || []).includes(q.id))).map((x) => `${x.title} (${O.dateOf ? O.dateOf(x.day) : 'day ' + x.day}, ${hstr(x.from)})${x.host === q.id ? ', which you are giving' : ''}`);

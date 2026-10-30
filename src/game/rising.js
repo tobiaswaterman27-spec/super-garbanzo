@@ -217,7 +217,7 @@
         } });
       };
       const done = () => { O.takeAnyPost('monarch'); PS.plot = null; };
-      const takeIt = () => O.UI.dialog.open({ name: 'The crown is yours', color: '#7a1a2a', text: `${tale} By nightfall the old crown has fled, and you are proclaimed in the great hall.`, options: [{ key: 'ok', label: 'Take the throne' }], onPick: () => { O.UI.dialog.close(); after(); } });
+      const takeIt = () => { say(`${tale} By nightfall the old crown has fled, and you are proclaimed in the great hall.`); after(); };
       if (!pl.duke) return takeIt();
       const D = K().rulers.pretender;
       O.UI.dialog.open({ name: D.title, color: '#3a2a4a', text: `${tale} The old crown has fled. In the great hall ${D.name} of Frostmere sets his hand on the throne and looks at you. "Well? We agreed I had the better claim."`, options: [{ key: 'duke', label: 'Crown the Duke (be his first lord)' }, { key: 'me', label: 'The crown is mine. Seize him.' }], onPick: (k) => {

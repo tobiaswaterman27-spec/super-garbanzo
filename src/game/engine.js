@@ -99,7 +99,7 @@
       if (this.running) return; this.running = true;
       this.bindInput(); this.resize();
       this._resize = () => this.resize(); window.addEventListener('resize', this._resize);
-      const loop = (ts) => { if (!this.running) return; const dt = Math.min(0.05, (ts - (this.last || ts)) / 1000); this.last = ts; this.update(dt); this.draw(); requestAnimationFrame(loop); };
+      let errs = 0; const loop = (ts) => { if (!this.running) return; requestAnimationFrame(loop); const dt = Math.min(0.05, (ts - (this.last || ts)) / 1000); this.last = ts; try { this.update(dt); this.draw(); } catch (e) { console.error(e); if (++errs === 30 && O.showCrash) O.showCrash(e && e.message); } }; // (one bad frame never stops the world)
       requestAnimationFrame(loop);
     }
     stop() { this.running = false; this.last = 0; }

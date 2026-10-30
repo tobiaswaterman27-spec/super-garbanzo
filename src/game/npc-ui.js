@@ -83,8 +83,8 @@
     // their words, not set phrases: the moment is described and they say it as they would (the set
     // line stands in only if the words can't be had)
     function voice(q, situation, fallback, show) {
-      if (!(O.AI && O.AI.ready && O.AIChat && O.AIChat.line)) return show(fallback);
-      O.AIChat.line(q, situation).then((t) => show(t || '…')); void fallback; // (with voices, never a set line)
+      if (!(O.AI && O.AI.ready && O.AIChat && O.AIChat.line)) return void setTimeout(() => show(fallback), DOTS + 200);
+      O.AIChat.line(q, situation).then((t) => show(t || fallback));
     }
     function walkAway(q, line, why) {
       const s0 = sim;
@@ -134,8 +134,22 @@
     function bar(v, cls = '') { return `<span class="bar ${cls}"><i style="width:${Math.round(O.clamp(v, 0, 100))}%"></i></span>`; }
     // name tag in the colour of their clothes
     function tagColour(q) { const m = q.app?.outfit?.over; const r = m != null && O.Pal.ramp ? O.Pal.ramp(m) : null; return r ? `rgb(${r[2][0]},${r[2][1]},${r[2][2]})` : '#b0683a'; }
+    // they always stop to think before they speak: the dots first, a beat at least, then the words
+    let dotsAt = 0, queue = Promise.resolve(), qFor = null;
+    const DOTS = 650, sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     function renderTalk(line, busy) {
       const q = talking; if (!q) return;
+      if (qFor !== q) { qFor = q; queue = Promise.resolve(); dotsAt = 0; }
+      if (busy) { if (!dotsAt) dotsAt = performance.now(); return renderNow(q, '', true); }
+      queue = queue.then(async () => {
+        if (talking !== q) return;
+        if (!dotsAt) { dotsAt = performance.now(); renderNow(q, '', true); }
+        const wait = dotsAt + DOTS + Math.min(500, String(line || '').length * 6) - performance.now(); if (wait > 0) await sleep(wait);
+        if (talking !== q) return; dotsAt = 0; renderNow(q, line);
+      });
+    }
+    function renderNow(q, line, busy) {
+      if (talking !== q) return;
       q.agent.talking = 30;
       const bz = q.job?.biz ? sim.biz.get(q.job.biz) : null;
       const atWork = bz && bz.open && q.agent.inside === bz.id && q.activity?.act === 'work' && bz.def.sells.length;
@@ -150,7 +164,7 @@
       O.UI.dialog.open({ name: (q._lastSpeaker && q._lastSpeaker !== q ? q._lastSpeaker.first : q.gentry ? q.name : q.first + (q.title ? `, ${q.title}` : q.office ? `, ${q.office}` : '')), color: tagColour(q._lastSpeaker || q), text: busy ? '' : line, busy, options: busy ? [] : options, chat: O.AI && O.AI.ready ? (t) => O.AIChat.say(q, t, (ln, b) => { if (talking === q) renderTalk(ln, b); }) : null, give: O.AI && O.AI.ready ? (g) => O.AIChat.give(q, g, (ln, b) => { if (talking === q) renderTalk(ln, b); }) : null, focus: true, onPick: (t) => pickTopic(q, bz, t), onClose: () => { q.agent.approach = false; O.AIChat && O.AIChat.ended(q); q._lastTalkAt = absNow(); if (talking === q) { q.agent.frozen = false; q.agent.talking = 0; if (q.agent.inside == null && !q.agent.chasing) { q.agent.path = null; q.agent.goal = null; } talking = null; } } });
     }
     function pickTopic(q, bz, t) {
-      if (t === 'bye') { const bye = ['Fare you well.', 'God keep you.', 'Mind how you go.', 'Until next time.'][(q.id + sim.day) % 4]; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: bye, options: [] }); talking = null; q.agent.frozen = false; setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1600); return; }
+      if (t === 'bye') { const bye = ['Fare you well.', 'God keep you.', 'Mind how you go.', 'Until next time.'][(q.id + sim.day) % 4]; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: '', busy: true, options: [] }); talking = null; setTimeout(() => { if (talking) return; O.UI.dialog.open({ name: q.first, color: tagColour(q), text: bye, options: [] }); q.agent.frozen = false; setTimeout(() => { if (O.UI.dialogOpen() && !talking) O.UI.dialog.close(); }, 1600); }, DOTS); return; }
       if (t.startsWith('x-')) return api.onExtra && api.onExtra(q, t.slice(2), renderTalk);
       if (t === 'trade') { closeTalk(); return O.Panels.trade(sim, bz, q); }
       if (t === 'houses') { closeTalk(); return O.Parish && O.Parish.open(sim, q); }

@@ -28,7 +28,7 @@
   // continue a saved life if there is one
   const saved = O.Save.peek();
   let loaded = false;
-  if (saved && saved.seed === homeWorld.seed) { try { O.Save.hydrate(game, home, saved); loaded = true; home.seasonChanged = home.season !== 'summer'; } catch (e) { console.warn('Save could not be loaded', e); } }
+  if (saved && saved.seed === homeWorld.seed) { try { O.Save.hydrate(game, home, saved); loaded = true; home.seasonChanged = home.season !== 'summer'; } catch (e) { console.warn('Save could not be loaded', e); O.showCrash && setTimeout(() => O.showCrash('The saved life could not be loaded: ' + (e && e.message)), 0); } }
   game.load(homeWorld);
   // the simulation owns time; the engine reads it
   game.clock = { speed: 1, get minute() { return sim.minute; }, set minute(v) {}, get day() { return sim.day; }, set day(v) {} };

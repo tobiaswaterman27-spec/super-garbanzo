@@ -60,3 +60,21 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
 
 // a tiny event bus, for one part of the game to tell another that something happened
 (function () { const h = {}; O.Bus = { on: (k, f) => { (h[k] = h[k] || []).push(f); }, emit: (k, d) => { for (const f of h[k] || []) { try { f(d); } catch (e) { console.error(e); } } } }; })();
+
+// when something breaks, say so on screen rather than leave it dark: what went wrong, and a way to begin again
+(function () {
+  if (typeof window === 'undefined') return;
+  let shown = false;
+  O.showCrash = (msg) => {
+    if (shown || !document.body) return; shown = true;
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;inset:0;z-index:10000;display:grid;place-items:center;background:rgba(21,17,28,.92);color:#e8dcc0;font:15px ui-monospace,monospace;padding:16px';
+    el.innerHTML = '<div style="max-width:560px;display:grid;gap:12px;text-align:center"><b style="font-size:22px;color:#f0b45c">Something went wrong</b><div>Your saved life may not fit this version of the game.</div><code style="font-size:12px;opacity:.75;word-break:break-word"></code><div style="display:flex;gap:8px;justify-content:center"><button data-new style="padding:8px 14px;background:#d9893a;border:2px solid #000;cursor:pointer">Start a new life</button><button data-on style="padding:8px 14px;background:#1f1a29;color:#e8dcc0;border:2px solid #3d3349;cursor:pointer">Carry on anyway</button></div></div>';
+    el.querySelector('code').textContent = String(msg || '').slice(0, 300);
+    el.querySelector('[data-new]').onclick = () => { try { const k = 'outlaw.save.v1', v = localStorage.getItem(k); if (v) localStorage.setItem(k + '.broken', v); localStorage.removeItem(k); } catch (e) { /* no storage */ } location.reload(); };
+    el.querySelector('[data-on]').onclick = () => { el.remove(); };
+    document.body.appendChild(el);
+  };
+  let n = 0;
+  window.addEventListener('error', (e) => { if (++n >= 1 && (!O.game || !O.game.running || n > 20)) O.showCrash(e.message); });
+})();

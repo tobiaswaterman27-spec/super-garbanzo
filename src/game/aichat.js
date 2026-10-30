@@ -21,7 +21,7 @@
   AI.detect = async () => {
     if (LS('outlaw.devai') === 'mock' || (navigator.webdriver && location.protocol === 'file:')) { AI.kind = 'mock'; return (AI.ready = true); } // (automated tests only)
     if (window.claude && typeof window.claude.use === 'function') {
-      try { const s = await window.claude.use('sample'); if (s) AI.sample = s; } catch (e) { /* not on claude.ai */ }
+      try { const s = await Promise.race([window.claude.use('sample'), new Promise((r) => setTimeout(() => r(null), 12000))]); if (s) AI.sample = s; } catch (e) { /* not on claude.ai */ }
     }
     // your own key comes first; Claude (on claude.ai) stands behind it if OpenAI can't be reached from here
     const key = LS('outlaw.openai'); if (key) { AI.key = key; AI.kind = 'openai'; return (AI.ready = true); }
@@ -353,10 +353,10 @@ They know where their family and friends are just now (the card says); a strange
     AI.busy = true;
     let out = null;
     try { out = await AI.json(prompt); }
-    catch (e) { AI.busy = false; if (q._offer) { O.NpcActs && O.NpcActs.returnGift(q, q._offer); q._offer = null; } return reply(q, '…', render); } // (no set lines: the warning says why the words didn't come)
+    catch (e) { AI.busy = false; if (q._offer) { O.NpcActs && O.NpcActs.returnGift(q, q._offer); q._offer = null; } return reply(q, LOST[Math.floor(Math.random() * LOST.length)], render); }
     AI.busy = false;
     const lines = Array.isArray(out?.lines) ? out.lines.filter((l) => l && typeof l.say === 'string' && l.say.trim()) : typeof out?.say === 'string' ? [{ who: q.first, say: out.say }] : [];
-    if (!lines.length) return reply(q, '…', render);
+    if (!lines.length) return reply(q, LOST[Math.floor(Math.random() * LOST.length)], render);
     const n = (v) => clamp(Math.round(Number(v) || 0), -2, 2), everyone = [q, ...group];
     const byName = (w) => everyone.find((z) => z.first === w || (w && String(w).startsWith(z.first))) || null;
     if (out.name && typeof out.name === 'string' && out.name.length < 30) { const nm = clean(out.name).split(' ')[0]; for (const z of everyone) { const rz = z.rel.get(0) || { affinity: 0, familiar: 0 }; rz.name = nm; z.rel.set(0, rz); } }
@@ -463,6 +463,7 @@ They know where their family and friends are just now (the card says); a strange
       return r; }; }
   // one line said in their own words: how they open a talk, or what they come up to say. No set
   // phrases: the situation is described and they put it as they would.
+  const LOST = ['Hm? Say that again.', 'Sorry, I was miles away. What was that?', 'Eh? My mind wandered.', 'Say again?'];
   async function line(q, situation) {
     const s = O.SimRef.cur;
     if (q.age < 3) return babble(q);

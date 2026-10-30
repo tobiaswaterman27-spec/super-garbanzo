@@ -369,7 +369,7 @@ O.bizName = (surname, label) => {
     yield;
     // 6. the trades that stand out of town, each where it belongs, and the cottages of the people who work them
     placeOutskirts(id, { W, H, R, ter, solid, trees, props, buildings, kindAt, inTown, roadSet, TR, tw, ox, oy });
-    placeDens(id, { W, H, ter, solid, trees, props, buildings, inTown, TR, tw, ox, oy });
+    placeDens(id, { W, H, R, ter, solid, trees, props, buildings, inTown, TR, tw, ox, oy });
     // 5. the camps of the gangs that hold the wild roads
     for (const r of camps) {
       const c = r.camp, x = c.x - R.x0, y = c.y - R.y0;
@@ -534,30 +534,51 @@ O.bizName = (surname, label) => {
     }
   }
 
-  // the dens of the place's gangs, hidden off in the woods or out in the fields
+  // the dens of the place's gangs, well away from the town, deep in the woods where there are woods: a
+  // log hall behind a palisade, a store shed, a yard with a cart, casks and a woodpile, the gang's banner
+  // at the gap in the stakes. A den that was standing in the town's own grounds is moved out to one.
   function placeDens(id, C) {
     const pl = place(id), pop = pl.pop || 100, big = pl.kind === 'capital' || pl.kind === 'city';
     const n = pop < 60 ? 0 : pop < 150 ? 1 : pop < 400 ? 2 : big ? 4 : 3;
-    const { W, H, ter, solid, trees, props, buildings, inTown, TR, tw, ox, oy } = C, rng = O.RNG(O.hash('dens', id));
-    const have = buildings.filter((b) => b.type === 'hideout' && !b.camp && !b.roadKey).length;
-    for (let k = have; k < n; k++) {
+    const { W, H, R, ter, solid, trees, props, buildings, inTown, TR, tw, ox, oy } = C, rng = O.RNG(O.hash('dens', id));
+    const ours = (x, y) => [[-9, -9], [13, -9], [-9, 8], [13, 8]].every(([dx, dy]) => (ownerAt(R.x0 + x + dx, R.y0 + y + dy) || {}).id === id); // (wholly within this place's own country)
+    const old = buildings.filter((b) => b.type === 'hideout' && !b.camp && !b.roadKey);
+    const near = old.filter((b) => Math.max(ox - b.x, b.x - ox - tw.W, oy - b.y, b.y - oy - tw.H, 0) < 20);
+    for (const b of near) { for (let yy = b.y; yy <= b.bottom; yy++) for (let xx = b.x; xx < b.x + b.w; xx++) solid[yy * W + xx] = 0; buildings.splice(buildings.indexOf(b), 1); }
+    const keepIds = near.map((b) => b), have = old.length - near.length;
+    for (let k = have; k < Math.max(n, have + near.length); k++) {
       let best = null, bs = -1;
-      for (let t = 0; t < 400; t++) {
-        const x = Math.round(ox - 50 + rng.next() * (tw.W + 100)), y = Math.round(oy - 50 + rng.next() * (tw.H + 100));
-        if (x < 4 || y < 4 || x > W - 6 || y > H - 4) continue;
-        const dt = Math.max(ox - x, x - ox - tw.W, oy - y, y - oy - tw.H, 0); if (dt < 12 || dt > 50) continue;
-        let okk = true; for (let yy = y - 3; yy <= y + 3 && okk; yy++) for (let xx = x - 3; xx <= x + 5 && okk; xx++) { const i = yy * W + xx; if (inTown(xx, yy) || ter[i] === TR.WATER || ter[i] === TR.ROAD || buildings.some((b) => xx >= b.x - 1 && xx < b.x + b.w + 1 && yy >= b.y - 1 && yy <= b.bottom + 2)) okk = false; }
+      for (let t = 0; t < 600; t++) {
+        const x = Math.round(ox - 70 + rng.next() * (tw.W + 140)), y = Math.round(oy - 70 + rng.next() * (tw.H + 140));
+        if (x < 8 || y < 8 || x > W - 12 || y > H - 8) continue;
+        const dt = Math.max(ox - x, x - ox - tw.W, oy - y, y - oy - tw.H, 0); if (dt < 24 || dt > 64 || !ours(x, y)) continue;
+        let okk = true; for (let yy = y - 6; yy <= y + 5 && okk; yy++) for (let xx = x - 6; xx <= x + 10 && okk; xx++) { const i = yy * W + xx; if (inTown(xx, yy) || ter[i] === TR.WATER || ter[i] === TR.ROAD || buildings.some((b) => xx >= b.x - 1 && xx < b.x + b.w + 1 && yy >= b.y - 1 && yy <= b.bottom + 2)) okk = false; }
         if (!okk) continue;
-        let f = 0; for (let j = -3; j <= 3; j++) for (let i = -3; i <= 3; i++) if (ter[(y + j) * W + x + i] === TR.FOREST) f++;
+        let f = 0; for (let j = -5; j <= 5; j++) for (let i = -5; i <= 7; i++) if (ter[(y + j) * W + x + i] === TR.FOREST) f++;
+        f += dt * 0.3; // the further from prying eyes the better
         if (f > bs) { bs = f; best = [x, y]; }
       }
       if (!best) continue;
-      const [x, y] = best, spec = { seed: O.hash('den', id, k), w: 3, d: 2, floors: 1, wealth: 0.2, condition: 0.6, wall: 'log', roof: 'thatch', roofType: 'gable', doorTile: 1, noFlowers: true };
-      const b = { id: 8800 + k, type: 'hideout', name: 'A den in the woods', x: x - 1, bottom: y, y: y - 1, w: 3, d: 2, floors: 1, wealth: 0.2, condition: 0.6, level: 1, spec, doorX: x, doorY: y + 1, den: true };
+      const [x, y] = best, was = keepIds.shift();
+      const spec = { seed: O.hash('den', id, k), w: 5, d: 3, floors: 1, wealth: 0.2, condition: 0.6, wall: 'log', roof: 'thatch', roofType: 'gable', doorTile: 2, noFlowers: true };
+      const b = Object.assign(was || { id: 8800 + k, name: 'A den in the woods', level: 1, den: true }, { type: 'hideout', x: x - 2, bottom: y, y: y - 2, w: 5, d: 3, floors: 1, wealth: 0.2, condition: 0.6, spec, doorX: x, doorY: y + 1, den: true });
+      b.spec = Object.assign({}, b.spec, spec, was && was.spec ? { seed: was.spec.seed } : {});
       buildings.push(b);
-      for (let yy = b.y - 1; yy <= b.bottom + 2; yy++) for (let xx = b.x - 2; xx < b.x + b.w + 2; xx++) { const i = yy * W + xx; solid[i] = yy <= b.bottom && xx >= b.x && xx < b.x + b.w ? 1 : 0; if (ter[i] === TR.FOREST) ter[i] = TR.YARD; }
-      keep(trees, (t) => !(Math.abs(t.x / T - x) < 4 && Math.abs((t.y - 1) / T - y) < 4));
-      keep(props, (p) => !(Math.abs(p.x / T - x) < 3 && Math.abs((p.y - 1) / T - y) < 3 && !p.flat));
+      // the yard, cleared and trodden
+      for (let yy = y - 5; yy <= y + 4; yy++) for (let xx = x - 5; xx <= x + 9; xx++) { const i = yy * W + xx; solid[i] = 0; if (ter[i] === TR.FOREST || ter[i] === TR.GRASS) ter[i] = TR.YARD; }
+      for (let yy = b.y; yy <= b.bottom; yy++) for (let xx = b.x; xx < b.x + b.w; xx++) solid[yy * W + xx] = 1;
+      // the store shed
+      const sh = { id: 8850 + k, type: 'barn', name: 'The gang\'s store shed', denShed: b.id, x: x + 5, bottom: y, y: y - 1, w: 3, d: 2, floors: 1, wealth: 0.2, condition: 0.55, doorX: x + 6, doorY: y + 1, spec: { seed: O.hash('shed', id, k), w: 3, d: 2, floors: 1, wealth: 0.2, condition: 0.55, wall: 'plank', plankMat: 'plank', roof: 'thatch', roofType: 'side', doorTile: 1, noFlowers: true } };
+      buildings.push(sh); for (let yy = sh.y; yy <= sh.bottom; yy++) for (let xx = sh.x; xx < sh.x + sh.w; xx++) solid[yy * W + xx] = 1;
+      keep(trees, (t) => !(t.x / T >= x - 7 && t.x / T <= x + 11 && (t.y - 1) / T >= y - 7 && (t.y - 1) / T <= y + 6));
+      keep(props, (p) => !(p.x / T >= x - 6 && p.x / T <= x + 10 && (p.y - 1) / T >= y - 6 && (p.y - 1) / T <= y + 5));
+      // the palisade, with a gap at the front
+      const P = (kind, tx, ty, o = {}) => { const pr = Object.assign({ kind, x: tx * T + 8, y: ty * T + 15, seed: O.hash('dp', id, k, tx, ty), v: 0, solid: true, country: false }, o); props.push(pr); if (pr.solid) solid[ty * W + tx] = 1; return pr; };
+      for (let xx = x - 5; xx <= x + 9; xx++) { P('fenceH', xx, y - 5); if (Math.abs(xx - x) > 1) P('fenceH', xx, y + 4); }
+      for (let yy = y - 4; yy <= y + 3; yy++) { P('fenceV', x - 5, yy); P('fenceV', x + 9, yy); }
+      P('banner', x - 2, y + 4, { solid: true }); P('banner', x + 2, y + 4, { solid: true });
+      P('woodpile', x - 4, y - 1); P('barrel', x + 3, y - 3); P('barrel', x + 4, y - 3); P('crate', x - 4, y + 2); P('crate', x - 3, y + 2);
+      P('cart', x + 7, y + 3); P('timberstack', x + 8, y - 3); P('sack', x + 8, y + 2, { solid: false });
     }
   }
 

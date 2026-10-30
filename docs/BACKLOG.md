@@ -428,6 +428,7 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Collisions, hood clipping, beards (row 102)
 - [x] Speech by age, ending talks, gangs in the talk, bubbles for spoken words (row 103)
 - [ ] Resource-based economy
+- [x] Beds upstairs over the shop; remote walled gang compounds (row 110)
 - [ ] NPCs "disappearing" still not reproduced
 
 

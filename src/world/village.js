@@ -41,7 +41,7 @@
     const buildings = [], props = [], trees = [];
     let nextId = 1;
     const B = (o) => {
-      const b = Object.assign({ id: nextId++, floors: 1, wealth: 0.5, condition: 0.9 }, o);
+      const b = Object.assign({ id: nextId++, floors: 1, wealth: 0.5, condition: 0.9 }, o); b.floors = O.storeys(b);
       b.y = b.bottom - b.d + 1;
       b.spec = Object.assign({ seed: O.hash('bld', seed, b.id), w: b.w, d: b.d, floors: b.floors, wealth: b.wealth, condition: b.condition }, b.look);
       buildings.push(b);

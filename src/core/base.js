@@ -78,3 +78,14 @@ O.fbm = function (x, y, seed = 0, oct = 3) {
   let n = 0;
   window.addEventListener('error', (e) => { if (++n >= 1 && (!O.game || !O.game.running || n > 20)) O.showCrash(e.message); });
 })();
+
+// how many storeys a building gets: a shop or workshop where a family lives has its rooms upstairs,
+// over the trade, so nobody's bed stands among the wares; better town houses sleep upstairs too.
+// Estates, castles, halls of state and churches keep their own plans.
+O.LIVE_OVER = new Set(['bakery', 'store', 'butcher', 'smithy', 'armourer', 'tailor', 'cobbler', 'chandler', 'cooper', 'weaver', 'carpenter', 'apothecary', 'jeweller', 'potter', 'tanner', 'moneylender', 'barber', 'saddler', 'glazier', 'fletcher', 'dyer', 'posthouse', 'laundry', 'scriptorium', 'brewery', 'tavern', 'doctor', 'wainwright', 'ropewalk', 'builder', 'agency', 'carrier']);
+O.storeys = (b) => {
+  if (b.estate || b.manor || b.royal || b.lordly || b.outskirts || (b.floors || 1) >= 2) return b.floors || 1;
+  if (O.LIVE_OVER.has(b.type)) return 2;
+  if (b.type === 'house' && (b.wealth || 0) >= 0.5 && (b.w || 0) >= 4) return 2;
+  return b.floors || 1;
+};

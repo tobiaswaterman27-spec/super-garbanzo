@@ -64,7 +64,7 @@
 
     const buildings = [], props = [], trees = [];
     let nextId = 1;
-    const B = (o) => { const b = Object.assign({ id: nextId++, floors: 1, wealth: 0.5, condition: 0.9 }, o); b.y = b.bottom - b.d + 1; b.spec = Object.assign({ seed: O.hash('bld', seed, b.id), w: b.w, d: b.d, floors: b.floors, wealth: b.wealth, condition: b.condition }, b.look); buildings.push(b); return b; };
+    const B = (o) => { const b = Object.assign({ id: nextId++, floors: 1, wealth: 0.5, condition: 0.9 }, o);  b.floors = O.storeys(b); b.y = b.bottom - b.d + 1; b.spec = Object.assign({ seed: O.hash('bld', seed, b.id), w: b.w, d: b.d, floors: b.floors, wealth: b.wealth, condition: b.condition }, b.look); buildings.push(b); return b; };
     const wealthAt = (x) => O.clamp(place.wealth + 0.2 * (1 - Math.min(1, Math.abs(x - (sqX + 8)) / 30)) + rng.float(-0.15, 0.15), 0.1, 0.95);
     const look = (wl, extra = {}) => Object.assign({ wall: rng.weighted(st.walls), roof: wl < 0.3 && place.region !== 'north' ? 'thatch' : rng.weighted(st.roofs), roofType: rng.chance(0.5) ? 'gable' : 'side', chimney: true, plaster: rng.pick(st.plasters), stoneMat: st.stoneMat, doorTile: 1 }, extra);
     const house = (x, bottom, w, d) => { const wl = wealthAt(x); return B({ type: 'house', name: 'House', x, bottom, w, d, wealth: wl, floors: wl > 0.65 && rng.chance(0.5) ? 2 : 1, condition: O.clamp(0.35 + wl * 0.6, 0.2, 1), look: look(wl, { doorTile: rng.int(0, w - 1) }) }); };
@@ -186,7 +186,7 @@
     const buildings = [], props = [], trees = [];
     let nextId = 1;
     const st = STYLE[place.region] || STYLE.east;
-    const B = (o) => { const b = Object.assign({ id: nextId++, floors: 1, wealth: 0.6, condition: 0.9 }, o); b.y = b.bottom - b.d + 1; b.spec = Object.assign({ seed: O.hash('bld', seed, b.id), w: b.w, d: b.d, floors: b.floors, wealth: b.wealth, condition: b.condition }, b.look); buildings.push(b); return b; };
+    const B = (o) => { const b = Object.assign({ id: nextId++, floors: 1, wealth: 0.6, condition: 0.9 }, o);  b.floors = O.storeys(b); b.y = b.bottom - b.d + 1; b.spec = Object.assign({ seed: O.hash('bld', seed, b.id), w: b.w, d: b.d, floors: b.floors, wealth: b.wealth, condition: b.condition }, b.look); buildings.push(b); return b; };
     const look = (wl, extra = {}) => Object.assign({ wall: rng.weighted(st.walls), roof: rng.weighted(st.roofs), roofType: rng.chance(0.5) ? 'gable' : 'side', chimney: true, plaster: rng.pick(st.plasters), stoneMat: st.stoneMat, doorTile: 1 }, extra);
     const P = (kind, tx, ty, opts = {}) => { const p = Object.assign({ kind, x: tx * T + 8, y: ty * T + 14, seed: rng.int(1, 1e6), v: 0, solid: true }, opts); props.push(p); if (p.solid && tx >= 0 && ty >= 0 && tx < W && ty < H) solid[ty * W + tx] = 1; return p; };
     const free = (x, bottom, w, d) => { for (const b of buildings) if (!(x + w + 1 <= b.x || x - 1 >= b.x + b.w || bottom + 2 <= b.y || bottom - d - 1 >= b.bottom)) return false; for (let yy = bottom - d + 1; yy <= bottom + 1; yy++) for (let xx = x; xx < x + w; xx++) { const t = ter[yy * W + xx]; if (t === TER.ROAD || t === TER.COBBLE || t === TER.WATER || t === TER.BRIDGE || solid[yy * W + xx]) { if (yy <= bottom) return false; } } return true; };

@@ -84,7 +84,7 @@
     // line stands in only if the words can't be had)
     function voice(q, situation, fallback, show) {
       if (!(O.AI && O.AI.ready && O.AIChat && O.AIChat.line)) return show(fallback);
-      O.AIChat.line(q, situation).then((t) => show(t || fallback));
+      O.AIChat.line(q, situation).then((t) => show(t || '…')); void fallback; // (with voices, never a set line)
     }
     function walkAway(q, line, why) {
       const s0 = sim;

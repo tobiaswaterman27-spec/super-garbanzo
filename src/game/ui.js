@@ -136,6 +136,7 @@
       const snd = O.Sound && O.Sound.on;
       menu.innerHTML = `<div class="ui-menu-in"><h2>Outlaw</h2>
         <button data-m="resume" class="hot">Continue</button>
+        <button data-m="voices">Voices: ${O.AI && O.AI.kind === 'openai' ? 'your OpenAI key' : O.AI && O.AI.kind === 'claude' ? 'Claude' : 'none'}</button>
         ${[['Yourself', [['satchel', 'Satchel and skills', 'I'], ['tasks', "Undertakings and what's on", 'J'], ['biz', 'Business: work, the Crown, war', 'B'], ['hold', 'Holdings: houses and land', 'P'], ['gang', 'Your gang', 'G']]], ['The world', [['map', 'Map of Eldoria', 'M'], ['ledger', 'Town ledger', 'L'], ['chron', 'Chronicle', 'C']]], ['The game', [['guide', 'Guide', '/'], ['settings', 'Settings and saves', ''], ['save', 'Save now', '']]]].map(([h, items]) => `<h4>${h}</h4>${items.map(([k, l, key]) => `<button data-m="${k}">${l}${key ? ` <span class="lbl">${key}</span>` : ''}</button>`).join('')}`).join('')}</div>`;
       menu.hidden = false; O.menuOpen = true; game.player.locked = true;
       menu.querySelectorAll('[data-m]').forEach((b) => b.onclick = () => act(b.dataset.m));
@@ -144,6 +145,14 @@
     function closeMenu() { menu.hidden = true; O.menuOpen = false; game.player.locked = false; game.canvas.focus(); }
     function act(k) {
       closeMenu();
+      if (k === 'voices') {
+        O.Panels.open('Voices', `<p>${O.AI && O.AI.kind === 'claude' ? 'The townsfolk speak through Claude.' : O.AI && O.AI.kind === 'openai' ? 'The townsfolk speak through your OpenAI key.' : 'Nobody is speaking for the townsfolk.'} ${O.AI && O.AI.kind === 'openai' ? 'Put in a different key' : 'Use an OpenAI key instead'} (kept only in this browser):</p><input type="password" data-k placeholder="sk-..." autocomplete="off" style="width:100%"><div class="topics" style="margin-top:8px"><button data-s>Use this key</button>${O.AI && O.AI.kind === 'openai' ? '<button data-c>Forget my key</button>' : ''}</div><p class="caption" data-e hidden></p>`, (r) => {
+          const inp = r.querySelector('[data-k]'), e = r.querySelector('[data-e]'); inp.focus();
+          r.querySelector('[data-s]').onclick = async () => { e.hidden = false; e.textContent = 'Checking'; try { await O.AI.setKey(inp.value); e.textContent = 'Done: the townsfolk speak through your key now.'; setTimeout(() => O.Panels.close(), 900); } catch (x) { e.textContent = x.code === 'bad_format' ? 'That is not an OpenAI key.' : x.code === 'bad_key' ? 'OpenAI refused that key.' : 'Could not reach OpenAI from here' + (location.protocol === 'file:' ? '.' : ' (open the downloaded file in your browser to use a key).'); } };
+          const c = r.querySelector('[data-c]'); if (c) c.onclick = () => { try { localStorage.removeItem('outlaw.openai'); } catch (x) { /* blocked */ } O.Panels.close(); };
+        });
+        return;
+      }
       if (k === 'satchel') O.Panels.inventory();
       else if (k === 'map') O.openMap && O.openMap();
       else if (k === 'chron') O.ChronicleUI && O.ChronicleUI.open();

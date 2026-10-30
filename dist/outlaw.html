@@ -12833,7 +12833,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     // line stands in only if the words can't be had)
     function voice(q, situation, fallback, show) {
       if (!(O.AI && O.AI.ready && O.AIChat && O.AIChat.line)) return show(fallback);
-      O.AIChat.line(q, situation).then((t) => show(t || fallback));
+      O.AIChat.line(q, situation).then((t) => show(t || '…')); void fallback; // (with voices, never a set line)
     }
     function walkAway(q, line, why) {
       const s0 = sim;
@@ -13025,19 +13025,33 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
   AI.detect = async () => {
     if (LS('outlaw.devai') === 'mock' || (navigator.webdriver && location.protocol === 'file:')) { AI.kind = 'mock'; return (AI.ready = true); } // (automated tests only)
     if (window.claude && typeof window.claude.use === 'function') {
-      try { const s = await window.claude.use('sample'); if (s) { AI.sample = s; AI.kind = 'claude'; return (AI.ready = true); } } catch (e) { /* not on claude.ai */ }
+      try { const s = await window.claude.use('sample'); if (s) AI.sample = s; } catch (e) { /* not on claude.ai */ }
     }
+    // your own key comes first; Claude (on claude.ai) stands behind it if OpenAI can't be reached from here
     const key = LS('outlaw.openai'); if (key) { AI.key = key; AI.kind = 'openai'; return (AI.ready = true); }
+    if (AI.sample) { AI.kind = 'claude'; return (AI.ready = true); }
     return false;
   };
-  AI.json = async (prompt) => {
-    if (AI.kind === 'claude') return AI.sample.json(prompt, { modelTier: 'quick', cache: false });
+  // a reply is JSON, but models wrap it in fences or add a word: take the object out of whatever came
+  const parseJSON = (t) => { if (t && typeof t === 'object') return t; const str = String(t || ''), i = str.indexOf('{'), j = str.lastIndexOf('}'); if (i < 0 || j <= i) throw { code: 'bad_reply' }; return JSON.parse(str.slice(i, j + 1)); };
+  async function ask(prompt) {
+    if (AI.kind === 'claude') return parseJSON(await AI.sample.json(prompt, { modelTier: 'quick', cache: false }));
     if (AI.kind === 'openai') {
       const r = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + AI.key },
-        body: JSON.stringify({ model: 'gpt-4o-mini', max_tokens: 150, temperature: 0.8, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: prompt }] }) });
+        body: JSON.stringify({ model: LS('outlaw.openaiModel') || 'gpt-4o-mini', max_tokens: 500, temperature: 0.8, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'You reply only with one JSON object, as asked.' }, { role: 'user', content: prompt }] }) });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw { code: r.status === 401 ? 'bad_key' : r.status === 429 ? 'rate_limited' : 'upstream_error', message: j.error?.message || '' };
-      return JSON.parse(j.choices[0].message.content);
+      if (!r.ok) throw { code: r.status === 401 ? 'bad_key' : r.status === 429 ? 'rate_limited' : 'upstream_error', message: (j.error && j.error.message) || '' };
+      return parseJSON(j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content);
+    }
+    return null;
+  }
+  // one more try if the first comes back broken; a run of failures is told to you, with the way to fix it
+  let fails = 0;
+  AI.json = async (prompt) => {
+    if (AI.kind === 'claude' || AI.kind === 'openai') {
+      let out;
+      try { out = await ask(prompt); } catch (e) { if (e && (e.code === 'bad_key' || e.code === 'rate_limited')) { noteFail(e); throw e; } try { out = await ask(prompt); } catch (e2) { if (AI.kind === 'openai' && AI.sample && !(e2 && e2.code)) { AI.kind = 'claude'; O.UI && O.UI.say('OpenAI could not be reached from this page; Claude speaks for them instead.', 'bad'); try { out = await ask(prompt); fails = 0; return out; } catch (e3) { noteFail(e3); throw e3; } } noteFail(e2); throw e2; } }
+      fails = 0; return out;
     }
     if (AI.kind === 'mock') { // (tests only: a dull, predictable villager)
       const said = prompt.slice(prompt.lastIndexOf('\nPlayer: ') + 9), who = (/--- (\w+) \(spoken to\)/.exec(prompt) || [])[1] || 'Me', acts = [];
@@ -13050,6 +13064,18 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       return { lines: [{ who, say: /name/i.test(said) ? 'They call me what my mother called me.' : 'Aye, well. ' + (said.length > 20 ? 'That is a lot to take in.' : 'If you say so.') }], people: { [who]: { feel: 0, trust: 0, learned: '', caught: false } }, name: (/I am (\w+)/i.exec(said) || [])[1] || '', agree: /please/i.test(said), acts };
     }
     throw { code: 'no_ai' };
+  };
+  function noteFail(e) {
+    fails++; if (fails < 2) return;
+    const why = e && e.code === 'bad_key' ? 'OpenAI refused the key' : e && e.code === 'rate_limited' ? 'too many words at once; wait a moment' : (AI.kind === 'claude' ? 'Claude is not answering here' : 'OpenAI is not answering') + (e && e.message ? ` (${String(e.message).slice(0, 80)})` : '');
+    O.UI && O.UI.say(`The voices aren't answering: ${why}. Esc, then Voices, to use an OpenAI key.`, 'bad');
+  }
+  // enter or change the OpenAI key at any time (the pause menu's Voices)
+  AI.setKey = async (k) => {
+    k = String(k || '').trim(); if (!/^sk-[A-Za-z0-9_\-]{20,}$/.test(k)) throw { code: 'bad_format' };
+    const was = { kind: AI.kind, key: AI.key }; AI.key = k; AI.kind = 'openai';
+    try { await ask('Reply with only this JSON: {"ok": true}'); } catch (e) { AI.kind = was.kind; AI.key = was.key; throw e; }
+    LS('outlaw.openai', k); AI.ready = true; fails = 0; return true;
   };
 
   // the gate: no voices, no game
@@ -13331,10 +13357,10 @@ They know where their family and friends are just now (the card says); a strange
     AI.busy = true;
     let out = null;
     try { out = await AI.json(prompt); }
-    catch (e) { AI.busy = false; if (q._offer) { O.NpcActs && O.NpcActs.returnGift(q, q._offer); q._offer = null; } return reply(q, e && e.code === 'rate_limited' ? pk(['Not now. I\'ve a lot on.', 'Give me a moment, will you?']) : pk(['Hm?', 'Sorry, I was miles away.']), render); }
+    catch (e) { AI.busy = false; if (q._offer) { O.NpcActs && O.NpcActs.returnGift(q, q._offer); q._offer = null; } return reply(q, '…', render); } // (no set lines: the warning says why the words didn't come)
     AI.busy = false;
     const lines = Array.isArray(out?.lines) ? out.lines.filter((l) => l && typeof l.say === 'string' && l.say.trim()) : typeof out?.say === 'string' ? [{ who: q.first, say: out.say }] : [];
-    if (!lines.length) return reply(q, pk(['Hm.', 'Well.']), render);
+    if (!lines.length) return reply(q, '…', render);
     const n = (v) => clamp(Math.round(Number(v) || 0), -2, 2), everyone = [q, ...group];
     const byName = (w) => everyone.find((z) => z.first === w || (w && String(w).startsWith(z.first))) || null;
     if (out.name && typeof out.name === 'string' && out.name.length < 30) { const nm = clean(out.name).split(' ')[0]; for (const z of everyone) { const rz = z.rel.get(0) || { affinity: 0, familiar: 0 }; rz.name = nm; z.rel.set(0, rz); } }
@@ -17948,6 +17974,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       const snd = O.Sound && O.Sound.on;
       menu.innerHTML = `<div class="ui-menu-in"><h2>Outlaw</h2>
         <button data-m="resume" class="hot">Continue</button>
+        <button data-m="voices">Voices: ${O.AI && O.AI.kind === 'openai' ? 'your OpenAI key' : O.AI && O.AI.kind === 'claude' ? 'Claude' : 'none'}</button>
         ${[['Yourself', [['satchel', 'Satchel and skills', 'I'], ['tasks', "Undertakings and what's on", 'J'], ['biz', 'Business: work, the Crown, war', 'B'], ['hold', 'Holdings: houses and land', 'P'], ['gang', 'Your gang', 'G']]], ['The world', [['map', 'Map of Eldoria', 'M'], ['ledger', 'Town ledger', 'L'], ['chron', 'Chronicle', 'C']]], ['The game', [['guide', 'Guide', '/'], ['settings', 'Settings and saves', ''], ['save', 'Save now', '']]]].map(([h, items]) => `<h4>${h}</h4>${items.map(([k, l, key]) => `<button data-m="${k}">${l}${key ? ` <span class="lbl">${key}</span>` : ''}</button>`).join('')}`).join('')}</div>`;
       menu.hidden = false; O.menuOpen = true; game.player.locked = true;
       menu.querySelectorAll('[data-m]').forEach((b) => b.onclick = () => act(b.dataset.m));
@@ -17956,6 +17983,14 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     function closeMenu() { menu.hidden = true; O.menuOpen = false; game.player.locked = false; game.canvas.focus(); }
     function act(k) {
       closeMenu();
+      if (k === 'voices') {
+        O.Panels.open('Voices', `<p>${O.AI && O.AI.kind === 'claude' ? 'The townsfolk speak through Claude.' : O.AI && O.AI.kind === 'openai' ? 'The townsfolk speak through your OpenAI key.' : 'Nobody is speaking for the townsfolk.'} ${O.AI && O.AI.kind === 'openai' ? 'Put in a different key' : 'Use an OpenAI key instead'} (kept only in this browser):</p><input type="password" data-k placeholder="sk-..." autocomplete="off" style="width:100%"><div class="topics" style="margin-top:8px"><button data-s>Use this key</button>${O.AI && O.AI.kind === 'openai' ? '<button data-c>Forget my key</button>' : ''}</div><p class="caption" data-e hidden></p>`, (r) => {
+          const inp = r.querySelector('[data-k]'), e = r.querySelector('[data-e]'); inp.focus();
+          r.querySelector('[data-s]').onclick = async () => { e.hidden = false; e.textContent = 'Checking'; try { await O.AI.setKey(inp.value); e.textContent = 'Done: the townsfolk speak through your key now.'; setTimeout(() => O.Panels.close(), 900); } catch (x) { e.textContent = x.code === 'bad_format' ? 'That is not an OpenAI key.' : x.code === 'bad_key' ? 'OpenAI refused that key.' : 'Could not reach OpenAI from here' + (location.protocol === 'file:' ? '.' : ' (open the downloaded file in your browser to use a key).'); } };
+          const c = r.querySelector('[data-c]'); if (c) c.onclick = () => { try { localStorage.removeItem('outlaw.openai'); } catch (x) { /* blocked */ } O.Panels.close(); };
+        });
+        return;
+      }
       if (k === 'satchel') O.Panels.inventory();
       else if (k === 'map') O.openMap && O.openMap();
       else if (k === 'chron') O.ChronicleUI && O.ChronicleUI.open();

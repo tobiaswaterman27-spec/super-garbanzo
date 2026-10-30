@@ -414,7 +414,7 @@ O.bizName = (surname, label) => {
     const worn = new Set(), treeAt = new Set(trees.map((t) => Math.floor((t.y - 1) / T) * W + Math.floor(t.x / T)));
     const goal = (t) => t === TR.ROAD || t === TR.COBBLE || t === TR.BRIDGE;
     const prev = new Int32Array(W * H), seen = new Uint32Array(W * H); let stamp = 0;
-    const order = buildings.filter((b) => b.doorX != null && !b.site).sort((a, c) => (a.outskirts ? 1 : 0) - (c.outskirts ? 1 : 0));
+    const order = buildings.filter((b) => b.doorX != null && !b.site && !b.den && !b.denShed && !(b.type === 'hideout' && !b.roadKey)) /* (nobody wears a path to a gang's den) */.sort((a, c) => (a.outskirts ? 1 : 0) - (c.outskirts ? 1 : 0));
     for (const b of order) {
       const sx = b.doorX, sy = b.doorY; if (sx < 1 || sy < 1 || sx >= W - 1 || sy >= H - 1) continue;
       const s0 = sy * W + sx; if (goal(ter[s0])) continue;
@@ -539,7 +539,7 @@ O.bizName = (surname, label) => {
   // at the gap in the stakes. A den that was standing in the town's own grounds is moved out to one.
   function placeDens(id, C) {
     const pl = place(id), pop = pl.pop || 100, big = pl.kind === 'capital' || pl.kind === 'city';
-    const n = pop < 60 ? 0 : pop < 150 ? 1 : pop < 400 ? 2 : big ? 4 : 3;
+    const n0 = pop < 60 ? 0 : pop < 150 ? 1 : pop < 400 ? 2 : big ? 4 : 3, n = n0 ? n0 + (pop < 150 ? 1 : 2) : 0; // (the rest stand empty, for a gang to take over as it grows)
     const { W, H, R, ter, solid, trees, props, buildings, inTown, TR, tw, ox, oy } = C, rng = O.RNG(O.hash('dens', id));
     const ours = (x, y) => [[-9, -9], [13, -9], [-9, 8], [13, 8]].every(([dx, dy]) => (ownerAt(R.x0 + x + dx, R.y0 + y + dy) || {}).id === id); // (wholly within this place's own country)
     const old = buildings.filter((b) => b.type === 'hideout' && !b.camp && !b.roadKey);
@@ -561,7 +561,8 @@ O.bizName = (surname, label) => {
       if (!best) continue;
       const [x, y] = best, was = keepIds.shift();
       const spec = { seed: O.hash('den', id, k), w: 5, d: 3, floors: 1, wealth: 0.2, condition: 0.6, wall: 'log', roof: 'thatch', roofType: 'gable', doorTile: 2, noFlowers: true };
-      const b = Object.assign(was || { id: 8800 + k, name: 'A den in the woods', level: 1, den: true }, { type: 'hideout', x: x - 2, bottom: y, y: y - 2, w: 5, d: 3, floors: 1, wealth: 0.2, condition: 0.6, spec, doorX: x, doorY: y + 1, den: true });
+      const spare = !was && k >= n0;
+      const b = Object.assign(was || { id: 8800 + k, name: spare ? 'An empty camp in the woods' : 'A den in the woods', level: spare ? 0 : 1, den: true, outpost: spare }, { type: 'hideout', x: x - 2, bottom: y, y: y - 2, w: 5, d: 3, floors: 1, wealth: 0.2, condition: 0.6, spec, doorX: x, doorY: y + 1, den: true });
       b.spec = Object.assign({}, b.spec, spec, was && was.spec ? { seed: was.spec.seed } : {});
       buildings.push(b);
       // the yard, cleared and trodden

@@ -2636,6 +2636,29 @@ O.storeys = (b) => {
         B.part(2); B.shape(2, 0, 12, 4, (px, py) => ((px - 7) / 5.2) ** 2 + ((py - 2.2) / 1.6) ** 2 <= 1, () => [0, -0.9, 0.4], pine);
         ox = 7; oy = 17; break;
       }
+      case 'tent': { // a canvas ridge tent, flap tied back
+        B = new MB(30, 24); B.part(1); const cv = P.mat(rng.chance(0.5) ? '#c8b88a' : '#a89870');
+        B.shape(1, 3, 29, 22, (px, py) => Math.abs(px - 15) <= (py - 3) * 0.72 && py <= 22, (px) => [px < 15 ? -0.7 : 0.7, -0.35, 0.6], cv);
+        for (let y = 4; y < 22; y++) { B.shadeAt(15, y, 4); if (y > 12) for (let x = 13; x <= 17; x++) if (Math.abs(x - 15) <= (y - 12) * 0.35) B.plot(x, y, P.mat('#2a1d14'), 0); }
+        B.part(2); B.capsule(15, 0, 15, 4, 0.6, 0.6, wood); B.capsule(2, 23, 6, 20, 0.4, 0.4, wood); B.capsule(28, 23, 24, 20, 0.4, 0.4, wood);
+        ox = 15; oy = 23; break;
+      }
+      case 'lookout': { // a timber watchtower on four legs, a ladder up to a railed platform under a little roof
+        B = new MB(30, 60); B.part(1); const lm = M.log();
+        for (const [a, b] of [[4, 8], [26, 22]]) B.capsule(a, 58, b, 18, 1.1, 0.9, lm);
+        B.part(2); for (const y of [30, 44]) B.capsule(6, y, 24, y - 6, 0.5, 0.5, wood);
+        for (let y = 20; y < 58; y += 4) B.rect(12, y, 6, 1, pine, 3);
+        B.part(3); B.rect(3, 14, 24, 4, pine, 2); for (let x = 3; x < 27; x += 3) B.rect(x, 9, 1, 5, wood, 2); B.rect(3, 9, 24, 1, wood, 3);
+        B.part(4); B.shape(1, 0, 29, 8, (px, py) => Math.abs(px - 15) <= py * 1.8 && py <= 8, (px) => [px < 15 ? -0.6 : 0.6, -0.5, 0.6], P.mat('#a08048', 'wood'));
+        ox = 15; oy = 59; break;
+      }
+      case 'firepit': { // a ring of stones round the embers, half-burnt logs across it
+        B = new MB(20, 12); B.part(1);
+        for (let i = 0; i < 9; i++) { const a = (i / 9) * Math.PI * 2; B.blob(10 + Math.cos(a) * 7, 6 + Math.sin(a) * 3.6, 1.8, 1.4, stone, { power: 2 }); }
+        B.part(2); B.capsule(5, 7, 15, 5, 0.9, 0.9, M.log()); B.capsule(6, 4, 14, 8, 0.9, 0.9, M.log());
+        for (const [x, y] of [[9, 6], [10, 5], [11, 6], [10, 7], [8, 5], [12, 7]]) B.plot(x, y, P.mat(v === 1 ? '#3a3030' : '#e07020'), 4);
+        ox = 10; oy = 11; break;
+      }
       case 'crate': {
         B = new MB(16, 16); B.part(1);
         B.rect(1, 5, 14, 10, pine, 2); for (let x = 1; x < 15; x++) { B.shadeAt(x, 5, 3); B.shadeAt(x, 14, 1); }
@@ -4289,7 +4312,7 @@ O.bizName = (surname, label) => {
     const worn = new Set(), treeAt = new Set(trees.map((t) => Math.floor((t.y - 1) / T) * W + Math.floor(t.x / T)));
     const goal = (t) => t === TR.ROAD || t === TR.COBBLE || t === TR.BRIDGE;
     const prev = new Int32Array(W * H), seen = new Uint32Array(W * H); let stamp = 0;
-    const order = buildings.filter((b) => b.doorX != null && !b.site).sort((a, c) => (a.outskirts ? 1 : 0) - (c.outskirts ? 1 : 0));
+    const order = buildings.filter((b) => b.doorX != null && !b.site && !b.den && !b.denShed && !(b.type === 'hideout' && !b.roadKey)) /* (nobody wears a path to a gang's den) */.sort((a, c) => (a.outskirts ? 1 : 0) - (c.outskirts ? 1 : 0));
     for (const b of order) {
       const sx = b.doorX, sy = b.doorY; if (sx < 1 || sy < 1 || sx >= W - 1 || sy >= H - 1) continue;
       const s0 = sy * W + sx; if (goal(ter[s0])) continue;
@@ -4414,7 +4437,7 @@ O.bizName = (surname, label) => {
   // at the gap in the stakes. A den that was standing in the town's own grounds is moved out to one.
   function placeDens(id, C) {
     const pl = place(id), pop = pl.pop || 100, big = pl.kind === 'capital' || pl.kind === 'city';
-    const n = pop < 60 ? 0 : pop < 150 ? 1 : pop < 400 ? 2 : big ? 4 : 3;
+    const n0 = pop < 60 ? 0 : pop < 150 ? 1 : pop < 400 ? 2 : big ? 4 : 3, n = n0 ? n0 + (pop < 150 ? 1 : 2) : 0; // (the rest stand empty, for a gang to take over as it grows)
     const { W, H, R, ter, solid, trees, props, buildings, inTown, TR, tw, ox, oy } = C, rng = O.RNG(O.hash('dens', id));
     const ours = (x, y) => [[-9, -9], [13, -9], [-9, 8], [13, 8]].every(([dx, dy]) => (ownerAt(R.x0 + x + dx, R.y0 + y + dy) || {}).id === id); // (wholly within this place's own country)
     const old = buildings.filter((b) => b.type === 'hideout' && !b.camp && !b.roadKey);
@@ -4436,7 +4459,8 @@ O.bizName = (surname, label) => {
       if (!best) continue;
       const [x, y] = best, was = keepIds.shift();
       const spec = { seed: O.hash('den', id, k), w: 5, d: 3, floors: 1, wealth: 0.2, condition: 0.6, wall: 'log', roof: 'thatch', roofType: 'gable', doorTile: 2, noFlowers: true };
-      const b = Object.assign(was || { id: 8800 + k, name: 'A den in the woods', level: 1, den: true }, { type: 'hideout', x: x - 2, bottom: y, y: y - 2, w: 5, d: 3, floors: 1, wealth: 0.2, condition: 0.6, spec, doorX: x, doorY: y + 1, den: true });
+      const spare = !was && k >= n0;
+      const b = Object.assign(was || { id: 8800 + k, name: spare ? 'An empty camp in the woods' : 'A den in the woods', level: spare ? 0 : 1, den: true, outpost: spare }, { type: 'hideout', x: x - 2, bottom: y, y: y - 2, w: 5, d: 3, floors: 1, wealth: 0.2, condition: 0.6, spec, doorX: x, doorY: y + 1, den: true });
       b.spec = Object.assign({}, b.spec, spec, was && was.spec ? { seed: was.spec.seed } : {});
       buildings.push(b);
       // the yard, cleared and trodden
@@ -6784,7 +6808,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       this.gangs = [];
       const r = this.rng;
       // each den in the woods belongs to a gang of its own, with its own name, leader and hands
-      const dens = this.world.buildings.filter((b) => b.type === 'hideout' && !b.roadKey && b.gang !== 'player');
+      const dens = this.world.buildings.filter((b) => b.type === 'hideout' && !b.roadKey && !b.outpost && b.gang !== 'player');
       const cands = this.people.filter((p) => !p.visitor && p.age >= 17 && p.age < 55 && !upright(this, p)).sort((a, b) => a.attitude - b.attitude);
       dens.forEach((den, k) => {
         const id = 'g' + k, name = gangName(r);
@@ -13422,7 +13446,7 @@ They know where their family and friends are just now (the card says); a strange
     const ask = askFor(q), group = (q._group || []).filter((z) => z.alive !== false);
     const history = conv.slice(-8, -1).map((c) => (c.who === 'p' ? 'Player: ' : (c.by || q.first) + ': ') + c.t).join('\n');
     const hurryNote = q._hurry ? `${q.first} is in a hurry (${q._hurry.why}): answer briefly, then say they must go now.\n` : '';
-    const prompt = `${RULES}\n\n${hurryNote}${group.length ? 'The player is speaking to the whole group: any of them may answer.\n' : ''}--- ${q.first} (spoken to) ---\n${speechFor(q.age, q.stage)}\n${card(s, q)}\n${extraCard(s, q)}\n${group.length ? `--- Also in the talk ---\n${group.map((z) => shortCard(s, z)).join('\n')}\n` : ''}${ask ? `--- Pending request to ${q.first} ---\nThe player wants you to ${ask.goal}. ${ask.why || ''} Weigh it by temper, needs and trust; agree only if convinced.\n` : 'No request is pending: agree is false.\n'}--- Talk so far ---\n${history || '(none)'}\nPlayer: ${text}${q.age < 18 ? '\n' + speechFor(q.age, q.stage).replace('SPEECH:', 'Remember, how ' + q.first + ' speaks:') : ''}`;
+    const prompt = `${RULES}${(O.extraActs || []).length ? '\nMore acts: ' + O.extraActs.join(' | ') : ''}\n\n${hurryNote}${group.length ? 'The player is speaking to the whole group: any of them may answer.\n' : ''}--- ${q.first} (spoken to) ---\n${speechFor(q.age, q.stage)}\n${card(s, q)}\n${extraCard(s, q)}\n${group.length ? `--- Also in the talk ---\n${group.map((z) => shortCard(s, z)).join('\n')}\n` : ''}${ask ? `--- Pending request to ${q.first} ---\nThe player wants you to ${ask.goal}. ${ask.why || ''} Weigh it by temper, needs and trust; agree only if convinced.\n` : 'No request is pending: agree is false.\n'}--- Talk so far ---\n${history || '(none)'}\nPlayer: ${text}${q.age < 18 ? '\n' + speechFor(q.age, q.stage).replace('SPEECH:', 'Remember, how ' + q.first + ' speaks:') : ''}`;
     render(null, true);
     AI.busy = true;
     let out = null;
@@ -13506,13 +13530,13 @@ They know where their family and friends are just now (the card says); a strange
   // a letter in your own words: they read it, may act on it, and write back
   async function readLetter(s, q, text) {
     if (!AI.ready || q.age < 9) return;
-    const prompt = `${RULES}\n\nInstead of talk: ${q.first} has just read a letter from the player and writes a short reply letter (the "say" of one line, 1 to 3 sentences, plain and in character; a poor or rough person writes plainly). Acts like meet still apply; follow, go and leave do not.\n--- ${q.first} ---\n${speechFor(q.age, q.stage)}\n${card(s, q)}\n${extraCard(s, q)}\nNo request is pending: agree is false.\n--- The letter ---\nPlayer: ${String(text).slice(0, 400)}`;
+    const prompt = `${RULES}${(O.extraActs || []).length ? '\nMore acts: ' + O.extraActs.join(' | ') : ''}\n\nInstead of talk: ${q.first} has just read a letter from the player and writes a short reply letter (the "say" of one line, 1 to 3 sentences, plain and in character; a poor or rough person writes plainly). Acts like meet still apply; follow, go and leave do not.\n--- ${q.first} ---\n${speechFor(q.age, q.stage)}\n${card(s, q)}\n${extraCard(s, q)}\nNo request is pending: agree is false.\n--- The letter ---\nPlayer: ${String(text).slice(0, 400)}`;
     let out; try { out = await AI.json(prompt); } catch (e) { return; }
     const line = Array.isArray(out?.lines) && out.lines[0] && out.lines[0].say ? inChar(q, clean(out.lines[0].say)) : null;
     const pz = out?.people && (out.people[q.first] || Object.values(out.people)[0]); const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r);
     if (pz) { r.affinity = clamp(r.affinity + clamp(Math.round(+pz.feel || 0), -2, 2) * 0.04, -1, 1); r.trust = clamp((r.trust || 0) + clamp(Math.round(+pz.trust || 0), -2, 2) * 0.05, -1, 1); if (pz.learned) (q.beliefs = q.beliefs || []).unshift({ t: clean(pz.learned).slice(0, 140), src: 'player', day: s.day }); }
     if (out?.name) r.name = clean(out.name).split(' ')[0];
-    const notes = []; if (Array.isArray(out?.acts) && O.NpcActs) for (const a of out.acts.slice(0, 3)) if (a && ['meet', 'give', 'want', 'seek_job', 'tell', 'like', 'invite', 'wedding_guest', 'set_wedding', 'court', 'betroth'].includes(a.do)) { if (a.do === 'give') continue; const res = O.NpcActs.apply(s, q, a, q); if (res && res !== 'leave') notes.push(res); }
+    const notes = []; if (Array.isArray(out?.acts) && O.NpcActs) for (const a of out.acts.slice(0, 3)) if (a && ['meet', 'give', 'want', 'seek_job', 'tell', 'like', 'invite', 'wedding_guest', 'set_wedding', 'court', 'betroth', 'day_off', 'raise', 'release', 'gather', 'host', 'recommend', 'repay', 'spread', 'odd_job', 'forgive', 'grudge'].includes(a.do)) { if (a.do === 'give') continue; const res = O.NpcActs.apply(s, q, a, q); if (res && res !== 'leave') notes.push(res); }
     if (line) O.sendMail('reply', { from: q.name, text: line, notes }, 2 + Math.random() * 6, `A letter from ${q.first}`);
   }
   O.mailHandlers = O.mailHandlers || {};
@@ -15364,6 +15388,263 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     O.Resources = { of: resOf };
   }
   O.ResourcesSetup = { setup };
+})();
+
+</script>
+<script>
+// A gang's bases. Every den lies well out in the woods with no trodden path to it: you have to know
+// the way, or be shown it. Spare camps stand empty in the woods round a town, and a gang that is
+// growing (enough hands, a fat purse) takes one over as an outpost; so can you, for your own gang.
+// The camps fill out as their gang rises: a fire pit, then tents for the extra hands, then a lookout
+// tower over the stakes. Some of the gang keep to each outpost of an evening.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const SP = O.Sim.prototype, PS = O.PlayerState, cur = () => O.SimRef.cur;
+    const basesOf = (s, g) => (g.bases = g.bases && g.bases.length ? g.bases : [g.hideout]);
+    const camps = (s) => s.world.buildings.filter((b) => b.type === 'hideout' && b.den && !b.roadKey);
+    const free = (s) => camps(s).filter((b) => b.outpost && !b.gang);
+    // what a camp shows of its gang's standing
+    function dress(s, b) {
+      const w = s.world, lvl = b.level ?? 0; if ((b._dressed ?? -1) >= lvl) return; b._dressed = lvl;
+      const x = b.doorX, y = b.doorY - 1, add = (kind, tx, ty, solid = true, v = 0) => {
+        if (w.props.some((p) => p.denOf === b.id && p.kind === kind && p.tx === tx && p.ty === ty)) return;
+        const p = { kind, x: tx * T + 8, y: ty * T + 15, seed: O.hash('camp', b.id, kind, tx), v, solid, denOf: b.id, tx, ty, country: false }; w.props.push(p); if (solid) w.solid[ty * w.W + tx] = 1;
+      };
+      if (lvl >= 1) add('firepit', x + 1, y + 2, false);
+      if (lvl >= 2) { add('tent', x - 3, y - 4); add('tent', x + 6, y - 3); }
+      if (lvl >= 3) add('lookout', x + 10, y - 4);
+      w.dirtyStatics = true;
+    }
+    function claim(s, g, b, by) {
+      b.gang = g.id; b.outpost = true; b.level = Math.max(1, b.level || 0); b.dirty = true;
+      b.name = `${g.name.replace(/^the /, 'The ')}${/s$/.test(g.name) ? "'" : "'s"} outpost`;
+      basesOf(s, g).push(b.id); dress(s, b);
+      (g.log = g.log || []).push(`Day ${s.day}: took over ${by === 'player' ? 'an empty camp' : 'a camp in the woods'} as an outpost.`);
+      if (by !== 'player') s.log(`${g.name.replace(/^the /, 'The ')} have taken over an old camp in the woods outside ${s.world.name}.`, 'gang');
+    }
+    // each day: growing gangs reach out; rich ones build up their outposts
+    const _nd = SP.newDay;
+    SP.newDay = function () {
+      const r = _nd.apply(this, arguments);
+      for (const g of this.gangs || []) {
+        const bases = basesOf(this, g);
+        for (const id of bases) { const b = this.building(id); if (b) dress(this, b); }
+        if (g.id === 'player') continue;
+        const room = free(this);
+        if (room.length && g.members.length >= 4 && g.purse >= 90 && bases.length < 1 + Math.max(1, g.level || 1) && this.rng.chance(0.25)) { g.purse -= 60; claim(this, g, room[Math.floor(this.rng.next() * room.length)]); }
+        for (const id of bases.slice(1)) { const b = this.building(id); if (b && (b.level || 1) < Math.min(3, g.level || 1) && g.purse >= 120 && this.rng.chance(0.15)) { g.purse -= 80; b.level++; b.dirty = true; O.Interior && O.Interior.invalidate && O.Interior.invalidate(b); dress(this, b); } }
+      }
+      return r;
+    };
+    // some of the gang keep each outpost of an evening
+    const _plan = SP.plan;
+    SP.plan = function (p) {
+      const a = _plan.call(this, p);
+      if (a && p.gang && p.gang !== 'player' && a.act === 'gangmeet' && a.b != null) {
+        const g = (this.gangs || []).find((x) => x.id === p.gang), bases = g && g.bases;
+        if (bases && bases.length > 1) { const k = p.id % bases.length; if (k > 0 && this.building(bases[k])) return Object.assign({}, a, { b: bases[k] }); }
+      }
+      return a;
+    };
+    // the camps as they stand now, when the world is first seen
+    let done = new WeakSet();
+    game.hooks.update.push(() => { const s = cur(); if (!s || !s.world || done.has(s.world)) return; done.add(s.world); for (const b of camps(s)) dress(s, b); });
+    // you can take an empty camp for your own gang
+    (O.moreCandidates = O.moreCandidates || []).push(() => {
+      const s = cur(); if (!s || game.scene || !PS.gang) return null; const P = game.player;
+      const b = free(s).find((z) => Math.hypot(z.doorX * T + 8 - P.x, z.doorY * T + 8 - P.y) < 40); if (!b) return null;
+      const g = (s.gangs || []).find((x) => x.id === 'player'); if (!g) return null;
+      return { type: 'custom', d: 1, x: b.doorX * T + 8, y: b.doorY * T - 30, label: `Take this camp for ${g.name}`, act: () => { claim(s, g, b, 'player'); O.UI.say(`The camp is ${g.name}'s now: an outpost in the woods.`); } };
+    });
+    O.GangBases = { basesOf, claim, dress, free };
+    // what a gang's people know of their bases
+    (O.extraLines = O.extraLines || []).push((s, q) => {
+      if (!q.gang || q.gang === 'player') return '';
+      const g = (s.gangs || []).find((x) => x.id === q.gang); if (!g || !g.bases || g.bases.length < 2) return '';
+      return `Your gang holds ${g.bases.length} camps in the woods: the den and ${g.bases.length - 1} outpost${g.bases.length > 2 ? 's' : ''}. No path leads to any of them; you would only show the way to someone you trust.`;
+    });
+  }
+  O.GangBasesSetup = { setup };
+})();
+
+</script>
+<script>
+// People get together. Ordinary folk give suppers, keep their name-days with a feast, and on a
+// Saturday night there's dancing at the tavern; whoever is fond of you is likely to ask you along. Tell
+// someone you're lonely and need friends, and they may write round to theirs and get them to come and
+// meet you somewhere; or throw a gathering of their own. At a gathering the guests dance, laugh and
+// drink, a fiddle plays, and they say things to each other in their own words.
+// And a good deal more that people can do when you talk to them: heal you, bless you, put in a word for
+// you, swear friendship, wrestle or race you, tell you a secret, spread word about someone, borrow from
+// you. Your master hears your notice, your plea for a raise or a day off from your own mouth (or by
+// letter), and answers it.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const SP = O.Sim.prototype, PS = O.PlayerState, cur = () => O.SimRef.cur, clamp = O.clamp, say = (t, k) => O.UI.say(t, k);
+    const relOf = (q) => { const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r); return r; };
+    const myAge = () => (O.Forge && O.Forge.spec && O.Forge.spec().age) || 27;
+    const abs = (s) => s.day * 1440 + s.minute;
+    const hstr = (h) => (O.hourStr ? O.hourStr(h) : Math.floor(h) + ':00');
+    const friendsOf = (s, q, n = 5, byAge = null) => [...q.rel.entries()].filter(([id, r]) => id !== 0 && r.affinity > 0.15).map(([id]) => s.byId.get(id)).filter((z) => z && z.alive !== false && z.age >= 14 && !z.visitor && z.home != null).sort((a, b) => byAge == null ? 0 : Math.abs(a.age - byAge) - Math.abs(b.age - byAge)).slice(0, n);
+    const invite = (s, e) => { O.addLead && O.addLead({ place: s.world.placeId, b: e.b ?? undefined, tile: e.tile || undefined, why: 'event', key: 'ev:' + e.id, label: `${e.title}, ${O.dateOf ? O.dateOf(e.day) : 'day ' + e.day} ${hstr(e.from)}`, from: e.day * 1440 + e.from * 60, until: e.day * 1440 + e.to * 60 }); };
+    const lc = (t) => (/^(Supper|A |Dancing)/.test(t) ? t[0].toLowerCase() + t.slice(1) : t); // (names keep their capitals)
+    const nid = () => Date.now().toString(36) + Math.floor(Math.random() * 999);
+
+    // ---------------------------------------------------------------- what townsfolk throw for themselves
+    const _nd = SP.newDay;
+    SP.newDay = function () {
+      const r = _nd.apply(this, arguments);
+      const evs = (this.npcEvents = this.npcEvents || []), day = this.day + 1 + (this.rng.chance(0.5) ? 1 : 0);
+      const clash = (d, f, t) => O.eventClash && O.eventClash(this, d, f, t);
+      for (const p of this.people) {
+        if (p.alive === false || p.visitor || p.age < 18 || p.home == null) continue;
+        const hh = this.household(p); if (!hh || hh.members[0] !== p.id) continue; // one host per house
+        const yearDay = ((this.day) % 56) + 1;
+        let kind = null;
+        if (p.birthday === yearDay && hh.money > 15) kind = 'nameday';
+        else if (hh.money > 30 && this.rng.chance(this.has(p, 'social') ? 0.05 : 0.015)) kind = 'supper';
+        if (!kind || evs.some((x) => x.host === p.id && x.day >= this.day)) continue;
+        const guests = friendsOf(this, p, kind === 'nameday' ? 7 : 4, p.age).map((z) => z.id); if (guests.length < 2) continue;
+        const d = kind === 'nameday' ? this.day + 1 : day, from = kind === 'nameday' ? 18 : 18.5, to = kind === 'nameday' ? 22 : 21.5;
+        const e = { id: nid(), kind, title: kind === 'nameday' ? `${p.first}'s name-day feast` : `Supper at the ${p.sur || p.first} house`, b: p.home, day: d, from, to, host: p.id, guests, small: true, party: true };
+        evs.push(e); hh.money -= kind === 'nameday' ? 8 : 4;
+        for (const id of guests) { const z = this.byId.get(id); if (z) this.remember(z, `${p.first} has asked me to ${lc(e.title)}.`, 'social', 0.6); }
+        if (this === O.SimRef.cur && relOf(p).affinity > 0.3) { e.guests.push(0); invite(this, e); say(`Word comes from ${p.first}: you're bidden to ${lc(e.title)}, ${O.dateOf ? O.dateOf(d) : ''} at ${hstr(from)}.`); }
+      }
+      // Saturday night at the tavern: a fiddler, and dancing
+      if (this.tavernId != null && (this.weekday + 1) % 7 === 5 && !evs.some((e) => e.kind === 'dance' && e.day === this.day + 1) && !clash(this.day + 1, 19, 23)) {
+        const tav = this.building(this.tavernId); evs.push({ id: nid(), kind: 'dance', title: `Dancing at ${tav ? tav.name : 'the tavern'}`, b: this.tavernId, day: this.day + 1, from: 19, to: 23, open: true, party: true, small: true });
+      }
+      return r;
+    };
+    // the bidden go (ahead of the town's own gatherings)
+    const _plan = SP.plan;
+    SP.plan = function (p) {
+      const evs = this.npcEvents;
+      if (evs && evs.length && !p.task && p.age >= 4 && !p.health?.illness && p.alive !== false) {
+        const h = this.hour;
+        for (const e of evs) {
+          if (!e.guests || e.day !== this.day || h < e.from || h >= e.to) continue;
+          if (e.host === p.id || e.guests.includes(p.id)) return e.b != null ? { act: 'socialise', b: e.b } : { act: 'festival', outdoor: true, zone: 'square' };
+        }
+      }
+      return _plan.call(this, p);
+    };
+    // ---------------------------------------------------------------- the life of a gathering, when you're there
+    const hereNow = (s) => (s.npcEvents || []).find((e) => e.party && e.day === s.day && s.hour >= e.from && s.hour < e.to && ((e.b != null && game.scene && (game.scene.b.parent || game.scene.b).id === e.b) || (e.tile && !game.scene && Math.hypot(game.player.x - e.tile[0] * T, game.player.y - e.tile[1] * T) < 180)));
+    let at = 0, talkAt = 0;
+    game.hooks.update.push((dt) => {
+      at -= dt; talkAt -= dt; if (at > 0) return; at = 2.2;
+      const s = cur(); if (!s || O.panelOpen) return; const e = hereNow(s); if (!e) return;
+      const there = game.scene ? [...game.scene.actors.values()].map((a) => a.person).filter((z) => z && z.age >= 3 && !(O.npcUI && O.npcUI.talking() === z)) : [];
+      if (!there.length) return;
+      // first time in: the guests are introduced
+      if (!e.met) { e.met = true; const host = s.byId.get(e.host); for (const z of there) { const r = relOf(z); r.familiar = Math.max(r.familiar || 0, 0.18); r.affinity = clamp(r.affinity + (e.forYou ? 0.1 : 0.04), -1, 1); if (host && relOf(host).name && !r.name) r.name = relOf(host).name; } if (e.forYou && host) say(`${host.first} brings their friends over to meet you.`); }
+      const z = there[Math.floor(Math.random() * there.length)];
+      const moves = e.kind === 'dance' ? ['dance', 'dance', 'dance', 'laugh', 'celebrate'] : ['laugh', 'nod', 'celebrate', 'dance', 'gesture'];
+      O.gesture && O.gesture(z, moves[Math.floor(Math.random() * moves.length)], 2 + Math.random() * 2);
+      if (e.kind === 'dance' || e.kind === 'nameday') { const f = [262, 294, 330, 349, 392, 440][Math.floor(Math.random() * 6)]; O.Sound && O.Sound.play('pluck', f, 0.5); setTimeout(() => O.Sound && O.Sound.play('pluck', f * 1.25, 0.4), 220); }
+      if (talkAt <= 0 && O.AI && O.AI.ready && O.AIChat && z.age >= 6) {
+        talkAt = 14;
+        O.AIChat.line(z, `You are at ${lc(e.title)} among friends and neighbours, ${e.kind === 'dance' ? 'with a fiddle playing and people dancing' : 'eating and drinking'}. Say something to those around you, as you would at such a time (not to the player unless they are your friend).`).then((t) => t && O.Speech && O.Speech.say(z, t, 4));
+      }
+    });
+
+    // ---------------------------------------------------------------- the acts
+    const placeEv = (s, q, a, kind, guests, title) => {
+      const before = (PS.meets || []).length; const note = O.NpcActs.meet(s, q, { place: a.place || (kind === 'gathering' ? 'the tavern' : 'my home'), hour: a.hour ?? (kind === 'gathering' ? 18 : 19), day: a.day || 'tomorrow', why: a.why || title });
+      const m = (PS.meets || [])[before] || (PS.meets || []).filter((x) => x.who === q.id).pop(); if (!note || !m) return null;
+      const day = Math.floor(m.at / 1440), from = (m.at % 1440) / 60;
+      const e = { id: nid(), kind, title, b: m.b, tile: m.b == null ? m.tile : null, day, from, to: Math.min(23.9, from + 3), host: q.id, guests, small: true, party: true, forYou: kind === 'gathering' };
+      (s.npcEvents = s.npcEvents || []).push(e); invite(s, e);
+      return { e, m };
+    };
+    function gather(s, q, a) {
+      const guests = friendsOf(s, q, 5, myAge()); if (!guests.length) return null;
+      const r = placeEv(s, q, a, 'gathering', guests.map((z) => z.id), `${q.first}'s friends, come to meet you`); if (!r) return null;
+      for (const z of guests) { s.remember(z, `${q.first} wrote asking me to come to ${r.m.label} to meet a newcomer who wants friends.`, 'social', 0.8); (z.beliefs = z.beliefs || []).unshift({ t: `${q.first} wants me to meet the newcomer at ${r.m.label}.`, src: 'friend', from: q.first, day: s.day }); }
+      return `${q.first} will write to ${guests.length} friends of theirs to come and meet you: ${r.m.label}.`;
+    }
+    function host(s, q, a) {
+      const k = String(a.kind || 'supper').toLowerCase(), guests = friendsOf(s, q, 6, q.age).map((z) => z.id);
+      const title = /dance/.test(k) ? `A dance at ${q.first}'s` : /feast|name/.test(k) ? `${q.first}'s feast` : `Supper at ${q.first}'s`;
+      const r = placeEv(s, q, a, /dance/.test(k) ? 'dance' : /feast|name/.test(k) ? 'nameday' : 'supper', guests, title); if (!r) return null;
+      return `You're bidden to ${lc(title)}: ${r.m.label}.`;
+    }
+    const roleIs = (q, re) => re.test(q.job?.role || '');
+    const posts = () => (O.Employment && O.Employment.posts ? O.Employment.posts() : []);
+    const myPost = (s, q) => posts().find((e) => e.master === q.id && e.place === s.world.placeId);
+    const A = {
+      gather, host,
+      heal(s, q, a) {
+        if (!roleIs(q, /physician|herbalist|nurse|apothecary|barber|midwife|monk|nun|healer|leech/)) return null;
+        const pr = clamp(Math.round(Number(a.price ?? 4) || 0), 0, 30); if (PS.money < pr) return `You haven't the ₳${pr}.`;
+        PS.money -= pr; const hh = s.household(q); if (hh) hh.money += pr;
+        PS.hp = Math.min(100, (PS.hp || 0) + 35); if (PS.wounds && PS.wounds.length) PS.wounds = PS.wounds.slice(1); if (PS.ill) PS.ill = null;
+        O.gesture && O.gesture(q, 'crouch', 2);
+        return `${q.first} sees to you${pr ? ` (₳${pr})` : ''}. You feel better.`;
+      },
+      bless(s, q) { if (!roleIs(q, /priest|bishop|chaplain|monk|nun|abbot|abbess|friar|hermit/)) return null; O.gesture && O.gesture(q, 'pray', 2.5); PS.blessed = s.day; PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.01); return `${q.first} blesses you.`; },
+      recommend(s, q, a) { const z = O.NpcActs.personFor(s, a.to); if (!z || z === q) return null; const rz = relOf(z), rq = relOf(q); rz.familiar = Math.max(rz.familiar || 0, 0.25); rz.affinity = clamp(rz.affinity + Math.max(0.05, (rq.affinity || 0) * 0.3), -1, 1); s.remember(z, `${q.first} put in a good word for the stranger.`, 'player', 0.8, 0.2); return `${q.first} will put in a word for you with ${z.first}.`; },
+      swear_friendship(s, q) { const r = relOf(q); if (r.affinity < 0.5) return null; q.sworn = true; r.affinity = clamp(r.affinity + 0.15, -1, 1); r.trust = clamp((r.trust || 0) + 0.2, -1, 1); s.remember(q, 'Swore friendship with the stranger.', 'player', 1.5, 0.6); O.gesture && O.gesture(q, 'celebrate', 2); return `You and ${q.first} are sworn friends.`; },
+      contest(s, q, a) {
+        const k = String(a.kind || 'wrestle').toLowerCase(), P = game.player;
+        const mine = (k.includes('drink') ? 0.5 : (PS.hp || 60) / 100) + (PS.skills && PS.skills.combat || 0) * 0.5 + Math.random();
+        const theirs = (q.age < 50 && q.age > 16 ? 0.7 : 0.4) + (s.has(q, 'strong') ? 0.3 : 0) + Math.random();
+        const anim = k.includes('drink') ? 'drink' : k.includes('race') ? 'celebrate' : 'attack';
+        O.gesture && O.gesture(q, anim, 2.5); P.anim = anim; P.ft = 0; setTimeout(() => { if (P.anim === anim) P.anim = 'idle'; }, 2000);
+        const won = mine > theirs, r = relOf(q); r.affinity = clamp(r.affinity + 0.05, -1, 1); r.familiar = Math.min(1, (r.familiar || 0) + 0.1);
+        if (won) PS.rep.local = Math.min(1, (PS.rep.local || 0) + 0.01);
+        s.remember(q, `${won ? 'Lost' : 'Beat the stranger'} at ${k}.`, 'social', 0.7);
+        return won ? `You beat ${q.first} at ${k}.` : `${q.first} beats you at ${k}.`;
+      },
+      confide(s, q, a) { const t = String(a.secret || '').slice(0, 140); if (!t || relOf(q).trust < 0.2) return null; (PS.confided = PS.confided || []).push({ who: q.id, name: q.first, place: s.world.placeId, t, day: s.day }); return null; },
+      spread(s, q, a) {
+        const z = O.NpcActs.personFor(s, a.about), t = String(a.rumour || a.news || '').slice(0, 140); if (!t) return null;
+        const good = a.good === true || a.good === 'true';
+        for (const f of friendsOf(s, q, 6)) { (f.beliefs = f.beliefs || []).unshift({ t, src: 'friend', from: q.first, day: s.day }); if (z && f !== z) s.relate(f, z, good ? 0.05 : -0.06); }
+        return `${q.first} will pass that round.`;
+      },
+      borrow(s, q, a) { const n = clamp(Math.round(Number(a.amount) || 0), 1, 50); if (PS.money < n) return `You haven't ₳${n} to lend.`; PS.money -= n; const hh = s.household(q); if (hh) hh.money += n; (PS.lent = PS.lent || []).push({ who: q.id, name: q.first, place: s.world.placeId, n, due: s.day + 7 }); O.NpcActs.fly && O.NpcActs.fly('player', q, 'coin'); return `You lend ${q.first} ₳${n}, to be paid back within the week.`; },
+      repay(s, q) { const L = (PS.lent || []).find((x) => x.who === q.id); const hh = s.household(q); if (!L || !hh || hh.money < L.n) return null; hh.money -= L.n; PS.money += L.n; PS.lent = PS.lent.filter((x) => x !== L); O.NpcActs.fly && O.NpcActs.fly(q, 'player', 'coin'); return `${q.first} pays you back ₳${L.n}.`; },
+      // your master answers you
+      day_off(s, q) { const e = myPost(s, q); if (!e) return null; e.dayOff = s.day + 1; e.offAsked = s.day; return `${q.first} gives you tomorrow off.`; },
+      raise(s, q, a) { const e = myPost(s, q); if (!e) return null; const n = clamp(Math.round(Number(a.amount) || 1), 1, 5); e.wage += n; return `${q.first} raises your pay to ₳${e.wage} a day.`; },
+      release(s, q) { const e = myPost(s, q); if (!e || !O.Employment || !O.Employment.quit) return null; O.Employment.quit(`You leave your place as ${e.role} at ${e.bizName}.`, e); return 'Your service there is over.'; },
+    };
+    O.extraActs = O.extraActs || [];
+    O.extraActs.push(
+      'gather {"place","hour","day","why"} (when the player is lonely or wants to meet people and you are willing: you write to your friends and get them to come and meet the player there)',
+      'host {"kind":"supper"|"feast"|"dance","place"?,"hour","day"} (you invite the player to a gathering of your own, with your friends)',
+      'heal {"price"} (a healer tending the player\'s hurts)', 'bless (a priest or holy person blessing the player)',
+      'recommend {"to"} (you put in a good word for the player with someone)', 'swear_friendship (only a dear friend: you swear lasting friendship)',
+      'contest {"kind":"wrestle"|"race"|"arm-wrestle"|"drinking"} (a friendly match, if you accept a challenge or make one)',
+      'confide {"secret"} (you tell the player a secret of yours, if you trust them)', 'spread {"about","rumour","good":true|false} (you agree to pass word round about someone)',
+      'borrow {"amount"} (you borrow money from the player, if they agree)', 'repay (you pay back what you owe the player)',
+      'day_off | raise {"amount"} | release (only the player\'s own master: grant a day off, raise their pay, or accept their notice and let them go)');
+    const base = O.NpcActs.apply;
+    O.NpcActs.apply = function (s, q, a, main) { if (a && A[a.do]) return A[a.do](s, q, a); return base.apply(this, arguments); };
+    // what they know, for their card
+    (O.extraLines = O.extraLines || []).push((s, q) => {
+      const out = [];
+      const e = myPost(s, q);
+      if (e) { const st = e.stats || {}; out.push(`The player works for you as ${e.role} at ${e.bizName} for ₳${e.wage} a day (${st.shifts || 0} shifts worked, ${st.missed || 0} missed${e.dayOff === s.day + 1 ? '; you gave them tomorrow off' : ''}). If they ask, in their own words or by letter, for a day off, a raise or to leave your service, you decide as you would: day_off, raise {"amount"}, release.`); }
+      const L = (PS.lent || []).find((x) => x.who === q.id); if (L) out.push(`You owe the player ₳${L.n}, borrowed to be paid back ${L.due <= s.day ? 'by now' : 'by day ' + L.due}. If you can, repay.`);
+      if (q.sworn) out.push('You and the player are sworn friends: you would stand by them in anything.');
+      const ev = (s.npcEvents || []).filter((x) => x.party && x.day >= s.day && (x.host === q.id || (x.guests || []).includes(q.id))).map((x) => `${x.title} (${O.dateOf ? O.dateOf(x.day) : 'day ' + x.day}, ${hstr(x.from)})${x.host === q.id ? ', which you are giving' : ''}`);
+      if (ev.length) out.push(`Coming up: ${ev.join('; ')}.`);
+      return out.join(' ');
+    });
+    // what you're owed shows in the To do list's kin: a borrower who can pay, does, in time
+    let rd = -1;
+    game.hooks.update.push(() => { const s = cur(); if (!s || rd === s.day) return; rd = s.day; for (const L of (PS.lent || []).slice()) { if (L.place !== s.world.placeId || s.day < L.due) continue; const q = s.byId.get(L.who), hh = q && s.household(q); if (hh && hh.money >= L.n + 5 && Math.random() < 0.6) { hh.money -= L.n; PS.money += L.n; PS.lent = PS.lent.filter((x) => x !== L); say(`${L.name} pays back the ₳${L.n} you lent.`); } else if (q && s.day > L.due + 3 && !L.sour) { L.sour = true; s.remember(q, 'I still owe the stranger money and cannot pay.', 'player', 0.8, -0.1); } } });
+    O.Gatherings = { gather, host, hereNow };
+  }
+  O.GatheringsSetup = { setup };
 })();
 
 </script>
@@ -23537,7 +23818,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         const [lk, ll] = leaveOf(e);
         secs.work.push(`<h3>${esc(O.roleName ? O.roleName(e.role) : e.role)} <small class="lbl">${royal ? esc(e.placeName) : `at ${esc(e.bizName)}, ${esc(e.placeName)}`}</small></h3>${how.summary ? `<p>${esc(how.summary)}</p>` : ''}<p class="caption">${mode}</p><div class="kv"><div><span class="lbl">${royal ? 'From the treasury' : 'Wage'}</span><b>₳${e.wage}</b><small>a day</small></div>${(() => { const sk = !royal && bz && O.tradeOf ? O.tradeOf(e, bz) : null; if (!sk) return ''; const v = PS.skills[sk] || 0; return `<div><span class="lbl">Your skill (${esc(sk)})</span><b>${Math.round(v * 100)}%</b><small>${v < 0.25 ? 'a beginner' : v < 0.5 ? 'getting the hang of it' : v < 0.75 ? 'as handy as most' : 'better than most'}; every task done teaches you</small></div>`; })()}<div><span class="lbl">Days worked</span><b>${st.shifts || 0}</b><small>${st.late || 0} late, ${st.missed || 0} missed, ${st.tasks || 0} tasks done</small></div>${royal ? '' : `<div><span class="lbl">Your master</span><b>${esc(boss ? boss.name : e.masterName || 'the crown')}</b><small>${boss ? (like > 0.3 ? 'thinks well of you' : like < -0.2 ? 'is not pleased with you' : 'has no strong view of you') : ''}</small></div><div><span class="lbl">Fellow workers</span><b>${mates.length}</b><small>${mates.map((q) => esc(q.first + ' (' + q.job.role + ')')).join(', ') || 'none'}</small></div>`}</div>${list}
 ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles.indexOf(e.role), up = ix > 0 && bz.def.wage[roles[ix - 1]] !== 0 && !(O.Careers && O.Careers.PRESTIGE.has(roles[ix - 1])) ? roles[ix - 1] : null, sh = st.shifts || 0, avg = sh ? (st.tasks || 0) / sh : 0, left = 6 - (sh % 6); const need = []; if (avg < 3) need.push(`more done each day (you average ${avg.toFixed(1)} tasks; 3 is wanted)`); if (like <= 0.2) need.push(`your master's good opinion`); if (!bz.def.public && bz.cash <= 120) need.push('a business with money to spare'); return `<h4>Getting on</h4>`; })() : ''}
-          <div class="topics">${boss && !(O.COURT && O.COURT.has(e.role)) ? `<button data-off="${i}">${e.dayOff === es.day + 1 ? 'Tomorrow off: granted' : 'Ask for tomorrow off'}</button>` : ''}${boss && !(O.COURT && O.COURT.has(e.role)) ? `<button data-raise="${i}" data-how="${PS.items.includes('letter') ? 'letter' : 'word'}">${PS.items.includes('letter') ? 'Ask for a raise by letter' : 'Ask for a raise (send word)'}</button>` : ''}<button data-leave="${i}:${lk}">${ll}</button></div>`);
+          ${boss && !(O.COURT && O.COURT.has(e.role)) ? `<p class="caption">A day off, more pay, or your notice: say it to ${esc(boss.first)} yourself, or write to ${boss.sex === 'f' ? 'her' : 'him'}.</p>` : `<div class="topics"><button data-leave="${i}:${lk}">${ll}</button></div>`}`);
       });
       // your home, and a party in it
       const home = myHome(s);
@@ -26598,7 +26879,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
         x: away ? away[0] : Math.round(game.scene ? game.scene.b.doorX * 16 + 8 : game.player.x), y: away ? away[1] : Math.round(game.scene ? game.scene.b.doorY * 16 + 10 : game.player.y), dir: game.player.dir,
         mount: game.player.mount ? game.player.mount.id : null,
         region: game.world.island && !game.scene && game.world !== sim.world ? game.world.placeId : null, g: game.world.island && !game.scene ? O.Island.toGlobal(game.world, game.player.x, game.player.y).map(Math.round) : null,
-        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [], emp: PS.emp ? Object.assign({}, PS.emp, { tasks: [], onShift: false, dayInfo: null }) : null, posts: (PS.posts || []).map((x) => Object.assign({}, x, { tasks: [], onShift: false, dayInfo: null, _lm: null, _cur: x === PS.emp })), carry: PS.carry || null, firedSilently: PS.firedSilently || null, residence: PS.residence || null, gaol: PS.gaol || null, gangRanks: PS.gangRanks || [], gangTrials: PS.gangTrials || {}, disguise: PS.disguise || null, loans: PS.loans || [], letters: PS.letters || [], knows: PS.knows || {}, knowsGang: PS.knowsGang || {}, royal: PS.royal || false, taxOwed: PS.taxOwed || 0, taxPaidDay: PS.taxPaidDay ?? null, contract: PS.contract && PS.contract.kind !== 'escort' ? PS.contract : null, leads: (PS.leads || []).filter((l) => l.why !== 'contract' || (PS.contract && PS.contract.kind !== 'escort')), askedLaw: PS.askedLaw || 0, guests: PS.guests || null, jobCardOpen: !!PS.jobCardOpen, learning: PS.learning || 0, performances: PS.performances || 0, lettersCarried: PS.lettersCarried || 0, title: PS.title || null, vouched: PS.vouched || {}, offered: PS.offered || {}, appointment: PS.appointment || null, reeveOf: PS.reeveOf || {}, claim: PS.claim || 0, secrets: PS.secrets || [], vows: !!PS.vows, warWon: PS.warWon || 0, warFought: PS.warFought || 0, plot: PS.plot || null, coronation: PS.coronation || null, anointed: !!PS.anointed, guides: PS.guides || 'all', mail: PS.mail || [], worn: PS.worn || [], bizTab: PS.bizTab || null, meets: PS.meets || [], partner: PS.partner || null, children: PS.children || [], expecting: PS.expecting || null, fineOwed: PS.fineOwed || 0, watched: PS.watched || null, debts: PS.debts || [], roadLead: PS.roadLead || null, wokeAt: PS.wokeAt ?? null, studiedAt: PS.studiedAt ?? null, studyDay: PS.studyDay ?? null, studyHours: PS.studyHours || 0, lessonDay: PS.lessonDay ?? null, ill: PS.ill || null, confessed: PS.confessed ?? null, tithedWeek: PS.tithedWeek ?? null, titheBase: PS.titheBase || 0, startDay: PS.startDay ?? null, yearsHere: PS.yearsHere || 0, dog: PS.dog || null, lineSpec: PS.lineSpec || null, forebears: PS.forebears || [], oddJobs: PS.oddJobs || [], givenJobs: PS.givenJobs || [], retainers: PS.retainers || [], deeds: PS.deeds || [], todoOpen: PS.todoOpen ?? true, _ageChecked: PS._ageChecked ?? null },
+        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [], emp: PS.emp ? Object.assign({}, PS.emp, { tasks: [], onShift: false, dayInfo: null }) : null, posts: (PS.posts || []).map((x) => Object.assign({}, x, { tasks: [], onShift: false, dayInfo: null, _lm: null, _cur: x === PS.emp })), carry: PS.carry || null, firedSilently: PS.firedSilently || null, residence: PS.residence || null, gaol: PS.gaol || null, gangRanks: PS.gangRanks || [], gangTrials: PS.gangTrials || {}, disguise: PS.disguise || null, loans: PS.loans || [], letters: PS.letters || [], knows: PS.knows || {}, knowsGang: PS.knowsGang || {}, royal: PS.royal || false, taxOwed: PS.taxOwed || 0, taxPaidDay: PS.taxPaidDay ?? null, contract: PS.contract && PS.contract.kind !== 'escort' ? PS.contract : null, leads: (PS.leads || []).filter((l) => l.why !== 'contract' || (PS.contract && PS.contract.kind !== 'escort')), askedLaw: PS.askedLaw || 0, guests: PS.guests || null, jobCardOpen: !!PS.jobCardOpen, learning: PS.learning || 0, performances: PS.performances || 0, lettersCarried: PS.lettersCarried || 0, title: PS.title || null, vouched: PS.vouched || {}, offered: PS.offered || {}, appointment: PS.appointment || null, reeveOf: PS.reeveOf || {}, claim: PS.claim || 0, secrets: PS.secrets || [], vows: !!PS.vows, warWon: PS.warWon || 0, warFought: PS.warFought || 0, plot: PS.plot || null, coronation: PS.coronation || null, anointed: !!PS.anointed, guides: PS.guides || 'all', mail: PS.mail || [], worn: PS.worn || [], bizTab: PS.bizTab || null, meets: PS.meets || [], partner: PS.partner || null, children: PS.children || [], expecting: PS.expecting || null, fineOwed: PS.fineOwed || 0, watched: PS.watched || null, debts: PS.debts || [], roadLead: PS.roadLead || null, wokeAt: PS.wokeAt ?? null, studiedAt: PS.studiedAt ?? null, studyDay: PS.studyDay ?? null, studyHours: PS.studyHours || 0, lessonDay: PS.lessonDay ?? null, ill: PS.ill || null, confessed: PS.confessed ?? null, tithedWeek: PS.tithedWeek ?? null, titheBase: PS.titheBase || 0, startDay: PS.startDay ?? null, yearsHere: PS.yearsHere || 0, dog: PS.dog || null, lineSpec: PS.lineSpec || null, forebears: PS.forebears || [], oddJobs: PS.oddJobs || [], givenJobs: PS.givenJobs || [], retainers: PS.retainers || [], deeds: PS.deeds || [], todoOpen: PS.todoOpen ?? true, lent: PS.lent || [], confided: PS.confided || [], blessed: PS.blessed ?? null, _ageChecked: PS._ageChecked ?? null },
       },
     };
   }
@@ -26834,7 +27115,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.RisingSetup.setup(game, npcUI);
   O.RitesSetup.setup(game);
   O.WarfareSetup.setup(game, npcUI);
-  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.NpcActsSetup.setup(game); O.InitiateSetup.setup(game); O.UnderworldSetup.setup(game); O.CourtshipSetup.setup(game); O.FencesSetup.setup(game); O.FamilySetup.setup(game); O.PetsSetup.setup(game); O.FavoursSetup.setup(game); O.MarketSetup.setup(game); O.GrudgesSetup.setup(game); O.RitualsSetup.setup(game); O.TodoSetup.setup(game); O.DealingsSetup.setup(game); O.CounterSetup.setup(game); O.ResourcesSetup.setup(game);
+  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.NpcActsSetup.setup(game); O.InitiateSetup.setup(game); O.UnderworldSetup.setup(game); O.CourtshipSetup.setup(game); O.FencesSetup.setup(game); O.FamilySetup.setup(game); O.PetsSetup.setup(game); O.FavoursSetup.setup(game); O.MarketSetup.setup(game); O.GrudgesSetup.setup(game); O.RitualsSetup.setup(game); O.TodoSetup.setup(game); O.DealingsSetup.setup(game); O.CounterSetup.setup(game); O.ResourcesSetup.setup(game); O.GangBasesSetup.setup(game); O.GatheringsSetup.setup(game);
   O.FinerySetup.setup(game);
   O.PastimesSetup.setup(game);
   O.FishingSetup.setup(game);

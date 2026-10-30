@@ -27,7 +27,7 @@
       this.gangs = [];
       const r = this.rng;
       // each den in the woods belongs to a gang of its own, with its own name, leader and hands
-      const dens = this.world.buildings.filter((b) => b.type === 'hideout' && !b.roadKey && b.gang !== 'player');
+      const dens = this.world.buildings.filter((b) => b.type === 'hideout' && !b.roadKey && !b.outpost && b.gang !== 'player');
       const cands = this.people.filter((p) => !p.visitor && p.age >= 17 && p.age < 55 && !upright(this, p)).sort((a, b) => a.attitude - b.attitude);
       dens.forEach((den, k) => {
         const id = 'g' + k, name = gangName(r);

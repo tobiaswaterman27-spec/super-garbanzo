@@ -638,6 +638,29 @@
         B.part(2); B.shape(2, 0, 12, 4, (px, py) => ((px - 7) / 5.2) ** 2 + ((py - 2.2) / 1.6) ** 2 <= 1, () => [0, -0.9, 0.4], pine);
         ox = 7; oy = 17; break;
       }
+      case 'tent': { // a canvas ridge tent, flap tied back
+        B = new MB(30, 24); B.part(1); const cv = P.mat(rng.chance(0.5) ? '#c8b88a' : '#a89870');
+        B.shape(1, 3, 29, 22, (px, py) => Math.abs(px - 15) <= (py - 3) * 0.72 && py <= 22, (px) => [px < 15 ? -0.7 : 0.7, -0.35, 0.6], cv);
+        for (let y = 4; y < 22; y++) { B.shadeAt(15, y, 4); if (y > 12) for (let x = 13; x <= 17; x++) if (Math.abs(x - 15) <= (y - 12) * 0.35) B.plot(x, y, P.mat('#2a1d14'), 0); }
+        B.part(2); B.capsule(15, 0, 15, 4, 0.6, 0.6, wood); B.capsule(2, 23, 6, 20, 0.4, 0.4, wood); B.capsule(28, 23, 24, 20, 0.4, 0.4, wood);
+        ox = 15; oy = 23; break;
+      }
+      case 'lookout': { // a timber watchtower on four legs, a ladder up to a railed platform under a little roof
+        B = new MB(30, 60); B.part(1); const lm = M.log();
+        for (const [a, b] of [[4, 8], [26, 22]]) B.capsule(a, 58, b, 18, 1.1, 0.9, lm);
+        B.part(2); for (const y of [30, 44]) B.capsule(6, y, 24, y - 6, 0.5, 0.5, wood);
+        for (let y = 20; y < 58; y += 4) B.rect(12, y, 6, 1, pine, 3);
+        B.part(3); B.rect(3, 14, 24, 4, pine, 2); for (let x = 3; x < 27; x += 3) B.rect(x, 9, 1, 5, wood, 2); B.rect(3, 9, 24, 1, wood, 3);
+        B.part(4); B.shape(1, 0, 29, 8, (px, py) => Math.abs(px - 15) <= py * 1.8 && py <= 8, (px) => [px < 15 ? -0.6 : 0.6, -0.5, 0.6], P.mat('#a08048', 'wood'));
+        ox = 15; oy = 59; break;
+      }
+      case 'firepit': { // a ring of stones round the embers, half-burnt logs across it
+        B = new MB(20, 12); B.part(1);
+        for (let i = 0; i < 9; i++) { const a = (i / 9) * Math.PI * 2; B.blob(10 + Math.cos(a) * 7, 6 + Math.sin(a) * 3.6, 1.8, 1.4, stone, { power: 2 }); }
+        B.part(2); B.capsule(5, 7, 15, 5, 0.9, 0.9, M.log()); B.capsule(6, 4, 14, 8, 0.9, 0.9, M.log());
+        for (const [x, y] of [[9, 6], [10, 5], [11, 6], [10, 7], [8, 5], [12, 7]]) B.plot(x, y, P.mat(v === 1 ? '#3a3030' : '#e07020'), 4);
+        ox = 10; oy = 11; break;
+      }
       case 'crate': {
         B = new MB(16, 16); B.part(1);
         B.rect(1, 5, 14, 10, pine, 2); for (let x = 1; x < 15; x++) { B.shadeAt(x, 5, 3); B.shadeAt(x, 14, 1); }

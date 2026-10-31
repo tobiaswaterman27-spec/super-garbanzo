@@ -10,7 +10,7 @@
   const CAT = ['Tibert', 'Gyb', 'Mog', 'Pangur', 'Grimalkin', 'Puss', 'Tybalt', 'Sooty', 'Ginger', 'Minnie', 'Moll', 'Whisk', 'Tansy', 'Pepper', 'Ash', 'Tom'];
   function setup(game) {
     const PS = O.PlayerState, cur = () => O.SimRef.cur, abs = (s) => s.day * 1440 + s.minute;
-    const pets = () => (O.fauna || []).filter((f) => f.kind === 'dog' || f.kind === 'cat');
+    const pets = () => (O.fauna || []).filter((f) => f.kind === 'dog' || f.kind === 'cat' || f.owner === 'player'); // (any beast of your own goes where you go)
     const mine = () => pets().filter((f) => f.owner === 'player');
     const nameFor = (k, used) => { const pool = k === 'cat' ? CAT : DOG; return pool.find((n) => !used.has(n)) || pool[Math.floor(Math.random() * pool.length)]; };
     // the town's dogs and cats find their households

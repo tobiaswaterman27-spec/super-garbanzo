@@ -17,6 +17,20 @@
     barrel: [['Brew ale', { wheat: 2 }, { ale: 3 }, 'serving', 0.25]],
   };
   RECIPES.anvil = RECIPES.forge;
+  // what anyone can learn from almost anyone, and set at a table, a hearth or a bench
+  const ADD = {
+    fireplace: [['Make pottage', { cabbage: 1, oats: 1 }, { stew: 2 }, 'serving', 0], ['Bake oatcakes on the hearthstone', { oats: 2 }, { bread: 2 }, 'baking', 0]],
+    table: [['Make sausages', { meat: 1, salt: 1 }, { sausage: 3 }, 'butchery', 0.05], ['Churn butter', { milk: 2 }, { butter: 1 }, 'serving', 0], ['Press a cheese', { milk: 3, salt: 1 }, { cheese: 2 }, 'serving', 0.1], ['Twist rope', { hemp: 2 }, { rope: 1 }, 'crafting', 0]],
+    oven: [['Bake a meat pie', { flour: 1, meat: 1 }, { pie: 2 }, 'baking', 0.15], ['Bake a honey cake', { flour: 1, honey: 1, eggs: 1 }, { cake: 2 }, 'baking', 0.2]],
+    workbench: [['Make a broom', { logs: 1, hay: 1 }, { broom: 1 }, 'woodcraft', 0], ['Make a bucket', { planks: 2, nails: 1 }, { bucket: 1 }, 'woodcraft', 0.2], ['Make a fishing rod', { logs: 1, rope: 1 }, { rod: 1 }, 'woodcraft', 0.05], ['Fletch arrows', { logs: 1, feathers: 1 }, { arrows: 4 }, 'crafting', 0.15], ['Make a longbow', { logs: 2, rope: 1 }, { bow: 1 }, 'crafting', 0.35]],
+    cauldron: [['Dip candles', { beeswax: 1 }, { candles: 4 }, 'crafting', 0], ['Make soap', { potash: 1, butter: 1 }, { soap: 2 }, 'crafting', 0.1]],
+  };
+  for (const [st, list] of Object.entries(ADD)) for (const rc of list) if ([...Object.keys(rc[1]), ...Object.keys(rc[2])].every((g) => G[g])) (RECIPES[st] = RECIPES[st] || []).push(rc);
+  // who can teach what: the universal ones anyone grown can show you; the trade ones only those who work the trade
+  const UNIVERSAL = new Set(['Split firewood', 'Cook a hot meal', 'Cook a hot meal (fish)', 'Make pottage', 'Bake oatcakes on the hearthstone', 'Make sausages', 'Churn butter', 'Twist rope', 'Make a broom', 'Make a fishing rod', 'Dip candles', 'Cook a stew']);
+  const STARTER = new Set(['Split firewood', 'Cook a hot meal', 'Cook a hot meal (fish)', 'Make pottage']);
+  const TEACH = { baking: /baker|cook|apprentice/, smithing: /smith|armourer/, woodcraft: /carpenter|sawyer|woodcutter|cooper|wainwright|builder|bowyer/, physic: /physician|herbalist|apothecary|nun|monk|midwife/, serving: /cook|innkeeper|server|dairymaid|farmer/, milling: /miller/, butchery: /butcher/, crafting: /fletcher|bowyer|chandler|rope|tanner|cobbler|weaver/ };
+  O.Recipes = { RECIPES, UNIVERSAL, STARTER, TEACH, all: () => Object.values(RECIPES).flat().filter((r, i, a) => a.findIndex((x) => x[0] === r[0]) === i), known: (label) => STARTER.has(label) || (O.PlayerState.recipes || []).includes(label) };
 
   function setup(game) {
     const PS = O.PlayerState, toast = (t, k) => O.Panels.toast(t, k), cur = () => O.SimRef.cur, esc = (s) => O.escape(String(s));
@@ -42,7 +56,8 @@
     O.craftPanel = (c) => {
       const rows = RECIPES[c.it.kind].map((rc, i) => {
         const [label, inp, out, sk, min] = rc;
-        const have = Object.entries(inp).every(([g, n]) => PS.count(g) >= n), able = skill(sk) >= min;
+        const have = Object.entries(inp).every(([g, n]) => PS.count(g) >= n), able = skill(sk) >= min, knows = O.Recipes.known(label);
+        if (!knows) return `<tr><td><b>${esc(label)}</b><br><small class="caption">You don't know how. ${UNIVERSAL.has(label) ? 'Most folk could show you.' : 'Someone in the trade could teach you.'}</small></td><td></td><td></td></tr>`;
         const yieldN = (n) => n + (skill(sk) >= 0.7 && n > 1 ? 1 : 0);
         return `<tr><td><b>${esc(label)}</b><br><small class="caption">${Object.entries(inp).map(([g, n]) => `${n} ${G[g].name.toLowerCase()} (${PS.count(g)})`).join(', ')} → ${Object.entries(out).map(([g, n]) => `${yieldN(n)} ${G[g].name.toLowerCase()}`).join(', ')}</small></td>
           <td>${able ? '' : `<small class="warn">needs ${O.Work.SKILL_LABEL[sk].toLowerCase()} ${Math.round(min * 100)}</small>`}</td><td><button data-r="${i}" ${have && able ? '' : 'disabled'}>Make · 1 hour</button></td></tr>`;
@@ -67,7 +82,7 @@
       const made = [];
       for (const [g, n] of Object.entries(out)) { const k = n + (n > 1 ? extra : 0); PS.add(g, k); made.push(`${k} ${G[g].name.toLowerCase()}`); }
       const before = skill(sk); PS.skills[sk] = Math.min(1, before + 0.005 * (1 - before * 0.8));
-      PS.made = (PS.made || 0) + 1;
+      PS.made = (PS.made || 0) + 1; for (const g of Object.keys(out)) { const M = (PS.marks = PS.marks || {}); M[g] = M[g] || { made: 0, sold: 0 }; M[g].made += out[g]; }
       O.Panels.close(); toast(`${label}: ${made.join(', ')}.`);
       setTimeout(() => { if (game.player.anim === 'work') game.player.anim = 'idle'; }, 1200);
     }
@@ -92,14 +107,15 @@
       // how many come by: market day, a good name and good company help
       const busy = (s.weekday === 4 ? 2 : 1) * (s.people.length > 200 ? 1.8 : 1);
       const callers = Math.round((2 + s.rng.int(0, 4)) * busy * (1 + Math.max(-0.5, PS.rep.local + PS.rep.merchant * 0.5) + skill('trading') * 0.6));
-      const priceOf = (g) => { const bz = [...s.biz.values()].find((b) => b.def.sells.includes(g)); return Math.max(1, Math.round((bz ? s.price(bz, g) : G[g].base) * (0.95 + skill('trading') * 0.15))); };
+      const markOf = (g) => (PS.marks && PS.marks[g]) || null, fame = (g) => { const m = markOf(g); return m ? Math.min(0.5, m.sold * 0.012) : 0; };
+      const priceOf = (g) => { const bz = [...s.biz.values()].find((b) => b.def.sells.includes(g)); return Math.max(1, Math.round((bz ? s.price(bz, g) : G[g].base) * (0.95 + skill('trading') * 0.15) * (1 + fame(g)))); };
       const buyers = s.households.filter((hh) => !hh.gone && hh.money > 8).sort(() => s.rng.next() - 0.5);
       let sold = [], take = 0;
       for (let i = 0; i < callers && buyers.length; i++) {
         const goods = sellable(); if (!goods.length) break;
         const g = s.rng.pick(goods), pr = priceOf(g), hh = buyers[i % buyers.length];
         if (hh.money < pr * 1.5) continue;
-        PS.remove(g); hh.money -= pr; PS.money += pr; take += pr; sold.push(g);
+        PS.remove(g); hh.money -= pr; PS.money += pr; take += pr; sold.push(g); { const m = markOf(g); if (m) m.sold++; }
         if (G[g].food) hh.pantry[g] = (hh.pantry[g] || 0) + 1;
         const tax = Math.round(pr * s.treasury.taxRate); s.treasury.cash += tax; PS.money -= tax; take -= tax;
       }

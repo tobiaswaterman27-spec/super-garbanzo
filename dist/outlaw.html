@@ -16613,6 +16613,292 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
 
 </script>
 <script>
+// More of the world's life, and more to do in it.
+// - Recipes are learned: the everyday ones anyone grown can show you, the trade's own only those who work it.
+// - Champions: challenge someone to a duel to first blood, or a match at the butts or the wrestling ring;
+//   win often and you're a champion, and your name goes round the realm with it.
+// - Eyes and ears: pay someone to be your informant and a letter comes each week with what they've heard:
+//   the houses' plotting, a rising brewing, a siege, a gang's work, who bears you a grudge.
+// - The Great Pestilence: very rarely, a sickness runs through the whole land.
+// - When someone with money dies, their heirs quarrel over it; you can be asked to witness, to settle it,
+//   or to put in a claim yourself.
+// - The year's own feast days, kept here and nowhere else: Seedwake, Fireleap, Hob's Eve, Wending Day,
+//   Lanternmas and Brightfast, each with what people do and want that day.
+// - Your village: on the map, with its own market day.
+'use strict';
+(function () {
+  const T = 16;
+  // the feast days of Eldoria's year: [season, day of season, name, what's done, from, to, effect]
+  const FEASTS = [
+    ['spring', 3, 'Seedwake', 'the fields are blessed: a procession to the edge of town with green boughs, and seed thrown for luck', 9, 13],
+    ['summer', 7, 'Fireleap', 'bonfires in the square at dusk, and the young leap the flames for luck in love', 18, 23],
+    ['autumn', 4, "Hob's Eve", 'masks and turnip lanterns, and children go door to door for apples and mischief', 17, 21],
+    ['autumn', 13, 'Wending Day', 'old debts are paid and quarrels made up; it is ill luck to carry a grudge past sunset', 10, 18],
+    ['winter', 3, 'Lanternmas', 'a lantern in every window and small gifts given, and the long night kept with songs', 16, 22],
+    ['winter', 12, 'Brightfast', 'a fast day: no meat sold or eaten till sundown, then bread and honey for all', 6, 19],
+  ];
+  function setup(game) {
+    const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k), clamp = O.clamp, G = () => O.Data.GOODS;
+    const relOf = (q) => { const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r); return r; };
+    const SPEC = () => (O.Forge && O.Forge.spec && O.Forge.spec()) || {};
+
+    // ---------------------------------------------------------------- recipes taught
+    const R = () => O.Recipes;
+    const canTeach = (q, rc) => { if (!R() || q.age < 14) return false; if (R().UNIVERSAL.has(rc[0])) return q.age >= 18; const re = R().TEACH[rc[3]]; return !!(re && re.test(q.job?.role || '')); };
+    const teachable = (q) => (R() ? R().all().filter((rc) => !R().known(rc[0]) && canTeach(q, rc)) : []);
+    function teach(s, q, a) {
+      const want = String(a.recipe || '').toLowerCase(), list = teachable(q); if (!list.length) return null;
+      const rc = list.find((x) => x[0].toLowerCase().includes(want) || want.includes(x[0].toLowerCase().split(' ').slice(-1)[0])) || list[0];
+      (PS.recipes = PS.recipes || []).push(rc[0]); O.gesture && O.gesture(q, 'point', 2); relOf(q).familiar = Math.min(1, (relOf(q).familiar || 0) + 0.05);
+      return `${q.first} shows you how: ${rc[0].toLowerCase()}. You'll need ${Object.entries(rc[1]).map(([g, n]) => `${n} ${(G()[g]?.name || g).toLowerCase()}`).join(', ')}, at ${((st) => (/^[aeiou]/.test(st) ? 'an ' : 'a ') + (st === 'fireplace' ? 'hearth' : st))(Object.entries(R().RECIPES).find(([, l]) => l.includes(rc))?.[0] || 'bench')}.`;
+    }
+
+    // ---------------------------------------------------------------- champions: duels and matches
+    function duel(s, q, a) {
+      const kind = /archery|butt|bow/.test(String(a.kind || '')) ? 'archery' : /wrestl/.test(String(a.kind || '')) ? 'wrestling' : 'duel';
+      const stake = clamp(Math.round(Number(a.stake) || 0), 0, 200); if (PS.money < stake) return `You haven't ₳${stake} to stake.`;
+      const P = game.player, sk = (PS.skills && (kind === 'archery' ? PS.skills.archery : PS.skills.fighting)) || 0.2;
+      const mine = sk + ((PS.hp || 60) / 200) + Math.random() * 0.8, theirs = (/guard|knight|soldier|squire|sergeant/.test(q.job?.role || '') ? 0.6 : 0.3) + (q.age > 18 && q.age < 45 ? 0.2 : 0) + Math.random() * 0.8;
+      const anim = kind === 'archery' ? 'point' : 'attack';
+      O.gesture && O.gesture(q, anim, 3); P.anim = anim; P.ft = 0; setTimeout(() => { if (P.anim === anim) P.anim = 'idle'; }, 2600);
+      const won = mine > theirs; const hh = s.household(q);
+      if (stake) { if (won && hh && hh.money >= stake) { hh.money -= stake; PS.money += stake; } else if (!won) { PS.money -= stake; if (hh) hh.money += stake; } }
+      PS.wins = PS.wins || {}; PS.wins[kind] = (PS.wins[kind] || 0) + (won ? 1 : 0);
+      PS.skills = PS.skills || {}; const key = kind === 'archery' ? 'archery' : 'fighting'; PS.skills[key] = Math.min(1, (PS.skills[key] || 0) + 0.01);
+      if (kind === 'duel' && !won) PS.hp = Math.max(10, (PS.hp || 60) - 12);
+      relOf(q).affinity = clamp(relOf(q).affinity + (won ? -0.02 : 0.04), -1, 1);
+      if (won && PS.wins[kind] === 5) { PS.champion = Object.assign(PS.champion || {}, { [kind]: s.day }); s.log(`The stranger is the champion of ${kind === 'duel' ? 'the sword' : kind} in ${s.world.name}: five bouts and never bested.`, 'event'); }
+      return won ? `You best ${q.first} at ${kind === 'duel' ? 'swords, to first blood' : kind}${stake ? ` and take the ₳${stake}` : ''}.` : `${q.first} bests you at ${kind === 'duel' ? 'swords, to first blood' : kind}${stake ? `, and the ₳${stake} is theirs` : ''}.`;
+    }
+
+    // ---------------------------------------------------------------- eyes and ears
+    const informants = () => (PS.informants = PS.informants || []);
+    function inform(s, q, a) { if (informants().some((x) => x.id === q.id) || q.age < 14) return null; const pay = clamp(Math.round(Number(a.pay) || 3), 1, 20); informants().push({ id: q.id, name: q.first, place: s.world.placeId, pay, since: s.day }); return `${q.first} will keep their ears open for you, for ₳${pay} a week.`; }
+    let wk = -1;
+    game.hooks.update.push(() => {
+      const H = O.SimRef.home; if (!H || !informants().length) return; const w = Math.floor(H.day / 7); if (w === wk) return; const first = wk < 0; wk = w; if (first) return;
+      const K = H.kingdom, news = [];
+      for (const I of informants().slice()) {
+        if (PS.money < I.pay) { PS.informants = informants().filter((x) => x !== I); say(`${I.name} stops sending word: you didn't pay.`, 'bad'); continue; }
+        PS.money -= I.pay;
+        const plots = (PS.plots2 || []).filter((p) => !p.done).length, houses = K.houses ? Object.values(K.houses).filter((h) => Object.values(h.stance).includes('feud')).map((h) => h.name).slice(0, 2) : [];
+        const brewing = K.places.filter((p) => (p.happiness ?? 0.5) < 0.28 && p.kind !== 'capital').map((p) => p.name).slice(0, 2);
+        const sieges = (K.conflicts || []).filter((c) => !c.done && c.kind === 'siege').map((c) => K.place(c.b)?.name).filter(Boolean);
+        const s = O.Travel?.visited.get(I.place)?.sim || H, grudges = s.people.filter((p) => p.grudge && p.grudge.level > 0.3).map((p) => p.first).slice(0, 3);
+        const gang = (s.gangs || []).find((g) => g.id !== 'player' && g.purse > 100);
+        const lines = [houses.length ? `${houses.join(' and ')} are at feud and hiring swords.` : '', brewing.length ? `There's angry talk in ${brewing.join(' and ')}: a rising wouldn't surprise me.` : '', sieges.length ? `${sieges.join(', ')} still holds out under siege.` : '', gang ? `${gang.name} are flush with coin and planning more of their night work.` : '', grudges.length ? `Watch out for ${grudges.join(', ')}: they've no love for you.` : '', plots ? 'Your own business with the great houses is talked of in low voices.' : ''].filter(Boolean);
+        const text = lines.length ? lines.join(' ') : 'All quiet this week. Nothing worth the ink.';
+        (PS.letters = PS.letters || []).push({ from: I.name, text, day: H.day, place: s.world.name }); news.push(I.name);
+      }
+      if (news.length) say(`Word comes in from ${news.join(' and ')}: a letter of what they've heard (read it in your letters).`);
+    });
+
+    // ---------------------------------------------------------------- the Great Pestilence (rare)
+    let pd = -1;
+    game.hooks.update.push(() => {
+      const s = cur(); if (!s || pd === s.day) return; const first = pd < 0; pd = s.day; if (first) return;
+      const H = O.SimRef.home, K = H.kingdom;
+      if (!K.greatPest && Math.random() < 0.0015) { K.greatPest = { since: H.day, until: H.day + 18 }; K.addNews && K.addNews('THE GREAT PESTILENCE. A sickness out of the south runs from town to town. Doors are chalked, carts go round for the dead, and the bells toll every day.', 'health'); say('The Great Pestilence has come to Eldoria.', 'bad'); }
+      if (K.greatPest && H.day > K.greatPest.until) { K.addNews && K.addNews('The Great Pestilence is passing. Those who are left go back to the fields, and hands are scarce: wages rise.', 'health'); K.greatPest = null; K.afterPest = H.day + 40; }
+      if (K.greatPest) { s.quarantine = s.quarantine || { since: s.day }; for (const p of s.people) if (!p.health.illness && !p.visitor && Math.random() < 0.025) s.fallIll && s.fallIll(p, 'pestilence', 0.3); }
+    });
+
+    // ---------------------------------------------------------------- the will, and the heirs who quarrel over it
+    { const SP = O.Sim.prototype, _die = SP.die;
+      SP.die = function (p, cause) {
+        const hh = this.household(p), rich = hh && hh.money > 120 && p.age >= 40;
+        const r = _die.apply(this, arguments);
+        if (rich && this === O.SimRef.cur) {
+          const kids = (p.children || []).map((id) => this.byId.get(id)).filter((z) => z && z.alive !== false && z.age >= 16);
+          if (kids.length >= 2 && Math.random() < 0.7) {
+            (this.wills = this.wills || []).push({ id: p.id, name: p.name, estate: Math.round(hh.money * 0.6), heirs: kids.map((z) => z.id), day: this.day, settled: false });
+            for (const z of kids) { (z.beliefs = z.beliefs || []).unshift({ t: `${p.first}'s will is in dispute between ${kids.map((x) => x.first).join(' and ')}.`, src: 'life', day: this.day }); for (const y of kids) if (y !== z) this.relate(z, y, -0.25); }
+            this.log(`${p.name}'s heirs ${kids.map((x) => x.first).join(' and ')} are quarrelling over the estate: ₳${Math.round(hh.money * 0.6)} and the house.`, 'life');
+          }
+        }
+        return r;
+      }; }
+    function settle(s, q, a) {
+      const W = (s.wills || []).find((w) => !w.settled && w.heirs.includes(q.id)); if (!W) return null;
+      const to = O.NpcActs.personFor(s, a.to) || q; const fee = Math.round(W.estate * 0.1);
+      W.settled = true; const winner = W.heirs.includes(to.id) ? to : q; const hh = s.household(winner); if (hh) hh.money += W.estate - fee; PS.money += fee;
+      for (const id of W.heirs) { const z = s.byId.get(id); if (!z) continue; if (z === winner) { relOf(z).affinity = clamp(relOf(z).affinity + 0.3, -1, 1); } else O.grudge && O.grudge(s, z, `you settled my father's will against me`, 0.35); }
+      s.log(`The stranger settled ${W.name}'s will: the estate goes to ${winner.name}.`, 'life');
+      return `You settle ${W.name}'s will in ${winner.first}'s favour, and take ₳${fee} for your trouble.`;
+    }
+    function claim(s, q) { const W = (s.wills || []).find((w) => !w.settled && w.heirs.includes(q.id)); if (!W || relOf(q).affinity < 0.6) return null; W.settled = true; const share = Math.round(W.estate * 0.3); PS.money += share; for (const id of W.heirs) { const z = s.byId.get(id); if (z && z !== q) O.grudge && O.grudge(s, z, 'you took a share of our father\'s estate', 0.5); } return `${q.first} names you in their claim, and a third of the estate, ₳${share}, comes to you.`; }
+
+    // ---------------------------------------------------------------- the feast days
+    const feastToday = (s) => { const W = s.weather; if (!W) return null; return FEASTS.find(([se, d]) => s.season === se && W.dayOfSeason === d) || null; };
+    O.feastToday = feastToday;
+    const SP = O.Sim.prototype, _plan = SP.plan;
+    SP.plan = function (p) {
+      const F = feastToday(this); if (F && !p.task && !p.visitor && p.age >= 4 && this.hour >= F[4] && this.hour < F[5] && (p.id % 3 !== 0 || p.age < 16)) { const a = _plan.call(this, p); if (!a || a.act !== 'work' || p.id % 2) return { act: 'festival', outdoor: true, zone: 'square', feast: F[2] }; return a; }
+      return _plan.call(this, p);
+    };
+    let fd = -1, fx = 0;
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || !s.weather) return; const F = feastToday(s);
+      if (fd !== s.day) { fd = s.day; if (F) say(`Today is ${F[2]}: ${F[3]}.`); const w = s.world; w.props = w.props.filter((p) => !p.feast); if (F && F[2] === 'Fireleap' && s.Z && s.Z.square) { const [x0, y0, x1, y1] = s.Z.square; for (let i = 0; i < 3; i++) w.props.push({ kind: 'firepit', x: (x0 + 3 + i * 4) * T + 8, y: (y0 + 2) * T + 15, seed: i, v: 0, solid: false, feast: true }); w.dirtyStatics = true; } if (F && F[2] === 'Wending Day') { for (const p of s.people) if (p.grudge && Math.random() < 0.5) p.grudge.level *= 0.4; } }
+      fx -= dt; if (fx > 0 || !F || game.scene || s.hour < F[4] || s.hour >= F[5]) return; fx = 3;
+      const P = game.player, near = s.people.filter((q) => q.activity?.feast && !q.agent.hidden && Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < 220);
+      const q = near[Math.floor(Math.random() * near.length)]; if (!q) return;
+      const anim = { Fireleap: 'celebrate', Seedwake: 'pray', "Hob's Eve": 'laugh', 'Wending Day': 'nod', Lanternmas: 'dance', Brightfast: 'pray' }[F[2]] || 'dance';
+      O.gesture && O.gesture(q, anim, 2.5);
+      if (Math.random() < 0.3 && O.Speech) O.Speech.say(q, { Fireleap: 'Over the fire, for luck!', Seedwake: 'Bless the seed and the furrow.', "Hob's Eve": 'Apples, or a trick!', 'Wending Day': 'No grudges past sunset.', Lanternmas: 'A light for the long night.', Brightfast: 'Not long till honey bread.' }[F[2]], 2.5);
+    });
+    // a fast day: no meat bought
+    { const _need = SP.shoppingNeed; SP.shoppingNeed = function (hh) { const n = _need.call(this, hh); const F = feastToday(this); if (n && F && F[2] === 'Brightfast' && n.good === 'meat') return null; return n; }; }
+
+    // ---------------------------------------------------------------- your village, on the map, with a market day
+    let mapped = false;
+    game.hooks.update.push(() => {
+      if (mapped || !O.openMap) return; mapped = true; const _o = O.openMap;
+      O.openMap = () => { _o(); const v = PS.village, cv = document.getElementById('kmap'), wrap = cv && cv.parentElement, E = O.Eldoria; if (!v || !wrap || !E) return; const K = O.SimRef.home.kingdom, pl = K.place(v.place); if (!pl) return; const m = document.createElement('span'); m.className = 'maplabel city'; m.textContent = v.name; m.style.left = (pl.x / E.W * 100 + 1.4) + '%'; m.style.top = ((pl.y + 1.6) / E.H * 100) + '%'; wrap.appendChild(m); };
+    });
+    let md = -1;
+    game.hooks.update.push(() => {
+      const s = cur(), v = PS.village; if (!s || !v || s.world.placeId !== v.place || md === s.day) return; md = s.day; const w = s.world;
+      w.props = w.props.filter((p) => !p.villageMarket);
+      if (s.weekday === 2) { for (let i = 0; i < 3; i++) { const x = v.cx - 4 + i * 4, y = v.cy + 3; if (!w.solid[y * w.W + x]) w.props.push({ kind: 'stall', x: x * T + 8, y: y * T + 14, seed: i, v: i % 4, solid: false, villageMarket: true }); } say(`It's market day in ${v.name}: stalls are up by the signpost.`); }
+      w.dirtyStatics = true;
+    });
+
+    // ---------------------------------------------------------------- the acts, and what people know
+    // ---------------------------------------------------------------- small things to do together
+    const together = (q, anim, secs = 2.6) => { O.gesture && O.gesture(q, anim, secs); const P = game.player; P.anim = anim; P.ft = 0; setTimeout(() => { if (P.anim === anim) P.anim = 'idle'; }, secs * 1000); };
+    function danceWith(s, q) { together(q, 'dance', 4); relOf(q).affinity = clamp(relOf(q).affinity + 0.05, -1, 1); return null; }
+    function prayWith(s, q) { together(q, 'pray', 3); PS.rep.civilian = Math.min(1, (PS.rep.civilian || 0) + 0.005); return null; }
+    function embrace(s, q) { if (relOf(q).affinity < 0.4) return null; together(q, 'celebrate', 2); relOf(q).affinity = clamp(relOf(q).affinity + 0.04, -1, 1); return null; }
+    function playGame(s, q, a) {
+      const stake = clamp(Math.round(Number(a.stake) || 1), 0, 50), kind = /merel|morris/.test(String(a.kind || '')) ? "nine men's morris" : /chess/.test(String(a.kind || '')) ? 'chess' : 'dice';
+      if (PS.money < stake) return `You haven't ₳${stake}.`; const hh = s.household(q); if (stake && (!hh || hh.money < stake)) return `${q.first} hasn't the coin for that stake.`;
+      together(q, 'shake', 2.4); const won = Math.random() < (kind === 'dice' ? 0.5 : 0.45 + ((PS.skills && PS.skills.letters) || 0) * 0.3);
+      if (stake) { if (won) { hh.money -= stake; PS.money += stake; } else { PS.money -= stake; hh.money += stake; } }
+      relOf(q).familiar = Math.min(1, (relOf(q).familiar || 0) + 0.05);
+      return won ? `You win at ${kind}${stake ? `, ₳${stake} to you` : ''}.` : `${q.first} wins at ${kind}${stake ? `, and takes your ₳${stake}` : ''}.`;
+    }
+    function teachSong(s, q) { const k = (q.songs || []).find((id) => !(PS.songs || []).includes(id)); if (!k) return null; (PS.songs = PS.songs || []).push(k); const sg = (PS.songBook || []).find((x) => x.id === k); return sg ? `You learn "${sg.title}" from ${q.first}.` : null; }
+    // the townsfolk at their own games: dice in the tavern of an evening
+    let dg = 0;
+    game.hooks.update.push((dt) => {
+      dg -= dt; if (dg > 0) return; dg = 18 + Math.random() * 12; const s = cur(); if (!s || !game.scene || (s.hour < 18 && s.hour > 1)) return;
+      const b = game.scene.b; if (b.type !== 'tavern' && (s.biz.get(b.id) || {}).type !== 'tavern') return;
+      const there = [...game.scene.actors.values()].map((a) => a.person).filter((z) => z && z.age >= 16 && !(O.npcUI && O.npcUI.talking() === z)); if (there.length < 2) return;
+      const [x, y] = there.sort(() => Math.random() - 0.5); O.gesture && O.gesture(x, 'shake', 2); setTimeout(() => { O.gesture && O.gesture(y, Math.random() < 0.5 ? 'laugh' : 'shrug', 2); }, 1200);
+      O.Speech && O.Speech.say(x, ['Sevens! Pay up.', 'Come on, come on...', 'Double sixes, by God!', 'Your throw.'][Math.floor(Math.random() * 4)], 2.5);
+      const hx = s.household(x), hy = s.household(y); if (hx && hy && hy.money > 2) { hy.money -= 1; hx.money += 1; }
+    });
+    const A = { teach_recipe: teach, duel, inform, settle_will: settle, claim_will: claim, dance_with: danceWith, pray_with: prayWith, embrace, play_game: playGame, teach_song: teachSong };
+    const base = O.NpcActs.apply;
+    O.NpcActs.apply = function (s, q, a, main) { if (a && A[a.do]) return A[a.do](s, q, a); return base.apply(this, arguments); };
+    (O.extraActs = O.extraActs || []).push('teach_recipe {"recipe"} (you show the player how to make something you know)', 'duel {"kind":"duel"|"archery"|"wrestling","stake"?} (you accept or make a challenge)', 'inform {"pay"} (you agree to be the player\'s eyes and ears, for a weekly sum)', 'settle_will {"to"} (an heir in a quarrel over a will agrees to let the player settle it)', 'claim_will (an heir who loves the player names them in their claim)', 'dance_with | pray_with | embrace (you do it together with the player, if you are willing)', 'play_game {"kind":"dice"|"merels"|"chess","stake"} (a game with the player)', 'teach_song (you teach the player a song you know)');
+    (O.extraLines = O.extraLines || []).push((s, q) => {
+      const out = [], t = teachable(q).slice(0, 4).map((x) => x[0].toLowerCase()); if (t.length) out.push(`You know how to ${t.join('; ')}, and could show the player (teach_recipe).`);
+      const F = feastToday(s); if (F) out.push(`Today is ${F[2]}, a feast day: ${F[3]}.`); else { const next = FEASTS.find(([se, d]) => s.season === se && d > (s.weather?.dayOfSeason || 0)); if (next) out.push(`${next[2]} is coming, on day ${next[1]} of ${next[0]}.`); }
+      const W = (s.wills || []).find((w) => !w.settled && w.heirs.includes(q.id)); if (W) out.push(`Your late parent ${W.name}'s estate (₳${W.estate}) is in dispute between the heirs. You might ask the player to settle it (settle_will), or name them in your claim if you trust them (claim_will).`);
+      if (informants().some((x) => x.id === q.id)) out.push('You are the player\'s informant, paid by the week to pass on what you hear.');
+      const champ = PS.champion && Object.keys(PS.champion); if (champ && champ.length) out.push(`The player is known as a champion (${champ.join(', ')}).`);
+      const K = O.SimRef.home.kingdom; if (K.greatPest) out.push('The Great Pestilence is in the land: everyone is afraid.');
+      if (PS.marks) { const best = Object.entries(PS.marks).sort((a, b) => b[1].sold - a[1].sold)[0]; if (best && best[1].sold >= 10) out.push(`The player's mark is known on their ${(G()[best[0]]?.name || best[0]).toLowerCase()}: good work, folk say.`); }
+      return out.join(' ');
+    });
+    // a few more menus asked for in words
+    { const npcUI = O.npcUI, prevB = npcUI.extraButtons, prevOn = npcUI.onExtra;
+      npcUI.extraButtons = (q) => { const out = prevB ? prevB(q) : []; if (/guard captain|sergeant/.test(q.job?.role || '')) out.push(['bounties', 'Any bounties posted?']); if (/innkeeper/.test(q.job?.role || '')) out.push(['hiredwork', 'Any hired work going?']); return out; };
+      npcUI.onExtra = (q, key, render) => { if (key === 'bounties' && O.openBoard) { npcUI.closeTalk(); return O.openBoard('watch'); } if (key === 'hiredwork' && O.openBoard) { npcUI.closeTalk(); return O.openBoard('tavern'); } return prevOn && prevOn(q, key, render); }; }
+  }
+  O.WorldLifeSetup = { setup, FEASTS };
+})();
+
+</script>
+<script>
+// Animals that learn. A dog of your own can be taught, a lesson a day, to hunt (it runs down a rabbit
+// or a hare when you're out in the country), to guard (it goes for whoever goes for you), or to fetch
+// (it brings you what's lying on the ground). A cat learns to come when called. Your horse gets faster
+// and steadier the more you ride it. And a hawk, bought from a falconer and named by you, can be flown
+// over the open fields and comes back with a rabbit or a bird, better each time.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k), G = O.Data.GOODS;
+    G.hawk = G.hawk || { name: 'Goshawk', base: 60, unit: 'hawk', slots: 1 };
+    const LESSONS = { dog: [['hunt', 'to hunt'], ['guard', 'to guard you'], ['fetch', 'to fetch']], cat: [['come', 'to come when called']] };
+    const NEED = 5;
+    O.petExtra = (f) => (LESSONS[f.kind] || []).map(([k, l]) => { const v = (f.skills || {})[k] || 0; return v >= NEED ? null : [`teach:${k}`, `Teach ${l} (${v}/${NEED})`]; }).filter(Boolean);
+    O.petDo = (f, m) => {
+      if (!m.startsWith('teach:')) return; const k = m.slice(6), s = cur();
+      if (f.taught === s.day) return say(`${f.name || 'Your ' + f.kind} has had a lesson today. Tomorrow.`);
+      f.taught = s.day; f.skills = f.skills || {}; const ok = Math.random() < 0.5 + (f.bond || 0) * 0.5;
+      if (ok) f.skills[k] = (f.skills[k] || 0) + 1; f.bond = Math.min(1, (f.bond || 0) + 0.02);
+      game.player.anim = 'crouch'; setTimeout(() => { if (game.player.anim === 'crouch') game.player.anim = 'idle'; }, 1200);
+      O.Speech && O.Speech.say(f, ok ? (f.kind === 'dog' ? 'Woof!' : 'Mrrp.') : '(looks away)', 1.6);
+      say(ok ? (f.skills[k] >= NEED ? `${f.name || 'Your ' + f.kind} has learned ${LESSONS[f.kind].find((x) => x[0] === k)[1]}.` : `A good lesson. (${f.skills[k]}/${NEED})`) : 'Not today. It has other ideas.');
+    };
+    const mine = (kind, skill) => (O.fauna || []).filter((f) => f.owner === 'player' && f.kind === kind && f.mode === 'heel' && f.world === game.world?.placeId && ((f.skills || {})[skill] || 0) >= NEED);
+    // the hunting dog and the fetching dog, out of doors
+    let ht = 0;
+    game.hooks.update.push((dt) => {
+      ht -= dt; if (ht > 0 || game.scene) return; ht = 6; const s = cur(), P = game.player; if (!s) return;
+      for (const d of mine('dog', 'hunt')) {
+        const prey = (O.fauna || []).find((f) => f.wild && !f.fierce && !f.dead && f.world === d.world && (f.kind === 'rabbit' || (f.kind === 'deer' && Math.random() < 0.2)) && Math.hypot(f.x - P.x, f.y - P.y) < 160);
+        if (!prey || Math.random() > 0.45) continue;
+        prey.dead = true; O.fauna.splice(O.fauna.indexOf(prey), 1); s.drop(prey.kind === 'deer' ? 'venison' : 'meat', 1, prey.x, prey.y);
+        O.Speech && O.Speech.say(d, 'Woof! Woof!', 1.6); say(`${d.name || 'Your dog'} runs down a ${prey.kind} and stands over it, tail going.`);
+        if (prey.kind === 'deer') { const keeper = s.people.find((q) => ['gamekeeper', 'forester'].includes(q.job?.role) && !q.agent.hidden && Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < 260); if (keeper) { const c = s.recordCrime({ kind: 'poaching', perp: 'player', placeName: 'the woods', tile: [Math.floor(P.x / T), Math.floor(P.y / T)], seen: [keeper], severity: 2 }); if (c) PS.crimes.push(c.id); } }
+      }
+      for (const d of mine('dog', 'fetch')) {
+        const it = (s.dropped || []).find((x) => !x.placed && Math.hypot(x.x - P.x, x.y - P.y) < 140 && Math.hypot(x.x - P.x, x.y - P.y) > 20);
+        if (!it || !PS.canCarry(it.good)) continue;
+        s.dropped.splice(s.dropped.indexOf(it), 1); PS.add(it.good, it.qty || 1); O.Speech && O.Speech.say(d, '(drops it at your feet)', 1.6); say(`${d.name || 'Your dog'} fetches the ${(G[it.good]?.name || it.good).toLowerCase()}.`);
+      }
+    });
+    // the guard dog goes for whoever goes for you
+    if (O.Combat && O.Combat.provoke) { const _pv = O.Combat.provoke; O.Combat.provoke = function (q, how) { const r = _pv.apply(this, arguments); if (how === 'fight' && q && q.health) for (const d of mine('dog', 'guard')) { if (Math.hypot(d.x - q.agent.x, d.y - q.agent.y) > 200) continue; q.health.hp = Math.max(1, q.health.hp - 12); O.Speech && O.Speech.say(d, 'GRRR! WOOF!', 1.8); O.Speech && O.Speech.say(q, 'Call it off! Call it off!', 2, 'shout'); _pv.call(this, q, 'flee'); } return r; }; }
+
+    // the horse that's ridden grows faster and steadier
+    let rt = 0;
+    game.hooks.update.push((dt) => {
+      const h = game.player.mount; if (!h || h.owner !== 'player') return; rt += dt; if (rt < 20) return; rt = 0;
+      h.ridden = (h.ridden || 0) + 1; if (h.ridden % 15 === 0 && (h.trainedBonus || 0) < 0.15) { h.trainedBonus = (h.trainedBonus || 0) + 0.03; h.speed = (h.speed || 1) * 1.03; say(`${h.name} is going better: quicker off the mark and steadier under you.`); }
+    });
+
+    // hawks: flown over open ground
+    const hawks = () => (PS.hawks = PS.hawks || []);
+    game.hooks.update.push(() => {
+      if (!PS.items.includes('hawk')) return; PS.items.splice(PS.items.indexOf('hawk'), 1);
+      const hk = { name: null, skill: 0.2, flights: 0 }; hawks().push(hk);
+      O.Panels.open('A hawk of your own', `<p>She sits hooded on your fist. What will you call her?</p><input type="text" data-n maxlength="14" placeholder="${['Swift', 'Gilda', 'Tempest', 'Ash', 'Bryony'][hawks().length % 5]}" style="width:100%"><div class="topics" style="margin-top:8px"><button data-ok>Name her</button></div>`, (r) => {
+        const i = r.querySelector('[data-n]'); i.focus(); const ok = () => { const v = (i.value || i.placeholder).trim().replace(/[^A-Za-z' -]/g, '').slice(0, 14); hk.name = v || i.placeholder; O.Panels.close(); say(`${hk.name} is yours. Fly her over open fields.`); };
+        r.querySelector('[data-ok]').onclick = ok; i.onkeydown = (e) => { if (e.key === 'Enter') ok(); };
+      });
+    });
+    let flown = 0;
+    (O.moreCandidates = O.moreCandidates || []).push(() => {
+      const s = cur(), w = game.world, P = game.player; if (!s || game.scene || !hawks().length || !w.ter) return null;
+      const t = w.ter[Math.floor(P.y / T) * w.W + Math.floor(P.x / T)]; if (t === w.TER.FOREST || t === w.TER.WATER || t === w.TER.COBBLE) return null;
+      if (w.ox != null && Math.max(w.ox - P.x / T, P.x / T - w.ox - w.townW, w.oy - P.y / T, P.y / T - w.oy - w.townH, 0) < 4) return null;
+      const hk = hawks()[0];
+      return { type: 'custom', d: 6, x: P.x, y: P.y - 50, label: `Fly ${hk.name || 'your hawk'}`, act: () => {
+        if (performance.now() - flown < 40000) return say(`${hk.name || 'Your hawk'} needs to rest a while.`); flown = performance.now();
+        P.anim = 'point'; setTimeout(() => { P.anim = 'idle'; }, 1500); hk.flights++;
+        setTimeout(() => { const ok = Math.random() < 0.3 + hk.skill * 0.6; hk.skill = Math.min(1, hk.skill + 0.03); if (ok) { const g = Math.random() < 0.6 ? 'meat' : 'feathers'; if (PS.canCarry(g)) PS.add(g); say(`${hk.name || 'Your hawk'} stoops on something in the grass and comes back to the glove with ${g === 'meat' ? 'a rabbit' : 'a partridge'}.`); } else say(`${hk.name || 'Your hawk'} circles high, misses, and comes back to the lure.`); }, 2500);
+      } };
+    });
+    // a falconer can sell you a hawk; someone with a pup or kitten can give you one (pets.js)
+    const base = O.NpcActs.apply;
+    O.NpcActs.apply = function (s, q, a, main) {
+      if (a && a.do === 'sell' && O.NpcActs.goodFor(a.item) === 'hawk') { if (!/falconer|gamekeeper/.test(q.job?.role || '')) return null; const pr = O.clamp(Math.round(Number(a.price) || 60), 0, 300); if (PS.money < pr) return `You haven't ₳${pr}.`; PS.money -= pr; const hh = s.household(q); if (hh) hh.money += pr; PS.add('hawk'); return `${q.first} sets a hooded goshawk on your fist (₳${pr}).`; }
+      return base.apply(this, arguments);
+    };
+    (O.extraLines = O.extraLines || []).push((s, q) => /falconer/.test(q.job?.role || '') ? 'You train hawks; you can sell the player a goshawk (sell {"item":"hawk","price"}), about ₳60, and tell them how to fly her.' : '');
+  }
+  O.TrainingSetup = { setup };
+})();
+
+</script>
+<script>
 // Dogs and cats with people of their own. Some households keep one: it trails its master about the
 // town and barks at strangers by the door. A stray will take to you if you share a bite with it, and a
 // neighbour whose bitch has whelped may give you a pup; you name it, and it follows at your heel, waits
@@ -16694,7 +16980,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     }
     function menu(f) {
       const s = cur(), home = s.world.buildings.find((b) => b.owner?.kind === 'player') || (PS.lease && s.building(PS.lease.b)) || (PS.partner && PS.partner.stage === 'married' && s.byId.get(PS.partner.id) && s.building(s.byId.get(PS.partner.id).home));
-      O.Panels.open(f.name || 'Your ' + f.kind, `<div class="topics"><button data-m="heel">Come along</button><button data-m="stay">Stay here</button>${home ? '<button data-m="home">Go home and keep watch</button>' : ''}<button data-m="pat">Pat ${f.kind === 'dog' ? 'him' : 'her'}</button>${f.kind === 'dog' ? '<button data-m="sit">Sit!</button>' : ''}<button data-m="name">Call ${f.kind === 'dog' ? 'him' : 'her'} something else</button></div>`, (r) => {
+      O.Panels.open(f.name || 'Your ' + f.kind, `<div class="topics"><button data-m="heel">Come along</button><button data-m="stay">Stay here</button>${home ? '<button data-m="home">Go home and keep watch</button>' : ''}<button data-m="pat">Pat ${f.kind === 'dog' ? 'him' : 'her'}</button>${f.kind === 'dog' ? '<button data-m="sit">Sit!</button>' : ''}<button data-m="name">Call ${f.kind === 'dog' ? 'him' : 'her'} something else</button>${(O.petExtra ? O.petExtra(f) : []).map(([k, l]) => `<button data-m="${k}">${l}</button>`).join('')}</div>`, (r) => {
         r.querySelectorAll('[data-m]').forEach((b) => b.onclick = () => { const m = b.dataset.m; O.Panels.close();
           if (m === 'heel') { f.mode = 'heel'; f.petMove = true; }
           if (m === 'stay') { f.mode = 'stay'; f.petMove = true; f.moving = false; }
@@ -16702,6 +16988,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
           if (m === 'pat') { f.bond = Math.min(1, (f.bond || 0) + 0.05); O.Speech && O.Speech.say(f, '♥', 1.4); }
           if (m === 'sit') { const ok = Math.random() < 0.3 + (f.bond || 0) * 0.7; O.Speech && O.Speech.say(f, ok ? '(sits, tail wagging)' : '(cocks its head)', 1.8); if (ok) f.bond = Math.min(1, (f.bond || 0) + 0.03); }
           if (m === 'name') nameIt(f);
+          if (O.petDo) O.petDo(f, m);
         });
       });
     }
@@ -19618,6 +19905,20 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     barrel: [['Brew ale', { wheat: 2 }, { ale: 3 }, 'serving', 0.25]],
   };
   RECIPES.anvil = RECIPES.forge;
+  // what anyone can learn from almost anyone, and set at a table, a hearth or a bench
+  const ADD = {
+    fireplace: [['Make pottage', { cabbage: 1, oats: 1 }, { stew: 2 }, 'serving', 0], ['Bake oatcakes on the hearthstone', { oats: 2 }, { bread: 2 }, 'baking', 0]],
+    table: [['Make sausages', { meat: 1, salt: 1 }, { sausage: 3 }, 'butchery', 0.05], ['Churn butter', { milk: 2 }, { butter: 1 }, 'serving', 0], ['Press a cheese', { milk: 3, salt: 1 }, { cheese: 2 }, 'serving', 0.1], ['Twist rope', { hemp: 2 }, { rope: 1 }, 'crafting', 0]],
+    oven: [['Bake a meat pie', { flour: 1, meat: 1 }, { pie: 2 }, 'baking', 0.15], ['Bake a honey cake', { flour: 1, honey: 1, eggs: 1 }, { cake: 2 }, 'baking', 0.2]],
+    workbench: [['Make a broom', { logs: 1, hay: 1 }, { broom: 1 }, 'woodcraft', 0], ['Make a bucket', { planks: 2, nails: 1 }, { bucket: 1 }, 'woodcraft', 0.2], ['Make a fishing rod', { logs: 1, rope: 1 }, { rod: 1 }, 'woodcraft', 0.05], ['Fletch arrows', { logs: 1, feathers: 1 }, { arrows: 4 }, 'crafting', 0.15], ['Make a longbow', { logs: 2, rope: 1 }, { bow: 1 }, 'crafting', 0.35]],
+    cauldron: [['Dip candles', { beeswax: 1 }, { candles: 4 }, 'crafting', 0], ['Make soap', { potash: 1, butter: 1 }, { soap: 2 }, 'crafting', 0.1]],
+  };
+  for (const [st, list] of Object.entries(ADD)) for (const rc of list) if ([...Object.keys(rc[1]), ...Object.keys(rc[2])].every((g) => G[g])) (RECIPES[st] = RECIPES[st] || []).push(rc);
+  // who can teach what: the universal ones anyone grown can show you; the trade ones only those who work the trade
+  const UNIVERSAL = new Set(['Split firewood', 'Cook a hot meal', 'Cook a hot meal (fish)', 'Make pottage', 'Bake oatcakes on the hearthstone', 'Make sausages', 'Churn butter', 'Twist rope', 'Make a broom', 'Make a fishing rod', 'Dip candles', 'Cook a stew']);
+  const STARTER = new Set(['Split firewood', 'Cook a hot meal', 'Cook a hot meal (fish)', 'Make pottage']);
+  const TEACH = { baking: /baker|cook|apprentice/, smithing: /smith|armourer/, woodcraft: /carpenter|sawyer|woodcutter|cooper|wainwright|builder|bowyer/, physic: /physician|herbalist|apothecary|nun|monk|midwife/, serving: /cook|innkeeper|server|dairymaid|farmer/, milling: /miller/, butchery: /butcher/, crafting: /fletcher|bowyer|chandler|rope|tanner|cobbler|weaver/ };
+  O.Recipes = { RECIPES, UNIVERSAL, STARTER, TEACH, all: () => Object.values(RECIPES).flat().filter((r, i, a) => a.findIndex((x) => x[0] === r[0]) === i), known: (label) => STARTER.has(label) || (O.PlayerState.recipes || []).includes(label) };
 
   function setup(game) {
     const PS = O.PlayerState, toast = (t, k) => O.Panels.toast(t, k), cur = () => O.SimRef.cur, esc = (s) => O.escape(String(s));
@@ -19643,7 +19944,8 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     O.craftPanel = (c) => {
       const rows = RECIPES[c.it.kind].map((rc, i) => {
         const [label, inp, out, sk, min] = rc;
-        const have = Object.entries(inp).every(([g, n]) => PS.count(g) >= n), able = skill(sk) >= min;
+        const have = Object.entries(inp).every(([g, n]) => PS.count(g) >= n), able = skill(sk) >= min, knows = O.Recipes.known(label);
+        if (!knows) return `<tr><td><b>${esc(label)}</b><br><small class="caption">You don't know how. ${UNIVERSAL.has(label) ? 'Most folk could show you.' : 'Someone in the trade could teach you.'}</small></td><td></td><td></td></tr>`;
         const yieldN = (n) => n + (skill(sk) >= 0.7 && n > 1 ? 1 : 0);
         return `<tr><td><b>${esc(label)}</b><br><small class="caption">${Object.entries(inp).map(([g, n]) => `${n} ${G[g].name.toLowerCase()} (${PS.count(g)})`).join(', ')} → ${Object.entries(out).map(([g, n]) => `${yieldN(n)} ${G[g].name.toLowerCase()}`).join(', ')}</small></td>
           <td>${able ? '' : `<small class="warn">needs ${O.Work.SKILL_LABEL[sk].toLowerCase()} ${Math.round(min * 100)}</small>`}</td><td><button data-r="${i}" ${have && able ? '' : 'disabled'}>Make · 1 hour</button></td></tr>`;
@@ -19668,7 +19970,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       const made = [];
       for (const [g, n] of Object.entries(out)) { const k = n + (n > 1 ? extra : 0); PS.add(g, k); made.push(`${k} ${G[g].name.toLowerCase()}`); }
       const before = skill(sk); PS.skills[sk] = Math.min(1, before + 0.005 * (1 - before * 0.8));
-      PS.made = (PS.made || 0) + 1;
+      PS.made = (PS.made || 0) + 1; for (const g of Object.keys(out)) { const M = (PS.marks = PS.marks || {}); M[g] = M[g] || { made: 0, sold: 0 }; M[g].made += out[g]; }
       O.Panels.close(); toast(`${label}: ${made.join(', ')}.`);
       setTimeout(() => { if (game.player.anim === 'work') game.player.anim = 'idle'; }, 1200);
     }
@@ -19693,14 +19995,15 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       // how many come by: market day, a good name and good company help
       const busy = (s.weekday === 4 ? 2 : 1) * (s.people.length > 200 ? 1.8 : 1);
       const callers = Math.round((2 + s.rng.int(0, 4)) * busy * (1 + Math.max(-0.5, PS.rep.local + PS.rep.merchant * 0.5) + skill('trading') * 0.6));
-      const priceOf = (g) => { const bz = [...s.biz.values()].find((b) => b.def.sells.includes(g)); return Math.max(1, Math.round((bz ? s.price(bz, g) : G[g].base) * (0.95 + skill('trading') * 0.15))); };
+      const markOf = (g) => (PS.marks && PS.marks[g]) || null, fame = (g) => { const m = markOf(g); return m ? Math.min(0.5, m.sold * 0.012) : 0; };
+      const priceOf = (g) => { const bz = [...s.biz.values()].find((b) => b.def.sells.includes(g)); return Math.max(1, Math.round((bz ? s.price(bz, g) : G[g].base) * (0.95 + skill('trading') * 0.15) * (1 + fame(g)))); };
       const buyers = s.households.filter((hh) => !hh.gone && hh.money > 8).sort(() => s.rng.next() - 0.5);
       let sold = [], take = 0;
       for (let i = 0; i < callers && buyers.length; i++) {
         const goods = sellable(); if (!goods.length) break;
         const g = s.rng.pick(goods), pr = priceOf(g), hh = buyers[i % buyers.length];
         if (hh.money < pr * 1.5) continue;
-        PS.remove(g); hh.money -= pr; PS.money += pr; take += pr; sold.push(g);
+        PS.remove(g); hh.money -= pr; PS.money += pr; take += pr; sold.push(g); { const m = markOf(g); if (m) m.sold++; }
         if (G[g].food) hh.pantry[g] = (hh.pantry[g] || 0) + 1;
         const tax = Math.round(pr * s.treasury.taxRate); s.treasury.cash += tax; PS.money -= tax; take -= tax;
       }
@@ -24443,6 +24746,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       }
       return out.filter((o) => !(PS.contract && PS.contract.kind === o.kind && PS.contract.target === o.target));
     }
+    O.openBoard = (where) => board(where);
     function board(where) {
       const s = cur(), list = offers(s, where), C = PS.contract;
       const mine = C ? `<p class="caption">Your contract: ${esc(C.text)} (₳${C.reward}).</p><div class="topics"><button data-drop="1">Give it up</button></div>` : '';
@@ -27919,7 +28223,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
         x: away ? away[0] : Math.round(game.scene ? game.scene.b.doorX * 16 + 8 : game.player.x), y: away ? away[1] : Math.round(game.scene ? game.scene.b.doorY * 16 + 10 : game.player.y), dir: game.player.dir,
         mount: game.player.mount ? game.player.mount.id : null,
         region: game.world.island && !game.scene && game.world !== sim.world ? game.world.placeId : null, g: game.world.island && !game.scene ? O.Island.toGlobal(game.world, game.player.x, game.player.y).map(Math.round) : null,
-        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [], emp: PS.emp ? Object.assign({}, PS.emp, { tasks: [], onShift: false, dayInfo: null }) : null, posts: (PS.posts || []).map((x) => Object.assign({}, x, { tasks: [], onShift: false, dayInfo: null, _lm: null, _cur: x === PS.emp })), carry: PS.carry || null, firedSilently: PS.firedSilently || null, residence: PS.residence || null, gaol: PS.gaol || null, gangRanks: PS.gangRanks || [], gangTrials: PS.gangTrials || {}, disguise: PS.disguise || null, loans: PS.loans || [], letters: PS.letters || [], knows: PS.knows || {}, knowsGang: PS.knowsGang || {}, royal: PS.royal || false, taxOwed: PS.taxOwed || 0, taxPaidDay: PS.taxPaidDay ?? null, contract: PS.contract && PS.contract.kind !== 'escort' ? PS.contract : null, leads: (PS.leads || []).filter((l) => l.why !== 'contract' || (PS.contract && PS.contract.kind !== 'escort')), askedLaw: PS.askedLaw || 0, guests: PS.guests || null, jobCardOpen: !!PS.jobCardOpen, learning: PS.learning || 0, performances: PS.performances || 0, lettersCarried: PS.lettersCarried || 0, title: PS.title || null, vouched: PS.vouched || {}, offered: PS.offered || {}, appointment: PS.appointment || null, reeveOf: PS.reeveOf || {}, claim: PS.claim || 0, secrets: PS.secrets || [], vows: !!PS.vows, warWon: PS.warWon || 0, warFought: PS.warFought || 0, plot: PS.plot || null, coronation: PS.coronation || null, anointed: !!PS.anointed, guides: PS.guides || 'all', mail: PS.mail || [], worn: PS.worn || [], bizTab: PS.bizTab || null, meets: PS.meets || [], partner: PS.partner || null, children: PS.children || [], expecting: PS.expecting || null, fineOwed: PS.fineOwed || 0, watched: PS.watched || null, debts: PS.debts || [], roadLead: PS.roadLead || null, wokeAt: PS.wokeAt ?? null, studiedAt: PS.studiedAt ?? null, studyDay: PS.studyDay ?? null, studyHours: PS.studyHours || 0, lessonDay: PS.lessonDay ?? null, ill: PS.ill || null, confessed: PS.confessed ?? null, tithedWeek: PS.tithedWeek ?? null, titheBase: PS.titheBase || 0, startDay: PS.startDay ?? null, yearsHere: PS.yearsHere || 0, dog: PS.dog || null, lineSpec: PS.lineSpec || null, forebears: PS.forebears || [], oddJobs: PS.oddJobs || [], givenJobs: PS.givenJobs || [], retainers: PS.retainers || [], deeds: PS.deeds || [], todoOpen: PS.todoOpen ?? true, lent: PS.lent || [], village: PS.village || null, charter: PS.charter || null, undying: PS.undying ?? null, searched: PS.searched || {}, boats: PS.boats || [], ships: PS.ships || [], pilgrimages: PS.pilgrimages || {}, excommunicated: PS.excommunicated || null, houseFavour: PS.houseFavour || {}, plots2: PS.plots2 || [], siegeSide: PS.siegeSide || null, songBook: PS.songBook || null, songs: PS.songs || [], outlaw: PS.outlaw || null, almsToPoor: PS.almsToPoor || 0, robbedRich: PS.robbedRich || 0, confided: PS.confided || [], blessed: PS.blessed ?? null, _ageChecked: PS._ageChecked ?? null },
+        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [], emp: PS.emp ? Object.assign({}, PS.emp, { tasks: [], onShift: false, dayInfo: null }) : null, posts: (PS.posts || []).map((x) => Object.assign({}, x, { tasks: [], onShift: false, dayInfo: null, _lm: null, _cur: x === PS.emp })), carry: PS.carry || null, firedSilently: PS.firedSilently || null, residence: PS.residence || null, gaol: PS.gaol || null, gangRanks: PS.gangRanks || [], gangTrials: PS.gangTrials || {}, disguise: PS.disguise || null, loans: PS.loans || [], letters: PS.letters || [], knows: PS.knows || {}, knowsGang: PS.knowsGang || {}, royal: PS.royal || false, taxOwed: PS.taxOwed || 0, taxPaidDay: PS.taxPaidDay ?? null, contract: PS.contract && PS.contract.kind !== 'escort' ? PS.contract : null, leads: (PS.leads || []).filter((l) => l.why !== 'contract' || (PS.contract && PS.contract.kind !== 'escort')), askedLaw: PS.askedLaw || 0, guests: PS.guests || null, jobCardOpen: !!PS.jobCardOpen, learning: PS.learning || 0, performances: PS.performances || 0, lettersCarried: PS.lettersCarried || 0, title: PS.title || null, vouched: PS.vouched || {}, offered: PS.offered || {}, appointment: PS.appointment || null, reeveOf: PS.reeveOf || {}, claim: PS.claim || 0, secrets: PS.secrets || [], vows: !!PS.vows, warWon: PS.warWon || 0, warFought: PS.warFought || 0, plot: PS.plot || null, coronation: PS.coronation || null, anointed: !!PS.anointed, guides: PS.guides || 'all', mail: PS.mail || [], worn: PS.worn || [], bizTab: PS.bizTab || null, meets: PS.meets || [], partner: PS.partner || null, children: PS.children || [], expecting: PS.expecting || null, fineOwed: PS.fineOwed || 0, watched: PS.watched || null, debts: PS.debts || [], roadLead: PS.roadLead || null, wokeAt: PS.wokeAt ?? null, studiedAt: PS.studiedAt ?? null, studyDay: PS.studyDay ?? null, studyHours: PS.studyHours || 0, lessonDay: PS.lessonDay ?? null, ill: PS.ill || null, confessed: PS.confessed ?? null, tithedWeek: PS.tithedWeek ?? null, titheBase: PS.titheBase || 0, startDay: PS.startDay ?? null, yearsHere: PS.yearsHere || 0, dog: PS.dog || null, lineSpec: PS.lineSpec || null, forebears: PS.forebears || [], oddJobs: PS.oddJobs || [], givenJobs: PS.givenJobs || [], retainers: PS.retainers || [], deeds: PS.deeds || [], todoOpen: PS.todoOpen ?? true, lent: PS.lent || [], recipes: PS.recipes || [], marks: PS.marks || {}, wins: PS.wins || {}, champion: PS.champion || null, informants: PS.informants || [], hawks: PS.hawks || [], village: PS.village || null, charter: PS.charter || null, undying: PS.undying ?? null, searched: PS.searched || {}, boats: PS.boats || [], ships: PS.ships || [], pilgrimages: PS.pilgrimages || {}, excommunicated: PS.excommunicated || null, houseFavour: PS.houseFavour || {}, plots2: PS.plots2 || [], siegeSide: PS.siegeSide || null, songBook: PS.songBook || null, songs: PS.songs || [], outlaw: PS.outlaw || null, almsToPoor: PS.almsToPoor || 0, robbedRich: PS.robbedRich || 0, confided: PS.confided || [], blessed: PS.blessed ?? null, _ageChecked: PS._ageChecked ?? null },
       },
     };
   }
@@ -28155,7 +28459,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.RisingSetup.setup(game, npcUI);
   O.RitesSetup.setup(game);
   O.WarfareSetup.setup(game, npcUI);
-  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.NpcActsSetup.setup(game); O.InitiateSetup.setup(game); O.UnderworldSetup.setup(game); O.CourtshipSetup.setup(game); O.FencesSetup.setup(game); O.FamilySetup.setup(game); O.PetsSetup.setup(game); O.FavoursSetup.setup(game); O.MarketSetup.setup(game); O.GrudgesSetup.setup(game); O.RitualsSetup.setup(game); O.TodoSetup.setup(game); O.DealingsSetup.setup(game); O.CounterSetup.setup(game); O.ResourcesSetup.setup(game); O.GangBasesSetup.setup(game); O.GatheringsSetup.setup(game); O.WildSetup.setup(game); O.SongsSetup.setup(game); O.PoliticsSetup.setup(game); O.ChurchSetup.setup(game); O.SeaSetup.setup(game); O.LegacySetup.setup(game);
+  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.NpcActsSetup.setup(game); O.InitiateSetup.setup(game); O.UnderworldSetup.setup(game); O.CourtshipSetup.setup(game); O.FencesSetup.setup(game); O.FamilySetup.setup(game); O.PetsSetup.setup(game); O.FavoursSetup.setup(game); O.MarketSetup.setup(game); O.GrudgesSetup.setup(game); O.RitualsSetup.setup(game); O.TodoSetup.setup(game); O.DealingsSetup.setup(game); O.CounterSetup.setup(game); O.ResourcesSetup.setup(game); O.GangBasesSetup.setup(game); O.GatheringsSetup.setup(game); O.WildSetup.setup(game); O.SongsSetup.setup(game); O.PoliticsSetup.setup(game); O.ChurchSetup.setup(game); O.SeaSetup.setup(game); O.LegacySetup.setup(game); O.WorldLifeSetup.setup(game); O.TrainingSetup.setup(game);
   O.FinerySetup.setup(game);
   O.PastimesSetup.setup(game);
   O.FishingSetup.setup(game);

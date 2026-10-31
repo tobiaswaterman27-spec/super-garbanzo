@@ -79,7 +79,7 @@
     }
     function menu(f) {
       const s = cur(), home = s.world.buildings.find((b) => b.owner?.kind === 'player') || (PS.lease && s.building(PS.lease.b)) || (PS.partner && PS.partner.stage === 'married' && s.byId.get(PS.partner.id) && s.building(s.byId.get(PS.partner.id).home));
-      O.Panels.open(f.name || 'Your ' + f.kind, `<div class="topics"><button data-m="heel">Come along</button><button data-m="stay">Stay here</button>${home ? '<button data-m="home">Go home and keep watch</button>' : ''}<button data-m="pat">Pat ${f.kind === 'dog' ? 'him' : 'her'}</button>${f.kind === 'dog' ? '<button data-m="sit">Sit!</button>' : ''}<button data-m="name">Call ${f.kind === 'dog' ? 'him' : 'her'} something else</button></div>`, (r) => {
+      O.Panels.open(f.name || 'Your ' + f.kind, `<div class="topics"><button data-m="heel">Come along</button><button data-m="stay">Stay here</button>${home ? '<button data-m="home">Go home and keep watch</button>' : ''}<button data-m="pat">Pat ${f.kind === 'dog' ? 'him' : 'her'}</button>${f.kind === 'dog' ? '<button data-m="sit">Sit!</button>' : ''}<button data-m="name">Call ${f.kind === 'dog' ? 'him' : 'her'} something else</button>${(O.petExtra ? O.petExtra(f) : []).map(([k, l]) => `<button data-m="${k}">${l}</button>`).join('')}</div>`, (r) => {
         r.querySelectorAll('[data-m]').forEach((b) => b.onclick = () => { const m = b.dataset.m; O.Panels.close();
           if (m === 'heel') { f.mode = 'heel'; f.petMove = true; }
           if (m === 'stay') { f.mode = 'stay'; f.petMove = true; f.moving = false; }
@@ -87,6 +87,7 @@
           if (m === 'pat') { f.bond = Math.min(1, (f.bond || 0) + 0.05); O.Speech && O.Speech.say(f, '♥', 1.4); }
           if (m === 'sit') { const ok = Math.random() < 0.3 + (f.bond || 0) * 0.7; O.Speech && O.Speech.say(f, ok ? '(sits, tail wagging)' : '(cocks its head)', 1.8); if (ok) f.bond = Math.min(1, (f.bond || 0) + 0.03); }
           if (m === 'name') nameIt(f);
+          if (O.petDo) O.petDo(f, m);
         });
       });
     }

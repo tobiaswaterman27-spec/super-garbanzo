@@ -28,6 +28,7 @@
       }
       return out.filter((o) => !(PS.contract && PS.contract.kind === o.kind && PS.contract.target === o.target));
     }
+    O.openBoard = (where) => board(where);
     function board(where) {
       const s = cur(), list = offers(s, where), C = PS.contract;
       const mine = C ? `<p class="caption">Your contract: ${esc(C.text)} (₳${C.reward}).</p><div class="topics"><button data-drop="1">Give it up</button></div>` : '';

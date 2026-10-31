@@ -457,3 +457,4 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Gathering, campfires, gardens and books (row 119)
 - [x] Street life: drunkards, children's games, washing lines, weather manners, drink_with (row 120)
 - [x] Bow and arrows, campfire light, night creatures, snowmen (row 121)
+- [x] Animation sweep: gestures for every talk act, movements for every player action (row 122)

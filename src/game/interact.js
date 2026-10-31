@@ -3,6 +3,15 @@
 // room sees it.
 'use strict';
 (function () {
+  // an action with no movement of its own gets one that suits it, so nothing happens standing stock still
+  const ANIM_FOR = [[/forage|pick|gather|search|collect|take up|pick up/i, 'pickup', 2.2], [/pat |stroke|feed|pet /i, 'crouch', 1.6], [/toast|round|drink/i, 'drink', 2], [/music|dance|celebrate/i, 'celebrate', 2], [/speak|address|proclaim|announce/i, 'gesture', 2.4], [/read|notices|study|letter/i, 'read', 2.4], [/found|take this camp|claim|mark/i, 'point', 1.6], [/assault|wade in|drive out|fight/i, 'attack', 1], [/break it up|join|man the walls/i, 'point', 1.4], [/browse|look|inspect|watch/i, 'look', 2], [/pray|bless/i, 'pray', 2.4], [/bet|pay|give|buy/i, 'count', 1.6]];
+  function runCustom(c) {
+    const P = O.game && O.game.player, before = P && P.anim;
+    c.act();
+    if (!P || P.locked || P.anim !== before || (P.anim && P.anim !== 'idle')) return;
+    const m = ANIM_FOR.find(([re]) => re.test(c.label || '')); if (!m) return;
+    P.anim = m[1]; P.ft = 0; setTimeout(() => { if (P.anim === m[1]) P.anim = 'idle'; }, m[2] * 1000);
+  }
   const G = O.Data.GOODS, PS = O.PlayerState;
 
   function setup(game, sim, npcUI) {
@@ -279,7 +288,7 @@
         case 'namesign': O.readSign(cur); break;
         case 'job': O.jobAct(cur); break;
         case 'gangtask': O.gangAct(cur); break;
-        case 'custom': cur.act(); break;
+        case 'custom': runCustom(cur); break;
         case 'hermit': O.hermitAct(cur); break;
         case 'vote': O.voteAct(cur); break;
         case 'placed': O.placedAct(cur); break;
@@ -293,7 +302,7 @@
         case 'work': if (O.Craft.RECIPES[cur.it.kind]) { const J = O.Work.job(); O.craftPanel({ it: cur.it, who: `${J.masterName}'s`, work: true }); } else O.workShift(); break;
         case 'craft': O.craftPanel(cur); break;
         case 'fire': O.fightFire(cur); break;
-        case 'custom': cur.act(); break;
+        case 'custom': runCustom(cur); break;
         case 'stall': O.mindStall(); break;
         case 'portrait': { const pr = cur.it.portrait; O.Panels.toast(`A likeness of ${pr.name}, painted in life. Died ${O.Chronicle.dateLabel(pr.died)}.`); break; }
         case 'broadsheet': O.ChronicleUI.broadsheet(); break;

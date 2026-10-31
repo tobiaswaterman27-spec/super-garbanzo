@@ -190,7 +190,7 @@
     // robbery and looting hooks for the talk card and F
     O.Combat = {
       provoke: (q, mode = 'fight') => { if (!q || q.health.hp <= 0) return; fights.set(q.id, { mode, t: 0, cd: 0.8 }); },
-      addTargets: (f) => extraTargets.push(f),
+      addTargets: (f) => extraTargets.push(f), targets: () => extraTargets.flatMap((f) => f() || []),
       armed: () => PS.equipped && PS.equipped !== 'fists' && PS.items.includes(PS.equipped),
       rob(q) {
         const brave = q.traits.includes('brave') || q.traits.includes('hostile');

@@ -456,3 +456,4 @@ Every job and every level of it, royal family and titles included, grouped under
 - [ ] NPCs "disappearing" still not reproduced
 - [x] Gathering, campfires, gardens and books (row 119)
 - [x] Street life: drunkards, children's games, washing lines, weather manners, drink_with (row 120)
+- [x] Bow and arrows, campfire light, night creatures, snowmen (row 121)

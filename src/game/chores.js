@@ -147,7 +147,14 @@
   const kindsAt = (bz, s) => { try { const L = O.Interior.interior(bz.b, 0, s); return new Set(L.items.map((it) => it.kind)); } catch (e) { return new Set(); } };
   const choose = (where, have) => { for (const w of where.split('|')) if (w === 'out' || w === 'floor' || have.has(w)) return w; return null; };
   O.choreTasks = (s, bz, e) => {
-    const list = C[e.role]; if (!list || !bz || !bz.b) return [];
+    // the trade's own duties, and those every shop, workshop or yard of its kind shares
+    const sells = bz && bz.def && bz.def.sells && bz.def.sells.length, makes = bz && bz.def && (bz.def.recipes || []).length;
+    const SHARED = [
+      ...(sells ? [['Restock the shelves from the store', 'shelf|crate|barrel|chest', 'carry', 15, 'The shelves are full again.'], ['Chalk up the day\'s prices', 'counter|desk|table', 'write', 10, 'Prices up, clear for all to read.'], ['Weigh and bag goods for orders', 'counter|table', 'count', 15, 'Three orders made up and set by.', { cash: 1 }]] : []),
+      ...(makes ? [['Sharpen and oil the tools', 'workbench|anvil|table|chest', 'scrub', 15, 'Every edge keen.'], ['Sort the raw stock', 'crate|barrel|sack|shelf', 'count', 10, 'Good from bad, and the bad set aside.'], ['Mend a broken tool', 'workbench|anvil|table', 'hammer', 20, 'Good for another year.']] : []),
+      ['Sweep out the doorway', 'out|floor', 'sweep', 10, 'Swept, and the step scrubbed.'], ['Fetch water for the day', 'out', 'bucket', 10, 'Two buckets, full.'],
+    ];
+    const list = (C[e.role] || []).concat(SHARED); if (!list.length || !bz || !bz.b) return [];
     const r = O.RNG(O.hash('chore', e.role, s.day, bz.id)), have = kindsAt(bz, s), out = [];
     const n = 2 + (r.next() < 0.5 ? 1 : 0), pool = list.slice(); // (two or three of the small duties each day)
     while (out.length < n && pool.length) {

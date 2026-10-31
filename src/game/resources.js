@@ -19,8 +19,25 @@
     };
     const key = (bz) => (bz.type === 'doctor' ? null : SRC[bz.type]);
     // the yield: whatever the trade made from nothing is scaled by what's left, and draws it down
+    // every post does something for the place, even where it makes nothing to sell: the watch keeps the
+    // peace, the jester and the minstrel cheer, the teacher teaches, healers heal, the clerks bring in
+    // the fees, keepers keep the game, grooms feed the horses, servants keep the house in repair
+    const PURPOSE = [
+      [/guard|watch|sergeant|constable|sheriff|turnkey|gaoler|night watchman/, (s, P) => { if (P) P.security = Math.min(1, (P.security ?? 0.5) + 0.00004); }],
+      [/jester|minstrel|fiddler|herald|crier|bell-ringer|pilgrim guide/, (s, P) => { if (P) P.happiness = Math.min(1, (P.happiness ?? 0.5) + 0.00003); }],
+      [/priest|monk|nun|chaplain|bishop|abbot|abbess|prioress|parish clerk/, (s, P) => { if (P) P.happiness = Math.min(1, (P.happiness ?? 0.5) + 0.00002); }],
+      [/teacher/, (s) => { const k = s.people.find((q) => q.age >= 6 && q.age < 14 && Math.random() < 0.02); if (k) k.skills.letters = Math.min(1, (k.skills.letters || 0) + 0.001); }],
+      [/physician|nurse|midwife|herbalist|barber|apothecary|monk|nun/, (s) => { const q = s.people.find((z) => z.health && z.health.illness && Math.random() < 0.05); if (q) q.health.illness.sev = Math.max(0, q.health.illness.sev - 0.002); }],
+      [/sweeper|chimney sweep|rat-catcher|lamplighter|water carrier|gravedigger/, (s, P) => { if (P) P.happiness = Math.min(1, (P.happiness ?? 0.5) + 0.00002); }],
+      [/clerk|scribe|magistrate|tax collector|bailiff|ballot clerk|toll keeper|postmaster|harbour master/, (s) => { if (s.treasury) { s.treasury.cash += 0.01; s.treasury.income = (s.treasury.income || 0) + 0.01; } }],
+      [/gamekeeper|forester|falconer/, (s) => { const R = resOf(s); R.game = Math.min(1, R.game + 0.00005); }],
+      [/groom|stablehand|master of horse/, () => { for (const h of (O.horsesAll ? O.horsesAll() : [])) if ((h.fed ?? 100) < 100 && Math.random() < 0.01) h.fed = 100; }],
+      [/maid|chambermaid|butler|steward|chamberlain|page|lady-in-waiting|servant|gardener/, (s, P, p) => { const b = p.job && s.building(p.job.biz); if (b) b.condition = Math.min(1, (b.condition ?? 0.8) + 0.00003); }],
+      [/spy|squire|knight|royal guard|captain/, (s, P) => { if (P) P.security = Math.min(1, (P.security ?? 0.5) + 0.00002); }],
+    ];
     const _work = SP.work;
     SP.work = function (p) {
+      { const role = p.job && p.job.role; if (role) { const P = this.kingdom && this.kingdom.place ? this.kingdom.place(this.world.placeId) : null; for (const [re, f] of PURPOSE) if (re.test(role)) f(this, P, p); } }
       const bz = p.job && this.biz.get(p.job.biz), k = bz && key(bz);
       if (!k) return _work.call(this, p);
       const outs = []; for (const rc of bz.def.recipes) if (!Object.keys(rc.inp).length) outs.push(...Object.keys(rc.out));

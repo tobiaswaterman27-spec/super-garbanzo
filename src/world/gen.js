@@ -349,6 +349,24 @@
     for (let x = rx1 - 10; x <= rx1 - 3; x++) for (let y = 10; y <= 20; y++) if ((x + y) % 2 === 0 && Math.abs(x - (rx1 - 6)) > 1) P('flowers', x, y, { solid: false, flat: true });
     P('well', rx1 - 6, 15, { y: 15 * T + 15 }); K.solid[15 * W + rx1 - 7] = 1;
     P('bench', rx1 - 9, 17, { solid: false }); P('bench', rx1 - 3, 13, { solid: false });
+    // the bailey laid out, neat as a garden: lawns either side of the processional path up to the keep,
+    // ringed by a gravel walk, with clipped yews along the path, borders of flowers under the keep's
+    // front, a fountain in each lawn with benches, and lamps; the working yard keeps to the west side,
+    // by the guard and the stables (a practice yard of straw butts, the stores stacked in a row)
+    { const lx0 = rx0 + 14, lx1 = rx1 - 14, ly0 = 27, ly1 = ry1 - 2;
+      fill(lx0, ly0, lx1, ly1, TER.GRASS);
+      for (let x = lx0; x <= lx1; x++) { set(x, ly0, TER.ROAD); set(x, ly1, TER.ROAD); }
+      for (let y = ly0; y <= ly1; y++) { set(lx0, y, TER.ROAD); set(lx1, y, TER.ROAD); }
+      fill(rgX - 2, ly0, rgX + 1, ry1 - 1, TER.COBBLE); fill(rx0 + 2, 33, rx1 - 2, 33, TER.COBBLE);
+      for (let y = ly0 + 2; y <= ly1 - 1; y += 3) if (Math.abs(y - 33) > 1) { P('topiary', rgX - 3, y); P('topiary', rgX + 2, y); }
+      for (let x = rgX - 11; x <= rgX + 10; x++) if (Math.abs(x - rgX) > 2 && x !== rgX - 4 && x !== rgX + 3) P('flowers', x, ly0 + 1, { solid: false, flat: true });
+      for (const fx of [Math.round((lx0 + rgX - 3) / 2), Math.round((rgX + 2 + lx1) / 2)]) { P('fountain', fx, 36, {}); P('bench', fx - 2, 37, { solid: false }); P('bench', fx + 2, 37, { solid: false }); for (const fy of [30, 31]) P('flowers', fx, fy, { solid: false, flat: true }); }
+      for (const lxp of [rgX - 4, rgX + 3]) P('lamp', lxp, 34, {});
+      // the working yard: straw butts for the guard to practise on, and the stores in a row by the stables
+      for (const y of [27, 28, 29]) P('hay', rx0 + 12, y, {});
+      P('crate', rx0 + 9, 35, {}); P('crate', rx0 + 10, 35, {}); P('barrel', rx0 + 11, 35, {}); P('barrel', rx0 + 12, 35, {});
+      P('woodpile', rx1 - 4, 33 + 1, {}); P('cart', rx1 - 9, 34, { v: 1 });
+    }
     // the royal market before the castle gate
     fill(rx0 + 2, ry1 + 2, rx1 - 2, 54, TER.COBBLE);
     for (let i = 0; i < 12; i++) { const sx = rx0 + 6 + (i % 6) * 8, sy = i < 6 ? ry1 + 3 : 50; if (Math.abs(sx - rgX) < 3) continue; P('stall', sx, sy, { v: i % 4 }); K.solid[sy * W + sx - 1] = 1; K.solid[sy * W + sx + 1] = 1; }
@@ -433,7 +451,7 @@
     marks.push({ name: 'Castle Row', row: true, x: 84, y: y1 + 12 });
     // keep the paddocks clear of trees and bushes
     const penTiles = []; for (const pen of pens) { const [a0, b0, a1, b1] = pen.z; for (let y = b0; y <= b1; y++) for (let x = a0; x <= a1; x++) if (!K.solid[y * W + x]) { K.solid[y * W + x] = 1; penTiles.push(y * W + x); } }
-    K.scatter((x, y) => (x > x0 && x < x1 && y > y0 && y < y1) || (x > rx0 && x < rx1 && y > ry0 && y < ry1), (x, y) => parks.some(([a0, b0, a1, b1]) => x >= a0 && x <= a1 && y >= b0 && y <= b1));
+    K.scatter((x, y) => (x > x0 && x < x1 && y > y0 && y < y1) || (x > rx0 && x < rx1 && y > ry0 && y < ry1), (x, y) => parks.some(([a0, b0, a1, b1]) => x >= a0 && x <= a1 && y >= b0 && y <= b1) || (x >= rx0 + 14 && x <= rx1 - 14 && y >= 27 && y <= ry1 - 2));
     for (const i of penTiles) K.solid[i] = 0;
     return K.finish({ roadY, exits: { west: [0, roadY], east: [W - 1, roadY] }, river: true, pens, estates, marks, zones: { square: [45, 31, 63, 42], bench: [46, 31], farm: estates.length ? estates[0].fields : [8, 90, 30, 96], wood: [2, H - 10, 30, H - 4], east: [W - 1, roadY], patrol: [[55, 44], [20, 44], [40, 24], [80, 24], [110, 44], [96, 64], [60, 64], [40, 44]] }, city: true });
   }

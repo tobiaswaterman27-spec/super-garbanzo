@@ -443,3 +443,14 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] To do box, odd jobs both ways, service, NPCs hiring each other, age in friendship (row 108)
 - [x] Counter talk, rooms, any bed, stroking animals, resource-based economy (row 109)
 - [ ] NPCs "disappearing" still not reproduced
+
+## Batch AD (the big list after row 110)
+
+- [x] Gang bases: hidden, several per gang, growing (row 111)
+- [x] NPC gatherings and parties; finding friends; many more acts (row 111)
+- [x] Greenwood outlaw life; the wild; songs (row 112)
+- [x] Noble houses; risings by anyone; sieges (row 114)
+- [x] The Church; boats, ships and the sea (row 115)
+- [x] Founding a village with its government; the council of the realm; old age and heirs; rare youth and undying (row 116)
+- [x] Castle bailey tidied; every job given a purpose and more tasks (rows 113, 116)
+- [ ] NPCs "disappearing" still not reproduced

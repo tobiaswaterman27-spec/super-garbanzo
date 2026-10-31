@@ -65,7 +65,7 @@
     const capitalId = () => (K().places.find((x) => x.kind === 'capital') || {}).id;
     function mySeat() {
       if (O.crowned && O.crowned()) return { role: 'monarch' };
-      const pid = Object.keys(PS.reeveOf || {}).find((id) => (PS.reeveOf || {})[id]) || (PS.office && PS.office.place) || (PS.reeve || PS.lord ? home.world.placeId : null);
+      const pid = Object.keys(PS.reeveOf || {}).find((id) => (PS.reeveOf || {})[id]) || (PS.office && PS.office.place) || (PS.reeve || PS.lord ? home.world.placeId : null) || (PS.village && (PS.village.gov === 'lord' || PS.village.gov === 'council') ? PS.village.place : null);
       return pid ? { role: 'leader', place: pid } : null;
     }
     O.councilSeat = mySeat;

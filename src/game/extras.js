@@ -12,6 +12,8 @@
 'use strict';
 (function () {
   const T = 16;
+  // the stable and the fish store fitted out for the work done in them (the hay, the tack, the gutting table)
+  { const B = O.Data.BUSINESS; if (B.stable && !B.stable.equip) B.stable.equip = ['hay', 'rack', 'barrel', 'workbench', 'chest']; if (B.fishery && !B.fishery.equip) B.fishery.equip = ['table', 'rack', 'barrel', 'crate']; }
   function setup(game) {
     const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k), clamp = O.clamp, G = O.Data.GOODS;
     const relOf = (q) => { const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r); return r; };

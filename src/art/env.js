@@ -545,8 +545,14 @@
       herb: ['.#.#.', '##.##', '.###.', '..#..', '..#..'],
       shield: ['######', '#.##.#', '######', '.####.', '..##..'],
       hammer: ['######', '######', '..##..', '..##..', '..##..'],
+      anchor: ['..#..', '.###.', '..#..', '#.#.#', '.###.'],
+      fish: ['.###..#', '#####.#', '.###..#'],
+      boot: ['..##.', '..##.', '..##.', '#####', '#####'],
+      needle: ['....#', '...#.', '..#..', '.#...', '#....'],
+      candle: ['..#..', '.###.', '.###.', '.###.', '#####'],
+      key: ['.##....', '#..####', '.##..#.'],
     }[kind] || [];
-    const col = { bread: '#d8a050', anvil: '#3a3a44', mug: '#e8d8a0', cross: '#c83a3a', scales: '#d8b040', sword: '#c8ccd4', herb: '#5aa040', shield: '#a8382f', hammer: '#6e6a70' }[kind] || '#fff';
+    const col = { bread: '#d8a050', anvil: '#3a3a44', mug: '#e8d8a0', cross: '#c83a3a', scales: '#d8b040', sword: '#c8ccd4', herb: '#5aa040', shield: '#a8382f', hammer: '#6e6a70' , anchor: '#5a6a7a', fish: '#9aa8b0', boot: '#6a4a2a', needle: '#c8ccd4', candle: '#f0e8d0', key: '#c8a040' }[kind] || '#fff';
     const im = P.mat(col, 'metal');
     icon.forEach((row, r) => [...row].forEach((ch, c) => { if (ch === '#') B.plot(x + 1 + c, y + 1 + r + (icon.length < 5 ? 1 : 0), im, 2 + ((r + c) % 3 === 0 ? 1 : 0)); }));
   }

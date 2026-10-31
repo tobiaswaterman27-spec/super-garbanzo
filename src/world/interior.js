@@ -468,6 +468,7 @@
           const pw = Math.floor((w - 4) / 2);
           for (let y = 5; y <= d - 4; y += 2) { put('pew', 1, y, { pew: true, width: pw, seats: pw }); put('pew', w - 1 - pw, y, { pew: true, width: pw, seats: pw }); }
           put('chest', 0, 0, { valuables: true, alms: true });
+          tryPut('barrel', nearWalls(), { work: ['lay brother', 'lay sister'] }); tryPut('table', nearWalls(2, 1), { work: ['lay brother', 'lay sister'] });
         } else {
           for (let i = 0; i < 6; i++) tryPut('bed', backWall(2, true), { bed: true, slots: 1, v: 0 }) || tryPut('bed', leftWall(3, 2), { bed: true, slots: 1, v: 0, rot: 1 });
           for (let i = 0; i < 3; i++) tryPut('desk', nearWalls(2, 1), { work: ['monk', 'nun', 'abbot', 'abbess', 'prioress'] });

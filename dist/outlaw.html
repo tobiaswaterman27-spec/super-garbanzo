@@ -2543,8 +2543,14 @@ O.storeys = (b) => {
       herb: ['.#.#.', '##.##', '.###.', '..#..', '..#..'],
       shield: ['######', '#.##.#', '######', '.####.', '..##..'],
       hammer: ['######', '######', '..##..', '..##..', '..##..'],
+      anchor: ['..#..', '.###.', '..#..', '#.#.#', '.###.'],
+      fish: ['.###..#', '#####.#', '.###..#'],
+      boot: ['..##.', '..##.', '..##.', '#####', '#####'],
+      needle: ['....#', '...#.', '..#..', '.#...', '#....'],
+      candle: ['..#..', '.###.', '.###.', '.###.', '#####'],
+      key: ['.##....', '#..####', '.##..#.'],
     }[kind] || [];
-    const col = { bread: '#d8a050', anvil: '#3a3a44', mug: '#e8d8a0', cross: '#c83a3a', scales: '#d8b040', sword: '#c8ccd4', herb: '#5aa040', shield: '#a8382f', hammer: '#6e6a70' }[kind] || '#fff';
+    const col = { bread: '#d8a050', anvil: '#3a3a44', mug: '#e8d8a0', cross: '#c83a3a', scales: '#d8b040', sword: '#c8ccd4', herb: '#5aa040', shield: '#a8382f', hammer: '#6e6a70' , anchor: '#5a6a7a', fish: '#9aa8b0', boot: '#6a4a2a', needle: '#c8ccd4', candle: '#f0e8d0', key: '#c8a040' }[kind] || '#fff';
     const im = P.mat(col, 'metal');
     icon.forEach((row, r) => [...row].forEach((ch, c) => { if (ch === '#') B.plot(x + 1 + c, y + 1 + r + (icon.length < 5 ? 1 : 0), im, 2 + ((r + c) % 3 === 0 ? 1 : 0)); }));
   }
@@ -4445,6 +4451,7 @@ O.bizName = (surname, label) => {
       const LOOK2 = { townhall: { wall: 'stone', stoneMat: 'stoneWarm', roof: 'slate', roofType: 'gable', chimney: true, sign: 'shield', floors: 2 }, stable: { wall: 'plank', plankMat: 'plank', roof: 'shingle', roofType: 'side', bigDoor: true }, butcher: { wall: 'timber', roof: 'tile', sign: 'scales' }, carpenter: { wall: 'plank', roof: 'shingle', sign: 'hammer' }, tailor: { wall: 'timber', roof: 'thatch', shopWindow: true }, smithy: { wall: 'stone', roof: 'slate', chimney: true, sign: 'anvil' } };
       const surname = O.Names ? rng.pick(O.Names.SUR) : 'Ward';
       const lk = Object.assign({ wall: 'timber', roof: 'thatch' }, def.look || LOOK2[type] || {});
+      if (!lk.sign) lk.sign = { cobbler: 'boot', tailor: 'needle', chandler: 'candle', moneylender: 'key', fishery: 'fish', harbour: 'anchor', ferry: 'anchor', boatyard: 'anchor', brewery: 'mug', vineyard: 'mug', apiary: 'herb', saddler: 'boot', tanner: 'boot', weaver: 'needle', dyer: 'needle', laundry: 'needle', glazier: 'scales', ropewalk: 'scales', wainwright: 'hammer', carpenter: 'hammer', cooper: 'hammer', potter: 'scales', brickworks: 'hammer', fletcher: 'sword', posthouse: 'scales', carrier: 'scales', agency: 'key', barber: 'herb', scriptorium: 'scales' }[type] || lk.sign; // (every trade hangs out its sign)
       const b = build(type, w, d, lk, (['posthouse', 'tollhouse', 'townhall', 'guard', 'morgue', 'hospital', 'school', 'gaol'].includes(type) || def.public) ? `${pl.name} ${def.label}` : O.bizName(surname, def.label), best[0], best[1], { floors: def.floors || lk.floors || 1 });
       if ((type === 'abbey' || type === 'priory') && O.relicOf) b.name = `${def.label} of St. ${O.relicOf(b).saint}`;
       if (type === 'harbour') b.name = `${pl.name} Harbour`;
@@ -11258,6 +11265,8 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     saddle: ['saddle', '#7a4a2a', '#c8a040'], harness: ['coil', '#6a4024', '#c8a040'], wheel: ['wheel', '#8a6239', '#4a4a52'], cart: ['cart', '#8a6239', '#4a4a52'], boat: ['boat', '#8a6239', '#5a3a28'], tent: ['tent', '#d8c8a0', '#8a6239'], cask: ['barrel', '#8a6239', '#4a4a52'],
     ring: ['ring', '#e8c040', '#c83a3a'], brooch: ['brooch', '#e8c040', '#c83a3a'], necklace: ['ring', '#e8c040', '#3a60c8'], circlet: ['ring', '#f0d060', '#3a9a5a'], spoon: ['spoon', '#c8ccd4', '#f0f2f6'], candlestick: ['candlestick', '#9a9a96', '#f0e8d0'], key: ['key', '#c8a040', '#8a6a20'], coins: ['coins', '#c8ccd4', '#e8c040'], coin: ['coins', '#c8ccd4', '#e8c040'],
     crown: ['ring', '#f0c030', '#c83a3a'],
+    badge: ['brooch', '#9a9a96', '#c8ccd4'], elixir: ['flask', '#e8c040', '#f0e8ff'], undying: ['flask', '#a8e0f0', '#e8f8ff'], secret: ['letter', '#d8c8a0', '#3a3a3a'],
+    pelt: ['fleece', '#8a8478', '#5e5a56'], bearskin: ['fleece', '#4a3424', '#2a1e14'], boarmeat: ['meat', '#8a3a3a', '#e8d8c8'], hawk: ['feather', '#8a6a4a', '#e8e0d0'],
     berries: ['round', '#8a2a5a', '#3a6a2a'], mushrooms: ['round', '#d8c0a0', '#8a5a3a'],
     medicine: ['flask', '#6a9ad0', '#c8b8a0'], herbs: ['herbs', '#5a9a40', '#3a6a2a'], furniture: ['chair', '#8a6239', '#6a4a2c'],
   };
@@ -11864,6 +11873,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
           const pw = Math.floor((w - 4) / 2);
           for (let y = 5; y <= d - 4; y += 2) { put('pew', 1, y, { pew: true, width: pw, seats: pw }); put('pew', w - 1 - pw, y, { pew: true, width: pw, seats: pw }); }
           put('chest', 0, 0, { valuables: true, alms: true });
+          tryPut('barrel', nearWalls(), { work: ['lay brother', 'lay sister'] }); tryPut('table', nearWalls(2, 1), { work: ['lay brother', 'lay sister'] });
         } else {
           for (let i = 0; i < 6; i++) tryPut('bed', backWall(2, true), { bed: true, slots: 1, v: 0 }) || tryPut('bed', leftWall(3, 2), { bed: true, slots: 1, v: 0, rot: 1 });
           for (let i = 0; i < 3; i++) tryPut('desk', nearWalls(2, 1), { work: ['monk', 'nun', 'abbot', 'abbess', 'prioress'] });
@@ -16913,6 +16923,8 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
 'use strict';
 (function () {
   const T = 16;
+  // the stable and the fish store fitted out for the work done in them (the hay, the tack, the gutting table)
+  { const B = O.Data.BUSINESS; if (B.stable && !B.stable.equip) B.stable.equip = ['hay', 'rack', 'barrel', 'workbench', 'chest']; if (B.fishery && !B.fishery.equip) B.fishery.equip = ['table', 'rack', 'barrel', 'crate']; }
   function setup(game) {
     const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k), clamp = O.clamp, G = O.Data.GOODS;
     const relOf = (q) => { const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r); return r; };

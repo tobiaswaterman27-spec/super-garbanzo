@@ -71,6 +71,7 @@
     if (g.drink) A.push(['eat', 'Drink']); else if (g.food) A.push(['eat', 'Eat']);
     if (g.jewel) A.push(['jewel', (PS.worn || []).includes(k) ? 'Take off' : 'Wear']);
     if (g.disguise) A.push(['wear', PS.disguise === k ? 'Take off' : 'Put on']);
+    if (g.book) A.push(['readbook', 'Read']);
     if (k === 'letter') A.push(['write', 'Write']); if (k === 'letter_in') A.push(['read', 'Read']);
     if (g.weapon || ['dagger', 'sword', 'axe', 'hammer', 'spear', 'bow'].includes(k)) A.push(['eq', PS.equipped === k ? 'Put away' : 'Hold']);
     if (g.place || g.food || g.furniture) A.push(['place', 'Set down']);
@@ -94,6 +95,7 @@
         else if (a === 'wear') { close(); O.wearDisguise && O.wearDisguise(k); }
         else if (a === 'eat') { close(); O.consume ? O.consume(k) : (PS.eat(k), toast(`You eat the ${G[k].name.toLowerCase()}.`)); invSel = null; }
         else if (a === 'write') { close(); O.writeLetter && O.writeLetter(i); }
+        else if (a === 'readbook') { close(); O.readBook && O.readBook(k); }
         else if (a === 'place') { close(); O.placeItem && O.placeItem(k); invSel = null; }
         else if (a === 'eq') { PS.equipped = PS.equipped === k ? 'fists' : k; const ap = O.game.player.a; ap.outfit.item = PS.equipped === 'fists' ? null : PS.equipped; O.Char.invalidate(ap); inventory(); }
         else if (a === 'drop') { if (O.dropItem) O.dropItem(k); else PS.remove(k); if (!PS.items.includes(k)) invSel = null; inventory(); }

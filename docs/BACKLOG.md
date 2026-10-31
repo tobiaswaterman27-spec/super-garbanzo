@@ -454,3 +454,4 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Founding a village with its government; the council of the realm; old age and heirs; rare youth and undying (row 116)
 - [x] Castle bailey tidied; every job given a purpose and more tasks (rows 113, 116)
 - [ ] NPCs "disappearing" still not reproduced
+- [x] Gathering, campfires, gardens and books (row 119)

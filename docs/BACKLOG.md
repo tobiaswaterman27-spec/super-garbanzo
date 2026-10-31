@@ -459,3 +459,4 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Bow and arrows, campfire light, night creatures, snowmen (row 121)
 - [x] Animation sweep: gestures for every talk act, movements for every player action (row 122)
 - [x] Rainbows, falling leaves and blossom, butterflies, birds, wildflowers (row 123)
+- [x] Washing and bathing, grime that people notice, palm reading (row 124)

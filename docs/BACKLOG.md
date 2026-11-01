@@ -464,3 +464,4 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Farming year, harvest tied to work, granary in a dearth, good years (row 126)
 - [x] Building your own house your way, then furnishing it (row 127)
 - [x] Carts, road guards, bandits, haggling, news at walking pace (row 128)
+- [x] Visible contagion, remedies, nursing, courting and rivals, elopement, the hunt, swimming (row 129)

@@ -11269,7 +11269,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     ring: ['ring', '#e8c040', '#c83a3a'], brooch: ['brooch', '#e8c040', '#c83a3a'], necklace: ['ring', '#e8c040', '#3a60c8'], circlet: ['ring', '#f0d060', '#3a9a5a'], spoon: ['spoon', '#c8ccd4', '#f0f2f6'], candlestick: ['candlestick', '#9a9a96', '#f0e8d0'], key: ['key', '#c8a040', '#8a6a20'], coins: ['coins', '#c8ccd4', '#e8c040'], coin: ['coins', '#c8ccd4', '#e8c040'],
     crown: ['ring', '#f0c030', '#c83a3a'],
     badge: ['brooch', '#9a9a96', '#c8ccd4'], elixir: ['flask', '#e8c040', '#f0e8ff'], undying: ['flask', '#a8e0f0', '#e8f8ff'], secret: ['letter', '#d8c8a0', '#3a3a3a'],
-    pelt: ['fleece', '#8a8478', '#5e5a56'], bearskin: ['fleece', '#4a3424', '#2a1e14'], boarmeat: ['meat', '#8a3a3a', '#e8d8c8'], hawk: ['feather', '#8a6a4a', '#e8e0d0'], flowers: ['herbs', '#c860a8', '#f0d848'], purse: ['sack', '#7a5634', '#c8a060'], gloves: ['fleece', '#8a6a48', '#5a4430'], comb: ['spoon', '#e8dcc0', '#b8a888'], beads: ['brooch', '#6a4a30', '#c8b070'], knife: ['blade', '#b8bcc4', '#5a3d24'],
+    pelt: ['fleece', '#8a8478', '#5e5a56'], bearskin: ['fleece', '#4a3424', '#2a1e14'], boarmeat: ['meat', '#8a3a3a', '#e8d8c8'], hawk: ['feather', '#8a6a4a', '#e8e0d0'], flowers: ['herbs', '#c860a8', '#f0d848'], purse: ['sack', '#7a5634', '#c8a060'], gloves: ['fleece', '#8a6a48', '#5a4430'], comb: ['spoon', '#e8dcc0', '#b8a888'], beads: ['brooch', '#6a4a30', '#c8b070'], knife: ['blade', '#b8bcc4', '#5a3d24'], feverfew: ['herbs', '#a8b858', '#f0e8a0'], poultice: ['pat', '#d8b848', '#f0e0b0'], barleywater: ['flask', '#c8b078', '#e8dcc0'],
     berries: ['round', '#8a2a5a', '#3a6a2a'], mushrooms: ['round', '#d8c0a0', '#8a5a3a'],
     medicine: ['flask', '#6a9ad0', '#c8b8a0'], herbs: ['herbs', '#5a9a40', '#3a6a2a'], furniture: ['chair', '#8a6239', '#6a4a2c'],
   };
@@ -18172,6 +18172,258 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     };
   }
   O.RoadTradeSetup = { setup };
+})();
+
+</script>
+<script>
+// Sickness you can see and catch. The sick cough and sneeze in the street, mop their brows, clutch their
+// bellies, and pass it on to those they stand close to; you can catch it from them, and give yours to
+// those you talk to. Each sickness has its remedy: feverfew and willow bark for a fever, a mustard
+// poultice for a chill, barley water for the flux, sold by the apothecary, the physician and the
+// herbalist; the right one works fast, the wrong one barely at all. When you lie badly ill, someone who
+// cares for you comes to nurse you, and you can nurse the sick yourself, at some risk.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k), G = O.Data.GOODS, SP = O.Sim.prototype;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    const sp = (q, t, secs = 2) => O.Speech && O.Speech.say(q, t, secs);
+    G.feverfew = G.feverfew || { name: 'Feverfew and willow bark', base: 4, unit: 'twist', slots: 1, drink: 0.02 };
+    G.poultice = G.poultice || { name: 'Mustard poultice', base: 3, unit: 'poultice', slots: 1, drink: 0.01 };
+    G.barleywater = G.barleywater || { name: 'Barley water', base: 2, unit: 'flask', slots: 1, drink: 0.1 };
+    // the apothecary and the physician make and sell them
+    for (const t of ['apothecary', 'doctor']) { const B = O.Data.BUSINESS[t]; if (!B) continue; for (const [g, inp] of [['feverfew', { herbs: 0.1 }], ['poultice', { herbs: 0.05 }], ['barleywater', { barley: 0.1 }]]) if (!B.sells.includes(g)) { B.sells.push(g); B.recipes.push({ out: { [g]: 0.15 }, inp }); B.targets = B.targets || {}; B.targets[g] = 4; } }
+    const REMEDY = { chill: 'poultice', cold: 'poultice', fever: 'feverfew', pestilence: 'feverfew', flux: 'barleywater' };
+    const PLAYER_KIND = { cold: 'chill', fever: 'fever', flux: 'flux', pestilence: 'fever' };
+    const contagious = (q) => q.health && q.health.illness && ['cold', 'fever', 'flux', 'pestilence'].includes(q.health.illness.kind);
+    const seen = (q, r) => { const P = game.player; return !q.agent.hidden && q.agent.inside == null && Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < r; };
+    const infect = (s, q, kind) => { if (q.health.illness || (q.health.immune || 0) > s.day || q.alive === false) return false; q.health.illness = { kind, sev: 0.12, since: s.day, treated: false }; q.health.state = 'hurt'; return true; };
+    const playerCatch = (kind, from) => { if (PS.ill) return; const k = PLAYER_KIND[kind] || 'chill'; PS.ill = { kind: k, sev: k === 'fever' ? 0.45 : 0.3, day: cur().day }; say(`${from ? from.first + ' coughed right on you. ' : ''}You've caught ${k === 'chill' ? 'a chill' : k === 'fever' ? 'a fever' : 'the flux'}.`, 'bad'); };
+
+    // the sick in the street: coughs, sneezes, and catching it
+    let ct = 0;
+    game.hooks.update.push((dt) => {
+      ct -= dt; if (ct > 0 || game.scene) return; ct = 3; const s = cur(); if (!s) return; const now = performance.now(), P = game.player;
+      for (const q of s.people) {
+        if (!contagious(q) || !seen(q, 300) || (q.agent.gest && q.agent.gest.until > now) || Math.random() > 0.3) continue;
+        const k = q.health.illness.kind;
+        if (k === 'flux') { O.gesture(q, 'hurt', 1.4); if (Math.random() < 0.3) sp(q, pick(['Oh, my belly...', 'Not again...'])); }
+        else if (k === 'fever' || k === 'pestilence') { O.gesture(q, Math.random() < 0.5 ? 'cough' : 'wipe', 1.6); if (Math.random() < 0.3) sp(q, pick(['*cough* *cough*', 'I\'m burning up.', '*hack*'])); }
+        else { O.gesture(q, 'cough', 1.2); sp(q, pick(['*cough*', 'Achoo!', '*sniff*', 'Ah... ACHOO!'])); }
+        // close by, it passes on
+        for (const z of s.people) if (z !== q && z.age >= 2 && !z.agent.hidden && z.agent.inside == null && Math.hypot(z.agent.x - q.agent.x, z.agent.y - q.agent.y) < 26 && Math.random() < 0.04) if (infect(s, z, k)) s.remember(z, `Caught ${k === 'cold' ? 'a cold' : 'it'} off ${q.first} in the street.`, 'health', 0.6, q.id);
+        if (Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < 32 && Math.random() < 0.05) playerCatch(k, q);
+      }
+    });
+    // yours, passed on to those you talk to
+    const _talk = O.npcUI && O.npcUI.openTalk;
+    if (_talk) O.npcUI.openTalk = function (q) { const r = _talk.apply(this, arguments); try { const s = cur(); if (PS.ill && q && q.health && Math.random() < 0.12) { const kind = PS.ill.kind === 'chill' ? 'cold' : PS.ill.kind; if (infect(s, q, kind)) s.remember(q, 'I think I caught something off the stranger.', 'health', 0.8, 0); } } catch (e) { console.error(e); } return r; };
+
+    // the right remedy
+    const _consume = O.consume;
+    O.consume = (k) => {
+      _consume(k); if (!['feverfew', 'poultice', 'barleywater'].includes(k)) return;
+      setTimeout(() => { if (!PS.ill) return say('You take it, though you\'re not ill.'); const right = REMEDY[PS.ill.kind] === k; PS.ill.sev -= right ? 0.5 : 0.08; if (PS.ill.sev <= 0) { PS.ill = null; say('The remedy does its work. You feel well again.'); } else say(right ? 'The right thing for it. You feel it easing.' : 'It does little for what ails you.'); }, 1500);
+    };
+    (O.extraLines = O.extraLines || []).push((s, q) => /apothecary|physician|herbalist|doctor|barber|midwife|nurse|monk|nun/.test(q.job?.role || '') ? 'You know remedies: feverfew and willow bark for a fever, a mustard poultice for a chill or cough, barley water for the flux. You may sell the right one (sell {"item":"feverfew|poultice|barleywater"}).' : '');
+    (O.extraLines = O.extraLines || []).push((s, q) => contagious(q) ? `You are ill with ${({ cold: 'a heavy cold', fever: 'a fever', flux: 'the flux', pestilence: 'the pestilence' })[q.health.illness.kind]}; you cough, feel wretched, and say so.` : '');
+    (O.extraLines = O.extraLines || []).push((s, q) => PS.ill ? `The player looks unwell: ${PS.ill.kind === 'chill' ? 'sniffling and coughing' : PS.ill.kind === 'fever' ? 'flushed and sweating with fever' : 'pale and doubled over'}. You notice, and may keep your distance or show concern.` : '');
+
+    // nursed when you're badly ill
+    let nursedDay = -1, nurse = null;
+    game.hooks.update.push(() => {
+      const s = cur(); if (!s || !PS.ill || PS.ill.sev < 0.55 || nursedDay === s.day) return;
+      if (!nurse) {
+        const fond = s.people.filter((q) => q.age >= 14 && q.alive !== false && !q.agent.hidden && !contagious(q) && (((q.rel.get(0) || {}).affinity || 0) > 0.35 || (PS.partner && PS.partner.id === q.id)) && Math.hypot(q.agent.x - game.player.x, q.agent.y - game.player.y) < 600);
+        nurse = fond.sort((a, b) => ((b.rel.get(0) || {}).affinity || 0) - ((a.rel.get(0) || {}).affinity || 0))[0] || null;
+        if (nurse) { O.NpcActs.apply(s, nurse, { do: 'follow' }, false); say(`${nurse.first} has heard you're ill and is coming.`); }
+        else { nursedDay = s.day; return; }
+      }
+      const P = game.player, pos = game.scene ? game.scene.personPos(nurse) : [nurse.agent.x, nurse.agent.y];
+      if (pos && Math.hypot(pos[0] - P.x, pos[1] - P.y) < 50) {
+        nursedDay = s.day; O.gesture(nurse, 'serve', 2.4); PS.ill.sev = Math.max(0.05, PS.ill.sev - 0.25); PS.hunger = Math.min(100, PS.hunger + 25);
+        O.NpcActs.unfollow && O.NpcActs.unfollow(nurse);
+        if (O.npcUI && !O.npcUI.talking()) O.npcUI.startFrom(nurse, pick(['You look dreadful. Lie still: I\'ve brought broth.', 'There now. Drink this and sleep.', 'I couldn\'t leave you like this. Here, eat something.']));
+        s.relate(nurse, { id: 0 }, 0.05); nurse = null;
+      }
+    });
+    // you nurse the sick
+    const nurseCand = () => {
+      const s = cur(), P = game.player; if (!s || P.locked) return null; let q = null;
+      if (game.scene) { for (const a of game.scene.actors.values()) if (a.person && contagious(a.person) && Math.hypot(a.x - P.x, a.y - P.y) < 34 && a.person._nursed !== s.day) { q = a.person; break; } }
+      else q = s.people.find((z) => contagious(z) && seen(z, 30) && z._nursed !== s.day);
+      if (!q) return null; const pos = game.scene ? game.scene.personPos(q) : [q.agent.x, q.agent.y];
+      return { type: 'custom', d: 4, x: pos[0], y: pos[1] - 44, label: `Nurse ${q.first}`, act: () => {
+        P.anim = 'serve'; P.ft = 0; P.locked = true;
+        setTimeout(() => { P.locked = false; P.anim = 'idle'; q._nursed = s.day; q.health.illness.sev = Math.max(0, q.health.illness.sev - 0.2); s.relate(q, { id: 0 }, 0.1); s.remember(q, 'The stranger sat with me in my sickness and nursed me.', 'health', 1.4, 0); PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.01); if (Math.random() < 0.15) playerCatch(q.health.illness.kind); say(`You sit with ${q.first}, cool their brow and get some broth into them.`); }, 3500);
+      } };
+    };
+    (O.moreCandidates = O.moreCandidates || []).push(nurseCand); (O.sceneMore = O.sceneMore || []).push(nurseCand);
+  }
+  O.SicknessSetup = { setup };
+})();
+
+</script>
+<script>
+// Hearts, hounds and the river. Townsfolk court in plain sight: a courting couple meet of an evening and
+// walk out together, laughing, a posy passing between them. When two want the same one, they become
+// rivals, glare and quarrel and may come to blows; when the choice is made, the loser is heartbroken a
+// while and doesn't forgive the winner. A pair whose families are at odds may run off together by night
+// and come back married. The gentry ride out hunting with hounds and beaters; you can beat for a few
+// coins, or ride as a guest if you have a title. And on hot days the young swim in the river, and so can
+// you: wade in off the bank and swim.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k), SP = O.Sim.prototype;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    const sp = (q, t, secs = 2.4) => O.Speech && O.Speech.say(q, t, secs);
+    const aff = (a, b) => (a.rel && a.rel.get(b.id) || {}).affinity || 0;
+    const single = (p) => p && !p.spouse && !p.visitor && !p.withPlayer && p.age >= 17 && p.age <= 45 && p.alive !== false;
+
+    // ---------------------------------------------------------------- courting and rivalry
+    const _nd = SP.newDay;
+    SP.newDay = function () {
+      const r = _nd.apply(this, arguments);
+      this.romances = (this.romances || []).filter((m) => { const a = this.byId.get(m.a), b = this.byId.get(m.b); return single(a) && single(b); });
+      this.rivals = (this.rivals || []).filter((m) => this.day - m.day < 30 && single(this.byId.get(m.x)));
+      const sing = this.people.filter(single);
+      // new courtships: two who like each other well
+      if (this.romances.length < 4) for (const a of sing) {
+        if (this.romances.some((m) => m.a === a.id || m.b === a.id)) continue;
+        const b = sing.find((z) => z.sex !== a.sex && z.household !== a.household && aff(a, z) > 0.2 && aff(z, a) > 0.15 && !this.romances.some((m) => m.a === z.id || m.b === z.id));
+        if (b && this.rng.chance(0.3)) { this.romances.push({ a: a.id, b: b.id, day: this.day }); this.remember(a, `I've been walking out with ${b.name}.`, 'social', 1.2, b.id); this.remember(b, `${a.name} has been courting me.`, 'social', 1.2, a.id); break; }
+      }
+      // a rival: someone else sweet on one of a courting pair
+      for (const m of this.romances) {
+        if (this.rivals.some((v) => v.x === m.a || v.x === m.b)) continue;
+        for (const [x, w] of [[m.a, m.b], [m.b, m.a]]) {
+          const X = this.byId.get(x), W = this.byId.get(w); if (!X || !W) continue;
+          const y = sing.find((z) => z.id !== w && z.sex === W.sex && aff(z, X) > 0.25);
+          if (y && this.rng.chance(0.25)) { this.rivals.push({ x, winner: w, loser: y.id, day: this.day }); this.relate(y, W, -0.3); this.relate(W, y, -0.3); this.remember(y, `${W.name} is after ${X.first}, and so am I.`, 'social', 1.5, W.id); this.remember(W, `${y.name} has eyes for ${X.first}. We'll see about that.`, 'social', 1.5, y.id); break; }
+        }
+      }
+      // running off together, when the families are at odds
+      for (const m of [...this.romances]) {
+        const a = this.byId.get(m.a), b = this.byId.get(m.b); if (!a || !b || this.day - m.day < 4) continue;
+        const ha = this.household(a), hb = this.household(b), headA = ha && this.byId.get(ha.members[0]), headB = hb && this.byId.get(hb.members[0]);
+        if (headA && headB && headA !== a && headB !== b && (aff(headA, headB) < -0.15 || aff(headA, b) < -0.2) && this.rng.chance(0.2)) {
+          this.romances = this.romances.filter((z) => z !== m); this.wed(a, b);
+          this.log(`${a.first} and ${b.first} ran off together in the night and were married at the priory without their families' blessing.`, 'social');
+          for (const h of [headA, headB]) this.remember(h, `${a.first} and ${b.first} eloped. A disgrace.`, 'social', 2);
+        }
+      }
+      return r;
+    };
+    // the jilted
+    const _wed = SP.wed;
+    SP.wed = function (a, b) {
+      const r = _wed.apply(this, arguments);
+      for (const v of this.rivals || []) {
+        if (v.x !== a.id && v.x !== b.id) continue; const other = v.x === a.id ? b : a, loser = [this.byId.get(v.loser), this.byId.get(v.winner)].find((z) => z && z !== other && z.id !== v.x);
+        if (!loser) continue; loser.jilted = { day: this.day, by: v.x }; this.relate(loser, other, -0.25);
+        this.remember(loser, `${(this.byId.get(v.x) || {}).first || 'They'} chose ${other.first} over me. My heart is broken.`, 'social', 2.5, other.id);
+        this.log(`${loser.first} is heartbroken: ${(this.byId.get(v.x) || {}).first} has married ${other.first}.`, 'social');
+      }
+      this.romances = (this.romances || []).filter((m) => m.a !== a.id && m.b !== a.id && m.a !== b.id && m.b !== b.id);
+      return r;
+    };
+    // they meet of an evening
+    const _plan = SP.plan;
+    SP.plan = function (p) {
+      const a = _plan.call(this, p); const h = this.hour;
+      if (a && h >= 18 && h < 20.5 && !this.raining && ['home', 'stroll', 'idle', 'socialise'].includes(a.act) && (this.romances || []).some((m) => (m.a === p.id || m.b === p.id) && (this.day + m.a) % 2 === 0)) return { act: 'stroll', outdoor: true, zone: 'square', courting: true };
+      return a;
+    };
+    let ht = 0;
+    game.hooks.update.push((dt) => {
+      ht -= dt; if (ht > 0 || game.scene) return; ht = 2.5; const s = cur(); if (!s) return; const P = game.player, now = performance.now();
+      const near = (q, r = 320) => q && !q.agent.hidden && q.agent.inside == null && Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < r;
+      for (const m of s.romances || []) {
+        const a = s.byId.get(m.a), b = s.byId.get(m.b); if (!near(a) || !near(b) || Math.hypot(a.agent.x - b.agent.x, a.agent.y - b.agent.y) > 40 || (a.agent.gest && a.agent.gest.until > now)) continue;
+        if (Math.random() < 0.5) { const [x, y] = Math.random() < 0.5 ? [a, b] : [b, a]; O.gesture(x, pick(['laugh', 'talk', 'place', 'bow']), 2); O.gesture(y, pick(['laugh', 'nod', 'curtsy']), 2); sp(x, pick(['You look well tonight.', 'I picked these for you.', 'Walk with me a while?', 'My mother asks after you.', 'Ha! You never did!'])); }
+      }
+      for (const v of s.rivals || []) {
+        const w = s.byId.get(v.winner), l = s.byId.get(v.loser); if (!near(w) || !near(l) || Math.hypot(w.agent.x - l.agent.x, w.agent.y - l.agent.y) > 60 || Math.random() > 0.3) continue;
+        O.gesture(l, 'point', 1.6); sp(l, pick([`Keep away from ${(s.byId.get(v.x) || {}).first}.`, 'You think you\'re good enough?', 'Watch yourself.'])); O.gesture(w, 'shrug', 1.6);
+      }
+      for (const q of s.people) if (q.jilted && s.day - q.jilted.day < 6 && near(q, 260) && Math.random() < 0.08 && !(q.agent.gest && q.agent.gest.until > now)) { O.gesture(q, 'mourn', 2.5); sp(q, pick(['*sigh*', 'What did I do wrong...', '(stares at nothing)'])); }
+    });
+    (O.extraLines = O.extraLines || []).push((s, q) => {
+      const out = []; const m = (s.romances || []).find((z) => z.a === q.id || z.b === q.id); if (m) { const o = s.byId.get(m.a === q.id ? m.b : m.a); if (o) out.push(`You are courting ${o.name}, and it is the talk of the town.`); }
+      const v = (s.rivals || []).find((z) => z.loser === q.id || z.winner === q.id); if (v) { const o = s.byId.get(v.loser === q.id ? v.winner : v.loser), x = s.byId.get(v.x); if (o && x) out.push(`You and ${o.name} are rivals for ${x.first}'s heart.`); }
+      if (q.jilted && s.day - q.jilted.day < 20) out.push(`You were jilted lately and are heartbroken.`);
+      return out.join(' ');
+    });
+
+    // ---------------------------------------------------------------- the hunt
+    const huntDay = (s) => (s.season === 'autumn' || s.season === 'winter') && s.weekday === 4 && s.hour >= 8 && s.hour < 12 && !s.raining;
+    const _plan2 = SP.plan;
+    SP.plan = function (p) {
+      const a = _plan2.call(this, p);
+      if (huntDay(this) && a && !a.b?.toString().startsWith('x') && ((p.gentry && p.age >= 16 && p.age < 60) || ['gamekeeper', 'forester', 'falconer', 'groom', 'kennelman', 'huntsman'].includes(p.job?.role))) return { act: 'stroll', outdoor: true, zone: 'wood', hunt: true };
+      return a;
+    };
+    let hu = 0, joined = null;
+    game.hooks.update.push((dt) => {
+      hu -= dt; if (hu > 0 || game.scene) return; hu = 3; const s = cur(); if (!s || !huntDay(s)) { joined = null; return; }
+      const P = game.player, party = s.people.filter((q) => q.activity?.hunt && !q.agent.hidden && Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < 300);
+      for (const q of party) if (Math.random() < 0.3) { O.gesture(q, q.gentry ? 'point' : 'sweep', 1.8); sp(q, q.gentry ? pick(['Tantivy! Tantivy!', 'Hallo! There he goes!', 'Loose the hounds!']) : pick(['Hey-up! Hey-up!', 'Hoo! Hoo!', '(beats the bracken)'])); }
+      if (joined && s.day === joined.day && performance.now() - joined.at > 60000) {
+        const got = Math.random() < 0.55; joined = { day: s.day, at: Infinity };
+        if (got) { s.drop('venison', 1, P.x + 10, P.y); PS.money += joined.pay || 0; for (const q of party) if (q.gentry) s.relate(q, { id: 0 }, 0.04); say(`The hart is brought down. ${PS.title ? 'You are given a share of the venison.' : 'You get your beater\'s pay and a haunch for your trouble.'}`); if (!PS.title) PS.money += 3; }
+        else { if (!PS.title) PS.money += 3; say('The hounds lose the scent at the river. The hunt goes home empty-handed.'); }
+      }
+    });
+    (O.moreCandidates = O.moreCandidates || []).push(() => {
+      const s = cur(), P = game.player; if (!s || game.scene || !huntDay(s) || (joined && joined.day === s.day)) return null;
+      const q = s.people.find((z) => z.activity?.hunt && (z.gentry || /gamekeeper|forester|huntsman/.test(z.job?.role || '')) && !z.agent.hidden && Math.hypot(z.agent.x - P.x, z.agent.y - P.y) < 60); if (!q) return null;
+      return { type: 'custom', d: 12, x: q.agent.x, y: q.agent.y - 50, label: PS.title || (O.crowned && O.crowned()) ? 'Ride with the hunt' : 'Beat for the hunt (₳3)', act: () => {
+        joined = { day: s.day, at: performance.now() }; O.gesture(q, 'wave', 1.5); sp(q, PS.title ? 'Well met! Ride with us.' : 'Get in with the beaters, then. Drive them towards us.');
+        game.player.anim = PS.title ? 'point' : 'sweep'; setTimeout(() => { game.player.anim = 'idle'; }, 2000);
+        say(PS.title ? 'You fall in with the gentry. Keep near: the hounds have a scent.' : 'You take a stick and go in among the beaters, driving the deer out of the covert. Keep near the hunt.');
+      } };
+    });
+    (O.extraLines = O.extraLines || []).push((s, q) => q.activity?.hunt ? (q.gentry ? 'You are out hunting the hart with hounds today, in high spirits.' : 'You are beating for the gentry\'s hunt today.') : '');
+
+    // ---------------------------------------------------------------- swimming
+    let swimming = false, wet = false;
+    const isWater = (w, x, y) => { const tx = Math.floor(x / T), ty = Math.floor(y / T); return w.ter[ty * w.W + tx] === w.TER.WATER; };
+    const warm = (s) => s.season === 'summer' || (s.season === 'spring' && s.weather.kind === 'heat') || s.weather.kind === 'heat';
+    const _blocked = game.blocked.bind(game);
+    game.blocked = (x, y) => { if (!swimming || game.scene) return _blocked(x, y); const w = game.world, hard = (px, py) => game.solidAt(px, py) && !isWater(w, px, py); return hard(x - 4, y - 3) || hard(x + 3, y - 3) || hard(x - 4, y) || hard(x + 3, y); };
+    O.moreCandidates.push(() => {
+      const s = cur(), w = game.world, P = game.player; if (!s || game.scene || !w.ter || swimming || P.mount || (O.rowing && O.rowing())) return null;
+      if (!warm(s) || s.hour < 8 || s.hour > 20) return null;
+      const tx = Math.floor(P.x / T), ty = Math.floor(P.y / T); if (![[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => w.ter[(ty + dy) * w.W + tx + dx] === w.TER.WATER)) return null;
+      return { type: 'custom', d: 24, x: P.x, y: P.y - 44, label: 'Go for a swim', act: () => { swimming = true; wet = false; say('You strip to your shirt and wade in. It takes your breath, then it\'s glorious.'); } };
+    });
+    game.hooks.update.push(() => {
+      if (!swimming) return; const w = game.world, P = game.player; if (game.scene) { swimming = false; return; }
+      if (isWater(w, P.x, P.y - 2)) wet = true;
+      if (!isWater(w, P.x, P.y - 2)) { if (wet && !isWater(w, P.x, P.y + 6)) { wet = false; swimming = false; PS.grime = Math.min(PS.grime || 0, 0.05); PS.mood = Math.min(100, (PS.mood || 50) + 4); say('You climb out on the bank, dripping and clean.'); } return; }
+      P.speedMul = 0.6; PS.energy = Math.max(0, PS.energy - 0.003);
+    });
+    game.hooks.drawWorld.push((ctx, cam) => {
+      if (game.scene) return; const w = game.world, t = performance.now() / 1000;
+      if (swimming && isWater(w, game.player.x, game.player.y - 2)) { const P = game.player, x = Math.round(P.x - cam.x), y = Math.round(P.y - cam.y); ctx.fillStyle = 'rgba(46,92,140,0.92)'; ctx.fillRect(x - 9, y - 15, 18, 17); ctx.fillStyle = 'rgba(200,225,245,0.8)'; const k = Math.floor(t * 4) % 2; ctx.fillRect(x - 8 + k, y - 16, 6, 1); ctx.fillRect(x + 2 - k, y - 16, 6, 1); }
+      // the young in the water on a hot day
+      const s = cur(); if (!s || !warm(s) || s.hour < 11 || s.hour > 18 || s.raining) return;
+      if (!swimmers.length || swimmers.world !== w) placeSwimmers(s, w);
+      for (const z of swimmers) { const bob = Math.sin(t * 3 + z.p) * 1.5, x = Math.round(z.x + Math.sin(t * 0.5 + z.p) * 10 - cam.x), y = Math.round(z.y + bob - cam.y); if (x < -10 || y < -10 || x > game.vw + 10 || y > game.vh + 10) continue; ctx.fillStyle = 'rgba(200,225,245,0.7)'; ctx.fillRect(x - 5, y + 3, 10, 1); ctx.fillStyle = z.skin; ctx.fillRect(x - 2, y - 3, 5, 5); ctx.fillStyle = z.hair; ctx.fillRect(x - 2, y - 4, 5, 2); ctx.fillStyle = '#1a1410'; ctx.fillRect(x - 1, y - 1, 1, 1); ctx.fillRect(x + 1, y - 1, 1, 1); }
+    });
+    let swimmers = [];
+    function placeSwimmers(s, w) {
+      swimmers = []; swimmers.world = w; const kids = s.people.filter((q) => q.age >= 8 && q.age < 20 && q.app).slice(0, 12); if (!w.ter) return;
+      const ox = w.ox || 0, oy = w.oy || 0; let n = 0;
+      for (let k = 0; k < 400 && n < 3; k++) { const tx = ox - 10 + Math.floor(Math.random() * ((w.townW || 60) + 20)), ty = oy - 10 + Math.floor(Math.random() * ((w.townH || 40) + 20)); if (tx < 1 || ty < 1 || tx >= w.W - 1 || ty >= w.H - 1 || w.ter[ty * w.W + tx] !== w.TER.WATER || w.ter[ty * w.W + tx + 1] !== w.TER.WATER) continue; const q = kids[n % Math.max(1, kids.length)]; swimmers.push({ x: tx * T + 8, y: ty * T + 8, p: Math.random() * 6, skin: ['#e8c0a0', '#d8a880', '#b07850', '#7a4a2c'][n % 4], hair: ['#5a3a20', '#2a1c14', '#c89048', '#8a3a20'][(n + (q ? q.id : 0)) % 4], name: q && q.first }); n++; }
+    }
+    let sw = 0;
+    game.hooks.update.push((dt) => { sw -= dt; if (sw > 0) return; sw = 15; const P = game.player; const z = swimmers.find((q) => Math.hypot(q.x - P.x, q.y - P.y) < 200); if (z && Math.random() < 0.5) O.Speech && O.Speech.say({ x: z.x, y: z.y - 10 }, pick(['Come on in!', 'It\'s not even cold!', 'Bet you can\'t swim across!', '*splash*']), 2.4); });
+  }
+  O.HeartsSetup = { setup };
 })();
 
 </script>
@@ -29786,7 +30038,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.RisingSetup.setup(game, npcUI);
   O.RitesSetup.setup(game);
   O.WarfareSetup.setup(game, npcUI);
-  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.NpcActsSetup.setup(game); O.InitiateSetup.setup(game); O.UnderworldSetup.setup(game); O.CourtshipSetup.setup(game); O.FencesSetup.setup(game); O.FamilySetup.setup(game); O.PetsSetup.setup(game); O.FavoursSetup.setup(game); O.MarketSetup.setup(game); O.GrudgesSetup.setup(game); O.RitualsSetup.setup(game); O.TodoSetup.setup(game); O.DealingsSetup.setup(game); O.CounterSetup.setup(game); O.ResourcesSetup.setup(game); O.GangBasesSetup.setup(game); O.GatheringsSetup.setup(game); O.WildSetup.setup(game); O.SongsSetup.setup(game); O.PoliticsSetup.setup(game); O.ChurchSetup.setup(game); O.SeaSetup.setup(game); O.LegacySetup.setup(game); O.WorldLifeSetup.setup(game); O.TrainingSetup.setup(game); O.ExtrasSetup.setup(game); O.GatheringSetup.setup(game); O.StreetLifeSetup.setup(game); O.OutdoorsSetup.setup(game); O.SkyFxSetup.setup(game); O.HygieneSetup.setup(game); O.HearthLifeSetup.setup(game); O.FarmYearSetup.setup(game); O.HouseBuildSetup.setup(game); O.RoadTradeSetup.setup(game); O.PolishSetup.setup(game);
+  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.NpcActsSetup.setup(game); O.InitiateSetup.setup(game); O.UnderworldSetup.setup(game); O.CourtshipSetup.setup(game); O.FencesSetup.setup(game); O.FamilySetup.setup(game); O.PetsSetup.setup(game); O.FavoursSetup.setup(game); O.MarketSetup.setup(game); O.GrudgesSetup.setup(game); O.RitualsSetup.setup(game); O.TodoSetup.setup(game); O.DealingsSetup.setup(game); O.CounterSetup.setup(game); O.ResourcesSetup.setup(game); O.GangBasesSetup.setup(game); O.GatheringsSetup.setup(game); O.WildSetup.setup(game); O.SongsSetup.setup(game); O.PoliticsSetup.setup(game); O.ChurchSetup.setup(game); O.SeaSetup.setup(game); O.LegacySetup.setup(game); O.WorldLifeSetup.setup(game); O.TrainingSetup.setup(game); O.ExtrasSetup.setup(game); O.GatheringSetup.setup(game); O.StreetLifeSetup.setup(game); O.OutdoorsSetup.setup(game); O.SkyFxSetup.setup(game); O.HygieneSetup.setup(game); O.HearthLifeSetup.setup(game); O.FarmYearSetup.setup(game); O.HouseBuildSetup.setup(game); O.RoadTradeSetup.setup(game); O.SicknessSetup.setup(game); O.HeartsSetup.setup(game); O.PolishSetup.setup(game);
   O.FinerySetup.setup(game);
   O.PastimesSetup.setup(game);
   O.FishingSetup.setup(game);

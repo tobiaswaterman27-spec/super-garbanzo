@@ -476,3 +476,4 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Barber chair and hair menu, no coin no sale, job start times by talk, hand-over animation and sounds, speech matches activity, side beds (row 140)
 - [ ] Guards: hue and cry, cut-offs, flanking, search, gates (next)
 - [ ] At least 7 physical tasks per role with NPCs doing them and moving about indoors (next)
+- [x] Nobody lies in the road without cause: stray poses corrected; the collapsed groan, get help within the hour, and you can help them up (row 140)

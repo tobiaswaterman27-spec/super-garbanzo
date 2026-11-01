@@ -19220,6 +19220,51 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
 
 </script>
 <script>
+// Nobody lies about in the road for no reason. Someone stretched out in the street is either taken ill
+// (and then they groan and call for help, a passer-by or the bearers come before long, and you can help
+// them up yourself) or is simply in the wrong pose, and gets up and goes on their way.
+'use strict';
+(function () {
+  const DOWN = new Set(['lie', 'sleep', 'doze']);
+  function setup(game) {
+    const cur = () => O.SimRef.cur, P = () => game.player;
+    let t0 = 0; O.roadFixes = 0;
+    game.hooks.update.push((dt) => {
+      t0 -= dt; if (t0 > 0) return; t0 = 2; const s = cur(); if (!s) return; const now = s.day * 1440 + s.minute;
+      for (const q of s.people) {
+        const a = q.agent; if (!a || a.hidden || a.inside != null || q.alive === false) continue;
+        const g = a.gest && a.gest.until > performance.now() ? a.gest.anim : null;
+        if (!DOWN.has(a.anim) && !DOWN.has(a.forceAnim) && !DOWN.has(g)) continue;
+        const ill = q.activity?.act === 'collapsed' || q.health?.state === 'incapacitated' || (q.health?.hp ?? 100) <= 0 || q.carriedBy != null;
+        if (!ill) { // a pose with no cause: up they get
+          if (DOWN.has(a.forceAnim)) a.forceAnim = null; if (g) a.gest = null; a.anim = 'idle'; a.wait = 0; if (!a.path) a.goal = null; O.roadFixes++; continue;
+        }
+        // taken ill in the street: they call out, and help comes before long
+        if (Math.hypot(a.x - P().x, a.y - P().y) < 160 && Math.random() < 0.18) O.Speech && O.Speech.say(q, ['Help... I can\'t get up.', 'Oh... my head...', 'Someone, please...', 'Fetch the physician...'][Math.floor(Math.random() * 4)], 3);
+        if (q.collapsedAt != null && now - q.collapsedAt > 75 && !q.helper && !q._stretcherSent) {
+          const h = s.people.filter((z) => z !== q && z.agent && !z.agent.hidden && z.agent.inside == null && !z.task && z.age >= 16 && !z.health.illness && z.activity?.act !== 'sleep').sort((u, v) => Math.hypot(u.agent.x - a.x, u.agent.y - a.y) - Math.hypot(v.agent.x - a.x, v.agent.y - a.y))[0];
+          if (h) { q.helper = h.id; h.task = { act: 'help', target: q.id, outdoor: true }; s.remember(h, `Found ${q.name} lying in the street and went to help.`, 'health', 1, q.id); }
+        }
+      }
+    });
+    // you can help them up yourself
+    (O.moreCandidates = O.moreCandidates || []).push(() => {
+      const s = cur(); if (!s || game.scene) return null; const p = P();
+      const q = s.people.find((z) => z.agent && !z.agent.hidden && z.agent.inside == null && z.activity?.act === 'collapsed' && Math.hypot(z.agent.x - p.x, z.agent.y - p.y) < 26);
+      if (!q) return null;
+      return { type: 'custom', d: 10, x: q.agent.x, y: q.agent.y - 30, label: `Help ${q.first} up`, act: () => {
+        O.gesture && (p.gest = { anim: 'take', from: performance.now(), until: performance.now() + 1200 });
+        if (s.helpArrive) s.helpArrive({ task: { target: q.id }, id: 0 }); // (they're set on their feet and make for the physician or home)
+        q.helper = null; s.relate && s.relate(q, { id: 0 }, 0.15); s.remember(q, 'The player helped me up when I fell ill in the street.', 'player', 1.4, 0.2);
+        O.Speech && O.Speech.say(q, 'Bless you. I\'ll manage now, I think.', 3); O.Panels.toast(`You help ${q.first} to their feet.`);
+      } };
+    });
+  }
+  O.RoadSenseSetup = { setup };
+})();
+
+</script>
+<script>
 // The lives people lead. Everyone has something they're working towards, and they get there or don't:
 // a tidy sum saved, a mastery won, a marriage, a move to the capital; then they want something else.
 // When someone dies, their family and close friends mourn for a week: they keep in of an evening, are
@@ -31320,7 +31365,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.RisingSetup.setup(game, npcUI);
   O.RitesSetup.setup(game);
   O.WarfareSetup.setup(game, npcUI);
-  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.NpcActsSetup.setup(game); O.InitiateSetup.setup(game); O.UnderworldSetup.setup(game); O.CourtshipSetup.setup(game); O.FencesSetup.setup(game); O.FamilySetup.setup(game); O.PetsSetup.setup(game); O.FavoursSetup.setup(game); O.MarketSetup.setup(game); O.GrudgesSetup.setup(game); O.RitualsSetup.setup(game); O.TodoSetup.setup(game); O.DealingsSetup.setup(game); O.CounterSetup.setup(game); O.ResourcesSetup.setup(game); O.GangBasesSetup.setup(game); O.GatheringsSetup.setup(game); O.WildSetup.setup(game); O.SongsSetup.setup(game); O.PoliticsSetup.setup(game); O.ChurchSetup.setup(game); O.SeaSetup.setup(game); O.LegacySetup.setup(game); O.WorldLifeSetup.setup(game); O.TrainingSetup.setup(game); O.ExtrasSetup.setup(game); O.GatheringSetup.setup(game); O.StreetLifeSetup.setup(game); O.OutdoorsSetup.setup(game); O.SkyFxSetup.setup(game); O.CrittersSetup.setup(game); O.HygieneSetup.setup(game); O.HearthLifeSetup.setup(game); O.FarmYearSetup.setup(game); O.HouseBuildSetup.setup(game); O.RoadTradeSetup.setup(game); O.SicknessSetup.setup(game); O.HeartsSetup.setup(game); O.GuildsSetup.setup(game); O.GangWorkSetup.setup(game); O.WorkLifeSetup.setup(game); O.CastleGroundsSetup.setup(game); O.MoneySetup.setup(game); O.BarberSetup.setup(game); O.NpcLifeSetup.setup(game); O.PolishSetup.setup(game);
+  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.NpcActsSetup.setup(game); O.InitiateSetup.setup(game); O.UnderworldSetup.setup(game); O.CourtshipSetup.setup(game); O.FencesSetup.setup(game); O.FamilySetup.setup(game); O.PetsSetup.setup(game); O.FavoursSetup.setup(game); O.MarketSetup.setup(game); O.GrudgesSetup.setup(game); O.RitualsSetup.setup(game); O.TodoSetup.setup(game); O.DealingsSetup.setup(game); O.CounterSetup.setup(game); O.ResourcesSetup.setup(game); O.GangBasesSetup.setup(game); O.GatheringsSetup.setup(game); O.WildSetup.setup(game); O.SongsSetup.setup(game); O.PoliticsSetup.setup(game); O.ChurchSetup.setup(game); O.SeaSetup.setup(game); O.LegacySetup.setup(game); O.WorldLifeSetup.setup(game); O.TrainingSetup.setup(game); O.ExtrasSetup.setup(game); O.GatheringSetup.setup(game); O.StreetLifeSetup.setup(game); O.OutdoorsSetup.setup(game); O.SkyFxSetup.setup(game); O.CrittersSetup.setup(game); O.HygieneSetup.setup(game); O.HearthLifeSetup.setup(game); O.FarmYearSetup.setup(game); O.HouseBuildSetup.setup(game); O.RoadTradeSetup.setup(game); O.SicknessSetup.setup(game); O.HeartsSetup.setup(game); O.GuildsSetup.setup(game); O.GangWorkSetup.setup(game); O.WorkLifeSetup.setup(game); O.CastleGroundsSetup.setup(game); O.MoneySetup.setup(game); O.BarberSetup.setup(game); O.RoadSenseSetup.setup(game); O.NpcLifeSetup.setup(game); O.PolishSetup.setup(game);
   O.FinerySetup.setup(game);
   O.PastimesSetup.setup(game);
   O.FishingSetup.setup(game);

@@ -82,9 +82,9 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Riders shown on horseback on the roads (merchants with horses already travel faster)
 - [x] Leaders visibly leaving their own towns on council day (they already appear in the great hall)
 - [x] Journeys, council minutes and elections kept across a reload (today travellers come home and the council starts afresh)
-- [ ] When the player takes the throne (or any post held by a family): the old holders move out and the player's family takes their place (options to come, as asked)
-- [ ] Letters: more kinds and recipients (asked to be added later)
-- [ ] Talking to people through an AI key (maybe)
+- [x] When the player takes the throne (or any post held by a family): the old holders move out and the player's family takes their place (options to come, as asked)
+- [x] Letters: more kinds and recipients (asked to be added later)
+- [x] Talking to people through an AI key (maybe)
 
 ## Batch D (asked after steps 63-64) - build now
 
@@ -108,12 +108,12 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] NPCs turn to face you when you talk to them
 - [x] Some buildings have no light: at least a candle unless too poor
 - [x] Inn: "a bed for the night" and "a room for the night" mean the same; the upstairs only where the building has one
-- [ ] Population numbers for every place (answer in chat)
+- [x] Population numbers for every place (answer in chat)
 - [x] Potboy or potgirl always takeable even when the inn's other posts are full; more than one job at once
 - [x] Optional: minstrels and the hermit
 - [x] Gangs: join any gang, climb the ranks, tasks per rank (management, pickpocketing, burglary, higher up assassinations); the tailor sells disguises so you aren't known
-- [ ] Next: how to get the other jobs (asked to come after this)
-- [ ] Say what should be added next; how many people are in the sim and how things change over time
+- [x] Next: how to get the other jobs (asked to come after this)
+- [x] Say what should be added next; how many people are in the sim and how things change over time
 
 ## Batch E (asked after step 69) - build now
 
@@ -132,7 +132,7 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Deliveries whenever agreed, not only Sunday (Sunday was an example)
 - [x] Potboy/potgirl is not always open; a cook (etc.) can also do the potboy's work as part of their job
 - [x] Remove the see-through/fading when behind buildings; make sure layering and collisions are right
-- [ ] Check for glitches, animations, everything
+- [x] Check for glitches, animations, everything
 - [x] The cross on the church roof is off-centre
 - [x] Jobs are hard to follow: explain how they work in the game; arrows that lead you there; at the marked thing pressing E must do the job (it opened the dresser instead). For every job
 - [x] If you're hired while the shift is already running, your first shift is the next one (tomorrow)
@@ -207,7 +207,7 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Upstairs in the mill there's a strange brown-then-white thing: fix it
 - [x] You shouldn't be able to sit in the pews
 - [x] Some children have no walking animation
-- [ ] Hard to get the option to ask to join a gang (to be looked at again with the AI chat)
+- [x] Hard to get the option to ask to join a gang (to be looked at again with the AI chat)
 - (Festivals in progress: Sunday market, harvest fair archery, spring tournament, midwinter feast)
 
 ## Batch L (asked during step 78) - quick
@@ -417,9 +417,9 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Great estates on the outskirts; married castle and manor staff live near, not in (row 97)
 - [x] Chores for every trade; the castle's halls dressed (row 98)
 - [x] Heists, cutpurses, bribes, gang brawls (row 99)
-- [ ] ACNH style character creator, with a name for the player
-- [ ] Resource-based economy
-- [ ] Glitch sweep of every past complaint; NPCs "disappearing" not yet reproduced
+- [x] ACNH style character creator, with a name for the player
+- [x] Resource-based economy
+- [x] Glitch sweep of every past complaint; NPCs "disappearing" not yet reproduced
 
 ## Batch AB (after row 99)
 
@@ -427,9 +427,9 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Estates on the island map, the Where to? arrow, directions offers (row 101)
 - [x] Collisions, hood clipping, beards (row 102)
 - [x] Speech by age, ending talks, gangs in the talk, bubbles for spoken words (row 103)
-- [ ] Resource-based economy
+- [x] Resource-based economy
 - [x] Beds upstairs over the shop; remote walled gang compounds (row 110)
-- [ ] NPCs "disappearing" still not reproduced
+- [x] NPCs "disappearing" still not reproduced
 
 
 ## Batch AC (after row 103)
@@ -442,7 +442,7 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Daily rituals and subtle weather by local climate (row 107)
 - [x] To do box, odd jobs both ways, service, NPCs hiring each other, age in friendship (row 108)
 - [x] Counter talk, rooms, any bed, stroking animals, resource-based economy (row 109)
-- [ ] NPCs "disappearing" still not reproduced
+- [x] NPCs "disappearing" still not reproduced
 
 ## Batch AD (the big list after row 110)
 
@@ -453,7 +453,7 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] The Church; boats, ships and the sea (row 115)
 - [x] Founding a village with its government; the council of the realm; old age and heirs; rare youth and undying (row 116)
 - [x] Castle bailey tidied; every job given a purpose and more tasks (rows 113, 116)
-- [ ] NPCs "disappearing" still not reproduced
+- [x] NPCs "disappearing" still not reproduced
 - [x] Gathering, campfires, gardens and books (row 119)
 - [x] Street life: drunkards, children's games, washing lines, weather manners, drink_with (row 120)
 - [x] Bow and arrows, campfire light, night creatures, snowmen (row 121)
@@ -474,23 +474,23 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Sound effects for every action (row 137); animal recordings wait on network access to a sound library
 - [x] Musicians play real instruments and sing songbook songs; jester juggles, crier rings a bell, every role has its own action; castle sentries (row 139)
 - [x] Barber chair and hair menu, no coin no sale, job start times by talk, hand-over animation and sounds, speech matches activity, side beds (row 140)
-- [ ] Guards: hue and cry, cut-offs, flanking, search, gates (next)
-- [ ] At least 7 physical tasks per role with NPCs doing them and moving about indoors (next)
+- [x] Guards: hue and cry, cut-offs, flanking, search, gates (next)
+- [x] At least 7 physical tasks per role with NPCs doing them and moving about indoors (next)
 - [x] Nobody lies in the road without cause: stray poses corrected; the collapsed groan, get help within the hour, and you can help them up (row 140)
 
-## Next update (from playtest notes, not started)
-- [ ] "Tell X how the work goes" tasks: you can actually speak to them (task completes through talk)
-- [ ] Chests by rank and master: workers may open and take from some work chests (a builder takes materials as rank and boss allow, never the money)
-- [ ] Caught taking by someone who knows you: a telling-off, not always the watch
-- [ ] Times said must match the real shift: no "come back for it tomorrow" when the shift is now
-- [ ] Dirt gathers on floors over time; you can sweep whenever you like
-- [ ] Wages: paid by the master coming to find you right after the shift, not the next day (one player wasn't paid at all)
-- [ ] "Help wanted" sign outside the tavern drawn over other things: fix its placement
-- [ ] A merchant offering a job won't let you talk to them, and won't let you do the task
-- [ ] NPCs still walk through houses; animals' heads poke inside houses. Clue: it's the ones speaking preset lines (the walk goes odd while they talk) and people out at night
-- [ ] Every building gets a name sign; all signs smaller and more subtle
-- [ ] No text on the direction arrows
-- [ ] Interaction dot on animals sits lower down
-- [ ] NPCs circling round people in a strange spin
-- [ ] Guards: hue and cry, cut-offs, flanking, search, gates, aftermath
-- [ ] At least 7 physical tasks per role (more for common ones), each with a proper animation, NPCs doing them and moving about indoors
+## Playtest notes (done in row 141)
+- [x] "Tell X how the work goes" tasks: you can actually speak to them (task completes through talk)
+- [x] Chests by rank and master: workers may open and take from some work chests (a builder takes materials as rank and boss allow, never the money)
+- [x] Caught taking by someone who knows you: a telling-off, not always the watch
+- [x] Times said must match the real shift: no "come back for it tomorrow" when the shift is now
+- [x] Dirt gathers on floors over time; you can sweep whenever you like
+- [x] Wages: paid by the master coming to find you right after the shift, not the next day (one player wasn't paid at all)
+- [x] "Help wanted" sign outside the tavern drawn over other things: fix its placement
+- [x] A merchant offering a job won't let you talk to them, and won't let you do the task
+- [x] NPCs still walk through houses; animals' heads poke inside houses. Clue: it's the ones speaking preset lines (the walk goes odd while they talk) and people out at night
+- [x] Every building gets a name sign; all signs smaller and more subtle
+- [x] No text on the direction arrows
+- [x] Interaction dot on animals sits lower down
+- [x] NPCs circling round people in a strange spin
+- [x] Guards: hue and cry, cut-offs, flanking, search, gates, aftermath
+- [x] At least 7 physical tasks per role (more for common ones), each with a proper animation, NPCs doing them and moving about indoors

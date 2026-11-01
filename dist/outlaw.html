@@ -19512,6 +19512,118 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
 
 </script>
 <script>
+// The hue and cry. When the watch gives chase it isn't one man puffing after you: the nearest guards
+// take it up. One runs you down, others read where you're heading and cut across to meet you there,
+// one makes for the way out of town and holds it, and when two or three are near they spread and close
+// in from different sides. Lose them and they go to where you were last seen, cast about, and ask the
+// people standing there; your friends may point the wrong way. Keep still behind the hay or a stack of
+// barrels and they may pass you by. Get away, and for a day or two the watch have sharper eyes.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const PS = O.PlayerState, cur = () => O.SimRef.cur;
+    const isWatch = (q) => /^guard|sergeant|watch|constable/.test(q.job?.role || '') && !q.agent.hidden && q.alive !== false && q.activity?.act !== 'sleep' && !q.health?.illness && !q.isPlayer;
+    let sq = null; // { members: [{ q, role, path, pi, re }], seen: {x,y,t}, vel, mode, lostT, searchT, asked }
+    const say = (q, t) => O.Speech && O.Speech.say(q, t, 3, 'angry');
+    function begin(lead) {
+      const s = cur(), P = game.player;
+      const others = s.people.filter((q) => q !== lead && isWatch(q) && q.agent.inside == null && Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < 720).sort((a, b) => Math.hypot(a.agent.x - P.x, a.agent.y - P.y) - Math.hypot(b.agent.x - P.x, b.agent.y - P.y)).slice(0, 5);
+      const roles = ['cut', 'cut', 'hold', 'chase', 'cut'];
+      sq = { members: others.map((q, i) => ({ q, role: roles[i], path: null, pi: 0, re: 0 })), seen: { x: P.x, y: P.y, t: 0 }, vel: [0, 0], last: [P.x, P.y], mode: 'chase', lostT: 0, searchT: 0, asked: 0, t: 0 };
+      for (const m of sq.members) { m.q.agent.chasing = true; m.q.agent.path = null; }
+      O.sfx && O.sfx('horn', 1, false);
+      setTimeout(() => { for (const m of sq ? sq.members.slice(0, 2) : []) say(m.q, m.role === 'hold' ? 'I\'ll hold the road!' : ['Cut them off!', 'This way! Head them off!', 'Round the back, quick!'][m.q.id % 3]); }, 600);
+    }
+    function release(escaped) {
+      if (!sq) return; for (const m of sq.members) { const a = m.q.agent; a.chasing = false; a.path = null; a.goal = null; a.anim = 'idle'; }
+      if (escaped) { const s = cur(); PS.alert = { place: s.world.placeId, until: s.day + 2 }; s.log('The watch lost the stranger in the lanes. They are on the alert.', 'crime'); }
+      sq = null;
+    }
+    // can the watch see you? (keeping still beside cover, only from close by)
+    function visible() {
+      const s = cur(), P = game.player; if (game.scene) return false;
+      const hidden = !P.moving && s.world.props.some((pr) => /hay|haycock|stook|barrel|crate|woodpile|cart|bush/.test(pr.kind) && Math.hypot(pr.x - P.x, pr.y - P.y) < 18);
+      const reach = hidden ? 46 : 210, lead = O.Law.lead();
+      return [lead, ...sq.members.map((m) => m.q)].some((q) => q && !q.agent.hidden && Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < reach);
+    }
+    // a walkable tile near a point
+    function ground(s, x, y) {
+      const w = s.world; let tx = Math.floor(x / T), ty = Math.floor(y / T);
+      for (let r = 0; r < 6; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) { const X = tx + dx, Y = ty + dy; if (X < 1 || Y < 1 || X >= w.W - 1 || Y >= w.H - 1) continue; const i = Y * w.W + X; if (!w.solid[i] && (!w.ter || w.ter[i] !== w.TER.WATER)) return [X, Y]; }
+      return [tx, ty];
+    }
+    function step(m, tx, ty, speed, dt) {
+      const s = cur(), a = m.q.agent; m.re -= dt;
+      if (m.re <= 0 || !m.path || m.goal !== tx + ',' + ty) { m.re = 0.6; m.goal = tx + ',' + ty; const [gx, gy] = ground(s, tx, ty); m.path = s.path.find(Math.floor(a.x / T), Math.floor((a.y - 1) / T), gx, gy) || []; m.pi = 0; m.end = [gx * T + 8, gy * T + 10]; }
+      let budget = speed * dt, moved = false;
+      while (budget > 0) {
+        let px, py; if (m.pi < m.path.length) { [px, py] = m.path[m.pi]; px = px * T + 8; py = py * T + 10; } else if (m.end) { [px, py] = m.end; } else break;
+        const dx = px - a.x, dy = py - a.y, d = Math.hypot(dx, dy);
+        if (d <= budget) { a.x = px; a.y = py; budget -= d; moved = true; if (m.pi < m.path.length) m.pi++; else { m.end = null; break; } }
+        else { a.x += (dx / d) * budget; a.y += (dy / d) * budget; budget = 0; moved = true; }
+        if (d > 0.01) a.dir = O.dirOf(dx, dy);
+      }
+      a.anim = moved ? 'run' : 'look';
+    }
+    // the way out of town in the direction you're running: a road tile at the town's edge
+    function exitAhead(s, P, vel) {
+      const w = s.world, sp = Math.hypot(vel[0], vel[1]) || 1, ux = vel[0] / sp, uy = vel[1] / sp;
+      for (let k = 10; k < 40; k += 2) { const x = P.x + ux * k * T, y = P.y + uy * k * T, tx = Math.floor(x / T), ty = Math.floor(y / T), i = ty * w.W + tx; if (w.ter && (w.ter[i] === w.TER.BRIDGE || (w.ter[i] === w.TER.ROAD && k > 18))) return [x, y]; }
+      return [P.x + ux * 14 * T, P.y + uy * 14 * T];
+    }
+    let t0 = 0;
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || !O.Law) return;
+      const lead = O.Law.lead();
+      if (lead && !sq) begin(lead);
+      if (!lead && sq) release(sq.mode === 'search'); // (the lead gave up the search: you got away)
+      if (!sq) return;
+      const P = game.player; sq.t += dt;
+      // where you're heading
+      t0 += dt; if (t0 > 0.3) { sq.vel = [(P.x - sq.last[0]) / t0, (P.y - sq.last[1]) / t0]; sq.last = [P.x, P.y]; t0 = 0; }
+      const seen = visible();
+      if (game.scene) { sq.seen = { x: game.scene.b.doorX * T + 8, y: (game.scene.b.doorY + 1) * T + 8, t: sq.t }; } // (they saw you go in)
+      else if (seen) { sq.seen = { x: P.x, y: P.y, t: sq.t }; sq.mode = 'chase'; sq.lostT = 0; }
+      else { sq.lostT += dt; if (sq.lostT > 3 && sq.mode === 'chase') { sq.mode = 'search'; sq.searchT = 0; for (const m of sq.members.slice(0, 1)) say(m.q, 'Where did they go? Spread out!'); } }
+      // bystanders call out where you went
+      if (seen && Math.random() < dt * 0.5) { const by = s.people.find((q) => !q.agent.hidden && q.agent.inside == null && !isWatch(q) && q.age >= 10 && Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < 70 && ((q.rel.get(0) || {}).affinity || 0) < 0.25); if (by) { O.Speech && O.Speech.say(by, ['Stop, thief!', 'There they go!', 'That way!'][by.id % 3], 2.2); O.gesture && O.gesture(by, 'point', 1.4); } }
+      // the search: cast about where you were last seen; ask whoever's standing there
+      if (sq.mode === 'search') {
+        sq.searchT += dt;
+        if (!sq.asked && sq.searchT > 4) { sq.asked = 1; const by = s.people.filter((q) => !q.agent.hidden && q.agent.inside == null && !isWatch(q) && q.age >= 10).sort((a, b) => Math.hypot(a.agent.x - sq.seen.x, a.agent.y - sq.seen.y) - Math.hypot(b.agent.x - sq.seen.x, b.agent.y - sq.seen.y))[0];
+          if (by && Math.hypot(by.agent.x - sq.seen.x, by.agent.y - sq.seen.y) < 200) { const m0 = sq.members[0]; m0 && say(m0.q, 'You! Which way did they go?'); const friend = ((by.rel.get(0) || {}).affinity || 0) > 0.3;
+            setTimeout(() => { if (!sq) return; if (friend) { O.Speech && O.Speech.say(by, ['Over the bridge, I think.', 'I saw nobody.', 'That way, toward the mill.'][by.id % 3], 3); sq.seen = { x: sq.seen.x - sq.vel[0] * 6, y: sq.seen.y - sq.vel[1] * 6, t: sq.t }; s.relate && s.relate(by, { id: 0 }, 0.05); s.remember(by, 'Sent the watch the wrong way for the stranger.', 'crime', 1.2, 0.1); }
+              else { O.Speech && O.Speech.say(by, 'That way!', 2.5); O.gesture && O.gesture(by, 'point', 1.5); sq.seen = { x: P.x + (Math.random() - 0.5) * 60, y: P.y + (Math.random() - 0.5) * 60, t: sq.t }; } }, 1200); } }
+        if (sq.searchT > 28) { const ld = O.Law.lead(); release(true); if (ld) O.Law.endChase(true); return; }
+      }
+      // each to their part
+      const near = [O.Law.lead(), ...sq.members.map((m) => m.q)].filter((q) => q && Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < 90);
+      sq.members.forEach((m, i) => {
+        const a = m.q.agent; if (a.hidden || m.q.alive === false) return;
+        const d = Math.hypot(a.x - P.x, a.y - P.y);
+        if (sq.mode === 'chase' && !game.scene && d < 12) { const ld = O.Law.lead(); release(false); if (ld) ld.agent.chasing = true; O.Law.arrestBy(m.q); return; }
+        let tx, ty, sp = 80;
+        if (sq.mode === 'search' || game.scene) { const ang = (m.q.id * 2.4 + sq.searchT * 0.3) % 6.28, r = Math.min(90, 20 + sq.searchT * 4); tx = sq.seen.x + Math.cos(ang) * r; ty = sq.seen.y + Math.sin(ang) * r; sp = 62; }
+        else if (near.length >= 2 && d < 90) { const ang = (i / Math.max(1, sq.members.length)) * 6.28 + Math.atan2(sq.vel[1], sq.vel[0]); tx = P.x + Math.cos(ang) * 14; ty = P.y + Math.sin(ang) * 14; sp = 84; } // close in from all sides
+        else if (m.role === 'chase') { tx = P.x; ty = P.y; sp = 84; }
+        else if (m.role === 'hold') { if (!m.hold) m.hold = exitAhead(s, P, sq.vel); [tx, ty] = m.hold; sp = 86; }
+        else { tx = P.x + sq.vel[0] * 2.4; ty = P.y + sq.vel[1] * 2.4; sp = 82; } // where you'll be in a moment
+        step(m, tx, ty, sp, dt);
+      });
+    });
+    O.Pursuit = {
+      holding: () => !!(sq && sq.mode === 'chase'),
+      target: () => (sq && sq.mode === 'search' ? [sq.seen.x, sq.seen.y] : null), // (lost: the lead goes where you were last seen, not where you are)
+      rangeMul: () => { const s = cur(); return PS.alert && s && PS.alert.place === s.world.placeId && s.day <= PS.alert.until ? 1.6 : 1; },
+      state: () => sq && { mode: sq.mode, members: sq.members.map((m) => [m.q.first, m.role, Math.round(m.q.agent.x), Math.round(m.q.agent.y)]) },
+    };
+  }
+  O.PursuitSetup = { setup };
+})();
+
+</script>
+<script>
 // The lives people lead. Everyone has something they're working towards, and they get there or don't:
 // a tidy sum saved, a mastery won, a marriage, a move to the capital; then they want something else.
 // When someone dies, their family and close friends mourn for a week: they keep in of an evening, are
@@ -19954,6 +20066,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       place(v, b) { const t = now(); tn(b, t, 0.07, 220, 'triangle', 0.06 * v, 140); nz(b, t, 0.04, 'bandpass', 1500, 1, 0.03 * v); },
       crackle(v, b) { const t = now(); for (let i = 0; i < 5; i++) nz(b, t + Math.random() * 0.4, 0.015, 'highpass', 3000, 1, (0.02 + Math.random() * 0.04) * v); },
       handbell(v, b) { const t = now(); for (const [r, a] of [[1, 1], [2.4, 0.5], [3.9, 0.3], [5.1, 0.15]]) tn(b, t, 0.9 / Math.sqrt(r), 880 * r, 'sine', 0.05 * v * a); nz(b, t, 0.02, 'highpass', 4000, 1, 0.03 * v); },
+      horn(v, b) { const t = now(); for (const [f, st, d] of [[233, 0, 0.5], [311, 0.55, 0.9]]) { const c = S.ctx, o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(f * 0.97, t + st); o.frequency.linearRampToValueAtTime(f, t + st + 0.08); const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1400; const g = c.createGain(); g.gain.setValueAtTime(0.0001, t + st); g.gain.exponentialRampToValueAtTime(0.09 * v, t + st + 0.06); g.gain.setValueAtTime(0.09 * v, t + st + d - 0.1); g.gain.exponentialRampToValueAtTime(0.0001, t + st + d); o.connect(lp); lp.connect(g); g.connect(b); o.start(t + st); o.stop(t + st + d + 0.05); } },
       kaching(v, b) { const t = now(); for (let i = 0; i < 4; i++) { const tt = t + i * 0.05; for (const r of [1, 2.76, 5.4]) tn(b, tt, 0.3, (2600 + i * 180) * r / 2, 'sine', 0.035 * v / r); } for (const [f, a] of [[1760, 0.06], [2640, 0.035], [3520, 0.02]]) tn(b, t + 0.22, 0.7, f, 'sine', a * v); },
       handover(v, b) { const t = now(); nz(b, t, 0.08, 'bandpass', 1400, 0.9, 0.06 * v, 0.004); tn(b, t + 0.06, 0.06, 240, 'triangle', 0.05 * v, 160); },
       snip(v, b) { const t = now(); nz(b, t, 0.025, 'highpass', 5200, 2, 0.06 * v); nz(b, t + 0.09, 0.02, 'highpass', 6000, 2, 0.05 * v); },
@@ -20784,7 +20897,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         } else { PS.skills.lockpick = Math.min(1, PS.skills.lockpick + 0.015); O.Panels.toast('The pick slips. The lock holds: a good lock, made for a king.'); }
       };
     }
-    O.Law = { pickpocket, pickLock, pickRoomLock, facingAway, wanted, startChase: (g) => startChase(g), chasing: () => !!chase };
+    O.Law = { pickpocket, pickLock, pickRoomLock, facingAway, wanted, startChase: (g) => startChase(g), chasing: () => !!chase, lead: () => chase && chase.g, arrestBy: (g) => arrest(g), endChase: (esc) => endChase(esc) };
 
     // ---------------- guards: recognition and pursuit ----------------
     function guards() { return sim.people.filter((q) => q.job?.role?.startsWith('guard') && !q.agent.hidden && q.activity?.act !== 'sleep' && !q.health.illness); }
@@ -20813,7 +20926,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         const night = sim.hour < 6 || sim.hour > 20.5;
         for (const g of guards()) {
           const d = Math.hypot(g.agent.x - game.player.x, g.agent.y - game.player.y);
-          const range = night ? 50 : 85;
+          const range = (night ? 50 : 85) * (O.Pursuit ? O.Pursuit.rangeMul() : 1); // (sharper eyes for a day or two after you got away)
           if (d > range) continue;
           if (lvl >= 2 && sim.rng.chance(lvl === 3 ? 0.6 : 0.3)) { startChase(g); break; }
           if (lvl === 1 && d < 30 && sim.rng.chance(0.04)) { O.Speech.say(g, "Hm. There's been thieving. Mind yourself.", 3.5); g.agent.talking = 30; }
@@ -20830,15 +20943,15 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       if (a.hidden) { a.hidden = false; a.inside = null; const T = sim.T; a.x = game.player.x + 20; a.y = game.player.y; }
       const dx = game.player.x - a.x, dy = game.player.y - a.y, d = Math.hypot(dx, dy);
       if (d < 12) return arrest(g);
-      if (d > 230) { escapeT += dt; if (escapeT > 6) return endChase(true); } else escapeT = 0;
+      if (d > 230 && !(O.Pursuit && O.Pursuit.holding())) { escapeT += dt; if (escapeT > 6) return endChase(true); } else escapeT = 0; // (with the hue and cry up, it's the search that decides when you're away)
       if (chase.stun > 0) { a.anim = 'idle'; return; }
       // follow an A* path to the player's tile, refreshed twice a second
       chase.repath -= dt;
-      if (chase.repath <= 0 || !chase.path) { chase.repath = 0.5; const T = sim.T; chase.path = sim.path.find(Math.floor(a.x / T), Math.floor((a.y - 1) / T), Math.floor(game.player.x / T), Math.floor((game.player.y - 1) / T)) || []; chase.pi = 0; }
+      if (chase.repath <= 0 || !chase.path) { chase.repath = 0.5; const T = sim.T; const tg = (O.Pursuit && O.Pursuit.target && O.Pursuit.target()) || [game.player.x, game.player.y]; chase.path = sim.path.find(Math.floor(a.x / T), Math.floor((a.y - 1) / T), Math.floor(tg[0] / T), Math.floor((tg[1] - 1) / T)) || []; chase.pi = 0; }
       let budget = 86 * dt;
       while (budget > 0) {
         let tx, ty;
-        if (chase.pi < chase.path.length) { const [px, py] = chase.path[chase.pi]; tx = px * 16 + 8; ty = py * 16 + 10; } else { tx = game.player.x; ty = game.player.y; }
+        if (chase.pi < chase.path.length) { const [px, py] = chase.path[chase.pi]; tx = px * 16 + 8; ty = py * 16 + 10; } else { const tg = (O.Pursuit && O.Pursuit.target && O.Pursuit.target()) || [game.player.x, game.player.y]; tx = tg[0]; ty = tg[1]; }
         const ddx = tx - a.x, ddy = ty - a.y, dd = Math.hypot(ddx, ddy);
         if (dd <= budget) { a.x = tx; a.y = ty; budget -= dd; if (chase.pi < chase.path.length) chase.pi++; else break; }
         else { a.x += (ddx / dd) * budget; a.y += (ddy / dd) * budget; budget = 0; }
@@ -31484,7 +31597,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
         x: away ? away[0] : Math.round(game.scene ? game.scene.b.doorX * 16 + 8 : game.player.x), y: away ? away[1] : Math.round(game.scene ? game.scene.b.doorY * 16 + 10 : game.player.y), dir: game.player.dir,
         mount: game.player.mount ? game.player.mount.id : null,
         region: game.world.island && !game.scene && game.world !== sim.world ? game.world.placeId : null, g: game.world.island && !game.scene ? O.Island.toGlobal(game.world, game.player.x, game.player.y).map(Math.round) : null,
-        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [], emp: PS.emp ? Object.assign({}, PS.emp, { tasks: [], onShift: false, dayInfo: null }) : null, posts: (PS.posts || []).map((x) => Object.assign({}, x, { tasks: [], onShift: false, dayInfo: null, _lm: null, _cur: x === PS.emp })), carry: PS.carry || null, firedSilently: PS.firedSilently || null, residence: PS.residence || null, gaol: PS.gaol || null, gangRanks: PS.gangRanks || [], gangTrials: PS.gangTrials || {}, disguise: PS.disguise || null, loans: PS.loans || [], letters: PS.letters || [], knows: PS.knows || {}, knowsGang: PS.knowsGang || {}, royal: PS.royal || false, taxOwed: PS.taxOwed || 0, taxPaidDay: PS.taxPaidDay ?? null, contract: PS.contract && PS.contract.kind !== 'escort' ? PS.contract : null, leads: (PS.leads || []).filter((l) => l.why !== 'contract' || (PS.contract && PS.contract.kind !== 'escort')), askedLaw: PS.askedLaw || 0, guests: PS.guests || null, jobCardOpen: !!PS.jobCardOpen, learning: PS.learning || 0, performances: PS.performances || 0, lettersCarried: PS.lettersCarried || 0, title: PS.title || null, vouched: PS.vouched || {}, offered: PS.offered || {}, appointment: PS.appointment || null, reeveOf: PS.reeveOf || {}, claim: PS.claim || 0, secrets: PS.secrets || [], vows: !!PS.vows, warWon: PS.warWon || 0, warFought: PS.warFought || 0, plot: PS.plot || null, coronation: PS.coronation || null, anointed: !!PS.anointed, guides: PS.guides || 'all', mail: PS.mail || [], worn: PS.worn || [], bizTab: PS.bizTab || null, meets: PS.meets || [], partner: PS.partner || null, children: PS.children || [], expecting: PS.expecting || null, fineOwed: PS.fineOwed || 0, watched: PS.watched || null, debts: PS.debts || [], roadLead: PS.roadLead || null, wokeAt: PS.wokeAt ?? null, studiedAt: PS.studiedAt ?? null, studyDay: PS.studyDay ?? null, studyHours: PS.studyHours || 0, lessonDay: PS.lessonDay ?? null, ill: PS.ill || null, confessed: PS.confessed ?? null, tithedWeek: PS.tithedWeek ?? null, titheBase: PS.titheBase || 0, startDay: PS.startDay ?? null, yearsHere: PS.yearsHere || 0, dog: PS.dog || null, lineSpec: PS.lineSpec || null, forebears: PS.forebears || [], oddJobs: PS.oddJobs || [], givenJobs: PS.givenJobs || [], retainers: PS.retainers || [], deeds: PS.deeds || [], todoOpen: PS.todoOpen ?? true, lent: PS.lent || [], gardens: PS.gardens || [], grime: PS.grime || 0, found: PS.found || [], homeBuilds: PS.homeBuilds || [], cart: PS.cart || null, roadGuards: PS.roadGuards || [], guildRanks: PS.guildRanks || {}, booksRead: PS.booksRead || 0, lastCut: PS.lastCut ?? null, lastShave: PS.lastShave ?? null, animals: PS.animals || [], tourneyDay: PS.tourneyDay ?? null, recipes: PS.recipes || [], marks: PS.marks || {}, wins: PS.wins || {}, champion: PS.champion || null, informants: PS.informants || [], hawks: PS.hawks || [], village: PS.village || null, charter: PS.charter || null, undying: PS.undying ?? null, searched: PS.searched || {}, boats: PS.boats || [], ships: PS.ships || [], pilgrimages: PS.pilgrimages || {}, excommunicated: PS.excommunicated || null, houseFavour: PS.houseFavour || {}, plots2: PS.plots2 || [], siegeSide: PS.siegeSide || null, songBook: PS.songBook || null, songs: PS.songs || [], outlaw: PS.outlaw || null, almsToPoor: PS.almsToPoor || 0, robbedRich: PS.robbedRich || 0, confided: PS.confided || [], blessed: PS.blessed ?? null, _ageChecked: PS._ageChecked ?? null },
+        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [], emp: PS.emp ? Object.assign({}, PS.emp, { tasks: [], onShift: false, dayInfo: null }) : null, posts: (PS.posts || []).map((x) => Object.assign({}, x, { tasks: [], onShift: false, dayInfo: null, _lm: null, _cur: x === PS.emp })), carry: PS.carry || null, firedSilently: PS.firedSilently || null, residence: PS.residence || null, gaol: PS.gaol || null, gangRanks: PS.gangRanks || [], gangTrials: PS.gangTrials || {}, disguise: PS.disguise || null, loans: PS.loans || [], letters: PS.letters || [], knows: PS.knows || {}, knowsGang: PS.knowsGang || {}, royal: PS.royal || false, taxOwed: PS.taxOwed || 0, taxPaidDay: PS.taxPaidDay ?? null, contract: PS.contract && PS.contract.kind !== 'escort' ? PS.contract : null, leads: (PS.leads || []).filter((l) => l.why !== 'contract' || (PS.contract && PS.contract.kind !== 'escort')), askedLaw: PS.askedLaw || 0, guests: PS.guests || null, jobCardOpen: !!PS.jobCardOpen, learning: PS.learning || 0, performances: PS.performances || 0, lettersCarried: PS.lettersCarried || 0, title: PS.title || null, vouched: PS.vouched || {}, offered: PS.offered || {}, appointment: PS.appointment || null, reeveOf: PS.reeveOf || {}, claim: PS.claim || 0, secrets: PS.secrets || [], vows: !!PS.vows, warWon: PS.warWon || 0, warFought: PS.warFought || 0, plot: PS.plot || null, coronation: PS.coronation || null, anointed: !!PS.anointed, guides: PS.guides || 'all', mail: PS.mail || [], worn: PS.worn || [], bizTab: PS.bizTab || null, meets: PS.meets || [], partner: PS.partner || null, children: PS.children || [], expecting: PS.expecting || null, fineOwed: PS.fineOwed || 0, watched: PS.watched || null, debts: PS.debts || [], roadLead: PS.roadLead || null, wokeAt: PS.wokeAt ?? null, studiedAt: PS.studiedAt ?? null, studyDay: PS.studyDay ?? null, studyHours: PS.studyHours || 0, lessonDay: PS.lessonDay ?? null, ill: PS.ill || null, confessed: PS.confessed ?? null, tithedWeek: PS.tithedWeek ?? null, titheBase: PS.titheBase || 0, startDay: PS.startDay ?? null, yearsHere: PS.yearsHere || 0, dog: PS.dog || null, lineSpec: PS.lineSpec || null, forebears: PS.forebears || [], oddJobs: PS.oddJobs || [], givenJobs: PS.givenJobs || [], retainers: PS.retainers || [], deeds: PS.deeds || [], todoOpen: PS.todoOpen ?? true, lent: PS.lent || [], gardens: PS.gardens || [], grime: PS.grime || 0, found: PS.found || [], homeBuilds: PS.homeBuilds || [], cart: PS.cart || null, roadGuards: PS.roadGuards || [], guildRanks: PS.guildRanks || {}, booksRead: PS.booksRead || 0, lastCut: PS.lastCut ?? null, alert: PS.alert || null, lastShave: PS.lastShave ?? null, animals: PS.animals || [], tourneyDay: PS.tourneyDay ?? null, recipes: PS.recipes || [], marks: PS.marks || {}, wins: PS.wins || {}, champion: PS.champion || null, informants: PS.informants || [], hawks: PS.hawks || [], village: PS.village || null, charter: PS.charter || null, undying: PS.undying ?? null, searched: PS.searched || {}, boats: PS.boats || [], ships: PS.ships || [], pilgrimages: PS.pilgrimages || {}, excommunicated: PS.excommunicated || null, houseFavour: PS.houseFavour || {}, plots2: PS.plots2 || [], siegeSide: PS.siegeSide || null, songBook: PS.songBook || null, songs: PS.songs || [], outlaw: PS.outlaw || null, almsToPoor: PS.almsToPoor || 0, robbedRich: PS.robbedRich || 0, confided: PS.confided || [], blessed: PS.blessed ?? null, _ageChecked: PS._ageChecked ?? null },
       },
     };
   }
@@ -31720,7 +31833,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.RisingSetup.setup(game, npcUI);
   O.RitesSetup.setup(game);
   O.WarfareSetup.setup(game, npcUI);
-  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.NpcActsSetup.setup(game); O.InitiateSetup.setup(game); O.UnderworldSetup.setup(game); O.CourtshipSetup.setup(game); O.FencesSetup.setup(game); O.FamilySetup.setup(game); O.PetsSetup.setup(game); O.FavoursSetup.setup(game); O.MarketSetup.setup(game); O.GrudgesSetup.setup(game); O.RitualsSetup.setup(game); O.TodoSetup.setup(game); O.DealingsSetup.setup(game); O.CounterSetup.setup(game); O.ResourcesSetup.setup(game); O.GangBasesSetup.setup(game); O.GatheringsSetup.setup(game); O.WildSetup.setup(game); O.SongsSetup.setup(game); O.PoliticsSetup.setup(game); O.ChurchSetup.setup(game); O.SeaSetup.setup(game); O.LegacySetup.setup(game); O.WorldLifeSetup.setup(game); O.TrainingSetup.setup(game); O.ExtrasSetup.setup(game); O.GatheringSetup.setup(game); O.StreetLifeSetup.setup(game); O.OutdoorsSetup.setup(game); O.SkyFxSetup.setup(game); O.CrittersSetup.setup(game); O.HygieneSetup.setup(game); O.HearthLifeSetup.setup(game); O.FarmYearSetup.setup(game); O.HouseBuildSetup.setup(game); O.RoadTradeSetup.setup(game); O.SicknessSetup.setup(game); O.HeartsSetup.setup(game); O.GuildsSetup.setup(game); O.GangWorkSetup.setup(game); O.WorkLifeSetup.setup(game); O.CastleGroundsSetup.setup(game); O.MoneySetup.setup(game); O.BarberSetup.setup(game); O.RoadSenseSetup.setup(game); O.HandworkSetup.setup(game); O.NpcLifeSetup.setup(game); O.PolishSetup.setup(game);
+  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.NpcActsSetup.setup(game); O.InitiateSetup.setup(game); O.UnderworldSetup.setup(game); O.CourtshipSetup.setup(game); O.FencesSetup.setup(game); O.FamilySetup.setup(game); O.PetsSetup.setup(game); O.FavoursSetup.setup(game); O.MarketSetup.setup(game); O.GrudgesSetup.setup(game); O.RitualsSetup.setup(game); O.TodoSetup.setup(game); O.DealingsSetup.setup(game); O.CounterSetup.setup(game); O.ResourcesSetup.setup(game); O.GangBasesSetup.setup(game); O.GatheringsSetup.setup(game); O.WildSetup.setup(game); O.SongsSetup.setup(game); O.PoliticsSetup.setup(game); O.ChurchSetup.setup(game); O.SeaSetup.setup(game); O.LegacySetup.setup(game); O.WorldLifeSetup.setup(game); O.TrainingSetup.setup(game); O.ExtrasSetup.setup(game); O.GatheringSetup.setup(game); O.StreetLifeSetup.setup(game); O.OutdoorsSetup.setup(game); O.SkyFxSetup.setup(game); O.CrittersSetup.setup(game); O.HygieneSetup.setup(game); O.HearthLifeSetup.setup(game); O.FarmYearSetup.setup(game); O.HouseBuildSetup.setup(game); O.RoadTradeSetup.setup(game); O.SicknessSetup.setup(game); O.HeartsSetup.setup(game); O.GuildsSetup.setup(game); O.GangWorkSetup.setup(game); O.WorkLifeSetup.setup(game); O.CastleGroundsSetup.setup(game); O.MoneySetup.setup(game); O.BarberSetup.setup(game); O.RoadSenseSetup.setup(game); O.HandworkSetup.setup(game); O.PursuitSetup.setup(game); O.NpcLifeSetup.setup(game); O.PolishSetup.setup(game);
   O.FinerySetup.setup(game);
   O.PastimesSetup.setup(game);
   O.FishingSetup.setup(game);

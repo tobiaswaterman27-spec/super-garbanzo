@@ -100,7 +100,7 @@
         } else { PS.skills.lockpick = Math.min(1, PS.skills.lockpick + 0.015); O.Panels.toast('The pick slips. The lock holds: a good lock, made for a king.'); }
       };
     }
-    O.Law = { pickpocket, pickLock, pickRoomLock, facingAway, wanted, startChase: (g) => startChase(g), chasing: () => !!chase };
+    O.Law = { pickpocket, pickLock, pickRoomLock, facingAway, wanted, startChase: (g) => startChase(g), chasing: () => !!chase, lead: () => chase && chase.g, arrestBy: (g) => arrest(g), endChase: (esc) => endChase(esc) };
 
     // ---------------- guards: recognition and pursuit ----------------
     function guards() { return sim.people.filter((q) => q.job?.role?.startsWith('guard') && !q.agent.hidden && q.activity?.act !== 'sleep' && !q.health.illness); }
@@ -129,7 +129,7 @@
         const night = sim.hour < 6 || sim.hour > 20.5;
         for (const g of guards()) {
           const d = Math.hypot(g.agent.x - game.player.x, g.agent.y - game.player.y);
-          const range = night ? 50 : 85;
+          const range = (night ? 50 : 85) * (O.Pursuit ? O.Pursuit.rangeMul() : 1); // (sharper eyes for a day or two after you got away)
           if (d > range) continue;
           if (lvl >= 2 && sim.rng.chance(lvl === 3 ? 0.6 : 0.3)) { startChase(g); break; }
           if (lvl === 1 && d < 30 && sim.rng.chance(0.04)) { O.Speech.say(g, "Hm. There's been thieving. Mind yourself.", 3.5); g.agent.talking = 30; }
@@ -146,15 +146,15 @@
       if (a.hidden) { a.hidden = false; a.inside = null; const T = sim.T; a.x = game.player.x + 20; a.y = game.player.y; }
       const dx = game.player.x - a.x, dy = game.player.y - a.y, d = Math.hypot(dx, dy);
       if (d < 12) return arrest(g);
-      if (d > 230) { escapeT += dt; if (escapeT > 6) return endChase(true); } else escapeT = 0;
+      if (d > 230 && !(O.Pursuit && O.Pursuit.holding())) { escapeT += dt; if (escapeT > 6) return endChase(true); } else escapeT = 0; // (with the hue and cry up, it's the search that decides when you're away)
       if (chase.stun > 0) { a.anim = 'idle'; return; }
       // follow an A* path to the player's tile, refreshed twice a second
       chase.repath -= dt;
-      if (chase.repath <= 0 || !chase.path) { chase.repath = 0.5; const T = sim.T; chase.path = sim.path.find(Math.floor(a.x / T), Math.floor((a.y - 1) / T), Math.floor(game.player.x / T), Math.floor((game.player.y - 1) / T)) || []; chase.pi = 0; }
+      if (chase.repath <= 0 || !chase.path) { chase.repath = 0.5; const T = sim.T; const tg = (O.Pursuit && O.Pursuit.target && O.Pursuit.target()) || [game.player.x, game.player.y]; chase.path = sim.path.find(Math.floor(a.x / T), Math.floor((a.y - 1) / T), Math.floor(tg[0] / T), Math.floor((tg[1] - 1) / T)) || []; chase.pi = 0; }
       let budget = 86 * dt;
       while (budget > 0) {
         let tx, ty;
-        if (chase.pi < chase.path.length) { const [px, py] = chase.path[chase.pi]; tx = px * 16 + 8; ty = py * 16 + 10; } else { tx = game.player.x; ty = game.player.y; }
+        if (chase.pi < chase.path.length) { const [px, py] = chase.path[chase.pi]; tx = px * 16 + 8; ty = py * 16 + 10; } else { const tg = (O.Pursuit && O.Pursuit.target && O.Pursuit.target()) || [game.player.x, game.player.y]; tx = tg[0]; ty = tg[1]; }
         const ddx = tx - a.x, ddy = ty - a.y, dd = Math.hypot(ddx, ddy);
         if (dd <= budget) { a.x = tx; a.y = ty; budget -= dd; if (chase.pi < chase.path.length) chase.pi++; else break; }
         else { a.x += (ddx / dd) * budget; a.y += (ddy / dd) * budget; budget = 0; }

@@ -61,6 +61,10 @@
       const act = q.activity?.act, r = q.rel.get(0) || { affinity: 0, familiar: 0 }, role = q.job?.role || '';
       if (q.age < 3 || act === 'sleep') return null;
       if (['fire', 'firefight', 'help', 'report', 'escort', 'to-doc', 'labour'].includes(act)) return pick(["Not now! Can't you see?", 'Out of my way!', 'No time, no time!']);
+      // someone you have business with always stops for you: your master, the one your work sends you to, an employer you're asking
+      { const PS0 = O.PlayerState, tk = (PS0.emp && PS0.emp.tasks) || [];
+        const needed = (PS0.posts || []).some((e) => e.master === q.id) || tk.some((t) => t.have < t.need && (t.who === q.id || (t.role && t.role.source !== '^$' && t.role.test(role)) || t.kind === 'talkmany')) || (PS0.leads || []).some((l) => l.id === q.id) || (O.Employment && O.Employment.hireOutlook && /place for/.test(O.Employment.hireOutlook(sim, q) || '')) || /merchant|trader|chapman|pedlar/.test(role);
+        if (needed && r.affinity > -0.55) return null; }
       if (act === 'leave') return pick(["I'm on the road, friend. Another time.", "Can't stop, I've miles to go."]);
       if (r.affinity < -0.55) return pick(["I've nothing to say to you.", 'Leave me be.', 'Go away.']);
       const sells = q.job && sim.biz.get(q.job.biz)?.def.sells?.length;

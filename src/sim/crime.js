@@ -36,6 +36,15 @@
       if (owner && sim.rng.chance(0.7)) { sim.remember(owner, `Things have gone missing from ${placeName}.`, 'crime', 1.2); owner.task = owner.task || { act: 'report', b: sim.guardId, crime: crime.id }; }
       O.Panels.toast(`You pocket ${ev.what}. Nobody saw.`); return crime;
     }
+    // seen by someone who knows you, over a small thing: a telling-off, not the watch (once in a while)
+    { const friend = ws.find((w) => { const r = w.rel.get(0) || {}; return (r.affinity || 0) > 0.25 || (r.familiar || 0) > 0.5 || (PS.emp && w.job && PS.emp.biz === w.job.biz); });
+      if (friend && ev.value <= 2 && !(friend._scolded > sim.day - 10)) {
+        friend._scolded = sim.day; sim.relate(friend, { id: 0 }, -0.15); sim.remember(friend, `Caught the player taking ${ev.what} at ${placeName}, and let it go this once.`, 'crime', 1.4, -0.1);
+        friend.agent.talking = 30; O.gesture && O.gesture(friend, 'shake', 2.2);
+        O.Speech && O.Speech.say(friend, ['Put that back! I saw that.', 'What do you think you\'re doing? Put it back.', 'I know you better than that. Put it down.'][sim.rng.int(0, 2)], 4);
+        O.Panels.toast(`${friend.first} saw you take ${ev.what} and gives you a hard look, but says no more of it. Not the watch, this time.`, 'bad');
+        PS.rep.criminal = Math.max(0, PS.rep.criminal - 0.02); return null;
+      } }
     const crime = sim.recordCrime({ kind: 'theft', perp: 'player', placeName, tile: [ev.building.doorX, ev.building.doorY], seen: ws, severity: ev.value > 2 ? 2 : 1 });
     PS.crimes.push(crime.id);
     for (const w of ws) { sim.relate(w, { id: 0 }, -0.3); w.agent.talking = 40; }

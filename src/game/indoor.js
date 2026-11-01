@@ -184,6 +184,13 @@
             if (spot.kind === 'cauldron') anim = 'cook';
             if (spot.kind === 'bar' && q.agent.talking) anim = 'talk';
             void rx0;
+            // the work moves about: now and then to the stores to fetch and stack, or a turn with the broom, then back
+            if (!q.agent.talking && !spot.counter && spot.kind !== 'bar' && spot.kind !== 'altar') {
+              const ph = Math.floor((this.t + q.id * 11) / 22) % 5;
+              if (ph === 2) { const st = L.items.find((i) => ['crate', 'barrel', 'sack', 'shelf', 'chest', 'cupboard'].includes(i.kind) && i !== spot); if (st) { const [sx2, sy2] = this.anchor(st); x = sx2 + ((q.id % 2) ? 10 : -10); y = sy2 + 12; dir = 3; anim = (Math.floor(this.t / 3) + q.id) % 2 ? 'pickup' : 'count'; spot = null; q.agent.carrying = { good: 'goods', qty: 1 }; } }
+              else if (ph === 4) { const fx = idleTiles[(q.id * 5 + Math.floor(this.t / 22)) % Math.max(1, idleTiles.length)]; if (fx) { [x, y] = this.tileXY(fx[0], fx[1]); dir = (q.id + Math.floor(this.t / 4)) % 4; anim = 'sweep'; spot = null; q.agent.carrying = null; } }
+              else if (q.agent.carrying && q.agent.carrying.good === 'goods') q.agent.carrying = null;
+            }
           }
         } else if (act === 'perform') { // a bard plays by the hearth
           const c = L.items.find((i) => i.kind === 'fireplace') || L.items.find((i) => i.kind === 'bar'); const [ax, ay] = c ? this.anchor(c) : this.tileXY(Math.floor(L.w / 2), 2);

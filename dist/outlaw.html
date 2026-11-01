@@ -12287,6 +12287,15 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       if (owner && sim.rng.chance(0.7)) { sim.remember(owner, `Things have gone missing from ${placeName}.`, 'crime', 1.2); owner.task = owner.task || { act: 'report', b: sim.guardId, crime: crime.id }; }
       O.Panels.toast(`You pocket ${ev.what}. Nobody saw.`); return crime;
     }
+    // seen by someone who knows you, over a small thing: a telling-off, not the watch (once in a while)
+    { const friend = ws.find((w) => { const r = w.rel.get(0) || {}; return (r.affinity || 0) > 0.25 || (r.familiar || 0) > 0.5 || (PS.emp && w.job && PS.emp.biz === w.job.biz); });
+      if (friend && ev.value <= 2 && !(friend._scolded > sim.day - 10)) {
+        friend._scolded = sim.day; sim.relate(friend, { id: 0 }, -0.15); sim.remember(friend, `Caught the player taking ${ev.what} at ${placeName}, and let it go this once.`, 'crime', 1.4, -0.1);
+        friend.agent.talking = 30; O.gesture && O.gesture(friend, 'shake', 2.2);
+        O.Speech && O.Speech.say(friend, ['Put that back! I saw that.', 'What do you think you\'re doing? Put it back.', 'I know you better than that. Put it down.'][sim.rng.int(0, 2)], 4);
+        O.Panels.toast(`${friend.first} saw you take ${ev.what} and gives you a hard look, but says no more of it. Not the watch, this time.`, 'bad');
+        PS.rep.criminal = Math.max(0, PS.rep.criminal - 0.02); return null;
+      } }
     const crime = sim.recordCrime({ kind: 'theft', perp: 'player', placeName, tile: [ev.building.doorX, ev.building.doorY], seen: ws, severity: ev.value > 2 ? 2 : 1 });
     PS.crimes.push(crime.id);
     for (const w of ws) { sim.relate(w, { id: 0 }, -0.3); w.agent.talking = 40; }
@@ -12502,6 +12511,13 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
             if (spot.kind === 'cauldron') anim = 'cook';
             if (spot.kind === 'bar' && q.agent.talking) anim = 'talk';
             void rx0;
+            // the work moves about: now and then to the stores to fetch and stack, or a turn with the broom, then back
+            if (!q.agent.talking && !spot.counter && spot.kind !== 'bar' && spot.kind !== 'altar') {
+              const ph = Math.floor((this.t + q.id * 11) / 22) % 5;
+              if (ph === 2) { const st = L.items.find((i) => ['crate', 'barrel', 'sack', 'shelf', 'chest', 'cupboard'].includes(i.kind) && i !== spot); if (st) { const [sx2, sy2] = this.anchor(st); x = sx2 + ((q.id % 2) ? 10 : -10); y = sy2 + 12; dir = 3; anim = (Math.floor(this.t / 3) + q.id) % 2 ? 'pickup' : 'count'; spot = null; q.agent.carrying = { good: 'goods', qty: 1 }; } }
+              else if (ph === 4) { const fx = idleTiles[(q.id * 5 + Math.floor(this.t / 22)) % Math.max(1, idleTiles.length)]; if (fx) { [x, y] = this.tileXY(fx[0], fx[1]); dir = (q.id + Math.floor(this.t / 4)) % 4; anim = 'sweep'; spot = null; q.agent.carrying = null; } }
+              else if (q.agent.carrying && q.agent.carrying.good === 'goods') q.agent.carrying = null;
+            }
           }
         } else if (act === 'perform') { // a bard plays by the hearth
           const c = L.items.find((i) => i.kind === 'fireplace') || L.items.find((i) => i.kind === 'bar'); const [ax, ay] = c ? this.anchor(c) : this.tileXY(Math.floor(L.w / 2), 2);
@@ -13028,6 +13044,10 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       const act = q.activity?.act, r = q.rel.get(0) || { affinity: 0, familiar: 0 }, role = q.job?.role || '';
       if (q.age < 3 || act === 'sleep') return null;
       if (['fire', 'firefight', 'help', 'report', 'escort', 'to-doc', 'labour'].includes(act)) return pick(["Not now! Can't you see?", 'Out of my way!', 'No time, no time!']);
+      // someone you have business with always stops for you: your master, the one your work sends you to, an employer you're asking
+      { const PS0 = O.PlayerState, tk = (PS0.emp && PS0.emp.tasks) || [];
+        const needed = (PS0.posts || []).some((e) => e.master === q.id) || tk.some((t) => t.have < t.need && (t.who === q.id || (t.role && t.role.source !== '^$' && t.role.test(role)) || t.kind === 'talkmany')) || (PS0.leads || []).some((l) => l.id === q.id) || (O.Employment && O.Employment.hireOutlook && /place for/.test(O.Employment.hireOutlook(sim, q) || '')) || /merchant|trader|chapman|pedlar/.test(role);
+        if (needed && r.affinity > -0.55) return null; }
       if (act === 'leave') return pick(["I'm on the road, friend. Another time.", "Can't stop, I've miles to go."]);
       if (r.affinity < -0.55) return pick(["I've nothing to say to you.", 'Leave me be.', 'Go away.']);
       const sells = q.job && sim.biz.get(q.job.biz)?.def.sells?.length;
@@ -13517,7 +13537,7 @@ They know only what their card says; asked anything else they don't know, guess 
 people: for each person present: feel and trust (-2..2) = how the player's words change their liking and belief; learned = a short new claim from the player they now believe, else ""; caught = true if they now see the player lied before.
 name: the player's name if the player just gave it. agree: true only if they now agree to the pending request.
 Only what's real: speak of what you are doing only as your 'Doing right now' line says (if it says standing about, you are not up a roof, on a ladder, at a forge or in the middle of a task); never mention objects, chores or happenings that aren't in your card or the scene (no baskets of sheets, no 'take that end'), and never ask the player to do something with their hands that isn't there to do. Don't keep naming where you are or the town; name a place only when it matters to what's said.
-Keep your word: anything a speaker says they will do now or agrees to change (go somewhere, come along, show the way, follow, fetch, give, sell, take someone on, change someone's hours or shift or pay, give a day off, let them start now, a price, a rent, a meeting) MUST be in acts with the agreed numbers, or it won't happen in the world; words alone change nothing. Never say you'll do what you won't.
+Keep your word: anything a speaker says they will do now or agrees to change (go somewhere, come along, show the way, follow, fetch, give, sell, take someone on, change someone's hours or shift or pay, give a day off, let them start now, a price, a rent, a meeting) MUST be in acts with the agreed numbers, or it won't happen in the world; words alone change nothing. Never say you'll do what you won't. Times must be real: your hours and the time now are on your card; if you are at work and can do or hand over a thing now, do it now (with the act); never tell the player to come back later or tomorrow for what can be done today, and any time you name must fall within your working hours.
 Talks end: when the talk has run its course (goodbyes said, the matter settled, nothing more to say, or they have somewhere to be), the person says a short parting line and adds the act leave. Don't drag a talk out.
 acts: only what a speaker truly agrees to or does, each {"who":"First name","do":...}:
 meet {"place","hour":0-23,"day":"today"|"tomorrow"|weekday,"why"} | follow (they come along with the player, wherever the player goes) | lead {"place"?} (the player comes along with them: they carry on where they were going, or to the place, and wait if the player falls behind; use this when the player says they will come with them) | stop (stop following) | go {"place"} (go there now) | invite (let the player into their home today) | give {"item"} (hand over something they have) | want {"item"} (ask the player for something) | take_gift | refuse_gift | take_job (accept the player's own job when offered) | seek_job {"place"} | tell {"to","msg"} (pass a message to someone they know) | like {"of","by":-1 or 1} (think better or worse of someone after what was said) | call {"who"} (call someone near or in the same house over to join the talk, even across the room) | ask {"who","question"} (go and ask someone in the house or near, privately, then come back with the answer) | show {"place"} (walk the player there) | direct {"place"} (tell the player the way to a place, in words, when they ask where something is) | sell {"item","price"} (sell the player something they have, at an agreed price in aurins) | buy {"item","price"} (buy something the player carries) | lend {"amount"} (lend the player money, to be paid back) | gesture {"kind":"hug"|"handshake"|"bow"|"wave"|"dance"|"cry"|"laugh"} | teach (show the player a little of their trade) | introduce {"who"} (call someone over and name them) | hire_on (agree to work for the player's own business) | join_gang (join the player's gang) | gang_in (a gang member agrees to take the player into their gang) | gang_work (a gang member gives the player the gang's next job, when they ask for work) | hire_player (the master takes the player on, when the card says there's a place) | errand {"item","to","reward"} (give the player something of theirs to take to someone they know, for a few aurins) | want {"item","reward"} also may offer a reward in aurins | court (agree to court, walk out with, the player) | betroth {"day"?,"hour"?} (agree to marry the player; the wedding is set at the chapel, on the day they settle on) | name_child {"name"} (the player's spouse agrees to the name the player gives their new baby) | offer {"key"} (do one of the things your card says you can do for the player, when they ask) | fit_clothes (a tailor at work measures the player for new clothes) | give_pet (give the player a pup or kitten of your own animal's litter) | set_wedding {"day","hour"} (the betrothed agree to move the wedding) | wedding_guest {"who"?} (the speaker accepts the player's invitation to the wedding, or agrees to pass the invitation to someone they know, who is then bidden) | part (break off a courtship, betrothal or marriage) | grudge {"why"} (the player has truly wronged the speaker, and they will hold it against them) | forgive (the speaker lets go of a grudge against the player, after real amends) | set_prices {"level":"cheap"|"fair"|"dear"} (only the player's own staff, told to change the shop's prices) | fight (go for the player) | flee (run from the player) | leave (end the talk and walk off: rude player, busy, bored, or done). If a speaker says they are off somewhere now, add a go act for it (or leave).
@@ -18985,6 +19005,37 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       if (hand.age < 18 || (hand.skills[hand.job.role] || 0) < 0.3) { O.gesture(master, 'point', 1.6); sp(master, pick(['Not like that! Watch me.', 'Mind the fire, lad.', 'Good. Again, and quicker.', 'Who taught you that? Not me.'])); setTimeout(() => { O.gesture(hand, 'nod', 1.2); sp(hand, pick(['Yes, master.', 'Sorry, master.', 'Like this?'])); }, 2000); }
       else { O.gesture(hand, 'laugh', 1.5); sp(hand, pick(['Did you hear about the miller\'s goat?', 'Busy today.', 'Pass me that, will you?', 'Nearly done with this one.'])); }
     });
+
+    // ---------------------------------------------------------------- your wages, handed over when the shift ends
+    // the master comes and finds you with the coin; if they can't get to you, it's sent along within the hour
+    const due = [];
+    const absNow = () => { const s = cur(); return s ? s.day * 1440 + s.minute : 0; };
+    O.wagesDue = (s, boss, amount, msg) => { if (!amount) { say(msg); return; } if (!boss || boss.alive === false) { PS.money += amount; O.sfx && O.sfx('kaching', 0.9, !!game.scene); say(msg); return; } due.push({ boss: boss ? boss.id : null, amount, msg, at: absNow(), place: s.world.placeId }); };
+    const payNow = (d, q, how) => {
+      const i = due.indexOf(d); if (i < 0) return; due.splice(i, 1);
+      PS.money += d.amount;
+      if (q && O.NpcActs && O.NpcActs.fly) { O.NpcActs.fly(q, 'player', 'coin'); sp(q, pick(['Here, your day\'s pay.', 'Your wage. Well earned.', 'There you are, as agreed.', 'Today\'s money. Count it if you like.']), 3); }
+      else O.sfx && O.sfx('kaching', 0.9, !!game.scene);
+      say(how ? `${d.msg} ${how}` : d.msg);
+    };
+    O.Street && O.Street.on('wages', (s, q, done) => { const d = due.find((x) => x.boss === q.id); q.agent.frozen = false; if (d) payNow(d, q); done(); });
+    let wdt = 0;
+    game.hooks.update.push((dt) => {
+      wdt -= dt; if (wdt > 0 || !due.length) return; wdt = 1; const s = cur(); if (!s) return; const P = game.player, now = absNow();
+      for (const d of due.slice()) {
+        const q = d.boss != null ? s.byId.get(d.boss) : null, here = d.place === s.world.placeId;
+        if (q && here && game.scene) { const a = game.scene.actors.get(q.id); if (a && !a.hidden) { if (Math.hypot(a.x - P.x, a.y - P.y) < 60) payNow(d, q); else { q.agent.approach = true; setTimeout(() => { q.agent.approach = false; }, 4000); } continue; } }
+        if (q && here && !game.scene && q.agent && !q.agent.hidden && q.agent.inside == null && q.alive !== false) { if (Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < 30) { payNow(d, q); continue; } if (O.Street && !O.Street.busy()) { O.Street.sendAt(q, 'wages'); continue; } }
+        if (now - d.at > 45) payNow(d, null, q ? `(${q.first} sent it on with a lad, not finding you.)` : '');
+      }
+    });
+    // wages owed from a lean day are paid when the purse fills again
+    const _nd2 = SP.newDay;
+    SP.newDay = function () {
+      const r = _nd2.apply(this, arguments);
+      try { for (const e of PS.posts || []) { if (!(e.owedPay > 0) || e.place !== this.world.placeId) continue; const bz = this.biz.get(e.biz); if (!bz) continue; const purse = bz.def.public ? this.treasury : bz; const n = Math.min(e.owedPay, Math.floor(purse.cash)); if (n >= 1) { purse.cash -= n; e.owedPay -= n; O.wagesDue(this, this.byId.get(e.master), n, `Back pay owed you from ${bz.name}: ₳${n}${e.owedPay > 0 ? ` (₳${Math.ceil(e.owedPay)} still owing)` : ''}.`); } } } catch (err) { /* */ }
+      return r;
+    };
   }
   O.WorkLifeSetup = { setup };
 })();
@@ -19330,6 +19381,133 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     });
   }
   O.RoadSenseSetup = { setup };
+})();
+
+</script>
+<script>
+// Work with your hands and real things. A duty that needs water starts at the well: you fill a bucket
+// there and carry it back (you can see it in your hand, walking or running), and only then scrub the
+// pails. Firewood comes from the woodpile, stock from the store crates, feed from the sack, hay from the
+// rick, stone from the pile. The places you fetch from are marked; the duty itself waits until you
+// come with what it needs. Whatever you carry shows in your hands, and goes when it's used.
+'use strict';
+(function () {
+  // what a duty needs, by its words and its action
+  const RULES = [
+    [/water|bucket|pail|scald|scour|wash|rinse|swill|mop|well/i, { item: 'water', from: ['well'], water: true, verb: 'Fill a bucket', anim: 'bucket', noun: 'a bucket of water' }],
+    [/firewood|kindling|logs|stoke|light the|fire up|oven|hearth|forge fire|bank the/i, { item: 'firewood', from: ['woodpile', 'logpile', 'timberstack'], verb: 'Take an armful of firewood', anim: 'pickup', noun: 'an armful of firewood' }],
+    [/restock|shelves|fill the shelves|stack|sort the raw|unpack|put away|lay out the goods|bag goods|weigh and bag/i, { item: 'goods', store: true, verb: 'Take goods from the store', anim: 'pickup', noun: 'goods from the store' }],
+    [/feed the (hens|chickens|pigs|geese|ducks|animals|stock)|grain|corn for/i, { item: 'grain', store: true, from: ['sack'], verb: 'Scoop a measure of feed', anim: 'pickup', noun: 'a measure of feed' }],
+    [/hay|straw|bedding|litter|muck out|stall/i, { item: 'hay', from: ['hay', 'haycock', 'stook', 'haystack'], verb: 'Fork up an armful of hay', anim: 'pitch', noun: 'an armful of hay' }],
+    [/mortar|stone|wall|cobble|pave/i, { item: 'stone', from: ['stonepile', 'rock', 'sandpile'], verb: 'Load stone', anim: 'pickup', noun: 'stone' }],
+  ];
+  const STORE_KINDS = new Set(['crate', 'barrel', 'chest', 'shelf', 'sack', 'cupboard']);
+  function setup(game) {
+    const PS = O.PlayerState, cur = () => O.SimRef.cur, T = 16;
+    const specOf = (t) => { if (t.fetch !== undefined) return t.fetch; if (t.kind !== 'chore') return (t.fetch = false); const txt = (t.text || '') + ' ' + (t.anim === 'bucket' ? 'bucket' : ''); for (const [re, sp] of RULES) if (re.test(txt)) return (t.fetch = Object.assign({}, sp)); return (t.fetch = false); };
+    const carrying = (t) => PS.carry && PS.carry.chore === t.id;
+    const openChores = () => { const e = PS.emp; if (!e || !e.onShift) return []; return (e.tasks || []).filter((t) => t.kind === 'chore' && t.have < t.need && specOf(t)); };
+    // the places to fetch from: props outdoors, store furniture in the workplace
+    function sources(t) {
+      const sp = specOf(t), out = [], s = cur(), P = game.player; if (!sp || !s) return out;
+      if (game.scene) {
+        if (sp.store || sp.from?.includes('sack')) for (const it of game.scene.L.items) { if (!STORE_KINDS.has(it.kind) && !(sp.from || []).includes(it.kind)) continue; const [x, y] = game.scene.anchor(it); out.push({ x, y, it }); }
+        return out;
+      }
+      const w = game.world; if (!w) return out;
+      for (const pr of w.props) if ((sp.from || []).includes(pr.kind) && Math.abs(pr.x - P.x) < 1400 && Math.abs(pr.y - P.y) < 1000) out.push({ x: pr.x, y: pr.y, pr });
+      if (sp.water && !out.length && w.ter) { // no well about: the river or the pond will do
+        const tx0 = Math.floor(P.x / T), ty0 = Math.floor(P.y / T);
+        for (let r = 1; r < 30 && !out.length; r++) for (let dy = -r; dy <= r && !out.length; dy++) for (const dx of [-r, r]) { const tx = tx0 + dx, ty = ty0 + dy; if (w.ter[ty * w.W + tx] === w.TER.WATER) { out.push({ x: tx * T + 8, y: ty * T + 4, bank: true }); break; } }
+      }
+      return out;
+    }
+    const _cand = O.jobCandidate, _label = O.jobLabel, _act = O.jobAct;
+    O.jobCandidate = () => {
+      const P = game.player;
+      // at a place to fetch from, for a duty that needs it (and your hands are free)
+      if (!PS.carry) for (const t of openChores()) { for (const src of sources(t)) { const d = Math.hypot(src.x - P.x, src.y - P.y); if (d < (src.it ? 34 : 24)) return { type: 'job', t, fetchFrom: src, d: -20, x: src.x, y: src.y - 30 }; } }
+      const c = _cand ? _cand() : null;
+      if (c && c.t && c.t.kind === 'chore' && specOf(c.t) && !carrying(c.t)) c.needFetch = true;
+      return c;
+    };
+    O.jobLabel = (c) => {
+      if (c.fetchFrom) { const sp = specOf(c.t); return c.fetchFrom.bank ? 'Fill a bucket at the water\'s edge' : `${sp.verb}${c.fetchFrom.pr && c.fetchFrom.pr.kind === 'well' ? ' at the well' : ''}`; }
+      if (c.needFetch) { const sp = specOf(c.t); return `${c.t.label || c.t.text}: first bring ${sp.noun}`; }
+      return _label(c);
+    };
+    O.jobAct = (c) => {
+      const P = game.player;
+      if (c.fetchFrom) {
+        const sp = specOf(c.t); if (P.locked) return;
+        P.locked = true; P.anim = sp.water ? 'crouch' : sp.anim; P.ft = 0; P.dir = O.dirOf(c.fetchFrom.x - P.x, c.fetchFrom.y - P.y);
+        O.sfx && O.sfx(sp.water ? 'splash' : 'place', 0.6, !!game.scene);
+        setTimeout(() => { P.locked = false; P.anim = 'idle'; PS.carry = { good: sp.item, qty: 1, chore: c.t.id, look: sp.water ? 'bucket' : 'carry' }; O.Panels.toast(`You have ${sp.noun}. Carry it to the work.`); }, 1500);
+        return;
+      }
+      if (c.needFetch) { const sp = specOf(c.t); O.Panels.toast(`You need ${sp.noun} for this. ${sp.water ? 'Fetch it from the well' : sp.store ? 'Take it from the store' : 'Fetch it'}, marked in gold.`, 'bad'); return; }
+      if (c.t && carrying(c.t)) { PS.carry = null; O.sfx && O.sfx(specOf(c.t).water ? 'pour' : 'place', 0.7, !!game.scene); }
+      return _act(c);
+    };
+    // where to fetch from, marked in gold while a duty waits on it
+    const pin = (ctx, x, y, t) => { const b = Math.sin(t * 4) * 1.5; ctx.fillStyle = '#1b1424'; ctx.fillRect(x - 3, y - 4 + b, 7, 7); ctx.fillStyle = '#f0b45c'; ctx.fillRect(x - 2, y - 3 + b, 5, 5); ctx.fillStyle = '#ffe2a0'; ctx.fillRect(x - 1, y - 3 + b, 2, 1); };
+    game.hooks.drawTop.push((ctx, cam) => {
+      if (PS.carry) return; const ch = openChores(); if (!ch.length) return; const t0 = performance.now() / 1000;
+      const seen = new Set();
+      for (const t of ch) for (const src of sources(t).slice(0, 6)) { const k = Math.round(src.x) + ',' + Math.round(src.y); if (seen.has(k)) continue; seen.add(k); const x = Math.round(src.x - cam.x), y = Math.round(src.y - cam.y) - 34; if (x < -10 || y < -10 || x > game.vw + 10 || y > game.vh + 10) continue; pin(ctx, x, y, t0); }
+    });
+    // what's in your hands shows: a bucket of water swinging, an armful of wood or goods held before you
+    const Ch = O.Char;
+    const _frame = game.actorFrame.bind(game);
+    game.actorFrame = function (a) {
+      if (a === game.player && PS.carry && !a.mount && !a.sitting && !a.inBed) {
+        const look = PS.carry.look || (PS.carry.good === 'water' ? 'bucket' : 'carry'), an0 = a.anim;
+        if (an0 === 'walk' || an0 === 'run' || an0 === 'idle') {
+          const an = an0 === 'walk' ? look : Ch.composite(an0, look), A = Ch.ANIMS[an] || Ch.ANIMS.idle, f = Math.floor((a.ft || 0) * A.fps) % A.frames;
+          return Ch.frame(a.a, a.dir, an, f);
+        }
+      }
+      return _frame(a);
+    };
+    // a load from the job's own errands (bought goods to put away) shows the same way
+    // ---------------------------------------------------------------- dirt on the floors
+    // every floor gathers dust, straw and mud as people come and go (faster in a busy tavern or a wet
+    // season); anyone with a broom sweeps it down, and so can you, whenever you like
+    const dirtOf = (b) => (b.dirt = b.dirt ?? 0.1);
+    const SP = O.Sim.prototype, _nd = SP.newDay;
+    SP.newDay = function () { const r = _nd.apply(this, arguments); try { for (const b of this.world.buildings) { if (b.ruined || b.site) continue; const busy = ['tavern', 'inn', 'smithy', 'stable', 'barn', 'builder', 'mill'].includes(b.type) ? 0.16 : 0.07, wet = ['autumn', 'winter'].includes(this.season) ? 1.5 : 1; b.dirt = Math.min(1, dirtOf(b) + busy * wet); } } catch (e) { /* */ } return r; };
+    // within the day: footfall while you watch, sweeping by anyone at the broom
+    let dt0 = 0;
+    game.hooks.update.push((dt) => {
+      const sc = game.scene; if (!sc) return; dt0 += dt; if (dt0 < 1) return; dt0 = 0; const b = sc.b;
+      let sweeping = 0; for (const a of sc.actors.values()) { if (a.anim === 'sweep' || a.anim === 'scrub') sweeping++; }
+      b.dirt = O.clamp(dirtOf(b) + sc.actors.size * 0.00008 - sweeping * 0.004, 0, 1);
+    });
+    const SPECKS = ['#c8a868', '#dcc488', '#a8905e', '#4a3826', '#b89a64', '#e0d0a0'];
+    const _ex = O.sceneExtras;
+    O.sceneExtras = (sc, ctx, cam) => {
+      const out = _ex ? _ex(sc, ctx, cam) : []; const b = sc.b, d = dirtOf(b); if (d < 0.06) return out;
+      const r = O.RNG(O.hash('dirt', b.id, sc.floor || 0)), L = sc.L, n = Math.floor(d * 90), pts = [];
+      for (let k = 0; k < 90; k++) { const tx = r.int(0, L.w - 1), ty = r.int(1, L.d - 1), ox = r.int(1, 14), oy = r.int(2, 13), c = SPECKS[r.int(0, SPECKS.length - 1)], big = r.next() < 0.25; if (k < n && !L.grid[ty * L.w + tx]) { const [x, y] = sc.tileXY(tx, ty); pts.push([x - 8 + ox, y - 12 + oy, c, big]); } }
+      out.push({ y: -0.6, draw: () => {
+        if (d > 0.3) { ctx.fillStyle = `rgba(196,176,136,${Math.min(0.22, (d - 0.3) * 0.4)})`; for (let k = 0; k < pts.length; k += 6) { const [x, y] = pts[k]; ctx.fillRect(Math.round(x - cam.x) - 4, Math.round(y - cam.y) - 1, 9, 3); ctx.fillRect(Math.round(x - cam.x) - 2, Math.round(y - cam.y) - 2, 5, 5); } } // (dusty patches)
+        for (const [x, y, c, big] of pts) { ctx.fillStyle = c; const X = Math.round(x - cam.x), Y = Math.round(y - cam.y); if (big) { ctx.fillRect(X, Y, 3, 1); ctx.fillRect(X + 1, Y - 1, 1, 1); } else ctx.fillRect(X, Y, 2, 1); }
+      } });
+      return out;
+    };
+    // you can take up the broom whenever you like
+    (O.sceneMore = O.sceneMore || []).push(() => {
+      const sc = game.scene; if (!sc || dirtOf(sc.b) < 0.15 || game.player.locked || game.player.sitting) return null; const P = game.player;
+      return { type: 'custom', d: 40, x: P.x, y: P.y - 44, label: 'Sweep the floor', act: () => {
+        P.locked = true; P.anim = 'sweep'; P.ft = 0; let k = 0;
+        const step = () => { if (k++ >= 3 || !game.scene) { P.locked = false; P.anim = 'idle'; O.Panels.toast(dirtOf(sc.b) < 0.15 ? 'Swept clean.' : 'Better. There\'s more yet.'); return; } sc.b.dirt = Math.max(0, dirtOf(sc.b) - 0.09); O.sfx && O.sfx('sweep', 0.8, true); setTimeout(step, 700); };
+        setTimeout(step, 400);
+        const e = PS.emp; if (e && e.onShift && e.biz === sc.b.id) e.todayTasks = (e.todayTasks || 0) + 1; // (a master notices a clean floor)
+      } };
+    });
+    O.handwork = { specOf, sources };
+  }
+  O.HandworkSetup = { setup };
 })();
 
 </script>
@@ -20125,6 +20303,14 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       return { items: out, owner: roomOwner || (hh ? `the ${hh.surname} household` : bz ? bz.name : 'someone') };
     }
 
+    // your own work's stores: what the work needs is yours to take (materials; more once you've risen), never the till
+    const workerMay = (bz, g) => {
+      const e = PS.emp; if (!e || !bz || e.biz !== bz.id || e.place !== sim.world.placeId || g === 'coins') return false;
+      const boss = e.master != null ? sim.byId.get(e.master) : null; if (boss && ((boss.rel.get(0) || {}).affinity ?? 0) < -0.25) return false; // (a master who doesn't trust you keeps the key)
+      const needs = new Set([...(bz.def.recipes || []).flatMap((r) => Object.keys(r.inp || {})), ...Object.keys(bz.def.buys || {})]);
+      return needs.has(g) || (e.level || 0) >= 2;
+    };
+    O.workerMay = workerMay;
     function take(it, items, idxs, owner) {
       const b = game.scene.b, hh = b.household ? sim.households[b.household - 1] : null, bz = sim.biz.get(b.id);
       const stolen = [];
@@ -20140,6 +20326,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         else if (c.src === 'farm') sim.supplierOf('farmhouse').stock.wheat -= got;
         else if (c.src === 'val') hh.valuables.splice(hh.valuables.indexOf(c.k), 1);
         else if (c.src === 'hoard') { c.g.hoard.splice(c.g.hoard.indexOf(c.k), 1); c.g.rel = c.g.rel || {}; c.g.rel.player = 'enemy'; }
+        if (c.src === 'biz' && workerMay(bz, c.k)) { const e = PS.emp; e.tookStores = (e.tookStores || 0) + got; continue; } // (taken for the work: no theft)
         if (c.src !== 'stash' && c.src !== 'homestash') { stolen.push(`${got} ${G[c.k].name.toLowerCase()}`); PS.stolen[c.k] = (PS.stolen[c.k] || 0) + got; }
       }
       if (stolen.length) O.Crime.theft(game, sim, { building: b, floor: game.scene.floor, what: stolen.join(', '), owner, value: idxs.length });
@@ -20162,7 +20349,8 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       const reopen = () => { const c = contents(it); openChest(it, c.items, c.owner, true, c.store); };
       const put = store ? { cap: 24, count: () => (PS.homes[store] || []).length, fn: (k) => { const st = (PS.homes[store] = PS.homes[store] || []); if (st.length >= 24) return O.Panels.toast('The chest is full.', 'bad'); if (!PS.items.includes(k)) return; PS.remove(k); st.push(k); reopen(); } } : null;
       const name = it.kind[0].toUpperCase() + it.kind.slice(1);
-      O.Panels.container(own ? name : `${name}: ${owner.replace(/^the /, '')}`, items, (idxs) => { take(it, items, idxs, owner); if (own) reopen(); }, own ? null : 'Not yours', put);
+      const bz0 = game.scene && sim.biz.get(game.scene.b.id), work = !own && items.some((c) => c.src === 'biz' && workerMay(bz0, c.k));
+      O.Panels.container(own ? name : work ? `${name}: the work's stores` : `${name}: ${owner.replace(/^the /, '')}`, items, (idxs) => { take(it, items, idxs, owner); if (own) reopen(); }, own ? null : work ? 'Take what the work needs. The till is not yours.' : 'Not yours', put);
     }
 
     // Sleeping: you lie down and the night passes (quickly, for you) while the village sleeps around
@@ -25192,7 +25380,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     ];
     const list = (C[e.role] || []).concat(SHARED); if (!list.length || !bz || !bz.b) return [];
     const r = O.RNG(O.hash('chore', e.role, s.day, bz.id)), have = kindsAt(bz, s), out = [];
-    const n = 2 + (r.next() < 0.5 ? 1 : 0), pool = list.slice(); // (two or three of the small duties each day)
+    const n = 3 + (r.next() < 0.5 ? 1 : 0), pool = list.slice(); // (three or four of the small duties each day)
     while (out.length < n && pool.length) {
       const c = pool.splice(Math.floor(r.next() * pool.length), 1)[0], at = choose(c[1], have); if (!at) continue;
       out.push({ kind: 'chore', at, text: c[0], label: c[0], anim: c[2], mins: c[3], doneMsg: c[4], gain: c[5] || null, need: 1 });
@@ -25206,6 +25394,49 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     if (g.good && O.Data.GOODS[g.good]) bz.stock[g.good] = (bz.stock[g.good] || 0) + g.qty;
     if (g.cond && bz.b) bz.b.condition = Math.min(1, (bz.b.condition || 0.8) + g.cond);
   };
+  // more duties, so that every post has at least seven things to be about, and the common ones more
+  const MORE = {
+    'tax collector': [['Fetch the tally sticks from the chest', 'chest|desk', 'pickup', 10, 'Notched and ready.'], ['Call at the houses on the list', 'out', 'look', 25, 'Two paid, one hid.', { cash: 2 }], ['Enter the takings in the roll', 'desk|table', 'write', 15, 'Every coin accounted for.'], ['Seal the strongbox', 'chest', 'count', 10, 'Locked, and the key on your belt.'], ['Post the new rates on the door', 'out', 'place', 10, 'Nailed up for all to see.'], ['Hear a widow plead her dues', 'chair|bench|desk', 'talk', 15, 'Halved, this once.']],
+    'town crier': [['Learn the morning\'s news by heart', 'desk|table|out', 'read', 10, 'Word perfect.'], ['Cry the market prices in the square', 'out', 'ringbell', 15, 'Oyez! Bread at a penny.'], ['Cry a lost child', 'out', 'ringbell', 10, 'Found by the well, and home again.'], ['Polish your handbell', 'bench|table|out', 'scrub', 10, 'It rings clearer.'], ['Cry a new by-law', 'out', 'ringbell', 15, 'Swine off the high street, by order.'], ['Fetch water for the day', 'out', 'bucket', 10, 'Two buckets, full.']],
+    'guard captain': [['Inspect the watch at muster', 'out', 'look', 15, 'Boots blacked, mostly.'], ['Check the armoury rack', 'rack|chest', 'count', 10, 'Every bill and spear in its place.'], ['Walk the walls at dusk', 'out', 'look', 20, 'All quiet.'], ['Drill the new men', 'out', 'attack', 20, 'Fewer bruised shins today.'], ['Hear a complaint from a merchant', 'desk|chair', 'talk', 15, 'Noted, and a man sent.']],
+    sweeper: [['Sweep the market stalls\' leavings', 'out', 'sweep', 20, 'Cabbage leaves and all.'], ['Shovel the dung off the road', 'out', 'dig', 20, 'Onto the cart, for the fields.'], ['Clear the gutters', 'out', 'scrub', 15, 'Running clear again.'], ['Bind a new broom', 'bench|table|out', 'weave', 15, 'Birch twigs, tight-bound.'], ['Fetch water to sluice the steps', 'out', 'bucket', 10, 'Sluiced clean.']],
+    gaoler: [['Take the prisoners their bread', 'cell|out', 'place', 15, 'Bread and water, as the law says.'], ['Fetch water for the cells', 'cell|floor', 'bucket', 10, 'A bucket to each.'], ['Count the prisoners', 'cell|floor', 'count', 10, 'All present.'], ['Oil the cell locks', 'cell|chest', 'scrub', 10, 'They turn sweetly now.'], ['Fresh straw for the cells', 'cell|floor', 'pitch', 15, 'Fresh straw down.']],
+    turnkey: [['Fetch water for the cells', 'cell|floor', 'bucket', 10, 'A bucket to each.'], ['Count the prisoners', 'cell|floor', 'count', 10, 'All present.'], ['Fresh straw for the cells', 'cell|floor', 'pitch', 15, 'Fresh straw down.'], ['Write up who came and went', 'desk|table', 'write', 10, 'In the book.'], ['Sweep the passage', 'floor', 'sweep', 10, 'Swept.']],
+    magistrate: [['Read the depositions', 'desk', 'read', 20, 'Three liars and one honest man.'], ['Write a warrant', 'desk', 'write', 15, 'Signed and sealed.'], ['Hear a boundary quarrel', 'chair|desk', 'talk', 20, 'Settled with a new stone.'], ['Look up a precedent in the book', 'shelf|desk', 'read', 15, 'Found it.'], ['Seal the day\'s writs', 'desk|chest', 'place', 10, 'Waxed and stamped.']],
+    clerk: [['Copy out a letter fair', 'desk', 'write', 20, 'Not a blot.'], ['Cut new quills', 'desk|table', 'scrub', 10, 'Six good nibs.'], ['File the day\'s papers', 'shelf|chest|desk', 'place', 10, 'Each in its pigeonhole.'], ['Mix fresh ink', 'desk|table', 'mix', 10, 'Black as pitch.'], ['Read back the accounts', 'desk', 'read', 15, 'They tally.']],
+    'market warden': [['Walk the stalls and check the weights', 'out', 'look', 20, 'One short pound, fined.', { cash: 2 }], ['Collect the stall fees', 'out', 'count', 15, 'Paid, every stall.', { cash: 3 }], ['Settle a quarrel over a pitch', 'out', 'talk', 15, 'Moved along, both of them.'], ['Ring the market bell', 'out', 'ringbell', 5, 'Trading begins.'], ['Write up the fees', 'desk|table|out', 'write', 10, 'Entered.']],
+    'ballot clerk': [['Set out the ballot box', 'table|desk|floor', 'place', 10, 'Locked and set out.'], ['Fold the ballot slips', 'table|desk', 'weave', 15, 'A neat stack.'], ['Check the names on the roll', 'desk', 'read', 15, 'All in order.'], ['Seal the box overnight', 'chest|table', 'count', 10, 'Sealed, with witnesses.'], ['Sweep the hall', 'floor', 'sweep', 10, 'Swept.']],
+    'pilgrim guide': [['Mend your staff and scrip', 'bench|table|out', 'scrub', 10, 'Ready for the road.'], ['Tell the pilgrims the saint\'s tale', 'out|bench', 'talk', 15, 'They listen, rapt.'], ['Count the pilgrims\' tokens', 'table|desk|out', 'count', 10, 'Paid up.', { cash: 2 }], ['Lead a prayer at the wayside cross', 'out', 'pray', 15, 'Amen, and on.'], ['Fill the water skins at the well', 'out', 'bucket', 10, 'Full for the road.']],
+    moneylender: [['Weigh the coins for clipping', 'counter|desk|table', 'count', 15, 'Two clipped, set aside.'], ['Write up a loan', 'desk', 'write', 15, 'Signed, and the pledge taken.'], ['Count the pledges in the chest', 'chest', 'count', 10, 'All there.'], ['Call on a late payer', 'out', 'talk', 20, 'He paid half.', { cash: 3 }], ['Lock the strongbox', 'chest', 'place', 5, 'Locked.']],
+    carter: [['Grease the cart axles', 'out', 'scrub', 15, 'They turn without a squeal.'], ['Water and feed the horse', 'out', 'bucket', 10, 'Drunk deep.'], ['Load the cart', 'out', 'carry', 20, 'Roped down tight.'], ['Mend a cracked spoke', 'out|workbench', 'hammer', 20, 'Bound with iron.'], ['Fork hay into the stall', 'out|hay', 'pitch', 10, 'A full rack.']],
+    'house agent': [['Show a house to a buyer', 'out', 'talk', 20, 'They liked the hearth.'], ['Write up a lease', 'desk', 'write', 15, 'Signed.'], ['Collect the rents', 'out', 'count', 20, 'Paid, nearly all.', { cash: 3 }], ['Nail up a for-sale board', 'out', 'hammer', 10, 'Up.'], ['Check a let house for damage', 'out', 'look', 15, 'A broken shutter, noted.']],
+    ferryman: [['Bail out the ferry', 'out', 'bucket', 10, 'Dry, near enough.'], ['Tar the hull seams', 'out', 'scrub', 20, 'Watertight.'], ['Splice a worn rope', 'out|bench', 'weave', 15, 'Good as new.'], ['Take the fares box home', 'out', 'count', 5, 'Counted.'], ['Pole a load across', 'out', 'pitch', 20, 'Across and back.', { cash: 2 }]],
+    'toll keeper': [['Take the toll at the bar', 'out', 'count', 15, 'A farthing a hoof.', { cash: 2 }], ['Swing the barrier up and down', 'out', 'open', 10, 'Through they go.'], ['Write up the day\'s tolls', 'desk|table', 'write', 10, 'Entered.'], ['Mend the toll board', 'out', 'hammer', 15, 'Rates clear again.'], ['Sweep the road by the bar', 'out', 'sweep', 10, 'Swept.']],
+    guard: [['Stand watch at the gate', 'out', 'look', 20, 'Nothing stirred.'], ['Oil your bill', 'rack|bench|table', 'scrub', 10, 'Bright and keen.'], ['Fetch water for the guardhouse', 'out', 'bucket', 10, 'Two buckets.'], ['Bring in firewood for the brazier', 'fireplace|floor', 'place', 10, 'The brazier glows.'], ['Walk the market', 'out', 'look', 15, 'Hands off purses.'], ['Spar with a comrade', 'out', 'attack', 15, 'One bruise each.']],
+    sergeant: [['Fetch water for the guardhouse', 'out', 'bucket', 10, 'Two buckets.'], ['Inspect the cells', 'cell|floor', 'look', 10, 'Locked fast.'], ['Bring in firewood for the brazier', 'fireplace|floor', 'place', 10, 'The brazier glows.'], ['Walk the night rounds', 'out', 'look', 20, 'Quiet streets.']],
+    'bounty hunter': [['Sharpen your knife', 'bench|table|out', 'scrub', 10, 'Keen.'], ['Fetch water for your horse', 'out', 'bucket', 10, 'Drunk deep.'], ['Ask about at the market', 'out', 'talk', 15, 'A name, and a tavern.'], ['Mend your boots', 'bench|table|out', 'hammer', 15, 'Sound for the road.']],
+    undertaker: [['Measure for a coffin', 'out|floor', 'count', 10, 'Five foot eight.'], ['Plane the coffin boards', 'workbench|out', 'saw', 25, 'Smooth and square.'], ['Wash and lay out the dead', 'medbed|table|floor', 'scrub', 20, 'Decent, and at peace.'], ['Fetch water for the washing', 'out', 'bucket', 10, 'Two buckets.']],
+    bailiff: [['Serve a summons', 'out', 'talk', 15, 'Delivered, and not thanked.'], ['Seize goods for a debt', 'out', 'carry', 20, 'Two stools and a pot.'], ['Write up a distraint', 'desk|table', 'write', 15, 'Set down.'], ['Walk the bounds', 'out', 'look', 20, 'Every stone in place.']],
+    'rat-catcher': [['Mix the poison bait', 'table|bench|out', 'mix', 10, 'Mind your fingers.'], ['Fetch water for the dog', 'out', 'bucket', 5, 'Lapped dry.'], ['Burn the catch', 'out', 'place', 10, 'Gone up in smoke.'], ['Stop a rat hole with stone', 'floor|out', 'hammer', 10, 'Stopped.']],
+    lamplighter: [['Light the street lamps', 'out', 'point', 20, 'Pools of light down the street.'], ['Douse the lamps at dawn', 'out', 'point', 15, 'Out, every one.'], ['Carry the oil round', 'out', 'carry', 15, 'Every lamp topped up.'], ['Polish the lamp glasses', 'table|bench|out', 'scrub', 10, 'Clear as water.']],
+    'chimney sweep': [['Sweep a parlour flue', 'fireplace', 'sweep', 20, 'Up and out of the pot.', { cash: 2 }], ['Bag the soot for the gardens', 'out', 'carry', 10, 'Good for the cabbages.'], ['Wash the soot off', 'out', 'bucket', 10, 'Grey, at least.'], ['Check a chimney stack from outside', 'out', 'look', 10, 'Draws well.']],
+    'water carrier': [['Fill the yoke buckets at the well', 'out', 'bucket', 10, 'Brimming.'], ['Carry water to the bakery', 'out', 'bucket', 15, 'Delivered.', { cash: 1 }], ['Carry water to the inn', 'out', 'bucket', 15, 'Delivered.', { cash: 1 }], ['Scrub out the buckets', 'out', 'scrub', 10, 'Sweet-smelling again.']],
+    teacher: [['Hear the children\'s letters', 'desk|bench|chair', 'read', 20, 'A, B, and nearly C.'], ['Set out the slates', 'table|desk|bench', 'place', 10, 'One for each.'], ['Mend the birch rod', 'desk|table', 'scrub', 5, 'Ready, if needed.'], ['Copy a lesson fair', 'desk', 'write', 15, 'Clear enough for a child.']],
+    'parish clerk': [['Write up the burials in the register', 'desk', 'write', 15, 'Set down.'], ['Trim the altar candles', 'altar|candlestand', 'scrub', 10, 'Trimmed.'], ['Sweep the nave', 'floor', 'sweep', 15, 'Swept.'], ['Fetch water for the font', 'altar|floor', 'bucket', 10, 'Fresh water in the font.']],
+    gravedigger: [['Dig a grave', 'out', 'dig', 30, 'Six feet, square.'], ['Fill in a grave', 'out', 'dig', 20, 'Mounded and smooth.'], ['Scythe the churchyard grass', 'out', 'hoe', 20, 'Neat between the stones.'], ['Sharpen your spade', 'out|bench', 'scrub', 10, 'Bites well.']],
+    'bell-ringer': [['Ring the hours', 'out|floor', 'pitch', 10, 'The bells ring out.'], ['Grease the bell wheel', 'floor|out', 'scrub', 15, 'Swings sweet.'], ['Mend a bell rope', 'bench|floor', 'weave', 15, 'Spliced.'], ['Sweep the tower stair', 'floor', 'sweep', 10, 'Swept.']],
+    priest: [['Hear confessions', 'pew|chair|altar', 'pray', 20, 'Shriven, all.'], ['Visit the sick', 'out', 'pray', 20, 'A blessing at the bedside.'], ['Fetch water and bless it', 'altar|out', 'bucket', 10, 'Holy water for the stoup.']],
+    messenger: [['Carry a letter to the next street', 'out', 'carry', 15, 'Delivered.'], ['Wait for a reply', 'out', 'look', 10, 'Here it comes.'], ['Run a message to the watch', 'out', 'carry', 10, 'Delivered, breathless.'], ['Grease your boots', 'bench|out', 'scrub', 10, 'Supple.'], ['Learn a message by heart', 'out|table', 'read', 5, 'Word perfect.'], ['Sort the letters by street', 'table|desk|out', 'count', 10, 'Sorted.']],
+    // the common trades get more again
+    labourer: [['Carry stone to the site', 'out', 'carry', 20, 'Heavy work.'], ['Dig a drainage ditch', 'out', 'dig', 25, 'Water runs off now.'], ['Fetch water for the men', 'out', 'bucket', 10, 'They drink deep.'], ['Stack timber', 'out', 'carry', 15, 'Neat and dry.'], ['Mix mortar', 'out', 'mix', 15, 'Stiff enough.']],
+    farmhand: [['Fetch water for the troughs', 'out', 'bucket', 10, 'Troughs full.'], ['Fork hay to the cattle', 'out|hay', 'pitch', 15, 'Fed.'], ['Muck out the byre', 'out|floor', 'pitch', 20, 'Mucked out.'], ['Mend a hurdle', 'out', 'hammer', 15, 'Stock-proof.'], ['Feed the hens', 'out', 'pickup', 10, 'A dozen eggs.']],
+    maid: [['Fetch water for the kitchen', 'out|floor', 'bucket', 10, 'Two pails.'], ['Bring in firewood for the hearth', 'fireplace|floor', 'place', 10, 'Stacked by the hearth.'], ['Beat the rugs', 'out|rug', 'shake', 15, 'Clouds of dust.'], ['Polish the pewter', 'table|cupboard|shelf', 'scrub', 15, 'Gleaming.']],
+    server: [['Fetch water for the kitchen', 'out|floor', 'bucket', 10, 'Two pails.'], ['Wipe down the tables', 'table', 'scrub', 10, 'Clean.'], ['Bring up a cask from the cellar', 'barrel|floor', 'carry', 15, 'Tapped.'], ['Lay the tables', 'table', 'place', 10, 'Laid.']],
+    baker: [['Bring in firewood for the oven', 'oven|floor', 'place', 10, 'The oven roars.'], ['Fetch water for the dough', 'out|floor', 'bucket', 10, 'Two pails.'], ['Scrape out the oven', 'oven', 'scrub', 15, 'Clean ash.'], ['Sift the flour', 'table|doughtable', 'mix', 15, 'Fine as silk.']],
+    blacksmith: [['Bring charcoal for the forge', 'forge|floor', 'place', 10, 'Heaped by the forge.'], ['Fetch water for the quench tub', 'out|floor', 'bucket', 10, 'Full.'], ['Sweep the scale off the floor', 'floor', 'sweep', 10, 'Swept.'], ['Sort the scrap iron', 'crate|floor', 'count', 10, 'Good from bad.']],
+    innkeeper: [['Fetch water for the kitchen', 'out|floor', 'bucket', 10, 'Two pails.'], ['Bring in firewood for the hearth', 'fireplace|floor', 'place', 10, 'Stacked.'], ['Tap a new cask', 'barrel|bar', 'pour', 10, 'Flowing.'], ['Count the takings', 'bar|counter|chest', 'count', 10, 'A good night.']],
+  };
+  for (const [r, extra] of Object.entries(MORE)) { const have = new Set((C[r] || []).map((c) => c[0])); C[r] = (C[r] || []).concat(extra.filter((c) => !have.has(c[0]))); }
   O.CHORES = C;
 })();
 
@@ -25785,7 +26016,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       if (e.early && e.early.day === day && e.early.from < o) o = e.early.from; // (your master let you start sooner today)
       if (e.lateStart && e.lateStart.day === day && e.lateStart.from > o) o = e.lateStart.from; // (told to come back later today)
       if (e.day !== day) { // a new day
-        if (e.day != null && e.dayInfo) settle(s, bz, e);
+        if (e.day != null && e.dayInfo && !e.dayInfo.settled) settle(s, bz, e);
         if (e.temp != null && day > e.temp) { quit(`Your day's work at ${e.bizName} for the holiday is over.`, e); return; }
         e.day = day; e.dayInfo = { works: worksToday(s, bz) && day >= (e.firstDay || 0), arrived: null, excused: e.excuseDay === day || e.dayOff === day, off: e.dayOff === day };
         e.tasks = []; e.onShift = false;
@@ -25795,10 +26026,10 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       const on = h >= o && h < c;
       if (on && !e.onShift && !D0.dayDone && !D0.off) { e.onShift = true; e.tasks = newTasks(s, bz, e); e._rot = now(s); D0.mode = modeOf(e.role); D0.present = 0; refresh(); }
       if (on && e.onShift && atWork(s, bz, e)) D0.present = (D0.present || 0) + 1;
-      if (!on && e.onShift && h >= c) { e.onShift = false; refresh(); }
+      if (!on && e.onShift && h >= c) { e.onShift = false; if (!D0.settled) { D0.settled = true; settle(s, bz, e); } refresh(); } // (paid when the shift ends, not the next morning)
       if (on && D0.arrived == null && !D0.off && atWork(s, bz, e)) { D0.arrived = h; if (h > o + 0.25 && !D0.excused && e.master != null && !['monarch', 'consort', 'regent'].includes(e.role)) { e.stats.late++; const boss = s.byId.get(e.master); if (boss) s.relate(boss, { id: 0 }, -0.04); say("You're late.", 'bad'); } }
       if (on && e.onShift && D0.mode === 'quota' && e.tasks.length && e.tasks.every((t) => t.optional || t.have >= t.need) && !D0.dayDone) {
-        D0.dayDone = true; e.onShift = false; refresh();
+        D0.dayDone = true; e.onShift = false; if (!D0.settled) { D0.settled = true; settle(s, bz, e); } refresh();
         say(`That's your day's work done at ${bz.name}. You can go: you'll be paid in full.`);
       }
       if (on && e.onShift && !COURT.has(e.role) && game.scene && game.scene.b.id === bz.id) { if (e._chatAt == null) e._chatAt = now(s) + 40 + Math.random() * 60; else if (now(s) >= e._chatAt) { e._chatAt = now(s) + 100 + Math.random() * 120; chatter(s, bz, e); } }
@@ -25880,11 +26111,12 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         else if (D0.mode === 'quota') { const req = e.tasks.filter((t) => !t.optional), tot = req.length || 1, fin = req.filter((t) => t.have >= t.need).length; pay = Math.round(e.wage * (D0.dayDone ? 1 : O.clamp(0.3 + 0.7 * fin / tot, 0.3, 1))); }
         else { const [o0, c0] = hoursOf(e, bz), len = Math.max(60, (c0 - o0) * 60); pay = Math.round(e.wage * O.clamp(0.25 + 0.75 * (D0.present || 0) / len + Math.min(0.15, done * 0.02), 0.25, 1.15)); }
         const purse = bz.def.public ? s.treasury : bz; const paid = Math.min(pay, Math.floor(purse.cash));
-        purse.cash -= paid; PS.money += paid; PS.earned = (PS.earned || 0) + paid;
+        purse.cash -= paid; PS.earned = (PS.earned || 0) + paid; let handOver = paid;
         if (boss) s.relate(boss, { id: 0 }, done >= 3 ? 0.04 : 0.01);
         const bonus = D0.walkedOut ? 0 : e.tasks.filter((x) => x.optional && x.have >= x.need).reduce((n, x) => n + (x.bonus || 0), 0);
-        const b2 = Math.max(0, Math.min(bonus, Math.floor(purse.cash))); if (bonus) e.stats.extras = (e.stats.extras || 0) + e.tasks.filter((x) => x.optional && x.have >= x.need).length; if (b2) { purse.cash -= b2; PS.money += b2; PS.earned = (PS.earned || 0) + b2; }
-        if (pay) say(`Your day's pay from ${bz.name}: ₳${paid}${b2 ? ` and ₳${b2} for the extra` : ''}${paid < pay ? ` (₳${pay - paid} owing: the purse is empty)` : ''}.`);
+        const b2 = Math.max(0, Math.min(bonus, Math.floor(purse.cash))); if (bonus) e.stats.extras = (e.stats.extras || 0) + e.tasks.filter((x) => x.optional && x.have >= x.need).length; if (b2) { purse.cash -= b2; handOver += b2; PS.earned = (PS.earned || 0) + b2; }
+        if (paid < pay) { e.owedPay = (e.owedPay || 0) + (pay - paid); } // (the purse came up short: it's owed, and paid when there's coin)
+        if (handOver || paid < pay) O.wagesDue && O.wagesDue(s, boss, handOver, `Your day's pay from ${bz.name}: ₳${paid}${b2 ? ` and ₳${b2} for the extra` : ''}${paid < pay ? ` (₳${pay - paid} still owing: the purse is empty)` : ''}.`);
         // a word from the master about the day
         // a full week, every day there and on time: a little extra from the master
         e.week = e.week || { start: e.day, good: 0, bad: 0 };
@@ -31488,7 +31720,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.RisingSetup.setup(game, npcUI);
   O.RitesSetup.setup(game);
   O.WarfareSetup.setup(game, npcUI);
-  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.NpcActsSetup.setup(game); O.InitiateSetup.setup(game); O.UnderworldSetup.setup(game); O.CourtshipSetup.setup(game); O.FencesSetup.setup(game); O.FamilySetup.setup(game); O.PetsSetup.setup(game); O.FavoursSetup.setup(game); O.MarketSetup.setup(game); O.GrudgesSetup.setup(game); O.RitualsSetup.setup(game); O.TodoSetup.setup(game); O.DealingsSetup.setup(game); O.CounterSetup.setup(game); O.ResourcesSetup.setup(game); O.GangBasesSetup.setup(game); O.GatheringsSetup.setup(game); O.WildSetup.setup(game); O.SongsSetup.setup(game); O.PoliticsSetup.setup(game); O.ChurchSetup.setup(game); O.SeaSetup.setup(game); O.LegacySetup.setup(game); O.WorldLifeSetup.setup(game); O.TrainingSetup.setup(game); O.ExtrasSetup.setup(game); O.GatheringSetup.setup(game); O.StreetLifeSetup.setup(game); O.OutdoorsSetup.setup(game); O.SkyFxSetup.setup(game); O.CrittersSetup.setup(game); O.HygieneSetup.setup(game); O.HearthLifeSetup.setup(game); O.FarmYearSetup.setup(game); O.HouseBuildSetup.setup(game); O.RoadTradeSetup.setup(game); O.SicknessSetup.setup(game); O.HeartsSetup.setup(game); O.GuildsSetup.setup(game); O.GangWorkSetup.setup(game); O.WorkLifeSetup.setup(game); O.CastleGroundsSetup.setup(game); O.MoneySetup.setup(game); O.BarberSetup.setup(game); O.RoadSenseSetup.setup(game); O.NpcLifeSetup.setup(game); O.PolishSetup.setup(game);
+  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.NpcActsSetup.setup(game); O.InitiateSetup.setup(game); O.UnderworldSetup.setup(game); O.CourtshipSetup.setup(game); O.FencesSetup.setup(game); O.FamilySetup.setup(game); O.PetsSetup.setup(game); O.FavoursSetup.setup(game); O.MarketSetup.setup(game); O.GrudgesSetup.setup(game); O.RitualsSetup.setup(game); O.TodoSetup.setup(game); O.DealingsSetup.setup(game); O.CounterSetup.setup(game); O.ResourcesSetup.setup(game); O.GangBasesSetup.setup(game); O.GatheringsSetup.setup(game); O.WildSetup.setup(game); O.SongsSetup.setup(game); O.PoliticsSetup.setup(game); O.ChurchSetup.setup(game); O.SeaSetup.setup(game); O.LegacySetup.setup(game); O.WorldLifeSetup.setup(game); O.TrainingSetup.setup(game); O.ExtrasSetup.setup(game); O.GatheringSetup.setup(game); O.StreetLifeSetup.setup(game); O.OutdoorsSetup.setup(game); O.SkyFxSetup.setup(game); O.CrittersSetup.setup(game); O.HygieneSetup.setup(game); O.HearthLifeSetup.setup(game); O.FarmYearSetup.setup(game); O.HouseBuildSetup.setup(game); O.RoadTradeSetup.setup(game); O.SicknessSetup.setup(game); O.HeartsSetup.setup(game); O.GuildsSetup.setup(game); O.GangWorkSetup.setup(game); O.WorkLifeSetup.setup(game); O.CastleGroundsSetup.setup(game); O.MoneySetup.setup(game); O.BarberSetup.setup(game); O.RoadSenseSetup.setup(game); O.HandworkSetup.setup(game); O.NpcLifeSetup.setup(game); O.PolishSetup.setup(game);
   O.FinerySetup.setup(game);
   O.PastimesSetup.setup(game);
   O.FishingSetup.setup(game);

@@ -572,7 +572,7 @@
       if (e.early && e.early.day === day && e.early.from < o) o = e.early.from; // (your master let you start sooner today)
       if (e.lateStart && e.lateStart.day === day && e.lateStart.from > o) o = e.lateStart.from; // (told to come back later today)
       if (e.day !== day) { // a new day
-        if (e.day != null && e.dayInfo) settle(s, bz, e);
+        if (e.day != null && e.dayInfo && !e.dayInfo.settled) settle(s, bz, e);
         if (e.temp != null && day > e.temp) { quit(`Your day's work at ${e.bizName} for the holiday is over.`, e); return; }
         e.day = day; e.dayInfo = { works: worksToday(s, bz) && day >= (e.firstDay || 0), arrived: null, excused: e.excuseDay === day || e.dayOff === day, off: e.dayOff === day };
         e.tasks = []; e.onShift = false;
@@ -582,10 +582,10 @@
       const on = h >= o && h < c;
       if (on && !e.onShift && !D0.dayDone && !D0.off) { e.onShift = true; e.tasks = newTasks(s, bz, e); e._rot = now(s); D0.mode = modeOf(e.role); D0.present = 0; refresh(); }
       if (on && e.onShift && atWork(s, bz, e)) D0.present = (D0.present || 0) + 1;
-      if (!on && e.onShift && h >= c) { e.onShift = false; refresh(); }
+      if (!on && e.onShift && h >= c) { e.onShift = false; if (!D0.settled) { D0.settled = true; settle(s, bz, e); } refresh(); } // (paid when the shift ends, not the next morning)
       if (on && D0.arrived == null && !D0.off && atWork(s, bz, e)) { D0.arrived = h; if (h > o + 0.25 && !D0.excused && e.master != null && !['monarch', 'consort', 'regent'].includes(e.role)) { e.stats.late++; const boss = s.byId.get(e.master); if (boss) s.relate(boss, { id: 0 }, -0.04); say("You're late.", 'bad'); } }
       if (on && e.onShift && D0.mode === 'quota' && e.tasks.length && e.tasks.every((t) => t.optional || t.have >= t.need) && !D0.dayDone) {
-        D0.dayDone = true; e.onShift = false; refresh();
+        D0.dayDone = true; e.onShift = false; if (!D0.settled) { D0.settled = true; settle(s, bz, e); } refresh();
         say(`That's your day's work done at ${bz.name}. You can go: you'll be paid in full.`);
       }
       if (on && e.onShift && !COURT.has(e.role) && game.scene && game.scene.b.id === bz.id) { if (e._chatAt == null) e._chatAt = now(s) + 40 + Math.random() * 60; else if (now(s) >= e._chatAt) { e._chatAt = now(s) + 100 + Math.random() * 120; chatter(s, bz, e); } }
@@ -667,11 +667,12 @@
         else if (D0.mode === 'quota') { const req = e.tasks.filter((t) => !t.optional), tot = req.length || 1, fin = req.filter((t) => t.have >= t.need).length; pay = Math.round(e.wage * (D0.dayDone ? 1 : O.clamp(0.3 + 0.7 * fin / tot, 0.3, 1))); }
         else { const [o0, c0] = hoursOf(e, bz), len = Math.max(60, (c0 - o0) * 60); pay = Math.round(e.wage * O.clamp(0.25 + 0.75 * (D0.present || 0) / len + Math.min(0.15, done * 0.02), 0.25, 1.15)); }
         const purse = bz.def.public ? s.treasury : bz; const paid = Math.min(pay, Math.floor(purse.cash));
-        purse.cash -= paid; PS.money += paid; PS.earned = (PS.earned || 0) + paid;
+        purse.cash -= paid; PS.earned = (PS.earned || 0) + paid; let handOver = paid;
         if (boss) s.relate(boss, { id: 0 }, done >= 3 ? 0.04 : 0.01);
         const bonus = D0.walkedOut ? 0 : e.tasks.filter((x) => x.optional && x.have >= x.need).reduce((n, x) => n + (x.bonus || 0), 0);
-        const b2 = Math.max(0, Math.min(bonus, Math.floor(purse.cash))); if (bonus) e.stats.extras = (e.stats.extras || 0) + e.tasks.filter((x) => x.optional && x.have >= x.need).length; if (b2) { purse.cash -= b2; PS.money += b2; PS.earned = (PS.earned || 0) + b2; }
-        if (pay) say(`Your day's pay from ${bz.name}: ₳${paid}${b2 ? ` and ₳${b2} for the extra` : ''}${paid < pay ? ` (₳${pay - paid} owing: the purse is empty)` : ''}.`);
+        const b2 = Math.max(0, Math.min(bonus, Math.floor(purse.cash))); if (bonus) e.stats.extras = (e.stats.extras || 0) + e.tasks.filter((x) => x.optional && x.have >= x.need).length; if (b2) { purse.cash -= b2; handOver += b2; PS.earned = (PS.earned || 0) + b2; }
+        if (paid < pay) { e.owedPay = (e.owedPay || 0) + (pay - paid); } // (the purse came up short: it's owed, and paid when there's coin)
+        if (handOver || paid < pay) O.wagesDue && O.wagesDue(s, boss, handOver, `Your day's pay from ${bz.name}: ₳${paid}${b2 ? ` and ₳${b2} for the extra` : ''}${paid < pay ? ` (₳${pay - paid} still owing: the purse is empty)` : ''}.`);
         // a word from the master about the day
         // a full week, every day there and on time: a little extra from the master
         e.week = e.week || { start: e.day, good: 0, bad: 0 };

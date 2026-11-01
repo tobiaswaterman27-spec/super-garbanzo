@@ -173,6 +173,14 @@
       return { items: out, owner: roomOwner || (hh ? `the ${hh.surname} household` : bz ? bz.name : 'someone') };
     }
 
+    // your own work's stores: what the work needs is yours to take (materials; more once you've risen), never the till
+    const workerMay = (bz, g) => {
+      const e = PS.emp; if (!e || !bz || e.biz !== bz.id || e.place !== sim.world.placeId || g === 'coins') return false;
+      const boss = e.master != null ? sim.byId.get(e.master) : null; if (boss && ((boss.rel.get(0) || {}).affinity ?? 0) < -0.25) return false; // (a master who doesn't trust you keeps the key)
+      const needs = new Set([...(bz.def.recipes || []).flatMap((r) => Object.keys(r.inp || {})), ...Object.keys(bz.def.buys || {})]);
+      return needs.has(g) || (e.level || 0) >= 2;
+    };
+    O.workerMay = workerMay;
     function take(it, items, idxs, owner) {
       const b = game.scene.b, hh = b.household ? sim.households[b.household - 1] : null, bz = sim.biz.get(b.id);
       const stolen = [];
@@ -188,6 +196,7 @@
         else if (c.src === 'farm') sim.supplierOf('farmhouse').stock.wheat -= got;
         else if (c.src === 'val') hh.valuables.splice(hh.valuables.indexOf(c.k), 1);
         else if (c.src === 'hoard') { c.g.hoard.splice(c.g.hoard.indexOf(c.k), 1); c.g.rel = c.g.rel || {}; c.g.rel.player = 'enemy'; }
+        if (c.src === 'biz' && workerMay(bz, c.k)) { const e = PS.emp; e.tookStores = (e.tookStores || 0) + got; continue; } // (taken for the work: no theft)
         if (c.src !== 'stash' && c.src !== 'homestash') { stolen.push(`${got} ${G[c.k].name.toLowerCase()}`); PS.stolen[c.k] = (PS.stolen[c.k] || 0) + got; }
       }
       if (stolen.length) O.Crime.theft(game, sim, { building: b, floor: game.scene.floor, what: stolen.join(', '), owner, value: idxs.length });
@@ -210,7 +219,8 @@
       const reopen = () => { const c = contents(it); openChest(it, c.items, c.owner, true, c.store); };
       const put = store ? { cap: 24, count: () => (PS.homes[store] || []).length, fn: (k) => { const st = (PS.homes[store] = PS.homes[store] || []); if (st.length >= 24) return O.Panels.toast('The chest is full.', 'bad'); if (!PS.items.includes(k)) return; PS.remove(k); st.push(k); reopen(); } } : null;
       const name = it.kind[0].toUpperCase() + it.kind.slice(1);
-      O.Panels.container(own ? name : `${name}: ${owner.replace(/^the /, '')}`, items, (idxs) => { take(it, items, idxs, owner); if (own) reopen(); }, own ? null : 'Not yours', put);
+      const bz0 = game.scene && sim.biz.get(game.scene.b.id), work = !own && items.some((c) => c.src === 'biz' && workerMay(bz0, c.k));
+      O.Panels.container(own ? name : work ? `${name}: the work's stores` : `${name}: ${owner.replace(/^the /, '')}`, items, (idxs) => { take(it, items, idxs, owner); if (own) reopen(); }, own ? null : work ? 'Take what the work needs. The till is not yours.' : 'Not yours', put);
     }
 
     // Sleeping: you lie down and the night passes (quickly, for you) while the village sleeps around

@@ -116,6 +116,37 @@
       if (hand.age < 18 || (hand.skills[hand.job.role] || 0) < 0.3) { O.gesture(master, 'point', 1.6); sp(master, pick(['Not like that! Watch me.', 'Mind the fire, lad.', 'Good. Again, and quicker.', 'Who taught you that? Not me.'])); setTimeout(() => { O.gesture(hand, 'nod', 1.2); sp(hand, pick(['Yes, master.', 'Sorry, master.', 'Like this?'])); }, 2000); }
       else { O.gesture(hand, 'laugh', 1.5); sp(hand, pick(['Did you hear about the miller\'s goat?', 'Busy today.', 'Pass me that, will you?', 'Nearly done with this one.'])); }
     });
+
+    // ---------------------------------------------------------------- your wages, handed over when the shift ends
+    // the master comes and finds you with the coin; if they can't get to you, it's sent along within the hour
+    const due = [];
+    const absNow = () => { const s = cur(); return s ? s.day * 1440 + s.minute : 0; };
+    O.wagesDue = (s, boss, amount, msg) => { if (!amount) { say(msg); return; } if (!boss || boss.alive === false) { PS.money += amount; O.sfx && O.sfx('kaching', 0.9, !!game.scene); say(msg); return; } due.push({ boss: boss ? boss.id : null, amount, msg, at: absNow(), place: s.world.placeId }); };
+    const payNow = (d, q, how) => {
+      const i = due.indexOf(d); if (i < 0) return; due.splice(i, 1);
+      PS.money += d.amount;
+      if (q && O.NpcActs && O.NpcActs.fly) { O.NpcActs.fly(q, 'player', 'coin'); sp(q, pick(['Here, your day\'s pay.', 'Your wage. Well earned.', 'There you are, as agreed.', 'Today\'s money. Count it if you like.']), 3); }
+      else O.sfx && O.sfx('kaching', 0.9, !!game.scene);
+      say(how ? `${d.msg} ${how}` : d.msg);
+    };
+    O.Street && O.Street.on('wages', (s, q, done) => { const d = due.find((x) => x.boss === q.id); q.agent.frozen = false; if (d) payNow(d, q); done(); });
+    let wdt = 0;
+    game.hooks.update.push((dt) => {
+      wdt -= dt; if (wdt > 0 || !due.length) return; wdt = 1; const s = cur(); if (!s) return; const P = game.player, now = absNow();
+      for (const d of due.slice()) {
+        const q = d.boss != null ? s.byId.get(d.boss) : null, here = d.place === s.world.placeId;
+        if (q && here && game.scene) { const a = game.scene.actors.get(q.id); if (a && !a.hidden) { if (Math.hypot(a.x - P.x, a.y - P.y) < 60) payNow(d, q); else { q.agent.approach = true; setTimeout(() => { q.agent.approach = false; }, 4000); } continue; } }
+        if (q && here && !game.scene && q.agent && !q.agent.hidden && q.agent.inside == null && q.alive !== false) { if (Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < 30) { payNow(d, q); continue; } if (O.Street && !O.Street.busy()) { O.Street.sendAt(q, 'wages'); continue; } }
+        if (now - d.at > 45) payNow(d, null, q ? `(${q.first} sent it on with a lad, not finding you.)` : '');
+      }
+    });
+    // wages owed from a lean day are paid when the purse fills again
+    const _nd2 = SP.newDay;
+    SP.newDay = function () {
+      const r = _nd2.apply(this, arguments);
+      try { for (const e of PS.posts || []) { if (!(e.owedPay > 0) || e.place !== this.world.placeId) continue; const bz = this.biz.get(e.biz); if (!bz) continue; const purse = bz.def.public ? this.treasury : bz; const n = Math.min(e.owedPay, Math.floor(purse.cash)); if (n >= 1) { purse.cash -= n; e.owedPay -= n; O.wagesDue(this, this.byId.get(e.master), n, `Back pay owed you from ${bz.name}: ₳${n}${e.owedPay > 0 ? ` (₳${Math.ceil(e.owedPay)} still owing)` : ''}.`); } } } catch (err) { /* */ }
+      return r;
+    };
   }
   O.WorkLifeSetup = { setup };
 })();

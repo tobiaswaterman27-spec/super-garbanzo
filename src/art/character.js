@@ -216,6 +216,8 @@
     shake: { frames: 2, fps: 6 }, place: { frames: 3, fps: 4 }, count: { frames: 4, fps: 3 }, bucket: { frames: 8, fps: 10 }, mix: { frames: 4, fps: 4 },
     // everyday gestures and moods
     nod: { frames: 4, fps: 5 }, laugh: { frames: 4, fps: 6 }, shrug: { frames: 4, fps: 3 }, bow: { frames: 4, fps: 2.5 }, curtsy: { frames: 4, fps: 2.5 },
+    // playing music
+    juggle: { frames: 6, fps: 7 }, ringbell: { frames: 4, fps: 6 }, lute: { frames: 4, fps: 4 }, fiddle: { frames: 4, fps: 5 }, pipe: { frames: 4, fps: 4 }, drum: { frames: 4, fps: 6 },
     dance: { frames: 8, fps: 7 }, yawn: { frames: 4, fps: 2 }, scratch: { frames: 4, fps: 6 }, wipe: { frames: 4, fps: 3 }, cough: { frames: 4, fps: 5 }, gesture: { frames: 4, fps: 3 },
   };
 
@@ -391,6 +393,12 @@
         const y = anim === 'stretcher' ? hipY + 1 : chest + 2.5;
         A.R = reach(1, [2.8, y, D + 3.6]); A.L = reach(-1, [-2.8, y, D + 3.6]); P.carrying = anim === 'carry'; break;
       }
+      case 'lute': { const k = f % 2; A.L = reach(-1, [-3.2, chest + 1.5, D + 3]); A.R = reach(1, [0.8, chest + 4.2 + k * 0.7, D + 3.8]); P.held = 'lute'; P.toolHand = 'R'; P.toolDir = [-0.9, -0.35, 0.25]; P.headDown = 0.3; P.mouth = f === 2 ? 1 : 0; break; }
+      case 'fiddle': { const k = [0, 1, 2, 1][f]; A.L = reach(-1, [-3.6, chest - 1.5, D + 2.6]); A.R = reach(1, [0.6 + k * 1.2, chest + 0.8, D + 3.4]); P.held = 'fiddle'; P.toolHand = 'L'; P.toolDir = [0.8, 0.35, 0.3]; P.headDown = 0.2; break; }
+      case 'pipe': { const k = f % 2; A.R = reach(1, [0.6, chest - 3 + k * 0.3, D + 4]); A.L = reach(-1, [-0.4, chest - 1, D + 4.2]); P.held = 'pipe'; P.toolHand = 'R'; P.toolDir = [0, 0.85, 0.5]; P.bob = k ? -0.4 : 0; break; }
+      case 'juggle': { const up = f % 2; A.R = reach(1, [3.6, chest + 3 - (up ? 1.5 : -0.5), D + 4]); A.L = reach(-1, [-3.6, chest + 3 - (up ? -0.5 : 1.5), D + 4]); P.held = 'balls'; P.toolHand = 'R'; P.jug = f; P.headUp = 0.3; P.mouth = f === 3 ? 1 : 0; break; }
+      case 'ringbell': { const k = f % 2; A.R = reach(1, [4.6, shY - 4 - k * 1.6, D + 2.4], [1, 0.4, -0.2]); P.held = 'handbell'; P.toolHand = 'R'; P.toolDir = [k ? 0.3 : -0.3, 1, 0.1]; P.mouth = f >= 2 ? 1 : 0; break; }
+      case 'drum': { const k = f % 2; A.L = reach(-1, [-2, chest + 5, D + 3]); A.R = reach(1, [0.6, chest + (k ? 1 : 4.5), D + 4]); P.held = 'drum'; P.toolHand = 'L'; P.toolDir = [0, 0, 1]; break; }
       case 'sweep': { const k = [0, 1, 2, 1][f]; A.R = reach(1, [1.5, chest + 1, D + 2.5]); A.L = reach(-1, [-0.5, chest + 5, D + 3 + k]); P.held = 'broom'; P.toolHand = 'L'; P.toolDir = [0.15, 0.85, 0.5 - k * 0.15]; break; }
       case 'read': { A.R = reach(1, [1.6, chest + 3, D + 3.2]); A.L = reach(-1, [-1.6, chest + 3, D + 3.2]); P.held = 'book'; P.book = true; break; }
       case 'celebrate': { const hi = f % 2 === 0; for (const s of [1, -1]) A[s > 0 ? 'R' : 'L'] = reach(s, [s * (hi ? 9.5 : 8.5), shY - (hi ? 7.5 : 5.5), 2], [s, 0.2, -0.3]); P.bob = hi ? -1 : 0; P.mouth = 1; break; }
@@ -494,7 +502,7 @@
     drawLowerGarment(S);
     drawBeltThings(S);
     if (V.back) { drawLongHair(S, 'back'); drawCloak(S, 'over'); drawBackItem(S, 'over'); }
-    if (held === 'lute') drawLute(S);
+    if (held === 'lute' && p.anim !== 'lute') drawLute(S); // (on the back, unless it's being played)
     drawHead(S);
     if (!V.back) drawLongHair(S, 'front');
     drawHat(S);
@@ -581,7 +589,7 @@
       const u = 0.8, cx = el[0] + (hd[0] - el[0]) * u, cy = el[1] + (hd[1] - el[1]) * u;
       for (let dx = -2; dx <= 2; dx++) if (B.get(Math.floor(cx + dx), Math.floor(cy)) === cov.lowerArm) B.tweak(cx + dx, cy, -1);
     }
-    if (held && p.anim !== 'sleep' && held !== 'lute' && held !== 'book') { B.part(G.ITEM); drawItem(S, held, A, hd); B.part(group); }
+    if (held && p.anim !== 'sleep' && (held !== 'lute' || p.anim === 'lute') && held !== 'book') { B.part(G.ITEM); drawItem(S, held, A, hd); B.part(group); }
     B.capsule(hd[0], hd[1], hd[0], hd[1] + 0.3, r * (p.fist ? 1.1 : 0.98), r * 0.95, a.skin, { shadeBias: bias });
   }
 
@@ -1135,6 +1143,12 @@
       case 'pie': B.blob(hx + ux * 1.5, hy + 0.3, 2.4, 1.3, P.mat('#c8903e', 'wood'), { power: 2.5 }); break;
       case 'fish': B.blob(hx + ux * 2, hy + 1, 2.8, 1, P.mat('#9aa8b0', 'metal'), { power: 2 }); break;
       case 'letter': B.blob(hx + ux, hy, 1.8, 1.2, P.mat('#ece2c8', 'cloth'), { power: 5 }); B.plot(hx + ux, hy, P.mat('#a8382f'), 2); break;
+      case 'lute': { const body = P.mat('#d49a4c', 'wood'), dk = P.mat('#4a2e14', 'wood'); B.blob(hx - ux * 0.5, hy + 1.4, 5, 4, dk, { power: 2.2 }); B.blob(hx - ux * 0.5, hy + 1.4, 4.3, 3.4, body, { power: 2.2 }); B.plot(hx - ux * 0.5, hy + 1.2, dk, 1); B.plot(hx - ux * 0.5 + 1, hy + 1.2, dk, 1); const n1 = along(11); B.capsule(hx, hy, n1[0], n1[1], 0.8, 0.6, dk); B.capsule(n1[0], n1[1], n1[0] - 0.5, n1[1] + 1.4, 0.7, 0.5, dk); break; }
+      case 'fiddle': { const body = P.mat('#b86a30', 'wood'), dk = P.mat('#3a2412', 'wood'); B.blob(hx + ux * 3.5, hy + uy * 3.5 + 0.5, 3.3, 2.5, dk, { power: 2.5 }); B.blob(hx + ux * 3.5, hy + uy * 3.5 + 0.5, 2.7, 2, body, { power: 2.5 }); B.plot(hx + ux * 3.5, hy + uy * 3.5 + 0.5, dk, 1); B.capsule(hx, hy, hx + ux * 2, hy + uy * 2, 0.6, 0.6, dk); const bw = P.mat('#e8dcc0', 'cloth'); B.capsule(hx + ux * 2 - px * 4, hy + uy * 2 - py * 4 + 2, hx + ux * 5 + px * 3, hy + uy * 5 + py * 3 + 2, 0.35, 0.35, bw); break; }
+      case 'pipe': { const a1 = along(8); B.capsule(hx, hy - 1, a1[0], a1[1], 0.8, 1.1, P.mat('#c8a060', 'wood')); B.plot(a1[0], a1[1] + 0.5, P.mat('#7a5a30', 'wood'), 1); break; }
+      case 'balls': { const cols = ['#d83a2a', '#e8c040', '#3a6ad8'], f = p.jug || 0, cx = hx - V.Rx * 3.2, cy = hy - 5; for (let k = 0; k < 3; k++) { const a = ((f + k * 2) / 6) * Math.PI * 2; B.blob(cx + Math.cos(a) * 5, hy - 1 - Math.abs(Math.sin(a)) * 8, 1.1, 1.1, P.mat(cols[k], 'cloth'), { power: 2 }); } break; }
+      case 'handbell': { const br = P.mat('#d8a838', 'metal'), h1 = along(-2.5); B.capsule(hx, hy, h1[0], h1[1], 0.6, 0.6, P.mat('#5a3a1c', 'wood')); const b1 = along(1.2), b2 = along(3.4); B.capsule(b1[0], b1[1], b2[0], b2[1], 1, 2.5, br); B.plot(b2[0], b2[1] + 1, P.mat('#7a5a20', 'metal'), 1); break; }
+      case 'drum': { const dm = P.mat('#d8c8a0', 'cloth'), rim = P.mat('#8a4a24', 'wood'); B.blob(hx, hy + 2, 3.6, 2.8, rim, { power: 4 }); B.blob(hx, hy + 0.6, 3.4, 1.4, dm, { power: 3 }); for (let k = -3; k <= 3; k += 2) B.plot(hx + k, hy + 2.5, P.mat('#e8d8b0', 'cloth'), 3); break; }
       case 'net': { const nm = P.mat('#9a8a6a', 'cloth'); for (let k = 0; k < 4; k++) for (let j = 0; j < 3; j++) B.plot(hx + (k - 1), hy + 1 + j * 1.5 + (k % 2) * 0.7, nm, 2); break; }
       default: break;
     }

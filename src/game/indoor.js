@@ -152,6 +152,21 @@
           const th = L.items.find((i) => i.kind === 'throne');
           if (th) { const [ax, ay] = this.anchor(th); if (q.title === 'King' || !here.some((z) => z.title === 'King' && z.activity?.act === 'court')) { seat = th; spot = th; } else { x = ax + 26; y = ay + 6; dir = 0; anim = (Math.floor(this.t / 6) + q.id) % 3 ? 'idle' : 'talk'; } }
         }
+        else if (act === 'work' && /minstrel|bard|fiddler|piper|musician|drummer/.test(q.job?.role || '')) {
+          // the musician plays where the room can hear: by the hearth facing the room, or beside the throne
+          const th = L.items.find((i) => i.kind === 'throne'), hearth = L.items.find((i) => i.kind === 'fireplace');
+          const at = th || hearth; if (at) { const [ax, ay] = this.anchor(at); x = ax + (th ? -46 : 0); y = ay + 30; } else { x = (L.w * 16) / 2 + 20; y = 40; }
+          // out on the open floor where the room can see them, clear of the bar and the tables
+          const bar = L.items.find((i) => i.kind === 'bar'), below = bar ? this.rect(bar)[3] + 14 : 0;
+          if (!th) { let best = null; for (let dy = 0; dy <= 96 && !best; dy += 8) for (const dx of [0, -16, 16, -32, 32, -48, 48]) { const nx = x + dx, ny = Math.max(y, below) + dy; if (!this.blocked(nx, ny) && !this.blocked(nx - 6, ny) && !this.blocked(nx + 6, ny)) { best = [nx, ny]; break; } } if (best) [x, y] = best; }
+          dir = 0; anim = O.Data.actionFor ? O.Data.actionFor(q.job.role) : 'lute';
+          if ((Math.floor(this.t / 20) + q.id) % 5 === 4) anim = 'idle'; // a breath between tunes
+        }
+        else if (act === 'work' && /^(jester|herald)$/.test(q.job?.role || '') && L.items.some((i) => i.kind === 'throne')) { // the court's fool and its herald, each in their place by the throne
+          const [ax, ay] = this.anchor(L.items.find((i) => i.kind === 'throne'));
+          if (q.job.role === 'jester') { x = ax + 44; y = ay + 34; dir = 0; const k = (Math.floor(this.t / 5) + q.id) % 8; anim = k < 5 ? 'juggle' : k === 5 ? 'bow' : k === 6 ? 'dance' : 'laugh'; }
+          else { x = ax - 30; y = ay + 8; dir = 0; anim = (Math.floor(this.t / 7) + q.id) % 3 ? 'idle' : 'read'; }
+        }
         else if (act === 'work' || (act === 'pickup' && q.job?.biz === b.id)) {
           const role = q.job?.role;
           spot = L.items.find((i) => !used.has(i) && i.work && i.work.includes(role)) || counters.find((i) => !used.has(i));
@@ -167,7 +182,7 @@
           }
         } else if (act === 'perform') { // a bard plays by the hearth
           const c = L.items.find((i) => i.kind === 'fireplace') || L.items.find((i) => i.kind === 'bar'); const [ax, ay] = c ? this.anchor(c) : this.tileXY(Math.floor(L.w / 2), 2);
-          x = ax + (c && c.kind === 'bar' ? -40 : 0); y = ay + 26; dir = 0; anim = (Math.floor(this.t / 4) % 3) ? 'talk' : 'idle';
+          x = ax + (c && c.kind === 'bar' ? -40 : 0); y = ay + 26; dir = 0; anim = (Math.floor(this.t / 6) + q.id) % 7 === 6 ? 'idle' : 'lute';
         } else if (act === 'mourn' || act === 'wedding' || act === 'worship' || act === 'lessons') {
           // each keeps the place they took: nobody gets up and moves along as others come and go
           const slots = this.pewSlots || (this.pewSlots = new Map());

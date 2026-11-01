@@ -148,7 +148,7 @@
         if (!O.Speech.inEarshot(q, 120) || (q._cried || 0) > game.t) continue;
         q._cried = game.t + 40;
         const n = (K.news || []).filter((x) => !x.secret).slice(-3), it = n.length ? n[(q.id + s.day + Math.floor(h)) % n.length].text : `${O.DAYNAMES[s.weekday]}, and all is well in ${s.world.name}.`;
-        O.Speech.say(q, `Oyez, oyez! ${it}`, 8, 'shout', 140); q.agent.anim = 'wave';
+        O.Speech.say(q, `Oyez, oyez! ${it}`, 8, 'shout', 140); O.gesture ? O.gesture(q, 'ringbell', 3) : (q.agent.anim = 'wave');
         O.Speech.say(q, it, 5, 'shout', 140);
       }
     });

@@ -54,6 +54,8 @@
   }
   const TRACKS = []; for (const style of Object.keys(STYLES)) for (let k = 0; k < 8; k++) TRACKS.push(compose(style, hashStr(style + k) % 9973 + k * 31));
 
+  const MUSICIAN = /minstrel|bard|fiddler|piper|musician|drummer|taborer/;
+  const INSTR = { lute: 'lute', fiddle: 'fiddle', pipe: 'recorder', drum: 'lute' };
   function setup(game) {
     const S = O.Sound; if (!S) return; const cur = () => O.SimRef.cur, PS = O.PlayerState;
     let level = 2; try { const v = localStorage.getItem('outlaw.music'); if (v != null) level = +v; } catch (e) { /* */ }
@@ -118,9 +120,9 @@
 
     // ---------------------------------------------------------------- playing a tune
     let perf = null; // { tune, gain, t0, i, events, loop, onEnd }
-    function events(tune) {
+    function events(tune, lead) {
       const st = STYLES[tune.style], out = []; let t = 0; const beat = st.beat;
-      const leadName = st.lead[tune.seed % st.lead.length];
+      const leadName = lead || st.lead[tune.seed % st.lead.length];
       for (const n of tune.notes) {
         const dur = n.d * beat; out.push({ t, inst: leadName, f: freqOf(tune, n.deg, leadName === 'choir' || leadName.startsWith('voice') ? 0 : 1), d: dur * 0.95, v: n.strong ? 1 : 0.8, vowel: st.chant ? 'aeiou'[(Math.floor(t * 3)) % 5] : undefined });
         if (n.strong && st.acc) { const root = n.deg >= 0 ? Math.floor(n.deg / 2) * 2 - (n.deg % 2 ? 2 : 0) : 0; for (const [k, dd] of [[0, 0], [2, 0.03], [4, 0.06]]) out.push({ t: t + dd, inst: st.acc, f: freqOf(tune, root + k, -1), d: dur, v: 0.45 }); }
@@ -135,7 +137,7 @@
     function play(tune, opts = {}) {
       if (!init()) return; stop(0.8);
       const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, ctx.currentTime); g.gain.exponentialRampToValueAtTime(1, ctx.currentTime + 1.2); g.connect(src);
-      perf = { tune, gain: g, t0: ctx.currentTime + 0.2, i: 0, ev: events(tune), loops: opts.loops || 1, onEnd: opts.onEnd, ctxKey: opts.key };
+      perf = { tune, gain: g, t0: ctx.currentTime + 0.2, i: 0, ev: events(tune, opts.lead), loops: opts.loops || 1, onEnd: opts.onEnd, ctxKey: opts.key };
       if (O.Music.showNames) nowPlaying(tune.name);
     }
     function stop(fade = 1.5) { if (!perf || !ctx) return; const p = perf; perf = null; const t = ctx.currentTime; p.gain.gain.cancelScheduledValues(t); p.gain.gain.setValueAtTime(Math.max(0.0001, p.gain.gain.value), t); p.gain.gain.exponentialRampToValueAtTime(0.0001, t + fade); setTimeout(() => { try { p.gain.disconnect(); } catch (e) { /* */ } }, (fade + 0.5) * 1000); }
@@ -159,16 +161,18 @@
       if (fighting) return { key: 'fight', style: 'march', space: sc ? 'room' : 'open', vol: 0.8, loop: 3, diegetic: false };
       if (sc) {
         const b = sc.b.parent || sc.b, t = b.type || '', bz = s.biz.get(b.id), type = (bz && bz.type) || t;
-        if (type === 'tavern' && (h >= 17 || h < 1)) return { key: 'tavern', style: (s.day + Math.floor(h)) % 2 ? 'jig' : 'reel', space: 'room', vol: 0.9, loop: 2, diegetic: true };
+        // music in a room only when someone is there playing it, on their own instrument
+        const mus = [...sc.actors.values()].map((a) => a.person).find((q) => q && ((MUSICIAN.test(q.job?.role || '') && q.job.biz === b.id && q.activity?.act === 'work') || q.activity?.act === 'perform'));
+        if (mus) { const inst = INSTR[(O.Data.actionFor && O.Data.actionFor(mus.job?.role)) || 'lute'] || 'lute'; const royal = b.royal || /castle|keep|palace/.test(type); return { key: (royal ? 'court-' : 'tavern-') + mus.id, style: royal ? ['estampie', 'pastoral', 'round'][s.day % 3] : (h >= 17 || h < 1) ? ((s.day + Math.floor(h)) % 2 ? 'jig' : 'reel') : 'round', space: royal ? 'hall' : 'room', vol: royal ? 0.65 : 0.9, loop: 2, diegetic: true, lead: inst, singer: mus }; }
+        if (type === 'tavern') return null;
         if (/chapel|church|abbey|priory|cathedral/.test(type)) return { key: 'chapel', style: 'chant', space: 'hall', vol: 0.7, loop: 2, diegetic: true };
         if (b.royal || /castle|keep|palace|hall|manor/.test(type)) return { key: 'castle', style: (s.day % 2) ? 'estampie' : 'pastoral', space: 'hall', vol: 0.6, loop: 1 };
-        if (type === 'tavern') return { key: 'tavern-day', style: 'round', space: 'room', vol: 0.35, loop: 1, diegetic: true };
         return h >= 20 || h < 6 ? { key: 'home-night', style: 'nocturne', space: 'room', vol: 0.3, loop: 1 } : null;
       }
       // out of doors: a dance where there's merrymaking, the tavern spilling out of an evening
       const party = (s.npcEvents || []).find((e) => e.day === s.day && h >= e.from && h < e.to && (e.kind === 'dance' || e.kind === 'nameday' || e.party || e.fair)) || (O.festivalNow && O.festivalNow());
       if (party) return { key: 'party', style: 'jig', space: 'open', vol: 0.75, loop: 2, diegetic: true };
-      const tv = s.world.buildings.find((b) => b.type === 'tavern'); if (tv && (h >= 18 || h < 1)) { const d = Math.hypot(tv.doorX * 16 - P.x, tv.doorY * 16 - P.y); if (d < 260) return { key: 'tavern-out', style: 'jig', space: 'open', vol: 0.5 * (1 - d / 260) + 0.05, loop: 2, muffled: true, diegetic: true }; }
+      const tv = s.world.buildings.find((b) => b.type === 'tavern' && s.people.some((q) => MUSICIAN.test(q.job?.role || '') && q.agent.inside === b.id && q.activity?.act === 'work')); if (tv) { const d = Math.hypot(tv.doorX * 16 - P.x, tv.doorY * 16 - P.y); if (d < 260) return { key: 'tavern-out', style: 'jig', space: 'open', vol: 0.5 * (1 - d / 260) + 0.05, loop: 2, muffled: true, diegetic: true }; }
       if (O.rowing && O.rowing()) return { key: 'sea', style: 'sea', space: 'open', vol: 0.45, loop: 1 };
       if (W.kind === 'rain' || W.kind === 'heavy' || W.kind === 'storm') return { key: 'rain', style: 'lament', space: 'open', vol: 0.4, loop: 1 };
       if (h >= 21 || h < 5) return { key: 'night', style: 'nocturne', space: 'open', vol: 0.35, loop: 1 };
@@ -186,7 +190,12 @@
       if (perf && w.key === lastKey) return;
       if (perf && w.key !== lastKey) { stop(2); rest = w.diegetic ? 0.5 : 2; }
       lastKey = w.key; rest -= 1; if (rest > 0) return;
-      const s = cur(); play(pickTrack(w.style, s.day * 7 + Math.floor(performance.now() / 60000)), { loops: w.loop, key: w.key, onEnd: () => { rest = w.diegetic ? 2 : 35 + Math.random() * 60; lastKey = null; } });
+      const s = cur();
+      // a musician sings one of the land's songs now and then, between the dances, on their own instrument
+      if (w.singer && Math.random() < 0.4) { const book = O.songBook ? O.songBook() : []; const known = (w.singer.songs || []).map((id) => book.find((x) => x.id === id)).filter(Boolean); const pool = known.length ? known : book; let song = pool[Math.floor(Math.random() * pool.length)];
+        const tale = w.singer.song && w.singer.song.text; if (tale && w.singer._sungTale !== tale) { w.singer._sungTale = tale; const parts = tale.replace(/[.!?]+\s*$/, '').split(/[,;.!?]\s+|\s+and\s+/).map((x) => x.trim()).filter((x) => x.length > 2).slice(0, 4); if (parts.length) song = { title: 'The Ballad of ' + (parts[0].split(' ').slice(0, 3).join(' ')), lines: parts.length > 1 ? parts : [parts[0], parts[0]] }; }
+        if (song) { const hearers = [...(game.scene ? game.scene.actors.values() : [])].map((a) => a.person).filter((q) => q && q !== w.singer && q.activity?.act === 'socialise').slice(0, 4); O.Music.sing(w.singer, song, hearers, w.lead); if (O.Music.showNames) nowPlaying(song.title + ', sung by ' + w.singer.first); rest = 3; lastKey = null; return; } }
+      play(pickTrack(w.style, s.day * 7 + Math.floor(performance.now() / 60000)), { loops: w.loop, key: w.key, lead: w.lead, onEnd: () => { rest = w.diegetic ? 2 : 35 + Math.random() * 60; lastKey = null; } });
     });
 
     // ---------------------------------------------------------------- the land's songs, sung to their own tunes
@@ -214,16 +223,16 @@
         setTimeout(() => { try { g.disconnect(); } catch (e) { /* */ } }, (t - ctx.currentTime + 2) * 1000);
       },
       tracks: TRACKS, play: (name) => { const t = TRACKS.find((x) => x.name === name) || TRACKS[0]; play(t, { loops: 1 }); }, stop, showNames: true,
-      sing(q, song, chorus) {
+      sing(q, song, chorus, inst) {
         if (!song || !init()) return; const s = cur(), P = game.player; const tune = O.songTune(song), tonic = q.sex === 'f' ? 293.7 : 146.8, M = MODES[tune[0].mode];
         const pos = game.scene ? game.scene.personPos(q) : [q.agent.x, q.agent.y]; const d = pos ? Math.hypot(pos[0] - P.x, pos[1] - P.y) : 999; const vol = Math.max(0.05, 1 - d / 360);
         stop(1); singing = true; space(game.scene ? 'room' : 'open'); heard(vol, false);
         const g = ctx.createGain(); g.gain.value = 1; g.connect(src); let t = ctx.currentTime + 0.4, delay = 0.4;
         tune.forEach((ln, li) => {
-          const lineStart = delay; setTimeout(() => { O.Speech && O.Speech.say(q, '♪ ' + ln.line + ' ♪', ln.notes.reduce((a, n) => a + n.d, 0) + 0.6); O.gesture && O.gesture(q, 'dance', 1.5); if (li === tune.length - 1) for (const z of chorus || []) O.Speech && O.Speech.say(z, '♪ ' + ln.line + ' ♪', 3); }, lineStart * 1000);
+          const lineStart = delay; setTimeout(() => { O.Speech && O.Speech.say(q, '♪ ' + ln.line + ' ♪', ln.notes.reduce((a, n) => a + n.d, 0) + 0.6); O.gesture && !inst && O.gesture(q, 'dance', 1.5); if (li === tune.length - 1) for (const z of chorus || []) O.Speech && O.Speech.say(z, '♪ ' + ln.line + ' ♪', 3); }, lineStart * 1000);
           for (const n of ln.notes) {
             const o = Math.floor(n.deg / 7), k = ((n.deg % 7) + 7) % 7, f = tonic * Math.pow(2, (M[k] + 12 * o) / 12);
-            I.voice(t, f, n.d * 0.92, 1, g, n.v); if (n.strong) I.lute(t, f / 2, n.d, 0.5, g);
+            I.voice(t, f, n.d * 0.92, 1, g, n.v); if (n.strong) { const pl = I[inst] && inst !== 'lute' ? inst : 'lute'; if (pl === 'lute') I.lute(t, f / 2, n.d, 0.5, g); else I[pl](t, f, n.d * 0.9, 0.35, g); }
             if (li === tune.length - 1) for (const z of (chorus || []).slice(0, 3)) I.voice(t + 0.01, z.sex === 'f' ? f * (q.sex === 'f' ? 1 : 2) : f * (q.sex === 'f' ? 0.5 : 1), n.d * 0.92, 0.6, g, n.v);
             t += n.d;
           }

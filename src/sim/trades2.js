@@ -209,7 +209,7 @@
   addJob('chapel', 'gravedigger', 1, 3); addJob('chapel', 'bell-ringer', 1, 2); addJob('chapel', 'pilgrim guide', 1, 3);
   addJob('townhall', 'bailiff', 1, 6); addJob('townhall', 'market warden', 1, 5); addJob('townhall', 'town crier', 1, 3); addJob('townhall', 'rat-catcher', 1, 3); addJob('townhall', 'lamplighter', 1, 3); addJob('townhall', 'chimney sweep', 1, 3); addJob('townhall', 'water carrier', 1, 3); addJob('townhall', 'ballot clerk', 1, 3);
   addJob('doctor', 'midwife', 1, 6); addJob('hospital', 'midwife', 1, 6); addJob('hospital', 'barber-surgeon', 1, 8);
-  addJob('palace', 'herald', 1, 8); addJob('palace', 'master of horse', 1, 10); addJob('palace', 'royal guard', 8, 8); addJob('palace', 'captain of the royal guard', 1, 12); addJob('palace', 'jester', 1, 6); addJob('palace', 'falconer', 1, 7); addJob('palace', 'executioner', 1, 6); addJob('palace', 'spy', 1, 10); addJob('palace', 'stablehand', 2, 5);
+  addJob('palace', 'herald', 1, 8); addJob('palace', 'master of horse', 1, 10); addJob('palace', 'royal guard', 8, 8); addJob('palace', 'captain of the royal guard', 1, 12); addJob('palace', 'jester', 1, 6); addJob('palace', 'minstrel', 1, 8); addJob('tavern', 'minstrel', 1, 5); addJob('palace', 'falconer', 1, 7); addJob('palace', 'executioner', 1, 6); addJob('palace', 'spy', 1, 10); addJob('palace', 'stablehand', 2, 5);
   addJob('keep', 'squire', 1, 3); addJob('keep', 'gamekeeper', 1, 6); addJob('keep', 'falconer', 1, 7); addJob('keep', 'stablehand', 1, 5); addJob('keep', 'knight', 1, 15);
   addJob('manor', 'stablehand', 1, 5); addJob('manor', 'gamekeeper', 1, 6); addJob('manor', 'farmer', 1, 6);
 
@@ -222,23 +222,25 @@
     'toll keeper': 'guard', dairymaid: 'farmhand', chambermaid: 'servant', gaoler: 'guard', turnkey: 'guard', sergeant: 'guard', 'bounty hunter': 'outlaw', gravedigger: 'undertaker', 'bell-ringer': 'priest',
     'pilgrim guide': 'priest', bailiff: 'guard', 'market warden': 'merchant', 'town crier': 'courier', 'rat-catcher': 'villager', lamplighter: 'villager', 'chimney sweep': 'sweeper',
     'water carrier': 'villager', 'ballot clerk': 'merchant', midwife: 'doctor', herald: 'courier', 'master of horse': 'noble', 'royal guard': 'guard', 'captain of the royal guard': 'guard',
-    jester: 'bard', falconer: 'woodcutter', executioner: 'outlaw', spy: 'villager', stablehand: 'farmhand', squire: 'servant', knight: 'guard', thatcher: 'builder', plasterer: 'builder', roofer: 'builder', potboy: 'innkeeper',
+    jester: 'bard', minstrel: 'bard', fiddler: 'bard', piper: 'bard', falconer: 'woodcutter', executioner: 'outlaw', spy: 'villager', stablehand: 'farmhand', squire: 'servant', knight: 'guard', thatcher: 'builder', plasterer: 'builder', roofer: 'builder', potboy: 'innkeeper',
   });
 
   // the action and tool each role works with: [animation, outdoors?]
   D.ROLE_ACTION = {
+    minstrel: 'lute', bard: 'lute', fiddler: 'fiddle', piper: 'pipe', drummer: 'drum', taborer: 'drum',
     baker: 'knead', apprentice: 'work', blacksmith: 'hammer', armourer: 'hammer', farmer: 'hoe', farmhand: 'pitch', dairymaid: 'pour', shepherd: 'shear', miller: 'carry', labourer: 'carry',
     woodcutter: 'chop', forester: 'chop', 'charcoal burner': 'pitch', sawyer: 'saw', carpenter: 'saw', cooper: 'hammer', wainwright: 'saw', boatwright: 'hammer', bowyer: 'saw', fletcher: 'work',
-    innkeeper: 'pour', server: 'serve', cook: 'cook', chambermaid: 'scrub', potboy: 'scrub', brewer: 'mix', maltster: 'pitch', vintner: 'pour', 'vine-dresser': 'work', beekeeper: 'work',
+    innkeeper: 'pour', server: 'serve', cook: 'cook', chambermaid: 'scrub', potboy: 'scrub', brewer: 'mix', maltster: 'pitch', vintner: 'pour', 'vine-dresser': 'shear', beekeeper: 'work',
     butcher: 'cleave', fisher: 'fish', 'salt boiler': 'mix', 'clay digger': 'dig', brickmaker: 'knead', 'peat cutter': 'dig', miner: 'chop', quarryman: 'chop', 'mine foreman': 'write', 'quarry master': 'write',
     weaver: 'weave', spinner: 'spin', tailor: 'work', dyer: 'mix', tanner: 'scrub', cobbler: 'hammer', saddler: 'work', chandler: 'mix', potter: 'knead', glazier: 'work', 'rope-maker': 'spin',
-    jeweller: 'work', physician: 'write', herbalist: 'work', apothecary: 'mix', nurse: 'serve', bearer: 'carry', midwife: 'serve', 'barber-surgeon': 'work',
+    jeweller: 'work', physician: 'write', herbalist: 'mix', apothecary: 'mix', nurse: 'serve', bearer: 'carry', midwife: 'serve', 'barber-surgeon': 'shear',
     scribe: 'write', clerk: 'write', postmaster: 'write', magistrate: 'write', moneylender: 'count', 'house agent': 'write', 'ballot clerk': 'count', teacher: 'read', priest: 'pray', 'parish clerk': 'write',
     'bell-ringer': 'pray', gravedigger: 'dig', undertaker: 'scrub', sweeper: 'sweep', 'chimney sweep': 'sweep', laundress: 'scrub', 'water carrier': 'bucket', lamplighter: 'point', 'rat-catcher': 'crouch',
-    'guard captain': 'write', guard: 'idle', gaoler: 'idle', turnkey: 'place', sergeant: 'point', 'royal guard': 'idle', 'captain of the royal guard': 'point', 'tax collector': 'count', bailiff: 'point', 'market warden': 'count',
-    'town crier': 'wave', herald: 'read', shopkeeper: 'count', 'horse trader': 'talk', stablehand: 'pitch', groom: 'scrub', 'master of horse': 'talk', gamekeeper: 'look', falconer: 'look',
-    steward: 'write', chamberlain: 'write', butler: 'pour', maid: 'scrub', page: 'carry', 'lady-in-waiting': 'talk', 'master cook': 'cook', scullion: 'scrub', gardener: 'dig', jester: 'celebrate',
-    executioner: 'idle', spy: 'look', squire: 'scrub', knight: 'idle', thatcher: 'work', plasterer: 'scrub', roofer: 'hammer', 'master builder': 'write', builder: 'hammer', carter: 'carry', ferryman: 'pitch',
+    'guard captain': 'write', guard: 'look', gaoler: 'look', turnkey: 'place', sergeant: 'point', 'royal guard': 'look', 'captain of the royal guard': 'point', 'tax collector': 'count', bailiff: 'point', 'market warden': 'count',
+    'town crier': 'ringbell', herald: 'read', shopkeeper: 'count', 'horse trader': 'talk', stablehand: 'pitch', groom: 'scrub', 'master of horse': 'talk', gamekeeper: 'look', falconer: 'look',
+    steward: 'write', chamberlain: 'write', butler: 'pour', maid: 'scrub', page: 'carry', 'lady-in-waiting': 'talk', 'master cook': 'cook', scullion: 'scrub', gardener: 'dig', jester: 'juggle',
+    executioner: 'idle', spy: 'look', squire: 'scrub', knight: 'idle', thatcher: 'pitch', plasterer: 'scrub', roofer: 'hammer', 'master builder': 'write', builder: 'hammer', carter: 'carry', ferryman: 'pitch',
+    abbot: 'read', monk: 'pray', 'lay brother': 'hoe', prioress: 'read', nun: 'pray', 'lay sister': 'scrub', 'harbour master': 'write', shipwright: 'hammer', sailor: 'carry',
     monarch: 'talk', consort: 'talk', heir: 'read', prince: 'read', princess: 'read', lord: 'talk', lady: 'talk', regent: 'talk',
     'toll keeper': 'count', messenger: 'carry', 'mounted courier': 'carry', 'warehouse master': 'write', 'warehouse worker': 'carry', docker: 'carry', 'night watchman': 'look', 'pilgrim guide': 'talk', 'bounty hunter': 'look',
   };

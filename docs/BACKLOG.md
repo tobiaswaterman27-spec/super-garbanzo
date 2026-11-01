@@ -472,3 +472,4 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] AI failures explained, agreements always carried out, music engine and song tunes (row 134)
 - [x] Benches and pews, world-space butterflies, birds, fireflies, bats (row 135)
 - [x] Sound effects for every action (row 137); animal recordings wait on network access to a sound library
+- [x] Musicians play real instruments and sing songbook songs; jester juggles, crier rings a bell, every role has its own action; castle sentries (row 139)

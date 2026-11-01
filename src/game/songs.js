@@ -39,7 +39,7 @@
         return song;
       } catch (e) { return null; } finally { composing = false; }
     }
-    O.composeSong = compose;
+    O.composeSong = compose; O.songBook = songs;
     // what's worth a song: deeds of the newcomer, and the town's big moments
     const sung = new Set();
     const _log = SP.log;

@@ -51,6 +51,8 @@
       smack(v, b) { const t = now(); nz(b, t, 0.07, 'lowpass', 1600, 0.7, 0.2 * v); tn(b, t, 0.08, 120, 'sine', 0.15 * v, 60); },
       place(v, b) { const t = now(); tn(b, t, 0.07, 220, 'triangle', 0.06 * v, 140); nz(b, t, 0.04, 'bandpass', 1500, 1, 0.03 * v); },
       crackle(v, b) { const t = now(); for (let i = 0; i < 5; i++) nz(b, t + Math.random() * 0.4, 0.015, 'highpass', 3000, 1, (0.02 + Math.random() * 0.04) * v); },
+      handbell(v, b) { const t = now(); for (const [r, a] of [[1, 1], [2.4, 0.5], [3.9, 0.3], [5.1, 0.15]]) tn(b, t, 0.9 / Math.sqrt(r), 880 * r, 'sine', 0.05 * v * a); nz(b, t, 0.02, 'highpass', 4000, 1, 0.03 * v); },
+      catch(v, b) { const t = now(); nz(b, t, 0.03, 'bandpass', 1200, 1.5, 0.05 * v); },
       cough(v, b) { const t = now(); nz(b, t, 0.12, 'bandpass', 700, 1.2, 0.08 * v); nz(b, t + 0.18, 0.1, 'bandpass', 650, 1.2, 0.06 * v); },
     };
     S.FX = FX;
@@ -58,7 +60,7 @@
     O.sfx = play;
 
     // which movement makes which sound, and how often
-    const BY_ANIM = { chop: ['chop', 0.62], hoe: ['dig', 0.7], dig: ['dig', 0.7], saw: ['saw', 0.36], sweep: ['sweep', 0.55], scrub: ['scrub', 0.5], knead: ['knead', 0.6], cleave: ['cleave', 0.7], write: ['write', 0.6], read: ['page', 4], pour: ['pour', 1.6], eat: ['eat', 0.9], drink: ['drink', 1.2], count: ['coins', 1.2], attack: ['whoosh', 0.55], place: ['place', 1.2], pickup: ['place', 1.2], cough: ['cough', 1.4], pitch: ['dig', 0.8], cook: ['crackle', 0.8], mix: ['scrub', 0.7] };
+    const BY_ANIM = { ringbell: ['handbell', 0.34], juggle: ['catch', 0.28], chop: ['chop', 0.62], hoe: ['dig', 0.7], dig: ['dig', 0.7], saw: ['saw', 0.36], sweep: ['sweep', 0.55], scrub: ['scrub', 0.5], knead: ['knead', 0.6], cleave: ['cleave', 0.7], write: ['write', 0.6], read: ['page', 4], pour: ['pour', 1.6], eat: ['eat', 0.9], drink: ['drink', 1.2], count: ['coins', 1.2], attack: ['whoosh', 0.55], place: ['place', 1.2], pickup: ['place', 1.2], cough: ['cough', 1.4], pitch: ['dig', 0.8], cook: ['crackle', 0.8], mix: ['scrub', 0.7] };
     const surface = (w, x, y) => {
       if (game.scene) return 'wood'; const s = O.SimRef.cur; if (s && s.weather && s.weather.snowCover > 0.3) return 'snow';
       if (!w || !w.ter) return 'dirt'; const t = w.ter[Math.floor(y / T) * w.W + Math.floor(x / T)];

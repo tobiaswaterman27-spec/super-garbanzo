@@ -471,3 +471,4 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] NPC goals reached, mourning, children apprenticed (row 133)
 - [x] AI failures explained, agreements always carried out, music engine and song tunes (row 134)
 - [x] Benches and pews, world-space butterflies, birds, fireflies, bats (row 135)
+- [x] Sound effects for every action (row 137); animal recordings wait on network access to a sound library

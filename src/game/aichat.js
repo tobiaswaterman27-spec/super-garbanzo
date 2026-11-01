@@ -329,7 +329,7 @@ They know where their family and friends are just now (the card says); a strange
     if (O.NpcActs && O.NpcActs.following(q)) L.push('You are walking along with the player.');
     for (const f of O.extraLines || []) { const t = f(s, q); if (t) L.push(t); }
     if (PS.emp && PS.emp.place === s.world.placeId) L.push(`The player works as ${PS.emp.role} at ${PS.emp.bizName || 'a business here'}.`);
-    const realm = (s.kingdom?.news || []).filter((n) => !['migration', 'growth', 'decline'].includes(n.kind) && n.day >= s.day - 10).slice(-3).map((n) => clean(n.text));
+    const realm = (s.kingdom?.news || []).filter((n) => !['migration', 'growth', 'decline'].includes(n.kind) && n.day >= s.day - 10 && (!O.newsKnown || O.newsKnown(s, n))).slice(-3).map((n) => clean(n.text));
     if (realm.length) L.push(`News of the realm: ${realm.join(' | ')}`);
     return L.join('\n');
   }

@@ -473,3 +473,6 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Benches and pews, world-space butterflies, birds, fireflies, bats (row 135)
 - [x] Sound effects for every action (row 137); animal recordings wait on network access to a sound library
 - [x] Musicians play real instruments and sing songbook songs; jester juggles, crier rings a bell, every role has its own action; castle sentries (row 139)
+- [x] Barber chair and hair menu, no coin no sale, job start times by talk, hand-over animation and sounds, speech matches activity, side beds (row 140)
+- [ ] Guards: hue and cry, cut-offs, flanking, search, gates (next)
+- [ ] At least 7 physical tasks per role with NPCs doing them and moving about indoors (next)

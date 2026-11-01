@@ -131,7 +131,12 @@
       for (const q of here) {
         const act = q.activity?.act;
         let x, y, dir = 0, anim = 'idle', spot = null, inBed = false, seat = null, sortY = null;
+        const nowMs = performance.now();
         if (bedOf.has(q.id)) { inBed = true; spot = bedOf.get(q.id).it; [x, y] = this.anchor(spot); }
+        else if (q._inChair && q._inChair.until > nowMs && q._inChair.b === b.id) { seat = q._inChair.it; spot = seat; anim = 'sit'; } // in the barber's chair
+        else if (q._snip && q._snip.until > nowMs && q._snip.b === b.id) { // the barber at work round the chair, shears going
+          const k = Math.floor(nowMs / 2600) % 3; x = q._snip.x + [-13, 13, -9][k]; y = q._snip.y + [1, 1, 6][k]; dir = k === 1 ? 2 : 1; anim = 'shear'; }
+        else if (q._sweep && q._sweep > nowMs && b.clippings && b.clippings.length) { const c = b.clippings[0]; x = c.x + 10; y = c.y + 4; dir = 2; anim = 'sweep'; }
         else if (posts.includes(q)) { // the guard walks the length of the hall and back, pausing at each end
           const k = posts.indexOf(q), leg = Math.floor((this.t + k * 7 + q.id) / 14) % 2, row = this.floor === 1 ? 8 : (k % 2 ? 4 : 5);
           [x, y] = this.tileXY(leg ? L.w - 7 - (k % 3) : 4 + (k % 3), row); dir = leg ? 2 : 1; anim = (Math.floor(this.t / 9) + q.id) % 4 ? 'idle' : 'look'; }

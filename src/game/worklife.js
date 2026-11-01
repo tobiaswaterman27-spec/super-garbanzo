@@ -90,10 +90,12 @@
     });
     const base = O.NpcActs.apply;
     O.NpcActs.apply = function (s, q, a) {
+      if (a && a.do === 'set_start') return O.Employment && O.Employment.setStart ? O.Employment.setStart(s, q, a) : null;
       if (a && a.do === 'end_strike') { const bz = q.job && s.biz.get(q.job.biz); if (!bz || !bz.strike || !bz.strike.who.includes(q.id)) return null; bz.strike.who = bz.strike.who.filter((id) => id !== q.id); q.job.short = 0; return `${q.first} gives up the strike and goes back to work.`; }
       return base.apply(this, arguments);
     };
-    (O.extraActs = O.extraActs || []).push('end_strike {} (a striker: give up the strike and go back in, if persuaded)');
+    (O.extraActs = O.extraActs || []).push('end_strike {} (a striker: give up the strike and go back in, if persuaded)', 'set_start {"when":"now"|"today"|"tomorrow","hour"?:0-23,"days"?} (a master agreeing when the player they took on starts work)');
+    (O.extraLines = O.extraLines || []).push((s, q) => (O.Employment && O.Employment.startLine ? O.Employment.startLine(s, q) : ''));
     (O.extraLines = O.extraLines || []).push((s, q) => {
       if (!q.job) return ''; const bz = s.biz.get(q.job.biz); const out = [];
       if (bz && bz.strike && bz.strike.who.includes(q.id)) out.push(`You are on strike outside ${bz.name}: owed about ₳${Math.ceil(q.job.owed || 0)} in wages. You won't work until paid.`);

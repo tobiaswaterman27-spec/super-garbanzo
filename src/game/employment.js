@@ -22,6 +22,7 @@
     const here = () => { const pl = cur().world.placeId, ps = posts().filter((e) => e.place === pl); return ps.find((e) => e.onShift) || ps[0] || null; };
     const postAt = (s, bz) => posts().find((e) => e.biz === bz.id && e.place === s.world.placeId) || null;
     const bizOf = (e) => { const s = cur(); return e && e.place === s.world.placeId ? s.biz.get(e.biz) : null; };
+    const NOW_ROLES = /labourer|porter|docker|bearer|potboy|scullion|server|farmhand|stablehand|water carrier|sweeper|warehouse worker|carter|chambermaid|maid|laundress|messenger|page/;
     const COURT = new Set(['monarch', 'consort', 'heir', 'prince', 'princess', 'lord', 'lady', 'lady-in-waiting', 'jester', 'steward', 'chamberlain', 'captain of the royal guard']);
     O.crownPost = (r) => COURT.has(r);
     const hoursOf = (e, bz) => { if (e.hours) return e.hours; const r = e.role || ''; if (r === 'monarch' || r === 'consort' || r === 'regent') return [5, 24]; /* (the crown keeps no hours: the day's business is there whenever you are) */ if (COURT.has(r)) return [8, 20]; if (r === 'potboy' || r === 'potgirl') return [17, 21]; if (['night watchman', 'gaoler'].includes(r)) return [20, 30]; if (r.startsWith('guard') || r === 'sergeant') return [6, 18]; const hh = bz ? bz.def.hours : [8, 17]; if (hh[1] - hh[0] >= 20) return r === 'sweeper' ? [6, 14] : [8, 18]; return hh; };
@@ -127,7 +128,11 @@
       if (['monarch', 'consort', 'heir', 'prince', 'princess'].includes(role)) boss = null; // nobody is the crown's master
       posts().push(PS.emp = Object.assign({ place: s.world.placeId, placeName: s.world.name, biz: bz.id, bizName: bz.name, role, wage, master: boss ? boss.id : null, masterName: boss ? boss.name : ['monarch', 'consort', 'heir', 'prince', 'princess'].includes(role) ? null : 'the crown', since: s.day,
         stats: { shifts: 0, late: 0, missed: 0, tasks: 0, excused: 0 }, day: null, tasks: [], level: 0 }, extra || {}));
-      { const [o0, c0] = hoursOf(PS.emp, bz), h0 = s.hour; if (h0 >= o0 && h0 < c0 && !COURT.has(role)) PS.emp.firstDay = s.day + 1; } // taken on mid-shift you start at the next one; a crown post starts at once
+      // taken on mid-shift: rough work you start there and then; a trade later today, once there's someone to show you; else at the next shift. A crown post starts at once.
+      { const [o0, c0] = hoursOf(PS.emp, bz), h0 = s.hour; if (h0 >= o0 && h0 < c0 && !COURT.has(role)) {
+        if (NOW_ROLES.test(role)) { PS.emp.excuseDay = s.day; PS.emp.startNote = 'now'; }
+        else if (c0 - h0 >= 3) { PS.emp.lateStart = { day: s.day, from: Math.ceil(h0) + 1 }; PS.emp.startNote = 'today'; }
+        else { PS.emp.firstDay = s.day + 1; PS.emp.startNote = 'tomorrow'; } } }
       if (boss) { s.relate(boss, { id: 0 }, 0.05); s.remember(boss, `Took the stranger on as ${role}.`, 'work', 1.2, 0); }
       O.Chronicle && O.Chronicle.deed(s, `A newcomer has been taken on as ${role} at ${bz.name}.`, `You were taken on as ${role} at ${bz.name}.`, 'player', 1, true);
     }
@@ -154,6 +159,21 @@
     };
     O.Employment = { emp, hire, quit, here, posts, newTasksFor: (s, bz, e) => newTasks(s, bz, e) };
     // taken on in conversation: the master says yes, and you're theirs (a clashing post is given up)
+    // the start moved by asking: now, later today at an hour, or tomorrow (or another day)
+    O.Employment.setStart = (s, q, a) => {
+      const e = posts().find((x) => x.place === s.world.placeId && x.master === q.id); if (!e) return null; const bz = s.biz.get(e.biz); if (!bz) return null;
+      const [o, c] = hoursOf(e, bz), w = String(a.when || '').toLowerCase(), hr = Number(a.hour);
+      e.firstDay = 0; e.lateStart = null; e.early = null; const D = e.day === s.day ? e.dayInfo : null;
+      if (D && String(a.when || '').toLowerCase() !== 'tomorrow') { D.excused = true; }
+      if (D && String(a.when || '').toLowerCase() === 'tomorrow') { D.works = false; e.onShift = false; e.tasks = []; }
+      if (w === 'now') { e.firstDay = s.day; e.excuseDay = s.day; e.early = { day: s.day, from: Math.min(o, Math.floor(s.hour)) }; return `${q.first} says you can start now.`; }
+      if (w === 'tomorrow' || w === 'later_day') { e.firstDay = s.day + (Number(a.days) > 1 ? Math.min(7, Math.round(Number(a.days))) : 1); if (hr >= 0 && hr < 24 && hr !== o) { if (hr < o) e.early = { day: e.firstDay, from: hr }; else e.lateStart = { day: e.firstDay, from: hr }; } return `You start ${e.firstDay === s.day + 1 ? 'tomorrow' : 'in ' + (e.firstDay - s.day) + ' days'} at ${fmtH(hr >= 0 && hr < 24 ? hr : o)}.`; }
+      const h = hr >= 0 && hr < 24 ? hr : Math.ceil(s.hour) + 1; if (h >= c) return null; e.firstDay = s.day; e.excuseDay = s.day;
+      if (h < o) e.early = { day: s.day, from: h }; else e.lateStart = { day: s.day, from: h }; return `You start today at ${fmtH(h)}.`;
+    };
+    O.Employment.startLine = (s, q) => { const e = posts().find((x) => x.place === s.world.placeId && x.master === q.id); if (!e) return ''; const bz = s.biz.get(e.biz); if (!bz) return ''; const [o] = hoursOf(e, bz);
+      const st = (e.firstDay || 0) > s.day ? `on day ${e.firstDay} (${e.firstDay === s.day + 1 ? 'tomorrow' : 'in ' + (e.firstDay - s.day) + ' days'}) at ${fmtH(e.early?.day === e.firstDay ? e.early.from : e.lateStart?.day === e.firstDay ? e.lateStart.from : o)}` : e.lateStart && e.lateStart.day === s.day ? `today at ${fmtH(e.lateStart.from)}` : null;
+      return st ? `The player works for you as ${e.role} and starts ${st}. If they ask to start sooner or later (now, later today at an hour, tomorrow) and you agree, use set_start.` : ''; };
     O.Employment.hireByTalk = (s, q) => {
       const bz = q.job && s.biz.get(q.job.biz); if (!bz || s.bossOf(bz) !== q) return null;
       if (posts().some((x) => x.biz === bz.id && x.place === s.world.placeId)) return null;
@@ -161,7 +181,8 @@
       const [o, c] = hoursOf({ role: d.role }, bz);
       for (const x of posts().filter((x) => { const xb = (O.Travel?.visited.get(x.place)?.sim || s).biz.get(x.biz), [xo, xc] = hoursOf(x, xb); return xo < c && o < xc; })) quit(null, x);
       hire(s, bz, q, d.role, d.wage);
-      return `Taken on as ${d.role} at ${bz.name}: ₳${d.wage} a day, ${fmtH(o)} till ${fmtH(c)}.`;
+      const e1 = PS.emp, when = e1.startNote === 'now' ? ' You start now.' : e1.startNote === 'today' ? ` You start today at ${fmtH(e1.lateStart.from)}.` : e1.startNote === 'tomorrow' ? ` You start tomorrow at ${fmtH(o)}.` : '';
+      return `Taken on as ${d.role} at ${bz.name}: ₳${d.wage} a day, ${fmtH(o)} till ${fmtH(c)}.${when}`;
     };
     // what a master would say to taking you on, for their card
     O.Employment.hireOutlook = (s, q) => {
@@ -549,6 +570,7 @@
       const m = Math.floor(now(s)); if (m === e._lm) return; e._lm = m;
       let [o, c] = hoursOf(e, bz); const h = s.hour + (s.hour < 6 && c > 24 ? 24 : 0), day = s.day;
       if (e.early && e.early.day === day && e.early.from < o) o = e.early.from; // (your master let you start sooner today)
+      if (e.lateStart && e.lateStart.day === day && e.lateStart.from > o) o = e.lateStart.from; // (told to come back later today)
       if (e.day !== day) { // a new day
         if (e.day != null && e.dayInfo) settle(s, bz, e);
         if (e.temp != null && day > e.temp) { quit(`Your day's work at ${e.bizName} for the holiday is over.`, e); return; }

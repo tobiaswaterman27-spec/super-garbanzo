@@ -120,7 +120,7 @@
       r.querySelectorAll('[data-buy]').forEach((b) => b.onclick = () => {
         const g = b.dataset.buy, pr = price(g);
         if (O.buyByTalk && O.AI && O.AI.ready) { close(); return O.buyByTalk(sim, bz, seller, g, pr); } // (asked for across the counter, and handed over in their own words)
-        if (PS.money < pr) return toast(`You can't afford ${G[g].name.toLowerCase()} at ₳${pr}.`, 'bad');
+        if (PS.money < pr) { if (O.noCoin) return O.noCoin(seller, pr, G[g].name.toLowerCase()); return toast(`You can't afford ${G[g].name.toLowerCase()} at ₳${pr}.`, 'bad'); }
         if (!PS.canCarry(g)) return toast('Your satchel is full.', 'bad');
         PS.money -= pr; PS.add(g); bz.stock[g] -= 1; bz.cash += pr * (1 - sim.treasury.taxRate); sim.treasury.cash += pr * sim.treasury.taxRate; bz.salesToday += pr; sim.stats.sales += pr;
         const r0 = seller.rel.get(0) || { affinity: 0, familiar: 0 }; r0.affinity = Math.min(1, r0.affinity + 0.02); seller.rel.set(0, r0);

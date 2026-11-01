@@ -217,7 +217,7 @@
     // everyday gestures and moods
     nod: { frames: 4, fps: 5 }, laugh: { frames: 4, fps: 6 }, shrug: { frames: 4, fps: 3 }, bow: { frames: 4, fps: 2.5 }, curtsy: { frames: 4, fps: 2.5 },
     // playing music
-    juggle: { frames: 6, fps: 7 }, ringbell: { frames: 4, fps: 6 }, lute: { frames: 4, fps: 4 }, fiddle: { frames: 4, fps: 5 }, pipe: { frames: 4, fps: 4 }, drum: { frames: 4, fps: 6 },
+    give: { frames: 3, fps: 2.5 }, take: { frames: 3, fps: 2.5 }, juggle: { frames: 6, fps: 7 }, ringbell: { frames: 4, fps: 6 }, lute: { frames: 4, fps: 4 }, fiddle: { frames: 4, fps: 5 }, pipe: { frames: 4, fps: 4 }, drum: { frames: 4, fps: 6 },
     dance: { frames: 8, fps: 7 }, yawn: { frames: 4, fps: 2 }, scratch: { frames: 4, fps: 6 }, wipe: { frames: 4, fps: 3 }, cough: { frames: 4, fps: 5 }, gesture: { frames: 4, fps: 3 },
   };
 
@@ -396,6 +396,7 @@
       case 'lute': { const k = f % 2; A.L = reach(-1, [-3.2, chest + 1.5, D + 3]); A.R = reach(1, [0.8, chest + 4.2 + k * 0.7, D + 3.8]); P.held = 'lute'; P.toolHand = 'R'; P.toolDir = [-0.9, -0.35, 0.25]; P.headDown = 0.3; P.mouth = f === 2 ? 1 : 0; break; }
       case 'fiddle': { const k = [0, 1, 2, 1][f]; A.L = reach(-1, [-3.6, chest - 1.5, D + 2.6]); A.R = reach(1, [0.6 + k * 1.2, chest + 0.8, D + 3.4]); P.held = 'fiddle'; P.toolHand = 'L'; P.toolDir = [0.8, 0.35, 0.3]; P.headDown = 0.2; break; }
       case 'pipe': { const k = f % 2; A.R = reach(1, [0.6, chest - 3 + k * 0.3, D + 4]); A.L = reach(-1, [-0.4, chest - 1, D + 4.2]); P.held = 'pipe'; P.toolHand = 'R'; P.toolDir = [0, 0.85, 0.5]; P.bob = k ? -0.4 : 0; break; }
+      case 'give': case 'take': { const out = [0.5, 1, 1][anim === 'take' ? 2 - f : f]; A.R = reach(1, [1.6 + out * 0.6, chest + 2.5 - out * 1.5, D + 3 + out * 4.5], [0.2, 0.3, 1]); P.lean = out * 0.6; P.mouth = f === 1 ? 1 : 0; break; }
       case 'juggle': { const up = f % 2; A.R = reach(1, [3.6, chest + 3 - (up ? 1.5 : -0.5), D + 4]); A.L = reach(-1, [-3.6, chest + 3 - (up ? -0.5 : 1.5), D + 4]); P.held = 'balls'; P.toolHand = 'R'; P.jug = f; P.headUp = 0.3; P.mouth = f === 3 ? 1 : 0; break; }
       case 'ringbell': { const k = f % 2; A.R = reach(1, [4.6, shY - 4 - k * 1.6, D + 2.4], [1, 0.4, -0.2]); P.held = 'handbell'; P.toolHand = 'R'; P.toolDir = [k ? 0.3 : -0.3, 1, 0.1]; P.mouth = f >= 2 ? 1 : 0; break; }
       case 'drum': { const k = f % 2; A.L = reach(-1, [-2, chest + 5, D + 3]); A.R = reach(1, [0.6, chest + (k ? 1 : 4.5), D + 4]); P.held = 'drum'; P.toolHand = 'L'; P.toolDir = [0, 0, 1]; break; }

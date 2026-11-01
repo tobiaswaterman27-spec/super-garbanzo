@@ -1021,7 +1021,7 @@ O.storeys = (b) => {
     // everyday gestures and moods
     nod: { frames: 4, fps: 5 }, laugh: { frames: 4, fps: 6 }, shrug: { frames: 4, fps: 3 }, bow: { frames: 4, fps: 2.5 }, curtsy: { frames: 4, fps: 2.5 },
     // playing music
-    juggle: { frames: 6, fps: 7 }, ringbell: { frames: 4, fps: 6 }, lute: { frames: 4, fps: 4 }, fiddle: { frames: 4, fps: 5 }, pipe: { frames: 4, fps: 4 }, drum: { frames: 4, fps: 6 },
+    give: { frames: 3, fps: 2.5 }, take: { frames: 3, fps: 2.5 }, juggle: { frames: 6, fps: 7 }, ringbell: { frames: 4, fps: 6 }, lute: { frames: 4, fps: 4 }, fiddle: { frames: 4, fps: 5 }, pipe: { frames: 4, fps: 4 }, drum: { frames: 4, fps: 6 },
     dance: { frames: 8, fps: 7 }, yawn: { frames: 4, fps: 2 }, scratch: { frames: 4, fps: 6 }, wipe: { frames: 4, fps: 3 }, cough: { frames: 4, fps: 5 }, gesture: { frames: 4, fps: 3 },
   };
 
@@ -1200,6 +1200,7 @@ O.storeys = (b) => {
       case 'lute': { const k = f % 2; A.L = reach(-1, [-3.2, chest + 1.5, D + 3]); A.R = reach(1, [0.8, chest + 4.2 + k * 0.7, D + 3.8]); P.held = 'lute'; P.toolHand = 'R'; P.toolDir = [-0.9, -0.35, 0.25]; P.headDown = 0.3; P.mouth = f === 2 ? 1 : 0; break; }
       case 'fiddle': { const k = [0, 1, 2, 1][f]; A.L = reach(-1, [-3.6, chest - 1.5, D + 2.6]); A.R = reach(1, [0.6 + k * 1.2, chest + 0.8, D + 3.4]); P.held = 'fiddle'; P.toolHand = 'L'; P.toolDir = [0.8, 0.35, 0.3]; P.headDown = 0.2; break; }
       case 'pipe': { const k = f % 2; A.R = reach(1, [0.6, chest - 3 + k * 0.3, D + 4]); A.L = reach(-1, [-0.4, chest - 1, D + 4.2]); P.held = 'pipe'; P.toolHand = 'R'; P.toolDir = [0, 0.85, 0.5]; P.bob = k ? -0.4 : 0; break; }
+      case 'give': case 'take': { const out = [0.5, 1, 1][anim === 'take' ? 2 - f : f]; A.R = reach(1, [1.6 + out * 0.6, chest + 2.5 - out * 1.5, D + 3 + out * 4.5], [0.2, 0.3, 1]); P.lean = out * 0.6; P.mouth = f === 1 ? 1 : 0; break; }
       case 'juggle': { const up = f % 2; A.R = reach(1, [3.6, chest + 3 - (up ? 1.5 : -0.5), D + 4]); A.L = reach(-1, [-3.6, chest + 3 - (up ? -0.5 : 1.5), D + 4]); P.held = 'balls'; P.toolHand = 'R'; P.jug = f; P.headUp = 0.3; P.mouth = f === 3 ? 1 : 0; break; }
       case 'ringbell': { const k = f % 2; A.R = reach(1, [4.6, shY - 4 - k * 1.6, D + 2.4], [1, 0.4, -0.2]); P.held = 'handbell'; P.toolHand = 'R'; P.toolDir = [k ? 0.3 : -0.3, 1, 0.1]; P.mouth = f >= 2 ? 1 : 0; break; }
       case 'drum': { const k = f % 2; A.L = reach(-1, [-2, chest + 5, D + 3]); A.R = reach(1, [0.6, chest + (k ? 1 : 4.5), D + 4]); P.held = 'drum'; P.toolHand = 'L'; P.toolDir = [0, 0, 1]; break; }
@@ -10755,20 +10756,40 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       out.rot = 0; out.coverTop = coverTop - S.fy1;
       return out;
     }
-    // head against a side wall (rot 1 = left wall; rot 2 is the same piece mirrored by the caller)
-    const S = canvasFor(3, 2, 14), { B, fx, fx1, fy, fy1 } = S;
-    B.part(1); for (let y = fy - 12; y <= fy1; y++) for (let x = fx; x < fx + 3; x++) B.plot(x, y, fr, x === fx ? 3 : x === fx + 1 ? 2 : 1);
-    for (let y = fy - 13; y <= fy - 11; y++) for (let x = fx - 1; x < fx + 4; x++) B.plot(x, y, fr, 4);
-    B.part(2); box(B, fx + 3, fx1 - 1, fy + 2, 22, fy1, fr, { topMat: white() });
-    B.part(4); B.blob(fx + 9, fy + 12, 4, 7, white(), { power: 3 }); B.tweak(fx + 10, fy + 13, -1);
+    // head against a side wall (rot 1 = left wall; rot 2 is the same piece mirrored by the caller):
+    // seen from the side in 3/4, a long low frame with its rail toward us, a tall headboard at the wall
+    // end and a low footboard, the quilt turned back from the pillow and hanging over the near rail
+    const S = canvasFor(3, 2, 16), { B, fx, fx1, fy, fy1 } = S;
+    const top = fy + 6, deep = 16, railTop = top + deep, legY = fy1;
+    B.part(2);
+    // the far rail, just showing beyond the mattress
+    for (let x = fx + 4; x <= fx1 - 3; x++) { B.plot(x, top - 2, fr, 3); B.plot(x, top - 1, fr, 2); }
+    // mattress (top face) and the near side rail (front face)
+    for (let y = top; y < railTop; y++) for (let x = fx + 4; x <= fx1 - 3; x++) B.plot(x, y, white(), y === top ? 4 : y > railTop - 3 ? 2 : 3);
+    for (let y = railTop; y <= railTop + 2; y++) for (let x = fx + 4; x <= fx1 - 3; x++) B.plot(x, y, white(), 1); // mattress edge
+    for (let y = railTop + 3; y <= legY - 4; y++) for (let x = fx + 3; x <= fx1 - 2; x++) B.plot(x, y, fr, y === railTop + 3 ? 3 : y === legY - 4 ? 1 : 2);
+    for (let x = fx + 6; x < fx1 - 4; x += 7) for (let y = railTop + 4; y < legY - 4; y++) B.tweak(x, y, -1); // panel joints
+    leg(B, fx + 3, legY - 4, legY, fr, 2); leg(B, fx1 - 3, legY - 4, legY, fr, 2);
+    // headboard: a tall panel with two posts and a cap, at the wall end
+    B.part(1);
+    for (let y = fy - 6; y <= legY; y++) for (let x = fx; x <= fx + 3; x++) B.plot(x, y, fr, x === fx + 3 ? 1 : x === fx ? 3 : 2);
+    for (let x = fx - 1; x <= fx + 4; x++) { B.plot(x, fy - 7, fr, 4); B.plot(x, fy - 8, fr, 3); }
+    if (v >= 2) for (let y = fy - 4; y < railTop; y += 4) B.tweak(fx + 1, y, 1);
+    // pillow against the headboard
+    B.part(4); B.blob(fx + 10, fy + 13, 4.5, 6.5, white(), { power: 3 }); B.tweak(fx + 11, fy + 14, -1); B.tweak(fx + 8, fy + 10, 1);
     const out = finish(S);
     out.cover = layer(S, (L) => {
-      L.part(5); for (let y = fy + 2; y <= fy + 25; y++) for (let x = fx + 16; x <= fx1 - 1; x++) L.plot(x, y, qm, x === fx + 16 ? 4 : y === fy + 2 ? 3 : y > fy + 22 ? 1 : 2);
-      const sh = white(); for (let y = fy + 2; y <= fy + 25; y++) { L.plot(fx + 16, y, sh, 4); L.plot(fx + 17, y, sh, 3); }
-      if (v >= 1) for (let y = fy + 4; y < fy + 24; y += 5) for (let x = fx + 19; x < fx1 - 1; x++) L.tweak(x, y, -1);
-      L.part(6); for (let y = fy - 2; y <= fy1; y++) for (let x = fx1 - 1; x <= fx1; x++) L.plot(x, y, fr, x === fx1 ? 1 : 2);
+      // the quilt, from the turned-back sheet to the footboard, hanging a little over the near rail
+      L.part(5); const q0 = fx + 18;
+      for (let y = top - 1; y <= railTop + 4; y++) for (let x = q0; x <= fx1 - 3; x++) L.plot(x, y, qm, y >= railTop + 1 ? (y === railTop + 4 ? 0 : 1) : y === top - 1 ? 4 : x === q0 ? 4 : 2);
+      const sh = white(); for (let y = top - 1; y <= railTop + 3; y++) { L.plot(q0, y, sh, 4); L.plot(q0 + 1, y, sh, 3); L.plot(q0 + 2, y, sh, 2); }
+      if (v >= 1) for (let y = top + 3; y < railTop; y += 5) for (let x = q0 + 4; x < fx1 - 3; x++) L.tweak(x, y, -1);
+      if (v >= 2) for (let y = top; y <= railTop + 3; y++) L.plot(fx1 - 6, y, P.mat(C.mustard), 3);
+      // footboard: lower than the head, with its own cap
+      L.part(6); for (let y = fy + 2; y <= legY; y++) for (let x = fx1 - 2; x <= fx1; x++) L.plot(x, y, fr, x === fx1 ? 1 : x === fx1 - 2 ? 3 : 2);
+      for (let x = fx1 - 3; x <= fx1 + 1; x++) { L.plot(x, fy + 1, fr, 4); L.plot(x, fy, fr, 3); }
     });
-    out.pillows = [[fx + 9 - (S.fx + (S.fx1 - S.fx + 1) / 2), fy + 12 - S.fy1]];
+    out.pillows = [[fx + 10 - (S.fx + (S.fx1 - S.fx + 1) / 2), fy + 12 - S.fy1]];
     out.rot = 1; out.coverTop = 0;
     return out;
   }
@@ -12397,7 +12418,12 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       for (const q of here) {
         const act = q.activity?.act;
         let x, y, dir = 0, anim = 'idle', spot = null, inBed = false, seat = null, sortY = null;
+        const nowMs = performance.now();
         if (bedOf.has(q.id)) { inBed = true; spot = bedOf.get(q.id).it; [x, y] = this.anchor(spot); }
+        else if (q._inChair && q._inChair.until > nowMs && q._inChair.b === b.id) { seat = q._inChair.it; spot = seat; anim = 'sit'; } // in the barber's chair
+        else if (q._snip && q._snip.until > nowMs && q._snip.b === b.id) { // the barber at work round the chair, shears going
+          const k = Math.floor(nowMs / 2600) % 3; x = q._snip.x + [-13, 13, -9][k]; y = q._snip.y + [1, 1, 6][k]; dir = k === 1 ? 2 : 1; anim = 'shear'; }
+        else if (q._sweep && q._sweep > nowMs && b.clippings && b.clippings.length) { const c = b.clippings[0]; x = c.x + 10; y = c.y + 4; dir = 2; anim = 'sweep'; }
         else if (posts.includes(q)) { // the guard walks the length of the hall and back, pausing at each end
           const k = posts.indexOf(q), leg = Math.floor((this.t + k * 7 + q.id) / 14) % 2, row = this.floor === 1 ? 8 : (k % 2 ? 4 : 5);
           [x, y] = this.tileXY(leg ? L.w - 7 - (k % 3) : 4 + (k % 3), row); dir = leg ? 2 : 1; anim = (Math.floor(this.t / 9) + q.id) % 4 ? 'idle' : 'look'; }
@@ -12877,7 +12903,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       r.querySelectorAll('[data-buy]').forEach((b) => b.onclick = () => {
         const g = b.dataset.buy, pr = price(g);
         if (O.buyByTalk && O.AI && O.AI.ready) { close(); return O.buyByTalk(sim, bz, seller, g, pr); } // (asked for across the counter, and handed over in their own words)
-        if (PS.money < pr) return toast(`You can't afford ${G[g].name.toLowerCase()} at ₳${pr}.`, 'bad');
+        if (PS.money < pr) { if (O.noCoin) return O.noCoin(seller, pr, G[g].name.toLowerCase()); return toast(`You can't afford ${G[g].name.toLowerCase()} at ₳${pr}.`, 'bad'); }
         if (!PS.canCarry(g)) return toast('Your satchel is full.', 'bad');
         PS.money -= pr; PS.add(g); bz.stock[g] -= 1; bz.cash += pr * (1 - sim.treasury.taxRate); sim.treasury.cash += pr * sim.treasury.taxRate; bz.salesToday += pr; sim.stats.sales += pr;
         const r0 = seller.rel.get(0) || { affinity: 0, familiar: 0 }; r0.affinity = Math.min(1, r0.affinity + 0.02); seller.rel.set(0, r0);
@@ -13381,6 +13407,9 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     // now
     const h = s.hour, t = `${Math.floor(h) % 12 || 12}${h < 12 ? 'am' : 'pm'}`, inside = q.agent.inside != null ? s.building(q.agent.inside) : null;
     const dest = q.activity && q.activity.b != null && q.agent.inside !== q.activity.b ? s.building(q.activity.b) : null;
+    { const dn = doing(s, q).replace(/,? ?talking with the player/, '').trim(), held = q.agent && q.agent.carrying ? (G()[q.agent.carrying.good]?.name || q.agent.carrying.good).toLowerCase() : null;
+      const where = inside ? 'indoors' : q.agent && q.agent.onRoof ? 'up on a roof' : 'on the ground outdoors';
+      lines.push(`Doing right now (exactly what the player can see; nothing else): ${dn || 'standing about'}${held ? `, holding ${held}` : ', hands empty'}, ${where}.`); }
     lines.push(`Now: ${t}, ${s.season}, ${s.weather ? s.weather.kind : 'clear'}. You are ${O.ACT_LABEL && O.ACT_LABEL[q.activity?.act] || 'about'}${inside ? ` in ${placeOf(s, inside, cx, cy).replace(/ \(.*\)$/, '')}` : ' outdoors'}${dest ? `, on your way to ${placeOf(s, dest, cx, cy).replace(/ \(.*\)$/, '')}` : ''}.`);
     if (q._lastTalkAt != null) { const ago = s.day * 1440 + s.minute - q._lastTalkAt; lines.push(`You last spoke with the player ${ago < 10 ? 'just a moment ago' : ago < 60 ? 'a little while ago' : ago < 600 ? 'earlier today' : ago < 1440 * 2 ? 'yesterday' : `${Math.round(ago / 1440)} days ago`}.`); }
     // the player, as far as they know them
@@ -13456,7 +13485,7 @@ Stay fully in character, always: these are real medieval people, never an AI, as
 They know only what their card says; asked anything else they don't know, guess vaguely or say so, and never invent people or places in their town. Nonsense confuses them. The suspicious, hostile or untrusting are curt with strangers and doubt claims. The greedy and hostile may lie. Busy people want to get on.
 people: for each person present: feel and trust (-2..2) = how the player's words change their liking and belief; learned = a short new claim from the player they now believe, else ""; caught = true if they now see the player lied before.
 name: the player's name if the player just gave it. agree: true only if they now agree to the pending request.
-Only what's real: never mention objects, chores or happenings that aren't in your card or the scene (no baskets of sheets, no 'take that end'), and never ask the player to do something with their hands that isn't there to do. Don't keep naming where you are or the town; name a place only when it matters to what's said.
+Only what's real: speak of what you are doing only as your 'Doing right now' line says (if it says standing about, you are not up a roof, on a ladder, at a forge or in the middle of a task); never mention objects, chores or happenings that aren't in your card or the scene (no baskets of sheets, no 'take that end'), and never ask the player to do something with their hands that isn't there to do. Don't keep naming where you are or the town; name a place only when it matters to what's said.
 Keep your word: anything a speaker says they will do now or agrees to change (go somewhere, come along, show the way, follow, fetch, give, sell, take someone on, change someone's hours or shift or pay, give a day off, let them start now, a price, a rent, a meeting) MUST be in acts with the agreed numbers, or it won't happen in the world; words alone change nothing. Never say you'll do what you won't.
 Talks end: when the talk has run its course (goodbyes said, the matter settled, nothing more to say, or they have somewhere to be), the person says a short parting line and adds the act leave. Don't drag a talk out.
 acts: only what a speaker truly agrees to or does, each {"who":"First name","do":...}:
@@ -13503,7 +13532,7 @@ They know where their family and friends are just now (the card says); a strange
     return out.sort((a, b) => a[1] - b[1]).slice(0, 6).map(([z, d]) => ({ z, d }));
   }
   // what someone is doing, as you'd see it: the pose they're in, who they're talking with, where they're off to
-  const POSE = { sit: 'sitting', doze: 'dozing in a chair', sweep: 'sweeping', scrub: 'scrubbing', dance: 'dancing', eat: 'eating', drink: 'drinking', cook: 'cooking', talk: 'talking', read: 'reading', write: 'writing', pray: 'praying', hammer: 'hammering', chop: 'chopping wood', saw: 'sawing', knead: 'kneading dough', pour: 'pouring', serve: 'serving', count: 'counting coins', sleep: 'asleep', lie: 'lying on the ground', mourn: 'grieving', celebrate: 'merry', laugh: 'laughing', yawn: 'yawning', cough: 'coughing', play: 'playing', carry: 'carrying something', walk: 'walking', run: 'running', look: 'looking about' };
+  const POSE = { idle: 'standing about', look: 'looking about', scratch: 'standing about', nod: 'standing about', shear: 'clipping with shears', mix: 'stirring and mixing', dig: 'digging', hoe: 'hoeing', pitch: 'forking hay', fish: 'fishing', spin: 'spinning thread', weave: 'weaving at the loom', cleave: 'cutting meat', bucket: 'carrying water', place: 'setting something down', give: 'handing something over', lute: 'playing the lute', fiddle: 'playing the fiddle', pipe: 'playing a pipe', drum: 'beating a drum', juggle: 'juggling', ringbell: 'ringing a handbell', sit: 'sitting', doze: 'dozing in a chair', sweep: 'sweeping', scrub: 'scrubbing', dance: 'dancing', eat: 'eating', drink: 'drinking', cook: 'cooking', talk: 'talking', read: 'reading', write: 'writing', pray: 'praying', hammer: 'hammering', chop: 'chopping wood', saw: 'sawing', knead: 'kneading dough', pour: 'pouring', serve: 'serving', count: 'counting coins', sleep: 'asleep', lie: 'lying on the ground', mourn: 'grieving', celebrate: 'merry', laugh: 'laughing', yawn: 'yawning', cough: 'coughing', play: 'playing', carry: 'carrying something', walk: 'walking', run: 'running', look: 'looking about' };
   function doing(s, z) {
     const g = O.game, a = g.scene ? g.scene.actors.get(z.id) : z.agent, an = a && (a.anim || a.gAnim), bits = [];
     if (an && POSE[an]) bits.push(POSE[an]);
@@ -13817,7 +13846,17 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     const g = O.game; if (who === 'player') return [g.player.x, g.player.y - 18];
     const p = g.scene ? g.scene.personPos(who) : [who.agent.x, who.agent.y]; return p ? [p[0], p[1] - 18] : null;
   }
-  function fly(from, to, g) { const a = posOf(from), b = posOf(to); if (!a || !b) return; flying.push({ a, b, g, t: 0 }); }
+  // a thing changing hands: the giver turns and holds it out, it passes across, and lands with a sound
+  const HOLD = 0.85, PASS = 0.55;
+  function face(who, other) { if (who === 'player') return; const a = posOf(who), b = posOf(other); if (!a || !b) return; who.agent.dir = O.dirOf(b[0] - a[0], b[1] - a[1]); const sc = O.game.scene, ac = sc && sc.actors.get(who.id); if (ac) { ac.dir = who.agent.dir; ac.gDir = who.agent.dir; } }
+  function fly(from, to, g) {
+    const a = posOf(from), b = posOf(to); if (!a || !b) return;
+    face(from, to); face(to, from);
+    if (from !== 'player') O.gesture && O.gesture(from, 'give', HOLD + PASS); else { const P = O.game.player; P.gest = { anim: 'give', from: performance.now(), until: performance.now() + (HOLD + PASS) * 1000 }; }
+    if (to !== 'player') setTimeout(() => O.gesture && O.gesture(to, 'take', 0.9), HOLD * 1000);
+    if (g === 'coin') O._handingUntil = performance.now() + (HOLD + PASS + 0.4) * 1000; // (the kaching as it lands is the sound of it, not the purse)
+    flying.push({ from, to, a, b, g, t: 0 });
+  }
   function keepGift(s, q, o) {
     if (o.g === 'coin') { const hh = s.household(q); if (hh) hh.money += o.n; const d = (PS().debts || []).find((x) => x.who === q.id && x.n > 0); if (d) { d.n = Math.max(0, d.n - o.n); PS().debts = PS().debts.filter((x) => x.n > 0); } }
     else { const hh = s.household(q); if (hh && hh.pantry && (G()[o.g]?.food || o.g in hh.pantry)) hh.pantry[o.g] = (hh.pantry[o.g] || 0) + 1; else (q.items = q.items || []).push(o.g); }
@@ -13896,7 +13935,8 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
   // walking along with you, out of doors
   game.hooks.update.push((dt) => {
     const g = O.game, s = O.SimRef.cur; if (!s) return;
-    for (const f of flying) f.t += dt; for (let i = flying.length - 1; i >= 0; i--) if (flying[i].t > 0.7) flying.splice(i, 1);
+    for (const f of flying) { const t0 = f.t; f.t += dt; if (t0 < HOLD + PASS && f.t >= HOLD + PASS) { const inScene = !!O.game.scene; if (f.g === 'coin') O.sfx && O.sfx('kaching', 1, inScene); else O.sfx && O.sfx('handover', 1, inScene); } }
+    for (let i = flying.length - 1; i >= 0; i--) if (flying[i].t > HOLD + PASS + 0.05) flying.splice(i, 1);
     if (g.scene) return;
     for (const [id, j] of joining) {
       const z = s.byId.get(id), h = j.to; if (!z || z.agent.hidden || !O.npcUI || O.npcUI.talking() !== h) { joining.delete(id); if (z) z.agent.chasing = false; continue; }
@@ -13954,7 +13994,9 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
   // the flying things, drawn over everything
   game.hooks.drawTop.push((ctx, cam) => {
     for (const f of flying) {
-      const k = Math.min(1, f.t / 0.6), x = f.a[0] + (f.b[0] - f.a[0]) * k, y = f.a[1] + (f.b[1] - f.a[1]) * k - Math.sin(k * Math.PI) * 18;
+      const A = posOf(f.from) || f.a, Bp = posOf(f.to) || f.b, dx = Bp[0] - A[0], dy = Bp[1] - A[1], d = Math.hypot(dx, dy) || 1;
+      const hx = A[0] + (dx / d) * 9, hy = A[1] + 9 + (dy / d) * 3, tx = Bp[0] - (dx / d) * 9, ty = Bp[1] + 9 - (dy / d) * 3; // held out at arm's length, taken in the other's hand
+      const k = f.t < HOLD ? 0 : Math.min(1, (f.t - HOLD) / PASS), x = hx + (tx - hx) * k, y = hy + (ty - hy) * k - Math.sin(k * Math.PI) * Math.min(10, d * 0.2);
       if (f.g === 'coin') { ctx.fillStyle = '#f0c040'; ctx.fillRect(Math.round(x - cam.x - 2), Math.round(y - cam.y - 2), 4, 4); ctx.fillStyle = '#a07010'; ctx.fillRect(Math.round(x - cam.x - 1), Math.round(y - cam.y - 1), 2, 2); continue; }
       try { const ic = O.ItemArt.small(f.g); ctx.drawImage(ic, Math.round(x - cam.x - 6), Math.round(y - cam.y - 6)); } catch (e) { /* no art */ }
     }
@@ -14021,9 +14063,9 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       case 'call': { const z = O.nearbyOf ? (O.nearbyOf(s, q, 260).find(({ z }) => z.first.toLowerCase() === String(a.who || '').toLowerCase().split(' ')[0]) || {}).z : null; if (!z) return null; return callOver(s, q, z, main); }
       case 'ask': { const z = askable(s, q, a.who); if (!z) return null; consult(s, q, z, String(a.question || '').slice(0, 200), main); return `${q.first} goes to ask ${z.first}.`; }
       case 'show': { const pl = placeFor(s, q, a.place); if (!pl) return null; goTo.set(q.id, { b: pl.b ?? null, until: abs(s) + 90 }); O.addLead && O.addLead({ place: s.world.placeId, b: pl.b ?? undefined, tile: pl.tile || undefined, until: abs(s) + 120, why: 'show', key: 'show' + q.id, label: pl.label }); setTimeout(() => O.npcUI && O.npcUI.talking() === (main || q) && O.npcUI.closeTalk(), 2400); return `${q.first} leads the way to ${pl.label}.`; }
-      case 'sell': { const g = goodFor(a.item), pr = Math.max(1, Math.round(Number(a.price) || 0)); if (!g || g === 'coin' || !pr) return null; const P = PS(); if (P.money < pr) return `You haven't ₳${pr}.`; const hh = s.household(q); let ok = false;
+      case 'sell': { const g = goodFor(a.item), pr = Math.max(1, Math.round(Number(a.price) || 0)); if (!g || g === 'coin' || !pr) return null; const P = PS(); if (P.money < pr) { O.noCoin && O.noCoin(q, pr, (G()[g]?.name || g).toLowerCase()); return `You haven't ₳${pr}.`; } const hh = s.household(q); let ok = false;
         if (hh && hh.pantry && (hh.pantry[g] || 0) >= 1) { hh.pantry[g] -= 1; ok = true; } else if ((q.items || []).includes(g)) { q.items.splice(q.items.indexOf(g), 1); ok = true; } else { const bz = q.job && s.biz.get(q.job.biz); if (bz && (bz.stock[g] || 0) >= 1) { bz.stock[g] -= 1; bz.cash += pr; ok = 'biz'; } }
-        if (!ok || !P.canCarry(g)) return null; P.money -= pr; if (ok !== 'biz' && hh) hh.money += pr; P.add(g); fly(q, 'player', g); return `You buy ${(G()[g]?.name || g).toLowerCase()} from ${q.first} for ₳${pr}.`; }
+        if (!ok || !P.canCarry(g)) return null; P.money -= pr; if (ok !== 'biz' && hh) hh.money += pr; P.add(g); fly('player', q, 'coin'); setTimeout(() => fly(q, 'player', g), 1500); return `You buy ${(G()[g]?.name || g).toLowerCase()} from ${q.first} for ₳${pr}.`; }
       case 'buy': { const g = goodFor(a.item), pr = Math.max(1, Math.round(Number(a.price) || 0)); const P = PS(), hh = s.household(q); if (!g || !pr || !P.items.includes(g) || !hh || hh.money < pr) return null; P.remove(g); P.money += pr; hh.money -= pr; (q.items = q.items || []).push(g); fly('player', q, g); return `${q.first} buys your ${(G()[g]?.name || g).toLowerCase()} for ₳${pr}.`; }
       case 'lend': { const n = Math.max(1, Math.min(40, Math.round(Number(a.amount) || 0))), hh = s.household(q); if (!hh || hh.money < n + 5) return null; hh.money -= n; PS().money += n; (PS().debts = PS().debts || []).push({ who: q.id, name: q.first, place: s.world.placeId, n, due: s.day + 7 }); fly(q, 'player', 'coin'); return `${q.first} lends you ₳${n}, to be paid back within the week.`; }
       case 'gesture': { const k = String(a.kind || '').toLowerCase(), anim = { hug: 'celebrate', handshake: 'gesture', bow: q.sex === 'f' ? 'curtsy' : 'bow', wave: 'wave', dance: 'dance', cry: 'mourn', laugh: 'laugh' }[k]; if (anim) { O.gesture && O.gesture(q, anim, k === 'dance' ? 4 : 2); if (k === 'hug' || k === 'handshake') { O.game.player.anim = k === 'hug' ? 'celebrate' : 'gesture'; O.game.player.ft = 0; setTimeout(() => { if (['celebrate', 'gesture'].includes(O.game.player.anim)) O.game.player.anim = 'idle'; }, 1600); } } return null; }
@@ -14605,8 +14647,9 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     const tailorAt = (s, q) => { const bz = q.job && s.biz.get(q.job.biz); return bz && bz.type === 'tailor' && q.activity?.act === 'work' && bz.open !== false ? bz : null; };
     function fitting(s, q) {
       const bz = tailorAt(s, q); if (!bz || !O.Forge || !O.Forge.showWardrobe) return null;
+      const price0 = 10 + Math.round((bz.b?.wealth || 0.4) * 20); if (PS.money < price0) { O.noCoin && O.noCoin(q, price0, 'new clothes'); return `${q.first} looks you over. "New clothes are ₳${price0}, and you've not got it."`; }
       O.npcUI.closeTalk && O.npcUI.closeTalk();
-      O.Forge.showWardrobe({ price: 10 + Math.round((bz.b?.wealth || 0.4) * 20), shop: bz.name }, (a, f) => {
+      O.Forge.showWardrobe({ price: price0, shop: bz.name }, (a, f) => {
         if (!a) return; PS.money -= f.price; bz.cash += f.price;
         if (game.player._baseA) game.player._baseA = a; else game.setPlayerAppearance(a);
         O.Speech && O.Speech.say(q, 'There. It fits you well.', 3); s.relate(q, { id: 0 }, 0.05);
@@ -18879,10 +18922,12 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     });
     const base = O.NpcActs.apply;
     O.NpcActs.apply = function (s, q, a) {
+      if (a && a.do === 'set_start') return O.Employment && O.Employment.setStart ? O.Employment.setStart(s, q, a) : null;
       if (a && a.do === 'end_strike') { const bz = q.job && s.biz.get(q.job.biz); if (!bz || !bz.strike || !bz.strike.who.includes(q.id)) return null; bz.strike.who = bz.strike.who.filter((id) => id !== q.id); q.job.short = 0; return `${q.first} gives up the strike and goes back to work.`; }
       return base.apply(this, arguments);
     };
-    (O.extraActs = O.extraActs || []).push('end_strike {} (a striker: give up the strike and go back in, if persuaded)');
+    (O.extraActs = O.extraActs || []).push('end_strike {} (a striker: give up the strike and go back in, if persuaded)', 'set_start {"when":"now"|"today"|"tomorrow","hour"?:0-23,"days"?} (a master agreeing when the player they took on starts work)');
+    (O.extraLines = O.extraLines || []).push((s, q) => (O.Employment && O.Employment.startLine ? O.Employment.startLine(s, q) : ''));
     (O.extraLines = O.extraLines || []).push((s, q) => {
       if (!q.job) return ''; const bz = s.biz.get(q.job.biz); const out = [];
       if (bz && bz.strike && bz.strike.who.includes(q.id)) out.push(`You are on strike outside ${bz.name}: owed about ₳${Math.ceil(q.job.owed || 0)} in wages. You won't work until paid.`);
@@ -18955,6 +19000,222 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     O.castlePosts = (s) => postsOf(s || cur());
   }
   O.CastleGroundsSetup = { setup };
+})();
+
+</script>
+<script>
+// No coin, no sale. Nobody hands over goods or does a service for someone who can't pay: they say so,
+// and remember it (the next time you come in, they'll want to see your coin first). But a friend in
+// earshot, or a soft heart with money to spare, may step up and pay for you, sometimes as a gift and
+// sometimes as a loan they'll want back.
+'use strict';
+(function () {
+  function setup(game) {
+    const PS = O.PlayerState, cur = () => O.SimRef.cur;
+    const posOf = (q) => (game.scene ? game.scene.personPos(q) : q.agent && [q.agent.x, q.agent.y]);
+    // who's near enough to hear
+    function hearers(s, seller) {
+      const P = game.player, out = [];
+      if (game.scene) { for (const a of game.scene.actors.values()) { const q = a.person; if (q && q !== seller && Math.hypot(a.x - P.x, a.y - P.y) < 110) out.push(q); } }
+      else for (const q of s.people) { if (q === seller || !q.agent || q.agent.hidden || q.agent.inside != null) continue; if (Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < 90) out.push(q); }
+      return out.filter((q) => q.alive !== false && q.age >= 14 && !q.agent.frozen);
+    }
+    O.noCoin = (seller, price, what, onPaid) => {
+      const s = cur(); if (!s) return;
+      if (seller) { s.remember(seller, `The player wanted ${what} and could not pay the ₳${price}.`, 'player', 0.5, -0.03); seller._shortAt = s.day; }
+      O.Panels.toast(`You haven't the ₳${price} for ${what}.`, 'bad');
+      // a kind word from somebody who heard
+      const cands = hearers(s, seller).map((q) => { const r = q.rel.get(0) || { affinity: 0 }, hh = s.household(q); const kind = q.traits.includes('generous') || q.traits.includes('friendly'); const w = (r.affinity || 0) + (kind ? 0.35 : 0) - (q.traits.includes('greedy') ? 0.5 : 0); return { q, w, hh }; })
+        .filter((c) => c.hh && c.hh.money >= price + 8 && c.w > 0.3 && price <= 30 + c.w * 40).sort((a, b) => b.w - a.w);
+      const c = cands[0]; if (!c || Math.random() > Math.min(0.85, 0.3 + c.w * 0.5)) return;
+      const loan = c.w < 0.6 || price > 15;
+      setTimeout(() => {
+        if (c.hh.money < price) return; c.hh.money -= price; PS.money += price;
+        const line = loan ? [`I'll lend you the ${price}. Pay me back when you can.`, `Here, ${price} aurins. I'll want it back, mind.`][Math.floor(Math.random() * 2)] : [`Put it away. I'll pay for that.`, `Here, I'll stand you that.`, `Let me. You'd do the same.`][Math.floor(Math.random() * 3)];
+        O.Speech && O.Speech.say(c.q, line, 4); O.NpcActs && O.NpcActs.fly ? O.NpcActs.fly(c.q, 'player', 'coin') : O.sfx && O.sfx('coins', 0.7, !!game.scene);
+        O.Panels.toast(`${c.q.first} gives you ₳${price}${loan ? ', as a loan' : ''}.`);
+        if (loan) (PS.debts = PS.debts || []).push({ who: c.q.id, n: price, day: s.day, why: what });
+        s.remember(c.q, loan ? `Lent the player ₳${price} when they were short.` : `Paid ₳${price} for the player when they were short.`, 'player', 0.6, 0.04);
+        s.relate && s.relate(c.q, { id: 0 }, 0.04);
+        onPaid && setTimeout(onPaid, 600);
+      }, 1400);
+    };
+    // they remember a purse that came up empty
+    (O.extraLines = O.extraLines || []).push((s, q) => {
+      const selling = q.activity?.act === 'work' && q.job && s.biz.get(q.job.biz); if (!selling) return null;
+      let t = `The player has ₳${Math.floor(PS.money)} on them. Never hand over goods, food, drink, a room or a service they can't pay for: if they ask for more than they have, refuse plainly.`;
+      if (q._shortAt != null && s.day - q._shortAt < 30) t += ' They came in once before wanting what they could not pay for: you want to see their coin first.';
+      return t;
+    });
+  }
+  O.MoneySetup = { setup };
+})();
+
+</script>
+<script>
+// The barber-surgeon's chair. Ask for your hair or beard to be done and you choose from the same
+// styles as when you were made; the barber says back what you've asked for and the price and asks if
+// you're sure, and you answer in your own words. Then you sit, they walk round you with the shears or
+// the razor, and the clippings fall to the floor in your own colour, among everyone else's, until the
+// barber sweeps them up. No coin, no cut. Townsfolk come in for a trim too, and hair grows back.
+'use strict';
+(function () {
+  const M_LEN = { bald: 0, crop: 1, short: 2, messy: 2, shaggy: 3 };
+  const B_LEN = { none: 0, stubble: 1, moustache: 2, goatee: 2, full: 3, long: 4 };
+  const SAY_HAIR = { short: 'cut short and neat', crop: 'cropped close to the head', messy: 'cut rough and tousled', bald: 'shaved clean off', shaggy: 'evened up and left long and shaggy',
+    long: 'trimmed and left long', bun: 'put up in a bun', braid: 'braided', tied: 'tied back', curly: 'curled with the tongs', veil: 'dressed and put up under a veil' };
+  const SAY_BEARD = { none: 'shaved clean off', stubble: 'cut down to stubble', moustache: 'shaved to a moustache', goatee: 'trimmed to a goatee', full: 'trimmed into a full beard', long: 'combed out long' };
+  const CUT_SECS = 7;
+  function setup(game) {
+    const PS = O.PlayerState, cur = () => O.SimRef.cur, now = () => performance.now();
+    const isBarber = (q) => q && q.job?.role === 'barber-surgeon' && q.activity?.act === 'work';
+    const hairHex = (a) => { const r = O.Pal.mats[a.hair]; return (r && r.hex) || '#5a3a20'; };
+    const chairOf = (sc) => { if (!sc) return null; const it = sc.L.items.filter((i) => i.kind === 'chair' || i.kind === 'stool'); return it[0] || null; };
+    const spec = () => Object.assign({}, O.Forge.spec());
+    const cap = (t) => t[0].toUpperCase() + t.slice(1);
+
+    // ---------------------------------------------------------------- the menu, on the talk card
+    const npcUI = O.npcUI, prevExtra = npcUI.extraButtons, prevOn = npcUI.onExtra;
+    npcUI.extraButtons = (q) => { const out = prevExtra ? prevExtra(q) : []; if (isBarber(q) && game.scene) out.push(['hair', 'Have your hair or beard done']); return out; };
+    npcUI.onExtra = (q, key, render) => { if (key === 'hair') return menu(q); return prevOn && prevOn(q, key, render); };
+    function thumb(patch) {
+      const sp = Object.assign(spec(), { hat: 'none' }, patch), a = O.Creator.appearanceFromSpec(sp), fr = O.Char.frame(a, 0, 'idle', 0);
+      const c = document.createElement('canvas'); c.width = 60; c.height = 60; const x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(fr, 6, O.Char.FH - 48, 20, 20, 0, 0, 60, 60); return c.toDataURL();
+    }
+    function menu(q) {
+      const sp = spec(), styles = sp.sex === 'f' ? O.Char.HAIR_STYLES_F : O.Char.HAIR_STYLES_M, beards = sp.sex === 'm' && sp.age >= 16 ? [...new Set(O.Char.BEARDS)] : [];
+      const tile = (kind, v) => `<button class="cc-tile" data-k="${kind}" data-v="${v}" ${(kind === 'hair' ? sp.hairStyle : sp.beard) === v ? 'aria-pressed="true"' : ''}><img src="${thumb(kind === 'hair' ? { hairStyle: v } : { beard: v })}" width="60" height="60" style="image-rendering:pixelated" alt=""><br>${cap(v)}</button>`;
+      O.Panels.open(`${q.first}'s chair`, `<div class="lbl">Hair <small>(₳3)</small></div><div class="cc-tiles">${styles.map((v) => tile('hair', v)).join('')}</div>${beards.length ? `<div class="lbl" style="margin-top:10px">Beard <small>(₳2)</small></div><div class="cc-tiles">${beards.map((v) => tile('beard', v)).join('')}</div>` : ''}`, (root) => {
+        root.querySelectorAll('[data-k]').forEach((b) => { b.onclick = () => { O.Panels.close && O.Panels.close(); choose(q, b.dataset.k, b.dataset.v); }; });
+      });
+    }
+    // they say back what you've asked for and ask if you're sure
+    function choose(q, kind, v) {
+      const sp = spec(), price = kind === 'hair' ? 3 : 2;
+      const say = (t) => { if (npcUI.talking && npcUI.talking() === q) npcUI.speak(q, t); else npcUI.startFrom(q, t); };
+      if (kind === 'hair' && sp.hairStyle === v) return say("It's that way already. I'll not take coin for cutting air.");
+      if (kind === 'beard' && sp.beard === v) return say("That's how it is now. Nothing for me to do there.");
+      if (kind === 'hair' && sp.sex === 'm' && (M_LEN[v] ?? 2) > (M_LEN[sp.hairStyle] ?? 2)) return say(`I can cut hair, not grow it. Let it come in a few weeks and I'll make it ${v} for you.`);
+      if (kind === 'beard' && (B_LEN[v] ?? 0) > (B_LEN[sp.beard] ?? 0) && !(B_LEN[v] === 2 && B_LEN[sp.beard] === 2)) return say(`There's not enough there to make a ${v === 'none' ? 'clean chin' : v} of it yet. Give it time to grow.`);
+      const desc = kind === 'hair' ? SAY_HAIR[v] || v : SAY_BEARD[v] || v;
+      q._hairReq = { kind, v, price, desc };
+      say(`Ah, so you'd have your ${kind === 'hair' ? 'hair' : 'beard'} ${desc}? That'll be ${price} aurins. You're sure?`);
+    }
+    // yes or no, in your own words
+    O.addAsk && O.addAsk((q) => (q._hairReq ? { goal: `have their ${q._hairReq.kind} ${q._hairReq.desc} for ${q._hairReq.price} aurins (they chose it and you asked if they are sure: agree if they say yes in any words)`, why: '', onAgree: () => go(q) } : null));
+    const YES = /^\s*(y|yes|yeah|yh|ye|yep|yup|aye|sure|ok|okay|go on|go ahead|do it|please|i'?m sure|certainly|of course|that'?s right|right)\b/i, NO = /^\s*(no|nah|nay|nope|wait|hold on|actually|not)\b/i;
+    const _say = O.AIChat.say;
+    O.AIChat.say = function (q, text, render, opt) {
+      if (q && q._hairReq && typeof text === 'string') {
+        if (YES.test(text)) { (q._conv = q._conv || []).push({ who: 'p', t: text }); go(q, render); return Promise.resolve(); }
+        if (NO.test(text)) { q._hairReq = null; (q._conv = q._conv || []).push({ who: 'p', t: text }); const l = 'As you like. Another time.'; q._conv.push({ who: 'q', t: l }); render(l, false); return Promise.resolve(); }
+      }
+      return _say.apply(this, arguments);
+    };
+    // the cut itself
+    function go(q, render) {
+      const req = q._hairReq; if (!req) return; q._hairReq = null;
+      const line = (t) => { (q._conv = q._conv || []).push({ who: 'q', t }); if (render) render(t, false); else npcUI.speak(q, t); };
+      if (PS.money < req.price) {
+        line(`${req.price} aurins, and you've not got them. No coin, no cut.`);
+        const s = cur(); s && s.remember(q, 'Wanted a cut and had not the coin to pay.', 'player', 0.5, -0.05);
+        O.noCoin && O.noCoin(q, req.price, 'a cut', () => { q._hairReq = req; go(q); });
+        return;
+      }
+      const sc = game.scene, chair = chairOf(sc), P = game.player;
+      line(pickOne(['Sit you down, then.', 'In the chair with you.', 'Right you are. Sit still, mind.']));
+      setTimeout(() => {
+        npcUI.closeTalk && npcUI.closeTalk();
+        if (chair && sc === game.scene) { const pose = sc.seatPose(chair); P.sitting = Object.assign(pose, { it: chair, sx: P.x, sy: P.y, b: sc.b.id, floor: sc.floor }); P.x = pose.x; P.y = pose.y; P.dir = pose.dir; P.anim = 'sit'; }
+        P.locked = true; const until = now() + CUT_SECS * 1000;
+        q._snip = { until, x: P.x, y: P.y, who: 0, col: hairHex(P._baseA || P.a), b: sc && sc.b.id };
+        setTimeout(() => finish(q, req), CUT_SECS * 1000);
+      }, 900);
+    }
+    function finish(q, req) {
+      const P = game.player, sp = spec(); q._snip = null; P.locked = false;
+      if (req.kind === 'hair') sp.hairStyle = req.v; else sp.beard = req.v;
+      const old = O.Forge.player, a = O.Creator.appearanceFromSpec(sp); if (old && old.outfit) a.outfit = old.outfit; if (old) a.age = old.age;
+      O.Forge.setPlayer(a, sp); if (P._baseA) P._baseA = a; else game.setPlayerAppearance(a);
+      PS.money -= req.price; const s = cur(), bz = s && q.job && s.biz.get(q.job.biz); if (bz) { bz.cash += req.price; bz.salesToday = (bz.salesToday || 0) + req.price; }
+      if (req.kind === 'hair') PS.lastCut = s ? s.day : 0; else PS.lastShave = s ? s.day : 0;
+      // a cheap or a drunk hand slips
+      if ((q.tipsy || (q.skill ?? 0.5) < 0.3) && Math.random() < 0.3) { O.Panels.toast(`${q.first}'s blade slips. A nick, and a bead of blood.`, 'bad'); O.Speech && O.Speech.say(q, 'Ah. Sorry. Hold still.', 3); }
+      else O.Speech && O.Speech.say(q, pickOne(['There. Look in the basin.', 'Done. Handsome as a lord.', 'There you are. Mind the draught on your neck.']), 4);
+      O.Panels.toast(`Your ${req.kind} ${req.desc}. (₳${req.price})`); O.NpcActs && O.NpcActs.fly && setTimeout(() => O.NpcActs.fly('player', q, 'coin'), 500);
+      if (P.sitting) { P.x = P.sitting.sx; P.y = P.sitting.sy; P.sitting = null; P.anim = 'idle'; }
+      s && s.remember(q, `Cut the player's ${req.kind}.`, 'player', 0.4, 0.05);
+    }
+    const pickOne = (a) => a[Math.floor(Math.random() * a.length)];
+
+    // ---------------------------------------------------------------- clippings on the floor, and the broom
+    const clipsOf = (b) => (b.clippings = b.clippings || []);
+    let dropT = 0, npcT = 8;
+    game.hooks.update.push((dt) => {
+      const sc = game.scene, s = cur(); if (!s) return;
+      // snipping: hair falls round the chair
+      dropT -= dt;
+      if (sc && dropT <= 0) { dropT = 0.35;
+        for (const a of sc.actors.values()) { const q = a.person, sn = q && q._snip; if (!sn || sn.until < now() || sn.b !== sc.b.id) continue;
+          const c = clipsOf(sc.b); if (c.length < 140) c.push({ x: sn.x + (Math.random() - 0.5) * 22, y: sn.y + 2 + (Math.random() - 0.5) * 10, col: sn.col, r: Math.random() * Math.PI, l: 2 + Math.floor(Math.random() * 3) }); }
+      }
+      // townsfolk in for a trim
+      npcT -= dt; if (npcT > 0) return; npcT = 9;
+      if (sc && sc.b) {
+        const barber = [...sc.actors.values()].map((a) => a.person).find((q) => isBarber(q) && q.job.biz === sc.b.id);
+        if (!barber || barber._snip || barber._sweep) return;
+        const chair = chairOf(sc); if (!chair) return;
+        const c = clipsOf(sc.b);
+        if (c.length > 24 && Math.random() < 0.5) { barber._sweep = now() + 8000; return; }
+        const cust = [...sc.actors.values()].map((a) => a.person).find((q) => q && q !== barber && q.age >= 12 && q.activity?.act !== 'work' && !q.agent.frozen && (q._trimmed || -9) < s.day - 6);
+        if (cust && Math.random() < 0.6) { const [ax, ay] = sc.anchor(chair); cust._trimmed = s.day; cust._inChair = { until: now() + CUT_SECS * 1000, it: chair, b: sc.b.id };
+          barber._snip = { until: now() + CUT_SECS * 1000, x: ax, y: ay - 6, who: cust.id, col: hairHex(cust.app), b: sc.b.id };
+          setTimeout(() => { barber._snip = null; trimNpc(cust); }, CUT_SECS * 1000); }
+      }
+    });
+    // what a trim does to someone: a beard taken in, long hair evened
+    function trimNpc(q) { const a = q.app; if (!a) return; if (a.beard === 'long' && Math.random() < 0.6) a.beard = 'full'; else if (a.beard === 'full' && Math.random() < 0.3) a.beard = 'goatee'; else if (a.hairStyle === 'shaggy' && Math.random() < 0.6) a.hairStyle = 'short'; else if (a.hairStyle === 'messy' && Math.random() < 0.5) a.hairStyle = 'crop'; O.Char.invalidate && O.Char.invalidate(a); }
+    // the shop is never swept clean by magic: off-stage, the day's customers leave their hair and the barber sweeps of a morning
+    const SP = O.Sim.prototype, _nd = SP.newDay;
+    SP.newDay = function () {
+      const r = _nd.apply(this, arguments);
+      try {
+        for (const bz of this.biz.values()) { if (bz.type !== 'barber' && !(bz.def && bz.def.jobs && bz.def.jobs.some(([x]) => x === 'barber-surgeon'))) continue; const b = this.building ? this.building(bz.id) : null; if (!b) continue; const c = clipsOf(b);
+          c.splice(0, Math.ceil(c.length * 0.7));
+          const men = this.people.filter((q) => q.app && q.age >= 14).sort(() => Math.random() - 0.5).slice(0, 2 + Math.floor(Math.random() * 3));
+          for (const q of men) for (let k = 0; k < 6; k++) c.push({ x: null, y: null, rx: Math.random(), ry: Math.random(), col: hairHex(q.app), r: Math.random() * Math.PI, l: 2 + Math.floor(Math.random() * 3) });
+        }
+        growPlayer(this);
+      } catch (e) { /* */ }
+      return r;
+    };
+    // hair grows back
+    function growPlayer(s) {
+      const sp = spec(); if (sp.sex !== 'm') return; let changed = false;
+      const LADDER = ['bald', 'crop', 'short', 'shaggy'];
+      if (PS.lastCut == null) PS.lastCut = s.day; if (PS.lastShave == null) PS.lastShave = s.day;
+      if (s.day - PS.lastCut >= 21) { const i = LADDER.indexOf(sp.hairStyle); if (i >= 0 && i < LADDER.length - 1) { sp.hairStyle = LADDER[i + 1]; changed = true; } PS.lastCut = s.day; }
+      const sinceShave = s.day - PS.lastShave;
+      if (sp.age >= 16 && ((sp.beard === 'none' && sinceShave >= 4) || (sp.beard === 'stubble' && sinceShave >= 28))) { sp.beard = sp.beard === 'none' ? 'stubble' : 'full'; PS.lastShave = s.day; changed = true; }
+      if (!changed) return; const P = game.player, old = O.Forge.player, a = O.Creator.appearanceFromSpec(sp); if (old && old.outfit) a.outfit = old.outfit; if (old) a.age = old.age;
+      O.Forge.setPlayer(a, sp); if (P._baseA) P._baseA = a; else game.setPlayerAppearance(a);
+    }
+    // the sweeping: the barber takes the broom to it, a little at a time
+    game.hooks.update.push(() => {
+      const sc = game.scene; if (!sc) return;
+      for (const a of sc.actors.values()) { const q = a.person; if (!q || !q._sweep) continue; if (q._sweep < now()) { q._sweep = null; continue; } const c = clipsOf(sc.b); if (c.length && Math.random() < 0.12) { c.sort((u, v) => Math.hypot(u.x - a.x, u.y - a.y) - Math.hypot(v.x - a.x, v.y - a.y)); c.shift(); } }
+    });
+    const _ex = O.sceneExtras;
+    O.sceneExtras = (sc, ctx, cam) => {
+      const out = _ex ? _ex(sc, ctx, cam) : []; const c = sc.b.clippings; if (!c || !c.length) return out;
+      const chair = chairOf(sc); let cx = 0, cy = 0; if (chair) [cx, cy] = sc.anchor(chair);
+      for (const k of c) { if (k.x == null) { k.x = cx + (k.rx - 0.5) * 40; k.y = cy - 4 + (k.ry - 0.5) * 18; } }
+      out.push({ y: -0.5, draw: () => { for (const k of c) { ctx.fillStyle = k.col; const x = Math.round(k.x - cam.x), y = Math.round(k.y - cam.y), dx = Math.round(Math.cos(k.r) * k.l), dy = Math.round(Math.sin(k.r) * k.l * 0.5); ctx.fillRect(x, y, 1, 1); ctx.fillRect(x + dx, y + dy, 1, 1); if (k.l > 2) ctx.fillRect(x + Math.round(dx / 2), y + Math.round(dy / 2), 1, 1); } } });
+      return out;
+    };
+    O.Barber = { menu, choose, go };
+  }
+  O.BarberSetup = { setup };
 })();
 
 </script>
@@ -19401,6 +19662,9 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       place(v, b) { const t = now(); tn(b, t, 0.07, 220, 'triangle', 0.06 * v, 140); nz(b, t, 0.04, 'bandpass', 1500, 1, 0.03 * v); },
       crackle(v, b) { const t = now(); for (let i = 0; i < 5; i++) nz(b, t + Math.random() * 0.4, 0.015, 'highpass', 3000, 1, (0.02 + Math.random() * 0.04) * v); },
       handbell(v, b) { const t = now(); for (const [r, a] of [[1, 1], [2.4, 0.5], [3.9, 0.3], [5.1, 0.15]]) tn(b, t, 0.9 / Math.sqrt(r), 880 * r, 'sine', 0.05 * v * a); nz(b, t, 0.02, 'highpass', 4000, 1, 0.03 * v); },
+      kaching(v, b) { const t = now(); for (let i = 0; i < 4; i++) { const tt = t + i * 0.05; for (const r of [1, 2.76, 5.4]) tn(b, tt, 0.3, (2600 + i * 180) * r / 2, 'sine', 0.035 * v / r); } for (const [f, a] of [[1760, 0.06], [2640, 0.035], [3520, 0.02]]) tn(b, t + 0.22, 0.7, f, 'sine', a * v); },
+      handover(v, b) { const t = now(); nz(b, t, 0.08, 'bandpass', 1400, 0.9, 0.06 * v, 0.004); tn(b, t + 0.06, 0.06, 240, 'triangle', 0.05 * v, 160); },
+      snip(v, b) { const t = now(); nz(b, t, 0.025, 'highpass', 5200, 2, 0.06 * v); nz(b, t + 0.09, 0.02, 'highpass', 6000, 2, 0.05 * v); },
       catch(v, b) { const t = now(); nz(b, t, 0.03, 'bandpass', 1200, 1.5, 0.05 * v); },
       cough(v, b) { const t = now(); nz(b, t, 0.12, 'bandpass', 700, 1.2, 0.08 * v); nz(b, t + 0.18, 0.1, 'bandpass', 650, 1.2, 0.06 * v); },
     };
@@ -19409,7 +19673,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     O.sfx = play;
 
     // which movement makes which sound, and how often
-    const BY_ANIM = { ringbell: ['handbell', 0.34], juggle: ['catch', 0.28], chop: ['chop', 0.62], hoe: ['dig', 0.7], dig: ['dig', 0.7], saw: ['saw', 0.36], sweep: ['sweep', 0.55], scrub: ['scrub', 0.5], knead: ['knead', 0.6], cleave: ['cleave', 0.7], write: ['write', 0.6], read: ['page', 4], pour: ['pour', 1.6], eat: ['eat', 0.9], drink: ['drink', 1.2], count: ['coins', 1.2], attack: ['whoosh', 0.55], place: ['place', 1.2], pickup: ['place', 1.2], cough: ['cough', 1.4], pitch: ['dig', 0.8], cook: ['crackle', 0.8], mix: ['scrub', 0.7] };
+    const BY_ANIM = { shear: ['snip', 0.42], ringbell: ['handbell', 0.34], juggle: ['catch', 0.28], chop: ['chop', 0.62], hoe: ['dig', 0.7], dig: ['dig', 0.7], saw: ['saw', 0.36], sweep: ['sweep', 0.55], scrub: ['scrub', 0.5], knead: ['knead', 0.6], cleave: ['cleave', 0.7], write: ['write', 0.6], read: ['page', 4], pour: ['pour', 1.6], eat: ['eat', 0.9], drink: ['drink', 1.2], count: ['coins', 1.2], attack: ['whoosh', 0.55], place: ['place', 1.2], pickup: ['place', 1.2], cough: ['cough', 1.4], pitch: ['dig', 0.8], cook: ['crackle', 0.8], mix: ['scrub', 0.7] };
     const surface = (w, x, y) => {
       if (game.scene) return 'wood'; const s = O.SimRef.cur; if (s && s.weather && s.weather.snowCover > 0.3) return 'snow';
       if (!w || !w.ter) return 'dirt'; const t = w.ter[Math.floor(y / T) * w.W + Math.floor(x / T)];
@@ -19436,7 +19700,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     if (S.V && S.V.step) { const _st = S.V.step; S.V.step = function () { /* handled by sfx.js */ }; S.V._oldStep = _st; }
     // coins as your purse changes
     let lastMoney = null;
-    game.hooks.update.push(() => { const PS = O.PlayerState; if (lastMoney == null) { lastMoney = PS.money; return; } if (PS.money !== lastMoney) { if (Math.abs(PS.money - lastMoney) >= 1) play('coins', Math.min(1, 0.5 + Math.abs(PS.money - lastMoney) / 40), !!game.scene); lastMoney = PS.money; } });
+    game.hooks.update.push(() => { const PS = O.PlayerState; if (lastMoney == null) { lastMoney = PS.money; return; } if (PS.money !== lastMoney) { if (Math.abs(PS.money - lastMoney) >= 1 && !(O._handingUntil > performance.now())) play('coins', Math.min(1, 0.5 + Math.abs(PS.money - lastMoney) / 40), !!game.scene); lastMoney = PS.money; } });
     // doors
     const _enter = game.enterBuilding.bind(game);
     game.enterBuilding = function (b, floor, fromStairs) { if (!fromStairs && !game.scene) play('door', 0.8, true); return _enter(b, floor, fromStairs); };
@@ -24814,6 +25078,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     const here = () => { const pl = cur().world.placeId, ps = posts().filter((e) => e.place === pl); return ps.find((e) => e.onShift) || ps[0] || null; };
     const postAt = (s, bz) => posts().find((e) => e.biz === bz.id && e.place === s.world.placeId) || null;
     const bizOf = (e) => { const s = cur(); return e && e.place === s.world.placeId ? s.biz.get(e.biz) : null; };
+    const NOW_ROLES = /labourer|porter|docker|bearer|potboy|scullion|server|farmhand|stablehand|water carrier|sweeper|warehouse worker|carter|chambermaid|maid|laundress|messenger|page/;
     const COURT = new Set(['monarch', 'consort', 'heir', 'prince', 'princess', 'lord', 'lady', 'lady-in-waiting', 'jester', 'steward', 'chamberlain', 'captain of the royal guard']);
     O.crownPost = (r) => COURT.has(r);
     const hoursOf = (e, bz) => { if (e.hours) return e.hours; const r = e.role || ''; if (r === 'monarch' || r === 'consort' || r === 'regent') return [5, 24]; /* (the crown keeps no hours: the day's business is there whenever you are) */ if (COURT.has(r)) return [8, 20]; if (r === 'potboy' || r === 'potgirl') return [17, 21]; if (['night watchman', 'gaoler'].includes(r)) return [20, 30]; if (r.startsWith('guard') || r === 'sergeant') return [6, 18]; const hh = bz ? bz.def.hours : [8, 17]; if (hh[1] - hh[0] >= 20) return r === 'sweeper' ? [6, 14] : [8, 18]; return hh; };
@@ -24919,7 +25184,11 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       if (['monarch', 'consort', 'heir', 'prince', 'princess'].includes(role)) boss = null; // nobody is the crown's master
       posts().push(PS.emp = Object.assign({ place: s.world.placeId, placeName: s.world.name, biz: bz.id, bizName: bz.name, role, wage, master: boss ? boss.id : null, masterName: boss ? boss.name : ['monarch', 'consort', 'heir', 'prince', 'princess'].includes(role) ? null : 'the crown', since: s.day,
         stats: { shifts: 0, late: 0, missed: 0, tasks: 0, excused: 0 }, day: null, tasks: [], level: 0 }, extra || {}));
-      { const [o0, c0] = hoursOf(PS.emp, bz), h0 = s.hour; if (h0 >= o0 && h0 < c0 && !COURT.has(role)) PS.emp.firstDay = s.day + 1; } // taken on mid-shift you start at the next one; a crown post starts at once
+      // taken on mid-shift: rough work you start there and then; a trade later today, once there's someone to show you; else at the next shift. A crown post starts at once.
+      { const [o0, c0] = hoursOf(PS.emp, bz), h0 = s.hour; if (h0 >= o0 && h0 < c0 && !COURT.has(role)) {
+        if (NOW_ROLES.test(role)) { PS.emp.excuseDay = s.day; PS.emp.startNote = 'now'; }
+        else if (c0 - h0 >= 3) { PS.emp.lateStart = { day: s.day, from: Math.ceil(h0) + 1 }; PS.emp.startNote = 'today'; }
+        else { PS.emp.firstDay = s.day + 1; PS.emp.startNote = 'tomorrow'; } } }
       if (boss) { s.relate(boss, { id: 0 }, 0.05); s.remember(boss, `Took the stranger on as ${role}.`, 'work', 1.2, 0); }
       O.Chronicle && O.Chronicle.deed(s, `A newcomer has been taken on as ${role} at ${bz.name}.`, `You were taken on as ${role} at ${bz.name}.`, 'player', 1, true);
     }
@@ -24946,6 +25215,21 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     };
     O.Employment = { emp, hire, quit, here, posts, newTasksFor: (s, bz, e) => newTasks(s, bz, e) };
     // taken on in conversation: the master says yes, and you're theirs (a clashing post is given up)
+    // the start moved by asking: now, later today at an hour, or tomorrow (or another day)
+    O.Employment.setStart = (s, q, a) => {
+      const e = posts().find((x) => x.place === s.world.placeId && x.master === q.id); if (!e) return null; const bz = s.biz.get(e.biz); if (!bz) return null;
+      const [o, c] = hoursOf(e, bz), w = String(a.when || '').toLowerCase(), hr = Number(a.hour);
+      e.firstDay = 0; e.lateStart = null; e.early = null; const D = e.day === s.day ? e.dayInfo : null;
+      if (D && String(a.when || '').toLowerCase() !== 'tomorrow') { D.excused = true; }
+      if (D && String(a.when || '').toLowerCase() === 'tomorrow') { D.works = false; e.onShift = false; e.tasks = []; }
+      if (w === 'now') { e.firstDay = s.day; e.excuseDay = s.day; e.early = { day: s.day, from: Math.min(o, Math.floor(s.hour)) }; return `${q.first} says you can start now.`; }
+      if (w === 'tomorrow' || w === 'later_day') { e.firstDay = s.day + (Number(a.days) > 1 ? Math.min(7, Math.round(Number(a.days))) : 1); if (hr >= 0 && hr < 24 && hr !== o) { if (hr < o) e.early = { day: e.firstDay, from: hr }; else e.lateStart = { day: e.firstDay, from: hr }; } return `You start ${e.firstDay === s.day + 1 ? 'tomorrow' : 'in ' + (e.firstDay - s.day) + ' days'} at ${fmtH(hr >= 0 && hr < 24 ? hr : o)}.`; }
+      const h = hr >= 0 && hr < 24 ? hr : Math.ceil(s.hour) + 1; if (h >= c) return null; e.firstDay = s.day; e.excuseDay = s.day;
+      if (h < o) e.early = { day: s.day, from: h }; else e.lateStart = { day: s.day, from: h }; return `You start today at ${fmtH(h)}.`;
+    };
+    O.Employment.startLine = (s, q) => { const e = posts().find((x) => x.place === s.world.placeId && x.master === q.id); if (!e) return ''; const bz = s.biz.get(e.biz); if (!bz) return ''; const [o] = hoursOf(e, bz);
+      const st = (e.firstDay || 0) > s.day ? `on day ${e.firstDay} (${e.firstDay === s.day + 1 ? 'tomorrow' : 'in ' + (e.firstDay - s.day) + ' days'}) at ${fmtH(e.early?.day === e.firstDay ? e.early.from : e.lateStart?.day === e.firstDay ? e.lateStart.from : o)}` : e.lateStart && e.lateStart.day === s.day ? `today at ${fmtH(e.lateStart.from)}` : null;
+      return st ? `The player works for you as ${e.role} and starts ${st}. If they ask to start sooner or later (now, later today at an hour, tomorrow) and you agree, use set_start.` : ''; };
     O.Employment.hireByTalk = (s, q) => {
       const bz = q.job && s.biz.get(q.job.biz); if (!bz || s.bossOf(bz) !== q) return null;
       if (posts().some((x) => x.biz === bz.id && x.place === s.world.placeId)) return null;
@@ -24953,7 +25237,8 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       const [o, c] = hoursOf({ role: d.role }, bz);
       for (const x of posts().filter((x) => { const xb = (O.Travel?.visited.get(x.place)?.sim || s).biz.get(x.biz), [xo, xc] = hoursOf(x, xb); return xo < c && o < xc; })) quit(null, x);
       hire(s, bz, q, d.role, d.wage);
-      return `Taken on as ${d.role} at ${bz.name}: ₳${d.wage} a day, ${fmtH(o)} till ${fmtH(c)}.`;
+      const e1 = PS.emp, when = e1.startNote === 'now' ? ' You start now.' : e1.startNote === 'today' ? ` You start today at ${fmtH(e1.lateStart.from)}.` : e1.startNote === 'tomorrow' ? ` You start tomorrow at ${fmtH(o)}.` : '';
+      return `Taken on as ${d.role} at ${bz.name}: ₳${d.wage} a day, ${fmtH(o)} till ${fmtH(c)}.${when}`;
     };
     // what a master would say to taking you on, for their card
     O.Employment.hireOutlook = (s, q) => {
@@ -25341,6 +25626,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       const m = Math.floor(now(s)); if (m === e._lm) return; e._lm = m;
       let [o, c] = hoursOf(e, bz); const h = s.hour + (s.hour < 6 && c > 24 ? 24 : 0), day = s.day;
       if (e.early && e.early.day === day && e.early.from < o) o = e.early.from; // (your master let you start sooner today)
+      if (e.lateStart && e.lateStart.day === day && e.lateStart.from > o) o = e.lateStart.from; // (told to come back later today)
       if (e.day !== day) { // a new day
         if (e.day != null && e.dayInfo) settle(s, bz, e);
         if (e.temp != null && day > e.temp) { quit(`Your day's work at ${e.bizName} for the holiday is over.`, e); return; }
@@ -30798,7 +31084,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
         x: away ? away[0] : Math.round(game.scene ? game.scene.b.doorX * 16 + 8 : game.player.x), y: away ? away[1] : Math.round(game.scene ? game.scene.b.doorY * 16 + 10 : game.player.y), dir: game.player.dir,
         mount: game.player.mount ? game.player.mount.id : null,
         region: game.world.island && !game.scene && game.world !== sim.world ? game.world.placeId : null, g: game.world.island && !game.scene ? O.Island.toGlobal(game.world, game.player.x, game.player.y).map(Math.round) : null,
-        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [], emp: PS.emp ? Object.assign({}, PS.emp, { tasks: [], onShift: false, dayInfo: null }) : null, posts: (PS.posts || []).map((x) => Object.assign({}, x, { tasks: [], onShift: false, dayInfo: null, _lm: null, _cur: x === PS.emp })), carry: PS.carry || null, firedSilently: PS.firedSilently || null, residence: PS.residence || null, gaol: PS.gaol || null, gangRanks: PS.gangRanks || [], gangTrials: PS.gangTrials || {}, disguise: PS.disguise || null, loans: PS.loans || [], letters: PS.letters || [], knows: PS.knows || {}, knowsGang: PS.knowsGang || {}, royal: PS.royal || false, taxOwed: PS.taxOwed || 0, taxPaidDay: PS.taxPaidDay ?? null, contract: PS.contract && PS.contract.kind !== 'escort' ? PS.contract : null, leads: (PS.leads || []).filter((l) => l.why !== 'contract' || (PS.contract && PS.contract.kind !== 'escort')), askedLaw: PS.askedLaw || 0, guests: PS.guests || null, jobCardOpen: !!PS.jobCardOpen, learning: PS.learning || 0, performances: PS.performances || 0, lettersCarried: PS.lettersCarried || 0, title: PS.title || null, vouched: PS.vouched || {}, offered: PS.offered || {}, appointment: PS.appointment || null, reeveOf: PS.reeveOf || {}, claim: PS.claim || 0, secrets: PS.secrets || [], vows: !!PS.vows, warWon: PS.warWon || 0, warFought: PS.warFought || 0, plot: PS.plot || null, coronation: PS.coronation || null, anointed: !!PS.anointed, guides: PS.guides || 'all', mail: PS.mail || [], worn: PS.worn || [], bizTab: PS.bizTab || null, meets: PS.meets || [], partner: PS.partner || null, children: PS.children || [], expecting: PS.expecting || null, fineOwed: PS.fineOwed || 0, watched: PS.watched || null, debts: PS.debts || [], roadLead: PS.roadLead || null, wokeAt: PS.wokeAt ?? null, studiedAt: PS.studiedAt ?? null, studyDay: PS.studyDay ?? null, studyHours: PS.studyHours || 0, lessonDay: PS.lessonDay ?? null, ill: PS.ill || null, confessed: PS.confessed ?? null, tithedWeek: PS.tithedWeek ?? null, titheBase: PS.titheBase || 0, startDay: PS.startDay ?? null, yearsHere: PS.yearsHere || 0, dog: PS.dog || null, lineSpec: PS.lineSpec || null, forebears: PS.forebears || [], oddJobs: PS.oddJobs || [], givenJobs: PS.givenJobs || [], retainers: PS.retainers || [], deeds: PS.deeds || [], todoOpen: PS.todoOpen ?? true, lent: PS.lent || [], gardens: PS.gardens || [], grime: PS.grime || 0, found: PS.found || [], homeBuilds: PS.homeBuilds || [], cart: PS.cart || null, roadGuards: PS.roadGuards || [], guildRanks: PS.guildRanks || {}, booksRead: PS.booksRead || 0, animals: PS.animals || [], tourneyDay: PS.tourneyDay ?? null, recipes: PS.recipes || [], marks: PS.marks || {}, wins: PS.wins || {}, champion: PS.champion || null, informants: PS.informants || [], hawks: PS.hawks || [], village: PS.village || null, charter: PS.charter || null, undying: PS.undying ?? null, searched: PS.searched || {}, boats: PS.boats || [], ships: PS.ships || [], pilgrimages: PS.pilgrimages || {}, excommunicated: PS.excommunicated || null, houseFavour: PS.houseFavour || {}, plots2: PS.plots2 || [], siegeSide: PS.siegeSide || null, songBook: PS.songBook || null, songs: PS.songs || [], outlaw: PS.outlaw || null, almsToPoor: PS.almsToPoor || 0, robbedRich: PS.robbedRich || 0, confided: PS.confided || [], blessed: PS.blessed ?? null, _ageChecked: PS._ageChecked ?? null },
+        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [], emp: PS.emp ? Object.assign({}, PS.emp, { tasks: [], onShift: false, dayInfo: null }) : null, posts: (PS.posts || []).map((x) => Object.assign({}, x, { tasks: [], onShift: false, dayInfo: null, _lm: null, _cur: x === PS.emp })), carry: PS.carry || null, firedSilently: PS.firedSilently || null, residence: PS.residence || null, gaol: PS.gaol || null, gangRanks: PS.gangRanks || [], gangTrials: PS.gangTrials || {}, disguise: PS.disguise || null, loans: PS.loans || [], letters: PS.letters || [], knows: PS.knows || {}, knowsGang: PS.knowsGang || {}, royal: PS.royal || false, taxOwed: PS.taxOwed || 0, taxPaidDay: PS.taxPaidDay ?? null, contract: PS.contract && PS.contract.kind !== 'escort' ? PS.contract : null, leads: (PS.leads || []).filter((l) => l.why !== 'contract' || (PS.contract && PS.contract.kind !== 'escort')), askedLaw: PS.askedLaw || 0, guests: PS.guests || null, jobCardOpen: !!PS.jobCardOpen, learning: PS.learning || 0, performances: PS.performances || 0, lettersCarried: PS.lettersCarried || 0, title: PS.title || null, vouched: PS.vouched || {}, offered: PS.offered || {}, appointment: PS.appointment || null, reeveOf: PS.reeveOf || {}, claim: PS.claim || 0, secrets: PS.secrets || [], vows: !!PS.vows, warWon: PS.warWon || 0, warFought: PS.warFought || 0, plot: PS.plot || null, coronation: PS.coronation || null, anointed: !!PS.anointed, guides: PS.guides || 'all', mail: PS.mail || [], worn: PS.worn || [], bizTab: PS.bizTab || null, meets: PS.meets || [], partner: PS.partner || null, children: PS.children || [], expecting: PS.expecting || null, fineOwed: PS.fineOwed || 0, watched: PS.watched || null, debts: PS.debts || [], roadLead: PS.roadLead || null, wokeAt: PS.wokeAt ?? null, studiedAt: PS.studiedAt ?? null, studyDay: PS.studyDay ?? null, studyHours: PS.studyHours || 0, lessonDay: PS.lessonDay ?? null, ill: PS.ill || null, confessed: PS.confessed ?? null, tithedWeek: PS.tithedWeek ?? null, titheBase: PS.titheBase || 0, startDay: PS.startDay ?? null, yearsHere: PS.yearsHere || 0, dog: PS.dog || null, lineSpec: PS.lineSpec || null, forebears: PS.forebears || [], oddJobs: PS.oddJobs || [], givenJobs: PS.givenJobs || [], retainers: PS.retainers || [], deeds: PS.deeds || [], todoOpen: PS.todoOpen ?? true, lent: PS.lent || [], gardens: PS.gardens || [], grime: PS.grime || 0, found: PS.found || [], homeBuilds: PS.homeBuilds || [], cart: PS.cart || null, roadGuards: PS.roadGuards || [], guildRanks: PS.guildRanks || {}, booksRead: PS.booksRead || 0, lastCut: PS.lastCut ?? null, lastShave: PS.lastShave ?? null, animals: PS.animals || [], tourneyDay: PS.tourneyDay ?? null, recipes: PS.recipes || [], marks: PS.marks || {}, wins: PS.wins || {}, champion: PS.champion || null, informants: PS.informants || [], hawks: PS.hawks || [], village: PS.village || null, charter: PS.charter || null, undying: PS.undying ?? null, searched: PS.searched || {}, boats: PS.boats || [], ships: PS.ships || [], pilgrimages: PS.pilgrimages || {}, excommunicated: PS.excommunicated || null, houseFavour: PS.houseFavour || {}, plots2: PS.plots2 || [], siegeSide: PS.siegeSide || null, songBook: PS.songBook || null, songs: PS.songs || [], outlaw: PS.outlaw || null, almsToPoor: PS.almsToPoor || 0, robbedRich: PS.robbedRich || 0, confided: PS.confided || [], blessed: PS.blessed ?? null, _ageChecked: PS._ageChecked ?? null },
       },
     };
   }
@@ -31034,7 +31320,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.RisingSetup.setup(game, npcUI);
   O.RitesSetup.setup(game);
   O.WarfareSetup.setup(game, npcUI);
-  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.NpcActsSetup.setup(game); O.InitiateSetup.setup(game); O.UnderworldSetup.setup(game); O.CourtshipSetup.setup(game); O.FencesSetup.setup(game); O.FamilySetup.setup(game); O.PetsSetup.setup(game); O.FavoursSetup.setup(game); O.MarketSetup.setup(game); O.GrudgesSetup.setup(game); O.RitualsSetup.setup(game); O.TodoSetup.setup(game); O.DealingsSetup.setup(game); O.CounterSetup.setup(game); O.ResourcesSetup.setup(game); O.GangBasesSetup.setup(game); O.GatheringsSetup.setup(game); O.WildSetup.setup(game); O.SongsSetup.setup(game); O.PoliticsSetup.setup(game); O.ChurchSetup.setup(game); O.SeaSetup.setup(game); O.LegacySetup.setup(game); O.WorldLifeSetup.setup(game); O.TrainingSetup.setup(game); O.ExtrasSetup.setup(game); O.GatheringSetup.setup(game); O.StreetLifeSetup.setup(game); O.OutdoorsSetup.setup(game); O.SkyFxSetup.setup(game); O.CrittersSetup.setup(game); O.HygieneSetup.setup(game); O.HearthLifeSetup.setup(game); O.FarmYearSetup.setup(game); O.HouseBuildSetup.setup(game); O.RoadTradeSetup.setup(game); O.SicknessSetup.setup(game); O.HeartsSetup.setup(game); O.GuildsSetup.setup(game); O.GangWorkSetup.setup(game); O.WorkLifeSetup.setup(game); O.CastleGroundsSetup.setup(game); O.NpcLifeSetup.setup(game); O.PolishSetup.setup(game);
+  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.NpcActsSetup.setup(game); O.InitiateSetup.setup(game); O.UnderworldSetup.setup(game); O.CourtshipSetup.setup(game); O.FencesSetup.setup(game); O.FamilySetup.setup(game); O.PetsSetup.setup(game); O.FavoursSetup.setup(game); O.MarketSetup.setup(game); O.GrudgesSetup.setup(game); O.RitualsSetup.setup(game); O.TodoSetup.setup(game); O.DealingsSetup.setup(game); O.CounterSetup.setup(game); O.ResourcesSetup.setup(game); O.GangBasesSetup.setup(game); O.GatheringsSetup.setup(game); O.WildSetup.setup(game); O.SongsSetup.setup(game); O.PoliticsSetup.setup(game); O.ChurchSetup.setup(game); O.SeaSetup.setup(game); O.LegacySetup.setup(game); O.WorldLifeSetup.setup(game); O.TrainingSetup.setup(game); O.ExtrasSetup.setup(game); O.GatheringSetup.setup(game); O.StreetLifeSetup.setup(game); O.OutdoorsSetup.setup(game); O.SkyFxSetup.setup(game); O.CrittersSetup.setup(game); O.HygieneSetup.setup(game); O.HearthLifeSetup.setup(game); O.FarmYearSetup.setup(game); O.HouseBuildSetup.setup(game); O.RoadTradeSetup.setup(game); O.SicknessSetup.setup(game); O.HeartsSetup.setup(game); O.GuildsSetup.setup(game); O.GangWorkSetup.setup(game); O.WorkLifeSetup.setup(game); O.CastleGroundsSetup.setup(game); O.MoneySetup.setup(game); O.BarberSetup.setup(game); O.NpcLifeSetup.setup(game); O.PolishSetup.setup(game);
   O.FinerySetup.setup(game);
   O.PastimesSetup.setup(game);
   O.FishingSetup.setup(game);

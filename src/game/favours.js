@@ -63,8 +63,9 @@
     const tailorAt = (s, q) => { const bz = q.job && s.biz.get(q.job.biz); return bz && bz.type === 'tailor' && q.activity?.act === 'work' && bz.open !== false ? bz : null; };
     function fitting(s, q) {
       const bz = tailorAt(s, q); if (!bz || !O.Forge || !O.Forge.showWardrobe) return null;
+      const price0 = 10 + Math.round((bz.b?.wealth || 0.4) * 20); if (PS.money < price0) { O.noCoin && O.noCoin(q, price0, 'new clothes'); return `${q.first} looks you over. "New clothes are ₳${price0}, and you've not got it."`; }
       O.npcUI.closeTalk && O.npcUI.closeTalk();
-      O.Forge.showWardrobe({ price: 10 + Math.round((bz.b?.wealth || 0.4) * 20), shop: bz.name }, (a, f) => {
+      O.Forge.showWardrobe({ price: price0, shop: bz.name }, (a, f) => {
         if (!a) return; PS.money -= f.price; bz.cash += f.price;
         if (game.player._baseA) game.player._baseA = a; else game.setPlayerAppearance(a);
         O.Speech && O.Speech.say(q, 'There. It fits you well.', 3); s.relate(q, { id: 0 }, 0.05);

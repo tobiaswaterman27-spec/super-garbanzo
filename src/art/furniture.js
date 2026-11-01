@@ -79,20 +79,40 @@
       out.rot = 0; out.coverTop = coverTop - S.fy1;
       return out;
     }
-    // head against a side wall (rot 1 = left wall; rot 2 is the same piece mirrored by the caller)
-    const S = canvasFor(3, 2, 14), { B, fx, fx1, fy, fy1 } = S;
-    B.part(1); for (let y = fy - 12; y <= fy1; y++) for (let x = fx; x < fx + 3; x++) B.plot(x, y, fr, x === fx ? 3 : x === fx + 1 ? 2 : 1);
-    for (let y = fy - 13; y <= fy - 11; y++) for (let x = fx - 1; x < fx + 4; x++) B.plot(x, y, fr, 4);
-    B.part(2); box(B, fx + 3, fx1 - 1, fy + 2, 22, fy1, fr, { topMat: white() });
-    B.part(4); B.blob(fx + 9, fy + 12, 4, 7, white(), { power: 3 }); B.tweak(fx + 10, fy + 13, -1);
+    // head against a side wall (rot 1 = left wall; rot 2 is the same piece mirrored by the caller):
+    // seen from the side in 3/4, a long low frame with its rail toward us, a tall headboard at the wall
+    // end and a low footboard, the quilt turned back from the pillow and hanging over the near rail
+    const S = canvasFor(3, 2, 16), { B, fx, fx1, fy, fy1 } = S;
+    const top = fy + 6, deep = 16, railTop = top + deep, legY = fy1;
+    B.part(2);
+    // the far rail, just showing beyond the mattress
+    for (let x = fx + 4; x <= fx1 - 3; x++) { B.plot(x, top - 2, fr, 3); B.plot(x, top - 1, fr, 2); }
+    // mattress (top face) and the near side rail (front face)
+    for (let y = top; y < railTop; y++) for (let x = fx + 4; x <= fx1 - 3; x++) B.plot(x, y, white(), y === top ? 4 : y > railTop - 3 ? 2 : 3);
+    for (let y = railTop; y <= railTop + 2; y++) for (let x = fx + 4; x <= fx1 - 3; x++) B.plot(x, y, white(), 1); // mattress edge
+    for (let y = railTop + 3; y <= legY - 4; y++) for (let x = fx + 3; x <= fx1 - 2; x++) B.plot(x, y, fr, y === railTop + 3 ? 3 : y === legY - 4 ? 1 : 2);
+    for (let x = fx + 6; x < fx1 - 4; x += 7) for (let y = railTop + 4; y < legY - 4; y++) B.tweak(x, y, -1); // panel joints
+    leg(B, fx + 3, legY - 4, legY, fr, 2); leg(B, fx1 - 3, legY - 4, legY, fr, 2);
+    // headboard: a tall panel with two posts and a cap, at the wall end
+    B.part(1);
+    for (let y = fy - 6; y <= legY; y++) for (let x = fx; x <= fx + 3; x++) B.plot(x, y, fr, x === fx + 3 ? 1 : x === fx ? 3 : 2);
+    for (let x = fx - 1; x <= fx + 4; x++) { B.plot(x, fy - 7, fr, 4); B.plot(x, fy - 8, fr, 3); }
+    if (v >= 2) for (let y = fy - 4; y < railTop; y += 4) B.tweak(fx + 1, y, 1);
+    // pillow against the headboard
+    B.part(4); B.blob(fx + 10, fy + 13, 4.5, 6.5, white(), { power: 3 }); B.tweak(fx + 11, fy + 14, -1); B.tweak(fx + 8, fy + 10, 1);
     const out = finish(S);
     out.cover = layer(S, (L) => {
-      L.part(5); for (let y = fy + 2; y <= fy + 25; y++) for (let x = fx + 16; x <= fx1 - 1; x++) L.plot(x, y, qm, x === fx + 16 ? 4 : y === fy + 2 ? 3 : y > fy + 22 ? 1 : 2);
-      const sh = white(); for (let y = fy + 2; y <= fy + 25; y++) { L.plot(fx + 16, y, sh, 4); L.plot(fx + 17, y, sh, 3); }
-      if (v >= 1) for (let y = fy + 4; y < fy + 24; y += 5) for (let x = fx + 19; x < fx1 - 1; x++) L.tweak(x, y, -1);
-      L.part(6); for (let y = fy - 2; y <= fy1; y++) for (let x = fx1 - 1; x <= fx1; x++) L.plot(x, y, fr, x === fx1 ? 1 : 2);
+      // the quilt, from the turned-back sheet to the footboard, hanging a little over the near rail
+      L.part(5); const q0 = fx + 18;
+      for (let y = top - 1; y <= railTop + 4; y++) for (let x = q0; x <= fx1 - 3; x++) L.plot(x, y, qm, y >= railTop + 1 ? (y === railTop + 4 ? 0 : 1) : y === top - 1 ? 4 : x === q0 ? 4 : 2);
+      const sh = white(); for (let y = top - 1; y <= railTop + 3; y++) { L.plot(q0, y, sh, 4); L.plot(q0 + 1, y, sh, 3); L.plot(q0 + 2, y, sh, 2); }
+      if (v >= 1) for (let y = top + 3; y < railTop; y += 5) for (let x = q0 + 4; x < fx1 - 3; x++) L.tweak(x, y, -1);
+      if (v >= 2) for (let y = top; y <= railTop + 3; y++) L.plot(fx1 - 6, y, P.mat(C.mustard), 3);
+      // footboard: lower than the head, with its own cap
+      L.part(6); for (let y = fy + 2; y <= legY; y++) for (let x = fx1 - 2; x <= fx1; x++) L.plot(x, y, fr, x === fx1 ? 1 : x === fx1 - 2 ? 3 : 2);
+      for (let x = fx1 - 3; x <= fx1 + 1; x++) { L.plot(x, fy + 1, fr, 4); L.plot(x, fy, fr, 3); }
     });
-    out.pillows = [[fx + 9 - (S.fx + (S.fx1 - S.fx + 1) / 2), fy + 12 - S.fy1]];
+    out.pillows = [[fx + 10 - (S.fx + (S.fx1 - S.fx + 1) / 2), fy + 12 - S.fy1]];
     out.rot = 1; out.coverTop = 0;
     return out;
   }

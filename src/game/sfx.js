@@ -52,6 +52,9 @@
       place(v, b) { const t = now(); tn(b, t, 0.07, 220, 'triangle', 0.06 * v, 140); nz(b, t, 0.04, 'bandpass', 1500, 1, 0.03 * v); },
       crackle(v, b) { const t = now(); for (let i = 0; i < 5; i++) nz(b, t + Math.random() * 0.4, 0.015, 'highpass', 3000, 1, (0.02 + Math.random() * 0.04) * v); },
       handbell(v, b) { const t = now(); for (const [r, a] of [[1, 1], [2.4, 0.5], [3.9, 0.3], [5.1, 0.15]]) tn(b, t, 0.9 / Math.sqrt(r), 880 * r, 'sine', 0.05 * v * a); nz(b, t, 0.02, 'highpass', 4000, 1, 0.03 * v); },
+      kaching(v, b) { const t = now(); for (let i = 0; i < 4; i++) { const tt = t + i * 0.05; for (const r of [1, 2.76, 5.4]) tn(b, tt, 0.3, (2600 + i * 180) * r / 2, 'sine', 0.035 * v / r); } for (const [f, a] of [[1760, 0.06], [2640, 0.035], [3520, 0.02]]) tn(b, t + 0.22, 0.7, f, 'sine', a * v); },
+      handover(v, b) { const t = now(); nz(b, t, 0.08, 'bandpass', 1400, 0.9, 0.06 * v, 0.004); tn(b, t + 0.06, 0.06, 240, 'triangle', 0.05 * v, 160); },
+      snip(v, b) { const t = now(); nz(b, t, 0.025, 'highpass', 5200, 2, 0.06 * v); nz(b, t + 0.09, 0.02, 'highpass', 6000, 2, 0.05 * v); },
       catch(v, b) { const t = now(); nz(b, t, 0.03, 'bandpass', 1200, 1.5, 0.05 * v); },
       cough(v, b) { const t = now(); nz(b, t, 0.12, 'bandpass', 700, 1.2, 0.08 * v); nz(b, t + 0.18, 0.1, 'bandpass', 650, 1.2, 0.06 * v); },
     };
@@ -60,7 +63,7 @@
     O.sfx = play;
 
     // which movement makes which sound, and how often
-    const BY_ANIM = { ringbell: ['handbell', 0.34], juggle: ['catch', 0.28], chop: ['chop', 0.62], hoe: ['dig', 0.7], dig: ['dig', 0.7], saw: ['saw', 0.36], sweep: ['sweep', 0.55], scrub: ['scrub', 0.5], knead: ['knead', 0.6], cleave: ['cleave', 0.7], write: ['write', 0.6], read: ['page', 4], pour: ['pour', 1.6], eat: ['eat', 0.9], drink: ['drink', 1.2], count: ['coins', 1.2], attack: ['whoosh', 0.55], place: ['place', 1.2], pickup: ['place', 1.2], cough: ['cough', 1.4], pitch: ['dig', 0.8], cook: ['crackle', 0.8], mix: ['scrub', 0.7] };
+    const BY_ANIM = { shear: ['snip', 0.42], ringbell: ['handbell', 0.34], juggle: ['catch', 0.28], chop: ['chop', 0.62], hoe: ['dig', 0.7], dig: ['dig', 0.7], saw: ['saw', 0.36], sweep: ['sweep', 0.55], scrub: ['scrub', 0.5], knead: ['knead', 0.6], cleave: ['cleave', 0.7], write: ['write', 0.6], read: ['page', 4], pour: ['pour', 1.6], eat: ['eat', 0.9], drink: ['drink', 1.2], count: ['coins', 1.2], attack: ['whoosh', 0.55], place: ['place', 1.2], pickup: ['place', 1.2], cough: ['cough', 1.4], pitch: ['dig', 0.8], cook: ['crackle', 0.8], mix: ['scrub', 0.7] };
     const surface = (w, x, y) => {
       if (game.scene) return 'wood'; const s = O.SimRef.cur; if (s && s.weather && s.weather.snowCover > 0.3) return 'snow';
       if (!w || !w.ter) return 'dirt'; const t = w.ter[Math.floor(y / T) * w.W + Math.floor(x / T)];
@@ -87,7 +90,7 @@
     if (S.V && S.V.step) { const _st = S.V.step; S.V.step = function () { /* handled by sfx.js */ }; S.V._oldStep = _st; }
     // coins as your purse changes
     let lastMoney = null;
-    game.hooks.update.push(() => { const PS = O.PlayerState; if (lastMoney == null) { lastMoney = PS.money; return; } if (PS.money !== lastMoney) { if (Math.abs(PS.money - lastMoney) >= 1) play('coins', Math.min(1, 0.5 + Math.abs(PS.money - lastMoney) / 40), !!game.scene); lastMoney = PS.money; } });
+    game.hooks.update.push(() => { const PS = O.PlayerState; if (lastMoney == null) { lastMoney = PS.money; return; } if (PS.money !== lastMoney) { if (Math.abs(PS.money - lastMoney) >= 1 && !(O._handingUntil > performance.now())) play('coins', Math.min(1, 0.5 + Math.abs(PS.money - lastMoney) / 40), !!game.scene); lastMoney = PS.money; } });
     // doors
     const _enter = game.enterBuilding.bind(game);
     game.enterBuilding = function (b, floor, fromStairs) { if (!fromStairs && !game.scene) play('door', 0.8, true); return _enter(b, floor, fromStairs); };

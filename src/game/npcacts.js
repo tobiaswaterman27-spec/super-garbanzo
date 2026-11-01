@@ -49,7 +49,17 @@
     const g = O.game; if (who === 'player') return [g.player.x, g.player.y - 18];
     const p = g.scene ? g.scene.personPos(who) : [who.agent.x, who.agent.y]; return p ? [p[0], p[1] - 18] : null;
   }
-  function fly(from, to, g) { const a = posOf(from), b = posOf(to); if (!a || !b) return; flying.push({ a, b, g, t: 0 }); }
+  // a thing changing hands: the giver turns and holds it out, it passes across, and lands with a sound
+  const HOLD = 0.85, PASS = 0.55;
+  function face(who, other) { if (who === 'player') return; const a = posOf(who), b = posOf(other); if (!a || !b) return; who.agent.dir = O.dirOf(b[0] - a[0], b[1] - a[1]); const sc = O.game.scene, ac = sc && sc.actors.get(who.id); if (ac) { ac.dir = who.agent.dir; ac.gDir = who.agent.dir; } }
+  function fly(from, to, g) {
+    const a = posOf(from), b = posOf(to); if (!a || !b) return;
+    face(from, to); face(to, from);
+    if (from !== 'player') O.gesture && O.gesture(from, 'give', HOLD + PASS); else { const P = O.game.player; P.gest = { anim: 'give', from: performance.now(), until: performance.now() + (HOLD + PASS) * 1000 }; }
+    if (to !== 'player') setTimeout(() => O.gesture && O.gesture(to, 'take', 0.9), HOLD * 1000);
+    if (g === 'coin') O._handingUntil = performance.now() + (HOLD + PASS + 0.4) * 1000; // (the kaching as it lands is the sound of it, not the purse)
+    flying.push({ from, to, a, b, g, t: 0 });
+  }
   function keepGift(s, q, o) {
     if (o.g === 'coin') { const hh = s.household(q); if (hh) hh.money += o.n; const d = (PS().debts || []).find((x) => x.who === q.id && x.n > 0); if (d) { d.n = Math.max(0, d.n - o.n); PS().debts = PS().debts.filter((x) => x.n > 0); } }
     else { const hh = s.household(q); if (hh && hh.pantry && (G()[o.g]?.food || o.g in hh.pantry)) hh.pantry[o.g] = (hh.pantry[o.g] || 0) + 1; else (q.items = q.items || []).push(o.g); }
@@ -128,7 +138,8 @@
   // walking along with you, out of doors
   game.hooks.update.push((dt) => {
     const g = O.game, s = O.SimRef.cur; if (!s) return;
-    for (const f of flying) f.t += dt; for (let i = flying.length - 1; i >= 0; i--) if (flying[i].t > 0.7) flying.splice(i, 1);
+    for (const f of flying) { const t0 = f.t; f.t += dt; if (t0 < HOLD + PASS && f.t >= HOLD + PASS) { const inScene = !!O.game.scene; if (f.g === 'coin') O.sfx && O.sfx('kaching', 1, inScene); else O.sfx && O.sfx('handover', 1, inScene); } }
+    for (let i = flying.length - 1; i >= 0; i--) if (flying[i].t > HOLD + PASS + 0.05) flying.splice(i, 1);
     if (g.scene) return;
     for (const [id, j] of joining) {
       const z = s.byId.get(id), h = j.to; if (!z || z.agent.hidden || !O.npcUI || O.npcUI.talking() !== h) { joining.delete(id); if (z) z.agent.chasing = false; continue; }
@@ -186,7 +197,9 @@
   // the flying things, drawn over everything
   game.hooks.drawTop.push((ctx, cam) => {
     for (const f of flying) {
-      const k = Math.min(1, f.t / 0.6), x = f.a[0] + (f.b[0] - f.a[0]) * k, y = f.a[1] + (f.b[1] - f.a[1]) * k - Math.sin(k * Math.PI) * 18;
+      const A = posOf(f.from) || f.a, Bp = posOf(f.to) || f.b, dx = Bp[0] - A[0], dy = Bp[1] - A[1], d = Math.hypot(dx, dy) || 1;
+      const hx = A[0] + (dx / d) * 9, hy = A[1] + 9 + (dy / d) * 3, tx = Bp[0] - (dx / d) * 9, ty = Bp[1] + 9 - (dy / d) * 3; // held out at arm's length, taken in the other's hand
+      const k = f.t < HOLD ? 0 : Math.min(1, (f.t - HOLD) / PASS), x = hx + (tx - hx) * k, y = hy + (ty - hy) * k - Math.sin(k * Math.PI) * Math.min(10, d * 0.2);
       if (f.g === 'coin') { ctx.fillStyle = '#f0c040'; ctx.fillRect(Math.round(x - cam.x - 2), Math.round(y - cam.y - 2), 4, 4); ctx.fillStyle = '#a07010'; ctx.fillRect(Math.round(x - cam.x - 1), Math.round(y - cam.y - 1), 2, 2); continue; }
       try { const ic = O.ItemArt.small(f.g); ctx.drawImage(ic, Math.round(x - cam.x - 6), Math.round(y - cam.y - 6)); } catch (e) { /* no art */ }
     }
@@ -253,9 +266,9 @@
       case 'call': { const z = O.nearbyOf ? (O.nearbyOf(s, q, 260).find(({ z }) => z.first.toLowerCase() === String(a.who || '').toLowerCase().split(' ')[0]) || {}).z : null; if (!z) return null; return callOver(s, q, z, main); }
       case 'ask': { const z = askable(s, q, a.who); if (!z) return null; consult(s, q, z, String(a.question || '').slice(0, 200), main); return `${q.first} goes to ask ${z.first}.`; }
       case 'show': { const pl = placeFor(s, q, a.place); if (!pl) return null; goTo.set(q.id, { b: pl.b ?? null, until: abs(s) + 90 }); O.addLead && O.addLead({ place: s.world.placeId, b: pl.b ?? undefined, tile: pl.tile || undefined, until: abs(s) + 120, why: 'show', key: 'show' + q.id, label: pl.label }); setTimeout(() => O.npcUI && O.npcUI.talking() === (main || q) && O.npcUI.closeTalk(), 2400); return `${q.first} leads the way to ${pl.label}.`; }
-      case 'sell': { const g = goodFor(a.item), pr = Math.max(1, Math.round(Number(a.price) || 0)); if (!g || g === 'coin' || !pr) return null; const P = PS(); if (P.money < pr) return `You haven't ₳${pr}.`; const hh = s.household(q); let ok = false;
+      case 'sell': { const g = goodFor(a.item), pr = Math.max(1, Math.round(Number(a.price) || 0)); if (!g || g === 'coin' || !pr) return null; const P = PS(); if (P.money < pr) { O.noCoin && O.noCoin(q, pr, (G()[g]?.name || g).toLowerCase()); return `You haven't ₳${pr}.`; } const hh = s.household(q); let ok = false;
         if (hh && hh.pantry && (hh.pantry[g] || 0) >= 1) { hh.pantry[g] -= 1; ok = true; } else if ((q.items || []).includes(g)) { q.items.splice(q.items.indexOf(g), 1); ok = true; } else { const bz = q.job && s.biz.get(q.job.biz); if (bz && (bz.stock[g] || 0) >= 1) { bz.stock[g] -= 1; bz.cash += pr; ok = 'biz'; } }
-        if (!ok || !P.canCarry(g)) return null; P.money -= pr; if (ok !== 'biz' && hh) hh.money += pr; P.add(g); fly(q, 'player', g); return `You buy ${(G()[g]?.name || g).toLowerCase()} from ${q.first} for ₳${pr}.`; }
+        if (!ok || !P.canCarry(g)) return null; P.money -= pr; if (ok !== 'biz' && hh) hh.money += pr; P.add(g); fly('player', q, 'coin'); setTimeout(() => fly(q, 'player', g), 1500); return `You buy ${(G()[g]?.name || g).toLowerCase()} from ${q.first} for ₳${pr}.`; }
       case 'buy': { const g = goodFor(a.item), pr = Math.max(1, Math.round(Number(a.price) || 0)); const P = PS(), hh = s.household(q); if (!g || !pr || !P.items.includes(g) || !hh || hh.money < pr) return null; P.remove(g); P.money += pr; hh.money -= pr; (q.items = q.items || []).push(g); fly('player', q, g); return `${q.first} buys your ${(G()[g]?.name || g).toLowerCase()} for ₳${pr}.`; }
       case 'lend': { const n = Math.max(1, Math.min(40, Math.round(Number(a.amount) || 0))), hh = s.household(q); if (!hh || hh.money < n + 5) return null; hh.money -= n; PS().money += n; (PS().debts = PS().debts || []).push({ who: q.id, name: q.first, place: s.world.placeId, n, due: s.day + 7 }); fly(q, 'player', 'coin'); return `${q.first} lends you ₳${n}, to be paid back within the week.`; }
       case 'gesture': { const k = String(a.kind || '').toLowerCase(), anim = { hug: 'celebrate', handshake: 'gesture', bow: q.sex === 'f' ? 'curtsy' : 'bow', wave: 'wave', dance: 'dance', cry: 'mourn', laugh: 'laugh' }[k]; if (anim) { O.gesture && O.gesture(q, anim, k === 'dance' ? 4 : 2); if (k === 'hug' || k === 'handshake') { O.game.player.anim = k === 'hug' ? 'celebrate' : 'gesture'; O.game.player.ft = 0; setTimeout(() => { if (['celebrate', 'gesture'].includes(O.game.player.anim)) O.game.player.anim = 'idle'; }, 1600); } } return null; }

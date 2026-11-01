@@ -61,6 +61,40 @@
     for (const dx of side < 0 ? [-1, 1] : [1, -1]) { const x = b.doorX + dx, y = b.doorY, i = y * w.W + x; if (x >= 0 && y >= 0 && x < w.W && y < w.H && !w.solid[i] && w.ter[i] === w.TER.COBBLE) return [x, y, true]; }
     return null;
   }
+  // a small plaque fixed to the wall beside the door: quiet, never in the way, and there's always room for one
+  let plaqueSprite = null, boardSprite = null;
+  function plaque() {
+    if (plaqueSprite) return plaqueSprite;
+    const c = document.createElement('canvas'); c.width = 9; c.height = 6; const x = c.getContext('2d');
+    x.fillStyle = '#3e2a1a'; x.fillRect(0, 0, 9, 6); x.fillStyle = '#9a7650'; x.fillRect(1, 1, 7, 4); x.fillStyle = '#b08a60'; x.fillRect(1, 1, 7, 1);
+    x.fillStyle = '#5a3c26'; x.fillRect(2, 2, 5, 1); x.fillRect(2, 4, 3, 1);
+    return (plaqueSprite = { canvas: c, ox: 4, oy: 22, W: 9, H: 6 });
+  }
+  function boardOnWall() {
+    if (boardSprite) return boardSprite;
+    const c = document.createElement('canvas'); c.width = 14; c.height = 11; const x = c.getContext('2d');
+    x.fillStyle = '#3a2618'; x.fillRect(0, 0, 14, 11); x.fillStyle = '#6a4a2c'; x.fillRect(1, 1, 12, 9);
+    x.fillStyle = '#e6dcc0'; x.fillRect(2, 2, 4, 5); x.fillRect(7, 2, 5, 6); x.fillStyle = '#d4c8a8'; x.fillRect(4, 6, 4, 3);
+    x.fillStyle = '#8a2a24'; x.fillRect(4, 2, 1, 1); x.fillRect(9, 2, 1, 1);
+    return (boardSprite = { canvas: c, ox: 7, oy: 25, W: 14, H: 11 });
+  }
+  // where on the front wall beside the door a plaque or board can hang
+  function wallSpot(w, b, side, skip) {
+    const bottom = b.bottom != null ? b.bottom : b.doorY;
+    for (const k of [1, 2, 3]) for (const sd of [side, -side]) {
+      const x = b.doorX + sd * k; if (x < b.x || x >= b.x + b.w) continue;
+      if (w.props.some((p) => p.onWall && Math.floor(p.x / 16) === x && Math.floor(p.y / 16) === bottom + 1)) continue;
+      if (skip && skip.includes(x)) continue;
+      return [x, bottom];
+    }
+    return null;
+  }
+  function hang(w, b, kind, sprite, side) {
+    const at = wallSpot(w, b, side); if (!at) return null;
+    const p = { kind, x: at[0] * 16 + 8, y: (at[1] + 1) * 16 + 0.5, seed: b.id, solid: false, sprite, signFor: b.id, onWall: true };
+    w.props.push(p); w.dirtyStatics = true; return p;
+  }
+  O.hangOnWall = (w, b, kind, side) => hang(w, b, kind, kind === 'workboard' ? boardOnWall() : plaque(), side);
   // stand a sign prop beside a building's door (kept solid so you walk round it like anything else)
   function plant(w, b, kind, sprite, side) {
     const at = spotBy(w, b, side); if (!at) return null;
@@ -75,7 +109,14 @@
     game.hooks.update.push(() => {
       const w = game.world; if (!w || game.scene || w._signed) return;
       w._signed = true;
-      for (const b of w.buildings) if (b.doorX != null && !b.site && !b.ruined && b.type !== 'hideout' && !w.props.some((p) => p.kind === 'namesign' && p.signFor === b.id)) plant(w, b, 'namesign', nameSign(), -1);
+      // (any old standing name sign comes down: they blocked the way and were too big)
+      for (let i = w.props.length - 1; i >= 0; i--) { const p = w.props[i]; if (p.kind === 'namesign' && !p.onWall) { if (p.solid) w.solid[Math.floor((p.y - 1) / 16) * w.W + Math.floor(p.x / 16)] = 0; w.props.splice(i, 1); } }
+      const sim = O.SimRef.cur;
+      for (const b of w.buildings) {
+        if (b.doorX == null || b.site || b.ruined || b.type === 'hideout') continue;
+        if (b.type === 'guard' || (sim && b.id === sim.tavernId)) hang(w, b, 'workboard', boardOnWall(), b.type === 'guard' ? 1 : 1);
+        if (!w.props.some((p) => p.kind === 'namesign' && p.signFor === b.id)) hang(w, b, 'namesign', plaque(), -1);
+      }
     });
     const T = 16;
     O.signCandidate = () => {

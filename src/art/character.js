@@ -236,7 +236,7 @@
   };
   function poseAt(m, anim, f, a) {
     const A0 = ANIMS[anim]; if (!A0 || A0.sub <= 1) return pose(m, anim, f, a);
-    const kf = f / A0.sub; if (CONT.has(anim)) return pose(m, anim, kf, a);
+    const kf = f / A0.sub; if (CONT.has(anim) || (A0.base && CONT.has(A0.base))) return pose(m, anim, kf, a);
     const i = Math.floor(kf), t = kf - i; if (t === 0) return pose(m, anim, i, a);
     return lerpDeep(pose(m, anim, i, a), pose(m, anim, (i + 1) % A0.key, a), t);
   }
@@ -253,7 +253,18 @@
   }
 
   // Joints in body space for one frame. Every animation is defined once and projected to all 8 views.
+  // walking or running with the arms busy: the legs of the one, the arms of the other ("walk+drink")
+  const TOPS = new Set(['talk', 'wave', 'point', 'drink', 'eat', 'give', 'take', 'ringbell', 'pipe', 'lute', 'fiddle', 'drum', 'serve', 'count', 'read', 'shake', 'cough', 'carry', 'bucket', 'juggle', 'place']);
+  function composite(base, top) {
+    if (!TOPS.has(top) || !ANIMS[base] || !ANIMS[top]) return base;
+    const name = base + '+' + top; if (ANIMS[name]) return name;
+    const B0 = ANIMS[base], T0 = ANIMS[top];
+    ANIMS[name] = { frames: B0.frames, fps: B0.fps, key: B0.key, sub: B0.sub, base, top, topRatio: (T0.fps || 1) / (B0.fps || 1), topFrames: T0.frames };
+    return name;
+  }
   function pose(m, anim, f, a) {
+    const CMP = ANIMS[anim] && ANIMS[anim].base ? ANIMS[anim] : null, whole = anim;
+    if (CMP) anim = CMP.base;
     const nF = ANIMS[anim]?.key || 1, ph = (f / nF) * Math.PI * 2;
     const P = { anim, f, mouth: 0, blink: false, lean: 0, headFwd: 0, headDown: 0, bob: 0, held: null, toolDir: null };
     const thigh = m.leg * 0.5, shin = m.leg * 0.5 - 0.4, hh = m.hipW / 2 - m.legR * 0.85, shHalf = m.shW / 2 - m.limbR * 0.55;
@@ -353,6 +364,7 @@
     const chest = shY + 4, mouth = [0.4, head[1] + m.headRy * 0.55, head[2] + m.headRy * 0.9];
     const D = m.shW * 0.27;
     // the right hand is the tool hand
+    if (CMP) { const T0 = ANIMS[CMP.top], B0 = ANIMS[CMP.base]; anim = CMP.top; f = Math.floor((f / (B0.key || 1)) * (B0.frames / (B0.fps || 1)) * ((T0.fps || 1) / (T0.sub || 1))) % (T0.key || 1); P.anim = anim; P.f = f; P.whole = whole; } // (the arms' own key poses, at their own pace)
     switch (anim) {
       case 'work': { // hammering: raise, swing, strike, recover
         const k = [0, 1, 2, 1][f], sw = [2.75, 1.7, 0.75][k], bd = [0.75, 0.45, 0.15][k];
@@ -396,7 +408,7 @@
       case 'lute': { const k = f % 2; A.L = reach(-1, [-3.2, chest + 1.5, D + 3]); A.R = reach(1, [0.8, chest + 4.2 + k * 0.7, D + 3.8]); P.held = 'lute'; P.toolHand = 'R'; P.toolDir = [-0.9, -0.35, 0.25]; P.headDown = 0.3; P.mouth = f === 2 ? 1 : 0; break; }
       case 'fiddle': { const k = [0, 1, 2, 1][f]; A.L = reach(-1, [-3.6, chest - 1.5, D + 2.6]); A.R = reach(1, [0.6 + k * 1.2, chest + 0.8, D + 3.4]); P.held = 'fiddle'; P.toolHand = 'L'; P.toolDir = [0.8, 0.35, 0.3]; P.headDown = 0.2; break; }
       case 'pipe': { const k = f % 2; A.R = reach(1, [0.6, chest - 3 + k * 0.3, D + 4]); A.L = reach(-1, [-0.4, chest - 1, D + 4.2]); P.held = 'pipe'; P.toolHand = 'R'; P.toolDir = [0, 0.85, 0.5]; P.bob = k ? -0.4 : 0; break; }
-      case 'give': case 'take': { const out = [0.5, 1, 1][anim === 'take' ? 2 - f : f]; A.R = reach(1, [1.6 + out * 0.6, chest + 2.5 - out * 1.5, D + 3 + out * 4.5], [0.2, 0.3, 1]); P.lean = out * 0.6; P.mouth = f === 1 ? 1 : 0; break; }
+      case 'give': case 'take': { const out = [0.5, 1, 1][anim === 'take' ? 2 - f : f]; A.R = reach(1, [1.6 + out * 0.6, chest + 2.5 - out * 1.5, D + 3 + out * 4.5]); P.lean += out * 0.3; P.mouth = f === 1 ? 1 : 0; break; }
       case 'juggle': { const up = f % 2; A.R = reach(1, [3.6, chest + 3 - (up ? 1.5 : -0.5), D + 4]); A.L = reach(-1, [-3.6, chest + 3 - (up ? -0.5 : 1.5), D + 4]); P.held = 'balls'; P.toolHand = 'R'; P.jug = f; P.headUp = 0.3; P.mouth = f === 3 ? 1 : 0; break; }
       case 'ringbell': { const k = f % 2; A.R = reach(1, [4.6, shY - 4 - k * 1.6, D + 2.4], [1, 0.4, -0.2]); P.held = 'handbell'; P.toolHand = 'R'; P.toolDir = [k ? 0.3 : -0.3, 1, 0.1]; P.mouth = f >= 2 ? 1 : 0; break; }
       case 'drum': { const k = f % 2; A.L = reach(-1, [-2, chest + 5, D + 3]); A.R = reach(1, [0.6, chest + (k ? 1 : 4.5), D + 4]); P.held = 'drum'; P.toolHand = 'L'; P.toolDir = [0, 0, 1]; break; }
@@ -1201,6 +1213,6 @@
     return { canvas: c, rows, fw: FW, fh: FH };
   }
 
-  O.Char = { resetBudget, makeAppearance, randomGenes, inheritGenes, bodyMetrics, ageStage, outfitFor, render, frame, sheet, invalidate, ANIMS, FW, FH, GROUND, HAIR_STYLES_M, HAIR_STYLES_F, BEARDS, dirOf, dir4, DIRV, hipY, headY };
+  O.Char = { composite, resetBudget, makeAppearance, randomGenes, inheritGenes, bodyMetrics, ageStage, outfitFor, render, frame, sheet, invalidate, ANIMS, FW, FH, GROUND, HAIR_STYLES_M, HAIR_STYLES_F, BEARDS, dirOf, dir4, DIRV, hipY, headY };
   O.dirOf = dirOf; O.dir4 = dir4;
 })();

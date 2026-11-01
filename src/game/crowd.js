@@ -34,7 +34,9 @@
             const dx = a.x - o.x, dy = (a.y - o.y) * 1.6, d = Math.hypot(dx, dy);
             // someone in the way ahead (coming the other way, or standing): step to your own right in good time,
             // as they will to theirs, instead of pressing face to face
-            if (a.path && d < r * 2.6 && d > 0) {
+            // (not when the one in the way is where they're going: they'd circle round and round them)
+            const end = a.path && a.path[a.path.length - 1], goingTo = end && Math.hypot(end[0] * 16 + 8 - o.x, end[1] * 16 + 10 - o.y) < 30, nearEnd = a.path && a.path.length - (a.pi || 0) <= 2;
+            if (a.path && !goingTo && !nearEnd && d < r * 2.6 && d > 0) {
               const hv = O.Char.DIRV[a.dir] || [0, 1], ahead = -(dx * hv[0] + dy / 1.6 * hv[1]), side = -dx * -hv[1] + -dy / 1.6 * hv[0];
               const oh = O.Char.DIRV[o.dir] || [0, 0], facing = !o.path || hv[0] * oh[0] + hv[1] * oh[1] < -0.3;
               if (ahead > 0 && Math.abs(side) < r && facing) { const k = (1 - d / (r * 2.6)) * 1.4; px += -hv[1] * k; py += hv[0] * k * 1.6; a.lane = 8; a.laneT = game.t + 1.2; }

@@ -258,7 +258,8 @@
       let an = a.anim, ft = a.ft;
       // a gesture of the moment (a nod, a laugh, a bow) plays over whatever they were doing
       const g = (a.person && a.person.agent && a.person.agent.gest) || a.gest, now = performance.now();
-      if (g && g.until > now) { an = g.anim; ft = (now - g.from) / 1000; }
+      if (g && g.until > now) { if ((an === 'walk' || an === 'run') && Ch.composite) { const c = Ch.composite(an, g.anim); if (c !== an) an = c; else { an = g.anim; ft = (now - g.from) / 1000; } } else { an = g.anim; ft = (now - g.from) / 1000; } } // (on the move the legs keep walking and the arms do the gesture)
+      else if (an === 'run' && a.person && a.person.agent && a.person.agent.carrying && Ch.composite) an = Ch.composite('run', 'carry'); // (running with a load: still carrying it)
       else if (an === 'idle' && a.person && !a.person.agent?.frozen) {
         // standing about, people fidget: scratch, yawn when tired, wipe a brow in the heat, cough when ill
         const q = a.person, id = q.id || 0, t = now / 1000 + id * 3.7, cyc = t % 13;

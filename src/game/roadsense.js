@@ -25,6 +25,38 @@
         }
       }
     });
+    // the way to every door is kept clear: no sand pile, barrel or woodpile in the three tiles below a door
+    let cleared = null;
+    game.hooks.update.push(() => {
+      const w = game.world; if (!w || cleared === w || !w.props || !w.solid) return; cleared = w;
+      const inBuilding = (tx, ty) => w.buildings.some((b) => b.w && tx >= b.x && tx < b.x + b.w && ty >= b.y && ty < b.y + (b.h || 0));
+      const keep = /namesign|salesign|sign|lamp|well|tower|wall|gate|fence|banner|statue|fountain/;
+      let n = 0;
+      for (const b of w.buildings) {
+        if (b.doorX == null) continue;
+        const inZone = (tx, ty) => tx >= b.doorX - 1 && tx <= b.doorX + 1 && ty >= b.doorY + 1 && ty <= b.doorY + 3;
+        for (let i = w.props.length - 1; i >= 0; i--) { const pr = w.props[i]; if (!pr.solid || keep.test(pr.kind)) continue; const tx = Math.floor(pr.x / 16), ty = Math.floor((pr.y - 1) / 16);
+          if (inZone(tx, ty) || inZone(tx - 1, ty) || inZone(tx + 1, ty)) { w.props.splice(i, 1); n++; } }
+        for (let ty = b.doorY + 1; ty <= b.doorY + 3; ty++) for (let tx = b.doorX - 1; tx <= b.doorX + 1; tx++) {
+          const k = ty * w.W + tx; if (!w.solid[k] || inBuilding(tx, ty)) continue;
+          if (!w.props.some((pr) => pr.solid && Math.floor(pr.x / 16) === tx && Math.floor((pr.y - 1) / 16) === ty) && (!w.ter || w.ter[k] !== w.TER.WATER)) w.solid[k] = 0; }
+      }
+      if (n) { w.dirtyStatics = true; const sp = O.SimRef.cur && O.SimRef.cur.path; sp && sp.clear && sp.clear(); }
+    });
+    // a fire inside means a chimney outside: any building with a hearth, oven, forge or kiln gets its stack
+    let chimneyed = null;
+    const FIRE = new Set(['fireplace', 'oven', 'forge', 'kiln', 'cauldron']);
+    game.hooks.update.push(() => {
+      const w = game.world, sim = O.SimRef.cur; if (!w || chimneyed === w || !sim || sim.world !== w || !O.Interior || game.scene) return; chimneyed = w;
+      let n = 0;
+      for (const b of w.buildings) {
+        if (!b.spec || b.spec.chimney || b.royal || b.ruined || b.site || b.type === 'hideout' || b.doorX == null || /church|chapel|cathedral|abbey|priory|barn|stable|castle|keep|palace/.test(b.type || '')) continue;
+        let L = null; try { L = O.Interior.layoutFor(b, 0, sim); } catch (e) { continue; }
+        if (!L || !L.items || !L.items.some((i) => FIRE.has(i.kind))) continue;
+        b.spec.chimney = true; try { b.sprite = O.Env.building(b.spec); n++; } catch (e) { /* */ }
+      }
+      if (n) w.dirtyStatics = true;
+    });
     // you can help them up yourself
     (O.moreCandidates = O.moreCandidates || []).push(() => {
       const s = cur(); if (!s || game.scene) return null; const p = P();

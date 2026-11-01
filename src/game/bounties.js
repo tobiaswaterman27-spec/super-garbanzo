@@ -62,8 +62,9 @@
       if (!game.scene) {
         for (const b of s.world.buildings) {
           if (b.doorX == null || (b.type !== 'guard' && b.id !== s.tavernId)) continue;
-          const x = b.doorX * T + 8 + (b.type === 'guard' ? 22 : -22), y = b.doorY * T + 6, d = Math.hypot(x - p.x, y - p.y);
-          if (d < 20) return { type: 'custom', label: b.type === 'guard' ? 'Read the bounty board' : 'Read the notes of hired work', act: () => board(b.type === 'guard' ? 'watch' : 'tavern'), d: d + 4, x, y: y - 30 };
+          const bd = s.world.props.find((q) => q.kind === 'workboard' && q.signFor === b.id); if (!bd) continue;
+          const x = bd.x, y = bd.y + 4, d = Math.hypot(x - p.x, y - p.y);
+          if (d < 30) return { type: 'custom', label: b.type === 'guard' ? 'Read the bounty board' : 'Read the notes of hired work', act: () => board(b.type === 'guard' ? 'watch' : 'tavern'), d: d + 4, x, y: y - 26 };
         }
         // the bandits' den on a camp contract
         const C = PS.contract;
@@ -71,17 +72,7 @@
       }
       return prev ? prev() : null;
     }
-    // a board drawn by the doors
-    game.hooks.drawWorld.push((ctx, cam) => {
-      if (game.scene) return; const s = cur();
-      for (const b of s.world.buildings) {
-        if (b.doorX == null || (b.type !== 'guard' && b.id !== s.tavernId)) continue;
-        const x = Math.round(b.doorX * T + 8 + (b.type === 'guard' ? 22 : -22) - cam.x), y = Math.round(b.doorY * T - 2 - cam.y);
-        if (x < -20 || y < -40 || x > game.vw + 20 || y > game.vh + 20) continue;
-        ctx.fillStyle = '#4a3220'; ctx.fillRect(x - 1, y - 8, 2, 10); ctx.fillStyle = '#6a4a2c'; ctx.fillRect(x - 8, y - 22, 16, 14); ctx.fillStyle = '#3a2618'; ctx.fillRect(x - 8, y - 22, 16, 1); ctx.fillRect(x - 8, y - 9, 16, 1);
-        ctx.fillStyle = '#efe6cc'; ctx.fillRect(x - 6, y - 20, 5, 6); ctx.fillRect(x + 1, y - 19, 5, 7); ctx.fillStyle = '#a8382f'; ctx.fillRect(x - 4, y - 15, 1, 1); ctx.fillRect(x + 3, y - 13, 1, 1);
-      }
-    });
+    // (the boards themselves hang on the wall by the door: see signs.js)
 
     // ---------------------------------------------------------------- taking a thief in
     const prevExtra = npcUI.extraButtons, prevOn = npcUI.onExtra;

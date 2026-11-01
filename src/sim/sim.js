@@ -204,7 +204,8 @@
       if (p.task) return p.task;
       // night watchmen guard valuable premises through the dark hours and sleep by day
       if (p.job?.role === 'night watchman' && this.biz.get(p.job.biz)) { if (h >= 20 || h < 6) return { act: 'work', b: p.job.biz }; if (h >= 8 && h < 15.5) return { act: 'sleep', b: home }; }
-      const asleep = m < p.wake || m >= p.bed;
+      const dj = p.wake === 0 && p.bed === 1440 ? 0 : (((p.id * 13 + this.day * 7) % 23) - 11); // (nobody keeps the same minute every day)
+      const asleep = m < p.wake + dj || m >= p.bed + Math.round(dj / 2);
       if (asleep) return { act: 'sleep', b: home };
       const ev = this.eventPlan(p); if (ev) return ev;
       // the harvest festival: the square fills from mid-afternoon
@@ -529,6 +530,7 @@
 
     route(p, act) {
       const a = p.agent;
+      if (a.noWayUntil && this.day * 1440 + this.minute < a.noWayUntil) return; // (just tried and found no way: give it a few minutes)
       let target;
       if (act.b) { const b = this.building(act.b); target = this.entry(b); a.goalB = act.b; }
       else { target = act.act === 'patrol' ? this.patrolTile(p) : this.zoneTile(p, act.zone); a.goalB = null; }
@@ -541,7 +543,16 @@
       a.goal = target; a.offPath = false;
       if (sx === target[0] && sy === target[1]) { a.path = []; a.pi = 0; return; }
       const path = this.path.find(sx, sy, target[0], target[1]);
-      if (!path) { a.path = [target]; a.pi = 0; a.offPath = true; return; } // no way found: they still walk there, rather than appearing inside
+      if (!path) { // no way found: try a tile beside the goal; failing that wait and try again (never a straight line through the houses)
+        const W0 = this.world.W, sol = this.world.solid;
+        for (const [ox, oy] of [[0, 1], [1, 0], [-1, 0], [0, -1], [1, 1], [-1, 1], [0, 2], [2, 0], [-2, 0]]) { const tx = target[0] + ox, ty = target[1] + oy; if (sol[ty * W0 + tx]) continue; const p2 = this.path.find(sx, sy, tx, ty); if (p2) { a.path = p2; a.pi = 0; return; } }
+        a.noWay = (a.noWay || 0) + 1; a.path = null;
+        const P0 = O.game && O.game.player, far = !P0 || O.game.scene || Math.hypot(P0.x - a.x, P0.y - a.y) > 420;
+        if (a.noWay > 6 && far) { a.noWay = 0; if (a.goalB != null) { this.arrive(p); } else { [a.x, a.y] = this.tileCenter(target[0], target[1], p); a.goal = target; } } // (out of your sight they get there somehow)
+        else { a.goal = null; a.noWayUntil = this.day * 1440 + this.minute + 3; }
+        return;
+      }
+      a.noWay = 0; a.noWayUntil = 0;
       a.path = path; a.pi = 0;
     }
 
@@ -561,6 +572,7 @@
         const wt = this.world.ter, TW = this.world.TER || {}, onBridge = (x, y) => wt[y * this.world.W + x] === TW.BRIDGE || [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([ox, oy]) => wt[(y + oy) * this.world.W + x + ox] === TW.WATER);
         if (a.lane && a.pi < a.path.length - 1 && !onBridge(tx, ty)) { const gx0 = gx, gy0 = gy; /* never off the side of a bridge or a bank */ const nx = a.path[a.pi + 1], ex = nx[0] - tx, ey = nx[1] - ty, ed = Math.hypot(ex, ey) || 1; gx += (-ey / ed) * a.lane; gy += (ex / ed) * a.lane * 0.7;  if (this.world.solid[Math.floor((gy - 1) / this.T) * this.world.W + Math.floor(gx / this.T)]) { gx = gx0; gy = gy0; } /* never sidestep into a wall */ } // (to the right of the way the path runs)
         const dx = gx - a.x, dy = gy - a.y, d = Math.hypot(dx, dy);
+        if (d > 18 && !a.offPath) { const W0 = this.world.W, T0 = this.T, cut = [0.33, 0.66].some((k) => this.world.solid[Math.floor((a.y + dy * k - 1) / T0) * W0 + Math.floor((a.x + dx * k) / T0)]); if (cut) { a.path = null; a.goal = null; break; } } // nudged off the way (a chat, the crowd): find the way again rather than cut through a wall
         if (d <= budget) { a.x = gx; a.y = gy; budget -= d; a.pi++; }
         else { a.x += (dx / d) * budget; a.y += (dy / d) * budget; budget = 0; }
         if (d > 0.01) a.dir = O.dirOf(dx, dy);

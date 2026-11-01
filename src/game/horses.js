@@ -117,7 +117,7 @@
         if (f.barn === undefined && f.world === game.world.placeId) { const cx = (f.z.x0 + f.z.x1) / 2 * T, cy = (f.z.y0 + f.z.y1) / 2 * T; const bn = game.world.buildings.filter((b) => b.type === 'barn' && b.doorX != null).sort((a, b) => Math.hypot(a.doorX * T - cx, a.doorY * T - cy) - Math.hypot(b.doorX * T - cx, b.doorY * T - cy))[0]; f.barn = bn && Math.hypot(bn.doorX * T - cx, bn.doorY * T - cy) < 30 * T ? bn.id : null; }
         if (f.barn != null && f.world === game.world.placeId) {
           const bn = game.world.buildings.find((b) => b.id === f.barn), wantIn = hr0 >= 20 || hr0 < 6 || (csim0 && csim0.weather && csim0.weather.severe) || (f.seed + day0) % 6 === 0;
-          if (wantIn && !f.inBarn && bn) { f.tx = bn.doorX * T + 8; f.ty = bn.doorY * T + 12; if (Math.hypot(f.x - f.tx, f.y - f.ty) < 6) { f.inBarn = true; f.tx = null; } else { const dx = f.tx - f.x, dy = f.ty - f.y, d = Math.hypot(dx, dy), st = Math.min(d, f.speed * 1.6 * Math.min(dtm, 3)); f.x += dx / d * st; f.y += dy / d * st; f.dir = O.dirOf(dx, dy); const a0 = animalActor(f); a0.x = f.x; a0.y = f.y; a0.dir = f.dir; a0.ft = f.ft; a0.moving = true; continue; } }
+          if (wantIn && !f.inBarn && bn) { f.tx = bn.doorX * T + 8; f.ty = (bn.doorY + 1) * T + 10; if (Math.hypot(f.x - f.tx, f.y - f.ty) < 6) { f.inBarn = true; f.tx = null; } else { const dx = f.tx - f.x, dy = f.ty - f.y, d = Math.hypot(dx, dy), st = Math.min(d, f.speed * 1.6 * Math.min(dtm, 3)); f.x += dx / d * st; f.y += dy / d * st; f.dir = O.dirOf(dx, dy); const a0 = animalActor(f); a0.x = f.x; a0.y = f.y; a0.dir = f.dir; a0.ft = f.ft; a0.moving = true; continue; } }
           if (!wantIn && f.inBarn && bn) { f.inBarn = false; f.x = bn.doorX * T + 8; f.y = (bn.doorY + 1) * T + 4; f.tx = null; f.wait = 0; }
           if (f.inBarn) continue;
         }
@@ -127,7 +127,7 @@
         if (f.tx == null) { f.wait -= dt; if (f.wait <= 0) {
           if (gt && !f.out && r.next() < 0.3) { f.tx = gt[0] * T + 8; f.ty = gt[1] * T + 12; f.leaving = true; }
           else if (f.out) { if (gt && r.next() < 0.25) { f.tx = gt[0] * T + 8; f.ty = gt[1] * T + 12; f.returning = true; } else { f.tx = (f.out[0] + r.int(-5, 5)) * T + 8; f.ty = (f.out[1] + r.int(-4, 4)) * T + 12; if (game.world.solid[Math.floor((f.ty - 1) / T) * game.world.W + Math.floor(f.tx / T)]) f.tx = null; } }
-          else { f.tx = r.int(f.z.x0, f.z.x1) * T + r.int(2, 14); f.ty = r.int(f.z.y0, f.z.y1) * T + r.int(6, 14); } } }
+          else { const Wd = game.world; for (let k = 0; k < 6; k++) { const tx = r.int(f.z.x0, f.z.x1), ty = r.int(f.z.y0, f.z.y1); f.tx = tx * T + r.int(2, 14); f.ty = ty * T + r.int(8, 14); if (!Wd.solid[(ty - 1) * Wd.W + tx] && !Wd.solid[ty * Wd.W + tx]) break; } } } } // (never nose-up against a wall, where a head would poke into the house)
         else {
           const dx = f.tx - f.x, dy = f.ty - f.y, d = Math.hypot(dx, dy), step = Math.min(d, f.speed * Math.min(dtm, 3));
           if (d < 1 && f.leaving && gt) { f.leaving = false; const z = f.z, ox = gt[0] < z.x0 ? -1 : gt[0] > z.x1 ? 1 : 0, oy = gt[1] < z.y0 ? -1 : gt[1] > z.y1 ? 1 : 0; f.out = [gt[0] + ox * 5, gt[1] + oy * 5]; f.tx = f.out[0] * T + 8; f.ty = f.out[1] * T + 12; }
@@ -146,7 +146,7 @@
           const pad = h.pad || paddock, sb = h.stable != null && game.world.buildings.find((b) => b.id === h.stable);
           const csim = O.SimRef.cur, hr = csim ? csim.hour : 12, night = sb && (hr >= 20.5 || hr < 6 || (csim && csim.weather && (csim.weather.severe || csim.weather.kind === 'storm')) || (h.owner !== 'player' && ((h.seed || 0) + (csim ? csim.day : 0)) % 3 === 0)); // (resting in the stable some days, and every night and storm)
           // at dusk the horses are led into the stables; at dawn they come out to graze
-          if (night && !h.stabled) { h.tx = sb.doorX * T + 8; h.ty = sb.doorY * T + 6; if (Math.hypot(h.tx - h.x, h.ty - h.y) < 3) { h.stabled = true; h.tx = null; } }
+          if (night && !h.stabled) { h.tx = sb.doorX * T + 8; h.ty = (sb.doorY + 1) * T + 10; if (Math.hypot(h.tx - h.x, h.ty - h.y) < 3) { h.stabled = true; h.tx = null; } }
           else if (!night && h.stabled) { h.stabled = false; h.x = sb.doorX * T + 8; h.y = sb.doorY * T + 8; h.tx = null; }
           if (h.stabled) h.anim = 'idle';
           else if (h.tx == null) { if (r.next() < dt * 0.15) { const tx = r.int(pad.x0, pad.x1), ty = r.int(pad.y0, pad.y1); if (!game.world.solid[ty * game.world.W + tx]) { h.tx = tx * T + 8; h.ty = ty * T + 12; } } h.anim = (h.id + Math.floor(h.ft / 8)) % 3 ? 'graze' : 'idle'; }
@@ -286,7 +286,7 @@
     });
 
     // E on a horse inspects it (registered as an interaction candidate)
-    O.horseCandidate = () => { if (game.scene || game.player.mount) return null; const h = nearestHorse(); if (!h) return null; return { type: 'horse', h, d: Math.hypot(h.x - game.player.x, h.y - game.player.y) + 3, x: h.x, y: h.y - 30 }; };
+    O.horseCandidate = () => { if (game.scene || game.player.mount) return null; const h = nearestHorse(); if (!h) return null; return { type: 'horse', h, d: Math.hypot(h.x - game.player.x, h.y - game.player.y) + 3, x: h.x, y: h.y - 22 }; };
     O.inspectHorse = inspect;
   }
   O.HorsesSetup = { setup, BREEDS };

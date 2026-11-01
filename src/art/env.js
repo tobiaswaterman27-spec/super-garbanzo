@@ -136,6 +136,12 @@
         meta.windows.push({ x: wx + 1, y: wy + 1, w: ww - 2, h: wh - 2 });
       }
     }
+    // a narrow house still has a window: if none fitted, a small one goes in beside the door
+    if (!church && !castle && !spec.noWindows && !meta.windows.length) {
+      const wy = H - 3 - 36 + 4, ww = 8, wh = 12, left = dx - 3 - (x0 + 3), right = x1 - 2 - (dx + dw + 3);
+      const wx = left >= right ? Math.round(x0 + 3 + (left - ww) / 2) : Math.round(dx + dw + 3 + (right - ww) / 2);
+      if (Math.max(left, right) >= ww) { drawWindow(B, wx, wy, ww, wh, shutterM, wealth, rng, false, true); meta.windows.push({ x: wx + 1, y: wy + 1, w: ww - 2, h: wh - 2 }); }
+    }
 
     // a castle's walls: a sloping battered base and machicolations under the parapet
     if (castle) {

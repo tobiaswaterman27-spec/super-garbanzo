@@ -36,8 +36,7 @@
       ctx.fillStyle = '#1b1424'; for (const [x, y] of cells) ctx.fillRect(ax + x * blk - 1, ay + y * blk - 1, blk + 2, blk + 2);
       ctx.fillStyle = '#f0b45c'; for (const [x, y] of cells) ctx.fillRect(ax + x * blk, ay + y * blk, blk, blk);
       ctx.fillStyle = '#ffe2a0'; for (const [x, y, u, v] of cells) if (v < -0.5 && u > -1) ctx.fillRect(ax + x * blk, ay + y * blk, blk, 1);
-      if (label && !hover) tag(ctx, ax, ay + 16, label);
-      else if (label && hover && dist < 120) tag(ctx, ax, ay - 30, label);
+      void label; void hover; void dist; // (the arrow alone: no words on it)
     };
     // a small label: what the marker is for
     const tag = (ctx, x, y, text) => {

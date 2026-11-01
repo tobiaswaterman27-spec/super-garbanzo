@@ -20,7 +20,7 @@
     if (['farmer', 'farmhand', 'miller'].includes(role)) { wake = Math.min(wake, 5 * 60); bed = Math.min(bed, 21 * 60 + 30); }
     if (role === 'innkeeper' || role === 'server') { bed = 23 * 60 + 30; wake = 7 * 60; }
     void rng;
-    return { bed: bed + (p.age >= 13 ? j : Math.round(j / 3)), wake: wake + (p.age >= 13 ? j : 0) };
+    return { bed: bed + (p.age >= 13 ? j : Math.round(j / 3)), wake: wake + (p.age >= 13 ? j : Math.round(j / 2)) };
   }
 
   function installSim(Sim) {

@@ -235,8 +235,8 @@
     let hooked2 = false; game.hooks.update.push(() => { if (hooked2) return; hooked2 = true; const prev = O.stallCandidate; O.stallCandidate = () => {
       const base = prev ? prev() : null, p = game.player; if (game.scene) return base;
       const f = (O.fauna || []).find((x) => (x.stray || x.mine) && x.world === game.world.placeId && Math.hypot(x.x - p.x, x.y - p.y) < 26); if (!f) return base;
-      const c = f.mine ? { type: 'custom', d: 12, label: `Pat ${f.name}`, act: () => say(`${f.name} thumps ${['his', 'her'][f.seed % 2]} tail and leans against your leg.`), x: f.x, y: f.y - 22 }
-        : { type: 'custom', d: 10, label: 'Feed the stray dog', act: () => feed(f), x: f.x, y: f.y - 22 };
+      const c = f.mine ? { type: 'custom', d: 12, label: `Pat ${f.name}`, act: () => say(`${f.name} thumps ${['his', 'her'][f.seed % 2]} tail and leans against your leg.`), x: f.x, y: f.y - 15 }
+        : { type: 'custom', d: 10, label: 'Feed the stray dog', act: () => feed(f), x: f.x, y: f.y - 15 };
       return !base || c.d < base.d ? c : base;
     }; });
     void prevS;

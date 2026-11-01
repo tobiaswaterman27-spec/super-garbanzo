@@ -1040,7 +1040,7 @@ O.storeys = (b) => {
   };
   function poseAt(m, anim, f, a) {
     const A0 = ANIMS[anim]; if (!A0 || A0.sub <= 1) return pose(m, anim, f, a);
-    const kf = f / A0.sub; if (CONT.has(anim)) return pose(m, anim, kf, a);
+    const kf = f / A0.sub; if (CONT.has(anim) || (A0.base && CONT.has(A0.base))) return pose(m, anim, kf, a);
     const i = Math.floor(kf), t = kf - i; if (t === 0) return pose(m, anim, i, a);
     return lerpDeep(pose(m, anim, i, a), pose(m, anim, (i + 1) % A0.key, a), t);
   }
@@ -1057,7 +1057,18 @@ O.storeys = (b) => {
   }
 
   // Joints in body space for one frame. Every animation is defined once and projected to all 8 views.
+  // walking or running with the arms busy: the legs of the one, the arms of the other ("walk+drink")
+  const TOPS = new Set(['talk', 'wave', 'point', 'drink', 'eat', 'give', 'take', 'ringbell', 'pipe', 'lute', 'fiddle', 'drum', 'serve', 'count', 'read', 'shake', 'cough', 'carry', 'bucket', 'juggle', 'place']);
+  function composite(base, top) {
+    if (!TOPS.has(top) || !ANIMS[base] || !ANIMS[top]) return base;
+    const name = base + '+' + top; if (ANIMS[name]) return name;
+    const B0 = ANIMS[base], T0 = ANIMS[top];
+    ANIMS[name] = { frames: B0.frames, fps: B0.fps, key: B0.key, sub: B0.sub, base, top, topRatio: (T0.fps || 1) / (B0.fps || 1), topFrames: T0.frames };
+    return name;
+  }
   function pose(m, anim, f, a) {
+    const CMP = ANIMS[anim] && ANIMS[anim].base ? ANIMS[anim] : null, whole = anim;
+    if (CMP) anim = CMP.base;
     const nF = ANIMS[anim]?.key || 1, ph = (f / nF) * Math.PI * 2;
     const P = { anim, f, mouth: 0, blink: false, lean: 0, headFwd: 0, headDown: 0, bob: 0, held: null, toolDir: null };
     const thigh = m.leg * 0.5, shin = m.leg * 0.5 - 0.4, hh = m.hipW / 2 - m.legR * 0.85, shHalf = m.shW / 2 - m.limbR * 0.55;
@@ -1157,6 +1168,7 @@ O.storeys = (b) => {
     const chest = shY + 4, mouth = [0.4, head[1] + m.headRy * 0.55, head[2] + m.headRy * 0.9];
     const D = m.shW * 0.27;
     // the right hand is the tool hand
+    if (CMP) { const T0 = ANIMS[CMP.top], B0 = ANIMS[CMP.base]; anim = CMP.top; f = Math.floor((f / (B0.key || 1)) * (B0.frames / (B0.fps || 1)) * ((T0.fps || 1) / (T0.sub || 1))) % (T0.key || 1); P.anim = anim; P.f = f; P.whole = whole; } // (the arms' own key poses, at their own pace)
     switch (anim) {
       case 'work': { // hammering: raise, swing, strike, recover
         const k = [0, 1, 2, 1][f], sw = [2.75, 1.7, 0.75][k], bd = [0.75, 0.45, 0.15][k];
@@ -1200,7 +1212,7 @@ O.storeys = (b) => {
       case 'lute': { const k = f % 2; A.L = reach(-1, [-3.2, chest + 1.5, D + 3]); A.R = reach(1, [0.8, chest + 4.2 + k * 0.7, D + 3.8]); P.held = 'lute'; P.toolHand = 'R'; P.toolDir = [-0.9, -0.35, 0.25]; P.headDown = 0.3; P.mouth = f === 2 ? 1 : 0; break; }
       case 'fiddle': { const k = [0, 1, 2, 1][f]; A.L = reach(-1, [-3.6, chest - 1.5, D + 2.6]); A.R = reach(1, [0.6 + k * 1.2, chest + 0.8, D + 3.4]); P.held = 'fiddle'; P.toolHand = 'L'; P.toolDir = [0.8, 0.35, 0.3]; P.headDown = 0.2; break; }
       case 'pipe': { const k = f % 2; A.R = reach(1, [0.6, chest - 3 + k * 0.3, D + 4]); A.L = reach(-1, [-0.4, chest - 1, D + 4.2]); P.held = 'pipe'; P.toolHand = 'R'; P.toolDir = [0, 0.85, 0.5]; P.bob = k ? -0.4 : 0; break; }
-      case 'give': case 'take': { const out = [0.5, 1, 1][anim === 'take' ? 2 - f : f]; A.R = reach(1, [1.6 + out * 0.6, chest + 2.5 - out * 1.5, D + 3 + out * 4.5], [0.2, 0.3, 1]); P.lean = out * 0.6; P.mouth = f === 1 ? 1 : 0; break; }
+      case 'give': case 'take': { const out = [0.5, 1, 1][anim === 'take' ? 2 - f : f]; A.R = reach(1, [1.6 + out * 0.6, chest + 2.5 - out * 1.5, D + 3 + out * 4.5]); P.lean += out * 0.3; P.mouth = f === 1 ? 1 : 0; break; }
       case 'juggle': { const up = f % 2; A.R = reach(1, [3.6, chest + 3 - (up ? 1.5 : -0.5), D + 4]); A.L = reach(-1, [-3.6, chest + 3 - (up ? -0.5 : 1.5), D + 4]); P.held = 'balls'; P.toolHand = 'R'; P.jug = f; P.headUp = 0.3; P.mouth = f === 3 ? 1 : 0; break; }
       case 'ringbell': { const k = f % 2; A.R = reach(1, [4.6, shY - 4 - k * 1.6, D + 2.4], [1, 0.4, -0.2]); P.held = 'handbell'; P.toolHand = 'R'; P.toolDir = [k ? 0.3 : -0.3, 1, 0.1]; P.mouth = f >= 2 ? 1 : 0; break; }
       case 'drum': { const k = f % 2; A.L = reach(-1, [-2, chest + 5, D + 3]); A.R = reach(1, [0.6, chest + (k ? 1 : 4.5), D + 4]); P.held = 'drum'; P.toolHand = 'L'; P.toolDir = [0, 0, 1]; break; }
@@ -2005,7 +2017,7 @@ O.storeys = (b) => {
     return { canvas: c, rows, fw: FW, fh: FH };
   }
 
-  O.Char = { resetBudget, makeAppearance, randomGenes, inheritGenes, bodyMetrics, ageStage, outfitFor, render, frame, sheet, invalidate, ANIMS, FW, FH, GROUND, HAIR_STYLES_M, HAIR_STYLES_F, BEARDS, dirOf, dir4, DIRV, hipY, headY };
+  O.Char = { composite, resetBudget, makeAppearance, randomGenes, inheritGenes, bodyMetrics, ageStage, outfitFor, render, frame, sheet, invalidate, ANIMS, FW, FH, GROUND, HAIR_STYLES_M, HAIR_STYLES_F, BEARDS, dirOf, dir4, DIRV, hipY, headY };
   O.dirOf = dirOf; O.dir4 = dir4;
 })();
 
@@ -2148,6 +2160,12 @@ O.storeys = (b) => {
         drawWindow(B, wx, wy, ww, wh, shutterM, wealth, rng, spec.shopWindow && f === 0);
         meta.windows.push({ x: wx + 1, y: wy + 1, w: ww - 2, h: wh - 2 });
       }
+    }
+    // a narrow house still has a window: if none fitted, a small one goes in beside the door
+    if (!church && !castle && !spec.noWindows && !meta.windows.length) {
+      const wy = H - 3 - 36 + 4, ww = 8, wh = 12, left = dx - 3 - (x0 + 3), right = x1 - 2 - (dx + dw + 3);
+      const wx = left >= right ? Math.round(x0 + 3 + (left - ww) / 2) : Math.round(dx + dw + 3 + (right - ww) / 2);
+      if (Math.max(left, right) >= ww) { drawWindow(B, wx, wy, ww, wh, shutterM, wealth, rng, false, true); meta.windows.push({ x: wx + 1, y: wy + 1, w: ww - 2, h: wh - 2 }); }
     }
 
     // a castle's walls: a sloping battered base and machicolations under the parapet
@@ -4794,7 +4812,8 @@ O.bizName = (surname, label) => {
       let an = a.anim, ft = a.ft;
       // a gesture of the moment (a nod, a laugh, a bow) plays over whatever they were doing
       const g = (a.person && a.person.agent && a.person.agent.gest) || a.gest, now = performance.now();
-      if (g && g.until > now) { an = g.anim; ft = (now - g.from) / 1000; }
+      if (g && g.until > now) { if ((an === 'walk' || an === 'run') && Ch.composite) { const c = Ch.composite(an, g.anim); if (c !== an) an = c; else { an = g.anim; ft = (now - g.from) / 1000; } } else { an = g.anim; ft = (now - g.from) / 1000; } } // (on the move the legs keep walking and the arms do the gesture)
+      else if (an === 'run' && a.person && a.person.agent && a.person.agent.carrying && Ch.composite) an = Ch.composite('run', 'carry'); // (running with a load: still carrying it)
       else if (an === 'idle' && a.person && !a.person.agent?.frozen) {
         // standing about, people fidget: scratch, yawn when tired, wipe a brow in the heat, cough when ill
         const q = a.person, id = q.id || 0, t = now / 1000 + id * 3.7, cyc = t % 13;
@@ -6224,7 +6243,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     if (['farmer', 'farmhand', 'miller'].includes(role)) { wake = Math.min(wake, 5 * 60); bed = Math.min(bed, 21 * 60 + 30); }
     if (role === 'innkeeper' || role === 'server') { bed = 23 * 60 + 30; wake = 7 * 60; }
     void rng;
-    return { bed: bed + (p.age >= 13 ? j : Math.round(j / 3)), wake: wake + (p.age >= 13 ? j : 0) };
+    return { bed: bed + (p.age >= 13 ? j : Math.round(j / 3)), wake: wake + (p.age >= 13 ? j : Math.round(j / 2)) };
   }
 
   function installSim(Sim) {
@@ -9715,7 +9734,8 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       if (p.task) return p.task;
       // night watchmen guard valuable premises through the dark hours and sleep by day
       if (p.job?.role === 'night watchman' && this.biz.get(p.job.biz)) { if (h >= 20 || h < 6) return { act: 'work', b: p.job.biz }; if (h >= 8 && h < 15.5) return { act: 'sleep', b: home }; }
-      const asleep = m < p.wake || m >= p.bed;
+      const dj = p.wake === 0 && p.bed === 1440 ? 0 : (((p.id * 13 + this.day * 7) % 23) - 11); // (nobody keeps the same minute every day)
+      const asleep = m < p.wake + dj || m >= p.bed + Math.round(dj / 2);
       if (asleep) return { act: 'sleep', b: home };
       const ev = this.eventPlan(p); if (ev) return ev;
       // the harvest festival: the square fills from mid-afternoon
@@ -10040,6 +10060,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
 
     route(p, act) {
       const a = p.agent;
+      if (a.noWayUntil && this.day * 1440 + this.minute < a.noWayUntil) return; // (just tried and found no way: give it a few minutes)
       let target;
       if (act.b) { const b = this.building(act.b); target = this.entry(b); a.goalB = act.b; }
       else { target = act.act === 'patrol' ? this.patrolTile(p) : this.zoneTile(p, act.zone); a.goalB = null; }
@@ -10052,7 +10073,16 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       a.goal = target; a.offPath = false;
       if (sx === target[0] && sy === target[1]) { a.path = []; a.pi = 0; return; }
       const path = this.path.find(sx, sy, target[0], target[1]);
-      if (!path) { a.path = [target]; a.pi = 0; a.offPath = true; return; } // no way found: they still walk there, rather than appearing inside
+      if (!path) { // no way found: try a tile beside the goal; failing that wait and try again (never a straight line through the houses)
+        const W0 = this.world.W, sol = this.world.solid;
+        for (const [ox, oy] of [[0, 1], [1, 0], [-1, 0], [0, -1], [1, 1], [-1, 1], [0, 2], [2, 0], [-2, 0]]) { const tx = target[0] + ox, ty = target[1] + oy; if (sol[ty * W0 + tx]) continue; const p2 = this.path.find(sx, sy, tx, ty); if (p2) { a.path = p2; a.pi = 0; return; } }
+        a.noWay = (a.noWay || 0) + 1; a.path = null;
+        const P0 = O.game && O.game.player, far = !P0 || O.game.scene || Math.hypot(P0.x - a.x, P0.y - a.y) > 420;
+        if (a.noWay > 6 && far) { a.noWay = 0; if (a.goalB != null) { this.arrive(p); } else { [a.x, a.y] = this.tileCenter(target[0], target[1], p); a.goal = target; } } // (out of your sight they get there somehow)
+        else { a.goal = null; a.noWayUntil = this.day * 1440 + this.minute + 3; }
+        return;
+      }
+      a.noWay = 0; a.noWayUntil = 0;
       a.path = path; a.pi = 0;
     }
 
@@ -10072,6 +10102,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
         const wt = this.world.ter, TW = this.world.TER || {}, onBridge = (x, y) => wt[y * this.world.W + x] === TW.BRIDGE || [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([ox, oy]) => wt[(y + oy) * this.world.W + x + ox] === TW.WATER);
         if (a.lane && a.pi < a.path.length - 1 && !onBridge(tx, ty)) { const gx0 = gx, gy0 = gy; /* never off the side of a bridge or a bank */ const nx = a.path[a.pi + 1], ex = nx[0] - tx, ey = nx[1] - ty, ed = Math.hypot(ex, ey) || 1; gx += (-ey / ed) * a.lane; gy += (ex / ed) * a.lane * 0.7;  if (this.world.solid[Math.floor((gy - 1) / this.T) * this.world.W + Math.floor(gx / this.T)]) { gx = gx0; gy = gy0; } /* never sidestep into a wall */ } // (to the right of the way the path runs)
         const dx = gx - a.x, dy = gy - a.y, d = Math.hypot(dx, dy);
+        if (d > 18 && !a.offPath) { const W0 = this.world.W, T0 = this.T, cut = [0.33, 0.66].some((k) => this.world.solid[Math.floor((a.y + dy * k - 1) / T0) * W0 + Math.floor((a.x + dx * k) / T0)]); if (cut) { a.path = null; a.goal = null; break; } } // nudged off the way (a chat, the crowd): find the way again rather than cut through a wall
         if (d <= budget) { a.x = gx; a.y = gy; budget -= d; a.pi++; }
         else { a.x += (dx / d) * budget; a.y += (dy / d) * budget; budget = 0; }
         if (d > 0.01) a.dir = O.dirOf(dx, dy);
@@ -19253,6 +19284,38 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         }
       }
     });
+    // the way to every door is kept clear: no sand pile, barrel or woodpile in the three tiles below a door
+    let cleared = null;
+    game.hooks.update.push(() => {
+      const w = game.world; if (!w || cleared === w || !w.props || !w.solid) return; cleared = w;
+      const inBuilding = (tx, ty) => w.buildings.some((b) => b.w && tx >= b.x && tx < b.x + b.w && ty >= b.y && ty < b.y + (b.h || 0));
+      const keep = /namesign|salesign|sign|lamp|well|tower|wall|gate|fence|banner|statue|fountain/;
+      let n = 0;
+      for (const b of w.buildings) {
+        if (b.doorX == null) continue;
+        const inZone = (tx, ty) => tx >= b.doorX - 1 && tx <= b.doorX + 1 && ty >= b.doorY + 1 && ty <= b.doorY + 3;
+        for (let i = w.props.length - 1; i >= 0; i--) { const pr = w.props[i]; if (!pr.solid || keep.test(pr.kind)) continue; const tx = Math.floor(pr.x / 16), ty = Math.floor((pr.y - 1) / 16);
+          if (inZone(tx, ty) || inZone(tx - 1, ty) || inZone(tx + 1, ty)) { w.props.splice(i, 1); n++; } }
+        for (let ty = b.doorY + 1; ty <= b.doorY + 3; ty++) for (let tx = b.doorX - 1; tx <= b.doorX + 1; tx++) {
+          const k = ty * w.W + tx; if (!w.solid[k] || inBuilding(tx, ty)) continue;
+          if (!w.props.some((pr) => pr.solid && Math.floor(pr.x / 16) === tx && Math.floor((pr.y - 1) / 16) === ty) && (!w.ter || w.ter[k] !== w.TER.WATER)) w.solid[k] = 0; }
+      }
+      if (n) { w.dirtyStatics = true; const sp = O.SimRef.cur && O.SimRef.cur.path; sp && sp.clear && sp.clear(); }
+    });
+    // a fire inside means a chimney outside: any building with a hearth, oven, forge or kiln gets its stack
+    let chimneyed = null;
+    const FIRE = new Set(['fireplace', 'oven', 'forge', 'kiln', 'cauldron']);
+    game.hooks.update.push(() => {
+      const w = game.world, sim = O.SimRef.cur; if (!w || chimneyed === w || !sim || sim.world !== w || !O.Interior || game.scene) return; chimneyed = w;
+      let n = 0;
+      for (const b of w.buildings) {
+        if (!b.spec || b.spec.chimney || b.royal || b.ruined || b.site || b.type === 'hideout' || b.doorX == null || /church|chapel|cathedral|abbey|priory|barn|stable|castle|keep|palace/.test(b.type || '')) continue;
+        let L = null; try { L = O.Interior.layoutFor(b, 0, sim); } catch (e) { continue; }
+        if (!L || !L.items || !L.items.some((i) => FIRE.has(i.kind))) continue;
+        b.spec.chimney = true; try { b.sprite = O.Env.building(b.spec); n++; } catch (e) { /* */ }
+      }
+      if (n) w.dirtyStatics = true;
+    });
     // you can help them up yourself
     (O.moreCandidates = O.moreCandidates || []).push(() => {
       const s = cur(); if (!s || game.scene) return null; const p = P();
@@ -19827,9 +19890,9 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     const near = () => { const P = game.player; if (game.scene) return null; let best = null, bd = 28; for (const f of pets()) { if (f.world !== cur()?.world.placeId || f.inBarn) continue; const d = Math.hypot(f.x - P.x, f.y - P.y); if (d < bd) { bd = d; best = f; } } return best; };
     (O.moreCandidates = O.moreCandidates || []).push(() => {
       const f = near(); if (!f) return null; const s = cur();
-      if (f.owner === 'player') return { type: 'custom', d: 0, x: f.x, y: f.y - 30, label: f.name || 'Your ' + f.kind, act: () => menu(f) };
-      if (f.stray) { const food = PS.items.find((k) => ['bread', 'meat', 'sausage', 'fish', 'cheese'].includes(k)); return { type: 'custom', d: 0, x: f.x, y: f.y - 30, label: food ? `Share your ${(O.Data.GOODS[food]?.name || food).toLowerCase()} with the ${f.kind}` : `A stray ${f.kind}`, act: () => { if (!food) return O.Speech && O.Speech.say(f, f.kind === 'dog' ? 'Whine...' : 'Mew?', 1.6); PS.remove(food, 1); adopt(s, f); } }; }
-      const own = s.households.find((h) => h.id === f.owner); return { type: 'custom', d: 0, x: f.x, y: f.y - 30, label: `Pat ${f.name || 'the ' + f.kind}${own ? ` (the ${own.surname}s')` : ''}`, act: () => { O.Speech && O.Speech.say(f, f.kind === 'dog' ? '♥' : 'Purr...', 1.4); } };
+      if (f.owner === 'player') return { type: 'custom', d: 0, x: f.x, y: f.y - 15, label: f.name || 'Your ' + f.kind, act: () => menu(f) };
+      if (f.stray) { const food = PS.items.find((k) => ['bread', 'meat', 'sausage', 'fish', 'cheese'].includes(k)); return { type: 'custom', d: 0, x: f.x, y: f.y - 15, label: food ? `Share your ${(O.Data.GOODS[food]?.name || food).toLowerCase()} with the ${f.kind}` : `A stray ${f.kind}`, act: () => { if (!food) return O.Speech && O.Speech.say(f, f.kind === 'dog' ? 'Whine...' : 'Mew?', 1.6); PS.remove(food, 1); adopt(s, f); } }; }
+      const own = s.households.find((h) => h.id === f.owner); return { type: 'custom', d: 0, x: f.x, y: f.y - 15, label: `Pat ${f.name || 'the ' + f.kind}${own ? ` (the ${own.surname}s')` : ''}`, act: () => { O.Speech && O.Speech.say(f, f.kind === 'dog' ? '♥' : 'Purr...', 1.4); } };
     });
     function adopt(s, f, from) {
       f.owner = 'player'; f.stray = false; f.mode = 'heel'; f.barn = null; f.petMove = true; f.bond = 0.3; f.home = null; f.adopted = s.day;
@@ -21524,7 +21587,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         if (f.barn === undefined && f.world === game.world.placeId) { const cx = (f.z.x0 + f.z.x1) / 2 * T, cy = (f.z.y0 + f.z.y1) / 2 * T; const bn = game.world.buildings.filter((b) => b.type === 'barn' && b.doorX != null).sort((a, b) => Math.hypot(a.doorX * T - cx, a.doorY * T - cy) - Math.hypot(b.doorX * T - cx, b.doorY * T - cy))[0]; f.barn = bn && Math.hypot(bn.doorX * T - cx, bn.doorY * T - cy) < 30 * T ? bn.id : null; }
         if (f.barn != null && f.world === game.world.placeId) {
           const bn = game.world.buildings.find((b) => b.id === f.barn), wantIn = hr0 >= 20 || hr0 < 6 || (csim0 && csim0.weather && csim0.weather.severe) || (f.seed + day0) % 6 === 0;
-          if (wantIn && !f.inBarn && bn) { f.tx = bn.doorX * T + 8; f.ty = bn.doorY * T + 12; if (Math.hypot(f.x - f.tx, f.y - f.ty) < 6) { f.inBarn = true; f.tx = null; } else { const dx = f.tx - f.x, dy = f.ty - f.y, d = Math.hypot(dx, dy), st = Math.min(d, f.speed * 1.6 * Math.min(dtm, 3)); f.x += dx / d * st; f.y += dy / d * st; f.dir = O.dirOf(dx, dy); const a0 = animalActor(f); a0.x = f.x; a0.y = f.y; a0.dir = f.dir; a0.ft = f.ft; a0.moving = true; continue; } }
+          if (wantIn && !f.inBarn && bn) { f.tx = bn.doorX * T + 8; f.ty = (bn.doorY + 1) * T + 10; if (Math.hypot(f.x - f.tx, f.y - f.ty) < 6) { f.inBarn = true; f.tx = null; } else { const dx = f.tx - f.x, dy = f.ty - f.y, d = Math.hypot(dx, dy), st = Math.min(d, f.speed * 1.6 * Math.min(dtm, 3)); f.x += dx / d * st; f.y += dy / d * st; f.dir = O.dirOf(dx, dy); const a0 = animalActor(f); a0.x = f.x; a0.y = f.y; a0.dir = f.dir; a0.ft = f.ft; a0.moving = true; continue; } }
           if (!wantIn && f.inBarn && bn) { f.inBarn = false; f.x = bn.doorX * T + 8; f.y = (bn.doorY + 1) * T + 4; f.tx = null; f.wait = 0; }
           if (f.inBarn) continue;
         }
@@ -21534,7 +21597,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         if (f.tx == null) { f.wait -= dt; if (f.wait <= 0) {
           if (gt && !f.out && r.next() < 0.3) { f.tx = gt[0] * T + 8; f.ty = gt[1] * T + 12; f.leaving = true; }
           else if (f.out) { if (gt && r.next() < 0.25) { f.tx = gt[0] * T + 8; f.ty = gt[1] * T + 12; f.returning = true; } else { f.tx = (f.out[0] + r.int(-5, 5)) * T + 8; f.ty = (f.out[1] + r.int(-4, 4)) * T + 12; if (game.world.solid[Math.floor((f.ty - 1) / T) * game.world.W + Math.floor(f.tx / T)]) f.tx = null; } }
-          else { f.tx = r.int(f.z.x0, f.z.x1) * T + r.int(2, 14); f.ty = r.int(f.z.y0, f.z.y1) * T + r.int(6, 14); } } }
+          else { const Wd = game.world; for (let k = 0; k < 6; k++) { const tx = r.int(f.z.x0, f.z.x1), ty = r.int(f.z.y0, f.z.y1); f.tx = tx * T + r.int(2, 14); f.ty = ty * T + r.int(8, 14); if (!Wd.solid[(ty - 1) * Wd.W + tx] && !Wd.solid[ty * Wd.W + tx]) break; } } } } // (never nose-up against a wall, where a head would poke into the house)
         else {
           const dx = f.tx - f.x, dy = f.ty - f.y, d = Math.hypot(dx, dy), step = Math.min(d, f.speed * Math.min(dtm, 3));
           if (d < 1 && f.leaving && gt) { f.leaving = false; const z = f.z, ox = gt[0] < z.x0 ? -1 : gt[0] > z.x1 ? 1 : 0, oy = gt[1] < z.y0 ? -1 : gt[1] > z.y1 ? 1 : 0; f.out = [gt[0] + ox * 5, gt[1] + oy * 5]; f.tx = f.out[0] * T + 8; f.ty = f.out[1] * T + 12; }
@@ -21553,7 +21616,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
           const pad = h.pad || paddock, sb = h.stable != null && game.world.buildings.find((b) => b.id === h.stable);
           const csim = O.SimRef.cur, hr = csim ? csim.hour : 12, night = sb && (hr >= 20.5 || hr < 6 || (csim && csim.weather && (csim.weather.severe || csim.weather.kind === 'storm')) || (h.owner !== 'player' && ((h.seed || 0) + (csim ? csim.day : 0)) % 3 === 0)); // (resting in the stable some days, and every night and storm)
           // at dusk the horses are led into the stables; at dawn they come out to graze
-          if (night && !h.stabled) { h.tx = sb.doorX * T + 8; h.ty = sb.doorY * T + 6; if (Math.hypot(h.tx - h.x, h.ty - h.y) < 3) { h.stabled = true; h.tx = null; } }
+          if (night && !h.stabled) { h.tx = sb.doorX * T + 8; h.ty = (sb.doorY + 1) * T + 10; if (Math.hypot(h.tx - h.x, h.ty - h.y) < 3) { h.stabled = true; h.tx = null; } }
           else if (!night && h.stabled) { h.stabled = false; h.x = sb.doorX * T + 8; h.y = sb.doorY * T + 8; h.tx = null; }
           if (h.stabled) h.anim = 'idle';
           else if (h.tx == null) { if (r.next() < dt * 0.15) { const tx = r.int(pad.x0, pad.x1), ty = r.int(pad.y0, pad.y1); if (!game.world.solid[ty * game.world.W + tx]) { h.tx = tx * T + 8; h.ty = ty * T + 12; } } h.anim = (h.id + Math.floor(h.ft / 8)) % 3 ? 'graze' : 'idle'; }
@@ -21693,7 +21756,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     });
 
     // E on a horse inspects it (registered as an interaction candidate)
-    O.horseCandidate = () => { if (game.scene || game.player.mount) return null; const h = nearestHorse(); if (!h) return null; return { type: 'horse', h, d: Math.hypot(h.x - game.player.x, h.y - game.player.y) + 3, x: h.x, y: h.y - 30 }; };
+    O.horseCandidate = () => { if (game.scene || game.player.mount) return null; const h = nearestHorse(); if (!h) return null; return { type: 'horse', h, d: Math.hypot(h.x - game.player.x, h.y - game.player.y) + 3, x: h.x, y: h.y - 22 }; };
     O.inspectHorse = inspect;
   }
   O.HorsesSetup = { setup, BREEDS };
@@ -24234,6 +24297,40 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     for (const dx of side < 0 ? [-1, 1] : [1, -1]) { const x = b.doorX + dx, y = b.doorY, i = y * w.W + x; if (x >= 0 && y >= 0 && x < w.W && y < w.H && !w.solid[i] && w.ter[i] === w.TER.COBBLE) return [x, y, true]; }
     return null;
   }
+  // a small plaque fixed to the wall beside the door: quiet, never in the way, and there's always room for one
+  let plaqueSprite = null, boardSprite = null;
+  function plaque() {
+    if (plaqueSprite) return plaqueSprite;
+    const c = document.createElement('canvas'); c.width = 9; c.height = 6; const x = c.getContext('2d');
+    x.fillStyle = '#3e2a1a'; x.fillRect(0, 0, 9, 6); x.fillStyle = '#9a7650'; x.fillRect(1, 1, 7, 4); x.fillStyle = '#b08a60'; x.fillRect(1, 1, 7, 1);
+    x.fillStyle = '#5a3c26'; x.fillRect(2, 2, 5, 1); x.fillRect(2, 4, 3, 1);
+    return (plaqueSprite = { canvas: c, ox: 4, oy: 22, W: 9, H: 6 });
+  }
+  function boardOnWall() {
+    if (boardSprite) return boardSprite;
+    const c = document.createElement('canvas'); c.width = 14; c.height = 11; const x = c.getContext('2d');
+    x.fillStyle = '#3a2618'; x.fillRect(0, 0, 14, 11); x.fillStyle = '#6a4a2c'; x.fillRect(1, 1, 12, 9);
+    x.fillStyle = '#e6dcc0'; x.fillRect(2, 2, 4, 5); x.fillRect(7, 2, 5, 6); x.fillStyle = '#d4c8a8'; x.fillRect(4, 6, 4, 3);
+    x.fillStyle = '#8a2a24'; x.fillRect(4, 2, 1, 1); x.fillRect(9, 2, 1, 1);
+    return (boardSprite = { canvas: c, ox: 7, oy: 25, W: 14, H: 11 });
+  }
+  // where on the front wall beside the door a plaque or board can hang
+  function wallSpot(w, b, side, skip) {
+    const bottom = b.bottom != null ? b.bottom : b.doorY;
+    for (const k of [1, 2, 3]) for (const sd of [side, -side]) {
+      const x = b.doorX + sd * k; if (x < b.x || x >= b.x + b.w) continue;
+      if (w.props.some((p) => p.onWall && Math.floor(p.x / 16) === x && Math.floor(p.y / 16) === bottom + 1)) continue;
+      if (skip && skip.includes(x)) continue;
+      return [x, bottom];
+    }
+    return null;
+  }
+  function hang(w, b, kind, sprite, side) {
+    const at = wallSpot(w, b, side); if (!at) return null;
+    const p = { kind, x: at[0] * 16 + 8, y: (at[1] + 1) * 16 + 0.5, seed: b.id, solid: false, sprite, signFor: b.id, onWall: true };
+    w.props.push(p); w.dirtyStatics = true; return p;
+  }
+  O.hangOnWall = (w, b, kind, side) => hang(w, b, kind, kind === 'workboard' ? boardOnWall() : plaque(), side);
   // stand a sign prop beside a building's door (kept solid so you walk round it like anything else)
   function plant(w, b, kind, sprite, side) {
     const at = spotBy(w, b, side); if (!at) return null;
@@ -24248,7 +24345,14 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     game.hooks.update.push(() => {
       const w = game.world; if (!w || game.scene || w._signed) return;
       w._signed = true;
-      for (const b of w.buildings) if (b.doorX != null && !b.site && !b.ruined && b.type !== 'hideout' && !w.props.some((p) => p.kind === 'namesign' && p.signFor === b.id)) plant(w, b, 'namesign', nameSign(), -1);
+      // (any old standing name sign comes down: they blocked the way and were too big)
+      for (let i = w.props.length - 1; i >= 0; i--) { const p = w.props[i]; if (p.kind === 'namesign' && !p.onWall) { if (p.solid) w.solid[Math.floor((p.y - 1) / 16) * w.W + Math.floor(p.x / 16)] = 0; w.props.splice(i, 1); } }
+      const sim = O.SimRef.cur;
+      for (const b of w.buildings) {
+        if (b.doorX == null || b.site || b.ruined || b.type === 'hideout') continue;
+        if (b.type === 'guard' || (sim && b.id === sim.tavernId)) hang(w, b, 'workboard', boardOnWall(), b.type === 'guard' ? 1 : 1);
+        if (!w.props.some((p) => p.kind === 'namesign' && p.signFor === b.id)) hang(w, b, 'namesign', plaque(), -1);
+      }
     });
     const T = 16;
     O.signCandidate = () => {
@@ -24589,7 +24693,9 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
             const dx = a.x - o.x, dy = (a.y - o.y) * 1.6, d = Math.hypot(dx, dy);
             // someone in the way ahead (coming the other way, or standing): step to your own right in good time,
             // as they will to theirs, instead of pressing face to face
-            if (a.path && d < r * 2.6 && d > 0) {
+            // (not when the one in the way is where they're going: they'd circle round and round them)
+            const end = a.path && a.path[a.path.length - 1], goingTo = end && Math.hypot(end[0] * 16 + 8 - o.x, end[1] * 16 + 10 - o.y) < 30, nearEnd = a.path && a.path.length - (a.pi || 0) <= 2;
+            if (a.path && !goingTo && !nearEnd && d < r * 2.6 && d > 0) {
               const hv = O.Char.DIRV[a.dir] || [0, 1], ahead = -(dx * hv[0] + dy / 1.6 * hv[1]), side = -dx * -hv[1] + -dy / 1.6 * hv[0];
               const oh = O.Char.DIRV[o.dir] || [0, 0], facing = !o.path || hv[0] * oh[0] + hv[1] * oh[1] < -0.3;
               if (ahead > 0 && Math.abs(side) < r && facing) { const k = (1 - d / (r * 2.6)) * 1.4; px += -hv[1] * k; py += hv[0] * k * 1.6; a.lane = 8; a.laneT = game.t + 1.2; }
@@ -27699,8 +27805,9 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       if (!game.scene) {
         for (const b of s.world.buildings) {
           if (b.doorX == null || (b.type !== 'guard' && b.id !== s.tavernId)) continue;
-          const x = b.doorX * T + 8 + (b.type === 'guard' ? 22 : -22), y = b.doorY * T + 6, d = Math.hypot(x - p.x, y - p.y);
-          if (d < 20) return { type: 'custom', label: b.type === 'guard' ? 'Read the bounty board' : 'Read the notes of hired work', act: () => board(b.type === 'guard' ? 'watch' : 'tavern'), d: d + 4, x, y: y - 30 };
+          const bd = s.world.props.find((q) => q.kind === 'workboard' && q.signFor === b.id); if (!bd) continue;
+          const x = bd.x, y = bd.y + 4, d = Math.hypot(x - p.x, y - p.y);
+          if (d < 30) return { type: 'custom', label: b.type === 'guard' ? 'Read the bounty board' : 'Read the notes of hired work', act: () => board(b.type === 'guard' ? 'watch' : 'tavern'), d: d + 4, x, y: y - 26 };
         }
         // the bandits' den on a camp contract
         const C = PS.contract;
@@ -27708,17 +27815,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       }
       return prev ? prev() : null;
     }
-    // a board drawn by the doors
-    game.hooks.drawWorld.push((ctx, cam) => {
-      if (game.scene) return; const s = cur();
-      for (const b of s.world.buildings) {
-        if (b.doorX == null || (b.type !== 'guard' && b.id !== s.tavernId)) continue;
-        const x = Math.round(b.doorX * T + 8 + (b.type === 'guard' ? 22 : -22) - cam.x), y = Math.round(b.doorY * T - 2 - cam.y);
-        if (x < -20 || y < -40 || x > game.vw + 20 || y > game.vh + 20) continue;
-        ctx.fillStyle = '#4a3220'; ctx.fillRect(x - 1, y - 8, 2, 10); ctx.fillStyle = '#6a4a2c'; ctx.fillRect(x - 8, y - 22, 16, 14); ctx.fillStyle = '#3a2618'; ctx.fillRect(x - 8, y - 22, 16, 1); ctx.fillRect(x - 8, y - 9, 16, 1);
-        ctx.fillStyle = '#efe6cc'; ctx.fillRect(x - 6, y - 20, 5, 6); ctx.fillRect(x + 1, y - 19, 5, 7); ctx.fillStyle = '#a8382f'; ctx.fillRect(x - 4, y - 15, 1, 1); ctx.fillRect(x + 3, y - 13, 1, 1);
-      }
-    });
+    // (the boards themselves hang on the wall by the door: see signs.js)
 
     // ---------------------------------------------------------------- taking a thief in
     const prevExtra = npcUI.extraButtons, prevOn = npcUI.onExtra;
@@ -27874,8 +27971,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       ctx.fillStyle = '#1b1424'; for (const [x, y] of cells) ctx.fillRect(ax + x * blk - 1, ay + y * blk - 1, blk + 2, blk + 2);
       ctx.fillStyle = '#f0b45c'; for (const [x, y] of cells) ctx.fillRect(ax + x * blk, ay + y * blk, blk, blk);
       ctx.fillStyle = '#ffe2a0'; for (const [x, y, u, v] of cells) if (v < -0.5 && u > -1) ctx.fillRect(ax + x * blk, ay + y * blk, blk, 1);
-      if (label && !hover) tag(ctx, ax, ay + 16, label);
-      else if (label && hover && dist < 120) tag(ctx, ax, ay - 30, label);
+      void label; void hover; void dist; // (the arrow alone: no words on it)
     };
     // a small label: what the marker is for
     const tag = (ctx, x, y, text) => {
@@ -30153,8 +30249,8 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
     let hooked2 = false; game.hooks.update.push(() => { if (hooked2) return; hooked2 = true; const prev = O.stallCandidate; O.stallCandidate = () => {
       const base = prev ? prev() : null, p = game.player; if (game.scene) return base;
       const f = (O.fauna || []).find((x) => (x.stray || x.mine) && x.world === game.world.placeId && Math.hypot(x.x - p.x, x.y - p.y) < 26); if (!f) return base;
-      const c = f.mine ? { type: 'custom', d: 12, label: `Pat ${f.name}`, act: () => say(`${f.name} thumps ${['his', 'her'][f.seed % 2]} tail and leans against your leg.`), x: f.x, y: f.y - 22 }
-        : { type: 'custom', d: 10, label: 'Feed the stray dog', act: () => feed(f), x: f.x, y: f.y - 22 };
+      const c = f.mine ? { type: 'custom', d: 12, label: `Pat ${f.name}`, act: () => say(`${f.name} thumps ${['his', 'her'][f.seed % 2]} tail and leans against your leg.`), x: f.x, y: f.y - 15 }
+        : { type: 'custom', d: 10, label: 'Feed the stray dog', act: () => feed(f), x: f.x, y: f.y - 15 };
       return !base || c.d < base.d ? c : base;
     }; });
     void prevS;

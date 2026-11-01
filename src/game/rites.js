@@ -126,13 +126,26 @@
       p.x = x; p.y = y + 22; p.dir = 3; p.locked = true; p.sitting = null;
       const officiant = [...sc.actors.values()].find((a) => ['priest', 'chaplain', 'bishop'].includes(a.person?.job?.role));
       if (officiant) { officiant.x = x + 14; officiant.y = y + 12; officiant.dir = 0; }
-      cer = { t: 0, x, y: y - 22, officiant };
+      cer = { t: 0, x, y: y - 22, officiant, ox: x + 14, oy: y + 12 };
+      // the choir takes up the chant as you kneel
+      if (O.Music) { const ch = O.Music.tracks.find((t) => t.style === 'chant'); if (ch) O.Music.play(ch.name); }
     }
     game.hooks.update.push((dt) => {
       if (!cer) return;
       const p = game.player; cer.t += dt; p.anim = 'pray'; p.locked = true;
+      if (cer.officiant) { cer.officiant.x = cer.ox; cer.officiant.y = cer.oy; cer.officiant.dir = 0; cer.officiant.path = null; } // the bishop stays at the altar till it's done
       for (const a of game.scene ? game.scene.actors.values() : []) if (a !== cer.officiant && a.anim !== 'sit') a.dir = O.dirOf(p.x - a.x, p.y - a.y);
-      if (cer.t > 5.2 && !cer.said) {
+      // the rite in its parts: the prayer, the anointing, the crown, then the acclamation
+      const sayO = (t) => cer.officiant && cer.officiant.person && O.Speech && O.Speech.say(cer.officiant.person, t, 3.2);
+      if (cer.t > 0.6 && !cer.s1) { cer.s1 = true; if (cer.officiant && cer.officiant.person) O.gesture(cer.officiant.person, 'pray', 3.5); sayO('Almighty God, look upon this Your servant, whom we would crown.'); }
+      if (cer.t > 4.2 && !cer.s2) { cer.s2 = true; if (cer.officiant && cer.officiant.person) O.gesture(cer.officiant.person, 'place', 2.5); sayO('Be thou anointed with holy oil, as kings and priests were anointed.'); }
+      if (cer.t > 7.6 && !cer.s3) { cer.s3 = true; O.Music && O.Music.fanfare && O.Music.fanfare(); sayO('Receive the crown of this realm.'); }
+      if (cer.t > 9.6 && !cer.s4) {
+        cer.s4 = true; O.Sound && O.Sound.play('bell', 9, 1); const f0 = (O.Forge.player?.sex || O.Forge.player?.a?.sex) === 'f';
+        let k = 0; for (const a of game.scene ? game.scene.actors.values() : []) { if (!a.person || a === cer.officiant) continue; const q = a.person; setTimeout(() => { O.gesture(q, 'celebrate', 2.5); if (k++ < 6 && O.Speech) O.Speech.say(q, ['God save the ' + (f0 ? 'Queen' : 'King') + '!', 'Long live the ' + (f0 ? 'Queen' : 'King') + '!', 'Vivat!', 'Huzzah!'][Math.floor(Math.random() * 4)], 2.4); }, Math.random() * 1500); }
+        cer.petals = 1;
+      }
+      if (cer.t > 10.8 && !cer.said) {
         cer.said = true;
         const s = cur(), f = (O.Forge.player?.sex || O.Forge.player?.a?.sex) === 'f';
         PS.anointed = true; PS.coronation.done = true; PS.coronation.doneAt = abs(s); giveCrown(); O.dropLead && O.dropLead((l) => l.why === 'coronation');
@@ -161,11 +174,12 @@
     game.hooks.update.push(() => { if (PS.anointed && O.crowned && O.crowned() && !PS.items.includes('crown') && !PS._crownOff) giveCrown(); });
     game.hooks.drawTop.push((ctx, cam, indoor) => {
       if (!cer || !indoor) return;
-      const p = game.player, k = O.clamp((cer.t - 1.5) / 3.5, 0, 1), e = 1 - Math.pow(1 - k, 2);
+      const p = game.player, k = O.clamp((cer.t - 7.4) / 2.2, 0, 1), e = 1 - Math.pow(1 - k, 2);
       const x = cer.x + (p.x - cer.x) * e - cam.x, y = cer.y + (p.y - HEAD_Y(p) - cer.y) * e - cam.y;
       if (cer.t > 1) { ctx.globalAlpha = 0.18 + 0.1 * Math.sin(cer.t * 6); ctx.fillStyle = '#fff4c0'; ctx.fillRect(Math.round(p.x - cam.x) - 10, 0, 20, Math.round(p.y - cam.y)); ctx.globalAlpha = 1; }
       crownPx(ctx, x, y);
-      if (cer.t > 5) for (let i = 0; i < 6; i++) { const a = cer.t * 2 + i, r = 10 + ((cer.t * 20 + i * 7) % 14); ctx.fillStyle = '#fff6c8'; ctx.fillRect(Math.round(p.x - cam.x + Math.cos(a) * r), Math.round(p.y - 30 - cam.y + Math.sin(a) * r * 0.6), 1, 1); }
+      if (cer.petals) { cer.pt = cer.pt || Array.from({ length: 40 }, (_, i) => ({ x: Math.random() * game.vw, y: -Math.random() * game.vh, v: 18 + Math.random() * 20, p: Math.random() * 6, c: ['#f0a0b8', '#ffffff', '#f6d040', '#e05060'][i % 4] })); for (const q of cer.pt) { const yy = (q.y + (cer.t - 9.6) * q.v * 2) % (game.vh + 20), xx = q.x + Math.sin(cer.t * 2 + q.p) * 6; ctx.fillStyle = q.c; ctx.fillRect(Math.round(xx), Math.round(yy), 2, Math.sin(cer.t * 5 + q.p) > 0 ? 2 : 1); } }
+      if (cer.t > 9.6) for (let i = 0; i < 6; i++) { const a = cer.t * 2 + i, r = 10 + ((cer.t * 20 + i * 7) % 14); ctx.fillStyle = '#fff6c8'; ctx.fillRect(Math.round(p.x - cam.x + Math.cos(a) * r), Math.round(p.y - 30 - cam.y + Math.sin(a) * r * 0.6), 1, 1); }
     });
 
     // ================================================================ the block

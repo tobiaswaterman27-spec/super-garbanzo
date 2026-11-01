@@ -205,6 +205,14 @@
     let singing = false;
     O.Music = {
       get level() { return level; }, setLevel(v) { level = v; try { localStorage.setItem('outlaw.music', String(v)); } catch (e) { /* */ } if (bus) bus.gain.setTargetAtTime(VOL[level], ctx.currentTime, 0.3); if (!level) stop(0.5); },
+      // a royal fanfare: shawms in fourths and fifths over a rolling tabor
+      fanfare() {
+        if (!init() || !S.on || level === 0) return; stop(0.3); space(game.scene ? 'hall' : 'open'); heard(1, false);
+        const g = ctx.createGain(); g.gain.value = 1.2; g.connect(src); let t = ctx.currentTime + 0.1; const N = [[392, 0.18], [392, 0.18], [392, 0.18], [523, 0.55], [392, 0.18], [523, 0.18], [659, 0.7], [587, 0.25], [523, 0.25], [659, 0.25], [784, 1.2]];
+        for (const [f, d] of N) { I.shawm(t, f, d * 0.92, 1, g); I.shawm(t, f * 0.75, d * 0.92, 0.6, g); t += d; }
+        for (let k = 0; k < 14; k++) I.tabor(ctx.currentTime + 0.1 + k * 0.12, 0, 0.1, k % 4 ? 0.5 : 1, g);
+        setTimeout(() => { try { g.disconnect(); } catch (e) { /* */ } }, (t - ctx.currentTime + 2) * 1000);
+      },
       tracks: TRACKS, play: (name) => { const t = TRACKS.find((x) => x.name === name) || TRACKS[0]; play(t, { loops: 1 }); }, stop, showNames: true,
       sing(q, song, chorus) {
         if (!song || !init()) return; const s = cur(), P = game.player; const tune = O.songTune(song), tonic = q.sex === 'f' ? 293.7 : 146.8, M = MODES[tune[0].mode];

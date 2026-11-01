@@ -487,7 +487,7 @@ Every job and every level of it, royal family and titles included, grouped under
 - [ ] Wages: paid by the master coming to find you right after the shift, not the next day (one player wasn't paid at all)
 - [ ] "Help wanted" sign outside the tavern drawn over other things: fix its placement
 - [ ] A merchant offering a job won't let you talk to them, and won't let you do the task
-- [ ] NPCs still walk through houses; animals' heads poke inside houses
+- [ ] NPCs still walk through houses; animals' heads poke inside houses. Clue: it's the ones speaking preset lines (the walk goes odd while they talk) and people out at night
 - [ ] No text on the direction arrows
 - [ ] Interaction dot on animals sits lower down
 - [ ] NPCs circling round people in a strange spin

@@ -467,3 +467,4 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Visible contagion, remedies, nursing, courting and rivals, elopement, the hunt, swimming (row 129)
 - [x] Guilds, indenture, journeyman's book, masterpiece, wardens (row 130)
 - [x] NPC gangs: rackets, smuggling, succession, recruits, revenge (row 131)
+- [x] Wages owed, strikes, foremen, shop-floor life (row 132)

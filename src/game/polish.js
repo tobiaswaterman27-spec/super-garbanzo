@@ -17,6 +17,7 @@
     recommend: ['gesture', null], swear_friendship: ['celebrate', 'celebrate'], confide: ['look', null], spread: ['gesture', null], borrow: ['pickup', 'count'], heal: ['work', null], contest: ['laugh', null],
     day_off: ['nod', null], hours: ['nod', null], start_now: ['point', null], release: ['nod', null], inform: ['look', null], settle_will: ['write', null], claim_will: ['count', null], duel: ['attack', null],
     hire_cart: ['point', 'count'], guard_road: ['nod', 'count'], read_palm: ['look', null], draw_bath: ['bucket', 'count'], take_back: ['pickup', 'place'],
+    indenture: ['write', 'write'], make_journeyman: ['place', 'pickup'], sign_book: ['write', 'place'], judge_masterpiece: ['look', 'place'], join_guild: ['bow', 'count'], open_guild: ['place', null],
     drink_with: ['drink', 'drink'], dance_with: ['dance', 'dance'], embrace: ['celebrate', 'celebrate'], play_game: ['laugh', null], pray_with: ['pray', 'pray'],
   };
   const REFUSED = /^(You haven'?t|You have no|Not |No\b|.{0,40} won'?t|.{0,40} would, but|.{0,40} can'?t|.{0,40} refuses)/i;

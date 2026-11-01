@@ -51,7 +51,7 @@
     game.hooks.update.push((dt) => { const w = game.world, P = game.player; if (!w || !w.props || game.scene) return; if (w.props.some((p) => p.campfire && Math.hypot(p.x - P.x, p.y - P.y) < 40)) { PS.cold = 0; PS.energy = Math.min(100, (PS.energy || 0) + dt * 0.05); } });
 
     // ---------------------------------------------------------------- a garden of your own
-    const myHome = (s) => s.world.buildings.find((b) => b.owner?.kind === 'player' && b.doorX != null) || (PS.residence && PS.residence.place === s.world.placeId ? s.building(PS.residence.b) : null) || (PS.lease && PS.lease.place === s.world.placeId ? s.building(PS.lease.b) : null);
+    const myHome = (s) => s.world.buildings.find((b) => b.owner?.kind === 'player' && b.doorX != null && !b.site) || (PS.residence && PS.residence.place === s.world.placeId ? s.building(PS.residence.b) : null) || (PS.lease && PS.lease.place === s.world.placeId ? s.building(PS.lease.b) : null);
     const gardens = () => (PS.gardens = PS.gardens || []);
     // open grass near the door, clear of walls, roads and other things, 3 wide and 2 deep
     function bedSpot(w, h) {

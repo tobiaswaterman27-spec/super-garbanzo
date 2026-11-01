@@ -462,3 +462,4 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Washing and bathing, grime that people notice, palm reading (row 124)
 - [x] Fires lit and banked with animation, puddles, lost and found, stories, humming, fixes (row 125)
 - [x] Farming year, harvest tied to work, granary in a dearth, good years (row 126)
+- [x] Building your own house your way, then furnishing it (row 127)

@@ -144,6 +144,7 @@
     };
     const put = (kind, x, y, o = {}) => {
       if (b.removedFurn && floor === (o._floor ?? floor) && b.removedFurn.includes(floor + ':' + kind + '@' + x + ',' + y)) return null; // taken up by the owner
+      if (b.bare && !o.owned && !['fireplace', 'stairs', 'partH', 'partV'].includes(kind)) return null; // a new house: only what's built in
       const [fw, fh] = foot(kind, o.rot, o.width);
       if (!free(x, y, fw, fh, o)) return null;
       const it = Object.assign({ kind, tx: x, ty: y, fw, fh, v: 0, rot: 0, seed: rng.int(1, 9999), id: items.length }, o);

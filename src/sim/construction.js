@@ -166,5 +166,5 @@
     siteInfo(id) { const s = this.sites.find((x) => x.id === id); return s ? { stage: s.stage, name: STAGES[s.stage], prog: s.prog } : null; }
   }
 
-  O.Construction = Construction; O.STAGES = STAGES; O.PLOTS = PLOTS;
+  O.Construction = Construction; O.STAGES = STAGES; O.PLOTS = PLOTS; O.constructionNeeds = (i) => MATS[i] || {};
 })();

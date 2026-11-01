@@ -64,31 +64,7 @@
       }
     });
 
-    // ---------------------------------------------------------------- the night: fireflies, bats, owls
-    const motes = []; for (let i = 0; i < 26; i++) motes.push({ x: Math.random() * 600, y: Math.random() * 400, p: Math.random() * 6, s: 0.5 + Math.random() });
-    const bats = []; for (let i = 0; i < 4; i++) bats.push({ x: Math.random() * 600, y: Math.random() * 200, vx: (Math.random() < 0.5 ? -1 : 1) * (40 + Math.random() * 30), p: Math.random() * 6 });
-    const grassAround = () => { const w = game.world, P = game.player; if (!w.ter) return false; const k = Math.floor(P.y / T) * w.W + Math.floor(P.x / T); return w.ter[k] === w.TER.GRASS || w.ter[k] === w.TER.FOREST; };
-    game.hooks.drawTop.push((ctx, cam, indoor) => {
-      if (indoor || game.scene) return; const s = cur(); if (!s) return; const h = hour(), t = performance.now() / 1000, W = s.weather || {};
-      const fair = !s.raining && W.kind !== 'snow' && W.kind !== 'storm';
-      // fireflies on a summer night, over grass
-      if (fair && s.season === 'summer' && (h > 20.8 || h < 2) && grassAround()) {
-        for (const m of motes) {
-          const x = ((m.x + Math.sin(t * 0.4 * m.s + m.p) * 30) % game.vw + game.vw) % game.vw, y = ((m.y + Math.cos(t * 0.3 * m.s + m.p) * 20) % game.vh + game.vh) % game.vh;
-          const on = Math.sin(t * 2 * m.s + m.p * 3); if (on < 0.2) continue;
-          ctx.fillStyle = `rgba(230,255,120,${(on * 0.8).toFixed(2)})`; ctx.fillRect(Math.round(x), Math.round(y), 2, 2); ctx.fillStyle = `rgba(230,255,120,${(on * 0.2).toFixed(2)})`; ctx.fillRect(Math.round(x) - 1, Math.round(y) - 1, 4, 4);
-        }
-      }
-      // bats at dusk, spring to autumn
-      if (fair && s.season !== 'winter' && h > 19.4 && h < 21.5) {
-        ctx.fillStyle = '#1a1418';
-        for (const b of bats) {
-          b.x += b.vx / 60; if (b.x < -20) b.x = game.vw + 20; if (b.x > game.vw + 20) b.x = -20;
-          const x = Math.round(b.x), y = Math.round(b.y + 20 + Math.sin(t * 3 + b.p) * 18), f = Math.floor(t * 12 + b.p) % 2;
-          ctx.fillRect(x - 1, y, 3, 2); if (f) { ctx.fillRect(x - 4, y - 1, 3, 1); ctx.fillRect(x + 2, y - 1, 3, 1); } else { ctx.fillRect(x - 4, y + 1, 3, 1); ctx.fillRect(x + 2, y + 1, 3, 1); }
-        }
-      }
-    });
+    // ---------------------------------------------------------------- owls in the woods at night (fireflies and bats live in critters.js)
     let owl = 0;
     game.hooks.update.push((dt) => {
       owl -= dt; if (owl > 0 || game.scene) return; owl = 25 + Math.random() * 30; const h = hour(), w = game.world, P = game.player; if (!(h > 21 || h < 4) || !w.trees) return;

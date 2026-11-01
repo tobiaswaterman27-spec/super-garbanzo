@@ -49,28 +49,8 @@
       ctx.globalAlpha = 1;
     });
 
-    // ---------------------------------------------------------------- butterflies and birds
-    const flies = []; for (let i = 0; i < 6; i++) flies.push({ x: Math.random(), y: Math.random(), p: Math.random() * 6, col: ['#f0e8f8', '#f0c040', '#e88040', '#a0c8f0'][i % 4] });
-    let flock = null, ft = 20;
+    // (butterflies and birds live in critters.js, in the world)
     const onGrass = () => { const w = game.world, P = game.player; if (!w.ter) return false; return w.ter[Math.floor(P.y / T) * w.W + Math.floor(P.x / T)] === w.TER.GRASS; };
-    game.hooks.update.push((dt) => {
-      ft -= dt; const s = cur(); if (!s || game.scene) return; const h = hour();
-      if (!flock && ft < 0 && h > 6 && h < 19 && !wet(s.weather?.kind)) { ft = 40 + Math.random() * 60; const dir = Math.random() < 0.5 ? 1 : -1; flock = { x: dir > 0 ? -40 : game.vw + 40, y: 30 + Math.random() * game.vh * 0.4, vx: dir * (50 + Math.random() * 20), n: 3 + Math.floor(Math.random() * 5) }; if (Math.random() < 0.5) O.Sound && O.Sound.play('bird', 0.3); }
-      if (flock) { flock.x += flock.vx * dt; if (flock.x < -80 || flock.x > game.vw + 80) flock = null; }
-    });
-    game.hooks.drawTop.push((ctx, cam, indoor) => {
-      if (indoor || game.scene) return; const s = cur(); if (!s) return; const h = hour(), t = performance.now() / 1000;
-      if ((s.season === 'spring' || s.season === 'summer') && h > 8 && h < 18 && !wet(s.weather?.kind) && s.weather?.kind !== 'fog' && onGrass()) {
-        for (const f of flies) {
-          const x = Math.round(((f.x * game.vw + Math.sin(t * 0.7 + f.p) * 60 + t * 6) % game.vw + game.vw) % game.vw), y = Math.round(f.y * game.vh + Math.sin(t * 1.9 + f.p * 2) * 18);
-          const up = Math.floor(t * 9 + f.p) % 2; ctx.fillStyle = f.col; if (up) { ctx.fillRect(x - 2, y - 1, 2, 2); ctx.fillRect(x + 1, y - 1, 2, 2); } else { ctx.fillRect(x - 1, y, 1, 2); ctx.fillRect(x + 1, y, 1, 2); } ctx.fillStyle = '#3a2a20'; ctx.fillRect(x, y, 1, 2);
-        }
-      }
-      if (flock) {
-        ctx.fillStyle = '#2a2428';
-        for (let i = 0; i < flock.n; i++) { const x = Math.round(flock.x - Math.sign(flock.vx) * (i % 2 ? i : i) * 9), y = Math.round(flock.y + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 6), up = Math.floor(t * 6 + i) % 2; ctx.fillRect(x, y, 1, 1); ctx.fillRect(x - 2, y - up, 2, 1); ctx.fillRect(x + 1, y - up, 2, 1); }
-      }
-    });
 
     // ---------------------------------------------------------------- a posy of wildflowers
     let picked = new Map();

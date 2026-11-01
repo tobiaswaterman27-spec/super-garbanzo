@@ -289,7 +289,7 @@
         if (a.paint) { a.paint(ctx, cam); return; }
         if (a.mount && this.riderDraw) { this.riderDraw(ctx, a); a._sx = null; return; }
         const fr = this.actorFrame(a), ox = fr.ox ?? 16;
-        const fx = Math.round(a.x - ox - cam.x), fy = Math.round(a.y - (fr.gy ?? Ch.GROUND) - cam.y);
+        const fx = Math.round(a.x - ox - cam.x), fy = Math.round(a.y - (fr.gy ?? Ch.GROUND) - cam.y - (a.lift || 0));
         if (fx < -50 || fy < -60 || fx > vw + 40 || fy > vh + 60) return;
         ctx.fillStyle = 'rgba(28,20,44,0.32)';
         if (a.horse || a.animal) { const sd = a.dir === 1 || a.dir === 2 ? 1 : a.dir >= 4 ? 0.75 : 0.4, rx = Math.round((a.horse ? 17 : fr.width * 0.3) * sd + 3); this.shadow(ctx, Math.round(a.x - cam.x), Math.round(a.y - cam.y), rx, a.horse ? 3 : 2); }

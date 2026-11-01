@@ -96,6 +96,28 @@
     // a drunk player staggers a little and says so
     let dt2 = 0;
     game.hooks.update.push((dt) => { dt2 -= dt; if (dt2 > 0) return; dt2 = 9; const s = cur(); if (!s || PS.alesDay !== s.day || (PS.ales || 0) < 4 || game.scene) return; if (Math.random() < 0.4) O.Speech && O.Speech.say(game.player, pick(['Hic!', '*hic*']), 1.6); });
+
+    // ---------------------------------------------------------------- sitting on a bench out of doors
+    // whoever sits out of doors sits ON the nearest bench, facing out, up on the seat; you can too
+    const benchNear = (w, x, y, r) => { let best = null, bd = r; for (const b of w.props) { if (b.kind !== 'bench') continue; const d = Math.hypot(b.x - x, b.y - y); if (d < bd) { bd = d; best = b; } } return best; };
+    const SEAT_LIFT = 5;
+    game.hooks.update.push(() => {
+      const s = cur(), w = game.world; if (!s || game.scene || !w.props) return;
+      for (const q of s.people) {
+        const a = q.agent; if (!a || a.hidden || a.inside != null) continue;
+        const sitting = q.activity && q.activity.act === 'sit' && q.activity.outdoor && !a.path;
+        if (!sitting) { if (a._benched) { a._benched = null; a.lift = 0; if (a.forceAnim === 'sit') a.forceAnim = null; } continue; }
+        if (!a._benched) { const b = benchNear(w, a.x, a.y, 40); if (!b) continue; const taken = s.people.filter((z) => z !== q && z.agent && z.agent._benched === b).length; if (taken >= 2) continue; a._benched = b; a._seat = taken ? 6 : -6; }
+        const b = a._benched; a.x = b.x + a._seat; a.y = b.y + 2; a.dir = 0; a.forceAnim = 'sit'; a.lift = SEAT_LIFT;
+      }
+      // you, on a bench
+      const P = game.player; if (P._bench) { if (P.moving || P.mount) { P._bench = null; P.lift = 0; P.anim = 'idle'; } else { P.anim = 'sit'; P.dir = 0; P.lift = SEAT_LIFT; } }
+    });
+    (O.moreCandidates = O.moreCandidates || []).push(() => {
+      const w = game.world, P = game.player; if (game.scene || P._bench || P.locked || P.mount || !w.props) return null;
+      const b = benchNear(w, P.x, P.y, 26); if (!b) return null;
+      return { type: 'custom', d: 8, x: b.x, y: b.y - 26, label: 'Sit on the bench', act: () => { P._bench = b; P.x = b.x + (Math.abs(P.x - b.x - 6) < Math.abs(P.x - b.x + 6) ? 6 : -6); P.y = b.y + 2; P.dir = 0; P.anim = 'sit'; P.lift = SEAT_LIFT; } };
+    });
   }
   O.StreetLifeSetup = { setup };
 })();

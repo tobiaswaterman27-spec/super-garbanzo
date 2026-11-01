@@ -178,7 +178,7 @@
         B.part(1); leg(B, fx + 1, seatY, fy1, m); leg(B, fx1 - 2, seatY, fy1, m);
         B.part(2); box(B, fx, fx1, seatY - 8, 8, seatY + 2, m, { grain: seed });
         out = finish(S); out.seatY = seatY - 4 - S.fy1;
-        out.back = layer(S, (L) => { L.part(3); box(L, fx, fx1, seatY - 20, 2, seatY + 4, m); for (let x = fx + 4; x < fx1 - 2; x += 8) for (let y = seatY - 16; y < seatY + 3; y++) L.tweak(x, y, -1); L.part(4); for (const x of [fx, fx1 - 2]) for (let y = seatY - 23; y <= fy1; y++) { L.plot(x, y, m, 3); L.plot(x + 1, y, m, 1); } });
+        out.back = layer(S, (L) => { L.part(3); box(L, fx, fx1, seatY - 11, 2, seatY + 4, m); for (let x = fx + 4; x < fx1 - 2; x += 8) for (let y = seatY - 8; y < seatY + 3; y++) L.tweak(x, y, -1); L.part(4); for (const x of [fx, fx1 - 2]) for (let y = seatY - 13; y <= fy1; y++) { L.plot(x, y, m, 3); L.plot(x + 1, y, m, 1); } });
         break;
       }
       case 'fireplace': { // stone hearth against the back wall

@@ -918,8 +918,8 @@
       const wide = -mq[2] > 0.55;
       const xs = wide ? [mxc - 1, mxc] : [mxc - (V.side ? 0 : 1)];
       if (p.mouth) { for (const x of xs) plot(x, my, a.eyeDark, 1); for (const x of xs) plot(x, my + 1, a.lip, 1); }
-      else { for (const x of xs) plot(x, my, a.lip, a.sex === 'f' ? 2 : 1); if (wide) for (const x of xs) if (B.get(x, my + 1) === a.skin) B.tweak(x, my + 1, 1); }
-      if (a.beard === 'stubble') for (let x = mxc - 3; x <= mxc + 2; x++) for (const yy of [my + 1, my + 2]) if (B.get(x, yy) === a.skin && (x + yy) % 2 === 0) B.tweak(x, yy, -1);
+      else { for (const x of xs) plot(x, my, a.lip, a.sex === 'f' ? 2 : 1); for (const x of xs) if (B.get(x, my + 1) === a.skin) plot(x, my + 1, a.skin, 3); } // a lit lip below a shut mouth, so the chin's shadow never makes it look open
+      if (a.beard === 'stubble') for (let x = mxc - 3; x <= mxc + 2; x++) for (const yy of [my + 1, my + 2]) { if (yy === my + 1 && x >= mxc - 2 && x <= mxc + 1) continue; /* (keep the lip clear, or the speckle reads as an open mouth when the head bobs) */ if (B.get(x, yy) === a.skin && ((x - mxc) + (yy - my)) % 2 === 0) B.tweak(x, yy, -1); }
     }
     // ears, unless covered
     const hidesEars = longHair(a.hairStyle) || a.hairStyle === 'bob' || a.hairStyle === 'shaggy' || a.outfit.hat === 'hood' || a.outfit.hat === 'kettle';

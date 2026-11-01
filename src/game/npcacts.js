@@ -255,7 +255,7 @@
       case 'stop': if (leading.delete(q.id)) { q.agent.frozen = false; } if (follow.delete(q.id)) { q.agent.chasing = false; return `${q.first} goes about their day.`; } return null;
       case 'go': { const pl = placeFor(s, q, a.place); if (!pl) return null; goTo.set(q.id, { b: pl.b ?? null, until: abs(s) + 120 }); return null; }
       case 'invite': { if (q.home == null) return null; invites.set(q.home, abs(s) + 360); O.toldOfVisit && O.toldOfVisit(s, q); const b = s.building(q.home); O.addLead && O.addLead({ place: s.world.placeId, b: q.home, until: abs(s) + 360, why: 'invite', key: 'inv' + q.id, label: `${q.first}'s house: you're welcome today` }); return `${q.first} says you may come to their house today${b ? '' : ''}.`; }
-      case 'give': return npcGives(s, q, a.item);
+      case 'give': { const r = npcGives(s, q, a.item); if (r) return r; const g = goodFor(a.item); if (!g) return null; O.gesture && O.gesture(q, 'shrug', 1.6); return `${q.first} feels about for ${g === 'coin' ? 'a coin' : 'the ' + (G()[g]?.name || g).toLowerCase()}, but has none to give after all.`; }
       case 'want': { const g = goodFor(a.item); if (!g || g === 'coin') return null; q.wants = { g, name: (G()[g]?.name || g).toLowerCase(), until: s.day + 5 }; return null; }
       case 'take_gift': if (q._offer) { keepGift(s, q, q._offer); q._offer = null; } return null;
       case 'refuse_gift': if (q._offer) { returnGift(q, q._offer); q._offer = null; } return null;

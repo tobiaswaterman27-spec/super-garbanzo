@@ -25,9 +25,30 @@
         const q = r.q, a = q.agent;
         if (game.t > r.until || q.alive === false || q.health?.hp <= 0) { running.delete(id); a.fleeing = false; a.frozen = false; a.path = null; a.goal = null; q.activity = null; continue; }
         if (a.hidden || a.inside != null) continue;
-        let dx = a.x - p.x, dy = a.y - p.y; const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
-        const sp = 92 * dt; let nx = a.x + dx * sp, ny = a.y + dy * sp;
-        if (game.solidAt(nx, ny)) { if (!game.solidAt(nx, a.y)) ny = a.y; else if (!game.solidAt(a.x, ny)) nx = a.x; else { nx = a.x + dy * sp; ny = a.y - dx * sp; if (game.solidAt(nx, ny)) { nx = a.x; ny = a.y; } } }
+        // a real way out: a spot on dry land away from you that a path reaches, looked for again now and then
+        const sim = cur(), T = sim.T, w = sim.world;
+        r.re = (r.re || 0) - dt;
+        if (r.re <= 0 || !r.path || r.pi >= r.path.length) {
+          r.re = 1.2; let best = null, bs = -1e9; const ax = a.x - p.x, ay = a.y - p.y, ad = Math.atan2(ay, ax);
+          for (let k = 0; k < 14; k++) {
+            const ang = ad + (k % 2 ? 1 : -1) * Math.floor((k + 1) / 2) * 0.3, dist = 7 + (k % 3) * 3;
+            const tx = Math.floor(a.x / T + Math.cos(ang) * dist), ty = Math.floor(a.y / T + Math.sin(ang) * dist);
+            if (tx < 1 || ty < 1 || tx >= w.W - 1 || ty >= w.H - 1 || w.solid[ty * w.W + tx] || (w.ter && w.ter[ty * w.W + tx] === w.TER.WATER)) continue;
+            const sc = Math.hypot(tx * T - p.x, ty * T - p.y) - Math.abs(k) * 6; if (sc <= bs) continue;
+            const path = sim.path.find(Math.floor(a.x / T), Math.floor((a.y - 1) / T), tx, ty); if (!path || !path.length) continue;
+            best = path; bs = sc;
+          }
+          if (best) { r.path = best; r.pi = 0; }
+        }
+        let nx = a.x, ny = a.y, budget = 92 * dt;
+        if (r.path && r.pi < r.path.length) {
+          while (budget > 0 && r.pi < r.path.length) { const [px, py] = r.path[r.pi], tx = px * T + 8, ty = py * T + 10, ddx = tx - nx, ddy = ty - ny, dd = Math.hypot(ddx, ddy); if (dd <= budget) { nx = tx; ny = ty; budget -= dd; r.pi++; } else { nx += (ddx / dd) * budget; ny += (ddy / dd) * budget; budget = 0; } }
+        } else { // nowhere to run: they back off a step or two and stand their ground
+          let dx = a.x - p.x, dy = a.y - p.y; const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d; const sp = 40 * dt, cx = a.x + dx * sp, cy = a.y + dy * sp;
+          const wet = (x, y) => w.ter && w.ter[Math.floor(y / T) * w.W + Math.floor(x / T)] === w.TER.WATER;
+          if (!game.solidAt(cx, cy) && !wet(cx, cy)) { nx = cx; ny = cy; }
+        }
+        if (nx === a.x && ny === a.y) { a.anim = 'shocked'; a.dir = O.dirOf(p.x - a.x, p.y - a.y); continue; }
         a.dir = O.dirOf(nx - a.x, ny - a.y); a.x = nx; a.y = ny; a.anim = 'run';
       }
     });

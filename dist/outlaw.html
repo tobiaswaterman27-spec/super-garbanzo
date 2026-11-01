@@ -1722,8 +1722,8 @@ O.storeys = (b) => {
       const wide = -mq[2] > 0.55;
       const xs = wide ? [mxc - 1, mxc] : [mxc - (V.side ? 0 : 1)];
       if (p.mouth) { for (const x of xs) plot(x, my, a.eyeDark, 1); for (const x of xs) plot(x, my + 1, a.lip, 1); }
-      else { for (const x of xs) plot(x, my, a.lip, a.sex === 'f' ? 2 : 1); if (wide) for (const x of xs) if (B.get(x, my + 1) === a.skin) B.tweak(x, my + 1, 1); }
-      if (a.beard === 'stubble') for (let x = mxc - 3; x <= mxc + 2; x++) for (const yy of [my + 1, my + 2]) if (B.get(x, yy) === a.skin && (x + yy) % 2 === 0) B.tweak(x, yy, -1);
+      else { for (const x of xs) plot(x, my, a.lip, a.sex === 'f' ? 2 : 1); for (const x of xs) if (B.get(x, my + 1) === a.skin) plot(x, my + 1, a.skin, 3); } // a lit lip below a shut mouth, so the chin's shadow never makes it look open
+      if (a.beard === 'stubble') for (let x = mxc - 3; x <= mxc + 2; x++) for (const yy of [my + 1, my + 2]) { if (yy === my + 1 && x >= mxc - 2 && x <= mxc + 1) continue; /* (keep the lip clear, or the speckle reads as an open mouth when the head bobs) */ if (B.get(x, yy) === a.skin && ((x - mxc) + (yy - my)) % 2 === 0) B.tweak(x, yy, -1); }
     }
     // ears, unless covered
     const hidesEars = longHair(a.hairStyle) || a.hairStyle === 'bob' || a.hairStyle === 'shaggy' || a.outfit.hat === 'hood' || a.outfit.hat === 'kettle';
@@ -13635,6 +13635,12 @@ They know where their family and friends are just now (the card says); a strange
       }
     }
     if (Array.isArray(out.acts) && O.NpcActs) for (const a of out.acts.slice(0, 4)) { if (!a || typeof a.do !== 'string') continue; const who = byName(a.who) || q; const res = O.NpcActs.apply(s, who, a, q); if (res === 'leave') leave = true; else if (res) notes.push(res); }
+    // they said they were handing something over but sent no act for it: hand it over now if they have it, or own up that they haven't
+    { const said = lines.map((l) => l.say).join(' '), gave = (out.acts || []).some((a) => a && /^(give|sell|give_pet|lend)$/.test(a.do));
+      if (!gave && O.NpcActs && /\b(here'?s|here is|here you are|take (this|it|some|these)|have (this|it|some|these)|this is for you|for you|i'?ll give you|i give you|i'?ve brought you|catch)\b/i.test(said)) {
+        const low = ' ' + said.toLowerCase().replace(/[^a-z ]/g, ' ') + ' ';
+        const g = /\b(coin|coins|aurins?|silver)\b/.test(low) ? 'coin' : Object.entries(G()).map(([k, v]) => [k, v.name.toLowerCase()]).filter(([, n]) => n.length >= 3 && (low.includes(' ' + n + ' ') || low.includes(' ' + n + 's '))).sort((u, v) => v[1].length - u[1].length).map(([k]) => k)[0];
+        if (g) { const res = O.NpcActs.apply(s, q, { do: 'give', item: g }, q); if (res) notes.push(res); } } }
     if (q._offer) { const o = q._offer; q._offer = null; if (r.affinity > -0.2) O.NpcActs && O.NpcActs.keepGift(s, q, o); else O.NpcActs && O.NpcActs.returnGift(q, o); }
     const shown = lines.slice(0, 3).map((l) => { const who = byName(l.who) || q; return { who, t: ageTrim(who, inChar(who, clean(l.say))) }; });
     q._lastSpeaker = shown[0].who;
@@ -14052,7 +14058,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       case 'stop': if (leading.delete(q.id)) { q.agent.frozen = false; } if (follow.delete(q.id)) { q.agent.chasing = false; return `${q.first} goes about their day.`; } return null;
       case 'go': { const pl = placeFor(s, q, a.place); if (!pl) return null; goTo.set(q.id, { b: pl.b ?? null, until: abs(s) + 120 }); return null; }
       case 'invite': { if (q.home == null) return null; invites.set(q.home, abs(s) + 360); O.toldOfVisit && O.toldOfVisit(s, q); const b = s.building(q.home); O.addLead && O.addLead({ place: s.world.placeId, b: q.home, until: abs(s) + 360, why: 'invite', key: 'inv' + q.id, label: `${q.first}'s house: you're welcome today` }); return `${q.first} says you may come to their house today${b ? '' : ''}.`; }
-      case 'give': return npcGives(s, q, a.item);
+      case 'give': { const r = npcGives(s, q, a.item); if (r) return r; const g = goodFor(a.item); if (!g) return null; O.gesture && O.gesture(q, 'shrug', 1.6); return `${q.first} feels about for ${g === 'coin' ? 'a coin' : 'the ' + (G()[g]?.name || g).toLowerCase()}, but has none to give after all.`; }
       case 'want': { const g = goodFor(a.item); if (!g || g === 'coin') return null; q.wants = { g, name: (G()[g]?.name || g).toLowerCase(), until: s.day + 5 }; return null; }
       case 'take_gift': if (q._offer) { keepGift(s, q, q._offer); q._offer = null; } return null;
       case 'refuse_gift': if (q._offer) { returnGift(q, q._offer); q._offer = null; } return null;
@@ -26997,9 +27003,30 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         const q = r.q, a = q.agent;
         if (game.t > r.until || q.alive === false || q.health?.hp <= 0) { running.delete(id); a.fleeing = false; a.frozen = false; a.path = null; a.goal = null; q.activity = null; continue; }
         if (a.hidden || a.inside != null) continue;
-        let dx = a.x - p.x, dy = a.y - p.y; const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
-        const sp = 92 * dt; let nx = a.x + dx * sp, ny = a.y + dy * sp;
-        if (game.solidAt(nx, ny)) { if (!game.solidAt(nx, a.y)) ny = a.y; else if (!game.solidAt(a.x, ny)) nx = a.x; else { nx = a.x + dy * sp; ny = a.y - dx * sp; if (game.solidAt(nx, ny)) { nx = a.x; ny = a.y; } } }
+        // a real way out: a spot on dry land away from you that a path reaches, looked for again now and then
+        const sim = cur(), T = sim.T, w = sim.world;
+        r.re = (r.re || 0) - dt;
+        if (r.re <= 0 || !r.path || r.pi >= r.path.length) {
+          r.re = 1.2; let best = null, bs = -1e9; const ax = a.x - p.x, ay = a.y - p.y, ad = Math.atan2(ay, ax);
+          for (let k = 0; k < 14; k++) {
+            const ang = ad + (k % 2 ? 1 : -1) * Math.floor((k + 1) / 2) * 0.3, dist = 7 + (k % 3) * 3;
+            const tx = Math.floor(a.x / T + Math.cos(ang) * dist), ty = Math.floor(a.y / T + Math.sin(ang) * dist);
+            if (tx < 1 || ty < 1 || tx >= w.W - 1 || ty >= w.H - 1 || w.solid[ty * w.W + tx] || (w.ter && w.ter[ty * w.W + tx] === w.TER.WATER)) continue;
+            const sc = Math.hypot(tx * T - p.x, ty * T - p.y) - Math.abs(k) * 6; if (sc <= bs) continue;
+            const path = sim.path.find(Math.floor(a.x / T), Math.floor((a.y - 1) / T), tx, ty); if (!path || !path.length) continue;
+            best = path; bs = sc;
+          }
+          if (best) { r.path = best; r.pi = 0; }
+        }
+        let nx = a.x, ny = a.y, budget = 92 * dt;
+        if (r.path && r.pi < r.path.length) {
+          while (budget > 0 && r.pi < r.path.length) { const [px, py] = r.path[r.pi], tx = px * T + 8, ty = py * T + 10, ddx = tx - nx, ddy = ty - ny, dd = Math.hypot(ddx, ddy); if (dd <= budget) { nx = tx; ny = ty; budget -= dd; r.pi++; } else { nx += (ddx / dd) * budget; ny += (ddy / dd) * budget; budget = 0; } }
+        } else { // nowhere to run: they back off a step or two and stand their ground
+          let dx = a.x - p.x, dy = a.y - p.y; const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d; const sp = 40 * dt, cx = a.x + dx * sp, cy = a.y + dy * sp;
+          const wet = (x, y) => w.ter && w.ter[Math.floor(y / T) * w.W + Math.floor(x / T)] === w.TER.WATER;
+          if (!game.solidAt(cx, cy) && !wet(cx, cy)) { nx = cx; ny = cy; }
+        }
+        if (nx === a.x && ny === a.y) { a.anim = 'shocked'; a.dir = O.dirOf(p.x - a.x, p.y - a.y); continue; }
         a.dir = O.dirOf(nx - a.x, ny - a.y); a.x = nx; a.y = ny; a.anim = 'run';
       }
     });

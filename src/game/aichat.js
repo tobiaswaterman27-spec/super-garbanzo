@@ -428,6 +428,12 @@ They know where their family and friends are just now (the card says); a strange
       }
     }
     if (Array.isArray(out.acts) && O.NpcActs) for (const a of out.acts.slice(0, 4)) { if (!a || typeof a.do !== 'string') continue; const who = byName(a.who) || q; const res = O.NpcActs.apply(s, who, a, q); if (res === 'leave') leave = true; else if (res) notes.push(res); }
+    // they said they were handing something over but sent no act for it: hand it over now if they have it, or own up that they haven't
+    { const said = lines.map((l) => l.say).join(' '), gave = (out.acts || []).some((a) => a && /^(give|sell|give_pet|lend)$/.test(a.do));
+      if (!gave && O.NpcActs && /\b(here'?s|here is|here you are|take (this|it|some|these)|have (this|it|some|these)|this is for you|for you|i'?ll give you|i give you|i'?ve brought you|catch)\b/i.test(said)) {
+        const low = ' ' + said.toLowerCase().replace(/[^a-z ]/g, ' ') + ' ';
+        const g = /\b(coin|coins|aurins?|silver)\b/.test(low) ? 'coin' : Object.entries(G()).map(([k, v]) => [k, v.name.toLowerCase()]).filter(([, n]) => n.length >= 3 && (low.includes(' ' + n + ' ') || low.includes(' ' + n + 's '))).sort((u, v) => v[1].length - u[1].length).map(([k]) => k)[0];
+        if (g) { const res = O.NpcActs.apply(s, q, { do: 'give', item: g }, q); if (res) notes.push(res); } } }
     if (q._offer) { const o = q._offer; q._offer = null; if (r.affinity > -0.2) O.NpcActs && O.NpcActs.keepGift(s, q, o); else O.NpcActs && O.NpcActs.returnGift(q, o); }
     const shown = lines.slice(0, 3).map((l) => { const who = byName(l.who) || q; return { who, t: ageTrim(who, inChar(who, clean(l.say))) }; });
     q._lastSpeaker = shown[0].who;

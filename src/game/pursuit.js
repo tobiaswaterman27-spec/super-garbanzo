@@ -98,6 +98,36 @@
         step(m, tx, ty, sp, dt);
       });
     });
+    // ---------------------------------------------------------------- the watch after someone else
+    // when the watch come for a townsperson in sight of you, it isn't done by magic: the thief bolts,
+    // two of the watch run them down, the street shouts, and the collar is felt where you can see it
+    const SP = O.Sim.prototype, _arrest = SP.arrestNPC, hunts = [];
+    SP.arrestNPC = function (q, crime, wrong) {
+      const P = game.player, a = q && q.agent;
+      const inSight = a && !a.hidden && a.inside == null && !game.scene && Math.hypot(a.x - P.x, a.y - P.y) < 420;
+      const gs = inSight ? this.people.filter((g) => isWatch(g) && g.agent.inside == null && !g.agent.chasing && Math.hypot(g.agent.x - a.x, g.agent.y - a.y) < 500).slice(0, 2) : [];
+      if (!gs.length || hunts.some((h) => h.q === q)) return _arrest.call(this, q, crime, wrong);
+      const h = { q, crime, wrong, sim: this, t: 0, ms: gs.map((g, i) => ({ q: g, role: i ? 'cut' : 'chase', path: null, pi: 0, re: 0 })) };
+      for (const m of h.ms) { m.q.agent.chasing = true; m.q.agent.path = null; }
+      hunts.push(h); say(gs[0], `${q.first}! Stop in the name of the law!`);
+      O.flee && O.flee(q, 14, () => { const g = h.ms[0].q.agent; return { x: g.x, y: g.y }; });
+      O.sfx && O.sfx('horn', 0.7, false);
+    };
+    game.hooks.update.push((dt) => {
+      if (!hunts.length) return;
+      for (const h of hunts.slice()) {
+        h.t += dt; const a = h.q.agent; let caught = false;
+        h.ms.forEach((m, i) => { const vel = [0, 0], tx = a.x + (i ? (a.x - m.q.agent.x) * 0.3 : 0), ty = a.y + (i ? (a.y - m.q.agent.y) * 0.3 : 0); void vel; step(m, tx, ty, 98, dt); if (Math.hypot(m.q.agent.x - a.x, m.q.agent.y - a.y) < 12) caught = true; });
+        if (Math.random() < dt * 0.6) { const s = h.sim, by = s.people.find((z) => z !== h.q && !z.agent.hidden && z.agent.inside == null && !isWatch(z) && z.age >= 10 && Math.hypot(z.agent.x - a.x, z.agent.y - a.y) < 70); if (by) { O.Speech && O.Speech.say(by, ['Stop, thief!', 'There he goes!', 'Catch him!'][by.id % 3], 2); O.gesture && O.gesture(by, 'point', 1.2); } }
+        if (caught || h.t > 16 || a.hidden) {
+          hunts.splice(hunts.indexOf(h), 1);
+          for (const m of h.ms) { m.q.agent.chasing = false; m.q.agent.path = null; m.q.agent.goal = null; }
+          if (caught) { say(h.ms[0].q, 'Got you. You\'re coming with me.'); O.gesture && O.gesture(h.q, 'hurt', 0.8); }
+          _arrest.call(h.sim, h.q, h.crime, h.wrong);
+        }
+      }
+    });
+    O.watchHunts = hunts;
     O.Pursuit = {
       holding: () => !!(sq && sq.mode === 'chase'),
       target: () => (sq && sq.mode === 'search' ? [sq.seen.x, sq.seen.y] : null), // (lost: the lead goes where you were last seen, not where you are)

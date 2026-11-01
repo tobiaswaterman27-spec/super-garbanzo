@@ -12,9 +12,9 @@
 
     // ---------------- running away ----------------
     const running = new Map(); // id -> { q, until }
-    function flee(q, secs = 6) {
+    function flee(q, secs = 6, from) {
       if (!q || !q.agent || q.alive === false || q.agent.chasing || /guard|captain|sergeant|knight/.test(q.job?.role || '')) return;
-      running.set(q.id, { q, until: game.t + secs });
+      running.set(q.id, { q, until: game.t + secs, from });
       q.agent.fleeing = true; q.agent.path = null; q.agent.frozen = true;
     }
     O.flee = flee;
@@ -22,7 +22,7 @@
       if (!running.size) return;
       const p = game.player;
       for (const [id, r] of running) {
-        const q = r.q, a = q.agent;
+        const q = r.q, a = q.agent; const p = r.from ? (r.from() || game.player) : game.player; // (running from whoever is after them)
         if (game.t > r.until || q.alive === false || q.health?.hp <= 0) { running.delete(id); a.fleeing = false; a.frozen = false; a.path = null; a.goal = null; q.activity = null; continue; }
         if (a.hidden || a.inside != null) continue;
         // a real way out: a spot on dry land away from you that a path reaches, looked for again now and then

@@ -14,7 +14,8 @@
       const sx = Math.floor(a.x / this.T), sy = Math.floor((a.y - 1) / this.T);
       a.goal = [tx, ty]; a.goalB = null; a.offPath = false;
       const path = sx === tx && sy === ty ? [] : this.path.find(sx, sy, tx, ty);
-      if (!path) { a.path = [[tx, ty]]; a.offPath = true; } else a.path = path;
+      if (!path) { a.path = null; a.goal = null; p.errand.giveUp = Math.min(p.errand.giveUp, game.t + 1); return; } // (no way there: they give it up rather than walk through the houses)
+      a.path = path;
       a.pi = 0;
     };
     SP.idleAnim = function (p) { if (p.errand && p.errand.working) return p.errand.anim; return _idle.call(this, p); };

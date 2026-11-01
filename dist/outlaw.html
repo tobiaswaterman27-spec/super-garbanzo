@@ -19505,6 +19505,36 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         const e = PS.emp; if (e && e.onShift && e.biz === sc.b.id) e.todayTasks = (e.todayTasks || 0) + 1; // (a master notices a clean floor)
       } };
     });
+    // ---------------------------------------------------------------- the town at the same work
+    // through the working day, the people who need water or firewood go and get it: out of the door,
+    // over to the well, the bucket filled, and back with it swinging (or an armful from the woodpile)
+    const WATER = /baker|innkeeper|server|potboy|cook|scullion|maid|chambermaid|dairymaid|brewer|laundress|dyer|tanner|blacksmith|armourer|nurse|midwife|physician|barber|apothecary|monk|nun|lay sister|lay brother|gardener|farmhand|stablehand|groom/;
+    const WOOD = /baker|innkeeper|cook|blacksmith|armourer|chandler|potter|brewer|scullion|maid/;
+    const nearProp = (w, kinds, x, y) => { let best = null, bd = 1e9; for (const pr of w.props) if (kinds.includes(pr.kind)) { const d = Math.hypot(pr.x - x, pr.y - y); if (d < bd) { bd = d; best = pr; } } return bd < 900 ? best : null; };
+    const freeBeside = (w, pr) => { const tx = Math.floor(pr.x / T), ty = Math.floor((pr.y - 1) / T); for (const [dx, dy] of [[0, 1], [1, 1], [-1, 1], [1, 0], [-1, 0], [0, 2]]) { const X = tx + dx, Y = ty + dy; if (!w.solid[Y * w.W + X] && (!w.ter || w.ter[Y * w.W + X] !== w.TER.WATER)) return [X, Y]; } return null; };
+    let ft = 0;
+    game.hooks.update.push((dt) => {
+      ft -= dt; if (ft > 0) return; ft = 4; const s = cur(), w = game.world; if (!s || !w || s.world !== w || !O.Errands) return;
+      const busy = [...O.Errands.live].filter((q) => q.errand && q.errand.fetch).length; if (busy >= 3) return;
+      const h = s.hour; if (h < 7 || h > 18.5) return;
+      const cands = s.people.filter((q) => q.activity?.act === 'work' && q.job && !q.errand && q.age >= 12 && !q.agent.frozen && (WATER.test(q.job.role) || WOOD.test(q.job.role)) && (q._fetched || -1) !== s.day * 10 + Math.floor(h / 4));
+      const q = cands[Math.floor(Math.random() * cands.length)]; if (!q || Math.random() < 0.5) return;
+      const b = s.building(q.job.biz); if (!b || b.doorX == null) return;
+      const wood = WOOD.test(q.job.role) && (!WATER.test(q.job.role) || Math.random() < 0.4);
+      const src = wood ? nearProp(w, ['woodpile', 'logpile'], b.doorX * T, b.doorY * T) : nearProp(w, ['well'], b.doorX * T, b.doorY * T); if (!src) return;
+      const at = freeBeside(w, src), home = [b.doorX, b.doorY + 1]; if (!at) return;
+      q._fetched = s.day * 10 + Math.floor(h / 4);
+      O.Errands.send(s, q, at, { fetch: true, anim: wood ? 'pickup' : 'crouch', secs: wood ? 2.2 : 3, face: 3, giveUp: game.t + 90,
+        at: () => { if (Math.hypot(q.agent.x - game.player.x, q.agent.y - game.player.y) < 200) O.sfx && O.sfx(wood ? 'place' : 'splash', 0.5, false); },
+        after: (ok) => { if (!ok) return; O.Errands.send(s, q, home, { fetch: true, anim: 'place', secs: 1.2, face: 0, giveUp: game.t + 90, carry: { good: wood ? 'firewood' : 'water', qty: 1 } }); } });
+    });
+    // their bucket swings in their hand too
+    const _frame2 = game.actorFrame;
+    game.actorFrame = function (a) {
+      const c = a.person && a.person.agent && a.person.agent.carrying;
+      if (c && c.good === 'water' && (a.anim === 'walk' || a.anim === 'carry' || a.anim === 'run')) { const an = a.anim === 'run' ? Ch.composite('run', 'bucket') : 'bucket', A = Ch.ANIMS[an], f = Math.floor((a.ft || 0) * A.fps) % A.frames; return Ch.frame(a.a, a.dir, an, f); }
+      return _frame2.call(this, a);
+    };
     O.handwork = { specOf, sources };
   }
   O.HandworkSetup = { setup };
@@ -19612,6 +19642,36 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         step(m, tx, ty, sp, dt);
       });
     });
+    // ---------------------------------------------------------------- the watch after someone else
+    // when the watch come for a townsperson in sight of you, it isn't done by magic: the thief bolts,
+    // two of the watch run them down, the street shouts, and the collar is felt where you can see it
+    const SP = O.Sim.prototype, _arrest = SP.arrestNPC, hunts = [];
+    SP.arrestNPC = function (q, crime, wrong) {
+      const P = game.player, a = q && q.agent;
+      const inSight = a && !a.hidden && a.inside == null && !game.scene && Math.hypot(a.x - P.x, a.y - P.y) < 420;
+      const gs = inSight ? this.people.filter((g) => isWatch(g) && g.agent.inside == null && !g.agent.chasing && Math.hypot(g.agent.x - a.x, g.agent.y - a.y) < 500).slice(0, 2) : [];
+      if (!gs.length || hunts.some((h) => h.q === q)) return _arrest.call(this, q, crime, wrong);
+      const h = { q, crime, wrong, sim: this, t: 0, ms: gs.map((g, i) => ({ q: g, role: i ? 'cut' : 'chase', path: null, pi: 0, re: 0 })) };
+      for (const m of h.ms) { m.q.agent.chasing = true; m.q.agent.path = null; }
+      hunts.push(h); say(gs[0], `${q.first}! Stop in the name of the law!`);
+      O.flee && O.flee(q, 14, () => { const g = h.ms[0].q.agent; return { x: g.x, y: g.y }; });
+      O.sfx && O.sfx('horn', 0.7, false);
+    };
+    game.hooks.update.push((dt) => {
+      if (!hunts.length) return;
+      for (const h of hunts.slice()) {
+        h.t += dt; const a = h.q.agent; let caught = false;
+        h.ms.forEach((m, i) => { const vel = [0, 0], tx = a.x + (i ? (a.x - m.q.agent.x) * 0.3 : 0), ty = a.y + (i ? (a.y - m.q.agent.y) * 0.3 : 0); void vel; step(m, tx, ty, 98, dt); if (Math.hypot(m.q.agent.x - a.x, m.q.agent.y - a.y) < 12) caught = true; });
+        if (Math.random() < dt * 0.6) { const s = h.sim, by = s.people.find((z) => z !== h.q && !z.agent.hidden && z.agent.inside == null && !isWatch(z) && z.age >= 10 && Math.hypot(z.agent.x - a.x, z.agent.y - a.y) < 70); if (by) { O.Speech && O.Speech.say(by, ['Stop, thief!', 'There he goes!', 'Catch him!'][by.id % 3], 2); O.gesture && O.gesture(by, 'point', 1.2); } }
+        if (caught || h.t > 16 || a.hidden) {
+          hunts.splice(hunts.indexOf(h), 1);
+          for (const m of h.ms) { m.q.agent.chasing = false; m.q.agent.path = null; m.q.agent.goal = null; }
+          if (caught) { say(h.ms[0].q, 'Got you. You\'re coming with me.'); O.gesture && O.gesture(h.q, 'hurt', 0.8); }
+          _arrest.call(h.sim, h.q, h.crime, h.wrong);
+        }
+      }
+    });
+    O.watchHunts = hunts;
     O.Pursuit = {
       holding: () => !!(sq && sq.mode === 'chase'),
       target: () => (sq && sq.mode === 'search' ? [sq.seen.x, sq.seen.y] : null), // (lost: the lead goes where you were last seen, not where you are)
@@ -25095,7 +25155,8 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       const sx = Math.floor(a.x / this.T), sy = Math.floor((a.y - 1) / this.T);
       a.goal = [tx, ty]; a.goalB = null; a.offPath = false;
       const path = sx === tx && sy === ty ? [] : this.path.find(sx, sy, tx, ty);
-      if (!path) { a.path = [[tx, ty]]; a.offPath = true; } else a.path = path;
+      if (!path) { a.path = null; a.goal = null; p.errand.giveUp = Math.min(p.errand.giveUp, game.t + 1); return; } // (no way there: they give it up rather than walk through the houses)
+      a.path = path;
       a.pi = 0;
     };
     SP.idleAnim = function (p) { if (p.errand && p.errand.working) return p.errand.anim; return _idle.call(this, p); };
@@ -27441,9 +27502,9 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
 
     // ---------------- running away ----------------
     const running = new Map(); // id -> { q, until }
-    function flee(q, secs = 6) {
+    function flee(q, secs = 6, from) {
       if (!q || !q.agent || q.alive === false || q.agent.chasing || /guard|captain|sergeant|knight/.test(q.job?.role || '')) return;
-      running.set(q.id, { q, until: game.t + secs });
+      running.set(q.id, { q, until: game.t + secs, from });
       q.agent.fleeing = true; q.agent.path = null; q.agent.frozen = true;
     }
     O.flee = flee;
@@ -27451,7 +27512,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       if (!running.size) return;
       const p = game.player;
       for (const [id, r] of running) {
-        const q = r.q, a = q.agent;
+        const q = r.q, a = q.agent; const p = r.from ? (r.from() || game.player) : game.player; // (running from whoever is after them)
         if (game.t > r.until || q.alive === false || q.health?.hp <= 0) { running.delete(id); a.fleeing = false; a.frozen = false; a.path = null; a.goal = null; q.activity = null; continue; }
         if (a.hidden || a.inside != null) continue;
         // a real way out: a spot on dry land away from you that a path reaches, looked for again now and then

@@ -118,6 +118,36 @@
         const e = PS.emp; if (e && e.onShift && e.biz === sc.b.id) e.todayTasks = (e.todayTasks || 0) + 1; // (a master notices a clean floor)
       } };
     });
+    // ---------------------------------------------------------------- the town at the same work
+    // through the working day, the people who need water or firewood go and get it: out of the door,
+    // over to the well, the bucket filled, and back with it swinging (or an armful from the woodpile)
+    const WATER = /baker|innkeeper|server|potboy|cook|scullion|maid|chambermaid|dairymaid|brewer|laundress|dyer|tanner|blacksmith|armourer|nurse|midwife|physician|barber|apothecary|monk|nun|lay sister|lay brother|gardener|farmhand|stablehand|groom/;
+    const WOOD = /baker|innkeeper|cook|blacksmith|armourer|chandler|potter|brewer|scullion|maid/;
+    const nearProp = (w, kinds, x, y) => { let best = null, bd = 1e9; for (const pr of w.props) if (kinds.includes(pr.kind)) { const d = Math.hypot(pr.x - x, pr.y - y); if (d < bd) { bd = d; best = pr; } } return bd < 900 ? best : null; };
+    const freeBeside = (w, pr) => { const tx = Math.floor(pr.x / T), ty = Math.floor((pr.y - 1) / T); for (const [dx, dy] of [[0, 1], [1, 1], [-1, 1], [1, 0], [-1, 0], [0, 2]]) { const X = tx + dx, Y = ty + dy; if (!w.solid[Y * w.W + X] && (!w.ter || w.ter[Y * w.W + X] !== w.TER.WATER)) return [X, Y]; } return null; };
+    let ft = 0;
+    game.hooks.update.push((dt) => {
+      ft -= dt; if (ft > 0) return; ft = 4; const s = cur(), w = game.world; if (!s || !w || s.world !== w || !O.Errands) return;
+      const busy = [...O.Errands.live].filter((q) => q.errand && q.errand.fetch).length; if (busy >= 3) return;
+      const h = s.hour; if (h < 7 || h > 18.5) return;
+      const cands = s.people.filter((q) => q.activity?.act === 'work' && q.job && !q.errand && q.age >= 12 && !q.agent.frozen && (WATER.test(q.job.role) || WOOD.test(q.job.role)) && (q._fetched || -1) !== s.day * 10 + Math.floor(h / 4));
+      const q = cands[Math.floor(Math.random() * cands.length)]; if (!q || Math.random() < 0.5) return;
+      const b = s.building(q.job.biz); if (!b || b.doorX == null) return;
+      const wood = WOOD.test(q.job.role) && (!WATER.test(q.job.role) || Math.random() < 0.4);
+      const src = wood ? nearProp(w, ['woodpile', 'logpile'], b.doorX * T, b.doorY * T) : nearProp(w, ['well'], b.doorX * T, b.doorY * T); if (!src) return;
+      const at = freeBeside(w, src), home = [b.doorX, b.doorY + 1]; if (!at) return;
+      q._fetched = s.day * 10 + Math.floor(h / 4);
+      O.Errands.send(s, q, at, { fetch: true, anim: wood ? 'pickup' : 'crouch', secs: wood ? 2.2 : 3, face: 3, giveUp: game.t + 90,
+        at: () => { if (Math.hypot(q.agent.x - game.player.x, q.agent.y - game.player.y) < 200) O.sfx && O.sfx(wood ? 'place' : 'splash', 0.5, false); },
+        after: (ok) => { if (!ok) return; O.Errands.send(s, q, home, { fetch: true, anim: 'place', secs: 1.2, face: 0, giveUp: game.t + 90, carry: { good: wood ? 'firewood' : 'water', qty: 1 } }); } });
+    });
+    // their bucket swings in their hand too
+    const _frame2 = game.actorFrame;
+    game.actorFrame = function (a) {
+      const c = a.person && a.person.agent && a.person.agent.carrying;
+      if (c && c.good === 'water' && (a.anim === 'walk' || a.anim === 'carry' || a.anim === 'run')) { const an = a.anim === 'run' ? Ch.composite('run', 'bucket') : 'bucket', A = Ch.ANIMS[an], f = Math.floor((a.ft || 0) * A.fps) % A.frames; return Ch.frame(a.a, a.dir, an, f); }
+      return _frame2.call(this, a);
+    };
     O.handwork = { specOf, sources };
   }
   O.HandworkSetup = { setup };

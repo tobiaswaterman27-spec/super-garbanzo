@@ -340,7 +340,7 @@
       const inside = new Map(), dark = this.isNight();
       for (const q of sim.people) if (q.agent) q.agent.torch = false; // the watch go without lights; only lamps and hearths glow
       for (const q of sim.people) if (q.alive !== false && q.agent && q.agent.inside != null) inside.set(q.agent.inside, (inside.get(q.agent.inside) || 0) + 1);
-      const h = this.clock.minute / 60, cold = sim.season === 'Winter' || sim.season === 'Autumn' && (h < 8 || h > 18);
+      const h = this.clock.minute / 60, cold = sim.season === 'winter' || (sim.season === 'autumn' && (h < 8 || h > 18)) || (sim.weather && sim.weather.kind === 'snow'), hot = sim.weather && sim.weather.kind === 'heat', now = sim.day * 1440 + sim.minute;
       for (const b of this.world.buildings) {
         if (!b.sprite?.chimney || b.ruined || b.site) continue;
         const n = inside.get(b.id) || 0;
@@ -349,7 +349,10 @@
         else if (b.type === 'smithy' || b.type === 'armourer') on = n > 0 && h >= 6.5 && h < 18.5;
         else if (b.type === 'tavern') on = h >= 8 && h < 24 && n > 0;
         else if (b.rivalGang) on = true;
-        else on = n > 0 && (cold ? h >= 5 && h < 23 : (h >= 5.5 && h < 8.5) || (h >= 11.5 && h < 13) || (h >= 17 && h < 21.5));
+        // a home fire: banked at curfew and left to the coals overnight; kept in all day when it's cold; only
+        // for the cooking at mealtimes otherwise; and in a heatwave only just long enough to cook
+        else on = n > 0 && (hot ? (h >= 6 && h < 7) || (h >= 18 && h < 19) : cold ? h >= 5 && h < 21.5 : (h >= 5.5 && h < 8.5) || (h >= 11.5 && h < 13) || (h >= 17 && h < 21.5));
+        if (b.fireSet && b.fireSet.until > now) on = b.fireSet.on; // someone (you) lit it or put it out by hand
         if (on) lit.add(b.id);
       }
     }

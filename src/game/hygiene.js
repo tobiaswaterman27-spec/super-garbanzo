@@ -72,7 +72,8 @@
     // the look of it: dirt on your clothes, and flies when it's bad
     game.hooks.drawWorld.push((ctx, cam) => {
       if (game.scene || PS.grime < 0.6) return; const P = game.player, x = Math.round(P.x - cam.x), y = Math.round(P.y - cam.y), t = performance.now() / 1000;
-      ctx.fillStyle = 'rgba(84,62,40,0.75)'; ctx.fillRect(x - 4, y - 6, 2, 1); ctx.fillRect(x + 3, y - 12, 1, 2); ctx.fillRect(x - 2, y - 17, 2, 1); if (PS.grime > 0.75) { ctx.fillRect(x + 1, y - 4, 2, 1); ctx.fillRect(x - 5, y - 13, 1, 1); }
+      ctx.fillStyle = 'rgba(70,50,30,0.9)'; for (const [dx, dy, w, h] of [[-4, -7, 2, 2], [3, -12, 2, 2], [-2, -18, 3, 1], [1, -3, 2, 1], [-5, -14, 1, 2]].slice(0, PS.grime > 0.75 ? 5 : 3)) ctx.fillRect(x + dx, y + dy, w, h);
+      if (PS.grime > 0.75) { ctx.fillStyle = 'rgba(70,50,30,0.35)'; ctx.fillRect(x - 5, y - 2, 10, 2); }
       if (PS.grime >= 0.85) { ctx.fillStyle = '#141014'; for (let i = 0; i < 2; i++) ctx.fillRect(Math.round(x + Math.sin(t * 5 + i * 2) * 9), Math.round(y - 30 + Math.cos(t * 7 + i * 3) * 6), 1, 1); }
     });
   }

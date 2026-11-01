@@ -50,13 +50,15 @@
     (O.extraLines = O.extraLines || []).push((s, q) => /fletcher|bowyer|hunter|gamekeeper|forester/.test(q.job?.role || '') ? 'You can sell the player a bow (sell {"item":"bow"}, about ₳18) and arrows (sell {"item":"arrows"}, about ₳1 each), and teach them to draw and loose.' : '');
 
     // ---------------------------------------------------------------- campfires light the dark
+    // a tree standing in front hides the flames (they'd otherwise be drawn over its leaves)
+    const behindTree = (p) => (game.world.trees || []).some((t) => t.y > p.y && t.y - p.y < 44 && Math.abs(t.x - p.x) < 16);
     const fires = () => (game.scene || !game.world.props ? [] : game.world.props.filter((p) => p.campfire || p.kind === 'firepit'));
     (O.extraLights = O.extraLights || []).push((pools, cam) => { for (const p of fires()) pools.push([p.x - cam.x, p.y - 6 - cam.y, 46]); });
     game.hooks.drawWorld.push((ctx, cam) => {
       if (game.scene) return; const t = performance.now() / 1000;
       for (const p of fires()) {
         const x = Math.round(p.x - cam.x), y = Math.round(p.y - 6 - cam.y); if (x < -20 || y < -20 || x > game.vw + 20 || y > game.vh + 20) continue;
-        const k = Math.floor(t * 8 + p.x) % 3;
+        if (behindTree(p)) continue; const k = Math.floor(t * 8 + p.x) % 3;
         ctx.fillStyle = '#d04a18'; ctx.fillRect(x - 3, y - 3 - k, 7, 5 + k); ctx.fillStyle = '#ffa030'; ctx.fillRect(x - 2, y - 5 - (k % 2), 5, 5); ctx.fillStyle = '#fff2a0'; ctx.fillRect(x - 1, y - 3, 2, 3);
         if (k === 0) { ctx.fillStyle = '#ffb040'; ctx.fillRect(x + ((t * 13) % 6) - 3, y - 9 - ((t * 20) % 8), 1, 1); }
       }
@@ -105,7 +107,7 @@
       return (_sm = { canvas: c, W: 16, H: 24, ox: 8, oy: 23 });
     };
     const snowDeep = () => { const s = cur(); return s && s.weather && s.weather.snowCover > 0.35; };
-    const putSnowman = (x, y, by) => { const w = game.world; if (w.props.filter((p) => p.snowman).length > 8) return; w.props.push({ kind: 'snowman', x, y, seed: 1, v: 0, solid: false, snowman: true, by, sprite: snowmanSprite() }); w.dirtyStatics = true; };
+    const putSnowman = (x0, y0, by) => { const w = game.world; let x = x0, y = y0; for (const [dx, dy] of [[0, 0], [-36, 0], [0, 20], [36, 10], [-20, 24]]) { const c = { x: x0 + dx, y: y0 + dy }; if (!behindTree(c) && !(w.trees || []).some((t) => Math.hypot(t.x - c.x, t.y - c.y) < 14)) { x = c.x; y = c.y; break; } } if (w.props.filter((p) => p.snowman).length > 8) return; w.props.push({ kind: 'snowman', x, y, seed: 1, v: 0, solid: false, snowman: true, by, sprite: snowmanSprite() }); w.dirtyStatics = true; };
     O.moreCandidates.push(() => {
       if (game.scene || !snowDeep() || game.player.locked) return null; const P = game.player, w = game.world;
       if (w.props.some((p) => p.snowman && Math.hypot(p.x - P.x, p.y - P.y) < 40)) return null;

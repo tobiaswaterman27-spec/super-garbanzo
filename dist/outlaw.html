@@ -4861,7 +4861,7 @@ O.bizName = (surname, label) => {
       const inside = new Map(), dark = this.isNight();
       for (const q of sim.people) if (q.agent) q.agent.torch = false; // the watch go without lights; only lamps and hearths glow
       for (const q of sim.people) if (q.alive !== false && q.agent && q.agent.inside != null) inside.set(q.agent.inside, (inside.get(q.agent.inside) || 0) + 1);
-      const h = this.clock.minute / 60, cold = sim.season === 'Winter' || sim.season === 'Autumn' && (h < 8 || h > 18);
+      const h = this.clock.minute / 60, cold = sim.season === 'winter' || (sim.season === 'autumn' && (h < 8 || h > 18)) || (sim.weather && sim.weather.kind === 'snow'), hot = sim.weather && sim.weather.kind === 'heat', now = sim.day * 1440 + sim.minute;
       for (const b of this.world.buildings) {
         if (!b.sprite?.chimney || b.ruined || b.site) continue;
         const n = inside.get(b.id) || 0;
@@ -4870,7 +4870,10 @@ O.bizName = (surname, label) => {
         else if (b.type === 'smithy' || b.type === 'armourer') on = n > 0 && h >= 6.5 && h < 18.5;
         else if (b.type === 'tavern') on = h >= 8 && h < 24 && n > 0;
         else if (b.rivalGang) on = true;
-        else on = n > 0 && (cold ? h >= 5 && h < 23 : (h >= 5.5 && h < 8.5) || (h >= 11.5 && h < 13) || (h >= 17 && h < 21.5));
+        // a home fire: banked at curfew and left to the coals overnight; kept in all day when it's cold; only
+        // for the cooking at mealtimes otherwise; and in a heatwave only just long enough to cook
+        else on = n > 0 && (hot ? (h >= 6 && h < 7) || (h >= 18 && h < 19) : cold ? h >= 5 && h < 21.5 : (h >= 5.5 && h < 8.5) || (h >= 11.5 && h < 13) || (h >= 17 && h < 21.5));
+        if (b.fireSet && b.fireSet.until > now) on = b.fireSet.on; // someone (you) lit it or put it out by hand
         if (on) lit.add(b.id);
       }
     }
@@ -11266,7 +11269,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     ring: ['ring', '#e8c040', '#c83a3a'], brooch: ['brooch', '#e8c040', '#c83a3a'], necklace: ['ring', '#e8c040', '#3a60c8'], circlet: ['ring', '#f0d060', '#3a9a5a'], spoon: ['spoon', '#c8ccd4', '#f0f2f6'], candlestick: ['candlestick', '#9a9a96', '#f0e8d0'], key: ['key', '#c8a040', '#8a6a20'], coins: ['coins', '#c8ccd4', '#e8c040'], coin: ['coins', '#c8ccd4', '#e8c040'],
     crown: ['ring', '#f0c030', '#c83a3a'],
     badge: ['brooch', '#9a9a96', '#c8ccd4'], elixir: ['flask', '#e8c040', '#f0e8ff'], undying: ['flask', '#a8e0f0', '#e8f8ff'], secret: ['letter', '#d8c8a0', '#3a3a3a'],
-    pelt: ['fleece', '#8a8478', '#5e5a56'], bearskin: ['fleece', '#4a3424', '#2a1e14'], boarmeat: ['meat', '#8a3a3a', '#e8d8c8'], hawk: ['feather', '#8a6a4a', '#e8e0d0'], flowers: ['herbs', '#c860a8', '#f0d848'],
+    pelt: ['fleece', '#8a8478', '#5e5a56'], bearskin: ['fleece', '#4a3424', '#2a1e14'], boarmeat: ['meat', '#8a3a3a', '#e8d8c8'], hawk: ['feather', '#8a6a4a', '#e8e0d0'], flowers: ['herbs', '#c860a8', '#f0d848'], purse: ['sack', '#7a5634', '#c8a060'], gloves: ['fleece', '#8a6a48', '#5a4430'], comb: ['spoon', '#e8dcc0', '#b8a888'], beads: ['brooch', '#6a4a30', '#c8b070'], knife: ['blade', '#b8bcc4', '#5a3d24'],
     berries: ['round', '#8a2a5a', '#3a6a2a'], mushrooms: ['round', '#d8c0a0', '#8a5a3a'],
     medicine: ['flask', '#6a9ad0', '#c8b8a0'], herbs: ['herbs', '#5a9a40', '#3a6a2a'], furniture: ['chair', '#8a6239', '#6a4a2c'],
   };
@@ -17349,13 +17352,15 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     (O.extraLines = O.extraLines || []).push((s, q) => /fletcher|bowyer|hunter|gamekeeper|forester/.test(q.job?.role || '') ? 'You can sell the player a bow (sell {"item":"bow"}, about ₳18) and arrows (sell {"item":"arrows"}, about ₳1 each), and teach them to draw and loose.' : '');
 
     // ---------------------------------------------------------------- campfires light the dark
+    // a tree standing in front hides the flames (they'd otherwise be drawn over its leaves)
+    const behindTree = (p) => (game.world.trees || []).some((t) => t.y > p.y && t.y - p.y < 44 && Math.abs(t.x - p.x) < 16);
     const fires = () => (game.scene || !game.world.props ? [] : game.world.props.filter((p) => p.campfire || p.kind === 'firepit'));
     (O.extraLights = O.extraLights || []).push((pools, cam) => { for (const p of fires()) pools.push([p.x - cam.x, p.y - 6 - cam.y, 46]); });
     game.hooks.drawWorld.push((ctx, cam) => {
       if (game.scene) return; const t = performance.now() / 1000;
       for (const p of fires()) {
         const x = Math.round(p.x - cam.x), y = Math.round(p.y - 6 - cam.y); if (x < -20 || y < -20 || x > game.vw + 20 || y > game.vh + 20) continue;
-        const k = Math.floor(t * 8 + p.x) % 3;
+        if (behindTree(p)) continue; const k = Math.floor(t * 8 + p.x) % 3;
         ctx.fillStyle = '#d04a18'; ctx.fillRect(x - 3, y - 3 - k, 7, 5 + k); ctx.fillStyle = '#ffa030'; ctx.fillRect(x - 2, y - 5 - (k % 2), 5, 5); ctx.fillStyle = '#fff2a0'; ctx.fillRect(x - 1, y - 3, 2, 3);
         if (k === 0) { ctx.fillStyle = '#ffb040'; ctx.fillRect(x + ((t * 13) % 6) - 3, y - 9 - ((t * 20) % 8), 1, 1); }
       }
@@ -17404,7 +17409,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       return (_sm = { canvas: c, W: 16, H: 24, ox: 8, oy: 23 });
     };
     const snowDeep = () => { const s = cur(); return s && s.weather && s.weather.snowCover > 0.35; };
-    const putSnowman = (x, y, by) => { const w = game.world; if (w.props.filter((p) => p.snowman).length > 8) return; w.props.push({ kind: 'snowman', x, y, seed: 1, v: 0, solid: false, snowman: true, by, sprite: snowmanSprite() }); w.dirtyStatics = true; };
+    const putSnowman = (x0, y0, by) => { const w = game.world; let x = x0, y = y0; for (const [dx, dy] of [[0, 0], [-36, 0], [0, 20], [36, 10], [-20, 24]]) { const c = { x: x0 + dx, y: y0 + dy }; if (!behindTree(c) && !(w.trees || []).some((t) => Math.hypot(t.x - c.x, t.y - c.y) < 14)) { x = c.x; y = c.y; break; } } if (w.props.filter((p) => p.snowman).length > 8) return; w.props.push({ kind: 'snowman', x, y, seed: 1, v: 0, solid: false, snowman: true, by, sprite: snowmanSprite() }); w.dirtyStatics = true; };
     O.moreCandidates.push(() => {
       if (game.scene || !snowDeep() || game.player.locked) return null; const P = game.player, w = game.world;
       if (w.props.some((p) => p.snowman && Math.hypot(p.x - P.x, p.y - P.y) < 40)) return null;
@@ -17595,11 +17600,182 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     // the look of it: dirt on your clothes, and flies when it's bad
     game.hooks.drawWorld.push((ctx, cam) => {
       if (game.scene || PS.grime < 0.6) return; const P = game.player, x = Math.round(P.x - cam.x), y = Math.round(P.y - cam.y), t = performance.now() / 1000;
-      ctx.fillStyle = 'rgba(84,62,40,0.75)'; ctx.fillRect(x - 4, y - 6, 2, 1); ctx.fillRect(x + 3, y - 12, 1, 2); ctx.fillRect(x - 2, y - 17, 2, 1); if (PS.grime > 0.75) { ctx.fillRect(x + 1, y - 4, 2, 1); ctx.fillRect(x - 5, y - 13, 1, 1); }
+      ctx.fillStyle = 'rgba(70,50,30,0.9)'; for (const [dx, dy, w, h] of [[-4, -7, 2, 2], [3, -12, 2, 2], [-2, -18, 3, 1], [1, -3, 2, 1], [-5, -14, 1, 2]].slice(0, PS.grime > 0.75 ? 5 : 3)) ctx.fillRect(x + dx, y + dy, w, h);
+      if (PS.grime > 0.75) { ctx.fillStyle = 'rgba(70,50,30,0.35)'; ctx.fillRect(x - 5, y - 2, 10, 2); }
       if (PS.grime >= 0.85) { ctx.fillStyle = '#141014'; for (let i = 0; i < 2; i++) ctx.fillRect(Math.round(x + Math.sin(t * 5 + i * 2) * 9), Math.round(y - 30 + Math.cos(t * 7 + i * 3) * 6), 1, 1); }
     });
   }
   O.HygieneSetup = { setup };
+})();
+
+</script>
+<script>
+// Small life in and about the house. Fires are lit and banked by somebody: when a hearth comes alight
+// or is put to bed you see them kneel to it, and at your own hearth you light it or bank it yourself.
+// After rain the ruts and cobbles hold puddles, which dry off in the sun and freeze in winter. People
+// lose things in the street (a purse, a key, a ring, gloves), and you can pick them up and keep them or
+// give them back; anyone else who finds them does one or the other too. Children who know your name
+// beg a story, and folk at work hum the songs they know.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k), G = O.Data.GOODS;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    const sp = (q, t, secs = 2.4) => O.Speech && O.Speech.say(q, t, secs);
+
+    // ---------------------------------------------------------------- fires lit and banked, in view
+    let prevLit = null, ht = 0;
+    game.hooks.update.push((dt) => {
+      ht -= dt; if (ht > 0) return; ht = 1; const lit = game.lit; if (!lit) return;
+      const now = new Set(lit); if (!prevLit) { prevLit = now; return; }
+      const sc = game.scene, b = sc && (sc.b.parent || sc.b);
+      if (b && now.has(b.id) !== prevLit.has(b.id)) {
+        const on = now.has(b.id), fp = sc.L && sc.L.items.find((i) => ['fireplace', 'oven', 'forge', 'cauldron'].includes(i.kind));
+        let who = null, bd = 1e9;
+        if (fp) { const [fx, fy] = sc.anchor(fp); for (const a of sc.actors.values()) { if (!a.person || a.hidden || a.person.age < 10) continue; const d = Math.hypot(a.x - fx, a.y - fy); if (d < bd) { bd = d; who = a.person; } } }
+        if (who) { O.gesture(who, 'crouch', 2.6); sp(who, on ? pick(['(blows the kindling into flame)', '(strikes the flint, and the tinder catches)', '(lays on a log and coaxes it up)']) : pick(['(rakes the ashes over the coals)', '(covers the fire for the night)', '(lets the fire die down)']), 2.6); }
+      }
+      prevLit = now;
+    });
+    // your own hearth: light it or bank it
+    const isMine = (b) => b && (b.owner?.kind === 'player' || (PS.residence && PS.residence.b === b.id) || (PS.lease && PS.lease.b === b.id) || (PS.room && PS.room.b === b.id));
+    (O.sceneMore = O.sceneMore || []).push(() => {
+      const sc = game.scene, P = game.player, s = cur(); if (!sc || !s || P.locked) return null; const b = sc.b.parent || sc.b; if (!isMine(b)) return null;
+      const fp = sc.L && sc.L.items.find((i) => i.kind === 'fireplace'); if (!fp) return null;
+      const [x, y] = sc.anchor(fp); if (Math.hypot(x - P.x, y + 16 - P.y) > 55) return null;
+      const on = game.lit && game.lit.has(b.id);
+      return { type: 'custom', d: -4, x, y: y - 30, label: on ? 'Bank the fire' : 'Light the fire', act: () => {
+        P.anim = 'crouch'; P.ft = 0; P.locked = true;
+        setTimeout(() => {
+          P.locked = false; P.anim = 'idle'; const now = s.day * 1440 + s.minute;
+          if (!on && PS.items.includes('firewood')) PS.remove('firewood', 1);
+          b.fireSet = { on: !on, until: now + (on ? 8 * 60 : 5 * 60) };
+          if (game.updateHearths) game.updateHearths();
+          say(on ? 'You rake the ashes over the embers. It will keep till morning.' : PS.items.includes('firewood') ? 'You lay a log on and blow the fire up. Warmth comes into the room.' : 'You blow the fire up with what was in the woodbox.');
+        }, 2400);
+      } };
+    });
+    // a campfire of your own can be put out
+    (O.moreCandidates = O.moreCandidates || []).push(() => {
+      const w = game.world, P = game.player; if (game.scene || P.locked || !w.props) return null;
+      const f = w.props.find((p) => p.campfire && Math.hypot(p.x - P.x, p.y - P.y) < 30); if (!f) return null;
+      return { type: 'custom', d: 4, x: f.x, y: f.y - 36, label: 'Put out the fire', act: () => { P.anim = 'crouch'; P.locked = true; setTimeout(() => { P.locked = false; P.anim = 'idle'; w.props = w.props.filter((p) => p !== f); w.dirtyStatics = true; say('You kick earth over the fire till it stops smoking.'); }, 1800); } };
+    });
+
+    // ---------------------------------------------------------------- puddles
+    game.hooks.drawGround.push((ctx, cam) => {
+      if (game.scene) return; const s = cur(), w = game.world; if (!s || !s.weather || !w.ter) return; const wet = s.weather.wet || 0; if (wet < 0.08) return;
+      const frozen = s.season === 'winter' && (s.weather.kind === 'snow' || s.hour < 9);
+      const x0 = Math.floor(cam.x / T), y0 = Math.floor(cam.y / T), x1 = Math.ceil((cam.x + game.vw) / T), y1 = Math.ceil((cam.y + game.vh) / T);
+      const a = Math.min(0.55, wet * 0.7);
+      for (let ty = Math.max(0, y0); ty <= Math.min(w.H - 1, y1); ty++) for (let tx = Math.max(0, x0); tx <= Math.min(w.W - 1, x1); tx++) {
+        const t = w.ter[ty * w.W + tx]; if (t !== w.TER.ROAD && t !== w.TER.COBBLE && t !== w.TER.YARD) continue;
+        const hsh = (tx * 73856093) ^ (ty * 19349663); if (((hsh >>> 0) % 19) !== 0) continue;
+        const sz = 0.5 + ((hsh >>> 5) % 5) / 8, rw = Math.round(6 * sz * (0.5 + wet / 2)), rh = Math.max(1, Math.round(rw * 0.45));
+        const cx = Math.round(tx * T + 8 + ((hsh >>> 9) % 7) - 3 - cam.x), cy = Math.round(ty * T + 9 + ((hsh >>> 12) % 5) - 2 - cam.y);
+        ctx.fillStyle = frozen ? `rgba(200,220,236,${a.toFixed(2)})` : `rgba(70,92,120,${a.toFixed(2)})`;
+        for (let yy = -rh; yy <= rh; yy++) { const ww = Math.round(rw * Math.sqrt(1 - (yy * yy) / (rh * rh || 1))); ctx.fillRect(cx - ww, cy + yy, ww * 2, 1); }
+        ctx.fillStyle = frozen ? `rgba(255,255,255,${(a * 0.9).toFixed(2)})` : `rgba(190,210,230,${(a * 0.8).toFixed(2)})`; ctx.fillRect(cx - Math.round(rw / 2), cy - Math.round(rh / 2), Math.max(1, Math.round(rw / 2)), 1);
+        if (s.raining && Math.floor(performance.now() / 250 + hsh) % 7 === 0) { ctx.fillStyle = 'rgba(220,235,250,0.7)'; ctx.fillRect(cx + ((hsh >>> 3) % 5) - 2, cy, 1, 1); }
+      }
+    });
+
+    // ---------------------------------------------------------------- lost and found
+    G.purse = G.purse || { name: 'Purse', base: 2, unit: 'purse', slots: 1 };
+    G.gloves = G.gloves || { name: 'Pair of gloves', base: 4, unit: 'pair', slots: 1 };
+    G.comb = G.comb || { name: 'Bone comb', base: 2, unit: 'comb', slots: 1 };
+    G.beads = G.beads || { name: 'Prayer beads', base: 3, unit: 'string', slots: 1 };
+    G.knife = G.knife || { name: 'Knife', base: 3, unit: 'knife', slots: 1 };
+    const LOSABLE = ['purse', 'purse', 'key', 'gloves', 'comb', 'beads', 'knife', 'ring', 'brooch', 'spoon'];
+    const found = () => (PS.found = PS.found || []);
+    let lt = 0;
+    game.hooks.update.push((dt) => {
+      lt -= dt; if (lt > 0) return; lt = 40 + Math.random() * 40; const s = cur(); if (!s || game.scene || s.hour < 8 || s.hour > 19) return;
+      if ((s.dropped || []).filter((d) => d.lost).length >= 3 || Math.random() > 0.35) return;
+      const P = game.player, q = s.people.find((z) => z.age >= 14 && !z.agent.hidden && z.agent.inside == null && z.agent.path && !z.lost && Math.hypot(z.agent.x - P.x, z.agent.y - P.y) < 380 && Math.hypot(z.agent.x - P.x, z.agent.y - P.y) > 60);
+      if (!q) return; let g = pick(LOSABLE); if (g === 'ring' && !(q.gentry || s.household(q)?.money > 60)) g = 'gloves';
+      s.drop(g, 1, q.agent.x + (Math.random() - 0.5) * 6, q.agent.y + 2, q.id); const d = s.dropped[s.dropped.length - 1];
+      d.lost = true; d.owner = q.id; if (g === 'purse') d.coins = Math.max(1, Math.round(Math.min(40, (s.household(q)?.money || 20) * 0.15)));
+      q.lost = { good: g, day: s.day, coins: d.coins || 0, id: d.id };
+    });
+    // (installed on the first frame: the street's pick-up is set up after this)
+    const wrapPick = () => { if (!O.pickUp || O.pickUp._lost) return; const _pick = O.pickUp;
+    O.pickUp = function (it) {
+      const s = cur(), had = s.dropped.includes(it); const r = _pick.apply(this, arguments);
+      if (it.lost && had && !s.dropped.includes(it)) {
+        const q = s.byId.get(it.owner); found().push({ good: it.good, owner: it.owner, coins: it.coins || 0, day: s.day });
+        if (it.coins) { PS.money += it.coins; say(`Inside the purse: ₳${it.coins}.`); }
+        if (q) { const seen = s.people.filter((z) => z !== q && !z.agent.hidden && z.agent.inside == null && Math.hypot(z.agent.x - it.x, z.agent.y - it.y) < 90); for (const z of seen.slice(0, 3)) (z.beliefs = z.beliefs || []).unshift({ t: `I saw the stranger pick up something ${q.first} ${q.sur || ''} dropped in the street`, src: 'saw', day: s.day }); }
+      }
+      return r;
+    }; O.pickUp._lost = true; };
+    game.hooks.update.push(wrapPick);
+
+    // others find what's lost, if it lies long enough
+    const SP = O.Sim.prototype, _nd = SP.newDay;
+    SP.newDay = function () {
+      const r = _nd.apply(this, arguments);
+      for (const d of (this.dropped || []).filter((x) => x.lost && x.day < this.day)) {
+        const q = this.byId.get(d.owner); this.dropped = this.dropped.filter((x) => x !== d);
+        const finder = this.people.find((z) => z !== q && z.age >= 12 && Math.random() < 0.05); if (!finder || !q) continue;
+        const honest = (finder.traits || []).some((t) => ['generous', 'friendly', 'loyal'].includes(t)) || Math.random() < 0.4;
+        if (honest) { q.lost = null; this.relate(q, finder, 0.08); (q.beliefs = q.beliefs || []).unshift({ t: `${finder.first} found my lost ${G[d.good]?.name.toLowerCase() || d.good} and brought it back. Honest soul.`, src: 'self', day: this.day }); }
+        else (finder.beliefs = finder.beliefs || []).unshift({ t: `I found ${q.first}'s ${G[d.good]?.name.toLowerCase() || d.good} in the street and kept it. I'll say nothing.`, src: 'self', day: this.day });
+      }
+      for (const q of this.people) if (q.lost && this.day - q.lost.day > 6) q.lost = null;
+      return r;
+    };
+    // giving it back
+    const base = O.NpcActs.apply;
+    O.NpcActs.apply = function (s, q, a) {
+      if (a && a.do === 'take_back') {
+        const f = found().find((x) => x.owner === q.id && PS.items.includes(x.good)); if (!f) return null;
+        if (f.coins && PS.money < f.coins) return `The purse had ₳${f.coins} in it, and you haven't that now.`;
+        PS.remove(f.good, 1); if (f.coins) PS.money -= f.coins; PS.found = found().filter((x) => x !== f); q.lost = null;
+        s.relate(q, { id: 0 }, 0.18); PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.01);
+        const rw = O.clamp(Math.round(Number(a.reward) || 0), 0, 20); let rt = ''; if (rw) { const hh = s.household(q); if (hh && hh.money >= rw) { hh.money -= rw; PS.money += rw; rt = ` and presses ₳${rw} on you for your honesty`; } }
+        return `${q.first} takes back the ${G[f.good]?.name.toLowerCase() || f.good}${f.coins ? ` with its ₳${f.coins}` : ''}${rt}.`;
+      }
+      return base.apply(this, arguments);
+    };
+    (O.extraActs = O.extraActs || []).push('take_back {"reward"} (when the player returns something you lost: you take it back, and may give a small reward of a few aurins)');
+    (O.extraLines = O.extraLines || []).push((s, q) => {
+      if (!q.lost) return ''; const nm = (G[q.lost.good]?.name || q.lost.good).toLowerCase(), mine = found().some((x) => x.owner === q.id && PS.items.includes(x.good));
+      return `You lost your ${nm}${q.lost.coins ? ` with ₳${q.lost.coins} in it` : ''} in the street ${s.day - q.lost.day === 0 ? 'today' : 'lately'} and are upset about it.${mine ? ' You notice the player has it! Ask for it back; if they hand it over, take_back.' : ''}`;
+    });
+    (O.extraLines = O.extraLines || []).push((s, q) => (q.beliefs || []).some((b) => /pick up something/.test(b.t) && s.day - b.day < 3) ? 'You saw the player pick up something someone dropped; you wonder if they gave it back.' : '');
+
+    // ---------------------------------------------------------------- a story for the children
+    const famous = () => (O.crowned && O.crowned()) || PS.title || (PS.rep && (PS.rep.local || 0) > 0.35) || (PS.rep && PS.rep.civilian > 0.7);
+    let asked = 0;
+    game.hooks.update.push(() => {
+      const s = cur(); if (!s || game.scene || !famous() || game.t < asked) return; const P = game.player;
+      const k = s.people.find((z) => z.age >= 5 && z.age < 12 && !z.agent.hidden && z.agent.inside == null && Math.hypot(z.agent.x - P.x, z.agent.y - P.y) < 50);
+      if (!k) return; asked = game.t + 120; O.gesture(k, 'wave', 1.5); sp(k, pick(['Tell us a story!', 'Is it true what they say about you? Tell us!', 'A story, a story!']), 2.6);
+    });
+    O.moreCandidates.push(() => {
+      const s = cur(), P = game.player; if (!s || game.scene || P.locked) return null;
+      const kids = s.people.filter((z) => z.age >= 4 && z.age < 13 && !z.agent.hidden && z.agent.inside == null && Math.hypot(z.agent.x - P.x, z.agent.y - P.y) < 70); if (!kids.length) return null;
+      if (kids[0]._story === s.day) return null;
+      return { type: 'custom', d: 20, x: kids[0].agent.x, y: kids[0].agent.y - 44, label: kids.length > 1 ? 'Tell the children a story' : `Tell ${kids[0].first} a story`, act: () => {
+        P.anim = 'gesture'; P.ft = 0; P.locked = true; for (const k of kids) { k._story = s.day; k.agent.frozen = true; O.gesture(k, 'sit', 6); }
+        const tale = pick(['the giant of the western hills', 'the fox who outwitted the bishop', 'the ghost of the old mill', 'the knight who lost his horse to a goose', PS.title || (O.crowned && O.crowned()) ? 'how you came to where you are' : 'your own travels']);
+        setTimeout(() => sp(kids[0], pick(['And then what?', 'Was he really that big?', 'No! He never!']), 2), 2500);
+        setTimeout(() => { P.locked = false; P.anim = 'idle'; for (const k of kids) { k.agent.frozen = false; O.gesture(k, 'celebrate', 1.6); s.relate(k, { id: 0 }, 0.05); (k.beliefs = k.beliefs || []).unshift({ t: `The stranger told us the story of ${tale}`, src: 'player', day: s.day }); } PS.mood = Math.min(100, (PS.mood || 50) + 3); say(`You tell ${kids.length > 1 ? 'the children' : kids[0].first} the tale of ${tale}. They hang on every word.`); }, 6000);
+      } };
+    });
+
+    // ---------------------------------------------------------------- humming at work, out of doors
+    let hum = 0;
+    game.hooks.update.push((dt) => {
+      hum -= dt; if (hum > 0 || game.scene) return; hum = 18 + Math.random() * 20; const s = cur(); if (!s || !PS.songBook) return; const P = game.player;
+      const q = s.people.find((z) => z.age >= 10 && (z.songs || []).length && !z.agent.hidden && z.agent.inside == null && ['work', 'labour', 'chore', 'errand', 'stroll'].includes(z.activity?.act) && Math.hypot(z.agent.x - P.x, z.agent.y - P.y) < 160 && !(O.npcUI && O.npcUI.talking() === z));
+      if (!q) return; const song = PS.songBook.find((x) => x.id === pick(q.songs)); if (!song) return;
+      sp(q, Math.random() < 0.5 ? `♪ ${song.lines[Math.floor(Math.random() * song.lines.length)]} ♪` : '♪ hm hm, hmm hm... ♪', 3);
+    });
+  }
+  O.HearthLifeSetup = { setup };
 })();
 
 </script>
@@ -28977,7 +29153,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
         x: away ? away[0] : Math.round(game.scene ? game.scene.b.doorX * 16 + 8 : game.player.x), y: away ? away[1] : Math.round(game.scene ? game.scene.b.doorY * 16 + 10 : game.player.y), dir: game.player.dir,
         mount: game.player.mount ? game.player.mount.id : null,
         region: game.world.island && !game.scene && game.world !== sim.world ? game.world.placeId : null, g: game.world.island && !game.scene ? O.Island.toGlobal(game.world, game.player.x, game.player.y).map(Math.round) : null,
-        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [], emp: PS.emp ? Object.assign({}, PS.emp, { tasks: [], onShift: false, dayInfo: null }) : null, posts: (PS.posts || []).map((x) => Object.assign({}, x, { tasks: [], onShift: false, dayInfo: null, _lm: null, _cur: x === PS.emp })), carry: PS.carry || null, firedSilently: PS.firedSilently || null, residence: PS.residence || null, gaol: PS.gaol || null, gangRanks: PS.gangRanks || [], gangTrials: PS.gangTrials || {}, disguise: PS.disguise || null, loans: PS.loans || [], letters: PS.letters || [], knows: PS.knows || {}, knowsGang: PS.knowsGang || {}, royal: PS.royal || false, taxOwed: PS.taxOwed || 0, taxPaidDay: PS.taxPaidDay ?? null, contract: PS.contract && PS.contract.kind !== 'escort' ? PS.contract : null, leads: (PS.leads || []).filter((l) => l.why !== 'contract' || (PS.contract && PS.contract.kind !== 'escort')), askedLaw: PS.askedLaw || 0, guests: PS.guests || null, jobCardOpen: !!PS.jobCardOpen, learning: PS.learning || 0, performances: PS.performances || 0, lettersCarried: PS.lettersCarried || 0, title: PS.title || null, vouched: PS.vouched || {}, offered: PS.offered || {}, appointment: PS.appointment || null, reeveOf: PS.reeveOf || {}, claim: PS.claim || 0, secrets: PS.secrets || [], vows: !!PS.vows, warWon: PS.warWon || 0, warFought: PS.warFought || 0, plot: PS.plot || null, coronation: PS.coronation || null, anointed: !!PS.anointed, guides: PS.guides || 'all', mail: PS.mail || [], worn: PS.worn || [], bizTab: PS.bizTab || null, meets: PS.meets || [], partner: PS.partner || null, children: PS.children || [], expecting: PS.expecting || null, fineOwed: PS.fineOwed || 0, watched: PS.watched || null, debts: PS.debts || [], roadLead: PS.roadLead || null, wokeAt: PS.wokeAt ?? null, studiedAt: PS.studiedAt ?? null, studyDay: PS.studyDay ?? null, studyHours: PS.studyHours || 0, lessonDay: PS.lessonDay ?? null, ill: PS.ill || null, confessed: PS.confessed ?? null, tithedWeek: PS.tithedWeek ?? null, titheBase: PS.titheBase || 0, startDay: PS.startDay ?? null, yearsHere: PS.yearsHere || 0, dog: PS.dog || null, lineSpec: PS.lineSpec || null, forebears: PS.forebears || [], oddJobs: PS.oddJobs || [], givenJobs: PS.givenJobs || [], retainers: PS.retainers || [], deeds: PS.deeds || [], todoOpen: PS.todoOpen ?? true, lent: PS.lent || [], gardens: PS.gardens || [], grime: PS.grime || 0, booksRead: PS.booksRead || 0, animals: PS.animals || [], tourneyDay: PS.tourneyDay ?? null, recipes: PS.recipes || [], marks: PS.marks || {}, wins: PS.wins || {}, champion: PS.champion || null, informants: PS.informants || [], hawks: PS.hawks || [], village: PS.village || null, charter: PS.charter || null, undying: PS.undying ?? null, searched: PS.searched || {}, boats: PS.boats || [], ships: PS.ships || [], pilgrimages: PS.pilgrimages || {}, excommunicated: PS.excommunicated || null, houseFavour: PS.houseFavour || {}, plots2: PS.plots2 || [], siegeSide: PS.siegeSide || null, songBook: PS.songBook || null, songs: PS.songs || [], outlaw: PS.outlaw || null, almsToPoor: PS.almsToPoor || 0, robbedRich: PS.robbedRich || 0, confided: PS.confided || [], blessed: PS.blessed ?? null, _ageChecked: PS._ageChecked ?? null },
+        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [], emp: PS.emp ? Object.assign({}, PS.emp, { tasks: [], onShift: false, dayInfo: null }) : null, posts: (PS.posts || []).map((x) => Object.assign({}, x, { tasks: [], onShift: false, dayInfo: null, _lm: null, _cur: x === PS.emp })), carry: PS.carry || null, firedSilently: PS.firedSilently || null, residence: PS.residence || null, gaol: PS.gaol || null, gangRanks: PS.gangRanks || [], gangTrials: PS.gangTrials || {}, disguise: PS.disguise || null, loans: PS.loans || [], letters: PS.letters || [], knows: PS.knows || {}, knowsGang: PS.knowsGang || {}, royal: PS.royal || false, taxOwed: PS.taxOwed || 0, taxPaidDay: PS.taxPaidDay ?? null, contract: PS.contract && PS.contract.kind !== 'escort' ? PS.contract : null, leads: (PS.leads || []).filter((l) => l.why !== 'contract' || (PS.contract && PS.contract.kind !== 'escort')), askedLaw: PS.askedLaw || 0, guests: PS.guests || null, jobCardOpen: !!PS.jobCardOpen, learning: PS.learning || 0, performances: PS.performances || 0, lettersCarried: PS.lettersCarried || 0, title: PS.title || null, vouched: PS.vouched || {}, offered: PS.offered || {}, appointment: PS.appointment || null, reeveOf: PS.reeveOf || {}, claim: PS.claim || 0, secrets: PS.secrets || [], vows: !!PS.vows, warWon: PS.warWon || 0, warFought: PS.warFought || 0, plot: PS.plot || null, coronation: PS.coronation || null, anointed: !!PS.anointed, guides: PS.guides || 'all', mail: PS.mail || [], worn: PS.worn || [], bizTab: PS.bizTab || null, meets: PS.meets || [], partner: PS.partner || null, children: PS.children || [], expecting: PS.expecting || null, fineOwed: PS.fineOwed || 0, watched: PS.watched || null, debts: PS.debts || [], roadLead: PS.roadLead || null, wokeAt: PS.wokeAt ?? null, studiedAt: PS.studiedAt ?? null, studyDay: PS.studyDay ?? null, studyHours: PS.studyHours || 0, lessonDay: PS.lessonDay ?? null, ill: PS.ill || null, confessed: PS.confessed ?? null, tithedWeek: PS.tithedWeek ?? null, titheBase: PS.titheBase || 0, startDay: PS.startDay ?? null, yearsHere: PS.yearsHere || 0, dog: PS.dog || null, lineSpec: PS.lineSpec || null, forebears: PS.forebears || [], oddJobs: PS.oddJobs || [], givenJobs: PS.givenJobs || [], retainers: PS.retainers || [], deeds: PS.deeds || [], todoOpen: PS.todoOpen ?? true, lent: PS.lent || [], gardens: PS.gardens || [], grime: PS.grime || 0, found: PS.found || [], booksRead: PS.booksRead || 0, animals: PS.animals || [], tourneyDay: PS.tourneyDay ?? null, recipes: PS.recipes || [], marks: PS.marks || {}, wins: PS.wins || {}, champion: PS.champion || null, informants: PS.informants || [], hawks: PS.hawks || [], village: PS.village || null, charter: PS.charter || null, undying: PS.undying ?? null, searched: PS.searched || {}, boats: PS.boats || [], ships: PS.ships || [], pilgrimages: PS.pilgrimages || {}, excommunicated: PS.excommunicated || null, houseFavour: PS.houseFavour || {}, plots2: PS.plots2 || [], siegeSide: PS.siegeSide || null, songBook: PS.songBook || null, songs: PS.songs || [], outlaw: PS.outlaw || null, almsToPoor: PS.almsToPoor || 0, robbedRich: PS.robbedRich || 0, confided: PS.confided || [], blessed: PS.blessed ?? null, _ageChecked: PS._ageChecked ?? null },
       },
     };
   }
@@ -29213,7 +29389,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.RisingSetup.setup(game, npcUI);
   O.RitesSetup.setup(game);
   O.WarfareSetup.setup(game, npcUI);
-  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.NpcActsSetup.setup(game); O.InitiateSetup.setup(game); O.UnderworldSetup.setup(game); O.CourtshipSetup.setup(game); O.FencesSetup.setup(game); O.FamilySetup.setup(game); O.PetsSetup.setup(game); O.FavoursSetup.setup(game); O.MarketSetup.setup(game); O.GrudgesSetup.setup(game); O.RitualsSetup.setup(game); O.TodoSetup.setup(game); O.DealingsSetup.setup(game); O.CounterSetup.setup(game); O.ResourcesSetup.setup(game); O.GangBasesSetup.setup(game); O.GatheringsSetup.setup(game); O.WildSetup.setup(game); O.SongsSetup.setup(game); O.PoliticsSetup.setup(game); O.ChurchSetup.setup(game); O.SeaSetup.setup(game); O.LegacySetup.setup(game); O.WorldLifeSetup.setup(game); O.TrainingSetup.setup(game); O.ExtrasSetup.setup(game); O.GatheringSetup.setup(game); O.StreetLifeSetup.setup(game); O.OutdoorsSetup.setup(game); O.SkyFxSetup.setup(game); O.HygieneSetup.setup(game); O.PolishSetup.setup(game);
+  O.CalendarSetup.setup(game); O.RevelsSetup.setup(game); O.BasicsSetup.setup(game, npcUI); O.NpcActsSetup.setup(game); O.InitiateSetup.setup(game); O.UnderworldSetup.setup(game); O.CourtshipSetup.setup(game); O.FencesSetup.setup(game); O.FamilySetup.setup(game); O.PetsSetup.setup(game); O.FavoursSetup.setup(game); O.MarketSetup.setup(game); O.GrudgesSetup.setup(game); O.RitualsSetup.setup(game); O.TodoSetup.setup(game); O.DealingsSetup.setup(game); O.CounterSetup.setup(game); O.ResourcesSetup.setup(game); O.GangBasesSetup.setup(game); O.GatheringsSetup.setup(game); O.WildSetup.setup(game); O.SongsSetup.setup(game); O.PoliticsSetup.setup(game); O.ChurchSetup.setup(game); O.SeaSetup.setup(game); O.LegacySetup.setup(game); O.WorldLifeSetup.setup(game); O.TrainingSetup.setup(game); O.ExtrasSetup.setup(game); O.GatheringSetup.setup(game); O.StreetLifeSetup.setup(game); O.OutdoorsSetup.setup(game); O.SkyFxSetup.setup(game); O.HygieneSetup.setup(game); O.HearthLifeSetup.setup(game); O.PolishSetup.setup(game);
   O.FinerySetup.setup(game);
   O.PastimesSetup.setup(game);
   O.FishingSetup.setup(game);

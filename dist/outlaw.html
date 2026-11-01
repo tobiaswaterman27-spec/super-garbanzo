@@ -1115,8 +1115,8 @@ O.storeys = (b) => {
       case 'nod': P.headDown = [0, 0.7, 0, 0.7][f]; break;
       case 'laugh': P.mouth = 1; P.bob = f % 2 ? -0.5 : 0; P.lean = f % 2 ? -0.7 : -0.2; P.blink = f % 2 === 1; break;
       case 'shrug': P.bob = f === 1 || f === 2 ? -0.6 : 0; P.mouth = f === 2 ? 1 : 0; break;
-      case 'bow': P.lean = [0.2, 1.8, 2.8, 1.4][f]; P.headDown = f === 2 ? 1 : f ? 0.5 : 0; L = { R: leg(1, 0.05, 0.15), L: leg(-1, -0.35, 0.2) }; break;
-      case 'curtsy': { const k = [0, 0.7, 1, 0.4][f]; L = { R: leg(1, 0.1 + 0.35 * k, 0.15 + 0.9 * k, 0.06), L: leg(-1, -0.15 * k, 0.15 + 0.7 * k, 0.06) }; P.headDown = k > 1 ? 0.8 : 0.3; P.lean = 0.3 * k; break; }
+      case 'bow': P.lean = [0.2, 1.8, 2.8, 1.4][f]; P.headDown = [0, 0.8, 1, 0.6][f]; P.bob = [0, 1, 1.5, 0.5][f]; L = { R: leg(1, 0.05, 0.15), L: leg(-1, -0.35, 0.2) }; break;
+      case 'curtsy': { const k = [0, 0.7, 1, 0.4][f]; L = { R: leg(1, 0.1 + 0.35 * k, 0.15 + 0.9 * k, 0.06), L: leg(-1, -0.15 * k, 0.15 + 0.7 * k, 0.06) }; P.headDown = 0.3 + 0.5 * k; P.lean = 0.3 * k; P.bob = 2.2 * k; break; }
       case 'dance': { const sR = Math.sin(ph); L = { R: leg(1, 0.6 * Math.max(0, sR), 0.4 + 0.9 * Math.max(0, sR), 0.15), L: leg(-1, 0.6 * Math.max(0, -sR), 0.4 + 0.9 * Math.max(0, -sR), 0.15) }; P.bob = Math.abs(Math.cos(ph)) > 0.7 ? -0.7 : 0; P.mouth = f % 4 === 1 ? 1 : 0; break; }
       case 'yawn': P.mouth = f === 1 || f === 2 ? 1 : 0; P.blink = f === 2; P.bob = f === 2 ? -0.4 : 0; P.lean = f === 2 ? -0.6 : 0; break;
       case 'scratch': P.headDown = 0.3; P.blink = f === 3; break;
@@ -1197,9 +1197,9 @@ O.storeys = (b) => {
       }
       case 'sweep': { const k = [0, 1, 2, 1][f]; A.R = reach(1, [1.5, chest + 1, D + 2.5]); A.L = reach(-1, [-0.5, chest + 5, D + 3 + k]); P.held = 'broom'; P.toolHand = 'L'; P.toolDir = [0.15, 0.85, 0.5 - k * 0.15]; break; }
       case 'read': { A.R = reach(1, [1.6, chest + 3, D + 3.2]); A.L = reach(-1, [-1.6, chest + 3, D + 3.2]); P.held = 'book'; P.book = true; break; }
-      case 'celebrate': { const hi = f % 2 === 0; for (const s of [1, -1]) A[s > 0 ? 'R' : 'L'] = reach(s, [s * (hi ? 4.5 : 3.6), shY - (hi ? 8 : 6.5), 1], [s, 0.4, -0.3]); P.bob = hi ? -1 : 0; P.mouth = 1; break; }
+      case 'celebrate': { const hi = f % 2 === 0; for (const s of [1, -1]) A[s > 0 ? 'R' : 'L'] = reach(s, [s * (hi ? 9.5 : 8.5), shY - (hi ? 7.5 : 5.5), 2], [s, 0.2, -0.3]); P.bob = hi ? -1 : 0; P.mouth = 1; break; }
       case 'mourn': { A.R = reach(1, [0.6, hipY - 1, D + 1.8]); A.L = reach(-1, [-0.6, hipY - 1, D + 1.8]); P.blink = true; break; }
-      case 'point': A.R = reach(1, [1.5, shY + 1.5 - f, 12]); P.mouth = f; break;
+      case 'point': A.R = reach(1, [7 + f * 0.5, shY - 1 - f, 5]); P.mouth = f; break;
       case 'dig': { const k = [0, 1, 2, 1][f]; A.R = reach(1, [1.2, chest + k * 1.5, D + 3]); A.L = reach(-1, [-0.2, chest + 4 + k * 1.5, D + 3.5]); P.held = 'spade'; P.toolDir = [0, 0.95, 0.35]; break; }
       case 'cook': { const k = f % 4; A.R = reach(1, [1.2 + (k % 2), chest + 4 + (k > 1 ? 0.6 : 0), D + 4]); P.held = 'ladle'; P.toolDir = [0, 0.9, 0.3]; break; }
       case 'ride': A.R = reach(1, [1.8, hipY - 2.5, D + 5]); A.L = reach(-1, [-1.8, hipY - 2.5, D + 5]); break;

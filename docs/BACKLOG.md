@@ -477,3 +477,19 @@ Every job and every level of it, royal family and titles included, grouped under
 - [ ] Guards: hue and cry, cut-offs, flanking, search, gates (next)
 - [ ] At least 7 physical tasks per role with NPCs doing them and moving about indoors (next)
 - [x] Nobody lies in the road without cause: stray poses corrected; the collapsed groan, get help within the hour, and you can help them up (row 140)
+
+## Next update (from playtest notes, not started)
+- [ ] "Tell X how the work goes" tasks: you can actually speak to them (task completes through talk)
+- [ ] Chests by rank and master: workers may open and take from some work chests (a builder takes materials as rank and boss allow, never the money)
+- [ ] Caught taking by someone who knows you: a telling-off, not always the watch
+- [ ] Times said must match the real shift: no "come back for it tomorrow" when the shift is now
+- [ ] Dirt gathers on floors over time; you can sweep whenever you like
+- [ ] Wages: paid by the master coming to find you right after the shift, not the next day (one player wasn't paid at all)
+- [ ] "Help wanted" sign outside the tavern drawn over other things: fix its placement
+- [ ] A merchant offering a job won't let you talk to them, and won't let you do the task
+- [ ] NPCs still walk through houses; animals' heads poke inside houses
+- [ ] No text on the direction arrows
+- [ ] Interaction dot on animals sits lower down
+- [ ] NPCs circling round people in a strange spin
+- [ ] Guards: hue and cry, cut-offs, flanking, search, gates, aftermath
+- [ ] At least 7 physical tasks per role (more for common ones), each with a proper animation, NPCs doing them and moving about indoors

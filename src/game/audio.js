@@ -85,7 +85,7 @@
       if (smith && hammerT <= 0) { hammerT = 0.7 + Math.random() * 0.3; const v = inside === sm ? 1 : inside ? 0 : near(dist(...doorPos(sm)), 420); if (v > 0.01) V.hammer(v, inside === sm ? inBus : outBus); }
       // tavern music in the evening
       const tv = B('tavern');
-      if (tv && h >= 18 && h < 23.5) { tuneT -= dt; if (tuneT <= 0) { tuneT = 0.32; const v = inside === tv ? 0.9 : inside ? 0 : near(dist(...doorPos(tv)), 300) * 0.6; if (v > 0.01) V.pluck(SCALE[TUNE[tunePos % TUNE.length]], v, inside === tv ? inBus : outBus); tunePos++; } }
+      if (tv && h >= 18 && h < 23.5 && !O.Music) { tuneT -= dt; if (tuneT <= 0) { tuneT = 0.32; const v = inside === tv ? 0.9 : inside ? 0 : near(dist(...doorPos(tv)), 300) * 0.6; if (v > 0.01) V.pluck(SCALE[TUNE[tunePos % TUNE.length]], v, inside === tv ? inBus : outBus); tunePos++; } }
       // birds by day, crickets by night
       if (!inside && !W.raining) {
         birdT -= dt; if (h > 5.5 && h < 19.5 && birdT <= 0) { birdT = 1.5 + Math.random() * 4; V.bird(0.6 + Math.random() * 0.4); }
@@ -94,7 +94,7 @@
       // feet and hooves
       if (game.player.moving) { stepT -= dt; if (stepT <= 0) { if (game.player.mount) { stepT = game.player.galloping ? 0.13 : 0.24; V.hoof(0.8); } else { stepT = game.keys.has('run') ? 0.2 : 0.32; V.step(1, inside ? inBus : outBus); } } }
     });
-    O.Sound = { V, play: (k, ...a) => enabled && ctx && V[k] && V[k](...a), get on() { return enabled; } };
+    O.Sound = { V, play: (k, ...a) => enabled && ctx && V[k] && V[k](...a), get on() { return enabled; }, get ctx() { return ctx; }, get outBus() { return outBus; }, get inBus() { return inBus; }, get master() { return master; }, get noise() { return noise; }, get inside() { return !!game.scene; }, music: true };
   }
   O.AudioSetup = { setup };
 })();

@@ -147,7 +147,7 @@
   O.AftermathFX.setup(game);
   O.Parish.setup(game);
   O.Guide.setup(game);
-  O.AudioSetup.setup(game, sim);
+  O.AudioSetup.setup(game, sim); O.MusicSetup.setup(game);
   if (loaded) { O.Save.hydrateLate(game, home); setTimeout(() => O.Panels.toast(`Welcome back. It is ${O.DAYNAMES[sim.weekday]}.`), 300); }
   // autosave each dawn and whenever the page is hidden
   let lastAuto = sim.day;

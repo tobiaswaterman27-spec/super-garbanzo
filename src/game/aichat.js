@@ -18,6 +18,20 @@
 
   // ---------------------------------------------------------------- who answers
   const AI = O.AI = { kind: null, ready: false, sample: null, key: null, busy: false };
+  // why Claude didn't answer, in words a player can act on
+  AI.lastError = null;
+  AI.permanent = (c) => ['not_granted', 'sampling_disabled', 'not_declared', 'capability_disabled', 'capability_removed', 'session_expired', 'bad_key', 'invalid_request', 'prompt_too_large'].includes(c);
+  AI.why = (c) => ({
+    not_granted: 'Claude has not been allowed to speak for this game. Open the menu at the top of the artifact, choose Permissions, and allow Claude; then speak again.',
+    sampling_disabled: 'Claude is not available on this Claude account or organisation, so the townsfolk cannot answer. An OpenAI key (Esc, then Voices) will work instead.',
+    not_declared: 'This copy of the game is not allowed to ask Claude. Play it from its claude.ai link.',
+    capability_disabled: 'Claude cannot answer in this view. Open the game in a browser at its claude.ai link.',
+    capability_removed: 'This Claude app is too old to let the game ask Claude. Update it, or open the game in a browser at its claude.ai link.',
+    session_expired: 'Your claude.ai sign-in has expired. Sign in again, then speak again.',
+    rate_limited: 'Claude is busy or your usage limit is reached for now. Wait a little and speak again.',
+    bad_key: 'OpenAI refused the key. Esc, then Voices, to put in a good one.',
+    prompt_too_large: 'Too much was said at once. Say something shorter.',
+  })[c] || null;
   AI.detect = async () => {
     if (LS('outlaw.devai') === 'mock' || (navigator.webdriver && location.protocol === 'file:')) { AI.kind = 'mock'; return (AI.ready = true); } // (automated tests only)
     if (window.claude && typeof window.claude.use === 'function') {
@@ -31,6 +45,9 @@
   // a reply is JSON, but models wrap it in fences or add a word: take the object out of whatever came
   const parseJSON = (t) => { if (t && typeof t === 'object') return t; const str = String(t || ''), i = str.indexOf('{'), j = str.lastIndexOf('}'); if (i < 0 || j <= i) throw { code: 'bad_reply' }; return JSON.parse(str.slice(i, j + 1)); };
   async function ask(prompt) {
+    try { const r = await ask0(prompt); AI.lastError = null; return r; } catch (e) { AI.lastError = e && e.code ? e.code : 'upstream_error'; throw e; }
+  }
+  async function ask0(prompt) {
     if (AI.kind === 'claude') return parseJSON(await AI.sample.json(prompt, { modelTier: 'quick', cache: false }));
     if (AI.kind === 'openai') {
       const r = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + AI.key },
@@ -62,7 +79,7 @@
     throw { code: 'no_ai' };
   };
   function noteFail(e) {
-    fails++; if (fails < 2) return;
+    fails++; if (fails < 2 || (e && e.code && AI.why(e.code))) return;
     const why = e && e.code === 'bad_key' ? 'OpenAI refused the key' : e && e.code === 'rate_limited' ? 'too many words at once; wait a moment' : (AI.kind === 'claude' ? 'Claude is not answering here' : 'OpenAI is not answering') + (e && e.message ? ` (${String(e.message).slice(0, 80)})` : '');
     O.UI && O.UI.say(`The voices aren't answering: ${why}. Esc, then Voices, to use an OpenAI key.`, 'bad');
   }
@@ -259,7 +276,7 @@ They know only what their card says; asked anything else they don't know, guess 
 people: for each person present: feel and trust (-2..2) = how the player's words change their liking and belief; learned = a short new claim from the player they now believe, else ""; caught = true if they now see the player lied before.
 name: the player's name if the player just gave it. agree: true only if they now agree to the pending request.
 Only what's real: never mention objects, chores or happenings that aren't in your card or the scene (no baskets of sheets, no 'take that end'), and never ask the player to do something with their hands that isn't there to do. Don't keep naming where you are or the town; name a place only when it matters to what's said.
-Keep your word: anything a speaker says they will do now (go somewhere, come along, show the way, follow, fetch, give, take someone on) MUST be in acts, or it won't happen; and never say you'll do what you won't.
+Keep your word: anything a speaker says they will do now or agrees to change (go somewhere, come along, show the way, follow, fetch, give, sell, take someone on, change someone's hours or shift or pay, give a day off, let them start now, a price, a rent, a meeting) MUST be in acts with the agreed numbers, or it won't happen in the world; words alone change nothing. Never say you'll do what you won't.
 Talks end: when the talk has run its course (goodbyes said, the matter settled, nothing more to say, or they have somewhere to be), the person says a short parting line and adds the act leave. Don't drag a talk out.
 acts: only what a speaker truly agrees to or does, each {"who":"First name","do":...}:
 meet {"place","hour":0-23,"day":"today"|"tomorrow"|weekday,"why"} | follow (they come along with the player, wherever the player goes) | lead {"place"?} (the player comes along with them: they carry on where they were going, or to the place, and wait if the player falls behind; use this when the player says they will come with them) | stop (stop following) | go {"place"} (go there now) | invite (let the player into their home today) | give {"item"} (hand over something they have) | want {"item"} (ask the player for something) | take_gift | refuse_gift | take_job (accept the player's own job when offered) | seek_job {"place"} | tell {"to","msg"} (pass a message to someone they know) | like {"of","by":-1 or 1} (think better or worse of someone after what was said) | call {"who"} (call someone near or in the same house over to join the talk, even across the room) | ask {"who","question"} (go and ask someone in the house or near, privately, then come back with the answer) | show {"place"} (walk the player there) | direct {"place"} (tell the player the way to a place, in words, when they ask where something is) | sell {"item","price"} (sell the player something they have, at an agreed price in aurins) | buy {"item","price"} (buy something the player carries) | lend {"amount"} (lend the player money, to be paid back) | gesture {"kind":"hug"|"handshake"|"bow"|"wave"|"dance"|"cry"|"laugh"} | teach (show the player a little of their trade) | introduce {"who"} (call someone over and name them) | hire_on (agree to work for the player's own business) | join_gang (join the player's gang) | gang_in (a gang member agrees to take the player into their gang) | gang_work (a gang member gives the player the gang's next job, when they ask for work) | hire_player (the master takes the player on, when the card says there's a place) | errand {"item","to","reward"} (give the player something of theirs to take to someone they know, for a few aurins) | want {"item","reward"} also may offer a reward in aurins | court (agree to court, walk out with, the player) | betroth {"day"?,"hour"?} (agree to marry the player; the wedding is set at the chapel, on the day they settle on) | name_child {"name"} (the player's spouse agrees to the name the player gives their new baby) | offer {"key"} (do one of the things your card says you can do for the player, when they ask) | fit_clothes (a tailor at work measures the player for new clothes) | give_pet (give the player a pup or kitten of your own animal's litter) | set_wedding {"day","hour"} (the betrothed agree to move the wedding) | wedding_guest {"who"?} (the speaker accepts the player's invitation to the wedding, or agrees to pass the invitation to someone they know, who is then bidden) | part (break off a courtship, betrothal or marriage) | grudge {"why"} (the player has truly wronged the speaker, and they will hold it against them) | forgive (the speaker lets go of a grudge against the player, after real amends) | set_prices {"level":"cheap"|"fair"|"dear"} (only the player's own staff, told to change the shop's prices) | fight (go for the player) | flee (run from the player) | leave (end the talk and walk off: rude player, busy, bored, or done). If a speaker says they are off somewhere now, add a go act for it (or leave).
@@ -356,17 +373,17 @@ They know where their family and friends are just now (the card says); a strange
     let out = null;
     // the words are theirs or nothing: a reply that doesn't come is asked for again, and if it still
     // won't come, nobody speaks a set line; you're told they didn't catch it
-    let lines = [];
+    let lines = [], err = null;
     for (let tries = 0; tries < 3 && !lines.length; tries++) {
       if (tries) await new Promise((r) => setTimeout(r, 1200 * tries));
-      try { out = await AI.json(prompt); } catch (e) { out = null; if (e && e.code === 'bad_key') break; }
+      try { out = await AI.json(prompt); err = null; } catch (e) { out = null; err = e; if (e && AI.permanent(e.code)) break; if (e && e.code === 'rate_limited') break; }
       lines = linesOf(out, q);
     }
     AI.busy = false;
     if (!lines.length) {
       if (q._offer) { O.NpcActs && O.NpcActs.returnGift(q, q._offer); q._offer = null; }
       conv.pop(); const last = [...conv].reverse().find((c) => c.who === 'q');
-      O.UI.say(`${q.first} didn't catch that. Say it again.`, 'bad'); render(last ? last.t : '', false); return;
+      O.UI.say(err && err.code && AI.why(err.code) ? AI.why(err.code) : `${q.first} didn't catch that. Say it again.`, 'bad'); render(last ? last.t : '', false); return;
     }
     const n = (v) => clamp(Math.round(Number(v) || 0), -2, 2), everyone = [q, ...group];
     const byName = (w) => everyone.find((z) => z.first === w || (w && String(w).startsWith(z.first))) || null;
@@ -394,6 +411,18 @@ They know where their family and friends are just now (the card says); a strange
       const meWithThem = /\b(can|may|could|shall|let)\s+(i|me)\s+(follow|come|walk|go|tag)\b|\bi'?ll\s+(follow|come|walk|go)\s+(with|along|after)\b|\bi (will|shall) (follow|come with)\b|\b(take|show|lead) me\b|\bafter you\b/i.test(text);
       const themWithMe = /\b(follow|come with|come along with|walk with) me\b|\bcome along\b/i.test(text) && !meWithThem;
       for (const a of out.acts) { if (!a) continue; if (meWithThem && a.do === 'follow') a.do = 'lead'; else if (themWithMe && a.do === 'lead') a.do = 'follow'; }
+    }
+    // words alone change nothing: when they plainly said yes to a change (hours, pay, a price, a day off,
+    // rent, a job) but sent no act for it, ask once, briefly, what exactly was agreed, and carry it out
+    if ((!Array.isArray(out.acts) || !out.acts.length) && (AI.kind === 'claude' || AI.kind === 'openai')) {
+      const said = lines.map((l) => l.say).join(' '), yes = /\b(aye|yes|very well|all right|alright|agreed|done|fine|so be it|if you like|as you wish|i will|i'll|you may|go on then|deal)\b/i.test(said);
+      const about = /\b(hour|hours|shift|start|finish|early|late|morning|evening|o'?clock|noon|pay|wage|wages|raise|more money|less work|day off|rest day|price|cost|cheaper|discount|rent|room|job|work for|take me on|hire|sell|buy|lend|borrow|teach|meet)\b/i.test(text + ' ' + said);
+      if (yes && about) {
+        try {
+          const fix = await AI.json(`${RULES}${(O.extraActs || []).length ? '\nMore acts: ' + O.extraActs.join(' | ') : ''}\n\n--- ${q.first} ---\n${card(s, q)}\n${extraCard(s, q)}\n\nThe player just said: "${text}"\n${q.first} answered: "${said}"\nThat answer agreed to something but named no act, so nothing will happen in the game. Reply ONLY with JSON {"acts":[...]} listing the acts (in the format above, each with "who":"${q.first}") that carry out exactly what ${q.first} just agreed to, with the numbers (hours, price, amount) they agreed. If they agreed to nothing concrete, {"acts":[]}.`);
+          if (fix && Array.isArray(fix.acts) && fix.acts.length) out.acts = fix.acts;
+        } catch (e) { /* the words stand alone */ }
+      }
     }
     if (Array.isArray(out.acts) && O.NpcActs) for (const a of out.acts.slice(0, 4)) { if (!a || typeof a.do !== 'string') continue; const who = byName(a.who) || q; const res = O.NpcActs.apply(s, who, a, q); if (res === 'leave') leave = true; else if (res) notes.push(res); }
     if (q._offer) { const o = q._offer; q._offer = null; if (r.affinity > -0.2) O.NpcActs && O.NpcActs.keepGift(s, q, o); else O.NpcActs && O.NpcActs.returnGift(q, o); }

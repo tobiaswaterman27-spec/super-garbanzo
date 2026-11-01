@@ -65,6 +65,7 @@
     };
     // singing it: line by line, over their heads, and a fiddle under it
     function sing(q, song, chorus) {
+      if (O.Music && O.Music.sing && O.Sound && O.Sound.on && O.Music.level > 0) return O.Music.sing(q, song, chorus);
       if (!song || !O.Speech) return; let i = 0;
       const next = () => { if (i >= song.lines.length || q.alive === false) return; O.Speech.say(q, '♪ ' + song.lines[i] + ' ♪', 3.2); O.gesture && O.gesture(q, 'dance', 1.5);
         if (O.Sound) { const f = [262, 294, 330, 392][i % 4]; O.Sound.play('pluck', f, 0.4); }

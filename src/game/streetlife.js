@@ -1,6 +1,5 @@
 // The street between the big events. Folk who spend the evening at the tavern come home merry,
-// singing and hiccuping and stopping to steady themselves. Children play tag, hopscotch and leapfrog
-// in the street and shriek about it; you can join in. On washing day the lines go out by the houses
+// singing and hiccuping and stopping to steady themselves. On washing day the lines go out by the houses
 // and come in again when it rains. People mind the weather in small ways: a hand over the brow in the
 // heat, a shiver in the cold, a curse at the rain, snowballs in the snow. In the morning someone
 // sweeps the step. And you can stand an ale for anyone at the tavern, and drink with them.
@@ -25,14 +24,6 @@
       return a;
     };
     const HIC = ['Hic!', '*hic*', 'Who moved the road?', 'One more, I said, ONE more...', 'I love this town. I love all of you.', 'Shh. Shhh. The wife.', 'Where\'s my door gone?', 'Hic! Pardon.'];
-    // children's games
-    const GAMES = [
-      { name: 'tag', lines: ['You\'re it!', 'Can\'t catch me!', 'Not fair, I was resting!', 'Tag! You\'re it!'], anim: 'run' },
-      { name: 'hopscotch', lines: ['One, two, three...', 'You stepped on the line!', 'My turn!', 'Hop, hop, hop!'], anim: 'dance' },
-      { name: 'leapfrog', lines: ['Over you go!', 'Bend lower!', 'Ow! Your knee!', 'Again, again!'], anim: 'celebrate' },
-      { name: 'hide and seek', lines: ['Ninety-eight, ninety-nine, a hundred!', 'Coming, ready or not!', 'Found you!', 'I can see your feet!'], anim: 'look' },
-      { name: 'knucklebones', lines: ['Onesies!', 'Twosies! Ha!', 'You dropped it!', 'Best of three.'], anim: 'crouch' },
-    ];
     const W = () => (cur() && cur().weather) || { kind: 'clear' };
     let lt = 0;
     game.hooks.update.push((dt) => {
@@ -42,11 +33,6 @@
         if ((q._sl || 0) > now) continue;
         // in drink
         if (q.tipsy === s.day && h >= 19) { if (Math.random() < 0.3) { O.gesture(q, pick(['shake', 'stretch', 'shrug', 'laugh']), 1.4); sp(q, Math.random() < 0.25 && PS.songBook ? pick(['La la LAAA...', '♪ Oh the miller\'s daughter... ♪', '♪ Hey nonny nonny... ♪']) : pick(HIC), 2.2); q._sl = now + 5000; } continue; }
-        // a child at play with another
-        if (q.age >= 5 && q.age < 13 && q.activity && ['play', 'stroll'].includes(q.activity.act) && h >= 8 && h < 19 && !s.raining) {
-          const mate = s.people.find((z) => z !== q && z.age >= 4 && z.age < 13 && near(z, 340) && Math.hypot(z.agent.x - ag.x, z.agent.y - ag.y) < 80);
-          if (mate && Math.random() < 0.35) { const g = GAMES[(q.id + mate.id + s.day) % GAMES.length]; if (W().kind === 'snow') { O.gesture(q, 'attack', 1); sp(q, pick(['Snowball!', 'Got you!', 'Snow fight!']), 2); O.gesture(mate, 'hurt', 1); } else { O.gesture(q, g.anim, 1.8); O.gesture(mate, g.anim === 'run' ? 'laugh' : g.anim, 1.8); sp(q, pick(g.lines), 2.2); } q._sl = now + 6000; q._game = g.name; continue; }
-        }
         // the step swept
         if (q.activity && q.activity.sweep) { O.gesture(q, 'sweep', 3); q._sl = now + 3200; continue; }
         // the weather, on the faces of those out in it
@@ -61,21 +47,6 @@
       }
     });
     (O.extraLines = O.extraLines || []).push((s, q) => q.tipsy === s.day && s.hour >= 19 ? 'You have had a good deal of ale tonight: you are merry, loose-tongued, a little slurred and very fond of everyone.' : '');
-    (O.extraLines = O.extraLines || []).push((s, q) => q.age < 13 && q._game ? `You were just playing ${q._game} with the other children. You can ask the player to play (play_game).` : '');
-
-    // join the children's game
-    (O.moreCandidates = O.moreCandidates || []).push(() => {
-      const s = cur(), P = game.player; if (!s || game.scene || s.raining) return null;
-      const kids = s.people.filter((q) => q.age >= 5 && q.age < 13 && q._game && near(q, 90)); if (kids.length < 2) return null;
-      const g = kids[0]._game;
-      return { type: 'custom', d: 10, x: kids[0].agent.x, y: kids[0].agent.y - 46, label: `Join the children's ${g}`, act: () => {
-        const G = GAMES.find((x) => x.name === g) || GAMES[0]; P.anim = G.anim === 'crouch' ? 'crouch' : 'run'; setTimeout(() => { P.anim = 'idle'; }, 2500);
-        for (const k of kids) { O.gesture(k, 'laugh', 2.5); s.relate(k, { id: 0 }, 0.03); }
-        sp(kids[0], pick(['A grown-up wants to play!', 'You\'re it!', 'You have to hop on one foot!']), 2.4);
-        PS.mood = Math.min(100, (PS.mood || 50) + 4); PS.energy = Math.max(0, PS.energy - 3);
-        setTimeout(() => { sp(kids[1], pick(['Again!', 'You\'re slow!', 'That was the best!']), 2.2); say(`You play ${g} with the children till you're out of breath. They'll remember you for it.`); }, 2600);
-      } };
-    });
 
     // ---------------------------------------------------------------- washing lines
     let _line = {};

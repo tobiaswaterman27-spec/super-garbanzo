@@ -136,7 +136,7 @@
       const snd = O.Sound && O.Sound.on;
       menu.innerHTML = `<div class="ui-menu-in"><h2>Outlaw</h2>
         <button data-m="resume" class="hot">Continue</button>
-        <button data-m="voices">Voices: ${O.AI && O.AI.kind === 'openai' ? 'your OpenAI key' : O.AI && O.AI.kind === 'claude' ? 'Claude' : 'none'}</button>
+        <button data-m="voices">Voices: ${O.AI && O.AI.kind === 'openai' ? 'your OpenAI key' : O.AI && O.AI.kind === 'claude' ? 'Claude' : 'none'}${O.AI && O.AI.lastError ? ({ not_granted: ' (not allowed: see Permissions)', sampling_disabled: ' (not available)', rate_limited: ' (busy, wait a little)', session_expired: ' (sign in again)' })[O.AI.lastError] || ' (not answering)' : ''}</button>
         ${[['Yourself', [['satchel', 'Satchel and skills', 'I'], ['tasks', "Undertakings and what's on", 'J'], ['biz', 'Business: work, the Crown, war', 'B'], ['hold', 'Holdings: houses and land', 'P'], ['gang', 'Your gang', 'G']]], ['The world', [['map', 'Map of Eldoria', 'M'], ['ledger', 'Town ledger', 'L'], ['chron', 'Chronicle', 'C']]], ['The game', [['guide', 'Guide', '/'], ['settings', 'Settings and saves', ''], ['save', 'Save now', '']]]].map(([h, items]) => `<h4>${h}</h4>${items.map(([k, l, key]) => `<button data-m="${k}">${l}${key ? ` <span class="lbl">${key}</span>` : ''}</button>`).join('')}`).join('')}</div>`;
       menu.hidden = false; O.menuOpen = true; game.player.locked = true;
       menu.querySelectorAll('[data-m]').forEach((b) => b.onclick = () => act(b.dataset.m));
@@ -193,6 +193,7 @@
         ${row('new', 'Begin a new life', 'a new character and a new world')}
         <h4>Game</h4>
         ${row('sound', `Sound: ${snd ? 'on' : 'off'}`)}
+        ${row('music', `Music: ${O.Music ? ['off', 'quiet', 'normal', 'loud'][O.Music.level] : 'off'}`, 'the tunes of the land, the tavern, the chapel and the songs people sing')}
         ${row('speed', `Time: ${game.clock.speed >= 2 ? 'fast' : 'normal'}`, 'how fast the days go by')}
         ${row('guides', `Showing the way: ${PS.guides === 'off' ? 'off' : PS.guides === 'marks' ? 'markers only' : 'pointers and markers'}`, 'the gold pointers that lead you, and the markers over where to go')}
         <h4>Testing</h4>
@@ -208,6 +209,7 @@
           else if (k === 'restart') { O.Save.clear(); O.Names && O.Names.newLife(); window.__noAutosave = true; location.reload(); }
           else if (k === 'new') confirmNew();
           else if (k === 'sound') { O.AudioToggle && O.AudioToggle(); settings(); }
+          else if (k === 'music') { if (O.Music) O.Music.setLevel((O.Music.level + 1) % 4); settings(); }
           else if (k === 'speed') { game.clock.speed = game.clock.speed >= 2 ? 1 : 2; settings(); }
           else if (k === 'guides') { PS.guides = !PS.guides || PS.guides === 'all' ? 'marks' : PS.guides === 'marks' ? 'off' : 'all'; settings(); }
           else if (k === 'pardon') { pardon(); O.Panels.close(); O.UI.say('Your slate is wiped clean. Nobody is looking for you.'); }

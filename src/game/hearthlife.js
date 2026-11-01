@@ -161,6 +161,7 @@
       const q = s.people.find((z) => z.age >= 10 && (z.songs || []).length && !z.agent.hidden && z.agent.inside == null && ['work', 'labour', 'chore', 'errand', 'stroll'].includes(z.activity?.act) && Math.hypot(z.agent.x - P.x, z.agent.y - P.y) < 160 && !(O.npcUI && O.npcUI.talking() === z));
       if (!q) return; const song = PS.songBook.find((x) => x.id === pick(q.songs)); if (!song) return;
       sp(q, Math.random() < 0.5 ? `♪ ${song.lines[Math.floor(Math.random() * song.lines.length)]} ♪` : '♪ hm hm, hmm hm... ♪', 3);
+      O.Music && O.Music.hum && O.Music.hum(q, song);
     });
   }
   O.HearthLifeSetup = { setup };

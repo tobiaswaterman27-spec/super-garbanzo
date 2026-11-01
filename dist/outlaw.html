@@ -13168,6 +13168,20 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
 
   // ---------------------------------------------------------------- who answers
   const AI = O.AI = { kind: null, ready: false, sample: null, key: null, busy: false };
+  // why Claude didn't answer, in words a player can act on
+  AI.lastError = null;
+  AI.permanent = (c) => ['not_granted', 'sampling_disabled', 'not_declared', 'capability_disabled', 'capability_removed', 'session_expired', 'bad_key', 'invalid_request', 'prompt_too_large'].includes(c);
+  AI.why = (c) => ({
+    not_granted: 'Claude has not been allowed to speak for this game. Open the menu at the top of the artifact, choose Permissions, and allow Claude; then speak again.',
+    sampling_disabled: 'Claude is not available on this Claude account or organisation, so the townsfolk cannot answer. An OpenAI key (Esc, then Voices) will work instead.',
+    not_declared: 'This copy of the game is not allowed to ask Claude. Play it from its claude.ai link.',
+    capability_disabled: 'Claude cannot answer in this view. Open the game in a browser at its claude.ai link.',
+    capability_removed: 'This Claude app is too old to let the game ask Claude. Update it, or open the game in a browser at its claude.ai link.',
+    session_expired: 'Your claude.ai sign-in has expired. Sign in again, then speak again.',
+    rate_limited: 'Claude is busy or your usage limit is reached for now. Wait a little and speak again.',
+    bad_key: 'OpenAI refused the key. Esc, then Voices, to put in a good one.',
+    prompt_too_large: 'Too much was said at once. Say something shorter.',
+  })[c] || null;
   AI.detect = async () => {
     if (LS('outlaw.devai') === 'mock' || (navigator.webdriver && location.protocol === 'file:')) { AI.kind = 'mock'; return (AI.ready = true); } // (automated tests only)
     if (window.claude && typeof window.claude.use === 'function') {
@@ -13181,6 +13195,9 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
   // a reply is JSON, but models wrap it in fences or add a word: take the object out of whatever came
   const parseJSON = (t) => { if (t && typeof t === 'object') return t; const str = String(t || ''), i = str.indexOf('{'), j = str.lastIndexOf('}'); if (i < 0 || j <= i) throw { code: 'bad_reply' }; return JSON.parse(str.slice(i, j + 1)); };
   async function ask(prompt) {
+    try { const r = await ask0(prompt); AI.lastError = null; return r; } catch (e) { AI.lastError = e && e.code ? e.code : 'upstream_error'; throw e; }
+  }
+  async function ask0(prompt) {
     if (AI.kind === 'claude') return parseJSON(await AI.sample.json(prompt, { modelTier: 'quick', cache: false }));
     if (AI.kind === 'openai') {
       const r = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + AI.key },
@@ -13212,7 +13229,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     throw { code: 'no_ai' };
   };
   function noteFail(e) {
-    fails++; if (fails < 2) return;
+    fails++; if (fails < 2 || (e && e.code && AI.why(e.code))) return;
     const why = e && e.code === 'bad_key' ? 'OpenAI refused the key' : e && e.code === 'rate_limited' ? 'too many words at once; wait a moment' : (AI.kind === 'claude' ? 'Claude is not answering here' : 'OpenAI is not answering') + (e && e.message ? ` (${String(e.message).slice(0, 80)})` : '');
     O.UI && O.UI.say(`The voices aren't answering: ${why}. Esc, then Voices, to use an OpenAI key.`, 'bad');
   }
@@ -13409,7 +13426,7 @@ They know only what their card says; asked anything else they don't know, guess 
 people: for each person present: feel and trust (-2..2) = how the player's words change their liking and belief; learned = a short new claim from the player they now believe, else ""; caught = true if they now see the player lied before.
 name: the player's name if the player just gave it. agree: true only if they now agree to the pending request.
 Only what's real: never mention objects, chores or happenings that aren't in your card or the scene (no baskets of sheets, no 'take that end'), and never ask the player to do something with their hands that isn't there to do. Don't keep naming where you are or the town; name a place only when it matters to what's said.
-Keep your word: anything a speaker says they will do now (go somewhere, come along, show the way, follow, fetch, give, take someone on) MUST be in acts, or it won't happen; and never say you'll do what you won't.
+Keep your word: anything a speaker says they will do now or agrees to change (go somewhere, come along, show the way, follow, fetch, give, sell, take someone on, change someone's hours or shift or pay, give a day off, let them start now, a price, a rent, a meeting) MUST be in acts with the agreed numbers, or it won't happen in the world; words alone change nothing. Never say you'll do what you won't.
 Talks end: when the talk has run its course (goodbyes said, the matter settled, nothing more to say, or they have somewhere to be), the person says a short parting line and adds the act leave. Don't drag a talk out.
 acts: only what a speaker truly agrees to or does, each {"who":"First name","do":...}:
 meet {"place","hour":0-23,"day":"today"|"tomorrow"|weekday,"why"} | follow (they come along with the player, wherever the player goes) | lead {"place"?} (the player comes along with them: they carry on where they were going, or to the place, and wait if the player falls behind; use this when the player says they will come with them) | stop (stop following) | go {"place"} (go there now) | invite (let the player into their home today) | give {"item"} (hand over something they have) | want {"item"} (ask the player for something) | take_gift | refuse_gift | take_job (accept the player's own job when offered) | seek_job {"place"} | tell {"to","msg"} (pass a message to someone they know) | like {"of","by":-1 or 1} (think better or worse of someone after what was said) | call {"who"} (call someone near or in the same house over to join the talk, even across the room) | ask {"who","question"} (go and ask someone in the house or near, privately, then come back with the answer) | show {"place"} (walk the player there) | direct {"place"} (tell the player the way to a place, in words, when they ask where something is) | sell {"item","price"} (sell the player something they have, at an agreed price in aurins) | buy {"item","price"} (buy something the player carries) | lend {"amount"} (lend the player money, to be paid back) | gesture {"kind":"hug"|"handshake"|"bow"|"wave"|"dance"|"cry"|"laugh"} | teach (show the player a little of their trade) | introduce {"who"} (call someone over and name them) | hire_on (agree to work for the player's own business) | join_gang (join the player's gang) | gang_in (a gang member agrees to take the player into their gang) | gang_work (a gang member gives the player the gang's next job, when they ask for work) | hire_player (the master takes the player on, when the card says there's a place) | errand {"item","to","reward"} (give the player something of theirs to take to someone they know, for a few aurins) | want {"item","reward"} also may offer a reward in aurins | court (agree to court, walk out with, the player) | betroth {"day"?,"hour"?} (agree to marry the player; the wedding is set at the chapel, on the day they settle on) | name_child {"name"} (the player's spouse agrees to the name the player gives their new baby) | offer {"key"} (do one of the things your card says you can do for the player, when they ask) | fit_clothes (a tailor at work measures the player for new clothes) | give_pet (give the player a pup or kitten of your own animal's litter) | set_wedding {"day","hour"} (the betrothed agree to move the wedding) | wedding_guest {"who"?} (the speaker accepts the player's invitation to the wedding, or agrees to pass the invitation to someone they know, who is then bidden) | part (break off a courtship, betrothal or marriage) | grudge {"why"} (the player has truly wronged the speaker, and they will hold it against them) | forgive (the speaker lets go of a grudge against the player, after real amends) | set_prices {"level":"cheap"|"fair"|"dear"} (only the player's own staff, told to change the shop's prices) | fight (go for the player) | flee (run from the player) | leave (end the talk and walk off: rude player, busy, bored, or done). If a speaker says they are off somewhere now, add a go act for it (or leave).
@@ -13506,17 +13523,17 @@ They know where their family and friends are just now (the card says); a strange
     let out = null;
     // the words are theirs or nothing: a reply that doesn't come is asked for again, and if it still
     // won't come, nobody speaks a set line; you're told they didn't catch it
-    let lines = [];
+    let lines = [], err = null;
     for (let tries = 0; tries < 3 && !lines.length; tries++) {
       if (tries) await new Promise((r) => setTimeout(r, 1200 * tries));
-      try { out = await AI.json(prompt); } catch (e) { out = null; if (e && e.code === 'bad_key') break; }
+      try { out = await AI.json(prompt); err = null; } catch (e) { out = null; err = e; if (e && AI.permanent(e.code)) break; if (e && e.code === 'rate_limited') break; }
       lines = linesOf(out, q);
     }
     AI.busy = false;
     if (!lines.length) {
       if (q._offer) { O.NpcActs && O.NpcActs.returnGift(q, q._offer); q._offer = null; }
       conv.pop(); const last = [...conv].reverse().find((c) => c.who === 'q');
-      O.UI.say(`${q.first} didn't catch that. Say it again.`, 'bad'); render(last ? last.t : '', false); return;
+      O.UI.say(err && err.code && AI.why(err.code) ? AI.why(err.code) : `${q.first} didn't catch that. Say it again.`, 'bad'); render(last ? last.t : '', false); return;
     }
     const n = (v) => clamp(Math.round(Number(v) || 0), -2, 2), everyone = [q, ...group];
     const byName = (w) => everyone.find((z) => z.first === w || (w && String(w).startsWith(z.first))) || null;
@@ -13544,6 +13561,18 @@ They know where their family and friends are just now (the card says); a strange
       const meWithThem = /\b(can|may|could|shall|let)\s+(i|me)\s+(follow|come|walk|go|tag)\b|\bi'?ll\s+(follow|come|walk|go)\s+(with|along|after)\b|\bi (will|shall) (follow|come with)\b|\b(take|show|lead) me\b|\bafter you\b/i.test(text);
       const themWithMe = /\b(follow|come with|come along with|walk with) me\b|\bcome along\b/i.test(text) && !meWithThem;
       for (const a of out.acts) { if (!a) continue; if (meWithThem && a.do === 'follow') a.do = 'lead'; else if (themWithMe && a.do === 'lead') a.do = 'follow'; }
+    }
+    // words alone change nothing: when they plainly said yes to a change (hours, pay, a price, a day off,
+    // rent, a job) but sent no act for it, ask once, briefly, what exactly was agreed, and carry it out
+    if ((!Array.isArray(out.acts) || !out.acts.length) && (AI.kind === 'claude' || AI.kind === 'openai')) {
+      const said = lines.map((l) => l.say).join(' '), yes = /\b(aye|yes|very well|all right|alright|agreed|done|fine|so be it|if you like|as you wish|i will|i'll|you may|go on then|deal)\b/i.test(said);
+      const about = /\b(hour|hours|shift|start|finish|early|late|morning|evening|o'?clock|noon|pay|wage|wages|raise|more money|less work|day off|rest day|price|cost|cheaper|discount|rent|room|job|work for|take me on|hire|sell|buy|lend|borrow|teach|meet)\b/i.test(text + ' ' + said);
+      if (yes && about) {
+        try {
+          const fix = await AI.json(`${RULES}${(O.extraActs || []).length ? '\nMore acts: ' + O.extraActs.join(' | ') : ''}\n\n--- ${q.first} ---\n${card(s, q)}\n${extraCard(s, q)}\n\nThe player just said: "${text}"\n${q.first} answered: "${said}"\nThat answer agreed to something but named no act, so nothing will happen in the game. Reply ONLY with JSON {"acts":[...]} listing the acts (in the format above, each with "who":"${q.first}") that carry out exactly what ${q.first} just agreed to, with the numbers (hours, price, amount) they agreed. If they agreed to nothing concrete, {"acts":[]}.`);
+          if (fix && Array.isArray(fix.acts) && fix.acts.length) out.acts = fix.acts;
+        } catch (e) { /* the words stand alone */ }
+      }
     }
     if (Array.isArray(out.acts) && O.NpcActs) for (const a of out.acts.slice(0, 4)) { if (!a || typeof a.do !== 'string') continue; const who = byName(a.who) || q; const res = O.NpcActs.apply(s, who, a, q); if (res === 'leave') leave = true; else if (res) notes.push(res); }
     if (q._offer) { const o = q._offer; q._offer = null; if (r.affinity > -0.2) O.NpcActs && O.NpcActs.keepGift(s, q, o); else O.NpcActs && O.NpcActs.returnGift(q, o); }
@@ -16002,6 +16031,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     };
     // singing it: line by line, over their heads, and a fiddle under it
     function sing(q, song, chorus) {
+      if (O.Music && O.Music.sing && O.Sound && O.Sound.on && O.Music.level > 0) return O.Music.sing(q, song, chorus);
       if (!song || !O.Speech) return; let i = 0;
       const next = () => { if (i >= song.lines.length || q.alive === false) return; O.Speech.say(q, '♪ ' + song.lines[i] + ' ♪', 3.2); O.gesture && O.gesture(q, 'dance', 1.5);
         if (O.Sound) { const f = [262, 294, 330, 392][i % 4]; O.Sound.play('pluck', f, 0.4); }
@@ -17169,8 +17199,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
 </script>
 <script>
 // The street between the big events. Folk who spend the evening at the tavern come home merry,
-// singing and hiccuping and stopping to steady themselves. Children play tag, hopscotch and leapfrog
-// in the street and shriek about it; you can join in. On washing day the lines go out by the houses
+// singing and hiccuping and stopping to steady themselves. On washing day the lines go out by the houses
 // and come in again when it rains. People mind the weather in small ways: a hand over the brow in the
 // heat, a shiver in the cold, a curse at the rain, snowballs in the snow. In the morning someone
 // sweeps the step. And you can stand an ale for anyone at the tavern, and drink with them.
@@ -17195,14 +17224,6 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       return a;
     };
     const HIC = ['Hic!', '*hic*', 'Who moved the road?', 'One more, I said, ONE more...', 'I love this town. I love all of you.', 'Shh. Shhh. The wife.', 'Where\'s my door gone?', 'Hic! Pardon.'];
-    // children's games
-    const GAMES = [
-      { name: 'tag', lines: ['You\'re it!', 'Can\'t catch me!', 'Not fair, I was resting!', 'Tag! You\'re it!'], anim: 'run' },
-      { name: 'hopscotch', lines: ['One, two, three...', 'You stepped on the line!', 'My turn!', 'Hop, hop, hop!'], anim: 'dance' },
-      { name: 'leapfrog', lines: ['Over you go!', 'Bend lower!', 'Ow! Your knee!', 'Again, again!'], anim: 'celebrate' },
-      { name: 'hide and seek', lines: ['Ninety-eight, ninety-nine, a hundred!', 'Coming, ready or not!', 'Found you!', 'I can see your feet!'], anim: 'look' },
-      { name: 'knucklebones', lines: ['Onesies!', 'Twosies! Ha!', 'You dropped it!', 'Best of three.'], anim: 'crouch' },
-    ];
     const W = () => (cur() && cur().weather) || { kind: 'clear' };
     let lt = 0;
     game.hooks.update.push((dt) => {
@@ -17212,11 +17233,6 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         if ((q._sl || 0) > now) continue;
         // in drink
         if (q.tipsy === s.day && h >= 19) { if (Math.random() < 0.3) { O.gesture(q, pick(['shake', 'stretch', 'shrug', 'laugh']), 1.4); sp(q, Math.random() < 0.25 && PS.songBook ? pick(['La la LAAA...', '♪ Oh the miller\'s daughter... ♪', '♪ Hey nonny nonny... ♪']) : pick(HIC), 2.2); q._sl = now + 5000; } continue; }
-        // a child at play with another
-        if (q.age >= 5 && q.age < 13 && q.activity && ['play', 'stroll'].includes(q.activity.act) && h >= 8 && h < 19 && !s.raining) {
-          const mate = s.people.find((z) => z !== q && z.age >= 4 && z.age < 13 && near(z, 340) && Math.hypot(z.agent.x - ag.x, z.agent.y - ag.y) < 80);
-          if (mate && Math.random() < 0.35) { const g = GAMES[(q.id + mate.id + s.day) % GAMES.length]; if (W().kind === 'snow') { O.gesture(q, 'attack', 1); sp(q, pick(['Snowball!', 'Got you!', 'Snow fight!']), 2); O.gesture(mate, 'hurt', 1); } else { O.gesture(q, g.anim, 1.8); O.gesture(mate, g.anim === 'run' ? 'laugh' : g.anim, 1.8); sp(q, pick(g.lines), 2.2); } q._sl = now + 6000; q._game = g.name; continue; }
-        }
         // the step swept
         if (q.activity && q.activity.sweep) { O.gesture(q, 'sweep', 3); q._sl = now + 3200; continue; }
         // the weather, on the faces of those out in it
@@ -17231,21 +17247,6 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       }
     });
     (O.extraLines = O.extraLines || []).push((s, q) => q.tipsy === s.day && s.hour >= 19 ? 'You have had a good deal of ale tonight: you are merry, loose-tongued, a little slurred and very fond of everyone.' : '');
-    (O.extraLines = O.extraLines || []).push((s, q) => q.age < 13 && q._game ? `You were just playing ${q._game} with the other children. You can ask the player to play (play_game).` : '');
-
-    // join the children's game
-    (O.moreCandidates = O.moreCandidates || []).push(() => {
-      const s = cur(), P = game.player; if (!s || game.scene || s.raining) return null;
-      const kids = s.people.filter((q) => q.age >= 5 && q.age < 13 && q._game && near(q, 90)); if (kids.length < 2) return null;
-      const g = kids[0]._game;
-      return { type: 'custom', d: 10, x: kids[0].agent.x, y: kids[0].agent.y - 46, label: `Join the children's ${g}`, act: () => {
-        const G = GAMES.find((x) => x.name === g) || GAMES[0]; P.anim = G.anim === 'crouch' ? 'crouch' : 'run'; setTimeout(() => { P.anim = 'idle'; }, 2500);
-        for (const k of kids) { O.gesture(k, 'laugh', 2.5); s.relate(k, { id: 0 }, 0.03); }
-        sp(kids[0], pick(['A grown-up wants to play!', 'You\'re it!', 'You have to hop on one foot!']), 2.4);
-        PS.mood = Math.min(100, (PS.mood || 50) + 4); PS.energy = Math.max(0, PS.energy - 3);
-        setTimeout(() => { sp(kids[1], pick(['Again!', 'You\'re slow!', 'That was the best!']), 2.2); say(`You play ${g} with the children till you're out of breath. They'll remember you for it.`); }, 2600);
-      } };
-    });
 
     // ---------------------------------------------------------------- washing lines
     let _line = {};
@@ -17774,6 +17775,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       const q = s.people.find((z) => z.age >= 10 && (z.songs || []).length && !z.agent.hidden && z.agent.inside == null && ['work', 'labour', 'chore', 'errand', 'stroll'].includes(z.activity?.act) && Math.hypot(z.agent.x - P.x, z.agent.y - P.y) < 160 && !(O.npcUI && O.npcUI.talking() === z));
       if (!q) return; const song = PS.songBook.find((x) => x.id === pick(q.songs)); if (!song) return;
       sp(q, Math.random() < 0.5 ? `♪ ${song.lines[Math.floor(Math.random() * song.lines.length)]} ♪` : '♪ hm hm, hmm hm... ♪', 3);
+      O.Music && O.Music.hum && O.Music.hum(q, song);
     });
   }
   O.HearthLifeSetup = { setup };
@@ -18930,6 +18932,244 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     };
   }
   O.PolishSetup = { setup };
+})();
+
+</script>
+<script>
+// Music, all of it made here in code. A small consort of instruments, each synthesised to sound like the
+// real thing: a plucked lute and a harp (struck strings that ring and fade as real ones do), a recorder
+// with its breath and chiff, a fiddle with its bow and vibrato, a nasal shawm, a hurdy-gurdy drone, a
+// tabor, handbells, and voices that sing real vowels. Rooms ring: the tavern a little, the chapel and the
+// great hall a lot. Tunes are written in the old modes by a composer that knows the dances (jigs, reels,
+// estampies, rounds), laments, carols, plainchant and marches, and it has written dozens of them, each
+// with its own name. What plays depends on where you are and what's happening: dances in the tavern of
+// an evening and at the fair, chant in the chapel, a stately air in the castle, a quiet tune on the road,
+// a harp at night, drums when blows are struck. And when someone sings one of the land's songs, they sing
+// its words to its own tune, fitted to the lyric, syllable by syllable.
+'use strict';
+(function () {
+  const MODES = { ionian: [0, 2, 4, 5, 7, 9, 11], dorian: [0, 2, 3, 5, 7, 9, 10], phrygian: [0, 1, 3, 5, 7, 8, 10], lydian: [0, 2, 4, 6, 7, 9, 11], mixolydian: [0, 2, 4, 5, 7, 9, 10], aeolian: [0, 2, 3, 5, 7, 8, 10] };
+  const VOWELS = { a: [800, 1150, 2900], e: [450, 1800, 2600], i: [320, 2200, 2900], o: [500, 900, 2700], u: [350, 700, 2500] };
+  const rngOf = (seed) => { let s = seed >>> 0 || 1; return () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return ((s >>> 0) % 100000) / 100000; }; };
+  const hashStr = (t) => { let h = 2166136261; for (const c of String(t)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
+
+  // ---------------------------------------------------------------- the styles the composer knows
+  const STYLES = {
+    jig: { meter: 6, beat: 0.17, modes: ['dorian', 'mixolydian', 'ionian'], lead: ['fiddle', 'recorder'], acc: 'lute', drum: [0, 3], drone: true, rhythm: [[1, 1, 1], [2, 1], [1, 2], [3]], bars: 8, form: 'AABB' },
+    reel: { meter: 4, beat: 0.15, modes: ['dorian', 'mixolydian'], lead: ['fiddle'], acc: 'lute', drum: [0, 2], drone: true, rhythm: [[1, 1], [1, 1], [2], [1, 1]], bars: 8, form: 'AABB' },
+    estampie: { meter: 3, beat: 0.32, modes: ['dorian', 'lydian', 'mixolydian'], lead: ['shawm', 'recorder'], acc: 'harp', drum: [0], drone: true, rhythm: [[2, 1], [1, 1, 1], [3]], bars: 8, form: 'ABAB' },
+    round: { meter: 4, beat: 0.26, modes: ['ionian', 'mixolydian'], lead: ['recorder'], acc: 'lute', drum: [0], drone: false, rhythm: [[1, 1], [2], [1, 1]], bars: 8, form: 'AABA' },
+    pastoral: { meter: 3, beat: 0.42, modes: ['dorian', 'ionian', 'lydian'], lead: ['recorder'], acc: 'lute', drum: null, drone: false, rhythm: [[2, 1], [3], [1, 1, 1]], bars: 8, form: 'AB' },
+    lament: { meter: 3, beat: 0.5, modes: ['aeolian', 'dorian', 'phrygian'], lead: ['fiddle', 'voiceU'], acc: 'harp', drum: null, drone: true, rhythm: [[2, 1], [3], [1, 2]], bars: 8, form: 'AB' },
+    nocturne: { meter: 3, beat: 0.55, modes: ['aeolian', 'dorian', 'lydian'], lead: ['harp'], acc: 'harp', drum: null, drone: false, rhythm: [[1, 1, 1], [3], [2, 1]], bars: 8, form: 'AB' },
+    carol: { meter: 3, beat: 0.34, modes: ['ionian', 'mixolydian'], lead: ['recorder', 'voiceA'], acc: 'lute', drum: [0], drone: false, rhythm: [[2, 1], [1, 1, 1], [3]], bars: 8, form: 'AABB', bells: true },
+    chant: { meter: 2, beat: 0.55, modes: ['dorian', 'phrygian', 'mixolydian'], lead: ['choir'], acc: null, drum: null, drone: false, rhythm: [[1, 1], [2]], bars: 8, form: 'AB', chant: true },
+    march: { meter: 4, beat: 0.24, modes: ['dorian', 'phrygian'], lead: ['shawm'], acc: null, drum: [0, 1, 2, 3], drone: true, rhythm: [[1, 1], [2], [1, 1]], bars: 4, form: 'AABB' },
+    sea: { meter: 6, beat: 0.26, modes: ['aeolian', 'dorian'], lead: ['fiddle', 'recorder'], acc: 'lute', drum: [0], drone: true, rhythm: [[2, 1], [3], [1, 1, 1]], bars: 8, form: 'AB' },
+    wild: { meter: 4, beat: 0.4, modes: ['phrygian', 'aeolian'], lead: ['recorder'], acc: null, drum: null, drone: true, rhythm: [[2], [1, 1], [3, 1]], bars: 8, form: 'AB' },
+  };
+  const NAMES_A = ['The Miller\'s', 'The Ferryman\'s', 'Old Ashford', 'The Reeve\'s', 'Lady Margery\'s', 'The Shepherd\'s', 'The Pedlar\'s', 'Saint Brannoc\'s', 'The Green Wood', 'The King\'s', 'The Bell-ringer\'s', 'The Hayward\'s', 'Goldham', 'The Abbot\'s', 'The Weaver\'s', 'Kettleby', 'The Fowler\'s', 'The Black Hound', 'Moonday Morning', 'The Tinker\'s', 'Crossfield', 'The Widow\'s', 'The Fair Maid\'s', 'Highmere', 'The Plough Boy\'s', 'The Wren\'s', 'The Cooper\'s', 'Long Meadow', 'The Friar\'s', 'The Holly Bough'];
+  const NAMES_B = { jig: 'Jig', reel: 'Reel', estampie: 'Estampie', round: 'Round', pastoral: 'Air', lament: 'Lament', nocturne: 'Nocturne', carol: 'Carol', chant: 'Chant', march: 'March', sea: 'Song of the Sea', wild: 'Lay' };
+  // the tune itself: phrases in a mode, from a seed
+  function compose(style, seed) {
+    const st = STYLES[style], r = rngOf(seed), mode = st.modes[Math.floor(r() * st.modes.length)], tonic = [146.8, 164.8, 174.6, 196, 220][Math.floor(r() * 5)];
+    const phrase = (start, endDeg, hi) => {
+      const notes = []; let deg = start;
+      for (let bar = 0; bar < 4; bar++) {
+        const cell = st.rhythm[Math.floor(r() * st.rhythm.length)];
+        const total = cell.reduce((a, b) => a + b, 0), scale = st.meter / total;
+        cell.forEach((d, i) => {
+          const last = bar === 3 && i === cell.length - 1;
+          if (last) deg = endDeg; else if (!(bar === 0 && i === 0)) { const x = r(); deg += x < 0.38 ? 1 : x < 0.72 ? -1 : x < 0.8 ? 2 : x < 0.88 ? -2 : x < 0.94 ? 4 : -3; deg = Math.max(hi ? 2 : -2, Math.min(hi ? 10 : 8, deg)); }
+          notes.push({ deg, d: d * scale, strong: i === 0 });
+        });
+      }
+      return notes;
+    };
+    const A = [...phrase(r() < 0.5 ? 0 : 4, 4, false), ...phrase(2, 0, false)], B = [...phrase(r() < 0.5 ? 4 : 7, 4, true), ...phrase(5, 0, false)];
+    const parts = st.form.split('').map((k) => (k === 'A' ? A : B));
+    return { style, seed, mode, tonic, notes: [].concat(...parts), name: `${NAMES_A[seed % NAMES_A.length]} ${NAMES_B[style]}` };
+  }
+  const TRACKS = []; for (const style of Object.keys(STYLES)) for (let k = 0; k < 8; k++) TRACKS.push(compose(style, hashStr(style + k) % 9973 + k * 31));
+
+  function setup(game) {
+    const S = O.Sound; if (!S) return; const cur = () => O.SimRef.cur, PS = O.PlayerState;
+    let level = 2; try { const v = localStorage.getItem('outlaw.music'); if (v != null) level = +v; } catch (e) { /* */ }
+    const VOL = [0, 0.3, 0.6, 0.95];
+    let ctx = null, bus, roomSend, hallSend, muffle, src, noise;
+    const freqOf = (tune, deg, oct = 0) => { const M = MODES[tune.mode], o = Math.floor(deg / 7), k = ((deg % 7) + 7) % 7; return tune.tonic * Math.pow(2, (M[k] + 12 * (o + oct)) / 12); };
+    function init() {
+      if (!S.ctx) return false; if (ctx === S.ctx) return true; ctx = S.ctx; noise = S.noise;
+      bus = ctx.createGain(); bus.gain.value = VOL[level]; bus.connect(S.master);
+      const ir = (secs, decay) => { const len = Math.floor(ctx.sampleRate * secs), b = ctx.createBuffer(2, len, ctx.sampleRate); for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay) * (i < 40 ? i / 40 : 1); } return b; };
+      const room = ctx.createConvolver(); room.buffer = ir(0.8, 3.2); const hall = ctx.createConvolver(); hall.buffer = ir(3.6, 2.4);
+      roomSend = ctx.createGain(); roomSend.gain.value = 0.18; hallSend = ctx.createGain(); hallSend.gain.value = 0;
+      roomSend.connect(room); hallSend.connect(hall); room.connect(bus); hall.connect(bus);
+      const dry = ctx.createGain(); dry.connect(bus); dry.connect(roomSend); dry.connect(hallSend);
+      muffle = ctx.createBiquadFilter(); muffle.type = 'lowpass'; muffle.frequency.value = 18000; muffle.connect(dry);
+      src = ctx.createGain(); src.connect(muffle); return true;
+    }
+    const space = (kind) => { if (!ctx) return; const t = ctx.currentTime; roomSend.gain.setTargetAtTime(kind === 'room' ? 0.35 : kind === 'hall' ? 0.1 : 0.12, t, 0.3); hallSend.gain.setTargetAtTime(kind === 'hall' ? 0.55 : 0, t, 0.3); };
+    const heard = (vol, muffled) => { if (!ctx) return; const t = ctx.currentTime; src.gain.setTargetAtTime(vol, t, 0.4); muffle.frequency.setTargetAtTime(muffled ? 900 : 18000, t, 0.3); };
+
+    // ---------------------------------------------------------------- the instruments
+    const ks = new Map();
+    function strBuf(f, bright, dur) {
+      const key = Math.round(f * 4) + ':' + bright; if (ks.has(key)) return ks.get(key);
+      const sr = ctx.sampleRate, N = Math.floor(sr * dur), P = Math.max(2, Math.round(sr / f)), b = ctx.createBuffer(1, N, sr), d = b.getChannelData(0), ring = new Float32Array(P);
+      for (let i = 0; i < P; i++) ring[i] = Math.random() * 2 - 1; for (let i = 1; i < P; i++) ring[i] = ring[i] * bright + ring[i - 1] * (1 - bright);
+      const loss = f > 500 ? 0.993 : 0.996; let ix = 0;
+      for (let i = 0; i < N; i++) { const a = ring[ix], nx = ring[(ix + 1) % P]; d[i] = a; ring[ix] = loss * 0.5 * (a + nx); ix = (ix + 1) % P; }
+      for (let i = 0; i < 60; i++) d[i] *= i / 60; ks.set(key, b); return b;
+    }
+    const gainEnv = (dest, t, a, peak, hold, rel) => { const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t + a); g.gain.setValueAtTime(Math.max(0.0002, peak), t + a + hold); g.gain.exponentialRampToValueAtTime(0.0001, t + a + hold + rel); g.connect(dest); return g; };
+    const osc = (type, f, t, end, dest, detune = 0) => { const o = ctx.createOscillator(); o.type = type; o.frequency.value = f; o.detune.value = detune; o.connect(dest); o.start(t); o.stop(end); return o; };
+    const vib = (o, t, rate, depth, delay = 0.15) => { const l = ctx.createOscillator(), g = ctx.createGain(); l.frequency.value = rate; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(o.frequency.value * depth, t + delay + 0.2); l.connect(g); g.connect(o.frequency); l.start(t); l.stop(t + 30); return l; };
+    const noiseBand = (t, dur, f, q, peak, dest) => { const s = ctx.createBufferSource(); s.buffer = noise; s.loop = true; const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = q; const g = gainEnv(dest, t, 0.01, peak, Math.max(0, dur - 0.05), 0.06); s.connect(bp); bp.connect(g); s.start(t, Math.random()); s.stop(t + dur + 0.2); };
+    const I = {
+      lute(t, f, d, v, out) { const s = ctx.createBufferSource(); s.buffer = strBuf(f, 0.45, 2.2); const body = ctx.createBiquadFilter(); body.type = 'peaking'; body.frequency.value = 280; body.gain.value = 5; const g = ctx.createGain(); g.gain.value = 0.55 * v; s.connect(body); body.connect(g); g.connect(out); s.start(t); s.stop(t + 2.2); },
+      harp(t, f, d, v, out) { const s = ctx.createBufferSource(); s.buffer = strBuf(f, 0.75, 3); const g = ctx.createGain(); g.gain.value = 0.45 * v; s.connect(g); g.connect(out); s.start(t); s.stop(t + 3); },
+      recorder(t, f, d, v, out) {
+        const g = gainEnv(out, t, 0.035, 0.12 * v, Math.max(0.02, d - 0.08), 0.07), lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = f * 5; lp.connect(g);
+        const o = osc('sine', f, t, t + d + 0.2, lp); osc('triangle', f, t, t + d + 0.2, (() => { const h = ctx.createGain(); h.gain.value = 0.25; h.connect(lp); return h; })()); vib(o, t, 5.2, 0.004, 0.25);
+        noiseBand(t, 0.05, f * 3, 4, 0.05 * v, out); noiseBand(t, d, f * 2, 6, 0.012 * v, out);
+      },
+      fiddle(t, f, d, v, out) {
+        const g = gainEnv(out, t, 0.07, 0.07 * v, Math.max(0.02, d - 0.1), 0.12), bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 0.8;
+        const pk = ctx.createBiquadFilter(); pk.type = 'peaking'; pk.frequency.value = 2600; pk.gain.value = 6; const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 4200;
+        bp.connect(pk); pk.connect(lp); lp.connect(g); const o = osc('sawtooth', f, t, t + d + 0.3, bp); vib(o, t, 5.6, 0.006, 0.18); osc('sawtooth', f, t, t + d + 0.3, bp, 6);
+        noiseBand(t, d, 3000, 2, 0.006 * v, out);
+      },
+      shawm(t, f, d, v, out) { const g = gainEnv(out, t, 0.03, 0.06 * v, Math.max(0.02, d - 0.06), 0.06), bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1300; bp.Q.value = 1.6; const pk = ctx.createBiquadFilter(); pk.type = 'peaking'; pk.frequency.value = 2800; pk.gain.value = 8; bp.connect(pk); pk.connect(g); const o = osc('square', f, t, t + d + 0.2, bp); osc('sawtooth', f, t, t + d + 0.2, bp, -5); vib(o, t, 6, 0.004, 0.2); },
+      tabor(t, f, d, v, out) { noiseBand(t, 0.08, 700, 0.7, 0.18 * v, out); const g = gainEnv(out, t, 0.002, 0.25 * v, 0, 0.18), o = ctx.createOscillator(); o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(70, t + 0.15); o.connect(g); o.start(t); o.stop(t + 0.3); noiseBand(t, 0.03, 4500, 1, 0.05 * v, out); },
+      bell(t, f, d, v, out) { for (const [r, a, dc] of [[1, 1, 2.5], [2, 0.5, 1.8], [2.4, 0.4, 1.4], [3, 0.3, 1], [4.2, 0.2, 0.7], [5.4, 0.12, 0.5]]) { const g = gainEnv(out, t, 0.002, 0.06 * a * v, 0, dc); osc('sine', f * r * 2, t, t + dc + 0.1, g); } },
+      drone(t, f, d, v, out) { const g = gainEnv(out, t, 0.6, 0.03 * v, Math.max(0.1, d - 1), 0.8), lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700; lp.connect(g); osc('sawtooth', f / 2, t, t + d + 1, lp); osc('sawtooth', f * 0.75, t, t + d + 1, lp, 4); osc('sawtooth', f / 2, t, t + d + 1, lp, -7); },
+      voice(t, f, d, v, out, vowel = 'a') {
+        const F = VOWELS[vowel] || VOWELS.a, g = gainEnv(out, t, 0.06, 0.09 * v, Math.max(0.02, d - 0.1), 0.12), src0 = ctx.createGain(); src0.gain.value = 1;
+        F.forEach((ff, k) => { const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = ff * (f > 260 ? 1.12 : 1); bp.Q.value = 9; const gg = ctx.createGain(); gg.gain.value = [1, 0.6, 0.25][k]; src0.connect(bp); bp.connect(gg); gg.connect(g); });
+        const o = osc('sawtooth', f, t, t + d + 0.3, src0); vib(o, t, 5, 0.008, 0.25); noiseBand(t, 0.04, 4000, 1, 0.01 * v, out);
+      },
+      voiceU(t, f, d, v, out) { I.voice(t, f, d, v, out, 'u'); },
+      voiceA(t, f, d, v, out) { I.voice(t, f, d, v, out, 'a'); },
+      choir(t, f, d, v, out, vowel) { for (const [m, dt] of [[1, 0], [1, 9], [0.5, -6], [0.667, 3]]) I.voice(t + Math.random() * 0.02, f * m, d, v * 0.5, out, vowel || 'a'); },
+    };
+
+    // ---------------------------------------------------------------- playing a tune
+    let perf = null; // { tune, gain, t0, i, events, loop, onEnd }
+    function events(tune) {
+      const st = STYLES[tune.style], out = []; let t = 0; const beat = st.beat;
+      const leadName = st.lead[tune.seed % st.lead.length];
+      for (const n of tune.notes) {
+        const dur = n.d * beat; out.push({ t, inst: leadName, f: freqOf(tune, n.deg, leadName === 'choir' || leadName.startsWith('voice') ? 0 : 1), d: dur * 0.95, v: n.strong ? 1 : 0.8, vowel: st.chant ? 'aeiou'[(Math.floor(t * 3)) % 5] : undefined });
+        if (n.strong && st.acc) { const root = n.deg >= 0 ? Math.floor(n.deg / 2) * 2 - (n.deg % 2 ? 2 : 0) : 0; for (const [k, dd] of [[0, 0], [2, 0.03], [4, 0.06]]) out.push({ t: t + dd, inst: st.acc, f: freqOf(tune, root + k, -1), d: dur, v: 0.45 }); }
+        t += dur;
+      }
+      const total = t, barLen = st.meter * beat;
+      if (st.drum) for (let b = 0; b * barLen < total; b++) for (const k of st.drum) out.push({ t: b * barLen + k * beat, inst: 'tabor', f: 0, d: 0.1, v: k === 0 ? 1 : 0.6 });
+      if (st.drone) out.push({ t: 0, inst: 'drone', f: freqOf(tune, 0, 0), d: total, v: 1 });
+      if (st.bells) for (let b = 0; b * barLen < total; b += 2) out.push({ t: b * barLen, inst: 'bell', f: freqOf(tune, b % 4 ? 4 : 0, 0), d: 1, v: 0.6 });
+      out.sort((a, b) => a.t - b.t); out.total = total; return out;
+    }
+    function play(tune, opts = {}) {
+      if (!init()) return; stop(0.8);
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, ctx.currentTime); g.gain.exponentialRampToValueAtTime(1, ctx.currentTime + 1.2); g.connect(src);
+      perf = { tune, gain: g, t0: ctx.currentTime + 0.2, i: 0, ev: events(tune), loops: opts.loops || 1, onEnd: opts.onEnd, ctxKey: opts.key };
+      if (O.Music.showNames) nowPlaying(tune.name);
+    }
+    function stop(fade = 1.5) { if (!perf || !ctx) return; const p = perf; perf = null; const t = ctx.currentTime; p.gain.gain.cancelScheduledValues(t); p.gain.gain.setValueAtTime(Math.max(0.0001, p.gain.gain.value), t); p.gain.gain.exponentialRampToValueAtTime(0.0001, t + fade); setTimeout(() => { try { p.gain.disconnect(); } catch (e) { /* */ } }, (fade + 0.5) * 1000); }
+    function pump() {
+      if (!perf || !ctx) return; const ahead = ctx.currentTime + 0.5;
+      while (perf.i < perf.ev.length && perf.t0 + perf.ev[perf.i].t < ahead) { const e = perf.ev[perf.i++]; try { I[e.inst](Math.max(ctx.currentTime, perf.t0 + e.t), e.f, e.d, e.v, perf.gain, e.vowel); } catch (er) { console.error(er); } }
+      if (perf.i >= perf.ev.length && ctx.currentTime > perf.t0 + perf.ev.total) { perf.loops--; if (perf.loops > 0) { perf.t0 += perf.ev.total + 0.3; perf.i = 0; } else { const f = perf.onEnd; perf = null; f && f(); } }
+    }
+    let label = null;
+    function nowPlaying(name) {
+      if (!label) { label = document.createElement('div'); label.style.cssText = 'position:fixed;left:14px;bottom:12px;font:12px monospace;color:#f3e9d2;text-shadow:0 1px 2px #000;opacity:0;transition:opacity 1.2s;pointer-events:none;z-index:5'; document.body.appendChild(label); }
+      label.textContent = '♪ ' + name; label.style.opacity = '0.85'; clearTimeout(label._t); label._t = setTimeout(() => { label.style.opacity = '0'; }, 5000);
+    }
+
+    // ---------------------------------------------------------------- what plays, where
+    const pickTrack = (style, salt) => { const list = TRACKS.filter((x) => x.style === style); return list[Math.abs(salt) % list.length]; };
+    let lastKey = null, rest = 20, playedAt = 0;
+    function want() {
+      const s = cur(); if (!s) return null; const h = s.hour, P = game.player, sc = game.scene, W = s.weather || {};
+      const fighting = performance.now() - (O.lastBlowAt || 0) < 8000;
+      if (fighting) return { key: 'fight', style: 'march', space: sc ? 'room' : 'open', vol: 0.8, loop: 3, diegetic: false };
+      if (sc) {
+        const b = sc.b.parent || sc.b, t = b.type || '', bz = s.biz.get(b.id), type = (bz && bz.type) || t;
+        if (type === 'tavern' && (h >= 17 || h < 1)) return { key: 'tavern', style: (s.day + Math.floor(h)) % 2 ? 'jig' : 'reel', space: 'room', vol: 0.9, loop: 2, diegetic: true };
+        if (/chapel|church|abbey|priory|cathedral/.test(type)) return { key: 'chapel', style: 'chant', space: 'hall', vol: 0.7, loop: 2, diegetic: true };
+        if (b.royal || /castle|keep|palace|hall|manor/.test(type)) return { key: 'castle', style: (s.day % 2) ? 'estampie' : 'pastoral', space: 'hall', vol: 0.6, loop: 1 };
+        if (type === 'tavern') return { key: 'tavern-day', style: 'round', space: 'room', vol: 0.35, loop: 1, diegetic: true };
+        return h >= 20 || h < 6 ? { key: 'home-night', style: 'nocturne', space: 'room', vol: 0.3, loop: 1 } : null;
+      }
+      // out of doors: a dance where there's merrymaking, the tavern spilling out of an evening
+      const party = (s.npcEvents || []).find((e) => e.day === s.day && h >= e.from && h < e.to && (e.kind === 'dance' || e.kind === 'nameday' || e.party || e.fair)) || (O.festivalNow && O.festivalNow());
+      if (party) return { key: 'party', style: 'jig', space: 'open', vol: 0.75, loop: 2, diegetic: true };
+      const tv = s.world.buildings.find((b) => b.type === 'tavern'); if (tv && (h >= 18 || h < 1)) { const d = Math.hypot(tv.doorX * 16 - P.x, tv.doorY * 16 - P.y); if (d < 260) return { key: 'tavern-out', style: 'jig', space: 'open', vol: 0.5 * (1 - d / 260) + 0.05, loop: 2, muffled: true, diegetic: true }; }
+      if (O.rowing && O.rowing()) return { key: 'sea', style: 'sea', space: 'open', vol: 0.45, loop: 1 };
+      if (W.kind === 'rain' || W.kind === 'heavy' || W.kind === 'storm') return { key: 'rain', style: 'lament', space: 'open', vol: 0.4, loop: 1 };
+      if (h >= 21 || h < 5) return { key: 'night', style: 'nocturne', space: 'open', vol: 0.35, loop: 1 };
+      if (s.season === 'winter') return { key: 'winter', style: 'carol', space: 'open', vol: 0.4, loop: 1 };
+      const w = game.world; const out = w.ox != null && Math.max(w.ox - P.x / 16, P.x / 16 - w.ox - w.townW, w.oy - P.y / 16, P.y / 16 - w.oy - w.townH, 0) > 10;
+      return out ? { key: 'wild', style: (s.day % 3) ? 'pastoral' : 'wild', space: 'open', vol: 0.4, loop: 1 } : { key: 'town', style: ['pastoral', 'round', 'estampie'][s.day % 3], space: 'open', vol: 0.35, loop: 1 };
+    }
+    let dt0 = 0;
+    game.hooks.update.push((dt) => {
+      pump(); if (game.player.anim === 'attack' || (game.player.hurtT || 0) > 0) O.lastBlowAt = performance.now(); dt0 -= dt; if (dt0 > 0) return; dt0 = 1;
+      if (!S.on || level === 0 || !init()) { if (perf) stop(1); return; }
+      if (singing) return;
+      const w = want(); if (!w) { if (perf) stop(2.5); lastKey = null; return; }
+      space(w.space); heard(w.vol, !!w.muffled);
+      if (perf && w.key === lastKey) return;
+      if (perf && w.key !== lastKey) { stop(2); rest = w.diegetic ? 0.5 : 2; }
+      lastKey = w.key; rest -= 1; if (rest > 0) return;
+      const s = cur(); play(pickTrack(w.style, s.day * 7 + Math.floor(performance.now() / 60000)), { loops: w.loop, key: w.key, onEnd: () => { rest = w.diegetic ? 2 : 35 + Math.random() * 60; lastKey = null; } });
+    });
+
+    // ---------------------------------------------------------------- the land's songs, sung to their own tunes
+    const syll = (word) => { const w = word.toLowerCase().replace(/[^a-z']/g, ''); if (!w) return []; const groups = w.replace(/e$/, '').match(/[aeiouy]+/g) || ['e']; return groups.map((g) => (g[0] === 'y' ? 'i' : g[0])); };
+    const moodOf = (song) => { const t = (song.title + ' ' + song.lines.join(' ')).toLowerCase(); return /sorrow|weep|grave|die|dead|cold|alone|lost|mourn|tears|lament/.test(t) ? 'sad' : /ale|drink|merry|dance|jug|feast|cheer|night away/.test(t) ? 'merry' : 'plain'; };
+    O.songTune = (song) => {
+      const seed = hashStr(song.title || song.lines[0]), r = rngOf(seed), mood = moodOf(song), mode = mood === 'sad' ? 'aeolian' : mood === 'merry' ? 'mixolydian' : ['dorian', 'ionian'][seed % 2];
+      const beat = mood === 'sad' ? 0.36 : mood === 'merry' ? 0.2 : 0.27; const tunes = {};
+      return song.lines.map((line, li) => {
+        const sy = []; for (const w of line.split(/\s+/)) syll(w).forEach((v, k) => sy.push({ v, first: k === 0 }));
+        const key = li % 2; const r2 = rngOf(seed + key * 101 + sy.length); let deg = key ? 4 : 0; const notes = [];
+        sy.forEach((x, i) => { const strong = i % 2 === (sy.length % 2 ? 0 : 1); if (i) { const a = r2(); deg += a < 0.4 ? 1 : a < 0.75 ? -1 : a < 0.85 ? 2 : -2; deg = Math.max(-2, Math.min(8, deg)); } if (i === sy.length - 1) deg = li % 2 ? 0 : 4; notes.push({ deg, d: (i === sy.length - 1 ? 3 : strong ? 2 : 1) * beat, v: x.v, strong }); });
+        tunes[key] = tunes[key] || notes; return { line, notes, mode, beat };
+      });
+    };
+    let singing = false;
+    O.Music = {
+      get level() { return level; }, setLevel(v) { level = v; try { localStorage.setItem('outlaw.music', String(v)); } catch (e) { /* */ } if (bus) bus.gain.setTargetAtTime(VOL[level], ctx.currentTime, 0.3); if (!level) stop(0.5); },
+      tracks: TRACKS, play: (name) => { const t = TRACKS.find((x) => x.name === name) || TRACKS[0]; play(t, { loops: 1 }); }, stop, showNames: true,
+      sing(q, song, chorus) {
+        if (!song || !init()) return; const s = cur(), P = game.player; const tune = O.songTune(song), tonic = q.sex === 'f' ? 293.7 : 146.8, M = MODES[tune[0].mode];
+        const pos = game.scene ? game.scene.personPos(q) : [q.agent.x, q.agent.y]; const d = pos ? Math.hypot(pos[0] - P.x, pos[1] - P.y) : 999; const vol = Math.max(0.05, 1 - d / 360);
+        stop(1); singing = true; space(game.scene ? 'room' : 'open'); heard(vol, false);
+        const g = ctx.createGain(); g.gain.value = 1; g.connect(src); let t = ctx.currentTime + 0.4, delay = 0.4;
+        tune.forEach((ln, li) => {
+          const lineStart = delay; setTimeout(() => { O.Speech && O.Speech.say(q, '♪ ' + ln.line + ' ♪', ln.notes.reduce((a, n) => a + n.d, 0) + 0.6); O.gesture && O.gesture(q, 'dance', 1.5); if (li === tune.length - 1) for (const z of chorus || []) O.Speech && O.Speech.say(z, '♪ ' + ln.line + ' ♪', 3); }, lineStart * 1000);
+          for (const n of ln.notes) {
+            const o = Math.floor(n.deg / 7), k = ((n.deg % 7) + 7) % 7, f = tonic * Math.pow(2, (M[k] + 12 * o) / 12);
+            I.voice(t, f, n.d * 0.92, 1, g, n.v); if (n.strong) I.lute(t, f / 2, n.d, 0.5, g);
+            if (li === tune.length - 1) for (const z of (chorus || []).slice(0, 3)) I.voice(t + 0.01, z.sex === 'f' ? f * (q.sex === 'f' ? 1 : 2) : f * (q.sex === 'f' ? 0.5 : 1), n.d * 0.92, 0.6, g, n.v);
+            t += n.d;
+          }
+          const len = ln.notes.reduce((a, n) => a + n.d, 0); t += 0.35; delay += len + 0.35;
+        });
+        setTimeout(() => { singing = false; try { g.disconnect(); } catch (e) { /* */ } }, (delay + 1) * 1000);
+      },
+      hum(q, song) {
+        if (!song || !S.on || level === 0 || !init() || singing) return; const P = game.player, d = Math.hypot(q.agent.x - P.x, q.agent.y - P.y); if (d > 220) return;
+        const ln = O.songTune(song)[0], tonic = q.sex === 'f' ? 293.7 : 146.8, M = MODES[ln.mode], g = ctx.createGain(); g.gain.value = 0.5 * (1 - d / 220); g.connect(bus);
+        let t = ctx.currentTime + 0.1; for (const n of ln.notes) { const o = Math.floor(n.deg / 7), k = ((n.deg % 7) + 7) % 7; I.voice(t, tonic * Math.pow(2, (M[k] + 12 * o) / 12), n.d * 0.9, 0.7, g, 'u'); t += n.d; }
+        setTimeout(() => { try { g.disconnect(); } catch (e) { /* */ } }, (t - ctx.currentTime + 1) * 1000);
+      },
+    };
+  }
+  O.MusicSetup = { setup, TRACKS, STYLES };
 })();
 
 </script>
@@ -22434,7 +22674,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       const snd = O.Sound && O.Sound.on;
       menu.innerHTML = `<div class="ui-menu-in"><h2>Outlaw</h2>
         <button data-m="resume" class="hot">Continue</button>
-        <button data-m="voices">Voices: ${O.AI && O.AI.kind === 'openai' ? 'your OpenAI key' : O.AI && O.AI.kind === 'claude' ? 'Claude' : 'none'}</button>
+        <button data-m="voices">Voices: ${O.AI && O.AI.kind === 'openai' ? 'your OpenAI key' : O.AI && O.AI.kind === 'claude' ? 'Claude' : 'none'}${O.AI && O.AI.lastError ? ({ not_granted: ' (not allowed: see Permissions)', sampling_disabled: ' (not available)', rate_limited: ' (busy, wait a little)', session_expired: ' (sign in again)' })[O.AI.lastError] || ' (not answering)' : ''}</button>
         ${[['Yourself', [['satchel', 'Satchel and skills', 'I'], ['tasks', "Undertakings and what's on", 'J'], ['biz', 'Business: work, the Crown, war', 'B'], ['hold', 'Holdings: houses and land', 'P'], ['gang', 'Your gang', 'G']]], ['The world', [['map', 'Map of Eldoria', 'M'], ['ledger', 'Town ledger', 'L'], ['chron', 'Chronicle', 'C']]], ['The game', [['guide', 'Guide', '/'], ['settings', 'Settings and saves', ''], ['save', 'Save now', '']]]].map(([h, items]) => `<h4>${h}</h4>${items.map(([k, l, key]) => `<button data-m="${k}">${l}${key ? ` <span class="lbl">${key}</span>` : ''}</button>`).join('')}`).join('')}</div>`;
       menu.hidden = false; O.menuOpen = true; game.player.locked = true;
       menu.querySelectorAll('[data-m]').forEach((b) => b.onclick = () => act(b.dataset.m));
@@ -22491,6 +22731,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         ${row('new', 'Begin a new life', 'a new character and a new world')}
         <h4>Game</h4>
         ${row('sound', `Sound: ${snd ? 'on' : 'off'}`)}
+        ${row('music', `Music: ${O.Music ? ['off', 'quiet', 'normal', 'loud'][O.Music.level] : 'off'}`, 'the tunes of the land, the tavern, the chapel and the songs people sing')}
         ${row('speed', `Time: ${game.clock.speed >= 2 ? 'fast' : 'normal'}`, 'how fast the days go by')}
         ${row('guides', `Showing the way: ${PS.guides === 'off' ? 'off' : PS.guides === 'marks' ? 'markers only' : 'pointers and markers'}`, 'the gold pointers that lead you, and the markers over where to go')}
         <h4>Testing</h4>
@@ -22506,6 +22747,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
           else if (k === 'restart') { O.Save.clear(); O.Names && O.Names.newLife(); window.__noAutosave = true; location.reload(); }
           else if (k === 'new') confirmNew();
           else if (k === 'sound') { O.AudioToggle && O.AudioToggle(); settings(); }
+          else if (k === 'music') { if (O.Music) O.Music.setLevel((O.Music.level + 1) % 4); settings(); }
           else if (k === 'speed') { game.clock.speed = game.clock.speed >= 2 ? 1 : 2; settings(); }
           else if (k === 'guides') { PS.guides = !PS.guides || PS.guides === 'all' ? 'marks' : PS.guides === 'marks' ? 'off' : 'all'; settings(); }
           else if (k === 'pardon') { pardon(); O.Panels.close(); O.UI.say('Your slate is wiped clean. Nobody is looking for you.'); }
@@ -29868,7 +30110,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
       if (smith && hammerT <= 0) { hammerT = 0.7 + Math.random() * 0.3; const v = inside === sm ? 1 : inside ? 0 : near(dist(...doorPos(sm)), 420); if (v > 0.01) V.hammer(v, inside === sm ? inBus : outBus); }
       // tavern music in the evening
       const tv = B('tavern');
-      if (tv && h >= 18 && h < 23.5) { tuneT -= dt; if (tuneT <= 0) { tuneT = 0.32; const v = inside === tv ? 0.9 : inside ? 0 : near(dist(...doorPos(tv)), 300) * 0.6; if (v > 0.01) V.pluck(SCALE[TUNE[tunePos % TUNE.length]], v, inside === tv ? inBus : outBus); tunePos++; } }
+      if (tv && h >= 18 && h < 23.5 && !O.Music) { tuneT -= dt; if (tuneT <= 0) { tuneT = 0.32; const v = inside === tv ? 0.9 : inside ? 0 : near(dist(...doorPos(tv)), 300) * 0.6; if (v > 0.01) V.pluck(SCALE[TUNE[tunePos % TUNE.length]], v, inside === tv ? inBus : outBus); tunePos++; } }
       // birds by day, crickets by night
       if (!inside && !W.raining) {
         birdT -= dt; if (h > 5.5 && h < 19.5 && birdT <= 0) { birdT = 1.5 + Math.random() * 4; V.bird(0.6 + Math.random() * 0.4); }
@@ -29877,7 +30119,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
       // feet and hooves
       if (game.player.moving) { stepT -= dt; if (stepT <= 0) { if (game.player.mount) { stepT = game.player.galloping ? 0.13 : 0.24; V.hoof(0.8); } else { stepT = game.keys.has('run') ? 0.2 : 0.32; V.step(1, inside ? inBus : outBus); } } }
     });
-    O.Sound = { V, play: (k, ...a) => enabled && ctx && V[k] && V[k](...a), get on() { return enabled; } };
+    O.Sound = { V, play: (k, ...a) => enabled && ctx && V[k] && V[k](...a), get on() { return enabled; }, get ctx() { return ctx; }, get outBus() { return outBus; }, get inBus() { return inBus; }, get master() { return master; }, get noise() { return noise; }, get inside() { return !!game.scene; }, music: true };
   }
   O.AudioSetup = { setup };
 })();
@@ -30520,7 +30762,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.AftermathFX.setup(game);
   O.Parish.setup(game);
   O.Guide.setup(game);
-  O.AudioSetup.setup(game, sim);
+  O.AudioSetup.setup(game, sim); O.MusicSetup.setup(game);
   if (loaded) { O.Save.hydrateLate(game, home); setTimeout(() => O.Panels.toast(`Welcome back. It is ${O.DAYNAMES[sim.weekday]}.`), 300); }
   // autosave each dawn and whenever the page is hidden
   let lastAuto = sim.day;

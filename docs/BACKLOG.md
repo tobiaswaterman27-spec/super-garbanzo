@@ -469,3 +469,4 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] NPC gangs: rackets, smuggling, succession, recruits, revenge (row 131)
 - [x] Wages owed, strikes, foremen, shop-floor life (row 132)
 - [x] NPC goals reached, mourning, children apprenticed (row 133)
+- [x] AI failures explained, agreements always carried out, music engine and song tunes (row 134)

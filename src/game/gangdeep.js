@@ -145,7 +145,7 @@
     game.hooks.update.push((dt) => {
       bt -= dt; if (bt > 0) return; bt = 20; const s = cur(); if (!s || game.scene || !O.Errands || !(s.hour > 20 || s.hour < 1)) return;
       const gs = (s.gangs || []).filter((g) => g.id !== 'player'); const pair = []; for (const a of gs) for (const b of gs) if (a.id < b.id && a.rel[b.id] === 'enemy') pair.push([a, b]); if (!pair.length || Math.random() > 0.35) return;
-      const [a, b] = pick(pair), sq = (s.world.zones && s.world.zones.square) || [Math.floor(game.player.x / T), Math.floor(game.player.y / T)];
+      const [a, b] = pick(pair), sq = (s.world.zones && s.world.zones.square && O.sqCentre(s.world.zones.square)) || [Math.floor(game.player.x / T), Math.floor(game.player.y / T)];
       const P = game.player; if (Math.hypot(sq[0] * T - P.x, sq[1] * T - P.y) > 500) return;
       const side = (g, off) => g.members.map((m) => s.byId.get(m.id)).filter((q) => q && q.agent && !q.agent.hidden && q.agent.inside == null).slice(0, 3).forEach((q, i) => O.Errands.send(s, q, [sq[0] + off, sq[1] + i - 1], { anim: 'attack', secs: 7, face: off < 0 ? 2 : 1, giveUp: game.t + 50, at: () => { if (Math.random() < 0.5) sp(q, pick(['Get out of our street!', 'You\'ll pay for that!', 'Come on then!']), 2); if (Math.random() < 0.3 && s.fallIll) s.fallIll(q, 'injury', 0.3); } }));
       side(a, -1); side(b, 1); s.log(`${a.name} and ${b.name} brawling in the square.`, 'gang');

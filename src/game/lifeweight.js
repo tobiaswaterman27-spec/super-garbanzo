@@ -47,7 +47,7 @@
       if (st.generous > 0.3) w.push('open-handed'); else if (st.generous < -0.2) w.push('tight-fisted');
       if (st.godly > 0.4) w.push('godly'); else if (st.godly < -0.3) w.push('no churchgoer');
       if (st.feared > 0.5) w.push('dangerous to cross'); else if (st.feared > 0.25) w.push('handy with their fists');
-      if (st.trade && st.trade.rank && st.trade.v >= 0.25) w.push(`a ${st.trade.rank} at ${SKILL_WORDS[st.trade.k] || st.trade.k}`);
+      if (st.trade && st.trade.rank && st.trade.v >= 0.25) w.push(`${st.trade.rank === 'apprentice' ? 'an' : 'a'} ${st.trade.rank} at ${SKILL_WORDS[st.trade.k] || st.trade.k}`);
       w.push(st.wealth > 0.7 ? 'well-off' : st.wealth < 0.25 ? 'poor' : 'getting by');
       return w;
     };
@@ -102,6 +102,7 @@
       if (home && home.decor && (home.decor.wall === 'tapestry' || home.decor.wall === 'panel')) lines.push(`${who} has a ${home.decor.wall === 'tapestry' ? 'tapestry' : 'panelled room'} in that house, I hear. Getting above themselves.`);
       return lines.length ? pick(lines) : null;
     }
+    O.LifeWeight = { aboutYou, poke: () => { gt = 0; } };
     game.hooks.update.push((dt) => {
       gt -= dt; if (gt > 0) return; gt = 25 + Math.random() * 25;
       const s = cur(); if (!s || game.scene || (O.npcUI && O.npcUI.talking && O.npcUI.talking())) return;

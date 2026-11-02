@@ -130,6 +130,7 @@
       r.querySelectorAll('[data-sell]').forEach((b) => b.onclick = () => {
         const g = b.dataset.sell, pr = Math.max(1, Math.floor(sim.price(bz, g) * 0.6 * (2 - price(g) / Math.max(1, sim.price(bz, g)))));
         if (bz.cash < pr) return toast(`${bz.name} can't afford to buy.`, 'bad');
+        if (O.stolenRecognised && O.stolenRecognised(sim, g, seller && seller.id != null ? seller : null)) { close(); return; }
         PS.remove(g); PS.money += pr; bz.cash -= pr; bz.stock[g] = (bz.stock[g] || 0) + 1; trade(sim, bz, seller);
       });
     });

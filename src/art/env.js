@@ -81,14 +81,14 @@
     const doorTile = spec.doorTile ?? Math.floor(w / 2);
     const dw = spec.bigDoor ? 28 : wealth > 0.7 ? 17 : 15, dh = spec.bigDoor ? 44 : 40;
     const dx = church ? Math.round(x0 + FW / 2 - dw / 2) : Math.round(x0 + doorTile * T + T / 2 - dw / 2 + (spec.bigDoor ? 0 : 0)), dy = H - 2 - dh;
-    drawDoor(B, dx, dy, dw, dh, wealth, rng, spec.bigDoor);
+    drawDoor(B, dx, dy, dw, dh, wealth, rng, spec.bigDoor, spec.doorCol);
     if (church) {
       // a pointed arch over the west door, and buttresses at the corners
       for (let i = 0; i <= dw + 4; i++) { const t = i / (dw + 4), y = dy - 2 - Math.round(Math.sin(t * Math.PI) * 7); B.plot(dx - 2 + i, y, wallMat, 4); B.plot(dx - 2 + i, y + 1, wallMat, 1); }
       for (const bx of [x0, x1 - 4]) for (let y = H - 34; y < H - 3; y++) for (let k = 0; k < 5; k++) B.plot(bx + k, y - (k > 2 ? 0 : 0), wallMat, k === 0 ? 3 : k === 4 ? 1 : (y - (H - 34)) % 10 === 0 ? 4 : 2);
     }
     meta.door = { x: dx, y: dy, w: dw, h: dh, tile: doorTile };
-    const shutterM = M.shutter(rng);
+    const shutterM = spec.shutterCol ? (M.shutter(rng), P.mat(spec.shutterCol, 'wood')) : M.shutter(rng);
     if (church) {
       // tall lancet windows of coloured glass, in matching pairs either side of the door
       const glass = [P.mat('#3a5aa0', 'metal'), P.mat('#a03a3a', 'metal'), P.mat('#d8b040', 'metal'), P.mat('#3a8a5a', 'metal')], lead = P.mat('#2a2430', 'cloth');
@@ -490,8 +490,8 @@
     void rng;
   }
 
-  function drawDoor(B, x, y, w, h, wealth, rng, big) {
-    const fm = M.frame(), dm = big ? M.plankRed() : M.door();
+  function drawDoor(B, x, y, w, h, wealth, rng, big, col) {
+    const fm = M.frame(), dm = col ? P.mat(col, 'wood') : big ? M.plankRed() : M.door();
     B.part(6);
     // frame
     for (let yy = y - 1; yy < y + h; yy++) { B.plot(x - 1, yy, fm, 2); B.plot(x + w, yy, fm, 1); }

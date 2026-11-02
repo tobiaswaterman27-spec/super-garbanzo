@@ -143,7 +143,7 @@
       return got >= open - 4; // a stray corner tile or two, never a room
     };
     const put = (kind, x, y, o = {}) => {
-      if (b.removedFurn && floor === (o._floor ?? floor) && b.removedFurn.includes(floor + ':' + kind + '@' + x + ',' + y)) return null; // taken up by the owner
+      if (b.removedFurn && !o.owned && floor === (o._floor ?? floor) && b.removedFurn.includes(floor + ':' + kind + '@' + x + ',' + y)) return null; // taken up by the owner
       if (b.bare && !o.owned && !['fireplace', 'stairs', 'partH', 'partV'].includes(kind)) return null; // a new house: only what's built in
       const [fw, fh] = foot(kind, o.rot, o.width);
       if (!free(x, y, fw, fh, o)) return null;
@@ -384,7 +384,7 @@
     }
 
     // pieces the owner has set down themselves come first, where they put them
-    for (const f of (b.extraFurn || [])) if (f.floor === floor) put(f.kind, f.tx, f.ty, Object.assign({ owned: true, rot: f.rot || 0 }, f.kind === 'chair' || f.kind === 'stool' || f.kind === 'bench' ? { seat: true } : {}, ['bed', 'double', 'cradle'].includes(f.kind) ? { bed: true, slots: f.kind === 'double' ? 2 : 1 } : {}, ['table', 'longtable'].includes(f.kind) ? { table: true } : {}, f.kind === 'counter' || f.kind === 'bar' ? { counter: true } : {}));
+    for (const f of (b.extraFurn || [])) if (f.floor === floor) put(f.kind, f.tx, f.ty, Object.assign({ owned: true, rot: f.rot || 0, v: f.v || 0 }, f.width ? { width: f.width } : {}, f.kind === 'rug' ? { flat: true } : {}, f.kind === 'partH' || f.kind === 'partV' ? { partition: true, noAccess: true } : {}, f.seed ? { seed: f.seed } : {}, f.kind === 'chair' || f.kind === 'stool' || f.kind === 'bench' ? { seat: true } : {}, ['bed', 'double', 'cradle'].includes(f.kind) ? { bed: true, slots: f.kind === 'double' ? 2 : 1 } : {}, ['table', 'longtable'].includes(f.kind) ? { table: true } : {}, f.kind === 'counter' || f.kind === 'bar' ? { counter: true } : {}));
     if (b.parent) castleRoom(); else if (b.royal) royal(); else if (b.manor) manor(); else switch (b.type) {
       case 'house': case 'farmhouse': case 'woodcutter':
         if (living) { hearth(); dining(members); }

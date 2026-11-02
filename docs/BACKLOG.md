@@ -495,3 +495,4 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] Guards: hue and cry, cut-offs, flanking, search, gates, aftermath
 - [x] At least 7 physical tasks per role (more for common ones), each with a proper animation, NPCs doing them and moving about indoors
 - [x] NPCs fetch water and firewood themselves; the hue and cry for townsfolk; errands find a way round (row 142)
+- [x] Escort and bounty by free speech (no buttons); coin and goods by letter both ways, to other towns too (row 143)

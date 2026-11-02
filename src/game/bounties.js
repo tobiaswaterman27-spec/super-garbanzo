@@ -78,8 +78,7 @@
     const prevExtra = npcUI.extraButtons, prevOn = npcUI.onExtra;
     npcUI.extraButtons = (q) => {
       const out = prevExtra ? prevExtra(q) : [], C = PS.contract;
-      if (C && C.kind === 'thief' && C.target === q.id && C.place === cur().world.placeId) out.unshift(['seize', "There's a bounty on you. You're coming with me"]);
-      if (C && C.kind === 'escort' && C.target === q.id && !C.started) out.unshift(['escort', "I'm your escort. Let's go"]);
+      void C; // (no buttons: the bounty and the escort are settled in your own words, below)
       return out;
     };
     npcUI.onExtra = (q, key, render) => {
@@ -94,6 +93,33 @@
       }
       if (key === 'escort') { PS.contract.started = true; q.agent.frozen = true; npcUI.closeTalk(); say(`${q.first}: "Lead on. To the edge of town, and keep your eyes open."`); return; }
       return prevOn && prevOn(q, key, render);
+    };
+    // ---------------------------------------------------------------- said, not clicked
+    // the merchant knows you for their escort and asks; you say you're ready in any words. The one with
+    // a price on their head hears you name it, and comes quietly, bolts, or fights.
+    const ESC_YES = /\b(yes|yeah|yh|aye|ready|let'?s go|lead on|come on|follow me|with me|i'?m (your|the) (escort|guard|man|woman)|escort|shall we|off we go|go now)\b/i;
+    const SEIZE = /\b(bounty|price on your head|coming with me|under arrest|arrest you|in the name of|give yourself up|surrender|wanted|take you in)\b/i;
+    const _say = O.AIChat.say;
+    O.AIChat.say = function (q, text, render, opt) {
+      const C = PS.contract, s0 = cur();
+      if (q && C && typeof text === 'string' && C.place === s0.world.placeId && C.target === q.id) {
+        if (C.kind === 'escort' && !C.started && ESC_YES.test(text)) { (q._conv = q._conv || []).push({ who: 'p', t: text }); const l = 'Good. Lead on, then: to the edge of town, and keep your eyes open.'; q._conv.push({ who: 'q', t: l }); render(l, false); setTimeout(() => npcUI.onExtra(q, 'escort', render), 1400); return Promise.resolve(); }
+        if (C.kind === 'thief' && SEIZE.test(text)) { (q._conv = q._conv || []).push({ who: 'p', t: text }); setTimeout(() => npcUI.onExtra(q, 'seize', render), 300); return Promise.resolve(); }
+      }
+      return _say.apply(this, arguments);
+    };
+    // they know you: the merchant comes over to you, the wanted one eyes you warily
+    let gt = 0;
+    game.hooks.update.push((dt) => {
+      gt -= dt; if (gt > 0) return; gt = 0.8; const C = PS.contract, s = cur(); if (!C || !s || C.place !== s.world.placeId || game.scene || npcUI.talking()) return;
+      const q = s.byId.get(C.target); if (!q || !q.agent || q.agent.hidden) return; const P = game.player, d = Math.hypot(q.agent.x - P.x, q.agent.y - P.y);
+      if (C.kind === 'escort' && !C.started && !q._hailed && d < 60) { q._hailed = true; npcUI.startFrom(q, "You'll be the escort from the board at the tavern? I've waited long enough. Are you ready to go?"); }
+      if (C.kind === 'thief' && !q._wary && d < 40) { q._wary = true; O.Speech && O.Speech.say(q, 'What are you looking at?', 2.5); }
+    });
+    // (the old buttons' work, kept for the words above)
+    const prevOn2 = npcUI.onExtra;
+    npcUI.onExtra = (q, key, render) => {
+      return prevOn2 && prevOn2(q, key, render);
     };
     function arrest(s, q) { const cr = s.recordCrime({ kind: 'thieving', perp: q, placeName: s.world.name, tile: [Math.floor(q.agent.x / T), Math.floor(q.agent.y / T)], seen: [], severity: 2 }); s.arrestNPC(q, cr, false); }
 

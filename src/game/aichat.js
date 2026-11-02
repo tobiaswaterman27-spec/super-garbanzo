@@ -478,8 +478,11 @@ They know where their family and friends are just now (the card says); a strange
     const pz = out?.people && (out.people[q.first] || Object.values(out.people)[0]); const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r);
     if (pz) { r.affinity = clamp(r.affinity + clamp(Math.round(+pz.feel || 0), -2, 2) * 0.04, -1, 1); r.trust = clamp((r.trust || 0) + clamp(Math.round(+pz.trust || 0), -2, 2) * 0.05, -1, 1); if (pz.learned) (q.beliefs = q.beliefs || []).unshift({ t: clean(pz.learned).slice(0, 140), src: 'player', day: s.day }); }
     if (out?.name) r.name = clean(out.name).split(' ')[0];
-    const notes = []; if (Array.isArray(out?.acts) && O.NpcActs) for (const a of out.acts.slice(0, 3)) if (a && ['meet', 'give', 'want', 'seek_job', 'tell', 'like', 'invite', 'wedding_guest', 'set_wedding', 'court', 'betroth', 'day_off', 'raise', 'hours', 'release', 'gather', 'host', 'recommend', 'repay', 'spread', 'odd_job', 'forgive', 'grudge'].includes(a.do)) { if (a.do === 'give') continue; const res = O.NpcActs.apply(s, q, a, q); if (res && res !== 'leave') notes.push(res); }
-    if (line) O.sendMail('reply', { from: q.name, text: line, notes }, 2 + Math.random() * 6, `A letter from ${q.first}`);
+    const notes = []; if (Array.isArray(out?.acts) && O.NpcActs) for (const a of out.acts.slice(0, 3)) if (a && ['meet', 'want', 'seek_job', 'tell', 'like', 'invite', 'wedding_guest', 'set_wedding', 'court', 'betroth', 'day_off', 'raise', 'hours', 'release', 'gather', 'host', 'recommend', 'repay', 'spread', 'odd_job', 'forgive', 'grudge'].includes(a.do)) { if (a.do === 'give') continue; const res = O.NpcActs.apply(s, q, a, q); if (res && res !== 'leave') notes.push(res); }
+    // what they send back with it travels in the letter, not through the air
+    let encl = null; if (Array.isArray(out?.acts) && O.Letters && O.Letters.takeFrom) for (const a of out.acts) if (a && a.do === 'give' && !encl) encl = O.Letters.takeFrom(s, q, a.item, a.amount);
+    if (line && encl) O.sendMail('gift', { from: q.name, text: line, coin: encl.coin || 0, item: encl.item || null }, 2 + Math.random() * 6, `A letter from ${q.first}`);
+    else if (line) O.sendMail('reply', { from: q.name, text: line, notes }, 2 + Math.random() * 6, `A letter from ${q.first}`);
   }
   O.mailHandlers = O.mailHandlers || {};
   O.mailHandlers.reply = (d) => { O.Panels.open(`A letter from ${d.from}`, `<p class="letter">${esc(d.text)}</p>${(d.notes || []).length ? `<p class="caption">${esc(d.notes.join(' '))}</p>` : ''}`); };

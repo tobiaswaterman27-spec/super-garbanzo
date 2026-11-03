@@ -15,7 +15,7 @@ const dir = path.resolve(process.argv[2] || './playtest'), port = +(process.argv
 for (const d of ['q', 'a', 'shots']) fs.mkdirSync(path.join(dir, d), { recursive: true });
 const root = path.resolve(new URL('../dist', import.meta.url).pathname);
 // the game is served over http so it doesn't take itself for an automated test
-const files = http.createServer((req, res) => { const f = path.join(root, decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || 'outlaw.html'); if (!f.startsWith(root) || !fs.existsSync(f)) { res.writeHead(404); return res.end(); } res.writeHead(200, { 'Content-Type': f.endsWith('.html') ? 'text/html' : 'application/octet-stream' }); fs.createReadStream(f).pipe(res); }).listen(port + 1, '127.0.0.1');
+const files = http.createServer((req, res) => { const f = path.join(root, decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || 'outlaw.html'); if (!f.startsWith(root) || !fs.existsSync(f)) { res.writeHead(404); return res.end(); } res.writeHead(200, { 'Content-Type': f.endsWith('.html') ? 'text/html; charset=utf-8' : 'application/octet-stream' }); fs.createReadStream(f).pipe(res); }).listen(port + 1, '127.0.0.1');
 const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
 const p = await b.newPage({ viewport: { width: 1200, height: 800 } });
 const errs = []; p.on('pageerror', (e) => errs.push(e.message));

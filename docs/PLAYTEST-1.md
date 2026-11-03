@@ -1,0 +1,36 @@
+# OUTLAW playtest log
+- Char creator: picked woman "Maud Tyler", Fence look. Oddities: subtitle "hooded kirtle"; woman options include "Gentleman thief"; kirtle look has "HOSE" colour row. (shots/0011, 0014)
+- Began: King's Road, 8:30 AM. BUG: date reads "Moonday Â· Summer 1" (mojibake for middle dot) (shots/0020). A tree icon overlaps the clock. No money/health HUD, no control hints on screen.
+- H does nothing on foot (no horse). Esc opens menu; game clock keeps running under menu/guide (8:37->8:55 while reading).
+- Guide (/): more mojibake: money "â‚³0", close button "âœ•", "bedâ€¦" (shots/0030). Guide can't be scrolled with PageDown; "Craft and sell"/"Property and land" cards appear blank at the visible part, text pushed far down in cards (shots/0043). Wallet ~30 coins.
+- Satchel: empty, 10 slots, Health/Fed/Rested bars. (shots/0052)
+- E did nothing until I was right up against the notice board; no on-screen interaction prompt to tell you you're in range. (0060-0071)
+- Notice board: price table of ~30 towns, ALL identical (grain 2, iron 8, cloth 10) - looks flat/unsimulated. Currency mojibake "â‚³". (shots/0075)
+- Spent several tries getting E to talk to anyone: NPCs keep walking off; E picks notice board over a person standing next to it (0094). Walking is slow.
+- Finally talked to Wulfstan (0128). Chat box opened but input NOT focused; my typed sentence went to the game as hotkeys -> opened Ledger, "Where to?", "Nothing to loot here" etc. (shots/0133, 0148). New players will hit this.
+- Money is 0 (₳0, shown as mojibake). Ledger shows every resident's purse & activity - very omniscient.
+- Talked to Vivienne (child); she walked off & conversation silently closed before I could type; text again went to hotkeys (toast "Go to your own house to lay out the ground round it." = P key?) (shots/0161, 0166). Conversations end when NPC wanders away, no warning.
+- Repeated failures: typing straight after opening a chat sends keys to the game. It seems the input only takes text once the NPC's opening ".." resolves; if you type during it, the keystrokes leak into hotkeys. Short "Hello there" worked after waiting. (0209, 0219 vs 0233)
+- Player gets mobbed: ~6 NPCs crowd round me at the green stall so I can't walk anywhere (0197, 0250). Stalls also block silently.
+- Aethelgifu (grumpy, sore arm) told me Archibald at Builder's Yard wants a labourer, Reginald at Greenmore's Fishery wants a fisher. Nice. But the To-do then says "Ask Archibald for work - here in the same building" while I'm standing outside in the square (0250). Builder's Yard was not in the "Where to?" list. More mojibake in To-do panel and a "Â-¼" glyph bottom-right of chat.
+- My own lines are not shown in the chat box, only NPC replies.
+- Builder's yard sign reads "Ashford Builder'S Yard" (bad title-casing) (shots/0302). E on the door reads the sign rather than entering.
+- Undertakings: un-pinning the store guidance leaves 'Ask Archibald for work - here in the same building' with no arrow at all, even though I'm outside the (locked?) builder's yard and can't find him. Door of yard won't open (walk into it / E shows sign). (shots/0335)
+- Entering a building: you must press E at the door (walking into it does nothing); E first showed the sign card, second E entered. Inside the builder's yard (0352). Interior looks good.
+- Inside yard: E next to the master builder (green apron by fireplace) does nothing, repeatedly, even overlapping him or clicking him (0386-0399). E on toddler Hugh works ('Dah dah.') (0403).
+- Q (steal) next to that same builder does nothing either; the To-do panel silently vanished (0409, 0415). Unclear whether he's Archibald.
+- Walking behind a building hides the player completely (no silhouette); I lost my character for several moves (0458-0468). Walking speed is very slow (~1 tile per 0.5-1s); Shift seemed to help a bit.
+- Tavern door has a 'Hired work' board. A serif browser-style tooltip covers the panel title (0518). Took escort job (30).
+- Escort job: merchant appeared beside me with a red marker, E did nothing, then they vanished; To-do says 'The merchant to escort - out in the town' with an arrow icon in the panel but no arrow on the map. Couldn't figure out how to do it. (0524-0538)
+- Finally: E targets the nearest thing incl. animals (cat) silently doing nothing; white dot shows target. Entered The Crooked Lantern at 10:46PM (0561).
+- Talked to innkeeper Judith; she walked off mid-greeting and the chat closed with no reply (0583, 0588).
+- Midnight (Tewsday). Upstairs at the Lantern: dormitory beds, two sleepers with zzz, a man by a candle, two chests. Nice. (0620)
+- NAUGHTY: Opened 'Chest: Hartstead household' (Not yours), Take all (7 coins, silver spoon, pewter candlestick). Toast: 'Ifor saw you! â€œThief! Stop, thief!â€' - quote marks mojibake (0632, 0637). Ifor (by candle) just stands there afterwards.
+- Satchel after theft: 7 coins, spoon, candlestick AND a 'Compromising letter' that wasn't listed in the chest. Can't read the letter (only Drop). Standing 'Here: distrusted'. Fed bar low. (0646, 0651)
+- Tried a free bed upstairs: slept 1:27-3:54 then 'Ifor finds you in the bed and turfs you out.' Teleported to the square, status 'Hungry'. Good consequence! (0663) Ifor never acted on the theft he saw.
+- General store: E at door repeatedly shows the sign card 'Ashridge'S General Store' (title-case bug again); Esc does NOT close the sign card, it opens the main menu on top. No 'closed' message to explain why I can't enter at 5-6AM. (0724-0744)
+- Map (M): lovely island map, 116 settlements, government info. Zoom-out button renders as mojibake 'Â''' (0765). No town-level map, so it doesn't help find the bakery.
+- Marsh Farm: nice scene - pigs, chickens, egg cart, crop rows with ~6 farm workers. (0792)
+- Egg cart at the farm is pure decoration: E nothing, F 'Nothing to loot here', Q nothing. (0806, 0809)
+- Farm: field workers unreachable behind fence; got snagged on cart/trough again (2.2s of walking left = no movement) (0821). Stopped here at ~8:20AM Tewsday, hungry, 7 coins, a stolen spoon/candlestick/letter, never ate, never got a job.
+- No page errors reported by the driver at any point.

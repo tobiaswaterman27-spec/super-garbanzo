@@ -98,7 +98,7 @@
         case 'caravan': return `Hail ${c.L.c.merchant}'s caravan`;
         case 'notices': return 'Read the notice board';
         case 'property': return c.b.owner?.kind === 'player' ? 'Your property' : 'For sale: look it over';
-        case 'namesign': return 'Read the sign';
+        case 'namesign': return '';
         case 'job': return O.jobLabel(c);
         case 'gangtask': return c.label;
         case 'custom': return c.label;

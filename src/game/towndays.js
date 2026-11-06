@@ -114,7 +114,7 @@
         f.lastDay = s.day;
         if (f.stage === 0) { sp(a, pick([`Look who it is. ${b.first}, the liar.`, `Still owe me, ${b.first}.`, `Keep walking, ${b.first}.`])); setTimeout(() => sp(b, pick(['Say that again.', 'Mind your mouth.', 'You\'ll regret that.'])), 1600); O.gesture && O.gesture(a, 'point', 1.6); }
         else if (f.stage === 1) { if (O.Errands) O.Errands.send(s, a, [Math.floor(b.agent.x / T), Math.floor(b.agent.y / T)], { anim: 'shake', secs: 2, face: 0 }); sp(a, 'Get out of my way!'); setTimeout(() => { O.gesture && O.gesture(b, 'hurt', 0.8); sp(b, 'Don\'t you push me!'); }, 1800); }
-        else { brawl(s, a, b); f.stage = -1; s.remember(a, `Came to blows with ${b.name} in the street.`, 'social', 2, b.id); s.remember(b, `Came to blows with ${a.name} in the street.`, 'social', 2, a.id); }
+        else { brawl(s, a, b); f.stage = 9; s.remember(a, `Came to blows with ${b.name} in the street.`, 'social', 2, b.id); s.remember(b, `Came to blows with ${a.name} in the street.`, 'social', 2, a.id); }
         f.stage++; if (f.stage > 2) s.feuds = s.feuds.filter((x) => x !== f);
       }
     });

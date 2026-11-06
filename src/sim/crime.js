@@ -54,6 +54,15 @@
     sim.log(`Theft ${O.atPlace(placeName)}: ${ev.what} taken. Witnesses describe ${O.Justice.describe(crime.witnesses[0].desc)}.`, 'crime');
     const shout = ws[0];
     O.Panels.toast(`${shout.first}${ws.length > 1 ? ` and ${ws.length - 1} other${ws.length > 2 ? 's' : ''}` : ''} saw you! “Thief! Stop, thief!”`, 'bad');
+    // and they do something about it: one shouts at you, one goes for the watch, the bold may block the door
+    try {
+      O.Speech && O.Speech.say(shout, ['Thief! Put that back!', 'Stop, thief! Watch! Watch!', 'I saw that! Thief!'][shout.id % 3], 3.5, 'angry');
+      shout.agent.dir = 3; shout.agent.frozen = false;
+      const runner = ws.find((w) => w !== shout && w.age >= 12) || shout;
+      if (sim.guardId != null && !runner.task) runner.task = { act: 'report', b: sim.guardId, crime: crime.id };
+      sim.remember(shout, `Caught the stranger thieving in ${placeName}.`, 'crime', 2);
+      if (O.Pursuit && O.Pursuit.raise) O.Pursuit.raise(sim, shout, crime);
+    } catch (e) { console.error(e); }
     return crime;
   }
 

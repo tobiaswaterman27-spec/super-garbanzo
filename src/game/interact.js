@@ -281,7 +281,7 @@
       if (e.code === 'KeyF') { if (cur && cur.type === 'container') search(cur.it, true); else O.Panels.toast('Nothing to loot here.'); return true; }
       if (e.code !== 'KeyE') return false;
       if (npcUI.talking()) { npcUI.closeTalk(); return true; }
-      if (!cur) { const s0 = sim, P = game.player; const nearQ = (game.scene ? [...game.scene.actors.values()].filter((a) => a.person && !a.hidden).map((a) => [a.person, Math.hypot(a.x - P.x, a.y - P.y)]) : s0.people.filter((q) => q.agent && !q.agent.hidden).map((q) => [q, Math.hypot(q.agent.x - P.x, q.agent.y - P.y)])).sort((a, b) => a[1] - b[1])[0]; O.UI.say(nearQ && nearQ[1] < 60 ? `Get closer to ${nearQ[0].first} and face them to talk.` : 'Nothing here to use. Walk up to a person, door or thing and face it.'); return true; }
+      if (!cur) { const s0 = sim, P = game.player; const nearQ = (game.scene ? [...game.scene.actors.values()].filter((a) => a.person && !a.hidden).map((a) => [a.person, Math.hypot(a.x - P.x, a.y - P.y)]) : s0.people.filter((q) => q.agent && !q.agent.hidden).map((q) => [q, Math.hypot(q.agent.x - P.x, q.agent.y - P.y)])).sort((a, b) => a[1] - b[1])[0]; O.UI.say(nearQ && nearQ[1] < 60 ? `Get closer to ${nearQ[0].first} and face them to talk.` : 'Nothing here to use. Walk up to a person, door or thing and face it.', 'note'); return true; }
       switch (cur.type) {
         case 'npc': if (cur.person.health.hp <= 0) { O.Panels.toast(`${cur.person.first} is senseless.`); break; } npcUI.openTalk(cur.person); break;
         case 'door':

@@ -18,7 +18,7 @@
       const s = O.SimRef.cur, m = Math.floor(s.minute), h = Math.floor(m / 60) % 24, mm = m % 60;
       const ampm = h < 12 ? 'AM' : 'PM', hh = h % 12 === 0 ? 12 : h % 12;
       const place = game.scene ? (game.scene.b.name || 'Indoors') : (O.placeName ? O.placeName() : s.world.name);
-      const txt = `<b>${hh}:${String(mm).padStart(2, '0')}</b><small>${ampm}</small><span>${O.DAYNAMES[s.weekday]} · ${s.season} ${s.weather.dayOfSeason}</span><em>${esc(place)}</em>`;
+      const txt = `<b>${hh}:${String(mm).padStart(2, '0')}</b><small>${ampm}</small><span>${O.DAYNAMES[s.weekday]} · ${s.season} ${s.weather.dayOfSeason}</span><em>${esc(place)}</em><i class="ui-purse">₳${Math.floor(PS.money || 0)} · fed ${Math.round(PS.hunger)}% · rested ${Math.round(PS.energy)}%</i>`;
       if (txt !== lastClock) { clock.innerHTML = txt; lastClock = txt; }
       const st = [];
       if (PS.hunger < 22) st.push('Hungry'); if (PS.energy < 18) st.push('Exhausted'); if (PS.hp < 35) st.push('Badly hurt');
@@ -35,7 +35,7 @@
     const MATTERS = /barred|locked|full|can't|cannot|couldn't|won't|afford|no room|nothing to|not yours|₳|wage|sacked|hired|your post|promot|meeting|meet |missed|never came|arrest|wanted|bounty|the watch|guard|letter|done|late|fire!|attack|kill|dies|died|dead|crowned|war\b|rebellion|plague|ill\b|unwell|hungry|starving|exhausted|too tired|wakes|asleep|comes along|goes about|found work|takes your post|gives you|says:|calls|shout|“|"/i;
     function say(text, kind = '') {
       if (!text) return;
-      if (kind !== 'bad' && !MATTERS.test(text)) return;
+      if (kind !== 'bad' && kind !== 'good' && kind !== 'note' && !MATTERS.test(text)) return;
       if (queue.some((q) => q.text === text) || (showing && showing.text === text)) return;
       queue.push({ text, kind }); if (queue.length > 6) queue.shift();
     }

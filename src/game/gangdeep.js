@@ -82,10 +82,10 @@
         // a smuggling run: ask a smuggler or a gang's man for the work
         if ((inMyGang(s, q) || /smuggler/.test(q.job?.role || '')) && /\b(smuggl|a run|run (some|the) goods|carry (it|the goods) (by|at) night)\b/i.test(text) && !PS.run) {
           const buyer = s.world.buildings.filter((b) => b.doorX != null && (b.type === 'tavern' || b.type === 'warehouse' || b.type === 'house'))[Math.floor(Math.random() * 6)] || s.world.buildings.find((b) => b.id === s.tavernId);
-          PS.run = { place: s.world.placeId, good: pick(['wine', 'silk', 'spices', 'salt']), to: buyer.id, toName: buyer.name || 'the house', from: q.id, pay: 18 + Math.floor(Math.random() * 14), until: s.day + 2 };
+          PS.run = { place: s.world.placeId, good: pick(['wine', 'silk', 'spices', 'salt']), to: buyer.id, toName: (buyer.type === 'house' || !buyer.name || /^house$/i.test(buyer.name)) ? (() => { const hh = s.households[(buyer.household || 0) - 1]; return hh ? `the ${hh.surname} house` : 'the house by the ' + (buyer.doorY > s.world.H / 2 ? 'south road' : 'north road'); })() : buyer.name, from: q.id, pay: 18 + Math.floor(Math.random() * 14), until: s.day + 2 };
           if (PS.add(PS.run.good)) { O.NpcActs && O.NpcActs.fly(q, 'player', PS.run.good); PS.carry = PS.carry || { good: PS.run.good, qty: 1, look: 'carry' }; }
           O.addLead && O.addLead({ place: s.world.placeId, b: buyer.id, until: PS.run.until * 1440, why: 'run', label: `Carry the ${nm(PS.run.good)} to ${PS.run.toName}, after dark` });
-          return rep(`Take this ${nm(PS.run.good)} to ${PS.run.toName}. After dark, and keep off the high street: if the watch see the load, it's yours to explain. ₳${PS.run.pay} when it's there.`);
+          return rep(`Take this load of ${nm(PS.run.good)} to ${PS.run.toName}. After dark, and keep off the high street: if the watch see the load, it's yours to explain. ₳${PS.run.pay} when it's there.`);
         }
       }
       return _say.apply(this, arguments);

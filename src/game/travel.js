@@ -106,7 +106,9 @@
       if (game.player.mount) game.player.mount.world = to;
       O.Panels.toast(`You reach ${K.place(to).name}. It is ${O.DAYNAMES[v.sim.weekday]}, ${game.timeString()}.`);
     }
-    O.Travel = { visited, journey, arrive, ensure };
+    // down (or up) the river on a barge: slower to load, quicker on the water, and no bandits
+    function byRiver(from, to) { const h = Math.max(2, Math.round(K.dist(from, to) * 0.5)); passTime(h * 60); arrive(from, to); return h; }
+    O.Travel = { visited, journey, arrive, ensure, byRiver };
   }
   O.TravelSetup = { setup };
 })();

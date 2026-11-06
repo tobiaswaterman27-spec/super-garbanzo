@@ -500,4 +500,7 @@ Every job and every level of it, royal family and titles included, grouped under
 - [x] House decorating like Animal Crossing: lift, move, turn, refinish, store; walls, floors, washes; yard pieces, render, roof, door paint; all furniture buyable or makeable (row 145)
 - [ ] Ideas 1-12, 14-20, 22 (light) from the list: playtest heist/smuggling/informer/two-gang war/feuds, 60-day run, profiling, the house tells your story, many-sided reputation, routines noticed, visible skills, running a business properly, market days, rival workshops, strikes, your own gang day to day, disguises and false names, friendships with weight, family stories, old people's memories, gossip about you, the river as a road, wildlife, regional crafts
 - [x] Ideas 4, 5, 6, 7, 14 (false names), 15, 16, 17, 18, 20 (foxes) (row 146)
-- [ ] Still to do: 1-3 playtests, 60-day run, profiling; 8 your own business properly; 9 market days; 10 rival workshops; 11 strikes; 12 your gang day to day; 19 the river; 20 rats, hunting seasons, poaching
+- [x] Ideas 1-3 (tests and long run), 8 business by talk, 9 market days, 10 rivals, 11 strikes, 12 your gang day to day, 19 the river, 20 rats, seasons, poaching (rows 147-148)
+- [ ] Second blind playtest after these fixes
+- [ ] Simulated days get slower as the town ages (1.1 s to 1.9 s over ten days): find what grows
+- [ ] Not reproduced from playtest 1: stuck at the market stall; Esc opening the menu over a sign card

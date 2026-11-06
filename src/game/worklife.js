@@ -39,8 +39,8 @@
         const strikers = bz.strike.who.map((id) => this.byId.get(id)).filter((w) => w && w.job && w.job.biz === bz.id), owed = strikers.reduce((v, w) => v + Math.ceil(w.job.owed || 0), 0);
         if (!strikers.length) { bz.strike = null; continue; }
         if (mineBz(bz)) continue; // yours to settle
-        if ((bz.cash || 0) >= owed) { bz.cash -= owed; for (const w of strikers) { const hh = this.household(w); if (hh) hh.money += Math.ceil(w.job.owed || 0); w.job.owed = 0; w.job.short = 0; } bz.strike = null; this.log(`The strike at ${bz.name} is over: the hands have been paid what they were owed.`, 'economy'); }
-        else if (this.day - bz.strike.since >= 3) { for (const w of strikers) { bz.workers = bz.workers.filter((x) => x !== w.id); this.remember(w, `${bz.name} turned us all off rather than pay what we were owed.`, 'work', 2.5); w.job = null; } bz.strike = null; this.log(`${bz.name} has turned off its striking hands and will take on new ones.`, 'economy'); this.fillVacancies && this.fillVacancies(); }
+        if (!bz.strike.raise && (bz.cash || 0) >= owed) { bz.cash -= owed; for (const w of strikers) { const hh = this.household(w); if (hh) hh.money += Math.ceil(w.job.owed || 0); w.job.owed = 0; w.job.short = 0; } bz.strike = null; this.log(`The strike at ${bz.name} is over: the hands have been paid what they were owed.`, 'economy'); }
+        else if (!bz.strike.raise && this.day - bz.strike.since >= 3) { for (const w of strikers) { bz.workers = bz.workers.filter((x) => x !== w.id); this.remember(w, `${bz.name} turned us all off rather than pay what we were owed.`, 'work', 2.5); w.job = null; } bz.strike = null; this.log(`${bz.name} has turned off its striking hands and will take on new ones.`, 'economy'); this.fillVacancies && this.fillVacancies(); }
       }
       // a foreman, from the best and longest-serving hand
       if (this.weekday === 0) for (const bz of this.biz.values()) {

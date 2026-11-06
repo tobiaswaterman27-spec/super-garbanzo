@@ -19,7 +19,7 @@
     game.hooks.update.push(() => {
       if (!talking) return;
       const pos = game.scene ? game.scene.personPos(talking) : (talking.agent.hidden ? null : [talking.agent.x, talking.agent.y]);
-      if (!pos || Math.hypot(pos[0] - game.player.x, pos[1] - game.player.y) > (talking.agent.approach ? 400 : 70)) { const q0 = talking; closeTalk(); O.UI.say(!pos ? `${q0.first} has gone.` : game.player.moving || (game.keys && game.keys.size) ? `You walk away from ${q0.first}.` : `${q0.first} goes on their way.`); return; }
+      if (!pos || Math.hypot(pos[0] - game.player.x, pos[1] - game.player.y) > (talking.agent.approach ? 400 : 70)) { const q0 = talking; closeTalk(); O.UI.say(!pos ? `${q0.first} has gone.` : game.player.moving || (game.keys && game.keys.size) ? `You walk away from ${q0.first}.` : `${q0.first} goes on their way.`, 'note'); return; }
       // while you type they wait, as long as their patience lasts
       { const ty = O.UI.dialog.typing?.(); if (ty && !talking._typingSince) talking._typingSince = performance.now(); if (!ty) talking._typingSince = 0; }
       const tr0 = talking.traits || [], patience = tr0.includes('impatient') ? 6000 : tr0.includes('patient') ? 45000 : 16000;

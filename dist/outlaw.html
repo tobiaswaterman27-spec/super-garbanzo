@@ -30087,6 +30087,77 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
 
 </script>
 <script>
+// The night's work, seen. Late at night, if you're out near the houses, you may see one of the gangs
+// at it: a figure in a dark cap creeping along the house fronts, crouching at a door to work the lock,
+// slipping in, and coming out again with a sack over the shoulder. A dog may bark. The house wakes to
+// find its purse lighter in the morning. If you saw who it was, tell the watch (any guard, in your own
+// words: "I saw Hob break into the Miller house") and they'll take them; or face the thief yourself.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const PS = O.PlayerState, cur = () => O.SimRef.cur;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    let job = null, next = 40;
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || game.scene) return;
+      const h = s.minute / 60;
+      if (job) return step(s, dt);
+      next -= dt; if (next > 0) return; next = 45 + Math.random() * 60;
+      if (!(h >= 23 || h < 4)) return;
+      const gs = (s.gangs || []).filter((g) => g.id !== 'player' && g.members.length);
+      const g = pick(gs); if (!g) return;
+      const thief = g.members.map((m) => s.byId.get(m.id)).find((q) => q && !q.jailUntil && q.agent && q.alive !== false && !q._fighting && q.id !== g.leader);
+      if (!thief) return;
+      // a house near you, with people asleep inside
+      const house = s.world.buildings.filter((b) => b.doorX != null && b.household && ['house', 'townhouse', 'cottage'].includes(b.type) && near(b.doorX * T, b.doorY * T, 360) && !near(b.doorX * T, b.doorY * T, 60)).sort(() => Math.random() - 0.5)[0];
+      if (!house) return;
+      const hh = s.households[house.household - 1]; if (!hh || hh.home === thief.home) return;
+      // they come from the dark edge of the street
+      thief.agent.hidden = false; thief.agent.inside = null; thief.agent.x = house.doorX * T + 8 + (Math.random() < 0.5 ? -120 : 120); thief.agent.y = (house.doorY + 2) * T;
+      job = { s, g, thief, house, hh, stage: 'creep', t: 0, seen: false };
+      O.Errands && O.Errands.send(s, thief, [house.doorX, house.doorY + 1], { anim: 'crouch', secs: 6, face: 3, giveUp: 60, at: () => { job && (job.stage = 'lock'); O.sfx && O.sfx('catch', 0.3); }, after: (ok) => { if (!job) return; if (!ok) { job = null; return; } job.stage = 'inside'; job.t = 0; thief.agent.hidden = true; O.sfx && O.sfx('door', 0.25); } });
+      thief.agent.sneak = true;
+    });
+    function step(s, dt) {
+      const J = job, q = J.thief; J.t += dt;
+      if (!q || q.alive === false || q.jailUntil) { job = null; return; }
+      if (!J.seen && !q.agent.hidden && near(q.agent.x, q.agent.y, 330)) { J.seen = true; PS.sawBurglar = { id: q.id, house: J.house.id, hh: J.hh.id, day: s.day, place: s.world.placeId, gang: J.g.id, name: q.name }; }
+      if (J.stage === 'lock' && Math.random() < dt * 0.15) { const dog = (O.fauna || []).find((f) => f.kind === 'dog' && f.world === s.world.placeId && Math.hypot(f.x - q.agent.x, f.y - q.agent.y) < 200); if (dog && O.animalCall) O.animalCall('dog', 0.6); }
+      if (J.stage === 'inside' && J.t > 12) {
+        J.stage = 'away'; q.agent.hidden = false; q.agent.x = J.house.doorX * T + 8; q.agent.y = (J.house.doorY + 1) * T + 4; q.agent.carrying = { good: 'sack', qty: 1 };
+        // the house is the poorer for it
+        const take = Math.floor(Math.max(0, J.hh.money) * 0.2); J.hh.money -= take; J.g.purse = (J.g.purse || 0) + take; (J.g.log = J.g.log || []).push(`Day ${s.day}: ${q.first} did the ${J.hh.surname} house: ₳${take}.`);
+        const crime = s.recordCrime({ kind: 'burglary', perp: q, gang: J.g.id, placeName: `the ${J.hh.surname} house`, tile: [J.house.doorX, J.house.doorY], victim: J.hh.id, seen: [], severity: 1 });
+        J.crime = crime.id; if (PS.sawBurglar && PS.sawBurglar.id === q.id) PS.sawBurglar.crime = crime.id;
+        const owner = J.hh.members.map((id) => s.byId.get(id)).find((z) => z && z.age >= 16); if (owner) s.remember(owner, `Thieves were in the house in the night and took ₳${take}.`, 'crime', 1.5);
+        const away = [Math.floor(q.agent.x / T) + (q.agent.x > game.player.x ? 12 : -12), J.house.doorY + 3];
+        O.Errands && O.Errands.send(s, q, away, { anim: 'idle', secs: 0.5, giveUp: 40, carry: { good: 'sack', qty: 1 }, after: () => { q.agent.carrying = null; q.agent.sneak = false; job = null; } });
+      }
+      if (J.t > 120) { q.agent.sneak = false; job = null; }
+    }
+    // telling the watch what you saw
+    const _say = O.AIChat && O.AIChat.say;
+    if (_say) O.AIChat.say = function (q, text, render, opt) {
+      const S = PS.sawBurglar, s = cur();
+      if (q && S && s && /guard|sergeant|watch|captain|constable/.test(q.job?.role || '') && typeof text === 'string' && /\b(saw|seen|watched)\b.*\b(break|broke|breaking|thief|burgl|rob|stealing|took)\b|\b(thief|burglar)\b/i.test(text) && O.AI && O.AI.ready) {
+        const thief = s.byId.get(S.id), named = thief && (new RegExp('\\b' + thief.first + '\\b', 'i').test(text) || /cap|gang|him|her|them/i.test(text));
+        let line;
+        if (thief && named && !thief.jailUntil) { const cr = s.crimes.find((c) => c.id === S.crime) || s.recordCrime({ kind: 'burglary', perp: thief, placeName: 'a house', tile: [0, 0], seen: [], severity: 1 }); s.arrestNPC && s.arrestNPC(thief, cr, false); s.relate(q, { id: 0 }, 0.2); PS.rep.guard = Math.min(1, (PS.rep.guard || 0) + 0.1); const g = s.gang && s.gang(S.gang); if (g && g.rel) g.rel.player = 'enemy'; s.remember(thief, `${(O.Forge && O.Forge.player && O.Forge.player.name) || 'The stranger'} told the watch it was me.`, 'grudge', 3); line = `${thief.first}? We've had our eye on that one. We'll have them before breakfast. You did right, but watch your back: their friends won't thank you.`; PS.sawBurglar = null; }
+        else line = 'Who? What did they look like? A cap, a name, anything?';
+        (q._conv = q._conv || []).push({ who: 'p', t: text }, { who: 'q', t: line }); render(line); return Promise.resolve();
+      }
+      return _say.apply(this, arguments);
+    };
+    (O.extraLines = O.extraLines || []).push((s, q) => { if (job && job.thief === q) return `It is the dead of night and you are ${job.stage === 'away' ? 'slipping away with a sack of what you took from' : 'breaking into'} the ${job.hh.surname} house for ${job.g.name}. You've been seen by the player. You'd rather not talk; you might threaten them, or offer them a share to keep quiet.`; return ''; });
+    O.NightWork = { job: () => job, force: () => { next = 0; } };
+  }
+  O.NightWorkSetup = { setup };
+})();
+
+</script>
+<script>
 // The street comes to you. A tax collector who's seen you sprints over and wants the town's dues (only
 // if you keep a house or hold a post here); a landlord wants the rent you owe; a beggar asks for a
 // penny; and in a crowd someone may lift your purse. When anyone runs at you, you start back.
@@ -35038,7 +35109,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
         x: away ? away[0] : Math.round(game.scene ? game.scene.b.doorX * 16 + 8 : game.player.x), y: away ? away[1] : Math.round(game.scene ? game.scene.b.doorY * 16 + 10 : game.player.y), dir: game.player.dir,
         mount: game.player.mount ? game.player.mount.id : null,
         region: game.world.island && !game.scene && game.world !== sim.world ? game.world.placeId : null, g: game.world.island && !game.scene ? O.Island.toGlobal(game.world, game.player.x, game.player.y).map(Math.round) : null,
-        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [], emp: PS.emp ? Object.assign({}, PS.emp, { tasks: [], onShift: false, dayInfo: null }) : null, posts: (PS.posts || []).map((x) => Object.assign({}, x, { tasks: [], onShift: false, dayInfo: null, _lm: null, _cur: x === PS.emp })), carry: PS.carry || null, firedSilently: PS.firedSilently || null, residence: PS.residence || null, gaol: PS.gaol || null, gangRanks: PS.gangRanks || [], gangTrials: PS.gangTrials || {}, disguise: PS.disguise || null, loans: PS.loans || [], letters: PS.letters || [], knows: PS.knows || {}, knowsGang: PS.knowsGang || {}, royal: PS.royal || false, taxOwed: PS.taxOwed || 0, taxPaidDay: PS.taxPaidDay ?? null, contract: PS.contract && PS.contract.kind !== 'escort' ? PS.contract : null, leads: (PS.leads || []).filter((l) => l.why !== 'contract' || (PS.contract && PS.contract.kind !== 'escort')), askedLaw: PS.askedLaw || 0, guests: PS.guests || null, jobCardOpen: !!PS.jobCardOpen, learning: PS.learning || 0, performances: PS.performances || 0, lettersCarried: PS.lettersCarried || 0, title: PS.title || null, vouched: PS.vouched || {}, offered: PS.offered || {}, appointment: PS.appointment || null, reeveOf: PS.reeveOf || {}, claim: PS.claim || 0, secrets: PS.secrets || [], vows: !!PS.vows, warWon: PS.warWon || 0, warFought: PS.warFought || 0, plot: PS.plot || null, coronation: PS.coronation || null, anointed: !!PS.anointed, guides: PS.guides || 'all', mail: PS.mail || [], worn: PS.worn || [], bizTab: PS.bizTab || null, meets: PS.meets || [], partner: PS.partner || null, children: PS.children || [], expecting: PS.expecting || null, fineOwed: PS.fineOwed || 0, watched: PS.watched || null, debts: PS.debts || [], roadLead: PS.roadLead || null, wokeAt: PS.wokeAt ?? null, studiedAt: PS.studiedAt ?? null, studyDay: PS.studyDay ?? null, studyHours: PS.studyHours || 0, lessonDay: PS.lessonDay ?? null, ill: PS.ill || null, confessed: PS.confessed ?? null, tithedWeek: PS.tithedWeek ?? null, titheBase: PS.titheBase || 0, startDay: PS.startDay ?? null, yearsHere: PS.yearsHere || 0, dog: PS.dog || null, lineSpec: PS.lineSpec || null, forebears: PS.forebears || [], oddJobs: PS.oddJobs || [], givenJobs: PS.givenJobs || [], retainers: PS.retainers || [], deeds: PS.deeds || [], todoOpen: PS.todoOpen ?? true, lent: PS.lent || [], gardens: PS.gardens || [], grime: PS.grime || 0, found: PS.found || [], homeBuilds: PS.homeBuilds || [], cart: PS.cart || null, roadGuards: PS.roadGuards || [], guildRanks: PS.guildRanks || {}, booksRead: PS.booksRead || 0, lastCut: PS.lastCut ?? null, alert: PS.alert || null, orders: PS.orders || [], apprentice: PS.apprentice || null, injury: PS.injury || null, foodQ: PS.foodQ || {}, stolenAt: PS.stolenAt || {}, heist: PS.heist || null, paidGuard: PS.paidGuard || null, run: PS.run || null, tollBribed: PS.tollBribed || null, habits: PS.habits || {}, askedNight: PS.askedNight ?? null, lastShave: PS.lastShave ?? null, animals: PS.animals || [], tourneyDay: PS.tourneyDay ?? null, recipes: PS.recipes || [], marks: PS.marks || {}, wins: PS.wins || {}, champion: PS.champion || null, informants: PS.informants || [], hawks: PS.hawks || [], village: PS.village || null, charter: PS.charter || null, undying: PS.undying ?? null, searched: PS.searched || {}, boats: PS.boats || [], ships: PS.ships || [], pilgrimages: PS.pilgrimages || {}, excommunicated: PS.excommunicated || null, houseFavour: PS.houseFavour || {}, plots2: PS.plots2 || [], siegeSide: PS.siegeSide || null, songBook: PS.songBook || null, songs: PS.songs || [], outlaw: PS.outlaw || null, almsToPoor: PS.almsToPoor || 0, robbedRich: PS.robbedRich || 0, confided: PS.confided || [], blessed: PS.blessed ?? null, life: PS.life || {}, wild: PS.wild || {}, gfavour: PS.gfavour || null, fetchFor: PS.fetchFor || null, helpBeast: PS.helpBeast || null, deserter: PS.deserter || null, scab: PS.scab || 0, _ageChecked: PS._ageChecked ?? null },
+        ps: { money: PS.money, items: PS.items, hp: PS.hp, energy: PS.energy, hunger: PS.hunger, rep: { civilian: PS.rep.civilian, criminal: PS.rep.criminal, guard: PS.rep.guard, merchant: PS.rep.merchant }, localRep: PS.localRep, crimes: PS.crimes, room: PS.room, stash: PS.stash, stolen: PS.stolen, skills: PS.skills, equipped: PS.equipped, bounty: PS.bounty, bountyAmount: PS.bountyAmount, exiled: PS.exiled, lord: PS.lord, homes: PS.homes, rentIncome: PS.rentIncome, bizIncome: PS.bizIncome, job: PS.job || null, workDays: PS.workDays || {}, earned: PS.earned || 0, owed: PS.owed || 0, made: PS.made || 0, plots: PS.plots || [], fields: PS.fields || [], estate: PS.estate || null, landIncome: PS.landIncome || 0, lastHarvest: PS.lastHarvest || null, reeve: PS.reeve || false, standForReeve: PS.standForReeve || false, councilPriority: PS.councilPriority || null, councilDefault: PS.councilDefault || null, warStance: PS.warStance || null, side: PS.side || null, knight: PS.knight || false, lease: PS.lease || null, wounds: PS.wounds || [], emp: PS.emp ? Object.assign({}, PS.emp, { tasks: [], onShift: false, dayInfo: null }) : null, posts: (PS.posts || []).map((x) => Object.assign({}, x, { tasks: [], onShift: false, dayInfo: null, _lm: null, _cur: x === PS.emp })), carry: PS.carry || null, firedSilently: PS.firedSilently || null, residence: PS.residence || null, gaol: PS.gaol || null, gangRanks: PS.gangRanks || [], gangTrials: PS.gangTrials || {}, disguise: PS.disguise || null, loans: PS.loans || [], letters: PS.letters || [], knows: PS.knows || {}, knowsGang: PS.knowsGang || {}, royal: PS.royal || false, taxOwed: PS.taxOwed || 0, taxPaidDay: PS.taxPaidDay ?? null, contract: PS.contract && PS.contract.kind !== 'escort' ? PS.contract : null, leads: (PS.leads || []).filter((l) => l.why !== 'contract' || (PS.contract && PS.contract.kind !== 'escort')), askedLaw: PS.askedLaw || 0, guests: PS.guests || null, jobCardOpen: !!PS.jobCardOpen, learning: PS.learning || 0, performances: PS.performances || 0, lettersCarried: PS.lettersCarried || 0, title: PS.title || null, vouched: PS.vouched || {}, offered: PS.offered || {}, appointment: PS.appointment || null, reeveOf: PS.reeveOf || {}, claim: PS.claim || 0, secrets: PS.secrets || [], vows: !!PS.vows, warWon: PS.warWon || 0, warFought: PS.warFought || 0, plot: PS.plot || null, coronation: PS.coronation || null, anointed: !!PS.anointed, guides: PS.guides || 'all', mail: PS.mail || [], worn: PS.worn || [], bizTab: PS.bizTab || null, meets: PS.meets || [], partner: PS.partner || null, children: PS.children || [], expecting: PS.expecting || null, fineOwed: PS.fineOwed || 0, watched: PS.watched || null, debts: PS.debts || [], roadLead: PS.roadLead || null, wokeAt: PS.wokeAt ?? null, studiedAt: PS.studiedAt ?? null, studyDay: PS.studyDay ?? null, studyHours: PS.studyHours || 0, lessonDay: PS.lessonDay ?? null, ill: PS.ill || null, confessed: PS.confessed ?? null, tithedWeek: PS.tithedWeek ?? null, titheBase: PS.titheBase || 0, startDay: PS.startDay ?? null, yearsHere: PS.yearsHere || 0, dog: PS.dog || null, lineSpec: PS.lineSpec || null, forebears: PS.forebears || [], oddJobs: PS.oddJobs || [], givenJobs: PS.givenJobs || [], retainers: PS.retainers || [], deeds: PS.deeds || [], todoOpen: PS.todoOpen ?? true, lent: PS.lent || [], gardens: PS.gardens || [], grime: PS.grime || 0, found: PS.found || [], homeBuilds: PS.homeBuilds || [], cart: PS.cart || null, roadGuards: PS.roadGuards || [], guildRanks: PS.guildRanks || {}, booksRead: PS.booksRead || 0, lastCut: PS.lastCut ?? null, alert: PS.alert || null, orders: PS.orders || [], apprentice: PS.apprentice || null, injury: PS.injury || null, foodQ: PS.foodQ || {}, stolenAt: PS.stolenAt || {}, heist: PS.heist || null, paidGuard: PS.paidGuard || null, run: PS.run || null, tollBribed: PS.tollBribed || null, habits: PS.habits || {}, askedNight: PS.askedNight ?? null, lastShave: PS.lastShave ?? null, animals: PS.animals || [], tourneyDay: PS.tourneyDay ?? null, recipes: PS.recipes || [], marks: PS.marks || {}, wins: PS.wins || {}, champion: PS.champion || null, informants: PS.informants || [], hawks: PS.hawks || [], village: PS.village || null, charter: PS.charter || null, undying: PS.undying ?? null, searched: PS.searched || {}, boats: PS.boats || [], ships: PS.ships || [], pilgrimages: PS.pilgrimages || {}, excommunicated: PS.excommunicated || null, houseFavour: PS.houseFavour || {}, plots2: PS.plots2 || [], siegeSide: PS.siegeSide || null, songBook: PS.songBook || null, songs: PS.songs || [], outlaw: PS.outlaw || null, almsToPoor: PS.almsToPoor || 0, robbedRich: PS.robbedRich || 0, confided: PS.confided || [], blessed: PS.blessed ?? null, life: PS.life || {}, wild: PS.wild || {}, gfavour: PS.gfavour || null, fetchFor: PS.fetchFor || null, helpBeast: PS.helpBeast || null, deserter: PS.deserter || null, sawBurglar: PS.sawBurglar || null, scab: PS.scab || 0, _ageChecked: PS._ageChecked ?? null },
       },
     };
   }
@@ -35256,7 +35327,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.WorkSetup.setup(game, sim, npcUI);
   O.EmploymentSetup.setup(game, home, npcUI);
   O.LettersSetup.setup(game, home, npcUI);
-  O.FittingSetup.setup(game); O.DecorateSetup.setup(game); O.LifeWeightSetup.setup(game); O.TradeLifeSetup.setup(game); O.RiverWildSetup.setup(game); O.SpokenSetup.setup(game); O.CombatDeepSetup.setup(game); O.GangStreetSetup.setup(game); O.HomeFrontSetup.setup(game); O.ScenesSetup.setup(game); O.IndoorLifeSetup.setup(game); O.ApproachesSetup.setup(game); O.LivelinessSetup.setup(game); O.StreetFightSetup.setup(game); O.Pastimes2Setup.setup(game); O.AnimalCareSetup.setup(game); O.MarchSetup.setup(game); O.LooksSetup.setup(game); O.GangPoliticsSetup.setup(game);
+  O.FittingSetup.setup(game); O.DecorateSetup.setup(game); O.LifeWeightSetup.setup(game); O.TradeLifeSetup.setup(game); O.RiverWildSetup.setup(game); O.SpokenSetup.setup(game); O.CombatDeepSetup.setup(game); O.GangStreetSetup.setup(game); O.HomeFrontSetup.setup(game); O.ScenesSetup.setup(game); O.IndoorLifeSetup.setup(game); O.ApproachesSetup.setup(game); O.LivelinessSetup.setup(game); O.StreetFightSetup.setup(game); O.Pastimes2Setup.setup(game); O.AnimalCareSetup.setup(game); O.MarchSetup.setup(game); O.LooksSetup.setup(game); O.GangPoliticsSetup.setup(game); O.NightWorkSetup.setup(game);
   O.StreetSetup.setup(game, home);
   O.GangLifeSetup.setup(game, npcUI);
   O.TownLifeSetup.setup(game, npcUI);

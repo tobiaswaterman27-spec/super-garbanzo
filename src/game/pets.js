@@ -61,9 +61,9 @@
     const near = () => { const P = game.player; if (game.scene) return null; let best = null, bd = 28; for (const f of pets()) { if (f.world !== cur()?.world.placeId || f.inBarn) continue; const d = Math.hypot(f.x - P.x, f.y - P.y); if (d < bd) { bd = d; best = f; } } return best; };
     (O.moreCandidates = O.moreCandidates || []).push(() => {
       const f = near(); if (!f) return null; const s = cur();
-      if (f.owner === 'player') return { type: 'custom', d: 0, x: f.x, y: f.y - 15, label: f.name || 'Your ' + f.kind, act: () => menu(f) };
-      if (f.stray) { const food = PS.items.find((k) => ['bread', 'meat', 'sausage', 'fish', 'cheese'].includes(k)); return { type: 'custom', d: 0, x: f.x, y: f.y - 15, label: food ? `Share your ${(O.Data.GOODS[food]?.name || food).toLowerCase()} with the ${f.kind}` : `A stray ${f.kind}`, act: () => { if (!food) return O.Speech && O.Speech.say(f, f.kind === 'dog' ? 'Whine...' : 'Mew?', 1.6); PS.remove(food, 1); adopt(s, f); } }; }
-      const own = s.households.find((h) => h.id === f.owner); return { type: 'custom', d: 0, x: f.x, y: f.y - 15, label: `Pat ${f.name || 'the ' + f.kind}${own ? ` (the ${own.surname}s')` : ''}`, act: () => { O.Speech && O.Speech.say(f, f.kind === 'dog' ? '♥' : 'Purr...', 1.4); } };
+      if (f.owner === 'player') return { type: 'custom', d: 0, prio: 14, x: f.x, y: f.y - 15, label: f.name || 'Your ' + f.kind, act: () => menu(f) };
+      if (f.stray) { const food = PS.items.find((k) => ['bread', 'meat', 'sausage', 'fish', 'cheese'].includes(k)); return { type: 'custom', d: 0, prio: 26, x: f.x, y: f.y - 15, label: food ? `Share your ${(O.Data.GOODS[food]?.name || food).toLowerCase()} with the ${f.kind}` : `A stray ${f.kind}`, act: () => { if (!food) return O.Speech && O.Speech.say(f, f.kind === 'dog' ? 'Whine...' : 'Mew?', 1.6); PS.remove(food, 1); adopt(s, f); } }; }
+      const own = s.households.find((h) => h.id === f.owner); return { type: 'custom', d: 0, prio: 28, x: f.x, y: f.y - 15, label: `Pat ${f.name || 'the ' + f.kind}${own ? ` (the ${own.surname}s')` : ''}`, act: () => { O.Speech && O.Speech.say(f, f.kind === 'dog' ? '♥' : 'Purr...', 1.4); } };
     });
     function adopt(s, f, from) {
       f.owner = 'player'; f.stray = false; f.mode = 'heel'; f.barn = null; f.petMove = true; f.bond = 0.3; f.home = null; f.adopted = s.day;

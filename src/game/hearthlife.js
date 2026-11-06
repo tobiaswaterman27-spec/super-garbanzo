@@ -146,7 +146,7 @@
       const s = cur(), P = game.player; if (!s || game.scene || P.locked) return null;
       const kids = s.people.filter((z) => z.age >= 4 && z.age < 13 && !z.agent.hidden && z.agent.inside == null && Math.hypot(z.agent.x - P.x, z.agent.y - P.y) < 70); if (!kids.length) return null;
       if (kids[0]._story === s.day) return null;
-      return { type: 'custom', d: 20, x: kids[0].agent.x, y: kids[0].agent.y - 44, label: kids.length > 1 ? 'Tell the children a story' : `Tell ${kids[0].first} a story`, act: () => {
+      return { type: 'custom', d: 30, prio: 12, x: kids[0].agent.x, y: kids[0].agent.y - 44, label: kids.length > 1 ? 'Tell the children a story' : `Tell ${kids[0].first} a story`, act: () => {
         P.anim = 'gesture'; P.ft = 0; P.locked = true; for (const k of kids) { k._story = s.day; k.agent.frozen = true; O.gesture(k, 'sit', 6); }
         const tale = pick(['the giant of the western hills', 'the fox who outwitted the bishop', 'the ghost of the old mill', 'the knight who lost his horse to a goose', PS.title || (O.crowned && O.crowned()) ? 'how you came to where you are' : 'your own travels']);
         setTimeout(() => sp(kids[0], pick(['And then what?', 'Was he really that big?', 'No! He never!']), 2), 2500);

@@ -59,7 +59,7 @@
       if (O.stallCandidate) { const st = O.stallCandidate(); if (st) out.push(st); }
       if (O.pickupCandidate) { const pc = O.pickupCandidate(); if (pc) out.push(pc); }
       if (O.roadCandidate) { const rc = O.roadCandidate(); if (rc) out.push(rc); }
-      for (const q of sim.people) { const a = q.agent; if (a.hidden) continue; const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < 26) out.push({ type: 'npc', person: q, d, x: a.x, y: a.y }); }
+      for (const q of sim.people) { const a = q.agent; if (a.hidden) continue; const d = Math.hypot(a.x - p.x, (a.y - p.y) * 1.2); if (d < 34) out.push({ type: 'npc', person: q, d, x: a.x, y: a.y }); }
       const T = sim.T;
       for (const pr of sim.world.props) if (pr.kind === 'memorial' || (pr.kind === 'noticeboard' && pr.broadsheet)) { const d = Math.hypot(pr.x - p.x, pr.y - p.y); if (d < 22) out.push({ type: pr.kind === 'memorial' ? 'memorial' : 'broadsheet', prop: pr, d: d + 1, x: pr.x, y: pr.y - 30 }); }
       for (const pr of sim.world.props) if (pr.kind === 'gravestone') { const d = Math.hypot(pr.x - p.x, pr.y - p.y); if (d < 20) out.push({ type: 'grave', prop: pr, d: d + 2, x: pr.x, y: pr.y - 14 }); }
@@ -84,7 +84,7 @@
     function label(c) {
       switch (c.type) {
         case 'npc': return c.person.health.hp <= 0 ? `${c.person.name} lies senseless` : `Talk to ${c.person.name}`;
-        case 'door': return doorLocked(c.b) ? `${c.b.name}, locked` : `Enter ${c.b.type === 'house' ? 'house' : c.b.name}`;
+        case 'door': return doorLocked(c.b) ? `${c.b.name}: shut` : `Enter ${c.b.type === 'house' ? 'house' : c.b.name}`;
         case 'container': return `Search ${c.it.kind}`;
         case 'grave': return 'Read the gravestone';
         case 'memorial': return 'Read the memorial';
@@ -133,12 +133,13 @@
       // (worked out a few times a second, or at once when you move: not every frame)
       const mv = Math.hypot(P0.x - (candAt.x ?? -1e9), P0.y - (candAt.y ?? -1e9));
       if (mv > 3 || game.t - candAt.t > 0.15 || P0.dir !== candAt.dir || game.scene !== candAt.sc) { candAt.list = candidates(); candAt.x = P0.x; candAt.y = P0.y; candAt.t = game.t; candAt.dir = P0.dir; candAt.sc = game.scene; }
-      const cs = candAt.list.map((c) => [c, c.d + (game.scene ? facing(c) : 0)]).sort((a, b) => a[1] - b[1]).map((x) => x[0]);
+      const BIAS = { npc: -6, door: -6, shop: -6, job: -5, stairs: -3, roomdoor: -4, namesign: 12, notices: 5, portrait: 6, custom: 3, furn: 4, horse: 2 };
+      const cs = candAt.list.map((c) => [c, c.d + (game.scene ? facing(c) : 0) + (c.prio != null ? c.prio : (BIAS[c.type] || 0))]).sort((a, b) => a[1] - b[1]).map((x) => x[0]);
       cur = cs[0] || null;
       O.interactTarget = cur;
       if (cur) {
         const quick = cur.type === 'horse' ? (cur.h.owner === 'player' ? '<kbd>H</kbd>Ride' : '<kbd>Q</kbd>Steal the horse') : cur.type === 'container' ? '<kbd>F</kbd>Quick loot' : cur.type === 'npc' && O.Combat && O.Combat.lootable(cur.person) ? '<kbd>F</kbd>Search them' : cur.type === 'npc' && cur.person.age >= 8 ? '<kbd>Q</kbd>Pickpocket' : cur.type === 'door' && doorLocked(cur.b) && cur.b.type !== 'guard' ? '<kbd>Q</kbd>Pick the lock' : '';
-        prompt.hidden = false; prompt.innerHTML = `<kbd>E</kbd>${O.escape(label(cur))}${quick ? ' &nbsp; ' + quick : ''}`;
+        O.interactLabel = label(cur); prompt.hidden = false; prompt.innerHTML = `<kbd>E</kbd>${O.escape(label(cur))}${quick ? ' &nbsp; ' + quick : ''}`;
       } else prompt.hidden = true;
     });
 
@@ -280,11 +281,11 @@
       if (e.code === 'KeyF') { if (cur && cur.type === 'container') search(cur.it, true); else O.Panels.toast('Nothing to loot here.'); return true; }
       if (e.code !== 'KeyE') return false;
       if (npcUI.talking()) { npcUI.closeTalk(); return true; }
-      if (!cur) return false;
+      if (!cur) { const s0 = sim, P = game.player; const nearQ = (game.scene ? [...game.scene.actors.values()].filter((a) => a.person && !a.hidden).map((a) => [a.person, Math.hypot(a.x - P.x, a.y - P.y)]) : s0.people.filter((q) => q.agent && !q.agent.hidden).map((q) => [q, Math.hypot(q.agent.x - P.x, q.agent.y - P.y)])).sort((a, b) => a[1] - b[1])[0]; O.UI.say(nearQ && nearQ[1] < 60 ? `Get closer to ${nearQ[0].first} and face them to talk.` : 'Nothing here to use. Walk up to a person, door or thing and face it.'); return true; }
       switch (cur.type) {
         case 'npc': if (cur.person.health.hp <= 0) { O.Panels.toast(`${cur.person.first} is senseless.`); break; } npcUI.openTalk(cur.person); break;
         case 'door':
-          if (doorLocked(cur.b)) { O.Panels.toast(`The door of ${cur.b.type === 'house' ? 'the house' : cur.b.name} is barred.`); break; }
+          if (doorLocked(cur.b)) { const bz0 = sim.biz.get(cur.b.id), hrs = bz0 && bz0.def && bz0.def.hours, fmt = (h) => (h % 12 || 12) + (h < 12 ? 'am' : 'pm'); O.Panels.toast(hrs ? `${cur.b.name} is shut. It opens at ${fmt(hrs[0])} and closes at ${fmt(hrs[1] % 24)}.` : `The door of ${cur.b.type === 'house' ? 'the house' : cur.b.name} is barred. Nobody's letting you in.`); break; }
           if (game.player.mount) O.Horses.dismount();
           { const bb = cur.b; game.walkInto ? game.walkInto(bb, () => { game.enterBuilding(bb, 0); O.Crime.onEnter(game, sim, bb); }) : (game.enterBuilding(bb, 0), O.Crime.onEnter(game, sim, bb)); }
           break;

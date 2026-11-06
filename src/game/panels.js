@@ -72,9 +72,9 @@
     if (g.jewel) A.push(['jewel', (PS.worn || []).includes(k) ? 'Take off' : 'Wear']);
     if (g.disguise) A.push(['wear', PS.disguise === k ? 'Take off' : 'Put on']);
     if (g.book) A.push(['readbook', 'Read']);
-    if (k === 'letter') A.push(['write', 'Write']); if (k === 'letter_in') A.push(['read', 'Read']);
+    if (k === 'letter') A.push(['write', 'Write']); if (k === 'letter_in') A.push(['read', 'Read']); if (k === 'secret') A.push(['readsecret', 'Read']);
     if (g.weapon || ['dagger', 'sword', 'axe', 'hammer', 'spear', 'bow'].includes(k)) A.push(['eq', PS.equipped === k ? 'Put away' : 'Hold']);
-    if (g.place || g.food || g.furniture) A.push(['place', 'Set down']);
+    if (g.place || g.food || g.furniture || g.yard) A.push(['place', 'Set down']); if (g.decor || g.outside) A.push(['place', 'Put it up']);
     A.push(['drop', 'Drop']);
     return A;
   }
@@ -91,6 +91,7 @@
       r.querySelectorAll('[data-a]').forEach((b) => b.onclick = () => {
         const k = sel, i = PS.items.indexOf(k), a = b.dataset.a; if (i < 0) return;
         if (a === 'read') { close(); O.readLetters && O.readLetters(); }
+        else if (a === 'readsecret') { const sec = (PS.secrets || []).slice(-1)[0], s0 = O.SimRef.cur, q = sec && s0.byId.get(sec.id); const WHY = ['owes a moneylender more than a year of wages, and has been paying it from the town purse', 'writes to a lover who is not their spouse, and signs it plainly', 'had a deed altered to get a field that was never theirs', 'took a bribe to look the other way when a cutpurse was caught']; const why = q ? WHY[q.id % WHY.length] : 'is not what they seem'; open('A compromising letter', `<p class="letter">${q ? `In ${esc(q.name)}'s own hand. It shows plainly that the ${esc(sec.role)} ${why}.` : 'The ink has run; you can make little of it now.'}</p><p class="caption">${q ? `Show it to ${esc(q.first)} and they may pay to have it back, or give up their post. Or they may go to the watch.` : ''}</p>`); }
         else if (a === 'jewel') { PS.worn = PS.worn || []; if (PS.worn.includes(k)) PS.worn = PS.worn.filter((x) => x !== k); else { if (PS.worn.length >= 3) return toast('You are wearing all the jewellery you sensibly can.', 'bad'); PS.worn.push(k); } O.wearJewels && O.wearJewels(); inventory(); }
         else if (a === 'wear') { close(); O.wearDisguise && O.wearDisguise(k); }
         else if (a === 'eat') { close(); O.consume ? O.consume(k) : (PS.eat(k), toast(`You eat the ${G[k].name.toLowerCase()}.`)); invSel = null; }

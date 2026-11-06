@@ -129,7 +129,7 @@
       const w = game.world, b = w.buildings.find((x) => x.id === c.prop.signFor); if (!b) return;
       const lines = linesFor(O.SimRef.cur, b) || [b.name || 'A house'];
       if (b.royal) { const K = O.SimRef.cur.kingdom, cr = K && K.rulers && K.rulers.crown; O.UI.dialog.open({ name: b.name, color: '#8a6239', text: `${cr && cr.name ? cr.name + ' holds court here. ' : ''}Five floors, each a guarded hallway with doors along both walls. Ground floor: the throne room, the kitchens, the servants' hall, the steward's hall, the guardroom and the chapel. First floor: the council hall, where the council of the realm sits at the long table every Thursday at two. Second floor: the rooms of the household's servants and their families. Third floor: the rooms of those who stand higher at court, and the guest chamber. Fourth floor: the monarch's bedchamber and the royal family's chambers, kept locked.`, options: [] }); return; }
-      const nice = (t) => t.toLowerCase().replace(/(^|[\s'-])([a-z])/g, (m, a, ch) => a + ch.toUpperCase());
+      const nice = (t) => t.toLowerCase().replace(/(^|[\s-])([a-z])/g, (m, a, ch) => a + ch.toUpperCase());
       O.UI.dialog.open({ name: nice(lines[0]), color: '#8a6239', text: lines.slice(1).map(nice).join('. ') || 'Nothing more is written.', options: [] });
     };
     // in the castle every door off the hallway has its plaque: what the room is, and (close up) who lives there

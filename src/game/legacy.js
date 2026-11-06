@@ -118,7 +118,7 @@
       if (game.player._baseA) game.player._baseA = a; else game.setPlayerAppearance(a); lastAge = age;
     }
     O.reagePlayer = reage;
-    { const _sp = game.speedFor; game.speedFor = function (run) { const v = _sp ? _sp.call(this, run) : run ? 92 : 50, age = (O.Forge && O.Forge.player && O.Forge.player.age) || 27; return game.player.mount ? v : v * (age >= 75 ? 0.72 : age >= 60 ? 0.86 : 1); }; }
+    { const _sp = game.speedFor; game.speedFor = function (run) { const v = _sp ? _sp.call(this, run) : run ? 110 : 62, age = (O.Forge && O.Forge.player && O.Forge.player.age) || 27; return game.player.mount ? v : v * (age >= 75 ? 0.72 : age >= 60 ? 0.86 : 1); }; }
     // ---------------------------------------------------------------- an heir to carry on
     function inherit(s, q) {
       if (!q.playerChild || q.age < 16 || q.alive === false) return null;

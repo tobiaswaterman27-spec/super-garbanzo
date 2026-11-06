@@ -22,7 +22,7 @@
     // everything there is to do, here and elsewhere
     function items(s) {
       const out = [], here = s.world.placeId, t = now(s);
-      for (const c of (O.wayChoices ? O.wayChoices(s) : [])) out.push({ id: c.id, label: c.label, where: c.l && c.l.id != null ? O.whereabouts && O.whereabouts(s, s.byId.get(c.l.id), s.byId.get(c.l.id)) : '', lead: c.l, mark: true });
+      for (const c of (O.wayChoices ? O.wayChoices(s) : [])) out.push({ id: c.id, label: c.label, where: c.l && c.l.id != null ? O.whereabouts && O.whereabouts(s, { agent: { inside: O.game.scene ? O.game.scene.b.id : null } }, s.byId.get(c.l.id)) : '', lead: c.l, mark: true });
       for (const l of PS.leads || []) if (l.place && l.place !== here && l.until > t) out.push({ id: O.wayIdOf(l), label: l.label || 'Somewhere to go', where: `in ${placeName(l.place)}`, lead: l, far: true });
       for (const d of PS.debts || []) out.push({ id: 'debt:' + d.who, label: `Pay ${d.name} back ₳${d.n}`, where: d.due <= s.day ? 'overdue' : `by day ${d.due}`, far: d.place !== here, noX: true, markId: d.place === here ? d.who : null });
       if (PS.fineOwed > 0) out.push({ id: 'fine', label: `A fine of ₳${Math.round(PS.fineOwed)} to pay the watch`, where: 'at the watch house', noX: true });

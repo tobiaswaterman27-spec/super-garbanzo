@@ -181,7 +181,7 @@
     (O.extraLines = O.extraLines || []).push((s, q) => { const m = q.childMem; if (!m || q.age < 13) return ''; return `You remember the player from when you were a child of ${m.age}: ${m.aff > 0.3 ? 'they were kind to you, and you have not forgotten it' : m.aff < -0.2 ? 'they were cruel or cold to you, and you have not forgotten that either' : 'you remember them a little'}.`; });
 
     // ---------------------------------------------------------------- weather that matters
-    { const _sp = game.speedFor; game.speedFor = function (run) { let v = _sp ? _sp.call(this, run) : run ? 92 : 50; const s = cur(); if (!game.scene && s && s.weather) { if ((s.weather.snowCover || 0) > 0.4) v *= 0.8; if (floodedAt(game.player.x, game.player.y)) v *= 0.55; } if (game.player.sneak && !game.player.mount) v *= 0.55; return v; }; }
+    { const _sp = game.speedFor; game.speedFor = function (run) { let v = _sp ? _sp.call(this, run) : run ? 110 : 62; const s = cur(); if (!game.scene && s && s.weather) { if ((s.weather.snowCover || 0) > 0.4) v *= 0.8; if (floodedAt(game.player.x, game.player.y)) v *= 0.55; } if (game.player.sneak && !game.player.mount) v *= 0.55; return v; }; }
     const flooding = () => { const s = cur(); return s && s.season === 'spring' && s.weather && (s.weather.kind === 'storm' || s.weather.kind === 'heavy'); };
     function floodedAt(x, y) { if (!flooding()) return false; const w = game.world; if (!w || !w.ter) return false; const tx = Math.floor(x / T), ty = Math.floor(y / T); for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (w.ter[(ty + dy) * w.W + tx + dx] === w.TER.WATER) return true; return false; }
     game.hooks.drawGround.push((ctx, cam) => {

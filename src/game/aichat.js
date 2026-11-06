@@ -165,7 +165,7 @@
       const bz = q.job.biz != null && s.biz.get(q.job.biz), boss = bz && bz.owner != null && by(bz.owner);
       const wage = bz && (q.job.wage || (bz.def.wage || {})[q.job.role]); const hrs = bz && bz.def.hours;
       const mates = bz ? bz.workers.map(by).filter((p) => alive(p) && p !== q).slice(0, 3).map((p) => `${p.first} (${p.job.role})`) : [];
-      lines.push(`Work: ${q.job.role}${bz ? ` at ${placeOf(s, s.building(bz.id), cx, cy)}` : ''}${boss && boss !== q ? `, under ${boss.name}` : bz && bz.owner === q.id ? ', your own business' : ''}${wage ? `, ₳${wage} a day` : ''}${hrs ? `, ${hm(hrs[0])} to ${hm(hrs[1])}` : ''}${mates.length ? `. Work with ${mates.join(', ')}` : ''}.`);
+      lines.push(`Work: ${q.job.role}${bz ? ` at ${placeOf(s, s.building(bz.id), cx, cy)}` : ''}${boss && boss !== q ? `, under ${boss.name}` : bz && bz.owner === q.id ? ', your own business' : ''}${wage ? `, ₳${wage} a day` : ''}${hrs ? (((hrs[1] - hrs[0]) % 24 + 24) % 24 === 0 ? ', called on at any hour, day or night' : `, ${hm(hrs[0])} to ${hm(hrs[1])}`) : ''}${mates.length ? `. Work with ${mates.join(', ')}` : ''}.`);
       const yd = s.day - 1, ywd = (yd - 1) % 7;
       const yMem = (q.memories || []).filter((m) => m.day === yd).slice(0, 2).map((m) => clean(m.text));
       lines.push(`Yesterday: ${ywd === 0 ? 'Sunday, mass and rest' : `you worked your hours${bz && bz.def.sells && bz.def.sells.length ? ', and trade was ' + ((bz.salesYesterday ?? bz.salesToday) > 40 ? 'brisk' : 'slow') : ''}`}${yMem.length ? '. Also: ' + yMem.join(' ') : ''}.`);
@@ -182,7 +182,7 @@
     if (fam.length) lines.push(`Family: ${fam.join(', ')}.`);
     // friends and foes
     const rels = [...q.rel.entries()].filter(([id]) => id !== 0).map(([id, r]) => [by(id), r]).filter(([p]) => alive(p));
-    const friends = rels.filter(([, r]) => r.affinity > 0.25).sort((a, b) => b[1].affinity - a[1].affinity).slice(0, 4);
+    const kinIds = new Set([q.spouse, ...(q.children || []), ...(q.parents || []), ...((s.household(q)?.members) || [])].filter((x) => x != null)), friends = rels.filter(([p0, r]) => r.affinity > 0.25 && !kinIds.has(p0.id)).sort((a, b) => b[1].affinity - a[1].affinity).slice(0, 4);
     const foes = rels.filter(([, r]) => r.affinity < -0.3).sort((a, b) => a[1].affinity - b[1].affinity).slice(0, 2);
     if (friends.length) lines.push(`Friends: ${friends.map(([p]) => `${p.name} (${p.job ? p.job.role : p.age < 14 ? 'a child' : 'no trade'}, lives at ${placeOf(s, s.building(p.home), cx, cy)})`).join('; ')}.`);
     if (foes.length) lines.push(`You dislike: ${foes.map(([p]) => p.name).join(', ')}.`);

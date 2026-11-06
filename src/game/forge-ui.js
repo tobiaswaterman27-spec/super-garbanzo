@@ -94,9 +94,9 @@
       section('Grey', tiles('hairGrey', [[false, 'Not yet'], [true, 'Greying']], 'head')),
       spec.sex === 'm' ? section('Beard', tiles('beard', [...new Set(Ch.BEARDS)].map((h) => [h, cap(h)]), 'head')) : null);
     if (tab === 'clothes') add(
-      section('Look', tiles('style', Object.entries(O.Creator.STYLES).filter(([, st]) => spec.sex === 'f' || !st.dress).map(([k, st]) => [k, st.label, { style: k, tunic: '', trousers: '' }]), 'body')),
+      section('Look', tiles('style', Object.entries(O.Creator.STYLES).filter(([, st]) => spec.sex === 'f' || !st.dress).map(([k, st]) => [k, spec.sex === 'f' ? st.label.replace('Gentleman', 'Gentlewoman') : st.label, { style: k, tunic: '', trousers: '' }]), 'body')),
       section(spec.sex === 'f' ? 'Bodice' : 'Tunic', swatchRow('tunic', clothCols.map((k) => [k, P.cloth[k], k]), true)),
-      section('Hose', swatchRow('trousers', clothCols.map((k) => [k, P.cloth[k], k]), true)));
+      section(O.Creator.STYLES[spec.style]?.dress ? 'Stockings' : 'Hose', swatchRow('trousers', clothCols.map((k) => [k, P.cloth[k], k]), true)));
     if (tab === 'hat') add(
       section('On your head', tiles('hat', [['style', 'As the look'], ['none', 'Bare'], ['hood', 'Hood'], ['cap', 'Cap'], ['feather', 'Feathered'], ['straw', 'Straw hat'], ['kettle', 'Kettle helm']], 'head')),
       section('Cloak', tiles('cloak', [[false, 'None'], [true, 'Cloak']], 'body')),
@@ -114,7 +114,7 @@
     try { localStorage.setItem('outlaw.spec', JSON.stringify(spec)); } catch (e) { /* ignore */ }
     sub();
   }
-  function sub() { const e = document.getElementById('ccSub'); if (e) e.textContent = `${spec.age} years old, ${O.Creator.STYLES[spec.style].label.toLowerCase()}`; }
+  function sub() { const e = document.getElementById('ccSub'); if (e) e.textContent = `${spec.age} years old, ${(spec.sex === 'f' ? O.Creator.STYLES[spec.style].label.replace('Gentleman', 'Gentlewoman') : O.Creator.STYLES[spec.style].label).toLowerCase()}`; }
   function nameplate() {
     const root = $('nameplate'); root.innerHTML = '';
     const mk = (id, key, ph) => { const i = document.createElement('input'); i.type = 'text'; i.id = id; i.value = spec[key]; i.placeholder = ph; i.maxLength = 16; i.oninput = () => update(key, i.value.trim() || (key === 'name' ? 'Nameless' : '')); return i; };

@@ -170,7 +170,7 @@
 
     // riding speed: replace the walking pace while mounted
     const _blocked = game.blocked.bind(game);
-    game.speedFor = (run) => (game.player.mount ? (run && !game.player.mount.winded ? 150 : 82) * game.player.mount.speed : run ? 92 : 50);
+    game.speedFor = (run) => (game.player.mount ? (run && !game.player.mount.winded ? 150 : 82) * game.player.mount.speed : run ? 110 : 62);
 
     // draw the rider on the horse
     const _drawWorld = game.hooks.drawWorld;

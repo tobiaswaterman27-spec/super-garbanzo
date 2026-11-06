@@ -58,6 +58,9 @@
       ctx.fillStyle = 'rgba(20,14,30,0.65)'; ctx.fillRect(x - 3, y - 2, 7, 7);
       ctx.fillStyle = '#fff6dc'; ctx.fillRect(x - 1, y - 1, 3, 5); ctx.fillRect(x - 2, y, 5, 3);
       ctx.fillStyle = '#f0b45c'; ctx.fillRect(x, y + 1, 1, 1);
+      // a few words beside it: what E will do
+      let t = String(O.interactLabel || ''); if (t.length > 30) t = t.slice(0, 29) + '…';
+      if (t) { ctx.save(); ctx.font = '8px Silkscreen, monospace'; ctx.textBaseline = 'middle'; const w = Math.ceil(ctx.measureText('E ' + t).width) + 6; ctx.fillStyle = 'rgba(20,14,30,0.6)'; ctx.fillRect(x + 6, y - 3, w, 10); ctx.fillStyle = '#f0b45c'; ctx.fillText('E', x + 9, y + 2); ctx.fillStyle = '#fff6dc'; ctx.fillText(t, x + 9 + ctx.measureText('E ').width, y + 2); ctx.restore(); }
     });
 
     // ---------------------------------------------------------------- conversation
@@ -74,7 +77,9 @@
       itemsEl.querySelectorAll('button[data-g]').forEach((b) => { const cv = b.querySelector('canvas'); if (cv && O.ItemArt) { try { cv.getContext('2d').drawImage(O.ItemArt.icon(b.dataset.g), 0, 0); } catch (x) { /* no art */ } } b.onclick = () => { itemsEl.hidden = true; D && D.give && D.give(b.dataset.g); }; });
       itemsEl.hidden = false; };
     sayEl.onclick = (e) => e.stopPropagation();
-    sayEl.onsubmit = (e) => { e.preventDefault(); const t = sayIn.value.trim(); if (!t || !D || !D.chat || D.busy) return; sayIn.value = ''; D.chat(t); };
+    let queued = null; const youEl = document.createElement('div'); youEl.className = 'dlg-you'; youEl.style.cssText = 'opacity:.7;font-style:italic;margin-bottom:4px'; youEl.hidden = true; box.insertBefore(youEl, box.querySelector('.dlg-text'));
+    const showYou = (t) => { youEl.textContent = 'You: ' + t; youEl.hidden = false; };
+    sayEl.onsubmit = (e) => { e.preventDefault(); const t = sayIn.value.trim(); if (!t || !D || !D.chat) return; sayIn.value = ''; showYou(t); if (D.busy) { queued = t; return; } D.chat(t); };
     let lastType = 0; sayIn.addEventListener('input', () => { lastType = performance.now(); });
     sayIn.addEventListener('keydown', (e) => { if (e.key === 'Escape') { sayIn.blur(); e.stopPropagation(); } else if (!sayIn.value && /^Arrow/.test(e.key)) { sayIn.blur(); game.canvas.focus(); } }); // (arrows on an empty line: walk away)
     let D = null; // { text, shown, options, onPick, sel }
@@ -83,11 +88,12 @@
       D = { text: o.text, shown: 0, options: o.options || [], onPick: o.onPick, sel: 0, onClose: o.onClose, chat: o.chat, give: o.give, busy: !!o.busy };
       nameEl.textContent = o.name || ''; nameEl.style.background = o.color || '#c8743a'; nameEl.hidden = !o.name;
       box.hidden = false; opts.hidden = true; textEl.textContent = ''; nextEl.hidden = true; box.classList.toggle('busy', !!o.busy);
-      sayEl.hidden = !o.chat; sayIn.disabled = !!o.busy; giveBt.hidden = !o.give; itemsEl.hidden = true; if (o.chat && (keepFocus || o.focus)) setTimeout(() => sayIn.focus(), 0);
+      sayEl.hidden = !o.chat; sayIn.disabled = false; sayIn.placeholder = o.busy ? 'Say something... (they are still speaking)' : 'Say something... (Esc to stop typing)'; giveBt.hidden = !o.give; itemsEl.hidden = true; if (o.chat) setTimeout(() => { if (D && D.chat && !(document.activeElement && document.activeElement.tagName === 'INPUT' && document.activeElement !== sayIn)) sayIn.focus(); }, 0); void keepFocus;
+      if (!o.chat) { queued = null; youEl.hidden = true; } else if (!o.busy && queued) { const t = queued; queued = null; setTimeout(() => { if (D && D.chat && !D.busy) D.chat(t); }, 0); }
       game.player.locked = !o.chat; // (in a conversation you can always just walk away)
     }
     function close() {
-      if (!D) return; const cb = D.onClose; D = null; box.hidden = true; opts.hidden = true; sayEl.hidden = true; sayIn.value = ''; sayIn.blur(); game.player.locked = false; cb && cb();
+      if (!D) return; const cb = D.onClose; D = null; queued = null; youEl.hidden = true; box.hidden = true; opts.hidden = true; sayEl.hidden = true; sayIn.value = ''; sayIn.blur(); game.player.locked = false; cb && cb();
     }
     function showOptions() {
       if (!D.options.length) { nextEl.hidden = false; return; }
@@ -132,6 +138,7 @@
     }
     // ---------------------------------------------------------------- pause menu
     const menu = document.createElement('div'); menu.className = 'ui-menu'; menu.hidden = true; root.appendChild(menu);
+    O.paused = () => !menu.hidden || (!!O.panelOpen && /^(Guide|How folk see you)$/.test((document.querySelector('.ledger-in h2') || {}).textContent || ''));
     function openMenu() {
       const snd = O.Sound && O.Sound.on;
       menu.innerHTML = `<div class="ui-menu-in"><h2>Outlaw</h2>

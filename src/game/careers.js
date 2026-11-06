@@ -275,7 +275,7 @@
     O.foundSecret = (s, hh) => { // called when you go through an official's things
       const q = hh.members.map((id) => s.byId.get(id)).find((x) => x && O.upright && O.upright(s, x) && x.job); if (!q || Math.random() > 0.3) return null;
       (PS.secrets = PS.secrets || []).push({ place: s.world.placeId, id: q.id, role: q.job.role }); PS.add && PS.add('secret');
-      return `Among the papers: a letter that ${q.name} would very much not want read aloud.`;
+      return `Underneath, among the papers: a letter that ${q.name} would very much not want read aloud. You take that too.`;
     };
     function blackmail(s, q) {
       const sec = PS.secrets.find((x) => x.place === s.world.placeId && x.id === q.id);

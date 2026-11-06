@@ -142,6 +142,7 @@
     blocked(x, y) { if (this.scene) return this.scene.blocked(x, y); return this.solidAt(x - 4, y - 3) || this.solidAt(x + 3, y - 3) || this.solidAt(x - 4, y) || this.solidAt(x + 3, y); }
 
     update(dt) {
+      if (O.paused && O.paused()) return; // the Esc menu and the guide stop the clock
       this.t += dt;
       // clock
       this.clock.minute += dt * this.clock.speed;
@@ -162,7 +163,7 @@
       }
       if (len > 0) {
         mx /= len; my /= len;
-        const sp = this.speedFor ? this.speedFor(run) : run ? 92 : 50;
+        const sp = this.speedFor ? this.speedFor(run) : run ? 110 : 62;
         const nx = p.x + mx * sp * dt, ny = p.y + my * sp * dt;
         if (!this.blocked(nx, p.y)) p.x = nx;
         if (!this.blocked(p.x, ny)) p.y = ny;
@@ -322,6 +323,8 @@
       }
       while (ai < actors.length) drawActor(actors[ai++]);
       ctx.globalAlpha = 1;
+      // behind a house you're still seen: a faint figure through the wall
+      { const P = this.player, T0 = this.world.T; if (P && !P.hidden && !P.mount) { const hid = this.world.buildings.some((b) => { const sp = b.sprite; if (!sp || b.site) return false; const by = (b.bottom + 1) * T0; return by > P.y + 2 && P.x > b.x * T0 - 2 && P.x < (b.x + b.w) * T0 + 2 && P.y - 26 < by && P.y > by - (sp.H || 80); }); if (hid) { const fr = this.actorFrame(P), ox = fr.ox ?? 16; ctx.globalAlpha = 0.45; ctx.drawImage(fr, Math.round(P.x - ox - cam.x), Math.round(P.y - (fr.gy ?? Ch.GROUND) - cam.y)); ctx.globalAlpha = 1; } } }
       for (const h of this.hooks.drawWorld) h(ctx, cam);
       // smoke
       for (const q of this.particles) {

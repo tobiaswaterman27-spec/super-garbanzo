@@ -80,7 +80,7 @@
     };
     (O.moreCandidates = O.moreCandidates || []).push(() => {
       const f = beast(); if (!f) return null;
-      return { type: 'custom', d: 1, x: f.x, y: f.y - 24, label: `Stroke the ${f.kind}`, act: () => stroke(f) };
+      return { type: 'custom', d: 1, prio: 28, x: f.x, y: f.y - 24, label: `Stroke the ${f.kind}`, act: () => stroke(f) };
     });
     function stroke(f) {
       const p = game.player; p.anim = ['chicken', 'pig', 'sheep', 'goat'].includes(f.kind) ? 'crouch' : 'point'; p.ft = 0;

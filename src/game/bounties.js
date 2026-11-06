@@ -113,6 +113,8 @@
     game.hooks.update.push((dt) => {
       gt -= dt; if (gt > 0) return; gt = 0.8; const C = PS.contract, s = cur(); if (!C || !s || C.place !== s.world.placeId || game.scene || npcUI.talking()) return;
       const q = s.byId.get(C.target); if (!q || !q.agent || q.agent.hidden) return; const P = game.player, d = Math.hypot(q.agent.x - P.x, q.agent.y - P.y);
+      // the merchant waits where they are until you're ready, and asks again when you come back
+      if (C.kind === 'escort' && !C.started) { q.agent.frozen = true; q.agent.path = null; q.agent.goal = null; if (q._hailed && d > 140) q._hailed = false; }
       if (C.kind === 'escort' && !C.started && !q._hailed && d < 60) { q._hailed = true; npcUI.startFrom(q, "You'll be the escort from the board at the tavern? I've waited long enough. Are you ready to go?"); }
       if (C.kind === 'thief' && !q._wary && d < 40) { q._wary = true; O.Speech && O.Speech.say(q, 'What are you looking at?', 2.5); }
     });

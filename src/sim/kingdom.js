@@ -13,7 +13,7 @@
       const S = (o) => Object.assign({ wealth: 0.5, food: 1, security: 0.6, happiness: 0.6, crime: 0.2, health: 0.8, dev: 1, guards: 4, prices: {}, stock: {}, gang: 0.05, events: [] }, o);
       // the island of Eldoria: see eldoria.js
       this.places = O.Eldoria.places(S);
-      for (const p of this.places) for (const g of GOODS) { p.stock[g] = (p.produces[g] || 0) * 3 + 20; p.prices[g] = BASE[g]; }
+      for (const p of this.places) for (const g of GOODS) { p.stock[g] = (p.produces[g] || 0) * 3 + 20; p.prices[g] = +(BASE[g] * (p.produces[g] ? 0.75 : 1.12) * (0.88 + ((O.hash ? O.hash('kp', p.id, g) : (p.id + g.length) * 37) % 100) / 400)).toFixed(1); }
       this.roads = O.Eldoria.roads();
     }
     place(id) { return this.places.find((p) => p.id === id); }

@@ -135,6 +135,23 @@
       for (const bz of myBiz(s)) { const n = bz._note; if (!n || n.told) continue; n.told = true; say(`${bz.name}'s books: ${n.short ? `the till came up about ₳${n.short} short yesterday` : ''}${n.short && n.bad ? ', and ' : ''}${n.bad ? `₳${n.bad} owed on the slate won't be paid` : ''}.`, 'bad'); }
     });
 
+    // ======================================================================== money stays steady
+    // a full purse doesn't sit still: the well-off buy cloth and wine from the travelling merchants, go on
+    // pilgrimage, dower a daughter, rebuild; a shop with a full strongbox buys in from outside. A little of
+    // whatever is above a comfortable sum leaves the town each day, so purses don't grow without end.
+    const _ndM = SP.newDay;
+    SP.newDay = function () {
+      const r = _ndM.apply(this, arguments);
+      try {
+        let gone = 0;
+        for (const hh of this.households) { if (hh.gone) continue; const ease = 120 + 40 * (hh.members || []).length; if (hh.money > ease) { const t = (hh.money - ease) * 0.03; hh.money -= t; gone += t; } }
+        for (const bz of this.biz.values()) { if (bz.def.public || mine(bz)) continue; const ease = 300; if ((bz.cash || 0) > ease) { const t = (bz.cash - ease) * 0.03; bz.cash -= t; gone += t; } }
+        if (this.treasury && this.treasury.cash > 1000) { const t = (this.treasury.cash - 1000) * 0.04; this.treasury.cash -= t; gone += t; }
+        this._moneyOut = Math.round(gone);
+      } catch (e) { console.error(e); }
+      return r;
+    };
+
     // ======================================================================== market day
     const isMarket = (s) => s && s.weekday === 6 && s.minute >= 7 * 60 && s.minute < 14 * 60;
     O.marketDay = isMarket;

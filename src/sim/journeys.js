@@ -12,6 +12,8 @@
     // whoever is away isn't here at all
     S.personMinute = function (p) {
       if (p.away) return;
+      // anyone who can't find the road out after half a day just goes
+      if (p.task && p.task.act === 'depart') { const now = this.day * 1440 + this.minute; if (p.task.since == null) p.task.since = now; else if (now - p.task.since > 360 && !String(p.task.journey).startsWith('home:') && this.setOff) { this.setOff(p); return; } }
       if (p.task && p.task.act === 'depart' && p.agent && !p.agent.path && p.agent.goal && p.agent.inside == null) {
         if (p.activity?.act === 'depart' && !String(p.task.journey).startsWith('home:')) { this.setOff(p); return; } // reached the edge of town
       }
@@ -29,7 +31,9 @@
       for (const bz of this.biz.values()) { if (bz.def.public) continue; for (const g of bz.def.sells || []) { if (g.startsWith('fx_') || ['meal', 'stew', 'pie', 'milk'].includes(g)) continue; const t = bz.def.targets[g] || 0; if (t && (bz.stock[g] || 0) > t * 1.3) { surplus = { bz, g }; break; } } if (surplus) break; }
       if (surplus && r.chance(0.6)) {
         const dest = nb.slice().sort((a, b) => (K.place(b).prices?.[surplus.g] || 0) - (K.place(a).prices?.[surplus.g] || 0))[0];
-        const who = this.people.find((q) => !q.visitor && !q.away && q.age >= 20 && q.age < 60 && !q.task && (!q.job || q.job.role === 'labourer' || q.job.role === 'carter' || q.job.biz === surplus.bz.id) && this.household(q).money > 20);
+        const sole = (q) => q.job && q.job.biz === surplus.bz.id && (this.bossOf && this.bossOf(surplus.bz) === q || surplus.bz.workers.length <= 2); // (never the only hands a shop has)
+        const cands = this.people.filter((q) => !q.visitor && !q.away && q.age >= 20 && q.age < 60 && !q.task && (!q.job || q.job.role === 'labourer' || q.job.role === 'carter' || q.job.biz === surplus.bz.id) && !sole(q) && this.household(q).money > 20);
+        const who = cands.find((q) => q.job && /carter|labourer/.test(q.job.role)) || cands[0];
         if (who && dest) {
           const qty = Math.min(8, Math.floor((surplus.bz.stock[surplus.g] || 0) - (surplus.bz.def.targets[surplus.g] || 0)));
           const cost = Math.round(this.price(surplus.bz, surplus.g) * 0.8 * qty);

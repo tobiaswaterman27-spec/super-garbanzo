@@ -12,6 +12,9 @@
 'use strict';
 (function () {
   const T = 16;
+  // everything has someone who sells it
+  { const D = O.Data, G = D.GOODS, SELL = { smithy: ['knife'], tailor: ['gloves', 'purse'], chandler: ['comb', 'beads', 'candlestick', 'spoon'], store: ['berries', 'mushrooms', 'flowers', 'comb', 'beads', 'madder', 'spoon', 'candlestick'], butcher: ['boarmeat'], tanner: ['pelt', 'bearskin', 'purse', 'gloves'], dyer: ['madder'], cobbler: ['purse'] };
+    for (const [t, goods] of Object.entries(SELL)) { const bz = D.BUSINESS[t]; if (!bz) continue; const out = {}; for (const g of goods) { if (!G[g] || bz.sells.includes(g)) continue; bz.sells.push(g); bz.targets[g] = bz.targets[g] || 2; out[g] = 0.03; } if (Object.keys(out).length) bz.recipes.push({ out, inp: {} }); } }
   function setup(game) {
     const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k || 'note'), G = O.Data.GOODS;
     const pick = (a) => a[Math.floor(Math.random() * a.length)];

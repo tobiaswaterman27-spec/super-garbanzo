@@ -504,3 +504,5 @@ Every job and every level of it, royal family and titles included, grouped under
 - [ ] Second blind playtest after these fixes
 - [ ] Simulated days get slower as the town ages (1.1 s to 1.9 s over ten days): find what grows
 - [ ] Not reproduced from playtest 1: stuck at the market stall; Esc opening the menu over a sign card
+- [x] People-facing menus said instead of clicked; letters agree to more; nothing empty; steady economy (row 149)
+- [ ] Your own books stay as panels (satchel, map, ledger, Business, Holdings, crown decrees, decorating): could be told to a steward instead

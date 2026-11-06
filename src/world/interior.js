@@ -384,6 +384,14 @@
     }
 
     // pieces the owner has set down themselves come first, where they put them
+    // no working room is bare: a few things a place like it would have, against the walls
+    if (floor === 0 && !b.bare && !['house', 'cottage', 'townhouse', 'barn', 'hideout'].includes(b.type) && !b.royal && !b.parent) {
+      const real = () => items.filter((i) => !['stairs', 'roomdoor', 'partH', 'partV', 'portrait'].includes(i.kind)).length;
+      const FILL = { morgue: ['candlestand', 'candlestand', 'chest', 'bench', 'barrel'], doctor: ['cupboard', 'plant', 'candlestand', 'chest', 'stool'], tailor: ['chest', 'rack', 'stool', 'candlestand', 'plant'], chandler: ['barrel', 'crate', 'candlestand', 'candlestand', 'rack'],
+        store: ['sack', 'barrel', 'crate', 'sack', 'candlestand'], posthouse: ['chest', 'desk', 'bench', 'sack', 'candlestand'], carrier: ['sack', 'crate', 'barrel', 'rack', 'bench'], stable: ['hay', 'hay', 'rack', 'barrel', 'sack'] };
+      const want = FILL[b.type] || ['barrel', 'crate', 'candlestand', 'plant', 'stool', 'sack'];
+      for (const k of want) { if (real() >= 11) break; const [fw, fh] = SIZE[k] || [1, 1]; tryPut(k, nearWalls(fw, fh), { noAccess: true }); }
+    }
     for (const f of (b.extraFurn || [])) if (f.floor === floor) put(f.kind, f.tx, f.ty, Object.assign({ owned: true, rot: f.rot || 0, v: f.v || 0 }, f.width ? { width: f.width } : {}, f.kind === 'rug' ? { flat: true } : {}, f.kind === 'partH' || f.kind === 'partV' ? { partition: true, noAccess: true } : {}, f.seed ? { seed: f.seed } : {}, f.kind === 'chair' || f.kind === 'stool' || f.kind === 'bench' ? { seat: true } : {}, ['bed', 'double', 'cradle'].includes(f.kind) ? { bed: true, slots: f.kind === 'double' ? 2 : 1 } : {}, ['table', 'longtable'].includes(f.kind) ? { table: true } : {}, f.kind === 'counter' || f.kind === 'bar' ? { counter: true } : {}));
     if (b.parent) castleRoom(); else if (b.royal) royal(); else if (b.manor) manor(); else switch (b.type) {
       case 'house': case 'farmhouse': case 'woodcutter':

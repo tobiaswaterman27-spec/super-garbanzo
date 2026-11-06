@@ -9221,6 +9221,8 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     // whoever is away isn't here at all
     S.personMinute = function (p) {
       if (p.away) return;
+      // anyone who can't find the road out after half a day just goes
+      if (p.task && p.task.act === 'depart') { const now = this.day * 1440 + this.minute; if (p.task.since == null) p.task.since = now; else if (now - p.task.since > 360 && !String(p.task.journey).startsWith('home:') && this.setOff) { this.setOff(p); return; } }
       if (p.task && p.task.act === 'depart' && p.agent && !p.agent.path && p.agent.goal && p.agent.inside == null) {
         if (p.activity?.act === 'depart' && !String(p.task.journey).startsWith('home:')) { this.setOff(p); return; } // reached the edge of town
       }
@@ -9238,7 +9240,9 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       for (const bz of this.biz.values()) { if (bz.def.public) continue; for (const g of bz.def.sells || []) { if (g.startsWith('fx_') || ['meal', 'stew', 'pie', 'milk'].includes(g)) continue; const t = bz.def.targets[g] || 0; if (t && (bz.stock[g] || 0) > t * 1.3) { surplus = { bz, g }; break; } } if (surplus) break; }
       if (surplus && r.chance(0.6)) {
         const dest = nb.slice().sort((a, b) => (K.place(b).prices?.[surplus.g] || 0) - (K.place(a).prices?.[surplus.g] || 0))[0];
-        const who = this.people.find((q) => !q.visitor && !q.away && q.age >= 20 && q.age < 60 && !q.task && (!q.job || q.job.role === 'labourer' || q.job.role === 'carter' || q.job.biz === surplus.bz.id) && this.household(q).money > 20);
+        const sole = (q) => q.job && q.job.biz === surplus.bz.id && (this.bossOf && this.bossOf(surplus.bz) === q || surplus.bz.workers.length <= 2); // (never the only hands a shop has)
+        const cands = this.people.filter((q) => !q.visitor && !q.away && q.age >= 20 && q.age < 60 && !q.task && (!q.job || q.job.role === 'labourer' || q.job.role === 'carter' || q.job.biz === surplus.bz.id) && !sole(q) && this.household(q).money > 20);
+        const who = cands.find((q) => q.job && /carter|labourer/.test(q.job.role)) || cands[0];
         if (who && dest) {
           const qty = Math.min(8, Math.floor((surplus.bz.stock[surplus.g] || 0) - (surplus.bz.def.targets[surplus.g] || 0)));
           const cost = Math.round(this.price(surplus.bz, surplus.g) * 0.8 * qty);
@@ -11865,6 +11869,14 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     }
 
     // pieces the owner has set down themselves come first, where they put them
+    // no working room is bare: a few things a place like it would have, against the walls
+    if (floor === 0 && !b.bare && !['house', 'cottage', 'townhouse', 'barn', 'hideout'].includes(b.type) && !b.royal && !b.parent) {
+      const real = () => items.filter((i) => !['stairs', 'roomdoor', 'partH', 'partV', 'portrait'].includes(i.kind)).length;
+      const FILL = { morgue: ['candlestand', 'candlestand', 'chest', 'bench', 'barrel'], doctor: ['cupboard', 'plant', 'candlestand', 'chest', 'stool'], tailor: ['chest', 'rack', 'stool', 'candlestand', 'plant'], chandler: ['barrel', 'crate', 'candlestand', 'candlestand', 'rack'],
+        store: ['sack', 'barrel', 'crate', 'sack', 'candlestand'], posthouse: ['chest', 'desk', 'bench', 'sack', 'candlestand'], carrier: ['sack', 'crate', 'barrel', 'rack', 'bench'], stable: ['hay', 'hay', 'rack', 'barrel', 'sack'] };
+      const want = FILL[b.type] || ['barrel', 'crate', 'candlestand', 'plant', 'stool', 'sack'];
+      for (const k of want) { if (real() >= 11) break; const [fw, fh] = SIZE[k] || [1, 1]; tryPut(k, nearWalls(fw, fh), { noAccess: true }); }
+    }
     for (const f of (b.extraFurn || [])) if (f.floor === floor) put(f.kind, f.tx, f.ty, Object.assign({ owned: true, rot: f.rot || 0, v: f.v || 0 }, f.width ? { width: f.width } : {}, f.kind === 'rug' ? { flat: true } : {}, f.kind === 'partH' || f.kind === 'partV' ? { partition: true, noAccess: true } : {}, f.seed ? { seed: f.seed } : {}, f.kind === 'chair' || f.kind === 'stool' || f.kind === 'bench' ? { seat: true } : {}, ['bed', 'double', 'cradle'].includes(f.kind) ? { bed: true, slots: f.kind === 'double' ? 2 : 1 } : {}, ['table', 'longtable'].includes(f.kind) ? { table: true } : {}, f.kind === 'counter' || f.kind === 'bar' ? { counter: true } : {}));
     if (b.parent) castleRoom(); else if (b.royal) royal(); else if (b.manor) manor(); else switch (b.type) {
       case 'house': case 'farmhouse': case 'woodcutter':
@@ -13752,7 +13764,7 @@ They know where their family and friends are just now (the card says); a strange
     const pz = out?.people && (out.people[q.first] || Object.values(out.people)[0]); const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r);
     if (pz) { r.affinity = clamp(r.affinity + clamp(Math.round(+pz.feel || 0), -2, 2) * 0.04, -1, 1); r.trust = clamp((r.trust || 0) + clamp(Math.round(+pz.trust || 0), -2, 2) * 0.05, -1, 1); if (pz.learned) (q.beliefs = q.beliefs || []).unshift({ t: clean(pz.learned).slice(0, 140), src: 'player', day: s.day }); }
     if (out?.name) r.name = clean(out.name).split(' ')[0];
-    const notes = []; if (Array.isArray(out?.acts) && O.NpcActs) for (const a of out.acts.slice(0, 3)) if (a && ['meet', 'want', 'seek_job', 'tell', 'like', 'invite', 'wedding_guest', 'set_wedding', 'court', 'betroth', 'day_off', 'raise', 'hours', 'release', 'gather', 'host', 'recommend', 'repay', 'spread', 'odd_job', 'forgive', 'grudge'].includes(a.do)) { if (a.do === 'give') continue; const res = O.NpcActs.apply(s, q, a, q); if (res && res !== 'leave') notes.push(res); }
+    const notes = []; if (Array.isArray(out?.acts) && O.NpcActs) for (const a of out.acts.slice(0, 3)) if (a && ['meet', 'want', 'seek_job', 'tell', 'like', 'invite', 'wedding_guest', 'set_wedding', 'court', 'betroth', 'day_off', 'raise', 'hours', 'release', 'gather', 'host', 'recommend', 'repay', 'spread', 'odd_job', 'forgive', 'grudge', ...(O.letterActs || [])].includes(a.do)) { if (a.do === 'give') continue; const res = O.NpcActs.apply(s, q, a, q); if (res && res !== 'leave') notes.push(res); }
     // what they send back with it travels in the letter, not through the air
     let encl = null; if (Array.isArray(out?.acts) && O.Letters && O.Letters.takeFrom) for (const a of out.acts) if (a && a.do === 'give' && !encl) encl = O.Letters.takeFrom(s, q, a.item, a.amount);
     if (line && encl) O.sendMail('gift', { from: q.name, text: line, coin: encl.coin || 0, item: encl.item || null }, 2 + Math.random() * 6, `A letter from ${q.first}`);
@@ -26481,6 +26493,30 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     innkeeper: [['Fetch water for the kitchen', 'out|floor', 'bucket', 10, 'Two pails.'], ['Bring in firewood for the hearth', 'fireplace|floor', 'place', 10, 'Stacked.'], ['Tap a new cask', 'barrel|bar', 'pour', 10, 'Flowing.'], ['Count the takings', 'bar|counter|chest', 'count', 10, 'A good night.']],
   };
   for (const [r, extra] of Object.entries(MORE)) { const have = new Set((C[r] || []).map((c) => c[0])); C[r] = (C[r] || []).concat(extra.filter((c) => !have.has(c[0]))); }
+  // every post has at least seven things to do with the hands, suited to where the work is done
+  const OUTDOOR = /digger|cutter|quarry|miner|mine |burner|boiler|forester|gamekeeper|beekeeper|dresser|vintner|shepherd|farm|gardener|woodcutter|sawyer|fisher|ferryman|sailor|carter|courier|messenger|bearer|warehouse|roofer|thatcher|builder|brickmaker|watchman|guard|sergeant|bailiff|falconer|squire|knight|groom|stable|horse|lamplighter|sweep|water carrier|crier|gravedigger|executioner|bounty/;
+  const IN = [
+    ['Sweep the workplace out, corners and all', 'floor', 'sweep', 10, 'Swept clean.'],
+    ['Wipe down the bench and the tools', 'workbench|table|counter|desk', 'scrub', 10, 'Clean enough to eat off.'],
+    ['Stack the stock neatly on the shelves', 'shelf|crate|barrel|sack|rack|cupboard', 'place', 10, 'Everything where it belongs.'],
+    ['Check the tools and set right what needs it', 'rack|workbench|table', 'hammer', 12, 'Edges keen, handles tight.'],
+    ['Tally what was used and what is left', 'desk|table|counter|chest', 'count', 10, 'Noted, and nothing missing.'],
+    ['Carry the rubbish out to the midden', 'out|floor', 'carry', 10, 'Out, and the door shut on it.'],
+    ['Mend what was broken this week', 'workbench|table|chair|bench|stool', 'hammer', 15, 'Good as new, nearly.'],
+    ['Write up the day in the book', 'desk|table', 'write', 10, 'The day, set down.'],
+  ];
+  const OUT = [
+    ['Load the cart for the day', 'out', 'carry', 12, 'Loaded and roped.'],
+    ['Clear the ground where you work', 'out', 'dig', 15, 'Cleared.'],
+    ['Fetch water from the well for the work', 'out', 'carry', 10, 'Two full pails.'],
+    ['Check the tools in the shed and whet the blades', 'out|rack|workbench', 'hammer', 10, 'Keen again.'],
+    ['Stack what you have gathered', 'out', 'place', 12, 'Stacked, and the pile is square.'],
+    ['Walk the bounds and look for trouble', 'out', 'look', 15, 'All as it should be.'],
+    ['Sweep the yard', 'out|floor', 'sweep', 10, 'Swept.'],
+    ['Tally the day at the door', 'out|desk|table', 'count', 8, 'Counted.'],
+  ];
+  for (const d of Object.values((O.Data && O.Data.BUSINESS) || {})) for (const [r] of d.jobs || []) if (!C[r]) C[r] = [];
+  for (const r of Object.keys(C)) { if (C[r].length >= 7) continue; const pool = OUTDOOR.test(r) ? OUT : IN, have = new Set(C[r].map((c) => c[0])); for (const c of pool) { if (C[r].length >= 7) break; if (!have.has(c[0])) C[r].push(c); } }
   O.CHORES = C;
 })();
 
@@ -28443,6 +28479,23 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       for (const bz of myBiz(s)) { const n = bz._note; if (!n || n.told) continue; n.told = true; say(`${bz.name}'s books: ${n.short ? `the till came up about ₳${n.short} short yesterday` : ''}${n.short && n.bad ? ', and ' : ''}${n.bad ? `₳${n.bad} owed on the slate won't be paid` : ''}.`, 'bad'); }
     });
 
+    // ======================================================================== money stays steady
+    // a full purse doesn't sit still: the well-off buy cloth and wine from the travelling merchants, go on
+    // pilgrimage, dower a daughter, rebuild; a shop with a full strongbox buys in from outside. A little of
+    // whatever is above a comfortable sum leaves the town each day, so purses don't grow without end.
+    const _ndM = SP.newDay;
+    SP.newDay = function () {
+      const r = _ndM.apply(this, arguments);
+      try {
+        let gone = 0;
+        for (const hh of this.households) { if (hh.gone) continue; const ease = 120 + 40 * (hh.members || []).length; if (hh.money > ease) { const t = (hh.money - ease) * 0.03; hh.money -= t; gone += t; } }
+        for (const bz of this.biz.values()) { if (bz.def.public || mine(bz)) continue; const ease = 300; if ((bz.cash || 0) > ease) { const t = (bz.cash - ease) * 0.03; bz.cash -= t; gone += t; } }
+        if (this.treasury && this.treasury.cash > 1000) { const t = (this.treasury.cash - 1000) * 0.04; this.treasury.cash -= t; gone += t; }
+        this._moneyOut = Math.round(gone);
+      } catch (e) { console.error(e); }
+      return r;
+    };
+
     // ======================================================================== market day
     const isMarket = (s) => s && s.weekday === 6 && s.minute >= 7 * 60 && s.minute < 14 * 60;
     O.marketDay = isMarket;
@@ -28657,6 +28710,9 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
 'use strict';
 (function () {
   const T = 16;
+  // everything has someone who sells it
+  { const D = O.Data, G = D.GOODS, SELL = { smithy: ['knife'], tailor: ['gloves', 'purse'], chandler: ['comb', 'beads', 'candlestick', 'spoon'], store: ['berries', 'mushrooms', 'flowers', 'comb', 'beads', 'madder', 'spoon', 'candlestick'], butcher: ['boarmeat'], tanner: ['pelt', 'bearskin', 'purse', 'gloves'], dyer: ['madder'], cobbler: ['purse'] };
+    for (const [t, goods] of Object.entries(SELL)) { const bz = D.BUSINESS[t]; if (!bz) continue; const out = {}; for (const g of goods) { if (!G[g] || bz.sells.includes(g)) continue; bz.sells.push(g); bz.targets[g] = bz.targets[g] || 2; out[g] = 0.03; } if (Object.keys(out).length) bz.recipes.push({ out, inp: {} }); } }
   function setup(game) {
     const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k || 'note'), G = O.Data.GOODS;
     const pick = (a) => a[Math.floor(Math.random() * a.length)];
@@ -28796,6 +28852,113 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     O.WildRiver = { riverPorts, bargeHere, RX, tryRiver };
   }
   O.RiverWildSetup = { setup };
+})();
+
+</script>
+<script>
+// Said, not clicked: the rest of it. Wherever a person would have put a list of buttons in front of you
+// (the stablemaster's horses, the parish clerk's empty houses, the moneylender's terms, the fair stall,
+// the bandits on the road, your dog), they say it instead, and you answer in your own words: "I'll take
+// the grey mare", "rent me the one by the mill", "lend me twenty", "here, take my purse", "heel!".
+// What you say is matched to what's on offer and done just as before; anything else is ordinary talk.
+// Letters can agree to more as well: hire, lend, sell, rent, take on.
+'use strict';
+(function () {
+  const STOP = new Set(['the', 'and', 'for', 'you', 'your', 'with', 'this', 'that', 'will', 'have', 'from', 'are', 'one', 'can', 'please', 'would', 'like', 'want', 'just', 'then', 'them', 'its', "i'll", 'ill', 'let', 'give', 'me', 'my']);
+  const SYN = {
+    buy: ['buy', 'purchase', 'take', 'have', 'want', 'get', 'ill', "i'll"], sell: ['sell', 'offload', 'part'], rent: ['rent', 'lease', 'let', 'live'],
+    borrow: ['borrow', 'lend', 'loan'], pay: ['pay', 'hand', 'purse', 'give', 'settle', 'coin', 'money'], fight: ['fight', 'draw', 'attack', 'stand', 'blade', 'sword'],
+    run: ['run', 'flee', 'spur', 'escape', 'bolt', 'ride'], feed: ['feed', 'oats', 'hay', 'wheat'], stroke: ['stroke', 'pat', 'scratch'], come: ['come', 'heel', 'follow', 'along', 'here'],
+    stay: ['stay', 'wait', 'remain'], home: ['home', 'keep', 'watch', 'guard'], sit: ['sit', 'down'], give: ['give', 'end', 'quit'], bet: ['bet', 'wager', 'stake'],
+    enter: ['enter', 'ride', 'compete', 'join', 'try', 'shoot', 'wrestle'], watch: ['watch', 'look', 'see'], take: ['take', 'accept', 'yes', 'aye'], not: ['not', 'no', 'nay', 'later'],
+  };
+  const words = (t) => String(t).toLowerCase().replace(/[₳.,!?;:"“”()]/g, ' ').split(/\s+/).filter(Boolean);
+  const nums = (t) => (String(t).match(/\d+/g) || []).map(Number);
+  function score(text, opt) {
+    const w = words(text), lab = words(opt.label), ctx = words(opt.ctx), have = new Set(w);
+    let sc = 0;
+    // the verb of the button, or a word that means it
+    for (const lw of lab) { if (have.has(lw) && !STOP.has(lw)) sc += 3; for (const [k, syn] of Object.entries(SYN)) if ((lw === k || syn.includes(lw)) && syn.some((x) => have.has(x))) sc += 2; }
+    // the thing it's about: a horse's name, a house, a good
+    for (const cw of ctx) if (cw.length > 2 && !STOP.has(cw) && have.has(cw)) sc += 1.5;
+    // a number said that matches the button's number
+    const tn = nums(text), on = nums(opt.label + ' ' + opt.ctx); if (tn.length && on.length) sc += tn.some((n) => on.includes(n)) ? 3 : -2;
+    return sc;
+  }
+  const textOf = (el) => { const c = el.cloneNode(true); c.querySelectorAll('button, input, select, textarea, .x, script, style').forEach((x) => x.remove()); return c.textContent.replace(/\s+/g, ' ').trim(); };
+
+  function setup(game) {
+    const PS = O.PlayerState, cur = () => O.SimRef.cur;
+    const free = () => !!(O.AI && O.AI.ready);
+    // who you were just talking to, and when
+    let lastQ = null, lastT = -1e9;
+    game.hooks.update.push(() => { const t = O.npcUI && O.npcUI.talking && O.npcUI.talking(); if (t) { lastQ = t; lastT = performance.now(); } });
+    // (and whoever was just spoken to, even before the talk card is up)
+    if (O.AIChat) { const _s = O.AIChat.say; O.AIChat.say = function (q) { if (q && q.id != null) { lastQ = q; lastT = performance.now(); } return _s.apply(this, arguments); }; }
+    { const n = O.npcUI; if (n && n.openTalk) { const _o = n.openTalk; n.openTalk = function (q) { if (q) { lastQ = q; lastT = performance.now(); } return _o.apply(this, arguments); }; } }
+    // panels that stay panels: your own books and plans, not a person's offer
+    const OWN = /^(Satchel|Guide|How folk see you|Chronicle|Notice board|Map|The realm|Ledger|Settings|Business|Holdings|Your gang|Undertakings|Where to|A letter|Letters|Write a letter|What's on|Decorat)/i;
+    // the few with no person behind them, and who "says" them
+    const VOICE = [[/^Bandits/i, 'The bandits'], [/^The magistrate/i, 'The magistrate'], [/council|moot/i, 'The council']];
+
+    const P = O.Panels, _open = P.open;
+    P.open = function (title, body, onBind) {
+      const r = _open.apply(this, arguments);
+      try {
+        if (!free() || OWN.test(String(title))) return r;
+        const root = [...document.querySelectorAll('.ledger-in')].reverse().find((e) => e.getClientRects().length && (e.querySelector('h2') || {}).textContent === String(title)); if (!root) return r;
+        if (root.querySelector('input:not([type=hidden]), textarea, select')) return r; // (forms with typing stay as they are)
+        const btns = [...root.querySelectorAll('.ledger-body button')].filter((b) => typeof b.onclick === 'function' && !b.classList.contains('x'));
+        if (!btns.length) return r;
+        const recent = lastQ && performance.now() - lastT < 4000 ? lastQ : null;
+        const pet = btns.some((b) => b.dataset && b.dataset.m === 'heel');
+        const voice = VOICE.find(([re]) => re.test(String(title))) || (pet ? [null, String(title)] : null);
+        if (!recent && !voice) return r;
+        const opts = btns.map((b) => ({ label: b.textContent.replace(/\s+/g, ' ').trim(), ctx: textOf(b.closest('tr') || b.parentElement || b), fn: b.onclick, el: b }));
+        const said = textOf(root.querySelector('.ledger-body')).slice(0, 420);
+        const q = voice ? null : recent; const name = q ? q.first : (voice && voice[1]) || String(title);
+        P.close();
+        converse(pet ? null : q, name, said, opts, String(title), { pet, must: /^(Bandits|The magistrate)/i.test(String(title)) });
+      } catch (e) { console.error(e); }
+      return r;
+    };
+
+    function converse(q, name, said, opts, title, o = {}) {
+      let chosen = false;
+      const col = '#8a6239';
+      const hint = opts.slice(0, 4).map((o) => o.label.toLowerCase()).join(', ');
+      const show = (text) => O.UI.dialog.open({ name, color: col, text, options: [], chat: (t) => answer(t), onClose: () => { if (o.must && !chosen) setTimeout(() => show(title.startsWith('Bandits') ? '“Not so fast. Purse, or blood, or run.”' : 'The magistrate waits for your answer.'), 200); } });
+      function answer(t) {
+        if (!o.must && /^(no|nothing|never mind|not now|goodbye|farewell|bye|leave it)\b/i.test(t.trim())) { O.UI.dialog.close(); return; }
+        const ranked = opts.map((o) => [o, score(t, o)]).sort((a, b) => b[1] - a[1]);
+        const [best, sc] = ranked[0] || [];
+        const tie = ranked[1] && ranked[1][1] === sc && ranked[1][0].label !== best.label;
+        if (best && sc >= 2 && !tie) {
+          chosen = true; O.UI.dialog.close();
+          const before = document.querySelector('.ledger-in');
+          try { best.fn.call(best.el, { preventDefault() {}, stopPropagation() {}, target: best.el, currentTarget: best.el }); } catch (e) { console.error(e); }
+          // if the deal opened its own list again (a stall, a stable), that one is said too; otherwise all's done
+          void before; return;
+        }
+        if (best && sc >= 2 && tie) return show(`Which do you mean? ${ranked.filter((x) => x[1] === sc).slice(0, 3).map(([o]) => (o.ctx || o.label).slice(0, 60)).join('; or ')}?`);
+        if (q && O.AIChat) { O.UI.dialog.open({ name, color: col, text: '', busy: true, options: [], chat: (t2) => answer(t2) }); O.AIChat.say(q, t, (line) => show(line)); return; }
+        show(title.startsWith('Bandits') ? '“Well? Purse or blood. Or run, if you think you can.”' : o.pet ? `${name} cocks its head at you.` : `${name} waits for you to say what you want.`);
+      }
+      show(o.pet ? `${name} looks up at you, waiting.` : said);
+      // a whisper of what can be said, where the eye falls
+      setTimeout(() => { const i = document.querySelector('.dlg-say input'); if (i) i.placeholder = `Say it: ${hint}`.slice(0, 80); }, 50);
+    }
+
+    // ---------------------------------------------------------------- pets answer to words
+    // (a pet's menu has no person: the pet is spoken to directly)
+    const _cands = O.moreCandidates || [];
+    void _cands;
+
+    // ---------------------------------------------------------------- letters can agree to more
+    O.letterActs = [...new Set([...(O.letterActs || []), 'lend', 'sell', 'buy', 'hire_player', 'take_job', 'rent_room', 'odd_job', 'retain', 'set_prices', 'set_start', 'gang_in', 'end_strike', 'make_peace', 'pardon', 'bless', 'teach'])];
+    O.SpokenPanels = { score, converse };
+  }
+  O.SpokenSetup = { setup };
 })();
 
 </script>
@@ -33969,7 +34132,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.WorkSetup.setup(game, sim, npcUI);
   O.EmploymentSetup.setup(game, home, npcUI);
   O.LettersSetup.setup(game, home, npcUI);
-  O.FittingSetup.setup(game); O.DecorateSetup.setup(game); O.LifeWeightSetup.setup(game); O.TradeLifeSetup.setup(game); O.RiverWildSetup.setup(game);
+  O.FittingSetup.setup(game); O.DecorateSetup.setup(game); O.LifeWeightSetup.setup(game); O.TradeLifeSetup.setup(game); O.RiverWildSetup.setup(game); O.SpokenSetup.setup(game);
   O.StreetSetup.setup(game, home);
   O.GangLifeSetup.setup(game, npcUI);
   O.TownLifeSetup.setup(game, npcUI);

@@ -213,5 +213,29 @@
     innkeeper: [['Fetch water for the kitchen', 'out|floor', 'bucket', 10, 'Two pails.'], ['Bring in firewood for the hearth', 'fireplace|floor', 'place', 10, 'Stacked.'], ['Tap a new cask', 'barrel|bar', 'pour', 10, 'Flowing.'], ['Count the takings', 'bar|counter|chest', 'count', 10, 'A good night.']],
   };
   for (const [r, extra] of Object.entries(MORE)) { const have = new Set((C[r] || []).map((c) => c[0])); C[r] = (C[r] || []).concat(extra.filter((c) => !have.has(c[0]))); }
+  // every post has at least seven things to do with the hands, suited to where the work is done
+  const OUTDOOR = /digger|cutter|quarry|miner|mine |burner|boiler|forester|gamekeeper|beekeeper|dresser|vintner|shepherd|farm|gardener|woodcutter|sawyer|fisher|ferryman|sailor|carter|courier|messenger|bearer|warehouse|roofer|thatcher|builder|brickmaker|watchman|guard|sergeant|bailiff|falconer|squire|knight|groom|stable|horse|lamplighter|sweep|water carrier|crier|gravedigger|executioner|bounty/;
+  const IN = [
+    ['Sweep the workplace out, corners and all', 'floor', 'sweep', 10, 'Swept clean.'],
+    ['Wipe down the bench and the tools', 'workbench|table|counter|desk', 'scrub', 10, 'Clean enough to eat off.'],
+    ['Stack the stock neatly on the shelves', 'shelf|crate|barrel|sack|rack|cupboard', 'place', 10, 'Everything where it belongs.'],
+    ['Check the tools and set right what needs it', 'rack|workbench|table', 'hammer', 12, 'Edges keen, handles tight.'],
+    ['Tally what was used and what is left', 'desk|table|counter|chest', 'count', 10, 'Noted, and nothing missing.'],
+    ['Carry the rubbish out to the midden', 'out|floor', 'carry', 10, 'Out, and the door shut on it.'],
+    ['Mend what was broken this week', 'workbench|table|chair|bench|stool', 'hammer', 15, 'Good as new, nearly.'],
+    ['Write up the day in the book', 'desk|table', 'write', 10, 'The day, set down.'],
+  ];
+  const OUT = [
+    ['Load the cart for the day', 'out', 'carry', 12, 'Loaded and roped.'],
+    ['Clear the ground where you work', 'out', 'dig', 15, 'Cleared.'],
+    ['Fetch water from the well for the work', 'out', 'carry', 10, 'Two full pails.'],
+    ['Check the tools in the shed and whet the blades', 'out|rack|workbench', 'hammer', 10, 'Keen again.'],
+    ['Stack what you have gathered', 'out', 'place', 12, 'Stacked, and the pile is square.'],
+    ['Walk the bounds and look for trouble', 'out', 'look', 15, 'All as it should be.'],
+    ['Sweep the yard', 'out|floor', 'sweep', 10, 'Swept.'],
+    ['Tally the day at the door', 'out|desk|table', 'count', 8, 'Counted.'],
+  ];
+  for (const d of Object.values((O.Data && O.Data.BUSINESS) || {})) for (const [r] of d.jobs || []) if (!C[r]) C[r] = [];
+  for (const r of Object.keys(C)) { if (C[r].length >= 7) continue; const pool = OUTDOOR.test(r) ? OUT : IN, have = new Set(C[r].map((c) => c[0])); for (const c of pool) { if (C[r].length >= 7) break; if (!have.has(c[0])) C[r].push(c); } }
   O.CHORES = C;
 })();

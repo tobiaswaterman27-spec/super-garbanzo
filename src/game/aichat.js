@@ -342,7 +342,7 @@ They know where their family and friends are just now (the card says); a strange
     const PS = O.PlayerState, L = [];
     const nb = nearby(s, q); if (nb.length) L.push(`Near you now: ${nb.map(({ z, d }) => `${z.first} ${z.sur || ''}, ${z.age < 14 ? (z.sex === 'm' ? 'a boy' : 'a girl') : z.sex === 'm' ? 'a man' : 'a woman'} of ${z.age}, ${relTo(s, q, z)}${d < 34 ? ', right beside you' : ''}${doing(s, z) ? ` (${doing(s, z)})` : ''}`.replace(/  /g, ' ')).join('; ')}.`);
     const had = goodsHad(s, q); if (had.length) L.push(`You have: ${had.join(', ')}.`);
-    const carried = [...new Set(PS.items)].map((g) => (G()[g]?.name || g).toLowerCase()); L.push(`The player carries: ${carried.join(', ') || 'nothing'}${PS.money ? `, and ₳${PS.money}` : ''}.`);
+    const carried = [...new Set(PS.items)].map((g) => (G()[g]?.name || g).toLowerCase()); L.push(`In the player's satchel (you cannot see it unless they show or offer it; use it only to know what they could hand over): ${carried.join(', ') || 'nothing'}${PS.money ? `, and ₳${PS.money}` : ''}.`);
     for (const m of (PS.meets || []).filter((m) => m.who === q.id && m.place === s.world.placeId && m.state === 'set')) L.push(`You agreed to meet the player at ${m.label}.`);
     if (q.wants && q.wants.until > s.day) L.push(`You asked the player for ${q.wants.name}.`);
     if (q._offer) L.push(`The player is holding out ${q._offer.label} to you as a gift: answer with take_gift or refuse_gift.`);

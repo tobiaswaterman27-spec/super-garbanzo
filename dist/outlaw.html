@@ -13632,7 +13632,7 @@ They know where their family and friends are just now (the card says); a strange
     const PS = O.PlayerState, L = [];
     const nb = nearby(s, q); if (nb.length) L.push(`Near you now: ${nb.map(({ z, d }) => `${z.first} ${z.sur || ''}, ${z.age < 14 ? (z.sex === 'm' ? 'a boy' : 'a girl') : z.sex === 'm' ? 'a man' : 'a woman'} of ${z.age}, ${relTo(s, q, z)}${d < 34 ? ', right beside you' : ''}${doing(s, z) ? ` (${doing(s, z)})` : ''}`.replace(/  /g, ' ')).join('; ')}.`);
     const had = goodsHad(s, q); if (had.length) L.push(`You have: ${had.join(', ')}.`);
-    const carried = [...new Set(PS.items)].map((g) => (G()[g]?.name || g).toLowerCase()); L.push(`The player carries: ${carried.join(', ') || 'nothing'}${PS.money ? `, and ₳${PS.money}` : ''}.`);
+    const carried = [...new Set(PS.items)].map((g) => (G()[g]?.name || g).toLowerCase()); L.push(`In the player's satchel (you cannot see it unless they show or offer it; use it only to know what they could hand over): ${carried.join(', ') || 'nothing'}${PS.money ? `, and ₳${PS.money}` : ''}.`);
     for (const m of (PS.meets || []).filter((m) => m.who === q.id && m.place === s.world.placeId && m.state === 'set')) L.push(`You agreed to meet the player at ${m.label}.`);
     if (q.wants && q.wants.until > s.day) L.push(`You asked the player for ${q.wants.name}.`);
     if (q._offer) L.push(`The player is holding out ${q._offer.label} to you as a gift: answer with take_gift or refuse_gift.`);
@@ -29969,6 +29969,39 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
 
 </script>
 <script>
+// How you look, as the person in front of you sees it: the weapon in your hand, mail or a padded jack,
+// your clothes and any jewellery, mud and stink, a fresh cut or a black eye, a limp, the smell of ale, a
+// hood and mask, the load in your arms. They react to it: wary of a drawn blade, cool to the filthy, kind
+// to the hurt. What's in your satchel they can't see unless you show it.
+'use strict';
+(function () {
+  function setup(game) {
+    const PS = O.PlayerState, G = O.Data.GOODS;
+    function looks() {
+      const out = [], f = O.Forge && O.Forge.player, P = game.player;
+      if (f && f.style && O.Creator && O.Creator.STYLES[f.style]) out.push(`dressed as a ${O.Creator.STYLES[f.style].label.toLowerCase().replace('gentleman', f.sex === 'f' ? 'gentlewoman' : 'gentleman')}`);
+      if (PS.equipped && PS.equipped !== 'fists' && PS.items.includes(PS.equipped)) out.push(`with a ${G[PS.equipped]?.name.toLowerCase() || PS.equipped} in hand (drawn steel makes folk wary)`);
+      const arm = ['mail', 'gambeson', 'helm'].filter((k) => PS.items.includes(k)); if (arm.length) out.push(`wearing ${arm.map((k) => G[k].name.toLowerCase()).join(' and ')}`);
+      if ((PS.worn || []).length) out.push(`wearing ${PS.worn.map((k) => G[k]?.name.toLowerCase() || k).join(', ')}`);
+      if (PS.disguise) out.push('hooded and masked, the face hidden');
+      const g = PS.grime || 0; if (g > 0.7) out.push('filthy and smelling of it'); else if (g > 0.4) out.push('travel-stained and grubby');
+      const fresh = (PS.wounds || []).filter((w) => O.SimRef.cur && O.SimRef.cur.day - (w.day || 0) <= 2 && (w.sev || 0) > 0.3);
+      if (fresh.length) out.push(`with ${fresh.slice(0, 2).map((w) => `a fresh ${w.kind || 'cut'}${w.part ? ' on the ' + w.part : ''}`).join(' and ')}`);
+      if (PS.hp < 35) out.push('battered and limping'); else if (PS.hp < 60) out.push('looking knocked about');
+      if ((PS.tipsy || 0) >= 2) out.push('smelling of ale and swaying a little'); else if ((PS.tipsy || 0) >= 1) out.push('with ale on the breath');
+      if (PS.carry && PS.carry.good) out.push(`carrying ${G[PS.carry.good]?.name.toLowerCase() || PS.carry.good} in their arms`);
+      if (PS.hunger < 20) out.push('looking hungry, hollow-cheeked');
+      if (P && P.guard) out.push('with their fists up');
+      return out;
+    }
+    O.playerLooks = looks;
+    (O.extraLines = O.extraLines || []).push(() => { const l = looks(); return l.length ? `How the player looks to you right now: ${l.join('; ')}. React to what you see, as you would.` : ''; });
+  }
+  O.LooksSetup = { setup };
+})();
+
+</script>
+<script>
 // The street comes to you. A tax collector who's seen you sprints over and wants the town's dues (only
 // if you keep a house or hold a post here); a landlord wants the rent you owe; a beggar asks for a
 // penny; and in a crowd someone may lift your purse. When anyone runs at you, you start back.
@@ -35138,7 +35171,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.WorkSetup.setup(game, sim, npcUI);
   O.EmploymentSetup.setup(game, home, npcUI);
   O.LettersSetup.setup(game, home, npcUI);
-  O.FittingSetup.setup(game); O.DecorateSetup.setup(game); O.LifeWeightSetup.setup(game); O.TradeLifeSetup.setup(game); O.RiverWildSetup.setup(game); O.SpokenSetup.setup(game); O.CombatDeepSetup.setup(game); O.GangStreetSetup.setup(game); O.HomeFrontSetup.setup(game); O.ScenesSetup.setup(game); O.IndoorLifeSetup.setup(game); O.ApproachesSetup.setup(game); O.LivelinessSetup.setup(game); O.StreetFightSetup.setup(game); O.Pastimes2Setup.setup(game); O.AnimalCareSetup.setup(game); O.MarchSetup.setup(game);
+  O.FittingSetup.setup(game); O.DecorateSetup.setup(game); O.LifeWeightSetup.setup(game); O.TradeLifeSetup.setup(game); O.RiverWildSetup.setup(game); O.SpokenSetup.setup(game); O.CombatDeepSetup.setup(game); O.GangStreetSetup.setup(game); O.HomeFrontSetup.setup(game); O.ScenesSetup.setup(game); O.IndoorLifeSetup.setup(game); O.ApproachesSetup.setup(game); O.LivelinessSetup.setup(game); O.StreetFightSetup.setup(game); O.Pastimes2Setup.setup(game); O.AnimalCareSetup.setup(game); O.MarchSetup.setup(game); O.LooksSetup.setup(game);
   O.StreetSetup.setup(game, home);
   O.GangLifeSetup.setup(game, npcUI);
   O.TownLifeSetup.setup(game, npcUI);

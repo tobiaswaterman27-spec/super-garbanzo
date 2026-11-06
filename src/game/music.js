@@ -184,7 +184,8 @@
     game.hooks.update.push((dt) => {
       pump(); if (game.player.anim === 'attack' || (game.player.hurtT || 0) > 0) O.lastBlowAt = performance.now(); dt0 -= dt; if (dt0 > 0) return; dt0 = 1;
       if (!S.on || level === 0 || !init()) { if (perf) stop(1); return; }
-      if (singing) return;
+      if (listening && !/^Songs and tunes/.test((document.querySelector('.ledger-in h2') || {}).textContent || '')) { listening = false; stop(1); }
+      if (singing || listening) return;
       const w = want(); if (!w) { if (perf) stop(2.5); lastKey = null; return; }
       space(w.space); heard(w.vol, !!w.muffled);
       if (perf && w.key === lastKey) return;
@@ -211,8 +212,42 @@
         tunes[key] = tunes[key] || notes; return { line, notes, mode, beat };
       });
     };
-    let singing = false;
+    let singing = false, listening = false;
+    // ---------------------------------------------------------------- the music room: every tune and every song, to listen to
+    function room() {
+      const esc = (t) => O.escape(String(t));
+      const book = (O.songBook ? O.songBook() : []) || [];
+      const STY = { jig: 'jig', reel: 'reel', estampie: 'estampie', lament: 'lament', carol: 'carol', chant: 'plainchant', march: 'march', round: 'round', pastoral: 'air', nocturne: 'night piece', wild: 'woodland air', sea: 'sea air', court: 'court air', battle: 'battle' };
+      // you came here to listen: sound and music on
+      try { if (!S.on && O.AudioToggle) O.AudioToggle(); if (level === 0) O.Music.setLevel(2); init(); } catch (e) { /* */ }
+      const off = !S.on || level === 0;
+      let queue = null;
+      const next = () => { if (!queue || !queue.length) { queue = null; mark(null); return; } const it = queue.shift(); it.kind === 't' ? playTrack(it.i, true) : singIt(it.i, true); };
+      const mark = (id) => { const r = document.querySelector('.ledger-in'); if (!r) return; r.querySelectorAll('[data-pl]').forEach((b) => b.classList.toggle('hot', b.dataset.pl === id)); };
+      function playTrack(i, chain) { listening = true; stop(0.2); space('room'); heard(1, false); const t = TRACKS[i]; play(t, { loops: 1, onEnd: () => { if (chain) next(); else { listening = !!queue; mark(null); } } }); mark('t' + i); }
+      function singIt(i, chain) {
+        listening = true; stop(0.3); const song = book[i]; if (!song) return; const P = game.player, q = { id: 'jukebox', first: 'A singer', sex: i % 2 ? 'f' : 'm', agent: { x: P.x, y: P.y - 4 } };
+        O.Music.sing(q, song, [], 'lute'); mark('s' + i);
+        const len = O.songTune(song).reduce((a, ln) => a + ln.notes.reduce((x, n) => x + n.d, 0) + 0.35, 0.4);
+        setTimeout(() => { if (chain) next(); else if (!queue) mark(null); }, (len + 1.2) * 1000);
+      }
+      O.Panels.open('Songs and tunes', `${off ? '<p class="caption" style="color:#e0a060">Sound or music is turned off. Turn them on (Esc, then Sound, and Settings for the music level) to hear these.</p>' : ''}
+        <p class="caption">Everything the town plays and sings, made here in code: lute, harp, recorder, fiddle, shawm, hurdy-gurdy, tabor, bells and voices. ${TRACKS.length} tunes and ${book.length} songs.</p>
+        <div class="topics"><button data-all="t">Play every tune in turn</button><button data-all="s">Sing every song in turn</button><button data-stop="1">Stop</button></div>
+        <div class="lbl" style="margin-top:10px">Songs, with their words</div>
+        <table><tbody>${book.map((sg, i) => `<tr><td><b>${esc(sg.title)}</b>${sg.maker ? ` <small class="lbl">made by ${esc(sg.maker)}</small>` : ''}<br><small>${esc(sg.lines.join(' / '))}</small></td><td><button data-pl="s${i}">Sing</button></td></tr>`).join('')}</tbody></table>
+        <div class="lbl" style="margin-top:10px">Tunes</div>
+        <table><tbody>${TRACKS.map((t, i) => `<tr><td>${esc(t.name)} <small class="lbl">${esc(STY[t.style] || t.style)}, ${esc(t.mode)}</small></td><td><button data-pl="t${i}">Play</button></td></tr>`).join('')}</tbody></table>`, (r) => {
+        r.querySelectorAll('[data-pl]').forEach((b) => b.onclick = () => { queue = null; const k = b.dataset.pl; if (k[0] === 't') playTrack(+k.slice(1)); else singIt(+k.slice(1)); });
+        r.querySelector('[data-all="t"]').onclick = () => { queue = TRACKS.map((_, i) => ({ kind: 't', i })); next(); };
+        r.querySelector('[data-all="s"]').onclick = () => { queue = book.map((_, i) => ({ kind: 's', i })); next(); };
+        r.querySelector('[data-stop]').onclick = () => { queue = null; stop(0.4); listening = false; mark(null); };
+        // closing the room hands the music back to the town
+        const x = r.querySelector('.x'); const _c = x.onclick; x.onclick = () => { queue = null; listening = false; stop(1); _c && _c(); };
+      });
+    }
     O.Music = {
+      room,
       get level() { return level; }, setLevel(v) { level = v; try { localStorage.setItem('outlaw.music', String(v)); } catch (e) { /* */ } if (bus) bus.gain.setTargetAtTime(VOL[level], ctx.currentTime, 0.3); if (!level) stop(0.5); },
       // a royal fanfare: shawms in fourths and fifths over a rolling tabor
       fanfare() {

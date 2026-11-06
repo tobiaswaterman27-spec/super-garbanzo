@@ -39,7 +39,7 @@
     if (O.AIChat) { const _s = O.AIChat.say; O.AIChat.say = function (q) { if (q && q.id != null) { lastQ = q; lastT = performance.now(); } return _s.apply(this, arguments); }; }
     { const n = O.npcUI; if (n && n.openTalk) { const _o = n.openTalk; n.openTalk = function (q) { if (q) { lastQ = q; lastT = performance.now(); } return _o.apply(this, arguments); }; } }
     // panels that stay panels: your own books and plans, not a person's offer
-    const OWN = /^(Satchel|Guide|How folk see you|Chronicle|Notice board|Map|The realm|Ledger|Settings|Business|Holdings|Your gang|Undertakings|Where to|A letter|Letters|Write a letter|What's on|Decorat)/i;
+    const OWN = /^(Songs and tunes|Satchel|Guide|How folk see you|Chronicle|Notice board|Map|The realm|Ledger|Settings|Business|Holdings|Your gang|Undertakings|Where to|A letter|Letters|Write a letter|What's on|Decorat)/i;
     // the few with no person behind them, and who "says" them
     const VOICE = [[/^Bandits/i, 'The bandits'], [/^The magistrate/i, 'The magistrate'], [/council|moot/i, 'The council']];
 

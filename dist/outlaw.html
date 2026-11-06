@@ -22353,13 +22353,15 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
             // a punch or two is a quarrel, not a crime: the victim and everyone watching think less of you.
             // Keep going, or draw steel, and it's assault and the watch will hear of it.
             const brawl = w.key === 'fists' && !guardHit && q._punched <= 2 && q.health.hp > 55;
-            if (brawl) {
+            if (q.raider) { O.Raid && O.Raid.struck && O.Raid.struck(q, res); } // (an enemy in arms: no crime to strike them)
+            else if (brawl) {
               sim.relate(q, { id: 0 }, -0.35); sim.remember(q, 'The stranger punched me.', 'social', 1.5, 0);
               const pos = posOf(q) || [game.player.x, game.player.y];
               for (const z of (game.scene ? [...game.scene.actors.values()].map((a) => a.person) : sim.seers(pos[0], pos[1], q))) { if (z === q) continue; sim.relate(z, { id: 0 }, -0.12); sim.remember(z, `Saw the stranger strike ${q.first}.`, 'social', 0.8, 0); }
               PS.rep.local = Math.max(-1, PS.rep.local - 0.02);
             } else if (first || !q._assaulted) { q._assaulted = true; O.NpcActs && O.NpcActs.unfollow && O.NpcActs.unfollow(q); if (PS.retainers) { const R = PS.retainers.find((x) => x.id === q.id); if (R) { PS.retainers = PS.retainers.filter((x) => x !== R); O.Panels.toast(`${q.first} leaves your service.`, 'bad'); } } const c = crimeFor(q, guardHit ? 'assault on the watch' : w.key === 'fists' ? 'brawling' : 'assault', guardHit ? 3 : w.key === 'fists' ? 1 : 2); if (guardHit) PS.bounty = true; void c; sim.remember(q, 'The stranger attacked me.', 'crime', 2.5, 0); sim.relate(q, { id: 0 }, -0.8); }
-            if (res === 'dead') { crimeFor(q, 'murder', 5); O.Panels.toast(`${q.first} lies still. You have killed a man of ${sim.world.name}.`, 'bad'); PS.bounty = true; fights.delete(q.id); }
+            if (res === 'dead' && q.raider) { fights.delete(q.id); }
+            else if (res === 'dead') { crimeFor(q, 'murder', 5); O.Panels.toast(`${q.first} lies still. You have killed a man of ${sim.world.name}.`, 'bad'); PS.bounty = true; fights.delete(q.id); }
             else if (res !== 'incapacitated') { const prev = fights.get(q.id); const mode = react(q); fights.set(q.id, { mode, t: prev?.t || 0, cd: prev ? prev.cd : 0.7, looted: prev?.looted }); if (mode === 'surrender' && prev?.mode !== 'surrender') O.Speech.say(q, 'Enough! Take my purse, take it!', 3, 'angry'); if (mode === 'flee' && prev?.mode !== 'flee') { O.Speech.say(q, 'Help! Watch! Watch!', 3, 'angry'); } }
             else O.Panels.toast(`${q.first} falls and does not get up.`, 'bad');
           }
@@ -29700,6 +29702,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       const all = f.sides.flat();
       for (const q of all) { q.agent.frozen = false; q._fighting = false; q.agent.anim = 'idle'; }
       const winners = f.sides.find((sd) => !sd.includes(loser)) || [];
+      const losers = f.sides.find((sd) => sd.includes(loser)) || []; for (const q of losers) if (q.raider && how !== 'watch') q._lostFight = true;
       if (how === 'watch') { for (const q of all) s.remember(q, 'The watch broke up my fight in the street.', 'social', 1); }
       else { gest(loser, 'hurt', 2); sp(loser, pick(['Enough! Enough.', 'All right, you win.', 'I\'m done. I\'m done.']), 2); if (winners[0]) { gest(winners[0], 'celebrate', 2); sp(winners[0], pick(['And stay down.', 'Next time mind your tongue.', 'Anyone else?']), 2); }
         for (const w of winners) { s.relate(loser, w, -0.25); s.remember(loser, `${w.name} beat me in a fight in the street.`, 'grudge', 2, w.id); s.remember(w, `Beat ${loser.name} in a fight in the street.`, 'social', 1.5, loser.id); } }
@@ -30203,6 +30206,70 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     O.Archers = { arrows, stuck };
   }
   O.ArchersSetup = { setup };
+})();
+
+</script>
+<script>
+// Raiders. In time of war, now and then at dusk, a band of the enemy comes over the fields to burn and
+// take what they can. The alarm bell rings; townsfolk run for their doors; the watch and the bravest of
+// the town meet them in the street, blow by blow. Strike a raider and it's no crime: they're the enemy.
+// Drive them off and the reeve pays a bounty for each one put down, and the town remembers who stood.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k || 'note');
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    let raid = null;
+    function begin(s) {
+      if (raid || !O.HomeFront) return null;
+      const w = s.world, edge = [Math.max(2, w.ox - 4), w.oy + Math.floor(w.townH / 2)];
+      const band = [];
+      for (let i = 0; i < 4; i++) { const q = O.HomeFront.visitor(s, { role: 'soldier', at: [edge[0], edge[1] + i - 1], age: 20 + i * 5 }); q.raider = true; q.homefront = 'raider'; q.traits = ['brave', 'hostile']; q.health.hp = 70; q.app = O.Char.makeAppearance(O.hash('raider', q.id), { sex: 'm', age: q.age, genes: q.genes, role: 'outlaw', wealth: 0.2 }); q.app.outfit.item = pick(['axe', 'spear', 'sword']); q.agent.a = q.app; O.Char.invalidate(q.app); band.push(q); }
+      raid = { s, band, t: 0, downed: 0, byYou: 0, looted: 0 };
+      s.log(`Raiders! A band of ${O.HomeFront && O.SimRef.home.kingdom?.war?.enemy || 'the enemy'} came over the fields at dusk.`, 'war');
+      say('The alarm bell! Raiders are coming over the fields!', 'bad'); O.sfx && O.sfx('handbell', 0.9);
+      for (const q of s.people) if (!q.raider && (q.age < 16 || q.age > 60 || q.traits.includes('cowardly'))) { if (q.agent && !q.agent.hidden && O.flee) O.flee(q, 12, () => [band[0].agent.x, band[0].agent.y]); }
+      return raid;
+    }
+    O.Raid = {
+      begin: () => begin(cur()), now: () => raid,
+      struck(q, res) { if (!raid) return; if (res === 'incapacitated' || res === 'dead' || q.health.hp <= 0) { if (!q._down) { q._down = true; raid.downed++; raid.byYou++; } } },
+    };
+    let t0 = 0;
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s) return;
+      if (!raid) { t0 -= dt; if (t0 > 0) return; t0 = 30; const ph = O.HomeFront && O.HomeFront.phase(), h = s.minute / 60; if (ph === 'war' && h >= 19 && h < 21 && !s._raidDay && Math.random() < 0.06) { s._raidDay = s.day; begin(s); } return; }
+      if (raid.s !== s) { raid = null; return; }
+      raid.t += dt;
+      for (const r of raid.band) {
+        if (r._down || r.health.hp <= 0) { if (!r._down) { r._down = true; raid.downed++; } r.agent.anim = 'lie'; continue; }
+        if (r._fighting || (O.Combat && O.Combat.fights.has(r.id))) continue;
+        // look for someone to fight, or something to take
+        const P = game.player, dP = Math.hypot(P.x - r.agent.x, P.y - r.agent.y);
+        if (!game.scene && dP < 90 && O.Combat) { O.Combat.provoke(r, 'fight'); O.Speech && O.Speech.say(r, pick(['For the Sea-Lords!', 'Your silver or your life!', 'Burn it!']), 1.6); continue; }
+        const foe = s.people.find((q) => !q.raider && !q._fighting && q.agent && !q.agent.hidden && q.agent.inside == null && q.age >= 16 && q.age <= 60 && (/^guard|sergeant|soldier/.test(q.job?.role || '') || q.traits.includes('brave')) && Math.hypot(q.agent.x - r.agent.x, q.agent.y - r.agent.y) < 260);
+        if (foe && O.StreetFight) { const f = O.StreetFight.start(s, foe, r, { why: 'the raid' }); if (f) { f.raid = true; for (const q of f.sides.flat()) f.hp.set(q.id, q.raider ? 45 : 35 + (/guard|soldier/.test(q.job?.role || '') ? 25 : 0)); } continue; }
+        if (!r.errand && O.Errands) { const b = pick(s.world.buildings.filter((x) => x.household && x.doorX != null && Math.hypot(x.doorX * T - r.agent.x, x.doorY * T - r.agent.y) < 400)); if (b) O.Errands.send(s, r, [b.doorX, b.doorY + 1], { anim: 'attack', secs: 4, face: 3, giveUp: 40, after: () => { const hh = s.households[b.household - 1]; raid.hit = raid.hit || new Set(); if (hh && hh.money > 2 && !raid.hit.has(hh.id)) { raid.hit.add(hh.id); const n = Math.min(25, Math.floor(hh.money * 0.3)); hh.money -= n; raid.looted += n; const v = hh.members.map((id) => s.byId.get(id)).find((z) => z && z.age >= 16); if (v) s.remember(v, `Raiders broke our door and took ₳${n}.`, 'war', 2.5); } } }); }
+      }
+      // street fights lost by raiders count as downed
+      for (const r of raid.band) if (!r._down && r._lostFight) { r._down = true; raid.downed++; }
+      const left = raid.band.filter((r) => !r._down && r.health.hp > 0);
+      if (!left.length || raid.t > 180) {
+        const s2 = raid.s, beaten = raid.downed, you = raid.byYou;
+        for (const r of raid.band) { r.task = { act: 'leave', outdoor: true, zone: 'west', emigrating: true }; r.homefront = 'leaving'; r.raider = false; }
+        s2.log(left.length ? `The raiders went off over the fields with ₳${raid.looted} of the town's goods.` : `The raiders were beaten off. ${you ? 'The stranger stood with the watch.' : ''}`, 'war');
+        if (you) { const pay = you * 8; PS.money += pay; PS.rep.local = Math.min(1, PS.rep.local + 0.15 * you); PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.1); for (const q of s2.people) if (!q.visitor && q.agent && Math.hypot(q.agent.x - game.player.x, q.agent.y - game.player.y) < 300) { s2.relate(q, { id: 0 }, 0.12); s2.remember(q, 'The stranger fought off the raiders with the watch.', 'war', 2); } say(`The raiders are beaten off. The reeve pays you ₳${pay}, ₳8 for every one you put down.`, 'good'); }
+        else say(left.length ? `The raiders melt back over the fields with what they took.` : 'The raiders are beaten off.', left.length ? 'bad' : 'good');
+        raid = null;
+      }
+    });
+    // a street fight lost by a raider puts them down
+    if (O.StreetFight) { const F = O.StreetFight; const _start = F.start; void _start; }
+    const SF = O.Sim.prototype; void SF;
+    (O.extraLines = O.extraLines || []).push((s, q) => (q.raider ? 'You are a raider of the enemy host, come over the fields at dusk to burn and plunder. You are hard, hungry and want silver; you do not bargain long.' : raid && raid.s === s ? 'Raiders are in the town right now! You are frightened or furious, and want them gone.' : ''));
+  }
+  O.RaidSetup = { setup };
 })();
 
 </script>
@@ -35376,7 +35443,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.WorkSetup.setup(game, sim, npcUI);
   O.EmploymentSetup.setup(game, home, npcUI);
   O.LettersSetup.setup(game, home, npcUI);
-  O.FittingSetup.setup(game); O.DecorateSetup.setup(game); O.LifeWeightSetup.setup(game); O.TradeLifeSetup.setup(game); O.RiverWildSetup.setup(game); O.SpokenSetup.setup(game); O.CombatDeepSetup.setup(game); O.GangStreetSetup.setup(game); O.HomeFrontSetup.setup(game); O.ScenesSetup.setup(game); O.IndoorLifeSetup.setup(game); O.ApproachesSetup.setup(game); O.LivelinessSetup.setup(game); O.StreetFightSetup.setup(game); O.Pastimes2Setup.setup(game); O.AnimalCareSetup.setup(game); O.MarchSetup.setup(game); O.LooksSetup.setup(game); O.GangPoliticsSetup.setup(game); O.NightWorkSetup.setup(game); O.ArchersSetup.setup(game);
+  O.FittingSetup.setup(game); O.DecorateSetup.setup(game); O.LifeWeightSetup.setup(game); O.TradeLifeSetup.setup(game); O.RiverWildSetup.setup(game); O.SpokenSetup.setup(game); O.CombatDeepSetup.setup(game); O.GangStreetSetup.setup(game); O.HomeFrontSetup.setup(game); O.ScenesSetup.setup(game); O.IndoorLifeSetup.setup(game); O.ApproachesSetup.setup(game); O.LivelinessSetup.setup(game); O.StreetFightSetup.setup(game); O.Pastimes2Setup.setup(game); O.AnimalCareSetup.setup(game); O.MarchSetup.setup(game); O.LooksSetup.setup(game); O.GangPoliticsSetup.setup(game); O.NightWorkSetup.setup(game); O.ArchersSetup.setup(game); O.RaidSetup.setup(game);
   O.StreetSetup.setup(game, home);
   O.GangLifeSetup.setup(game, npcUI);
   O.TownLifeSetup.setup(game, npcUI);

@@ -316,7 +316,7 @@
           if (p.home && ((p.id * 37 + this.day * 11) % 100) / 100 >= frac) { const b = this.building(p.home); if (b) return pick(b.x - 2, b.bottom + 1, b.x + b.w + 1, b.bottom + 3); }
           return pick(...this.Z.square);
         }
-        case 'home': { const b = this.building(p.home); return pick(b.x - 1, b.bottom + 1, b.x + b.w, b.bottom + 2); }
+        case 'home': { const b = this.building(p.home); if (!b) return pick(...this.Z.square); return pick(b.x - 1, b.bottom + 1, b.x + b.w, b.bottom + 2); }
         case 'bench': return this.Z.bench;
         case 'farm': return pick(...this.Z.farm);
         case 'wood': return pick(...this.Z.wood);

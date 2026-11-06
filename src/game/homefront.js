@@ -44,7 +44,7 @@
           if (refugees.length < 8 && Math.random() < 0.45) { const n = 1 + Math.floor(Math.random() * 3); for (let k = 0; k < n; k++) visitor(this, { role: 'refugee', at: edge(this), age: 5 + Math.floor(Math.random() * 60) }); this.log(`Refugees have come up the road from the burned villages: ${n} more camp at the edge of ${this.world.name}.`, 'war'); }
         } else {
           // peace: the soldiers march off, the quartermaster packs up, most refugees go home
-          for (const q of hf) { if (q.homefront === 'refugee' && ph !== 'truce' && Math.random() < 0.3 && !q._settled) { if (Math.random() < 0.15 && q.age >= 18) { q._settled = true; q.visitor = false; this.log(`${q.name}, who fled the war, means to stay in ${this.world.name}.`, 'social'); continue; } } if (q.homefront !== 'refugee' || (ph === 'peace' && Math.random() < 0.4)) { q.task = { act: 'leave', outdoor: true, zone: 'east', emigrating: true }; q.homefront = 'leaving'; } }
+          for (const q of hf) { if (q.homefront === 'refugee' && ph !== 'truce' && Math.random() < 0.3 && !q._settled) { if (Math.random() < 0.15 && q.age >= 18) { q._settled = true; this.log(`${q.name}, who fled the war, means to stay in ${this.world.name}.`, 'social'); continue; } } if (q.homefront !== 'refugee' || (ph === 'peace' && Math.random() < 0.4)) { q.task = { act: 'leave', outdoor: true, zone: 'east', emigrating: true }; q.homefront = 'leaving'; } }
           if (soldiers.length) this.log(`The billeted soldiers have marched out of ${this.world.name}.`, 'war');
         }
         // refugees go hungry unless someone feeds them

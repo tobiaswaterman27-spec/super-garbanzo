@@ -1,0 +1,578 @@
+<title>The Outlaw Songbook</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pirata+One&family=IM+Fell+English:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* layout: a book of songs on the left, a tune list grouped by kind on the right, the player along the foot */
+:root {
+  --bg: #efe6d2; --page: #f7f0df; --ink: #2b2118; --muted: #6d5d49; --rule: #d2c3a3; --accent: #8e2b1e; --gold: #a8792a; --hot: #f1dfb8;
+  --display: 'Pirata One', 'UnifrakturCook', Georgia, serif; --body: 'IM Fell English', Georgia, 'Times New Roman', serif; --mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #17120d; --page: #211a13; --ink: #ecdfc4; --muted: #a8977b; --rule: #3b3024; --accent: #e07a5a; --gold: #d6a650; --hot: #3a2c1c; color-scheme: dark } }
+:root[data-theme="dark"] { --bg: #17120d; --page: #211a13; --ink: #ecdfc4; --muted: #a8977b; --rule: #3b3024; --accent: #e07a5a; --gold: #d6a650; --hot: #3a2c1c; color-scheme: dark }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.5; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 120px; }
+.wrap { max-width: 1080px; margin: 0 auto; display: grid; gap: 28px; }
+header h1 { font-family: var(--display); font-weight: 400; font-size: clamp(40px, 7vw, 64px); line-height: 1; margin: 0; color: var(--accent); text-wrap: balance; }
+header p { margin: 8px 0 0; max-width: 62ch; color: var(--muted); }
+.cols { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+@media (max-width: 780px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+h2 { font-family: var(--display); font-weight: 400; font-size: 30px; margin: 0 0 4px; color: var(--ink); }
+.lbl { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.book { background: var(--page); border: 1px solid var(--rule); border-radius: 3px; padding: 20px 22px; display: grid; gap: 18px; }
+.song { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 14px; padding-bottom: 16px; border-bottom: 1px solid var(--rule); }
+.song:last-child { border-bottom: 0; padding-bottom: 0; }
+.song h3 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 24px; color: var(--accent); }
+.song h3::first-letter { color: var(--gold); }
+.song .words { grid-column: 1 / -1; font-style: italic; white-space: pre-line; }
+.song.on { background: var(--hot); margin: 0 -10px; padding: 8px 10px 16px; border-radius: 3px; }
+.tunes { display: grid; gap: 20px; }
+.kind { display: grid; gap: 2px; }
+.kind h3 { margin: 0 0 4px; font-family: var(--display); font-weight: 400; font-size: 22px; display: flex; align-items: baseline; gap: 10px; }
+.tune { display: flex; align-items: center; gap: 10px; padding: 5px 6px; border-radius: 3px; }
+.tune.on { background: var(--hot); }
+.tune span { flex: 1; min-width: 0; }
+.tune small { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+button { font: inherit; cursor: pointer; border: 1px solid var(--rule); background: var(--page); color: var(--ink); border-radius: 3px; padding: 4px 12px; }
+button:hover { border-color: var(--gold); }
+button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+button.play { font-family: var(--mono); font-size: 12px; padding: 3px 10px; }
+button.main { background: var(--accent); color: var(--page); border-color: var(--accent); }
+.bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--page); border-top: 1px solid var(--rule); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-top: 10px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+.bar .in { max-width: 1080px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.now { flex: 1 1 220px; min-width: 0; }
+.now b { font-family: var(--display); font-weight: 400; font-size: 20px; color: var(--accent); }
+.now .line { font-style: italic; color: var(--muted); min-height: 1.5em; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>The Outlaw Songbook</h1>
+    <p>Every song and tune in Outlaw, played the way the town plays them: lute, harp, recorder, fiddle, shawm, hurdy-gurdy, tabor, bells and voices, all made in code as you listen. The songs are sung to their own tunes, fitted to the words syllable by syllable.</p>
+  </header>
+  <div class="cols">
+    <section>
+      <h2>The old songs</h2>
+      <div class="lbl" id="songCount"></div>
+      <div class="book" id="songs" style="margin-top:10px"></div>
+    </section>
+    <section>
+      <h2>The tunes</h2>
+      <div class="lbl" id="tuneCount"></div>
+      <div class="tunes" id="tunes" style="margin-top:10px"></div>
+    </section>
+  </div>
+</div>
+<div class="bar"><div class="in">
+  <div class="now"><div class="lbl">Now playing</div><b id="nowName">Nothing yet. Press a play button.</b><div class="line" id="nowLine"></div></div>
+  <button class="main" id="allSongs">Sing every song</button>
+  <button class="main" id="allTunes">Play every tune</button>
+  <button id="stop">Stop</button>
+</div></div>
+
+<script>
+// Outlaw, shared namespace, seeded RNG and small math helpers.
+'use strict';
+var O = (typeof window !== 'undefined' ? (window.O = window.O || {}) : {});
+
+O.clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+O.lerp = (a, b, t) => a + (b - a) * t;
+
+// Mulberry32: tiny deterministic PRNG so every NPC/building regenerates identically from its seed.
+O.RNG = function (seed) {
+  let s = (seed >>> 0) || 1;
+  const next = () => {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  return {
+    next,
+    float: (a = 0, b = 1) => a + next() * (b - a),
+    int: (a, b) => a + Math.floor(next() * (b - a + 1)),
+    pick: (arr) => arr[Math.floor(next() * arr.length)],
+    chance: (p) => next() < p,
+    weighted: (pairs) => { // [[item, weight], ...]
+      let tot = 0; for (const p of pairs) tot += p[1];
+      let r = next() * tot;
+      for (const p of pairs) { if ((r -= p[1]) <= 0) return p[0]; }
+      return pairs[pairs.length - 1][0];
+    },
+    seed: () => s,
+  };
+};
+
+// String/number hash for stable sub-seeds.
+O.hash = function (...parts) {
+  let h = 2166136261 >>> 0;
+  const str = parts.join('|');
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+};
+
+// Integer-lattice value noise (deterministic, used for ground textures & variation).
+function nh(ix, iy, seed) {
+  let n = (ix * 374761393 + iy * 668265263 + seed * 1442695041) | 0;
+  n = Math.imul(n ^ (n >>> 13), 1274126177);
+  return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+}
+O.noise2 = function (x, y, seed = 0) {
+  const x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
+  const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+  const a = nh(x0, y0, seed), b = nh(x0 + 1, y0, seed), c = nh(x0, y0 + 1, seed), d = nh(x0 + 1, y0 + 1, seed);
+  const top = a + (b - a) * sx, bot = c + (d - c) * sx;
+  return top + (bot - top) * sy;
+};
+O.fbm = function (x, y, seed = 0, oct = 3) {
+  let v = 0, amp = 0.5, f = 1, tot = 0;
+  for (let i = 0; i < oct; i++) { v += O.noise2(x * f, y * f, seed + i * 17) * amp; tot += amp; amp *= 0.5; f *= 2; }
+  return v / tot;
+};
+
+// a tiny event bus, for one part of the game to tell another that something happened
+(function () { const h = {}; O.Bus = { on: (k, f) => { (h[k] = h[k] || []).push(f); }, emit: (k, d) => { for (const f of h[k] || []) { try { f(d); } catch (e) { console.error(e); } } } }; })();
+
+// when something breaks, say so on screen rather than leave it dark: what went wrong, and a way to begin again
+(function () {
+  if (typeof window === 'undefined') return;
+  let shown = false;
+  O.showCrash = (msg) => {
+    if (shown || !document.body) return; shown = true;
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;inset:0;z-index:10000;display:grid;place-items:center;background:rgba(21,17,28,.92);color:#e8dcc0;font:15px ui-monospace,monospace;padding:16px';
+    el.innerHTML = '<div style="max-width:560px;display:grid;gap:12px;text-align:center"><b style="font-size:22px;color:#f0b45c">Something went wrong</b><div>Your saved life may not fit this version of the game.</div><code style="font-size:12px;opacity:.75;word-break:break-word"></code><div style="display:flex;gap:8px;justify-content:center"><button data-new style="padding:8px 14px;background:#d9893a;border:2px solid #000;cursor:pointer">Start a new life</button><button data-on style="padding:8px 14px;background:#1f1a29;color:#e8dcc0;border:2px solid #3d3349;cursor:pointer">Carry on anyway</button></div></div>';
+    el.querySelector('code').textContent = String(msg || '').slice(0, 300);
+    el.querySelector('[data-new]').onclick = () => { try { const k = 'outlaw.save.v1', v = localStorage.getItem(k); if (v) localStorage.setItem(k + '.broken', v); localStorage.removeItem(k); } catch (e) { /* no storage */ } location.reload(); };
+    el.querySelector('[data-on]').onclick = () => { el.remove(); };
+    document.body.appendChild(el);
+  };
+  let n = 0;
+  window.addEventListener('error', (e) => { if (++n >= 1 && (!O.game || !O.game.running || n > 20)) O.showCrash(e.message); });
+})();
+
+// how many storeys a building gets: a shop or workshop where a family lives has its rooms upstairs,
+// over the trade, so nobody's bed stands among the wares; better town houses sleep upstairs too.
+// Estates, castles, halls of state and churches keep their own plans.
+O.LIVE_OVER = new Set(['bakery', 'store', 'butcher', 'smithy', 'armourer', 'tailor', 'cobbler', 'chandler', 'cooper', 'weaver', 'carpenter', 'apothecary', 'jeweller', 'potter', 'tanner', 'moneylender', 'barber', 'saddler', 'glazier', 'fletcher', 'dyer', 'posthouse', 'laundry', 'scriptorium', 'brewery', 'tavern', 'doctor', 'wainwright', 'ropewalk', 'builder', 'agency', 'carrier']);
+O.storeys = (b) => {
+  if (b.estate || b.manor || b.royal || b.lordly || b.outskirts || (b.floors || 1) >= 2) return b.floors || 1;
+  if (O.LIVE_OVER.has(b.type)) return 2;
+  if (b.type === 'house' && (b.wealth || 0) >= 0.5 && (b.w || 0) >= 4) return 2;
+  return b.floors || 1;
+};
+
+</script>
+<script>
+// Music, all of it made here in code. A small consort of instruments, each synthesised to sound like the
+// real thing: a plucked lute and a harp (struck strings that ring and fade as real ones do), a recorder
+// with its breath and chiff, a fiddle with its bow and vibrato, a nasal shawm, a hurdy-gurdy drone, a
+// tabor, handbells, and voices that sing real vowels. Rooms ring: the tavern a little, the chapel and the
+// great hall a lot. Tunes are written in the old modes by a composer that knows the dances (jigs, reels,
+// estampies, rounds), laments, carols, plainchant and marches, and it has written dozens of them, each
+// with its own name. What plays depends on where you are and what's happening: dances in the tavern of
+// an evening and at the fair, chant in the chapel, a stately air in the castle, a quiet tune on the road,
+// a harp at night, drums when blows are struck. And when someone sings one of the land's songs, they sing
+// its words to its own tune, fitted to the lyric, syllable by syllable.
+'use strict';
+(function () {
+  const MODES = { ionian: [0, 2, 4, 5, 7, 9, 11], dorian: [0, 2, 3, 5, 7, 9, 10], phrygian: [0, 1, 3, 5, 7, 8, 10], lydian: [0, 2, 4, 6, 7, 9, 11], mixolydian: [0, 2, 4, 5, 7, 9, 10], aeolian: [0, 2, 3, 5, 7, 8, 10] };
+  const VOWELS = { a: [800, 1150, 2900], e: [450, 1800, 2600], i: [320, 2200, 2900], o: [500, 900, 2700], u: [350, 700, 2500] };
+  const rngOf = (seed) => { let s = seed >>> 0 || 1; return () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return ((s >>> 0) % 100000) / 100000; }; };
+  const hashStr = (t) => { let h = 2166136261; for (const c of String(t)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
+
+  // ---------------------------------------------------------------- the styles the composer knows
+  const STYLES = {
+    jig: { meter: 6, beat: 0.17, modes: ['dorian', 'mixolydian', 'ionian'], lead: ['fiddle', 'recorder'], acc: 'lute', drum: [0, 3], drone: true, rhythm: [[1, 1, 1], [2, 1], [1, 2], [3]], bars: 8, form: 'AABB' },
+    reel: { meter: 4, beat: 0.15, modes: ['dorian', 'mixolydian'], lead: ['fiddle'], acc: 'lute', drum: [0, 2], drone: true, rhythm: [[1, 1], [1, 1], [2], [1, 1]], bars: 8, form: 'AABB' },
+    estampie: { meter: 3, beat: 0.32, modes: ['dorian', 'lydian', 'mixolydian'], lead: ['shawm', 'recorder'], acc: 'harp', drum: [0], drone: true, rhythm: [[2, 1], [1, 1, 1], [3]], bars: 8, form: 'ABAB' },
+    round: { meter: 4, beat: 0.26, modes: ['ionian', 'mixolydian'], lead: ['recorder'], acc: 'lute', drum: [0], drone: false, rhythm: [[1, 1], [2], [1, 1]], bars: 8, form: 'AABA' },
+    pastoral: { meter: 3, beat: 0.42, modes: ['dorian', 'ionian', 'lydian'], lead: ['recorder'], acc: 'lute', drum: null, drone: false, rhythm: [[2, 1], [3], [1, 1, 1]], bars: 8, form: 'AB' },
+    lament: { meter: 3, beat: 0.5, modes: ['aeolian', 'dorian', 'phrygian'], lead: ['fiddle', 'voiceU'], acc: 'harp', drum: null, drone: true, rhythm: [[2, 1], [3], [1, 2]], bars: 8, form: 'AB' },
+    nocturne: { meter: 3, beat: 0.55, modes: ['aeolian', 'dorian', 'lydian'], lead: ['harp'], acc: 'harp', drum: null, drone: false, rhythm: [[1, 1, 1], [3], [2, 1]], bars: 8, form: 'AB' },
+    carol: { meter: 3, beat: 0.34, modes: ['ionian', 'mixolydian'], lead: ['recorder', 'voiceA'], acc: 'lute', drum: [0], drone: false, rhythm: [[2, 1], [1, 1, 1], [3]], bars: 8, form: 'AABB', bells: true },
+    chant: { meter: 2, beat: 0.55, modes: ['dorian', 'phrygian', 'mixolydian'], lead: ['choir'], acc: null, drum: null, drone: false, rhythm: [[1, 1], [2]], bars: 8, form: 'AB', chant: true },
+    march: { meter: 4, beat: 0.24, modes: ['dorian', 'phrygian'], lead: ['shawm'], acc: null, drum: [0, 1, 2, 3], drone: true, rhythm: [[1, 1], [2], [1, 1]], bars: 4, form: 'AABB' },
+    sea: { meter: 6, beat: 0.26, modes: ['aeolian', 'dorian'], lead: ['fiddle', 'recorder'], acc: 'lute', drum: [0], drone: true, rhythm: [[2, 1], [3], [1, 1, 1]], bars: 8, form: 'AB' },
+    wild: { meter: 4, beat: 0.4, modes: ['phrygian', 'aeolian'], lead: ['recorder'], acc: null, drum: null, drone: true, rhythm: [[2], [1, 1], [3, 1]], bars: 8, form: 'AB' },
+  };
+  const NAMES_A = ['The Miller\'s', 'The Ferryman\'s', 'Old Ashford', 'The Reeve\'s', 'Lady Margery\'s', 'The Shepherd\'s', 'The Pedlar\'s', 'Saint Brannoc\'s', 'The Green Wood', 'The King\'s', 'The Bell-ringer\'s', 'The Hayward\'s', 'Goldham', 'The Abbot\'s', 'The Weaver\'s', 'Kettleby', 'The Fowler\'s', 'The Black Hound', 'Moonday Morning', 'The Tinker\'s', 'Crossfield', 'The Widow\'s', 'The Fair Maid\'s', 'Highmere', 'The Plough Boy\'s', 'The Wren\'s', 'The Cooper\'s', 'Long Meadow', 'The Friar\'s', 'The Holly Bough'];
+  const NAMES_B = { jig: 'Jig', reel: 'Reel', estampie: 'Estampie', round: 'Round', pastoral: 'Air', lament: 'Lament', nocturne: 'Nocturne', carol: 'Carol', chant: 'Chant', march: 'March', sea: 'Song of the Sea', wild: 'Lay' };
+  // the tune itself: phrases in a mode, from a seed
+  function compose(style, seed) {
+    const st = STYLES[style], r = rngOf(seed), mode = st.modes[Math.floor(r() * st.modes.length)], tonic = [146.8, 164.8, 174.6, 196, 220][Math.floor(r() * 5)];
+    const phrase = (start, endDeg, hi) => {
+      const notes = []; let deg = start;
+      for (let bar = 0; bar < 4; bar++) {
+        const cell = st.rhythm[Math.floor(r() * st.rhythm.length)];
+        const total = cell.reduce((a, b) => a + b, 0), scale = st.meter / total;
+        cell.forEach((d, i) => {
+          const last = bar === 3 && i === cell.length - 1;
+          if (last) deg = endDeg; else if (!(bar === 0 && i === 0)) { const x = r(); deg += x < 0.38 ? 1 : x < 0.72 ? -1 : x < 0.8 ? 2 : x < 0.88 ? -2 : x < 0.94 ? 4 : -3; deg = Math.max(hi ? 2 : -2, Math.min(hi ? 10 : 8, deg)); }
+          notes.push({ deg, d: d * scale, strong: i === 0 });
+        });
+      }
+      return notes;
+    };
+    const A = [...phrase(r() < 0.5 ? 0 : 4, 4, false), ...phrase(2, 0, false)], B = [...phrase(r() < 0.5 ? 4 : 7, 4, true), ...phrase(5, 0, false)];
+    const parts = st.form.split('').map((k) => (k === 'A' ? A : B));
+    return { style, seed, mode, tonic, notes: [].concat(...parts), name: `${NAMES_A[seed % NAMES_A.length]} ${NAMES_B[style]}` };
+  }
+  const TRACKS = []; for (const style of Object.keys(STYLES)) for (let k = 0; k < 8; k++) TRACKS.push(compose(style, hashStr(style + k) % 9973 + k * 31));
+  { const used = new Set(); for (const t of TRACKS) { let k = 0; while (used.has(t.name) && k < NAMES_A.length) { k++; t.name = `${NAMES_A[(t.seed + k) % NAMES_A.length]} ${NAMES_B[t.style]}`; } used.add(t.name); } } // (no two tunes share a name)
+
+  const MUSICIAN = /minstrel|bard|fiddler|piper|musician|drummer|taborer/;
+  const INSTR = { lute: 'lute', fiddle: 'fiddle', pipe: 'recorder', drum: 'lute' };
+  function setup(game) {
+    const S = O.Sound; if (!S) return; const cur = () => O.SimRef.cur, PS = O.PlayerState;
+    let level = 2; try { const v = localStorage.getItem('outlaw.music'); if (v != null) level = +v; } catch (e) { /* */ }
+    const VOL = [0, 0.3, 0.6, 0.95];
+    let ctx = null, bus, roomSend, hallSend, muffle, src, noise;
+    const freqOf = (tune, deg, oct = 0) => { const M = MODES[tune.mode], o = Math.floor(deg / 7), k = ((deg % 7) + 7) % 7; return tune.tonic * Math.pow(2, (M[k] + 12 * (o + oct)) / 12); };
+    function init() {
+      if (!S.ctx) return false; if (ctx === S.ctx) return true; ctx = S.ctx; noise = S.noise;
+      bus = ctx.createGain(); bus.gain.value = VOL[level]; bus.connect(S.master);
+      const ir = (secs, decay) => { const len = Math.floor(ctx.sampleRate * secs), b = ctx.createBuffer(2, len, ctx.sampleRate); for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay) * (i < 40 ? i / 40 : 1); } return b; };
+      const room = ctx.createConvolver(); room.buffer = ir(0.8, 3.2); const hall = ctx.createConvolver(); hall.buffer = ir(3.6, 2.4);
+      roomSend = ctx.createGain(); roomSend.gain.value = 0.18; hallSend = ctx.createGain(); hallSend.gain.value = 0;
+      roomSend.connect(room); hallSend.connect(hall); room.connect(bus); hall.connect(bus);
+      const dry = ctx.createGain(); dry.connect(bus); dry.connect(roomSend); dry.connect(hallSend);
+      muffle = ctx.createBiquadFilter(); muffle.type = 'lowpass'; muffle.frequency.value = 18000; muffle.connect(dry);
+      src = ctx.createGain(); src.connect(muffle); return true;
+    }
+    const space = (kind) => { if (!ctx) return; const t = ctx.currentTime; roomSend.gain.setTargetAtTime(kind === 'room' ? 0.35 : kind === 'hall' ? 0.1 : 0.12, t, 0.3); hallSend.gain.setTargetAtTime(kind === 'hall' ? 0.55 : 0, t, 0.3); };
+    const heard = (vol, muffled) => { if (!ctx) return; const t = ctx.currentTime; src.gain.setTargetAtTime(vol, t, 0.4); muffle.frequency.setTargetAtTime(muffled ? 900 : 18000, t, 0.3); };
+
+    // ---------------------------------------------------------------- the instruments
+    const ks = new Map();
+    function strBuf(f, bright, dur) {
+      const key = Math.round(f * 4) + ':' + bright; if (ks.has(key)) return ks.get(key);
+      const sr = ctx.sampleRate, N = Math.floor(sr * dur), P = Math.max(2, Math.round(sr / f)), b = ctx.createBuffer(1, N, sr), d = b.getChannelData(0), ring = new Float32Array(P);
+      for (let i = 0; i < P; i++) ring[i] = Math.random() * 2 - 1; for (let i = 1; i < P; i++) ring[i] = ring[i] * bright + ring[i - 1] * (1 - bright);
+      const loss = f > 500 ? 0.993 : 0.996; let ix = 0;
+      for (let i = 0; i < N; i++) { const a = ring[ix], nx = ring[(ix + 1) % P]; d[i] = a; ring[ix] = loss * 0.5 * (a + nx); ix = (ix + 1) % P; }
+      for (let i = 0; i < 60; i++) d[i] *= i / 60; ks.set(key, b); return b;
+    }
+    const gainEnv = (dest, t, a, peak, hold, rel) => { const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t + a); g.gain.setValueAtTime(Math.max(0.0002, peak), t + a + hold); g.gain.exponentialRampToValueAtTime(0.0001, t + a + hold + rel); g.connect(dest); return g; };
+    const osc = (type, f, t, end, dest, detune = 0) => { const o = ctx.createOscillator(); o.type = type; o.frequency.value = f; o.detune.value = detune; o.connect(dest); o.start(t); o.stop(end); return o; };
+    const vib = (o, t, rate, depth, delay = 0.15) => { const l = ctx.createOscillator(), g = ctx.createGain(); l.frequency.value = rate; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(o.frequency.value * depth, t + delay + 0.2); l.connect(g); g.connect(o.frequency); l.start(t); l.stop(t + 30); return l; };
+    const noiseBand = (t, dur, f, q, peak, dest) => { const s = ctx.createBufferSource(); s.buffer = noise; s.loop = true; const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = q; const g = gainEnv(dest, t, 0.01, peak, Math.max(0, dur - 0.05), 0.06); s.connect(bp); bp.connect(g); s.start(t, Math.random()); s.stop(t + dur + 0.2); };
+    const I = {
+      lute(t, f, d, v, out) { const s = ctx.createBufferSource(); s.buffer = strBuf(f, 0.45, 2.2); const body = ctx.createBiquadFilter(); body.type = 'peaking'; body.frequency.value = 280; body.gain.value = 5; const g = ctx.createGain(); g.gain.value = 0.55 * v; s.connect(body); body.connect(g); g.connect(out); s.start(t); s.stop(t + 2.2); },
+      harp(t, f, d, v, out) { const s = ctx.createBufferSource(); s.buffer = strBuf(f, 0.75, 3); const g = ctx.createGain(); g.gain.value = 0.45 * v; s.connect(g); g.connect(out); s.start(t); s.stop(t + 3); },
+      recorder(t, f, d, v, out) {
+        const g = gainEnv(out, t, 0.035, 0.12 * v, Math.max(0.02, d - 0.08), 0.07), lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = f * 5; lp.connect(g);
+        const o = osc('sine', f, t, t + d + 0.2, lp); osc('triangle', f, t, t + d + 0.2, (() => { const h = ctx.createGain(); h.gain.value = 0.25; h.connect(lp); return h; })()); vib(o, t, 5.2, 0.004, 0.25);
+        noiseBand(t, 0.05, f * 3, 4, 0.05 * v, out); noiseBand(t, d, f * 2, 6, 0.012 * v, out);
+      },
+      fiddle(t, f, d, v, out) {
+        const g = gainEnv(out, t, 0.07, 0.07 * v, Math.max(0.02, d - 0.1), 0.12), bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 0.8;
+        const pk = ctx.createBiquadFilter(); pk.type = 'peaking'; pk.frequency.value = 2600; pk.gain.value = 6; const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 4200;
+        bp.connect(pk); pk.connect(lp); lp.connect(g); const o = osc('sawtooth', f, t, t + d + 0.3, bp); vib(o, t, 5.6, 0.006, 0.18); osc('sawtooth', f, t, t + d + 0.3, bp, 6);
+        noiseBand(t, d, 3000, 2, 0.006 * v, out);
+      },
+      shawm(t, f, d, v, out) { const g = gainEnv(out, t, 0.03, 0.06 * v, Math.max(0.02, d - 0.06), 0.06), bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1300; bp.Q.value = 1.6; const pk = ctx.createBiquadFilter(); pk.type = 'peaking'; pk.frequency.value = 2800; pk.gain.value = 8; bp.connect(pk); pk.connect(g); const o = osc('square', f, t, t + d + 0.2, bp); osc('sawtooth', f, t, t + d + 0.2, bp, -5); vib(o, t, 6, 0.004, 0.2); },
+      tabor(t, f, d, v, out) { noiseBand(t, 0.08, 700, 0.7, 0.18 * v, out); const g = gainEnv(out, t, 0.002, 0.25 * v, 0, 0.18), o = ctx.createOscillator(); o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(70, t + 0.15); o.connect(g); o.start(t); o.stop(t + 0.3); noiseBand(t, 0.03, 4500, 1, 0.05 * v, out); },
+      bell(t, f, d, v, out) { for (const [r, a, dc] of [[1, 1, 2.5], [2, 0.5, 1.8], [2.4, 0.4, 1.4], [3, 0.3, 1], [4.2, 0.2, 0.7], [5.4, 0.12, 0.5]]) { const g = gainEnv(out, t, 0.002, 0.06 * a * v, 0, dc); osc('sine', f * r * 2, t, t + dc + 0.1, g); } },
+      drone(t, f, d, v, out) { const g = gainEnv(out, t, 0.6, 0.03 * v, Math.max(0.1, d - 1), 0.8), lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700; lp.connect(g); osc('sawtooth', f / 2, t, t + d + 1, lp); osc('sawtooth', f * 0.75, t, t + d + 1, lp, 4); osc('sawtooth', f / 2, t, t + d + 1, lp, -7); },
+      voice(t, f, d, v, out, vowel = 'a') {
+        const F = VOWELS[vowel] || VOWELS.a, g = gainEnv(out, t, 0.06, 0.09 * v, Math.max(0.02, d - 0.1), 0.12), src0 = ctx.createGain(); src0.gain.value = 1;
+        F.forEach((ff, k) => { const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = ff * (f > 260 ? 1.12 : 1); bp.Q.value = 9; const gg = ctx.createGain(); gg.gain.value = [1, 0.6, 0.25][k]; src0.connect(bp); bp.connect(gg); gg.connect(g); });
+        const o = osc('sawtooth', f, t, t + d + 0.3, src0); vib(o, t, 5, 0.008, 0.25); noiseBand(t, 0.04, 4000, 1, 0.01 * v, out);
+      },
+      voiceU(t, f, d, v, out) { I.voice(t, f, d, v, out, 'u'); },
+      voiceA(t, f, d, v, out) { I.voice(t, f, d, v, out, 'a'); },
+      choir(t, f, d, v, out, vowel) { for (const [m, dt] of [[1, 0], [1, 9], [0.5, -6], [0.667, 3]]) I.voice(t + Math.random() * 0.02, f * m, d, v * 0.5, out, vowel || 'a'); },
+    };
+
+    // ---------------------------------------------------------------- playing a tune
+    let perf = null; // { tune, gain, t0, i, events, loop, onEnd }
+    function events(tune, lead) {
+      const st = STYLES[tune.style], out = []; let t = 0; const beat = st.beat;
+      const leadName = lead || st.lead[tune.seed % st.lead.length];
+      for (const n of tune.notes) {
+        const dur = n.d * beat; out.push({ t, inst: leadName, f: freqOf(tune, n.deg, leadName === 'choir' || leadName.startsWith('voice') ? 0 : 1), d: dur * 0.95, v: n.strong ? 1 : 0.8, vowel: st.chant ? 'aeiou'[(Math.floor(t * 3)) % 5] : undefined });
+        if (n.strong && st.acc) { const root = n.deg >= 0 ? Math.floor(n.deg / 2) * 2 - (n.deg % 2 ? 2 : 0) : 0; for (const [k, dd] of [[0, 0], [2, 0.03], [4, 0.06]]) out.push({ t: t + dd, inst: st.acc, f: freqOf(tune, root + k, -1), d: dur, v: 0.45 }); }
+        t += dur;
+      }
+      const total = t, barLen = st.meter * beat;
+      if (st.drum) for (let b = 0; b * barLen < total; b++) for (const k of st.drum) out.push({ t: b * barLen + k * beat, inst: 'tabor', f: 0, d: 0.1, v: k === 0 ? 1 : 0.6 });
+      if (st.drone) out.push({ t: 0, inst: 'drone', f: freqOf(tune, 0, 0), d: total, v: 1 });
+      if (st.bells) for (let b = 0; b * barLen < total; b += 2) out.push({ t: b * barLen, inst: 'bell', f: freqOf(tune, b % 4 ? 4 : 0, 0), d: 1, v: 0.6 });
+      out.sort((a, b) => a.t - b.t); out.total = total; return out;
+    }
+    function play(tune, opts = {}) {
+      if (!init()) return; stop(0.8);
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, ctx.currentTime); g.gain.exponentialRampToValueAtTime(1, ctx.currentTime + 1.2); g.connect(src);
+      perf = { tune, gain: g, t0: ctx.currentTime + 0.2, i: 0, ev: events(tune, opts.lead), loops: opts.loops || 1, onEnd: opts.onEnd, ctxKey: opts.key };
+      if (O.Music.showNames) nowPlaying(tune.name);
+    }
+    function stop(fade = 1.5) { if (!perf || !ctx) return; const p = perf; perf = null; const t = ctx.currentTime; p.gain.gain.cancelScheduledValues(t); p.gain.gain.setValueAtTime(Math.max(0.0001, p.gain.gain.value), t); p.gain.gain.exponentialRampToValueAtTime(0.0001, t + fade); setTimeout(() => { try { p.gain.disconnect(); } catch (e) { /* */ } }, (fade + 0.5) * 1000); }
+    function pump() {
+      if (!perf || !ctx) return; const ahead = ctx.currentTime + 0.5;
+      while (perf.i < perf.ev.length && perf.t0 + perf.ev[perf.i].t < ahead) { const e = perf.ev[perf.i++]; try { I[e.inst](Math.max(ctx.currentTime, perf.t0 + e.t), e.f, e.d, e.v, perf.gain, e.vowel); } catch (er) { console.error(er); } }
+      if (perf.i >= perf.ev.length && ctx.currentTime > perf.t0 + perf.ev.total) { perf.loops--; if (perf.loops > 0) { perf.t0 += perf.ev.total + 0.3; perf.i = 0; } else { const f = perf.onEnd; perf = null; f && f(); } }
+    }
+    let label = null;
+    function nowPlaying(name) {
+      if (!label) { label = document.createElement('div'); label.style.cssText = 'position:fixed;left:14px;bottom:12px;font:12px monospace;color:#f3e9d2;text-shadow:0 1px 2px #000;opacity:0;transition:opacity 1.2s;pointer-events:none;z-index:5'; document.body.appendChild(label); }
+      label.textContent = '♪ ' + name; label.style.opacity = '0.85'; clearTimeout(label._t); label._t = setTimeout(() => { label.style.opacity = '0'; }, 5000);
+    }
+
+    // ---------------------------------------------------------------- what plays, where
+    const pickTrack = (style, salt) => { const list = TRACKS.filter((x) => x.style === style); return list[Math.abs(salt) % list.length]; };
+    let lastKey = null, rest = 20, playedAt = 0;
+    function want() {
+      const s = cur(); if (!s) return null; const h = s.hour, P = game.player, sc = game.scene, W = s.weather || {};
+      const fighting = performance.now() - (O.lastBlowAt || 0) < 8000;
+      if (fighting) return { key: 'fight', style: 'march', space: sc ? 'room' : 'open', vol: 0.8, loop: 3, diegetic: false };
+      if (sc) {
+        const b = sc.b.parent || sc.b, t = b.type || '', bz = s.biz.get(b.id), type = (bz && bz.type) || t;
+        // music in a room only when someone is there playing it, on their own instrument
+        const mus = [...sc.actors.values()].map((a) => a.person).find((q) => q && ((MUSICIAN.test(q.job?.role || '') && q.job.biz === b.id && q.activity?.act === 'work') || q.activity?.act === 'perform'));
+        if (mus) { const inst = INSTR[(O.Data.actionFor && O.Data.actionFor(mus.job?.role)) || 'lute'] || 'lute'; const royal = b.royal || /castle|keep|palace/.test(type); return { key: (royal ? 'court-' : 'tavern-') + mus.id, style: royal ? ['estampie', 'pastoral', 'round'][s.day % 3] : (h >= 17 || h < 1) ? ((s.day + Math.floor(h)) % 2 ? 'jig' : 'reel') : 'round', space: royal ? 'hall' : 'room', vol: royal ? 0.65 : 0.9, loop: 2, diegetic: true, lead: inst, singer: mus }; }
+        if (type === 'tavern') return null;
+        if (/chapel|church|abbey|priory|cathedral/.test(type)) return { key: 'chapel', style: 'chant', space: 'hall', vol: 0.7, loop: 2, diegetic: true };
+        if (b.royal || /castle|keep|palace|hall|manor/.test(type)) return { key: 'castle', style: (s.day % 2) ? 'estampie' : 'pastoral', space: 'hall', vol: 0.6, loop: 1 };
+        return h >= 20 || h < 6 ? { key: 'home-night', style: 'nocturne', space: 'room', vol: 0.3, loop: 1 } : null;
+      }
+      // out of doors: a dance where there's merrymaking, the tavern spilling out of an evening
+      const party = (s.npcEvents || []).find((e) => e.day === s.day && h >= e.from && h < e.to && (e.kind === 'dance' || e.kind === 'nameday' || e.party || e.fair)) || (O.festivalNow && O.festivalNow());
+      if (party) return { key: 'party', style: 'jig', space: 'open', vol: 0.75, loop: 2, diegetic: true };
+      const tv = s.world.buildings.find((b) => b.type === 'tavern' && s.people.some((q) => MUSICIAN.test(q.job?.role || '') && q.agent.inside === b.id && q.activity?.act === 'work')); if (tv) { const d = Math.hypot(tv.doorX * 16 - P.x, tv.doorY * 16 - P.y); if (d < 260) return { key: 'tavern-out', style: 'jig', space: 'open', vol: 0.5 * (1 - d / 260) + 0.05, loop: 2, muffled: true, diegetic: true }; }
+      if (O.rowing && O.rowing()) return { key: 'sea', style: 'sea', space: 'open', vol: 0.45, loop: 1 };
+      if (W.kind === 'rain' || W.kind === 'heavy' || W.kind === 'storm') return { key: 'rain', style: 'lament', space: 'open', vol: 0.4, loop: 1 };
+      if (h >= 21 || h < 5) return { key: 'night', style: 'nocturne', space: 'open', vol: 0.35, loop: 1 };
+      if (s.season === 'winter') return { key: 'winter', style: 'carol', space: 'open', vol: 0.4, loop: 1 };
+      const w = game.world; const out = w.ox != null && Math.max(w.ox - P.x / 16, P.x / 16 - w.ox - w.townW, w.oy - P.y / 16, P.y / 16 - w.oy - w.townH, 0) > 10;
+      return out ? { key: 'wild', style: (s.day % 3) ? 'pastoral' : 'wild', space: 'open', vol: 0.4, loop: 1 } : { key: 'town', style: ['pastoral', 'round', 'estampie'][s.day % 3], space: 'open', vol: 0.35, loop: 1 };
+    }
+    let dt0 = 0;
+    game.hooks.update.push((dt) => {
+      pump(); if (game.player.anim === 'attack' || (game.player.hurtT || 0) > 0) O.lastBlowAt = performance.now(); dt0 -= dt; if (dt0 > 0) return; dt0 = 1;
+      if (!S.on || level === 0 || !init()) { if (perf) stop(1); return; }
+      if (singing || listening) return;
+      const w = want(); if (!w) { if (perf) stop(2.5); lastKey = null; return; }
+      space(w.space); heard(w.vol, !!w.muffled);
+      if (perf && w.key === lastKey) return;
+      if (perf && w.key !== lastKey) { stop(2); rest = w.diegetic ? 0.5 : 2; }
+      lastKey = w.key; rest -= 1; if (rest > 0) return;
+      const s = cur();
+      // a musician sings one of the land's songs now and then, between the dances, on their own instrument
+      if (w.singer && Math.random() < 0.4) { const book = O.songBook ? O.songBook() : []; const known = (w.singer.songs || []).map((id) => book.find((x) => x.id === id)).filter(Boolean); const pool = known.length ? known : book; let song = pool[Math.floor(Math.random() * pool.length)];
+        const tale = w.singer.song && w.singer.song.text; if (tale && w.singer._sungTale !== tale) { w.singer._sungTale = tale; const parts = tale.replace(/[.!?]+\s*$/, '').split(/[,;.!?]\s+|\s+and\s+/).map((x) => x.trim()).filter((x) => x.length > 2).slice(0, 4); if (parts.length) song = { title: 'The Ballad of ' + (parts[0].split(' ').slice(0, 3).join(' ')), lines: parts.length > 1 ? parts : [parts[0], parts[0]] }; }
+        if (song) { const hearers = [...(game.scene ? game.scene.actors.values() : [])].map((a) => a.person).filter((q) => q && q !== w.singer && q.activity?.act === 'socialise').slice(0, 4); O.Music.sing(w.singer, song, hearers, w.lead); if (O.Music.showNames) nowPlaying(song.title + ', sung by ' + w.singer.first); rest = 3; lastKey = null; return; } }
+      play(pickTrack(w.style, s.day * 7 + Math.floor(performance.now() / 60000)), { loops: w.loop, key: w.key, lead: w.lead, onEnd: () => { rest = w.diegetic ? 2 : 35 + Math.random() * 60; lastKey = null; } });
+    });
+
+    // ---------------------------------------------------------------- the land's songs, sung to their own tunes
+    const syll = (word) => { const w = word.toLowerCase().replace(/[^a-z']/g, ''); if (!w) return []; const groups = w.replace(/e$/, '').match(/[aeiouy]+/g) || ['e']; return groups.map((g) => (g[0] === 'y' ? 'i' : g[0])); };
+    const moodOf = (song) => { const t = (song.title + ' ' + song.lines.join(' ')).toLowerCase(); return /sorrow|weep|grave|die|dead|cold|alone|lost|mourn|tears|lament/.test(t) ? 'sad' : /ale|drink|merry|dance|jug|feast|cheer|night away/.test(t) ? 'merry' : 'plain'; };
+    O.songTune = (song) => {
+      const seed = hashStr(song.title || song.lines[0]), r = rngOf(seed), mood = moodOf(song), mode = mood === 'sad' ? 'aeolian' : mood === 'merry' ? 'mixolydian' : ['dorian', 'ionian'][seed % 2];
+      const beat = mood === 'sad' ? 0.36 : mood === 'merry' ? 0.2 : 0.27; const tunes = {};
+      return song.lines.map((line, li) => {
+        const sy = []; for (const w of line.split(/\s+/)) syll(w).forEach((v, k) => sy.push({ v, first: k === 0 }));
+        const key = li % 2; const r2 = rngOf(seed + key * 101 + sy.length); let deg = key ? 4 : 0; const notes = [];
+        sy.forEach((x, i) => { const strong = i % 2 === (sy.length % 2 ? 0 : 1); if (i) { const a = r2(); deg += a < 0.4 ? 1 : a < 0.75 ? -1 : a < 0.85 ? 2 : -2; deg = Math.max(-2, Math.min(8, deg)); } if (i === sy.length - 1) deg = li % 2 ? 0 : 4; notes.push({ deg, d: (i === sy.length - 1 ? 3 : strong ? 2 : 1) * beat, v: x.v, strong }); });
+        tunes[key] = tunes[key] || notes; return { line, notes, mode, beat };
+      });
+    };
+    let singing = false, listening = false;
+    O.Music = {
+      pump: () => pump(), songTune: (song) => O.songTune(song), playTune: (t, o) => { if (!init()) return; space('room'); heard(1, false); play(t, o || {}); }, ready: () => init(),
+      get level() { return level; }, setLevel(v) { level = v; try { localStorage.setItem('outlaw.music', String(v)); } catch (e) { /* */ } if (bus) bus.gain.setTargetAtTime(VOL[level], ctx.currentTime, 0.3); if (!level) stop(0.5); },
+      // a royal fanfare: shawms in fourths and fifths over a rolling tabor
+      fanfare() {
+        if (!init() || !S.on || level === 0) return; stop(0.3); space(game.scene ? 'hall' : 'open'); heard(1, false);
+        const g = ctx.createGain(); g.gain.value = 1.2; g.connect(src); let t = ctx.currentTime + 0.1; const N = [[392, 0.18], [392, 0.18], [392, 0.18], [523, 0.55], [392, 0.18], [523, 0.18], [659, 0.7], [587, 0.25], [523, 0.25], [659, 0.25], [784, 1.2]];
+        for (const [f, d] of N) { I.shawm(t, f, d * 0.92, 1, g); I.shawm(t, f * 0.75, d * 0.92, 0.6, g); t += d; }
+        for (let k = 0; k < 14; k++) I.tabor(ctx.currentTime + 0.1 + k * 0.12, 0, 0.1, k % 4 ? 0.5 : 1, g);
+        setTimeout(() => { try { g.disconnect(); } catch (e) { /* */ } }, (t - ctx.currentTime + 2) * 1000);
+      },
+      tracks: TRACKS, play: (name) => { const t = TRACKS.find((x) => x.name === name) || TRACKS[0]; play(t, { loops: 1 }); }, stop, showNames: true,
+      sing(q, song, chorus, inst) {
+        if (!song || !init()) return; const s = cur(), P = game.player; const tune = O.songTune(song), tonic = q.sex === 'f' ? 293.7 : 146.8, M = MODES[tune[0].mode];
+        const pos = game.scene ? game.scene.personPos(q) : [q.agent.x, q.agent.y]; const d = pos ? Math.hypot(pos[0] - P.x, pos[1] - P.y) : 999; const vol = Math.max(0.05, 1 - d / 360);
+        stop(1); singing = true; space(game.scene ? 'room' : 'open'); heard(vol, false);
+        const g = ctx.createGain(); g.gain.value = 1; g.connect(src); let t = ctx.currentTime + 0.4, delay = 0.4;
+        tune.forEach((ln, li) => {
+          const lineStart = delay; setTimeout(() => { O.Speech && O.Speech.say(q, '♪ ' + ln.line + ' ♪', ln.notes.reduce((a, n) => a + n.d, 0) + 0.6); O.gesture && !inst && O.gesture(q, 'dance', 1.5); if (li === tune.length - 1) for (const z of chorus || []) O.Speech && O.Speech.say(z, '♪ ' + ln.line + ' ♪', 3); }, lineStart * 1000);
+          for (const n of ln.notes) {
+            const o = Math.floor(n.deg / 7), k = ((n.deg % 7) + 7) % 7, f = tonic * Math.pow(2, (M[k] + 12 * o) / 12);
+            I.voice(t, f, n.d * 0.92, 1, g, n.v); if (n.strong) { const pl = I[inst] && inst !== 'lute' ? inst : 'lute'; if (pl === 'lute') I.lute(t, f / 2, n.d, 0.5, g); else I[pl](t, f, n.d * 0.9, 0.35, g); }
+            if (li === tune.length - 1) for (const z of (chorus || []).slice(0, 3)) I.voice(t + 0.01, z.sex === 'f' ? f * (q.sex === 'f' ? 1 : 2) : f * (q.sex === 'f' ? 0.5 : 1), n.d * 0.92, 0.6, g, n.v);
+            t += n.d;
+          }
+          const len = ln.notes.reduce((a, n) => a + n.d, 0); t += 0.35; delay += len + 0.35;
+        });
+        setTimeout(() => { singing = false; try { g.disconnect(); } catch (e) { /* */ } }, (delay + 1) * 1000);
+      },
+      hum(q, song) {
+        if (!song || !S.on || level === 0 || !init() || singing) return; const P = game.player, d = Math.hypot(q.agent.x - P.x, q.agent.y - P.y); if (d > 220) return;
+        const ln = O.songTune(song)[0], tonic = q.sex === 'f' ? 293.7 : 146.8, M = MODES[ln.mode], g = ctx.createGain(); g.gain.value = 0.5 * (1 - d / 220); g.connect(bus);
+        let t = ctx.currentTime + 0.1; for (const n of ln.notes) { const o = Math.floor(n.deg / 7), k = ((n.deg % 7) + 7) % 7; I.voice(t, tonic * Math.pow(2, (M[k] + 12 * o) / 12), n.d * 0.9, 0.7, g, 'u'); t += n.d; }
+        setTimeout(() => { try { g.disconnect(); } catch (e) { /* */ } }, (t - ctx.currentTime + 1) * 1000);
+      },
+    };
+  }
+  O.MusicSetup = { setup, TRACKS, STYLES };
+})();
+
+</script>
+<script>
+// Songs. Every town has its old songs, and new ones are made: the minstrels and the town's own singers
+// put what happens into verse (a bear killed in the woods, an outlaw who robs the rich, a hard winter, a
+// wedding), and a song goes from mouth to mouth till half the town knows it, and on to other towns with
+// the travellers. Of an evening in the tavern they sing them, a line at a time and then all together;
+// at work some hum; and ask anyone for a song and they'll sing you one they know, if they're willing.
+'use strict';
+(function () {
+  const OLD = [
+    { title: 'The Miller\'s Daughter', lines: ['The miller\'s daughter by the weir,', 'She sang the water still,', 'And every lad from far and near', 'Came courting up the hill.'] },
+    { title: 'Bring In the Sheaves', lines: ['Bring in the sheaves and bind them tight,', 'The sun is on the stubble,', 'We\'ll reap by day and dance by night', 'And never mind the trouble.'] },
+    { title: 'The Long Road Home', lines: ['I left my love at Michaelmas', 'To walk the long road home,', 'The frost lay white upon the grass', 'And I was all alone.'] },
+    { title: 'Old Tom the Tinker', lines: ['Old Tom the tinker mends a pot', 'And sells it back to you,', 'He swears it\'s good, but it is not,', 'And so says Tom\'s wife too.'] },
+    { title: 'The Green Holly', lines: ['Green grows the holly on the hill,', 'Red are the berries bright,', 'Come in, come in, and drink your fill', 'Upon this winter night.'] },
+    { title: 'The Ferryman', lines: ['Row me over, ferryman,', 'The water\'s deep and wide,', 'I\'ll pay you when I can, good man,', 'Upon the other side.'] },
+    { title: 'Shepherd\'s Lament', lines: ['My flock is scattered on the moor,', 'The wind is in the west,', 'I\'ll count them all at the fold door', 'And then I\'ll take my rest.'] },
+    { title: 'The Ale Is Brown', lines: ['The ale is brown, the bread is new,', 'The fire burns warm and bright,', 'So pass the jug from me to you', 'And sing away the night.'] },
+  ];
+  O.OLD_SONGS = OLD;
+  function setup(game) {
+    const SP = O.Sim.prototype, PS = O.PlayerState, cur = () => O.SimRef.cur;
+    const songs = () => (PS.songBook = PS.songBook || OLD.map((x, i) => Object.assign({ id: 'old' + i, old: true }, x)));
+    const byId = (id) => songs().find((x) => x.id === id);
+    const knows = (p) => (p.songs = p.songs || []);
+    // everyone grows up knowing a few of the old songs
+    const seed = (s) => { if (s._songsSeeded) return; s._songsSeeded = true; for (const p of s.people) if (p.age >= 6 && !p.songs) { const r = O.RNG(O.hash('songs', p.id)); p.songs = OLD.map((x, i) => 'old' + i).filter(() => r.chance(0.35)); } };
+    // new songs out of what happens
+    let composing = false;
+    async function compose(s, about, maker) {
+      if (composing) return null; composing = true;
+      try {
+        let song = null;
+        if (O.AI && O.AI.ready && O.AI.json) {
+          const out = await O.AI.json(`Write a short medieval folk song, the kind sung in an English village tavern, about this: ${about}\nReply ONLY with JSON {"title":"...","lines":["...","...","...","..."]}. Four short rhyming lines, plain words, no dashes, no modern words, no names of real places. Keep it singable.`);
+          if (out && typeof out.title === 'string' && Array.isArray(out.lines) && out.lines.length >= 2) song = { title: out.title.slice(0, 40).replace(/[–—]/g, ','), lines: out.lines.slice(0, 6).map((l) => String(l).slice(0, 70).replace(/[–—]/g, ',')) };
+        }
+        if (!song) return null;
+        song.id = 'new' + Date.now().toString(36); song.about = about; song.made = s.day; song.place = s.world.placeId; song.maker = maker ? maker.name : null;
+        songs().push(song); if (maker) knows(maker).push(song.id);
+        s.log(`A new song goes round ${s.world.name}: "${song.title}"${maker ? `, made by ${maker.name}` : ''}.`, 'social');
+        return song;
+      } catch (e) { return null; } finally { composing = false; }
+    }
+    O.composeSong = compose; O.songBook = songs;
+    // what's worth a song: deeds of the newcomer, and the town's big moments
+    const sung = new Set();
+    const _log = SP.log;
+    SP.log = function (text, kind) {
+      _log.apply(this, arguments);
+      if (this !== cur() || sung.has(text) || !['disaster', 'crime', 'politics', 'life', 'event', 'war'].includes(kind)) return;
+      if (!/(stranger|newcomer|bear|wolf|wed|crowned|harvest|flood|fire|storm|outlaw|war|battle|plague|knighted|champion)/i.test(text) || Math.random() > 0.35) return;
+      sung.add(text);
+      const maker = this.people.filter((p) => p.alive !== false && p.age >= 16 && (/minstrel|bard|fiddler|musician|piper/.test(p.job?.role || '') || this.has(p, 'creative') || this.has(p, 'social'))).sort(() => Math.random() - 0.5)[0];
+      setTimeout(() => compose(this, text, maker), 2000 + Math.random() * 8000);
+    };
+    // songs spread: each day a few who know one teach a friend, and travellers carry them on
+    const _nd = SP.newDay;
+    SP.newDay = function () {
+      const r = _nd.apply(this, arguments); seed(this);
+      for (const p of this.people) {
+        const k = knows(p); if (!k.length || p.alive === false || Math.random() > 0.3) continue;
+        const fr = [...p.rel.entries()].filter(([id, x]) => id !== 0 && x.affinity > 0.1).map(([id]) => this.byId.get(id)).filter(Boolean);
+        const z = fr[Math.floor(Math.random() * fr.length)]; if (!z || z.age < 5) continue;
+        const id = k[Math.floor(Math.random() * k.length)]; if (!knows(z).includes(id)) knows(z).push(id);
+      }
+      return r;
+    };
+    // singing it: line by line, over their heads, and a fiddle under it
+    function sing(q, song, chorus) {
+      if (O.Music && O.Music.sing && O.Sound && O.Sound.on && O.Music.level > 0) return O.Music.sing(q, song, chorus);
+      if (!song || !O.Speech) return; let i = 0;
+      const next = () => { if (i >= song.lines.length || q.alive === false) return; O.Speech.say(q, '♪ ' + song.lines[i] + ' ♪', 3.2); O.gesture && O.gesture(q, 'dance', 1.5);
+        if (O.Sound) { const f = [262, 294, 330, 392][i % 4]; O.Sound.play('pluck', f, 0.4); }
+        for (const z of chorus || []) if (i === song.lines.length - 1) setTimeout(() => O.Speech.say(z, '♪ ' + song.lines[i - 0] + ' ♪', 3), 400);
+        i++; setTimeout(next, 3300); };
+      next();
+    }
+    O.singSong = sing;
+    // of an evening in the tavern (and now and then at work), someone strikes up
+    let at = 0;
+    game.hooks.update.push((dt) => {
+      at -= dt; if (at > 0) return; at = 25 + Math.random() * 20;
+      const s = cur(); if (!s || !game.scene || O.panelOpen) return; seed(s);
+      const there = [...game.scene.actors.values()].map((a) => a.person).filter((z) => z && z.age >= 6 && knows(z).length && !(O.npcUI && O.npcUI.talking() === z));
+      if (!there.length) return;
+      const evening = s.hour >= 18 || s.hour < 1, tavern = game.scene.b.type === 'tavern' || (s.biz.get(game.scene.b.id) || {}).type === 'tavern';
+      if (!(evening && tavern) && Math.random() > 0.15) return;
+      const q = there[Math.floor(Math.random() * there.length)], k = knows(q), song = byId(k[Math.floor(Math.random() * k.length)]);
+      if (!song) return;
+      if (!(evening && tavern)) { O.Speech && O.Speech.say(q, '♪ ' + song.lines[0] + ' ♪', 3); return; } // (a line hummed at work)
+      sing(q, song, there.filter((z) => z !== q && knows(z).includes(song.id)).slice(0, 4));
+      if (!PS.songs) PS.songs = []; if (!PS.songs.includes(song.id)) PS.songs.push(song.id);
+    });
+    // asked for a song in talk
+    const base = O.NpcActs.apply;
+    O.NpcActs.apply = function (s, q, a, main) {
+      if (a && a.do === 'sing') { const k = knows(q); if (!k.length) return null; const want = String(a.song || '').toLowerCase(); const song = (want && k.map(byId).find((x) => x && x.title.toLowerCase().includes(want))) || byId(k[Math.floor(Math.random() * k.length)]); if (!song) return null; O.npcUI && O.npcUI.closeTalk && setTimeout(() => sing(q, song), 600); (PS.songs = PS.songs || []).includes(song.id) || PS.songs.push(song.id); return null; }
+      if (a && a.do === 'make_song') { compose(s, String(a.about || 'the player').slice(0, 160), q); return `${q.first} goes off humming, making a song of it.`; }
+      return base.apply(this, arguments);
+    };
+    (O.extraActs = O.extraActs || []).push('sing {"song"?} (you sing one of the songs you know, if asked and willing)', 'make_song {"about"} (you are a singer and agree to make a new song about something)');
+    (O.extraLines = O.extraLines || []).push((s, q) => { seed(s); const k = knows(q).map(byId).filter(Boolean); return k.length ? `Songs you know: ${k.slice(0, 6).map((x) => `"${x.title}"${x.about ? ' (a new one, about ' + x.about.slice(0, 60) + ')' : ''}`).join(', ')}.` : ''; });
+  }
+  O.SongsSetup = { setup };
+})();
+
+</script>
+<script>
+(function () {
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const KIND = { jig: ['Jigs', 'quick, in six'], reel: ['Reels', 'quick, in four'], estampie: ['Estampies', 'stately, for the hall'], round: ['Rounds', 'for many voices'], pastoral: ['Airs', 'for the road and the field'], lament: ['Laments', 'for rain and sorrow'], nocturne: ['Night pieces', 'harp after dark'], carol: ['Carols', 'for winter'], chant: ['Plainchant', 'for the chapel'], march: ['Marches', 'drums when blows are struck'], sea: ['Songs of the sea', 'on the water'], wild: ['Lays', 'deep in the woods'] };
+  // a small stand-in for the game around the music: one listener, standing still
+  const game = { hooks: { update: [], drawTop: [], drawWorld: [] }, scene: null, player: { x: 0, y: 0, anim: 'idle' }, t: 0 };
+  O.SimRef = { cur: { world: { buildings: [], name: 'Ashford' }, people: [], minute: 720, day: 1, season: 'summer', weather: { kind: 'clear' } } };
+  let started = false;
+  function startAudio() {
+    if (started) return; started = true;
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination);
+    const n = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate), d = n.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    O.Sound = { ctx, master, noise: n, on: true };
+    O.MusicSetup.setup(game); O.Music.showNames = false; O.Music.setLevel(3); O.Music.ready();
+    (function loop() { try { O.Music.pump(); } catch (e) { /* */ } requestAnimationFrame(loop); })();
+  }
+  const songs = O.OLD_SONGS || [], tunes = O.MusicSetup.TRACKS || [];
+  document.getElementById('songCount').textContent = songs.length + ' songs, with their words';
+  document.getElementById('tuneCount').textContent = tunes.length + ' tunes in ' + Object.keys(KIND).length + ' kinds';
+  document.getElementById('songs').innerHTML = songs.map((s, i) => `<article class="song" id="s${i}"><h3>${esc(s.title)}</h3><button class="play" data-s="${i}" aria-label="Sing ${esc(s.title)}">Sing</button><div class="words">${esc(s.lines.join('\n'))}</div></article>`).join('');
+  const byKind = {}; tunes.forEach((t, i) => (byKind[t.style] = byKind[t.style] || []).push([t, i]));
+  document.getElementById('tunes').innerHTML = Object.keys(KIND).filter((k) => byKind[k]).map((k) => `<div class="kind"><h3>${KIND[k][0]} <span class="lbl">${KIND[k][1]}</span></h3>${byKind[k].map(([t, i]) => `<div class="tune" id="t${i}"><span>${esc(t.name)} <small>${esc(t.mode)}</small></span><button class="play" data-t="${i}" aria-label="Play ${esc(t.name)}">Play</button></div>`).join('')}</div>`).join('');
+  let queue = null, token = 0, lineTimers = [];
+  const nowName = document.getElementById('nowName'), nowLine = document.getElementById('nowLine');
+  function mark(id, name) { document.querySelectorAll('.on').forEach((e) => e.classList.remove('on')); if (id) { const el = document.getElementById(id); if (el) { el.classList.add('on'); el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } } nowName.textContent = name || 'Nothing playing'; }
+  function clearLines() { lineTimers.forEach(clearTimeout); lineTimers = []; nowLine.textContent = ''; }
+  function stopAll() { token++; queue = null; clearLines(); if (O.Music) O.Music.stop(0.4); mark(null, 'Nothing playing'); }
+  function next() { if (!queue || !queue.length) { queue = null; mark(null, 'Finished'); return; } const it = queue.shift(); it[0] === 't' ? playTune(it[1], true) : sing(it[1], true); }
+  function playTune(i, chain) {
+    startAudio(); clearLines(); const my = ++token, t = tunes[i]; mark('t' + i, t.name);
+    O.Music.playTune(t, { loops: 1, onEnd: () => { if (my !== token) return; if (chain) setTimeout(next, 900); else mark(null, 'Nothing playing'); } });
+  }
+  function sing(i, chain) {
+    startAudio(); clearLines(); O.Music.stop(0.3); const my = ++token, s = songs[i]; mark('s' + i, s.title);
+    const q = { id: 'singer' + i, first: 'A singer', sex: i % 2 ? 'f' : 'm', agent: { x: 0, y: 0 } };
+    O.Music.sing(q, s, [], 'lute');
+    // the words come up line by line as they're sung
+    const tune = O.songTune(s); let at = 0.4;
+    tune.forEach((ln) => { lineTimers.push(setTimeout(() => { if (my === token) nowLine.textContent = ln.line; }, at * 1000)); at += ln.notes.reduce((a, n) => a + n.d, 0) + 0.35; });
+    lineTimers.push(setTimeout(() => { if (my !== token) return; nowLine.textContent = ''; if (chain) next(); else mark(null, 'Nothing playing'); }, (at + 1.2) * 1000));
+  }
+  document.addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.t) { queue = null; playTune(+b.dataset.t); } else if (b.dataset.s) { queue = null; sing(+b.dataset.s); } });
+  document.getElementById('allTunes').onclick = () => { stopAll(); queue = tunes.map((_, i) => ['t', i]); next(); };
+  document.getElementById('allSongs').onclick = () => { stopAll(); queue = songs.map((_, i) => ['s', i]); next(); };
+  document.getElementById('stop').onclick = stopAll;
+})();
+</script>

@@ -1,0 +1,123 @@
+<title>The Outlaw Songbook</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pirata+One&family=IM+Fell+English:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* layout: a book of songs on the left, a tune list grouped by kind on the right, the player along the foot */
+:root {
+  --bg: #efe6d2; --page: #f7f0df; --ink: #2b2118; --muted: #6d5d49; --rule: #d2c3a3; --accent: #8e2b1e; --gold: #a8792a; --hot: #f1dfb8;
+  --display: 'Pirata One', 'UnifrakturCook', Georgia, serif; --body: 'IM Fell English', Georgia, 'Times New Roman', serif; --mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #17120d; --page: #211a13; --ink: #ecdfc4; --muted: #a8977b; --rule: #3b3024; --accent: #e07a5a; --gold: #d6a650; --hot: #3a2c1c; color-scheme: dark } }
+:root[data-theme="dark"] { --bg: #17120d; --page: #211a13; --ink: #ecdfc4; --muted: #a8977b; --rule: #3b3024; --accent: #e07a5a; --gold: #d6a650; --hot: #3a2c1c; color-scheme: dark }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.5; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 120px; }
+.wrap { max-width: 1080px; margin: 0 auto; display: grid; gap: 28px; }
+header h1 { font-family: var(--display); font-weight: 400; font-size: clamp(40px, 7vw, 64px); line-height: 1; margin: 0; color: var(--accent); text-wrap: balance; }
+header p { margin: 8px 0 0; max-width: 62ch; color: var(--muted); }
+.cols { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+@media (max-width: 780px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+h2 { font-family: var(--display); font-weight: 400; font-size: 30px; margin: 0 0 4px; color: var(--ink); }
+.lbl { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.book { background: var(--page); border: 1px solid var(--rule); border-radius: 3px; padding: 20px 22px; display: grid; gap: 18px; }
+.song { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 14px; padding-bottom: 16px; border-bottom: 1px solid var(--rule); }
+.song:last-child { border-bottom: 0; padding-bottom: 0; }
+.song h3 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 24px; color: var(--accent); }
+.song h3::first-letter { color: var(--gold); }
+.song .words { grid-column: 1 / -1; font-style: italic; white-space: pre-line; }
+.song.on { background: var(--hot); margin: 0 -10px; padding: 8px 10px 16px; border-radius: 3px; }
+.tunes { display: grid; gap: 20px; }
+.kind { display: grid; gap: 2px; }
+.kind h3 { margin: 0 0 4px; font-family: var(--display); font-weight: 400; font-size: 22px; display: flex; align-items: baseline; gap: 10px; }
+.tune { display: flex; align-items: center; gap: 10px; padding: 5px 6px; border-radius: 3px; }
+.tune.on { background: var(--hot); }
+.tune span { flex: 1; min-width: 0; }
+.tune small { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+button { font: inherit; cursor: pointer; border: 1px solid var(--rule); background: var(--page); color: var(--ink); border-radius: 3px; padding: 4px 12px; }
+button:hover { border-color: var(--gold); }
+button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+button.play { font-family: var(--mono); font-size: 12px; padding: 3px 10px; }
+button.main { background: var(--accent); color: var(--page); border-color: var(--accent); }
+.bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--page); border-top: 1px solid var(--rule); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-top: 10px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+.bar .in { max-width: 1080px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.now { flex: 1 1 220px; min-width: 0; }
+.now b { font-family: var(--display); font-weight: 400; font-size: 20px; color: var(--accent); }
+.now .line { font-style: italic; color: var(--muted); min-height: 1.5em; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>The Outlaw Songbook</h1>
+    <p>Every song and tune in Outlaw, played the way the town plays them: lute, harp, recorder, fiddle, shawm, hurdy-gurdy, tabor, bells and voices, all made in code as you listen. The songs are sung to their own tunes, fitted to the words syllable by syllable.</p>
+  </header>
+  <div class="cols">
+    <section>
+      <h2>The old songs</h2>
+      <div class="lbl" id="songCount"></div>
+      <div class="book" id="songs" style="margin-top:10px"></div>
+    </section>
+    <section>
+      <h2>The tunes</h2>
+      <div class="lbl" id="tuneCount"></div>
+      <div class="tunes" id="tunes" style="margin-top:10px"></div>
+    </section>
+  </div>
+</div>
+<div class="bar"><div class="in">
+  <div class="now"><div class="lbl">Now playing</div><b id="nowName">Nothing yet. Press a play button.</b><div class="line" id="nowLine"></div></div>
+  <button class="main" id="allSongs">Sing every song</button>
+  <button class="main" id="allTunes">Play every tune</button>
+  <button id="stop">Stop</button>
+</div></div>
+
+<script src="../src/core/base.js"></script>
+<script src="../src/game/music.js"></script>
+<script src="../src/game/songs.js"></script>
+<script>
+(function () {
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const KIND = { jig: ['Jigs', 'quick, in six'], reel: ['Reels', 'quick, in four'], estampie: ['Estampies', 'stately, for the hall'], round: ['Rounds', 'for many voices'], pastoral: ['Airs', 'for the road and the field'], lament: ['Laments', 'for rain and sorrow'], nocturne: ['Night pieces', 'harp after dark'], carol: ['Carols', 'for winter'], chant: ['Plainchant', 'for the chapel'], march: ['Marches', 'drums when blows are struck'], sea: ['Songs of the sea', 'on the water'], wild: ['Lays', 'deep in the woods'] };
+  // a small stand-in for the game around the music: one listener, standing still
+  const game = { hooks: { update: [], drawTop: [], drawWorld: [] }, scene: null, player: { x: 0, y: 0, anim: 'idle' }, t: 0 };
+  O.SimRef = { cur: { world: { buildings: [], name: 'Ashford' }, people: [], minute: 720, day: 1, season: 'summer', weather: { kind: 'clear' } } };
+  let started = false;
+  function startAudio() {
+    if (started) return; started = true;
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination);
+    const n = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate), d = n.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    O.Sound = { ctx, master, noise: n, on: true };
+    O.MusicSetup.setup(game); O.Music.showNames = false; O.Music.setLevel(3); O.Music.ready();
+    (function loop() { try { O.Music.pump(); } catch (e) { /* */ } requestAnimationFrame(loop); })();
+  }
+  const songs = O.OLD_SONGS || [], tunes = O.MusicSetup.TRACKS || [];
+  document.getElementById('songCount').textContent = songs.length + ' songs, with their words';
+  document.getElementById('tuneCount').textContent = tunes.length + ' tunes in ' + Object.keys(KIND).length + ' kinds';
+  document.getElementById('songs').innerHTML = songs.map((s, i) => `<article class="song" id="s${i}"><h3>${esc(s.title)}</h3><button class="play" data-s="${i}" aria-label="Sing ${esc(s.title)}">Sing</button><div class="words">${esc(s.lines.join('\n'))}</div></article>`).join('');
+  const byKind = {}; tunes.forEach((t, i) => (byKind[t.style] = byKind[t.style] || []).push([t, i]));
+  document.getElementById('tunes').innerHTML = Object.keys(KIND).filter((k) => byKind[k]).map((k) => `<div class="kind"><h3>${KIND[k][0]} <span class="lbl">${KIND[k][1]}</span></h3>${byKind[k].map(([t, i]) => `<div class="tune" id="t${i}"><span>${esc(t.name)} <small>${esc(t.mode)}</small></span><button class="play" data-t="${i}" aria-label="Play ${esc(t.name)}">Play</button></div>`).join('')}</div>`).join('');
+  let queue = null, token = 0, lineTimers = [];
+  const nowName = document.getElementById('nowName'), nowLine = document.getElementById('nowLine');
+  function mark(id, name) { document.querySelectorAll('.on').forEach((e) => e.classList.remove('on')); if (id) { const el = document.getElementById(id); if (el) { el.classList.add('on'); el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } } nowName.textContent = name || 'Nothing playing'; }
+  function clearLines() { lineTimers.forEach(clearTimeout); lineTimers = []; nowLine.textContent = ''; }
+  function stopAll() { token++; queue = null; clearLines(); if (O.Music) O.Music.stop(0.4); mark(null, 'Nothing playing'); }
+  function next() { if (!queue || !queue.length) { queue = null; mark(null, 'Finished'); return; } const it = queue.shift(); it[0] === 't' ? playTune(it[1], true) : sing(it[1], true); }
+  function playTune(i, chain) {
+    startAudio(); clearLines(); const my = ++token, t = tunes[i]; mark('t' + i, t.name);
+    O.Music.playTune(t, { loops: 1, onEnd: () => { if (my !== token) return; if (chain) setTimeout(next, 900); else mark(null, 'Nothing playing'); } });
+  }
+  function sing(i, chain) {
+    startAudio(); clearLines(); O.Music.stop(0.3); const my = ++token, s = songs[i]; mark('s' + i, s.title);
+    const q = { id: 'singer' + i, first: 'A singer', sex: i % 2 ? 'f' : 'm', agent: { x: 0, y: 0 } };
+    O.Music.sing(q, s, [], 'lute');
+    // the words come up line by line as they're sung
+    const tune = O.songTune(s); let at = 0.4;
+    tune.forEach((ln) => { lineTimers.push(setTimeout(() => { if (my === token) nowLine.textContent = ln.line; }, at * 1000)); at += ln.notes.reduce((a, n) => a + n.d, 0) + 0.35; });
+    lineTimers.push(setTimeout(() => { if (my !== token) return; nowLine.textContent = ''; if (chain) next(); else mark(null, 'Nothing playing'); }, (at + 1.2) * 1000));
+  }
+  document.addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.t) { queue = null; playTune(+b.dataset.t); } else if (b.dataset.s) { queue = null; sing(+b.dataset.s); } });
+  document.getElementById('allTunes').onclick = () => { stopAll(); queue = tunes.map((_, i) => ['t', i]); next(); };
+  document.getElementById('allSongs').onclick = () => { stopAll(); queue = songs.map((_, i) => ['s', i]); next(); };
+  document.getElementById('stop').onclick = stopAll;
+})();
+</script>

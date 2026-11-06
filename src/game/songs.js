@@ -15,6 +15,7 @@
     { title: 'Shepherd\'s Lament', lines: ['My flock is scattered on the moor,', 'The wind is in the west,', 'I\'ll count them all at the fold door', 'And then I\'ll take my rest.'] },
     { title: 'The Ale Is Brown', lines: ['The ale is brown, the bread is new,', 'The fire burns warm and bright,', 'So pass the jug from me to you', 'And sing away the night.'] },
   ];
+  O.OLD_SONGS = OLD;
   function setup(game) {
     const SP = O.Sim.prototype, PS = O.PlayerState, cur = () => O.SimRef.cur;
     const songs = () => (PS.songBook = PS.songBook || OLD.map((x, i) => Object.assign({ id: 'old' + i, old: true }, x)));

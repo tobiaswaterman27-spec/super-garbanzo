@@ -143,7 +143,6 @@
       const snd = O.Sound && O.Sound.on;
       menu.innerHTML = `<div class="ui-menu-in"><h2>Outlaw</h2>
         <button data-m="resume" class="hot">Continue</button>
-        <button data-m="music">Songs and tunes</button>
         <button data-m="voices">Voices: ${O.AI && O.AI.kind === 'openai' ? 'your OpenAI key' : O.AI && O.AI.kind === 'claude' ? 'Claude' : 'none'}${O.AI && O.AI.lastError ? ({ not_granted: ' (not allowed: see Permissions)', sampling_disabled: ' (not available)', rate_limited: ' (busy, wait a little)', session_expired: ' (sign in again)' })[O.AI.lastError] || ' (not answering)' : ''}</button>
         ${[['Yourself', [['satchel', 'Satchel and skills', 'I'], ['tasks', "Undertakings and what's on", 'J'], ['biz', 'Business: work, the Crown, war', 'B'], ['hold', 'Holdings: houses and land', 'P'], ['gang', 'Your gang', 'G']]], ['The world', [['map', 'Map of Eldoria', 'M'], ['ledger', 'Town ledger', 'L'], ['chron', 'Chronicle', 'C']]], ['The game', [['guide', 'Guide', '/'], ['settings', 'Settings and saves', ''], ['save', 'Save now', '']]]].map(([h, items]) => `<h4>${h}</h4>${items.map(([k, l, key]) => `<button data-m="${k}">${l}${key ? ` <span class="lbl">${key}</span>` : ''}</button>`).join('')}`).join('')}</div>`;
       menu.hidden = false; O.menuOpen = true; game.player.locked = true;
@@ -161,7 +160,6 @@
         });
         return;
       }
-      if (k === 'music') { O.Music && O.Music.room && O.Music.room(); return; }
       if (k === 'satchel') O.Panels.inventory();
       else if (k === 'map') O.openMap && O.openMap();
       else if (k === 'chron') O.ChronicleUI && O.ChronicleUI.open();

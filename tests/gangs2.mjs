@@ -1,0 +1,14 @@
+import { start } from './lib.mjs';
+const { p, done } = await start();
+await p.waitForTimeout(7000);
+console.log(await p.evaluate(() => { const s = O.SimRef.cur; return (s.gangs || []).map((g) => `${g.name} [${g.colour}] ${g.members.length} members, caps ${g.members.filter((m) => s.byId.get(m.id)?.app?.outfit?._gang === g.id).length}`).join(' | '); }));
+console.log(await p.evaluate(() => { const s = O.SimRef.cur, g = s.gangs.find((x) => x.id !== 'player'); const n0 = g.members.length; const r0 = Math.random; Math.random = () => 0.05; try { for (let i = 0; i < 6; i++) s.newDay(); } finally { Math.random = r0; } return 'after 6 days: ' + n0 + ' -> ' + g.members.length + ' | log ' + (g.log || []).slice(-3).join(' / '); }));
+// the haunt at nine at night
+await p.evaluate(() => { const s = O.SimRef.cur; while (s.day % 2) s.day++; s.minute = 21 * 60; O.game.clock.minute = 21 * 60; for (const q of s.people) if (q.gang) { q.activity = null; q.job = q.job && Object.assign({}, q.job, { onShift: false }); } });
+await p.waitForTimeout(6000);
+console.log(await p.evaluate(() => { const s = O.SimRef.cur, g = s.gangs.find((x) => x.id !== 'player'); const at = O.GangStreet.haunt(s, g); const there = g.members.map((m) => s.byId.get(m.id)).filter((q) => q && q.activity?.zone === 'haunt:' + g.id); const P = O.game.player; if (at) { P.x = at[0] * 16 + 8; P.y = (at[1] + 3) * 16; } window._gm = there[0] && there[0].id; return 'haunt tile ' + JSON.stringify(at) + ' heading there ' + there.length + ' acts ' + there.map((q) => q.activity.act).join(','); }));
+await p.waitForTimeout(8000);
+console.log(await p.evaluate(async () => { const s = O.SimRef.cur, q = s.byId.get(_gm); if (!q) { const s2 = O.SimRef.cur; window._gm = s2.gangs[0].members[1].id; return 'nobody at the haunt'; } O.PlayerState.money = 30; let l = ''; await O.AIChat.say(q, 'Deal me in, 3 aurins.', (x) => { l = x; }); const ex = O.extraLines.map((f) => { try { return f(s, q); } catch (e) { return 'ERR ' + e.message; } }).find((x) => /wear .* caps/.test(x || '')); return 'dice: ' + l + ' | money ' + O.PlayerState.money + ' | card: ' + (ex || '').slice(0, 200); }));
+// a favour
+console.log(await p.evaluate(async () => { const s = O.SimRef.cur, PS = O.PlayerState, q = s.byId.get(_gm), debtor = s.people.find((z) => !z.gang && z.age > 25 && z.home != null); PS.gfavour = { creditor: q.id, debtor: debtor.id, amt: 9, day: s.day, place: s.world.placeId }; const h = s.household(debtor); h.money = Math.max(h.money, 40); debtor.traits.push('cowardly'); let a = '', b = '', c = ''; await O.AIChat.say(q, "Aye, I'll do it.", (x) => { a = x; }); await O.AIChat.say(debtor, 'You owe money. Pay up what you owe.', (x) => { b = x; }); await O.AIChat.say(q, "Here's your money.", (x) => { c = x; }); return `take: ${a} | debtor: ${b} | deliver: ${c} | money ${PS.money} favour ${JSON.stringify(PS.gfavour)}`; }));
+await done();

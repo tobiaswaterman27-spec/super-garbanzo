@@ -27991,7 +27991,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       const r = _nd.apply(this, arguments);
       try {
         for (const hh of this.households) {
-          if (!(hh.money > 90) || Math.random() > 0.04) continue;
+          if (!(hh.money > 90) || Math.random() > Math.min(0.5, 0.04 + hh.money / 3000)) continue;
           const b = this.building ? this.building(hh.home) : null; if (!b || mine(b) || b.parent) continue;
           const who = hh.members.map((id) => this.byId.get(id)).filter((q) => q && q.age >= 18)[0]; if (!who) continue;
           const shops = [...this.biz.values()].filter((z) => (z.def.sells || []).some((g) => /^(wl|fl|tn|fx)_/.test(g) && z.stock[g] >= 1));
@@ -32078,7 +32078,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
     const yearLen = () => SD() * 4;
     const bigFixed = (day) => { const d = dos(day), se = seasonOf(day); return (se === 'autumn' && d === 10) || (se === 'winter' && d === 7) || (se === 'spring' && d === 12) || !!(O.Revels && O.Revels.on(null, day)); };
     const saintDay = (s) => { const nm = saintOf(s); if (!nm) return null; let d = (O.hash('saint', s.world.placeId || s.world.name) % yearLen()) + 1; for (let k = 0; k < 4 && bigFixed(d); k++) d = (d % yearLen()) + 1; return d; }; // (never on another high day)
-    const isSaintDay = (s, day) => { const d = saintDay(s); return d != null && ((day - 1) % yearLen()) + 1 === d; };
+    const isSaintDay = (s, day) => { const c = s._saintC || (s._saintC = {}); if (c.chapel !== s.chapelId) { c.chapel = s.chapelId; c.d = undefined; } if (c.d === undefined) c.d = saintDay(s); const d = c.d; return d != null && ((day - 1) % yearLen()) + 1 === d; };
     O.saintDay = (s) => ({ saint: saintOf(s), day: saintDay(s) });
     const festOn = (s, day) => { if (isSaintDay(s, day) || (O.Revels && O.Revels.on(s, day))) return true; const d = dos(day), se = seasonOf(day); return (se === 'autumn' && d === 10) || (se === 'winter' && d === 7) || (se === 'spring' && d === 12) || (s.hosted && s.hosted.day === day); };
     // does a big gathering already fill this time in this town?

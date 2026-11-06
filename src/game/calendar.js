@@ -30,7 +30,7 @@
     const yearLen = () => SD() * 4;
     const bigFixed = (day) => { const d = dos(day), se = seasonOf(day); return (se === 'autumn' && d === 10) || (se === 'winter' && d === 7) || (se === 'spring' && d === 12) || !!(O.Revels && O.Revels.on(null, day)); };
     const saintDay = (s) => { const nm = saintOf(s); if (!nm) return null; let d = (O.hash('saint', s.world.placeId || s.world.name) % yearLen()) + 1; for (let k = 0; k < 4 && bigFixed(d); k++) d = (d % yearLen()) + 1; return d; }; // (never on another high day)
-    const isSaintDay = (s, day) => { const d = saintDay(s); return d != null && ((day - 1) % yearLen()) + 1 === d; };
+    const isSaintDay = (s, day) => { const c = s._saintC || (s._saintC = {}); if (c.chapel !== s.chapelId) { c.chapel = s.chapelId; c.d = undefined; } if (c.d === undefined) c.d = saintDay(s); const d = c.d; return d != null && ((day - 1) % yearLen()) + 1 === d; };
     O.saintDay = (s) => ({ saint: saintOf(s), day: saintDay(s) });
     const festOn = (s, day) => { if (isSaintDay(s, day) || (O.Revels && O.Revels.on(s, day))) return true; const d = dos(day), se = seasonOf(day); return (se === 'autumn' && d === 10) || (se === 'winter' && d === 7) || (se === 'spring' && d === 12) || (s.hosted && s.hosted.day === day); };
     // does a big gathering already fill this time in this town?

@@ -333,7 +333,7 @@
       const r = _nd.apply(this, arguments);
       try {
         for (const hh of this.households) {
-          if (!(hh.money > 90) || Math.random() > 0.04) continue;
+          if (!(hh.money > 90) || Math.random() > Math.min(0.5, 0.04 + hh.money / 3000)) continue;
           const b = this.building ? this.building(hh.home) : null; if (!b || mine(b) || b.parent) continue;
           const who = hh.members.map((id) => this.byId.get(id)).filter((q) => q && q.age >= 18)[0]; if (!who) continue;
           const shops = [...this.biz.values()].filter((z) => (z.def.sells || []).some((g) => /^(wl|fl|tn|fx)_/.test(g) && z.stock[g] >= 1));

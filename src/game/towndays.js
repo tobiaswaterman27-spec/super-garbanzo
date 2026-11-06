@@ -122,6 +122,7 @@
       if (!O.Errands) return; const x = Math.floor((a.agent.x + b.agent.x) / 2 / T), y = Math.floor((a.agent.y + b.agent.y) / 2 / T);
       const friendOf = (q, not) => [...(q.rel || [])].filter(([id, r]) => id !== 0 && (r.affinity || 0) > 0.4).map(([id]) => s.byId.get(id)).find((z) => z && z !== not && nearP(z, 400));
       const fa = friendOf(a, b), fb = friendOf(b, a);
+      if (O.StreetFight && O.StreetFight.start(s, a, b, { withA: fa ? [fa] : [], withB: fb ? [fb] : [], why: 'an old feud' })) return; // (blow by blow)
       const go = (q, dx, face) => q && O.Errands.send(s, q, [x + dx, y], { anim: 'attack', secs: 8, face, giveUp: game.t + 40, at: () => { if (Math.random() < 0.4) sp(q, pick(['Have that!', 'Come on then!', 'Hit him!']), 2); } });
       go(a, -1, 2); go(b, 1, 1); go(fa, -2, 2); go(fb, 2, 1);
       s.log(`A fight in the street between ${a.name} and ${b.name}${fa || fb ? ', and their friends piled in' : ''}.`, 'social');

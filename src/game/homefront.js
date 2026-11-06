@@ -82,7 +82,7 @@
       if (ref.length && Math.random() < 0.5) { const q = pick(ref); O.Speech && O.Speech.say(q, pick(['A crust, for the children?', 'They burned everything. Everything.', 'God bless you, if you have anything.', 'Is there work here? Any work?']), 3); }
       void ph;
       // a soldier's trouble: a scuffle with a local in the tavern hours
-      if (sol.length && h >= 20 && Math.random() < 0.05) { const a = pick(sol), b = s.people.find((q) => !q.visitor && q.age >= 18 && q.sex === 'm' && near(q, 200)); if (b && O.Speech) { O.Speech.say(a, 'You looking at me?', 2); setTimeout(() => O.Speech.say(b, "Get out of our town, soldier.", 2.5), 1500); s.relate(b, a, -0.3); } }
+      if (sol.length && h >= 20 && Math.random() < 0.05) { const a = pick(sol), b = s.people.find((q) => !q.visitor && q.age >= 18 && q.sex === 'm' && near(q, 200)); if (b && O.Speech) { O.Speech.say(a, 'You looking at me?', 2); setTimeout(() => O.Speech.say(b, "Get out of our town, soldier.", 2.5), 1500); s.relate(b, a, -0.3); if (Math.random() < 0.5 && O.StreetFight) setTimeout(() => O.StreetFight.start(s, a, b, { why: 'a soldier\'s insult' }), 3000); } }
     });
     // feeding a refugee: give them food in talk, or say you'll feed them
     (O.extraLines = O.extraLines || []).push((s, q) => {

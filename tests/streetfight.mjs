@@ -1,0 +1,10 @@
+import { start } from './lib.mjs';
+const { p, done } = await start();
+await p.evaluate(() => { const s = O.SimRef.cur; s.minute = 12 * 60; O.game.clock.minute = 12 * 60; window._said = []; const o = O.Speech.say; O.Speech.say = (w, t, ...a) => { _said.push((w.first || '?') + ': ' + t); return o(w, t, ...a); }; });
+await p.waitForTimeout(1000);
+console.log(await p.evaluate(() => { const s = O.SimRef.cur, P = O.game.player; const two = s.people.filter((q) => q.age > 20 && q.age < 50 && q.agent && !q.agent.hidden && q.agent.inside == null && !/guard/.test(q.job?.role || '')).slice(0, 2); two[0].agent.x = P.x + 30; two[0].agent.y = P.y; two[1].agent.x = P.x + 60; two[1].agent.y = P.y; for (const g of s.people.filter((q) => /guard|sergeant/.test(q.job?.role || ''))) { g.agent.x = 0; g.agent.y = 0; } window._f = O.StreetFight.start(s, two[0], two[1], { why: 'a test' }); window._two = two.map((q) => q.id); return 'fight ' + two.map((q) => q.first).join(' v ') + ' started ' + !!_f; }));
+await p.waitForTimeout(20000);
+console.log(await p.evaluate(() => { const s = O.SimRef.cur, [a, b] = _two.map((id) => s.byId.get(id)); return 'over ' + !O.StreetFight.fights.length + ' | hp ' + Math.round(a.health.hp) + '/' + Math.round(b.health.hp) + ' | mem ' + ((a.memories || []).concat(b.memories || []).filter((m) => /fight/.test(m.text || '')).map((m) => m.text).join(' ; ')).slice(0, 160) + ' | said ' + _said.filter((x) => /Enough|win|done|stay down|tongue|Anyone|Fight|Hit|Ugh|Agh|Oof|fists|asked/.test(x)).slice(0, 5).join(' / '); }));
+// yielding in your own fight
+console.log(await p.evaluate(async () => { const s = O.SimRef.cur, P = O.game.player; const q = s.people.find((z) => z.age > 20 && z.agent && !z.agent.hidden && z.agent.inside == null && !/guard/.test(z.job?.role || '') && !z._fighting); q.agent.x = P.x + 12; q.agent.y = P.y; q.traits = q.traits.filter((t) => t !== 'hostile'); O.Combat.provoke(q, 'fight'); let l = ''; await O.AIChat.say(q, 'Enough! I yield.', (x) => { l = x; }); return 'yield: ' + l + ' | still fighting ' + O.Combat.fights.has(q.id); }));
+await done();

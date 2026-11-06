@@ -6,7 +6,8 @@
 'use strict';
 (function () {
   const PS = O.PlayerState, G = O.Data.GOODS;
-  const WEAPONS = { fists: { dmg: 7, reach: 15, name: 'fists', blade: false, key: 'fists' }, dagger: { dmg: 13, reach: 17, name: 'dagger', blade: true, key: 'dagger' }, sword: { dmg: 19, reach: 20, name: 'sword', blade: true, key: 'sword' }, axe: { dmg: 21, reach: 18, name: 'axe', blade: true, key: 'axe' }, hammer: { dmg: 15, reach: 16, name: 'hammer', blade: false, key: 'hammer' }, spear: { dmg: 18, reach: 26, name: 'spear', blade: true, key: 'spear' } };
+  const WEAPONS = { fists: { dmg: 7, reach: 15, name: 'fists', blade: false, key: 'fists' }, dagger: { dmg: 13, reach: 17, name: 'dagger', blade: true, key: 'dagger' }, sword: { dmg: 19, reach: 20, name: 'sword', blade: true, key: 'sword' }, axe: { dmg: 21, reach: 18, name: 'axe', blade: true, key: 'axe' }, hammer: { dmg: 15, reach: 16, name: 'hammer', blade: false, key: 'hammer' }, spear: { dmg: 18, reach: 26, name: 'spear', blade: true, key: 'spear' }, staff: { dmg: 12, reach: 25, name: 'quarterstaff', blade: false, key: 'staff' } };
+  const SPEED = { fists: 0.34, dagger: 0.3, sword: 0.46, axe: 0.62, hammer: 0.55, spear: 0.5, staff: 0.42 }; // (seconds between blows)
 
   function setup(game, sim, npcUI) {
     const fights = new Map(); // person id -> { mode, cd, t }
@@ -37,6 +38,7 @@
 
     // damage applies to the shared health model
     function hurt(q, dmg, byPlayer, blade, wkey) {
+      if (byPlayer && O.CombatDeep) { const r = O.CombatDeep.defend(q, dmg, wkey); if (r === 'blocked') return 'blocked'; dmg = r; }
       const h = q.health;
       const armour = q.app.outfit.armour === 'mail' ? 0.65 : 1;
       dmg = Math.round(dmg * armour * sim.rng.float(0.8, 1.2));
@@ -76,14 +78,14 @@
     const extraTargets = []; // functions returning [{ x, y, hit(dmg, blade, weapon) }]
     function attack() {
       if (swing > 0 || playerCd > 0 || O.panelOpen || game.player.locked) return;
-      syncLook(); swing = 0.36; swingHit = false; playerCd = 0.45; game.player.swinging = true;
+      syncLook(); const wk0 = weapon().key; if (O.CombatDeep && !O.CombatDeep.canSwing()) return; swing = 0.36; swingHit = false; playerCd = (SPEED[wk0] || 0.45) * (O.CombatDeep ? O.CombatDeep.tempo() : 1); game.player.swinging = true;
       game.player.anim = 'attack'; game.player.ft = 0;
     }
 
     game.keyHandlers.push((e) => {
       if (e.code === 'Space') { attack(); return true; }
       if (e.code === 'KeyR' && !O.panelOpen) { // cycle the weapon in hand
-        const opts = ['fists', ...['dagger', 'sword', 'axe'].filter((w) => PS.items.includes(w))];
+        const opts = ['fists', ...['dagger', 'sword', 'axe', 'staff', 'hammer', 'spear'].filter((w) => PS.items.includes(w))];
         PS.equipped = opts[(opts.indexOf(PS.equipped) + 1) % opts.length]; syncLook();
         // (no message: you can see what's in your hand)
         return true;
@@ -103,7 +105,7 @@
           if (!q && !game.scene) { const d = O.Char.DIRV[game.player.dir] || [0, 1], hx = game.player.x + d[0] * w.reach * 0.7, hy = game.player.y - 2 + d[1] * w.reach * 0.6; let best = null, bd = w.reach + 6; for (const f of extraTargets) for (const t of f()) { const dd = Math.hypot(t.x - hx, t.y - hy); if (dd < bd) { bd = dd; best = t; } } if (best) { puff(best.x, best.y, w.blade); best.hit(w.dmg, w.blade, w.key); } }
           if (q) {
             const first = !fights.has(q.id);
-            const res = hurt(q, w.dmg, true, w.blade, w.key);
+            const res = hurt(q, w.dmg * (O.CombatDeep ? O.CombatDeep.power(w) : 1), true, w.blade, w.key);
             const guardHit = q.job?.role?.startsWith('guard');
             q._punched = (q._punched || 0) + 1;
             // a punch or two is a quarrel, not a crime: the victim and everyone watching think less of you.
@@ -137,7 +139,7 @@
             f.cd = 0.9; a.anim = 'attack'; a.ft = 0; f.blows = (f.blows || 0) + 1;
             const armed = q.app.outfit.item && ['spear', 'sword', 'axe', 'hammer', 'pitchfork', 'dagger'].includes(q.app.outfit.item);
             const dmg = (armed ? 12 : 6) * (q.job?.role?.startsWith('guard') ? 1.2 : 1) * sim.rng.float(0.7, 1.2);
-            PS.hp -= dmg; fx.push({ x: game.player.x, y: game.player.y - 16, flash: true, t: 0, max: 0.12 });
+            { const got = O.CombatDeep ? O.CombatDeep.incoming(q, dmg, f) : dmg; if (got <= 0) continue; PS.hp -= got; } fx.push({ x: game.player.x, y: game.player.y - 16, flash: true, t: 0, max: 0.12 });
             { const wk = armed ? q.app.outfit.item : 'fists', kind = (O.Aftermath && O.Aftermath.WOUND[wk]) || 'bruise'; (PS.wounds = PS.wounds || []).push({ kind, sev: Math.min(1, dmg / 22), day: sim.day, part: sim.rng.pick(['face', 'torso', 'arm']), seed: sim.rng.int(1, 999) }); if (PS.wounds.length > 6) PS.wounds.shift(); const bl = O.Aftermath && O.Aftermath.BLOOD[kind]; if (bl && !game.scene) sim.bleed(game.player.x, game.player.y + 1, bl, dmg / 18); }
             for (let i = 0; i < 4; i++) fx.push({ x: game.player.x, y: game.player.y - 8, vx: (Math.random() - 0.5) * 40, vy: -Math.random() * 30, t: 0, max: 0.3, c: 'rgba(170,140,100,0.8)' });
             if (PS.hp <= 0) return knockedOut(q);
@@ -214,7 +216,7 @@
         if (!fights.get(q.id)?.looted) { crimeFor(q, 'robbery', 2); const f = fights.get(q.id); if (f) f.looted = true; }
         return `You search ${q.first} and take ₳${n}${item ? ' and a ' + G[item].name.toLowerCase() : ''}.`;
       },
-      fights,
+      fights, weapon: () => weapon(), hurt: (q, dmg, blade, wk) => hurt(q, dmg, false, blade, wk), SPEED,
     };
   }
   O.CombatSetup = { setup, WEAPONS };

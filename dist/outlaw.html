@@ -1012,7 +1012,7 @@ O.storeys = (b) => {
     crouch: { frames: 2, fps: 2 }, sweep: { frames: 4, fps: 5 }, sleep: { frames: 2, fps: 1 }, lie: { frames: 1, fps: 1 },
     drink: { frames: 4, fps: 2.5 }, read: { frames: 2, fps: 1 }, celebrate: { frames: 4, fps: 5 }, mourn: { frames: 2, fps: 1 },
     point: { frames: 2, fps: 2 }, dig: { frames: 4, fps: 4 }, cook: { frames: 4, fps: 4 },
-    attack: { frames: 4, fps: 12 }, open: { frames: 3, fps: 6 }, pickup: { frames: 2, fps: 3 }, hurt: { frames: 2, fps: 8 },
+    attack: { frames: 4, fps: 12 }, open: { frames: 3, fps: 6 }, pickup: { frames: 2, fps: 3 }, hurt: { frames: 2, fps: 8 }, block: { frames: 2, fps: 3 }, dodge: { frames: 2, fps: 6 },
     stretcher: { frames: 8, fps: 9 }, ride: { frames: 1, fps: 1 }, doze: { frames: 2, fps: 0.5 },
     // trades and everyday actions
     hammer: { frames: 4, fps: 6 }, chop: { frames: 4, fps: 4 }, saw: { frames: 4, fps: 5 }, knead: { frames: 4, fps: 4 }, cleave: { frames: 4, fps: 5 },
@@ -1111,6 +1111,8 @@ O.storeys = (b) => {
         L = { R: leg(1, 1.25, 2.3, 0.18), L: leg(-1, 0.9, 2.0, 0.18) }; P.lean = 2.2; P.headDown = 1; break;
       }
       case 'hurt': { L = { R: leg(1, -0.1, 0.25), L: leg(-1, 0.15, 0.3) }; P.lean = f ? -1.2 : -0.6; P.blink = true; P.mouth = 1; break; }
+      case 'block': L = { R: leg(1, 0.25, 0.45), L: leg(-1, -0.3, 0.3) }; P.lean = -0.4; P.headDown = 0.4; break; // feet set, weight back, chin down behind the arms
+      case 'dodge': L = { R: leg(1, -0.35, 0.35), L: leg(-1, 0.45, 0.5) }; P.lean = f ? -1.6 : -1.0; P.bob = 1; break; // a step back and aside
       case 'dig': L = { R: leg(1, 0.35, 0.5), L: leg(-1, -0.15, 0.2) }; P.lean = 1.5; break;
       case 'attack': L = { R: leg(1, f === 1 || f === 2 ? 0.35 : 0.1, 0.25), L: leg(-1, -0.25, 0.15) }; P.lean = f === 1 || f === 2 ? 1.4 : 0.2; break;
       case 'mourn': case 'read': P.headDown = 1; break;
@@ -1227,6 +1229,8 @@ O.storeys = (b) => {
       case 'cook': { const k = f % 4; A.R = reach(1, [1.2 + (k % 2), chest + 4 + (k > 1 ? 0.6 : 0), D + 4]); P.held = 'ladle'; P.toolDir = [0, 0.9, 0.3]; break; }
       case 'ride': A.R = reach(1, [1.8, hipY - 2.5, D + 5]); A.L = reach(-1, [-1.8, hipY - 2.5, D + 5]); break;
       case 'hurt': A.R = fwdArm(1, -0.3, 0.6, 0.25); A.L = fwdArm(-1, -0.3, 0.6, 0.25); break;
+      case 'block': { const k = f ? 0.4 : 0; A.R = reach(1, [1.4, shY - 3.2 - k, D + 4.2]); A.L = reach(-1, [-1.2, shY - 2.2 - k, D + 4.6]); P.fist = true; break; } // forearms up across the face
+      case 'dodge': A.R = fwdArm(1, 0.7, 0.4, 0.55); A.L = fwdArm(-1, 0.35, 0.5, 0.65); P.mouth = 1; break; // arms out for balance
       case 'hammer': { const k = [0, 1, 2, 1][f], sw = [2.75, 1.7, 0.75][k], bd = [0.75, 0.45, 0.15][k]; A.R = fwdArm(1, sw, bd, 0.12); P.toolDir = [0, -Math.sin(A.R.fa + 0.25), Math.cos(A.R.fa + 0.25)]; A.L = reach(-1, [-1.2, chest + 3, D + 3.2]); P.held = 'hammer'; break; }
       case 'chop': case 'hoe': case 'pitch': { // a two-handed swing, high to low
         const k = [0, 1, 2, 1][f], hy2 = [shY - 5, shY - 1, chest + 6][k], hz = [D + 1, D + 4, D + 6][k];
@@ -22243,7 +22247,8 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
 'use strict';
 (function () {
   const PS = O.PlayerState, G = O.Data.GOODS;
-  const WEAPONS = { fists: { dmg: 7, reach: 15, name: 'fists', blade: false, key: 'fists' }, dagger: { dmg: 13, reach: 17, name: 'dagger', blade: true, key: 'dagger' }, sword: { dmg: 19, reach: 20, name: 'sword', blade: true, key: 'sword' }, axe: { dmg: 21, reach: 18, name: 'axe', blade: true, key: 'axe' }, hammer: { dmg: 15, reach: 16, name: 'hammer', blade: false, key: 'hammer' }, spear: { dmg: 18, reach: 26, name: 'spear', blade: true, key: 'spear' } };
+  const WEAPONS = { fists: { dmg: 7, reach: 15, name: 'fists', blade: false, key: 'fists' }, dagger: { dmg: 13, reach: 17, name: 'dagger', blade: true, key: 'dagger' }, sword: { dmg: 19, reach: 20, name: 'sword', blade: true, key: 'sword' }, axe: { dmg: 21, reach: 18, name: 'axe', blade: true, key: 'axe' }, hammer: { dmg: 15, reach: 16, name: 'hammer', blade: false, key: 'hammer' }, spear: { dmg: 18, reach: 26, name: 'spear', blade: true, key: 'spear' }, staff: { dmg: 12, reach: 25, name: 'quarterstaff', blade: false, key: 'staff' } };
+  const SPEED = { fists: 0.34, dagger: 0.3, sword: 0.46, axe: 0.62, hammer: 0.55, spear: 0.5, staff: 0.42 }; // (seconds between blows)
 
   function setup(game, sim, npcUI) {
     const fights = new Map(); // person id -> { mode, cd, t }
@@ -22274,6 +22279,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
 
     // damage applies to the shared health model
     function hurt(q, dmg, byPlayer, blade, wkey) {
+      if (byPlayer && O.CombatDeep) { const r = O.CombatDeep.defend(q, dmg, wkey); if (r === 'blocked') return 'blocked'; dmg = r; }
       const h = q.health;
       const armour = q.app.outfit.armour === 'mail' ? 0.65 : 1;
       dmg = Math.round(dmg * armour * sim.rng.float(0.8, 1.2));
@@ -22313,14 +22319,14 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     const extraTargets = []; // functions returning [{ x, y, hit(dmg, blade, weapon) }]
     function attack() {
       if (swing > 0 || playerCd > 0 || O.panelOpen || game.player.locked) return;
-      syncLook(); swing = 0.36; swingHit = false; playerCd = 0.45; game.player.swinging = true;
+      syncLook(); const wk0 = weapon().key; if (O.CombatDeep && !O.CombatDeep.canSwing()) return; swing = 0.36; swingHit = false; playerCd = (SPEED[wk0] || 0.45) * (O.CombatDeep ? O.CombatDeep.tempo() : 1); game.player.swinging = true;
       game.player.anim = 'attack'; game.player.ft = 0;
     }
 
     game.keyHandlers.push((e) => {
       if (e.code === 'Space') { attack(); return true; }
       if (e.code === 'KeyR' && !O.panelOpen) { // cycle the weapon in hand
-        const opts = ['fists', ...['dagger', 'sword', 'axe'].filter((w) => PS.items.includes(w))];
+        const opts = ['fists', ...['dagger', 'sword', 'axe', 'staff', 'hammer', 'spear'].filter((w) => PS.items.includes(w))];
         PS.equipped = opts[(opts.indexOf(PS.equipped) + 1) % opts.length]; syncLook();
         // (no message: you can see what's in your hand)
         return true;
@@ -22340,7 +22346,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
           if (!q && !game.scene) { const d = O.Char.DIRV[game.player.dir] || [0, 1], hx = game.player.x + d[0] * w.reach * 0.7, hy = game.player.y - 2 + d[1] * w.reach * 0.6; let best = null, bd = w.reach + 6; for (const f of extraTargets) for (const t of f()) { const dd = Math.hypot(t.x - hx, t.y - hy); if (dd < bd) { bd = dd; best = t; } } if (best) { puff(best.x, best.y, w.blade); best.hit(w.dmg, w.blade, w.key); } }
           if (q) {
             const first = !fights.has(q.id);
-            const res = hurt(q, w.dmg, true, w.blade, w.key);
+            const res = hurt(q, w.dmg * (O.CombatDeep ? O.CombatDeep.power(w) : 1), true, w.blade, w.key);
             const guardHit = q.job?.role?.startsWith('guard');
             q._punched = (q._punched || 0) + 1;
             // a punch or two is a quarrel, not a crime: the victim and everyone watching think less of you.
@@ -22374,7 +22380,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
             f.cd = 0.9; a.anim = 'attack'; a.ft = 0; f.blows = (f.blows || 0) + 1;
             const armed = q.app.outfit.item && ['spear', 'sword', 'axe', 'hammer', 'pitchfork', 'dagger'].includes(q.app.outfit.item);
             const dmg = (armed ? 12 : 6) * (q.job?.role?.startsWith('guard') ? 1.2 : 1) * sim.rng.float(0.7, 1.2);
-            PS.hp -= dmg; fx.push({ x: game.player.x, y: game.player.y - 16, flash: true, t: 0, max: 0.12 });
+            { const got = O.CombatDeep ? O.CombatDeep.incoming(q, dmg, f) : dmg; if (got <= 0) continue; PS.hp -= got; } fx.push({ x: game.player.x, y: game.player.y - 16, flash: true, t: 0, max: 0.12 });
             { const wk = armed ? q.app.outfit.item : 'fists', kind = (O.Aftermath && O.Aftermath.WOUND[wk]) || 'bruise'; (PS.wounds = PS.wounds || []).push({ kind, sev: Math.min(1, dmg / 22), day: sim.day, part: sim.rng.pick(['face', 'torso', 'arm']), seed: sim.rng.int(1, 999) }); if (PS.wounds.length > 6) PS.wounds.shift(); const bl = O.Aftermath && O.Aftermath.BLOOD[kind]; if (bl && !game.scene) sim.bleed(game.player.x, game.player.y + 1, bl, dmg / 18); }
             for (let i = 0; i < 4; i++) fx.push({ x: game.player.x, y: game.player.y - 8, vx: (Math.random() - 0.5) * 40, vy: -Math.random() * 30, t: 0, max: 0.3, c: 'rgba(170,140,100,0.8)' });
             if (PS.hp <= 0) return knockedOut(q);
@@ -22451,7 +22457,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         if (!fights.get(q.id)?.looted) { crimeFor(q, 'robbery', 2); const f = fights.get(q.id); if (f) f.looted = true; }
         return `You search ${q.first} and take ₳${n}${item ? ' and a ' + G[item].name.toLowerCase() : ''}.`;
       },
-      fights,
+      fights, weapon: () => weapon(), hurt: (q, dmg, blade, wk) => hurt(q, dmg, false, blade, wk), SPEED,
     };
   }
   O.CombatSetup = { setup, WEAPONS };
@@ -28966,6 +28972,116 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
 
 </script>
 <script>
+// Fighting, with more to it.
+// - Hold Z to keep your guard up: blows that land on it do a fraction of the harm. Raise it just as the
+//   blow comes and you parry: they're thrown off balance and your next blow lands hard.
+// - Every weapon has its own pace: a dagger is quick, an axe slow and heavy, a quarterstaff long. Each
+//   swing tires you; worn out, you swing slower and weaker.
+// - You get better at it: your fighting skill grows with every exchange, in reach of a hit and in power.
+// - Those you fight defend themselves as their trade and temper allow: a guard or a gang's man blocks
+//   and sidesteps, a baker mostly doesn't.
+// - Armour you carry is armour you wear: a padded jack, a mail shirt, an iron helm each take some of
+//   the harm. Sold by the tailor and the armourer.
+// - A fight draws a crowd: they gather round, shout for one side or the other, and scatter if steel
+//   comes out. The watch come running to break up a brawl: stop when they say, or be taken.
+// - Badly hurt, you move slower until you've healed.
+'use strict';
+(function () {
+  const D = O.Data, G = D.GOODS;
+  // goods for the fight
+  G.staff = G.staff || { name: 'Quarterstaff', base: 4, unit: 'staff', slots: 2, weapon: true };
+  G.gambeson = G.gambeson || { name: 'Padded jack', base: 22, unit: 'jack', slots: 3, armour: 0.18 };
+  if (G.mail) G.mail.armour = 0.35; if (G.helm) G.helm.armour = 0.12;
+  { const add = (t, g, rate) => { const bz = D.BUSINESS[t]; if (!bz || bz.sells.includes(g)) return; bz.sells.push(g); bz.targets[g] = 2; bz.recipes.push({ out: { [g]: rate }, inp: {} }); }; add('tailor', 'gambeson', 0.02); add('carpenter', 'staff', 0.04); add('woodcutter', 'staff', 0.03); }
+
+  function setup(game) {
+    const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k || 'note');
+    const sk = () => (PS.skills.fighting || 0);
+    let guardUp = false, guardSince = 0, stamina = 100, riposte = 0;
+    window.addEventListener('keydown', (e) => { if (e.code === 'KeyZ' && !e.repeat && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') { guardUp = true; guardSince = performance.now(); } });
+    window.addEventListener('keyup', (e) => { if (e.code === 'KeyZ') guardUp = false; });
+    window.addEventListener('blur', () => { guardUp = false; });
+    // the guard pose, and stamina coming back
+    game.hooks.update.push((dt) => {
+      const P = game.player;
+      stamina = Math.min(100, stamina + dt * (guardUp ? 6 : 14));
+      riposte = Math.max(0, riposte - dt);
+      if (guardUp && !P.swinging && !P.locked) { P.anim = 'block'; P.ft = 0; P.guard = true; } else if (P.guard) { P.guard = false; if (P.anim === 'block') P.anim = 'idle'; }
+    });
+    // badly hurt, slower
+    { const _sp = game.speedFor; game.speedFor = function (run) { let v = _sp ? _sp.call(this, run) : run ? 110 : 62; if (!game.player.mount) { if (PS.hp < 35) v *= 0.75; else if (PS.hp < 55) v *= 0.9; if (guardUp) v *= 0.55; } return v; }; }
+
+    const armourOf = () => Math.min(0.6, ['gambeson', 'mail', 'helm'].reduce((a, k) => a + (PS.items.includes(k) ? G[k].armour || 0 : 0), 0));
+    const toughness = (q) => { const r = q.job?.role || ''; return /guard|sergeant|captain|soldier|knight|squire|bounty/.test(r) ? 0.45 : q.gang && q.gang !== 'player' ? 0.32 : q.traits.includes('brave') ? 0.2 : /smith|butcher|woodcutter|quarry|miner/.test(r) ? 0.15 : 0.06; };
+
+    O.CombatDeep = {
+      canSwing: () => !guardUp && stamina > 8,
+      tempo: () => (stamina < 30 ? 1.35 : 1) * (1 - sk() * 0.15),
+      power: (w) => { stamina = Math.max(0, stamina - ({ fists: 6, dagger: 6, sword: 10, axe: 15, hammer: 13, spear: 11, staff: 9 }[w.key] || 8)); PS.skills.fighting = Math.min(1, sk() + 0.006); const p = (1 + sk() * 0.5) * (stamina < 20 ? 0.75 : 1) * (riposte > 0 ? 1.6 : 1); riposte = 0; return p; },
+      // what they do with your blow
+      defend(q, dmg, wkey) {
+        const t = toughness(q), s = cur(); if (q.health.hp <= 0) return dmg;
+        const busy = q.agent && q.agent.hitT > 0; // (just struck: no time to raise a guard)
+        const r = Math.random();
+        if (!busy && r < t * 0.5 * (1 - sk() * 0.4)) { O.Speech && Math.random() < 0.4 && O.Speech.say(q, ['Ha!', 'Too slow.', 'Not like that.'][Math.floor(Math.random() * 3)], 1.4); O.sfx && O.sfx(wkey === 'fists' ? 'smack' : 'catch', 0.5); q.agent.anim = 'block'; q.agent.ft = 0; return 'blocked'; }
+        if (!busy && r < t) { q.agent.anim = 'dodge'; q.agent.ft = 0; return dmg * 0.4; }
+        void s; return dmg;
+      },
+      // what your guard does with theirs
+      incoming(q, dmg, f) {
+        dmg *= 1 - armourOf();
+        if (guardUp) {
+          const timing = performance.now() - guardSince;
+          if (timing < 260 && stamina > 10) { stamina -= 6; riposte = 1.2; if (f) f.cd = 1.6; q.agent.anim = 'hurt'; q.agent.ft = 0; O.sfx && O.sfx('catch', 0.8); PS.skills.fighting = Math.min(1, sk() + 0.01); O.Speech && Math.random() < 0.5 && O.Speech.say(q, 'Ugh!', 1); return 0; }
+          stamina = Math.max(0, stamina - 12); O.sfx && O.sfx('smack', 0.5);
+          return stamina > 0 ? dmg * (0.25 - sk() * 0.1) : dmg * 0.6;
+        }
+        return dmg;
+      },
+      stamina: () => stamina, guard: () => guardUp, armour: armourOf,
+    };
+
+    // ---------------------------------------------------------------- a fight draws a crowd
+    let ct = 0, ringers = new Set();
+    game.hooks.update.push((dt) => {
+      ct -= dt; if (ct > 0) return; ct = 1.2;
+      const s = cur(), F = O.Combat && O.Combat.fights; if (!s || game.scene || !F) return;
+      const P = game.player, active = [...F].filter(([, f]) => f.mode === 'fight');
+      if (!active.length) { for (const id of ringers) { const q = s.byId.get(id); if (q && q.agent) { q.agent.frozen = false; q._ringside = false; } } ringers.clear(); return; }
+      const steel = O.Combat.armed() || active.some(([id]) => { const q = s.byId.get(id); return q && ['sword', 'axe', 'dagger', 'spear'].includes(q.app.outfit.item); });
+      for (const q of s.people) {
+        if (!q.agent || q.agent.hidden || q.agent.inside != null || F.has(q.id) || q.age < 8 || /guard|sergeant|captain/.test(q.job?.role || '')) continue;
+        const d = Math.hypot(q.agent.x - P.x, q.agent.y - P.y); if (d > 220) continue;
+        if (steel && d < 120 && !q.traits.includes('brave')) { if (O.flee) O.flee(q, 5, () => [P.x, P.y]); continue; }
+        if (!ringers.has(q.id) && ringers.size < 8 && d > 30) { ringers.add(q.id); q._ringside = true; }
+        if (ringers.has(q.id)) {
+          const a = q.agent, ang = (q.id * 2.39996) % (Math.PI * 2), tx = P.x + Math.cos(ang) * 56, ty = P.y + Math.sin(ang) * 40;
+          if (Math.hypot(a.x - tx, a.y - ty) > 6 && !game.solidAt(tx, ty)) { a.x += (tx - a.x) * 0.5; a.y += (ty - a.y) * 0.5; }
+          a.frozen = true; a.dir = O.dirOf(P.x - a.x, P.y - a.y); a.anim = Math.random() < 0.3 ? 'celebrate' : 'idle';
+          if (Math.random() < 0.12 && O.Speech) { const foe = s.byId.get(active[0][0]); const fam = ((q.rel.get(0) || {}).affinity || 0) > ((foe && q.rel.get(foe.id)) || {}).affinity; O.Speech.say(q, steel ? ['Put it away!', 'Someone fetch the watch!', 'He has a blade!'][q.id % 3] : fam ? ['Go on, hit him!', 'Mind your left!', 'Have him!'][q.id % 3] : [`Come on, ${foe ? foe.first : 'lad'}!`, 'Fight! Fight!', 'Ooh, that hurt.'][q.id % 3], 1.8); }
+        }
+      }
+      // the watch break it up
+      const brawl = !steel && active.length;
+      const g = s.people.find((q) => /^guard|sergeant/.test(q.job?.role || '') && q.agent && !q.agent.hidden && q.agent.inside == null && Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < 300);
+      if (g && brawl) {
+        const L = (PS._breakUp = PS._breakUp || {});
+        if (!L.at || performance.now() - L.at > 20000) { L.at = performance.now(); L.warned = true; O.Speech && O.Speech.say(g, 'Break it up! Both of you, now!', 3, 'angry'); O.Errands && O.Errands.send(s, g, [Math.floor(P.x / 16), Math.floor(P.y / 16) + 1], { anim: 'point', secs: 2, giveUp: 30 }); say(`${g.first} of the watch is coming to break it up. Stop fighting.`, 'bad'); }
+        else if (performance.now() - L.at > 6000 && L.warned && O.Combat.fights.size) {
+          // still at it: the guard takes a hand
+          L.warned = false; for (const [id, f] of [...F]) { if (f.mode === 'fight') { F.delete(id); const q = s.byId.get(id); if (q && q.agent) { q.agent.chasing = false; q.agent.anim = 'idle'; } } }
+          if (Math.random() < 0.5 && O.Combat.provoke) O.Combat.provoke(g, 'fight'); else { O.Speech && O.Speech.say(g, "That's enough. Go home, the lot of you.", 3); }
+        }
+      }
+    });
+    // laying down: once the guard says so, you stop by not swinging; they leave you be after a while
+    O.CombatDeep.crowd = () => [...ringers];
+  }
+  O.CombatDeepSetup = { setup };
+})();
+
+</script>
+<script>
 // The street comes to you. A tax collector who's seen you sprints over and wants the town's dues (only
 // if you keep a house or hold a post here); a landlord wants the rent you owe; a beggar asks for a
 // penny; and in a crowd someone may lift your purse. When anyone runs at you, you start back.
@@ -34135,7 +34251,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.WorkSetup.setup(game, sim, npcUI);
   O.EmploymentSetup.setup(game, home, npcUI);
   O.LettersSetup.setup(game, home, npcUI);
-  O.FittingSetup.setup(game); O.DecorateSetup.setup(game); O.LifeWeightSetup.setup(game); O.TradeLifeSetup.setup(game); O.RiverWildSetup.setup(game); O.SpokenSetup.setup(game);
+  O.FittingSetup.setup(game); O.DecorateSetup.setup(game); O.LifeWeightSetup.setup(game); O.TradeLifeSetup.setup(game); O.RiverWildSetup.setup(game); O.SpokenSetup.setup(game); O.CombatDeepSetup.setup(game);
   O.StreetSetup.setup(game, home);
   O.GangLifeSetup.setup(game, npcUI);
   O.TownLifeSetup.setup(game, npcUI);

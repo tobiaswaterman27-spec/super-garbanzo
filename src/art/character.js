@@ -206,7 +206,7 @@
     crouch: { frames: 2, fps: 2 }, sweep: { frames: 4, fps: 5 }, sleep: { frames: 2, fps: 1 }, lie: { frames: 1, fps: 1 },
     drink: { frames: 4, fps: 2.5 }, read: { frames: 2, fps: 1 }, celebrate: { frames: 4, fps: 5 }, mourn: { frames: 2, fps: 1 },
     point: { frames: 2, fps: 2 }, dig: { frames: 4, fps: 4 }, cook: { frames: 4, fps: 4 },
-    attack: { frames: 4, fps: 12 }, open: { frames: 3, fps: 6 }, pickup: { frames: 2, fps: 3 }, hurt: { frames: 2, fps: 8 },
+    attack: { frames: 4, fps: 12 }, open: { frames: 3, fps: 6 }, pickup: { frames: 2, fps: 3 }, hurt: { frames: 2, fps: 8 }, block: { frames: 2, fps: 3 }, dodge: { frames: 2, fps: 6 },
     stretcher: { frames: 8, fps: 9 }, ride: { frames: 1, fps: 1 }, doze: { frames: 2, fps: 0.5 },
     // trades and everyday actions
     hammer: { frames: 4, fps: 6 }, chop: { frames: 4, fps: 4 }, saw: { frames: 4, fps: 5 }, knead: { frames: 4, fps: 4 }, cleave: { frames: 4, fps: 5 },
@@ -305,6 +305,8 @@
         L = { R: leg(1, 1.25, 2.3, 0.18), L: leg(-1, 0.9, 2.0, 0.18) }; P.lean = 2.2; P.headDown = 1; break;
       }
       case 'hurt': { L = { R: leg(1, -0.1, 0.25), L: leg(-1, 0.15, 0.3) }; P.lean = f ? -1.2 : -0.6; P.blink = true; P.mouth = 1; break; }
+      case 'block': L = { R: leg(1, 0.25, 0.45), L: leg(-1, -0.3, 0.3) }; P.lean = -0.4; P.headDown = 0.4; break; // feet set, weight back, chin down behind the arms
+      case 'dodge': L = { R: leg(1, -0.35, 0.35), L: leg(-1, 0.45, 0.5) }; P.lean = f ? -1.6 : -1.0; P.bob = 1; break; // a step back and aside
       case 'dig': L = { R: leg(1, 0.35, 0.5), L: leg(-1, -0.15, 0.2) }; P.lean = 1.5; break;
       case 'attack': L = { R: leg(1, f === 1 || f === 2 ? 0.35 : 0.1, 0.25), L: leg(-1, -0.25, 0.15) }; P.lean = f === 1 || f === 2 ? 1.4 : 0.2; break;
       case 'mourn': case 'read': P.headDown = 1; break;
@@ -421,6 +423,8 @@
       case 'cook': { const k = f % 4; A.R = reach(1, [1.2 + (k % 2), chest + 4 + (k > 1 ? 0.6 : 0), D + 4]); P.held = 'ladle'; P.toolDir = [0, 0.9, 0.3]; break; }
       case 'ride': A.R = reach(1, [1.8, hipY - 2.5, D + 5]); A.L = reach(-1, [-1.8, hipY - 2.5, D + 5]); break;
       case 'hurt': A.R = fwdArm(1, -0.3, 0.6, 0.25); A.L = fwdArm(-1, -0.3, 0.6, 0.25); break;
+      case 'block': { const k = f ? 0.4 : 0; A.R = reach(1, [1.4, shY - 3.2 - k, D + 4.2]); A.L = reach(-1, [-1.2, shY - 2.2 - k, D + 4.6]); P.fist = true; break; } // forearms up across the face
+      case 'dodge': A.R = fwdArm(1, 0.7, 0.4, 0.55); A.L = fwdArm(-1, 0.35, 0.5, 0.65); P.mouth = 1; break; // arms out for balance
       case 'hammer': { const k = [0, 1, 2, 1][f], sw = [2.75, 1.7, 0.75][k], bd = [0.75, 0.45, 0.15][k]; A.R = fwdArm(1, sw, bd, 0.12); P.toolDir = [0, -Math.sin(A.R.fa + 0.25), Math.cos(A.R.fa + 0.25)]; A.L = reach(-1, [-1.2, chest + 3, D + 3.2]); P.held = 'hammer'; break; }
       case 'chop': case 'hoe': case 'pitch': { // a two-handed swing, high to low
         const k = [0, 1, 2, 1][f], hy2 = [shY - 5, shY - 1, chest + 6][k], hz = [D + 1, D + 4, D + 6][k];

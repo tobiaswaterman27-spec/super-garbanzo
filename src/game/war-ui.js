@@ -77,7 +77,8 @@
         };
       });
     }
-    function campaign(side = 'crown') {
+    function campaign(side = 'crown') { if (O.marchEvents) return O.marchEvents(side, () => campaignBody(side)); return campaignBody(side); }
+    function campaignBody(side = 'crown') {
       const W = K.war, startDay = home.day, battles0 = W ? W.battles.length : 0;
       O.Panels.toast(side === 'rebel' ? 'You slip away north to the rebel camp…' : 'You march north with the levy…');
       for (let i = 0; i < 720 * 4; i++) { home.tick(2); PS.tick(2, i % 3 === 0); if (PS.hunger < 30) PS.hunger += 25; }

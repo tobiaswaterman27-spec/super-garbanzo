@@ -112,7 +112,7 @@
   O.WorkSetup.setup(game, sim, npcUI);
   O.EmploymentSetup.setup(game, home, npcUI);
   O.LettersSetup.setup(game, home, npcUI);
-  O.FittingSetup.setup(game); O.DecorateSetup.setup(game); O.LifeWeightSetup.setup(game); O.TradeLifeSetup.setup(game); O.RiverWildSetup.setup(game); O.SpokenSetup.setup(game); O.CombatDeepSetup.setup(game); O.GangStreetSetup.setup(game); O.HomeFrontSetup.setup(game); O.ScenesSetup.setup(game); O.IndoorLifeSetup.setup(game); O.ApproachesSetup.setup(game); O.LivelinessSetup.setup(game); O.StreetFightSetup.setup(game); O.Pastimes2Setup.setup(game);
+  O.FittingSetup.setup(game); O.DecorateSetup.setup(game); O.LifeWeightSetup.setup(game); O.TradeLifeSetup.setup(game); O.RiverWildSetup.setup(game); O.SpokenSetup.setup(game); O.CombatDeepSetup.setup(game); O.GangStreetSetup.setup(game); O.HomeFrontSetup.setup(game); O.ScenesSetup.setup(game); O.IndoorLifeSetup.setup(game); O.ApproachesSetup.setup(game); O.LivelinessSetup.setup(game); O.StreetFightSetup.setup(game); O.Pastimes2Setup.setup(game); O.AnimalCareSetup.setup(game);
   O.StreetSetup.setup(game, home);
   O.GangLifeSetup.setup(game, npcUI);
   O.TownLifeSetup.setup(game, npcUI);

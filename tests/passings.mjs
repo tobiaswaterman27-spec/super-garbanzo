@@ -1,0 +1,16 @@
+import { start } from './lib.mjs';
+const { p, done } = await start();
+await p.evaluate(() => { const s = O.SimRef.cur; while (Math.floor(s.minute / 60) !== 8) s.tick(2); O.game.clock.minute = s.minute; window._said = []; const o = O.Speech.say; O.Speech.say = (w, t, ...a) => { _said.push((w.first || '?') + ': ' + t); return o(w, t, ...a); }; window._kinds = {}; const g = O.gesture; O.gesture = (q, k, ...r) => { _kinds[k] = (_kinds[k] || 0) + 1; return g(q, k, ...r); }; });
+// forced meetings of each kind
+const r = await p.evaluate(() => { const s = O.SimRef.cur, out = []; const ad = s.people.filter((q) => q.age >= 18 && q.agent && q.alive !== false);
+  const [a, b] = ad; a.rel.set(b.id, { affinity: 0.6, familiar: 0.8 }); b.rel.set(a.id, { affinity: 0.6, familiar: 0.8 }); out.push('friends ' + O.Passings.meet(a, b));
+  const [c, d] = ad.slice(2); c.rel.set(d.id, { affinity: -0.8, familiar: 0.8 }); d.rel.set(c.id, { affinity: -0.8, familiar: 0.8 }); out.push('enemies ' + O.Passings.meet(c, d));
+  const pr = s.people.find((q) => /priest/.test(q.job?.role || '')); if (pr) out.push('priest ' + O.Passings.meet(ad[5], pr));
+  return out.join(', ') + ' | stops ' + O.Passings.stops.length; });
+console.log(r);
+await p.waitForTimeout(5000);
+console.log('stops after', await p.evaluate(() => O.Passings.stops.length + ' held ' + O.SimRef.cur.people.filter((q) => q._pass).length));
+await p.waitForTimeout(40000);
+console.log('natural:', await p.evaluate(() => JSON.stringify(_kinds)), '|', (await p.evaluate(() => _said.slice(-6).join(' / '))).slice(0, 300));
+console.log('held now', await p.evaluate(() => O.SimRef.cur.people.filter((q) => q._pass).length + ' frozen-stray ' + O.SimRef.cur.people.filter((q) => q.agent && q.agent.frozen && !q._pass && !q._bit && !q._playing && !q._scene && !q._fighting && !q._cp && !q._war && !q._mark && !q._front && !q._shake && O.npcUI.talking() !== q).length));
+await done();

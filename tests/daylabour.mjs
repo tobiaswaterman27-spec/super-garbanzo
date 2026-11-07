@@ -1,0 +1,13 @@
+import { start } from './lib.mjs';
+const { p, done } = await start();
+await p.evaluate(() => { const s = O.SimRef.cur; let g = 0; while (!(s.weekday !== 6 && s.minute >= 7 * 60 && s.minute < 7.3 * 60) && g++ < 5000) s.tick(2); O.game.clock.minute = s.minute; });
+await p.waitForTimeout(3000);
+console.log('waiting at dawn:', await p.evaluate(() => O.SimRef.cur.people.filter((p) => p.activity && p.activity.labour && p.activity.act === 'wait-work').length));
+await p.evaluate(() => { const s = O.SimRef.cur; while (s.minute < 9 * 60) s.tick(2); O.game.clock.minute = s.minute; });
+await p.waitForTimeout(2000);
+console.log('at work by nine:', await p.evaluate(() => { const c = {}; for (const p of O.SimRef.cur.people) if (p.activity && p.activity.labour) c[p.activity.act] = (c[p.activity.act] || 0) + 1; return JSON.stringify(c); }));
+const m0 = await p.evaluate(() => O.SimRef.cur.people.filter((p) => p.activity && p.activity.labour).reduce((a, p) => a + (O.SimRef.cur.household(p)?.money || 0), 0));
+await p.evaluate(() => { const s = O.SimRef.cur; while (s.minute < 16.2 * 60) s.tick(1); O.game.clock.minute = s.minute; });
+await p.waitForTimeout(1500);
+console.log('beggars now', await p.evaluate(() => O.SimRef.cur.people.filter((p) => p.activity && p.activity.act === 'beg').length));
+await done();

@@ -241,6 +241,7 @@
         if (q.agent.approach && !inBed) { const pl = this.game.player; const a0 = this.actors.get(q.id); if (q.agent.approachSide == null) q.agent.approachSide = a0 && a0.x < pl.x ? -18 : 18; const side = q.agent.approachSide; /* (chosen once: no circling round you) */ x = pl.x + side; y = pl.y + 2; seat = null; spot = null; sortY = null; anim = 'talk'; dir = side < 0 ? 1 : 2; }
         else if (q.agent.frozen) { anim = anim === 'sit' ? 'sit' : 'talk'; dir = a.dir ?? dir; if (a.x != null && !inBed) { x = a.x; y = a.y; } } // talking to you: they stay where they are
         a.leaving = false;
+        if (anim === 'idle' && !q.agent.frozen && !inBed && !seat && (act === 'work' || act === 'home' || act === 'rest')) { const k = (Math.floor(this.t / 3.5) + q.id * 3) % 10; anim = act === 'work' ? ['idle', 'count', 'wipe', 'idle', 'look', 'place', 'idle', 'scratch', 'count', 'yawn'][k] : q.age < 12 ? ['idle', 'celebrate', 'look', 'idle', 'scratch', 'idle', 'wave', 'idle', 'yawn', 'idle'][k] : ['idle', 'sweep', 'wipe', 'idle', 'look', 'stretch', 'idle', 'mix', 'yawn', 'idle'][k]; } // (nobody stands like a post: the hands find something to do)
         Object.assign(a, { gx: x, gy: y, gSortY: sortY, gDir: q.agent.frozen ? a.dir : dir, gAnim: anim, a: q.app, gBed: inBed ? spot : null, seat: seat && !seat.pewSeat ? seat : seat?.pewSeat ? seat.it : null });
         if (a.x == null) { a.x = x; a.y = y; }
         seen.add(q.id);

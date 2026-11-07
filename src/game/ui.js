@@ -141,10 +141,13 @@
     O.paused = () => !menu.hidden || (!!O.panelOpen && /^(Guide|How folk see you)$/.test((document.querySelector('.ledger-in h2') || {}).textContent || ''));
     function openMenu() {
       const snd = O.Sound && O.Sound.on;
+      const home = O.SimRef.home, inGang = !!((home && home.playerGang && home.playerGang()) || Object.keys(PS.gangRanks || {}).length);
+      const voice = O.AI && O.AI.kind === 'claude' ? 'Claude' : O.AI && O.AI.kind === 'openai' ? 'OpenAI' : 'off';
+      const tiles = [['satchel', 'Satchel', 'I'], ['tasks', 'Undertakings', 'J'], ['biz', 'Work', 'B'], ['hold', 'Holdings', 'P'], ...(inGang ? [['gang', 'Gang', 'G']] : []), ['map', 'Map', 'M'], ['ledger', 'Ledger', 'L'], ['chron', 'Chronicle', 'C'], ['guide', 'Guide', '/']];
       menu.innerHTML = `<div class="ui-menu-in"><h2>Outlaw</h2>
-        <button data-m="resume" class="hot">Continue</button>
-        <button data-m="voices">Voices: ${O.AI && O.AI.kind === 'openai' ? 'your OpenAI key' : O.AI && O.AI.kind === 'claude' ? 'Claude' : 'none'}${O.AI && O.AI.lastError ? ({ not_granted: ' (not allowed: see Permissions)', sampling_disabled: ' (not available)', rate_limited: ' (busy, wait a little)', session_expired: ' (sign in again)' })[O.AI.lastError] || ' (not answering)' : ''}</button>
-        ${[['Yourself', [['satchel', 'Satchel and skills', 'I'], ['tasks', "Undertakings and what's on", 'J'], ['biz', 'Business: work, the Crown, war', 'B'], ['hold', 'Holdings: houses and land', 'P'], ['gang', 'Your gang', 'G']]], ['The world', [['map', 'Map of Eldoria', 'M'], ['ledger', 'Town ledger', 'L'], ['chron', 'Chronicle', 'C']]], ['The game', [['guide', 'Guide', '/'], ['settings', 'Settings and saves', ''], ['save', 'Save now', '']]]].map(([h, items]) => `<h4>${h}</h4>${items.map(([k, l, key]) => `<button data-m="${k}">${l}${key ? ` <span class="lbl">${key}</span>` : ''}</button>`).join('')}`).join('')}</div>`;
+        <button data-m="resume" class="hot big">Continue</button>
+        <div class="mgrid">${tiles.map(([k, l, key]) => `<button data-m="${k}">${l}<span class="lbl">${key}</span></button>`).join('')}</div>
+        <div class="mfoot"><button data-m="save">Save</button><button data-m="settings">Settings</button><button data-m="voices">Voices: ${voice}${O.AI && O.AI.lastError ? ' !' : ''}</button></div></div>`;
       menu.hidden = false; O.menuOpen = true; game.player.locked = true;
       menu.querySelectorAll('[data-m]').forEach((b) => b.onclick = () => act(b.dataset.m));
       menu.querySelector('button').focus();
@@ -191,24 +194,24 @@
     }
     function settings() {
       const snd = O.Sound && O.Sound.on, last = O.Save.peek();
-      const row = (k, l, note) => `<button data-s="${k}">${l}</button>${note ? `<span class="lbl">${note}</span>` : ''}`;
+      const row = (k, l, note) => `<button data-s="${k}"><b>${l}</b>${note ? `<small>${note}</small>` : ''}</button>`;
       O.Panels.open('Settings & saves', `<div class="settings">
         <h4>Saves</h4>
-        ${row('save', 'Save now', last ? `last saved on day ${last.sim?.day ?? last.day ?? '?'}` : 'no save yet')}
-        ${row('load', 'Load the last save', 'go back to where you last saved')}
-        ${row('restart', 'Restart this life', 'same character, the world made fresh')}
-        ${row('new', 'Begin a new life', 'a new character and a new world')}
+        ${row('save', 'Save now', last ? `last saved on day ${last.sim?.day ?? last.day ?? '?'}` : 'not saved yet')}
+        ${row('load', 'Load last save')}
+        ${row('restart', 'Restart this life', 'same you, a fresh world')}
+        ${row('new', 'New life', 'new character, new world')}
         <h4>Game</h4>
         ${row('sound', `Sound: ${snd ? 'on' : 'off'}`)}
-        ${row('music', `Music: ${O.Music ? ['off', 'quiet', 'normal', 'loud'][O.Music.level] : 'off'}`, 'the tunes of the land, the tavern, the chapel and the songs people sing')}
-        ${row('speed', `Time: ${game.clock.speed >= 2 ? 'fast' : 'normal'}`, 'how fast the days go by')}
-        ${row('guides', `Showing the way: ${PS.guides === 'off' ? 'off' : PS.guides === 'marks' ? 'markers only' : 'pointers and markers'}`, 'the gold pointers that lead you, and the markers over where to go')}
-        <h4>Testing</h4>
-        ${row('pardon', 'Clear my wanted level', 'every crime forgiven, no bounty, no chase')}
-        ${row('reset', 'Reset me', 'purse, satchel, health, wounds, standing and wanted level back to a fresh arrival')}
-        ${row('post', 'Take up any post', 'try any job in the realm, even ones nobody would give you (king, lord, gaoler...)')}
-        ${row('tele', 'Teleport', 'go straight to any city, town, village, hamlet, castle or mine (for testing)')}
-      </div>`, (r) => {
+        ${row('music', `Music: ${O.Music ? ['off', 'quiet', 'normal', 'loud'][O.Music.level] : 'off'}`, '')}
+        ${row('speed', `Time: ${game.clock.speed >= 2 ? 'fast' : 'normal'}`, '')}
+        ${row('guides', `Showing the way: ${PS.guides === 'off' ? 'off' : PS.guides === 'marks' ? 'markers only' : 'pointers and markers'}`, '')}
+        </div><details class="settings-test"><summary>Testing</summary><div class="settings">
+        ${row('pardon', 'Clear my wanted level')}
+        ${row('reset', 'Reset me', 'back to a fresh arrival')}
+        ${row('post', 'Take up any post')}
+        ${row('tele', 'Teleport')}
+      </div></details>`, (r) => {
         r.querySelectorAll('[data-s]').forEach((b) => b.onclick = () => {
           const k = b.dataset.s;
           if (k === 'save') { O.Save.save(game, O.SimRef.home); settings(); }

@@ -60,6 +60,7 @@
     root.innerHTML = `<div class="ledger-in narrow"><header><h2>${esc(title)}</h2><div style="flex:1"></div><span class="purse">${money(PS.money)}</span><button class="x" aria-label="Close">✕</button></header><div class="ledger-body">${body}</div></div>`;
     root.querySelector('.x').onclick = close;
     onBind && onBind(root);
+    const lb = root.querySelector('.ledger-body'); if (lb && lb.innerText.trim().length < 3 && !lb.querySelector('img,canvas,input,select,button')) lb.innerHTML = '<p class="caption">Nothing here yet.</p>'; // (never an empty page)
   }
   const slotHTML = (k, btns = '') => `<div class="slot"><img src="${icon(k)}" alt=""><span>${esc(G[k]?.name || k)}</span>${btns}</div>`;
 
@@ -85,6 +86,7 @@
     const acts = sel ? actionsFor(sel, PS.items.indexOf(sel)) : [];
     open('Satchel', `<div class="needs"><span>Health ${bar(PS.hp, 'hp')}</span><span>Fed ${bar(PS.hunger, 'fed')}</span><span>Rested ${bar(PS.energy, 'rest')}</span><span class="slotsct">${used} / ${PS.SLOTS}</span></div>
       <div class="tiles">${st.map((e) => tile(e.k, e.n, `data-sel="${e.k}"`, e.k === sel)).join('')}${'<span class="tile empty"></span>'.repeat(Math.max(0, PS.SLOTS - used))}</div>
+      ${!PS.items.length ? '<p class="caption">Your satchel is empty. Things you buy, find, make or are given go here; tap one for what you can do with it.</p>' : !sel ? '<p class="caption">Tap a thing to use it.</p>' : ''}
       ${sel ? `<div class="tile-acts"><b>${esc(G[sel]?.name || sel)}</b>${acts.map(([a, l]) => `<button data-a="${a}">${l}</button>`).join('')}</div>` : ''}
       <details class="more"><summary>Standing and skills</summary><div class="reps">${Object.entries(PS.rep).map(([k, v]) => `<div><span>${k === 'local' ? 'here' : k}</span><b class="${v < -0.2 ? 'warn' : ''}">${v > 0.6 ? 'admired' : v > 0.2 ? 'liked' : v > -0.2 ? 'unknown' : v > -0.6 ? 'distrusted' : 'hated'}</b></div>`).join('')}${O.Work ? Object.entries(PS.skills || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div><span>${esc(O.Work.SKILL_LABEL[k] || k)}</span><b>${O.Work.rank(v)} ${Math.round(v * 100)}</b></div>`).join('') : ''}</div></details>`, (r) => {
       r.querySelectorAll('[data-sel]').forEach((b) => b.onclick = () => { invSel = invSel === b.dataset.sel ? null : b.dataset.sel; inventory(); });

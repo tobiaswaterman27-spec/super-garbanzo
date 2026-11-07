@@ -57,6 +57,7 @@
     O.Panels.open('The Chronicle', body, (r) => {
       r.querySelectorAll('[data-tab]').forEach((b) => b.onclick = () => { tab = b.dataset.tab; open(); });
       r.querySelectorAll('[data-cat]').forEach((b) => b.onclick = () => { cat = b.dataset.cat; open(); });
+      const cs = r.querySelector('[data-catsel]'); if (cs) cs.onchange = () => { cat = cs.value; open(); };
       const mn = r.querySelector('[data-minor]'); if (mn) mn.onclick = () => { minor = !minor; open(); };
       const hr = r.querySelector('[data-here]'); if (hr) hr.onclick = () => { here = !here; open(); };
     });
@@ -64,9 +65,8 @@
   function timeline(s, Ch) {
     const placeId = s.world.placeId || 'ashford';
     const list = Ch.facts.filter((f) => (minor || f.imp >= 2) && (cat === 'all' || f.cat === cat || (cat === 'player' && f.byPlayer)) && (!here || f.place === placeId)).slice().reverse();
-    const chips = `<div class="topics" style="margin-bottom:8px">${[['all', 'All'], ...Object.entries(Ch.CATS)].map(([k, l]) => `<button data-cat="${k}" class="${cat === k ? 'hot' : ''}">${l}</button>`).join('')}</div>
-      <div class="topics" style="margin-bottom:10px"><button data-minor="1" class="${minor ? 'hot' : ''}">${minor ? 'Showing small matters' : 'Show small matters'}</button><button data-here="1" class="${here ? 'hot' : ''}">${here ? `Only ${esc(s.world.name)}` : 'Everywhere'}</button></div>`;
-    if (!list.length) return chips + '';
+    const chips = `<div class="chron-bar"><select data-catsel>${[['all', 'Everything'], ...Object.entries(Ch.CATS)].map(([k, l]) => `<option value="${k}"${cat === k ? ' selected' : ''}>${l}</option>`).join('')}</select><button data-minor="1" class="${minor ? 'hot' : ''}">${minor ? 'All matters' : 'Big matters'}</button><button data-here="1" class="${here ? 'hot' : ''}">${here ? esc(s.world.name) : 'Everywhere'}</button></div>`;
+    if (!list.length) return chips + `<p class="caption">Nothing written down yet${cat !== 'all' ? ' of that kind' : ''}${here ? ' here' : ''}. The chronicle fills as the days go by.</p>`;
     let out = '', season = '';
     for (const f of list.slice(0, 160)) {
       const lab = Ch.dateLabel(f.day), sea = lab.replace(/ \d+$/, '');
@@ -76,7 +76,7 @@
     return chips + `<ol class="chron">${out}</ol>`;
   }
   function hearsay(Ch) {
-    if (!Ch.heard.length) return '';
+    if (!Ch.heard.length) return '<p class="caption">You have heard nothing worth repeating yet. Talk to people, and listen in the tavern.</p>';
     const rows = Ch.heard.slice().reverse().map((h) => {
       const f = Ch.byId(h.f);
       const differs = f && h.text.replace(/[^a-z0-9]/gi, '').toLowerCase() !== f.text.replace(/[^a-z0-9]/gi, '').toLowerCase();
@@ -86,7 +86,7 @@
   }
   function mine(Ch) {
     const list = Ch.facts.filter((f) => f.byPlayer).slice().reverse();
-    if (!list.length) return '';
+    if (!list.length) return '<p class="caption">Nothing of yours in the chronicle yet. Make your name, for good or ill.</p>';
     return `<ol class="chron">${list.map((f) => `<li><span class="lbl">${esc(Ch.dateLabel(f.day))} · ${esc(f.placeName)} · ${f.secret ? 'known only to you' : 'known'}</span> ${esc(f.mine || f.text)}</li>`).join('')}</ol>`;
   }
   function notables(s, Ch) {

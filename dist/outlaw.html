@@ -162,6 +162,13 @@ details.more { margin-top: 14px; } details.more summary { cursor: pointer; color
 .ui-menu-in button { display: flex; justify-content: space-between; gap: 18px; padding: 6px 16px; }
 .ui-menu-in button .lbl { font-family: var(--pix); font-size: 11px; color: #9a7a52; }
 .ui-menu-in { max-height: 92vh; overflow: auto; }
+.ui-menu-in { width: min(420px, calc(100vw - 32px)); gap: 10px; }
+.ui-menu-in .big { justify-content: center; font-size: 18px; padding: 10px; background: #f3e2b8; }
+.ui-menu-in .mgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.ui-menu-in .mgrid button { border: 2px solid #ead7a8; padding: 9px 12px; }
+.ui-menu-in .mfoot { display: flex; gap: 4px; justify-content: center; border-top: 2px solid #ead7a8; padding-top: 8px; }
+.ui-menu-in .mfoot button { font-size: 13px; padding: 5px 10px; color: #8a6a48; }
+@media (max-width: 420px) { .ui-menu-in .mgrid { grid-template-columns: 1fr; } }
 .topics.tabs button.hot { background: #b0602a; color: #fff6e0; }
 @media (max-width: 600px) { .dlg { font-size: 16px; padding: 22px 20px 18px; } .dlg-opts { right: 16px; bottom: 150px; } .ui-clock b { font-size: 24px; } }
 .hud-prompt { bottom: 52px; left: 50%; transform: translateX(-50%); white-space: nowrap; }
@@ -184,7 +191,12 @@ details.more { margin-top: 14px; } details.more summary { cursor: pointer; color
 .mapwrap canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; }
 .settings { display: grid; grid-template-columns: max-content 1fr; gap: 6px 12px; align-items: center; }
 .settings h4 { grid-column: 1 / -1; margin: 10px 0 0; font-family: var(--pix); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; opacity: .8; }
-.settings button { min-width: 200px; text-align: left; }
+.settings { grid-template-columns: 1fr 1fr; }
+.settings button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; width: 100%; padding: 8px 10px; }
+.settings button small { font-size: 11px; opacity: .7; font-weight: 400; }
+.chron-bar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; } .chron-bar select { font: inherit; padding: 4px 6px; background: var(--panel); color: inherit; border: 2px solid var(--line); }
+.settings-test { margin-top: 10px; } .settings-test summary { cursor: pointer; font-family: var(--pix); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: .7; }
+@media (max-width: 480px) { .settings { grid-template-columns: 1fr; } }
 .maplabel { position: absolute; transform: translate(-50%, 0); font-family: var(--pix); font-size: 9px; letter-spacing: .5px; color: #1b1424; background: rgba(232,220,192,.85); padding: 0 3px; white-space: nowrap; pointer-events: none; }
 .maplabel.here { background: var(--ember-2); }
 .maplabel.lead { background: #f0b45c; color: #1b1424; font-weight: 700; z-index: 2; box-shadow: 0 0 0 1px #1b1424; }
@@ -238,7 +250,7 @@ img.ic { width: 21px; height: 21px; vertical-align: middle; }
 .topics { display: flex; flex-wrap: wrap; gap: 6px; }
 .topics button { background: var(--ink-2); border: 2px solid var(--line); padding: 4px 8px; cursor: pointer; font-family: var(--pix); font-size: 10px; letter-spacing: .8px; }
 .topics button:hover { border-color: var(--ember-2); color: var(--ember-2); }
-.ledger { position: absolute; inset: 0; background: rgba(10,8,14,.72); display: grid; place-items: center; padding: 16px; }
+.ledger { position: absolute; inset: 0; z-index: 30; background: rgba(10,8,14,.72); display: grid; place-items: center; padding: 16px; }
 .ledger-in { background: var(--panel); border: 2px solid #000; box-shadow: inset 0 0 0 2px var(--line); width: min(1000px, 100%); max-height: 100%; display: flex; flex-direction: column; min-height: 0; }
 .ledger-in header { display: flex; gap: 12px; align-items: center; padding: 10px 14px; border-bottom: 2px solid var(--line); flex-wrap: wrap; }
 .ledger-in h2 { font-family: var(--display); font-weight: 400; font-size: 26px; margin: 0; color: var(--ember-2); }
@@ -12921,6 +12933,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     root.innerHTML = `<div class="ledger-in narrow"><header><h2>${esc(title)}</h2><div style="flex:1"></div><span class="purse">${money(PS.money)}</span><button class="x" aria-label="Close">✕</button></header><div class="ledger-body">${body}</div></div>`;
     root.querySelector('.x').onclick = close;
     onBind && onBind(root);
+    const lb = root.querySelector('.ledger-body'); if (lb && lb.innerText.trim().length < 3 && !lb.querySelector('img,canvas,input,select,button')) lb.innerHTML = '<p class="caption">Nothing here yet.</p>'; // (never an empty page)
   }
   const slotHTML = (k, btns = '') => `<div class="slot"><img src="${icon(k)}" alt=""><span>${esc(G[k]?.name || k)}</span>${btns}</div>`;
 
@@ -12946,6 +12959,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
     const acts = sel ? actionsFor(sel, PS.items.indexOf(sel)) : [];
     open('Satchel', `<div class="needs"><span>Health ${bar(PS.hp, 'hp')}</span><span>Fed ${bar(PS.hunger, 'fed')}</span><span>Rested ${bar(PS.energy, 'rest')}</span><span class="slotsct">${used} / ${PS.SLOTS}</span></div>
       <div class="tiles">${st.map((e) => tile(e.k, e.n, `data-sel="${e.k}"`, e.k === sel)).join('')}${'<span class="tile empty"></span>'.repeat(Math.max(0, PS.SLOTS - used))}</div>
+      ${!PS.items.length ? '<p class="caption">Your satchel is empty. Things you buy, find, make or are given go here; tap one for what you can do with it.</p>' : !sel ? '<p class="caption">Tap a thing to use it.</p>' : ''}
       ${sel ? `<div class="tile-acts"><b>${esc(G[sel]?.name || sel)}</b>${acts.map(([a, l]) => `<button data-a="${a}">${l}</button>`).join('')}</div>` : ''}
       <details class="more"><summary>Standing and skills</summary><div class="reps">${Object.entries(PS.rep).map(([k, v]) => `<div><span>${k === 'local' ? 'here' : k}</span><b class="${v < -0.2 ? 'warn' : ''}">${v > 0.6 ? 'admired' : v > 0.2 ? 'liked' : v > -0.2 ? 'unknown' : v > -0.6 ? 'distrusted' : 'hated'}</b></div>`).join('')}${O.Work ? Object.entries(PS.skills || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div><span>${esc(O.Work.SKILL_LABEL[k] || k)}</span><b>${O.Work.rank(v)} ${Math.round(v * 100)}</b></div>`).join('') : ''}</div></details>`, (r) => {
       r.querySelectorAll('[data-sel]').forEach((b) => b.onclick = () => { invSel = invSel === b.dataset.sel ? null : b.dataset.sel; inventory(); });
@@ -23731,6 +23745,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     O.Panels.open('The Chronicle', body, (r) => {
       r.querySelectorAll('[data-tab]').forEach((b) => b.onclick = () => { tab = b.dataset.tab; open(); });
       r.querySelectorAll('[data-cat]').forEach((b) => b.onclick = () => { cat = b.dataset.cat; open(); });
+      const cs = r.querySelector('[data-catsel]'); if (cs) cs.onchange = () => { cat = cs.value; open(); };
       const mn = r.querySelector('[data-minor]'); if (mn) mn.onclick = () => { minor = !minor; open(); };
       const hr = r.querySelector('[data-here]'); if (hr) hr.onclick = () => { here = !here; open(); };
     });
@@ -23738,9 +23753,8 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
   function timeline(s, Ch) {
     const placeId = s.world.placeId || 'ashford';
     const list = Ch.facts.filter((f) => (minor || f.imp >= 2) && (cat === 'all' || f.cat === cat || (cat === 'player' && f.byPlayer)) && (!here || f.place === placeId)).slice().reverse();
-    const chips = `<div class="topics" style="margin-bottom:8px">${[['all', 'All'], ...Object.entries(Ch.CATS)].map(([k, l]) => `<button data-cat="${k}" class="${cat === k ? 'hot' : ''}">${l}</button>`).join('')}</div>
-      <div class="topics" style="margin-bottom:10px"><button data-minor="1" class="${minor ? 'hot' : ''}">${minor ? 'Showing small matters' : 'Show small matters'}</button><button data-here="1" class="${here ? 'hot' : ''}">${here ? `Only ${esc(s.world.name)}` : 'Everywhere'}</button></div>`;
-    if (!list.length) return chips + '';
+    const chips = `<div class="chron-bar"><select data-catsel>${[['all', 'Everything'], ...Object.entries(Ch.CATS)].map(([k, l]) => `<option value="${k}"${cat === k ? ' selected' : ''}>${l}</option>`).join('')}</select><button data-minor="1" class="${minor ? 'hot' : ''}">${minor ? 'All matters' : 'Big matters'}</button><button data-here="1" class="${here ? 'hot' : ''}">${here ? esc(s.world.name) : 'Everywhere'}</button></div>`;
+    if (!list.length) return chips + `<p class="caption">Nothing written down yet${cat !== 'all' ? ' of that kind' : ''}${here ? ' here' : ''}. The chronicle fills as the days go by.</p>`;
     let out = '', season = '';
     for (const f of list.slice(0, 160)) {
       const lab = Ch.dateLabel(f.day), sea = lab.replace(/ \d+$/, '');
@@ -23750,7 +23764,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     return chips + `<ol class="chron">${out}</ol>`;
   }
   function hearsay(Ch) {
-    if (!Ch.heard.length) return '';
+    if (!Ch.heard.length) return '<p class="caption">You have heard nothing worth repeating yet. Talk to people, and listen in the tavern.</p>';
     const rows = Ch.heard.slice().reverse().map((h) => {
       const f = Ch.byId(h.f);
       const differs = f && h.text.replace(/[^a-z0-9]/gi, '').toLowerCase() !== f.text.replace(/[^a-z0-9]/gi, '').toLowerCase();
@@ -23760,7 +23774,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
   }
   function mine(Ch) {
     const list = Ch.facts.filter((f) => f.byPlayer).slice().reverse();
-    if (!list.length) return '';
+    if (!list.length) return '<p class="caption">Nothing of yours in the chronicle yet. Make your name, for good or ill.</p>';
     return `<ol class="chron">${list.map((f) => `<li><span class="lbl">${esc(Ch.dateLabel(f.day))} · ${esc(f.placeName)} · ${f.secret ? 'known only to you' : 'known'}</span> ${esc(f.mine || f.text)}</li>`).join('')}</ol>`;
   }
   function notables(s, Ch) {
@@ -24584,10 +24598,13 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     O.paused = () => !menu.hidden || (!!O.panelOpen && /^(Guide|How folk see you)$/.test((document.querySelector('.ledger-in h2') || {}).textContent || ''));
     function openMenu() {
       const snd = O.Sound && O.Sound.on;
+      const home = O.SimRef.home, inGang = !!((home && home.playerGang && home.playerGang()) || Object.keys(PS.gangRanks || {}).length);
+      const voice = O.AI && O.AI.kind === 'claude' ? 'Claude' : O.AI && O.AI.kind === 'openai' ? 'OpenAI' : 'off';
+      const tiles = [['satchel', 'Satchel', 'I'], ['tasks', 'Undertakings', 'J'], ['biz', 'Work', 'B'], ['hold', 'Holdings', 'P'], ...(inGang ? [['gang', 'Gang', 'G']] : []), ['map', 'Map', 'M'], ['ledger', 'Ledger', 'L'], ['chron', 'Chronicle', 'C'], ['guide', 'Guide', '/']];
       menu.innerHTML = `<div class="ui-menu-in"><h2>Outlaw</h2>
-        <button data-m="resume" class="hot">Continue</button>
-        <button data-m="voices">Voices: ${O.AI && O.AI.kind === 'openai' ? 'your OpenAI key' : O.AI && O.AI.kind === 'claude' ? 'Claude' : 'none'}${O.AI && O.AI.lastError ? ({ not_granted: ' (not allowed: see Permissions)', sampling_disabled: ' (not available)', rate_limited: ' (busy, wait a little)', session_expired: ' (sign in again)' })[O.AI.lastError] || ' (not answering)' : ''}</button>
-        ${[['Yourself', [['satchel', 'Satchel and skills', 'I'], ['tasks', "Undertakings and what's on", 'J'], ['biz', 'Business: work, the Crown, war', 'B'], ['hold', 'Holdings: houses and land', 'P'], ['gang', 'Your gang', 'G']]], ['The world', [['map', 'Map of Eldoria', 'M'], ['ledger', 'Town ledger', 'L'], ['chron', 'Chronicle', 'C']]], ['The game', [['guide', 'Guide', '/'], ['settings', 'Settings and saves', ''], ['save', 'Save now', '']]]].map(([h, items]) => `<h4>${h}</h4>${items.map(([k, l, key]) => `<button data-m="${k}">${l}${key ? ` <span class="lbl">${key}</span>` : ''}</button>`).join('')}`).join('')}</div>`;
+        <button data-m="resume" class="hot big">Continue</button>
+        <div class="mgrid">${tiles.map(([k, l, key]) => `<button data-m="${k}">${l}<span class="lbl">${key}</span></button>`).join('')}</div>
+        <div class="mfoot"><button data-m="save">Save</button><button data-m="settings">Settings</button><button data-m="voices">Voices: ${voice}${O.AI && O.AI.lastError ? ' !' : ''}</button></div></div>`;
       menu.hidden = false; O.menuOpen = true; game.player.locked = true;
       menu.querySelectorAll('[data-m]').forEach((b) => b.onclick = () => act(b.dataset.m));
       menu.querySelector('button').focus();
@@ -24634,24 +24651,24 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     }
     function settings() {
       const snd = O.Sound && O.Sound.on, last = O.Save.peek();
-      const row = (k, l, note) => `<button data-s="${k}">${l}</button>${note ? `<span class="lbl">${note}</span>` : ''}`;
+      const row = (k, l, note) => `<button data-s="${k}"><b>${l}</b>${note ? `<small>${note}</small>` : ''}</button>`;
       O.Panels.open('Settings & saves', `<div class="settings">
         <h4>Saves</h4>
-        ${row('save', 'Save now', last ? `last saved on day ${last.sim?.day ?? last.day ?? '?'}` : 'no save yet')}
-        ${row('load', 'Load the last save', 'go back to where you last saved')}
-        ${row('restart', 'Restart this life', 'same character, the world made fresh')}
-        ${row('new', 'Begin a new life', 'a new character and a new world')}
+        ${row('save', 'Save now', last ? `last saved on day ${last.sim?.day ?? last.day ?? '?'}` : 'not saved yet')}
+        ${row('load', 'Load last save')}
+        ${row('restart', 'Restart this life', 'same you, a fresh world')}
+        ${row('new', 'New life', 'new character, new world')}
         <h4>Game</h4>
         ${row('sound', `Sound: ${snd ? 'on' : 'off'}`)}
-        ${row('music', `Music: ${O.Music ? ['off', 'quiet', 'normal', 'loud'][O.Music.level] : 'off'}`, 'the tunes of the land, the tavern, the chapel and the songs people sing')}
-        ${row('speed', `Time: ${game.clock.speed >= 2 ? 'fast' : 'normal'}`, 'how fast the days go by')}
-        ${row('guides', `Showing the way: ${PS.guides === 'off' ? 'off' : PS.guides === 'marks' ? 'markers only' : 'pointers and markers'}`, 'the gold pointers that lead you, and the markers over where to go')}
-        <h4>Testing</h4>
-        ${row('pardon', 'Clear my wanted level', 'every crime forgiven, no bounty, no chase')}
-        ${row('reset', 'Reset me', 'purse, satchel, health, wounds, standing and wanted level back to a fresh arrival')}
-        ${row('post', 'Take up any post', 'try any job in the realm, even ones nobody would give you (king, lord, gaoler...)')}
-        ${row('tele', 'Teleport', 'go straight to any city, town, village, hamlet, castle or mine (for testing)')}
-      </div>`, (r) => {
+        ${row('music', `Music: ${O.Music ? ['off', 'quiet', 'normal', 'loud'][O.Music.level] : 'off'}`, '')}
+        ${row('speed', `Time: ${game.clock.speed >= 2 ? 'fast' : 'normal'}`, '')}
+        ${row('guides', `Showing the way: ${PS.guides === 'off' ? 'off' : PS.guides === 'marks' ? 'markers only' : 'pointers and markers'}`, '')}
+        </div><details class="settings-test"><summary>Testing</summary><div class="settings">
+        ${row('pardon', 'Clear my wanted level')}
+        ${row('reset', 'Reset me', 'back to a fresh arrival')}
+        ${row('post', 'Take up any post')}
+        ${row('tele', 'Teleport')}
+      </div></details>`, (r) => {
         r.querySelectorAll('[data-s]').forEach((b) => b.onclick = () => {
           const k = b.dataset.s;
           if (k === 'save') { O.Save.save(game, O.SimRef.home); settings(); }

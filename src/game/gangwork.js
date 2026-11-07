@@ -37,6 +37,7 @@
         if (this.weekday === 3 && (g.influence || 0) >= 0.2) {
           let took = 0; g.refused = [];
           for (const bz of shops(this)) {
+            if (bz._paidGang === this.day - 1) continue; if (bz._refusedGang === this.day - 1) { g.refused.push(bz.id); continue; } // (settled at the door, in the street)
             const owner = this.byId.get(bz.owner) || this.byId.get(bz.workers[0]); const toll = 2 + (g.level || 1) * 2;
             const brave = owner && (owner.traits || []).some((t) => ['brave', 'hostile'].includes(t)), refuse = brave && this.rng.chance(0.4);
             if (refuse || (bz.cash || 0) < toll) { g.refused.push(bz.id); if (owner) this.remember(owner, `Told ${g.name} where to put their protection money.`, 'gang', 1.4); continue; }

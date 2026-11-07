@@ -1,0 +1,11 @@
+import { start } from './lib.mjs';
+const { p, done } = await start();
+const D = process.env.SHOTS || '';
+await p.evaluate(() => { const s = O.SimRef.cur; while (Math.floor(s.minute / 60) !== 10) s.tick(2); O.game.clock.minute = s.minute; s.weather.snowCover = 0.8; });
+await p.keyboard.down('ArrowRight'); await p.waitForTimeout(1500); await p.keyboard.up('ArrowRight'); await p.waitForTimeout(3000);
+console.log('snow prints', await p.evaluate(() => O.Tracks.prints.length));
+if (D) await p.screenshot({ path: `${D}/tracks.png`, clip: { x: 380, y: 340, width: 260, height: 100 } });
+await p.evaluate(() => { const s = O.SimRef.cur; s.weather.snowCover = 0; O.Tracks.prints.length = 0; Object.defineProperty(s, 'season', { value: 'summer', configurable: true }); s.raining = false; });
+await p.keyboard.down('Shift'); await p.keyboard.down('ArrowLeft'); await p.waitForTimeout(1500); await p.keyboard.up('ArrowLeft'); await p.keyboard.up('Shift');
+console.log('dust puffs seen', await p.evaluate(() => O.Tracks.dust.length));
+await done();

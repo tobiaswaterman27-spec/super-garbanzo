@@ -9,4 +9,5 @@ for (const [k, id] of ids) {
   if (D) await p.screenshot({ path: `${D}/pasture-${k}.png`, clip: { x: 400, y: 250, width: 400, height: 260 } });
   console.log(k.padEnd(8), r);
 }
+console.log('drawing every kind:', await p.evaluate(() => { const kinds = [...new Set((O.fauna || []).map((f) => f.kind)), 'goat', 'hen']; const bad = []; for (const k of kinds) { try { O.Animals.animal(k, 7, 1, true, 0, 'walk'); O.Animals.animal(k, 7, 2, false, 0, 'idle'); } catch (e) { bad.push(k + ': ' + e.message); } } return bad.length ? 'error ' + bad.join('; ') : kinds.length + ' kinds ok'; }));
 await done();

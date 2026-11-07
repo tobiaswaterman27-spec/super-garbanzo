@@ -14,7 +14,7 @@
     const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
     const isWatch = (q) => /guard|sergeant|watch|captain|constable/.test(q.job?.role || '');
     const night = () => game.isNight && game.isNight();
-    const bats = [], flies = [], lanterns = new Set(); let owl = 20, runner = null, rcool = 15;
+    const bats = [], flies = [], lanterns = new Set(); let owl = 20, runner = null, rcool = 15, lastHr = -1;
     game.hooks.update.push((dt) => {
       const s = cur(); if (!s || !s.world || game.scene) return; const h = s.minute / 60, P = game.player;
       // bats at dusk and early night
@@ -27,6 +27,8 @@
       for (const f of flies.slice()) { f.t += dt; f.x += Math.sin(f.t * 0.7 + f.ph) * 6 * dt; f.y += Math.cos(f.t * 0.9 + f.ph) * 4 * dt; if (f.t > f.life || !ffTime) flies.splice(flies.indexOf(f), 1); }
       // an owl
       if (night()) { owl -= dt; if (owl <= 0) { owl = 30 + Math.random() * 60; O.animalCall && O.animalCall('owl', 0.35); } }
+      // the watch call the hours
+      const hr = Math.floor(h); if (night() && hr !== lastHr) { const first = lastHr < 0; lastHr = hr; if (!first) { const w = s.people.filter((q) => isWatch(q) && q.agent && !q.agent.hidden && q.agent.inside == null).sort((a, b) => Math.hypot(a.agent.x - P.x, a.agent.y - P.y) - Math.hypot(b.agent.x - P.x, b.agent.y - P.y))[0]; if (w && near(w.agent.x, w.agent.y, 450)) { const N = ['Twelve', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven'][hr % 12]; say(w, pick([`${N} o'clock, and all's well!`, `${N} o'clock! A fine${s.raining ? ', wet' : ''} night, and all's well!`, `${N} o'clock! Look to your fires and candles!`]), 3); O.gesture && O.gesture(w, 'ringbell', 2); } } } else if (!night()) lastHr = -1;
       // the watch carry lanterns
       lanterns.clear(); if (night()) for (const q of s.people) if (isWatch(q) && q.agent && !q.agent.hidden && q.agent.inside == null && near(q.agent.x, q.agent.y, 600)) lanterns.add(q);
       // a night errand

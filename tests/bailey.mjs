@@ -1,0 +1,10 @@
+import { start } from './lib.mjs';
+const { p, done } = await start();
+const D = process.env.SHOTS || '';
+const id = await p.evaluate(() => O.SimRef.home.kingdom.places.find((x) => x.kind === 'castle' && !x.detailed).id);
+await p.evaluate((id) => O.teleport(id), id); await p.waitForTimeout(3000);
+await p.evaluate(() => { const s = O.SimRef.cur; let g = 0; while (Math.floor(s.minute / 60) !== 11 && g++ < 3000) s.tick(2); O.game.clock.minute = s.minute; s.raining = false; const k = s.world.buildings.find((b) => b.type === 'keep'); O.game.player.x = k.doorX * 16; O.game.player.y = (k.doorY + 9) * 16; });
+await p.waitForTimeout(3000);
+console.log('bailey:', await p.evaluate(() => { const y = O.Bailey.yard; return y ? `${y.men.map((m) => m.role).join(',')} horse ${!!y.horse} pell ${!!y.pell}` : 'none'; }));
+if (D) await p.screenshot({ path: `${D}/bailey.png` });
+await done();

@@ -17072,10 +17072,25 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       for (const d of mine('dog', 'hunt')) {
         const prey = (O.fauna || []).find((f) => f.wild && !f.fierce && !f.dead && f.world === d.world && (f.kind === 'rabbit' || (f.kind === 'deer' && Math.random() < 0.2)) && Math.hypot(f.x - P.x, f.y - P.y) < 160);
         if (!prey || Math.random() > 0.45) continue;
-        prey.dead = true; O.fauna.splice(O.fauna.indexOf(prey), 1); s.drop(prey.kind === 'deer' ? 'venison' : 'meat', 1, prey.x, prey.y);
-        O.Speech && O.Speech.say(d, 'Woof! Woof!', 1.6); say(`${d.name || 'Your dog'} runs down a ${prey.kind} and stands over it, tail going.`);
-        if (prey.kind === 'deer') { const keeper = s.people.find((q) => ['gamekeeper', 'forester'].includes(q.job?.role) && !q.agent.hidden && Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < 260); if (keeper) { const c = s.recordCrime({ kind: 'poaching', perp: 'player', placeName: 'the woods', tile: [Math.floor(P.x / T), Math.floor(P.y / T)], seen: [keeper], severity: 2 }); if (c) PS.crimes.push(c.id); } }
+        if (d.chase) continue; d.chase = { prey, t: 0 }; O.Speech && O.Speech.say(d, 'Woof! Woof!', 1.6); continue;
       }
+    });
+    // the chase itself: the dog after it flat out, the prey jinking away, until it's caught or lost
+    game.hooks.update.push((dt) => {
+      const s = cur(), P = game.player; if (!s || game.scene) return;
+      for (const d of (O.fauna || [])) { const c = d.chase; if (!c) continue; const prey = c.prey; c.t += dt;
+        if (prey.dead || c.t > 7) { d.chase = null; if (!prey.dead) say(`${d.name || 'Your dog'} loses the ${prey.kind} in the long grass and comes back panting.`); continue; }
+        const px = prey.x - d.x, py = prey.y - d.y, dd = Math.hypot(px, py) || 1;
+        const pa = Math.atan2(prey.y - d.y, prey.x - d.x) + Math.sin(c.t * 5) * 0.8; prey.x += Math.cos(pa) * 70 * dt; prey.y += Math.sin(pa) * 50 * dt; prey.moving = true; prey.dir = Math.cos(pa) > 0 ? 2 : 1; prey.tx = null;
+        d.x += px / dd * 95 * dt; d.y += py / dd * 95 * dt; d.moving = true; d.dir = px > 0 ? 2 : 1; d.tx = null;
+        if (dd < 8) { prey.dead = true; O.fauna.splice(O.fauna.indexOf(prey), 1); d.chase = null; s.drop(prey.kind === 'deer' ? 'venison' : 'meat', 1, prey.x, prey.y);
+          say(`${d.name || 'Your dog'} runs down a ${prey.kind} and stands over it, tail going.`);
+        if (prey.kind === 'deer') { const keeper = s.people.find((q) => ['gamekeeper', 'forester'].includes(q.job?.role) && !q.agent.hidden && Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < 260); if (keeper) { const c = s.recordCrime({ kind: 'poaching', perp: 'player', placeName: 'the woods', tile: [Math.floor(P.x / T), Math.floor(P.y / T)], seen: [keeper], severity: 2 }); if (c) PS.crimes.push(c.id); } }
+      } }
+    });
+    let ft2 = 0;
+    game.hooks.update.push((dt) => {
+      ft2 -= dt; if (ft2 > 0 || game.scene) return; ft2 = 6; const s = cur(), P = game.player; if (!s) return;
       for (const d of mine('dog', 'fetch')) {
         const it = (s.dropped || []).find((x) => !x.placed && Math.hypot(x.x - P.x, x.y - P.y) < 140 && Math.hypot(x.x - P.x, x.y - P.y) > 20);
         if (!it || !PS.canCarry(it.good)) continue;
@@ -17102,7 +17117,22 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         r.querySelector('[data-ok]').onclick = ok; i.onkeydown = (e) => { if (e.key === 'Enter') ok(); };
       });
     });
-    let flown = 0;
+    let flown = 0, hawkFly = null;
+    // the flight itself: off the fist, up in rings, a stoop on the quarry, and back to the glove
+    game.hooks.update.push((dt) => { if (hawkFly) { hawkFly.t += dt; if (hawkFly.t > 6.4) hawkFly = null; } });
+    game.hooks.drawWorld.push((ctx, cam) => {
+      const f = hawkFly; if (!f || game.scene) return; const P = game.player, hx = P.x + (P.dir === 1 ? -6 : 6), hy = P.y - 18, t = f.t; let x, y, flap = true, prey = false;
+      if (t < 1.4) { const k = t / 1.4; x = hx + Math.sin(k * 6) * 30 * k; y = hy - k * 70; }
+      else if (t < 3.2) { const a = (t - 1.4) * 2.6; x = hx + Math.cos(a) * 46; y = hy - 70 + Math.sin(a) * 16; flap = Math.floor(t * 4) % 3 !== 0; }
+      else if (t < 3.8) { const k = (t - 3.2) / 0.6; x = hx + Math.cos(4.7) * 46 + (f.dx - Math.cos(4.7) * 46) * k; y = hy - 70 + (f.dy + 18 + 70) * k * k; flap = false; }
+      else if (t < 4.6) { x = hx + f.dx; y = hy + f.dy + 18; flap = Math.floor(t * 10) % 2 === 0; if (f.ok) { prey = true; } }
+      else { const k = Math.min(1, (t - 4.6) / 1.4); x = hx + f.dx * (1 - k); y = hy + (f.dy + 18) * (1 - k) - Math.sin(k * Math.PI) * 30; prey = f.ok; }
+      const sx = Math.round(x - cam.x), sy = Math.round(y - cam.y), w = flap && Math.floor(t * 12) % 2 ? 2 : 0;
+      ctx.fillStyle = '#5a4030'; ctx.fillRect(sx - 2, sy - 1, 5, 3); ctx.fillRect(sx - 6, sy - 1 - w, 4, 2); ctx.fillRect(sx + 3, sy - 1 - w, 4, 2); ctx.fillStyle = '#e8dcc0'; ctx.fillRect(sx, sy, 2, 1); ctx.fillStyle = '#c8a040'; ctx.fillRect(sx + 2, sy - 2, 1, 1);
+      if (prey) { ctx.fillStyle = '#9a8070'; ctx.fillRect(sx - 2, sy + 2, 5, 3); }
+      if (t > 3.8 && t < 4.6) { ctx.fillStyle = 'rgba(200,190,160,0.6)'; for (let i = 0; i < 4; i++) ctx.fillRect(sx - 6 + i * 4, sy + 6 + (i % 2), 1, 1); }
+      if (t < 6.2 && (t < 0.3 || t > 5.8)) { P.anim = 'point'; }
+    });
     (O.moreCandidates = O.moreCandidates || []).push(() => {
       const s = cur(), w = game.world, P = game.player; if (!s || game.scene || !hawks().length || !w.ter) return null;
       const t = w.ter[Math.floor(P.y / T) * w.W + Math.floor(P.x / T)]; if (t === w.TER.FOREST || t === w.TER.WATER || t === w.TER.COBBLE) return null;
@@ -17111,7 +17141,8 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       return { type: 'custom', d: 6, x: P.x, y: P.y - 50, label: `Fly ${hk.name || 'your hawk'}`, act: () => {
         if (performance.now() - flown < 40000) return say(`${hk.name || 'Your hawk'} needs to rest a while.`); flown = performance.now();
         P.anim = 'point'; setTimeout(() => { P.anim = 'idle'; }, 1500); hk.flights++;
-        setTimeout(() => { const ok = Math.random() < 0.3 + hk.skill * 0.6; hk.skill = Math.min(1, hk.skill + 0.03); if (ok) { const g = Math.random() < 0.6 ? 'meat' : 'feathers'; if (PS.canCarry(g)) PS.add(g); say(`${hk.name || 'Your hawk'} stoops on something in the grass and comes back to the glove with ${g === 'meat' ? 'a rabbit' : 'a partridge'}.`); } else say(`${hk.name || 'Your hawk'} circles high, misses, and comes back to the lure.`); }, 2500);
+        const ok0 = Math.random() < 0.3 + hk.skill * 0.6; hawkFly = { t: 0, dx: (Math.random() < 0.5 ? -1 : 1) * (60 + Math.random() * 50), dy: -10 + Math.random() * 50, ok: ok0 };
+        setTimeout(() => { const ok = ok0; hk.skill = Math.min(1, hk.skill + 0.03); if (ok) { const g = Math.random() < 0.6 ? 'meat' : 'feathers'; if (PS.canCarry(g)) PS.add(g); say(`${hk.name || 'Your hawk'} stoops on something in the grass and comes back to the glove with ${g === 'meat' ? 'a rabbit' : 'a partridge'}.`); } else say(`${hk.name || 'Your hawk'} circles high, misses, and comes back to the lure.`); }, 6200);
       } };
     });
     // a falconer can sell you a hawk; someone with a pup or kitten can give you one (pets.js)
@@ -22722,6 +22753,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
   }
   // small animals: moving -> 8-frame walk, otherwise idle or (for grazers) grazing
   function animal(kind, seed, dir, moving, f, anim) {
+    if (!SPEC[kind]) kind = kind === 'goat' ? 'sheep' : kind === 'hen' ? 'chicken' : 'dog'; // (no drawing of its own: the nearest that has one)
     const an = anim || (moving ? 'walk' : 'idle'); f %= HANIMS[an].frames;
     return remember(kind + seed + ':' + dir + an + f, () => build(kind, smallLook(kind, seed), dir, an, f, false));
   }
@@ -32366,10 +32398,10 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       const farms = w.buildings.filter((b) => (b.type === 'farmhouse' || b.type === 'barn') && b.doorX != null).slice(0, 4);
       for (const b of farms) { const yard = freeArea(b.doorX, b.doorY + 2, 18); if (yard) { add('chicken', 4 + r.int(0, 3), zoneAt(yard[0], yard[1], 3, 2)); if (r.chance(0.7)) add('pig', 1 + r.int(0, 1), zoneAt(yard[0], yard[1], 2, 1)); }
         const fld = freeArea(b.doorX + (r.chance(0.5) ? 8 : -8), b.doorY + 6, 30); if (fld) { add('sheep', 3 + r.int(0, 4), zoneAt(fld[0], fld[1], 4, 2)); if (r.chance(0.6)) add('cow', 1 + r.int(0, 2), zoneAt(fld[0], fld[1], 4, 2)); } }
-      if (!farms.length) { const sq = s.Z && s.Z.square; if (sq) { const yard = freeArea(sq[2] + 8, sq[3] + 6, 20); if (yard) { add('chicken', 5, zoneAt(yard[0], yard[1], 3, 2)); add('goat', 2, zoneAt(yard[0], yard[1], 3, 2)); } } }
+      if (!farms.length) { const sq = s.Z && s.Z.square; if (sq) { const yard = freeArea(sq[2] + 8, sq[3] + 6, 20); if (yard) { add('chicken', 5, zoneAt(yard[0], yard[1], 3, 2)); add('sheep', 2, zoneAt(yard[0], yard[1], 3, 2)); } } }
       const houses = w.buildings.filter((b) => b.type === 'house' && b.doorX != null);
       for (const b of houses.filter((x) => x.wealth > 0.45).slice(0, 4)) add(r.chance(0.6) ? 'dog' : 'cat', 1, { x0: b.x - 1, y0: b.bottom + 1, x1: b.x + b.w, y1: b.bottom + 2 });
-      for (const b of houses.filter((x) => x.wealth <= 0.45).slice(0, 2)) add('goat', 1, { x0: b.x - 1, y0: b.bottom + 1, x1: b.x + b.w, y1: b.bottom + 2 });
+      for (const b of houses.filter((x) => x.wealth <= 0.45).slice(0, 2)) add('pig', 1, { x0: b.x - 1, y0: b.bottom + 1, x1: b.x + b.w, y1: b.bottom + 2 });
     }
     game.hooks.update.push(() => { const s = cur(); if (s && s.world && !game.scene) stock(s); });
     O.Pastures = { stock: () => stock(cur()), seeded };
@@ -32525,6 +32557,117 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     O.StormReact = { react };
   }
   O.StormReactSetup = { setup };
+})();
+
+</script>
+<script>
+// Taken in. Whoever the watch arrest doesn't stroll to the gaol on their own: a guard walks at their
+// shoulder with a hand on the rope that ties their wrists, all the way to the gaol door. People stop to
+// look, shake their heads, point; children follow a little way; the prisoner's family come to the door.
+'use strict';
+(function () {
+  function setup(game) {
+    const cur = () => O.SimRef.cur;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    const isWatch = (q) => /guard|sergeant|watch|captain|constable|gaoler/.test(q.job?.role || '');
+    const near = (q, r) => Math.hypot(q.agent.x - game.player.x, q.agent.y - game.player.y) < r;
+    const pairs = new Map(); let scan = 0;
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || game.scene) return;
+      for (const [q, g] of pairs) { const a = q.agent, ga = g.agent;
+        const done = q.alive === false || a.hidden || a.inside != null || !(q.task && q.task.act === 'jailed') || g.alive === false || (O.npcUI && O.npcUI.talking && O.npcUI.talking() === g);
+        if (done) { g._escort = null; ga.frozen = false; ga.forceAnim = null; pairs.delete(q); continue; }
+        const dir = O.Char.DIRV ? (O.Char.DIRV[a.dir] || [0, 1]) : [0, 1]; const tx = a.x - dir[0] * 10 + 4, ty = a.y - dir[1] * 6 + 1;
+        const dx = tx - ga.x, dy = ty - ga.y, d = Math.hypot(dx, dy); if (d > 1) { const st = Math.min(d, (d > 30 ? 120 : 60) * dt); ga.x += dx / d * st; ga.y += dy / d * st; } ga.dir = a.dir; ga.forceAnim = a.path ? 'walk' : 'idle';
+        if (Math.random() < dt * 0.6) for (const o of s.people) { if (o === q || o === g || !o.agent || o.agent.hidden || o.agent.inside != null || o.agent.frozen || o._sawTaken === q || Math.hypot(o.agent.x - a.x, o.agent.y - a.y) > 70) continue; o._sawTaken = q; const fam = o.household === q.household; O.gesture && O.gesture(o, fam ? 'mourn' : o.age < 12 ? 'point' : pick(['shake', 'look', 'point']), 2); if (fam && Math.random() < 0.6) O.Speech && O.Speech.say(o, pick([`${q.first}! What have you done?`, 'No! Not my boy!', 'I told you this would happen.']), 2); else if (Math.random() < 0.12) O.Speech && O.Speech.say(o, pick(['Serves them right.', 'Poor soul.', 'Who\'s that they\'ve got?']), 1.6); } }
+      scan -= dt; if (scan > 0) return; scan = 0.6;
+      for (const q of s.people) { if (pairs.has(q) || !(q.task && q.task.act === 'jailed') || !q.agent || q.agent.hidden || q.agent.inside != null || !near(q, 450)) continue;
+        const g = s.people.filter((x) => isWatch(x) && x.alive !== false && x.agent && !x.agent.hidden && x.agent.inside == null && !x._escort && !x._fighting && !x.errand && !x.agent.frozen).sort((a, b) => Math.hypot(a.agent.x - q.agent.x, a.agent.y - q.agent.y) - Math.hypot(b.agent.x - q.agent.x, b.agent.y - q.agent.y))[0];
+        if (!g || Math.hypot(g.agent.x - q.agent.x, g.agent.y - q.agent.y) > 300) continue; g._escort = q; g.agent.frozen = true; g.agent.path = null; pairs.set(q, g);
+        if (Math.random() < 0.6) O.Speech && O.Speech.say(g, pick(['Come along. No trouble now.', 'Walk on. The gaoler\'s waiting.', 'Keep moving.']), 1.8); }
+    });
+    game.hooks.drawWorld.push((ctx, cam) => { if (game.scene) return; for (const [q, g] of pairs) { const a = q.agent, ga = g.agent; if (a.hidden) continue; const x1 = Math.round(a.x - cam.x), y1 = Math.round(a.y - cam.y) - 12, x2 = Math.round(ga.x - cam.x) + (ga.dir === 1 ? -5 : 5), y2 = Math.round(ga.y - cam.y) - 12; ctx.strokeStyle = '#a89060'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.quadraticCurveTo((x1 + x2) / 2, Math.max(y1, y2) + 5, x2, y2); ctx.stroke(); ctx.fillStyle = '#a89060'; ctx.fillRect(x1 - 2, y1 - 1, 4, 2); } });
+    O.Escort = { pairs };
+  }
+  O.EscortSetup = { setup };
+})();
+
+</script>
+<script>
+// Marks on the ground. When snow lies, everyone who walks leaves footprints that fill in slowly; in the
+// mud after rain the prints are dark and wet; and on a dry summer road a running child or a hurrying
+// man kicks up little puffs of dust. Your own feet leave them too.
+'use strict';
+(function () {
+  function setup(game) {
+    const cur = () => O.SimRef.cur;
+    const prints = [], dust = [];
+    let tick = 0; const last = new WeakMap();
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || !s.world || game.scene) return; tick -= dt;
+      const W = s.weather || {}, snow = (W.snowCover || 0) > 0.2, wet = !snow && (s.raining || (s.world._critters && s.world._critters.puddles.length > 2)), dry = !snow && !wet && (s.season === 'summer' || s.season === 'autumn');
+      for (const p of prints.slice()) { p.t += dt; if (p.t > p.life) prints.splice(prints.indexOf(p), 1); }
+      for (const d of dust.slice()) { d.t += dt; d.x += d.vx * dt; d.y -= 5 * dt; if (d.t > 0.6) dust.splice(dust.indexOf(d), 1); }
+      if (tick > 0) return; tick = 0.18;
+      if (!snow && !wet && !dry) return;
+      const P = game.player, walkers = [];
+      for (const q of s.people) { const a = q.agent; if (!a || a.hidden || a.inside != null || a.mount) continue; if (Math.hypot(a.x - P.x, a.y - P.y) > 360) continue; walkers.push([a, a.anim === 'run' || a.sprint, q.age < 13]); }
+      walkers.push([P, P.running || P.anim === 'run', false]);
+      for (const [a, run, small] of walkers) {
+        const l = last.get(a); if (l && Math.hypot(a.x - l[0], a.y - l[1]) < (small ? 5 : 7)) continue; const side = l ? (l[2] ? -1 : 1) : 1; last.set(a, [a.x, a.y, side > 0]);
+        if (!l) continue; const moving = Math.hypot(a.x - l[0], a.y - l[1]) > 0.5; if (!moving) continue;
+        const dx = a.x - l[0], dy = a.y - l[1], dd = Math.hypot(dx, dy) || 1, nx = -dy / dd, ny = dx / dd;
+        if (snow || wet) { if (prints.length < 500) prints.push({ x: a.x + nx * side * 2, y: a.y + ny * side * 1.2, t: 0, life: snow ? 70 : 30, wet: !snow, small }); }
+        else if (run && dust.length < 80 && s.world.ter && s.world.TER) { const tx = Math.floor(a.x / 16), ty = Math.floor(a.y / 16), t = s.world.ter[ty * s.world.W + tx]; if (t === s.world.TER.ROAD || t === s.world.TER.YARD || t === s.world.TER.SAND || t === s.world.TER.FIELD) for (let i = 0; i < 2; i++) dust.push({ x: a.x - dx / dd * 4 + (Math.random() - 0.5) * 4, y: a.y - 1, vx: -dx / dd * 6 + (Math.random() - 0.5) * 6, t: 0 }); }
+      }
+    });
+    game.hooks.drawGround.push((ctx, cam) => {
+      if (game.scene) return; const W = ctx.canvas.width, H = ctx.canvas.height;
+      for (const p of prints) { const x = Math.round(p.x - cam.x), y = Math.round(p.y - cam.y); if (x < -4 || y < -4 || x > W + 4 || y > H + 4) continue; const k = 1 - p.t / p.life; ctx.globalAlpha = (p.wet ? 0.5 : 0.75) * k; ctx.fillStyle = p.wet ? '#3a2a1e' : '#7a88a8'; ctx.fillRect(x, y, p.small ? 1 : 2, p.small ? 1 : 2); }
+      ctx.globalAlpha = 1;
+    });
+    game.hooks.drawWorld.push((ctx, cam) => { if (game.scene) return; for (const d of dust) { ctx.globalAlpha = 0.45 * (1 - d.t / 0.6); ctx.fillStyle = '#c8b090'; const r = 1 + Math.floor(d.t * 4); ctx.fillRect(Math.round(d.x - cam.x), Math.round(d.y - cam.y) - r, r, r); } ctx.globalAlpha = 1; });
+    O.Tracks = { prints, dust };
+  }
+  O.TracksSetup = { setup };
+})();
+
+</script>
+<script>
+// Shops show their wares. While a shop is open, a trestle stands by its door with what it sells laid
+// out on it (the real goods: loaves, cabbages, candles, pots, cloth, knives), fewer as the stock runs
+// low; when it shuts, the trestle is carried in and the shutters go up. You can see from down the street
+// who's open and what they've got.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const cur = () => O.SimRef.cur;
+    const icons = new Map(); const iconOf = (k) => { if (icons.has(k)) return icons.get(k); let c = null; try { c = O.ItemArt ? O.ItemArt.icon(k) : null; } catch (e) { c = null; } icons.set(k, c); return c; };
+    const spots = new Map();
+    function spotFor(s, b) { if (spots.has(b.id)) return spots.get(b.id); let at = null; for (const dx of [-2, 2, -3, 3]) { const x = (b.doorX + dx) * T + 8, y = (b.doorY + 1) * T + 6; if (!game.solidAt(x - 10, y - 2) && !game.solidAt(x + 10, y - 2) && !game.solidAt(x, y + 4)) { at = [x, y]; break; } } spots.set(b.id, at); return at; }
+    game.hooks.drawGround.push((ctx, cam) => {
+      const s = cur(); if (!s || !s.biz || game.scene) return; const W = ctx.canvas.width, H = ctx.canvas.height, night = game.isNight && game.isNight();
+      if (s !== game._dispSim) { spots.clear(); game._dispSim = s; }
+      for (const bz of s.biz.values()) {
+        if (bz.def.public || !bz.def.sells || !bz.def.sells.length || bz.closedDown || bz.type === 'tavern' || bz.type === 'farmhouse') continue;
+        const b = s.building(bz.b?.id ?? bz.id); if (!b || b.doorX == null) continue; const sx = b.doorX * T - cam.x, sy = b.doorY * T - cam.y; if (sx < -60 || sy < -60 || sx > W + 60 || sy > H + 60) continue;
+        const at = spotFor(s, b); if (!at) continue; const x = Math.round(at[0] - cam.x), y = Math.round(at[1] - cam.y);
+        if (bz.open && !night) {
+          ctx.fillStyle = '#6a4a2c'; ctx.fillRect(x - 11, y - 9, 22, 3); ctx.fillRect(x - 10, y - 6, 2, 6); ctx.fillRect(x + 8, y - 6, 2, 6); ctx.fillStyle = '#8a6239'; ctx.fillRect(x - 11, y - 9, 22, 1);
+          const goods = bz.def.sells.filter((k) => (bz.stock?.[k] || 0) > 0).slice(0, 3); let i = 0;
+          for (const k of goods) { const ic = iconOf(k); const n = Math.min(2, Math.ceil((bz.stock[k] || 0) / 6)); for (let j = 0; j < n; j++, i++) { const gx = x - 10 + i * 7, gy = y - 17; if (ic) ctx.drawImage(ic, gx, gy, 9, 9); else { ctx.fillStyle = '#c8a060'; ctx.fillRect(gx + 2, gy + 4, 5, 4); } } }
+          if (!goods.length) { ctx.fillStyle = '#e8e0cc'; ctx.fillRect(x - 6, y - 14, 12, 4); ctx.fillStyle = '#5a3d26'; ctx.fillRect(x - 4, y - 13, 8, 1); } // (a board: sold out)
+        } else {
+          // shutters up over the shop window beside the door
+          const wx = Math.round((b.doorX + (at[0] < b.doorX * T ? -1 : 1)) * T + 2 - cam.x), wy = Math.round((b.doorY) * T - 6 - cam.y);
+          ctx.fillStyle = '#5a3d26'; ctx.fillRect(wx, wy, 12, 10); ctx.fillStyle = '#4a3020'; ctx.fillRect(wx, wy + 3, 12, 1); ctx.fillRect(wx, wy + 7, 12, 1); ctx.fillStyle = '#3a3a42'; ctx.fillRect(wx + 5, wy + 4, 2, 2);
+        }
+      }
+    });
+    O.ShopDisplay = { spots };
+  }
+  O.ShopDisplaySetup = { setup };
 })();
 
 </script>
@@ -35038,7 +35181,9 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
         if (k === 'postern') { o = Math.min(0.95, base + 0.22); tale = `At the third hour of night the little gate by the kitchens opens. ${pl.inside.name} keeps their word. You are in the courtyard before the alarm.`; }
         if (k === 'siege') { o = Math.min(0.95, base + 0.12); tale = 'The lords\' hosts close the roads. For three days nothing goes in; on the fourth, hungry men inside start to talk of opening the gates.'; const s = O.SimRef.home; for (let i = 0; i < 3 * 720; i++) s.tick(2); }
         const won = Math.random() < o;
-        setTimeout(() => (won ? victory(tale) : defeat(tale)), 60);
+        const go = () => (won ? victory(tale) : defeat(tale));
+        if (O.Battle && O.Battle.start && !game.scene && O.Battle.start({ ours: Math.round(Math.min(18, 4 + F.ours / 2)), theirs: Math.round(Math.min(18, 4 + F.theirs / 2)), ourLook: 'outlaw', theirLook: 'guard', ourBanner: '#7a1a1a', theirBanner: '#2a4a8a', ourStr: 0.7 + o * 0.6, title: k === 'storm' ? 'The storming of the gates' : k === 'postern' ? 'In by the postern' : 'The siege', onEnd: (w) => setTimeout(() => (w ? victory(tale) : defeat(tale)), 800) })) O.UI.say(tale, 'note'); // (fought out before your eyes; the fight decides it)
+        else setTimeout(go, 60);
       } });
     }
     function victory(tale) {
@@ -37698,7 +37843,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.WorkSetup.setup(game, sim, npcUI);
   O.EmploymentSetup.setup(game, home, npcUI);
   O.LettersSetup.setup(game, home, npcUI);
-  O.FittingSetup.setup(game); O.DecorateSetup.setup(game); O.LifeWeightSetup.setup(game); O.TradeLifeSetup.setup(game); O.RiverWildSetup.setup(game); O.SpokenSetup.setup(game); O.CombatDeepSetup.setup(game); O.GangStreetSetup.setup(game); O.HomeFrontSetup.setup(game); O.ScenesSetup.setup(game); O.IndoorLifeSetup.setup(game); O.ApproachesSetup.setup(game); O.LivelinessSetup.setup(game); O.StreetFightSetup.setup(game); O.Pastimes2Setup.setup(game); O.AnimalCareSetup.setup(game); O.MarchSetup.setup(game); O.LooksSetup.setup(game); O.GangPoliticsSetup.setup(game); O.NightWorkSetup.setup(game); O.ArchersSetup.setup(game); O.RaidSetup.setup(game); O.KidsPlaySetup.setup(game); O.AdultPlaySetup.setup(game); O.IdleLifeSetup.setup(game); O.CutpurseSetup.setup(game); O.ShakedownSetup.setup(game); O.ShopFrontSetup.setup(game); O.WarSightsSetup.setup(game); O.GangMarksSetup.setup(game); O.PassingsSetup.setup(game); O.LamplighterSetup.setup(game); O.SparringSetup.setup(game); O.KidsChoresSetup.setup(game); O.ProcessionsSetup.setup(game); O.MarketDaySetup.setup(game); O.RoadFolkSetup.setup(game); O.TownBirdsSetup.setup(game); O.TavernYardSetup.setup(game); O.SmuggleSetup.setup(game); O.MishapsSetup.setup(game); O.ShopFront2Setup.setup(game); O.NightLifeSetup.setup(game); O.SeasonsFxSetup.setup(game); O.GentryRideSetup.setup(game); O.GangRitesSetup.setup(game); O.HuntersSetup.setup(game); O.Courting2Setup.setup(game); O.InfirmSetup.setup(game); O.PasturesSetup.setup(game); O.AlmsSetup.setup(game); O.BellsSetup.setup(game); O.BoatsSetup.setup(game); O.StormReactSetup.setup(game);
+  O.FittingSetup.setup(game); O.DecorateSetup.setup(game); O.LifeWeightSetup.setup(game); O.TradeLifeSetup.setup(game); O.RiverWildSetup.setup(game); O.SpokenSetup.setup(game); O.CombatDeepSetup.setup(game); O.GangStreetSetup.setup(game); O.HomeFrontSetup.setup(game); O.ScenesSetup.setup(game); O.IndoorLifeSetup.setup(game); O.ApproachesSetup.setup(game); O.LivelinessSetup.setup(game); O.StreetFightSetup.setup(game); O.Pastimes2Setup.setup(game); O.AnimalCareSetup.setup(game); O.MarchSetup.setup(game); O.LooksSetup.setup(game); O.GangPoliticsSetup.setup(game); O.NightWorkSetup.setup(game); O.ArchersSetup.setup(game); O.RaidSetup.setup(game); O.KidsPlaySetup.setup(game); O.AdultPlaySetup.setup(game); O.IdleLifeSetup.setup(game); O.CutpurseSetup.setup(game); O.ShakedownSetup.setup(game); O.ShopFrontSetup.setup(game); O.WarSightsSetup.setup(game); O.GangMarksSetup.setup(game); O.PassingsSetup.setup(game); O.LamplighterSetup.setup(game); O.SparringSetup.setup(game); O.KidsChoresSetup.setup(game); O.ProcessionsSetup.setup(game); O.MarketDaySetup.setup(game); O.RoadFolkSetup.setup(game); O.TownBirdsSetup.setup(game); O.TavernYardSetup.setup(game); O.SmuggleSetup.setup(game); O.MishapsSetup.setup(game); O.ShopFront2Setup.setup(game); O.NightLifeSetup.setup(game); O.SeasonsFxSetup.setup(game); O.GentryRideSetup.setup(game); O.GangRitesSetup.setup(game); O.HuntersSetup.setup(game); O.Courting2Setup.setup(game); O.InfirmSetup.setup(game); O.PasturesSetup.setup(game); O.AlmsSetup.setup(game); O.BellsSetup.setup(game); O.BoatsSetup.setup(game); O.StormReactSetup.setup(game); O.EscortSetup.setup(game); O.TracksSetup.setup(game); O.ShopDisplaySetup.setup(game);
   O.StreetSetup.setup(game, home);
   O.GangLifeSetup.setup(game, npcUI);
   O.TownLifeSetup.setup(game, npcUI);

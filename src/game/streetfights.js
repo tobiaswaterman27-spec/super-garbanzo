@@ -31,6 +31,7 @@
       for (const q of all) { q.agent.frozen = false; q._fighting = false; q.agent.anim = 'idle'; }
       const winners = f.sides.find((sd) => !sd.includes(loser)) || [];
       const losers = f.sides.find((sd) => sd.includes(loser)) || []; for (const q of losers) if (q.raider && how !== 'watch') q._lostFight = true;
+      if (how !== 'watch' && loser && loser.health && !loser.health.illness && Math.random() < 0.7) { loser.health.illness = { kind: 'injury', sev: 0.12, days: 0 }; loser._bruiseDay = s.day; } // (a black eye and a sore head, for a day or two)
       if (how === 'watch') { for (const q of all) s.remember(q, 'The watch broke up my fight in the street.', 'social', 1); }
       else { gest(loser, 'hurt', 2); sp(loser, pick(['Enough! Enough.', 'All right, you win.', 'I\'m done. I\'m done.']), 2); if (winners[0]) { gest(winners[0], 'celebrate', 2); sp(winners[0], pick(['And stay down.', 'Next time mind your tongue.', 'Anyone else?']), 2); }
         for (const w of winners) { s.relate(loser, w, -0.25); s.remember(loser, `${w.name} beat me in a fight in the street.`, 'grudge', 2, w.id); s.remember(w, `Beat ${loser.name} in a fight in the street.`, 'social', 1.5, loser.id); } }

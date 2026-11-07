@@ -1,0 +1,11 @@
+import { start } from './lib.mjs';
+const { p, done } = await start();
+const D = process.env.SHOTS || '';
+await p.evaluate(() => { const s = O.SimRef.cur; while (s.minute < 20 * 60) s.tick(2); O.game.clock.minute = s.minute; s.season = 'summer'; s.raining = false; const [x0, y0, x1, y1] = s.Z.square; O.game.player.x = (x0 + x1) * 8; O.game.player.y = (y0 + y1) * 8; });
+await p.waitForTimeout(10000);
+console.log('dusk: bats', await p.evaluate(() => O.NightLife.bats.length), 'fireflies', await p.evaluate(() => O.NightLife.flies.length), 'lanterns', await p.evaluate(() => O.NightLife.lanterns.size));
+await p.evaluate(() => { const s = O.SimRef.cur; while (s.minute < 22.5 * 60) s.tick(2); O.game.clock.minute = s.minute; });
+for (let i = 0; i < 20 && !(await p.evaluate(() => !!O.NightLife.runner)); i++) await p.waitForTimeout(3000);
+console.log('night errand:', await p.evaluate(() => O.NightLife.runner ? O.NightLife.runner.kind + ' ' + O.NightLife.runner.q.first : 'none yet'));
+if (D) await p.screenshot({ path: `${D}/night.png` });
+await done();

@@ -64,7 +64,7 @@
         const at = (k) => p.trail[Math.min(p.trail.length - 1, k)];
         p.bearers.forEach((q, i) => { const [x, y] = at(Math.floor(i / 2) * 5); const ang = p.trail.length > 3 ? Math.atan2(p.trail[0][1] - p.trail[3][1], p.trail[0][0] - p.trail[3][0]) : 0; const side = i % 2 ? 1 : -1; const nx = x + Math.cos(ang + Math.PI / 2) * side * 5, ny = y + Math.sin(ang + Math.PI / 2) * side * 3; steerTo(q, nx, ny, dt, 30, 'carry'); });
         p.mourners.forEach((q, i) => { const [x, y] = at(14 + i * 6); steerTo(q, x + (i % 2 ? 4 : -4), y, dt, 30, 'walk'); if (Math.hypot(q.agent.x - x, q.agent.y - y) < 6) q.agent.forceAnim = Math.floor(p.t + i) % 9 < 2 ? 'mourn' : 'walk'; });
-        if (bell <= 0 && near(p.lead[0], p.lead[1], 500)) { bell = 4; O.sfx && O.sfx('handbell', 0.18); }
+        if (bell <= 0 && near(p.lead[0], p.lead[1], 500)) { bell = 4; O.sfx && O.sfx('churchbell', 0.35); }
         // the street stops for it
         if (Math.random() < dt * 2) for (const q of s.people) { if (q._proc || !q.agent || q.agent.hidden || q.agent.inside != null || q.agent.frozen || q.errand || Math.hypot(q.agent.x - p.lead[0], q.agent.y - p.lead[1]) > 70 || q._sawCoffin === p) continue; q._sawCoffin = p; O.gesture && O.gesture(q, q.age >= 14 && q.sex === 'm' ? 'bow' : 'pray', 3); }
         if (p.pi >= p.path.length && Math.hypot(p.bearers[0].agent.x - p.lead[0], p.bearers[0].agent.y - p.lead[1]) < 4) { O.sfx && near(p.lead[0], p.lead[1], 400) && O.sfx('door', 0.3); end(); }

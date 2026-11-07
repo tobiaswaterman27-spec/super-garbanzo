@@ -55,7 +55,7 @@
         if (O.npcUI && O.npcUI.talking && (O.npcUI.talking() === h || O.npcUI.talking() === o)) { sc.t -= dt; continue; } // (paused while you talk)
         h.agent.dir = O.dirOf(o.agent.x - h.agent.x, o.agent.y - h.agent.y); o.agent.dir = O.dirOf(h.agent.x - o.agent.x, h.agent.y - o.agent.y);
         const step = (k, fn) => { if (sc.step === k) { sc.step++; fn(); } };
-        if (sc.t > 0.6) step(0, () => { h.agent.forceAnim = 'point'; say(h, pick([`Wednesday, ${o.first}. You know what for.`, 'Collection day. Same as always.', `${sc.g ? sc.g.name : 'The lads'} send their regards. And their hand.`])); o.agent.forceAnim = 'wipe'; });
+        if (sc.t > 0.6) step(0, () => { h.agent.forceAnim = 'point'; say(h, pick([`Wodensday, ${o.first}. You know what for.`, 'Collection day. Same as always.', `${sc.g ? sc.g.name : 'The lads'} send their regards. And their hand.`])); o.agent.forceAnim = 'wipe'; });
         if (sc.t > 3) step(1, () => { h.agent.forceAnim = 'idle';
           if (sc.saved) { o.agent.forceAnim = 'bow'; say(o, 'You paid it? I... thank you. I won\'t forget it.'); }
           else if (!sc.brave && (sc.bz.cash || 0) >= sc.toll) { o.agent.forceAnim = 'count'; say(o, pick(['Here. Choke on it.', `${sc.toll}. That's all of it.`, 'Every week, more.']), 2); sc.paid = true; }

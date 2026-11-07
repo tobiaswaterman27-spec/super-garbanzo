@@ -57,7 +57,7 @@
       for (const g of games.slice()) { g.t += dt; for (const f of g.fly.slice()) { f.t += dt; if (f.t >= f.dur) { g.fly.splice(g.fly.indexOf(f), 1); f.done && f.done(); } } let end = g.t > g.len || g.over || game.scene || g.ppl.some((q) => !q.agent || q.alive === false || q._fighting);
         if (!end) { try { KINDS[g.kind].update(g, dt); } catch (e) { console.error(e); end = true; } } if (end) { setTimeout(() => release(g), g.over ? 2500 : 0); games.splice(games.indexOf(g), 1); } }
       next -= dt; if (next > 0) return; next = 14 + Math.random() * 14;
-      if (game.scene || games.length >= 2) return; const h = s.minute / 60, sunday = s.weekday === 0;
+      if (game.scene || games.length >= 2) return; const h = s.minute / 60, sunday = s.weekday === 6;
       const leisure = (sunday && h >= 12.5 && h < 18.5) || (h >= 18 && h < 20.5 && s.season !== 'winter') || (O.Festivals && O.Festivals.today && O.Festivals.today(s));
       if (!leisure || /rain|heavy|storm|snow|blizzard/.test(s.weather?.kind || '')) return;
       const P = game.player, ppl = s.people.filter((q) => free(q) && Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < 420);

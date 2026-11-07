@@ -12,7 +12,7 @@
 (function () {
   const T = 16;
   const HAB = ['well', 'tavern', 'chapel', 'square', 'bank', 'well', 'square'];
-  const DAYS = ['Sunday', 'Moonday', 'Tewsday', 'Wodensday', 'Thorsday', 'Freyday', 'Saturnday'];
+  const DAYS = O.DAYNAMES || ['Moonday', 'Tewsday', 'Wodensday', 'Thorsday', 'Freyday', 'Saturnday', 'Sunday']; // (the sim's own week: Moonday first)
   O.sqCentre = (z) => (z.length >= 4 ? [Math.round((z[0] + z[2]) / 2), Math.round((z[1] + z[3]) / 2)] : z);
   function setup(game) {
     const PS = O.PlayerState, cur = () => O.SimRef.cur, say = (t, k) => O.UI.say(t, k), SP = O.Sim.prototype;
@@ -67,7 +67,7 @@
       const h = s.hour;
       if (kind === 'fishing' && h >= 17 && h < 20 && (s.day + p.id) % 3 === 0) return { act: 'stroll', outdoor: true, zone: 'fishing', hobby: 'fishing' };
       if ((kind === 'dice' || kind === 'singing') && h >= 19 && h < 22.5 && s.tavernId != null && (s.day + p.id) % 2 === 0) return { act: 'socialise', b: s.tavernId, hobby: kind };
-      if (kind === 'wrestling' && s.weekday === 0 && h >= 14 && h < 17) return { act: 'stroll', outdoor: true, zone: 'green', hobby: 'wrestling' };
+      if (kind === 'wrestling' && s.weekday === 6 && h >= 14 && h < 17) return { act: 'stroll', outdoor: true, zone: 'green', hobby: 'wrestling' };
       return a;
     }
     const _idle = SP.idleAnim;

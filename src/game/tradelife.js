@@ -3,7 +3,7 @@
 //   hours ("open at six, shut at eight"), a price ("sell the bread at 3"), and whether you give credit
 //   ("put it on the slate" / "cash only"). Credit brings more custom and some bad debts. Staff may skim
 //   the till: the takings come up short, and you can ask them straight out.
-// - Market day, every Saturnday morning: the square fills, and you can take a stall (E at a stall,
+// - Market day, every Sunday morning after mass: the square fills, and you can take a stall (E at a stall,
 //   ₳2). Buyers come and ask the price of what you carry; you name it, they haggle, you meet them or
 //   not. Your haggling gets better with practice.
 // - Rival workshops: a trade that does well draws a rival. An ambitious hand sets up on their own in an

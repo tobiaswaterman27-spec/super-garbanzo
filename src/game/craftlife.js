@@ -110,7 +110,7 @@
     const juniorOf = (s, q) => { const e = PS.emp; return e && (e.level || 0) >= 2 && q.job && q.job.biz === e.biz && e.place === s.world.placeId && q.id !== e.master; };
 
     // ---------------------------------------------------------------- orders, with a day to have them by
-    const DAYS = ['Sunday', 'Moonday', 'Tewsday', 'Wodensday', 'Thorsday', 'Freyday', 'Saturnday'];
+    const DAYS = O.DAYNAMES || ['Moonday', 'Tewsday', 'Wodensday', 'Thorsday', 'Freyday', 'Saturnday', 'Sunday'];
     const dayName = (s, d) => (d === s.day + 1 ? 'tomorrow' : DAYS[((d - 1) % 7 + 7) % 7] || `day ${d}`);
     function makesOf(bz) { const out = new Set(); for (const r of bz.def.recipes || []) for (const k of Object.keys(r.out || {})) out.add(k); return [...out].filter((k) => G()[k] && !/^fx_/.test(k)); }
     function ordersDay(s) {

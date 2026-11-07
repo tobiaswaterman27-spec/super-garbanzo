@@ -168,7 +168,7 @@
       lines.push(`Work: ${q.job.role}${bz ? ` at ${placeOf(s, s.building(bz.id), cx, cy)}` : ''}${boss && boss !== q ? `, under ${boss.name}` : bz && bz.owner === q.id ? ', your own business' : ''}${wage ? `, ₳${wage} a day` : ''}${hrs ? (((hrs[1] - hrs[0]) % 24 + 24) % 24 === 0 ? ', called on at any hour, day or night' : `, ${hm(hrs[0])} to ${hm(hrs[1])}`) : ''}${mates.length ? `. Work with ${mates.join(', ')}` : ''}.`);
       const yd = s.day - 1, ywd = (yd - 1) % 7;
       const yMem = (q.memories || []).filter((m) => m.day === yd).slice(0, 2).map((m) => clean(m.text));
-      lines.push(`Yesterday: ${ywd === 0 ? 'Sunday, mass and rest' : `you worked your hours${bz && bz.def.sells && bz.def.sells.length ? ', and trade was ' + ((bz.salesYesterday ?? bz.salesToday) > 40 ? 'brisk' : 'slow') : ''}`}${yMem.length ? '. Also: ' + yMem.join(' ') : ''}.`);
+      lines.push(`Yesterday: ${ywd === 6 ? 'Sunday, mass and rest' : `you worked your hours${bz && bz.def.sells && bz.def.sells.length ? ', and trade was ' + ((bz.salesYesterday ?? bz.salesToday) > 40 ? 'brisk' : 'slow') : ''}`}${yMem.length ? '. Also: ' + yMem.join(' ') : ''}.`);
     } else lines.push(q.age < 14 ? 'You are a child: chores, play, lessons.' : 'You have no work just now.');
     // home and family
     const hh = s.household(q), home = s.building(q.home);

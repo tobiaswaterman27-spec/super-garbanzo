@@ -1,5 +1,5 @@
 // Market day, filled. Besides the travelling merchants, the country people come in at dawn on
-// Saturnday with their own produce and set up trestles round the square: an egg-wife with her baskets,
+// Sunday with their own produce and set up trestles round the square: an egg-wife with her baskets,
 // a cheese-woman, a man with a cartload of cabbages, a potter, a weaver with cloth, a honey-man. They
 // call their wares, and townsfolk go from stall to stall, point, ask the price, shake their heads,
 // haggle, and pay (you see the coins go over and the goods come back), and go off with a full basket.

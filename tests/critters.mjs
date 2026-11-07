@@ -12,7 +12,7 @@ if (D) await p.screenshot({ path: `${D}/pigeons.png`, clip: { x: 400, y: 250, wi
 await p.waitForTimeout(12000);
 console.log('settled again:', await p.evaluate(() => O.TownBirds.life().birds.filter((b) => b.st === 'ground').length));
 // the tavern yard of an evening
-await p.evaluate(() => { const s = O.SimRef.cur; while (Math.floor(s.minute / 60) !== 19) s.tick(2); O.game.clock.minute = s.minute; if (s.season === 'winter') s.season = 'summer'; s.raining = false; const b = s.building(s.tavernId); O.game.player.x = b.doorX * 16 + 8; O.game.player.y = (b.doorY + 3) * 16; });
+await p.evaluate(() => { const s = O.SimRef.cur; while (Math.floor(s.minute / 60) !== 19) s.tick(2); O.game.clock.minute = s.minute; if (s.season === 'winter') Object.defineProperty(s, 'season', { value: 'summer', configurable: true }); s.raining = false; const b = s.building(s.tavernId); O.game.player.x = b.doorX * 16 + 8; O.game.player.y = (b.doorY + 3) * 16; });
 let y = null; for (let i = 0; i < 10 && !y; i++) { await p.waitForTimeout(2000); y = await p.evaluate(() => O.TavernYard.yard ? O.TavernYard.yard.sitters.map((s) => s.q.first + ':' + s.q.agent.forceAnim).join(' ') : null); if (!y) await p.evaluate(() => { const s = O.SimRef.cur, b = s.building(s.tavernId); const ppl = s.people.filter((q) => q.age >= 18 && q.agent && !q.job?.onShift && q.alive !== false).slice(0, 5); for (const q of ppl) { q.agent.inside = b.id; q.agent.hidden = true; q.agent.path = null; } }); }
 console.log('yard:', y);
 await p.waitForTimeout(8000); if (D) await p.screenshot({ path: `${D}/tavernyard.png`, clip: { x: 450, y: 280, width: 300, height: 200 } });

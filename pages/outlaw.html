@@ -194,6 +194,9 @@ details.more { margin-top: 14px; } details.more summary { cursor: pointer; color
 .settings { grid-template-columns: 1fr 1fr; }
 .settings button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; width: 100%; padding: 8px 10px; }
 .settings button small { font-size: 11px; opacity: .7; font-weight: 400; }
+.guide-keys { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; } .guide-keys > div { display: flex; gap: 8px; align-items: baseline; font-size: 13px; } .guide-keys kbd { flex: none; min-width: 34px; text-align: center; font-family: var(--pix); font-size: 10px; border: 2px solid var(--line); padding: 1px 5px; }
+.guide-ways details { border-bottom: 1px solid var(--line); padding: 6px 0; } .guide-ways summary { cursor: pointer; font-weight: 800; } .guide-ways p { margin: 6px 0 2px; font-size: 13px; opacity: .9; }
+@media (max-width: 560px) { .guide-keys { grid-template-columns: 1fr; } }
 .chron-bar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; } .chron-bar select { font: inherit; padding: 4px 6px; background: var(--panel); color: inherit; border: 2px solid var(--line); }
 .settings-test { margin-top: 10px; } .settings-test summary { cursor: pointer; font-family: var(--pix); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: .7; }
 @media (max-width: 480px) { .settings { grid-template-columns: 1fr; } }

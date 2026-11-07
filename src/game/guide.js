@@ -19,10 +19,12 @@
     ['Festivals and gatherings', 'Every season has its day: May Day (dance round the maypole; a Queen of the May is crowned at noon), the spring tournament (bet, or ride in the lists), Midsummer Eve (a bonfire in the square: leap it for luck), the harvest fair (archery, wrestling, and the judging of bread, ale and wares, each with a purse), the midwinter feast. Each town keeps its saint\'s day too. Townsfolk hold christenings, guild feasts, church ales, harvest suppers, mummers\' plays and hunts: go along and they will think the better of you. Throw a party at your own house, but not on a night something else is on.'],
     ['Disasters', 'Fires (grab a bucket), floods after heavy rain, pestilence with quarantines, failed harvests. When one strikes you choose: help, or profit, or flee.'],
   ];
+  let tab = 'keys';
   function open() {
-    O.Panels.open('Guide', `<div class="lbl">Controls</div><table><tbody>${KEYS.map(([k, d]) => `<tr><td style="white-space:nowrap"><kbd style="font-family:var(--pix);font-size:10px;border:2px solid var(--line);padding:1px 5px">${k}</kbd></td><td>${d}</td></tr>`).join('')}</tbody></table>
-      <div class="lbl" style="margin-top:12px">Ways to live</div><div class="kv">${WAYS.map(([t, d]) => `<div style="display:block;justify-content:flex-start;align-content:flex-start"><span class="lbl" style="display:block;margin-bottom:4px">${t}</span><small style="color:var(--parch)">${d}</small></div>`).join('')}</div>
-      <p class="caption" style="margin-top:12px">The game saves itself each dawn; saves, time speed and the rest are under Esc. Nobody here is waiting for you: the realm lives its life whether you act or not.</p>`);
+    const tabs = `<div class="topics" style="margin-bottom:10px"><button data-gt="keys" class="${tab === 'keys' ? 'hot' : ''}">Controls</button><button data-gt="ways" class="${tab === 'ways' ? 'hot' : ''}">Ways to live</button></div>`;
+    const keys = `<div class="guide-keys">${KEYS.map(([k, d]) => `<div><kbd>${k}</kbd><span>${d}</span></div>`).join('')}</div>`;
+    const ways = `<div class="guide-ways">${WAYS.map(([t, d]) => `<details><summary>${t}</summary><p>${d}</p></details>`).join('')}</div>`;
+    O.Panels.open('Guide', `${tabs}${tab === 'keys' ? keys : ways}<p class="caption" style="margin-top:12px">The game saves itself each dawn. Talk to anyone about anything: just type. Nobody here is waiting for you.</p>`, (r) => r.querySelectorAll('[data-gt]').forEach((b) => b.onclick = () => { tab = b.dataset.gt; open(); }));
     const inner = document.querySelector('.panel-modal .ledger-in'); if (inner) inner.classList.remove('narrow');
   }
   function setup(game) {

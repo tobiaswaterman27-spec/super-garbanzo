@@ -50,8 +50,10 @@
       return r; };
     const homecomings = [];
 
+    let drillCall = 0;
     game.hooks.update.push((dt) => {
       const s = cur(); if (!s) return; drum -= dt;
+      drillCall -= dt; if (drillCall <= 0) { drillCall = 3.2; const dr = s.people.filter((q) => q.activity && q.activity.act === 'drill' && q.agent && !q.agent.hidden && q.agent.inside == null && Math.hypot(q.agent.x - game.player.x, q.agent.y - game.player.y) < 350); if (dr.length >= 2) { const lead = dr.find((q) => /guard|sergeant|captain/.test(q.job?.role || '')) || dr[0]; say(lead, pick(['Present! ...Thrust!', 'Hold the line!', 'Again! Put your back in it!', 'One! Two! One! Two!', 'Pikes UP!']), 1.6); O.sfx && O.sfx('smack', 0.05); } }
       // the sergeant at his recruiting
       const sg = s.sergeant; if (sg && sg.agent && !sg.agent.hidden && sg.agent.inside == null && !sg.agent.path && (sg.activity?.act || sg.task?.act) === 'recruit') { sg._box = true; if (Math.random() < dt * 0.12) { say(sg, pick(['Who\'ll take the King\'s shilling? Twelve aurin to your family the day you march!', 'Strong lads wanted! Meat every day and a coat on your back!', 'Serve your King! Come up, come up!']), 3); O.gesture && O.gesture(sg, 'point', 1.4); } }
       else if (sg) sg._box = false;
@@ -87,6 +89,8 @@
       const sg = s.sergeant; if (sg && sg._box) { const x = Math.round(sg.agent.x - cam.x), y = Math.round(sg.agent.y - cam.y); banner(ctx, x + 12, y); }
       if (farewell && farewell.stage === 'goodbye' && farewell.sarge) { const a = farewell.sarge.agent; banner(ctx, Math.round(a.x - cam.x) + 12, Math.round(a.y - cam.y)); }
       if (farewell && farewell.stage === 'march') { const a = (farewell.sarge || farewell.men[0]).agent; banner(ctx, Math.round(a.x - cam.x) + 6, Math.round(a.y - cam.y)); for (const p of farewell.men) { const x = Math.round(p.agent.x - cam.x), y = Math.round(p.agent.y - cam.y); ctx.fillStyle = '#6a4a2c'; ctx.fillRect(x + 4, y - 30, 1, 26); ctx.fillStyle = '#9aa0aa'; ctx.fillRect(x + 3, y - 33, 3, 3); } }
+      // the drill: staves and pikes in hand, swung in time
+      for (const q of s.people) { if (!q.activity || q.activity.act !== 'drill' || !q.agent || q.agent.hidden || q.agent.inside != null) continue; const a = q.agent, x = Math.round(a.x - cam.x), y = Math.round(a.y - cam.y); if (x < -30 || y < -50 || x > ctx.canvas.width + 30 || y > ctx.canvas.height + 30) continue; const thrust = (a.anim === 'attack'); ctx.strokeStyle = '#6a4a2c'; ctx.lineWidth = 1; ctx.beginPath(); if (thrust) { ctx.moveTo(x - 6, y - 14); ctx.lineTo(x + 18, y - 18); } else { ctx.moveTo(x + 5, y - 2); ctx.lineTo(x + 5, y - 34); } ctx.stroke(); ctx.fillStyle = '#a8b0bc'; if (thrust) ctx.fillRect(x + 17, y - 19, 3, 2); else ctx.fillRect(x + 4, y - 37, 3, 3); }
       for (const hh of s.households || []) { if (hh._mourn == null || s.day - hh._mourn > 7) continue; const b = s.building(hh.home); if (!b || b.doorX == null) continue; const x = Math.round(b.doorX * T + 8 - cam.x), y = Math.round(b.doorY * T - cam.y); if (x < -20 || y < -20 || x > ctx.canvas.width + 20 || y > ctx.canvas.height + 20) continue; ctx.fillStyle = '#1a1418'; ctx.fillRect(x - 5, y - 2, 10, 3); ctx.fillRect(x - 2, y + 1, 2, 6); ctx.fillRect(x + 1, y + 1, 2, 5); }
       ctx.restore();
     });

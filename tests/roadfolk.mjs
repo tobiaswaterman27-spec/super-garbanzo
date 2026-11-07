@@ -2,7 +2,7 @@ import { start } from './lib.mjs';
 const { p, done } = await start();
 const D = process.env.SHOTS || '';
 await p.evaluate(() => { const s = O.SimRef.cur; while (Math.floor(s.minute / 60) !== 10) s.tick(2); O.game.clock.minute = s.minute; window._said = []; const o = O.Speech.say; O.Speech.say = (w, t, ...a) => { _said.push((w.first || '?') + ': ' + t); return o(w, t, ...a); }; });
-for (const k of ['carter', 'pilgrims', 'drover', 'friar', 'pedlar', 'messenger']) {
+for (const k of ['carter', 'pilgrims', 'drover', 'friar', 'pedlar', 'messenger', 'troops']) {
   const r = await p.evaluate((k) => { const pt = O.RoadFolk.spawn(k); if (!pt) return 'NO'; return `${pt.ppl.map((q) => q.name).join(', ')} path ${pt.path.length}`; }, k);
   console.log(k.padEnd(10), r);
 }

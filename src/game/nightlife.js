@@ -42,6 +42,8 @@
             runner = { q, kind, t: 0 }; if (Math.random() < 0.6) setTimeout(() => say(q, kind === 'midwife' ? 'Hot water, and plenty of it!' : kind === 'priest' ? 'Make way. I go to the dying.' : 'The physician! Where\'s the physician?', 2.2), 800); if (Math.random() < 0.5) setTimeout(() => O.animalCall && O.animalCall('dog', 0.3), 1500); } } }
     });
     // light and drawing
+    // homes where people are still up show a glow at the shutters and door
+    (O.extraLights = O.extraLights || []).push((pools, cam) => { const s = cur(); if (!s || !game.lit) return; const h = s.minute / 60; if (h > 23.5 || h < 4.5) return; let n = 0; for (const b of s.world.buildings) { if (n > 40 || !game.lit.has(b.id) || b.doorX == null || ['smithy', 'bakery', 'armourer', 'tavern'].includes(b.type)) continue; const x = b.doorX * 16 + 8 - cam.x, y = b.doorY * 16 + 4 - cam.y; if (x < -40 || y < -40 || x > game.vw + 40 || y > game.vh + 40) continue; pools.push([x, y, 16]); n++; } });
     (O.extraLights = O.extraLights || []).push((pools, cam) => { for (const q of lanterns) { const a = q.agent; pools.push([a.x + 6 - cam.x, a.y - 14 - cam.y, 26]); } });
     game.hooks.drawWorld.push((ctx, cam) => {
       if (game.scene) return; const s = cur(); const tk = performance.now() / 1000;

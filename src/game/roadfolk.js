@@ -37,7 +37,7 @@
         q.name = kind === 'friar' ? `Brother ${q.first}` : `${q.first} ${q.sur}`; q.job = { biz: null, role: K.role }; q.wake = 0; q.bed = 1440; q.roadfolk = kind;
         q.app = Ch.makeAppearance(O.hash('roadfolk', q.id), { sex, age: q.age, genes: q.genes, role: K.look, wealth: 0.3 });
         q.agent = { x: there[0][0] + i * 3, y: there[0][1] + i * 2, dir: 1, anim: 'walk', ft: 0, a: q.app, hidden: false, inside: null, path: null, goal: null, person: q, frozen: true };
-        if (K.mounted) { const A = O.Animals; q.agent.mount = { seed: r.int(1, 9999), coat: r.pick(Object.keys(A.COATS)), blaze: r.chance(0.4), socks: r.chance(0.35), anim: 'walk', ft: 0, speed: 1 }; }
+        if (K.mounted) { q.ridingOut = true; const A = O.Animals; q.agent.mount = { seed: r.int(1, 9999), coat: r.pick(Object.keys(A.COATS)), blaze: r.chance(0.4), socks: r.chance(0.35), anim: 'walk', ft: 0, speed: 1 }; }
         q.activity = { act: 'stroll', outdoor: true }; ppl.push(q); }
       const pt = { s, kind, K, ppl, path: there, back, pi: 0, lead: [there[0][0], there[0][1]], trail: [[there[0][0], there[0][1]]], stage: 'in', t: 0, wheel: 0, sheep: K.sheep ? Array.from({ length: K.sheep }, (_, i) => ({ seed: 300 + i * 17 + s.day, x: there[0][0] + 10 + i * 4, y: there[0][1] + (i % 2 ? 5 : -4), dir: 1, ft: Math.random() })) : null };
       parties.push(pt); return pt;

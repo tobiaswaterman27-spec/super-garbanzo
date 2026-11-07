@@ -1,0 +1,10 @@
+import { start } from './lib.mjs';
+const { p, done } = await start();
+await p.evaluate(() => { const s = O.SimRef.cur; while (Math.floor(s.minute / 60) !== 10) s.tick(2); O.game.clock.minute = s.minute; window._k = 0; const g = O.gesture; O.gesture = (q, k, ...r) => { if (k === 'bow' || k === 'curtsy') _k++; return g(q, k, ...r); }; });
+const r = await p.evaluate(() => { const pt = O.RoadFolk.spawn('knight'); if (!pt) return 'NO'; O.game.player.x = pt.lead[0] + 60; O.game.player.y = pt.lead[1]; const m = O.RoadFolk.spawn('messenger'); return pt.ppl.map((q) => q.first).join(',') + (m ? ' + messenger' : ''); });
+console.log('riders', r);
+await p.waitForTimeout(4000);
+console.log('mounted now:', await p.evaluate(() => O.RoadFolk.parties.flatMap((x) => x.ppl).filter((q) => q.agent.mount).length + '/' + O.RoadFolk.parties.flatMap((x) => x.ppl).length));
+await p.waitForTimeout(12000);
+console.log('bows to riders so far:', await p.evaluate(() => _k));
+await done();

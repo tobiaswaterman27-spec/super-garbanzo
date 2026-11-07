@@ -19,10 +19,10 @@
       const farms = w.buildings.filter((b) => (b.type === 'farmhouse' || b.type === 'barn') && b.doorX != null).slice(0, 4);
       for (const b of farms) { const yard = freeArea(b.doorX, b.doorY + 2, 18); if (yard) { add('chicken', 4 + r.int(0, 3), zoneAt(yard[0], yard[1], 3, 2)); if (r.chance(0.7)) add('pig', 1 + r.int(0, 1), zoneAt(yard[0], yard[1], 2, 1)); }
         const fld = freeArea(b.doorX + (r.chance(0.5) ? 8 : -8), b.doorY + 6, 30); if (fld) { add('sheep', 3 + r.int(0, 4), zoneAt(fld[0], fld[1], 4, 2)); if (r.chance(0.6)) add('cow', 1 + r.int(0, 2), zoneAt(fld[0], fld[1], 4, 2)); } }
-      if (!farms.length) { const sq = s.Z && s.Z.square; if (sq) { const yard = freeArea(sq[2] + 8, sq[3] + 6, 20); if (yard) { add('chicken', 5, zoneAt(yard[0], yard[1], 3, 2)); add('goat', 2, zoneAt(yard[0], yard[1], 3, 2)); } } }
+      if (!farms.length) { const sq = s.Z && s.Z.square; if (sq) { const yard = freeArea(sq[2] + 8, sq[3] + 6, 20); if (yard) { add('chicken', 5, zoneAt(yard[0], yard[1], 3, 2)); add('sheep', 2, zoneAt(yard[0], yard[1], 3, 2)); } } }
       const houses = w.buildings.filter((b) => b.type === 'house' && b.doorX != null);
       for (const b of houses.filter((x) => x.wealth > 0.45).slice(0, 4)) add(r.chance(0.6) ? 'dog' : 'cat', 1, { x0: b.x - 1, y0: b.bottom + 1, x1: b.x + b.w, y1: b.bottom + 2 });
-      for (const b of houses.filter((x) => x.wealth <= 0.45).slice(0, 2)) add('goat', 1, { x0: b.x - 1, y0: b.bottom + 1, x1: b.x + b.w, y1: b.bottom + 2 });
+      for (const b of houses.filter((x) => x.wealth <= 0.45).slice(0, 2)) add('pig', 1, { x0: b.x - 1, y0: b.bottom + 1, x1: b.x + b.w, y1: b.bottom + 2 });
     }
     game.hooks.update.push(() => { const s = cur(); if (s && s.world && !game.scene) stock(s); });
     O.Pastures = { stock: () => stock(cur()), seeded };

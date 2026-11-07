@@ -29,10 +29,25 @@
       for (const d of mine('dog', 'hunt')) {
         const prey = (O.fauna || []).find((f) => f.wild && !f.fierce && !f.dead && f.world === d.world && (f.kind === 'rabbit' || (f.kind === 'deer' && Math.random() < 0.2)) && Math.hypot(f.x - P.x, f.y - P.y) < 160);
         if (!prey || Math.random() > 0.45) continue;
-        prey.dead = true; O.fauna.splice(O.fauna.indexOf(prey), 1); s.drop(prey.kind === 'deer' ? 'venison' : 'meat', 1, prey.x, prey.y);
-        O.Speech && O.Speech.say(d, 'Woof! Woof!', 1.6); say(`${d.name || 'Your dog'} runs down a ${prey.kind} and stands over it, tail going.`);
-        if (prey.kind === 'deer') { const keeper = s.people.find((q) => ['gamekeeper', 'forester'].includes(q.job?.role) && !q.agent.hidden && Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < 260); if (keeper) { const c = s.recordCrime({ kind: 'poaching', perp: 'player', placeName: 'the woods', tile: [Math.floor(P.x / T), Math.floor(P.y / T)], seen: [keeper], severity: 2 }); if (c) PS.crimes.push(c.id); } }
+        if (d.chase) continue; d.chase = { prey, t: 0 }; O.Speech && O.Speech.say(d, 'Woof! Woof!', 1.6); continue;
       }
+    });
+    // the chase itself: the dog after it flat out, the prey jinking away, until it's caught or lost
+    game.hooks.update.push((dt) => {
+      const s = cur(), P = game.player; if (!s || game.scene) return;
+      for (const d of (O.fauna || [])) { const c = d.chase; if (!c) continue; const prey = c.prey; c.t += dt;
+        if (prey.dead || c.t > 7) { d.chase = null; if (!prey.dead) say(`${d.name || 'Your dog'} loses the ${prey.kind} in the long grass and comes back panting.`); continue; }
+        const px = prey.x - d.x, py = prey.y - d.y, dd = Math.hypot(px, py) || 1;
+        const pa = Math.atan2(prey.y - d.y, prey.x - d.x) + Math.sin(c.t * 5) * 0.8; prey.x += Math.cos(pa) * 70 * dt; prey.y += Math.sin(pa) * 50 * dt; prey.moving = true; prey.dir = Math.cos(pa) > 0 ? 2 : 1; prey.tx = null;
+        d.x += px / dd * 95 * dt; d.y += py / dd * 95 * dt; d.moving = true; d.dir = px > 0 ? 2 : 1; d.tx = null;
+        if (dd < 8) { prey.dead = true; O.fauna.splice(O.fauna.indexOf(prey), 1); d.chase = null; s.drop(prey.kind === 'deer' ? 'venison' : 'meat', 1, prey.x, prey.y);
+          say(`${d.name || 'Your dog'} runs down a ${prey.kind} and stands over it, tail going.`);
+        if (prey.kind === 'deer') { const keeper = s.people.find((q) => ['gamekeeper', 'forester'].includes(q.job?.role) && !q.agent.hidden && Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < 260); if (keeper) { const c = s.recordCrime({ kind: 'poaching', perp: 'player', placeName: 'the woods', tile: [Math.floor(P.x / T), Math.floor(P.y / T)], seen: [keeper], severity: 2 }); if (c) PS.crimes.push(c.id); } }
+      } }
+    });
+    let ft2 = 0;
+    game.hooks.update.push((dt) => {
+      ft2 -= dt; if (ft2 > 0 || game.scene) return; ft2 = 6; const s = cur(), P = game.player; if (!s) return;
       for (const d of mine('dog', 'fetch')) {
         const it = (s.dropped || []).find((x) => !x.placed && Math.hypot(x.x - P.x, x.y - P.y) < 140 && Math.hypot(x.x - P.x, x.y - P.y) > 20);
         if (!it || !PS.canCarry(it.good)) continue;
@@ -59,7 +74,22 @@
         r.querySelector('[data-ok]').onclick = ok; i.onkeydown = (e) => { if (e.key === 'Enter') ok(); };
       });
     });
-    let flown = 0;
+    let flown = 0, hawkFly = null;
+    // the flight itself: off the fist, up in rings, a stoop on the quarry, and back to the glove
+    game.hooks.update.push((dt) => { if (hawkFly) { hawkFly.t += dt; if (hawkFly.t > 6.4) hawkFly = null; } });
+    game.hooks.drawWorld.push((ctx, cam) => {
+      const f = hawkFly; if (!f || game.scene) return; const P = game.player, hx = P.x + (P.dir === 1 ? -6 : 6), hy = P.y - 18, t = f.t; let x, y, flap = true, prey = false;
+      if (t < 1.4) { const k = t / 1.4; x = hx + Math.sin(k * 6) * 30 * k; y = hy - k * 70; }
+      else if (t < 3.2) { const a = (t - 1.4) * 2.6; x = hx + Math.cos(a) * 46; y = hy - 70 + Math.sin(a) * 16; flap = Math.floor(t * 4) % 3 !== 0; }
+      else if (t < 3.8) { const k = (t - 3.2) / 0.6; x = hx + Math.cos(4.7) * 46 + (f.dx - Math.cos(4.7) * 46) * k; y = hy - 70 + (f.dy + 18 + 70) * k * k; flap = false; }
+      else if (t < 4.6) { x = hx + f.dx; y = hy + f.dy + 18; flap = Math.floor(t * 10) % 2 === 0; if (f.ok) { prey = true; } }
+      else { const k = Math.min(1, (t - 4.6) / 1.4); x = hx + f.dx * (1 - k); y = hy + (f.dy + 18) * (1 - k) - Math.sin(k * Math.PI) * 30; prey = f.ok; }
+      const sx = Math.round(x - cam.x), sy = Math.round(y - cam.y), w = flap && Math.floor(t * 12) % 2 ? 2 : 0;
+      ctx.fillStyle = '#5a4030'; ctx.fillRect(sx - 2, sy - 1, 5, 3); ctx.fillRect(sx - 6, sy - 1 - w, 4, 2); ctx.fillRect(sx + 3, sy - 1 - w, 4, 2); ctx.fillStyle = '#e8dcc0'; ctx.fillRect(sx, sy, 2, 1); ctx.fillStyle = '#c8a040'; ctx.fillRect(sx + 2, sy - 2, 1, 1);
+      if (prey) { ctx.fillStyle = '#9a8070'; ctx.fillRect(sx - 2, sy + 2, 5, 3); }
+      if (t > 3.8 && t < 4.6) { ctx.fillStyle = 'rgba(200,190,160,0.6)'; for (let i = 0; i < 4; i++) ctx.fillRect(sx - 6 + i * 4, sy + 6 + (i % 2), 1, 1); }
+      if (t < 6.2 && (t < 0.3 || t > 5.8)) { P.anim = 'point'; }
+    });
     (O.moreCandidates = O.moreCandidates || []).push(() => {
       const s = cur(), w = game.world, P = game.player; if (!s || game.scene || !hawks().length || !w.ter) return null;
       const t = w.ter[Math.floor(P.y / T) * w.W + Math.floor(P.x / T)]; if (t === w.TER.FOREST || t === w.TER.WATER || t === w.TER.COBBLE) return null;
@@ -68,7 +98,8 @@
       return { type: 'custom', d: 6, x: P.x, y: P.y - 50, label: `Fly ${hk.name || 'your hawk'}`, act: () => {
         if (performance.now() - flown < 40000) return say(`${hk.name || 'Your hawk'} needs to rest a while.`); flown = performance.now();
         P.anim = 'point'; setTimeout(() => { P.anim = 'idle'; }, 1500); hk.flights++;
-        setTimeout(() => { const ok = Math.random() < 0.3 + hk.skill * 0.6; hk.skill = Math.min(1, hk.skill + 0.03); if (ok) { const g = Math.random() < 0.6 ? 'meat' : 'feathers'; if (PS.canCarry(g)) PS.add(g); say(`${hk.name || 'Your hawk'} stoops on something in the grass and comes back to the glove with ${g === 'meat' ? 'a rabbit' : 'a partridge'}.`); } else say(`${hk.name || 'Your hawk'} circles high, misses, and comes back to the lure.`); }, 2500);
+        const ok0 = Math.random() < 0.3 + hk.skill * 0.6; hawkFly = { t: 0, dx: (Math.random() < 0.5 ? -1 : 1) * (60 + Math.random() * 50), dy: -10 + Math.random() * 50, ok: ok0 };
+        setTimeout(() => { const ok = ok0; hk.skill = Math.min(1, hk.skill + 0.03); if (ok) { const g = Math.random() < 0.6 ? 'meat' : 'feathers'; if (PS.canCarry(g)) PS.add(g); say(`${hk.name || 'Your hawk'} stoops on something in the grass and comes back to the glove with ${g === 'meat' ? 'a rabbit' : 'a partridge'}.`); } else say(`${hk.name || 'Your hawk'} circles high, misses, and comes back to the lure.`); }, 6200);
       } };
     });
     // a falconer can sell you a hawk; someone with a pup or kitten can give you one (pets.js)

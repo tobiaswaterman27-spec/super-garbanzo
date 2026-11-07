@@ -235,6 +235,7 @@
   }
   // small animals: moving -> 8-frame walk, otherwise idle or (for grazers) grazing
   function animal(kind, seed, dir, moving, f, anim) {
+    if (!SPEC[kind]) kind = kind === 'goat' ? 'sheep' : kind === 'hen' ? 'chicken' : 'dog'; // (no drawing of its own: the nearest that has one)
     const an = anim || (moving ? 'walk' : 'idle'); f %= HANIMS[an].frames;
     return remember(kind + seed + ':' + dir + an + f, () => build(kind, smallLook(kind, seed), dir, an, f, false));
   }

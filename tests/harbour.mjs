@@ -1,0 +1,11 @@
+import { start } from './lib.mjs';
+const { p, done } = await start();
+const D = process.env.SHOTS || '';
+const id = await p.evaluate(() => O.SimRef.home.kingdom.places.find((x) => x.kind === 'port' && !x.detailed).id);
+await p.evaluate((id) => O.teleport(id), id); await p.waitForTimeout(3000);
+await p.evaluate(() => { const s = O.SimRef.cur; let g = 0; while (Math.floor(s.minute / 60) !== 11 && g++ < 3000) s.tick(2); O.game.clock.minute = s.minute; });
+await p.waitForTimeout(1500);
+const r = await p.evaluate(() => { const P = O.Harbour.port; if (!P) return 'no ship'; O.game.player.x = P.ship[0] + 40; O.game.player.y = P.ship[1] + 30; return P.name + ' with ' + P.cargo; });
+console.log('harbour:', r);
+await p.waitForTimeout(2500); if (D) await p.screenshot({ path: `${D}/harbour.png`, clip: { x: 380, y: 230, width: 440, height: 260 } });
+await done();

@@ -198,7 +198,9 @@
         if (k === 'postern') { o = Math.min(0.95, base + 0.22); tale = `At the third hour of night the little gate by the kitchens opens. ${pl.inside.name} keeps their word. You are in the courtyard before the alarm.`; }
         if (k === 'siege') { o = Math.min(0.95, base + 0.12); tale = 'The lords\' hosts close the roads. For three days nothing goes in; on the fourth, hungry men inside start to talk of opening the gates.'; const s = O.SimRef.home; for (let i = 0; i < 3 * 720; i++) s.tick(2); }
         const won = Math.random() < o;
-        setTimeout(() => (won ? victory(tale) : defeat(tale)), 60);
+        const go = () => (won ? victory(tale) : defeat(tale));
+        if (O.Battle && O.Battle.start && !game.scene && O.Battle.start({ ours: Math.round(Math.min(18, 4 + F.ours / 2)), theirs: Math.round(Math.min(18, 4 + F.theirs / 2)), ourLook: 'outlaw', theirLook: 'guard', ourBanner: '#7a1a1a', theirBanner: '#2a4a8a', ourStr: 0.7 + o * 0.6, title: k === 'storm' ? 'The storming of the gates' : k === 'postern' ? 'In by the postern' : 'The siege', onEnd: (w) => setTimeout(() => (w ? victory(tale) : defeat(tale)), 800) })) O.UI.say(tale, 'note'); // (fought out before your eyes; the fight decides it)
+        else setTimeout(go, 60);
       } });
     }
     function victory(tale) {

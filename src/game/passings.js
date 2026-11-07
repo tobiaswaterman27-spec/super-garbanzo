@@ -29,6 +29,7 @@
       if (lovers && a.age >= 15) { stop(a, 3.5, 'talk', b); stop(b, 3.5, 'laugh', a); if (Math.random() < 0.5) say(a, pick(['There you are.', `${b.first}! I was hoping I'd see you.`])); return true; }
       if (aff > 0.25 && fam > 0.3 && Math.random() < 0.35 && a.age >= 13 && b.age >= 13) { const st = stop(a, 4, 'talk', b); stop(b, 4, 'nod', a); st.seq = [[1.4, a, 'laugh'], [1.5, b, 'talk'], [2.8, a, 'nod']]; say(a, pick([`${b.first}! How's the family?`, `${hello(h)}, ${b.first}. Heard about the miller?`, `${b.first}! Haven't seen you in an age.`])); return true; }
       if (fam > 0.15 && aff > -0.1) { O.gesture && O.gesture(a, 'wave', 1); setTimeout(() => O.gesture && O.gesture(b, Math.random() < 0.5 ? 'wave' : 'nod', 1), 300); if (Math.random() < 0.25) say(a, `${hello(h)}, ${b.first}.`); return true; }
+      if (a.age >= 16 && b.age >= 16 && Math.random() < 0.3) { O.gesture && O.gesture(a, 'nod', 0.7); setTimeout(() => O.gesture && O.gesture(b, 'nod', 0.7), 250); return true; } // (strangers: a nod)
       return false;
     }
     let scan = 0, pc = 0;

@@ -11,12 +11,14 @@
     const pick = (a) => a[Math.floor(Math.random() * a.length)];
     const say = (q, t, secs) => O.Speech && O.Speech.say(q, t, secs || 2.2);
     const nearP = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
-    const _plan = SP.plan;
+    let wrapped = false; // (wrapped once everything else is set up: the rounds are planned by a later module)
+    const wrapPlan = () => { if (wrapped) return; wrapped = true; const _plan = SP.plan;
     SP.plan = function (p) {
       const r = _plan.apply(this, arguments);
       try { if (r && r.act === 'visit' && r.collecting && r.b != null) { const b = this.building(r.b); if (b && b.doorX != null && !(p._shook && p._shook[r.b] === this.day)) return { act: 'shakedown', b: r.b, gang: r.collecting, outdoor: true, zone: 'shopdoor:' + r.b }; if (p._shook && p._shook[r.b] === this.day) return { act: 'stroll', outdoor: true, zone: 'square' }; } } catch (e) { /* */ }
       return r;
-    };
+    }; };
+    setTimeout(wrapPlan, 0); game.hooks.update.unshift(() => wrapPlan());
     const _zone = SP.zoneTile;
     SP.zoneTile = function (p, zone) {
       if (typeof zone === 'string' && zone.startsWith('shopdoor:')) { const b = this.building(+zone.slice(9)); if (b && b.doorX != null) return [b.doorX + ((p.id % 2) ? 1 : 0), b.doorY + 1]; return _zone.call(this, p, 'square'); }

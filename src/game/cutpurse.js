@@ -34,6 +34,7 @@
       const crowd = crowdNear(s); if (!crowd.length && !force) return false;
       const thief = force?.thief || thiefFor(s, crowd); if (!thief) return false;
       const victim = force?.victim || crowd.filter((v) => v !== thief && v.gang !== thief.gang).sort((a, b) => dist(a, thief) - dist(b, thief))[0]; if (!victim) return false;
+      if (job) end();
       hold(thief); job = { s, thief, victim, stage: 'sidle', t: 0, skill: (thief.skills && thief.skills.stealth) || 0.3, flee: null, chasers: [] };
       return true;
     }

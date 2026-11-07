@@ -9,7 +9,7 @@ for (const mode of ['natural', 'pay', 'leave']) {
     heavy.agent.inside = null; heavy.agent.hidden = false; heavy.agent.x = b.doorX * 16 + 8; heavy.agent.y = b.doorY * 16 + 30; P.x = heavy.agent.x + 30; P.y = heavy.agent.y + 10; window._sc = O.Shakedown.start(heavy, bid); window._cash = bz.cash; window._pm = O.PlayerState.money; _said.length = 0; return _sc ? `${heavy.first} at ${bz.name}, owner ${_sc.owner.first} out: ${!_sc.owner.agent.hidden}` : 'no scene'; }, mode);
   console.log(mode, r);
   if (mode !== 'natural') { await p.waitForTimeout(1500); const line = await p.evaluate((mode) => new Promise((res) => { O.PlayerState.money = Math.max(O.PlayerState.money, 20); O.PlayerState.equipped = 'sword'; O.AIChat.say(_sc.heavy, mode === 'pay' ? "I'll pay it for them" : 'leave them be', (l) => res(l)); }), mode); console.log('  you said ->', line); }
-  await p.waitForTimeout(9500);
+  await p.waitForTimeout(14000);
   console.log('  ', await p.evaluate(() => `scenes left ${O.Shakedown.scenes.length}, shop cash change ${_sc.bz.cash - _cash}, your money change ${O.PlayerState.money - _pm}, owner back inside ${_sc.owner.agent.hidden}, frozen ${_sc.owner.agent.frozen || _sc.heavy.agent.frozen} | ` + _said.join(' / ').slice(0, 260)));
 }
 // natural flow: does plan send heavies to doors on collection day?

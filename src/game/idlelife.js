@@ -91,7 +91,7 @@
       const s = cur(); if (!s) return;
       for (const g of ground.slice()) { g.t += dt; if (g.t > g.life) ground.splice(ground.indexOf(g), 1); }
       for (const b of bits.slice()) {
-        b.t += dt; const end = b.t > b.len || game.scene || b.ppl.some((q, i) => q.activity !== b.acts[i] || q.alive === false || q._fighting || q.errand || q._scene || (O.npcUI && O.npcUI.talking && O.npcUI.talking() === q) || q._bit !== b || q._cp || q.agent.inside != null || q.agent.hidden);
+        b.t += dt; const end = b.t > b.len || game.scene || b.ppl.some((q, i) => (q.activity && q.activity.act) !== (b.acts[i] && b.acts[i].act) || q.alive === false || q._fighting || q.errand || q._scene || (O.npcUI && O.npcUI.talking && O.npcUI.talking() === q) || q._bit !== b || q._cp || q.agent.inside != null || q.agent.hidden);
         if (!end) { try { BITS[b.kind].update(b, dt); } catch (e) { console.error(e); b.t = 1e9; } }
         if (end || b.t >= 1e9) { release(b); bits.splice(bits.indexOf(b), 1); }
       }

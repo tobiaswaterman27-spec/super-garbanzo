@@ -6,6 +6,25 @@
   const SHOPS = new Set(['store', 'chandler', 'tailor', 'smithy', 'carpenter', 'potter', 'cooper', 'weaver', 'cobbler', 'brewery', 'tavern', 'apothecary', 'doctor', 'barber', 'jeweller', 'dyer', 'glazier', 'saddler', 'fletcher']);
   function setup(game) {
     const SP = O.Sim.prototype, _plan = SP.plan, G = O.Data.GOODS;
+    // when the bakery's shelves are bare, a house bakes its own at the hearth: a little flour from the
+    // mill (or their own oats), and bread by evening
+    const _ndB = SP.newDay;
+    SP.newDay = function () {
+      const r = _ndB.apply(this, arguments);
+      try {
+        const bakeries = [...this.biz.values()].filter((z) => z.type === 'bakery'), shelf = bakeries.reduce((a, z) => a + (z.stock.bread || 0), 0);
+        const mill = [...this.biz.values()].find((z) => z.type === 'mill' && (z.stock.flour || 0) >= 1) || [...this.biz.values()].find((z) => (z.stock.flour || 0) >= 1 && z.type !== 'bakery');
+        let baked = 0;
+        for (const hh of this.households) {
+          if (hh.gone || !hh.members.length || (hh.pantry.bread || 0) >= 2) continue;
+          if (shelf > hh.members.length * 2 && hh.money > 8) continue; // (the baker has it; they'll buy)
+          if ((hh.pantry.oats || 0) >= 1) { hh.pantry.oats -= 1; hh.pantry.bread = (hh.pantry.bread || 0) + 2; baked++; continue; }
+          if (mill && hh.money >= 2 && (mill.stock.flour || 0) >= 1) { const pr = Math.max(1, Math.round((this.price ? this.price(mill, 'flour') : 2) * 0.8)); if (hh.money < pr) continue; hh.money -= pr; mill.cash = (mill.cash || 0) + pr; mill.stock.flour -= 1; hh.pantry.bread = (hh.pantry.bread || 0) + 3; baked++; }
+        }
+        if (baked >= 5) this.log(`With the bakers' shelves bare, ${baked} households baked their own bread at the hearth.`, 'economy');
+      } catch (e) { console.error(e); }
+      return r;
+    };
     // having bought, they linger a few minutes: look at the goods, pass the time of day with the shopkeeper
     const _buy = SP.buy;
     SP.buy = function (p, act) { const r = _buy.apply(this, arguments); try { if (act && act.browse) p._browse = { b: act.b, until: this.day * 1440 + this.minute + 6 + ((p.id * 7) % 9) }; } catch (e) { /* */ } return r; };

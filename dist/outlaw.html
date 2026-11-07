@@ -28503,7 +28503,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         let gone = 0;
         for (const hh of this.households) { if (hh.gone) continue; const ease = 120 + 40 * (hh.members || []).length; if (hh.money > ease) { const t = (hh.money - ease) * 0.03; hh.money -= t; gone += t; } }
         for (const bz of this.biz.values()) { if (bz.def.public || mine(bz)) continue; const ease = 300; if ((bz.cash || 0) > ease) { const t = (bz.cash - ease) * 0.03; bz.cash -= t; gone += t; } }
-        if (this.treasury && this.treasury.cash > 1000) { const t = (this.treasury.cash - 1000) * 0.04; this.treasury.cash -= t; gone += t; }
+        if (this.treasury && this.treasury.cash > 1000) { const t = (this.treasury.cash - 1000) * 0.07; this.treasury.cash -= t; gone += t; }
         this._moneyOut = Math.round(gone);
       } catch (e) { console.error(e); }
       return r;
@@ -29420,7 +29420,30 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       { name: 'pedlar', fit: (s) => { const p0 = freeNear(s, 300, (q) => q.age >= 25 && /merchant|pedlar|chapman|shopkeeper|farmer|dairymaid|beekeeper|fisher/.test(q.job?.role || ''))[0] || null; const buyer = freeNear(s, 300, (q) => q !== p0 && q.age >= 16)[0]; return p0 && buyer ? { p0, buyer } : null; },
         run: (s, { p0, buyer }) => { hold([p0, buyer], 20); say(p0, /farmer|dairymaid/.test(p0.job?.role || '') ? pick(['Fresh eggs! New butter!', 'Cheese, good cheese, from our own cows!']) : /fisher/.test(p0.job?.role || '') ? 'Fresh fish! Caught this morning!' : /beekeeper/.test(p0.job?.role || '') ? 'Honey! Wax for your candles!' : pick(['Ribbons! Needles! Laces for your stays!', 'Fine combs, fine pins, two a penny!', 'Who\'ll buy? Who\'ll buy?']), 3); const t = tileOf(p0);
           setTimeout(() => send(s, buyer, [t[0] + 1, t[1]], { anim: 'give', secs: 2, face: 1, after: () => { say(buyer, 'A needle, then. And not a bent one.'); O.gesture && O.gesture(p0, 'give', 1.2); const hb = s.household(buyer), hp = s.household(p0); if (hb && hp && hb.money > 1) { hb.money -= 1; hp.money += 1; } } }), 2500); } },
+      // an old one tells the children a story
+      { name: 'story', fit: (s) => { const old = freeNear(s, 300, (q) => q.age >= 58)[0]; const ks = old && freeNear(s, 320, (q) => q.age >= 4 && q.age <= 11).slice(0, 3); return old && ks && ks.length >= 2 ? { old, ks } : null; },
+        run: (s, { old, ks }) => { hold([old, ...ks], 30); const t = tileOf(old); send(s, old, t, { anim: 'sit', secs: 22, face: 0 }); ks.forEach((k, i) => send(s, k, [t[0] - 1 + i, t[1] + 1], { anim: 'sit', secs: 20, face: 3 }));
+          const tale = pick(['the winter the wolves came to the church door', 'the giant who built the old bridge', 'how your great-grandfather fought at the ford', 'the hare who outran the Devil', 'the night the mill wheel turned by itself']);
+          setTimeout(() => say(old, `Sit down, sit down. Did I ever tell you about ${tale}?`, 3.5), 2500); setTimeout(() => say(ks[0], pick(['Tell it again!', 'Was it true?', 'Not the scary one!'])), 7000); setTimeout(() => say(old, 'And that, my chicks, is why you never go to the woods at night.', 3.5), 15000);
+          ks.forEach((k) => s.relate(k, old, 0.06)); } },
+      // a pig gets out
+      { name: 'pig', fit: (s) => { const pig = (O.fauna || []).find((f) => f.kind === 'pig' && f.world === s.world.placeId && !f._loose && Math.hypot(f.x - game.player.x, f.y - game.player.y) < 400); const owner = pig && freeNear(s, 400, (q) => q.age >= 16 && /farm|swine|herd/.test(q.job?.role || ''))[0] || (pig && freeNear(s, 300, (q) => q.age >= 16)[0]); return pig && owner ? { pig, owner } : null; },
+        run: (s, { pig, owner }) => { pig._loose = { owner: owner.id, until: game.t + 50 }; pig.speed = 34; hold([owner], 40); say(owner, 'The pig! Somebody stop that pig!', 3); PS.loosePig = { f: pig, owner: owner.id };
+          let n = 0; const chase = () => { if (!pig._loose || n++ > 8) { if (pig._loose) { pig._loose = null; pig.speed = 12; say(owner, 'Got you, you devil.'); PS.loosePig = null; } return; } const t = [Math.floor(pig.x / T) + Math.floor(Math.random() * 7) - 3, Math.floor(pig.y / T) + Math.floor(Math.random() * 5) - 2]; pig.tx = t[0] * T + 8; pig.ty = t[1] * T + 8; send(s, owner, t, { anim: 'point', secs: 0.5, giveUp: 8 }); setTimeout(chase, 5000); }; chase(); } },
+      // a cart stuck in the mud
+      { name: 'cart', fit: (s) => { const c = freeNear(s, 320, (q) => q.age >= 18 && q.age < 60 && /carter|carrier|farmer|merchant|woodcutter/.test(q.job?.role || ''))[0]; return c && !PS.stuckCart ? { c } : null; },
+        run: (s, { c }) => { hold([c], 60); const t = tileOf(c); send(s, c, t, { anim: 'shake', secs: 30, face: 2, carry: null }); PS.stuckCart = { q: c.id, x: c.agent.x + 14, y: c.agent.y, until: game.t + 60 }; say(c, 'Stuck fast. Will someone give me a shove? Put your shoulder to it!', 3.5);
+          const helper = freeNear(s, 300, (q) => q !== c && q.age >= 16 && q.age < 55 && q.sex === 'm')[0]; if (helper) setTimeout(() => { if (!PS.stuckCart) return; send(s, helper, [t[0] + 1, t[1]], { anim: 'shake', secs: 5, face: 1, after: () => { if (!PS.stuckCart) return; PS.stuckCart = null; say(c, 'She moves! Thank you, friend.'); s.relate(c, helper, 0.1); } }); }, 25000); } },
     ];
+
+    // catching a loose pig, pushing a cart
+    (O.moreCandidates = O.moreCandidates || []).push(() => {
+      const P = game.player, s = cur(); if (!s || game.scene) return null;
+      const L = PS.loosePig; if (L && L.f && L.f._loose && Math.hypot(L.f.x - P.x, L.f.y - P.y) < 26) return { type: 'custom', d: 2, x: L.f.x, y: L.f.y - 16, label: 'Grab the pig', act: () => { const f = L.f; f._loose = null; f.speed = 12; PS.loosePig = null; P.anim = 'crouch'; P.ft = 0; const o = s.byId.get(L.owner); O.sfx && O.sfx('catch', 0.6); if (O.animalCall) O.animalCall('pig', 0.7); if (o) { say(o, 'You caught him! Bless you. Here, for your trouble.'); s.relate(o, { id: 0 }, 0.2); const hh = s.household(o); if (hh && hh.money > 3) { hh.money -= 2; PS.money += 2; O.NpcActs && O.NpcActs.fly && O.NpcActs.fly(o, 'player', 'coin'); } s.remember(o, 'The stranger caught my pig when it ran off.', 'social', 1.5); } } };
+      const C = PS.stuckCart; if (C && Math.hypot(C.x - P.x, C.y - P.y) < 34) return { type: 'custom', d: 3, x: C.x, y: C.y - 30, label: 'Put your shoulder to the cart', act: () => { P.locked = true; P.anim = 'shake'; P.ft = 0; O.sfx && O.sfx('smack', 0.4); setTimeout(() => { P.locked = false; P.anim = 'idle'; const c = s.byId.get(C.q); PS.stuckCart = null; PS.energy = Math.max(0, PS.energy - 6); if (c) { O.Errands && O.Errands.finish && O.Errands.finish(c, true); say(c, 'She moves! You\'ve a good back on you. Here.'); s.relate(c, { id: 0 }, 0.15); const hh = s.household(c); if (hh && hh.money > 3) { hh.money -= 2; PS.money += 2; O.NpcActs && O.NpcActs.fly && O.NpcActs.fly(c, 'player', 'coin'); } } }, 2500); } };
+      return null;
+    });
+    game.hooks.update.push(() => { const C = PS.stuckCart; if (C && game.t > C.until) PS.stuckCart = null; const L = PS.loosePig; if (L && L.f && (!L.f._loose || game.t > L.f._loose.until)) { if (L.f._loose) { L.f._loose = null; L.f.speed = 12; } PS.loosePig = null; } });
 
     // somewhere near you, now and then
     let next = 12; const lastRun = {};
@@ -29639,6 +29662,25 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
   const SHOPS = new Set(['store', 'chandler', 'tailor', 'smithy', 'carpenter', 'potter', 'cooper', 'weaver', 'cobbler', 'brewery', 'tavern', 'apothecary', 'doctor', 'barber', 'jeweller', 'dyer', 'glazier', 'saddler', 'fletcher']);
   function setup(game) {
     const SP = O.Sim.prototype, _plan = SP.plan, G = O.Data.GOODS;
+    // when the bakery's shelves are bare, a house bakes its own at the hearth: a little flour from the
+    // mill (or their own oats), and bread by evening
+    const _ndB = SP.newDay;
+    SP.newDay = function () {
+      const r = _ndB.apply(this, arguments);
+      try {
+        const bakeries = [...this.biz.values()].filter((z) => z.type === 'bakery'), shelf = bakeries.reduce((a, z) => a + (z.stock.bread || 0), 0);
+        const mill = [...this.biz.values()].find((z) => z.type === 'mill' && (z.stock.flour || 0) >= 1) || [...this.biz.values()].find((z) => (z.stock.flour || 0) >= 1 && z.type !== 'bakery');
+        let baked = 0;
+        for (const hh of this.households) {
+          if (hh.gone || !hh.members.length || (hh.pantry.bread || 0) >= 2) continue;
+          if (shelf > hh.members.length * 2 && hh.money > 8) continue; // (the baker has it; they'll buy)
+          if ((hh.pantry.oats || 0) >= 1) { hh.pantry.oats -= 1; hh.pantry.bread = (hh.pantry.bread || 0) + 2; baked++; continue; }
+          if (mill && hh.money >= 2 && (mill.stock.flour || 0) >= 1) { const pr = Math.max(1, Math.round((this.price ? this.price(mill, 'flour') : 2) * 0.8)); if (hh.money < pr) continue; hh.money -= pr; mill.cash = (mill.cash || 0) + pr; mill.stock.flour -= 1; hh.pantry.bread = (hh.pantry.bread || 0) + 3; baked++; }
+        }
+        if (baked >= 5) this.log(`With the bakers' shelves bare, ${baked} households baked their own bread at the hearth.`, 'economy');
+      } catch (e) { console.error(e); }
+      return r;
+    };
     // having bought, they linger a few minutes: look at the goods, pass the time of day with the shopkeeper
     const _buy = SP.buy;
     SP.buy = function (p, act) { const r = _buy.apply(this, arguments); try { if (act && act.browse) p._browse = { b: act.b, until: this.day * 1440 + this.minute + 6 + ((p.id * 7) % 9) }; } catch (e) { /* */ } return r; };
@@ -29809,10 +29851,10 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     SP.plan = function (p) {
       const r = _plan.apply(this, arguments);
       try {
-        if (!r || p.visitor || p.age < 13 || p.job?.onShift || p.homefront || p.errand || p._fighting) return r;
+        if (!r || p.visitor || p.age < 13 || p.job?.onShift || p.homefront || p.errand || p._fighting || (p.needs && p.needs.hunger < 60)) return r; // (fed first: nobody goes fishing on an empty belly)
         if (!['home', 'rest', 'stroll', 'socialise', 'idle'].includes(r.act)) return r;
         const h = this.minute / 60, sunday = this.weekday === 0, summer = this.season === 'summer' || this.season === 'spring';
-        const leisure = (sunday && h >= 13 && h < 18) || (summer && h >= 17.5 && h < 20.5) || (h >= 15 && h < 17 && p.age >= 60);
+        const leisure = (sunday && h >= 13 && h < 18) || (summer && h >= 19 && h < 20.75) || (h >= 15 && h < 17 && p.age >= 60);
         if (!leisure || this.weather && /rain|heavy|storm|snow|blizzard/.test(this.weather.kind || '')) return r;
         if (((p.id * 31 + this.day * 3 + Math.floor(h)) % 7) > 1) return r; // (only some, and not every hour)
         const kind = choose(this, p);

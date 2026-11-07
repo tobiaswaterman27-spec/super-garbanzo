@@ -29,10 +29,10 @@
     SP.plan = function (p) {
       const r = _plan.apply(this, arguments);
       try {
-        if (!r || p.visitor || p.age < 13 || p.job?.onShift || p.homefront || p.errand || p._fighting) return r;
+        if (!r || p.visitor || p.age < 13 || p.job?.onShift || p.homefront || p.errand || p._fighting || (p.needs && p.needs.hunger < 60)) return r; // (fed first: nobody goes fishing on an empty belly)
         if (!['home', 'rest', 'stroll', 'socialise', 'idle'].includes(r.act)) return r;
         const h = this.minute / 60, sunday = this.weekday === 0, summer = this.season === 'summer' || this.season === 'spring';
-        const leisure = (sunday && h >= 13 && h < 18) || (summer && h >= 17.5 && h < 20.5) || (h >= 15 && h < 17 && p.age >= 60);
+        const leisure = (sunday && h >= 13 && h < 18) || (summer && h >= 19 && h < 20.75) || (h >= 15 && h < 17 && p.age >= 60);
         if (!leisure || this.weather && /rain|heavy|storm|snow|blizzard/.test(this.weather.kind || '')) return r;
         if (((p.id * 31 + this.day * 3 + Math.floor(h)) % 7) > 1) return r; // (only some, and not every hour)
         const kind = choose(this, p);

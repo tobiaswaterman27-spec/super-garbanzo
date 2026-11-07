@@ -146,7 +146,7 @@
         let gone = 0;
         for (const hh of this.households) { if (hh.gone) continue; const ease = 120 + 40 * (hh.members || []).length; if (hh.money > ease) { const t = (hh.money - ease) * 0.03; hh.money -= t; gone += t; } }
         for (const bz of this.biz.values()) { if (bz.def.public || mine(bz)) continue; const ease = 300; if ((bz.cash || 0) > ease) { const t = (bz.cash - ease) * 0.03; bz.cash -= t; gone += t; } }
-        if (this.treasury && this.treasury.cash > 1000) { const t = (this.treasury.cash - 1000) * 0.04; this.treasury.cash -= t; gone += t; }
+        if (this.treasury && this.treasury.cash > 1000) { const t = (this.treasury.cash - 1000) * 0.07; this.treasury.cash -= t; gone += t; }
         this._moneyOut = Math.round(gone);
       } catch (e) { console.error(e); }
       return r;

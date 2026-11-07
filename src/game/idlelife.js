@@ -72,6 +72,9 @@
       // the old
       doze: { who: 'old', len: [30, 50], init(b) { b.k = 0; },
         update(b, dt) { const q = b.ppl[0]; b.k += dt; anim(q, b.k < 2 ? 'sit' : b.k > b.len - 3 ? 'stretch' : 'doze'); q.agent.dir = 0; } },
+      spindle: { who: 'old', len: [30, 50], when: (q) => q.sex === 'f', init(b) { b.k = 0; b.yarn = 0; },
+        update(b, dt) { const q = b.ppl[0]; b.k += dt; anim(q, Math.floor(b.k / 6) % 5 === 4 ? 'look' : 'spin'); q.agent.dir = 0; b.yarn = Math.min(8, b.yarn + dt * 0.15); if (b.k > 3 && !b.said && (b.said = 1) && Math.random() < 0.4) say(q, pick(['My eyes aren\'t what they were.', 'Wool for my grandson\'s stockings.', 'Spin, spin, the day goes in.'])); },
+        draw(b, ctx, cam) { const a = b.ppl[0].agent, x = Math.round(a.x - cam.x) + 6, y = Math.round(a.y - cam.y) - 6; const sp = Math.floor(performance.now() / 70) % 4; ctx.strokeStyle = '#e8e0d0'; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(x - 2, y - 10); ctx.lineTo(x, y); ctx.stroke(); ctx.fillStyle = '#8a6239'; ctx.fillRect(x - 1, y, 3, 1); ctx.fillRect(x, y - 1 + (sp % 2), 1, 4); ctx.fillStyle = '#e8e0d0'; ctx.fillRect(x - 1, y + 1, 3, Math.max(1, Math.round(b.yarn / 3))); ctx.fillStyle = '#d8d0c0'; ctx.fillRect(x - 6, y - 14, 4, 5); } },
       dance: { who: 'fest', n: [2, 2], len: [12, 18], init(b) { b.c = [(b.ppl[0].agent.x + b.ppl[1].agent.x) / 2, (b.ppl[0].agent.y + b.ppl[1].agent.y) / 2]; b.ang = 0; },
         update(b, dt) { b.ang += dt * 2.6; b.ppl.forEach((q, i) => { const a = b.ang + i * Math.PI, tx = b.c[0] + Math.cos(a) * 6, ty = b.c[1] + Math.sin(a) * 3.5; const qa = q.agent; if (Math.hypot(tx - qa.x, ty - qa.y) > 8) move(q, tx, ty, dt, 40); else if (open(tx, ty)) { qa.x = tx; qa.y = ty; } qa.dir = O.dirOf(b.c[0] - qa.x, b.c[1] - qa.y); anim(q, 'dance'); qa.lift = Math.abs(Math.sin(b.ang * 2)) * 1.5; }); } },
     };
@@ -84,7 +87,7 @@
       const b = { kind, ppl, t: 0, len: K.len[0] + Math.random() * (K.len[1] - K.len[0]), acts: ppl.map((q) => q.activity) };
       take(b); try { K.init(b); } catch (e) { release(b); bits.splice(bits.indexOf(b), 1); return null; } return b;
     }
-    const BY = { kid: ['pebble', 'stick', 'marbles', 'spin', 'hop', 'scrawl', 'piggy', 'clap', 'marbles', 'stick'], adult: ['apple', 'knot', 'knot', 'knot', 'crumbs', 'shoe', 'coins', 'juggle', 'knot'], old: ['doze', 'crumbs', 'knot', 'doze'], fest: ['dance', 'dance', 'knot', 'apple', 'juggle'] };
+    const BY = { kid: ['pebble', 'stick', 'marbles', 'spin', 'hop', 'scrawl', 'piggy', 'clap', 'marbles', 'stick'], adult: ['apple', 'knot', 'knot', 'knot', 'crumbs', 'shoe', 'coins', 'juggle', 'knot'], old: ['doze', 'crumbs', 'knot', 'doze', 'spindle', 'spindle'], fest: ['dance', 'dance', 'knot', 'apple', 'juggle'] };
 
     let scan = 1;
     game.hooks.update.push((dt) => {
@@ -113,7 +116,7 @@
         ctx.globalAlpha = 1; }
     });
     game.hooks.drawWorld.push((ctx, cam) => { if (game.scene) return; ctx.save(); for (const b of bits) { const K = BITS[b.kind]; if (K.draw) try { K.draw(b, ctx, cam); } catch (e) { /* */ } } ctx.restore(); });
-    (O.extraLines = O.extraLines || []).push((s, q) => { const b = q._bit; if (!b) return ''; return { pebble: 'You were kicking a pebble along.', stick: 'You were throwing a stick and running for it.', marbles: 'You were playing marbles.', spin: 'You were spinning round till you were dizzy.', hop: 'You were frog-hopping.', scrawl: 'You were drawing in the dirt with a stick.', piggy: 'You were playing piggyback.', clap: 'You were playing a clapping game.', apple: 'You were eating an apple.', knot: 'You were standing chatting with neighbours.', crumbs: 'You were feeding the sparrows.', shoe: 'You had a stone in your shoe.', coins: 'You were counting your coins.', juggle: 'You were juggling, for the fun of it.', doze: 'You had sat down by the wall and nodded off; you\'ve just been woken.', dance: 'You were dancing.' }[b.kind] || ''; });
+    (O.extraLines = O.extraLines || []).push((s, q) => { const b = q._bit; if (!b) return ''; return { pebble: 'You were kicking a pebble along.', stick: 'You were throwing a stick and running for it.', marbles: 'You were playing marbles.', spin: 'You were spinning round till you were dizzy.', hop: 'You were frog-hopping.', scrawl: 'You were drawing in the dirt with a stick.', piggy: 'You were playing piggyback.', clap: 'You were playing a clapping game.', apple: 'You were eating an apple.', knot: 'You were standing chatting with neighbours.', crumbs: 'You were feeding the sparrows.', shoe: 'You had a stone in your shoe.', coins: 'You were counting your coins.', juggle: 'You were juggling, for the fun of it.', doze: 'You had sat down by the wall and nodded off; you\'ve just been woken.', spindle: 'You were sitting spinning wool with your spindle.', dance: 'You were dancing.' }[b.kind] || ''; });
     O.IdleLife = { bits, ground, start: (kind, q) => begin(kind, q, cur()), BITS };
   }
   O.IdleLifeSetup = { setup };

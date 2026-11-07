@@ -186,7 +186,7 @@
         this.particles.push({ x: sx, y: sy, vx: 3 + Math.random() * 3, vy: -7 - Math.random() * 3, life: 0, max: 3 + Math.random() * 2, r: 1 });
       }
       this.particles = this.particles.filter((q) => { q.life += dt; q.x += q.vx * dt; q.y += q.vy * dt; q.vx += dt * 1.5; return q.life < q.max; });
-      for (const h of this.hooks.update) h(dt);
+      for (const h of this.hooks.update) { try { h(dt); } catch (e) { if (!h._errd) { h._errd = 1; console.error(e); } } } // (one broken hook never stops the world)
       // camera
       const T = this.world.T;
       if (this.scene) { this.scene.update(dt); }

@@ -30565,15 +30565,15 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
           b.w -= dt; if (b.w > 0) return; b.w = 2.2; const q = b.ppl[b.turn++ % b.ppl.length]; O.gesture && O.gesture(q, 'place', 0.4); const m = pick(b.m); const s = (q.agent.x < b.ring[0] ? 1 : -1); m.vx = s * (14 + Math.random() * 16); m.vy = (Math.random() - 0.5) * 10; if (Math.hypot(m.x + m.vx * 0.4 - b.ring[0], m.y - b.ring[1]) > 7 && Math.random() < 0.3) say(q, pick(['Knocked it out!', 'Mine now.', 'Fudging! You moved your hand!'])); O.sfx && near(q, 160) && O.sfx('place', 0.08); },
         draw(b, ctx, cam) { for (const m of b.m) { ctx.fillStyle = m.c; ctx.fillRect(Math.round(m.x - cam.x), Math.round(m.y - cam.y) - 1, 2, 2); } } },
       spin: { who: 'kid', len: [6, 9], init(b) { b.k = 0; },
-        update(b, dt) { const q = b.ppl[0]; b.k += dt; if (b.k < 4) { q.agent.dir = Math.floor(b.k * 8) % 4; anim(q, 'celebrate'); } else { anim(q, b.k < 6 ? 'shake' : 'laugh'); const nx = q.agent.x + Math.sin(b.k * 7) * 12 * dt; if (open(nx, q.agent.y)) q.agent.x = nx; if (b.k > 4 && b.k < 4.1) say(q, pick(['The ground\'s going round!', 'Whoooa.', 'Dizzy!'])); } } },
+        update(b, dt) { const q = b.ppl[0]; b.k += dt; if (b.k < 4) { q.agent.dir = Math.floor(b.k * 8) % 4; anim(q, 'celebrate'); } else { anim(q, b.k < 6 ? 'shake' : 'laugh'); const nx = q.agent.x + Math.sin(b.k * 7) * 12 * dt; if (open(nx, q.agent.y)) q.agent.x = nx; if (b.k > 4 && !b.said) { b.said = 1; say(q, pick(['The ground\'s going round!', 'Whoooa.', 'Dizzy!'])); } } } },
       hop: { who: 'kid', len: [8, 12], init(b) { b.k = 0; b.vx = Math.random() < 0.5 ? 1 : -1; },
-        update(b, dt) { const q = b.ppl[0], a = q.agent; b.k += dt; const ph = (b.k * 1.8) % 1; a.lift = Math.sin(ph * Math.PI) * 6; anim(q, ph < 0.15 || ph > 0.85 ? 'crouch' : 'celebrate'); const nx = a.x + b.vx * 18 * dt; if (open(nx, a.y)) a.x = nx; else b.vx = -b.vx; a.dir = b.vx > 0 ? 2 : 1; if (b.k > 0.1 && b.k < 0.13) say(q, pick(['Ribbit!', 'I\'m a frog!'])); } },
+        update(b, dt) { const q = b.ppl[0], a = q.agent; b.k += dt; const ph = (b.k * 1.8) % 1; a.lift = Math.sin(ph * Math.PI) * 6; anim(q, ph < 0.15 || ph > 0.85 ? 'crouch' : 'celebrate'); const nx = a.x + b.vx * 18 * dt; if (open(nx, a.y)) a.x = nx; else b.vx = -b.vx; a.dir = b.vx > 0 ? 2 : 1; if (b.k > 0.1 && !b.said) { b.said = 1; say(q, pick(['Ribbit!', 'I\'m a frog!'])); } } },
       scrawl: { who: 'kid', len: [12, 18], init(b) { const q = b.ppl[0]; b.g = { kind: 'scrawl', x: q.agent.x + 7, y: q.agent.y + 1, lines: [], t: 0, life: 240 }; ground.push(b.g); b.w = 0; },
         update(b, dt) { const q = b.ppl[0]; anim(q, 'crouch'); q.agent.dir = 2; b.w -= dt; if (b.w > 0) return; b.w = 0.5; O.gesture && O.gesture(q, 'place', 0.4); const L = b.g.lines, last = L.length ? L[L.length - 1] : [0, 0, 0, 0]; const x0 = L.length % 4 === 0 ? (Math.random() - 0.5) * 10 : last[2], y0 = L.length % 4 === 0 ? (Math.random() - 0.5) * 6 : last[3]; L.push([x0, y0, Math.max(-6, Math.min(6, x0 + (Math.random() - 0.5) * 7)), Math.max(-4, Math.min(4, y0 + (Math.random() - 0.5) * 5))]); if (L.length === 6) say(q, pick(['That\'s a horse.', 'That\'s you, that is.', 'A dragon!'])); } },
       piggy: { who: 'kid', n: [2, 2], len: [10, 16], init(b) { b.ang = 0; b.c = [b.ppl[0].agent.x, b.ppl[0].agent.y]; },
         update(b, dt) { const [car, rider] = b.ppl; b.ang += dt * 1.1; const tx = b.c[0] + Math.cos(b.ang) * 22, ty = b.c[1] + Math.sin(b.ang) * 12; if (!move(car, tx, ty, dt, 34, 'carry')) { /* */ } else b.ang += 0.3; rider.agent.x = car.agent.x; rider.agent.y = car.agent.y + 0.5; rider.agent.lift = 9; rider.agent.dir = car.agent.dir; anim(rider, Math.sin(b.ang * 3) > 0.6 ? 'celebrate' : 'sit'); if (Math.random() < dt * 0.15) say(rider, pick(['Faster!', 'Gee up!', 'Giddy-up, horse!'])); } },
       clap: { who: 'kid', n: [2, 2], len: [8, 12], init(b) { b.k = 0; const [x, y] = [b.ppl[0].agent.x, b.ppl[0].agent.y]; b.c = [x + 7, y]; },
-        update(b, dt) { const [u, v] = b.ppl; b.k += dt; move(u, b.c[0] - 6, b.c[1], dt, 30); move(v, b.c[0] + 6, b.c[1], dt, 30); if (Math.abs(u.agent.x - (b.c[0] - 6)) < 2 && Math.abs(v.agent.x - (b.c[0] + 6)) < 2) { u.agent.dir = 2; v.agent.dir = 1; const beat = Math.floor(b.k * 3) % 4; anim(u, beat % 2 ? 'wave' : 'gesture'); anim(v, beat % 2 ? 'wave' : 'gesture'); if (beat === 1 && O.sfx && near(u, 160) && Math.random() < dt * 6) O.sfx('smack', 0.06); if (b.k > 1 && b.k < 1.05) say(u, pick(['Pat-a-cake, pat-a-cake...', 'Ring-a-ring...', 'One, two, buckle my shoe...'])); } } },
+        update(b, dt) { const [u, v] = b.ppl; b.k += dt; move(u, b.c[0] - 6, b.c[1], dt, 30); move(v, b.c[0] + 6, b.c[1], dt, 30); if (Math.abs(u.agent.x - (b.c[0] - 6)) < 2 && Math.abs(v.agent.x - (b.c[0] + 6)) < 2) { u.agent.dir = 2; v.agent.dir = 1; const beat = Math.floor(b.k * 3) % 4; anim(u, beat % 2 ? 'wave' : 'gesture'); anim(v, beat % 2 ? 'wave' : 'gesture'); if (beat === 1 && O.sfx && near(u, 160) && Math.random() < dt * 6) O.sfx('smack', 0.06); if (b.k > 1 && !b.said && (b.said = 1)) say(u, pick(['Pat-a-cake, pat-a-cake...', 'Ring-a-ring...', 'One, two, buckle my shoe...'])); } } },
       // grown folk
       apple: { who: 'adult', len: [8, 12], init(b) { b.k = 0; },
         update(b, dt) { const q = b.ppl[0]; b.k += dt; if (b.k < 6.5) { anim(q, 'eat'); } else if (!b.tossed) { b.tossed = true; O.gesture && O.gesture(q, 'attack', 0.4); const a = q.agent, tx = a.x + (Math.random() < 0.5 ? -1 : 1) * 30, ty = a.y + 6; b.fly = { x0: a.x + 5, y0: a.y - 14, x1: tx, y1: ty, t: 0, dur: 0.6 }; } else anim(q, 'wipe'); if (b.fly) { b.fly.t += dt; if (b.fly.t >= b.fly.dur) { ground.push({ kind: 'core', x: b.fly.x1, y: b.fly.y1, t: 0, life: 120 }); b.fly = null; } } },
@@ -30587,12 +30587,12 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
           if (b.t > b.len - 2.5 && !b.leave) { b.leave = true; anim(q, 'idle'); } },
         draw(b, ctx, cam) { for (const bd of b.birds) { const x = Math.round(bd.x - cam.x), y = Math.round(bd.y - cam.y); ctx.fillStyle = '#6a5240'; if (bd.fly) { const f = Math.floor(bd.k * 12) % 2; ctx.fillRect(x - 2, y - (f ? 1 : 0), 2, 1); ctx.fillRect(x + 1, y - (f ? 1 : 0), 2, 1); ctx.fillRect(x, y, 1, 1); } else { const peck = Math.floor(bd.k * 3 + bd.tx) % 3 === 0; ctx.fillRect(x - 1, y - 2, 3, 2); ctx.fillStyle = '#4a3a2c'; ctx.fillRect(x + (peck ? 2 : 1), y - (peck ? 1 : 3), 1, 1); } } } },
       shoe: { who: 'adult', len: [5, 7], init(b) { b.k = 0; },
-        update(b, dt) { const q = b.ppl[0]; b.k += dt; anim(q, b.k < 1.5 ? 'crouch' : b.k < 4 ? 'shake' : 'idle'); if (b.k > 1.5 && b.k < 1.55) say(q, pick(['Blasted stone.', 'Hole in me sole again.'])); } },
+        update(b, dt) { const q = b.ppl[0]; b.k += dt; anim(q, b.k < 1.5 ? 'crouch' : b.k < 4 ? 'shake' : 'idle'); if (b.k > 1.5 && !b.said && (b.said = 1)) say(q, pick(['Blasted stone.', 'Hole in me sole again.'])); } },
       coins: { who: 'adult', len: [6, 9], init(b) { b.k = 0; },
         update(b, dt) { const q = b.ppl[0]; b.k += dt; anim(q, 'count'); },
         draw(b, ctx, cam) { const a = b.ppl[0].agent, f = Math.floor(b.k * 4) % 3; ctx.fillStyle = '#e0c050'; ctx.fillRect(Math.round(a.x - cam.x + (a.dir === 1 ? -5 : 3)), Math.round(a.y - cam.y - 11 - f), 2, 1); if (f === 2) { ctx.fillStyle = '#fff6c8'; ctx.fillRect(Math.round(a.x - cam.x + (a.dir === 1 ? -5 : 3)), Math.round(a.y - cam.y - 13), 1, 1); } } },
       juggle: { who: 'adult', len: [10, 14], when: (q) => (q.traits || []).includes('social') || /minstrel|jester|bard|player/.test(q.job?.role || '') || q.id % 9 === 0, init(b) { b.k = 0; },
-        update(b, dt) { const q = b.ppl[0]; b.k += dt; anim(q, 'juggle'); q.agent.dir = 0; if (b.k > 0.5 && b.k < 0.53 && Math.random() < 0.3) say(q, 'Hup! Hup!'); if (b.k > 7 && !b.drop && Math.random() < dt * 0.15) { b.drop = true; say(q, 'Ah, drat.'); } },
+        update(b, dt) { const q = b.ppl[0]; b.k += dt; anim(q, 'juggle'); q.agent.dir = 0; if (b.k > 0.5 && !b.said && (b.said = 1) && Math.random() < 0.3) say(q, 'Hup! Hup!'); if (b.k > 7 && !b.drop && Math.random() < dt * 0.15) { b.drop = true; say(q, 'Ah, drat.'); } },
         draw(b, ctx, cam) { if (b.drop) return; const a = b.ppl[0].agent, x = a.x - cam.x, y = a.y - cam.y - 20; for (let i = 0; i < 3; i++) { const ph = b.k * 3.4 + i * 2.09, bx = Math.cos(ph) * 5, by = -Math.abs(Math.sin(ph)) * 9; ctx.fillStyle = ['#b8352a', '#e0c050', '#3f5a7a'][i]; ctx.fillRect(Math.round(x + bx) - 1, Math.round(y + by) - 1, 2, 2); } } },
       // the old
       doze: { who: 'old', len: [30, 50], init(b) { b.k = 0; },
@@ -31033,7 +31033,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
           for (const k of f.kin) { const to = k.to.agent, side = (k.q.id % 2 ? 1 : -1) * 6, kid = k.q.age < 13; if (steer(k.q, to.x + side, to.y + 6, dt, kid ? 55 : 40, kid ? 'run' : 'walk')) { k.q.agent.forceAnim = kid ? (Math.floor(f.t * 2) % 3 ? 'wave' : 'celebrate') : (k.q.sex === 'f' ? 'mourn' : 'nod'); k.q.agent.dir = 0; } }
           if (f.sarge) { f.sarge.agent.forceAnim = Math.floor(f.t) % 5 === 0 ? 'point' : 'idle'; }
           if (f.boy) { f.boy.agent.forceAnim = 'drum'; if (drum <= 0) { drum = 0.5; O.sfx && O.sfx('smack', 0.07); } }
-          if (f.t > 6 && f.t < 6.05) say(pick(f.kin.map((k) => k.q).concat(f.men)), pick(['Come back to us.', 'You write. Get someone to write.', 'Mind you keep your head down.', 'God keep you.']), 3);
+          if (f.t > 6 && !f.said6 && (f.said6 = 1)) say(pick(f.kin.map((k) => k.q).concat(f.men)), pick(['Come back to us.', 'You write. Get someone to write.', 'Mind you keep your head down.', 'God keep you.']), 3);
           if (f.t > 14) { f.stage = 'march'; f.t = 0; if (f.sarge) say(f.sarge, 'Fall in! By the left... march!', 2.5); }
         } else if (f.stage === 'march') {
           const lead = f.sarge || f.men[0], line = [lead, ...(f.boy ? [f.boy] : []), ...f.men.filter((p) => p !== lead)];
@@ -31478,6 +31478,187 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     O.Processions = { get proc() { return proc; }, funeral: (e) => funeral(cur(), e), wedding: (e) => wedding(cur(), e) };
   }
   O.ProcessionsSetup = { setup };
+})();
+
+</script>
+<script>
+// Market day, filled. Besides the travelling merchants, the country people come in at dawn on
+// Saturnday with their own produce and set up trestles round the square: an egg-wife with her baskets,
+// a cheese-woman, a man with a cartload of cabbages, a potter, a weaver with cloth, a honey-man. They
+// call their wares, and townsfolk go from stall to stall, point, ask the price, shake their heads,
+// haggle, and pay (you see the coins go over and the goods come back), and go off with a full basket.
+// Talk to any seller to buy, the same as with the merchants. They pack up and go home after noon.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const cur = () => O.SimRef.cur, G = O.Data.GOODS, D = O.Data, Ch = O.Char;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    const say = (q, t, secs) => O.Speech && O.Speech.say(q, t, secs || 1.8);
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    const SELLERS = [
+      { who: 'egg-wife', sex: 'f', wares: ['eggs', 'butter', 'milk'], cry: ['Eggs! New-laid eggs!', 'Butter, sweet butter!'] },
+      { who: 'cheese-woman', sex: 'f', wares: ['cheese', 'butter', 'milk'], cry: ['Cheese! Good hard cheese!', 'Taste before you buy!'] },
+      { who: 'cabbage-man', sex: 'm', wares: ['cabbage', 'apples', 'herbs'], cry: ['Cabbages! Fresh pulled this morning!', 'Apples, sweet apples!'] },
+      { who: 'potter', sex: 'm', wares: ['pot', 'cup', 'jug'], cry: ['Pots! Never cracked, never leaking!', 'A jug for your ale, mistress?'] },
+      { who: 'weaver', sex: 'f', wares: ['cloth', 'wool', 'ribbon'], cry: ['Good cloth, close-woven!', 'Wool, carded and clean!'] },
+      { who: 'honey-man', sex: 'm', wares: ['honey', 'candles', 'herbs'], cry: ['Honey! Honey from the heath!', 'Wax candles, burn all night!'] },
+      { who: 'fish-wife', sex: 'f', wares: ['fish', 'salt'], cry: ['Fresh fish! Caught at dawn!', 'Fish! Who\'ll buy my fish?'] },
+      { who: 'pie-man', sex: 'm', wares: ['pie', 'bread'], cry: ['Hot pies! Hot pies!', 'Pies! A penny a pie!'] },
+    ];
+    const isMarket = (s) => s && s.weekday === 6 && s.minute >= 6.5 * 60 && s.minute < 13.5 * 60;
+    function spots(s) { const [x0, y0, x1, y1] = s.Z.square, out = [], w = s.world; for (const y of [y0 + 1, y1 - 1]) for (let x = x0 + 1; x <= x1 - 1; x += 3) { const i = y * w.W + x; if (w.solid[i] || w.solid[i + w.W] || w.solid[i - w.W]) continue; const px = x * T + 8, py = y * T + 14; if (w.props.some((p) => Math.hypot(p.x - px, p.y - py) < 30)) continue; out.push([x, y]); } return out; }
+    function setUp(s) {
+      s._countryMkt = s.day; const r = O.RNG(O.hash('cmkt', s.world.placeId || 'x', s.day)); const sp = spots(s).sort(() => r.next() - 0.5).slice(0, s.world.hamlet ? 2 : 5);
+      const kinds = SELLERS.slice().sort(() => r.next() - 0.5); const E = s.Z.east || [s.world.W - 2, 30];
+      sp.forEach(([x, y], i) => { const k = kinds[i % kinds.length]; const st = { kind: 'stall', x: x * T + 8, y: y * T + 14, seed: 50 + i, v: i % 4, solid: false, country: s.day }; s.world.props.push(st);
+        const q = s.newPerson({ sex: k.sex, age: r.int(22, 62), first: r.pick(D.NAMES[k.sex]), sur: r.pick(D.NAMES.sur), household: 0, home: null, genes: Ch.randomGenes(r, s.world.region), wealth: 0.35, visitor: true });
+        q.name = `${q.first} ${q.sur}`; q.job = { biz: null, role: k.who }; q.wake = 0; q.bed = 1440; q.app = Ch.makeAppearance(O.hash('country', q.id), { sex: k.sex, age: q.age, genes: q.genes, role: 'farmer', wealth: 0.35 });
+        const wares = {}; for (const g of k.wares) if (G[g]) wares[g] = r.int(3, 8); q.wares = wares; q.purse = r.int(5, 25); q.cry = k.cry; q.countrySeller = true;
+        q.fairStall = { day: s.day, tile: [x, y + 1], stall: st }; st.merchant = q.id;
+        const early = s.minute < 6.9 * 60 && Math.hypot(E[0] * T - game.player.x, E[1] * T - game.player.y) < 600; /* (seen arriving only if you're there at dawn) */ q.agent = { x: early ? E[0] * T : x * T + 8, y: early ? E[1] * T : (y + 1) * T + 10, dir: 0, anim: 'walk', ft: 0, a: q.app, hidden: false, inside: null, path: null, goal: null, person: q }; });
+      s.world.dirtyStatics = true;
+      if (sp.length) s.log(`Market day: country folk have set up ${sp.length} stalls round the square.`, 'trade');
+    }
+    function packUp(s) { const before = s.world.props.length; s.world.props = s.world.props.filter((p) => !(p.country != null && (p.country !== s.day || s.minute >= 14.5 * 60))); if (s.world.props.length !== before) s.world.dirtyStatics = true; }
+    // the buying, seen
+    const deals = [], coins = [];
+    let tick = 3, cryT = 4;
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || !s.world) return;
+      if (isMarket(s) && s._countryMkt !== s.day && !s.quarantine) setUp(s);
+      if (Math.random() < dt) packUp(s);
+      for (const c of coins.slice()) { c.t += dt; if (c.t >= c.dur) coins.splice(coins.indexOf(c), 1); }
+      // sellers cry their wares
+      cryT -= dt; if (cryT <= 0) { cryT = 3 + Math.random() * 4; const sl = s.people.filter((q) => q.countrySeller && q.activity?.act === 'stand' && !q.agent.path && near(q.agent.x, q.agent.y, 300)); const q = pick(sl); if (q) { say(q, pick(q.cry), 2.2); O.gesture && O.gesture(q, 'wave', 1.2); } }
+      for (const d of deals.slice()) { d.t += dt; const b = d.buyer, sl = d.seller; const fail = b.alive === false || game.scene || (O.npcUI && O.npcUI.talking && (O.npcUI.talking() === b || O.npcUI.talking() === sl)) || d.t > 25 || sl.activity?.act !== 'stand';
+        if (fail) { endDeal(d); continue; }
+        const ba = b.agent; if (!d.there) { const [tx, ty] = d.at, dx = tx - ba.x, dy = ty - ba.y, dd = Math.hypot(dx, dy); if (dd < 2 || d.t > 10) { d.there = true; d.k = 0; } else { const st = Math.min(dd, 34 * dt); const nx = ba.x + dx / dd * st, ny = ba.y + dy / dd * st; if (!game.solidAt(nx, ny - 2)) { ba.x = nx; ba.y = ny; } else { ba.x = tx; ba.y = ty; } ba.dir = O.dirOf(dx, dy); ba.forceAnim = 'walk'; } continue; }
+        d.k += dt; ba.dir = O.dirOf(sl.agent.x - ba.x, sl.agent.y - ba.y); const step = (n, fn) => { if (d.s === n) { d.s++; fn(); } };
+        if (d.k > 0.2) step(0, () => { ba.forceAnim = 'point'; if (Math.random() < 0.5) say(b, pick([`How much for the ${G[d.g].name.toLowerCase()}?`, 'What are you asking?', 'Is that fresh?'])); });
+        if (d.k > 1.8) step(1, () => { ba.forceAnim = 'talk'; O.gesture && O.gesture(sl, 'count', 1.2); if (Math.random() < 0.5) say(sl, `${d.price} to you.`); });
+        if (d.k > 3.4) step(2, () => { if (d.haggle) { ba.forceAnim = 'shake'; if (Math.random() < 0.6) say(b, pick(['Robbery!', `${Math.max(1, d.price - 1)}, and not a penny more.`, 'I can get it cheaper over there.'])); } else ba.forceAnim = 'nod'; });
+        if (d.k > 5) step(3, () => { if (d.haggle) { O.gesture && O.gesture(sl, Math.random() < 0.6 ? 'shrug' : 'shake', 1.2); if (Math.random() < 0.6) { d.price = Math.max(1, d.price - 1); say(sl, pick(['Oh, go on then.', 'You\'ll ruin me.', 'For you.'])); } else { d.walk = true; say(sl, pick(['Then buy it over there.', 'Not a penny less.'])); } } });
+        if (d.k > 6.4) step(4, () => { if (d.walk) { ba.forceAnim = 'shrug'; return; } ba.forceAnim = 'give'; O.gesture && O.gesture(sl, 'take', 0.8); coins.push({ x0: ba.x, y0: ba.y - 12, x1: sl.agent.x, y1: sl.agent.y - 12, t: 0, dur: 0.45, c: '#e0c050' }); const hh = d.s0.household(b); if (hh && hh.money >= d.price) { hh.money -= d.price; sl.purse = (sl.purse || 0) + d.price; if (sl.wares[d.g] > 0) sl.wares[d.g]--; hh.pantry[d.g] = (hh.pantry[d.g] || 0) + 1; } O.sfx && near(ba.x, ba.y, 220) && O.sfx('kaching', 0.15); });
+        if (d.k > 7.4) step(5, () => { if (d.walk) return; O.gesture && O.gesture(sl, 'give', 0.8); ba.forceAnim = 'take'; coins.push({ x0: sl.agent.x, y0: sl.agent.y - 12, x1: ba.x, y1: ba.y - 12, t: 0, dur: 0.5, c: '#d8b070', big: true }); });
+        if (d.k > 8.6) endDeal(d);
+      }
+      tick -= dt; if (tick > 0 || !isMarket(s) || game.scene) return; tick = 2.5;
+      if (deals.length >= 3) return;
+      const sellers = s.people.filter((q) => q.fairStall && q.fairStall.day === s.day && q.activity?.act === 'stand' && !q.agent.path && q.wares && Object.values(q.wares).some((n) => n > 0) && near(q.agent.x, q.agent.y, 400) && !deals.some((d) => d.seller === q));
+      const sl = pick(sellers); if (!sl) return;
+      const b = s.people.find((q) => q.agent && !q.agent.hidden && q.agent.inside == null && (!q.agent.frozen || q._bit) && !q.agent.path && !q.errand && !q._scene && !q._playing && q.alive !== false && q.age >= 14 && !q.visitor && (q.activity?.market || q.activity?.act === 'stroll') && Math.hypot(q.agent.x - sl.agent.x, q.agent.y - sl.agent.y) < 200 && (s.household(q)?.money || 0) > 4 && !deals.some((d) => d.buyer === q));
+      if (!b) return; if (b._bit) { b._bit.t = 1e9; tick = 0.3; return; } // (leaves off what they were doing first)
+      const have = Object.entries(sl.wares).filter(([, n]) => n > 0).map(([k]) => k); const g = pick(have);
+      b._deal = true; b.agent.frozen = true; b.agent.path = null;
+      deals.push({ s0: s, buyer: b, seller: sl, g, price: Math.max(1, Math.round((G[g].base || 2) * 1.1)), haggle: Math.random() < 0.55, at: [sl.agent.x + (Math.random() < 0.5 ? -6 : 6), sl.agent.y + 22], t: 0, s: 0 });
+    });
+    function endDeal(d) { const b = d.buyer; b._deal = false; b.agent.forceAnim = null; const tq = O.npcUI && O.npcUI.talking && O.npcUI.talking(); if (tq !== b) b.agent.frozen = false; if (!d.walk && d.s >= 5) O.gesture && O.gesture(b, 'carry', 2); deals.splice(deals.indexOf(d), 1); }
+    game.hooks.drawWorld.push((ctx, cam) => {
+      if (game.scene) return;
+      for (const c of coins) { const k = c.t / c.dur, x = c.x0 + (c.x1 - c.x0) * k, y = c.y0 + (c.y1 - c.y0) * k - Math.sin(k * Math.PI) * 7; ctx.fillStyle = c.c; ctx.fillRect(Math.round(x - cam.x), Math.round(y - cam.y), c.big ? 4 : 2, c.big ? 3 : 2); }
+      // the country stalls' goods on the board
+      const s = cur(); if (!s || !isMarket(s)) return;
+      for (const st of s.world.props) { if (st.country !== s.day) continue; const q = st.merchant != null && s.byId.get(st.merchant); if (!q || !q.wares) continue; const x = Math.round(st.x - cam.x), y = Math.round(st.y - cam.y); if (x < -30 || y < -40 || x > ctx.canvas.width + 30 || y > ctx.canvas.height + 30) continue; let i = 0; for (const [g, n] of Object.entries(q.wares)) { for (let j = 0; j < Math.min(3, n); j++, i++) { const gx = x - 10 + (i % 6) * 4, gy = y - 14 - Math.floor(i / 6) * 3; ctx.fillStyle = { eggs: '#f0ead8', butter: '#f0d870', milk: '#e8e8f0', cheese: '#e8c050', cabbage: '#6aa040', apples: '#c03a2a', herbs: '#4a8a3a', pot: '#a0603a', cup: '#a0603a', jug: '#8a5232', cloth: '#5a6a9a', wool: '#e8e0d0', ribbon: '#c04060', honey: '#d8a020', candles: '#f0e8c8', fish: '#9aa8b8', salt: '#f0f0f0', pie: '#c8902a', bread: '#c08a40' }[g] || '#aaa'; ctx.fillRect(gx, gy, 3, 2); } } }
+    });
+    (O.extraLines = O.extraLines || []).push((s, q) => q.countrySeller ? `You are a ${q.job.role} from the country, selling at the market in the square: ${Object.entries(q.wares || {}).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${G[k] ? G[k].name.toLowerCase() : k}`).join(', ') || 'sold out'}. You want to sell and go home by noon. You haggle, but not much.` : '');
+    O.MarketDay = { setUp: () => setUp(cur()), deals, isMarket };
+  }
+  O.MarketDaySetup = { setup };
+})();
+
+</script>
+<script>
+// The road brings people through. Now and then someone comes in along the east road, goes about their
+// business in town and goes on their way: a carter pulling a handcart piled with sacks (the wheels
+// turning), three pilgrims with staffs and badges singing on their way to the chapel, a drover with a
+// little flock of sheep for the butcher, a grey friar begging his bread, a pedlar with his pack, a
+// king's messenger on foot in a hurry. Talk to any of them: they know the roads and the news.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const cur = () => O.SimRef.cur, D = O.Data, Ch = O.Char;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    const say = (q, t, secs) => O.Speech && O.Speech.say(q, t, secs || 2);
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    const KINDS = {
+      carter: { n: 1, role: 'carter', look: 'farmer', dest: 'square', stay: 25, speed: 24, lines: ['Mind the cart!', 'Gee up, wheel. Gee up.', 'Sacks for the mill, if anyone\'s asking.'], about: 'You are a carter passing through with a handcart of sacks, bound for the next town. You know the state of the roads.' },
+      pilgrims: { n: 3, role: 'pilgrim', look: 'peasant', dest: 'chapel', stay: 30, speed: 22, lines: ['Ave Maria, gratia plena...', 'Nearly there, friends.', 'Pray for us, good people!'], about: 'You are a pilgrim walking to the shrines with your friends; you wear a pilgrim\'s badge and carry a staff. You are cheerful and tired, and you\'ve seen many towns.' },
+      drover: { n: 1, role: 'drover', look: 'farmer', dest: 'butcher', stay: 25, speed: 20, sheep: 5, lines: ['Hup! Hup! Get on!', 'Come by, come by!', 'Mutton on the hoof, butcher!'], about: 'You are a drover bringing a few sheep in to sell to the butcher. You talk about prices and weather.' },
+      friar: { n: 1, role: 'friar', look: 'priest', dest: 'square', stay: 35, speed: 18, lines: ['Alms, for the love of God.', 'Bread for a poor brother?', 'Peace be on this house.'], about: 'You are a grey friar, a wandering preacher who begs his bread. You bless people and scold the rich.' },
+      pedlar: { n: 1, role: 'pedlar', look: 'merchant', dest: 'square', stay: 30, speed: 22, lines: ['Pins! Needles! Laces!', 'Ribbons, fair maids, ribbons!', 'Something for everyone in my pack!'], about: 'You are a pedlar with a pack on your back: pins, needles, laces, ribbons, a little mirror. You chatter and flatter.' },
+      messenger: { n: 1, role: 'king\'s messenger', look: 'guard', dest: 'guard', stay: 8, speed: 46, lines: ['Make way! The King\'s business!', 'Out of the road!'], about: 'You are a king\'s messenger on foot, in a great hurry with letters for the reeve and the next town. You have no time to talk.' },
+    };
+    const parties = [];
+    function destOf(s, k) {
+      if (k === 'square') { const [x0, y0, x1, y1] = s.Z.square; return [Math.floor((x0 + x1) / 2) + Math.floor(Math.random() * 5) - 2, Math.floor((y0 + y1) / 2) + 1]; }
+      if (k === 'chapel') { const b = s.building(s.chapelId); if (b && b.doorX != null) return [b.doorX, b.doorY + 2]; }
+      const bz = [...s.biz.values()].find((z) => z.type === k); if (bz) { const b = s.building(bz.b?.id ?? bz.id); if (b && b.doorX != null) return [b.doorX, b.doorY + 2]; }
+      return destOf(s, 'square');
+    }
+    function route(s, from, to) { const p = s.path.find(from[0], from[1], to[0], to[1]); return p ? p.map(([x, y]) => [x * T + 8, y * T + 10]) : null; }
+    function spawn(s, kind) {
+      const K = KINDS[kind]; const E = s.Z.east; if (!E) return null; const r = O.RNG(O.hash('road', s.day, s.minute, kind));
+      const dest = destOf(s, K.dest); const there = route(s, E, dest); if (!there) return null; const back = there.slice().reverse();
+      const ppl = []; for (let i = 0; i < K.n; i++) { const sex = kind === 'pilgrims' ? (r.chance(0.5) ? 'm' : 'f') : kind === 'friar' || kind === 'messenger' || kind === 'drover' || kind === 'carter' ? 'm' : r.chance(0.8) ? 'm' : 'f';
+        const q = s.newPerson({ sex, age: r.int(20, 60), first: r.pick(D.NAMES[sex]), sur: kind === 'friar' ? 'the Friar' : r.pick(D.NAMES.sur), household: 0, home: null, genes: Ch.randomGenes(r, r.pick(['east', 'south', 'west', 'north'])), wealth: 0.3, visitor: true });
+        q.name = kind === 'friar' ? `Brother ${q.first}` : `${q.first} ${q.sur}`; q.job = { biz: null, role: K.role }; q.wake = 0; q.bed = 1440; q.roadfolk = kind;
+        q.app = Ch.makeAppearance(O.hash('roadfolk', q.id), { sex, age: q.age, genes: q.genes, role: K.look, wealth: 0.3 });
+        q.agent = { x: there[0][0] + i * 3, y: there[0][1] + i * 2, dir: 1, anim: 'walk', ft: 0, a: q.app, hidden: false, inside: null, path: null, goal: null, person: q, frozen: true };
+        q.activity = { act: 'stroll', outdoor: true }; ppl.push(q); }
+      const pt = { s, kind, K, ppl, path: there, back, pi: 0, lead: [there[0][0], there[0][1]], trail: [[there[0][0], there[0][1]]], stage: 'in', t: 0, wheel: 0, sheep: K.sheep ? Array.from({ length: K.sheep }, (_, i) => ({ seed: 300 + i * 17 + s.day, x: there[0][0] + 10 + i * 4, y: there[0][1] + (i % 2 ? 5 : -4), dir: 1, ft: Math.random() })) : null };
+      parties.push(pt); return pt;
+    }
+    function remove(pt) { const s = pt.s; for (const q of pt.ppl) { s.people = s.people.filter((z) => z !== q); s.byId.delete(q.id); } parties.splice(parties.indexOf(pt), 1); }
+    function walk(pt, path, dt) {
+      const tgt = path[pt.pi]; if (!tgt) return true; const dx = tgt[0] - pt.lead[0], dy = tgt[1] - pt.lead[1], d = Math.hypot(dx, dy), st = pt.K.speed * dt;
+      if (d <= st) { pt.lead = [tgt[0], tgt[1]]; pt.pi++; } else pt.lead = [pt.lead[0] + dx / d * st, pt.lead[1] + dy / d * st];
+      const last = pt.trail[0]; if (Math.hypot(pt.lead[0] - last[0], pt.lead[1] - last[1]) > 2) { pt.trail.unshift([pt.lead[0], pt.lead[1]]); if (pt.trail.length > 120) pt.trail.pop(); }
+      return false;
+    }
+    let next = 40;
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || !s.world) return;
+      for (const pt of parties.slice()) {
+        pt.t += dt; if (pt.s !== s) { remove(pt); continue; }
+        const talking = pt.ppl.some((q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q); if (talking) { for (const q of pt.ppl) if (!(O.npcUI.talking() === q)) q.agent.forceAnim = 'idle'; continue; }
+        const at = (k) => pt.trail[Math.min(pt.trail.length - 1, k)];
+        if (pt.stage === 'in' || pt.stage === 'out') { const end = walk(pt, pt.stage === 'in' ? pt.path : pt.back, dt);
+          pt.ppl.forEach((q, i) => { const [x, y] = at(i * 6 + (pt.sheep ? 14 : 0)); const a = q.agent; const dx = x - a.x, dy = y - a.y; if (Math.hypot(dx, dy) > 0.3) a.dir = O.dirOf(dx, dy); a.x = x + (i % 2 ? 3 : -3) * (i > 0 ? 1 : 0); a.y = y; a.forceAnim = pt.kind === 'carter' ? 'carry' : pt.kind === 'messenger' ? 'run' : 'walk'; a.frozen = true; });
+          if (pt.sheep) pt.sheep.forEach((sh, i) => { const [x, y] = at(Math.max(0, i * 3)); const dx = x - sh.x; sh.moving = Math.hypot(x - sh.x, y - sh.y) > 0.5; if (sh.moving) sh.dir = dx > 0 ? 2 : 1; sh.x += (x + (i % 2 ? 4 : -4) - sh.x) * Math.min(1, dt * 4); sh.y += (y + (i % 3) * 3 - 3 - sh.y) * Math.min(1, dt * 4); sh.ft += dt; });
+          pt.wheel += pt.K.speed * dt;
+          if (Math.random() < dt * 0.08 && near(pt.lead[0], pt.lead[1], 320)) say(pick(pt.ppl), pick(pt.K.lines), 2.2);
+          if (end) { if (pt.stage === 'in') { pt.stage = 'stay'; pt.st = 0; pt.pi = 0; } else { remove(pt); continue; } } }
+        else { pt.st += dt; const lead = pt.ppl[0];
+          pt.ppl.forEach((q, i) => { const a = q.agent; a.forceAnim = pt.kind === 'pilgrims' ? (Math.floor(pt.st + i) % 6 < 2 ? 'pray' : 'idle') : pt.kind === 'friar' ? (Math.floor(pt.st) % 5 < 2 ? 'beg' : 'gesture') : pt.kind === 'pedlar' ? (Math.floor(pt.st) % 4 < 2 ? 'wave' : 'talk') : pt.kind === 'drover' ? (Math.floor(pt.st) % 6 < 2 ? 'point' : 'idle') : 'idle'; a.dir = 0; });
+          if (pt.sheep) pt.sheep.forEach((sh) => { sh.moving = false; sh.ft += dt; });
+          if (Math.random() < dt * 0.1 && near(lead.agent.x, lead.agent.y, 300)) say(pick(pt.ppl), pick(pt.K.lines), 2.2);
+          if (pt.kind === 'drover' && pt.sheep && pt.st > pt.K.stay * 0.7 && !pt.sold) { pt.sold = true; const n = 2 + Math.floor(Math.random() * 2); pt.sheep.splice(0, n); const bz = [...s.biz.values()].find((z) => z.type === 'butcher'); if (bz) { bz.stock = bz.stock || {}; bz.stock.meat = (bz.stock.meat || 0) + n * 3; } say(lead, `${n} to the butcher. Good price, too.`, 2); }
+          if (pt.st > pt.K.stay) { pt.stage = 'out'; pt.pi = 0; pt.trail = [[pt.lead[0], pt.lead[1]]]; } }
+      }
+      if (Math.random() < dt * 0.2) { const orphan = s.people.filter((q) => q.roadfolk && !parties.some((pt) => pt.ppl.includes(q))); for (const q of orphan) { s.people = s.people.filter((z) => z !== q); s.byId.delete(q.id); } } // (after a reload: gone on their way)
+      next -= dt; if (next > 0 || game.scene) return; next = 50 + Math.random() * 70;
+      const h = s.minute / 60; if (h < 7 || h > 18 || parties.length >= 2) return;
+      const E = s.Z.east; if (!E || !near(E[0] * T, E[1] * T, 900) && !s.Z.square) return;
+      const kinds = Object.keys(KINDS).filter((k) => k !== 'messenger' || (s.kingdom && s.kingdom.war && s.kingdom.war.phase !== 'peace') || Math.random() < 0.3);
+      spawn(s, pick(kinds));
+    });
+    game.hooks.drawWorld.push((ctx, cam) => {
+      if (game.scene) return; ctx.save();
+      for (const pt of parties) {
+        if (pt.kind === 'carter') { const a = pt.ppl[0].agent, x = Math.round(a.x - cam.x), y = Math.round(a.y - cam.y), back = a.dir === 2 ? -1 : 1, cx = x + back * 14; ctx.fillStyle = '#6a4a2c'; ctx.fillRect(cx - 8, y - 9, 16, 5); ctx.fillStyle = '#5a3d26'; ctx.fillRect(Math.min(cx, x) + 2, y - 8, Math.abs(cx - x) - 2, 1); ctx.fillStyle = '#c8b080'; ctx.fillRect(cx - 7, y - 14, 6, 5); ctx.fillRect(cx, y - 13, 6, 4); ctx.fillStyle = '#a89060'; ctx.fillRect(cx - 4, y - 17, 6, 4);
+          ctx.strokeStyle = '#3a2a1a'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx, y - 2, 3.5, 0, Math.PI * 2); ctx.stroke(); const r0 = pt.wheel / 3.5; ctx.beginPath(); ctx.moveTo(cx + Math.cos(r0) * 3, y - 2 + Math.sin(r0) * 3); ctx.lineTo(cx - Math.cos(r0) * 3, y - 2 - Math.sin(r0) * 3); ctx.moveTo(cx + Math.cos(r0 + 1.57) * 3, y - 2 + Math.sin(r0 + 1.57) * 3); ctx.lineTo(cx - Math.cos(r0 + 1.57) * 3, y - 2 - Math.sin(r0 + 1.57) * 3); ctx.stroke(); }
+        if (pt.kind === 'pilgrims' || pt.kind === 'friar') for (const q of pt.ppl) { const a = q.agent, x = Math.round(a.x - cam.x), y = Math.round(a.y - cam.y); ctx.fillStyle = '#7a5a3a'; ctx.fillRect(x + 6, y - 28, 1, 28); if (pt.kind === 'pilgrims') { ctx.fillStyle = '#e8e0d0'; ctx.fillRect(x - 1, y - 20, 2, 2); } }
+        if (pt.kind === 'pedlar') { const a = pt.ppl[0].agent, x = Math.round(a.x - cam.x), y = Math.round(a.y - cam.y); ctx.fillStyle = '#8a6239'; ctx.fillRect(x - (a.dir === 2 ? 9 : -3), y - 24, 7, 10); ctx.fillStyle = '#c04060'; ctx.fillRect(x - (a.dir === 2 ? 8 : -4), y - 16, 2, 4); }
+        if (pt.sheep) for (const sh of pt.sheep) { const an = sh.moving ? 'walk' : 'graze', H = O.Animals.HANIMS[an]; try { const fr = O.Animals.animal('sheep', sh.seed, sh.dir, sh.moving, Math.floor(sh.ft * H.fps) % H.frames, an); ctx.drawImage(fr, Math.round(sh.x - (fr.ox ?? fr.width / 2) - cam.x), Math.round(sh.y - (fr.gy ?? fr.height) - cam.y)); } catch (e) { /* */ } }
+      }
+      ctx.restore();
+    });
+    (O.extraLines = O.extraLines || []).push((s, q) => q.roadfolk ? KINDS[q.roadfolk].about + ' You are only passing through ' + (s.world.name || 'this town') + '.' : '');
+    O.RoadFolk = { parties, spawn: (k) => spawn(cur(), k), KINDS };
+  }
+  O.RoadFolkSetup = { setup };
 })();
 
 </script>
@@ -36651,7 +36832,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.WorkSetup.setup(game, sim, npcUI);
   O.EmploymentSetup.setup(game, home, npcUI);
   O.LettersSetup.setup(game, home, npcUI);
-  O.FittingSetup.setup(game); O.DecorateSetup.setup(game); O.LifeWeightSetup.setup(game); O.TradeLifeSetup.setup(game); O.RiverWildSetup.setup(game); O.SpokenSetup.setup(game); O.CombatDeepSetup.setup(game); O.GangStreetSetup.setup(game); O.HomeFrontSetup.setup(game); O.ScenesSetup.setup(game); O.IndoorLifeSetup.setup(game); O.ApproachesSetup.setup(game); O.LivelinessSetup.setup(game); O.StreetFightSetup.setup(game); O.Pastimes2Setup.setup(game); O.AnimalCareSetup.setup(game); O.MarchSetup.setup(game); O.LooksSetup.setup(game); O.GangPoliticsSetup.setup(game); O.NightWorkSetup.setup(game); O.ArchersSetup.setup(game); O.RaidSetup.setup(game); O.KidsPlaySetup.setup(game); O.AdultPlaySetup.setup(game); O.IdleLifeSetup.setup(game); O.CutpurseSetup.setup(game); O.ShakedownSetup.setup(game); O.ShopFrontSetup.setup(game); O.WarSightsSetup.setup(game); O.GangMarksSetup.setup(game); O.PassingsSetup.setup(game); O.LamplighterSetup.setup(game); O.SparringSetup.setup(game); O.KidsChoresSetup.setup(game); O.ProcessionsSetup.setup(game);
+  O.FittingSetup.setup(game); O.DecorateSetup.setup(game); O.LifeWeightSetup.setup(game); O.TradeLifeSetup.setup(game); O.RiverWildSetup.setup(game); O.SpokenSetup.setup(game); O.CombatDeepSetup.setup(game); O.GangStreetSetup.setup(game); O.HomeFrontSetup.setup(game); O.ScenesSetup.setup(game); O.IndoorLifeSetup.setup(game); O.ApproachesSetup.setup(game); O.LivelinessSetup.setup(game); O.StreetFightSetup.setup(game); O.Pastimes2Setup.setup(game); O.AnimalCareSetup.setup(game); O.MarchSetup.setup(game); O.LooksSetup.setup(game); O.GangPoliticsSetup.setup(game); O.NightWorkSetup.setup(game); O.ArchersSetup.setup(game); O.RaidSetup.setup(game); O.KidsPlaySetup.setup(game); O.AdultPlaySetup.setup(game); O.IdleLifeSetup.setup(game); O.CutpurseSetup.setup(game); O.ShakedownSetup.setup(game); O.ShopFrontSetup.setup(game); O.WarSightsSetup.setup(game); O.GangMarksSetup.setup(game); O.PassingsSetup.setup(game); O.LamplighterSetup.setup(game); O.SparringSetup.setup(game); O.KidsChoresSetup.setup(game); O.ProcessionsSetup.setup(game); O.MarketDaySetup.setup(game); O.RoadFolkSetup.setup(game);
   O.StreetSetup.setup(game, home);
   O.GangLifeSetup.setup(game, npcUI);
   O.TownLifeSetup.setup(game, npcUI);

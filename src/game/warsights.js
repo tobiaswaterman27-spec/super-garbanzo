@@ -64,7 +64,7 @@
           for (const k of f.kin) { const to = k.to.agent, side = (k.q.id % 2 ? 1 : -1) * 6, kid = k.q.age < 13; if (steer(k.q, to.x + side, to.y + 6, dt, kid ? 55 : 40, kid ? 'run' : 'walk')) { k.q.agent.forceAnim = kid ? (Math.floor(f.t * 2) % 3 ? 'wave' : 'celebrate') : (k.q.sex === 'f' ? 'mourn' : 'nod'); k.q.agent.dir = 0; } }
           if (f.sarge) { f.sarge.agent.forceAnim = Math.floor(f.t) % 5 === 0 ? 'point' : 'idle'; }
           if (f.boy) { f.boy.agent.forceAnim = 'drum'; if (drum <= 0) { drum = 0.5; O.sfx && O.sfx('smack', 0.07); } }
-          if (f.t > 6 && f.t < 6.05) say(pick(f.kin.map((k) => k.q).concat(f.men)), pick(['Come back to us.', 'You write. Get someone to write.', 'Mind you keep your head down.', 'God keep you.']), 3);
+          if (f.t > 6 && !f.said6 && (f.said6 = 1)) say(pick(f.kin.map((k) => k.q).concat(f.men)), pick(['Come back to us.', 'You write. Get someone to write.', 'Mind you keep your head down.', 'God keep you.']), 3);
           if (f.t > 14) { f.stage = 'march'; f.t = 0; if (f.sarge) say(f.sarge, 'Fall in! By the left... march!', 2.5); }
         } else if (f.stage === 'march') {
           const lead = f.sarge || f.men[0], line = [lead, ...(f.boy ? [f.boy] : []), ...f.men.filter((p) => p !== lead)];

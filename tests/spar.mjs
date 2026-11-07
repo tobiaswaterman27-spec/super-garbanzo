@@ -1,0 +1,16 @@
+import { start } from './lib.mjs';
+const { p, done } = await start();
+const D = process.env.SHOTS || '';
+await p.evaluate(() => { const s = O.SimRef.cur; while (Math.floor(s.minute / 60) !== 8) s.tick(2); O.game.clock.minute = s.minute; window._said = []; const o = O.Speech.say; O.Speech.say = (w, t, ...a) => { _said.push((w.first || '?') + ': ' + t); return o(w, t, ...a); }; });
+const r = await p.evaluate(() => { const b = O.Sparring.start(); if (!b) return 'NO'; O.game.player.x = b.cx; O.game.player.y = b.cy + 50; O.PlayerState.money = Math.max(O.PlayerState.money, 20); window._m0 = O.PlayerState.money; return `${b.a.first} v ${b.c.first}, ref ${b.ref ? b.ref.first : '-'}`; });
+console.log('bout', r);
+const bet = await p.evaluate(() => new Promise((res) => { const b = O.Sparring.bout; O.AIChat.say(b.a, `two on ${b.a.first}`, (l) => res(l)); }));
+console.log('bet ->', bet);
+await p.evaluate(() => O.npcUI.closeTalk && O.npcUI.closeTalk());
+await p.waitForTimeout(6000); if (D) await p.screenshot({ path: `${D}/spar.png`, clip: { x: 480, y: 280, width: 240, height: 160 } });
+for (let i = 0; i < 20 && await p.evaluate(() => !!O.Sparring.bout && O.Sparring.bout.over == null); i++) await p.waitForTimeout(2000);
+console.log('score', await p.evaluate(() => O.Sparring.bout ? O.Sparring.bout.score.join('-') + ' win ' + (O.Sparring.bout.win ? O.Sparring.bout.win.first : '-') : 'ended'), 'money change', await p.evaluate(() => O.PlayerState.money - _m0));
+console.log((await p.evaluate(() => _said.slice(-6).join(' / '))).slice(0, 300));
+for (let i = 0; i < 40 && await p.evaluate(() => !!O.Sparring.bout); i++) await p.waitForTimeout(2000);
+console.log('held after', await p.evaluate(() => O.SimRef.cur.people.filter((q) => q._spar).length));
+await done();

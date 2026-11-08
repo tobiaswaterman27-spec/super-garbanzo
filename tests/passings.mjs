@@ -12,5 +12,5 @@ await p.waitForTimeout(5000);
 console.log('stops after', await p.evaluate(() => O.Passings.stops.length + ' held ' + O.SimRef.cur.people.filter((q) => q._pass).length));
 await p.waitForTimeout(40000);
 console.log('natural:', await p.evaluate(() => JSON.stringify(_kinds)), '|', (await p.evaluate(() => _said.slice(-6).join(' / '))).slice(0, 300));
-console.log('held now', await p.evaluate(() => O.SimRef.cur.people.filter((q) => q._pass).length + ' frozen-stray ' + O.SimRef.cur.people.filter((q) => q.agent && q.agent.frozen && !q._pass && !q._bit && !q._playing && !q._scene && !q._fighting && !q._cp && !q._war && !q._mark && !q._front && !q._shake && O.npcUI.talking() !== q).length));
+console.log('held now', await p.evaluate(() => O.SimRef.cur.people.filter((q) => q._pass).length + ' frozen-stray ' + O.SimRef.cur.people.filter((q) => q.agent && q.agent.frozen && !['_pass', '_bit', '_playing', '_scene', '_fighting', '_cp', '_war', '_mark', '_front', '_shake', '_spar', '_proc', '_deal', '_lamp', '_mish', '_smug', '_rite', '_walkout', '_yard', '_escort', '_hunting', '_social', '_stocks', '_snow', '_swim', '_round', '_call', '_mark'].some((f) => q[f]) && !q.roadfolk && !q.fairStall && !q.errand && O.npcUI.talking() !== q).length));
 await done();

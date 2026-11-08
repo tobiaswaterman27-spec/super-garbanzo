@@ -28,12 +28,21 @@
       if (h(4) % 3 === 0 && clear(b.doorX + 1, b.doorY)) Y.bench = { x: (b.doorX + 1) * T + 8, y: b.doorY * T + 14 };
       return (M(b).yard = Y);
     }
+    const w0 = () => cur().world; let bCool = 9;
     function release(j) { const a = j.q.agent; if (a) { a.forceAnim = null; if (!talking(j.q)) a.frozen = false; } j.q._garden = false; jobs.splice(jobs.indexOf(j), 1); }
     game.hooks.update.push((dt) => {
       const s = cur(); if (!s || !s.world || game.scene) return;
-      for (const j of jobs.slice()) { j.t += dt; const a = j.q.agent; if (j.s !== s || !a || j.t > j.len || s.raining || talking(j.q) || j.q.alive === false) { release(j); continue; } a.forceAnim = j.kind === 'water' ? 'pour' : 'hoe'; if (j.kind === 'hoe' && Math.random() < dt * 0.6 && near(a.x, a.y, 180)) O.sfx && O.sfx('dig', 0.06); }
+      for (const j of jobs.slice()) { j.t += dt; const a = j.q.agent; if (j.s !== s || !a || j.t > j.len || s.raining || talking(j.q) || j.q.alive === false) { release(j); continue; }
+        if (j.kind === 'bench') { const Y = yardOf(w0(), j.b); a.x = Y.bench.x + (j.slot ? 5 : -4); a.y = Y.bench.y - 2; a.dir = 0; a.forceAnim = j.q.age > 62 && j.t > 30 && Math.floor(j.t / 12) % 3 === 1 ? 'doze' : 'sit';
+          if (Math.random() < dt * 0.05) { const by = s.people.find((x) => x !== j.q && x.agent && !x.agent.hidden && x.agent.inside == null && x.agent.path && Math.hypot(x.agent.x - a.x, x.agent.y - a.y) < 50); if (by && near(a.x, a.y, 260)) O.Speech && O.Speech.say(j.q, pick([`Evening, ${by.first}.`, 'Mind how you go.', 'Fine day for it.', 'Where are you off to in such a hurry?', 'In my day we walked to Kingsbridge and back.']), 2.4); }
+          continue; }
+        a.forceAnim = j.kind === 'water' ? 'pour' : 'hoe'; if (j.kind === 'hoe' && Math.random() < dt * 0.6 && near(a.x, a.y, 180)) O.sfx && O.sfx('dig', 0.06); }
+      // sitting out on the bench by the door: the old by day, anyone on a summer evening
+      bCool -= dt; if (bCool <= 0) { bCool = 9 + Math.random() * 8; const hr0 = s.minute / 60, ev = s.season === 'summer' && hr0 > 18 && hr0 < 21; if (!s.raining && hr0 > 8 && hr0 < 21 && s.season !== 'winter') { const P0 = game.player, bs = s.world.buildings.filter((b) => b.type === 'house' && b.doorX != null && yardOf(s.world, b).bench && Math.abs(b.doorX * T - P0.x) < 520 && Math.abs(b.doorY * T - P0.y) < 380 && jobs.filter((j) => j.b === b && j.kind === 'bench').length < 2);
+        for (const b of bs.sort(() => Math.random() - 0.5)) { const q = s.people.find((x) => x.home === b.id && (x.age > 58 || (ev && x.age >= 14)) && x.agent && !x.agent.frozen && !x.errand && !x._garden && !x._bit && !x._scene && !x._door && !talking(x) && ((!x.agent.hidden && x.agent.inside == null) || x.agent.inside === b.id) && ['home', 'idle', 'rest', 'pastime-none', 'pastime'].includes(x.activity?.act)); if (!q) continue; const Y = yardOf(s.world, b), slot = jobs.some((j) => j.b === b && j.kind === 'bench') ? 1 : 0; q._garden = true;
+          O.Errands.send(s, q, [Math.floor(Y.bench.x / T), Math.floor(Y.bench.y / T) + 1], { anim: 'idle', secs: 0.2, face: 0, giveUp: game.t + 40, after: (ok) => { if (!ok || !q.agent) { q._garden = false; return; } q.agent.frozen = true; q.agent.path = null; jobs.push({ s, q, b, kind: 'bench', slot, t: 0, len: 60 + Math.random() * 90 }); } }); break; } } }
       cool -= dt; if (cool > 0) return; cool = 7 + Math.random() * 6;
-      const hr = s.minute / 60; if (hr < 7 || hr > 19 || s.raining || s.season === 'winter' || jobs.filter((j) => j.s === s).length >= 3) { why = 'time/weather'; return; }
+      const hr = s.minute / 60; if (hr < 7 || hr > 19 || s.raining || s.season === 'winter' || jobs.filter((j) => j.s === s && j.kind !== 'bench').length >= 3) { why = 'time/weather'; return; }
       const P = game.player, w = s.world, hs = w.buildings.filter((b) => b.type === 'house' && b.doorX != null && Math.abs(b.doorX * T - P.x) < 520 && Math.abs(b.doorY * T - P.y) < 380 && yardOf(w, b).garden && !jobs.some((j) => j.b === b)); if (!hs.length) { why = 'no garden near'; return; }
       const freeAt = (b) => s.people.find((x) => x.home === b.id && x.age >= 10 && x.agent && !x.agent.frozen && !x.errand && !x._garden && !x._bit && !x._scene && !x._door && !talking(x) && ((!x.agent.hidden && x.agent.inside == null) || x.agent.inside === b.id) && ['home', 'idle', 'rest', 'stroll', 'pastime-none', 'pastime', 'play'].includes(x.activity?.act));
       const pairs = hs.map((b) => [b, freeAt(b)]).filter((x) => x[1]); if (!pairs.length) { why = 'nobody free near'; return; }
@@ -60,7 +69,7 @@
         if (Y.garden) { const x = Math.round(Y.garden.tx * T - cam.x), y = Math.round(Y.garden.ty * T - cam.y), gw = 3 * T, gh = 2 * T; ctx.fillStyle = '#8a6a44'; for (let xx = x; xx <= x + gw; xx += 4) { ctx.fillRect(xx, y - 4, 1, 5); ctx.fillRect(xx, y + gh - 5, 1, 6); } for (const yy of [y - 3, y - 1, y + gh - 4, y + gh - 2]) ctx.fillRect(x, yy, gw + 1, 1); for (let yy = y; yy < y + gh; yy += 4) { ctx.fillRect(x, yy - 3, 1, 4); ctx.fillRect(x + gw, yy - 3, 1, 4); } }
       }
     });
-    (O.extraLines = O.extraLines || []).push((s, q) => { if (!q._garden) return ''; const j = jobs.find((o) => o.q === q); return j ? (j.kind === 'water' ? 'You are watering your kitchen garden with a can.' : 'You are hoeing between the rows of your kitchen garden.') : ''; });
+    (O.extraLines = O.extraLines || []).push((s, q) => { if (!q._garden) return ''; const j = jobs.find((o) => o.q === q); return j ? (j.kind === 'bench' ? 'You are sitting out on the bench by your door, watching the world go by.' : j.kind === 'water' ? 'You are watering your kitchen garden with a can.' : 'You are hoeing between the rows of your kitchen garden.') : ''; });
     O.CottageYards = { jobs, get why() { return why; }, yardOf: (b) => yardOf(cur().world, b) };
   }
   O.CottageYardsSetup = { setup };

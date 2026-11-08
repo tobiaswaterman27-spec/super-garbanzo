@@ -200,7 +200,7 @@
     // now
     const h = s.hour, t = `${Math.floor(h) % 12 || 12}${h < 12 ? 'am' : 'pm'}`, inside = q.agent.inside != null ? s.building(q.agent.inside) : null;
     const dest = q.activity && q.activity.b != null && q.agent.inside !== q.activity.b ? s.building(q.activity.b) : null;
-    { const dn = doing(s, q).replace(/,? ?talking with the player/, '').trim(), held = q.agent && q.agent.carrying ? (G()[q.agent.carrying.good]?.name || q.agent.carrying.good).toLowerCase() : null;
+    { const dn = doing(s, q).replace(/,? ?talking with the player/, '').trim(), cy = q.agent && q.agent.carrying, held = !cy ? null : typeof cy === 'string' ? (cy === 'babe' ? 'your baby, in your arms' : cy) : String(G()[cy.good]?.name || cy.good || 'a load').toLowerCase();
       const where = inside ? 'indoors' : q.agent && q.agent.onRoof ? 'up on a roof' : 'on the ground outdoors';
       lines.push(`Doing right now (exactly what the player can see; nothing else): ${dn || 'standing about'}${held ? `, holding ${held}` : ', hands empty'}, ${where}.`); }
     lines.push(`Now: ${t}, ${s.season}, ${s.weather ? s.weather.kind : 'clear'}. You are ${O.ACT_LABEL && O.ACT_LABEL[q.activity?.act] || 'about'}${inside ? ` in ${placeOf(s, inside, cx, cy).replace(/ \(.*\)$/, '')}` : ' outdoors'}${dest ? `, on your way to ${placeOf(s, dest, cx, cy).replace(/ \(.*\)$/, '')}` : ''}.`);

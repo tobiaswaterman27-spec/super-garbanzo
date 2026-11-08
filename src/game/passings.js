@@ -20,6 +20,9 @@
       const ra = rel(a, b), rb = rel(b, a), aff = ((ra.affinity || 0) + (rb.affinity || 0)) / 2, fam = Math.max(ra.familiar || 0, rb.familiar || 0), h = s.minute / 60;
       const lovers = a.spouse === b.id || a.betrothed === b.id || (a.courting && a.courting === b.id);
       if (a.age < 13 && b.age >= 16 && a.agent.sprint !== false && Math.random() < 0.25 && a.activity?.act === 'play') { stop(a, 1.2, 'hurt', b); stop(b, 1.6, 'shake', a); say(b, pick(['Watch where you\'re going!', 'Oi! Mind me!', 'Slow down, you little imp.'])); return true; }
+      const watch = (q) => /guard|watch|sergeant|constable/.test(q.job?.role || ''), late = h >= 21 || h < 5;
+      if (watch(a) && !watch(b) && b.age >= 14 && (b.gang || (late && Math.random() < 0.4))) { stop(a, 3.2, 'point', b); const st = stop(b, 3.2, 'shrug', a); st.seq = [[1.2, b, 'talk'], [2.4, a, 'gesture']]; say(a, b.gang ? pick([`You. ${b.first}. Where are you off to?`, 'Turn out your pockets.', 'I\'ve got my eye on you, cap or no cap.']) : pick(['Late to be abroad. Your business?', 'Who goes there?', 'Home, is it? Go on, then.'])); setTimeout(() => say(b, b.gang ? pick(['Nowhere, sergeant.', 'Just walking.', 'Got nothing on me.']) : pick(['Home, sir. Just home.', 'Fetching the midwife, sir!', 'Only me, sir.'])), 1200); return true; }
+      if (watch(b) && !watch(a)) return meet(s, b, a);
       if (priest(b) && !priest(a) && a.age >= 8) { stop(a, 1.4, 'pray', b); stop(b, 1.4, 'gesture', a); if (Math.random() < 0.4) say(b, 'Bless you, child.'); return true; }
       if (priest(a) && !priest(b) && b.age >= 8) return meet(s, b, a);
       if (gentle(b) && !gentle(a) && a.age >= 12) { stop(a, 1.3, a.sex === 'f' ? 'curtsy' : 'bow', b); stop(b, 1, 'nod', a); if (Math.random() < 0.3) say(a, b.sex === 'f' ? 'My lady.' : 'Sir.'); return true; }

@@ -39,6 +39,11 @@
         break;
       }
     });
+    // lessons out: at noon the children burst out of the door running and whooping
+    const was = new WeakMap(); let lt = 0;
+    game.hooks.update.push((dt) => { const s = cur(); if (!s || game.scene) return; lt -= dt; if (lt > 0) return; lt = 0.5; let said = false;
+      for (const q of s.people) { if (q.age < 6 || q.age > 12 || !q.agent) continue; const now = q.activity && q.activity.act; const prev = was.get(q); was.set(q, now); if (prev === 'lessons' && now !== 'lessons' && !q.agent.hidden && near(q, 400)) { q.agent.sprint = true; O.gesture && O.gesture(q, 'celebrate', 1.2); if (!said && Math.random() < 0.6) { said = true; say(q, pick(['FREE!', 'No more letters!', 'Race you home!', 'Last one to the well\'s a toad!']), 1.6); } } }
+    });
     function goHome(s, q, b) { if (q._playing && O.KidsPlay) { const g = O.KidsPlay.games.find((g) => (g.kids || []).includes(q)); if (g) g.over = true; } if (q._bit) q._bit.t = 1e9; setTimeout(() => { if (q.errand || q.alive === false) return; q._playing = false; q.agent.frozen = false; q.agent.lift = 0; O.Errands.send(s, q, [b.doorX, b.doorY + 1], { anim: 'idle', secs: 0.3, face: 0, giveUp: game.t + 60, sprint: true, after: () => { if (q.agent && b) { q.agent.inside = b.id; q.agent.hidden = true; } } }); }, 120); }
     O.KidsChores = { called };
   }

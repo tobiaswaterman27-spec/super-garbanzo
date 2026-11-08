@@ -1,0 +1,10 @@
+import { start } from './lib.mjs';
+const { p, done } = await start();
+const D = process.env.SHOTS || '';
+await p.evaluate(() => { const s = O.SimRef.cur; while (s.minute < 6.7 * 60) s.tick(1); O.game.clock.minute = s.minute; const bk = [...s.biz.values()].find((z) => z.type === 'bakery'); const b = s.building(bk.b?.id ?? bk.id); O.game.player.x = b.doorX * 16; O.game.player.y = (b.doorY + 4) * 16; });
+await p.evaluate(() => { O.Rounds.start('bread'); O.Rounds.start('milk'); }); await p.waitForTimeout(1500); const r = await p.evaluate(() => O.Rounds.runs.map((x) => x.kind + ':' + x.q.first + ' houses ' + x.left).join(', '));
+console.log('rounds:', r || 'none');
+await p.waitForTimeout(4000); if (D) await p.evaluate(() => { const x = O.Rounds.runs[0]; if (x) { O.game.player.x = x.q.agent.x; O.game.player.y = x.q.agent.y + 40; } }); await p.waitForTimeout(400); if (D) await p.screenshot({ path: `${D}/rounds.png`, clip: { x: 520, y: 300, width: 160, height: 120 } });
+for (let i = 0; i < 40 && await p.evaluate(() => O.Rounds.runs.length > 0); i++) await p.waitForTimeout(2000);
+console.log('rounds done:', await p.evaluate(() => O.Rounds.runs.length === 0));
+await done();

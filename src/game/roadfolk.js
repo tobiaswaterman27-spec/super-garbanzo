@@ -14,6 +14,8 @@
     const KINDS = {
       carter: { n: 1, role: 'carter', look: 'farmer', dest: 'square', stay: 25, speed: 24, lines: ['Mind the cart!', 'Gee up, wheel. Gee up.', 'Sacks for the mill, if anyone\'s asking.'], about: 'You are a carter passing through with a handcart of sacks, bound for the next town. You know the state of the roads.' },
       pilgrims: { n: 3, role: 'pilgrim', look: 'peasant', dest: 'chapel', stay: 30, speed: 22, lines: ['Ave Maria, gratia plena...', 'Nearly there, friends.', 'Pray for us, good people!'], about: 'You are a pilgrim walking to the shrines with your friends; you wear a pilgrim\'s badge and carry a staff. You are cheerful and tired, and you\'ve seen many towns.' },
+      cowherd: { n: 1, role: 'cowherd', look: 'farmer', dest: 'farm', stay: 60, speed: 14, sheep: 4, beast: 'cow', lines: ['Hup, Bess! Hup!', 'Get along there.', 'Come on, my beauties.'], about: 'You are the town cowherd, taking the cows out to the common pasture for the day. You know every cow by name.' },
+      swineherd: { n: 1, role: 'swineherd', look: 'farmer', dest: 'farm', stay: 60, speed: 13, sheep: 5, beast: 'pig', season: 'autumn', lines: ['Sooey! Sooey!', 'To the woods, my lovelies, acorns aplenty.', 'Get on, you fat devils.'], about: 'You are the swineherd driving the pigs out to the woods to fatten on acorns, as every autumn. You smell of pig and don\'t care.' },
       drover: { n: 1, role: 'drover', look: 'farmer', dest: 'butcher', stay: 25, speed: 20, sheep: 5, lines: ['Hup! Hup! Get on!', 'Come by, come by!', 'Mutton on the hoof, butcher!'], about: 'You are a drover bringing a few sheep in to sell to the butcher. You talk about prices and weather.' },
       friar: { n: 1, role: 'friar', look: 'priest', dest: 'square', stay: 35, speed: 18, lines: ['Alms, for the love of God.', 'Bread for a poor brother?', 'Peace be on this house.'], about: 'You are a grey friar, a wandering preacher who begs his bread. You bless people and scold the rich.' },
       pedlar: { n: 1, role: 'pedlar', look: 'merchant', dest: 'square', stay: 30, speed: 22, lines: ['Pins! Needles! Laces!', 'Ribbons, fair maids, ribbons!', 'Something for everyone in my pack!'], about: 'You are a pedlar with a pack on your back: pins, needles, laces, ribbons, a little mirror. You chatter and flatter.' },
@@ -23,6 +25,7 @@
     };
     const parties = [];
     function destOf(s, k) {
+      if (k === 'farm' && s.Z && s.Z.farm) { const f = s.Z.farm; return [Math.floor((f[0] + f[2]) / 2), Math.floor((f[1] + f[3]) / 2)]; }
       if (k === 'square') { const [x0, y0, x1, y1] = s.Z.square; return [Math.floor((x0 + x1) / 2) + Math.floor(Math.random() * 5) - 2, Math.floor((y0 + y1) / 2) + 1]; }
       if (k === 'chapel') { const b = s.building(s.chapelId); if (b && b.doorX != null) return [b.doorX, b.doorY + 2]; }
       const bz = [...s.biz.values()].find((z) => z.type === k); if (bz) { const b = s.building(bz.b?.id ?? bz.id); if (b && b.doorX != null) return [b.doorX, b.doorY + 2]; }
@@ -58,7 +61,7 @@
         const at = (k) => pt.trail[Math.min(pt.trail.length - 1, k)];
         if (pt.stage === 'in' || pt.stage === 'out') { const end = walk(pt, pt.stage === 'in' ? pt.path : pt.back, dt);
           pt.ppl.forEach((q, i) => { const [x, y] = at(i * (pt.K.mounted ? 14 : pt.kind === 'troops' ? 5 : 6) + (pt.sheep ? 14 : 0)); const a = q.agent; const dx = x - a.x, dy = y - a.y; if (Math.hypot(dx, dy) > 0.3) a.dir = O.dirOf(dx, dy); a.x = x + (pt.kind === 'troops' ? (i % 2 ? 5 : -5) : (i % 2 ? 3 : -3) * (i > 0 ? 1 : 0)); a.y = y; a.forceAnim = pt.kind === 'carter' ? 'carry' : pt.kind === 'messenger' ? 'run' : 'walk'; a.frozen = true; if (a.mount) { a.mount.anim = pt.K.gallop ? 'gallop' : 'walk'; a.mount.ft += dt; } });
-          if (pt.sheep) pt.sheep.forEach((sh, i) => { const [x, y] = at(Math.max(0, i * 3)); const dx = x - sh.x; sh.moving = Math.hypot(x - sh.x, y - sh.y) > 0.5; if (sh.moving) sh.dir = dx > 0 ? 2 : 1; sh.x += (x + (i % 2 ? 4 : -4) - sh.x) * Math.min(1, dt * 4); sh.y += (y + (i % 3) * 3 - 3 - sh.y) * Math.min(1, dt * 4); sh.ft += dt; });
+          if (pt.sheep) pt.sheep.forEach((sh, i) => { const [x, y] = at(Math.max(0, i * (pt.K.beast === 'cow' ? 7 : 3))); const dx = x - sh.x; sh.moving = Math.hypot(x - sh.x, y - sh.y) > 0.5; if (sh.moving) sh.dir = dx > 0 ? 2 : 1; sh.x += (x + (i % 2 ? 4 : -4) - sh.x) * Math.min(1, dt * 4); sh.y += (y + (i % 3) * 3 - 3 - sh.y) * Math.min(1, dt * 4); sh.ft += dt; });
           pt.wheel += pt.K.speed * dt;
           if (pt.kind === 'troops' && Math.random() < dt * 4) for (const q of s.people) { if (q.roadfolk || !q.agent || q.agent.hidden || q.agent.inside != null || q.agent.frozen || q.errand || q._sawTroops === pt || Math.hypot(q.agent.x - pt.lead[0], q.agent.y - pt.lead[1]) > 90) continue; q._sawTroops = pt; O.gesture && O.gesture(q, q.age < 13 ? 'celebrate' : pick(['wave', 'wave', 'mourn', 'point', 'look']), 2.5); if (q.age < 12 && Math.random() < 0.3) O.Speech && O.Speech.say(q, pick(['Soldiers! Look!', 'Can I come?', 'Left, right! Left, right!']), 1.6); }
           if (pt.kind === 'troops' && near(pt.lead[0], pt.lead[1], 360)) { pt.drum = (pt.drum || 0) - dt; if (pt.drum <= 0) { pt.drum = 0.55; O.sfx && O.sfx('smack', 0.06); } }
@@ -77,7 +80,7 @@
       next -= dt; if (next > 0 || game.scene) return; next = 50 + Math.random() * 70;
       const h = s.minute / 60; if (h < 7 || h > 18 || parties.length >= 2) return;
       const E = s.Z.east; if (!E || !near(E[0] * T, E[1] * T, 900) && !s.Z.square) return;
-      const atWar = s.kingdom && s.kingdom.war && ['war', 'tension'].includes(s.kingdom.war.phase); const kinds = Object.keys(KINDS).filter((k) => (k !== 'messenger' || atWar || Math.random() < 0.3) && (k !== 'troops' || atWar)); if (atWar && Math.random() < 0.35) { spawn(s, 'troops'); return; }
+      const atWar = s.kingdom && s.kingdom.war && ['war', 'tension'].includes(s.kingdom.war.phase); const kinds = Object.keys(KINDS).filter((k) => (k !== 'messenger' || atWar || Math.random() < 0.3) && (k !== 'troops' || atWar) && (!KINDS[k].season || KINDS[k].season === s.season) && (k !== 'cowherd' || h < 10)); if (atWar && Math.random() < 0.35) { spawn(s, 'troops'); return; }
       spawn(s, pick(kinds));
     });
     game.hooks.drawWorld.push((ctx, cam) => {
@@ -88,7 +91,7 @@
         if (pt.kind === 'pilgrims' || pt.kind === 'friar') for (const q of pt.ppl) { const a = q.agent, x = Math.round(a.x - cam.x), y = Math.round(a.y - cam.y); ctx.fillStyle = '#7a5a3a'; ctx.fillRect(x + 6, y - 28, 1, 28); if (pt.kind === 'pilgrims') { ctx.fillStyle = '#e8e0d0'; ctx.fillRect(x - 1, y - 20, 2, 2); } }
         if (pt.kind === 'troops') pt.ppl.forEach((q, i) => { const a = q.agent, x = Math.round(a.x - cam.x), y = Math.round(a.y - cam.y); ctx.fillStyle = '#6a4a2c'; ctx.fillRect(x + 5, y - 34, 1, 32); ctx.fillStyle = '#a8b0bc'; ctx.fillRect(x + 4, y - 37, 3, 3); if (i === 0) { ctx.fillStyle = '#5a3d26'; ctx.fillRect(x - 6, y - 40, 1, 38); ctx.fillStyle = '#9a1e24'; ctx.fillRect(x - 5, y - 39, 9 + (Math.floor(performance.now() / 300) % 2), 7); ctx.fillStyle = '#e0c050'; ctx.fillRect(x - 2, y - 37, 3, 3); } });
         if (pt.kind === 'pedlar') { const a = pt.ppl[0].agent, x = Math.round(a.x - cam.x), y = Math.round(a.y - cam.y); ctx.fillStyle = '#8a6239'; ctx.fillRect(x - (a.dir === 2 ? 9 : -3), y - 24, 7, 10); ctx.fillStyle = '#c04060'; ctx.fillRect(x - (a.dir === 2 ? 8 : -4), y - 16, 2, 4); }
-        if (pt.sheep) for (const sh of pt.sheep) { if (O.occluded && O.occluded(sh.x, sh.y)) continue; const an = sh.moving ? 'walk' : 'graze', H = O.Animals.HANIMS[an]; try { const fr = O.Animals.animal('sheep', sh.seed, sh.dir, sh.moving, Math.floor(sh.ft * H.fps) % H.frames, an); ctx.drawImage(fr, Math.round(sh.x - (fr.ox ?? fr.width / 2) - cam.x), Math.round(sh.y - (fr.gy ?? fr.height) - cam.y)); } catch (e) { /* */ } }
+        if (pt.sheep) for (const sh of pt.sheep) { if (O.occluded && O.occluded(sh.x, sh.y)) continue; const an = sh.moving ? 'walk' : 'graze', H = O.Animals.HANIMS[an]; try { const fr = O.Animals.animal(pt.K.beast || 'sheep', sh.seed, sh.dir, sh.moving, Math.floor(sh.ft * H.fps) % H.frames, an); ctx.drawImage(fr, Math.round(sh.x - (fr.ox ?? fr.width / 2) - cam.x), Math.round(sh.y - (fr.gy ?? fr.height) - cam.y)); } catch (e) { /* */ } }
       }
       ctx.restore();
     });

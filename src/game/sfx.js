@@ -31,6 +31,7 @@
       step_grass(v, b) { nz(b, now(), 0.11, 'highpass', 3200, 0.6, 0.025 * v); nz(b, now(), 0.06, 'lowpass', 500, 0.7, 0.03 * v); },
       step_wood(v, b) { const t = now(); tn(b, t, 0.09, 180, 'triangle', 0.08 * v, 120); nz(b, t, 0.05, 'bandpass', 900, 1.5, 0.04 * v); },
       step_snow(v, b) { const t = now(); for (let i = 0; i < 3; i++) nz(b, t + i * 0.018, 0.05, 'bandpass', 1800 + Math.random() * 900, 3, 0.03 * v); },
+      gull(v, b) { const t = now(); for (let i = 0; i < 3; i++) tn(b, t + i * 0.2, 0.16, 1900 - i * 120, 'triangle', 0.045 * v, 1150); },
       splash(v, b) { const t = now(); nz(b, t, 0.35, 'bandpass', 1100, 0.8, 0.12 * v); for (let i = 0; i < 4; i++) tn(b, t + 0.03 + Math.random() * 0.2, 0.05, 900 + Math.random() * 1400, 'sine', 0.02 * v, 1800); },
       // work
       chop(v, b) { const t = now(); nz(b, t, 0.09, 'bandpass', 1300, 1.2, 0.2 * v); tn(b, t, 0.14, 160, 'triangle', 0.18 * v, 90); },

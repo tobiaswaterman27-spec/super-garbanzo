@@ -5,7 +5,7 @@
 // free to be asked again.
 'use strict';
 (function () {
-  const FLAGS = ['_bank', '_tree', '_door', '_stable', '_abbey', '_winter', '_call', '_chore', '_beast', '_repair', '_puddle'];
+  const FLAGS = ['_bank', '_tree', '_door', '_stable', '_abbey', '_winter', '_call', '_chore', '_beast', '_repair', '_puddle', '_quay'];
   function setup(game) {
     const since = new Map(); let t = 0; let cleared = 0;
     game.hooks.update.push((dt) => {

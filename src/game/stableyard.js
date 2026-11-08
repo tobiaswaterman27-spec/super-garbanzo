@@ -17,7 +17,7 @@
       if (h) { const side = h.x > b.doorX * T ? -1 : 1; tx = Math.floor((h.x + side * 18) / T); ty = Math.floor(h.y / T); face = side > 0 ? 1 : 2; if (kind === 'hoof') { tx = Math.floor((h.x - (h.dir === 1 ? -14 : 14)) / T); } }
       else { tx = b.doorX + (Math.random() < 0.5 ? -1 : 1); ty = b.doorY + 1; face = 0; }
       const w = s.world; if (tx < 1 || ty < 1 || w.solid[ty * w.W + tx]) return false;
-      q._stable = true; if (h) h.tied = true;
+      q._stable = true; q._stableH = h || null; if (h) h.tied = true;
       O.Errands.send(s, q, [tx, ty], { anim: 'idle', secs: 0.3, face, giveUp: game.t + 45, after: (ok) => {
         if (!ok || !q.agent) { q._stable = false; if (h) h.tied = false; return; } const a = q.agent; a.frozen = true; a.path = null;
         if (h) a.dir = h.x > a.x ? 2 : 1; else a.dir = tx < b.doorX ? 2 : 1;
@@ -28,6 +28,8 @@
     game.hooks.update.push((dt) => {
       for (const p of bits.slice()) { p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += (p.kind === 'straw' ? 120 : 10) * dt; if (p.kind === 'straw' && p.t > 0.4) { p.vx = 0; p.vy = 0; } if (p.t > p.life) bits.splice(bits.indexOf(p), 1); }
       const s = cur(); if (!s || !s.world || game.scene) return;
+      // a groom whose errand was taken over by something else: let go of him and the horse
+      if (Math.random() < dt) for (const q of s.people) if (q._stable && !q.errand && !jobs.some((j) => j.q === q)) { q._stable = false; if (q._stableH) q._stableH.tied = false; q._stableH = null; }
       for (const j of jobs.slice()) {
         j.t += dt; const a = j.q.agent;
         if (j.s !== s || j.t > j.len || !a || j.q.alive === false || s.raining || (O.npcUI && O.npcUI.talking && O.npcUI.talking() === j.q) || (j.h && (j.h.stabled || j.h === game.player.mount))) { release(j); continue; }

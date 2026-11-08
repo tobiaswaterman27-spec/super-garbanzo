@@ -6,13 +6,14 @@
 (function () {
   const T = 16;
   function setup(game) {
+    const mem = new WeakMap(), M = (o) => { let m = mem.get(o); if (!m) mem.set(o, (m = {})); return m; };
     const cur = () => O.SimRef.cur;
     const pick = (a) => a[Math.floor(Math.random() * a.length)];
     const jobs = [], gulls = [], scraps = []; let cool = 5;
     const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
     const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
     const busy = (q) => !q || q.alive === false || !q.agent || q.agent.frozen || q.errand || q._bit || q._scene || q._quay || talking(q);
-    const spot = (b) => { if (b._quay !== undefined) return b._quay; const w = cur().world; const ok = (tx, ty) => tx > 1 && ty > 1 && tx < w.W - 2 && ty < w.H - 2 && !w.solid[ty * w.W + tx] && w.ter[ty * w.W + tx] !== w.TER.WATER; for (const [dx, dy] of [[2, 1], [-3, 1], [3, 2], [-4, 2], [1, 3], [-2, 3]]) { const tx = b.doorX + dx, ty = b.doorY + dy; if (ok(tx, ty) && ok(tx + 1, ty) && ok(tx - 1, ty)) return (b._quay = { tx, ty }); } return (b._quay = null); };
+    const spot = (b) => { if (M(b).quay !== undefined) return M(b).quay; const w = cur().world; const ok = (tx, ty) => tx > 1 && ty > 1 && tx < w.W - 2 && ty < w.H - 2 && !w.solid[ty * w.W + tx] && w.ter[ty * w.W + tx] !== w.TER.WATER; for (const [dx, dy] of [[2, 1], [-3, 1], [3, 2], [-4, 2], [1, 3], [-2, 3]]) { const tx = b.doorX + dx, ty = b.doorY + dy; if (ok(tx, ty) && ok(tx + 1, ty) && ok(tx - 1, ty)) return (M(b).quay = { tx, ty }); } return (M(b).quay = null); };
     function release(j) { const a = j.q.agent; if (a) { a.forceAnim = null; if (!talking(j.q)) a.frozen = false; } j.q._quay = false; jobs.splice(jobs.indexOf(j), 1); }
     function begin(s, q, b, kind) {
       const sp = spot(b); if (!sp) return false; const tx = kind === 'gut' ? sp.tx : sp.tx - 2, ty = sp.ty + (kind === 'gut' ? 1 : 0);

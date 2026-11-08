@@ -7,6 +7,7 @@
 (function () {
   const T = 16;
   function setup(game) {
+    const mem = new WeakMap(), M = (o) => { let m = mem.get(o); if (!m) mem.set(o, (m = {})); return m; };
     const cur = () => O.SimRef.cur;
     const pick = (a) => a[Math.floor(Math.random() * a.length)];
     const jobs = [], bits = [], drips = []; const cleared = new Map(); let cool = 4, woodCool = 10;
@@ -44,7 +45,7 @@
       cool -= dt; if (cool > 0) return; cool = 5 + Math.random() * 5;
       if (hr < 7 || hr > 16.5 || (game.isNight && game.isNight()) || jobs.filter((j) => j.s === s).length >= 3) return;
       const P = game.player, frosty = s.season === 'winter' && hr < 10.5;
-      if (frosty && Math.random() < 0.4) { const wells = s.world.props.filter((p) => p.kind === 'well' && Math.hypot(p.x - P.x, p.y - P.y) < 420 && !jobs.some((j) => j.well === p) && p._iced !== s.day); const well = wells.length && pick(wells); const q = well && s.people.filter((x) => free(x) && x.age >= 16 && x.age < 60 && Math.hypot(x.agent.x - well.x, x.agent.y - well.y) < 400)[0]; if (q) { well._iced = s.day; begin(s, q, 'ice', null, well); } return; }
+      if (frosty && Math.random() < 0.4) { const wells = s.world.props.filter((p) => p.kind === 'well' && Math.hypot(p.x - P.x, p.y - P.y) < 420 && !jobs.some((j) => j.well === p) && M(p).iced !== s.day); const well = wells.length && pick(wells); const q = well && s.people.filter((x) => free(x) && x.age >= 16 && x.age < 60 && Math.hypot(x.agent.x - well.x, x.agent.y - well.y) < 400)[0]; if (q) { M(well).iced = s.day; begin(s, q, 'ice', null, well); } return; }
       if (!snow) return;
       const houses = s.world.buildings.filter((b) => b.type === 'house' && b.doorX != null && !cleared.has(b.id) && !jobs.some((j) => j.b === b) && Math.abs(b.doorX * T - P.x) < 420 && Math.abs(b.doorY * T - P.y) < 300); if (!houses.length) return;
       const b = pick(houses), q = s.people.find((x) => x.home === b.id && free(x) && x.age >= 12 && x.age < 65); if (q) begin(s, q, 'shovel', b);

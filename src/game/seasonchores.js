@@ -9,6 +9,7 @@
 (function () {
   const T = 16;
   function setup(game) {
+    const mem = new WeakMap(), M = (o) => { let m = mem.get(o); if (!m) mem.set(o, (m = {})); return m; };
     const cur = () => O.SimRef.cur;
     const pick = (a) => a[Math.floor(Math.random() * a.length)];
     const presses = [], serenades = [], notes = []; let started = 0; let cool = 6, sCool = 20;
@@ -47,7 +48,7 @@
       }
       // new things
       cool -= dt; sCool -= dt;
-      if (cool <= 0) { cool = 10 + Math.random() * 10; if (s.season === 'autumn' && hr > 9 && hr < 16 && !s.raining && presses.filter((p) => p.s === s).length < 1) { const P = game.player, farms = s.world.buildings.filter((b) => b.type === 'farmhouse' && b.doorX != null && Math.hypot(b.doorX * T - P.x, b.doorY * T - P.y) < 520 && b._pressed !== s.day); if (farms.length) { const b = pick(farms), bz = s.biz.get(b.id), ws = (bz ? bz.workers : []).map((id) => s.byId.get(id)).filter(free); const ppl = ws.length >= 2 ? ws : ws.concat(s.people.filter((x) => free(x) && x.age >= 15 && x.age < 60 && x.home === b.id)); if (ppl.length >= 2 && startPress(s, b, ppl)) b._pressed = s.day; } } }
+      if (cool <= 0) { cool = 10 + Math.random() * 10; if (s.season === 'autumn' && hr > 9 && hr < 16 && !s.raining && presses.filter((p) => p.s === s).length < 1) { const P = game.player, farms = s.world.buildings.filter((b) => b.type === 'farmhouse' && b.doorX != null && Math.hypot(b.doorX * T - P.x, b.doorY * T - P.y) < 520 && M(b).pressed !== s.day); if (farms.length) { const b = pick(farms), bz = s.biz.get(b.id), ws = (bz ? bz.workers : []).map((id) => s.byId.get(id)).filter(free); const ppl = ws.length >= 2 ? ws : ws.concat(s.people.filter((x) => free(x) && x.age >= 15 && x.age < 60 && x.home === b.id)); if (ppl.length >= 2 && startPress(s, b, ppl)) M(b).pressed = s.day; } } }
       if (sCool <= 0) { sCool = 25 + Math.random() * 20; if (s.season === 'summer' || s.season === 'spring') if (hr > 20 && hr < 23 && !s.raining && serenades.filter((x) => x.s === s).length < 1) {
         const P = game.player; const freeHome = (q) => q && q.alive !== false && q.agent && !q.agent.frozen && !q.agent.mount && !q.errand && !q._bit && !q._scene && !q._chore && !q._call && !q.visitor && !talking(q) && ((!q.agent.hidden && q.agent.inside == null) || (q.agent.inside != null && q.agent.inside === q.home)) && q.activity && ['home', 'socialise', 'stroll', 'idle', 'rest', 'pastime'].includes(q.activity.act);
         for (const q of s.people) { if (!freeHome(q) || q.sex !== 'm' || q.age < 16 || q.age > 30 || q.spouse) continue; let her = null; for (const [id, r] of q.rel || []) { if ((r.affinity || 0) < 0.35) continue; const g = s.byId.get(id); if (g && g.sex === 'f' && !g.spouse && g.age >= 15 && g.age < 30 && g.home && g.household !== q.household && g.agent && g.agent.inside === g.home) { her = g; break; } } if (!her && q.courting) { const g = s.byId.get(q.courting); if (g && g.agent && g.agent.inside === g.home) her = g; }

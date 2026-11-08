@@ -6,6 +6,7 @@
 (function () {
   const T = 16;
   function setup(game) {
+    const mem = new WeakMap(), M = (o) => { let m = mem.get(o); if (!m) mem.set(o, (m = {})); return m; };
     const cur = () => O.SimRef.cur;
     const pick = (a) => a[Math.floor(Math.random() * a.length)];
     const HOLY = /abbot|abbess|prior|prioress|monk|nun|lay brother|lay sister/;
@@ -14,9 +15,9 @@
     const busy = (q) => !q || q.alive === false || !q.agent || q.agent.frozen || q.errand || q._bit || q._scene || q._abbey || (O.npcUI && O.npcUI.talking && O.npcUI.talking() === q);
     const isHouse = (b) => b && (b.type === 'abbey' || b.type === 'priory') && b.doorX != null;
     // the herb garden goes on whichever side of the house has clear ground for it (or nowhere)
-    const garden = (b) => { if (b._garden !== undefined) return b._garden; const w = cur().world; const clear = (tx0, ty0) => { for (let y = ty0; y < ty0 + 4; y++) for (let x = tx0; x < tx0 + 7; x++) { if (x < 1 || y < 1 || x >= w.W - 1 || y >= w.H - 1) return false; const i = y * w.W + x; if (w.solid[i] || w.ter[i] === w.TER.WATER || w.ter[i] === w.TER.ROAD) return false; if (w.buildings.some((o) => x >= o.x - 1 && x <= o.x + o.w && y >= o.y - 3 && y <= o.bottom + 1)) return false; } return true; };
-      for (const [tx, ty] of [[b.x + b.w + 1, b.bottom - 2], [b.x - 8, b.bottom - 2], [b.x + b.w + 1, b.bottom + 3], [b.x - 8, b.bottom + 3], [b.x + b.w + 3, b.bottom - 1], [b.x - 10, b.bottom - 1]]) if (clear(tx, ty)) return (b._garden = { x0: tx * T, y0: ty * T, w: 5 * T, h: 4 * T });
-      return (b._garden = null); };
+    const garden = (b) => { if (M(b).garden !== undefined) return M(b).garden; const w = cur().world; const clear = (tx0, ty0) => { for (let y = ty0; y < ty0 + 4; y++) for (let x = tx0; x < tx0 + 7; x++) { if (x < 1 || y < 1 || x >= w.W - 1 || y >= w.H - 1) return false; const i = y * w.W + x; if (w.solid[i] || w.ter[i] === w.TER.WATER || w.ter[i] === w.TER.ROAD) return false; if (w.buildings.some((o) => x >= o.x - 1 && x <= o.x + o.w && y >= o.y - 3 && y <= o.bottom + 1)) return false; } return true; };
+      for (const [tx, ty] of [[b.x + b.w + 1, b.bottom - 2], [b.x - 8, b.bottom - 2], [b.x + b.w + 1, b.bottom + 3], [b.x - 8, b.bottom + 3], [b.x + b.w + 3, b.bottom - 1], [b.x - 10, b.bottom - 1]]) if (clear(tx, ty)) return (M(b).garden = { x0: tx * T, y0: ty * T, w: 5 * T, h: 4 * T });
+      return (M(b).garden = null); };
     const crossAt = (b) => [b.doorX * T + 8, (b.doorY + 4) * T];
     function release(q) { const a = q.agent; if (a) { a.forceAnim = null; if (!(O.npcUI && O.npcUI.talking && O.npcUI.talking() === q)) a.frozen = false; } q._abbey = false; }
     function endJob(j) { release(j.q); jobs.splice(jobs.indexOf(j), 1); }
@@ -54,7 +55,7 @@
       const P = game.player, houses = s.world.buildings.filter((b) => isHouse(b) && Math.hypot(b.doorX * T - P.x, b.doorY * T - P.y) < 600); if (!houses.length) return;
       const b = pick(houses), bz = s.biz.get(b.id), holy = (bz ? bz.workers : []).map((id) => s.byId.get(id)).filter((q) => q && HOLY.test(q.job?.role || '') && !busy(q));
       // the hours: noon and evening, a line to the cross
-      const hour = Math.floor(hr), m = s.minute % 60; if ((hour === 12 || hour === 18) && m < 20 && !s.raining && !procs.some((x) => x.b === b) && b._lastProc !== s.day * 24 + hour && holy.length >= 2) { b._lastProc = s.day * 24 + hour; procession(s, b, holy); return; }
+      const hour = Math.floor(hr), m = s.minute % 60; if ((hour === 12 || hour === 18) && m < 20 && !s.raining && !procs.some((x) => x.b === b) && M(b).lastProc !== s.day * 24 + hour && holy.length >= 2) { M(b).lastProc = s.day * 24 + hour; procession(s, b, holy); return; }
       if (s.raining || jobs.filter((j) => j.b === b).length >= 3 || !holy.length) return;
       const kind = s.season === 'winter' ? pick(['walk', 'walk', 'bees']) : pick(['hoe', 'hoe', 'bees', 'walk']); begin(s, pick(holy), b, kind);
     });

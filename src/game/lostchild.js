@@ -8,16 +8,17 @@
   function setup(game) {
     const cur = () => O.SimRef.cur;
     const pick = (a) => a[Math.floor(Math.random() * a.length)];
-    let L = null, cool = 60, found = 0;
+    let L = null, cool = 60, found = 0, sweep = 0; const marked = new Set();
     const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
     const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
     const able = (q) => q && q.alive !== false && q.agent && !q.agent.frozen && !q.errand && !q._lost && !q._bit && !q._scene && !talking(q);
     const name = (q) => q.first || (q.name || '').split(' ')[0] || 'child';
     function release(q) { if (!q || !q.agent) return; q.agent.forceAnim = null; if (!talking(q)) q.agent.frozen = false; q._lost = false; }
-    function end() { if (!L) return; release(L.kid); release(L.ma); L = null; }
+    function end() { if (L) { release(L.kid); release(L.ma); } for (const q of marked) if (!L || (q !== L.kid && q !== L.ma)) q._lost = false; marked.clear(); L = null; }
     function spotNear(s, tx, ty, r0, r1) { const w = s.world; for (let k = 0; k < 40; k++) { const a = Math.random() * Math.PI * 2, r = r0 + Math.random() * (r1 - r0), x = Math.round(tx + Math.cos(a) * r), y = Math.round(ty + Math.sin(a) * r); if (x < 2 || y < 2 || x >= w.W - 2 || y >= w.H - 2) continue; const i = y * w.W + x; if (w.solid[i] || w.ter[i] === w.TER.WATER) continue; return [x, y]; } return null; }
     game.hooks.update.push((dt) => {
       const s = cur(); if (!s || !s.world || game.scene) return; const hr = s.minute / 60;
+      if (!L && (sweep += dt) > 3) { sweep = 0; for (const q of s.people) if (q._lost) q._lost = false; marked.clear(); }
       if (L) { L.t += dt; if (L.s !== s || L.t > 200 || talking(L.kid) || talking(L.ma) || L.kid.alive === false || L.ma.alive === false) { end(); return; }
         const k = L.kid.agent, m = L.ma.agent;
         if (L.phase === 'lost') { k.forceAnim = Math.floor(L.t * 0.7) % 3 ? 'mourn' : 'look'; if (!L.cried && near(k.x, k.y, 260)) { L.cried = true; O.Speech && O.Speech.say(L.kid, pick(['Mama? MAMA?', 'I want to go home...', 'Where is everybody?']), 2.4); }
@@ -37,7 +38,7 @@
       const P = game.player, kids = s.people.filter((q) => able(q) && q.age >= 3 && q.age <= 7 && !q.agent.hidden && q.agent.inside == null && near(q.agent.x, q.agent.y, 380) && !(q.agent.carrying === 'babe'));
       for (const kid of kids) { const hh = s.household(kid); if (!hh) continue; const ma = hh.members.map((id) => s.byId.get(id)).filter((q) => q && q !== kid && q.age >= 18 && able(q)).sort((a, b) => (a.sex === 'f' ? 0 : 1) - (b.sex === 'f' ? 0 : 1))[0]; if (!ma) continue; const home = s.building(hh.home ?? kid.home); if (!home || home.doorX == null) continue;
         const sp = spotNear(s, Math.floor(kid.agent.x / T), Math.floor(kid.agent.y / T), 10, 15); if (!sp) continue;
-        kid._lost = true; ma._lost = true; L = { s, kid, ma, home, t: 0, phase: 'wander' };
+        kid._lost = true; ma._lost = true; marked.add(kid); marked.add(ma); L = { s, kid, ma, home, t: 0, phase: 'wander' };
         O.Errands.send(s, kid, sp, { anim: 'idle', secs: 0.1, face: 0, giveUp: game.t + 50, after: (ok) => { if (!L || L.kid !== kid) return; if (!ok) { end(); return; } kid.agent.frozen = true; kid.agent.path = null; L.phase = 'lost'; L.t = 0;
           // the mother comes out of doors
           const a = ma.agent; if (a.inside != null) { a.inside = null; a.hidden = false; a.x = home.doorX * T + 8; a.y = (home.doorY + 1) * T + 8; } } });

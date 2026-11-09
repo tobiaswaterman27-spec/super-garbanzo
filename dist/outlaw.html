@@ -34612,7 +34612,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
 // free to be asked again.
 'use strict';
 (function () {
-  const FLAGS = ['_bank', '_tree', '_door', '_stable', '_abbey', '_winter', '_call', '_chore', '_beast', '_repair', '_puddle', '_quay', '_garden', '_hat', '_kid2', '_bake', '_tooth', '_leisure', '_rain', '_grave', '_scarer', '_wassail', '_rog', '_wash', '_office'];
+  const FLAGS = ['_bank', '_tree', '_door', '_stable', '_abbey', '_winter', '_call', '_chore', '_beast', '_repair', '_puddle', '_quay', '_garden', '_hat', '_kid2', '_bake', '_tooth', '_leisure', '_rain', '_grave', '_scarer', '_wassail', '_rog', '_wash', '_office', '_evict', '_reopen', '_moot', '_dole', '_flood', '_swarm', '_lost'];
   function setup(game) {
     const since = new Map(); let t = 0; let cleared = 0;
     game.hooks.update.push((dt) => {
@@ -36258,6 +36258,432 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     O.TreeFall = { falls, get felled() { return felled; } };
   }
   O.TreeFallSetup = { setup };
+})();
+
+</script>
+<script>
+// Turned out. When a family is evicted for the rent, it happens in the street: their goods are put out on
+// the cobbles by the door (a chest, a stool, the cooking pot, the bedding in a bundle) and stand there a
+// day; the bailiff stands by with folded arms; the family sit on their things, the mother weeping, the
+// children not understanding, until they carry it all off to wherever they can go; and the neighbours
+// come to their doors and shake their heads.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const cur = () => O.SimRef.cur, SP = O.Sim.prototype;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    const piles = []; let shown = 0;
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
+    const _evict = SP.evict;
+    if (_evict) SP.evict = function (b, hh) { const members = (hh.members || []).slice(); const r = _evict.apply(this, arguments); try { if (b && b.doorX != null) piles.push({ s: this, b, hh, members, at: this.day * 1440 + this.minute, scene: null, name: hh.surname }); } catch (e) { /* */ } return r; };
+    function release(P) { const S = P.scene; if (!S) return; for (const q of S.ppl) { if (!q.agent) continue; q.agent.forceAnim = null; if (!talking(q)) q.agent.frozen = false; q._evict = false; } P.scene = null; }
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || !s.world) return; const now = s.day * 1440 + s.minute;
+      for (const P of piles.slice()) { if (P.s === s && now - P.at > 1440) { release(P); piles.splice(piles.indexOf(P), 1); continue; }
+        if (P.s !== s || game.scene) continue; const x = P.b.doorX * T + 8, y = (P.b.doorY + 1) * T + 10;
+        if (P.scene) { const S = P.scene; S.t += dt; if (S.t > 80 || S.ppl.some(talking)) { release(P); P.done = true; continue; }
+          S.ppl.forEach((q, i) => { const a = q.agent; a.forceAnim = q === S.bailiff ? (Math.floor(S.t / 6) % 3 === 2 ? 'point' : 'idle') : q.age < 12 ? (Math.floor(S.t / 4 + i) % 3 ? 'sit' : 'look') : i === 0 ? (Math.floor(S.t / 5) % 2 ? 'mourn' : 'sit') : (Math.floor(S.t / 5 + i) % 3 ? 'sit' : 'wipe'); a.dir = 0; });
+          if (!S.said && S.t > 3) { S.said = true; const m = S.ppl.find((q) => q !== S.bailiff); m && near(x, y, 300) && O.Speech && O.Speech.say(m, pick(['Where will we go now?', 'Twelve years we lived here. Twelve years.', 'Have you no pity?', 'Hush, children. Hush.']), 3); }
+          if (!S.said2 && S.t > 10 && S.bailiff) { S.said2 = true; near(x, y, 300) && O.Speech && O.Speech.say(S.bailiff, pick(['The rent is the rent. I don\'t make the law.', 'You had your warnings.', 'Move along, now, all of you.']), 2.8); }
+          if (!S.nb && S.t > 14) { S.nb = true; const n = s.people.find((q) => q.agent && !q.agent.hidden && q.agent.inside == null && !q._evict && Math.hypot(q.agent.x - x, q.agent.y - y) < 180 && q.age >= 16); if (n) { O.gesture && O.gesture(n, 'shake', 2); near(x, y, 300) && O.Speech && O.Speech.say(n, pick(['God help them.', 'Could be any of us, come a bad winter.', 'Shameful.']), 2.4); } }
+          continue; }
+        // when you're near, the family is seen there with their things (once)
+        if (P.done || !near(x, y, 360) || now - P.at > 600) continue;
+        const fam = P.members.map((id) => s.byId.get(id)).filter((q) => q && q.alive !== false && q.agent && !q.agent.frozen && !q.errand && !talking(q)).slice(0, 4); if (!fam.length) { P.done = true; continue; }
+        const bailiff = s.people.find((q) => /bailiff|guard|sergeant/.test(q.job?.role || '') && q.agent && !q.agent.frozen && !q.errand && !talking(q) && q.alive !== false);
+        const S = { ppl: [], bailiff, t: 0 }; P.scene = S; shown++;
+        const put = (q, dx, dy) => { const a = q.agent; if (a.inside != null) { a.inside = null; a.hidden = false; } a.x = x + dx; a.y = y + dy; a.frozen = true; a.path = null; q._evict = true; S.ppl.push(q); };
+        fam.forEach((q, i) => put(q, -10 + i * 9, 4 + (i % 2) * 4)); if (bailiff) put(bailiff, 26, 2);
+      }
+    });
+    game.hooks.drawWorld.push((ctx, cam) => {
+      const s = cur(); if (!s || game.scene) return;
+      for (const P of piles) { if (P.s !== s) continue; const x = Math.round(P.b.doorX * T + 8 - cam.x), y = Math.round((P.b.doorY + 1) * T + 10 - cam.y); if (x < -40 || y < -40 || x > ctx.canvas.width + 40 || y > ctx.canvas.height + 40) continue;
+        ctx.fillStyle = '#6a4a2c'; ctx.fillRect(x - 6, y - 8, 14, 8); ctx.fillStyle = '#8a6239'; ctx.fillRect(x - 6, y - 8, 14, 2); ctx.fillStyle = '#c8a040'; ctx.fillRect(x, y - 6, 2, 2);
+        ctx.fillStyle = '#7a5a3a'; ctx.fillRect(x + 10, y - 7, 6, 2); ctx.fillRect(x + 11, y - 5, 1, 5); ctx.fillRect(x + 14, y - 5, 1, 5);
+        ctx.fillStyle = '#3a3a40'; ctx.beginPath(); ctx.arc(x - 11, y - 3, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#d8d0b8'; ctx.fillRect(x - 4, y - 14, 9, 6); ctx.fillStyle = '#b8b098'; ctx.fillRect(x - 4, y - 10, 9, 1); ctx.fillRect(x, y - 14, 1, 6); }
+    });
+    (O.extraLines = O.extraLines || []).push((s, q) => { const P = piles.find((p) => p.scene && p.scene.ppl.includes(q)); if (!P) return ''; return q === P.scene.bailiff ? `You are standing by while the ${P.name} family are put out of their house for the rent.` : 'Your family has just been thrown out of your house for the rent; your things are piled in the street and you sit on them, not knowing where to go.'; });
+    O.Evictions = { piles, get shown() { return shown; } };
+  }
+  O.EvictionsSetup = { setup };
+})();
+
+</script>
+<script>
+// Shut for good. A shop that has gone under stands with planks nailed across its door and its window
+// shutters fastened, a weed or two coming up at the step, until somebody takes it on again.
+'use strict';
+(function () {
+  function setup(game) {
+    const cur = () => O.SimRef.cur;
+    game.hooks.drawWorld.push((ctx, cam) => {
+      const s = cur(); if (!s || game.scene) return; const W = ctx.canvas.width, H = ctx.canvas.height;
+      for (const b of s.world.buildings) { if (!b.closedShop || s.biz.get(b.id) || b.ruined || !b.sprite || !b.sprite.door) continue; const sp = b.sprite, bx = b.x * 16 - sp.OV - cam.x, by = (b.bottom + 1) * 16 - sp.H - cam.y; if (bx > W + 10 || by > H + 10 || bx + sp.W < -10 || by + sp.H < -10) continue;
+        const d = sp.door, x = Math.round(bx + d.x), y = Math.round(by + d.y), w = d.w, h = d.h;
+        ctx.strokeStyle = '#7a5a3a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, y + 2); ctx.lineTo(x + w, y + h - 3); ctx.moveTo(x + w, y + 2); ctx.lineTo(x, y + h - 3); ctx.stroke(); ctx.lineWidth = 1;
+        ctx.fillStyle = '#8a6a44'; ctx.fillRect(x - 1, y + Math.round(h * 0.45), w + 2, 3); ctx.fillStyle = '#4a4a50'; ctx.fillRect(x, y + Math.round(h * 0.45) + 1, 1, 1); ctx.fillRect(x + w - 1, y + Math.round(h * 0.45) + 1, 1, 1);
+        for (const wd of (sp.windows || []).slice(0, 3)) { ctx.fillStyle = 'rgba(70,50,30,0.85)'; ctx.fillRect(Math.round(bx + wd.x), Math.round(by + wd.y), wd.w, wd.h); ctx.fillStyle = 'rgba(40,28,18,0.9)'; ctx.fillRect(Math.round(bx + wd.x + wd.w / 2), Math.round(by + wd.y), 1, wd.h); }
+        ctx.fillStyle = '#5a8a3a'; ctx.fillRect(x - 3, y + h - 3, 1, 3); ctx.fillRect(x - 2, y + h - 4, 1, 2); ctx.fillRect(x + w + 2, y + h - 2, 1, 2); }
+    });
+    // and opened again: the new owner prises off the boards and paints up the sign, and the neighbours wish them luck
+    const SP = O.Sim.prototype, _start = SP.startBusiness, opens = [];
+    if (_start) SP.startBusiness = function (b, type, owner) { const was = !!(b && b.closedShop); const r = _start.apply(this, arguments); try { if (was && owner && owner !== 'player') opens.push({ s: this, b, q: owner, day: this.day, t: 0, phase: 'wait' }); } catch (e) { /* */ } return r; };
+    const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
+    game.hooks.update.push((dt) => { const s = cur(); if (!s || game.scene) return; for (const o of opens.slice()) { if (o.s !== s) continue; if (s.day - o.day > 1) { opens.splice(opens.indexOf(o), 1); continue; } const P = game.player, x = o.b.doorX * 16 + 8, y = (o.b.doorY + 1) * 16 + 6; const near = Math.hypot(x - P.x, y - P.y) < 360, a = o.q.agent; if (!a) continue;
+        if (o.phase === 'wait') { if (!near || a.frozen || o.q.errand || talking(o.q) || s.minute < 7 * 60 || s.minute > 18 * 60) continue; if (a.inside != null) { a.inside = null; a.hidden = false; } a.x = x + 10; a.y = y; a.frozen = true; a.path = null; a.dir = 3; o.q._reopen = true; o.phase = 'boards'; o.t = 0; }
+        o.t += dt; if (talking(o.q)) { a.frozen = false; a.forceAnim = null; o.q._reopen = false; opens.splice(opens.indexOf(o), 1); continue; }
+        if (o.phase === 'boards') { a.forceAnim = 'hammer'; if (Math.random() < dt * 2 && near) O.sfx && O.sfx('smack', 0.15); if (o.t > 8) { o.phase = 'sign'; o.t = 0; O.Speech && near && O.Speech.say(o.q, 'There. Off they come, and good riddance.', 2.4); } }
+        else if (o.phase === 'sign') { a.forceAnim = 'scrub'; a.lift = Math.round(Math.min(1, o.t / 1.5) * 16); if (o.t > 9) { o.phase = 'luck'; o.t = 0; a.lift = 0; const n = s.people.find((x2) => x2 !== o.q && x2.agent && !x2.agent.hidden && x2.agent.inside == null && !x2.agent.frozen && Math.hypot(x2.agent.x - x, x2.agent.y - y) < 200 && x2.age >= 14); if (n && near) { O.gesture && O.gesture(n, 'wave', 1.6); O.Speech && O.Speech.say(n, ['Good luck to you!', 'About time this place was open.', 'I\'ll be your first customer.'][Math.floor(Math.random() * 3)], 2.4); } } }
+        else { a.forceAnim = 'celebrate'; if (o.t > 4) { a.forceAnim = null; a.frozen = false; a.lift = 0; o.q._reopen = false; opens.splice(opens.indexOf(o), 1); } } } });
+    game.hooks.drawWorld.push((ctx, cam) => { const s = cur(); if (!s || game.scene) return; for (const o of opens) { if (o.s !== s || o.phase === 'wait') continue; const x = Math.round(o.b.doorX * 16 + 8 - cam.x), y = Math.round((o.b.doorY + 1) * 16 + 6 - cam.y); ctx.fillStyle = '#7a5a3a'; for (let i = 0; i < (o.phase === 'boards' ? Math.min(3, Math.floor(o.t / 2.5)) : 3); i++) ctx.fillRect(x - 18, y - 2 - i * 2, 14, 2); if (o.phase === 'sign') { const a = o.q.agent, ax = Math.round(a.x - cam.x); ctx.strokeStyle = '#7a5a3a'; ctx.beginPath(); ctx.moveTo(ax - 4, y); ctx.lineTo(ax - 2, y - 30); ctx.moveTo(ax + 4, y); ctx.lineTo(ax + 2, y - 30); ctx.stroke(); ctx.fillStyle = '#c8a040'; ctx.fillRect(ax + 6, y - 6, 4, 6); } } });
+    O.BoardedUp = { opens, count: () => { const s = cur(); return s.world.buildings.filter((b) => b.closedShop && !s.biz.get(b.id)).length; } };
+  }
+  O.BoardedUpSetup = { setup };
+})();
+
+</script>
+<script>
+// The moot, seen. When the folk gather in the square at five to choose their reeve, it's a proper meeting:
+// the two who stand get up on boxes in the middle and speak their piece in turn, the crowd heckles and
+// argues among itself, points and shakes its head, and at six the show of hands goes up, a forest of arms,
+// and the name is cried, and the winner is cheered and slapped on the back while the loser shakes his hand.
+'use strict';
+(function () {
+  function setup(game) {
+    const cur = () => O.SimRef.cur, SP = O.Sim.prototype;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    let M = null, held = 0;
+    const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    // the crowd's own business while it waits
+    const _idle = SP.idleAnim; SP.idleAnim = function (p) { if (p.activity?.act === 'moot' && !p.agent.talking) { if (M && M.cheer > 0) return (Math.floor(this.minute) + p.id) % 2 ? 'celebrate' : 'wave'; if (M && M.hands) return 'celebrate'; const k = (Math.floor(this.minute / 2) + p.id) % 9; return ['look', 'talk', 'look', 'point', 'look', 'shake', 'talk', 'look', 'nod'][k]; } return _idle.call(this, p); };
+    const _hold = SP.holdMoot;
+    if (_hold) SP.holdMoot = function () { const before = this.reeveId; const r = _hold.apply(this, arguments); try { if (M && M.s === this) { const now = this.reeveId; M.result = now === 'player' ? 'you' : (this.byId.get(now) || null); M.cheer = 14; M.hands = false; held++; const w = M.result && M.result !== 'you' ? M.result : null; if (w && near(M.x, M.y, 420)) { O.Speech && O.Speech.say(w, pick(['I thank you all. I\'ll not let you down.', 'Well! A drink for everyone, then!', 'I\'ll do my best by this town.']), 3.5); } const l = M.cands.find((c) => c !== w); if (l && w && near(M.x, M.y, 420)) setTimeout(() => { O.Speech && O.Speech.say(l, 'Well won. I\'ll hold you to your promises.', 2.6); O.gesture && O.gesture(l, 'give', 1.5); }, 2500); void before; } } catch (e) { /* */ } return r; };
+    function release() { if (!M) return; for (const q of M.cands) { const a = q.agent; if (!a) continue; a.forceAnim = null; a.lift = 0; if (!talking(q)) a.frozen = false; q._moot = false; } M = null; }
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || !s.world || game.scene) return; const hr = s.minute / 60;
+      if (M) { M.t += dt; if (M.cheer > 0) { M.cheer -= dt; if (M.cheer <= 0) { release(); return; } }
+        if (M.s !== s || hr >= 18.6 || M.cands.some((q) => talking(q) || q.alive === false)) { release(); return; }
+        if (hr >= 17.9 && !M.hands && !M.result) { M.hands = true; const c = M.cands[0]; near(M.x, M.y, 420) && O.Speech && O.Speech.say(c, 'Show of hands, then! Who\'s for me?', 2.4); O.sfx && near(M.x, M.y, 420) && O.sfx('handbell', 0.3); }
+        M.cands.forEach((q, i) => { const a = q.agent; a.x = M.x + (i ? 22 : -22); a.y = M.y; a.lift = 6; a.dir = 0; a.frozen = true; a.path = null; a.forceAnim = M.result ? (q === M.result ? 'celebrate' : 'nod') : M.hands ? 'point' : (M.turn === i ? 'gesture' : 'look'); });
+        M.speak -= dt; if (M.speak <= 0 && !M.hands && !M.result) { M.speak = 7; M.turn = 1 - (M.turn || 0); const q = M.cands[M.turn]; if (near(M.x, M.y, 420)) { O.Speech && O.Speech.say(q, pick(['I\'ll mend the bridge before the floods come!', 'Lower tolls, and fair weights at the market!', 'I\'ve served this town thirty years.', 'Ask yourselves who kept the granary full last winter!', 'No more fines for the poor!', 'A stronger watch, and safe streets at night!']), 4); const h = s.people.find((x) => x.activity?.act === 'moot' && x.agent && !x.agent.hidden && Math.random() < 0.4); if (h) setTimeout(() => O.Speech && O.Speech.say(h, pick(['Words are cheap!', 'Hear, hear!', 'And who pays for it?', 'Liar!', 'Aye!']), 2), 2000); } }
+        return; }
+      if (s.reeveMoot !== s.day || hr < 17 || hr >= 17.8 || !s.Z || !s.Z.square) return;
+      const [x0, y0, x1, y1] = s.Z.square, cx = (x0 + x1) * 8 + 8, cy = (y0 + y1) * 8 + 8; if (!near(cx, cy, 600)) return;
+      const crowd = s.people.filter((p) => p.activity?.act === 'moot' && p.age >= 30 && !p.gang && p.agent && !p.agent.hidden && !p.agent.frozen && !talking(p));
+      const pre = (p) => { try { return (s.household(p).money > 150 ? 0.15 : 0) + p.age / 300 + (p.id === s.reeveId ? 0.3 : 0); } catch (e) { return p.age / 300; } };
+      const cands = crowd.sort((a, b) => pre(b) - pre(a)).slice(0, 2); if (cands.length < 2) return;
+      for (const q of cands) q._moot = true; M = { s, cands, x: cx, y: cy, t: 0, speak: 1, turn: 1, hands: false, result: null, cheer: 0 };
+    });
+    game.hooks.drawWorld.push((ctx, cam) => { if (!M || game.scene || M.s !== cur()) return; for (const i of [0, 1]) { const x = Math.round(M.x + (i ? 22 : -22) - cam.x), y = Math.round(M.y - cam.y); ctx.fillStyle = '#7a5a3a'; ctx.fillRect(x - 6, y - 6, 12, 7); ctx.fillStyle = '#9a7a4a'; ctx.fillRect(x - 6, y - 6, 12, 1); } });
+    (O.extraLines = O.extraLines || []).push((s, q) => M && M.cands.includes(q) ? 'You are standing for reeve at the moot in the square, speaking to the crowd from a box.' : (q.activity?.act === 'moot' ? 'You are at the moot in the square, where the town is choosing its reeve. You have opinions about the candidates.' : ''));
+    O.MootScene = { get moot() { return M; }, get held() { return held; } };
+  }
+  O.MootSceneSetup = { setup };
+})();
+
+</script>
+<script>
+// The bread dole. When the parish buys bread for the families who have nothing, it's handed out at the
+// bakery door: a little queue of the poor forms, shabby and quiet, each waiting their turn; the baker (or
+// the reeve's man) hands each their loaves, they say "God bless you" and go off home with the bread held
+// to the chest, and a few of them can't wait and tear a piece off as they go.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const cur = () => O.SimRef.cur, SP = O.Sim.prototype;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    let D = null, doles = 0; const pending = [];
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
+    const _relief = SP.parishRelief;
+    if (_relief) SP.parishRelief = function () { const before = new Map(this.households.map((hh) => [hh, hh.pantry ? hh.pantry.bread : 0])); const r = _relief.apply(this, arguments); try { const fed = this.households.filter((hh) => hh.pantry && hh.pantry.bread > (before.get(hh) || 0)); if (fed.length) pending.push({ s: this, fed, day: this.day }); } catch (e) { /* */ } return r; };
+    function end() { if (!D) return; for (const q of D.queue) { if (!q.agent) continue; q.agent.forceAnim = null; if (!talking(q)) q.agent.frozen = false; q._dole = false; } if (D.giver && D.giver.agent) { D.giver.agent.forceAnim = null; if (!talking(D.giver)) D.giver.agent.frozen = false; D.giver._dole = false; } D = null; }
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || !s.world || game.scene) return; const hr = s.minute / 60;
+      if (D) { D.t += dt; if (D.s !== s || D.t > 120 || D.queue.some(talking)) { end(); return; }
+        const x = D.x, y = D.y; D.giver.agent.forceAnim = D.handing > 0 ? 'give' : 'idle';
+        // the queue shuffles up; the one at the front takes the bread and goes
+        D.queue.forEach((q, i) => { const a = q.agent; if (!a.frozen) return; const tx = x - 12 - i * 11, ty = y + 2; a.x += (tx - a.x) * Math.min(1, dt * 3); a.y += (ty - a.y) * Math.min(1, dt * 3); a.dir = 2; a.forceAnim = i === 0 && D.handing > 0 ? 'take' : (Math.floor(D.t / 4 + i) % 4 === 3 ? 'look' : 'idle'); });
+        D.next -= dt; if (D.handing > 0) D.handing -= dt;
+        if (D.next <= 0 && D.queue.length) { D.next = 6; D.handing = 2; const q = D.queue[0]; setTimeout(() => { if (!D || D.queue[0] !== q) return; near(x, y, 300) && O.Speech && O.Speech.say(q, pick(['God bless you.', 'Thank you. The children haven\'t eaten since yesterday.', 'Bless the parish.']), 2.4); D.queue.shift(); const a = q.agent; a.forceAnim = null; a.frozen = false; q._dole = false; a.carrying = { good: 'bread', qty: 2 }; const hb = s.building(q.home); if (hb && hb.doorX != null) O.Errands.send(s, q, [hb.doorX, hb.doorY + 1], { anim: 'place', secs: 0.8, face: 0, giveUp: game.t + 90, carry: { good: 'bread', qty: 2 } }); doles++; }, 1800); }
+        if (!D.queue.length && D.handing <= 0 && D.t > 4) end();
+        return; }
+      if (!pending.length) return; const P0 = pending[0]; if (P0.s !== s || s.day - P0.day > 1) { pending.shift(); return; } if (hr < 8 || hr > 17) return;
+      const bz = s.supplierOf ? s.supplierOf('bakery') : null; const b = bz && s.building(bz.b?.id ?? bz.id); if (!b || b.doorX == null || !near(b.doorX * T, b.doorY * T, 480)) return;
+      const giver = (bz.workers || []).map((id) => s.byId.get(id)).find((q) => q && q.agent && !q.agent.frozen && !q.errand && !talking(q)); if (!giver) return;
+      const queue = []; for (const hh of P0.fed) { const q = hh.members.map((id) => s.byId.get(id)).find((p) => p && p.alive !== false && p.age >= 10 && p.agent && !p.agent.frozen && !p.errand && !p._bit && !talking(p)); if (q) queue.push(q); if (queue.length >= 5) break; }
+      if (!queue.length) { pending.shift(); return; } pending.shift();
+      const x = b.doorX * T + 8, y = (b.doorY + 1) * T + 8;
+      const ga = giver.agent; if (ga.inside != null) { ga.inside = null; ga.hidden = false; } ga.x = x + 6; ga.y = y; ga.frozen = true; ga.path = null; ga.dir = 1; giver._dole = true;
+      for (const [i, q] of queue.entries()) { const a = q.agent; if (a.inside != null) { const hb = s.building(a.inside); if (hb && hb.doorX != null) { a.x = hb.doorX * T + 8; a.y = (hb.doorY + 1) * T + 8; } a.inside = null; a.hidden = false; } q._dole = true; O.Errands.send(s, q, [b.doorX - 1 - i, b.doorY + 1], { anim: 'idle', secs: 0.1, face: 2, giveUp: game.t + 60, after: (ok) => { if (!ok || !D) { q._dole = false; if (D) D.queue.splice(D.queue.indexOf(q), 1); return; } q.agent.frozen = true; q.agent.path = null; } }); }
+      D = { s, x, y, giver, queue, t: 0, next: 8, handing: 0 };
+    });
+    game.hooks.drawWorld.push((ctx, cam) => { if (!D || game.scene || D.s !== cur()) return; const x = Math.round(D.x - cam.x), y = Math.round(D.y - cam.y); ctx.fillStyle = '#8a6239'; ctx.fillRect(x + 12, y - 8, 8, 6); for (let i = 0; i < Math.max(1, 5 - doles % 5); i++) { ctx.fillStyle = '#c89a5a'; ctx.fillRect(x + 12 + (i % 3) * 2, y - 10 - Math.floor(i / 3) * 2, 3, 2); } });
+    (O.extraLines = O.extraLines || []).push((s, q) => D && D.queue.includes(q) ? 'You are standing in the queue at the bakery door for the parish bread. You have nothing else to eat, and you are ashamed.' : D && D.giver === q ? 'You are handing out the parish bread to the poor at your door.' : '');
+    O.BreadDole = { get dole() { return D; }, get doles() { return doles; }, pending };
+  }
+  O.BreadDoleSetup = { setup };
+})();
+
+</script>
+<script>
+// Fighting the flood. When the river is out, people don't just wait: householders whose floors are under
+// water stand at their doors bailing it out with buckets, the water flying in arcs; men heap sacks of earth
+// along the edge of the flood to hold it back, the bank of sacks growing; and those who can carry their
+// chest and bedding up to higher ground.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const cur = () => O.SimRef.cur;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    const jobs = [], drops = [], sacks = []; let cool = 3, bailed = 0;
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
+    const free = (q) => q && q.alive !== false && q.agent && !q.agent.frozen && !q.errand && !q._bit && !q._scene && !q._flood && !talking(q) && q.age >= 14;
+    function release(j) { const a = j.q.agent; if (a) { a.forceAnim = null; if (!talking(j.q)) a.frozen = false; } j.q._flood = false; jobs.splice(jobs.indexOf(j), 1); }
+    function edgeNear(s, F, tx, ty, r) { const w = s.world; for (let rr = 1; rr <= r; rr++) for (let dy = -rr; dy <= rr; dy++) for (let dx = -rr; dx <= rr; dx++) { const x = tx + dx, y = ty + dy; if (x < 1 || y < 1 || x >= w.W - 1 || y >= w.H - 1) continue; const i = y * w.W + x; if (w.solid[i] || F.tiles.has(i)) continue; if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => F.tiles.has((y + b) * w.W + x + a))) return [x, y]; } return null; }
+    game.hooks.update.push((dt) => {
+      for (const d of drops.slice()) { d.t += dt; d.x += d.vx * dt; d.y += d.vy * dt; d.vy += 200 * dt; if (d.t > 0.6) drops.splice(drops.indexOf(d), 1); }
+      const s = cur(); if (!s || !s.world || game.scene) return; const F = s.floodState;
+      for (const j of jobs.slice()) { j.t += dt; const a = j.q.agent; if (j.s !== s || !F || !F.tiles || !a || j.t > 70 || talking(j.q)) { release(j); continue; }
+        if (j.kind === 'bail') { a.forceAnim = Math.floor(j.t * 1.2) % 2 ? 'pour' : 'pickup'; if (Math.random() < dt * 1.5) { bailed++; for (let i = 0; i < 8; i++) drops.push({ x: a.x + j.dx * 6, y: a.y - 12, vx: j.dx * (40 + Math.random() * 40) + (Math.random() - 0.5) * 20, vy: -50 - Math.random() * 30, t: 0 }); if (near(a.x, a.y, 260)) O.sfx && O.sfx('splash', 0.2); } }
+        else { a.forceAnim = 'pitch'; if (Math.random() < dt * 0.5) { const g = sacks.find((x) => x.s === s && Math.hypot(x.x - j.sx, x.y - j.sy) < 6); if (g) g.n = Math.min(6, g.n + 1); else sacks.push({ s, x: j.sx, y: j.sy, n: 1 }); if (near(a.x, a.y, 260)) O.sfx && O.sfx('dig', 0.15); } }
+        if (!j.said && j.t > 6 && near(a.x, a.y, 300)) { j.said = true; O.Speech && O.Speech.say(j.q, j.kind === 'bail' ? pick(['It\'s in the kitchen! The flour!', 'Bail, children, bail!', 'Every year the same!']) : pick(['More sacks! Hold it here!', 'Pile them higher!', 'Lord, look at it rising.']), 2.4); } }
+      for (const g of sacks.slice()) if (g.s !== s || !F || !F.tiles) sacks.splice(sacks.indexOf(g), 1);
+      cool -= dt; if (cool > 0) return; cool = 3 + Math.random() * 3; if (!F || !F.tiles || !F.tiles.size || jobs.filter((j) => j.s === s).length >= 5) return;
+      const P = game.player, w = s.world;
+      if (Math.random() < 0.6) { // a household bails
+        const hs = w.buildings.filter((b) => b.type === 'house' && b.doorX != null && Math.hypot(b.doorX * T - P.x, b.doorY * T - P.y) < 420 && !jobs.some((j) => j.b === b) && (() => { for (let yy = b.y; yy <= b.bottom; yy++) for (let xx = b.x; xx < b.x + b.w; xx++) if (F.tiles.has(yy * w.W + xx)) return true; return false; })()); if (!hs.length) return;
+        const b = pick(hs), q = s.people.find((x) => x.home === b.id && free(x)); if (!q) return; const spot = edgeNear(s, F, b.doorX, b.doorY + 1, 4); if (!spot) return;
+        const a = q.agent; if (a.inside != null) { a.inside = null; a.hidden = false; } a.x = spot[0] * T + 8; a.y = spot[1] * T + 10; a.frozen = true; a.path = null; q._flood = true; const dx = Math.sign(b.doorX - spot[0]) || 1; a.dir = dx > 0 ? 1 : 2; jobs.push({ s, q, b, kind: 'bail', t: 0, dx: -dx });
+      } else { // men heap sacks along the edge
+        const tx = Math.floor(P.x / T), ty = Math.floor(P.y / T), spot = edgeNear(s, F, tx, ty, 14); if (!spot) return;
+        const q = s.people.find((x) => free(x) && x.sex === 'm' && x.age < 60 && x.agent && !x.agent.hidden && x.agent.inside == null && Math.hypot(x.agent.x - spot[0] * T, x.agent.y - spot[1] * T) < 500); if (!q) return; q._flood = true;
+        O.Errands.send(s, q, spot, { anim: 'idle', secs: 0.1, face: 0, giveUp: game.t + 40, after: (ok) => { if (!ok || !q.agent) { q._flood = false; return; } q.agent.frozen = true; q.agent.path = null; jobs.push({ s, q, kind: 'sack', t: 0, sx: spot[0] * T + 8, sy: spot[1] * T + 14 }); } });
+      }
+    });
+    game.hooks.drawWorld.push((ctx, cam) => { const s = cur(); if (!s || game.scene) return;
+      for (const g of sacks) { if (g.s !== s) continue; const x = Math.round(g.x - cam.x), y = Math.round(g.y - cam.y); for (let i = 0; i < g.n; i++) { ctx.fillStyle = i % 2 ? '#8a7a5a' : '#9a8a64'; ctx.fillRect(x - 7 + (i % 3) * 5, y - 3 - Math.floor(i / 3) * 3, 5, 3); } }
+      ctx.fillStyle = 'rgba(150,160,150,0.85)'; for (const d of drops) ctx.fillRect(Math.round(d.x - cam.x), Math.round(d.y - cam.y), 1, 1);
+      for (const j of jobs) { if (j.s !== s || j.kind !== 'bail') continue; const a = j.q.agent; ctx.fillStyle = '#7a5a3a'; ctx.fillRect(Math.round(a.x + j.dx * 6 - cam.x) - 2, Math.round(a.y - 14 - cam.y), 4, 4); } });
+    (O.extraLines = O.extraLines || []).push((s, q) => { const j = jobs.find((x) => x.q === q); return j ? (j.kind === 'bail' ? 'The river is in your house! You are bailing it out of the door with a bucket.' : 'The river is out and you are heaping sacks of earth along the edge to hold the flood back.') : ''; });
+    O.FloodFolk = { jobs, sacks, get bailed() { return bailed; } };
+  }
+  O.FloodFolkSetup = { setup };
+})();
+
+</script>
+<script>
+// A town under quarantine. While the pestilence is in the place and the council has shut it up, those who
+// must go out go with a cloth or a posy of herbs held over the nose and mouth and keep their distance;
+// pots of juniper and rosemary smoulder at the corners of the square to cleanse the air, their smoke
+// hanging low; and on the steps of the marked houses the parish bread lies waiting to be taken in.
+'use strict';
+(function () {
+  function setup(game) {
+    const cur = () => O.SimRef.cur;
+    const smoke = []; let acc = 0;
+    const fires = (s) => { if (!s.Z || !s.Z.square) return []; const [x0, y0, x1, y1] = s.Z.square; return [[x0, y0], [x1, y0], [x0, y1], [x1, y1]].map(([x, y]) => [x * 16 + 8, y * 16 + 12]); };
+    game.hooks.update.push((dt) => {
+      for (const p of smoke.slice()) { p.t += dt; p.y -= 6 * dt; p.x += (3 + Math.sin(p.t + p.ph) * 4) * dt; if (p.t > 4) smoke.splice(smoke.indexOf(p), 1); }
+      const s = cur(); if (!s || !s.quarantine || game.scene) return; acc += dt; if (acc < 0.2) return; acc = 0;
+      for (const [x, y] of fires(s)) if (Math.hypot(x - game.player.x, y - game.player.y) < 500) smoke.push({ x: x + (Math.random() - 0.5) * 4, y: y - 8, t: 0, ph: Math.random() * 6 });
+      // folk keep their distance: two out of doors who come close step apart
+      if (Math.random() < 0.2) for (const q of s.people) { const a = q.agent; if (!a || a.hidden || a.inside != null || a.frozen || !a.path) continue; const o = s.people.find((r) => r !== q && r.agent && !r.agent.hidden && r.agent.inside == null && Math.hypot(r.agent.x - a.x, r.agent.y - a.y) < 14); if (o && Math.random() < 0.3) { O.gesture && O.gesture(q, 'shake', 0.8); break; } }
+    });
+    game.hooks.drawWorld.push((ctx, cam) => {
+      const s = cur(); if (!s || !s.quarantine || game.scene) return; const P = game.player, tk = performance.now() / 1000;
+      // the herb fires
+      for (const [x0, y0] of fires(s)) { const x = Math.round(x0 - cam.x), y = Math.round(y0 - cam.y); if (x < -20 || y < -40 || x > ctx.canvas.width + 20 || y > ctx.canvas.height + 20) continue; ctx.fillStyle = '#4a4a50'; ctx.fillRect(x - 5, y - 6, 10, 6); ctx.fillStyle = '#5a5a60'; ctx.fillRect(x - 5, y - 6, 10, 1); ctx.fillStyle = Math.floor(tk * 6) % 2 ? '#c86020' : '#e08030'; ctx.fillRect(x - 3, y - 8, 6, 2); ctx.fillStyle = '#4a7a3a'; ctx.fillRect(x - 2, y - 9, 1, 1); ctx.fillRect(x + 2, y - 9, 1, 1); }
+      for (const p of smoke) { ctx.globalAlpha = 0.35 * (1 - p.t / 4); ctx.fillStyle = '#c8ccc0'; const r = 2 + Math.floor(p.t * 1.5); ctx.fillRect(Math.round(p.x - cam.x) - r, Math.round(p.y - cam.y) - r, r * 2, r); } ctx.globalAlpha = 1;
+      // cloths held to the face
+      for (const q of s.people) { const a = q.agent; if (!a || a.hidden || a.inside != null || q.age < 8 || Math.abs(a.x - P.x) > 420 || Math.abs(a.y - P.y) > 300) continue; if (O.occluded && O.occluded(a.x, a.y)) continue; if (a.dir === 3) continue; const x = Math.round(a.x - cam.x) + (a.dir === 1 ? -3 : a.dir === 2 ? 2 : -2), y = Math.round(a.y - cam.y) - (a.lift || 0) - (q.age < 13 ? 20 : 26); ctx.fillStyle = q.id % 3 ? '#ece8dc' : '#7aa060'; ctx.fillRect(x, y, 4, 3); ctx.fillStyle = '#d8c8a8'; ctx.fillRect(x + (a.dir === 1 ? 3 : 0), y + 2, 1, 2); }
+      // the parish bread on the steps of marked houses
+      const sick = new Set(s.people.filter((p) => p.health && p.health.illness?.kind === 'pestilence').map((p) => p.home));
+      for (const b of s.world.buildings) { if (!sick.has(b.id) || b.doorX == null) continue; const x = Math.round(b.doorX * 16 + 8 - cam.x), y = Math.round((b.doorY + 1) * 16 + 4 - cam.y); if (x < -20 || y < -20 || x > ctx.canvas.width + 20 || y > ctx.canvas.height + 20) continue; ctx.fillStyle = '#c89a5a'; ctx.fillRect(x + 4, y - 3, 4, 3); ctx.fillStyle = '#a87a40'; ctx.fillRect(x + 4, y - 1, 4, 1); }
+    });
+    O.PlagueTown = { fires: () => fires(cur()) };
+  }
+  O.PlagueTownSetup = { setup };
+})();
+
+</script>
+<script>
+// Ox-wagons on the road. Now and then a great four-wheeled wagon comes lumbering along the main road
+// behind a yoke of oxen, heaped with hay or barrels or sacks under a cloth, the wheels creaking round,
+// the carter walking at the oxen's heads with his goad, and folk step to the side to let it by.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const cur = () => O.SimRef.cur;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    let W = null, cool = 25, passed = 0, harvests = 0, forceHome = false;
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    function roadRow(s) { const w = s.world, P = game.player, ty0 = Math.floor(P.y / T); let best = null; for (let d = 0; d < 10 && !best; d++) for (const ty of [ty0 + d, ty0 - d]) { if (ty < 2 || ty >= w.H - 2) continue; let run = 0, x0 = Math.floor(P.x / T) - 24; for (let tx = x0; tx < x0 + 48; tx++) { const t = w.ter[ty * w.W + tx]; if ((t === w.TER.ROAD || t === w.TER.BRIDGE || t === w.TER.COBBLE) && !w.solid[ty * w.W + tx]) run++; } if (run >= 30) { best = ty; break; } } return best; }
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || !s.world || game.scene) return;
+      if (W) { W.t += dt; W.x += W.dir * 18 * dt; W.ang += dt * 3; if (W.s !== s || Math.abs(W.x - game.player.x) > 520 && W.t > 5) { W = null; passed++; return; }
+        if (Math.random() < dt * 0.6 && near(W.x, W.y, 300)) O.sfx && O.sfx('saw', 0.04);
+        if (Math.random() < dt * 0.1 && near(W.x, W.y, 260)) O.animalCall && O.animalCall('cow', 0.2);
+        // folk on the road step aside
+        for (const q of s.people) { const a = q.agent; if (!a || a.hidden || a.inside != null || a.frozen) continue; if (Math.abs(a.y - W.y) < 10 && Math.abs(a.x - (W.x + W.dir * 20)) < 26) { a.y += (a.y < W.y ? -1 : 1) * 40 * dt; } }
+        if (!W.said && W.t > 3 && near(W.x, W.y, 280)) { W.said = true; O.Speech && O.Speech.say(W.man, W.load === 'harvest' ? pick(['Harvest home! Harvest home!', 'The last load! Mind the children up top!', 'We have ploughed, we have sowed, we have reaped, we have mowed!']) : pick(['Hup! Hup there!', 'Make way! Make way!', 'Steady, Blossom, steady.']), 2.6); }
+        if (W.load === 'harvest' && near(W.x, W.y, 300) && Math.random() < dt * 0.25) O.sfx && O.sfx('handbell', 0.04);
+        return; }
+      cool -= dt; if (cool > 0) return; cool = 60 + Math.random() * 60; const hr = s.minute / 60; if (hr < 7 || hr > 18 || (game.isNight && game.isNight())) return;
+      const ty = roadRow(s); if (ty == null) return; const dir = Math.random() < 0.5 ? 1 : -1, P = game.player;
+      const man = { app: O.Char.makeAppearance(O.hash('carter', s.day, ty), { sex: 'm', age: 30 + Math.floor(Math.random() * 25), genes: O.Char.randomGenes(O.RNG(O.hash('cg', s.day, ty)), 'north'), role: 'farmhand', wealth: 0.3 }), ft: 0, first: 'the carter' };
+      W = { s, forceHome, x: P.x - dir * 420, y: ty * T + 12, dir, t: 0, ang: 0, load: pick(['hay', 'barrels', 'sacks', 'timber']), man, ox: [O.hash('ox', ty, 1) % 1000, O.hash('ox', ty, 2) % 1000] };
+      W.man.agent = { x: 0, y: 0 }; // (for speech bubbles)
+      // harvest home: in autumn the last load comes in decked with a green bough, children riding up on the
+      // sheaves and the reapers walking behind it singing
+      if (s.season === 'autumn' && (W.forceHome || Math.random() < 0.45)) { W.load = 'harvest'; const R = O.RNG(O.hash('hh', s.day, ty)); W.kids = [0, 1].map((i) => O.Char.makeAppearance(O.hash('hk', s.day, i), { sex: R.next() < 0.5 ? 'm' : 'f', age: 6 + Math.floor(R.next() * 5), genes: O.Char.randomGenes(R, 'north'), role: 'child', wealth: 0.3 })); W.walkers = [0, 1, 2].map((i) => ({ app: O.Char.makeAppearance(O.hash('hw', s.day, i), { sex: R.next() < 0.5 ? 'm' : 'f', age: 18 + Math.floor(R.next() * 40), genes: O.Char.randomGenes(R, 'north'), role: 'farmhand', wealth: 0.25 }), off: 30 + i * 13, dy: (i % 2) * 7 - 3 })); harvests++; }
+    });
+    game.hooks.update.push(() => { if (W && W.man) { W.man.agent.x = W.x + W.dir * 34; W.man.agent.y = W.y + 8; W.man.agent.hidden = false; W.man.agent.inside = null; } });
+    game.hooks.drawWorld.push((ctx, cam) => {
+      if (!W || game.scene || W.s !== cur()) return; const x = Math.round(W.x - cam.x), y = Math.round(W.y - cam.y), d = W.dir, tk = performance.now() / 1000;
+      // the oxen, yoked, ahead
+      for (let i = 0; i < 2; i++) { try { const HA = O.Animals.HANIMS.walk, fr = O.Animals.animal('cow', W.ox[i], d > 0 ? 2 : 1, true, Math.floor(W.t * HA.fps * 0.7 + i) % HA.frames, 'walk'); ctx.drawImage(fr, Math.round(x + d * 36 - (fr.ox ?? fr.width / 2)), Math.round(y - 3 + i * 6 - (fr.gy ?? fr.height))); } catch (e) { /* */ } }
+      ctx.fillStyle = '#6a4a2c'; ctx.fillRect(x + d * 14 - (d < 0 ? 12 : 0), y - 10, 12, 2);
+      // the wagon bed and wheels
+      ctx.fillStyle = '#7a5232'; ctx.fillRect(x - 16, y - 16, 32, 8); ctx.fillStyle = '#5a3a20'; ctx.fillRect(x - 16, y - 9, 32, 2);
+      for (const wx of [x - 11, x + 11]) { ctx.fillStyle = '#3a2a1a'; ctx.beginPath(); ctx.arc(wx, y - 4, 5, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#8a6a44'; ctx.lineWidth = 1; ctx.beginPath(); for (let k = 0; k < 2; k++) { const a = W.ang * d + k * Math.PI / 2; ctx.moveTo(wx + Math.cos(a) * 5, y - 4 + Math.sin(a) * 5); ctx.lineTo(wx - Math.cos(a) * 5, y - 4 - Math.sin(a) * 5); } ctx.stroke(); }
+      if (W.load === 'hay') { ctx.fillStyle = '#c8b060'; ctx.beginPath(); ctx.moveTo(x - 17, y - 16); ctx.quadraticCurveTo(x, y - 34, x + 17, y - 16); ctx.fill(); ctx.fillStyle = '#b0983a'; ctx.fillRect(x - 12, y - 22, 24, 1); }
+      else if (W.load === 'barrels') { for (let i = 0; i < 4; i++) { ctx.fillStyle = '#7a5a3a'; ctx.fillRect(x - 14 + i * 7, y - 24, 6, 8); ctx.fillStyle = '#5a5a60'; ctx.fillRect(x - 14 + i * 7, y - 22, 6, 1); ctx.fillRect(x - 14 + i * 7, y - 18, 6, 1); } }
+      else if (W.load === 'sacks') { for (let i = 0; i < 6; i++) { ctx.fillStyle = i % 2 ? '#d8c8a0' : '#c8b890'; ctx.fillRect(x - 15 + (i % 3) * 10, y - 22 - Math.floor(i / 3) * 4, 9, 5); } }
+      else if (W.load === 'harvest') { for (let i = 0; i < 9; i++) { const sx = x - 15 + (i % 4) * 8 - (i >= 4 ? -4 : 0), sy = y - 20 - Math.floor(i / 4) * 5; ctx.fillStyle = i % 2 ? '#d8b850' : '#c8a840'; ctx.fillRect(sx, sy, 7, 5); ctx.fillStyle = '#a88830'; ctx.fillRect(sx + 1, sy + 2, 5, 1); }
+        // the green bough at the front, a ribbon on it
+        const bx = x + d * 15; ctx.fillStyle = '#6a4a2c'; ctx.fillRect(bx, y - 40, 1, 24); ctx.fillStyle = '#4a8a3a'; for (let i = 0; i < 5; i++) ctx.fillRect(bx - 3 + (i % 3) * 2, y - 44 + Math.floor(i / 2) * 3, 3, 3); ctx.fillStyle = Math.floor(tk * 4) % 2 ? '#c83030' : '#e04040'; ctx.fillRect(bx + 1, y - 38, 1, 5);
+        // the children riding up on the sheaves
+        for (let i = 0; i < 2; i++) { try { const fr = O.Char.frame(W.kids[i], 0, Math.floor(tk * 1.5 + i) % 3 === 0 ? 'wave' : 'sit', Math.floor(tk * 4) % 2); ctx.drawImage(fr, Math.round(x - 12 + i * 12 - 16), Math.round(y - 22 - O.Char.GROUND + 4)); } catch (e) { /* */ } } }
+      else { ctx.fillStyle = '#9a7a4a'; for (let i = 0; i < 4; i++) ctx.fillRect(x - 18, y - 18 - i * 2, 38, 2); ctx.fillStyle = '#c8a070'; for (let i = 0; i < 4; i++) ctx.fillRect(x + 19, y - 18 - i * 2, 1, 2); }
+      if (W.walkers) for (const m of W.walkers) { try { const A = O.Char.ANIMS.walk, fr = O.Char.frame(m.app, d > 0 ? 2 : 1, 'walk', Math.floor(W.t * A.fps * 0.6 + m.off) % A.frames); ctx.drawImage(fr, Math.round(x - d * m.off - 16), Math.round(y + 8 + m.dy - O.Char.GROUND)); } catch (e) { /* */ } }
+      // the carter at the oxen's heads with his goad
+      try { const A = O.Char.ANIMS.walk, fr = O.Char.frame(W.man.app, d > 0 ? 2 : 1, 'walk', Math.floor(W.t * A.fps) % A.frames); ctx.drawImage(fr, Math.round(x + d * 34 - 16), Math.round(y + 8 - O.Char.GROUND)); ctx.strokeStyle = '#6a4a2c'; ctx.beginPath(); ctx.moveTo(x + d * 38, y - 6); ctx.lineTo(x + d * 44, y - 24); ctx.stroke(); } catch (e) { /* */ }
+    });
+    O.OxWagons = { get wagon() { return W; }, get passed() { return passed; }, get harvests() { return harvests; }, soon: (home) => { cool = 0; forceHome = !!home; } };
+  }
+  O.OxWagonsSetup = { setup };
+})();
+
+</script>
+<script>
+// A swarm of bees. On a warm day in spring or summer a hive near you swarms: a great humming cloud pours out
+// of the skep and drifts to a tree, where it hangs from a bough in a dark clump. The neighbours come out
+// beating on pans to make it settle (tanging, as their grandmothers did), and the beekeeper comes with an
+// empty skep, holds it under the clump and gives the bough a knock, and the bees go in and are carried home.
+'use strict';
+(function () {
+  function setup(game) {
+    const cur = () => O.SimRef.cur;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    let S = null, cool = 40, taken = 0;
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
+    const free = (q) => q && q.alive !== false && q.agent && !q.agent.frozen && !q.agent.hidden && q.agent.inside == null && !q.errand && !q._swarm && !q._bit && !talking(q) && q.age >= 10;
+    const able = (q) => q && q.alive !== false && q.agent && !q.agent.frozen && !q.errand && !q._swarm && !q._bit && !talking(q) && q.age >= 10;
+    const where = (s, q) => { const a = q.agent; if (a.inside == null) return [a.x, a.y]; const b = s.building(a.inside); return b && b.doorX != null ? [b.doorX * 16 + 8, (b.doorY + 1) * 16 + 8] : null; };
+    const bringOut = (s, q) => { const a = q.agent; if (a.inside == null) return; const w = where(s, q); a.inside = null; a.hidden = false; if (w) { a.x = w[0]; a.y = w[1]; } };
+    function end() { if (!S) return; for (const q of [S.keeper, ...S.tang].filter(Boolean)) { const a = q.agent; if (a) { a.forceAnim = null; if (!talking(q)) a.frozen = false; } q._swarm = false; } S = null; }
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || !s.world || game.scene) return; const hr = s.minute / 60, P = game.player;
+      if (S) { S.t += dt; if (S.s !== s || S.t > 150 || [S.keeper, ...S.tang].some((q) => q && talking(q))) { end(); return; }
+        if (S.phase === 'out') { S.k = Math.min(1, S.t / 7); if (S.k >= 1) { S.phase = 'hang'; S.t = 0; if (near(S.tx, S.ty, 360)) O.sfx && O.sfx('handbell', 0.05); } }
+        // folk come out tanging
+        if (S.phase === 'hang' || S.phase === 'take') for (const q of S.tang) { const a = q.agent; if (!a.frozen) continue; a.forceAnim = 'hammer'; if (Math.random() < dt * 2 && near(a.x, a.y, 300)) O.sfx && O.sfx('smack', 0.08); }
+        if (S.phase === 'hang' && !S.called) { S.called = true;
+          const folk = s.people.filter((q) => q !== S.keeper && able(q) && (q.agent.inside == null ? !q.agent.hidden : s.building(q.agent.inside)?.type === 'house') && (() => { const w = where(s, q); return w && Math.hypot(w[0] - S.tx, w[1] - S.ty) < 360; })()).slice(0, 2);
+          folk.forEach((q, i) => { q._swarm = true; bringOut(s, q); S.tang.push(q); const sp = [Math.floor(S.tx / 16) + (i ? 3 : -3), Math.floor(S.ty / 16) + 1]; O.Errands.send(s, q, sp, { anim: 'idle', secs: 0.1, face: 0, giveUp: game.t + 40, after: (ok) => { if (!ok || !S) { q._swarm = false; return; } q.agent.frozen = true; q.agent.path = null; q.agent.dir = i ? 2 : 1; if (near(q.agent.x, q.agent.y, 300) && i === 0) O.Speech && O.Speech.say(q, pick(['Bees! Bees out! Fetch a pan!', 'They\'re swarming! Tang them down!', 'Bang, bang, settle, my beauties!']), 2.4); } }); });
+          const k = S.keeper; if (k) { k._swarm = true; bringOut(s, k); O.Errands.send(s, k, [Math.floor(S.tx / 16), Math.floor(S.ty / 16) + 2], { anim: 'idle', secs: 0.1, face: 0, giveUp: game.t + 60, after: (ok) => { if (!ok || !S) { k._swarm = false; if (S) S.keeper = null; return; } k.agent.frozen = true; k.agent.path = null; k.agent.dir = 0; S.phase = 'take'; S.tt = 0; if (near(k.agent.x, k.agent.y, 300)) O.Speech && O.Speech.say(k, pick(['Easy now. Into the skep with you.', 'A swarm in May is worth a load of hay!', 'Gently. Gently.']), 2.6); } }); }
+        }
+        if (S.phase === 'hang' && S.t > 60) { end(); return; } // nobody came: they fly off
+        if (S.phase === 'take') { S.tt += dt; const a = S.keeper.agent; a.forceAnim = S.tt < 3 ? 'give' : S.tt < 4 ? 'hammer' : 'idle'; if (S.tt >= 3 && !S.knocked) { S.knocked = true; if (near(a.x, a.y, 300)) O.sfx && O.sfx('smack', 0.15); }
+          if (S.tt > 3) S.left = Math.max(0, 1 - (S.tt - 3) / 3); if (S.tt > 7) { taken++; const k = S.keeper; const ka = k.agent; ka.forceAnim = null; ka.frozen = false; k._swarm = false; S.keeper = null; ka.carrying = { good: 'honey', qty: 1 }; const h = S.home; if (h && h.doorX != null) O.Errands.send(s, k, [h.doorX, h.doorY + 1], { anim: 'place', secs: 1, face: 0, giveUp: game.t + 60, carry: { good: 'honey', qty: 1 } }); end(); } }
+        return; }
+      cool -= dt; if (cool > 0) return; cool = 90 + Math.random() * 90;
+      if (!(s.season === 'spring' || s.season === 'summer') || hr < 10 || hr > 16) return; const W = s.weather; if (W && (W.raining || W.kind === 'snow' || W.kind === 'fog')) return;
+      const w = s.world, skeps = (w.props || []).filter((p) => p.kind === 'skep' && near(p.x, p.y, 450)); if (!skeps.length) return; const sk = pick(skeps);
+      const trees = (w.trees || []).filter((t) => Math.hypot(t.x - sk.x, t.y - sk.y) < 220 && Math.hypot(t.x - sk.x, t.y - sk.y) > 30); if (!trees.length) return; const tr = pick(trees);
+      const home = s.building(sk.hive), bz = s.biz.get(sk.hive);
+      const keeper = ((bz && bz.workers) || []).concat(bz && bz.owner != null ? [bz.owner] : []).map((id) => s.byId.get(id)).find((q) => { if (!able(q)) return false; const w = where(s, q); return w && Math.hypot(w[0] - tr.x, w[1] - tr.y) < 500; }) || s.people.find((q) => free(q) && q.age >= 18 && Math.hypot(q.agent.x - tr.x, q.agent.y - tr.y) < 600);
+      S = { s, sx: sk.x, sy: sk.y - 10, tx: tr.x + 6, ty: tr.y - 30, t: 0, k: 0, phase: 'out', tang: [], keeper: keeper || null, home, left: 1 }; if (keeper) keeper._swarm = true;
+      if (near(sk.x, sk.y, 360)) { const by = s.people.find((q) => q.agent && !q.agent.hidden && q.agent.inside == null && Math.hypot(q.agent.x - sk.x, q.agent.y - sk.y) < 200); if (by) { O.Speech && O.Speech.say(by, 'The bees are swarming!', 2); O.gesture && O.gesture(by, 'point', 1.5); } }
+    });
+    game.hooks.drawTop.push((ctx, cam, inScene) => {
+      if (!S || inScene || game.scene || S.s !== cur()) return; const t = game.t;
+      // the cloud: on its way out, a drifting ball; hanging, a clump on the bough with a haze about it
+      const cx = S.sx + (S.tx - S.sx) * (S.k || 0), cy = S.sy + (S.ty - S.sy) * (S.k || 0) - Math.sin((S.k || 0) * Math.PI) * 20;
+      const hanging = S.phase !== 'out', n = Math.round((hanging ? 22 : 40) * S.left), R = hanging ? 9 : 18;
+      if (hanging && S.left > 0.05) { ctx.fillStyle = '#4a3a1a'; const x = Math.round(S.tx - cam.x), y = Math.round(S.ty - cam.y); const h = Math.round(10 * S.left); ctx.fillRect(x - 3, y, 7, h); ctx.fillRect(x - 2, y + h, 5, 2); ctx.fillStyle = '#7a6020'; ctx.fillRect(x - 2, y + 2, 1, 1); ctx.fillRect(x + 2, y + 5, 1, 1); }
+      for (let i = 0; i < n; i++) { const a = t * (2 + (i % 5) * 0.4) + i * 2.1, r = (i * 7 % R) + Math.sin(t * 3 + i) * 2; const x = Math.round((hanging ? S.tx : cx) + Math.cos(a) * r - cam.x), y = Math.round((hanging ? S.ty + 5 : cy) + Math.sin(a * 1.2) * r * 0.7 - cam.y); ctx.fillStyle = i % 3 ? '#2a2018' : '#e0b030'; ctx.fillRect(x, y, 1, 1); }
+      if (S.phase === 'take' && S.keeper && S.keeper.agent) { const a = S.keeper.agent, x = Math.round(a.x - cam.x), y = Math.round(a.y - cam.y) - 30; ctx.fillStyle = '#c8a050'; ctx.fillRect(x - 4, y - 5, 8, 6); ctx.fillStyle = '#a88030'; ctx.fillRect(x - 4, y - 3, 8, 1); ctx.fillRect(x - 3, y - 6, 6, 1); }
+    });
+    (O.extraLines = O.extraLines || []).push((s, q) => !S || !q._swarm ? '' : q === S.keeper ? 'The bees have swarmed into a tree and you are taking the swarm into an empty skep.' : 'The bees are swarming and you are out beating a pan to make them settle, as folk always have.');
+    O.Swarm = { get swarm() { return S; }, get taken() { return taken; }, soon: () => { cool = 0; } };
+  }
+  O.SwarmSetup = { setup };
+})();
+
+</script>
+<script>
+// A lost child. Now and then a little one wanders off while nobody is looking and ends up sitting somewhere
+// strange, crying. Soon the mother (or father) is out of the door calling the child's name up and down the
+// lane, asking neighbours, looking behind carts and down by the water; when she finds the child she runs to
+// them, sweeps them up and scolds and hugs in the same breath, and leads them home by the hand.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const cur = () => O.SimRef.cur;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    let L = null, cool = 60, found = 0, sweep = 0; const marked = new Set();
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
+    const able = (q) => q && q.alive !== false && q.agent && !q.agent.frozen && !q.errand && !q._lost && !q._bit && !q._scene && !talking(q);
+    const name = (q) => q.first || (q.name || '').split(' ')[0] || 'child';
+    function release(q) { if (!q || !q.agent) return; q.agent.forceAnim = null; if (!talking(q)) q.agent.frozen = false; q._lost = false; }
+    function end() { if (L) { release(L.kid); release(L.ma); } for (const q of marked) if (!L || (q !== L.kid && q !== L.ma)) q._lost = false; marked.clear(); L = null; }
+    function spotNear(s, tx, ty, r0, r1) { const w = s.world; for (let k = 0; k < 40; k++) { const a = Math.random() * Math.PI * 2, r = r0 + Math.random() * (r1 - r0), x = Math.round(tx + Math.cos(a) * r), y = Math.round(ty + Math.sin(a) * r); if (x < 2 || y < 2 || x >= w.W - 2 || y >= w.H - 2) continue; const i = y * w.W + x; if (w.solid[i] || w.ter[i] === w.TER.WATER) continue; return [x, y]; } return null; }
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || !s.world || game.scene) return; const hr = s.minute / 60;
+      if (!L && (sweep += dt) > 3) { sweep = 0; for (const q of s.people) if (q._lost) q._lost = false; marked.clear(); }
+      if (L) { L.t += dt; if (L.s !== s || L.t > 200 || talking(L.kid) || talking(L.ma) || L.kid.alive === false || L.ma.alive === false) { end(); return; }
+        const k = L.kid.agent, m = L.ma.agent;
+        if (L.phase === 'lost') { k.forceAnim = Math.floor(L.t * 0.7) % 3 ? 'mourn' : 'look'; if (!L.cried && near(k.x, k.y, 260)) { L.cried = true; O.Speech && O.Speech.say(L.kid, pick(['Mama? MAMA?', 'I want to go home...', 'Where is everybody?']), 2.4); }
+          if (!L.searching && L.t > 6) { L.searching = true; L.hops = 0; hop(); } }
+        if (L.phase === 'found') { L.ft += dt; m.forceAnim = L.ft < 2.5 ? 'take' : L.ft < 5 ? 'shake' : 'idle'; k.forceAnim = L.ft < 2.5 ? 'idle' : L.ft < 5 ? 'mourn' : 'nod'; m.dir = m.x < k.x ? 2 : 1; k.dir = m.x < k.x ? 1 : 2;
+          if (L.ft > 6.5) { const h = L.home; const kid = L.kid, ma = L.ma; found++; end(); if (h && h.doorX != null) { O.Errands.send(s, ma, [h.doorX, h.doorY + 1], { anim: 'idle', secs: 0.3, face: 0, giveUp: game.t + 80 }); setTimeout(() => O.Errands.send(s, kid, [h.doorX, h.doorY + 1], { anim: 'idle', secs: 0.3, face: 0, giveUp: game.t + 80 }), 300); } } }
+        return;
+        function hop() { // the mother looks here and there, closer each time, calling out
+          if (!L) return; const kt = [Math.floor(k.x / T), Math.floor(k.y / T)]; L.hops++;
+          const tgt = L.hops >= 3 ? [kt[0] + (Math.random() < 0.5 ? -1 : 1), kt[1]] : spotNear(s, kt[0], kt[1], 9 - L.hops * 3, 13 - L.hops * 3) || kt;
+          O.Errands.send(s, L.ma, tgt, { anim: L.hops >= 3 ? 'idle' : 'look', secs: L.hops >= 3 ? 0.1 : 2.2, face: 0, sprint: L.hops >= 3, giveUp: game.t + 60, after: (ok) => { if (!L) return; if (L.hops >= 3) { if (!ok && Math.hypot(m.x - k.x, m.y - k.y) > 40) { end(); return; } m.frozen = true; m.path = null; L.phase = 'found'; L.ft = 0; if (near(m.x, m.y, 300)) { O.Speech && O.Speech.say(L.ma, pick([`${name(L.kid)}! Oh, ${name(L.kid)}, thank God!`, `There you are! You frightened the life out of me!`, `What did I tell you about wandering off?`]), 3); setTimeout(() => L && near(m.x, m.y, 300) && O.Speech && O.Speech.say(L.ma, pick(['Never, ever do that again. Come here.', 'Home. Now. And no supper for a bad child... oh, come here.', 'You\'ll be the death of me.']), 2.6), 3000); } return; }
+            if (near(m.x, m.y, 320)) O.Speech && O.Speech.say(L.ma, pick([`${name(L.kid)}! ${name(L.kid).toUpperCase()}!`, `Has anyone seen my ${L.kid.sex === 'f' ? 'girl' : 'boy'}?`, `${name(L.kid)}, where are you? Answer me!`, `Have you seen a little ${L.kid.sex === 'f' ? 'girl' : 'lad'}, this high?`]), 2.6);
+            const by = s.people.find((q) => q !== L.ma && q !== L.kid && q.agent && !q.agent.hidden && q.agent.inside == null && Math.hypot(q.agent.x - m.x, q.agent.y - m.y) < 60); if (by && Math.random() < 0.6) setTimeout(() => L && near(m.x, m.y, 320) && O.Speech && O.Speech.say(by, pick(['Not I. Try down by the water.', 'I saw a little one go that way.', 'Lord, no. I\'ll keep an eye out.']), 2.4), 1600);
+            setTimeout(hop, 600); } }); }
+      }
+      cool -= dt; if (cool > 0) return; cool = 240 + Math.random() * 240; if (hr < 9 || hr > 17) return;
+      const P = game.player, kids = s.people.filter((q) => able(q) && q.age >= 3 && q.age <= 7 && !q.agent.hidden && q.agent.inside == null && near(q.agent.x, q.agent.y, 380) && !(q.agent.carrying === 'babe'));
+      for (const kid of kids) { const hh = s.household(kid); if (!hh) continue; const ma = hh.members.map((id) => s.byId.get(id)).filter((q) => q && q !== kid && q.age >= 18 && able(q)).sort((a, b) => (a.sex === 'f' ? 0 : 1) - (b.sex === 'f' ? 0 : 1))[0]; if (!ma) continue; const home = s.building(hh.home ?? kid.home); if (!home || home.doorX == null) continue;
+        const sp = spotNear(s, Math.floor(kid.agent.x / T), Math.floor(kid.agent.y / T), 10, 15); if (!sp) continue;
+        kid._lost = true; ma._lost = true; marked.add(kid); marked.add(ma); L = { s, kid, ma, home, t: 0, phase: 'wander' };
+        O.Errands.send(s, kid, sp, { anim: 'idle', secs: 0.1, face: 0, giveUp: game.t + 50, after: (ok) => { if (!L || L.kid !== kid) return; if (!ok) { end(); return; } kid.agent.frozen = true; kid.agent.path = null; L.phase = 'lost'; L.t = 0;
+          // the mother comes out of doors
+          const a = ma.agent; if (a.inside != null) { a.inside = null; a.hidden = false; a.x = home.doorX * T + 8; a.y = (home.doorY + 1) * T + 8; } } });
+        break; }
+    });
+    (O.extraLines = O.extraLines || []).push((s, q) => !L || !q._lost ? '' : q === L.kid ? 'You are small and you wandered off and now you are lost and frightened, and you want your mother.' : `Your little ${L.kid.sex === 'f' ? 'girl' : 'boy'} ${name(L.kid)} has wandered off and you are frantic, searching the lanes and calling for ${L.kid.sex === 'f' ? 'her' : 'him'}.`);
+    O.LostChild = { get lost() { return L; }, get found() { return found; }, soon: () => { cool = 0; } };
+  }
+  O.LostChildSetup = { setup };
 })();
 
 </script>
@@ -41435,7 +41861,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.WorkSetup.setup(game, sim, npcUI);
   O.EmploymentSetup.setup(game, home, npcUI);
   O.LettersSetup.setup(game, home, npcUI);
-  O.FittingSetup.setup(game); O.DecorateSetup.setup(game); O.LifeWeightSetup.setup(game); O.TradeLifeSetup.setup(game); O.RiverWildSetup.setup(game); O.SpokenSetup.setup(game); O.CombatDeepSetup.setup(game); O.GangStreetSetup.setup(game); O.HomeFrontSetup.setup(game); O.ScenesSetup.setup(game); O.IndoorLifeSetup.setup(game); O.ApproachesSetup.setup(game); O.LivelinessSetup.setup(game); O.StreetFightSetup.setup(game); O.Pastimes2Setup.setup(game); O.AnimalCareSetup.setup(game); O.MarchSetup.setup(game); O.LooksSetup.setup(game); O.GangPoliticsSetup.setup(game); O.NightWorkSetup.setup(game); O.ArchersSetup.setup(game); O.RaidSetup.setup(game); O.KidsPlaySetup.setup(game); O.AdultPlaySetup.setup(game); O.IdleLifeSetup.setup(game); O.CutpurseSetup.setup(game); O.ShakedownSetup.setup(game); O.ShopFrontSetup.setup(game); O.WarSightsSetup.setup(game); O.GangMarksSetup.setup(game); O.PassingsSetup.setup(game); O.LamplighterSetup.setup(game); O.SparringSetup.setup(game); O.KidsChoresSetup.setup(game); O.ProcessionsSetup.setup(game); O.MarketDaySetup.setup(game); O.RoadFolkSetup.setup(game); O.TownBirdsSetup.setup(game); O.TavernYardSetup.setup(game); O.SmuggleSetup.setup(game); O.MishapsSetup.setup(game); O.ShopFront2Setup.setup(game); O.NightLifeSetup.setup(game); O.SeasonsFxSetup.setup(game); O.GentryRideSetup.setup(game); O.GangRitesSetup.setup(game); O.HuntersSetup.setup(game); O.Courting2Setup.setup(game); O.InfirmSetup.setup(game); O.PasturesSetup.setup(game); O.AlmsSetup.setup(game); O.BellsSetup.setup(game); O.BoatsSetup.setup(game); O.StormReactSetup.setup(game); O.EscortSetup.setup(game); O.TracksSetup.setup(game); O.ShopDisplaySetup.setup(game); O.NoticeBoardSetup.setup(game); O.GraveDiggerSetup.setup(game); O.DayLabourSetup.setup(game); O.BaileySetup.setup(game); O.HarbourSetup.setup(game); O.HauntSetup.setup(game); O.CountrysideSetup.setup(game); O.WellWorkSetup.setup(game); O.StocksSetup.setup(game); O.WinterPlaySetup.setup(game); O.MillsSetup.setup(game); O.SummerPlaySetup.setup(game); O.LambsSetup.setup(game); O.LordsHuntSetup.setup(game); O.OccludeSetup.setup(game); O.IndoorFxSetup.setup(game); O.RoundsSetup.setup(game); O.HouseCallsSetup.setup(game); O.BrazierSetup.setup(game); O.GangBossSetup.setup(game); O.SlashSetup.setup(game); O.RepairsSetup.setup(game); O.WildFolkSetup.setup(game); O.FerrySetup.setup(game); O.RiverbankSetup.setup(game); O.TreeWorkSetup.setup(game); O.SiteWorkSetup.setup(game); O.DoorstepSetup.setup(game); O.RoomLifeSetup.setup(game); O.StableYardSetup.setup(game); O.AbbeyLifeSetup.setup(game); O.WinterWorkSetup.setup(game); O.StreetCallersSetup.setup(game); O.SeasonChoresSetup.setup(game); O.LivestockSetup.setup(game); O.BabesSetup.setup(game); O.FlagWatchSetup.setup(game); O.DawnDuskSetup.setup(game); O.PuddlesSetup.setup(game); O.QuaysideSetup.setup(game); O.CottageYardsSetup.setup(game); O.WindySetup.setup(game); O.StreetMuckSetup.setup(game); O.HitchingSetup.setup(game); O.KidsPlay2Setup.setup(game); O.StrayDogSetup.setup(game); O.TollBarSetup.setup(game); O.NightWalkersSetup.setup(game); O.BakehouseSetup.setup(game); O.WorkFxSetup.setup(game); O.ToothPullSetup.setup(game); O.GentryLeisureSetup.setup(game); O.WaterfowlSetup.setup(game); O.RainFolkSetup.setup(game); O.JostleSetup.setup(game); O.GraveVisitsSetup.setup(game); O.HandcartsSetup.setup(game); O.DoorCheckSetup.setup(game); O.SwallowsSetup.setup(game); O.MiceSetup.setup(game); O.StreetPigsSetup.setup(game); O.BirdScarerSetup.setup(game); O.WassailSetup.setup(game); O.RogationSetup.setup(game); O.SheepWashSetup.setup(game); O.WorkMomentsSetup.setup(game); O.TaxDoorSetup.setup(game); O.OfficeFrontsSetup.setup(game); O.TradeLoopSetup.setup(game); O.TreeFallSetup.setup(game);
+  O.FittingSetup.setup(game); O.DecorateSetup.setup(game); O.LifeWeightSetup.setup(game); O.TradeLifeSetup.setup(game); O.RiverWildSetup.setup(game); O.SpokenSetup.setup(game); O.CombatDeepSetup.setup(game); O.GangStreetSetup.setup(game); O.HomeFrontSetup.setup(game); O.ScenesSetup.setup(game); O.IndoorLifeSetup.setup(game); O.ApproachesSetup.setup(game); O.LivelinessSetup.setup(game); O.StreetFightSetup.setup(game); O.Pastimes2Setup.setup(game); O.AnimalCareSetup.setup(game); O.MarchSetup.setup(game); O.LooksSetup.setup(game); O.GangPoliticsSetup.setup(game); O.NightWorkSetup.setup(game); O.ArchersSetup.setup(game); O.RaidSetup.setup(game); O.KidsPlaySetup.setup(game); O.AdultPlaySetup.setup(game); O.IdleLifeSetup.setup(game); O.CutpurseSetup.setup(game); O.ShakedownSetup.setup(game); O.ShopFrontSetup.setup(game); O.WarSightsSetup.setup(game); O.GangMarksSetup.setup(game); O.PassingsSetup.setup(game); O.LamplighterSetup.setup(game); O.SparringSetup.setup(game); O.KidsChoresSetup.setup(game); O.ProcessionsSetup.setup(game); O.MarketDaySetup.setup(game); O.RoadFolkSetup.setup(game); O.TownBirdsSetup.setup(game); O.TavernYardSetup.setup(game); O.SmuggleSetup.setup(game); O.MishapsSetup.setup(game); O.ShopFront2Setup.setup(game); O.NightLifeSetup.setup(game); O.SeasonsFxSetup.setup(game); O.GentryRideSetup.setup(game); O.GangRitesSetup.setup(game); O.HuntersSetup.setup(game); O.Courting2Setup.setup(game); O.InfirmSetup.setup(game); O.PasturesSetup.setup(game); O.AlmsSetup.setup(game); O.BellsSetup.setup(game); O.BoatsSetup.setup(game); O.StormReactSetup.setup(game); O.EscortSetup.setup(game); O.TracksSetup.setup(game); O.ShopDisplaySetup.setup(game); O.NoticeBoardSetup.setup(game); O.GraveDiggerSetup.setup(game); O.DayLabourSetup.setup(game); O.BaileySetup.setup(game); O.HarbourSetup.setup(game); O.HauntSetup.setup(game); O.CountrysideSetup.setup(game); O.WellWorkSetup.setup(game); O.StocksSetup.setup(game); O.WinterPlaySetup.setup(game); O.MillsSetup.setup(game); O.SummerPlaySetup.setup(game); O.LambsSetup.setup(game); O.LordsHuntSetup.setup(game); O.OccludeSetup.setup(game); O.IndoorFxSetup.setup(game); O.RoundsSetup.setup(game); O.HouseCallsSetup.setup(game); O.BrazierSetup.setup(game); O.GangBossSetup.setup(game); O.SlashSetup.setup(game); O.RepairsSetup.setup(game); O.WildFolkSetup.setup(game); O.FerrySetup.setup(game); O.RiverbankSetup.setup(game); O.TreeWorkSetup.setup(game); O.SiteWorkSetup.setup(game); O.DoorstepSetup.setup(game); O.RoomLifeSetup.setup(game); O.StableYardSetup.setup(game); O.AbbeyLifeSetup.setup(game); O.WinterWorkSetup.setup(game); O.StreetCallersSetup.setup(game); O.SeasonChoresSetup.setup(game); O.LivestockSetup.setup(game); O.BabesSetup.setup(game); O.FlagWatchSetup.setup(game); O.DawnDuskSetup.setup(game); O.PuddlesSetup.setup(game); O.QuaysideSetup.setup(game); O.CottageYardsSetup.setup(game); O.WindySetup.setup(game); O.StreetMuckSetup.setup(game); O.HitchingSetup.setup(game); O.KidsPlay2Setup.setup(game); O.StrayDogSetup.setup(game); O.TollBarSetup.setup(game); O.NightWalkersSetup.setup(game); O.BakehouseSetup.setup(game); O.WorkFxSetup.setup(game); O.ToothPullSetup.setup(game); O.GentryLeisureSetup.setup(game); O.WaterfowlSetup.setup(game); O.RainFolkSetup.setup(game); O.JostleSetup.setup(game); O.GraveVisitsSetup.setup(game); O.HandcartsSetup.setup(game); O.DoorCheckSetup.setup(game); O.SwallowsSetup.setup(game); O.MiceSetup.setup(game); O.StreetPigsSetup.setup(game); O.BirdScarerSetup.setup(game); O.WassailSetup.setup(game); O.RogationSetup.setup(game); O.SheepWashSetup.setup(game); O.WorkMomentsSetup.setup(game); O.TaxDoorSetup.setup(game); O.OfficeFrontsSetup.setup(game); O.TradeLoopSetup.setup(game); O.TreeFallSetup.setup(game); O.EvictionsSetup.setup(game); O.BoardedUpSetup.setup(game); O.MootSceneSetup.setup(game); O.BreadDoleSetup.setup(game); O.FloodFolkSetup.setup(game); O.PlagueTownSetup.setup(game); O.OxWagonsSetup.setup(game); O.SwarmSetup.setup(game); O.LostChildSetup.setup(game);
   O.StreetSetup.setup(game, home);
   O.GangLifeSetup.setup(game, npcUI);
   O.TownLifeSetup.setup(game, npcUI);

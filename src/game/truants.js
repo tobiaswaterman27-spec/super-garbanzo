@@ -49,7 +49,12 @@
       if (R.phase === 'play' || R.phase === 'gather') { const k = R.kids[0].agent, x = Math.round(k.x - cam.x) + (R.kids[0].agent.dir === 2 ? -12 : 10), y = Math.round(k.y - cam.y) + 1; for (let i = 0; i < 4; i++) { ctx.fillStyle = ['#c84030', '#3060c8', '#e0e0d0', '#40a050'][i]; ctx.fillRect(x - 3 + (i * 3) % 7, y - 1 + (i % 2) * 2, 2, 2); } }
       const m = R.master.agent; if (!m.hidden && m.inside == null) { const x = Math.round(m.x - cam.x) + (m.dir === 1 ? -6 : 6), y = Math.round(m.y - cam.y); ctx.strokeStyle = '#7a5a30'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, y - 14); ctx.lineTo(x + (m.dir === 1 ? -3 : 3), y - 26); ctx.stroke(); } });
     (O.extraLines = O.extraLines || []).push((s, q) => !R || !q._truant ? '' : q === R.master ? 'You are the schoolmaster and you have come out after truants who should be at their lessons.' : 'You are playing truant from school, and you are in trouble if the master catches you.');
-    O.Truants = { get run() { return R; }, get caught() { return caught; }, soon: () => { cool = 0; } };
+    // you can send them packing back to their lessons yourself
+    let sent = 0;
+    (O.moreCandidates = O.moreCandidates || []).push(() => { const P = game.player; if (!R || R.phase !== 'play' || game.scene || P.locked) return null; const k = R.kids[0].agent; if (Math.hypot(k.x - P.x, k.y - P.y) > 36) return null;
+      return { type: 'custom', d: 36, x: k.x, y: k.y - 26, label: 'Send the truants back to their lessons', act: () => { const s = cur(); if (!R || !s) return; const kids = R.kids.slice(), b = R.b; sent++; end(); O.Speech && O.Speech.say(kids[0], pick(['Aww! We were only playing!', 'Don\'t tell the master! Please!', 'Run for it!']), 2);
+        kids.forEach((q, i) => setTimeout(() => O.Errands.send(s, q, [b.doorX, b.doorY + 1], { anim: 'idle', secs: 0.2, face: 3, sprint: true, giveUp: game.t + 60 }), i * 200)); O.UI && O.UI.say && O.UI.say('You send them off with a word about their lessons, and they scamper back toward school.', 'good'); } }; });
+    O.Truants = { get sent() { return sent; }, get run() { return R; }, get caught() { return caught; }, soon: () => { cool = 0; } };
   }
   O.TruantsSetup = { setup };
 })();

@@ -39,7 +39,12 @@
       ctx.fillStyle = 'rgba(150,160,150,0.85)'; for (const d of drops) ctx.fillRect(Math.round(d.x - cam.x), Math.round(d.y - cam.y), 1, 1);
       for (const j of jobs) { if (j.s !== s || j.kind !== 'bail') continue; const a = j.q.agent; ctx.fillStyle = '#7a5a3a'; ctx.fillRect(Math.round(a.x + j.dx * 6 - cam.x) - 2, Math.round(a.y - 14 - cam.y), 4, 4); } });
     (O.extraLines = O.extraLines || []).push((s, q) => { const j = jobs.find((x) => x.q === q); return j ? (j.kind === 'bail' ? 'The river is in your house! You are bailing it out of the door with a bucket.' : 'The river is out and you are heaping sacks of earth along the edge to hold the flood back.') : ''; });
-    O.FloodFolk = { jobs, sacks, get bailed() { return bailed; } };
+    // you can take a bucket and help them bail
+    let helped = 0; const relOf = (q) => { const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r); return r; };
+    (O.moreCandidates = O.moreCandidates || []).push(() => { const P = game.player, s = cur(); if (!s || game.scene || P.locked) return null; const j = jobs.find((x) => x.s === s && Math.hypot(x.q.agent.x - P.x, x.q.agent.y - P.y) < 34 && !x.helped); if (!j) return null;
+      return { type: 'custom', d: 34, x: j.q.agent.x, y: j.q.agent.y - 26, label: j.kind === 'bail' ? 'Take a bucket and help them bail' : 'Help heap the sacks', act: () => { j.helped = true; helped++; P.anim = j.kind === 'bail' ? 'pour' : 'pitch'; P.locked = true; const r = relOf(j.q); r.affinity = Math.min(1, r.affinity + 0.2); r.familiar = Math.min(1, (r.familiar || 0) + 0.15); try { s.remember(j.q, 'When the river came into the house, a stranger took a bucket and helped me bail.', 'kindness', 0.7); } catch (e) { /* */ }
+        for (let i = 0; i < 12; i++) drops.push({ x: P.x + 6, y: P.y - 12, vx: (Math.random() - 0.3) * 80, vy: -50 - Math.random() * 30, t: 0 }); setTimeout(() => { P.locked = false; P.anim = 'idle'; O.Speech && O.Speech.say(j.q, j.kind === 'bail' ? 'Bless you! Keep it coming!' : 'Good man! Pile them here!', 2.2); if (O.PlayerState && O.PlayerState.rep) O.PlayerState.rep.civilian = (O.PlayerState.rep.civilian || 0) + 0.02; }, 3000); } }; });
+    O.FloodFolk = { get helped() { return helped; }, jobs, sacks, get bailed() { return bailed; } };
   }
   O.FloodFolkSetup = { setup };
 })();

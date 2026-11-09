@@ -51,7 +51,11 @@
       if (R && R.s === s && R.lads.length > 1) { const a = R.lads[1].agent, l = R.lads[0].agent, sx = Math.sign(l.x - a.x) || 1, x = Math.round(a.x - cam.x) - sx * 12, y = Math.round(a.y - cam.y); ctx.strokeStyle = '#8a7a5a'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x + sx * 4, y - 8); ctx.lineTo(x + sx * 10, y - 12); ctx.stroke();
         ctx.fillStyle = '#7a5232'; ctx.fillRect(x - 8, y - 6, 16, 2); ctx.fillRect(x - sx * 8, y - 14, 2, 10); ctx.fillStyle = '#8a8a90'; ctx.fillRect(x + sx * 4, y - 4, 4, 3); const tk = performance.now() / 300; for (let i = 0; i < 4; i++) { ctx.fillStyle = ['#c83030', '#3060c8', '#e0c040', '#40a050'][i]; ctx.fillRect(x - sx * 8 + (i % 2), y - 14 + i * 2 + (Math.floor(tk + i) % 2), 1, 3); } } });
     (O.extraLines = O.extraLines || []).push((s, q) => !R || !q._plough ? '' : R.lads.includes(q) ? 'It is Plough Monday and you are one of the ploughboys dragging the ribboned plough from door to door for pennies.' : 'The ploughboys have come to your door for a penny on Plough Monday.');
-    O.PloughMonday = { get run() { return R; }, get given() { return given; }, get ploughed() { return ploughed; }, furrows, force: () => { forced = true; const s = cur(); if (s) s._ploughDone = -1; } };
+    // you can drop a penny in their box when they come by
+    let yours = 0;
+    (O.moreCandidates = O.moreCandidates || []).push(() => { const P = game.player, PS = O.PlayerState; if (!R || game.scene || P.locked || R.paidYou) return null; const a = R.lads[0].agent; if (Math.hypot(a.x - P.x, a.y - P.y) > 40) return null;
+      return { type: 'custom', d: 40, x: a.x, y: a.y - 26, label: 'Give the ploughboys a penny', act: () => { if (!R) return; if ((PS.money || 0) < 1) return O.UI && O.UI.say && O.UI.say('You have nothing to give them.'); PS.money -= 1; R.paidYou = true; yours++; given++; P.anim = 'give'; setTimeout(() => { P.anim = 'idle'; }, 800); O.sfx && O.sfx('coins', 0.3); O.Speech && O.Speech.say(R.lads[0], pick(['God speed the plough, and you!', 'Thank\'ee kindly! A good year to you!', 'There\'s a generous soul!']), 2.4); } }; });
+    O.PloughMonday = { get yours() { return yours; }, get run() { return R; }, get given() { return given; }, get ploughed() { return ploughed; }, furrows, force: () => { forced = true; const s = cur(); if (s) s._ploughDone = -1; } };
   }
   O.PloughMondaySetup = { setup };
 })();

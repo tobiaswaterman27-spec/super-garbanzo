@@ -185,7 +185,7 @@
       const owner = this.byId.get(bz.owner);
       let m = O.clamp(Math.sqrt(target / (stock + 1)), 0.6, 2.5);
       if (owner && this.has(owner, 'greedy')) m *= 1.15; if (owner && this.has(owner, 'generous')) m *= 0.9;
-      return Math.max(1, Math.round(G[good].base * m));
+      return Math.max(1, Math.round(((G[good] && G[good].base) || 3) * m));
     }
     // The (first) business of a type; with a good, the one holding most of it, towns with several
     // bakeries spread their custom; with openOnly, only those trading right now.

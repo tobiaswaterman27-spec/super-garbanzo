@@ -34605,7 +34605,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
 // free to be asked again.
 'use strict';
 (function () {
-  const FLAGS = ['_bank', '_tree', '_door', '_stable', '_abbey', '_winter', '_call', '_chore', '_beast', '_repair', '_puddle', '_quay', '_garden', '_hat', '_kid2', '_bake', '_tooth', '_leisure', '_rain', '_grave'];
+  const FLAGS = ['_bank', '_tree', '_door', '_stable', '_abbey', '_winter', '_call', '_chore', '_beast', '_repair', '_puddle', '_quay', '_garden', '_hat', '_kid2', '_bake', '_tooth', '_leisure', '_rain', '_grave', '_scarer'];
   function setup(game) {
     const since = new Map(); let t = 0; let cleared = 0;
     game.hooks.update.push((dt) => {
@@ -35603,6 +35603,8 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       const s = cur(); if (!s || game.scene) return; const P = game.player;
       for (const q of s.people) { const a = q.agent; if (!a || a.hidden || a.inside != null || !loaded(a)) continue; if (Math.abs(a.x - P.x) > 420 || Math.abs(a.y - P.y) > 300) continue; if (O.occluded && O.occluded(a.x, a.y)) continue;
         const c = a.carrying, [c1, c2] = colours(c.good), d = a.dir === 1 ? -1 : a.dir === 2 ? 1 : 0, up = a.dir === 3, x = Math.round(a.x - cam.x), y = Math.round(a.y - cam.y), ang = (wheel.get(a) || { ang: 0 }).ang;
+        // ale goes in a barrel, rolled along the street ahead with the hoops turning
+        if (c.good === 'ale' || c.good === 'wine' || c.good === 'cider' || c.good === 'barrels') { const bx = x + (d ? d * 11 : 0), by = y + (d ? 0 : up ? -7 : 7); ctx.fillStyle = '#7a5232'; if (d) { ctx.fillRect(bx - 4, by - 10, 9, 10); ctx.fillStyle = '#5a5a60'; const k = Math.floor(ang * 2) % 3; for (let i = 0; i < 3; i++) ctx.fillRect(bx - 4 + ((i * 3 + k) % 9), by - 10, 1, 10); ctx.fillStyle = '#6a4228'; ctx.fillRect(bx - 4, by - 10, 9, 1); } else { ctx.fillRect(bx - 5, by - 8, 10, 8); ctx.fillStyle = '#5a5a60'; ctx.fillRect(bx - 5, by - 7 + (Math.floor(ang * 2) % 3), 10, 1); ctx.fillRect(bx - 5, by - 3, 10, 1); } continue; }
         // the cart goes in front of whoever pushes it
         const cx = x + (d ? d * 15 : 0), cy = y + (d ? 0 : up ? -9 : 9), wide = !d;
         const bw = wide ? 14 : 16, bh = 5, n = Math.min(6, Math.max(2, Math.round((c.qty || 2) / 2)));
@@ -35712,6 +35714,82 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     O.Mice = { mice };
   }
   O.MiceSetup = { setup };
+})();
+
+</script>
+<script>
+// Pigs in the street. Town pigs root loose along the lanes, snuffling in the gutters and the midden heaps,
+// and they get into everything; when one noses up to somebody's doorstep the goodwife comes out with her
+// broom and lays about it ("Get out of it! Go on, shoo!") and it trots off squealing, to start again two
+// doors down.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const cur = () => O.SimRef.cur;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    let pigs = null, shoos = 0;
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
+    function herd(s) { if (pigs && pigs.s === s) return pigs; const P = game.player, r = O.RNG(O.hash('streetpig', s.world.placeId || 'x')); const n = 1 + r.int(0, 1); const L = []; for (let i = 0; i < n; i++) L.push({ x: P.x + r.int(-200, 200), y: P.y + r.int(-120, 120), seed: r.int(1, 999), dir: 1, ft: 0, st: 'root', t: 0, tx: null, ty: null }); return (pigs = { s, L }); }
+    const okAt = (s, x, y) => { const w = s.world, tx = Math.floor(x / T), ty = Math.floor(y / T); if (tx < 1 || ty < 1 || tx >= w.W - 1 || ty >= w.H - 1) return false; const i = ty * w.W + tx; return !w.solid[i] && w.ter[i] !== w.TER.WATER; };
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || !s.world || game.scene) return; const H = herd(s), P = game.player, night = game.isNight && game.isNight();
+      for (const g of H.L) { g.ft += dt; g.t += dt;
+        if (Math.hypot(g.x - P.x, g.y - P.y) > 520) { g.x = P.x + (Math.random() - 0.5) * 600; g.y = P.y + (Math.random() - 0.5) * 360; if (!okAt(s, g.x, g.y)) { g.x = P.x - 200; g.y = P.y; } g.tx = null; }
+        if (g.tx != null) { const dx = g.tx - g.x, dy = g.ty - g.y, d = Math.hypot(dx, dy), v = g.st === 'flee' ? 55 : 14; if (d < 2) { g.tx = null; if (g.st === 'flee') g.st = 'root'; } else { const nx = g.x + dx / d * v * dt, ny = g.y + dy / d * v * dt; if (okAt(s, nx, ny)) { g.x = nx; g.y = ny; } else g.tx = null; g.dir = dx > 0 ? 2 : 1; } }
+        else if (g.t > 3 + Math.random() * 4) { g.t = 0; const a = Math.random() * 6.28; g.tx = g.x + Math.cos(a) * 40; g.ty = g.y + Math.sin(a) * 24; if (Math.random() < 0.08 && near(g.x, g.y, 220)) O.animalCall && O.animalCall('pig', 0.25); }
+        if (night || g.st === 'flee' || g.shoo) continue;
+        // at someone's door: out comes the broom
+        const b = s.world.buildings.find((b) => b.type === 'house' && b.doorX != null && Math.abs(b.doorX * T + 8 - g.x) < 18 && Math.abs((b.doorY + 1) * T - g.y) < 16); if (!b) continue;
+        const wife = s.people.find((x) => x.home === b.id && x.age >= 16 && x.agent && !x.agent.frozen && !x.errand && !x._bit && !x._scene && !talking(x) && (x.agent.inside === b.id || (!x.agent.hidden && Math.hypot(x.agent.x - g.x, x.agent.y - g.y) < 120))); if (!wife) continue;
+        g.shoo = true; shoos++;
+        O.Errands.send(s, wife, [b.doorX, b.doorY + 1], { anim: 'sweep', secs: 1.8, face: g.x > b.doorX * T + 8 ? 2 : 1, giveUp: game.t + 20, at: () => { O.Speech && near(g.x, g.y, 280) && O.Speech.say(wife, pick(['Get out of it! Shoo!', 'Out of my cabbages, you brute!', 'Whose pig is this?!']), 2.2); g.st = 'flee'; const aw = g.x > wife.agent.x ? 1 : -1; g.tx = g.x + aw * 90; g.ty = g.y + (Math.random() - 0.5) * 40; if (near(g.x, g.y, 260)) O.animalCall && O.animalCall('pig', 0.45); }, after: () => { setTimeout(() => { g.shoo = false; }, 8000); } });
+      }
+    });
+    game.hooks.drawWorld.push((ctx, cam) => {
+      const s = cur(); if (!s || game.scene || !pigs || pigs.s !== s) return;
+      for (const g of pigs.L) { if (O.occluded && O.occluded(g.x, g.y)) continue; try { const moving = g.tx != null, an = moving ? (g.st === 'flee' ? 'gallop' : 'walk') : 'graze', HA = O.Animals.HANIMS[an] || O.Animals.HANIMS.idle, fr = O.Animals.animal('pig', g.seed, g.dir, moving, Math.floor(g.ft * HA.fps) % HA.frames, an); ctx.drawImage(fr, Math.round(g.x - (fr.ox ?? fr.width / 2) - cam.x), Math.round(g.y - (fr.gy ?? fr.height) - cam.y)); } catch (e) { /* */ } }
+    });
+    O.StreetPigs = { get pigs() { return pigs; }, get shoos() { return shoos; } };
+  }
+  O.StreetPigsSetup = { setup };
+})();
+
+</script>
+<script>
+// The bird-scarer. In spring, while the seed is in the ground, and again as the corn ripens, a child is
+// set to stand out in the field all day with a wooden clapper, waving their arms and rattling it and
+// singing out "Shoo, crows!" whenever the birds come down, and up they go cawing, to settle again at the far
+// end. A penny a day for it, and very dull.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const cur = () => O.SimRef.cur;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    let J = null, cool = 10, scares = 0;
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
+    function end() { if (!J) return; const a = J.q.agent; if (a) { a.forceAnim = null; if (!talking(J.q)) a.frozen = false; } J.q._scarer = false; J = null; }
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || !s.world || game.scene) return; const hr = s.minute / 60, season = s.season === 'spring' || s.season === 'summer';
+      if (J) { J.t += dt; const a = J.q.agent; if (J.s !== s || !a || !season || hr > 18 || s.raining || talking(J.q) || J.t > 240) { end(); return; }
+        J.next -= dt; const F = O.Countryside && O.Countryside.features(); const crows = F ? F.crows.filter((c) => c.st === 'ground' && Math.hypot(c.x - a.x, c.y - a.y) < 140) : [];
+        if (crows.length && J.next <= 0) { J.next = 2.5; J.wave = 1.4; scares++; for (const c of crows) { c.st = 'fly'; c.vx = (c.x - a.x) * 1.5 + (Math.random() - 0.5) * 40; c.vy = (Math.random() - 0.5) * 30; c.vz = 60; c.air = 3 + Math.random() * 3; } if (near(a.x, a.y, 300)) { O.sfx && O.sfx('smack', 0.15); setTimeout(() => O.sfx && O.sfx('smack', 0.15), 150); setTimeout(() => O.sfx && O.sfx('smack', 0.12), 300); O.animalCall && O.animalCall('crow', 0.25); if (Math.random() < 0.5) O.Speech && O.Speech.say(J.q, pick(['Shoo, crows! Shoo!', 'Hoo-ah! Get off!', 'Away with you, black devils!']), 1.8); } }
+        if (J.wave > 0) { J.wave -= dt; a.forceAnim = Math.floor(J.wave * 6) % 2 ? 'wave' : 'celebrate'; } else { a.forceAnim = Math.floor(J.t / 6) % 5 === 4 ? 'yawn' : Math.floor(J.t / 6) % 5 === 2 ? 'sit' : 'idle'; if (!J.bored && J.t > 60 && near(a.x, a.y, 260)) { J.bored = true; O.Speech && O.Speech.say(J.q, pick(['So boring...', 'I\'d rather be at the river.', 'One more hour.']), 2); } }
+        return; }
+      cool -= dt; if (cool > 0) return; cool = 20 + Math.random() * 20; if (!season || hr < 8 || hr > 16 || s.raining) return;
+      const F = O.Countryside && O.Countryside.features(); if (!F || !F.scare.length) return; const P = game.player, spot = F.scare.filter((x) => Math.hypot(x.x - P.x, x.y - P.y) < 500)[0]; if (!spot) return;
+      const q = s.people.find((x) => x.age >= 7 && x.age <= 12 && x.agent && !x.agent.frozen && !x.errand && !x._bit && !x._scene && !x._playing && !x._kid2 && !x._scarer && !talking(x) && ((!x.agent.hidden && x.agent.inside == null) || x.agent.inside === x.home) && ['play', 'idle', 'home', 'stroll', 'pastime-none'].includes(x.activity?.act) && Math.hypot(x.agent.x - spot.x, x.agent.y - spot.y) < 800); if (!q) return;
+      q._scarer = true; const tx = Math.floor((spot.x + 30) / T), ty = Math.floor(spot.y / T);
+      O.Errands.send(s, q, [tx, ty], { anim: 'idle', secs: 0.2, face: 0, giveUp: game.t + 60, after: (ok) => { if (!ok || !q.agent) { q._scarer = false; return; } q.agent.frozen = true; q.agent.path = null; q.agent.dir = 0; J = { s, q, t: 0, next: 1, wave: 0 }; } });
+    });
+    game.hooks.drawWorld.push((ctx, cam) => { if (!J || game.scene || J.s !== cur()) return; const a = J.q.agent, x = Math.round(a.x - cam.x), y = Math.round(a.y - cam.y); const up = J.wave > 0 && Math.floor(J.wave * 6) % 2; ctx.fillStyle = '#8a6a44'; ctx.fillRect(x + 5, y - (up ? 26 : 16), 2, 6); ctx.fillStyle = '#6a4a2c'; ctx.fillRect(x + 4, y - (up ? 26 : 16), 4, 2); });
+    (O.extraLines = O.extraLines || []).push((s, q) => J && J.q === q ? 'You have been set to scare the crows off the sown field all day with a wooden clapper, for a penny. It is very dull.' : '');
+    O.BirdScarer = { get job() { return J; }, get scares() { return scares; }, soon: () => { cool = 0; } };
+  }
+  O.BirdScarerSetup = { setup };
 })();
 
 </script>
@@ -40889,7 +40967,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.WorkSetup.setup(game, sim, npcUI);
   O.EmploymentSetup.setup(game, home, npcUI);
   O.LettersSetup.setup(game, home, npcUI);
-  O.FittingSetup.setup(game); O.DecorateSetup.setup(game); O.LifeWeightSetup.setup(game); O.TradeLifeSetup.setup(game); O.RiverWildSetup.setup(game); O.SpokenSetup.setup(game); O.CombatDeepSetup.setup(game); O.GangStreetSetup.setup(game); O.HomeFrontSetup.setup(game); O.ScenesSetup.setup(game); O.IndoorLifeSetup.setup(game); O.ApproachesSetup.setup(game); O.LivelinessSetup.setup(game); O.StreetFightSetup.setup(game); O.Pastimes2Setup.setup(game); O.AnimalCareSetup.setup(game); O.MarchSetup.setup(game); O.LooksSetup.setup(game); O.GangPoliticsSetup.setup(game); O.NightWorkSetup.setup(game); O.ArchersSetup.setup(game); O.RaidSetup.setup(game); O.KidsPlaySetup.setup(game); O.AdultPlaySetup.setup(game); O.IdleLifeSetup.setup(game); O.CutpurseSetup.setup(game); O.ShakedownSetup.setup(game); O.ShopFrontSetup.setup(game); O.WarSightsSetup.setup(game); O.GangMarksSetup.setup(game); O.PassingsSetup.setup(game); O.LamplighterSetup.setup(game); O.SparringSetup.setup(game); O.KidsChoresSetup.setup(game); O.ProcessionsSetup.setup(game); O.MarketDaySetup.setup(game); O.RoadFolkSetup.setup(game); O.TownBirdsSetup.setup(game); O.TavernYardSetup.setup(game); O.SmuggleSetup.setup(game); O.MishapsSetup.setup(game); O.ShopFront2Setup.setup(game); O.NightLifeSetup.setup(game); O.SeasonsFxSetup.setup(game); O.GentryRideSetup.setup(game); O.GangRitesSetup.setup(game); O.HuntersSetup.setup(game); O.Courting2Setup.setup(game); O.InfirmSetup.setup(game); O.PasturesSetup.setup(game); O.AlmsSetup.setup(game); O.BellsSetup.setup(game); O.BoatsSetup.setup(game); O.StormReactSetup.setup(game); O.EscortSetup.setup(game); O.TracksSetup.setup(game); O.ShopDisplaySetup.setup(game); O.NoticeBoardSetup.setup(game); O.GraveDiggerSetup.setup(game); O.DayLabourSetup.setup(game); O.BaileySetup.setup(game); O.HarbourSetup.setup(game); O.HauntSetup.setup(game); O.CountrysideSetup.setup(game); O.WellWorkSetup.setup(game); O.StocksSetup.setup(game); O.WinterPlaySetup.setup(game); O.MillsSetup.setup(game); O.SummerPlaySetup.setup(game); O.LambsSetup.setup(game); O.LordsHuntSetup.setup(game); O.OccludeSetup.setup(game); O.IndoorFxSetup.setup(game); O.RoundsSetup.setup(game); O.HouseCallsSetup.setup(game); O.BrazierSetup.setup(game); O.GangBossSetup.setup(game); O.SlashSetup.setup(game); O.RepairsSetup.setup(game); O.WildFolkSetup.setup(game); O.FerrySetup.setup(game); O.RiverbankSetup.setup(game); O.TreeWorkSetup.setup(game); O.SiteWorkSetup.setup(game); O.DoorstepSetup.setup(game); O.RoomLifeSetup.setup(game); O.StableYardSetup.setup(game); O.AbbeyLifeSetup.setup(game); O.WinterWorkSetup.setup(game); O.StreetCallersSetup.setup(game); O.SeasonChoresSetup.setup(game); O.LivestockSetup.setup(game); O.BabesSetup.setup(game); O.FlagWatchSetup.setup(game); O.DawnDuskSetup.setup(game); O.PuddlesSetup.setup(game); O.QuaysideSetup.setup(game); O.CottageYardsSetup.setup(game); O.WindySetup.setup(game); O.StreetMuckSetup.setup(game); O.HitchingSetup.setup(game); O.KidsPlay2Setup.setup(game); O.StrayDogSetup.setup(game); O.TollBarSetup.setup(game); O.NightWalkersSetup.setup(game); O.BakehouseSetup.setup(game); O.WorkFxSetup.setup(game); O.ToothPullSetup.setup(game); O.GentryLeisureSetup.setup(game); O.WaterfowlSetup.setup(game); O.RainFolkSetup.setup(game); O.JostleSetup.setup(game); O.GraveVisitsSetup.setup(game); O.HandcartsSetup.setup(game); O.DoorCheckSetup.setup(game); O.SwallowsSetup.setup(game); O.MiceSetup.setup(game);
+  O.FittingSetup.setup(game); O.DecorateSetup.setup(game); O.LifeWeightSetup.setup(game); O.TradeLifeSetup.setup(game); O.RiverWildSetup.setup(game); O.SpokenSetup.setup(game); O.CombatDeepSetup.setup(game); O.GangStreetSetup.setup(game); O.HomeFrontSetup.setup(game); O.ScenesSetup.setup(game); O.IndoorLifeSetup.setup(game); O.ApproachesSetup.setup(game); O.LivelinessSetup.setup(game); O.StreetFightSetup.setup(game); O.Pastimes2Setup.setup(game); O.AnimalCareSetup.setup(game); O.MarchSetup.setup(game); O.LooksSetup.setup(game); O.GangPoliticsSetup.setup(game); O.NightWorkSetup.setup(game); O.ArchersSetup.setup(game); O.RaidSetup.setup(game); O.KidsPlaySetup.setup(game); O.AdultPlaySetup.setup(game); O.IdleLifeSetup.setup(game); O.CutpurseSetup.setup(game); O.ShakedownSetup.setup(game); O.ShopFrontSetup.setup(game); O.WarSightsSetup.setup(game); O.GangMarksSetup.setup(game); O.PassingsSetup.setup(game); O.LamplighterSetup.setup(game); O.SparringSetup.setup(game); O.KidsChoresSetup.setup(game); O.ProcessionsSetup.setup(game); O.MarketDaySetup.setup(game); O.RoadFolkSetup.setup(game); O.TownBirdsSetup.setup(game); O.TavernYardSetup.setup(game); O.SmuggleSetup.setup(game); O.MishapsSetup.setup(game); O.ShopFront2Setup.setup(game); O.NightLifeSetup.setup(game); O.SeasonsFxSetup.setup(game); O.GentryRideSetup.setup(game); O.GangRitesSetup.setup(game); O.HuntersSetup.setup(game); O.Courting2Setup.setup(game); O.InfirmSetup.setup(game); O.PasturesSetup.setup(game); O.AlmsSetup.setup(game); O.BellsSetup.setup(game); O.BoatsSetup.setup(game); O.StormReactSetup.setup(game); O.EscortSetup.setup(game); O.TracksSetup.setup(game); O.ShopDisplaySetup.setup(game); O.NoticeBoardSetup.setup(game); O.GraveDiggerSetup.setup(game); O.DayLabourSetup.setup(game); O.BaileySetup.setup(game); O.HarbourSetup.setup(game); O.HauntSetup.setup(game); O.CountrysideSetup.setup(game); O.WellWorkSetup.setup(game); O.StocksSetup.setup(game); O.WinterPlaySetup.setup(game); O.MillsSetup.setup(game); O.SummerPlaySetup.setup(game); O.LambsSetup.setup(game); O.LordsHuntSetup.setup(game); O.OccludeSetup.setup(game); O.IndoorFxSetup.setup(game); O.RoundsSetup.setup(game); O.HouseCallsSetup.setup(game); O.BrazierSetup.setup(game); O.GangBossSetup.setup(game); O.SlashSetup.setup(game); O.RepairsSetup.setup(game); O.WildFolkSetup.setup(game); O.FerrySetup.setup(game); O.RiverbankSetup.setup(game); O.TreeWorkSetup.setup(game); O.SiteWorkSetup.setup(game); O.DoorstepSetup.setup(game); O.RoomLifeSetup.setup(game); O.StableYardSetup.setup(game); O.AbbeyLifeSetup.setup(game); O.WinterWorkSetup.setup(game); O.StreetCallersSetup.setup(game); O.SeasonChoresSetup.setup(game); O.LivestockSetup.setup(game); O.BabesSetup.setup(game); O.FlagWatchSetup.setup(game); O.DawnDuskSetup.setup(game); O.PuddlesSetup.setup(game); O.QuaysideSetup.setup(game); O.CottageYardsSetup.setup(game); O.WindySetup.setup(game); O.StreetMuckSetup.setup(game); O.HitchingSetup.setup(game); O.KidsPlay2Setup.setup(game); O.StrayDogSetup.setup(game); O.TollBarSetup.setup(game); O.NightWalkersSetup.setup(game); O.BakehouseSetup.setup(game); O.WorkFxSetup.setup(game); O.ToothPullSetup.setup(game); O.GentryLeisureSetup.setup(game); O.WaterfowlSetup.setup(game); O.RainFolkSetup.setup(game); O.JostleSetup.setup(game); O.GraveVisitsSetup.setup(game); O.HandcartsSetup.setup(game); O.DoorCheckSetup.setup(game); O.SwallowsSetup.setup(game); O.MiceSetup.setup(game); O.StreetPigsSetup.setup(game); O.BirdScarerSetup.setup(game);
   O.StreetSetup.setup(game, home);
   O.GangLifeSetup.setup(game, npcUI);
   O.TownLifeSetup.setup(game, npcUI);

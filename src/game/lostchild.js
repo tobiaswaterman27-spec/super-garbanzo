@@ -45,7 +45,16 @@
         break; }
     });
     (O.extraLines = O.extraLines || []).push((s, q) => !L || !q._lost ? '' : q === L.kid ? 'You are small and you wandered off and now you are lost and frightened, and you want your mother.' : `Your little ${L.kid.sex === 'f' ? 'girl' : 'boy'} ${name(L.kid)} has wandered off and you are frantic, searching the lanes and calling for ${L.kid.sex === 'f' ? 'her' : 'him'}.`);
-    O.LostChild = { get lost() { return L; }, get found() { return found; }, soon: () => { cool = 0; } };
+    // you can find the little one yourself and bring them back
+    const relOf = (q) => { const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r); return r; };
+    let rescued = 0;
+    (O.moreCandidates = O.moreCandidates || []).push(() => { const P = game.player; if (!L || L.phase !== 'lost' || game.scene || P.locked) return null; const k = L.kid.agent; if (Math.hypot(k.x - P.x, k.y - P.y) > 30) return null;
+      return { type: 'custom', d: 30, x: k.x, y: k.y - 26, label: `Take ${name(L.kid)} back to their mother`, act: () => { const s = cur(); if (!L || !s) return; const kid = L.kid, ma = L.ma, h = L.home; rescued++; found++;
+        O.Speech && O.Speech.say(kid, 'I want my mama...', 1.8); end(); const r = relOf(ma); r.affinity = Math.max(-1, Math.min(1, r.affinity + 0.3)); r.familiar = Math.min(1, (r.familiar || 0) + 0.2); try { s.remember(ma, 'A stranger found my little one when they were lost, and brought them home to me.', 'kindness', 0.8); } catch (e) { /* */ }
+        if (O.PlayerState && O.PlayerState.rep) O.PlayerState.rep.civilian = (O.PlayerState.rep.civilian || 0) + 0.03;
+        if (h && h.doorX != null) { O.Errands.send(s, kid, [h.doorX, h.doorY + 1], { anim: 'idle', secs: 0.3, face: 0, giveUp: game.t + 80 }); O.Errands.send(s, ma, [h.doorX + 1, h.doorY + 1], { anim: 'take', secs: 2, face: 2, giveUp: game.t + 80, after: (ok) => { if (ok) O.Speech && O.Speech.say(ma, `${name(kid)}! Oh, thank God. And thank you, thank you, friend. I was out of my mind.`, 3.4); } }); }
+        O.UI && O.UI.say && O.UI.say(`You take ${name(kid)} by the hand and walk them home. Their mother comes running.`, 'good'); } }; });
+    O.LostChild = { get rescued() { return rescued; }, get lost() { return L; }, get found() { return found; }, soon: () => { cool = 0; } };
   }
   O.LostChildSetup = { setup };
 })();

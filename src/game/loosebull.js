@@ -45,7 +45,14 @@
       if (B.phase === 'loose' && Math.floor(performance.now() / 400) % 3 === 0) { ctx.fillStyle = 'rgba(230,230,230,0.6)'; ctx.fillRect(hx + (b.dir === 2 ? 3 : -4), hy - 1, 2, 1); ctx.fillRect(hx + (b.dir === 2 ? 5 : -6), hy - 2, 1, 1); }
       if (B.phase !== 'loose' && B.men[0]) { const a = B.men[0].agent; ctx.strokeStyle = '#a8946a'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(hx + 1, hy + 1); ctx.lineTo(Math.round(a.x - cam.x), Math.round(a.y - cam.y) - 12); ctx.stroke(); } });
     (O.extraLines = O.extraLines || []).push((s, q) => !B ? '' : q._bull ? 'A bull has got loose in the town and you are one of the men trying to catch it with a rope.' : q._bullScared && game.t - q._bullScared < 120 ? 'A bull got loose in the street just now and nearly had you! You are still shaking.' : '');
-    O.LooseBull = { get bull() { return B; }, get caught() { return caught; }, soon: () => { cool = 0; } };
+    // you can grab his rope yourself, if you dare
+    let grabbed = 0;
+    (O.moreCandidates = O.moreCandidates || []).push(() => { const P = game.player; if (!B || B.phase !== 'loose' || game.scene || P.locked) return null; const b = B.bull; if (Math.hypot(b.x - P.x, b.y - P.y) > 30) return null;
+      return { type: 'custom', d: 30, x: b.x, y: b.y - 26, label: 'Grab the bull by the nose-ring rope', act: () => { if (!B) return; const P = game.player; P.anim = 'pitch'; P.locked = true; setTimeout(() => { P.locked = false; P.anim = 'idle'; }, 1200);
+        const sk = (O.PlayerState && O.PlayerState.skills && (O.PlayerState.skills.fighting || O.PlayerState.skills.farming)) || 0;
+        if (Math.random() < 0.55 + sk * 0.4) { grabbed++; B.phase = 'rope'; B.k = 0; O.UI && O.UI.say && O.UI.say('You get a hand on the rope and hang on. He tosses his head, and then he stands, blowing.', 'good'); if (B.men[0]) O.Speech && O.Speech.say(B.men[0], pick(['Well held! Well held!', 'God\'s teeth, you\'ve a grip on you!', 'Hold him there, I\'m coming!']), 2.4); if (O.PlayerState && O.PlayerState.rep) O.PlayerState.rep.civilian = (O.PlayerState.rep.civilian || 0) + 0.03; }
+        else { O.UI && O.UI.say && O.UI.say('He swings his head and throws you off into the dirt.', 'bad'); setTimeout(() => { P.anim = 'hurt'; }, 200); if (O.PlayerState) O.PlayerState.hp = Math.max(5, (O.PlayerState.hp || 50) - 6); } } }; });
+    O.LooseBull = { get grabbed() { return grabbed; }, get bull() { return B; }, get caught() { return caught; }, soon: () => { cool = 0; } };
   }
   O.LooseBullSetup = { setup };
 })();

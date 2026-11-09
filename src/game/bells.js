@@ -19,7 +19,7 @@
         if (m === 21 * 60) ring(s, [15], 2.2);
         if ((s.events || []).some((e) => e.kind === 'funeral' && e.day === s.day) && m === 9 * 60 + 40) ring(s, [10], 4);
         if (m === last) break; } }
-      if (queue.length) { for (let i = 0; i < queue.length; i++) queue[i] -= dt; while (queue.length && queue[0] <= 0) { queue.shift(); O.sfx && O.sfx('churchbell', vol(s)); } }
+      if (queue.length) { for (let i = 0; i < queue.length; i++) queue[i] -= dt; while (queue.length && queue[0] <= 0) { queue.shift(); O.sfx && O.sfx('churchbell', vol(s)); struck = performance.now(); } }
     });
     function angelus(s) { for (const q of s.people) { const a = q.agent; if (!a || a.hidden || a.inside != null || q.age < 6 || q._fighting || Math.hypot(a.x - game.player.x, a.y - game.player.y) > 500) continue; if (/guard|watch/.test(q.job?.role || '') && Math.random() < 0.5) continue; setTimeout(() => { if (a.hidden || a.inside != null) return; O.gesture && O.gesture(q, 'pray', 4 + Math.random() * 2); }, 300 + Math.random() * 1500); }
       if (Math.random() < 0.5) { const q = pick(s.people.filter((q) => q.agent && !q.agent.hidden && q.agent.inside == null && q.age > 40 && Math.hypot(q.agent.x - game.player.x, q.agent.y - game.player.y) < 300)); if (q) setTimeout(() => O.Speech && O.Speech.say(q, pick(['The Angelus.', 'Angelus Domini...', 'Noon already.']), 1.8), 2000); } }
@@ -28,7 +28,10 @@
     const wrap = () => { if (wrapped) return; wrapped = true; const _plan = SP.plan; SP.plan = function (p) { const r = _plan.apply(this, arguments); try { const h = this.minute / 60; if (r && this.weekday === 6 && h >= 10.5 && h < 11.25 && p.age >= 10 && !p.visitor && !p.job?.onShift && ['home', 'rest', 'stroll', 'idle', 'socialise', 'play'].includes(r.act) && (p.id % 3) !== 0) return { act: 'socialise', outdoor: true, zone: 'chapelyard' }; } catch (e) { /* */ } return r; }; };
     setTimeout(wrap, 0); game.hooks.update.unshift(wrap);
     const _zone = SP.zoneTile; SP.zoneTile = function (p, zone) { if (zone === 'chapelyard') { const b = this.building(this.chapelId); if (b && b.doorX != null) { const w = this.world; for (let k = 0; k < 12; k++) { const x = b.doorX + ((p.id * 7 + k * 3) % 9) - 4, y = b.doorY + 1 + ((p.id + k) % 4); if (!w.solid[y * w.W + x]) return [x, y]; } } return _zone.call(this, p, 'square'); } return _zone.apply(this, arguments); };
-    O.Bells = { ring: (p) => ring(cur(), p || [3]), angelus: () => angelus(cur()), get queue() { return queue; } };
+    // the bell seen swinging in its cote at each stroke
+    let struck = -1e9;
+    game.hooks.drawWorld.push((ctx, cam) => { const s = cur(); if (!s || game.scene || s.chapelId == null) return; const b = s.building(s.chapelId), sp = b && b.sprite; if (!sp) return; const age = (performance.now() - struck) / 1000; const x = Math.round(b.x * 16 - sp.OV + sp.W / 2 - cam.x), y = Math.round((b.bottom + 1) * 16 - sp.H + Math.round(sp.H * 0.43) - cam.y); if (x < -20 || y < -20 || x > ctx.canvas.width + 20 || y > ctx.canvas.height + 20) return; const sw = age < 2.2 ? Math.sin(age * 9) * (1 - age / 2.2) * 0.6 : 0; ctx.save(); ctx.translate(x, y); ctx.rotate(sw); ctx.fillStyle = '#b08a3a'; ctx.fillRect(-3, 0, 6, 5); ctx.fillRect(-4, 4, 8, 2); ctx.fillStyle = '#d8b050'; ctx.fillRect(-2, 0, 1, 4); ctx.fillStyle = '#5a4a3a'; ctx.fillRect(-1, 6, 2, 1 + (Math.abs(sw) > 0.2 ? 1 : 0)); ctx.restore(); });
+    O.Bells = { get struck() { return struck; }, ring: (p) => ring(cur(), p || [3]), angelus: () => angelus(cur()), get queue() { return queue; } };
   }
   O.BellsSetup = { setup };
 })();

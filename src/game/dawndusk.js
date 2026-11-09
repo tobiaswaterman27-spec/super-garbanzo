@@ -43,7 +43,15 @@
       for (const c of F.cats) { const x = c.x, y = F.y; if (c.run && Math.abs(x - F.mx) > 70) continue; try { const an = c.run ? 'walk' : 'idle', HA = O.Animals.HANIMS[an], fr = O.Animals.animal('cat', c.seed, c.run ? (c.run > 0 ? 2 : 1) : c.dir, !!c.run, Math.floor(c.ft * HA.fps * (c.run ? 2 : 1)) % HA.frames, an); const dx = Math.round(x - (fr.ox ?? fr.width / 2) - cam.x), dy = Math.round(y - (fr.gy ?? fr.height) - cam.y) - (c.run ? 0 : (F.yowl > 0 ? 2 : 1)); ctx.drawImage(fr, dx, dy); } catch (e) { /* */ }
         if (!c.run && F.yowl > 0) { ctx.fillStyle = 'rgba(240,240,230,0.8)'; const tx = Math.round(x - cam.x) + (c.dir === 2 ? 4 : -8), ty = Math.round(y - cam.y) - 16; ctx.fillRect(tx, ty, 4, 1); ctx.fillRect(tx + 1, ty - 2, 1, 1); ctx.fillRect(tx + 3, ty - 2, 1, 1); } }
     });
-    O.DawnDusk = { get fight() { return fight; }, get mornings() { return mornings; }, catfight: () => { fCool = 0; fight = null; } };
+    // the cock on the woodpile at dawn: up he stretches, beak wide, and crows
+    let cock = null; game.hooks.update.push((dt) => { const s = cur(); if (!s || game.scene || !s.world) { return; } const hr = s.minute / 60; if (hr < 4.8 || hr > 8) { cock = null; return; }
+      if (!cock || cock.s !== s) { const P = game.player, ys = O.CottageYards ? s.world.buildings.filter((b) => b.type === 'house' && b.doorX != null && Math.abs(b.doorX * T - P.x) < 380 && Math.abs(b.doorY * T - P.y) < 260).map((b) => O.CottageYards.yardOf(b)).filter((y) => y && y.wood) : []; const y = ys.length ? ys[Math.floor(Math.random() * ys.length)] : null; cock = y ? { s, x: y.wood.x, y: y.wood.y - 10, t: 0, crow: 2 + Math.random() * 4, up: 0, dir: Math.random() < 0.5 ? 1 : 2 } : { s, none: true, t: 0 }; }
+      if (cock.none) { cock.t += dt; if (cock.t > 20) cock = null; return; } cock.t += dt; cock.crow -= dt; if (cock.up > 0) cock.up -= dt; if (cock.crow <= 0) { cock.crow = 14 + Math.random() * 14; cock.up = 1.6; if (near(cock.x, cock.y, 380)) O.animalCall && O.animalCall('rooster', 0.5); } if (Math.random() < dt * 0.1) cock.dir = 3 - cock.dir; });
+    game.hooks.drawWorld.push((ctx, cam) => { if (!cock || cock.none || game.scene || cock.s !== cur()) return; const x = Math.round(cock.x - cam.x), y = Math.round(cock.y - cam.y), d = cock.dir === 2 ? 1 : -1, up = cock.up > 0 ? 2 : 0;
+      ctx.fillStyle = '#1a3a2a'; ctx.fillRect(x - d * 5 - (d < 0 ? 2 : 0), y - 8, 3, 6); ctx.fillStyle = '#2a5a3a'; ctx.fillRect(x - d * 6 - (d < 0 ? 1 : 0), y - 10, 2, 4);
+      ctx.fillStyle = '#a8501a'; ctx.fillRect(x - 3, y - 6, 7, 5); ctx.fillStyle = '#d8781a'; ctx.fillRect(x + d * 2 - (d < 0 ? 1 : 0), y - 9 - up, 3, 4); ctx.fillStyle = '#d02020'; ctx.fillRect(x + d * 2 - (d < 0 ? 1 : 0), y - 11 - up, 2, 2); ctx.fillRect(x + d * 4 - (d < 0 ? 1 : 0), y - 7 - up, 1, 2);
+      ctx.fillStyle = '#e0b020'; ctx.fillRect(x + d * 5 - (d < 0 ? 1 : 0), y - 8 - up, 1, up ? 1 : 1); if (up) ctx.fillRect(x + d * 5 - (d < 0 ? 1 : 0), y - 10, 1, 1); ctx.fillStyle = '#c89020'; ctx.fillRect(x - 1, y - 1, 1, 2); ctx.fillRect(x + 1, y - 1, 1, 2); });
+    O.DawnDusk = { get cock() { return cock; }, get fight() { return fight; }, get mornings() { return mornings; }, catfight: () => { fCool = 0; fight = null; } };
   }
   O.DawnDuskSetup = { setup };
 })();

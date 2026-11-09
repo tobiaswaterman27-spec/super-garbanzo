@@ -12,4 +12,9 @@ if (process.env.SD) { await p.evaluate(() => { const W = O.OxWagons.wagon; if (W
 await p.evaluate(() => { const W = O.OxWagons.wagon; if (W) { W.x = O.game.player.x + W.dir * 600; W.t = 9; } });
 await p.waitForTimeout(1500);
 console.log('passed:', await p.evaluate(() => O.OxWagons.passed), '| gone:', await p.evaluate(() => !O.OxWagons.wagon));
+// harvest home in autumn
+await p.evaluate(() => { const s = O.SimRef.cur; Object.defineProperty(s, 'season', { value: 'autumn', configurable: true }); O.game.player.x -= 0; O.OxWagons.soon(true); });
+await p.waitForTimeout(2500);
+console.log('harvest wagon:', await p.evaluate(() => { const W = O.OxWagons.wagon; return W ? W.load + ' kids ' + (W.kids || []).length + ' walkers ' + (W.walkers || []).length : 'none'; }));
+if (process.env.SD) { await p.evaluate(() => { const W = O.OxWagons.wagon; if (W) W.x = O.game.player.x - W.dir * 20; }); await p.waitForTimeout(400); await p.screenshot({ path: process.env.SD + '/harvesthome.png', clip: { x: 360, y: 180, width: 480, height: 300 } }); }
 await done();

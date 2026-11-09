@@ -11,12 +11,13 @@
     const night = () => game.isNight && game.isNight();
     game.hooks.update.push((dt) => {
       for (const p of sparks.slice()) { p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 50 * dt; if (p.t > 0.6) sparks.splice(sparks.indexOf(p), 1); }
-      const s = cur(); lit = []; if (!s || game.scene || !night()) return; const P = game.player;
+      const s = cur(); lit = []; const fog = s && s.weather && s.weather.kind === 'fog'; if (!s || game.scene || !(night() || fog)) return; const P = game.player;
+      if (fog && Math.random() < dt * 0.15) { const q = s.people.find((x) => x.agent && !x.agent.hidden && x.agent.inside == null && x.agent.path && Math.hypot(x.agent.x - P.x, x.agent.y - P.y) < 260 && x.age >= 12); if (q && O.Speech) O.Speech.say(q, ['Halloo? Who\'s there?', 'Can\'t see my hand in front of me.', 'Is that you, Tom?', 'Mind the ditch!'][Math.floor(Math.random() * 4)], 2.2); }
       for (const q of s.people) { const a = q.agent; if (!a || a.hidden || a.inside != null || q.age < 12 || watch(q) || shady(q)) continue; if (!a.path && !q.errand) continue; if (Math.abs(a.x - P.x) > 420 || Math.abs(a.y - P.y) > 300) continue;
         const kind = (q.id % 10) < 6 ? 'lantern' : (q.id % 10) < 8 ? 'torch' : null; if (!kind) continue; lit.push([q, kind]);
         if (kind === 'torch' && Math.random() < dt * 6) { const d = a.dir === 2 ? 1 : a.dir === 1 ? -1 : 0; sparks.push({ x: a.x + d * 7 + 2, y: a.y - 30, vx: (Math.random() - 0.5) * 16, vy: -10 - Math.random() * 14, t: 0 }); } }
     });
-    (O.extraLights = O.extraLights || []).push((pools, cam) => { for (const [q, kind] of lit) { const a = q.agent; const fl = kind === 'torch' ? Math.sin(performance.now() / 70 + q.id) * 3 : Math.sin(performance.now() / 300 + q.id); pools.push([a.x - cam.x, a.y - 14 - cam.y, (kind === 'torch' ? 40 : 30) + fl]); } });
+    (O.extraLights = O.extraLights || []).push((pools, cam) => { if (!(game.isNight && game.isNight())) return; for (const [q, kind] of lit) { const a = q.agent; const fl = kind === 'torch' ? Math.sin(performance.now() / 70 + q.id) * 3 : Math.sin(performance.now() / 300 + q.id); pools.push([a.x - cam.x, a.y - 14 - cam.y, (kind === 'torch' ? 40 : 30) + fl]); } });
     game.hooks.drawWorld.push((ctx, cam) => {
       if (game.scene || !lit.length) return; const tk = performance.now() / 1000;
       for (const [q, kind] of lit) { const a = q.agent; if (O.occluded && O.occluded(a.x, a.y)) continue; const d = a.dir === 2 ? 1 : a.dir === 1 ? -1 : (a.dir === 3 ? 1 : -1), x = Math.round(a.x - cam.x), y = Math.round(a.y - cam.y) - (a.lift || 0), sw = Math.round(Math.sin(tk * 7 + q.id) * (a.path ? 1.5 : 0.4));

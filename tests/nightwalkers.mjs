@@ -6,4 +6,7 @@ await p.evaluate(() => { const s = O.SimRef.cur; let g = 0; while (!(Math.floor(
 let most = 0; for (let i = 0; i < 8; i++) { await p.waitForTimeout(2500); most = Math.max(most, await p.evaluate(() => O.NightWalkers.lit)); }
 console.log('lights carried (most at once):', most);
 if (process.env.SD) await p.screenshot({ path: process.env.SD + '/nightlights.png' });
+await p.evaluate(() => { const s = O.SimRef.cur; let g = 0; while (Math.floor(s.minute / 60) !== 10 && g++ < 3000) s.tick(2); O.game.clock.minute = s.minute; s.weather.forced = 'fog'; s.weather.kind = 'fog'; });
+let fogLit = 0; for (let i = 0; i < 6; i++) { await p.waitForTimeout(2500); fogLit = Math.max(fogLit, await p.evaluate(() => O.NightWalkers.lit)); }
+console.log('lanterns carried in the fog by day:', fogLit);
 await done();

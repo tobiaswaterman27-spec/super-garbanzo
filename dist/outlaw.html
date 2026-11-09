@@ -9743,7 +9743,7 @@ O.atPlace = (name, fallback) => { const n = name || fallback || 'somewhere'; ret
       const owner = this.byId.get(bz.owner);
       let m = O.clamp(Math.sqrt(target / (stock + 1)), 0.6, 2.5);
       if (owner && this.has(owner, 'greedy')) m *= 1.15; if (owner && this.has(owner, 'generous')) m *= 0.9;
-      return Math.max(1, Math.round(G[good].base * m));
+      return Math.max(1, Math.round(((G[good] && G[good].base) || 3) * m));
     }
     // The (first) business of a type; with a good, the one holding most of it, towns with several
     // bakeries spread their custom; with openOnly, only those trading right now.
@@ -34612,7 +34612,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
 // free to be asked again.
 'use strict';
 (function () {
-  const FLAGS = ['_bank', '_tree', '_door', '_stable', '_abbey', '_winter', '_call', '_chore', '_beast', '_repair', '_puddle', '_quay', '_garden', '_hat', '_kid2', '_bake', '_tooth', '_leisure', '_rain', '_grave', '_scarer', '_wassail', '_rog', '_wash', '_office', '_evict', '_reopen', '_moot', '_dole', '_flood', '_swarm', '_lost'];
+  const FLAGS = ['_bank', '_tree', '_door', '_stable', '_abbey', '_winter', '_call', '_chore', '_beast', '_repair', '_puddle', '_quay', '_garden', '_hat', '_kid2', '_bake', '_tooth', '_leisure', '_rain', '_grave', '_scarer', '_wassail', '_rog', '_wash', '_office', '_evict', '_reopen', '_moot', '_dole', '_flood', '_swarm', '_lost', '_truant', '_watch', '_christ', '_shrove', '_plough', '_grist', '_trestle', '_soul', '_candle', '_yule', '_bull', '_gwatch'];
   function setup(game) {
     const since = new Map(); let t = 0; let cleared = 0;
     game.hooks.update.push((dt) => {
@@ -36474,7 +36474,12 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       ctx.fillStyle = 'rgba(150,160,150,0.85)'; for (const d of drops) ctx.fillRect(Math.round(d.x - cam.x), Math.round(d.y - cam.y), 1, 1);
       for (const j of jobs) { if (j.s !== s || j.kind !== 'bail') continue; const a = j.q.agent; ctx.fillStyle = '#7a5a3a'; ctx.fillRect(Math.round(a.x + j.dx * 6 - cam.x) - 2, Math.round(a.y - 14 - cam.y), 4, 4); } });
     (O.extraLines = O.extraLines || []).push((s, q) => { const j = jobs.find((x) => x.q === q); return j ? (j.kind === 'bail' ? 'The river is in your house! You are bailing it out of the door with a bucket.' : 'The river is out and you are heaping sacks of earth along the edge to hold the flood back.') : ''; });
-    O.FloodFolk = { jobs, sacks, get bailed() { return bailed; } };
+    // you can take a bucket and help them bail
+    let helped = 0; const relOf = (q) => { const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r); return r; };
+    (O.moreCandidates = O.moreCandidates || []).push(() => { const P = game.player, s = cur(); if (!s || game.scene || P.locked) return null; const j = jobs.find((x) => x.s === s && Math.hypot(x.q.agent.x - P.x, x.q.agent.y - P.y) < 34 && !x.helped); if (!j) return null;
+      return { type: 'custom', d: 34, x: j.q.agent.x, y: j.q.agent.y - 26, label: j.kind === 'bail' ? 'Take a bucket and help them bail' : 'Help heap the sacks', act: () => { j.helped = true; helped++; P.anim = j.kind === 'bail' ? 'pour' : 'pitch'; P.locked = true; const r = relOf(j.q); r.affinity = Math.min(1, r.affinity + 0.2); r.familiar = Math.min(1, (r.familiar || 0) + 0.15); try { s.remember(j.q, 'When the river came into the house, a stranger took a bucket and helped me bail.', 'kindness', 0.7); } catch (e) { /* */ }
+        for (let i = 0; i < 12; i++) drops.push({ x: P.x + 6, y: P.y - 12, vx: (Math.random() - 0.3) * 80, vy: -50 - Math.random() * 30, t: 0 }); setTimeout(() => { P.locked = false; P.anim = 'idle'; O.Speech && O.Speech.say(j.q, j.kind === 'bail' ? 'Bless you! Keep it coming!' : 'Good man! Pile them here!', 2.2); if (O.PlayerState && O.PlayerState.rep) O.PlayerState.rep.civilian = (O.PlayerState.rep.civilian || 0) + 0.02; }, 3000); } }; });
+    O.FloodFolk = { get helped() { return helped; }, jobs, sacks, get bailed() { return bailed; } };
   }
   O.FloodFolkSetup = { setup };
 })();
@@ -36681,9 +36686,955 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         break; }
     });
     (O.extraLines = O.extraLines || []).push((s, q) => !L || !q._lost ? '' : q === L.kid ? 'You are small and you wandered off and now you are lost and frightened, and you want your mother.' : `Your little ${L.kid.sex === 'f' ? 'girl' : 'boy'} ${name(L.kid)} has wandered off and you are frantic, searching the lanes and calling for ${L.kid.sex === 'f' ? 'her' : 'him'}.`);
-    O.LostChild = { get lost() { return L; }, get found() { return found; }, soon: () => { cool = 0; } };
+    // you can find the little one yourself and bring them back
+    const relOf = (q) => { const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r); return r; };
+    let rescued = 0;
+    (O.moreCandidates = O.moreCandidates || []).push(() => { const P = game.player; if (!L || L.phase !== 'lost' || game.scene || P.locked) return null; const k = L.kid.agent; if (Math.hypot(k.x - P.x, k.y - P.y) > 30) return null;
+      return { type: 'custom', d: 30, x: k.x, y: k.y - 26, label: `Take ${name(L.kid)} back to their mother`, act: () => { const s = cur(); if (!L || !s) return; const kid = L.kid, ma = L.ma, h = L.home; rescued++; found++;
+        O.Speech && O.Speech.say(kid, 'I want my mama...', 1.8); end(); const r = relOf(ma); r.affinity = Math.max(-1, Math.min(1, r.affinity + 0.3)); r.familiar = Math.min(1, (r.familiar || 0) + 0.2); try { s.remember(ma, 'A stranger found my little one when they were lost, and brought them home to me.', 'kindness', 0.8); } catch (e) { /* */ }
+        if (O.PlayerState && O.PlayerState.rep) O.PlayerState.rep.civilian = (O.PlayerState.rep.civilian || 0) + 0.03;
+        if (h && h.doorX != null) { O.Errands.send(s, kid, [h.doorX, h.doorY + 1], { anim: 'idle', secs: 0.3, face: 0, giveUp: game.t + 80 }); O.Errands.send(s, ma, [h.doorX + 1, h.doorY + 1], { anim: 'take', secs: 2, face: 2, giveUp: game.t + 80, after: (ok) => { if (ok) O.Speech && O.Speech.say(ma, `${name(kid)}! Oh, thank God. And thank you, thank you, friend. I was out of my mind.`, 3.4); } }); }
+        O.UI && O.UI.say && O.UI.say(`You take ${name(kid)} by the hand and walk them home. Their mother comes running.`, 'good'); } }; });
+    O.LostChild = { get rescued() { return rescued; }, get lost() { return L; }, get found() { return found; }, soon: () => { cool = 0; } };
   }
   O.LostChildSetup = { setup };
+})();
+
+</script>
+<script>
+// Truants. In lesson hours there are always a couple who should be at their slates and aren't: crouched
+// over marbles behind a woodpile, or dabbling at the water's edge. Then the schoolmaster comes stalking up
+// the lane with his rod, one of them sees him and yells, and they scatter; the slow one is caught by the
+// ear and marched back to school, protesting all the way.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const cur = () => O.SimRef.cur;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    let R = null, cool = 50, caught = 0;
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
+    const able = (q) => q && q.alive !== false && q.agent && !q.agent.frozen && !q.errand && !q._truant && !q._bit && !q._office && !talking(q);
+    const name = (q) => q.first || (q.name || '').split(' ')[0] || 'boy';
+    function rel(q) { if (!q || !q.agent) return; q.agent.forceAnim = null; if (!talking(q)) q.agent.frozen = false; q._truant = false; }
+    function end() { if (!R) return; for (const q of [R.master, ...R.kids]) rel(q); R = null; }
+    function step(a, tx, ty, v, dt) { const dx = tx - a.x, dy = ty - a.y, d = Math.hypot(dx, dy); if (d < 2) return d; const st = Math.min(d, v * dt), nx = a.x + dx / d * st, ny = a.y + dy / d * st; a.stuck = a.stuck || 0;
+      if (!game.solidAt(nx, ny - 2) || a.stuck > 2.5) { a.x = nx; a.y = ny; } else if (!game.solidAt(nx, a.y - 2)) a.x = nx; else if (!game.solidAt(a.x, ny - 2)) a.y = ny; else a.stuck += dt; a.dir = O.dirOf(dx, dy); a.forceAnim = v > 50 ? 'run' : 'walk'; return d; }
+    function school(s) { for (const kind of ['school', 'chapel', 'church']) for (const [id, bz] of s.biz) if (bz.type === kind && (bz.workers || []).length) { const b = s.building(id); if (b && b.doorX != null) return [b, bz]; } return null; }
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || !s.world || game.scene) return; const hr = s.minute / 60;
+      if (R) { R.t += dt; if (R.s !== s || R.t > 150 || [R.master, ...R.kids].some((q) => talking(q) || q.alive === false)) { end(); return; }
+        if (R.phase === 'play') { R.kids.forEach((q, i) => { const a = q.agent; if (a.frozen) a.forceAnim = Math.floor(R.t * 0.5 + i) % 4 === 3 ? 'laugh' : 'crouch'; });
+          const m = R.master.agent, k0 = R.kids[0].agent; if (R.master.agent.frozen && R.master._truant) step(m, k0.x + 40, k0.y + 20, 34, dt); if (Math.hypot(m.x - k0.x, m.y - k0.y) < 90 && !R.seen) { R.seen = true; R.phase = 'scatter'; const look = R.kids[R.kids.length - 1];
+            if (near(k0.x, k0.y, 320)) { O.Speech && O.Speech.say(look, pick(['It\'s the master! RUN!', 'Cave! Cave! Old Birch-rod!', 'Leg it!']), 1.8); setTimeout(() => R && near(m.x, m.y, 320) && O.Speech && O.Speech.say(R.master, pick([`${name(R.kids[0])}! I see you!`, 'Stop there, you idle little toads!', 'Truants! I\'ll have the hide off you!']), 2.2), 900); }
+            // the quick ones run, the slow one is caught
+            for (const q of R.kids.slice(1)) { rel(q); const a = q.agent, tx = Math.floor(a.x / T) + (a.x > m.x ? 14 : -14), ty = Math.floor(a.y / T) + Math.round((Math.random() - 0.5) * 8); O.Errands.send(s, q, [tx, ty], { anim: 'laugh', secs: 1, face: 0, sprint: true, giveUp: game.t + 25 }); }
+            R.kids = [R.kids[0]]; k0.forceAnim = 'shocked'; } }
+        if (R.phase === 'scatter') { R.st = (R.st || 0) + dt; const m = R.master.agent, k = R.kids[0].agent; const d = step(m, k.x + (m.x < k.x ? -12 : 12), k.y, 70, dt); if (d < 4 || R.st > 12) { m.x = k.x + (m.x < k.x ? -12 : 12); m.y = k.y; m.forceAnim = null; R.phase = 'caught'; R.ct = 0; caught++; } }
+        if (R.phase === 'caught') { R.ct += dt; const m = R.master.agent, k = R.kids[0].agent; m.dir = m.x < k.x ? 2 : 1; k.dir = m.x < k.x ? 1 : 2; m.forceAnim = R.ct < 2 ? 'take' : 'shake'; k.forceAnim = R.ct < 2 ? 'hurt' : 'mourn';
+          if (!R.said && R.ct > 0.6 && near(k.x, k.y, 320)) { R.said = true; O.Speech && O.Speech.say(R.kids[0], pick(['Ow! Ow! My ear, master!', 'I was coming, master, honest!', 'It was HIM, not me!']), 2.2); setTimeout(() => R && near(k.x, k.y, 320) && O.Speech && O.Speech.say(R.master, pick(['Back to your letters, and you\'ll write it fifty times.', 'Your father will hear of this.', 'The rod for you, my lad.']), 2.6), 2400); }
+          if (R.ct > 5) { const b = R.b, kid = R.kids[0], ma = R.master; end(); O.Errands.send(s, ma, [b.doorX, b.doorY + 1], { anim: 'idle', secs: 0.2, face: 3, giveUp: game.t + 60 }); setTimeout(() => O.Errands.send(s, kid, [b.doorX, b.doorY + 1], { anim: 'idle', secs: 0.2, face: 3, giveUp: game.t + 60 }), 250); } }
+        return; }
+      cool -= dt; if (cool > 0) return; cool = 200 + Math.random() * 200; if (hr < 9 || hr > 12.5 || s.season === 'winter') return; const W = s.weather; if (W && W.raining) return;
+      const sc = school(s); if (!sc) return; const [b, bz] = sc;
+      const kids = s.people.filter((q) => able(q) && q.age >= 8 && q.age <= 12 && !q.agent.hidden && q.agent.inside == null && near(q.agent.x, q.agent.y, 360)); if (kids.length < 2) return;
+      const master = (bz.workers || []).concat(bz.owner != null ? [bz.owner] : []).map((id) => s.byId.get(id)).find((q) => able(q) && q.age >= 18 && !q._office && !q._scene); if (!master) return;
+      const two = kids.slice(0, 3), k0 = two[0].agent, tx = Math.floor(k0.x / T), ty = Math.floor(k0.y / T);
+      for (const q of two) q._truant = true; R = { s, b, bz, master, kids: two, t: 0, phase: 'gather' };
+      two.forEach((q, i) => O.Errands.send(s, q, [tx + (i % 2 ? 1 : -1) * (1 + (i >> 1)), ty + (i >> 1)], { anim: 'idle', secs: 0.1, face: 0, giveUp: game.t + 25, after: (ok) => { if (!R) return; if (!ok) { end(); return; } q.agent.frozen = true; q.agent.path = null; q.agent.dir = i % 2 ? 2 : 1; if (R.kids.every((x) => x.agent.frozen) && R.phase === 'gather') { R.phase = 'play'; R.t = 0;
+        // the master comes out of the school and up the lane after them
+        const m = R.master.agent; R.master._truant = true; if (m.inside != null) { m.inside = null; m.hidden = false; m.x = b.doorX * T + 8; m.y = (b.doorY + 1) * T + 8; }
+        if (R.master.errand) O.Errands.finish(R.master, false); m.path = null; m.frozen = true; m.stuck = 0;
+        const k = R.kids[0].agent; if (Math.hypot(m.x - k.x, m.y - k.y) > 420) { const w = s.world; for (let tries = 0; tries < 30; tries++) { const a = Math.random() * Math.PI * 2, x = k.x + Math.cos(a) * 300, y = k.y + Math.sin(a) * 200, i = Math.floor(y / T) * w.W + Math.floor(x / T); if (!w.solid[i] && w.ter[i] !== w.TER.WATER) { m.x = x; m.y = y; break; } } } } } }));
+    });
+    // the marbles in the dirt while they play; the rod in the master's hand
+    game.hooks.drawWorld.push((ctx, cam) => { if (!R || game.scene || R.s !== cur()) return;
+      if (R.phase === 'play' || R.phase === 'gather') { const k = R.kids[0].agent, x = Math.round(k.x - cam.x) + (R.kids[0].agent.dir === 2 ? -12 : 10), y = Math.round(k.y - cam.y) + 1; for (let i = 0; i < 4; i++) { ctx.fillStyle = ['#c84030', '#3060c8', '#e0e0d0', '#40a050'][i]; ctx.fillRect(x - 3 + (i * 3) % 7, y - 1 + (i % 2) * 2, 2, 2); } }
+      const m = R.master.agent; if (!m.hidden && m.inside == null) { const x = Math.round(m.x - cam.x) + (m.dir === 1 ? -6 : 6), y = Math.round(m.y - cam.y); ctx.strokeStyle = '#7a5a30'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, y - 14); ctx.lineTo(x + (m.dir === 1 ? -3 : 3), y - 26); ctx.stroke(); } });
+    (O.extraLines = O.extraLines || []).push((s, q) => !R || !q._truant ? '' : q === R.master ? 'You are the schoolmaster and you have come out after truants who should be at their lessons.' : 'You are playing truant from school, and you are in trouble if the master catches you.');
+    // you can send them packing back to their lessons yourself
+    let sent = 0;
+    (O.moreCandidates = O.moreCandidates || []).push(() => { const P = game.player; if (!R || R.phase !== 'play' || game.scene || P.locked) return null; const k = R.kids[0].agent; if (Math.hypot(k.x - P.x, k.y - P.y) > 36) return null;
+      return { type: 'custom', d: 36, x: k.x, y: k.y - 26, label: 'Send the truants back to their lessons', act: () => { const s = cur(); if (!R || !s) return; const kids = R.kids.slice(), b = R.b; sent++; end(); O.Speech && O.Speech.say(kids[0], pick(['Aww! We were only playing!', 'Don\'t tell the master! Please!', 'Run for it!']), 2);
+        kids.forEach((q, i) => setTimeout(() => O.Errands.send(s, q, [b.doorX, b.doorY + 1], { anim: 'idle', secs: 0.2, face: 3, sprint: true, giveUp: game.t + 60 }), i * 200)); O.UI && O.UI.say && O.UI.say('You send them off with a word about their lessons, and they scamper back toward school.', 'good'); } }; });
+    O.Truants = { get sent() { return sent; }, get run() { return R; }, get caught() { return caught; }, soon: () => { cool = 0; } };
+  }
+  O.TruantsSetup = { setup };
+})();
+
+</script>
+<script>
+// The leper at the town's end. Outside most towns, where the road comes in, a figure sits in a grey hooded
+// cloak by day with a wooden clapper and a bowl on the end of a long pole, so that nobody need come near.
+// He clacks the clapper when folk pass and cries for alms; they swing wide around him on the road, and
+// now and then one stops at a pole's length and drops a coin in the bowl. You can give too.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const cur = () => O.SimRef.cur, PS = O.PlayerState;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    const seat = new WeakMap(), coins = []; let gifts = 0, acc = 0, warned = 0, lastSaid = -99;
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    function spot(s) { if (seat.has(s)) return seat.get(s); const w = s.world; let best = null;
+      if (w.ox != null) { const R = (t) => t === w.TER.ROAD || t === w.TER.COBBLE; outer: for (let d = 2; d < 7; d++) for (let tx = w.ox - d; tx <= w.ox + w.townW + d; tx++) for (const ty of [w.oy - d, w.oy + w.townH + d]) { if (tx < 2 || ty < 2 || tx >= w.W - 2 || ty >= w.H - 2) continue; const i = ty * w.W + tx; if (!R(w.ter[i]) || w.solid[i]) continue; for (const dx of [2, -2, 3, -3]) { const j = ty * w.W + tx + dx; if (!w.solid[j] && w.ter[j] !== w.TER.WATER && !R(w.ter[j])) { best = { x: (tx + dx) * T + 8, y: ty * T + 12, rx: tx * T + 8 }; break outer; } } }
+        if (!best) outer2: for (let d = 2; d < 7; d++) for (let ty = w.oy - d; ty <= w.oy + w.townH + d; ty++) for (const tx of [w.ox - d, w.ox + w.townW + d]) { if (tx < 2 || ty < 2 || tx >= w.W - 2 || ty >= w.H - 2) continue; const i = ty * w.W + tx; if (!R(w.ter[i]) || w.solid[i]) continue; for (const dy of [2, -2]) { const j = (ty + dy) * w.W + tx; if (!w.solid[j] && w.ter[j] !== w.TER.WATER && !R(w.ter[j])) { best = { x: tx * T + 8, y: (ty + dy) * T + 12, rx: tx * T + 8 }; break outer2; } } } }
+      if (best) { const R2 = O.RNG(O.hash('leper', s.world.placeId || 1)); best.app = O.Char.makeAppearance(O.hash('leper', s.world.placeId || 1), { sex: 'm', age: 35 + Math.floor(R2.next() * 25), genes: O.Char.randomGenes(R2, 'north'), role: 'beggar', wealth: 0 }); best.agent = { x: best.x, y: best.y, hidden: false, inside: null }; best.first = 'the leper'; }
+      seat.set(s, best); return best; }
+    const here = (s) => { const hr = s.minute / 60; return hr >= 8 && hr < 18 && !(game.isNight && game.isNight()); };
+    game.hooks.update.push((dt) => {
+      for (const c of coins.slice()) { c.t += dt; if (c.t > 0.8) coins.splice(coins.indexOf(c), 1); }
+      const s = cur(); if (!s || !s.world || game.scene) return; const L = spot(s); if (!L || !here(s)) return; if (!near(L.x, L.y, 500)) return;
+      // folk on the road swing wide of him
+      for (const q of s.people) { const a = q.agent; if (!a || a.hidden || a.inside != null || a.frozen) continue; const d = Math.hypot(a.x - L.x, a.y - L.y); if (d < 34 && d > 0.1) { a.x += (a.x - L.x) / d * 30 * dt; a.y += (a.y - L.y) / d * 30 * dt; } }
+      acc += dt; if (acc < 1) return; acc = 0;
+      const passing = s.people.find((q) => q.agent && !q.agent.hidden && q.agent.inside == null && q.age >= 14 && Math.hypot(q.agent.x - L.x, q.agent.y - L.y) < 70);
+      if (passing && Math.random() < 0.25 && near(L.x, L.y, 300)) O.sfx && O.sfx('chop', 0.12);
+      if (passing && game.t - lastSaid > 14 && near(L.x, L.y, 300) && Math.random() < 0.3) { lastSaid = game.t; O.Speech && O.Speech.say(L, pick(['Alms! Alms, for the love of God!', 'Pity a poor leper, good folk.', 'A penny for the lazar, and God will remember it.']), 2.6); }
+      // someone stops at a pole's length and gives
+      if (passing && !passing.agent.frozen && Math.random() < 0.08) { try { if ((s.household(passing)?.money || 0) > 8) { s.household(passing).money -= 1; gifts++; O.gesture && O.gesture(passing, 'give', 1.2); coins.push({ x0: passing.agent.x, y0: passing.agent.y - 18, x1: L.x + 18, y1: L.y - 14, t: 0 }); if (near(L.x, L.y, 300)) setTimeout(() => O.Speech && O.Speech.say(L, 'God reward you, friend.', 2), 600); } } catch (e) { /* */ } }
+      // the player close by
+      if (near(L.x, L.y, 26) && game.t - warned > 30) { warned = game.t; O.Speech && O.Speech.say(L, pick(['Unclean! Keep back, friend. Put it in the bowl.', 'Not so close, for your own sake!']), 2.6); O.sfx && O.sfx('chop', 0.2); }
+    });
+    (O.moreCandidates = O.moreCandidates || []).push(() => { const s = cur(), P = game.player; if (!s || game.scene || P.locked) return null; const L = spot(s); if (!L || !here(s) || !near(L.x, L.y, 48)) return null;
+      return { type: 'custom', d: 48, x: L.x, y: L.y - 30, label: 'Put a coin in the leper\'s bowl', act: () => { if ((PS.money || 0) < 1) return O.UI.say('You have nothing to give.'); PS.money -= 1; PS.almsToPoor = (PS.almsToPoor || 0) + 1; gifts++; P.anim = 'give'; P.locked = true; coins.push({ x0: P.x, y0: P.y - 18, x1: L.x + 18, y1: L.y - 14, t: 0 }); setTimeout(() => { P.locked = false; P.anim = 'idle'; O.Speech && O.Speech.say(L, pick(['God bless you. Not many stop.', 'Christ keep you, and keep you clean.', 'Bless you. I\'ll eat tonight.']), 2.8); }, 900); } }; });
+    game.hooks.drawWorld.push((ctx, cam) => {
+      const s = cur(); if (!s || game.scene) return; const L = spot(s); if (!L || !here(s)) return; const x = Math.round(L.x - cam.x), y = Math.round(L.y - cam.y); if (x < -40 || y < -60 || x > ctx.canvas.width + 40 || y > ctx.canvas.height + 40) return; const tk = performance.now() / 1000;
+      try { const fr = O.Char.frame(L.app, 0, 'sit', 0); ctx.drawImage(fr, x - 16, y + 6 - O.Char.GROUND); } catch (e) { /* */ }
+      // the grey hooded cloak over all
+      const hy = y - 27 + (L.hoodY || 0); ctx.fillStyle = '#7a7a72'; ctx.fillRect(x - 5, hy - 1, 10, 4); ctx.fillRect(x - 6, hy + 2, 3, 9); ctx.fillRect(x + 3, hy + 2, 3, 9); ctx.fillRect(x - 7, hy + 10, 14, 11); ctx.fillStyle = '#8a8a82'; ctx.fillRect(x - 4, hy - 1, 8, 1); ctx.fillStyle = '#6a6a62'; ctx.fillRect(x - 7, hy + 18, 14, 2); ctx.fillRect(x - 1, hy + 10, 1, 8);
+      // the clapper, clacking
+      const cl = Math.floor(tk * 3) % 4 === 0; ctx.fillStyle = '#8a6a44'; ctx.fillRect(x + (L.x > L.rx ? -9 : 6), y - 14 - (cl ? 1 : 0), 3, 5); ctx.fillRect(x + (L.x > L.rx ? -9 : 6) + (cl ? 1 : 0), y - 15, 1, 1);
+      // the bowl on a long pole held out toward the road
+      const sx = L.rx > L.x ? 1 : -1; ctx.strokeStyle = '#6a4a2c'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x + sx * 4, y - 10); ctx.lineTo(x + sx * 20, y - 14); ctx.stroke(); ctx.fillStyle = '#5a4a3a'; ctx.fillRect(x + sx * 20 - 3, y - 16, 6, 2); ctx.fillRect(x + sx * 20 - 2, y - 14, 4, 1);
+      for (const c of coins) { const k = c.t / 0.8, cx = c.x0 + (c.x1 - c.x0) * k, cy = c.y0 + (c.y1 - c.y0) * k - Math.sin(k * Math.PI) * 14; ctx.fillStyle = '#e8c860'; ctx.fillRect(Math.round(cx - cam.x), Math.round(cy - cam.y), 2, 2); }
+    });
+    (O.extraLines = O.extraLines || []).push((s, q) => { const L = spot(s); return L && here(s) && q.agent && Math.hypot(q.agent.x - L.x, q.agent.y - L.y) < 300 ? 'A leper sits by the road at the end of town with a clapper and a bowl on a pole. You pity him and keep well clear, and give a coin when you can.' : ''; });
+    O.Leper = { seat: () => spot(cur()), get gifts() { return gifts; } };
+  }
+  O.LeperSetup = { setup };
+})();
+
+</script>
+<script>
+// The changing of the watch. At six in the morning and six at night the guard turns over outside the watch
+// house: the men coming off line up on one side and those coming on on the other, they knock fists to
+// brows, the news is passed ("All quiet?" "A drunk at the Bell, nothing worse"), the keys go across (and
+// at dusk the lantern), and the tired shift goes off home yawning while the fresh one takes up the day.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const cur = () => O.SimRef.cur;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    let C = null, changes = 0; const done = new Set();
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
+    const able = (q) => q && q.alive !== false && q.agent && !q.agent.frozen && !q.errand && !q._watch && !q._bit && !q._scene && !q._office && !talking(q) && !(q.health && q.health.illness);
+    function rel(q) { if (!q || !q.agent) return; q.agent.forceAnim = null; if (!talking(q)) q.agent.frozen = false; q._watch = false; }
+    function end(home) { if (!C) return; const c = C; C = null; for (const q of [...c.off, ...c.on]) rel(q);
+      if (home) for (const q of c.off) { const hb = c.s.building(q.home); if (hb && hb.doorX != null) O.Errands.send(c.s, q, [hb.doorX, hb.doorY + 1], { anim: 'idle', secs: 0.3, face: 0, giveUp: game.t + 90 }); } }
+    function house(s) { for (const [id, bz] of s.biz) if (bz.type === 'guard') { const b = s.building(id); if (b && b.doorX != null) return [b, bz]; } return null; }
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || !s.world || game.scene) return; const hr = s.minute / 60;
+      if (C) { C.t += dt; if (C.s !== s || C.t > 70 || [...C.off, ...C.on].some((q) => talking(q) || q.alive === false)) { end(false); return; }
+        const all = [...C.off, ...C.on];
+        if (C.phase === 'form' && (all.every((q) => q.agent.frozen) || C.t > 25)) { C.phase = 'stand'; C.st = 0; for (const q of all) if (!q.agent.frozen) { rel(q); } C.off = C.off.filter((q) => q._watch); C.on = C.on.filter((q) => q._watch); if (!C.off.length || !C.on.length) { end(false); return; } }
+        if (C.phase === 'stand') { C.st += dt; const st = C.st;
+          C.off.forEach((q, i) => { q.agent.dir = 1; q.agent.forceAnim = st < 1.6 ? 'bow' : st > 11 ? (i ? 'stretch' : 'yawn') : (i === 0 && st > 7 && st < 9 ? 'give' : (Math.floor(st / 3) + i) % 3 === 0 ? 'talk' : 'idle'); });
+          C.on.forEach((q, i) => { q.agent.dir = 2; q.agent.forceAnim = st < 1.6 ? 'bow' : (i === 0 && st > 7.5 && st < 9.5 ? 'take' : (Math.floor(st / 3) + i) % 3 === 1 ? 'nod' : 'idle'); });
+          if (st > 1.6 && !C.s1) { C.s1 = true; if (near(C.x, C.y, 320)) { O.Speech && O.Speech.say(C.on[0], pick(['Anything to report?', 'All quiet?', 'How was it?']), 2.2); setTimeout(() => C && O.Speech && O.Speech.say(C.off[0], C.dusk ? pick(['Quiet. A cart lost a wheel by the bridge, that\'s all.', 'Two lads fighting at the market. Sent them home with sore ears.', 'Nothing worth the telling. Keep your eyes on the tavern.']) : pick(['A drunk at the tavern, nothing worse.', 'Dogs barking all night by the mill. Nothing there.', 'Cold. Cold and quiet. You\'re welcome to it.']), 3), 2400); } }
+          if (st > 7.5 && !C.keys) { C.keys = true; if (near(C.x, C.y, 320)) { O.sfx && O.sfx('coins', 0.15); O.Speech && O.Speech.say(C.off[0], C.dusk ? 'The keys, and the lantern. She\'s yours.' : 'The keys. I\'m for my bed.', 2.4); } }
+          if (st > 13) { changes++; end(true); } }
+        return; }
+      // six in the morning and six at night, if you are about the watch house
+      const shift = hr >= 17.85 && hr < 18.3 ? 'dusk' : hr >= 5.85 && hr < 6.3 ? 'dawn' : null; if (!shift) return; const key = s.day + shift; if (done.has(key)) return;
+      const H = house(s); if (!H) return; const [b, bz] = H; if (!near(b.doorX * T, b.doorY * T, 520)) return; done.add(key);
+      const men = (bz.workers || []).map((id) => s.byId.get(id)).filter((q) => q && able(q) && /guard/.test(q.job?.role || ''));
+      const goingOff = shift === 'dusk' ? 'day' : 'night', off = men.filter((q) => (q.shift || 'day') === goingOff).slice(0, 2), on = men.filter((q) => (q.shift || 'day') !== goingOff).slice(0, 2); if (!off.length || !on.length) return;
+      const x = b.doorX * T + 8, y = (b.doorY + 2) * T + 8; C = { s, b, off, on, t: 0, phase: 'form', x, y, dusk: shift === 'dusk' };
+      const w = s.world; [...off.map((q, i) => [q, -2 - i]), ...on.map((q, i) => [q, 2 + i])].forEach(([q, dx]) => { q._watch = true; const a = q.agent; if (a.inside != null) { const hb = s.building(a.inside); if (hb && hb.doorX != null) { a.x = hb.doorX * T + 8; a.y = (hb.doorY + 1) * T + 8; } a.inside = null; a.hidden = false; }
+        let tx = b.doorX + dx, ty = b.doorY + 2; if (w.solid[ty * w.W + tx]) ty = b.doorY + 1;
+        O.Errands.send(s, q, [tx, ty], { anim: 'idle', secs: 0.1, face: dx < 0 ? 1 : 2, giveUp: game.t + 25, after: (ok) => { if (!C || !q._watch) return; if (!ok) { rel(q); return; } a.frozen = true; a.path = null; } }); });
+    });
+    // the lantern handed across at dusk, and the keys on their ring
+    game.hooks.drawWorld.push((ctx, cam) => { if (!C || game.scene || C.s !== cur() || C.phase !== 'stand') return; const who = C.st > 8.5 ? C.on[0] : C.off[0]; if (!who || !who.agent) return; const a = who.agent, x = Math.round(a.x - cam.x) + (a.dir === 1 ? 5 : -6), y = Math.round(a.y - cam.y) - 14;
+      ctx.fillStyle = '#8a8a90'; ctx.fillRect(x, y, 3, 1); ctx.fillRect(x + 1, y + 1, 1, 3); if (C.dusk) { ctx.fillStyle = '#3a3a3a'; ctx.fillRect(x - 1, y - 9, 5, 7); ctx.fillStyle = Math.floor(performance.now() / 150) % 2 ? '#f0c060' : '#e0a040'; ctx.fillRect(x, y - 8, 3, 5); } });
+    (O.extraLines = O.extraLines || []).push((s, q) => !C || !q._watch ? '' : C.off.includes(q) ? 'You are handing over the watch at the end of your shift, and you are tired and want your bed.' : 'You are coming on watch and taking over from the shift going off.');
+    O.WatchChange = { get change() { return C; }, get changes() { return changes; }, done };
+  }
+  O.WatchChangeSetup = { setup };
+})();
+
+</script>
+<script>
+// Coming out from the christening. When the little one has been carried to the font and named, the family
+// comes out of the chapel door into the light: the mother with the baby in its christening shawl, the
+// godparents, the brothers and sisters in their clean clothes, the priest on the step blessing them; and
+// the father, if he can spare it, flings a handful of pennies into the lane, and every child in earshot
+// comes running and scrambling in the dirt for them.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const cur = () => O.SimRef.cur;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    let X = null, held = 0; const coins = [];
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
+    const able = (q) => q && q.alive !== false && q.agent && !q.agent.frozen && !q.errand && !q._christ && !q._bit && !q._scene && !talking(q);
+    function rel(q) { if (!q || !q.agent) return; q.agent.forceAnim = null; if (!talking(q)) q.agent.frozen = false; q._christ = false; }
+    function end() { if (!X) return; const x = X; X = null; for (const q of x.fam) rel(q); if (x.priest) rel(x.priest);
+      const hb = x.s.building(x.mum.home); if (hb && hb.doorX != null) x.fam.forEach((q, i) => setTimeout(() => O.Errands.send(x.s, q, [hb.doorX, hb.doorY + 1], { anim: 'idle', secs: 0.3, face: 0, giveUp: game.t + 90 }), i * 300)); }
+    function out(s, q, b, dx, dy) { const a = q.agent; a.inside = null; a.hidden = false; a.path = null; a.x = (b.doorX + dx) * T + 8; a.y = (b.doorY + 1 + dy) * T + 8; a.frozen = true; q._christ = true; }
+    game.hooks.update.push((dt) => {
+      for (const c of coins.slice()) { c.t += dt; if (c.t < 0.7) { c.x += c.vx * dt; c.y += c.vy * dt; c.vy += 260 * dt; } else if (!c.landed) { c.landed = true; c.y = c.gy; } if (c.t > 14 || c.got) coins.splice(coins.indexOf(c), 1); }
+      const s = cur(); if (!s || !s.world || game.scene) return; const hr = s.minute / 60;
+      if (X) { X.t += dt; if (X.s !== s || X.t > 40 || X.fam.some((q) => talking(q))) { end(); return; }
+        X.fam.forEach((q, i) => { const a = q.agent; if (!a.frozen) return; a.dir = 0; a.forceAnim = q === X.dad ? (X.t > 4 && X.t < 6 ? 'pitch' : X.t > 6 ? 'laugh' : 'idle') : q === X.mum ? (Math.floor(X.t * 0.6) % 3 === 0 ? 'nod' : 'idle') : q === X.dad ? (X.t > 4 && X.t < 6 ? 'pitch' : X.t > 6 ? 'laugh' : 'idle') : (Math.floor(X.t / 3 + i) % 3 === 0 ? 'wave' : 'idle'); });
+        if (X.priest) { X.priest.agent.dir = 0; X.priest.agent.forceAnim = X.t < 3.5 ? 'pray' : 'idle'; }
+        if (!X.blessed && X.t > 0.8) { X.blessed = true; if (near(X.x, X.y, 320) && X.priest) O.Speech && O.Speech.say(X.priest, `God keep the child ${X.babe.first || ''}, and all of you.`.replace('  ', ' '), 2.6); }
+        if (!X.thrown && X.t > 4.4) { X.thrown = true;
+          if (X.dad) { let ok = true; try { const hh = s.household(X.mum); if (hh && hh.money > 6) hh.money -= 2; else ok = false; } catch (e) { /* */ } if (ok) {
+            if (near(X.x, X.y, 320)) O.Speech && O.Speech.say(X.dad, pick(['Pennies for the bairns! For the baby\'s luck!', 'Here, you rascals! Drink the child\'s health!', 'Scramble for it!']), 2.4); O.sfx && near(X.x, X.y, 320) && O.sfx('coins', 0.3);
+            const da = X.dad.agent; for (let i = 0; i < 9; i++) coins.push({ s, x: da.x, y: da.y - 18, vx: (Math.random() - 0.5) * 140, vy: -70 - Math.random() * 50, gy: da.y + 10 + Math.random() * 40, t: 0 });
+            // every child in earshot comes running
+            const kids = s.people.filter((q) => able(q) && q.age >= 4 && q.age <= 13 && !q.agent.hidden && q.agent.inside == null && Math.hypot(q.agent.x - X.x, q.agent.y - X.y) < 380).slice(0, 5);
+            kids.forEach((q, i) => { q._christ = true; const c = coins[coins.length - 1 - i] || coins[0]; const tx = Math.floor((c.x + c.vx * 0.7) / T), ty = Math.floor(c.gy / T); O.Errands.send(s, q, [tx, ty], { anim: 'pickup', secs: 1.2, face: 0, sprint: true, giveUp: game.t + 20, after: (ok) => { q._christ = false; if (ok) { const cc = coins.find((o) => o.landed && !o.got && Math.hypot(o.x - q.agent.x, o.y - q.agent.y) < 40); if (cc) cc.got = true; O.gesture && O.gesture(q, 'celebrate', 1.4); if (i === 0 && near(q.agent.x, q.agent.y, 300)) O.Speech && O.Speech.say(q, pick(['I got one! I got one!', 'That\'s MINE!', 'A whole penny!']), 1.8); } } }); });
+            held++; } } }
+        if (X.t > 16) end();
+        return; }
+      const e = (s.npcEvents || []).find((v) => v.kind === 'christening' && v.day === s.day && !v._out && hr >= v.to - 0.08 && hr < v.to + 0.5); if (!e) return; const b = s.building(e.b); if (!b || b.doorX == null || !near(b.doorX * T, b.doorY * T, 480)) return; e._out = true;
+      const mum = s.byId.get(e.host); if (!mum || !able(mum)) return; const hh = s.household(mum);
+      const babe = (hh ? hh.members : []).map((id) => s.byId.get(id)).find((q) => q && q.age === 0) || { first: '' };
+      const fam = [mum, ...(hh ? hh.members : []).map((id) => s.byId.get(id)).filter((q) => q && q !== mum && q.age >= 3 && able(q))].slice(0, 5);
+      const dad = fam.find((q) => q !== mum && q.sex === 'm' && q.age >= 18) || fam.find((q) => q !== mum && q.age >= 16) || mum;
+      const bz = s.biz.get(e.b), priest = ((bz && bz.workers) || []).map((id) => s.byId.get(id)).find(able) || null;
+      const spots = [[0, 1], [-1, 1], [1, 1], [-1, 2], [1, 2]]; fam.forEach((q, i) => out(s, q, b, spots[i][0], spots[i][1]));
+      mum.agent.carrying = 'babe'; if (priest) out(s, priest, b, 0, 0);
+      X = { s, e, b, mum, dad, fam, priest, babe, t: 0, x: b.doorX * T + 8, y: (b.doorY + 2) * T };
+    });
+    game.hooks.drawWorld.push((ctx, cam) => { const s = cur(); if (!s || game.scene) return; for (const c of coins) { if (c.s !== s) continue; const x = Math.round(c.x - cam.x), y = Math.round(c.y - cam.y); ctx.fillStyle = c.landed && Math.floor(performance.now() / 300 + c.gy) % 5 === 0 ? '#fff0b0' : '#d8b040'; ctx.fillRect(x, y, 2, c.landed ? 1 : 2); }
+      // the christening shawl, white with a lace edge, on the mother's shoulder
+      if (X && X.s === s && X.mum.agent) { const a = X.mum.agent, x = Math.round(a.x - cam.x), y = Math.round(a.y - cam.y) - 20; ctx.fillStyle = '#f4f0e8'; ctx.fillRect(x - 1, y, 6, 4); ctx.fillStyle = '#d8d0c0'; ctx.fillRect(x - 1, y + 3, 6, 1); } });
+    (O.extraLines = O.extraLines || []).push((s, q) => !X || !X.fam.includes(q) ? '' : q === X.mum ? `Your baby ${X.babe.first || ''} has just been christened and you are coming out of the chapel with the family, proud and happy.` : q === X.dad ? 'Your child has just been christened, and you have thrown pennies for the children for luck.' : 'You have just come out of a christening in the family, in your best clothes.');
+    O.Christening = { get scene() { return X; }, get held() { return held; }, coins };
+  }
+  O.ChristeningSetup = { setup };
+})();
+
+</script>
+<script>
+// What happens at the work. Every post has its marked places to go to, and now each place can turn up
+// something of its own, as work does: the ewe caught by the fleece in the brambles, the cow that puts her
+// foot in the pail, the letter for a house where nobody answers and a neighbour takes it in, the grave that
+// turns up an old bone, the chimney that drops a jackdaw's nest on your head, a coin found in the straw. Some
+// cost you a scratch; some leave you a tip or a little find; most are just the life of the job.
+'use strict';
+(function () {
+  function setup(game) {
+    const cur = () => O.SimRef.cur, PS = O.PlayerState;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    let was = false, count = 0; const log = { coin: 0, item: 0, hurt: 0, said: 0 };
+    // [what happens, a line someone near says (or null), the effect]
+    const INC = {
+      shepherd: [['A ewe has her fleece caught fast in the brambles. You work her free, and she bolts without a word of thanks.', null, null], ['One of the lambs has strayed off alone, crying. You carry it back under your arm to its mother.', 'Bless you, I\'d lost count of that one.', null], ['You find a tuft of good wool caught on the fence and stuff it in your pocket.', null, { item: 'wool' }]],
+      dairymaid: [['The cow puts her foot square in the pail. Half the milk across the straw.', 'She does that. Kick her back, she won\'t care.', null], ['The cat sits beside you through the milking, waiting for a squirt. You oblige.', null, null], ['A farm wife buys a jug of the warm milk straight from the pail.', null, { coin: 1 }]],
+      beekeeper: [['A bee gets up your sleeve and stings you for your trouble.', null, { hurt: 1 }], ['The comb in this one is heavy and golden. A good hive.', null, { item: 'honey' }]],
+      gravedigger: [['Your spade turns up an old bone, brown as a root. You set it back in the corner of the grave with a word.', null, null], ['A widow stands at the edge and watches you dig without a word, then puts a coin in your hand and goes.', null, { coin: 1 }], ['You hit a great stone and it takes you an age to lever out.', null, { hurt: 1 }]],
+      messenger: [['Nobody answers at this door. A neighbour leans out and takes the letter in for them.', 'I\'ll see they get it. Is it bad news?', null], ['The woman reads the letter there on the step and bursts into tears. Good news, she says. Her son is alive.', 'Oh, God be thanked! Wait, here, for your trouble.', { coin: 1 }], ['A dog sees you off the step with its teeth.', null, { hurt: 1 }]],
+      'mounted courier': [['The man you bring it to scribbles an answer on the back and bids you wait for it.', 'Take this back with you, and quick.', null], ['A farmer flags you down for news from the road.', 'What news from the town? Is there war?', null]],
+      'chimney sweep': [['A jackdaw\'s nest comes down the flue on your head, sticks and soot and all.', null, null], ['You come out black from hat to boots. The children in the lane shriek and run from you.', 'The bogeyman! The bogeyman!', null], ['The goodwife gives you bread and dripping for leaving her hearth so clean.', null, { item: 'bread' }]],
+      'rat-catcher': [['A big one goes for your hand before you get the stick on it.', null, { hurt: 1 }], ['The housewife pays you a penny a tail on top, she\'s so glad to see the back of them.', null, { coin: 1 }]],
+      lamplighter: [['A child follows you lamp to lamp, watching each one catch.', 'Can I do the next one? Please?', null]],
+      'water carrier': [['You slop half a bucket down your legs on the step.', null, null], ['An old man too frail to carry asks for a dipper from your bucket and blesses you for it.', null, null]],
+      'town crier': [['Someone heckles your cry from a window.', 'Louder! We can\'t hear you over your own bell!', null], ['A crowd gathers to hear you. For once they listen to every word.', null, null]],
+      thatcher: [['A bundle of reed slides off the roof and you nearly go after it.', null, { hurt: 1 }], ['The householder sends up a mug of ale on the end of a rake.', 'Here, get that down you.', null]],
+      laundress: [['A shirt sails off the line and you chase it down the lane.', null, null], ['There\'s a coin left in the pocket of a gentleman\'s coat. Finders keepers, the other women say.', null, { coin: 1 }]],
+      groom: [['The bay mare takes a nip at your shoulder while you pick out her hoof.', null, { hurt: 1 }], ['A rider tips you for the shine on his horse.', null, { coin: 1 }]],
+      stablehand: [['You find a coin in the straw, dropped by some rider.', null, { coin: 1 }], ['The old horse at the end leans his whole weight on you while you work. Friendly.', null, null]],
+      gardener: [['You turn up a blackened old coin with the spade.', null, { coin: 1 }], ['A blackbird follows your spade for worms, close enough to touch.', null, null], ['You pick a handful of herbs from the edge of the bed.', null, { item: 'herbs' }]],
+      miner: [['A chunk of the face comes down a foot from your head.', 'Christ! Are you whole?', null], ['There\'s a fat vein of good ore here. The foreman will be pleased.', null, null]],
+      quarryman: [['A chip of stone takes you across the cheek.', null, { hurt: 1 }], ['This block splits sweet and true along the bed.', null, null]],
+      labourer: [['A splinter as long as your finger in the palm. You draw it with your teeth.', null, { hurt: 1 }], ['The foreman shares his ale skin round, and you get a good pull.', 'Drink up. It\'s hot work.', null]],
+      builder: [['A mallet slips from the scaffold above and thumps down beside you.', 'Sorry! Sorry! Look out below!', null], ['A passer-by stops to admire the wall going up.', 'That\'s fine straight work.', null]],
+      'clay digger': [['You sink to the knee in the clay and lose a shoe to it.', null, null]],
+      'peat cutter': [['A lark goes up singing from under your feet.', null, null], ['You find an old wooden bowl preserved black in the peat.', null, null]],
+      'charcoal burner': [['The stack breaks through on one side and you run to smother it with turf.', null, { hurt: 1 }]],
+      'salt boiler': [['The steam off the pan takes the skin off your knuckles.', null, { hurt: 1 }]],
+      gamekeeper: [['You find a snare set by the warren. Some poacher\'s, and fresh.', null, null], ['A hind and her calf stand and look at you across the clearing, then are gone.', null, null]],
+      ferryman: [['The passenger pays and adds a penny for a dry crossing.', null, { coin: 1 }], ['A man leans out too far to look at the fish and nearly has you all over.', null, null]],
+      'toll keeper': [['A carter argues the toll, loud and long, then pays.', 'Robbery! Plain robbery on the king\'s road!', null]],
+      'tax collector': [['A householder pays you in eggs and an apology.', null, null]],
+      'bell-ringer': [['The rope skins your palms on the backswing.', null, { hurt: 1 }]],
+      midwife: [['A safe delivery. The father, half-mad with joy, presses a coin on you.', null, { coin: 1 }]],
+      'barber-surgeon': [['The man in the chair faints clean away at the sight of his own blood.', null, null], ['A tip for a close shave.', null, { coin: 1 }]],
+      carter: [['A wheel drops into a rut to the axle and you have to heave it out.', null, { hurt: 1 }]],
+      'market warden': [['You catch a trader with a thumb on the scales.', 'I never! That\'s the scale, not me!', null]],
+    };
+    const TRADE = {
+      baking: [['A loaf comes out a little burnt at the heel. Your own supper, then.', null, { item: 'bread' }], ['A child at the door with her nose pressed to the window. You give her a crust.', null, null]],
+      smithing: [['The horse you shoe leans on you the whole time.', null, null], ['A spark goes down your shirt.', null, { hurt: 1 }]],
+      brewing: [['The master lets you taste the new brew. Strong stuff.', null, null]],
+      carpentry: [['A knot in the plank fights the saw every inch.', null, null]],
+      tailoring: [['The needle goes into your thumb to the bone.', null, { hurt: 1 }]],
+    };
+    function by(s) { const P = game.player; return s.people.find((q) => q.agent && !q.agent.hidden && !q.agent.frozen && q.age >= 6 && Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < (game.scene ? 9999 : 140) && (!game.scene || q.agent.inside === game.scene.b?.id)); }
+    function incident(s, e, bz, trade) {
+      const list = INC[e.role] || TRADE[trade]; if (!list) return; const [text, line, fx] = pick(list); count++;
+      const good = fx && (fx.coin || fx.item), bad = fx && fx.hurt; O.UI && O.UI.say && O.UI.say(text, good ? 'good' : bad ? 'bad' : undefined);
+      if (line) { const q = by(s); if (q) { setTimeout(() => O.Speech && O.Speech.say(q, line, 2.6), 700); log.said++; } }
+      if (fx && fx.coin) { PS.money = (PS.money || 0) + fx.coin; log.coin++; O.sfx && O.sfx('coins', 0.4, !!game.scene); }
+      if (fx && fx.item && O.Data.GOODS[fx.item] && PS.canCarry(fx.item)) { PS.add(fx.item); log.item++; }
+      if (fx && fx.hurt) { game.player.anim = 'hurt'; log.hurt++; O.sfx && O.sfx('hurt', 0.3, !!game.scene); }
+    }
+    game.hooks.update.push(() => {
+      const s = cur(); if (!s || !O.Employment || !O.Employment.here) return; const e = O.Employment.here(); const working = !!(e && e.onShift && game.player.locked && e.place === s.world.placeId);
+      if (was && !working && e) { const bz = s.biz.get(e.biz), trade = bz && O.tradeOf ? O.tradeOf(e, bz) : null; if (Math.random() < 0.2) incident(s, e, bz, trade); }
+      was = working;
+    });
+    O.JobIncidents = { log, INC, TRADE, get count() { return count; }, fire: () => { const s = cur(), e = O.Employment.here(); if (!e) return false; const bz = s.biz.get(e.biz); incident(s, e, bz, bz && O.tradeOf ? O.tradeOf(e, bz) : null); return true; } };
+  }
+  O.JobIncidentsSetup = { setup };
+})();
+
+</script>
+<script>
+// Shrove Tuesday. On the last day before Lent the town lets go: in the afternoon the men and lads turn out
+// for the camp-ball, a whole mob of them after a pig's bladder through the streets, one end of the town
+// against the other, shoving and tumbling, with the goals at the two ends and the old folk shouting from
+// the doorways; the ball goes where it likes and so do they. And at the doors the women toss pancakes, the
+// last of the eggs and butter, high off the pan. If you get near the ball, you kick it too.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const cur = () => O.SimRef.cur;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    let G = null, forced = false, games = 0; const flips = [];
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
+    const able = (q) => q && q.alive !== false && q.agent && !q.agent.frozen && !q.errand && !q._shrove && !q._bit && !q._scene && !talking(q) && !(q.health && q.health.illness);
+    const shroveDay = (s) => forced || (s.season === 'winter' && ((s.weather && s.weather.dayOfSeason) || 0) === 13);
+    function rel(q) { if (!q || !q.agent) return; q.agent.forceAnim = null; if (!talking(q)) q.agent.frozen = false; q._shrove = false; }
+    function end() { if (!G) return; for (const m of G.men) rel(m.q); for (const c of G.cooks) rel(c.q); G = null; }
+    function step(a, tx, ty, v, dt) { const dx = tx - a.x, dy = ty - a.y, d = Math.hypot(dx, dy); if (d < 1) return; const st = Math.min(d, v * dt), nx = a.x + dx / d * st, ny = a.y + dy / d * st; a.stuck = a.stuck || 0;
+      if (!game.solidAt(nx, ny - 2) || a.stuck > 1.5) { a.x = nx; a.y = ny; if (a.stuck > 1.5 && !game.solidAt(nx, ny - 2)) a.stuck = 0; } else if (!game.solidAt(nx, a.y - 2)) a.x = nx; else if (!game.solidAt(a.x, ny - 2)) a.y = ny; else a.stuck += dt; a.dir = O.dirOf(dx, dy); }
+    function begin(s) { if (!s.Z || !s.Z.square) return false; const [x0, y0, x1, y1] = s.Z.square, cx = (x0 + x1) * 8 + 8, cy = (y0 + y1) * 8 + 8;
+      const pool = s.people.filter((q) => able(q) && q.age >= 14 && q.age <= 50 && (q.sex === 'm' || q.age < 20) && q.agent.inside == null && !q.agent.hidden && Math.hypot(q.agent.x - cx, q.agent.y - cy) < 900).slice(0, 14); if (pool.length < 6) return false;
+      const w = s.world, goal = (dir) => { for (let d = 26; d > 8; d--) { const tx = Math.floor(cx / T) + dir * d, ty = Math.floor(cy / T); if (tx > 2 && tx < w.W - 2 && !w.solid[ty * w.W + tx]) return tx * T + 8; } return cx + dir * 140; };
+      G = { s, ball: { x: cx, y: cy, vx: 0, vy: 0 }, men: pool.map((q, i) => ({ q, side: i % 2 ? 1 : -1, off: [(Math.random() - 0.5) * 30, (Math.random() - 0.5) * 24], cool: 0 })), goals: [goal(-1), goal(1)], cy, score: [0, 0], t: 0, cooks: [], cheer: 0 };
+      for (const m of G.men) { const a = m.q.agent; m.q._shrove = true; a.frozen = true; a.path = null; a.stuck = 0; if (Math.hypot(a.x - cx, a.y - cy) > 400) { a.x = cx + (Math.random() - 0.5) * 200; a.y = cy + (Math.random() - 0.5) * 120; if (game.solidAt(a.x, a.y - 2)) { a.x = cx; a.y = cy; } } }
+      // the women at their doors with the pans
+      for (const b of w.buildings) { if (G.cooks.length >= 3) break; if (b.type !== 'house' || b.doorX == null || Math.hypot(b.doorX * T - game.player.x, b.doorY * T - game.player.y) > 380) continue; const q = s.people.find((x) => x.home === b.id && x.sex === 'f' && x.age >= 16 && able(x)); if (!q) continue; const a = q.agent; a.inside = null; a.hidden = false; a.x = b.doorX * T + 8; a.y = (b.doorY + 1) * T + 8; a.frozen = true; a.path = null; a.dir = 0; q._shrove = true; G.cooks.push({ q, next: 1 + Math.random() * 3 }); }
+      if (near(cx, cy, 500)) { const c = G.men[0].q; O.Speech && O.Speech.say(c, 'The ball\'s up! East end against west!', 2.6); O.sfx && O.sfx('handbell', 0.3); }
+      games++; return true; }
+    game.hooks.update.push((dt) => {
+      for (const f of flips.slice()) { f.t += dt; if (f.t > 1.1) flips.splice(flips.indexOf(f), 1); }
+      const s = cur(); if (!s || !s.world || game.scene) return; const hr = s.minute / 60;
+      if (G) { G.t += dt; if (G.s !== s || hr >= 16.5 || G.men.filter((m) => m.q._shrove).length < 4) { end(); return; }
+        const B = G.ball; B.x += B.vx * dt; B.y += B.vy * dt; const fr = Math.pow(0.35, dt); B.vx *= fr; B.vy *= fr; if (game.solidAt(B.x, B.y - 2)) { B.x -= B.vx * dt * 2; B.y -= B.vy * dt * 2; B.vx *= -0.6; B.vy *= -0.6; if (game.solidAt(B.x, B.y - 2)) { B.x = G.goals[0] / 2 + G.goals[1] / 2; B.y = G.cy; } }
+        // a goal
+        for (const [i, gx] of G.goals.entries()) if ((i === 0 && B.x < gx) || (i === 1 && B.x > gx)) { G.score[1 - i]++; G.cheer = 4; const sc = G.men.find((m) => m.side === (i === 0 ? -1 : 1) * -1) || G.men[0]; if (near(B.x, B.y, 520)) { O.Speech && O.Speech.say(sc.q, pick(['GOAL! GOAL!', 'Ours! It\'s ours!', 'Get in there!']), 2); O.sfx && O.sfx('handbell', 0.4); } B.x = (G.goals[0] + G.goals[1]) / 2; B.y = G.cy; B.vx = B.vy = 0; break; }
+        if (G.cheer > 0) G.cheer -= dt;
+        for (const m of G.men) { const q = m.q, a = q.agent; if (!q._shrove) continue; if (talking(q)) { rel(q); continue; } m.cool -= dt;
+          if (G.cheer > 0) { a.forceAnim = 'celebrate'; continue; }
+          const tx = B.x + m.off[0] * (Math.hypot(a.x - B.x, a.y - B.y) < 40 ? 0.3 : 1), ty = B.y + m.off[1] * 0.6; step(a, tx, ty, 58 + (q.id % 5) * 4, dt); a.forceAnim = 'run';
+          if (Math.hypot(a.x - B.x, a.y - B.y) < 9 && m.cool <= 0) { m.cool = 0.6 + Math.random() * 0.5; const toward = m.side > 0 ? G.goals[1] : G.goals[0]; const ang = Math.atan2(G.cy - B.y + (Math.random() - 0.5) * 60, toward - B.x) + (Math.random() - 0.5) * 1.6; const v = 90 + Math.random() * 70; B.vx = Math.cos(ang) * v; B.vy = Math.sin(ang) * v * 0.7; a.forceAnim = 'attack'; if (Math.random() < 0.25 && near(a.x, a.y, 260)) O.sfx && O.sfx('smack', 0.15);
+            if (Math.random() < 0.06) { a.forceAnim = 'hurt'; m.cool = 1.6; if (near(a.x, a.y, 260)) O.Speech && O.Speech.say(q, pick(['Ow! My shin!', 'Who did that?!', 'Get off me, you great ox!']), 1.8); } } }
+        // you can kick it too
+        const P = game.player; if (!P.locked && Math.hypot(P.x - B.x, P.y - B.y) < 10 && !(G.pc > 0)) { const d = O.Char.DIRV ? O.Char.DIRV[P.dir] || [1, 0] : [1, 0]; B.vx = d[0] * 150 + (Math.random() - 0.5) * 30; B.vy = d[1] * 110; G.pc = 0.5; G.kicks = (G.kicks || 0) + 1; O.sfx && O.sfx('smack', 0.25); } if (G.pc > 0) G.pc -= dt;
+        // pancakes tossed at the doors
+        for (const c of G.cooks) { const a = c.q.agent; if (!c.q._shrove) continue; c.next -= dt; a.forceAnim = c.next < 0.6 ? 'cook' : 'idle'; if (c.next <= 0) { c.next = 3 + Math.random() * 4; flips.push({ s, x: a.x + 6, y: a.y - 14, t: 0 }); if (Math.random() < 0.3 && near(a.x, a.y, 260)) O.Speech && O.Speech.say(c.q, pick(['Up she goes!', 'Who wants a pancake?', 'Mind the floor... oh, blast it.']), 1.8); } }
+        return; }
+      if (!shroveDay(s) || hr < 13 || hr >= 16 || (s.weather && s.weather.raining)) return; if (s._shroveDone === s.day && !forced) return; if (!s.Z || !s.Z.square) return; const [x0, y0, x1, y1] = s.Z.square; if (!near((x0 + x1) * 8, (y0 + y1) * 8, 700)) return;
+      s._shroveDone = s.day; begin(s); forced = false;
+    });
+    game.hooks.drawWorld.push((ctx, cam) => { if (game.scene) return; const s = cur();
+      if (G && G.s === s) { const B = G.ball, x = Math.round(B.x - cam.x), y = Math.round(B.y - cam.y); ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(x - 3, y + 1, 7, 2); const h = Math.min(6, Math.hypot(B.vx, B.vy) / 25); ctx.fillStyle = '#e8d8b0'; ctx.fillRect(x - 3, y - 5 - h, 6, 5); ctx.fillStyle = '#c8b088'; ctx.fillRect(x - 2, y - 2 - h, 4, 1); ctx.fillStyle = '#8a6a44'; ctx.fillRect(x, y - 6 - h, 1, 1);
+        // the goal marks at the two ends: a post with a rag
+        for (const gx of G.goals) { const px = Math.round(gx - cam.x), py = Math.round(G.cy - cam.y); ctx.fillStyle = '#6a4a2c'; ctx.fillRect(px, py - 26, 2, 26); ctx.fillStyle = gx < B.x ? '#c83030' : '#3050c8'; ctx.fillRect(px + 2, py - 26, 6, 4); } }
+      for (const f of flips) { if (f.s !== s) continue; const k = f.t / 1.1, x = Math.round(f.x - cam.x), y = Math.round(f.y - cam.y - Math.sin(k * Math.PI) * 18); ctx.fillStyle = '#d8a850'; const w = Math.max(1, Math.round(5 * Math.abs(Math.cos(k * Math.PI * 3)))); ctx.fillRect(x - Math.floor(w / 2), y, w, 2); ctx.fillStyle = '#3a3a3a'; ctx.fillRect(Math.round(f.x - cam.x) - 3, Math.round(f.y - cam.y) + 2, 7, 1); } });
+    (O.extraLines = O.extraLines || []).push((s, q) => !G || !q._shrove ? (shroveDay(s) ? 'It is Shrove Tuesday, the last day before Lent: pancakes, and the camp-ball in the streets this afternoon.' : '') : G.cooks.some((c) => c.q === q) ? 'It is Shrove Tuesday and you are tossing pancakes at your door.' : `You are playing in the Shrovetide camp-ball through the streets, muddy and bruised and loving it. The score is ${G.score[0]} to ${G.score[1]}.`);
+    O.Shrovetide = { get game() { return G; }, get games() { return games; }, force: () => { forced = true; const s = cur(); if (s) s._shroveDone = -1; }, stop: end };
+  }
+  O.ShrovetideSetup = { setup };
+})();
+
+</script>
+<script>
+// Plough Monday. Early in the new year, before the ploughing starts again, the ploughboys drag a plough
+// dressed in ribbons through the town from door to door, two in the traces and one with the box, crying
+// "A penny for the ploughboys!" Most give; and if a house won't, the lads plough a furrow across its
+// doorstep for meanness, and leave it there for all to see.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const cur = () => O.SimRef.cur;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    let R = null, forced = false, given = 0, ploughed = 0; const furrows = [];
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
+    const able = (q) => q && q.alive !== false && q.agent && !q.agent.frozen && !q.errand && !q._plough && !q._bit && !q._scene && !talking(q);
+    const theDay = (s) => forced || (s.season === 'winter' && ((s.weather && s.weather.dayOfSeason) || 0) === 1);
+    function rel(q) { if (!q || !q.agent) return; q.agent.forceAnim = null; if (!talking(q)) q.agent.frozen = false; q._plough = false; }
+    function end() { if (!R) return; for (const q of R.lads) rel(q); if (R.host) rel(R.host); R = null; }
+    function step(a, tx, ty, v, dt) { const dx = tx - a.x, dy = ty - a.y, d = Math.hypot(dx, dy); if (d < 1.5) return d; const st = Math.min(d, v * dt), nx = a.x + dx / d * st, ny = a.y + dy / d * st; a.stuck = a.stuck || 0;
+      if (!game.solidAt(nx, ny - 2) || a.stuck > 1.2) { a.x = nx; a.y = ny; } else if (!game.solidAt(nx, a.y - 2)) a.x = nx; else if (!game.solidAt(a.x, ny - 2)) a.y = ny; else a.stuck += dt; a.dir = O.dirOf(dx, dy); return d; }
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || !s.world || game.scene) return; const hr = s.minute / 60;
+      if (R) { R.t += dt; if (R.s !== s || R.t > 240 || R.lads.some((q) => talking(q) || q.alive === false)) { end(); return; }
+        const [lead, ...rest] = R.lads, la = lead.agent, door = R.doors[R.i];
+        if (!door) { end(); return; }
+        const dx = door.doorX * T + 8, dy = (door.doorY + 2) * T + 4;
+        if (R.phase === 'walk') { const d = step(la, dx, dy, 30, dt); la.forceAnim = 'walk'; rest.forEach((q, i) => { const a = q.agent, tx = la.x - (i + 1) * 11 * Math.sign((la.x - (R.px ?? la.x)) || 1), ty = la.y + (i % 2 ? 4 : -2); step(a, tx, ty, 34, dt); a.forceAnim = 'walk'; }); R.px = la.x;
+          if (d < 2 || R.wt > 30) { R.phase = 'knock'; R.k = 0; R.wt = 0; } else R.wt = (R.wt || 0) + dt; }
+        if (R.phase === 'knock') { R.k += dt; la.dir = 3; la.forceAnim = R.k < 1.5 ? 'open' : 'idle'; for (const q of rest) q.agent.forceAnim = 'idle';
+          if (R.k > 0.3 && !R.cried) { R.cried = true; if (near(la.x, la.y, 320)) O.Speech && O.Speech.say(lead, pick(['A penny for the ploughboys!', 'God speed the plough! A penny, mistress!', 'Remember the ploughboys!']), 2.6); }
+          if (R.k > 2.2 && !R.host) { const h = s.people.find((q) => q.home === door.id && q.age >= 18 && able(q)); if (h) { const a = h.agent; a.inside = null; a.hidden = false; a.x = door.doorX * T + 8; a.y = (door.doorY + 1) * T + 6; a.frozen = true; a.path = null; a.dir = 0; h._plough = true; R.host = h; }
+            let pays = false; try { const hh = h ? s.household(h) : null; pays = !!(hh && hh.money > 4 && Math.random() < 0.75); if (pays) hh.money -= 1; } catch (e) { /* */ }
+            R.pays = pays; R.k = 2.2; R.phase = pays ? 'paid' : 'mean'; R.k2 = 0;
+            if (h && near(la.x, la.y, 320)) O.Speech && O.Speech.say(h, pays ? pick(['Here, and God speed it.', 'Go on then, you rogues.', 'A penny, and get that thing off my step.']) : pick(['Not a farthing! Clear off!', 'I\'ve nothing for you. Go on!']), 2.4); if (!h) R.phase = 'next'; } }
+        if (R.phase === 'paid') { R.k2 += dt; la.forceAnim = R.k2 < 1.4 ? 'take' : 'bow'; if (R.host) R.host.agent.forceAnim = R.k2 < 1.4 ? 'give' : 'idle'; if (R.k2 > 1 && !R.clink) { R.clink = true; given++; O.sfx && near(la.x, la.y, 300) && O.sfx('coins', 0.25); } if (R.k2 > 3) R.phase = 'next'; }
+        if (R.phase === 'mean') { R.k2 += dt; for (const q of rest) { q.agent.forceAnim = 'pitch'; } la.forceAnim = 'point'; if (R.host) R.host.agent.forceAnim = R.k2 < 2 ? 'shake' : 'shocked';
+          if (!R.furrow) { R.furrow = { s, day: s.day, x: door.doorX * T + 8, y: (door.doorY + 1) * T + 12, k: 0 }; furrows.push(R.furrow); ploughed++; if (near(la.x, la.y, 320)) setTimeout(() => R && O.Speech && O.Speech.say(rest[0] || lead, pick(['Plough it up, lads!', 'That\'s for your meanness!']), 2), 800); }
+          R.furrow.k = Math.min(1, R.k2 / 3); if (R.k2 > 4) R.phase = 'next'; }
+        if (R.phase === 'next') { if (R.host) { rel(R.host); R.host = null; } R.i++; R.cried = false; R.clink = false; R.furrow = null; R.phase = 'walk'; R.wt = 0; }
+        return; }
+      if (!theDay(s) || hr < 10 || hr >= 15) return; if (s._ploughDone === s.day && !forced) return;
+      const P = game.player, doors = s.world.buildings.filter((b) => b.type === 'house' && b.doorX != null && Math.hypot(b.doorX * T - P.x, b.doorY * T - P.y) < 380).sort((a, b) => a.doorX - b.doorX).slice(0, 4); if (doors.length < 2) return;
+      const lads = s.people.filter((q) => able(q) && q.sex === 'm' && q.age >= 13 && q.age <= 24 && !q.agent.hidden && q.agent.inside == null && near(q.agent.x, q.agent.y, 700)).slice(0, 3); if (lads.length < 2) return;
+      s._ploughDone = s.day; forced = false; for (const q of lads) { q._plough = true; q.agent.frozen = true; q.agent.path = null; q.agent.stuck = 0; }
+      const d0 = doors[0], la = lads[0].agent; if (Math.hypot(la.x - d0.doorX * T, la.y - d0.doorY * T) > 360) lads.forEach((q, i) => { q.agent.x = d0.doorX * T - 120 - i * 12; q.agent.y = (d0.doorY + 2) * T + 4; if (game.solidAt(q.agent.x, q.agent.y - 2)) { q.agent.x = d0.doorX * T + 8; } });
+      R = { s, lads, doors, i: 0, t: 0, phase: 'walk' };
+    });
+    game.hooks.drawWorld.push((ctx, cam) => { if (game.scene) return; const s = cur(); if (!s) return;
+      // the furrow across a mean man's step, for the rest of the day
+      for (const f of furrows.slice()) { if (f.s !== s) continue; if (s.day !== f.day) { furrows.splice(furrows.indexOf(f), 1); continue; } const x = Math.round(f.x - cam.x), y = Math.round(f.y - cam.y), w = Math.round(28 * f.k); ctx.fillStyle = '#5a4028'; ctx.fillRect(x - 14, y - 1, w, 3); ctx.fillStyle = '#7a5a38'; ctx.fillRect(x - 14, y - 2, w, 1); ctx.fillRect(x - 14, y + 2, w, 1); }
+      // the plough, dressed in ribbons, dragged behind the lads in the traces
+      if (R && R.s === s && R.lads.length > 1) { const a = R.lads[1].agent, l = R.lads[0].agent, sx = Math.sign(l.x - a.x) || 1, x = Math.round(a.x - cam.x) - sx * 12, y = Math.round(a.y - cam.y); ctx.strokeStyle = '#8a7a5a'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x + sx * 4, y - 8); ctx.lineTo(x + sx * 10, y - 12); ctx.stroke();
+        ctx.fillStyle = '#7a5232'; ctx.fillRect(x - 8, y - 6, 16, 2); ctx.fillRect(x - sx * 8, y - 14, 2, 10); ctx.fillStyle = '#8a8a90'; ctx.fillRect(x + sx * 4, y - 4, 4, 3); const tk = performance.now() / 300; for (let i = 0; i < 4; i++) { ctx.fillStyle = ['#c83030', '#3060c8', '#e0c040', '#40a050'][i]; ctx.fillRect(x - sx * 8 + (i % 2), y - 14 + i * 2 + (Math.floor(tk + i) % 2), 1, 3); } } });
+    (O.extraLines = O.extraLines || []).push((s, q) => !R || !q._plough ? '' : R.lads.includes(q) ? 'It is Plough Monday and you are one of the ploughboys dragging the ribboned plough from door to door for pennies.' : 'The ploughboys have come to your door for a penny on Plough Monday.');
+    // you can drop a penny in their box when they come by
+    let yours = 0;
+    (O.moreCandidates = O.moreCandidates || []).push(() => { const P = game.player, PS = O.PlayerState; if (!R || game.scene || P.locked || R.paidYou) return null; const a = R.lads[0].agent; if (Math.hypot(a.x - P.x, a.y - P.y) > 40) return null;
+      return { type: 'custom', d: 40, x: a.x, y: a.y - 26, label: 'Give the ploughboys a penny', act: () => { if (!R) return; if ((PS.money || 0) < 1) return O.UI && O.UI.say && O.UI.say('You have nothing to give them.'); PS.money -= 1; R.paidYou = true; yours++; given++; P.anim = 'give'; setTimeout(() => { P.anim = 'idle'; }, 800); O.sfx && O.sfx('coins', 0.3); O.Speech && O.Speech.say(R.lads[0], pick(['God speed the plough, and you!', 'Thank\'ee kindly! A good year to you!', 'There\'s a generous soul!']), 2.4); } }; });
+    O.PloughMonday = { get yours() { return yours; }, get run() { return R; }, get given() { return given; }, get ploughed() { return ploughed; }, furrows, force: () => { forced = true; const s = cur(); if (s) s._ploughDone = -1; } };
+  }
+  O.PloughMondaySetup = { setup };
+})();
+
+</script>
+<script>
+// Grist to the mill. Through the day folk bring their corn to be ground: a sack of wheat on the shoulder
+// carried to the mill door; the miller comes out, hefts it, takes his toll with the toll-dish (a scoop
+// for himself, as is his right, and never a small one, they grumble), carries it in, and by and by
+// hands back the flour, and they go home white to the elbows.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const cur = () => O.SimRef.cur;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    const jobs = []; let cool = 20, ground = 0; const dust = [];
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
+    const able = (q) => q && q.alive !== false && q.agent && !q.agent.frozen && !q.errand && !q._grist && !q._bit && !q._scene && !q._office && !talking(q);
+    function rel(q) { if (!q || !q.agent) return; q.agent.forceAnim = null; if (!talking(q)) q.agent.frozen = false; q._grist = false; }
+    function drop(j) { rel(j.q); if (j.m) rel(j.m); jobs.splice(jobs.indexOf(j), 1); }
+    game.hooks.update.push((dt) => {
+      for (const d of dust.slice()) { d.t += dt; d.x += d.vx * dt; d.y += d.vy * dt; if (d.t > 1.2) dust.splice(dust.indexOf(d), 1); }
+      const s = cur(); if (!s || !s.world || game.scene) return; const hr = s.minute / 60;
+      for (const j of jobs.slice()) { j.t += dt; if (j.s !== s || j.t > 120 || talking(j.q) || (j.m && talking(j.m))) { drop(j); continue; } if (j.phase !== 'door') continue;
+        j.k += dt; const qa = j.q.agent, ma = j.m.agent; qa.dir = 2; ma.dir = 1;
+        // hand over the sack; the toll; in it goes; out comes the flour
+        qa.forceAnim = j.k < 1.6 ? 'give' : j.k < 9 ? (Math.floor(j.k) % 4 === 0 ? 'look' : 'idle') : j.k < 10.6 ? 'take' : 'nod';
+        ma.forceAnim = j.k < 1.6 ? 'take' : j.k < 4 ? 'pour' : j.k < 7.5 ? 'carry' : j.k < 9 ? 'idle' : j.k < 10.6 ? 'give' : 'nod';
+        if (j.k > 1.6 && !j.toll) { j.toll = true; qa.carrying = null; ma.carrying = { good: 'wheat', qty: 1 }; if (near(qa.x, qa.y, 300)) { O.Speech && O.Speech.say(j.m, pick(['A fair toll, mind, as the law allows.', 'One dish for the mill. That\'s the custom.', 'Good dry corn, this. It\'ll grind sweet.']), 2.6); if (Math.random() < 0.5) setTimeout(() => O.Speech && O.Speech.say(j.q, pick(['A fair toll? That dish has a false bottom.', 'Every miller has a golden thumb, they say.', 'Don\'t heap it, now!']), 2.2), 2700); } }
+        if (j.k > 2 && j.k < 4) for (let i = 0; i < 2; i++) dust.push({ x: ma.x - 6, y: ma.y - 14, vx: (Math.random() - 0.5) * 12, vy: -6 - Math.random() * 8, t: 0 });
+        if (j.k > 9 && !j.back) { j.back = true; ma.carrying = { good: 'flour', qty: 1 }; for (let i = 0; i < 8; i++) dust.push({ x: ma.x, y: ma.y - 16, vx: (Math.random() - 0.5) * 18, vy: -8 - Math.random() * 8, t: 0 }); }
+        if (j.k > 10.6 && !j.gone) { j.gone = true; ma.carrying = null; ground++; const q = j.q, hb = s.building(q.home); rel(j.m); j.m = null; rel(q); jobs.splice(jobs.indexOf(j), 1); try { const hh = s.household(q); if (hh && hh.pantry) hh.pantry.flour = (hh.pantry.flour || 0) + 2; } catch (e) { /* */ }
+          if (hb && hb.doorX != null) O.Errands.send(s, q, [hb.doorX, hb.doorY + 1], { anim: 'place', secs: 1, face: 0, giveUp: game.t + 90, carry: { good: 'flour', qty: 2 } }); } }
+      cool -= dt; if (cool > 0) return; cool = 70 + Math.random() * 80; if (hr < 8 || hr > 17 || jobs.length >= 2) return;
+      for (const bz of s.biz.values()) { if (bz.type !== 'mill' || bz.open === false) continue; const b = s.building(bz.b?.id ?? bz.id); if (!b || b.doorX == null || !near(b.doorX * T, b.doorY * T, 460) || jobs.some((j) => j.b === b)) continue;
+        const m = (bz.workers || []).concat(bz.owner != null ? [bz.owner] : []).map((id) => s.byId.get(id)).find((x) => able(x) && x.age >= 16); if (!m) continue;
+        const q = s.people.filter((x) => able(x) && x.age >= 16 && !x.agent.hidden && x.agent.inside == null && !(bz.workers || []).includes(x.id) && Math.hypot(x.agent.x - b.doorX * T, x.agent.y - b.doorY * T) < 600).sort((x, y) => Math.hypot(x.agent.x - b.doorX * T, x.agent.y - b.doorY * T) - Math.hypot(y.agent.x - b.doorX * T, y.agent.y - b.doorY * T))[0]; if (!q) continue;
+        const w = s.world, tx = w.solid[(b.doorY + 1) * w.W + b.doorX - 1] ? b.doorX + 1 : b.doorX - 1; q._grist = true;
+        const j = { s, b, q, m, t: 0, k: 0, phase: 'walk' }; jobs.push(j);
+        O.Errands.send(s, q, [tx, b.doorY + 1], { anim: 'idle', secs: 0.1, face: 0, giveUp: game.t + 60, carry: { good: 'wheat', qty: 2 }, after: (ok) => { if (!jobs.includes(j)) { q._grist = false; return; } if (!ok) { drop(j); return; } const qa = q.agent; qa.frozen = true; qa.path = null; qa.carrying = { good: 'wheat', qty: 2 };
+          // the miller comes to the door, white with flour
+          const ma = m.agent; if (!able2(m)) { j.m = null; drop(j); return; } m._grist = true; if (ma.inside != null) { ma.inside = null; ma.hidden = false; } ma.x = b.doorX * T + 8 + (tx < b.doorX ? 6 : -6); ma.y = (b.doorY + 1) * T + 8; if (tx > b.doorX) { ma.x = b.doorX * T + 8; } ma.frozen = true; ma.path = null; j.phase = 'door'; j.k = 0;
+          if (near(qa.x, qa.y, 300)) O.Speech && O.Speech.say(q, pick(['Two bushel to grind, miller.', 'Will you take my corn today?', 'Is the stone turning? I\'ve wheat for you.']), 2.4); } });
+        break; }
+    });
+    const able2 = (m) => m && m.alive !== false && m.agent && !m.agent.frozen && !m.errand && !m._grist && !talking(m);
+    game.hooks.drawWorld.push((ctx, cam) => { if (game.scene || !dust.length) return; for (const d of dust) { ctx.globalAlpha = Math.max(0, 0.7 * (1 - d.t / 1.2)); ctx.fillStyle = '#f0ece0'; ctx.fillRect(Math.round(d.x - cam.x), Math.round(d.y - cam.y), 1, 1); } ctx.globalAlpha = 1; });
+    (O.extraLines = O.extraLines || []).push((s, q) => { const j = jobs.find((x) => x.q === q || x.m === q); return !j ? '' : j.q === q ? 'You have brought your corn to the mill to be ground, and you suspect the miller of taking too big a toll, as all millers do.' : 'A customer has brought corn to your mill, and you are taking your toll and grinding it.'; });
+    O.MillGrist = { jobs, get ground() { return ground; }, soon: () => { cool = 0; } };
+  }
+  O.MillGristSetup = { setup };
+})();
+
+</script>
+<script>
+// Buying at the trestle. While a shop is open with its wares laid out by the door, folk passing stop at
+// it: they pick things up and turn them over, sniff the loaf, hold the cloth to the light; the keeper comes
+// out to stand behind the board; there's a bit of haggling ("Two for that? It's yesterday's!"), the coin
+// changes hands, and off they go home with it under the arm. The shop's stock and till, and the buyer's
+// purse and pantry, are the real ones.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const cur = () => O.SimRef.cur, G = O.Data.GOODS;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    const jobs = []; let cool = 12, sold = 0, walked = 0;
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
+    const able = (q) => q && q.alive !== false && q.agent && !q.agent.frozen && !q.errand && !q._trestle && !q._bit && !q._scene && !q._office && !talking(q);
+    function rel(q) { if (!q || !q.agent) return; q.agent.forceAnim = null; if (!talking(q)) q.agent.frozen = false; q._trestle = false; }
+    function drop(j) { rel(j.q); if (j.k) rel(j.k); jobs.splice(jobs.indexOf(j), 1); }
+    const LINES = { ask: ['How much for this?', 'Is it fresh?', 'What\'s your best price?', 'I\'ll take one, if the price is right.'], dear: ['That? You\'re having a laugh.', 'It was half that last week!', 'For that I could buy the cow.'], keep: ['Best in the town, that.', 'I can do you a penny off. No more.', 'Take it or leave it, friend.', 'For you, a fair price.'], buy: ['Go on, then.', 'Done.', 'Wrap it, then.'], walk: ['I\'ll think on it.', 'Too dear. Good day.', 'Not today.'] };
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || !s.world || game.scene) return; const hr = s.minute / 60;
+      for (const j of jobs.slice()) { j.t += dt; if (j.s !== s || j.t > 90 || talking(j.q) || (j.k && talking(j.k)) || !j.bz.open) { drop(j); continue; } if (j.phase !== 'at') continue;
+        j.u += dt; const qa = j.q.agent, ka = j.k ? j.k.agent : null; qa.dir = 3; if (ka) ka.dir = 0;
+        qa.forceAnim = j.u < 2.5 ? 'pickup' : j.u < 4 ? 'look' : j.u < 7 ? 'talk' : j.buys && j.u < 8.5 ? 'give' : j.buys ? 'take' : 'shake';
+        if (ka) ka.forceAnim = j.u < 4 ? 'idle' : j.u < 7 ? 'talk' : j.buys && j.u < 8.5 ? 'take' : j.buys ? 'give' : 'shrug';
+        const loud = near(qa.x, qa.y, 280);
+        if (j.u > 3 && !j.s1) { j.s1 = true; if (loud) O.Speech && O.Speech.say(j.q, pick(LINES.ask), 2); }
+        if (j.u > 4.6 && !j.s2) { j.s2 = true; if (loud && j.k) O.Speech && O.Speech.say(j.k, `${j.price} for the ${String(G[j.good]?.name || j.good).toLowerCase()}. ` + pick(LINES.keep), 2.4); }
+        if (j.u > 6.4 && !j.s3) { j.s3 = true; if (loud) O.Speech && O.Speech.say(j.q, j.buys ? (Math.random() < 0.4 ? pick(LINES.dear) + ' ... ' : '') + pick(LINES.buy) : pick(LINES.walk), 2.2); }
+        if (j.buys && j.u > 8 && !j.paid) { j.paid = true; try { const hh = s.household(j.q); if (hh && hh.money >= j.price && (j.bz.stock[j.good] || 0) > 0) { hh.money -= j.price; j.bz.cash = (j.bz.cash || 0) + j.price; j.bz.stock[j.good]--; if (hh.pantry && ['bread', 'cabbage', 'fish', 'meat', 'flour', 'meal', 'ale', 'firewood', 'wheat'].includes(j.good)) hh.pantry[j.good] = (hh.pantry[j.good] || 0) + 1; sold++; if (loud) O.sfx && O.sfx('coins', 0.25); } else j.buys = false; } catch (e) { j.buys = false; } }
+        if (j.u > 10) { const q = j.q, got = j.buys && j.paid, good = j.good; if (!got) walked++; jobs.splice(jobs.indexOf(j), 1); rel(q); if (j.k) rel(j.k);
+          if (got) { const hb = s.building(q.home); if (hb && hb.doorX != null) O.Errands.send(s, q, [hb.doorX, hb.doorY + 1], { anim: 'place', secs: 0.8, face: 0, giveUp: game.t + 90, carry: { good, qty: 1 } }); } } }
+      cool -= dt; if (cool > 0) return; cool = 35 + Math.random() * 45; if (hr < 8 || hr > 18 || jobs.length >= 3 || !O.ShopDisplay) return;
+      const shops = [...s.biz.values()].filter((bz) => bz.open && !bz.def.public && bz.def.sells && bz.def.sells.length && !bz.closedDown && bz.type !== 'tavern' && bz.type !== 'farmhouse' && O.ShopDisplay.spots.get(bz.b?.id ?? bz.id) && !jobs.some((j) => j.bz === bz)).filter((bz) => { const at = O.ShopDisplay.spots.get(bz.b?.id ?? bz.id); return near(at[0], at[1], 420); });
+      if (!shops.length) return; const bz = pick(shops), at = O.ShopDisplay.spots.get(bz.b?.id ?? bz.id), b = s.building(bz.b?.id ?? bz.id); const goods = bz.def.sells.filter((k) => (bz.stock?.[k] || 0) > 0 && G[k]); if (!goods.length) return; const good = pick(goods);
+      const q = s.people.filter((x) => able(x) && x.age >= 14 && !x.agent.hidden && x.agent.inside == null && !(bz.workers || []).includes(x.id) && x.id !== bz.owner && Math.hypot(x.agent.x - at[0], x.agent.y - at[1]) < 380 && ['stroll', 'idle', 'shop', 'socialise', 'errand'].includes(x.activity?.act || 'idle')).sort(() => Math.random() - 0.5)[0]; if (!q) return;
+      let price = 2; try { price = Math.max(1, Math.round(s.price ? s.price(bz, good) : G[good].base)); } catch (e) { /* */ } let buys = false; try { const hh = s.household(q); buys = !!(hh && hh.money >= price + 3 && Math.random() < 0.7); } catch (e) { /* */ }
+      q._trestle = true; const j = { s, bz, b, q, k: null, good, price, buys, t: 0, u: 0, phase: 'walk' }; jobs.push(j);
+      O.Errands.send(s, q, [Math.floor(at[0] / T), Math.floor(at[1] / T) + 1], { anim: 'idle', secs: 0.1, face: 3, giveUp: game.t + 40, after: (ok) => { if (!jobs.includes(j)) { q._trestle = false; return; } if (!ok) { drop(j); return; } q.agent.frozen = true; q.agent.path = null; q.agent.x = at[0] + (Math.random() - 0.5) * 8; j.phase = 'at'; j.u = 0;
+        // the keeper comes out behind the board
+        const k = (bz.workers || []).concat(bz.owner != null && bz.owner !== 'player' ? [bz.owner] : []).map((id) => s.byId.get(id)).find((x) => able(x) && (x.agent.inside === b.id || (!x.agent.hidden && x.agent.inside == null && Math.hypot(x.agent.x - at[0], x.agent.y - at[1]) < 200)));
+        if (k) { const ka = k.agent; ka.inside = null; ka.hidden = false; ka.x = at[0] + 2; ka.y = at[1] - 14; if (game.solidAt(ka.x, ka.y - 2)) ka.y = at[1] - 8; ka.frozen = true; ka.path = null; k._trestle = true; j.k = k; } } });
+    });
+    (O.extraLines = O.extraLines || []).push((s, q) => { const j = jobs.find((x) => x.q === q || x.k === q); return !j ? '' : j.q === q ? `You have stopped at the trestle outside ${j.bz.name} to look at the ${String(G[j.good]?.name || j.good).toLowerCase()}, and you are haggling over the price.` : `A customer is at your trestle looking at the ${String(G[j.good]?.name || j.good).toLowerCase()}, and you are selling to them.`; });
+    O.TrestleTrade = { jobs, get sold() { return sold; }, get walked() { return walked; }, soon: () => { cool = 0; } };
+  }
+  O.TrestleTradeSetup = { setup };
+})();
+
+</script>
+<script>
+// All Hallows' Eve. On the last evening of autumn, when the dead are nearest, every house sets a candle in
+// its window for its own departed, so the town glitters at dusk; and the children go souling from door to
+// door with a hollowed turnip for a lantern, singing "A soul, a soul, a soul-cake! Please good missus, a
+// soul-cake!", and the goodwives come out with little spiced cakes, one for each, for the souls of the
+// household dead. Folk walk to the churchyard too, to stand a while.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const cur = () => O.SimRef.cur;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    let R = null, forced = false, cakes = 0, doors = 0; const tossed = [];
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
+    const able = (q) => q && q.alive !== false && q.agent && !q.agent.frozen && !q.errand && !q._soul && !q._bit && !q._scene && !talking(q);
+    const eve = (s) => forced || (s.season === 'autumn' && ((s.weather && s.weather.dayOfSeason) || 0) === 14);
+    function rel(q) { if (!q || !q.agent) return; q.agent.forceAnim = null; if (!talking(q)) q.agent.frozen = false; q._soul = false; }
+    function end() { if (!R) return; for (const q of R.kids) rel(q); if (R.wife) rel(R.wife); R = null; }
+    function step(a, tx, ty, v, dt) { const dx = tx - a.x, dy = ty - a.y, d = Math.hypot(dx, dy); if (d < 1.5) return d; const st = Math.min(d, v * dt), nx = a.x + dx / d * st, ny = a.y + dy / d * st; a.stuck = a.stuck || 0;
+      if (!game.solidAt(nx, ny - 2) || a.stuck > 1.2) { a.x = nx; a.y = ny; } else if (!game.solidAt(nx, a.y - 2)) a.x = nx; else if (!game.solidAt(a.x, ny - 2)) a.y = ny; else a.stuck += dt; a.dir = O.dirOf(dx, dy); return d; }
+    game.hooks.update.push((dt) => {
+      for (const c of tossed.slice()) { c.t += dt; if (c.t > 0.7) tossed.splice(tossed.indexOf(c), 1); }
+      const s = cur(); if (!s || !s.world || game.scene) return; const hr = s.minute / 60;
+      if (R) { R.t += dt; if (R.s !== s || R.t > 200 || R.kids.some((q) => talking(q) || q.alive === false)) { end(); return; }
+        const [lead, ...rest] = R.kids, la = lead.agent, door = R.doors[R.i]; if (!door) { end(); return; }
+        const dx = door.doorX * T + 8, dy = (door.doorY + 2) * T + 2;
+        if (R.phase === 'walk') { const d = step(la, dx, dy, 34, dt); la.forceAnim = 'walk'; rest.forEach((q, i) => { const a = q.agent; step(a, la.x + (i ? 12 : -12), la.y + 6, 40, dt); a.forceAnim = 'walk'; }); if (d < 2 || (R.wt = (R.wt || 0) + dt) > 25) { R.phase = 'sing'; R.k = 0; R.wt = 0; } }
+        if (R.phase === 'sing') { R.k += dt; for (const q of R.kids) { q.agent.dir = 3; q.agent.forceAnim = Math.floor(R.k * 2 + q.id) % 2 ? 'celebrate' : 'idle'; }
+          if (!R.sung) { R.sung = true; if (near(la.x, la.y, 320)) { O.Speech && O.Speech.say(lead, pick(['A soul, a soul, a soul-cake! Please good missus, a soul-cake!', 'An apple, a pear, a plum or a cherry, any good thing to make us all merry!', 'One for Peter, two for Paul, three for Him who made us all!']), 3.2); O.sfx && O.sfx('pipe', 0.12); } }
+          if (R.k > 3 && !R.came) { R.came = true; const w = s.people.find((q) => q.home === door.id && q.age >= 16 && able(q)); if (w) { const a = w.agent; a.inside = null; a.hidden = false; a.x = door.doorX * T + 8; a.y = (door.doorY + 1) * T + 6; a.frozen = true; a.path = null; a.dir = 0; w._soul = true; R.wife = w; R.phase = 'give'; R.k = 0; doors++; } else { R.phase = 'next'; } } }
+        if (R.phase === 'give') { R.k += dt; const wa = R.wife.agent; wa.forceAnim = R.k < 2.4 ? 'give' : 'idle';
+          if (!R.said) { R.said = true; if (near(la.x, la.y, 320)) O.Speech && O.Speech.say(R.wife, pick(['Here, one each, and pray for our dead.', 'Say one for my mother, God rest her.', 'There. And off home before the dark comes down.']), 2.8); }
+          R.kids.forEach((q, i) => { if (R.k > 0.5 + i * 0.6 && !R['g' + i]) { R['g' + i] = true; cakes++; tossed.push({ s, x0: wa.x, y0: wa.y - 16, x1: q.agent.x, y1: q.agent.y - 14, t: 0 }); } q.agent.forceAnim = R.k > 0.5 + i * 0.6 ? (R.k > 2.8 ? 'bow' : 'take') : 'idle'; });
+          if (R.k > 3.6) { if (near(la.x, la.y, 320)) O.Speech && O.Speech.say(rest[0] || lead, 'God bless this house!', 1.8); R.phase = 'next'; } }
+        if (R.phase === 'next') { if (R.wife) { rel(R.wife); R.wife = null; } R.i++; R.sung = false; R.came = false; R.said = false; for (let i = 0; i < 4; i++) R['g' + i] = false; R.phase = 'walk'; }
+        return; }
+      if (!eve(s) || hr < 16.5 || hr >= 19.5) return; if (s._soulDone === s.day) return;
+      const P = game.player, ds = s.world.buildings.filter((b) => b.type === 'house' && b.doorX != null && Math.hypot(b.doorX * T - P.x, b.doorY * T - P.y) < 380).sort((a, b) => a.doorX - b.doorX).slice(0, 4); if (ds.length < 2) return;
+      const kids = s.people.filter((q) => able(q) && q.age >= 6 && q.age <= 12 && !q.agent.hidden && q.agent.inside == null && near(q.agent.x, q.agent.y, 700)).slice(0, 3); if (kids.length < 2) return;
+      s._soulDone = s.day; for (const q of kids) { q._soul = true; q.agent.frozen = true; q.agent.path = null; q.agent.stuck = 0; }
+      const d0 = ds[0]; if (Math.hypot(kids[0].agent.x - d0.doorX * T, kids[0].agent.y - d0.doorY * T) > 360) kids.forEach((q, i) => { q.agent.x = d0.doorX * T - 100 - i * 12; q.agent.y = (d0.doorY + 2) * T + 2; if (game.solidAt(q.agent.x, q.agent.y - 2)) q.agent.x = d0.doorX * T + 8; });
+      R = { s, kids, doors: ds, i: 0, t: 0, phase: 'walk' };
+    });
+    // candles in every window, and the turnip lantern
+    game.hooks.drawWorld.push((ctx, cam) => { if (game.scene) return; const s = cur(); if (!s || !eve(s)) return; const hr = s.minute / 60, W = ctx.canvas.width, H = ctx.canvas.height, tk = performance.now() / 1000;
+      if (hr >= 16.5 || hr < 5) for (const b of s.world.buildings) { if (b.type !== 'house' || !b.sprite || b.ruined) continue; const sp = b.sprite, bx = b.x * T - sp.OV - cam.x, by = (b.bottom + 1) * T - sp.H - cam.y; if (bx > W + 10 || by > H + 10 || bx + sp.W < -10 || by + sp.H < -10) continue; const wd = (sp.windows || [])[0]; if (!wd) continue;
+        const x = Math.round(bx + wd.x + wd.w / 2), y = Math.round(by + wd.y + wd.h - 2), f = Math.sin(tk * 9 + b.id) > 0; ctx.fillStyle = 'rgba(255,200,90,0.35)'; ctx.fillRect(x - 3, y - 6, 6, 6); ctx.fillStyle = '#f0e8d8'; ctx.fillRect(x - 1, y - 3, 2, 3); ctx.fillStyle = f ? '#ffd060' : '#f0a030'; ctx.fillRect(x - 1, y - 5, 2, 2); }
+      if (R && R.s === s) { const a = R.kids[0].agent, x = Math.round(a.x - cam.x) + (a.dir === 1 ? -7 : 5), y = Math.round(a.y - cam.y) - 12; ctx.fillStyle = '#d8c8a0'; ctx.fillRect(x - 2, y, 5, 5); ctx.fillStyle = '#e8a030'; ctx.fillRect(x - 1, y + 1, 1, 1); ctx.fillRect(x + 1, y + 1, 1, 1); ctx.fillRect(x - 1, y + 3, 3, 1); ctx.strokeStyle = '#6a4a2c'; ctx.beginPath(); ctx.moveTo(x + 0.5, y); ctx.lineTo(x + 0.5, y - 6); ctx.stroke(); }
+      for (const c of tossed) { if (c.s !== s) continue; const k = c.t / 0.7, x = Math.round(c.x0 + (c.x1 - c.x0) * k - cam.x), y = Math.round(c.y0 + (c.y1 - c.y0) * k - Math.sin(k * Math.PI) * 8 - cam.y); ctx.fillStyle = '#b8803a'; ctx.fillRect(x - 1, y - 1, 3, 2); ctx.fillStyle = '#e8d8a8'; ctx.fillRect(x, y - 1, 1, 1); } });
+    (O.extraLines = O.extraLines || []).push((s, q) => !eve(s) ? '' : q._soul && R && R.kids.includes(q) ? 'It is All Hallows\' Eve and you are out souling door to door with the other children, singing for soul-cakes.' : 'It is All Hallows\' Eve: a candle in every window for the dead, and the children out souling for soul-cakes. You are thinking of your own dead.');
+    O.Souling = { get run() { return R; }, get cakes() { return cakes; }, get doors() { return doors; }, force: () => { forced = true; const s = cur(); if (s) s._soulDone = -1; }, unforce: () => { forced = false; } };
+  }
+  O.SoulingSetup = { setup };
+})();
+
+</script>
+<script>
+// Candlemas. On the feast of the Purification, in the depth of winter, the town goes to church with
+// candles: a file of folk walks up from the square each with a little wax light cupped against the wind,
+// the flames bobbing in the grey morning, the priest waits on the step to bless them, and in they go,
+// the candles to be kept all year against storms and sickness.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const cur = () => O.SimRef.cur;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    let C = null, forced = false, blessed = 0;
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
+    const able = (q) => q && q.alive !== false && q.agent && !q.agent.frozen && !q.errand && !q._candle && !q._bit && !q._scene && !talking(q);
+    const feast = (s) => forced || (s.season === 'winter' && ((s.weather && s.weather.dayOfSeason) || 0) === 7);
+    function rel(q, inside) { if (!q || !q.agent) return; const a = q.agent; a.forceAnim = null; if (!talking(q)) a.frozen = false; q._candle = false; if (inside != null && !talking(q)) { a.inside = inside; a.hidden = true; a.path = null; } }
+    function end() { if (!C) return; for (const f of C.file) if (f.q._candle) rel(f.q); if (C.priest) rel(C.priest); C = null; }
+    function step(a, tx, ty, v, dt) { const dx = tx - a.x, dy = ty - a.y, d = Math.hypot(dx, dy); if (d < 1.5) return d; const st = Math.min(d, v * dt), nx = a.x + dx / d * st, ny = a.y + dy / d * st; a.stuck = a.stuck || 0;
+      if (!game.solidAt(nx, ny - 2) || a.stuck > 1) { a.x = nx; a.y = ny; } else if (!game.solidAt(nx, a.y - 2)) a.x = nx; else if (!game.solidAt(a.x, ny - 2)) a.y = ny; else a.stuck += dt; a.dir = O.dirOf(dx, dy); return d; }
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || !s.world || game.scene) return; const hr = s.minute / 60;
+      if (C) { C.t += dt; if (C.s !== s || C.t > 150) { end(); return; }
+        const b = C.b, door = [b.doorX * T + 8, (b.doorY + 1) * T + 10];
+        if (C.priest) { const pa = C.priest.agent; pa.dir = 0; pa.forceAnim = Math.floor(C.t / 2) % 3 === 0 ? 'pray' : 'idle'; }
+        // the file walks up in a line, each a few steps behind the one in front; at the step, a blessing, then in
+        C.file.forEach((f, i) => { const q = f.q, a = q.agent; if (!q._candle) return; if (talking(q)) { rel(q); return; }
+          if (f.state === 'queue' && C.t > f.delay) { f.state = 'walk'; a.frozen = false; const spot = [b.doorX + [0, -1, 1, -2, 2, -1, 1, 0][i % 8], b.doorY + 1 + (i >= 5 ? 1 : 0)]; O.Errands.send(s, q, spot, { anim: 'idle', secs: 0.1, face: 3, giveUp: game.t + 60, after: (ok) => { if (!C || !q._candle) return; if (!ok) { rel(q); f.state = 'in'; return; } a.frozen = true; a.path = null; f.state = 'bless'; f.k = 0; } }); }
+          else if (f.state === 'bless') { f.k += dt; a.dir = 3; a.forceAnim = f.k < 1.4 ? 'bow' : 'pray'; if (f.k > 0.4 && !C.spoke && C.priest && near(door[0], door[1], 320)) { C.spoke = true; O.Speech && O.Speech.say(C.priest, pick(['Lumen ad revelationem gentium. Go in, and God keep your light.', 'Blessed be this light, and all who carry it.', 'Keep your candle by you this year, against the storm.']), 3.4); }
+            if (f.k > 2.2) { f.state = 'in'; blessed++; rel(q, b.id); } } });
+        if (C.file.every((f) => f.state === 'in' || !f.q._candle)) end();
+        return; }
+      if (!feast(s) || hr < 9 || hr >= 10.5) return; if (s._candleDone === s.day) return; if (!s.chapelId || !s.Z || !s.Z.square) return; const b = s.building(s.chapelId); if (!b || b.doorX == null || !near(b.doorX * T, b.doorY * T, 520)) return;
+      s._candleDone = s.day;
+      const folk = s.people.filter((q) => able(q) && q.age >= 8 && !q.agent.hidden && q.agent.inside == null && Math.hypot(q.agent.x - b.doorX * T, q.agent.y - b.doorY * T) < 700).slice(0, 8); if (folk.length < 3) return;
+      const bz = s.biz.get(s.chapelId), priest = ((bz && bz.workers) || []).map((id) => s.byId.get(id)).find(able) || null;
+      if (priest) { const a = priest.agent; a.inside = null; a.hidden = false; a.x = b.doorX * T + 8 + 14; a.y = (b.doorY + 1) * T + 6; a.frozen = true; a.path = null; priest._candle = true; }
+      // they set off from a little way down the lane, in a line
+      const w = s.world; let sx = b.doorX * T + 8, sy = (b.doorY + 6) * T; for (let d = 6; d > 2; d--) { const i = (b.doorY + d) * w.W + b.doorX; if (!w.solid[i]) { sy = (b.doorY + d) * T + 8; break; } }
+      folk.forEach((q, i) => { const a = q.agent; q._candle = true; a.frozen = true; a.path = null; a.stuck = 0; if (Math.hypot(a.x - sx, a.y - sy) > 260) { a.x = sx + ((i % 2) ? 6 : -6); a.y = sy + i * 13; if (game.solidAt(a.x, a.y - 2)) { a.x = sx; a.y = sy + i * 6; } } });
+      C = { s, b, file: folk.map((q, i) => ({ q, state: 'queue', k: 0, delay: i * 1.4 })), priest, t: 0 };
+      if (near(sx, sy, 400)) O.sfx && O.sfx('handbell', 0.2);
+    });
+    // the little lights, cupped against the wind
+    game.hooks.drawWorld.push((ctx, cam) => { if (!C || game.scene || C.s !== cur()) return; const tk = performance.now() / 1000;
+      for (const f of C.file) { if (f.state === 'in' || !f.q._candle || f.q.agent.hidden) continue; const a = f.q.agent, x = Math.round(a.x - cam.x) + (a.dir === 1 ? -5 : 4), y = Math.round(a.y - cam.y) - (f.q.age < 13 ? 13 : 16); ctx.fillStyle = '#f4ecd8'; ctx.fillRect(x, y, 2, 5); const fl = Math.sin(tk * 11 + f.q.id) > 0; ctx.fillStyle = 'rgba(255,210,110,0.3)'; ctx.fillRect(x - 2, y - 5, 6, 5); ctx.fillStyle = fl ? '#ffd860' : '#f0a030'; ctx.fillRect(x, y - 3 + (fl ? 0 : 1), 2, 2 + (fl ? 1 : 0)); } });
+    (O.extraLines = O.extraLines || []).push((s, q) => !feast(s) ? '' : q._candle ? 'It is Candlemas and you are carrying your candle up to church to be blessed.' : 'It is Candlemas, the feast of candles, when the year\'s candles are blessed at church.');
+    O.Candlemas = { get feast() { return C; }, get blessed() { return blessed; }, force: () => { forced = true; const s = cur(); if (s) s._candleDone = -1; }, unforce: () => { forced = false; } };
+  }
+  O.CandlemasSetup = { setup };
+})();
+
+</script>
+<script>
+// Yuletide. As the year turns, holly and ivy go up over every door, red berries and dark leaves against
+// the wood, and stay till Twelfth Night. On the day the Yule log is brought in, the men put ropes on a
+// great trunk from the wood and haul it through the town to the tavern hearth, heaving and singing, with
+// the children riding astride it shrieking; at the door the tapster cheers it in, and it will burn all
+// the twelve days.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const cur = () => O.SimRef.cur;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    let Y = null, forced = false, hauled = 0;
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
+    const able = (q) => q && q.alive !== false && q.agent && !q.agent.frozen && !q.errand && !q._yule && !q._bit && !q._scene && !talking(q);
+    const dos = (s) => (s.weather && s.weather.dayOfSeason) || 0;
+    const greenery = (s) => forced || (s.season === 'winter' && dos(s) >= 10);
+    const logDay = (s) => forced || (s.season === 'winter' && dos(s) === 12);
+    function rel(q) { if (!q || !q.agent) return; q.agent.forceAnim = null; if (!talking(q)) q.agent.frozen = false; q._yule = false; }
+    function end() { if (!Y) return; for (const q of Y.men) rel(q); Y = null; }
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || !s.world || game.scene) return; const hr = s.minute / 60;
+      if (Y) { Y.t += dt; if (Y.s !== s || Y.t > 160 || Y.men.some((q) => talking(q))) { end(); return; }
+        const lead = Y.men[0].agent; Y.trail.push([lead.x, lead.y]); if (Y.trail.length > 70) Y.trail.shift(); const back = Y.trail[Math.max(0, Y.trail.length - 45)]; Y.log.x += (back[0] - Y.log.x) * Math.min(1, dt * 3); Y.log.y += (back[1] + 6 - Y.log.y) * Math.min(1, dt * 3);
+        if (Y.phase === 'haul') { if (!Y.sang && Y.t > 3 && near(lead.x, lead.y, 340)) { Y.sang = true; O.Speech && O.Speech.say(Y.men[0], pick(['Heave! Heave! Bring in the Yule log!', 'All together now, lads! HEAVE!', 'Hold on tight up there, you little devils!']), 2.6); }
+          if (Y.men.every((q) => !q.errand) && Y.t > 4) { Y.phase = 'in'; Y.k = 0; for (const q of Y.men) { q.agent.frozen = true; q.agent.path = null; } } }
+        if (Y.phase === 'in') { Y.k += dt; for (const q of Y.men) q.agent.forceAnim = Y.k < 3 ? 'celebrate' : 'idle';
+          if (!Y.cheer) { Y.cheer = true; if (near(lead.x, lead.y, 340)) { const tap = Y.tap; if (tap) O.Speech && O.Speech.say(tap, pick(['In with it! The fire\'s waiting!', 'A fine log! Drinks on the house for the haulers!', 'That\'ll burn till Twelfth Night!']), 2.6); O.sfx && O.sfx('handbell', 0.3); } }
+          if (Y.k > 4) { hauled++; Y.log.gone = true; end(); } }
+        return; }
+      if (!logDay(s) || hr < 13.5 || hr >= 16) return; if (s._yuleDone === s.day) return;
+      const tav = [...s.biz.values()].find((z) => z.type === 'tavern'); if (!tav) return; const b = s.building(tav.b?.id ?? tav.id); if (!b || b.doorX == null || !near(b.doorX * T, b.doorY * T, 600)) return;
+      const men = s.people.filter((q) => able(q) && q.sex === 'm' && q.age >= 16 && q.age <= 55 && !q.agent.hidden && q.agent.inside == null && near(q.agent.x, q.agent.y, 700)).slice(0, 4); if (men.length < 2) return;
+      s._yuleDone = s.day;
+      // they come up the lane from a little way off, hauling
+      const w = s.world, P = game.player; let sx = b.doorX * T + 8 - 200, sy = (b.doorY + 2) * T + 8; for (const dx of [-14, 14, -10, 10, -6, 6]) { const tx = b.doorX + dx, ty = b.doorY + 2; if (tx > 1 && tx < w.W - 1 && !w.solid[ty * w.W + tx]) { sx = tx * T + 8; sy = ty * T + 8; break; } }
+      men.forEach((q, i) => { const a = q.agent; q._yule = true; if (Math.hypot(a.x - sx, a.y - sy) > 300) { a.x = sx + (i % 2 ? 8 : -8) * (sx < b.doorX * T ? -1 : 1) - (sx < b.doorX * T ? 1 : -1) * i * 6; a.y = sy + (i % 2 ? 5 : -3); } O.Errands.send(s, q, [b.doorX + (i % 2 ? 1 : -1) * (1 + (i >> 1)), b.doorY + 2], { anim: 'celebrate', secs: 0.5, face: 3, giveUp: game.t + 90, after: () => { if (Y && q._yule) { q.agent.frozen = true; q.agent.path = null; } } }); });
+      const R = O.RNG(O.hash('yule', s.day)); const kids = [0, 1].map((i) => O.Char.makeAppearance(O.hash('yk', s.day, i), { sex: R.next() < 0.5 ? 'm' : 'f', age: 6 + Math.floor(R.next() * 5), genes: O.Char.randomGenes(R, 'north'), role: 'child', wealth: 0.3 }));
+      const tap = (tav.workers || []).map((id) => s.byId.get(id)).find((q) => q && q.agent) || null;
+      Y = { s, b, men, t: 0, phase: 'haul', log: { x: sx - 30, y: sy + 6 }, trail: [[sx, sy]], kids, tap }; void P;
+    });
+    game.hooks.drawWorld.push((ctx, cam) => { if (game.scene) return; const s = cur(); if (!s) return; const W = ctx.canvas.width, H = ctx.canvas.height, tk = performance.now() / 1000;
+      // holly and ivy over the doors
+      if (greenery(s)) for (const b of s.world.buildings) { if (!b.sprite || !b.sprite.door || b.ruined) continue; const sp = b.sprite, bx = b.x * T - sp.OV - cam.x, by = (b.bottom + 1) * T - sp.H - cam.y; if (bx > W + 10 || by > H + 10 || bx + sp.W < -10 || by + sp.H < -10) continue; const d = sp.door, x = Math.round(bx + d.x), y = Math.round(by + d.y) - 3, w = d.w;
+        ctx.fillStyle = '#2a5a2a'; for (let i = 0; i < w; i += 3) ctx.fillRect(x + i, y + (i % 6 ? 0 : 1), 3, 3); ctx.fillStyle = '#3a7a3a'; for (let i = 1; i < w; i += 4) ctx.fillRect(x + i, y + 1, 2, 1); ctx.fillStyle = '#d02828'; for (let i = 2; i < w; i += 5) ctx.fillRect(x + i, y + 2, 1, 1); ctx.fillStyle = '#4a7a3a'; ctx.fillRect(x - 1, y + 2, 1, 5); ctx.fillRect(x + w, y + 2, 1, 5); }
+      if (!Y || Y.s !== s || Y.log.gone) return; const L = Y.log, x = Math.round(L.x - cam.x), y = Math.round(L.y - cam.y);
+      // the ropes to the haulers
+      ctx.strokeStyle = '#a8946a'; ctx.lineWidth = 1; for (const q of Y.men.slice(0, 2)) { const a = q.agent; ctx.beginPath(); ctx.moveTo(x + 10, y - 6); ctx.lineTo(Math.round(a.x - cam.x), Math.round(a.y - cam.y) - 10); ctx.stroke(); }
+      // the log, with a sprig of holly, and the children astride
+      ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(x - 18, y - 1, 36, 3); ctx.fillStyle = '#5a3a20'; ctx.fillRect(x - 18, y - 9, 36, 8); ctx.fillStyle = '#6e4a2a'; ctx.fillRect(x - 18, y - 9, 36, 2); ctx.fillStyle = '#c8a070'; ctx.fillRect(x + 16, y - 9, 3, 8); ctx.fillStyle = '#a07a50'; ctx.fillRect(x + 17, y - 6, 1, 2); ctx.fillStyle = '#4a2e18'; for (let i = 0; i < 4; i++) ctx.fillRect(x - 14 + i * 8, y - 6 + (i % 2), 3, 1);
+      ctx.fillStyle = '#2a5a2a'; ctx.fillRect(x - 6, y - 12, 5, 3); ctx.fillStyle = '#d02828'; ctx.fillRect(x - 4, y - 11, 1, 1);
+      for (let i = 0; i < 2; i++) { try { const fr = O.Char.frame(Y.kids[i], 0, Math.floor(tk * 2 + i) % 3 === 0 ? 'celebrate' : 'sit', Math.floor(tk * 4) % 2); ctx.drawImage(fr, x - 10 + i * 14 - 16, y - 8 - O.Char.GROUND + 4); } catch (e) { /* */ } } });
+    (O.extraLines = O.extraLines || []).push((s, q) => !greenery(s) ? '' : q._yule ? 'It is Yuletide and you are hauling the Yule log on a rope to the tavern hearth with the other men.' : 'It is Yuletide: holly and ivy over the doors, and the Yule log burning at the tavern.');
+    O.Yule = { get haul() { return Y; }, get hauled() { return hauled; }, force: () => { forced = true; const s = cur(); if (s) s._yuleDone = -1; }, unforce: () => { forced = false; } };
+  }
+  O.YuleSetup = { setup };
+})();
+
+</script>
+<script>
+// The sheepdog at work. Out where the sheep graze, the shepherd stands at the edge of the field leaning on
+// the crook and whistles, and the dog goes: out wide round the flock in a great running arc, low to the
+// ground, then in; the sheep bunch and turn away from it and drift together; "Come by!" and it swings
+// one way, "Away to me!" and the other, "Lie down!" and it drops flat in the grass, eyes on them. Then a
+// last whistle, and it trots back to lie at the shepherd's feet.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const cur = () => O.SimRef.cur;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    let D = null, cool = 30, runs = 0;
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || !s.world || game.scene) return; const hr = s.minute / 60;
+      if (D) { D.t += dt; if (D.s !== s || D.t > 50) { D = null; return; } const dg = D.dog, sh = D.sheep.filter((f) => !f.dead);
+        const cx = sh.reduce((a, f) => a + f.x, 0) / (sh.length || 1), cy = sh.reduce((a, f) => a + f.y, 0) / (sh.length || 1);
+        // the commands, in turn
+        if (D.t > D.next) { D.next = D.t + 6 + Math.random() * 4; D.cmd = D.t > 34 ? 'home' : pick(['come', 'away', 'away', 'come', 'down']); if (near(D.man.x, D.man.y, 340)) { O.Speech && O.Speech.say(D.man, { come: 'Come by! Come by!', away: 'Away to me! Away!', down: 'Lie down! ... Steady.', home: 'That\'ll do. That\'ll do, Fly.' }[D.cmd], 2.2); O.sfx && O.sfx('pipe', 0.08); } }
+        if (D.cmd === 'come' || D.cmd === 'away') { D.ang += (D.cmd === 'come' ? 1 : -1) * dt * 1.4; const r = 34 + Math.sin(D.t * 0.7) * 10, tx = cx + Math.cos(D.ang) * r, ty = cy + Math.sin(D.ang) * r * 0.7; const dx = tx - dg.x, dy = ty - dg.y, d = Math.hypot(dx, dy); const v = Math.min(d, 95 * dt); if (d > 0.5) { dg.x += dx / d * v; dg.y += dy / d * v; dg.dir = dx > 0 ? 2 : 1; } dg.anim = 'gallop'; }
+        else if (D.cmd === 'down') dg.anim = 'idle';
+        else { const dx = D.man.x + 10 - dg.x, dy = D.man.y + 4 - dg.y, d = Math.hypot(dx, dy); if (d > 2) { const v = Math.min(d, 70 * dt); dg.x += dx / d * v; dg.y += dy / d * v; dg.dir = dx > 0 ? 2 : 1; dg.anim = 'walk'; } else { dg.anim = 'idle'; if (D.t > 46) { runs++; D = null; return; } } }
+        dg.ft += dt;
+        // the sheep shy away from the dog and bunch together
+        for (const f of sh) { const dx = f.x - dg.x, dy = f.y - dg.y, d = Math.hypot(dx, dy); if (d < 30 && d > 0.1 && D.cmd !== 'home') { f.x += dx / d * 40 * dt; f.y += dy / d * 28 * dt; f.moving = true; f.dir = dx > 0 ? 2 : 1; f.tx = null; } const gx = cx - f.x, gy = cy - f.y, g = Math.hypot(gx, gy); if (g > 14 && D.cmd !== 'home') { f.x += gx / g * 8 * dt; f.y += gy / g * 6 * dt; } }
+        if (Math.random() < dt * 0.4 && near(cx, cy, 300)) O.animalCall && O.animalCall('sheep', 0.15);
+        return; }
+      cool -= dt; if (cool > 0) return; cool = 120 + Math.random() * 120; if (hr < 8 || hr > 17) return; const W = s.weather; if (W && W.raining) return;
+      const id = s.world.placeId, all = (O.fauna || []).filter((f) => f.world === id && f.kind === 'sheep' && !f.dead && !f.wild && near(f.x, f.y, 380)); if (all.length < 3) return;
+      const z = all[0].z, sheep = all.filter((f) => f.z === z); if (sheep.length < 3) return;
+      const cx = sheep.reduce((a, f) => a + f.x, 0) / sheep.length, cy = sheep.reduce((a, f) => a + f.y, 0) / sheep.length;
+      // the shepherd stands at the edge, a little way off
+      let mx = cx + 70, my = cy + 10; for (const [ox, oy] of [[70, 10], [-70, 10], [0, 60], [0, -60]]) if (!game.solidAt(cx + ox, cy + oy - 2)) { mx = cx + ox; my = cy + oy; break; }
+      const R = O.RNG(O.hash('shep', id)); const app = O.Char.makeAppearance(O.hash('shepherd', id), { sex: 'm', age: 40 + Math.floor(R.next() * 25), genes: O.Char.randomGenes(R, 'north'), role: 'shepherd', wealth: 0.25 });
+      D = { s, sheep, man: { x: mx, y: my, app, agent: { x: mx, y: my, hidden: false, inside: null }, first: 'the shepherd' }, dog: { x: mx + 10, y: my + 4, dir: 1, ft: 0, anim: 'idle', seed: O.hash('fly', id) % 9999 }, t: 0, next: 1, ang: Math.atan2(my - cy, mx - cx), cmd: 'down' };
+    });
+    game.hooks.drawWorld.push((ctx, cam) => { if (!D || game.scene || D.s !== cur()) return; const m = D.man, x = Math.round(m.x - cam.x), y = Math.round(m.y - cam.y); m.agent.x = m.x; m.agent.y = m.y;
+      try { const fr = O.Char.frame(m.app, m.x > D.dog.x ? 1 : 2, D.cmd === 'home' || D.cmd === 'down' ? 'idle' : 'point', 0); ctx.drawImage(fr, x - 16, y - O.Char.GROUND); } catch (e) { /* */ }
+      ctx.strokeStyle = '#7a5a30'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x + 6, y); ctx.lineTo(x + 6, y - 30); ctx.arc(x + 4, y - 30, 2, 0, Math.PI, true); ctx.stroke();
+      const dg = D.dog; try { const HA = O.Animals.HANIMS[dg.anim] || O.Animals.HANIMS.idle; const fr = O.Animals.animal('dog', dg.seed, dg.dir, dg.anim !== 'idle', Math.floor(dg.ft * HA.fps) % HA.frames, dg.anim); ctx.drawImage(fr, Math.round(dg.x - cam.x - (fr.ox ?? fr.width / 2)), Math.round(dg.y - cam.y - (fr.gy ?? fr.height))); } catch (e) { /* */ } });
+    O.Sheepdog = { get run() { return D; }, get runs() { return runs; }, soon: () => { cool = 0; } };
+  }
+  O.SheepdogSetup = { setup };
+})();
+
+</script>
+<script>
+// The cat hunts. At night, when the mice are out along the walls, a cat nearby notices: it goes low and
+// creeps, a paw at a time, freezing when the mouse freezes, tail-tip twitching; then the rump wiggles and
+// it pounces. Often enough it misses and the mouse is gone into a crack; when it doesn't, it trots off
+// proudly with the mouse in its mouth, and as like as not leaves it on somebody's doorstep.
+'use strict';
+(function () {
+  function setup(game) {
+    const cur = () => O.SimRef.cur;
+    let H = null, caught = 0, missed = 0; const gifts = [];
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || !s.world || game.scene) { H = null; return; } const mice = (O.Mice && O.Mice.mice) || [];
+      for (const g of gifts.slice()) if (g.s !== s || g.day !== s.day && s.minute > 9 * 60) gifts.splice(gifts.indexOf(g), 1);
+      if (H) { H.t += dt; const c = H.cat, m = H.mouse; c._held = game.t + 0.5;
+        if (H.phase === 'stalk') { if (!mice.includes(m) || m.flee) { H.phase = 'off'; H.t = 0; missed++; }
+          else { const d = Math.hypot(m.x - c.x, m.y - c.y); c.dir = m.x > c.x ? 2 : 1; if (m.st === 'freeze') { c.x += (m.x - c.x) / d * 18 * dt; c.y += (m.y - c.y) / d * 18 * dt; c.moving = true; } else c.moving = false; c.tx = null;
+            if (d < 30) { H.phase = 'wiggle'; H.t = 0; } } }
+        if (H.phase === 'wiggle') { c.moving = false; c.tx = null; c.x += Math.sin(H.t * 40) * 0.3; if (H.t > 0.8) { H.phase = 'pounce'; H.t = 0; H.from = [c.x, c.y]; H.to = [m.x, m.y]; } }
+        if (H.phase === 'pounce') { const k = Math.min(1, H.t / 0.25); c.x = H.from[0] + (H.to[0] - H.from[0]) * k; c.y = H.from[1] + (H.to[1] - H.from[1]) * k - Math.sin(k * Math.PI) * 6; c.moving = true; c.tx = null;
+          if (k >= 1) { const got = mice.includes(m) && Math.random() < 0.6; if (got) { mice.splice(mice.indexOf(m), 1); caught++; H.phase = 'proud'; H.t = 0; if (near(c.x, c.y, 260)) O.sfx && O.sfx('squeak', 0.2); } else { if (mice.includes(m)) { m.flee = true; m.st = 'run'; m.t = 0; m.go = 9; m.dir = Math.random() < 0.5 ? 1 : -1; } missed++; H.phase = 'off'; H.t = 0; } } }
+        if (H.phase === 'proud') { // trot off and leave it on a doorstep
+          if (!H.door) { const bs = s.world.buildings.filter((b) => b.doorX != null && Math.hypot(b.doorX * 16 - c.x, b.doorY * 16 - c.y) < 220); const b = bs[Math.floor(Math.random() * bs.length)]; H.door = b ? [b.doorX * 16 + 8 + (Math.random() - 0.5) * 6, (b.doorY + 1) * 16 + 12] : [c.x + 40, c.y]; }
+          const dx = H.door[0] - c.x, dy = H.door[1] - c.y, d = Math.hypot(dx, dy); if (d > 2 && H.t < 20) { c.x += dx / d * 30 * dt; c.y += dy / d * 30 * dt; c.dir = dx > 0 ? 2 : 1; c.moving = true; c.tx = null; } else { gifts.push({ s, x: c.x + (c.dir === 2 ? 5 : -5), y: c.y, day: s.day }); H = null; return; } }
+        if (H.phase === 'off') { c.moving = false; if (H.t > 1.5) { H = null; return; } }
+        if (H.t > 40) H = null;
+        return; }
+      if (!mice.length) return; const id = s.world.placeId;
+      for (const c of O.fauna || []) { if (c.kind !== 'cat' || c.world !== id || c.dead || !near(c.x, c.y, 360)) continue; const m = mice.find((mm) => !mm.flee && Math.hypot(mm.x - c.x, mm.y - c.y) < 160); if (!m) continue; H = { cat: c, mouse: m, phase: 'stalk', t: 0 }; break; }
+    });
+    game.hooks.drawWorld.push((ctx, cam) => { if (game.scene) return; const s = cur();
+      // the mouse in its mouth, and the little grey gifts left on doorsteps
+      if (H && H.phase === 'proud') { const c = H.cat, x = Math.round(c.x - cam.x) + (c.dir === 2 ? 6 : -8), y = Math.round(c.y - cam.y) - 6; ctx.fillStyle = '#5a504a'; ctx.fillRect(x, y, 3, 2); ctx.fillStyle = '#8a7a74'; ctx.fillRect(x + (c.dir === 2 ? 3 : -2), y + 1, 2, 1); }
+      if (H && (H.phase === 'stalk' || H.phase === 'wiggle')) { const c = H.cat, x = Math.round(c.x - cam.x) + (c.dir === 2 ? -9 : 8), y = Math.round(c.y - cam.y) - 8 + (Math.floor(performance.now() / 160) % 2); ctx.fillStyle = '#3a3030'; ctx.fillRect(x, y, 1, 2); }
+      for (const g of gifts) { if (g.s !== s) continue; const x = Math.round(g.x - cam.x), y = Math.round(g.y - cam.y); ctx.fillStyle = '#5a504a'; ctx.fillRect(x, y - 1, 3, 2); ctx.fillStyle = '#8a7a74'; ctx.fillRect(x + 3, y, 2, 1); } });
+    O.CatHunt = { get hunt() { return H; }, get caught() { return caught; }, get missed() { return missed; }, gifts };
+  }
+  O.CatHuntSetup = { setup };
+})();
+
+</script>
+<script>
+// The bull is out! Now and then a farm bull breaks its tether and comes trotting up the lane, head down,
+// snorting; people scream and scatter into doorways and behind carts, a child is snatched up out of its
+// way, the dogs go mad. Then the farm men come running with sticks and a rope, head it off, get the rope
+// on its ring at last and lead it home, blowing, while everyone comes out again talking about it.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const cur = () => O.SimRef.cur;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    let B = null, cool = 300, caught = 0;
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
+    const able = (q) => q && q.alive !== false && q.agent && !q.agent.frozen && !q.errand && !q._bull && !q._bit && !q._scene && !talking(q);
+    function rel(q) { if (!q || !q.agent) return; q.agent.forceAnim = null; if (!talking(q)) q.agent.frozen = false; q._bull = false; }
+    function end() { if (!B) return; for (const q of B.men) rel(q); B = null; }
+    function step(a, tx, ty, v, dt) { const dx = tx - a.x, dy = ty - a.y, d = Math.hypot(dx, dy); if (d < 1.5) return d; const st = Math.min(d, v * dt), nx = a.x + dx / d * st, ny = a.y + dy / d * st; a.stuck = a.stuck || 0;
+      if (!game.solidAt(nx, ny - 2) || a.stuck > 1) { a.x = nx; a.y = ny; if (a.stuck > 1) a.stuck = 0; } else if (!game.solidAt(nx, a.y - 2)) a.x = nx; else if (!game.solidAt(a.x, ny - 2)) a.y = ny; else a.stuck += dt; a.dir = O.dirOf(dx, dy); return d; }
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || !s.world || game.scene) return; const hr = s.minute / 60;
+      if (B) { B.t += dt; if (B.s !== s || B.t > 120) { end(); return; } const b = B.bull; b.ft += dt;
+        if (B.phase === 'loose') { // trot about the lanes, turning when it meets a wall, now and then pawing
+          b.turn -= dt; if (b.turn <= 0) { b.turn = 2 + Math.random() * 3; b.ang = Math.random() * Math.PI * 2; b.paw = Math.random() < 0.3 ? 1.5 : 0; if (near(b.x, b.y, 300)) O.animalCall && O.animalCall('cow', 0.5); }
+          if (b.paw > 0) { b.paw -= dt; b.moving = false; } else { const nx = b.x + Math.cos(b.ang) * 46 * dt, ny = b.y + Math.sin(b.ang) * 32 * dt; if (game.solidAt(nx, ny - 2) || Math.hypot(nx - B.x0, ny - B.y0) > 260) { b.ang += Math.PI * (0.6 + Math.random() * 0.8); } else { b.x = nx; b.y = ny; } b.moving = true; b.dir = Math.cos(b.ang) > 0 ? 2 : 1; }
+          // everyone near scatters
+          for (const q of s.people) { const a = q.agent; if (!a || a.hidden || a.inside != null || q._bull || q.errand || talking(q)) continue; const d = Math.hypot(a.x - b.x, a.y - b.y); if (d < 70 && !a.frozen) { const tx = Math.floor((a.x + (a.x - b.x) / (d || 1) * 90) / T), ty = Math.floor((a.y + (a.y - b.y) / (d || 1) * 60) / T); q._bullScared = game.t; O.Errands.send(s, q, [tx, ty], { anim: 'shocked', secs: 2, face: 0, sprint: true, giveUp: game.t + 12 }); if (Math.random() < 0.3 && near(a.x, a.y, 300)) O.Speech && O.Speech.say(q, pick(['The bull! The BULL!', 'Run! Get inside!', 'Mother of God!', 'Get the children in!']), 1.6); } }
+          // the men catch up with it
+          if (B.t > 12 && B.men.length) { let close = 0; for (const [i, q] of B.men.entries()) { const a = q.agent, ang = B.t * 0.8 + i * Math.PI; const d = step(a, b.x + Math.cos(ang) * 24, b.y + Math.sin(ang) * 16, 62, dt); a.forceAnim = 'run'; if (d < 30) close++; } if (close === B.men.length && B.t > 22) { B.phase = 'rope'; B.k = 0; if (near(b.x, b.y, 300)) O.Speech && O.Speech.say(B.men[0], pick(['Now! Get the rope on him!', 'Easy, boy, easy... GOT him!', 'Hold his head! Hold it!']), 2.4); } }
+          else for (const q of B.men) { step(q.agent, b.x, b.y, 58, dt); q.agent.forceAnim = 'run'; } }
+        if (B.phase === 'rope') { B.k += dt; b.moving = false; for (const q of B.men) { q.agent.forceAnim = B.k < 3 ? 'pitch' : 'idle'; q.agent.dir = q.agent.x < b.x ? 2 : 1; } if (B.k > 4) { B.phase = 'home'; caught++; if (near(b.x, b.y, 340)) setTimeout(() => B && O.Speech && O.Speech.say(B.men[1] || B.men[0], pick(['Who left the gate open? I\'ll have his hide.', 'He\'ll be in the stew pot, that one.', 'That\'s enough excitement for one day.']), 2.6), 1500); } }
+        if (B.phase === 'home') { const lead = B.men[0].agent; const d = step(lead, B.home[0], B.home[1], 26, dt); lead.forceAnim = 'walk'; const bx = lead.x + (lead.x > b.x ? -18 : 18), by = lead.y; b.x += (bx - b.x) * Math.min(1, dt * 2); b.y += (by - b.y) * Math.min(1, dt * 2); b.moving = true; b.dir = lead.x > b.x ? 2 : 1; for (const q of B.men.slice(1)) { step(q.agent, b.x - 16, b.y + 8, 30, dt); q.agent.forceAnim = 'walk'; } if (d < 4 || B.t > 110) { end(); return; } }
+        return; }
+      cool -= dt; if (cool > 0) return; cool = 500 + Math.random() * 600; if (hr < 9 || hr > 17) return;
+      const farm = s.world.buildings.find((x) => (x.type === 'farmhouse' || x.type === 'barn') && x.doorX != null && Math.hypot(x.doorX * T - game.player.x, x.doorY * T - game.player.y) < 900) || null;
+      const P = game.player; let bx = P.x + 160, by = P.y; for (const [ox, oy] of [[160, 0], [-160, 0], [0, 120], [0, -120], [100, 80]]) if (!game.solidAt(P.x + ox, P.y + oy - 2)) { bx = P.x + ox; by = P.y + oy; break; }
+      const men = s.people.filter((q) => able(q) && q.sex === 'm' && q.age >= 16 && q.age <= 55 && !q.agent.hidden && q.agent.inside == null && near(q.agent.x, q.agent.y, 600)).slice(0, 2); if (men.length < 1) { cool = 30; return; }
+      for (const q of men) { q._bull = true; q.agent.frozen = true; q.agent.path = null; q.agent.stuck = 0; }
+      B = { s, bull: { x: bx, y: by, dir: 1, ft: 0, moving: true, ang: Math.random() * 6, turn: 0, paw: 0, seed: 777 }, x0: bx, y0: by, men, t: 0, phase: 'loose', home: farm ? [farm.doorX * T + 8, (farm.doorY + 2) * T] : [bx + 300, by] };
+      if (near(bx, by, 400)) O.animalCall && O.animalCall('cow', 0.8);
+    });
+    game.hooks.drawWorld.push((ctx, cam) => { if (!B || game.scene || B.s !== cur()) return; const b = B.bull;
+      try { const HA = O.Animals.HANIMS[b.moving ? (B.phase === 'loose' ? 'gallop' : 'walk') : 'idle']; const fr = O.Animals.animal('cow', b.seed, b.dir, b.moving, Math.floor(b.ft * HA.fps) % HA.frames, b.moving ? (B.phase === 'loose' ? 'gallop' : 'walk') : 'idle'); ctx.drawImage(fr, Math.round(b.x - cam.x - (fr.ox ?? fr.width / 2)), Math.round(b.y - cam.y - (fr.gy ?? fr.height))); } catch (e) { /* */ }
+      // the nose-ring, the snort, and the rope when he's caught
+      const hx = Math.round(b.x - cam.x) + (b.dir === 2 ? 13 : -14), hy = Math.round(b.y - cam.y) - 9; ctx.fillStyle = '#c8c8c0'; ctx.fillRect(hx, hy, 2, 2);
+      if (B.phase === 'loose' && Math.floor(performance.now() / 400) % 3 === 0) { ctx.fillStyle = 'rgba(230,230,230,0.6)'; ctx.fillRect(hx + (b.dir === 2 ? 3 : -4), hy - 1, 2, 1); ctx.fillRect(hx + (b.dir === 2 ? 5 : -6), hy - 2, 1, 1); }
+      if (B.phase !== 'loose' && B.men[0]) { const a = B.men[0].agent; ctx.strokeStyle = '#a8946a'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(hx + 1, hy + 1); ctx.lineTo(Math.round(a.x - cam.x), Math.round(a.y - cam.y) - 12); ctx.stroke(); } });
+    (O.extraLines = O.extraLines || []).push((s, q) => !B ? '' : q._bull ? 'A bull has got loose in the town and you are one of the men trying to catch it with a rope.' : q._bullScared && game.t - q._bullScared < 120 ? 'A bull got loose in the street just now and nearly had you! You are still shaking.' : '');
+    // you can grab his rope yourself, if you dare
+    let grabbed = 0;
+    (O.moreCandidates = O.moreCandidates || []).push(() => { const P = game.player; if (!B || B.phase !== 'loose' || game.scene || P.locked) return null; const b = B.bull; if (Math.hypot(b.x - P.x, b.y - P.y) > 30) return null;
+      return { type: 'custom', d: 30, x: b.x, y: b.y - 26, label: 'Grab the bull by the nose-ring rope', act: () => { if (!B) return; const P = game.player; P.anim = 'pitch'; P.locked = true; setTimeout(() => { P.locked = false; P.anim = 'idle'; }, 1200);
+        const sk = (O.PlayerState && O.PlayerState.skills && (O.PlayerState.skills.fighting || O.PlayerState.skills.farming)) || 0;
+        if (Math.random() < 0.55 + sk * 0.4) { grabbed++; B.phase = 'rope'; B.k = 0; O.UI && O.UI.say && O.UI.say('You get a hand on the rope and hang on. He tosses his head, and then he stands, blowing.', 'good'); if (B.men[0]) O.Speech && O.Speech.say(B.men[0], pick(['Well held! Well held!', 'God\'s teeth, you\'ve a grip on you!', 'Hold him there, I\'m coming!']), 2.4); if (O.PlayerState && O.PlayerState.rep) O.PlayerState.rep.civilian = (O.PlayerState.rep.civilian || 0) + 0.03; }
+        else { O.UI && O.UI.say && O.UI.say('He swings his head and throws you off into the dirt.', 'bad'); setTimeout(() => { P.anim = 'hurt'; }, 200); if (O.PlayerState) O.PlayerState.hp = Math.max(5, (O.PlayerState.hp || 50) - 6); } } }; });
+    O.LooseBull = { get grabbed() { return grabbed; }, get bull() { return B; }, get caught() { return caught; }, soon: () => { cool = 0; } };
+  }
+  O.LooseBullSetup = { setup };
+})();
+
+</script>
+<script>
+// The goose girl. Now and then a girl comes down the road driving a flock of geese before her with a long
+// willow switch: a white jostling crowd of them, necks out, honking and waddling, the switch tapping the
+// stragglers back in. Folk give them room, for geese are bad-tempered: get too close and they come at
+// you hissing with their wings half up, and the girl laughs.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const cur = () => O.SimRef.cur;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    let G = null, cool = 90, passed = 0, hissed = 0;
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    function roadRow(s) { const w = s.world, P = game.player, ty0 = Math.floor(P.y / T); for (let d = 0; d < 10; d++) for (const ty of [ty0 + d, ty0 - d]) { if (ty < 2 || ty >= w.H - 2) continue; let run = 0; const x0 = Math.floor(P.x / T) - 20; for (let tx = x0; tx < x0 + 40; tx++) { const i = ty * w.W + tx; const t = w.ter[i]; if ((t === w.TER.ROAD || t === w.TER.COBBLE || t === w.TER.BRIDGE) && !w.solid[i]) run++; } if (run >= 24) return ty; } return null; }
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || !s.world || game.scene) return; const hr = s.minute / 60, P = game.player;
+      if (G) { G.t += dt; if (G.s !== s || (Math.abs(G.x - P.x) > 480 && G.t > 6)) { G = null; passed++; return; } G.x += G.dir * 14 * dt;
+        for (const g of G.geese) { g.ph += dt * (3 + g.k); const hx = G.x + G.dir * (18 + g.ox), hy = G.y + g.oy; if (g.chase > 0) { g.chase -= dt; const dx = P.x - g.x, dy = P.y - g.y, d = Math.hypot(dx, dy); if (d > 6) { g.x += dx / d * 40 * dt; g.y += dy / d * 30 * dt; } g.dir = dx > 0 ? 1 : -1; }
+          else { g.x += (hx - g.x) * Math.min(1, dt * 2) + Math.sin(g.ph) * 0.2; g.y += (hy - g.y) * Math.min(1, dt * 2); g.dir = G.dir; }
+          // too near and they come at you
+          if (!g.chase && Math.hypot(P.x - g.x, P.y - g.y) < 26 && Math.random() < dt * 3) { g.chase = 1.6; hissed++; if (near(g.x, g.y, 200)) { O.sfx && O.sfx('hiss', 0.3); if (!G.laughed) { G.laughed = true; O.Speech && O.Speech.say(G.girl, pick(['Ha! Mind them, they bite!', 'Shoo, Gander, leave the poor soul be!', 'They don\'t like strangers!']), 2.2); } } } }
+        // the flock honks; passers step out of the way
+        if (Math.random() < dt * 0.8 && near(G.x, G.y, 300)) O.sfx && O.sfx('honk', 0.12);
+        for (const q of s.people) { const a = q.agent; if (!a || a.hidden || a.inside != null || a.frozen) continue; if (Math.abs(a.y - G.y) < 12 && Math.abs(a.x - (G.x + G.dir * 22)) < 22) a.y += (a.y < G.y ? -1 : 1) * 36 * dt; }
+        if (!G.said && G.t > 3 && near(G.x, G.y, 260)) { G.said = true; O.Speech && O.Speech.say(G.girl, pick(['Hup, hup, geese! On you go!', 'To market, my beauties.', 'Get back in, you! Back in!']), 2.2); }
+        return; }
+      cool -= dt; if (cool > 0) return; cool = 160 + Math.random() * 160; if (hr < 7 || hr > 17 || (game.isNight && game.isNight())) return;
+      const ty = roadRow(s); if (ty == null) return; const dir = Math.random() < 0.5 ? 1 : -1, R = O.RNG(O.hash('goose', s.day, ty));
+      const app = O.Char.makeAppearance(O.hash('goosegirl', s.day), { sex: 'f', age: 11 + Math.floor(R.next() * 6), genes: O.Char.randomGenes(R, 'north'), role: 'farmhand', wealth: 0.2 });
+      const x = P.x - dir * 400, y = ty * T + 12, geese = []; for (let i = 0; i < 7; i++) geese.push({ ox: (i % 3) * 8 + R.next() * 4, oy: (Math.floor(i / 3) - 1) * 5 + R.next() * 3, x: x + dir * 18, y, ph: R.next() * 6, k: R.next(), dir, chase: 0 });
+      G = { s, x, y, dir, t: 0, geese, girl: { app, agent: { x, y, hidden: false, inside: null }, first: 'the goose girl' } };
+    });
+    game.hooks.update.push(() => { if (G) { G.girl.agent.x = G.x; G.girl.agent.y = G.y; } });
+    game.hooks.drawWorld.push((ctx, cam) => { if (!G || game.scene || G.s !== cur()) return; const tk = performance.now() / 1000;
+      for (const g of G.geese) { const x = Math.round(g.x - cam.x), y = Math.round(g.y - cam.y), d = g.dir, bob = Math.floor(g.ph) % 2, angry = g.chase > 0;
+        ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(x - 4, y, 9, 2); ctx.fillStyle = '#f0ece2'; ctx.fillRect(x - 4, y - 6 + bob, 9, 5); ctx.fillStyle = '#d8d4c8'; ctx.fillRect(x - 4, y - 3 + bob, 9, 1);
+        if (angry) { ctx.fillStyle = '#f0ece2'; ctx.fillRect(x - 5, y - 9, 3, 3); ctx.fillRect(x + 3, y - 9, 3, 3); }
+        const nx = x + d * (angry ? 6 : 4); ctx.fillStyle = '#f0ece2'; ctx.fillRect(nx - (d < 0 ? 1 : 0), y - (angry ? 8 : 11) + bob, 2, angry ? 4 : 6); ctx.fillRect(nx - 1 + d, y - (angry ? 9 : 12) + bob, 3, 2); ctx.fillStyle = '#e08a20'; ctx.fillRect(nx + d * 3 - (d < 0 ? 1 : 0), y - (angry ? 8 : 11) + bob, 2, 1); ctx.fillStyle = '#1a1a1a'; ctx.fillRect(nx + d, y - (angry ? 9 : 12) + bob, 1, 1);
+        ctx.fillStyle = '#e08a20'; ctx.fillRect(x - 1, y, 1, 1 + bob); ctx.fillRect(x + 2, y, 1, 2 - bob); }
+      // the girl behind them with her willow switch
+      const x = Math.round(G.x - cam.x), y = Math.round(G.y - cam.y);
+      try { const A = O.Char.ANIMS.walk, fr = O.Char.frame(G.girl.app, G.dir > 0 ? 2 : 1, 'walk', Math.floor(G.t * A.fps * 0.8) % A.frames); ctx.drawImage(fr, x - 16, y - O.Char.GROUND); } catch (e) { /* */ }
+      const sw = Math.sin(tk * 3) * 4; ctx.strokeStyle = '#8a9a5a'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x + G.dir * 5, y - 14); ctx.lineTo(x + G.dir * 18, y - 6 + sw); ctx.stroke(); });
+    O.GooseGirl = { get flock() { return G; }, get passed() { return passed; }, get hissed() { return hissed; }, soon: () => { cool = 0; } };
+  }
+  O.GooseGirlSetup = { setup };
+})();
+
+</script>
+<script>
+// The lookout's whistle. When the gang hangs about its corner of an evening there's always one of them
+// with an eye on the street, and when the watch comes round on its rounds, the whistle goes: the dice
+// vanish into sleeves, some of them stroll off whistling in different directions, the rest stand about
+// looking at the sky like choirboys; the watchman eyes them, says "Move along", and walks on; and the
+// minute his back's turned they're jeering after him and drifting back together.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const cur = () => O.SimRef.cur;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    const alerts = []; let acc = 0, warned = 0; const last = new Map();
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
+    function rel(q) { if (!q || !q.agent) return; q.agent.forceAnim = null; if (!talking(q)) q.agent.frozen = false; q._gwatch = false; }
+    game.hooks.update.push((dt) => {
+      const s = cur(); if (!s || !s.world || game.scene || !s.gangs) return;
+      for (const A of alerts.slice()) { A.t += dt; const ga = A.guard.agent; const gone = !ga || ga.hidden || Math.hypot(ga.x - A.x, ga.y - A.y) > 220;
+        A.stay.forEach((q, i) => { const a = q.agent; if (!q._gwatch) return; a.forceAnim = A.jeer ? (i % 2 ? 'laugh' : 'point') : ['look', 'idle', 'scratch', 'look'][(Math.floor(A.t / 2) + i) % 4]; });
+        if (!A.eyed && A.t > 1.5 && ga && near(ga.x, ga.y, 320)) { A.eyed = true; O.gesture && O.gesture(A.guard, 'look', 1.6); O.Speech && O.Speech.say(A.guard, pick(['Move along, you lot.', 'I\'ve got my eye on you.', 'Evening. Up to no good, I don\'t doubt.']), 2.4); if (A.stay[0]) setTimeout(() => O.Speech && O.Speech.say(A.stay[0], pick(['Evening, constable!', 'Lovely night for it, sir.', 'Who, us?']), 2), 2200); }
+        if ((gone && A.t > 5) || A.t > 18) { if (!A.jeer) { A.jeer = true; A.jt = A.t; if (A.stay[0] && near(A.x, A.y, 320)) O.Speech && O.Speech.say(A.stay[A.stay.length - 1] || A.stay[0], pick(['Ha! Waddle on, fat-boots!', 'Did you see his face?', 'Right. Where were we? Your throw.']), 2.2); } else if (A.t - A.jt > 3) { for (const q of A.stay) rel(q); alerts.splice(alerts.indexOf(A), 1); } }
+        if (A.s !== s) { for (const q of A.stay) rel(q); alerts.splice(alerts.indexOf(A), 1); } }
+      acc += dt; if (acc < 0.8) return; acc = 0; const hr = s.minute / 60; if (hr < 19 || hr >= 23.5) return;
+      for (const g of s.gangs.values ? s.gangs.values() : Object.values(s.gangs)) { if (!g || !g.members || g.id === 'player' || alerts.some((A) => A.g === g)) continue; if ((last.get(g) || -99) > game.t - 60) continue;
+        const out = g.members.map((m) => s.byId.get(m.id)).filter((q) => q && q.alive !== false && q.agent && !q.agent.hidden && q.agent.inside == null && ((typeof q.activity?.zone === 'string' && q.activity.zone.startsWith('haunt:')) || q.activity?.act === 'gangmeet') && !q.agent.frozen && !q.errand && !talking(q)); if (out.length < 1) continue;
+        const cx = out.reduce((a, q) => a + q.agent.x, 0) / out.length, cy = out.reduce((a, q) => a + q.agent.y, 0) / out.length; if (!near(cx, cy, 460)) continue;
+        const guard = s.people.find((q) => q.agent && !q.agent.hidden && q.agent.inside == null && /guard|watch|sergeant|constable/.test(q.job?.role || '') && !q.gang && Math.hypot(q.agent.x - cx, q.agent.y - cy) < 150); if (!guard) continue;
+        last.set(g, game.t); warned++;
+        const look = out[0]; if (near(cx, cy, 340)) { O.Speech && O.Speech.say(look, pick(['Psst! The watch!', 'Heads up, lads. Blue coat.', 'Wheet-wheeoo! Cave!']), 1.8); O.sfx && O.sfx('pipe', 0.15); }
+        const stay = [], go = []; out.forEach((q, i) => (i % 2 === 0 ? stay : go).push(q));
+        for (const q of stay) { q._gwatch = true; q.agent.frozen = true; q.agent.path = null; q.agent.dir = q.agent.x < guard.agent.x ? 2 : 1; }
+        for (const q of go) { const a = q.agent, ang = Math.random() * Math.PI * 2; O.Errands.send(s, q, [Math.floor((a.x + Math.cos(ang) * 120) / T), Math.floor((a.y + Math.sin(ang) * 80) / T)], { anim: 'idle', secs: 4, face: 0, giveUp: game.t + 25 }); }
+        alerts.push({ s, g, guard, stay, go, x: cx, y: cy, t: 0 }); }
+    });
+    (O.extraLines = O.extraLines || []).push((s, q) => { const A = alerts.find((x) => x.stay.includes(q) || x.go.includes(q)); return !A ? (A === undefined && alerts.some((x) => x.guard === q) ? 'You are on your rounds and you have just walked past a knot of gang toughs who went very quiet when they saw you.' : '') : 'The watch has just come by your gang\'s corner and you are acting innocent until he has gone.'; });
+    O.GangWatch = { alerts, get warned() { return warned; } };
+  }
+  O.GangWatchSetup = { setup };
 })();
 
 </script>
@@ -41861,7 +42812,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.WorkSetup.setup(game, sim, npcUI);
   O.EmploymentSetup.setup(game, home, npcUI);
   O.LettersSetup.setup(game, home, npcUI);
-  O.FittingSetup.setup(game); O.DecorateSetup.setup(game); O.LifeWeightSetup.setup(game); O.TradeLifeSetup.setup(game); O.RiverWildSetup.setup(game); O.SpokenSetup.setup(game); O.CombatDeepSetup.setup(game); O.GangStreetSetup.setup(game); O.HomeFrontSetup.setup(game); O.ScenesSetup.setup(game); O.IndoorLifeSetup.setup(game); O.ApproachesSetup.setup(game); O.LivelinessSetup.setup(game); O.StreetFightSetup.setup(game); O.Pastimes2Setup.setup(game); O.AnimalCareSetup.setup(game); O.MarchSetup.setup(game); O.LooksSetup.setup(game); O.GangPoliticsSetup.setup(game); O.NightWorkSetup.setup(game); O.ArchersSetup.setup(game); O.RaidSetup.setup(game); O.KidsPlaySetup.setup(game); O.AdultPlaySetup.setup(game); O.IdleLifeSetup.setup(game); O.CutpurseSetup.setup(game); O.ShakedownSetup.setup(game); O.ShopFrontSetup.setup(game); O.WarSightsSetup.setup(game); O.GangMarksSetup.setup(game); O.PassingsSetup.setup(game); O.LamplighterSetup.setup(game); O.SparringSetup.setup(game); O.KidsChoresSetup.setup(game); O.ProcessionsSetup.setup(game); O.MarketDaySetup.setup(game); O.RoadFolkSetup.setup(game); O.TownBirdsSetup.setup(game); O.TavernYardSetup.setup(game); O.SmuggleSetup.setup(game); O.MishapsSetup.setup(game); O.ShopFront2Setup.setup(game); O.NightLifeSetup.setup(game); O.SeasonsFxSetup.setup(game); O.GentryRideSetup.setup(game); O.GangRitesSetup.setup(game); O.HuntersSetup.setup(game); O.Courting2Setup.setup(game); O.InfirmSetup.setup(game); O.PasturesSetup.setup(game); O.AlmsSetup.setup(game); O.BellsSetup.setup(game); O.BoatsSetup.setup(game); O.StormReactSetup.setup(game); O.EscortSetup.setup(game); O.TracksSetup.setup(game); O.ShopDisplaySetup.setup(game); O.NoticeBoardSetup.setup(game); O.GraveDiggerSetup.setup(game); O.DayLabourSetup.setup(game); O.BaileySetup.setup(game); O.HarbourSetup.setup(game); O.HauntSetup.setup(game); O.CountrysideSetup.setup(game); O.WellWorkSetup.setup(game); O.StocksSetup.setup(game); O.WinterPlaySetup.setup(game); O.MillsSetup.setup(game); O.SummerPlaySetup.setup(game); O.LambsSetup.setup(game); O.LordsHuntSetup.setup(game); O.OccludeSetup.setup(game); O.IndoorFxSetup.setup(game); O.RoundsSetup.setup(game); O.HouseCallsSetup.setup(game); O.BrazierSetup.setup(game); O.GangBossSetup.setup(game); O.SlashSetup.setup(game); O.RepairsSetup.setup(game); O.WildFolkSetup.setup(game); O.FerrySetup.setup(game); O.RiverbankSetup.setup(game); O.TreeWorkSetup.setup(game); O.SiteWorkSetup.setup(game); O.DoorstepSetup.setup(game); O.RoomLifeSetup.setup(game); O.StableYardSetup.setup(game); O.AbbeyLifeSetup.setup(game); O.WinterWorkSetup.setup(game); O.StreetCallersSetup.setup(game); O.SeasonChoresSetup.setup(game); O.LivestockSetup.setup(game); O.BabesSetup.setup(game); O.FlagWatchSetup.setup(game); O.DawnDuskSetup.setup(game); O.PuddlesSetup.setup(game); O.QuaysideSetup.setup(game); O.CottageYardsSetup.setup(game); O.WindySetup.setup(game); O.StreetMuckSetup.setup(game); O.HitchingSetup.setup(game); O.KidsPlay2Setup.setup(game); O.StrayDogSetup.setup(game); O.TollBarSetup.setup(game); O.NightWalkersSetup.setup(game); O.BakehouseSetup.setup(game); O.WorkFxSetup.setup(game); O.ToothPullSetup.setup(game); O.GentryLeisureSetup.setup(game); O.WaterfowlSetup.setup(game); O.RainFolkSetup.setup(game); O.JostleSetup.setup(game); O.GraveVisitsSetup.setup(game); O.HandcartsSetup.setup(game); O.DoorCheckSetup.setup(game); O.SwallowsSetup.setup(game); O.MiceSetup.setup(game); O.StreetPigsSetup.setup(game); O.BirdScarerSetup.setup(game); O.WassailSetup.setup(game); O.RogationSetup.setup(game); O.SheepWashSetup.setup(game); O.WorkMomentsSetup.setup(game); O.TaxDoorSetup.setup(game); O.OfficeFrontsSetup.setup(game); O.TradeLoopSetup.setup(game); O.TreeFallSetup.setup(game); O.EvictionsSetup.setup(game); O.BoardedUpSetup.setup(game); O.MootSceneSetup.setup(game); O.BreadDoleSetup.setup(game); O.FloodFolkSetup.setup(game); O.PlagueTownSetup.setup(game); O.OxWagonsSetup.setup(game); O.SwarmSetup.setup(game); O.LostChildSetup.setup(game);
+  O.FittingSetup.setup(game); O.DecorateSetup.setup(game); O.LifeWeightSetup.setup(game); O.TradeLifeSetup.setup(game); O.RiverWildSetup.setup(game); O.SpokenSetup.setup(game); O.CombatDeepSetup.setup(game); O.GangStreetSetup.setup(game); O.HomeFrontSetup.setup(game); O.ScenesSetup.setup(game); O.IndoorLifeSetup.setup(game); O.ApproachesSetup.setup(game); O.LivelinessSetup.setup(game); O.StreetFightSetup.setup(game); O.Pastimes2Setup.setup(game); O.AnimalCareSetup.setup(game); O.MarchSetup.setup(game); O.LooksSetup.setup(game); O.GangPoliticsSetup.setup(game); O.NightWorkSetup.setup(game); O.ArchersSetup.setup(game); O.RaidSetup.setup(game); O.KidsPlaySetup.setup(game); O.AdultPlaySetup.setup(game); O.IdleLifeSetup.setup(game); O.CutpurseSetup.setup(game); O.ShakedownSetup.setup(game); O.ShopFrontSetup.setup(game); O.WarSightsSetup.setup(game); O.GangMarksSetup.setup(game); O.PassingsSetup.setup(game); O.LamplighterSetup.setup(game); O.SparringSetup.setup(game); O.KidsChoresSetup.setup(game); O.ProcessionsSetup.setup(game); O.MarketDaySetup.setup(game); O.RoadFolkSetup.setup(game); O.TownBirdsSetup.setup(game); O.TavernYardSetup.setup(game); O.SmuggleSetup.setup(game); O.MishapsSetup.setup(game); O.ShopFront2Setup.setup(game); O.NightLifeSetup.setup(game); O.SeasonsFxSetup.setup(game); O.GentryRideSetup.setup(game); O.GangRitesSetup.setup(game); O.HuntersSetup.setup(game); O.Courting2Setup.setup(game); O.InfirmSetup.setup(game); O.PasturesSetup.setup(game); O.AlmsSetup.setup(game); O.BellsSetup.setup(game); O.BoatsSetup.setup(game); O.StormReactSetup.setup(game); O.EscortSetup.setup(game); O.TracksSetup.setup(game); O.ShopDisplaySetup.setup(game); O.NoticeBoardSetup.setup(game); O.GraveDiggerSetup.setup(game); O.DayLabourSetup.setup(game); O.BaileySetup.setup(game); O.HarbourSetup.setup(game); O.HauntSetup.setup(game); O.CountrysideSetup.setup(game); O.WellWorkSetup.setup(game); O.StocksSetup.setup(game); O.WinterPlaySetup.setup(game); O.MillsSetup.setup(game); O.SummerPlaySetup.setup(game); O.LambsSetup.setup(game); O.LordsHuntSetup.setup(game); O.OccludeSetup.setup(game); O.IndoorFxSetup.setup(game); O.RoundsSetup.setup(game); O.HouseCallsSetup.setup(game); O.BrazierSetup.setup(game); O.GangBossSetup.setup(game); O.SlashSetup.setup(game); O.RepairsSetup.setup(game); O.WildFolkSetup.setup(game); O.FerrySetup.setup(game); O.RiverbankSetup.setup(game); O.TreeWorkSetup.setup(game); O.SiteWorkSetup.setup(game); O.DoorstepSetup.setup(game); O.RoomLifeSetup.setup(game); O.StableYardSetup.setup(game); O.AbbeyLifeSetup.setup(game); O.WinterWorkSetup.setup(game); O.StreetCallersSetup.setup(game); O.SeasonChoresSetup.setup(game); O.LivestockSetup.setup(game); O.BabesSetup.setup(game); O.FlagWatchSetup.setup(game); O.DawnDuskSetup.setup(game); O.PuddlesSetup.setup(game); O.QuaysideSetup.setup(game); O.CottageYardsSetup.setup(game); O.WindySetup.setup(game); O.StreetMuckSetup.setup(game); O.HitchingSetup.setup(game); O.KidsPlay2Setup.setup(game); O.StrayDogSetup.setup(game); O.TollBarSetup.setup(game); O.NightWalkersSetup.setup(game); O.BakehouseSetup.setup(game); O.WorkFxSetup.setup(game); O.ToothPullSetup.setup(game); O.GentryLeisureSetup.setup(game); O.WaterfowlSetup.setup(game); O.RainFolkSetup.setup(game); O.JostleSetup.setup(game); O.GraveVisitsSetup.setup(game); O.HandcartsSetup.setup(game); O.DoorCheckSetup.setup(game); O.SwallowsSetup.setup(game); O.MiceSetup.setup(game); O.StreetPigsSetup.setup(game); O.BirdScarerSetup.setup(game); O.WassailSetup.setup(game); O.RogationSetup.setup(game); O.SheepWashSetup.setup(game); O.WorkMomentsSetup.setup(game); O.TaxDoorSetup.setup(game); O.OfficeFrontsSetup.setup(game); O.TradeLoopSetup.setup(game); O.TreeFallSetup.setup(game); O.EvictionsSetup.setup(game); O.BoardedUpSetup.setup(game); O.MootSceneSetup.setup(game); O.BreadDoleSetup.setup(game); O.FloodFolkSetup.setup(game); O.PlagueTownSetup.setup(game); O.OxWagonsSetup.setup(game); O.SwarmSetup.setup(game); O.LostChildSetup.setup(game); O.TruantsSetup.setup(game); O.LeperSetup.setup(game); O.WatchChangeSetup.setup(game); O.ChristeningSetup.setup(game); O.JobIncidentsSetup.setup(game); O.ShrovetideSetup.setup(game); O.PloughMondaySetup.setup(game); O.MillGristSetup.setup(game); O.TrestleTradeSetup.setup(game); O.SoulingSetup.setup(game); O.CandlemasSetup.setup(game); O.YuleSetup.setup(game); O.SheepdogSetup.setup(game); O.CatHuntSetup.setup(game); O.LooseBullSetup.setup(game); O.GooseGirlSetup.setup(game); O.GangWatchSetup.setup(game);
   O.StreetSetup.setup(game, home);
   O.GangLifeSetup.setup(game, npcUI);
   O.TownLifeSetup.setup(game, npcUI);

@@ -16,6 +16,8 @@
       const s = cur(); if (!s || game.scene) return; const P = game.player;
       for (const q of s.people) { const a = q.agent; if (!a || a.hidden || a.inside != null || !loaded(a)) continue; if (Math.abs(a.x - P.x) > 420 || Math.abs(a.y - P.y) > 300) continue; if (O.occluded && O.occluded(a.x, a.y)) continue;
         const c = a.carrying, [c1, c2] = colours(c.good), d = a.dir === 1 ? -1 : a.dir === 2 ? 1 : 0, up = a.dir === 3, x = Math.round(a.x - cam.x), y = Math.round(a.y - cam.y), ang = (wheel.get(a) || { ang: 0 }).ang;
+        // ale goes in a barrel, rolled along the street ahead with the hoops turning
+        if (c.good === 'ale' || c.good === 'wine' || c.good === 'cider' || c.good === 'barrels') { const bx = x + (d ? d * 11 : 0), by = y + (d ? 0 : up ? -7 : 7); ctx.fillStyle = '#7a5232'; if (d) { ctx.fillRect(bx - 4, by - 10, 9, 10); ctx.fillStyle = '#5a5a60'; const k = Math.floor(ang * 2) % 3; for (let i = 0; i < 3; i++) ctx.fillRect(bx - 4 + ((i * 3 + k) % 9), by - 10, 1, 10); ctx.fillStyle = '#6a4228'; ctx.fillRect(bx - 4, by - 10, 9, 1); } else { ctx.fillRect(bx - 5, by - 8, 10, 8); ctx.fillStyle = '#5a5a60'; ctx.fillRect(bx - 5, by - 7 + (Math.floor(ang * 2) % 3), 10, 1); ctx.fillRect(bx - 5, by - 3, 10, 1); } continue; }
         // the cart goes in front of whoever pushes it
         const cx = x + (d ? d * 15 : 0), cy = y + (d ? 0 : up ? -9 : 9), wide = !d;
         const bw = wide ? 14 : 16, bh = 5, n = Math.min(6, Math.max(2, Math.round((c.qty || 2) / 2)));

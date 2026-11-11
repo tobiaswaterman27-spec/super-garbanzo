@@ -9,4 +9,7 @@ const r = await p.evaluate(() => { const s = O.SimRef.cur; const seen = s.people
 console.log('hero named:', await p.evaluate(() => O.TownTalk.heroes), await p.evaluate(() => { const s = O.SimRef.cur; for (const q of s.people) for (const b of q.beliefs || []) if (/hero of it/.test(b.t)) return b.t; return ''; }));
 console.log('in the chronicle:', await p.evaluate(() => O.Chronicle.facts.filter((f) => /bull loose/.test(f.text)).map((f) => f.text + ' [' + f.imp + ']').join(' / ')));
 console.log('bull caught:', await p.evaluate(() => O.LooseBull.caught), '| saw it:', r.seen, '| heard at home:', r.heard, '| tales:', r.told);
+// the hero is praised in the street by someone who saw it
+for (let i = 0; i < 20 && !(await p.evaluate(() => O.HeroPraise.praised)); i++) { await p.evaluate(() => { const s = O.SimRef.cur, h = O.LooseBull.hero; if (!h) return; const f = s.people.find((q) => q !== h && q.agent && !q.agent.hidden && q.agent.inside == null && (q.beliefs || []).some((b) => b.src === 'seen' && b.t.includes(h.first))); if (!f) return; h.agent.frozen = false; h.agent.inside = null; h.agent.hidden = false; h.agent.x = f.agent.x + 12; h.agent.y = f.agent.y; O.game.player.x = f.agent.x + 30; O.game.player.y = f.agent.y + 20; }); await p.waitForTimeout(1200); }
+console.log('hero praised in the street:', await p.evaluate(() => O.HeroPraise.praised));
 await done();

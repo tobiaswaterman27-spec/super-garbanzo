@@ -37328,7 +37328,9 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
     const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
     const able = (q) => q && q.alive !== false && q.agent && !q.agent.frozen && !q.errand && !q._candle && !q._bit && !q._scene && !talking(q);
-    const feast = (s) => forced || (s.season === 'winter' && ((s.weather && s.weather.dayOfSeason) || 0) === 7);
+    const dos = (s) => (s.weather && s.weather.dayOfSeason) || 0;
+    // Candlemas in the depth of winter, and Lammas, the loaf-mass, at the end of summer when the first loaves of the new wheat are carried up
+    const feast = (s) => forced ? forcedKind : s.season === 'winter' && dos(s) === 7 ? 'candle' : s.season === 'summer' && dos(s) === 14 ? 'loaf' : null; let forcedKind = 'candle';
     function rel(q, inside) { if (!q || !q.agent) return; const a = q.agent; a.forceAnim = null; if (!talking(q)) a.frozen = false; q._candle = false; if (inside != null && !talking(q)) { a.inside = inside; a.hidden = true; a.path = null; } }
     function end() { if (!C) return; for (const f of C.file) if (f.q._candle) rel(f.q); if (C.priest) rel(C.priest); C = null; }
     function step(a, tx, ty, v, dt) { const dx = tx - a.x, dy = ty - a.y, d = Math.hypot(dx, dy); if (d < 1.5) return d; const st = Math.min(d, v * dt), nx = a.x + dx / d * st, ny = a.y + dy / d * st; a.stuck = a.stuck || 0;
@@ -37341,7 +37343,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         // the file walks up in a line, each a few steps behind the one in front; at the step, a blessing, then in
         C.file.forEach((f, i) => { const q = f.q, a = q.agent; if (!q._candle) return; if (talking(q)) { rel(q); return; }
           if (f.state === 'queue' && C.t > f.delay) { f.state = 'walk'; a.frozen = false; const spot = [b.doorX + [0, -1, 1, -2, 2, -1, 1, 0][i % 8], b.doorY + 1 + (i >= 5 ? 1 : 0)]; O.Errands.send(s, q, spot, { anim: 'idle', secs: 0.1, face: 3, giveUp: game.t + 60, after: (ok) => { if (!C || !q._candle) return; if (!ok) { rel(q); f.state = 'in'; return; } a.frozen = true; a.path = null; f.state = 'bless'; f.k = 0; } }); }
-          else if (f.state === 'bless') { f.k += dt; a.dir = 3; a.forceAnim = f.k < 1.4 ? 'bow' : 'pray'; if (f.k > 0.4 && !C.spoke && C.priest && near(door[0], door[1], 320)) { C.spoke = true; O.Speech && O.Speech.say(C.priest, pick(['Lumen ad revelationem gentium. Go in, and God keep your light.', 'Blessed be this light, and all who carry it.', 'Keep your candle by you this year, against the storm.']), 3.4); }
+          else if (f.state === 'bless') { f.k += dt; a.dir = 3; a.forceAnim = f.k < 1.4 ? 'bow' : 'pray'; if (f.k > 0.4 && !C.spoke && C.priest && near(door[0], door[1], 320)) { C.spoke = true; O.Speech && O.Speech.say(C.priest, pick(C.kind === 'loaf' ? ['Blessed be the first bread of the harvest, and the hands that reaped it.', 'Give us this day our daily bread. Go in, and be thankful.', 'Break it at your own table, and remember who sends the rain.'] : ['Lumen ad revelationem gentium. Go in, and God keep your light.', 'Blessed be this light, and all who carry it.', 'Keep your candle by you this year, against the storm.']), 3.4); }
             if (f.k > 2.2) { f.state = 'in'; blessed++; rel(q, b.id); } } });
         if (C.file.every((f) => f.state === 'in' || !f.q._candle)) end();
         return; }
@@ -37353,14 +37355,18 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       // they set off from a little way down the lane, in a line
       const w = s.world; let sx = b.doorX * T + 8, sy = (b.doorY + 6) * T; for (let d = 6; d > 2; d--) { const i = (b.doorY + d) * w.W + b.doorX; if (!w.solid[i]) { sy = (b.doorY + d) * T + 8; break; } }
       folk.forEach((q, i) => { const a = q.agent; q._candle = true; a.frozen = true; a.path = null; a.stuck = 0; if (Math.hypot(a.x - sx, a.y - sy) > 260) { a.x = sx + ((i % 2) ? 6 : -6); a.y = sy + i * 13; if (game.solidAt(a.x, a.y - 2)) { a.x = sx; a.y = sy + i * 6; } } });
-      C = { s, b, file: folk.map((q, i) => ({ q, state: 'queue', k: 0, delay: i * 1.4 })), priest, t: 0 };
+      C = { s, b, kind: feast(s), file: folk.map((q, i) => ({ q, state: 'queue', k: 0, delay: i * 1.4 })), priest, t: 0 };
       if (near(sx, sy, 400)) O.sfx && O.sfx('handbell', 0.2);
     });
     // the little lights, cupped against the wind
     game.hooks.drawWorld.push((ctx, cam) => { if (!C || game.scene || C.s !== cur()) return; const tk = performance.now() / 1000;
-      for (const f of C.file) { if (f.state === 'in' || !f.q._candle || f.q.agent.hidden) continue; const a = f.q.agent, x = Math.round(a.x - cam.x) + (a.dir === 1 ? -5 : 4), y = Math.round(a.y - cam.y) - (f.q.age < 13 ? 13 : 16); ctx.fillStyle = '#f4ecd8'; ctx.fillRect(x, y, 2, 5); const fl = Math.sin(tk * 11 + f.q.id) > 0; ctx.fillStyle = 'rgba(255,210,110,0.3)'; ctx.fillRect(x - 2, y - 5, 6, 5); ctx.fillStyle = fl ? '#ffd860' : '#f0a030'; ctx.fillRect(x, y - 3 + (fl ? 0 : 1), 2, 2 + (fl ? 1 : 0)); } });
-    (O.extraLines = O.extraLines || []).push((s, q) => !feast(s) ? '' : q._candle ? 'It is Candlemas and you are carrying your candle up to church to be blessed.' : 'It is Candlemas, the feast of candles, when the year\'s candles are blessed at church.');
-    O.Candlemas = { get feast() { return C; }, get blessed() { return blessed; }, force: () => { forced = true; const s = cur(); if (s) s._candleDone = -1; }, unforce: () => { forced = false; } };
+      for (const f of C.file) { if (f.state === 'in' || !f.q._candle || f.q.agent.hidden) continue; const a = f.q.agent, x = Math.round(a.x - cam.x) + (a.dir === 1 ? -5 : 4), y = Math.round(a.y - cam.y) - (f.q.age < 13 ? 13 : 16); if (C.kind === 'loaf') { ctx.fillStyle = '#c89a5a'; ctx.fillRect(x - 2, y, 6, 4); ctx.fillStyle = '#a87a40'; ctx.fillRect(x - 2, y + 3, 6, 1); ctx.fillStyle = '#e0b878'; ctx.fillRect(x - 1, y, 3, 1); continue; } ctx.fillStyle = '#f4ecd8'; ctx.fillRect(x, y, 2, 5); const fl = Math.sin(tk * 11 + f.q.id) > 0; ctx.fillStyle = 'rgba(255,210,110,0.3)'; ctx.fillRect(x - 2, y - 5, 6, 5); ctx.fillStyle = fl ? '#ffd860' : '#f0a030'; ctx.fillRect(x, y - 3 + (fl ? 0 : 1), 2, 2 + (fl ? 1 : 0)); } });
+    (O.extraLines = O.extraLines || []).push((s, q) => { const k = feast(s); if (!k) return ''; return k === 'loaf' ? (q._candle ? 'It is Lammas, the loaf-mass, and you are carrying a loaf of the first new wheat up to church to be blessed.' : 'It is Lammas, the loaf-mass, when the first bread of the harvest is blessed at church.') : (q._candle ? 'It is Candlemas and you are carrying your candle up to church to be blessed.' : 'It is Candlemas, the feast of candles, when the year\'s candles are blessed at church.'); });
+    // you can carry yours up too
+    let yours = 0, PS = O.PlayerState;
+    (O.moreCandidates = O.moreCandidates || []).push(() => { const P = game.player; if (!C || C.youCame || game.scene || P.locked || !C.priest) return null; const pa = C.priest.agent; if (Math.hypot(pa.x - P.x, pa.y - P.y) > 50) return null; if (C.kind === 'loaf' && !(PS.items || []).includes('bread')) return null;
+      return { type: 'custom', d: 50, x: pa.x, y: pa.y - 30, label: C.kind === 'loaf' ? 'Hold up your loaf to be blessed' : 'Light a candle and have it blessed', act: () => { C.youCame = true; yours++; P.anim = 'bow'; setTimeout(() => { P.anim = 'pray'; setTimeout(() => { P.anim = 'idle'; }, 1500); }, 900); O.Speech && O.Speech.say(C.priest, C.kind === 'loaf' ? 'Blessed be your bread, stranger. May you never want for it.' : 'God keep your light, stranger, all the year.', 3); if (PS.rep) PS.rep.civilian = Math.min(1, (PS.rep.civilian || 0) + 0.01); PS.blessed = { kind: C.kind, day: C.s.day }; } }; });
+    O.Candlemas = { get yours() { return yours; }, get feast() { return C; }, get blessed() { return blessed; }, force: (k) => { forced = true; forcedKind = k || 'candle'; const s = cur(); if (s) s._candleDone = -1; }, unforce: () => { forced = false; } };
   }
   O.CandlemasSetup = { setup };
 })();
@@ -37640,6 +37646,22 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
     const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
     function rel(q) { if (!q || !q.agent) return; q.agent.forceAnim = null; if (!talking(q)) q.agent.frozen = false; q._gwatch = false; }
+    function alert(s, g, out, guard, cx, cy, byYou) {
+        last.set(g, game.t); warned++;
+        const look = out[0]; if (byYou) { O.UI && O.UI.say && O.UI.say('You whistle low through your teeth. The crew hear it and melt into innocence.', 'good'); O.sfx && O.sfx('pipe', 0.2); } else if (near(cx, cy, 340)) { O.Speech && O.Speech.say(look, pick(['Psst! The watch!', 'Heads up, lads. Blue coat.', 'Wheet-wheeoo! Cave!']), 1.8); O.sfx && O.sfx('pipe', 0.15); }
+        const stay = [], go = []; out.forEach((q, i) => (i % 2 === 0 ? stay : go).push(q));
+        for (const q of stay) { q._gwatch = true; q.agent.frozen = true; q.agent.path = null; q.agent.dir = q.agent.x < guard.agent.x ? 2 : 1; }
+        for (const q of go) { const a = q.agent, ang = Math.random() * Math.PI * 2; O.Errands.send(s, q, [Math.floor((a.x + Math.cos(ang) * 120) / T), Math.floor((a.y + Math.sin(ang) * 80) / T)], { anim: 'idle', secs: 4, face: 0, giveUp: game.t + 25 }); }
+        alerts.push({ s, g, guard, stay, go, x: cx, y: cy, t: 0, byYou }); }
+    // if it's your crew, you can be the lookout: spot the watch coming and whistle first
+    let yours = 0; const PSx = O.PlayerState;
+    (O.moreCandidates = O.moreCandidates || []).push(() => { const s = cur(), P = game.player; if (!s || game.scene || P.locked || !s.gangs) return null; const hr = s.minute / 60; if (hr < 19 || hr >= 23.5) return null;
+      for (const g of s.gangs) { if (!g || g.id === 'player' || !(Array.isArray(PSx.gangRanks) ? PSx.gangRanks : []).some((m) => m.gid === g.id && m.place === s.world.placeId) || alerts.some((A) => A.g === g)) continue;
+        const out = g.members.map((m) => s.byId.get(m.id)).filter((q) => q && q.alive !== false && q.agent && !q.agent.hidden && q.agent.inside == null && !q.agent.frozen && !q.errand && Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < 120); if (!out.length) continue;
+        const guard = s.people.find((q) => q.agent && !q.agent.hidden && q.agent.inside == null && /guard|watch|sergeant|constable/.test(q.job?.role || '') && !q.gang && Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < 260); if (!guard) continue;
+        const cx = out.reduce((a, q) => a + q.agent.x, 0) / out.length, cy = out.reduce((a, q) => a + q.agent.y, 0) / out.length;
+        return { type: 'custom', d: 999, x: P.x, y: P.y - 30, label: 'Whistle a warning to the crew: the watch!', act: () => { yours++; last.set(g, game.t); const mem = (PSx.gangRanks || []).find((m) => m.gid === g.id && m.place === s.world.placeId); if (mem) mem.trust = Math.min(1, (mem.trust || 0) + 0.05); for (const q of out) { const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; r.affinity = Math.min(1, r.affinity + 0.05); q.rel.set(0, r); } alert(s, g, out, guard, cx, cy, true); } }; }
+      return null; });
     game.hooks.update.push((dt) => {
       const s = cur(); if (!s || !s.world || game.scene || !s.gangs) return;
       for (const A of alerts.slice()) { A.t += dt; const ga = A.guard.agent; const gone = !ga || ga.hidden || Math.hypot(ga.x - A.x, ga.y - A.y) > 220;
@@ -37652,15 +37674,10 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         const out = g.members.map((m) => s.byId.get(m.id)).filter((q) => q && q.alive !== false && q.agent && !q.agent.hidden && q.agent.inside == null && ((typeof q.activity?.zone === 'string' && q.activity.zone.startsWith('haunt:')) || q.activity?.act === 'gangmeet') && !q.agent.frozen && !q.errand && !talking(q)); if (out.length < 1) continue;
         const cx = out.reduce((a, q) => a + q.agent.x, 0) / out.length, cy = out.reduce((a, q) => a + q.agent.y, 0) / out.length; if (!near(cx, cy, 460)) continue;
         const guard = s.people.find((q) => q.agent && !q.agent.hidden && q.agent.inside == null && /guard|watch|sergeant|constable/.test(q.job?.role || '') && !q.gang && Math.hypot(q.agent.x - cx, q.agent.y - cy) < 150); if (!guard) continue;
-        last.set(g, game.t); warned++;
-        const look = out[0]; if (near(cx, cy, 340)) { O.Speech && O.Speech.say(look, pick(['Psst! The watch!', 'Heads up, lads. Blue coat.', 'Wheet-wheeoo! Cave!']), 1.8); O.sfx && O.sfx('pipe', 0.15); }
-        const stay = [], go = []; out.forEach((q, i) => (i % 2 === 0 ? stay : go).push(q));
-        for (const q of stay) { q._gwatch = true; q.agent.frozen = true; q.agent.path = null; q.agent.dir = q.agent.x < guard.agent.x ? 2 : 1; }
-        for (const q of go) { const a = q.agent, ang = Math.random() * Math.PI * 2; O.Errands.send(s, q, [Math.floor((a.x + Math.cos(ang) * 120) / T), Math.floor((a.y + Math.sin(ang) * 80) / T)], { anim: 'idle', secs: 4, face: 0, giveUp: game.t + 25 }); }
-        alerts.push({ s, g, guard, stay, go, x: cx, y: cy, t: 0 }); }
+        alert(s, g, out, guard, cx, cy, false); }
     });
     (O.extraLines = O.extraLines || []).push((s, q) => { const A = alerts.find((x) => x.stay.includes(q) || x.go.includes(q)); return !A ? (A === undefined && alerts.some((x) => x.guard === q) ? 'You are on your rounds and you have just walked past a knot of gang toughs who went very quiet when they saw you.' : '') : 'The watch has just come by your gang\'s corner and you are acting innocent until he has gone.'; });
-    O.GangWatch = { alerts, get warned() { return warned; } };
+    O.GangWatch = { get yours() { return yours; }, alerts, get warned() { return warned; } };
   }
   O.GangWatchSetup = { setup };
 })();
@@ -38243,6 +38260,74 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     O.KidsBull = { get game() { return G; }, get played() { return played; }, start: () => { const s = cur(); s._bullDay = s.day; s._bullCount = (O.LooseBull && O.LooseBull.caught) || 1; lastDay = -1; } };
   }
   O.KidsBullSetup = { setup };
+})();
+
+</script>
+<script>
+// The dogs have opinions. Whatever comes through the town (a loose bull, the goose girl's geese, an ox-wagon,
+// the gong cart at night, the cows coming home, the ploughboys with their plough), the dogs of the place
+// notice: they come barking, run alongside at a safe distance with their hackles up, and only give up and
+// trot home when it has passed. The geese hiss back. The bull ignores them.
+'use strict';
+(function () {
+  function setup(game) {
+    const cur = () => O.SimRef.cur;
+    const chasing = new Map(); let acc = 0, barks = 0;
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    // what's passing, and where
+    const things = () => { const out = []; const add = (o, x, y, k) => { if (o && x != null) out.push({ o, x, y, k }); };
+      try { const B = O.LooseBull && O.LooseBull.bull; if (B && B.phase === 'loose') add(B, B.bull.x, B.bull.y, 'bull'); } catch (e) { /* */ }
+      try { const G = O.GooseGirl && O.GooseGirl.flock; if (G) add(G, G.x + G.dir * 20, G.y, 'geese'); } catch (e) { /* */ }
+      try { const W = O.OxWagons && O.OxWagons.wagon; if (W) add(W, W.x, W.y, 'wagon'); } catch (e) { /* */ }
+      try { const C = O.GongFarmer && O.GongFarmer.cart; if (C) add(C, C.x, C.y, 'gong'); } catch (e) { /* */ }
+      try { const H = O.CowsHome && O.CowsHome.herd; if (H) add(H, H.x + H.dir * 40, H.y, 'cows'); } catch (e) { /* */ }
+      try { const R = O.PloughMonday && O.PloughMonday.run; if (R && R.lads[0]) add(R, R.lads[0].agent.x, R.lads[0].agent.y, 'plough'); } catch (e) { /* */ }
+      return out; };
+    game.hooks.update.push((dt) => { const s = cur(); if (!s || !s.world || game.scene || !O.fauna) return; const id = s.world.placeId;
+      // dogs already running alongside keep at it, barking, till the thing has gone by
+      for (const [f, c] of chasing) { const T = things().find((t) => t.o === c.o); c.t += dt; if (!T || c.t > 20 || f.dead) { chasing.delete(f); f.tx = null; continue; } const side = f.x < T.x ? -1 : 1, tx = T.x + side * 26, ty = T.y + (c.off || 0); const dx = tx - f.x, dy = ty - f.y, d = Math.hypot(dx, dy); if (d > 2) { const v = Math.min(d, 70 * dt); f.x += dx / d * v; f.y += dy / d * v; f.moving = true; f.dir = dx > 0 ? 2 : 1; } f.tx = null; f._held = game.t + 0.5;
+        c.bark -= dt; if (c.bark <= 0) { c.bark = 0.6 + Math.random() * 1.2; barks++; if (near(f.x, f.y, 280)) O.animalCall && O.animalCall('dog', 0.35); if (Math.random() < 0.3) O.Speech && O.Speech.say(f, Math.random() < 0.5 ? 'Woof! Woof!' : 'Grrr... WOOF!', 1); } }
+      acc += dt; if (acc < 1) return; acc = 0;
+      for (const T of things()) { if (!near(T.x, T.y, 500)) continue; for (const f of O.fauna) { if (f.kind !== 'dog' || f.world !== id || f.dead || f.mine || f.mode === 'heel' || chasing.has(f)) continue; if (Math.hypot(f.x - T.x, f.y - T.y) > 180) continue; if ([...chasing.values()].filter((c) => c.o === T.o).length >= 2) break; chasing.set(f, { o: T.o, t: 0, bark: 0, off: (Math.random() - 0.5) * 16 });
+        if (T.k === 'geese' && T.o.girl && near(T.x, T.y, 280) && Math.random() < 0.5) O.Speech && O.Speech.say(T.o.girl, 'Get off, you cur! Leave my geese be!', 2); } } });
+    O.DogsReact = { chasing, get barks() { return barks; } };
+  }
+  O.DogsReactSetup = { setup };
+})();
+
+</script>
+<script>
+// Hail. When it comes rattling down, folk out of doors don't stroll: they throw their arms over their heads
+// or hold a basket or a sack up for a roof and run for the nearest door, yelping as it stings; and when it
+// stops, the children are out at once, scooping up the white pellets from the gutters, comparing sizes, and
+// throwing them at each other.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const cur = () => O.SimRef.cur;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    let was = false, acc = 0, ran = 0, after = 0, gathered = 0; const ducked = new Set();
+    const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
+    const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
+    game.hooks.update.push((dt) => { const s = cur(); if (!s || !s.world || game.scene || !s.weather) return; const hail = s.weather.kind === 'hail'; acc += dt;
+      if (hail) { if (acc < 0.6) return; acc = 0; ducked.forEach((id) => { const q = s.byId.get(id); if (q && q.agent && !q.errand) ducked.delete(id); });
+        // those out of doors cover their heads and run for the nearest door
+        let n = 0; for (const q of s.people) { const a = q.agent; if (!a || a.hidden || a.inside != null || a.frozen || q.errand || talking(q) || ducked.has(q.id) || !near(a.x, a.y, 420)) continue; if (++n > 4) break;
+          let best = null, bd = 1e9; for (const b of s.world.buildings) { if (b.doorX == null) continue; const d = Math.hypot(b.doorX * T - a.x, b.doorY * T - a.y); if (d < bd) { bd = d; best = b; } } if (!best || bd > 260) continue;
+          ducked.add(q.id); ran++; O.Errands.send(s, q, [best.doorX, best.doorY + 1], { anim: 'block', secs: 3, face: 3, sprint: true, giveUp: game.t + 15 }); if (Math.random() < 0.25) O.Speech && O.Speech.say(q, pick(['Ow! Ow! It stings!', 'Hail! Get in, get in!', 'God\'s teeth, it\'s like stones!']), 1.6); }
+        was = true; return; }
+      // when it stops, the children are out after the hailstones
+      if (was) { was = false; after = 25; ducked.clear(); const kids = s.people.filter((q) => q.age >= 5 && q.age <= 12 && q.agent && !q.agent.frozen && !q.errand && !talking(q) && (q.agent.inside == null ? near(q.agent.x, q.agent.y, 360) : (() => { const b = s.building(q.agent.inside); return b && b.doorX != null && b.type === 'house' && near(b.doorX * T, b.doorY * T, 360); })())).slice(0, 4);
+        kids.forEach((q, i) => { const a = q.agent; if (a.inside != null) { const b = s.building(a.inside); a.inside = null; a.hidden = false; a.x = b.doorX * T + 8; a.y = (b.doorY + 1) * T + 8; } const tx = Math.floor(a.x / T) + Math.round((Math.random() - 0.5) * 6), ty = Math.floor(a.y / T) + 1 + Math.round(Math.random() * 3); gathered++;
+          O.Errands.send(s, q, [tx, ty], { anim: 'pickup', secs: 2.5, face: 0, sprint: true, giveUp: game.t + 20, after: (ok) => { if (!ok) return; O.gesture && O.gesture(q, i % 2 ? 'celebrate' : 'attack', 1.2); if (i === 0 && near(q.agent.x, q.agent.y, 300)) O.Speech && O.Speech.say(q, pick(['Look at this one! Big as a pea!', 'They\'re cold! Feel!', 'Hailstone fight!']), 2); } }); }); }
+      if (after > 0) after -= dt; });
+    // the white pellets lying in the gutters for a while after
+    game.hooks.drawGround.push((ctx, cam) => { const s = cur(); if (!s || game.scene || !(after > 0 || (s.weather && s.weather.kind === 'hail'))) return; const W = ctx.canvas.width, H = ctx.canvas.height, k = s.weather.kind === 'hail' ? 1 : Math.max(0, after / 25);
+      ctx.fillStyle = `rgba(240,244,248,${0.8 * k})`; const ox = Math.floor(cam.x / 7), oy = Math.floor(cam.y / 7); for (let gy = 0; gy < H / 7 + 1; gy++) for (let gx = 0; gx < W / 7 + 1; gx++) { const h = ((gx + ox) * 73856093 ^ (gy + oy) * 19349663) >>> 0; if (h % 9) continue; ctx.fillRect(Math.round((gx + ox) * 7 - cam.x + (h % 5)), Math.round((gy + oy) * 7 - cam.y + ((h >> 3) % 5)), 1, 1); } });
+    O.HailFolk = { get ran() { return ran; }, get gathered() { return gathered; } };
+  }
+  O.HailFolkSetup = { setup };
 })();
 
 </script>
@@ -43420,7 +43505,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.WorkSetup.setup(game, sim, npcUI);
   O.EmploymentSetup.setup(game, home, npcUI);
   O.LettersSetup.setup(game, home, npcUI);
-  O.FittingSetup.setup(game); O.DecorateSetup.setup(game); O.LifeWeightSetup.setup(game); O.TradeLifeSetup.setup(game); O.RiverWildSetup.setup(game); O.SpokenSetup.setup(game); O.CombatDeepSetup.setup(game); O.GangStreetSetup.setup(game); O.HomeFrontSetup.setup(game); O.ScenesSetup.setup(game); O.IndoorLifeSetup.setup(game); O.ApproachesSetup.setup(game); O.LivelinessSetup.setup(game); O.StreetFightSetup.setup(game); O.Pastimes2Setup.setup(game); O.AnimalCareSetup.setup(game); O.MarchSetup.setup(game); O.LooksSetup.setup(game); O.GangPoliticsSetup.setup(game); O.NightWorkSetup.setup(game); O.ArchersSetup.setup(game); O.RaidSetup.setup(game); O.KidsPlaySetup.setup(game); O.AdultPlaySetup.setup(game); O.IdleLifeSetup.setup(game); O.CutpurseSetup.setup(game); O.ShakedownSetup.setup(game); O.ShopFrontSetup.setup(game); O.WarSightsSetup.setup(game); O.GangMarksSetup.setup(game); O.PassingsSetup.setup(game); O.LamplighterSetup.setup(game); O.SparringSetup.setup(game); O.KidsChoresSetup.setup(game); O.ProcessionsSetup.setup(game); O.MarketDaySetup.setup(game); O.RoadFolkSetup.setup(game); O.TownBirdsSetup.setup(game); O.TavernYardSetup.setup(game); O.SmuggleSetup.setup(game); O.MishapsSetup.setup(game); O.ShopFront2Setup.setup(game); O.NightLifeSetup.setup(game); O.SeasonsFxSetup.setup(game); O.GentryRideSetup.setup(game); O.GangRitesSetup.setup(game); O.HuntersSetup.setup(game); O.Courting2Setup.setup(game); O.InfirmSetup.setup(game); O.PasturesSetup.setup(game); O.AlmsSetup.setup(game); O.BellsSetup.setup(game); O.BoatsSetup.setup(game); O.StormReactSetup.setup(game); O.EscortSetup.setup(game); O.TracksSetup.setup(game); O.ShopDisplaySetup.setup(game); O.NoticeBoardSetup.setup(game); O.GraveDiggerSetup.setup(game); O.DayLabourSetup.setup(game); O.BaileySetup.setup(game); O.HarbourSetup.setup(game); O.HauntSetup.setup(game); O.CountrysideSetup.setup(game); O.WellWorkSetup.setup(game); O.StocksSetup.setup(game); O.WinterPlaySetup.setup(game); O.MillsSetup.setup(game); O.SummerPlaySetup.setup(game); O.LambsSetup.setup(game); O.LordsHuntSetup.setup(game); O.OccludeSetup.setup(game); O.IndoorFxSetup.setup(game); O.RoundsSetup.setup(game); O.HouseCallsSetup.setup(game); O.BrazierSetup.setup(game); O.GangBossSetup.setup(game); O.SlashSetup.setup(game); O.RepairsSetup.setup(game); O.WildFolkSetup.setup(game); O.FerrySetup.setup(game); O.RiverbankSetup.setup(game); O.TreeWorkSetup.setup(game); O.SiteWorkSetup.setup(game); O.DoorstepSetup.setup(game); O.RoomLifeSetup.setup(game); O.StableYardSetup.setup(game); O.AbbeyLifeSetup.setup(game); O.WinterWorkSetup.setup(game); O.StreetCallersSetup.setup(game); O.SeasonChoresSetup.setup(game); O.LivestockSetup.setup(game); O.BabesSetup.setup(game); O.FlagWatchSetup.setup(game); O.DawnDuskSetup.setup(game); O.PuddlesSetup.setup(game); O.QuaysideSetup.setup(game); O.CottageYardsSetup.setup(game); O.WindySetup.setup(game); O.StreetMuckSetup.setup(game); O.HitchingSetup.setup(game); O.KidsPlay2Setup.setup(game); O.StrayDogSetup.setup(game); O.TollBarSetup.setup(game); O.NightWalkersSetup.setup(game); O.BakehouseSetup.setup(game); O.WorkFxSetup.setup(game); O.ToothPullSetup.setup(game); O.GentryLeisureSetup.setup(game); O.WaterfowlSetup.setup(game); O.RainFolkSetup.setup(game); O.JostleSetup.setup(game); O.GraveVisitsSetup.setup(game); O.HandcartsSetup.setup(game); O.DoorCheckSetup.setup(game); O.SwallowsSetup.setup(game); O.MiceSetup.setup(game); O.StreetPigsSetup.setup(game); O.BirdScarerSetup.setup(game); O.WassailSetup.setup(game); O.RogationSetup.setup(game); O.SheepWashSetup.setup(game); O.WorkMomentsSetup.setup(game); O.TaxDoorSetup.setup(game); O.OfficeFrontsSetup.setup(game); O.TradeLoopSetup.setup(game); O.TreeFallSetup.setup(game); O.EvictionsSetup.setup(game); O.BoardedUpSetup.setup(game); O.MootSceneSetup.setup(game); O.BreadDoleSetup.setup(game); O.FloodFolkSetup.setup(game); O.PlagueTownSetup.setup(game); O.OxWagonsSetup.setup(game); O.SwarmSetup.setup(game); O.LostChildSetup.setup(game); O.TruantsSetup.setup(game); O.LeperSetup.setup(game); O.WatchChangeSetup.setup(game); O.ChristeningSetup.setup(game); O.JobIncidentsSetup.setup(game); O.ShrovetideSetup.setup(game); O.PloughMondaySetup.setup(game); O.MillGristSetup.setup(game); O.TrestleTradeSetup.setup(game); O.SoulingSetup.setup(game); O.CandlemasSetup.setup(game); O.YuleSetup.setup(game); O.SheepdogSetup.setup(game); O.CatHuntSetup.setup(game); O.LooseBullSetup.setup(game); O.GooseGirlSetup.setup(game); O.GangWatchSetup.setup(game); O.FriarSetup.setup(game); O.ChimneyFireSetup.setup(game); O.AiringSetup.setup(game); O.InnArrivalSetup.setup(game); O.GongFarmerSetup.setup(game); O.CowsHomeSetup.setup(game); O.OwlHuntSetup.setup(game); O.TownTalkSetup.setup(game); O.GratitudeSetup.setup(game); O.ShunningSetup.setup(game); O.AmendsSetup.setup(game); O.MourningDressSetup.setup(game); O.StreetNewsSetup.setup(game); O.HeroPraiseSetup.setup(game); O.KidsBullSetup.setup(game);
+  O.FittingSetup.setup(game); O.DecorateSetup.setup(game); O.LifeWeightSetup.setup(game); O.TradeLifeSetup.setup(game); O.RiverWildSetup.setup(game); O.SpokenSetup.setup(game); O.CombatDeepSetup.setup(game); O.GangStreetSetup.setup(game); O.HomeFrontSetup.setup(game); O.ScenesSetup.setup(game); O.IndoorLifeSetup.setup(game); O.ApproachesSetup.setup(game); O.LivelinessSetup.setup(game); O.StreetFightSetup.setup(game); O.Pastimes2Setup.setup(game); O.AnimalCareSetup.setup(game); O.MarchSetup.setup(game); O.LooksSetup.setup(game); O.GangPoliticsSetup.setup(game); O.NightWorkSetup.setup(game); O.ArchersSetup.setup(game); O.RaidSetup.setup(game); O.KidsPlaySetup.setup(game); O.AdultPlaySetup.setup(game); O.IdleLifeSetup.setup(game); O.CutpurseSetup.setup(game); O.ShakedownSetup.setup(game); O.ShopFrontSetup.setup(game); O.WarSightsSetup.setup(game); O.GangMarksSetup.setup(game); O.PassingsSetup.setup(game); O.LamplighterSetup.setup(game); O.SparringSetup.setup(game); O.KidsChoresSetup.setup(game); O.ProcessionsSetup.setup(game); O.MarketDaySetup.setup(game); O.RoadFolkSetup.setup(game); O.TownBirdsSetup.setup(game); O.TavernYardSetup.setup(game); O.SmuggleSetup.setup(game); O.MishapsSetup.setup(game); O.ShopFront2Setup.setup(game); O.NightLifeSetup.setup(game); O.SeasonsFxSetup.setup(game); O.GentryRideSetup.setup(game); O.GangRitesSetup.setup(game); O.HuntersSetup.setup(game); O.Courting2Setup.setup(game); O.InfirmSetup.setup(game); O.PasturesSetup.setup(game); O.AlmsSetup.setup(game); O.BellsSetup.setup(game); O.BoatsSetup.setup(game); O.StormReactSetup.setup(game); O.EscortSetup.setup(game); O.TracksSetup.setup(game); O.ShopDisplaySetup.setup(game); O.NoticeBoardSetup.setup(game); O.GraveDiggerSetup.setup(game); O.DayLabourSetup.setup(game); O.BaileySetup.setup(game); O.HarbourSetup.setup(game); O.HauntSetup.setup(game); O.CountrysideSetup.setup(game); O.WellWorkSetup.setup(game); O.StocksSetup.setup(game); O.WinterPlaySetup.setup(game); O.MillsSetup.setup(game); O.SummerPlaySetup.setup(game); O.LambsSetup.setup(game); O.LordsHuntSetup.setup(game); O.OccludeSetup.setup(game); O.IndoorFxSetup.setup(game); O.RoundsSetup.setup(game); O.HouseCallsSetup.setup(game); O.BrazierSetup.setup(game); O.GangBossSetup.setup(game); O.SlashSetup.setup(game); O.RepairsSetup.setup(game); O.WildFolkSetup.setup(game); O.FerrySetup.setup(game); O.RiverbankSetup.setup(game); O.TreeWorkSetup.setup(game); O.SiteWorkSetup.setup(game); O.DoorstepSetup.setup(game); O.RoomLifeSetup.setup(game); O.StableYardSetup.setup(game); O.AbbeyLifeSetup.setup(game); O.WinterWorkSetup.setup(game); O.StreetCallersSetup.setup(game); O.SeasonChoresSetup.setup(game); O.LivestockSetup.setup(game); O.BabesSetup.setup(game); O.FlagWatchSetup.setup(game); O.DawnDuskSetup.setup(game); O.PuddlesSetup.setup(game); O.QuaysideSetup.setup(game); O.CottageYardsSetup.setup(game); O.WindySetup.setup(game); O.StreetMuckSetup.setup(game); O.HitchingSetup.setup(game); O.KidsPlay2Setup.setup(game); O.StrayDogSetup.setup(game); O.TollBarSetup.setup(game); O.NightWalkersSetup.setup(game); O.BakehouseSetup.setup(game); O.WorkFxSetup.setup(game); O.ToothPullSetup.setup(game); O.GentryLeisureSetup.setup(game); O.WaterfowlSetup.setup(game); O.RainFolkSetup.setup(game); O.JostleSetup.setup(game); O.GraveVisitsSetup.setup(game); O.HandcartsSetup.setup(game); O.DoorCheckSetup.setup(game); O.SwallowsSetup.setup(game); O.MiceSetup.setup(game); O.StreetPigsSetup.setup(game); O.BirdScarerSetup.setup(game); O.WassailSetup.setup(game); O.RogationSetup.setup(game); O.SheepWashSetup.setup(game); O.WorkMomentsSetup.setup(game); O.TaxDoorSetup.setup(game); O.OfficeFrontsSetup.setup(game); O.TradeLoopSetup.setup(game); O.TreeFallSetup.setup(game); O.EvictionsSetup.setup(game); O.BoardedUpSetup.setup(game); O.MootSceneSetup.setup(game); O.BreadDoleSetup.setup(game); O.FloodFolkSetup.setup(game); O.PlagueTownSetup.setup(game); O.OxWagonsSetup.setup(game); O.SwarmSetup.setup(game); O.LostChildSetup.setup(game); O.TruantsSetup.setup(game); O.LeperSetup.setup(game); O.WatchChangeSetup.setup(game); O.ChristeningSetup.setup(game); O.JobIncidentsSetup.setup(game); O.ShrovetideSetup.setup(game); O.PloughMondaySetup.setup(game); O.MillGristSetup.setup(game); O.TrestleTradeSetup.setup(game); O.SoulingSetup.setup(game); O.CandlemasSetup.setup(game); O.YuleSetup.setup(game); O.SheepdogSetup.setup(game); O.CatHuntSetup.setup(game); O.LooseBullSetup.setup(game); O.GooseGirlSetup.setup(game); O.GangWatchSetup.setup(game); O.FriarSetup.setup(game); O.ChimneyFireSetup.setup(game); O.AiringSetup.setup(game); O.InnArrivalSetup.setup(game); O.GongFarmerSetup.setup(game); O.CowsHomeSetup.setup(game); O.OwlHuntSetup.setup(game); O.TownTalkSetup.setup(game); O.GratitudeSetup.setup(game); O.ShunningSetup.setup(game); O.AmendsSetup.setup(game); O.MourningDressSetup.setup(game); O.StreetNewsSetup.setup(game); O.HeroPraiseSetup.setup(game); O.KidsBullSetup.setup(game); O.DogsReactSetup.setup(game); O.HailFolkSetup.setup(game);
   O.StreetSetup.setup(game, home);
   O.GangLifeSetup.setup(game, npcUI);
   O.TownLifeSetup.setup(game, npcUI);

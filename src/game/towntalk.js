@@ -34,6 +34,9 @@
       ['Processions', 'threw', null, 'The stranger threw grain over the bride and groom at the church door, for luck.', 'They say the stranger threw grain at the wedding.'],
       ['Processions', 'bowed', null, 'The stranger stood aside and bowed their head as the coffin went by. Decent of them.', 'The stranger showed respect at the funeral, they say.'],
       ['MourningDress', 'condolences', null, 'The stranger stopped to say they were sorry to a family in black.', 'The stranger offered condolences to the bereaved, they say.'],
+      ['HailFolk', 'gathered', null, 'Hail came down like peas today, and the children were out after the stones the minute it stopped.', 'There was hail today, they say, big as peas.'],
+      ['MyDogJoins', 'turned', null, 'The stranger sent their dog in at the loose bull, and it turned the beast for the rope. A proper working dog.', 'They say the stranger\'s dog turned the loose bull.'],
+      ['MyDogJoins', 'scattered', null, 'The stranger set their dog on the goose girl\'s geese, the wretch, and laughed while she screamed.', 'They say the stranger set a dog on the goose girl\'s geese. Shameful.'],
     ];
     game.hooks.update.push((dt) => { acc += dt; if (acc < 0.5) return; acc = 0; const s = cur(); if (!s || !s.people) return;
       for (const [mod, key, at, seen, heard] of EV) { const M = O[mod]; if (!M) continue; let v; try { v = M[key]; } catch (e) { continue; } if (typeof v !== 'number') continue; const k = mod + '.' + key, was = last.get(k); last.set(k, v); if (was == null || v <= was) continue; let pos = null; try { pos = at && at(); } catch (e) { pos = null; } let sn = seen, hd = heard; const hero = (key === 'caught' || key === 'fires') && M.hero; if (hero && hero.first && hero.alive !== false) { sn = seen + ` It was ${hero.first} ${key === 'caught' ? 'who got the rope on it' : 'who went up the ladder'}.`; hd = heard.replace(/\.$/, '') + `; ${hero.first} was the hero of it.`; heroes++; }

@@ -13,7 +13,7 @@
     const notorious = () => (PS.rep && (PS.rep.criminal > 0.4 || PS.rep.civilian < -0.35)) || (PS.wantedLevel && PS.wantedLevel() >= 1) || !!PS.outlaw;
     game.hooks.update.push((dt) => { acc += dt; if (acc < 0.6) return; acc = 0; const s = cur(); if (!s || !s.people || game.scene || (O.crowned && O.crowned())) return; const P = game.player, bad = notorious();
       for (const q of s.people) { const a = q.agent; if (!a || a.hidden || a.inside != null || a.frozen || q.errand || q.gang || talking(q) || q.age < 14 || /guard|watch|sergeant/.test(q.job?.role || '')) continue; if (Math.hypot(a.x - P.x, a.y - P.y) > 46 || done.get(q.id) === s.day) continue;
-        const hate = (q.rel.get(0)?.affinity || 0) < -0.45; if (!bad && !hate) continue; done.set(q.id, s.day); shunned++;
+        const hate = (q.rel.get(0)?.affinity || 0) < -0.45 || (q.beliefs || []).some((b) => b.src === 'seen' && /^The stranger/.test(b.t || '') && /wretch|shameful/i.test(b.t || '') && s.day - (b.day || 0) <= 3); if (!bad && !hate) continue; done.set(q.id, s.day); shunned++;
         // a child near them is pulled in close
         const kid = s.people.find((k) => k.age < 10 && k.home === q.home && k.agent && !k.agent.hidden && !k.agent.frozen && !k.errand && Math.hypot(k.agent.x - P.x, k.agent.y - P.y) < 70);
         if (kid) { pulled++; O.Errands.send(s, kid, [Math.floor(a.x / T), Math.floor(a.y / T) + 1], { anim: 'idle', secs: 3, face: 0, sprint: true, giveUp: game.t + 10 }); O.Speech && O.Speech.say(q, pick([`${kid.first}! Here. Now.`, 'Come away from there, child.', 'Don\'t look at them. Come here.']), 2.2); }

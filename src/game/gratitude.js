@@ -10,7 +10,7 @@
     const greeted = new Map(); let acc = 0, thanks = 0, nods = 0, gifts = 0; const PS = O.PlayerState, G = O.Data.GOODS;
     const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
     const helped = (q) => (q.memories || []).find((m) => m.kind === 'kindness' && /stranger/i.test(m.text || ''));
-    const saw = (q) => (q.beliefs || []).find((b) => b.src === 'seen' && /^The stranger/.test(b.t || ''));
+    const saw = (q) => (q.beliefs || []).find((b) => b.src === 'seen' && /^The stranger/.test(b.t || '') && !/wretch|shameful/i.test(b.t || ''));
     const LINES = [[/child|little one/, ['God bless you! My little one still talks of you.', 'There\'s the one who brought my baby home!', 'I\'ll never forget what you did, friend.']], [/chimney|fire/, ['My thatch would be ashes but for you.', 'Our fire-fighter! Come and eat with us one day.']], [/bread|loaf/, ['God reward you for that loaf. I\'ve not forgotten.', 'You fed my children that day. Bless you.']], [/flood|bail/, ['You bailed my floor! The flour\'s dry now, thanks to you.', 'Our good neighbour from the flood!']], [/.*/, ['Friend! Good to see you.', 'God keep you, stranger. You\'re a good soul.']]];
     game.hooks.update.push((dt) => { acc += dt; if (acc < 0.7) return; acc = 0; const s = cur(); if (!s || !s.people || game.scene) return; const P = game.player;
       for (const q of s.people) { const a = q.agent; if (!a || a.hidden || a.inside != null || a.frozen || q.errand || talking(q) || q.age < 6) continue; if (Math.hypot(a.x - P.x, a.y - P.y) > 44) continue; if (greeted.get(q.id) === s.day) continue;

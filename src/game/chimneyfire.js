@@ -10,7 +10,7 @@
   function setup(game) {
     const cur = () => O.SimRef.cur;
     const pick = (a) => a[Math.floor(Math.random() * a.length)];
-    let C = null, cool = 400, fires = 0, bonds = 0; const parts = [];
+    let C = null, cool = 400, fires = 0, bonds = 0, hero = null; const parts = [];
     const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
     const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
     const able = (q) => q && q.alive !== false && q.agent && !q.agent.frozen && !q.errand && !q._chim && !q._bit && !q._scene && !talking(q);
@@ -30,7 +30,7 @@
         if (C.t > 6 && !C.called) { C.called = true; const w = s.world, b = C.b;
           const men = s.people.filter((q) => able(q) && q.age >= 14 && !C.house.includes(q) && !q.agent.hidden && q.agent.inside == null && Math.hypot(q.agent.x - cx, q.agent.y - cy) < 500).slice(0, 3);
           men.forEach((q, i) => { q._chim = true; C.help.push(q); const tx = b.doorX + (i === 0 ? (b.doorX - b.x > b.w / 2 ? -1 : 1) : (i === 1 ? -2 : 2)), ty = b.doorY + (i === 0 ? 1 : 2); O.Errands.send(s, q, [Math.max(1, Math.min(w.W - 2, tx)), ty], { anim: 'idle', secs: 0.1, face: 3, sprint: true, giveUp: game.t + 30, carry: i ? { good: 'ale', qty: 1 } : null, after: (ok) => { if (!C || !q._chim) return; if (!ok) { rel(q); return; } q.agent.frozen = true; q.agent.path = null; q.agent.carrying = null; if (i === 0 && near(cx, cy, 340)) O.Speech && O.Speech.say(q, 'Hand me up the wet sack! Quick!', 2.2); } }); }); }
-        if (C.t > 56 && !C.s2) { C.s2 = true; fires++; if (near(cx, cy, 340)) { const h = C.help[1] || C.help[0]; if (h) O.Speech && O.Speech.say(h, pick(['That\'s it out. Get the sweep in, mistress, before you burn the street down.', 'Out. Thank God for a wet roof.', 'There. And there\'s your supper smoked.']), 3); } }
+        if (C.t > 56 && !C.s2) { C.s2 = true; hero = C.help[0] || null; fires++; if (near(cx, cy, 340)) { const h = C.help[1] || C.help[0]; if (h) O.Speech && O.Speech.say(h, pick(['That\'s it out. Get the sweep in, mistress, before you burn the street down.', 'Out. Thank God for a wet roof.', 'There. And there\'s your supper smoked.']), 3); } }
         if (C.t > 64) end();
         return; }
       cool -= dt; if (cool > 0) return; cool = 900 + Math.random() * 900; if (s.season === 'summer' || !(hr > 16 || hr < 8)) return;
@@ -53,7 +53,7 @@
     (O.moreCandidates = O.moreCandidates || []).push(() => { const P = game.player; if (!C || C.t > 42 || C.youHelped || game.scene || P.locked) return null; const b = C.b; if (Math.hypot(b.doorX * T + 8 - P.x, (b.doorY + 2) * T - P.y) > 50) return null;
       return { type: 'custom', d: 50, x: b.doorX * T + 8, y: (b.doorY + 1) * T - 20, label: 'Grab a bucket and throw water on the roof', act: () => { if (!C) return; const s = cur(); C.youHelped = true; yours++; C.t = Math.max(C.t, 30); P.anim = 'pour'; P.locked = true; for (let j = 0; j < 14; j++) parts.push({ x: P.x, y: P.y - 18, vx: (C.top[0] - P.x) * 0.6 + (Math.random() - 0.5) * 20, vy: -90 - Math.random() * 20, g: 160, t: 0, life: 0.8, c: '#a8c0d8', s: 1 });
         setTimeout(() => { P.locked = false; P.anim = 'idle'; }, 1800); const h = C.house[0]; if (h) { const r = relOf(h); r.affinity = Math.min(1, r.affinity + 0.2); try { s.remember(h, 'When my chimney caught fire, a stranger ran up with a bucket and helped put it out.', 'kindness', 0.7); } catch (e) { /* */ } setTimeout(() => O.Speech && O.Speech.say(h, 'God bless you! Another one, quick!', 2), 600); } } }; });
-    O.ChimneyFire = { get bonds() { return bonds; }, get yours() { return yours; }, get fire() { return C; }, get fires() { return fires; }, soon: () => { cool = 0; } };
+    O.ChimneyFire = { get hero() { return hero; }, get bonds() { return bonds; }, get yours() { return yours; }, get fire() { return C; }, get fires() { return fires; }, soon: () => { cool = 0; } };
   }
   O.ChimneyFireSetup = { setup };
 })();

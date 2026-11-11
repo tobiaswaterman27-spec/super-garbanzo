@@ -6,6 +6,7 @@ await p.evaluate(() => { const s = O.SimRef.cur; let g = 0; while (s.minute / 60
 for (let i = 0; i < 120 && !(await p.evaluate(() => O.LooseBull.caught)); i++) { await p.waitForTimeout(1000); await p.evaluate(() => { if (!O.LooseBull.bull) O.LooseBull.soon(); }); }
 await p.waitForTimeout(1500);
 const r = await p.evaluate(() => { const s = O.SimRef.cur; const seen = s.people.filter((q) => (q.beliefs || []).some((b) => /bull got loose/.test(b.t))).length, heard = s.people.filter((q) => (q.beliefs || []).some((b) => /bull loose/.test(b.t) && b.src === 'rumour')).length; return { seen, heard, told: O.TownTalk.told }; });
+console.log('hero named:', await p.evaluate(() => O.TownTalk.heroes), await p.evaluate(() => { const s = O.SimRef.cur; for (const q of s.people) for (const b of q.beliefs || []) if (/hero of it/.test(b.t)) return b.t; return ''; }));
 console.log('in the chronicle:', await p.evaluate(() => O.Chronicle.facts.filter((f) => /bull loose/.test(f.text)).map((f) => f.text + ' [' + f.imp + ']').join(' / ')));
 console.log('bull caught:', await p.evaluate(() => O.LooseBull.caught), '| saw it:', r.seen, '| heard at home:', r.heard, '| tales:', r.told);
 await done();

@@ -8,7 +8,7 @@
   function setup(game) {
     const cur = () => O.SimRef.cur;
     const pick = (a) => a[Math.floor(Math.random() * a.length)];
-    let B = null, cool = 300, caught = 0;
+    let B = null, cool = 300, caught = 0, hero = null;
     const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
     const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
     const able = (q) => q && q.alive !== false && q.agent && !q.agent.frozen && !q.errand && !q._bull && !q._bit && !q._scene && !talking(q);
@@ -27,7 +27,7 @@
           // the men catch up with it
           if (B.t > 12 && B.men.length) { let close = 0; for (const [i, q] of B.men.entries()) { const a = q.agent, ang = B.t * 0.8 + i * Math.PI; const d = step(a, b.x + Math.cos(ang) * 24, b.y + Math.sin(ang) * 16, 62, dt); a.forceAnim = 'run'; if (d < 30) close++; } if (close === B.men.length && B.t > 22) { B.phase = 'rope'; B.k = 0; if (near(b.x, b.y, 300)) O.Speech && O.Speech.say(B.men[0], pick(['Now! Get the rope on him!', 'Easy, boy, easy... GOT him!', 'Hold his head! Hold it!']), 2.4); } }
           else for (const q of B.men) { step(q.agent, b.x, b.y, 58, dt); q.agent.forceAnim = 'run'; } }
-        if (B.phase === 'rope') { B.k += dt; b.moving = false; for (const q of B.men) { q.agent.forceAnim = B.k < 3 ? 'pitch' : 'idle'; q.agent.dir = q.agent.x < b.x ? 2 : 1; } if (B.k > 4) { B.phase = 'home'; caught++; if (near(b.x, b.y, 340)) setTimeout(() => B && O.Speech && O.Speech.say(B.men[1] || B.men[0], pick(['Who left the gate open? I\'ll have his hide.', 'He\'ll be in the stew pot, that one.', 'That\'s enough excitement for one day.']), 2.6), 1500); } }
+        if (B.phase === 'rope') { B.k += dt; b.moving = false; for (const q of B.men) { q.agent.forceAnim = B.k < 3 ? 'pitch' : 'idle'; q.agent.dir = q.agent.x < b.x ? 2 : 1; } if (B.k > 4) { B.phase = 'home'; hero = B.men[0] || null; caught++; if (near(b.x, b.y, 340)) setTimeout(() => B && O.Speech && O.Speech.say(B.men[1] || B.men[0], pick(['Who left the gate open? I\'ll have his hide.', 'He\'ll be in the stew pot, that one.', 'That\'s enough excitement for one day.']), 2.6), 1500); } }
         if (B.phase === 'home') { const lead = B.men[0].agent; const d = step(lead, B.home[0], B.home[1], 26, dt); lead.forceAnim = 'walk'; const bx = lead.x + (lead.x > b.x ? -18 : 18), by = lead.y; b.x += (bx - b.x) * Math.min(1, dt * 2); b.y += (by - b.y) * Math.min(1, dt * 2); b.moving = true; b.dir = lead.x > b.x ? 2 : 1; for (const q of B.men.slice(1)) { step(q.agent, b.x - 16, b.y + 8, 30, dt); q.agent.forceAnim = 'walk'; } if (d < 4 || B.t > 110) { end(); return; } }
         return; }
       cool -= dt; if (cool > 0) return; cool = 500 + Math.random() * 600; if (hr < 9 || hr > 17) return;
@@ -52,7 +52,7 @@
         const sk = (O.PlayerState && O.PlayerState.skills && (O.PlayerState.skills.fighting || O.PlayerState.skills.farming)) || 0;
         if (Math.random() < 0.55 + sk * 0.4) { grabbed++; B.phase = 'rope'; B.k = 0; O.UI && O.UI.say && O.UI.say('You get a hand on the rope and hang on. He tosses his head, and then he stands, blowing.', 'good'); if (B.men[0]) O.Speech && O.Speech.say(B.men[0], pick(['Well held! Well held!', 'God\'s teeth, you\'ve a grip on you!', 'Hold him there, I\'m coming!']), 2.4); if (O.PlayerState && O.PlayerState.rep) O.PlayerState.rep.civilian = (O.PlayerState.rep.civilian || 0) + 0.03; }
         else { O.UI && O.UI.say && O.UI.say('He swings his head and throws you off into the dirt.', 'bad'); setTimeout(() => { P.anim = 'hurt'; }, 200); if (O.PlayerState) O.PlayerState.hp = Math.max(5, (O.PlayerState.hp || 50) - 6); } } }; });
-    O.LooseBull = { get grabbed() { return grabbed; }, get bull() { return B; }, get caught() { return caught; }, soon: () => { cool = 0; } };
+    O.LooseBull = { get hero() { return hero; }, get grabbed() { return grabbed; }, get bull() { return B; }, get caught() { return caught; }, soon: () => { cool = 0; } };
   }
   O.LooseBullSetup = { setup };
 })();

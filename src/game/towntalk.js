@@ -6,12 +6,12 @@
 (function () {
   function setup(game) {
     const cur = () => O.SimRef.cur;
-    const last = new Map(); let acc = 0, told = 0;
+    const last = new Map(); let acc = 0, told = 0, heroes = 0;
     function tell(s, x, y, seen, heard) { const P = game.player; if (x == null) { x = P.x; y = P.y; } const wit = s.people.filter((q) => q.alive !== false && q.agent && !q.agent.hidden && q.agent.inside == null && q.age >= 6 && Math.hypot(q.agent.x - x, q.agent.y - y) < 240);
       const add = (q, t, src) => { q.beliefs = q.beliefs || []; if (q.beliefs.some((b) => b.t === t)) return; q.beliefs.unshift({ t: t.slice(0, 160), src, day: s.day }); if (q.beliefs.length > 14) q.beliefs.length = 14; };
       const homes = new Set(); for (const q of wit) { add(q, seen, 'seen'); homes.add(q.home); } for (const q of s.people) if (homes.has(q.home) && !wit.includes(q) && q.age >= 6) add(q, heard, 'rumour'); told++;
       // and into the town's chronicle, where the crier and the gossips find it
-      try { if (O.Chronicle && O.Chronicle.add) { const mine = /^The stranger/.test(seen), big = mine || /bull|chimney|wheel|missing/.test(seen); O.Chronicle.add({ day: s.day, minute: Math.floor(s.minute), place: s.world.placeId || 'ashford', placeName: s.world.name, cat: mine ? 'people' : /bull|chimney|flood/.test(seen) ? 'disaster' : 'people', imp: big ? 2 : 1, text: heard.replace(/^They say /, '').replace(/, they say\.$/, '.').replace(/^(.)/, (c) => c.toUpperCase()), byPlayer: mine }); } } catch (e) { /* */ }
+      try { if (O.Chronicle && O.Chronicle.add) { const mine = /^The stranger/.test(seen), big = mine || /bull|chimney|wheel|missing/.test(seen); O.Chronicle.add({ day: s.day, minute: Math.floor(s.minute), place: s.world.placeId || 'ashford', placeName: s.world.name, cat: mine ? 'people' : /bull|chimney|flood/.test(seen) ? 'disaster' : 'people', imp: big ? 2 : 1, text: heard.replace(/^They say /, '').replace(/, they say/, '').replace(/^(.)/, (c) => c.toUpperCase()), byPlayer: mine }); } } catch (e) { /* */ }
       return wit.length; }
     // [what to watch, where it happened, what the witnesses saw, what the household heard]
     const EV = [
@@ -36,8 +36,10 @@
       ['MourningDress', 'condolences', null, 'The stranger stopped to say they were sorry to a family in black.', 'The stranger offered condolences to the bereaved, they say.'],
     ];
     game.hooks.update.push((dt) => { acc += dt; if (acc < 0.5) return; acc = 0; const s = cur(); if (!s || !s.people) return;
-      for (const [mod, key, at, seen, heard] of EV) { const M = O[mod]; if (!M) continue; let v; try { v = M[key]; } catch (e) { continue; } if (typeof v !== 'number') continue; const k = mod + '.' + key, was = last.get(k); last.set(k, v); if (was == null || v <= was) continue; let pos = null; try { pos = at && at(); } catch (e) { pos = null; } tell(s, pos ? pos.x : null, pos ? pos.y : null, seen, heard); } });
-    O.TownTalk = { tell: (x, y, seen, heard) => tell(cur(), x, y, seen, heard || seen), get told() { return told; } };
+      for (const [mod, key, at, seen, heard] of EV) { const M = O[mod]; if (!M) continue; let v; try { v = M[key]; } catch (e) { continue; } if (typeof v !== 'number') continue; const k = mod + '.' + key, was = last.get(k); last.set(k, v); if (was == null || v <= was) continue; let pos = null; try { pos = at && at(); } catch (e) { pos = null; } let sn = seen, hd = heard; const hero = (key === 'caught' || key === 'fires') && M.hero; if (hero && hero.first && hero.alive !== false) { sn = seen + ` It was ${hero.first} ${key === 'caught' ? 'who got the rope on it' : 'who went up the ladder'}.`; hd = heard.replace(/\.$/, '') + `; ${hero.first} was the hero of it.`; heroes++; }
+        const n = tell(s, pos ? pos.x : null, pos ? pos.y : null, sn, hd);
+        if (hero && hero.first) for (const q of s.people) { if (q === hero || !(q.beliefs || []).some((b) => b.t === sn)) continue; try { s.relate(q, hero, 0.05); } catch (e) { /* */ } } void n; } });
+    O.TownTalk = { get heroes() { return heroes; }, tell: (x, y, seen, heard) => tell(cur(), x, y, seen, heard || seen), get told() { return told; } };
   }
   O.TownTalkSetup = { setup };
 })();

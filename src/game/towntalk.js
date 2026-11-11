@@ -31,6 +31,9 @@
       ['PloughMonday', 'ploughed', () => O.PloughMonday.run?.lads?.[0]?.agent, 'The ploughboys ploughed up a mean man\'s doorstep today for refusing them a penny.', 'Some skinflint had his step ploughed up by the ploughboys.'],
       ['TreeFall', 'felled', null, 'A great tree came down today with a crash you could hear across the town.', 'They felled a big tree today.'],
       ['Christening', 'held', () => O.Christening.scene && { x: O.Christening.scene.x, y: O.Christening.scene.y }, 'There was a christening today, and pennies thrown for the children.', 'There was a christening today.'],
+      ['Processions', 'threw', null, 'The stranger threw grain over the bride and groom at the church door, for luck.', 'They say the stranger threw grain at the wedding.'],
+      ['Processions', 'bowed', null, 'The stranger stood aside and bowed their head as the coffin went by. Decent of them.', 'The stranger showed respect at the funeral, they say.'],
+      ['MourningDress', 'condolences', null, 'The stranger stopped to say they were sorry to a family in black.', 'The stranger offered condolences to the bereaved, they say.'],
     ];
     game.hooks.update.push((dt) => { acc += dt; if (acc < 0.5) return; acc = 0; const s = cur(); if (!s || !s.people) return;
       for (const [mod, key, at, seen, heard] of EV) { const M = O[mod]; if (!M) continue; let v; try { v = M[key]; } catch (e) { continue; } if (typeof v !== 'number') continue; const k = mod + '.' + key, was = last.get(k); last.set(k, v); if (was == null || v <= was) continue; let pos = null; try { pos = at && at(); } catch (e) { pos = null; } tell(s, pos ? pos.x : null, pos ? pos.y : null, seen, heard); } });

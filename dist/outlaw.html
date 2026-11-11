@@ -37524,7 +37524,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
   function setup(game) {
     const cur = () => O.SimRef.cur;
     const pick = (a) => a[Math.floor(Math.random() * a.length)];
-    let B = null, cool = 300, caught = 0;
+    let B = null, cool = 300, caught = 0, hero = null;
     const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
     const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
     const able = (q) => q && q.alive !== false && q.agent && !q.agent.frozen && !q.errand && !q._bull && !q._bit && !q._scene && !talking(q);
@@ -37543,7 +37543,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
           // the men catch up with it
           if (B.t > 12 && B.men.length) { let close = 0; for (const [i, q] of B.men.entries()) { const a = q.agent, ang = B.t * 0.8 + i * Math.PI; const d = step(a, b.x + Math.cos(ang) * 24, b.y + Math.sin(ang) * 16, 62, dt); a.forceAnim = 'run'; if (d < 30) close++; } if (close === B.men.length && B.t > 22) { B.phase = 'rope'; B.k = 0; if (near(b.x, b.y, 300)) O.Speech && O.Speech.say(B.men[0], pick(['Now! Get the rope on him!', 'Easy, boy, easy... GOT him!', 'Hold his head! Hold it!']), 2.4); } }
           else for (const q of B.men) { step(q.agent, b.x, b.y, 58, dt); q.agent.forceAnim = 'run'; } }
-        if (B.phase === 'rope') { B.k += dt; b.moving = false; for (const q of B.men) { q.agent.forceAnim = B.k < 3 ? 'pitch' : 'idle'; q.agent.dir = q.agent.x < b.x ? 2 : 1; } if (B.k > 4) { B.phase = 'home'; caught++; if (near(b.x, b.y, 340)) setTimeout(() => B && O.Speech && O.Speech.say(B.men[1] || B.men[0], pick(['Who left the gate open? I\'ll have his hide.', 'He\'ll be in the stew pot, that one.', 'That\'s enough excitement for one day.']), 2.6), 1500); } }
+        if (B.phase === 'rope') { B.k += dt; b.moving = false; for (const q of B.men) { q.agent.forceAnim = B.k < 3 ? 'pitch' : 'idle'; q.agent.dir = q.agent.x < b.x ? 2 : 1; } if (B.k > 4) { B.phase = 'home'; hero = B.men[0] || null; caught++; if (near(b.x, b.y, 340)) setTimeout(() => B && O.Speech && O.Speech.say(B.men[1] || B.men[0], pick(['Who left the gate open? I\'ll have his hide.', 'He\'ll be in the stew pot, that one.', 'That\'s enough excitement for one day.']), 2.6), 1500); } }
         if (B.phase === 'home') { const lead = B.men[0].agent; const d = step(lead, B.home[0], B.home[1], 26, dt); lead.forceAnim = 'walk'; const bx = lead.x + (lead.x > b.x ? -18 : 18), by = lead.y; b.x += (bx - b.x) * Math.min(1, dt * 2); b.y += (by - b.y) * Math.min(1, dt * 2); b.moving = true; b.dir = lead.x > b.x ? 2 : 1; for (const q of B.men.slice(1)) { step(q.agent, b.x - 16, b.y + 8, 30, dt); q.agent.forceAnim = 'walk'; } if (d < 4 || B.t > 110) { end(); return; } }
         return; }
       cool -= dt; if (cool > 0) return; cool = 500 + Math.random() * 600; if (hr < 9 || hr > 17) return;
@@ -37568,7 +37568,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         const sk = (O.PlayerState && O.PlayerState.skills && (O.PlayerState.skills.fighting || O.PlayerState.skills.farming)) || 0;
         if (Math.random() < 0.55 + sk * 0.4) { grabbed++; B.phase = 'rope'; B.k = 0; O.UI && O.UI.say && O.UI.say('You get a hand on the rope and hang on. He tosses his head, and then he stands, blowing.', 'good'); if (B.men[0]) O.Speech && O.Speech.say(B.men[0], pick(['Well held! Well held!', 'God\'s teeth, you\'ve a grip on you!', 'Hold him there, I\'m coming!']), 2.4); if (O.PlayerState && O.PlayerState.rep) O.PlayerState.rep.civilian = (O.PlayerState.rep.civilian || 0) + 0.03; }
         else { O.UI && O.UI.say && O.UI.say('He swings his head and throws you off into the dirt.', 'bad'); setTimeout(() => { P.anim = 'hurt'; }, 200); if (O.PlayerState) O.PlayerState.hp = Math.max(5, (O.PlayerState.hp || 50) - 6); } } }; });
-    O.LooseBull = { get grabbed() { return grabbed; }, get bull() { return B; }, get caught() { return caught; }, soon: () => { cool = 0; } };
+    O.LooseBull = { get hero() { return hero; }, get grabbed() { return grabbed; }, get bull() { return B; }, get caught() { return caught; }, soon: () => { cool = 0; } };
   }
   O.LooseBullSetup = { setup };
 })();
@@ -37736,7 +37736,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
   function setup(game) {
     const cur = () => O.SimRef.cur;
     const pick = (a) => a[Math.floor(Math.random() * a.length)];
-    let C = null, cool = 400, fires = 0, bonds = 0; const parts = [];
+    let C = null, cool = 400, fires = 0, bonds = 0, hero = null; const parts = [];
     const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
     const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
     const able = (q) => q && q.alive !== false && q.agent && !q.agent.frozen && !q.errand && !q._chim && !q._bit && !q._scene && !talking(q);
@@ -37756,7 +37756,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         if (C.t > 6 && !C.called) { C.called = true; const w = s.world, b = C.b;
           const men = s.people.filter((q) => able(q) && q.age >= 14 && !C.house.includes(q) && !q.agent.hidden && q.agent.inside == null && Math.hypot(q.agent.x - cx, q.agent.y - cy) < 500).slice(0, 3);
           men.forEach((q, i) => { q._chim = true; C.help.push(q); const tx = b.doorX + (i === 0 ? (b.doorX - b.x > b.w / 2 ? -1 : 1) : (i === 1 ? -2 : 2)), ty = b.doorY + (i === 0 ? 1 : 2); O.Errands.send(s, q, [Math.max(1, Math.min(w.W - 2, tx)), ty], { anim: 'idle', secs: 0.1, face: 3, sprint: true, giveUp: game.t + 30, carry: i ? { good: 'ale', qty: 1 } : null, after: (ok) => { if (!C || !q._chim) return; if (!ok) { rel(q); return; } q.agent.frozen = true; q.agent.path = null; q.agent.carrying = null; if (i === 0 && near(cx, cy, 340)) O.Speech && O.Speech.say(q, 'Hand me up the wet sack! Quick!', 2.2); } }); }); }
-        if (C.t > 56 && !C.s2) { C.s2 = true; fires++; if (near(cx, cy, 340)) { const h = C.help[1] || C.help[0]; if (h) O.Speech && O.Speech.say(h, pick(['That\'s it out. Get the sweep in, mistress, before you burn the street down.', 'Out. Thank God for a wet roof.', 'There. And there\'s your supper smoked.']), 3); } }
+        if (C.t > 56 && !C.s2) { C.s2 = true; hero = C.help[0] || null; fires++; if (near(cx, cy, 340)) { const h = C.help[1] || C.help[0]; if (h) O.Speech && O.Speech.say(h, pick(['That\'s it out. Get the sweep in, mistress, before you burn the street down.', 'Out. Thank God for a wet roof.', 'There. And there\'s your supper smoked.']), 3); } }
         if (C.t > 64) end();
         return; }
       cool -= dt; if (cool > 0) return; cool = 900 + Math.random() * 900; if (s.season === 'summer' || !(hr > 16 || hr < 8)) return;
@@ -37779,7 +37779,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     (O.moreCandidates = O.moreCandidates || []).push(() => { const P = game.player; if (!C || C.t > 42 || C.youHelped || game.scene || P.locked) return null; const b = C.b; if (Math.hypot(b.doorX * T + 8 - P.x, (b.doorY + 2) * T - P.y) > 50) return null;
       return { type: 'custom', d: 50, x: b.doorX * T + 8, y: (b.doorY + 1) * T - 20, label: 'Grab a bucket and throw water on the roof', act: () => { if (!C) return; const s = cur(); C.youHelped = true; yours++; C.t = Math.max(C.t, 30); P.anim = 'pour'; P.locked = true; for (let j = 0; j < 14; j++) parts.push({ x: P.x, y: P.y - 18, vx: (C.top[0] - P.x) * 0.6 + (Math.random() - 0.5) * 20, vy: -90 - Math.random() * 20, g: 160, t: 0, life: 0.8, c: '#a8c0d8', s: 1 });
         setTimeout(() => { P.locked = false; P.anim = 'idle'; }, 1800); const h = C.house[0]; if (h) { const r = relOf(h); r.affinity = Math.min(1, r.affinity + 0.2); try { s.remember(h, 'When my chimney caught fire, a stranger ran up with a bucket and helped put it out.', 'kindness', 0.7); } catch (e) { /* */ } setTimeout(() => O.Speech && O.Speech.say(h, 'God bless you! Another one, quick!', 2), 600); } } }; });
-    O.ChimneyFire = { get bonds() { return bonds; }, get yours() { return yours; }, get fire() { return C; }, get fires() { return fires; }, soon: () => { cool = 0; } };
+    O.ChimneyFire = { get hero() { return hero; }, get bonds() { return bonds; }, get yours() { return yours; }, get fire() { return C; }, get fires() { return fires; }, soon: () => { cool = 0; } };
   }
   O.ChimneyFireSetup = { setup };
 })();
@@ -38003,12 +38003,12 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
 (function () {
   function setup(game) {
     const cur = () => O.SimRef.cur;
-    const last = new Map(); let acc = 0, told = 0;
+    const last = new Map(); let acc = 0, told = 0, heroes = 0;
     function tell(s, x, y, seen, heard) { const P = game.player; if (x == null) { x = P.x; y = P.y; } const wit = s.people.filter((q) => q.alive !== false && q.agent && !q.agent.hidden && q.agent.inside == null && q.age >= 6 && Math.hypot(q.agent.x - x, q.agent.y - y) < 240);
       const add = (q, t, src) => { q.beliefs = q.beliefs || []; if (q.beliefs.some((b) => b.t === t)) return; q.beliefs.unshift({ t: t.slice(0, 160), src, day: s.day }); if (q.beliefs.length > 14) q.beliefs.length = 14; };
       const homes = new Set(); for (const q of wit) { add(q, seen, 'seen'); homes.add(q.home); } for (const q of s.people) if (homes.has(q.home) && !wit.includes(q) && q.age >= 6) add(q, heard, 'rumour'); told++;
       // and into the town's chronicle, where the crier and the gossips find it
-      try { if (O.Chronicle && O.Chronicle.add) { const mine = /^The stranger/.test(seen), big = mine || /bull|chimney|wheel|missing/.test(seen); O.Chronicle.add({ day: s.day, minute: Math.floor(s.minute), place: s.world.placeId || 'ashford', placeName: s.world.name, cat: mine ? 'people' : /bull|chimney|flood/.test(seen) ? 'disaster' : 'people', imp: big ? 2 : 1, text: heard.replace(/^They say /, '').replace(/, they say\.$/, '.').replace(/^(.)/, (c) => c.toUpperCase()), byPlayer: mine }); } } catch (e) { /* */ }
+      try { if (O.Chronicle && O.Chronicle.add) { const mine = /^The stranger/.test(seen), big = mine || /bull|chimney|wheel|missing/.test(seen); O.Chronicle.add({ day: s.day, minute: Math.floor(s.minute), place: s.world.placeId || 'ashford', placeName: s.world.name, cat: mine ? 'people' : /bull|chimney|flood/.test(seen) ? 'disaster' : 'people', imp: big ? 2 : 1, text: heard.replace(/^They say /, '').replace(/, they say/, '').replace(/^(.)/, (c) => c.toUpperCase()), byPlayer: mine }); } } catch (e) { /* */ }
       return wit.length; }
     // [what to watch, where it happened, what the witnesses saw, what the household heard]
     const EV = [
@@ -38033,8 +38033,10 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       ['MourningDress', 'condolences', null, 'The stranger stopped to say they were sorry to a family in black.', 'The stranger offered condolences to the bereaved, they say.'],
     ];
     game.hooks.update.push((dt) => { acc += dt; if (acc < 0.5) return; acc = 0; const s = cur(); if (!s || !s.people) return;
-      for (const [mod, key, at, seen, heard] of EV) { const M = O[mod]; if (!M) continue; let v; try { v = M[key]; } catch (e) { continue; } if (typeof v !== 'number') continue; const k = mod + '.' + key, was = last.get(k); last.set(k, v); if (was == null || v <= was) continue; let pos = null; try { pos = at && at(); } catch (e) { pos = null; } tell(s, pos ? pos.x : null, pos ? pos.y : null, seen, heard); } });
-    O.TownTalk = { tell: (x, y, seen, heard) => tell(cur(), x, y, seen, heard || seen), get told() { return told; } };
+      for (const [mod, key, at, seen, heard] of EV) { const M = O[mod]; if (!M) continue; let v; try { v = M[key]; } catch (e) { continue; } if (typeof v !== 'number') continue; const k = mod + '.' + key, was = last.get(k); last.set(k, v); if (was == null || v <= was) continue; let pos = null; try { pos = at && at(); } catch (e) { pos = null; } let sn = seen, hd = heard; const hero = (key === 'caught' || key === 'fires') && M.hero; if (hero && hero.first && hero.alive !== false) { sn = seen + ` It was ${hero.first} ${key === 'caught' ? 'who got the rope on it' : 'who went up the ladder'}.`; hd = heard.replace(/\.$/, '') + `; ${hero.first} was the hero of it.`; heroes++; }
+        const n = tell(s, pos ? pos.x : null, pos ? pos.y : null, sn, hd);
+        if (hero && hero.first) for (const q of s.people) { if (q === hero || !(q.beliefs || []).some((b) => b.t === sn)) continue; try { s.relate(q, hero, 0.05); } catch (e) { /* */ } } void n; } });
+    O.TownTalk = { get heroes() { return heroes; }, tell: (x, y, seen, heard) => tell(cur(), x, y, seen, heard || seen), get told() { return told; } };
   }
   O.TownTalkSetup = { setup };
 })();

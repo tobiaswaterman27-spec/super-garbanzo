@@ -36426,7 +36426,11 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     });
     game.hooks.drawWorld.push((ctx, cam) => { if (!D || game.scene || D.s !== cur()) return; const x = Math.round(D.x - cam.x), y = Math.round(D.y - cam.y); ctx.fillStyle = '#8a6239'; ctx.fillRect(x + 12, y - 8, 8, 6); for (let i = 0; i < Math.max(1, 5 - doles % 5); i++) { ctx.fillStyle = '#c89a5a'; ctx.fillRect(x + 12 + (i % 3) * 2, y - 10 - Math.floor(i / 3) * 2, 3, 2); } });
     (O.extraLines = O.extraLines || []).push((s, q) => D && D.queue.includes(q) ? 'You are standing in the queue at the bakery door for the parish bread. You have nothing else to eat, and you are ashamed.' : D && D.giver === q ? 'You are handing out the parish bread to the poor at your door.' : '');
-    O.BreadDole = { get dole() { return D; }, get doles() { return doles; }, pending };
+    // you can give a loaf of your own to someone in the queue
+    let given = 0; const relOf = (q) => { const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r); return r; }, PS = O.PlayerState;
+    (O.moreCandidates = O.moreCandidates || []).push(() => { const P = game.player; if (!D || game.scene || P.locked || !(PS.items || []).includes('bread')) return null; const q = D.queue.find((x) => x.agent && Math.hypot(x.agent.x - P.x, x.agent.y - P.y) < 30 && !x._yourBread); if (!q) return null;
+      return { type: 'custom', d: 30, x: q.agent.x, y: q.agent.y - 26, label: `Give ${q.first || 'them'} a loaf of your own`, act: () => { const s = cur(), i = PS.items.indexOf('bread'); if (i < 0) return; PS.items.splice(i, 1); q._yourBread = true; given++; P.anim = 'give'; setTimeout(() => { P.anim = 'idle'; }, 800); const r = relOf(q); r.affinity = Math.min(1, r.affinity + 0.3); r.familiar = Math.min(1, (r.familiar || 0) + 0.2); try { const hh = s.household(q); if (hh && hh.pantry) hh.pantry.bread = (hh.pantry.bread || 0) + 1; s.remember(q, 'When I stood in the bread queue with nothing, a stranger gave me a loaf of their own.', 'kindness', 0.9); } catch (e) { /* */ } if (PS.rep) PS.rep.civilian = (PS.rep.civilian || 0) + 0.02; O.Speech && O.Speech.say(q, 'For me? Oh... God reward you. God reward you.', 2.6); O.gesture && O.gesture(q, 'bow', 1.4); } }; });
+    O.BreadDole = { get given() { return given; }, get dole() { return D; }, get doles() { return doles; }, pending };
   }
   O.BreadDoleSetup = { setup };
 })();
@@ -36928,7 +36932,14 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       // the christening shawl, white with a lace edge, on the mother's shoulder
       if (X && X.s === s && X.mum.agent) { const a = X.mum.agent, x = Math.round(a.x - cam.x), y = Math.round(a.y - cam.y) - 20; ctx.fillStyle = '#f4f0e8'; ctx.fillRect(x - 1, y, 6, 4); ctx.fillStyle = '#d8d0c0'; ctx.fillRect(x - 1, y + 3, 6, 1); } });
     (O.extraLines = O.extraLines || []).push((s, q) => !X || !X.fam.includes(q) ? '' : q === X.mum ? `Your baby ${X.babe.first || ''} has just been christened and you are coming out of the chapel with the family, proud and happy.` : q === X.dad ? 'Your child has just been christened, and you have thrown pennies for the children for luck.' : 'You have just come out of a christening in the family, in your best clothes.');
-    O.Christening = { get scene() { return X; }, get held() { return held; }, coins };
+    // you can fling a few pennies for the children too
+    let yours = 0; const PS = O.PlayerState;
+    (O.moreCandidates = O.moreCandidates || []).push(() => { const P = game.player; if (!X || X.youThrew || game.scene || P.locked || !near(X.x, X.y, 60)) return null;
+      return { type: 'custom', d: 60, x: X.x, y: X.y - 30, label: 'Fling a few pennies for the children', act: () => { const s = cur(); if ((PS.money || 0) < 3) return O.UI && O.UI.say && O.UI.say('You have not three pennies to spare.'); PS.money -= 3; X.youThrew = true; yours++; P.anim = 'pitch'; setTimeout(() => { P.anim = 'idle'; }, 900); O.sfx && O.sfx('coins', 0.3);
+        for (let i = 0; i < 6; i++) coins.push({ s, x: P.x, y: P.y - 18, vx: (Math.random() - 0.5) * 140, vy: -70 - Math.random() * 50, gy: P.y + 10 + Math.random() * 40, t: 0 });
+        const kids = s.people.filter((q) => able(q) && q.age >= 4 && q.age <= 13 && !q.agent.hidden && q.agent.inside == null && near(q.agent.x, q.agent.y, 300)).slice(0, 4); kids.forEach((q) => { O.Errands.send(s, q, [Math.floor(P.x / T) + Math.round((Math.random() - 0.5) * 4), Math.floor(P.y / T) + 1 + Math.round(Math.random() * 2)], { anim: 'pickup', secs: 1.2, face: 0, sprint: true, giveUp: game.t + 20, after: (ok) => { if (ok) O.gesture && O.gesture(q, 'celebrate', 1.2); } }); });
+        if (X.mum) setTimeout(() => O.Speech && O.Speech.say(X.mum, 'Bless you for that! For the baby\'s luck!', 2.2), 900); } }; });
+    O.Christening = { get yours() { return yours; }, get scene() { return X; }, get held() { return held; }, coins };
   }
   O.ChristeningSetup = { setup };
 })();
@@ -37753,7 +37764,12 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       if (C && C.s === s && C.help[0] && C.help[0].agent.frozen) { const a = C.help[0].agent, x = Math.round(a.x - cam.x) + 4, y = Math.round(a.y - cam.y); ctx.fillStyle = '#7a5a30'; ctx.fillRect(x - 5, y - 40, 1, 40); ctx.fillRect(x + 1, y - 40, 1, 40); for (let i = 0; i < 8; i++) ctx.fillRect(x - 5, y - 4 - i * 5, 7, 1); } };
     game.hooks.drawTop.push((ctx, cam, inScene) => { if (!inScene) draw(ctx, cam); });
     (O.extraLines = O.extraLines || []).push((s, q) => !C || !q._chim ? '' : C.house.includes(q) ? 'Your chimney has caught fire! The soot in the flue is burning and you have run out of the house in a fright.' : 'A neighbour\'s chimney has caught fire and you have run to help put it out with water and a wet sack.');
-    O.ChimneyFire = { get fire() { return C; }, get fires() { return fires; }, soon: () => { cool = 0; } };
+    // you can fling water up at the roof too
+    let yours = 0; const relOf = (q) => { const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r); return r; };
+    (O.moreCandidates = O.moreCandidates || []).push(() => { const P = game.player; if (!C || C.t > 42 || C.youHelped || game.scene || P.locked) return null; const b = C.b; if (Math.hypot(b.doorX * T + 8 - P.x, (b.doorY + 2) * T - P.y) > 50) return null;
+      return { type: 'custom', d: 50, x: b.doorX * T + 8, y: (b.doorY + 1) * T - 20, label: 'Grab a bucket and throw water on the roof', act: () => { if (!C) return; const s = cur(); C.youHelped = true; yours++; C.t = Math.max(C.t, 30); P.anim = 'pour'; P.locked = true; for (let j = 0; j < 14; j++) parts.push({ x: P.x, y: P.y - 18, vx: (C.top[0] - P.x) * 0.6 + (Math.random() - 0.5) * 20, vy: -90 - Math.random() * 20, g: 160, t: 0, life: 0.8, c: '#a8c0d8', s: 1 });
+        setTimeout(() => { P.locked = false; P.anim = 'idle'; }, 1800); const h = C.house[0]; if (h) { const r = relOf(h); r.affinity = Math.min(1, r.affinity + 0.2); try { s.remember(h, 'When my chimney caught fire, a stranger ran up with a bucket and helped put it out.', 'kindness', 0.7); } catch (e) { /* */ } setTimeout(() => O.Speech && O.Speech.say(h, 'God bless you! Another one, quick!', 2), 600); } } }; });
+    O.ChimneyFire = { get yours() { return yours; }, get fire() { return C; }, get fires() { return fires; }, soon: () => { cool = 0; } };
   }
   O.ChimneyFireSetup = { setup };
 })();

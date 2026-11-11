@@ -37999,7 +37999,10 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     const last = new Map(); let acc = 0, told = 0;
     function tell(s, x, y, seen, heard) { const P = game.player; if (x == null) { x = P.x; y = P.y; } const wit = s.people.filter((q) => q.alive !== false && q.agent && !q.agent.hidden && q.agent.inside == null && q.age >= 6 && Math.hypot(q.agent.x - x, q.agent.y - y) < 240);
       const add = (q, t, src) => { q.beliefs = q.beliefs || []; if (q.beliefs.some((b) => b.t === t)) return; q.beliefs.unshift({ t: t.slice(0, 160), src, day: s.day }); if (q.beliefs.length > 14) q.beliefs.length = 14; };
-      const homes = new Set(); for (const q of wit) { add(q, seen, 'seen'); homes.add(q.home); } for (const q of s.people) if (homes.has(q.home) && !wit.includes(q) && q.age >= 6) add(q, heard, 'rumour'); told++; return wit.length; }
+      const homes = new Set(); for (const q of wit) { add(q, seen, 'seen'); homes.add(q.home); } for (const q of s.people) if (homes.has(q.home) && !wit.includes(q) && q.age >= 6) add(q, heard, 'rumour'); told++;
+      // and into the town's chronicle, where the crier and the gossips find it
+      try { if (O.Chronicle && O.Chronicle.add) { const mine = /^The stranger/.test(seen), big = mine || /bull|chimney|wheel|missing/.test(seen); O.Chronicle.add({ day: s.day, minute: Math.floor(s.minute), place: s.world.placeId || 'ashford', placeName: s.world.name, cat: mine ? 'people' : /bull|chimney|flood/.test(seen) ? 'disaster' : 'people', imp: big ? 2 : 1, text: heard.replace(/^They say /, '').replace(/, they say\.$/, '.').replace(/^(.)/, (c) => c.toUpperCase()), byPlayer: mine }); } } catch (e) { /* */ }
+      return wit.length; }
     // [what to watch, where it happened, what the witnesses saw, what the household heard]
     const EV = [
       ['LooseBull', 'caught', () => O.LooseBull.bull?.bull, 'A bull got loose in the street today and nearly trampled folk before the men roped it.', 'There was a bull loose in the street today, they say.'],

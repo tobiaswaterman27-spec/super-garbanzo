@@ -13,6 +13,22 @@
     const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
     const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
     function rel(q) { if (!q || !q.agent) return; q.agent.forceAnim = null; if (!talking(q)) q.agent.frozen = false; q._gwatch = false; }
+    function alert(s, g, out, guard, cx, cy, byYou) {
+        last.set(g, game.t); warned++;
+        const look = out[0]; if (byYou) { O.UI && O.UI.say && O.UI.say('You whistle low through your teeth. The crew hear it and melt into innocence.', 'good'); O.sfx && O.sfx('pipe', 0.2); } else if (near(cx, cy, 340)) { O.Speech && O.Speech.say(look, pick(['Psst! The watch!', 'Heads up, lads. Blue coat.', 'Wheet-wheeoo! Cave!']), 1.8); O.sfx && O.sfx('pipe', 0.15); }
+        const stay = [], go = []; out.forEach((q, i) => (i % 2 === 0 ? stay : go).push(q));
+        for (const q of stay) { q._gwatch = true; q.agent.frozen = true; q.agent.path = null; q.agent.dir = q.agent.x < guard.agent.x ? 2 : 1; }
+        for (const q of go) { const a = q.agent, ang = Math.random() * Math.PI * 2; O.Errands.send(s, q, [Math.floor((a.x + Math.cos(ang) * 120) / T), Math.floor((a.y + Math.sin(ang) * 80) / T)], { anim: 'idle', secs: 4, face: 0, giveUp: game.t + 25 }); }
+        alerts.push({ s, g, guard, stay, go, x: cx, y: cy, t: 0, byYou }); }
+    // if it's your crew, you can be the lookout: spot the watch coming and whistle first
+    let yours = 0; const PSx = O.PlayerState;
+    (O.moreCandidates = O.moreCandidates || []).push(() => { const s = cur(), P = game.player; if (!s || game.scene || P.locked || !s.gangs) return null; const hr = s.minute / 60; if (hr < 19 || hr >= 23.5) return null;
+      for (const g of s.gangs) { if (!g || g.id === 'player' || !(Array.isArray(PSx.gangRanks) ? PSx.gangRanks : []).some((m) => m.gid === g.id && m.place === s.world.placeId) || alerts.some((A) => A.g === g)) continue;
+        const out = g.members.map((m) => s.byId.get(m.id)).filter((q) => q && q.alive !== false && q.agent && !q.agent.hidden && q.agent.inside == null && !q.agent.frozen && !q.errand && Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < 120); if (!out.length) continue;
+        const guard = s.people.find((q) => q.agent && !q.agent.hidden && q.agent.inside == null && /guard|watch|sergeant|constable/.test(q.job?.role || '') && !q.gang && Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < 260); if (!guard) continue;
+        const cx = out.reduce((a, q) => a + q.agent.x, 0) / out.length, cy = out.reduce((a, q) => a + q.agent.y, 0) / out.length;
+        return { type: 'custom', d: 999, x: P.x, y: P.y - 30, label: 'Whistle a warning to the crew: the watch!', act: () => { yours++; last.set(g, game.t); const mem = (PSx.gangRanks || []).find((m) => m.gid === g.id && m.place === s.world.placeId); if (mem) mem.trust = Math.min(1, (mem.trust || 0) + 0.05); for (const q of out) { const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; r.affinity = Math.min(1, r.affinity + 0.05); q.rel.set(0, r); } alert(s, g, out, guard, cx, cy, true); } }; }
+      return null; });
     game.hooks.update.push((dt) => {
       const s = cur(); if (!s || !s.world || game.scene || !s.gangs) return;
       for (const A of alerts.slice()) { A.t += dt; const ga = A.guard.agent; const gone = !ga || ga.hidden || Math.hypot(ga.x - A.x, ga.y - A.y) > 220;
@@ -25,15 +41,10 @@
         const out = g.members.map((m) => s.byId.get(m.id)).filter((q) => q && q.alive !== false && q.agent && !q.agent.hidden && q.agent.inside == null && ((typeof q.activity?.zone === 'string' && q.activity.zone.startsWith('haunt:')) || q.activity?.act === 'gangmeet') && !q.agent.frozen && !q.errand && !talking(q)); if (out.length < 1) continue;
         const cx = out.reduce((a, q) => a + q.agent.x, 0) / out.length, cy = out.reduce((a, q) => a + q.agent.y, 0) / out.length; if (!near(cx, cy, 460)) continue;
         const guard = s.people.find((q) => q.agent && !q.agent.hidden && q.agent.inside == null && /guard|watch|sergeant|constable/.test(q.job?.role || '') && !q.gang && Math.hypot(q.agent.x - cx, q.agent.y - cy) < 150); if (!guard) continue;
-        last.set(g, game.t); warned++;
-        const look = out[0]; if (near(cx, cy, 340)) { O.Speech && O.Speech.say(look, pick(['Psst! The watch!', 'Heads up, lads. Blue coat.', 'Wheet-wheeoo! Cave!']), 1.8); O.sfx && O.sfx('pipe', 0.15); }
-        const stay = [], go = []; out.forEach((q, i) => (i % 2 === 0 ? stay : go).push(q));
-        for (const q of stay) { q._gwatch = true; q.agent.frozen = true; q.agent.path = null; q.agent.dir = q.agent.x < guard.agent.x ? 2 : 1; }
-        for (const q of go) { const a = q.agent, ang = Math.random() * Math.PI * 2; O.Errands.send(s, q, [Math.floor((a.x + Math.cos(ang) * 120) / T), Math.floor((a.y + Math.sin(ang) * 80) / T)], { anim: 'idle', secs: 4, face: 0, giveUp: game.t + 25 }); }
-        alerts.push({ s, g, guard, stay, go, x: cx, y: cy, t: 0 }); }
+        alert(s, g, out, guard, cx, cy, false); }
     });
     (O.extraLines = O.extraLines || []).push((s, q) => { const A = alerts.find((x) => x.stay.includes(q) || x.go.includes(q)); return !A ? (A === undefined && alerts.some((x) => x.guard === q) ? 'You are on your rounds and you have just walked past a knot of gang toughs who went very quiet when they saw you.' : '') : 'The watch has just come by your gang\'s corner and you are acting innocent until he has gone.'; });
-    O.GangWatch = { alerts, get warned() { return warned; } };
+    O.GangWatch = { get yours() { return yours; }, alerts, get warned() { return warned; } };
   }
   O.GangWatchSetup = { setup };
 })();

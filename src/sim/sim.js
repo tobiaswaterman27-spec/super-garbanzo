@@ -701,6 +701,7 @@
     }
 
     buy(p, act) {
+      if (!act || !G[act.good]) { p.task = null; return; } // (an outing with nothing particular to buy)
       const bz = this.biz.get(act.b), hh = this.household(p);
       if (!bz || !bz.open) { hh.failed = hh.failed || {}; hh.failed[act.good] = this.day * 1440 + this.minute + 60; this.remember(p, `${bz?.name || 'The shop'} was shut when I went for ${G[act.good].name.toLowerCase()}.`, 'hardship', 0.5); return; }
       const pr = this.price(bz, act.good);

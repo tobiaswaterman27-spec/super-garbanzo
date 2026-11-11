@@ -10,12 +10,12 @@
   function setup(game) {
     const cur = () => O.SimRef.cur;
     const pick = (a) => a[Math.floor(Math.random() * a.length)];
-    let C = null, cool = 400, fires = 0; const parts = [];
+    let C = null, cool = 400, fires = 0, bonds = 0; const parts = [];
     const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
     const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
     const able = (q) => q && q.alive !== false && q.agent && !q.agent.frozen && !q.errand && !q._chim && !q._bit && !q._scene && !talking(q);
     function rel(q) { if (!q || !q.agent) return; q.agent.forceAnim = null; q.agent.lift = 0; if (!talking(q)) q.agent.frozen = false; q._chim = false; }
-    function end() { if (!C) return; for (const q of [...C.house, ...C.help]) rel(q); C = null; }
+    function end() { if (!C) return; const s = C.s; if (C.t > 50) { for (const h of C.house) for (const q of C.help) { try { s.relate(h, q, 0.2); s.relate(q, h, 0.05); if (h === C.house[0]) s.remember(h, `${q.first} ran with water when our chimney caught fire.`, 'kindness', 0.6, q.id); } catch (e) { /* */ } } bonds += C.help.length; } for (const q of [...C.house, ...C.help]) rel(q); C = null; }
     game.hooks.update.push((dt) => {
       for (const p of parts.slice()) { p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += p.g * dt; if (p.t > p.life) parts.splice(parts.indexOf(p), 1); }
       const s = cur(); if (!s || !s.world || game.scene) return; const hr = s.minute / 60;
@@ -53,7 +53,7 @@
     (O.moreCandidates = O.moreCandidates || []).push(() => { const P = game.player; if (!C || C.t > 42 || C.youHelped || game.scene || P.locked) return null; const b = C.b; if (Math.hypot(b.doorX * T + 8 - P.x, (b.doorY + 2) * T - P.y) > 50) return null;
       return { type: 'custom', d: 50, x: b.doorX * T + 8, y: (b.doorY + 1) * T - 20, label: 'Grab a bucket and throw water on the roof', act: () => { if (!C) return; const s = cur(); C.youHelped = true; yours++; C.t = Math.max(C.t, 30); P.anim = 'pour'; P.locked = true; for (let j = 0; j < 14; j++) parts.push({ x: P.x, y: P.y - 18, vx: (C.top[0] - P.x) * 0.6 + (Math.random() - 0.5) * 20, vy: -90 - Math.random() * 20, g: 160, t: 0, life: 0.8, c: '#a8c0d8', s: 1 });
         setTimeout(() => { P.locked = false; P.anim = 'idle'; }, 1800); const h = C.house[0]; if (h) { const r = relOf(h); r.affinity = Math.min(1, r.affinity + 0.2); try { s.remember(h, 'When my chimney caught fire, a stranger ran up with a bucket and helped put it out.', 'kindness', 0.7); } catch (e) { /* */ } setTimeout(() => O.Speech && O.Speech.say(h, 'God bless you! Another one, quick!', 2), 600); } } }; });
-    O.ChimneyFire = { get yours() { return yours; }, get fire() { return C; }, get fires() { return fires; }, soon: () => { cool = 0; } };
+    O.ChimneyFire = { get bonds() { return bonds; }, get yours() { return yours; }, get fire() { return C; }, get fires() { return fires; }, soon: () => { cool = 0; } };
   }
   O.ChimneyFireSetup = { setup };
 })();

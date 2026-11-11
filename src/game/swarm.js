@@ -28,7 +28,7 @@
         }
         if (S.phase === 'hang' && S.t > 60) { end(); return; } // nobody came: they fly off
         if (S.phase === 'take') { S.tt += dt; const a = S.keeper.agent; a.forceAnim = S.tt < 3 ? 'give' : S.tt < 4 ? 'hammer' : 'idle'; if (S.tt >= 3 && !S.knocked) { S.knocked = true; if (near(a.x, a.y, 300)) O.sfx && O.sfx('smack', 0.15); }
-          if (S.tt > 3) S.left = Math.max(0, 1 - (S.tt - 3) / 3); if (S.tt > 7) { taken++; const k = S.keeper; const ka = k.agent; ka.forceAnim = null; ka.frozen = false; k._swarm = false; S.keeper = null; ka.carrying = { good: 'honey', qty: 1 }; const h = S.home; if (h && h.doorX != null) O.Errands.send(s, k, [h.doorX, h.doorY + 1], { anim: 'place', secs: 1, face: 0, giveUp: game.t + 60, carry: { good: 'honey', qty: 1 } }); end(); } }
+          if (S.tt > 3) S.left = Math.max(0, 1 - (S.tt - 3) / 3); if (S.tt > 7) { taken++; for (const q of S.tang) { try { s.relate(S.keeper, q, 0.15); s.remember(S.keeper, `${q.first} came out banging a pan when my bees swarmed.`, 'kindness', 0.4, q.id); } catch (e) { /* */ } } const k = S.keeper; const ka = k.agent; ka.forceAnim = null; ka.frozen = false; k._swarm = false; S.keeper = null; ka.carrying = { good: 'honey', qty: 1 }; const h = S.home; if (h && h.doorX != null) O.Errands.send(s, k, [h.doorX, h.doorY + 1], { anim: 'place', secs: 1, face: 0, giveUp: game.t + 60, carry: { good: 'honey', qty: 1 } }); end(); } }
         return; }
       cool -= dt; if (cool > 0) return; cool = 90 + Math.random() * 90;
       if (!(s.season === 'spring' || s.season === 'summer') || hr < 10 || hr > 16) return; const W = s.weather; if (W && (W.raining || W.kind === 'snow' || W.kind === 'fog')) return;

@@ -36,7 +36,11 @@
     });
     game.hooks.drawWorld.push((ctx, cam) => { if (!D || game.scene || D.s !== cur()) return; const x = Math.round(D.x - cam.x), y = Math.round(D.y - cam.y); ctx.fillStyle = '#8a6239'; ctx.fillRect(x + 12, y - 8, 8, 6); for (let i = 0; i < Math.max(1, 5 - doles % 5); i++) { ctx.fillStyle = '#c89a5a'; ctx.fillRect(x + 12 + (i % 3) * 2, y - 10 - Math.floor(i / 3) * 2, 3, 2); } });
     (O.extraLines = O.extraLines || []).push((s, q) => D && D.queue.includes(q) ? 'You are standing in the queue at the bakery door for the parish bread. You have nothing else to eat, and you are ashamed.' : D && D.giver === q ? 'You are handing out the parish bread to the poor at your door.' : '');
-    O.BreadDole = { get dole() { return D; }, get doles() { return doles; }, pending };
+    // you can give a loaf of your own to someone in the queue
+    let given = 0; const relOf = (q) => { const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r); return r; }, PS = O.PlayerState;
+    (O.moreCandidates = O.moreCandidates || []).push(() => { const P = game.player; if (!D || game.scene || P.locked || !(PS.items || []).includes('bread')) return null; const q = D.queue.find((x) => x.agent && Math.hypot(x.agent.x - P.x, x.agent.y - P.y) < 30 && !x._yourBread); if (!q) return null;
+      return { type: 'custom', d: 30, x: q.agent.x, y: q.agent.y - 26, label: `Give ${q.first || 'them'} a loaf of your own`, act: () => { const s = cur(), i = PS.items.indexOf('bread'); if (i < 0) return; PS.items.splice(i, 1); q._yourBread = true; given++; P.anim = 'give'; setTimeout(() => { P.anim = 'idle'; }, 800); const r = relOf(q); r.affinity = Math.min(1, r.affinity + 0.3); r.familiar = Math.min(1, (r.familiar || 0) + 0.2); try { const hh = s.household(q); if (hh && hh.pantry) hh.pantry.bread = (hh.pantry.bread || 0) + 1; s.remember(q, 'When I stood in the bread queue with nothing, a stranger gave me a loaf of their own.', 'kindness', 0.9); } catch (e) { /* */ } if (PS.rep) PS.rep.civilian = (PS.rep.civilian || 0) + 0.02; O.Speech && O.Speech.say(q, 'For me? Oh... God reward you. God reward you.', 2.6); O.gesture && O.gesture(q, 'bow', 1.4); } }; });
+    O.BreadDole = { get given() { return given; }, get dole() { return D; }, get doles() { return doles; }, pending };
   }
   O.BreadDoleSetup = { setup };
 })();

@@ -48,7 +48,12 @@
       if (C && C.s === s && C.help[0] && C.help[0].agent.frozen) { const a = C.help[0].agent, x = Math.round(a.x - cam.x) + 4, y = Math.round(a.y - cam.y); ctx.fillStyle = '#7a5a30'; ctx.fillRect(x - 5, y - 40, 1, 40); ctx.fillRect(x + 1, y - 40, 1, 40); for (let i = 0; i < 8; i++) ctx.fillRect(x - 5, y - 4 - i * 5, 7, 1); } };
     game.hooks.drawTop.push((ctx, cam, inScene) => { if (!inScene) draw(ctx, cam); });
     (O.extraLines = O.extraLines || []).push((s, q) => !C || !q._chim ? '' : C.house.includes(q) ? 'Your chimney has caught fire! The soot in the flue is burning and you have run out of the house in a fright.' : 'A neighbour\'s chimney has caught fire and you have run to help put it out with water and a wet sack.');
-    O.ChimneyFire = { get fire() { return C; }, get fires() { return fires; }, soon: () => { cool = 0; } };
+    // you can fling water up at the roof too
+    let yours = 0; const relOf = (q) => { const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r); return r; };
+    (O.moreCandidates = O.moreCandidates || []).push(() => { const P = game.player; if (!C || C.t > 42 || C.youHelped || game.scene || P.locked) return null; const b = C.b; if (Math.hypot(b.doorX * T + 8 - P.x, (b.doorY + 2) * T - P.y) > 50) return null;
+      return { type: 'custom', d: 50, x: b.doorX * T + 8, y: (b.doorY + 1) * T - 20, label: 'Grab a bucket and throw water on the roof', act: () => { if (!C) return; const s = cur(); C.youHelped = true; yours++; C.t = Math.max(C.t, 30); P.anim = 'pour'; P.locked = true; for (let j = 0; j < 14; j++) parts.push({ x: P.x, y: P.y - 18, vx: (C.top[0] - P.x) * 0.6 + (Math.random() - 0.5) * 20, vy: -90 - Math.random() * 20, g: 160, t: 0, life: 0.8, c: '#a8c0d8', s: 1 });
+        setTimeout(() => { P.locked = false; P.anim = 'idle'; }, 1800); const h = C.house[0]; if (h) { const r = relOf(h); r.affinity = Math.min(1, r.affinity + 0.2); try { s.remember(h, 'When my chimney caught fire, a stranger ran up with a bucket and helped put it out.', 'kindness', 0.7); } catch (e) { /* */ } setTimeout(() => O.Speech && O.Speech.say(h, 'God bless you! Another one, quick!', 2), 600); } } }; });
+    O.ChimneyFire = { get yours() { return yours; }, get fire() { return C; }, get fires() { return fires; }, soon: () => { cool = 0; } };
   }
   O.ChimneyFireSetup = { setup };
 })();

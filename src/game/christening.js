@@ -48,7 +48,14 @@
       // the christening shawl, white with a lace edge, on the mother's shoulder
       if (X && X.s === s && X.mum.agent) { const a = X.mum.agent, x = Math.round(a.x - cam.x), y = Math.round(a.y - cam.y) - 20; ctx.fillStyle = '#f4f0e8'; ctx.fillRect(x - 1, y, 6, 4); ctx.fillStyle = '#d8d0c0'; ctx.fillRect(x - 1, y + 3, 6, 1); } });
     (O.extraLines = O.extraLines || []).push((s, q) => !X || !X.fam.includes(q) ? '' : q === X.mum ? `Your baby ${X.babe.first || ''} has just been christened and you are coming out of the chapel with the family, proud and happy.` : q === X.dad ? 'Your child has just been christened, and you have thrown pennies for the children for luck.' : 'You have just come out of a christening in the family, in your best clothes.');
-    O.Christening = { get scene() { return X; }, get held() { return held; }, coins };
+    // you can fling a few pennies for the children too
+    let yours = 0; const PS = O.PlayerState;
+    (O.moreCandidates = O.moreCandidates || []).push(() => { const P = game.player; if (!X || X.youThrew || game.scene || P.locked || !near(X.x, X.y, 60)) return null;
+      return { type: 'custom', d: 60, x: X.x, y: X.y - 30, label: 'Fling a few pennies for the children', act: () => { const s = cur(); if ((PS.money || 0) < 3) return O.UI && O.UI.say && O.UI.say('You have not three pennies to spare.'); PS.money -= 3; X.youThrew = true; yours++; P.anim = 'pitch'; setTimeout(() => { P.anim = 'idle'; }, 900); O.sfx && O.sfx('coins', 0.3);
+        for (let i = 0; i < 6; i++) coins.push({ s, x: P.x, y: P.y - 18, vx: (Math.random() - 0.5) * 140, vy: -70 - Math.random() * 50, gy: P.y + 10 + Math.random() * 40, t: 0 });
+        const kids = s.people.filter((q) => able(q) && q.age >= 4 && q.age <= 13 && !q.agent.hidden && q.agent.inside == null && near(q.agent.x, q.agent.y, 300)).slice(0, 4); kids.forEach((q) => { O.Errands.send(s, q, [Math.floor(P.x / T) + Math.round((Math.random() - 0.5) * 4), Math.floor(P.y / T) + 1 + Math.round(Math.random() * 2)], { anim: 'pickup', secs: 1.2, face: 0, sprint: true, giveUp: game.t + 20, after: (ok) => { if (ok) O.gesture && O.gesture(q, 'celebrate', 1.2); } }); });
+        if (X.mum) setTimeout(() => O.Speech && O.Speech.say(X.mum, 'Bless you for that! For the baby\'s luck!', 2.2), 900); } }; });
+    O.Christening = { get yours() { return yours; }, get scene() { return X; }, get held() { return held; }, coins };
   }
   O.ChristeningSetup = { setup };
 })();

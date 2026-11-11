@@ -12,6 +12,15 @@ if (process.env.SD) { await p.evaluate(() => { const W = O.OxWagons.wagon; if (W
 await p.evaluate(() => { const W = O.OxWagons.wagon; if (W) { W.x = O.game.player.x + W.dir * 600; W.t = 9; } });
 await p.waitForTimeout(1500);
 console.log('passed:', await p.evaluate(() => O.OxWagons.passed), '| gone:', await p.evaluate(() => !O.OxWagons.wagon));
+// a wheel comes off; you lend a shoulder
+await p.evaluate(() => { O.OxWagons.soon(); }); await p.waitForTimeout(1500);
+await p.evaluate(() => { O.OxWagons.breakNext(); const W = O.OxWagons.wagon; if (W) W.x = O.game.player.x - W.dir * 60; });
+await p.waitForTimeout(4500);
+const br = await p.evaluate(() => { const W = O.OxWagons.wagon; if (!W || !W.broke) return 'not broken'; O.game.player.x = W.x + 10; O.game.player.y = W.y + 4; O.game.player.locked = false; const c = O.moreCandidates.map((f) => { try { return f(); } catch (e) { return null; } }).find((x) => x && /shoulder/.test(x.label)); if (!c) return 'no prompt'; c.act(); return 'helped'; });
+if (process.env.SD) await p.screenshot({ path: process.env.SD + '/wheeloff.png', clip: { x: 360, y: 180, width: 480, height: 300 } });
+await p.waitForTimeout(8000);
+console.log('wheel off:', br, '| fixed:', await p.evaluate(() => { const W = O.OxWagons.wagon; return W ? !!W.fixed : 'gone'; }), '| broken count:', await p.evaluate(() => O.OxWagons.broken));
+await p.evaluate(() => { const W = O.OxWagons.wagon; if (W) { W.x = O.game.player.x + W.dir * 600; W.t = 9; } }); await p.waitForTimeout(1200);
 // harvest home in autumn
 await p.evaluate(() => { const s = O.SimRef.cur; Object.defineProperty(s, 'season', { value: 'autumn', configurable: true }); O.game.player.x -= 0; O.OxWagons.soon(true); });
 await p.waitForTimeout(2500);

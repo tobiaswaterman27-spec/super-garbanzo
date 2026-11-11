@@ -7,12 +7,17 @@
   function setup(game) {
     const cur = () => O.SimRef.cur;
     const pick = (a) => a[Math.floor(Math.random() * a.length)];
-    let W = null, cool = 25, passed = 0, harvests = 0, forceHome = false;
+    let W = null, cool = 25, passed = 0, harvests = 0, forceHome = false, broken = 0, helpedYou = 0;
     const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
     function roadRow(s) { const w = s.world, P = game.player, ty0 = Math.floor(P.y / T); let best = null; for (let d = 0; d < 10 && !best; d++) for (const ty of [ty0 + d, ty0 - d]) { if (ty < 2 || ty >= w.H - 2) continue; let run = 0, x0 = Math.floor(P.x / T) - 24; for (let tx = x0; tx < x0 + 48; tx++) { const t = w.ter[ty * w.W + tx]; if ((t === w.TER.ROAD || t === w.TER.BRIDGE || t === w.TER.COBBLE) && !w.solid[ty * w.W + tx]) run++; } if (run >= 30) { best = ty; break; } } return best; }
     game.hooks.update.push((dt) => {
       const s = cur(); if (!s || !s.world || game.scene) return;
-      if (W) { W.t += dt; W.x += W.dir * 18 * dt; W.ang += dt * 3; if (W.s !== s || Math.abs(W.x - game.player.x) > 520 && W.t > 5) { W = null; passed++; return; }
+      if (W) { W.t += dt;
+        // now and then a wheel comes off: the wagon lurches down on one corner and must be jacked up and the wheel knocked back on
+        if (!W.broke && !W.fixed && W.t > 4 && near(W.x, W.y, 300) && (W.forceBreak || (W.rollBreak ??= Math.random() < 0.18))) { W.broke = true; W.bt = 0; broken++; O.sfx && O.sfx('smack', 0.4); O.Speech && O.Speech.say(W.man, pick(['God\'s wounds! The wheel!', 'Whoa! WHOA! The pin\'s gone!', 'Well, that\'s torn it.']), 2.4);
+          const h = s.people.find((q) => q.agent && !q.agent.hidden && q.agent.inside == null && !q.agent.frozen && !q.errand && !q._bit && q.sex === 'm' && q.age >= 16 && q.age < 60 && Math.hypot(q.agent.x - W.x, q.agent.y - W.y) < 300); if (h) { W.helper = h; O.Errands.send(s, h, [Math.floor((W.x + 12) / T), Math.floor((W.y + 6) / T)], { anim: 'hammer', secs: 7, face: 3, giveUp: game.t + 30, after: (ok) => { if (ok && W) W.bt += 6; } }); } }
+        if (W.broke) { W.bt += dt * (W.youHelped ? 2 : 1); if (W.bt > 14) { W.broke = false; W.fixed = true; O.sfx && O.sfx('smack', 0.3); if (near(W.x, W.y, 300)) O.Speech && O.Speech.say(W.man, W.youHelped ? 'Bless you, friend. I\'d have been here till Michaelmas.' : 'There. On she goes. Hup!', 2.4); } W.man.agent.forceAnim = 'shake'; }
+        if (!W.broke) { W.x += W.dir * 18 * dt; W.ang += dt * 3; } if (W.s !== s || Math.abs(W.x - game.player.x) > 520 && W.t > 5) { W = null; passed++; return; }
         if (Math.random() < dt * 0.6 && near(W.x, W.y, 300)) O.sfx && O.sfx('saw', 0.04);
         if (Math.random() < dt * 0.1 && near(W.x, W.y, 260)) O.animalCall && O.animalCall('cow', 0.2);
         // folk on the road step aside
@@ -35,6 +40,7 @@
       // the oxen, yoked, ahead
       for (let i = 0; i < 2; i++) { try { const HA = O.Animals.HANIMS.walk, fr = O.Animals.animal('cow', W.ox[i], d > 0 ? 2 : 1, true, Math.floor(W.t * HA.fps * 0.7 + i) % HA.frames, 'walk'); ctx.drawImage(fr, Math.round(x + d * 36 - (fr.ox ?? fr.width / 2)), Math.round(y - 3 + i * 6 - (fr.gy ?? fr.height))); } catch (e) { /* */ } }
       ctx.fillStyle = '#6a4a2c'; ctx.fillRect(x + d * 14 - (d < 0 ? 12 : 0), y - 10, 12, 2);
+      if (W.broke) { ctx.save(); ctx.translate(x, y - 4); ctx.rotate(0.12 * d); ctx.translate(-x, -(y - 4)); }
       // the wagon bed and wheels
       ctx.fillStyle = '#7a5232'; ctx.fillRect(x - 16, y - 16, 32, 8); ctx.fillStyle = '#5a3a20'; ctx.fillRect(x - 16, y - 9, 32, 2);
       for (const wx of [x - 11, x + 11]) { ctx.fillStyle = '#3a2a1a'; ctx.beginPath(); ctx.arc(wx, y - 4, 5, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#8a6a44'; ctx.lineWidth = 1; ctx.beginPath(); for (let k = 0; k < 2; k++) { const a = W.ang * d + k * Math.PI / 2; ctx.moveTo(wx + Math.cos(a) * 5, y - 4 + Math.sin(a) * 5); ctx.lineTo(wx - Math.cos(a) * 5, y - 4 - Math.sin(a) * 5); } ctx.stroke(); }
@@ -48,10 +54,13 @@
         for (let i = 0; i < 2; i++) { try { const fr = O.Char.frame(W.kids[i], 0, Math.floor(tk * 1.5 + i) % 3 === 0 ? 'wave' : 'sit', Math.floor(tk * 4) % 2); ctx.drawImage(fr, Math.round(x - 12 + i * 12 - 16), Math.round(y - 22 - O.Char.GROUND + 4)); } catch (e) { /* */ } } }
       else { ctx.fillStyle = '#9a7a4a'; for (let i = 0; i < 4; i++) ctx.fillRect(x - 18, y - 18 - i * 2, 38, 2); ctx.fillStyle = '#c8a070'; for (let i = 0; i < 4; i++) ctx.fillRect(x + 19, y - 18 - i * 2, 1, 2); }
       if (W.walkers) for (const m of W.walkers) { try { const A = O.Char.ANIMS.walk, fr = O.Char.frame(m.app, d > 0 ? 2 : 1, 'walk', Math.floor(W.t * A.fps * 0.6 + m.off) % A.frames); ctx.drawImage(fr, Math.round(x - d * m.off - 16), Math.round(y + 8 + m.dy - O.Char.GROUND)); } catch (e) { /* */ } }
+      if (W.broke) { ctx.restore(); ctx.fillStyle = '#3a2a1a'; ctx.fillRect(x + d * 14 - 6, y + 4, 12, 3); ctx.fillStyle = '#8a6a44'; ctx.fillRect(x + d * 14 - 1, y + 4, 2, 3); }
       // the carter at the oxen's heads with his goad
       try { const A = O.Char.ANIMS.walk, fr = O.Char.frame(W.man.app, d > 0 ? 2 : 1, 'walk', Math.floor(W.t * A.fps) % A.frames); ctx.drawImage(fr, Math.round(x + d * 34 - 16), Math.round(y + 8 - O.Char.GROUND)); ctx.strokeStyle = '#6a4a2c'; ctx.beginPath(); ctx.moveTo(x + d * 38, y - 6); ctx.lineTo(x + d * 44, y - 24); ctx.stroke(); } catch (e) { /* */ }
     });
-    O.OxWagons = { get wagon() { return W; }, get passed() { return passed; }, get harvests() { return harvests; }, soon: (home) => { cool = 0; forceHome = !!home; } };
+    (O.moreCandidates = O.moreCandidates || []).push(() => { const P = game.player; if (!W || !W.broke || W.youHelped || game.scene || P.locked || !near(W.x, W.y, 40)) return null;
+      return { type: 'custom', d: 40, x: W.x, y: W.y - 30, label: 'Put your shoulder under the wagon and help', act: () => { if (!W) return; W.youHelped = true; helpedYou++; P.anim = 'pitch'; P.locked = true; setTimeout(() => { P.locked = false; P.anim = 'idle'; }, 2500); O.Speech && O.Speech.say(W.man, 'Heave! Hold her there while I get it on!', 2.2); } }; });
+    O.OxWagons = { get broken() { return broken; }, get helpedYou() { return helpedYou; }, breakNext: () => { if (W) W.forceBreak = true; }, get wagon() { return W; }, get passed() { return passed; }, get harvests() { return harvests; }, soon: (home) => { cool = 0; forceHome = !!home; } };
   }
   O.OxWagonsSetup = { setup };
 })();

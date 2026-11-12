@@ -27,7 +27,19 @@
       if (storm(s)) return { type: 'custom', d: 3, x, y: y - 30, label: 'Ask the ferryman to take you across', act: () => ui('"Not in this," says the ferryman, not even looking up. "Not for a king\'s ransom."', 'info') };
       if ((PS.money || 0) >= 1) return { type: 'custom', d: 2, x, y: y - 30, label: 'Pay the ferryman ₳1 and step aboard', act: () => { PS.money -= 1; board(s, f, false); } };
       return { type: 'custom', d: 2, x, y: y - 30, label: 'Offer to work your passage on the second pole', act: () => board(s, f, true) }; });
-    O.FerryRide = { get ride() { return R; }, get rides() { return rides; }, get worked() { return worked; } };
+    // townsfolk ride too: a passenger or two from the landing, a penny to the ferryman, off on the far side
+    const riders = []; let npcRides = 0, rcool = 4;
+    game.hooks.update.push((dt) => { const s = cur(), f = F(); if (!s || !f || f.s !== s || game.scene) { for (const r of riders.splice(0)) { r.q._ferry = false; r.q.agent.frozen = false; } return; }
+      const [bx, by] = boatAt(f);
+      for (const r of riders.slice()) { const q = r.q, a = q.agent; if (q.alive === false) { riders.splice(riders.indexOf(r), 1); continue; } a.x = bx - 8 + r.i * 7; a.y = by + 1; a.frozen = true; a.path = null; a.forceAnim = 'idle'; a.dir = 0; r.t += dt;
+        if (r.t > 2 && f.wait > 0 && ((r.to === 'b' && f.k >= 0.999) || (r.to === 'a' && f.k <= 0.001))) { riders.splice(riders.indexOf(r), 1); const land = landBeyond(s, f, r.to); if (land) { a.x = land[0] + (r.i ? 8 : -8); a.y = land[1]; } a.frozen = false; a.forceAnim = null; q._ferry = false; npcRides++;
+          const doors = s.world.buildings.filter((b) => b.doorX != null && !b.ruined && Math.hypot(b.doorX * T - a.x, b.doorY * T - a.y) < 400); const d = pick(doors); if (d && O.Errands) O.Errands.send(s, q, [d.doorX, d.doorY + 1], { anim: 'open', secs: 0.5, face: 0, giveUp: game.t + 60 }); } }
+      if (riders.length) f.n = 0;
+      rcool -= dt; if (rcool > 0 || night() || storm(s) || !(f.wait > 1.2) || (f.k > 0.001 && f.k < 0.999) || riders.length >= 2) return; rcool = 3;
+      const end = f.k < 0.5 ? 'a' : 'b';
+      const q = s.people.find((x) => x.alive !== false && x.agent && !x.agent.hidden && x.agent.inside == null && !x.agent.frozen && !x.errand && !x._ferry && !x._scene && x.age >= 10 && !(O.npcUI && O.npcUI.talking && O.npcUI.talking() === x) && Math.hypot(x.agent.x - bx, x.agent.y - by) < 140 && Math.hypot(x.agent.x - bx, x.agent.y - by) > 10);
+      if (!q || Math.random() < 0.5) return; q._ferry = true; riders.push({ q, to: end === 'a' ? 'b' : 'a', i: riders.length, t: 0 }); try { const hh = s.household(q); if (hh && hh.money >= 1) hh.money -= 1; } catch (e) { /* */ } if (Math.hypot(bx - game.player.x, by - game.player.y) < 300) O.sfx && O.sfx('splash', 0.12); });
+    O.FerryRide = { get ride() { return R; }, get rides() { return rides; }, get worked() { return worked; }, get npcRides() { return npcRides; }, riders };
   }
   O.FerryRideSetup = { setup };
 })();

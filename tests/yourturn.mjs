@@ -5,9 +5,9 @@ p.on('console', (m) => { if (m.type() === 'error') console.log('CONSOLE', m.text
 await p.evaluate(() => { const s = O.SimRef.cur; let g = 0; while (s.minute / 60 < 10 && g++ < 5000) s.tick(1); O.game.clock.minute = s.minute; });
 const nearSomeone = () => p.evaluate(() => { const s = O.SimRef.cur; const q = s.people.find((x) => x.age >= 16 && x.agent && x.agent.inside == null && !x.agent.hidden && !x.agent.frozen && !x.errand && !x.visitor); O.game.player.x = q.agent.x + 40; O.game.player.y = q.agent.y; return q.id; });
 // 1) a fall
-await nearSomeone(); await p.evaluate(() => { if (O.UI.dialogOpen && O.UI.dialogOpen()) O.UI.dialog.close(); O.YourTurn.trip('ice'); });
+await nearSomeone(); await p.evaluate(() => { if (O.UI.dialogOpen && O.UI.dialogOpen()) O.UI.dialog.close(); O.PlayerState.money = 20; O.YourTurn.trip('ice', true); });
 await p.waitForTimeout(8000);
-console.log('falls/upBy:', await p.evaluate(() => [O.YourTurn.falls, O.YourTurn.upBy].join('/')), 'locked:', await p.evaluate(() => O.game.player.locked));
+console.log('falls/upBy:', await p.evaluate(() => [O.YourTurn.falls, O.YourTurn.upBy].join('/')), 'money after spill:', await p.evaluate(() => O.PlayerState.money), 'locked:', await p.evaluate(() => O.game.player.locked));
 // 2) ill, a friend visits
 const fid = await nearSomeone(); await p.evaluate((fid) => { const s = O.SimRef.cur; const q = s.byId.get(fid); q.rel.set(0, { affinity: 0.7, familiar: 0.6 }); O.PlayerState.ill = { kind: 'cold', sev: 0.3, day: s.day }; O.YourTurn.visitSoon(); }, fid);
 for (let i = 0; i < 35 && !(await p.evaluate(() => O.YourTurn.visits)); i++) await p.waitForTimeout(1000);

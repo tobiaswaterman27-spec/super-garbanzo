@@ -15,4 +15,10 @@ await p.waitForTimeout(16000);
 console.log('sat:', await p.evaluate(() => O.Lessons.sat), 'skills:', await p.evaluate(() => JSON.stringify(O.PlayerState.skills && Object.fromEntries(Object.entries(O.PlayerState.skills).filter(([k]) => /fighting|letters|stealth|crafting/.test(k)).map(([k, v]) => [k, +(+v).toFixed(2)])))));
 for (let i = 0; i < 70 && (await p.evaluate(() => !!O.Lessons.lesson)); i++) await p.waitForTimeout(1000);
 console.log('held:', await p.evaluate(() => O.SimRef.cur.people.filter((q) => q._lesson && !q.errand).length));
+// you teach a lad stick-fighting, in words
+const t = await p.evaluate(async () => { const s = O.SimRef.cur; O.PlayerState.skills = O.PlayerState.skills || {}; O.PlayerState.skills.fighting = 0.5; const k = s.people.find((q) => q.sex === 'm' && q.age >= 8 && q.age <= 14 && q.agent && q.agent.inside == null && !q.agent.hidden && !q.agent.frozen && !q.errand && !q._lesson); if (!k) return 'no lad'; O.game.player.x = k.agent.x + 20; O.game.player.y = k.agent.y; O.npcUI.openTalk(k); let heard = ''; await O.AIChat.say(k, 'I will teach you to fight with a stick.', (l) => { heard = l; }); return k.first + ': ' + heard; });
+console.log('teach:', t);
+await p.waitForTimeout(3000); console.log('lesson on:', await p.evaluate(() => !!O.Lessons.yourLesson && O.Lessons.yourLesson.kn));
+await p.waitForTimeout(26000);
+console.log('taught:', await p.evaluate(() => O.Lessons.taught), 'held:', await p.evaluate(() => O.SimRef.cur.people.filter((q) => q._lesson && !q.errand && !(O.Lessons.lesson)).length));
 await done();

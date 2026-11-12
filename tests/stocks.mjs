@@ -6,6 +6,8 @@ const r = await p.evaluate(() => { const s = O.SimRef.cur; const q = s.people.fi
 console.log(r);
 await p.waitForTimeout(12000); if (D) await p.screenshot({ path: `${D}/stocks.png`, clip: { x: 480, y: 280, width: 240, height: 160 } });
 console.log('in stocks:', await p.evaluate(() => [...O.Stocks.inStocks].map((q) => q.first).join(',')), 'pos ok', await p.evaluate(() => !_q.agent.hidden));
+const yw = await p.evaluate(() => { if (O.UI.dialogOpen && O.UI.dialogOpen()) O.UI.dialog.close(); const q = [...O.Stocks.inStocks][0]; if (!q) return 'nobody'; const P = O.game.player; P.x = q.agent.x + 10; P.y = q.agent.y + 14; const c = O.moreCandidates.map((f) => f()).find((x) => x && /drink of water/.test(x.label)); if (!c) return 'no water prompt'; c.act(); return c.label; });
+console.log('you:', yw, 'watered', await p.evaluate(() => O.Stocks.watered));
 await p.evaluate(() => { const s = O.SimRef.cur; while (s.minute < 17 * 60) s.tick(2); O.game.clock.minute = s.minute; });
 await p.waitForTimeout(3000);
 console.log('evening, back in the cell:', await p.evaluate(() => _q.agent.hidden && !_q._stocks));

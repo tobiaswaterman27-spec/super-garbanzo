@@ -8,7 +8,7 @@
   function setup(game) {
     const cur = () => O.SimRef.cur;
     const pick = (a) => a[Math.floor(Math.random() * a.length)];
-    let L = null, cool = 60, found = 0, sweep = 0; const marked = new Set();
+    let L = null, cool = 60, found = 0, sweep = 0, npcFound = 0; const marked = new Set();
     const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
     const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
     const able = (q) => q && q.alive !== false && q.agent && !q.agent.frozen && !q.errand && !q._lost && !q._bit && !q._scene && !talking(q);
@@ -21,6 +21,10 @@
       if (!L && (sweep += dt) > 3) { sweep = 0; for (const q of s.people) if (q._lost) q._lost = false; marked.clear(); }
       if (L) { L.t += dt; if (L.s !== s || L.t > 200 || talking(L.kid) || talking(L.ma) || L.kid.alive === false || L.ma.alive === false) { end(); return; }
         const k = L.kid.agent, m = L.ma.agent;
+        // a neighbour may come on the little one first, and take them home by the hand
+        if (L.phase === 'lost' && L.t > 8 && !L.finder && Math.random() < dt * 0.04) { const fd = s.people.find((x) => x !== L.ma && x !== L.kid && x.alive !== false && x.age >= 16 && x.agent && !x.agent.hidden && x.agent.inside == null && !x.agent.frozen && !x.errand && !talking(x) && Math.hypot(x.agent.x - k.x, x.agent.y - k.y) < 200);
+          if (fd) { L.finder = fd; const kid = L.kid, ma = L.ma, h = L.home; near(k.x, k.y, 300) && O.Speech && O.Speech.say(fd, pick([`Hello, little one. Lost, are you? Come on, I know your mam.`, `Why, it's ${name(kid)}! Your mother'll be frantic. Come.`]), 3); npcFound++; found++; end(); try { s.relate(ma, fd, 0.25); s.remember(ma, `${fd.first} found my little one when they were lost and brought them home.`, 'kindness', 0.9, fd.id); } catch (e) { /* */ }
+            if (h && h.doorX != null) { O.Errands.send(s, kid, [h.doorX, h.doorY + 1], { anim: 'idle', secs: 0.3, face: 0, giveUp: game.t + 80 }); O.Errands.send(s, fd, [h.doorX + 1, h.doorY + 1], { anim: 'talk', secs: 2, face: 2, giveUp: game.t + 80 }); O.Errands.send(s, ma, [h.doorX - 1, h.doorY + 1], { anim: 'take', secs: 2, face: 1, giveUp: game.t + 80 }); } return; } }
         if (L.phase === 'lost') { k.forceAnim = Math.floor(L.t * 0.7) % 3 ? 'mourn' : 'look'; if (!L.cried && near(k.x, k.y, 260)) { L.cried = true; O.Speech && O.Speech.say(L.kid, pick(['Mama? MAMA?', 'I want to go home...', 'Where is everybody?']), 2.4); }
           if (!L.searching && L.t > 6) { L.searching = true; L.hops = 0; hop(); } }
         if (L.phase === 'found') { L.ft += dt; m.forceAnim = L.ft < 2.5 ? 'take' : L.ft < 5 ? 'shake' : 'idle'; k.forceAnim = L.ft < 2.5 ? 'idle' : L.ft < 5 ? 'mourn' : 'nod'; m.dir = m.x < k.x ? 2 : 1; k.dir = m.x < k.x ? 1 : 2;
@@ -54,7 +58,7 @@
         if (O.PlayerState && O.PlayerState.rep) O.PlayerState.rep.civilian = (O.PlayerState.rep.civilian || 0) + 0.03;
         if (h && h.doorX != null) { O.Errands.send(s, kid, [h.doorX, h.doorY + 1], { anim: 'idle', secs: 0.3, face: 0, giveUp: game.t + 80 }); O.Errands.send(s, ma, [h.doorX + 1, h.doorY + 1], { anim: 'take', secs: 2, face: 2, giveUp: game.t + 80, after: (ok) => { if (ok) O.Speech && O.Speech.say(ma, `${name(kid)}! Oh, thank God. And thank you, thank you, friend. I was out of my mind.`, 3.4); } }); }
         O.UI && O.UI.say && O.UI.say(`You take ${name(kid)} by the hand and walk them home. Their mother comes running.`, 'good'); } }; });
-    O.LostChild = { get rescued() { return rescued; }, get lost() { return L; }, get found() { return found; }, soon: () => { cool = 0; } };
+    O.LostChild = { get npcFound() { return npcFound; }, get rescued() { return rescued; }, get lost() { return L; }, get found() { return found; }, soon: () => { cool = 0; } };
   }
   O.LostChildSetup = { setup };
 })();

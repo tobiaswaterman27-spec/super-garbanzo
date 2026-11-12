@@ -8,7 +8,7 @@
   function setup(game) {
     const cur = () => O.SimRef.cur, SP = O.Sim.prototype;
     const pick = (a) => a[Math.floor(Math.random() * a.length)];
-    let D = null, doles = 0; const pending = [];
+    let D = null, doles = 0, npcLoaves = 0; const pending = [];
     const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
     const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
     const _relief = SP.parishRelief;
@@ -20,6 +20,9 @@
         const x = D.x, y = D.y; D.giver.agent.forceAnim = D.handing > 0 ? 'give' : 'idle';
         // the queue shuffles up; the one at the front takes the bread and goes
         D.queue.forEach((q, i) => { const a = q.agent; if (!a.frozen) return; const tx = x - 12 - i * 11, ty = y + 2; a.x += (tx - a.x) * Math.min(1, dt * 3); a.y += (ty - a.y) * Math.min(1, dt * 3); a.dir = 2; a.forceAnim = i === 0 && D.handing > 0 ? 'take' : (Math.floor(D.t / 4 + i) % 4 === 3 ? 'look' : 'idle'); });
+        // a neighbour with something to spare comes by and gives one of them a loaf of their own
+        if (!D.kindly && D.t > 3 && Math.random() < dt * 0.4) { const giver = s.people.find((g) => g.alive !== false && g.age >= 25 && g.agent && !g.agent.hidden && g.agent.inside == null && !g.agent.frozen && !g.errand && !D.queue.includes(g) && (s.household(g)?.money || 0) > 80 && Math.hypot(g.agent.x - x, g.agent.y - y) < 400); const r0 = D.queue[D.queue.length - 1];
+          if (giver && r0) { D.kindly = true; O.Errands.send(s, giver, [Math.floor(r0.agent.x / T), Math.floor(r0.agent.y / T) + 1], { anim: 'give', secs: 1.5, face: 3, giveUp: game.t + 25, carry: { good: 'bread', qty: 1 }, after: (ok) => { if (!ok) return; npcLoaves++; try { const hh = s.household(r0); if (hh && hh.pantry) hh.pantry.bread = (hh.pantry.bread || 0) + 1; s.relate(r0, giver, 0.2); s.remember(r0, `${giver.first} gave me a loaf of their own when I stood in the bread queue.`, 'kindness', 0.8, giver.id); } catch (e) { /* */ } near(x, y, 300) && O.Speech && O.Speech.say(giver, 'Here. Take it, and say nothing.', 2.2); setTimeout(() => near(x, y, 300) && O.Speech && O.Speech.say(r0, 'God reward you.', 1.8), 1600); } }); } }
         D.next -= dt; if (D.handing > 0) D.handing -= dt;
         if (D.next <= 0 && D.queue.length) { D.next = 6; D.handing = 2; const q = D.queue[0]; setTimeout(() => { if (!D || D.queue[0] !== q) return; near(x, y, 300) && O.Speech && O.Speech.say(q, pick(['God bless you.', 'Thank you. The children haven\'t eaten since yesterday.', 'Bless the parish.']), 2.4); D.queue.shift(); const a = q.agent; a.forceAnim = null; a.frozen = false; q._dole = false; a.carrying = { good: 'bread', qty: 2 }; const hb = s.building(q.home); if (hb && hb.doorX != null) O.Errands.send(s, q, [hb.doorX, hb.doorY + 1], { anim: 'place', secs: 0.8, face: 0, giveUp: game.t + 90, carry: { good: 'bread', qty: 2 } }); doles++; }, 1800); }
         if (!D.queue.length && D.handing <= 0 && D.t > 4) end();
@@ -40,7 +43,7 @@
     let given = 0; const relOf = (q) => { const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r); return r; }, PS = O.PlayerState;
     (O.moreCandidates = O.moreCandidates || []).push(() => { const P = game.player; if (!D || game.scene || P.locked || !(PS.items || []).includes('bread')) return null; const q = D.queue.find((x) => x.agent && Math.hypot(x.agent.x - P.x, x.agent.y - P.y) < 30 && !x._yourBread); if (!q) return null;
       return { type: 'custom', d: 30, x: q.agent.x, y: q.agent.y - 26, label: `Give ${q.first || 'them'} a loaf of your own`, act: () => { const s = cur(), i = PS.items.indexOf('bread'); if (i < 0) return; PS.items.splice(i, 1); q._yourBread = true; given++; P.anim = 'give'; setTimeout(() => { P.anim = 'idle'; }, 800); const r = relOf(q); r.affinity = Math.min(1, r.affinity + 0.3); r.familiar = Math.min(1, (r.familiar || 0) + 0.2); try { const hh = s.household(q); if (hh && hh.pantry) hh.pantry.bread = (hh.pantry.bread || 0) + 1; s.remember(q, 'When I stood in the bread queue with nothing, a stranger gave me a loaf of their own.', 'kindness', 0.9); } catch (e) { /* */ } if (PS.rep) PS.rep.civilian = (PS.rep.civilian || 0) + 0.02; O.Speech && O.Speech.say(q, 'For me? Oh... God reward you. God reward you.', 2.6); O.gesture && O.gesture(q, 'bow', 1.4); } }; });
-    O.BreadDole = { get given() { return given; }, get dole() { return D; }, get doles() { return doles; }, pending };
+    O.BreadDole = { get npcLoaves() { return npcLoaves; }, get given() { return given; }, get dole() { return D; }, get doles() { return doles; }, pending };
   }
   O.BreadDoleSetup = { setup };
 })();

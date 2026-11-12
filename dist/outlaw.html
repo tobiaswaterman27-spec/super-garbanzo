@@ -38068,6 +38068,8 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       ['HailFolk', 'gathered', null, 'Hail came down like peas today, and the children were out after the stones the minute it stopped.', 'There was hail today, they say, big as peas.'],
       ['MyDogJoins', 'turned', null, 'The stranger sent their dog in at the loose bull, and it turned the beast for the rope. A proper working dog.', 'They say the stranger\'s dog turned the loose bull.'],
       ['MyDogJoins', 'scattered', null, 'The stranger set their dog on the goose girl\'s geese, the wretch, and laughed while she screamed.', 'They say the stranger set a dog on the goose girl\'s geese. Shameful.'],
+      ['RunawayHen', 'byYou', null, 'The stranger dived on a runaway hen in the lane and came up with it. We laughed till we cried.', 'They say the stranger caught somebody\'s runaway hen.'],
+      ['OldLoad', 'helped', null, 'The stranger carried an old body\'s load all the way home for them. Not many would.', 'They say the stranger helped an old one home with their load.'],
     ];
     game.hooks.update.push((dt) => { acc += dt; if (acc < 0.5) return; acc = 0; const s = cur(); if (!s || !s.people) return;
       for (const [mod, key, at, seen, heard] of EV) { const M = O[mod]; if (!M) continue; let v; try { v = M[key]; } catch (e) { continue; } if (typeof v !== 'number') continue; const k = mod + '.' + key, was = last.get(k); last.set(k, v); if (was == null || v <= was) continue; let pos = null; try { pos = at && at(); } catch (e) { pos = null; } let sn = seen, hd = heard; const hero = (key === 'caught' || key === 'fires') && M.hero; if (hero && hero.first && hero.alive !== false) { sn = seen + ` It was ${hero.first} ${key === 'caught' ? 'who got the rope on it' : 'who went up the ladder'}.`; hd = heard.replace(/\.$/, '') + `; ${hero.first} was the hero of it.`; heroes++; }
@@ -38149,7 +38151,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
 (function () {
   function setup(game) {
     const PS = O.PlayerState; const last = new Map(); let acc = 0, deeds = 0;
-    const WATCH = [['LostChild', 'rescued'], ['LooseBull', 'grabbed'], ['FloodFolk', 'helped'], ['BreadDole', 'given'], ['ChimneyFire', 'yours'], ['OxWagons', 'helpedYou'], ['Truants', 'sent'], ['PloughMonday', 'yours'], ['Christening', 'yours'], ['Processions', 'threw'], ['Processions', 'bowed'], ['MourningDress', 'condolences'], ['MyDogJoins', 'turned'], ['StreetFight', 'peace'], ['Borrowing', 'lent'], ['Cutpurse', 'tripped'], ['OldLoad', 'helped']];
+    const WATCH = [['LostChild', 'rescued'], ['LooseBull', 'grabbed'], ['FloodFolk', 'helped'], ['BreadDole', 'given'], ['ChimneyFire', 'yours'], ['OxWagons', 'helpedYou'], ['Truants', 'sent'], ['PloughMonday', 'yours'], ['Christening', 'yours'], ['Processions', 'threw'], ['Processions', 'bowed'], ['MourningDress', 'condolences'], ['MyDogJoins', 'turned'], ['StreetFight', 'peace'], ['Borrowing', 'lent'], ['Cutpurse', 'tripped'], ['OldLoad', 'helped'], ['RunawayHen', 'byYou']];
     const read = (m, k) => { try { const v = O[m] && O[m][k]; return typeof v === 'number' ? v : null; } catch (e) { return null; } };
     game.hooks.update.push((dt) => { acc += dt; if (acc < 0.5) return; acc = 0; if (!PS.rep) return; let n = 0;
       for (const [m, k] of WATCH) { const v = read(m, k); if (v == null) continue; const key = m + k, was = last.get(key); last.set(key, v); if (was != null && v > was) n += v - was; }

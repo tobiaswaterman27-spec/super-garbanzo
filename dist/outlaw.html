@@ -21370,7 +21370,9 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       const mv = Math.hypot(P0.x - (candAt.x ?? -1e9), P0.y - (candAt.y ?? -1e9));
       if (mv > 3 || game.t - candAt.t > 0.15 || P0.dir !== candAt.dir || game.scene !== candAt.sc) { candAt.list = candidates(); candAt.x = P0.x; candAt.y = P0.y; candAt.t = game.t; candAt.dir = P0.dir; candAt.sc = game.scene; }
       const BIAS = { npc: -6, door: -6, shop: -6, job: -5, stairs: -3, roomdoor: -4, namesign: 12, notices: 5, portrait: 6, custom: 3, furn: 4, horse: 2 };
-      const cs = candAt.list.map((c) => [c, c.d + (game.scene ? facing(c) : 0) + (c.prio != null ? c.prio : (BIAS[c.type] || 0))]).sort((a, b) => a[1] - b[1]).map((x) => x[0]);
+      // a passing moment anchored on someone or something (lend them the loaf, trip the thief) is ranked by how close you are to it, ahead of plain talk
+      const anch = (c) => !game.scene && c.type === 'custom' && c.prio == null && c.x != null && Math.abs(c.x - P0.x) > 0.5 ? Math.min(c.d + 3, Math.hypot(c.x - P0.x, (c.y + 28 - P0.y) * 1.2) - 12) : null;
+      const cs = candAt.list.map((c) => { const an = anch(c); return [c, an != null ? an : c.d + (game.scene ? facing(c) : 0) + (c.prio != null ? c.prio : (BIAS[c.type] || 0))]; }).sort((a, b) => a[1] - b[1]).map((x) => x[0]);
       cur = cs[0] || null;
       O.interactTarget = cur;
       if (cur) {
@@ -38824,7 +38826,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         try { s.remember(o, `The stranger found my purse in the street and gave it back, every coin.`, 'kindness', 1.0); O.TownTalk && O.TownTalk.tell(o.agent.x, o.agent.y, `The stranger found ${o.first}'s purse in the street and gave it back, every coin.`, 'They say the stranger gave back a purse they found, every coin.'); } catch (e) { /* */ }
         setTimeout(end, 3200); } }; });
     (O.moreCandidates = O.moreCandidates || []).push(() => { const Pl = game.player; if (!P || P.stage !== 'held' || game.scene || Pl.locked || P.t - P.heldAt < 1) return null;
-      return { type: 'custom', d: 60, x: Pl.x, y: Pl.y - 34, label: 'Keep the purse', act: () => { pocket(false); setTimeout(end, 500); } }; });
+      return { type: 'custom', d: 8, x: Pl.x, y: Pl.y - 34, label: 'Keep the purse', act: () => { pocket(false); setTimeout(end, 500); } }; });
     // what people know
     (O.extraLines = O.extraLines || []).push((s, q) => { if (!P) return ''; if (q === P.owner) return P.stage === 'held' ? `You have lost your purse with ${P.amt} aurin in it, and the stranger is holding it. If they give it back you are overjoyed and grateful; if they keep it you are furious.` : P.stage === 'gone' && P.mourned ? `You have lost your purse with ${P.amt} aurin in it and someone has kept it. You are distraught.` : P.realised && P.stage === 'lying' ? 'You have dropped your purse somewhere along the street and are searching for it, frantic.' : '';
       if (q === P.keeper) return `You found ${P.owner.first}'s purse in the street a moment ago and kept it. If asked, you deny it, unless pressed hard.`;

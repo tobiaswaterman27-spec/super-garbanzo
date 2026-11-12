@@ -30842,7 +30842,15 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     };
     const x_is = (t) => /\b(purse|pocket|cut|lift|lifted|stole|steal|took|taken|nick|nicked|thief|robbed|saw you|give it back|give that back|hand it back|put it back)\b/i.test(t);
     (O.extraLines = O.extraLines || []).push((s, q) => { const r = recent.find((x) => x.thief === q && !x.back); return r ? `A minute ago you cut ${r.victim.first}'s purse in the street (${r.amt} aurin). If the player says they saw, you may deny it, threaten them, or give it back.` : ''; });
-    O.Cutpurse = { start: (thief, victim) => begin(cur(), { thief, victim }), get job() { return job; }, recent, cry: () => job && cry() };
+    // a thief running past you: stick out a foot
+    let tripped = 0;
+    (O.moreCandidates = O.moreCandidates || []).push(() => { const P = game.player; if (!job || job.stage !== 'chase' || game.scene || P.locked) return null; const ta = job.thief.agent; if (Math.hypot(ta.x - P.x, ta.y - P.y) > 30) return null;
+      return { type: 'custom', d: 30, x: ta.x, y: ta.y - 28, label: `Trip ${job.thief.first}, the cutpurse`, act: () => { if (!job || job.stage !== 'chase') return; const { s, victim, thief } = job; tripped++; P.anim = 'attack'; setTimeout(() => { P.anim = 'idle'; }, 600); thief.agent.forceAnim = 'hurt'; O.sfx && O.sfx('smack', 0.4);
+        try { const r = victim.rel.get(0) || { affinity: 0, familiar: 0 }; r.affinity = Math.min(1, r.affinity + 0.3); r.familiar = Math.min(1, (r.familiar || 0) + 0.2); victim.rel.set(0, r); s.remember(victim, 'A stranger tripped the cutpurse who took my purse, and I got it back.', 'kindness', 0.9); const tr = thief.rel.get(0) || { affinity: 0, familiar: 0 }; tr.affinity = Math.max(-1, tr.affinity - 0.4); thief.rel.set(0, tr); s.remember(thief, 'The stranger tripped me when I was running with a purse.', 'grudge', 1.5); } catch (e) { /* */ }
+        if (O.PlayerState.rep) O.PlayerState.rep.civilian = Math.min(1, (O.PlayerState.rep.civilian || 0) + 0.03); O.UI && O.UI.say && O.UI.say(`You put out a foot and ${thief.first} goes sprawling in the dirt.`, 'good');
+        try { O.TownTalk && O.TownTalk.tell(thief.agent.x, thief.agent.y, `The stranger tripped ${thief.first} the cutpurse in the street, and ${victim.first} got their purse back.`, 'They say the stranger caught a cutpurse in the street.'); } catch (e) { /* */ }
+        caught(victim); } }; });
+    O.Cutpurse = { get tripped() { return tripped; }, start: (thief, victim) => begin(cur(), { thief, victim }), get job() { return job; }, recent, cry: () => job && cry() };
   }
   O.CutpurseSetup = { setup };
 })();
@@ -38085,7 +38093,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
     const helped = (q) => (q.memories || []).find((m) => m.kind === 'kindness' && /stranger/i.test(m.text || ''));
     const saw = (q) => (q.beliefs || []).find((b) => b.src === 'seen' && /^The stranger/.test(b.t || '') && !/wretch|shameful/i.test(b.t || ''));
-    const LINES = [[/child|little one/, ['God bless you! My little one still talks of you.', 'There\'s the one who brought my baby home!', 'I\'ll never forget what you did, friend.']], [/chimney|fire/, ['My thatch would be ashes but for you.', 'Our fire-fighter! Come and eat with us one day.']], [/bread|loaf/, ['God reward you for that loaf. I\'ve not forgotten.', 'You fed my children that day. Bless you.']], [/flood|bail/, ['You bailed my floor! The flour\'s dry now, thanks to you.', 'Our good neighbour from the flood!']], [/.*/, ['Friend! Good to see you.', 'God keep you, stranger. You\'re a good soul.']]];
+    const LINES = [[/child|little one/, ['God bless you! My little one still talks of you.', 'There\'s the one who brought my baby home!', 'I\'ll never forget what you did, friend.']], [/chimney|fire/, ['My thatch would be ashes but for you.', 'Our fire-fighter! Come and eat with us one day.']], [/bread|loaf/, ['God reward you for that loaf. I\'ve not forgotten.', 'You fed my children that day. Bless you.']], [/flood|bail/, ['You bailed my floor! The flour\'s dry now, thanks to you.', 'Our good neighbour from the flood!']], [/fight/, ['You stopped me making a fool of myself that day. Thank you.', 'There\'s the peacemaker! I owe you a drink.']], [/lent/, ['That loaf you lent us! You\'re a good neighbour.']], [/.*/, ['Friend! Good to see you.', 'God keep you, stranger. You\'re a good soul.']]];
     game.hooks.update.push((dt) => { acc += dt; if (acc < 0.7) return; acc = 0; const s = cur(); if (!s || !s.people || game.scene) return; const P = game.player;
       for (const q of s.people) { const a = q.agent; if (!a || a.hidden || a.inside != null || a.frozen || q.errand || talking(q) || q.age < 6) continue; if (Math.hypot(a.x - P.x, a.y - P.y) > 44) continue; if (greeted.get(q.id) === s.day) continue;
         const m = helped(q), b = !m && saw(q); if (!m && !b) continue; greeted.set(q.id, s.day);
@@ -38141,7 +38149,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
 (function () {
   function setup(game) {
     const PS = O.PlayerState; const last = new Map(); let acc = 0, deeds = 0;
-    const WATCH = [['LostChild', 'rescued'], ['LooseBull', 'grabbed'], ['FloodFolk', 'helped'], ['BreadDole', 'given'], ['ChimneyFire', 'yours'], ['OxWagons', 'helpedYou'], ['Truants', 'sent'], ['PloughMonday', 'yours'], ['Christening', 'yours'], ['Processions', 'threw'], ['Processions', 'bowed'], ['MourningDress', 'condolences'], ['MyDogJoins', 'turned']];
+    const WATCH = [['LostChild', 'rescued'], ['LooseBull', 'grabbed'], ['FloodFolk', 'helped'], ['BreadDole', 'given'], ['ChimneyFire', 'yours'], ['OxWagons', 'helpedYou'], ['Truants', 'sent'], ['PloughMonday', 'yours'], ['Christening', 'yours'], ['Processions', 'threw'], ['Processions', 'bowed'], ['MourningDress', 'condolences'], ['MyDogJoins', 'turned'], ['StreetFight', 'peace'], ['Borrowing', 'lent'], ['Cutpurse', 'tripped']];
     const read = (m, k) => { try { const v = O[m] && O[m][k]; return typeof v === 'number' ? v : null; } catch (e) { return null; } };
     game.hooks.update.push((dt) => { acc += dt; if (acc < 0.5) return; acc = 0; if (!PS.rep) return; let n = 0;
       for (const [m, k] of WATCH) { const v = read(m, k); if (v == null) continue; const key = m + k, was = last.get(key); last.set(key, v); if (was != null && v > was) n += v - was; }

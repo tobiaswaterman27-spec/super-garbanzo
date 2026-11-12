@@ -38,6 +38,7 @@
 
     // damage applies to the shared health model
     function hurt(q, dmg, byPlayer, blade, wkey) {
+      if (byPlayer && blade && PS.keen && PS.keen.until >= (O.SimRef.cur?.day || 0) && PS.keen.w === wkey) dmg *= 1.15; // (fresh from the grinder's wheel)
       if (byPlayer && O.CombatDeep) { const r = O.CombatDeep.defend(q, dmg, wkey); if (r === 'blocked') return 'blocked'; dmg = r; }
       const h = q.health;
       const armour = q.app.outfit.armour === 'mail' ? 0.65 : 1;

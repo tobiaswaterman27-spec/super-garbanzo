@@ -36747,7 +36747,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       const P = game.player, kids = s.people.filter((q) => able(q) && q.age >= 3 && q.age <= 7 && !q.agent.hidden && q.agent.inside == null && near(q.agent.x, q.agent.y, 380) && !(q.agent.carrying === 'babe'));
       for (const kid of kids) { const hh = s.household(kid); if (!hh) continue; const ma = hh.members.map((id) => s.byId.get(id)).filter((q) => q && q !== kid && q.age >= 18 && able(q)).sort((a, b) => (a.sex === 'f' ? 0 : 1) - (b.sex === 'f' ? 0 : 1))[0]; if (!ma) continue; const home = s.building(hh.home ?? kid.home); if (!home || home.doorX == null) continue;
         const sp = spotNear(s, Math.floor(kid.agent.x / T), Math.floor(kid.agent.y / T), 10, 15); if (!sp) continue;
-        kid._lost = true; ma._lost = true; marked.add(kid); marked.add(ma); L = { s, kid, ma, home, t: 0, phase: 'wander' };
+        kid._lost = true; ma._lost = true; marked.add(kid); marked.add(ma); L = { s, kid, ma, home, t: 0, phase: 'wander' }; if (kid.playerChild) { L.yours = true; setTimeout(() => O.UI && O.UI.say && O.UI.say(`It's your own ${kid.first}! ${ma.first} is calling for them up and down the lane. Find them!`, 'warn'), 1200); }
         O.Errands.send(s, kid, sp, { anim: 'idle', secs: 0.1, face: 0, giveUp: game.t + 50, after: (ok) => { if (!L || L.kid !== kid) return; if (!ok) { end(); return; } kid.agent.frozen = true; kid.agent.path = null; L.phase = 'lost'; L.t = 0;
           // the mother comes out of doors
           const a = ma.agent; if (a.inside != null) { a.inside = null; a.hidden = false; a.x = home.doorX * T + 8; a.y = (home.doorY + 1) * T + 8; } } });
@@ -36758,7 +36758,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     const relOf = (q) => { const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r); return r; };
     let rescued = 0;
     (O.moreCandidates = O.moreCandidates || []).push(() => { const P = game.player; if (!L || L.phase !== 'lost' || game.scene || P.locked) return null; const k = L.kid.agent; if (Math.hypot(k.x - P.x, k.y - P.y) > 30) return null;
-      return { type: 'custom', d: 30, x: k.x, y: k.y - 26, label: `Take ${name(L.kid)} back to their mother`, act: () => { const s = cur(); if (!L || !s) return; const kid = L.kid, ma = L.ma, h = L.home; rescued++; found++;
+      return { type: 'custom', d: 30, x: k.x, y: k.y - 26, label: L.yours ? `Pick up ${L.kid.first} and take them home` : `Take ${name(L.kid)} back to their mother`, act: () => { const s = cur(); if (!L || !s) return; const kid = L.kid, ma = L.ma, h = L.home; rescued++; found++;
         O.Speech && O.Speech.say(kid, 'I want my mama...', 1.8); end(); const r = relOf(ma); r.affinity = Math.max(-1, Math.min(1, r.affinity + 0.3)); r.familiar = Math.min(1, (r.familiar || 0) + 0.2); try { s.remember(ma, 'A stranger found my little one when they were lost, and brought them home to me.', 'kindness', 0.8); } catch (e) { /* */ }
         if (O.PlayerState && O.PlayerState.rep) O.PlayerState.rep.civilian = (O.PlayerState.rep.civilian || 0) + 0.03;
         if (h && h.doorX != null) { O.Errands.send(s, kid, [h.doorX, h.doorY + 1], { anim: 'idle', secs: 0.3, face: 0, giveUp: game.t + 80 }); O.Errands.send(s, ma, [h.doorX + 1, h.doorY + 1], { anim: 'take', secs: 2, face: 2, giveUp: game.t + 80, after: (ok) => { if (ok) O.Speech && O.Speech.say(ma, `${name(kid)}! Oh, thank God. And thank you, thank you, friend. I was out of my mind.`, 3.4); } }); }

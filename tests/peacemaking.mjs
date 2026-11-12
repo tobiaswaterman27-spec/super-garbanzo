@@ -23,4 +23,14 @@ for (let i = 0; i < 90 && (await p.evaluate(() => !!O.Peacemaking.scene)); i++) 
 console.log('byYou/failed:', await p.evaluate(() => [O.Peacemaking.byYou, O.Peacemaking.byYouFailed].join('/')));
 await p.waitForTimeout(2000);
 console.log('held:', await p.evaluate(() => O.SimRef.cur.people.filter((q) => q._peace).length));
+// someone bears YOU a grudge; a friend of you both brings them to you
+const y = await p.evaluate(() => { const s = O.SimRef.cur; const vis = s.people.filter((q) => q.age >= 18 && q.agent && q.agent.inside == null && !q.agent.hidden && !q.agent.frozen && !q.errand && !q._peace && !q.visitor);
+  for (const g of vis) { const m = vis.find((x) => x !== g && Math.hypot(x.agent.x - g.agent.x, x.agent.y - g.agent.y) < 200 && Math.hypot(x.agent.x - g.agent.x, x.agent.y - g.agent.y) > 30); if (!m) continue; g.rel.set(0, { affinity: -0.32, familiar: 0.5 }); g.grudge = { why: 'you cheated me at dice', day: s.day, level: 0.25 }; m.rel.set(0, { affinity: 0.7, familiar: 0.6 }); s.relate(m, g, 0.5); for (const o of vis) if (o !== g && o !== m && (o.rel.get(0) || {}).affinity < -0.3) o.rel.set(0, { affinity: 0, familiar: 0.1 }); O.game.player.x = g.agent.x + 60; O.game.player.y = g.agent.y + 20; return g.first + ' (go-between ' + m.first + ')'; } return null; });
+console.log('grudge:', y, await p.evaluate(() => { const s = O.SimRef.cur; return 'hr ' + (s.minute / 60).toFixed(1) + ' scene ' + !!O.game.scene + ' talking ' + !!(O.npcUI.talking()) + ' dialog ' + (O.UI.dialogOpen && O.UI.dialogOpen()); }));
+for (let i = 0; i < 8 && !(await p.evaluate(() => !!O.Peacemaking.you)); i++) { await p.evaluate(() => O.Peacemaking.youSoon()); await p.waitForTimeout(600); }
+for (let i = 0; i < 50 && !(await p.evaluate(() => O.Peacemaking.you && O.Peacemaking.you.stage === 'face')); i++) await p.waitForTimeout(1000);
+const h = await p.evaluate(() => { if (O.UI.dialogOpen && O.UI.dialogOpen()) O.UI.dialog.close(); if (O.npcUI.talking()) O.npcUI.closeTalk(); O.game.player.locked = false; const Y = O.Peacemaking.you; if (!Y) return 'none'; const c = O.moreCandidates.map((f) => f()).find((x) => x && /your hand/.test(x.label)); if (!c) return 'no prompt (' + Y.stage + ' d=' + Math.round(Math.hypot(Y.g.agent.x - O.game.player.x, Y.g.agent.y - O.game.player.y)) + ' locked=' + O.game.player.locked + ' talk=' + !!O.npcUI.talking() + ')'; c.act(); return c.label; });
+console.log('you:', h, 'made/failed with you:', await p.evaluate(() => [O.Peacemaking.yMade, O.Peacemaking.yFailed].join('/')));
+await p.waitForTimeout(6000);
+console.log('held after:', await p.evaluate(() => O.SimRef.cur.people.filter((q) => q._peace && !q.errand).length));
 await done();

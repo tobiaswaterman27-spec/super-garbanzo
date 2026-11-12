@@ -45,6 +45,7 @@
       O.sfx && near(dx, dy, 400) && O.sfx('door', 0.4); say(pick(guests.length ? guests : [a]), pick(['Here they come!', 'Long life to you both!', 'Huzzah!']), 2);
       return true;
     }
+    let npcBowed = 0;
     function end() { const p = proc; if (!p) return; for (const q of p.all) let_go(q); if (p.kind === 'funeral') for (const q of p.all) { if (q.alive !== false && q.agent) { q.agent.inside = p.chapel.id; q.agent.hidden = true; } } proc = null; }
     function steerTo(q, tx, ty, dt, sp, an) { const a = q.agent, dx = tx - a.x, dy = ty - a.y, d = Math.hypot(dx, dy); if (d < 1) { a.forceAnim = an === 'walk' ? 'idle' : an; return true; } const st = Math.min(d, sp * dt); a.x += dx / d * st; a.y += dy / d * st; a.dir = O.dirOf(dx, dy); a.forceAnim = an; return false; }
     game.hooks.update.push((dt) => {
@@ -58,6 +59,9 @@
         return; }
       const p = proc; p.t += dt; if (p.s !== s || game.scene || p.t > 120) { end(); return; }
       if (p.all.some((q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q)) return;
+      // as the coffin goes by, those in the street stop, turn, and bow their heads; men pull off their caps
+      if (p.kind === 'funeral' && p.bearers && p.bearers[0] && p.bearers[0].agent) { p.bowed = p.bowed || new Set(); const ba = p.bearers[0].agent;
+        for (const z of s.people) { if (p.all.includes(z) || p.bowed.has(z.id) || !z.agent || z.agent.hidden || z.agent.inside != null || z.agent.frozen || z.errand || z.age < 6) continue; if (Math.hypot(z.agent.x - ba.x, z.agent.y - ba.y) > 60) continue; p.bowed.add(z.id); npcBowed++; z.agent.dir = O.dirOf(ba.x - z.agent.x, ba.y - z.agent.y); O.gesture && O.gesture(z, z.age < 12 ? 'look' : 'bow', 3); if (Math.random() < 0.15) say(z, pick(['God rest them.', 'Requiescat.', '...']), 2); } }
       if (p.kind === 'funeral') {
         // the leader walks the way, slow; the rest keep their places behind
         const tgt = p.path[p.pi]; if (tgt) { const dx = tgt[0] - p.lead[0], dy = tgt[1] - p.lead[1], d = Math.hypot(dx, dy), st = 16 * dt; if (d <= st) { p.lead = [tgt[0], tgt[1]]; p.pi++; } else { p.lead = [p.lead[0] + dx / d * st, p.lead[1] + dy / d * st]; } const last = p.trail[0]; if (Math.hypot(p.lead[0] - last[0], p.lead[1] - last[1]) > 2) { p.trail.unshift([p.lead[0], p.lead[1]]); if (p.trail.length > 200) p.trail.pop(); } }
@@ -92,7 +96,7 @@
         if (p.kind === 'wedding') { threw++; P.anim = 'pitch'; setTimeout(() => { P.anim = 'idle'; }, 900); for (let i = 0; i < 16; i++) parts.push({ x: P.x, y: P.y - 16, vx: (p.a.agent.x - P.x) * (0.8 + Math.random() * 0.6) + (Math.random() - 0.5) * 20, vy: -40 - Math.random() * 20, t: 0, life: 0.9 + Math.random() * 0.4, c: pick(['#f0e0a0', '#e8a0b0', '#ffffff', '#d8c070']) });
           for (const q of [p.a, p.b]) { if (!q) continue; const r = relOf(q); r.affinity = Math.min(1, r.affinity + 0.1); r.familiar = Math.min(1, (r.familiar || 0) + 0.1); try { s.remember(q, 'A stranger threw grain over us for luck on our wedding day.', 'kindness', 0.4); } catch (e) { /* */ } } setTimeout(() => say(p.b || p.a, pick(['Thank you, friend!', 'Ha! Bless you!', 'Come to the feast!']), 2), 700); }
         else { bowed++; P.anim = 'bow'; setTimeout(() => { P.anim = 'idle'; }, 2500); for (const q of p.mourners || []) { if (!q || !q.agent) continue; const r = relOf(q); r.affinity = Math.min(1, r.affinity + 0.06); } const m = (p.mourners || [])[0]; if (m) { try { s.remember(m, `A stranger stood aside and bowed their head as we carried ${p.name} past.`, 'kindness', 0.4); } catch (e) { /* */ } setTimeout(() => O.gesture && O.gesture(m, 'nod', 1.4), 800); } } } }; });
-    O.Processions = { get threw() { return threw; }, get bowed() { return bowed; }, get proc() { return proc; }, funeral: (e) => funeral(cur(), e), wedding: (e) => wedding(cur(), e) };
+    O.Processions = { get npcBowed() { return npcBowed; }, get threw() { return threw; }, get bowed() { return bowed; }, get proc() { return proc; }, funeral: (e) => funeral(cur(), e), wedding: (e) => wedding(cur(), e) };
   }
   O.ProcessionsSetup = { setup };
 })();

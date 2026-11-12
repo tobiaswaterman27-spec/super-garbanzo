@@ -6,7 +6,7 @@
 (function () {
   function setup(game) {
     const PS = O.PlayerState; const last = new Map(); let acc = 0, deeds = 0;
-    const WATCH = [['LostChild', 'rescued'], ['LooseBull', 'grabbed'], ['FloodFolk', 'helped'], ['BreadDole', 'given'], ['ChimneyFire', 'yours'], ['OxWagons', 'helpedYou'], ['Truants', 'sent'], ['PloughMonday', 'yours'], ['Christening', 'yours'], ['Processions', 'threw'], ['Processions', 'bowed'], ['MourningDress', 'condolences'], ['MyDogJoins', 'turned'], ['StreetFight', 'peace'], ['Borrowing', 'lent'], ['Cutpurse', 'tripped']];
+    const WATCH = [['LostChild', 'rescued'], ['LooseBull', 'grabbed'], ['FloodFolk', 'helped'], ['BreadDole', 'given'], ['ChimneyFire', 'yours'], ['OxWagons', 'helpedYou'], ['Truants', 'sent'], ['PloughMonday', 'yours'], ['Christening', 'yours'], ['Processions', 'threw'], ['Processions', 'bowed'], ['MourningDress', 'condolences'], ['MyDogJoins', 'turned'], ['StreetFight', 'peace'], ['Borrowing', 'lent'], ['Cutpurse', 'tripped'], ['OldLoad', 'helped']];
     const read = (m, k) => { try { const v = O[m] && O[m][k]; return typeof v === 'number' ? v : null; } catch (e) { return null; } };
     game.hooks.update.push((dt) => { acc += dt; if (acc < 0.5) return; acc = 0; if (!PS.rep) return; let n = 0;
       for (const [m, k] of WATCH) { const v = read(m, k); if (v == null) continue; const key = m + k, was = last.get(key); last.set(key, v); if (was != null && v > was) n += v - was; }

@@ -15,4 +15,11 @@ const r = await p.evaluate(() => { const D = O.DroppedPurse.drop; if (!D) return
 console.log('you:', r, 'returned', await p.evaluate(() => O.DroppedPurse.returned), 'money delta', (await p.evaluate(() => O.PlayerState.money)) - before);
 await p.waitForTimeout(4500);
 console.log('held:', await p.evaluate(() => O.SimRef.cur.people.filter((q) => q._dpurse).length));
+// keep one, with somebody watching: on the record, and they go to the watch
+await p.waitForTimeout(4000);
+for (let i = 0; i < 30 && !(await p.evaluate(() => !!O.DroppedPurse.drop)); i++) { await setup(); await p.waitForTimeout(700); }
+const k = await p.evaluate(() => { if (O.UI.dialogOpen && O.UI.dialogOpen()) O.UI.dialog.close(); const s = O.SimRef.cur, D = O.DroppedPurse.drop; if (!D) return 'none'; const P = O.game.player; P.x = D.x; P.y = D.y + 4; const c = O.moreCandidates.map((f) => f()).find((x) => x && x.label === 'Pick up the purse'); if (!c) return 'no pickup'; c.act(); const w = s.people.find((q) => q !== D.owner && q.age >= 16 && q.agent && q.agent.inside == null && !q.agent.hidden && !q.task); if (w) { w.agent.x = P.x + 30; w.agent.y = P.y; } window._w = w; return 'picked'; });
+await p.waitForTimeout(1500);
+const k2 = await p.evaluate(() => { const w = window._w; const before = (O.PlayerState.crimes || []).length; const c2 = O.moreCandidates.map((f) => f()).find((x) => x && x.label === 'Keep the purse'); if (!c2) return 'no keep'; c2.act(); return 'crimes +' + ((O.PlayerState.crimes || []).length - before) + ' (town record ' + (O.SimRef.cur.crimes || []).length + ')' + ', witness ' + (w ? w.first + ' task ' + (w.task && w.task.act) : 'none'); });
+console.log('kept:', k, k2);
 await done();

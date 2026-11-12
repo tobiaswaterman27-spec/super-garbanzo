@@ -15,6 +15,8 @@
     const outdoors = (q) => q && q.agent && !q.agent.hidden && q.agent.inside == null && q.alive !== false;
     const free = (q) => outdoors(q) && !q.agent.frozen && !q.errand && !q._dpurse && !q._scene && !q._cp && !q._fighting && !q.jailUntil && !talking(q);
     const relOf = (q) => { const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; q.rel.set(0, r); return r; };
+    // a wrong done out of doors and seen: on the record, and someone goes to the watch
+    O.reportOutdoorCrime = (s, o) => { try { if (!s.recordCrime) return null; const PS2 = O.PlayerState; const crime = s.recordCrime({ kind: o.kind || 'theft', perp: 'player', placeName: o.place || s.world.name, tile: [Math.floor(game.player.x / T), Math.floor(game.player.y / T)], seen: o.seen || [], victimPerson: o.victim, severity: o.severity || 1 }); if (crime) (PS2.crimes = PS2.crimes || []).push(crime.id); const rep2 = o.reporter || (o.seen || [])[0] || o.victim; if (rep2 && crime && s.guardId != null && !rep2.task && Math.random() < (o.chance ?? 0.7)) rep2.task = { act: 'report', b: s.guardId, crime: crime.id }; return crime; } catch (e) { console.error(e); return null; } };
     let P = null, cool = 90, force = false, returned = 0, kept = 0, npcReturned = 0, npcKept = 0, selfFound = 0, byYou = 0;
     const hold = (q) => { q._dpurse = true; q.agent.frozen = true; q.agent.path = null; };
     const free_ = (q) => { if (!q || !q._dpurse) return; q._dpurse = false; q.agent.forceAnim = null; if (!talking(q)) q.agent.frozen = false; };
@@ -56,6 +58,7 @@
       O.UI && O.UI.say && O.UI.say(walked ? `You walk on with ${o.first}'s purse. ${P.amt} aurin, yours now.` : `You tip ${P.amt} aurin into your own purse and drop the empty one in the gutter.`, 'info');
       const seen = s ? s.people.filter((q) => q !== o && outdoors(q) && q.age >= 8 && near(q.agent.x, q.agent.y, 140)) : []; P.seen = seen;
       if (seen.length && s) { if (PS.rep) PS.rep.criminal = Math.min(1, (PS.rep.criminal || 0) + 0.03); for (const q of seen.slice(0, 4)) { try { s.remember(q, `I saw the stranger pick up ${o.first}'s purse and keep it. Shameful.`, 'crime', 0.9, 0); const r = relOf(q); r.affinity = Math.max(-1, r.affinity - 0.08); } catch (e) { /* */ } }
+        O.reportOutdoorCrime(s, { kind: 'theft', place: s.world.name, seen, victim: o, severity: P.amt > 6 ? 2 : 1 });
         try { O.TownTalk && O.TownTalk.tell(game.player.x, game.player.y, `The stranger picked up ${o.first}'s purse in the street and kept it. Shameful.`, `They say the stranger kept a purse ${o.first} dropped.`); } catch (e) { /* */ }
         const w = seen[0]; if (w && near(w.agent.x, w.agent.y, 200)) say(w, pick(['I saw that.', 'That isn\'t yours.', `That's ${o.first}'s purse!`]), 2); } }
     // pick it up

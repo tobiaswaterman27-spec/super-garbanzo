@@ -44,6 +44,10 @@
       for (const f of fights.slice()) {
         if (f.s !== s) { end(f, f.sides[1][0], 'apart'); continue; }
         f.t += dt; f.next -= dt;
+        // now and then an elder of the street steps in between them, and is listened to
+        if (!f.raid && !f.elderTried && f.t > 4) { f.elderTried = true; const [A0, B0] = [f.sides[0][0], f.sides[1][0]]; const el = Math.random() < 0.35 && s.people.find((z) => z.alive !== false && z.age >= 50 && z.agent && !z.agent.hidden && z.agent.inside == null && !z.agent.frozen && !z.errand && !z._fighting && !f.sides.flat().includes(z) && Math.hypot(z.agent.x - A0.agent.x, z.agent.y - A0.agent.y) < 200);
+          if (el) { elders++; fights.splice(fights.indexOf(f), 1); for (const q of f.sides.flat()) { q.agent.frozen = false; q._fighting = false; q.agent.anim = 'idle'; } el.agent.x = (A0.agent.x + B0.agent.x) / 2; el.agent.y = (A0.agent.y + B0.agent.y) / 2 + 4; O.gesture && O.gesture(el, 'shake', 2); sp(el, pick([`${A0.first}! ${B0.first}! Enough! Your fathers would be ashamed.`, 'Stop this! Stop it this minute, the pair of you!', 'Fists in the street? Like dogs? Get home, both of you.']), 3); setTimeout(() => sp(A0, pick(['...Yes, Gaffer.', 'Sorry. Sorry.']), 1.8), 2200);
+            try { s.relate(A0, el, 0.05); s.relate(B0, el, 0.05); for (const z of s.people) if (z.agent && !z.agent.hidden && Math.hypot(z.agent.x - el.agent.x, z.agent.y - el.agent.y) < 180) s.remember(z, `Saw old ${el.first} part ${A0.first} and ${B0.first} when they came to blows.`, 'social', 0.6); } catch (e) { /* */ } continue; } }
         // the two sides face each other, close in
         const [A, B] = f.sides; const ca = A[0].agent, cb = B[0].agent; const mx = (ca.x + cb.x) / 2, my = (ca.y + cb.y) / 2;
         A.forEach((q, i) => { const tx = mx - 11 - i * 4, ty = my + (i ? (i % 2 ? 8 : -8) : 0); q.agent.x += (tx - q.agent.x) * Math.min(1, dt * 4); q.agent.y += (ty - q.agent.y) * Math.min(1, dt * 4); q.agent.dir = 2; });
@@ -70,14 +74,14 @@
       for (const f of fights) { const c = f.sides[0][0].agent; const watchers = s.people.filter((z) => !z._fighting && z.agent && !z.agent.hidden && z.agent.inside == null && !z.errand && z.age >= 8 && Math.hypot(z.agent.x - c.x, z.agent.y - c.y) < 160).slice(0, 6); watchers.forEach((z, i) => { z.agent.dir = O.dirOf(c.x - z.agent.x, c.y - z.agent.y); if (Math.random() < 0.25) { gest(z, 'celebrate', 1.2); if (Math.random() < 0.4) sp(z, pick(['Fight! Fight!', `Go on, ${f.sides[i % 2][0].first}!`, 'Somebody fetch the watch!', 'Hit him!']), 1.4); } }); }
     });
     // you can step between them and try to make peace
-    let peace = 0, punched = 0; const PSx = O.PlayerState;
+    let peace = 0, punched = 0, elders = 0; const PSx = O.PlayerState;
     (O.moreCandidates = O.moreCandidates || []).push(() => { const P = game.player; if (game.scene || P.locked) return null; const f = fights.find((x) => x.s === cur() && x.sides.flat().some((q) => q.agent && Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < 46) && !x.raid); if (!f) return null; const a = f.sides[0][0], b = f.sides[1][0];
       return { type: 'custom', d: 46, x: a.agent.x, y: a.agent.y - 30, label: `Step between ${a.first} and ${b.first} and make peace`, act: () => { const s = cur(); const rep = (PSx.rep && PSx.rep.civilian) || 0, odds = 0.5 + rep * 0.4 - ((PSx.rep && PSx.rep.criminal) || 0) * 0.3;
         if (Math.random() < odds) { peace++; fights.splice(fights.indexOf(f), 1); const all = f.sides.flat(); for (const q of all) { q.agent.frozen = false; q._fighting = false; q.agent.anim = 'idle'; const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; r.affinity = Math.min(1, r.affinity + 0.08); r.familiar = Math.min(1, (r.familiar || 0) + 0.1); q.rel.set(0, r); try { s.remember(q, 'The stranger stepped between us in the street and made us stop fighting.', 'kindness', 0.5); } catch (e) { /* */ } }
           try { s.relate(a, b, 0.05); s.relate(b, a, 0.05); } catch (e) { /* */ } sp(a, pick(['All right, all right. For now.', 'Hmph. He started it.']), 2.2); setTimeout(() => sp(b, pick(['...Fine. Shake, then.', 'You\'re lucky they stepped in.']), 2.2), 1500); O.UI && O.UI.say && O.UI.say('You get between them, hands up, talking low, and after a long moment they step back.', 'good');
           try { O.TownTalk && O.TownTalk.tell(a.agent.x, a.agent.y, `The stranger stepped between ${a.first} and ${b.first} when they came to blows, and made peace.`, 'They say the stranger stopped a fight in the street.'); } catch (e) { /* */ } }
         else { punched++; P.anim = 'hurt'; if (PSx.hp) PSx.hp = Math.max(5, PSx.hp - 6); O.UI && O.UI.say && O.UI.say(`You step in, and ${b.first}'s fist meant for ${a.first} catches you on the ear instead. They fight on.`, 'bad'); sp(b, 'Keep out of it!', 1.6); } } }; });
-    O.StreetFight = { start, fights, get peace() { return peace; }, get punched() { return punched; } };
+    O.StreetFight = { get elders() { return elders; }, start, fights, get peace() { return peace; }, get punched() { return punched; } };
 
     // feuds, gangs at war, and soldiers' trouble come to blows here instead
     const SP = O.Sim.prototype, _nd = SP.newDay;

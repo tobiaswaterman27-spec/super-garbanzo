@@ -7,7 +7,7 @@
   function setup(game) {
     const cur = () => O.SimRef.cur;
     const pick = (a) => a[Math.floor(Math.random() * a.length)];
-    let H = null, cool = 200, caught = 0, byYou = 0;
+    let H = null, cool = 200, caught = 0, byYou = 0, byKid = 0;
     const near = (x, y, r) => Math.hypot(x - game.player.x, y - game.player.y) < r;
     const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
     function end() { if (!H) return; const q = H.wife; q._hen = false; if (q.agent) { q.agent.forceAnim = null; if (!talking(q)) q.agent.frozen = false; } H = null; }
@@ -21,6 +21,8 @@
         const sp = (fx || fy) ? 70 : 20, nx = h.x + Math.cos(h.ang) * sp * dt, ny = h.y + Math.sin(h.ang) * sp * dt; if (!game.solidAt(nx, ny - 2) && Math.hypot(nx - H.x0, ny - H.y0) < 180) { h.x = nx; h.y = ny; } else h.ang += Math.PI * 0.7; h.dir = Math.cos(h.ang) > 0 ? 2 : 1; h.flap = sp > 30;
         // the goodwife after it, stooping and missing
         const d = step(wa, h.x, h.y, 50, dt); wa.forceAnim = d < 14 ? 'pickup' : 'run'; if (d < 10 && Math.random() < dt * 0.6) { H.caughtAt = H.t; wa.forceAnim = 'celebrate'; O.Speech && O.Speech.say(w, 'Got you, you little wretch!', 2); }
+        // or a quick child from the lane dives on it
+        if (!H.kid && H.t > 8 && Math.random() < dt * 0.15) { const k = s.people.find((x) => x.age >= 6 && x.age <= 12 && x.agent && !x.agent.hidden && x.agent.inside == null && !x.agent.frozen && !x.errand && !talking(x) && Math.hypot(x.agent.x - h.x, x.agent.y - h.y) < 200); if (k) { H.kid = k; O.Errands.send(s, k, [Math.floor(h.x / 16), Math.floor(h.y / 16)], { anim: 'pickup', secs: 0.6, face: 0, sprint: true, giveUp: game.t + 12, after: (ok) => { if (!H || H.caughtAt) return; if (ok && Math.random() < 0.6) { H.caughtAt = H.t; byKid++; O.Speech && O.Speech.say(k, 'Got her! Got her!', 1.6); O.gesture && O.gesture(k, 'celebrate', 1.5); try { s.relate(w, k, 0.1); } catch (e) { /* */ } setTimeout(() => O.Speech && O.Speech.say(w, `Oh, good lad, ${k.first}! There's a honey cake for you.`, 2.4), 900); } else O.Speech && O.Speech.say(k, 'Missed!', 1.2); } }); } }
         H.cry -= dt; if (H.cry <= 0) { H.cry = 3 + Math.random() * 2; if (near(wa.x, wa.y, 280)) O.Speech && O.Speech.say(w, pick(['Chook chook chook! Come here!', 'Somebody catch her! My best layer!', 'Oh, you stupid bird!']), 1.8); }
         return; }
       cool -= dt; if (cool > 0) return; cool = 300 + Math.random() * 300; const hr = s.minute / 60; if (hr < 8 || hr > 18) return;
@@ -33,7 +35,7 @@
         else { O.UI && O.UI.say && O.UI.say('You dive. The hen is not there. You are in the dirt, and the lane is laughing.', 'bad'); P.anim = 'hurt'; setTimeout(() => { P.anim = 'idle'; }, 900); H.hen.jink = 0; } } }; });
     game.hooks.drawWorld.push((ctx, cam) => { if (!H || game.scene || H.s !== cur() || H.caughtAt) return; const h = H.hen; try { const an = h.flap ? 'walk' : 'idle', HA = O.Animals.HANIMS[an], fr = O.Animals.animal('chicken', h.seed, h.dir, h.flap, Math.floor(h.ft * HA.fps * 1.5) % HA.frames, an); ctx.drawImage(fr, Math.round(h.x - cam.x - (fr.ox ?? fr.width / 2)), Math.round(h.y - cam.y - (fr.gy ?? fr.height))); } catch (e) { /* */ }
       if (h.flap && Math.floor(performance.now() / 120) % 2) { ctx.fillStyle = '#e8e2d4'; ctx.fillRect(Math.round(h.x - cam.x) - 6, Math.round(h.y - cam.y) - 9, 3, 2); ctx.fillRect(Math.round(h.x - cam.x) + 4, Math.round(h.y - cam.y) - 9, 3, 2); } });
-    O.RunawayHen = { get chase() { return H; }, get caught() { return caught; }, get byYou() { return byYou; }, soon: () => { cool = 0; } };
+    O.RunawayHen = { get byKid() { return byKid; }, get chase() { return H; }, get caught() { return caught; }, get byYou() { return byYou; }, soon: () => { cool = 0; } };
   }
   O.RunawayHenSetup = { setup };
 })();

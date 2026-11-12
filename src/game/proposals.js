@@ -44,7 +44,7 @@
           if (X.k > 3.5) for (const z of X.crowd.splice(0)) rel_(z);
           if (X.k > 14) end(); }
         return; }
-      cool -= dt; if (cool > 0 && !force) return; cool = 240 + Math.random() * 240; const hr = s.minute / 60; if (!force && (hr < 9 || hr > 19)) return; const forced = force; force = false;
+      cool -= dt; if (cool > 0 && !force) return; cool = 240 + Math.random() * 240; const hr = s.minute / 60; if (!force && (hr < 9 || hr > 19 || (['storm','heavy','hail','snow'].includes((s.weather && s.weather.kind) || '') || s.raining))) return; const forced = force; force = false;
       // a pair near you who've been walking out (or someone you've nudged)
       let pair = null;
       for (const [id, n] of nudges) { const a = s.byId.get(id), b = s.byId.get(n.other); if (a && b && free(a) && free(b) && fits(a, b) && near(a.agent.x, a.agent.y, 420) && Math.hypot(a.agent.x - b.agent.x, a.agent.y - b.agent.y) < 400) { pair = [a, b]; nudges.delete(id); break; } }

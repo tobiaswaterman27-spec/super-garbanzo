@@ -65,7 +65,7 @@
           if (M.k > 7) settle(s); return; }
         if (M.stage === 'done') { M.k += dt; if (M.k > 5) end(); }
         return; }
-      cool -= dt; if (cool > 0 && !force) return; cool = 200 + Math.random() * 200; const hr = s.minute / 60; if (!force && (hr < 9 || hr > 19)) return; const forced = force; force = false;
+      cool -= dt; if (cool > 0 && !force) return; cool = 200 + Math.random() * 200; const hr = s.minute / 60; if (!force && (hr < 9 || hr > 19 || (['storm','heavy','hail','snow'].includes((s.weather && s.weather.kind) || '') || s.raining))) return; const forced = force; force = false;
       const ps = pairs(s, 360); if (!ps.length) return; const [a, b, sev] = pick(ps);
       const m = s.people.filter((q) => q !== a && q !== b && free(q) && q.age >= 25 && dist(q, a) < 360 && (wise(q) || (aff(q, a) > 0.15 && aff(q, b) > 0.15))).sort((x, y) => dist(x, a) - dist(y, a))[0];
       if (!m) return; if (!forced && Math.random() < 0.4) return; begin(s, a, b, sev, m); });

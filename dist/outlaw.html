@@ -35901,7 +35901,17 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     });
     (O.extraLights = O.extraLights || []).push((pools, cam) => { if (W && W.s === cur()) { const a = W.band[0].agent; pools.push([a.x + 7 - cam.x, a.y - 40 - cam.y, 34]); } });
     (O.extraLines = O.extraLines || []).push((s, q) => W && W.band.includes(q) ? 'You are out wassailing with your friends, going door to door singing for cake and pennies in the cold.' : '');
-    O.Wassail = { get band() { return W; }, get doors() { return doors; }, soon: () => { cool = 0; } };
+    // you can go with them (a share at every door), and when they sing at YOUR door, you're the one with the penny
+    let youWith = false, shares = 0, gaveAtYours = 0, lastStop = null;
+    const PS = O.PlayerState;
+    game.hooks.update.push(() => { if (!W) { youWith = false; lastStop = null; return; } const P = game.player, lead = W.band[0]; if (!lead || !lead.agent) return;
+      if (youWith && !near(lead.agent.x, lead.agent.y, 240)) { youWith = false; O.UI && O.UI.say && O.UI.say('You drop away from the wassailers.', 'info'); }
+      if (youWith && W.phase === 'sing') { if (P.anim === 'idle') P.anim = 'talk'; if (W.host && lastStop !== W.b) { lastStop = W.b; shares++; if (Math.random() < 0.5) PS.money = (PS.money || 0) + 1; else if (PS.canCarry && PS.canCarry('bread')) PS.add('bread'); O.UI && O.UI.say && O.UI.say('Your share at the door: ' + (Math.random() < 0.5 ? 'a penny, warm from a hand.' : 'a wedge of cake in a cloth.'), 'good'); } } });
+    (O.moreCandidates = O.moreCandidates || []).push(() => { const P = game.player; if (!W || game.scene || P.locked) return null; const lead = W.band[0]; if (!lead || !lead.agent) return null;
+      if (W.phase === 'sing' && W.b && W.b.owner && W.b.owner.kind === 'player' && !W.paidYou && near(W.b.doorX * 16 + 8, (W.b.doorY + 1) * 16, 60)) return { type: 'custom', d: 1, x: W.b.doorX * 16 + 8, y: W.b.doorY * 16 - 20, label: 'Give the wassailers a penny for their song', act: () => { W.paidYou = true; if ((PS.money || 0) >= 1) PS.money -= 1; gaveAtYours++; P.anim = 'give'; setTimeout(() => { P.anim = 'idle'; }, 700); const s = cur(); for (const q of W.band) { const r = q.rel.get(0) || { affinity: 0, familiar: 0 }; r.affinity = Math.min(1, r.affinity + 0.06); r.familiar = Math.min(1, (r.familiar || 0) + 0.1); q.rel.set(0, r); } O.Speech && O.Speech.say(lead, 'God bless this house, and all in it!', 2.4); } };
+      if (youWith || !near(lead.agent.x, lead.agent.y, 50)) return null;
+      return { type: 'custom', d: 2, x: lead.agent.x, y: lead.agent.y - 34, label: 'Go wassailing with them', act: () => { youWith = true; O.Speech && O.Speech.say(lead, 'Come on, then! You know the words?', 2); O.UI && O.UI.say && O.UI.say('Keep with the lantern. You sing at every door, and share what they give.', 'info'); } }; });
+    O.Wassail = { get youWith() { return youWith; }, get shares() { return shares; }, get gaveAtYours() { return gaveAtYours; }, get band() { return W; }, get doors() { return doors; }, soon: () => { cool = 0; } };
   }
   O.WassailSetup = { setup };
 })();

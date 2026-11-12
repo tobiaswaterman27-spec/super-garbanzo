@@ -13,4 +13,10 @@ const h = await p.evaluate(async (bid) => { const s = O.SimRef.cur; s.building(b
 console.log('hire:', h);
 for (let i = 0; i < 120 && (await p.evaluate(() => !!O.OwnRepair.hire)); i++) await p.waitForTimeout(1000);
 console.log('hired:', await p.evaluate(() => O.OwnRepair.hired), 'cond:', await p.evaluate((bid) => O.SimRef.cur.building(bid).condition.toFixed(2), bid), 'held:', await p.evaluate(() => O.SimRef.cur.people.filter((q) => q._ownrep && !q.errand).length));
+// and with nobody footing the ladder, it can skid
+const fl = await p.evaluate((bid) => { const s = O.SimRef.cur, b = s.building(bid); b.condition = 0.4; O.PlayerState.items.push('planks'); const P = O.game.player; P.x = b.doorX * 16 + 8 + 18; P.y = (b.doorY + 1) * 16 + 6; for (const q of s.people) if (q.agent && Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < 300 && !q.agent.hidden) { q.agent.x += 600; } const c = O.moreCandidates.map((f) => f()).find((x) => x && /roof/.test(x.label)); if (!c) return 'no prompt'; c.act(); O.OwnRepair.slipNext(); return 'up'; }, bid);
+for (let i = 0; i < 20 && (await p.evaluate(() => !!O.OwnRepair.job)); i++) await p.waitForTimeout(1000);
+console.log('ladder:', fl, 'falls:', await p.evaluate(() => O.YourTurn.falls));
+await p.waitForTimeout(7000);
+console.log('locked after:', await p.evaluate(() => O.game.player.locked));
 await done();

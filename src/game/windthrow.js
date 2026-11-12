@@ -20,10 +20,15 @@
     function end() { if (!W) return; for (const q of W.crew) rel_(q); for (const q of W.gawk) rel_(q); W = null; }
     function blow(s) { const w = s.world, P = game.player;
       const cand = (w.trees || []).filter((t) => Math.hypot(t.x - P.x, t.y - P.y) < 380 && Math.hypot(t.x - P.x, t.y - P.y) > 60 && (s.world.buildings || []).some((b) => b.doorX != null && Math.hypot(b.doorX * T - t.x, b.doorY * T - t.y) < 220));
-      const tr = pick(cand); if (!tr) return false; const dir = Math.random() < 0.5 ? 1 : -1;
+      const tr = pick(cand); if (!tr) return false; let dir = Math.random() < 0.5 ? 1 : -1;
       w.trees = w.trees.filter((x) => x !== tr); const tx = Math.floor(tr.x / T), ty = Math.floor((tr.y - 1) / T); if (w.solid) w.solid[ty * w.W + tx] = 0;
       w.props.push({ kind: 'stump', x: tr.x, y: tr.y - 1, seed: tr.seed || 1, v: 0, solid: false, felled: s.day, treeKind: tr.kind }); w.dirtyStatics = true;
-      downs++; W = { s, x: tr.x, y: tr.y, kind: tr.kind, dir, ang: 0, t: 0, cut: 0, crew: [], gawk: [], you: false, youT: 0, given: 0, leaf: tr.kind === 'pine' ? '#2a5a3a' : tr.kind === 'birch' ? '#8ab05a' : s.season === 'autumn' ? '#c8781a' : s.season === 'winter' ? '#5a4a3a' : '#4a8a3a', chips: [] };
+      // does it come down on a house?
+      const lands = (b, d) => { if (b.doorX == null || b.ruined || b.x == null) return false; const x0 = b.x * T - 6, x1 = (b.x + (b.w || 3)) * T + 6, yb = (b.bottom != null ? b.bottom + 1 : b.doorY + 1) * T, y0 = yb - (b.h || 4) * T - 6, y1 = yb + 6, ly = tr.y - 6, ex = tr.x + d * 52; return ly >= y0 && ly <= y1 && Math.max(Math.min(tr.x, ex), x0) <= Math.min(Math.max(tr.x, ex), x1); };
+      let hit = s.world.buildings.find((b) => lands(b, dir)); if (!hit && Math.random() < 0.33) { const other = s.world.buildings.find((b) => lands(b, -dir)); if (other) { hit = other; dir = -dir; } }
+      if (hit) { hit.condition = Math.max(0.1, (hit.condition ?? 0.8) - 0.25); hit.needsRepair = true; hit.dirty = true; hit.treeHit = s.day; const hh = hit.household && s.households[hit.household - 1]; if (hh && hh.members) for (const id of hh.members) { const z = s.byId.get(id); if (z) { try { s.remember(z, 'A tree came down on our roof in the storm.', 'loss', 1.2); } catch (e) { /* */ } } }
+        if (near(tr.x, tr.y, 520)) { setTimeout(() => { O.sfx && O.sfx('smack', 0.9); O.UI && O.UI.say && O.UI.say(hit.owner && hit.owner.kind === 'player' ? 'It comes down across YOUR roof. Thatch and rafters everywhere.' : `It comes down across the roof of ${hit.name || 'a house'}. A shout from inside.`, 'warn'); }, 900); } }
+      downs++; W = { s, x: tr.x, y: tr.y, kind: tr.kind, dir, hit, ang: 0, t: 0, cut: 0, crew: [], gawk: [], you: false, youT: 0, given: 0, leaf: tr.kind === 'pine' ? '#2a5a3a' : tr.kind === 'birch' ? '#8ab05a' : s.season === 'autumn' ? '#c8781a' : s.season === 'winter' ? '#5a4a3a' : '#4a8a3a', chips: [] };
       if (near(tr.x, tr.y, 500)) { O.sfx && O.sfx('smack', 0.7); setTimeout(() => O.sfx && O.sfx('chop', 0.9), 400); O.UI && O.UI.say && O.UI.say('A crack like a shot, and a long tearing groan: a tree is coming down in the wind!', 'warn'); }
       return true; }
     // the neighbours come out to it

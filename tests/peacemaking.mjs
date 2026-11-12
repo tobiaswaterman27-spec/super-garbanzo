@@ -30,7 +30,7 @@ console.log('grudge:', y, await p.evaluate(() => { const s = O.SimRef.cur; retur
 for (let i = 0; i < 8 && !(await p.evaluate(() => !!O.Peacemaking.you)); i++) { await p.evaluate(() => O.Peacemaking.youSoon()); await p.waitForTimeout(600); }
 for (let i = 0; i < 50 && !(await p.evaluate(() => O.Peacemaking.you && O.Peacemaking.you.stage === 'face')); i++) await p.waitForTimeout(1000);
 const h = await p.evaluate(() => { if (O.UI.dialogOpen && O.UI.dialogOpen()) O.UI.dialog.close(); if (O.npcUI.talking()) O.npcUI.closeTalk(); O.game.player.locked = false; const Y = O.Peacemaking.you; if (!Y) return 'none'; const c = O.moreCandidates.map((f) => f()).find((x) => x && /your hand/.test(x.label)); if (!c) return 'no prompt (' + Y.stage + ' d=' + Math.round(Math.hypot(Y.g.agent.x - O.game.player.x, Y.g.agent.y - O.game.player.y)) + ' locked=' + O.game.player.locked + ' talk=' + !!O.npcUI.talking() + ')'; c.act(); return c.label; });
-console.log('you:', h, 'made/failed with you:', await p.evaluate(() => [O.Peacemaking.yMade, O.Peacemaking.yFailed].join('/')));
+console.log('why:', await p.evaluate(() => O.Peacemaking.yWhy)); console.log('you:', h, 'made/failed with you:', await p.evaluate(() => [O.Peacemaking.yMade, O.Peacemaking.yFailed].join('/')));
 await p.waitForTimeout(6000);
 console.log('held after:', await p.evaluate(() => O.SimRef.cur.people.filter((q) => q._peace && !q.errand).length));
 await done();

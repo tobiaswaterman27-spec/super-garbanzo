@@ -15,6 +15,6 @@ const from = await p.evaluate(() => [Math.round(O.game.player.x), Math.round(O.g
 for (let i = 0; i < 90 && (await p.evaluate(() => !!O.FerryRide.ride)); i++) await p.waitForTimeout(1000);
 const to = await p.evaluate(() => [Math.round(O.game.player.x), Math.round(O.game.player.y)]);
 console.log('rides:', await p.evaluate(() => O.FerryRide.rides), 'crossed px:', Math.round(Math.hypot(to[0] - from[0], to[1] - from[1])), 'locked:', await p.evaluate(() => O.game.player.locked), 'on water:', await p.evaluate(() => { const s = O.SimRef.cur, w = s.world, P = O.game.player; const i = Math.floor(P.y / 16) * w.W + Math.floor(P.x / 16); return w.ter[i] === w.TER.WATER; }));
-for (let i = 0; i < 150 && !(await p.evaluate(() => O.FerryRide.npcRides)); i++) { await p.evaluate(() => { const F = O.Ferry.F; if (F) { O.game.player.x = (F.a[0] + F.b[0]) / 2 + 60; O.game.player.y = (F.a[1] + F.b[1]) / 2 + 60; } }); await p.waitForTimeout(1000); }
-console.log('townsfolk rode the ferry:', await p.evaluate(() => O.FerryRide.npcRides), 'riding now:', await p.evaluate(() => O.FerryRide.riders.length));
+for (let i = 0; i < 150 && !(await p.evaluate(() => O.FerryRide.npcRides + O.FerryRide.riders.length)); i++) { await p.evaluate(() => { const F = O.Ferry.F; if (F) { O.game.player.x = (F.a[0] + F.b[0]) / 2 + 60; O.game.player.y = (F.a[1] + F.b[1]) / 2 + 60; } }); await p.waitForTimeout(1000); }
+console.log('townsfolk rode the ferry:', await p.evaluate(() => O.FerryRide.npcRides + O.FerryRide.riders.length), 'riding now:', await p.evaluate(() => O.FerryRide.riders.length));
 await done();

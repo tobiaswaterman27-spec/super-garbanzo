@@ -61,7 +61,7 @@
       }
       tick -= dt; if (tick > 0 || !isMarket(s) || game.scene) return; tick = 2.5;
       if (deals.length >= 3) return;
-      const sellers = s.people.filter((q) => q.fairStall && q.fairStall.day === s.day && q.activity?.act === 'stand' && !q.agent.path && q.wares && Object.values(q.wares).some((n) => n > 0) && near(q.agent.x, q.agent.y, 400) && !deals.some((d) => d.seller === q));
+      const sellers = s.people.filter((q) => q.fairStall && q.fairStall.day === s.day && q.activity?.act === 'stand' && !q.agent.path && !q._mind && q.wares && Object.values(q.wares).some((n) => n > 0) && near(q.agent.x, q.agent.y, 400) && !deals.some((d) => d.seller === q));
       const sl = pick(sellers); if (!sl) return;
       const b = s.people.find((q) => q.agent && !q.agent.hidden && q.agent.inside == null && (!q.agent.frozen || q._bit) && !q.agent.path && !q.errand && !q._scene && !q._playing && q.alive !== false && q.age >= 14 && !q.visitor && (q.activity?.market || q.activity?.act === 'stroll') && Math.hypot(q.agent.x - sl.agent.x, q.agent.y - sl.agent.y) < 200 && (s.household(q)?.money || 0) > 4 && !deals.some((d) => d.buyer === q));
       if (!b) return; if (b._bit) { b._bit.t = 1e9; tick = 0.3; return; } // (leaves off what they were doing first)

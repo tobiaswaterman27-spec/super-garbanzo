@@ -112,7 +112,15 @@
     };
     const x_is = (t) => /\b(purse|pocket|cut|lift|lifted|stole|steal|took|taken|nick|nicked|thief|robbed|saw you|give it back|give that back|hand it back|put it back)\b/i.test(t);
     (O.extraLines = O.extraLines || []).push((s, q) => { const r = recent.find((x) => x.thief === q && !x.back); return r ? `A minute ago you cut ${r.victim.first}'s purse in the street (${r.amt} aurin). If the player says they saw, you may deny it, threaten them, or give it back.` : ''; });
-    O.Cutpurse = { start: (thief, victim) => begin(cur(), { thief, victim }), get job() { return job; }, recent, cry: () => job && cry() };
+    // a thief running past you: stick out a foot
+    let tripped = 0;
+    (O.moreCandidates = O.moreCandidates || []).push(() => { const P = game.player; if (!job || job.stage !== 'chase' || game.scene || P.locked) return null; const ta = job.thief.agent; if (Math.hypot(ta.x - P.x, ta.y - P.y) > 30) return null;
+      return { type: 'custom', d: 30, x: ta.x, y: ta.y - 28, label: `Trip ${job.thief.first}, the cutpurse`, act: () => { if (!job || job.stage !== 'chase') return; const { s, victim, thief } = job; tripped++; P.anim = 'attack'; setTimeout(() => { P.anim = 'idle'; }, 600); thief.agent.forceAnim = 'hurt'; O.sfx && O.sfx('smack', 0.4);
+        try { const r = victim.rel.get(0) || { affinity: 0, familiar: 0 }; r.affinity = Math.min(1, r.affinity + 0.3); r.familiar = Math.min(1, (r.familiar || 0) + 0.2); victim.rel.set(0, r); s.remember(victim, 'A stranger tripped the cutpurse who took my purse, and I got it back.', 'kindness', 0.9); const tr = thief.rel.get(0) || { affinity: 0, familiar: 0 }; tr.affinity = Math.max(-1, tr.affinity - 0.4); thief.rel.set(0, tr); s.remember(thief, 'The stranger tripped me when I was running with a purse.', 'grudge', 1.5); } catch (e) { /* */ }
+        if (O.PlayerState.rep) O.PlayerState.rep.civilian = Math.min(1, (O.PlayerState.rep.civilian || 0) + 0.03); O.UI && O.UI.say && O.UI.say(`You put out a foot and ${thief.first} goes sprawling in the dirt.`, 'good');
+        try { O.TownTalk && O.TownTalk.tell(thief.agent.x, thief.agent.y, `The stranger tripped ${thief.first} the cutpurse in the street, and ${victim.first} got their purse back.`, 'They say the stranger caught a cutpurse in the street.'); } catch (e) { /* */ }
+        caught(victim); } }; });
+    O.Cutpurse = { get tripped() { return tripped; }, start: (thief, victim) => begin(cur(), { thief, victim }), get job() { return job; }, recent, cry: () => job && cry() };
   }
   O.CutpurseSetup = { setup };
 })();

@@ -73,7 +73,7 @@
         try { s.remember(o, `The stranger found my purse in the street and gave it back, every coin.`, 'kindness', 1.0); O.TownTalk && O.TownTalk.tell(o.agent.x, o.agent.y, `The stranger found ${o.first}'s purse in the street and gave it back, every coin.`, 'They say the stranger gave back a purse they found, every coin.'); } catch (e) { /* */ }
         setTimeout(end, 3200); } }; });
     (O.moreCandidates = O.moreCandidates || []).push(() => { const Pl = game.player; if (!P || P.stage !== 'held' || game.scene || Pl.locked || P.t - P.heldAt < 1) return null;
-      return { type: 'custom', d: 60, x: Pl.x, y: Pl.y - 34, label: 'Keep the purse', act: () => { pocket(false); setTimeout(end, 500); } }; });
+      return { type: 'custom', d: 8, x: Pl.x, y: Pl.y - 34, label: 'Keep the purse', act: () => { pocket(false); setTimeout(end, 500); } }; });
     // what people know
     (O.extraLines = O.extraLines || []).push((s, q) => { if (!P) return ''; if (q === P.owner) return P.stage === 'held' ? `You have lost your purse with ${P.amt} aurin in it, and the stranger is holding it. If they give it back you are overjoyed and grateful; if they keep it you are furious.` : P.stage === 'gone' && P.mourned ? `You have lost your purse with ${P.amt} aurin in it and someone has kept it. You are distraught.` : P.realised && P.stage === 'lying' ? 'You have dropped your purse somewhere along the street and are searching for it, frantic.' : '';
       if (q === P.keeper) return `You found ${P.owner.first}'s purse in the street a moment ago and kept it. If asked, you deny it, unless pressed hard.`;

@@ -134,7 +134,9 @@
       const mv = Math.hypot(P0.x - (candAt.x ?? -1e9), P0.y - (candAt.y ?? -1e9));
       if (mv > 3 || game.t - candAt.t > 0.15 || P0.dir !== candAt.dir || game.scene !== candAt.sc) { candAt.list = candidates(); candAt.x = P0.x; candAt.y = P0.y; candAt.t = game.t; candAt.dir = P0.dir; candAt.sc = game.scene; }
       const BIAS = { npc: -6, door: -6, shop: -6, job: -5, stairs: -3, roomdoor: -4, namesign: 12, notices: 5, portrait: 6, custom: 3, furn: 4, horse: 2 };
-      const cs = candAt.list.map((c) => [c, c.d + (game.scene ? facing(c) : 0) + (c.prio != null ? c.prio : (BIAS[c.type] || 0))]).sort((a, b) => a[1] - b[1]).map((x) => x[0]);
+      // a passing moment anchored on someone or something (lend them the loaf, trip the thief) is ranked by how close you are to it, ahead of plain talk
+      const anch = (c) => !game.scene && c.type === 'custom' && c.prio == null && c.x != null && Math.abs(c.x - P0.x) > 0.5 ? Math.min(c.d + 3, Math.hypot(c.x - P0.x, (c.y + 28 - P0.y) * 1.2) - 12) : null;
+      const cs = candAt.list.map((c) => { const an = anch(c); return [c, an != null ? an : c.d + (game.scene ? facing(c) : 0) + (c.prio != null ? c.prio : (BIAS[c.type] || 0))]; }).sort((a, b) => a[1] - b[1]).map((x) => x[0]);
       cur = cs[0] || null;
       O.interactTarget = cur;
       if (cur) {

@@ -19,4 +19,8 @@ const m = await p.evaluate(async () => { const s = O.SimRef.cur; const q = s.peo
 console.log('nudge:', m);
 await p.waitForTimeout(12000);
 console.log('held:', await p.evaluate(() => O.SimRef.cur.people.filter((q) => q._propose && !q.errand).length));
+// you ask, on one knee
+const ya = await p.evaluate(async () => { const s = O.SimRef.cur; const sp = (O.Forge && O.Forge.spec && O.Forge.spec()) || { sex: 'm' }; const q = s.people.find((x) => x.age >= 18 && x.age <= 40 && x.sex !== sp.sex && !x.spouse && !x.withPlayer && !x.visitor && x.agent && x.agent.inside == null && !x.agent.hidden); q.rel.set(0, { affinity: 0.8, familiar: 0.8 }); q.withPlayer = 'courting'; O.PlayerState.partner = { place: s.world.placeId, id: q.id, name: q.first, full: q.name, stage: 'courting', since: s.day - 3 }; O.game.player.x = q.agent.x + 20; O.game.player.y = q.agent.y; O.npcUI.openTalk(q); let h = ''; await O.AIChat.say(q, 'Will you marry me?', (l) => { h = l; }); return q.first + ': ' + h; });
+await p.waitForTimeout(1500);
+console.log('you asked:', ya, '| stage:', await p.evaluate(() => O.PlayerState.partner && O.PlayerState.partner.stage), 'yourAsks:', await p.evaluate(() => O.Proposals.yourAsks));
 await done();

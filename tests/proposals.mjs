@@ -4,6 +4,7 @@ const { p, done } = await start();
 p.on('console', (m) => { if (m.type() === 'error') console.log('CONSOLE', m.text().slice(0, 200)); });
 await p.evaluate(() => { const s = O.SimRef.cur; let g = 0; while (s.minute / 60 < 10 && g++ < 5000) s.tick(1); O.game.clock.minute = s.minute; });
 const pair = () => p.evaluate(() => { const s = O.SimRef.cur; const ok = (q) => q.agent && q.agent.inside == null && !q.agent.hidden && !q.agent.frozen && !q.errand && !q.spouse && !q.withPlayer && !q.visitor && q.age >= 18 && q.age <= 48;
+  for (const q of s.people) if (q.agent && q.agent.inside != null && !q.spouse && !q.withPlayer && !q.visitor && q.age >= 18 && q.age <= 48 && !q.agent.frozen && !q.errand) { const hb = s.building(q.agent.inside); if (hb && hb.doorX != null) { q.agent.inside = null; q.agent.hidden = false; q.agent.x = hb.doorX * 16 + 8; q.agent.y = (hb.doorY + 1) * 16 + 8; } }
   const ppl = s.people.filter(ok); for (const a of ppl) { const b = ppl.find((x) => x.sex !== a.sex && x.household !== a.household); if (!b) continue; b.agent.x = a.agent.x + 40; b.agent.y = a.agent.y; b.agent.path = null; s.relate(a, b, 0.6); s.relate(b, a, 0.6); O.game.player.x = a.agent.x + 40; O.game.player.y = a.agent.y + 20; return [a.id, b.id, a.first + ' & ' + b.first]; } return null; });
 const pr = await pair(); console.log('pair:', pr && pr[2]);
 await p.evaluate((pr) => { const s = O.SimRef.cur; O.Proposals.begin(s.byId.get(pr[0]), s.byId.get(pr[1])); }, pr);

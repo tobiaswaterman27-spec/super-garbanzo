@@ -7,7 +7,9 @@ const waitJob = async () => { for (let i = 0; i < 120 && !(await p.evaluate(() =
 console.log('job 1:', await waitJob());
 const r = await p.evaluate(() => { if (O.UI.dialogOpen && O.UI.dialogOpen()) O.UI.dialog.close(); const j = O.Repairs.job; if (!j) return 'none'; const P = O.game.player; P.x = j.x0 - 6; P.y = j.y0 + 2; const c = O.moreCandidates.map((f) => f()).find((x) => x && /^Foot |^Take up a brush/.test(x.label)); if (!c) return 'no prompt (npc helper ' + !!(O.RepairHelp.help && O.RepairHelp.help.npc) + ')'; c.act(); return c.label; });
 console.log('you:', r);
-for (let i = 0; i < 80 && (await p.evaluate(() => !!O.Repairs.job)); i++) await p.waitForTimeout(1000);
+await p.waitForTimeout(11000); await p.evaluate(() => { const j = O.Repairs.job; if (j) j.t = Math.max(j.t, j.kind === 'roof' ? 56 : 40); });
+for (let i = 0; i < 40 && (await p.evaluate(() => !!O.Repairs.job)); i++) await p.waitForTimeout(1000);
+
 console.log('helps/npcHelps:', await p.evaluate(() => [O.RepairHelp.helps, O.RepairHelp.npcHelps].join('/')));
 // the slip
 let fell = false;

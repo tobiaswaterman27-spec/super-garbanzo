@@ -11,4 +11,11 @@ for (let i = 0; i < 60 && !(await p.evaluate(() => O.OldLoad.helped)); i++) { aw
 console.log('carried home:', await p.evaluate(() => O.OldLoad.helped));
 await p.waitForTimeout(4500);
 console.log('load put down:', await p.evaluate(() => !O.PlayerState.carry), '| held:', await p.evaluate(() => O.SimRef.cur.people.filter((q) => q._oldload).length));
+// another time, you don't help: a passer-by does
+await p.waitForTimeout(1000);
+let again = false; for (let i = 0; i < 10 && !again; i++) { await p.evaluate(() => { const s = O.SimRef.cur; const o = s.people.filter((q) => q.age >= 62 && q.agent && !q.agent.hidden && q.agent.inside == null && !q.agent.frozen && !q.errand && q.home != null); const q = o[Math.floor(Math.random() * o.length)]; if (q) { O.game.player.x = q.agent.x + 120; O.game.player.y = q.agent.y + 60; } O.OldLoad.soon(); }); await p.waitForTimeout(1500); again = await p.evaluate(() => !!O.OldLoad.load); }
+for (let i = 0; i < 90 && !(await p.evaluate(() => O.OldLoad.npcHelped)); i++) { await p.evaluate(() => { const L = O.OldLoad.load; if (L) { O.game.player.x = L.q.agent.x + 120; O.game.player.y = L.q.agent.y + 60; } }); await p.waitForTimeout(1000); }
+console.log('a passer-by helped instead:', await p.evaluate(() => O.OldLoad.npcHelped));
+await p.waitForTimeout(4000);
+console.log('held after:', await p.evaluate(() => O.SimRef.cur.people.filter((q) => q._oldload).length));
 await done();

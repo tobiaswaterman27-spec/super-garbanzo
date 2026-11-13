@@ -146,6 +146,7 @@
       });
     }
     function wrestle(s, did) {
+      if (O.FairRing) { O.Panels.close(); return O.FairRing.wrestleYou(s); } // (in the real ring, with a real neighbour: fairring.js)
       if (PS.money < 1) return say('The fee is ₳1.', 'bad');
       if (PS.hp < 30) return say("You're in no state to wrestle.", 'bad');
       PS.money -= 1; did.wrest = true;
@@ -173,6 +174,7 @@
 
     // ---------------------------------------------------------------- the archery at the harvest fair
     function archery(s) {
+      if (O.FairRing) { O.Panels.close(); return O.FairRing.shootYou(s); } // (real arrows at the real butts: fairring.js)
       if (s._archeryDay === s.day) return say('You have had your three arrows today. Come back next year.');
       if (PS.money < 2) return say('The fee is two aurins.', 'bad');
       PS.money -= 2; s._archeryDay = s.day;

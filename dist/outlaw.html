@@ -40603,26 +40603,17 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     });
     function demand(s, q, why) {
       const done = (t, bad) => { O.Panels.close(); q.agent.frozen = false; if (t) say(t, bad ? 'bad' : ''); };
+      // said to your face, answered in your own words (or by walking off)
+      const talk = (line) => { if (O.npcUI && O.npcUI.startFrom) O.npcUI.startFrom(q, line); else say(`${q.first}: ${line}`); };
       if (why === 'tax') {
         const due = 4 + Math.round(s.treasury.taxRate * 40) + (PS.taxOwed || 0);
         if (PS.money >= due) PS.taxOwed = 0;
-        taxPending = { s, q };
-        O.Panels.open(`${q.name}, tax collector`, `<p class="speech">“The town's dues, if you please: ₳${due}. Everyone with a roof here or a wage here pays.”</p><div class="topics"><button data-a="pay">Pay ₳${due}</button><button data-a="refuse">Refuse</button><button data-a="run">Run</button></div>`, (r) => {
-          r.querySelector('[data-a=pay]').onclick = () => { taxPending = null; PS.taxPaidDay = s.day; if (PS.money < due) { PS.taxOwed = (PS.taxOwed || 0) + due; return done(`You turn out your purse: ₳${PS.money}. ${q.first} writes you down as owing ₳${PS.taxOwed}, to be paid next week.`, true); } PS.money -= due; s.treasury.cash += due; done(`You pay ₳${due}. ${q.first} marks it in the book.`); };
-          r.querySelector('[data-a=refuse]').onclick = () => { taxPending = null; s.relate(q, { id: 0 }, -0.15); evade(s, q, 'refusing the town its dues'); done(`${q.first}: “Then the watch will have a word.”`, true); };
-          r.querySelector('[data-a=run]').onclick = () => { taxPending = null; evade(s, q, 'running from the tax collector'); done('You run for it.', true); };
-        });
+        taxPending = { s, q, why, due, t: 0 }; talk(`The town's dues, if you please: ₳${due}. Everyone with a roof here or a wage here pays.`);
       } else if (why === 'rent') {
         const L = PS.lease, due = (L && L.rent) || 4;
-        O.Panels.open(`${q.name}, your landlord`, `<p class="speech">“The rent, ₳${due}. It's owed.”</p><div class="topics"><button data-a="pay">Pay ₳${due}</button><button data-a="refuse">I can't</button></div>`, (r) => {
-          r.querySelector('[data-a=pay]').onclick = () => { if (PS.money < due) return done('You haven\'t got it.', true); PS.money -= due; const hh = s.household(q); if (hh) hh.money += due; if (L) L.paidUntil = s.day + 7; done(`You pay ₳${due} of rent.`); };
-          r.querySelector('[data-a=refuse]').onclick = () => { if (L) { L.owed = (L.owed || 0) + 1; if (L.owed >= 2) { PS.lease = null; done(`${q.first}: “Then you're out. I'll have the bailiff clear your things.”`, true); return; } } s.relate(q, { id: 0 }, -0.2); done(`${q.first}: “One more week. Then you're out.”`, true); };
-        });
+        taxPending = { s, q, why, due, t: 0 }; talk(`The rent, ₳${due}. It's owed.`);
       } else if (why === 'beg') {
-        O.Panels.open(q.name, `<p class="speech">“An aurin, for bread? God bless you.”</p><div class="topics"><button data-a="give">Give an aurin</button><button data-a="no">Not today</button></div>`, (r) => {
-          r.querySelector('[data-a=give]').onclick = () => { if (PS.money >= 1) { PS.money -= 1; s.household(q).money += 1; s.relate(q, { id: 0 }, 0.2); PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.01); } done(`${q.first} blesses you.`); };
-          r.querySelector('[data-a=no]').onclick = () => done(`${q.first} turns away.`);
-        });
+        taxPending = { s, q, why, due: 1, t: 0 }; talk('An aurin, for bread? God bless you.');
       } else if (extra[why]) extra[why](s, q, done);
       else q.agent.frozen = false;
     }
@@ -40630,7 +40621,19 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     O.Street = { sendAt, busy: () => !!runner, on: (why, fn) => { extra[why] = fn; } };
     // refuse the collector, run, or just walk off, and they go straight to the watch, and the watch comes for you
     let taxPending = null;
-    game.hooks.update.push(() => { if (taxPending && !O.panelOpen) { const { s, q } = taxPending; taxPending = null; q.agent.frozen = false; evade(s, q, 'walking off from the tax collector'); say(`${q.first}: "Walk away from the crown's dues, would you? Watch!"`, 'bad'); } });
+    function settle(how) { const T0 = taxPending; if (!T0) return null; taxPending = null; const { s, q, why, due } = T0; const L = PS.lease; q.agent.frozen = false;
+      if (why === 'tax') { if (how === 'pay') { PS.taxPaidDay = s.day; if (PS.money < due) { PS.taxOwed = (PS.taxOwed || 0) + due; return `You turn out your purse: ₳${PS.money}. I'll write you down as owing ₳${PS.taxOwed}, to be paid next week.`; } PS.money -= due; s.treasury.cash += due; s.treasury.income = (s.treasury.income || 0) + due; PS.taxOwed = 0; return 'Thank you kindly. Down in the book.'; }
+        s.relate(q, { id: 0 }, -0.15); evade(s, q, how === 'walk' ? 'walking off from the tax collector' : 'refusing the town its dues'); return how === 'walk' ? null : 'Then the watch will have a word.'; }
+      if (why === 'rent') { if (how === 'pay') { if (PS.money < due) { taxPending = T0; return 'With what? Your purse is lighter than that.'; } PS.money -= due; const hh = s.household(q); if (hh) hh.money += due; if (L) { L.paidUntil = s.day + 7; L.owed = 0; } return `₳${due}. Good. Till next week, then.`; }
+        if (L) { L.owed = (L.owed || 0) + 1; if (L.owed >= 2) { PS.lease = null; return 'Then you\'re out. I\'ll have the bailiff clear your things.'; } } s.relate(q, { id: 0 }, -0.2); return 'One more week. Then you\'re out.'; }
+      if (why === 'beg') { if (how === 'pay' && PS.money >= 1) { PS.money -= 1; s.household(q).money += 1; s.relate(q, { id: 0 }, 0.2); PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.01); return 'God bless you. God bless you.'; } return null; }
+      return null; }
+    const _sayS = O.AIChat && O.AIChat.say;
+    if (_sayS) O.AIChat.say = function (q, text, render) { try { if (taxPending && q === taxPending.q) { const t = String(text || ''); const pay = /\b(pay|here|yes|aye|take it|fine|all right|alright|of course|give)\b/i.test(t) && !/\b(won'?t|not|can'?t|never)\b/i.test(t), no = /\b(no|won'?t|can'?t|refuse|never|not paying|not today|go away|haven'?t)\b/i.test(t);
+        if (pay || no) { const line = settle(pay ? 'pay' : 'no') || (taxPending ? '' : 'Hmph.'); (q._conv ||= []).push({ who: 'p', t }, { who: 'q', t: line }); render(line); if (!taxPending) setTimeout(() => { O.npcUI && O.npcUI.closeTalk && O.npcUI.closeTalk(); }, 1600); return Promise.resolve(); } } } catch (e) { console.error(e); } return _sayS.apply(this, arguments); };
+    game.hooks.update.push((dt) => { if (!taxPending) return; const T0 = taxPending; T0.t += dt; const q = T0.q, tq = O.npcUI && O.npcUI.talking && O.npcUI.talking(); const d = Math.hypot(q.agent.x - game.player.x, q.agent.y - game.player.y);
+      if ((tq !== q && T0.t > 2 && d > 90) || T0.t > 90) { const why = T0.why; const line = settle('walk'); if (why === 'tax') say(`${q.first}: "Walk away from the crown's dues, would you? Watch!"`, 'bad'); else if (why === 'rent') say(`${q.first}: "${line || 'One more week.'}"`, 'bad'); else say(`${q.first} turns away.`); } });
+    O.Street.pending = () => taxPending;
     function evade(s, q, what) {
       PS.taxPaidDay = s.day;
       const c = s.recordCrime && s.recordCrime({ kind: 'tax evasion', perp: 'player', placeName: O.placeName ? O.placeName() : s.world.name, tile: [Math.floor(game.player.x / T), Math.floor(game.player.y / T)], seen: [q], severity: 1 });
@@ -40665,7 +40668,8 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       const crowd = s.people.filter((x) => !x.agent.hidden && Math.hypot(x.agent.x - p.x, x.agent.y - p.y) < 50).length;
       if (crowd >= 4 && PS.money > 5 && s.rng.chance(0.04)) {
         const thief = s.people.find((x) => x.gang && x.gang !== 'player' && Math.hypot(x.agent.x - p.x, x.agent.y - p.y) < 70);
-        if (thief) { const took = Math.min(PS.money, 2 + s.rng.int(0, 6)); const noticed = s.rng.chance(0.4 + (PS.skills?.stealth || 0) * 0.5); PS.money -= took; s.household(thief).money += took; if (noticed) { shock(); say(`A hand in your purse! ${thief.first} slips away with ₳${took}.`, 'bad'); thief.agent.fleeing = true; } }
+        if (thief && O.CutYou) { O.CutYou.soon(); } // (seen at work: he sidles up, dips, and walks off; cutyou.js)
+        else if (thief) { const took = Math.min(PS.money, 2 + s.rng.int(0, 6)); const noticed = s.rng.chance(0.4 + (PS.skills?.stealth || 0) * 0.5); PS.money -= took; s.household(thief).money += took; if (noticed) { shock(); say(`A hand in your purse! ${thief.first} slips away with ₳${took}.`, 'bad'); thief.agent.fleeing = true; } }
       }
     });
 

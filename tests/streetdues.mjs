@@ -1,0 +1,21 @@
+// The tax collector, the landlord and the beggar say it to your face; you answer in words, or walk off.
+import { start } from './lib.mjs';
+const { p, done } = await start();
+p.on('console', (m) => { if (m.type() === 'error') console.log('CONSOLE', m.text().slice(0, 200)); });
+await p.waitForTimeout(1200);
+const call = (why) => p.evaluate((why) => { const s = O.SimRef.cur, P = O.game.player; if (O.UI.dialogOpen && O.UI.dialogOpen()) O.UI.dialog.close(); O.npcUI.closeTalk && O.npcUI.closeTalk(); const q = s.people.find((x) => x.agent && x.agent.inside == null && !x.agent.hidden && x.age >= 20 && !x.errand && !x.agent.frozen && x.id !== window._last); window._last = q.id; q.agent.x = P.x + 40; q.agent.y = P.y; q.agent.path = null; O.Street.sendAt(q, why); window._q = q.id; return q.first; }, why);
+const wait = async () => { for (let i = 0; i < 30 && !(await p.evaluate(() => !!O.Street.pending())); i++) await p.waitForTimeout(400); return p.evaluate(() => O.Street.pending() && O.Street.pending().why); };
+const answer = (t) => p.evaluate(async (t) => { const s = O.SimRef.cur, q = s.byId.get(window._q); let out = ''; await O.AIChat.say(q, t, (l) => { out = l; }); return out; }, t);
+await p.evaluate(() => { O.PlayerState.money = 50; });
+console.log('tax from', await call('tax'), await wait());
+console.log(' ->', await answer('Here, take it'), '| money', await p.evaluate(() => O.PlayerState.money), 'paid day', await p.evaluate(() => O.PlayerState.taxPaidDay));
+await p.waitForTimeout(2000);
+await p.evaluate(() => { const s = O.SimRef.cur; O.PlayerState.lease = { b: s.world.buildings[3].id, place: s.world.placeId, rent: 5, paidUntil: s.day - 1 }; });
+console.log('rent from', await call('rent'), await wait());
+console.log(' ->', await answer("I can't pay you this week"), '| owed', await p.evaluate(() => O.PlayerState.lease && O.PlayerState.lease.owed));
+await p.waitForTimeout(2000);
+console.log('beg from', await call('beg'), await wait());
+await p.evaluate(() => { O.npcUI.closeTalk && O.npcUI.closeTalk(); O.game.player.x += 300; });
+await p.waitForTimeout(3500);
+console.log('walked off: pending', await p.evaluate(() => !!O.Street.pending()), 'panel', await p.evaluate(() => !!O.panelOpen));
+await done();

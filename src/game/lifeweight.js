@@ -178,7 +178,7 @@
         const L = life(), rt2 = L.routine;
         if (rt2 && this.day - (L.burgled || -99) > 10 && rt2.days >= 3 && Math.random() < 0.25) {
           const st = PS.homes || {}, key = Object.keys(st).find((k) => k.startsWith(this.world.placeId + ':') && (st[k] || []).length);
-          if (key) { const lst = st[key], took = lst.splice(Math.floor(Math.random() * lst.length), 1)[0]; L.burgled = this.day; L.burgledNote = { day: this.day, took, key }; this.log(`Someone got into ${pname()}'s house while they were at ${rt2.name}, as they are every evening.`, 'crime'); }
+          if (key) { const lst = st[key], took = lst.splice(Math.floor(Math.random() * lst.length), 1)[0]; L.burgled = this.day; L.burgledNote = { day: this.day, took, key }; { const hb = this.building(+key.split(':')[1]); if (hb) { hb._burgled = this.day; hb._tidied = false; } } this.log(`Someone got into ${pname()}'s house while they were at ${rt2.name}, as they are every evening.`, 'crime'); }
         }
         if (L.routine && this.day - (L.evenings?.[L.routine.key]?.last ?? -9) > 2) L.routine = null;
       } catch (e) { console.error(e); }

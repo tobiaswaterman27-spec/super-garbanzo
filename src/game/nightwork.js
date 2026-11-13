@@ -40,7 +40,7 @@
         J.stage = 'away'; q.agent.hidden = false; q.agent.x = J.house.doorX * T + 8; q.agent.y = (J.house.doorY + 1) * T + 4; q.agent.carrying = { good: 'sack', qty: 1 };
         // the house is the poorer for it
         const take = Math.floor(Math.max(0, J.hh.money) * 0.2); J.hh.money -= take; J.g.purse = (J.g.purse || 0) + take; (J.g.log = J.g.log || []).push(`Day ${s.day}: ${q.first} did the ${J.hh.surname} house: ₳${take}.`);
-        const crime = s.recordCrime({ kind: 'burglary', perp: q, gang: J.g.id, placeName: `the ${J.hh.surname} house`, tile: [J.house.doorX, J.house.doorY], victim: J.hh.id, seen: [], severity: 1 });
+        J.house._burgled = s.day; J.house._tidied = false; const crime = s.recordCrime({ kind: 'burglary', perp: q, gang: J.g.id, placeName: `the ${J.hh.surname} house`, tile: [J.house.doorX, J.house.doorY], victim: J.hh.id, seen: [], severity: 1 });
         J.crime = crime.id; if (PS.sawBurglar && PS.sawBurglar.id === q.id) PS.sawBurglar.crime = crime.id;
         const owner = J.hh.members.map((id) => s.byId.get(id)).find((z) => z && z.age >= 16); if (owner) s.remember(owner, `Thieves were in the house in the night and took ₳${take}.`, 'crime', 1.5);
         const away = [Math.floor(q.agent.x / T) + (q.agent.x > game.player.x ? 12 : -12), J.house.doorY + 3];

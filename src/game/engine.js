@@ -257,6 +257,8 @@
 
     actorFrame(a) {
       let an = a.anim, ft = a.ft;
+      // what's in their arms shows as itself: a sack, a sheaf, a cask, a bundle of logs
+      if (a.a) { const c = a.person ? a.person.agent && a.person.agent.carrying : a === this.player ? O.PlayerState && O.PlayerState.carry : null; const ld = !c ? null : typeof c === 'string' ? c : c.good || null; if (a.a.load !== ld) a.a.load = ld; }
       // a gesture of the moment (a nod, a laugh, a bow) plays over whatever they were doing
       const g = (a.person && a.person.agent && a.person.agent.gest) || a.gest, now = performance.now();
       if (g && g.until > now) { if ((an === 'walk' || an === 'run') && Ch.composite) { const c = Ch.composite(an, g.anim); if (c !== an) an = c; else { an = g.anim; ft = (now - g.from) / 1000; } } else { an = g.anim; ft = (now - g.from) / 1000; } } // (on the move the legs keep walking and the arms do the gesture)

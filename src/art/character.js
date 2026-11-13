@@ -749,6 +749,15 @@
       const q = S.pj([m.waistW / 2 - 0.2, p.waistY + 2.6, p.D * 0.5]);
       if (q[2] < 1.5) { B.part(G.ITEM); B.blob(q[0], q[1], 1.5, 1.7, P.mat(C.leather), { power: 2.4 }); B.tweak(q[0], q[1] - 1, -1); }
     }
+    // a satchel on a strap, slung to the hip: fuller the more you carry
+    if (o.pack) {
+      const n = Math.min(3, o.pack), bw = 1.6 + n * 0.55, bh = 1.7 + n * 0.45, lth = P.mat(C.leather), str = P.mat(C.darkLeather);
+      const bag = S.pj([-(m.hipW / 2 + 0.9), p.waistY + 2.4, 0.4]);
+      const sh = S.pj([m.shW / 2 - 0.6, p.shY - 0.4, p.D * 0.55]), hp = S.pj([-(m.hipW / 2 + 0.4), p.waistY + 0.6, p.D * 0.55]);
+      B.part(G.ITEM);
+      if (!V.back) B.capsule(sh[0], sh[1], hp[0], hp[1], 0.45, 0.45, str); // (the strap across the chest)
+      if (bag[2] < 2.2 || V.back) { B.blob(bag[0], bag[1], bw, bh, lth, { power: 2.4 }); B.capsule(bag[0] - bw + 0.4, bag[1] - bh + 0.8, bag[0] + bw - 0.4, bag[1] - bh + 0.8, 0.5, 0.5, str); B.tweak(bag[0], bag[1] + 0.5, -1); if (n >= 3) B.blob(bag[0] + 0.6, bag[1] - bh - 0.2, 0.9, 0.7, P.mat('#c8a050', 'wood'), { power: 2 }); }
+    }
     if (o.sideItem === 'sword') {
       const a0 = S.pj([-(m.hipW / 2 + 0.6), p.waistY + 1, 0.8]), a1 = S.pj([-(m.hipW / 2 + 1.2), p.waistY + 10, -3]);
       if ((a0[2] + a1[2]) / 2 < 1.5 || V.back) {
@@ -1077,13 +1086,36 @@
       if (!V.back) B.blob(c[0] + (V.mirror ? -1.6 : 1.6) * V.Rx, c[1] - 0.6, 1.2, 1.1, P.mat('#e8b8a0'), { power: 2 });
       return;
     }
-    const crate = P.mat(P.wood.pine, 'wood');
+    const L = LOADS[S.a.load] || S.a.load || 'crate';
     const c = S.pj([0, p.shY + 5, p.D + 3.8 + p.lean]);
-    const w = Math.hypot(4.6 * V.Rx, 3.2 * V.Fx), h = 3.4;
-    B.blob(c[0], c[1], w, h, crate, { power: 6 });
-    for (let x = Math.floor(c[0] - w); x <= c[0] + w; x++) B.tweak(x, c[1], -1);
-    B.tweak(c[0] - 2, c[1] - 2, 1);
+    const w = Math.hypot(5.6 * V.Rx, 3.9 * V.Fx), h = 4.2;
+    // across the body: a long thing (planks, logs, a bolt of cloth) is held side to side, so it turns with you
+    const across = (dx, dy, dz) => { const a = S.pj([-dx, p.shY + dy, p.D + dz + p.lean]), b = S.pj([dx, p.shY + dy, p.D + dz + p.lean]); return [a[0], a[1], b[0], b[1]]; };
+    const M = (col, k) => P.mat(col, k);
+    const basket = (fill, n, r) => { const wk = M('#a07a46', 'wood'); B.blob(c[0], c[1] + 1, w, 3, wk, { power: 3 }); for (let x = Math.floor(c[0] - w + 1); x < c[0] + w; x += 2) B.tweak(x, c[1] + 1, -1); for (let k = 0; k < n; k++) { const ox = (k - (n - 1) / 2) * (w * 1.6 / Math.max(1, n)); B.blob(c[0] + ox, c[1] - 2 - (k % 2) * 0.8, r * 1.4, r * 1.25, fill, { power: 2 }); } };
+    switch (L) {
+      case 'sack': case 'flour': { const col = L === 'flour' ? '#e6dcc4' : '#b89a68'; B.blob(c[0], c[1], w * 0.95, h + 0.8, M(col, 'cloth'), { power: 2.2 }); B.capsule(c[0] - 0.6, c[1] - h - 0.6, c[0] + 0.6, c[1] - h - 0.6, 0.7, 0.7, M('#7a6040', 'cloth')); B.tweak(c[0] - 1, c[1] + 1, -1); if (L === 'flour') B.plot(c[0], c[1], M('#c8b898', 'cloth'), 1); break; }
+      case 'wheat': { const st = M('#c8a048', 'cloth'), ear = M('#e6c86a', 'cloth'); for (let k = -2; k <= 2; k++) B.capsule(c[0] + k * 1, c[1] + 4, c[0] + k * 1.8, c[1] - 4.6, 0.6, 0.6, st); for (let k = -2; k <= 2; k++) B.blob(c[0] + k * 1.9, c[1] - 5.6, 1, 1.8, ear, { power: 2 }); B.capsule(c[0] - 2, c[1], c[0] + 2, c[1], 0.6, 0.6, M('#8a6a3a', 'cloth')); break; }
+      case 'bread': case 'dough': case 'loaves': { const bd = M(P.wood.oak, 'wood'), lf = M(L === 'dough' ? '#efe2c4' : '#c48a48', 'cloth'); const [x0, y0, x1, y1] = across(6, 6, 4.4); B.capsule(x0, y0, x1, y1, 1, 1, bd); for (const t of [0.25, 0.5, 0.75]) B.blob(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t - 2.2, 2.1, 1.5, lf, { power: 2 }); break; }
+      case 'cabbage': basket(M('#6a9a42', 'cloth'), 3, 1.5); break;
+      case 'fish': { basket(M('#b8c4ce', 'metal'), 3, 1.1); B.capsule(c[0] + 1, c[1] - 2, c[0] + 3, c[1] - 4, 0.5, 0.3, M('#9aa8b4', 'metal')); break; }
+      case 'herbs': case 'medicine': case 'flowers': basket(M(L === 'flowers' ? '#d87aa0' : '#5a8a3a', 'cloth'), 4, 1); break;
+      case 'eggs': basket(M('#ece2cc', 'cloth'), 3, 0.9); break;
+      case 'ale': case 'cask': case 'honey': { const wd = M(L === 'honey' ? '#c08a3a' : P.wood.oak, 'wood'), hp = M(P.metal.darkIron, 'metal'); B.blob(c[0], c[1], w * 0.85, h + 0.6, wd, { power: L === 'honey' ? 2 : 3 }); for (const dy of [-2, 2]) for (let x = Math.floor(c[0] - w * 0.8); x <= c[0] + w * 0.8; x++) B.plot(x, c[1] + dy, hp, 1); break; }
+      case 'logs': { const bk = M('#6a4a2e', 'wood'), en = M('#d0aa70', 'wood'); for (const [dy, dz] of [[6.6, 4], [3.8, 4.3], [5.2, 5.6]]) { const [x0, y0, x1, y1] = across(6.6, dy, dz); B.capsule(x0, y0, x1, y1, 1.6, 1.6, bk); B.plot(x1, y1, en, 3); } break; }
+      case 'firewood': { const bk = M('#7a5634', 'wood'); for (let k = -2; k <= 2; k++) B.capsule(c[0] - 5.4, c[1] + k * 1.1 + 1.4, c[0] + 5.4, c[1] + k * 1.1 - 1.4, 0.75, 0.75, bk); B.capsule(c[0], c[1] - 2.4, c[0], c[1] + 2.6, 0.5, 0.5, M('#a08050', 'cloth')); break; }
+      case 'planks': { const pl = M(P.wood.pine, 'wood'); for (const dy of [4.8, 6.6]) { const [x0, y0, x1, y1] = across(10, dy, 4.4); B.capsule(x0, y0, x1, y1, 0.9, 0.9, pl); } break; }
+      case 'iron': case 'tools': { const ir = M(P.metal.darkIron, 'metal'); if (L === 'tools') { B.blob(c[0], c[1] + 1, w, 2.2, M(P.wood.pine, 'wood'), { power: 6 }); B.capsule(c[0] - 1, c[1] - 1, c[0] - 2, c[1] - 5, 0.5, 0.5, M(P.wood.oak, 'wood')); B.capsule(c[0] + 1.5, c[1] - 1, c[0] + 2.5, c[1] - 4, 0.6, 0.6, ir); } else for (const dy of [-1.2, 0, 1.2]) B.capsule(c[0] - 3.4, c[1] + dy, c[0] + 3.4, c[1] + dy, 0.6, 0.6, ir); break; }
+      case 'stone': { B.blob(c[0], c[1], w * 0.9, h, M('#8e8a82', 'stone'), { power: 8 }); B.tweak(c[0] - 1, c[1] - 1, 1); B.tweak(c[0] + 1, c[1] + 1, -1); break; }
+      case 'cloth': { const [x0, y0, x1, y1] = across(6.4, 5.4, 4.6); B.capsule(x0, y0, x1, y1, 2.3, 2.3, M('#8a4a6a', 'cloth')); B.plot(x1, y1, M('#b07090', 'cloth'), 3); break; }
+      case 'meat': { B.blob(c[0], c[1], w * 0.9, 3.2, M('#b85a50', 'cloth'), { power: 2 }); B.blob(c[0] - 0.8, c[1] - 0.6, 1.2, 0.8, M('#e8c8b8', 'cloth'), { power: 2 }); B.capsule(c[0] + 2.4, c[1] - 1, c[0] + 4.4, c[1] - 2.4, 0.5, 0.5, M('#ece4d4', 'cloth')); break; }
+      case 'meal': { B.blob(c[0], c[1] + 0.6, w * 0.7, 2, M('#8a6a4a', 'wood'), { power: 2.4 }); B.blob(c[0], c[1] - 1.2, w * 0.6, 1, M('#e8e0d0', 'cloth'), { power: 2 }); break; }
+      case 'furniture': { const wd = M(P.wood.oak, 'wood'); const [x0, y0, x1, y1] = across(3.6, 3.6, 4); B.capsule(x0, y0, x1, y1, 0.8, 0.8, wd); B.capsule(x0, y0, x0, y0 + 5, 0.5, 0.5, wd); B.capsule(x1, y1, x1, y1 + 5, 0.5, 0.5, wd); break; }
+      default: { const crate = P.mat(P.wood.pine, 'wood'); B.blob(c[0], c[1], w, h, crate, { power: 6 }); for (let x = Math.floor(c[0] - w); x <= c[0] + w; x++) B.tweak(x, c[1], -1); B.tweak(c[0] - 2, c[1] - 2, 1); }
+    }
   }
+  // what a carried good looks like in the arms
+  const LOADS = { wheat: 'wheat', flour: 'flour', sack: 'sack', grain: 'sack', bread: 'bread', dough: 'dough', loaves: 'bread', cabbage: 'cabbage', fish: 'fish', ale: 'ale', honey: 'honey', meal: 'meal', logs: 'logs', firewood: 'firewood', wood: 'firewood', planks: 'planks', iron: 'iron', stone: 'stone', tools: 'tools', medicine: 'medicine', herbs: 'herbs', flowers: 'flowers', meat: 'meat', cloth: 'cloth', wool: 'sack', furniture: 'furniture', eggs: 'eggs', cask: 'ale', goods: 'crate' };
 
   function drawBook(S) {
     const { B, p, V } = S;
@@ -1181,7 +1213,7 @@
   // new frames are drawn a few at a time: past this frame's budget, the nearest frame already drawn stands in
   let budget = 6; const resetBudget = (n = 6) => { budget = n; };
   function frame(a, dir, anim, f) {
-    const key = cid(a) + ':' + a.cacheVer + ':' + dir + anim + f;
+    const key = cid(a) + ':' + a.cacheVer + ':' + dir + anim + f + (a.load && anim.includes('carry') ? '|' + a.load : '');
     let c = cache.get(key);
     if (c) { cache.delete(key); cache.set(key, c); return c; }
     if (budget <= 0 && anim !== 'lie') {

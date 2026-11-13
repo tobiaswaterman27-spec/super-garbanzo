@@ -74,7 +74,7 @@
     const _frame = game.actorFrame.bind(game);
     game.actorFrame = function (a) {
       if (a === game.player && PS.carry && !a.mount && !a.sitting && !a.inBed) {
-        const look = PS.carry.look || (PS.carry.good === 'water' ? 'bucket' : 'carry'), an0 = a.anim;
+        const look = PS.carry.look || (PS.carry.good === 'water' ? 'bucket' : 'carry'), an0 = a.anim; if (a.a) a.a.load = PS.carry.good;
         if (an0 === 'walk' || an0 === 'run' || an0 === 'idle') {
           const an = an0 === 'walk' ? look : Ch.composite(an0, look), A = Ch.ANIMS[an] || Ch.ANIMS.idle, f = Math.floor((a.ft || 0) * A.fps) % A.frames;
           return Ch.frame(a.a, a.dir, an, f);

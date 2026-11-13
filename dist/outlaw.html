@@ -1570,6 +1570,15 @@ O.storeys = (b) => {
       const q = S.pj([m.waistW / 2 - 0.2, p.waistY + 2.6, p.D * 0.5]);
       if (q[2] < 1.5) { B.part(G.ITEM); B.blob(q[0], q[1], 1.5, 1.7, P.mat(C.leather), { power: 2.4 }); B.tweak(q[0], q[1] - 1, -1); }
     }
+    // a satchel on a strap, slung to the hip: fuller the more you carry
+    if (o.pack) {
+      const n = Math.min(3, o.pack), bw = 1.6 + n * 0.55, bh = 1.7 + n * 0.45, lth = P.mat(C.leather), str = P.mat(C.darkLeather);
+      const bag = S.pj([-(m.hipW / 2 + 0.9), p.waistY + 2.4, 0.4]);
+      const sh = S.pj([m.shW / 2 - 0.6, p.shY - 0.4, p.D * 0.55]), hp = S.pj([-(m.hipW / 2 + 0.4), p.waistY + 0.6, p.D * 0.55]);
+      B.part(G.ITEM);
+      if (!V.back) B.capsule(sh[0], sh[1], hp[0], hp[1], 0.45, 0.45, str); // (the strap across the chest)
+      if (bag[2] < 2.2 || V.back) { B.blob(bag[0], bag[1], bw, bh, lth, { power: 2.4 }); B.capsule(bag[0] - bw + 0.4, bag[1] - bh + 0.8, bag[0] + bw - 0.4, bag[1] - bh + 0.8, 0.5, 0.5, str); B.tweak(bag[0], bag[1] + 0.5, -1); if (n >= 3) B.blob(bag[0] + 0.6, bag[1] - bh - 0.2, 0.9, 0.7, P.mat('#c8a050', 'wood'), { power: 2 }); }
+    }
     if (o.sideItem === 'sword') {
       const a0 = S.pj([-(m.hipW / 2 + 0.6), p.waistY + 1, 0.8]), a1 = S.pj([-(m.hipW / 2 + 1.2), p.waistY + 10, -3]);
       if ((a0[2] + a1[2]) / 2 < 1.5 || V.back) {
@@ -1898,13 +1907,36 @@ O.storeys = (b) => {
       if (!V.back) B.blob(c[0] + (V.mirror ? -1.6 : 1.6) * V.Rx, c[1] - 0.6, 1.2, 1.1, P.mat('#e8b8a0'), { power: 2 });
       return;
     }
-    const crate = P.mat(P.wood.pine, 'wood');
+    const L = LOADS[S.a.load] || S.a.load || 'crate';
     const c = S.pj([0, p.shY + 5, p.D + 3.8 + p.lean]);
-    const w = Math.hypot(4.6 * V.Rx, 3.2 * V.Fx), h = 3.4;
-    B.blob(c[0], c[1], w, h, crate, { power: 6 });
-    for (let x = Math.floor(c[0] - w); x <= c[0] + w; x++) B.tweak(x, c[1], -1);
-    B.tweak(c[0] - 2, c[1] - 2, 1);
+    const w = Math.hypot(5.6 * V.Rx, 3.9 * V.Fx), h = 4.2;
+    // across the body: a long thing (planks, logs, a bolt of cloth) is held side to side, so it turns with you
+    const across = (dx, dy, dz) => { const a = S.pj([-dx, p.shY + dy, p.D + dz + p.lean]), b = S.pj([dx, p.shY + dy, p.D + dz + p.lean]); return [a[0], a[1], b[0], b[1]]; };
+    const M = (col, k) => P.mat(col, k);
+    const basket = (fill, n, r) => { const wk = M('#a07a46', 'wood'); B.blob(c[0], c[1] + 1, w, 3, wk, { power: 3 }); for (let x = Math.floor(c[0] - w + 1); x < c[0] + w; x += 2) B.tweak(x, c[1] + 1, -1); for (let k = 0; k < n; k++) { const ox = (k - (n - 1) / 2) * (w * 1.6 / Math.max(1, n)); B.blob(c[0] + ox, c[1] - 2 - (k % 2) * 0.8, r * 1.4, r * 1.25, fill, { power: 2 }); } };
+    switch (L) {
+      case 'sack': case 'flour': { const col = L === 'flour' ? '#e6dcc4' : '#b89a68'; B.blob(c[0], c[1], w * 0.95, h + 0.8, M(col, 'cloth'), { power: 2.2 }); B.capsule(c[0] - 0.6, c[1] - h - 0.6, c[0] + 0.6, c[1] - h - 0.6, 0.7, 0.7, M('#7a6040', 'cloth')); B.tweak(c[0] - 1, c[1] + 1, -1); if (L === 'flour') B.plot(c[0], c[1], M('#c8b898', 'cloth'), 1); break; }
+      case 'wheat': { const st = M('#c8a048', 'cloth'), ear = M('#e6c86a', 'cloth'); for (let k = -2; k <= 2; k++) B.capsule(c[0] + k * 1, c[1] + 4, c[0] + k * 1.8, c[1] - 4.6, 0.6, 0.6, st); for (let k = -2; k <= 2; k++) B.blob(c[0] + k * 1.9, c[1] - 5.6, 1, 1.8, ear, { power: 2 }); B.capsule(c[0] - 2, c[1], c[0] + 2, c[1], 0.6, 0.6, M('#8a6a3a', 'cloth')); break; }
+      case 'bread': case 'dough': case 'loaves': { const bd = M(P.wood.oak, 'wood'), lf = M(L === 'dough' ? '#efe2c4' : '#c48a48', 'cloth'); const [x0, y0, x1, y1] = across(6, 6, 4.4); B.capsule(x0, y0, x1, y1, 1, 1, bd); for (const t of [0.25, 0.5, 0.75]) B.blob(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t - 2.2, 2.1, 1.5, lf, { power: 2 }); break; }
+      case 'cabbage': basket(M('#6a9a42', 'cloth'), 3, 1.5); break;
+      case 'fish': { basket(M('#b8c4ce', 'metal'), 3, 1.1); B.capsule(c[0] + 1, c[1] - 2, c[0] + 3, c[1] - 4, 0.5, 0.3, M('#9aa8b4', 'metal')); break; }
+      case 'herbs': case 'medicine': case 'flowers': basket(M(L === 'flowers' ? '#d87aa0' : '#5a8a3a', 'cloth'), 4, 1); break;
+      case 'eggs': basket(M('#ece2cc', 'cloth'), 3, 0.9); break;
+      case 'ale': case 'cask': case 'honey': { const wd = M(L === 'honey' ? '#c08a3a' : P.wood.oak, 'wood'), hp = M(P.metal.darkIron, 'metal'); B.blob(c[0], c[1], w * 0.85, h + 0.6, wd, { power: L === 'honey' ? 2 : 3 }); for (const dy of [-2, 2]) for (let x = Math.floor(c[0] - w * 0.8); x <= c[0] + w * 0.8; x++) B.plot(x, c[1] + dy, hp, 1); break; }
+      case 'logs': { const bk = M('#6a4a2e', 'wood'), en = M('#d0aa70', 'wood'); for (const [dy, dz] of [[6.6, 4], [3.8, 4.3], [5.2, 5.6]]) { const [x0, y0, x1, y1] = across(6.6, dy, dz); B.capsule(x0, y0, x1, y1, 1.6, 1.6, bk); B.plot(x1, y1, en, 3); } break; }
+      case 'firewood': { const bk = M('#7a5634', 'wood'); for (let k = -2; k <= 2; k++) B.capsule(c[0] - 5.4, c[1] + k * 1.1 + 1.4, c[0] + 5.4, c[1] + k * 1.1 - 1.4, 0.75, 0.75, bk); B.capsule(c[0], c[1] - 2.4, c[0], c[1] + 2.6, 0.5, 0.5, M('#a08050', 'cloth')); break; }
+      case 'planks': { const pl = M(P.wood.pine, 'wood'); for (const dy of [4.8, 6.6]) { const [x0, y0, x1, y1] = across(10, dy, 4.4); B.capsule(x0, y0, x1, y1, 0.9, 0.9, pl); } break; }
+      case 'iron': case 'tools': { const ir = M(P.metal.darkIron, 'metal'); if (L === 'tools') { B.blob(c[0], c[1] + 1, w, 2.2, M(P.wood.pine, 'wood'), { power: 6 }); B.capsule(c[0] - 1, c[1] - 1, c[0] - 2, c[1] - 5, 0.5, 0.5, M(P.wood.oak, 'wood')); B.capsule(c[0] + 1.5, c[1] - 1, c[0] + 2.5, c[1] - 4, 0.6, 0.6, ir); } else for (const dy of [-1.2, 0, 1.2]) B.capsule(c[0] - 3.4, c[1] + dy, c[0] + 3.4, c[1] + dy, 0.6, 0.6, ir); break; }
+      case 'stone': { B.blob(c[0], c[1], w * 0.9, h, M('#8e8a82', 'stone'), { power: 8 }); B.tweak(c[0] - 1, c[1] - 1, 1); B.tweak(c[0] + 1, c[1] + 1, -1); break; }
+      case 'cloth': { const [x0, y0, x1, y1] = across(6.4, 5.4, 4.6); B.capsule(x0, y0, x1, y1, 2.3, 2.3, M('#8a4a6a', 'cloth')); B.plot(x1, y1, M('#b07090', 'cloth'), 3); break; }
+      case 'meat': { B.blob(c[0], c[1], w * 0.9, 3.2, M('#b85a50', 'cloth'), { power: 2 }); B.blob(c[0] - 0.8, c[1] - 0.6, 1.2, 0.8, M('#e8c8b8', 'cloth'), { power: 2 }); B.capsule(c[0] + 2.4, c[1] - 1, c[0] + 4.4, c[1] - 2.4, 0.5, 0.5, M('#ece4d4', 'cloth')); break; }
+      case 'meal': { B.blob(c[0], c[1] + 0.6, w * 0.7, 2, M('#8a6a4a', 'wood'), { power: 2.4 }); B.blob(c[0], c[1] - 1.2, w * 0.6, 1, M('#e8e0d0', 'cloth'), { power: 2 }); break; }
+      case 'furniture': { const wd = M(P.wood.oak, 'wood'); const [x0, y0, x1, y1] = across(3.6, 3.6, 4); B.capsule(x0, y0, x1, y1, 0.8, 0.8, wd); B.capsule(x0, y0, x0, y0 + 5, 0.5, 0.5, wd); B.capsule(x1, y1, x1, y1 + 5, 0.5, 0.5, wd); break; }
+      default: { const crate = P.mat(P.wood.pine, 'wood'); B.blob(c[0], c[1], w, h, crate, { power: 6 }); for (let x = Math.floor(c[0] - w); x <= c[0] + w; x++) B.tweak(x, c[1], -1); B.tweak(c[0] - 2, c[1] - 2, 1); }
+    }
   }
+  // what a carried good looks like in the arms
+  const LOADS = { wheat: 'wheat', flour: 'flour', sack: 'sack', grain: 'sack', bread: 'bread', dough: 'dough', loaves: 'bread', cabbage: 'cabbage', fish: 'fish', ale: 'ale', honey: 'honey', meal: 'meal', logs: 'logs', firewood: 'firewood', wood: 'firewood', planks: 'planks', iron: 'iron', stone: 'stone', tools: 'tools', medicine: 'medicine', herbs: 'herbs', flowers: 'flowers', meat: 'meat', cloth: 'cloth', wool: 'sack', furniture: 'furniture', eggs: 'eggs', cask: 'ale', goods: 'crate' };
 
   function drawBook(S) {
     const { B, p, V } = S;
@@ -2002,7 +2034,7 @@ O.storeys = (b) => {
   // new frames are drawn a few at a time: past this frame's budget, the nearest frame already drawn stands in
   let budget = 6; const resetBudget = (n = 6) => { budget = n; };
   function frame(a, dir, anim, f) {
-    const key = cid(a) + ':' + a.cacheVer + ':' + dir + anim + f;
+    const key = cid(a) + ':' + a.cacheVer + ':' + dir + anim + f + (a.load && anim.includes('carry') ? '|' + a.load : '');
     let c = cache.get(key);
     if (c) { cache.delete(key); cache.set(key, c); return c; }
     if (budget <= 0 && anim !== 'lie') {
@@ -4832,6 +4864,8 @@ O.bizName = (surname, label) => {
 
     actorFrame(a) {
       let an = a.anim, ft = a.ft;
+      // what's in their arms shows as itself: a sack, a sheaf, a cask, a bundle of logs
+      if (a.a) { const c = a.person ? a.person.agent && a.person.agent.carrying : a === this.player ? O.PlayerState && O.PlayerState.carry : null; const ld = !c ? null : typeof c === 'string' ? c : c.good || null; if (a.a.load !== ld) a.a.load = ld; }
       // a gesture of the moment (a nod, a laugh, a bow) plays over whatever they were doing
       const g = (a.person && a.person.agent && a.person.agent.gest) || a.gest, now = performance.now();
       if (g && g.until > now) { if ((an === 'walk' || an === 'run') && Ch.composite) { const c = Ch.composite(an, g.anim); if (c !== an) an = c; else { an = g.anim; ft = (now - g.from) / 1000; } } else { an = g.anim; ft = (now - g.from) / 1000; } } // (on the move the legs keep walking and the arms do the gesture)
@@ -19548,7 +19582,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     const _frame = game.actorFrame.bind(game);
     game.actorFrame = function (a) {
       if (a === game.player && PS.carry && !a.mount && !a.sitting && !a.inBed) {
-        const look = PS.carry.look || (PS.carry.good === 'water' ? 'bucket' : 'carry'), an0 = a.anim;
+        const look = PS.carry.look || (PS.carry.good === 'water' ? 'bucket' : 'carry'), an0 = a.anim; if (a.a) a.a.load = PS.carry.good;
         if (an0 === 'walk' || an0 === 'run' || an0 === 'idle') {
           const an = an0 === 'walk' ? look : Ch.composite(an0, look), A = Ch.ANIMS[an] || Ch.ANIMS.idle, f = Math.floor((a.ft || 0) * A.fps) % A.frames;
           return Ch.frame(a.a, a.dir, an, f);
@@ -34663,7 +34697,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
 // free to be asked again.
 'use strict';
 (function () {
-  const FLAGS = ['_bank', '_tree', '_door', '_stable', '_abbey', '_winter', '_call', '_chore', '_beast', '_repair', '_puddle', '_quay', '_garden', '_hat', '_kid2', '_bake', '_tooth', '_leisure', '_rain', '_grave', '_scarer', '_wassail', '_rog', '_wash', '_office', '_evict', '_reopen', '_moot', '_dole', '_flood', '_swarm', '_lost', '_truant', '_watch', '_christ', '_shrove', '_plough', '_grist', '_trestle', '_soul', '_candle', '_yule', '_bull', '_gwatch', '_friar', '_chim', '_inn', '_kidbull', '_visit', '_rough', '_warm', '_borrow', '_oldload', '_hen', '_nb', '_thank', '_dpurse', '_slipped', '_peace', '_mind', '_mwrun', '_ladder', '_blown', '_sickhelp', '_propose', '_pigday', '_lesson', '_cattree', '_yours', '_ferry', '_ownrep', '_ptooth', '_ystall', '_nrough'];
+  const FLAGS = ['_bank', '_cutyou', '_tree', '_door', '_stable', '_abbey', '_winter', '_call', '_chore', '_beast', '_repair', '_puddle', '_quay', '_garden', '_hat', '_kid2', '_bake', '_tooth', '_leisure', '_rain', '_grave', '_scarer', '_wassail', '_rog', '_wash', '_office', '_evict', '_reopen', '_moot', '_dole', '_flood', '_swarm', '_lost', '_truant', '_watch', '_christ', '_shrove', '_plough', '_grist', '_trestle', '_soul', '_candle', '_yule', '_bull', '_gwatch', '_friar', '_chim', '_inn', '_kidbull', '_visit', '_rough', '_warm', '_borrow', '_oldload', '_hen', '_nb', '_thank', '_dpurse', '_slipped', '_peace', '_mind', '_mwrun', '_ladder', '_blown', '_sickhelp', '_propose', '_pigday', '_lesson', '_cattree', '_yours', '_ferry', '_ownrep', '_ptooth', '_ystall', '_nrough'];
   function setup(game) {
     const since = new Map(); let t = 0; let cleared = 0;
     game.hooks.update.push((dt) => {
@@ -40210,6 +40244,108 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
 
 </script>
 <script>
+// What you carry shows on you. Your satchel hangs at your hip on a strap across the chest, flat when it's
+// empty of all but a crust and bulging with a bread end poking out when you're laden; pedlars, carriers,
+// pilgrims and anyone on the road wear theirs too. Folk notice a fat satchel, and so do cutpurses.
+'use strict';
+(function () {
+  function setup(game) {
+    const cur = () => O.SimRef.cur, PS = O.PlayerState;
+    const level = (n) => n <= 0 ? 0 : n <= 2 ? 1 : n <= 6 ? 2 : 3;
+    const ROAD = /pedlar|peddler|chapman|trader|carrier|messenger|pilgrim|tinker|drover|packman|merchant/;
+    let tick = 0; const done = new WeakSet();
+    function setPack(app, v) { if (!app || !app.outfit || (app.outfit.pack || 0) === v) return; app.outfit.pack = v; O.Char.invalidate(app); }
+    game.hooks.update.push((dt) => { tick -= dt; if (tick > 0) return; tick = 0.5; const P = game.player;
+      if (P && P.a) setPack(P.a, level((PS.items || []).length));
+      const s = cur(); if (!s || !s.people) return;
+      for (const q of s.people) { if (!q.app || done.has(q)) continue; done.add(q); if (q.age >= 14 && (q.visitor || ROAD.test(q.job?.role || ''))) setPack(q.app, q.visitor ? 2 : 1); } });
+    (O.extraLines = O.extraLines || []).push(() => { const n = (PS.items || []).length; return n >= 7 ? 'The player\'s satchel is bulging: they are carrying a good deal.' : ''; });
+    O.BodyGear = { level };
+  }
+  O.BodyGearSetup = { setup };
+})();
+
+</script>
+<script>
+// Your own satchel dipped. The cutpurses who work the crowds don't only rob the townsfolk: stand about in a
+// press of people with a fat satchel at your hip and a lifter may sidle up behind you. Sometimes you feel
+// the tug and turn in time to see him walking off a little too briskly; sometimes you only find out later,
+// when your purse is light. Shout "Thief!" and run him down (the watch and a stout bystander may join you),
+// and he'll drop what he took; or tell the watch afterwards, in your own words, what was taken and by whom.
+'use strict';
+(function () {
+  const T = 16;
+  function setup(game) {
+    const cur = () => O.SimRef.cur, PS = O.PlayerState, G = O.Data.GOODS;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    const say = (q, t, secs) => O.Speech && O.Speech.say(q, t, secs || 2);
+    const ui = (t, k) => O.UI && O.UI.say && O.UI.say(t, k || 'info');
+    const dP = (q) => Math.hypot(q.agent.x - game.player.x, q.agent.y - game.player.y);
+    const isWatch = (q) => /guard|sergeant|watch|captain|constable/.test(q.job?.role || '');
+    const talking = (q) => O.npcUI && O.npcUI.talking && O.npcUI.talking() === q;
+    const outdoors = (q) => q.agent && !q.agent.hidden && q.agent.inside == null && q.alive !== false;
+    const free = (q) => outdoors(q) && !q.agent.frozen && !q.errand && !q._scene && !q._bit && !q._cp && !q._cutyou && !q.jailUntil && !q.visitor && !talking(q);
+    const open = (x, y) => !game.solidAt(x - 3, y - 2) && !game.solidAt(x + 3, y - 2);
+    function steer(q, tx, ty, dt, sp, an) { const a = q.agent, dx = tx - a.x, dy = ty - a.y, d = Math.hypot(dx, dy); if (d < 2) return true; const st = Math.min(d, sp * dt); const nx = a.x + dx / d * st, ny = a.y + dy / d * st; if (open(nx, ny)) { a.x = nx; a.y = ny; } else if (open(nx, a.y)) a.x = nx; else if (open(a.x, ny)) a.y = ny; a.dir = O.dirOf(dx, dy); a.forceAnim = an; return false; }
+    let J = null, cool = 90, force = false, dipped = 0, felt = 0, caught = 0, escaped = 0, told = 0; const past = [];
+    const rel_ = (q) => { if (!q || !q._cutyou) return; q._cutyou = false; if (q.agent) { q.agent.forceAnim = null; if (!talking(q)) q.agent.frozen = false; } };
+    const hold = (q) => { q._cutyou = true; q.agent.frozen = true; q.agent.path = null; };
+    function end() { if (!J) return; rel_(J.thief); for (const c of J.chasers) rel_(c); J = null; cool = 240 + Math.random() * 300; }
+    function crowd(s) { return s.people.filter((q) => outdoors(q) && q.age >= 12 && dP(q) < 110); }
+    function begin(s) { const P = game.player; if (P.locked || P.mount || game.scene) return false;
+      const thief = s.people.find((q) => free(q) && q.age >= 13 && q.age <= 40 && !isWatch(q) && dP(q) < 420 && ((q.gang && q.gang !== 'player') || (q.traits || []).some((t) => /greedy|dishonest|hostile|risk/.test(t))) && ((q.rel.get(0) || {}).affinity || 0) < 0.4);
+      if (!thief) return false; hold(thief); J = { s, thief, stage: 'sidle', t: 0, skill: (thief.skills && thief.skills.stealth) || 0.3, chasers: [], took: null }; return true; }
+    function lift() { const lv = (O.BodyGear && O.BodyGear.level((PS.items || []).length)) || 0; const items = (PS.items || []).filter((k) => G[k] && !['key'].includes(k));
+      if (items.length && (lv >= 2 ? Math.random() < 0.5 : Math.random() < 0.2)) { const k = pick(items); PS.items.splice(PS.items.indexOf(k), 1); return { item: k, what: G[k].name.toLowerCase() }; }
+      const amt = Math.min(PS.money || 0, 1 + Math.floor(Math.random() * (3 + lv * 2))); if (amt <= 0) return null; PS.money -= amt; return { money: amt, what: `${amt} aurin` }; }
+    function giveBack(by) { const { thief, took, s } = J; if (!took) return; if (took.item) PS.items.push(took.item); if (took.money) PS.money = (PS.money || 0) + took.money; caught++; J.stage = 'over'; J.t = 0;
+      O.gesture && O.gesture(thief, 'shake', 1.2); O.sfx && O.sfx('coins', 0.3); say(thief, pick(['All right! Take it! Take it!', 'Get off me! Here!', 'I never... oh, have it, then.']), 2.2);
+      if (by && by !== 'you') say(by, isWatch(by) ? pick(['Got you, you little rat.', 'That\'s the stocks for you.']) : pick(['Here, I\'ve got him!', 'Not so fast, lad.']), 2);
+      ui(`${thief.first} drops what they took: you have your ${took.what} back.`, 'good');
+      try { s.remember(thief, 'Tried to dip the stranger\'s satchel in the crowd and got run down.', 'grudge', 1.4, 0); const r = thief.rel.get(0) || { affinity: 0, familiar: 0 }; r.affinity = Math.max(-1, r.affinity - 0.3); thief.rel.set(0, r);
+        if (by && by !== 'you' && isWatch(by)) { const cr = s.recordCrime({ kind: 'pickpocket', perp: thief, placeName: s.world.name, tile: [Math.floor(thief.agent.x / T), Math.floor(thief.agent.y / T)], seen: [], victimPerson: null, severity: 1 }); setTimeout(() => { try { s.arrestNPC && s.arrestNPC(thief, cr, false); } catch (e) { /* */ } }, 1800); }
+        if (by && by !== 'you' && !isWatch(by)) { const r2 = by.rel.get(0) || { affinity: 0, familiar: 0 }; r2.familiar = Math.min(1, (r2.familiar || 0) + 0.1); by.rel.set(0, r2); s.remember(by, `Helped the stranger run down ${thief.first}, who had dipped their satchel.`, 'social', 0.8); } } catch (e) { /* */ }
+      setTimeout(end, 2600); }
+    function cry() { if (!J || J.stage !== 'off') return; const { s, thief } = J; J.stage = 'chase'; J.t = 0; ui('"Thief! Stop, thief!"', 'warn'); const P = game.player; P.anim = 'point'; setTimeout(() => { if (P.anim === 'point') P.anim = 'idle'; }, 700);
+      for (const q of s.people) { if (q === thief || !free(q) || Math.hypot(q.agent.x - thief.agent.x, q.agent.y - thief.agent.y) > 260) continue; if ((isWatch(q) || (q.age >= 16 && q.age < 50 && Math.random() < 0.3)) && J.chasers.length < 3) { hold(q); J.chasers.push(q); if (isWatch(q)) say(q, 'Stop in the King\'s name!', 1.8); } else O.gesture && O.gesture(q, Math.random() < 0.5 ? 'shocked' : 'point', 1.5); }
+      const a = thief.agent; let best = null; for (let k = 0; k < 16; k++) { const ang = k / 16 * Math.PI * 2, tx = a.x + Math.cos(ang) * 300, ty = a.y + Math.sin(ang) * 220; if (!open(tx, ty)) continue; const away = Math.hypot(tx - P.x, ty - P.y); if (!best || away > best[2]) best = [tx, ty, away]; } J.flee = best ? [best[0], best[1]] : [a.x + 260, a.y]; }
+    game.hooks.update.push((dt) => { const s = cur(); if (!s || !s.world) return; const P = game.player;
+      if (J) { J.t += dt; const { thief } = J, a = thief.agent; if (J.s !== s || game.scene || thief.alive === false || a.inside != null) { end(); return; }
+        if (J.stage === 'sidle') { // round behind you, close
+          const bx = P.x + (thief.agent.x < P.x ? -8 : 8), by = P.y + 2; if (steer(thief, bx, by, dt, 40, 'walk') || dP(thief) < 12) { J.stage = 'dip'; J.t = 0; a.dir = O.dirOf(P.x - a.x, P.y - a.y); a.forceAnim = 'take'; } else if (J.t > 14) end(); return; }
+        if (J.stage === 'dip') { if (J.t < 1) return; J.took = lift(); if (!J.took) { end(); return; } dipped++; past.push({ thief, took: J.took, day: s.day, t: game.t }); const feel = J.feelIt || Math.random() < 0.55 - J.skill * 0.3; J.felt = feel; J.stage = 'off'; J.t = 0; J.flee = [a.x + (a.x < P.x ? -280 : 280), a.y]; for (let k = 0; k < 8 && !open(J.flee[0], J.flee[1]); k++) J.flee[1] += 24;
+          if (feel) { felt++; ui(`A tug at your satchel! You turn: ${thief.first} is walking off a little too briskly.`, 'warn'); O.gesture && O.gesture(thief, 'look', 0.6); } return; }
+        if (J.stage === 'off') { steer(thief, J.flee[0], J.flee[1], dt, 46, 'walk'); if (!J.felt && J.t > 20) { ui(`Your satchel feels light. Somebody has had ${J.took.what} out of it.`, 'warn'); const w = s.people.find((q) => q !== thief && outdoors(q) && dP(q) < 180 && q.age >= 10 && !isWatch(q)); if (w) setTimeout(() => say(w, `That was ${thief.first}! I saw a hand in your bag.`, 2.4), 800); end(); return; }
+          if (dP(thief) > 420 || J.t > 40) { escaped++; end(); } return; }
+        if (J.stage === 'chase') { const sp = 78 + J.skill * 16; steer(thief, J.flee[0], J.flee[1], dt, sp, 'run'); if (Math.hypot(a.x - J.flee[0], a.y - J.flee[1]) < 6) { const ang = Math.random() * Math.PI * 2; J.flee = [a.x + Math.cos(ang) * 200, a.y + Math.sin(ang) * 160]; }
+          for (const c of J.chasers) { steer(c, a.x, a.y, dt, isWatch(c) ? 74 : 66, 'run'); if (Math.hypot(c.agent.x - a.x, c.agent.y - a.y) < 10) { giveBack(c); return; } }
+          if (dP(thief) < 16) { giveBack('you'); return; }
+          if (J.t > 30 || dP(thief) > 520) { escaped++; ui(`${thief.first} is away down an alley, and your ${J.took.what} with them.`, 'warn'); end(); } return; }
+        if (J.stage === 'over') return; }
+      cool -= dt; if (cool > 0 && !force) return; cool = 20; const h = s.minute / 60; if (!force && (h < 8 || h > 21 || game.scene || P.locked)) return;
+      const lv = (O.BodyGear && O.BodyGear.level((PS.items || []).length)) || 0; const busy = crowd(s).length;
+      const mk = O.MarketDay && O.MarketDay.isMarket && O.MarketDay.isMarket(s);
+      if (!force && (busy < 3 || ((PS.money || 0) < 2 && lv < 2) || Math.random() > (0.03 + lv * 0.03) * (mk ? 2 : 1))) return;
+      const f = force; force = false; if (!begin(s)) { if (f) force = f; } else if (f === 'feel') J.feelIt = true; });
+    (O.moreCandidates = O.moreCandidates || []).push(() => { if (!J || J.stage !== 'off' || game.scene) return null; const a = J.thief.agent; if (dP(J.thief) > 300) return null;
+      return { type: 'custom', d: 1, x: a.x, y: a.y - 34, label: `Shout "Thief!" after ${J.thief.first}`, act: cry }; });
+    // shout it in your own words, or tell the watch afterwards
+    const respond = (q, t, line, render) => { (q._conv ||= []).push({ who: 'p', t }, { who: 'q', t: line }); render(line); return Promise.resolve(); };
+    const _say = O.AIChat && O.AIChat.say;
+    if (_say) O.AIChat.say = function (q, text, render) { try { const s = cur(), t = String(text || '');
+      if (J && J.stage === 'off' && /\b(thief|stop (him|her|that)|he took|she took|my purse|my bag)\b/i.test(t)) { setTimeout(() => { O.npcUI && O.npcUI.closeTalk && O.npcUI.closeTalk(); cry(); }, 500); return respond(q, t, isWatch(q) ? 'Which way? After him!' : 'Where? That one? Stop, thief!', render); }
+      const last = past.filter((p) => !p.told && s && p.day >= s.day - 1).slice(-1)[0];
+      if (last && isWatch(q) && /\b(stole|steal|robbed|thief|took|cut ?purse|pick(ed)? ?pocket|dipped)\b/i.test(t)) { last.told = true; told++; const th = last.thief; const named = new RegExp('\\b' + th.first + '\\b', 'i').test(t);
+        if (named || Math.random() < 0.4) { setTimeout(() => { O.npcUI && O.npcUI.closeTalk && O.npcUI.closeTalk(); try { const cr = s.recordCrime({ kind: 'pickpocket', perp: th, placeName: s.world.name, tile: th.agent ? [Math.floor(th.agent.x / T), Math.floor(th.agent.y / T)] : [0, 0], seen: [], victimPerson: null, severity: 1 }); if (th.alive !== false && s.arrestNPC) s.arrestNPC(th, cr, false); if (last.took.money) PS.money = (PS.money || 0) + Math.ceil(last.took.money / 2); ui(`The watch take up ${th.first}${last.took.money ? ', and a little of your money comes back to you' : ''}.`, 'good'); } catch (e) { console.error(e); } }, 1500); return respond(q, t, named ? `${th.first}? Aye, we know that one. Leave it with me.` : `Sounds like ${th.first}'s work. I'll have a word.`, render); }
+        return respond(q, t, 'In that crowd? Could have been anyone. Keep your hand on your bag.', render); } } catch (e) { console.error(e); } return _say.apply(this, arguments); };
+    (O.extraLines = O.extraLines || []).push((s, q) => { if (J && q === J.thief) return 'You have just dipped the player\'s satchel in the crowd. Act innocent; deny everything.'; const last = past.slice(-1)[0]; if (last && s && last.day >= s.day - 1 && isWatch(q)) return `The player had their satchel dipped in the street lately (${last.took.what}); ${last.thief.first} is a known light-fingered sort.`; return ''; });
+    O.CutYou = { get job() { return J; }, get dipped() { return dipped; }, get felt() { return felt; }, get caught() { return caught; }, get escaped() { return escaped; }, get told() { return told; }, soon: (k) => { cool = 0; force = k || true; } };
+  }
+  O.CutYouSetup = { setup };
+})();
+
+</script>
+<script>
 // The street comes to you. A tax collector who's seen you sprints over and wants the town's dues (only
 // if you keep a house or hold a post here); a landlord wants the rent you owe; a beggar asks for a
 // penny; and in a crowd someone may lift your purse. When anyone runs at you, you start back.
@@ -45383,7 +45519,7 @@ ${!royal && bz ? (() => { const roles = bz.def.jobs.map((j) => j[0]), ix = roles
   O.WorkSetup.setup(game, sim, npcUI);
   O.EmploymentSetup.setup(game, home, npcUI);
   O.LettersSetup.setup(game, home, npcUI);
-  O.FittingSetup.setup(game); O.DecorateSetup.setup(game); O.LifeWeightSetup.setup(game); O.TradeLifeSetup.setup(game); O.RiverWildSetup.setup(game); O.SpokenSetup.setup(game); O.CombatDeepSetup.setup(game); O.GangStreetSetup.setup(game); O.HomeFrontSetup.setup(game); O.ScenesSetup.setup(game); O.IndoorLifeSetup.setup(game); O.ApproachesSetup.setup(game); O.LivelinessSetup.setup(game); O.StreetFightSetup.setup(game); O.Pastimes2Setup.setup(game); O.AnimalCareSetup.setup(game); O.MarchSetup.setup(game); O.LooksSetup.setup(game); O.GangPoliticsSetup.setup(game); O.NightWorkSetup.setup(game); O.ArchersSetup.setup(game); O.RaidSetup.setup(game); O.KidsPlaySetup.setup(game); O.AdultPlaySetup.setup(game); O.IdleLifeSetup.setup(game); O.CutpurseSetup.setup(game); O.ShakedownSetup.setup(game); O.ShopFrontSetup.setup(game); O.WarSightsSetup.setup(game); O.GangMarksSetup.setup(game); O.PassingsSetup.setup(game); O.LamplighterSetup.setup(game); O.SparringSetup.setup(game); O.KidsChoresSetup.setup(game); O.ProcessionsSetup.setup(game); O.MarketDaySetup.setup(game); O.RoadFolkSetup.setup(game); O.TownBirdsSetup.setup(game); O.TavernYardSetup.setup(game); O.SmuggleSetup.setup(game); O.MishapsSetup.setup(game); O.ShopFront2Setup.setup(game); O.NightLifeSetup.setup(game); O.SeasonsFxSetup.setup(game); O.GentryRideSetup.setup(game); O.GangRitesSetup.setup(game); O.HuntersSetup.setup(game); O.Courting2Setup.setup(game); O.InfirmSetup.setup(game); O.PasturesSetup.setup(game); O.AlmsSetup.setup(game); O.BellsSetup.setup(game); O.BoatsSetup.setup(game); O.StormReactSetup.setup(game); O.EscortSetup.setup(game); O.TracksSetup.setup(game); O.ShopDisplaySetup.setup(game); O.NoticeBoardSetup.setup(game); O.GraveDiggerSetup.setup(game); O.DayLabourSetup.setup(game); O.BaileySetup.setup(game); O.HarbourSetup.setup(game); O.HauntSetup.setup(game); O.CountrysideSetup.setup(game); O.WellWorkSetup.setup(game); O.StocksSetup.setup(game); O.WinterPlaySetup.setup(game); O.MillsSetup.setup(game); O.SummerPlaySetup.setup(game); O.LambsSetup.setup(game); O.LordsHuntSetup.setup(game); O.OccludeSetup.setup(game); O.IndoorFxSetup.setup(game); O.RoundsSetup.setup(game); O.HouseCallsSetup.setup(game); O.BrazierSetup.setup(game); O.GangBossSetup.setup(game); O.SlashSetup.setup(game); O.RepairsSetup.setup(game); O.WildFolkSetup.setup(game); O.FerrySetup.setup(game); O.RiverbankSetup.setup(game); O.TreeWorkSetup.setup(game); O.SiteWorkSetup.setup(game); O.DoorstepSetup.setup(game); O.RoomLifeSetup.setup(game); O.StableYardSetup.setup(game); O.AbbeyLifeSetup.setup(game); O.WinterWorkSetup.setup(game); O.StreetCallersSetup.setup(game); O.SeasonChoresSetup.setup(game); O.LivestockSetup.setup(game); O.BabesSetup.setup(game); O.FlagWatchSetup.setup(game); O.DawnDuskSetup.setup(game); O.PuddlesSetup.setup(game); O.QuaysideSetup.setup(game); O.CottageYardsSetup.setup(game); O.WindySetup.setup(game); O.StreetMuckSetup.setup(game); O.HitchingSetup.setup(game); O.KidsPlay2Setup.setup(game); O.StrayDogSetup.setup(game); O.TollBarSetup.setup(game); O.NightWalkersSetup.setup(game); O.BakehouseSetup.setup(game); O.WorkFxSetup.setup(game); O.ToothPullSetup.setup(game); O.GentryLeisureSetup.setup(game); O.WaterfowlSetup.setup(game); O.RainFolkSetup.setup(game); O.JostleSetup.setup(game); O.GraveVisitsSetup.setup(game); O.HandcartsSetup.setup(game); O.DoorCheckSetup.setup(game); O.SwallowsSetup.setup(game); O.MiceSetup.setup(game); O.StreetPigsSetup.setup(game); O.BirdScarerSetup.setup(game); O.WassailSetup.setup(game); O.RogationSetup.setup(game); O.SheepWashSetup.setup(game); O.WorkMomentsSetup.setup(game); O.TaxDoorSetup.setup(game); O.OfficeFrontsSetup.setup(game); O.TradeLoopSetup.setup(game); O.TreeFallSetup.setup(game); O.EvictionsSetup.setup(game); O.BoardedUpSetup.setup(game); O.MootSceneSetup.setup(game); O.BreadDoleSetup.setup(game); O.FloodFolkSetup.setup(game); O.PlagueTownSetup.setup(game); O.OxWagonsSetup.setup(game); O.SwarmSetup.setup(game); O.LostChildSetup.setup(game); O.TruantsSetup.setup(game); O.LeperSetup.setup(game); O.WatchChangeSetup.setup(game); O.ChristeningSetup.setup(game); O.JobIncidentsSetup.setup(game); O.ShrovetideSetup.setup(game); O.PloughMondaySetup.setup(game); O.MillGristSetup.setup(game); O.TrestleTradeSetup.setup(game); O.SoulingSetup.setup(game); O.CandlemasSetup.setup(game); O.YuleSetup.setup(game); O.SheepdogSetup.setup(game); O.CatHuntSetup.setup(game); O.LooseBullSetup.setup(game); O.GooseGirlSetup.setup(game); O.GangWatchSetup.setup(game); O.FriarSetup.setup(game); O.ChimneyFireSetup.setup(game); O.AiringSetup.setup(game); O.InnArrivalSetup.setup(game); O.GongFarmerSetup.setup(game); O.CowsHomeSetup.setup(game); O.OwlHuntSetup.setup(game); O.TownTalkSetup.setup(game); O.GratitudeSetup.setup(game); O.ShunningSetup.setup(game); O.AmendsSetup.setup(game); O.MourningDressSetup.setup(game); O.StreetNewsSetup.setup(game); O.HeroPraiseSetup.setup(game); O.KidsBullSetup.setup(game); O.DogsReactSetup.setup(game); O.HailFolkSetup.setup(game); O.MyDogJoinsSetup.setup(game); O.HomeVisitSetup.setup(game); O.RoughMusicSetup.setup(game); O.HouseWarmSetup.setup(game); O.BorrowingSetup.setup(game); O.OldLoadSetup.setup(game); O.RunawayHenSetup.setup(game); O.PlayWithKidsSetup.setup(game); O.NpcBorrowSetup.setup(game); O.ThankVisitSetup.setup(game); O.DroppedPurseSetup.setup(game); O.SlipFallSetup.setup(game); O.PeacemakingSetup.setup(game); O.StallMindSetup.setup(game); O.MidwifeRunSetup.setup(game); O.RepairHelpSetup.setup(game); O.WindthrowSetup.setup(game); O.TavernDanceSetup.setup(game); O.SickChoresSetup.setup(game); O.ProposalsSetup.setup(game); O.FerryRideSetup.setup(game); O.PigDaySetup.setup(game); O.ShopBellSetup.setup(game); O.LessonsSetup.setup(game); O.CatUpTreeSetup.setup(game); O.YourTurnSetup.setup(game); O.OwnRepairSetup.setup(game); O.ToothacheSetup.setup(game); O.YourStallSetup.setup(game); O.NpcRoughSetup.setup(game);
+  O.FittingSetup.setup(game); O.DecorateSetup.setup(game); O.LifeWeightSetup.setup(game); O.TradeLifeSetup.setup(game); O.RiverWildSetup.setup(game); O.SpokenSetup.setup(game); O.CombatDeepSetup.setup(game); O.GangStreetSetup.setup(game); O.HomeFrontSetup.setup(game); O.ScenesSetup.setup(game); O.IndoorLifeSetup.setup(game); O.ApproachesSetup.setup(game); O.LivelinessSetup.setup(game); O.StreetFightSetup.setup(game); O.Pastimes2Setup.setup(game); O.AnimalCareSetup.setup(game); O.MarchSetup.setup(game); O.LooksSetup.setup(game); O.GangPoliticsSetup.setup(game); O.NightWorkSetup.setup(game); O.ArchersSetup.setup(game); O.RaidSetup.setup(game); O.KidsPlaySetup.setup(game); O.AdultPlaySetup.setup(game); O.IdleLifeSetup.setup(game); O.CutpurseSetup.setup(game); O.ShakedownSetup.setup(game); O.ShopFrontSetup.setup(game); O.WarSightsSetup.setup(game); O.GangMarksSetup.setup(game); O.PassingsSetup.setup(game); O.LamplighterSetup.setup(game); O.SparringSetup.setup(game); O.KidsChoresSetup.setup(game); O.ProcessionsSetup.setup(game); O.MarketDaySetup.setup(game); O.RoadFolkSetup.setup(game); O.TownBirdsSetup.setup(game); O.TavernYardSetup.setup(game); O.SmuggleSetup.setup(game); O.MishapsSetup.setup(game); O.ShopFront2Setup.setup(game); O.NightLifeSetup.setup(game); O.SeasonsFxSetup.setup(game); O.GentryRideSetup.setup(game); O.GangRitesSetup.setup(game); O.HuntersSetup.setup(game); O.Courting2Setup.setup(game); O.InfirmSetup.setup(game); O.PasturesSetup.setup(game); O.AlmsSetup.setup(game); O.BellsSetup.setup(game); O.BoatsSetup.setup(game); O.StormReactSetup.setup(game); O.EscortSetup.setup(game); O.TracksSetup.setup(game); O.ShopDisplaySetup.setup(game); O.NoticeBoardSetup.setup(game); O.GraveDiggerSetup.setup(game); O.DayLabourSetup.setup(game); O.BaileySetup.setup(game); O.HarbourSetup.setup(game); O.HauntSetup.setup(game); O.CountrysideSetup.setup(game); O.WellWorkSetup.setup(game); O.StocksSetup.setup(game); O.WinterPlaySetup.setup(game); O.MillsSetup.setup(game); O.SummerPlaySetup.setup(game); O.LambsSetup.setup(game); O.LordsHuntSetup.setup(game); O.OccludeSetup.setup(game); O.IndoorFxSetup.setup(game); O.RoundsSetup.setup(game); O.HouseCallsSetup.setup(game); O.BrazierSetup.setup(game); O.GangBossSetup.setup(game); O.SlashSetup.setup(game); O.RepairsSetup.setup(game); O.WildFolkSetup.setup(game); O.FerrySetup.setup(game); O.RiverbankSetup.setup(game); O.TreeWorkSetup.setup(game); O.SiteWorkSetup.setup(game); O.DoorstepSetup.setup(game); O.RoomLifeSetup.setup(game); O.StableYardSetup.setup(game); O.AbbeyLifeSetup.setup(game); O.WinterWorkSetup.setup(game); O.StreetCallersSetup.setup(game); O.SeasonChoresSetup.setup(game); O.LivestockSetup.setup(game); O.BabesSetup.setup(game); O.FlagWatchSetup.setup(game); O.DawnDuskSetup.setup(game); O.PuddlesSetup.setup(game); O.QuaysideSetup.setup(game); O.CottageYardsSetup.setup(game); O.WindySetup.setup(game); O.StreetMuckSetup.setup(game); O.HitchingSetup.setup(game); O.KidsPlay2Setup.setup(game); O.StrayDogSetup.setup(game); O.TollBarSetup.setup(game); O.NightWalkersSetup.setup(game); O.BakehouseSetup.setup(game); O.WorkFxSetup.setup(game); O.ToothPullSetup.setup(game); O.GentryLeisureSetup.setup(game); O.WaterfowlSetup.setup(game); O.RainFolkSetup.setup(game); O.JostleSetup.setup(game); O.GraveVisitsSetup.setup(game); O.HandcartsSetup.setup(game); O.DoorCheckSetup.setup(game); O.SwallowsSetup.setup(game); O.MiceSetup.setup(game); O.StreetPigsSetup.setup(game); O.BirdScarerSetup.setup(game); O.WassailSetup.setup(game); O.RogationSetup.setup(game); O.SheepWashSetup.setup(game); O.WorkMomentsSetup.setup(game); O.TaxDoorSetup.setup(game); O.OfficeFrontsSetup.setup(game); O.TradeLoopSetup.setup(game); O.TreeFallSetup.setup(game); O.EvictionsSetup.setup(game); O.BoardedUpSetup.setup(game); O.MootSceneSetup.setup(game); O.BreadDoleSetup.setup(game); O.FloodFolkSetup.setup(game); O.PlagueTownSetup.setup(game); O.OxWagonsSetup.setup(game); O.SwarmSetup.setup(game); O.LostChildSetup.setup(game); O.TruantsSetup.setup(game); O.LeperSetup.setup(game); O.WatchChangeSetup.setup(game); O.ChristeningSetup.setup(game); O.JobIncidentsSetup.setup(game); O.ShrovetideSetup.setup(game); O.PloughMondaySetup.setup(game); O.MillGristSetup.setup(game); O.TrestleTradeSetup.setup(game); O.SoulingSetup.setup(game); O.CandlemasSetup.setup(game); O.YuleSetup.setup(game); O.SheepdogSetup.setup(game); O.CatHuntSetup.setup(game); O.LooseBullSetup.setup(game); O.GooseGirlSetup.setup(game); O.GangWatchSetup.setup(game); O.FriarSetup.setup(game); O.ChimneyFireSetup.setup(game); O.AiringSetup.setup(game); O.InnArrivalSetup.setup(game); O.GongFarmerSetup.setup(game); O.CowsHomeSetup.setup(game); O.OwlHuntSetup.setup(game); O.TownTalkSetup.setup(game); O.GratitudeSetup.setup(game); O.ShunningSetup.setup(game); O.AmendsSetup.setup(game); O.MourningDressSetup.setup(game); O.StreetNewsSetup.setup(game); O.HeroPraiseSetup.setup(game); O.KidsBullSetup.setup(game); O.DogsReactSetup.setup(game); O.HailFolkSetup.setup(game); O.MyDogJoinsSetup.setup(game); O.HomeVisitSetup.setup(game); O.RoughMusicSetup.setup(game); O.HouseWarmSetup.setup(game); O.BorrowingSetup.setup(game); O.OldLoadSetup.setup(game); O.RunawayHenSetup.setup(game); O.PlayWithKidsSetup.setup(game); O.NpcBorrowSetup.setup(game); O.ThankVisitSetup.setup(game); O.DroppedPurseSetup.setup(game); O.SlipFallSetup.setup(game); O.PeacemakingSetup.setup(game); O.StallMindSetup.setup(game); O.MidwifeRunSetup.setup(game); O.RepairHelpSetup.setup(game); O.WindthrowSetup.setup(game); O.TavernDanceSetup.setup(game); O.SickChoresSetup.setup(game); O.ProposalsSetup.setup(game); O.FerryRideSetup.setup(game); O.PigDaySetup.setup(game); O.ShopBellSetup.setup(game); O.LessonsSetup.setup(game); O.CatUpTreeSetup.setup(game); O.YourTurnSetup.setup(game); O.OwnRepairSetup.setup(game); O.ToothacheSetup.setup(game); O.YourStallSetup.setup(game); O.NpcRoughSetup.setup(game); O.BodyGearSetup.setup(game); O.CutYouSetup.setup(game);
   O.StreetSetup.setup(game, home);
   O.GangLifeSetup.setup(game, npcUI);
   O.TownLifeSetup.setup(game, npcUI);

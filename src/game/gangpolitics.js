@@ -16,7 +16,7 @@
       try {
         for (const g of (this.gangs || []).filter((x) => x.id !== 'player' && x.members.length >= 3)) {
           if (g.plot) { // the night it comes to a head
-            if (this.day >= g.plot.day) resolve(this, g);
+            if (this.day > g.plot.day || (this.day >= g.plot.day && !O.CoupNight)) resolve(this, g); // (on the night itself it's faced out in the street, if it can be)
             continue;
           }
           if (Math.random() > 0.08) continue;
@@ -39,7 +39,7 @@
         s.log(`${plotter.name} has been thrown out of ${g.name}. They say he plotted against ${boss.name}.`, 'gang'); (g.log = g.log || []).push(`Day ${s.day}: ${plotter.first} was thrown out for plotting.`);
         return;
       }
-      const odds = 0.4 + (P.backers.includes(0) ? 0.35 : 0) + P.backers.length * 0.05;
+      const odds = 0.4 + (P.backers.includes(0) ? 0.35 : 0) + P.backers.length * 0.05 - (P.against ? 0.3 : 0) + (P.edge || 0);
       if (Math.random() < odds) {
         g.leader = plotter.id; const bm = g.members.find((x) => x.id === boss.id); if (bm) { bm.role = 'member'; bm.loyalty = 0.1; } const pm = g.members.find((x) => x.id === plotter.id); if (pm) { pm.role = 'leader'; pm.loyalty = 0.9; }
         s.log(`${g.name} have a new boss: ${plotter.name} faced ${boss.name} down in front of them all.`, 'gang'); (g.log = g.log || []).push(`Day ${s.day}: ${plotter.first} took the gang from ${boss.first}.`);

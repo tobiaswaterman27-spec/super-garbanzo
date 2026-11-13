@@ -148,9 +148,13 @@
       if (PS.ill) PS.ill.sev -= 0.6; if (PS.ill && PS.ill.sev <= 0) PS.ill = null;
       PS.hp = Math.min(100, PS.hp + 35); PS.wounds = (PS.wounds || []).slice(0, Math.max(0, (PS.wounds || []).length - 2));
       s.relate(q, { id: 0 }, 0.03);
+      // seen to in person: you sit, they look you over, bind what's bleeding, and hand you the draught
+      { const P = game.player, wounded = (PS.wounds || []).length > 0 || was; P.anim = 'sit'; O.gesture && O.gesture(q, 'look', 1.6); setTimeout(() => { O.gesture && O.gesture(q, wounded ? 'hammer' : 'point', 1.6); }, 1600); setTimeout(() => { try { O.NpcActs && O.NpcActs.fly && O.NpcActs.fly(q, 'player', 'medicine'); } catch (e) { /* */ } }, 3300); setTimeout(() => { if (P.anim === 'sit') P.anim = 'idle'; }, 5200); }
       return `${q.first} looks you over${was ? `: ${was}, sure enough` : ''}, ${(PS.wounds || []).length ? 'dresses your wounds, ' : ''}and sends you off with a draught. "Rest, and eat well."${PS.ill ? ' You feel better, though not yet well.' : ''}`;
     }
 
+    // ask to be seen to, in your own words
+    { const _sayT = O.AIChat && O.AIChat.say; if (_sayT) O.AIChat.say = function (q, text, render) { try { const t = String(text || ''); if (q && /physician|barber-surgeon|herbalist|doctor|apothecary|healer|monk|infirmarer/.test(q.job?.role || '') && /\b(hurt|wound|wounded|bleeding|ill|sick|fever|see to me|treat|heal|patch me|cure|physic|pain)\b/i.test(t)) { (q._conv ||= []).push({ who: 'p', t }); const line = treat(q); q._conv.push({ who: 'q', t: line }); render(line); return Promise.resolve(); } } catch (e) { console.error(e); } return _sayT.apply(this, arguments); }; }
     // ================================================================ wells, and the woods
     let drankAt = -1e9, foragedN = 0, foragedDay = -1, busy = 0, after = null;
     game.hooks.update.push((dt) => { if (busy > 0) { busy -= dt; game.player.locked = true; game.player.anim = 'crouch'; if (busy <= 0) { game.player.locked = false; game.player.anim = 'idle'; const f = after; after = null; f && f(); } } });

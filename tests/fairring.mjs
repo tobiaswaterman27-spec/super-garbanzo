@@ -28,5 +28,12 @@ for (let i = 0; i < 30 && (await p.evaluate(() => O.FairRing.youShot === 0)); i+
 console.log('you shot', await p.evaluate(() => O.FairRing.youShot), 'arrows in straw', await p.evaluate(() => O.FairRing.stuck));
 if (process.env.SD) await p.screenshot({ path: process.env.SD + '/fairbutts.png' });
 await p.waitForTimeout(1500);
+// the judging: your bread on the table among the neighbours' entries; the judges go round
+const jt = await p.evaluate(() => { if (O.UI.dialogOpen && O.UI.dialogOpen()) O.UI.dialog.close(); O.npcUI.closeTalk && O.npcUI.closeTalk(); const s = O.SimRef.cur, G = O.FairRing.ground, P = O.game.player; P.locked = false; O.PlayerState.items.push('bread'); const tb = G.table || (O.moreCandidates.map((f) => f()), O.FairRing.ground.table); if (!tb) return 'no table'; P.x = tb[0]; P.y = tb[1] + 10; const c = O.moreCandidates.map((f) => f()).find((c) => c && /judges' table/.test(c.label)); if (!c) return 'no prompt, entries ' + (O.FairRing.judging && O.FairRing.judging.ents.length); c.act(); O.FairRing.judgeNow(s); return 'entries ' + O.FairRing.judging.ents.length + ' stage ' + O.FairRing.judging.stage; });
+console.log('judging:', jt);
+for (let i = 0; i < 60 && (await p.evaluate(() => O.FairRing.judged === 0)); i++) await p.waitForTimeout(500);
+if (process.env.SD) await p.screenshot({ path: process.env.SD + '/fairjudge.png' });
+console.log('judged', await p.evaluate(() => O.FairRing.judged + ' you placed ' + O.FairRing.youPlaced + ' bread back ' + O.PlayerState.items.includes('bread')));
+await p.waitForTimeout(5000);
 console.log('held:', await p.evaluate(() => O.SimRef.cur.people.filter((q) => q._fair).length), 'locked', await p.evaluate(() => O.game.player.locked));
 await done();

@@ -162,6 +162,7 @@
       O.Panels.open('The wrestling ring', `<p>You roll up your sleeves and step into the ring with ${esc(foe)}. Best of three falls.</p><p>${lines.join('<br>')}</p><p class="speech">${won ? 'The ring roars. The reeve slaps the purse of ₳12 into your hand.' : 'You pick yourself up out of the sawdust. He offers you a hand, and the crowd claps you out.'}</p>`);
     }
     function judging(s, did, k) {
+      if (O.FairRing) { O.Panels.close(); did.show = true; return O.FairRing.enterYou(s, k); } // (on the real table, judged in front of you: fairring.js)
       if (!PS.items.includes(k)) return;
       did.show = true; const sk = PS.skills[SHOW[k]] || 0.1;
       const mine = Math.round((3 + Math.random() * 5 + sk * 6) * 10) / 10, best = Math.round((5 + Math.random() * 4) * 10) / 10;

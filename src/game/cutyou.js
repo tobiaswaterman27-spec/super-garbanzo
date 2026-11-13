@@ -27,6 +27,7 @@
       const thief = s.people.find((q) => free(q) && q.age >= 13 && q.age <= 40 && !isWatch(q) && dP(q) < 420 && ((q.gang && q.gang !== 'player') || (q.traits || []).some((t) => /greedy|dishonest|hostile|risk/.test(t))) && ((q.rel.get(0) || {}).affinity || 0) < 0.4);
       if (!thief) return false; hold(thief); J = { s, thief, stage: 'sidle', t: 0, skill: (thief.skills && thief.skills.stealth) || 0.3, chasers: [], took: null }; return true; }
     function lift() { const lv = (O.BodyGear && O.BodyGear.level((PS.items || []).length)) || 0; const items = (PS.items || []).filter((k) => G[k] && !['key'].includes(k));
+      if (PS.items.includes('key') && Math.random() < 0.06) { PS.items.splice(PS.items.indexOf('key'), 1); return { item: 'key', what: 'door key' }; }
       if (items.length && (lv >= 2 ? Math.random() < 0.5 : Math.random() < 0.2)) { const k = pick(items); PS.items.splice(PS.items.indexOf(k), 1); return { item: k, what: G[k].name.toLowerCase() }; }
       const amt = Math.min(PS.money || 0, 1 + Math.floor(Math.random() * (3 + lv * 2))); if (amt <= 0) return null; PS.money -= amt; return { money: amt, what: `${amt} aurin` }; }
     function giveBack(by) { const { thief, took, s } = J; if (!took) return; if (took.item) PS.items.push(took.item); if (took.money) PS.money = (PS.money || 0) + took.money; caught++; J.stage = 'over'; J.t = 0;

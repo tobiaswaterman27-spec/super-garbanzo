@@ -2,7 +2,7 @@ import { start } from './lib.mjs';
 const { p, done } = await start();
 const D = process.env.SHOTS || '';
 await p.evaluate(() => { const s = O.SimRef.cur; while (Math.floor(s.minute / 60) !== 10) s.tick(2); O.game.clock.minute = s.minute; s.raining = false; });
-const r = await p.evaluate(() => { const s = O.SimRef.cur; const q = s.people.find((q) => q.age >= 20 && q.agent && !/guard|watch/.test(q.job?.role || '')); const cr = s.recordCrime({ kind: 'theft', perp: q, placeName: 'the square', tile: [0, 0], seen: [], severity: 1 }); s.arrestNPC(q, cr, false); q.sentence.days = 1; q.sentence.bailed = false; q.jailUntil = s.day + 1; const at = O.Stocks.where(); if (at) { O.game.player.x = at[0]; O.game.player.y = at[1] + 60; } window._q = q; return q.first + ' sentenced; stocks at ' + JSON.stringify(at); });
+const r = await p.evaluate(() => { const s = O.SimRef.cur; const q = s.people.find((q) => q.age >= 20 && q.agent && !/guard|watch/.test(q.job?.role || '')); const cr = s.recordCrime({ kind: 'theft', perp: q, placeName: 'the square', tile: [0, 0], seen: [], severity: 1 }); const hid = q.agent.hidden; q.agent.hidden = true; s.arrestNPC(q, cr, false); q.agent.hidden = hid; q.sentence.days = 1; q.sentence.bailed = false; q.jailUntil = s.day + 1; const at = O.Stocks.where(); if (at) { O.game.player.x = at[0]; O.game.player.y = at[1] + 60; } window._q = q; return q.first + ' sentenced; stocks at ' + JSON.stringify(at); });
 console.log(r);
 await p.waitForTimeout(12000); if (D) await p.screenshot({ path: `${D}/stocks.png`, clip: { x: 480, y: 280, width: 240, height: 160 } });
 console.log('in stocks:', await p.evaluate(() => [...O.Stocks.inStocks].map((q) => q.first).join(',')), 'pos ok', await p.evaluate(() => !_q.agent.hidden));

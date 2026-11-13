@@ -16,7 +16,7 @@
     const marketOn = (s) => (s.weekday === 6 || (s.hosted && s.hosted.day === s.day && s.hosted.kind === 'market')) && s.hour >= 7 && s.hour < 14 && !s.quarantine;
     const keepOf = (s) => s.world.buildings.find((b) => b.royal) || s.world.buildings.find((b) => b.type === 'keep' && !b.ruined);
     const esc = (t) => O.escape(String(t));
-    O.Festivals = { today: fest, market: marketOn };
+    O.Festivals = { today: fest, market: marketOn, get bout() { return PB; } };
     const NAMES = { fair: 'the harvest fair', midwinter: 'the midwinter feast', tournament: 'the spring tournament' };
 
     // ---------------------------------------------------------------- the town's day
@@ -219,7 +219,8 @@
           tn.done.push(next); const res = joust(next[0], next[1], null), w = res.win;
           let tail = '';
           if (bet != null) { const pick = next[bet]; if (w === pick) { const pay = Math.round(10 * odds(pick, next[1 - bet])); PS.money += pay; tail = `Your man wins. The bookmaker counts out ₳${pay}.`; } else tail = 'Your man loses. The bookmaker pockets your ten.'; }
-          O.Panels.open('The spring tournament', `<p>${res.lines.join('<br>')}</p><p class="speech"><b>${esc(w.name)}</b> wins the bout. ${tail}</p>`);
+          if (listsOn(s)) { O.Panels.close(); showBout(res, next[0], next[1], false, `${w.name} wins the bout. ${tail}`); }
+          else O.Panels.open('The spring tournament', `<p>${res.lines.join('<br>')}</p><p class="speech"><b>${esc(w.name)}</b> wins the bout. ${tail}</p>`);
         };
         r.querySelectorAll('[data-bet]').forEach((b) => b.onclick = () => { if (PS.money < 10) return say('You need ₳10 to bet.', 'bad'); PS.money -= 10; run(+b.dataset.bet); });
         const wb = r.querySelector('[data-watch]'); if (wb) wb.onclick = () => run(null);
@@ -232,7 +233,8 @@
           PS.skills.riding = Math.min(1, (PS.skills.riding || 0) + 0.06);
           if (won) { PS.money += 60; PS.rep.civilian = Math.min(1, PS.rep.civilian + 0.15); PS.rep.local = Math.min(1, PS.rep.local + 0.15); s.log(`The stranger unseated ${foe.name} at the spring tournament, to roars from the stands.`, 'event'); setTimeout(() => O.knightPlayer && O.knightPlayer('for victory in the lists'), 2500); }
           else { PS.hp = Math.max(10, PS.hp - 20); }
-          O.Panels.open('In the lists', `<p>You ride against <b>${esc(foe.name)}</b>.</p><p>${res.lines.join('<br>')}</p><p class="speech">${won ? 'The stands roar. The herald puts the purse of ₳60 into your hand, and ladies throw ribbons.' : 'You pick yourself out of the dust, bruised. The crowd claps you off, kindly enough.'}</p>`);
+          if (listsOn(s)) { O.Panels.close(); showBout(res, me, foe, true, won ? 'The stands roar. The herald puts the purse of ₳60 into your hand, and ladies throw ribbons.' : 'You pick yourself out of the dust, bruised. The crowd claps you off, kindly enough.'); }
+          else O.Panels.open('In the lists', `<p>You ride against <b>${esc(foe.name)}</b>.</p><p>${res.lines.join('<br>')}</p><p class="speech">${won ? 'The stands roar. The herald puts the purse of ₳60 into your hand, and ladies throw ribbons.' : 'You pick yourself out of the dust, bruised. The crowd claps you off, kindly enough.'}</p>`);
         };
       });
     }
@@ -257,6 +259,11 @@
     const rider = (k) => ({ x: 0, y: 0, dir: 3, anim: 'idle', ft: 0, tourney: true, a: Ch.makeAppearance(O.hash('tilt', k), { role: 'guard', sex: 'm', age: 30 + k * 5, wealth: 0.9 }), mount: { id: 'tilt' + k, coat: k ? 'black' : 'grey', saddled: true, anim: 'idle', ft: 0, seed: 7 + k * 5 } });
     const KN = [rider(0), rider(1)];
     let fallen = null, flash = 0, lastCycle = -1;
+    // a bout you're in, or bet on, run pass by pass on the real lists: one charge a pass, the lance-crack, the fall
+    let PB = null, boutsShown = 0;
+    function showBout(res, a, b, mine, tail) { const P = game.player; PB = { res, a, b, mine, tail, start: game.t, k: -1, said: -1 }; boutsShown++; KN[0]._a0 = KN[0]._a0 || KN[0].a; if (mine) { KN[0].a = P.a; P.hidden = true; P.locked = true; } UIsay(`${mine ? 'You' : a.name} and ${b === a ? '' : b.name} take the ends of the lists. The herald drops his baton.`); }
+    const UIsay = (t, k) => O.UI && O.UI.say && O.UI.say(t, k || 'info');
+    function endShow() { if (!PB) return; const P = game.player; if (PB.mine) { P.hidden = false; P.locked = false; } KN[0].a = KN[0]._a0 || KN[0].a; UIsay(PB.tail, 'good'); PB = null; }
     const BARRIER = { tourney: true, x: 0, y: 0, ft: 0, paint: (ctx, cam) => {
       const s = cur(), [cx, cy] = listsCentre(s), x0 = Math.round(cx - HALF - cam.x), y = Math.round(cy - cam.y);
       for (let x = 0; x <= HALF * 2; x++) { ctx.fillStyle = ((x >> 3) & 1) ? '#e8e0d0' : '#a8382f'; ctx.fillRect(x0 + x, y - 9, 1, 3); ctx.fillStyle = '#3a2614'; ctx.fillRect(x0 + x, y - 6, 1, 1); }
@@ -274,7 +281,9 @@
     const PAVS = [PAV(-1), PAV(1)];
     game.hooks.update.push((dt) => {
       const s = cur(); if (!s || !s.world || !listsOn(s)) return;
-      const [cx, cy] = listsCentre(s), T0 = 12, t = game.t % T0, cyc = Math.floor(game.t / T0);
+      let [cx, cy] = listsCentre(s), T0 = 12, t = game.t % T0, cyc = Math.floor(game.t / T0);
+      if (PB) { const tt = game.t - PB.start, n = PB.res.lines.length, k = Math.floor(tt / 7.5); t = Math.min(8, tt % 7.5 + 1); cyc = 100000 + k; if (k >= n) { if (tt > n * 7.5 + 2.5) endShow(); else t = 8; }
+        else if (t >= 4.6 && PB.said !== k) { PB.said = k; const line = PB.res.lines[k]; UIsay(line); flash = 0.4; O.Audio && O.Audio.play && O.Audio.play('hit'); if (k === n - 1 && /over the horse|down in the dust/.test(line)) { const loser = PB.res.win === PB.a ? 1 : 0; PB.fall = KN[loser]; } } }
       if (cyc !== lastCycle) { lastCycle = cyc; fallen = null; }
       flash = Math.max(0, flash - dt);
       // 0-2.5 waiting at the ends; 2.5-6.5 the charge; then walk back round
@@ -287,7 +296,7 @@
         else { k.x = to; k.dir = from < to ? 2 : 1; k.mount.anim = 'idle'; }
         k.mount.ft += dt; k.ft += dt;
       });
-      if (t >= 4.5 && !fallen && lastCycle === cyc) {
+      if (PB) { fallen = PB.fall && Math.floor((game.t - PB.start) / 7.5) >= PB.res.lines.length - 1 ? PB.fall : 'none'; } else if (t >= 4.5 && !fallen && lastCycle === cyc) {
         const r = O.hash('clash', s.day, cyc) % 10; fallen = r < 3 ? KN[r % 2] : 'none'; flash = 0.4;
         if (Math.hypot(game.player.x - cx, game.player.y - cy) < 220) { O.Audio && O.Audio.play && O.Audio.play('hit'); }
       }

@@ -38,8 +38,17 @@
         O.gesture && O.gesture(q, pick(['shake', 'look', 'point']), 1.4); say(q, pick([`Look who's out. Lock your doors.`, `${z.first}. Thought they'd keep you longer.`, 'Gaolbird.', `Don't you come near my stall, ${z.first}.`]), 2.2);
         const dx = q.agent.x - z.agent.x, dy = q.agent.y - z.agent.y, d = Math.hypot(dx, dy) || 1; O.Errands.send(s, q, [Math.floor((q.agent.x + dx / d * 46) / T), Math.floor((q.agent.y + dy / d * 36) / T)], { anim: 'look', secs: 1.6, face: 0, giveUp: game.t + 10 });
         setTimeout(() => { if (z.agent && !z.errand) { O.gesture && O.gesture(z, 'shake', 1); say(z, pick(['I\'ve paid for it.', 'Say that to my face.', '...']), 1.8); } }, 1600); break; } });
+    // and the town's own worthies get their due: caps touched to the priest, the reeve, the lord and the old
+    const worthy = (q) => /priest|reeve|lord|lady|steward|abbot|prioress|bailiff|mayor|alderman|physician/.test(q.job?.role || '') || q.age >= 70;
+    let wAcc = 0, respects = 0;
+    game.hooks.update.push((dt) => { wAcc += dt; if (wAcc < 2.5) return; wAcc = 0; const s = cur(); if (!s || !s.people || game.scene) return; const P = game.player;
+      for (const z of s.people) { if (!worthy(z) || !z.agent || z.agent.hidden || z.agent.inside != null || z.jailUntil || Math.hypot(z.agent.x - P.x, z.agent.y - P.y) > 300) continue;
+        const q = s.people.find((y) => y !== z && y.age >= 6 && free(y) && !worthy(y) && Math.hypot(y.agent.x - z.agent.x, y.agent.y - z.agent.y) < 36 && done.get('w' + y.id + ':' + z.id) !== s.day); if (!q) continue; done.set('w' + q.id + ':' + z.id, s.day); respects++;
+        const role = z.job?.role || ''; O.gesture && O.gesture(q, /priest|abbot|prioress/.test(role) ? 'pray' : 'nod', 1.2);
+        say(q, /priest|abbot/.test(role) ? pick(['Father.', 'Good day, Father.', 'Bless me, Father.']) : /prioress/.test(role) ? 'Mother.' : /lord|lady/.test(role) ? pick(['My lord.', 'Your servant.']) : z.age >= 70 ? pick([`Morning, old ${z.first}.`, `You're looking well, ${z.first}.`]) : pick([`Master ${z.sur || z.first}.`, `Good day, ${z.first}.`]), 1.8);
+        setTimeout(() => { if (z.agent && !z.errand) { O.gesture && O.gesture(z, /priest|abbot|prioress/.test(role) ? 'pray' : 'nod', 1); } }, 900); break; } });
     (O.extraLines = O.extraLines || []).push((s, q) => q._gaolbird != null && !q.jailUntil && s.day - q._gaolbird <= 10 ? 'You are just out of the lock-up, and your neighbours have not forgotten it: some cross the street to avoid you.' : '');
-    O.GoodName = { why, get nodded() { return nodded; }, get gifts() { return gifts; }, get walked() { return walked; }, get npcShun() { return npcShun; } };
+    O.GoodName = { why, get nodded() { return nodded; }, get gifts() { return gifts; }, get walked() { return walked; }, get npcShun() { return npcShun; }, get respects() { return respects; } };
   }
   O.GoodNameSetup = { setup };
 })();

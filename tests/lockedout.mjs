@@ -1,0 +1,25 @@
+// A townsman locked out: sits on the step; find the key in the dirt and give it back, or climb in for them; the smith in the end.
+import { start } from './lib.mjs';
+const { p, done } = await start();
+p.on('console', (m) => { if (m.type() === 'error') console.log('CONSOLE', m.text().slice(0, 200)); });
+await p.evaluate(() => { const s = O.SimRef.cur; let g = 0; while (s.minute / 60 < 10 && g++ < 9000) s.tick(1); O.game.clock.minute = s.minute; });
+const go = async () => p.evaluate(() => { const s = O.SimRef.cur, P = O.game.player; const q = s.people.find((q) => q.age >= 18 && q.home != null && q.agent && !q.agent.hidden && q.agent.inside == null && !q.errand && s.building(q.home) && s.building(q.home).doorX != null && Math.hypot(q.agent.x - s.building(q.home).doorX * 16, q.agent.y - s.building(q.home).doorY * 16) < 200); if (!q) return 'nobody'; P.x = q.agent.x + 90; P.y = q.agent.y; return O.LockedOut.begin(s, q) ? q.first : 'no begin'; });
+console.log('case 1:', await go());
+for (let i = 0; i < 40 && !(await p.evaluate(() => O.LockedOut.case && O.LockedOut.case.stage === 'step')); i++) await p.waitForTimeout(1000);
+console.log('on step:', await p.evaluate(() => !!O.LockedOut.case && O.LockedOut.case.stage));
+console.log('key:', await p.evaluate(() => { const L = O.LockedOut.case, P = O.game.player; if (O.npcUI.talking()) O.npcUI.closeTalk(); P.locked = false; P.x = L.key.x; P.y = L.key.y + 4; const c = O.moreCandidates.map((f) => f()).find((x) => x && /^Pick up the key/.test(x.label)); if (!c) return 'no prompt'; c.act(); return c.label; }));
+await p.waitForTimeout(800);
+console.log('give:', await p.evaluate(() => { const L = O.LockedOut.case, P = O.game.player; P.x = L.q.agent.x + 16; P.y = L.q.agent.y + 4; const c = O.moreCandidates.map((f) => f()).find((x) => x && /^Give .* their key/.test(x.label)); if (!c) return 'no prompt'; c.act(); return c.label; }));
+await p.waitForTimeout(3000);
+console.log('found/case:', await p.evaluate(() => O.LockedOut.found + ' ' + !!O.LockedOut.case));
+console.log('case 2:', await go());
+for (let i = 0; i < 40 && !(await p.evaluate(() => O.LockedOut.case && O.LockedOut.case.stage === 'step')); i++) await p.waitForTimeout(1000);
+console.log('climb:', await p.evaluate(() => { const L = O.LockedOut.case, P = O.game.player; if (!L) return 'no case'; if (O.npcUI.talking()) O.npcUI.closeTalk(); P.locked = false; P.x = L.b.doorX * 16 + 30; P.y = (L.b.doorY + 1) * 16 + 2; const c = O.moreCandidates.map((f) => f()).find((x) => x && /^Climb in at the back for/.test(x.label)); if (!c) return 'no prompt'; c.act(); return c.label; }));
+await p.waitForTimeout(5500);
+console.log('climbed/case:', await p.evaluate(() => O.LockedOut.climbed + ' ' + !!O.LockedOut.case));
+console.log('case 3:', await go());
+for (let i = 0; i < 40 && !(await p.evaluate(() => O.LockedOut.case && O.LockedOut.case.stage === 'step')); i++) await p.waitForTimeout(1000);
+await p.evaluate(() => { O.LockedOut.case.t = 80; });
+for (let i = 0; i < 60 && (await p.evaluate(() => !!O.LockedOut.case)); i++) await p.waitForTimeout(1000);
+console.log('smith:', await p.evaluate(() => O.LockedOut.smith + ' ' + !!O.LockedOut.case + ' locked left: ' + O.SimRef.cur.people.filter((q) => q._locked).length));
+await done();

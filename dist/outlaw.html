@@ -41042,7 +41042,8 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
     const reward = (s) => 10 + crimes(s).length * 8 + (PS.bounty ? 30 : 0);
     const looksLike = (s) => { const pf = profile(s); if (!pf) return PS.bounty ? 0.7 : 0; try { return J.matchScore(pf, J.lookOf(game.player.a)); } catch (e) { return 0; } };
     // the likeness, drawn once from how you looked when they posted it
-    function drawLikeness() { try { const fr = O.Char.frame(game.player._baseA || game.player.a, 2, 'idle', 0); const c = document.createElement('canvas'); c.width = 12; c.height = 12; const x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.filter = 'grayscale(1) sepia(0.6) contrast(1.3)'; x.drawImage(fr, 8, 8, 16, 16, 0, 0, 12, 12); likeness = c; } catch (e) { likeness = null; } }
+    function headOf(app) { try { const fr = O.Char.frame(app, 2, 'idle', 0), hy = O.Char.headY(app), top = Math.max(0, Math.round(hy.cy - hy.ry - 5)); const c = document.createElement('canvas'); c.width = 12; c.height = 12; const x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.filter = 'grayscale(1) sepia(0.6) contrast(1.3)'; x.drawImage(fr, 8, top, 16, 16, 0, 0, 12, 12); return c; } catch (e) { return null; } }
+    function drawLikeness() { likeness = headOf(game.player._baseA || game.player.a); }
     const bills = (s) => { const P = posted.get(s.world.placeId); return P && P.day >= 0 ? P.list : []; };
     // the watch nail them up, every morning while you're wanted
     game.hooks.update.push((dt) => { pAcc -= dt; if (pAcc > 0) return; pAcc = 2; const s = cur(); if (!s || !s.world) return; const w = lvl(), P = posted.get(s.world.placeId);
@@ -41052,6 +41053,15 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         const g = s.people.find((q) => q.job?.role?.startsWith('guard') && q.agent && !q.errand && !talking(q) && q.activity?.act !== 'sleep' && near(q.agent.x, q.agent.y, 600));
         if (g && near(sp.x, sp.y, 400) && !going.has(sp.k)) { going.add(sp.k); O.Errands.send(s, g, [Math.floor(sp.x / T), Math.floor(sp.gy / T)], { anim: 'hammer', secs: 2.2, face: 6, giveUp: game.t + 50, after: () => { going.delete(sp.k); bills(s).push(bill); nailed++; O.sfx && near(sp.x, sp.y, 300) && O.sfx('smack', 0.3); if (near(sp.x, sp.y, 300)) say(g, pick(['There. Let\'s see how far they get now.', 'Wanted, dead or... well, wanted.']), 2); } }); }
         else { bills(s).push(bill); nailed++; } } });
+    // a thief of the town with a price on his head gets a bill too, by the watch house, with his face on it
+    const rogueBills = new Map(); let rogueTaken = 0;
+    function rogues(s) { let R = rogueBills.get(s.world.placeId); if (R && R.day === s.day) return R.list; const sp = spots(s).find((x) => x.k[0] === 'b') || spots(s)[0]; if (!sp || !O.Bounties) return []; let offs = []; try { offs = O.Bounties.offers(s, 'watch').filter((o) => o.kind === 'thief'); } catch (e) { /* */ }
+      R = { day: s.day, list: offs.slice(0, 2).map((o, i) => { const q = s.byId.get(o.target); return q ? { o, q, x: sp.x + 16 * (i + 1) * (sp.k[0] === 'b' ? 1 : -1), y: sp.y, gy: sp.gy, face: headOf(q.app) } : null; }).filter(Boolean) }; rogueBills.set(s.world.placeId, R); return R.list; }
+    game.hooks.drawWorld.push((ctx, cam) => { const s = cur(); if (!s || game.scene) return; for (const b of rogues(s)) { if (!near(b.x, b.y, 460) || (O.occluded && O.occluded(b.x, b.gy))) continue; const x = Math.round(b.x - 7 - cam.x), y = Math.round(b.y - 9 - cam.y), gone = b.q.jailUntil || b.q.alive === false || b.taken;
+      ctx.fillStyle = '#c8b88a'; ctx.fillRect(x, y, 14, 18); ctx.fillStyle = '#e8dcb4'; ctx.fillRect(x + 1, y + 1, 12, 16); ctx.fillStyle = '#3a2a1a'; ctx.fillRect(x + 6, y - 1, 2, 2); if (b.face) ctx.drawImage(b.face, x + 2, y + 3, 10, 10); ctx.fillStyle = '#7a1a1a'; ctx.fillRect(x + 2, y + 14, 10, 2);
+      if (gone) { ctx.fillStyle = '#9a1a1a'; for (let k = 0; k < 12; k++) { ctx.fillRect(x + 1 + k, y + 3 + k, 1, 1); ctx.fillRect(x + 12 - k, y + 3 + k, 1, 1); } } } });
+    (O.moreCandidates = O.moreCandidates || []).push(() => { const s = cur(), P = game.player; if (!s || game.scene || P.locked) return null; const b = rogues(s).find((b) => near(b.x, b.gy, 22) && !b.taken && !b.q.jailUntil && b.q.alive !== false); if (!b) return null;
+      return { type: 'custom', d: 2, x: b.x, y: b.y - 22, label: `Take down ${b.q.first}'s bill and claim the bounty (₳${b.o.reward})`, act: () => { if (PS.contract) { ui('You already have a contract. See it through or give it up first.', 'info'); return; } P.anim = 'take'; setTimeout(() => { P.anim = 'idle'; }, 700); b.taken = true; rogueTaken++; O.Bounties.take(s, b.o); } }; });
     // folk read them, and look about
     game.hooks.update.push((dt) => { rAcc -= dt; if (rAcc > 0) return; rAcc = 6 + Math.random() * 6; const s = cur(); if (!s || game.scene) return; const L = bills(s); if (!L.length) return;
       for (const b of L) { if (!near(b.x, b.y, 320)) continue; const q = s.people.find((z) => z.age >= 12 && z.agent && !z.agent.hidden && z.agent.inside == null && !z.errand && !z.agent.frozen && !talking(z) && !z.gang && !z._coup && !/guard/.test(z.job?.role || '') && Math.hypot(z.agent.x - b.x, z.agent.y - b.gy) < 70 && z._bill !== s.day); if (!q) continue; q._bill = s.day;
@@ -41062,7 +41072,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       const g = s.people.filter((z) => z.job?.role?.startsWith('guard') && z.agent && !z.agent.hidden && z.activity?.act !== 'sleep').sort((a, c) => Math.hypot(a.agent.x - q.agent.x, a.agent.y - q.agent.y) - Math.hypot(c.agent.x - q.agent.x, c.agent.y - q.agent.y))[0];
       if (!g) return; O.Errands.send(s, q, [Math.floor(g.agent.x / T), Math.floor(g.agent.y / T)], { anim: 'point', secs: 1.2, sprint: true, giveUp: game.t + 30, after: (ok) => { if (!ok) return; say(g, 'Where? Show me.', 1.6); if (O.Law && !O.Law.chasing() && lvl() >= 1 && Math.hypot(g.agent.x - game.player.x, g.agent.y - game.player.y) < 400) O.Law.startChase(g); } }); }
     // the bills themselves
-    game.hooks.drawGround.push((ctx, cam) => { const s = cur(); if (!s || game.scene) return; for (const b of bills(s)) { if (!near(b.x, b.y, 460)) continue; const x = Math.round(b.x - 7 - cam.x), y = Math.round(b.y - 9 - cam.y);
+    game.hooks.drawWorld.push((ctx, cam) => { const s = cur(); if (!s || game.scene) return; for (const b of bills(s)) { if (!near(b.x, b.y, 460) || (O.occluded && O.occluded(b.x, b.gy))) continue; const x = Math.round(b.x - 7 - cam.x), y = Math.round(b.y - 9 - cam.y);
       ctx.fillStyle = '#c8b88a'; ctx.fillRect(x, y, 14, 18); ctx.fillStyle = '#e8dcb4'; ctx.fillRect(x + 1, y + 1, 12, 16); ctx.fillStyle = '#3a2a1a'; ctx.fillRect(x + 2, y + 2, 10, 1); ctx.fillRect(x + 6, y - 1, 2, 2);
       if (b.face && likeness) ctx.drawImage(likeness, x + 2, y + 3, 10, 10); else { ctx.fillStyle = '#8a7a5a'; ctx.fillRect(x + 5, y + 4, 4, 4); ctx.fillRect(x + 4, y + 8, 6, 4); ctx.fillStyle = '#3a2a1a'; ctx.fillRect(x + 6, y + 5, 2, 1); }
       ctx.fillStyle = '#7a1a1a'; ctx.fillRect(x + 2, y + 14, 10, 2); } });
@@ -41075,7 +41085,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
         else ui('You rip the bill down and stuff it in your shirt. They\'ll only put up another in the morning.', 'info'); } }; });
     // what the readers carry away with them
     (O.extraLines = O.extraLines || []).push((s, q) => { if (!s || !bills(s).length || q._bill !== s.day) return ''; return `This morning you read a wanted bill: a reward of ${bills(s)[0].reward} aurin for the stranger${bills(s)[0].desc ? ', ' + bills(s)[0].desc : ''}.`; });
-    O.WantedBills = { bills, spots, looksLike, spot, get nailed() { return nailed; }, get read() { return readN; }, get spotted() { return spotted; }, get torn() { return torn; }, get likeness() { return likeness; } };
+    O.WantedBills = { bills, spots, looksLike, spot, rogues, get rogueTaken() { return rogueTaken; }, get nailed() { return nailed; }, get read() { return readN; }, get spotted() { return spotted; }, get torn() { return torn; }, get likeness() { return likeness; } };
   }
   O.WantedBillsSetup = { setup };
 })();
@@ -42534,7 +42544,7 @@ say: 1 or 2 short sentences, at most 25 words, fully in character for age, tempe
       }
       return out.filter((o) => !(PS.contract && PS.contract.kind === o.kind && PS.contract.target === o.target));
     }
-    O.openBoard = (where) => board(where);
+    O.openBoard = (where) => board(where); O.Bounties = { offers: (s, w) => offers(s, w), take: (s, o) => take(s, o) };
     function board(where) {
       const s = cur(), list = offers(s, where), C = PS.contract;
       const mine = C ? `<p class="caption">Your contract: ${esc(C.text)} (₳${C.reward}).</p><div class="topics"><button data-drop="1">Give it up</button></div>` : '';

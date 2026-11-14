@@ -20,4 +20,6 @@ console.log('tear:', await p.evaluate(() => { const s = O.SimRef.cur, P = O.game
 console.log('cleared:', await p.evaluate(() => { O.PlayerState.bounty = false; return O.PlayerState.wantedLevel(); }));
 await p.waitForTimeout(3000);
 console.log('after:', await p.evaluate(() => O.WantedBills.bills(O.SimRef.cur).length));
+console.log('rogue bills:', await p.evaluate(() => { const s = O.SimRef.cur, P = O.game.player; const L = O.WantedBills.rogues(s); if (!L.length) return 'none (' + O.Bounties.offers(s, 'watch').map((o) => o.kind).join(',') + ')'; const b = L[0]; P.locked = false; P.x = b.x; P.y = b.gy + 4; const c = O.moreCandidates.map((f) => f()).find((x) => x && /claim the bounty/.test(x.label)); if (!c) return L.length + ' no prompt'; O.PlayerState.contract = null; c.act(); return L.length + ' | ' + c.label + ' | contract ' + (O.PlayerState.contract && O.PlayerState.contract.kind) + ' face ' + !!b.face; }));
+await p.screenshot({ path: (process.env.SD || '.') + '/roguebills.png' });
 await done();

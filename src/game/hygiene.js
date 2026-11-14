@@ -43,7 +43,7 @@
       const tub = sc.L && sc.L.items.find((i) => i.kind === 'washtub' && (() => { const [x, y] = sc.anchor(i); return Math.hypot(x - P.x, y + 14 - P.y) < 50; })());
       if (tub) { const [x, y] = sc.anchor(tub); return { type: 'custom', d: -3, x, y: y - 26, label: 'Wash at the tub', act: () => wash('scrub', 3, 0.05, 'You scrub yourself down at the tub till the water runs grey.') }; }
       const b = sc.b.parent || sc.b, mine = b.owner?.kind === 'player' || (PS.residence && PS.residence.b === b.id) || (PS.lease && PS.lease.b === b.id) || (PS.room && PS.room.b === b.id);
-      if (mine) return { type: 'custom', d: 30, x: P.x, y: P.y - 40, label: 'Wash with warm water', act: () => wash('scrub', 3, 0, 'You heat a pot of water at the fire and wash properly, neck and ears and all.') };
+      if (mine) { const sim = cur(), dry = O.Water && sim && b.owner?.kind === 'player' || (O.Water && sim && PS.lease && PS.lease.b === b.id) ? O.Water.butt(sim, b) < 1 : false; if (dry) return { type: 'custom', d: 30, x: P.x, y: P.y - 40, label: 'The water butt is dry: fetch water from the well', act: () => say('Your water butt is empty. Draw a bucket at the well and carry it home first.') }; return { type: 'custom', d: 30, x: P.x, y: P.y - 40, label: 'Wash with warm water', act: () => { if (O.Water && sim && (b.owner?.kind === 'player' || (PS.lease && PS.lease.b === b.id))) O.Water.use(sim, b); wash('scrub', 3, 0, 'You heat a pot of water from the butt at the fire and wash properly, neck and ears and all.'); } }; }
       return null;
     });
     // a hot bath at the inn, and a palm read by the wise

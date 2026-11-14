@@ -86,6 +86,7 @@
       // each to their part
       const near = [O.Law.lead(), ...sq.members.map((m) => m.q)].filter((q) => q && Math.hypot(q.agent.x - P.x, q.agent.y - P.y) < 90);
       sq.members.forEach((m, i) => {
+        if (!sq) return; // (an arrest a moment ago released the squad)
         const a = m.q.agent; if (a.hidden || m.q.alive === false) return;
         const d = Math.hypot(a.x - P.x, a.y - P.y);
         if (sq.mode === 'chase' && !game.scene && d < 12) { const ld = O.Law.lead(); release(false); if (ld) ld.agent.chasing = true; O.Law.arrestBy(m.q); return; }
